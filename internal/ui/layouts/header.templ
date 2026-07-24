@@ -1,0 +1,82 @@
+package layouts
+
+import (
+	"strconv"
+
+	"github.com/koopa0/goen/internal/ui/icons"
+)
+
+// Header renders the site header. The 1440 and 375 artboards are one element
+// here: the category row and language switch are hidden below the desktop
+// breakpoint, where a native <details> disclosure takes their place, and the
+// search field wraps onto its own row.
+templ Header(p Page) {
+	<header class="goen-header">
+		<div class="goen-header__bar">
+			<details class="goen-header__menu" data-menu>
+				<summary class="ui-btn ui-btn--ghost ui-btn--icon" aria-label="選單">
+					@icons.Menu()
+				</summary>
+				<nav class="goen-header__drawer" aria-label="商品分類">
+					for _, n := range TopNav {
+						<a
+							class={ "ui-navitem", templ.KV("is-active", p.current(n)) }
+							aria-current={ p.ariaCurrent(n) }
+							href={ templ.URL(n.Href) }
+						>{ n.Name }</a>
+					}
+					<a class="ui-navitem goen-header__navitem--deal" href="/deals">限時優惠</a>
+					@languageSwitch("goen-header__lang", "繁中", "EN")
+				</nav>
+			</details>
+			<a class="goen-header__brand" href="/">
+				@icons.Mark("goen-header__mark")
+				<span class="goen-header__wordmark">goen</span>
+			</a>
+			<nav class="goen-header__nav" aria-label="商品分類">
+				for _, n := range TopNav {
+					<a
+						class={ "ui-navitem", templ.KV("is-active", p.current(n)) }
+						aria-current={ p.ariaCurrent(n) }
+						href={ templ.URL(n.Href) }
+					>{ n.Name }</a>
+				}
+				<a class="ui-navitem goen-header__navitem--deal" href="/deals">限時優惠</a>
+			</nav>
+			<form class="goen-header__search ui-input-group" role="search" action="/search" method="get">
+				<span class="ui-input-group__icon">
+					@icons.Search()
+				</span>
+				<label class="goen-sr-only" for="site-search">搜尋</label>
+				<input class="ui-input" id="site-search" type="search" name="q" placeholder="搜尋商品、品牌或規格…"/>
+			</form>
+			@languageSwitch("goen-header__lang", "繁中", "EN")
+			<div class="goen-header__actions">
+				<a class="ui-btn ui-btn--ghost ui-btn--icon" href="/account" aria-label="會員中心">
+					@icons.User()
+				</a>
+				<a class="ui-btn ui-btn--ghost ui-btn--icon goen-header__action--wide" href="/account/wishlist" aria-label="願望清單">
+					@icons.Heart()
+				</a>
+				<a class="ui-btn ui-btn--ghost ui-btn--icon goen-header__cart" href="/cart" aria-label={ cartLabel(p.CartCount) }>
+					@icons.Cart()
+					<span class="ui-badge ui-badge--count" aria-hidden="true">{ strconv.Itoa(p.CartCount) }</span>
+				</a>
+			</div>
+		</div>
+	</header>
+}
+
+// languageSwitch renders the locale control. The caller supplies the class
+// that governs where it appears, because the header's copy is desktop-bar
+// chrome while the footer's is present at every width.
+//
+// goen ships Traditional Chinese only, so the English option is marked
+// disabled rather than pretending to be a working control; wiring it is the
+// i18n batch's job.
+templ languageSwitch(class, zh, en string) {
+	<div class={ "ui-segmented", class } role="group" aria-label="語言">
+		<button class="ui-segmented__item is-active" type="button" aria-pressed="true">{ zh }</button>
+		<button class="ui-segmented__item" type="button" aria-disabled="true" title="English 版本準備中">{ en }</button>
+	</div>
+}

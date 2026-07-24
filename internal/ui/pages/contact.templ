@@ -1,0 +1,202 @@
+package pages
+
+import (
+	"github.com/koopa0/goen/internal/ui/icons"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// Contact renders 聯絡我們.
+templ Contact(p layouts.Page, f ContactForm) {
+	@layouts.Base(p) {
+		<div class="contact">
+			<div>
+				<h1 class="h2 contact__title">聯絡我們</h1>
+				<p class="ui-sm contact__hours">客服時間 週一至週五 09:00–18:00 · 平均 10 分鐘回覆。訂單問題請附上訂單編號。</p>
+			</div>
+			<div class="contact__methods">
+				@contactMethod("mailto:support@goen.tw", "Email", "support@goen.tw") {
+					@icons.Mail()
+				}
+				@contactMethod("tel:+886227001234", "電話", "02-2700-1234") {
+					@icons.Phone()
+				}
+				@contactMethod("https://line.me/R/ti/p/@goen", "LINE 官方帳號", "@goen") {
+					@icons.Chat()
+				}
+			</div>
+			<div class="contact__layout">
+				@ContactPanel(f)
+				<aside class="contact__aside">
+					<a
+						class="contact__map"
+						href="https://www.google.com/maps/search/?api=1&query=%E5%8F%B0%E5%8C%97%E5%B8%82%E4%BF%A1%E7%BE%A9%E5%8D%80%E6%9D%BE%E9%AB%98%E8%B7%AF68%E8%99%9F"
+						rel="noreferrer"
+					>在 Google 地圖查看</a>
+					<p class="caption contact__address">
+						goen Co., Ltd.
+						<br/>
+						台北市信義區松高路 68 號 12F
+						<br/>
+						捷運市政府站 2 號出口步行 5 分鐘
+					</p>
+				</aside>
+			</div>
+		</div>
+	}
+}
+
+// contactMethod is one of the three ways to reach support. Each is a real
+// link, so the same markup is a card on the desktop grid and a 44px tap
+// target on a phone.
+templ contactMethod(href, label, value string) {
+	<a class="contact-method" href={ templ.URL(href) }>
+		<span class="contact-method__icon">
+			{ children... }
+		</span>
+		<span class="contact-method__text">
+			<span class="ui-sm contact-method__label">{ label }</span>
+			<span class="caption contact-method__value">{ value }</span>
+		</span>
+	</a>
+}
+
+// ContactPanel is the write face of this page. It is a plain form posting to
+// /contact: with scripting off the browser submits it and the handler answers
+// with a redirect on success or a re-rendered page carrying the errors. The
+// hx-* attributes only let htmx swap this element in place instead.
+templ ContactPanel(f ContactForm) {
+	if f.Done {
+		<div class="ui-alert ui-alert--success contact__panel" role="status" id="contact-form">
+			@icons.CheckCircle()
+			<div class="ui-alert__body">
+				<strong>訊息已送出</strong>
+				我們會在一個工作天內回覆到你留的信箱。訂單相關問題會優先處理。
+			</div>
+		</div>
+	} else {
+		<form
+			class="contact__panel"
+			id="contact-form"
+			method="post"
+			action="/contact"
+			hx-post="/contact"
+			hx-target="this"
+			hx-swap="outerHTML"
+		>
+			<h2 class="h4">留言給我們</h2>
+			if f.err("") != "" {
+				<div class="ui-alert ui-alert--error" role="alert">
+					@icons.AlertCircle()
+					<div class="ui-alert__body">{ f.err("") }</div>
+				</div>
+			} else if f.hasFieldErrors() {
+				<div class="ui-alert ui-alert--error" role="alert">
+					@icons.AlertCircle()
+					<div class="ui-alert__body">表單還有欄位需要修正,請檢查下方標示的項目。</div>
+				</div>
+			}
+			<div class="contact__fields">
+				<label class="ui-field" for="contact-name">
+					<span class="ui-label">姓名<span class="ui-req">*</span></span>
+					<input
+						class="ui-input ui-input--lg"
+						id="contact-name"
+						type="text"
+						name="name"
+						value={ f.Name }
+						placeholder="王小明"
+						required
+						maxlength="80"
+						autocomplete="name"
+						aria-invalid={ f.invalid("name") }
+						if f.describedBy("name") != "" {
+							aria-describedby={ f.describedBy("name") }
+						}
+					/>
+					if f.err("name") != "" {
+						<span class="ui-error-text" id={ errorID("name") }>{ f.err("name") }</span>
+					}
+				</label>
+				<label class="ui-field" for="contact-email">
+					<span class="ui-label">Email<span class="ui-req">*</span></span>
+					<input
+						class="ui-input ui-input--lg"
+						id="contact-email"
+						type="email"
+						name="email"
+						value={ f.Email }
+						placeholder="you@example.com"
+						required
+						maxlength="254"
+						autocomplete="email"
+						aria-invalid={ f.invalid("email") }
+						if f.describedBy("email") != "" {
+							aria-describedby={ f.describedBy("email") }
+						}
+					/>
+					if f.err("email") != "" {
+						<span class="ui-error-text" id={ errorID("email") }>{ f.err("email") }</span>
+					}
+				</label>
+				<label class="ui-field" for="contact-subject">
+					<span class="ui-label">主題</span>
+					<select
+						class="ui-select"
+						id="contact-subject"
+						name="subject"
+						aria-invalid={ f.invalid("subject") }
+						if f.describedBy("subject") != "" {
+							aria-describedby={ f.describedBy("subject") }
+						}
+					>
+						for _, s := range f.Subjects {
+							<option value={ s } selected?={ s == f.Subject }>{ s }</option>
+						}
+					</select>
+					if f.err("subject") != "" {
+						<span class="ui-error-text" id={ errorID("subject") }>{ f.err("subject") }</span>
+					}
+				</label>
+				<label class="ui-field" for="contact-order">
+					<span class="ui-label">訂單編號(選填)</span>
+					<input
+						class="ui-input ui-input--lg ui-input--mono"
+						id="contact-order"
+						type="text"
+						name="order_ref"
+						value={ f.OrderRef }
+						placeholder="#GO-"
+						maxlength="32"
+						aria-invalid={ f.invalid("order_ref") }
+						if f.describedBy("order_ref") != "" {
+							aria-describedby={ f.describedBy("order_ref") }
+						}
+					/>
+					if f.err("order_ref") != "" {
+						<span class="ui-error-text" id={ errorID("order_ref") }>{ f.err("order_ref") }</span>
+					}
+				</label>
+				<label class="ui-field contact__field--wide" for="contact-message">
+					<span class="ui-label">訊息內容<span class="ui-req">*</span></span>
+					<textarea
+						class="ui-textarea"
+						id="contact-message"
+						name="message"
+						placeholder="請描述你遇到的狀況…"
+						required
+						minlength="5"
+						maxlength="2000"
+						aria-invalid={ f.invalid("message") }
+						if f.describedBy("message") != "" {
+							aria-describedby={ f.describedBy("message") }
+						}
+					>{ f.Message }</textarea>
+					if f.err("message") != "" {
+						<span class="ui-error-text" id={ errorID("message") }>{ f.err("message") }</span>
+					}
+				</label>
+			</div>
+			<button class="ui-btn ui-btn--primary ui-btn--lg contact__submit" type="submit">送出訊息</button>
+		</form>
+	}
+}

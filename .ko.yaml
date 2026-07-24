@@ -1,0 +1,33 @@
+# ko builds goen's container image from the Go module directly: no Dockerfile,
+# no build context upload, no base image to patch. It works here because goen is
+# one static binary that carries its own assets through go:embed — there is
+# nothing else to put in the image.
+#
+#   make image        build into the local Docker daemon
+#   make image-push   build and push to $KO_DOCKER_REPO
+#
+# ko also emits an SBOM alongside the image and produces byte-identical output
+# for identical input, which is most of a supply-chain story for free.
+
+# Pinned by digest, not by tag. The comment above claims the build is
+# reproducible, and `:latest` would make that false the moment Chainguard
+# rebuilds — same source, different image. Dependabot does not watch this file;
+# refresh it deliberately with:
+#   docker pull cgr.dev/chainguard/static:latest && \
+#   docker image inspect cgr.dev/chainguard/static:latest --format '{{index .RepoDigests 0}}'
+defaultBaseImage: cgr.dev/chainguard/static@sha256:60582b2ae6074f641094af0f370d4ab241aab271858a66223dcde7eee9f51638
+
+builds:
+  - id: goen
+    main: ./cmd/goen
+    env:
+      # A static binary on a distroless base: nothing in goen needs libc, and
+      # linking against one would put a patchable surface in the image.
+      - CGO_ENABLED=0
+    flags:
+      # Keep build paths out of the binary so two machines produce the same
+      # bytes.
+      - -trimpath
+    ldflags:
+      - -s
+      - -w

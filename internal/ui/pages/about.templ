@@ -1,0 +1,49 @@
+package pages
+
+import (
+	"github.com/koopa0/goen/internal/ui/icons"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// AboutMeta is the chrome view model for the about page.
+var AboutMeta = layouts.Page{
+	Title:       "關於我們",
+	Description: "goen 是規格看得懂、保固靠得住的 3C 選品店。每件商品都先過我們自己的比較表。",
+}
+
+// About renders 關於我們.
+templ About(p layouts.Page) {
+	@layouts.Base(p) {
+		<article class="about">
+			@icons.Mark("about__mark")
+			<h1 class="h1 about__title">讓買家與對的好商品相遇</h1>
+			<p class="body about__lede">
+				goen 的名字有三層:Go 是我們寫後端的語言;ご縁(go-en)是日文裡人與物之間的緣分;五円(同音)是日本神社裡討吉利的那枚硬幣。三件事說的是同一件事 — 買 3C 不該是運氣,而是被好好安排的相遇。
+			</p>
+			<p class="body about__lede">
+				我們不做「什麼都賣」。每一件上架商品都經過規格比對與實測,規格表寫到你看得懂為止;價格含稅、保固寫清楚、退換貨不藏條款。比到眼花的事我們先做完,你只要選。
+			</p>
+			<hr class="ui-separator"/>
+			<div class="about__values">
+				<section class="about__value">
+					<h2 class="h4">規格透明</h2>
+					<p class="caption">每件商品都有完整 spec table,同系列可逐欄比較。</p>
+				</section>
+				<section class="about__value">
+					<h2 class="h4">保固靠得住</h2>
+					<p class="caption">原廠保固線上登錄,維修免費到府收送。</p>
+				</section>
+				<section class="about__value">
+					<h2 class="h4">精選不灌水</h2>
+					<p class="caption">上架前先過我們自己的比較表,賣不過同價位的不上。</p>
+				</section>
+			</div>
+			<hr class="ui-separator"/>
+			<p class="caption about__legal">
+				goen Co., Ltd. · 統編 90123456
+				<br/>
+				台北市信義區松高路 68 號 12F · est. 2026
+			</p>
+		</article>
+	}
+}

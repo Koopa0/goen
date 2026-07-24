@@ -1,0 +1,697 @@
+/* ============================================================
+   goen — application layer.
+
+   The design system under ../ds owns tokens and components. This
+   file owns only what a design system cannot: page composition and
+   the responsive behaviour that turns the 1440 and 375 artboards
+   into one document. Load it last.
+
+   Breakpoints follow the design system's --bp-* tokens, written as
+   literals because custom properties are not valid in @media.
+     md = 768px   layout goes multi-column
+     lg = 1024px  the full desktop header fits on one row
+   ============================================================ */
+
+/* The artboards set --font-sans / --font-display to put Noto Sans TC
+   behind the Latin faces so Han glyphs match the Latin weight. */
+:root {
+  --font-sans: 'Inter', 'Noto Sans TC', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: 'Space Grotesk', 'Noto Sans TC', ui-sans-serif, system-ui, sans-serif;
+}
+
+a {
+  color: var(--accent-strong);
+}
+
+a:hover {
+  color: var(--accent);
+}
+
+/* The design system silences its own spinners under reduced motion; the
+   component transitions it ships are the application layer's to calm. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- Shell ---------- */
+
+.goen-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.goen-shell > main {
+  flex: 1;
+}
+
+.goen-skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: var(--z-toast);
+  padding: 10px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+}
+
+.goen-skip:focus {
+  left: 8px;
+  top: 8px;
+}
+
+/* Reachable by assistive technology, absent from the visual layout. */
+.goen-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- Header ---------- */
+
+.goen-header {
+  position: relative;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.goen-header__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.goen-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-right: auto;
+  text-decoration: none;
+  color: var(--fg);
+}
+
+.goen-header__brand:hover {
+  color: var(--fg);
+}
+
+.goen-header__wordmark {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.01em;
+  color: var(--fg);
+}
+
+.goen-header__mark {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+
+/* The search field wraps onto its own row until the desktop bar. */
+.goen-header__search {
+  order: 10;
+  flex: 0 0 100%;
+}
+
+.goen-header__search .ui-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.goen-header__nav,
+.goen-header__lang,
+.goen-header__action--wide {
+  display: none;
+}
+
+.goen-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.goen-header__cart {
+  position: relative;
+}
+
+.goen-header__cart .ui-badge--count {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+}
+
+/* Mobile disclosure menu: a native <details>, no script involved. */
+.goen-header__menu > summary {
+  list-style: none;
+}
+
+.goen-header__menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.goen-header__drawer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: var(--z-dropdown);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-2);
+}
+
+/* The language control is desktop-bar chrome, except inside the drawer where
+   it is the only place a small screen can reach it. */
+.goen-header__drawer .goen-header__lang {
+  display: inline-flex;
+  margin-top: 8px;
+  align-self: flex-start;
+}
+
+.goen-header__navitem--deal {
+  color: var(--accent);
+}
+
+@media (min-width: 1024px) {
+  .goen-header__bar {
+    flex-wrap: nowrap;
+    gap: 28px;
+    height: 64px;
+    max-width: var(--container);
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+
+  .goen-header__menu {
+    display: none;
+  }
+
+  .goen-header__brand {
+    margin-right: 0;
+    gap: 9px;
+  }
+
+  .goen-header__mark {
+    width: 28px;
+    height: 28px;
+  }
+
+  .goen-header__wordmark {
+    font-size: 21px;
+  }
+
+  .goen-header__nav {
+    display: flex;
+    gap: 4px;
+  }
+
+  .goen-header__search {
+    order: 0;
+    flex: 1 1 auto;
+    max-width: 340px;
+    margin-left: auto;
+  }
+
+  .goen-header__lang,
+  .goen-header__action--wide {
+    display: inline-flex;
+  }
+
+  .goen-header__cart .ui-badge--count {
+    top: 2px;
+    right: 0;
+  }
+}
+
+/* ---------- Footer ---------- */
+
+.goen-footer {
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+}
+
+.goen-footer__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px 16px;
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+.goen-footer__brand,
+.goen-footer__news {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.goen-footer__brandline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.goen-footer__wordmark {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+}
+
+.goen-footer__mark {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+.goen-footer__tagline {
+  margin: 0;
+  max-width: 36ch;
+  color: var(--fg-subtle);
+  line-height: 1.7;
+}
+
+.goen-footer__contact,
+.goen-footer__newsnote {
+  margin: 0;
+}
+
+.goen-footer__signup-done {
+  margin: 0;
+  color: var(--success);
+}
+
+.goen-footer__signup-error {
+  flex: 0 0 100%;
+  margin: 0;
+}
+
+.goen-footer__links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.goen-footer__links a {
+  color: var(--fg-muted);
+  text-decoration: none;
+  padding: 4px 0;
+}
+
+.goen-footer__links a:hover {
+  color: var(--fg);
+}
+
+.goen-footer__signup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.goen-footer__signup .ui-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.goen-footer__social {
+  display: flex;
+  gap: 6px;
+}
+
+.goen-footer__bottom {
+  border-top: 1px solid var(--border-faint);
+}
+
+.goen-footer__bottominner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* The footer's locale control is present at every width — unlike the header's,
+   which the drawer takes over below the desktop bar. */
+.goen-footer__lang {
+  display: inline-flex;
+}
+
+@media (min-width: 768px) {
+  .goen-footer__grid {
+    grid-template-columns: 2fr 1fr 1fr 1.6fr;
+    gap: 40px;
+    padding: 48px 32px 24px;
+  }
+
+  .goen-footer__brand,
+  .goen-footer__news {
+    grid-column: auto;
+    gap: 14px;
+  }
+
+  .goen-footer__wordmark {
+    font-size: 18px;
+  }
+
+  .goen-footer__links {
+    gap: 10px;
+  }
+
+  .goen-footer__bottominner {
+    padding: 16px 32px;
+  }
+}
+
+/* ---------- About ---------- */
+
+.about {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: var(--measure-article);
+  margin: 0 auto;
+  padding: 28px 20px 40px;
+}
+
+.about__mark {
+  width: 44px;
+  height: 44px;
+}
+
+.about__title {
+  margin: 0;
+  font-size: var(--fs-ed-24);
+}
+
+.about__lede {
+  margin: 0;
+  font-size: var(--fs-14);
+  color: var(--fg-muted);
+  line-height: 1.9;
+}
+
+.about__values {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.about__value h2 {
+  margin: 0 0 4px;
+  font-size: var(--fs-ed-17);
+}
+
+.about__value p {
+  margin: 0;
+  line-height: 1.8;
+}
+
+.about__legal {
+  margin: 0;
+  font-family: var(--font-mono);
+  line-height: 2;
+}
+
+@media (min-width: 768px) {
+  .about {
+    gap: 24px;
+    padding: 56px 32px 80px;
+  }
+
+  .about__mark {
+    width: 56px;
+    height: 56px;
+  }
+
+  .about__title {
+    font-size: var(--fs-ed-38);
+  }
+
+  .about__lede {
+    font-size: var(--fs-16);
+  }
+
+  .about__values {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+
+  .about__value h2 {
+    margin-bottom: 6px;
+  }
+}
+
+/* ---------- Contact ---------- */
+
+.contact {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 20px 16px 32px;
+}
+
+.contact__title {
+  margin: 0 0 8px;
+  font-size: var(--fs-ed-24);
+}
+
+.contact__hours {
+  margin: 0;
+  color: var(--fg-subtle);
+}
+
+.contact__methods {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.contact-method {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  text-decoration: none;
+}
+
+.contact-method:hover {
+  border-color: var(--border-strong);
+}
+
+.contact-method__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-md);
+  background: var(--accent-faint);
+  color: var(--accent);
+}
+
+.contact-method__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.contact-method__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.contact-method__label {
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+}
+
+.contact-method__value {
+  font-family: var(--font-mono);
+  color: var(--fg-subtle);
+}
+
+.contact__layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.contact__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 16px;
+}
+
+.contact__panel > h2 {
+  margin: 0;
+  font-size: var(--fs-ed-17);
+}
+
+.contact__fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.contact__field--wide {
+  grid-column: 1 / -1;
+}
+
+.contact__panel .ui-input,
+.contact__panel .ui-select,
+.contact__panel .ui-textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+}
+
+.contact__panel .ui-textarea {
+  min-height: 90px;
+}
+
+.contact__submit {
+  align-self: stretch;
+  min-height: 48px;
+}
+
+.contact__aside {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.contact__map {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 4 / 3;
+  background: var(--elevated);
+  border: 1px solid var(--border-faint);
+  border-radius: var(--r-md);
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  color: var(--fg-faint);
+  text-decoration: none;
+}
+
+.contact__address {
+  margin: 0;
+  line-height: 1.8;
+}
+
+@media (min-width: 768px) {
+  .contact {
+    gap: 28px;
+    padding: 48px 32px 80px;
+  }
+
+  .contact__title {
+    font-size: var(--fs-ed-30);
+  }
+
+  .contact__methods {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .contact-method {
+    align-items: flex-start;
+    padding: 18px;
+  }
+
+  .contact__panel {
+    gap: 16px;
+    padding: 24px;
+  }
+
+  .contact__fields {
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .contact__panel .ui-textarea {
+    min-height: 110px;
+  }
+
+  .contact__submit {
+    align-self: flex-start;
+  }
+}
+
+@media (min-width: 1024px) {
+  .contact__layout {
+    grid-template-columns: 1fr 320px;
+    gap: 40px;
+  }
+}
+
+/* ---------- Simple centred message page (404 / 500) ---------- */
+
+.notice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  max-width: var(--measure-article);
+  margin: 0 auto;
+  padding: 64px 20px 80px;
+}
+
+.notice__code {
+  font-family: var(--font-mono);
+  color: var(--fg-faint);
+  letter-spacing: var(--track-wide);
+}
+
+.notice__title {
+  margin: 0;
+}
+
+.notice__body {
+  margin: 0;
+  color: var(--fg-muted);
+  line-height: 1.9;
+}

@@ -1,0 +1,8 @@
+/* ============================================================
+   koopa.dev Design System — root stylesheet
+   Single entry point for consumers. Tokens live in
+   colors_and_type.css; import additional global layers here.
+   ============================================================ */
+@import "./colors_and_type.css";
+@import "./bridge.css";
+@import "./components/components.css";

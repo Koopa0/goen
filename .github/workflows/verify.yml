@@ -1,0 +1,102 @@
+name: verify
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Never let the toolchain silently upgrade itself: the version in go.mod is
+  # the version this project is verified against.
+  GOTOOLCHAIN: local
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+
+      - name: Confirm the exact Go version
+        run: |
+          set -euo pipefail
+          declared=$(awk '$1 == "go" { print $2; exit }' go.mod)
+          test "$(go env GOVERSION)" = "go$declared"
+
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+
+      - name: Install squawk
+        run: npm install -g squawk-cli@2.60.0
+
+      # Everything that needs neither Docker nor the network beyond the module
+      # cache. Runs first so an ordinary mistake is reported in a minute rather
+      # than after the container work.
+      - name: Verify
+        run: make verify
+
+  # Separate job: it needs Docker, and keeping it apart means a failure here
+  # reads as "the database contract broke" rather than as a slow lint run.
+  schema:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+
+      # The suite derives what it must cover from the system catalog, so this
+      # job also fails when a constraint is added without a case for it.
+      - name: Schema conformance
+        run: make test-integration
+
+      # A down migration that does not undo the up migration is only ever
+      # discovered when someone needs it.
+      - name: Migration round trip
+        run: |
+          set -euo pipefail
+          make db-up
+          export GOEN_DATABASE_URL='postgres://goen:goen@127.0.0.1:5433/goen?sslmode=disable'
+          make migrate-up
+          go run -tags=postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.0 \
+            -path migrations -database "$GOEN_DATABASE_URL" down -all
+          make migrate-up
+
+  vulnerabilities:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+
+      - name: govulncheck
+        run: make vuln

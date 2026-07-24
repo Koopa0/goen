@@ -1,0 +1,19 @@
+package pages
+
+import "github.com/koopa0/goen/internal/ui/layouts"
+
+// Notice is a centred message page: not-found, an unexpected failure, or the
+// confirmation a write path shows when the browser posted without htmx.
+// Batch ⑧ replaces the 404/500 presentation with its own design.
+templ Notice(p layouts.Page, code, heading, body string) {
+	@layouts.Base(p) {
+		<div class="notice">
+			if code != "" {
+				<span class="notice__code">{ code }</span>
+			}
+			<h1 class="h2 notice__title">{ heading }</h1>
+			<p class="body notice__body">{ body }</p>
+			<a class="ui-btn ui-btn--secondary ui-btn--lg" href="/">回首頁</a>
+		</div>
+	}
+}

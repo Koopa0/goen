@@ -1,0 +1,35 @@
+/* ============================================================
+   Product themes — accent swap only (shared house look).
+   Apply a class on <html>:  <html class="theme-emerald" data-theme="dark">
+   A theme sets only the hue (+ optional chroma); light/dark lightness
+   comes from the core. One line per product.
+
+   The neutral core already ships koopa's cyan-teal as the DEFAULT accent,
+   so koopa.dev needs no theme class at all. The classes below are for the
+   OTHER products that share this system.
+   ============================================================ */
+
+/* Recompute the hue-dependent accent tokens on any theme element so a hue
+   override takes effect on descendants. --on-accent is intentionally NOT set
+   here — it depends on light/dark mode, not hue, and is owned by the core. */
+[class*="theme-"] {
+  --accent:        oklch(var(--accent-l) var(--accent-c) var(--accent-h));
+  --accent-strong: oklch(calc(var(--accent-l) - 0.08) calc(var(--accent-c) + 0.02) var(--accent-h));
+  --accent-muted:  oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.14);
+  --accent-faint:  oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.06);
+  --brand: var(--accent); --brand-strong: var(--accent-strong);
+  --brand-muted: var(--accent-muted); --brand-faint: var(--accent-faint);
+}
+
+/* koopa.dev — cyan-teal from the turtle logo (= the core default) */
+.theme-koopa   { --accent-h: 220; --accent-c: 0.09; }
+
+/* Ready-made house accents for the other products */
+.theme-blue    { --accent-h: 250; --accent-c: 0.13; }
+.theme-violet  { --accent-h: 300; --accent-c: 0.14; }
+.theme-emerald { --accent-h: 158; --accent-c: 0.12; }
+.theme-amber   { --accent-h:  70; --accent-c: 0.12; }
+.theme-rose    { --accent-h:  18; --accent-c: 0.14; }
+.theme-slate   { --accent-h: 250; --accent-c: 0.03; }  /* near-monochrome */
+
+/* To add a product: copy a line, pick a hue (0–360), tune chroma 0.03–0.16. */

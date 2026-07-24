@@ -1,0 +1,90 @@
+/* ============================================================
+   koopa.dev — Navigation
+   tabs · segmented · breadcrumbs · pagination · dropdown menu · tooltip
+   ============================================================ */
+
+/* ---- Tabs (underline) ---- */
+.ui-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); }
+.ui-tab {
+  background: transparent; border: none; font: inherit; cursor: pointer;
+  font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg-subtle);
+  padding: 10px 14px; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  transition: color var(--dur-base);
+}
+.ui-tab:hover { color: var(--fg-muted); }
+.ui-tab[aria-selected="true"], .ui-tab.is-active { color: var(--fg); border-bottom-color: var(--brand); }
+
+/* ---- Segmented control (enclosed) ---- */
+.ui-segmented { display: inline-flex; padding: 2px; background: var(--elevated); border: 1px solid var(--border); border-radius: var(--r-sm); gap: 2px; }
+.ui-segmented__item {
+  background: transparent; border: none; font: inherit; cursor: pointer;
+  font-family: var(--font-sans); font-size: var(--fs-12); font-weight: var(--fw-medium); color: var(--fg-subtle);
+  padding: 5px 12px; border-radius: var(--r-sm); transition: background var(--dur-base), color var(--dur-base);
+}
+.ui-segmented__item:hover { color: var(--fg-muted); }
+.ui-segmented__item[aria-selected="true"], .ui-segmented__item.is-active { background: var(--overlay); color: var(--fg); }
+
+/* ---- Breadcrumbs ---- */
+.ui-crumbs { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-subtle); flex-wrap: wrap; }
+.ui-crumbs a { color: var(--fg-subtle); text-decoration: none; }
+.ui-crumbs a:hover { color: var(--fg); }
+.ui-crumbs__sep { color: var(--fg-faint); }
+.ui-crumbs__current { color: var(--fg-muted); }
+
+/* ---- Pagination ---- */
+.ui-pagination { display: inline-flex; align-items: center; gap: 4px; }
+.ui-page {
+  min-width: 30px; height: 30px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-muted);
+  background: transparent; border: 1px solid transparent; border-radius: var(--r-sm); cursor: pointer;
+  transition: background var(--dur-base), border-color var(--dur-base), color var(--dur-base);
+}
+.ui-page:hover { background: var(--overlay); color: var(--fg); }
+.ui-page[aria-current="page"], .ui-page.is-active { background: var(--brand-muted); color: var(--brand); }
+.ui-page:disabled { opacity: 0.35; cursor: not-allowed; }
+.ui-page svg { width: 15px; height: 15px; }
+.ui-pagination__gap { color: var(--fg-faint); padding: 0 2px; }
+
+/* ---- Dropdown menu (pair with Alpine x-show / details) ---- */
+.ui-menu {
+  min-width: 180px; background: var(--elevated); border: 1px solid var(--border);
+  border-radius: var(--r-md); box-shadow: var(--shadow-1); padding: 4px;
+  display: flex; flex-direction: column; gap: 1px;
+}
+.ui-menu__item {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg-muted);
+  background: transparent; border: none; cursor: pointer; padding: 7px 10px; border-radius: var(--r-sm);
+  transition: background var(--dur-base), color var(--dur-base);
+}
+.ui-menu__item:hover { background: var(--overlay); color: var(--fg); }
+.ui-menu__item svg { width: 15px; height: 15px; color: var(--fg-subtle); }
+.ui-menu__item:hover svg { color: var(--fg-muted); }
+.ui-menu__item--danger { color: var(--error); }
+.ui-menu__item--danger:hover { background: var(--error-bg); color: var(--error); }
+.ui-menu__item .ui-kbd { margin-left: auto; }
+.ui-menu__sep { height: 1px; background: var(--border-faint); margin: 4px 0; }
+.ui-menu__label { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 10px 2px; }
+
+/* ---- Tooltip (CSS-only via data-tooltip, or Alpine) ---- */
+.ui-tooltip { position: relative; display: inline-flex; }
+.ui-tooltip__bubble {
+  position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  background: var(--overlay); color: var(--fg); border: 1px solid var(--border);
+  font-family: var(--font-sans); font-size: var(--fs-11); line-height: 1.3; white-space: nowrap;
+  padding: 5px 8px; border-radius: var(--r-sm); box-shadow: var(--shadow-1);
+  opacity: 0; pointer-events: none; transition: opacity var(--dur-base); z-index: 60;
+}
+.ui-tooltip:hover .ui-tooltip__bubble { opacity: 1; }
+
+/* ---- Sidebar nav item (admin shell) ---- */
+.ui-navitem {
+  display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: var(--r-sm);
+  font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg-muted);
+  text-decoration: none; cursor: pointer; transition: background var(--dur-base), color var(--dur-base);
+}
+.ui-navitem:hover { background: var(--overlay); color: var(--fg); }
+.ui-navitem[aria-current="page"], .ui-navitem.is-active { background: var(--brand-faint); color: var(--fg); }
+.ui-navitem svg { width: 17px; height: 17px; color: var(--fg-subtle); flex: none; }
+.ui-navitem.is-active svg { color: var(--brand); }
+.ui-navitem__count { margin-left: auto; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }

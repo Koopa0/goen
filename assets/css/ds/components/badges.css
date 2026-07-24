@@ -1,0 +1,76 @@
+/* ============================================================
+   koopa.dev — Badges, status badges, content-type dots, chips, tags
+   ============================================================ */
+
+/* ---- Generic badge ---- */
+.ui-badge {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  font-family: var(--font-sans); font-size: var(--fs-11); font-weight: var(--fw-medium);
+  line-height: 1; padding: 3px 8px; border-radius: var(--r-sm);
+  background: var(--elevated); color: var(--fg-muted); border: 1px solid var(--border-faint);
+}
+.ui-badge--brand   { background: var(--brand-muted);   color: var(--brand);   border-color: transparent; }
+.ui-badge--success { background: var(--success-bg);    color: var(--success); border-color: transparent; }
+.ui-badge--warn    { background: var(--warn-bg);       color: var(--warn);    border-color: transparent; }
+.ui-badge--error   { background: var(--error-bg);      color: var(--error);   border-color: transparent; }
+.ui-badge--info    { background: var(--info-bg);       color: var(--info);    border-color: transparent; }
+
+/* count pill (notifications) */
+.ui-badge--count {
+  min-width: 18px; height: 18px; padding: 0 5px; justify-content: center;
+  border-radius: var(--r-full); font-family: var(--font-mono); font-size: var(--fs-11);
+  background: var(--brand); color: var(--on-accent); border: none;
+}
+
+/* ---- Status badges (content / task / process enums) ---- */
+.ui-status {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: var(--fs-11); font-weight: var(--fw-medium);
+  line-height: 1; padding: 3px 8px 3px 7px; border-radius: var(--r-sm);
+  border: 1px solid transparent; text-transform: lowercase; letter-spacing: 0.01em;
+}
+.ui-status::before { content: ""; width: 6px; height: 6px; border-radius: var(--r-full); background: currentColor; flex: none; }
+
+.ui-status--draft     { color: var(--fg-subtle); background: var(--elevated);  border-color: var(--border-faint); }
+.ui-status--review    { color: var(--warn);      background: var(--warn-bg); }
+.ui-status--published { color: var(--success);   background: var(--success-bg); }
+.ui-status--archived  { color: var(--fg-faint);  background: var(--panel);     border-color: var(--border-faint); }
+.ui-status--failed,
+.ui-status--canceled  { color: var(--error);     background: var(--error-bg); }
+.ui-status--completed { color: var(--success);   background: var(--success-bg); }
+.ui-status--working,
+.ui-status--submitted { color: var(--info);      background: var(--info-bg); }
+.ui-status--revision_requested { color: var(--warn); background: var(--warn-bg); }
+
+/* ---- Content-type label (dot + name) ---- */
+.ui-type { display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-muted);
+  letter-spacing: 0.03em; }
+.ui-type::before { content: ""; width: 7px; height: 7px; border-radius: var(--r-full); background: var(--fg-subtle); flex: none; }
+/* content-type colour variants (article/essay/…) live in packs/koopa.css */
+
+/* ---- Chip (filterable) ---- */
+.ui-dot { display: inline-block; width: 7px; height: 7px; border-radius: var(--r-full); background: var(--brand); flex: none; }
+.ui-chip {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-subtle);
+  padding: 4px 10px; border-radius: var(--r-sm);
+  background: var(--elevated); border: 1px solid var(--border-faint); cursor: pointer;
+  transition: color var(--dur-base), border-color var(--dur-base), background var(--dur-base);
+}
+.ui-chip:hover { color: var(--fg-muted); border-color: var(--border); }
+.ui-chip[aria-pressed="true"],
+.ui-chip[data-active="true"] { background: var(--brand-muted); color: var(--brand); border-color: transparent; }
+.ui-chip__remove { display: inline-flex; opacity: 0.6; }
+.ui-chip__remove:hover { opacity: 1; }
+
+/* ---- Tag (inline #hashtag, non-interactive by default) ---- */
+.ui-tag { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-subtle); text-decoration: none; }
+a.ui-tag:hover { color: var(--brand); }
+
+/* ---- Kbd ---- */
+.ui-kbd {
+  font-family: var(--font-mono); font-size: var(--fs-11); line-height: 1;
+  padding: 2px 6px; border: 1px solid var(--border); border-bottom-width: 2px;
+  border-radius: var(--r-sm); background: var(--elevated); color: var(--fg-muted);
+}

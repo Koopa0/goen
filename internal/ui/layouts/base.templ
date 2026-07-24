@@ -1,0 +1,37 @@
+package layouts
+
+import "github.com/koopa0/goen/assets"
+
+// Base is goen's document shell. The theme-blue class on <html> selects the
+// accent hue; the design system's own tokens supply everything else.
+templ Base(p Page) {
+	<!DOCTYPE html>
+	<html lang="zh-Hant" class="theme-blue">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ p.title() }</title>
+			if p.Description != "" {
+				<meta name="description" content={ p.Description }/>
+			}
+			<link rel="icon" type="image/svg+xml" href={ templ.URL(assets.URL(assets.MarkSVG)) }/>
+			<link rel="preconnect" href="https://fonts.googleapis.com"/>
+			<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+			<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&amp;display=swap"/>
+			<link rel="stylesheet" href={ templ.URL(assets.URL(assets.DesignSystemCSS)) }/>
+			<link rel="stylesheet" href={ templ.URL(assets.URL(assets.AccentsCSS)) }/>
+			<link rel="stylesheet" href={ templ.URL(assets.URL(assets.CommerceCSS)) }/>
+			<link rel="stylesheet" href={ templ.URL(assets.URL(assets.AppCSS)) }/>
+			<script src={ templ.URL(assets.URL(assets.HTMXJS)) } defer></script>
+			<script src={ templ.URL(assets.URL(assets.AppJS)) } defer></script>
+		</head>
+		<body class="goen-shell">
+			<a class="goen-skip ui-sm" href="#main">跳至主要內容</a>
+			@Header(p)
+			<main id="main">
+				{ children... }
+			</main>
+			@Footer()
+		</body>
+	</html>
+}
