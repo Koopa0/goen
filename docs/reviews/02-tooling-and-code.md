@@ -19,9 +19,9 @@ PostgreSQL(pgx/v5 + sqlc)、Stripe。尚未上線,沒有正式資料。
 
 | 項目 | 位置 | 改動 |
 |---|---|---|
-| Linter 設定 | `.golangci.yml`(40 行 → 320 行) | 加 `run.build-tags: [integration]`;sqlc 排除規則收窄成三個真正產生的檔案;`hugeParam` 門檻 80 → 192 並寫明理由 |
+| Linter 設定 | `.golangci.yml`(40 行 → 329 行) | 加 `run.build-tags: [integration]`;sqlc 排除規則收窄成三個真正產生的檔案;`hugeParam` 門檻 80 → 192 並寫明理由 |
 | Go/web 規則 | `.claude/rules/`(22 選 15) | 原封。沒帶的 7 個是 Genkit / NATS / Ristretto / gRPC 材料 |
-| 寫入時守衛 | `.claude/hooks/`(19 選 6) | `check-generated-code.sh` 收窄(原本會擋掉 goen 自己手寫的測試),並加上 `*_templ.go` 與 vendored CSS |
+| 寫入時守衛 | `.claude/hooks/`(18 選 6) | `check-generated-code.sh` 收窄(原本會擋掉 goen 自己手寫的測試),並加上 `*_templ.go` 與 vendored CSS |
 | 權限設定 | `.claude/settings.json` | goen 的工具鏈;`.env` 與金鑰檔拒讀 |
 
 ### 依規則修正的程式碼
@@ -76,7 +76,7 @@ PostgreSQL(pgx/v5 + sqlc)、Stripe。尚未上線,沒有正式資料。
   特別是 `hugeParam` 從 80 拉到 192 —— 這是誠實的調整,還是為了讓它變綠?
 - `.claude/hooks/check-generated-code.sh` 我收窄了 sqlc 的封鎖範圍。收窄後有沒有
   漏掉真的該擋的路徑?
-- 沒帶進來的 7 個 rules 與 13 個 hooks,有沒有哪個其實適用而我判斷錯了?
+- 沒帶進來的 7 個 rules 與 12 個 hooks,有沒有哪個其實適用而我判斷錯了?
 
 ### 2. 那三個「會說謊的閘門」是否真的修好
 
@@ -146,10 +146,10 @@ handler 現在直接持有 `*Store`。請檢查:
 
 | | |
 |---|---|
-| golangci-lint | 320 行設定,`./...` 含 integration tag **0 findings** |
+| golangci-lint | 329 行設定,`./...` 含 integration tag **0 findings** |
 | squawk | 0 issues |
 | `make verify` | PASS,連跑三次都 exit 0 |
 | `make test-integration` | PASS,5 個套件 |
 | `make vuln` | No vulnerabilities found |
-| 資料表 / CHECK / 外鍵 / 唯一索引 / 規則 trigger | 52 / 130 / 58 / 43 / 17 |
+| 資料表 / CHECK / 外鍵 / 唯一索引 / 規則 trigger | 52 / 130 / 61 / 43 / 17 |
 | 整合測試子測試 | 378 |
