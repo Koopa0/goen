@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -61,7 +62,7 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	pool, err := openPool(ctx, cfg.DatabaseURL)
 	if err != nil {
 		// The URL carries the password; report the failure without it.
 		return fmt.Errorf("open database pool: %w", redactURL(err, cfg.DatabaseURL))
@@ -72,6 +73,20 @@ func run() error {
 	defer cancelPing()
 	if err := pool.Ping(pingCtx); err != nil {
 		return fmt.Errorf("reach database: %w", redactURL(err, cfg.DatabaseURL))
+	}
+
+	// The connection guard (openPool) already refuses a session that stays
+	// superuser after SET ROLE goen_app. A superuser LOGIN role is weaker but
+	// still unsafe — it can RESET ROLE back to full privilege — yet the dev
+	// Makefile connects as the owning superuser on purpose, so warn rather than
+	// refuse. Production points GOEN_DATABASE_URL at a non-superuser member of
+	// goen_app (goen_web) and this line stays quiet.
+	var loginIsSuper bool
+	if err := pool.QueryRow(ctx,
+		"SELECT rolsuper FROM pg_roles WHERE rolname = session_user",
+	).Scan(&loginIsSuper); err == nil && loginIsSuper {
+		log.Warn("connected as a superuser login role; the privilege model can be " +
+			"reset away with RESET ROLE — use a non-superuser member of goen_app in production")
 	}
 
 	srv := &http.Server{
@@ -109,6 +124,48 @@ func run() error {
 		return fmt.Errorf("shut down server: %w", err)
 	}
 	return nil
+}
+
+// openPool builds the connection pool goen serves from.
+//
+// Two things beyond a bare pgxpool.New. The timeouts come from the database
+// rules: a connection that cannot be reached should fail, not hang, and a
+// pooled connection is recycled rather than kept forever. And every connection
+// does SET ROLE goen_app on acquisition, which is what makes the privilege
+// model in the schema bite: the running binary operates as goen_app — barred
+// from writing stock, money or a ledger except through the SECURITY DEFINER
+// functions — no matter which login role the deployment connects with. The
+// migration tool connects separately, as the owner, and is unaffected.
+func openPool(ctx context.Context, url string) (*pgxpool.Pool, error) {
+	cfg, err := pgxpool.ParseConfig(url)
+	if err != nil {
+		return nil, fmt.Errorf("parse database url: %w", err)
+	}
+	cfg.ConnConfig.ConnectTimeout = 5 * time.Second
+	cfg.MaxConnIdleTime = 30 * time.Minute
+	cfg.MaxConnLifetime = time.Hour
+	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		if _, err := conn.Exec(ctx, "SET ROLE goen_app"); err != nil {
+			return fmt.Errorf("assume goen_app role: %w", err)
+		}
+		// The privilege model is only real if the running session cannot ignore
+		// it. A superuser bypasses every REVOKE, so if the session is still a
+		// superuser after SET ROLE goen_app — meaning goen_app itself was
+		// granted superuser — refuse to serve. This holds in development too,
+		// where the login role is the owning superuser but SET ROLE drops it.
+		var superAsApp bool
+		if err := conn.QueryRow(ctx,
+			"SELECT current_setting('is_superuser')::boolean",
+		).Scan(&superAsApp); err != nil {
+			return fmt.Errorf("check privilege boundary: %w", err)
+		}
+		if superAsApp {
+			return errors.New("refusing to serve: the session is a superuser " +
+				"after SET ROLE goen_app, so the schema's write REVOKEs do not bind it")
+		}
+		return nil
+	}
+	return pgxpool.NewWithConfig(ctx, cfg)
 }
 
 func envOr(key, fallback string) string {

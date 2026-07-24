@@ -156,6 +156,17 @@ type InvoiceDocument struct {
 	VoidedAt    pgtype.Timestamptz
 }
 
+type InvoiceDocumentLine struct {
+	ID             uuid.UUID
+	DocumentID     uuid.UUID
+	Description    string
+	Quantity       int32
+	UnitPriceCents int64
+	AmountCents    int64
+	TaxType        string
+	Position       int32
+}
+
 type InvoicePreference struct {
 	OrderID     uuid.UUID
 	InvoiceType string
@@ -180,7 +191,7 @@ type Order struct {
 	ShippingCents      int64
 	TaxCents           int64
 	DiscountCode       pgtype.Text
-	ShippingVersionID  uuid.NullUUID
+	ShippingVersionID  uuid.UUID
 	ShippingMethodCode string
 	ShippingMethodName string
 	CustomerNote       pgtype.Text
@@ -241,6 +252,7 @@ type OrderShipment struct {
 }
 
 type OrderShipmentLine struct {
+	OrderID     uuid.UUID
 	ShipmentID  uuid.UUID
 	OrderLineID uuid.UUID
 	Quantity    int32
@@ -413,6 +425,7 @@ type ReturnRequest struct {
 }
 
 type ReturnRequestLine struct {
+	OrderID         uuid.UUID
 	ReturnRequestID uuid.UUID
 	OrderLineID     uuid.UUID
 	Quantity        int32
@@ -479,13 +492,14 @@ type StockNotification struct {
 }
 
 type StoreCreditAccount struct {
-	UserID    uuid.UUID
+	ID        uuid.UUID
+	UserID    uuid.NullUUID
 	CreatedAt time.Time
 }
 
 type StoreCreditEntry struct {
 	ID             uuid.UUID
-	UserID         uuid.UUID
+	AccountID      uuid.UUID
 	AmountCents    int64
 	Reason         string
 	IdempotencyKey string

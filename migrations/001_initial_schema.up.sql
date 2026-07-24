@@ -93,6 +93,48 @@ SET statement_timeout = '120s';
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 -- ============================================================================
+-- Roles
+--
+-- The comments in this file claim that stock_quantity has one writer, that a
+-- ledger is append-only, that captured money is history. A trigger can refuse
+-- an UPDATE, but nothing stops a connection from running a plain
+-- `UPDATE product_variants SET stock_quantity = 999` — the trigger is on the
+-- movements table, not on the column. So those claims are enforced the only
+-- way they can be: the application connects as a role that cannot do it.
+--
+-- goen_app is what the running binary uses. It may read everything and write
+-- the ordinary tables, but the privileged paths — posting inventory, taking
+-- money, appending to a ledger or an audit log — are SECURITY DEFINER
+-- functions owned by the schema owner, and goen_app reaches them only by
+-- calling the function. Direct DML on those tables is revoked.
+--
+-- NOLOGIN: these are privilege sets, granted to whatever login role a
+-- deployment creates. `GRANT goen_app TO goen;` in a dev database.
+-- ============================================================================
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'goen_app') THEN
+        CREATE ROLE goen_app NOLOGIN;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'goen_readonly') THEN
+        CREATE ROLE goen_readonly NOLOGIN;
+    END IF;
+    -- The login role production connects with. NOSUPERUSER is the point: the
+    -- privilege model rests on the connection being unable to regain what
+    -- goen_app gives up, so `RESET ROLE` must not restore a superuser. It owns
+    -- nothing and is only a member of goen_app. The password is set by
+    -- operations, never in a migration. In development the Makefile may still
+    -- connect as the owning superuser for convenience; the binary's startup
+    -- guard refuses to serve if, after SET ROLE goen_app, the session is a
+    -- superuser.
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'goen_web') THEN
+        CREATE ROLE goen_web LOGIN NOSUPERUSER IN ROLE goen_app;
+    END IF;
+END
+$$;
+
+-- ============================================================================
 -- Shared machinery
 -- ============================================================================
 
@@ -110,8 +152,21 @@ $$;
 -- once written, a ledger entry, an audit record or an issued document is a
 -- fact about the past, and correcting it means writing another row.
 CREATE FUNCTION forbid_change() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
+    -- The one permitted mutation of an append-only row: the referential
+    -- ON DELETE SET NULL that nulls actor_user_id when the acting user is
+    -- erased. Everything else must be byte-identical and the column may only
+    -- go to NULL, so a user can be deleted without the ledger blocking it and
+    -- without history being rewritten — a value becomes unknown, never false.
+    -- The jsonb key-removal is a no-op on the append-only tables that have no
+    -- actor_user_id, so for them any change at all still falls through to the
+    -- exception below.
+    IF TG_OP = 'UPDATE'
+       AND (to_jsonb(NEW) - 'actor_user_id') = (to_jsonb(OLD) - 'actor_user_id')
+       AND to_jsonb(NEW) ->> 'actor_user_id' IS NULL THEN
+        RETURN NEW;
+    END IF;
     RAISE EXCEPTION '% is append-only; correct it with a new row', TG_TABLE_NAME
         USING ERRCODE = 'check_violation', CONSTRAINT = TG_ARGV[0];
 END;
@@ -222,9 +277,6 @@ CREATE TABLE products (
 );
 
 CREATE UNIQUE INDEX products_slug_key ON products (slug);
--- Referenced by the composite foreign key that keeps a variant's options on
--- the same product as the variant.
-CREATE UNIQUE INDEX products_id_self_key ON products (id, id);
 CREATE INDEX products_brand_id_idx ON products (brand_id);
 CREATE INDEX products_category_id_idx ON products (category_id);
 
@@ -437,9 +489,10 @@ CREATE TABLE users (
     created_at        timestamptz NOT NULL DEFAULT now(),
     updated_at        timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT users_email_present CHECK (email ~ '[^[:space:]]'),
-    -- Stored trimmed, so the unique index below cannot be sidestepped with a
-    -- leading space.
-    CONSTRAINT users_email_trimmed CHECK (email = btrim(email)),
+    -- No surrounding whitespace of any kind. btrim strips only spaces, so
+    -- `btrim(email) = email` let a leading tab through and the folded unique
+    -- index below could then hold two rows for one mailbox.
+    CONSTRAINT users_email_trimmed CHECK (email !~ '^[[:space:]]|[[:space:]]$'),
     CONSTRAINT users_role_known CHECK (role IN ('customer', 'staff', 'admin'))
 );
 
@@ -540,13 +593,19 @@ CREATE TRIGGER addresses_set_updated_at
 -- ============================================================================
 
 CREATE TABLE store_credit_accounts (
-    user_id    uuid PRIMARY KEY REFERENCES users (id) ON DELETE RESTRICT,
+    id         uuid PRIMARY KEY DEFAULT uuidv7(),
+    -- SET NULL, not RESTRICT: a customer exercising erasure must not be held
+    -- hostage by a store-credit account, and the ledger below keeps its own
+    -- account_id so the financial history survives the user going away.
+    user_id    uuid UNIQUE REFERENCES users (id) ON DELETE SET NULL,
     created_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE TABLE store_credit_entries (
     id             uuid PRIMARY KEY DEFAULT uuidv7(),
-    user_id        uuid NOT NULL REFERENCES store_credit_accounts (user_id) ON DELETE RESTRICT,
+    -- Points at the account, not the user, so erasing the user leaves the
+    -- ledger balanced and attributable to the account that still exists.
+    account_id     uuid NOT NULL REFERENCES store_credit_accounts (id) ON DELETE RESTRICT,
     amount_cents   bigint NOT NULL,
     reason         text NOT NULL,
     -- The caller's name for this posting. A retried checkout submits the same
@@ -558,28 +617,49 @@ CREATE TABLE store_credit_entries (
     reverses_id    uuid REFERENCES store_credit_entries (id) ON DELETE RESTRICT,
     created_at     timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT store_credit_entries_amount_non_zero CHECK (amount_cents <> 0),
+    -- Symmetric ceiling (credits are positive, debits negative). Without it
+    -- store_credit_guard's running balance could be driven to overflow bigint
+    -- (SQLSTATE 22003) instead of raising store_credit_never_negative.
+    CONSTRAINT store_credit_entries_amount_in_range
+        CHECK (amount_cents BETWEEN -10000000000 AND 10000000000),
     CONSTRAINT store_credit_entries_reason_present CHECK (reason ~ '[^[:space:]]'),
     CONSTRAINT store_credit_entries_key_present CHECK (idempotency_key ~ '[^[:space:]]')
 );
 
+-- A reversal undoes exactly one entry, once. Without the unique index the same
+-- debit could be reversed twice and the balance would climb.
+CREATE UNIQUE INDEX store_credit_entries_reverses_key
+    ON store_credit_entries (reverses_id) WHERE reverses_id IS NOT NULL;
+
 CREATE UNIQUE INDEX store_credit_entries_idempotency_key
     ON store_credit_entries (idempotency_key);
-CREATE INDEX store_credit_entries_user_idx ON store_credit_entries (user_id, created_at DESC);
-CREATE INDEX store_credit_entries_reverses_idx ON store_credit_entries (reverses_id);
+CREATE INDEX store_credit_entries_account_idx ON store_credit_entries (account_id, created_at DESC);
 CREATE INDEX store_credit_entries_order_idx ON store_credit_entries (order_id);
 
 -- Locks the account before it sums, so two concurrent debits serialise rather
--- than both reading a balance that is about to be spent.
+-- than both reading a balance that is about to be spent. A reversal, if this
+-- is one, must undo exactly one entry of the same account by exactly its
+-- negation — otherwise a -50 debit could be "reversed" by a +80 on another
+-- account.
 CREATE FUNCTION store_credit_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
     balance bigint;
+    original store_credit_entries%ROWTYPE;
 BEGIN
-    PERFORM 1 FROM store_credit_accounts WHERE user_id = NEW.user_id FOR UPDATE;
+    PERFORM 1 FROM store_credit_accounts WHERE id = NEW.account_id FOR UPDATE;
+
+    IF NEW.reverses_id IS NOT NULL THEN
+        SELECT * INTO original FROM store_credit_entries WHERE id = NEW.reverses_id FOR UPDATE;
+        IF original.account_id <> NEW.account_id OR NEW.amount_cents <> -original.amount_cents THEN
+            RAISE EXCEPTION 'a reversal must negate one entry of the same account'
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'store_credit_never_negative';
+        END IF;
+    END IF;
 
     SELECT coalesce(sum(amount_cents), 0) INTO balance
     FROM store_credit_entries
-    WHERE user_id = NEW.user_id AND id <> NEW.id;
+    WHERE account_id = NEW.account_id AND id <> NEW.id;
 
     IF balance + NEW.amount_cents < 0 THEN
         RAISE EXCEPTION 'store credit would go negative: % + %', balance, NEW.amount_cents
@@ -619,11 +699,26 @@ CREATE TABLE inventory_movements (
     CONSTRAINT inventory_movements_delta_non_zero CHECK (delta <> 0),
     CONSTRAINT inventory_movements_reason_known CHECK (reason IN (
         'receipt',      -- 進貨
+        'hold',         -- 結帳保留期間扣減
         'sale',         -- 出貨扣減
         'release',      -- 取消或逾期釋放
         'return',       -- 退貨入庫
         'adjustment'    -- 人工盤點
     )),
+    -- The sign is not free: stock comes IN on a receipt, release or return and
+    -- goes OUT on a hold or sale. Only a manual adjustment may be either way.
+    -- Without this a caller could post a +5 'hold' or a -5 'receipt' and the
+    -- ledger would read backwards while the projection still moved.
+    CONSTRAINT inventory_movements_delta_direction CHECK (
+        CASE reason
+            WHEN 'receipt' THEN delta > 0
+            WHEN 'release' THEN delta > 0
+            WHEN 'return'  THEN delta > 0
+            WHEN 'hold'    THEN delta < 0
+            WHEN 'sale'    THEN delta < 0
+            ELSE true  -- adjustment: either direction
+        END
+    ),
     CONSTRAINT inventory_movements_key_present CHECK (idempotency_key ~ '[^[:space:]]')
 );
 
@@ -657,14 +752,22 @@ LANGUAGE plpgsql AS $$
 DECLARE
     remaining integer;
 BEGIN
+    -- A sale or a hold may not take stock below the safety level; a receipt,
+    -- return or manual correction may (a correction is how you fix an
+    -- oversold count). The floor is folded into the same conditional UPDATE as
+    -- the balance, so the read and the write remain one statement on one
+    -- locked row.
     UPDATE product_variants
     SET stock_quantity = stock_quantity + p_delta
     WHERE id = p_variant_id
-      AND stock_quantity + p_delta >= 0
+      AND stock_quantity + p_delta >= CASE
+              WHEN p_reason IN ('sale', 'hold') THEN safety_stock
+              ELSE 0
+          END
     RETURNING stock_quantity INTO remaining;
 
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'variant % cannot absorb a movement of %', p_variant_id, p_delta
+        RAISE EXCEPTION 'variant % cannot absorb a % of %', p_variant_id, p_reason, p_delta
             USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_never_negative';
     END IF;
 
@@ -697,16 +800,119 @@ CREATE TABLE inventory_reservations (
     CONSTRAINT inventory_reservations_state_known
         CHECK (state IN ('held', 'consumed', 'released')),
     CONSTRAINT inventory_reservations_settled_has_state
-        CHECK ((state = 'held') = (settled_at IS NULL))
+        CHECK ((state = 'held') = (settled_at IS NULL)),
+    CONSTRAINT inventory_reservations_expiry_after_creation CHECK (expires_at > created_at)
 );
 
+-- At most one LIVE hold per (order, variant). Partial on state='held' so that a
+-- released or consumed reservation does not occupy the slot forever: after a
+-- hold is released (abandoned checkout), a fresh hold for the same order and
+-- variant can be taken. A non-partial unique index made re-holding impossible.
 CREATE UNIQUE INDEX inventory_reservations_order_variant_key
-    ON inventory_reservations (order_id, variant_id);
+    ON inventory_reservations (order_id, variant_id)
+    WHERE state = 'held';
+-- The unique index above is partial now, so it no longer covers the order_id
+-- foreign key for every state; a plain index does.
+CREATE INDEX inventory_reservations_order_idx ON inventory_reservations (order_id);
 CREATE INDEX inventory_reservations_variant_idx ON inventory_reservations (variant_id);
 -- The sweeper's read: holds that have run out of time.
 CREATE INDEX inventory_reservations_expiring_idx
     ON inventory_reservations (expires_at)
     WHERE state = 'held';
+
+-- Take a hold: decrement stock through the ledger and record the reservation,
+-- in one transaction. The reservation table on its own is just a shape — this
+-- is the only thing that makes a hold mean the stock is gone.
+CREATE FUNCTION hold_inventory(
+    p_order_id uuid,
+    p_variant_id uuid,
+    p_quantity integer,
+    p_expires_at timestamptz,
+    p_idempotency_key text
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    reservation_id uuid;
+BEGIN
+    IF p_quantity <= 0 THEN
+        RAISE EXCEPTION 'a hold must be for a positive quantity'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_reservations_quantity_positive';
+    END IF;
+
+    -- The idempotency key is the caller's, not derived from (order, variant):
+    -- a retry of the SAME checkout attempt passes the same key and the movement's
+    -- unique key makes it a no-op, while a genuinely NEW hold after a release
+    -- passes a fresh key and is allowed (the partial unique index above frees the
+    -- slot). A key derived from order+variant could never distinguish the two.
+    -- record_inventory_movement locks the variant and enforces the floor.
+    PERFORM record_inventory_movement(
+        p_variant_id, -p_quantity, 'hold',
+        p_idempotency_key, 'order', p_order_id, NULL);
+
+    INSERT INTO inventory_reservations (order_id, variant_id, quantity, expires_at)
+    VALUES (p_order_id, p_variant_id, p_quantity, p_expires_at)
+    RETURNING id INTO reservation_id;
+
+    RETURN reservation_id;
+END;
+$$;
+
+-- Consume a hold at fulfilment. The stock already left the shelf when the
+-- hold was taken (a -quantity 'hold' movement), so consuming records NO
+-- further stock movement — doing so would return the item to stock at the
+-- moment it is sold. The 'hold' movement is the permanent ledger record that
+-- the stock left; the reservation flipping to 'consumed' is what marks it a
+-- completed sale rather than an outstanding hold. The conditional UPDATE is
+-- the lock: a second caller finds no held row.
+CREATE FUNCTION consume_reservation(p_reservation_id uuid) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+    UPDATE inventory_reservations
+    SET state = 'consumed', settled_at = now()
+    WHERE id = p_reservation_id AND state = 'held';
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'reservation % is not held', p_reservation_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_reservation_state';
+    END IF;
+END;
+$$;
+
+-- Release a hold — cancelled checkout or expiry sweep: return the stock and
+-- close the reservation, once. A hold on a PAID order may NOT be released: the
+-- sweeper could otherwise expire the hold of an order that has been paid but not
+-- yet picked and hand its stock back to the shelf, reselling a sold item. The
+-- only exit for a paid hold is consume_reservation. The reservation is locked,
+-- then its order, so this serialises against a payment landing concurrently.
+CREATE FUNCTION release_reservation(p_reservation_id uuid) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    r inventory_reservations%ROWTYPE;
+BEGIN
+    SELECT * INTO r FROM inventory_reservations WHERE id = p_reservation_id FOR UPDATE;
+    IF NOT FOUND OR r.state <> 'held' THEN
+        RAISE EXCEPTION 'reservation % is not held', p_reservation_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_reservation_state';
+    END IF;
+
+    PERFORM 1 FROM orders WHERE id = r.order_id FOR UPDATE;
+    IF EXISTS (SELECT 1 FROM payments WHERE order_id = r.order_id AND status = 'succeeded') THEN
+        RAISE EXCEPTION 'reservation % is on a paid order; consume it, do not release', p_reservation_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_reservation_paid_no_release';
+    END IF;
+
+    UPDATE inventory_reservations
+    SET state = 'released', settled_at = now()
+    WHERE id = p_reservation_id AND state = 'held';
+
+    PERFORM record_inventory_movement(
+        r.variant_id, r.quantity, 'release',
+        'release:' || r.id, 'reservation', r.id, NULL);
+END;
+$$;
+
+-- Reservations are written only through those three functions; goen_app's
+-- direct write is revoked with the rest at the foot of the file.
 
 -- ============================================================================
 -- Cart and wishlist
@@ -725,10 +931,10 @@ CREATE TABLE carts (
 CREATE UNIQUE INDEX carts_token_hash_key ON carts (token_hash);
 -- One cart per account. Without this a merge that runs twice leaves the
 -- customer with two carts and no way to say which is theirs.
+-- Partial, but a lookup by user_id is always `WHERE user_id = $1`, which
+-- implies NOT NULL, so this serves the foreign key as well — no separate full
+-- index is needed.
 CREATE UNIQUE INDEX carts_one_per_user ON carts (user_id) WHERE user_id IS NOT NULL;
--- The index above is partial, so it cannot serve the delete of an account that
--- never had a cart adopted.
-CREATE INDEX carts_user_id_idx ON carts (user_id);
 
 CREATE TRIGGER carts_set_updated_at
     BEFORE UPDATE ON carts
@@ -759,10 +965,10 @@ CREATE TABLE checkout_attempts (
     CONSTRAINT checkout_attempts_key_present CHECK (idempotency_key ~ '[^[:space:]]')
 );
 
+-- Partial on order_id IS NOT NULL; a lookup by order_id implies NOT NULL, so
+-- this also serves the foreign key.
 CREATE UNIQUE INDEX checkout_attempts_order_key ON checkout_attempts (order_id)
     WHERE order_id IS NOT NULL;
--- The index above is partial, so it cannot serve the foreign key's own lookup.
-CREATE INDEX checkout_attempts_order_id_idx ON checkout_attempts (order_id);
 CREATE INDEX checkout_attempts_cart_idx ON checkout_attempts (cart_id);
 
 CREATE TABLE wishlist_items (
@@ -904,7 +1110,7 @@ CREATE TABLE orders (
     id                   uuid PRIMARY KEY DEFAULT uuidv7(),
     -- The number a customer quotes to support. Separate from the primary key
     -- so nobody has to read a uuid aloud.
-    order_number         text NOT NULL,
+    order_number         text NOT NULL DEFAULT next_order_number(),
     -- NULL for a guest order, and NULL again once an account is erased. The
     -- order itself survives either way: it is a financial record.
     user_id              uuid REFERENCES users (id) ON DELETE SET NULL,
@@ -916,7 +1122,7 @@ CREATE TABLE orders (
     discount_code        text,
     -- The version that was in force, plus its name as shown. The FK explains
     -- the price; the snapshot survives the version being superseded.
-    shipping_version_id  uuid REFERENCES shipping_method_versions (id) ON DELETE RESTRICT,
+    shipping_version_id  uuid NOT NULL REFERENCES shipping_method_versions (id) ON DELETE RESTRICT,
     shipping_method_code text NOT NULL,
     shipping_method_name text NOT NULL,
     customer_note        text,
@@ -995,6 +1201,10 @@ CREATE FUNCTION orders_check_transition() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
     legal boolean;
+    lines integer;
+    subtotal bigint;
+    order_total bigint;
+    credit_applied bigint;
 BEGIN
     IF NEW.fulfillment_status = OLD.fulfillment_status THEN
         RETURN NEW;
@@ -1013,6 +1223,31 @@ BEGIN
             OLD.fulfillment_status, NEW.fulfillment_status
             USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_legal_transition';
     END IF;
+
+    -- goen does not ship what it has not collected (owner decision: online-only,
+    -- Stripe-only, no cash-on-delivery). Leaving 'pending' into fulfilment
+    -- (picking) requires the order to be FUNDED: either it owes nothing — a free
+    -- or fully store-credited order — or a succeeded payment is on record, which
+    -- payments_capture_matches_order guarantees captured exactly the owed amount.
+    -- Cancelling from pending is always allowed. This is also the answer to "what
+    -- is a paid order": a 0-owed order is funded with no payment row, which the
+    -- "exists a succeeded payment" definition could not express. When a new
+    -- funding source (COD) is ever added, it is added HERE.
+    IF OLD.fulfillment_status = 'pending' AND NEW.fulfillment_status = 'picking' THEN
+        SELECT count(*), coalesce(sum(unit_price_cents * quantity), 0)
+        INTO lines, subtotal FROM order_lines WHERE order_id = NEW.id;
+        order_total := subtotal - NEW.discount_cents + NEW.shipping_cents + NEW.tax_cents;
+        credit_applied := -coalesce((
+            SELECT sum(amount_cents) FROM store_credit_entries
+            WHERE order_id = NEW.id AND amount_cents < 0), 0);
+        IF (order_total - credit_applied) <> 0
+           AND NOT EXISTS (SELECT 1 FROM payments
+                           WHERE order_id = NEW.id AND status = 'succeeded') THEN
+            RAISE EXCEPTION 'order % cannot leave pending unfunded (owes %)',
+                NEW.order_number, order_total - credit_applied
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_funded_to_leave_pending';
+        END IF;
+    END IF;
     RETURN NEW;
 END;
 $$;
@@ -1020,6 +1255,24 @@ $$;
 CREATE TRIGGER orders_legal_transition
     BEFORE UPDATE OF fulfillment_status ON orders
     FOR EACH ROW EXECUTE FUNCTION orders_check_transition();
+
+-- An order begins unpaid and unfulfilled. Inserting one straight into
+-- 'shipped' would skip every transition guard and every side effect they
+-- carry, so only the two starting states are legal at birth.
+CREATE FUNCTION orders_check_initial_status() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.fulfillment_status <> 'pending' THEN
+        RAISE EXCEPTION 'a new order must start pending, not %', NEW.fulfillment_status
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_start_pending';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER orders_start_pending
+    BEFORE INSERT ON orders
+    FOR EACH ROW EXECUTE FUNCTION orders_check_initial_status();
 
 -- What was bought, as it was at the moment of buying. variant_id points back
 -- at the catalogue for reordering and stock, and may become NULL — the line
@@ -1043,6 +1296,9 @@ CREATE TABLE order_lines (
 
 CREATE UNIQUE INDEX order_lines_position_key ON order_lines (order_id, position);
 CREATE INDEX order_lines_variant_id_idx ON order_lines (variant_id);
+-- Referenced by the composite foreign keys that keep shipment and return
+-- lines on the same order as the line.
+CREATE UNIQUE INDEX order_lines_order_key ON order_lines (order_id, id);
 
 -- Where it went, and who to tell. Separate from `orders` because this is the
 -- personal data: erasure empties this table and leaves the financial record
@@ -1057,14 +1313,21 @@ CREATE TABLE order_private_data (
     district       text,
     street         text,
     erased_at      timestamptz,
-    -- Erasure is all-or-nothing: a row with a name but no street is a
-    -- half-finished deletion nobody can reason about.
-    CONSTRAINT order_private_data_erased_is_empty CHECK (
-        (erased_at IS NOT NULL) = (
-            email IS NULL AND recipient_name IS NULL AND phone IS NULL
+    -- Two exhaustive states, not "erased iff nothing set". The old form —
+    -- `erased_at IS NOT NULL = (all NULL)` — was satisfied by a live row that
+    -- happened to have only some fields cleared, e.g. a row with an email but
+    -- no name and no erased_at. Delivery needs every field, or the row is
+    -- erased and holds none.
+    CONSTRAINT order_private_data_all_or_erased CHECK (
+        (erased_at IS NULL
+            AND email IS NOT NULL AND recipient_name IS NOT NULL
+            AND phone IS NOT NULL AND postal_code IS NOT NULL
+            AND city IS NOT NULL AND district IS NOT NULL AND street IS NOT NULL)
+        OR
+        (erased_at IS NOT NULL
+            AND email IS NULL AND recipient_name IS NULL AND phone IS NULL
             AND postal_code IS NULL AND city IS NULL AND district IS NULL
-            AND street IS NULL
-        )
+            AND street IS NULL)
     )
 );
 
@@ -1086,18 +1349,62 @@ CREATE TABLE order_shipments (
 
 CREATE INDEX order_shipments_order_id_idx ON order_shipments (order_id);
 CREATE UNIQUE INDEX order_shipments_tracking_key ON order_shipments (carrier, tracking_number);
+-- Referenced by the composite foreign key that ties a shipment line to a
+-- shipment of the same order.
+CREATE UNIQUE INDEX order_shipments_order_key ON order_shipments (order_id, id);
 
 -- Which lines, and how many of each, went in this parcel. A two-item order
 -- shipped in two boxes has two shipments and four rows here.
+--
+-- order_id is carried so the composite foreign keys can enforce that the line
+-- and the shipment belong to the SAME order. Two plain foreign keys could not:
+-- a shipment of order A was able to carry a line of order B.
 CREATE TABLE order_shipment_lines (
-    shipment_id   uuid NOT NULL REFERENCES order_shipments (id) ON DELETE RESTRICT,
-    order_line_id uuid NOT NULL REFERENCES order_lines (id) ON DELETE RESTRICT,
+    order_id      uuid NOT NULL,
+    shipment_id   uuid NOT NULL,
+    order_line_id uuid NOT NULL,
     quantity      integer NOT NULL,
     PRIMARY KEY (shipment_id, order_line_id),
-    CONSTRAINT order_shipment_lines_quantity_positive CHECK (quantity > 0)
+    CONSTRAINT order_shipment_lines_quantity_positive CHECK (quantity > 0),
+    CONSTRAINT order_shipment_lines_shipment_fk
+        FOREIGN KEY (order_id, shipment_id) REFERENCES order_shipments (order_id, id)
+        ON DELETE RESTRICT,
+    CONSTRAINT order_shipment_lines_line_fk
+        FOREIGN KEY (order_id, order_line_id) REFERENCES order_lines (order_id, id)
+        ON DELETE RESTRICT
 );
 
-CREATE INDEX order_shipment_lines_order_line_idx ON order_shipment_lines (order_line_id);
+CREATE INDEX order_shipment_lines_order_line_idx ON order_shipment_lines (order_id, order_line_id);
+CREATE INDEX order_shipment_lines_order_shipment_idx ON order_shipment_lines (order_id, shipment_id);
+
+-- You cannot ship more of a line than was bought, counting every shipment.
+-- The line's order is locked first so two shipments cannot both pass.
+CREATE FUNCTION shipment_lines_within_purchase() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE
+    bought integer;
+    already integer;
+BEGIN
+    SELECT ol.quantity INTO bought
+    FROM order_lines ol JOIN orders o ON o.id = ol.order_id
+    WHERE ol.id = NEW.order_line_id FOR UPDATE OF o;
+
+    SELECT coalesce(sum(quantity), 0) INTO already
+    FROM order_shipment_lines
+    WHERE order_line_id = NEW.order_line_id AND shipment_id <> NEW.shipment_id;
+
+    IF already + NEW.quantity > bought THEN
+        RAISE EXCEPTION 'shipping % of a line that had % (already shipped %)',
+            NEW.quantity, bought, already
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'shipment_within_purchase';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER shipment_within_purchase
+    BEFORE INSERT OR UPDATE ON order_shipment_lines
+    FOR EACH ROW EXECUTE FUNCTION shipment_lines_within_purchase();
 
 -- The timeline the customer sees. Append-only: an event that happened does not
 -- stop having happened when the order moves on.
@@ -1149,12 +1456,12 @@ BEGIN
 
     IF NOT EXISTS (SELECT 1 FROM order_private_data WHERE order_id = o.id) THEN
         RAISE EXCEPTION 'order % has no delivery details', o.order_number
-            USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_have_lines';
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_have_delivery';
     END IF;
 
     IF subtotal - o.discount_cents + o.shipping_cents + o.tax_cents < 0 THEN
         RAISE EXCEPTION 'order % totals below zero', o.order_number
-            USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_have_lines';
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_total_non_negative';
     END IF;
 
     RETURN NULL;
@@ -1174,6 +1481,18 @@ LANGUAGE plpgsql AS $$
 DECLARE
     target uuid := coalesce(NEW.order_id, OLD.order_id);
 BEGIN
+    -- On UPDATE a line cannot move to another order, or a paid line could be
+    -- carried into an unpaid one to escape the freeze.
+    IF TG_OP = 'UPDATE' AND NEW.order_id <> OLD.order_id THEN
+        RAISE EXCEPTION 'an order line cannot change orders'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'order_lines_frozen_once_paid';
+    END IF;
+
+    -- Lock the order so a concurrent capture cannot succeed between this check
+    -- and the commit. Without it, T1 edits the line while T2 inserts the
+    -- succeeded payment, and both pass.
+    PERFORM 1 FROM orders WHERE id = target FOR UPDATE;
+
     IF EXISTS (
         SELECT 1 FROM payments
         WHERE order_id = target AND status = 'succeeded'
@@ -1185,8 +1504,10 @@ BEGIN
 END;
 $$;
 
+-- INSERT included: a paid order used to accept a brand-new line, because the
+-- trigger only fired on UPDATE and DELETE.
 CREATE TRIGGER order_lines_frozen_once_paid
-    BEFORE UPDATE OR DELETE ON order_lines
+    BEFORE INSERT OR UPDATE OR DELETE ON order_lines
     FOR EACH ROW EXECUTE FUNCTION order_lines_freeze();
 
 CREATE FUNCTION orders_freeze_money() RETURNS trigger
@@ -1196,20 +1517,52 @@ BEGIN
        AND NEW.shipping_cents = OLD.shipping_cents
        AND NEW.tax_cents = OLD.tax_cents
        AND NEW.currency = OLD.currency
-       AND NEW.order_number = OLD.order_number THEN
+       AND NEW.order_number = OLD.order_number
+       AND NEW.shipping_version_id = OLD.shipping_version_id
+       AND NEW.shipping_method_code = OLD.shipping_method_code
+       AND NEW.shipping_method_name = OLD.shipping_method_name THEN
         RETURN NEW;
     END IF;
 
+    PERFORM 1 FROM orders WHERE id = NEW.id FOR UPDATE;
     IF EXISTS (
         SELECT 1 FROM payments
         WHERE order_id = NEW.id AND status = 'succeeded'
     ) THEN
-        RAISE EXCEPTION 'order % is paid; its totals are settled', NEW.order_number
+        RAISE EXCEPTION 'order % is paid; its totals and shipping are settled', NEW.order_number
             USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_money_frozen_once_paid';
     END IF;
     RETURN NEW;
 END;
 $$;
+
+-- The shipping snapshot must name the method the version actually belongs to: a
+-- home_delivery version carrying a store_pickup code is a contradiction the FK
+-- alone cannot catch (it only proves the version exists). The name is a
+-- customer-facing label and may differ from the version's internal name, so only
+-- the code — which identifies the method — is constrained.
+CREATE FUNCTION orders_check_shipping_snapshot() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE
+    version_code text;
+BEGIN
+    SELECT sm.code INTO version_code
+    FROM shipping_method_versions v
+    JOIN shipping_methods sm ON sm.id = v.method_id
+    WHERE v.id = NEW.shipping_version_id;
+
+    IF NEW.shipping_method_code IS DISTINCT FROM version_code THEN
+        RAISE EXCEPTION 'order shipping code % does not match version %''s method (%)',
+            NEW.shipping_method_code, NEW.shipping_version_id, version_code
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_shipping_snapshot_matches';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER orders_shipping_snapshot_matches
+    BEFORE INSERT OR UPDATE OF shipping_version_id, shipping_method_code ON orders
+    FOR EACH ROW EXECUTE FUNCTION orders_check_shipping_snapshot();
 
 CREATE TRIGGER orders_money_frozen_once_paid
     BEFORE UPDATE ON orders
@@ -1239,18 +1592,29 @@ CREATE TABLE return_requests (
 );
 
 CREATE INDEX return_requests_order_id_idx ON return_requests (order_id);
+CREATE UNIQUE INDEX return_requests_order_key ON return_requests (order_id, id);
 CREATE INDEX return_requests_requester_idx ON return_requests (requested_by_user_id);
 CREATE INDEX return_requests_open_idx ON return_requests (created_at) WHERE status = 'requested';
 
+-- order_id is carried for the same reason as on shipment lines: the composite
+-- foreign key makes a cross-order return impossible.
 CREATE TABLE return_request_lines (
+    order_id          uuid NOT NULL,
     return_request_id uuid NOT NULL REFERENCES return_requests (id) ON DELETE CASCADE,
-    order_line_id     uuid NOT NULL REFERENCES order_lines (id) ON DELETE RESTRICT,
+    order_line_id     uuid NOT NULL,
     quantity          integer NOT NULL,
     PRIMARY KEY (return_request_id, order_line_id),
-    CONSTRAINT return_request_lines_quantity_positive CHECK (quantity > 0)
+    CONSTRAINT return_request_lines_quantity_positive CHECK (quantity > 0),
+    CONSTRAINT return_request_lines_request_fk
+        FOREIGN KEY (order_id, return_request_id) REFERENCES return_requests (order_id, id)
+        ON DELETE CASCADE,
+    CONSTRAINT return_request_lines_line_fk
+        FOREIGN KEY (order_id, order_line_id) REFERENCES order_lines (order_id, id)
+        ON DELETE RESTRICT
 );
 
-CREATE INDEX return_request_lines_order_line_idx ON return_request_lines (order_line_id);
+CREATE INDEX return_request_lines_order_line_idx ON return_request_lines (order_id, order_line_id);
+CREATE INDEX return_request_lines_order_request_idx ON return_request_lines (order_id, return_request_id);
 
 -- You cannot return more than you bought, counting every request against the
 -- line. The line's order is locked first so two requests cannot both pass.
@@ -1285,6 +1649,56 @@ $$;
 CREATE TRIGGER return_within_purchase
     BEFORE INSERT OR UPDATE ON return_request_lines
     FOR EACH ROW EXECUTE FUNCTION return_lines_within_purchase();
+
+-- The transition machine: requested → approved | rejected, approved →
+-- completed. Every advanced state is reached only through this UPDATE (birth is
+-- guarded to 'requested' below). There is deliberately no branch for leaving
+-- 'rejected': it is terminal, so an earlier draft's "recount on revival" code
+-- was unreachable and is gone — the file's own rule is to keep no guard that
+-- can never fire.
+CREATE FUNCTION return_requests_recount() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE
+    legal boolean;
+BEGIN
+    IF OLD.status = NEW.status THEN
+        RETURN NEW;
+    END IF;
+    legal := CASE OLD.status
+        WHEN 'requested' THEN NEW.status IN ('approved', 'rejected')
+        WHEN 'approved'  THEN NEW.status = 'completed'
+        ELSE false
+    END;
+    IF NOT legal THEN
+        RAISE EXCEPTION 'return request cannot move from % to %', OLD.status, NEW.status
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'return_requests_legal_transition';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER return_requests_legal_transition
+    BEFORE UPDATE OF status ON return_requests
+    FOR EACH ROW EXECUTE FUNCTION return_requests_recount();
+
+-- A return begins 'requested'. Inserting one straight into 'approved' or
+-- 'completed' would skip the transition machine above and the quantity recount
+-- it performs, exactly as orders_start_pending guards orders. Only the initial
+-- state is legal at birth; everything else is reached through an audited UPDATE.
+CREATE FUNCTION return_requests_check_initial() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+    IF NEW.status <> 'requested' THEN
+        RAISE EXCEPTION 'a new return request must start requested, not %', NEW.status
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'return_requests_start_requested';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER return_requests_start_requested
+    BEFORE INSERT ON return_requests
+    FOR EACH ROW EXECUTE FUNCTION return_requests_check_initial();
 
 -- 保固中裝置. One row per unit, because buying two phones registers two
 -- warranties — the previous one-row-per-line design could not say that.
@@ -1338,10 +1752,15 @@ CREATE TABLE invoice_preferences (
     tax_id       text,
     CONSTRAINT invoice_preferences_type_known
         CHECK (invoice_type IN ('mobile_carrier', 'member_carrier', 'company')),
+    -- `type <> 'company' OR tax_id ~ regex` evaluates to NULL when tax_id is
+    -- NULL, and a NULL CHECK passes — so a company invoice with no 統編 got in.
+    -- The NOT NULL has to be spelled out before the regex.
     CONSTRAINT invoice_preferences_company_has_tax_id
-        CHECK (invoice_type <> 'company' OR tax_id ~ '^[0-9]{8}$'),
+        CHECK (invoice_type <> 'company'
+               OR (tax_id IS NOT NULL AND tax_id ~ '^[0-9]{8}$')),
     CONSTRAINT invoice_preferences_mobile_has_carrier
-        CHECK (invoice_type <> 'mobile_carrier' OR carrier_code ~ '[^[:space:]]')
+        CHECK (invoice_type <> 'mobile_carrier'
+               OR (carrier_code IS NOT NULL AND carrier_code ~ '[^[:space:]]'))
 );
 
 CREATE TABLE invoice_documents (
@@ -1365,11 +1784,22 @@ CREATE TABLE invoice_documents (
     -- An allowance relieves a specific invoice; an invoice relieves nothing.
     CONSTRAINT invoice_documents_allowance_has_original
         CHECK ((kind = 'allowance') = (original_id IS NOT NULL))
+    -- No self-reference CHECK: it is unreachable. An invoice must have
+    -- original_id NULL (allowance_has_original below) and an allowance's
+    -- original must be a real invoice of the same order (the trigger), so
+    -- original_id = id cannot arise for any row that passes those. A CHECK
+    -- that can never fire is one the review taught us not to keep.
 );
 
 CREATE UNIQUE INDEX invoice_documents_number_key ON invoice_documents (number);
 CREATE INDEX invoice_documents_order_idx ON invoice_documents (order_id);
 CREATE INDEX invoice_documents_original_idx ON invoice_documents (original_id);
+-- At most one live 統一發票 per order: issuing a second while the first stands
+-- would file two tax documents for one sale. Allowances (kind='allowance') are
+-- unbounded, and a voided invoice frees the slot for a corrected reissue.
+CREATE UNIQUE INDEX invoice_documents_one_active_invoice_per_order
+    ON invoice_documents (order_id)
+    WHERE kind = 'invoice' AND status <> 'voided';
 
 -- Issued documents are filed, not edited. Voiding sets status and voided_at
 -- through the one path allowed below.
@@ -1388,6 +1818,15 @@ BEGIN
         RAISE EXCEPTION 'an issued document may only be voided, not rewritten'
             USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_documents_only_void';
     END IF;
+
+    -- Voiding is one-way. A voided invoice is filed tax history (its 折讓 and
+    -- the 統一發票 platform already have it); reviving it to 'issued' would let
+    -- that history be rewritten. voided_has_time then also forbids clearing
+    -- voided_at, since it must stay set while status is voided.
+    IF OLD.status = 'voided' AND NEW.status <> 'voided' THEN
+        RAISE EXCEPTION 'a voided document cannot be re-issued'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_documents_only_void';
+    END IF;
     RETURN NEW;
 END;
 $$;
@@ -1395,6 +1834,79 @@ $$;
 CREATE TRIGGER invoice_documents_only_void
     BEFORE UPDATE OR DELETE ON invoice_documents
     FOR EACH ROW EXECUTE FUNCTION invoice_documents_guard();
+
+-- An allowance (折讓) must relieve an invoice of the SAME order, that invoice
+-- must be a real invoice (not another allowance) and not voided, and the
+-- allowances against it must not total more than it was for. The original is
+-- locked so two allowances cannot both pass.
+CREATE FUNCTION invoice_allowance_valid() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE
+    orig invoice_documents%ROWTYPE;
+    already bigint;
+BEGIN
+    IF NEW.kind <> 'allowance' THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT * INTO orig FROM invoice_documents WHERE id = NEW.original_id FOR UPDATE;
+    IF NOT FOUND OR orig.kind <> 'invoice' OR orig.order_id <> NEW.order_id
+       OR orig.status = 'voided' THEN
+        RAISE EXCEPTION 'an allowance must relieve an issued invoice of the same order'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_allowance_valid';
+    END IF;
+
+    SELECT coalesce(sum(amount_cents), 0) INTO already
+    FROM invoice_documents
+    WHERE original_id = NEW.original_id AND status <> 'voided' AND id <> NEW.id;
+
+    IF already + NEW.amount_cents > orig.amount_cents THEN
+        RAISE EXCEPTION 'allowances would total % against an invoice of %',
+            already + NEW.amount_cents, orig.amount_cents
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_allowance_valid';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER invoice_allowance_valid
+    BEFORE INSERT OR UPDATE ON invoice_documents
+    FOR EACH ROW EXECUTE FUNCTION invoice_allowance_valid();
+
+-- Line detail behind each document — the 財政部 allowance message needs the
+-- original line, quantity, unit price, tax type and amounts, and none of that
+-- can be reconstructed from a header total. Append-only, like the document.
+CREATE TABLE invoice_document_lines (
+    id            uuid PRIMARY KEY DEFAULT uuidv7(),
+    document_id   uuid NOT NULL REFERENCES invoice_documents (id) ON DELETE RESTRICT,
+    description   text NOT NULL,
+    quantity      integer NOT NULL,
+    unit_price_cents bigint NOT NULL,
+    amount_cents  bigint NOT NULL,
+    tax_type      text NOT NULL,
+    position      integer NOT NULL DEFAULT 0,
+    CONSTRAINT invoice_document_lines_description_present CHECK (description ~ '[^[:space:]]'),
+    CONSTRAINT invoice_document_lines_quantity_positive CHECK (quantity > 0),
+    CONSTRAINT invoice_document_lines_amount_non_negative CHECK (amount_cents >= 0),
+    -- A line's unit price cannot be negative (a -500 line would let an issued
+    -- invoice be padded with a credit that no allowance recorded), and both
+    -- amounts share the ceiling every money column carries. The full
+    -- header-equals-sum(lines) reconciliation waits for the draft→issued issue
+    -- flow (tracked with the invoicing batch); these are the bounds that hold
+    -- regardless of it.
+    CONSTRAINT invoice_document_lines_unit_price_in_range
+        CHECK (unit_price_cents >= 0 AND unit_price_cents <= 10000000000),
+    CONSTRAINT invoice_document_lines_amount_in_range CHECK (amount_cents <= 10000000000),
+    CONSTRAINT invoice_document_lines_tax_type_known
+        CHECK (tax_type IN ('taxable', 'zero_rated', 'exempt'))
+);
+
+CREATE UNIQUE INDEX invoice_document_lines_position_key
+    ON invoice_document_lines (document_id, position);
+
+CREATE TRIGGER invoice_document_lines_append_only
+    BEFORE UPDATE OR DELETE ON invoice_document_lines
+    FOR EACH ROW EXECUTE FUNCTION forbid_change('invoice_document_lines_append_only');
 
 -- ============================================================================
 -- Payments
@@ -1419,17 +1931,42 @@ CREATE TABLE payments (
     created_at             timestamptz NOT NULL DEFAULT now(),
     updated_at             timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT payments_provider_known CHECK (provider IN ('stripe')),
+    -- A failed ATTEMPT is not a terminal state for the payment: Stripe returns
+    -- the PaymentIntent to requires_payment_method so the customer can try
+    -- another card. Only succeeded and cancelled end it. `failed` used to be
+    -- in this set and was treated as terminal, which made a recoverable
+    -- decline unrecoverable.
     CONSTRAINT payments_status_known
-        CHECK (status IN ('requires_payment', 'processing', 'succeeded', 'failed', 'cancelled')),
+        CHECK (status IN ('requires_payment', 'requires_action', 'processing',
+                          'succeeded', 'cancelled')),
     CONSTRAINT payments_intended_positive CHECK (intended_amount_cents > 0),
+    -- Same ceiling as every other money column (order_lines, refunds, …). Its
+    -- absence let a capture approach 2^63 and overflow the running sums the
+    -- refund and store-credit guards compute; bound the input instead.
+    CONSTRAINT payments_intended_in_range CHECK (intended_amount_cents <= 10000000000),
     CONSTRAINT payments_captured_non_negative
         CHECK (captured_amount_cents IS NULL OR captured_amount_cents >= 0),
+    CONSTRAINT payments_captured_in_range
+        CHECK (captured_amount_cents IS NULL OR captured_amount_cents <= 10000000000),
     CONSTRAINT payments_currency_is_twd CHECK (currency = 'TWD'),
     CONSTRAINT payments_last4_format CHECK (card_last4 IS NULL OR card_last4 ~ '^[0-9]{4}$'),
-    -- Captured, paid_at and succeeded are one fact recorded three ways; any
-    -- two without the third is a row that cannot be reconciled.
+    -- Captured, paid_at and succeeded are one fact recorded three ways, and
+    -- this must be an equivalence in BOTH directions.
+    --
+    -- The previous form compared two booleans, which let a failed payment
+    -- carry a captured amount: false = (NULL IS NOT NULL AND 50 IS NOT NULL)
+    -- is false = false, and passed. The refund guard reads captured_amount
+    -- without reading status, so that row was refundable — real money out
+    -- against a payment that never took any in.
     CONSTRAINT payments_succeeded_is_captured CHECK (
-        (status = 'succeeded') = (paid_at IS NOT NULL AND captured_amount_cents IS NOT NULL)
+        (status = 'succeeded'
+            AND paid_at IS NOT NULL
+            AND captured_amount_cents IS NOT NULL
+            AND captured_amount_cents > 0)
+        OR
+        (status <> 'succeeded'
+            AND paid_at IS NULL
+            AND captured_amount_cents IS NULL)
     )
 );
 
@@ -1452,7 +1989,11 @@ BEGIN
     IF OLD.status = NEW.status THEN
         RETURN NEW;
     END IF;
-    IF OLD.status IN ('succeeded', 'failed', 'cancelled') THEN
+    -- 'failed' is intentionally absent: payments_status_known has no such value
+    -- (a declined attempt returns to requires_payment, it is not terminal), so
+    -- listing it here would name a state this table can never hold. refunds do
+    -- keep 'failed' because the refunds CHECK includes it.
+    IF OLD.status IN ('succeeded', 'cancelled') THEN
         RAISE EXCEPTION 'payment % is settled as %, cannot become %',
             OLD.provider_ref, OLD.status, NEW.status
             USING ERRCODE = 'check_violation', CONSTRAINT = 'payments_no_regression';
@@ -1465,13 +2006,118 @@ CREATE TRIGGER payments_no_regression
     BEFORE UPDATE OF status ON payments
     FOR EACH ROW EXECUTE FUNCTION payments_check_transition();
 
+-- A payment may only succeed against an order that is still complete — has
+-- lines, has delivery details, totals at or above zero. orders_have_lines
+-- checks this at order-insert time only, and a draft order can lose its lines
+-- between then and payment. This closes that window at the moment money is
+-- taken, holding the order locked while it looks.
+CREATE FUNCTION payments_require_complete_order() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE
+    o orders%ROWTYPE;
+    lines integer;
+    subtotal bigint;
+    order_total bigint;
+    credit_applied bigint;
+BEGIN
+    IF NEW.status <> 'succeeded' THEN
+        RETURN NEW;
+    END IF;
+    IF TG_OP = 'UPDATE' AND OLD.status = 'succeeded' THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT * INTO o FROM orders WHERE id = NEW.order_id FOR UPDATE;
+
+    SELECT count(*), coalesce(sum(unit_price_cents * quantity), 0)
+    INTO lines, subtotal FROM order_lines WHERE order_id = o.id;
+
+    -- "Has delivery details" means a LIVE, filled-in row, not merely a row.
+    -- order_private_data_all_or_erased permits an all-NULL erased shape, and a
+    -- live row could still carry blank strings; paying against either would ship
+    -- an order with nowhere to send it. Require the row to be un-erased and every
+    -- field non-blank.
+    IF lines = 0
+       OR NOT EXISTS (
+           SELECT 1 FROM order_private_data
+           WHERE order_id = o.id AND erased_at IS NULL
+             AND email ~ '[^[:space:]]' AND recipient_name ~ '[^[:space:]]'
+             AND phone ~ '[^[:space:]]' AND postal_code ~ '[^[:space:]]'
+             AND city ~ '[^[:space:]]' AND district ~ '[^[:space:]]'
+             AND street ~ '[^[:space:]]')
+       OR subtotal - o.discount_cents + o.shipping_cents + o.tax_cents < 0 THEN
+        RAISE EXCEPTION 'order % is not complete enough to be paid', o.order_number
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'payments_require_complete_order';
+    END IF;
+
+    -- The capture must equal what the order is actually owed: its total, less any
+    -- store credit spent on it. Without this an NT$1 capture marks an NT$33,980
+    -- order paid, and an overpay is just as wrong — the whole intended/captured
+    -- split is pointless if captured need not match the order. Store credit spent
+    -- at checkout is a negative store_credit_entries row carrying the order_id;
+    -- there is no such flow yet, so today this is simply capture = order total.
+    -- When store-credit or cash-on-delivery funding arrives (batch ④), this is
+    -- the line that must learn about them.
+    order_total := subtotal - o.discount_cents + o.shipping_cents + o.tax_cents;
+    credit_applied := -coalesce((
+        SELECT sum(amount_cents) FROM store_credit_entries
+        WHERE order_id = o.id AND amount_cents < 0), 0);
+    IF NEW.captured_amount_cents <> order_total - credit_applied THEN
+        RAISE EXCEPTION 'order % is owed % (total % less store credit %) but the capture is %',
+            o.order_number, order_total - credit_applied, order_total, credit_applied,
+            NEW.captured_amount_cents
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'payments_capture_matches_order';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER payments_require_complete_order
+    BEFORE INSERT OR UPDATE OF status ON payments
+    FOR EACH ROW EXECUTE FUNCTION payments_require_complete_order();
+
+-- Once money has been captured, the row explaining it is history. Lowering
+-- captured_amount_cents afterwards would silently raise the refundable
+-- balance; moving the payment to another order would detach it from what it
+-- paid for.
+CREATE FUNCTION payments_freeze_settled() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF OLD.status <> 'succeeded' THEN
+        RETURN NEW;
+    END IF;
+    IF NEW.order_id <> OLD.order_id
+       OR NEW.provider <> OLD.provider
+       OR NEW.provider_ref <> OLD.provider_ref
+       OR NEW.captured_amount_cents IS DISTINCT FROM OLD.captured_amount_cents
+       OR NEW.intended_amount_cents <> OLD.intended_amount_cents
+       OR NEW.currency <> OLD.currency
+       OR NEW.paid_at IS DISTINCT FROM OLD.paid_at THEN
+        RAISE EXCEPTION 'payment % is settled; its amounts and identity are history',
+            OLD.provider_ref
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'payments_settled_is_history';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER payments_settled_is_history
+    BEFORE UPDATE ON payments
+    FOR EACH ROW EXECUTE FUNCTION payments_freeze_settled();
+
 CREATE TABLE refunds (
     id           uuid PRIMARY KEY DEFAULT uuidv7(),
     payment_id   uuid NOT NULL REFERENCES payments (id) ON DELETE RESTRICT,
     return_request_id uuid REFERENCES return_requests (id) ON DELETE RESTRICT,
-    -- The caller's own key, assigned before Stripe is called. It doubles as
-    -- the Idempotency-Key on the API request, so a crash between the call and
-    -- the row cannot produce a second refund on retry.
+    -- The caller's own key, assigned and committed BEFORE the provider is
+    -- called, so a crash between the call and the response leaves a row that
+    -- reconciliation can resolve.
+    --
+    -- With Stripe it can also be sent as the Idempotency-Key, which makes the
+    -- retry safe at the provider too. Do not assume that of every provider:
+    -- ECPay's refund call (DoAction) takes seven parameters and none of them
+    -- is an idempotency key, so a blind retry there refunds twice. For such a
+    -- provider the rule is query-then-decide, never retry.
     request_key  text NOT NULL,
     -- Filled in once Stripe answers. NULL means "asked for, not yet confirmed"
     -- — the state the previous NOT NULL column could not represent, which is
@@ -1490,7 +2136,8 @@ CREATE TABLE refunds (
     CONSTRAINT refunds_succeeded_has_time
         CHECK ((status = 'succeeded') = (succeeded_at IS NOT NULL)),
     CONSTRAINT refunds_failed_has_time
-        CHECK ((status = 'failed') = (failed_at IS NOT NULL))
+        CHECK ((status = 'failed') = (failed_at IS NOT NULL)),
+    CONSTRAINT refunds_amount_in_range CHECK (amount_cents <= 10000000000)
 );
 
 CREATE UNIQUE INDEX refunds_request_key_key ON refunds (request_key);
@@ -1506,14 +2153,38 @@ CREATE FUNCTION refunds_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
     captured bigint;
+    pay_status text;
+    pay_order uuid;
     already  bigint;
 BEGIN
-    SELECT captured_amount_cents INTO captured
+    -- The identity of a refund is fixed once written: re-pointing it at
+    -- another payment would let one capture's allowance be spent against a
+    -- second, and changing its key would break the provider correlation.
+    IF TG_OP = 'UPDATE' AND (NEW.payment_id <> OLD.payment_id
+                             OR NEW.request_key <> OLD.request_key) THEN
+        RAISE EXCEPTION 'a refund cannot be moved to another payment'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'refunds_within_capture';
+    END IF;
+
+    SELECT captured_amount_cents, status, order_id INTO captured, pay_status, pay_order
     FROM payments WHERE id = NEW.payment_id FOR UPDATE;
 
-    IF captured IS NULL THEN
-        RAISE EXCEPTION 'refunding a payment that captured nothing'
+    -- Both halves matter. Reading captured alone accepted a failed payment
+    -- that carried an amount, which the old CHECK allowed.
+    IF pay_status <> 'succeeded' OR captured IS NULL THEN
+        RAISE EXCEPTION 'refunding a payment that is % and captured %',
+            pay_status, coalesce(captured::text, 'nothing')
             USING ERRCODE = 'check_violation', CONSTRAINT = 'refunds_within_capture';
+    END IF;
+
+    -- A refund tied to a return must relieve the SAME order the payment paid
+    -- for: payment_id and return_request_id are otherwise unrelated foreign
+    -- keys, so order A's capture could be refunded against order B's return.
+    IF NEW.return_request_id IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM return_requests
+                       WHERE id = NEW.return_request_id AND order_id = pay_order) THEN
+        RAISE EXCEPTION 'refund''s return request belongs to a different order than its payment'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'refunds_same_order';
     END IF;
 
     SELECT coalesce(sum(amount_cents), 0) INTO already
@@ -1532,9 +2203,73 @@ BEGIN
 END;
 $$;
 
+-- Fires on every UPDATE, not only on the columns the sum reads: moving a
+-- refund to another payment changed neither amount nor status and so was
+-- invisible to the previous trigger.
 CREATE TRIGGER refunds_within_capture
-    BEFORE INSERT OR UPDATE OF amount_cents, status ON refunds
+    BEFORE INSERT OR UPDATE ON refunds
     FOR EACH ROW EXECUTE FUNCTION refunds_guard();
+
+-- A succeeded refund is money that left. Demoting it to failed would drop it
+-- out of the sum above and free the allowance to be spent again.
+CREATE FUNCTION refunds_check_transition() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF OLD.status = NEW.status THEN
+        RETURN NEW;
+    END IF;
+    IF OLD.status IN ('succeeded', 'failed', 'cancelled') THEN
+        RAISE EXCEPTION 'refund % is settled as %, cannot become %',
+            OLD.request_key, OLD.status, NEW.status
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'refunds_no_regression';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER refunds_no_regression
+    BEFORE UPDATE OF status ON refunds
+    FOR EACH ROW EXECUTE FUNCTION refunds_check_transition();
+
+-- A settled refund is money that already moved; its amount is history. The
+-- no-regression guard above stops the STATUS being demoted, but leaves the
+-- amount editable — a succeeded 60 could be rewritten to 100 (still within the
+-- capture, so refunds_guard passes) and misstate what was actually returned.
+-- Freeze the amount and identity once the refund is terminal, the same way
+-- payments_settled_is_history freezes a captured payment. DELETE of a settled
+-- refund is barred here too, since the owner/payment path keeps DELETE on the
+-- table.
+CREATE FUNCTION refunds_freeze_settled() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+    IF OLD.status NOT IN ('succeeded', 'failed', 'cancelled') THEN
+        RETURN NEW;
+    END IF;
+    IF TG_OP = 'DELETE' THEN
+        IF OLD.status = 'succeeded' THEN
+            RAISE EXCEPTION 'a succeeded refund is history and cannot be deleted'
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'refunds_settled_is_history';
+        END IF;
+        RETURN OLD;
+    END IF;
+    IF NEW.amount_cents <> OLD.amount_cents
+       OR NEW.payment_id <> OLD.payment_id
+       OR NEW.request_key <> OLD.request_key
+       OR NEW.return_request_id IS DISTINCT FROM OLD.return_request_id
+       OR NEW.provider_ref IS DISTINCT FROM OLD.provider_ref
+       OR NEW.succeeded_at IS DISTINCT FROM OLD.succeeded_at
+       OR NEW.failed_at IS DISTINCT FROM OLD.failed_at THEN
+        RAISE EXCEPTION 'refund % is settled; its amount and identity are history',
+            OLD.request_key
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'refunds_settled_is_history';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER refunds_settled_is_history
+    BEFORE UPDATE OR DELETE ON refunds
+    FOR EACH ROW EXECUTE FUNCTION refunds_freeze_settled();
 
 -- Stripe delivers at least once and in no guaranteed order. Recording the
 -- event before acting on it is what makes that safe; keeping the payload and
@@ -1637,7 +2372,8 @@ CREATE TABLE hero_slides (
     CONSTRAINT hero_slides_primary_cta_present
         CHECK (primary_cta_label ~ '[^[:space:]]' AND primary_cta_href ~ '[^[:space:]]'),
     CONSTRAINT hero_slides_image_has_alt
-        CHECK (image_key IS NULL OR image_alt ~ '[^[:space:]]'),
+        CHECK (image_key IS NULL
+               OR (image_alt IS NOT NULL AND image_alt ~ '[^[:space:]]')),
     CONSTRAINT hero_slides_secondary_cta_complete
         CHECK ((secondary_cta_label IS NULL) = (secondary_cta_href IS NULL)),
     CONSTRAINT hero_slides_window_ordered
@@ -1729,6 +2465,33 @@ CREATE TRIGGER sale_campaign_needs_discount
     BEFORE INSERT OR UPDATE ON sale_campaign_products
     FOR EACH ROW EXECUTE FUNCTION sale_campaign_products_guard();
 
+-- Membership is checked when a product joins, but a later edit that clears the
+-- last discounted variant would leave a featured product with no saving. When
+-- a variant loses its compare-at price or goes inactive, refuse it if that
+-- product is in any campaign and nothing else is discounted.
+CREATE FUNCTION sale_campaign_variant_still_valid() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM sale_campaign_products WHERE product_id = NEW.product_id) THEN
+        RETURN NEW;
+    END IF;
+    IF EXISTS (
+        SELECT 1 FROM product_variants
+        WHERE product_id = NEW.product_id AND is_active
+          AND compare_at_price_cents IS NOT NULL AND id <> NEW.id
+    ) OR (NEW.is_active AND NEW.compare_at_price_cents IS NOT NULL) THEN
+        RETURN NEW;
+    END IF;
+    RAISE EXCEPTION 'variant % is the last discount holding product % in a campaign',
+        NEW.id, NEW.product_id
+        USING ERRCODE = 'check_violation', CONSTRAINT = 'sale_campaign_variant_still_valid';
+END;
+$$;
+
+CREATE TRIGGER sale_campaign_variant_still_valid
+    BEFORE UPDATE OF compare_at_price_cents, is_active ON product_variants
+    FOR EACH ROW EXECUTE FUNCTION sale_campaign_variant_still_valid();
+
 -- ============================================================================
 -- Content and messages
 -- ============================================================================
@@ -1777,7 +2540,201 @@ CREATE TABLE newsletter_subscribers (
     created_at      timestamptz NOT NULL DEFAULT now(),
     unsubscribed_at timestamptz,
     CONSTRAINT newsletter_subscribers_email_present CHECK (email ~ '[^[:space:]]'),
-    CONSTRAINT newsletter_subscribers_email_trimmed CHECK (email = btrim(email))
+    CONSTRAINT newsletter_subscribers_email_trimmed CHECK (email !~ '^[[:space:]]|[[:space:]]$')
 );
 
 CREATE UNIQUE INDEX newsletter_subscribers_email_key ON newsletter_subscribers (lower(email));
+
+-- ============================================================================
+-- Privileges
+--
+-- Applied last, once every table and function exists. goen_app gets ordinary
+-- read/write, then the privileged tables have their direct-write privileges
+-- revoked so the only way in is the SECURITY DEFINER functions below.
+-- ============================================================================
+
+-- Erasing an account. order_private_data keys on the order, not the user, so a
+-- plain DELETE of a user never reaches the delivery PII on their orders; and
+-- stock_notifications carries a plaintext email that ON DELETE SET NULL would
+-- leave behind. Coupling erasure to the schema — one SECURITY DEFINER entry
+-- point — is what stops it being a second UPDATE someone has to remember.
+CREATE FUNCTION erase_user(p_user_id uuid) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+    -- Blank every delivery field on this user's orders and stamp erased_at. The
+    -- order_private_data_all_or_erased CHECK permits exactly this all-NULL
+    -- state, so the order survives as a financial record with no PII.
+    UPDATE order_private_data pd SET
+        email = NULL, recipient_name = NULL, phone = NULL, postal_code = NULL,
+        city = NULL, district = NULL, street = NULL, erased_at = now()
+    FROM orders o
+    WHERE pd.order_id = o.id AND o.user_id = p_user_id AND pd.erased_at IS NULL;
+
+    -- customer_note is the customer's own words and routinely carries PII (a
+    -- doorman, a phone number, a name) — it must go with the rest. staff_note is
+    -- internal and stays. Nulling a note does not trip orders_freeze_money, which
+    -- guards only money and the shipping snapshot, so a paid order erases too.
+    UPDATE orders SET customer_note = NULL
+    WHERE user_id = p_user_id AND customer_note IS NOT NULL;
+
+    -- The restock-notification email cannot be nulled (it is NOT NULL); drop the
+    -- rows outright — an erased account is not waiting for a restock.
+    DELETE FROM stock_notifications WHERE user_id = p_user_id;
+
+    -- The account itself. Its foreign keys carry the rest: orders.user_id and
+    -- the ledgers' actor_user_id go to NULL (forbid_change permits that one
+    -- nulling), auth rows cascade.
+    DELETE FROM users WHERE id = p_user_id;
+END;
+$$;
+
+-- ============================================================================
+-- Privileges
+--
+-- Applied last, once every table and function exists. goen_app gets ordinary
+-- read/write, then the privileged tables have their direct-write privileges
+-- revoked so the only way in is the SECURITY DEFINER functions below.
+-- ============================================================================
+
+GRANT USAGE ON SCHEMA public TO goen_app, goen_readonly;
+
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO goen_app, goen_readonly;
+GRANT INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO goen_app;
+
+-- goen_readonly is for reading BUSINESS data (reports, dashboards), not for
+-- reading everything. Take back SELECT on the tables that hold credentials and
+-- personal data: a report role has no business seeing a session token, a TOTP
+-- secret, a reset-token hash, an OAuth identity, a customer's delivery details,
+-- or a raw payment webhook payload. goen_app keeps them — the application needs
+-- them — but the read-only role does not.
+REVOKE SELECT ON
+    sessions, password_reset_tokens, staff_totp_credentials, user_identities,
+    order_private_data, payment_webhook_events
+    FROM goen_readonly;
+
+-- Tables whose integrity depends on going through a function. Revoke the write
+-- privileges that would let application code bypass it. SELECT stays.
+--
+--   product_variants.stock_quantity  — only record_inventory_movement writes it,
+--     but a column grant cannot express "every column except one", so the whole
+--     row is write-revoked and a function owns every mutation of a variant. A
+--     direct INSERT could otherwise mint a variant carrying phantom stock the
+--     ledger never posted, so INSERT goes too.
+--   inventory_movements — append-only ledger; INSERT is via
+--     record_inventory_movement, UPDATE/DELETE never.
+--   audit_events / store_credit_entries — append-only ledgers with ALL direct
+--     DML revoked. Their posting functions (an audit writer, a store-credit
+--     posting function) are NOT built yet — they arrive with the admin/account
+--     batches (⑦/⑥). Until then the door is deliberately shut rather than left
+--     ajar: the schema does not pretend a write path exists. Tracked as
+--     "add store_credit posting + audit writer functions" for those batches.
+--   payments / refunds — money; written through the payment service which runs
+--     as owner, not as goen_app. INSERT is revoked with UPDATE/DELETE, or
+--     goen_app could write a born-succeeded capture with no provider behind it.
+--   product_variants.stock_quantity is function-owned; a create_variant posting
+--     function (forcing stock_quantity=0 at birth) also arrives with the admin
+--     batch. Direct DML stays revoked until then.
+--   order_number_counters — the atomic counter; only next_order_number (now a
+--     SECURITY DEFINER function) may touch it, or the numbering stops being
+--     unique under concurrency.
+--   invoice_document_lines — append-only tax lines; INSERT appends, the rest is
+--     history.
+--   store_credit_accounts — its only mutable column is user_id, and the only
+--     legal change is the erasure nulling (which runs as owner). A direct UPDATE
+--     could repoint a whole balance to another user with no ledger guard
+--     noticing, so revoke it.
+REVOKE INSERT, UPDATE, DELETE ON
+    inventory_movements, inventory_reservations, audit_events, store_credit_entries
+    FROM goen_app;
+REVOKE INSERT, UPDATE, DELETE ON product_variants FROM goen_app;
+REVOKE INSERT, UPDATE, DELETE ON payments, refunds FROM goen_app;
+REVOKE INSERT, UPDATE, DELETE ON order_number_counters FROM goen_app;
+REVOKE UPDATE, DELETE, TRUNCATE ON invoice_document_lines FROM goen_app;
+REVOKE UPDATE ON store_credit_accounts FROM goen_app;
+-- payment_webhook_events is the at-least-once delivery dedupe ledger AND the raw
+-- record of what the provider sent. Deleting a row makes a resent event look
+-- new and be processed twice; rewriting the payload rewrites the evidence. The
+-- app only needs to stamp when it processed one, so keep INSERT and grant UPDATE
+-- on processed_at alone; take the rest away.
+REVOKE UPDATE, DELETE ON payment_webhook_events FROM goen_app;
+GRANT UPDATE (processed_at) ON payment_webhook_events TO goen_app;
+-- order_events and shipping_method_versions are append-only too (forbid_change),
+-- and had only DELETE revoked below — leaving the trigger as their sole guard.
+-- Revoke UPDATE so the privilege layer backs it. INSERT stays: the app appends
+-- an order event, and a new shipping version is an insert.
+REVOKE UPDATE ON order_events, shipping_method_versions FROM goen_app;
+-- A user must be erased through erase_user(), which also blanks the delivery PII
+-- on their orders and drops their restock emails. A direct DELETE would leave
+-- both behind (order_private_data keys on the order, stock_notifications.email
+-- is NOT NULL), so take DELETE away and leave that door as the only one. UPDATE
+-- stays: profile edits are ordinary writes.
+REVOKE DELETE ON users FROM goen_app;
+REVOKE DELETE, TRUNCATE ON
+    orders, order_lines, order_private_data, order_shipments,
+    order_shipment_lines, order_events, invoice_documents, invoice_preferences,
+    return_requests, return_request_lines, warranty_registrations,
+    payments, refunds, shipping_method_versions
+    FROM goen_app;
+
+-- Trigger guards read their tables by unqualified name. A plpgsql function with
+-- no pinned search_path resolves those against the caller's path — and pg_temp
+-- is searched FIRST for relations even when it is not listed, so goen_app,
+-- which may create temp tables, could plant an empty pg_temp.categories (or a
+-- forged pg_temp.payments) and the guard would read the decoy and pass.
+--
+-- Listing pg_temp LAST is what fixes it: current_schemas then puts pg_temp after
+-- public, so a real table always wins over a same-named temp one. (Omitting
+-- pg_temp does NOT help — it is then searched implicitly first; verified.) Every
+-- goen-authored function is pinned to (pg_catalog, public, pg_temp) and has its
+-- EXECUTE revoked from PUBLIC so a SECURITY DEFINER posting function is not
+-- callable by goen_readonly. The pg_trgm extension's own functions are left
+-- untouched. TEMP is revoked from goen_app as a second, independent layer.
+DO $$
+DECLARE
+    fn record;
+BEGIN
+    FOR fn IN
+        SELECT p.oid::regprocedure AS sig
+        FROM pg_proc p
+        JOIN pg_language l ON l.oid = p.prolang
+        WHERE p.pronamespace = 'public'::regnamespace
+          AND l.lanname = 'plpgsql'
+          AND NOT EXISTS (
+              SELECT 1 FROM pg_depend d
+              WHERE d.objid = p.oid AND d.deptype = 'e'
+          )
+    LOOP
+        EXECUTE format('ALTER FUNCTION %s SET search_path = pg_catalog, public, pg_temp', fn.sig);
+        EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC', fn.sig);
+    END LOOP;
+
+    -- goen_app's TEMP privilege arrives via PUBLIC, so revoking it from PUBLIC
+    -- is what takes it away. The owning superuser keeps it (superusers bypass);
+    -- the storefront never needs a temp table.
+    EXECUTE format('REVOKE TEMPORARY ON DATABASE %I FROM PUBLIC', current_database());
+
+    -- golang-migrate creates public.schema_migrations before this migration
+    -- runs, so GRANT ... ON ALL TABLES above hands goen_app write access to the
+    -- migration bookkeeping — enough to forge a version or set dirty. Revoke it
+    -- if the table is present (it is not when the schema is loaded directly).
+    IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'schema_migrations'
+               AND relnamespace = 'public'::regnamespace) THEN
+        EXECUTE 'REVOKE ALL ON schema_migrations FROM goen_app, goen_readonly';
+    END IF;
+END
+$$;
+
+-- The posting functions run as their owner, so they can write what goen_app
+-- cannot. EXECUTE is what goen_app is granted instead of direct DML.
+-- record_inventory_movement is made SECURITY DEFINER here (the other three were
+-- created that way); next_order_number joins them so the counter it increments
+-- can be write-revoked from goen_app above.
+ALTER FUNCTION record_inventory_movement(uuid, integer, text, text, text, uuid, uuid) SECURITY DEFINER;
+ALTER FUNCTION next_order_number() SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION record_inventory_movement(uuid, integer, text, text, text, uuid, uuid) TO goen_app;
+GRANT EXECUTE ON FUNCTION hold_inventory(uuid, uuid, integer, timestamptz, text) TO goen_app;
+GRANT EXECUTE ON FUNCTION consume_reservation(uuid) TO goen_app;
+GRANT EXECUTE ON FUNCTION release_reservation(uuid) TO goen_app;
+GRANT EXECUTE ON FUNCTION next_order_number() TO goen_app;
+GRANT EXECUTE ON FUNCTION erase_user(uuid) TO goen_app;

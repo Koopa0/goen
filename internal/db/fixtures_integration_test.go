@@ -59,11 +59,11 @@ INSERT INTO users (id, email, full_name) VALUES
     ('55555555-5555-4555-8555-555555555555', 'Ming@Example.com', '王小明'),
     ('5555aaaa-5555-4555-8555-555555555555', 'hua@example.com', '李大華');
 
-INSERT INTO store_credit_accounts (user_id) VALUES
-    ('55555555-5555-4555-8555-555555555555');
+INSERT INTO store_credit_accounts (id, user_id) VALUES
+    ('a0000001-0000-4000-8000-000000000000', '55555555-5555-4555-8555-555555555555');
 
-INSERT INTO store_credit_entries (user_id, amount_cents, reason, idempotency_key) VALUES
-    ('55555555-5555-4555-8555-555555555555', 100000, 'signup', 'fixture-grant');
+INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key) VALUES
+    ('a0000001-0000-4000-8000-000000000000', 100000, 'signup', 'fixture-grant');
 
 INSERT INTO addresses (id, user_id, recipient_name, phone, postal_code, city, district, street, is_default) VALUES
     ('eeee0001-0000-4000-8000-000000000000', '55555555-5555-4555-8555-555555555555',
@@ -108,8 +108,9 @@ INSERT INTO payments (id, order_id, provider_ref, status, intended_amount_cents,
 
 -- a second order still awaiting payment, for cases that must not run against a
 -- settled one
-INSERT INTO orders (id, order_number, shipping_method_code, shipping_method_name) VALUES
-    ('6666aaaa-6666-4666-8666-666666666666', 'GO-260721-000388', 'home_delivery', '宅配到府');
+INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name) VALUES
+    ('6666aaaa-6666-4666-8666-666666666666', 'GO-260721-000388',
+     'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');
 
 INSERT INTO order_lines (id, order_id, sku, product_name, unit_price_cents, quantity, position) VALUES
     ('6666a001-0000-4000-8000-000000000000', '6666aaaa-6666-4666-8666-666666666666',

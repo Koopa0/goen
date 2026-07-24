@@ -175,6 +175,68 @@ Before adding a `tool` directive, run `go list -m all | wc -l` before and
 after. If the tool does not generate code this module compiles, it does not
 belong there.
 
+## Four deliberate departures from the imported rules
+
+All are recorded here because they are decisions, not oversights, and a
+reviewer should see them named rather than discover them.
+
+1. **`database.md` says "NEVER use triggers for business logic"; goen uses ~26
+   rule triggers.** The rule guards against hiding application logic where a
+   reader will not find it. goen's triggers hold cross-row *data integrity*
+   invariants — a refund may not exceed its capture, stock may not oversell, an
+   allowance may not exceed its invoice — which are the opposite case: they
+   belong in the database precisely because it is the one place with no second
+   write path. Putting "a refund may not exceed the capture" in Go is the hole
+   the first review opened: two concurrent writers each check, each pass. The
+   line goen holds is that a trigger may enforce an invariant but may not
+   *decide* anything a handler should — no pricing, no routing, no side effects.
+
+2. **Money and privileged writes go through `SECURITY DEFINER` functions and a
+   revoked `goen_app` role, which `database.md`'s "handler controls the
+   transaction" does not describe.** The application connects and does
+   `SET ROLE goen_app`, which cannot write `stock_quantity`, a ledger, or a
+   payment directly — only `record_inventory_movement`, `hold_inventory`,
+   `consume_reservation`, `release_reservation`, `next_order_number` and
+   `erase_user` can. This is what makes "one writer" true rather than
+   aspirational; a comment claiming it is not enforcement.
+
+   A round-3 review found the first cut of this model porous, and closing it
+   set the standard the model has to meet — recorded because each hole is easy
+   to reopen by omission:
+   - **INSERT must be revoked, not only UPDATE/DELETE.** `goen_app` could
+     directly `INSERT` a born-succeeded payment and a variant carrying phantom
+     stock, because only UPDATE/DELETE were revoked. Every money/stock/ledger
+     table revokes all three.
+   - **Every trigger function pins `search_path` and `goen_app` holds no
+     `TEMP`.** An unpinned `SECURITY INVOKER` trigger reads its tables by
+     unqualified name, and `pg_temp` sits ahead of `public`; `goen_app` could
+     plant an empty `pg_temp.categories` (or a forged `pg_temp.payments`) and
+     the guard read the decoy. Both the pinning and the TEMP revoke are gated by
+     tests (`TestEveryStoredFunctionPinsSearchPath`, `TestGoenAppHasNoTempPrivilege`).
+   - **`SECURITY DEFINER` functions are not `PUBLIC EXECUTE`.** Otherwise
+     `goen_readonly` could call a posting function and write stock through it.
+   - **The login role must be a non-superuser** (`goen_web`); a superuser
+     session ignores every REVOKE and `RESET ROLE` restores it. The binary
+     refuses to serve if it is still a superuser after `SET ROLE goen_app`.
+   - **The privilege boundary is itself a test.** `coverage_integration_test.go`
+     assumes `goen_app` and asserts each forbidden write is denied — the gate
+     whose absence let the above hide. Every row is proven by mutation.
+
+3. **`updated_at` is kept by a trigger; `database.md` says "MUST set
+   `updated_at` explicitly in UPDATE queries, NEVER via triggers".** The rule
+   exists so a reader sees the timestamp being set at the write site. goen's
+   write sites are many (every feature's store, plus the admin batch to come)
+   and the cost of one forgetting is a silently stale timestamp that no test
+   would catch. A single `set_updated_at` trigger cannot forget. The rule's
+   intent — that the timestamp is always truthful — is better served here by the
+   trigger than by discipline.
+
+4. **`uuidv7()` for primary keys; `database.md` says "MUST use
+   `gen_random_uuid()`".** v7 keys are time-ordered, so index locality on insert
+   is far better than v4's random scatter — the difference the storefront's
+   append-heavy tables (orders, movements, events) will feel. PostgreSQL 18
+   ships `uuidv7()` in core, so it carries no dependency.
+
 ## The database enforces what it can
 
 goen's data rules live in the schema, not only in Go: 130 CHECKs, 58 foreign

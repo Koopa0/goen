@@ -3,8 +3,10 @@
 package db_test
 
 import (
+	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -129,18 +131,21 @@ var ruleCases = []ruleCase{
 	{
 		rule: "orders_legal_transition",
 		// pending cannot jump to shipped: the picking step is where stock leaves.
+		// The reject uses the unpaid order (the legal-transition check fires before
+		// the funded check, so it still names this rule); the accept must use the
+		// PAID order, since an unfunded order can no longer leave pending.
 		reject: `UPDATE orders SET fulfillment_status = 'shipped'
 		         WHERE order_number = 'GO-260721-000388';`,
 		accept: `UPDATE orders SET fulfillment_status = 'picking'
-		         WHERE order_number = 'GO-260721-000388';`,
+		         WHERE order_number = 'GO-260721-000387';`,
 	},
 	{
 		rule: "orders_have_lines",
-		reject: `INSERT INTO orders (id, order_number, shipping_method_code, shipping_method_name)
-		         VALUES ('11110001-0000-4000-8000-000000000001', 'GO-260721-000999', 'home_delivery', '宅配');
+		reject: `INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name)
+		         VALUES ('11110001-0000-4000-8000-000000000001', 'GO-260721-000999', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配');
 		         SET CONSTRAINTS orders_have_lines IMMEDIATE;`,
-		accept: `INSERT INTO orders (id, order_number, shipping_method_code, shipping_method_name)
-		         VALUES ('11110001-0000-4000-8000-000000000001', 'GO-260721-000999', 'home_delivery', '宅配');
+		accept: `INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name)
+		         VALUES ('11110001-0000-4000-8000-000000000001', 'GO-260721-000999', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配');
 		         INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
 		         VALUES ('11110001-0000-4000-8000-000000000001', 'SKU-X', '商品', 100000, 1);
 		         INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
@@ -166,10 +171,10 @@ var ruleCases = []ruleCase{
 	{
 		rule: "return_within_purchase",
 		// The line holds two units; asking for three is one too many.
-		reject: `INSERT INTO return_request_lines (return_request_id, order_line_id, quantity)
-		         VALUES ('88880001-0000-4000-8000-000000000000', '66660001-0000-4000-8000-000000000000', 3);`,
-		accept: `INSERT INTO return_request_lines (return_request_id, order_line_id, quantity)
-		         VALUES ('88880001-0000-4000-8000-000000000000', '66660001-0000-4000-8000-000000000000', 2);`,
+		reject: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+		         VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660001-0000-4000-8000-000000000000', 3);`,
+		accept: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+		         VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660001-0000-4000-8000-000000000000', 2);`,
 	},
 	{
 		rule: "warranty_unit_within_purchase",
@@ -237,16 +242,162 @@ var ruleCases = []ruleCase{
 		         VALUES ('ffff0001-0000-4000-8000-000000000000', '宅配到府(黑貓)', 10000, now() + interval '1 day');`,
 	},
 	{
-		rule:   "inventory_never_negative",
-		reject: `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', -15, 'sale', 'k-over');`,
-		accept: `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', -14, 'sale', 'k-exact');`,
+		rule: "inventory_never_negative",
+		// Fixture stock is 14, safety_stock 2, so a sale may take it to 2 but no
+		// lower. -12 lands exactly on the floor; -13 breaks it.
+		reject: `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', -13, 'sale', 'k-over');`,
+		accept: `SELECT record_inventory_movement('44444444-4444-4444-8444-444444444444', -12, 'sale', 'k-floor');`,
+	},
+	{
+		rule: "payments_settled_is_history",
+		// The fixture payment is succeeded; its captured amount is history.
+		reject: `UPDATE payments SET captured_amount_cents = 1
+		         WHERE id = '77770001-0000-4000-8000-000000000000';`,
+		acceptNote: "a succeeded payment's amounts are frozen; there is no legal edit to them",
+	},
+	{
+		rule: "refunds_no_regression",
+		// A succeeded refund cannot be demoted to free its allowance.
+		reject: `INSERT INTO refunds (id, payment_id, request_key, amount_cents, status, succeeded_at)
+		         VALUES ('11110020-0000-4000-8000-000000000001', '77770001-0000-4000-8000-000000000000',
+		                 'rk-regress', 100000, 'succeeded', now());
+		         UPDATE refunds SET status = 'failed', succeeded_at = NULL, failed_at = now()
+		         WHERE id = '11110020-0000-4000-8000-000000000001';`,
+		accept: `INSERT INTO refunds (id, payment_id, request_key, amount_cents, status)
+		         VALUES ('11110021-0000-4000-8000-000000000001', '77770001-0000-4000-8000-000000000000',
+		                 'rk-pending', 100000, 'pending');
+		         UPDATE refunds SET status = 'requires_action'
+		         WHERE id = '11110021-0000-4000-8000-000000000001';`,
+	},
+	{
+		rule: "refunds_settled_is_history",
+		// A succeeded refund's amount is money that already moved; raising it
+		// (still within capture, so refunds_guard would pass) misstates what was
+		// returned. no_regression does not fire — the status is untouched, only
+		// the amount — so this trigger is the one that must refuse it.
+		reject: `INSERT INTO refunds (id, payment_id, request_key, amount_cents, status, succeeded_at)
+		         VALUES ('11110023-0000-4000-8000-000000000001', '77770001-0000-4000-8000-000000000000',
+		                 'rk-freeze', 50000, 'succeeded', now());
+		         UPDATE refunds SET amount_cents = 60000
+		         WHERE id = '11110023-0000-4000-8000-000000000001';`,
+		// A pending refund is not yet history; its amount may still be corrected.
+		accept: `INSERT INTO refunds (id, payment_id, request_key, amount_cents, status)
+		         VALUES ('11110024-0000-4000-8000-000000000001', '77770001-0000-4000-8000-000000000000',
+		                 'rk-freeze-ok', 40000, 'pending');
+		         UPDATE refunds SET amount_cents = 45000
+		         WHERE id = '11110024-0000-4000-8000-000000000001';`,
+	},
+	{
+		rule: "payments_require_complete_order",
+		// The unpaid fixture order has its line deleted, then a payment is taken.
+		reject: `DELETE FROM order_lines WHERE order_id = '6666aaaa-6666-4666-8666-666666666666';
+		         INSERT INTO payments (order_id, provider_ref, status, intended_amount_cents, captured_amount_cents, paid_at)
+		         VALUES ('6666aaaa-6666-4666-8666-666666666666', 'pi-empty', 'succeeded', 100000, 100000, now());`,
+		accept: `INSERT INTO payments (order_id, provider_ref, status, intended_amount_cents, captured_amount_cents, paid_at)
+		         VALUES ('6666aaaa-6666-4666-8666-666666666666', 'pi-complete', 'succeeded', 3690000, 3690000, now());`,
+	},
+	{
+		rule: "orders_start_pending",
+		reject: `INSERT INTO orders (order_number, fulfillment_status, shipping_version_id, shipping_method_code, shipping_method_name)
+		         VALUES ('GO-260721-000901', 'shipped', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');
+		         SET CONSTRAINTS orders_have_lines IMMEDIATE;`,
+		accept: `INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name)
+		         VALUES ('11110022-0000-4000-8000-000000000001', 'GO-260721-000902', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');
+		         INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
+		         VALUES ('11110022-0000-4000-8000-000000000001', 'X', '商品', 100000, 1);
+		         INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
+		         VALUES ('11110022-0000-4000-8000-000000000001', 'x@example.com', '王', '09', '110', '台北市', '信義區', '路 1 號');
+		         SET CONSTRAINTS orders_have_lines IMMEDIATE;`,
+	},
+	{
+		rule: "shipment_within_purchase",
+		// The paid fixture order's line holds 2; shipping 3 is one too many.
+		reject: `INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+		         VALUES ('66666666-6666-4666-8666-666666666666', '66660002-0000-4000-8000-000000000000',
+		                 '66660001-0000-4000-8000-000000000000', 3);`,
+		accept: `INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+		         VALUES ('66666666-6666-4666-8666-666666666666', '66660002-0000-4000-8000-000000000000',
+		                 '66660001-0000-4000-8000-000000000000', 2);`,
+	},
+	{
+		rule: "return_requests_legal_transition",
+		reject: `UPDATE return_requests SET status = 'completed', decided_at = now()
+		         WHERE id = '88880001-0000-4000-8000-000000000000';`,
+		accept: `UPDATE return_requests SET status = 'approved', decided_at = now()
+		         WHERE id = '88880001-0000-4000-8000-000000000000';`,
+	},
+	{
+		rule: "orders_shipping_snapshot_matches",
+		// The fixture version ffff0002 belongs to method home_delivery; an order
+		// snapshotting a different code against it is the contradiction the FK
+		// cannot catch. The neighbour carries the matching code.
+		reject: `INSERT INTO orders (id, shipping_version_id, shipping_method_code, shipping_method_name)
+		         VALUES ('11110030-0000-4000-8000-000000000001', 'ffff0002-0000-4000-8000-000000000000', 'store_pickup', '超商取貨');`,
+		accept: `INSERT INTO orders (id, shipping_version_id, shipping_method_code, shipping_method_name)
+		         VALUES ('11110030-0000-4000-8000-000000000001', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');`,
+	},
+	{
+		rule: "return_requests_start_requested",
+		// Inserting straight into 'approved' skips the transition machine and its
+		// quantity recount; only 'requested' is legal at birth.
+		reject: `INSERT INTO return_requests (order_id, status, reason, decided_at)
+		         VALUES ('66666666-6666-4666-8666-666666666666', 'approved', '退貨', now());`,
+		accept: `INSERT INTO return_requests (order_id, reason)
+		         VALUES ('66666666-6666-4666-8666-666666666666', '退貨');`,
+	},
+	{
+		rule: "invoice_allowance_valid",
+		// An allowance for more than the fixture invoice (6,788,000) was for.
+		reject: `INSERT INTO invoice_documents (order_id, kind, original_id, number, amount_cents)
+		         VALUES ('66666666-6666-4666-8666-666666666666', 'allowance',
+		                 '99990001-0000-4000-8000-000000000000', 'AL-1', 9000000);`,
+		accept: `INSERT INTO invoice_documents (order_id, kind, original_id, number, amount_cents)
+		         VALUES ('66666666-6666-4666-8666-666666666666', 'allowance',
+		                 '99990001-0000-4000-8000-000000000000', 'AL-2', 1000000);`,
+	},
+	{
+		rule: "sale_campaign_needs_discount",
+		// Adding a product to a campaign when none of its variants is marked down.
+		reject: `INSERT INTO sale_campaign_products (campaign_id, product_id)
+		         VALUES ('aaaa1111-0000-4000-8000-000000000000', '33333333-3333-4333-8333-333333333333');`,
+		accept: `UPDATE product_variants SET compare_at_price_cents = 3990000
+		         WHERE id = '44444444-4444-4444-8444-444444444444';
+		         INSERT INTO sale_campaign_products (campaign_id, product_id)
+		         VALUES ('aaaa1111-0000-4000-8000-000000000000', '33333333-3333-4333-8333-333333333333');`,
+	},
+	{
+		rule: "sale_campaign_variant_still_valid",
+		// A campaigned product's last discounted variant cannot lose its markdown.
+		reject: `UPDATE product_variants SET compare_at_price_cents = 3990000
+		         WHERE id = '44444444-4444-4444-8444-444444444444';
+		         INSERT INTO sale_campaign_products (campaign_id, product_id)
+		         VALUES ('aaaa1111-0000-4000-8000-000000000000', '33333333-3333-4333-8333-333333333333');
+		         UPDATE product_variants SET compare_at_price_cents = NULL
+		         WHERE id = '44444444-4444-4444-8444-444444444444';`,
+		// A second variant keeps a discount, so this one may drop its own.
+		accept: `UPDATE product_variants SET compare_at_price_cents = 3990000
+		         WHERE id = '44444444-4444-4444-8444-444444444444';
+		         UPDATE product_variants SET compare_at_price_cents = 4990000
+		         WHERE id = '4444aaaa-4444-4444-8444-444444444444';
+		         INSERT INTO sale_campaign_products (campaign_id, product_id)
+		         VALUES ('aaaa1111-0000-4000-8000-000000000000', '33333333-3333-4333-8333-333333333333');
+		         UPDATE product_variants SET compare_at_price_cents = NULL
+		         WHERE id = '44444444-4444-4444-8444-444444444444';`,
+	},
+	{
+		rule: "invoice_document_lines_append_only",
+		reject: `INSERT INTO invoice_document_lines (id, document_id, description, quantity, unit_price_cents, amount_cents, tax_type)
+		         VALUES ('11110023-0000-4000-8000-000000000001', '99990001-0000-4000-8000-000000000000', '手機', 1, 6788000, 6788000, 'taxable');
+		         UPDATE invoice_document_lines SET amount_cents = 1
+		         WHERE id = '11110023-0000-4000-8000-000000000001';`,
+		acceptNote: "appending is the only permitted operation on a filed document's lines",
 	},
 }
 
 func creditEntry(amount int, key string) string {
 	return fmt.Sprintf(
-		`INSERT INTO store_credit_entries (user_id, amount_cents, reason, idempotency_key)
-		 VALUES ('55555555-5555-4555-8555-555555555555', %d, 'spend', '%s');`, amount, key)
+		`INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
+		 VALUES ('a0000001-0000-4000-8000-000000000000', %d, 'spend', '%s');`, amount, key)
 }
 
 func refund(key string, amount int) string {
@@ -301,6 +452,13 @@ func raceOutcome(t *testing.T, stmt1, stmt2 string) (err1, err2 error) {
 
 	_, err1 = tx1.Exec(ctx, stmt1)
 
+	// T2's backend pid, so its lock-wait state can be observed rather than
+	// guessed at with a sleep.
+	var pid2 int
+	if err := c2.QueryRow(ctx, "SELECT pg_backend_pid()").Scan(&pid2); err != nil {
+		t.Fatalf("backend pid: %v", err)
+	}
+
 	// T2 runs while T1 is still open. It either blocks on T1's lock or does
 	// not; the goroutine exists so that blocking does not deadlock the test.
 	done := make(chan struct{})
@@ -309,12 +467,12 @@ func raceOutcome(t *testing.T, stmt1, stmt2 string) (err1, err2 error) {
 		_, err2 = tx2.Exec(ctx, stmt2)
 	}()
 
-	// Long enough that an unblocked T2 has certainly finished, so a test that
-	// sees T2 still running knows it is genuinely waiting on a lock.
-	select {
-	case <-done:
-	case <-time.After(300 * time.Millisecond):
-	}
+	// Advance only when T2 has reached a decided state: finished, or genuinely
+	// waiting on a lock. Polling pg_stat_activity removes the timing guess a
+	// fixed sleep depended on — on a slow runner the old 300ms could commit T1
+	// before T2 had even started, and an unguarded T2 would then read fresh
+	// data and pass while proving nothing.
+	waitForDecision(t, pid2, done)
 
 	if err1 == nil {
 		if cerr := tx1.Commit(ctx); cerr != nil {
@@ -334,6 +492,33 @@ func raceOutcome(t *testing.T, stmt1, stmt2 string) (err1, err2 error) {
 		_ = tx2.Rollback(ctx)
 	}
 	return err1, err2
+}
+
+// waitForDecision blocks until T2 either finishes or is confirmed waiting on a
+// lock, so the caller commits T1 at a point where the interleaving is real
+// rather than assumed. It fails the test if T2 neither finishes nor blocks
+// within a generous ceiling — that would mean the test proved nothing.
+func waitForDecision(t *testing.T, pid int, done <-chan struct{}) {
+	t.Helper()
+	ctx := t.Context()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		select {
+		case <-done:
+			return
+		default:
+		}
+		var waiting bool
+		if err := schemaPool(t).QueryRow(ctx, `
+			SELECT wait_event_type = 'Lock'
+			FROM pg_stat_activity WHERE pid = $1`, pid).Scan(&waiting); err == nil && waiting {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("second writer neither finished nor blocked on a lock; the interleaving did not happen")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
 
 // requireExactlyOne fails unless precisely one of the two writers won.
@@ -388,8 +573,13 @@ func TestRefundsCannotRacePastCapture(t *testing.T) {
 	order := "11110009-0000-4000-8000-000000000001"
 	payment := "1111000a-0000-4000-8000-000000000001"
 	setup(t, `
-		INSERT INTO orders (id, order_number, shipping_method_code, shipping_method_name)
-		VALUES ('`+order+`','GO-260721-000900','home_delivery','宅配');
+		INSERT INTO shipping_methods (id, code) VALUES ('1111000f-0000-4000-8000-000000000001','race_home')
+		ON CONFLICT DO NOTHING;
+		INSERT INTO shipping_method_versions (id, method_id, name, fee_cents)
+		VALUES ('11110010-0000-4000-8000-000000000001','1111000f-0000-4000-8000-000000000001','宅配',8000)
+		ON CONFLICT DO NOTHING;
+		INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name)
+		VALUES ('`+order+`','GO-260721-000900','11110010-0000-4000-8000-000000000001','race_home','宅配');
 		INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
 		VALUES ('`+order+`','R-1','商品',100000,1);
 		INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
@@ -425,28 +615,29 @@ func TestRefundsCannotRacePastCapture(t *testing.T) {
 // TestStoreCreditCannotRacePastBalance spends the same balance twice at once.
 func TestStoreCreditCannotRacePastBalance(t *testing.T) {
 	user := "1111000b-0000-4000-8000-000000000001"
+	account := "1111000e-0000-4000-8000-000000000001"
 	setup(t, `
 		INSERT INTO users (id, email) VALUES ('`+user+`','race@example.com');
-		INSERT INTO store_credit_accounts (user_id) VALUES ('`+user+`');
-		INSERT INTO store_credit_entries (user_id, amount_cents, reason, idempotency_key)
-		VALUES ('`+user+`', 100000, 'grant', 'race-grant');`)
+		INSERT INTO store_credit_accounts (id, user_id) VALUES ('`+account+`','`+user+`');
+		INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
+		VALUES ('`+account+`', 100000, 'grant', 'race-grant');`)
 	t.Cleanup(func() {
-		mustExec(t, `DELETE FROM store_credit_entries WHERE user_id = $1`, user)
-		mustExec(t, `DELETE FROM store_credit_accounts WHERE user_id = $1`, user)
+		mustExec(t, `DELETE FROM store_credit_entries WHERE account_id = $1`, account)
+		mustExec(t, `DELETE FROM store_credit_accounts WHERE id = $1`, account)
 		mustExec(t, `DELETE FROM users WHERE id = $1`, user)
 	})
 
 	err1, err2 := raceOutcome(t,
-		`INSERT INTO store_credit_entries (user_id, amount_cents, reason, idempotency_key)
-		 VALUES ('`+user+`', -80000, 'spend', 'credit-race-1')`,
-		`INSERT INTO store_credit_entries (user_id, amount_cents, reason, idempotency_key)
-		 VALUES ('`+user+`', -80000, 'spend', 'credit-race-2')`)
+		`INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
+		 VALUES ('`+account+`', -80000, 'spend', 'credit-race-1')`,
+		`INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
+		 VALUES ('`+account+`', -80000, 'spend', 'credit-race-2')`)
 	requireExactlyOne(t, "a balance of NT$1,000 against two spends of NT$800", err1, err2)
 
 	var balance int64
 	if err := schemaPool(t).QueryRow(t.Context(),
-		`SELECT coalesce(sum(amount_cents), 0) FROM store_credit_entries WHERE user_id = $1`,
-		user).Scan(&balance); err != nil {
+		`SELECT coalesce(sum(amount_cents), 0) FROM store_credit_entries WHERE account_id = $1`,
+		account).Scan(&balance); err != nil {
 		t.Fatalf("read balance: %v", err)
 	}
 	if balance < 0 {
@@ -521,6 +712,142 @@ func TestUpdatedAtIsMaintained(t *testing.T) {
 	}
 }
 
+// TestRefundMustMatchOrder proves a refund cannot relieve one order's return
+// against another order's capture: refunds_guard reads the payment's order and
+// rejects a return request naming a different one.
+func TestRefundMustMatchOrder(t *testing.T) {
+	// A return request on the UNPAID order; a refund against the PAID order's
+	// payment. The two name different orders.
+	err := run(t, `
+		INSERT INTO return_requests (id, order_id, reason)
+		VALUES ('11110031-0000-4000-8000-000000000001', '6666aaaa-6666-4666-8666-666666666666', '不合用');
+		INSERT INTO refunds (payment_id, return_request_id, request_key, amount_cents, status)
+		VALUES ('77770001-0000-4000-8000-000000000000', '11110031-0000-4000-8000-000000000001', 'rk-xorder', 1000, 'pending');`)
+	if err == nil {
+		t.Fatal("a refund tied a paid order's capture to another order's return")
+	}
+	if _, name := constraintViolation(err); name != "refunds_same_order" {
+		t.Fatalf("refused by %q, want refunds_same_order: %v", name, err)
+	}
+}
+
+// TestReleaseReservationRefusesPaidOrder proves the expiry sweep cannot hand a
+// paid order's held stock back to the shelf: release_reservation refuses a hold
+// whose order has a succeeded payment. Its only exit is consume_reservation.
+func TestReleaseReservationRefusesPaidOrder(t *testing.T) {
+	ctx := t.Context()
+	tx, err := schemaPool(t).Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, fixtures); err != nil {
+		t.Fatalf("fixtures: %v", err)
+	}
+
+	// A hold on the PAID fixture order (66666666 carries succeeded payment 77770001).
+	var held string
+	if err := tx.QueryRow(ctx,
+		`SELECT hold_inventory('66666666-6666-4666-8666-666666666666',
+			'44444444-4444-4444-8444-444444444444', 1, now() + interval '15 min', 'hold-paid-1')`).
+		Scan(&held); err != nil {
+		t.Fatalf("hold: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT release_reservation($1)`, held); err == nil {
+		t.Fatal("released a hold on a paid order — sold stock returned to the shelf")
+	} else if _, name := constraintViolation(err); name != "inventory_reservation_paid_no_release" {
+		t.Fatalf("refused by %q, want inventory_reservation_paid_no_release: %v", name, err)
+	}
+}
+
+// TestCaptureMustMatchOrderTotal proves a payment cannot mark an order paid for
+// the wrong amount: an underpay (NT$1 against an NT$33,980 order) and an overpay
+// are both refused, while the exact total is accepted. The fixture's paid order
+// already carries a matching capture, so this exercises the unpaid order.
+func TestCaptureMustMatchOrderTotal(t *testing.T) {
+	// order 6666aaaa: one line of 3,690,000, no shipping/discount/tax → total 3,690,000.
+	for _, tc := range []struct {
+		name    string
+		capture int64
+		wantErr bool
+	}{
+		{"underpay", 100, true},
+		{"overpay", 9000000, true},
+		{"exact", 3690000, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := run(t, `INSERT INTO payments (order_id, provider_ref, status, intended_amount_cents, captured_amount_cents, paid_at)
+				VALUES ('6666aaaa-6666-4666-8666-666666666666', 'pi-cap-`+tc.name+`', 'succeeded', `+
+				itoa(tc.capture)+`, `+itoa(tc.capture)+`, now());`)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("capture %d accepted against a 3,690,000 order", tc.capture)
+				}
+				if _, name := constraintViolation(err); name != "payments_capture_matches_order" {
+					t.Fatalf("refused by %q, want payments_capture_matches_order: %v", name, err)
+				}
+			} else if err != nil {
+				t.Fatalf("exact capture refused: %v", err)
+			}
+		})
+	}
+}
+
+// TestGoenAppCannotEraseWebhookLedger proves the app cannot delete or rewrite the
+// webhook dedupe ledger (which would let a resent event be processed twice), but
+// can still stamp when it processed one.
+func TestGoenAppCannotEraseWebhookLedger(t *testing.T) {
+	if goenAppHasTablePriv(t, "payment_webhook_events", "DELETE") {
+		t.Error("goen_app can DELETE payment_webhook_events; a resent event could be replayed")
+	}
+	// UPDATE at table level is revoked; only the processed_at column is granted.
+	var canProcessed, canPayload bool
+	if err := schemaPool(t).QueryRow(t.Context(),
+		`SELECT has_column_privilege('goen_app', 'payment_webhook_events', 'processed_at', 'UPDATE'),
+		        has_column_privilege('goen_app', 'payment_webhook_events', 'payload', 'UPDATE')`).
+		Scan(&canProcessed, &canPayload); err != nil {
+		t.Fatalf("has_column_privilege: %v", err)
+	}
+	if !canProcessed {
+		t.Error("goen_app cannot stamp processed_at; it needs to mark an event handled")
+	}
+	if canPayload {
+		t.Error("goen_app can rewrite the webhook payload; the raw evidence must be immutable")
+	}
+}
+
+// TestOrderCannotLeavePendingUnfunded encodes the owner's decision that goen
+// does not ship what it has not collected: an unpaid order cannot move from
+// pending to picking, a paid one can, and cancelling from pending is always
+// allowed regardless of funding. A zero-owed order (none exists in fixtures) is
+// funded without a payment — that path is covered by the checkout batch's tests
+// when store credit lands.
+func TestOrderCannotLeavePendingUnfunded(t *testing.T) {
+	// Unpaid order (6666aaaa) → picking: refused.
+	err := run(t, `UPDATE orders SET fulfillment_status = 'picking'
+	               WHERE id = '6666aaaa-6666-4666-8666-666666666666';`)
+	if err == nil {
+		t.Fatal("an unpaid order left pending into fulfilment")
+	}
+	if _, name := constraintViolation(err); name != "orders_funded_to_leave_pending" {
+		t.Fatalf("refused by %q, want orders_funded_to_leave_pending: %v", name, err)
+	}
+
+	// Paid order (66666666) → picking: allowed.
+	if err := run(t, `UPDATE orders SET fulfillment_status = 'picking'
+	                  WHERE id = '66666666-6666-4666-8666-666666666666';`); err != nil {
+		t.Fatalf("a funded order was refused fulfilment: %v", err)
+	}
+
+	// Unpaid order → cancelled: always allowed.
+	if err := run(t, `UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
+	                  WHERE id = '6666aaaa-6666-4666-8666-666666666666';`); err != nil {
+		t.Fatalf("cancelling an unpaid order from pending was refused: %v", err)
+	}
+}
+
+func itoa(n int64) string { return strconv.FormatInt(n, 10) }
+
 func setup(t *testing.T, stmt string) {
 	t.Helper()
 	if _, err := schemaPool(t).Exec(t.Context(), stmt); err != nil {
@@ -530,7 +857,10 @@ func setup(t *testing.T, stmt string) {
 
 func mustExec(t *testing.T, stmt string, args ...any) {
 	t.Helper()
-	if _, err := schemaPool(t).Exec(t.Context(), stmt, args...); err != nil {
+	// Cleanups run after t.Context() is cancelled, so a plain t.Context() here
+	// fails with "context canceled" and leaves rows behind for the next run.
+	ctx := context.WithoutCancel(t.Context())
+	if _, err := schemaPool(t).Exec(ctx, stmt, args...); err != nil {
 		t.Logf("clean up %q: %v", stmt, err)
 	}
 }
