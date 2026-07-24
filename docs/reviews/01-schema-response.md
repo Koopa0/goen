@@ -51,7 +51,7 @@ skipped:                  2   ← 多行 CHECK,腳本切不乾淨
 
 處置:查詢加上 `i.indpred IS NULL AND i.indisvalid AND i.indislive`。
 收緊後又抓出**另外 2 個**同類問題(`carts.user_id`、
-`variant_option_values` 的複合外鍵)。三個都補了完整索引。現在 58 個外鍵、0 個遺漏。
+`variant_option_values` 的複合外鍵)。三個都補了完整索引。
 
 ### 「TestNoStoredDerivedValues 只是欄名黑名單」
 
@@ -312,16 +312,33 @@ email 唯一索引問題也已證實(`' a@example.com '` 可與正常帳號並�
 
 ---
 
+## 第一輪處置之後的追加變更
+
+這些發生在處置紀錄寫完之後,一併列出以免複審對照到過期的樹。
+
+**補上三個缺失的外鍵。** 三個欄位名為 `order_id` 卻沒有指向 `orders`:
+`inventory_reservations`、`checkout_attempts`、`store_credit_entries`。
+實測確認修正前可以寫入指向不存在訂單的孤兒保留(`ROLLBACK` 前 INSERT 成功)。
+
+三者都在 `orders` 之前建立(保留與結帳嘗試在訂單存在之前就寫入),所以外鍵是在
+`orders` 建好之後用 `ALTER TABLE` 補的,並加了 `checkout_attempts_order_id_idx`
+——原本的 partial unique index 無法服務外鍵自己的查詢。
+
+squawk 的 `adding-foreign-key-constraint` 與 `constraint-missing-not-valid` 在這個
+檔案以 `squawk-ignore-file` 關閉,理由寫在檔頭:兩條規則是為了「對已經有人在寫入的
+資料表做 ALTER」而存在,而這個檔案是從零建立整個 schema,沒有任何資料表有資料。
+**未來的 migration 是不同檔案,規則照樣生效。**
+
 ## 現況
 
 | 項目 | 數量 |
 |---|---|
 | 資料表 | 52 |
 | CHECK 約束 | 130 |
-| 外鍵 | 58(**0 個缺完整索引**) |
+| 外鍵 | 61(**0 個缺完整索引**) |
 | 唯一索引 | 43 |
 | 規則 trigger | 17 |
-| migration 行數 | 1,749 |
+| migration 行數 | 1,783 |
 | 整合測試子測試 | 378 |
 
 驗證:
