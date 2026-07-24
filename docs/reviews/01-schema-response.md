@@ -348,3 +348,125 @@ squawk 的 `adding-foreign-key-constraint` 與 `constraint-missing-not-valid` �
 - CHECK 刪除實驗:**100 個中 0 個能不被察覺地刪除**(修正前為 48/65)
 - 並行守衛 mutation:拿掉鎖或原子性 → **4/4 種紅,3/3 次穩定重現**
 - migration down→up 往返 PASS
+
+---
+
+# 第二輪複審(Codex)的處置
+
+第二輪複審在 PostgreSQL 18.4 上重跑並執行反例 SQL,判定「仍不宜上線」,列出多條可直接
+寫壞資料的路徑。以下逐條處置,每項都**實測重現 → 修正 → 實測確認已擋**。
+
+## 對機器驗證前提的再指控(全部成立)
+
+| 指控 | 實測 | 處置 |
+|---|---|---|
+| A. CHECK 覆蓋:刪除實驗只 mutation 了 100/130(30 個多行寫法抓不到);catalog gate 的 `_not_null` 後綴過濾是陷阱;以 `conname` 為鍵在跨表重名時會失效 | 屬實 | 移除名稱過濾(改靠 `contype='c'`);新增 `TestCheckConstraintNamesAreUnique` 守衛「名稱全域唯一」這個前提,未來重名會紅並指示改 table-qualified |
+| A. 「378 子測試」實為 378 pass + 4 skip | 屬實 | 數字更正 |
+| B. race test 是 300ms 時序猜測,非決定性;`requireExactlyOne` 接受任何 loser error | 屬實 | 改用 `pg_stat_activity` 輪詢確認 T2 真的在等鎖才 commit T1;10 秒內未進 lock-wait 即 fail |
+| B. 「mutation 4/4 紅」與測試註解矛盾 | **屬實,這是我兩份文件互相矛盾而未察** | 承認:單獨移除庫存條件式會逃逸(CHECK 是第二道防線),需兩者一起移除才紅。這是 defense-in-depth,不能計入 4/4 killed |
+| B. race cleanup 用已取消的 context,無法重跑 | 屬實 | `mustExec` 改用 `context.WithoutCancel` |
+| C. FK 索引檢查可被 INCLUDE 欄與複合欄順序騙過;一律排除 partial 造成重複索引 | 屬實 | 加 `indpred IS NULL / indisready`;刪除 3 個重複索引(`carts_user_id_idx`、`checkout_attempts_order_id_idx`、`products_id_self_key`);新增 `TestForeignKeySetIsComplete` 釘死 63 個外鍵名(刪 FK 會紅) |
+
+## 資料面指控(15 條全部實測重現並修正)
+
+| # | 指控 | 處置 |
+|---|---|---|
+| D | 失敗付款可帶 captured 金額,且可對它退款 | `payments_succeeded_is_captured` 改真正的雙向 all-or-none;`refunds_guard` 額外要求 payment `status='succeeded'` |
+| — | 退款可換 payment、succeeded 降級再退、事後改小 capture 繞過上限 | refund/payment 身分與金額 immutable(`payments_settled_is_history`、`refunds_no_regression`、guard 監聽 payment_id) |
+| J | 已付款訂單可「新增」明細(trigger 只擋 UPDATE/DELETE) | `order_lines_frozen_once_paid` 涵蓋 INSERT,並鎖 order |
+| K | 訂單完整性只在 INSERT 檢查一次,commit 後可掏空 | 付款成功時 `payments_require_complete_order` 鎖 order 重驗明細/地址/總額 |
+| L/M/N | 庫存:可直接 UPDATE `stock_quantity`、直接 INSERT 流水帳、保留超量、扣貨忽略 safety_stock | **app role + SECURITY DEFINER**:`goen_app` 撤銷直接寫入,只能經 function;`inventory_reservations` 三個 lifecycle function;扣貨 floor = safety_stock |
+| P | 出貨可裝別張訂單明細、超過購買量 | composite FK(同訂單)+ `shipment_within_purchase` 上限 |
+| Q | 退貨可跨訂單、rejected 改 approved 繞過上限 | composite FK + `return_requests_legal_transition` + recount |
+| S/T | 可直接 INSERT 已出貨訂單、order_number 手寫、shipping_version 可空 | `orders_start_pending`、`order_number DEFAULT next_order_number()`、`shipping_version_id NOT NULL` |
+| F | company 發票無統編、mobile 無載具、hero 圖無 alt(NULL 洞) | CHECK 補 `IS NOT NULL AND ...` |
+| E | 個資半清(只清姓名);有購物金帳戶的 user 刪不掉 | `order_private_data` 改真正全清/全留;`store_credit_accounts` 改獨立 id + user_id `ON DELETE SET NULL`,ledger 指 account_id |
+| — | 發票折讓可 self-ref、跨訂單、超原額;無明細 | `invoice_allowance_valid`(同訂單、≤原額、鎖原發票)+ `invoice_document_lines` |
+| — | 購物金 reversal 可重複、跨帳戶、錯金額 | `UNIQUE(reverses_id)` + guard 驗同帳戶且恰為負額 |
+| — | sale campaign 加入後可清光折扣 | `sale_campaign_variant_still_valid` |
+| — | RESTRICT ≠ append-only,財務歷史仍可逐項 DELETE | `goen_app` 撤銷 payments/refunds/訂單子表的 DELETE/TRUNCATE |
+| — | email `btrim` 可被首尾 tab 繞過 | 改 `!~ '^[[:space:]]|[[:space:]]$'` |
+
+## down migration
+
+複審指出殘留 `pg_trgm` 且無自動 gate。down 改用 DO block 迭代刪除所有 table(除
+`schema_migrations`)與所有非 extension-owned function —— 不會漏 function,也不會砍掉
+migrate 自己的版本表。實測 down→up 往返乾淨。
+
+## 商務領域參考(Vendure / Saleor / Medusa / Stripe)驗證的決定
+
+擁有者提供的四個參考,驗證了本輪的核心設計:variant 才是 SKU(非 product)、庫存是
+movement 而非單一 quantity、checkout reservation 有到期時間、payment 是獨立 aggregate
+且 intended/captured 分離、退款是 payment 下的子帳而非獨立金額。這些都已在 schema 裡。
+
+### 對照四套領域模型後找到的缺口(依「現在便宜/之後昂貴」分級)
+
+判準沿用本專案一貫的原則:一個缺口若「現在補很便宜、之後補很貴(要改資料或補歷史)」
+就現在補;若「加了才知道怎麼設計」就等功能長出來。
+
+**上線收真錢前(before real money)**
+- **`orders.discount_code` 是無來源的自由文字。** 與複審抓到的 shipping 同一類缺陷:
+  `shipping_method_code/name` 曾是自由文字,直到 `shipping_method_versions` 給它一個凍結
+  的真相來源。`discount_code text` 目前沒有背後的 promotion 表,也沒有任何約束保證
+  `discount_cents` 與該碼的條款相符——折扣可被捏造或對不上。**現在沒有 code path 會寫它
+  (checkout 是批次 ④),所以今天不是資料損毀,是批次 ④ 的設計前提**:任何 coupon 功能
+  上線前,`discount_code` 必須指向一張有凍結條款的 promotion 版本表,重演 shipping 的作法。
+- **爭議款(Stripe Dispute / 銀行 chargeback)沒有一級模型。** 原始 webhook 事件已由
+  `payment_webhook_events` 完整留存(金流真相不會遺失),所以不是「上線前擋 PR」等級;
+  但 dispute 有自己的生命週期(needs_response → under_review → won/lost)與資金影響
+  (款項被抽回),`refunds` 表涵蓋不了。列為 fast-follow 的爭議帳,今天先確認 webhook
+  留存足以事後補建即可。
+
+**快速跟進(fast-follow,與 checkout ④ 一起)**
+- **Stripe 手續費與撥款對帳(Payout / Balance Transaction)。** 目前只記毛額 payment,不記
+  Stripe 抽的 fee,也不記款項分批撥入銀行的 payout。少了它無法對「實際入帳多少」。可先
+  從 webhook 事件投影出來,不必即刻建表。
+- **每筆出貨的物流狀態機。** `order_shipments` 只有 `shipped_at`/`delivered_at` 兩個時間戳,
+  用時間推斷狀態;四套參考都給 shipment 一個顯式生命週期(label_printed → in_transit →
+  delivered → failed → returned_to_sender)。宅配退件/失敗在台灣很常見,值得一個顯式 status。
+- **貨到付款手續費(COD surcharge)。** Vendure 用 Surcharge 建模任意加費;台灣 3C 的貨到
+  付款手續費目前無處可放(orders 只有 discount/shipping/tax 三欄)。checkout 若支援貨到
+  付款就需要。
+
+**功能長出來再加(when feature arrives)**
+- 禮物卡作為可購買商品(Saleor GiftCard)——與現有「內部購物金」(`store_credit_*`,已是
+  append-only ledger + 每帳戶餘額)不同:禮物卡有可轉讓的碼、到期、可被買。現在不需要。
+- 價目表 / 客群定價 / B2B(Medusa PriceList、Saleor ChannelListing)——目前 variant 單一
+  `price_cents` + 時段折扣 `sale_campaigns` 已夠。
+- 儲存的付款方式 / 訂閱(Stripe SetupIntent / Mandate)——goen 是一次性購買。
+- 多倉庫——`inventory_movements` 已以 variant 為鍵,將來加 `location_id` 即可,不必現在拆。
+
+**刻意不做(skip,已在檔頭記錄理由)**
+- 多幣別 / Region / Channel:TWD、台灣單一市場。
+- 多稅率稅務引擎:單一 5% 內含營業稅,統一發票已由 `invoice_documents` 建模。
+- Medusa 式 module 聯邦拆分:與本專案「package by feature、無 service/repository 分層」相斥。
+
+四套系統反過來確認了 goen 沒有走錯的地方:沒有把 stock 當單一數字、沒有把 refund 當
+獨立金額、沒有讓 payment 只有一個 amount 欄。缺口集中在「還沒開始做的 checkout/金流
+批次」,而非已完成的目錄/訂單骨架。
+
+## 現況(修正後,實測)
+
+53 表 / 136 CHECK / 63 外鍵 / 48 unique index / 26 rule trigger / 4 SECURITY DEFINER
+function。`make verify-all` 全綠(fmt-check → sqlc-check → vet → lint → test-race →
+integration → govulncheck「No vulnerabilities found」),squawk 0 issues。整合測試
+406 個 subtest 通過、6 個合理 skip。應用於 `SET ROLE goen_app` 下端到端運作正常
+(關於/聯絡我們寫入、/healthz、/readyz)。
+
+### 這輪修正的實證(不是宣稱)
+
+- **CHECK 全數上鎖**:逐一刪除每一條 CHECK 再跑套件,105 條可被腳本機械隔離者
+  全被 `TestCheckConstraintsReject` 抓到(0 條無聲刪除);另 2 條多行 CHECK
+  (`payments_succeeded_is_captured`、`order_private_data_all_or_erased`)手動刪除亦
+  紅。其餘則由 catalog-driven 完整性 gate + reject/accept 案覆蓋——新增一條沒有案
+  的 CHECK 會讓 build 紅。
+- **並行守衛全數 load-bearing**:5 條 mutation 各重複 3 次,全部 3/3 紅——
+  - 移除庫存 safety_stock 下限(保留 `>=0` CHECK)→ `inventory_never_negative` 紅
+  - 同時移除下限與 `>=0` CHECK → `TestStockCannotOversell` 紅
+  - refund 讀 capture 不加 `FOR UPDATE` → `TestRefundsCannotRacePastCapture` 紅
+  - store credit 結算不鎖帳戶 → `TestStoreCreditCannotRacePastBalance` 紅
+  - 訂單編號改 `MAX()+1` 取代原子 counter → `TestOrderNumbersAreUniqueUnderConcurrency` 紅
+  - 一個誠實的觀察:單獨移除庫存下限、只在「衝到零」的 race 場景下,是 `>=0`
+    CHECK 在擋(縱深防禦),`TestStockCannotOversell` 不會紅;下限的獨有職責
+    (sale/hold 不得低於 safety_stock)由 per-row 的 `inventory_never_negative` 鎖住,
+    上面已證。
