@@ -169,3 +169,98 @@ func TestTheGreetingDropsAnEmptyName(t *testing.T) {
 		t.Errorf("want a bare greeting, got:\n%s", sink.msg.Body)
 	}
 }
+
+// TestTheConfirmationCarriesTheStatutoryDisclosure holds 消保法 §18 II.
+//
+// §18 I lists six items a 通訊交易 trader must give the consumer, and §18 II
+// requires an INTERNET trader to do it in an electronic form the consumer can
+// 完整查閱、**儲存**. The policy pages satisfy 查閱; a rendered page is not
+// obviously storage, and an email is an artefact the customer keeps without
+// doing anything.
+//
+// §19 III is what makes the omission expensive rather than untidy: where the
+// rescission information is not PROVIDED when the goods are received, the seven
+// days run from the day after it finally is and the right survives four months.
+// A shop whose terms live only on a page nobody was handed carries that tail on
+// every order.
+//
+// The unconfigured case is asserted too, and it is the interesting one. A
+// disclosure naming no seller discloses nothing, so it is omitted entirely
+// rather than printed with a blank — a letter that LOOKS compliant while saying
+// less than silence is the worse of the two failures, and without this case it
+// would be the quiet default for every deployment that forgot the variable.
+func TestTheConfirmationCarriesTheStatutoryDisclosure(t *testing.T) {
+	t.Parallel()
+
+	placed := &OrderPlaced{
+		Locale: "zh-Hant", OrderNumber: "GO-260806-000001",
+		Email: "who@example.test", Name: "王小明", TotalCents: 199900,
+	}
+
+	t.Run("configured", func(t *testing.T) {
+		t.Parallel()
+		sink := &captured{}
+		n := Notifier{
+			Sender: sink, BaseURL: "https://goen.test",
+			Seller:        "goen Co., Ltd. 統編 90123456",
+			SellerContact: "support@goen.tw / 02-2700-1234",
+		}
+		if err := n.SendOrderPlaced(t.Context(), placed); err != nil {
+			t.Fatalf("send: %v", err)
+		}
+		body := sink.msg.Body
+		// §18 I item 1: who is selling, and how to reach them quickly.
+		for _, want := range []string{"goen Co., Ltd. 統編 90123456", "support@goen.tw"} {
+			if !strings.Contains(body, want) {
+				t.Errorf("the confirmation does not name %q — §18 I item 1", want)
+			}
+		}
+		// Item 3: the window and how to exercise it. Item 4: what is excluded.
+		// Item 5: how to complain.
+		for _, want := range []string{"七日", "解除契約", "沒有任何商品排除", "消費申訴"} {
+			if !strings.Contains(body, want) {
+				t.Errorf("the confirmation does not carry %q; §18 I wants the "+
+					"rescission window, how to use it, what is excluded from it, "+
+					"and how to complain", want)
+			}
+		}
+	})
+
+	t.Run("English follows the payload", func(t *testing.T) {
+		t.Parallel()
+		sink := &captured{}
+		n := Notifier{
+			Sender: sink, BaseURL: "https://goen.test",
+			Seller: "goen Co., Ltd.", SellerContact: "support@goen.tw",
+		}
+		en := *placed
+		en.Locale = "en"
+		en.Name = "Alex"
+		if err := n.SendOrderPlaced(t.Context(), &en); err != nil {
+			t.Fatalf("send: %v", err)
+		}
+		if !strings.Contains(sink.msg.Body, "seven days") {
+			t.Error("the English confirmation does not state the seven-day right — " +
+				"an English-reading customer in Taiwan holds it identically")
+		}
+		if hasHan(sink.msg.Body) {
+			t.Errorf("the English confirmation still carries Han:\n%s", sink.msg.Body)
+		}
+	})
+
+	t.Run("unconfigured omits it rather than printing a blank seller", func(t *testing.T) {
+		t.Parallel()
+		n, sink := notifier(t)
+		if err := n.SendOrderPlaced(t.Context(), placed); err != nil {
+			t.Fatalf("send: %v", err)
+		}
+		if strings.Contains(sink.msg.Body, "消費者保護法第 18 條") {
+			t.Error("a disclosure naming no seller was sent; it discloses nothing " +
+				"and makes the letter look compliant while saying less than silence")
+		}
+		// The letter itself still goes out — the order was placed.
+		if !strings.Contains(sink.msg.Body, "GO-260806-000001") {
+			t.Error("the confirmation itself went missing with the disclosure")
+		}
+	})
+}

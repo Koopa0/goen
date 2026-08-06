@@ -31,6 +31,55 @@ var (
 		En:     "We have your order %s.\n\nAmount due: %s\n\nView it and pay:\n%s",
 	})
 
+	// 消保法 §18 I's disclosure, carried by the order confirmation.
+	//
+	// §18 I lists six items a 通訊交易 trader must give the consumer in clear
+	// wording, and §18 II requires an INTERNET trader to do it in an electronic
+	// form the consumer can 完整查閱、**儲存**. A rendered page satisfies 查閱;
+	// storage is the half a server-rendered site forgets, and an email is an
+	// artefact the customer keeps without doing anything.
+	//
+	// It is also what stops the seven days running long. §19 III: if the
+	// rescission information is not PROVIDED when the goods are received, the
+	// window runs from the day after it finally is, expiring only at four
+	// months — so a shop that states its terms on a page nobody was handed
+	// carries a four-month tail on every order.
+	//
+	// ONE message with holes rather than six keys, like every other body here:
+	// the SHAPE of a letter belongs with its words. Items 1, 3, 4 and 5 are
+	// stated in full; item 2 — what was bought, for how much, and how it is paid
+	// and delivered — is the letter above this and the order page it links to.
+	//
+	// Item 4 reads "nothing is excluded" rather than naming exclusions, and that
+	// is the truth about this catalogue: 通訊交易解除權合理例外情事適用準則 §2's
+	// chapeau conditions all seven exceptions on the seller having said so
+	// BEFORE the sale, so a shop that claims none owes the full seven days and
+	// must say that much.
+	KeyMailStatutoryDisclosure = key("mail.disclosure", Message{
+		ZhHant: "───────────────\n" +
+			"依消費者保護法第 18 條應告知事項\n\n" +
+			"賣方:%s\n" +
+			"聯絡方式:%s\n\n" +
+			"解除契約(鑑賞期):您可於收受商品之次日起七日內,以退回商品或書面通知的方式解除契約," +
+			"無須說明理由,也不負擔任何費用。在期限內交運商品或發出通知即生效力。\n" +
+			"行使方式:於訂單頁面申請退貨,或以上述聯絡方式通知我們。\n\n" +
+			"排除解除權之商品:本店目前沒有任何商品排除七日解除權。\n\n" +
+			"消費申訴:請以上述聯絡方式與我們聯繫;亦可向消費者保護團體、" +
+			"直轄市或縣(市)政府消費者服務中心申訴。",
+		En: "───────────────\n" +
+			"Information required by Article 18 of Taiwan's Consumer Protection Act\n\n" +
+			"Seller: %s\n" +
+			"Contact: %s\n\n" +
+			"Cancelling (the seven-day right): you may cancel within seven days, " +
+			"counted from the day AFTER the goods reach you, by returning them or by " +
+			"telling us in writing. You need give no reason and it costs you nothing. " +
+			"Sending the goods or the notice inside those seven days is enough.\n" +
+			"How: request a return on your order page, or contact us at the address above.\n\n" +
+			"Goods excluded from the right: none in this shop.\n\n" +
+			"Complaints: contact us at the address above. You may also complain to a " +
+			"consumer protection group or to your local government's consumer service centre.",
+	})
+
 	// The receipt, sent by the capture and by nothing else.
 	KeyMailPaidSubject = key("mail.paid.subject", Message{
 		ZhHant: "訂單 %s 付款完成",

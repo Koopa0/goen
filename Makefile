@@ -392,6 +392,109 @@ db-seed:
 # a four-command incantation people get wrong.
 #
 # Development only, and it says so: it drops the database.
+# What a database ACTUALLY has, as text a diff can read.
+#
+# Constraints, indexes and columns, sorted and normalised. Not pg_dump: its
+# output carries ordering and formatting that differ between servers and say
+# nothing about whether the rules agree.
+CATALOG_SQL := \
+  "SELECT 'constraint\t'||conrelid::regclass||'\t'||conname||'\t'||pg_get_constraintdef(oid) \
+     FROM pg_constraint WHERE connamespace='public'::regnamespace \
+   UNION ALL \
+   SELECT 'index\t'||tablename||'\t'||indexname||'\t'||indexdef \
+     FROM pg_indexes WHERE schemaname='public' \
+   UNION ALL \
+   SELECT 'column\t'||table_name||'\t'||column_name||'\t'||data_type||' '||is_nullable||' '||coalesce(column_default,'-') \
+     FROM information_schema.columns WHERE table_schema='public' \
+   UNION ALL \
+   SELECT 'trigger\t'||event_object_table||'\t'||trigger_name||'\t'||action_statement \
+     FROM information_schema.triggers WHERE trigger_schema='public' \
+   ORDER BY 1"
+
+# Does the deployed schema still match what migrations/ declares?
+#
+# PostgreSQL does not re-validate a CHECK that is amended in place, and this
+# repository amends 001 rather than superseding it — a decision that holds only
+# while no environment is undisposable. Nothing compared the two, so the first
+# database that is not thrown away would disagree with the file silently: two
+# correct halves, at the schema level, where none of this project's guards look.
+#
+# It builds a REFERENCE database from migrations/ beside the live one and diffs
+# the catalogs. A difference is not automatically a defect — it is the signal
+# that 001 has stopped being the whole truth, and therefore that 002 begins.
+#
+# Needs the dev container and a GOEN_DATABASE_URL pointing at the database to
+# check. Outside `verify` for the reason test-integration is: it needs something
+# the gate cannot assume.
+.PHONY: schema-drift
+schema-drift:
+	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required: the database to CHECK' >&2; exit 2; }
+	@set -eu; \
+	ref=goen_schema_ref_$$$$; \
+	trap 'docker compose exec -T db dropdb -U goen --if-exists --force "$$ref" >/dev/null 2>&1 || true' 0 HUP INT TERM; \
+	docker compose exec -T db createdb -U goen "$$ref"; \
+	base=$${GOEN_DATABASE_URL%%\?*}; \
+	case "$$GOEN_DATABASE_URL" in *\?*) query="?$${GOEN_DATABASE_URL#*\?}";; *) query="";; esac; \
+	refurl="$${base%/*}/$$ref$$query"; \
+	$(MIGRATE) -path migrations -database "$$refurl" up >/dev/null; \
+	:; \
+	psql "$$refurl" -At -c $(CATALOG_SQL) | sort > /tmp/goen-schema-ref.txt; \
+	test -s /tmp/goen-schema-ref.txt || { echo 'schema-drift: the reference database is EMPTY; it was not built' >&2; exit 3; }; \
+	psql "$$refurl" -At -c "SELECT current_database()" | grep -qx "$$ref" \
+		|| { echo 'schema-drift: the reference URL does not point at the reference database, so this would compare the live one with itself' >&2; exit 3; }; \
+	psql "$$GOEN_DATABASE_URL" -At -c $(CATALOG_SQL) | sort > /tmp/goen-schema-live.txt; \
+	if diff -u /tmp/goen-schema-ref.txt /tmp/goen-schema-live.txt > /tmp/goen-schema-drift.txt; then \
+		echo 'schema-drift: PASS — the deployed schema matches migrations/'; \
+	else \
+		echo 'schema-drift: FAIL — the deployed schema and migrations/ disagree.'; \
+		echo '  -  is what migrations/ declares; +  is what the database has.'; \
+		echo '  An amended CHECK is not re-validated by PostgreSQL, so this is'; \
+		echo '  where amend-in-place stops being safe and 002 begins.'; \
+		cat /tmp/goen-schema-drift.txt; \
+		exit 1; \
+	fi
+
+# Prove the backup can be restored. Not that one exists — that a dump of this
+# database comes back as this database.
+#
+# goen's images live IN PostgreSQL (the recorded internal/media decision), so
+# the database is the only copy of the catalogue's photography as well as its
+# data. A backup nobody has restored is a belief, and the first time anybody
+# finds out is the worst possible time.
+#
+# It dumps, restores into a throwaway, and then asks two questions: does the
+# restored SCHEMA match migrations/, and did every table come back with the same
+# number of rows. Schema alone would pass on a dump that lost every row.
+.PHONY: restore-drill
+restore-drill:
+	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required: the database to back up' >&2; exit 2; }
+	@set -eu; \
+	copy=goen_restore_drill_$$$$; \
+	trap 'docker compose exec -T db dropdb -U goen --if-exists --force "$$copy" >/dev/null 2>&1 || true' 0 HUP INT TERM; \
+	base=$${GOEN_DATABASE_URL%%\?*}; \
+	case "$$GOEN_DATABASE_URL" in *\?*) query="?$${GOEN_DATABASE_URL#*\?}";; *) query="";; esac; \
+	copyurl="$${base%/*}/$$copy$$query"; \
+	echo 'restore-drill: dumping...'; \
+	pg_dump "$$GOEN_DATABASE_URL" -Fc -f /tmp/goen-drill.dump; \
+	docker compose exec -T db createdb -U goen "$$copy"; \
+	echo 'restore-drill: restoring into a throwaway...'; \
+	pg_restore -d "$$copyurl" --no-owner --no-privileges /tmp/goen-drill.dump >/dev/null 2>&1 || true; \
+	psql "$$copyurl" -At -c "SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relkind='r'" \
+		| grep -qv '^0$$' || { echo 'restore-drill: the restored copy has no tables' >&2; exit 1; }; \
+	echo 'restore-drill: comparing row counts...'; \
+	counts="SELECT relname||' '||n_live_tup FROM pg_stat_user_tables ORDER BY relname"; \
+	psql "$$GOEN_DATABASE_URL" -At -c "ANALYZE" >/dev/null; psql "$$copyurl" -At -c "ANALYZE" >/dev/null; \
+	psql "$$GOEN_DATABASE_URL" -At -c "$$counts" | sort > /tmp/goen-drill-live.txt; \
+	psql "$$copyurl" -At -c "$$counts" | sort > /tmp/goen-drill-copy.txt; \
+	if diff -u /tmp/goen-drill-live.txt /tmp/goen-drill-copy.txt > /tmp/goen-drill-diff.txt; then \
+		echo 'restore-drill: PASS — the dump restores to the same schema and the same rows'; \
+	else \
+		echo 'restore-drill: FAIL — the restored copy is not what was dumped.'; \
+		echo '  -  is the live database; +  is what came back.'; \
+		cat /tmp/goen-drill-diff.txt; \
+		exit 1; \
+	fi
+
 db-reset:
 	docker compose exec -T db dropdb -U goen --if-exists --force goen
 	docker compose exec -T db createdb -U goen goen
