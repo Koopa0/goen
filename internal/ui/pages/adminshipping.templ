@@ -1,0 +1,339 @@
+package pages
+
+import "github.com/koopa0/goen/internal/ui/layouts"
+
+// AdminShipping renders the delivery configuration.
+//
+// Changing a fee PUBLISHES a new version rather than editing the old one: every
+// past order names the version it was priced from, so an edit would rewrite
+// what a customer was charged last month. The page says so, because a form that
+// silently appends looks broken to somebody expecting to edit.
+templ AdminShipping(p layouts.Page, v AdminShippingView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("shipping")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">後台</p>
+					<h1 class="ui-page-head__title">配送與運費</h1>
+					<p class="ui-page-head__sub">
+						改運費是「發布新版本」,不是改舊的 —— 每一張過去的訂單都記著
+						自己是用哪個版本計價的。
+					</p>
+				</div>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			for _, m := range v.Methods {
+				<section class="goen-admin__panel">
+					<h2 class="goen-admin__heading">
+						{ m.Name }
+						<span class="ui-cart-line__meta">{ m.Code } · { m.DestinationText() }</span>
+					</h2>
+					<p class="goen-admin__hint">
+						目前:{ m.Fee() },滿 { m.FreeOver() } 免運。
+						{ m.EffectiveAt } 起生效,共 { m.VersionCountText() } 個版本。
+					</p>
+					<form class="goen-admin__form" method="post" action="/admin/shipping/version">
+						<input type="hidden" name="method" value={ m.MethodID }/>
+						<div class="goen-admin__row">
+							<div class="ui-field">
+								<label class="ui-label" for={ "name-" + m.MethodID }>名稱</label>
+								<input class="ui-input" id={ "name-" + m.MethodID } name="name" value={ m.Name } required maxlength="60"/>
+							</div>
+							<div class="ui-field">
+								<label class="ui-label" for={ "carrier-" + m.MethodID }>物流商(選填)</label>
+								<input class="ui-input" id={ "carrier-" + m.MethodID } name="carrier" value={ m.Carrier } maxlength="60"/>
+							</div>
+							// The English name and carrier. The CHECKOUT's method chooser
+							// reads these — an English customer picking delivery was
+							// reading 宅配到府 at the moment of paying.
+							<div class="ui-field">
+								<label class="ui-label" for={ "name-en-" + m.MethodID }>名稱(英文)</label>
+								<input class="ui-input" id={ "name-en-" + m.MethodID } name="name_en" value={ m.NameEn } maxlength="60" placeholder="Home delivery"/>
+							</div>
+							<div class="ui-field">
+								<label class="ui-label" for={ "carrier-en-" + m.MethodID }>物流商(英文)</label>
+								<input class="ui-input" id={ "carrier-en-" + m.MethodID } name="carrier_en" value={ m.CarrierEn } maxlength="60"/>
+							</div>
+							<div class="ui-field">
+								<label class="ui-label" for={ "fee-" + m.MethodID }>運費(元)</label>
+								<input class="ui-input" id={ "fee-" + m.MethodID } name="fee" type="number" min="0" step="1" value={ m.FeeDollars() } required inputmode="numeric"/>
+							</div>
+							<div class="ui-field">
+								<label class="ui-label" for={ "free-" + m.MethodID }>免運門檻(元,留空為無)</label>
+								<input class="ui-input" id={ "free-" + m.MethodID } name="free_over" type="number" min="0" step="1" value={ m.FreeOverDollars() } inputmode="numeric"/>
+							</div>
+						</div>
+						<button class="ui-btn ui-btn--secondary" type="submit">發布新版本</button>
+					</form>
+					// Off and never deleted: every past order names the version it was
+					// priced from, so a method that ever carried a parcel is part of
+					// the record.
+					<form class="goen-admin__inline" method="post" action={ templ.SafeURL("/admin/shipping/method/" + m.MethodID + "/active") }>
+						if m.Active {
+							<input type="hidden" name="active" value="0"/>
+							<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">停用這個方式</button>
+						} else {
+							<input type="hidden" name="active" value="1"/>
+							<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">重新啟用</button>
+						}
+					</form>
+					if m.Zoned() {
+						<h3 class="goen-admin__heading">分區加價</h3>
+						<p class="goen-admin__hint">
+							加在免運之後 —— 免運是本店對自己基本運費的優惠,跨海的錢是
+							物流商收的。填 0 就是取消加價。
+						</p>
+						for _, z := range v.Zones {
+							<form class="goen-admin__inline" method="post" action="/admin/shipping/surcharge">
+								<input type="hidden" name="version" value={ m.VersionID }/>
+								<input type="hidden" name="zone" value={ z.ID }/>
+								<label class="ui-label" for={ "sur-" + m.VersionID + "-" + z.ID }>
+									{ z.Name }
+									<span class="ui-cart-line__meta">{ z.PrefixCountText() } 個郵遞區號</span>
+								</label>
+								<input
+									class="ui-input ui-input--sm"
+									id={ "sur-" + m.VersionID + "-" + z.ID }
+									name="amount"
+									type="number"
+									min="0"
+									step="1"
+									value={ m.SurchargeDollars(z.ID) }
+									inputmode="numeric"
+								/>
+								<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">設定</button>
+							</form>
+						}
+					} else {
+						<p class="goen-admin__hint">
+							這個方式收件到門市,沒有郵遞區號,所以永遠不會落在任何分區裡。
+						</p>
+					}
+				</section>
+			}
+			// Adding a METHOD. Until this form existed a shop could publish new
+			// versions of the methods the seed created and could not offer a third —
+			// so it could change its prices and not its carriers.
+			<section class="goen-admin__panel">
+				<h2 class="goen-admin__heading">新增配送方式</h2>
+				<form class="goen-admin__form" method="post" action="/admin/shipping/method">
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="m-code">代碼</label>
+							<input
+								class="ui-input"
+								id="m-code"
+								name="code"
+								required
+								maxlength="30"
+								pattern="[a-z0-9_]+"
+								value={ v.MethodDraft.Code }
+								placeholder="express_delivery"
+								if v.HasErr("code") {
+									aria-invalid="true"
+								}
+							/>
+							if v.HasErr("code") {
+								<p class="ui-error-text">{ v.Err("code") }</p>
+							}
+							<p class="goen-admin__hint">結帳的網址會帶這個代碼,之後不能改。</p>
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="m-destination">送到哪裡</label>
+							<select class="ui-select" id="m-destination" name="destination" required>
+								<option value="address" selected?={ !v.PickupSelected() }>收件地址</option>
+								<option value="pickup_point" selected?={ v.PickupSelected() }>超商門市</option>
+							</select>
+							if v.HasErr("destination") {
+								<p class="ui-error-text">{ v.Err("destination") }</p>
+							}
+							<p class="goen-admin__hint">
+								這一項決定結帳要問街道還是問門市,選錯了收不到貨。
+							</p>
+						</div>
+					</div>
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="m-name">名稱</label>
+							<input
+								class="ui-input"
+								id="m-name"
+								name="name"
+								required
+								maxlength="60"
+								value={ v.MethodDraft.Name }
+								placeholder="隔日到貨"
+								if v.HasErr("name") {
+									aria-invalid="true"
+								}
+							/>
+							if v.HasErr("name") {
+								<p class="ui-error-text">{ v.Err("name") }</p>
+							}
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="m-name-en">名稱(英文)</label>
+							<input class="ui-input" id="m-name-en" name="name_en" maxlength="60" value={ v.MethodDraft.NameEn } placeholder="Next-day delivery"/>
+						</div>
+					</div>
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="m-carrier">物流商</label>
+							<input class="ui-input" id="m-carrier" name="carrier" maxlength="60" value={ v.MethodDraft.Carrier }/>
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="m-carrier-en">物流商(英文)</label>
+							<input class="ui-input" id="m-carrier-en" name="carrier_en" maxlength="60" value={ v.MethodDraft.CarrierEn }/>
+						</div>
+					</div>
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="m-fee">運費(元)</label>
+							<input
+								class="ui-input"
+								id="m-fee"
+								name="fee"
+								type="number"
+								min="0"
+								step="1"
+								required
+								inputmode="numeric"
+								value={ v.MethodDraft.Fee }
+								if v.HasErr("fee") {
+									aria-invalid="true"
+								}
+							/>
+							if v.HasErr("fee") {
+								<p class="ui-error-text">{ v.Err("fee") }</p>
+							}
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="m-free">免運門檻(元,留空為無)</label>
+							<input class="ui-input" id="m-free" name="free_over" type="number" min="0" step="1" inputmode="numeric" value={ v.MethodDraft.FreeOver }/>
+						</div>
+					</div>
+					<p class="goen-admin__hint">
+						新增方式時會一起發布第一個版本 —— 沒有版本的方式結帳找得到卻算不出運費。
+					</p>
+					<button class="ui-btn ui-btn--primary" type="submit">新增配送方式</button>
+				</form>
+			</section>
+			<section class="goen-admin__panel">
+				<h2 class="goen-admin__heading">分區</h2>
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table goen-admin__table">
+						<thead>
+							<tr>
+								<th scope="col">分區</th>
+								<th scope="col">郵遞區號前三碼</th>
+								<th scope="col"><span class="goen-sr-only">操作</span></th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, z := range v.Zones {
+								<tr>
+									<td>
+										{ z.Name }
+										<span class="ui-cart-line__meta">{ z.Code }</span>
+										if z.NameEn == "" {
+											<span class="ui-badge ui-badge--warn">未翻譯</span>
+										}
+									</td>
+									<td class="goen-admin__prefixes">
+										// Editable, because a shop that opens a new
+										// warehouse changes which postal codes cost
+										// extra to reach. An upsert per prefix: a
+										// prefix belongs to exactly one zone by
+										// construction, so moving one is the edit.
+										<form class="goen-admin__inline" method="post" action={ templ.SafeURL("/admin/shipping/zone/" + z.ID + "/prefixes") }>
+											<label class="goen-sr-only" for={ "pre-" + z.ID }>{ z.Name } 的郵遞區號</label>
+											<input class="ui-input ui-input--sm" id={ "pre-" + z.ID } name="prefixes" value={ z.Prefixes }/>
+											<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">設定</button>
+										</form>
+									</td>
+									<td>
+										<form method="post" action={ templ.SafeURL("/admin/shipping/zone/" + z.ID + "/delete") }>
+											<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">刪除</button>
+										</form>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+				<form class="goen-admin__form" method="post" action="/admin/shipping/zone">
+					<h3 class="goen-admin__heading">新增分區</h3>
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="z-code">代碼</label>
+							<input
+								class="ui-input"
+								id="z-code"
+								name="code"
+								required
+								maxlength="30"
+								pattern="[a-z0-9_]+"
+								value={ v.ZoneDraft.Code }
+								placeholder="offshore"
+								if v.HasErr("zone_code") {
+									aria-invalid="true"
+								}
+							/>
+							if v.HasErr("zone_code") {
+								<p class="ui-error-text">{ v.Err("zone_code") }</p>
+							}
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="z-name">名稱</label>
+							<input
+								class="ui-input"
+								id="z-name"
+								name="name"
+								required
+								maxlength="60"
+								value={ v.ZoneDraft.Name }
+								placeholder="離島"
+								if v.HasErr("zone_name") {
+									aria-invalid="true"
+								}
+							/>
+							if v.HasErr("zone_name") {
+								<p class="ui-error-text">{ v.Err("zone_name") }</p>
+							}
+						</div>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="z-name-en">名稱(英文)</label>
+						<input class="ui-input" id="z-name-en" name="name_en" maxlength="60" value={ v.ZoneDraft.NameEn } placeholder="Outlying islands"/>
+						<p class="goen-admin__hint">/shipping 和結帳的加價說明都會讀這個名字。</p>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="z-prefixes">郵遞區號前三碼</label>
+						<input
+							class="ui-input"
+							id="z-prefixes"
+							name="prefixes"
+							required
+							value={ v.ZoneDraft.Prefixes }
+							placeholder="880 881 882 890 891"
+							if v.HasErr("prefixes") {
+								aria-invalid="true"
+							}
+						/>
+						if v.HasErr("prefixes") {
+							<p class="ui-error-text">{ v.Err("prefixes") }</p>
+						}
+						<p class="goen-admin__hint">
+							空白或逗號分隔。沒有前綴的分區永遠不會被任何郵遞區號命中,
+							也就永遠不會加價。
+						</p>
+					</div>
+					<button class="ui-btn ui-btn--primary" type="submit">新增分區</button>
+				</form>
+			</section>
+		</div>
+	}
+}

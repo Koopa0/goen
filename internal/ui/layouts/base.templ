@@ -1,0 +1,59 @@
+package layouts
+
+import (
+	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/i18n"
+)
+
+// Base is goen's document shell. The theme-blue class on <html> selects the
+// accent hue; the design system's own tokens supply everything else.
+templ Base(p Page) {
+	<!DOCTYPE html>
+	<html lang={ i18n.FromContext(ctx).Tag() } class="theme-blue">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ p.title(ctx) }</title>
+			if p.Description != "" {
+				<meta name="description" content={ p.Description }/>
+			}
+			if p.StructuredData != "" {
+				@structuredData(p.StructuredData)
+			}
+			<link rel="icon" type="image/svg+xml" href={ templ.URL(assets.URL(assets.MarkSVG)) }/>
+			<link rel="preconnect" href="https://fonts.googleapis.com"/>
+			<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+			<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&amp;display=swap"/>
+			<link rel="stylesheet" href={ templ.URL(assets.URL(assets.DesignSystemCSS)) }/>
+			<link rel="stylesheet" href={ templ.URL(assets.URL(assets.AccentsCSS)) }/>
+			<link rel="stylesheet" href={ templ.URL(assets.URL(assets.CommerceCSS)) }/>
+			<link rel="stylesheet" href={ templ.URL(assets.URL(assets.AppCSS)) }/>
+			<script src={ templ.URL(assets.URL(assets.HTMXJS)) } defer></script>
+			<script src={ templ.URL(assets.URL(assets.AppJS)) } defer></script>
+		</head>
+		<body class="goen-shell">
+			<a class="goen-skip ui-sm" href="#main">{ i18n.T(ctx, i18n.KeySkipToContent) }</a>
+			@promoBanner()
+			@Header(p)
+			<main id="main">
+				{ children... }
+			</main>
+			@Footer()
+		</body>
+	</html>
+}
+
+// structuredData emits a JSON-LD block.
+//
+// The whole element is templ.Raw, including its tags: templ treats the contents
+// of a <script> as literal text, so an @-expression written INSIDE one reaches
+// the browser as the characters "@templ.Raw(...)" — which is what the first
+// version of this did.
+//
+// The JSON was produced by encoding/json, so it carries no unescaped "<" and
+// cannot close the tag early. The CSP has no 'unsafe-inline' for script-src and
+// needs none: an ld+json block is data, never executed, so the directive does
+// not apply to it.
+templ structuredData(doc string) {
+	@templ.Raw(`<script type="application/ld+json">` + doc + `</script>`)
+}

@@ -1,0 +1,62 @@
+package pages
+
+import "github.com/koopa0/goen/internal/ui/layouts"
+
+// AdminMessages renders the customer-service inbox.
+templ AdminMessages(p layouts.Page, v AdminMessagesView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("messages")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">後台</p>
+					<h1 class="ui-page-head__title">聯絡訊息</h1>
+					<p class="ui-page-head__sub">
+						等最久的排在最前面 —— 三天前寫信的人比今天早上寫的更急,
+						最新排在前面剛好把他埋掉。
+					</p>
+				</div>
+				if !v.Empty() {
+					<div class="ui-page-head__actions">
+						<span class="ui-badge">待處理 { v.OpenCountText() }</span>
+					</div>
+				}
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			if v.Empty() {
+				<p class="goen-admin__hint">沒有任何聯絡訊息。</p>
+			} else {
+				<ul class="goen-admin__returns" role="list">
+					for _, m := range v.Rows {
+						<li
+							class={ "goen-admin__return",
+								templ.KV("is-hidden", m.Handled),
+								templ.KV("is-urgent", m.Overdue()) }
+						>
+							<div class="goen-admin__returninfo">
+								<p class="goen-admin__returnorder">{ m.Subject }</p>
+								<span class="ui-cart-line__meta">
+									{ m.Name } · { m.Email } · { m.At } · { m.Waiting() }
+								</span>
+								if m.HasOrderRef() {
+									// A link, because "my order hasn't arrived" is
+									// answered by looking at the order.
+									<span class="ui-cart-line__meta">
+										訂單 <a class="goen-admin__productname" href={ templ.SafeURL(m.OrderHref()) }>{ m.OrderRef }</a>
+									</span>
+								}
+								<p class="goen-admin__note">{ m.Message }</p>
+							</div>
+							<form class="goen-admin__decide" method="post" action={ templ.SafeURL(m.Action()) }>
+								<input type="hidden" name="message" value={ m.ID }/>
+								<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ m.ActionLabel() }</button>
+							</form>
+						</li>
+					}
+				</ul>
+			}
+		</div>
+	}
+}

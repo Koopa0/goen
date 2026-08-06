@@ -1,0 +1,92 @@
+package pages
+
+import "github.com/koopa0/goen/internal/ui/layouts"
+
+// AdminTiers renders the 會員等級 bands.
+templ AdminTiers(p layouts.Page, v AdminTiersView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("tiers")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">後台</p>
+					<h1 class="ui-page-head__title">會員等級</h1>
+					<p class="ui-page-head__sub">
+						等級是「近一年消費了多少」算出來的,不是存在會員身上的欄位 ——
+						訂單取消,等級就跟著回去。
+					</p>
+				</div>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			if v.Empty() {
+				<p class="goen-admin__hint">
+					還沒有任何等級。沒有等級的商店是正常的 —— 所有人都用基本點數倍率。
+				</p>
+			} else {
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table goen-admin__table">
+						<thead>
+							<tr>
+								<th scope="col">等級</th>
+								<th scope="col">門檻</th>
+								<th scope="col">點數倍率</th>
+								<th scope="col">目前人數</th>
+								<th scope="col"></th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, t := range v.Rows {
+								<tr>
+									<td>
+										{ t.Name }
+										<span class="ui-cart-line__meta">{ t.Code }</span>
+									</td>
+									<td>{ t.Threshold() }</td>
+									<td>{ t.Multiplier(ctx) }</td>
+									<td>{ t.MembersText() }</td>
+									<td>
+										<form method="post" action="/admin/tiers/delete">
+											<input type="hidden" name="tier" value={ t.ID }/>
+											<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">移除</button>
+										</form>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+			<h2 class="goen-admin__heading">新增等級</h2>
+			<form class="goen-admin__form" method="post" action="/admin/tiers">
+				<div class="goen-admin__row">
+					<div class="ui-field">
+						<label class="ui-label" for="tier-code">代碼</label>
+						<input class="ui-input" id="tier-code" name="code" required maxlength="30" pattern="[a-z0-9_]+"/>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="tier-name">名稱</label>
+						<input class="ui-input" id="tier-name" name="name" required maxlength="30"/>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="tier-name-en">名稱(英文)</label>
+						<input class="ui-input" id="tier-name-en" name="name_en" maxlength="30" placeholder="Silver"/>
+						<p class="goen-admin__hint">
+							會員頁會把等級名稱放進句子裡,所以英文缺一半會讀起來像壞掉。
+						</p>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="tier-threshold">近一年消費門檻(元)</label>
+						<input class="ui-input" id="tier-threshold" name="threshold" type="number" min="0" step="1" required inputmode="numeric"/>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="tier-percent">點數倍率(%,100 為基本)</label>
+						<input class="ui-input" id="tier-percent" name="percent" type="number" min="100" max="300" step="1" value="100" required inputmode="numeric"/>
+					</div>
+				</div>
+				<button class="ui-btn ui-btn--primary" type="submit">新增</button>
+			</form>
+		</div>
+	}
+}

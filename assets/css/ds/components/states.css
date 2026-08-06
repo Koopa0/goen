@@ -1,0 +1,84 @@
+/* ============================================================
+   koopa.dev — Component states (cross-cutting)
+   Unifies focus-visible, disabled, loading, and validation states
+   across every interactive component so behaviour is consistent.
+   ============================================================ */
+
+/* ---- Unified focus-visible ring (uses bridge --ring = accent) ---- */
+.ui-tab:focus-visible,
+.ui-segmented__item:focus-visible,
+.ui-chip:focus-visible,
+.ui-page:focus-visible,
+.ui-navitem:focus-visible,
+.ui-menu__item:focus-visible,
+.ui-listbox__option:focus-visible,
+.ui-cmdk__item:focus-visible,
+.ui-accordion__trigger:focus-visible,
+.ui-select-trigger:focus-visible,
+.ui-qty__btn:focus-visible,
+.ui-key__btn:focus-visible,
+.ui-toast__close:focus-visible,
+.ui-cart-line__remove:focus-visible,
+.ui-file__remove:focus-visible,
+.ui-calendar__day:focus-visible,
+.ui-calendar__navbtn:focus-visible,
+.ui-product__fav:focus-visible,
+.ui-swatch:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+/* ---- Unified disabled ---- */
+.ui-tab:disabled, .ui-tab[aria-disabled="true"],
+.ui-segmented__item:disabled,
+.ui-chip:disabled, .ui-chip[aria-disabled="true"],
+.ui-navitem[aria-disabled="true"],
+.ui-menu__item:disabled,
+.ui-listbox__option:disabled, .ui-listbox__option[aria-disabled="true"],
+.ui-select-trigger:disabled,
+.ui-qty__btn:disabled,
+.ui-page:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+/* ---- Button: loading ---- */
+.ui-btn--loading {
+  color: transparent !important;
+  pointer-events: none;
+  position: relative;
+}
+.ui-btn--loading > * { visibility: hidden; }
+.ui-btn--loading::after {
+  content: ""; position: absolute; inset: 0; margin: auto;
+  width: 15px; height: 15px; border-radius: var(--r-full);
+  border: 2px solid transparent; border-top-color: var(--fg);
+  animation: ui-spin 0.7s linear infinite;
+}
+.ui-btn--primary.ui-btn--loading::after { border-top-color: var(--on-accent); }
+.ui-btn--danger.ui-btn--loading::after  { border-top-color: var(--error); }
+@media (prefers-reduced-motion: reduce) { .ui-btn--loading::after { animation-duration: 1.4s; } }
+
+/* ---- Input: validation + readonly states ---- */
+.ui-input[data-state="success"], .ui-textarea[data-state="success"],
+.ui-input:user-valid, .ui-textarea:user-valid { border-color: var(--success); }
+.ui-input[aria-invalid="true"], .ui-textarea[aria-invalid="true"],
+.ui-input:user-invalid, .ui-textarea:user-invalid { border-color: var(--error); }
+.ui-input:read-only:not([type="button"]), .ui-textarea:read-only {
+  background: var(--panel); color: var(--fg-muted); cursor: default;
+}
+.ui-input:read-only:hover { border-color: var(--border); }
+
+/* field-level helper colour follows state */
+.ui-field[data-state="error"] .ui-label,
+.ui-field[data-state="error"] .ui-hint { color: var(--error); }
+.ui-field[data-state="success"] .ui-hint { color: var(--success); }
+
+/* ---- Pressed / active affordance (press goes one surface deeper) ---- */
+.ui-chip:active, .ui-tab:active, .ui-navitem:active,
+.ui-menu__item:active, .ui-listbox__option:active { background: var(--panel); }
+
+/* ---- aria-busy region (skeleton dim) ---- */
+[aria-busy="true"] { cursor: progress; }

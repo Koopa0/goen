@@ -1,0 +1,315 @@
+/* ============================================================
+   koopa.dev Design System — Tokens
+   Light mode (warm oatmeal paper) is default. Dark mode is opt-in
+   via [data-theme="dark"] or .dark.
+   Warm olive neutrals (oklch hue ~107) + cyan-teal accent from the
+   turtle logo. Display type is Instrument Serif; reading is Newsreader.
+   All colors in oklch for perceptual uniformity.
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,300;1,6..72,400;1,6..72,500&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+/* Register the accent knobs so oklch(var(--accent-l) …) re-resolves and repaints
+   on a runtime [data-theme] toggle (unregistered custom props don't invalidate
+   the chain on descendants). Typed = robust light/dark switching everywhere. */
+@property --accent-h { syntax: '<number>'; inherits: true; initial-value: 210; }
+@property --accent-c { syntax: '<number>'; inherits: true; initial-value: 0.09; }
+@property --accent-l { syntax: '<number>'; inherits: true; initial-value: 0.55; }
+
+/* ---------- Default = LIGHT (warm oatmeal paper) ---------- */
+:root,
+[data-theme="light"],
+.light {
+  /* ---------- Surfaces (4 elevations) ---------- */
+  --bg:               oklch(0.966 0.005 106);   /* warm paper — the koopa0.dev #edeae2 ground */
+  --panel:            oklch(0.988 0.003 106);   /* raised cards, sidebars */
+  --elevated:         oklch(0.945 0.006 107);   /* inputs, menus, code blocks */
+  --overlay:          oklch(0.915 0.008 107);   /* hover states, selected rows */
+
+  /* ---------- Text (4 tiers) — warm near-black inks ---------- */
+  --fg:               oklch(0.22  0.012 107);
+  --fg-muted:         oklch(0.40  0.020 107);   /* article prose body */
+  --fg-subtle:        oklch(0.53  0.022 107);
+  --fg-faint:         oklch(0.66  0.018 107);   /* mono dates, supporting meta */
+
+  /* ---------- Lines ---------- */
+  --border:           oklch(0.88 0.008 106);
+  --border-strong:    oklch(0.80 0.010 106);
+  --border-faint:     oklch(0.93 0.006 106);
+
+  /* ---------- Semantic (muted on purpose) ---------- */
+  --success:          oklch(0.52 0.13 155);
+  --success-bg:       oklch(0.52 0.13 155 / 0.10);
+  --warn:             oklch(0.56 0.12  70);
+  --warn-bg:          oklch(0.56 0.12  70 / 0.10);
+  --error:            oklch(0.52 0.18  25);
+  --error-bg:         oklch(0.52 0.18  25 / 0.10);
+  --info:             oklch(0.52 0.09 220);
+  --info-bg:          oklch(0.52 0.09 220 / 0.10);
+
+  /* ---------- Shadows ---------- */
+  --shadow-1: 0 2px 8px -2px oklch(0.30 0.02 107 / 0.10), 0 1px 2px oklch(0.30 0.02 107 / 0.07);
+  --shadow-2: 0 18px 40px -12px oklch(0.28 0.02 107 / 0.18), 0 4px 12px oklch(0.28 0.02 107 / 0.10);
+
+  /* accent lightness/chroma knobs (light) — kept on the theme selector, not
+     :root-only, so a runtime [data-theme] toggle re-resolves the oklch chain */
+  --accent-l: 0.55;   /* @kind other */
+  --accent-c: 0.09;   /* @kind other */
+
+  color-scheme: light;
+}
+
+/* ---------- Dark mode (warm charcoal) ---------- */
+[data-theme="dark"],
+.dark {
+  --bg:               oklch(0.153 0.006 107);   /* olive-950 */
+  --panel:            oklch(0.210 0.011 107);
+  --elevated:         oklch(0.262 0.013 107);
+  --overlay:          oklch(0.305 0.014 107);
+
+  --fg:               oklch(0.962 0.004 106);
+  --fg-muted:         oklch(0.760 0.010 106);
+  --fg-subtle:        oklch(0.600 0.014 107);
+  --fg-faint:         oklch(0.460 0.014 107);
+
+  --border:           oklch(0.300 0.012 107);
+  --border-strong:    oklch(0.400 0.014 107);
+  --border-faint:     oklch(0.235 0.010 107);
+
+  --success:          oklch(0.74 0.12 155);
+  --success-bg:       oklch(0.74 0.12 155 / 0.14);
+  --warn:             oklch(0.80 0.13  80);
+  --warn-bg:          oklch(0.80 0.13  80 / 0.14);
+  --error:            oklch(0.70 0.17  25);
+  --error-bg:         oklch(0.70 0.17  25 / 0.14);
+  --info:             oklch(0.74 0.09 220);
+  --info-bg:          oklch(0.74 0.09 220 / 0.14);
+
+  --shadow-1: 0 2px 8px -2px rgb(0 0 0 / 0.50), 0 1px 2px rgb(0 0 0 / 0.40);
+  --shadow-2: 0 18px 40px -12px rgb(0 0 0 / 0.65), 0 4px 12px rgb(0 0 0 / 0.45);
+
+  color-scheme: dark;
+}
+
+/* ---------- Accent — :root only so a [data-theme] wrapper never pins the hue.
+   Default is koopa's cyan-teal (hue 220). Swap the whole brand by changing
+   --accent-h. Light mode uses a darker accent for contrast on warm paper;
+   dark mode lifts lightness (see the [data-theme="dark"] override below). ---------- */
+:root {
+  --accent-h: 210;    /* @kind other */
+  --accent:        oklch(var(--accent-l) var(--accent-c) var(--accent-h));
+  --accent-strong: oklch(calc(var(--accent-l) - 0.08) calc(var(--accent-c) + 0.02) var(--accent-h));
+  --accent-muted:  oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.14);
+  --accent-faint:  oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.06);
+  --on-accent:     oklch(0.985 0.003 106);
+  --brand: var(--accent); --brand-strong: var(--accent-strong); --brand-muted: var(--accent-muted); --brand-faint: var(--accent-faint);
+
+  /* Tonal ramps (50–950). Accent ramp re-tints with --accent-h. */
+  --accent-50:  oklch(0.970 0.014 var(--accent-h));
+  --accent-100: oklch(0.930 0.028 var(--accent-h));
+  --accent-200: oklch(0.870 0.045 var(--accent-h));
+  --accent-300: oklch(0.790 0.062 var(--accent-h));
+  --accent-400: oklch(0.700 0.078 var(--accent-h));
+  --accent-500: oklch(0.620 0.088 var(--accent-h));
+  --accent-600: oklch(0.550 0.090 var(--accent-h));
+  --accent-700: oklch(0.480 0.082 var(--accent-h));
+  --accent-800: oklch(0.400 0.068 var(--accent-h));
+  --accent-900: oklch(0.330 0.052 var(--accent-h));
+  --accent-950: oklch(0.240 0.036 var(--accent-h));
+
+  /* Warm olive neutrals (from the oatmeal ramp, oklch hue ~107) */
+  --neutral-50:  oklch(0.988 0.003 106.5);
+  --neutral-100: oklch(0.966 0.005 106.5);
+  --neutral-200: oklch(0.930 0.007 106.5);
+  --neutral-300: oklch(0.880 0.011 106.6);
+  --neutral-400: oklch(0.737 0.021 106.9);
+  --neutral-500: oklch(0.580 0.031 107.3);
+  --neutral-600: oklch(0.466 0.025 107.3);
+  --neutral-700: oklch(0.394 0.023 107.4);
+  --neutral-800: oklch(0.286 0.016 107.4);
+  --neutral-900: oklch(0.228 0.013 107.4);
+  --neutral-950: oklch(0.153 0.006 107.1);
+}
+
+/* Dark mode lifts the accent lightness for legibility on charcoal */
+[data-theme="dark"],
+.dark {
+  --accent-l: 0.74;   /* @kind other */
+  --accent-c: 0.10;   /* @kind other */
+  --accent:        oklch(var(--accent-l) var(--accent-c) var(--accent-h));
+  --accent-strong: oklch(calc(var(--accent-l) - 0.08) calc(var(--accent-c) + 0.02) var(--accent-h));
+  --accent-muted:  oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.16);
+  --accent-faint:  oklch(var(--accent-l) var(--accent-c) var(--accent-h) / 0.07);
+  --on-accent:     oklch(0.150 0.010 107);
+  --brand: var(--accent); --brand-strong: var(--accent-strong); --brand-muted: var(--accent-muted); --brand-faint: var(--accent-faint);
+}
+
+/* ============================================================
+   Typography — families + base scale
+   ============================================================ */
+:root {
+  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-serif:   'Newsreader', ui-serif, Georgia, serif;   /* the koopa0.dev editorial voice — display + reading */
+  --font-sans:    'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* UI scale (minor third 1.2) */
+  --fs-11: 0.6875rem;  /* 11px — micro labels, kbd */
+  --fs-12: 0.750rem;   /* 12px — captions, metadata */
+  --fs-13: 0.8125rem;  /* 13px — admin body */
+  --fs-14: 0.875rem;   /* 14px — UI default */
+  --fs-16: 1.000rem;   /* 16px — public body default */
+  --fs-18: 1.125rem;   /* 18px — lead, small display */
+
+  /* Editorial scale (major third 1.25), extended top-end for the serif hero */
+  --fs-ed-17: 1.0625rem; /* 17px — article body */
+  --fs-ed-20: 1.250rem;  /* 20px — H4 */
+  --fs-ed-24: 1.500rem;  /* 24px — H3 */
+  --fs-ed-30: 1.875rem;  /* 30px — H2 */
+  --fs-ed-38: 2.375rem;  /* 38px — H1 */
+  --fs-ed-48: 3.000rem;  /* 48px — small display */
+  --fs-ed-60: 3.75rem;   /* 60px — hero */
+  --fs-ed-72: 4.5rem;    /* 72px — big hero */
+  --fs-ed-88: 5.5rem;    /* 88px — landing hero */
+
+  /* Editorial sub-scale — the public serif surface's quiet sizes, named so
+     packs/editorial.css carries zero magic numbers. */
+  --fs-ed-meta:     0.74rem;  /* mono meta rail: dates, counts, crumbs */
+  --fs-ed-label:    0.78rem;  /* mono labels, topics, footers */
+  --fs-ed-excerpt:  0.98rem;  /* row excerpts, index descriptions */
+  --fs-ed-body:     1.05rem;  /* serif body-small: deks, about prose, wordmark */
+  --fs-ed-title-sm: 1.18rem;  /* row/index titles */
+  --fs-ed-title:    1.32rem;  /* lead & entry titles */
+
+  /* Line heights */
+  --lh-tight:   1.15;  /* @kind font */
+  --lh-snug:    1.35;  /* @kind font */
+  --lh-normal:  1.5;   /* @kind font */
+  --lh-read:    1.75;  /* @kind font */
+
+  /* Weights */
+  --fw-regular: 400;   /* @kind font */
+  --fw-medium:  500;   /* @kind font */
+  --fw-semibold: 600;  /* @kind font */
+  --fw-bold:    700;   /* @kind font */
+  /* Newsreader optical weights (public serif voice) */
+  --fw-ed-title: 440;  /* @kind font */
+  --fw-ed-light: 380;  /* @kind font */
+
+  /* Tracking */
+  --track-tight:  -0.02em;  /* @kind font */
+  --track-snug:   -0.01em;  /* @kind font */
+  --track-normal:  0em;     /* @kind font */
+  --track-wide:    0.08em;  /* @kind font */
+}
+
+/* ============================================================
+   Breakpoints + z-index
+   ============================================================ */
+:root {
+  --bp-sm:   640px;   /* @kind other */
+  --bp-md:   768px;   /* @kind other */
+  --bp-lg:  1024px;   /* @kind other */
+  --bp-xl:  1280px;   /* @kind other */
+  --bp-2xl: 1536px;   /* @kind other */
+
+  --z-base:      0;   /* @kind other */
+  --z-sticky:   50;   /* @kind other */
+  --z-dropdown: 60;   /* @kind other */
+  --z-overlay: 100;   /* @kind other */
+  --z-modal:   101;   /* @kind other */
+  --z-toast:   200;   /* @kind other */
+}
+
+/* ============================================================
+   Spacing (one scale, two usage patterns)
+   ============================================================ */
+:root {
+  --s-0:   0;   /* @kind spacing */
+  --s-2:   2px;
+  --s-4:   4px;
+  --s-6:   6px;
+  --s-8:   8px;
+  --s-12: 12px;
+  --s-16: 16px;
+  --s-20: 20px;
+  --s-24: 24px;
+  --s-32: 32px;
+  --s-40: 40px;
+  --s-56: 56px;
+  --s-80: 80px;
+
+  /* Radii — the koopa redesign relaxes "no pills": segmented nav is a pill,
+     but general buttons/cards stay square-ish. */
+  --r-sm:  2px;    /* inputs, small buttons, chips */
+  --r-md:  6px;    /* cards, panels */
+  --r-lg: 12px;    /* dialogs, hero blocks */
+  --r-pill: 999px; /* segmented nav, toggle groups, avatars */
+  --r-full: 999px; /* avatars only (alias) */
+
+  /* Content widths */
+  --measure-article: 680px;
+  --measure-admin-prose: 640px;
+  --container: 1280px;
+
+  /* Motion */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);  /* @kind other */
+  --dur-fast:  60ms;   /* @kind other */
+  --dur-base: 120ms;   /* @kind other */
+  --dur-slow: 200ms;   /* @kind other */
+}
+
+/* ============================================================
+   Semantic text styles
+   Admin/UI headings are Space Grotesk (weight carries hierarchy). The
+   public editorial surface uses the serif voice instead — see packs/editorial.css.
+   ============================================================ */
+.h-display { font-family: var(--font-display); font-size: var(--fs-ed-48); font-weight: var(--fw-bold); line-height: var(--lh-tight); letter-spacing: var(--track-tight); color: var(--fg); }
+.h1        { font-family: var(--font-display); font-size: var(--fs-ed-38); font-weight: var(--fw-bold); line-height: var(--lh-tight); letter-spacing: var(--track-tight); color: var(--fg); }
+.h2        { font-family: var(--font-display); font-size: var(--fs-ed-30); font-weight: var(--fw-semibold); line-height: var(--lh-snug); letter-spacing: var(--track-snug); color: var(--fg); }
+.h3        { font-family: var(--font-display); font-size: var(--fs-ed-24); font-weight: var(--fw-semibold); line-height: var(--lh-snug); color: var(--fg); }
+.h4        { font-family: var(--font-display); font-size: var(--fs-ed-20); font-weight: var(--fw-semibold); line-height: var(--lh-snug); color: var(--fg); }
+.lead      { font-family: var(--font-serif); font-size: var(--fs-18); line-height: var(--lh-normal); color: var(--fg-muted); }
+.body      { font-family: var(--font-sans); font-size: var(--fs-16); line-height: var(--lh-normal); color: var(--fg); }
+.body-read { font-family: var(--font-serif); font-size: var(--fs-ed-17); line-height: var(--lh-read); color: var(--fg-muted); }
+.ui        { font-family: var(--font-sans); font-size: var(--fs-14); line-height: var(--lh-normal); color: var(--fg); }
+.ui-sm     { font-family: var(--font-sans); font-size: var(--fs-13); line-height: var(--lh-normal); color: var(--fg); }
+.caption   { font-family: var(--font-sans); font-size: var(--fs-12); line-height: var(--lh-normal); color: var(--fg-subtle); }
+.mono-label{ font-family: var(--font-mono); font-size: var(--fs-12); line-height: var(--lh-normal); color: var(--fg-faint); letter-spacing: var(--track-wide); }
+.micro     { font-family: var(--font-mono); font-size: var(--fs-11); line-height: var(--lh-normal); color: var(--fg-subtle); letter-spacing: var(--track-wide); text-transform: uppercase; }
+.code      { font-family: var(--font-mono); font-size: 0.9em; }
+.kbd       { font-family: var(--font-mono); font-size: var(--fs-11); padding: 2px 6px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: var(--r-sm); background: var(--elevated); color: var(--fg-muted); }
+
+/* ============================================================
+   Base reset + grain overlay
+   ============================================================ */
+/* Root stays at the browser default (16px) so editorial rem sizing matches
+   the live site. Admin/UI components size themselves explicitly via --fs-*;
+   the 14px UI default is applied to body text, not the root em. */
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  line-height: var(--lh-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--fg-subtle);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+.grain::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url('/assets/noise.svg');
+  background-repeat: repeat;
+  background-size: 200px 200px;
+  mix-blend-mode: multiply;
+}

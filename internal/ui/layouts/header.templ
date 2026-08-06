@@ -1,0 +1,134 @@
+package layouts
+
+import (
+	"strconv"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/icons"
+	"github.com/koopa0/goen/internal/web"
+)
+
+// Header renders the site header. The 1440 and 375 artboards are one element
+// here: the category row and language switch are hidden below the desktop
+// breakpoint, where a native <details> disclosure takes their place, and the
+// search field wraps onto its own row.
+templ Header(p Page) {
+	<header class="goen-header">
+		<div class="goen-header__bar">
+			<details class="goen-header__menu" data-menu>
+				<summary class="ui-btn ui-btn--ghost ui-btn--icon" aria-label={ i18n.T(ctx, i18n.KeyMenu) }>
+					@icons.Menu()
+				</summary>
+				<nav class="goen-header__drawer" aria-label={ i18n.T(ctx, i18n.KeyCategoryNav) }>
+					for _, n := range TopNavFrom(ctx) {
+						<a
+							class={ "ui-navitem", templ.KV("is-active", p.current(n)) }
+							aria-current={ p.ariaCurrent(n) }
+							href={ templ.URL(n.Href) }
+						>{ n.Name }</a>
+					}
+					<a class="ui-navitem goen-header__navitem--deal" href="/deals">{ i18n.T(ctx, i18n.KeyDeals) }</a>
+					// i18n-exempt: a language's own name, shown in both locales on purpose —
+					// somebody looking for their own language should not have to read
+					// another one to find it.
+					@languageSwitch("goen-header__lang", "繁中", "EN")
+				</nav>
+			</details>
+			<a class="goen-header__brand" href="/">
+				@icons.Mark("goen-header__mark")
+				<span class="goen-header__wordmark">goen</span>
+			</a>
+			<nav class="goen-header__nav" aria-label={ i18n.T(ctx, i18n.KeyCategoryNav) }>
+				for _, n := range TopNavFrom(ctx) {
+					<a
+						class={ "ui-navitem", templ.KV("is-active", p.current(n)) }
+						aria-current={ p.ariaCurrent(n) }
+						href={ templ.URL(n.Href) }
+					>{ n.Name }</a>
+				}
+				<a class="ui-navitem goen-header__navitem--deal" href="/deals">{ i18n.T(ctx, i18n.KeyDeals) }</a>
+			</nav>
+			<form class="goen-header__search ui-input-group" role="search" action="/search" method="get">
+				<span class="ui-input-group__icon">
+					@icons.Search()
+				</span>
+				<label class="goen-sr-only" for="site-search">{ i18n.T(ctx, i18n.KeySearch) }</label>
+				<input class="ui-input" id="site-search" type="search" name="q" placeholder={ i18n.T(ctx, i18n.KeySearchHint) }/>
+			</form>
+			// i18n-exempt: a language's own name, shown in both locales on purpose —
+			// somebody looking for their own language should not have to read
+			// another one to find it.
+			@languageSwitch("goen-header__lang", "繁中", "EN")
+			<div class="goen-header__actions">
+				<a class="ui-btn ui-btn--ghost ui-btn--icon" href="/account" aria-label={ i18n.T(ctx, i18n.KeyAccount) }>
+					@icons.User()
+				</a>
+				<a class="ui-btn ui-btn--ghost ui-btn--icon goen-header__action--wide" href="/account/wishlist" aria-label={ i18n.T(ctx, i18n.KeyWishlist) }>
+					@icons.Heart()
+				</a>
+				@cartLink()
+			</div>
+		</div>
+	</header>
+}
+
+// cartLink renders the cart button and its badge.
+//
+// The count comes from the request CONTEXT, not from the view model. It used to
+// be a layouts.Page field that every page declared and nothing ever assigned,
+// so the badge read 0 for every visitor whatever was in their cart. A number
+// each handler must remember to fill is a number that goes unfilled; one
+// middleware cannot forget.
+//
+// The badge is absent at zero rather than showing "0" — an empty cart has
+// nothing to announce, and the aria-label already says so for a screen reader.
+templ cartLink() {
+	{{ count := web.CartCount(ctx) }}
+	<a class="ui-btn ui-btn--ghost ui-btn--icon goen-header__cart" href="/cart" aria-label={ cartLabel(ctx, count) }>
+		@icons.Cart()
+		if count > 0 {
+			<span class="ui-badge ui-badge--count" aria-hidden="true">{ strconv.Itoa(count) }</span>
+		}
+	</a>
+}
+
+// languageSwitch renders the locale control. The caller supplies the class
+// that governs where it appears, because the header's copy is desktop-bar
+// chrome while the footer's is present at every width.
+//
+// goen ships Traditional Chinese only, so the English option is marked
+// disabled rather than pretending to be a working control; wiring it is the
+// i18n batch's job.
+templ languageSwitch(class, zh, en string) {
+	{{ current := i18n.FromContext(ctx) }}
+	<form class={ "ui-segmented", class } method="post" action="/locale" role="group" aria-label={ i18n.T(ctx, i18n.KeyLanguage) }>
+		// Where to come back to, so switching re-renders the page being read
+		// rather than sending somebody home. Validated server-side as a
+		// same-site path — a redirect target from a form is an open redirect
+		// unless something says otherwise.
+		<input type="hidden" name="return" value={ returnPath(ctx) }/>
+		for _, l := range i18n.Locales() {
+			<button
+				class={ "ui-segmented__item", templ.KV("is-active", l == current) }
+				type="submit"
+				name="locale"
+				value={ l.Tag() }
+				aria-pressed={ pressed(l == current) }
+			>
+				if l == i18n.En {
+					{ en }
+				} else {
+					{ zh }
+				}
+			</button>
+		}
+	</form>
+}
+
+// pressed renders aria-pressed, which needs the string not the bool.
+func pressed(on bool) string {
+	if on {
+		return "true"
+	}
+	return "false"
+}

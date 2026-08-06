@@ -1,0 +1,67 @@
+package pages
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/icons"
+)
+
+// Tile is one product card, used by the home grid and by a category listing —
+// they render the same component, so a second copy would be two visual
+// languages waiting to drift.
+//
+// The whole card is a single link, so it is one tab stop and one target. The
+// design's wishlist and quick-add buttons are deliberately absent until the
+// writes behind them exist: a control that does nothing is worse than no
+// control, and nesting a button inside a link would be invalid besides.
+templ Tile(t ProductTile) {
+	<li>
+		<a class="ui-product goen-tile" href={ templ.URL("/p/" + t.Slug) }>
+			<div class="ui-product__media">
+				if t.HasImage() {
+					<img
+						src={ t.ImageURL }
+						srcset={ t.ImageSrcset }
+						sizes="(min-width: 1344px) 308px, (min-width: 1024px) calc((100vw - 112px) / 4), (min-width: 768px) calc((100vw - 80px) / 3), calc((100vw - 42px) / 2)"
+						alt={ t.ImageAlt }
+						if t.HasImageDimensions() {
+							width={ t.ImageWidthText() }
+							height={ t.ImageHeightText() }
+						}
+						loading="lazy"
+						decoding="async"
+					/>
+				} else {
+					<span class="goen-tile__ph" aria-hidden="true"></span>
+				}
+				if t.SoldOut() {
+					<span class="ui-product__flag ui-badge">{ i18n.T(ctx, i18n.KeySoldOut) }</span>
+				} else if t.OnSale() {
+					<span class="ui-product__flag ui-badge ui-badge--brand">{ i18n.T(ctx, i18n.KeyOnSale) }</span>
+				}
+			</div>
+			<div class="ui-product__body">
+				<span class="ui-product__brand">{ t.Brand }</span>
+				<h3 class="ui-product__name">{ t.Name }</h3>
+				if t.HasReviews() {
+					<span class="ui-rating goen-tile__rating">
+						<span class="ui-rating__stars" aria-hidden="true">
+							@icons.Star()
+						</span>
+						<span class="goen-tile__score" aria-hidden="true">{ t.RatingText() }</span>
+						<span class="ui-rating__count" aria-hidden="true">({ t.ReviewCountText() })</span>
+						<span class="goen-sr-only">{ t.RatingLabel(ctx) }</span>
+					</span>
+				}
+				<div class="ui-product__foot">
+					<span class={ "ui-price", templ.KV("ui-price--sale", t.OnSale()) }>
+						<span class="ui-price__now">{ t.Price() }</span>
+						if t.OnSale() {
+							<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyWasPrice) }</span>
+							<s class="ui-price__was">{ t.Compare() }</s>
+						}
+					</span>
+				</div>
+			</div>
+		</a>
+	</li>
+}

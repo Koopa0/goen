@@ -1,0 +1,127 @@
+package pages
+
+import "github.com/koopa0/goen/internal/ui/layouts"
+
+// AdminHealth renders what the background workers have and have not done.
+templ AdminHealth(p layouts.Page, v WorkerHealthView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("health")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">後台</p>
+					<h1 class="ui-page-head__title">背景作業</h1>
+					<p class="ui-page-head__sub">
+						這些數字全部是從「工作有沒有被做完」算出來的,不是從 worker 自己回報的心跳 ——
+						一個空轉的 worker 心跳正常,但工作沒有前進。
+					</p>
+				</div>
+				if v.AllHealthy() {
+					<span class="ui-badge ui-badge--brand">一切正常</span>
+				} else {
+					<span class="ui-badge">有需要看的地方</span>
+				}
+			</div>
+			<ul class="goen-health" role="list">
+				<li class={ "goen-health__item", templ.KV("is-bad", !v.OutboxHealthy()) }>
+					<span class="goen-health__name">通知信件(outbox)</span>
+					<span class="goen-health__state">{ v.OutboxText() }</span>
+					<span class="ui-cart-line__meta">
+						寄信在訂單的同一個交易裡排入,由背景 worker 送出。卡住代表顧客收不到通知。
+					</span>
+				</li>
+				<li class={ "goen-health__item", templ.KV("is-bad", !v.SweeperHealthy()) }>
+					<span class="goen-health__name">庫存保留清掃</span>
+					<span class="goen-health__state">{ v.SweeperText() }</span>
+					<span class="ui-cart-line__meta">
+						沒付款的訂單保留的庫存要放回架上。堆積代表有貨卻賣不出去。
+					</span>
+				</li>
+				<li class={ "goen-health__item", templ.KV("is-bad", !v.RecommendHealthy()) }>
+					<span class="goen-health__name">買了又買投影</span>
+					<span class="goen-health__state">{ v.RecommendText() }</span>
+					<span class="ui-cart-line__meta">
+						每 15 分鐘重建一次。過期只影響推薦的新鮮度,不影響任何交易。
+					</span>
+				</li>
+				<li class={ "goen-health__item", templ.KV("is-bad", !v.RefundsHealthy()) }>
+					<span class="goen-health__name">退款</span>
+					<span class="goen-health__state">{ v.RefundsText() }</span>
+					<span class="ui-cart-line__meta">
+						退款的紀錄是在打金流之前就寫進資料庫的,這樣中途斷線也留得下線索 ——
+						但沒有任何人在看那張表。這裡就是在看。沒有任何背景作業會自己把它結掉。
+					</span>
+				</li>
+				<li class={ "goen-health__item", templ.KV("is-bad", !v.HousekeepingHealthy()) }>
+					<span class="goen-health__name">清理</span>
+					<span class="goen-health__state">{ v.HousekeepingText() }</span>
+					<span class="ui-cart-line__meta">
+						過期 session 每 6 小時、沒被引用的圖片每小時清一次。兩者都不影響
+						任何答案 —— 讀取本來就會擋過期 session —— 堆積的是資料表本身。
+					</span>
+				</li>
+			</ul>
+			if len(v.Stuck) > 0 {
+				// WHICH ones. The count above says something is wrong; this is
+				// the part an operator can act on.
+				<h2 class="goen-admin__heading">重試次數用盡的訊息</h2>
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table goen-admin__table">
+						<thead>
+							<tr>
+								<th scope="col">主題</th>
+								<th scope="col">識別碼</th>
+								<th scope="col">次數</th>
+								<th scope="col">最後一次的錯誤</th>
+								<th scope="col">自從</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, m := range v.Stuck {
+								<tr>
+									<td>{ m.Topic }</td>
+									<td>{ m.Key }</td>
+									<td>{ m.AttemptsText() }</td>
+									<td>{ m.Reason() }</td>
+									<td>{ m.Since }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+			if len(v.OpenRefunds) > 0 {
+				// WHICH refunds, and enough to act on each: the order to find
+				// the customer by, what they are owed, and the two identifiers
+				// that find it at Stripe.
+				<h2 class="goen-admin__heading">還沒退成功的退款</h2>
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table goen-admin__table">
+						<thead>
+							<tr>
+								<th scope="col">訂單</th>
+								<th scope="col">金額</th>
+								<th scope="col">狀態</th>
+								<th scope="col">金流端編號</th>
+								<th scope="col">送出的識別碼</th>
+								<th scope="col">開始於</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, r := range v.OpenRefunds {
+								<tr>
+									<td>{ r.OrderNumber }</td>
+									<td>{ r.Amount() }</td>
+									<td>{ r.StatusText() }</td>
+									<td>{ r.Reference() }</td>
+									<td>{ r.Key }</td>
+									<td>{ r.Since }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</div>
+	}
+}

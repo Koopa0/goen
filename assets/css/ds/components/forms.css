@@ -1,0 +1,99 @@
+/* ============================================================
+   koopa.dev — Form controls
+   input · textarea · select · checkbox · radio · switch · field
+   ============================================================ */
+
+/* ---- Field wrapper (label + control + hint) ---- */
+.ui-field { display: flex; flex-direction: column; gap: 6px; }
+.ui-label {
+  font-family: var(--font-sans); font-size: var(--fs-12); font-weight: var(--fw-medium);
+  color: var(--fg-muted);
+}
+.ui-label .ui-req { color: var(--error); margin-left: 2px; }
+.ui-hint  { font-size: var(--fs-12); color: var(--fg-subtle); }
+.ui-error-text { font-size: var(--fs-12); color: var(--error); }
+
+/* ---- Text input / textarea ---- */
+.ui-input, .ui-textarea {
+  font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg);
+  background: var(--elevated); border: 1px solid var(--border); border-radius: var(--r-sm);
+  padding: 8px 10px; width: 100%; box-sizing: border-box; outline: none;
+  transition: border-color var(--dur-base) var(--ease-standard), background var(--dur-base);
+}
+.ui-input::placeholder, .ui-textarea::placeholder { color: var(--fg-faint); }
+.ui-input:hover, .ui-textarea:hover { border-color: var(--border-strong); }
+.ui-input:focus, .ui-textarea:focus { border-color: var(--brand); background: var(--panel); }
+.ui-input:disabled, .ui-textarea:disabled { opacity: 0.45; cursor: not-allowed; }
+.ui-input[aria-invalid="true"], .ui-textarea[aria-invalid="true"] { border-color: var(--error); }
+.ui-textarea { resize: vertical; min-height: 80px; line-height: var(--lh-normal); }
+.ui-input--mono { font-family: var(--font-mono); }
+
+/* sizes */
+.ui-input--sm { padding: 6px 8px; font-size: var(--fs-12); }
+.ui-input--lg { padding: 10px 12px; font-size: var(--fs-14); }
+
+/* ---- Input group (leading icon / addon) ---- */
+.ui-input-group { position: relative; display: flex; align-items: center; }
+.ui-input-group .ui-input { padding-left: 32px; }
+.ui-input-group__icon {
+  position: absolute; left: 9px; display: inline-flex; color: var(--fg-subtle); pointer-events: none;
+}
+.ui-input-group__icon svg { width: 15px; height: 15px; }
+.ui-input-group__kbd { position: absolute; right: 8px; }
+
+/* ---- Select (native, styled chevron) ---- */
+.ui-select {
+  font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg);
+  background: var(--elevated); border: 1px solid var(--border); border-radius: var(--r-sm);
+  padding: 8px 30px 8px 10px; width: 100%; box-sizing: border-box; outline: none; cursor: pointer;
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 9px center;
+  transition: border-color var(--dur-base);
+}
+.ui-select:hover { border-color: var(--border-strong); }
+.ui-select:focus { border-color: var(--brand); }
+.ui-select:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ---- Checkbox & Radio (custom, accessible markup keeps native input) ---- */
+.ui-check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg); }
+.ui-check input { position: absolute; opacity: 0; width: 0; height: 0; }
+.ui-check__box {
+  width: 16px; height: 16px; flex: none; border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong); background: var(--elevated);
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background var(--dur-base), border-color var(--dur-base);
+}
+.ui-check__box svg { width: 12px; height: 12px; color: var(--on-accent); opacity: 0; }
+.ui-check input:checked + .ui-check__box { background: var(--brand); border-color: var(--brand); }
+.ui-check input:checked + .ui-check__box svg { opacity: 1; }
+.ui-check input:focus-visible + .ui-check__box { outline: 2px solid var(--fg-subtle); outline-offset: 2px; }
+.ui-check input:disabled + .ui-check__box { opacity: 0.4; }
+
+.ui-radio .ui-check__box { border-radius: var(--r-full); }
+.ui-radio .ui-check__box::after {
+  content: ""; width: 8px; height: 8px; border-radius: var(--r-full);
+  background: var(--on-accent); transform: scale(0); transition: transform var(--dur-base);
+}
+.ui-radio input:checked + .ui-check__box { background: var(--brand); border-color: var(--brand); }
+.ui-radio input:checked + .ui-check__box::after { transform: scale(1); }
+
+/* ---- Switch / toggle ---- */
+.ui-switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer;
+  font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg); }
+.ui-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.ui-switch__track {
+  width: 34px; height: 20px; flex: none; border-radius: var(--r-full);
+  background: var(--overlay); border: 1px solid var(--border); position: relative;
+  transition: background var(--dur-base), border-color var(--dur-base);
+}
+.ui-switch__track::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px;
+  border-radius: var(--r-full); background: var(--fg-subtle);
+  transition: transform var(--dur-base) var(--ease-standard), background var(--dur-base);
+}
+.ui-switch input:checked + .ui-switch__track { background: var(--brand); border-color: transparent; }
+.ui-switch input:checked + .ui-switch__track::after { transform: translateX(14px); background: var(--on-accent); }
+.ui-switch input:focus-visible + .ui-switch__track { outline: 2px solid var(--fg-subtle); outline-offset: 2px; }
+.ui-switch input:disabled + .ui-switch__track { opacity: 0.4; }

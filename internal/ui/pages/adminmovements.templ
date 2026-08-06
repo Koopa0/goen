@@ -1,0 +1,70 @@
+package pages
+
+import "github.com/koopa0/goen/internal/ui/layouts"
+
+// AdminMovements renders one variant's stock ledger.
+//
+// inventory_movements is the table every stock change goes through, and nothing read
+// it until this page: a shop could see that a SKU has four units and not how it got
+// there. That is a feature with no door from the other side — data collected and
+// never shown.
+templ AdminMovements(p layouts.Page, v *AdminMovementsView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("stock")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">
+						<a href="/admin/stock">庫存</a>
+					</p>
+					<h1 class="ui-page-head__title">{ v.SKU }</h1>
+					<p class="ui-page-head__sub">
+						<a href={ templ.SafeURL("/admin/products/" + v.Slug) }>{ v.ProductName }</a>
+						· 目前 { v.StockText() } 件,安全庫存 { v.SafetyText() }
+					</p>
+				</div>
+			</div>
+			if v.Empty() {
+				<p class="goen-admin__hint">
+					這個規格還沒有任何異動。新規格的庫存是 0,所有的量都從這張帳本進來。
+				</p>
+			} else {
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table">
+						<thead>
+							<tr>
+								<th scope="col">時間</th>
+								<th scope="col">異動</th>
+								<th scope="col">原因</th>
+								<th scope="col">訂單</th>
+								<th scope="col">操作者</th>
+								<th scope="col">結存</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, m := range v.Rows {
+								<tr>
+									<td>{ m.At }</td>
+									<td class={ templ.KV("goen-admin__in", m.In()) }>{ m.DeltaText() }</td>
+									<td>{ m.ReasonText() }</td>
+									<td>
+										if m.HasOrder() {
+											<a href={ templ.SafeURL("/admin/orders/" + m.OrderNumber) }>{ m.OrderNumber }</a>
+										} else {
+											—
+										}
+									</td>
+									<td>{ m.By() }</td>
+									<td>{ m.RunningText() }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+				<p class="goen-admin__hint">
+					最近 50 筆。結存是從帳本開頭累加到那一筆的數字,所以就算只看這一頁也是對的。
+				</p>
+			}
+		</div>
+	}
+}

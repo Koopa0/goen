@@ -1,0 +1,351 @@
+version: "2"
+
+run:
+  # Without this the seven //go:build integration files — the entire schema
+  # conformance suite — are never type-checked by lint. `make lint` reporting
+  # zero findings across a tree it cannot see is the same kind of green as a
+  # test that asserts nothing.
+  build-tags:
+    - integration
+
+# Imported from go-spec (~/go-spec/.golangci.yml) and adapted for goen. The
+# differences from upstream are marked GOEN; everything else is upstream's
+# judgement, including the list of linters it evaluated and rejected.
+#
+# ============================================================
+# Evaluated and REJECTED upstream — do not re-enable without a new
+# observed failure case:
+#   testpackage   — white-box same-package unit tests are doctrine
+#   godot         — comment-period style nagging, no correctness value
+#   dupword       — prose linting, false positives in doc comments
+#   mnd           — magic-number nagging fights table-driven tests
+#   err113        — demands static errors everywhere; fights sentinel doctrine
+#   exhaustruct   — as a GLOBAL rule: forces zero-value fields to be spelled
+#                   out. Enabled below for exactly one type, i18n.Message,
+#                   where a field left out IS the defect.
+#   funcorder     — declaration-order style nagging
+#   contextcheck  — false positives on intentional context detachment
+#   paralleltest  — t.Parallel() is a judgment call, not a default
+#   revive        — overlaps staticcheck/gocritic; config burden > value
+#   ireturn       — superseded by iface
+#   gomodguard    — superseded by depguard
+# ============================================================
+
+linters:
+  enable:
+    # Error handling
+    - errcheck
+    - errorlint
+    - errname
+    - nilnesserr
+
+    # Static analysis
+    - staticcheck
+    - govet
+    - gocritic
+
+    # Security
+    - gosec
+
+    # Code quality
+    - ineffassign
+    - unused
+    - unconvert
+    - unparam
+    - wastedassign
+
+    # A translation somebody forgot to write, refused at the line that forgot
+    # it. Scoped to one type — see linters.settings.exhaustruct.
+    - exhaustruct
+
+    # Style
+    - misspell
+    - whitespace
+    - recvcheck
+
+    # Go version specific
+    - copyloopvar
+    - intrange
+    - usestdlibvars
+    - perfsprint
+
+    # Forbidden imports and calls
+    - depguard
+    - forbidigo
+
+    # Complexity
+    - gocyclo
+    - gocognit
+    - nestif
+
+    # Context
+    - containedctx
+    - fatcontext
+    - noctx
+
+    # HTTP / SQL resource hygiene
+    - bodyclose
+    - sqlclosecheck
+    - rowserrcheck
+
+    # Observability
+    - sloglint
+    - spancheck
+
+    # Testing
+    - thelper
+    - tparallel
+    - usetesting
+
+    # Interfaces
+    - iface
+
+    # Concurrency
+    - embeddedstructfieldcheck
+
+    # Returns
+    - nakedret
+
+    # Other
+    - exhaustive
+    - prealloc
+    - nolintlint
+
+  settings:
+    exhaustruct:
+      # ONE type, and the include list is exact for that reason.
+      #
+      # i18n.Message holds one string per locale. A literal that omits one is a
+      # key that renders Chinese on an English page — which is the failure the
+      # whole locale feature exists to prevent, and it is invisible in review
+      # because the entry looks written. Refusing it here is a squiggle under the
+      # line that forgot; the alternative is a test naming a key several hundred
+      # lines away from the one somebody is editing.
+      #
+      # Everywhere else this linter is noise: goen's structs are full of fields
+      # whose zero value is the answer (a nil error, an absent filter, "no
+      # surcharge"), and spelling those out would make a wall of `X: nil`.
+      include:
+        - 'github\.com/koopa0/goen/internal/i18n\.Message'
+
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+      exclude-functions:
+        - (io.Closer).Close
+        - (net/http.ResponseWriter).Write
+
+    staticcheck:
+      checks:
+        - "all"
+        - "ST1000"
+        - "ST1020"
+        - "ST1021"
+        - "ST1022"
+
+    govet:
+      enable-all: true
+      disable:
+        # fieldalignment fights readable struct order and every table-driven
+        # test struct (name/input/want/wantErr).
+        - fieldalignment
+
+    gosec:
+      excludes:
+        - G104
+      config:
+        G306: "0644"
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+        - experimental
+      disabled-checks:
+        - whyNoLint
+      settings:
+        hugeParam:
+          # GOEN: upstream's default of 80 bytes fires on every view model here
+          # — contact.Message is five strings (exactly 80) and pages.ContactForm
+          # is 120. Both are built once per HTTP request and read a handful of
+          # times, so the copy is invisible next to the request that carries it,
+          # and value semantics are the point: Clean() is a pure transform, and
+          # taking a pointer would invite the in-place mutation it exists to
+          # avoid. 192 still catches a genuinely large aggregate.
+          sizeThreshold: 192
+
+    depguard:
+      rules:
+        main:
+          deny:
+            # Deprecated stdlib / pre-1.21 x/exp
+            - pkg: io/ioutil
+              desc: deprecated since Go 1.16 — use io + os
+            - pkg: golang.org/x/exp/slices
+              desc: use stdlib slices (Go 1.21+)
+            - pkg: golang.org/x/exp/maps
+              desc: use stdlib maps (Go 1.21+)
+            # Test doubles — real dependencies, never mocks
+            - pkg: github.com/stretchr/testify
+              desc: testify forbidden — std testing + go-cmp
+            - pkg: github.com/golang/mock
+              desc: mock frameworks forbidden — real deps via testcontainers
+            - pkg: go.uber.org/mock
+              desc: mock frameworks forbidden — real deps via testcontainers
+            - pkg: github.com/vektra/mockery
+              desc: mock frameworks forbidden — real deps via testcontainers
+            - pkg: github.com/matryer/moq
+              desc: mock frameworks forbidden — real deps via testcontainers
+            - pkg: github.com/maxbrunsfeld/counterfeiter
+              desc: mock frameworks forbidden — real deps via testcontainers
+            - pkg: github.com/DATA-DOG/go-sqlmock
+              desc: NEVER mock the database — testcontainers-go
+            # Database
+            - pkg: database/sql
+              desc: use pgx/v5 native API
+            # HTTP frameworks
+            - pkg: github.com/go-chi/chi
+              desc: no HTTP frameworks — net/http Go 1.22+ routing
+            - pkg: github.com/gin-gonic/gin
+              desc: no HTTP frameworks — net/http Go 1.22+ routing
+            - pkg: github.com/labstack/echo
+              desc: no HTTP frameworks — net/http Go 1.22+ routing
+            # ORMs
+            - pkg: gorm.io
+              desc: no ORM — pgx/v5 + sqlc
+            - pkg: entgo.io
+              desc: no ORM — pgx/v5 + sqlc
+            - pkg: github.com/uptrace/bun
+              desc: no ORM — pgx/v5 + sqlc
+            # Logging
+            - pkg: go.uber.org/zap
+              desc: log/slog only
+            - pkg: github.com/rs/zerolog
+              desc: log/slog only
+            - pkg: github.com/sirupsen/logrus
+              desc: log/slog only
+            # Config / DI
+            - pkg: github.com/spf13/viper
+              desc: config via env vars + std lib
+            - pkg: github.com/google/wire
+              desc: manual wiring in cmd/goen — no DI frameworks
+            - pkg: go.uber.org/dig
+              desc: manual wiring in cmd/goen — no DI frameworks
+            - pkg: go.uber.org/fx
+              desc: manual wiring in cmd/goen — no DI frameworks
+            # GOEN: the do-not-introduce list from CLAUDE.md, mechanised.
+            # htmx is the one admitted client dependency and it is vendored,
+            # not imported; anything reaching for a second is a human decision.
+            - pkg: github.com/a-h/templ/generator
+              desc: templ generation runs through the tool directive, not application code
+
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: ^fmt\.Print(f|ln)?$
+          msg: use log/slog
+        - pattern: ^log\.(Print(f|ln)?|Fatal(f|ln)?|Panic(f|ln)?)$
+          msg: use log/slog; exit paths belong in main
+        - pattern: ^sort\.Slice(Stable)?$
+          msg: use slices.SortFunc / slices.SortStableFunc (Go 1.21+)
+        - pattern: ^http\.ListenAndServe(TLS)?$
+          msg: use http.Server + graceful shutdown
+        - pattern: ^errors\.As$
+          msg: use errors.AsType[T] (Go 1.26)
+
+    sloglint:
+      no-mixed-args: true
+      key-naming-case: snake
+
+    usetesting:
+      os-create-temp: true
+      os-mkdir-temp: true
+      os-setenv: true
+      os-chdir: true
+      os-temp-dir: true
+      context-background: true
+      context-todo: true
+
+    iface:
+      enable:
+        - identical
+        - unused
+        - opaque
+
+    spancheck:
+      checks:
+        - end
+        - record-error
+        - set-status
+
+    rowserrcheck:
+      packages:
+        - github.com/jackc/pgx/v5
+
+    embeddedstructfieldcheck:
+      forbid-mutex: true
+
+    gocyclo:
+      min-complexity: 15
+
+    gocognit:
+      min-complexity: 20
+
+    nestif:
+      min-complexity: 4
+
+    exhaustive:
+      default-signifies-exhaustive: true
+
+    nakedret:
+      max-func-lines: 5
+
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+
+  exclusions:
+    generated: lax
+    paths:
+      - ^vendor/
+      # GOEN: sqlc output only. The earlier `^internal/db/[^/]+\.go$` matched
+      # every top-level file in that package, which includes five hand-written
+      # integration test files — so the exclusion labelled "generated code"
+      # was silently excusing 2,000 lines of ours.
+      - ^internal/db/(db|models|query\.sql)\.go$
+    rules:
+      - path: _test\.go
+        linters:
+          - gocyclo
+          - gocognit
+          - errcheck
+      - path: ^cmd/
+        linters:
+          - forbidigo
+      # GOEN: templ writes these; the generator's style is not ours to fix.
+      - path: _templ\.go
+        linters:
+          - gocritic
+          - gosec
+          - staticcheck
+          - unparam
+          - prealloc
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    gofmt:
+      rewrite-rules:
+        - pattern: interface{}
+          replacement: any
+    goimports:
+      local-prefixes:
+        - github.com/koopa0/goen
+  exclusions:
+    paths:
+      - ^vendor/
+      - ^internal/db/(db|models|query\.sql)\.go$
+      - _templ\.go

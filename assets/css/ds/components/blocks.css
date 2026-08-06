@@ -1,0 +1,108 @@
+/* ============================================================
+   koopa.dev — Blocks (composite, token-driven)
+   Higher-order patterns that sit above the atoms: page/section/card
+   headings, stacked + grid lists, activity feed, media object, action
+   panel, notification card, faceted filter, and a bare-CSS column chart.
+   Same restraint as the core: hairlines, mono labels, surgical accent.
+   ============================================================ */
+
+/* ---- Headings: page / section / card ---- */
+.ui-page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.ui-page-head__eyebrow { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-faint); margin: 0 0 6px; white-space: nowrap; }
+.ui-page-head__title { font-family: var(--font-display); font-size: var(--fs-ed-30); font-weight: var(--fw-semibold); letter-spacing: var(--track-tight); color: var(--fg); margin: 0; }
+.ui-page-head__sub { font-size: var(--fs-13); color: var(--fg-subtle); margin: 6px 0 0; max-width: 60ch; }
+.ui-page-head__actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.ui-page-head--bare { border-bottom: none; padding-bottom: 0; }
+
+.ui-section-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.ui-section-head__title { font-family: var(--font-display); font-size: var(--fs-18); font-weight: var(--fw-semibold); color: var(--fg); margin: 0; }
+.ui-section-head__meta { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ui-section-head--ruled { padding-bottom: 12px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+
+/* canonical quiet mono meta — dates, regions, counts, "last used…" */
+.ui-meta { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.ui-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.ui-card-head__title { font-family: var(--font-display); font-size: var(--fs-16); font-weight: var(--fw-semibold); color: var(--fg); margin: 0; }
+
+/* ---- Stacked list (hairline-separated rows) ---- */
+.ui-list { display: flex; flex-direction: column; }
+.ui-list__item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-faint); }
+.ui-list__item:last-child { border-bottom: none; }
+.ui-list--bordered { border: 1px solid var(--border); border-radius: var(--r-md); }
+.ui-list--bordered .ui-list__item { padding: 12px 16px; }
+.ui-list__body { min-width: 0; flex: 1; }
+.ui-list__title { font-size: var(--fs-14); font-weight: var(--fw-medium); color: var(--fg); margin: 0; }
+.ui-list__sub { font-size: var(--fs-12); color: var(--fg-subtle); margin: 2px 0 0; }
+.ui-list__meta { margin-left: auto; flex: none; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
+.ui-list__end { margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: 8px; }
+a.ui-list__item, .ui-list__item--link { text-decoration: none; cursor: pointer; transition: background var(--dur-base); }
+a.ui-list__item:hover, .ui-list__item--link:hover { background: var(--overlay); }
+/* hover variant: rows light up full-bleed with a soft radius (Catalyst row hover) */
+.ui-list--hover .ui-list__item { margin: 0 -12px; padding: 12px; border-radius: var(--r-md); transition: background var(--dur-base) var(--ease-standard); }
+.ui-list--hover .ui-list__item:hover { background: var(--overlay); }
+
+/* ---- Grid list (cards in a responsive grid) ---- */
+.ui-grid-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.ui-grid-card { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--panel); padding: 16px; display: flex; flex-direction: column; gap: 8px; text-decoration: none; transition: border-color var(--dur-base), background var(--dur-base); }
+a.ui-grid-card:hover { border-color: var(--border-strong); background: var(--elevated); }
+.ui-grid-card__title { font-family: var(--font-display); font-size: var(--fs-16); font-weight: var(--fw-semibold); color: var(--fg); margin: 0; }
+.ui-grid-card__sub { font-size: var(--fs-13); color: var(--fg-subtle); margin: 0; line-height: var(--lh-normal); }
+
+/* ---- Activity feed (timeline with connector) ---- */
+.ui-feed { display: flex; flex-direction: column; }
+.ui-feed__item { position: relative; display: flex; gap: 14px; padding-bottom: 20px; }
+.ui-feed__item::before { content: ""; position: absolute; left: 13px; top: 26px; bottom: 0; width: 1px; background: var(--border); }
+.ui-feed__item:last-child { padding-bottom: 0; }
+.ui-feed__item:last-child::before { display: none; }
+.ui-feed__dot { position: relative; z-index: 1; flex: none; width: 28px; height: 28px; border-radius: var(--r-full); background: var(--elevated); border: 1px solid var(--border); display: inline-flex; align-items: center; justify-content: center; color: var(--fg-subtle); }
+.ui-feed__dot svg { width: 14px; height: 14px; }
+.ui-feed__dot--accent { background: var(--brand-faint); border-color: transparent; color: var(--brand); }
+.ui-feed__body { min-width: 0; padding-top: 4px; }
+.ui-feed__text { font-size: var(--fs-13); color: var(--fg-muted); margin: 0; line-height: var(--lh-normal); }
+.ui-feed__text b { color: var(--fg); font-weight: var(--fw-semibold); }
+.ui-feed__time { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); margin-top: 3px; display: block; }
+
+/* ---- Media object (figure + body) ---- */
+.ui-media { display: flex; gap: 12px; align-items: flex-start; }
+.ui-media__figure { flex: none; }
+.ui-media__body { min-width: 0; }
+
+/* ---- Action panel (settings card: heading + desc + action) ---- */
+.ui-action-panel { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--panel); padding: 20px 22px; display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.ui-action-panel__title { font-family: var(--font-display); font-size: var(--fs-16); font-weight: var(--fw-semibold); color: var(--fg); margin: 0 0 4px; }
+.ui-action-panel__desc { font-size: var(--fs-13); color: var(--fg-subtle); margin: 0; max-width: 52ch; line-height: var(--lh-normal); }
+
+/* ---- Notification card (persistent, vs transient toast) ---- */
+.ui-notif { display: flex; gap: 12px; align-items: flex-start; width: 360px; max-width: 100%; background: var(--elevated); border: 1px solid var(--border); border-radius: var(--r-md); box-shadow: var(--shadow-1); padding: 14px 16px; }
+.ui-notif__icon { flex: none; width: 20px; height: 20px; color: var(--fg-subtle); }
+.ui-notif--success .ui-notif__icon { color: var(--success); }
+.ui-notif--error .ui-notif__icon { color: var(--error); }
+.ui-notif__body { min-width: 0; flex: 1; }
+.ui-notif__title { font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--fg); margin: 0; }
+.ui-notif__text { font-size: var(--fs-12); color: var(--fg-subtle); margin: 3px 0 0; line-height: var(--lh-normal); }
+.ui-notif__actions { display: flex; gap: 14px; margin-top: 10px; }
+.ui-notif__action { font-family: var(--font-sans); font-size: var(--fs-12); font-weight: var(--fw-medium); color: var(--brand); background: none; border: none; padding: 0; cursor: pointer; }
+.ui-notif__action--muted { color: var(--fg-subtle); }
+.ui-notif__close { flex: none; background: none; border: none; color: var(--fg-faint); cursor: pointer; padding: 0; line-height: 0; }
+.ui-notif__close:hover { color: var(--fg-muted); }
+
+/* ---- Faceted filter bar ---- */
+.ui-filterbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ui-filter { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-sans); font-size: var(--fs-12); font-weight: var(--fw-medium); color: var(--fg-muted); background: var(--elevated); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 5px 10px; cursor: pointer; transition: color var(--dur-base), border-color var(--dur-base), background var(--dur-base); }
+.ui-filter:hover { color: var(--fg); border-color: var(--border-strong); }
+.ui-filter[data-active="true"], .ui-filter[aria-pressed="true"] { color: var(--fg); background: var(--overlay); border-color: var(--border-strong); }
+.ui-filter__count { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
+.ui-filter__x { display: inline-flex; opacity: 0.6; }
+.ui-filter__x:hover { opacity: 1; }
+.ui-filterbar__clear { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); background: none; border: none; cursor: pointer; padding: 4px; }
+.ui-filterbar__clear:hover { color: var(--fg-muted); }
+
+/* ---- Column chart (bare CSS; tokenised bars) ---- */
+.ui-chart { display: flex; align-items: flex-end; gap: 8px; height: 140px; padding-top: 8px; }
+.ui-chart__col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; height: 100%; justify-content: flex-end; min-width: 0; }
+.ui-chart__bar { width: 100%; max-width: 40px; border-radius: var(--r-sm) var(--r-sm) 0 0; background: var(--brand-muted); transition: background var(--dur-base); }
+.ui-chart__col:hover .ui-chart__bar { background: var(--brand); }
+.ui-chart__bar--accent { background: var(--brand); }
+.ui-chart__label { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); white-space: nowrap; }
+.ui-chart__val { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-subtle); }

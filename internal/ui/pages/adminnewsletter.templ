@@ -1,0 +1,115 @@
+package pages
+
+import "github.com/koopa0/goen/internal/ui/layouts"
+
+// AdminNewsletter renders the mailing list, the compose form and the issues.
+//
+// Both writes are plain forms answering 303, and the SEND is a form of its own on
+// each issue rather than a link — it is the one irreversible button in the back
+// office, because ten thousand mailboxes cannot be edited afterwards.
+templ AdminNewsletter(p layouts.Page, v AdminNewsletterView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("newsletter")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">後台</p>
+					<h1 class="ui-page-head__title">電子報</h1>
+					<p class="ui-page-head__sub">
+						名單上只有自己確認過的信箱 —— 頁尾送出的只是「請求」,
+						點過信裡的連結才會進名單。
+					</p>
+				</div>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			<div class="goen-admin__stats">
+				<div class="ui-stat">
+					<span class="ui-stat__label">名單人數</span>
+					<span class="ui-stat__value">{ v.ActiveText() }</span>
+				</div>
+				<div class="ui-stat">
+					<span class="ui-stat__label">等待確認</span>
+					<span class="ui-stat__value">{ v.AwaitingText() }</span>
+				</div>
+				<div class="ui-stat">
+					<span class="ui-stat__label">已退訂</span>
+					<span class="ui-stat__value">{ v.UnsubscribedText() }</span>
+				</div>
+			</div>
+			<h2 class="goen-admin__subhead">寫一封</h2>
+			<form class="goen-admin__form" method="post" action="/admin/newsletter">
+				<label class="ui-field" for="issue-subject">
+					<span class="ui-label">主旨</span>
+					<input
+						class="ui-input"
+						id="issue-subject"
+						type="text"
+						name="subject"
+						value={ v.Draft.Subject }
+						maxlength="120"
+						required
+						aria-invalid={ v.Invalid("subject") }
+					/>
+					if v.HasErr("subject") {
+						<span class="ui-error-text">{ v.Err("subject") }</span>
+					}
+				</label>
+				<label class="ui-field" for="issue-body">
+					<span class="ui-label">內容</span>
+					<textarea
+						class="ui-input goen-admin__textarea"
+						id="issue-body"
+						name="body"
+						rows="10"
+						maxlength="20000"
+						required
+						aria-invalid={ v.Invalid("body") }
+					>{ v.Draft.Body }</textarea>
+					if v.HasErr("body") {
+						<span class="ui-error-text">{ v.Err("body") }</span>
+					}
+				</label>
+				<p class="goen-admin__hint">
+					存成草稿,還不會寄出。退訂連結由系統加在每一封的最後,不用自己貼。
+				</p>
+				<button class="ui-btn ui-btn--secondary" type="submit">存成草稿</button>
+			</form>
+			<h2 class="goen-admin__subhead">已寫的</h2>
+			if v.Empty() {
+				<p class="goen-admin__hint">還沒有任何一封。</p>
+			} else {
+				<ul class="goen-admin__returns" role="list">
+					for _, issue := range v.Issues {
+						<li class={ "goen-admin__return", templ.KV("is-hidden", issue.Sent) }>
+							<div class="goen-admin__returninfo">
+								<p class="goen-admin__returnorder">{ issue.Subject }</p>
+								<span class="ui-cart-line__meta">{ issue.Preview() }</span>
+								if issue.Sent {
+									<span class="ui-cart-line__meta">
+										{ issue.SentAt } 寄出 · { issue.RecipientsText() } 封
+										if issue.SentBy != "" {
+											· { issue.SentBy }
+										}
+									</span>
+								}
+							</div>
+							if issue.Sent {
+								<span class="ui-badge">已寄出</span>
+							} else if v.CanSend() {
+								<form method="post" action={ templ.SafeURL(issue.SendAction()) }>
+									<button class="ui-btn ui-btn--primary ui-btn--sm" type="submit">
+										寄給名單上的 { v.ActiveText() } 人
+									</button>
+								</form>
+							} else {
+								<span class="ui-cart-line__meta">名單上還沒有人</span>
+							}
+						</li>
+					}
+				</ul>
+			}
+		</div>
+	}
+}

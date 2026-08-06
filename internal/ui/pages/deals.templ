@@ -1,0 +1,53 @@
+package pages
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// DealsMeta is the chrome view model for the deals page.
+func DealsMeta(ctx context.Context) layouts.Page {
+	return layouts.Page{Title: i18n.T(ctx, i18n.KeyDeals2)}
+}
+
+// Deals renders the marked-down products.
+//
+// It reuses SearchView and the product grid rather than growing a parallel
+// page: the two differ in their heading and in nothing else, and a second
+// grid would be a second thing to keep in step with the design system.
+templ Deals(p layouts.Page, v SearchView) {
+	@layouts.Base(p) {
+		<div class="goen-listing">
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyDeals2) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyDealsTitle) }</h1>
+					if v.Total > 0 {
+						<p class="ui-page-head__sub">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyDealsCount), v.TotalText()) }</p>
+					}
+				</div>
+			</div>
+			if v.HasCampaigns() {
+				@campaignStrip(v.Campaigns)
+			}
+			if v.Total == 0 {
+				<p class="ui-alert ui-alert--info" role="status">
+					{ i18n.T(ctx, i18n.KeyDealsEmpty) }
+				</p>
+			} else {
+				// See the search page: a tile's name is an h3, and without this the
+				// nearest heading above it is the page's h1 — a skipped level.
+				<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
+				<ul class="goen-tiles__grid" role="list">
+					for _, t := range v.Products {
+						@Tile(t)
+					}
+				</ul>
+				@pager(v.HasPrev(), v.HasNext(), v.PrevHref(), v.NextHref(), v.PageText(), v.PagesText())
+			}
+		</div>
+	}
+}

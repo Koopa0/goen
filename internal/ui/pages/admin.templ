@@ -1,0 +1,541 @@
+package pages
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// adminNav is the back office's own navigation. It sits inside each page rather
+// than in the site header: /admin is not part of the storefront's chrome, and a
+// customer must never see a link to it.
+templ adminNav(current string) {
+	<nav class="goen-admin__nav" aria-label="後台導覽">
+		<a class={ "ui-navitem", templ.KV("is-active", current == "dashboard") } href="/admin">總覽</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "orders") } href="/admin/orders">訂單</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "products") } href="/admin/products">商品</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "stock") } href="/admin/stock">庫存</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "returns") } href="/admin/returns">退貨</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "questions") } href="/admin/questions">提問</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "reviews") } href="/admin/reviews">評價</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "customers") } href="/admin/customers">顧客</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "faq") } href="/admin/faq">常見問題</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "messages") } href="/admin/messages">聯絡訊息</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "newsletter") } href="/admin/newsletter">電子報</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "reports") } href="/admin/reports">報表</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "health") } href="/admin/health">背景作業</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "taxonomy") } href="/admin/taxonomy">品牌分類</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "home") } href="/admin/home">首頁</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "campaigns") } href="/admin/campaigns">活動</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "audit") } href="/admin/audit">操作紀錄</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "coupons") } href="/admin/coupons">折扣碼</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "credit") } href="/admin/credit">額度</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "shipping") } href="/admin/shipping">運費</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "tiers") } href="/admin/tiers">會員等級</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "staff") } href="/admin/staff">人員</a>
+		<a class="ui-navitem" href="/">回到商店</a>
+	</nav>
+}
+
+// AdminDashboard renders the back office landing page.
+templ AdminDashboard(p layouts.Page, v AdminDashboardView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("dashboard")
+			<div class="ui-page-head">
+				<div>
+					<h1 class="ui-page-head__title">後台總覽</h1>
+				</div>
+			</div>
+			<div class="ui-stat-grid goen-admin__stats">
+				<div class="ui-stat">
+					<span class="ui-stat__label">待付款訂單</span>
+					<span class="ui-stat__value">{ v.PendingText() }</span>
+				</div>
+				<div class="ui-stat">
+					<span class="ui-stat__label">備貨中</span>
+					<span class="ui-stat__value">{ v.PickingText() }</span>
+				</div>
+				<div class="ui-stat">
+					<span class="ui-stat__label">低庫存品項</span>
+					<span class="ui-stat__value">{ v.LowStockText() }</span>
+				</div>
+				<div class="ui-stat">
+					<span class="ui-stat__label">上架商品</span>
+					<span class="ui-stat__value">{ v.ActiveProductsText() }</span>
+				</div>
+				// A LINK, not a number. This tile has counted unhandled messages
+				// since the back office shipped and there was nowhere to open
+				// them: a customer wrote in and the shop saw a figure.
+				<a class="ui-stat" href="/admin/messages">
+					<span class="ui-stat__label">待回覆訊息</span>
+					<span class="ui-stat__value">{ v.OpenMessagesText() }</span>
+				</a>
+			</div>
+			if v.HasLow() {
+				<section class="goen-admin__panel" aria-labelledby="low-heading">
+					<h2 id="low-heading" class="goen-admin__heading">需要補貨</h2>
+					<p class="goen-admin__hint">
+						「可售」是庫存減去安全庫存,也就是資料庫實際允許賣出的數量。
+					</p>
+					<div class="goen-admin__tablewrap">
+						@adminVariantTable(v.Low)
+					</div>
+					<a class="ui-btn ui-btn--secondary ui-btn--sm" href="/admin/stock?low=1">查看全部低庫存</a>
+				</section>
+			}
+		</div>
+	}
+}
+
+// AdminOrders renders the order queue.
+templ AdminOrders(p layouts.Page, v AdminOrdersView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("orders")
+			<div class="ui-page-head">
+				<div>
+					<h1 class="ui-page-head__title">訂單</h1>
+				</div>
+			</div>
+			if v.HasNotice() {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			// A GET form: searching reads and writes nothing, so the term belongs in
+			// the URL where it can be bookmarked, shared with a colleague and
+			// survive the back button.
+			<form class="goen-admin__form goen-admin__search" method="get" action="/admin/orders">
+				<label class="goen-sr-only" for="order-search">搜尋訂單</label>
+				<input
+					class="ui-input"
+					id="order-search"
+					type="search"
+					name="q"
+					value={ v.Term }
+					placeholder="訂單編號、收件人姓名或 Email"
+					autocomplete="off"
+				/>
+				<button class="ui-btn ui-btn--secondary" type="submit">搜尋</button>
+				if v.Searching() {
+					<a class="ui-btn ui-btn--ghost" href="/admin/orders">清除</a>
+				}
+			</form>
+			if v.Searching() {
+				<p class="goen-admin__hint">
+					搜尋「{ v.Term }」 —— 編號是完整比對,姓名和 Email 從開頭比對。
+					搜尋時不套用上面的狀態篩選。
+				</p>
+			}
+			if v.TermTooShort() {
+				<p class="ui-alert ui-alert--warn" role="status">
+					搜尋字串太短,至少要兩個字。下面是一般的訂單列表。
+				</p>
+			}
+			<div class="ui-filterbar goen-admin__tabs">
+				for _, t := range v.Tabs() {
+					<a
+						class={ "ui-filter", templ.KV("is-active", t.Selected) }
+						href={ templ.URL("/admin/orders?status=" + t.Value) }
+						if t.Selected {
+							aria-current="true"
+						}
+					>
+						{ t.Label }
+						<span class="ui-filter__count">{ t.CountText() }</span>
+					</a>
+				}
+			</div>
+			if v.Empty() {
+				<div class="ui-empty">
+					<p class="ui-empty__title">這個狀態沒有訂單</p>
+				</div>
+			} else {
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table goen-admin__table">
+						<thead>
+							<tr>
+								<th scope="col">訂單編號</th>
+								<th scope="col">狀態</th>
+								<th scope="col">收件人</th>
+								<th scope="col">下單時間</th>
+								<th scope="col">金額</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, o := range v.Orders {
+								<tr>
+									<td>
+										<a href={ templ.URL("/admin/orders/" + o.Number) }>{ o.Number }</a>
+									</td>
+									<td>
+										<span class="ui-badge">{ o.StatusText }</span>
+										if o.Committed {
+											<span class="ui-badge ui-badge--success">已成交</span>
+										}
+									</td>
+									<td>{ o.Recipient }</td>
+									<td>{ o.PlacedAt }</td>
+									<td>{ o.Total() }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</div>
+	}
+}
+
+// AdminOrder renders one order, with the moves the schema will accept.
+templ AdminOrder(p layouts.Page, v *AdminOrderView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("orders")
+			<nav class="ui-crumbs" aria-label="麵包屑">
+				<a href="/admin/orders">訂單</a>
+				<span class="ui-crumbs__sep" aria-hidden="true">/</span>
+				<span class="ui-crumbs__current" aria-current="page">{ v.Number }</span>
+			</nav>
+			<div class="ui-page-head">
+				<div>
+					<h1 class="ui-page-head__title">{ v.Number }</h1>
+					<p class="ui-page-head__sub">{ v.PlacedAt } · { v.ShippingName }</p>
+				</div>
+				<div class="ui-page-head__actions">
+					<span class="ui-badge">{ v.StatusText }</span>
+					if v.Committed {
+						<span class="ui-badge ui-badge--success">已成交</span>
+					}
+				</div>
+			</div>
+			if v.HasNotice() {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			<div class="goen-admin__layout">
+				<div class="goen-admin__panel">
+					<h2 class="goen-admin__heading">商品</h2>
+					<ul class="goen-order__lines" role="list">
+						for _, l := range v.Lines {
+							<li class="goen-order__line">
+								<div>
+									<p class="goen-order__name">{ l.Name }</p>
+									if l.Label != "" {
+										<span class="ui-cart-line__meta">{ l.Label }</span>
+									}
+									<span class="ui-cart-line__meta">{ l.SKU } · { l.UnitPrice() } × { l.QuantityText() }</span>
+								</div>
+								<span class="ui-cart-line__price">{ l.LineTotal() }</span>
+							</li>
+						}
+					</ul>
+					<h2 class="goen-admin__heading">收件資訊</h2>
+					<dl class="ui-dl">
+						<div class="ui-dl__row">
+							<dt class="ui-dl__term">收件人</dt>
+							<dd class="ui-dl__desc">{ v.Recipient }</dd>
+						</div>
+						<div class="ui-dl__row">
+							<dt class="ui-dl__term">電話</dt>
+							<dd class="ui-dl__desc">{ v.Phone }</dd>
+						</div>
+						<div class="ui-dl__row">
+							<dt class="ui-dl__term">電子郵件</dt>
+							<dd class="ui-dl__desc">{ v.Email }</dd>
+						</div>
+						<div class="ui-dl__row">
+							<dt class="ui-dl__term">地址</dt>
+							<dd class="ui-dl__desc">{ v.Address }</dd>
+						</div>
+						if v.HasInvoice() {
+							// Collected at checkout since payment shipped and shown
+							// nowhere until now. Issuing a 統一發票 needs a 加值中心
+							// integration goen does not have, which is exactly why
+							// this has to be readable: until then somebody issues it
+							// by hand, and cannot do that from a table.
+							<div class="ui-dl__row">
+								<dt class="ui-dl__term">發票</dt>
+								<dd class="ui-dl__desc">{ v.InvoiceText() }</dd>
+							</div>
+						}
+					</dl>
+					if v.Correctable {
+						// A customer who typed the wrong street had no way to
+						// fix it and neither did the shop — the only option was
+						// cancel and re-order, which loses the payment and the
+						// stock hold with it. Offered only while the parcel is
+						// still here: rewriting the address after dispatch makes
+						// the record lie about where it went.
+						<h2 class="goen-admin__heading">收件資訊</h2>
+						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/delivery") }>
+							<div class="goen-admin__row">
+								<div class="ui-field">
+									<label class="ui-label" for="d-recipient">收件人</label>
+									<input class="ui-input" id="d-recipient" name="recipient" value={ v.Delivery.Recipient } required maxlength="60"/>
+								</div>
+								<div class="ui-field">
+									<label class="ui-label" for="d-phone">電話</label>
+									<input class="ui-input" id="d-phone" name="phone" type="tel" value={ v.Delivery.Phone } required maxlength="30"/>
+								</div>
+								<div class="ui-field">
+									<label class="ui-label" for="d-email">電子郵件</label>
+									<input class="ui-input" id="d-email" name="email" type="email" value={ v.Delivery.Email } required maxlength="254"/>
+								</div>
+							</div>
+							if v.PickupDestination {
+								<div class="goen-admin__row">
+									<div class="ui-field">
+										<label class="ui-label" for="d-brand">超商</label>
+										<select class="ui-select" id="d-brand" name="pickup_brand" required>
+											for _, b := range v.PickupBrands {
+												<option value={ b.Value } selected?={ b.Value == v.Delivery.PickupBrand }>{ b.Label }</option>
+											}
+										</select>
+									</div>
+									<div class="ui-field">
+										<label class="ui-label" for="d-store-code">門市店號</label>
+										<input class="ui-input" id="d-store-code" name="pickup_store_code" value={ v.Delivery.PickupStoreCode } required maxlength="10" inputmode="numeric"/>
+									</div>
+									<div class="ui-field">
+										<label class="ui-label" for="d-store-name">門市名稱</label>
+										<input class="ui-input" id="d-store-name" name="pickup_store_name" value={ v.Delivery.PickupStoreName } required maxlength="40"/>
+									</div>
+								</div>
+							} else {
+								<div class="goen-admin__row">
+									<div class="ui-field">
+										<label class="ui-label" for="d-postal">郵遞區號</label>
+										<input class="ui-input" id="d-postal" name="postal_code" value={ v.Delivery.PostalCode } required maxlength="6" inputmode="numeric"/>
+									</div>
+									<div class="ui-field">
+										<label class="ui-label" for="d-city">縣市</label>
+										<input class="ui-input" id="d-city" name="city" value={ v.Delivery.City } required maxlength="20"/>
+									</div>
+									<div class="ui-field">
+										<label class="ui-label" for="d-district">鄉鎮市區</label>
+										<input class="ui-input" id="d-district" name="district" value={ v.Delivery.District } required maxlength="20"/>
+									</div>
+									<div class="ui-field goen-checkout__wide">
+										<label class="ui-label" for="d-street">地址</label>
+										<input class="ui-input" id="d-street" name="street" value={ v.Delivery.Street } required maxlength="200"/>
+									</div>
+								</div>
+							}
+							<p class="goen-admin__hint">
+								出貨之後就改不了 —— 那時候包裹已經寄出,改紀錄只會讓紀錄和事實對不上。
+								操作紀錄只會記下「改了收件資訊」,不會記下地址本身:顧客刪除帳號時清不到操作紀錄。
+							</p>
+							<button class="ui-btn ui-btn--secondary" type="submit">更新收件資訊</button>
+						</form>
+					}
+					if len(v.Shipments) > 0 {
+						<h2 class="goen-admin__heading">出貨</h2>
+						<ul class="goen-admin__returnlines" role="list">
+							for _, sh := range v.Shipments {
+								<li>
+									<span class="ui-cart-line__meta">{ sh.Carrier } · { sh.Tracking }</span>
+									if sh.Delivered() {
+										<span class="ui-cart-line__meta">{ sh.DeliveredAt } 送達</span>
+									} else {
+										<span class="ui-cart-line__meta">{ sh.ShippedAt } 出貨</span>
+									}
+								</li>
+							}
+						</ul>
+					}
+					if len(v.Timeline) > 0 {
+						// WITH the actor. The customer's page deliberately shows
+						// only what happened; this one answers "who", which is
+						// the question no per-entity history could before.
+						<h2 class="goen-admin__heading">訂單紀錄</h2>
+						<ul class="goen-admin__returnlines" role="list">
+							for _, e := range v.Timeline {
+								<li>
+									<span class="ui-cart-line__meta">{ i18n.T(ctx, e.LabelKey()) } · { e.At }</span>
+									<span class="ui-cart-line__meta">{ e.By() }</span>
+									if e.Note != "" {
+										<span class="ui-cart-line__meta">{ e.Note }</span>
+									}
+								</li>
+							}
+						</ul>
+					}
+					if v.HasCustomerNote() {
+						<h2 class="goen-admin__heading">顧客備註</h2>
+						<p class="goen-admin__note">{ v.CustomerNote }</p>
+					}
+					<h2 class="goen-admin__heading">內部備註</h2>
+					<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/note") }>
+						<label class="goen-sr-only" for="staff-note">內部備註</label>
+						<textarea class="ui-textarea" id="staff-note" name="note" rows="3" maxlength="1000">{ v.StaffNote }</textarea>
+						<p class="goen-admin__hint">只有後台看得到。顧客刪除帳號時不會被清除,所以不要放顧客寫的內容。</p>
+						<button class="ui-btn ui-btn--secondary" type="submit">儲存備註</button>
+					</form>
+				</div>
+				<aside class="goen-admin__side">
+					<div class="ui-summary">
+						<div class="ui-summary__row">
+							<span>小計</span>
+							<span class="ui-summary__val">{ v.Subtotal() }</span>
+						</div>
+						<div class="ui-summary__row">
+							<span>運費</span>
+							<span class="ui-summary__val">{ v.Shipping() }</span>
+						</div>
+						if v.Discounted() {
+							<div class="ui-summary__row">
+								<span>
+									折扣
+									if v.DiscountReason != "" {
+										({ v.DiscountReason })
+									}
+								</span>
+								<span class="ui-summary__val">{ v.Discount() }</span>
+							</div>
+						}
+						<div class="ui-summary__row ui-summary__row--total">
+							<span>總計</span>
+							<span class="ui-summary__val">{ v.Total() }</span>
+						</div>
+					</div>
+					if v.CanShip {
+						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/ship") }>
+							<div class="ui-field">
+								<label class="ui-label" for="ship-carrier">物流商</label>
+								<input class="ui-input" id="ship-carrier" name="carrier" required maxlength="60" autocomplete="off"/>
+							</div>
+							<div class="ui-field">
+								<label class="ui-label" for="ship-tracking">查詢編號</label>
+								<input class="ui-input" id="ship-tracking" name="tracking" required maxlength="60" autocomplete="off"/>
+							</div>
+							<button class="ui-btn ui-btn--primary ui-btn--block" type="submit">出貨</button>
+							<p class="goen-admin__hint">
+								出貨會同時記錄配送資訊、扣除保留的庫存,並寫入訂單紀錄。
+							</p>
+						</form>
+					}
+					if v.CanAdvance() {
+						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/status") }>
+							<div class="ui-field">
+								<label class="ui-label" for="next-status">變更狀態</label>
+								<select class="ui-select" id="next-status" name="status">
+									for _, n := range v.Next {
+										<option value={ n.Value }>{ n.Label }</option>
+									}
+								</select>
+							</div>
+							<button class="ui-btn ui-btn--primary ui-btn--block" type="submit">更新狀態</button>
+							<p class="goen-admin__hint">
+								只列出資料庫允許的下一步。未付款的訂單無法進入備貨。
+							</p>
+						</form>
+					} else {
+						<p class="goen-admin__hint">這筆訂單已經是最終狀態。</p>
+					}
+				</aside>
+			</div>
+		</div>
+	}
+}
+
+// AdminVariants renders the stock list and its editing forms.
+templ AdminVariants(p layouts.Page, v AdminVariantsView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("stock")
+			<div class="ui-page-head">
+				<div>
+					<h1 class="ui-page-head__title">庫存</h1>
+					<p class="ui-page-head__sub">
+						庫存只能透過調整寫入,每次調整都會留下一筆異動紀錄。
+					</p>
+				</div>
+			</div>
+			if v.HasNotice() {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			<div class="ui-filterbar">
+				<a class={ "ui-filter", templ.KV("is-active", !v.LowOnly) } href="/admin/stock">全部</a>
+				<a class={ "ui-filter", templ.KV("is-active", v.LowOnly) } href="/admin/stock?low=1">僅低庫存</a>
+			</div>
+			if v.Empty() {
+				<div class="ui-empty">
+					<p class="ui-empty__title">沒有符合的品項</p>
+				</div>
+			} else {
+				<div class="goen-admin__tablewrap">
+					@adminVariantTable(v.Variants)
+				</div>
+			}
+		</div>
+	}
+}
+
+// adminVariantTable is the stock table, with each row's own forms. The forms
+// are per row rather than one bulk form, so a mistake affects one variant.
+templ adminVariantTable(variants []AdminVariant) {
+	<table class="ui-table goen-admin__table">
+		<thead>
+			<tr>
+				<th scope="col">SKU</th>
+				<th scope="col">商品</th>
+				<th scope="col">庫存 / 安全 / 可售</th>
+				<th scope="col">價格</th>
+				<th scope="col">調整</th>
+			</tr>
+		</thead>
+		<tbody>
+			for _, x := range variants {
+				<tr class={ templ.KV("goen-admin__row--low", x.Low()) }>
+					<td>
+						// The SKU links to its own LEDGER, not to the storefront page.
+						// This is the stock list: the question a staff member has here
+						// is "why is this four", and the answer is the movements.
+						<a href={ templ.SafeURL("/admin/stock/" + x.SKU) }>{ x.SKU }</a>
+						<span class="ui-cart-line__meta">
+							<a href={ templ.URL("/p/" + x.Slug) }>看商品頁</a>
+						</span>
+						if !x.Active {
+							<span class="ui-badge">已停用</span>
+						}
+					</td>
+					<td>
+						{ x.ProductName }
+						<span class="ui-cart-line__meta">{ x.Brand }</span>
+					</td>
+					<td>
+						{ x.StockText() } / { x.SafetyText() } /
+						<strong>{ x.SellableText() }</strong>
+					</td>
+					<td>
+						<form class="goen-admin__inline" method="post" action="/admin/stock/price">
+							<input type="hidden" name="sku" value={ x.SKU }/>
+							<label class="goen-sr-only" for={ "price-" + x.SKU }>售價</label>
+							<input class="ui-input ui-input--sm goen-admin__num" id={ "price-" + x.SKU } type="number" name="price" value={ x.PriceText() } min="0" step="1"/>
+							<label class="goen-sr-only" for={ "cmp-" + x.SKU }>原價</label>
+							<input class="ui-input ui-input--sm goen-admin__num" id={ "cmp-" + x.SKU } type="number" name="compare_at" value={ x.CompareText() } min="0" step="1" placeholder="原價"/>
+							<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">改價</button>
+						</form>
+					</td>
+					<td>
+						<form class="goen-admin__inline" method="post" action="/admin/stock/adjust">
+							<input type="hidden" name="sku" value={ x.SKU }/>
+							<input type="hidden" name="idempotency" value={ x.AdjustKey() }/>
+							<label class="goen-sr-only" for={ "adj-" + x.SKU }>調整數量</label>
+							<input class="ui-input ui-input--sm goen-admin__num" id={ "adj-" + x.SKU } type="number" name="delta" placeholder="+10" step="1"/>
+							<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">調整</button>
+						</form>
+						<form class="goen-admin__inline" method="post" action="/admin/stock/active">
+							<input type="hidden" name="sku" value={ x.SKU }/>
+							if x.Active {
+								<input type="hidden" name="active" value="0"/>
+								<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">停用</button>
+							} else {
+								<input type="hidden" name="active" value="1"/>
+								<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">啟用</button>
+							}
+						</form>
+					</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+}

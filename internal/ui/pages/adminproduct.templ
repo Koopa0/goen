@@ -1,0 +1,657 @@
+package pages
+
+import "github.com/koopa0/goen/internal/ui/layouts"
+
+// AdminProducts renders the back-office catalogue.
+templ AdminProducts(p layouts.Page, v AdminProductsView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("products")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">後台</p>
+					<h1 class="ui-page-head__title">商品</h1>
+					<p class="ui-page-head__sub">
+						新商品是草稿,加了變體、確認資料之後再上架。
+					</p>
+				</div>
+				<a class="ui-btn ui-btn--primary" href="/admin/products/new">新增商品</a>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			if v.Empty() {
+				<p class="goen-admin__hint">目錄裡還沒有商品。</p>
+			} else {
+				<ul class="goen-admin__catalogue" role="list">
+					for _, row := range v.Rows {
+						<li class="goen-admin__product">
+							<a class="goen-admin__productname" href={ templ.SafeURL(row.Href()) }>
+								{ row.Name }
+							</a>
+							<span class={ "ui-badge", templ.KV("ui-badge--brand", row.Sellable()) }>
+								{ row.StatusText }
+							</span>
+							<span class="ui-cart-line__meta">{ row.Brand } · { row.Category }</span>
+							<span class="ui-cart-line__meta">{ row.VariantsText() } 個規格 · { row.From() } 起</span>
+							if !row.Translated {
+								<span class="ui-badge ui-badge--warn">未翻譯</span>
+							}
+						</li>
+					}
+				</ul>
+			}
+		</div>
+	}
+}
+
+// AdminProductForm renders the create-or-edit form, its variants, and the
+// publish control.
+//
+// Three separate forms on one page, not one: editing the description, adding a
+// variant and publishing are three decisions, and a single submit button that
+// did all three would make each of them accidental.
+templ AdminProductForm(p layouts.Page, v AdminProductView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("products")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">
+						<a href="/admin/products">商品</a>
+					</p>
+					<h1 class="ui-page-head__title">{ v.Title() }</h1>
+					if !v.IsNew {
+						<p class="ui-page-head__sub">{ v.StatusText } · /p/{ v.Slug }</p>
+					}
+				</div>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			<div class="goen-admin__productlayout">
+				<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.Action()) }>
+					<div class="ui-field">
+						<label class="ui-label" for="p-name">商品名稱</label>
+						<input
+							class="ui-input"
+							id="p-name"
+							name="name"
+							required
+							maxlength="200"
+							value={ v.Name }
+							if v.HasErr("name") {
+								aria-invalid="true"
+							}
+						/>
+						if v.HasErr("name") {
+							<p class="ui-error-text">{ v.Err("name") }</p>
+						}
+					</div>
+					if v.IsNew {
+						<div class="ui-field">
+							<label class="ui-label" for="p-slug">網址代稱</label>
+							<input
+								class="ui-input"
+								id="p-slug"
+								name="slug"
+								required
+								maxlength="120"
+								placeholder="pixelight-9-pro"
+								value={ v.Slug }
+								if v.HasErr("slug") {
+									aria-invalid="true"
+								}
+							/>
+							<p class="goen-admin__hint">上架後不能更改,商品網址會是 /p/ 加上這串。</p>
+							if v.HasErr("slug") {
+								<p class="ui-error-text">{ v.Err("slug") }</p>
+							}
+						</div>
+					}
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="p-brand">品牌</label>
+							<select class="ui-select" id="p-brand" name="brand" required>
+								<option value="">請選擇</option>
+								for _, c := range v.Brands {
+									<option value={ c.Value } selected?={ v.Selected("brand", c.Value) }>{ c.Label }</option>
+								}
+							</select>
+							if v.HasErr("brand") {
+								<p class="ui-error-text">{ v.Err("brand") }</p>
+							}
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="p-category">分類</label>
+							<select class="ui-select" id="p-category" name="category" required>
+								<option value="">請選擇</option>
+								for _, c := range v.Categories {
+									<option value={ c.Value } selected?={ v.Selected("category", c.Value) }>{ c.Label }</option>
+								}
+							</select>
+							if v.HasErr("category") {
+								<p class="ui-error-text">{ v.Err("category") }</p>
+							}
+						</div>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="p-summary">一句話簡介</label>
+						<input class="ui-input" id="p-summary" name="summary" maxlength="500" value={ v.Summary }/>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="p-description">商品說明</label>
+						<textarea class="ui-input goen-admin__textarea" id="p-description" name="description" rows="8">{ v.Description }</textarea>
+					</div>
+					// The English copy, in one block below the Chinese so the shop can
+					// see what it is translating. Optional: goen never invents a
+					// translation, and a product with none renders its Chinese copy to
+					// an English visitor — readable, and visibly not translated.
+					<div class="ui-field">
+						<label class="ui-label" for="p-name-en">商品名稱(英文)</label>
+						<input
+							class="ui-input"
+							id="p-name-en"
+							name="name_en"
+							maxlength="200"
+							value={ v.NameEn }
+							if v.HasErr("name_en") {
+								aria-invalid="true"
+							}
+						/>
+						if v.HasErr("name_en") {
+							<p class="ui-error-text">{ v.Err("name_en") }</p>
+						}
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="p-summary-en">一句話簡介(英文)</label>
+						<input
+							class="ui-input"
+							id="p-summary-en"
+							name="summary_en"
+							maxlength="500"
+							value={ v.SummaryEn }
+							if v.HasErr("summary_en") {
+								aria-invalid="true"
+							}
+						/>
+						if v.HasErr("summary_en") {
+							<p class="ui-error-text">{ v.Err("summary_en") }</p>
+						}
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="p-description-en">商品說明(英文)</label>
+						<textarea
+							class="ui-input goen-admin__textarea"
+							id="p-description-en"
+							name="description_en"
+							rows="8"
+						>{ v.DescriptionEn }</textarea>
+						if v.HasErr("description_en") {
+							<p class="ui-error-text">{ v.Err("description_en") }</p>
+						}
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="p-warranty-months">保固月數</label>
+						<input
+							class="ui-input"
+							id="p-warranty-months"
+							name="warranty_months"
+							type="number"
+							min="0"
+							max="120"
+							step="1"
+							inputmode="numeric"
+							value={ v.WarrantyMonthsText() }
+							if v.HasErr("warranty_months") {
+								aria-invalid="true"
+							}
+						/>
+						if v.HasErr("warranty_months") {
+							<p class="ui-error-text">{ v.Err("warranty_months") }</p>
+						}
+						<p class="goen-admin__hint">
+							每個商品可以不一樣 —— 手機和編織線本來就不該是同一個數字。
+							留空表示沒有提供保固,顧客就無法登錄保固(而不是給他一個系統
+							自己編出來的期限)。
+						</p>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="p-warranty">保固說明</label>
+						<input class="ui-input" id="p-warranty" name="warranty" maxlength="300" value={ v.WarrantyNote }/>
+					</div>
+					<button class="ui-btn ui-btn--primary" type="submit">
+						if v.IsNew {
+							建立草稿
+						} else {
+							儲存
+						}
+					</button>
+				</form>
+				if !v.IsNew {
+					<aside class="goen-admin__side">
+						<section>
+							<h2 class="goen-admin__subhead">商品圖片</h2>
+							if v.HasImages() {
+								<ul class="goen-admin__images" role="list">
+									for _, img := range v.Images {
+										<li class="goen-admin__image">
+											<img src={ img.URL() } alt={ img.Alt } loading="lazy" width="120" height="120"/>
+											<span class="ui-cart-line__meta">{ img.Alt }</span>
+											<form method="post" action={ templ.SafeURL(v.ImageRemoveAction()) }>
+												<input type="hidden" name="digest" value={ img.Key }/>
+												<button class="ui-btn ui-btn--secondary" type="submit">移除</button>
+											</form>
+										</li>
+									}
+								</ul>
+							} else {
+								<p class="goen-admin__hint">這個商品還沒有圖片。</p>
+							}
+							// enctype is what makes the file reach the server at all. Without
+							// it a browser posts only the filename, and the handler sees an
+							// empty upload with no clue why.
+							<form
+								class="goen-admin__form goen-admin__grant"
+								method="post"
+								action={ templ.SafeURL(v.ImageAction()) }
+								enctype="multipart/form-data"
+							>
+								<div class="ui-field">
+									<label class="ui-label" for="p-image">上傳圖片</label>
+									<input class="ui-input" id="p-image" name="image" type="file" accept="image/*" required/>
+									<p class="goen-admin__hint">JPEG、PNG、GIF 或 WebP,8 MB 以內。上傳後會由伺服器重新編碼。</p>
+								</div>
+								<div class="ui-field">
+									<label class="ui-label" for="p-alt">圖片說明文字</label>
+									<input class="ui-input" id="p-alt" name="alt" required maxlength="200" placeholder="銀色筆電,螢幕開啟,側面 45 度"/>
+									<p class="goen-admin__hint">讀螢幕的人靠這句話知道圖裡是什麼,所以是必填。</p>
+								</div>
+								<div class="ui-field">
+									<label class="ui-label" for="p-alt-en">替代文字(英文)</label>
+									<input class="ui-input" id="p-alt-en" name="alt_en" maxlength="200" placeholder="Silver laptop, screen open, 45 degrees"/>
+									<p class="goen-admin__hint">
+										螢幕閱讀器會用頁面語言唸這段話,英文頁面唸中文會唸不出來。
+										留空就沿用中文。
+									</p>
+								</div>
+								<button class="ui-btn ui-btn--primary" type="submit">加入圖片</button>
+							</form>
+							if v.HasLibrary() {
+								// A shot that belongs on three products is
+								// attached three times rather than uploaded
+								// three times. The bytes deduplicate either way;
+								// the staff work only does with a picker.
+								<h3 class="goen-admin__subhead">或選一張已經上傳過的</h3>
+								<div class="goen-admin__library">
+									for _, img := range v.Library {
+										<form class="goen-admin__libraryitem" method="post" action={ templ.SafeURL(v.ReuseAction()) }>
+											<input type="hidden" name="digest" value={ img.Key }/>
+											<img src={ img.URL() } alt="" width="80" height="80" loading="lazy" decoding="async"/>
+											<label class="goen-sr-only" for={ "reuse-alt-" + img.Key }>圖片說明文字</label>
+											<input class="ui-input ui-input--sm" id={ "reuse-alt-" + img.Key } name="alt" required maxlength="200" placeholder="圖片說明文字"/>
+											<input class="ui-input ui-input--sm" id={ "reuse-alt-en-" + img.Key } name="alt_en" maxlength="200" placeholder="English alt text"/>
+											<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">使用</button>
+										</form>
+									}
+								</div>
+							}
+							<h2 class="goen-admin__subhead">規格項目</h2>
+							<p class="goen-admin__hint">
+								顏色、容量這一類的軸線。商品頁的選擇器讀的就是這些 ——
+								有規格項目的商品,每一個 SKU 都要選一個值。
+							</p>
+							if v.HasOptions() {
+								<ul class="goen-admin__taxa" role="list">
+									for _, o := range v.Options {
+										<li class="goen-admin__taxon">
+											<span class="goen-admin__sku">
+												{ o.Name }
+												if o.Translated() {
+													<span class="ui-cart-line__meta">{ o.NameEn }</span>
+												} else {
+													<span class="ui-badge ui-badge--warn">未翻譯</span>
+												}
+											</span>
+											if o.HasValues() {
+												<span class="ui-cart-line__meta">
+													for _, val := range o.Values {
+														{ val.Value }
+														if val.Label != "" {
+															({ val.Label })
+														}
+													}
+												</span>
+											} else {
+												<span class="ui-cart-line__meta">還沒有值</span>
+											}
+										</li>
+									}
+								</ul>
+							} else {
+								<p class="goen-admin__hint">還沒有規格項目。單一規格的商品不需要。</p>
+							}
+							<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.OptionAction()) }>
+								<div class="goen-checkout__fields">
+									<div class="ui-field">
+										<label class="ui-label" for="opt-name">項目名稱</label>
+										<input
+											class="ui-input"
+											id="opt-name"
+											name="name"
+											required
+											maxlength="40"
+											autocomplete="off"
+											placeholder="顏色"
+											if v.HasErr("option") {
+												aria-invalid="true"
+											}
+										/>
+										if v.HasErr("option") {
+											<p class="ui-error-text">{ v.Err("option") }</p>
+										}
+									</div>
+									<div class="ui-field">
+										<label class="ui-label" for="opt-name-en">項目名稱(英文)</label>
+										<input
+											class="ui-input"
+											id="opt-name-en"
+											name="name_en"
+											maxlength="40"
+											autocomplete="off"
+											placeholder="Colour"
+											if v.HasErr("option_en") {
+												aria-invalid="true"
+											}
+										/>
+										if v.HasErr("option_en") {
+											<p class="ui-error-text">{ v.Err("option_en") }</p>
+										}
+									</div>
+								</div>
+								<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">新增規格項目</button>
+							</form>
+							if v.HasOptions() {
+								<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.OptionValueAction()) }>
+									<div class="ui-field">
+										<label class="ui-label" for="optval-option">加值到哪個項目</label>
+										<select class="ui-select" id="optval-option" name="option" required>
+											for _, o := range v.Options {
+												<option value={ o.ID }>{ o.Name }</option>
+											}
+										</select>
+									</div>
+									<div class="goen-checkout__fields">
+										<div class="ui-field">
+											<label class="ui-label" for="optval-value">值</label>
+											<input
+												class="ui-input"
+												id="optval-value"
+												name="value"
+												required
+												maxlength="40"
+												autocomplete="off"
+												placeholder="星霧藍"
+												if v.HasErr("value") {
+													aria-invalid="true"
+												}
+											/>
+											if v.HasErr("value") {
+												<p class="ui-error-text">{ v.Err("value") }</p>
+											}
+										</div>
+										<div class="ui-field">
+											<label class="ui-label" for="optval-value-en">值(英文)</label>
+											<input
+												class="ui-input"
+												id="optval-value-en"
+												name="value_en"
+												maxlength="40"
+												autocomplete="off"
+												placeholder="Mist Blue"
+												if v.HasErr("value_en") {
+													aria-invalid="true"
+												}
+											/>
+											if v.HasErr("value_en") {
+												<p class="ui-error-text">{ v.Err("value_en") }</p>
+											}
+										</div>
+									</div>
+									<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">新增值</button>
+								</form>
+							}
+							<h2 class="goen-admin__subhead">規格</h2>
+							if len(v.Variants) == 0 {
+								<p class="goen-admin__hint">還沒有規格。沒有規格的商品沒有價格,無法上架。</p>
+							} else {
+								<ul class="goen-admin__variants" role="list">
+									for _, sv := range v.Variants {
+										<li class="goen-admin__variant">
+											<span class="goen-admin__sku">
+												{ sv.SKU }
+												if sv.OptionText() != "" {
+													<span class="ui-cart-line__meta">{ sv.OptionText() }</span>
+												}
+											</span>
+											<span class="ui-cart-line__meta">
+												{ sv.Price() }
+												if sv.Compare() != "" {
+													· 原價 { sv.Compare() }
+												}
+											</span>
+											<span class="ui-cart-line__meta">{ sv.StockText() }</span>
+										</li>
+									}
+								</ul>
+							}
+							<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/products/" + v.Slug + "/variants") }>
+								<div class="ui-field">
+									<label class="ui-label" for="v-sku">SKU</label>
+									<input class="ui-input" id="v-sku" name="sku" required maxlength="60" autocomplete="off"/>
+								</div>
+								<div class="goen-checkout__fields">
+									<div class="ui-field">
+										<label class="ui-label" for="v-price">售價(元)</label>
+										<input class="ui-input" id="v-price" name="price" type="number" min="1" step="1" required inputmode="numeric"/>
+									</div>
+									<div class="ui-field">
+										<label class="ui-label" for="v-compare">原價(元)</label>
+										<input class="ui-input" id="v-compare" name="compare" type="number" min="0" step="1" inputmode="numeric"/>
+									</div>
+								</div>
+								if v.HasOptions() {
+									// One select per axis, all named option_value, so the
+									// handler reads them as a list in the order they were
+									// rendered. A variant that names fewer than the product
+									// has options is refused: the picker could not resolve it
+									// and no page on the site would show it.
+									for _, o := range v.Options {
+										<div class="ui-field">
+											<label class="ui-label" for={ "v-opt-" + o.ID }>{ o.Name }</label>
+											<select
+												class="ui-select"
+												id={ "v-opt-" + o.ID }
+												name="option_value"
+												required
+											>
+												for _, val := range o.Values {
+													<option value={ val.ID }>{ val.Value }</option>
+												}
+											</select>
+										</div>
+									}
+									if v.HasErr("options") {
+										<p class="ui-error-text">{ v.Err("options") }</p>
+									}
+								}
+								<div class="ui-field">
+									<label class="ui-label" for="v-safety">安全庫存</label>
+									<input class="ui-input" id="v-safety" name="safety" type="number" min="0" step="1" value="0" inputmode="numeric"/>
+								</div>
+								<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">新增規格</button>
+								<p class="goen-admin__hint">
+									新規格的庫存是 0。庫存只能從「庫存」頁調整,那裡每一次異動都會寫進帳本。
+								</p>
+							</form>
+						</section>
+						<section>
+							// 規格表 rather than 規格, because this page already calls a
+							// VARIANT 規格 — the shop says 規格 for a SKU and 規格表 for
+							// the specification table a customer reads. Two things with
+							// one name on one page is how staff enter the wrong one.
+							<h2 class="goen-admin__subhead">規格表</h2>
+							<p class="goen-admin__hint">
+								商品頁與「比較」頁讀的就是這一份。沒有規格表的商品在比較頁是空的一欄。
+							</p>
+							if v.HasSpecs() {
+								<div class="goen-admin__tablewrap">
+									<table class="ui-table">
+										<thead>
+											<tr>
+												<th scope="col">項目</th>
+												<th scope="col">內容</th>
+												<th scope="col">English</th>
+												<th scope="col"><span class="goen-sr-only">操作</span></th>
+											</tr>
+										</thead>
+										<tbody>
+											for _, sp := range v.Specs {
+												<tr>
+													<td>{ sp.Label }</td>
+													<td>{ sp.Value }</td>
+													<td>
+														if sp.Translated() {
+															{ sp.LabelEn }
+															if sp.ValueEn != "" {
+																<span class="ui-cart-line__meta">{ sp.ValueEn }</span>
+															}
+														} else {
+															// Said out loud on the page that can fix
+															// it. An untranslated spec label is read
+															// in Chinese by every English visitor and
+															// by nobody at the shop.
+															<span class="ui-badge ui-badge--warn">未翻譯</span>
+														}
+													</td>
+													<td>
+														<form method="post" action={ templ.SafeURL(v.SpecRemoveAction()) }>
+															<input type="hidden" name="spec" value={ sp.ID }/>
+															<button class="ui-btn ui-btn--ghost" type="submit">移除</button>
+														</form>
+													</td>
+												</tr>
+											}
+										</tbody>
+									</table>
+								</div>
+							} else {
+								<p class="goen-admin__hint">還沒有規格表。</p>
+							}
+							<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.SpecAction()) }>
+								<div class="goen-checkout__fields">
+									<div class="ui-field">
+										<label class="ui-label" for="spec-label">項目</label>
+										<input
+											class="ui-input"
+											id="spec-label"
+											name="label"
+											required
+											maxlength="40"
+											autocomplete="off"
+											placeholder="螢幕"
+											if v.HasErr("spec_label") {
+												aria-invalid="true"
+											}
+										/>
+										if v.HasErr("spec_label") {
+											<p class="ui-error-text">{ v.Err("spec_label") }</p>
+										}
+									</div>
+									<div class="ui-field">
+										<label class="ui-label" for="spec-value">內容</label>
+										<input
+											class="ui-input"
+											id="spec-value"
+											name="value"
+											required
+											maxlength="200"
+											autocomplete="off"
+											placeholder="6.3 吋 OLED"
+											if v.HasErr("spec_value") {
+												aria-invalid="true"
+											}
+										/>
+										if v.HasErr("spec_value") {
+											<p class="ui-error-text">{ v.Err("spec_value") }</p>
+										}
+									</div>
+								</div>
+								<div class="goen-checkout__fields">
+									<div class="ui-field">
+										<label class="ui-label" for="spec-label-en">項目(英文)</label>
+										<input
+											class="ui-input"
+											id="spec-label-en"
+											name="label_en"
+											maxlength="40"
+											autocomplete="off"
+											placeholder="Screen"
+											if v.HasErr("spec_label_en") {
+												aria-invalid="true"
+											}
+										/>
+										if v.HasErr("spec_label_en") {
+											<p class="ui-error-text">{ v.Err("spec_label_en") }</p>
+										}
+									</div>
+									<div class="ui-field">
+										<label class="ui-label" for="spec-value-en">內容(英文)</label>
+										<input
+											class="ui-input"
+											id="spec-value-en"
+											name="value_en"
+											maxlength="200"
+											autocomplete="off"
+											placeholder="6.3-inch OLED"
+											if v.HasErr("spec_value_en") {
+												aria-invalid="true"
+											}
+										/>
+										if v.HasErr("spec_value_en") {
+											<p class="ui-error-text">{ v.Err("spec_value_en") }</p>
+										}
+									</div>
+								</div>
+								<p class="goen-admin__hint">
+									英文留空的話,英文網站會顯示中文 —— 數字型的內容(6.3 吋)通常不必翻。
+								</p>
+								<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">新增規格表項目</button>
+							</form>
+						</section>
+						<section>
+							<h2 class="goen-admin__subhead">上架狀態</h2>
+							if v.NeedsVariant() {
+								<p class="goen-admin__hint">先新增至少一個規格,才能上架。</p>
+							} else {
+								<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/products/" + v.Slug + "/status") }>
+									<div class="goen-admin__decidebtns">
+										if v.CanPublish() {
+											<button class="ui-btn ui-btn--primary" type="submit" name="status" value="active">上架</button>
+										}
+										if v.Status == "active" {
+											<button class="ui-btn ui-btn--secondary" type="submit" name="status" value="draft">下架為草稿</button>
+										}
+										if v.Status != "archived" {
+											<button class="ui-btn ui-btn--secondary" type="submit" name="status" value="archived">封存</button>
+										}
+									</div>
+								</form>
+							}
+						</section>
+					</aside>
+				}
+			</div>
+		</div>
+	}
+}

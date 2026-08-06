@@ -1,0 +1,53 @@
+package pages
+
+import (
+	"context"
+	"fmt"
+	"strconv"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// PayLine is one item on the payment page, as the ORDER recorded it.
+type PayLine struct {
+	Name      string
+	Label     string
+	UnitCents int64
+	Quantity  int32
+}
+
+// UnitPrice is the agreed price per unit.
+func (l PayLine) UnitPrice() string { return twd(l.UnitCents) }
+
+// LineTotal is what the line comes to.
+func (l PayLine) LineTotal() string { return twd(l.UnitCents * int64(l.Quantity)) }
+
+// QuantityText is how many were ordered.
+func (l PayLine) QuantityText() string { return strconv.FormatInt(int64(l.Quantity), 10) }
+
+// PayView is the page that hands a customer over to the card form.
+type PayView struct {
+	Number     string
+	TotalCents int64
+	Email      string
+	Lines      []PayLine
+	// Enabled is false when goen is running without Stripe credentials. The
+	// page then explains that rather than offering a button that cannot work.
+	Enabled bool
+	// Cancelled is true when the customer came back from Stripe without paying.
+	// It is not an error — the order and its stock are still held.
+	Cancelled bool
+}
+
+// Total is what is owed.
+func (v PayView) Total() string { return twd(v.TotalCents) }
+
+// Action is where the form posts. The order number is in the path, and it is
+// the ONLY thing the request carries: the amount is recomputed server-side.
+func (v PayView) Action() string { return "/orders/" + v.Number + "/pay" }
+
+// PayMeta is the chrome view model for the payment page.
+func PayMeta(ctx context.Context, number string) layouts.Page {
+	return layouts.Page{Title: fmt.Sprintf(i18n.T(ctx, i18n.KeyPayMeta), number)}
+}

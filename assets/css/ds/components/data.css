@@ -1,0 +1,61 @@
+/* ============================================================
+   koopa.dev — Data display
+   table · code block · command palette
+   ============================================================ */
+
+/* ---- Table (admin density) ---- */
+.ui-table { width: 100%; border-collapse: collapse; font-family: var(--font-sans); font-size: var(--fs-13); }
+.ui-table thead th {
+  text-align: left; font-family: var(--font-mono); font-size: var(--fs-11); font-weight: var(--fw-medium);
+  color: var(--fg-subtle); letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.ui-table thead th.ui-th--sortable { cursor: pointer; user-select: none; }
+.ui-table thead th.ui-th--sortable:hover { color: var(--fg-muted); }
+.ui-table thead th .ui-sort { display: inline-flex; margin-left: 4px; opacity: 0.5; }
+.ui-table tbody td { padding: 9px 12px; border-bottom: 1px solid var(--border-faint); color: var(--fg-muted); vertical-align: middle; height: 32px; box-sizing: border-box; }
+.ui-table tbody tr { transition: background var(--dur-base); }
+.ui-table tbody tr:hover { background: var(--overlay); }
+.ui-table tbody tr[aria-selected="true"] { background: var(--brand-faint); }
+.ui-table .ui-td--mono { font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg-subtle); }
+.ui-table .ui-td--primary { color: var(--fg); font-weight: var(--fw-medium); }
+.ui-table .ui-td--num { text-align: right; font-family: var(--font-mono); }
+.ui-table--spacious tbody td { height: 44px; padding: 12px; }
+
+/* ---- Code block ---- */
+.ui-code {
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-md);
+  overflow: hidden; font-family: var(--font-mono);
+}
+.ui-code__bar { display: flex; align-items: center; justify-content: space-between; padding: 7px 12px; border-bottom: 1px solid var(--border); background: var(--elevated); }
+.ui-code__lang { font-size: var(--fs-11); color: var(--fg-subtle); letter-spacing: 0.04em; }
+.ui-code__copy { background: none; border: none; color: var(--fg-faint); cursor: pointer; display: inline-flex; gap: 5px; align-items: center; font-family: var(--font-mono); font-size: var(--fs-11); }
+.ui-code__copy:hover { color: var(--fg-muted); }
+.ui-code__copy svg { width: 13px; height: 13px; }
+.ui-code pre { margin: 0; padding: 14px 16px; overflow-x: auto; }
+.ui-code code { font-family: var(--font-mono); font-size: var(--fs-13); line-height: 1.6; color: var(--fg-muted); }
+/* inline code */
+.ui-code-inline { font-family: var(--font-mono); font-size: 0.9em; background: var(--elevated); color: var(--fg); padding: 1px 5px; border-radius: var(--r-sm); }
+
+/* ---- Command palette (⌘K) ---- */
+.ui-cmdk {
+  width: 100%; max-width: 560px; background: var(--elevated); border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-2); overflow: hidden; box-sizing: border-box;
+}
+.ui-cmdk__search { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.ui-cmdk__search svg { width: 18px; height: 18px; color: var(--fg-subtle); flex: none; }
+.ui-cmdk__input { flex: 1; background: transparent; border: none; outline: none; color: var(--fg); font-family: var(--font-sans); font-size: var(--fs-16); }
+.ui-cmdk__input::placeholder { color: var(--fg-faint); }
+.ui-cmdk__list { max-height: 340px; overflow-y: auto; padding: 6px; }
+.ui-cmdk__group { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 10px 4px; }
+.ui-cmdk__item {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  padding: 9px 10px; border-radius: var(--r-sm); cursor: pointer; background: transparent; border: none;
+  font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg-muted);
+}
+.ui-cmdk__item svg { width: 16px; height: 16px; color: var(--fg-subtle); flex: none; }
+.ui-cmdk__item[aria-selected="true"], .ui-cmdk__item:hover { background: var(--brand-faint); color: var(--fg); }
+.ui-cmdk__item[aria-selected="true"] svg { color: var(--brand); }
+.ui-cmdk__meta { margin-left: auto; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
+.ui-cmdk__footer { display: flex; align-items: center; gap: 14px; padding: 8px 14px; border-top: 1px solid var(--border); font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); }
+.ui-cmdk__hint { display: inline-flex; align-items: center; gap: 5px; }

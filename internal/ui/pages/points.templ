@@ -1,0 +1,96 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// Points renders the customer's points, what they are worth, and the ledger.
+templ Points(p layouts.Page, v PointsView) {
+	@layouts.Base(p) {
+		<div class="goen-account">
+			<nav class="ui-crumbs" aria-label={ i18n.T(ctx, i18n.KeyBreadcrumb) }>
+				<a href="/account">{ i18n.T(ctx, i18n.KeyAccountTitle) }</a>
+				<span class="ui-crumbs__sep" aria-hidden="true">/</span>
+				<span class="ui-crumbs__current" aria-current="page">{ i18n.T(ctx, i18n.KeyPointsTitle) }</span>
+			</nav>
+			<div class="ui-page-head">
+				<div>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyPointsTitle) }</h1>
+					<p class="ui-page-head__sub">
+						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsSub), v.RateText(ctx)) }
+					</p>
+				</div>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			<ul class="goen-report__figures" role="list">
+				<li class="goen-report__figure">
+					<span class="goen-report__label">{ i18n.T(ctx, i18n.KeyPointsBalance) }</span>
+					<span class="goen-report__value">{ v.BalanceText() }</span>
+				</li>
+				<li class="goen-report__figure">
+					<span class="goen-report__label">{ i18n.T(ctx, i18n.KeyPointsRedeemable) }</span>
+					<span class="goen-report__value">{ v.Credit() }</span>
+					<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsUsing), v.RedeemableText()) }</span>
+				</li>
+			</ul>
+			if v.Expiring() {
+				// Said before it happens, not explained afterwards: a balance
+				// that shrank without warning is a support ticket.
+				<p class="ui-alert" role="status">{ v.ExpiringText(ctx) }</p>
+			}
+			if v.CanRedeem() {
+				<form class="goen-qa__form" method="post" action="/account/points">
+					<div class="ui-field">
+						<label class="ui-label" for="points">{ i18n.T(ctx, i18n.KeyPointsHowMany) }</label>
+						<input
+							class="ui-input"
+							id="points"
+							name="points"
+							type="number"
+							min={ v.MinimumText() }
+							max={ v.RedeemableText() }
+							step={ v.StepText() }
+							value={ v.RedeemableText() }
+							required
+							inputmode="numeric"
+						/>
+						<p class="goen-admin__hint">
+							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsRule), v.MinimumText(), v.RateText(ctx)) }
+						</p>
+					</div>
+					<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyPointsRedeem) }</button>
+				</form>
+			}
+			<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyPointsLedger) }</h2>
+			if v.Empty() {
+				<p class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyPointsEmpty) }</p>
+			} else {
+				<ul class="goen-points" role="list">
+					for _, e := range v.Entries {
+						<li class={ "goen-points__item", templ.KV("is-expired", e.Expired) }>
+							<span class={ "goen-points__amount", templ.KV("is-earned", e.Earned()) }>
+								{ e.Amount() }
+							</span>
+							<span class="goen-points__what">{ e.What(ctx) }</span>
+							<span class="ui-cart-line__meta">
+								{ e.At }
+								if e.ExpiresOn != "" {
+									if e.Expired {
+										{ i18n.T(ctx, i18n.KeyPointsExpired) }
+									} else {
+										{ i18n.T(ctx, i18n.KeyPointsExpiresOn) }
+									}
+								}
+							</span>
+						</li>
+					}
+				</ul>
+			}
+		</div>
+	}
+}

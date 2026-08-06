@@ -1,0 +1,73 @@
+/* ============================================================
+   koopa.dev — Feedback & overlays
+   callout · alert · toast · dialog · drawer · empty state
+   ============================================================ */
+
+/* ---- Callout / admonition (left brand rule) ---- */
+.ui-callout {
+  background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--brand);
+  border-radius: 0 var(--r-md) var(--r-md) 0; padding: 14px 18px;
+}
+.ui-callout__label { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--brand); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 6px; }
+.ui-callout__body { font-family: var(--font-serif); font-size: var(--fs-ed-17); line-height: var(--lh-read); color: var(--fg-muted); margin: 0; }
+.ui-callout--note    { border-left-color: var(--fg-subtle); } .ui-callout--note .ui-callout__label { color: var(--fg-subtle); }
+.ui-callout--warn    { border-left-color: var(--warn); }      .ui-callout--warn .ui-callout__label { color: var(--warn); }
+.ui-callout--success { border-left-color: var(--success); }   .ui-callout--success .ui-callout__label { color: var(--success); }
+.ui-callout--error   { border-left-color: var(--error); }     .ui-callout--error .ui-callout__label { color: var(--error); }
+
+/* ---- Inline alert (icon + text, denser than callout) ---- */
+.ui-alert { display: flex; gap: 10px; padding: 10px 12px; border-radius: var(--r-sm); font-family: var(--font-sans); font-size: var(--fs-13); line-height: var(--lh-normal); }
+.ui-alert svg { width: 16px; height: 16px; flex: none; margin-top: 1px; }
+.ui-alert--info    { background: var(--info-bg);    color: var(--info); }
+.ui-alert--success { background: var(--success-bg); color: var(--success); }
+.ui-alert--warn    { background: var(--warn-bg);    color: var(--warn); }
+.ui-alert--error   { background: var(--error-bg);   color: var(--error); }
+.ui-alert strong { font-weight: var(--fw-semibold); }
+.ui-alert__body { color: var(--fg-muted); }
+
+/* ---- Toast ---- */
+.ui-toast {
+  display: flex; align-items: flex-start; gap: 10px; min-width: 280px; max-width: 380px;
+  background: var(--elevated); border: 1px solid var(--border); border-radius: var(--r-md);
+  box-shadow: var(--shadow-2); padding: 12px 14px;
+}
+.ui-toast__icon { color: var(--brand); display: inline-flex; margin-top: 1px; }
+.ui-toast__icon svg { width: 17px; height: 17px; }
+.ui-toast--success .ui-toast__icon { color: var(--success); }
+.ui-toast--error .ui-toast__icon { color: var(--error); }
+.ui-toast__title { font-family: var(--font-sans); font-size: var(--fs-13); font-weight: var(--fw-semibold); color: var(--fg); }
+.ui-toast__desc  { font-family: var(--font-sans); font-size: var(--fs-12); color: var(--fg-subtle); margin-top: 2px; line-height: var(--lh-normal); }
+.ui-toast__close { margin-left: auto; background: none; border: none; color: var(--fg-faint); cursor: pointer; display: inline-flex; }
+.ui-toast__close:hover { color: var(--fg); }
+
+/* ---- Scrim ---- */
+.ui-scrim { position: fixed; inset: 0; background: rgb(0 0 0 / 0.6); z-index: 100; }
+
+/* ---- Dialog / modal ---- */
+.ui-dialog {
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-2); width: 100%; max-width: 460px; box-sizing: border-box;
+}
+.ui-dialog__header { padding: 18px 20px 0; }
+.ui-dialog__title { font-family: var(--font-display); font-size: var(--fs-ed-20); font-weight: var(--fw-semibold); color: var(--fg); margin: 0; }
+.ui-dialog__desc { font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg-subtle); margin: 6px 0 0; line-height: var(--lh-normal); }
+.ui-dialog__body { padding: 16px 20px; }
+.ui-dialog__footer { display: flex; justify-content: flex-end; gap: 8px; padding: 0 20px 18px; }
+
+/* ---- Drawer (side panel — task detail, observation) ---- */
+.ui-drawer {
+  position: fixed; top: 0; right: 0; height: 100%; width: 420px; max-width: 92vw;
+  background: var(--panel); border-left: 1px solid var(--border); box-shadow: var(--shadow-2);
+  z-index: 101; display: flex; flex-direction: column; box-sizing: border-box;
+}
+.ui-drawer__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+.ui-drawer__title { font-family: var(--font-display); font-size: var(--fs-18); font-weight: var(--fw-semibold); color: var(--fg); margin: 0; }
+.ui-drawer__body { padding: 18px; overflow-y: auto; flex: 1; }
+.ui-drawer__footer { padding: 14px 18px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+
+/* ---- Empty state ---- */
+.ui-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 48px 24px; }
+.ui-empty__hex { width: 48px; height: 48px; color: var(--fg-faint); display: inline-flex; align-items: center; justify-content: center; }
+.ui-empty__hex svg { width: 48px; height: 48px; }
+.ui-empty__title { font-family: var(--font-display); font-size: var(--fs-18); font-weight: var(--fw-semibold); color: var(--fg-muted); margin: 0; }
+.ui-empty__desc { font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg-subtle); margin: 0; max-width: 320px; line-height: var(--lh-normal); }

@@ -1,0 +1,73 @@
+package pages
+
+import "github.com/koopa0/goen/internal/ui/layouts"
+
+// AdminReturns renders the return queue and the decision forms.
+//
+// Each row's decision is a plain form with two submit buttons carrying
+// different values, so approving and rejecting are one round trip each and
+// neither needs scripting.
+templ AdminReturns(p layouts.Page, v AdminReturnsView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("returns")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">後台</p>
+					<h1 class="ui-page-head__title">退貨申請</h1>
+					<p class="ui-page-head__sub">
+						同意退貨會立刻透過 Stripe 退款,金額由訂單本身的單價計算。
+					</p>
+				</div>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			if v.Empty() {
+				<p class="goen-admin__hint">目前沒有退貨申請。</p>
+			} else {
+				<ul class="goen-admin__returns" role="list">
+					for _, r := range v.Rows {
+						<li class="goen-admin__return">
+							<div class="goen-admin__returninfo">
+								<p class="goen-admin__returnorder">{ r.OrderNumber }</p>
+								<span class="ui-cart-line__meta">{ r.StatusText } · { r.CreatedAt }</span>
+								<span class="ui-cart-line__meta">{ r.UnitsText() } 件 · 可退 { r.Amount() }</span>
+								<span class="ui-cart-line__meta">{ r.Reason }</span>
+								if len(r.Lines) > 0 {
+									// WHAT is coming back. The row used to say
+									// "3 件 · 可退 NT$4,500" and nothing else, so
+									// the decision was made without it.
+									<ul class="goen-admin__returnlines" role="list">
+										for _, l := range r.Lines {
+											<li>
+												<span class="ui-cart-line__meta">{ l.Line() }</span>
+												<span class="ui-cart-line__meta">{ l.SKU } · { l.UnitPrice() }</span>
+											</li>
+										}
+									</ul>
+								}
+							</div>
+							if !r.Decided {
+								<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.Action()) }>
+									<div class="ui-field">
+										<label class="ui-label" for={ "res-" + r.ID }>處理說明</label>
+										<input class="ui-input" id={ "res-" + r.ID } name="resolution" maxlength="300" autocomplete="off"/>
+									</div>
+									<div class="goen-admin__decidebtns">
+										<button class="ui-btn ui-btn--primary" type="submit" name="decision" value="approved">
+											同意並退款
+										</button>
+										<button class="ui-btn ui-btn--secondary" type="submit" name="decision" value="rejected">
+											不同意
+										</button>
+									</div>
+								</form>
+							}
+						</li>
+					}
+				</ul>
+			}
+		</div>
+	}
+}

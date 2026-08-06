@@ -1,0 +1,147 @@
+package pages
+
+import "github.com/koopa0/goen/internal/ui/layouts"
+
+// AdminCoupons renders the promotions and the form that issues one.
+templ AdminCoupons(p layouts.Page, v AdminCouponsView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("coupons")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">後台</p>
+					<h1 class="ui-page-head__title">折扣碼</h1>
+					<p class="ui-page-head__sub">
+						金額用「元」,百分比用整數。停用的折扣碼會保留紀錄,不會刪除。
+					</p>
+				</div>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			<div class="goen-admin__productlayout">
+				<form class="goen-admin__form" method="post" action="/admin/coupons">
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="c-code">折扣碼</label>
+							<input
+								class="ui-input"
+								id="c-code"
+								name="code"
+								required
+								maxlength="32"
+								placeholder="SUMMER20"
+								autocomplete="off"
+								value={ v.Draft.Code }
+								if v.HasErr("code") {
+									aria-invalid="true"
+								}
+							/>
+							if v.HasErr("code") {
+								<p class="ui-error-text">{ v.Err("code") }</p>
+							}
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="c-kind">類型</label>
+							<select class="ui-select" id="c-kind" name="kind" required>
+								<option value="amount" selected?={ v.Draft.IsKind("amount") }>折抵金額</option>
+								<option value="percent" selected?={ v.Draft.IsKind("percent") }>百分比折扣</option>
+								<option value="free_shipping" selected?={ v.Draft.IsKind("free_shipping") }>免運</option>
+							</select>
+						</div>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="c-description">顧客看到的說明</label>
+						<input
+							class="ui-input"
+							id="c-description"
+							name="description"
+							required
+							maxlength="60"
+							placeholder="夏季全站折 NT$200"
+							value={ v.Draft.Description }
+							if v.HasErr("description") {
+								aria-invalid="true"
+							}
+						/>
+						if v.HasErr("description") {
+							<p class="ui-error-text">{ v.Err("description") }</p>
+						}
+					</div>
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="c-value">折抵金額(元)或百分比</label>
+							<input class="ui-input" id="c-value" name="value" type="number" min="0" step="1" inputmode="numeric" value={ v.Draft.Value }/>
+							<p class="goen-admin__hint">免運不需要填。</p>
+							if v.HasErr("value") {
+								<p class="ui-error-text">{ v.Err("value") }</p>
+							}
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="c-cap">折抵上限(元)</label>
+							<input class="ui-input" id="c-cap" name="cap" type="number" min="0" step="1" inputmode="numeric" value={ v.Draft.Cap }/>
+							<p class="goen-admin__hint">只用在百分比折扣。</p>
+							if v.HasErr("cap") {
+								<p class="ui-error-text">{ v.Err("cap") }</p>
+							}
+						</div>
+					</div>
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="c-min">最低消費(元)</label>
+							<input class="ui-input" id="c-min" name="min" type="number" min="0" step="1" inputmode="numeric" value={ v.Draft.MinSpend }/>
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="c-days">有效天數</label>
+							<input class="ui-input" id="c-days" name="days" type="number" min="0" step="1" inputmode="numeric" value={ v.Draft.Days }/>
+							<p class="goen-admin__hint">留空或 0 表示不設結束日。</p>
+						</div>
+					</div>
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="c-max">總使用次數</label>
+							<input class="ui-input" id="c-max" name="max" type="number" min="0" step="1" inputmode="numeric" value={ v.Draft.MaxRedeem }/>
+							<p class="goen-admin__hint">0 表示不限量。</p>
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="c-percustomer">每人可用次數</label>
+							<input class="ui-input" id="c-percustomer" name="percustomer" type="number" min="1" step="1" inputmode="numeric" value={ v.Draft.PerCustomer } placeholder="1"/>
+							if v.HasErr("percustomer") {
+								<p class="ui-error-text">{ v.Err("percustomer") }</p>
+							}
+						</div>
+					</div>
+					<button class="ui-btn ui-btn--primary" type="submit">建立折扣碼</button>
+				</form>
+				<aside class="goen-admin__side">
+					<h2 class="goen-admin__subhead">目前的折扣碼</h2>
+					if v.Empty() {
+						<p class="goen-admin__hint">還沒有任何折扣碼。</p>
+					} else {
+						<ul class="goen-admin__coupons" role="list">
+							for _, c := range v.Rows {
+								<li class="goen-admin__coupon">
+									<div class="goen-admin__couponhead">
+										<span class="goen-admin__sku">{ c.Code }</span>
+										<span class={ "ui-badge", templ.KV("ui-badge--brand", c.Live()) }>{ c.State() }</span>
+									</div>
+									<span class="ui-cart-line__meta">{ c.Description }</span>
+									<span class="ui-cart-line__meta">{ c.KindText } · { c.Value() }</span>
+									<span class="ui-cart-line__meta">{ c.Conditions() }</span>
+									<span class="ui-cart-line__meta">已使用 { c.Used() }</span>
+									if c.EndsAt != "" {
+										<span class="ui-cart-line__meta">至 { c.EndsAt }</span>
+									}
+									<form method="post" action={ templ.SafeURL(c.Action()) }>
+										<input type="hidden" name="active" value={ c.NextActive() }/>
+										<button class="ui-btn ui-btn--secondary" type="submit">{ c.ToggleLabel() }</button>
+									</form>
+								</li>
+							}
+						</ul>
+					}
+				</aside>
+			</div>
+		</div>
+	}
+}

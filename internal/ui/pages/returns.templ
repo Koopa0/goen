@@ -1,0 +1,110 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// Returns is the customer's return request form.
+//
+// Every control is a plain input inside one `<form method="post">`. The
+// quantity per line is a `number` field named for that line, so what is being
+// returned is fully expressed in the request body — turning JavaScript off
+// changes nothing about this page.
+templ Returns(p layouts.Page, v ReturnsView) {
+	@layouts.Base(p) {
+		<div class="goen-returns">
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyReturnTitle) }</p>
+					<h1 class="ui-page-head__title">{ v.Number }</h1>
+					<p class="ui-page-head__sub">
+						{ i18n.T(ctx, i18n.KeyReturnSub) }
+					</p>
+				</div>
+			</div>
+			if v.Error != "" {
+				<p class="ui-alert ui-alert--error goen-returns__alert" role="alert">{ v.Error }</p>
+			}
+			if len(v.Existing) > 0 {
+				<section class="goen-returns__existing" aria-labelledby="existing-heading">
+					<h2 id="existing-heading" class="goen-returns__subhead">{ i18n.T(ctx, i18n.KeyReturnHistory) }</h2>
+					<ul class="goen-returns__records" role="list">
+						for _, e := range v.Existing {
+							<li class="goen-returns__record">
+								<span class="goen-returns__status">{ e.StatusText }</span>
+								<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyReturnSentAt), e.CreatedAt) }</span>
+								<span class="ui-cart-line__meta">{ e.Reason }</span>
+								if e.Resolution != "" {
+									<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyReturnResolution), e.Resolution) }</span>
+								}
+							</li>
+						}
+					</ul>
+				</section>
+			}
+			if v.HasOpen {
+				<p class="ui-alert ui-alert--info" role="status">
+					{ i18n.T(ctx, i18n.KeyReturnInFlight) }
+				</p>
+			} else if !v.AnyReturnable() {
+				<p class="ui-alert ui-alert--info" role="status">
+					{ i18n.T(ctx, i18n.KeyReturnNothing) }
+				</p>
+			} else {
+				<form class="goen-returns__form" method="post" action={ templ.SafeURL(v.Action()) }>
+					<fieldset class="goen-returns__lines">
+						<legend class="goen-returns__subhead">{ i18n.T(ctx, i18n.KeyReturnChoose) }</legend>
+						for _, l := range v.Lines {
+							if l.CanReturn() {
+								<div class="goen-returns__line">
+									<div>
+										<p class="goen-returns__name">{ l.Name }</p>
+										if l.Label != "" {
+											<span class="ui-cart-line__meta">{ l.Label }</span>
+										}
+										<span class="ui-cart-line__meta">{ l.SKU } · { l.UnitPrice() }</span>
+									</div>
+									<div class="ui-field goen-returns__qty">
+										<label class="ui-label" for={ l.Field() }>
+											{ fmt.Sprintf(i18n.T(ctx, i18n.KeyReturnQuantity), l.Max()) }
+										</label>
+										<input
+											class="ui-input"
+											type="number"
+											id={ l.Field() }
+											name={ l.Field() }
+											min="0"
+											max={ l.Max() }
+											step="1"
+											inputmode="numeric"
+											value={ l.ChosenText() }
+										/>
+									</div>
+								</div>
+							}
+						}
+					</fieldset>
+					<div class="ui-field">
+						<label class="ui-label" for="return-reason">{ i18n.T(ctx, i18n.KeyFieldReturnReason) }</label>
+						<textarea
+							class="ui-input goen-returns__reason"
+							id="return-reason"
+							name="reason"
+							rows="4"
+							required
+							maxlength="500"
+							if v.Error != "" {
+								aria-invalid="true"
+							}
+						>{ v.Reason }</textarea>
+					</div>
+					<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyReturnSubmit) }</button>
+				</form>
+			}
+			<a class="ui-btn ui-btn--secondary" href={ templ.SafeURL("/orders/" + v.Number) }>{ i18n.T(ctx, i18n.KeyBackToOrder) }</a>
+		</div>
+	}
+}

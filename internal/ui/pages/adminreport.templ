@@ -1,0 +1,105 @@
+package pages
+
+import "github.com/koopa0/goen/internal/ui/layouts"
+
+// AdminReport renders the shop's numbers over one window.
+templ AdminReport(p layouts.Page, v *AdminReportView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("reports")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">後台</p>
+					<h1 class="ui-page-head__title">報表</h1>
+					<p class="ui-page-head__sub">
+						只計入已付款的訂單。未付款的訂單不是營收。
+					</p>
+				</div>
+				<nav class="ui-segmented" aria-label="期間">
+					for _, d := range v.Windows {
+						<a
+							class={ "ui-segmented__item", templ.KV("is-active", v.IsWindow(d)) }
+							href={ templ.SafeURL(v.WindowHref(d)) }
+							if v.IsWindow(d) {
+								aria-current="page"
+							}
+						>
+							{ v.WindowLabel(d) }
+						</a>
+					}
+				</nav>
+			</div>
+			if v.Empty() {
+				<div class="ui-empty">
+					<p class="ui-empty__title">這段期間沒有任何訂單</p>
+				</div>
+			} else {
+				<ul class="goen-report__figures" role="list">
+					<li class="goen-report__figure">
+						<span class="goen-report__label">營收</span>
+						<span class="goen-report__value">{ v.Revenue() }</span>
+					</li>
+					<li class="goen-report__figure">
+						<span class="goen-report__label">已付款訂單</span>
+						<span class="goen-report__value">{ v.OrdersText() }</span>
+					</li>
+					<li class="goen-report__figure">
+						<span class="goen-report__label">平均客單價</span>
+						<span class="goen-report__value">{ v.Average() }</span>
+					</li>
+					<li class="goen-report__figure">
+						<span class="goen-report__label">結帳完成率</span>
+						<span class="goen-report__value">{ v.Completion() }</span>
+						// The two counts are shown beside the percentage, because
+						// a rate of eleven orders reads very differently from a
+						// rate of eleven thousand.
+						<span class="ui-cart-line__meta">
+							{ v.CommittedText() } / { v.PlacedText() } 筆
+						</span>
+					</li>
+				</ul>
+				<p class="goen-admin__hint">
+					結帳完成率是「送出訂單之後付了款」的比例,不是網站的轉換率 ——
+					goen 不蒐集流量資料,算不出多少訪客最後買了東西,所以不會顯示一個編出來的數字。
+				</p>
+				<h2 class="goen-admin__subhead">熱賣商品</h2>
+				if len(v.Sellers) == 0 {
+					<p class="goen-admin__hint">這段期間沒有出貨紀錄。</p>
+				} else {
+					<ul class="goen-report__rows" role="list">
+						for _, item := range v.Sellers {
+							<li class="goen-report__row">
+								<a class="goen-admin__productname" href={ templ.SafeURL(item.Href()) }>{ item.Name }</a>
+								<span class="ui-cart-line__meta">{ item.Brand }</span>
+								<span class="goen-report__num">{ item.UnitsText() } 件</span>
+								<span class="goen-report__num">{ item.Revenue() }</span>
+							</li>
+						}
+					</ul>
+				}
+				<h2 class="goen-admin__subhead">庫存快用完</h2>
+				<p class="goen-admin__hint">
+					依「還能撐幾天」排序 —— 銷得快又剩得少的排在前面。剩兩件但一個月才賣一件的不算緊急。
+				</p>
+				if len(v.AtRisk) == 0 {
+					<p class="goen-admin__hint">沒有需要注意的庫存。</p>
+				} else {
+					<ul class="goen-report__rows" role="list">
+						for _, item := range v.AtRisk {
+							<li class={ "goen-report__row", templ.KV("is-urgent", item.Urgent()) }>
+								<a class="goen-admin__productname" href={ templ.SafeURL(item.Href()) }>{ item.Name }</a>
+								<span class="ui-cart-line__meta">{ item.SKU }</span>
+								<span class="goen-report__num">剩 { item.StockText() }</span>
+								// The units that produced the cover figure. "14
+								// days left" means nothing without knowing it
+								// came from three sales or three hundred.
+								<span class="goen-report__num">近期售出 { item.SoldText() }</span>
+								<span class="goen-report__num">{ item.Cover() }</span>
+							</li>
+						}
+					</ul>
+				}
+			}
+		</div>
+	}
+}

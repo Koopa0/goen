@@ -1,0 +1,529 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// SignIn renders the sign-in form.
+//
+// The form-level error is one message for a wrong email and a wrong password
+// alike. Telling them apart would tell an attacker which addresses have
+// accounts, which is worth more than the small convenience of a precise message.
+templ SignIn(p layouts.Page, v AuthView) {
+	@layouts.Base(p) {
+		<div class="goen-auth">
+			<div class="goen-auth__panel">
+				<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeySignIn) }</h1>
+				if v.HasNotice() {
+					<p class="ui-alert ui-alert--success" role="status">{ v.Notice }</p>
+				}
+				if v.HasErr("form") {
+					<p class="ui-alert ui-alert--error" role="alert">{ v.Err("form") }</p>
+				}
+				<form class="goen-auth__form" method="post" action="/signin">
+					<input type="hidden" name="next" value={ v.Next }/>
+					<div class="ui-field">
+						<label class="ui-label" for="email">{ i18n.T(ctx, i18n.KeyFieldEmail) }</label>
+						<input
+							class="ui-input"
+							id="email"
+							type="email"
+							name="email"
+							value={ v.Email }
+							required
+							autocomplete="email"
+							autofocus
+							aria-invalid={ v.Invalid("email") }
+						/>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="password">{ i18n.T(ctx, i18n.KeyFieldPassword) }</label>
+						<input
+							class="ui-input"
+							id="password"
+							type="password"
+							name="password"
+							required
+							autocomplete="current-password"
+							aria-invalid={ v.Invalid("password") }
+						/>
+					</div>
+					<button class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block goen-auth__submit" type="submit">
+						{ i18n.T(ctx, i18n.KeySignIn) }
+					</button>
+				</form>
+				<p class="goen-auth__alt">
+					{ i18n.T(ctx, i18n.KeyNoAccountYet) }<a href="/register">{ i18n.T(ctx, i18n.KeyNoAccountLink) }</a>
+				</p>
+				<p class="goen-auth__alt">
+					<a href="/forgot">{ i18n.T(ctx, i18n.KeyForgotPassword) }</a>
+				</p>
+			</div>
+		</div>
+	}
+}
+
+// Register renders the registration form.
+templ Register(p layouts.Page, v AuthView) {
+	@layouts.Base(p) {
+		<div class="goen-auth">
+			<div class="goen-auth__panel">
+				<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeyCreateAccount) }</h1>
+				if v.AnyErrors() {
+					<p class="ui-alert ui-alert--error" role="alert">{ i18n.T(ctx, i18n.KeyFormHasErrors) }</p>
+				}
+				<form class="goen-auth__form" method="post" action="/register">
+					<input type="hidden" name="next" value={ v.Next }/>
+					<div class="ui-field">
+						<label class="ui-label" for="email">{ i18n.T(ctx, i18n.KeyFieldEmail) }</label>
+						<input
+							class="ui-input"
+							id="email"
+							type="email"
+							name="email"
+							value={ v.Email }
+							required
+							autocomplete="email"
+							autofocus
+							aria-invalid={ v.Invalid("email") }
+							if v.HasErr("email") {
+								aria-describedby="email-error"
+							}
+						/>
+						if v.HasErr("email") {
+							<p class="ui-error-text" id="email-error">{ v.Err("email") }</p>
+						}
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="name">{ i18n.T(ctx, i18n.KeyFieldNameOpt) }</label>
+						<input
+							class="ui-input"
+							id="name"
+							type="text"
+							name="name"
+							value={ v.Name }
+							maxlength="60"
+							autocomplete="name"
+							aria-invalid={ v.Invalid("name") }
+							if v.HasErr("name") {
+								aria-describedby="name-error"
+							}
+						/>
+						if v.HasErr("name") {
+							<p class="ui-error-text" id="name-error">{ v.Err("name") }</p>
+						}
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="password">{ i18n.T(ctx, i18n.KeyFieldPassword) }</label>
+						<input
+							class="ui-input"
+							id="password"
+							type="password"
+							name="password"
+							required
+							minlength="10"
+							autocomplete="new-password"
+							aria-invalid={ v.Invalid("password") }
+							aria-describedby="password-hint"
+						/>
+						<p class="ui-hint" id="password-hint">{ i18n.T(ctx, i18n.KeyPasswordHint) }</p>
+						if v.HasErr("password") {
+							<p class="ui-error-text">{ v.Err("password") }</p>
+						}
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="confirm">{ i18n.T(ctx, i18n.KeyFieldConfirmPassword) }</label>
+						<input
+							class="ui-input"
+							id="confirm"
+							type="password"
+							name="confirm"
+							required
+							autocomplete="new-password"
+							aria-invalid={ v.Invalid("confirm") }
+							if v.HasErr("confirm") {
+								aria-describedby="confirm-error"
+							}
+						/>
+						if v.HasErr("confirm") {
+							<p class="ui-error-text" id="confirm-error">{ v.Err("confirm") }</p>
+						}
+					</div>
+					<button class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block goen-auth__submit" type="submit">
+						{ i18n.T(ctx, i18n.KeyCreateAccount) }
+					</button>
+				</form>
+				<p class="goen-auth__alt">
+					{ i18n.T(ctx, i18n.KeyHaveAccount) }<a href="/signin">{ i18n.T(ctx, i18n.KeySignIn) }</a>
+				</p>
+			</div>
+		</div>
+	}
+}
+
+// Account renders the account landing page: orders, addresses, and the profile
+// form.
+templ Account(p layouts.Page, v *AccountView) {
+	@layouts.Base(p) {
+		<div class="goen-account">
+			<div class="ui-page-head">
+				<div>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAccountTitle) }</h1>
+					<p class="ui-page-head__sub">{ v.DisplayName() }</p>
+				</div>
+				<div class="ui-page-head__actions">
+					<form method="post" action="/signout">
+						<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeySignOut) }</button>
+					</form>
+				</div>
+			</div>
+			if v.HasNotice() {
+				<p class="ui-alert ui-alert--success" role="status">{ v.Notice }</p>
+			}
+			<section class="goen-account__standing" aria-labelledby="standing-heading">
+				<h2 id="standing-heading" class="goen-sr-only">{ i18n.T(ctx, i18n.KeyMembershipTier) }</h2>
+				if v.Standing.HasTier() {
+					<span class="ui-badge ui-badge--brand">{ v.Standing.TierName }</span>
+					<span class="ui-cart-line__meta">
+						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsMultiplier), v.Standing.Multiplier(ctx)) }
+					</span>
+				} else {
+					<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyNoTierYet) }</span>
+				}
+				<span class="ui-cart-line__meta">
+					{ fmt.Sprintf(i18n.T(ctx, i18n.KeySpendLastYear), v.Standing.Spend()) }
+				</span>
+				if v.Standing.HasNext() {
+					// The only part of this a customer can act on.
+					<span class="ui-cart-line__meta">
+						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyNextTier), v.Standing.NextNeeds(), v.Standing.NextName) }
+					</span>
+				}
+			</section>
+			// Every account page, linked from the one place a customer lands.
+			// Four of these existed as routes with no link from anywhere: a
+			// feature reachable only by typing its URL is one nobody uses, and
+			// building it was the easy half.
+			// Orders are NOT here: they are the list further down this page,
+			// and a link to /account/orders would be a link to a route that
+			// does not exist. The reachability sweep believed it because it
+			// checks that something links TO a route, not that a link resolves.
+			<nav class="goen-account__nav" aria-label={ i18n.T(ctx, i18n.KeyAccountNav) }>
+				<a class="goen-account__navitem" href="/account/points">
+					<span class="goen-account__navname">{ i18n.T(ctx, i18n.KeyLoyaltyPoints) }</span>
+					<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyLoyaltyPointsHint) }</span>
+				</a>
+				<a class="goen-account__navitem" href="/account/wishlist">
+					<span class="goen-account__navname">{ i18n.T(ctx, i18n.KeyWishlistTitle) }</span>
+					<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyWishlistHint) }</span>
+				</a>
+				<a class="goen-account__navitem" href="/account/warranty">
+					<span class="goen-account__navname">{ i18n.T(ctx, i18n.KeyWarrantyTitle) }</span>
+					<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyWarrantyHint) }</span>
+				</a>
+			</nav>
+			if v.HasCredit() {
+				<div class="ui-callout ui-callout--note goen-account__credit">
+					<span class="ui-callout__label">{ i18n.T(ctx, i18n.KeyStoreCredit) }</span>
+					<span class="ui-callout__body">{ v.Credit() }</span>
+				</div>
+			}
+			<div class="goen-account__layout">
+				<section class="goen-account__section" aria-labelledby="orders-heading">
+					<h2 id="orders-heading" class="goen-account__heading">{ i18n.T(ctx, i18n.KeyOrderHistory2) }</h2>
+					if v.HasOrders() {
+						<ul class="goen-account__orders" role="list">
+							for _, o := range v.Orders {
+								<li class="goen-account__order">
+									<div>
+										<a class="goen-account__number" href={ templ.URL("/account/orders/" + o.Number) }>
+											{ o.Number }
+										</a>
+										<span class="ui-cart-line__meta">
+											{ o.PlacedAt } · { fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderLineCount), o.LineCountText()) }
+										</span>
+									</div>
+									<div class="goen-account__ordermeta">
+										<span class="ui-badge">{ o.StatusText(ctx) }</span>
+										<span class="ui-cart-line__price">{ o.Total() }</span>
+									</div>
+								</li>
+							}
+						</ul>
+					} else {
+						<p class="goen-account__empty">{ i18n.T(ctx, i18n.KeyNoOrdersYet) } <a href="/">{ i18n.T(ctx, i18n.KeyNoOrdersLink) }</a></p>
+					}
+				</section>
+				<div class="goen-account__side">
+					<section class="goen-account__section" aria-labelledby="profile-heading">
+						<h2 id="profile-heading" class="goen-account__heading">{ i18n.T(ctx, i18n.KeyProfile) }</h2>
+						<form class="goen-account__form" method="post" action="/account/profile">
+							<div class="ui-field">
+								<label class="ui-label" for="acct-name">{ i18n.T(ctx, i18n.KeyFieldFullName) }</label>
+								<input class="ui-input" id="acct-name" type="text" name="name" value={ v.Name } maxlength="60" autocomplete="name"/>
+							</div>
+							<div class="ui-field">
+								<label class="ui-label" for="acct-phone">{ i18n.T(ctx, i18n.KeyFieldPhone) }</label>
+								<input class="ui-input" id="acct-phone" type="tel" name="phone" value={ v.Phone } maxlength="30" autocomplete="tel"/>
+							</div>
+							<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">{ i18n.T(ctx, i18n.KeySave) }</button>
+						</form>
+					</section>
+					<section class="goen-account__section" aria-labelledby="addresses-heading">
+						<h2 id="addresses-heading" class="goen-account__heading">{ i18n.T(ctx, i18n.KeyAddresses) }</h2>
+						if v.HasAddresses() {
+							<ul class="goen-account__addresses" role="list">
+								for _, a := range v.Addresses {
+									<li class="goen-account__address">
+										<span class="goen-account__addrlabel">
+											{ a.DisplayLabel(ctx) }
+											if a.Default {
+												<span class="ui-badge ui-badge--brand">{ i18n.T(ctx, i18n.KeyDefaultBadge) }</span>
+											}
+										</span>
+										<span class="ui-cart-line__meta">{ a.Name } · { a.Phone }</span>
+										<span class="ui-cart-line__meta">{ a.Line() }</span>
+										<div class="goen-account__addractions">
+											if !a.Default {
+												// Nothing could move the default before this: the
+												// first address saved became it and stayed it, and
+												// checkout prefills from whichever one it is.
+												<form method="post" action="/account/addresses/default">
+													<input type="hidden" name="address" value={ a.ID }/>
+													<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyMakeDefault) }</button>
+												</form>
+											}
+											<form method="post" action="/account/addresses/delete">
+												<input type="hidden" name="address" value={ a.ID }/>
+												<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyDelete) }</button>
+											</form>
+										</div>
+									</li>
+								}
+							</ul>
+						} else {
+							<p class="goen-account__empty">{ i18n.T(ctx, i18n.KeyNoAddresses) }</p>
+						}
+						<details class="goen-account__disclosure">
+							<summary class="goen-account__summary">{ i18n.T(ctx, i18n.KeyAddAddress) }</summary>
+							<form class="goen-account__form" method="post" action="/account/addresses">
+								<div class="ui-field">
+									<label class="ui-label" for="addr-label">{ i18n.T(ctx, i18n.KeyFieldLabelOpt) }</label>
+									<input class="ui-input" id="addr-label" type="text" name="label" maxlength="30" placeholder={ i18n.T(ctx, i18n.KeyLabelPlaceholder) }/>
+								</div>
+								<div class="ui-field">
+									<label class="ui-label" for="addr-name">{ i18n.T(ctx, i18n.KeyFieldRecipient) }</label>
+									<input class="ui-input" id="addr-name" type="text" name="name" required maxlength="60" autocomplete="name"/>
+								</div>
+								<div class="ui-field">
+									<label class="ui-label" for="addr-phone">{ i18n.T(ctx, i18n.KeyFieldPhoneShort) }</label>
+									<input class="ui-input" id="addr-phone" type="tel" name="phone" required maxlength="30" autocomplete="tel"/>
+								</div>
+								<div class="ui-field">
+									<label class="ui-label" for="addr-postal">{ i18n.T(ctx, i18n.KeyFieldPostalCode) }</label>
+									<input class="ui-input" id="addr-postal" type="text" name="postal_code" required maxlength="6" inputmode="numeric" autocomplete="postal-code"/>
+								</div>
+								<div class="ui-field">
+									<label class="ui-label" for="addr-city">{ i18n.T(ctx, i18n.KeyFieldCity) }</label>
+									<input class="ui-input" id="addr-city" type="text" name="city" required maxlength="20"/>
+								</div>
+								<div class="ui-field">
+									<label class="ui-label" for="addr-district">{ i18n.T(ctx, i18n.KeyFieldDistrict) }</label>
+									<input class="ui-input" id="addr-district" type="text" name="district" required maxlength="20"/>
+								</div>
+								<div class="ui-field">
+									<label class="ui-label" for="addr-street">{ i18n.T(ctx, i18n.KeyFieldStreet) }</label>
+									<input class="ui-input" id="addr-street" type="text" name="street" required maxlength="200" autocomplete="street-address"/>
+								</div>
+								<label class="ui-check goen-account__check">
+									<input type="checkbox" name="default" value="1"/>
+									<span class="ui-check__box" aria-hidden="true"></span>
+									<span>{ i18n.T(ctx, i18n.KeySetAsDefault) }</span>
+								</label>
+								<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">{ i18n.T(ctx, i18n.KeySaveAddress) }</button>
+							</form>
+						</details>
+					</section>
+					<section class="goen-account__section" aria-labelledby="email-heading">
+						<h2 id="email-heading" class="goen-account__heading">{ i18n.T(ctx, i18n.KeyEmailSection) }</h2>
+						<p class="goen-account__value">
+							{ v.Email }
+							if v.EmailVerified {
+								<span class="ui-badge">{ i18n.T(ctx, i18n.KeyEmailVerified) }</span>
+							} else {
+								<span class="ui-badge ui-badge--warn">{ i18n.T(ctx, i18n.KeyEmailUnverified) }</span>
+							}
+						</p>
+						if !v.EmailVerified {
+							<p class="ui-hint">{ i18n.T(ctx, i18n.KeyEmailUnverifiedHint) }</p>
+							<form class="goen-account__form" method="post" action="/account/email/resend">
+								<button class="ui-btn ui-btn--secondary" type="submit">
+									{ i18n.T(ctx, i18n.KeyEmailResend) }
+								</button>
+							</form>
+						}
+						if v.PendingEmail != "" {
+							<p class="ui-cart-line__meta">
+								{ fmt.Sprintf(i18n.T(ctx, i18n.KeyEmailPending), v.PendingEmail) }
+							</p>
+						}
+						<details class="goen-account__disclosure">
+							<summary class="goen-account__summary">{ i18n.T(ctx, i18n.KeyEmailChange) }</summary>
+							<form class="goen-account__form" method="post" action="/account/email">
+								<p class="ui-hint">{ i18n.T(ctx, i18n.KeyEmailChangeHint) }</p>
+								<label class="ui-label" for="new-email">{ i18n.T(ctx, i18n.KeyFieldNewEmail) }</label>
+								<input class="ui-input" id="new-email" type="email" name="email" required autocomplete="email"/>
+								<label class="ui-label" for="email-current">{ i18n.T(ctx, i18n.KeyFieldCurrentPassword) }</label>
+								<input class="ui-input" id="email-current" type="password" name="current" required autocomplete="current-password"/>
+								<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">
+									{ i18n.T(ctx, i18n.KeyEmailChange) }
+								</button>
+							</form>
+						</details>
+					</section>
+					<section class="goen-account__section" aria-labelledby="password-heading">
+						<h2 id="password-heading" class="goen-account__heading">{ i18n.T(ctx, i18n.KeyChangePassword) }</h2>
+						<details class="goen-account__disclosure">
+							<summary class="goen-account__summary">{ i18n.T(ctx, i18n.KeyChangePassword) }</summary>
+							<form class="goen-account__form" method="post" action="/account/password">
+								<div class="ui-field">
+									<label class="ui-label" for="pw-current">{ i18n.T(ctx, i18n.KeyFieldCurrentPassword) }</label>
+									<input class="ui-input" id="pw-current" type="password" name="current" required autocomplete="current-password"/>
+								</div>
+								<div class="ui-field">
+									<label class="ui-label" for="pw-new">{ i18n.T(ctx, i18n.KeyFieldNewPassword) }</label>
+									<input class="ui-input" id="pw-new" type="password" name="password" required minlength="10" autocomplete="new-password" aria-describedby="pw-hint"/>
+									<p class="ui-hint" id="pw-hint">{ i18n.T(ctx, i18n.KeyPasswordHintEndsSessions) }</p>
+								</div>
+								<div class="ui-field">
+									<label class="ui-label" for="pw-confirm">{ i18n.T(ctx, i18n.KeyFieldConfirmNewPassword) }</label>
+									<input class="ui-input" id="pw-confirm" type="password" name="confirm" required autocomplete="new-password"/>
+								</div>
+								<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">{ i18n.T(ctx, i18n.KeyChangePassword) }</button>
+							</form>
+						</details>
+					</section>
+					<section class="goen-account__section goen-account__danger" aria-labelledby="erase-heading">
+						<h2 id="erase-heading" class="goen-account__heading">{ i18n.T(ctx, i18n.KeyEraseAccount) }</h2>
+						<p class="goen-account__empty">
+							{ i18n.T(ctx, i18n.KeyEraseWarning) }
+						</p>
+						<details class="goen-account__disclosure">
+							<summary class="goen-account__summary">{ i18n.T(ctx, i18n.KeyEraseDisclosure) }</summary>
+							<form class="goen-account__form" method="post" action="/account/erase">
+								<div class="ui-field">
+									<label class="ui-label" for="erase-confirm">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyEraseConfirmLabel), v.Email) }</label>
+									<input class="ui-input" id="erase-confirm" type="text" name="confirm" required autocomplete="off"/>
+								</div>
+								<button class="ui-btn ui-btn--danger ui-btn--block" type="submit">{ i18n.T(ctx, i18n.KeyEraseSubmit) }</button>
+							</form>
+						</details>
+					</section>
+				</div>
+			</div>
+		</div>
+	}
+}
+
+// AccountOrderPage renders one order for its owner, with the delivery details
+// the confirmation page does not show.
+templ AccountOrderPage(p layouts.Page, v *AccountOrderView) {
+	@layouts.Base(p) {
+		<div class="goen-order">
+			<nav class="ui-crumbs" aria-label={ i18n.T(ctx, i18n.KeyBreadcrumb) }>
+				<a href="/account">{ i18n.T(ctx, i18n.KeyAccountTitle) }</a>
+				<span class="ui-crumbs__sep" aria-hidden="true">/</span>
+				<span class="ui-crumbs__current" aria-current="page">{ v.Number }</span>
+			</nav>
+			<div class="ui-page-head">
+				<div>
+					<h1 class="ui-page-head__title">{ v.Number }</h1>
+					<p class="ui-page-head__sub">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderPlacedAt), v.PlacedAt) }</p>
+				</div>
+				<div class="ui-page-head__actions">
+					<span class="ui-badge">{ v.StatusText(ctx) }</span>
+					// 再買一次. A plain POST that fills the cart from what this
+					// order held, at today's prices — a reorder is a new
+					// purchase, not a copy of an old one.
+					<form method="post" action={ templ.SafeURL("/orders/" + v.Number + "/reorder") }>
+						<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyOrderReorder) }</button>
+					</form>
+				</div>
+			</div>
+			if v.AwaitingPayment() {
+				<p class="ui-alert ui-alert--info" role="status">
+					{ i18n.T(ctx, i18n.KeyPayLaterNotice) }
+				</p>
+			}
+			<div class="goen-order__layout">
+				<div>
+					<ul class="goen-order__lines" role="list">
+						for _, l := range v.Lines {
+							<li class="goen-order__line">
+								<div>
+									<p class="goen-order__name">{ l.Name }</p>
+									if l.Label != "" {
+										<span class="ui-cart-line__meta">{ l.Label }</span>
+									}
+									<span class="ui-cart-line__meta">{ l.SKU } · { l.UnitPrice() } × { l.QuantityText() }</span>
+								</div>
+								<span class="ui-cart-line__price">{ l.LineTotal() }</span>
+							</li>
+						}
+					</ul>
+					<section class="goen-account__section" aria-labelledby="delivery-heading">
+						<h2 id="delivery-heading" class="goen-account__heading">{ i18n.T(ctx, i18n.KeySectionRecipient) }</h2>
+						<dl class="ui-dl">
+							<div class="ui-dl__row">
+								<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldRecipient) }</dt>
+								<dd class="ui-dl__desc">{ v.Recipient }</dd>
+							</div>
+							<div class="ui-dl__row">
+								<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldPhoneShort) }</dt>
+								<dd class="ui-dl__desc">{ v.Phone }</dd>
+							</div>
+							<div class="ui-dl__row">
+								<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldStreet) }</dt>
+								<dd class="ui-dl__desc">{ v.Address }</dd>
+							</div>
+							<div class="ui-dl__row">
+								<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeySectionShipping) }</dt>
+								<dd class="ui-dl__desc">{ v.ShippingName }</dd>
+							</div>
+						</dl>
+					</section>
+				</div>
+				<aside class="goen-order__summary">
+					<div class="ui-summary">
+						<div class="ui-summary__row">
+							<span>{ i18n.T(ctx, i18n.KeySubtotal) }</span>
+							<span class="ui-summary__val">{ v.Subtotal() }</span>
+						</div>
+						<div class="ui-summary__row">
+							<span>{ i18n.T(ctx, i18n.KeyShippingFee) }</span>
+							<span class="ui-summary__val">{ v.Shipping(ctx) }</span>
+						</div>
+						if v.Discounted() {
+							<div class="ui-summary__row">
+								<span>
+									{ i18n.T(ctx, i18n.KeyDiscount) }
+									if v.DiscountReason != "" {
+										({ v.DiscountReason })
+									}
+								</span>
+								<span class="ui-summary__val">{ v.Discount() }</span>
+							</div>
+						}
+						<div class="ui-summary__row ui-summary__row--total">
+							<span>{ i18n.T(ctx, i18n.KeyOrderGrandTotal) }</span>
+							<span class="ui-summary__val">{ v.Total() }</span>
+						</div>
+					</div>
+				</aside>
+			</div>
+		</div>
+	}
+}

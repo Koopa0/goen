@@ -1,0 +1,121 @@
+package layouts
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/icons"
+)
+
+// Footer renders the site footer. The two link columns sit side by side on
+// small screens and expand into the four-column desktop grid at 768px.
+templ Footer() {
+	<footer class="goen-footer">
+		<div class="goen-footer__grid">
+			<div class="goen-footer__brand">
+				<div class="goen-footer__brandline">
+					@icons.Mark("goen-footer__mark")
+					<span class="goen-footer__wordmark">goen</span>
+				</div>
+				<p class="ui-sm goen-footer__tagline">{ i18n.T(ctx, i18n.KeyFooterTagline) }</p>
+				<p class="caption goen-footer__contact">
+					{ i18n.T(ctx, i18n.KeySupportHours) }
+					<br/>
+					<a href="mailto:support@goen.tw">support@goen.tw</a> · <a href="tel:+886227001234">02-2700-1234</a>
+				</p>
+			</div>
+			<nav class="goen-footer__links" aria-label={ i18n.T(ctx, i18n.KeyFooterHelp) }>
+				<span class="micro">{ i18n.T(ctx, i18n.KeyFooterHelp) }</span>
+				for _, l := range FooterShopping {
+					<a class="ui-sm" href={ templ.URL(l.Href) }>{ l.Label(ctx) }</a>
+				}
+			</nav>
+			<nav class="goen-footer__links" aria-label={ i18n.T(ctx, i18n.KeyFooterPolicies) }>
+				<span class="micro">{ i18n.T(ctx, i18n.KeyFooterPolicies) }</span>
+				for _, l := range FooterAbout {
+					<a class="ui-sm" href={ templ.URL(l.Href) }>{ l.Label(ctx) }</a>
+				}
+			</nav>
+			if i18n.FromContext(ctx) != i18n.Default {
+				// Said, not hidden. A visitor who switched to English and then
+				// meets a Chinese product description has been misled unless
+				// somebody told them the split first — the chrome follows the
+				// language, the content is authored in one.
+				<p class="ui-sm goen-footer__contentnote">{ i18n.T(ctx, i18n.KeyContentNotice) }</p>
+			}
+			<div class="goen-footer__news">
+				<span class="micro">{ i18n.T(ctx, i18n.KeyNewsletter) }</span>
+				<p class="caption goen-footer__newsnote">{ i18n.T(ctx, i18n.KeyNewsletterNote) }</p>
+				@NewsletterForm(NewsletterState{})
+				<div class="goen-footer__social">
+					<a class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm" href="https://www.instagram.com/" aria-label="Instagram" rel="noreferrer">
+						@icons.Instagram()
+					</a>
+					<a class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm" href="https://www.youtube.com/" aria-label="YouTube" rel="noreferrer">
+						@icons.YouTube()
+					</a>
+					<a class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm" href="https://www.facebook.com/" aria-label="Facebook" rel="noreferrer">
+						@icons.Facebook()
+					</a>
+				</div>
+			</div>
+		</div>
+		<div class="goen-footer__bottom">
+			<div class="goen-footer__bottominner">
+				// i18n-exempt: a company registration line. The 統編 is a Taiwanese tax
+				// number and the legal name is the legal name; translating either
+				// would misstate a matter of record.
+				<span class="caption">© 2026 goen Co., Ltd. 統編 90123456</span>
+				// i18n-exempt: a language's own name, shown in both locales on purpose.
+				@languageSwitch("goen-footer__lang", "繁體中文", "English")
+			</div>
+		</div>
+	</footer>
+}
+
+// NewsletterState carries the outcome of a subscribe attempt back into the
+// footer form. The zero value is the form's initial state.
+type NewsletterState struct {
+	Email string
+	Error string
+	Done  bool
+}
+
+// NewsletterForm posts to /newsletter as a plain form: with scripting off the
+// browser follows the POST and the handler answers with a full confirmation
+// page. The hx-* attributes are enhancement only — htmx swaps this element for
+// the handler's partial so the visitor keeps their scroll position.
+templ NewsletterForm(s NewsletterState) {
+	<form
+		class="goen-footer__signup"
+		id="newsletter-form"
+		method="post"
+		action="/newsletter"
+		hx-post="/newsletter"
+		hx-target="this"
+		hx-swap="outerHTML"
+	>
+		if s.Done {
+			<p class="ui-sm goen-footer__signup-done" role="status">{ i18n.T(ctx, i18n.KeyNewsletterInlineDone) }</p>
+		} else {
+			<label class="goen-sr-only" for="newsletter-email">{ i18n.T(ctx, i18n.KeyFieldEmail) }</label>
+			<input
+				class="ui-input"
+				id="newsletter-email"
+				type="email"
+				name="email"
+				value={ s.Email }
+				placeholder="you@example.com"
+				required
+				autocomplete="email"
+				maxlength="254"
+				aria-invalid={ boolAttr(s.Error != "") }
+				if s.Error != "" {
+					aria-describedby="newsletter-error"
+				}
+			/>
+			<button class="ui-btn ui-btn--primary ui-btn--md" type="submit">{ i18n.T(ctx, i18n.KeyNewsletterSubmit) }</button>
+			if s.Error != "" {
+				<p class="ui-error-text goen-footer__signup-error" id="newsletter-error" role="alert">{ s.Error }</p>
+			}
+		}
+	</form>
+}

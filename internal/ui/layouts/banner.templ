@@ -1,0 +1,100 @@
+package layouts
+
+import "github.com/koopa0/goen/internal/i18n"
+
+// promoBanner renders the site-wide promotional strip.
+//
+// Above the header and IN NORMAL FLOW, so it scrolls away. Sticky would levy a
+// permanent 44px tax on every screen for a sentence somebody has already read;
+// the header is what stays, because the header is navigation.
+//
+// The whole strip is one <form>: the close button submits it, the server sets a
+// cookie and answers 303. There is nothing here for JavaScript to add, and it
+// works with scripting off — which the write-face rule requires of every
+// mutation, and closing a banner is one.
+templ promoBanner() {
+	{{ b := bannerFrom(ctx) }}
+	if b.Shown() {
+		<form class="goen-promo" method="post" action={ templ.SafeURL(b.DismissAction()) }>
+			<input type="hidden" name="banner" value={ b.ID }/>
+			// Where to come back to, so closing the strip re-renders the page
+			// being read rather than sending somebody home. Validated
+			// server-side as a same-site path by the one owner of that rule.
+			<input type="hidden" name="return" value={ returnPath(ctx) }/>
+			if b.HasCTA() {
+				// At 375 the ENTIRE strip is the link — a row 44px tall cannot
+				// hold two touch targets without one of them being too small,
+				// so the CTA is not a separate button. At 1024 and up the
+				// message and the link separate, which the CSS does.
+				<a class="goen-promo__link" href={ templ.SafeURL(b.CTAHref) }>
+					<span class="goen-promo__message">
+						<span class="goen-promo__wide">{ b.Message }</span>
+						<span class="goen-promo__narrow">{ b.Narrow() }</span>
+					</span>
+					if b.HasCode() {
+						@promoCode(b.Code)
+					}
+					<span class="goen-promo__cta">{ b.CTALabel }</span>
+					@chevronRight()
+				</a>
+			} else {
+				<span class="goen-promo__link">
+					<span class="goen-promo__message">
+						<span class="goen-promo__wide">{ b.Message }</span>
+						<span class="goen-promo__narrow">{ b.Narrow() }</span>
+					</span>
+					if b.HasCode() {
+						@promoCode(b.Code)
+					}
+				</span>
+			}
+			<button class="goen-promo__close" type="submit" aria-label={ i18n.T(ctx, i18n.KeyCloseBanner) }>
+				@closeIcon()
+			</button>
+		</form>
+	}
+}
+
+// promoCode renders a discount code as a selectable chip.
+//
+// user-select: all, so one tap selects the whole thing and a long press copies
+// it. A copy BUTTON would need JavaScript, and the markup underneath has to
+// work without it — selectable text does, and it also prints and reads aloud.
+templ promoCode(code string) {
+	<code class="goen-promo__code">{ code }</code>
+}
+
+// chevronRight hints that the strip is tappable, at the width where the strip
+// itself is the link.
+templ chevronRight() {
+	<svg
+		class="goen-promo__chevron"
+		width="14"
+		height="14"
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="1.5"
+		stroke-linecap="round"
+		stroke-linejoin="round"
+		aria-hidden="true"
+	>
+		<path d="m9 18 6-6-6-6"></path>
+	</svg>
+}
+
+// closeIcon is the dismiss control's glyph.
+templ closeIcon() {
+	<svg
+		width="15"
+		height="15"
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="1.5"
+		stroke-linecap="round"
+		aria-hidden="true"
+	>
+		<path d="M18 6 6 18M6 6l12 12"></path>
+	</svg>
+}

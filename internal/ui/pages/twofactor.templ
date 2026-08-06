@@ -1,0 +1,97 @@
+package pages
+
+import "github.com/koopa0/goen/internal/ui/layouts"
+
+// TwoFactor renders the step-up challenge and the enrolment flow.
+templ TwoFactor(p layouts.Page, v TwoFactorView) {
+	@layouts.Base(p) {
+		<div class="goen-doc">
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">後台</p>
+					<h1 class="ui-page-head__title">兩階段驗證</h1>
+					<p class="ui-page-head__sub">
+						後台可以退款、發放額度和調整庫存,所以進去之前要再確認一次是你本人。
+					</p>
+				</div>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert" role="status">{ v.Notice }</p>
+			}
+			if !v.Enabled {
+				<section class="goen-doc__section is-pending">
+					<h2 class="h4">這個環境沒有啟用</h2>
+					<p>
+						兩階段驗證需要設定加密金鑰(GOEN_TOTP_KEY)才能使用。祕密不會以明文存進資料庫。
+					</p>
+				</section>
+			} else if v.Enrolling {
+				<section class="goen-doc__section">
+					<h2 class="h4">把這組祕密加入驗證器</h2>
+					<p>
+						用 Google Authenticator、1Password 或任何支援 TOTP 的 app,手動新增一組,填入下面的字串。
+						<strong>這串只會顯示這一次。</strong>
+					</p>
+					<p class="goen-twofa__secret">
+						for _, group := range v.SecretGroups() {
+							<code>{ group }</code>
+						}
+					</p>
+					<details class="goen-doc__qa">
+						<summary>或是複製這段連結給 app</summary>
+						<p><code class="goen-twofa__uri">{ v.URI }</code></p>
+					</details>
+					<form class="goen-twofa__form" method="post" action="/admin/verify/confirm">
+						<div class="ui-field">
+							<label class="ui-label" for="code">驗證器上目前的六位數字</label>
+							<input
+								class="ui-input goen-twofa__code"
+								id="code"
+								name="code"
+								required
+								inputmode="numeric"
+								autocomplete="one-time-code"
+								pattern="[0-9 ]{6,8}"
+								maxlength="8"
+								autofocus
+							/>
+						</div>
+						<button class="ui-btn ui-btn--primary" type="submit">完成設定</button>
+					</form>
+				</section>
+			} else if v.NeedsEnrolment() {
+				<section class="goen-doc__section">
+					<h2 class="h4">還沒設定</h2>
+					<p>你的帳號還沒有設定兩階段驗證,現在設定才能進入後台。</p>
+					<form method="post" action="/admin/verify/enrol">
+						<button class="ui-btn ui-btn--primary" type="submit">開始設定</button>
+					</form>
+				</section>
+			} else if v.CanVerify() {
+				<section class="goen-doc__section">
+					<h2 class="h4">輸入驗證碼</h2>
+					<form class="goen-twofa__form" method="post" action="/admin/verify">
+						<div class="ui-field">
+							<label class="ui-label" for="code">驗證器上的六位數字</label>
+							<input
+								class="ui-input goen-twofa__code"
+								id="code"
+								name="code"
+								required
+								inputmode="numeric"
+								autocomplete="one-time-code"
+								pattern="[0-9 ]{6,8}"
+								maxlength="8"
+								autofocus
+							/>
+						</div>
+						<button class="ui-btn ui-btn--primary" type="submit">進入後台</button>
+					</form>
+					<p class="goen-doc__contact">
+						驗證器不見了?請另一位管理員在後台移除你的設定,然後重新設定一次。
+					</p>
+				</section>
+			}
+		</div>
+	}
+}

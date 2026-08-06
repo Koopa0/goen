@@ -1,0 +1,108 @@
+package pages
+
+import "github.com/koopa0/goen/internal/ui/layouts"
+
+// AdminStaff renders who can reach the back office, and who is protected.
+templ AdminStaff(p layouts.Page, v AdminStaffView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("staff")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">後台</p>
+					<h1 class="ui-page-head__title">人員與兩階段驗證</h1>
+					<p class="ui-page-head__sub">
+						兩階段驗證擋的是 /admin,不是登入。沒有啟用的人只用密碼就能進來。
+					</p>
+				</div>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			if !v.AllProtected() {
+				<p class="ui-alert ui-alert--error" role="alert">
+					還有 { v.UnprotectedText() } 個帳號只用密碼就能進後台。請他們到 /admin/verify 啟用。
+				</p>
+			}
+			<div class="goen-admin__tablewrap">
+				<table class="ui-table goen-admin__table">
+					<thead>
+						<tr>
+							<th scope="col">人員</th>
+							<th scope="col">角色</th>
+							<th scope="col">兩階段驗證</th>
+							<th scope="col"></th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, r := range v.Rows {
+							<tr>
+								<td>
+									{ r.DisplayName() }
+									<span class="ui-cart-line__meta">{ r.Email }</span>
+								</td>
+								<td>{ r.RoleText() }</td>
+								<td>
+									if r.Enrolled {
+										<span class="ui-badge ui-badge--brand">{ r.State() }</span>
+									} else {
+										<span class="ui-badge ui-badge--warn">{ r.State() }</span>
+									}
+								</td>
+								<td>
+									// Neither control is offered on your own
+									// row. Removing your own second factor is
+									// what an attacker holding your session
+									// wants, and revoking your own access is
+									// how a shop locks itself out.
+									if v.IsActor(r) {
+										<span class="ui-cart-line__meta">你自己</span>
+									} else {
+										<div class="goen-admin__addractions">
+											if r.Enrolled {
+												<form method="post" action="/admin/staff/factor">
+													<input type="hidden" name="user" value={ r.ID }/>
+													<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">解除兩階段</button>
+												</form>
+											}
+											<form method="post" action="/admin/staff/revoke">
+												<input type="hidden" name="user" value={ r.ID }/>
+												<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">移除權限</button>
+											</form>
+										</div>
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+			<h2 class="goen-admin__heading">新增人員</h2>
+			<p class="goen-admin__hint">
+				不會設定密碼 —— 對方用「忘記密碼」自己設,那是唯一能證明信箱是他的路徑。
+				帳號在他設定之前無法登入。已經是顧客的信箱會直接升級,不會另開一個。
+			</p>
+			<form class="goen-admin__form" method="post" action="/admin/staff">
+				<div class="goen-admin__row">
+					<div class="ui-field">
+						<label class="ui-label" for="staff-email">電子郵件</label>
+						<input class="ui-input" id="staff-email" name="email" type="email" required maxlength="254"/>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="staff-name">姓名(選填)</label>
+						<input class="ui-input" id="staff-name" name="name" maxlength="60"/>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="staff-role">角色</label>
+						<select class="ui-select" id="staff-role" name="role" required>
+							for _, role := range v.Roles {
+								<option value={ role.Value }>{ role.Label }</option>
+							}
+						</select>
+					</div>
+				</div>
+				<button class="ui-btn ui-btn--primary" type="submit">新增</button>
+			</form>
+		</div>
+	}
+}

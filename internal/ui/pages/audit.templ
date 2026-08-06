@@ -1,0 +1,42 @@
+package pages
+
+import "github.com/koopa0/goen/internal/ui/layouts"
+
+// AdminAudit renders the back office's own history.
+templ AdminAudit(p layouts.Page, v AuditView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("audit")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">後台</p>
+					<h1 class="ui-page-head__title">操作紀錄</h1>
+					<p class="ui-page-head__sub">
+						誰在什麼時候做了什麼。這份紀錄只能新增,寫進去就改不了也刪不掉。
+					</p>
+				</div>
+			</div>
+			if v.Empty() {
+				<p class="goen-admin__hint">還沒有任何紀錄。</p>
+			} else {
+				<ul class="goen-admin__audit" role="list">
+					for _, e := range v.Rows {
+						<li class={ "goen-admin__auditrow", templ.KV("is-money", e.Money()) }>
+							<div class="goen-admin__audithead">
+								<span class="goen-admin__auditaction">{ e.Label() }</span>
+								<span class="ui-cart-line__meta">{ e.At }</span>
+							</div>
+							<span class="ui-cart-line__meta">{ e.Actor } · { e.Entity }</span>
+							if e.Detail != "" {
+								<code class="goen-admin__auditdetail">{ e.Detail }</code>
+							}
+							if e.RequestID != "" {
+								<span class="ui-cart-line__meta">req { e.ShortRequestID() }</span>
+							}
+						</li>
+					}
+				</ul>
+			}
+		</div>
+	}
+}

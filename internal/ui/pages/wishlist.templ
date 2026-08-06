@@ -1,0 +1,53 @@
+package pages
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// WishlistView is a customer's saved products.
+type WishlistView struct {
+	Products []ProductTile
+}
+
+// Empty reports whether nothing has been saved.
+func (v WishlistView) Empty() bool { return len(v.Products) == 0 }
+
+// Wishlist renders the saved products and the form that removes one.
+templ Wishlist(p layouts.Page, v WishlistView) {
+	@layouts.Base(p) {
+		<div class="goen-listing">
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAccountTitle) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyWishlistTitle) }</h1>
+				</div>
+			</div>
+			if v.Empty() {
+				<div class="ui-empty">
+					<p class="ui-empty__title">{ i18n.T(ctx, i18n.KeyWishlistEmpty) }</p>
+					<p class="ui-empty__desc">
+						{ i18n.T(ctx, i18n.KeyWishlistEmptyHint) }
+						<a href="/">{ i18n.T(ctx, i18n.KeyWishlistEmptyLink) }</a>
+					</p>
+				</div>
+			} else {
+				<ul class="goen-tiles__grid" role="list">
+					for _, t := range v.Products {
+						<li class="goen-wish">
+							@Tile(t)
+							<form method="post" action="/account/wishlist" class="goen-wish__remove">
+								<input type="hidden" name="slug" value={ t.Slug }/>
+								<input type="hidden" name="action" value="remove"/>
+								<input type="hidden" name="return" value="/account/wishlist"/>
+								<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">
+									{ i18n.T(ctx, i18n.KeyRemove) }
+								</button>
+							</form>
+						</li>
+					}
+				</ul>
+			}
+		</div>
+	}
+}

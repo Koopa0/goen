@@ -1,0 +1,17 @@
+/* ============================================================
+   koopa.dev — Component layer
+   Class-based, token-driven, framework-agnostic.
+   Use the same markup in Angular templates, templ, Alpine, htmx.
+   Tokens come from colors_and_type.css (imported by styles.css).
+   ============================================================ */
+@import "./buttons.css";
+@import "./badges.css";
+@import "./forms.css";
+@import "./cards.css";
+@import "./nav.css";
+@import "./feedback.css";
+@import "./data.css";
+@import "./more.css";
+@import "./blocks.css";
+@import "./shell.css";
+@import "./states.css";
