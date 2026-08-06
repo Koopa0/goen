@@ -629,8 +629,12 @@ INSERT INTO faq_entries (category, question, answer, position) VALUES
      '只有「已出貨」的商品可以申請退貨,而且數量以實際出貨數為上限。尚未出貨的訂單請聯絡我們取消,不需要走退貨流程。', 10),
     ('退換貨', '退款什麼時候會收到?',
      '退貨經審核同意後,系統會立即向 Stripe 發出退款。實際入帳時間依發卡銀行而定,通常是數個工作天。', 20),
+    -- Not 「尚未確定」. 消保法 §19 I gives the customer seven days from receipt
+    -- with 不負擔任何費用, and §19 V voids any agreement otherwise — so this was
+    -- never the shop's to leave open, and the row contradicted /returns, which
+    -- states it as a rule. Two authorities answering one customer question.
     ('退換貨', '退貨要付運費嗎?',
-     '這項條款尚未確定,實際出貨前會在「退換貨政策」頁面公告。', 30),
+     '收到商品後七天內解除契約,您不需要負擔任何費用,退貨運費由 goen 負擔。詳見「退換貨政策」頁面。', 30),
 
     ('發票', '發票怎麼開立?',
      '結帳時可以選擇會員載具、手機條碼載具或公司統編,系統會記錄您的選擇。電子發票的實際開立需要串接加值中心,這部分尚未完成。', 10),
@@ -678,7 +682,7 @@ FROM (VALUES
     ('退款什麼時候會收到?', 'Returns', 'When will I get my refund?',
      'As soon as a return is approved we ask Stripe to refund. When it lands depends on your card issuer, usually a few working days.'),
     ('退貨要付運費嗎?', 'Returns', 'Who pays return postage?',
-     'This term is not decided yet. It will be published on the returns policy page before we ship anything.'),
+     'We do. Rescinding within seven days of delivery costs you nothing — see the returns policy page.'),
     ('運費怎麼算?免運門檻是多少?', 'Delivery', 'How much is delivery, and when is it free?',
      'It depends on the method — see the delivery page, where the figures come straight from what the till actually charges. Delivery is free once your order reaches the threshold shown there.'),
     ('多久會出貨?', 'Delivery', 'How soon do you ship?',

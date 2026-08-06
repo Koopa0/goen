@@ -281,6 +281,99 @@ func TestMoneyCeilingStaysInsideExactIntegerArithmetic(t *testing.T) {
 //
 // Both bounds are asserted, so the check cannot be satisfied by ignoring the
 // window entirely.
+// TestCancellingAnOrderGivesItsCouponSlotBack proves a cancelled checkout stops
+// consuming a coupon's limits.
+//
+// The counts had no predicate on the order at all, and coupon_redemptions is
+// append-only with INSERT, UPDATE and DELETE revoked from every role — so a
+// checkout cancelled two minutes later spent a total-limit slot and a
+// per-customer slot FOREVER. No door in the product could free either, and the
+// back office could only switch the coupon off: max_redemptions is write-once.
+//
+// The row is kept, because it is the record of what an order was charged. It is
+// the QUESTION that was wrong — the committed_orders lesson, one predicate
+// answering two things, with the shop's own cancel unable to undo what it caused.
+//
+// A PENDING unpaid order still counts, and that half matters as much: not
+// counting it is how two customers both pass the last remaining slot.
+func TestCancellingAnOrderGivesItsCouponSlotBack(t *testing.T) {
+	ctx := t.Context()
+
+	var couponID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO coupons (code, description, kind, amount_cents, max_redemptions, per_customer_limit)
+		VALUES ('ONESHOT', '只能用一次', 'amount', 20000, 1, 1)
+		RETURNING id`).Scan(&couponID); err != nil {
+		t.Fatalf("create coupon: %v", err)
+	}
+
+	// The header and its lines go in ONE transaction: orders_has_lines is
+	// deferred, so an order committed on its own is refused at commit.
+	place := func(t *testing.T) uuid.UUID {
+		t.Helper()
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatalf("begin: %v", err)
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+
+		var orderID uuid.UUID
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
+			                    shipping_method_name, shipping_cents, discount_cents)
+			SELECT next_order_number(), v.id, sm.code, v.name, 0, 20000
+			FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+			ORDER BY v.effective_at LIMIT 1
+			RETURNING id`).Scan(&orderID); err != nil {
+			t.Fatalf("create order: %v", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
+			VALUES ($1, 'CPN-SLOT', '測試商品', 50000, 1)`, orderID); err != nil {
+			t.Fatalf("create order line: %v", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+			                                postal_code, city, district, street)
+			VALUES ($1, 'slot@example.com', '收件', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
+			orderID); err != nil {
+			t.Fatalf("create private data: %v", err)
+		}
+		if err := tx.Commit(ctx); err != nil {
+			t.Fatalf("commit: %v", err)
+		}
+		return orderID
+	}
+
+	first := place(t)
+	if _, err := pool.Exec(ctx, `SELECT redeem_coupon($1, $2, NULL, 20000)`,
+		couponID, first); err != nil {
+		t.Fatalf("first redemption: %v", err)
+	}
+
+	// While it is still pending, the slot is taken — a second checkout must not
+	// get it.
+	second := place(t)
+	if _, err := pool.Exec(ctx, `SELECT redeem_coupon($1, $2, NULL, 20000)`,
+		couponID, second); err == nil {
+		t.Fatal("a pending order's redemption did not hold the last slot — two " +
+			"concurrent checkouts would both be allowed past it")
+	}
+
+	// Cancelling gives it back.
+	if _, err := pool.Exec(ctx,
+		`UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now() WHERE id = $1`,
+		first); err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `SELECT redeem_coupon($1, $2, NULL, 20000)`,
+		couponID, second); err != nil {
+		t.Errorf("the slot is still consumed after the order was cancelled: %v — "+
+			"coupon_redemptions is append-only and no role may delete one, so this "+
+			"is the only door there is", err)
+	}
+}
+
 func TestTheCouponWindowUsesOneClock(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)

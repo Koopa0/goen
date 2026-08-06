@@ -98,8 +98,8 @@ func TestPolicyDocumentsAreComplete(t *testing.T) {
 
 // TestUndecidedTermsAreMarkedPending proves a gap does not render as a rule.
 //
-// goen has commercial decisions it has not made — the return window, who pays
-// return postage, the warranty term. Those paragraphs must be marked Pending so
+// goen has commercial decisions it has not made — the warranty term, a goodwill
+// return beyond the statutory window. Those paragraphs must be marked Pending so
 // they render as a gap rather than a rule: a shop that sets both in the same
 // typeface makes a promise by accident, and a customer holds it to one.
 func TestUndecidedTermsAreMarkedPending(t *testing.T) {
@@ -112,6 +112,155 @@ func TestUndecidedTermsAreMarkedPending(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// TestEveryPolicyClauseIsTranslated refuses a policy page that goes half-English.
+//
+// These documents were Chinese for every visitor, exempted from
+// TestNoChromeStringIsHardCoded as "authored prose, translated editorially or
+// not at all". That put them on the CONTENT side of the line this project
+// draws, and CLAUDE.md's own test says otherwise: copy compiled into the binary
+// is goen's to say in both languages; copy typed into a table is the shop's to
+// say however it likes. `faq_entries` is the table. These are compiled in.
+//
+// It stopped being untidy and became a legal exposure when /returns began
+// stating 消保法 §19 — §18 I 3 makes providing the rescission information the
+// trader's obligation, and an English-reading customer in Taiwan holds the same
+// unwaivable right on a page they could not read.
+//
+// The failure this locks is the one the i18n work already met once: a half-
+// translated document reads as a broken page rather than as untranslated
+// content, and only to the visitor.
+func TestEveryPolicyClauseIsTranslated(t *testing.T) {
+	t.Parallel()
+
+	han := func(s string) bool {
+		for _, r := range s {
+			if r >= 0x4E00 && r <= 0x9FFF {
+				return true
+			}
+		}
+		return false
+	}
+
+	for path, doc := range policies {
+		en := doc.For(i18n.En)
+		if en.Title == "" || en.Summary == "" {
+			t.Errorf("/%s has no English title or summary", path)
+		}
+		if han(en.Title) || han(en.Summary) {
+			t.Errorf("/%s: the English title or summary still carries Han — an "+
+				"entry that LOOKS filled in is the copy-paste this catches", path)
+		}
+		if len(en.Sections) != len(doc.Sections) {
+			t.Fatalf("/%s: %d English sections against %d Chinese",
+				path, len(en.Sections), len(doc.Sections))
+		}
+		for i, s := range en.Sections {
+			zh := doc.Sections[i]
+			if s.Heading == "" {
+				t.Errorf("/%s: section %q has no English heading", path, zh.Heading)
+			}
+			if len(s.Body) != len(zh.Body) {
+				t.Errorf("/%s: section %q has %d English paragraphs against %d Chinese "+
+					"— a clause the English reader simply does not get",
+					path, zh.Heading, len(s.Body), len(zh.Body))
+			}
+			for _, para := range append([]string{s.Heading}, s.Body...) {
+				if para == "" {
+					t.Errorf("/%s: section %q has an empty English paragraph", path, zh.Heading)
+					continue
+				}
+				if han(para) {
+					t.Errorf("/%s: section %q still reads Chinese in English: %q",
+						path, zh.Heading, para)
+				}
+			}
+		}
+	}
+}
+
+// TestStatutoryTermsAreNotPending proves a RIGHT does not render as a gap.
+//
+// It is the mirror of the test above, and it exists because the mirror SHIPPED.
+// 鑑賞期天數, who pays return postage, and whether opening the box matters were
+// all filed under 尚未確定 — and all three are fixed by 消保法 §19, which §19 V
+// makes unwaivable. They were never the shop's to decide, so marking them
+// undecided told every customer they might have no right at all.
+//
+// Neither the test above nor any other guard in this repository could see it. A
+// Pending section is FORMATTED as a gap, so it looks correct to a reviewer who
+// has not read §19, and TestUndecidedTermsAreMarkedPending passes on it by
+// construction — the paragraph said 尚未確定 and was marked Pending, which is
+// exactly what that test asks for.
+//
+// The assertion is POSITIVE — each term must be stated as a rule somewhere the
+// reader does not see a gap — rather than a scan of Pending sections for
+// forbidden words. The legitimate Pending copy has to NAME the statutory window
+// in order to say what lies outside it, so a forbidden-word scan would refuse
+// the correct text and pass the wrong text the moment somebody paraphrased.
+//
+// The wanted strings are literal on purpose. Rewording a statutory clause should
+// send whoever did it back to the citation to confirm the law still says that,
+// which is the same reason a wire-format test does not read the code's own
+// constant.
+func TestStatutoryTermsAreNotPending(t *testing.T) {
+	// Each entry is a term Taiwanese law fixes, the citation a future editor
+	// needs in order to DISAGREE with the entry rather than quietly delete it,
+	// and the substance the page must state outside a Pending section.
+	statutory := []struct {
+		term string
+		cite string
+		doc  string
+		want []string
+	}{
+		{
+			term: "the length of the rescission window",
+			cite: "消保法 §19 I — seven days from receipt of the goods; §19 V voids any agreement otherwise; 民法 §120 II excludes the day of receipt",
+			doc:  "returns",
+			want: []string{"七天的鑑賞期", "「隔天」開始算"},
+		},
+		{
+			term: "who pays return postage",
+			cite: "消保法 §19 I — the consumer bears 任何費用, which is to say none",
+			doc:  "returns",
+			want: []string{"退貨運費由 goen 負擔"},
+		},
+		{
+			term: "whether opening the box forfeits the right",
+			cite: "通訊交易解除權合理例外情事適用準則 §2 — a closed list of seven, and opened 3C hardware is on none of them",
+			doc:  "returns",
+			want: []string{"拆封後仍在鑑賞期內"},
+		},
+	}
+
+	for _, s := range statutory {
+		t.Run(s.term, func(t *testing.T) {
+			doc, ok := policies[s.doc]
+			if !ok {
+				t.Fatalf("no policy document at /%s", s.doc)
+			}
+			// Only sections that render as a RULE count. A statement of a
+			// statutory term inside a Pending section is the defect.
+			var stated strings.Builder
+			for _, sec := range doc.Sections {
+				if sec.Pending {
+					continue
+				}
+				for _, para := range sec.Body {
+					stated.WriteString(para)
+					stated.WriteString("\n")
+				}
+			}
+			for _, w := range s.want {
+				if !strings.Contains(stated.String(), w) {
+					t.Errorf("/%s does not state %s outside a Pending section: no %q.\n"+
+						"This is not the shop's to leave undecided — %s",
+						s.doc, s.term, w, s.cite)
+				}
+			}
+		})
 	}
 }
 

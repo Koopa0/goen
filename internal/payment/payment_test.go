@@ -9,9 +9,93 @@ import (
 
 	stripe "github.com/stripe/stripe-go/v86"
 
+	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/payment"
 )
+
+// TestAPlacedOrderCanActuallyBePaidFor is the test whose absence meant goen
+// could not take a single payment.
+//
+// cart.HoldTTL and payment.MinSessionLifetime were both thirty minutes, and
+// measured from DIFFERENT instants: the hold is stamped at PlaceOrder, the gate
+// is asked when the customer presses Pay. So
+// `HoldExpiresAt >= pay_at + MinSessionLifetime` reduced to `placed_at >=
+// pay_at` — false one second after checkout. Every Stripe-configured deployment
+// answered 409 on /orders/{number}/pay, forever.
+//
+// Both tests that covered this were false-green BY CONSTRUCTION, and the shape
+// is worth keeping:
+//
+//   - TestASessionIsNeverOpenedOnALapsedHold below passes ONE frozen `now` as
+//     both the base the hold is computed from and the instant the gate is asked
+//     at, so elapsed time is zero — the single point where the old equality
+//     held.
+//   - The integration suite hand-wrote 35- and 45-minute holds through a
+//     fixture helper instead of going through PlaceOrder, so it never used
+//     HoldTTL at all; its own failure message ("35 minutes of hold is not
+//     enough to open a 30-minute session") shows the numbers were picked to
+//     clear the floor.
+//
+// This one therefore does the only thing neither did: it lets time PASS between
+// placing and paying, and it derives the hold from cart.HoldTTL rather than
+// from a literal. A constant that drifts back into the equality turns it red.
+func TestAPlacedOrderCanActuallyBePaidFor(t *testing.T) {
+	t.Parallel()
+
+	placedAt := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+	// What PlaceOrder writes: internal/cart/store.go — time.Now().Add(HoldTTL).
+	o := payment.Order{Number: "GO-1", TotalCents: 199900, HoldExpiresAt: placedAt.Add(cart.HoldTTL)}
+
+	tests := []struct {
+		name    string
+		elapsed time.Duration
+		want    bool
+	}{
+		{name: "one second after placing", elapsed: time.Second, want: true},
+		{name: "halfway through the pay window", elapsed: cart.PayWindow / 2, want: true},
+		{name: "at the last moment of the pay window", elapsed: cart.PayWindow, want: true},
+		// Past the window the remaining hold is under Stripe's floor, and a
+		// session padded out to it would outlive the goods — the defect the
+		// expiry rework exists to close.
+		{name: "one second past the pay window", elapsed: cart.PayWindow + time.Second, want: false},
+		{name: "long past it", elapsed: cart.HoldTTL, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := o.HoldCoversASession(placedAt.Add(tt.elapsed)); got != tt.want {
+				t.Errorf("HoldCoversASession(%s after placing) = %v, want %v — "+
+					"cart.HoldTTL=%s, cart.PayWindow=%s, payment.MinSessionLifetime=%s",
+					tt.elapsed, got, tt.want,
+					cart.HoldTTL, cart.PayWindow, payment.MinSessionLifetime)
+			}
+		})
+	}
+}
+
+// TestTheMirroredStripeFloorMatchesTheRealOne binds the copy cart keeps against
+// the constant payment owns.
+//
+// cart derives HoldTTL from its mirror of Stripe's session floor, and internal/
+// payment holds the real one. Nothing pointed the two at each other, which is
+// how they came to be equal to HoldTTL in the first place.
+func TestTheMirroredStripeFloorMatchesTheRealOne(t *testing.T) {
+	t.Parallel()
+
+	if cart.StripeSessionFloor != payment.MinSessionLifetime {
+		t.Errorf("cart.StripeSessionFloor = %s, payment.MinSessionLifetime = %s — "+
+			"cart sizes its stock hold from its copy, so a drift here silently "+
+			"changes whether a session can be opened at all",
+			cart.StripeSessionFloor, payment.MinSessionLifetime)
+	}
+	if cart.HoldTTL <= payment.MinSessionLifetime {
+		t.Errorf("cart.HoldTTL = %s is not longer than payment.MinSessionLifetime = %s, "+
+			"so no session can ever be created: the hold is stamped at placement and "+
+			"read at pay time, so the gate reduces to placed_at >= pay_at",
+			cart.HoldTTL, payment.MinSessionLifetime)
+	}
+}
 
 // A signing secret for the tests only; it authenticates nothing that exists.
 const testWebhookSecret = "whsec_thisisatestsecretforgoenonly" //nolint:gosec // G101: test fixture
@@ -126,8 +210,10 @@ func typed(ev map[string]any, eventType string) map[string]any {
 // event type alone marks those orders paid for money that has not arrived.
 //
 // The asynchronous rows are the defect this test used to describe and not cover.
-// Dynamic payment methods are deliberately on, so a delayed method's `completed`
-// arrives with payment_status `unpaid` — correctly refused below, and this test's
+// Dynamic payment methods used to be deliberately on, so a delayed method's
+// `completed` arrived with payment_status `unpaid`. The session pins card now
+// (the stock hold cannot outlive one), which makes these rows defence in depth
+// rather than the ordinary path — the event is still refused below, and this test's
 // own comment named that case. The success that FOLLOWS is
 // `checkout.session.async_payment_succeeded`, which nothing accepted: the
 // customer paid and the order stayed unpaid forever. It belongs here expecting
@@ -215,6 +301,97 @@ func TestASessionThatEndsWithNoMoneyIsAbandoned(t *testing.T) {
 	}
 }
 
+// TestACompletedButUnpaidSessionIsReportedRatherThanIgnored holds the one signal
+// the two readers above deliberately drop.
+//
+// A delayed payment method's `checkout.session.completed` arrives with
+// payment_status `unpaid`. CaptureFrom refuses it, correctly — no money has
+// moved. AbandonedSessionFrom refuses it, correctly — nothing failed, and a
+// COMPLETED session never fires `checkout.session.expired`. So it fell through
+// to the webhook handler's default branch and was logged as one more event goen
+// does not act on, indistinguishable from the dozen it genuinely does not.
+//
+// It is the ONLY warning goen gets that its stock model has stopped holding. The
+// session is bounded by the stock hold on purpose; a delayed method settles days
+// after it, so the sweeper returns the units to the shelf, they are re-sold, and
+// the capture then succeeds against stock that is gone — capture_payment does
+// not read reservations and admin.Ship ranges over an empty slice without error.
+//
+// The three readers must not overlap, and the last two cases are what prove it:
+// one of them posts money and one cancels a payment, so a session with money
+// genuinely in flight must be claimed by neither.
+func TestACompletedButUnpaidSessionIsReportedRatherThanIgnored(t *testing.T) {
+	g := enabledGateway(t)
+
+	tests := []struct {
+		name        string
+		event       map[string]any
+		isUnsettled bool
+	}{
+		{
+			name:        "a delayed method completed the checkout",
+			event:       sessionEvent("evt_u1", "cs_u1", "unpaid", 199900),
+			isUnsettled: true,
+		},
+		{
+			// The ordinary card checkout, and the case that must NOT alarm.
+			name:  "paid on the spot",
+			event: sessionEvent("evt_u2", "cs_u2", "paid", 199900),
+		},
+		{
+			// Never reaches Stripe: a zero-owed order is not sent at all, because
+			// Stripe refuses a zero-amount session.
+			name:  "nothing to pay",
+			event: sessionEvent("evt_u3", "cs_u3", "no_payment_required", 199900),
+		},
+		{
+			// The money ARRIVING is a capture, not an alarm.
+			name:  "the delayed money cleared later",
+			event: typed(sessionEvent("evt_u4", "cs_u4", "paid", 199900), "checkout.session.async_payment_succeeded"),
+		},
+		{
+			// Already handled: this one cancels the payment row.
+			name:  "the delayed money never cleared",
+			event: typed(sessionEvent("evt_u5", "cs_u5", "unpaid", 199900), "checkout.session.async_payment_failed"),
+		},
+		{
+			name:  "an abandoned checkout expiring",
+			event: typed(sessionEvent("evt_u6", "cs_u6", "unpaid", 199900), "checkout.session.expired"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body, header := signed(t, tt.event)
+			ev, err := g.VerifyWebhook(body, header)
+			if err != nil {
+				t.Fatalf("verify: %v", err)
+			}
+
+			session, got := payment.UnsettledSessionFrom(&ev)
+			if got != tt.isUnsettled {
+				t.Errorf("UnsettledSessionFrom() says %v, want %v", got, tt.isUnsettled)
+			}
+			if tt.isUnsettled {
+				if session != "cs_u1" {
+					t.Errorf("UnsettledSessionFrom() named session %q, want cs_u1", session)
+				}
+				// The non-overlap that matters: money is in flight, so neither
+				// posting it nor cancelling the row is a legal reading of this
+				// event.
+				if _, isCapture := payment.CaptureFrom(&ev); isCapture {
+					t.Error("CaptureFrom() claims a session whose money has not arrived — " +
+						"capturing here marks an order paid days before the funds clear")
+				}
+				if _, isAbandoned := payment.AbandonedSessionFrom(&ev); isAbandoned {
+					t.Error("AbandonedSessionFrom() claims a session still in flight — " +
+						"cancelling here throws away the record that money is coming")
+				}
+			}
+		})
+	}
+}
+
 // TestTheSessionKeyFollowsTheOrderTheAmountAndTheAttempt holds the second line of
 // defence against one order being charged twice.
 //
@@ -282,7 +459,12 @@ func TestASessionIsNeverOpenedOnALapsedHold(t *testing.T) {
 		hold  time.Time
 		start bool
 	}{
-		{"a hold just placed", now.Add(30 * time.Minute), true},
+		// NOT "a hold just placed", which is what this row used to be called and
+		// what made the whole table read as covering the real flow. `now` is both
+		// the base and the instant the gate is asked at here, so this is the
+		// zero-elapsed case and nothing else — exactly at Stripe's floor.
+		// TestAPlacedOrderCanActuallyBePaidFor is the one that lets time pass.
+		{"exactly at Stripe's floor", now.Add(30 * time.Minute), true},
 		{"an hour of hold left", now.Add(time.Hour), true},
 		// 30 minutes is Stripe's floor, so one second under it is refused.
 		{"a second under Stripe's floor", now.Add(30*time.Minute - time.Second), false},

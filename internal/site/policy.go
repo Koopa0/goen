@@ -77,6 +77,10 @@ func (h *Handler) Policy(w http.ResponseWriter, r *http.Request) {
 		h.NotFound(w, r)
 		return
 	}
+	// Resolved to the visitor's own language. These pages were Chinese for every
+	// reader until /returns began stating 消保法 §19 — a right an English-reading
+	// customer in Taiwan holds identically, on a page they could not read.
+	doc = doc.For(i18n.FromContext(r.Context()))
 	web.Render(w, r, h.log, http.StatusOK, pages.Policy(
 		layouts.Page{Title: doc.Title, Description: doc.Summary}, doc))
 }

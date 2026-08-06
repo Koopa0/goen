@@ -263,27 +263,48 @@ SELECT r.id, r.status, r.reason, r.created_at, r.decided_at,
        o.order_number,
        (SELECT coalesce(sum(rl.quantity), 0) FROM return_request_lines rl
         WHERE rl.return_request_id = r.id)::integer AS units,
-       (SELECT coalesce(sum(rl.quantity * ol.unit_price_cents), 0)
-        FROM return_request_lines rl
-        JOIN order_lines ol ON ol.id = rl.order_line_id
-        WHERE rl.return_request_id = r.id)::bigint AS refundable_cents
+       -- The ONE definition, not a second copy of the arithmetic. The queue and
+       -- the decision page used to compute this separately, and both were wrong
+       -- the same two ways — a figure a staff member reads on one page and acts
+       -- on from another must not be able to differ.
+       return_refundable_amount(r.id)::bigint AS refundable_cents,
+       -- Whether this request is a statutory rescission or a goodwill return,
+       -- which the page could not tell apart and a staff member therefore could
+       -- not either. 消保法 §19 I runs seven days from RECEIPT of the goods,
+       -- 民法 §120 II excludes the day of receipt so day one is the day after,
+       -- and §19 IV fixes the moment on the customer's SIDE — the request going
+       -- out, not the shop reading it. So the comparison is created_at against
+       -- delivered_at, both written by this database: one clock at both ends,
+       -- which is the /admin/messages lesson.
+       --
+       -- Undelivered is neither answer. The window has not started, so nothing
+       -- here is late; a return before the parcel lands is bounded by
+       -- return_lines_within_purchase instead.
+       (CASE
+            WHEN d.delivered_at IS NULL THEN 'undelivered'
+            WHEN r.created_at::date <= d.delivered_at::date + 7 THEN 'within'
+            ELSE 'after'
+        END)::text AS rescission_window
 FROM return_requests r
 JOIN orders o ON o.id = r.order_id
+LEFT JOIN LATERAL (
+    SELECT max(s.delivered_at) AS delivered_at
+    FROM order_shipments s WHERE s.order_id = o.id
+) d ON true
 ORDER BY (r.status = 'requested') DESC, r.created_at DESC
 LIMIT $1;
 
 -- One return, with what it would cost to refund.
 --
--- The amount is derived from the ORDER's own line prices, never from anything
--- the request carried: a refund figure that came in on a form is the oldest
--- hole there is, and this one pays out real money.
+-- The amount comes from return_refundable_amount, never from anything the
+-- request carried: a refund figure that came in on a form is the oldest hole
+-- there is, and this one pays out real money. It is a FUNCTION rather than an
+-- expression here because the queue needs the same number, and the two copies
+-- this replaced were each wrong in the same two ways.
 -- name: ReturnForDecision :one
 SELECT r.id, r.status, r.reason, r.order_id,
        o.order_number, o.fulfillment_status,
-       (SELECT coalesce(sum(rl.quantity * ol.unit_price_cents), 0)
-        FROM return_request_lines rl
-        JOIN order_lines ol ON ol.id = rl.order_line_id
-        WHERE rl.return_request_id = r.id)::bigint AS refundable_cents,
+       return_refundable_amount(r.id)::bigint AS refundable_cents,
        p.id AS payment_id,
        p.provider_ref,
        p.captured_amount_cents,
@@ -519,13 +540,22 @@ WHERE slug = @slug::text;
 -- Add a variant. stock_quantity is deliberately absent: the column is not in
 -- admin's INSERT grant, so it takes DEFAULT 0 and stock arrives only through
 -- record_inventory_movement.
+-- The parcel measurements are collected here rather than left for later,
+-- because they decide which shipping methods the CUSTOMER is offered: a variant
+-- with no measurement is refused by no method, so an unmeasured monitor is
+-- offered 超商取貨 and the shop finds out at the counter. Zero means unmeasured
+-- and stores NULL — the form cannot express "I do not know" any other way.
 -- name: CreateVariant :exec
 INSERT INTO product_variants (product_id, sku, price_cents, compare_at_price_cents,
-                              safety_stock, position, is_active)
+                              safety_stock, position, is_active,
+                              parcel_longest_mm, parcel_sum_mm, parcel_weight_g)
 SELECT p.id, @sku::text, @price_cents::bigint,
        nullif(@compare_at_price_cents::bigint, 0), @safety_stock::integer,
        coalesce((SELECT max(position) + 1 FROM product_variants v WHERE v.product_id = p.id), 0),
-       true
+       true,
+       nullif(@parcel_longest_mm::integer, 0),
+       nullif(@parcel_sum_mm::integer, 0),
+       nullif(@parcel_weight_g::integer, 0)
 FROM products p WHERE p.slug = @slug::text;
 
 -- Every coupon, with what it has actually done. The redemption count comes from
@@ -1580,10 +1610,18 @@ DELETE FROM faq_entries WHERE id = @entry_id;
 -- Two statements in the caller's transaction rather than one: a method with no
 -- version is one the checkout finds and cannot price, which is worse than a method
 -- that does not exist.
+-- The parcel ceilings are the carrier's, and they are asked for HERE because a
+-- method that has them and a method that does not are different offers. 超商取貨
+-- is 45cm on the longest side, 105cm across three, 10kg — 萊爾富 5kg. Zero means
+-- "no stated limit" and stores NULL, which is the honest default for 宅配.
 -- name: CreateShippingMethod :one
-INSERT INTO shipping_methods (code, destination_kind, position)
+INSERT INTO shipping_methods (code, destination_kind, position,
+                              max_parcel_longest_mm, max_parcel_sum_mm, max_parcel_weight_g)
 VALUES (@code::text, @destination_kind::text,
-        coalesce((SELECT max(position) FROM shipping_methods), 0) + 1)
+        coalesce((SELECT max(position) FROM shipping_methods), 0) + 1,
+        nullif(@max_parcel_longest_mm::integer, 0),
+        nullif(@max_parcel_sum_mm::integer, 0),
+        nullif(@max_parcel_weight_g::integer, 0))
 RETURNING id;
 
 -- Switch a method off. Never a DELETE: shipping_method_versions references it with

@@ -534,6 +534,9 @@ type ProductVariant struct {
 	StockQuantity       int32
 	SafetyStock         int32
 	PreorderReleaseOn   pgtype.Date
+	ParcelLongestMm     pgtype.Int4
+	ParcelSumMm         pgtype.Int4
+	ParcelWeightG       pgtype.Int4
 	Position            int32
 	IsActive            bool
 	CreatedAt           time.Time
@@ -623,12 +626,15 @@ type SettledOrder struct {
 }
 
 type ShippingMethod struct {
-	ID              uuid.UUID
-	Code            string
-	DestinationKind string
-	IsActive        bool
-	Position        int32
-	CreatedAt       time.Time
+	ID                 uuid.UUID
+	Code               string
+	DestinationKind    string
+	MaxParcelLongestMm pgtype.Int4
+	MaxParcelSumMm     pgtype.Int4
+	MaxParcelWeightG   pgtype.Int4
+	IsActive           bool
+	Position           int32
+	CreatedAt          time.Time
 }
 
 type ShippingMethodVersion struct {

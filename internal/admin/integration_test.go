@@ -676,6 +676,150 @@ func returnedOrder(t *testing.T, qty int32) (requestID uuid.UUID, orderNumber st
 	return requestID, orderNumber
 }
 
+// couponedShippedOrder is a DISCOUNTED order with a delivery fee, shipped, with
+// a return request open against `lines` of its two lines.
+//
+// The figures are the ones that make the two old defects visible and are chosen
+// so every expected value below can be computed by hand: two lines at NT$500,
+// a NT$500 coupon, NT$80 of delivery. order_amount_owed is therefore
+// 100000 - 50000 + 8000 = 58000, and payments_capture_matches_order forces the
+// capture to be exactly that.
+func couponedShippedOrder(t *testing.T, lines int) (requestID uuid.UUID, orderNumber string) {
+	t.Helper()
+	ctx := t.Context()
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var orderID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
+		                    shipping_method_name, shipping_cents, discount_cents)
+		SELECT next_order_number(), v.id, sm.code, v.name, 8000, 50000
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1
+		RETURNING id, order_number`).Scan(&orderID, &orderNumber); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	lineIDs := make([]uuid.UUID, 2)
+	for i := range lineIDs {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity, position)
+			VALUES ($1, $2, '測試商品', 50000, 1, $3) RETURNING id`,
+			orderID, fmt.Sprintf("CPN-SKU-%d", i), i).Scan(&lineIDs[i]); err != nil {
+			t.Fatalf("create line %d: %v", i, err)
+		}
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'c@example.com', '收件', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
+		orderID); err != nil {
+		t.Fatalf("create private data: %v", err)
+	}
+	ref := "cs_cpn_" + orderNumber
+	if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, 58000)`, orderID, ref); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT capture_payment($1, 58000, NULL, NULL)`, ref); err != nil {
+		t.Fatalf("capture: %v", err)
+	}
+	var shipmentID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO order_shipments (order_id, carrier, tracking_number)
+		VALUES ($1, '黑貓', 'TC-'||$2) RETURNING id`, orderID, orderNumber).Scan(&shipmentID); err != nil {
+		t.Fatalf("create shipment: %v", err)
+	}
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO return_requests (order_id, reason) VALUES ($1, '不合用') RETURNING id`,
+		orderID).Scan(&requestID); err != nil {
+		t.Fatalf("create return request: %v", err)
+	}
+	for i := range lineIDs {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+			VALUES ($1, $2, $3, 1)`, orderID, shipmentID, lineIDs[i]); err != nil {
+			t.Fatalf("create shipment line %d: %v", i, err)
+		}
+		if i < lines {
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+				VALUES ($1, $2, $3, 1)`, orderID, requestID, lineIDs[i]); err != nil {
+				t.Fatalf("create return line %d: %v", i, err)
+			}
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	return requestID, orderNumber
+}
+
+// TestARefundIsWhatTheCustomerPaid holds the two halves of the refund figure
+// that the raw line-price sum got wrong, in opposite directions.
+//
+// The old expression was sum(quantity * unit_price_cents) — the UNDISCOUNTED
+// goods, and nothing else:
+//
+//   - It over-claimed on a partial return. payments_capture_matches_order forces
+//     the capture to equal order_amount_owed, which is NET of the discount, so
+//     returning one of two NT$500 lines on an order with a NT$500 coupon
+//     refunded NT$500 for an item the customer paid NT$250 of. refunds_within_
+//     capture was satisfied because the total still fitted underneath.
+//   - It made a FULL return impossible. The same order claimed NT$1,000 against
+//     NT$580 of capture, so Decide refused it outright: goods back at the shop
+//     and no door in the product that could pay for them.
+//   - And it never returned the delivery fee, which 消保法 §19 I requires on a
+//     rescission — the customer bears 任何費用, meaning none.
+//
+// The full-return figure is the one worth reading: it comes out at exactly what
+// was captured. That is not a coincidence to be computed from the code, it is
+// the property — rescinding the whole contract returns everything paid under it.
+func TestARefundIsWhatTheCustomerPaid(t *testing.T) {
+	tests := []struct {
+		name  string
+		lines int
+		want  int64
+		why   string
+	}{
+		{
+			name: "one of two lines, so a proportional share of the coupon", lines: 1,
+			// 50000 goods less its half of the 50000 coupon.
+			want: 25000,
+			why:  "the customer paid NT$250 for this item after the coupon, not NT$500",
+		},
+		{
+			name: "both lines, so the whole contract and the delivery fee with it", lines: 2,
+			// 100000 goods - 50000 coupon + 8000 delivery, which is the capture.
+			want: 58000,
+			why:  "a rescission returns everything paid under the contract, delivery included",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, _ := staffContext(t)
+			s := admin.NewStore(pool, fakeRefunder{})
+			requestID, _ := couponedShippedOrder(t, tt.lines)
+
+			if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", uuid.NullUUID{}); err != nil {
+				t.Fatalf("approve: %v — a return the shop cannot pay for is the defect", err)
+			}
+			var amount int64
+			if err := pool.QueryRow(ctx, `
+				SELECT amount_cents FROM refunds WHERE return_request_id = $1`,
+				requestID).Scan(&amount); err != nil {
+				t.Fatalf("read refund: %v", err)
+			}
+			if amount != tt.want {
+				t.Errorf("refunded %d, want %d — %s", amount, tt.want, tt.why)
+			}
+		})
+	}
+}
+
 // TestApprovingAReturnRefundsWhatTheORDERSays proves the refund figure comes
 // from the order's own line prices.
 //
@@ -5160,6 +5304,14 @@ func TestTwoFAQEntriesInOneCategoryDoNotCollide(t *testing.T) {
 func TestAShopCanOfferAThirdDeliveryMethod(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{})
+	// What a method is OFFERED for now depends on the basket: a carrier that
+	// refuses a 27-inch monitor is not a choice for a cart with one in it. An
+	// empty cart asks the question this test is about — is the method there at
+	// all — without any parcel getting in the way.
+	emptyCart, cartErr := cart.NewStore(pool).Create(ctx, uuid.NewString(), uuid.NullUUID{})
+	if cartErr != nil {
+		t.Fatalf("create cart: %v", cartErr)
+	}
 	code := "express" + uuid.NewString()[:6]
 
 	if errs, err := s.CreateMethod(ctx, &admin.NewMethod{
@@ -5196,7 +5348,7 @@ func TestAShopCanOfferAThirdDeliveryMethod(t *testing.T) {
 		{name: "English", locale: i18n.En, want: "Next-day delivery"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			choices, err := basket.ShippingChoices(i18n.WithLocale(ctx, tt.locale), 100000)
+			choices, err := basket.ShippingChoices(i18n.WithLocale(ctx, tt.locale), emptyCart, 100000)
 			if err != nil {
 				t.Fatalf("ShippingChoices: %v", err)
 			}
@@ -5221,7 +5373,7 @@ func TestAShopCanOfferAThirdDeliveryMethod(t *testing.T) {
 	if err := s.SetMethodActive(ctx, methodID, false); err != nil {
 		t.Fatalf("SetMethodActive: %v", err)
 	}
-	choices, err := basket.ShippingChoices(ctx, 100000)
+	choices, err := basket.ShippingChoices(ctx, emptyCart, 100000)
 	if err != nil {
 		t.Fatalf("ShippingChoices: %v", err)
 	}

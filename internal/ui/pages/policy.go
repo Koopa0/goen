@@ -13,6 +13,15 @@ import (
 type PolicySection struct {
 	Heading string
 	Body    []string
+	// HeadingEn and BodyEn are the English the same section renders in.
+	//
+	// Declared BESIDE the Chinese rather than in a second map, for the reason
+	// i18n.Message pairs a key with both its translations: three edits in three
+	// places, hundreds of lines apart, is how half a locale ships. A missing
+	// translation is visible at the line that forgot it, and
+	// TestEveryPolicyClauseIsTranslated refuses one.
+	HeadingEn string
+	BodyEn    []string
 	// Pending marks a section describing what has NOT been decided. It renders
 	// differently on purpose: a reader must be able to tell a rule from a gap,
 	// and a shop that hides its gaps in the same typeface as its promises is
@@ -22,9 +31,41 @@ type PolicySection struct {
 
 // PolicyDoc is a static policy page.
 type PolicyDoc struct {
-	Title    string
-	Summary  string
-	Sections []PolicySection
+	Title     string
+	TitleEn   string
+	Summary   string
+	SummaryEn string
+	Sections  []PolicySection
+}
+
+// For resolves the document into one locale's strings.
+//
+// The policy pages used to be Chinese for every reader, exempted from the
+// hard-coded-chrome guard as "authored prose, translated editorially or not at
+// all". That was the CONTENT half of the line this project draws — and it put
+// these documents on the wrong side of it. CLAUDE.md states the test:
+// **copy compiled into the binary is goen's to say in both languages; copy
+// typed into a table is the shop's to say however it likes.** These are
+// compiled in. `faq_entries` and the product copy are the table, and they keep
+// their optional-English rule.
+//
+// It stopped being merely untidy when /returns began stating 消保法 §19. An
+// English-reading customer in Taiwan holds identical rights, §18 I 3 makes
+// providing the rescission information the trader's obligation, and the page
+// that stated it was one they could not read.
+func (d PolicyDoc) For(l i18n.Locale) PolicyDoc {
+	if l != i18n.En {
+		return d
+	}
+	out := PolicyDoc{Title: d.TitleEn, Summary: d.SummaryEn}
+	for _, s := range d.Sections {
+		out.Sections = append(out.Sections, PolicySection{
+			Heading: s.HeadingEn,
+			Body:    s.BodyEn,
+			Pending: s.Pending,
+		})
+	}
+	return out
 }
 
 // FAQItem is one question.
@@ -112,7 +153,13 @@ func (v ShippingView) Empty() bool { return len(v.Methods) == 0 }
 // It mirrors cart.HoldTTL. Not imported, because internal/ui must not depend on
 // a feature package — but it is one number, and if it drifts the shipping page
 // says something the till does not do.
-const HoldMinutes = 30
+//
+// It is 60 because cart.HoldTTL is now PayWindow + StripeSessionFloor rather
+// than a flat thirty minutes: the two were equal, which made the hold exactly
+// Stripe's session floor and left no session goen could ever open. What a
+// customer reads here is the whole reservation, not the half of it they have to
+// start paying inside.
+const HoldMinutes = 60
 
 // HoldMinutesText is that number, for the template.
 func HoldMinutesText() string { return strconv.Itoa(HoldMinutes) }

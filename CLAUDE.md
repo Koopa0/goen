@@ -324,7 +324,28 @@ because nothing had ever reached one — a seed does not typo. A spec is a table
 on `/compare`, and a label that is a sentence makes the first column wrap to three
 lines, which is what that page exists to avoid.
 
-**A delivered order marks its parcels delivered.** `order_shipments.delivered_at`
+****`/admin/returns` says whether a request is a statutory rescission.** 消保法
+§19 I runs seven days from RECEIPT, 民法 §120 II excludes the day of receipt, and
+§19 IV fixes the moment on the customer's side — the request going out, not the
+shop reading it. So the comparison is `created_at` against `delivered_at`, both
+written by the database: one clock at both ends, which is the `/admin/messages`
+lesson. Undelivered is neither answer, because the window has not started.
+
+It INFORMS and does not restrict, and that is the decision. `Decide` still
+accepts "rejected" for any open request: §19-2 gives the trader fifteen days to
+refund after the goods come BACK, so an in-window request is not auto-approved
+either, and "the parcel never arrived" is a legitimate refusal only a person can
+make. What was missing was the fact on screen, not a new rule — a staff member
+had no way to tell a request the page says the shop may not refuse from a
+goodwill return that is entirely theirs to decline.
+
+A blank return reason is legal for the same statute. It was demanded in THREE
+places at once — `internal/returns`' own validation, `required` on the textarea,
+and `return_requests_reason_present` in the schema — so a customer exercising an
+unwaivable right could not submit the form, and the schema half is the one no
+amount of form-fiddling could talk its way past.
+
+A delivered order marks its parcels delivered.** `order_shipments.delivered_at`
 was read by the customer's own order page and by `/admin/orders`, and written by
 NOTHING — so an order marked 已送達 showed every parcel still in transit, and the
 customer's page reads the parcel. The stamp is in the transition's own transaction,
@@ -607,7 +628,7 @@ grounds that a category name is content. It was wrong three ways at once:
 
 - the names were Chinese for every visitor, in the header of every page;
 - it was a second copy of `categories`, and the comment above it named
-  `TestTopNavPointsAtRealCategories` as what kept the two from drifting. **That test
+  `TestTopNavPointsAtRealCategories` as what kept the two from drifting. <!-- named-test-exempt: this line RECORDS that the test was never written --> **That test
   was never written** — the third claim of enforcement this project has found with
   nothing behind it, after `product_search_documents`' "exactly one writer" and
   `Store.Remove`'s "another admin does this";
@@ -838,6 +859,51 @@ because `admin` does not exist that early in the file.
     redirecting** — it does not disclose that `/admin` exists — so "still at
     /admin with no chrome" IS the rejected-session case. This is #17 and #26 on
     the same three lines.
+
+28. **A CHECK whose predicate is a guess about the outside world.**
+    `order_private_data_pickup_store_code_format` was `^[0-9]{1,10}$` under a
+    comment asserting "what is true of all of them is that a store code is a
+    number". Nobody had asked a chain. 萊爾富 numbers its stores in four
+    characters and 149 of its 1,350 lead with a letter, so 11% of that chain
+    was unreachable at checkout — refused by the database, one customer at a
+    time, with no way through and nothing for the shop to see. A CHECK is the
+    strongest thing this schema can say; a guess written into one is a guess
+    with the force of a rule. **Where the fact is somebody else's to state, go
+    and read their statement** — 綠界's `GetStoreList` answers this in one
+    request, and answered it against four chains at once.
+    The paired lesson is in the conformance case: its `accept` was a six-digit
+    code, which the old regex and the new one both admit, so it stayed green
+    through the whole defect. **An accepting statement that both versions of a
+    rule accept proves nothing about either.**
+
+29. **A right dressed as a gap, which is the mirror no guard was watching.**
+    `internal/site/policies.go` filed 鑑賞期天數, who pays return postage and
+    whether opening the box matters under 尚未確定 — and all three are fixed by
+    消保法 §19, unwaivable under §19 V. They were never the shop's to decide, so
+    the page told every customer they might have no right at all.
+    `TestUndecidedTermsAreMarkedPending` catches a gap set in the same typeface
+    as a rule and **passes on this BY CONSTRUCTION**: the paragraph said
+    尚未確定 and was marked `Pending`, which is exactly what it asks for. A
+    Pending section is FORMATTED as a gap, so it also looks right to a reviewer
+    who has not read the statute. `TestStatutoryTermsAreNotPending` is the other
+    direction and asserts POSITIVELY — each statutory term must be stated as a
+    rule — because the legitimate Pending copy has to NAME the window to say
+    what lies outside it, so a forbidden-word scan would refuse the correct text
+    and pass a paraphrase of the wrong one. **Before marking a term undecided,
+    ask whether it is yours to decide.**
+
+30. **A flag that silently reopens a decision another line already made.**
+    `ExpiresAt` binds the Stripe session to the stock hold so money cannot
+    arrive after the goods are re-sold. `payment_method_types` was omitted so
+    the Dashboard could offer any method it liked. Each comment argued its own
+    case well and neither mentioned the other, ten lines apart in one function
+    — and a delayed payment method makes the second destroy the first. This is
+    #13 again: **two correct halves that disagree, which every guard here is
+    blind to because they all ask what is ABSENT.** The pattern to watch is a
+    configuration surface ("let the Dashboard decide", "read it from env",
+    "whatever the provider supports") sitting next to an invariant that depends
+    on the configuration being narrow. Name the dependency at both ends or
+    close it, and see the payment section for which was chosen here.
 
 ## Build tools stay out of go.mod
 
@@ -1182,8 +1248,26 @@ The 門市 is typed (brand, 店號, 店名) and not picked from a map. The
 電子地圖 integration each chain offers is the real answer and it needs
 credentials goen does not have; collecting the destination without faking the
 picker is the same call as collecting the 發票 preference without faking the
-加值中心. 店號 is digits-only because that is what all four chains have in
-common — goen does not pretend to know each format.
+加值中心.
+
+**店號 used to be digits-only "because that is what all four chains have in
+common", and that sentence was a GUESS this file stated as a fact and a CHECK
+enforced as a rule.** It is false. Measured against 綠界's own `GetStoreList` on
+2026-08-06 — the authority for how a chain numbers its stores: 7-ELEVEN (6,080),
+全家 (3,449) and OK (688) use six digits, but **萊爾富 uses FOUR characters and
+149 of its 1,350 lead with a letter** (S884, H869, G850). Every one of those was
+a checkout `order_private_data_pickup_store_code_format` refused, with no other
+way through, for one customer at a time and invisible to the shop.
+
+It is `^[0-9A-Z]{1,10}$` now, bounded at the length ECPay publishes for the field
+rather than any chain's own width, and `Trim` uppercases so a shift key is not a
+rejected order. The rule still does the job it was written for: a 店名 typed into
+the code field is Han text, which is in neither class.
+
+The conformance case is the other half of the lesson. Its `accept` was `'123456'`
+— which passes under the old regex and the new one alike, so it was **green
+through the entire defect**. It is a real 萊爾富 code now, because an accepting
+statement that both versions admit locks nothing.
 
 **離島 costs more, and the customer sees the number before they are charged
 it.** The fee was one figure for the whole country, so a parcel to 金門 went at
@@ -1205,11 +1289,54 @@ second goes through. One extra round trip, no scripting, and nobody is charged
 a number they have not seen. `/shipping` states the surcharge too, read from the
 rows the till prices from.
 
+**A delivery method is offered only for a cart its carrier will physically
+take.** `product_variants` carries the parcel it ships as — longest side, sum of
+three sides, weight — and `shipping_methods` carries what the carrier accepts.
+Every active method used to be offered to every cart, so a shop selling a
+27-inch monitor offered 超商取貨 for it: the customer chose it, paid, and the
+shop found out at the counter with the parcel packed and the customer waiting.
+超商店到店 is 45cm / 105cm / 10kg, and 萊爾富 stops at 5kg.
+
+The test is PER ITEM and never over the cart total. More parcels are always
+possible, so two things that each fit are two parcels — but one item that does
+not fit cannot be split, whatever else is in the basket. The case that tells the
+two rules apart is one item that fits beside one that does not; a cart with a
+single oversized item passes under either, which is why the lock has all four
+cases.
+
+NULL is UNMEASURED and not unlimited, on both sides. A method may only be
+refused on a figure that EXISTS: hiding the channel 75.2% of Taiwanese online
+shoppers prefer (資策會 MIC, 2025 Q4) because nobody typed a box size would cost
+more than the counter refusal it prevents, and it would do it silently. The
+measurement is collected on the variant form, and a shop that has not measured
+its catalogue keeps every method until it does.
+
+**The 離島 surcharge on 超商取貨 is a KNOWN loss and a recorded decision.**
+7-ELEVEN has 76 outlying-island stores and 全家 23 — measured against 綠界's own
+store list on 2026-08-06 — so pickup parcels really do cross the water, and the
+surcharge is reached through a postal code a pickup order does not have. goen
+eats it. The owner's call, on the grounds that this is a demonstration project;
+the fix is not the deleted `serviceable` flag but a store catalogue that can say
+where a 店號 is, which arrives with 綠界物流 if it ever does.
+
 There is no `serviceable` flag, and that is a decision rather than an omission.
 It was written and deleted before it shipped: a zone is found from the POSTAL
 CODE, and the only method that could not serve 離島 is 超商取貨 — which has no
 postal code, because its destination is a store. The flag's one real
 configuration could never fire.
+
+Measured on 2026-08-06 and the reasoning HOLDS, which is worth recording because
+the same sweep refuted the 店號 claim two paragraphs up. 萊爾富 and OK have zero
+離島 stores, so a customer cannot select one and the flag genuinely never fires.
+
+What that sweep DID find is the gap beside it: 7-ELEVEN has 76 離島 stores and
+全家 23 — 澎湖, 金門, 連江, 琉球, 蘭嶼, 綠島, 馬祖 — so 超商取貨 really does
+carry parcels across the water, and **goen can charge no surcharge for any of
+them**, because `shipping_version_zones` is reached through a postal code a
+pickup order does not have. `shipping_zones` fixed exactly this for 宅配 and the
+超商 half is still open; the shop pays the difference on those 99 stores. It is
+not the `serviceable` flag that would close it, which is why this sits here
+rather than reviving that column.
 
 Shipping is managed at `/admin/shipping`, because a shop that cannot change its
 own delivery charges is not a shop that can be run. Changing a fee PUBLISHES a
@@ -1445,6 +1572,39 @@ is a page, not a fact. `GOEN_STRIPE_SECRET_KEY` may be empty (the site still
 sells; the payment page says 金流尚未啟用), but a key without
 `GOEN_STRIPE_WEBHOOK_SECRET` refuses to start, because that combination takes
 money over an endpoint nothing authenticates.
+
+**The session PINS `payment_method_types` to card, and it used to omit the field
+deliberately.** Both decisions were argued in comments ten lines apart in the
+same function, and they contradicted each other. `ExpiresAt` binds the session to
+the STOCK HOLD precisely so money cannot arrive after the goods are back on the
+shelf; omitting `payment_method_types` left dynamic payment methods on so the
+Dashboard could offer whatever it liked — including a DELAYED method, whose money
+arrives days after the session is over.
+
+The chain, and every link of it was already in the tree: a delayed method's
+`checkout.session.completed` arrives with `payment_status` `unpaid`, so
+`CaptureFrom` correctly refuses it and the order stays `pending` with no
+succeeded payment. A completed session never fires `checkout.session.expired`, so
+the abandoned path never runs either. Thirty minutes after `PlaceOrder` the order
+is still not in `committed_orders`, `ExpiredReservations` matches it and
+`release_reservation` puts the units back. Days later `async_payment_succeeded`
+lands and `capture_payment` succeeds — it does not read reservations — and
+`admin.Ship` then ranges over an EMPTY held-reservation slice with no error.
+Money taken, stock re-sold, nothing raised.
+
+That is mistake #13's shape a second time: two halves each correct, disagreeing,
+and **no guard here could see it because every one of them asks what is ABSENT.**
+Card is what a 30-minute hold can survive, so card is what goen offers; Apple Pay
+and Google Pay ride on that type. Supporting a delayed method is a FEATURE and
+not a flag — see the follow-up, and the commercial question underneath it.
+
+`UnsettledSessionFrom` is the alarm rather than the cure. A completed-but-unpaid
+session used to fall to the webhook handler's `default` branch and be logged as
+one more event goen does not act on, indistinguishable from the dozen it
+genuinely does not. It is reported at ERROR now, because with the pin in place an
+event reaching there is a CONFIGURATION change and not anything a customer did.
+It writes nothing: capturing would be the defect, and extending the hold is the
+unbuilt feature.
 
 Checkout COLLECTS the 發票 choice — 會員載具 / 手機條碼載具 / 公司統編 — into
 `invoice_preferences`. ISSUING the document is not built: a real 統一發票 goes
@@ -1870,12 +2030,25 @@ at somebody's account cannot lock them out of it. A refused attempt does not
 spend a token either, or a client at the limit is pushed further behind by its
 own retries and never recovers.
 
-`ClientIP` reads `RemoteAddr` and never `X-Forwarded-For`: a header is set by
-the client, so keying on one hands an attacker an unlimited supply of keys —
-strictly worse than no limiter, because it looks like there is one. Behind a
-proxy the per-IP limit therefore degrades to a global one, which is the honest
-failure mode and needs a trusted-proxy configuration rather than a header read
-on faith.
+`ClientIP` reads `RemoteAddr` by default and never `X-Forwarded-For` on faith: a
+header is set by the client, so keying on one unconditionally hands an attacker
+an unlimited supply of keys — strictly worse than no limiter, because it looks
+like there is one.
+
+**The trusted-proxy configuration this paragraph used to describe as needed is
+BUILT**, and the file said otherwise for as long as it existed.
+`internal/ratelimit/proxy.go` parses `X-Forwarded-For` only for hops inside the
+CIDR set `GOEN_TRUSTED_PROXIES` names, stamps the result on an unexported context
+key, and `ClientIP` reads that ahead of `RemoteAddr`. It is wired outermost, ahead
+of every `Guard`, and defaults safely OFF — with no proxies configured both
+sentences above are still exactly true, which is why the drift was invisible.
+`main.go` warns at startup when a TLS-terminating deployment leaves the variable
+unset, because there the per-IP limit silently degrades to a global one.
+
+The cost of that drift was to a REVIEWER rather than an operator, which is the
+kind this file exists to prevent: anyone auditing `proxy.go`'s header parse
+against CLAUDE.md would have read it as an unsanctioned addition, since the
+file's only statement on the subject forbade it.
 
 The state is per process, so N replicas allow N times the rate. That is a
 weakening rather than a hole, and moving it to PostgreSQL would put a write on
@@ -2215,16 +2388,112 @@ fee is a page that eventually contradicts the till. The rest are prose in
 `internal/site/policies.go`, because they change when a lawyer changes them and
 a deploy is the right ceremony for that.
 
-Every clause describes what the code does. Where a commercial decision has NOT
-been made — the return window, who pays return postage, the warranty term — the
-section is marked `Pending` and renders as a visible gap, because a shop that
-sets a gap in the same typeface as a rule makes a promise by accident.
-`TestUndecidedTermsAreMarkedPending` holds that.
+Every clause describes what the code does, or what the law requires of it
+regardless. Where a COMMERCIAL decision has not been made — the warranty term, a
+goodwill return beyond the statutory window — the section is marked `Pending` and
+renders as a visible gap, because a shop that sets a gap in the same typeface as
+a rule makes a promise by accident. `TestUndecidedTermsAreMarkedPending` holds
+that.
+
+**Two of the three terms that paragraph used to name were never the shop's to
+set, and this file named them for months.** 鑑賞期天數 and who pays return
+postage are fixed by 消保法 §19, which §19 V makes unwaivable — so filing them
+under 尚未確定 told every customer they might have no right at all. A right
+dressed as a GAP is the mirror of the failure the guard above catches, and it is
+the more expensive direction: a Pending section is FORMATTED as a gap, so it
+looks correct to a reviewer who has not read §19, and
+`TestUndecidedTermsAreMarkedPending` passes on it BY CONSTRUCTION — the paragraph
+said 尚未確定 and was marked Pending, which is exactly what that test asks for.
+
+`TestStatutoryTermsAreNotPending` is the other direction, and it asserts
+POSITIVELY — each statutory term must be stated as a rule — rather than scanning
+Pending sections for forbidden words. The legitimate Pending copy has to NAME the
+statutory window in order to say what lies outside it, so a forbidden-word scan
+would refuse the correct text and pass the wrong text the moment somebody
+paraphrased.
+
+What the pages now state, and why each is not goen's to write differently: seven
+days from RECEIPT (消保法 §19 I), the day of receipt not counted (民法 §120 II),
+rescission effective on DISPATCH so a parcel posted on day 6 is in time (§19 IV),
+return postage on the shop, and the full seven days for opened 3C hardware.
+
+Two citation traps, both recorded in the code beside the clause. Return postage
+rests on §19 I's 「不負擔任何費用」 and **NOT on §19-2**, which is about the
+trader's duty to collect and carries no cost-allocation sentence at all; and not
+on 消保法字第0960012078號函, which reasons from 施行細則 §19 and §20, both deleted
+in the 104/12/31 amendment. And 通訊交易解除權合理例外情事適用準則 §2 is a CLOSED
+list of seven whose chapeau conditions every one of them on
+「並經企業經營者告知消費者」 — **an exception is not self-executing**, so a shop
+that sells boxed software and says nothing owes the full seven days anyway. goen
+claims no exception and the copy says so, rather than promising a per-product
+marking that nothing in the code renders.
 
 What is still NOT built: issuing invoices.
 
 Known follow-ups, none of them blocking this batch:
 
+- **Delayed payment methods are OFF, and turning them on is a feature with a
+  commercial question in front of it.** The session pins card because goen's
+  stock hold expires with it; a method that settles days later needs a written
+  in-flight payment state (`payments_status_known` already admits `processing`
+  and nothing has ever written it), a reservation whose life is the PAYMENT
+  DEADLINE rather than a flat `cart.HoldTTL`, an `ExpiredReservations` predicate
+  that spares an order with money in flight, and a stock check at capture or an
+  explicit oversell path. The question underneath all four is the shop's and not
+  the code's: **how many days of stock may an unpaid transfer hold?** Until
+  somebody answers it, the pin is the honest state and
+  `UnsettledSessionFrom` reports at ERROR if the Dashboard ever contradicts it.
+  Note also that Stripe supports no Taiwan-local DELAYED method at all — no ATM
+  虛擬帳號, no 超商代碼/條碼 — so the pin costs no delayed method that is
+  currently available. It is fail-CLOSED, so it also excludes any non-card
+  IMMEDIATE method the Dashboard might later offer; that is the deliberate half.
+  `ExcludedPaymentMethodTypes` was the narrower alternative and was rejected
+  because it keeps the Dashboard authoritative and is fail-OPEN to whatever is
+  added next — the shape mistake #30 says to close rather than merely name.
+  Apple Pay and Google Pay ride on the card type and are unaffected.
+- **`002` is not cut yet, deliberately.** The store-code widening reached the
+  escape clause this file states — amend `001` in place only while no
+  environment is undisposable — and the owner's call is to keep amending for
+  now, because nothing has been deployed. What is worth building before that
+  changes is a DRIFT CHECK: compare the deployed `pg_constraint` / `pg_index`
+  against what `001` declares, in `verify`. PostgreSQL does not re-validate an
+  amended CHECK, so without one the first non-disposable environment disagrees
+  with the file silently — two correct halves, at the schema level, where
+  nothing else here looks.
+- **`ok_mart` stays in the pickup allowlist, and the day 綠界物流 arrives it
+  goes.** ECPay's `CvsType` admits only All/FAMI/UNIMART/HILIFE/UNIMARTFREEZE,
+  and neither the B2C nor the C2C sub-type list carries OK — so a shop shipping
+  through them cannot reach an OK store, while a shop walking to the counter
+  through OK's own OK-GO 店到店 can. Note the API still RETURNS 688 OK stores
+  when asked, undocumented: presence in the catalogue is not the same question
+  as "can this parcel be sent", which is the same lesson `product_search_
+  documents` taught from the other end.
+- **Observability is deferred until the features are done**, and that is a
+  decision rather than an omission — but it has a cost worth naming: every
+  growth gate queued in this file (the read-model projection at ~1–2k active
+  products, the bigram tsvector at ~5k, the 136 ms copurchase) triggers on a
+  number nothing in production will emit. They are sensors described in prose,
+  with no sensor. When it is built the shape is otel → Prometheus/Grafana, and
+  `/admin/health`'s rule applies to it: measure the WORK, never a heartbeat.
+- **The database is the only copy of the product images**, by the recorded
+  `internal/media` decision, and there is no backup target, no restore drill and
+  no PITR note. `001_initial_schema.down.sql` opens by saying there is no
+  production database to roll back, which is true and is exactly what stops
+  being true on the first deploy.
+- **§18 II's STORAGE half is still open.** The policy pages follow the visitor's
+  language now, which satisfies 完整查閱. §18 II also requires the six §18 I
+  items to reach the consumer in an electronic form they can 儲存, and a
+  rendered page is not obviously that. The cheap move is the order confirmation
+  email, which already goes out in the recipient's language through the outbox:
+  carrying the six items there satisfies both halves in one artefact the
+  customer keeps.
+- **The webhook handler's routing switch has no HTTP-level test**, for any
+  branch. `internal/payment/integration_test.go` covers `ProcessWebhook` and
+  `Capture` beneath it, and `stripe_http_test.go` covers the request that leaves;
+  which branch the handler picks for a given event is asserted by nothing. The
+  readers under it (`CaptureFrom`, `AbandonedSessionFrom`,
+  `UnsettledSessionFrom`) are each covered and mutation-proven, so what is
+  untested is the wiring, not the decisions.
 - **`.ui-btn` is content-box in the vendored design system**, so
   `.ui-btn--block` is always its container's width plus 30px. goen compensates
   in `app.css` per surface, which is what `.goen-auth__submit` and

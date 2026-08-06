@@ -68,9 +68,20 @@ var notChrome = map[string]string{
 	"internal/ui/pages/twofactor.templ": "back office: the /admin step-up and enrolment screens",
 	"internal/ui/pages/workerhealth.go": "back office: /admin/health",
 	"internal/ui/layouts/admin":         "back office shell",
-	// Authored prose, which CLAUDE.md already settles: a policy document changes
-	// when a lawyer changes it, and a lookup table is not where that belongs.
-	"internal/site/policies.go": "authored prose, translated editorially or not at all",
+	// Prose in Go rather than in the catalogue, because a policy document changes
+	// when a LAWYER changes it and a lookup table is not where that belongs —
+	// paragraphs are also the wrong shape for key(), which exists for short
+	// chrome.
+	//
+	// The reason used to end "translated editorially or not at all", and that was
+	// wrong by CLAUDE.md's own test: copy compiled into the binary is goen's to
+	// say in both languages, and only copy typed into a TABLE is the shop's to
+	// say however it likes. It stopped being untidy when /returns began stating
+	// 消保法 §19, which an English-reading customer in Taiwan holds identically.
+	// Both languages are declared side by side on each clause now, and
+	// TestEveryPolicyClauseIsTranslated refuses a half-translated document — so
+	// this entry excuses the Han LITERALS here, not the absence of English.
+	"internal/site/policies.go": "prose in Go; both languages declared per clause and guarded",
 	// This package IS the catalogue.
 	"internal/i18n": "the catalogue itself",
 }

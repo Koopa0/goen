@@ -212,11 +212,19 @@ type NewMethod struct {
 	// checkout form exists, which is why it is asked HERE rather than derived from
 	// the code — a rule written in Go is a rule the next method forgets.
 	Destination string
-	Name        string
-	NameEn      string
-	Carrier     string
-	CarrierEn   string
-	FeeDollars  int64
+	// The carrier's PARCEL ceilings, in millimetres and grams. Zero means "no
+	// stated limit", which is the honest default for 宅配 — a courier takes what
+	// fits in a van. 超商店到店 is why they exist: 45cm longest side, 105cm across
+	// three, 10kg (萊爾富 5kg), and without them a customer is offered a method
+	// their monitor cannot go by.
+	MaxParcelLongestMM int32
+	MaxParcelSumMM     int32
+	MaxParcelWeightG   int32
+	Name               string
+	NameEn             string
+	Carrier            string
+	CarrierEn          string
+	FeeDollars         int64
 	// FreeOverDollars is the order value above which the base rate is waived. Zero
 	// means the fee always applies.
 	FreeOverDollars int64
@@ -267,6 +275,9 @@ func (s *Store) CreateMethod(ctx context.Context, m *NewMethod) (map[string]stri
 	}, func(ctx context.Context, q *db.Queries) error {
 		methodID, insErr := q.CreateShippingMethod(ctx, db.CreateShippingMethodParams{
 			Code: m.Code, DestinationKind: m.Destination,
+			MaxParcelLongestMm: m.MaxParcelLongestMM,
+			MaxParcelSumMm:     m.MaxParcelSumMM,
+			MaxParcelWeightG:   m.MaxParcelWeightG,
 		})
 		if insErr != nil {
 			return insErr

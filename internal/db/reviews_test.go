@@ -42,14 +42,14 @@ func TestEveryRatingReadsTheVisibleReviews(t *testing.T) {
 		"CreateReview": "the insert",
 	}
 
-	found := 0
+	used := map[string]bool{}
 	for path, src := range queryFiles(t) {
 		for _, q := range splitQueries(src) {
 			if !touchesReviews.MatchString(q.body) {
 				continue
 			}
-			found++
 			if _, ok := allowed[q.name]; ok {
+				used[q.name] = true
 				continue
 			}
 			t.Errorf("%s: query %s reads product_reviews directly.\n"+
@@ -58,9 +58,15 @@ func TestEveryRatingReadsTheVisibleReviews(t *testing.T) {
 				"rows, name it in the allowlist with the reason.", path, q.name)
 		}
 	}
-	if found < len(allowed) {
-		t.Fatalf("found %d queries touching product_reviews and the allowlist names "+
-			"%d — the parser stopped matching", found, len(allowed))
+	// Checked by IDENTITY, not by count. `found < len(allowed)` fires on a
+	// stale entry but cannot say WHICH, so it reports "the pattern stopped
+	// matching" — a message that sends the reader to the regex when the
+	// defect is an allowlist row naming a query that no longer exists.
+	for name, why := range allowed {
+		if !used[name] {
+			t.Errorf("the allowlist names %s (%s) and nothing matched it: the "+
+				"query is gone or renamed, so the entry now excuses nothing. Its presence reads as coverage.", name, why)
+		}
 	}
 }
 

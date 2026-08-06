@@ -690,10 +690,16 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		// A 店名 typed into the 店號 field, which is the mistake this format
-		// catches. Digits only is what all four chains have in common.
+		// catches.
+		//
+		// The ACCEPT is a real 萊爾富 code (高縣後庄店, read from 綠界's own
+		// GetStoreList on 2026-08-06) and not a six-digit one, deliberately. This
+		// constraint used to be '^[0-9]{1,10}$' and refused 149 of that chain's
+		// 1,350 stores; a six-digit accept passes under the old rule and the new
+		// one alike, so it would have gone green through the entire defect.
 		constraint: "order_private_data_pickup_store_code_format",
-		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, 'seven_eleven', '信義門市', '信義門市');`,
-		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, 'seven_eleven', '123456', '信義門市');`,
+		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, 'hi_life', '後庄門市', '後庄門市');`,
+		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, 'hi_life', 'S884', '後庄門市');`,
 	},
 	{
 		constraint: "shipping_methods_destination_kind",
@@ -1132,9 +1138,14 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept: `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666', '退貨');`,
 	},
 	{
-		constraint: "return_requests_reason_present",
-		reject:     `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000002', '66666666-6666-4666-8666-666666666666', E'\t');`,
-		accept:     `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000002', '66666666-6666-4666-8666-666666666666', '退貨');`,
+		// The ACCEPT is the EMPTY reason, deliberately. This constraint used to
+		// be return_requests_reason_present and refused exactly that — while
+		// /returns states 消保法 §19 I, under which a rescission inside seven
+		// days needs no reason at all. A non-blank accept passes under both the
+		// old rule and the new one, so it would lock nothing.
+		constraint: "return_requests_reason_bounded",
+		reject:     `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000002', '66666666-6666-4666-8666-666666666666', repeat('x', 501));`,
+		accept:     `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000002', '66666666-6666-4666-8666-666666666666', '');`,
 	},
 	{
 		constraint: "return_requests_status_known",
@@ -1257,6 +1268,46 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		constraint: "shipping_method_versions_name_present",
 		reject:     `INSERT INTO shipping_method_versions (id, method_id, name, fee_cents, effective_at) VALUES ('11110001-0000-4000-8000-000000000001', 'ffff0001-0000-4000-8000-000000000000', E'\t', 8000, '2027-01-01');`,
 		accept:     `INSERT INTO shipping_method_versions (id, method_id, name, fee_cents, effective_at) VALUES ('11110001-0000-4000-8000-000000000001', 'ffff0001-0000-4000-8000-000000000000', '快遞', 8000, '2027-01-01');`,
+	},
+	{
+		// A measurement that EXISTS is positive. NULL is unmeasured, which is a
+		// different fact and the one the shipping filter reads as "refuse nothing".
+		constraint: "product_variants_parcel_longest_sane",
+		reject:     `INSERT INTO product_variants (id, product_id, sku, price_cents, safety_stock, position, parcel_longest_mm) VALUES ('11110008-0000-4000-8000-000000000009', '33333333-3333-4333-8333-333333333333', 'PXL-9P-PARCEL', 3390000, 0, 91, 0);`,
+		accept:     `INSERT INTO product_variants (id, product_id, sku, price_cents, safety_stock, position, parcel_longest_mm) VALUES ('11110008-0000-4000-8000-000000000009', '33333333-3333-4333-8333-333333333333', 'PXL-9P-PARCEL', 3390000, 0, 91, 180);`,
+	},
+	{
+		constraint: "product_variants_parcel_sum_sane",
+		reject:     `INSERT INTO product_variants (id, product_id, sku, price_cents, safety_stock, position, parcel_sum_mm) VALUES ('11110008-0000-4000-8000-000000000009', '33333333-3333-4333-8333-333333333333', 'PXL-9P-PARCEL', 3390000, 0, 91, 0);`,
+		accept:     `INSERT INTO product_variants (id, product_id, sku, price_cents, safety_stock, position, parcel_sum_mm) VALUES ('11110008-0000-4000-8000-000000000009', '33333333-3333-4333-8333-333333333333', 'PXL-9P-PARCEL', 3390000, 0, 91, 320);`,
+	},
+	{
+		constraint: "product_variants_parcel_weight_sane",
+		reject:     `INSERT INTO product_variants (id, product_id, sku, price_cents, safety_stock, position, parcel_weight_g) VALUES ('11110008-0000-4000-8000-000000000009', '33333333-3333-4333-8333-333333333333', 'PXL-9P-PARCEL', 3390000, 0, 91, 0);`,
+		accept:     `INSERT INTO product_variants (id, product_id, sku, price_cents, safety_stock, position, parcel_weight_g) VALUES ('11110008-0000-4000-8000-000000000009', '33333333-3333-4333-8333-333333333333', 'PXL-9P-PARCEL', 3390000, 0, 91, 400);`,
+	},
+	{
+		// Three sides cannot add up to less than the longest of them.
+		constraint: "product_variants_parcel_sum_covers_longest",
+		reject:     `INSERT INTO product_variants (id, product_id, sku, price_cents, safety_stock, position, parcel_longest_mm, parcel_sum_mm) VALUES ('11110008-0000-4000-8000-000000000009', '33333333-3333-4333-8333-333333333333', 'PXL-9P-PARCEL', 3390000, 0, 91, 500, 400);`,
+		accept:     `INSERT INTO product_variants (id, product_id, sku, price_cents, safety_stock, position, parcel_longest_mm, parcel_sum_mm) VALUES ('11110008-0000-4000-8000-000000000009', '33333333-3333-4333-8333-333333333333', 'PXL-9P-PARCEL', 3390000, 0, 91, 180, 320);`,
+	},
+	{
+		// A ceiling that exists is positive. NULL is "no stated limit", which is
+		// the honest default for 宅配 and is what makes the filter refuse nothing.
+		constraint: "shipping_methods_max_longest_positive",
+		reject:     `INSERT INTO shipping_methods (id, code, max_parcel_longest_mm) VALUES ('11110001-0000-4000-8000-000000000009', 'parcel_test', 0);`,
+		accept:     `INSERT INTO shipping_methods (id, code, max_parcel_longest_mm) VALUES ('11110001-0000-4000-8000-000000000009', 'parcel_test', 450);`,
+	},
+	{
+		constraint: "shipping_methods_max_sum_positive",
+		reject:     `INSERT INTO shipping_methods (id, code, max_parcel_sum_mm) VALUES ('11110001-0000-4000-8000-000000000009', 'parcel_test', 0);`,
+		accept:     `INSERT INTO shipping_methods (id, code, max_parcel_sum_mm) VALUES ('11110001-0000-4000-8000-000000000009', 'parcel_test', 1050);`,
+	},
+	{
+		constraint: "shipping_methods_max_weight_positive",
+		reject:     `INSERT INTO shipping_methods (id, code, max_parcel_weight_g) VALUES ('11110001-0000-4000-8000-000000000009', 'parcel_test', 0);`,
+		accept:     `INSERT INTO shipping_methods (id, code, max_parcel_weight_g) VALUES ('11110001-0000-4000-8000-000000000009', 'parcel_test', 10000);`,
 	},
 	{
 		constraint: "shipping_methods_code_format",

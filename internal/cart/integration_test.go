@@ -2579,6 +2579,115 @@ func TestAStrangerCannotFillTheirCartFromSomebodyElsesOrder(t *testing.T) {
 // takes units the next assumes are there, so the suite passes in file order and
 // fails under -shuffle. That was true of this file before these helpers
 // existed, and test-integration never shuffled, so nothing said so.
+// TestAMethodIsNotOfferedForAParcelItsCarrierRefuses holds the rule that decides
+// which delivery methods a customer sees.
+//
+// Every active method used to be offered to every cart. 超商店到店 refuses a
+// parcel over 45cm on its longest side, 105cm across three, or 10kg — so a shop
+// selling a 27-inch monitor offered 超商取貨 for it, the customer chose it, the
+// order was placed and paid, and the shop found out at the counter with the
+// parcel already packed and the customer already waiting.
+//
+// The test is PER ITEM and never over the cart total, which is the half worth
+// locking: more parcels are always possible, so two things that each fit are two
+// parcels — but one item that does not fit cannot be split, whatever else is in
+// the basket. The "one fits, one does not" case is what tells the two rules
+// apart; a cart with a single oversized item passes under either.
+func TestAMethodIsNotOfferedForAParcelItsCarrierRefuses(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+
+	// A method with 超商店到店's real ceilings, and the seeded methods beside it.
+	code := "cvs" + uuid.NewString()[:6]
+	var methodID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO shipping_methods (code, destination_kind,
+		                              max_parcel_longest_mm, max_parcel_sum_mm, max_parcel_weight_g)
+		VALUES ($1, 'pickup_point', 450, 1050, 10000) RETURNING id`, code).Scan(&methodID); err != nil {
+		t.Fatalf("create method: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO shipping_method_versions (method_id, name, fee_cents)
+		VALUES ($1, '測試超取', 6000)`, methodID); err != nil {
+		t.Fatalf("create version: %v", err)
+	}
+
+	small, big, _ := variantsOf(t, "parcel", 3)
+	// A phone-sized box, and a 27-inch monitor.
+	if _, err := pool.Exec(ctx, `
+		UPDATE product_variants SET parcel_longest_mm = 180, parcel_sum_mm = 320, parcel_weight_g = 400
+		WHERE id = $1`, small); err != nil {
+		t.Fatalf("measure the small one: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE product_variants SET parcel_longest_mm = 700, parcel_sum_mm = 1400, parcel_weight_g = 7000
+		WHERE id = $1`, big); err != nil {
+		t.Fatalf("measure the big one: %v", err)
+	}
+
+	offered := func(t *testing.T, cartID uuid.UUID) bool {
+		t.Helper()
+		choices, err := s.ShippingChoices(ctx, cartID, 100000)
+		if err != nil {
+			t.Fatalf("ShippingChoices: %v", err)
+		}
+		for i := range choices {
+			if choices[i].Code == code {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("a parcel that fits", func(t *testing.T) {
+		id := newCart(t, s)
+		if err := s.Add(ctx, id, small, 1); err != nil {
+			t.Fatalf("add: %v", err)
+		}
+		if !offered(t, id) {
+			t.Error("a box the carrier accepts is not being offered the method")
+		}
+	})
+
+	t.Run("a parcel that does not", func(t *testing.T) {
+		id := newCart(t, s)
+		if err := s.Add(ctx, id, big, 1); err != nil {
+			t.Fatalf("add: %v", err)
+		}
+		if offered(t, id) {
+			t.Error("a 27-inch monitor is being offered 超商取貨; the customer pays " +
+				"for it and the shop finds out at the counter")
+		}
+	})
+
+	t.Run("one that fits beside one that does not", func(t *testing.T) {
+		id := newCart(t, s)
+		if err := s.Add(ctx, id, small, 1); err != nil {
+			t.Fatalf("add small: %v", err)
+		}
+		if err := s.Add(ctx, id, big, 1); err != nil {
+			t.Fatalf("add big: %v", err)
+		}
+		if offered(t, id) {
+			t.Error("the method is offered because one item fits — the oversized one " +
+				"still cannot be split, and it is the one that reaches the counter")
+		}
+	})
+
+	t.Run("an unmeasured variant is refused by nothing", func(t *testing.T) {
+		id := newCart(t, s)
+		unmeasured := freshVariant(t, "parcel")
+		if err := s.Add(ctx, id, unmeasured, 1); err != nil {
+			t.Fatalf("add: %v", err)
+		}
+		if !offered(t, id) {
+			t.Error("an unmeasured variant lost the method: NULL means UNKNOWN, and " +
+				"hiding the channel 75.2% of shoppers prefer because nobody typed a " +
+				"box size costs more than the counter refusal it prevents")
+		}
+	})
+}
+
 func freshVariant(t *testing.T, slug string) uuid.UUID {
 	t.Helper()
 	a, _, _ := variantsOf(t, slug, 1)
@@ -3195,6 +3304,10 @@ func translatedVariant(t *testing.T) (variantID uuid.UUID, zhName, enName string
 func TestTheCheckoutOffersDeliveryInTheVisitorsLanguage(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
+	// An empty cart: what a method is OFFERED for now depends on what is in the
+	// basket, because a carrier that refuses a 27-inch monitor is not a choice
+	// for a basket with one in it.
+	id := newCart(t, s)
 
 	for _, tt := range []struct {
 		name   string
@@ -3212,7 +3325,7 @@ func TestTheCheckoutOffersDeliveryInTheVisitorsLanguage(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			choices, err := s.ShippingChoices(i18n.WithLocale(ctx, tt.locale), 100000)
+			choices, err := s.ShippingChoices(i18n.WithLocale(ctx, tt.locale), id, 100000)
 			if err != nil {
 				t.Fatalf("ShippingChoices: %v", err)
 			}

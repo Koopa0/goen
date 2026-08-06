@@ -163,13 +163,31 @@ func TestTheSessionRequestCarriesWhatStripeCharges(t *testing.T) {
 		}
 	}
 
-	// payment_method_types is deliberately ABSENT: sending it turns off dynamic
-	// payment methods, so the Dashboard stops deciding what a customer sees. A
-	// comment says so and nothing checked it.
-	if v, ok := sent.form["payment_method_types[0]"]; ok {
-		t.Errorf("form carries payment_method_types = %v; sending it disables "+
-			"dynamic payment methods, which the session comment says is the reason "+
-			"it is omitted", v)
+	// payment_method_types is PINNED, and this assertion used to demand the
+	// opposite — it required the field to be ABSENT, and passed for as long as
+	// the defect existed.
+	//
+	// That is the fourth time this repository has found a green test holding a
+	// bug in place, and the cause is the one docs/reviews/07 records: the test
+	// was written from the IMPLEMENTATION. A comment said the field was omitted
+	// on purpose, so the test asserted it was omitted. Only a test written from
+	// the CONTRACT — money must not arrive after the hold expires — can disagree
+	// with the code it covers.
+	//
+	// The contract is on the pin in StartSession: a delayed method settles after
+	// the session goen deliberately bounded by the stock hold, so the sweeper
+	// releases the units and the capture then succeeds against stock that is
+	// gone.
+	if got := sent.form["payment_method_types[0]"]; len(got) != 1 || got[0] != "card" {
+		t.Errorf("form[payment_method_types[0]] = %v, want [card]; without the pin "+
+			"the Dashboard may offer a DELAYED method, whose money settles days "+
+			"after the session expires — and the stock hold expires WITH the "+
+			"session, so the units are back on the shelf before the capture lands", got)
+	}
+	if got := sent.form["payment_method_types[1]"]; len(got) != 0 {
+		t.Errorf("form carries a second payment_method_type = %v; card is what a "+
+			"30-minute hold can survive, and anything else is a feature rather "+
+			"than a flag", got)
 	}
 	if sent.idempotency == "" {
 		t.Error("no Idempotency-Key header — two POSTs that both read \"no live " +

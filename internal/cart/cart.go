@@ -178,14 +178,46 @@ const tokenBytes = 32
 // schema's own CHECK.
 const MaxLineQuantity = 999
 
+// PayWindow is how long after PLACING an order a customer may still start
+// paying for it.
+//
+// It is not the same quantity as [HoldTTL], and the two were conflated — both
+// were thirty minutes — which broke payment ENTIRELY. The hold is stamped at
+// PlaceOrder and the payment page asks whether enough of it is left to open a
+// Checkout Session against; Stripe will not accept one expiring less than
+// [StripeSessionFloor] out. With HoldTTL equal to that floor the question
+// reduces to `placed_at >= pay_at`, which is false the instant after checkout,
+// so no session could ever be created and no order could ever be paid for.
+//
+// Two durations measured from DIFFERENT instants are not the same window — the
+// lesson [Order.SessionExpiry] already records, one level up, about the session
+// and the hold. This is that mistake in the two constants underneath it.
+const PayWindow = 30 * time.Minute
+
+// StripeSessionFloor mirrors payment.MinSessionLifetime, which is Stripe's own
+// minimum for a Checkout Session's expires_at.
+//
+// Mirrored rather than imported: internal/payment already reaches into this
+// package through a consumer-defined interface, and one number is a poor reason
+// to point the dependency back the other way.
+// TestAPlacedOrderCanActuallyBePaidFor binds the two through the real gate, and
+// through the real sequence — a hold stamped at placement, read at a LATER
+// instant — which is the shape neither of the tests that covered this had.
+const StripeSessionFloor = 30 * time.Minute
+
 // HoldTTL is how long an order's stock is reserved while payment is attempted.
 //
-// It is a real trade-off, not a round number. Too short and a customer typing a
-// card number loses the item under them; too long and an abandoned checkout
-// keeps stock off the shelf. Thirty minutes covers a slow 3-D Secure round trip
-// with room to spare, and inventory_reservations carries expires_at so a
-// sweeper can return what was never paid for.
-const HoldTTL = 30 * time.Minute
+// It is DERIVED, not chosen: a customer who reaches the pay page at the last
+// moment of [PayWindow] must still leave behind a hold long enough for Stripe to
+// accept a session, and that session then expires with the hold rather than
+// after it. Writing it as a sum is what stops the two ends drifting into the
+// equality that broke this.
+//
+// The trade-off inside PayWindow is the real one. Too short and a customer
+// typing a card number loses the item under them; too long and an abandoned
+// checkout keeps stock off the shelf. inventory_reservations carries expires_at
+// so a sweeper can return what was never paid for.
+const HoldTTL = PayWindow + StripeSessionFloor
 
 // NewToken returns a fresh cart token. crypto/rand, never math/rand: a
 // predictable token is a readable cart.
@@ -359,6 +391,11 @@ const (
 	maxStoreNameRunes = 40
 	maxNoteRunes      = 500
 	maxEmailRunes     = 254
+	// A 門市代碼 as the chains publish it: six digits at 7-ELEVEN, 全家 and OK,
+	// four characters at 萊爾富. The bound is the one ECPay states for the field
+	// rather than any chain's own width, so a chain that renumbers does not make
+	// this line refuse a real store.
+	maxStoreCodeLen = 10
 )
 
 // Validate checks an address the way the server must: completely, and before
@@ -466,16 +503,28 @@ func (a *Address) ForDestination() {
 
 // isStoreCode reports whether s is a convenience-store number.
 //
-// Digits only, and no length beyond a bound. The four chains number their
-// stores differently and goen does not pretend to know each format; what is
-// true of all of them is that the code is a number, so a 店名 typed into the
-// code field is caught.
+// Digits or uppercase letters. It was digits only, on the claim that a store
+// code is always a number — a guess, and wrong: 萊爾富 numbers its stores in
+// four characters and 149 of its 1,350 lead with a letter, so this line refused
+// every one of them at checkout and offered no way through. The measurement is
+// recorded beside order_private_data_pickup_store_code_format, which is the
+// authority; this is the copy that answers with a field name rather than a
+// constraint violation at the end of a checkout.
+//
+// It still catches what it was written to catch — a 店名 typed into the code
+// field is Han text, which is in neither class.
+//
+// It is an EXACT mirror of that CHECK, deliberately: it neither trims nor folds
+// case. A validator looser than the schema accepts a value the write then
+// refuses, which moves the refusal to the end of a checkout. [Address.Trim] is
+// where lowercase input is uppercased, and is what makes s884 reach here as
+// S884.
 func isStoreCode(s string) bool {
-	if s == "" || len(s) > 10 {
+	if s == "" || len(s) > maxStoreCodeLen {
 		return false
 	}
 	for _, r := range s {
-		if r < '0' || r > '9' {
+		if (r < '0' || r > '9') && (r < 'A' || r > 'Z') {
 			return false
 		}
 	}
@@ -568,7 +617,12 @@ func hasControl(s string) bool {
 	return false
 }
 
-// Trim normalises the whitespace a form inevitably carries.
+// Trim normalises what a form inevitably carries: the whitespace around every
+// field, and the CASE of a store code.
+//
+// 萊爾富's codes are uppercase — S884 — and somebody who types s884 has named
+// the right store. Refusing that would make this validator stricter than the
+// thing it models, over a shift key.
 func (a *Address) Trim() {
 	a.Email = strings.TrimSpace(a.Email)
 	a.Name = strings.TrimSpace(a.Name)
@@ -578,7 +632,7 @@ func (a *Address) Trim() {
 	a.District = strings.TrimSpace(a.District)
 	a.Street = strings.TrimSpace(a.Street)
 	a.PickupBrand = strings.TrimSpace(a.PickupBrand)
-	a.PickupStoreCode = strings.TrimSpace(a.PickupStoreCode)
+	a.PickupStoreCode = strings.ToUpper(strings.TrimSpace(a.PickupStoreCode))
 	a.PickupStoreName = strings.TrimSpace(a.PickupStoreName)
 	a.Note = strings.TrimSpace(a.Note)
 }
