@@ -63,11 +63,15 @@ type Request struct {
 // The database refuses these too. Checking here turns a constraint violation —
 // which reaches the customer as a 500 — into a message on the form with their
 // own words still in it.
+// A BLANK reason is legal, and that is 消保法 §19 I: a customer rescinding a
+// 通訊交易 inside seven days does so 無須說明理由. Demanding one here — as this
+// did, alongside `required` on the textarea and a CHECK in the schema — put a
+// barrier in front of an unwaivable statutory right, and /returns states that
+// right as a rule. The field is still offered, because most returns are not
+// rescissions and the shop wants to know; it is no longer a condition of
+// exercising one.
 func (r *Request) Validate() error {
 	r.Reason = strings.TrimSpace(r.Reason)
-	if r.Reason == "" {
-		return ErrInvalid
-	}
 	if utf8.RuneCountInString(r.Reason) > MaxReasonRunes {
 		return ErrInvalid
 	}

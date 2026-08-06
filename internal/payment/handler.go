@@ -213,7 +213,7 @@ func (h *Handler) toCheckout(w http.ResponseWriter, r *http.Request, number, red
 		return
 	}
 	//nolint:gosec // G710: checkoutHost above restricts the target to Stripe;
-	// the taint analyser cannot see through the helper. TestCheckoutHostOnly
+	// the taint analyser cannot see through the helper. TestCheckoutHostOnlyAcceptsStripe
 	// AcceptsStripe is what keeps that claim true.
 	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 }
@@ -274,6 +274,7 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 	// transaction keeps the transaction to the two writes that must agree.
 	capture, isCapture := CaptureFrom(&ev)
 	abandonedSession, isAbandoned := AbandonedSessionFrom(&ev)
+	unsettledSession, isUnsettled := UnsettledSessionFrom(&ev)
 	var apply func(context.Context, *Store) error
 	var number string
 	var unknownSession, cancelledOrder bool
@@ -362,6 +363,20 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 	case isCapture:
 		h.log.InfoContext(r.Context(), "payment captured",
 			"order", number, "event", ev.ID, "amount_cents", capture.AmountRecv)
+	case isUnsettled:
+		// ERROR, and it is not about this one order. The session pins card, so a
+		// delayed method reaching here means the Dashboard now offers one — and
+		// goen's stock hold expires with the session while such a payment settles
+		// days after it. Every order taking this path will have its units released
+		// and possibly re-sold before the money lands, and the capture will then
+		// succeed against stock that is gone without raising anything.
+		//
+		// Recorded and not acted on, deliberately: the event is in
+		// payment_webhook_events either way, and the alternatives are both worse
+		// than a person looking at it. See UnsettledSessionFrom.
+		h.log.ErrorContext(r.Context(),
+			"a delayed payment method completed a checkout — goen's stock hold cannot outlive it",
+			"event", ev.ID, "session", unsettledSession)
 	default:
 		// Recorded, not acted on. goen subscribes to more than it handles so the
 		// history is complete, and so adding a handler later has the events.

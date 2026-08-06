@@ -9114,10 +9114,7 @@ func (q *Queries) RestockSubject(ctx context.Context, arg RestockSubjectParams) 
 const returnForDecision = `-- name: ReturnForDecision :one
 SELECT r.id, r.status, r.reason, r.order_id,
        o.order_number, o.fulfillment_status,
-       (SELECT coalesce(sum(rl.quantity * ol.unit_price_cents), 0)
-        FROM return_request_lines rl
-        JOIN order_lines ol ON ol.id = rl.order_line_id
-        WHERE rl.return_request_id = r.id)::bigint AS refundable_cents,
+       return_refundable_amount(r.id)::bigint AS refundable_cents,
        p.id AS payment_id,
        p.provider_ref,
        p.captured_amount_cents,
@@ -9144,9 +9141,11 @@ type ReturnForDecisionRow struct {
 
 // One return, with what it would cost to refund.
 //
-// The amount is derived from the ORDER's own line prices, never from anything
-// the request carried: a refund figure that came in on a form is the oldest
-// hole there is, and this one pays out real money.
+// The amount comes from return_refundable_amount, never from anything the
+// request carried: a refund figure that came in on a form is the oldest hole
+// there is, and this one pays out real money. It is a FUNCTION rather than an
+// expression here because the queue needs the same number, and the two copies
+// this replaced were each wrong in the same two ways.
 func (q *Queries) ReturnForDecision(ctx context.Context, id uuid.UUID) (ReturnForDecisionRow, error) {
 	row := q.db.QueryRow(ctx, returnForDecision, id)
 	var i ReturnForDecisionRow
@@ -9224,25 +9223,48 @@ SELECT r.id, r.status, r.reason, r.created_at, r.decided_at,
        o.order_number,
        (SELECT coalesce(sum(rl.quantity), 0) FROM return_request_lines rl
         WHERE rl.return_request_id = r.id)::integer AS units,
-       (SELECT coalesce(sum(rl.quantity * ol.unit_price_cents), 0)
-        FROM return_request_lines rl
-        JOIN order_lines ol ON ol.id = rl.order_line_id
-        WHERE rl.return_request_id = r.id)::bigint AS refundable_cents
+       -- The ONE definition, not a second copy of the arithmetic. The queue and
+       -- the decision page used to compute this separately, and both were wrong
+       -- the same two ways — a figure a staff member reads on one page and acts
+       -- on from another must not be able to differ.
+       return_refundable_amount(r.id)::bigint AS refundable_cents,
+       -- Whether this request is a statutory rescission or a goodwill return,
+       -- which the page could not tell apart and a staff member therefore could
+       -- not either. 消保法 §19 I runs seven days from RECEIPT of the goods,
+       -- 民法 §120 II excludes the day of receipt so day one is the day after,
+       -- and §19 IV fixes the moment on the customer's SIDE — the request going
+       -- out, not the shop reading it. So the comparison is created_at against
+       -- delivered_at, both written by this database: one clock at both ends,
+       -- which is the /admin/messages lesson.
+       --
+       -- Undelivered is neither answer. The window has not started, so nothing
+       -- here is late; a return before the parcel lands is bounded by
+       -- return_lines_within_purchase instead.
+       (CASE
+            WHEN d.delivered_at IS NULL THEN 'undelivered'
+            WHEN r.created_at::date <= d.delivered_at::date + 7 THEN 'within'
+            ELSE 'after'
+        END)::text AS rescission_window
 FROM return_requests r
 JOIN orders o ON o.id = r.order_id
+LEFT JOIN LATERAL (
+    SELECT max(s.delivered_at) AS delivered_at
+    FROM order_shipments s WHERE s.order_id = o.id
+) d ON true
 ORDER BY (r.status = 'requested') DESC, r.created_at DESC
 LIMIT $1
 `
 
 type ReturnQueueRow struct {
-	ID              uuid.UUID
-	Status          string
-	Reason          string
-	CreatedAt       time.Time
-	DecidedAt       pgtype.Timestamptz
-	OrderNumber     string
-	Units           int32
-	RefundableCents int64
+	ID               uuid.UUID
+	Status           string
+	Reason           string
+	CreatedAt        time.Time
+	DecidedAt        pgtype.Timestamptz
+	OrderNumber      string
+	Units            int32
+	RefundableCents  int64
+	RescissionWindow string
 }
 
 // The return queue. Undecided first, because that is the work.
@@ -9264,6 +9286,7 @@ func (q *Queries) ReturnQueue(ctx context.Context, limit int32) ([]ReturnQueueRo
 			&i.OrderNumber,
 			&i.Units,
 			&i.RefundableCents,
+			&i.RescissionWindow,
 		); err != nil {
 			return nil, err
 		}

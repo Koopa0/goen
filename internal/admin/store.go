@@ -657,6 +657,7 @@ func (s *Store) Returns(ctx context.Context) (pages.AdminReturnsView, error) {
 			CreatedAt:   r.CreatedAt.Format("2006-01-02 15:04"),
 			Decided:     r.Status != "requested",
 			Lines:       byRequest[r.ID],
+			Window:      r.RescissionWindow,
 		})
 	}
 	return view, nil
@@ -717,10 +718,16 @@ func (s *Store) Decide(ctx context.Context, id, decision, resolution string, act
 // refundSplit is how a return is paid back: part to the card, part to the ledger.
 //
 // An order can be funded from two places at once — store credit plus a card — so
-// paying one back is two acts. Before this, RefundableCents (the line prices) was
-// compared to what the CARD captured, so a part-credit order claimed more than its
-// capture and was refused, and a wholly credit-funded order had no payment row at
-// all. The customer sent goods back and could not be paid.
+// paying one back is two acts. Before this, RefundableCents was compared to what
+// the CARD captured, so a part-credit order claimed more than its capture and was
+// refused, and a wholly credit-funded order had no payment row at all. The
+// customer sent goods back and could not be paid.
+//
+// RefundableCents is return_refundable_amount now, and it used to be the raw line
+// prices — which claimed the UNDISCOUNTED total against a capture that
+// payments_capture_matches_order forces to be the discounted one. On a couponed
+// order that over-refunded a partial return and refused a full one outright. It
+// also never returned the delivery fee, which a statutory rescission has to.
 type refundSplit struct {
 	// Card is refunded through the provider. Zero means there is no provider call
 	// to make, which is the wholly-credit-funded case.

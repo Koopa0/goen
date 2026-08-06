@@ -50,7 +50,7 @@ type topNavKey struct{}
 //     site, in the header of every page, and an English visitor met a Chinese
 //     navigation bar on a page whose every other word had been translated.
 //   - it was a second copy of `categories`. The comment above it said as much and
-//     named TestTopNavPointsAtRealCategories as what kept the two from drifting.
+//     named TestTopNavPointsAtRealCategories as what kept the two from drifting. // named-test-exempt: this line RECORDS that the test was never written
 //     That test was never written — the third claim of enforcement this project
 //     has found with nothing behind it.
 //   - a slug that stopped resolving was a dead link on every page at once, which

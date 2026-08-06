@@ -1,6 +1,10 @@
 package site
 
-import "github.com/koopa0/goen/internal/ui/pages"
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/ui/pages"
+)
 
 // policies is the static policy documents, keyed by their path segment.
 //
@@ -9,10 +13,20 @@ import "github.com/koopa0/goen/internal/ui/pages"
 // is the right amount of ceremony for that, and it puts the text under review
 // alongside the code that has to honour it.
 //
-// Every clause here describes what the code actually does. Where a commercial
-// decision has not been made — the return window, who pays return postage, the
-// warranty term — the document says so rather than inventing a number the shop
-// would then be held to. Those are the owner's to set.
+// Every clause here describes what the code actually does, or what the law
+// requires of it regardless. Where a COMMERCIAL decision has not been made — the
+// warranty term, a goodwill return beyond the statutory window — the document
+// says so rather than inventing a number the shop would then be held to.
+//
+// That distinction is load-bearing in BOTH directions, and only one of them had
+// a guard. TestUndecidedTermsAreMarkedPending catches a gap set in the same
+// typeface as a rule. The MIRROR of it shipped here: 鑑賞期天數, who pays return
+// postage and whether opening the box matters were all filed under 尚未確定 —
+// and all three are fixed by 消保法 §19, which §19 V makes unwaivable. They were
+// never the owner's to set. A right dressed as a gap reads to the customer as
+// "you may not have one", which is the more expensive of the two mistakes, and
+// no test in this repository could see it. TestStatutoryTermsAreNotPending is
+// the other direction.
 var policies = map[string]pages.PolicyDoc{
 	"returns": {
 		Title:   "退換貨政策",
@@ -39,11 +53,54 @@ var policies = map[string]pages.PolicyDoc{
 					"退款一定會退回原付款方式,不會改用其他管道。",
 				},
 			},
+			// 消保法 §19 I fixes seven days from RECEIPT, with no reason and no
+			// cost to the consumer; §19 V voids any agreement to the contrary, so
+			// none of the three clauses below is goen's to write differently.
+			// 民法 §120 II is why day one is the day AFTER delivery, and §19 IV is
+			// why posting on the last day is in time whenever it arrives.
+			{
+				Heading: "鑑賞期",
+				Body: []string{
+					"您有七天的鑑賞期。這七天從收到商品的「隔天」開始算,期間內要解除契約不需要說明理由,也不需要負擔任何費用。",
+					"只要在期限內把商品交寄出去、或把書面通知發出,契約就算解除 —— 我們哪一天收到不影響這件事。",
+					"鑑賞期是讓您檢查商品的期間,和在店裡把商品拿起來看是同一回事。因為檢查的必要而造成的毀損或變更,不會讓這個權利消失。",
+				},
+			},
+			// The only statutory hook for this is §19 I's 「不負擔任何費用」 — a
+			// construction of those four characters, and the reading a consumer
+			// authority takes. NOT §19-2, which is about the trader's duty to
+			// collect and contains no cost-allocation sentence at all; and NOT
+			// 消保法字第0960012078號函, which reasons from 施行細則 §19 and §20,
+			// both deleted in the 104/12/31 amendment.
+			{
+				Heading: "退貨運費",
+				Body: []string{
+					"鑑賞期內解除契約,您不需要負擔任何費用,退貨運費由 goen 負擔。",
+				},
+			},
+			// 通訊交易解除權合理例外情事適用準則 §2 is a CLOSED list of seven, and
+			// opened 3C hardware is on none of them. Its chapeau also conditions
+			// every one of the seven on 「並經企業經營者告知消費者」 — an exception
+			// is not self-executing, so a shop that sells boxed software and says
+			// nothing owes the full seven days anyway.
+			//
+			// goen therefore claims no exception, and the copy says so rather than
+			// promising a per-product marking that nothing in the code renders. If
+			// the catalogue ever carries software or a hygiene item, this clause
+			// changes together with the disclosure that makes it true — 消保法
+			// §18 I 4 requires that separately.
+			{
+				Heading: "拆封之後還能退嗎",
+				Body: []string{
+					"可以。手機、耳機、傳輸線這類 3C 硬體拆封後仍在鑑賞期內 —— 鑑賞期本來就包含拆開來檢查。",
+					"法律允許少數幾類商品排除鑑賞期,而且必須在購買前就明確告知才算數。goen 目前沒有任何商品排除鑑賞期,所以本店所有商品都適用完整的七天。",
+				},
+			},
 			{
 				Heading: "尚未確定的條款",
 				Pending: true,
 				Body: []string{
-					"鑑賞期天數、退貨運費由誰負擔,以及包裝拆封後是否影響退貨,這些條款尚未確定。正式營運前會在本頁公告,在那之前請以聯絡我們取得的說明為準。",
+					"七天鑑賞期之外是否另外受理退貨(例如商品沒有問題,但您在第十天改變主意),這一項尚未確定。正式營運前會在本頁公告,在那之前請以聯絡我們取得的說明為準。",
 				},
 			},
 		},
@@ -68,7 +125,14 @@ var policies = map[string]pages.PolicyDoc{
 			{
 				Heading: "庫存保留",
 				Body: []string{
-					"送出訂單時系統會保留庫存 30 分鐘。超過時間未完成付款,商品會回到架上,但訂單仍然存在,可以重新付款(若庫存還在)。",
+					// The number is INTERPOLATED, not typed. It used to be the
+					// literal 30 here and `%s` fed by pages.HoldMinutesText() on
+					// /shipping — one figure stated twice, with a test binding only
+					// one of them, so this copy could say something the till did not
+					// do and nothing would notice. It said exactly that the moment
+					// cart.HoldTTL moved.
+					fmt.Sprintf("送出訂單時系統會保留庫存 %s 分鐘。超過時間未完成付款,商品會回到架上,"+
+						"但訂單仍然存在,可以重新付款(若庫存還在)。", pages.HoldMinutesText()),
 				},
 			},
 		},

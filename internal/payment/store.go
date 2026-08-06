@@ -343,8 +343,15 @@ func text(s string) pgtype.Text {
 //
 // Not imported: internal/payment has no other reason to depend on
 // internal/loyalty, and one number is a poor reason to couple two features.
-// TestTheAwardWindowMatchesTheProgramme keeps them equal — the same arrangement
-// admin.OutboxMaxAttempts has with outbox.MaxAttempts.
+// TestTheLoyaltyConstantsMatchTheProgramme keeps them equal.
+//
+// This comment used to name TestTheAwardWindowMatchesTheProgramme, which does // named-test-exempt: this line RECORDS the name that was wrong
+// not exist — in a comment whose own subject is that failure, since the real
+// test's doc records that both constants once claimed a guard that had never
+// been written. The fix wrote the test and left the wrong name behind. It also
+// cited admin.OutboxMaxAttempts as the same arrangement; that constant is gone,
+// deliberately, because /admin/health imports internal/outbox and reads the real
+// number now.
 const LoyaltyValidityDays int32 = 365
 
 // MembershipWindowDays mirrors loyalty.MembershipWindow, for the same reason

@@ -131,10 +131,33 @@ func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (id
 		IntegrationIdentifier: stripe.String(integrationIdentifier),
 	}
 
-	// payment_method_types is deliberately ABSENT. Passing it turns off dynamic
-	// payment methods, which is what lets the Dashboard decide — per currency,
-	// per country, per amount — which methods a customer sees. Hard-coding
-	// "card" here would silently cost every other method goen enables later.
+	// payment_method_types is PINNED, and it used to be deliberately absent so
+	// the Dashboard could decide — per currency, per country, per amount — which
+	// methods a customer sees. That reasoning was sound on its own and it
+	// CONTRADICTED the ExpiresAt decision ten lines above, which pins the session
+	// to the stock hold precisely so money cannot arrive after the goods are back
+	// on the shelf.
+	//
+	// A DELAYED method breaks that. Its `checkout.session.completed` arrives with
+	// payment_status `unpaid` and the funds settle days later as
+	// `async_payment_succeeded` — after the session is over, so ExpiresAt bounds
+	// nothing, and a completed session never fires `checkout.session.expired`, so
+	// the abandoned path never runs either. The hold is swept 30 minutes after
+	// PlaceOrder, the units are re-sold, and the capture then succeeds against
+	// stock that is gone. Nothing raises: capture_payment does not read
+	// reservations and admin.Ship ranges over an empty held-reservation slice.
+	//
+	// Two halves each correct and disagreeing, which is the shape CLAUDE.md's
+	// mistake #13 records — and no guard here could see it, because every one of
+	// them asks what is ABSENT.
+	//
+	// Card is what goen's 30-minute hold can survive, so card is what it offers.
+	// Apple Pay and Google Pay ride on this type. Supporting a delayed method is
+	// a FEATURE, not a flag: it needs a hold whose life is the payment deadline,
+	// a sweeper that spares an order with money in flight, and a shop decision
+	// about how many days of stock an unpaid transfer may hold.
+	params.PaymentMethodTypes = stripe.StringSlice([]string{"card"})
+
 	if o.Email != "" {
 		params.CustomerEmail = stripe.String(o.Email)
 	}
@@ -242,9 +265,12 @@ func (g *Gateway) VerifyWebhook(body []byte, sigHeader string) (stripe.Event, er
 // captureEvents are the two events that can carry money goen must record.
 //
 // `checkout.session.async_payment_succeeded` was missing, and its absence was a
-// hole the rest of this file DOCUMENTED without closing. payment_method_types is
-// deliberately omitted on the session so dynamic payment methods stay on; for a
-// delayed method the `completed` event arrives with payment_status `unpaid` —
+// hole the rest of this file DOCUMENTED without closing. The session PINS
+// payment_method_types to card now — see [Gateway.StartSession], where the
+// reasoning is — so a delayed method should not arise at all; these two events
+// are kept as defence in depth, and [UnsettledSessionFrom] reports at ERROR if
+// one ever does. For a delayed method the `completed` event arrives with
+// payment_status `unpaid` —
 // which the check below correctly refuses, and which
 // TestOnlyAPaidSessionIsACapture named "an asynchronous payment method still
 // processing" as the reason for. The success that follows arrives as
@@ -321,6 +347,39 @@ func AbandonedSessionFrom(ev *stripe.Event) (string, bool) {
 		return "", false
 	}
 	if sess.ID == "" {
+		return "", false
+	}
+	return sess.ID, true
+}
+
+// UnsettledSessionFrom reports the session id of a checkout the customer
+// FINISHED while the money is still on its way.
+//
+// It is the one signal Stripe gives that a delayed payment method is in play,
+// and goen's stock model cannot survive one — the reasoning is on the
+// PaymentMethodTypes pin in [Gateway.StartSession]. Because that pin makes card
+// the only method offered, an event reaching here is a CONFIGURATION change
+// rather than anything a customer did, which is why the handler reports it at
+// ERROR rather than recording it and moving on.
+//
+// It deliberately writes NOTHING. Capturing would be the defect; extending the
+// hold is the feature that has not been built and needs a shop decision first.
+// What this buys is that the condition is no longer silent: before it, a
+// completed-but-unpaid session fell to the handler's default branch and was
+// logged as one more event goen does not act on, indistinguishable from the
+// dozen it genuinely does not act on.
+//
+// `no_payment_required` is not this case and does not reach Stripe at all: a
+// zero-owed order is never sent, because Stripe refuses a zero-amount session.
+func UnsettledSessionFrom(ev *stripe.Event) (string, bool) {
+	if ev.Type != "checkout.session.completed" {
+		return "", false
+	}
+	var sess stripe.CheckoutSession
+	if err := json.Unmarshal(ev.Data.Raw, &sess); err != nil {
+		return "", false
+	}
+	if sess.ID == "" || sess.PaymentStatus != stripe.CheckoutSessionPaymentStatusUnpaid {
 		return "", false
 	}
 	return sess.ID, true

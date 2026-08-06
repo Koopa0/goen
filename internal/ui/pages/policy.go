@@ -112,7 +112,13 @@ func (v ShippingView) Empty() bool { return len(v.Methods) == 0 }
 // It mirrors cart.HoldTTL. Not imported, because internal/ui must not depend on
 // a feature package — but it is one number, and if it drifts the shipping page
 // says something the till does not do.
-const HoldMinutes = 30
+//
+// It is 60 because cart.HoldTTL is now PayWindow + StripeSessionFloor rather
+// than a flat thirty minutes: the two were equal, which made the hold exactly
+// Stripe's session floor and left no session goen could ever open. What a
+// customer reads here is the whole reservation, not the half of it they have to
+// start paying inside.
+const HoldMinutes = 60
 
 // HoldMinutesText is that number, for the template.
 func HoldMinutesText() string { return strconv.Itoa(HoldMinutes) }

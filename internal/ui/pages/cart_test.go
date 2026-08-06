@@ -119,6 +119,81 @@ func TestTheCheckoutShowsTheRequotedFigure(t *testing.T) {
 	}
 }
 
+// TestTheCheckoutSummaryAddsUpTheWayPlaceOrderDoes holds the checkout total
+// against the arithmetic that actually writes the order.
+//
+// TotalCents' own doc comment says "the same arithmetic PlaceOrder does. It has
+// to be" — and it was not. Two things were wrong on the 離島 path and both are
+// here:
+//
+//   - A 免運 coupon zeroed the WHOLE shipping figure, surcharge included, while
+//     cart.priceOrder keeps the surcharge deliberately (「免運 covers the base
+//     rate the shop advertises, never the 離島 surcharge a carrier charges on
+//     top of it」, from shipping_version_zones' own column comment). The page
+//     promised subtotal-discount and the order was written at
+//     subtotal+surcharge-discount.
+//   - The fee row printed the quote's TOTAL, which already contains the
+//     surcharge, while the surcharge got a second row of its own — so a reader
+//     saw 280 and 200 for a delivery charge of 280.
+//
+// The expected values are hand-computed literals, not expressions over the
+// fixture, so the test states the arithmetic rather than restating the code.
+func TestTheCheckoutSummaryAddsUpTheWayPlaceOrderDoes(t *testing.T) {
+	t.Parallel()
+
+	// 宅配 at NT$80 to 金門, which the carrier charges NT$200 more to reach.
+	// Two items at NT$500.
+	base := func() *CheckoutView {
+		return &CheckoutView{
+			Cart:                CartView{SubtotalCents: 100000},
+			Shipping:            []ShippingChoice{{VersionID: "v1", FeeCents: 8000}},
+			Chosen:              "v1",
+			QuotedShippingCents: 28000, // 8000 base + 20000 surcharge
+			SurchargeCents:      20000,
+		}
+	}
+
+	t.Run("the two summary rows do not double-count the surcharge", func(t *testing.T) {
+		t.Parallel()
+		v := base()
+		if got := v.BaseShippingCents(); got != 8000 {
+			t.Errorf("the 運費 row shows %d, want 8000 — the 離島加價 row states the "+
+				"other 20000 on its own line, so printing the combined figure here "+
+				"reads as 28000 + 20000", got)
+		}
+		if got := v.TotalCents(); got != 128000 {
+			t.Errorf("total = %d, want 128000 (100000 + 8000 + 20000)", got)
+		}
+	})
+
+	t.Run("a 免運 coupon pays the base rate and not the crossing", func(t *testing.T) {
+		t.Parallel()
+		v := base()
+		v.CouponFreeShipping = true
+		if got := v.TotalCents(); got != 120000 {
+			t.Errorf("total with a free-shipping coupon = %d, want 120000 "+
+				"(100000 + 0 base + 20000 surcharge) — zeroing the surcharge too "+
+				"makes the page promise a figure PlaceOrder will not write, and the "+
+				"customer meets the difference on the payment page", got)
+		}
+		if !v.ShipsFree() {
+			t.Error("the fee row does not read 免運 with a free-shipping coupon")
+		}
+	})
+
+	t.Run("no surcharge, no coupon", func(t *testing.T) {
+		t.Parallel()
+		v := &CheckoutView{
+			Cart:     CartView{SubtotalCents: 100000},
+			Shipping: []ShippingChoice{{VersionID: "v1", FeeCents: 8000}},
+			Chosen:   "v1",
+		}
+		if got := v.TotalCents(); got != 108000 {
+			t.Errorf("total = %d, want 108000", got)
+		}
+	})
+}
+
 // TestTheOrderPageShowsTheDiscountAndWhy renders the page and looks for the row.
 //
 // The failure this locks is silent: the discount used to be absent from the order

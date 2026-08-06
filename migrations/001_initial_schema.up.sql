@@ -2210,11 +2210,22 @@ CREATE TABLE order_private_data (
         pickup_brand IS NULL
         OR pickup_brand IN ('seven_eleven', 'family_mart', 'hi_life', 'ok_mart')
     ),
-    -- Digits only. The four brands number their stores differently and goen
-    -- does not pretend to know each format; what is true of all of them is that
-    -- a store code is a number, so a 店名 typed into the code field is refused.
+    -- Digits or uppercase letters, bounded at the length a 門市代碼 is published
+    -- with. This used to be digits only, on the stated ground that "what is true
+    -- of all of them is that a store code is a number" — which was a GUESS, and
+    -- this repository wrote it into a CHECK.
+    --
+    -- It is wrong. Measured against 綠界's own GetStoreList on 2026-08-06:
+    -- 7-ELEVEN (6,080 stores), 全家 (3,449) and OK (688) number theirs in six
+    -- digits, but 萊爾富 uses FOUR characters and 149 of its 1,350 lead with a
+    -- letter — S884, H869, G850. Every one of those was a checkout this line
+    -- refused, with no other way through, for one customer at a time and
+    -- visible to nobody else.
+    --
+    -- The rule still does the job it was written for: a 店名 typed into the code
+    -- field is Han text, which is in neither class.
     CONSTRAINT order_private_data_pickup_store_code_format CHECK (
-        pickup_store_code IS NULL OR pickup_store_code ~ '^[0-9]{1,10}$'
+        pickup_store_code IS NULL OR pickup_store_code ~ '^[0-9A-Z]{1,10}$'
     )
 );
 
@@ -2614,7 +2625,13 @@ CREATE TABLE return_requests (
     decided_at         timestamptz,
     CONSTRAINT return_requests_status_known
         CHECK (status IN ('requested', 'approved', 'rejected', 'completed')),
-    CONSTRAINT return_requests_reason_present CHECK (reason ~ '[^[:space:]]'),
+    -- A BLANK reason is legal. 消保法 §19 I lets a customer rescind a 通訊交易
+    -- inside seven days 無須說明理由, and §19 V voids any agreement otherwise —
+    -- so a NOT-NULL-and-non-blank CHECK was a barrier in front of an unwaivable
+    -- right, enforced in the one place a form cannot talk its way past. The
+    -- column stays NOT NULL: '' is "none given", which is a different fact from
+    -- NULL and the only one this table needs.
+    CONSTRAINT return_requests_reason_bounded CHECK (length(reason) <= 500),
     CONSTRAINT return_requests_decided_has_time
         CHECK ((status = 'requested') = (decided_at IS NULL))
 );
@@ -4087,7 +4104,28 @@ GRANT INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO store;
 REVOKE SELECT ON
     sessions, password_reset_tokens, staff_totp_credentials, user_identities,
     order_private_data, payment_webhook_events, order_access_grants,
-    email_verifications, newsletter_confirmations
+    email_verifications, newsletter_confirmations,
+    -- The eight the guard found the first time it was RUN, which is the point:
+    -- the list above was maintained by hand for as long as the test naming it
+    -- did not exist, and it had drifted this far.
+    --
+    -- outbox_messages is the one that matters most and the least obvious.
+    -- internal/email/notify.go concedes it: a reset link, an unsubscribe link
+    -- and a newsletter confirmation all travel in the PAYLOAD, in plaintext,
+    -- because sending from the handler loses the message when the process dies
+    -- mid-send. So the queue holds live credentials, and the read-only role
+    -- could read every one of them.
+    --
+    -- The rest are contact details and identity: users, addresses and
+    -- contact_messages are somebody's name, address and own words;
+    -- newsletter_subscribers and stock_notifications are mailing lists;
+    -- invoice_preferences carries a 統編; carts carries a token_hash.
+    --
+    -- A report that genuinely needs one of these gets a VIEW exposing the
+    -- aggregate, not the table. reporting is the role most likely to be pointed
+    -- at a BI tool, a notebook, or a contractor.
+    users, addresses, carts, contact_messages, invoice_preferences,
+    newsletter_subscribers, outbox_messages, stock_notifications
     FROM reporting;
 
 -- Tables whose integrity depends on going through a function. Revoke the write
@@ -4297,6 +4335,80 @@ COMMENT ON FUNCTION order_amount_owed(uuid) IS
     'The amount still payable on an order: total less store credit spent on it, '
     'net of reversals. The one definition every funding check and the payment page '
     'read, so the figure charged and the figure demanded cannot disagree.';
+
+-- What one return request is worth paying back.
+--
+-- It was `sum(quantity * unit_price_cents)` written out in TWO queries — the
+-- decision page and the queue — and it was wrong in both directions at once:
+--
+--   * It ignored `orders.discount_cents` while `payments_capture_matches_order`
+--     forces the capture to equal `order_amount_owed`, which is NET of the
+--     discount. Two NT$500 lines, a NT$500 coupon and NT$80 of shipping capture
+--     NT$580; returning ONE line claimed NT$500 for an item the customer paid
+--     NT$250 of, and `refunds_within_capture` was satisfied because the total
+--     still fitted. Returning BOTH claimed NT$1,000 against NT$580 of headroom,
+--     so the decision was refused outright — goods back at the shop and no door
+--     that could pay for them. Invisible on any order with no coupon, because
+--     shipping and tax are additive and the claim can never exceed the capture.
+--
+--   * It never refunded `orders.shipping_cents`. /returns states the statutory
+--     rescission under 消保法 §19 I, where the customer bears 任何費用 — no cost
+--     at all — so the delivery fee goen collected has to come back with the
+--     goods. Nothing could return it short of a hand-granted store credit.
+--
+-- The discount is allocated PROPORTIONALLY to what is going back, and rounded
+-- UP, so several partial returns can never sum past the capture and strand the
+-- last one. A full return is exact: the returned gross equals the subtotal, so
+-- the share is the whole discount and no rounding happens.
+--
+-- The shipping fee goes back only when this request takes the LAST unreturned
+-- unit of every line — the customer is rescinding the whole contract rather
+-- than sending one thing back, and the shop delivered the rest. Where several
+-- partial returns add up to the whole, the one that completes it carries the
+-- fee.
+--
+-- `tax_cents` is deliberately absent. It is written 0 at order creation because
+-- 營業稅法 §32 II requires a displayed price to be tax-INCLUSIVE, so there is no
+-- separate tax to give back; a term for it here would be dead arithmetic.
+CREATE FUNCTION return_refundable_amount(p_return_request_id uuid) RETURNS bigint
+LANGUAGE sql
+STABLE
+PARALLEL SAFE
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+    SELECT ret.gross
+         - ceil(o.discount_cents::numeric * ret.gross::numeric
+                / nullif(ord.subtotal, 0)::numeric)::bigint
+         + CASE WHEN NOT EXISTS (
+               SELECT 1 FROM order_lines ol
+               WHERE ol.order_id = o.id
+                 AND ol.quantity > (
+                     SELECT coalesce(sum(rl.quantity), 0)
+                     FROM return_request_lines rl
+                     JOIN return_requests rr ON rr.id = rl.return_request_id
+                     WHERE rl.order_line_id = ol.id AND rr.status <> 'rejected')
+           ) THEN o.shipping_cents ELSE 0 END
+    FROM return_requests r
+    JOIN orders o ON o.id = r.order_id
+    CROSS JOIN LATERAL (
+        SELECT coalesce(sum(rl.quantity * ol.unit_price_cents), 0)::bigint AS gross
+        FROM return_request_lines rl
+        JOIN order_lines ol ON ol.id = rl.order_line_id
+        WHERE rl.return_request_id = r.id
+    ) ret
+    CROSS JOIN LATERAL (
+        SELECT coalesce(sum(ol.quantity * ol.unit_price_cents), 0)::bigint AS subtotal
+        FROM order_lines ol WHERE ol.order_id = o.id
+    ) ord
+    WHERE r.id = p_return_request_id;
+$$;
+
+COMMENT ON FUNCTION return_refundable_amount(uuid) IS
+    'What one return request is worth paying back: the returned goods at their '
+    'order-line prices, less their proportional share of the order discount, '
+    'plus the delivery fee when the request completes a full rescission. The one '
+    'definition, read by the queue and by the decision page, so the figure a '
+    'staff member sees and the figure that is paid cannot disagree.';
 
 CREATE FUNCTION order_is_committed(p_order_id uuid) RETURNS boolean
 LANGUAGE sql STABLE AS $$
@@ -4534,6 +4646,10 @@ GRANT EXECUTE ON FUNCTION consume_reservation(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION release_reservation(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION order_is_committed(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION order_amount_owed(uuid) TO admin;
+-- The refund figure, for the queue and the decision page. admin only: deciding a
+-- return is the back office's act, and the customer's own return pages never
+-- state an amount.
+GRANT EXECUTE ON FUNCTION return_refundable_amount(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION order_is_settled(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION member_spend(uuid, integer, uuid) TO admin;
 GRANT EXECUTE ON FUNCTION member_tier(uuid, integer, uuid) TO admin;
@@ -4899,8 +5015,27 @@ BEGIN
             USING ERRCODE = 'check_violation', CONSTRAINT = 'coupon_is_current';
     END IF;
 
+    -- CANCELLED orders do not count, and that is the whole door.
+    --
+    -- coupon_redemptions is append-only and both roles are revoked all three
+    -- write verbs, so a redemption cannot be deleted by anybody — including the
+    -- owner. With the count unconditional, a checkout that was cancelled two
+    -- minutes later consumed a total-limit slot and a per-customer slot FOREVER,
+    -- with no path in the product to free either and nothing the back office
+    -- could do but switch the coupon off: max_redemptions is write-once.
+    --
+    -- The row stays, because it is the history of what was charged. It is the
+    -- QUESTION that was wrong, which is the committed_orders lesson exactly —
+    -- one predicate answering two things, and the shop's own cancel unable to
+    -- undo what it had just caused.
+    --
+    -- A PENDING unpaid order still counts, deliberately. It is a checkout in
+    -- flight, and not counting it is how two customers both pass the last slot.
     IF c.max_redemptions IS NOT NULL THEN
-        SELECT count(*) INTO used FROM coupon_redemptions WHERE coupon_id = c.id;
+        SELECT count(*) INTO used
+        FROM coupon_redemptions cr
+        JOIN orders o ON o.id = cr.order_id
+        WHERE cr.coupon_id = c.id AND o.fulfillment_status <> 'cancelled';
         IF used >= c.max_redemptions THEN
             RAISE EXCEPTION 'coupon % is fully redeemed', c.code
                 USING ERRCODE = 'check_violation', CONSTRAINT = 'coupon_within_total_limit';
@@ -4912,7 +5047,10 @@ BEGIN
     -- rather than silently skipped.
     IF p_user_id IS NOT NULL THEN
         SELECT count(*) INTO used_by_customer
-        FROM coupon_redemptions WHERE coupon_id = c.id AND user_id = p_user_id;
+        FROM coupon_redemptions cr
+        JOIN orders o ON o.id = cr.order_id
+        WHERE cr.coupon_id = c.id AND cr.user_id = p_user_id
+          AND o.fulfillment_status <> 'cancelled';
         IF used_by_customer >= c.per_customer_limit THEN
             RAISE EXCEPTION 'coupon % already used by this customer', c.code
                 USING ERRCODE = 'check_violation', CONSTRAINT = 'coupon_within_customer_limit';

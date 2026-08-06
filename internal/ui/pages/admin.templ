@@ -292,7 +292,7 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 									</div>
 									<div class="ui-field">
 										<label class="ui-label" for="d-store-code">門市店號</label>
-										<input class="ui-input" id="d-store-code" name="pickup_store_code" value={ v.Delivery.PickupStoreCode } required maxlength="10" inputmode="numeric"/>
+										<input class="ui-input" id="d-store-code" name="pickup_store_code" value={ v.Delivery.PickupStoreCode } required maxlength="10"/>
 									</div>
 									<div class="ui-field">
 										<label class="ui-label" for="d-store-name">門市名稱</label>
@@ -303,7 +303,7 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 								<div class="goen-admin__row">
 									<div class="ui-field">
 										<label class="ui-label" for="d-postal">郵遞區號</label>
-										<input class="ui-input" id="d-postal" name="postal_code" value={ v.Delivery.PostalCode } required maxlength="6" inputmode="numeric"/>
+										<input class="ui-input" id="d-postal" name="postal_code" value={ v.Delivery.PostalCode } required maxlength="6"/>
 									</div>
 									<div class="ui-field">
 										<label class="ui-label" for="d-city">縣市</label>

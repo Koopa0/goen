@@ -415,10 +415,23 @@ func (v *CheckoutView) ShippingFeeCents() int64 {
 	return 0
 }
 
+// BaseShippingCents is the delivery charge WITHOUT the 離島 surcharge.
+//
+// The fee row and the surcharge row are two lines on the summary, deliberately
+// — the template's own comment says 「運費 NT$280」 for an order the customer
+// expected to pay NT$80 for reads as a mistake. But the fee row printed
+// ShippingFeeCents, which is the quote's TOTAL and already includes the
+// surcharge, so the two lines showed 280 and 200 while the total added 280
+// once: the exact reading that comment exists to prevent, produced by the code
+// underneath it.
+func (v *CheckoutView) BaseShippingCents() int64 {
+	return v.ShippingFeeCents() - v.SurchargeCents
+}
+
 // ShippingText is the chosen method's fee as money, after any free-shipping
 // coupon. A coupon that zeroes the fee must read as 免運 here and not as an
 // unexplained smaller total below.
-func (v *CheckoutView) ShippingText() string { return twd(v.ShippingFeeCents()) }
+func (v *CheckoutView) ShippingText() string { return twd(v.BaseShippingCents()) }
 
 // ShipsFree reports whether delivery costs nothing, so the TEMPLATE can say so
 // in the visitor's language.
@@ -428,7 +441,7 @@ func (v *CheckoutView) ShippingText() string { return twd(v.ShippingFeeCents()) 
 // unrendered. Deciding here and wording there is the split the rest of the
 // chrome already follows.
 func (v *CheckoutView) ShipsFree() bool {
-	return v.CouponFreeShipping || v.ShippingFeeCents() == 0
+	return v.CouponFreeShipping || v.BaseShippingCents() == 0
 }
 
 // Total is what the visitor will owe.
@@ -443,12 +456,24 @@ func (v *CheckoutView) Total() string {
 // one figure while the order is written at another is the bug a customer
 // notices on their card statement, and the one they never trust the shop about
 // again.
+// A 免運 coupon zeroes the shop's BASE RATE and never the 離島 surcharge, which
+// is what a carrier charges to cross the water. This used to zero the whole
+// shipping figure — surcharge included — while cart.priceOrder deliberately
+// kept it, so the page promised subtotal-discount and the order was written at
+// subtotal+surcharge-discount. The customer met the difference one page later,
+// on /orders/{number}/pay, as an unexplained jump from the total they had just
+// agreed to.
+//
+// The rule is stated in shipping_version_zones' own COMMENT ON COLUMN — 「免運
+// covers the base rate the shop advertises, never the 離島 surcharge a carrier
+// charges on top of it」 — and this was the one of its three readers that had
+// not learned it.
 func (v *CheckoutView) TotalCents() int64 {
-	shipping := v.ShippingFeeCents()
+	shipping := v.BaseShippingCents()
 	if v.CouponFreeShipping {
 		shipping = 0
 	}
-	return v.Cart.SubtotalCents + shipping - v.CouponDiscountCents
+	return v.Cart.SubtotalCents + shipping + v.SurchargeCents - v.CouponDiscountCents
 }
 
 // OrderLine is one line on the confirmation page.

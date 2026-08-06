@@ -282,6 +282,68 @@ func TestValidateAsksForTheDestinationTheMethodNeeds(t *testing.T) {
 	}
 }
 
+// The store codes below are REAL, read from 綠界's own GetStoreList on
+// 2026-08-06 — the authority for how a chain numbers its stores, rather than
+// this repository's guess about it.
+//
+// 萊爾富 is why the test exists. It numbers stores in FOUR characters and 149 of
+// its 1,350 lead with a letter, so the digits-only rule this validator used to
+// carry refused every one of them at checkout: no way through, one customer at a
+// time, and nothing the shop could see. The comment that rule shipped under —
+// "what is true of all of them is that a store code is a number" — was never
+// checked against a chain.
+//
+// The case that has to stay red under the old rule is 萊爾富 S884. A test built
+// only from six-digit codes passes either way and locks nothing.
+func TestAPickupStoreCodeIsWhateverTheChainNumbersItsStores(t *testing.T) {
+	cases := []struct {
+		name   string
+		brand  string
+		code   string
+		refuse bool
+	}{
+		{name: "7-ELEVEN 千禧", brand: "seven_eleven", code: "110080"},
+		{name: "全家 永和保安店", brand: "family_mart", code: "010855"},
+		{name: "OK 福林店", brand: "ok_mart", code: "000002"},
+		{name: "萊爾富 高縣後庄店", brand: "hi_life", code: "S884"},
+		{name: "萊爾富, another lettered code", brand: "hi_life", code: "H869"},
+		// Trim uppercases, so a shift key is not a rejected checkout.
+		{name: "萊爾富 高縣後庄店 typed in lower case", brand: "hi_life", code: "s884"},
+
+		// What the rule is actually for, and it still holds.
+		{name: "a 店名 typed into the code field", brand: "seven_eleven", code: "信義門市", refuse: true},
+		{name: "no code at all", brand: "seven_eleven", code: "", refuse: true},
+		{name: "longer than a 門市代碼", brand: "seven_eleven", code: "11008011008", refuse: true},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			a := &Address{
+				To:              ToPickupPoint,
+				Email:           "who@example.com",
+				Name:            "王小明",
+				Phone:           "0912345678",
+				PickupBrand:     c.brand,
+				PickupStoreCode: c.code,
+				PickupStoreName: "門市",
+			}
+			a.Trim()
+
+			var want []string
+			if c.refuse {
+				want = []string{"pickup_store_code"}
+			}
+			got := make([]string, 0, 1)
+			for _, e := range a.Validate() {
+				got = append(got, e.Field)
+			}
+			if diff := cmp.Diff(want, got, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("Validate() rejected fields for code %q (-want +got):\n%s", c.code, diff)
+			}
+		})
+	}
+}
+
 // TestForDestinationDropsTheOtherHalf. Validation passes on a submission
 // carrying both — every field it looked at was filled — so this is what stops
 // the pair reaching order_private_data_one_destination.

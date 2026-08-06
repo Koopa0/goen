@@ -6,8 +6,12 @@
 `goen` is a Traditional-Chinese storefront — one Go binary, `net/http`, `templ`
 server-rendered HTML, PostgreSQL 18 via pgx + sqlc — that today takes money through
 **Stripe hosted Checkout** and collects a 超商取貨 destination as **typed text** (brand,
-店號, 店名 — digits-only store code, because that is what all four chains have in
-common). It does not integrate any Taiwanese provider. Read `CLAUDE.md` at the
+店號, 店名 — the store code is bounded at `^[0-9A-Z]{1,10}$`, which is ECPay's own
+published field length and the charset its store list actually uses. It was
+digits-only on the claim that "a store code is a number", and that was a guess:
+萊爾富 numbers its stores in four characters and 149 of its 1,350 lead with a
+letter, so 11% of that chain was unreachable at checkout). It does not integrate
+any Taiwanese provider. Read `CLAUDE.md` at the
 repository root for why: the 電子地圖 picker each chain offers needs credentials the
 project does not have, and the decision recorded is to collect the destination honestly
 rather than fake the picker. The same reasoning left 統一發票 issuing unbuilt, because a

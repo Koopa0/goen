@@ -690,10 +690,16 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		// A 店名 typed into the 店號 field, which is the mistake this format
-		// catches. Digits only is what all four chains have in common.
+		// catches.
+		//
+		// The ACCEPT is a real 萊爾富 code (高縣後庄店, read from 綠界's own
+		// GetStoreList on 2026-08-06) and not a six-digit one, deliberately. This
+		// constraint used to be '^[0-9]{1,10}$' and refused 149 of that chain's
+		// 1,350 stores; a six-digit accept passes under the old rule and the new
+		// one alike, so it would have gone green through the entire defect.
 		constraint: "order_private_data_pickup_store_code_format",
-		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, 'seven_eleven', '信義門市', '信義門市');`,
-		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, 'seven_eleven', '123456', '信義門市');`,
+		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, 'hi_life', '後庄門市', '後庄門市');`,
+		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, 'hi_life', 'S884', '後庄門市');`,
 	},
 	{
 		constraint: "shipping_methods_destination_kind",
@@ -1132,9 +1138,14 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept: `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666', '退貨');`,
 	},
 	{
-		constraint: "return_requests_reason_present",
-		reject:     `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000002', '66666666-6666-4666-8666-666666666666', E'\t');`,
-		accept:     `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000002', '66666666-6666-4666-8666-666666666666', '退貨');`,
+		// The ACCEPT is the EMPTY reason, deliberately. This constraint used to
+		// be return_requests_reason_present and refused exactly that — while
+		// /returns states 消保法 §19 I, under which a rescission inside seven
+		// days needs no reason at all. A non-blank accept passes under both the
+		// old rule and the new one, so it would lock nothing.
+		constraint: "return_requests_reason_bounded",
+		reject:     `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000002', '66666666-6666-4666-8666-666666666666', repeat('x', 501));`,
+		accept:     `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000002', '66666666-6666-4666-8666-666666666666', '');`,
 	},
 	{
 		constraint: "return_requests_status_known",

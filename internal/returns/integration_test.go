@@ -227,8 +227,18 @@ func TestOnlyOneOpenRequestAtATime(t *testing.T) {
 	}
 }
 
-// TestOpenRefusesAnEmptyOrReasonlessRequest proves the form's own validation.
-func TestOpenRefusesAnEmptyOrReasonlessRequest(t *testing.T) {
+// TestOpenRefusesAnEmptyRequest proves the form's own validation.
+//
+// The two REASON rows are gone, and they were asserting a defect. This test used
+// to be TestOpenRefusesAnEmptyOrReasonlessRequest and demanded that a blank
+// reason be refused — while /returns states 消保法 §19 I, under which rescinding
+// inside seven days is done 無須說明理由. The requirement stood in three places
+// at once (here, `required` on the textarea, and a CHECK in the schema), so a
+// customer exercising an unwaivable statutory right could not submit the form.
+//
+// A reasonless request is now legal and has its own case below. What is still
+// refused is a request with nothing IN it: no lines is not a return.
+func TestOpenRefusesAnEmptyRequest(t *testing.T) {
 	ctx := t.Context()
 	s := returns.NewStore(pool)
 	number, lineID := shippedOrder(t, 2, 2)
@@ -238,8 +248,6 @@ func TestOpenRefusesAnEmptyOrReasonlessRequest(t *testing.T) {
 		name string
 		req  *returns.Request
 	}{
-		{"no reason", &returns.Request{Reason: "", Lines: map[string]int32{id: 1}}},
-		{"whitespace reason", &returns.Request{Reason: "  \t ", Lines: map[string]int32{id: 1}}},
 		{"no lines", &returns.Request{Reason: "不合用", Lines: map[string]int32{}}},
 		{"all zero", &returns.Request{Reason: "不合用", Lines: map[string]int32{id: 0}}},
 		{"negative", &returns.Request{Reason: "不合用", Lines: map[string]int32{id: -1}}},
@@ -254,6 +262,32 @@ func TestOpenRefusesAnEmptyOrReasonlessRequest(t *testing.T) {
 				t.Errorf("got %v, want ErrInvalid", err)
 			}
 		})
+	}
+}
+
+// TestAReturnNeedsNoReason holds 消保法 §19 I, which says a customer rescinding a
+// 通訊交易 inside seven days does so 無須說明理由 — and §19 V voids any agreement
+// to the contrary, so this is not the shop's to require.
+//
+// It was required in three places at once: internal/returns' own Validate,
+// `required` on the textarea, and return_requests_reason_present in the schema.
+// A page stating a right the form refuses to let anybody exercise is the shape
+// this whole batch keeps finding, and the schema half is the one no amount of
+// form-fiddling could talk its way past.
+func TestAReturnNeedsNoReason(t *testing.T) {
+	ctx := t.Context()
+	s := returns.NewStore(pool)
+
+	for _, reason := range []string{"", "   \t "} {
+		number, lineID := shippedOrder(t, 2, 2)
+		req := &returns.Request{
+			Reason: reason,
+			Lines:  map[string]int32{lineID.String(): 1},
+		}
+		if err := s.Open(ctx, number, uuid.NullUUID{}, req); err != nil {
+			t.Errorf("a return with reason %q was refused: %v — §19 I needs none, "+
+				"and the page says so", reason, err)
+		}
 	}
 }
 

@@ -33,6 +33,16 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 								<p class="goen-admin__returnorder">{ r.OrderNumber }</p>
 								<span class="ui-cart-line__meta">{ r.StatusText } · { r.CreatedAt }</span>
 								<span class="ui-cart-line__meta">{ r.UnitsText() } 件 · 可退 { r.Amount() }</span>
+								// Which KIND of return this is. 消保法 §19 I gives seven days from
+								// receipt and §19 V voids any agreement otherwise, so a request
+								// inside the window is not the shop's to refuse on window grounds
+								// — and the page said nothing at all, so nobody deciding one could
+								// tell it from a goodwill return.
+								if r.Rescission() {
+									<span class="ui-cart-line__meta"><strong>{ r.WindowText() }</strong>(依法不得拒絕退貨,退款含原運費)</span>
+								} else {
+									<span class="ui-cart-line__meta">{ r.WindowText() }</span>
+								}
 								<span class="ui-cart-line__meta">{ r.Reason }</span>
 								if len(r.Lines) > 0 {
 									// WHAT is coming back. The row used to say

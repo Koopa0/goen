@@ -480,6 +480,96 @@ func hasTablePriv(t *testing.T, role, table, priv string) bool {
 	return ok
 }
 
+// TestReportingCannotReadCredentialsOrPII is the test migrations/001 has named
+// since order_access_grants joined the REVOKE list, and which did not exist.
+//
+// The comment there records the mechanism precisely — "a credential table added
+// months after the list was written, and nothing asked" — and then closes by
+// naming this function as what asks now. It is the FIFTH claim of enforcement in
+// this repository with nothing behind it, after product_search_documents'
+// "exactly one writer", Store.Remove's "another admin does this",
+// TestTopNavPointsAtRealCategories and TestTheAwardWindowMatchesTheProgramme.
+//
+// Nothing else could have caught the drift either. Every privilege guard here
+// asks about INSERT, UPDATE and DELETE — TestNoRoleHoldsAWriteItsQueriesNeverMake
+// iterates exactly those three — and TestEveryRoleCanReadWhatItsQueriesRead is a
+// POSITIVE assertion that a role CAN read, which by construction cannot fail on
+// a grant that is too wide. So `GRANT SELECT ON ALL TABLES ... TO reporting` had
+// no counterweight of any kind.
+//
+// The question is DERIVED from information_schema rather than asked against a
+// list, because a list is exactly what failed: every new table carrying a token
+// or somebody's address is swept in by the blanket grant and has to be noticed
+// by a human. A column whose name says credential or contact detail is the
+// coarse-and-true signal, and a table that legitimately needs an exception is
+// named below with its reason.
+func TestReportingCannotReadCredentialsOrPII(t *testing.T) {
+	// Why each of these is readable by a reporting dashboard despite matching.
+	// An entry here is a claim somebody read the table and meant it.
+	allowed := map[string]string{
+		"order_events":  "a status timeline: no contact detail, and the note is the shop's own words",
+		"audit_events":  "the back-office trail, which records WHO acted and never what a customer wrote",
+		"media_objects": "image bytes and their digests; 'digest' matches the pattern and is content addressing",
+	}
+
+	rows, err := schemaPool(t).Query(t.Context(), `
+		SELECT DISTINCT c.table_name
+		FROM information_schema.columns c
+		JOIN information_schema.tables t
+		  ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+		WHERE c.table_schema = 'public'
+		  AND t.table_type = 'BASE TABLE'
+		  AND (c.column_name ~ '(token|secret|password|digest|payload)'
+		       OR c.column_name LIKE '%\_hash'
+		       OR c.column_name IN ('email', 'phone', 'street', 'full_name',
+		                            'recipient_name', 'pickup_store_code', 'tax_id'))
+		ORDER BY 1`)
+	if err != nil {
+		t.Fatalf("read the catalog: %v", err)
+	}
+	defer rows.Close()
+
+	var sensitive []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		sensitive = append(sensitive, name)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate: %v", err)
+	}
+	if len(sensitive) == 0 {
+		t.Fatal("the catalog reported no table holding a credential or a contact " +
+			"detail, which cannot be true of this schema — the query has stopped " +
+			"matching and this guard is asserting nothing")
+	}
+
+	for _, table := range sensitive {
+		if why, ok := allowed[table]; ok {
+			t.Logf("%s is allowed: %s", table, why)
+			continue
+		}
+		if hasTablePriv(t, "reporting", table, "SELECT") {
+			t.Errorf("reporting may SELECT %s, which holds a credential or a "+
+				"customer's contact details. A read-only dashboard role is the one "+
+				"most likely to be pointed at a BI tool, a notebook or a contractor; "+
+				"it reads aggregates, not secrets. Add it to the REVOKE SELECT list "+
+				"in migrations/001, or to this test's allowlist with a reason.", table)
+		}
+	}
+
+	// The control. reporting exists to read the business, so a blanket revoke
+	// would satisfy every assertion above and leave it unable to do its job.
+	if !hasTablePriv(t, "reporting", "orders", "SELECT") {
+		t.Error("reporting cannot read orders; there is no dashboard left to build")
+	}
+	if !hasTablePriv(t, "reporting", "committed_orders", "SELECT") {
+		t.Error("reporting cannot read committed_orders, which every report joins")
+	}
+}
+
 // TestAppendOnlyTablesDenyUpdateDelete is catalog-driven: every table whose
 // forbid_change trigger declares it history must deny store UPDATE and
 // DELETE, so the trigger is not the only thing standing between the app and a

@@ -320,8 +320,8 @@ var (
 		En:     "Choose a convenience store chain",
 	})
 	KeyStoreCodeMalformed = key("valid.pickup.code", Message{
-		ZhHant: "店號需為 1 到 10 位數字",
-		En:     "A store number is 1 to 10 digits",
+		ZhHant: "店號需為 1 到 10 碼數字或英文字母",
+		En:     "A store number is 1 to 10 digits or letters",
 	})
 	KeyStoreNameRequired = key("valid.pickup.name.required", Message{
 		ZhHant: "請填寫門市名稱",

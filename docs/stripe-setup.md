@@ -67,9 +67,11 @@ goen 對這四個採取行動,而且**四個都必須訂閱**。訂閱其他事�
 記錄進 `payment_webhook_events` 但不觸發任何動作,這是刻意的:歷史留完整,將來
 加處理邏輯時事件已經在了。
 
-`async_payment_*` 這一對不是可有可無的。goen 刻意不傳 `payment_method_types`
-(見下面第 3 點),所以 dynamic payment methods 是開的;**延遲付款方式**(轉帳
-類)的 `checkout.session.completed` 會帶著 `payment_status = unpaid` 送來 ——
+`async_payment_*` 這一對是縱深防禦。session 現在把 `payment_method_types` 釘在
+`["card"]`(見下面第 3 點),所以延遲付款方式不該出現;真的出現時
+`UnsettledSessionFrom` 會用 ERROR 記下來,因為那代表設定被改過、庫存模型已經不
+成立。**延遲付款方式**(轉帳類)的 `checkout.session.completed` 會帶著
+`payment_status = unpaid` 送來 ——
 goen 正確地不把它當成收款 —— 而真正的成功是隨後另一個事件
 `checkout.session.async_payment_succeeded`。少訂閱這一個,顧客付了錢而訂單永遠
 停在未付款。失敗那一個和 `expired` 走同一條路:把 goen 開好的 payment row 從
@@ -176,10 +178,30 @@ POST /admin/orders/{number}/ship  (carrier + tracking)
    goen 在必須寫下那一行的當下手上有的識別碼。將來做退款需要 PaymentIntent,
    屆時用 session id 向 Stripe 反查。
 
-3. **不要傳 `payment_method_types`。** goen 刻意省略它,這樣才會啟用 dynamic
-   payment methods —— Stripe 依幣別、國別、金額決定顯示哪些付款方式,而且改動
-   在 Dashboard 完成、不用改程式。寫死 `["card"]` 會讓之後啟用的每一種付款方式
-   都靜靜失效。要限制範圍請用 `payment_method_configurations`。
+3. **`payment_method_types` 必須釘在 `["card"]`,不要拿掉。**
+
+   這一條原本寫的是相反的話——「刻意省略它才會啟用 dynamic payment methods,
+   寫死 `["card"]` 會讓之後啟用的每一種付款方式都靜靜失效」。那個理由本身成立,
+   但它和 `ExpiresAt` 的決定互相矛盾,而後者是為了讓錢不可能在貨已經回到架上
+   之後才到。
+
+   **延遲付款方式**會摧毀它:它的 `checkout.session.completed` 帶
+   `payment_status = unpaid`,真正的錢在幾天後才以 `async_payment_succeeded`
+   到達——那時 session 早就結束,所以 `ExpiresAt` 管不到;而已完成的 session
+   不會觸發 `checkout.session.expired`,所以補救路徑也不通。庫存在下單 30 分鐘
+   後被 sweeper 放回架上、可能已經賣掉,而 capture 仍然會成功:
+   `capture_payment` 不讀 reservation,`admin.Ship` 對空的 held-reservation
+   slice 跑零次迴圈、不報錯。錢收了、貨沒了、沒有一個 guard 出聲。
+
+   卡片是 30 分鐘 hold 撐得住的付款方式,所以 goen 只提供卡片(Apple Pay 和
+   Google Pay 走的就是這個 type)。支援延遲付款是一個**功能**而不是一個開關:
+   它需要一個寫得出來的 `processing` 狀態、一個以付款截止日為壽命的 hold、
+   一個會避開「錢在飛」訂單的 sweeper,以及店家對「未付款的轉帳可以押幾天庫存」
+   的決定。
+
+   `ExcludedPaymentMethodTypes` 是比較窄的替代方案,沒有採用:它讓 Dashboard
+   保持權威,對之後新增的付款方式是 fail-open——正是預測性錯誤 #30 說要關掉、
+   而不是只是點名的那種形狀。
 
 4. **`checkout.session.completed` 不會展開 `payment_intent.latest_charge`**,
    所以一般事件沒有卡別和末四碼。空字串是一個「值」,會撞上

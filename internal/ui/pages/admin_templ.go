@@ -1423,7 +1423,7 @@ func AdminOrder(p layouts.Page, v *AdminOrderView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 130, "\" required maxlength=\"10\" inputmode=\"numeric\"></div><div class=\"ui-field\"><label class=\"ui-label\" for=\"d-store-name\">門市名稱</label> <input class=\"ui-input\" id=\"d-store-name\" name=\"pickup_store_name\" value=\"")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 130, "\" required maxlength=\"10\"></div><div class=\"ui-field\"><label class=\"ui-label\" for=\"d-store-name\">門市名稱</label> <input class=\"ui-input\" id=\"d-store-name\" name=\"pickup_store_name\" value=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -1454,7 +1454,7 @@ func AdminOrder(p layouts.Page, v *AdminOrderView) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 133, "\" required maxlength=\"6\" inputmode=\"numeric\"></div><div class=\"ui-field\"><label class=\"ui-label\" for=\"d-city\">縣市</label> <input class=\"ui-input\" id=\"d-city\" name=\"city\" value=\"")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 133, "\" required maxlength=\"6\"></div><div class=\"ui-field\"><label class=\"ui-label\" for=\"d-city\">縣市</label> <input class=\"ui-input\" id=\"d-city\" name=\"city\" value=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
