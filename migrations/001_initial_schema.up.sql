@@ -524,11 +524,41 @@ CREATE TABLE product_variants (
     stock_quantity         integer NOT NULL DEFAULT 0,
     safety_stock           integer NOT NULL DEFAULT 0,
     preorder_release_on    date,
+    -- The PARCEL this variant ships as: its longest side, the sum of its three
+    -- sides, and what it weighs. In millimetres and grams because a carrier's
+    -- own limits are stated that way and a fraction of a centimetre is not a
+    -- thing anybody measures.
+    --
+    -- All NULLABLE, and NULL means UNMEASURED rather than unlimited. A shipping
+    -- method may only be REFUSED on a figure that exists: hiding 超商取貨 —
+    -- which 75.2% of Taiwanese online shoppers prefer (資策會 MIC, 2025 Q4) —
+    -- because nobody typed a box size would cost more than the counter refusal
+    -- it prevents, and it would do it silently. /admin/products badges what has
+    -- no measurement, the same way it badges what has no English name.
+    --
+    -- On the VARIANT and not the product: a 128GB and a 256GB phone ship in the
+    -- same box, but they are variants of one product and the column has to sit
+    -- where the difference could exist.
+    parcel_longest_mm      integer,
+    parcel_sum_mm          integer,
+    parcel_weight_g        integer,
     position               integer NOT NULL DEFAULT 0,
     is_active              boolean NOT NULL DEFAULT true,
     created_at             timestamptz NOT NULL DEFAULT now(),
     updated_at             timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT product_variants_sku_format CHECK (sku ~ '^[A-Z0-9]+(-[A-Z0-9]+)*$'),
+    -- A measurement that exists is positive and below anything a courier moves.
+    -- The ceilings are deliberately loose: this refuses a typo, not a decision.
+    CONSTRAINT product_variants_parcel_longest_sane
+        CHECK (parcel_longest_mm IS NULL OR (parcel_longest_mm > 0 AND parcel_longest_mm <= 5000)),
+    CONSTRAINT product_variants_parcel_sum_sane
+        CHECK (parcel_sum_mm IS NULL OR (parcel_sum_mm > 0 AND parcel_sum_mm <= 15000)),
+    CONSTRAINT product_variants_parcel_weight_sane
+        CHECK (parcel_weight_g IS NULL OR (parcel_weight_g > 0 AND parcel_weight_g <= 200000)),
+    -- The sum of three sides cannot be under the longest of them.
+    CONSTRAINT product_variants_parcel_sum_covers_longest
+        CHECK (parcel_sum_mm IS NULL OR parcel_longest_mm IS NULL
+               OR parcel_sum_mm >= parcel_longest_mm),
     -- The ceiling is a real one: NT$100,000,000 is far above any 3C product
     -- and far below the point where quantity x price can overflow bigint.
     CONSTRAINT product_variants_price_in_range
@@ -1709,10 +1739,29 @@ CREATE TABLE shipping_methods (
     -- offers, and the schema is where the question "what does this one need?"
     -- has one answer.
     destination_kind text NOT NULL DEFAULT 'address',
+    -- What this method's carrier will physically accept, per parcel. NULL means
+    -- no stated limit, which is the honest default for 宅配 — a courier takes
+    -- what fits in a van.
+    --
+    -- 超商店到店 is the reason these exist. 7-ELEVEN and 全家 refuse a parcel
+    -- over 45cm on its longest side, 105cm across three sides, or 10kg; 萊爾富
+    -- stops at 5kg. Without them a 3C shop offers 超商取貨 for a 27-inch monitor,
+    -- the customer chooses it, the order is placed and paid, and the shop finds
+    -- out at the counter — which is the worst place, because the parcel is
+    -- already packed and the customer is already waiting.
+    max_parcel_longest_mm integer,
+    max_parcel_sum_mm     integer,
+    max_parcel_weight_g   integer,
     is_active  boolean NOT NULL DEFAULT true,
     position   integer NOT NULL DEFAULT 0,
     created_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT shipping_methods_code_format CHECK (code ~ '^[a-z0-9]+(_[a-z0-9]+)*$'),
+    CONSTRAINT shipping_methods_max_longest_positive
+        CHECK (max_parcel_longest_mm IS NULL OR max_parcel_longest_mm > 0),
+    CONSTRAINT shipping_methods_max_sum_positive
+        CHECK (max_parcel_sum_mm IS NULL OR max_parcel_sum_mm > 0),
+    CONSTRAINT shipping_methods_max_weight_positive
+        CHECK (max_parcel_weight_g IS NULL OR max_parcel_weight_g > 0),
     CONSTRAINT shipping_methods_destination_kind
         CHECK (destination_kind IN ('address', 'pickup_point'))
 );
@@ -4634,11 +4683,16 @@ REVOKE DELETE, TRUNCATE ON
 -- its DEFAULT 0. Stock then has exactly one door for every role:
 -- record_inventory_movement.
 REVOKE INSERT, UPDATE ON product_variants FROM admin;
+-- BOTH verbs carry the column list, and stock_quantity is in neither. The
+-- parcel measurements join them: they are the back office's to state, and they
+-- decide which shipping methods a customer is offered.
 GRANT INSERT (product_id, sku, price_cents, compare_at_price_cents, safety_stock,
-              preorder_release_on, position, is_active)
+              preorder_release_on, position, is_active,
+              parcel_longest_mm, parcel_sum_mm, parcel_weight_g)
     ON product_variants TO admin;
 GRANT UPDATE (sku, price_cents, compare_at_price_cents, safety_stock,
-              preorder_release_on, position, is_active, updated_at)
+              preorder_release_on, position, is_active, updated_at,
+              parcel_longest_mm, parcel_sum_mm, parcel_weight_g)
     ON product_variants TO admin;
 
 GRANT EXECUTE ON FUNCTION record_inventory_movement(uuid, integer, text, text, text, uuid, uuid) TO admin;

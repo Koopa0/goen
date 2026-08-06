@@ -5304,6 +5304,14 @@ func TestTwoFAQEntriesInOneCategoryDoNotCollide(t *testing.T) {
 func TestAShopCanOfferAThirdDeliveryMethod(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{})
+	// What a method is OFFERED for now depends on the basket: a carrier that
+	// refuses a 27-inch monitor is not a choice for a cart with one in it. An
+	// empty cart asks the question this test is about — is the method there at
+	// all — without any parcel getting in the way.
+	emptyCart, cartErr := cart.NewStore(pool).Create(ctx, uuid.NewString(), uuid.NullUUID{})
+	if cartErr != nil {
+		t.Fatalf("create cart: %v", cartErr)
+	}
 	code := "express" + uuid.NewString()[:6]
 
 	if errs, err := s.CreateMethod(ctx, &admin.NewMethod{
@@ -5340,7 +5348,7 @@ func TestAShopCanOfferAThirdDeliveryMethod(t *testing.T) {
 		{name: "English", locale: i18n.En, want: "Next-day delivery"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			choices, err := basket.ShippingChoices(i18n.WithLocale(ctx, tt.locale), 100000)
+			choices, err := basket.ShippingChoices(i18n.WithLocale(ctx, tt.locale), emptyCart, 100000)
 			if err != nil {
 				t.Fatalf("ShippingChoices: %v", err)
 			}
@@ -5365,7 +5373,7 @@ func TestAShopCanOfferAThirdDeliveryMethod(t *testing.T) {
 	if err := s.SetMethodActive(ctx, methodID, false); err != nil {
 		t.Fatalf("SetMethodActive: %v", err)
 	}
-	choices, err := basket.ShippingChoices(ctx, 100000)
+	choices, err := basket.ShippingChoices(ctx, emptyCart, 100000)
 	if err != nil {
 		t.Fatalf("ShippingChoices: %v", err)
 	}

@@ -489,6 +489,22 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 									<label class="ui-label" for="v-safety">安全庫存</label>
 									<input class="ui-input" id="v-safety" name="safety" type="number" min="0" step="1" value="0" inputmode="numeric"/>
 								</div>
+								<div class="ui-field">
+									<label class="ui-label" for="v-longest">最長邊(mm)</label>
+									// The PARCEL, which decides which delivery methods the customer is
+									// offered. Blank means not measured — that refuses no method, so an
+									// unmeasured monitor is still offered 超商取貨 and the shop finds out
+									// at the counter. 空白代表未量測。
+									<input class="ui-input" id="v-longest" name="parcel_longest" type="number" min="0" step="1" inputmode="numeric"/>
+								</div>
+								<div class="ui-field">
+									<label class="ui-label" for="v-sum">三邊合(mm)</label>
+									<input class="ui-input" id="v-sum" name="parcel_sum" type="number" min="0" step="1" inputmode="numeric"/>
+								</div>
+								<div class="ui-field">
+									<label class="ui-label" for="v-weight">重量(g)</label>
+									<input class="ui-input" id="v-weight" name="parcel_weight" type="number" min="0" step="1" inputmode="numeric"/>
+								</div>
 								<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">新增規格</button>
 								<p class="goen-admin__hint">
 									新規格的庫存是 0。庫存只能從「庫存」頁調整,那裡每一次異動都會寫進帳本。

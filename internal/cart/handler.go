@@ -682,7 +682,7 @@ func (h *Handler) checkoutView(ctx context.Context, cartID uuid.UUID, owner uuid
 	if err != nil {
 		return pages.CheckoutView{}, err
 	}
-	choices, err := h.store.ShippingChoices(ctx, cartView.SubtotalCents)
+	choices, err := h.store.ShippingChoices(ctx, cartID, cartView.SubtotalCents)
 	if err != nil {
 		return pages.CheckoutView{}, err
 	}

@@ -540,13 +540,22 @@ WHERE slug = @slug::text;
 -- Add a variant. stock_quantity is deliberately absent: the column is not in
 -- admin's INSERT grant, so it takes DEFAULT 0 and stock arrives only through
 -- record_inventory_movement.
+-- The parcel measurements are collected here rather than left for later,
+-- because they decide which shipping methods the CUSTOMER is offered: a variant
+-- with no measurement is refused by no method, so an unmeasured monitor is
+-- offered 超商取貨 and the shop finds out at the counter. Zero means unmeasured
+-- and stores NULL — the form cannot express "I do not know" any other way.
 -- name: CreateVariant :exec
 INSERT INTO product_variants (product_id, sku, price_cents, compare_at_price_cents,
-                              safety_stock, position, is_active)
+                              safety_stock, position, is_active,
+                              parcel_longest_mm, parcel_sum_mm, parcel_weight_g)
 SELECT p.id, @sku::text, @price_cents::bigint,
        nullif(@compare_at_price_cents::bigint, 0), @safety_stock::integer,
        coalesce((SELECT max(position) + 1 FROM product_variants v WHERE v.product_id = p.id), 0),
-       true
+       true,
+       nullif(@parcel_longest_mm::integer, 0),
+       nullif(@parcel_sum_mm::integer, 0),
+       nullif(@parcel_weight_g::integer, 0)
 FROM products p WHERE p.slug = @slug::text;
 
 -- Every coupon, with what it has actually done. The redemption count comes from
@@ -1601,10 +1610,18 @@ DELETE FROM faq_entries WHERE id = @entry_id;
 -- Two statements in the caller's transaction rather than one: a method with no
 -- version is one the checkout finds and cannot price, which is worse than a method
 -- that does not exist.
+-- The parcel ceilings are the carrier's, and they are asked for HERE because a
+-- method that has them and a method that does not are different offers. 超商取貨
+-- is 45cm on the longest side, 105cm across three, 10kg — 萊爾富 5kg. Zero means
+-- "no stated limit" and stores NULL, which is the honest default for 宅配.
 -- name: CreateShippingMethod :one
-INSERT INTO shipping_methods (code, destination_kind, position)
+INSERT INTO shipping_methods (code, destination_kind, position,
+                              max_parcel_longest_mm, max_parcel_sum_mm, max_parcel_weight_g)
 VALUES (@code::text, @destination_kind::text,
-        coalesce((SELECT max(position) FROM shipping_methods), 0) + 1)
+        coalesce((SELECT max(position) FROM shipping_methods), 0) + 1,
+        nullif(@max_parcel_longest_mm::integer, 0),
+        nullif(@max_parcel_sum_mm::integer, 0),
+        nullif(@max_parcel_weight_g::integer, 0))
 RETURNING id;
 
 -- Switch a method off. Never a DELETE: shipping_method_versions references it with

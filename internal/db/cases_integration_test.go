@@ -1270,6 +1270,46 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO shipping_method_versions (id, method_id, name, fee_cents, effective_at) VALUES ('11110001-0000-4000-8000-000000000001', 'ffff0001-0000-4000-8000-000000000000', '快遞', 8000, '2027-01-01');`,
 	},
 	{
+		// A measurement that EXISTS is positive. NULL is unmeasured, which is a
+		// different fact and the one the shipping filter reads as "refuse nothing".
+		constraint: "product_variants_parcel_longest_sane",
+		reject:     `INSERT INTO product_variants (id, product_id, sku, price_cents, safety_stock, position, parcel_longest_mm) VALUES ('11110008-0000-4000-8000-000000000009', '33333333-3333-4333-8333-333333333333', 'PXL-9P-PARCEL', 3390000, 0, 91, 0);`,
+		accept:     `INSERT INTO product_variants (id, product_id, sku, price_cents, safety_stock, position, parcel_longest_mm) VALUES ('11110008-0000-4000-8000-000000000009', '33333333-3333-4333-8333-333333333333', 'PXL-9P-PARCEL', 3390000, 0, 91, 180);`,
+	},
+	{
+		constraint: "product_variants_parcel_sum_sane",
+		reject:     `INSERT INTO product_variants (id, product_id, sku, price_cents, safety_stock, position, parcel_sum_mm) VALUES ('11110008-0000-4000-8000-000000000009', '33333333-3333-4333-8333-333333333333', 'PXL-9P-PARCEL', 3390000, 0, 91, 0);`,
+		accept:     `INSERT INTO product_variants (id, product_id, sku, price_cents, safety_stock, position, parcel_sum_mm) VALUES ('11110008-0000-4000-8000-000000000009', '33333333-3333-4333-8333-333333333333', 'PXL-9P-PARCEL', 3390000, 0, 91, 320);`,
+	},
+	{
+		constraint: "product_variants_parcel_weight_sane",
+		reject:     `INSERT INTO product_variants (id, product_id, sku, price_cents, safety_stock, position, parcel_weight_g) VALUES ('11110008-0000-4000-8000-000000000009', '33333333-3333-4333-8333-333333333333', 'PXL-9P-PARCEL', 3390000, 0, 91, 0);`,
+		accept:     `INSERT INTO product_variants (id, product_id, sku, price_cents, safety_stock, position, parcel_weight_g) VALUES ('11110008-0000-4000-8000-000000000009', '33333333-3333-4333-8333-333333333333', 'PXL-9P-PARCEL', 3390000, 0, 91, 400);`,
+	},
+	{
+		// Three sides cannot add up to less than the longest of them.
+		constraint: "product_variants_parcel_sum_covers_longest",
+		reject:     `INSERT INTO product_variants (id, product_id, sku, price_cents, safety_stock, position, parcel_longest_mm, parcel_sum_mm) VALUES ('11110008-0000-4000-8000-000000000009', '33333333-3333-4333-8333-333333333333', 'PXL-9P-PARCEL', 3390000, 0, 91, 500, 400);`,
+		accept:     `INSERT INTO product_variants (id, product_id, sku, price_cents, safety_stock, position, parcel_longest_mm, parcel_sum_mm) VALUES ('11110008-0000-4000-8000-000000000009', '33333333-3333-4333-8333-333333333333', 'PXL-9P-PARCEL', 3390000, 0, 91, 180, 320);`,
+	},
+	{
+		// A ceiling that exists is positive. NULL is "no stated limit", which is
+		// the honest default for 宅配 and is what makes the filter refuse nothing.
+		constraint: "shipping_methods_max_longest_positive",
+		reject:     `INSERT INTO shipping_methods (id, code, max_parcel_longest_mm) VALUES ('11110001-0000-4000-8000-000000000009', 'parcel_test', 0);`,
+		accept:     `INSERT INTO shipping_methods (id, code, max_parcel_longest_mm) VALUES ('11110001-0000-4000-8000-000000000009', 'parcel_test', 450);`,
+	},
+	{
+		constraint: "shipping_methods_max_sum_positive",
+		reject:     `INSERT INTO shipping_methods (id, code, max_parcel_sum_mm) VALUES ('11110001-0000-4000-8000-000000000009', 'parcel_test', 0);`,
+		accept:     `INSERT INTO shipping_methods (id, code, max_parcel_sum_mm) VALUES ('11110001-0000-4000-8000-000000000009', 'parcel_test', 1050);`,
+	},
+	{
+		constraint: "shipping_methods_max_weight_positive",
+		reject:     `INSERT INTO shipping_methods (id, code, max_parcel_weight_g) VALUES ('11110001-0000-4000-8000-000000000009', 'parcel_test', 0);`,
+		accept:     `INSERT INTO shipping_methods (id, code, max_parcel_weight_g) VALUES ('11110001-0000-4000-8000-000000000009', 'parcel_test', 10000);`,
+	},
+	{
 		constraint: "shipping_methods_code_format",
 		reject:     `INSERT INTO shipping_methods (id, code) VALUES ('11110001-0000-4000-8000-000000000001', 'store-pickup');`,
 		accept:     `INSERT INTO shipping_methods (id, code) VALUES ('11110001-0000-4000-8000-000000000001', 'store_pickup');`,

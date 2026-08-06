@@ -103,6 +103,19 @@ WHERE pv.id = $1;
 -- DISTINCT ON takes the newest version per method. An order stores the version
 -- id it was placed under, so a later price change cannot rewrite what an old
 -- order was charged.
+-- A method is offered only if this cart's contents can physically go by it.
+--
+-- The test is PER ITEM, not over the cart total, and that is the whole rule:
+-- more parcels are always possible, so two things that each fit are two
+-- parcels — but a single item that does not fit cannot be split, whatever else
+-- is in the basket. Weight is per item for the same reason.
+--
+-- A method with NULL limits accepts everything, and a variant with NULL
+-- measurements is refused by nothing. Unknown is not "too big": a shop that has
+-- not measured its catalogue would otherwise lose 超商取貨 — the channel 75.2%
+-- of Taiwanese online shoppers prefer — on every product at once, silently, and
+-- that costs more than the counter refusal it would prevent. /admin/products
+-- shows what is unmeasured.
 -- name: ShippingChoices :many
 SELECT DISTINCT ON (sm.id)
     v.id AS version_id,
@@ -115,6 +128,17 @@ SELECT DISTINCT ON (sm.id)
 FROM shipping_methods sm
 JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active AND v.effective_at <= now()
+  AND NOT EXISTS (
+      SELECT 1
+      FROM cart_items ci
+      JOIN product_variants pv ON pv.id = ci.variant_id
+      WHERE ci.cart_id = @cart_id
+        AND ((sm.max_parcel_longest_mm IS NOT NULL AND pv.parcel_longest_mm IS NOT NULL
+              AND pv.parcel_longest_mm > sm.max_parcel_longest_mm)
+          OR (sm.max_parcel_sum_mm IS NOT NULL AND pv.parcel_sum_mm IS NOT NULL
+              AND pv.parcel_sum_mm > sm.max_parcel_sum_mm)
+          OR (sm.max_parcel_weight_g IS NOT NULL AND pv.parcel_weight_g IS NOT NULL
+              AND pv.parcel_weight_g > sm.max_parcel_weight_g)))
 ORDER BY sm.id, v.effective_at DESC;
 
 -- One shipping version, re-read at order time. The form's value is not trusted:

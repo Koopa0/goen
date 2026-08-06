@@ -154,6 +154,25 @@ templ AdminShipping(p layouts.Page, v AdminShippingView) {
 								這一項決定結帳要問街道還是問門市,選錯了收不到貨。
 							</p>
 						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="m-max-longest">包裹上限:最長邊(mm)</label>
+							// The carrier's own refusal, brought forward to the checkout. Blank
+							// means no stated limit — right for 宅配, wrong for 超商店到店, which
+							// is 450 / 1050 / 10000 (萊爾富 5000g). A method with no limits is
+							// offered for a 27 吋螢幕 and the parcel comes back from the counter.
+							<input class="ui-input" id="m-max-longest" name="max_parcel_longest" type="number" min="0" step="1" inputmode="numeric"/>
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="m-max-sum">包裹上限:三邊合(mm)</label>
+							<input class="ui-input" id="m-max-sum" name="max_parcel_sum" type="number" min="0" step="1" inputmode="numeric"/>
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="m-max-weight">包裹上限:重量(g)</label>
+							<input class="ui-input" id="m-max-weight" name="max_parcel_weight" type="number" min="0" step="1" inputmode="numeric"/>
+							<p class="goen-admin__hint">
+								空白代表沒有上限。超商店到店是 450 / 1050 / 10000,萊爾富重量只到 5000。
+							</p>
+						</div>
 					</div>
 					<div class="goen-checkout__fields">
 						<div class="ui-field">

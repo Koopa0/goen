@@ -243,9 +243,18 @@ func (s *Store) quoteFor(ctx context.Context, v *db.ShippingVersionRow, subtotal
 	}, nil
 }
 
-// ShippingChoices is the shipping methods a checkout may offer.
-func (s *Store) ShippingChoices(ctx context.Context, subtotalCents int64) ([]pages.ShippingChoice, error) {
-	rows, err := s.q.ShippingChoices(ctx, string(i18n.FromContext(ctx)))
+// ShippingChoices is the shipping methods a checkout may offer FOR THIS CART.
+//
+// The cart is a parameter because the answer depends on it: a method whose
+// carrier refuses a 27-inch monitor is not a choice for a basket with one in it.
+// Every active method used to be offered to every cart, so a customer could pick
+// 超商取貨 for something 7-ELEVEN will not take, pay for it, and the shop found
+// out at the counter with the parcel already packed.
+func (s *Store) ShippingChoices(ctx context.Context, cartID uuid.UUID, subtotalCents int64) ([]pages.ShippingChoice, error) {
+	rows, err := s.q.ShippingChoices(ctx, db.ShippingChoicesParams{
+		Locale: string(i18n.FromContext(ctx)),
+		CartID: cartID,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("read shipping choices: %w", err)
 	}

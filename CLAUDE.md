@@ -324,7 +324,28 @@ because nothing had ever reached one — a seed does not typo. A spec is a table
 on `/compare`, and a label that is a sentence makes the first column wrap to three
 lines, which is what that page exists to avoid.
 
-**A delivered order marks its parcels delivered.** `order_shipments.delivered_at`
+****`/admin/returns` says whether a request is a statutory rescission.** 消保法
+§19 I runs seven days from RECEIPT, 民法 §120 II excludes the day of receipt, and
+§19 IV fixes the moment on the customer's side — the request going out, not the
+shop reading it. So the comparison is `created_at` against `delivered_at`, both
+written by the database: one clock at both ends, which is the `/admin/messages`
+lesson. Undelivered is neither answer, because the window has not started.
+
+It INFORMS and does not restrict, and that is the decision. `Decide` still
+accepts "rejected" for any open request: §19-2 gives the trader fifteen days to
+refund after the goods come BACK, so an in-window request is not auto-approved
+either, and "the parcel never arrived" is a legitimate refusal only a person can
+make. What was missing was the fact on screen, not a new rule — a staff member
+had no way to tell a request the page says the shop may not refuse from a
+goodwill return that is entirely theirs to decline.
+
+A blank return reason is legal for the same statute. It was demanded in THREE
+places at once — `internal/returns`' own validation, `required` on the textarea,
+and `return_requests_reason_present` in the schema — so a customer exercising an
+unwaivable right could not submit the form, and the schema half is the one no
+amount of form-fiddling could talk its way past.
+
+A delivered order marks its parcels delivered.** `order_shipments.delivered_at`
 was read by the customer's own order page and by `/admin/orders`, and written by
 NOTHING — so an order marked 已送達 showed every parcel still in transit, and the
 customer's page reads the parcel. The stamp is in the transition's own transaction,
@@ -1267,6 +1288,36 @@ that prices differently is refused at `422` with the real figure named, and the
 second goes through. One extra round trip, no scripting, and nobody is charged
 a number they have not seen. `/shipping` states the surcharge too, read from the
 rows the till prices from.
+
+**A delivery method is offered only for a cart its carrier will physically
+take.** `product_variants` carries the parcel it ships as — longest side, sum of
+three sides, weight — and `shipping_methods` carries what the carrier accepts.
+Every active method used to be offered to every cart, so a shop selling a
+27-inch monitor offered 超商取貨 for it: the customer chose it, paid, and the
+shop found out at the counter with the parcel packed and the customer waiting.
+超商店到店 is 45cm / 105cm / 10kg, and 萊爾富 stops at 5kg.
+
+The test is PER ITEM and never over the cart total. More parcels are always
+possible, so two things that each fit are two parcels — but one item that does
+not fit cannot be split, whatever else is in the basket. The case that tells the
+two rules apart is one item that fits beside one that does not; a cart with a
+single oversized item passes under either, which is why the lock has all four
+cases.
+
+NULL is UNMEASURED and not unlimited, on both sides. A method may only be
+refused on a figure that EXISTS: hiding the channel 75.2% of Taiwanese online
+shoppers prefer (資策會 MIC, 2025 Q4) because nobody typed a box size would cost
+more than the counter refusal it prevents, and it would do it silently. The
+measurement is collected on the variant form, and a shop that has not measured
+its catalogue keeps every method until it does.
+
+**The 離島 surcharge on 超商取貨 is a KNOWN loss and a recorded decision.**
+7-ELEVEN has 76 outlying-island stores and 全家 23 — measured against 綠界's own
+store list on 2026-08-06 — so pickup parcels really do cross the water, and the
+surcharge is reached through a postal code a pickup order does not have. goen
+eats it. The owner's call, on the grounds that this is a demonstration project;
+the fix is not the deleted `serviceable` flag but a store catalogue that can say
+where a 店號 is, which arrives with 綠界物流 if it ever does.
 
 There is no `serviceable` flag, and that is a decision rather than an omission.
 It was written and deleted before it shipped: a zone is found from the POSTAL
@@ -2400,38 +2451,42 @@ Known follow-ups, none of them blocking this batch:
   because it keeps the Dashboard authoritative and is fail-OPEN to whatever is
   added next — the shape mistake #30 says to close rather than merely name.
   Apple Pay and Google Pay ride on the card type and are unaffected.
-- **The §19 clauses on `/returns` are Chinese-only, and the exclusion that
-  allows that no longer covers them.** `internal/site/policies.go` is exempt from
-  `TestNoChromeStringIsHardCoded` as "authored prose, translated editorially or
-  not at all", which was right while the policies were the shop's own commercial
-  terms. They now state 消保法 §19 — an unwaivable statutory right — and 消保法
-  §18 I 3 makes PROVIDING the rescission information the trader's obligation,
-  with §18 II requiring an electronic form the consumer can 完整查閱、**儲存**.
-  An English-reading customer in Taiwan holds identical §19 rights and cannot
-  read the page that states them.
-  This is a pre-existing gap the statutory rewrite made consequential rather
-  than a new one: before it, the same reader met a Chinese paragraph saying the
-  terms were undecided, which was worse. The line to redraw is that a clause
-  goen is REQUIRED to communicate is chrome, whatever file it lives in — the
-  shop's editorial voice is the FAQ and the product copy, not its legal
-  obligations. Fixing it means `pages.PolicyDoc` learning a locale, which the
-  storefront's other prose has so far been able to avoid.
-  §18 II's storage half is a second, cheaper move that is not blocked on it: the
-  order confirmation email already goes out in the recipient's language through
-  the outbox, and carrying the six §18 I items there satisfies both 查閱 and
-  儲存 in one artefact.
-- **The back office cannot see whether a return is inside the seven days**, and
-  that is the remaining half of the §19 work. A blank reason is legal now (§19 I
-  needs none) and the refund pays the delivery fee back on a full rescission, but
-  `Decide` takes no date predicate and `/admin/returns` shows nothing about the
-  window — so a staff member has no way to tell a statutory rescission, which the
-  page says the shop may not refuse, from a goodwill return, which is genuinely
-  theirs to decline. The data is there (`order_shipments.delivered_at`, and
-  `shipped_at` beneath it); what is missing is a decision about what the back
-  office should be ABLE to do with an in-window request, and that is the shop's
-  to make rather than a defect to patch. Note 消保法 §19-2 gives the trader 15
-  days to refund after the goods come back, so an in-window request is not
-  auto-approved either — the goods still have to arrive.
+- **`002` is not cut yet, deliberately.** The store-code widening reached the
+  escape clause this file states — amend `001` in place only while no
+  environment is undisposable — and the owner's call is to keep amending for
+  now, because nothing has been deployed. What is worth building before that
+  changes is a DRIFT CHECK: compare the deployed `pg_constraint` / `pg_index`
+  against what `001` declares, in `verify`. PostgreSQL does not re-validate an
+  amended CHECK, so without one the first non-disposable environment disagrees
+  with the file silently — two correct halves, at the schema level, where
+  nothing else here looks.
+- **`ok_mart` stays in the pickup allowlist, and the day 綠界物流 arrives it
+  goes.** ECPay's `CvsType` admits only All/FAMI/UNIMART/HILIFE/UNIMARTFREEZE,
+  and neither the B2C nor the C2C sub-type list carries OK — so a shop shipping
+  through them cannot reach an OK store, while a shop walking to the counter
+  through OK's own OK-GO 店到店 can. Note the API still RETURNS 688 OK stores
+  when asked, undocumented: presence in the catalogue is not the same question
+  as "can this parcel be sent", which is the same lesson `product_search_
+  documents` taught from the other end.
+- **Observability is deferred until the features are done**, and that is a
+  decision rather than an omission — but it has a cost worth naming: every
+  growth gate queued in this file (the read-model projection at ~1–2k active
+  products, the bigram tsvector at ~5k, the 136 ms copurchase) triggers on a
+  number nothing in production will emit. They are sensors described in prose,
+  with no sensor. When it is built the shape is otel → Prometheus/Grafana, and
+  `/admin/health`'s rule applies to it: measure the WORK, never a heartbeat.
+- **The database is the only copy of the product images**, by the recorded
+  `internal/media` decision, and there is no backup target, no restore drill and
+  no PITR note. `001_initial_schema.down.sql` opens by saying there is no
+  production database to roll back, which is true and is exactly what stops
+  being true on the first deploy.
+- **§18 II's STORAGE half is still open.** The policy pages follow the visitor's
+  language now, which satisfies 完整查閱. §18 II also requires the six §18 I
+  items to reach the consumer in an electronic form they can 儲存, and a
+  rendered page is not obviously that. The cheap move is the order confirmation
+  email, which already goes out in the recipient's language through the outbox:
+  carrying the six items there satisfies both halves in one artefact the
+  customer keeps.
 - **The webhook handler's routing switch has no HTTP-level test**, for any
   branch. `internal/payment/integration_test.go` covers `ProcessWebhook` and
   `Capture` beneath it, and `stripe_http_test.go` covers the request that leaves;

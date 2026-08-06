@@ -717,6 +717,12 @@ func (h *Handler) AddVariant(w http.ResponseWriter, r *http.Request) {
 		PriceCents:   dollarsToCents(r.PostFormValue("price")),
 		CompareCents: dollarsToCents(r.PostFormValue("compare")),
 		SafetyStock:  parseSafetyStock(r.PostFormValue("safety")),
+		// Zero is UNMEASURED and stores NULL, so a blank field leaves the
+		// variant refused by no shipping method rather than blocked from all of
+		// them.
+		ParcelLongestMM: parseSafetyStock(r.PostFormValue("parcel_longest")),
+		ParcelSumMM:     parseSafetyStock(r.PostFormValue("parcel_sum")),
+		ParcelWeightG:   parseSafetyStock(r.PostFormValue("parcel_weight")),
 		// One select per option, all named option_value. PostForm holds them in
 		// document order, which is the order the page rendered the axes.
 		OptionValues: r.PostForm["option_value"],
@@ -1129,14 +1135,18 @@ func (h *Handler) CreateShippingMethod(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	m := &NewMethod{
-		Code:            r.PostFormValue("code"),
-		Destination:     r.PostFormValue("destination"),
-		Name:            r.PostFormValue("name"),
-		NameEn:          r.PostFormValue("name_en"),
-		Carrier:         r.PostFormValue("carrier"),
-		CarrierEn:       r.PostFormValue("carrier_en"),
-		FeeDollars:      dollars(r.PostFormValue("fee")),
-		FreeOverDollars: dollars(r.PostFormValue("free_over")),
+		Code:        r.PostFormValue("code"),
+		Destination: r.PostFormValue("destination"),
+		// Zero is "no stated limit", the honest default for 宅配.
+		MaxParcelLongestMM: parseSafetyStock(r.PostFormValue("max_parcel_longest")),
+		MaxParcelSumMM:     parseSafetyStock(r.PostFormValue("max_parcel_sum")),
+		MaxParcelWeightG:   parseSafetyStock(r.PostFormValue("max_parcel_weight")),
+		Name:               r.PostFormValue("name"),
+		NameEn:             r.PostFormValue("name_en"),
+		Carrier:            r.PostFormValue("carrier"),
+		CarrierEn:          r.PostFormValue("carrier_en"),
+		FeeDollars:         dollars(r.PostFormValue("fee")),
+		FreeOverDollars:    dollars(r.PostFormValue("free_over")),
 	}
 	errs, err := h.store.CreateMethod(r.Context(), m)
 	switch {

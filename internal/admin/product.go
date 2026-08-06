@@ -117,6 +117,13 @@ type VariantForm struct {
 	PriceCents   int64
 	CompareCents int64
 	SafetyStock  int32
+	// The PARCEL this variant ships as. Zero means unmeasured, which the insert
+	// stores as NULL — a form cannot express "I do not know" any other way, and
+	// the difference matters: a measurement that is absent refuses no shipping
+	// method, while one that is present can.
+	ParcelLongestMM int32
+	ParcelSumMM     int32
+	ParcelWeightG   int32
 	// OptionValues is one value id per option the product declares, in the order
 	// the form rendered them. A product with options and a variant that names none
 	// is a variant the picker cannot resolve and the listing's one-variant filter
@@ -388,7 +395,10 @@ func (s *Store) AddVariant(ctx context.Context, slug string, f *VariantForm) (ma
 			if createErr := q.CreateVariant(ctx, db.CreateVariantParams{
 				Slug: slug, SKU: f.SKU,
 				PriceCents: f.PriceCents, CompareAtPriceCents: f.CompareCents,
-				SafetyStock: f.SafetyStock,
+				SafetyStock:     f.SafetyStock,
+				ParcelLongestMm: f.ParcelLongestMM,
+				ParcelSumMm:     f.ParcelSumMM,
+				ParcelWeightG:   f.ParcelWeightG,
 			}); createErr != nil {
 				return createErr
 			}
