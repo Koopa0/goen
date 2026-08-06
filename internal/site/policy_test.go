@@ -115,6 +115,72 @@ func TestUndecidedTermsAreMarkedPending(t *testing.T) {
 	}
 }
 
+// TestEveryPolicyClauseIsTranslated refuses a policy page that goes half-English.
+//
+// These documents were Chinese for every visitor, exempted from
+// TestNoChromeStringIsHardCoded as "authored prose, translated editorially or
+// not at all". That put them on the CONTENT side of the line this project
+// draws, and CLAUDE.md's own test says otherwise: copy compiled into the binary
+// is goen's to say in both languages; copy typed into a table is the shop's to
+// say however it likes. `faq_entries` is the table. These are compiled in.
+//
+// It stopped being untidy and became a legal exposure when /returns began
+// stating 消保法 §19 — §18 I 3 makes providing the rescission information the
+// trader's obligation, and an English-reading customer in Taiwan holds the same
+// unwaivable right on a page they could not read.
+//
+// The failure this locks is the one the i18n work already met once: a half-
+// translated document reads as a broken page rather than as untranslated
+// content, and only to the visitor.
+func TestEveryPolicyClauseIsTranslated(t *testing.T) {
+	t.Parallel()
+
+	han := func(s string) bool {
+		for _, r := range s {
+			if r >= 0x4E00 && r <= 0x9FFF {
+				return true
+			}
+		}
+		return false
+	}
+
+	for path, doc := range policies {
+		en := doc.For(i18n.En)
+		if en.Title == "" || en.Summary == "" {
+			t.Errorf("/%s has no English title or summary", path)
+		}
+		if han(en.Title) || han(en.Summary) {
+			t.Errorf("/%s: the English title or summary still carries Han — an "+
+				"entry that LOOKS filled in is the copy-paste this catches", path)
+		}
+		if len(en.Sections) != len(doc.Sections) {
+			t.Fatalf("/%s: %d English sections against %d Chinese",
+				path, len(en.Sections), len(doc.Sections))
+		}
+		for i, s := range en.Sections {
+			zh := doc.Sections[i]
+			if s.Heading == "" {
+				t.Errorf("/%s: section %q has no English heading", path, zh.Heading)
+			}
+			if len(s.Body) != len(zh.Body) {
+				t.Errorf("/%s: section %q has %d English paragraphs against %d Chinese "+
+					"— a clause the English reader simply does not get",
+					path, zh.Heading, len(s.Body), len(zh.Body))
+			}
+			for _, para := range append([]string{s.Heading}, s.Body...) {
+				if para == "" {
+					t.Errorf("/%s: section %q has an empty English paragraph", path, zh.Heading)
+					continue
+				}
+				if han(para) {
+					t.Errorf("/%s: section %q still reads Chinese in English: %q",
+						path, zh.Heading, para)
+				}
+			}
+		}
+	}
+}
+
 // TestStatutoryTermsAreNotPending proves a RIGHT does not render as a gap.
 //
 // It is the mirror of the test above, and it exists because the mirror SHIPPED.
