@@ -81,6 +81,15 @@ type config struct {
 	// default: guessing it from the listen address produces 127.0.0.1 URLs that
 	// work in development and silently break the moment anything is deployed.
 	BaseURL string
+	// Seller and SellerContact are 消保法 §18 I item 1 — who is selling, and how
+	// a consumer reaches them quickly. They go into the order confirmation,
+	// because §18 II wants the disclosure in a form the consumer can STORE.
+	//
+	// No default, and blank omits the disclosure rather than printing an empty
+	// seller: a shop's registered name and its 統編 are facts about that shop,
+	// and a binary shipping somebody else's is worse than one shipping none.
+	Seller        string
+	SellerContact string
 	// TOTPKey encrypts stored second-factor secrets.
 	//
 	// Empty disables enrolment, the same way an empty Stripe key disables
@@ -138,6 +147,9 @@ func loadConfig() (config, error) {
 		// requiring it would be friction with no reader; anything with TLS in
 		// front of it is refused below in [config.validate].
 		BaseURL: envOr("GOEN_BASE_URL", "http://"+envOr("GOEN_ADDR", "127.0.0.1:9700")),
+
+		Seller:        os.Getenv("GOEN_SELLER"),
+		SellerContact: os.Getenv("GOEN_SELLER_CONTACT"),
 
 		TOTPKey:        os.Getenv("GOEN_TOTP_KEY"),
 		TrustedProxies: os.Getenv("GOEN_TRUSTED_PROXIES"),
@@ -589,7 +601,10 @@ type workerDeps struct {
 // loop, each stops with ctx, and together they were half of run()'s branches.
 func startWorkers(ctx context.Context, d workerDeps) {
 	messages := outbox.NewStore(d.pool, d.log)
-	notifier := email.Notifier{Sender: newSender(d.cfg, d.log), BaseURL: d.cfg.BaseURL}
+	notifier := email.Notifier{
+		Sender: newSender(d.cfg, d.log), BaseURL: d.cfg.BaseURL,
+		Seller: d.cfg.Seller, SellerContact: d.cfg.SellerContact,
+	}
 	messages.Handle(outbox.TopicOrderPlaced, func(ctx context.Context, payload []byte) error {
 		var p email.OrderPlaced
 		if decodeErr := outbox.Decode(payload, &p); decodeErr != nil {

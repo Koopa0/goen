@@ -1071,6 +1071,8 @@ does not run it (it needs Docker); run both before calling schema work done.
 | `make verify` | The gate, no Docker: fmt-check → templ-check → squawk → sqlc-check → vet → lint → integration-build-check → test-race |
 | `make verify-all` | `verify` plus `test-integration` and `vuln` |
 | `make test-integration` | The schema conformance suite (needs Docker) |
+| `make schema-drift` | Does the deployed schema still match `migrations/`? (needs Docker and a live `GOEN_DATABASE_URL`) |
+| `make restore-drill` | Dump, restore into a throwaway, and compare schema and row counts |
 | `make check-layout` | Layout conformance in a real browser (needs Chrome and `make run`) |
 | `make db-reset` | Drop and rebuild the dev database from `001` plus the seed |
 | `make vuln` | govulncheck over the paths the binary actually reaches |
@@ -1457,6 +1459,40 @@ request (bounded by what SHIPPED, never by what was ordered), and the back
 office decides it and refunds through Stripe. A refund row is committed BEFORE
 the provider is called and settled after, so a crash between the two leaves
 something reconciliation can find.
+
+**The order confirmation carries 消保法 §18 I's disclosure.** §18 I lists six
+items a 通訊交易 trader must give the consumer, and §18 II requires an INTERNET
+trader to do it in an electronic form the consumer can 完整查閱、**儲存**. The
+policy pages satisfy 查閱; an email is an artefact the customer keeps without
+doing anything.
+
+§19 III is what makes the omission expensive rather than untidy: where the
+rescission information is not PROVIDED when the goods are received, the seven
+days run from the day after it finally is, and the right survives four months. A
+shop whose terms live only on a page nobody was handed carries that tail on
+every order.
+
+ONE message with holes rather than six keys, like every other body here. Items 1,
+3, 4 and 5 are stated in full; item 2 — what was bought, for how much, and how it
+is paid and delivered — is the letter above it and the order page it links to.
+Item 4 says nothing is excluded, which is the truth about this catalogue: the
+exceptions 準則's chapeau conditions all seven on the seller having said so
+BEFORE the sale.
+
+`GOEN_SELLER` and `GOEN_SELLER_CONTACT` are item 1, and an unconfigured
+deployment omits the disclosure rather than printing a blank seller. A
+disclosure naming nobody discloses nothing and makes the letter LOOK compliant
+while saying less than silence would — which is why that case is named in the
+test rather than left as the quiet default.
+
+**`make restore-drill` proves the backup comes back.** goen's images live IN
+PostgreSQL — the recorded `internal/media` decision — so the database is the only
+copy of the catalogue's photography as well as its data, and a backup nobody has
+restored is a belief. It dumps, restores into a throwaway, and asks two
+questions: does the restored schema match `migrations/`, and did every table come
+back with the same number of rows. Schema alone passes on a dump that lost every
+row, which is why the row counts are there and why the mutation that proved it
+was `pg_dump -s`.
 
 Transactional email goes through an OUTBOX. `internal/cart` writes the intent
 in the order's own transaction; `internal/outbox` delivers it on a worker owned
@@ -2451,15 +2487,21 @@ Known follow-ups, none of them blocking this batch:
   because it keeps the Dashboard authoritative and is fail-OPEN to whatever is
   added next — the shape mistake #30 says to close rather than merely name.
   Apple Pay and Google Pay ride on the card type and are unaffected.
-- **`002` is not cut yet, deliberately.** The store-code widening reached the
-  escape clause this file states — amend `001` in place only while no
-  environment is undisposable — and the owner's call is to keep amending for
-  now, because nothing has been deployed. What is worth building before that
-  changes is a DRIFT CHECK: compare the deployed `pg_constraint` / `pg_index`
-  against what `001` declares, in `verify`. PostgreSQL does not re-validate an
-  amended CHECK, so without one the first non-disposable environment disagrees
-  with the file silently — two correct halves, at the schema level, where
-  nothing else here looks.
+- **`002` is not cut yet, deliberately, and `make schema-drift` is what makes
+  that safe.** The store-code widening reached the escape clause this file
+  states — amend `001` in place only while no environment is undisposable — and
+  the owner's call is to keep amending, because nothing is deployed.
+  PostgreSQL does not re-validate an amended CHECK, so the target builds a
+  REFERENCE database from `migrations/` beside the live one and diffs the
+  catalogs: constraints, indexes, columns and triggers. A difference is not
+  automatically a defect; it is the signal that `001` has stopped being the
+  whole truth, and therefore that `002` begins.
+  Its own first run was FALSE-GREEN and the shape is the one this file keeps
+  recording: the `sed` that swapped the database name matched the first slash of
+  `postgres://`, so it migrated and dumped the LIVE database as its own
+  reference and reported PASS against planted drift. It now refuses to compare
+  unless `current_database()` on the reference URL is the reference database —
+  a guard that exists because the check was watched failing to fail.
 - **`ok_mart` stays in the pickup allowlist, and the day 綠界物流 arrives it
   goes.** ECPay's `CvsType` admits only All/FAMI/UNIMART/HILIFE/UNIMARTFREEZE,
   and neither the B2C nor the C2C sub-type list carries OK — so a shop shipping
@@ -2475,25 +2517,6 @@ Known follow-ups, none of them blocking this batch:
   number nothing in production will emit. They are sensors described in prose,
   with no sensor. When it is built the shape is otel → Prometheus/Grafana, and
   `/admin/health`'s rule applies to it: measure the WORK, never a heartbeat.
-- **The database is the only copy of the product images**, by the recorded
-  `internal/media` decision, and there is no backup target, no restore drill and
-  no PITR note. `001_initial_schema.down.sql` opens by saying there is no
-  production database to roll back, which is true and is exactly what stops
-  being true on the first deploy.
-- **§18 II's STORAGE half is still open.** The policy pages follow the visitor's
-  language now, which satisfies 完整查閱. §18 II also requires the six §18 I
-  items to reach the consumer in an electronic form they can 儲存, and a
-  rendered page is not obviously that. The cheap move is the order confirmation
-  email, which already goes out in the recipient's language through the outbox:
-  carrying the six items there satisfies both halves in one artefact the
-  customer keeps.
-- **The webhook handler's routing switch has no HTTP-level test**, for any
-  branch. `internal/payment/integration_test.go` covers `ProcessWebhook` and
-  `Capture` beneath it, and `stripe_http_test.go` covers the request that leaves;
-  which branch the handler picks for a given event is asserted by nothing. The
-  readers under it (`CaptureFrom`, `AbandonedSessionFrom`,
-  `UnsettledSessionFrom`) are each covered and mutation-proven, so what is
-  untested is the wiring, not the decisions.
 - **`.ui-btn` is content-box in the vendored design system**, so
   `.ui-btn--block` is always its container's width plus 30px. goen compensates
   in `app.css` per surface, which is what `.goen-auth__submit` and

@@ -22,6 +22,32 @@ type Notifier struct {
 	// BaseURL is where a link in an email points. Required: a receipt whose
 	// "view your order" link goes to 127.0.0.1 is a receipt nobody can use.
 	BaseURL string
+	// Seller and SellerContact are 消保法 §18 I item 1 — who the trader is, and
+	// a way to reach them quickly and effectively. They travel with the
+	// confirmation because §18 II wants the disclosure in a form the consumer
+	// can STORE, and a page is not obviously that.
+	//
+	// Configured rather than compiled in: the registration line and the support
+	// address are facts about the SHOP, and a demo that ships somebody else's
+	// 統編 in its binary is worse than one that ships a blank.
+	Seller        string
+	SellerContact string
+}
+
+// statutoryDisclosure is 消保法 §18 I, appended to the order confirmation.
+//
+// Empty when the shop has not been configured, and that is deliberate: a
+// disclosure naming nobody discloses nothing, and printing a blank seller would
+// make the letter LOOK compliant while telling the customer less than silence
+// would. An unconfigured deployment sends the confirmation without it — and
+// TestTheConfirmationCarriesTheStatutoryDisclosure names that as the one case,
+// so it cannot become the quiet default.
+func (n Notifier) statutoryDisclosure(ctx context.Context) string {
+	if n.Seller == "" || n.SellerContact == "" {
+		return ""
+	}
+	return "\n" + fmt.Sprintf(i18n.T(ctx, i18n.KeyMailStatutoryDisclosure),
+		n.Seller, n.SellerContact)
 }
 
 // locale returns a context that speaks the language the message was recorded in.
@@ -89,7 +115,8 @@ func (n Notifier) SendOrderPlaced(ctx context.Context, p *OrderPlaced) error {
 		To:      p.Email,
 		Subject: fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPlacedSubject), p.OrderNumber),
 		Body: n.letter(ctx, p.Name, fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPlacedBody),
-			p.OrderNumber, twd(p.TotalCents), n.orderURL(p.OrderNumber))),
+			p.OrderNumber, twd(p.TotalCents), n.orderURL(p.OrderNumber))+
+			n.statutoryDisclosure(ctx)),
 	})
 }
 

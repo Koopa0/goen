@@ -3,10 +3,13 @@
 package payment_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -1046,4 +1049,135 @@ func creditedUser(t *testing.T, cents int64) uuid.UUID {
 		t.Fatalf("grant credit: %v", err)
 	}
 	return id
+}
+
+// alwaysPlacedHere is the one method internal/payment needs from internal/cart.
+//
+// A hand-written fake of an EXISTING consumer-defined interface, which is what
+// rules/testing.md permits — and it is asserted on nothing. What this test reads
+// is database state; the access check is a precondition of reaching the handler
+// at all, and the webhook does not use it.
+type alwaysPlacedHere struct{}
+
+func (alwaysPlacedHere) PlacedHere(context.Context, *http.Request, string, bool) bool {
+	return true
+}
+
+// TestTheWebhookRoutesEachEventToItsEffect is the HTTP-level test the routing
+// switch never had — for ANY branch.
+//
+// The readers underneath it are each covered and mutation-proven (CaptureFrom,
+// AbandonedSessionFrom, UnsettledSessionFrom) and ProcessWebhook's claim-and-
+// apply transaction is covered from the store side. What was asserted by nothing
+// is the WIRING: which branch the handler picks for a given event, and therefore
+// whether a correct reader is reached at all. A case deleted from that switch
+// falls to `default`, is logged as one more event goen does not act on, and
+// every test in this package stays green.
+//
+// Each case asserts the DATABASE, never a log line: what a webhook is for is the
+// row it leaves behind.
+func TestTheWebhookRoutesEachEventToItsEffect(t *testing.T) {
+	ctx := t.Context()
+	s := payment.NewStore(pool)
+	h := payment.NewHandler(s, enabledGateway(t), alwaysPlacedHere{},
+		slog.New(slog.DiscardHandler), false)
+
+	tests := []struct {
+		name       string
+		eventType  string
+		payStatus  string
+		wantStatus string
+		wantPaid   bool
+	}{
+		{
+			name: "a paid checkout captures", eventType: "checkout.session.completed",
+			payStatus: "paid", wantStatus: "succeeded", wantPaid: true,
+		},
+		{
+			name:      "a delayed method that cleared captures too",
+			eventType: "checkout.session.async_payment_succeeded",
+			payStatus: "paid", wantStatus: "succeeded", wantPaid: true,
+		},
+		{
+			// The alarm branch. Money is in flight: capturing would mark an order
+			// paid days early, and cancelling would throw away the record that it
+			// is coming. Neither happens, and the row stays open.
+			name:      "a delayed method still in flight does neither",
+			eventType: "checkout.session.completed",
+			payStatus: "unpaid", wantStatus: "requires_payment",
+		},
+		{
+			name:      "an expired session closes the payment row",
+			eventType: "checkout.session.expired",
+			payStatus: "unpaid", wantStatus: "cancelled",
+		},
+		{
+			name:      "a delayed method that failed closes it too",
+			eventType: "checkout.session.async_payment_failed",
+			payStatus: "unpaid", wantStatus: "cancelled",
+		},
+		{
+			// Subscribed for the history and acted on by nothing.
+			name:      "an event goen records and does not act on",
+			eventType: "payment_intent.processing",
+			payStatus: "unpaid", wantStatus: "requires_payment",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			number, _ := order(t, 199900)
+			session := "cs_route_" + uuid.NewString()[:12]
+			if err := s.OpenPayment(ctx, number, session, 199900); err != nil {
+				t.Fatalf("open: %v", err)
+			}
+
+			eventID := "evt_" + uuid.NewString()[:12]
+			ev := typed(sessionEvent(eventID, session, tt.payStatus, 199900), tt.eventType)
+			body, header := signed(t, ev)
+			req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/webhooks/stripe", bytes.NewReader(body))
+			req.Header.Set("Stripe-Signature", header)
+			w := httptest.NewRecorder()
+			h.Webhook(w, req)
+
+			// 200 for every one of them: an event goen cannot act on is still an
+			// event goen has seen, and a 5xx here gets the endpoint disabled.
+			if w.Code != http.StatusOK {
+				t.Fatalf("Webhook() status = %d, want 200", w.Code)
+			}
+
+			var status string
+			if err := pool.QueryRow(ctx,
+				`SELECT status FROM payments WHERE provider_ref = $1`, session).Scan(&status); err != nil {
+				t.Fatalf("read payment: %v", err)
+			}
+			if status != tt.wantStatus {
+				t.Errorf("after %s the payment is %q, want %q", tt.eventType, status, tt.wantStatus)
+			}
+
+			var fulfilment string
+			if err := pool.QueryRow(ctx,
+				`SELECT fulfillment_status FROM orders WHERE order_number = $1`,
+				number).Scan(&fulfilment); err != nil {
+				t.Fatalf("read order: %v", err)
+			}
+			paid := status == "succeeded"
+			if paid != tt.wantPaid {
+				t.Errorf("after %s the order reads paid=%v, want %v — the switch sent "+
+					"this event to the wrong branch, or to none", tt.eventType, paid, tt.wantPaid)
+			}
+
+			// The event is recorded whatever branch it took: the row is what
+			// makes at-least-once delivery idempotent, and the audit trail.
+			var seen int
+			if err := pool.QueryRow(ctx,
+				`SELECT count(*) FROM payment_webhook_events WHERE event_id = $1`,
+				eventID).Scan(&seen); err != nil {
+				t.Fatalf("read event: %v", err)
+			}
+			if seen != 1 {
+				t.Errorf("the event was recorded %d times, want once", seen)
+			}
+		})
+	}
 }
