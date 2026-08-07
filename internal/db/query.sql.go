@@ -10936,6 +10936,34 @@ func (q *Queries) TouchLastLogin(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const touchOrderAccessGrants = `-- name: TouchOrderAccessGrants :exec
+UPDATE order_access_grants SET created_at = now()
+WHERE digest = ANY($1::bytea[])
+`
+
+// Restart the retention clock on the grants a browser is still carrying.
+//
+// The cookie holds up to ten tokens and is RE-ISSUED with a fresh MaxAge every
+// time an order is placed, carrying the older ones forward. The grants behind
+// them were swept on their own created_at, so the two clocks came apart the
+// moment somebody ordered twice: a customer who bought on day 0 and again on day
+// 25 held a cookie live until day 55 naming an order whose grant died on day 30.
+//
+// GrantRetain's own comment names that state as the one that must never happen —
+// "a grant swept while its cookie is still live locks a customer out of their own
+// order" — and equality between the two constants only delivers it if the cookie
+// is never re-issued. It is. So the clock is restarted HERE, on the same event
+// that restarts the cookie's, which is what makes the two intervals comparable
+// at all.
+//
+// Scoped to the digests presented: a token this browser is not carrying is not
+// evidence of anything, and touching every grant on the order would extend a
+// credential held by some other browser.
+func (q *Queries) TouchOrderAccessGrants(ctx context.Context, digests [][]byte) error {
+	_, err := q.db.Exec(ctx, touchOrderAccessGrants, digests)
+	return err
+}
+
 const unansweredQuestions = `-- name: UnansweredQuestions :many
 SELECT q.id, q.body, q.created_at,
        p.slug AS product_slug, p.name AS product_name,

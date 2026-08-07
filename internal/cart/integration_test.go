@@ -3543,6 +3543,81 @@ func placedCookie(t *testing.T, s *cart.Store, number string) *http.Cookie {
 	return nil
 }
 
+// TestASecondOrderKeepsTheFirstOnesGrantAlive closes a lockout the sweeper's own
+// comment names as the thing that must never happen.
+//
+// GrantRetain equals the placed cookie's MaxAge, and its comment says that is
+// what keeps a grant alive for as long as any browser can present it. Equality
+// only delivers that if the cookie is never re-issued — and it is re-issued with
+// a FRESH MaxAge on every order, carrying up to ten older tokens forward, while
+// the grant was swept on its own created_at. So a customer who ordered on day 0
+// and again on day 25 held a live cookie until day 55 naming an order whose grant
+// died on day 30: their own order page, cancel form and return form, gone.
+//
+// Two intervals are only comparable if they start from the same event. The second
+// order restarts the carried grants' clock, which is what makes them comparable.
+func TestASecondOrderKeepsTheFirstOnesGrantAlive(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil)
+
+	first := placeUnpaidOrderFor(t, s, "twice@example.com")
+	firstCookie := placedCookie(t, s, first)
+
+	// Age the first grant PAST the retention window — the state a re-issued cookie
+	// produces and the sweeper acts on. Just inside it proves nothing: the sweep
+	// would spare the row either way, and the first version of this test duly
+	// stayed green with the refresh deleted.
+	if _, err := pool.Exec(ctx, `
+		UPDATE order_access_grants SET created_at = now() - $2::interval
+		WHERE order_id = (SELECT id FROM orders WHERE order_number = $1)`,
+		first, (cart.GrantRetain + time.Hour).String()); err != nil {
+		t.Fatalf("age the first grant: %v", err)
+	}
+
+	// A second order, placed from the SAME browser: RememberOrder is handed the
+	// request carrying the first cookie, exactly as the checkout hands it one.
+	second := placeUnpaidOrderFor(t, s, "twice@example.com")
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody)
+	r.AddCookie(firstCookie)
+	if err := s.RememberOrder(ctx, w, r, second, false); err != nil {
+		t.Fatalf("remember the second order: %v", err)
+	}
+	var carried *http.Cookie
+	for _, c := range w.Result().Cookies() {
+		if c.Name == "goen_placed" {
+			carried = c
+		}
+	}
+	if carried == nil {
+		t.Fatal("the second order set no cookie")
+	}
+	// The fixture only means something if the cookie really did carry both.
+	if !strings.Contains(carried.Value, firstCookie.Value) {
+		t.Fatalf("the re-issued cookie dropped the first order's token; " +
+			"this test would pass for the wrong reason")
+	}
+
+	// Now run the sweep that used to delete the first grant.
+	if err := s.SweepAttempts(ctx); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+
+	// The browser presents the carried cookie for the FIRST order.
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+first, http.NoBody)
+	req.SetPathValue("number", first)
+	req.AddCookie(carried)
+	rec := httptest.NewRecorder()
+	h.OrderPage(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("the browser that placed this order got %d for it, want 200 — its "+
+			"grant was swept while the cookie carrying it was still live, which is "+
+			"the state GrantRetain's own comment says must never happen", rec.Code)
+	}
+}
+
 // TestAForgedPlacedCookieReachesNothing is the Critical a third-party review found.
 //
 // The cookie used to hold the ORDER NUMBER, and the number was the proof. Numbers

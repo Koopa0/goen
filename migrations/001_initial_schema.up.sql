@@ -5786,6 +5786,15 @@ REVOKE INSERT ON shipping_method_versions FROM store;
 -- email — an inconvenience with a documented way back — so the role that
 -- actually runs the sweep is allowed to run it.
 REVOKE UPDATE ON order_access_grants FROM store;
+-- created_at ALONE, because "nothing repoints a digest" is still true and is the
+-- reason the table-level UPDATE is revoked above. What does need writing is the
+-- retention CLOCK: the placed-order cookie is re-issued with a fresh MaxAge on
+-- every order and carries the older tokens forward, so their grants have to
+-- restart from that same event or the sweeper deletes a credential a live cookie
+-- still presents — the lockout GrantRetain's own comment names as the state that
+-- must never happen. A column list rather than the verb, so the guard that
+-- matters cannot be widened by the fix to a different one.
+GRANT UPDATE (created_at) ON order_access_grants TO store;
 
 -- What each role holds and no query it runs exercises. Every line below was
 -- produced by TestNoRoleHoldsAWriteItsQueriesNeverMake rather than by reading,

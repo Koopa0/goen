@@ -562,6 +562,28 @@ INSERT INTO order_access_grants (digest, order_id)
 SELECT @digest, id FROM orders WHERE order_number = @order_number::text
 ON CONFLICT (digest) DO NOTHING;
 
+-- Restart the retention clock on the grants a browser is still carrying.
+--
+-- The cookie holds up to ten tokens and is RE-ISSUED with a fresh MaxAge every
+-- time an order is placed, carrying the older ones forward. The grants behind
+-- them were swept on their own created_at, so the two clocks came apart the
+-- moment somebody ordered twice: a customer who bought on day 0 and again on day
+-- 25 held a cookie live until day 55 naming an order whose grant died on day 30.
+--
+-- GrantRetain's own comment names that state as the one that must never happen —
+-- "a grant swept while its cookie is still live locks a customer out of their own
+-- order" — and equality between the two constants only delivers it if the cookie
+-- is never re-issued. It is. So the clock is restarted HERE, on the same event
+-- that restarts the cookie's, which is what makes the two intervals comparable
+-- at all.
+--
+-- Scoped to the digests presented: a token this browser is not carrying is not
+-- evidence of anything, and touching every grant on the order would extend a
+-- credential held by some other browser.
+-- name: TouchOrderAccessGrants :exec
+UPDATE order_access_grants SET created_at = now()
+WHERE digest = ANY(@digests::bytea[]);
+
 -- Hold the checkout's idempotency key for the length of this transaction.
 --
 -- Two requests from one double-click arrive milliseconds apart, and the read

@@ -162,6 +162,14 @@ const AttemptSweepInterval = 24 * time.Hour
 // is not automatically a decision about the other. If they diverge, this is the
 // one that must be the LONGER: a grant swept while its cookie is still live
 // locks a customer out of their own order.
+//
+// Equality alone did not deliver that, and the sentence above was false for as
+// long as it existed. The cookie is RE-ISSUED with a fresh MaxAge on every order
+// and carries up to ten older tokens forward, while a grant was swept on its own
+// created_at — so a customer who ordered on day 0 and again on day 25 held a live
+// cookie until day 55 naming an order whose grant died on day 30. Two intervals
+// are only comparable if they start from the same event, which is why
+// TouchOrderAccessGrants restarts this one wherever the cookie's is restarted.
 const GrantRetain = cookieMaxAge * time.Second
 
 // SweepAttempts deletes checkout keys past [AttemptRetain] and access grants
