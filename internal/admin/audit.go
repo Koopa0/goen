@@ -33,6 +33,8 @@ const (
 	ActionShipOrder            Action = "order.ship"
 	ActionAdvanceOrder         Action = "order.advance"
 	ActionDecideReturn         Action = "return.decide"
+	ActionInspectReturn        Action = "return.inspect"
+	ActionCompleteReturn       Action = "return.complete"
 	ActionGrantCredit          Action = "credit.grant"
 	ActionAdjustStock          Action = "stock.adjust"
 	ActionPublishShipping      Action = "shipping.publish"

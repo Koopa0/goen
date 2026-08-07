@@ -170,6 +170,29 @@ SELECT record_inventory_movement(
     @idempotency_key::text, 'admin', NULL, @actor_user_id::uuid
 );
 
+-- Put a returned unit back on the shelf.
+--
+-- reason 'return' rather than 'adjustment', which is the whole point: the ledger
+-- had the reason, its delta-direction CHECK and its safety-stock exemption from
+-- the day it was written, and NOTHING ever posted one — so goods coming back
+-- were indistinguishable from a staff member correcting a miscount. A shop
+-- reading /admin/stock/{sku} could see the number move and not why.
+--
+-- source_type/source_id point at the RETURN, so the ledger row answers "which
+-- return put this back" the way a hold points at its order and a release at its
+-- reservation. The idempotency key is per (request, line), so a resubmitted
+-- inspection posts one movement.
+--
+-- sqlc.narg on the actor: inventory_movements.actor_user_id is nullable with a
+-- foreign key, so a zero UUID is not "nobody" — it is a user id that does not
+-- exist, and the FK would refuse it. NULL is how the ledger says a movement had
+-- no human behind it.
+-- name: RestockReturnedUnits :exec
+SELECT record_inventory_movement(
+    @variant_id, @delta::integer, 'return',
+    @idempotency_key::text, 'return_request', @request_id, sqlc.narg(actor_user_id)::uuid
+);
+
 -- name: SetVariantActive :exec
 UPDATE product_variants SET is_active = $2 WHERE id = $1;
 
@@ -323,12 +346,88 @@ WHERE r.id = $1;
 -- Without it the queue said "3 件 · 可退 NT$4,500" and nothing else: a staff
 -- member decided a return without being able to see what was in it.
 -- name: ReturnLines :many
-SELECT rl.return_request_id, ol.sku, ol.product_name, ol.variant_label,
-       ol.unit_price_cents, rl.quantity
+SELECT rl.return_request_id, ol.id AS order_line_id, ol.sku, ol.product_name,
+       ol.variant_label, ol.unit_price_cents, rl.quantity,
+       -- The inspection, NULL until somebody opens the parcel. "Not looked at
+       -- yet" and "looked at, nothing arrived" are different facts and the form
+       -- has to tell them apart: one is work outstanding, the other is a
+       -- conversation with the customer.
+       rl.received_quantity, rl.restocked_quantity,
+       coalesce(rl.inspection_note, '')::text AS inspection_note,
+       -- Whether the unit can go back on a shelf at all. A line whose variant was
+       -- deleted, or which never had one, cannot be restocked however sellable it
+       -- looks — order_lines.variant_id is nullable precisely so a line survives
+       -- its variant, and the form must not offer a control the write would then
+       -- refuse.
+       (ol.variant_id IS NOT NULL)::boolean AS restockable
 FROM return_request_lines rl
 JOIN order_lines ol ON ol.id = rl.order_line_id
 WHERE rl.return_request_id = ANY(@request_ids::uuid[])
 ORDER BY rl.return_request_id, ol.position, ol.id;
+
+-- Record what came back on one line of a return.
+--
+-- Scoped to an APPROVED request in its own WHERE clause, and :execrows so zero
+-- means the caller is told rather than the write silently doing nothing: a
+-- rejected return has no parcel coming, and inspecting one that was never
+-- approved would put stock back for goods the shop refused to take.
+--
+-- ONCE, which is what `received_quantity IS NULL` is doing here. A parcel is
+-- opened once, and the restock behind it posts an inventory movement keyed on
+-- (request, line) — so a second inspection either double-restocks or is
+-- swallowed by the unique index, and the swallowed one is worse: a staff member
+-- who miscounted, corrected the figure and resubmitted would see the new number
+-- on screen with the stock still at the old one. Refusing says so.
+--
+-- The correction path is the one that already exists and is already audited:
+-- /admin/stock/{sku} posts an 'adjustment' with an actor, which is exactly what
+-- a recount is. A second door into the same ledger is how the two come to
+-- disagree.
+-- name: InspectReturnLine :execrows
+UPDATE return_request_lines rl
+SET received_quantity = @received::integer,
+    restocked_quantity = @restocked::integer,
+    inspection_note = nullif(@note::text, '')
+FROM return_requests r
+WHERE r.id = rl.return_request_id
+  AND rl.return_request_id = @request_id
+  AND rl.order_line_id = @order_line_id
+  AND r.status = 'approved'
+  AND rl.received_quantity IS NULL;
+
+-- The variant and quantity a restock has to post, read back from the inspection.
+--
+-- Read AFTER the inspection is written and inside the same transaction, so the
+-- movement posted is the one this transaction recorded rather than whatever a
+-- later read finds. Only lines that restocked something and still have a variant
+-- to restock into.
+--
+-- The cast on variant_id is load-bearing: order_lines.variant_id is NULLABLE so
+-- a line survives its variant being deleted, and the WHERE clause below excludes
+-- the NULLs — but sqlc reads the column's declaration and not the predicate, so
+-- without it every caller unwraps a NullUUID that can never be null. Cast, the
+-- way localized_name's callers coalesce.
+-- name: ReturnRestockLines :many
+SELECT ol.variant_id::uuid AS variant_id,
+       rl.restocked_quantity::integer AS quantity, rl.order_line_id
+FROM return_request_lines rl
+JOIN order_lines ol ON ol.id = rl.order_line_id
+WHERE rl.return_request_id = @request_id
+  AND rl.restocked_quantity > 0
+  AND ol.variant_id IS NOT NULL
+ORDER BY rl.order_line_id;
+
+-- Close an inspected return.
+--
+-- return_requests_completed_is_inspected refuses this while any line is
+-- un-inspected, so the WHERE clause here does not restate that rule — the
+-- database is the one place it lives. `status = 'approved'` IS restated, for the
+-- reason DecideReturn restates it: it is what makes two staff members closing
+-- one return resolve to one winner.
+-- name: CompleteReturn :execrows
+UPDATE return_requests
+SET status = 'completed', resolution = coalesce(nullif(@resolution::text, ''), resolution)
+WHERE id = @id AND status = 'approved';
 
 -- Decide a return. return_requests_recount guards the transition and
 -- return_requests_decided_has_time requires the timestamp to arrive with it.

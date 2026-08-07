@@ -1130,6 +1130,42 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		reject:     `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 0);`,
 		accept:     `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1);`,
 	},
+	// The inspection columns: what came back and how much of it went on the
+	// shelf. Each ACCEPT is chosen to be one step inside the rule rather than
+	// obviously legal, because a permissive accept passes under the rule and
+	// under its absence — the lesson the store-code regex left behind.
+	{
+		constraint: "return_request_lines_received_bounded",
+		// One more back than was ever asked for.
+		reject: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity, received_quantity, restocked_quantity) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1, 2, 0);`,
+		accept: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity, received_quantity, restocked_quantity) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1, 1, 0);`,
+	},
+	{
+		constraint: "return_request_lines_restocked_bounded",
+		// More on the shelf than came off the courier — the direction that
+		// oversells, and the one a miscounted form produces.
+		// quantity 1, not 2: the line has shipped one unit, so a claim for two
+		// trips return_within_shipment FIRST and the case would prove that rule
+		// instead of this one — CLAUDE.md #8, met while writing the case.
+		reject: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity, received_quantity, restocked_quantity) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1, 0, 1);`,
+		accept: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity, received_quantity, restocked_quantity) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1, 1, 1);`,
+	},
+	{
+		constraint: "return_request_lines_inspected_together",
+		// A quantity received and nothing said about what happened to it. The
+		// row would claim goods arrived and refuse to say whether they are
+		// sellable, which is the one thing the inspection exists to record.
+		reject: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity, received_quantity) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1, 1);`,
+		// NEITHER, which is the ordinary state of a line nobody has opened yet —
+		// and the accept has to be that rather than both, or it would pass under
+		// a rule that merely demanded received_quantity.
+		accept: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1);`,
+	},
+	{
+		constraint: "return_request_lines_note_bounded",
+		reject:     `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity, received_quantity, restocked_quantity, inspection_note) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1, 1, 1, repeat('x', 501));`,
+		accept:     `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity, received_quantity, restocked_quantity, inspection_note) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1, 1, 1, repeat('x', 500));`,
+	},
 	{
 		constraint: "return_requests_decided_has_time",
 		// Tested from the 'requested' side so the new start-requested INSERT

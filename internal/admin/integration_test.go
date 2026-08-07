@@ -5940,3 +5940,356 @@ func TestTheShopSetsEachProductsWarrantyTerm(t *testing.T) {
 		t.Errorf("a %d-month term was accepted: %v", form.WarrantyMonths, errs)
 	}
 }
+
+// returnedOrderWithStock is returnedOrder with a REAL variant behind its line,
+// so a restock has somewhere to go.
+//
+// Its own product and variant per call rather than a seeded row: placing and
+// returning consume and produce stock, and several tests here do both — a shared
+// row makes the suite pass in file order and fail shuffled, which is the failure
+// this repository has already had once.
+func returnedOrderWithStock(t *testing.T, name string, qty int32) (requestID, variantID uuid.UUID) {
+	t.Helper()
+	ctx := t.Context()
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	slug := name + "-" + uuid.NewString()[:8]
+	var productID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+		SELECT b.id, c.id, $1, '退貨測試商品', 'active', now()
+		FROM brands b, categories c WHERE b.slug = 'pixelight' AND c.slug = 'phones'
+		RETURNING id`, slug).Scan(&productID); err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO product_variants (product_id, sku, price_cents, safety_stock, position)
+		VALUES ($1, upper($2), 100000, 0, 1) RETURNING id`,
+		productID, slug).Scan(&variantID); err != nil {
+		t.Fatalf("create variant: %v", err)
+	}
+	// Stock arrives through the ledger, never by writing the column: the dev seed
+	// learned that lesson and so does every fixture after it.
+	if _, err := tx.Exec(ctx,
+		`SELECT record_inventory_movement($1, 5, 'receipt', $2, NULL, NULL, NULL)`,
+		variantID, "seed:"+slug); err != nil {
+		t.Fatalf("stock the variant: %v", err)
+	}
+
+	var orderID, lineID uuid.UUID
+	var orderNumber string
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
+		                    shipping_method_name, shipping_cents)
+		SELECT next_order_number(), v.id, sm.code, v.name, 0
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1
+		RETURNING id, order_number`).Scan(&orderID, &orderNumber); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity)
+		VALUES ($1, $2, upper($3), '退貨測試商品', 100000, 2) RETURNING id`,
+		orderID, variantID, slug).Scan(&lineID); err != nil {
+		t.Fatalf("create line: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'r@example.com', '收件', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
+		orderID); err != nil {
+		t.Fatalf("create private data: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, 200000)`,
+		orderID, "cs_rets_"+orderNumber); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT capture_payment($1, 200000, NULL, NULL)`,
+		"cs_rets_"+orderNumber); err != nil {
+		t.Fatalf("capture: %v", err)
+	}
+	var shipmentID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO order_shipments (order_id, carrier, tracking_number)
+		VALUES ($1, '黑貓', 'TS-'||$2) RETURNING id`,
+		orderID, orderNumber).Scan(&shipmentID); err != nil {
+		t.Fatalf("create shipment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+		VALUES ($1, $2, $3, 2)`, orderID, shipmentID, lineID); err != nil {
+		t.Fatalf("create shipment line: %v", err)
+	}
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO return_requests (order_id, reason) VALUES ($1, '不合用') RETURNING id`,
+		orderID).Scan(&requestID); err != nil {
+		t.Fatalf("create return request: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+		VALUES ($1, $2, $3, $4)`, orderID, requestID, lineID, qty); err != nil {
+		t.Fatalf("create return line: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	return requestID, variantID
+}
+
+// stockOf is a variant's shelf count.
+func stockOf(t *testing.T, variantID uuid.UUID) int32 {
+	t.Helper()
+	var n int32
+	if err := pool.QueryRow(t.Context(),
+		`SELECT stock_quantity FROM product_variants WHERE id = $1`, variantID).Scan(&n); err != nil {
+		t.Fatalf("read stock: %v", err)
+	}
+	return n
+}
+
+// returnLineID is the order line one return request is about.
+func returnLineID(t *testing.T, requestID uuid.UUID) uuid.UUID {
+	t.Helper()
+	var id uuid.UUID
+	if err := pool.QueryRow(t.Context(),
+		`SELECT order_line_id FROM return_request_lines WHERE return_request_id = $1`,
+		requestID).Scan(&id); err != nil {
+		t.Fatalf("read return line: %v", err)
+	}
+	return id
+}
+
+// TestAnInspectedReturnPutsTheSellableUnitsBack is the tail a return did not have.
+//
+// A return stopped at 同意: the money went back through Stripe and the GOODS were
+// in a state nothing recorded. inventory_movements' 'return' reason had a CHECK,
+// a delta-direction rule, a safety-stock exemption and a back-office label — four
+// declarations and NO caller — so units coming back were indistinguishable from a
+// staff member correcting a miscount, and in fact never came back at all.
+//
+// Two of the three units are sellable here and one is not, because that is the
+// case a single figure cannot express: a test that restocked everything it
+// received would pass with the restocked column ignored entirely.
+func TestAnInspectedReturnPutsTheSellableUnitsBack(t *testing.T) {
+	ctx, staff := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{})
+	actor := uuid.NullUUID{UUID: staff, Valid: true}
+	requestID, variantID := returnedOrderWithStock(t, "restock", 2)
+	lineID := returnLineID(t, requestID)
+
+	before := stockOf(t, variantID)
+	if err := s.Decide(ctx, requestID.String(), "approved", "", actor); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+	// Approving moves money, never stock. If this is already up, the restock
+	// below is being measured against the wrong baseline.
+	if got := stockOf(t, variantID); got != before {
+		t.Fatalf("approving a return moved stock %d -> %d; nothing has come back yet",
+			before, got)
+	}
+
+	if err := s.InspectReturn(ctx, requestID.String(), []admin.ReturnLineInspection{{
+		OrderLineID: lineID, Received: 2, Restocked: 1, Note: "一件外盒破損",
+	}}, actor); err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+
+	if got, want := stockOf(t, variantID), before+1; got != want {
+		t.Errorf("stock is %d after restocking one of two returned units, want %d", got, want)
+	}
+
+	// The LEDGER, not just the count. A shop reading /admin/stock/{sku} has to be
+	// able to see that these units came from a return rather than from somebody
+	// correcting a miscount — which is the whole reason the reason exists.
+	var reason, sourceType string
+	var delta int32
+	if err := pool.QueryRow(ctx, `
+		SELECT reason, coalesce(source_type, ''), delta FROM inventory_movements
+		WHERE variant_id = $1 ORDER BY created_at DESC LIMIT 1`,
+		variantID).Scan(&reason, &sourceType, &delta); err != nil {
+		t.Fatalf("read the ledger: %v", err)
+	}
+	if reason != "return" || delta != 1 {
+		t.Errorf("the ledger says %q %+d, want return +1", reason, delta)
+	}
+	if sourceType != "return_request" {
+		t.Errorf("the movement points at %q, want return_request — a shop asking "+
+			"why the number moved gets no answer otherwise", sourceType)
+	}
+}
+
+// TestAReturnCannotCloseWithAnUninspectedLine holds the guard that makes
+// 'completed' mean something.
+//
+// Without it 'completed' is a label somebody clicks while the goods behind it are
+// in a state nobody recorded — and for a RETURN that is the whole question,
+// because the units either went back on the shelf or did not.
+func TestAReturnCannotCloseWithAnUninspectedLine(t *testing.T) {
+	ctx, staff := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{})
+	actor := uuid.NullUUID{UUID: staff, Valid: true}
+	requestID, variantID := returnedOrderWithStock(t, "uninspected", 2)
+	lineID := returnLineID(t, requestID)
+
+	if err := s.Decide(ctx, requestID.String(), "approved", "", actor); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+
+	if err := s.CompleteReturn(ctx, requestID.String(), "", actor); !errors.Is(err, admin.ErrRefused) {
+		t.Fatalf("closing an uninspected return = %v, want ErrRefused", err)
+	}
+	var status string
+	if err := pool.QueryRow(ctx,
+		`SELECT status FROM return_requests WHERE id = $1`, requestID).Scan(&status); err != nil {
+		t.Fatalf("read status: %v", err)
+	}
+	if status != "approved" {
+		t.Errorf("the return is %q after a refused completion, want approved", status)
+	}
+
+	// The control: inspected, it closes. Without this a CompleteReturn that
+	// refused everything would pass the assertion above.
+	if err := s.InspectReturn(ctx, requestID.String(), []admin.ReturnLineInspection{{
+		OrderLineID: lineID, Received: 2, Restocked: 2,
+	}}, actor); err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+	if err := s.CompleteReturn(ctx, requestID.String(), "已退款並入庫", actor); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT status FROM return_requests WHERE id = $1`, requestID).Scan(&status); err != nil {
+		t.Fatalf("read status: %v", err)
+	}
+	if status != "completed" {
+		t.Errorf("the return is %q after closing, want completed", status)
+	}
+	// And closing posts no second movement: the stock moved at INSPECTION, which
+	// is when the goods physically reached the shelf.
+	if got, want := stockOf(t, variantID), int32(5-0+2); got != want {
+		t.Errorf("stock is %d after closing, want %d — completing a return must not "+
+			"restock a second time", got, want)
+	}
+}
+
+// TestInspectingIsRefusedBeforeApproval stops stock moving for goods the shop
+// refused to take.
+//
+// A rejected return has no parcel coming. Recording one as received would put
+// units on the shelf that nobody sent, and the count would be wrong in the
+// direction that oversells.
+func TestInspectingIsRefusedBeforeApproval(t *testing.T) {
+	ctx, staff := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{})
+	actor := uuid.NullUUID{UUID: staff, Valid: true}
+	requestID, variantID := returnedOrderWithStock(t, "unapproved", 2)
+	lineID := returnLineID(t, requestID)
+
+	before := stockOf(t, variantID)
+	err := s.InspectReturn(ctx, requestID.String(), []admin.ReturnLineInspection{{
+		OrderLineID: lineID, Received: 2, Restocked: 2,
+	}}, actor)
+	if !errors.Is(err, admin.ErrRefused) {
+		t.Fatalf("inspecting an undecided return = %v, want ErrRefused", err)
+	}
+	if got := stockOf(t, variantID); got != before {
+		t.Errorf("stock moved %d -> %d on a refused inspection", before, got)
+	}
+}
+
+// TestRestockingMoreThanArrivedIsRefused holds the arithmetic in words rather
+// than as a constraint name.
+//
+// return_request_lines_restocked_bounded refuses it anyway; a staff member cannot
+// act on that, and the whole point of checking it in Go as well is the sentence.
+func TestRestockingMoreThanArrivedIsRefused(t *testing.T) {
+	ctx, staff := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{})
+	actor := uuid.NullUUID{UUID: staff, Valid: true}
+	requestID, variantID := returnedOrderWithStock(t, "overrestock", 1)
+	lineID := returnLineID(t, requestID)
+
+	if err := s.Decide(ctx, requestID.String(), "approved", "", actor); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+	before := stockOf(t, variantID)
+
+	err := s.InspectReturn(ctx, requestID.String(), []admin.ReturnLineInspection{{
+		OrderLineID: lineID, Received: 1, Restocked: 2,
+	}}, actor)
+	if !errors.Is(err, admin.ErrInvalid) {
+		t.Fatalf("restocking 2 of 1 received = %v, want ErrInvalid", err)
+	}
+	if got := stockOf(t, variantID); got != before {
+		t.Errorf("stock moved %d -> %d on a refused inspection", before, got)
+	}
+}
+
+// TestALineIsInspectedOnceAndACorrectionIsAnAdjustment holds what happens when a
+// staff member presses the form again.
+//
+// The restock posts a movement keyed on (request, line), so a second inspection
+// either double-restocks or is swallowed by the unique index — and swallowed is
+// the WORSE of the two: somebody who miscounted, corrected the figure and
+// resubmitted would read the new number on screen with the stock still at the
+// old one. The write refuses instead, and says where the correction lives.
+//
+// That door already exists and is already audited: /admin/stock/{sku} posts an
+// 'adjustment' with an actor, which is exactly what a recount is.
+func TestALineIsInspectedOnceAndACorrectionIsAnAdjustment(t *testing.T) {
+	ctx, staff := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{})
+	actor := uuid.NullUUID{UUID: staff, Valid: true}
+	requestID, variantID := returnedOrderWithStock(t, "twice", 2)
+	lineID := returnLineID(t, requestID)
+
+	if err := s.Decide(ctx, requestID.String(), "approved", "", actor); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+	before := stockOf(t, variantID)
+
+	if err := s.InspectReturn(ctx, requestID.String(), []admin.ReturnLineInspection{{
+		OrderLineID: lineID, Received: 2, Restocked: 2,
+	}}, actor); err != nil {
+		t.Fatalf("first inspection: %v", err)
+	}
+
+	// A CORRECTED resubmission, which is the dangerous one: different numbers.
+	err := s.InspectReturn(ctx, requestID.String(), []admin.ReturnLineInspection{{
+		OrderLineID: lineID, Received: 2, Restocked: 1,
+	}}, actor)
+	if !errors.Is(err, admin.ErrRefused) {
+		t.Fatalf("re-inspecting = %v, want ErrRefused", err)
+	}
+
+	if got, want := stockOf(t, variantID), before+2; got != want {
+		t.Errorf("stock is %d after a refused re-inspection, want %d", got, want)
+	}
+	var movements int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM inventory_movements
+		WHERE variant_id = $1 AND reason = 'return'`, variantID).Scan(&movements); err != nil {
+		t.Fatalf("count movements: %v", err)
+	}
+	if movements != 1 {
+		t.Errorf("%d return movements after two inspections, want 1", movements)
+	}
+
+	// And the row still says what the FIRST inspection found, rather than the
+	// numbers the refused one carried.
+	var restocked int32
+	if err := pool.QueryRow(ctx, `
+		SELECT restocked_quantity FROM return_request_lines
+		WHERE return_request_id = $1`, requestID).Scan(&restocked); err != nil {
+		t.Fatalf("read the line: %v", err)
+	}
+	if restocked != 2 {
+		t.Errorf("the line records %d restocked, want 2 — the refused submission "+
+			"changed the record without changing the stock", restocked)
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -426,36 +427,43 @@ func (h *Handler) SetVariantPrice(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// adminNotices is the one-shot message each redirect parameter carries.
+//
+// A table rather than a switch, because it is one: every arm asked the same
+// question of a different key and returned a constant, so the branching was the
+// shape of a lookup written out longhand — and it grew past the complexity
+// budget the moment the return tail added three more. Order does not matter,
+// because a redirect sets exactly one.
+//
+// i18n-exempt: the back office is the staff of one Taiwanese shop, which is the
+// category exemption the chrome-language rule already names.
+var adminNotices = map[string]string{
+	"ok":            "已更新。",
+	"refused":       "資料庫拒絕了這個變更。可能是狀態流程不允許,或會違反庫存與活動規則。",
+	"shipped":       "已出貨。配送資訊與庫存都已記錄。",
+	"toolate":       "這筆訂單已經出貨,收件資訊改不了了。包裹已經寄出,改紀錄只會讓紀錄和事實對不上。",
+	"needs":         "請填寫物流商與查詢編號。",
+	"toobig":        "圖片太大了,請用 8 MB 以內的檔案。",
+	"notimage":      "這個檔案不是可以辨識的圖片。支援 JPEG、PNG、GIF 與 WebP。",
+	"uploadfailed":  "圖片上傳失敗,請再試一次。",
+	"inuse":         "還有商品或子分類在用它,先把那些移到別的地方再刪。",
+	"attachrefused": "這張圖片已經在這個商品上了。",
+	"noalt":         "請填寫圖片說明文字 —— 讀螢幕的人靠它知道圖裡是什麼。",
+	"nodiscount":    "這個商品沒有標示原價,無法加入活動。先在商品頁設定原價再試一次。",
+	"refundfailed":  "退款沒有完成。退款紀錄已經留下,請確認 Stripe 後台再處理一次。",
+	"inspected":     "驗貨已記錄,可再販售的數量已經入庫。",
+	"closed":        "退貨已結案。",
+	"badcount":      "數量填寫有問題:入庫數不能超過實際收到的數量,實際收到也不能超過申請退回的數量。",
+}
+
 // noticeFor turns the one-shot query parameter a redirect carries into the
 // message the page shows.
 func noticeFor(r *http.Request) string {
-	switch {
-	case r.URL.Query().Get("ok") == "1":
-		return "已更新。"
-	case r.URL.Query().Get("refused") == "1":
-		return "資料庫拒絕了這個變更。可能是狀態流程不允許,或會違反庫存與活動規則。"
-	case r.URL.Query().Get("shipped") == "1":
-		return "已出貨。配送資訊與庫存都已記錄。"
-	case r.URL.Query().Get("toolate") == "1":
-		return "這筆訂單已經出貨,收件資訊改不了了。包裹已經寄出,改紀錄只會讓紀錄和事實對不上。"
-	case r.URL.Query().Get("needs") == "1":
-		return "請填寫物流商與查詢編號。"
-	case r.URL.Query().Get("toobig") == "1":
-		return "圖片太大了,請用 8 MB 以內的檔案。"
-	case r.URL.Query().Get("notimage") == "1":
-		return "這個檔案不是可以辨識的圖片。支援 JPEG、PNG、GIF 與 WebP。"
-	case r.URL.Query().Get("uploadfailed") == "1":
-		return "圖片上傳失敗,請再試一次。"
-	case r.URL.Query().Get("inuse") == "1":
-		return "還有商品或子分類在用它,先把那些移到別的地方再刪。"
-	case r.URL.Query().Get("attachrefused") == "1":
-		return "這張圖片已經在這個商品上了。"
-	case r.URL.Query().Get("noalt") == "1":
-		return "請填寫圖片說明文字 —— 讀螢幕的人靠它知道圖裡是什麼。"
-	case r.URL.Query().Get("nodiscount") == "1":
-		return "這個商品沒有標示原價,無法加入活動。先在商品頁設定原價再試一次。"
-	case r.URL.Query().Get("refundfailed") == "1":
-		return "退款沒有完成。退款紀錄已經留下,請確認 Stripe 後台再處理一次。"
+	q := r.URL.Query()
+	for key, message := range adminNotices {
+		if q.Get(key) == "1" {
+			return message
+		}
 	}
 	return ""
 }
@@ -512,6 +520,111 @@ func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "decide return",
 			"return", r.PathValue("id"), "error", err)
 		http.Redirect(w, r, "/admin/returns?refundfailed=1", http.StatusSeeOther)
+	}
+}
+
+// Inspect serves POST /admin/returns/{id}/inspect.
+//
+// One form for the whole parcel: a return of three things is opened once, and
+// three separate submissions would leave the shop able to record two lines and
+// forget the third — which is the state return_requests_completed_is_inspected
+// then refuses to close, with nothing on screen saying why.
+func (h *Handler) Inspect(w http.ResponseWriter, r *http.Request) {
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		return
+	}
+
+	lines, parseErr := inspectionLines(r)
+	if parseErr != nil {
+		h.log.WarnContext(r.Context(), "return inspection rejected",
+			"return", r.PathValue("id"), "error", parseErr)
+		http.Redirect(w, r, "/admin/returns?badcount=1", http.StatusSeeOther)
+		return
+	}
+
+	err := h.store.InspectReturn(r.Context(), r.PathValue("id"), lines, staffID(r))
+	switch {
+	case err == nil:
+		http.Redirect(w, r, "/admin/returns?inspected=1", http.StatusSeeOther)
+	case errors.Is(err, ErrInvalid):
+		http.Redirect(w, r, "/admin/returns?badcount=1", http.StatusSeeOther)
+	case errors.Is(err, ErrRefused):
+		h.log.WarnContext(r.Context(), "return inspection refused",
+			"return", r.PathValue("id"), "error", err)
+		http.Redirect(w, r, "/admin/returns?refused=1", http.StatusSeeOther)
+	default:
+		h.log.ErrorContext(r.Context(), "inspect return",
+			"return", r.PathValue("id"), "error", err)
+		h.serverError(w, r)
+	}
+}
+
+// inspectionLines reads the per-line counts off the form.
+//
+// Named `received_<order_line_id>` and `restocked_<order_line_id>` rather than
+// parallel arrays, because a browser is free to reorder repeated fields and two
+// lists that drifted apart would restock the wrong variant — the same reason the
+// return form itself keys quantities by line id.
+func inspectionLines(r *http.Request) ([]ReturnLineInspection, error) {
+	var out []ReturnLineInspection
+	for name, values := range r.PostForm {
+		rest, ok := strings.CutPrefix(name, "received_")
+		if !ok || len(values) == 0 {
+			continue
+		}
+		lineID, err := uuid.Parse(rest)
+		if err != nil {
+			return nil, fmt.Errorf("field %q does not name an order line: %w", name, err)
+		}
+		received, err := strconv.ParseInt(strings.TrimSpace(values[0]), 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("received count on %s: %w", rest, err)
+		}
+		// Absent means zero. A staff member who leaves the restock box empty on a
+		// line that arrived broken is saying "none of it", and reading that as
+		// "all of it" would put damaged goods back on the shelf.
+		var restocked int64
+		if raw := strings.TrimSpace(r.PostFormValue("restocked_" + rest)); raw != "" {
+			if restocked, err = strconv.ParseInt(raw, 10, 32); err != nil {
+				return nil, fmt.Errorf("restocked count on %s: %w", rest, err)
+			}
+		}
+		out = append(out, ReturnLineInspection{
+			OrderLineID: lineID,
+			Received:    int32(received),
+			Restocked:   int32(restocked),
+			Note:        strings.TrimSpace(r.PostFormValue("note_" + rest)),
+		})
+	}
+	if len(out) == 0 {
+		return nil, errors.New("the form carried no line counts")
+	}
+	return out, nil
+}
+
+// Complete serves POST /admin/returns/{id}/complete.
+func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		return
+	}
+	err := h.store.CompleteReturn(r.Context(), r.PathValue("id"),
+		r.PostFormValue("resolution"), staffID(r))
+	switch {
+	case err == nil:
+		http.Redirect(w, r, "/admin/returns?closed=1", http.StatusSeeOther)
+	case errors.Is(err, ErrRefused):
+		// return_requests_completed_is_inspected lands here: a parcel nobody has
+		// opened cannot be closed, and the page says so rather than showing a
+		// constraint name.
+		h.log.WarnContext(r.Context(), "return completion refused",
+			"return", r.PathValue("id"), "error", err)
+		http.Redirect(w, r, "/admin/returns?refused=1", http.StatusSeeOther)
+	default:
+		h.log.ErrorContext(r.Context(), "complete return",
+			"return", r.PathValue("id"), "error", err)
+		h.serverError(w, r)
 	}
 }
 

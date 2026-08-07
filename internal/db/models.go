@@ -586,10 +586,13 @@ type ReturnRequest struct {
 }
 
 type ReturnRequestLine struct {
-	OrderID         uuid.UUID
-	ReturnRequestID uuid.UUID
-	OrderLineID     uuid.UUID
-	Quantity        int32
+	OrderID           uuid.UUID
+	ReturnRequestID   uuid.UUID
+	OrderLineID       uuid.UUID
+	Quantity          int32
+	ReceivedQuantity  pgtype.Int4
+	RestockedQuantity pgtype.Int4
+	InspectionNote    pgtype.Text
 }
 
 type SaleCampaign struct {
