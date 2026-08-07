@@ -1,10 +1,17 @@
 package site
 
 import (
+	"maps"
+	"os"
+	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -62,6 +69,99 @@ func TestEveryPolicyRouteHasADocument(t *testing.T) {
 	}
 }
 
+// TestThePrivacyPolicyNamesEveryCookie holds a sentence that CLAIMS
+// completeness against the cookies the binary actually sets.
+//
+// 「goen 使用的 cookie 只有…」 / "and no others" is a falsifiable statement, and
+// it was false: it named three while the site set five. The language cookie is
+// written by the switch in the footer of EVERY page, so any visitor who changed
+// language was undisclosed — and the promotional-strip dismissal was the fifth.
+//
+// This is the shape TestTheStatedHoldMatchesTheEnforcedOne already has one
+// section over: a page-says-versus-code-does guard. It was never extended here,
+// which is why the sentence could drift twice without anything going red.
+//
+// Derived by WALKING THE SOURCE rather than from a list, so a sixth cookie fails
+// this the moment its constant is declared — a hand-written list would need
+// somebody to remember, which is exactly what did not happen.
+func TestThePrivacyPolicyNamesEveryCookie(t *testing.T) {
+	// One entry per cookie the binary can set, naming the words the policy uses
+	// for it. Both locales, because BodyEn is the half no other guard reads.
+	described := map[string]struct{ zh, en string }{
+		cart.CookieName:           {zh: "購物車", en: "your cart"},
+		account.SessionCookieName: {zh: "登入狀態", en: "your sign-in"},
+		cart.PlacedCookieName:     {zh: "訂單瀏覽權限", en: "permission to view an order"},
+		i18n.CookieName:           {zh: "您選擇的語言", en: "the language you chose"},
+		home.DismissCookie:        {zh: "您關閉過的網站公告", en: "which site notice you have dismissed"},
+	}
+
+	var zh, en strings.Builder
+	for _, s := range policies["privacy"].Sections {
+		for _, p := range s.Body {
+			zh.WriteString(p)
+		}
+		for _, p := range s.BodyEn {
+			en.WriteString(p)
+		}
+	}
+
+	for name, words := range described {
+		if !strings.Contains(zh.String(), words.zh) {
+			t.Errorf("the privacy policy claims to list every cookie and does not "+
+				"mention %s (%q)", name, words.zh)
+		}
+		if !strings.Contains(en.String(), words.en) {
+			t.Errorf("the English privacy policy does not mention %s (%q)", name, words.en)
+		}
+	}
+
+	// Completeness: every `__Host-goen_*` literal in the tree has an entry above.
+	// Without this the map is a list somebody has to remember to extend, which is
+	// the failure mode this test exists for.
+	for _, name := range hostCookieNames(t) {
+		if _, ok := described[name]; !ok {
+			t.Errorf("%s is set by the binary and the privacy policy does not "+
+				"account for it; the page tells every visitor it sets no others", name)
+		}
+	}
+}
+
+// hostCookieNames is every __Host- cookie name declared anywhere in internal/.
+//
+// The __Host- prefix is what makes this findable: goen's cookies all carry it
+// (the bare names beside them are the development variants of the same cookie,
+// gated on GOEN_INSECURE_COOKIES), so one pattern reaches all of them.
+func hostCookieNames(t *testing.T) []string {
+	t.Helper()
+	pattern := regexp.MustCompile(`"(__Host-goen_[a-z_]+)"`)
+	seen := map[string]bool{}
+	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		// Tests excluded: a cookie a test names is not a cookie the shop sets,
+		// and this file itself names all five.
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		src, readErr := os.ReadFile(path) //nolint:gosec // G304: paths come from walking this repository
+		if readErr != nil {
+			return readErr
+		}
+		for _, m := range pattern.FindAllStringSubmatch(string(src), -1) {
+			seen[m[1]] = true
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk internal/: %v", err)
+	}
+	if len(seen) == 0 {
+		t.Fatal("found no cookie names at all; the sweep is not reading the source")
+	}
+	return slices.Sorted(maps.Keys(seen))
+}
+
 // TestPolicyDocumentsAreComplete proves no policy renders as an empty page.
 //
 // A heading with no body, or a document with no sections, is a page that looks
@@ -105,8 +205,16 @@ func TestPolicyDocumentsAreComplete(t *testing.T) {
 func TestUndecidedTermsAreMarkedPending(t *testing.T) {
 	for path, doc := range policies {
 		for _, s := range doc.Sections {
-			for _, para := range s.Body {
-				if strings.Contains(para, "尚未確定") && !s.Pending {
+			// BOTH halves. This read s.Body alone, so the English could say a term
+			// was undecided outside a Pending section and nothing looked — and the
+			// halves really had come apart: /warranty's Pending paragraph listed
+			// 保固期限 in Chinese and not in English, while the section above it
+			// stated the term as a rule. A guard over one locale is a guard over
+			// the locale whoever wrote it happened to read.
+			for _, para := range append(append([]string{}, s.Body...), s.BodyEn...) {
+				if (strings.Contains(para, "尚未確定") ||
+					strings.Contains(para, "not decided") ||
+					strings.Contains(para, "not yet decided")) && !s.Pending {
 					t.Errorf("/%s: %q says something is undecided and is not marked "+
 						"Pending, so it renders as a rule", path, s.Heading)
 				}
@@ -209,29 +317,39 @@ func TestStatutoryTermsAreNotPending(t *testing.T) {
 	// Each entry is a term Taiwanese law fixes, the citation a future editor
 	// needs in order to DISAGREE with the entry rather than quietly delete it,
 	// and the substance the page must state outside a Pending section.
+	// wantEn as well as want, because an unwaivable right stated in one language
+	// is stated for one reader. This asserted the Chinese alone, so the English
+	// half of every term below could have been dropped, softened or quietly
+	// turned into a shop policy with nothing going red — and the neighbouring
+	// Pending guard had the same blind spot, where the two halves really did come
+	// apart.
 	statutory := []struct {
-		term string
-		cite string
-		doc  string
-		want []string
+		term   string
+		cite   string
+		doc    string
+		want   []string
+		wantEn []string
 	}{
 		{
-			term: "the length of the rescission window",
-			cite: "消保法 §19 I — seven days from receipt of the goods; §19 V voids any agreement otherwise; 民法 §120 II excludes the day of receipt",
-			doc:  "returns",
-			want: []string{"七天的鑑賞期", "「隔天」開始算"},
+			term:   "the length of the rescission window",
+			cite:   "消保法 §19 I — seven days from receipt of the goods; §19 V voids any agreement otherwise; 民法 §120 II excludes the day of receipt",
+			doc:    "returns",
+			want:   []string{"七天的鑑賞期", "「隔天」開始算"},
+			wantEn: []string{"seven days to cancel", "the day AFTER"},
 		},
 		{
-			term: "who pays return postage",
-			cite: "消保法 §19 I — the consumer bears 任何費用, which is to say none",
-			doc:  "returns",
-			want: []string{"退貨運費由 goen 負擔"},
+			term:   "who pays return postage",
+			cite:   "消保法 §19 I — the consumer bears 任何費用, which is to say none",
+			doc:    "returns",
+			want:   []string{"退貨運費由 goen 負擔"},
+			wantEn: []string{"return postage included"},
 		},
 		{
-			term: "whether opening the box forfeits the right",
-			cite: "通訊交易解除權合理例外情事適用準則 §2 — a closed list of seven, and opened 3C hardware is on none of them",
-			doc:  "returns",
-			want: []string{"拆封後仍在鑑賞期內"},
+			term:   "whether opening the box forfeits the right",
+			cite:   "通訊交易解除權合理例外情事適用準則 §2 — a closed list of seven, and opened 3C hardware is on none of them",
+			doc:    "returns",
+			want:   []string{"拆封後仍在鑑賞期內"},
+			wantEn: []string{"opening 3C hardware keeps you inside the seven days"},
 		},
 	}
 
@@ -243,7 +361,7 @@ func TestStatutoryTermsAreNotPending(t *testing.T) {
 			}
 			// Only sections that render as a RULE count. A statement of a
 			// statutory term inside a Pending section is the defect.
-			var stated strings.Builder
+			var stated, statedEn strings.Builder
 			for _, sec := range doc.Sections {
 				if sec.Pending {
 					continue
@@ -252,12 +370,23 @@ func TestStatutoryTermsAreNotPending(t *testing.T) {
 					stated.WriteString(para)
 					stated.WriteString("\n")
 				}
+				for _, para := range sec.BodyEn {
+					statedEn.WriteString(para)
+					statedEn.WriteString("\n")
+				}
 			}
 			for _, w := range s.want {
 				if !strings.Contains(stated.String(), w) {
 					t.Errorf("/%s does not state %s outside a Pending section: no %q.\n"+
 						"This is not the shop's to leave undecided — %s",
 						s.doc, s.term, w, s.cite)
+				}
+			}
+			for _, w := range s.wantEn {
+				if !strings.Contains(statedEn.String(), w) {
+					t.Errorf("/%s does not state %s to an ENGLISH reader outside a "+
+						"Pending section: no %q.\nThe right does not depend on which "+
+						"language the customer reads — %s", s.doc, s.term, w, s.cite)
 				}
 			}
 		})

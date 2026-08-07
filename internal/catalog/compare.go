@@ -71,13 +71,21 @@ func (s *Store) Compare(ctx context.Context, slugs []string) (pages.CompareView,
 	// labels so the shared ones come first; this preserves that order and fills
 	// the gaps, because a missing spec is a fact about the product and must
 	// render as one rather than shifting the columns.
+	// Keyed on the UNTRANSLATED label, which is the row's identity — never on the
+	// localized text this renders. Two Chinese labels can translate to one
+	// English word (輸出 and 孔位 are both "Ports" in the seed), and keying on
+	// what the reader sees merged them into one row where the second product's
+	// value overwrote the first: a spec present on the English PDP simply
+	// vanished from the English comparison. The query counts shared_by on the
+	// same untranslated label, so this is also what keeps the count and the
+	// grouping talking about the same thing.
 	rowAt := make(map[string]int)
 	for i := range specs {
 		sp := &specs[i]
-		idx, seen := rowAt[sp.Label]
+		idx, seen := rowAt[sp.LabelKey]
 		if !seen {
 			idx = len(view.Rows)
-			rowAt[sp.Label] = idx
+			rowAt[sp.LabelKey] = idx
 			view.Rows = append(view.Rows, pages.CompareRow{
 				Label:    sp.Label,
 				Values:   make([]string, len(view.Products)),

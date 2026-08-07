@@ -138,7 +138,15 @@ SELECT
     o.tax_cents,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
-    (SELECT count(*) FROM order_lines ol WHERE ol.order_id = o.id)::bigint AS line_count
+    (SELECT count(*) FROM order_lines ol WHERE ol.order_id = o.id)::bigint AS line_count,
+    -- The funding state, which the status cannot supply. This list badged every
+    -- 'pending' order 待付款, so an order paid minutes ago read as unpaid until a
+    -- human at the shop moved it to picking. Both columns for the reason
+    -- OrderSummaryByNumber carries both: a captured card leaves the order
+    -- committed and still owing, a fully store-credited one owes nothing and is
+    -- not committed until it leaves pending.
+    (o.id IN (SELECT id FROM committed_orders))::boolean AS committed,
+    order_amount_owed(o.id)::bigint AS owed_cents
 FROM orders o
 WHERE o.user_id = $1
 ORDER BY o.placed_at DESC, o.id DESC
@@ -172,7 +180,10 @@ SELECT
     coalesce(pd.street, '') AS street,
     coalesce(pd.pickup_brand, '') AS pickup_brand,
     coalesce(pd.pickup_store_code, '') AS pickup_store_code,
-    coalesce(pd.pickup_store_name, '') AS pickup_store_name
+    coalesce(pd.pickup_store_name, '') AS pickup_store_name,
+    -- See UserOrders: the status alone cannot say whether anything is still owed.
+    (o.id IN (SELECT id FROM committed_orders))::boolean AS committed,
+    order_amount_owed(o.id)::bigint AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE o.order_number = $1 AND o.user_id = $2;

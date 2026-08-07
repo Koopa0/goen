@@ -595,6 +595,11 @@ type OrderView struct {
 	// credit. NOT the same as a status: an order stays 'pending' between the
 	// capture and the shop picking it.
 	Committed bool
+	// OwedCents is what is left to pay: the total less the store credit spent on
+	// it. Committed cannot answer this on its own — a fully store-credited order
+	// has no payment row and stays 'pending', so committed_orders reports it
+	// false while the customer owes nothing.
+	OwedCents int64
 }
 
 // CanCancel reports whether the customer may still call this order off.
@@ -658,7 +663,25 @@ func (v *OrderView) CanRequestReturn() bool {
 
 // AwaitingPayment reports whether the order is still waiting to be paid, which
 // is the state every order is in the moment it is placed.
-func (v *OrderView) AwaitingPayment() bool { return v.Status == "pending" }
+//
+// THREE questions, because 'pending' answers none of them. It used to read the
+// status alone, so an order stayed 尚未付款 with a 前往付款 link beside it from
+// the moment the webhook took the money until a human at the shop moved it to
+// picking — overnight, over a weekend, for as long as the queue was. That is the
+// first page a customer sees after paying (Stripe returns them to it) and the
+// page the receipt links back to, so "we have your money" arrived by email
+// while the linked page said otherwise.
+//
+// CanCancel, three lines up, has always read Committed. Two halves of one fact,
+// correct separately and disagreeing — CLAUDE.md #13.
+//
+// OwedCents as well as Committed, because neither covers the other's case: a
+// captured card leaves the order committed and still owing (order_amount_owed
+// nets store credit, not payments), while a fully store-credited order owes
+// nothing and is not committed until it leaves pending.
+func (v *OrderView) AwaitingPayment() bool {
+	return v.Status == "pending" && !v.Committed && v.OwedCents > 0
+}
 
 // HasCoupon reports whether a coupon is applied to this checkout.
 func (v *CheckoutView) HasCoupon() bool {

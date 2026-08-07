@@ -276,6 +276,15 @@ var (
 		ZhHant: "折扣碼暫時無法使用。",
 		En:     "That discount code cannot be used right now.",
 	})
+	// Decided under redeem_coupon's lock and nowhere else, so this is the one
+	// message that arrives from inside the checkout transaction rather than from
+	// the field validation above it. Its own next move: this code is spent, the
+	// order is not.
+	KeyCouponUsedUp = key("coupon.usedup", Message{
+		ZhHant: "這組折扣碼的使用次數已經用完了。訂單沒有送出,拿掉折扣碼就可以繼續結帳。",
+		En: "That discount code has been fully used. Your order was not placed — " +
+			"clear the code to carry on.",
+	})
 
 	// Shipping.
 	KeyChooseShipping = key("checkout.shipping.choose", Message{

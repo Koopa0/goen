@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/db"
 )
@@ -161,13 +162,21 @@ func redeemCoupon(ctx context.Context, q *db.Queries, c *Coupon, orderID uuid.UU
 	}); err != nil {
 		// The limits speak here, under the lock redeem_coupon takes. Mapped to
 		// a sentinel so a customer sees why rather than a 500.
-		msg := err.Error()
-		switch {
-		case strings.Contains(msg, "coupon_within_total_limit"),
-			strings.Contains(msg, "coupon_within_customer_limit"):
-			return ErrCouponUsedUp
-		case strings.Contains(msg, "coupon_is_current"):
-			return ErrCouponExpired
+		//
+		// Bound to the CONSTRAINT NAME, not to the message. This matched on
+		// err.Error(), and pgconn renders a PgError as severity + message +
+		// SQLSTATE — the name RAISE sets travels in PgError.ConstraintName and
+		// is not in that string at all. So neither branch could ever be taken:
+		// every refusal fell through to the wrap below and reached the customer
+		// as a 500 at the moment of checkout. CLAUDE.md #8, and the reason
+		// error-handling.md forbids Contains on an error string.
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
+			switch pgErr.ConstraintName {
+			case "coupon_within_total_limit", "coupon_within_customer_limit":
+				return ErrCouponUsedUp
+			case "coupon_is_current":
+				return ErrCouponExpired
+			}
 		}
 		return fmt.Errorf("redeem coupon %s: %w", c.Code, err)
 	}

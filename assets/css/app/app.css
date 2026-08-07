@@ -2171,6 +2171,21 @@ a:hover {
   color: var(--fg-muted);
 }
 
+/* The order 404's two ways through — /orders/find for a guest, /signin for an
+   account holder. They wrap on a phone rather than shrinking, because both are
+   the point of the page and a 320px screen has room for one per line. The
+   min-height is the same content-box compensation .notice__form makes above. */
+.notice__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.notice__actions .ui-btn {
+  box-sizing: border-box;
+  min-height: 44px;
+}
+
 /* A native <details> used as a "show me the form" disclosure on the account
    page. The forms are long and mostly unused; collapsing them keeps the page
    readable without hiding anything from a visitor with scripting off. */

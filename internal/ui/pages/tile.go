@@ -107,3 +107,19 @@ func twd(cents int64) string {
 	}
 	return "NT$" + b.String()
 }
+
+// FreeDeliveryText is the threshold a guarantee strip states, or "" when the
+// shop offers no free delivery at all.
+//
+// The strip used to carry the number as a LITERAL in the i18n catalogue while
+// the figure lives in shipping_method_versions and is edited at
+// /admin/shipping — two places for one promise, and the storefront's copy was
+// the one nothing could correct. Empty renders no claim rather than "free over
+// NT$0", because a shop that charges for every parcel must not appear to be
+// offering something.
+func FreeDeliveryText(cents int64) string {
+	if cents <= 0 {
+		return ""
+	}
+	return twd(cents)
+}

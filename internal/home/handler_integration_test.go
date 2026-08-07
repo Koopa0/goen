@@ -608,3 +608,66 @@ func TestASlideWithNoEyebrowStillRenders(t *testing.T) {
 		t.Errorf("absent copy came back as %q / %q", hero.Eyebrow, hero.Body)
 	}
 }
+
+// TestTheFreeDeliveryStripStatesWhatTheTillCharges holds a promise the page used
+// to own a copy of.
+//
+// The trust strip and the PDP's guarantee list both said 「滿 NT$3,000 免運」 as a
+// LITERAL in the i18n catalogue, while free_over_cents lives in
+// shipping_method_versions and a shop edits it at /admin/shipping. Nothing bound
+// the two, so raising the threshold left both storefront pages advertising the
+// old one — the drift ShippingPolicy's own comment exists to prevent, applied to
+// /shipping and to neither of the pages that make the promise first.
+//
+// Asserted through the rendered PAGE rather than the view model: the number was
+// correct in the database the whole time, and only a render can show what the
+// customer is told.
+func TestTheFreeDeliveryStripStatesWhatTheTillCharges(t *testing.T) {
+	ctx := t.Context()
+
+	// Move the threshold. A new VERSION, because shipping_method_versions is
+	// append-only — editing the old row is what the schema exists to refuse.
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO shipping_method_versions
+		    (method_id, name, carrier, fee_cents, free_over_cents, effective_at)
+		SELECT v.method_id, v.name, v.carrier, v.fee_cents, 555500, now()
+		FROM shipping_method_versions v
+		JOIN shipping_methods sm ON sm.id = v.method_id
+		WHERE sm.is_active
+		ORDER BY v.effective_at DESC LIMIT 1`); err != nil {
+		t.Fatalf("publish a new threshold: %v", err)
+	}
+
+	view, err := home.NewStore(pool).Load(i18n.WithLocale(ctx, i18n.ZhHant), 4)
+	if err != nil {
+		t.Fatalf("load home: %v", err)
+	}
+
+	// The lowest threshold on offer is what the one-line claim may state: the
+	// other active method still carries the seeded 300000, so that is the honest
+	// figure and 5555 must NOT appear.
+	if got := view.FreeDelivery(); got != "NT$3,000" {
+		t.Errorf("the strip states %q, want NT$3,000 — the lowest threshold any "+
+			"active method honours", got)
+	}
+
+	// And with every threshold removed the strip makes no claim at all, rather
+	// than offering free delivery over NT$0.
+	if _, bareErr := pool.Exec(ctx, `
+		INSERT INTO shipping_method_versions
+		    (method_id, name, carrier, fee_cents, free_over_cents, effective_at)
+		SELECT DISTINCT ON (v.method_id) v.method_id, v.name, v.carrier, v.fee_cents, NULL, now()
+		FROM shipping_method_versions v
+		JOIN shipping_methods sm ON sm.id = v.method_id
+		WHERE sm.is_active
+		ORDER BY v.method_id, v.effective_at DESC`); bareErr != nil {
+		t.Fatalf("withdraw free delivery: %v", bareErr)
+	}
+	bare, err := home.NewStore(pool).Load(i18n.WithLocale(ctx, i18n.ZhHant), 4)
+	if err != nil {
+		t.Fatalf("load home: %v", err)
+	}
+	if got := bare.FreeDelivery(); got != "" {
+		t.Errorf("a shop that charges for every parcel advertises free delivery over %q", got)
+	}
+}

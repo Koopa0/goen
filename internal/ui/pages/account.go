@@ -16,6 +16,11 @@ type AccountOrder struct {
 	PlacedAt   string
 	TotalCents int64
 	LineCount  int64
+	// Committed and OwedCents are the funding state, which Status cannot supply:
+	// an order stays 'pending' from the moment the money arrives until a human at
+	// the shop picks it. See OrderView for why it takes both.
+	Committed bool
+	OwedCents int64
 }
 
 // Total is what the order came to.
@@ -32,6 +37,13 @@ func (o AccountOrder) LineCountText() string { return strconv.FormatInt(o.LineCo
 func (o AccountOrder) StatusText(ctx context.Context) string {
 	switch o.Status {
 	case "pending":
+		// 'pending' is two states wearing one name: nobody has paid yet, and the
+		// money has arrived but nobody at the shop has picked it. This badged both
+		// 待付款, so a customer who paid two seconds ago read their own order
+		// history as unpaid.
+		if o.Committed || o.OwedCents <= 0 {
+			return i18n.T(ctx, i18n.KeyStatusPaid)
+		}
 		return i18n.T(ctx, i18n.KeyStatusAwaitingPayment)
 	case "picking":
 		return i18n.T(ctx, i18n.KeyStatusPicking)
@@ -147,6 +159,10 @@ type AccountOrderView struct {
 	Phone          string
 	Email          string
 	Address        string
+	// Committed and OwedCents are the funding state. See OrderView: 'pending'
+	// covers both "nobody has paid" and "paid, waiting to be picked".
+	Committed bool
+	OwedCents int64
 }
 
 // Subtotal is what the lines came to before shipping.
@@ -172,12 +188,48 @@ func (v *AccountOrderView) Total() string {
 }
 
 // StatusText is the fulfilment state in the chrome language.
+//
+// The funding fields travel with the status, or this page and the list it was
+// reached from would badge the same order differently — a literal built here
+// with a field left out takes the zero value, and false reads as "unpaid".
 func (v *AccountOrderView) StatusText(ctx context.Context) string {
-	return AccountOrder{Status: v.Status}.StatusText(ctx)
+	return AccountOrder{
+		Status: v.Status, Committed: v.Committed, OwedCents: v.OwedCents,
+	}.StatusText(ctx)
 }
 
 // AwaitingPayment reports whether this order still needs paying.
-func (v *AccountOrderView) AwaitingPayment() bool { return v.Status == "pending" }
+//
+// The same three-part question OrderView.AwaitingPayment asks, and for the same
+// reason: 'pending' alone said a paid order was unpaid.
+func (v *AccountOrderView) AwaitingPayment() bool {
+	return v.Status == "pending" && !v.Committed && v.OwedCents > 0
+}
+
+// CanRegisterWarranty reports whether to offer the registration form.
+//
+// /account/warranty/{number} carries the ONLY form that registers a unit, and
+// nothing anywhere linked to it: the account nav reaches the LIST, and the
+// list's own copy says 「從訂單頁進去登錄」 — a page that then had no such link.
+// Every signed-in customer with every shipped order met that dead end, and the
+// only way in was typing a URL the site never displays. The link→route sweep
+// cannot see it by construction: it asks whether a link resolves, and this route
+// IS linked, one level up from the page that does the work.
+//
+// Gated on the goods having shipped, which is what warranty registration itself
+// requires — cover starts when a parcel reaches somebody. Offering it earlier
+// would link to a page whose every line says "not shipped yet".
+func (v *AccountOrderView) CanRegisterWarranty() bool {
+	switch v.Status {
+	case "shipped", "delivered", "completed":
+		return true
+	default:
+		return false
+	}
+}
+
+// WarrantyLink is where that form lives.
+func (v *AccountOrderView) WarrantyLink() string { return "/account/warranty/" + v.Number }
 
 // AuthView is the sign-in and registration form.
 type AuthView struct {

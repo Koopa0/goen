@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -19,6 +20,7 @@ import (
 
 	"github.com/koopa0/goen/internal/catalog"
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -602,6 +604,77 @@ func TestComparisonIsBoundedDeduplicatedAndForgiving(t *testing.T) {
 					got = append(got, p.Slug)
 				}
 				t.Errorf("%d columns %v, want %d", len(view.Products), got, tt.want)
+			}
+		})
+	}
+}
+
+// TestTwoSpecsThatShareATranslationStayTwoRows holds a spec that VANISHED for
+// an English reader.
+//
+// A spec row's identity is its untranslated label; the translation is a label.
+// The query counted shared_by on the untranslated one — deliberately, and its
+// comment says why — while the Go keyed its row map on the LOCALIZED text. So
+// two distinct Chinese labels translating to one English word collapsed into a
+// single row and the later product's value overwrote the earlier one. The seed
+// ships exactly that pair: 輸出 and 孔位 are both "Ports" on aurora-charger-65,
+// so English /compare showed 65W GaN and simply lost USB-C x2 — which the
+// English PDP displayed the whole time.
+//
+// Asserted in BOTH locales, because the Chinese page was always correct and a
+// fix that only moved the collision would still pass a one-locale test.
+func TestTwoSpecsThatShareATranslationStayTwoRows(t *testing.T) {
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Two labels, one English word. Hand-written rather than leaning on the
+	// seed's 輸出/孔位 pair: a seed a shop later translates differently would
+	// silently stop exercising this.
+	const setup = `
+	INSERT INTO products (id, brand_id, category_id, slug, name, status, published_at)
+	SELECT 'eeee0009-0000-4000-8000-000000000001', b.id, c.id, 'collide-spec', '同譯規格機', 'active', now()
+	FROM brands b, categories c WHERE b.slug='pixelight' AND c.slug='phones';
+
+	INSERT INTO product_variants (id, product_id, sku, price_cents, stock_quantity, safety_stock, position)
+	VALUES ('eeee000a-0000-4000-8000-000000000001','eeee0009-0000-4000-8000-000000000001','COLLIDE-1',100000,9,2,80);
+
+	INSERT INTO product_specs (product_id, label, label_en, value, value_en, position) VALUES
+	  ('eeee0009-0000-4000-8000-000000000001', '輸出', 'Ports', '65W GaN',   '65W GaN',   1),
+	  ('eeee0009-0000-4000-8000-000000000001', '孔位', 'Ports', 'USB-C x2',  'USB-C x2',  2);`
+	if _, err := tx.Exec(ctx, setup); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+
+	store := catalog.NewStore(tx)
+	for _, tt := range []struct {
+		name   string
+		locale i18n.Locale
+	}{
+		{name: "Chinese", locale: i18n.ZhHant},
+		{name: "English", locale: i18n.En},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			view, err := store.Compare(i18n.WithLocale(ctx, tt.locale), []string{"collide-spec"})
+			if err != nil {
+				t.Fatalf("compare: %v", err)
+			}
+
+			// Both values present, whatever the rows are headed. The VALUES are
+			// what a reader is comparing; asserting only the row count would pass
+			// on two rows that both said 65W GaN.
+			var got []string
+			for _, row := range view.Rows {
+				got = append(got, row.Values...)
+			}
+			for _, want := range []string{"65W GaN", "USB-C x2"} {
+				if !slices.Contains(got, want) {
+					t.Errorf("the comparison lost %q; it shows %v — two specs whose "+
+						"labels share a translation collapsed into one row", want, got)
+				}
 			}
 		})
 	}

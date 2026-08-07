@@ -193,9 +193,13 @@ var (
 		ZhHant: "永久刪除帳號",
 		En:     "Delete my account permanently",
 	})
+	// Written before payment existed, and left saying so long after it shipped:
+	// it told a customer looking at a genuinely unpaid order that they could not
+	// pay it yet, on a site that takes cards. It renders only for an order that
+	// really does owe money now, so it can say the useful thing instead.
 	KeyPayLaterNotice = key("account.order.paylater", Message{
-		ZhHant: "這筆訂單尚未付款。付款功能將於金流上線後開放。",
-		En:     "This order is not paid for. Payment opens when the gateway goes live.",
+		ZhHant: "這筆訂單尚未付款,商品已為您保留。",
+		En:     "This order is not paid for yet. The stock is being held for you.",
 	})
 
 	// Account notices.

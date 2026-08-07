@@ -269,7 +269,14 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        -- can have captured the money minutes before the shop moves the order to
        -- picking, and offering a cancel button on that order is a control that
        -- can only say no. Read through committed_orders, the one definition.
-       (o.id IN (SELECT id FROM committed_orders))::boolean AS committed
+       (o.id IN (SELECT id FROM committed_orders))::boolean AS committed,
+       -- What is left to pay, and NOT derivable from `committed` above. A fully
+       -- store-credited order has no payment row and stays 'pending' until a
+       -- human picks it, so committed_orders reports it false while the customer
+       -- owes nothing. Both columns, because neither answers the other's case —
+       -- this is the same pair internal/payment already reads as Paid and
+       -- FullyFunded before it will open a Stripe session.
+       order_amount_owed(o.id)::bigint AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE o.order_number = $1;
@@ -348,9 +355,16 @@ FROM order_shipments WHERE order_id = $1 ORDER BY shipped_at, id;
 -- name: ExpiredReservations :many
 SELECT ir.id
 FROM inventory_reservations ir
+JOIN orders o ON o.id = ir.order_id
 WHERE ir.state = 'held'
   AND ir.expires_at < now()
   AND NOT order_is_committed(ir.order_id)
+  -- Committed is not the whole question. A zero-owed order — fully store-credited,
+  -- or zeroed by a 100% coupon — has no payment row and sits at 'pending' until a
+  -- human picks it, so committed_orders reports it false while the customer has
+  -- already paid in full. release_reservation refuses it by name; this keeps the
+  -- sweeper from asking every minute and counting the refusal as a skip.
+  AND (o.fulfillment_status = 'cancelled' OR order_amount_owed(ir.order_id) <> 0)
 ORDER BY ir.expires_at
 LIMIT $1;
 
@@ -547,6 +561,28 @@ SELECT EXISTS (
 INSERT INTO order_access_grants (digest, order_id)
 SELECT @digest, id FROM orders WHERE order_number = @order_number::text
 ON CONFLICT (digest) DO NOTHING;
+
+-- Restart the retention clock on the grants a browser is still carrying.
+--
+-- The cookie holds up to ten tokens and is RE-ISSUED with a fresh MaxAge every
+-- time an order is placed, carrying the older ones forward. The grants behind
+-- them were swept on their own created_at, so the two clocks came apart the
+-- moment somebody ordered twice: a customer who bought on day 0 and again on day
+-- 25 held a cookie live until day 55 naming an order whose grant died on day 30.
+--
+-- GrantRetain's own comment names that state as the one that must never happen —
+-- "a grant swept while its cookie is still live locks a customer out of their own
+-- order" — and equality between the two constants only delivers it if the cookie
+-- is never re-issued. It is. So the clock is restarted HERE, on the same event
+-- that restarts the cookie's, which is what makes the two intervals comparable
+-- at all.
+--
+-- Scoped to the digests presented: a token this browser is not carrying is not
+-- evidence of anything, and touching every grant on the order would extend a
+-- credential held by some other browser.
+-- name: TouchOrderAccessGrants :exec
+UPDATE order_access_grants SET created_at = now()
+WHERE digest = ANY(@digests::bytea[]);
 
 -- Hold the checkout's idempotency key for the length of this transaction.
 --

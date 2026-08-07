@@ -456,6 +456,16 @@ ORDER BY asked.ord;
 SELECT
     p.slug,
     localized_name(s.label, s.label_en, @locale::text) AS label,
+    -- The UNTRANSLATED label, which is what identifies a row. shared_by is
+    -- counted on it for the reason below, and the Go that builds the table has
+    -- to group on the same thing or the two disagree: it keyed its rows on the
+    -- localized text, so two distinct Chinese labels that translate to one
+    -- English word collapsed into one row and the second product's value
+    -- overwrote the first. The seed does exactly that — 輸出 and 孔位 are both
+    -- "Ports" — so an English reader of /compare lost a spec the English PDP
+    -- showed. Identity is the Chinese label; the translation is a LABEL, the
+    -- same split the variant picker draws between name and name_en.
+    s.label AS label_key,
     localized_name(s.value, s.value_en, @locale::text) AS value,
     -- Counted on the UNTRANSLATED label, deliberately. Two products state 螢幕 and
     -- one of them has an English label for it: grouping by what the reader sees

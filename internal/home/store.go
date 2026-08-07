@@ -44,10 +44,20 @@ func (s *Store) Load(ctx context.Context, recommended int32) (pages.HomeView, er
 		return pages.HomeView{}, fmt.Errorf("read home tiles: %w", err)
 	}
 
+	// The trust strip states what it takes to get free delivery, and that figure
+	// is the shop's to edit at /admin/shipping. Read rather than typed, for the
+	// reason ShippingPolicy gives: a page that restates a promise can drift from
+	// the till, and this one had the number written into the i18n catalogue.
+	freeOver, err := s.q.FreeDeliveryThreshold(ctx)
+	if err != nil {
+		return pages.HomeView{}, fmt.Errorf("read free delivery threshold: %w", err)
+	}
+
 	view := pages.HomeView{
-		Hero:        hero,
-		Categories:  make([]pages.HomeCategory, 0, len(cats)),
-		Recommended: make([]pages.ProductTile, 0, len(tiles)),
+		Hero:              hero,
+		Categories:        make([]pages.HomeCategory, 0, len(cats)),
+		Recommended:       make([]pages.ProductTile, 0, len(tiles)),
+		FreeDeliveryCents: freeOver,
 	}
 	for _, c := range cats {
 		view.Categories = append(view.Categories, pages.HomeCategory{

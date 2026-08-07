@@ -3596,6 +3596,16 @@ const compareSpecs = `-- name: CompareSpecs :many
 SELECT
     p.slug,
     localized_name(s.label, s.label_en, $1::text) AS label,
+    -- The UNTRANSLATED label, which is what identifies a row. shared_by is
+    -- counted on it for the reason below, and the Go that builds the table has
+    -- to group on the same thing or the two disagree: it keyed its rows on the
+    -- localized text, so two distinct Chinese labels that translate to one
+    -- English word collapsed into one row and the second product's value
+    -- overwrote the first. The seed does exactly that — 輸出 and 孔位 are both
+    -- "Ports" — so an English reader of /compare lost a spec the English PDP
+    -- showed. Identity is the Chinese label; the translation is a LABEL, the
+    -- same split the variant picker draws between name and name_en.
+    s.label AS label_key,
     localized_name(s.value, s.value_en, $1::text) AS value,
     -- Counted on the UNTRANSLATED label, deliberately. Two products state 螢幕 and
     -- one of them has an English label for it: grouping by what the reader sees
@@ -3621,6 +3631,7 @@ type CompareSpecsParams struct {
 type CompareSpecsRow struct {
 	Slug     string
 	Label    string
+	LabelKey string
 	Value    string
 	SharedBy int64
 	Position int32
@@ -3644,6 +3655,7 @@ func (q *Queries) CompareSpecs(ctx context.Context, arg CompareSpecsParams) ([]C
 		if err := rows.Scan(
 			&i.Slug,
 			&i.Label,
+			&i.LabelKey,
 			&i.Value,
 			&i.SharedBy,
 			&i.Position,
@@ -5028,7 +5040,7 @@ func (q *Queries) DealProductsCount(ctx context.Context) (int64, error) {
 	return column_1, err
 }
 
-const decideReturn = `-- name: DecideReturn :exec
+const decideReturn = `-- name: DecideReturn :execrows
 UPDATE return_requests
 SET status = $1::text, resolution = $2, decided_at = now()
 WHERE id = $3 AND status = 'requested'
@@ -5042,9 +5054,21 @@ type DecideReturnParams struct {
 
 // Decide a return. return_requests_recount guards the transition and
 // return_requests_decided_has_time requires the timestamp to arrive with it.
-func (q *Queries) DecideReturn(ctx context.Context, arg DecideReturnParams) error {
-	_, err := q.db.Exec(ctx, decideReturn, arg.Status, arg.Resolution, arg.ID)
-	return err
+//
+// :execrows, because `status = 'requested'` in this WHERE clause is the ONLY
+// place the question is asked under a lock. Decide reads the row on the pool
+// BEFORE opening its transaction, so two staff members clicking 同意 and 不同意
+// on one request both pass that check; as :exec the loser updated zero rows,
+// SQL called it success, and it committed an audit row asserting a decision that
+// never happened — and, for an approval, after paying a refund. Zero rows is
+// "somebody decided this first", which is a sentence a caller can act on.
+// The SetProductStatus lesson, in the one place that also moves money.
+func (q *Queries) DecideReturn(ctx context.Context, arg DecideReturnParams) (int64, error) {
+	result, err := q.db.Exec(ctx, decideReturn, arg.Status, arg.Resolution, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteAddress = `-- name: DeleteAddress :exec
@@ -5399,9 +5423,16 @@ func (q *Queries) EraseUser(ctx context.Context, pUserID uuid.UUID) error {
 const expiredReservations = `-- name: ExpiredReservations :many
 SELECT ir.id
 FROM inventory_reservations ir
+JOIN orders o ON o.id = ir.order_id
 WHERE ir.state = 'held'
   AND ir.expires_at < now()
   AND NOT order_is_committed(ir.order_id)
+  -- Committed is not the whole question. A zero-owed order — fully store-credited,
+  -- or zeroed by a 100% coupon — has no payment row and sits at 'pending' until a
+  -- human picks it, so committed_orders reports it false while the customer has
+  -- already paid in full. release_reservation refuses it by name; this keeps the
+  -- sweeper from asking every minute and counting the refusal as a skip.
+  AND (o.fulfillment_status = 'cancelled' OR order_amount_owed(ir.order_id) <> 0)
 ORDER BY ir.expires_at
 LIMIT $1
 `
@@ -5471,6 +5502,44 @@ func (q *Queries) FAQEntries(ctx context.Context, locale string) ([]FAQEntriesRo
 		return nil, err
 	}
 	return items, nil
+}
+
+const freeDeliveryThreshold = `-- name: FreeDeliveryThreshold :one
+SELECT coalesce(min(v.free_over_cents), 0)::bigint AS free_over_cents
+FROM shipping_methods sm
+JOIN shipping_method_versions v ON v.method_id = sm.id
+WHERE sm.is_active
+  AND v.effective_at <= now()
+  AND v.free_over_cents > 0
+  AND v.id = (SELECT id FROM shipping_method_versions
+              WHERE method_id = sm.id AND effective_at <= now()
+              ORDER BY effective_at DESC LIMIT 1)
+`
+
+// The lowest free-delivery threshold the shop currently offers.
+//
+// The home strip and the PDP's guarantee list both tell a shopper what it takes
+// to get free delivery, and both used to state 「滿 NT$3,000 免運」 as a LITERAL
+// while the figure lives in shipping_method_versions and is editable at
+// /admin/shipping. ShippingPolicy's own comment already says why that is wrong —
+// "a page that states a fee is a promise, and the one place that promise is
+// already kept is the table checkout charges from" — and the principle was
+// applied to /shipping and to neither of the other two.
+//
+// MIN across methods, because the strip makes one claim and the most generous
+// true one is the lowest threshold any active method honours. NULL when nothing
+// offers free delivery at all, which the caller renders as no claim rather than
+// as "free over NT$0".
+// coalesce AND cast, because min() over an empty set is NULL and sqlc cannot see
+// that a function changed the column's nullability — the trap CLAUDE.md records
+// against localized_name, met again here. Without it a shop with no free-delivery
+// threshold at all crashes the home page it was supposed to render plainly, and
+// the test that says so is the one that found it.
+func (q *Queries) FreeDeliveryThreshold(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, freeDeliveryThreshold)
+	var free_over_cents int64
+	err := row.Scan(&free_over_cents)
+	return free_over_cents, err
 }
 
 const grantOrderAccess = `-- name: GrantOrderAccess :execrows
@@ -7162,7 +7231,14 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        -- can have captured the money minutes before the shop moves the order to
        -- picking, and offering a cancel button on that order is a control that
        -- can only say no. Read through committed_orders, the one definition.
-       (o.id IN (SELECT id FROM committed_orders))::boolean AS committed
+       (o.id IN (SELECT id FROM committed_orders))::boolean AS committed,
+       -- What is left to pay, and NOT derivable from ` + "`" + `committed` + "`" + ` above. A fully
+       -- store-credited order has no payment row and stays 'pending' until a
+       -- human picks it, so committed_orders reports it false while the customer
+       -- owes nothing. Both columns, because neither answers the other's case —
+       -- this is the same pair internal/payment already reads as Paid and
+       -- FullyFunded before it will open a Stripe session.
+       order_amount_owed(o.id)::bigint AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE o.order_number = $1
@@ -7188,6 +7264,7 @@ type OrderSummaryByNumberRow struct {
 	PickupStoreCode    string
 	PickupStoreName    string
 	Committed          bool
+	OwedCents          int64
 }
 
 func (q *Queries) OrderSummaryByNumber(ctx context.Context, orderNumber string) (OrderSummaryByNumberRow, error) {
@@ -7213,6 +7290,7 @@ func (q *Queries) OrderSummaryByNumber(ctx context.Context, orderNumber string) 
 		&i.PickupStoreCode,
 		&i.PickupStoreName,
 		&i.Committed,
+		&i.OwedCents,
 	)
 	return i, err
 }
@@ -10896,6 +10974,34 @@ func (q *Queries) TouchLastLogin(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const touchOrderAccessGrants = `-- name: TouchOrderAccessGrants :exec
+UPDATE order_access_grants SET created_at = now()
+WHERE digest = ANY($1::bytea[])
+`
+
+// Restart the retention clock on the grants a browser is still carrying.
+//
+// The cookie holds up to ten tokens and is RE-ISSUED with a fresh MaxAge every
+// time an order is placed, carrying the older ones forward. The grants behind
+// them were swept on their own created_at, so the two clocks came apart the
+// moment somebody ordered twice: a customer who bought on day 0 and again on day
+// 25 held a cookie live until day 55 naming an order whose grant died on day 30.
+//
+// GrantRetain's own comment names that state as the one that must never happen —
+// "a grant swept while its cookie is still live locks a customer out of their own
+// order" — and equality between the two constants only delivers it if the cookie
+// is never re-issued. It is. So the clock is restarted HERE, on the same event
+// that restarts the cookie's, which is what makes the two intervals comparable
+// at all.
+//
+// Scoped to the digests presented: a token this browser is not carrying is not
+// evidence of anything, and touching every grant on the order would extend a
+// credential held by some other browser.
+func (q *Queries) TouchOrderAccessGrants(ctx context.Context, digests [][]byte) error {
+	_, err := q.db.Exec(ctx, touchOrderAccessGrants, digests)
+	return err
+}
+
 const unansweredQuestions = `-- name: UnansweredQuestions :many
 SELECT q.id, q.body, q.created_at,
        p.slug AS product_slug, p.name AS product_name,
@@ -11358,7 +11464,10 @@ SELECT
     coalesce(pd.street, '') AS street,
     coalesce(pd.pickup_brand, '') AS pickup_brand,
     coalesce(pd.pickup_store_code, '') AS pickup_store_code,
-    coalesce(pd.pickup_store_name, '') AS pickup_store_name
+    coalesce(pd.pickup_store_name, '') AS pickup_store_name,
+    -- See UserOrders: the status alone cannot say whether anything is still owed.
+    (o.id IN (SELECT id FROM committed_orders))::boolean AS committed,
+    order_amount_owed(o.id)::bigint AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE o.order_number = $1 AND o.user_id = $2
@@ -11390,6 +11499,8 @@ type UserOrderByNumberRow struct {
 	PickupBrand        string
 	PickupStoreCode    string
 	PickupStoreName    string
+	Committed          bool
+	OwedCents          int64
 }
 
 // One order, scoped to its owner.
@@ -11422,6 +11533,8 @@ func (q *Queries) UserOrderByNumber(ctx context.Context, arg UserOrderByNumberPa
 		&i.PickupBrand,
 		&i.PickupStoreCode,
 		&i.PickupStoreName,
+		&i.Committed,
+		&i.OwedCents,
 	)
 	return i, err
 }
@@ -11436,7 +11549,15 @@ SELECT
     o.tax_cents,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
-    (SELECT count(*) FROM order_lines ol WHERE ol.order_id = o.id)::bigint AS line_count
+    (SELECT count(*) FROM order_lines ol WHERE ol.order_id = o.id)::bigint AS line_count,
+    -- The funding state, which the status cannot supply. This list badged every
+    -- 'pending' order 待付款, so an order paid minutes ago read as unpaid until a
+    -- human at the shop moved it to picking. Both columns for the reason
+    -- OrderSummaryByNumber carries both: a captured card leaves the order
+    -- committed and still owing, a fully store-credited one owes nothing and is
+    -- not committed until it leaves pending.
+    (o.id IN (SELECT id FROM committed_orders))::boolean AS committed,
+    order_amount_owed(o.id)::bigint AS owed_cents
 FROM orders o
 WHERE o.user_id = $1
 ORDER BY o.placed_at DESC, o.id DESC
@@ -11457,6 +11578,8 @@ type UserOrdersRow struct {
 	TaxCents          int64
 	SubtotalCents     int64
 	LineCount         int64
+	Committed         bool
+	OwedCents         int64
 }
 
 // The orders on an account, newest first.
@@ -11478,6 +11601,8 @@ func (q *Queries) UserOrders(ctx context.Context, arg UserOrdersParams) ([]UserO
 			&i.TaxCents,
 			&i.SubtotalCents,
 			&i.LineCount,
+			&i.Committed,
+			&i.OwedCents,
 		); err != nil {
 			return nil, err
 		}

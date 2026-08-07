@@ -156,9 +156,14 @@ var (
 		ZhHant: "原廠保固 · 到府收送",
 		En:     "Manufacturer's warranty · collected from your door",
 	})
+	// %s is the threshold, read from shipping_method_versions rather than typed —
+	// it was the literal NT$3,000 here, on two pages, against a figure a shop
+	// edits at /admin/shipping. /shipping has interpolated it from the start and
+	// says why in its query; this is the same promise on the two pages that make
+	// it first.
 	KeyGuaranteeShipping = key("pdp.guarantee.shipping", Message{
-		ZhHant: "滿 NT$3,000 免運",
-		En:     "Free delivery over NT$3,000",
+		ZhHant: "滿 %s 免運",
+		En:     "Free delivery over %s",
 	})
 	KeyGuaranteeReturns = key("pdp.guarantee.returns", Message{
 		ZhHant: "7 天鑑賞期退換貨",
@@ -337,11 +342,17 @@ var (
 		ZhHant: "綜合推薦",
 		En:     "Recommended",
 	})
-	KeySectionTrust      = key("home.trust", Message{ZhHant: "購物保障", En: "Shopping with goen"})
+	KeySectionTrust = key("home.trust", Message{ZhHant: "購物保障", En: "Shopping with goen"})
+	// 「線上填單追蹤進度」 used to be the third clause, on the home page of a site
+	// with no repair route, no repair table and nothing that tracks anything —
+	// the largest promise goen made that no code kept. What DOES exist is
+	// /account/warranty: register a unit, and look up its cover without finding a
+	// receipt. That is what this says now. Copy is checkable against the tree,
+	// and a claim nothing implements is worth less than a smaller true one.
 	KeyTrustWarrantyBody = key("home.trust.warranty", Message{
-		ZhHant: "全機種原廠保固,維修免費到府收送,線上填單追蹤進度。",
+		ZhHant: "全機種原廠保固,維修免費到府收送,保固可以線上登錄查詢。",
 		En: "Every model carries its manufacturer's warranty. We collect repairs from your " +
-			"door for free, and you track the progress online.",
+			"door for free, and you can register and check your cover online.",
 	})
 	KeyTrustShippingBody = key("home.trust.shipping", Message{
 		ZhHant: "宅配與超商取貨皆適用;未達門檻運費 NT$60 起。",

@@ -384,6 +384,19 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	number, err := h.store.PlaceOrder(r.Context(), cartID, owner, shippingID, addr, inv, coupon, key)
+	h.answerPlacement(w, r, &view, number, err)
+}
+
+// answerPlacement turns the outcome of a checkout write into a response.
+//
+// Split from PlaceOrder because each branch is a different thing to tell a
+// customer, and the list grew: a coupon spent between the form's validation and
+// the transaction's lock used to fall to the default and come back as a 500 with
+// the whole address discarded.
+func (h *Handler) answerPlacement(
+	w http.ResponseWriter, r *http.Request,
+	view *pages.CheckoutView, number string, err error,
+) {
 	switch {
 	case err == nil:
 		// The browser remembers what it placed. Order numbers come off a per-day
@@ -408,7 +421,24 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrNotFound):
 		view.Errors = map[string]string{"shipping": i18n.T(r.Context(), i18n.KeyChooseShipping)}
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-			pages.Checkout(pages.CheckoutMeta(r.Context()), &view))
+			pages.Checkout(pages.CheckoutMeta(r.Context()), view))
+	case errors.Is(err, ErrCouponUsedUp), errors.Is(err, ErrCouponExpired):
+		// The coupon was fine when the form was validated and was refused inside
+		// the transaction, where redeem_coupon counts the limits under its lock.
+		// FindCoupon deliberately does not count them — counting without the lock
+		// is two concurrent checkouts each passing — so this is the ONLY place a
+		// spent code can be caught, and neither sentinel was handled: the whole
+		// checkout came back as a 500 with the address retyped.
+		//
+		// Not a rare race, either. The pre-check reads no limit at all, so a
+		// customer reusing a one-per-customer code reaches here every single time.
+		reason := i18n.KeyCouponUsedUp
+		if errors.Is(err, ErrCouponExpired) {
+			reason = i18n.KeyCouponExpired
+		}
+		view.Errors = map[string]string{"coupon": i18n.T(r.Context(), reason)}
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity,
+			pages.Checkout(pages.CheckoutMeta(r.Context()), view))
 	default:
 		h.log.ErrorContext(r.Context(), "place order", "error", err)
 		h.serverError(w, r)
@@ -569,9 +599,12 @@ func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 	// to the account that owns it — and anything else is the same 404 as an
 	// order that does not exist.
 	if !h.store.PlacedHere(r.Context(), r, number, h.secure) && !h.ownedBySignedInUser(r, number) {
-		web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
-			h.notFoundPage(r), "404", i18n.T(r.Context(), i18n.KeyOrderNotFound),
-			i18n.T(r.Context(), i18n.KeyOrderNotYours)))
+		// Its own page rather than a bare Notice, because this 404 has a way
+		// through and used only to name one of them. A guest who cleared their
+		// cookies or opened the confirmation email on a second device was told to
+		// sign in to an account they do not have, while /orders/find — built for
+		// exactly them — was linked from nowhere on the site.
+		web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(h.notFoundPage(r)))
 		return
 	}
 

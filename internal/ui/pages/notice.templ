@@ -20,3 +20,33 @@ templ Notice(p layouts.Page, code, heading, body string) {
 		</div>
 	}
 }
+
+// OrderNotFound is the 404 for an order this browser may not see.
+//
+// Its own component rather than a Notice, because this is the one 404 with a way
+// THROUGH. The generic body told the reader to sign in — which is no answer at
+// all for the guest it is most often shown to: somebody who cleared their
+// cookies, or opened the confirmation email on a second device. /orders/find
+// exists for exactly them and nothing anywhere linked to it, so the recovery
+// path was reachable only by typing a URL the site never displays.
+//
+// Both doors, because the reader is one of two people and the page cannot tell
+// which: the account holder signs in, the guest proves the order with its number
+// and the email they gave.
+templ OrderNotFound(p layouts.Page) {
+	@layouts.Base(p) {
+		<div class="notice">
+			<span class="notice__code">404</span>
+			<h1 class="h2 notice__title">{ i18n.T(ctx, i18n.KeyOrderNotFound) }</h1>
+			<p class="body notice__body">{ i18n.T(ctx, i18n.KeyOrderNotYours) }</p>
+			<div class="notice__actions">
+				<a class="ui-btn ui-btn--primary ui-btn--lg" href="/orders/find">
+					{ i18n.T(ctx, i18n.KeyFindOrderTitle) }
+				</a>
+				<a class="ui-btn ui-btn--secondary ui-btn--lg" href="/signin">
+					{ i18n.T(ctx, i18n.KeySignIn) }
+				</a>
+			</div>
+		</div>
+	}
+}

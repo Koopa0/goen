@@ -113,10 +113,14 @@ type ProductView struct {
 	// stated one — in which case registration is refused and the page says nothing
 	// rather than implying a term.
 	WarrantyMonths int32
-	Brand          string
-	CategorySlug   string
-	CategoryName   string
-	Crumbs         []Crumb
+	// FreeDeliveryCents is the threshold the guarantee strip states, read from
+	// shipping_method_versions rather than typed into the catalogue. Zero when the
+	// shop offers no free delivery, which renders no claim at all.
+	FreeDeliveryCents int64
+	Brand             string
+	CategorySlug      string
+	CategoryName      string
+	Crumbs            []Crumb
 
 	Images  []ProductImage
 	Options []ProductOption
@@ -362,3 +366,6 @@ func (v *ProductView) AlreadyComparing() bool {
 
 // ComparingFull reports whether the set has no room left.
 func (v *ProductView) ComparingFull() bool { return len(v.Comparing) >= 4 }
+
+// FreeDelivery is the threshold the guarantee strip states, or "" for none.
+func (v *ProductView) FreeDelivery() string { return FreeDeliveryText(v.FreeDeliveryCents) }

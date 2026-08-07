@@ -14,9 +14,14 @@ import (
 // alongside the code that has to honour it.
 //
 // Every clause here describes what the code actually does, or what the law
-// requires of it regardless. Where a COMMERCIAL decision has not been made — the
-// warranty term, a goodwill return beyond the statutory window — the document
-// says so rather than inventing a number the shop would then be held to.
+// requires of it regardless. Where a COMMERCIAL decision has not been made the
+// document says so rather than inventing a number the shop would then be held
+// to — pages.PolicySection.Pending is that mark, and NOTHING carries it now.
+// The three that did are decided: the warranty term is per product and always
+// was (products.warranty_months, rendered on the PDP, so filing it under
+// 尚未確定 contradicted the section above it), the goodwill return beyond §19 is
+// 14 days at the customer's postage, and the forum is 臺北地院 without prejudice
+// to 消保法 §47. Pending stays for the next real gap; an empty set is the point.
 //
 // That distinction is load-bearing in BOTH directions, and only one of them had
 // a guard. TestUndecidedTermsAreMarkedPending catches a gap set in the same
@@ -128,15 +133,20 @@ var policies = map[string]pages.PolicyDoc{
 					"The law allows a few narrow categories to be excluded, and only where the seller says so plainly BEFORE you buy. goen excludes nothing, so every product here carries the full seven days.",
 				},
 			},
+			// The one term on this page that IS goen's to set, now set. It is a
+			// goodwill offer BEYOND §19 and says so, because a customer who reads
+			// "fourteen days" must not come away thinking the statutory seven were
+			// a shop policy that could be shortened.
 			{
-				Heading:   "尚未確定的條款",
-				HeadingEn: "Not yet decided",
-				Pending:   true,
+				Heading:   "七天之外",
+				HeadingEn: "Beyond the seven days",
 				Body: []string{
-					"七天鑑賞期之外是否另外受理退貨(例如商品沒有問題,但您在第十天改變主意),這一項尚未確定。正式營運前會在本頁公告,在那之前請以聯絡我們取得的說明為準。",
+					"鑑賞期之外,商品未使用、包裝與配件齊全的話,我們願意在送達後 14 天內受理退貨,運費由您負擔。",
+					"這是 goen 自己的額外服務,不是法律規定的鑑賞期。前面七天的權利不受這一條影響,也不會因為這一條變短。",
 				},
 				BodyEn: []string{
-					"Whether we accept returns BEYOND the statutory seven days — nothing wrong with the goods, but you changed your mind on day ten — is not decided. It will be published here before we trade; until then, ask us.",
+					"After the seven days, we will still take something back within 14 days of delivery if it is unused and complete with its box and accessories. You pay the postage.",
+					"This is goen's own offer, not the statutory window. It adds to the seven days above and takes nothing away from them.",
 				},
 			},
 		},
@@ -206,15 +216,36 @@ var policies = map[string]pages.PolicyDoc{
 					"What we sell is covered by the manufacturer. Each product page states its own term, and that page is what governs.",
 				},
 			},
+			// 保固期限 was listed as undecided here while the section above says
+			// each product page states its own — and it does, from
+			// products.warranty_months, rendered on every PDP. The two paragraphs
+			// contradicted each other, and the ENGLISH half had already dropped
+			// the term from the list without the Chinese being corrected: neither
+			// Pending guard read BodyEn, so the halves could disagree in silence.
 			{
-				Heading:   "尚未確定的條款",
-				HeadingEn: "Not yet decided",
-				Pending:   true,
+				Heading:   "保固期限",
+				HeadingEn: "How long you are covered",
 				Body: []string{
-					"保固期限、送修流程,以及維修期間是否提供替代機,這些尚未確定。正式營運前會在本頁公告。",
+					"保固期限依商品而不同,長度寫在該商品的頁面上。期限從商品送達當日起算。",
+					"沒有標示保固期限的商品,表示原廠沒有提供保固,這類商品無法登錄。",
 				},
 				BodyEn: []string{
-					"How repairs are sent in, and whether we lend you something while yours is away, is not decided. It will be published here before we trade.",
+					"The term depends on the product, and its length is stated on that product's own page. It runs from the day the goods reach you.",
+					"A product with no term stated carries no manufacturer's warranty, and cannot be registered.",
+				},
+			},
+			{
+				Heading:   "怎麼送修",
+				HeadingEn: "Sending something in",
+				Body: []string{
+					"先在會員中心登錄該商品,登錄後送修時不需要再找收據。登錄的入口在訂單頁。",
+					"需要送修時請聯絡客服,我們會安排到府收件,收送費用由 goen 負擔。",
+					"維修期間不提供替代機。",
+				},
+				BodyEn: []string{
+					"Register the unit in your account first — once it is registered you will not need the receipt to claim. The link is on the order it came from.",
+					"When you need a repair, contact us and we will arrange collection from your door. We pay the carriage both ways.",
+					"We do not lend a replacement while yours is away.",
 				},
 			},
 		},
@@ -244,11 +275,17 @@ var policies = map[string]pages.PolicyDoc{
 				HeadingEn: "What we do not do",
 				Body: []string{
 					"不將您的個人資料出售或提供給第三方作行銷用途。",
-					"不在網站上使用第三方追蹤或廣告 cookie。goen 使用的 cookie 只有購物車、登入狀態,以及訂單瀏覽權限這三種。",
+					// The list is enumerated because the sentence claims completeness
+					// — 「只有…這幾種」 is falsifiable, and it was false: it named
+					// three while the site set five. The language cookie is written by
+					// the switch in the footer of every page, so the shortfall was
+					// reachable by any visitor who changed language.
+					// TestThePrivacyPolicyNamesEveryCookie is what keeps them equal.
+					"不在網站上使用第三方追蹤或廣告 cookie。goen 使用的 cookie 只有這幾種:購物車、登入狀態、訂單瀏覽權限、您選擇的語言,以及您關閉過的網站公告。",
 				},
 				BodyEn: []string{
 					"We do not sell your personal data, or hand it to anybody else for marketing.",
-					"There is no third-party tracking or advertising cookie on this site. goen sets three kinds of cookie and no others: your cart, your sign-in, and permission to view an order.",
+					"There is no third-party tracking or advertising cookie on this site. goen sets these kinds of cookie and no others: your cart, your sign-in, permission to view an order, the language you chose, and which site notice you have dismissed.",
 				},
 			},
 			{
@@ -301,15 +338,22 @@ var policies = map[string]pages.PolicyDoc{
 					"Keep your password to yourself. Changing it signs out every other device at the same time.",
 				},
 			},
+			// 消保法 §47 and 民訴 §12 both already put a consumer suit where the
+			// consumer is, and §19 V voids anything that shortens the rescission
+			// right — so a forum clause here can only ADD a court, never take one
+			// away. Said plainly rather than left blank: a jurisdiction section
+			// marked 尚未確定 reads to a customer as "we have not said whether you
+			// can sue us", which is worse than the answer the law already gives.
 			{
-				Heading:   "尚未確定的條款",
-				HeadingEn: "Not yet decided",
-				Pending:   true,
+				Heading:   "準據法與管轄",
+				HeadingEn: "Governing law",
 				Body: []string{
-					"準據法、爭議解決方式與管轄法院尚未確定,正式營運前會在本頁補上。",
+					"本條款以中華民國法律為準據法。",
+					"有爭議時請先聯絡我們,大多數問題不需要走到法院。若確實需要訴訟,以臺灣臺北地方法院為第一審管轄法院 —— 但這不影響消費者依消費者保護法向自己住所地法院起訴的權利。",
 				},
 				BodyEn: []string{
-					"Governing law, how disputes are handled and which court hears them are not decided. They will be added here before we trade.",
+					"These terms are governed by the law of the Republic of China (Taiwan).",
+					"If something goes wrong, contact us first — most things do not need a court. If a suit is necessary, the Taiwan Taipei District Court is the court of first instance, and this does not affect a consumer's right to sue where they live instead.",
 				},
 			},
 		},

@@ -80,8 +80,29 @@ func (s *Store) RememberOrder(
 		// anywhere to explain it.
 		return fmt.Errorf("grant access to order %s: %w", number, ErrNotFound)
 	}
+
+	// The cookie about to be written carries the OLDER tokens forward with a
+	// fresh MaxAge, so the grants behind them need their clock restarted on the
+	// same event — see TouchOrderAccessGrants.
+	//
+	// Its failure must NOT skip the cookie below. Returning early here would cost
+	// the customer the order they just placed, to avoid a lockout 30 days away
+	// that /orders/find already answers — so the cookie is written either way and
+	// the error is reported afterwards, where rememberOrder logs it without
+	// failing a completed checkout.
+	var touchErr error
+	if carried := placedTokens(r, secure); len(carried) > 0 {
+		digests := make([][]byte, 0, len(carried))
+		for _, t := range carried {
+			digests = append(digests, HashToken(t))
+		}
+		if err := s.q.TouchOrderAccessGrants(ctx, digests); err != nil {
+			touchErr = fmt.Errorf("refresh carried order access grants: %w", err)
+		}
+	}
+
 	writePlacedCookie(w, r, token, secure)
-	return nil
+	return touchErr
 }
 
 // writePlacedCookie puts a token at the front of the browser's list.

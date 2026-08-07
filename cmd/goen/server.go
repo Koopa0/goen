@@ -84,7 +84,12 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 	browse := catalog.NewHandler(catalogue, log)
 	pages := site.NewHandler(log, baseURL, catalogue, site.NewStore(pool), secureCookies)
 	storefront := home.NewHandler(home.NewStore(pool), log, secureCookies)
-	probes := health.NewHandler(pool, log)
+	// Both pools, because a process that can serve the storefront and not the
+	// back office is not ready — see health.NewHandler.
+	probes := health.NewHandler(log,
+		health.Dependency{Name: "storefront", DB: pool},
+		health.Dependency{Name: "admin", DB: adminPool},
+	)
 	images := media.NewHandler(media.NewStore(pool), log)
 	// Writing in is a slower act than signing in, and the bound says so: a
 	// handful of messages an hour from one address is far more than anybody with

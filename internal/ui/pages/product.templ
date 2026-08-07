@@ -356,7 +356,11 @@ templ productBuy(v *ProductView) {
 		</form>
 		<ul class="goen-pdp__assurances" role="list">
 			<li>{ i18n.T(ctx, i18n.KeyGuaranteeWarranty) }</li>
-			<li>{ i18n.T(ctx, i18n.KeyGuaranteeShipping) }</li>
+			// Absent rather than stated at zero: a shop that charges for every
+			// parcel must not appear to be offering free delivery.
+			if v.FreeDelivery() != "" {
+				<li>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyGuaranteeShipping), v.FreeDelivery()) }</li>
+			}
 			<li>{ i18n.T(ctx, i18n.KeyGuaranteeReturns) }</li>
 		</ul>
 	</div>

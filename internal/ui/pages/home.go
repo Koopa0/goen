@@ -26,7 +26,12 @@ type HomeCategory struct {
 type HomeView struct {
 	// Hero is the band at the top. Never zero: Load falls back to the built-in
 	// copy when nothing is scheduled, so the page has no empty state to handle.
-	Hero        Hero
-	Categories  []HomeCategory
-	Recommended []ProductTile
+	Hero       Hero
+	Categories []HomeCategory
+	// FreeDeliveryCents is the threshold the trust strip states. See ProductView.
+	FreeDeliveryCents int64
+	Recommended       []ProductTile
 }
+
+// FreeDelivery is the threshold the trust strip states, or "" for none.
+func (v *HomeView) FreeDelivery() string { return FreeDeliveryText(v.FreeDeliveryCents) }
