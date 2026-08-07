@@ -103,13 +103,6 @@ func TestEveryColumnIsReadOrWritten(t *testing.T) {
 		// on a namesake — `description`, `quantity`, `amount_cents` and
 		// `unit_price_cents` are on half the schema — which is why the entry that
 		// survived is the one whose name nothing else shares.
-		"invoice_documents.provider_ref":          "the unbuilt 發票 issuer: the 加值中心's own id for the document",
-		"invoice_document_lines.id":               "the unbuilt 發票 issuer: the document's shape is externally specified",
-		"invoice_document_lines.description":      "the unbuilt 發票 issuer: the document's shape is externally specified",
-		"invoice_document_lines.quantity":         "the unbuilt 發票 issuer: the document's shape is externally specified",
-		"invoice_document_lines.unit_price_cents": "the unbuilt 發票 issuer: the document's shape is externally specified",
-		"invoice_document_lines.amount_cents":     "the unbuilt 發票 issuer: the document's shape is externally specified",
-		"invoice_document_lines.tax_type":         "the unbuilt 發票 issuer: the document's shape is externally specified",
 
 		// OAuth: user_identities waits for credentials, and TestEveryTableHasAWriter
 		// already records the whole table as a decision. These two columns are the

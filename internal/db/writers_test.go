@@ -43,9 +43,6 @@ func TestEveryTableHasAWriter(t *testing.T) {
 	// Each entry is a claim that a table with no application writer is meant to have
 	// none — a decision, not a gap.
 	allowed := map[string]string{
-		"invoice_documents": "the 發票 issuer is not built: a real 統一發票 goes through " +
-			"a 加值中心, and a fake issuer would be worse than none",
-		"invoice_document_lines": "the same document, its lines",
 		"user_identities": "social sign-in waits for OAuth credentials goen does not " +
 			"have; the table is the shape that integration will need",
 	}

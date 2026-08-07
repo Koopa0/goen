@@ -20,6 +20,7 @@ sql:
       - "internal/warranty/query.sql"
       - "internal/account/query.sql"
       - "internal/admin/query.sql"
+      - "internal/invoice/query.sql"
     gen:
       go:
         package: "db"

@@ -189,8 +189,17 @@ type AdminOrderView struct {
 	InvoiceType    string
 	InvoiceCarrier string
 	InvoiceTaxID   string
-	Committed      bool
-	Next           []AdminTransition
+	// InvoiceDocuments is what has actually been FILED — the preference above
+	// says what the customer asked for, and these are the 統一發票 and 折讓 that
+	// exist because of it. The distinction is the whole feature: the preference
+	// was collected from the day checkout shipped and nothing ever acted on it.
+	InvoiceDocuments []AdminInvoiceDocument
+	// InvoicingEnabled is whether this deployment has 加值中心 credentials at
+	// all. False renders no controls and says why, the way the payment page says
+	// 金流尚未啟用 — never a button that can only fail.
+	InvoicingEnabled bool
+	Committed        bool
+	Next             []AdminTransition
 	// CanShip is whether a parcel can go out: the order is picking, or it has
 	// already shipped one and something is still outstanding. Dispatch is its
 	// own form because it carries the carrier and tracking number, and because
@@ -371,6 +380,84 @@ func (v *AdminOrderView) InvoiceText() string {
 	default:
 		panic("pages: no label for invoice type " + v.InvoiceType)
 	}
+}
+
+// AdminInvoiceDocument is one 統一發票 or 折讓 filed against an order.
+type AdminInvoiceDocument struct {
+	Kind   string
+	Number string
+	// ProviderRef is the four-digit 隨機碼, which a customer needs to look the
+	// invoice up on the 財政部 platform and a void needs alongside the number.
+	ProviderRef string
+	AmountCents int64
+	Status      string
+	IssuedAt    string
+	// Lines is what the document says was sold. A shop reconciling an invoice
+	// against an order compares lines rather than totals, which is why
+	// invoice_document_lines exists at all.
+	Lines []AdminInvoiceLine
+}
+
+// AdminInvoiceLine is one item on a filed document.
+type AdminInvoiceLine struct {
+	Description string
+	Quantity    int32
+	AmountCents int64
+}
+
+// Line is the item as one row of text.
+func (l AdminInvoiceLine) Line() string {
+	return l.Description + " × " + strconv.FormatInt(int64(l.Quantity), 10) + " · " + twd(l.AmountCents)
+}
+
+// KindText names the document.
+func (d AdminInvoiceDocument) KindText() string {
+	if d.Kind == "allowance" {
+		return "折讓"
+	}
+	return "統一發票"
+}
+
+// Amount is what it is for.
+func (d AdminInvoiceDocument) Amount() string { return twd(d.AmountCents) }
+
+// Voided reports whether it has been cancelled.
+func (d AdminInvoiceDocument) Voided() bool { return d.Status == "voided" }
+
+// CanIssueInvoice reports whether to offer the issue button.
+//
+// A COMMITTED order only: issuing for a checkout nobody paid for files a tax
+// document for a sale that did not happen, and undoing that is a correction with
+// the 財政部 rather than a delete. The database says the same thing — the store
+// checks committed_orders before it calls the 加值中心 — and this only decides
+// whether to show the control, because one that can only be refused is worse
+// than none.
+func (v *AdminOrderView) CanIssueInvoice() bool {
+	if !v.InvoicingEnabled || !v.Committed {
+		return false
+	}
+	for _, d := range v.InvoiceDocuments {
+		if d.Kind == "invoice" && !d.Voided() {
+			return false
+		}
+	}
+	return true
+}
+
+// LiveInvoice is the invoice standing against this order, if any.
+func (v *AdminOrderView) LiveInvoice() (AdminInvoiceDocument, bool) {
+	for _, d := range v.InvoiceDocuments {
+		if d.Kind == "invoice" && !d.Voided() {
+			return d, true
+		}
+	}
+	return AdminInvoiceDocument{}, false
+}
+
+// CanVoidInvoice reports whether there is a live invoice to cancel.
+func (v *AdminOrderView) CanVoidInvoice() bool {
+	_, ok := v.LiveInvoice()
+	return ok && v.InvoicingEnabled
 }
 
 // HasCustomerNote reports whether the customer left one.

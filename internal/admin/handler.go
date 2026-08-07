@@ -15,6 +15,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/outbox"
@@ -511,6 +512,11 @@ var adminNotices = map[string]string{
 	"closed":        "退貨已結案。",
 	"badcount":      "數量填寫有問題:入庫數不能超過實際收到的數量,實際收到也不能超過申請退回的數量。",
 	"badparcel":     "出貨數量填寫有問題:每一項不能超過還沒出貨的數量,也不能超過這筆訂單保留的庫存。",
+	"invoiced":      "發票已開立。",
+	"voided":        "發票已作廢。要重開的話,現在可以再開一張。",
+	"hasinvoice":    "這筆訂單已經有一張有效的發票了。要換一張就先作廢。",
+	"noinvoice":     "這筆訂單沒有可以作廢的發票。",
+	"invoicefailed": "加值中心拒絕了這次操作,詳細原因在伺服器紀錄裡。常見的是統編格式或載具號碼不正確。",
 }
 
 // noticeFor turns the one-shot query parameter a redirect carries into the
@@ -2405,6 +2411,77 @@ func (h *Handler) Customer(w http.ResponseWriter, r *http.Request) {
 		h.notFound(w, r)
 	default:
 		h.log.ErrorContext(r.Context(), "read customer", "error", err)
+		h.serverError(w, r)
+	}
+}
+
+// IssueInvoice serves POST /admin/orders/{number}/invoice.
+//
+// The 發票 preference has been collected at checkout since the day it shipped
+// and nothing ever acted on it: a staff member packing an order could see that
+// it needed a 統編 invoice and had no way to issue one. This is that door.
+func (h *Handler) IssueInvoice(w http.ResponseWriter, r *http.Request) {
+	number := r.PathValue("number")
+	if !IsOrderNumber(number) {
+		http.NotFound(w, r)
+		return
+	}
+	err := h.store.IssueInvoice(r.Context(), number)
+	switch {
+	case err == nil:
+		//nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?invoiced=1", http.StatusSeeOther)
+	case errors.Is(err, invoice.ErrAlreadyIssued):
+		//nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?hasinvoice=1", http.StatusSeeOther)
+	case errors.Is(err, invoice.ErrDisabled), errors.Is(err, ErrRefused):
+		h.log.WarnContext(r.Context(), "invoice refused", "order", number, "error", err)
+		//nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther)
+	case errors.Is(err, invoice.ErrRejected):
+		// The 加值中心's own reason. Logged in full because it names the field
+		// to fix, and shown as a single message because a staff member cannot
+		// act on an RtnCode.
+		h.log.ErrorContext(r.Context(), "the 加值中心 refused the invoice",
+			"order", number, "error", err)
+		//nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?invoicefailed=1", http.StatusSeeOther)
+	default:
+		h.log.ErrorContext(r.Context(), "issue invoice", "order", number, "error", err)
+		h.serverError(w, r)
+	}
+}
+
+// VoidInvoice serves POST /admin/orders/{number}/invoice/void.
+//
+// A 統一發票 cannot be edited. A wrong one is voided and a correct one issued in
+// its place, which is what invoice_documents_guard enforces from the database's
+// side and what the form's wording tells a staff member.
+func (h *Handler) VoidInvoice(w http.ResponseWriter, r *http.Request) {
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		return
+	}
+	number := r.PathValue("number")
+	if !IsOrderNumber(number) {
+		http.NotFound(w, r)
+		return
+	}
+	err := h.store.VoidInvoice(r.Context(), number, r.PostFormValue("reason"))
+	switch {
+	case err == nil:
+		//nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?voided=1", http.StatusSeeOther)
+	case errors.Is(err, invoice.ErrNotFound):
+		//nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?noinvoice=1", http.StatusSeeOther)
+	case errors.Is(err, invoice.ErrRejected), errors.Is(err, invoice.ErrDisabled),
+		errors.Is(err, ErrRefused):
+		h.log.WarnContext(r.Context(), "invoice void refused", "order", number, "error", err)
+		//nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?invoicefailed=1", http.StatusSeeOther)
+	default:
+		h.log.ErrorContext(r.Context(), "void invoice", "order", number, "error", err)
 		h.serverError(w, r)
 	}
 }

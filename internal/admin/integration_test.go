@@ -85,7 +85,7 @@ func staffID(t *testing.T) string {
 // actually written.
 func TestStockMovesOnlyThroughTheLedger(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	actor := staffID(t)
 
 	var sku string
@@ -130,7 +130,7 @@ func TestStockMovesOnlyThroughTheLedger(t *testing.T) {
 // so the same button pressed twice carries the same key.
 func TestAdjustmentIsIdempotent(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	actor := staffID(t)
 
 	var sku string
@@ -169,7 +169,7 @@ func TestAdjustmentIsIdempotent(t *testing.T) {
 // refuse and reports the refusal.
 func TestAdvanceRefusesAnUnfundedOrder(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	number := placeUnpaidOrder(t)
 	_, err := s.Advance(ctx, number, "picking", uuid.NullUUID{})
@@ -189,7 +189,7 @@ func TestAdvanceRefusesAnUnfundedOrder(t *testing.T) {
 // TestAdvanceRefusesAnIllegalTransition covers the state machine itself.
 func TestAdvanceRefusesAnIllegalTransition(t *testing.T) {
 	ctx := t.Context()
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	number := placeUnpaidOrder(t)
 
 	// 'shipped' is refused by the store itself now, whatever the current state:
@@ -250,7 +250,7 @@ func placeUnpaidOrder(t *testing.T) string {
 // all — so this is the first time it is exercised end to end.
 func TestRetiringTheLastDiscountedVariantIsRefused(t *testing.T) {
 	ctx := t.Context()
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	// A product with exactly one discounted, active variant, featured in a
 	// campaign.
@@ -372,7 +372,7 @@ func pickingOrderHoldingStock(t *testing.T) (number string, orderID uuid.UUID) {
 // record of who dispatched it.
 func TestShipDoesAllFourWritesOrNone(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	number, orderID := pickingOrderHoldingStock(t)
 
 	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "黑貓宅急便", Tracking: "TW1234567890"}, uuid.NullUUID{}); err != nil {
@@ -455,7 +455,7 @@ func TestShipDoesAllFourWritesOrNone(t *testing.T) {
 // tracking number for a parcel that does not exist.
 func TestShipRollsEverythingBackWhenTheStatusMoveIsRefused(t *testing.T) {
 	ctx := t.Context()
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	number := placeUnpaidOrder(t) // still pending: picking -> shipped is the only legal path
 
 	var orderID uuid.UUID
@@ -489,7 +489,7 @@ func TestShipRollsEverythingBackWhenTheStatusMoveIsRefused(t *testing.T) {
 // a 500 into a message the staff member can act on.
 func TestShipNeedsACarrierAndATracking(t *testing.T) {
 	ctx := t.Context()
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	number, _ := pickingOrderHoldingStock(t)
 
 	tests := []struct{ name, carrier, tracking string }{
@@ -512,7 +512,7 @@ func TestShipNeedsACarrierAndATracking(t *testing.T) {
 // carrier, no tracking and its stock still held.
 func TestAdvanceCannotShip(t *testing.T) {
 	ctx := t.Context()
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	number, orderID := pickingOrderHoldingStock(t)
 
 	if _, err := s.Advance(ctx, number, "shipped", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
@@ -533,7 +533,7 @@ func TestAdvanceCannotShip(t *testing.T) {
 // never be filled in afterwards.
 func TestAdvanceRecordsWhoAndWhen(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	number, orderID := pickingOrderHoldingStock(t)
 
 	var staff uuid.UUID
@@ -801,7 +801,7 @@ func TestARefundIsWhatTheCustomerPaid(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, _ := staffContext(t)
-			s := admin.NewStore(pool, fakeRefunder{})
+			s := admin.NewStore(pool, fakeRefunder{}, nil)
 			requestID, _ := couponedShippedOrder(t, tt.lines)
 
 			if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", uuid.NullUUID{}); err != nil {
@@ -828,7 +828,7 @@ func TestARefundIsWhatTheCustomerPaid(t *testing.T) {
 // oldest hole there is, and this one pays out real money.
 func TestApprovingAReturnRefundsWhatTheORDERSays(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	requestID, _ := returnedOrder(t, 1) // 1 of 2 units at 100000
 
 	if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", uuid.NullUUID{}); err != nil {
@@ -920,7 +920,7 @@ func TestAFailedRefundLeavesARowToReconcile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := t.Context()
-			s := admin.NewStore(pool, tt.refunder)
+			s := admin.NewStore(pool, tt.refunder, nil)
 			requestID, _ := returnedOrder(t, 2)
 
 			if err := s.Decide(ctx, requestID.String(), "approved", "", uuid.NullUUID{}); err == nil {
@@ -977,13 +977,13 @@ func TestAStalledRefundCanBeRetriedToCompletion(t *testing.T) {
 
 	stalled := admin.NewStore(pool, fakeRefunder{
 		refundErr: errors.New("read tcp 1.2.3.4:443: i/o timeout"),
-	})
+	}, nil)
 	if err := stalled.Decide(ctx, requestID.String(), "approved", "已收到退貨", uuid.NullUUID{}); err == nil {
 		t.Fatal("a refund that timed out was reported as success")
 	}
 
 	// Same return, same request key, a provider that answers this time.
-	healthy := admin.NewStore(pool, fakeRefunder{})
+	healthy := admin.NewStore(pool, fakeRefunder{}, nil)
 	if err := healthy.Decide(ctx, requestID.String(), "approved", "已收到退貨", uuid.NullUUID{}); err != nil {
 		t.Fatalf("the retry was refused, so a stalled refund can never be finished "+
 			"and the customer is never paid: %v", err)
@@ -1043,7 +1043,7 @@ func TestAPendingProviderRefundIsNotRecordedAsSucceeded(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx, _ := staffContext(t)
-			s := admin.NewStore(pool, fakeRefunder{state: tt.state})
+			s := admin.NewStore(pool, fakeRefunder{state: tt.state}, nil)
 			requestID, _ := returnedOrder(t, 1)
 
 			if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", uuid.NullUUID{}); err != nil {
@@ -1109,7 +1109,7 @@ func TestAPendingProviderRefundIsNotRecordedAsSucceeded(t *testing.T) {
 // return is decided once.
 func TestARefundStripeRefusedOutrightLeavesTheReturnOpen(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{state: admin.RefundFailed})
+	s := admin.NewStore(pool, fakeRefunder{state: admin.RefundFailed}, nil)
 	requestID, _ := returnedOrder(t, 1)
 
 	if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
@@ -1144,7 +1144,7 @@ func TestTheHealthPageNamesARefundThatDidNotLand(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{
 		refundErr: errors.New("read tcp 1.2.3.4:443: i/o timeout"),
-	})
+	}, nil)
 	requestID, orderNumber := returnedOrder(t, 1)
 
 	if err := s.Decide(ctx, requestID.String(), "approved", "", uuid.NullUUID{}); err == nil {
@@ -1188,7 +1188,7 @@ func TestTheHealthPageNamesARefundThatDidNotLand(t *testing.T) {
 // TestRejectingAReturnMovesNoMoney proves a refusal writes no refund at all.
 func TestRejectingAReturnMovesNoMoney(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	requestID, _ := returnedOrder(t, 2)
 
 	if err := s.Decide(ctx, requestID.String(), "rejected", "超過鑑賞期", uuid.NullUUID{}); err != nil {
@@ -1219,7 +1219,7 @@ func TestRejectingAReturnMovesNoMoney(t *testing.T) {
 // again — the same money, twice.
 func TestAReturnIsDecidedOnce(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	requestID, _ := returnedOrder(t, 1)
 
 	if err := s.Decide(ctx, requestID.String(), "approved", "", uuid.NullUUID{}); err != nil {
@@ -1256,7 +1256,7 @@ func TestAReturnIsDecidedOnce(t *testing.T) {
 // defect needs the one that actually happens.
 func TestTheLoserOfTwoSimultaneousDecisionsWritesNoAuditRow(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	requestID, _ := returnedOrder(t, 1)
 
 	before := auditRowsFor(t, requestID)
@@ -1334,7 +1334,7 @@ func auditRowsFor(t *testing.T, requestID uuid.UUID) int {
 // out twice what came in.
 func TestARefundCannotExceedWhatWasCaptured(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	requestID, orderNumber := returnedOrder(t, 2) // the whole order: 200000
 
 	if err := s.Decide(ctx, requestID.String(), "approved", "", uuid.NullUUID{}); err != nil {
@@ -1385,7 +1385,7 @@ func TestARefundCannotExceedWhatWasCaptured(t *testing.T) {
 // "grant" is a deduction wearing the wrong form's clothes.
 func TestGrantIsBoundedAndPositive(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	var email string
 	if err := pool.QueryRow(ctx, `
@@ -1442,7 +1442,7 @@ func TestGrantIsBoundedAndPositive(t *testing.T) {
 // TestGrantIsIdempotent. A double-submitted form is one posting.
 func TestGrantIsIdempotent(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	var email string
 	if err := pool.QueryRow(ctx, `
@@ -1507,7 +1507,7 @@ func TestGrantIsIdempotent(t *testing.T) {
 // them to it.
 func TestTheBackOfficeIsInvisibleToEveryoneButStaff(t *testing.T) {
 	ctx := t.Context()
-	h := admin.NewHandler(admin.NewStore(pool, fakeRefunder{}),
+	h := admin.NewHandler(admin.NewStore(pool, fakeRefunder{}, nil),
 		media.NewHandler(media.NewStore(pool), slog.New(slog.DiscardHandler)),
 		outbox.NewStore(pool, slog.New(slog.DiscardHandler)),
 		newsletter.NewStore(pool),
@@ -1599,7 +1599,7 @@ func TestTheBackOfficeIsInvisibleToEveryoneButStaff(t *testing.T) {
 // assertion above would still pass.
 func TestOnlyAnAdminReachesTheStaffPage(t *testing.T) {
 	ctx := t.Context()
-	h := admin.NewHandler(admin.NewStore(pool, fakeRefunder{}),
+	h := admin.NewHandler(admin.NewStore(pool, fakeRefunder{}, nil),
 		media.NewHandler(media.NewStore(pool), slog.New(slog.DiscardHandler)),
 		outbox.NewStore(pool, slog.New(slog.DiscardHandler)),
 		newsletter.NewStore(pool),
@@ -1696,7 +1696,7 @@ func auditRows(t *testing.T, action admin.Action) int {
 // test of the behaviour instead of the wiring.
 func TestEveryBackOfficeWriteLeavesATrail(t *testing.T) {
 	ctx, actor := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	sku := anyVariantSKU(t)
 	slug := anyProductSlug(t)
@@ -1749,7 +1749,7 @@ func TestEveryBackOfficeWriteLeavesATrail(t *testing.T) {
 // happened to an entity. Without the actor there is no reason for this table.
 func TestAnAuditRowNamesItsActorAndRequest(t *testing.T) {
 	ctx, actor := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	if err := s.SetProductStatus(ctx, anyProductSlug(t), "draft"); err != nil {
 		t.Fatalf("publish: %v", err)
@@ -1782,7 +1782,7 @@ func TestAnAuditRowNamesItsActorAndRequest(t *testing.T) {
 // means an absent actor is a wiring mistake, and the write it belongs to must
 // stop rather than land with nobody's name on it.
 func TestAnActionWithNoActorIsRefused(t *testing.T) {
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	slug := anyProductSlug(t)
 
 	// Read BEFORE, and compared after. Asserting the status is not 'draft'
@@ -1830,7 +1830,7 @@ func TestAnActionWithNoActorIsRefused(t *testing.T) {
 // transaction is what makes that true rather than aspirational.
 func TestAFailedWriteLeavesNoAuditRow(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	before := auditRows(t, admin.ActionPublishProduct)
 	// A status the store refuses outright, and one the database refuses: both
@@ -1858,7 +1858,7 @@ func TestAFailedWriteLeavesNoAuditRow(t *testing.T) {
 // audited cannot edit it.
 func TestTheTrailCannotBeRewritten(t *testing.T) {
 	ctx, _ := staffContext(t)
-	if err := admin.NewStore(pool, fakeRefunder{}).
+	if err := admin.NewStore(pool, fakeRefunder{}, nil).
 		SetProductStatus(ctx, anyProductSlug(t), "draft"); err != nil {
 		t.Fatalf("seed a row: %v", err)
 	}
@@ -1977,7 +1977,7 @@ func asAdmin(ctx context.Context, t *testing.T, stmt string) error {
 // them to look.
 func TestANamedParentThatDoesNotExistIsRefused(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	errs, err := s.CreateCategory(ctx, &admin.TaxonomyForm{
 		Slug: "orphan-" + uuid.NewString()[:8], Name: "孤兒", Parent: "no-such-parent",
@@ -2004,7 +2004,7 @@ func TestANamedParentThatDoesNotExistIsRefused(t *testing.T) {
 // asked.
 func TestACategoryIsCreatedUnderTheParentItNames(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	parent := "tax-parent-" + uuid.NewString()[:8]
 	if errs, err := s.CreateCategory(ctx, &admin.TaxonomyForm{
@@ -2041,7 +2041,7 @@ func TestACategoryIsCreatedUnderTheParentItNames(t *testing.T) {
 // constraint name.
 func TestSomethingInUseCannotBeDeleted(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	// A brand nothing uses goes.
 	empty := "tax-brand-" + uuid.NewString()[:8]
@@ -2094,7 +2094,7 @@ func TestSomethingInUseCannotBeDeleted(t *testing.T) {
 // silently — Rename touches the display name and nothing else.
 func TestASlugIsNeverRenamed(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	slug := "tax-rename-" + uuid.NewString()[:8]
 	if errs, err := s.CreateBrand(ctx, &admin.TaxonomyForm{Slug: slug, Name: "原名"}); err != nil || len(errs) > 0 {
@@ -2127,7 +2127,7 @@ func TestASlugIsNeverRenamed(t *testing.T) {
 // revenue figure must not do.
 func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	before, err := s.Report(ctx, 30)
 	if err != nil {
@@ -2167,7 +2167,7 @@ func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
 // from a URL is an arbitrary amount of work anybody can ask for.
 func TestTheWindowIsAnAllowlist(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	for _, days := range []int32{7, 30, 90} {
 		view, err := s.Report(ctx, days)
@@ -2254,7 +2254,7 @@ func reportOrder(t *testing.T, cents int64, paid bool) uuid.UUID {
 // payment.
 func TestCommittedCoversAnOrderWithNoPaymentRow(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	before, err := s.Report(ctx, 30)
 	if err != nil {
@@ -2309,7 +2309,7 @@ func TestCommittedCoversAnOrderWithNoPaymentRow(t *testing.T) {
 // the shop's answer.
 func TestTheQueuePutsWhatTheShopOwesFirst(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	ps := product.NewStore(pool)
 	asker := newAskingCustomer(t)
 	slug := anyActiveProductSlug(t)
@@ -2353,7 +2353,7 @@ func TestTheQueuePutsWhatTheShopOwesFirst(t *testing.T) {
 // describes work that happened.
 func TestHidingAQuestionIsRecordedAndCannotBeRepeated(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	ps := product.NewStore(pool)
 	asker := newAskingCustomer(t)
 	id := ask(t, ps, anyActiveProductSlug(t), asker, "會被隱藏的", 0)
@@ -2378,7 +2378,7 @@ func TestHidingAQuestionIsRecordedAndCannotBeRepeated(t *testing.T) {
 // TestAnEmptyOfficialAnswerIsRefused proves the shop cannot publish nothing.
 func TestAnEmptyOfficialAnswerIsRefused(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	ps := product.NewStore(pool)
 	asker := newAskingCustomer(t)
 	id := ask(t, ps, anyActiveProductSlug(t), asker, "等一個回答", 0)
@@ -2441,7 +2441,7 @@ func anyActiveProductSlug(t *testing.T) string {
 // the second.
 func TestHealthIsDerivedFromTheWorkNotFromAHeartbeat(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	if _, err := pool.Exec(ctx, `DELETE FROM outbox_messages`); err != nil {
 		t.Fatalf("clear outbox: %v", err)
@@ -2482,7 +2482,7 @@ func TestHealthIsDerivedFromTheWorkNotFromAHeartbeat(t *testing.T) {
 // and must not read as a backlog.
 func TestAMessageWaitingOnItsBackoffIsNotLate(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	if _, err := pool.Exec(ctx, `DELETE FROM outbox_messages`); err != nil {
 		t.Fatalf("clear: %v", err)
@@ -2518,7 +2518,7 @@ func TestAMessageWaitingOnItsBackoffIsNotLate(t *testing.T) {
 // exactly one deployment: a fresh one.
 func TestNeverRebuiltIsNotTheSameAsJustRebuilt(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	if _, err := pool.Exec(ctx, `DELETE FROM product_copurchases`); err != nil {
 		t.Fatalf("clear: %v", err)
@@ -2565,7 +2565,7 @@ func TestNeverRebuiltIsNotTheSameAsJustRebuilt(t *testing.T) {
 // deserves.
 func TestCancellingAnOrderInTheBackOfficeReturnsItsStock(t *testing.T) {
 	ctx := t.Context()
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	var vid uuid.UUID
 	if err := pool.QueryRow(ctx, `
@@ -2667,7 +2667,7 @@ func placeHeldOrder(t *testing.T, vid uuid.UUID) string {
 // the moment the customer is waiting on.
 func TestShippingEnqueuesTheDispatchNotice(t *testing.T) {
 	ctx := t.Context()
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	// The CUSTOMER placed this order in English. The staff member pressing Ship
 	// reads Chinese, and the notice must not follow them: an English customer
 	// told about their parcel in the shopkeeper's language is the mistake
@@ -2719,7 +2719,7 @@ func TestShippingEnqueuesTheDispatchNotice(t *testing.T) {
 // those customers was waiting for an email nothing would ever send.
 func TestRestockingTellsEverybodyWhoAsked(t *testing.T) {
 	ctx := t.Context()
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	var vid uuid.UUID
 	var sku string
@@ -2791,7 +2791,7 @@ func TestRestockingTellsEverybodyWhoAsked(t *testing.T) {
 // will not sell them is worse than staying quiet.
 func TestAnAdjustmentBelowTheThresholdTellsNobody(t *testing.T) {
 	ctx := t.Context()
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	var vid uuid.UUID
 	var sku string
@@ -2963,7 +2963,7 @@ func shippableOrder(t *testing.T, locale string) string {
 // The first version of this test took that route and SKIPPED.
 func TestAnOverClaimIsRefusedInWordsRatherThanByAConstraint(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	requestID, orderNumber := returnedOrder(t, 2) // 200000 captured, 200000 claimed
 
 	var paymentID uuid.UUID
@@ -3016,7 +3016,7 @@ func TestAnOverClaimIsRefusedInWordsRatherThanByAConstraint(t *testing.T) {
 // see what was in it. ReturnLines existed for exactly this and had no caller.
 func TestTheReturnQueueShowsWhatIsComingBack(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	requestID, _ := returnedOrder(t, 2)
 
 	view, err := s.Returns(ctx)
@@ -3051,7 +3051,7 @@ func TestTheReturnQueueShowsWhatIsComingBack(t *testing.T) {
 // and silently, because nothing on the form mentions zones.
 func TestPublishingAVersionCarriesItsZoneSurcharges(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	var methodID uuid.UUID
 	if err := pool.QueryRow(ctx,
@@ -3114,7 +3114,7 @@ func TestPublishingAVersionCarriesItsZoneSurcharges(t *testing.T) {
 // it anyway.
 func TestAZeroSurchargeClearsTheRowRatherThanStoringZero(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	var versionID, zoneID uuid.UUID
 	if err := pool.QueryRow(ctx, `
@@ -3183,7 +3183,7 @@ func TestTheTierWindowMatchesTheProgramme(t *testing.T) {
 // the page can show rather than as two bands that disagree.
 func TestTwoTiersCannotShareAThreshold(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	if err := s.CreateTier(ctx, "band_a", "甲", "Band A", 90000, 120); err != nil {
 		t.Fatalf("create the first band: %v", err)
@@ -3199,7 +3199,7 @@ func TestTwoTiersCannotShareAThreshold(t *testing.T) {
 // and by the form's own bounds.
 func TestATierCannotEarnLessThanNoTier(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	if err := s.CreateTier(ctx, "worse", "倒扣", "", 80000, 90); !errors.Is(err, admin.ErrInvalid) {
 		t.Errorf("a band below the base rate answered %v, want ErrInvalid", err)
@@ -3223,7 +3223,7 @@ func TestATierCannotEarnLessThanNoTier(t *testing.T) {
 // addressing deduplicated the bytes and not the work.
 func TestOneUploadCanBeAttachedToTwoProducts(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	const digest = "aa11bb22cc33dd44ee55ff6677889900aa11bb22cc33dd44ee55ff6677889900"
 	if _, err := pool.Exec(ctx, `
@@ -3287,7 +3287,7 @@ func twoProducts(t *testing.T) (first, second string) {
 // where it went — which is worse than not being able to change it.
 func TestADeliveryAddressCanBeCorrectedUntilItShips(t *testing.T) {
 	ctx, staffID := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	number := shippableOrder(t, "zh-Hant") // funded, sitting in picking
 
 	correction := &admin.Delivery{
@@ -3324,7 +3324,7 @@ func TestADeliveryAddressCanBeCorrectedUntilItShips(t *testing.T) {
 // The row records that the delivery changed, and which destination it is.
 func TestCorrectingADeliveryDoesNotWriteTheAddressIntoTheAuditTrail(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	number := shippableOrder(t, "zh-Hant")
 
 	const street = "非常獨特的街道名稱 12345"
@@ -3361,7 +3361,7 @@ func TestCorrectingADeliveryDoesNotWriteTheAddressIntoTheAuditTrail(t *testing.T
 // instead of being resolved before the write.
 func TestCorrectingAPickupOrderCannotTurnItIntoAnAddressOne(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	number := pickupOrderForCorrection(t)
 
 	// Both halves submitted, as a hand-edited form would.
@@ -3448,7 +3448,7 @@ func pickupOrderForCorrection(t *testing.T) string {
 // so a double-submitted form cannot un-hide what a staff member just hid.
 func TestHidingAReviewIsReversibleAndAudited(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	reviewID := someReview(t)
 
 	if err := s.SetReviewHidden(ctx, reviewID, true); err != nil {
@@ -3494,7 +3494,7 @@ func TestHidingAReviewIsReversibleAndAudited(t *testing.T) {
 // cannot display what is hidden.
 func TestTheReviewQueueShowsHiddenOnes(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	reviewID := someReview(t)
 
 	if err := s.SetReviewHidden(ctx, reviewID, true); err != nil {
@@ -3558,7 +3558,7 @@ func reviewHidden(t *testing.T, id string) bool {
 // buries them exactly as they stop being answerable in time.
 func TestTheInboxPutsTheLongestWaitFirst(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	old := messageAgedDays(t, "四天前", 4)
 	fresh := messageAgedDays(t, "今天", 0)
@@ -3612,7 +3612,7 @@ func TestTheInboxPutsTheLongestWaitFirst(t *testing.T) {
 // people stop trusting.
 func TestHandlingAMessageIsReversibleAndAudited(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	id := messageAgedDays(t, "來回一次", 1)
 
 	if err := s.SetMessageHandled(ctx, id, true); err != nil {
@@ -3657,7 +3657,7 @@ func TestHandlingAMessageIsReversibleAndAudited(t *testing.T) {
 // words, and audit_events is append-only where contact_messages is not.
 func TestTheInboxDoesNotCopyTheMessageIntoTheAuditTrail(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	const body = "非常獨特的訊息內容 987654"
 	var id string
@@ -3731,7 +3731,7 @@ func messageHandled(t *testing.T, id string) bool {
 // claim on this shop, and returning real money first is what somebody expects.
 func TestAReturnPaysBackBothSources(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	// 200,000 of goods: 60,000 paid with credit, 140,000 on the card.
 	requestID, orderNumber, accountID := creditFundedReturn(t, 2, 60000)
 
@@ -3787,7 +3787,7 @@ func TestAReturnPaysBackBothSources(t *testing.T) {
 // reading when only half the order comes back.
 func TestAPartialReturnPaysTheCardFirst(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	// 200,000 of goods: 60,000 credit, 140,000 card. One of two units comes back,
 	// so the claim is 100,000 — less than the card alone.
 	requestID, orderNumber, accountID := creditFundedReturn(t, 1, 60000)
@@ -3822,7 +3822,7 @@ func TestAPartialReturnPaysTheCardFirst(t *testing.T) {
 // no captured payment" and there was no way to pay the customer back.
 func TestAWhollyCreditFundedReturnNeedsNoProvider(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	// 200,000 of goods, all of it credit.
 	requestID, orderNumber, accountID := creditFundedReturn(t, 2, 200000)
 
@@ -3853,7 +3853,7 @@ func TestAWhollyCreditFundedReturnNeedsNoProvider(t *testing.T) {
 // customer twice is the failure that is hard to notice and impossible to undo.
 func TestCompensatingAReturnTwiceGivesCreditOnce(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	requestID, _, accountID := creditFundedReturn(t, 2, 200000)
 
 	if err := s.Decide(ctx, requestID.String(), "approved", "第一次", uuid.NullUUID{}); err != nil {
@@ -4024,7 +4024,7 @@ func creditFundedReturn(t *testing.T, qty int32, creditCents int64) (
 // which is why they are told apart rather than OR-ed with leading wildcards.
 func TestTheBackOfficeCanFindAnOrder(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	number, recipient, addr := searchableOrder(t)
 
 	for _, term := range []string{
@@ -4056,7 +4056,7 @@ func TestTheBackOfficeCanFindAnOrder(t *testing.T) {
 // the tab they had open — and the number they were given is unique.
 func TestASearchIgnoresTheStatusFilter(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	number, _, _ := searchableOrder(t)
 
 	// The order is pending; the filter says shipped.
@@ -4076,7 +4076,7 @@ func TestASearchIgnoresTheStatusFilter(t *testing.T) {
 // queue rather than pretending to have searched.
 func TestATooShortSearchIsNotASearch(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	view, err := s.Orders(ctx, "", "王")
 	if err != nil {
@@ -4094,7 +4094,7 @@ func TestATooShortSearchIsNotASearch(t *testing.T) {
 // new door that has to be checked against it.
 func TestAnErasedOrderIsNotFoundByItsOldAddress(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	number, recipient, addr := searchableOrder(t)
 
 	if _, err := pool.Exec(ctx, `
@@ -4183,7 +4183,7 @@ func searchableOrder(t *testing.T) (number, recipient, addr string) {
 // pages and a guess.
 func TestTheBackOfficeCanSeeOneCustomerWhole(t *testing.T) {
 	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	userID := creditedAccount(t, 50000)
 
 	view, err := s.Customer(ctx, userID.String(), uuid.NullUUID{UUID: staff, Valid: true})
@@ -4209,7 +4209,7 @@ func TestTheBackOfficeCanSeeOneCustomerWhole(t *testing.T) {
 // with them from looking out of curiosity.
 func TestLookingAtACustomerIsRecorded(t *testing.T) {
 	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	userID := creditedAccount(t, 1000)
 
 	if _, err := s.Customer(ctx, userID.String(), uuid.NullUUID{UUID: staff, Valid: true}); err != nil {
@@ -4252,7 +4252,7 @@ func TestLookingAtACustomerIsRecorded(t *testing.T) {
 // invites reading it. The shop looks somebody up because they are dealing with them.
 func TestACustomerSearchNeedsATerm(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	for _, term := range []string{"", " ", "王"} {
 		view, err := s.Customers(ctx, term)
@@ -4271,7 +4271,7 @@ func TestACustomerSearchNeedsATerm(t *testing.T) {
 // TestACustomerIsFoundByTheStartOfTheirAddress is the search itself.
 func TestACustomerIsFoundByTheStartOfTheirAddress(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	userID := creditedAccount(t, 0)
 
 	var addr string
@@ -4341,7 +4341,7 @@ func creditedAccount(t *testing.T, cents int64) uuid.UUID {
 // is the figure it would be most embarrassing to overstate to their face.
 func TestACustomersSpendCountsOnlyCommittedOrders(t *testing.T) {
 	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	userID := creditedAccount(t, 0)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 
@@ -4379,7 +4379,7 @@ func TestACustomersSpendCountsOnlyCommittedOrders(t *testing.T) {
 // history unreachable from the one page built to answer questions about it.
 func TestAPromotedCustomerIsStillFindable(t *testing.T) {
 	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	userID := creditedAccount(t, 0)
 	orderForCustomer(t, userID, 50000, true)
 
@@ -4478,7 +4478,7 @@ func orderForCustomer(t *testing.T, userID uuid.UUID, cents int64, paid bool) uu
 func TestTheBackOfficeSeesWhoCancelled(t *testing.T) {
 	ctx, _ := staffContext(t)
 	basket := cart.NewStore(pool)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	number := placeUnpaidOrder(t)
 
 	if _, err := basket.Cancel(ctx, number); err != nil {
@@ -4516,7 +4516,7 @@ func TestTheBackOfficeSeesWhoCancelled(t *testing.T) {
 // means the shop said delivered and the customer's screen did not.
 func TestADeliveredOrderMarksItsParcelsDelivered(t *testing.T) {
 	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	number := shippableOrder(t, "zh-Hant")
 
@@ -4580,7 +4580,7 @@ func TestADeliveredOrderMarksItsParcelsDelivered(t *testing.T) {
 // telling the shop the window has not started for goods that arrived.
 func TestAnOrderCompletedWithoutADeliveryStepStillStampsItsParcels(t *testing.T) {
 	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	number := shippableOrder(t, "zh-Hant")
 
@@ -4619,7 +4619,7 @@ func TestAnOrderCompletedWithoutADeliveryStepStillStampsItsParcels(t *testing.T)
 // that must never be silent.
 func TestShippingIsRefusedWhenTheOrderHoldsNoStock(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	number, orderID := pickingOrderHoldingStock(t)
 
 	if _, err := pool.Exec(ctx, `
@@ -4676,7 +4676,7 @@ func deliveredAt(t *testing.T, number string) time.Time {
 // the comparison table for it was two empty columns.
 func TestTheShopCanGiveAProductASpecTable(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	slug := draftProduct(t, ctx, s)
 
 	if errs, err := s.AddSpec(ctx, slug, admin.SpecDraft{
@@ -4735,7 +4735,7 @@ func TestTheShopCanGiveAProductASpecTable(t *testing.T) {
 // English one gets on a site whose specs are written in Chinese.
 func TestASpecIsRefusedRatherThanTruncated(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	slug := draftProduct(t, ctx, s)
 
 	tests := []struct {
@@ -4835,7 +4835,7 @@ func draftProduct(t *testing.T, ctx context.Context, s *admin.Store) string {
 // answers to "what is this category called".
 func TestACategoryCarriesItsEnglishName(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	slug := "tax-en-" + uuid.NewString()[:8]
 
 	if errs, err := s.CreateCategory(ctx, &admin.TaxonomyForm{
@@ -4909,7 +4909,7 @@ func TestACategoryCarriesItsEnglishName(t *testing.T) {
 // had nothing to pick, so every variant after the first was unreachable.
 func TestTheShopCanGiveAProductAVariantPicker(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	slug := draftProduct(t, ctx, s)
 
 	if errs, err := s.AddOption(ctx, slug, admin.OptionDraft{
@@ -5004,7 +5004,7 @@ func TestTheShopCanGiveAProductAVariantPicker(t *testing.T) {
 // is what proves the refusal reaches the staff member as a message rather than a 500.
 func TestAVariantCannotBorrowAnotherProductsOptionValue(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	first := draftProduct(t, ctx, s)
 	if errs, err := s.AddOption(ctx, first, admin.OptionDraft{Name: "顏色"}); err != nil ||
@@ -5058,7 +5058,7 @@ func TestAVariantCannotBorrowAnotherProductsOptionValue(t *testing.T) {
 // another product's axis.
 func TestTheOptionValueIsAddedToTheRightProduct(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	first := draftProduct(t, ctx, s)
 	if errs, err := s.AddOption(ctx, first, admin.OptionDraft{Name: "顏色"}); err != nil ||
@@ -5093,7 +5093,7 @@ func TestTheOptionValueIsAddedToTheRightProduct(t *testing.T) {
 // would see it in review.
 func TestARestockNoticeNamesTheProductInTheReadersLanguage(t *testing.T) {
 	ctx := t.Context()
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	// A product whose two names differ, so the payload can be told apart.
 	var vid uuid.UUID
@@ -5176,7 +5176,7 @@ func TestARestockNoticeNamesTheProductInTheReadersLanguage(t *testing.T) {
 // would give.
 func TestAltTextFollowsThePagesLanguage(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	slug := draftProduct(t, ctx, s)
 	digest := storeMedia(t)
 
@@ -5251,7 +5251,7 @@ func storeMedia(t *testing.T) string {
 // that reaches past the application is a fixture for a feature with no entrance.
 func TestTheShopCanRunAPromotion(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	if errs, err := s.CreateBanner(ctx, &admin.BannerForm{
 		Message: "全站滿 NT$3,000 免運", Short: "滿 3,000 免運",
@@ -5324,7 +5324,7 @@ func TestTheShopCanRunAPromotion(t *testing.T) {
 // follows, through the same one owner of it.
 func TestAPromotionsButtonMustStayOnThisSite(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	for _, href := range []string{
 		"https://evil.example/deals",
@@ -5362,7 +5362,7 @@ func TestAPromotionsButtonMustStayOnThisSite(t *testing.T) {
 // after product_specs and promo_banners.
 func TestSupportCanAnswerAQuestionWithoutADeploy(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	category := "測試分類-" + uuid.NewString()[:8]
 
 	if errs, err := s.CreateFAQEntry(ctx, &admin.FAQForm{
@@ -5463,7 +5463,7 @@ func TestSupportCanAnswerAQuestionWithoutADeploy(t *testing.T) {
 // index instead of the page.
 func TestTwoFAQEntriesInOneCategoryDoNotCollide(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	category := "順序分類-" + uuid.NewString()[:8]
 
 	for _, q := range []string{"第一個問題", "第二個問題", "第三個問題"} {
@@ -5500,7 +5500,7 @@ func TestTwoFAQEntriesInOneCategoryDoNotCollide(t *testing.T) {
 // shop could change its prices and not its carriers.
 func TestAShopCanOfferAThirdDeliveryMethod(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	// What a method is OFFERED for now depends on the basket: a carrier that
 	// refuses a 27-inch monitor is not a choice for a cart with one in it. An
 	// empty cart asks the question this test is about — is the method there at
@@ -5592,7 +5592,7 @@ func TestAShopCanOfferAThirdDeliveryMethod(t *testing.T) {
 // TestAShopCanSayWhichPostalCodesCostMore is the door shipping_zones never had.
 func TestAShopCanSayWhichPostalCodesCostMore(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	code := "remote" + uuid.NewString()[:6]
 
 	if errs, err := s.CreateZone(ctx, &admin.NewZone{
@@ -5648,7 +5648,7 @@ func TestAShopCanSayWhichPostalCodesCostMore(t *testing.T) {
 // TestAZonePrefixMustBeThreeDigits refuses what the schema would, with a sentence.
 func TestAZonePrefixMustBeThreeDigits(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	for _, list := range []string{"88", "8801", "abc", "880 xx"} {
 		errs, err := s.CreateZone(ctx, &admin.NewZone{
@@ -5695,7 +5695,7 @@ func TestAZonePrefixMustBeThreeDigits(t *testing.T) {
 // units and could not see how it got there.
 func TestTheStockLedgerCanBeRead(t *testing.T) {
 	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
 	// A variant that ALREADY holds stock, deliberately: with a prior balance of zero
 	// the running total and the movement's own delta are the same number, and the
@@ -5778,7 +5778,7 @@ func TestTheStockLedgerCanBeRead(t *testing.T) {
 // tests the case the join exists for now.
 func TestAReleaseInTheLedgerNamesItsOrder(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	basket := cart.NewStore(pool)
 
 	var vid uuid.UUID
@@ -5836,7 +5836,7 @@ func TestAReleaseInTheLedgerNamesItsOrder(t *testing.T) {
 // it matters: until then somebody issues these by hand.
 func TestTheOrderPageShowsTheInvoiceChoice(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	number := placeUnpaidOrder(t)
 
 	var orderID uuid.UUID
@@ -5883,7 +5883,7 @@ func TestTheOrderPageShowsTheInvoiceChoice(t *testing.T) {
 // carry the same cover.
 func TestTheShopSetsEachProductsWarrantyTerm(t *testing.T) {
 	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	slug := draftProduct(t, ctx, s)
 
 	view, err := s.Product(ctx, slug)
@@ -6077,7 +6077,7 @@ func returnLineID(t *testing.T, requestID uuid.UUID) uuid.UUID {
 // received would pass with the restocked column ignored entirely.
 func TestAnInspectedReturnPutsTheSellableUnitsBack(t *testing.T) {
 	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	requestID, variantID := returnedOrderWithStock(t, "restock", 2)
 	lineID := returnLineID(t, requestID)
@@ -6131,7 +6131,7 @@ func TestAnInspectedReturnPutsTheSellableUnitsBack(t *testing.T) {
 // because the units either went back on the shelf or did not.
 func TestAReturnCannotCloseWithAnUninspectedLine(t *testing.T) {
 	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	requestID, variantID := returnedOrderWithStock(t, "uninspected", 2)
 	lineID := returnLineID(t, requestID)
@@ -6185,7 +6185,7 @@ func TestAReturnCannotCloseWithAnUninspectedLine(t *testing.T) {
 // direction that oversells.
 func TestInspectingIsRefusedBeforeApproval(t *testing.T) {
 	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	requestID, variantID := returnedOrderWithStock(t, "unapproved", 2)
 	lineID := returnLineID(t, requestID)
@@ -6209,7 +6209,7 @@ func TestInspectingIsRefusedBeforeApproval(t *testing.T) {
 // act on that, and the whole point of checking it in Go as well is the sentence.
 func TestRestockingMoreThanArrivedIsRefused(t *testing.T) {
 	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	requestID, variantID := returnedOrderWithStock(t, "overrestock", 1)
 	lineID := returnLineID(t, requestID)
@@ -6243,7 +6243,7 @@ func TestRestockingMoreThanArrivedIsRefused(t *testing.T) {
 // 'adjustment' with an actor, which is exactly what a recount is.
 func TestALineIsInspectedOnceAndACorrectionIsAnAdjustment(t *testing.T) {
 	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	requestID, variantID := returnedOrderWithStock(t, "twice", 2)
 	lineID := returnLineID(t, requestID)
@@ -6425,7 +6425,7 @@ func shippedFor(t *testing.T, lineID uuid.UUID) int32 {
 // on the shelf either sent a parcel claiming all three or made the customer wait.
 func TestAnOrderCanShipInTwoParcels(t *testing.T) {
 	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	number, orderID, lines, variants := twoLineOrderWithStock(t, "partial")
 
@@ -6509,7 +6509,7 @@ func TestAnOrderCanShipInTwoParcels(t *testing.T) {
 // on, and what stops the parcel row being written before the refusal lands.
 func TestAParcelCannotCarryMoreThanRemains(t *testing.T) {
 	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	number, orderID, lines, variants := twoLineOrderWithStock(t, "overship")
 
@@ -6542,7 +6542,7 @@ func TestAParcelCannotCarryMoreThanRemains(t *testing.T) {
 // would otherwise produce.
 func TestAnEmptyParcelIsRefused(t *testing.T) {
 	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	number, orderID, lines, _ := twoLineOrderWithStock(t, "emptyparcel")
 
@@ -6572,7 +6572,7 @@ func TestAnEmptyParcelIsRefused(t *testing.T) {
 // customer would be told about one box and left to wonder about the other.
 func TestEachParcelTellsTheCustomer(t *testing.T) {
 	ctx, staff := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{})
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	number, orderID, lines, _ := twoLineOrderWithStock(t, "notice")
 

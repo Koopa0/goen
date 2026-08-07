@@ -460,6 +460,66 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 					} else {
 						<p class="goen-admin__hint">這筆訂單已經是最終狀態。</p>
 					}
+					// 統一發票. The preference has been collected since checkout
+					// shipped and nothing ever acted on it — this is the door.
+					<section class="goen-admin__invoices" aria-labelledby="invoice-heading">
+						<h2 id="invoice-heading" class="goen-admin__subhead">統一發票</h2>
+						if !v.InvoicingEnabled {
+							<p class="goen-admin__hint">
+								尚未設定加值中心,無法開立發票。設定 GOEN_ECPAY_MERCHANT_ID 後才會開放。
+							</p>
+						} else {
+							if len(v.InvoiceDocuments) > 0 {
+								<ul class="goen-admin__returnlines" role="list">
+									for _, d := range v.InvoiceDocuments {
+										<li>
+											<span class="ui-cart-line__meta">
+												{ d.KindText() } { d.Number } · { d.Amount() }
+												if d.Voided() {
+													<strong>(已作廢)</strong>
+												}
+											</span>
+											<span class="ui-cart-line__meta">{ d.IssuedAt }</span>
+											// The 隨機碼, which a customer needs to look the
+											// invoice up on the 財政部 platform.
+											if d.ProviderRef != "" {
+												<span class="ui-cart-line__meta">隨機碼 { d.ProviderRef }</span>
+											}
+											// What the document says was sold. A shop
+											// reconciling an invoice against an order
+											// compares lines, not totals.
+											for _, l := range d.Lines {
+												<span class="ui-cart-line__meta">{ l.Line() }</span>
+											}
+										</li>
+									}
+								</ul>
+							}
+							if v.CanIssueInvoice() {
+								<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/invoice") }>
+									<button class="ui-btn ui-btn--primary ui-btn--block" type="submit">開立發票</button>
+									<p class="goen-admin__hint">
+										依結帳時選的 { v.InvoiceText() } 開立,金額為訂單總計。
+									</p>
+								</form>
+							}
+							if v.CanVoidInvoice() {
+								<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/invoice/void") }>
+									<div class="ui-field">
+										<label class="ui-label" for="void-reason">作廢原因</label>
+										<input class="ui-input" id="void-reason" name="reason" required maxlength="20" autocomplete="off"/>
+									</div>
+									<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">作廢發票</button>
+									<p class="goen-admin__hint">
+										發票不能修改,只能作廢後重開。原因會一併申報。
+									</p>
+								</form>
+							}
+							if !v.CanIssueInvoice() && !v.CanVoidInvoice() && len(v.InvoiceDocuments) == 0 {
+								<p class="goen-admin__hint">訂單成立後才能開立發票。</p>
+							}
+						}
+					</section>
 				</aside>
 			</div>
 		</div>

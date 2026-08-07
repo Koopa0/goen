@@ -35,6 +35,8 @@ const (
 	ActionDecideReturn         Action = "return.decide"
 	ActionInspectReturn        Action = "return.inspect"
 	ActionCompleteReturn       Action = "return.complete"
+	ActionIssueInvoice         Action = "invoice.issue"
+	ActionVoidInvoice          Action = "invoice.void"
 	ActionGrantCredit          Action = "credit.grant"
 	ActionAdjustStock          Action = "stock.adjust"
 	ActionPublishShipping      Action = "shipping.publish"

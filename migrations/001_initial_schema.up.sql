@@ -5935,6 +5935,21 @@ REVOKE INSERT, UPDATE, DELETE ON
     FROM admin;
 REVOKE INSERT ON payment_webhook_events FROM admin;
 
+-- The 發票 tables, given back to admin because the 加值中心 integration the
+-- comment above waited for now exists. `store` keeps neither: a storefront
+-- request that could file a tax document is a customer issuing their own
+-- invoice, and every rule about what may be issued lives in the back office.
+--
+-- INSERT and UPDATE, never DELETE. An issued 統一發票 is filed history — the
+-- 財政部 platform has it, and voiding is how it stops being live —
+-- which invoice_documents_guard already enforces from the other side by
+-- refusing every UPDATE except the void.
+GRANT INSERT, UPDATE ON invoice_documents TO admin;
+-- Lines are written with their document and never touched again; the guard on
+-- the parent is what makes a filing immutable, and a line that could be edited
+-- afterwards would let an issued invoice say it sold something else.
+GRANT INSERT ON invoice_document_lines TO admin;
+
 -- ---------------------------------------------------------------------------
 -- The DECISION columns, on the eight tables both roles legitimately write.
 --
