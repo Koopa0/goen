@@ -1397,6 +1397,45 @@ and never by what was ordered — and the back office decides it and refunds thr
 Stripe. A refund row is committed BEFORE the provider is called and settled after,
 so a crash between the two leaves something reconciliation can find.
 
+**A return has a TAIL, and it used to stop at 同意.** The money went back and the
+GOODS were in a state nothing recorded: `inventory_movements`' `return` reason had
+a CHECK, a delta-direction rule, a safety-stock exemption and a back-office label
+— four declarations and NO caller — so units coming back were indistinguishable
+from a staff member correcting a miscount, and in fact never came back at all.
+
+`/admin/returns` now receives the parcel: per LINE, `received_quantity` and
+`restocked_quantity` with a note for the difference. Per line because three things
+can come back as two sellable and one broken, which one figure cannot say. NULL
+until somebody opens the parcel, because "not looked at yet" and "looked at,
+nothing arrived" are different facts — one is work outstanding and the other is a
+conversation with the customer.
+
+**A three-way disposition (sellable / open-box / defective) was the other design
+and is deliberately absent.** "Open box" only means anything if it becomes a
+variant that goes on sale at a different price, and modelling a state nothing can
+act on is the table-with-no-door this repository keeps finding. Either a unit is
+sellable again or it is not; the note says why.
+
+`return_requests_completed_is_inspected` is what makes 'completed' mean
+something, and it is `orders_funded_to_leave_pending`'s shape: a status claiming
+the work is finished, guarded by the fact that would make it true. Without it,
+closing is a label somebody clicks over goods nobody counted.
+
+**A line is inspected ONCE, and a recount is a stock adjustment.** The restock
+posts a movement keyed on (request, line), so a second inspection either
+double-restocks or is swallowed by the unique index — and swallowed is the worse
+one: somebody who miscounted, corrected the figure and resubmitted would read the
+new number on screen with the stock still at the old one. The write refuses and
+says where the correction lives, which is `/admin/stock/{sku}`: an `adjustment`
+with an actor, already built and already audited. A second door into one ledger is
+how two numbers come to disagree.
+
+The privilege split goes one level down with it: `store` INSERTs a return line and
+holds no UPDATE at all, `admin` UPDATEs only the three inspection columns and
+holds no INSERT. The customer says what they are sending; the shop says what
+arrived. A back office that could add a line could return goods on somebody's
+behalf and refund them for it.
+
 **`DecideReturn` is `:execrows`, and the row count IS the decision.** `Decide`
 reads the request on the POOL, before `closeReturn` opens its transaction, so two
 staff members clicking 同意 and 不同意 on one request both pass that check. The

@@ -2726,8 +2726,36 @@ CREATE TABLE return_request_lines (
     return_request_id uuid NOT NULL REFERENCES return_requests (id) ON DELETE CASCADE,
     order_line_id     uuid NOT NULL,
     quantity          integer NOT NULL,
+    -- What actually came back, and how much of it went on the shelf again. NULL
+    -- until somebody has opened the parcel: "not inspected yet" and "inspected,
+    -- nothing arrived" are different facts, and a shop chasing a customer for a
+    -- parcel needs to tell them apart.
+    received_quantity  integer,
+    restocked_quantity integer,
+    -- Why the two differ, in the staff member's own words. It renders on
+    -- /admin/returns and nowhere a customer reads, so it is the same kind of
+    -- column as orders.staff_note.
+    inspection_note    text,
     PRIMARY KEY (return_request_id, order_line_id),
     CONSTRAINT return_request_lines_quantity_positive CHECK (quantity > 0),
+    -- No more back than was asked for, and no more on the shelf than came back.
+    -- A three-way disposition (sellable / open-box / defective) was the other
+    -- design and is deliberately NOT here: "open box" only means anything if it
+    -- becomes a variant that goes on sale at a different price, and modelling a
+    -- state nothing can act on is the table-with-no-door this repository keeps
+    -- finding. Either a unit is sellable again or it is not; the note says why.
+    CONSTRAINT return_request_lines_received_bounded
+        CHECK (received_quantity IS NULL
+               OR (received_quantity >= 0 AND received_quantity <= quantity)),
+    CONSTRAINT return_request_lines_restocked_bounded
+        CHECK (restocked_quantity IS NULL
+               OR (restocked_quantity >= 0 AND restocked_quantity <= received_quantity)),
+    -- Inspected means BOTH figures, or the row says a quantity came back and
+    -- refuses to say what happened to it.
+    CONSTRAINT return_request_lines_inspected_together
+        CHECK ((received_quantity IS NULL) = (restocked_quantity IS NULL)),
+    CONSTRAINT return_request_lines_note_bounded
+        CHECK (inspection_note IS NULL OR length(inspection_note) <= 500),
     CONSTRAINT return_request_lines_request_fk
         FOREIGN KEY (order_id, return_request_id) REFERENCES return_requests (order_id, id)
         ON DELETE CASCADE,
@@ -2824,6 +2852,21 @@ BEGIN
     IF NOT legal THEN
         RAISE EXCEPTION 'return request cannot move from % to %', OLD.status, NEW.status
             USING ERRCODE = 'check_violation', CONSTRAINT = 'return_requests_legal_transition';
+    END IF;
+
+    -- Completed means the parcel was opened and every line accounted for. It is
+    -- the same shape as orders_funded_to_leave_pending: a status that claims the
+    -- work is finished, guarded by the fact that would make it true.
+    --
+    -- Without it 'completed' is a label somebody clicks, and the goods behind it
+    -- are in a state nobody recorded — which for a RETURN is the whole question,
+    -- because the units either went back on the shelf or did not and the ledger
+    -- is what says which.
+    IF NEW.status = 'completed'
+       AND EXISTS (SELECT 1 FROM return_request_lines
+                   WHERE return_request_id = NEW.id AND received_quantity IS NULL) THEN
+        RAISE EXCEPTION 'return request % has lines nobody has inspected', NEW.id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'return_requests_completed_is_inspected';
     END IF;
     RETURN NEW;
 END;
@@ -5906,6 +5949,14 @@ GRANT INSERT (id, order_id, requested_by_user_id, reason, created_at),
       UPDATE (id, order_id, requested_by_user_id, reason, created_at)
     ON return_requests TO store;
 
+-- The customer says WHAT they are sending back; the shop says what arrived. The
+-- same split return_requests already draws between reason and resolution, one
+-- level down — store writes the claim and never the inspection, so a storefront
+-- request cannot declare its own parcel received and restocked.
+REVOKE INSERT, UPDATE ON return_request_lines FROM store;
+GRANT INSERT (order_id, return_request_id, order_line_id, quantity)
+    ON return_request_lines TO store;
+
 REVOKE INSERT, UPDATE ON orders FROM store;
 GRANT INSERT (id, order_number, user_id, fulfillment_status, discount_cents,
               shipping_cents, tax_cents, shipping_version_id,
@@ -5955,6 +6006,14 @@ REVOKE INSERT, UPDATE ON return_requests FROM admin;
 GRANT INSERT (id, status, resolution, created_at, decided_at),
       UPDATE (id, status, resolution, created_at, decided_at)
     ON return_requests TO admin;
+
+-- The mirror: the shop records the inspection and never the claim. INSERT is
+-- revoked outright rather than narrowed, because a return line is the
+-- CUSTOMER's statement of what they are sending — a back office that could add
+-- one could return goods on somebody's behalf and refund them for it.
+REVOKE INSERT, UPDATE ON return_request_lines FROM admin;
+GRANT UPDATE (received_quantity, restocked_quantity, inspection_note)
+    ON return_request_lines TO admin;
 
 REVOKE INSERT, UPDATE ON orders FROM admin;
 GRANT INSERT (id, fulfillment_status, staff_note, placed_at, cancelled_at,

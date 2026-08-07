@@ -312,6 +312,10 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 	mux.HandleFunc("POST /admin/stock/price", back.RequireStaff(back.SetVariantPrice))
 	mux.HandleFunc("GET /admin/returns", back.RequireStaff(back.Returns))
 	mux.HandleFunc("POST /admin/returns/{id}/decide", back.RequireStaff(back.Decide))
+	// The tail a return used to have no door to: the parcel arrives, somebody
+	// opens it, and the sellable units go back on the shelf through the ledger.
+	mux.HandleFunc("POST /admin/returns/{id}/inspect", back.RequireStaff(back.Inspect))
+	mux.HandleFunc("POST /admin/returns/{id}/complete", back.RequireStaff(back.Complete))
 	mux.HandleFunc("POST /admin/products/{slug}/options", back.RequireStaff(back.AddOption))
 	mux.HandleFunc("POST /admin/products/{slug}/options/values", back.RequireStaff(back.AddOptionValue))
 	mux.HandleFunc("POST /admin/products/{slug}/specs", back.RequireStaff(back.AddSpec))

@@ -678,6 +678,15 @@ func (s *Store) Returns(ctx context.Context) (pages.AdminReturnsView, error) {
 		byRequest[l.ReturnRequestID] = append(byRequest[l.ReturnRequestID], pages.AdminReturnLine{
 			SKU: l.SKU, Name: l.ProductName, Label: l.VariantLabel.String,
 			UnitCents: l.UnitPriceCents, Quantity: l.Quantity,
+			OrderLineID: l.OrderLineID.String(),
+			// Inspected is the presence of the figure, never a zero: a line
+			// somebody opened and found empty reads 0 received, which is a
+			// finding, and a line nobody has opened reads NULL, which is work.
+			Inspected:   l.ReceivedQuantity.Valid,
+			Received:    l.ReceivedQuantity.Int32,
+			Restocked:   l.RestockedQuantity.Int32,
+			Note:        l.InspectionNote,
+			Restockable: l.Restockable,
 		})
 	}
 
@@ -1015,6 +1024,164 @@ func (s *Store) closeReturn(
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit return decision: %w", err)
+	}
+	return nil
+}
+
+// ReturnLineInspection is what a staff member found in one line of a parcel.
+type ReturnLineInspection struct {
+	OrderLineID uuid.UUID
+	// Received is how many units actually arrived, which may be fewer than the
+	// customer said they were sending — that difference is a conversation, and
+	// recording it is how anybody has that conversation later.
+	Received int32
+	// Restocked is how many of them went back on the shelf. The rest are damaged,
+	// incomplete or otherwise unsellable; Note says which.
+	Restocked int32
+	Note      string
+}
+
+// checkInspection refuses counts the database would refuse anyway.
+//
+// return_request_lines_restocked_bounded says the same thing and is the
+// authority. Saying it here as well is what turns a constraint name into a
+// sentence a staff member can act on — the same reason splitRefund names every
+// figure rather than letting refunds_within_capture speak.
+func checkInspection(lines []ReturnLineInspection) error {
+	if len(lines) == 0 {
+		return ErrInvalid
+	}
+	for _, l := range lines {
+		if l.Received < 0 || l.Restocked < 0 || l.Restocked > l.Received {
+			return fmt.Errorf("%w: cannot restock %d of %d received",
+				ErrInvalid, l.Restocked, l.Received)
+		}
+	}
+	return nil
+}
+
+// InspectReturn records what came back and puts the sellable units on the shelf.
+//
+// The whole parcel in ONE transaction: every line's inspection, every restock
+// movement, and the audit row. Split, a crash between them leaves stock on the
+// shelf that no inspection explains, or an inspection claiming units that never
+// moved — and inventory_movements is the ledger a shop reconciles against, so a
+// row with no counterpart is worse than either half being absent.
+//
+// The restock is read back from what this transaction just WROTE rather than
+// from the caller's slice, for the reason Advance reads its held reservations
+// inside its own transaction: the set acted on has to be the set the database
+// agreed to, not the set the form proposed.
+func (s *Store) InspectReturn(
+	ctx context.Context, id string, lines []ReturnLineInspection, actor uuid.NullUUID,
+) error {
+	requestID, err := uuid.Parse(id)
+	if err != nil {
+		return ErrRefused
+	}
+	if checkErr := checkInspection(lines); checkErr != nil {
+		return checkErr
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin return inspection: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	q := s.q.WithTx(tx)
+
+	for _, l := range lines {
+		n, inspectErr := q.InspectReturnLine(ctx, db.InspectReturnLineParams{
+			RequestID: requestID, OrderLineID: l.OrderLineID,
+			Received: l.Received, Restocked: l.Restocked, Note: l.Note,
+		})
+		if inspectErr != nil {
+			return fmt.Errorf("%w: %s", ErrRefused, inspectErr.Error())
+		}
+		// Zero rows is one of three things and all are refusals the caller has to
+		// hear: the request is not approved, the line does not belong to it, or
+		// somebody has already inspected it. Silently writing nothing would leave
+		// the page reporting work that did not happen — and for the third case it
+		// would show a corrected count against stock that never moved.
+		if n == 0 {
+			return fmt.Errorf("%w: line %s of return %s is not open for inspection "+
+				"— it may already have been inspected, in which case a recount is a "+
+				"stock adjustment", ErrRefused, l.OrderLineID, requestID)
+		}
+	}
+
+	restock, err := q.ReturnRestockLines(ctx, requestID)
+	if err != nil {
+		return fmt.Errorf("read what this return restocks: %w", err)
+	}
+	for _, r := range restock {
+		if err := q.RestockReturnedUnits(ctx, db.RestockReturnedUnitsParams{
+			VariantID: r.VariantID, Delta: r.Quantity,
+			// Per (request, line), so a resubmitted form posts one movement —
+			// inventory_movements has a unique index on this.
+			IdempotencyKey: "return:" + requestID.String() + ":" + r.OrderLineID.String(),
+			RequestID:      requestID,
+			ActorUserID:    actor,
+		}); err != nil {
+			return fmt.Errorf("restock %s from return %s: %w", r.VariantID, requestID, err)
+		}
+	}
+
+	if err := auditIn(ctx, q, Event{
+		Action: ActionInspectReturn, Table: "return_requests", ID: nullableID(requestID),
+		// Counts, never the note: audit_events is append-only and erase_user does
+		// not reach it, so a staff member's sentence about a customer's parcel
+		// would outlive every later correction of it. The note lives on the line,
+		// which erase_user's cascade does reach.
+		After: map[string]any{"lines": len(lines), "restocked": len(restock)},
+	}); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit return inspection: %w", err)
+	}
+	return nil
+}
+
+// CompleteReturn closes an inspected return.
+//
+// It writes no stock: the movement was posted with the INSPECTION, because that
+// is when the goods physically went back on the shelf. Closing is bookkeeping
+// after the fact, and posting it here would leave a window in which the units
+// were on the shelf and the ledger did not say so.
+func (s *Store) CompleteReturn(ctx context.Context, id, resolution string, actor uuid.NullUUID) error {
+	requestID, err := uuid.Parse(id)
+	if err != nil {
+		return ErrRefused
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin return completion: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	q := s.q.WithTx(tx)
+
+	// return_requests_completed_is_inspected refuses this while any line is
+	// un-inspected, so an uninspected parcel raises rather than closing quietly.
+	closed, err := q.CompleteReturn(ctx, db.CompleteReturnParams{
+		ID: requestID, Resolution: resolution,
+	})
+	if err != nil {
+		return fmt.Errorf("%w: %s", ErrRefused, err.Error())
+	}
+	if closed == 0 {
+		return fmt.Errorf("%w: return %s is not open for completion", ErrRefused, requestID)
+	}
+
+	if err := auditIn(ctx, q, Event{
+		Action: ActionCompleteReturn, Table: "return_requests", ID: nullableID(requestID),
+		After: map[string]any{"resolution": resolution},
+	}); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit return completion: %w", err)
 	}
 	return nil
 }
