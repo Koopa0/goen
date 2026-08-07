@@ -330,9 +330,27 @@ func applyStatusEffects(ctx context.Context, q *db.Queries, e statusEffect) erro
 		if _, err := q.ReverseOrderCredit(ctx, e.orderID); err != nil {
 			return fmt.Errorf("return store credit spent on %s: %w", e.number, err)
 		}
-	case "delivered":
+	case "delivered", "completed":
 		// A delivered ORDER means its parcels arrived, and the customer's page
 		// reads the parcel.
+		//
+		// 'completed' is here because orders_legal_transition permits shipped ->
+		// completed DIRECTLY, and that is the ordinary click for 超商取貨: the shop
+		// has no delivery event to record for a parcel the customer walks in and
+		// collects, so 已完成 is the only move it can honestly make. Stamping only
+		// on 'delivered' left those parcels unstamped forever — mistake #17, a
+		// guard naming one shape of a thing that has two, and the fix for the
+		// unwritten delivered_at closing one of its two transitions.
+		//
+		// What it costs is not cosmetic. /admin/returns reads
+		// max(delivered_at) to decide whether a request is inside 消保法 §19's
+		// seven days, and an unstamped parcel renders as 尚未送達 — "the window
+		// has not started" — for goods that demonstrably arrived. The one screen
+		// built to inform an unwaivable-right decision was misinforming it, in
+		// the shop's favour.
+		//
+		// Idempotent by the query's own WHERE: coming here from 'delivered'
+		// finds nothing left to stamp.
 		if err := q.MarkShipmentsDelivered(ctx, e.orderID); err != nil {
 			return fmt.Errorf("mark parcels of %s delivered: %w", e.number, err)
 		}
@@ -412,14 +430,8 @@ func (s *Store) Ship(ctx context.Context, number, carrier, tracking string, acto
 		return fmt.Errorf("%w: %s", ErrRefused, advErr.Error())
 	}
 
-	held, err := q.HeldReservations(ctx, row.ID)
-	if err != nil {
-		return fmt.Errorf("read held reservations: %w", err)
-	}
-	for _, id := range held {
-		if err := q.ConsumeReservation(ctx, id); err != nil {
-			return fmt.Errorf("consume reservation %s: %w", id, err)
-		}
+	if err := settleHeldStock(ctx, q, row.ID, number); err != nil {
+		return err
 	}
 
 	if err := enqueueOrderShipped(ctx, q, row.ID, &OrderShipped{
@@ -443,6 +455,32 @@ func (s *Store) Ship(ctx context.Context, number, carrier, tracking string, acto
 
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit ship: %w", err)
+	}
+	return nil
+}
+
+// settleHeldStock consumes the reservations a dispatch is taking off the shelf.
+//
+// Nothing held is not "nothing to do" — it is stock that went BACK on the shelf
+// under an order about to leave the warehouse. Every line takes a hold in
+// PlaceOrder's own transaction, so an empty set here means somebody released
+// them, and shipping anyway posts no inventory movement at all: the parcel goes
+// out and stock_quantity stays where it was, over-stating the shelf by exactly
+// this order forever and overselling the next customer. Ranging over an empty
+// slice made all of that silent.
+func settleHeldStock(ctx context.Context, q *db.Queries, orderID uuid.UUID, number string) error {
+	held, err := q.HeldReservations(ctx, orderID)
+	if err != nil {
+		return fmt.Errorf("read held reservations: %w", err)
+	}
+	if len(held) == 0 {
+		return fmt.Errorf("%w: order %s holds no stock; its reservations were "+
+			"released and shipping would not decrement anything", ErrRefused, number)
+	}
+	for _, id := range held {
+		if consumeErr := q.ConsumeReservation(ctx, id); consumeErr != nil {
+			return fmt.Errorf("consume reservation %s: %w", id, consumeErr)
+		}
 	}
 	return nil
 }
@@ -944,10 +982,20 @@ func (s *Store) closeReturn(
 	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
-	if decideErr := q.DecideReturn(ctx, db.DecideReturnParams{
+	// The row count is the decision, not the error. Decide's pre-check runs on
+	// the pool outside this transaction, so it is the statement's own
+	// `status = 'requested'` that actually settles which of two staff members
+	// deciding at once wins — and the loser must not go on to write an audit row
+	// claiming it made a decision it did not make.
+	decided, decideErr := q.DecideReturn(ctx, db.DecideReturnParams{
 		ID: requestID, Status: status, Resolution: text(resolution),
-	}); decideErr != nil {
+	})
+	if decideErr != nil {
 		return fmt.Errorf("%w: %s", ErrRefused, decideErr.Error())
+	}
+	if decided == 0 {
+		return fmt.Errorf("%w: return %s was decided by somebody else first",
+			ErrRefused, requestID)
 	}
 	if status == "approved" && providerRef != "" {
 		if evErr := q.RecordOrderEvent(ctx, db.RecordOrderEventParams{

@@ -1239,6 +1239,96 @@ func TestAReturnIsDecidedOnce(t *testing.T) {
 	}
 }
 
+// TestTheLoserOfTwoSimultaneousDecisionsWritesNoAuditRow closes the window
+// between the check and the write.
+//
+// Decide reads the request on the POOL, before closeReturn opens its
+// transaction, so two staff members clicking on one request both pass that
+// check. DecideReturn carries `status = 'requested'` in its own WHERE clause —
+// the only place the question is asked under a lock — but it was `:exec`, so
+// the loser's UPDATE matched zero rows, SQL called that success, and the
+// transaction committed an audit row asserting a decision nobody made. On the
+// approval path that row lands after a refund has already been paid.
+//
+// Two goroutines and a start channel would not prove this: they finish
+// microseconds apart and never overlap (CLAUDE.md #9). T1's transaction is held
+// OPEN across T2's whole pre-check instead, which makes the interleaving the
+// defect needs the one that actually happens.
+func TestTheLoserOfTwoSimultaneousDecisionsWritesNoAuditRow(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{})
+	requestID, _ := returnedOrder(t, 1)
+
+	before := auditRowsFor(t, requestID)
+
+	// T1: a staff member's decision, in flight and holding the row.
+	t1, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin T1: %v", err)
+	}
+	defer func() { _ = t1.Rollback(ctx) }()
+	if _, err := t1.Exec(ctx, `
+		UPDATE return_requests SET status = 'rejected', decided_at = now()
+		WHERE id = $1 AND status = 'requested'`, requestID); err != nil {
+		t.Fatalf("T1 decide: %v", err)
+	}
+
+	// T2: the second staff member. Its pre-check reads the COMMITTED row and
+	// still sees 'requested' — that is the defect, and the reason the statement
+	// has to be the authority. It then blocks on T1's lock.
+	// t.Error, never t.Fatal, from a goroutine.
+	decided := make(chan error, 1)
+	go func() { decided <- s.Decide(ctx, requestID.String(), "approved", "", uuid.NullUUID{}) }()
+
+	// Give T2 time to get past its pre-check and onto the lock. If it has not,
+	// the test still passes for the right reason once T1 commits — this only
+	// makes the interleaving the intended one.
+	select {
+	case err := <-decided:
+		t.Fatalf("T2 finished before T1 committed (%v); it never met the lock, "+
+			"so this run proves nothing", err)
+	case <-time.After(250 * time.Millisecond):
+	}
+
+	if err := t1.Commit(ctx); err != nil {
+		t.Fatalf("commit T1: %v", err)
+	}
+
+	if err := <-decided; !errors.Is(err, admin.ErrRefused) {
+		t.Errorf("the second decision returned %v, want ErrRefused — it updated no "+
+			"row and reported success", err)
+	}
+
+	// The consequence, not just the return value: the trail must not record a
+	// decision that did not happen.
+	if after := auditRowsFor(t, requestID); after != before {
+		t.Errorf("%d audit rows for this return, was %d — the losing decision was "+
+			"recorded as though it had been made", after, before)
+	}
+
+	// And the decision that DID happen is T1's, unchanged.
+	var status string
+	if err := pool.QueryRow(ctx,
+		`SELECT status FROM return_requests WHERE id = $1`, requestID).Scan(&status); err != nil {
+		t.Fatalf("read status: %v", err)
+	}
+	if status != "rejected" {
+		t.Errorf("the return is %q, want rejected — the loser overwrote the winner", status)
+	}
+}
+
+// auditRowsFor counts the audit trail's entries for one return request.
+func auditRowsFor(t *testing.T, requestID uuid.UUID) int {
+	t.Helper()
+	var n int
+	if err := pool.QueryRow(t.Context(), `
+		SELECT count(*) FROM audit_events
+		WHERE entity_table = 'return_requests' AND entity_id = $1`, requestID).Scan(&n); err != nil {
+		t.Fatalf("count audit rows: %v", err)
+	}
+	return n
+}
+
 // TestARefundCannotExceedWhatWasCaptured is the database's guard, reached
 // through the back office. Two returns each claiming the full order would pay
 // out twice what came in.
@@ -2788,10 +2878,25 @@ func emptyTheShelf(t *testing.T, vid uuid.UUID, key string) {
 	}
 }
 
-// shippableOrder writes a funded order sitting in picking.
+// shippableOrder writes a funded order sitting in picking, holding its stock.
+//
+// It used to write a line with no variant and take no hold at all, which made it
+// a fixture for an order the application cannot produce: every line takes a hold
+// in PlaceOrder's own transaction. Ship now refuses an order holding nothing —
+// shipping one posts no inventory movement, so the parcel leaves and the shelf
+// count does not — and this fixture was the first thing that refusal caught.
 func shippableOrder(t *testing.T, locale string) string {
 	t.Helper()
 	ctx := t.Context()
+
+	var variantID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		SELECT pv.id FROM product_variants pv JOIN products p ON p.id = pv.product_id
+		WHERE pv.is_active AND p.status = 'active' AND pv.stock_quantity - pv.safety_stock > 2
+		LIMIT 1`).Scan(&variantID); err != nil {
+		t.Fatalf("find variant: %v", err)
+	}
+
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin: %v", err)
@@ -2810,9 +2915,14 @@ func shippableOrder(t *testing.T, locale string) string {
 		t.Fatalf("create order: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
-		VALUES ($1, 'SHIP-SKU', '測試商品', 100000, 1)`, orderID); err != nil {
+		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity)
+		VALUES ($1, $2, 'SHIP-SKU', '測試商品', 100000, 1)`, orderID, variantID); err != nil {
 		t.Fatalf("create line: %v", err)
+	}
+	if _, err := tx.Exec(ctx,
+		`SELECT hold_inventory($1, $2, 1, now() + interval '30 minutes', $3)`,
+		orderID, variantID, "ship-fixture:"+number); err != nil {
+		t.Fatalf("hold: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
@@ -4452,6 +4562,93 @@ func TestADeliveredOrderMarksItsParcelsDelivered(t *testing.T) {
 	if again := deliveredAt(t, number); !again.Equal(first) {
 		t.Errorf("the delivery timestamp moved from %s to %s",
 			first.Format(time.RFC3339Nano), again.Format(time.RFC3339Nano))
+	}
+}
+
+// TestAnOrderCompletedWithoutADeliveryStepStillStampsItsParcels closes the OTHER
+// transition that ends an order's delivery story.
+//
+// orders_legal_transition permits shipped -> completed directly, and for 超商取貨
+// that is the only honest move a shop can make: nobody at the shop witnesses the
+// customer walking into the store, so there is no delivery event to record. The
+// stamp was wired to 'delivered' alone, so a whole delivery channel's parcels
+// were never stamped — CLAUDE.md #17, a guard naming one shape of a thing that
+// has two.
+//
+// It is not cosmetic. /admin/returns decides whether a request is inside 消保法
+// §19's seven days from max(delivered_at); an unstamped parcel renders 尚未送達,
+// telling the shop the window has not started for goods that arrived.
+func TestAnOrderCompletedWithoutADeliveryStepStillStampsItsParcels(t *testing.T) {
+	ctx, staff := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{})
+	actor := uuid.NullUUID{UUID: staff, Valid: true}
+	number := shippableOrder(t, "zh-Hant")
+
+	if err := s.Ship(ctx, number, "7-ELEVEN 交貨便", "COLLECTED-"+number, actor); err != nil {
+		t.Fatalf("Ship: %v", err)
+	}
+	if !deliveredAt(t, number).IsZero() {
+		t.Fatal("a parcel that has just left is already stamped delivered; the fixture is wrong")
+	}
+
+	// Straight from shipped, with no delivered step in between.
+	if _, err := s.Advance(ctx, number, "completed", actor); err != nil {
+		t.Fatalf("Advance to completed: %v", err)
+	}
+
+	if deliveredAt(t, number).IsZero() {
+		t.Error("an order completed without a delivery step left its parcel unstamped — " +
+			"the customer's page says it never arrived and /admin/returns reads the " +
+			"rescission window as never having started")
+	}
+}
+
+// TestShippingIsRefusedWhenTheOrderHoldsNoStock stops a parcel leaving under an
+// order whose stock has already gone back on the shelf.
+//
+// Ship consumed `held` by ranging over it, and an EMPTY slice ranges silently:
+// the shipment row, the status move and the dispatch notice all landed while no
+// inventory movement was posted at all, so the physical unit left the warehouse
+// and stock_quantity stayed where it was — over-stating the shelf by that order
+// forever, and overselling the next customer.
+//
+// The state is produced by hand because no application path reaches it any more:
+// release_reservation refuses a committed order's hold and a funded one's. That
+// is exactly why the guard is worth having rather than being redundant — this
+// used to be reachable through the sweeper, and a silent oversell is the failure
+// that must never be silent.
+func TestShippingIsRefusedWhenTheOrderHoldsNoStock(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{})
+	number, orderID := pickingOrderHoldingStock(t)
+
+	if _, err := pool.Exec(ctx, `
+		UPDATE inventory_reservations SET state = 'released', settled_at = now()
+		WHERE order_id = $1 AND state = 'held'`, orderID); err != nil {
+		t.Fatalf("strand the order: %v", err)
+	}
+
+	err := s.Ship(ctx, number, "黑貓宅急便", "NOHOLD-"+number, uuid.NullUUID{})
+	if !errors.Is(err, admin.ErrRefused) {
+		t.Fatalf("shipping an order holding no stock = %v, want ErrRefused", err)
+	}
+
+	// The whole transaction rolled back, or the refusal recorded half a dispatch.
+	var shipments int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM order_shipments WHERE order_id = $1`, orderID).Scan(&shipments); err != nil {
+		t.Fatalf("count shipments: %v", err)
+	}
+	if shipments != 0 {
+		t.Errorf("%d parcels recorded against a refused dispatch, want 0", shipments)
+	}
+	var status string
+	if err := pool.QueryRow(ctx,
+		`SELECT fulfillment_status FROM orders WHERE id = $1`, orderID).Scan(&status); err != nil {
+		t.Fatalf("read status: %v", err)
+	}
+	if status != "picking" {
+		t.Errorf("order is %q after a refused dispatch, want picking", status)
 	}
 }
 

@@ -209,7 +209,58 @@ func TestTheRedemptionMatchesTheOrdersDiscount(t *testing.T) {
 	}
 }
 
+// TestASpentCouponIsRefusedAsItselfRatherThanAsAnUnknownFailure holds the
+// sentinel the checkout handler branches on.
+//
+// redeemCoupon MAPPED this refusal by matching strings.Contains on err.Error().
+// pgconn renders a PgError as severity + message + SQLSTATE, and the constraint
+// name RAISE sets travels in PgError.ConstraintName — it is not in that string,
+// so neither branch could ever be taken. Every over-limit redemption fell
+// through to the generic wrap, PlaceOrder's switch had no case for it, and the
+// customer got a full-page 500 with their whole checkout form discarded.
+//
+// It is not a race. FindCoupon deliberately reads no limit at all, so a spent
+// code passes the form validation every time and is refused here every time.
+//
+// TestTotalRedemptionLimitIsEnforced was already driving this exact path four
+// times against a cap of two and asserting only `placed != 2` — so the dead
+// branch executed green on every integration run. A count says the database held
+// the line; only the ERROR says what the customer is about to be shown.
+func TestASpentCouponIsRefusedAsItselfRatherThanAsAnUnknownFailure(t *testing.T) {
+	s := cart.NewStore(pool)
+	code := coupon(t, "SPENTONCE", "amount", 10000, 0, 0, 0, 1)
+
+	c, err := s.FindCoupon(t.Context(), code, 500000, 0)
+	if err != nil {
+		t.Fatalf("find: %v", err)
+	}
+	if _, placeErr := placeWithCoupon(t, s, c, 1); placeErr != nil {
+		t.Fatalf("the first order should have gone through: %v", placeErr)
+	}
+
+	// The pre-check passes again — that is the point. The limit lives under
+	// redeem_coupon's lock and FindCoupon does not read it.
+	again, err := s.FindCoupon(t.Context(), code, 500000, 0)
+	if err != nil {
+		t.Fatalf("a spent coupon must still pass the field validation, "+
+			"or this test is not exercising the transactional refusal: %v", err)
+	}
+
+	_, err = placeWithCoupon(t, s, again, 2)
+	if !errors.Is(err, cart.ErrCouponUsedUp) {
+		t.Fatalf("redeeming a spent coupon = %v, want ErrCouponUsedUp — the "+
+			"checkout handler branches on this sentinel, and anything else is a "+
+			"500 with the customer's address discarded", err)
+	}
+}
+
 // placeWithCoupon places an order carrying a coupon and returns its number.
+//
+// Its own variant per call, not the seeded koto-over-ear one. Placing an order
+// CONSUMES stock, and several tests here place four apiece, so every caller was
+// drawing down one shared seeded row: the suite passed in file order and failed
+// under -shuffle with "no true variant", which names an empty shelf and not the
+// coupon under test. CLAUDE.md #23, found by adding the fifth consumer.
 func placeWithCoupon(t *testing.T, s *cart.Store, c *cart.Coupon, n int) (string, error) {
 	t.Helper()
 	ctx := t.Context()
@@ -219,7 +270,7 @@ func placeWithCoupon(t *testing.T, s *cart.Store, c *cart.Coupon, n int) (string
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	vid := variantOf(t, "koto-over-ear", true)
+	vid := freshVariant(t, "coupon-order")
 	id := newCart(t, s)
 	if err := s.Add(ctx, id, vid, 1); err != nil {
 		t.Fatalf("add: %v", err)

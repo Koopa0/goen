@@ -451,11 +451,26 @@ templ AccountOrderPage(p layouts.Page, v *AccountOrderView) {
 					<form method="post" action={ templ.SafeURL("/orders/" + v.Number + "/reorder") }>
 						<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyOrderReorder) }</button>
 					</form>
+					if v.CanRegisterWarranty() {
+						// The warranty page's own copy says to register from here,
+						// and this link is what makes that sentence true:
+						// /account/warranty reaches the LIST, and the form lives one
+						// level down at /account/warranty/{number} with nothing
+						// anywhere pointing at it.
+						<a class="ui-btn ui-btn--secondary" href={ templ.SafeURL(v.WarrantyLink()) }>
+							{ i18n.T(ctx, i18n.KeyWarrantyTitle) }
+						</a>
+					}
 				</div>
 			</div>
 			if v.AwaitingPayment() {
+				// The link matters as much as the sentence. This notice said an
+				// order was unpaid and offered nothing to do about it, on the one
+				// page a signed-in customer reaches their orders from — the same
+				// orphan shape as a route nothing links to.
 				<p class="ui-alert ui-alert--info" role="status">
 					{ i18n.T(ctx, i18n.KeyPayLaterNotice) }
+					<a href={ templ.SafeURL("/orders/" + v.Number + "/pay") }>{ i18n.T(ctx, i18n.KeyPay) }</a>
 				</p>
 			}
 			<div class="goen-order__layout">

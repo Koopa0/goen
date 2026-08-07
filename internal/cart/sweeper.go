@@ -88,7 +88,13 @@ func BenignSweepFailure(err error) bool {
 	}
 	switch pgErr.ConstraintName {
 	case "inventory_reservation_state",
-		"inventory_reservation_committed_no_release":
+		"inventory_reservation_committed_no_release",
+		// A zero-owed order is paid for and still pending, so committed_orders
+		// reports it false. ExpiredReservations already declines to offer one,
+		// which makes this the belt to that query's braces: the refusal is the
+		// database's, and the sweeper must read it as being safe rather than
+		// broken however the row was selected.
+		"inventory_reservation_funded_no_release":
 		return true
 	default:
 		return false

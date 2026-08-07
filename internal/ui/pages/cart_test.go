@@ -229,6 +229,167 @@ func TestTheOrderPageShowsTheDiscountAndWhy(t *testing.T) {
 	}
 }
 
+// TestOnlyAnOrderThatOwesMoneyIsOfferedPayment holds the sentence a paid
+// customer used to read on the first page they saw after paying.
+//
+// AwaitingPayment tested `Status == "pending"` alone. An order stays pending
+// from the capture until a human at the shop picks it, so 尚未付款 and a 前往付款
+// link sat on an order that was paid for — and Stripe's success_url returns the
+// customer to exactly this page, with the emailed receipt linking back to it.
+//
+// Asserted through the RENDER rather than the method, for the reason
+// TestTheOrderPageShowsTheDiscountAndWhy is: the view model held Committed
+// correctly the whole time (CanCancel read it, three lines away) and the
+// template still said the wrong thing.
+//
+// The two funded cases are separate rows because neither signal covers the
+// other: a captured card leaves the order committed and still owing, and a fully
+// store-credited order owes nothing and is not committed until it leaves pending.
+func TestOnlyAnOrderThatOwesMoneyIsOfferedPayment(t *testing.T) {
+	tests := []struct {
+		name      string
+		status    string
+		committed bool
+		owed      int64
+		want      bool
+	}{
+		{name: "placed and unpaid", status: "pending", committed: false, owed: 106000, want: true},
+		{name: "card captured, not yet picked", status: "pending", committed: true, owed: 106000, want: false},
+		{name: "wholly paid from store credit", status: "pending", committed: false, owed: 0, want: false},
+		{name: "cancelled", status: "cancelled", committed: false, owed: 106000, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := &OrderView{
+				Number: "GO-260101-000009", Status: tt.status,
+				SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
+				Committed: tt.committed, OwedCents: tt.owed,
+			}
+			html := renderToString(t, Order(layouts.Page{Title: "訂單"}, v))
+
+			// The words and the link are asserted separately: removing one and
+			// leaving the other is still a page that lies.
+			gotNotice := strings.Contains(html, "尚未付款")
+			gotLink := strings.Contains(html, "/orders/GO-260101-000009/pay")
+			if gotNotice != tt.want {
+				t.Errorf("the 尚未付款 notice renders = %v, want %v", gotNotice, tt.want)
+			}
+			if gotLink != tt.want {
+				t.Errorf("the payment link renders = %v, want %v", gotLink, tt.want)
+			}
+		})
+	}
+}
+
+// TestAPaidOrderIsNotBadgedAwaitingPaymentInTheAccount is the same fact on the
+// two surfaces a signed-in customer reaches it from.
+//
+// The history list badged every pending order 待付款 from AccountOrder.StatusText,
+// and neither account query selected any funding column at all, so the account
+// side had no signal to be right with. The detail page carried the notice.
+func TestAPaidOrderIsNotBadgedAwaitingPaymentInTheAccount(t *testing.T) {
+	paid := AccountOrder{
+		Number: "GO-260101-000010", Status: "pending", PlacedAt: "2026-01-01",
+		TotalCents: 106000, LineCount: 1, Committed: true, OwedCents: 106000,
+	}
+	unpaid := AccountOrder{
+		Number: "GO-260101-000011", Status: "pending", PlacedAt: "2026-01-01",
+		TotalCents: 106000, LineCount: 1, Committed: false, OwedCents: 106000,
+	}
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	if got := paid.StatusText(ctx); got != "付款完成" {
+		t.Errorf("a captured order is badged %q in the history, want 付款完成", got)
+	}
+	// The control: without it, a StatusText that said 付款完成 for everything
+	// would pass the line above.
+	if got := unpaid.StatusText(ctx); got != "待付款" {
+		t.Errorf("an unpaid order is badged %q, want 待付款", got)
+	}
+
+	// And the detail page, which carries the notice rather than the badge. The
+	// funding fields have to travel with the status — StatusText builds an
+	// AccountOrder literal, and a field left out of one takes the zero value,
+	// which reads as unpaid.
+	view := &AccountOrderView{
+		Number: "GO-260101-000010", Status: "pending",
+		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
+		Committed: true, OwedCents: 106000,
+	}
+	html := renderToString(t, AccountOrderPage(layouts.Page{Title: "訂單"}, view))
+	if strings.Contains(html, "尚未付款") {
+		t.Error("the account's own order page tells a paid customer their order is unpaid")
+	}
+	if got := view.StatusText(ctx); got != "付款完成" {
+		t.Errorf("the detail page badges the order %q, want 付款完成 — the funding "+
+			"fields did not travel into the AccountOrder literal", got)
+	}
+}
+
+// TestTheOrderNotFoundPageOffersAWayThrough holds the one 404 that has one.
+//
+// An order page is shown to the browser that placed the order or to the account
+// that owns it; anything else is this 404. The guest it is most often shown to —
+// somebody who cleared their cookies, or opened the confirmation email on their
+// phone — was told to sign in to an account they may not have, while
+// /orders/find, built for exactly them, was linked from NOWHERE on the site.
+//
+// Asserted through the render, because the defect was never in a view model: the
+// route existed and worked the whole time. Only a page can be missing a link.
+func TestTheOrderNotFoundPageOffersAWayThrough(t *testing.T) {
+	html := renderToString(t, OrderNotFound(layouts.Page{Title: "404"}))
+
+	for _, want := range []string{"/orders/find", "/signin"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the order 404 does not link to %s; the reader is one of two "+
+				"people and the page cannot tell which", want)
+		}
+	}
+}
+
+// TestAShippedOrderLinksToItsWarrantyForm closes a dead end every signed-in
+// customer met.
+//
+// /account/warranty/{number} carries the ONLY form that registers a unit and had
+// no inbound link anywhere: the account nav reaches the LIST, and the list's own
+// copy says 「從訂單頁進去登錄」 — a page that did not link it. The only way in
+// was typing a URL the site never displays.
+//
+// TestEveryHardCodedLinkResolvesToARoute cannot see this by construction. It
+// asks link→route, the route IS linked one level up, and a templated href
+// carrying an order number is skipped by its parser either way.
+func TestAShippedOrderLinksToItsWarrantyForm(t *testing.T) {
+	tests := []struct {
+		name   string
+		status string
+		want   bool
+	}{
+		// Cover starts when goods reach somebody, which is what registration
+		// itself requires — so before dispatch the link would lead to a page
+		// whose every line says "not shipped yet".
+		{name: "pending", status: "pending", want: false},
+		{name: "picking", status: "picking", want: false},
+		{name: "shipped", status: "shipped", want: true},
+		{name: "delivered", status: "delivered", want: true},
+		{name: "completed", status: "completed", want: true},
+		{name: "cancelled", status: "cancelled", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			v := &AccountOrderView{
+				Number: "GO-260101-000012", Status: tt.status,
+				SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
+				Committed: true,
+			}
+			html := renderToString(t, AccountOrderPage(layouts.Page{Title: "訂單"}, v))
+
+			got := strings.Contains(html, "/account/warranty/GO-260101-000012")
+			if got != tt.want {
+				t.Errorf("the order page links its warranty form = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 // renderToString runs a component and returns its HTML.
 func renderToString(t *testing.T, c templ.Component) string {
 	t.Helper()

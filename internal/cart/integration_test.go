@@ -940,6 +940,182 @@ func TestSweepNeverTouchesAPaidOrdersHold(t *testing.T) {
 	}
 }
 
+// TestSweepNeverTouchesAFullyCreditFundedOrdersHold is the other half of the
+// test above, and the half committed_orders cannot answer.
+//
+// The paid fixture opens and captures a payment, so committed_orders sees a
+// succeeded row and the sweeper stands off. A fully store-credited order has no
+// payment row and CANNOT have one — payments_succeeded_is_captured forbids a
+// zero-value succeeded payment — and it stays 'pending' until a human picks it,
+// because orders_funded_to_leave_pending has nothing left to demand. So the view
+// reported it uncommitted while the customer had paid in full, and the sweeper
+// put the units back on the shelf thirty minutes later.
+//
+// Measured before it was fixed: stock 10 -> 11 on an order that then SHIPPED,
+// consuming no reservation, leaving the shelf permanently one too high.
+func TestSweepNeverTouchesAFullyCreditFundedOrdersHold(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+	vid := freshVariant(t, "stockfix-credit")
+
+	var before int32
+	if err := pool.QueryRow(ctx,
+		`SELECT stock_quantity FROM product_variants WHERE id = $1`, vid).Scan(&before); err != nil {
+		t.Fatalf("read stock: %v", err)
+	}
+
+	// Expired AND funded. The expiry is what makes this a real test: a sweeper
+	// that only skipped unexpired holds would pass with the funding check gone.
+	funded := creditFundedHeldOrder(t, vid, time.Hour)
+	// The control. Without it a sweeper that released nothing at all would pass.
+	abandoned := heldOrder(t, vid, time.Hour, false)
+
+	if _, _, err := s.Sweep(ctx, slog.New(slog.DiscardHandler)); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+
+	var fundedState, abandonedState string
+	if err := pool.QueryRow(ctx,
+		`SELECT state FROM inventory_reservations WHERE order_id = $1`, funded).Scan(&fundedState); err != nil {
+		t.Fatalf("read funded reservation: %v", err)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT state FROM inventory_reservations WHERE order_id = $1`, abandoned).Scan(&abandonedState); err != nil {
+		t.Fatalf("read abandoned reservation: %v", err)
+	}
+	if fundedState != "held" {
+		t.Errorf("a fully store-credited order's hold is %q after a sweep, want held — "+
+			"the customer paid for it and its stock is now sellable twice", fundedState)
+	}
+	if abandonedState != "released" {
+		t.Errorf("the abandoned hold is %q, want released", abandonedState)
+	}
+
+	// The shelf, not just the row: two units left it and exactly one came back.
+	var after int32
+	if err := pool.QueryRow(ctx,
+		`SELECT stock_quantity FROM product_variants WHERE id = $1`, vid).Scan(&after); err != nil {
+		t.Fatalf("read stock: %v", err)
+	}
+	if want := before - 1; after != want {
+		t.Errorf("stock is %d after the sweep, want %d — the funded order's unit "+
+			"went back on the shelf", after, want)
+	}
+}
+
+// TestReleasingAFundedOrdersHoldIsRefusedByName holds the DOOR rather than the
+// query that walks up to it.
+//
+// ExpiredReservations declines to offer a funded order's hold, and a guard that
+// lives only in the query it is written for is a guard the next caller does not
+// get. The refusal is bound to the constraint NAME because a statement meant to
+// prove one rule often trips another first (CLAUDE.md #8), and because the
+// sweeper's own classification reads that name to tell "being safe" from
+// "broken".
+func TestReleasingAFundedOrdersHoldIsRefusedByName(t *testing.T) {
+	ctx := t.Context()
+	vid := freshVariant(t, "stockfix-credit-door")
+	orderID := creditFundedHeldOrder(t, vid, time.Hour)
+
+	var reservationID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM inventory_reservations WHERE order_id = $1`, orderID).
+		Scan(&reservationID); err != nil {
+		t.Fatalf("read reservation: %v", err)
+	}
+
+	_, err := pool.Exec(ctx, `SELECT release_reservation($1)`, reservationID)
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	if !ok || pgErr.ConstraintName != "inventory_reservation_funded_no_release" {
+		t.Fatalf("releasing a fully-funded order's hold = %v, want "+
+			"inventory_reservation_funded_no_release", err)
+	}
+	if !cart.BenignSweepFailure(err) {
+		t.Errorf("the sweeper reads this refusal as a failure; it is the sweeper " +
+			"being safe, and an operator cannot tell those apart if it logs as an error")
+	}
+
+	var state string
+	if err := pool.QueryRow(ctx,
+		`SELECT state FROM inventory_reservations WHERE id = $1`, reservationID).
+		Scan(&state); err != nil {
+		t.Fatalf("read reservation state: %v", err)
+	}
+	if state != "held" {
+		t.Errorf("reservation is %q after a refused release, want held", state)
+	}
+}
+
+// creditFundedHeldOrder writes an order holding one unit of vid whose whole
+// total is paid from store credit, with a hold that expired `ago` in the past.
+//
+// Written by hand rather than through PlaceOrder because what matters is the
+// FUNDING shape — owing nothing, with no payment row, still pending — and
+// PlaceOrder would need a cart, a session and a shipping choice to reach it.
+func creditFundedHeldOrder(t *testing.T, vid uuid.UUID, ago time.Duration) (orderID uuid.UUID) {
+	t.Helper()
+	ctx := t.Context()
+
+	// The line price IS the order total: no shipping, no discount, no tax. That
+	// is what makes order_amount_owed come to exactly zero once the credit is
+	// spent, which is the state under test.
+	const cents = 100000
+	userID := creditedCustomer(t, cents)
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var number string
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, user_id, shipping_version_id,
+		                    shipping_method_code, shipping_method_name, shipping_cents)
+		SELECT next_order_number(), $1, v.id, sm.code, v.name, 0
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1
+		RETURNING id, order_number`, userID).Scan(&orderID, &number); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity)
+		VALUES ($1, $2, 'SWEEP-CREDIT-SKU', '測試商品', $3, 1)`, orderID, vid, cents); err != nil {
+		t.Fatalf("create line: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'credit-sweep@example.com', '收件', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
+		orderID); err != nil {
+		t.Fatalf("create private data: %v", err)
+	}
+	// Held normally, then aged — BOTH timestamps move, for the reason heldOrder
+	// gives: expires_at > created_at is a CHECK, and a hold that expired an hour
+	// ago was taken out before that.
+	if _, err := tx.Exec(ctx,
+		`SELECT hold_inventory($1, $2, 1, now() + interval '30 minutes', $3)`,
+		orderID, vid, "sweep-credit:"+number); err != nil {
+		t.Fatalf("hold: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE inventory_reservations
+		SET created_at = now() - $2::interval - interval '30 minutes',
+		    expires_at = now() - $2::interval
+		WHERE order_id = $1`, orderID, ago.String()); err != nil {
+		t.Fatalf("age the hold: %v", err)
+	}
+	if _, err := tx.Exec(ctx,
+		`SELECT post_store_credit($1, $2, '訂單折抵', $3, $4, NULL)`,
+		userID, -int64(cents), orderID, "spend:"+orderID.String()); err != nil {
+		t.Fatalf("spend credit: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit the fixture: %v", err)
+	}
+	return orderID
+}
+
 // TestSweepLeavesUnexpiredHolds. A customer typing a card number must not lose
 // the item under them.
 func TestSweepLeavesUnexpiredHolds(t *testing.T) {

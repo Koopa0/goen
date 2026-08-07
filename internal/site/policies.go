@@ -244,11 +244,17 @@ var policies = map[string]pages.PolicyDoc{
 				HeadingEn: "What we do not do",
 				Body: []string{
 					"不將您的個人資料出售或提供給第三方作行銷用途。",
-					"不在網站上使用第三方追蹤或廣告 cookie。goen 使用的 cookie 只有購物車、登入狀態,以及訂單瀏覽權限這三種。",
+					// The list is enumerated because the sentence claims completeness
+					// — 「只有…這幾種」 is falsifiable, and it was false: it named
+					// three while the site set five. The language cookie is written by
+					// the switch in the footer of every page, so the shortfall was
+					// reachable by any visitor who changed language.
+					// TestThePrivacyPolicyNamesEveryCookie is what keeps them equal.
+					"不在網站上使用第三方追蹤或廣告 cookie。goen 使用的 cookie 只有這幾種:購物車、登入狀態、訂單瀏覽權限、您選擇的語言,以及您關閉過的網站公告。",
 				},
 				BodyEn: []string{
 					"We do not sell your personal data, or hand it to anybody else for marketing.",
-					"There is no third-party tracking or advertising cookie on this site. goen sets three kinds of cookie and no others: your cart, your sign-in, and permission to view an order.",
+					"There is no third-party tracking or advertising cookie on this site. goen sets these kinds of cookie and no others: your cart, your sign-in, permission to view an order, the language you chose, and which site notice you have dismissed.",
 				},
 			},
 			{

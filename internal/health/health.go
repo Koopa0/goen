@@ -22,18 +22,36 @@ type Pinger interface {
 	Ping(ctx context.Context) error
 }
 
-// Handler answers the liveness and readiness probes.
-type Handler struct {
-	db  Pinger
-	log *slog.Logger
+// Dependency is one named thing readiness depends on. The name is what the log
+// line says, so an operator learns WHICH pool is down rather than that one is.
+type Dependency struct {
+	Name string
+	DB   Pinger
 }
 
-// NewHandler returns a Handler that checks db for readiness.
-func NewHandler(db Pinger, log *slog.Logger) *Handler {
-	if db == nil || log == nil {
-		panic("health: NewHandler requires a database and a logger")
+// Handler answers the liveness and readiness probes.
+type Handler struct {
+	deps []Dependency
+	log  *slog.Logger
+}
+
+// NewHandler returns a Handler that checks every dependency for readiness.
+//
+// EVERY pool, not just the storefront's. It took one, so a deployment whose
+// admin DSN was wrong started cleanly, answered /readyz with 200, served the
+// storefront — and 500ed the entire back office. The orchestrator was told to
+// send traffic to a process that could not do half its job, and nothing would
+// ever restart or drain it, because the one pool it was asked about was fine.
+func NewHandler(log *slog.Logger, deps ...Dependency) *Handler {
+	if log == nil || len(deps) == 0 {
+		panic("health: NewHandler requires a logger and at least one dependency")
 	}
-	return &Handler{db: db, log: log}
+	for _, d := range deps {
+		if d.DB == nil || d.Name == "" {
+			panic("health: every readiness dependency needs a name and a pool")
+		}
+	}
+	return &Handler{deps: deps, log: log}
 }
 
 // Live serves GET /healthz. It checks nothing: reaching this handler is itself
@@ -45,17 +63,22 @@ func (h *Handler) Live(w http.ResponseWriter, _ *http.Request) {
 }
 
 // Ready serves GET /readyz. goen cannot serve a page without PostgreSQL, so
-// readiness is exactly whether the pool can answer.
+// readiness is exactly whether every pool it serves from can answer.
 func (h *Handler) Ready(w http.ResponseWriter, r *http.Request) {
 	// Short: a probe that hangs is a probe that has already failed, and the
-	// orchestrator's own timeout is less forgiving than any we would pick.
+	// orchestrator's own timeout is less forgiving than any we would pick. The
+	// budget covers the whole check rather than each pool, for the same reason.
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
 
-	if err := h.db.Ping(ctx); err != nil {
-		h.log.WarnContext(ctx, "readiness probe failed", "error", err)
-		writePlain(w, http.StatusServiceUnavailable, "database unreachable")
-		return
+	for _, d := range h.deps {
+		if err := d.DB.Ping(ctx); err != nil {
+			// Named, because "database unreachable" sent an operator to the
+			// storefront's connection string while the admin one was wrong.
+			h.log.WarnContext(ctx, "readiness probe failed", "pool", d.Name, "error", err)
+			writePlain(w, http.StatusServiceUnavailable, d.Name+" database unreachable")
+			return
+		}
 	}
 	writePlain(w, http.StatusOK, "ready")
 }

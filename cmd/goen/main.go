@@ -294,6 +294,35 @@ func reachDatabase(ctx context.Context, pool *pgxpool.Pool, url string, log *slo
 	return nil
 }
 
+// reachableAdminPool opens the back office's pool and proves it answers.
+//
+// It uses the same URL as the storefront by default: in development the owning
+// superuser can assume either role, and a deployment points
+// GOEN_ADMIN_DATABASE_URL at admin_svc so the two connect as different accounts.
+//
+// REACHED, not just opened, and that is the whole reason this is not two lines
+// inline. pgxpool connects lazily, so a wrong admin DSN produced a clean start,
+// a 200 from /readyz and a back office that 500ed on every page — the storefront
+// pool was the only one anything asked about. Failing here is the right shape: a
+// process that cannot do half its job should not be the one an orchestrator is
+// told to send traffic to. health.NewHandler now asks the same question of both
+// pools for the rest of the process's life.
+func reachableAdminPool(ctx context.Context, url string) (*pgxpool.Pool, error) {
+	pool, err := openAdminPool(ctx, url)
+	if err != nil {
+		return nil, fmt.Errorf("open admin pool: %w", err)
+	}
+
+	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if pingErr := pool.Ping(pingCtx); pingErr != nil {
+		pool.Close()
+		// The URL carries the password; report the failure without it.
+		return nil, fmt.Errorf("reach admin database: %w", redactURL(pingErr, url))
+	}
+	return pool, nil
+}
+
 func run() error {
 	cfg, err := loadConfig()
 	if err != nil {
@@ -316,13 +345,9 @@ func run() error {
 		return reachErr
 	}
 
-	// The back office's pool. It uses the same URL by default: in development the
-	// owning superuser can assume either role, and a deployment points
-	// GOEN_ADMIN_DATABASE_URL at admin_svc so the two connect as different
-	// accounts.
-	adminPool, adminErr := openAdminPool(ctx, cfg.AdminDatabaseURL)
+	adminPool, adminErr := reachableAdminPool(ctx, cfg.AdminDatabaseURL)
 	if adminErr != nil {
-		return fmt.Errorf("open admin pool: %w", adminErr)
+		return adminErr
 	}
 	defer adminPool.Close()
 

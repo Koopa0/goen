@@ -332,7 +332,16 @@ ORDER BY rl.return_request_id, ol.position, ol.id;
 
 -- Decide a return. return_requests_recount guards the transition and
 -- return_requests_decided_has_time requires the timestamp to arrive with it.
--- name: DecideReturn :exec
+--
+-- :execrows, because `status = 'requested'` in this WHERE clause is the ONLY
+-- place the question is asked under a lock. Decide reads the row on the pool
+-- BEFORE opening its transaction, so two staff members clicking 同意 and 不同意
+-- on one request both pass that check; as :exec the loser updated zero rows,
+-- SQL called it success, and it committed an audit row asserting a decision that
+-- never happened — and, for an approval, after paying a refund. Zero rows is
+-- "somebody decided this first", which is a sentence a caller can act on.
+-- The SetProductStatus lesson, in the one place that also moves money.
+-- name: DecideReturn :execrows
 UPDATE return_requests
 SET status = @status::text, resolution = @resolution, decided_at = now()
 WHERE id = @id AND status = 'requested';

@@ -692,6 +692,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 		Email:        o.Email,
 		ShippingName: o.ShippingMethodName,
 		Committed:    o.Committed,
+		OwedCents:    o.OwedCents,
 		DeliveryTo: pages.Delivery{
 			PostalCode: o.PostalCode, City: o.City, District: o.District, Street: o.Street,
 			PickupBrand: o.PickupBrand, PickupStoreCode: o.PickupStoreCode,

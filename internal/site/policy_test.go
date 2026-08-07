@@ -1,10 +1,17 @@
 package site
 
 import (
+	"maps"
+	"os"
+	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -60,6 +67,99 @@ func TestEveryPolicyRouteHasADocument(t *testing.T) {
 			t.Errorf("%q has a document and no route", path)
 		}
 	}
+}
+
+// TestThePrivacyPolicyNamesEveryCookie holds a sentence that CLAIMS
+// completeness against the cookies the binary actually sets.
+//
+// 「goen 使用的 cookie 只有…」 / "and no others" is a falsifiable statement, and
+// it was false: it named three while the site set five. The language cookie is
+// written by the switch in the footer of EVERY page, so any visitor who changed
+// language was undisclosed — and the promotional-strip dismissal was the fifth.
+//
+// This is the shape TestTheStatedHoldMatchesTheEnforcedOne already has one
+// section over: a page-says-versus-code-does guard. It was never extended here,
+// which is why the sentence could drift twice without anything going red.
+//
+// Derived by WALKING THE SOURCE rather than from a list, so a sixth cookie fails
+// this the moment its constant is declared — a hand-written list would need
+// somebody to remember, which is exactly what did not happen.
+func TestThePrivacyPolicyNamesEveryCookie(t *testing.T) {
+	// One entry per cookie the binary can set, naming the words the policy uses
+	// for it. Both locales, because BodyEn is the half no other guard reads.
+	described := map[string]struct{ zh, en string }{
+		cart.CookieName:           {zh: "購物車", en: "your cart"},
+		account.SessionCookieName: {zh: "登入狀態", en: "your sign-in"},
+		cart.PlacedCookieName:     {zh: "訂單瀏覽權限", en: "permission to view an order"},
+		i18n.CookieName:           {zh: "您選擇的語言", en: "the language you chose"},
+		home.DismissCookie:        {zh: "您關閉過的網站公告", en: "which site notice you have dismissed"},
+	}
+
+	var zh, en strings.Builder
+	for _, s := range policies["privacy"].Sections {
+		for _, p := range s.Body {
+			zh.WriteString(p)
+		}
+		for _, p := range s.BodyEn {
+			en.WriteString(p)
+		}
+	}
+
+	for name, words := range described {
+		if !strings.Contains(zh.String(), words.zh) {
+			t.Errorf("the privacy policy claims to list every cookie and does not "+
+				"mention %s (%q)", name, words.zh)
+		}
+		if !strings.Contains(en.String(), words.en) {
+			t.Errorf("the English privacy policy does not mention %s (%q)", name, words.en)
+		}
+	}
+
+	// Completeness: every `__Host-goen_*` literal in the tree has an entry above.
+	// Without this the map is a list somebody has to remember to extend, which is
+	// the failure mode this test exists for.
+	for _, name := range hostCookieNames(t) {
+		if _, ok := described[name]; !ok {
+			t.Errorf("%s is set by the binary and the privacy policy does not "+
+				"account for it; the page tells every visitor it sets no others", name)
+		}
+	}
+}
+
+// hostCookieNames is every __Host- cookie name declared anywhere in internal/.
+//
+// The __Host- prefix is what makes this findable: goen's cookies all carry it
+// (the bare names beside them are the development variants of the same cookie,
+// gated on GOEN_INSECURE_COOKIES), so one pattern reaches all of them.
+func hostCookieNames(t *testing.T) []string {
+	t.Helper()
+	pattern := regexp.MustCompile(`"(__Host-goen_[a-z_]+)"`)
+	seen := map[string]bool{}
+	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		// Tests excluded: a cookie a test names is not a cookie the shop sets,
+		// and this file itself names all five.
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		src, readErr := os.ReadFile(path) //nolint:gosec // G304: paths come from walking this repository
+		if readErr != nil {
+			return readErr
+		}
+		for _, m := range pattern.FindAllStringSubmatch(string(src), -1) {
+			seen[m[1]] = true
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk internal/: %v", err)
+	}
+	if len(seen) == 0 {
+		t.Fatal("found no cookie names at all; the sweep is not reading the source")
+	}
+	return slices.Sorted(maps.Keys(seen))
 }
 
 // TestPolicyDocumentsAreComplete proves no policy renders as an empty page.

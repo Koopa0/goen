@@ -1320,13 +1320,34 @@ $$;
 -- close the reservation, once. A hold on a COMMITTED order may NOT be released:
 -- the sweeper could otherwise expire the hold of an order that is paid but not
 -- yet picked and hand its stock back to the shelf, reselling a sold item. The
--- only exit for a committed hold is consume_reservation. "Committed" is
--- order_is_committed, not "has a succeeded payment" — a zero-owed order has no
--- payment row and used to have its stock released out from under it.
+-- only exit for such a hold is consume_reservation.
+--
+-- TWO questions, because one of them cannot see the other's case. This comment
+-- used to claim order_is_committed covered both and it did not, which is the
+-- shape CLAUDE.md #13 and #30 describe: a comment and its predicate, correct
+-- separately and disagreeing.
+--
+--   1. order_is_committed — a succeeded payment, or a status past pending.
+--   2. order_amount_owed = 0 on an order that is not cancelled.
+--
+-- (2) is the one committed_orders is blind to. A fully store-credited order —
+-- or one a 100% coupon zeroed — has no payment row, because
+-- payments_succeeded_is_captured forbids a zero-value succeeded payment, and it
+-- legally sits at 'pending' until a human picks it, because
+-- orders_funded_to_leave_pending has nothing left to demand. So it is funded,
+-- not committed, and the sweeper took its stock back thirty minutes after the
+-- customer paid for it — measured, not theorised: the units returned to the
+-- shelf and Ship then wrote a parcel while consuming no reservation at all,
+-- leaving stock_quantity permanently one too high.
+--
+-- 'cancelled' is excluded because a cancelled order's stock MUST come back, and
+-- reverse_order_credit runs after the status move — so for the moment the
+-- release is asked for, a cancelled order can still read as owing nothing.
 CREATE FUNCTION release_reservation(p_reservation_id uuid) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
     r inventory_reservations%ROWTYPE;
+    o_status text;
 BEGIN
     SELECT * INTO r FROM inventory_reservations WHERE id = p_reservation_id FOR UPDATE;
     IF NOT FOUND OR r.state <> 'held' THEN
@@ -1341,12 +1362,20 @@ BEGIN
     -- one of them with 40P01. No caller retries a deadlock today, so the cost
     -- would be a failed checkout, not just a slow one.
     PERFORM 1 FROM product_variants WHERE id = r.variant_id FOR UPDATE;
-    PERFORM 1 FROM orders WHERE id = r.order_id FOR UPDATE;
+    SELECT o.fulfillment_status INTO o_status
+    FROM orders o WHERE o.id = r.order_id FOR UPDATE;
     -- COMMITTED, not settled: a cancelled order is settled and its stock must
     -- come back, which is the whole reason the two are separate views.
     IF order_is_committed(r.order_id) THEN
         RAISE EXCEPTION 'reservation % is on a committed order; consume it, do not release', p_reservation_id
             USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_reservation_committed_no_release';
+    END IF;
+
+    -- FUNDED but not committed — the case the view above cannot answer. See the
+    -- header: this is the zero-owed order, paid for and still pending.
+    IF o_status <> 'cancelled' AND order_amount_owed(r.order_id) = 0 THEN
+        RAISE EXCEPTION 'reservation % is on an order that owes nothing; consume it, do not release', p_reservation_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_reservation_funded_no_release';
     END IF;
 
     UPDATE inventory_reservations

@@ -270,6 +270,8 @@ func (s *Store) Overview(ctx context.Context, u User) (pages.AccountView, error)
 			PlacedAt:   o.PlacedAt.Format("2006-01-02"),
 			TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
 			LineCount:  o.LineCount,
+			Committed:  o.Committed,
+			OwedCents:  o.OwedCents,
 		})
 	}
 
@@ -344,6 +346,8 @@ func (s *Store) Order(ctx context.Context, u User, number string) (pages.Account
 			PickupBrand: o.PickupBrand, PickupStoreCode: o.PickupStoreCode,
 			PickupStoreName: o.PickupStoreName,
 		}.Line(),
+		Committed: o.Committed,
+		OwedCents: o.OwedCents,
 	}
 	for _, l := range lines {
 		view.Lines = append(view.Lines, pages.OrderLine{
