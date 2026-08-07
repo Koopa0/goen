@@ -27,6 +27,13 @@ var (
 	// blank carrier or tracking number. Distinct from ErrRefused because it is
 	// the staff member's input to fix, not the order's state.
 	ErrInvalid = errors.New("admin: invalid input")
+	// ErrQuantity is a per-line count the order cannot honour: more than remains
+	// to ship, or more than it still holds. Its own sentinel rather than a
+	// sub-case of ErrInvalid because the two send a staff member to different
+	// fields — one to the carrier box, the other to the quantity beside a line —
+	// and telling them apart by searching the error TEXT is what this repository
+	// records as mistake #32.
+	ErrQuantity = errors.New("admin: quantity out of range")
 )
 
 // PageSize bounds every admin list. A back office reads a queue, not an

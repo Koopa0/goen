@@ -191,11 +191,19 @@ type AdminOrderView struct {
 	InvoiceTaxID   string
 	Committed      bool
 	Next           []AdminTransition
-	// CanShip is true only while the order is picking. Dispatch is its own
-	// form because it carries the carrier and tracking number, and because it
-	// settles stock — a status dropdown cannot express either.
+	// CanShip is whether a parcel can go out: the order is picking, or it has
+	// already shipped one and something is still outstanding. Dispatch is its
+	// own form because it carries the carrier and tracking number, and because
+	// it settles stock — a status dropdown cannot express either.
+	//
+	// It used to be `status == "picking"` alone, and nothing returns an order TO
+	// picking, so one order could hold exactly one parcel ever — against tables
+	// that model several with per-line quantities.
 	CanShip bool
-	Notice  string
+	// Shippable is what is still outstanding, per line, with how many of each.
+	// Empty on an order that has gone out in full.
+	Shippable []AdminShippableLine
+	Notice    string
 	// Timeline is the order's history WITH the staff member who caused each
 	// step. The customer's own page has had a timeline since checkout shipped
 	// and the back office had none, which is backwards: the actor is the whole
@@ -276,6 +284,48 @@ type AdminShipment struct {
 
 // Delivered reports whether the parcel has arrived.
 func (s AdminShipment) Delivered() bool { return s.DeliveredAt != "" }
+
+// AdminShippableLine is one line still owed a dispatch.
+type AdminShippableLine struct {
+	OrderLineID string
+	SKU         string
+	Name        string
+	Label       string
+	// Remaining is how many of this line have not gone out yet, which is what
+	// the form's quantity box defaults to and is bounded by.
+	Remaining int32
+	// Held is how many the order still has reserved for it. Fewer than Remaining
+	// means somebody released part of the hold, and the form says so rather than
+	// letting the dispatch fail at the write.
+	Held int32
+}
+
+// Line is the item as one row of text.
+func (l AdminShippableLine) Line() string {
+	name := l.Name
+	if l.Label != "" {
+		name += " · " + l.Label
+	}
+	return name
+}
+
+// RemainingText is how many are left to send.
+func (l AdminShippableLine) RemainingText() string {
+	return strconv.FormatInt(int64(l.Remaining), 10)
+}
+
+// Short reports whether this line holds less stock than it still owes.
+//
+// It means part of the hold went back on the shelf — the sweeper, or a
+// cancellation that did not finish — and the dispatch of that part would post no
+// inventory movement. The form says it rather than letting the write refuse with
+// a constraint name.
+func (l AdminShippableLine) Short() bool { return l.Held < l.Remaining }
+
+// HeldText is how many units the order still has reserved for this line.
+func (l AdminShippableLine) HeldText() string {
+	return strconv.FormatInt(int64(l.Held), 10)
+}
 
 // Subtotal is what the lines came to.
 func (v *AdminOrderView) Subtotal() string { return twd(v.SubtotalCents) }

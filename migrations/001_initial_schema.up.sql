@@ -1316,6 +1316,69 @@ BEGIN
 END;
 $$;
 
+-- Consume PART of a hold, for a dispatch that sends some of what was ordered.
+--
+-- A parcel can carry two of the three units an order holds — the third is on
+-- back-order, or would not fit the carrier's box. The whole-row form above
+-- cannot say that: it settles the hold entirely, so the units still in the
+-- warehouse would read as gone and a later parcel would have no hold to settle.
+--
+-- SPLITTING rather than a consumed_quantity column, because one row then records
+-- one settled fact and the sum over rows per (order, variant) stays exactly what
+-- was held. A quantity column beside a state would make `settled_has_state` a
+-- lie: the row would be partly settled and partly not, and every reader would
+-- need to know which half it was looking at.
+--
+-- The consumed row carries the ORIGINAL's created_at and expires_at rather than
+-- inventing new ones. It records a hold that was taken then and expired then; it
+-- has merely stopped being outstanding. Carrying them is also what keeps
+-- `expiry_after_creation` true, which a row created now against an expiry in the
+-- past would not be.
+--
+-- The partial unique index is on (order_id, variant_id) WHERE state = 'held', so
+-- the inserted row does not collide with the remainder it was split from.
+CREATE FUNCTION consume_reservation_partial(p_reservation_id uuid, p_quantity integer)
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    r inventory_reservations%ROWTYPE;
+BEGIN
+    SELECT * INTO r FROM inventory_reservations
+    WHERE id = p_reservation_id FOR UPDATE;
+
+    IF NOT FOUND OR r.state <> 'held' THEN
+        RAISE EXCEPTION 'reservation % is not held', p_reservation_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_reservation_state';
+    END IF;
+
+    -- More than is held is a dispatch of goods this order never reserved. The
+    -- caller's own arithmetic should have caught it; refusing here is what makes
+    -- that true rather than assumed, because this is the one place holding the
+    -- row under a lock.
+    IF p_quantity <= 0 OR p_quantity > r.quantity THEN
+        RAISE EXCEPTION 'cannot consume % of reservation % which holds %',
+            p_quantity, p_reservation_id, r.quantity
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_reservation_consume_within_hold';
+    END IF;
+
+    IF p_quantity = r.quantity THEN
+        UPDATE inventory_reservations
+        SET state = 'consumed', settled_at = now()
+        WHERE id = p_reservation_id;
+        RETURN;
+    END IF;
+
+    UPDATE inventory_reservations
+    SET quantity = quantity - p_quantity
+    WHERE id = p_reservation_id;
+
+    INSERT INTO inventory_reservations
+        (order_id, variant_id, quantity, state, expires_at, created_at, settled_at)
+    VALUES (r.order_id, r.variant_id, p_quantity, 'consumed',
+            r.expires_at, r.created_at, now());
+END;
+$$;
+
 -- Release a hold — cancelled checkout or expiry sweep: return the stock and
 -- close the reservation, once. A hold on a COMMITTED order may NOT be released:
 -- the sweeper could otherwise expire the hold of an order that is paid but not
@@ -4769,6 +4832,10 @@ GRANT UPDATE (sku, price_cents, compare_at_price_cents, safety_stock,
 
 GRANT EXECUTE ON FUNCTION record_inventory_movement(uuid, integer, text, text, text, uuid, uuid) TO admin;
 GRANT EXECUTE ON FUNCTION consume_reservation(uuid) TO admin;
+-- admin ONLY, and store is deliberately not given it: dispatching is the back
+-- office's act. store takes holds at checkout and releases them on a
+-- cancellation, and neither of those settles part of one.
+GRANT EXECUTE ON FUNCTION consume_reservation_partial(uuid, integer) TO admin;
 GRANT EXECUTE ON FUNCTION release_reservation(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION order_is_committed(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION order_amount_owed(uuid) TO admin;

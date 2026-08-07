@@ -3760,12 +3760,18 @@ func (q *Queries) ConfirmTOTP(ctx context.Context, arg ConfirmTOTPParams) (int64
 	return result.RowsAffected(), nil
 }
 
-const consumeReservation = `-- name: ConsumeReservation :exec
-SELECT consume_reservation($1)
+const consumeReservationPartial = `-- name: ConsumeReservationPartial :exec
+SELECT consume_reservation_partial($1, $2::integer)
 `
 
-func (q *Queries) ConsumeReservation(ctx context.Context, pReservationID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, consumeReservation, pReservationID)
+type ConsumeReservationPartialParams struct {
+	ReservationID uuid.UUID
+	Quantity      int32
+}
+
+// Settle the part of a hold that is actually going out in this parcel.
+func (q *Queries) ConsumeReservationPartial(ctx context.Context, arg ConsumeReservationPartialParams) error {
+	_, err := q.db.Exec(ctx, consumeReservationPartial, arg.ReservationID, arg.Quantity)
 	return err
 }
 
@@ -5707,34 +5713,6 @@ func (q *Queries) HasStockNotice(ctx context.Context, arg HasStockNoticeParams) 
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
-}
-
-const heldReservations = `-- name: HeldReservations :many
-SELECT id FROM inventory_reservations
-WHERE order_id = $1 AND state = 'held'
-ORDER BY id
-`
-
-// The reservations an order still holds. Shipping settles them: the stock left
-// the shelf at hold time, and consuming turns "spoken for" into "gone".
-func (q *Queries) HeldReservations(ctx context.Context, orderID uuid.UUID) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, heldReservations, orderID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []uuid.UUID{}
-	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const heldReservationsForOrder = `-- name: HeldReservationsForOrder :many
@@ -10465,6 +10443,78 @@ func (q *Queries) ShipmentRecipient(ctx context.Context, id uuid.UUID) (Shipment
 	return i, err
 }
 
+const shippableLines = `-- name: ShippableLines :many
+SELECT ol.id AS order_line_id,
+       ol.sku,
+       ol.product_name,
+       ol.variant_label,
+       (ol.quantity - coalesce((
+           SELECT sum(sl.quantity) FROM order_shipment_lines sl
+           WHERE sl.order_line_id = ol.id), 0))::integer AS remaining,
+       ir.id AS reservation_id,
+       coalesce(ir.quantity, 0)::integer AS held
+FROM order_lines ol
+LEFT JOIN inventory_reservations ir
+       ON ir.order_id = ol.order_id
+      AND ir.variant_id = ol.variant_id
+      AND ir.state = 'held'
+WHERE ol.order_id = $1
+  AND ol.quantity > coalesce((
+      SELECT sum(sl.quantity) FROM order_shipment_lines sl
+      WHERE sl.order_line_id = ol.id), 0)
+ORDER BY ol.position, ol.id
+`
+
+type ShippableLinesRow struct {
+	OrderLineID   uuid.UUID
+	SKU           string
+	ProductName   string
+	VariantLabel  pgtype.Text
+	Remaining     int32
+	ReservationID uuid.NullUUID
+	Held          int32
+}
+
+// What each order line still owes a dispatch, and which hold covers it.
+//
+// The two questions are answered TOGETHER because a partial dispatch has to
+// reconcile them line by line: shipping two of three units settles two of the
+// three that line's variant holds, and reading the remaining quantities from one
+// query and the reservations from another leaves the two free to disagree about
+// an order somebody is editing.
+//
+// LEFT JOIN on the reservation, not JOIN. A line whose variant was deleted has
+// no hold and never did, and dropping the row here would silently ship it
+// without anybody noticing the stock did not move — which is the shape the
+// empty-reservation dispatch had. The caller refuses instead.
+func (q *Queries) ShippableLines(ctx context.Context, orderID uuid.UUID) ([]ShippableLinesRow, error) {
+	rows, err := q.db.Query(ctx, shippableLines, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ShippableLinesRow{}
+	for rows.Next() {
+		var i ShippableLinesRow
+		if err := rows.Scan(
+			&i.OrderLineID,
+			&i.SKU,
+			&i.ProductName,
+			&i.VariantLabel,
+			&i.Remaining,
+			&i.ReservationID,
+			&i.Held,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const shippingChoices = `-- name: ShippingChoices :many
 SELECT DISTINCT ON (sm.id)
     v.id AS version_id,
@@ -11278,47 +11328,6 @@ func (q *Queries) UnreferencedMedia(ctx context.Context, limit int32) ([]string,
 			return nil, err
 		}
 		items = append(items, digest)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const unshippedLines = `-- name: UnshippedLines :many
-SELECT ol.id,
-       (ol.quantity - coalesce((
-           SELECT sum(sl.quantity) FROM order_shipment_lines sl
-           WHERE sl.order_line_id = ol.id), 0))::integer AS remaining
-FROM order_lines ol
-WHERE ol.order_id = $1
-  AND ol.quantity > coalesce((
-      SELECT sum(sl.quantity) FROM order_shipment_lines sl
-      WHERE sl.order_line_id = ol.id), 0)
-ORDER BY ol.position, ol.id
-`
-
-type UnshippedLinesRow struct {
-	ID        uuid.UUID
-	Remaining int32
-}
-
-// The lines of an order that have not been dispatched yet, with how many of
-// each remain. A partial dispatch is not modelled in the back office yet — the
-// form ships what is left — but the query is written per line so it can be.
-func (q *Queries) UnshippedLines(ctx context.Context, orderID uuid.UUID) ([]UnshippedLinesRow, error) {
-	rows, err := q.db.Query(ctx, unshippedLines, orderID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []UnshippedLinesRow{}
-	for rows.Next() {
-		var i UnshippedLinesRow
-		if err := rows.Scan(&i.ID, &i.Remaining); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

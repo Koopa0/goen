@@ -137,22 +137,21 @@ func TestEveryColumnIsReadOrWritten(t *testing.T) {
 		// and be decided, and any of these that starts being read retires its own
 		// entry. The list is the debt, visible and counted.
 		//
-		"brands.created_at":                 "a row-birth timestamp its own DEFAULT writes; no query shows it",
-		"carts.created_at":                  "a row-birth timestamp its own DEFAULT writes; no query shows it",
-		"categories.created_at":             "a row-birth timestamp its own DEFAULT writes; no query shows it",
-		"coupon_redemptions.created_at":     "a row-birth timestamp its own DEFAULT writes; no query shows it",
-		"faq_entries.created_at":            "a row-birth timestamp its own DEFAULT writes; no query shows it",
-		"hero_slides.created_at":            "a row-birth timestamp its own DEFAULT writes; no query shows it",
-		"inventory_reservations.created_at": "a row-birth timestamp its own DEFAULT writes; no query shows it",
-		"membership_tiers.created_at":       "a row-birth timestamp its own DEFAULT writes; no query shows it",
-		"product_images.created_at":         "a row-birth timestamp its own DEFAULT writes; no query shows it",
-		"product_variants.created_at":       "a row-birth timestamp its own DEFAULT writes; no query shows it",
-		"products.created_at":               "a row-birth timestamp its own DEFAULT writes; no query shows it",
-		"sale_campaigns.created_at":         "a row-birth timestamp its own DEFAULT writes; no query shows it",
-		"sessions.created_at":               "a row-birth timestamp its own DEFAULT writes; no query shows it",
-		"shipping_methods.created_at":       "a row-birth timestamp its own DEFAULT writes; no query shows it",
-		"stock_notifications.created_at":    "a row-birth timestamp its own DEFAULT writes; no query shows it",
-		"store_credit_accounts.created_at":  "a row-birth timestamp its own DEFAULT writes; no query shows it",
+		"brands.created_at":                "a row-birth timestamp its own DEFAULT writes; no query shows it",
+		"carts.created_at":                 "a row-birth timestamp its own DEFAULT writes; no query shows it",
+		"categories.created_at":            "a row-birth timestamp its own DEFAULT writes; no query shows it",
+		"coupon_redemptions.created_at":    "a row-birth timestamp its own DEFAULT writes; no query shows it",
+		"faq_entries.created_at":           "a row-birth timestamp its own DEFAULT writes; no query shows it",
+		"hero_slides.created_at":           "a row-birth timestamp its own DEFAULT writes; no query shows it",
+		"membership_tiers.created_at":      "a row-birth timestamp its own DEFAULT writes; no query shows it",
+		"product_images.created_at":        "a row-birth timestamp its own DEFAULT writes; no query shows it",
+		"product_variants.created_at":      "a row-birth timestamp its own DEFAULT writes; no query shows it",
+		"products.created_at":              "a row-birth timestamp its own DEFAULT writes; no query shows it",
+		"sale_campaigns.created_at":        "a row-birth timestamp its own DEFAULT writes; no query shows it",
+		"sessions.created_at":              "a row-birth timestamp its own DEFAULT writes; no query shows it",
+		"shipping_methods.created_at":      "a row-birth timestamp its own DEFAULT writes; no query shows it",
+		"stock_notifications.created_at":   "a row-birth timestamp its own DEFAULT writes; no query shows it",
+		"store_credit_accounts.created_at": "a row-birth timestamp its own DEFAULT writes; no query shows it",
 	}
 
 	ctx := t.Context()

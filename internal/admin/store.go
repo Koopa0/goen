@@ -166,7 +166,10 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 		InvoiceCarrier:    o.InvoiceCarrier,
 		InvoiceTaxID:      o.InvoiceTaxID,
 		Committed:         o.Committed,
-		CanShip:           o.FulfillmentStatus == "picking",
+	}
+
+	if shipErr := s.fillShippable(ctx, &view, o.ID, o.FulfillmentStatus); shipErr != nil {
+		return pages.AdminOrderView{}, shipErr
 	}
 	for _, n := range NextStatuses(o.FulfillmentStatus) {
 		view.Next = append(view.Next, pages.AdminTransition{Value: n, Label: StatusLabel(n)})
@@ -382,17 +385,72 @@ func eventKindFor(status string) string {
 	}
 }
 
-// Ship records a dispatch: the shipment, the status move, the stock the order
-// was holding, and the history entry.
+// fillShippable puts what an order still owes a dispatch on its page.
 //
-// All four in ONE transaction, because every pair of them is wrong on its own:
-// a shipment row without the status move is an order that shows as picking with
-// a tracking number; the status move without consuming the reservations leaves
-// stock held against an order that has already gone out, so a sweeper would
-// later return it to the shelf and oversell; and either without the event
-// leaves no record of who dispatched it.
-func (s *Store) Ship(ctx context.Context, number, carrier, tracking string, actor uuid.NullUUID) error {
-	carrier, tracking = strings.TrimSpace(carrier), strings.TrimSpace(tracking)
+// Read for a picking or shipped order only: everything else has either not been
+// picked or is terminal, and the query is a scan the page does not need there.
+//
+// CanShip follows from the ANSWER rather than from the status alone, which is
+// what makes a second parcel possible: an order that shipped one and still owes
+// something can ship again, and one that owes nothing cannot however 'shipped'
+// it is.
+func (s *Store) fillShippable(
+	ctx context.Context, view *pages.AdminOrderView, orderID uuid.UUID, status string,
+) error {
+	if status != "picking" && status != "shipped" {
+		return nil
+	}
+	rows, err := s.q.ShippableLines(ctx, orderID)
+	if err != nil {
+		return fmt.Errorf("read shippable lines: %w", err)
+	}
+	for i := range rows {
+		l := &rows[i]
+		view.Shippable = append(view.Shippable, pages.AdminShippableLine{
+			OrderLineID: l.OrderLineID.String(),
+			SKU:         l.SKU,
+			Name:        l.ProductName,
+			Label:       l.VariantLabel.String,
+			Remaining:   l.Remaining,
+			Held:        l.Held,
+		})
+	}
+	view.CanShip = len(view.Shippable) > 0
+	return nil
+}
+
+// Dispatch is one parcel: what is in it, and who is carrying it.
+//
+// Lines may be empty, which means "everything still outstanding" — the whole
+// order in one parcel, which is what every dispatch was before this and is still
+// the common case.
+type Dispatch struct {
+	Carrier  string
+	Tracking string
+	// Lines is how many of each order line this parcel carries. A line left out
+	// is not in this parcel; a line carrying fewer than remain is a partial
+	// dispatch and the rest waits for another one.
+	Lines map[uuid.UUID]int32
+}
+
+// Ship records a dispatch: the shipment, its lines, the status move, the stock
+// it settles, and the history entry.
+//
+// All of them in ONE transaction, because every pair is wrong on its own: a
+// shipment row without the status move is an order that shows as picking with a
+// tracking number; the status move without settling the reservations leaves
+// stock held against goods that have gone out, so a sweeper would later return
+// it to the shelf and oversell; and either without the event leaves no record of
+// who dispatched it.
+//
+// PARTIAL dispatch is why the parcel is a parameter rather than "everything
+// left". order_shipments modelled multiple parcels with per-line quantities from
+// the day it was written, and the application could produce exactly one per order
+// ever: CanShip admitted only 'picking' and the transition machine never returns
+// an order to it. So a shop that had two of three things on the shelf either sent
+// a parcel claiming all three or made the customer wait for the one on back-order.
+func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.NullUUID) error {
+	carrier, tracking := strings.TrimSpace(d.Carrier), strings.TrimSpace(d.Tracking)
 	if carrier == "" || tracking == "" {
 		return ErrInvalid
 	}
@@ -416,24 +474,33 @@ func (s *Store) Ship(ctx context.Context, number, carrier, tracking string, acto
 		return fmt.Errorf("record shipment: %w", shipErr)
 	}
 
-	if linesErr := writeShipmentLines(ctx, q, row.ID, shipmentID, number); linesErr != nil {
-		return linesErr
+	// The lines and the stock they settle are decided together, inside this
+	// transaction, from the state this transaction can see. Read separately they
+	// are free to disagree about an order somebody else is editing.
+	if fillErr := fillParcel(ctx, q, row.ID, shipmentID, number, d.Lines); fillErr != nil {
+		return fillErr
 	}
 
 	// The status move is what orders_legal_transition guards: only picking may
 	// become shipped, and the whole transaction fails if this order is not there
 	// yet. That refusal is the point — it is what stops a shipment being
 	// recorded against an order nobody has picked.
-	if advErr := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
-		OrderNumber: number, Status: "shipped",
-	}); advErr != nil {
-		return fmt.Errorf("%w: %s", ErrRefused, advErr.Error())
+	//
+	// Skipped for a SECOND parcel, which leaves the order where it already is.
+	// The trigger returns early on an unchanged status, so calling it anyway
+	// would work — but "advance to shipped" on an order that shipped last week
+	// reads as a state change to anybody debugging this, and it is not one.
+	if row.FulfillmentStatus == "picking" {
+		if advErr := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
+			OrderNumber: number, Status: "shipped",
+		}); advErr != nil {
+			return fmt.Errorf("%w: %s", ErrRefused, advErr.Error())
+		}
 	}
 
-	if err := settleHeldStock(ctx, q, row.ID, number); err != nil {
-		return err
-	}
-
+	// One notice per PARCEL, and the dedupe key is the tracking number rather
+	// than the order: a customer whose order arrives in two boxes is told about
+	// both, and each message names the parcel it is about.
 	if err := enqueueOrderShipped(ctx, q, row.ID, &OrderShipped{
 		OrderNumber: number, Carrier: carrier, Tracking: tracking,
 	}); err != nil {
@@ -459,30 +526,108 @@ func (s *Store) Ship(ctx context.Context, number, carrier, tracking string, acto
 	return nil
 }
 
-// settleHeldStock consumes the reservations a dispatch is taking off the shelf.
+// fillParcel writes what is in this parcel and settles the holds behind it.
 //
-// Nothing held is not "nothing to do" — it is stock that went BACK on the shelf
-// under an order about to leave the warehouse. Every line takes a hold in
-// PlaceOrder's own transaction, so an empty set here means somebody released
-// them, and shipping anyway posts no inventory movement at all: the parcel goes
-// out and stock_quantity stays where it was, over-stating the shelf by exactly
-// this order forever and overselling the next customer. Ranging over an empty
-// slice made all of that silent.
-func settleHeldStock(ctx context.Context, q *db.Queries, orderID uuid.UUID, number string) error {
-	held, err := q.HeldReservations(ctx, orderID)
+// The two are one act. A shipment line without its hold settled leaves stock
+// spoken for against goods that have gone out — which a sweeper would later
+// return to the shelf — and a hold settled without its line leaves the parcel
+// unable to say what it carried, which is the ceiling return_within_shipment
+// reads.
+func fillParcel(
+	ctx context.Context, q *db.Queries, orderID, shipmentID uuid.UUID,
+	number string, want map[uuid.UUID]int32,
+) error {
+	packed, err := packParcel(ctx, q, orderID, number, want)
 	if err != nil {
-		return fmt.Errorf("read held reservations: %w", err)
+		return err
 	}
-	if len(held) == 0 {
-		return fmt.Errorf("%w: order %s holds no stock; its reservations were "+
-			"released and shipping would not decrement anything", ErrRefused, number)
-	}
-	for _, id := range held {
-		if consumeErr := q.ConsumeReservation(ctx, id); consumeErr != nil {
-			return fmt.Errorf("consume reservation %s: %w", id, consumeErr)
+	for _, p := range packed {
+		if lineErr := q.CreateShipmentLine(ctx, db.CreateShipmentLineParams{
+			OrderID: orderID, ShipmentID: shipmentID,
+			OrderLineID: p.lineID, Quantity: p.quantity,
+		}); lineErr != nil {
+			return fmt.Errorf("record shipment line: %w", lineErr)
+		}
+		if consumeErr := q.ConsumeReservationPartial(ctx, db.ConsumeReservationPartialParams{
+			ReservationID: p.reservationID, Quantity: p.quantity,
+		}); consumeErr != nil {
+			return fmt.Errorf("settle the hold behind line %s: %w", p.lineID, consumeErr)
 		}
 	}
 	return nil
+}
+
+// parcelLine is one line of a dispatch, with the hold it settles.
+type parcelLine struct {
+	lineID        uuid.UUID
+	reservationID uuid.UUID
+	quantity      int32
+}
+
+// packParcel decides what is in this parcel and which holds it settles.
+//
+// `want` empty means everything still outstanding, which is the ordinary
+// dispatch and was the only one the back office could produce.
+//
+// Every refusal here is a state that would otherwise be SILENT:
+//
+//   - Nothing outstanding: the order has already gone out in full, and a second
+//     empty parcel is a tracking number the customer will chase for nothing.
+//   - A line with no hold: the stock went back on the shelf under an order about
+//     to leave the warehouse. Shipping anyway posts no inventory movement, so
+//     the parcel goes out and stock_quantity stays where it was, over-stating
+//     the shelf by exactly this order forever. Ranging over an empty slice made
+//     that silent, which is the shape this repository found the hard way.
+//   - More than remains, or more than is held: a dispatch of goods this order
+//     did not reserve. consume_reservation_partial refuses it under a lock too;
+//     saying it here is what turns a constraint name into a sentence.
+func packParcel(
+	ctx context.Context, q *db.Queries, orderID uuid.UUID, number string, want map[uuid.UUID]int32,
+) ([]parcelLine, error) {
+	rows, err := q.ShippableLines(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("read shippable lines: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil, fmt.Errorf("%w: order %s has nothing left to ship", ErrRefused, number)
+	}
+
+	packed := make([]parcelLine, 0, len(rows))
+	for i := range rows {
+		r := &rows[i]
+		quantity := r.Remaining
+		if len(want) > 0 {
+			n, asked := want[r.OrderLineID]
+			if !asked || n == 0 {
+				continue // not in this parcel
+			}
+			quantity = n
+		}
+		if quantity < 0 || quantity > r.Remaining {
+			return nil, fmt.Errorf("%w: line %s has %d left to ship, not %d",
+				ErrQuantity, r.OrderLineID, r.Remaining, quantity)
+		}
+		if !r.ReservationID.Valid {
+			return nil, fmt.Errorf("%w: line %s of order %s holds no stock; its "+
+				"reservation was released and shipping would not decrement anything",
+				ErrRefused, r.OrderLineID, number)
+		}
+		if quantity > r.Held {
+			return nil, fmt.Errorf("%w: line %s holds %d units, not %d",
+				ErrQuantity, r.OrderLineID, r.Held, quantity)
+		}
+		packed = append(packed, parcelLine{
+			lineID: r.OrderLineID, reservationID: r.ReservationID.UUID, quantity: quantity,
+		})
+	}
+
+	// A parcel with nothing in it is a tracking number for an empty box. It
+	// happens when the form is submitted with every quantity at zero, which is a
+	// mistake rather than an instruction.
+	if len(packed) == 0 {
+		return nil, fmt.Errorf("%w: no lines were selected for this parcel", ErrQuantity)
+	}
+	return packed, nil
 }
 
 // SetStaffNote records an internal note. staff_note is internal by design —
@@ -627,32 +772,6 @@ func text(s string) pgtype.Text {
 		return pgtype.Text{}
 	}
 	return pgtype.Text{String: s, Valid: true}
-}
-
-// writeShipmentLines records what is in the parcel.
-//
-// A shipment with no lines is a dispatch nothing can be reconciled against:
-// return_within_shipment bounds a return by what actually went out, so with no
-// lines recorded that ceiling is zero and no return of this order is ever
-// possible. An order with nothing left to ship is refused rather than given an
-// empty shipment.
-func writeShipmentLines(ctx context.Context, q *db.Queries, orderID, shipmentID uuid.UUID, number string) error {
-	remaining, err := q.UnshippedLines(ctx, orderID)
-	if err != nil {
-		return fmt.Errorf("read unshipped lines: %w", err)
-	}
-	if len(remaining) == 0 {
-		return fmt.Errorf("%w: order %s has nothing left to ship", ErrRefused, number)
-	}
-	for _, l := range remaining {
-		if lineErr := q.CreateShipmentLine(ctx, db.CreateShipmentLineParams{
-			OrderID: orderID, ShipmentID: shipmentID,
-			OrderLineID: l.ID, Quantity: l.Remaining,
-		}); lineErr != nil {
-			return fmt.Errorf("record shipment line: %w", lineErr)
-		}
-	}
-	return nil
 }
 
 // Returns reads the back-office queue.

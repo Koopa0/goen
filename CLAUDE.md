@@ -356,6 +356,41 @@ misinforming it, in the shop's favour.** The dropdown offers 已送達 and 已�
 equal peers with no hint that one carries a side effect, which is why the rule
 belongs in `applyStatusEffects` and not in the operator's head.
 
+**An order ships in as many parcels as it takes.** `order_shipments` has held
+several per order, `order_shipment_lines` their per-line quantities, and a
+composite key binding lines to their parcel since the schema was written — while
+`Ship` wrote every remaining line at once and `CanShip` read `status == "picking"`,
+which nothing returns an order to. So one order could hold exactly ONE parcel
+ever, and a shop with two of three things on the shelf either sent a parcel
+claiming all three or made the customer wait for the one on back-order.
+
+`CanShip` follows from what is still OUTSTANDING now, not from the status: an
+order that shipped one parcel and still owes something can ship again, and one
+that owes nothing cannot however 'shipped' it is. Only the first parcel moves the
+status; the rest add rows.
+
+**A hold splits.** `consume_reservation_partial` settles part of a reservation by
+reducing the held row and inserting a `consumed` one, rather than adding a
+`consumed_quantity` column — one row then records one settled fact, and
+`inventory_reservations_settled_has_state` stays true instead of describing a row
+that is half settled. The consumed row carries the ORIGINAL's `created_at` and
+`expires_at`: it records a hold taken then and expired then, which is also what
+keeps `expiry_after_creation` true for a row inserted now. The partial unique
+index is `(order_id, variant_id) WHERE state = 'held'`, so the insert cannot
+collide with the remainder it was split from.
+
+Three refusals, each a state that would otherwise be silent: nothing outstanding
+(a tracking number the customer chases for an empty box), a line whose hold was
+released (the dispatch posts no movement, so the parcel goes out and
+`stock_quantity` stays where it was), and a quantity larger than remains or is
+held. `ErrQuantity` is its own sentinel rather than a sub-case of `ErrInvalid`
+because the two send a staff member to different fields — and telling them apart
+by searching the error TEXT is mistake #32.
+
+The dispatch notice was already keyed on the TRACKING number rather than the
+order, with a comment saying an order shipped in two parcels is two notices. That
+was written before anything could produce a second parcel; it is true now.
+
 ### Three completeness guards, and what they found
 
 A feature can be finished from the schema's side and have no door on either face.

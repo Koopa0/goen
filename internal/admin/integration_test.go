@@ -375,7 +375,7 @@ func TestShipDoesAllFourWritesOrNone(t *testing.T) {
 	s := admin.NewStore(pool, fakeRefunder{})
 	number, orderID := pickingOrderHoldingStock(t)
 
-	if err := s.Ship(ctx, number, "黑貓宅急便", "TW1234567890", uuid.NullUUID{}); err != nil {
+	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "黑貓宅急便", Tracking: "TW1234567890"}, uuid.NullUUID{}); err != nil {
 		t.Fatalf("ship: %v", err)
 	}
 
@@ -464,7 +464,7 @@ func TestShipRollsEverythingBackWhenTheStatusMoveIsRefused(t *testing.T) {
 		t.Fatalf("find order: %v", err)
 	}
 
-	err := s.Ship(ctx, number, "黑貓宅急便", "TW999", uuid.NullUUID{})
+	err := s.Ship(ctx, number, admin.Dispatch{Carrier: "黑貓宅急便", Tracking: "TW999"}, uuid.NullUUID{})
 	if !errors.Is(err, admin.ErrRefused) {
 		t.Fatalf("shipping a pending order gave %v, want ErrRefused", err)
 	}
@@ -500,7 +500,7 @@ func TestShipNeedsACarrierAndATracking(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := s.Ship(ctx, number, tt.carrier, tt.tracking, uuid.NullUUID{}); !errors.Is(err, admin.ErrInvalid) {
+			if err := s.Ship(ctx, number, admin.Dispatch{Carrier: tt.carrier, Tracking: tt.tracking}, uuid.NullUUID{}); !errors.Is(err, admin.ErrInvalid) {
 				t.Errorf("Ship(%q, %q) gave %v, want ErrInvalid", tt.carrier, tt.tracking, err)
 			}
 		})
@@ -2683,7 +2683,7 @@ func TestShippingEnqueuesTheDispatchNotice(t *testing.T) {
 	}
 	staffCtx := account.WithUser(ctx, account.User{ID: staff.String(), Role: "admin"})
 
-	if err := s.Ship(staffCtx, number, "黑貓宅急便", "903-2214-0001",
+	if err := s.Ship(staffCtx, number, admin.Dispatch{Carrier: "黑貓宅急便", Tracking: "903-2214-0001"},
 		uuid.NullUUID{UUID: staff, Valid: true}); err != nil {
 		t.Fatalf("ship: %v", err)
 	}
@@ -3302,7 +3302,7 @@ func TestADeliveryAddressCanBeCorrectedUntilItShips(t *testing.T) {
 	}
 
 	// Ship it, and the same correction is refused.
-	if err := s.Ship(ctx, number, "黑貓宅急便", "903-2214-9999",
+	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "黑貓宅急便", Tracking: "903-2214-9999"},
 		uuid.NullUUID{UUID: staffID, Valid: true}); err != nil {
 		t.Fatalf("ship: %v", err)
 	}
@@ -4520,7 +4520,7 @@ func TestADeliveredOrderMarksItsParcelsDelivered(t *testing.T) {
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	number := shippableOrder(t, "zh-Hant")
 
-	if err := s.Ship(ctx, number, "黑貓宅急便", "DELIVERED-"+number, actor); err != nil {
+	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "黑貓宅急便", Tracking: "DELIVERED-" + number}, actor); err != nil {
 		t.Fatalf("Ship: %v", err)
 	}
 	before, err := s.Order(ctx, number)
@@ -4584,7 +4584,7 @@ func TestAnOrderCompletedWithoutADeliveryStepStillStampsItsParcels(t *testing.T)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	number := shippableOrder(t, "zh-Hant")
 
-	if err := s.Ship(ctx, number, "7-ELEVEN 交貨便", "COLLECTED-"+number, actor); err != nil {
+	if err := s.Ship(ctx, number, admin.Dispatch{Carrier: "7-ELEVEN 交貨便", Tracking: "COLLECTED-" + number}, actor); err != nil {
 		t.Fatalf("Ship: %v", err)
 	}
 	if !deliveredAt(t, number).IsZero() {
@@ -4628,7 +4628,7 @@ func TestShippingIsRefusedWhenTheOrderHoldsNoStock(t *testing.T) {
 		t.Fatalf("strand the order: %v", err)
 	}
 
-	err := s.Ship(ctx, number, "黑貓宅急便", "NOHOLD-"+number, uuid.NullUUID{})
+	err := s.Ship(ctx, number, admin.Dispatch{Carrier: "黑貓宅急便", Tracking: "NOHOLD-" + number}, uuid.NullUUID{})
 	if !errors.Is(err, admin.ErrRefused) {
 		t.Fatalf("shipping an order holding no stock = %v, want ErrRefused", err)
 	}
@@ -6291,5 +6291,324 @@ func TestALineIsInspectedOnceAndACorrectionIsAnAdjustment(t *testing.T) {
 	if restocked != 2 {
 		t.Errorf("the line records %d restocked, want 2 — the refused submission "+
 			"changed the record without changing the stock", restocked)
+	}
+}
+
+// twoLineOrderWithStock is a picking order holding two DIFFERENT variants, which
+// is what a partial dispatch needs: one line goes in this parcel and the other
+// waits.
+//
+// Its own products per call, for the reason returnedOrderWithStock has its own:
+// shipping consumes stock, and a shared seeded row makes the suite pass in file
+// order and fail shuffled.
+func twoLineOrderWithStock(t *testing.T, name string) (
+	number string, orderID uuid.UUID, lineIDs, variantIDs []uuid.UUID,
+) {
+	t.Helper()
+	ctx := t.Context()
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
+		                    shipping_method_name, shipping_cents)
+		SELECT next_order_number(), v.id, sm.code, v.name, 0
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1
+		RETURNING id, order_number`).Scan(&orderID, &number); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+
+	// Two lines, three units each, so a parcel can carry SOME of one line and
+	// all of the other — the case a single figure per order cannot express.
+	for i := range 2 {
+		slug := fmt.Sprintf("%s-%d-%s", name, i, uuid.NewString()[:8])
+		var productID, variantID, lineID uuid.UUID
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+			SELECT b.id, c.id, $1, '分批出貨測試', 'active', now()
+			FROM brands b, categories c WHERE b.slug = 'pixelight' AND c.slug = 'phones'
+			RETURNING id`, slug).Scan(&productID); err != nil {
+			t.Fatalf("create product: %v", err)
+		}
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO product_variants (product_id, sku, price_cents, safety_stock, position)
+			VALUES ($1, upper($2), 100000, 0, 1) RETURNING id`,
+			productID, slug).Scan(&variantID); err != nil {
+			t.Fatalf("create variant: %v", err)
+		}
+		if _, err := tx.Exec(ctx,
+			`SELECT record_inventory_movement($1, 10, 'receipt', $2, NULL, NULL, NULL)`,
+			variantID, "seed:"+slug); err != nil {
+			t.Fatalf("stock the variant: %v", err)
+		}
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+			VALUES ($1, $2, upper($3), '分批出貨測試', 100000, 3, $4) RETURNING id`,
+			orderID, variantID, slug, i).Scan(&lineID); err != nil {
+			t.Fatalf("create line: %v", err)
+		}
+		// The hold, through the same function checkout uses. Writing the
+		// reservation directly would be a fixture for a state the application
+		// cannot produce.
+		if _, err := tx.Exec(ctx,
+			`SELECT hold_inventory($1, $2, 3, now() + interval '30 minutes', $3)`,
+			orderID, variantID, "hold:"+slug); err != nil {
+			t.Fatalf("hold: %v", err)
+		}
+		lineIDs = append(lineIDs, lineID)
+		variantIDs = append(variantIDs, variantID)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'p@example.com', '收件', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
+		orderID); err != nil {
+		t.Fatalf("create private data: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, 600000)`,
+		orderID, "cs_part_"+number); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT capture_payment($1, 600000, NULL, NULL)`,
+		"cs_part_"+number); err != nil {
+		t.Fatalf("capture: %v", err)
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE orders SET fulfillment_status = 'picking' WHERE id = $1`, orderID); err != nil {
+		t.Fatalf("move to picking: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	return number, orderID, lineIDs, variantIDs
+}
+
+// heldFor is how many units an order still has reserved for one variant.
+func heldFor(t *testing.T, orderID, variantID uuid.UUID) int32 {
+	t.Helper()
+	var n int32
+	if err := pool.QueryRow(t.Context(), `
+		SELECT coalesce(sum(quantity), 0)::integer FROM inventory_reservations
+		WHERE order_id = $1 AND variant_id = $2 AND state = 'held'`,
+		orderID, variantID).Scan(&n); err != nil {
+		t.Fatalf("read held: %v", err)
+	}
+	return n
+}
+
+// shippedFor is how many units of one line have gone out across every parcel.
+func shippedFor(t *testing.T, lineID uuid.UUID) int32 {
+	t.Helper()
+	var n int32
+	if err := pool.QueryRow(t.Context(), `
+		SELECT coalesce(sum(quantity), 0)::integer FROM order_shipment_lines
+		WHERE order_line_id = $1`, lineID).Scan(&n); err != nil {
+		t.Fatalf("read shipped: %v", err)
+	}
+	return n
+}
+
+// TestAnOrderCanShipInTwoParcels is the capability the tables modelled and the
+// application could not reach.
+//
+// order_shipments has held several parcels per order, order_shipment_lines their
+// per-line quantities, and a composite key binding lines to their parcel since
+// the schema was written — while Ship wrote every remaining line at once and
+// CanShip admitted only 'picking', which nothing returns an order to. So one
+// order could hold exactly ONE parcel, ever, and a shop with two of three things
+// on the shelf either sent a parcel claiming all three or made the customer wait.
+func TestAnOrderCanShipInTwoParcels(t *testing.T) {
+	ctx, staff := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{})
+	actor := uuid.NullUUID{UUID: staff, Valid: true}
+	number, orderID, lines, variants := twoLineOrderWithStock(t, "partial")
+
+	// First parcel: two of the first line's three, none of the second.
+	if err := s.Ship(ctx, number, admin.Dispatch{
+		Carrier: "黑貓宅急便", Tracking: "P1-" + number,
+		Lines: map[uuid.UUID]int32{lines[0]: 2},
+	}, actor); err != nil {
+		t.Fatalf("first parcel: %v", err)
+	}
+
+	if got := shippedFor(t, lines[0]); got != 2 {
+		t.Errorf("line 1 has shipped %d, want 2", got)
+	}
+	if got := shippedFor(t, lines[1]); got != 0 {
+		t.Errorf("line 2 has shipped %d, want 0 — it was not in this parcel", got)
+	}
+	// The hold settles by the SAME amount, or the stock story and the parcel
+	// disagree: one unit of line 1 and all three of line 2 are still spoken for.
+	if got := heldFor(t, orderID, variants[0]); got != 1 {
+		t.Errorf("line 1 still holds %d, want 1", got)
+	}
+	if got := heldFor(t, orderID, variants[1]); got != 3 {
+		t.Errorf("line 2 still holds %d, want 3 — nothing of it has gone out", got)
+	}
+
+	var status string
+	if err := pool.QueryRow(ctx,
+		`SELECT fulfillment_status FROM orders WHERE id = $1`, orderID).Scan(&status); err != nil {
+		t.Fatalf("read status: %v", err)
+	}
+	if status != "shipped" {
+		t.Errorf("the order is %q after its first parcel, want shipped", status)
+	}
+
+	// Second parcel: the rest. This is the move that was impossible.
+	if err := s.Ship(ctx, number, admin.Dispatch{
+		Carrier: "黑貓宅急便", Tracking: "P2-" + number,
+	}, actor); err != nil {
+		t.Fatalf("second parcel: %v", err)
+	}
+
+	if got := shippedFor(t, lines[0]); got != 3 {
+		t.Errorf("line 1 has shipped %d after both parcels, want 3", got)
+	}
+	if got := shippedFor(t, lines[1]); got != 3 {
+		t.Errorf("line 2 has shipped %d after both parcels, want 3", got)
+	}
+	if got := heldFor(t, orderID, variants[0]); got != 0 {
+		t.Errorf("line 1 still holds %d after shipping everything, want 0 — a "+
+			"sweeper would return goods that have gone out", got)
+	}
+	if got := heldFor(t, orderID, variants[1]); got != 0 {
+		t.Errorf("line 2 still holds %d after shipping everything, want 0", got)
+	}
+
+	var parcels int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM order_shipments WHERE order_id = $1`, orderID).Scan(&parcels); err != nil {
+		t.Fatalf("count parcels: %v", err)
+	}
+	if parcels != 2 {
+		t.Errorf("%d parcels, want 2", parcels)
+	}
+
+	// And a third is refused: there is nothing left, so it would be a tracking
+	// number the customer chases for an empty box.
+	err := s.Ship(ctx, number, admin.Dispatch{
+		Carrier: "黑貓宅急便", Tracking: "P3-" + number,
+	}, actor)
+	if !errors.Is(err, admin.ErrRefused) {
+		t.Errorf("a third parcel on a fully shipped order = %v, want ErrRefused", err)
+	}
+}
+
+// TestAParcelCannotCarryMoreThanRemains holds the arithmetic that keeps the
+// shipment lines and the holds telling the same story.
+//
+// consume_reservation_partial refuses it under a lock too. Saying it here as
+// well is what turns a constraint name into a sentence a staff member can act
+// on, and what stops the parcel row being written before the refusal lands.
+func TestAParcelCannotCarryMoreThanRemains(t *testing.T) {
+	ctx, staff := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{})
+	actor := uuid.NullUUID{UUID: staff, Valid: true}
+	number, orderID, lines, variants := twoLineOrderWithStock(t, "overship")
+
+	err := s.Ship(ctx, number, admin.Dispatch{
+		Carrier: "黑貓宅急便", Tracking: "OVER-" + number,
+		Lines: map[uuid.UUID]int32{lines[0]: 4},
+	}, actor)
+	if !errors.Is(err, admin.ErrQuantity) {
+		t.Fatalf("shipping 4 of 3 = %v, want ErrQuantity", err)
+	}
+
+	// Nothing at all was written: the shipment row is created before the lines
+	// are packed, so a refusal that left it behind would be a parcel with no
+	// contents — which return_within_shipment then reads as a zero ceiling.
+	var parcels int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM order_shipments WHERE order_id = $1`, orderID).Scan(&parcels); err != nil {
+		t.Fatalf("count parcels: %v", err)
+	}
+	if parcels != 0 {
+		t.Errorf("%d parcels after a refused dispatch, want 0", parcels)
+	}
+	if got := heldFor(t, orderID, variants[0]); got != 3 {
+		t.Errorf("the hold moved to %d on a refused dispatch, want 3", got)
+	}
+}
+
+// TestAnEmptyParcelIsRefused stops a tracking number going out for a box with
+// nothing in it, which is what a form submitted with every quantity at zero
+// would otherwise produce.
+func TestAnEmptyParcelIsRefused(t *testing.T) {
+	ctx, staff := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{})
+	actor := uuid.NullUUID{UUID: staff, Valid: true}
+	number, orderID, lines, _ := twoLineOrderWithStock(t, "emptyparcel")
+
+	err := s.Ship(ctx, number, admin.Dispatch{
+		Carrier: "黑貓宅急便", Tracking: "EMPTY-" + number,
+		Lines: map[uuid.UUID]int32{lines[0]: 0, lines[1]: 0},
+	}, actor)
+	if !errors.Is(err, admin.ErrQuantity) {
+		t.Fatalf("a parcel carrying nothing = %v, want ErrQuantity", err)
+	}
+	var parcels int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM order_shipments WHERE order_id = $1`, orderID).Scan(&parcels); err != nil {
+		t.Fatalf("count parcels: %v", err)
+	}
+	if parcels != 0 {
+		t.Errorf("%d parcels after an empty dispatch, want 0", parcels)
+	}
+}
+
+// TestEachParcelTellsTheCustomer proves a customer whose order arrives in two
+// boxes hears about both.
+//
+// The dispatch notice is deduped on the TRACKING number rather than the order,
+// which is what makes that true: keyed on the order, the second parcel's message
+// would be swallowed by outbox_messages' (topic, dedupe_key) index and the
+// customer would be told about one box and left to wonder about the other.
+func TestEachParcelTellsTheCustomer(t *testing.T) {
+	ctx, staff := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{})
+	actor := uuid.NullUUID{UUID: staff, Valid: true}
+	number, orderID, lines, _ := twoLineOrderWithStock(t, "notice")
+
+	if err := s.Ship(ctx, number, admin.Dispatch{
+		Carrier: "黑貓宅急便", Tracking: "N1-" + number,
+		Lines: map[uuid.UUID]int32{lines[0]: 3},
+	}, actor); err != nil {
+		t.Fatalf("first parcel: %v", err)
+	}
+	if err := s.Ship(ctx, number, admin.Dispatch{
+		Carrier: "黑貓宅急便", Tracking: "N2-" + number,
+		Lines: map[uuid.UUID]int32{lines[1]: 3},
+	}, actor); err != nil {
+		t.Fatalf("second parcel: %v", err)
+	}
+
+	var notices int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM outbox_messages
+		WHERE topic = 'order.shipped' AND payload->>'order_number' = $1`,
+		number).Scan(&notices); err != nil {
+		t.Fatalf("count notices: %v", err)
+	}
+	if notices != 2 {
+		t.Errorf("%d dispatch notices for two parcels, want 2 — a customer told "+
+			"about one box is left wondering about the other", notices)
+	}
+
+	// And the order's history records both, so the shop can see what went when.
+	var events int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM order_events WHERE order_id = $1 AND kind = 'shipped'`,
+		orderID).Scan(&events); err != nil {
+		t.Fatalf("count events: %v", err)
+	}
+	if events != 2 {
+		t.Errorf("%d shipped events for two parcels, want 2", events)
 	}
 }

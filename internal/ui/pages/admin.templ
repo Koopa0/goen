@@ -406,9 +406,39 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 								<label class="ui-label" for="ship-tracking">查詢編號</label>
 								<input class="ui-input" id="ship-tracking" name="tracking" required maxlength="60" autocomplete="off"/>
 							</div>
+							// Per line, because a parcel can carry some of what is left:
+							// the other two are on back-order, or would not fit the
+							// carrier's box. Defaulting to everything outstanding keeps
+							// the one-parcel dispatch a single click, which is what it
+							// was and still is the common case.
+							for _, l := range v.Shippable {
+								<div class="ui-field">
+									<label class="ui-label" for={ "qty-" + l.OrderLineID }>
+										{ l.Line() }(剩 { l.RemainingText() })
+									</label>
+									<input
+										class="ui-input"
+										id={ "qty-" + l.OrderLineID }
+										type="number"
+										name={ "qty_" + l.OrderLineID }
+										value={ l.RemainingText() }
+										min="0"
+										max={ l.RemainingText() }
+									/>
+									// A line holding less than it owes cannot be fully
+									// dispatched: part of its stock went back on the shelf,
+									// and shipping it would post no movement at all. Said
+									// here rather than left to fail at the write.
+									if l.Short() {
+										<p class="goen-admin__hint">
+											這一項只保留了 { l.HeldText() } 件,超過的部分無法出貨。
+										</p>
+									}
+								</div>
+							}
 							<button class="ui-btn ui-btn--primary ui-btn--block" type="submit">出貨</button>
 							<p class="goen-admin__hint">
-								出貨會同時記錄配送資訊、扣除保留的庫存,並寫入訂單紀錄。
+								出貨會同時記錄配送資訊、扣除保留的庫存,並寫入訂單紀錄。數量可以少於剩餘,剩下的之後再出一次。
 							</p>
 						</form>
 					}
