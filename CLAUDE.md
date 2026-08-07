@@ -39,9 +39,8 @@ database is PostgreSQL and the binary refuses to start without it.
 - htmx 4.0.0-beta6, vendored at `assets/js/vendor/htmx.min.js` (a pre-release,
   taken on purpose while the htmx surface is two forms; revisit the pin when
   4.0 stable ships). htmx 4 swaps every response but 204/304, so a rejected
-  form's `422` fragment swaps on its own — the htmx-2 `before-swap` shim in
-  `goen.js` is gone. Inheritance is unused, so its 2→4 explicit-inheritance
-  change does not apply here.
+  form's `422` fragment swaps on its own and the htmx-2 `before-swap` shim is
+  gone. Inheritance is unused, so the 2→4 change to it does not apply here.
 - Stripe via the official `stripe-go/v86`, using **hosted Checkout** — a
   server-side session create plus a `303`, never Elements. Elements would put
   the card field on goen's page and need Stripe.js to submit it, which makes
@@ -152,11 +151,11 @@ entry looks filled in.
 
 `TestEveryKeyIsRendered` covers the third way this rots, and the one that had
 actually happened: **fourteen of thirty-eight keys were translated into English
-and rendered by nothing.** The cart, the checkout and the buy panel were still
+and rendered by nothing** — the cart, the checkout and the buy panel were still
 hard-coded Chinese, so an English visitor got a half-English site on the buying
-mainline — the exact failure the locale work exists to prevent, with the
-translations for it sitting in the catalogue. The reverse direction cannot rot:
-keys are typed constants, so naming one that does not exist will not compile.
+mainline with the translations for it sitting in the catalogue. The reverse
+direction cannot rot: keys are typed constants, so naming one that does not exist
+will not compile.
 
 `TestNoChromeStringIsHardCoded` covers the fourth way, and the one the other
 three cannot see: a string that never reached the catalogue at all. All three of
@@ -259,7 +258,7 @@ the sign-off so a new message cannot arrive without them, and it drops the name
 placeholder when there is none — a restock notice goes to an address, not to a
 person, and "Hello ," is what makes a shop look automated.
 
-The line that decides the hard cases:The line that decides the hard cases: **copy compiled into the binary is goen's
+The line that decides the hard cases: **copy compiled into the binary is goen's
 to say in both languages; copy typed into a table is the shop's to say however it
 likes.** That is why `DefaultHero` is translated and a scheduled `hero_slides`
 row is not, and why `contact.Subject` carries a Chinese VALUE (what
@@ -271,45 +270,36 @@ English explains ご縁 and 五円, so it has to print them. The list is one ent
 long on purpose — an entry there is a claim somebody read the English and meant
 it.
 
-That paragraph used to end by naming PROSE chrome — page-head sub-lines,
-instructions under forms — as a remaining gap. It is closed: every customer-facing
-page was rendered with an `en` cookie and read, and what came back in Chinese was
-the documented list above and nothing else.
-
 **Two defects hid in `.sql` files**, because the sweep read `.go` and `.templ`.
-`RecordCancellation` wrote `'顧客自行取消'` into `order_events.note` — purely so the
-shop could tell its own cancel from the customer's — and the customer's own order
-page RENDERS notes, so somebody who cancelled read a Chinese sentence in their
-timeline forever. The fact is structural now: the back office always writes an
-actor, so its absence IS the distinction, and each audience is told it in their own
-words. `/shipping` built `'離島 另加 NT$200、澎湖 另加 NT$150'` with `string_agg`,
-which is a sentence assembled where no locale exists and cannot be anything but
-Chinese; the zone name is data and stays, the words around it are chrome and follow
-the visitor. **A query that assembles chrome is chrome written where nobody can ask
-who is reading**, and the sweep reads SQL literals now — single-quoted, comments and
-trailing comments excepted, both proven.
+`RecordCancellation` wrote `'顧客自行取消'` into `order_events.note` and the
+customer's own order page RENDERS notes, so somebody who cancelled read a Chinese
+sentence in their timeline forever — the back office always writes an actor, so its
+absence IS the distinction, and each audience is told it in their own words.
+`/shipping` built `'離島 另加 NT$200、澎湖 另加 NT$150'` with `string_agg`; the zone
+name is data and stays, the words around it are chrome and follow the visitor. **A
+query that assembles chrome is chrome written where nobody can ask who is reading**,
+and the sweep reads SQL literals now.
 
 **`/admin/messages` was subtracting two clocks.** The wait in whole days came from
 `time.Now().Sub(m.CreatedAt)`, and `created_at` is written by the DATABASE — so a
 testcontainer milliseconds ahead of its host reported a four-day-old message as
 three. It is `floor(extract(epoch FROM now() - created_at) / 86400)` in the query
 now, one clock at both ends, which is the coupon-window lesson at the other end of
-the same comparison. The test cannot lock it: neither implementation is
-distinguishable from the other except by skew nobody controls, so the fixture is
-moved an hour off the day boundary and the mutation is recorded GREEN rather than
-dressed up — the same call the constant-time compare in `internal/twofactor` gets.
+the same comparison. No test can lock it — neither implementation is distinguishable
+except by skew nobody controls — so the fixture sits an hour off the day boundary and
+the mutation is recorded GREEN rather than dressed up, the same call the
+constant-time compare in `internal/twofactor` gets.
 
-`cmd/` was the other blind spot. The walk read `internal/` only, and
-`cmd/goen/server.go`'s panic recovery answers a customer: it had no exemption
-comment because nothing had ever asked it for one. Both 500 fallbacks — that one and
-`web.Render`'s — carry BOTH languages in the literal now rather than a catalogue
+`cmd/` was the other blind spot: the walk read `internal/` only, and
+`cmd/goen/server.go`'s panic recovery answers a customer. Both 500 fallbacks — that
+one and `web.Render`'s — carry BOTH languages in the literal rather than a catalogue
 lookup, because the one path that must never fail twice should not acquire a
 dependency, and neither reader should get a line they cannot read.
 
 **規格表 has a door.** `product_specs` is what the PDP and `/compare` read — 規格看得懂
 is the whole promise of a 選品店 — and the table was written by the dev seed and by
-nothing else. The back office could create a product, price it, photograph it and
-publish it, and the comparison table for its own products was two empty columns.
+nothing else, so the comparison table for a shop's own products was two empty
+columns.
 
 It is `/admin/products/{slug}`, beside the variants, and called 規格表 rather than
 規格 because that page already calls a VARIANT 規格: two things with one name on one
@@ -317,14 +307,12 @@ page is how staff enter the wrong one. The position is computed INSIDE the inser
 from `max(position)`, because `product_specs_position_key` is unique on
 `(product_id, position)` and two staff members editing one product would each read
 the same maximum. The DELETE is scoped to the product in its own WHERE clause, so an
-id belonging to another product is `ErrNotFound` rather than a deletion.
-
-Labels and values are bounded in CHARACTERS, in Go and in a CHECK. The bound is new
-because nothing had ever reached one — a seed does not typo. A spec is a table cell
-on `/compare`, and a label that is a sentence makes the first column wrap to three
+id belonging to another product is `ErrNotFound` rather than a deletion. Labels and
+values are bounded in CHARACTERS, in Go and in a CHECK: a spec is a table cell on
+`/compare`, and a label that is a sentence makes the first column wrap to three
 lines, which is what that page exists to avoid.
 
-****`/admin/returns` says whether a request is a statutory rescission.** 消保法
+**`/admin/returns` says whether a request is a statutory rescission.** 消保法
 §19 I runs seven days from RECEIPT, 民法 §120 II excludes the day of receipt, and
 §19 IV fixes the moment on the customer's side — the request going out, not the
 shop reading it. So the comparison is `created_at` against `delivered_at`, both
@@ -335,9 +323,7 @@ It INFORMS and does not restrict, and that is the decision. `Decide` still
 accepts "rejected" for any open request: §19-2 gives the trader fifteen days to
 refund after the goods come BACK, so an in-window request is not auto-approved
 either, and "the parcel never arrived" is a legitimate refusal only a person can
-make. What was missing was the fact on screen, not a new rule — a staff member
-had no way to tell a request the page says the shop may not refuse from a
-goodwill return that is entirely theirs to decline.
+make. What was missing was the fact on screen, not a new rule.
 
 A blank return reason is legal for the same statute. It was demanded in THREE
 places at once — `internal/returns`' own validation, `required` on the textarea,
@@ -345,226 +331,152 @@ and `return_requests_reason_present` in the schema — so a customer exercising 
 unwaivable right could not submit the form, and the schema half is the one no
 amount of form-fiddling could talk its way past.
 
-A delivered order marks its parcels delivered.** `order_shipments.delivered_at`
+**A delivered order marks its parcels delivered.** `order_shipments.delivered_at`
 was read by the customer's own order page and by `/admin/orders`, and written by
 NOTHING — so an order marked 已送達 showed every parcel still in transit, and the
 customer's page reads the parcel. The stamp is in the transition's own transaction,
 only for parcels with no stamp, and the test compares the raw timestamp rather than
 the view's — `DeliveredAt` is formatted to the minute, so the first version stayed
-green with the idempotency predicate deleted.
+green with the idempotency predicate deleted. `applyStatusEffects` holds what a
+status move MEANS beyond the column — the stock release, the credit reversal, the
+parcel stamp — each added later than the status move itself and each missing when
+it was.
 
-`Advance` grew past its complexity budget doing this, which was the signal to split:
-`applyStatusEffects` now holds what a status move MEANS beyond the column — the stock
-release, the credit reversal, the parcel stamp. Each of those was added later than
-the status move itself and each was missing when it was.
+**BOTH transitions that end a delivery, not just the one named 'delivered'.**
+`orders_legal_transition` permits `shipped → completed` directly, and for 超商取貨
+that is the only honest move a shop can make: nobody at the counter witnesses the
+customer collecting, so there is no delivery event to record. Stamping only on
+'delivered' left a whole channel's parcels unstamped forever — mistake #17, and
+the fix for the never-written `delivered_at` closing one of its two doors.
+What it cost is not cosmetic: `/admin/returns` reads `max(delivered_at)` to decide
+whether a request is inside 消保法 §19's seven days, so an unstamped parcel
+rendered as 尚未送達 — "the window has not started" — for goods that demonstrably
+arrived. **The one screen built to inform an unwaivable-right decision was
+misinforming it, in the shop's favour.** The dropdown offers 已送達 and 已完成 as
+equal peers with no hint that one carries a side effect, which is why the rule
+belongs in `applyStatusEffects` and not in the operator's head.
 
-**The mirror question found two more, and it is a build failure now as well:**
-`TestEveryTableIsRead` refuses a table the application WRITES and never READS. Data
-collected and never shown is a feature with no door from the other side.
+### Three completeness guards, and what they found
 
-The two guards are deliberately disjoint — a table nothing writes is the first one's
-finding, and this one skips it, because reporting one decision from both would make
-it look like two problems. The completeness check said so on the first run.
+A feature can be finished from the schema's side and have no door on either face.
+Three build failures ask that, derived from `information_schema` rather than from a
+hand-written list. They are deliberately DISJOINT — reporting one decision from two
+of them would make it look like two problems.
 
-`inventory_movements` is the stock LEDGER — `record_inventory_movement` is the only
-writer of `stock_quantity`, which is what makes "one writer" true rather than
-aspirational — and nothing read it. A shop could see that a SKU holds four units and
-not how it got there: which sale, which return, which hand adjustment and by whom.
-`/admin/stock/{sku}` is that ledger, and the SKU on the stock list links to it,
-because the question a staff member has there is "why is this four".
+**`TestEveryTableHasAWriter`** — a table the application never writes. A writer is
+an INSERT/UPDATE/DELETE in a feature's `query.sql` or inside a stored function body;
+a SECURITY DEFINER function IS a door, and the only one to money and stock. **The dev
+seed does not count**, because seeding a table is exactly what a doorless feature can
+do and no shop can. It found five features that looked finished from outside, and in
+two cases this file promised them: `product_specs` (so `/compare` showed two empty
+columns for the shop's own products), `product_options` (so the picker had nothing to
+pick and every variant after the first was unreachable), `promo_banners`,
+`faq_entries`, and `shipping_methods`/`shipping_zones` — a shop could publish a new
+VERSION of the two seeded delivery methods and not add a third, and set a surcharge
+for a zone the seed created and not define one. Three entries remain, each a decision
+rather than a gap: `invoice_documents` and its lines wait for a 加值中心, and
+`user_identities` for OAuth credentials.
 
-A running total is computed over the WHOLE ledger rather than the page, so the last
-fifty rows still tell the truth. A HOLD points at the order directly; a RELEASE
-points at the RESERVATION, because `release_reservation` knows only that — so the
-query reaches through it, and the first test of that stayed GREEN because it
-exercised a hold, which the direct join already covered.
+**`TestEveryTableIsRead`** — the mirror. Data collected and never shown is a feature
+with no door from the other side. `inventory_movements` is the stock LEDGER —
+`record_inventory_movement` is the only writer of `stock_quantity`, which is what
+makes "one writer" true rather than aspirational — and nothing read it: a shop could
+see that a SKU holds four units and not how it got there. `/admin/stock/{sku}` is
+that ledger, linked from the SKU on the stock list, because the question a staff
+member has there is "why is this four". Its running total is computed over the WHOLE
+ledger rather than the page, so the last fifty rows still tell the truth; a HOLD
+points at the order directly and a RELEASE at the RESERVATION, because
+`release_reservation` knows only that. `invoice_preferences` was the second: the 發票
+choice is collected at checkout and was shown nowhere, so a staff member packing an
+order could not see whether it needed a 統編 invoice — and since issuing needs a
+加值中心 nobody has, somebody issues these by hand from a table they could not read.
 
 **The dev seed used to set `stock_quantity` directly**, which the owner may do and no
-role can. That cost nothing until the ledger was readable, and then a variant held 19
-units whose history explained 7. The seed posts a `receipt` movement now — a fixture
-that reaches past the application is a fixture for a claim nobody is testing — and
-every variant's ledger sums to its projection.
+role can, so a variant held 19 units whose history explained 7. It posts a `receipt`
+movement now: **a fixture that reaches past the application is a fixture for a claim
+nobody is testing.**
 
-`invoice_preferences` was the second. The 發票 choice is collected at checkout and was
-shown nowhere, so a staff member packing an order could not see whether it needed a
-統編 invoice. Issuing is still not built (it needs a 加值中心), which is exactly why
-showing it matters: until then somebody issues these by hand, and cannot do that from
-a table they cannot read.
+**`TestEveryColumnIsReadOrWritten`** — a column nothing uses. It asks whether any SQL
+this repository ships MENTIONS each column, with CREATE TABLE bodies cut out so a
+declaration and its own CHECK do not count. A mention rather than a write,
+deliberately: telling the two apart needs a SQL parser, the failure it catches is
+total, and a guard that is coarse and true beats one that is precise and unwritten.
+That is also its documented LIMIT — it did not catch `warranty_months`, read by a
+feature and written by no form.
 
-**A table nothing writes is now a build failure too.** That question — asked by
-hand — found five features with no door: `product_specs` (so `/compare` showed two
-empty columns for the shop's own products), `product_options` (so the picker had
-nothing to pick and every variant after the first was unreachable), `promo_banners`,
-`faq_entries`, and `shipping_methods`/`shipping_zones`. Each looked finished from
-outside: the schema described it, and in two cases this file promised it.
+goen has shipped four such columns: `orders.discount_code`,
+`users.email_verified_at`, `layouts.Page.CartCount` one layer up, and — found by this
+guard — **`product_search_documents`, an entire projection table with a trigram
+index, no writer, no reader, and a note above it claiming it had exactly one
+writer.** Search ILIKEs `products.name` and always has. That table is DELETED rather
+than wired or left as scaffolding: the projection that IS the documented next step is
+a bigram tsvector for short CJK queries, a different shape, so keeping it would not
+have been a head start. `payment_webhook_events.provider_created_at` went with it.
 
-`TestEveryTableHasAWriter` asks it in CI. A writer is an INSERT/UPDATE/DELETE in any
-feature's `query.sql` or inside a stored function body — a SECURITY DEFINER function
-IS a door, and the only one to money and stock. **The dev seed does not count**,
-because seeding a table is exactly what all five doorless features could do and no
-shop could; counting it would make the test agree they were finished.
-
-Three entries remain, each a decision rather than a gap: `invoice_documents` and its
-lines wait for a 加值中心, and `user_identities` for OAuth credentials.
-`schema_migrations` was a fourth and the completeness check refused it — for the
-second time, after `TestEveryColumnIsReadOrWritten` refused the same entry, because
+`schema_migrations` was refused from two of the three allowlists, because
 testcontainers applies `001` directly and the table is not in the schema being asked.
 
-**`TestEveryColumnIsReadOrWritten` did not catch `warranty_months`, and that is the
-documented limit of it.** The guard asks whether any SQL MENTIONS a column, because
-telling a read from a write needs a parser — so a column read by a feature and
-written by no form passes. The PDP now states the term as well, in its own section:
-it used to sit inside `if v.Description != ""`, so a product with no description
-stated no cover either, which is two unrelated facts sharing one condition.
+**Every shop-typed string on a customer-facing surface has an English twin**, each
+separately optional and each falling back to the Chinese. The ones with a reason of
+their own:
 
-**A column nothing uses is now a build failure.** goen has shipped four:
-`orders.discount_code` (declared, never written, and the reflex when the discount
-finally had to be shown was to fill it in), `users.email_verified_at` (declared,
-never set, with "the customer cannot change their address at all" underneath it),
-`layouts.Page.CartCount` one layer up, and — found by this guard —
-**`product_search_documents`, an entire projection table with a trigram index, no
-writer, no reader, and a note above it claiming it had exactly one writer.** Search
-ILIKEs `products.name` and always has.
+- **`membership_tiers.name_en` is the worst shape a gap takes.** The account page
+  puts the band name INSIDE a sentence — "NT$10,000 more reaches 銀卡會員" — so a
+  missing English name does not read as untranslated content. It reads as a broken
+  page, and only to the visitor. `/admin/tiers` says why on the form.
+- **Delivery method names** were the last shop-typed chrome on the buying mainline:
+  the checkout's chooser labels come from `shipping_method_versions.name`, so an
+  English customer read 宅配到府 and 超商取貨 at the moment of paying. `name_en` and
+  `carrier_en` sit on the VERSION, like the fee, so translating a name cannot rewrite
+  what an older order says it chose. `shipping_zones.name_en` came with them, because
+  離島 appears inside the surcharge sentence shown before charging it.
+- **The HERO.** `pages.DefaultHero` has been translated since the locale work because
+  it is compiled into the binary; a SCHEDULED `hero_slides` row was not, so the moment
+  a shop used the feature the largest text on its home page went Chinese for
+  everybody. Every hero field has a twin except the HREFs, because a link goes to one
+  page. `sale_campaigns.title_en` is the same case — `/s/{slug}`'s whole heading.
+- **ALT TEXT is the accessibility half, not a cosmetic one.**
+  `product_images.alt_text_en` and `hero_slides.image_alt_en`: a screen reader
+  announces alt text in the language `<html lang>` declares, so Chinese alt text on
+  an English page is announced in the wrong voice or not at all — a failure only the
+  people who depend on it ever meet, and nobody at the shop can see. It stays
+  REQUIRED in Chinese and optional in English; mispronounced beats silent.
+- **Product copy** — `products.name_en`, `summary_en`, `description_en`. A name is
+  worth translating first, a summary second, and a description is the one somebody
+  has to sit down and write; demanding all three at once is how a translation feature
+  goes unused. `/admin/products` badges what has no English name, so the shop can see
+  its own debt.
 
-That table is DELETED rather than wired or left as scaffolding: the projection that
-IS the documented next step is a bigram tsvector for short CJK queries, a different
-shape, so keeping this one would not even have been a head start. The same call the
-reserved role names got. `payment_webhook_events.provider_created_at` went with it —
-the event's own timestamp is in the payload if reconciliation ever needs it.
-
-`TestEveryColumnIsReadOrWritten` derives the question from `information_schema` and
-asks whether any SQL this repository ships mentions each column, with CREATE TABLE
-bodies cut out so a column's own declaration and its own CHECK do not count as
-using it. A MENTION rather than a write, deliberately: telling the two apart needs a
-SQL parser, the failure it catches is total, and a guard that is coarse and true
-beats one that is precise and unwritten. Its completeness check earned its place
-immediately — `schema_migrations.version` was allowlisted and refused, because
-testcontainers applies `001` directly and the table does not exist in the schema
-being asked.
-
-**Seven tables had no application writer, and three of them were features.**
-`faq_entries` (the promise above), `shipping_methods` and
-`shipping_zones`/`shipping_zone_prefixes` — a shop could publish a new VERSION of the
-two seeded delivery methods and not add a third, and could set a surcharge for a zone
-the seed created and not define one. All three have doors now. The other four are decisions: `invoice_documents` and
-`invoice_document_lines` wait for a 加值中心 integration, and `user_identities` waits
-for OAuth credentials.
-
-`/admin/shipping` closes the other two. A method is created WITH its first version,
-in one transaction: a method with no version is one the checkout finds and cannot
-price, and `shipping_method_versions` is append-only so there is no repairing that by
-editing. `destination_kind` is asked on the form rather than derived from the code,
-because it decides which half of the checkout exists and a rule written in Go is the
-rule the next method forgets. A method is switched OFF and never deleted — every past
-order names the version it was priced from.
-
-A zone is created WITH its prefixes, because the surcharge lookup finds a zone BY
-prefix: an empty zone is a row nothing can reach and a surcharge nobody is charged.
-Assigning a prefix is an UPSERT, since `prefix` is the primary key of
-`shipping_zone_prefixes` — a postal code belongs to exactly one zone by construction,
-so moving one between zones is the ordinary edit, and delete-then-insert would leave
-a postal code in no zone for a moment in which a checkout would undercharge.
-
-`/admin/faq` closes the first. The position is computed inside the INSERT and WITHIN
-the category, because `faq_entries_position_key` is unique on `(category, position)`
-— two staff members adding to 訂單 would otherwise both read the same maximum. The
-category is not editable on an existing entry: moving one between categories has to
-renumber its position, and a form that silently collides with that index is worse
-than one that does not offer the move. The audit row names the entry and never its
-text, because `audit_events` is append-only and a paragraph copied there outlives
-every later correction of it.
-
-Its English fields follow the product-copy rule, and the page COUNTS what has none:
-an untranslated answer is read in Chinese by every English visitor and by nobody at
-the shop, and /faq is the page an English visitor is most likely to actually read.
-
-**`membership_tiers.name_en` is the worst shape a gap takes.** The account page puts
-the band name INSIDE a sentence — "NT$10,000 more reaches 銀卡會員" — so a missing
-English name does not read as untranslated content. It reads as a broken page, and
-only to the visitor. `/admin/tiers` collects it and says why on the form.
-
-Its first test asserted `localized_name` directly and stayed GREEN when the QUERY was
-mutated: it was testing the SQL function, which every other guard already covers. It
-drives `Overview` now.
-
-**Delivery method names were the last shop-typed chrome on the buying mainline.**
-The checkout's method chooser is a set of LINKS whose labels come from
-`shipping_method_versions.name`, so an English customer picking a delivery method read
-宅配到府 and 超商取貨 at the moment of paying. `name_en` and `carrier_en` sit on the
-VERSION, like the fee: a past order names the version it was priced from, so
-translating a name cannot rewrite what an older order says it chose.
-`shipping_zones.name_en` came with them, because 離島 appears inside the surcharge
-sentence the checkout shows before charging it.
-
-Proving that one taught both false-green modes in one sitting. The first mutation
-matched a DIFFERENT query and broke the build — `[build failed]` is not a red test.
-The second removed the `@locale` parameter along with the function, which also fails
-to compile; keeping the parameter bound to an unused column is what made the mutation
-compile AND change behaviour.
-
-**The promotional strip had NO DOOR.** It is documented as a feature the shop runs —
-middleware decides which paths carry it, dismissing one writes a cookie keyed on a
-digest of its id, the in-normal-flow placement is a recorded design decision — and
-the only way to create one was SQL. `check-layout` seeds one with `psql`, which is
-the tell: **a fixture that reaches past the application is a fixture for a feature
-with no entrance.** It is `/admin/home/banner` now, beside the hero, because both
-answer the same question — what the storefront says before a visitor has chosen
-anything.
-
-Two rules it carries that the schema cannot: the CTA href goes through
-`web.SitePath`, because a person types it and it renders into a link at the top of
-every storefront page; and switching a strip OFF is not deleting it, because the
-dismissal cookie is keyed on the id — a new row with the same copy would reappear for
-everybody who had closed it, which is right only if it genuinely is a new promotion.
-
-`sale_campaigns.title_en` went in with it: `/s/{slug}` is a page whose whole heading
-is that title.
-
-**The HERO and ALT TEXT were the last two, and one of them is an accessibility
-bug rather than a cosmetic one.** `pages.DefaultHero` has been translated since the
-locale work because it is compiled into the binary; a SCHEDULED `hero_slides` row was
-not, so the moment a shop used the feature the largest text on its home page went
-Chinese for everybody — the same mistake the header's hard-coded nav made, from the
-other direction. Every hero field has an English twin now except the HREFs, because a
-link goes to one page.
-
-`product_images.alt_text_en` and `hero_slides.image_alt_en` are the accessibility
-half: a screen reader announces alt text in the language `<html lang>` declares, so
-Chinese alt text on an English page is announced in the wrong voice or not at all —
-a failure only the people who depend on it ever meet, and nobody at the shop can see.
-Alt text stays REQUIRED in Chinese and optional in English, and the fallback is the
-Chinese text: mispronounced beats silent.
-
-A mutation run on the hero found a defect I had just written.
-`localized_name(NULL, NULL, …)` is NULL and sqlc types the function's result as
-non-null, so wrapping a NULLABLE column without coalescing made the home page fail to
-scan its own hero the moment a slide left its optional fields empty. Nothing
-exercised it because the seed ships no slides — the same reason
-`pages.DefaultHero()` exists at all. **Wrapping a nullable column in a function
-changes its nullability and sqlc cannot see it: coalesce, and cast.**
+**Wrapping a nullable column in a function changes its nullability and sqlc cannot
+see it: coalesce, and cast.** `localized_name(NULL, NULL, …)` is NULL while sqlc
+types the result non-null, so the home page failed to scan its own hero the moment a
+slide left its optional fields empty — unexercised because the seed ships no slides,
+the same reason `pages.DefaultHero()` exists at all.
 
 **A restock letter names the product in the RECIPIENT's language.** The letter's
 words already followed `stock_notifications.locale` — that column exists because the
 worker is serving nobody and cannot read a request — and the product NAME did not: it
-was read once, in Chinese, and copied into every recipient's payload. So an English
-subscriber got an English letter about 保護殼, which is the exact failure the locale
-work exists to stop, arriving where nobody would see it in review. The name is read
-once per distinct LOCALE in the claimed set rather than once per recipient: there are
-two languages and there can be dozens of subscribers.
+was read once, in Chinese, and copied into every recipient's payload. The name is
+read once per distinct LOCALE in the claimed set rather than once per recipient.
 
-**Product copy follows the visitor now, and SEARCH matches both languages.**
-`products.name_en`, `summary_en` and `description_en`, each separately optional —
-a name is worth translating first, a summary second, and a description is the one
-somebody has to sit down and write; demanding all three at once is how a translation
-feature goes unused. `/admin/products` badges what has no English name, so the shop
-can see its own debt.
+**SEARCH matches on IDENTITY**, so the predicate takes `name`, `name_en`, `summary`
+and `summary_en` together. Matching only the localized column would make the
+catalogue searchable in one language at a time — and a shop could not see that
+failure, because the language it reads in is the one that works.
+`SearchProductsCount` carries the same predicate for the same reason a count always
+does: a page reporting three results above one row.
 
-Search is the half that is easy to get wrong: it matches on IDENTITY, so the
-predicate takes `name`, `name_en`, `summary` and `summary_en` together. Matching only
-the localized column would make the catalogue searchable in one language at a time —
-and a shop could not see that failure, because the language it reads in is the one
-that works. `SearchProductsCount` carries the same predicate for the same reason a
-count always does: a page reporting three results above one row.
+**The promotional strip had NO DOOR.** It is documented as a feature the shop runs —
+middleware decides which paths carry it, dismissing one writes a cookie keyed on a
+digest of its id — and the only way to create one was SQL. `check-layout` seeds one
+with `psql`, which is the tell: **a fixture that reaches past the application is a
+fixture for a feature with no entrance.** It is `/admin/home/banner` now, beside the
+hero, because both answer the same question — what the storefront says before a
+visitor has chosen anything. Two rules it carries that the schema cannot: the CTA
+href goes through `web.SitePath`, because a person types it and it renders into a
+link at the top of every storefront page; and switching a strip OFF is not deleting
+it, because the dismissal cookie is keyed on the id — a new row with the same copy
+would reappear for everybody who had closed it.
 
 **`TestEveryLocaleParamIsAssigned` exists because omitting the locale COMPILES.**
 sqlc gives a localized query a `Locale string` field, a struct literal is happy to
@@ -574,22 +486,19 @@ returns Chinese. So the page renders in the wrong language with no error anywher
 `/search` matched a product by its English name and displayed the Chinese one. The
 guard reads the GENERATED code for which Params types carry a locale, so a new
 localized query is covered the moment sqlc emits it. It found five call sites.
-
-Its own mutation is worth recording: the first attempt to prove it deleted a
-`Locale:` line that `gofmt` had padded to `Locale:     string(...)`, so the edit
-matched nothing, the test stayed green, and a `grep -c` on the wrong pattern said the
-mutation had applied. That is false-green mode #3 — the mutation must be seen to
-apply, not assumed.
+Proving it taught false-green mode #3: the first attempt deleted a `Locale:` line
+that `gofmt` had padded to `Locale:     string(...)`, so the edit matched nothing and
+a `grep -c` on the wrong pattern said it had applied. **The mutation must be seen to
+apply, not assumed.**
 
 **The variant picker has a door and a language, and those are two different
 columns.** `product_options` and `product_option_values` — 顏色 / 星霧藍 — were read
 by the PDP's picker, by the cart line and by the facets, and written by the dev seed
-and by nothing else. A shop creating its own product could add variants and had no
-way to tell them apart: the picker had nothing to pick, so every variant after the
+and by nothing else, so the picker had nothing to pick and every variant after the
 first was unreachable.
 
 `/admin/products/{slug}` creates axes and values now, and **a variant must name one
-value per axis.** That is demanded at the write rather than discovered later: a
+value per axis** — demanded at the write rather than discovered later, because a
 product with two options and a variant naming one is resolvable by no URL the picker
 can build, so it would exist as a SKU in the back office and appear nowhere on the
 site. The variant and its links share a transaction, and the value's product is read
@@ -609,10 +518,7 @@ mutation that builds the href from the label is recorded red.
 That distinction is why two queries are exempt from
 `TestEveryOptionLabelIsLocalized` and both are named with it: `ProductVariants` and
 the PDP's matching aggregate the canonical values to compare against a URL
-selection, while `CartLines` SHOWS the selection and therefore localizes it. The
-guard's identity-checked allowlist earned its place immediately — the first pattern
-was `product_option(_values)?`, which matches `product_option_values` and misses
-`product_options` entirely, and three entries looked stale as a result.
+selection, while `CartLines` SHOWS the selection and therefore localizes it.
 
 **The 規格表 follows the visitor too**, through the same function and the same
 nullable-column pattern: `product_specs.label_en` and `.value_en`, separately
@@ -654,12 +560,8 @@ translation must be able to take it back, which is why the write is
 `TestEveryCategoryNameIsLocalized` derives the rule from the query files. Its
 allowlist is checked by IDENTITY rather than by count: the first version compared
 totals, so an entry naming a query that no longer exists passed — and it
-immediately found two entries I had added on a guess. It also had to learn to strip
-SQL comments, because `splitQueries` hands each query the NEXT one's introduction.
-
-The grant taught trap #21 from the other side again: `GRANT EXECUTE ... TO store,
-admin, reporting` next to the function definition failed the migration outright,
-because `admin` does not exist that early in the file.
+immediately found two entries added on a guess. It also had to learn to strip SQL
+comments, because `splitQueries` hands each query the NEXT one's introduction.
 
 ## Predictable mistakes here
 
@@ -714,15 +616,15 @@ because `admin` does not exist that early in the file.
     demanded the net. A customer with NT$300 of credit on a NT$1,000 order paid
     NT$1,000 at Stripe, and every webhook delivery then rolled back on the
     constraint: money taken, order unpaid forever, and a 500 on each retry.
-    The mechanism is written in this repository's own comment. The trigger says
+    The mechanism was written in this repository's own comment — the trigger says
     "when store-credit funding arrives, this is the line that must learn about
-    them" — **the trigger learned and the payment path never did**, because the
-    expression existed in two places and the third caller had no copy at all.
+    them", and **the trigger learned while the payment path never did**, because
+    the expression existed in two places and the third caller had no copy at all.
     `order_amount_owed(order_id)` is the one definition now, read by the funding
-    check, the capture guard and the payment page. A fully funded order (100%
-    discount, or credit covering everything) is never sent to Stripe: it legally
-    owes nothing, `orders_funded_to_leave_pending` skips its payment check for
-    exactly that case, and Stripe refuses a zero-amount session.
+    check, the capture guard and the payment page. A fully funded order is never
+    sent to Stripe: it legally owes nothing,
+    `orders_funded_to_leave_pending` skips its payment check for exactly that
+    case, and Stripe refuses a zero-amount session.
     **Found by a third-party review, not by any gate here.** Every guard in this
     repository asks about ABSENCE — a table with no door, a field nobody assigns,
     a column nobody reads. None of them can see two correct halves that disagree.
@@ -799,11 +701,9 @@ because `admin` does not exist that early in the file.
     unit tests and the flag had simply never been added to the other line.
     Fixtures create what they need now, and the flag is on.
 24. **A gate with most of its subject missing.** `check-layout` measured ten
-    of the site's fifty-three page routes. The other forty-three had never been
-    rendered in a browser at any width, which is the only way an overflow or a
-    31px tap target is ever found — and the PDP, the most important page on the
-    site, scrolled sideways at 375px the whole time. Every page has a row now,
-    85 viewports in all.
+    of the site's fifty-three page routes, and the PDP — the most important page
+    on the site — scrolled sideways at 375px the whole time. Every page has a row
+    now, 85 viewports in all.
 25. **A check that measures LAYOUT and calls the page checked.** `check-layout`
     drove a real browser over 85 viewports and asked only about geometry:
     overflow, grid columns, tap targets, whether images loaded. The invariants a
@@ -812,13 +712,10 @@ because `admin` does not exist that early in the file.
     else. It asks seven now: exactly one `h1`, no skipped heading level, no `img`
     without an `alt` attribute (`alt=""` is correct for decoration; ABSENT means
     nobody decided), an accessible name on every form control and every
-    link/button, no positive `tabindex`, and `<html lang>` present.
-    The first run found six failures in one class: a product TILE's name is an
-    `h3`, and on `/search` and `/deals` the nearest heading above it was the page's
-    own `h1`. The listing page never had the problem because its filter panel
-    supplies an `h2`. The grids carry a visually-hidden `h2` now — "results" is a
-    landmark worth being able to jump to — and the PDP's 到貨通知我 became an `h2`,
-    which it always was structurally.
+    link/button, no positive `tabindex`, and `<html lang>` present. The first run
+    found six failures in one class — a product TILE's name is an `h3`, and on
+    `/search` and `/deals` the nearest heading above it was the page's own `h1`,
+    which the listing never hit because its filter panel supplies an `h2`.
     Deliberately NOT a full audit: no contrast, no ARIA semantics, nothing needing
     a judgement call. Every rule is decidable from the DOM, so a failure is a fact
     rather than an opinion — which is what makes it safe to gate a build on.
@@ -826,10 +723,8 @@ because `admin` does not exist that early in the file.
 26. **A layout check with no fixture.** The promotional strip's two rows in
     `check-layout` measured nothing from the day they were written: an empty
     `promo_banners` is a working site and a correct blank page, so the strip
-    was never on screen. Only the check's own marker guard said so, and only
-    once something else in the table failed and somebody read the output. A
-    check over DATA needs that data seeded, the way the cart, the placed order
-    and the admin session already are.
+    was never on screen. A check over DATA needs that data seeded, the way the
+    cart, the placed order and the admin session already are.
     `/admin/questions`, `/admin/messages` and `/admin/returns` were the last
     three, and the return is the one worth reading: a return of something that
     never shipped is refused by `return_lines_within_purchase`, so its fixture is
@@ -845,17 +740,16 @@ because `admin` does not exist that early in the file.
 
 27. **Calling a check flaky when it has one message for four causes.**
     `make check-layout` failed all 34 admin rows once and passed twice, and that
-    read as non-determinism. Nothing about it was random. The staff-user and
+    read as non-determinism. Nothing about it was random: the staff-user and
     session inserts ended `>/dev/null 2>&1`, one with `|| true`, so a missing user
     made the session `INSERT ... SELECT` write ZERO ROWS in silence — and every
     admin row then said "the staff session is not being accepted", which names a
     rejected cookie and not an absent one. A `GOEN_TOTP_KEY` that turns the
     step-up gate on produces the same sentence, and so does an expired row, and so
     does a server reading `__Host-goen_session` while the check sets
-    `goen_session`.
-    The session is probed ONCE now and the failure names which of them it is,
-    then skips the 48 rows instead of reporting one cause 48 times. The
-    classifier had to learn that `RequireStaff` answers **404 rather than
+    `goen_session`. The session is probed ONCE now and the failure names which of
+    them it is, then skips the 48 rows instead of reporting one cause 48 times.
+    The classifier had to learn that `RequireStaff` answers **404 rather than
     redirecting** — it does not disclose that `/admin` exists — so "still at
     /admin with no chrome" IS the rejected-session case. This is #17 and #26 on
     the same three lines.
@@ -904,6 +798,68 @@ because `admin` does not exist that early in the file.
     "whatever the provider supports") sitting next to an invariant that depends
     on the configuration being narrow. Name the dependency at both ends or
     close it, and see the payment section for which was chosen here.
+
+31. **A comment that states the rule its own predicate does not implement.**
+    `release_reservation` was headed "a zero-owed order has no payment row and
+    used to have its stock released out from under it" — and asked
+    `order_is_committed`, which is FALSE for exactly that order while it sits at
+    pending. So the sentence describing the defect sat above the code still
+    committing it. Measured end to end through the site's own forms: a customer
+    paid NT$670 entirely from store credit, the sweeper put the unit back on the
+    shelf 30 minutes later (stock 10 → 11), and `Ship` then wrote a parcel while
+    ranging over an EMPTY held-reservation slice — no movement posted, so the
+    goods left the warehouse and `stock_quantity` never moved. Money taken, stock
+    re-sold, nothing raised.
+    This is #13 and #30 a third time, and the shape it adds is the cheapest to
+    miss: the two halves were **a comment and the line under it**, not two
+    functions in different files. A reviewer reads the comment and stops.
+    Closed at three points because each answers a different question —
+    `release_reservation` refuses it by name (`inventory_reservation_funded_no_release`),
+    `ExpiredReservations` declines to offer it, and `Ship` refuses an order
+    holding nothing rather than shipping it silently. That last one immediately
+    found `shippableOrder`, a test fixture that wrote an order line with no
+    variant and took no hold at all — **a fixture for a state the application
+    cannot produce**, which is #26 from the other side.
+    The reading it earns: when a comment names a case, grep the predicate for
+    the case, not for the comment.
+
+32. **`strings.Contains(err.Error(), …)` on a `PgError`, which cannot match.**
+    `redeemCoupon` mapped a spent coupon to `ErrCouponUsedUp` by searching the
+    error string for the constraint name. pgconn renders a `PgError` as
+    severity + message + SQLSTATE; `ConstraintName` is a struct FIELD and is
+    never in that string, so both branches were unreachable and every over-limit
+    redemption reached the customer as a 500 at the moment of checkout, with the
+    whole address discarded. Bind to `PgError.ConstraintName` — #8, and the
+    reason `error-handling.md` forbids `Contains` on an error at all.
+    It was not a race: `FindCoupon` deliberately checks no limit (they belong
+    under `redeem_coupon`'s lock), so a spent code passes the form validation
+    EVERY time and fails in the transaction EVERY time. And
+    `TestTotalRedemptionLimitIsEnforced` drove that exact path four times while
+    asserting only a count, so **the dead branch executed green on every
+    integration run**. A count proves the database held the line; only the ERROR
+    says what the customer is about to be shown.
+
+33. **Two intervals compared without asking when each one STARTS.**
+    `GrantRetain` is set equal to the placed cookie's `MaxAge` under a comment
+    saying that keeps a grant alive for as long as any browser can present it —
+    and naming the forbidden state outright: "a grant swept while its cookie is
+    still live locks a customer out of their own order." Equality delivers that
+    only if the cookie is never re-issued. It is re-issued with a FRESH MaxAge on
+    every order, carrying up to ten older tokens forward, while each grant was
+    swept on its own `created_at`. So a customer who ordered on day 0 and again
+    on day 25 held a live cookie until day 55 naming an order whose grant died on
+    day 30: their own order page, cancel form and return form, gone.
+    Equal DURATIONS are not equal deadlines. The clock restarts wherever the
+    cookie's restarts now, and the column grant that allows it is
+    `UPDATE (created_at)` and not the verb — "nothing repoints a digest" was the
+    reason table-level UPDATE was revoked, and it is still true.
+    Found by asking a question none of the guards here ask: **not "is this
+    written?" but "does this comment's own forbidden state have a path to it?"**
+    It is #31's shape a third time in one review.
+    Its first test was FALSE-GREEN and the mutation is what said so: the fixture
+    aged the grant to just INSIDE the window, where the sweeper spares it either
+    way. A fixture that does not reach the state under test passes for a reason
+    that has nothing to do with the fix.
 
 ## Build tools stay out of go.mod
 
@@ -954,9 +910,8 @@ reviewer should see them named rather than discover them.
    dashboard may read. The storefront and the account pages share `store`
    because a visitor and a signed-in customer are separated in Go by their
    session, not by a database role — there is no RLS and no per-request
-   `SET ROLE`. Batch ⑦'s back office needs a wider set and will add `admin` /
-   `admin_svc`; the names are reserved in the migration but not created, because
-   a role with no grants and no member is scaffolding for nothing.
+   `SET ROLE`. The back office runs on a wider `admin` / `admin_svc` pair, and
+   `maintenance` / `maintenance_svc` exists for one function.
 
    A round-3 review found the first cut of this model porous, and closing it
    set the standard the model has to meet — recorded because each hole is easy
@@ -994,14 +949,13 @@ reviewer should see them named rather than discover them.
      column grants over eight tables close it, and the sharpest is
      `product_reviews.hidden_at` — hiding takes a review out of the SCORE, so
      that was a product's public rating movable from a storefront request.
-     **This was QUEUED for two rounds on a reason that had already expired.**
-     The note said a grant one column too NARROW would fail nowhere, because
-     every suite connects as the OWNER. `TestEveryRoleCanRunItsOwnQueries` had
+     **This was QUEUED for two rounds on a reason that had already expired**: the
+     note said a grant one column too NARROW would fail nowhere, because every
+     suite connects as the OWNER, and `TestEveryRoleCanRunItsOwnQueries` had
      refuted that one commit earlier — `SET ROLE` binds ACLs even for a
      superuser, and `EXPLAIN (GENERIC_PLAN)` resolves COLUMN privileges without
-     executing anything. The guard that made the work safe was written for a
-     different finding and nobody re-read the note beside it. **A queued item is
-     a claim about the world, and the world moves.**
+     executing anything. **A queued item is a claim about the world, and the
+     world moves.**
      Every column list is DERIVED from what the guard reports rather than
      hand-picked; two pairs whose set the parser cannot resolve are left out and
      named. Narrowing them immediately blinded a NEIGHBOUR:
@@ -1023,9 +977,8 @@ reviewer should see them named rather than discover them.
 3. **`updated_at` is kept by a trigger; `database.md` says "MUST set
    `updated_at` explicitly in UPDATE queries, NEVER via triggers".** The rule
    exists so a reader sees the timestamp being set at the write site. goen's
-   write sites are many (every feature's store, plus the admin batch to come)
-   and the cost of one forgetting is a silently stale timestamp that no test
-   would catch. A single `set_updated_at` trigger cannot forget. The rule's
+   write sites are many — every feature's store — and the cost of one forgetting
+   is a silently stale timestamp that no test would catch. A single `set_updated_at` trigger cannot forget. The rule's
    intent — that the timestamp is always truthful — is better served here by the
    trigger than by discipline.
 
@@ -1038,10 +991,9 @@ reviewer should see them named rather than discover them.
 ## The database enforces what it can
 
 goen's data rules live in the schema, not only in Go: 230 CHECKs, 80 foreign
-keys, 60 unique indexes and 39 rule triggers (measured from `pg_constraint`,
-`pg_index` and `pg_trigger` against the built schema — the four figures here had
-drifted to 130/58/43/17, roughly half, because they were counted once by hand and
-the schema kept growing). Application code is where rules
+keys, 60 unique indexes and 39 rule triggers, measured from `pg_constraint`,
+`pg_index` and `pg_trigger` against the built schema rather than counted by hand
+— counted by hand they had drifted to roughly half. Application code is where rules
 go to be forgotten — a second write path appears, a retry runs a step twice —
 so anything that would corrupt money, stock or history is refused by
 PostgreSQL, where there is no second path.
@@ -1092,8 +1044,7 @@ guarantee strip, folded from the 1440 and 375 artboards into one responsive
 document. The design approach that governs it is
 `docs/decisions/002-storefront-design-approach.md`. The product card, price,
 rating and guarantee strip are the design system's commerce pack; `goen-*` in
-`app.css` owns only page composition. Product imagery is a placeholder until a
-media pipeline exists.
+`app.css` owns only page composition.
 Batch ② (listing + search) is implemented: `GET /c/{slug}` and `GET /search`
 through `internal/catalog`, with the read model measured in
 `docs/decisions/003-listing-read-model.md`. A listing shows a category **and its
@@ -1108,11 +1059,11 @@ from there: anyone signed in may write one, and only a COMMITTED purchase earns
 已購買. That split is deliberate — a shop where only buyers may speak hides the
 people who returned something, and a badge anyone can claim is worth nothing.
 The claim is not the caller's to make: `product_reviews_verified_is_real`
-refuses a false one, and it reads `order_is_committed` so a fully
-store-credited order counts. Variant selection
-is a URL, not a click handler: every option combination is a link, so the picker
-works with scripting off, and a value is marked unavailable against the OTHER
-choices — the listing's one-variant rule applied to a picker.
+refuses a false one, and it reads `order_is_committed` so a fully store-credited
+order counts. Variant selection is a URL, not a click handler: every option
+combination is a link, so the picker works with scripting off, and a value is
+marked unavailable against the OTHER choices — the listing's one-variant rule
+applied to a picker.
 
 The shop can HIDE a review at `/admin/reviews`, and hiding takes it out of the
 SCORE as well as the list. That second half is the whole point: the displayed
@@ -1129,35 +1080,28 @@ named with their reason: moderation needs the hidden rows to put them back, and
 the unique index.
 
 Hiding is reversible and audited, and the queue lists hidden reviews — un-hiding
-is not possible from a list that cannot show them. It is ordered NEWEST first,
-the opposite of `/admin/questions`: a question waiting three days is owed an
-answer and gets more urgent, a review is owed nothing, and what a shop wants to
+is not possible from a list that cannot show them. It is ordered NEWEST first, the
+opposite of `/admin/questions`: a review is owed nothing, and what a shop wants to
 see is what has just appeared on its product pages.
 
-**An order says WHICH discount it got, and it used not to say there was one.**
-The order summary showed a subtotal, a shipping fee and a total; the discount was
-absent from all three, so subtotal plus shipping did not equal the total and
-nothing accounted for the difference. Somebody reading their own receipt could not
-tell whether they had been overcharged. The same three pages — the customer's
-order, `/account/orders/{number}` and `/admin/orders/{number}` — were all missing
-it.
+**An order says WHICH discount it got.** The summary used to show a subtotal, a
+shipping fee and a total with the discount absent from all three, so subtotal plus
+shipping did not equal the total and somebody reading their own receipt could not
+tell whether they had been overcharged — on all three order pages at once.
 
 The reason is JOINED from `coupon_redemptions`, not snapshotted on the order.
-There WAS an `orders.discount_code` column, declared with the table and never
-written, and the reflex is to fill it — `orders` already snapshots
-`shipping_method_code` beside its FK, because "the snapshot survives the version
-being superseded". A coupon has nothing to survive: `coupons.code` is never
-updated (the back office switches a coupon OFF rather than editing or deleting it)
-and the FK is `ON DELETE RESTRICT`, so one join always reaches it. The column was a
-second copy of a recoverable fact, which is the shape `product_images` and
-`hero_slides` were each caught by, and it is deleted.
+`orders` snapshots `shipping_method_code` beside its FK because the snapshot
+survives the version being superseded; a coupon has nothing to survive, since
+`coupons.code` is never updated and the FK is `ON DELETE RESTRICT`, so one join
+always reaches it. The `orders.discount_code` column was a second copy of a
+recoverable fact and is deleted.
 
 `TestTheOrderPageShowsTheDiscountAndWhy` asserts the HTML rather than the view
 model, because `Discounted()` is `DiscountCents > 0` and testing it would be a
-tautology. The failure was that a number the view model held correctly was not
-rendered, and only a render can see that.
+tautology: a number the view model held correctly was not rendered, and only a
+render can see that.
 
-Coupons are `internal/cart`:Coupons are `internal/cart`: `amount`, `percent` (basis points) and
+Coupons are `internal/cart`: `amount`, `percent` (basis points) and
 `free_shipping`, with a minimum spend, an optional cap, a total limit and a
 per-customer limit. The discount is capped at the SUBTOTAL, never the total — a
 coupon that could eat the shipping fee would drive the order negative and
@@ -1170,6 +1114,17 @@ each other, because they are one fact. The back office issues them at
 promotion says out loud — and switches them off rather than deleting, since a
 promotion that ran is part of what past orders were charged.
 
+**A spent coupon is a 422 with the form intact, not a 500.** `FindCoupon`
+deliberately checks no limit — they are counted under `redeem_coupon`'s lock, and
+counting them in the query would be counting them without one — so an over-limit
+code passes the form validation EVERY time and is refused inside the checkout
+transaction EVERY time. That refusal is therefore an ordinary outcome on the
+buying mainline, not a rare race, and `PlaceOrder` handled neither sentinel:
+mistake #32 is why the sentinels could not even be produced, and the handler
+mapped what did arrive to a generic 500 that discarded the whole checkout form.
+Both now reach the customer as a message on the coupon field with everything they
+typed still there, which is what the write-face rule asks of every rejection.
+
 Batch ④ (cart + checkout) is `internal/cart`. The cart is a cookie whose token
 is stored hashed; guest checkout works. Placing an order is one transaction that
 writes the header, its lines and its delivery details and empties the cart
@@ -1177,8 +1132,13 @@ together, carries an idempotency key so a double-click is one order, and
 recomputes the shipping fee from the version rather than the form. It also
 HOLDS the stock, through `hold_inventory` in that same transaction — without
 which two customers each read "one available", each write an order, and nothing
-between them decrements anything. `cart.HoldTTL` is 30 minutes and outlives the
-Stripe session on purpose, so a completed payment always still has its stock.
+between them decrements anything. `cart.HoldTTL` is `PayWindow +
+StripeSessionFloor` — 60 minutes, written as a SUM so the two ends cannot drift
+into the equality that once let a session outlive the stock it was paying for.
+`/shipping` states that number and `TestTheStatedHoldMatchesTheEnforcedOne` binds
+the two. (This file said 30 for as long as it existed, which is the page-says-
+versus-code-does drift one paragraph of prose can carry without anything going
+red; the guard covers the PAGE, not this file.)
 
 **Where an order goes follows from the METHOD, and the method decides which
 half of the form exists.** 超商取貨 was on offer from the day shipping shipped
@@ -1204,21 +1164,18 @@ ONE box, and what it matches depends on what it looks like: a string shaped like
 order number is looked up exactly on the unique index; anything else is a PREFIX of
 the recipient's name or their address. The shapes are told apart rather than OR-ed
 together because each path is then index-backed — a query trying all three at once
-with leading wildcards would scan order history on every search a shop does.
+with leading wildcards would scan order history on every search a shop does. A
+prefix rather than a substring is also what an index can serve without putting
+pg_trgm on a table full of PII, and what somebody reading their own details out
+loud gives you: a Chinese name starts with the surname.
 
-A prefix rather than a substring, and that is what an index can serve without
-putting pg_trgm on a table full of PII. It is also what somebody reading their own
-details out loud gives you: a Chinese name starts with the surname.
+A search IGNORES the status tab — somebody on the phone wants that order, not that
+order if it happens to be in the tab they had open. Below `MinSearchRunes` the page
+says so instead of quietly showing the queue: the view carries `Term` and `Searched`
+separately for exactly that, because collapsing them made the page claim results it
+had never looked for.
 
-A search IGNORES the status tab. Somebody on the phone wants that order, not that
-order if it happens to be in the tab they had open.
-
-Below `MinSearchRunes` the page says so instead of quietly showing the queue. The
-view carries `Term` and `Searched` separately for exactly that: collapsing them made
-the page claim results it had never looked for, which is a page that reads like an
-answer and is not.
-
-The back office can CORRECT a delivery addressThe back office can CORRECT a delivery address at `/admin/orders/{number}`,
+The back office can CORRECT a delivery address at `/admin/orders/{number}`,
 until the parcel leaves. A customer who typed the wrong street had no way to fix
 it and neither did the shop: the only option was cancel and re-order, which
 loses the payment and the stock hold with it. The cut-off is in the UPDATE's own
@@ -1252,24 +1209,11 @@ credentials goen does not have; collecting the destination without faking the
 picker is the same call as collecting the 發票 preference without faking the
 加值中心.
 
-**店號 used to be digits-only "because that is what all four chains have in
-common", and that sentence was a GUESS this file stated as a fact and a CHECK
-enforced as a rule.** It is false. Measured against 綠界's own `GetStoreList` on
-2026-08-06 — the authority for how a chain numbers its stores: 7-ELEVEN (6,080),
-全家 (3,449) and OK (688) use six digits, but **萊爾富 uses FOUR characters and
-149 of its 1,350 lead with a letter** (S884, H869, G850). Every one of those was
-a checkout `order_private_data_pickup_store_code_format` refused, with no other
-way through, for one customer at a time and invisible to the shop.
-
-It is `^[0-9A-Z]{1,10}$` now, bounded at the length ECPay publishes for the field
+店號 is `^[0-9A-Z]{1,10}$`, bounded at the length ECPay publishes for the field
 rather than any chain's own width, and `Trim` uppercases so a shift key is not a
 rejected order. The rule still does the job it was written for: a 店名 typed into
-the code field is Han text, which is in neither class.
-
-The conformance case is the other half of the lesson. Its `accept` was `'123456'`
-— which passes under the old regex and the new one alike, so it was **green
-through the entire defect**. It is a real 萊爾富 code now, because an accepting
-statement that both versions admit locks nothing.
+the code field is Han text, which is in neither class. Mistake #28 records what the
+digits-only version of it cost.
 
 **離島 costs more, and the customer sees the number before they are charged
 it.** The fee was one figure for the whole country, so a parcel to 金門 went at
@@ -1306,67 +1250,67 @@ two rules apart is one item that fits beside one that does not; a cart with a
 single oversized item passes under either, which is why the lock has all four
 cases.
 
-NULL is UNMEASURED and not unlimited, on both sides. A method may only be
-refused on a figure that EXISTS: hiding the channel 75.2% of Taiwanese online
-shoppers prefer (資策會 MIC, 2025 Q4) because nobody typed a box size would cost
-more than the counter refusal it prevents, and it would do it silently. The
-measurement is collected on the variant form, and a shop that has not measured
-its catalogue keeps every method until it does.
+NULL is UNMEASURED and not unlimited, on both sides. A method may only be refused
+on a figure that EXISTS: hiding the channel 75.2% of Taiwanese online shoppers
+prefer (資策會 MIC, 2025 Q4) because nobody typed a box size would cost more than
+the counter refusal it prevents, and would do it silently. A shop that has not
+measured its catalogue keeps every method until it does.
 
 **The 離島 surcharge on 超商取貨 is a KNOWN loss and a recorded decision.**
-7-ELEVEN has 76 outlying-island stores and 全家 23 — measured against 綠界's own
-store list on 2026-08-06 — so pickup parcels really do cross the water, and the
-surcharge is reached through a postal code a pickup order does not have. goen
-eats it. The owner's call, on the grounds that this is a demonstration project;
-the fix is not the deleted `serviceable` flag but a store catalogue that can say
-where a 店號 is, which arrives with 綠界物流 if it ever does.
+Measured against 綠界's own store list on 2026-08-06: 7-ELEVEN has 76 離島 stores
+and 全家 23 — 澎湖, 金門, 連江, 琉球, 蘭嶼, 綠島, 馬祖 — so pickup parcels really
+do cross the water, and **goen can charge no surcharge for any of them**, because
+`shipping_version_zones` is reached through a postal code a pickup order does not
+have. `shipping_zones` fixed exactly this for 宅配; the 超商 half is open and the
+shop pays the difference on those 99 stores. The owner's call, on the grounds that
+this is a demonstration project.
 
-There is no `serviceable` flag, and that is a decision rather than an omission.
-It was written and deleted before it shipped: a zone is found from the POSTAL
-CODE, and the only method that could not serve 離島 is 超商取貨 — which has no
-postal code, because its destination is a store. The flag's one real
+What would close it is a store catalogue that can say where a 店號 is, which
+arrives with 綠界物流 if it ever does — **not** the `serviceable` flag, which is a
+decision rather than an omission. That was written and deleted before it shipped: a
+zone is found from the POSTAL CODE, and the only method that could not serve 離島 is
+超商取貨, which has no postal code because its destination is a store. 萊爾富 and OK
+have zero 離島 stores, so a customer cannot select one and the flag's single real
 configuration could never fire.
 
-Measured on 2026-08-06 and the reasoning HOLDS, which is worth recording because
-the same sweep refuted the 店號 claim two paragraphs up. 萊爾富 and OK have zero
-離島 stores, so a customer cannot select one and the flag genuinely never fires.
-
-What that sweep DID find is the gap beside it: 7-ELEVEN has 76 離島 stores and
-全家 23 — 澎湖, 金門, 連江, 琉球, 蘭嶼, 綠島, 馬祖 — so 超商取貨 really does
-carry parcels across the water, and **goen can charge no surcharge for any of
-them**, because `shipping_version_zones` is reached through a postal code a
-pickup order does not have. `shipping_zones` fixed exactly this for 宅配 and the
-超商 half is still open; the shop pays the difference on those 99 stores. It is
-not the `serviceable` flag that would close it, which is why this sits here
-rather than reviving that column.
-
 Shipping is managed at `/admin/shipping`, because a shop that cannot change its
-own delivery charges is not a shop that can be run. Changing a fee PUBLISHES a
-new version rather than editing the old one — `shipping_method_versions` is
-append-only and every past order names the version it was priced from, so an
-edit would rewrite what somebody was charged last month.
+own delivery charges is not a shop that can be run. A method is created WITH its
+first version, in one transaction: a method with no version is one the checkout
+finds and cannot price, and `shipping_method_versions` is append-only so there is
+no repairing that by editing. Changing a fee PUBLISHES a new version rather than
+editing the old one, so an edit cannot rewrite what somebody was charged last
+month, and a method is switched OFF and never deleted for the same reason.
+`destination_kind` is asked on the form rather than derived from the code, because
+it decides which half of the checkout exists and a rule written in Go is the rule
+the next method forgets.
 
 A new version CARRIES the previous one's zone surcharges. They key on the
 version, so without that a shop raising 宅配 from NT$80 to NT$100 would silently
 start shipping to 金門 for NT$100 — under-charging exactly where it was already
 losing money, on a form that never mentions zones.
 
-Clearing a surcharge DELETES the row rather than storing a zero: absence is what
-"no surcharge" means to the lookup, so a zero row would be a second way to write
-one state — and `shipping_version_zones_surcharge_positive` refuses it.
+A zone is created WITH its prefixes, because the surcharge lookup finds a zone BY
+prefix: an empty zone is a row nothing can reach and a surcharge nobody is charged.
+Assigning a prefix is an UPSERT, since `prefix` is the primary key of
+`shipping_zone_prefixes` — a postal code belongs to exactly one zone by
+construction, so moving one between zones is the ordinary edit, and
+delete-then-insert would leave a postal code in no zone for a moment in which a
+checkout would undercharge. Clearing a surcharge DELETES the row rather than
+storing a zero: absence is what "no surcharge" means to the lookup, and
+`shipping_version_zones_surcharge_positive` refuses the second way to write one
+state.
 
 Checkout reads the customer's ADDRESS BOOK. It existed from the day the account
-pages shipped and this one page never read it, so every repeat customer retyped
-a postal code they had already given us — the same shape of gap as the four
-account features that had no link. The default address fills the form, the rest
-are links, and the two choosers compose: `CheckoutLink` carries whichever choice
-it is not setting, so picking a saved address cannot silently move the order
-back to 宅配.
+pages shipped and this one page never read it, so every repeat customer retyped a
+postal code they had already given us. The default address fills the form, the rest
+are links, and the two choosers compose: `CheckoutLink` carries whichever choice it
+is not setting, so picking a saved address cannot silently move the order back to
+宅配.
 
 `SavedAddresses` scopes to the owner IN the query, never after the read — the id
-comes off a URL. There was a `if !owner.Valid { return nil }` short-circuit for
-guests as well, and it had to go: it made `TestAGuestHasNoAddressBook` pass with
-the owner predicate removed from the SQL, which is a test that cannot fail.
+comes off a URL. An `if !owner.Valid { return nil }` short-circuit for guests had to
+go: it made `TestAGuestHasNoAddressBook` pass with the owner predicate removed from
+the SQL, which is a test that cannot fail.
 
 Batch ⑤ (auth) and ⑥ (account) are `internal/account`. argon2id passwords,
 SHA-256 session digests, expiry enforced in the query, a password change that
@@ -1376,9 +1320,9 @@ erasure through `erase_user` — the only door, since `store` holds no DELETE on
 
 **An address is PROVED, and it can be changed.** `users.email_verified_at` was
 declared with the users table and nothing ever set it — but the worse half was
-underneath: `UpdateProfile` writes `full_name` and `phone`, so a customer could not
-change their address at all. Somebody who mistyped it at registration heard nothing
-ever again, and had no way to notice or to fix it.
+underneath: `UpdateProfile` writes `full_name` and `phone` only, so somebody who
+mistyped their address at registration heard nothing ever again and had no way to
+fix it.
 
 ONE table and one route for two acts, because they are the same act: a row in
 `email_verifications` says "prove that <address> belongs to <user>", and confirming
@@ -1400,18 +1344,16 @@ password — the worst it can do is post a letter to the customer.
 scanner that fetches the URL before a human sees it would prove nothing about who
 owns the mailbox. It is open to a signed-OUT visitor on purpose — somebody who
 changed their address follows the link on whatever device their mail is on, and the
-token is the proof, not the session.
-
-`users_email_key` is the real guard on a change, not the early check. An address can
-be taken between the request and the confirmation, and only the write can catch
-that: the whole transaction rolls back, so the link is unspent and the account is
-untouched.
+token is the proof, not the session. `users_email_key` is the real guard on a
+change, not the early check: an address can be taken between the request and the
+confirmation, and only the write can catch that, so the whole transaction rolls
+back and the link is left unspent.
 
 `admin` holds no write on `email_verifications`. Verification is the customer
 answering a letter, and a staff member who could write that table could mark any
 address proved without anybody reading anything.
 
-A forgotten password is the one failure argon2 makes unrecoverableA forgotten password is the one failure argon2 makes unrecoverable — nobody at
+A forgotten password is the one failure argon2 makes unrecoverable — nobody at
 the shop can look one up — so `/forgot` and `/reset` are what stops that being
 permanent. The token is stored as a SHA-256 digest, expires in an hour, and is
 spent by the UPDATE's own WHERE clause: eight requests carrying one token reach
@@ -1428,17 +1370,14 @@ Three things the reset does that are easy to leave out:
   not a session.
 
 `/forgot` answers IDENTICALLY whether or not the address belongs to anybody —
-it is otherwise a way to enumerate who has an account, and the person asking is
-rarely the owner. Its rate limit is keyed on the ADDRESS, because filling
-somebody else's mailbox takes one request per machine and per-IP limiting
-cannot see it. `/reset` is NOT keyed on the token: a guesser sends a different
-token every attempt, so a per-token bucket never sees two of their requests and
-would only throttle the one person retrying their own link. Guessing is bounded
-per-IP, and the argon2 amplifier by a cheap token read that happens before
-anything is hashed.
-
-The expiry is computed by the DATABASE's clock (`now() + interval`), because
-the window is READ by the database's clock — the coupon lesson, applied to the
+it is otherwise a way to enumerate who has an account. Its rate limit is keyed on
+the ADDRESS, because filling somebody else's mailbox takes one request per machine
+and per-IP limiting cannot see it. `/reset` is NOT keyed on the token: a guesser
+sends a different token every attempt, so a per-token bucket never sees two of
+their requests and would only throttle the one person retrying their own link.
+Guessing is bounded per-IP, and the argon2 amplifier by a cheap token read that
+happens before anything is hashed. The expiry is computed by the DATABASE's clock
+(`now() + interval`), because the window is READ by it — the coupon lesson, at the
 other end of the same comparison.
 
 Batch ⑦ (admin) is `internal/admin`, served from a SECOND pool that does
@@ -1446,31 +1385,39 @@ Batch ⑦ (admin) is `internal/admin`, served from a SECOND pool that does
 born a DRAFT, gains variants, and is published as its own decision. A variant
 is created with no stock at all — `stock_quantity` is absent from admin's
 column-level INSERT grant, so it takes DEFAULT 0 and stock still arrives only
-through `record_inventory_movement`. Store credit is granted there (`/admin/credit`) and spent at
-checkout, in the SAME transaction as the order — orders_funded_to_leave_pending
-reads the ledger, so a debit posted afterwards would leave a window in which a
-fully-credited order looks unfunded. The spend is capped at what the order
-owes, which makes the zero-owed path reachable: fully covered by credit, an
-order is committed with no payment row at all. That is what `order_is_committed`
-exists for rather than "EXISTS a succeeded payment".
+through `record_inventory_movement`. Store credit is granted at `/admin/credit`
+and spent at checkout, in the SAME transaction as the order —
+`orders_funded_to_leave_pending` reads the ledger, so a debit posted afterwards
+would leave a window in which a fully-credited order looks unfunded. The spend is
+capped at what the order owes, which makes the zero-owed path reachable: fully
+covered by credit, an order is committed with no payment row at all.
 
-Batch ⑧'s two remaining halves are done: `internal/returns` is the customer's
-request (bounded by what SHIPPED, never by what was ordered), and the back
-office decides it and refunds through Stripe. A refund row is committed BEFORE
-the provider is called and settled after, so a crash between the two leaves
-something reconciliation can find.
+Returns are `internal/returns` — the customer's request, bounded by what SHIPPED
+and never by what was ordered — and the back office decides it and refunds through
+Stripe. A refund row is committed BEFORE the provider is called and settled after,
+so a crash between the two leaves something reconciliation can find.
+
+**`DecideReturn` is `:execrows`, and the row count IS the decision.** `Decide`
+reads the request on the POOL, before `closeReturn` opens its transaction, so two
+staff members clicking 同意 and 不同意 on one request both pass that check. The
+statement's own `status = 'requested'` is the only place the question is asked
+under a lock — but as `:exec` the loser updated zero rows, SQL called that
+success, and the transaction committed an audit row asserting a decision nobody
+made, on the approval path AFTER a refund had been paid. This is the
+`SetProductStatus` lesson in the one place that also moves money. Proven by
+holding T1's transaction OPEN across T2's whole pre-check: two goroutines and a
+start channel finish microseconds apart and never overlap (#9), so that version
+would have gone green with the guard removed.
 
 **The order confirmation carries 消保法 §18 I's disclosure.** §18 I lists six
 items a 通訊交易 trader must give the consumer, and §18 II requires an INTERNET
-trader to do it in an electronic form the consumer can 完整查閱、**儲存**. The
-policy pages satisfy 查閱; an email is an artefact the customer keeps without
-doing anything.
-
-§19 III is what makes the omission expensive rather than untidy: where the
-rescission information is not PROVIDED when the goods are received, the seven
-days run from the day after it finally is, and the right survives four months. A
-shop whose terms live only on a page nobody was handed carries that tail on
-every order.
+trader to do it in an electronic form the consumer can 完整查閱、**儲存** — the
+policy pages satisfy 查閱, and an email is an artefact the customer keeps without
+doing anything. §19 III is what makes the omission expensive rather than untidy:
+where the rescission information is not PROVIDED when the goods are received, the
+seven days run from the day after it finally is, and the right survives four
+months. A shop whose terms live only on a page nobody was handed carries that tail
+on every order.
 
 ONE message with holes rather than six keys, like every other body here. Items 1,
 3, 4 and 5 are stated in full; item 2 — what was bought, for how much, and how it
@@ -1486,13 +1433,12 @@ while saying less than silence would — which is why that case is named in the
 test rather than left as the quiet default.
 
 **`make restore-drill` proves the backup comes back.** goen's images live IN
-PostgreSQL — the recorded `internal/media` decision — so the database is the only
-copy of the catalogue's photography as well as its data, and a backup nobody has
-restored is a belief. It dumps, restores into a throwaway, and asks two
-questions: does the restored schema match `migrations/`, and did every table come
-back with the same number of rows. Schema alone passes on a dump that lost every
-row, which is why the row counts are there and why the mutation that proved it
-was `pg_dump -s`.
+PostgreSQL, so the database is the only copy of the catalogue's photography as well
+as its data, and a backup nobody has restored is a belief. It dumps, restores into a
+throwaway, and asks two questions: does the restored schema match `migrations/`, and
+did every table come back with the same number of rows. Schema alone passes on a
+dump that lost every row, which is why the row counts are there and why the mutation
+that proved it was `pg_dump -s`.
 
 Transactional email goes through an OUTBOX. `internal/cart` writes the intent
 in the order's own transaction; `internal/outbox` delivers it on a worker owned
@@ -1506,12 +1452,10 @@ customer was told their order was placed and then never heard again: not when
 the money arrived, not when the parcel left with a tracking number sitting in
 `order_shipments` for anyone who thought to look. `stock_notifications` was the
 same shape from the other end: the PDP collected addresses and nothing ever set
-`notified_at`.
-
-`TestEveryTopicHasAProducerAndAHandler` holds it now, derived from the SOURCE
-rather than a list. A topic with no handler is worse than one that is absent —
-`reschedule` sends it round again with "no handler registered", so it retries
-until `Stuck()` surfaces it.
+`notified_at`. `TestEveryTopicHasAProducerAndAHandler` holds it now, derived from
+the SOURCE rather than a list. A topic with no handler is worse than one that is
+absent — `reschedule` sends it round again with "no handler registered", so it
+retries until `Stuck()` surfaces it.
 
 Each producer writes in the transaction that causes it: the receipt in the
 capture's, the dispatch notice in `Ship`'s, the restock claim in the stock
@@ -1540,50 +1484,41 @@ payload, because sending from the handler loses the message when the process die
 mid-send. That trade is only sound if the row does not outlive its own secret by
 years. `outbox.Retain` is 30 days.
 
-The sweep takes DELIVERED rows only. A message that exhausted `MaxAttempts` is
-kept forever and `/admin/health` goes on listing it: a queue that forgets what it
-could not deliver reports itself empty. It keys on `delivered_at` rather than on
-age, because `available_at` moves forward on every claim and every backoff — a
-message legitimately waiting can be arbitrarily old, and keying on that would
-delete mail that has not been sent.
-
-What retention costs is the DEDUPE window: a producer that re-enqueued the same
-`(topic, dedupe_key)` more than 30 days later would send twice. None does — every
-key is an order number, a tracking number, a spent notification row, or a token
-digest.
+The sweep takes DELIVERED rows only. A message that exhausted `MaxAttempts` is kept
+forever and `/admin/health` goes on listing it: a queue that forgets what it could
+not deliver reports itself empty. It keys on `delivered_at` rather than on age,
+because `available_at` moves forward on every claim and every backoff — keying on
+that would delete mail that has not been sent. What retention costs is the DEDUPE
+window: a producer re-enqueueing the same `(topic, dedupe_key)` after 30 days would
+send twice. None does — every key is an order number, a tracking number, a spent
+notification row, or a token digest.
 
 `password_reset_tokens` went the same way, on the same worker as the session sweep
-because it is the same idea: an auth row that has stopped meaning anything.
-Nothing reads a spent one — the spend has `used_at IS NULL AND expires_at > now()`
-in its own WHERE clause — but every reset goen had ever issued was still there,
-each carrying the user id it belonged to. A week's grace, so support can still
-answer "did they ask for a reset yesterday?".
+because it is the same idea: an auth row that has stopped meaning anything. A week's
+grace, so support can still answer "did they ask for a reset yesterday?".
 
-`checkout_attempts` is one row per submission ever seen. It got its OWN worker
-rather than a third statement in `cart.Sweep`, and the intervals are why: a hold
-expiring is stock a customer is waiting for and runs every minute, while a
-retention delete on a growing table every sixty seconds is a cost with no reader.
-Daily, with `checkout_attempts_created_at_idx` so it is a range scan rather than a
-sequential one. Deleting a row frees its key to be replayed, which is why the
-window is weeks — a browser holding one for a month has been closed.
+`checkout_attempts` is one row per submission ever seen. It got its OWN worker rather
+than a third statement in `cart.Sweep`, and the intervals are why: a hold expiring is
+stock a customer is waiting for and runs every minute, while a retention delete on a
+growing table every sixty seconds is a cost with no reader. Daily, with
+`checkout_attempts_created_at_idx` so it is a range scan. Deleting a row frees its
+key to be replayed, which is why the window is weeks.
 
-`inventory_reservations` is deliberately NOT swept. A settled hold is part of an
-order's stock story and pruning it needs an argument nobody has made; noted here
-rather than guessed at.
+`inventory_reservations` is deliberately NOT swept: a settled hold is part of an
+order's stock story and pruning it needs an argument nobody has made.
 
-Abandoned holds are swept:Abandoned holds are swept: `cart.SweepForever` runs on a ticker owned by main,
+Abandoned holds are swept: `cart.SweepForever` runs on a ticker owned by main,
 and `release_reservation` refuses a committed order's hold, so the cleanup can
 never take stock away from goods that are going to ship.
 
 **Cancelling an order closes its checkout at Stripe.** The stock release and the
 store-credit reversal were both wired and the SESSION was left payable, so
 "cancel, then finish paying on the tab that is still open" put money against an
-order whose goods were already back on the shelf. goen had a name for that
-arriving — `ErrOrderCancelled` — and a comment ending "a human refunds it".
-`Gateway.ExpireSession` runs post-commit from BOTH doors, because the shop
-cancelling on somebody's behalf must not be the path that leaves their checkout
-open, and the open sessions are read INSIDE the cancelling transaction so the set
-acted on is the one that transaction decided.
+order whose goods were already back on the shelf. `Gateway.ExpireSession` runs
+post-commit from BOTH doors, because the shop cancelling on somebody's behalf must
+not be the path that leaves their checkout open, and the open sessions are read
+INSIDE the cancelling transaction so the set acted on is the one that transaction
+decided.
 
 **Whether money is in flight is Stripe's question.** goen's own payment row still
 says `requires_payment` until the webhook lands, so a customer who paid two
@@ -1591,14 +1526,13 @@ seconds ago looks unpaid from here; Stripe expires an OPEN session and refuses
 anything else. That refusal is logged rather than swallowed — goen deciding for
 itself that a session is empty is the same mistake as trusting the event for
 which order it belongs to. Best effort by design: the cancellation has already
-committed and is correct, and a failure costs nothing the hold's own expiry did
-not already bound.
+committed and is correct.
 
-**The HTTP interface to Stripe now has tests**, against an `httptest.Server` the
-SDK's own backend injection points at rather than a hand-written fake that would
-agree with whatever goen believes. `ResumeSession`'s five lines had never been
-executed once, and mistake #18 — dividing a TWD amount by 100 — was asserted by
-nothing until the request itself was read off the wire.
+**The HTTP interface to Stripe has tests**, against an `httptest.Server` the SDK's
+own backend injection points at rather than a hand-written fake that would agree
+with whatever goen believes. `ResumeSession`'s five lines had never been executed
+once, and mistake #18 was asserted by nothing until the request itself was read off
+the wire.
 
 Payment is `internal/payment`, over Stripe **hosted Checkout**:
 `GET /orders/{number}/pay` shows what is owed, `POST` creates the session and
@@ -1610,23 +1544,18 @@ sells; the payment page says 金流尚未啟用), but a key without
 money over an endpoint nothing authenticates.
 
 **The session PINS `payment_method_types` to card, and it used to omit the field
-deliberately.** Both decisions were argued in comments ten lines apart in the
-same function, and they contradicted each other. `ExpiresAt` binds the session to
-the STOCK HOLD precisely so money cannot arrive after the goods are back on the
-shelf; omitting `payment_method_types` left dynamic payment methods on so the
-Dashboard could offer whatever it liked — including a DELAYED method, whose money
-arrives days after the session is over.
+deliberately** — mistake #30, argued in two comments ten lines apart that
+contradicted each other. A delayed method's money arrives days after the session
+`ExpiresAt` bound to the stock hold.
 
 The chain, and every link of it was already in the tree: a delayed method's
-`checkout.session.completed` arrives with `payment_status` `unpaid`, so
-`CaptureFrom` correctly refuses it and the order stays `pending` with no
-succeeded payment. A completed session never fires `checkout.session.expired`, so
-the abandoned path never runs either. Thirty minutes after `PlaceOrder` the order
-is still not in `committed_orders`, `ExpiredReservations` matches it and
-`release_reservation` puts the units back. Days later `async_payment_succeeded`
-lands and `capture_payment` succeeds — it does not read reservations — and
-`admin.Ship` then ranges over an EMPTY held-reservation slice with no error.
-Money taken, stock re-sold, nothing raised.
+`checkout.session.completed` arrives `unpaid`, so `CaptureFrom` refuses it and the
+order stays `pending`; a completed session never fires `checkout.session.expired`,
+so the abandoned path never runs; thirty minutes on, `ExpiredReservations` matches
+the order and `release_reservation` puts the units back; days later
+`async_payment_succeeded` lands and `capture_payment` succeeds — it does not read
+reservations — and `admin.Ship` ranges over an EMPTY held-reservation slice with no
+error. Money taken, stock re-sold, nothing raised.
 
 That is mistake #13's shape a second time: two halves each correct, disagreeing,
 and **no guard here could see it because every one of them asks what is ABSENT.**
@@ -1650,31 +1579,26 @@ Building a fake issuer would be worse than not building one.
 Every account feature is linked from `/account`. Four of them — orders, points,
 wishlist, warranty — existed as working routes with NO LINK from anywhere, which
 is the half of building a feature that is easy to think is done.
-
-`TestEveryHardCodedLinkResolvesToARoute` holds it from the other side. The first
-sweep asked whether anything links TO each route and passed; the dead link was
-`/account/orders`, which is `/account/orders/{number}` and nothing else, and it
-survived because that question is the reverse of the one a customer asks. The
-test asks the customer's direction.
+`TestEveryHardCodedLinkResolvesToARoute` holds it from the customer's direction:
+the first sweep asked whether anything links TO each route and passed, and the
+dead link was `/account/orders`, which is `/account/orders/{number}` and nothing
+else.
 
 會員點數 is `loyalty_entries` — a LEDGER, for the reason store credit is one: a
 balance column is a number two concurrent writers each read and each overwrite.
 Earned inside the CAPTURE's transaction, idempotent on the order, so a webhook
-Stripe delivered twice awards once.
-
-Points are not a second currency. They convert to store credit at one published
-rate, in `internal/loyalty`, and are spendable nowhere else — a balance a
-customer could spend directly would need its own rounding, refund rules and
-never-negative guard, all of which store credit already has.
+Stripe delivered twice awards once. Points are not a second currency: they convert
+to store credit at one published rate, in `internal/loyalty`, and are spendable
+nowhere else — a balance a customer could spend directly would need its own
+rounding, refund rules and never-negative guard, all of which store credit has.
 
 會員等級 is `membership_tiers`, and a customer's band is DERIVED from what they
 have spent rather than stored on their row — the reason store credit is a
 ledger and points expiry is applied on read. A stored tier drifts from the
 orders behind it the moment one is cancelled, and nobody notices until a
-customer asks why a benefit they were told they had has gone.
-
-The window is a ROLLING year. Lifetime tiers only ever go up, which turns a
-benefit into a permanent liability the shop cannot price.
+customer asks why a benefit they were told they had has gone. The window is a
+ROLLING year: lifetime tiers only ever go up, which turns a benefit into a
+permanent liability the shop cannot price.
 
 The benefit is a POINTS MULTIPLIER and not a discount at checkout. A percentage
 off would stack with coupons and the free-shipping threshold, and every
@@ -1704,42 +1628,46 @@ takes the strongest lock FIRST now, so the second writer waits and then meets
 the rule. The test found it only once its assertion was bound to the constraint
 NAME — counting survivors could not tell a guard from a coin toss.
 
-`/admin/health` says whether the background workers are doing their work, and
-LISTS the messages that have given up rather than only counting them. A page
-saying "3 stuck" that cannot name them tells an operator something is wrong and
-nothing about what to do — `outbox.Stuck()` had existed for exactly that and
-still had no caller, which is the second time that function has been found
-unreached.
+`/admin/health` says whether the three background workers are doing their work, and
+LISTS the messages that have given up rather than only counting them. A page saying
+"3 stuck" that cannot name them tells an operator something is wrong and nothing
+about what to do — `outbox.Stuck()` had existed for exactly that, with no caller and
+two comments claiming it surfaced problems, so a stuck outbox meant customers
+stopped getting email and nobody found out.
 
 Reading it is why `internal/admin` imports `internal/outbox` now. It used to
 mirror `MaxAttempts` as its own constant, with a test keeping the two equal,
 because one number was a poor reason to couple two features. The list is a
 second reason, so there is one constant again and the mirror test is gone.
 
-`/admin/health` says whether the three background workers are doing their work.
-Before it, `outbox.Stuck()` existed with no caller and two comments claiming it
-surfaced problems — a stuck outbox meant customers stopped getting email and
-nobody found out.
-
 Every figure is derived from the WORK, never from a heartbeat: undelivered
 messages and how overdue the most overdue one is, unreleased expired holds, the
 projection's age. A heartbeat says "I am running"; these say "the work is being
 done", and a worker looping without progress passes the first and fails the
-second.
-
-Overdue is measured from `available_at` — when a message became DUE — not from
-when it was written. The claim pushes `available_at` forward by a lease and the
-backoff pushes it further, so a message legitimately waiting is in the future
-and must not read as a backlog.
+second. Overdue is measured from `available_at` — when a message became DUE — not
+from when it was written, because the claim and the backoff both push it forward
+and a message legitimately waiting must not read as a backlog.
 
 "Never rebuilt" and "rebuilt just now" are separate columns. `max()` over an
 empty table is NULL, and collapsing it into a zero age would make the one state
 that means "the worker has never run" read as the healthiest possible answer —
 on exactly one deployment: a fresh one.
 
+**`/readyz` pings EVERY pool the request path uses, and startup reaches them
+all.** It took the storefront's alone, and pgxpool connects lazily, so a wrong
+`GOEN_ADMIN_DATABASE_URL` produced a clean start, a 200 from the probe, a working
+storefront and a back office that 500ed on every page — measured, not theorised.
+An orchestrator reads readiness as "send this process traffic", and answering yes
+while half the application cannot reach its database is the probe saying
+something it never checked. The body NAMES the pool, because "database
+unreachable" sends an operator to the connection string that was fine.
+The MAINTENANCE pool is deliberately NOT in it: it serves the co-purchase
+projection, whose staleness this file argues is acceptable, and a page renders
+without it. Readiness answers "can this process serve a request", and
+`/admin/health` is where a lagging worker belongs.
+
 `/compare` puts two to four products side by side, which is what a 選品店 is
-for: the whole promise is 規格看得懂, and showing specs one product at a time is
-the hardest possible way to tell two things apart.
+for: the whole promise is 規格看得懂.
 
 **The comparison set lives in the URL and nowhere else.** No cookie, no session
 row, no write of any kind — so it is shareable, bookmarkable, correct under the
@@ -1753,6 +1681,19 @@ a shifted column — a table whose cells do not line up is worse than no table.
 An unknown slug is dropped rather than refused, because a comparison URL
 outlives the products in it.
 
+**A spec row's IDENTITY is its untranslated label; the translation is a LABEL** —
+the same split the variant picker draws between `name` and `name_en`, and it was
+drawn on one side only. `CompareSpecs` counts `shared_by` on the untranslated
+label, deliberately and with its reason written beside it, while the Go keyed its
+row map on the LOCALIZED text. So two distinct Chinese labels that translate to
+one English word collapsed into a single row and the later product's value
+overwrote the earlier one: the seed maps both 輸出 and 孔位 to "Ports", so
+English `/compare` showed 65W GaN and simply LOST USB-C x2 — a spec the English
+PDP displayed the whole time, on the page whose entire promise is 規格看得懂.
+The query carries `label_key` for exactly this, and the lock asserts both locales
+because the Chinese page was always correct: a fix that only moved the collision
+would pass a one-locale test.
+
 商品問答 is `product_questions` / `product_answers` on the PDP. A review and a
 question are different things and that is why they are different tables: a
 review comes from somebody who BOUGHT and is looking back, a question from
@@ -1763,7 +1704,9 @@ Visible the moment it is asked, NOT a moderation queue: a question nobody sees
 is a question nobody answers, and a shop that reviews every one before
 publishing answers none of them in time. Hiding is the exception, and hiding a
 question takes its answers with it — an answer published under nothing is text
-with no context.
+with no context. Lengths are bounded in RUNES: a byte limit would give a
+Chinese-speaking customer a third of the room an English-speaking one gets, on a
+site whose content is Chinese.
 
 `is_staff` is stored at the moment an answer is written, never derived from the
 author's role at read time. Derived, a customer who later joins the shop would
@@ -1771,10 +1714,6 @@ retroactively turn their old answers into official ones, and a staff member who
 leaves would strip the badge from answers that WERE official. The shop's answer
 also sorts first, because burying it under three customer replies is the same as
 not having it.
-
-Lengths are bounded in RUNES. A byte limit would give a Chinese-speaking
-customer a third of the room an English-speaking one gets, on a site whose
-content is Chinese.
 
 The shop answers at `/admin/questions`, and the queue is ordered OLDEST first —
 the opposite of every other back-office list. A question waiting three days is
@@ -1784,57 +1723,61 @@ customer replies and no official one is still an unanswered question.
 
 `/admin/reports` gives the shop its numbers: revenue, best sellers, stock about
 to run out, and checkout completion — over 7, 30 or 90 days, an ALLOWLIST
-because the window reaches a query that scans order history.
-
-Checkout completion is not a conversion rate and the page says so. goen collects
-no traffic data, so what fraction of VISITORS bought is a number it cannot know;
-showing one would be inventing it. What it shows is the fraction of started
-orders that were paid for, with both counts beside it, because a rate of eleven
-orders reads very differently from a rate of eleven thousand.
+because the window reaches a query that scans order history. Checkout completion
+is not a conversion rate and the page says so: goen collects no traffic data, so
+what fraction of VISITORS bought is a number it cannot know. What it shows is the
+fraction of started orders that were paid for, with both counts beside it, because
+a rate of eleven orders reads very differently from a rate of eleven thousand.
 
 **A guest who has lost the cookie can find their order again at `/orders/find`,
-with the number and the email they gave.** Before it, they could not: the order
-page is shown to the browser that placed the order or to the account that owns it,
-and a guest who clears their cookies or opens the confirmation email on their phone
-is neither. They had a number, an address, and no way to see their own order.
+with the number and the email they gave.** The order page is shown to the browser
+that placed the order or to the account that owns it, and a guest who clears their
+cookies or opens the confirmation email on their phone is neither.
 
 The pair IS the credential, and only one half of it is secret. Order numbers come
 off a per-day counter and are guessable — which is exactly why reaching the page by
 number alone is refused — so the address is what the lookup turns on. Both are
-checked in ONE statement returning a boolean: a caller that got a row back would be
-a caller that could compare in Go, and a caller that compares can report which half
-was wrong. One boolean cannot, and every refusal says the same thing.
+checked in ONE statement returning a boolean: a caller that got a row back could
+compare in Go, and a caller that compares can report which half was wrong. One
+boolean cannot, and every refusal says the same thing.
 
-On success it writes the SAME cookie placing an order writes. Reusing that
-mechanism rather than inventing a second one is the point: there is one answer to
+On success it writes the SAME cookie placing an order writes. There is one answer to
 "may this browser see this order", and a parallel path would be a second place for
 it to be wrong.
 
-**That cookie used to hold the ORDER NUMBER, and the number was the proof.** Numbers
-come off a per-day counter — GO-260803-000001, then 000002 — so the cookie was
-mintable by hand and walkable by increment: a stranger's email, delivery address and
-items, and then cancel the order, start a payment or open a return. `__Host-`,
+**It is linked from the order 404, which is the only page anybody reaches it
+from.** The route worked from the day it shipped and NOTHING pointed at it: a
+repository-wide search found the string in its own form's action and in prose,
+and nowhere else. So the recovery path existed for a guest who could not find it
+— and the 404 they actually landed on told them to sign in, which is no answer
+for somebody with no account. `pages.OrderNotFound` is its own component rather
+than a `Notice` for that reason: this is the one 404 with a way THROUGH, and it
+offers both, because the reader is one of two people and the page cannot tell
+which. `TestEveryHardCodedLinkResolvesToARoute` cannot see this class — it asks
+whether a link resolves, never whether a route is reachable — which is the
+half-sweep that shipped `/account/orders` and is recorded above.
+
+**That cookie used to hold the ORDER NUMBER, and the number was the proof** — so it
+was mintable by hand and walkable by increment: a stranger's email, delivery address
+and items, and then cancel the order, start a payment or open a return. `__Host-`,
 `Secure`, `HttpOnly` and `SameSite` all govern how a BROWSER treats a cookie. **None
 of them says the value came from this server**, and curl does not have to care.
 
 It carries high-entropy TOKENS now and `order_access_grants` holds their sha256, the
 same shape sessions, reset tokens and cart tokens already use. The digests are
 compared IN the database and the answer is a boolean, for the reason `FindOrder`
-returns one: a caller that got rows back could report WHICH token matched. An error is
-not access — a database that cannot answer has not said yes.
-
+returns one. An error is not access — a database that cannot answer has not said yes.
 Several rows per order on purpose: somebody who orders on a phone and then proves the
-email at `/orders/find` on a laptop must not lose the first browser's access.
+email on a laptop must not lose the first browser's access.
 
 `PlacedHere` moved onto the store because it now asks the database, and `payment` and
 `returns` reach it through interfaces they define themselves — whether this browser
 holds a token for this order is ONE question with one answer, and three packages each
 deciding it is three places for it to be wrong.
 
-**Both of its tests were false-green on the first run**, and the shape is worth
-keeping: they passed with the digest comparison replaced by `OR true`, because the
-attacked order had no grant row at all — `EXISTS` was false whatever the digest said.
-They refused the forgery for the wrong reason. **The victim must already hold a real
+**Both of its tests were false-green on the first run**: they passed with the digest
+comparison replaced by `OR true`, because the attacked order had no grant row at all,
+so `EXISTS` was false whatever the digest said. **The victim must already hold a real
 grant**, or the only thing the test proves is that nobody has one.
 
 Bounded per IP, because the endpoint is an oracle for the secret half if it can be
@@ -1847,13 +1790,11 @@ sweeper notices, which for the last one of something is a sale lost to a
 customer who changed their mind. The back office's cancel had exactly that gap
 and now closes it the same way.
 
-**Cancelling gives the store credit back too, and that was missing.** The stock
-release was wired; the money was not. `store_credit_entries.reverses_id`, its
-unique partial index and the entire reversal branch of `store_credit_guard` were
-written the day the ledger was and had NO CALLER — so a customer who part-paid
-with credit and then changed their mind watched the goods go back on the shelf
-while their money stayed spent. The fourth time this project has found machinery
-with no door.
+**Cancelling gives the store credit back too.** The stock release was wired and the
+money was not: `store_credit_entries.reverses_id`, its unique partial index and the
+entire reversal branch of `store_credit_guard` had NO CALLER, so a customer who
+part-paid with credit and then changed their mind watched the goods go back on the
+shelf while their money stayed spent.
 
 `reverse_order_credit` is that door, and it is a function rather than a
 `reverses_id` parameter on `post_store_credit` because the two are different acts:
@@ -1872,11 +1813,11 @@ work existed: a funded or shipped order is compensated with a refund or a new
 positive entry. Reversing there would mean the shop shipped goods nobody paid
 for.
 
-**A RETURN of a credit-funded order is paid back from both sources.** It used to
-be refused outright: the refundable amount comes from the line prices and was
-compared to what the CARD captured, so a part-credit order claimed more than its
-capture and was turned away, and a wholly credit-funded one has no payment row at
-all. The customer sent goods back and could not be paid.
+**A RETURN of a credit-funded order is paid back from both sources.** It used to be
+refused outright: the refundable amount comes from the line prices and was compared
+to what the CARD captured, so a part-credit order claimed more than its capture and
+a wholly credit-funded one has no payment row at all. The customer sent goods back
+and could not be paid.
 
 `splitRefund` decides how much each source pays, **card first and credit last**.
 That is a commercial choice, not arithmetic: card money is the customer's own,
@@ -1892,18 +1833,16 @@ compensates once.
 
 Underneath it, `store_credit_guard` had to be split by SIGN. Its non-reversal
 branch tested the ORDER STATE without testing the sign, so "credit spent on an
-order" and "credit returned on an order" were one rule — and the positive
-compensation its own comment prescribed was refused. Mistake #16 again: a guard
-that names one shape of a thing that has two. A compensation is legal once the
-order is settled and refused while it is still an open unpaid checkout, where the
-right move is to reverse the spend instead.
+order" and "credit returned on an order" were one rule, and the positive
+compensation its own comment prescribed was refused — mistake #17 again. A
+compensation is legal once the order is settled and refused while it is still an
+open unpaid checkout, where the right move is to reverse the spend instead.
 
 The refusal that remains names every figure — what the card took, what has gone
 back, what each source has left, and what is being asked for. `refunds_within_capture`
 would refuse a card over-claim anyway, and nobody can act on a constraint name.
 
 That work found a defect underneath it. **A cancelled order used to read as
-COMMITTED**That work found a defect underneath it. **A cancelled order used to read as
 COMMITTED**, because `committed_orders` said any non-pending status was — and
 both `release_reservation` and the sweeper refuse a committed order's hold. The
 units behind a cancelled order could not come back BY ANY DOOR. It was wrong in
@@ -1921,8 +1860,7 @@ status moves: cancelling is precisely what makes the release legal.
 reason it is a VIEW is measured. Asked per row over 14,000 orders,
 `order_is_committed()` costs 106 ms — the planner evaluates two EXISTS
 subqueries per row and cannot turn them into a join. Asked set-wise it is 7.7
-ms. Every report aggregates over order history, so that is the difference
-between a page and a wait; the whole report went 466 ms → 180 ms.
+ms, and the whole report went 466 ms → 180 ms.
 
 `order_is_committed()` still exists for triggers and guards, and it now READS
 the view rather than restating the predicate — one definition, not two that
@@ -1931,30 +1869,48 @@ drift. Its first rewrite was a theory that measured WRONG: making it
 inlining does not help inside an aggregate expression where there is no WHERE
 clause for a semi-join to become.
 
-Brands and categories are managed at `/admin/taxonomy`. Before it, the back
-office could create a product only into what the seed provided — a shop that
-cannot add a brand cannot add its second supplier.
+**"Committed" and "owes nothing" are TWO questions, and every caller that acts
+on funding needs both.** `committed_orders` cannot see a zero-owed order — one
+paid entirely from store credit, or zeroed by a 100% coupon — because it has no
+payment row (`payments_succeeded_is_captured` forbids a zero-value succeeded
+payment) and legitimately sits at `pending` until a human picks it. So the view
+reports FALSE for an order the customer has paid in full. That is not a bug in
+the view: `orders_funded_to_leave_pending` is what makes the second half sound,
+and the view is right about the question it answers. It is a bug in every caller
+that read one question as both, and there were four.
 
-The SLUG is never renamed, only the display name. A slug is in every URL a
-search engine has indexed and every link anybody has sent, and goen has no
-redirect table to catch the fallout. A shop that truly needs a different slug
-creates one and moves the products.
+Stock: the sweeper released such an order's hold and `Ship` then dispatched it
+consuming nothing — mistake #31, and the reason `release_reservation` now asks
+`order_amount_owed = 0` beside `order_is_committed`. Words: `AwaitingPayment()`
+tested `status == "pending"` alone on THREE surfaces, so from the capture until
+the shop picked it — overnight, over a weekend — a paid customer read 尚未付款
+with a 前往付款 link on the order page Stripe returns them to and the receipt
+links back to, plus 待付款 in their own order history. `CanCancel()` sat three
+lines away reading `Committed` correctly the whole time.
 
-Deletion is decided by the DELETE's own WHERE clause, not by a count read
-first. The foreign keys are ON DELETE RESTRICT and would refuse an orphaning
-delete anyway; doing it this way turns the refusal into a row count, so the page
-says "move the products first" instead of showing a constraint name.
+`OrderSummaryByNumber`, `UserOrders` and `UserOrderByNumber` carry both columns
+now. The rule for a fifth caller: **`Committed` alone means "the shop has taken
+this on", `order_amount_owed = 0` alone means "nothing is owed", and only the
+pair means "funded".** `internal/payment` had it right first — it reads `Paid`
+and `FullyFunded()` before it will open a Stripe session — and the storefront was
+three surfaces behind it.
+
+Brands and categories are managed at `/admin/taxonomy`; before it, the back office
+could create a product only into what the seed provided. The SLUG is never renamed,
+only the display name — a slug is in every URL a search engine has indexed and every
+link anybody has sent, and goen has no redirect table to catch the fallout. Deletion
+is decided by the DELETE's own WHERE clause, not by a count read first: the foreign
+keys are ON DELETE RESTRICT and would refuse an orphaning delete anyway, and doing it
+this way turns the refusal into a row count, so the page says "move the products
+first" instead of showing a constraint name.
 
 買了又買 is `product_copurchases`, a PROJECTION rebuilt every fifteen minutes by
 a worker on its own `maintenance` pool — and the reason is measured, in
-`docs/decisions/004-recommendation-read-model.md`.
-
-Computed per request the same answer costs 3 ms for a product nobody buys and
-**136 ms for the one everybody does**, because the work is proportional to that
-product's ORDER HISTORY. The first measurement said the query was fine; it was
-taken against the cheap product. `order_is_committed()` is correctly called per
-candidate row — 14,963 PL/pgSQL invocations for one page view. From the
-projection it is 0.04 ms.
+`docs/decisions/004-recommendation-read-model.md`. Computed per request the same
+answer costs 3 ms for a product nobody buys and **136 ms for the one everybody
+does**, because the work is proportional to that product's ORDER HISTORY; the first
+measurement said the query was fine, and it was taken against the cheap product.
+From the projection it is 0.04 ms.
 
 Staleness is acceptable HERE and nowhere else so far: an hour-old answer to
 "what goes with this" is the same answer, and an hour-old stock count is an
@@ -1969,34 +1925,42 @@ popular products would present a guess as a pattern, and a shopper cannot tell
 those apart. The minimum is TWO shared orders, because one is a coincidence.
 
 Warranty registration is `internal/warranty`: a customer registers a unit they
-bought and can show its cover without finding a receipt. Bounded by what
-SHIPPED, never by what was ordered — cover starts when goods reach somebody, so
-registering a box still in the warehouse would start the clock early, which
-costs the CUSTOMER rather than the shop.
+bought and can show its cover without finding a receipt. Bounded by what SHIPPED,
+never by what was ordered — cover starts when goods reach somebody, so registering a
+box still in the warehouse would start the clock early, which costs the CUSTOMER.
 
 The term is `products.warranty_months`, per product and nullable — and until
 `/admin/products` exposed it, **it was read by the whole warranty feature and written
 by nothing**, so every product was NULL and nobody could register anything. It is not
 a site-wide policy because it is not one: a phone and a braided cable do not carry
-the same cover. NULL means the shop has not stated a term, registration is
-REFUSED, and that is the honest answer — `expires_on` is NOT NULL, so something
-has to give, and defaulting it would have goen inventing a promise nobody made.
+the same cover. NULL means the shop has not stated a term and registration is
+REFUSED — `expires_on` is NOT NULL, so something has to give, and defaulting it
+would have goen inventing a promise nobody made.
 
 Every rule lives in the INSERT's WHERE clause: ownership, "it shipped", "a term
 exists", "the unit is within what shipped". The expiry is computed there too,
-from the shipment date and the term, so a form can never carry one — and the
-date it is derived from is the same read the insert uses.
+from the shipment date and the term, so a form can never carry one.
+`warranty_registrations_serial_key` is PARTIAL (`WHERE serial_number IS NOT NULL`),
+so a duplicate serial is caught while several registrations without one coexist; a
+duplicate almost always means a mistyped number, and the message says that.
 
-`warranty_registrations_serial_key` is PARTIAL (`WHERE serial_number IS NOT
-NULL`), so a duplicate serial is caught while several registrations without one
-coexist. A duplicate almost always means a mistyped number, and the message says
-that rather than the other reading.
+**The form is linked from the order page, and that sentence used to be false in
+the copy before it was true in the markup.** `/account/warranty` reaches the LIST
+from the account nav, and the list's own text says 「從訂單頁進去登錄」 — while
+`/account/warranty/{number}`, which carries the ONLY registration form, had no
+inbound link from any template. Every signed-in customer with every shipped order
+met that dead end, and the only way in was typing a URL the site never displays.
+Offered from `shipped` onward, because that is what registration itself requires:
+earlier, the link would lead to a page whose every line says "not shipped yet".
+The reachability sweep is blind to this by construction — the route IS linked,
+one level up from the page that does the work, so **"is this route linked?" and
+"can a customer get to the thing it does?" are different questions.**
 
 The back office needs a SECOND FACTOR: `internal/twofactor`, TOTP, guarding
 `/admin` rather than the sign-in. A password gets a normal session; reaching any
-back-office route needs a code verified in that session inside
-`StepUpWindow`. Gating the login instead would need a half-authenticated state
-to live somewhere, and a session that "does not count yet" eventually counts.
+back-office route needs a code verified in that session inside `StepUpWindow`.
+Gating the login would need a half-authenticated state to live somewhere, and a
+session that "does not count yet" eventually counts.
 
 Three things a TOTP implementation gets wrong, and what goen does:
 
@@ -2013,11 +1977,10 @@ Three things a TOTP implementation gets wrong, and what goen does:
    seconds out. Each extra step multiplies both the replay surface and the
    guessing surface.
 
-Staff are managed at `/admin/staff`, and the page's whole reason for existing
-is that the RECOVERY path was a paragraph. `Store.Remove` shipped with 2FA
-carrying a comment saying "another admin does this" and NO CALLER: an admin who
-lost their phone was locked out of the back office permanently, and the only fix
-was SQL against production.
+Staff are managed at `/admin/staff`, and the page's whole reason for existing is
+that the RECOVERY path was a paragraph: `Store.Remove` shipped with 2FA carrying a
+comment saying "another admin does this" and NO CALLER, so an admin who lost their
+phone was locked out permanently and the only fix was SQL against production.
 
 Three guards, each of which is the interesting half:
 
@@ -2053,8 +2016,7 @@ password-equivalent that people keep in their email.
 The auth endpoints are rate limited, and the reason is not the familiar one.
 argon2id runs at **64 MiB a hash** — deliberately, so a stolen database resists
 GPU cracking — which makes an unbounded `/signin` a memory exhaustion anybody
-can trigger with a hundred connections. Slowing credential stuffing is the
-second benefit.
+can trigger with a hundred connections. Slowing credential stuffing is second.
 
 Two keys, because either alone leaves the other attack open: per-IP bounds one
 machine hammering, and per-ACCOUNT bounds a distributed attack on one address
@@ -2079,12 +2041,10 @@ key, and `ClientIP` reads that ahead of `RemoteAddr`. It is wired outermost, ahe
 of every `Guard`, and defaults safely OFF — with no proxies configured both
 sentences above are still exactly true, which is why the drift was invisible.
 `main.go` warns at startup when a TLS-terminating deployment leaves the variable
-unset, because there the per-IP limit silently degrades to a global one.
-
-The cost of that drift was to a REVIEWER rather than an operator, which is the
-kind this file exists to prevent: anyone auditing `proxy.go`'s header parse
-against CLAUDE.md would have read it as an unsanctioned addition, since the
-file's only statement on the subject forbade it.
+unset, because there the per-IP limit silently degrades to a global one. The cost of
+that drift was to a REVIEWER rather than an operator, which is the kind this file
+exists to prevent: anyone auditing `proxy.go` against CLAUDE.md would have read it as
+an unsanctioned addition, since the file's only statement on the subject forbade it.
 
 The state is per process, so N replicas allow N times the rate. That is a
 weakening rather than a hole, and moving it to PostgreSQL would put a write on
@@ -2094,7 +2054,9 @@ The site-wide promotional strip is `promo_banners`, above the header and IN
 NORMAL FLOW. The placement is a design decision goen took from Claude Design and
 implemented as given: sticky would levy a permanent 44px tax on every screen for
 a sentence somebody has already read, so it scrolls away and the header — which
-IS navigation — is what stays.
+IS navigation — is what stays. An INK bar, not an accent one: accent is goen's
+signal for "interactive", and an accent-filled strip would compete with every
+button on the page for the same meaning.
 
 It shows on the storefront only. Checkout has one job and an offer beside it is
 a conversion risk; the account pages and the back office are task-oriented.
@@ -2107,10 +2069,6 @@ travels on every request, and the server only ever asks "is this the one they
 closed". Dismissing THIS promotion hides this promotion — the next one has a
 different id and reappears, which is right, because a new promotion is
 information the visitor has not read.
-
-An INK bar, not an accent one: accent is goen's signal for "interactive", and an
-accent-filled strip would compete with every button on the page for the same
-meaning.
 
 The home page's hero comes from `hero_slides`, edited at `/admin/home`. An
 EMPTY TABLE IS A WORKING SITE: `pages.DefaultHero()` is the copy that was in the
@@ -2129,23 +2087,19 @@ A CTA href is typed by a person and rendered into the largest button on the
 storefront, so it goes through `web.SitePath`: an absolute URL there would send
 every visitor off-site from the home page, and `javascript:` would put script in
 it. `templ.SafeURL` would neutralise that at render time, which is not a reason
-to store it.
-
-The image's width is read from `media_objects`, never copied onto `hero_slides`
-— the srcset states a number a browser both chooses and lays out on, and
-`product_images` already showed what two copies of a stored object's dimensions
+to store it. The image's WIDTH is read from `media_objects` and never copied onto
+`hero_slides` — the srcset states a number a browser both chooses and lays out on,
+and `product_images` already showed what two copies of a stored object's dimensions
 turn into.
 
 Uploaded images are `internal/media`, stored in PostgreSQL and served at
 `/media/{digest}` — the missing piece that made the back office able to create a
 product and unable to give it a photo, because every image was compiled into the
-binary by `go:embed`.
-
-The storage choice is deliberate and has a real cost. Object storage is what a
-real catalogue uses; goen's architecture is one binary plus one PostgreSQL, and
-a filesystem needs a volume `ko` does not give it while S3 needs credentials and
-the module graph this repository has already refused once. The seam where that
-changes is one table and one handler.
+binary by `go:embed`. The storage choice has a real cost: object storage is what a
+real catalogue uses, but goen's architecture is one binary plus one PostgreSQL, and
+a filesystem needs a volume `ko` does not give it while S3 needs credentials and the
+module graph this repository has already refused once. The seam where that changes
+is one table and one handler.
 
 Three properties carry the security of an upload endpoint:
 
@@ -2169,17 +2123,16 @@ is a CPU denial of service that costs the attacker one request — and the srcse
 is derivable from the digest and the original width alone, so a listing page
 renders a hundred of them with no further query.
 
-`product_images.storage_key` now holds two kinds of key: an embedded filename
-from the seed, or a digest. `assets.ProductImageURL` is the ONE place that knows
-the difference, and `product_images_storage_key_key` is `(product_id,
-storage_key)` — it used to be `storage_key` alone, which made a generic
-accessory shot shared by two products a duplicate-key error.
+`product_images.storage_key` holds two kinds of key — an embedded filename from the
+seed, or a digest — and `assets.ProductImageURL` is the ONE place that knows the
+difference. `product_images_storage_key_key` is `(product_id, storage_key)`: it used
+to be `storage_key` alone, which made a generic accessory shot shared by two
+products a duplicate-key error.
 
 The back office records itself in `audit_events`. goen already had per-entity
 history — `order_events`, `inventory_movements`, `store_credit_entries`,
-`payment_webhook_events` — and every one of them says what happened TO
-something. What none of them says is WHO, and "everything this person did last
-Tuesday" spans entities, so no per-entity history can answer it.
+`payment_webhook_events` — and every one says what happened TO something. What none
+says is WHO, and "everything this person did last Tuesday" spans entities.
 
 `admin` holds no INSERT on the table; `record_audit_event` is the one door, and
 it writes in the CALLER's transaction. That is the whole design: an audit row
@@ -2187,10 +2140,8 @@ for work that rolled back is a lie, and work that commits without one is a gap,
 and neither is possible when they share a commit. `Store.audited` wraps a
 one-statement write, `auditIn` goes inside a transaction the caller already
 opened, and a write with no actor is `ErrNoActor` rather than a row attributed
-to nobody.
-
-Two locks on the trail itself: `audit_events_append_only` refuses UPDATE and
-DELETE from everyone including the owner, and the INSERT revoke stops the back
+to nobody. Two locks on the trail itself: `audit_events_append_only` refuses UPDATE
+and DELETE from everyone including the owner, and the INSERT revoke stops the back
 office writing a row that did not come through the function.
 
 The test found a real defect: `SetProductStatus` on a slug that does not exist
@@ -2206,12 +2157,11 @@ a link. Only a product with something marked down may be featured, which
 `sale_campaign_needs_discount` decides under a lock it takes on the product;
 checking it in Go as well would be checking it without one.
 
-`/deals` is `GET /deals` through `internal/catalog`, reusing the search view:
-a deals page and a search results page are the same shape. "On sale" is a
-VARIANT fact — `compare_at_price_cents > price_cents` — and a product qualifies
-when ANY active variant carries one. Ordered by the FRACTION discounted, not
-the amount: 30% off a NT$900 case beats NT$500 off a NT$50,000 laptop for
-somebody reading a sale page.
+`/deals` reuses the search view, because a deals page and a search results page are
+the same shape. "On sale" is a VARIANT fact — `compare_at_price_cents >
+price_cents` — and a product qualifies when ANY active variant carries one. Ordered
+by the FRACTION discounted, not the amount: 30% off a NT$900 case beats NT$500 off a
+NT$50,000 laptop for somebody reading a sale page.
 
 The wishlist is `internal/account`: `GET /account/wishlist` and a plain
 `POST` from the product page. Saving is idempotent, and the `return` field is
@@ -2230,13 +2180,11 @@ both pass.
 The SEO surface is `/sitemap.xml`, `/robots.txt` and JSON-LD on the PDP —
 Product AND BreadcrumbList, in one block, because schema.org accepts an array
 and `layouts.Page` carries one string. The breadcrumb document had been written
-and never emitted, so a search result showed a bare URL where it could have
-shown 首頁 › 手機 › Pixelight. The
-sitemap lists only ACTIVE products and only categories with something in them —
-pointing a crawler at an empty category spends its budget on a page with nothing
-on it. robots.txt disallows the per-visitor and per-order paths, because a
-crawler following them wastes its budget and an order page it reached would be a
-customer's address in a search result.
+and never emitted, so a search result showed a bare URL. The sitemap lists only
+ACTIVE products and only categories with something in them — pointing a crawler at
+an empty category spends its budget on a page with nothing on it. robots.txt
+disallows the per-visitor and per-order paths, because an order page a crawler
+reached would be a customer's address in a search result.
 
 JSON-LD is written with `templ.Raw` around the WHOLE element: templ treats a
 `<script>` body as literal text, so an `@`-expression inside one reaches the
@@ -2244,11 +2192,11 @@ browser as the characters `@templ.Raw(...)`. The document is built by
 `encoding/json`, which is what stops a product name closing the tag —
 `TestJSONLDCannotEscapeItsScriptTag` holds that rather than assuming it.
 
-The newsletter is DOUBLE opt-in, and the footer form no longer subscribes
-anybody. It collected an address and put it straight on the list: one POST signed
-up any address somebody typed, `unsubscribed_at` existed with nothing that could
-set it, no route could take anyone off, and the thanks page promised "任何一封信
-的頁尾都可以隨時退訂" — a promise with nothing behind it, since nothing ever sent.
+The newsletter is DOUBLE opt-in. The footer form used to collect an address and put
+it straight on the list: one POST signed up any address somebody typed,
+`unsubscribed_at` existed with nothing that could set it, no route could take anyone
+off, and the thanks page promised 「任何一封信的頁尾都可以隨時退訂」 with nothing
+behind it, since nothing ever sent.
 
 A submission writes a REQUEST to `newsletter_confirmations`; the address joins
 `newsletter_subscribers` only when a link sent to that mailbox is followed. Two
@@ -2271,11 +2219,10 @@ nobody can leave is not one they consented to.
 
 Four rules that are easy to get backwards:
 
-- **A second submission for an address already on the list sends NOTHING.**
-  Otherwise the form delivers mail to whoever is typed into it, as often as
-  somebody presses the button. The limit is keyed on the ADDRESS as well as the
-  IP, the `/forgot` lesson: filling somebody else's mailbox takes one request per
-  machine.
+- **A second submission for an address already on the list sends NOTHING**, or the
+  form delivers mail to whoever is typed into it, as often as somebody presses the
+  button. The limit is keyed on the ADDRESS as well as the IP, the `/forgot`
+  lesson: filling somebody else's mailbox takes one request per machine.
 - **Re-subscribing after an opt-out needs the mailbox again.** The old query said
   `ON CONFLICT DO UPDATE SET unsubscribed_at = NULL`, so one form submission by
   anybody put an opted-out person back on the list. Only confirming clears it.
@@ -2289,22 +2236,20 @@ Four rules that are easy to get backwards:
 `erase_user` deletes both rows, and the pending confirmation is the half easy to
 miss: a link already sitting in the mailbox would let an erased address rejoin
 after the erasure. The newsletter keys on the ADDRESS rather than the account, so
-nothing else in the function could reach it — and it was the one table that would
-have gone on emailing somebody who asked to be forgotten.
+nothing else in the function could reach it.
 
-**Sending is built now, on top of that consent.** `/admin/newsletter` shows the
-list's three figures, composes a draft, and sends it — and composing and sending
-are two forms, because ten thousand mailboxes cannot be edited afterwards.
+**Sending is built, on top of that consent.** `/admin/newsletter` shows the list's
+three figures, composes a draft, and sends it — composing and sending are two forms,
+because ten thousand mailboxes cannot be edited afterwards.
 
 The whole send is ONE transaction: the subscriber list, one message per
 recipient, the stamp, and the audit row. That is what makes the recipient count
 honest (it comes from the rows enqueued, not from a figure read beforehand) and
 the send unrepeatable — `sent_at IS NULL` lives in the UPDATE's own WHERE clause
-and is the ONLY place the question is asked. There was a read-and-branch in Go
-above it and it had to go: it answered first in the ordinary case, so the
-statement guard was almost never reached and a mutation deleting it went red only
-sometimes. **A redundant check that makes the real one untestable is worse than
-no redundant check.**
+and is the ONLY place the question is asked. A read-and-branch in Go above it had
+to go: it answered first in the ordinary case, so the statement guard was almost
+never reached and a mutation deleting it went red only sometimes. **A redundant
+check that makes the real one untestable is worse than no redundant check.**
 
 **`outbox_messages.priority` is what makes the send safe to run.** Lower is
 sooner; transactional mail is 0 and a bulk send is 100. Without it one issue to
@@ -2320,47 +2265,42 @@ are in ten thousand mailboxes; rewriting the subject afterwards makes the shop's
 record disagree with what people read, and there is no way to correct the copies.
 
 **The unsubscribe secret is stored as the TOKEN, and that is a correction.** The
-first version stored `sha256(token)`, on the reflex that a secret in a table
-should be hashed. But the threat here is a script on the open internet walking
-ids, not a reader of the database: `store` holds SELECT *and* UPDATE on that table
-because unsubscribing IS an update, so anybody who could read the hash could
-already set `unsubscribed_at` directly. The hash defended nothing it was not
-already open to — and it cost the feature, because only the digest was kept, so
-the token existed once (in the welcome mail) and the SEND could not reproduce it.
-A newsletter could not carry an unsubscribe link, which is the one place the link
-has to be.
+first version stored `sha256(token)` on the reflex that a secret in a table should
+be hashed. But the threat here is a script walking ids, not a reader of the
+database: `store` holds SELECT *and* UPDATE on that table because unsubscribing IS
+an update, so anybody who could read the hash could already set `unsubscribed_at`
+directly. The hash defended nothing it was not already open to — and it cost the
+feature, because with only the digest kept, the token existed once (in the welcome
+mail) and the SEND could not reproduce it. A newsletter could not carry an
+unsubscribe link, which is the one place the link has to be.
 
 **The back office's newsletter store runs on the ADMIN pool, and the storefront's
-on the store pool.** Two halves, two roles: subscribing writes
-`newsletter_subscribers` as `store`, while composing, sending and the audit row
-need `newsletter_issues` and `record_audit_event`, which `store` holds neither of.
-One store over the storefront pool would have failed at the first compose — and
-only in production, because every test connects as the OWNER, who is subject to no
-missing grant. That is trap #21 from the other side.
+on the store pool.** Subscribing writes `newsletter_subscribers` as `store`, while
+composing, sending and the audit row need `newsletter_issues` and
+`record_audit_event`, which `store` holds neither of. One store over the storefront
+pool would have failed at the first compose — and only in production, because every
+test connects as the OWNER. That is trap #21 from the other side.
 
 An anonymous send is `ErrNoActor` before anything is enqueued. `record_audit_event`
 would refuse it anyway, but a caller deserves a sentence rather than a SQLSTATE:
 sending to the whole list is the least anonymous thing the back office does.
 
-The contact form's messages are READ at `/admin/messages`. `contact_messages`
-had been written since the site launched and `/admin` counted the unhandled ones
-— with no page to open them, so a customer wrote in and the shop saw a figure.
-`handled_at` existed with nothing to set it, and the partial index the queue was
-designed around had never been used. The dashboard tile is a link now.
+The contact form's messages are READ at `/admin/messages`. `contact_messages` had
+been written since the site launched and `/admin` counted the unhandled ones with no
+page to open them, so a customer wrote in and the shop saw a figure; `handled_at`
+existed with nothing to set it. The dashboard tile is a link now.
 
 Ordered OLDEST first, and unhandled ahead of handled, the same as
 `/admin/questions`: somebody who wrote three days ago is more urgent than
 somebody who wrote this morning, and newest-first buries them exactly as they
 stop being answerable in time. A quoted order number is a LINK, because "my
-order has not arrived" is answered by looking at the order.
+order has not arrived" is answered by looking at the order. Marking handled is
+reversible, and the audit row carries the message's ID and never its text — a
+customer's own words, in a table `erase_user` does not reach.
 
-Marking handled is reversible, and the audit row carries the message's ID and
-never its text — a customer's own words, in a table `erase_user` does not reach.
-
-**A shop can now look one customer up, whole, at `/admin/customers`.** Credit was
+**A shop can look one customer up, whole, at `/admin/customers`.** Credit was
 granted on one page, orders listed on another, points and tier nowhere the shop
-could see — so "what is going on with this customer" meant three pages and a
-guess, on the phone to the person asking.
+could see, so "what is going on with this customer" meant three pages and a guess.
 
 Nothing is listed until somebody SEARCHES, and that is a decision. A customer list
 is a page of addresses, and a back office that opens on one invites reading it. The
@@ -2398,27 +2338,32 @@ rather than a list. Its one allowed caller is named with its reason:
 `OrderCreditPosition` asks for spent and returned on one order split by sign, which
 is a position rather than a balance. The first cut of that guard matched
 `amount_cents` anywhere and duly refused `RefundedSoFar` — a sum over `refunds` —
-which is why it is anchored on the ledger table as well as the arithmetic.
+which is why it is anchored on the ledger table as well as the arithmetic. The same
+work deleted a re-derived points figure that had got `loyalty_balances` subtly wrong
+and agreed with it only by luck.
 
-The same work fixed the points figure by deleting it: the customer page had
-re-derived `loyalty_balances` and got it subtly wrong, keeping an award with a NULL
-expiry that `loyalty_entries_expiry_matches_sign` forbids anyway. The two agreed by
-luck.
-
-**`check-layout`'s back-office probe honours each row's own marker now.**
-`.goen-admin` is the back office CHROME — it is present on an empty search, on a 404
-body and on a page whose data fixture never ran, so a check that asked only for it
-reported a measured page where it had measured a nav bar. That is mistake #26 in the
-section that learned it, and the customer rows are the two that needed it: the
-search lists nothing until it is searched, so its row carries `.ui-table` and the
-Makefile seeds the customer it finds.
+**`check-layout`'s back-office probe honours each row's own marker now** —
+`.goen-admin` is CHROME, present on an empty search, a 404 body and a page whose
+fixture never ran, so a check asking only for it measured a nav bar. Mistake #26
+again; `/admin/customers` carries `.ui-table` and the Makefile seeds the customer.
 
 The policy pages exist. `/faq` reads `faq_entries`, so support can answer a
 recurring question without a deploy — **and that sentence was false until
-`/admin/faq` existed.** Nothing could write the table. It was the third feature this
-project found in that state, after `product_specs` and `promo_banners`, and it was
-found the same way: a sweep for tables no application query and no stored function
-writes. A promise in this file is not a door. `/shipping` reads the same
+`/admin/faq` existed**, because nothing could write the table. **A promise in this
+file is not a door.**
+
+There, the position is computed inside the INSERT and WITHIN the category, because
+`faq_entries_position_key` is unique on `(category, position)` — two staff members
+adding to 訂單 would otherwise both read the same maximum. The category is not
+editable on an existing entry: moving one between categories has to renumber its
+position, and a form that silently collides with that index is worse than one that
+does not offer the move. The audit row names the entry and never its text, because
+`audit_events` is append-only and a paragraph copied there outlives every later
+correction of it. The page COUNTS the answers with no English: an untranslated one
+is read in Chinese by every English visitor and by nobody at the shop, and /faq is
+the page an English visitor is most likely to actually read.
+
+`/shipping` reads the same
 `shipping_method_versions` rows checkout charges from — a page that restates a
 fee is a page that eventually contradicts the till. The rest are prose in
 `internal/site/policies.go`, because they change when a lawyer changes them and
@@ -2431,22 +2376,28 @@ renders as a visible gap, because a shop that sets a gap in the same typeface as
 a rule makes a promise by accident. `TestUndecidedTermsAreMarkedPending` holds
 that.
 
-**Two of the three terms that paragraph used to name were never the shop's to
-set, and this file named them for months.** 鑑賞期天數 and who pays return
-postage are fixed by 消保法 §19, which §19 V makes unwaivable — so filing them
-under 尚未確定 told every customer they might have no right at all. A right
-dressed as a GAP is the mirror of the failure the guard above catches, and it is
-the more expensive direction: a Pending section is FORMATTED as a gap, so it
-looks correct to a reviewer who has not read §19, and
-`TestUndecidedTermsAreMarkedPending` passes on it BY CONSTRUCTION — the paragraph
-said 尚未確定 and was marked Pending, which is exactly what that test asks for.
+**A clause that claims completeness is falsifiable, and one of them was false.**
+The privacy policy told every visitor goen sets 「只有…這三種」 cookie / "three
+kinds of cookie and no others". It sets FIVE: the language cookie is written by
+the switch in the footer of every page, so any visitor who changed language was
+undisclosed, and `__Host-goen_promo` was the fifth.
+`TestThePrivacyPolicyNamesEveryCookie` derives the list by WALKING THE SOURCE for
+`__Host-goen_*` rather than from a hand-written table, so a sixth cookie fails the
+build the moment its constant is declared — a list somebody has to remember to
+extend is the failure this exists to catch. It asserts BOTH locales, because
+`BodyEn` is the half no other guard reads.
+This is the shape `TestTheStatedHoldMatchesTheEnforcedOne` already had one
+section over — a page-says-versus-code-does guard — and it was never extended,
+which is why the sentence drifted twice with nothing going red. **Where a policy
+page states a number, a list or a limit that the code also knows, the two are one
+fact and something has to hold them together.**
 
-`TestStatutoryTermsAreNotPending` is the other direction, and it asserts
-POSITIVELY — each statutory term must be stated as a rule — rather than scanning
-Pending sections for forbidden words. The legitimate Pending copy has to NAME the
-statutory window in order to say what lies outside it, so a forbidden-word scan
-would refuse the correct text and pass the wrong text the moment somebody
-paraphrased.
+**Two of the three terms that paragraph used to name were never the shop's to set,
+and this file named them for months.** 鑑賞期天數 and who pays return postage are
+fixed by 消保法 §19, unwaivable under §19 V — see mistake #29 for why a right
+dressed as a gap is the more expensive direction, and why
+`TestStatutoryTermsAreNotPending` asserts POSITIVELY rather than scanning Pending
+sections for forbidden words.
 
 What the pages now state, and why each is not goen's to write differently: seven
 days from RECEIPT (消保法 §19 I), the day of receipt not counted (民法 §120 II),
@@ -2476,13 +2427,11 @@ Known follow-ups, none of them blocking this batch:
   DEADLINE rather than a flat `cart.HoldTTL`, an `ExpiredReservations` predicate
   that spares an order with money in flight, and a stock check at capture or an
   explicit oversell path. The question underneath all four is the shop's and not
-  the code's: **how many days of stock may an unpaid transfer hold?** Until
-  somebody answers it, the pin is the honest state and
-  `UnsettledSessionFrom` reports at ERROR if the Dashboard ever contradicts it.
-  Note also that Stripe supports no Taiwan-local DELAYED method at all — no ATM
-  虛擬帳號, no 超商代碼/條碼 — so the pin costs no delayed method that is
-  currently available. It is fail-CLOSED, so it also excludes any non-card
-  IMMEDIATE method the Dashboard might later offer; that is the deliberate half.
+  the code's: **how many days of stock may an unpaid transfer hold?** Stripe
+  supports no Taiwan-local DELAYED method at all — no ATM 虛擬帳號, no
+  超商代碼/條碼 — so the pin costs nothing currently available. It is
+  fail-CLOSED, so it also excludes any non-card IMMEDIATE method the Dashboard
+  might later offer; that is the deliberate half.
   `ExcludedPaymentMethodTypes` was the narrower alternative and was rejected
   because it keeps the Dashboard authoritative and is fail-OPEN to whatever is
   added next — the shape mistake #30 says to close rather than merely name.
@@ -2495,21 +2444,17 @@ Known follow-ups, none of them blocking this batch:
   REFERENCE database from `migrations/` beside the live one and diffs the
   catalogs: constraints, indexes, columns and triggers. A difference is not
   automatically a defect; it is the signal that `001` has stopped being the
-  whole truth, and therefore that `002` begins.
-  Its own first run was FALSE-GREEN and the shape is the one this file keeps
-  recording: the `sed` that swapped the database name matched the first slash of
-  `postgres://`, so it migrated and dumped the LIVE database as its own
-  reference and reported PASS against planted drift. It now refuses to compare
-  unless `current_database()` on the reference URL is the reference database —
-  a guard that exists because the check was watched failing to fail.
+  whole truth, and therefore that `002` begins. Its own first run was
+  FALSE-GREEN — the `sed` swapping the database name matched the first slash of
+  `postgres://`, so it dumped the LIVE database as its own reference and reported
+  PASS against planted drift. It refuses to compare now unless
+  `current_database()` on the reference URL is the reference database.
 - **`ok_mart` stays in the pickup allowlist, and the day 綠界物流 arrives it
   goes.** ECPay's `CvsType` admits only All/FAMI/UNIMART/HILIFE/UNIMARTFREEZE,
-  and neither the B2C nor the C2C sub-type list carries OK — so a shop shipping
-  through them cannot reach an OK store, while a shop walking to the counter
-  through OK's own OK-GO 店到店 can. Note the API still RETURNS 688 OK stores
-  when asked, undocumented: presence in the catalogue is not the same question
-  as "can this parcel be sent", which is the same lesson `product_search_
-  documents` taught from the other end.
+  and neither sub-type list carries OK — so a shop shipping through them cannot
+  reach an OK store, while a shop walking to the counter through OK's own OK-GO
+  店到店 can. The API still RETURNS 688 OK stores when asked, undocumented:
+  presence in the catalogue is not the same question as "can this parcel be sent".
 - **Observability is deferred until the features are done**, and that is a
   decision rather than an omission — but it has a cost worth naming: every
   growth gate queued in this file (the read-model projection at ~1–2k active
@@ -2546,41 +2491,33 @@ Known follow-ups, none of them blocking this batch:
   queries; short CJK queries are too unselective for the planner to use it
   (measured: 1.5 ms vs 8.8 ms at 10,000 products). Fine at this size, and the
   bigram tsvector projection that fixes it is gated on ~5,000 active products.
-- **The fifth review round is dispositioned in
-  `docs/reviews/06-schema-round5-findings.md`** — read it before starting batch
-  ④, ⑥ or ⑦. Its schema findings are fixed and proven by mutation; what remains
+- **The review rounds are dispositioned in `docs/reviews/`.** Round 5
+  (`06-schema-round5-findings.md`) is fixed and proven by mutation; what remains
   there is the set that cannot be settled without the feature it belongs to
   (return ↔ refund ↔ shipped reconciliation, invoice allowance vs refund, the
-  `order_number_counters` ceiling).
-- **The sixth round — a third-party ACCEPTANCE rather than a schema review — is
-  dispositioned in `docs/reviews/07-codex-round6-dispositions.md`, and it is the
-  one to read first.** Three of its five Criticals were live while every gate in
-  this repository was green, because every guard here asks about ABSENCE and none
-  of them can see two correct halves that disagree, a route whose authorisation is
-  weaker than the thing it protects, or a state machine reporting an outcome it
-  has not reached. **Three of its findings were each locked in by a test that
-  asserted the defect** — the TOTP re-enrolment, the staff promotion and the
-  failed refund — so each fix had to change a test that was passing. A test
-  written from the implementation asserts what the code does; only one written
-  from the CONTRACT can disagree with it.
-- **Rounds 7 and 8 are dispositioned in the same file, and its last section is
-  the five items they left QUEUED — all now closed.** Read it for one lesson in
-  particular: the column-privilege item was refused on a stated reason
-  (`a grant one column too narrow fails nowhere in this suite`) that
-  `TestEveryRoleCanRunItsOwnQueries` had refuted ONE COMMIT EARLIER, in the same
-  round. Nothing re-read the note. Alongside it: cancelling an order now expires
-  its Stripe session, the Stripe HTTP interface has tests at last, and
-  `check-layout`'s "non-deterministic" admin session was one message standing in
-  for four causes rather than anything random.
+  `order_number_counters` ceiling). Rounds 6–8 are in
+  `07-codex-round6-dispositions.md` and it is the one to read first — round 6 was
+  a third-party ACCEPTANCE rather than a schema review, and three of its five
+  Criticals were live while every gate here was green, because every guard here
+  asks about ABSENCE and none can see two correct halves that disagree, a route
+  whose authorisation is weaker than the thing it protects, or a state machine
+  reporting an outcome it has not reached. **Three of its findings were each
+  locked in by a test that asserted the defect** — the TOTP re-enrolment, the
+  staff promotion and the failed refund — so each fix had to change a passing
+  test. A test written from the implementation asserts what the code does; only
+  one written from the CONTRACT can disagree with it. Rounds 7 and 8 left five
+  items QUEUED, all now closed; read them for the column-privilege item, refused
+  on a stated reason that `TestEveryRoleCanRunItsOwnQueries` had refuted ONE
+  COMMIT EARLIER, in the same round, with nothing re-reading the note.
 - **"Committed" is `order_is_committed()`, never `EXISTS(succeeded payment)`.**
-  A zero-owed order — 100% discount, or fully store-credit funded once batch ⑥
-  ships — legally leaves pending with no payment row at all, because
+  A zero-owed order — 100% discount, or fully store-credit funded — legally
+  leaves pending with no payment row at all, because
   `orders_funded_to_leave_pending` skips its payment check when
   `order_total - credit_applied = 0` while `payments_succeeded_is_captured`
   forbids a zero-value succeeded payment. Three guards read the payment proxy as
-  "committed" and so did nothing for such an order. When batch ④ or ⑥ adds a
-  funding source, it is added in `orders_check_transition` and
-  `order_is_committed` — not by re-deriving the test at a fourth call site.
+  "committed" and so did nothing for such an order. A new funding source is added
+  in `orders_check_transition` and `order_is_committed` — never by re-deriving
+  the test at a fourth call site.
 - An ACTIVE product must have an active variant (`products_active_has_variant`).
   `products_active_is_published` only asked for a `published_at`, so a product
   with zero variants could be published: a page a customer reaches with no
@@ -2598,4 +2535,4 @@ Known follow-ups, none of them blocking this batch:
   Nothing called it until the grant form did. A stored function with no caller
   is not covered by anything.
 - The home page's copy claims (免運門檻, 保固, Stripe 金流) need a pre-launch
-  truth check against what batch ④ actually ships.
+  truth check against what actually ships.
