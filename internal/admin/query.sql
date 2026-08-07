@@ -219,15 +219,42 @@ INSERT INTO order_shipments (order_id, carrier, tracking_number, estimated_deliv
 VALUES (@order_id, @carrier::text, @tracking_number::text, @estimated_delivery_on)
 RETURNING id;
 
--- The reservations an order still holds. Shipping settles them: the stock left
--- the shelf at hold time, and consuming turns "spoken for" into "gone".
--- name: HeldReservations :many
-SELECT id FROM inventory_reservations
-WHERE order_id = $1 AND state = 'held'
-ORDER BY id;
+-- Settle the part of a hold that is actually going out in this parcel.
+-- name: ConsumeReservationPartial :exec
+SELECT consume_reservation_partial(@reservation_id, @quantity::integer);
 
--- name: ConsumeReservation :exec
-SELECT consume_reservation($1);
+-- What each order line still owes a dispatch, and which hold covers it.
+--
+-- The two questions are answered TOGETHER because a partial dispatch has to
+-- reconcile them line by line: shipping two of three units settles two of the
+-- three that line's variant holds, and reading the remaining quantities from one
+-- query and the reservations from another leaves the two free to disagree about
+-- an order somebody is editing.
+--
+-- LEFT JOIN on the reservation, not JOIN. A line whose variant was deleted has
+-- no hold and never did, and dropping the row here would silently ship it
+-- without anybody noticing the stock did not move — which is the shape the
+-- empty-reservation dispatch had. The caller refuses instead.
+-- name: ShippableLines :many
+SELECT ol.id AS order_line_id,
+       ol.sku,
+       ol.product_name,
+       ol.variant_label,
+       (ol.quantity - coalesce((
+           SELECT sum(sl.quantity) FROM order_shipment_lines sl
+           WHERE sl.order_line_id = ol.id), 0))::integer AS remaining,
+       ir.id AS reservation_id,
+       coalesce(ir.quantity, 0)::integer AS held
+FROM order_lines ol
+LEFT JOIN inventory_reservations ir
+       ON ir.order_id = ol.order_id
+      AND ir.variant_id = ol.variant_id
+      AND ir.state = 'held'
+WHERE ol.order_id = @order_id
+  AND ol.quantity > coalesce((
+      SELECT sum(sl.quantity) FROM order_shipment_lines sl
+      WHERE sl.order_line_id = ol.id), 0)
+ORDER BY ol.position, ol.id;
 
 -- ReleaseReservation and HeldReservationsForOrder are what a cancellation needs,
 -- and they are defined in internal/cart/query.sql. sqlc generates ONE db package
@@ -264,21 +291,6 @@ FROM order_shipments WHERE order_id = $1 ORDER BY shipped_at, id;
 -- name: CreateShipmentLine :exec
 INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
 VALUES (@order_id, @shipment_id, @order_line_id, @quantity::integer);
-
--- The lines of an order that have not been dispatched yet, with how many of
--- each remain. A partial dispatch is not modelled in the back office yet — the
--- form ships what is left — but the query is written per line so it can be.
--- name: UnshippedLines :many
-SELECT ol.id,
-       (ol.quantity - coalesce((
-           SELECT sum(sl.quantity) FROM order_shipment_lines sl
-           WHERE sl.order_line_id = ol.id), 0))::integer AS remaining
-FROM order_lines ol
-WHERE ol.order_id = $1
-  AND ol.quantity > coalesce((
-      SELECT sum(sl.quantity) FROM order_shipment_lines sl
-      WHERE sl.order_line_id = ol.id), 0)
-ORDER BY ol.position, ol.id;
 
 -- The return queue. Undecided first, because that is the work.
 -- name: ReturnQueue :many

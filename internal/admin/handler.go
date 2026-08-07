@@ -266,9 +266,10 @@ func (h *Handler) AdvanceOrder(w http.ResponseWriter, r *http.Request) {
 
 // Ship serves POST /admin/orders/{number}/ship.
 //
-// A plain form: carrier and tracking number. It moves the order to shipped,
-// settles the stock it was holding and appends to its history, all together —
-// see [Store.Ship] for why none of those may happen without the others.
+// A plain form: carrier, tracking number, and how many of each line are in this
+// parcel. It records the shipment, settles the stock those units were holding
+// and appends to the order's history, all together — see [Store.Ship] for why
+// none of those may happen without the others.
 func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
@@ -279,12 +280,27 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	err := h.store.Ship(r.Context(), number,
-		r.PostFormValue("carrier"), r.PostFormValue("tracking"), staffID(r))
+
+	lines, parseErr := parcelLines(r)
+	if parseErr != nil {
+		h.log.WarnContext(r.Context(), "dispatch rejected", "order", number, "error", parseErr)
+		//nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?badparcel=1", http.StatusSeeOther)
+		return
+	}
+
+	err := h.store.Ship(r.Context(), number, Dispatch{
+		Carrier:  r.PostFormValue("carrier"),
+		Tracking: r.PostFormValue("tracking"),
+		Lines:    lines,
+	}, staffID(r))
 	switch {
 	case err == nil:
 		//nolint:gosec // G710: validated by IsOrderNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?shipped=1", http.StatusSeeOther)
+	case errors.Is(err, ErrQuantity):
+		//nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?badparcel=1", http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid):
 		//nolint:gosec // G710: validated by IsOrderNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?needs=1", http.StatusSeeOther)
@@ -296,6 +312,46 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "ship order", "error", err)
 		h.serverError(w, r)
 	}
+}
+
+// parcelLines reads how many of each order line the dispatch form is sending.
+//
+// Named `qty_<order_line_id>` rather than parallel arrays, for the reason the
+// return inspection form uses the same shape: a browser is free to reorder
+// repeated fields, and two lists that drifted apart would ship the wrong line's
+// quantity.
+//
+// A nil map means "everything outstanding", which is what a form with no
+// quantity fields at all sends — the one-parcel dispatch that was the only kind
+// this back office could do, still reachable and still the common case.
+func parcelLines(r *http.Request) (map[uuid.UUID]int32, error) {
+	var out map[uuid.UUID]int32
+	for name, values := range r.PostForm {
+		rest, ok := strings.CutPrefix(name, "qty_")
+		if !ok || len(values) == 0 {
+			continue
+		}
+		lineID, err := uuid.Parse(rest)
+		if err != nil {
+			return nil, fmt.Errorf("field %q does not name an order line: %w", name, err)
+		}
+		raw := strings.TrimSpace(values[0])
+		if raw == "" {
+			continue
+		}
+		n, err := strconv.ParseInt(raw, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("quantity on %s: %w", rest, err)
+		}
+		if n < 0 {
+			return nil, fmt.Errorf("quantity on %s is negative", rest)
+		}
+		if out == nil {
+			out = make(map[uuid.UUID]int32, 4)
+		}
+		out[lineID] = int32(n)
+	}
+	return out, nil
 }
 
 // staffID is who is acting, for the history. A staff member always has a
@@ -454,6 +510,7 @@ var adminNotices = map[string]string{
 	"inspected":     "驗貨已記錄,可再販售的數量已經入庫。",
 	"closed":        "退貨已結案。",
 	"badcount":      "數量填寫有問題:入庫數不能超過實際收到的數量,實際收到也不能超過申請退回的數量。",
+	"badparcel":     "出貨數量填寫有問題:每一項不能超過還沒出貨的數量,也不能超過這筆訂單保留的庫存。",
 }
 
 // noticeFor turns the one-shot query parameter a redirect carries into the
