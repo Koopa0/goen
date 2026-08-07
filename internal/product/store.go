@@ -85,12 +85,22 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 
 	chosen, exact := Resolve(variants, sel)
 
+	// The guarantee strip states the free-delivery threshold, which lives in
+	// shipping_method_versions and is edited at /admin/shipping. Read rather than
+	// typed: it was a literal in the i18n catalogue on this page and on the home
+	// page, against a figure neither of them owned.
+	freeOver, err := s.q.FreeDeliveryThreshold(ctx)
+	if err != nil {
+		return pages.ProductView{}, fmt.Errorf("read free delivery threshold: %w", err)
+	}
+
 	view := pages.ProductView{
-		Slug:         p.Slug,
-		Name:         p.Name,
-		Summary:      p.Summary,
-		Description:  p.Description,
-		WarrantyNote: p.WarrantyNote.String, WarrantyMonths: p.WarrantyMonths,
+		FreeDeliveryCents: freeOver,
+		Slug:              p.Slug,
+		Name:              p.Name,
+		Summary:           p.Summary,
+		Description:       p.Description,
+		WarrantyNote:      p.WarrantyNote.String, WarrantyMonths: p.WarrantyMonths,
 		Brand:        p.Brand,
 		CategorySlug: p.CategorySlug,
 		CategoryName: p.CategoryName,

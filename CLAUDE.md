@@ -2370,11 +2370,48 @@ fee is a page that eventually contradicts the till. The rest are prose in
 a deploy is the right ceremony for that.
 
 Every clause describes what the code does, or what the law requires of it
-regardless. Where a COMMERCIAL decision has not been made — the warranty term, a
-goodwill return beyond the statutory window — the section is marked `Pending` and
-renders as a visible gap, because a shop that sets a gap in the same typeface as
-a rule makes a promise by accident. `TestUndecidedTermsAreMarkedPending` holds
-that.
+regardless. Where a COMMERCIAL decision has not been made the section is marked
+`Pending` and renders as a visible gap, because a shop that sets a gap in the
+same typeface as a rule makes a promise by accident.
+`TestUndecidedTermsAreMarkedPending` holds that.
+
+**Nothing is Pending now, and the mechanism stays for the next real gap.** The
+three that were are decided:
+
+- **The warranty term was never undecided.** It is per product
+  (`products.warranty_months`), rendered on every PDP, and the section above the
+  Pending one said so — the page contradicted itself, and the ENGLISH half had
+  already dropped the term from the undecided list without the Chinese being
+  corrected. Neither Pending guard read `BodyEn`, so the two halves disagreed in
+  silence. Both read both now.
+- **A goodwill return beyond §19** is 14 days from delivery, unused and complete,
+  at the customer's postage — and the copy says in both languages that it ADDS to
+  the statutory seven rather than being them, because a customer who reads
+  "fourteen days" must not conclude the seven were a shop policy.
+- **The forum** is 臺北地院, expressly without prejudice to 消保法 §47 and 民訴
+  §12. A jurisdiction section marked 尚未確定 reads as "we have not said whether
+  you can sue us", which is worse than the answer the law already gives.
+
+**And two promises were made honest rather than marked pending.** The home trust
+strip advertised 「線上填單追蹤進度」 / "you track the progress online" against a
+tree with no repair route, no repair table and nothing that tracks anything —
+the largest claim goen made that no code kept. It states what `/account/warranty`
+actually does now. `/warranty` states the repair path the same way: register,
+contact us, we collect and pay the carriage, and no loan unit — decided rather
+than deferred, because "we have not decided how you send it in" is not a
+sentence a shop can leave on its warranty page.
+
+**A page that restates a figure the till owns can drift, and two did.** The home
+strip and the PDP's guarantee list carried 「滿 NT$3,000 免運」 as a LITERAL in the
+i18n catalogue while `free_over_cents` lives in `shipping_method_versions` and is
+edited at `/admin/shipping`. `ShippingPolicy`'s own comment already states the
+rule — "a page that states a fee is a promise, and the one place that promise is
+already kept is the table checkout charges from" — and it had been applied to
+`/shipping` and to neither of the pages that make the promise first. Both
+interpolate now, from the LOWEST threshold any active method honours, and a shop
+with none advertises nothing rather than free delivery over NT$0. That last case
+is what caught `min()` over an empty set returning NULL into a non-null sqlc
+type — the `localized_name` trap, met again.
 
 **A clause that claims completeness is falsifiable, and one of them was false.**
 The privacy policy told every visitor goen sets 「只有…這三種」 cookie / "three

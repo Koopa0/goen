@@ -1,6 +1,8 @@
 package pages
 
 import (
+	"fmt"
+
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/icons"
@@ -102,7 +104,9 @@ templ Home(p layouts.Page, v HomeView) {
 				<h2 id="trust-heading" class="goen-sr-only">{ i18n.T(ctx, i18n.KeySectionTrust) }</h2>
 				<div class="ui-incentives">
 					@incentive(icons.Shield(), i18n.T(ctx, i18n.KeyGuaranteeWarranty), i18n.T(ctx, i18n.KeyTrustWarrantyBody))
-					@incentive(icons.Truck(), i18n.T(ctx, i18n.KeyGuaranteeShipping), i18n.T(ctx, i18n.KeyTrustShippingBody))
+					if v.FreeDelivery() != "" {
+						@incentive(icons.Truck(), fmt.Sprintf(i18n.T(ctx, i18n.KeyGuaranteeShipping), v.FreeDelivery()), i18n.T(ctx, i18n.KeyTrustShippingBody))
+					}
 					@incentive(icons.Return(), i18n.T(ctx, i18n.KeyGuaranteeReturns), i18n.T(ctx, i18n.KeyTrustReturnsBody))
 					@incentive(icons.Lock(), i18n.T(ctx, i18n.KeyTrustPayment), i18n.T(ctx, i18n.KeyTrustPaymentBody))
 				</div>

@@ -151,3 +151,33 @@ SELECT slug, localized_name(name, name_en, @locale::text) AS name
 FROM categories
 WHERE parent_id IS NULL
 ORDER BY position, name;
+
+-- The lowest free-delivery threshold the shop currently offers.
+--
+-- The home strip and the PDP's guarantee list both tell a shopper what it takes
+-- to get free delivery, and both used to state 「滿 NT$3,000 免運」 as a LITERAL
+-- while the figure lives in shipping_method_versions and is editable at
+-- /admin/shipping. ShippingPolicy's own comment already says why that is wrong —
+-- "a page that states a fee is a promise, and the one place that promise is
+-- already kept is the table checkout charges from" — and the principle was
+-- applied to /shipping and to neither of the other two.
+--
+-- MIN across methods, because the strip makes one claim and the most generous
+-- true one is the lowest threshold any active method honours. NULL when nothing
+-- offers free delivery at all, which the caller renders as no claim rather than
+-- as "free over NT$0".
+-- coalesce AND cast, because min() over an empty set is NULL and sqlc cannot see
+-- that a function changed the column's nullability — the trap CLAUDE.md records
+-- against localized_name, met again here. Without it a shop with no free-delivery
+-- threshold at all crashes the home page it was supposed to render plainly, and
+-- the test that says so is the one that found it.
+-- name: FreeDeliveryThreshold :one
+SELECT coalesce(min(v.free_over_cents), 0)::bigint AS free_over_cents
+FROM shipping_methods sm
+JOIN shipping_method_versions v ON v.method_id = sm.id
+WHERE sm.is_active
+  AND v.effective_at <= now()
+  AND v.free_over_cents > 0
+  AND v.id = (SELECT id FROM shipping_method_versions
+              WHERE method_id = sm.id AND effective_at <= now()
+              ORDER BY effective_at DESC LIMIT 1);

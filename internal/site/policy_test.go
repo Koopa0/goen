@@ -205,8 +205,16 @@ func TestPolicyDocumentsAreComplete(t *testing.T) {
 func TestUndecidedTermsAreMarkedPending(t *testing.T) {
 	for path, doc := range policies {
 		for _, s := range doc.Sections {
-			for _, para := range s.Body {
-				if strings.Contains(para, "尚未確定") && !s.Pending {
+			// BOTH halves. This read s.Body alone, so the English could say a term
+			// was undecided outside a Pending section and nothing looked — and the
+			// halves really had come apart: /warranty's Pending paragraph listed
+			// 保固期限 in Chinese and not in English, while the section above it
+			// stated the term as a rule. A guard over one locale is a guard over
+			// the locale whoever wrote it happened to read.
+			for _, para := range append(append([]string{}, s.Body...), s.BodyEn...) {
+				if (strings.Contains(para, "尚未確定") ||
+					strings.Contains(para, "not decided") ||
+					strings.Contains(para, "not yet decided")) && !s.Pending {
 					t.Errorf("/%s: %q says something is undecided and is not marked "+
 						"Pending, so it renders as a rule", path, s.Heading)
 				}
@@ -309,29 +317,39 @@ func TestStatutoryTermsAreNotPending(t *testing.T) {
 	// Each entry is a term Taiwanese law fixes, the citation a future editor
 	// needs in order to DISAGREE with the entry rather than quietly delete it,
 	// and the substance the page must state outside a Pending section.
+	// wantEn as well as want, because an unwaivable right stated in one language
+	// is stated for one reader. This asserted the Chinese alone, so the English
+	// half of every term below could have been dropped, softened or quietly
+	// turned into a shop policy with nothing going red — and the neighbouring
+	// Pending guard had the same blind spot, where the two halves really did come
+	// apart.
 	statutory := []struct {
-		term string
-		cite string
-		doc  string
-		want []string
+		term   string
+		cite   string
+		doc    string
+		want   []string
+		wantEn []string
 	}{
 		{
-			term: "the length of the rescission window",
-			cite: "消保法 §19 I — seven days from receipt of the goods; §19 V voids any agreement otherwise; 民法 §120 II excludes the day of receipt",
-			doc:  "returns",
-			want: []string{"七天的鑑賞期", "「隔天」開始算"},
+			term:   "the length of the rescission window",
+			cite:   "消保法 §19 I — seven days from receipt of the goods; §19 V voids any agreement otherwise; 民法 §120 II excludes the day of receipt",
+			doc:    "returns",
+			want:   []string{"七天的鑑賞期", "「隔天」開始算"},
+			wantEn: []string{"seven days to cancel", "the day AFTER"},
 		},
 		{
-			term: "who pays return postage",
-			cite: "消保法 §19 I — the consumer bears 任何費用, which is to say none",
-			doc:  "returns",
-			want: []string{"退貨運費由 goen 負擔"},
+			term:   "who pays return postage",
+			cite:   "消保法 §19 I — the consumer bears 任何費用, which is to say none",
+			doc:    "returns",
+			want:   []string{"退貨運費由 goen 負擔"},
+			wantEn: []string{"return postage included"},
 		},
 		{
-			term: "whether opening the box forfeits the right",
-			cite: "通訊交易解除權合理例外情事適用準則 §2 — a closed list of seven, and opened 3C hardware is on none of them",
-			doc:  "returns",
-			want: []string{"拆封後仍在鑑賞期內"},
+			term:   "whether opening the box forfeits the right",
+			cite:   "通訊交易解除權合理例外情事適用準則 §2 — a closed list of seven, and opened 3C hardware is on none of them",
+			doc:    "returns",
+			want:   []string{"拆封後仍在鑑賞期內"},
+			wantEn: []string{"opening 3C hardware keeps you inside the seven days"},
 		},
 	}
 
@@ -343,7 +361,7 @@ func TestStatutoryTermsAreNotPending(t *testing.T) {
 			}
 			// Only sections that render as a RULE count. A statement of a
 			// statutory term inside a Pending section is the defect.
-			var stated strings.Builder
+			var stated, statedEn strings.Builder
 			for _, sec := range doc.Sections {
 				if sec.Pending {
 					continue
@@ -352,12 +370,23 @@ func TestStatutoryTermsAreNotPending(t *testing.T) {
 					stated.WriteString(para)
 					stated.WriteString("\n")
 				}
+				for _, para := range sec.BodyEn {
+					statedEn.WriteString(para)
+					statedEn.WriteString("\n")
+				}
 			}
 			for _, w := range s.want {
 				if !strings.Contains(stated.String(), w) {
 					t.Errorf("/%s does not state %s outside a Pending section: no %q.\n"+
 						"This is not the shop's to leave undecided — %s",
 						s.doc, s.term, w, s.cite)
+				}
+			}
+			for _, w := range s.wantEn {
+				if !strings.Contains(statedEn.String(), w) {
+					t.Errorf("/%s does not state %s to an ENGLISH reader outside a "+
+						"Pending section: no %q.\nThe right does not depend on which "+
+						"language the customer reads — %s", s.doc, s.term, w, s.cite)
 				}
 			}
 		})
