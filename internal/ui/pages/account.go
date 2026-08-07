@@ -3,6 +3,7 @@ package pages
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -111,6 +112,15 @@ type AccountView struct {
 	// Notice is a one-shot message carried by the redirect after a successful
 	// write, so the page can confirm without the form re-submitting on reload.
 	Notice string
+	// GoogleLinked is whether this account can be signed into with Google.
+	// Shown because a customer who has forgotten which way they get in is a
+	// customer who thinks their password stopped working.
+	GoogleLinked bool
+	// CanUnlinkGoogle is false when it is the ONLY way in: an account with no
+	// password and no identity is one nobody can reach, which is the same shape
+	// as /admin/staff refusing to revoke the last admin. The control is absent
+	// rather than present and refused.
+	CanUnlinkGoogle bool
 }
 
 // AccountMeta is the chrome view model for the account pages.
@@ -240,6 +250,18 @@ type AuthView struct {
 	// Notice carries a message from a redirect — "your password was changed",
 	// "check your email".
 	Notice string
+	// GoogleSignIn is whether this deployment offers it. False renders no
+	// button, which is what a deployment with no credentials should look like:
+	// one that never offered it, rather than one whose button fails.
+	GoogleSignIn bool
+}
+
+// GoogleLink is where the button goes, carrying wherever the visitor was headed.
+func (v AuthView) GoogleLink() string {
+	if v.Next == "" {
+		return "/auth/google"
+	}
+	return "/auth/google?next=" + url.QueryEscape(v.Next)
 }
 
 // SignInMeta and RegisterMeta are the chrome view models. Functions rather than

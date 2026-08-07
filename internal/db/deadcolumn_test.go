@@ -107,8 +107,7 @@ func TestEveryColumnIsReadOrWritten(t *testing.T) {
 		// OAuth: user_identities waits for credentials, and TestEveryTableHasAWriter
 		// already records the whole table as a decision. These two columns are the
 		// part of it no index and no erase_user statement happens to name.
-		"user_identities.id":         "the unbuilt OAuth sign-in, whole table",
-		"user_identities.created_at": "the unbuilt OAuth sign-in, whole table",
+		"user_identities.id": "the unbuilt OAuth sign-in, whole table",
 
 		// A surrogate primary key nothing has had to name. The reason it is not
 		// the defect this test hunts is that it IS used — by its own PRIMARY KEY

@@ -1388,6 +1388,54 @@ back and the link is left unspent.
 answering a letter, and a staff member who could write that table could mark any
 address proved without anybody reading anything.
 
+**Signing in with Google is `internal/account`, not its own package.** It shares
+the session store, the User type and SafeNext, and a separate package would need
+a consumer interface for "create a session" — which is the coupling the interface
+rules say not to invent.
+
+The authorization code flow with state and PKCE S256, and NO ID token is parsed.
+The token endpoint answers this server directly over TLS, so the connection is
+what authenticates the response; verifying a signature on top of it would check
+the same claim twice and would need a JWKS cache, a key-rotation policy and a JWT
+library. That is also why there is no new dependency: the flow is two HTTPS calls
+and some URL building, and the module graph is still 103.
+
+PKCE even though goen is a CONFIDENTIAL client. The secret protects the exchange;
+the verifier protects the CODE, which travels through the address bar, the
+referrer of anything the callback page loads, and every proxy log between.
+
+**The linking rule is the one real decision, and it is a security one.** goen does
+not verify an address at REGISTRATION, so anybody may register victim@example.com
+and use the account. Auto-linking a Google sign-in on the address alone would let
+an attacker register the victim's address, wait, and collect them the moment they
+first used Google: same account, attacker's password, victim's orders and
+delivery address. That is pre-hijacking.
+
+So it links only when BOTH sides have proved the same mailbox — Google's
+`email_verified` and goen's own `email_verified_at`. Otherwise it refuses and
+names the way out: `/forgot` sends mail to the address the customer has just
+demonstrated they read, and the reset ends every session, which throws out
+whoever registered it without owning it.
+
+`user_identities` keys on the SUBJECT and never the email: a Google account can
+change address, and matching on the address would strand somebody with a new
+empty account and their orders behind them. `store` holds INSERT and DELETE on it
+and no UPDATE — linking and unlinking are the two things that happen to a link,
+and an UPDATE would repoint one identity at a different account, which is silent
+takeover with no row to show for it.
+
+An account created this way has NO password hash, which is what
+`users.password_hash` being nullable is for and what `Authenticate` already
+refused by name before any of this existed. Unlinking is then refused while it is
+the only way in — the `/admin/staff` last-admin shape — and the control is absent
+rather than present and failing.
+
+`__Host-goen_oauth` carries the state and the verifier for ten minutes,
+`SameSite=Lax` because Strict is dropped on the way back from Google and every
+sign-in would fail its own state check. It is goen's SIXTH cookie, and
+`TestThePrivacyPolicyNamesEveryCookie` is what made the policy page say so —
+the guard catching the next cookie exactly as it was written to.
+
 A forgotten password is the one failure argon2 makes unrecoverable — nobody at
 the shop can look one up — so `/forgot` and `/reset` are what stops that being
 permanent. The token is stored as a SHA-256 digest, expires in an hour, and is

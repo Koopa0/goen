@@ -85,6 +85,14 @@ type config struct {
 	ECPayHashKey    string
 	ECPayHashIV     string
 	ECPayBaseURL    string
+	// Google sign-in. Empty offers no button and 404s the routes: password
+	// authentication is complete on its own, so this adds convenience rather
+	// than capability. BOTH or neither, for the reason the 加值中心 needs all
+	// three — a client id that cannot exchange a code fails AFTER the customer
+	// has been to Google and consented, which looks like goen losing their
+	// account.
+	GoogleClientID     string
+	GoogleClientSecret string
 	// SMTP. An empty address means mail is written to the log instead of sent,
 	// which is what a development machine should do — visibly, not silently.
 	SMTPAddr     string
@@ -152,6 +160,8 @@ func loadConfig() (config, error) {
 		ECPayHashKey:        os.Getenv("GOEN_ECPAY_HASH_KEY"),
 		ECPayHashIV:         os.Getenv("GOEN_ECPAY_HASH_IV"),
 		ECPayBaseURL:        os.Getenv("GOEN_ECPAY_BASE_URL"),
+		GoogleClientID:      os.Getenv("GOEN_GOOGLE_CLIENT_ID"),
+		GoogleClientSecret:  os.Getenv("GOEN_GOOGLE_CLIENT_SECRET"),
 		StripeWebhookSecret: os.Getenv("GOEN_STRIPE_WEBHOOK_SECRET"),
 		// No guess in a production posture. The default below contradicted this
 		// field's own documentation — it said "it has no default: guessing it
@@ -262,7 +272,7 @@ func (cfg *config) trustedProxies(log *slog.Logger) (*ratelimit.Proxies, error) 
 func newServer(
 	cfg *config, log *slog.Logger, proxies *ratelimit.Proxies,
 	pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder admin.Refunder,
-	invoices *invoice.Gateway,
+	invoices *invoice.Gateway, googleSignIn *account.Google,
 ) *http.Server {
 	return &http.Server{
 		Addr: cfg.Addr,
@@ -273,7 +283,7 @@ func newServer(
 		// at all, not even a context value.
 		Handler: proxies.Resolve(newRouter(pool, adminPool, gateway, refunder, &RouterConfig{
 			BaseURL: cfg.BaseURL, SecureCookies: cfg.SecureCookies, TOTPKey: cfg.TOTPKey,
-			Invoices: invoices,
+			Invoices: invoices, Google: googleSignIn,
 		}, log)),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
@@ -365,25 +375,47 @@ func openInvoicing(cfg *config, log *slog.Logger) (*invoice.Gateway, error) {
 	return g, nil
 }
 
-// openProviders builds the two outside services goen talks to and says when
-// either is absent.
+// openProviders builds the outside services goen talks to and says when any is
+// absent.
 //
 // Together, because they share one posture: a deployment with no key still
 // serves the whole site and the page that would use it says so, while HALF a
 // configuration does not start at all. A Stripe key without its webhook secret
 // would take money over an unauthenticated endpoint; a 加值中心 merchant id
-// without its keys cannot sign a request, and finding that out at the first
-// issue is finding it out after an order was placed.
+// without its keys cannot sign a request; a Google client id without its secret
+// fails after the customer has already consented — and finding any of them out
+// at the first use is finding it out too late.
 func openProviders(cfg *config, log *slog.Logger) (
-	payments *payment.Gateway, invoices *invoice.Gateway, err error,
+	payments *payment.Gateway, invoices *invoice.Gateway,
+	googleSignIn *account.Google, err error,
 ) {
 	if payments, err = payment.NewGateway(cfg.StripeSecretKey, cfg.StripeWebhookSecret, cfg.BaseURL); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	if invoices, err = openInvoicing(cfg, log); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return payments, invoices, nil
+	if googleSignIn, err = openGoogleSignIn(cfg, log); err != nil {
+		return nil, nil, nil, err
+	}
+	return payments, invoices, googleSignIn, nil
+}
+
+// openGoogleSignIn builds the OAuth client and says when there is none.
+//
+// Absent credentials are an ordinary deployment: password authentication is
+// complete, so Google adds convenience rather than capability and its absence
+// changes nothing except that the button is gone.
+func openGoogleSignIn(cfg *config, log *slog.Logger) (*account.Google, error) {
+	g, err := account.NewGoogle(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.BaseURL)
+	if err != nil {
+		return nil, err
+	}
+	if !g.Enabled() {
+		log.Info("google sign-in is not configured; customers sign in with a password",
+			"set", "GOEN_GOOGLE_CLIENT_ID and GOEN_GOOGLE_CLIENT_SECRET")
+	}
+	return g, nil
 }
 
 func run() error {
@@ -414,7 +446,7 @@ func run() error {
 	}
 	defer adminPool.Close()
 
-	gateway, invoices, err := openProviders(&cfg, log)
+	gateway, invoices, googleSignIn, err := openProviders(&cfg, log)
 	if err != nil {
 		return err
 	}
@@ -437,7 +469,7 @@ func run() error {
 		return proxyErr
 	}
 
-	srv := newServer(&cfg, log, proxies, pool, adminPool, gateway, refunder, invoices)
+	srv := newServer(&cfg, log, proxies, pool, adminPool, gateway, refunder, invoices, googleSignIn)
 
 	// Abandoned checkouts hold stock until something gives it back. The sweeper
 	// is that something, and it is OWNED here rather than started and forgotten:

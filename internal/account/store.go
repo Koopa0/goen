@@ -258,6 +258,24 @@ func (s *Store) Overview(ctx context.Context, u User) (pages.AccountView, error)
 	}
 	view.Phone = profile.Phone.String
 
+	// Which ways this account can be signed into. A customer who has forgotten
+	// they used Google reads a password that does not work as a broken account.
+	identities, err := s.q.IdentitiesForUser(ctx, id)
+	if err != nil {
+		return pages.AccountView{}, fmt.Errorf("read linked identities: %w", err)
+	}
+	view.GoogleLinked = len(identities) > 0
+	// Unlinking the only way in locks somebody out of their own orders, so the
+	// control is absent rather than present and refused. UnlinkGoogle asks the
+	// same question again at the write, because this one only decides what to
+	// render.
+	//
+	// Read from the profile row this function already has, keyed on the ID.
+	// Looking it up by EMAIL was the first version and it was wrong twice over:
+	// a caller holding a User with no address made Overview fail outright, and
+	// the id was right there.
+	view.CanUnlinkGoogle = view.GoogleLinked && profile.HasPassword
+
 	orders, err := s.q.UserOrders(ctx, db.UserOrdersParams{UserID: uuid.NullUUID{UUID: id, Valid: true}, Limit: 20})
 	if err != nil {
 		return pages.AccountView{}, fmt.Errorf("read orders: %w", err)
@@ -672,6 +690,153 @@ func (s *Store) RemoveFromWishlist(ctx context.Context, userID, slug string) err
 		UserID: id, Slug: slug,
 	}); err != nil {
 		return fmt.Errorf("remove from wishlist: %w", err)
+	}
+	return nil
+}
+
+// SignInWithGoogle turns a verified Google identity into a goen session.
+//
+// # The three cases, and the one that is a security decision
+//
+//  1. The subject is already linked. Sign that account in. The EMAIL is not
+//     consulted at all: a Google account that changed address is the same
+//     person, and user_identities keys on the subject for exactly this.
+//
+//  2. No link, and no goen account with that address. Create one with no
+//     password and mark the address proved, because Google proved it.
+//
+//  3. No link, and an account with that address EXISTS. This is the decision.
+//
+// # Why case 3 does not auto-link an unverified account
+//
+// goen does not verify an address at registration — anybody may register
+// victim@example.com and use the account. If a Google sign-in auto-linked on the
+// address alone, an attacker could register the victim's address, wait, and
+// collect the victim the moment they first used Google: same account, attacker's
+// password, victim's orders and delivery address. That is pre-hijacking, and the
+// mitigation is not to link to a local account that has not proved the address.
+//
+// So it links only when goen's OWN copy is verified — when both sides have
+// proved the same mailbox. Otherwise it refuses and the customer is sent to
+// /forgot, which already ends every session and hands control to whoever reads
+// the mail: the legitimate owner recovers and an attacker sitting in the account
+// is thrown out.
+func (s *Store) SignInWithGoogle(ctx context.Context, id Identity) (User, error) {
+	// Google's own claim comes first. An unverified address proves nothing, and
+	// a Workspace administrator can set one to anything in their domain.
+	if !id.EmailVerified || id.Email == "" {
+		return User{}, ErrOAuthUnverified
+	}
+
+	linked, err := s.q.UserByGoogleSubject(ctx, id.Subject)
+	if err == nil {
+		if touchErr := s.q.TouchLastLogin(ctx, linked.ID); touchErr != nil {
+			return User{}, fmt.Errorf("touch last login: %w", touchErr)
+		}
+		return User{
+			ID: linked.ID.String(), Email: linked.Email,
+			Name: linked.FullName.String, Role: linked.Role,
+		}, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return User{}, fmt.Errorf("read the linked account: %w", err)
+	}
+
+	existing, err := s.q.UserForOAuthLink(ctx, id.Email)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return s.createFromIdentity(ctx, id)
+	case err != nil:
+		return User{}, fmt.Errorf("read the account for %s: %w", id.Email, err)
+	case !existing.Verified:
+		// See the header. The account exists and nobody has proved it belongs to
+		// the person holding the mailbox.
+		return User{}, ErrOAuthCollision
+	}
+
+	// Both sides proved the same address. Link and sign in.
+	if linkErr := s.q.LinkIdentity(ctx, db.LinkIdentityParams{
+		UserID: existing.ID, Subject: id.Subject,
+	}); linkErr != nil {
+		return User{}, fmt.Errorf("link the google identity: %w", linkErr)
+	}
+	if touchErr := s.q.TouchLastLogin(ctx, existing.ID); touchErr != nil {
+		return User{}, fmt.Errorf("touch last login: %w", touchErr)
+	}
+	return User{
+		ID: existing.ID.String(), Email: existing.Email,
+		Name: existing.FullName.String, Role: existing.Role,
+	}, nil
+}
+
+// createFromIdentity makes a new account for a provider that has proved an
+// address, in one transaction with its link.
+//
+// Together, because a user with no identity is an account nobody can sign in to
+// — it has no password either — and an identity with no user cannot exist at
+// all. Split, a crash between them leaves the first, which the NEXT sign-in
+// would then meet as an unverifiable collision.
+func (s *Store) createFromIdentity(ctx context.Context, id Identity) (User, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return User{}, fmt.Errorf("begin identity sign-up: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	q := s.q.WithTx(tx)
+
+	row, err := q.CreateUserFromIdentity(ctx, db.CreateUserFromIdentityParams{
+		Email: id.Email, FullName: id.Name,
+	})
+	if err != nil {
+		// A race with another tab, or with a password registration that landed
+		// between the read above and this write. users_email_key is the real
+		// guard; the pre-check only decides which message to show.
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == "23505" {
+			return User{}, ErrOAuthCollision
+		}
+		return User{}, fmt.Errorf("create an account for %s: %w", id.Email, err)
+	}
+	if linkErr := q.LinkIdentity(ctx, db.LinkIdentityParams{
+		UserID: row.ID, Subject: id.Subject,
+	}); linkErr != nil {
+		return User{}, fmt.Errorf("link the google identity: %w", linkErr)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return User{}, fmt.Errorf("commit identity sign-up: %w", err)
+	}
+	return User{
+		ID: row.ID.String(), Email: row.Email,
+		Name: row.FullName.String, Role: row.Role,
+	}, nil
+}
+
+// UnlinkGoogle removes a provider from an account.
+//
+// Refused when the account has NO PASSWORD, because unlinking the only way in
+// locks somebody out of their own orders — the same shape as /admin/staff
+// refusing to revoke the last admin. The way out is to set a password first,
+// which /forgot does and which is already the one path that proves the mailbox.
+func (s *Store) UnlinkGoogle(ctx context.Context, u User) error {
+	id, err := uuid.Parse(u.ID)
+	if err != nil {
+		return fmt.Errorf("parse user id: %w", err)
+	}
+	// Keyed on the ID rather than the address, for the reason Overview is: the
+	// caller has an id and an address that may be empty, and only one of them is
+	// the account's identity.
+	row, err := s.q.UserByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("read the account: %w", err)
+	}
+	if !row.HasPassword {
+		return ErrLastSignInMethod
+	}
+	n, err := s.q.UnlinkIdentity(ctx, db.UnlinkIdentityParams{UserID: id, Provider: "google"})
+	if err != nil {
+		return fmt.Errorf("unlink google: %w", err)
+	}
+	if n == 0 {
+		return ErrNotFound
 	}
 	return nil
 }

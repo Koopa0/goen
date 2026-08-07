@@ -25,6 +25,10 @@ import (
 var (
 	// ErrNotFound is an account, order or token that does not exist.
 	ErrNotFound = errors.New("account: not found")
+	// ErrLastSignInMethod is unlinking the only way into an account. The same
+	// shape as /admin/staff refusing to revoke the last admin: leaving nobody
+	// able to get in is not a state a form should be able to reach.
+	ErrLastSignInMethod = errors.New("account: that is the only way to sign in")
 	// ErrBadCredentials is a wrong email or a wrong password. Deliberately ONE
 	// error for both: telling them apart tells an attacker which emails are
 	// registered.

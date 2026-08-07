@@ -55,6 +55,18 @@ templ SignIn(p layouts.Page, v AuthView) {
 						{ i18n.T(ctx, i18n.KeySignIn) }
 					</button>
 				</form>
+				if v.GoogleSignIn {
+					// A LINK, not a form: it writes no application state, only a
+					// short-lived cookie carrying the state and the PKCE verifier.
+					// Absent entirely when no credentials are configured, so a
+					// deployment without them looks like one that never offered it
+					// rather than one whose button fails.
+					<div class="goen-auth__alt">
+						<a class="ui-btn ui-btn--secondary ui-btn--block goen-auth__oauth" href={ templ.SafeURL(v.GoogleLink()) }>
+							{ i18n.T(ctx, i18n.KeySignInWithGoogle) }
+						</a>
+					</div>
+				}
 				<p class="goen-auth__alt">
 					{ i18n.T(ctx, i18n.KeyNoAccountYet) }<a href="/register">{ i18n.T(ctx, i18n.KeyNoAccountLink) }</a>
 				</p>
@@ -406,6 +418,24 @@ templ Account(p layouts.Page, v *AccountView) {
 							</form>
 						</details>
 					</section>
+					// How this account can be signed into. Shown because a customer
+					// who has forgotten they used Google reads a password that does
+					// not work as a broken account.
+					if v.GoogleLinked {
+						<section class="goen-account__section" aria-labelledby="google-heading">
+							<h2 id="google-heading" class="goen-account__heading">{ i18n.T(ctx, i18n.KeyLinkedAccounts) }</h2>
+							<p class="goen-account__empty">{ i18n.T(ctx, i18n.KeyGoogleLinked) }</p>
+							if v.CanUnlinkGoogle {
+								<form class="goen-account__form" method="post" action="/account/google/unlink">
+									<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyUnlinkGoogle) }</button>
+								</form>
+							} else {
+								// Absent rather than refused: unlinking the only way in
+								// leaves nobody able to reach the account.
+								<p class="ui-hint">{ i18n.T(ctx, i18n.KeyGoogleOnlyMethod) }</p>
+							}
+						</section>
+					}
 					<section class="goen-account__section goen-account__danger" aria-labelledby="erase-heading">
 						<h2 id="erase-heading" class="goen-account__heading">{ i18n.T(ctx, i18n.KeyEraseAccount) }</h2>
 						<p class="goen-account__empty">

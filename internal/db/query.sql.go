@@ -4727,6 +4727,47 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 	return i, err
 }
 
+const createUserFromIdentity = `-- name: CreateUserFromIdentity :one
+INSERT INTO users (email, full_name, email_verified_at)
+VALUES ($1::text, nullif($2::text, ''), now())
+RETURNING id, email, full_name, role
+`
+
+type CreateUserFromIdentityParams struct {
+	Email    string
+	FullName string
+}
+
+type CreateUserFromIdentityRow struct {
+	ID       uuid.UUID
+	Email    string
+	FullName pgtype.Text
+	Role     string
+}
+
+// Create an account from an identity provider.
+//
+// No password hash at all, which is legal: users.password_hash is nullable and
+// Authenticate refuses a NULL one by name. Somebody who wants a password later
+// gets it through /forgot, which is already the one path that proves they own
+// the mailbox.
+//
+// email_verified_at is set from Google's own claim, and the CALLER checks that
+// claim first — a provider that has not verified an address has proved nothing
+// about it, and copying that here would launder somebody else's guess into
+// goen's own record.
+func (q *Queries) CreateUserFromIdentity(ctx context.Context, arg CreateUserFromIdentityParams) (CreateUserFromIdentityRow, error) {
+	row := q.db.QueryRow(ctx, createUserFromIdentity, arg.Email, arg.FullName)
+	var i CreateUserFromIdentityRow
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.FullName,
+		&i.Role,
+	)
+	return i, err
+}
+
 const createVariant = `-- name: CreateVariant :exec
 INSERT INTO product_variants (product_id, sku, price_cents, compare_at_price_cents,
                               safety_stock, position, is_active,
@@ -5962,6 +6003,37 @@ func (q *Queries) HomeRecommendedTiles(ctx context.Context, arg HomeRecommendedT
 	return items, nil
 }
 
+const identitiesForUser = `-- name: IdentitiesForUser :many
+SELECT provider, created_at FROM user_identities
+WHERE user_id = $1 ORDER BY created_at
+`
+
+type IdentitiesForUserRow struct {
+	Provider  string
+	CreatedAt time.Time
+}
+
+// The providers linked to an account, for the account page.
+func (q *Queries) IdentitiesForUser(ctx context.Context, userID uuid.UUID) ([]IdentitiesForUserRow, error) {
+	rows, err := q.db.Query(ctx, identitiesForUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []IdentitiesForUserRow{}
+	for rows.Next() {
+		var i IdentitiesForUserRow
+		if err := rows.Scan(&i.Provider, &i.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const inspectReturnLine = `-- name: InspectReturnLine :execrows
 UPDATE return_request_lines rl
 SET received_quantity = $1::integer,
@@ -6246,6 +6318,27 @@ func (q *Queries) InvoiceSubjectLines(ctx context.Context, orderID uuid.UUID) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const linkIdentity = `-- name: LinkIdentity :exec
+INSERT INTO user_identities (user_id, provider, provider_subject)
+VALUES ($1, 'google', $2::text)
+ON CONFLICT (provider, provider_subject) DO NOTHING
+`
+
+type LinkIdentityParams struct {
+	UserID  uuid.UUID
+	Subject string
+}
+
+// Link a provider account to a goen one.
+//
+// ON CONFLICT DO NOTHING against (provider, provider_subject): two tabs
+// finishing one sign-in are one link rather than a unique-violation the customer
+// reads as a failed login.
+func (q *Queries) LinkIdentity(ctx context.Context, arg LinkIdentityParams) error {
+	_, err := q.db.Exec(ctx, linkIdentity, arg.UserID, arg.Subject)
+	return err
 }
 
 const liveInvoice = `-- name: LiveInvoice :one
@@ -11631,6 +11724,29 @@ func (q *Queries) UnansweredQuestions(ctx context.Context, limit int32) ([]Unans
 	return items, nil
 }
 
+const unlinkIdentity = `-- name: UnlinkIdentity :execrows
+DELETE FROM user_identities
+WHERE user_id = $1 AND provider = $2::text
+`
+
+type UnlinkIdentityParams struct {
+	UserID   uuid.UUID
+	Provider string
+}
+
+// Unlink a provider.
+//
+// :execrows, and the caller refuses when the account has NO PASSWORD: unlinking
+// the only way in locks somebody out of their own account, and the row count is
+// how the caller learns whether it actually happened.
+func (q *Queries) UnlinkIdentity(ctx context.Context, arg UnlinkIdentityParams) (int64, error) {
+	result, err := q.db.Exec(ctx, unlinkIdentity, arg.UserID, arg.Provider)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const unreferencedMedia = `-- name: UnreferencedMedia :many
 SELECT digest FROM media_objects m
 WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
@@ -11913,18 +12029,57 @@ func (q *Queries) UserByEmail(ctx context.Context, lower string) (UserByEmailRow
 	return i, err
 }
 
+const userByGoogleSubject = `-- name: UserByGoogleSubject :one
+SELECT u.id, u.email, u.full_name, u.role
+FROM user_identities i
+JOIN users u ON u.id = i.user_id
+WHERE i.provider = 'google' AND i.provider_subject = $1::text
+`
+
+type UserByGoogleSubjectRow struct {
+	ID       uuid.UUID
+	Email    string
+	FullName pgtype.Text
+	Role     string
+}
+
+// Who a Google account belongs to here, if anybody.
+//
+// Keyed on the SUBJECT rather than the email, and that is the whole reason
+// user_identities exists as a table instead of a column on users: a Google
+// account can change its address, and a released Workspace address can be
+// reassigned to a different person. The subject is stable for the life of the
+// account and identifies the same human across both.
+func (q *Queries) UserByGoogleSubject(ctx context.Context, subject string) (UserByGoogleSubjectRow, error) {
+	row := q.db.QueryRow(ctx, userByGoogleSubject, subject)
+	var i UserByGoogleSubjectRow
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.FullName,
+		&i.Role,
+	)
+	return i, err
+}
+
 const userByID = `-- name: UserByID :one
-SELECT id, email, full_name, phone, role, created_at
+SELECT id, email, full_name, phone, role, created_at,
+       -- Whether this account can be signed into with a password at ALL. An
+       -- account created from an identity provider has none, and unlinking the
+       -- provider would then leave nobody able to reach it — which is what
+       -- UnlinkGoogle refuses and what the account page decides from.
+       (password_hash IS NOT NULL)::boolean AS has_password
 FROM users WHERE id = $1
 `
 
 type UserByIDRow struct {
-	ID        uuid.UUID
-	Email     string
-	FullName  pgtype.Text
-	Phone     pgtype.Text
-	Role      string
-	CreatedAt time.Time
+	ID          uuid.UUID
+	Email       string
+	FullName    pgtype.Text
+	Phone       pgtype.Text
+	Role        string
+	CreatedAt   time.Time
+	HasPassword bool
 }
 
 func (q *Queries) UserByID(ctx context.Context, id uuid.UUID) (UserByIDRow, error) {
@@ -11937,6 +12092,42 @@ func (q *Queries) UserByID(ctx context.Context, id uuid.UUID) (UserByIDRow, erro
 		&i.Phone,
 		&i.Role,
 		&i.CreatedAt,
+		&i.HasPassword,
+	)
+	return i, err
+}
+
+const userForOAuthLink = `-- name: UserForOAuthLink :one
+SELECT id, email, full_name, role,
+       (email_verified_at IS NOT NULL)::boolean AS verified,
+       (password_hash IS NOT NULL)::boolean AS has_password
+FROM users WHERE lower(email) = lower($1::text)
+`
+
+type UserForOAuthLinkRow struct {
+	ID          uuid.UUID
+	Email       string
+	FullName    pgtype.Text
+	Role        string
+	Verified    bool
+	HasPassword bool
+}
+
+// The account an address belongs to, and whether it has been PROVED.
+//
+// Both halves, because linking a Google identity to an existing account turns on
+// the second: an address goen has not verified may belong to whoever registered
+// it rather than to whoever reads the mailbox. See linkOrCreate.
+func (q *Queries) UserForOAuthLink(ctx context.Context, email string) (UserForOAuthLinkRow, error) {
+	row := q.db.QueryRow(ctx, userForOAuthLink, email)
+	var i UserForOAuthLinkRow
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.FullName,
+		&i.Role,
+		&i.Verified,
+		&i.HasPassword,
 	)
 	return i, err
 }

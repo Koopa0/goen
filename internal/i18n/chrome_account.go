@@ -5,7 +5,37 @@ package i18n
 
 var (
 	// Signing in and registering.
-	KeySignIn               = key("auth.signin", Message{ZhHant: "登入", En: "Sign in"})
+	KeySignIn           = key("auth.signin", Message{ZhHant: "登入", En: "Sign in"})
+	KeySignInWithGoogle = key("auth.signin.google", Message{
+		ZhHant: "用 Google 帳號登入",
+		En:     "Continue with Google",
+	})
+	// The four ways a Google sign-in ends other than signed in. Each is a
+	// different next move, which is why they are not one message.
+	KeyOAuthFailed = key("auth.google.failed", Message{
+		ZhHant: "Google 登入沒有完成,請再試一次,或用密碼登入。",
+		En:     "That Google sign-in did not complete. Try again, or sign in with your password.",
+	})
+	KeyOAuthState = key("auth.google.state", Message{
+		ZhHant: "這次登入和這個瀏覽器對不起來 —— 可能是等太久了。請重新開始。",
+		En:     "That sign-in does not match this browser, which usually means it sat too long. Start again.",
+	})
+	KeyOAuthUnverified = key("auth.google.unverified", Message{
+		ZhHant: "Google 沒有驗證這個帳號的信箱,所以我們無法用它來登入。請用密碼註冊或登入。",
+		En: "Google has not verified that account's email address, so we cannot sign you in with it. " +
+			"Register or sign in with a password instead.",
+	})
+	// The collision. It names the way OUT rather than only the refusal: /forgot
+	// sends mail to the mailbox they have just shown they read, and the reset
+	// ends every session — so somebody who registered the address without owning
+	// it is thrown out by the same act.
+	KeyOAuthCollision = key("auth.google.collision", Message{
+		ZhHant: "這個信箱已經有一個 goen 帳號,而且還沒完成信箱驗證,所以不能直接綁定 Google。" +
+			"請用「忘記密碼」收信重設,設定完成後就可以再綁定。",
+		En: "That address already has a goen account which has not been verified, so we cannot link " +
+			"Google to it yet. Use \u0022forgot password\u0022 — the mail goes to the address you just " +
+			"proved you read — and link Google afterwards.",
+	})
 	KeyRegister             = key("auth.register", Message{ZhHant: "註冊", En: "Register"})
 	KeyCreateAccount        = key("auth.create", Message{ZhHant: "建立帳號", En: "Create an account"})
 	KeyFieldPassword        = key("field.password", Message{ZhHant: "密碼", En: "Password"})
@@ -203,7 +233,29 @@ var (
 	})
 
 	// Account notices.
-	KeyProfileSaved      = key("account.notice.saved", Message{ZhHant: "資料已更新。", En: "Saved."})
+	KeyProfileSaved   = key("account.notice.saved", Message{ZhHant: "資料已更新。", En: "Saved."})
+	KeyLinkedAccounts = key("account.linked", Message{ZhHant: "連結的帳號", En: "Linked accounts"})
+	KeyGoogleLinked   = key("account.linked.google", Message{
+		ZhHant: "這個帳號可以用 Google 登入。",
+		En:     "You can sign in to this account with Google.",
+	})
+	KeyUnlinkGoogle = key("account.unlink.google", Message{
+		ZhHant: "取消 Google 連結",
+		En:     "Unlink Google",
+	})
+	KeyGoogleOnlyMethod = key("account.linked.only", Message{
+		ZhHant: "Google 是目前唯一的登入方式,所以不能取消連結。先用「忘記密碼」設定一組密碼就可以。",
+		En: "Google is currently the only way in, so it cannot be unlinked. Set a password " +
+			"first with \u0022forgot password\u0022.",
+	})
+	KeyGoogleUnlinked = key("account.notice.unlinked", Message{
+		ZhHant: "已取消 Google 連結。",
+		En:     "Google is no longer linked.",
+	})
+	KeyGoogleLastMethod = key("account.notice.lastmethod", Message{
+		ZhHant: "沒辦法取消 —— 那是目前唯一的登入方式。先設定密碼再試一次。",
+		En:     "We cannot unlink that: it is the only way into this account. Set a password first.",
+	})
 	KeyAddressIncomplete = key("account.notice.address", Message{
 		ZhHant: "地址資料不完整,請確認每個欄位都填寫了。",
 		En:     "That address is incomplete — check every field is filled in.",
