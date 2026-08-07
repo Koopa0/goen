@@ -49,21 +49,17 @@ variant 時才有意義,建模一個沒東西能處理的狀態就是這個 repo
 
 真實 API 教了四件文件上沒寫的事,每一件都變成測試 —— 見 CLAUDE.md。
 
-### A4. Google OAuth
+### A4. ~~Google OAuth~~ — 已完成
 
-**建議:最後做,或不做。**
+`/auth/google` 是授權碼流程,帶 state(CSRF)和 PKCE S256。沒有解析 ID token:
+token 端點是直連 TLS 回來的,連線本身就是驗證,所以不需要 JWKS 快取和 JWT 函式庫,
+也沒有新的相依(模組數還是 103)。
 
-密碼登入是完整的 —— argon2id、session、忘記密碼、改信箱要驗證、改密碼登出其他
-裝置。OAuth 加的是方便,不是能力。`user_identities` 有表沒程式碼,而且
-`TestEveryTableHasAWriter` 是**具名放行**的,所以它是一個記錄在案的決定,不是一個
-被忘記的洞。
-
-真要做的話:Google Cloud OAuth client、state/nonce/PKCE、callback、帳號綁定與解綁
-規則、`email_verified` 的語意(Google 說已驗證,goen 要不要信)、以及同信箱碰撞。
-碰撞那條是最容易做錯的:一個已經有密碼帳號的信箱用 Google 登入進來,要綁定還是
-拒絕,是個要想清楚的決定。
-
----
+綁定規則是這一項唯一真正的決定,寫在 `SignInWithGoogle` 的註解裡:**只有兩邊都
+驗證過同一個信箱才綁定**。goen 註冊時不驗證信箱,所以照地址自動綁定會讓攻擊者
+先註冊受害者的地址、等對方第一次用 Google 登入時接收整個帳號(pre-hijacking)。
+拒絕之後的出路是 /forgot —— 信寄到對方剛證明自己讀得到的信箱,而重設會結束所有
+session,把冒用者踢出去。
 
 ## B. 蓋了會更好,但要等一個數字
 

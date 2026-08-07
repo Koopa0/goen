@@ -1248,3 +1248,272 @@ func TestTheMembershipBandReadsInTheVisitorsLanguage(t *testing.T) {
 		})
 	}
 }
+
+// TestGoogleSignInCreatesAnAccountWithNoPassword is the ordinary first sign-in.
+//
+// No password hash at all, which users.password_hash being nullable is FOR — and
+// Authenticate refuses a NULL one by name, so the account cannot be entered with
+// an empty password. email_verified_at is set from Google's own claim, because
+// Google proved the address and making the customer prove it again to a shop
+// they have just proved it to is ceremony.
+func TestGoogleSignInCreatesAnAccountWithNoPassword(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	email := "oauth-new-" + uuid.NewString()[:8] + "@example.com"
+
+	u, err := s.SignInWithGoogle(ctx, account.Identity{
+		Subject: "google-sub-" + uuid.NewString()[:8],
+		Email:   email, EmailVerified: true, Name: "谷歌使用者",
+	})
+	if err != nil {
+		t.Fatalf("SignInWithGoogle: %v", err)
+	}
+	if u.Email != email {
+		t.Errorf("signed in as %q, want %q", u.Email, email)
+	}
+
+	var hash *string
+	var verified *time.Time
+	if err := pool.QueryRow(ctx, `
+		SELECT password_hash, email_verified_at FROM users WHERE id = $1`,
+		u.ID).Scan(&hash, &verified); err != nil {
+		t.Fatalf("read the new account: %v", err)
+	}
+	if hash != nil {
+		t.Errorf("an account created from an identity has a password hash: %q", *hash)
+	}
+	if verified == nil {
+		t.Error("google proved the address and goen did not record it as proved")
+	}
+
+	// A blank password does not get in. VerifyPassword never runs on a NULL
+	// hash, and the answer is the same ErrBadCredentials an unknown address gets.
+	if _, authErr := s.Authenticate(ctx, email, ""); !errors.Is(authErr, account.ErrBadCredentials) {
+		t.Errorf("signing in with no password gave %v, want ErrBadCredentials", authErr)
+	}
+}
+
+// TestGoogleSignInIsIdempotentOnTheSubject proves a second sign-in finds the
+// same account rather than creating another.
+//
+// Keyed on the SUBJECT, and the test changes the EMAIL to prove it: a Google
+// account that changes address is the same person, and matching on the address
+// would strand them with a new empty account and their orders behind them.
+func TestGoogleSignInIsIdempotentOnTheSubject(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	subject := "google-sub-" + uuid.NewString()[:8]
+
+	first, err := s.SignInWithGoogle(ctx, account.Identity{
+		Subject: subject, Email: "oauth-same-" + uuid.NewString()[:8] + "@example.com",
+		EmailVerified: true, Name: "谷歌使用者",
+	})
+	if err != nil {
+		t.Fatalf("first sign-in: %v", err)
+	}
+
+	second, err := s.SignInWithGoogle(ctx, account.Identity{
+		Subject: subject, Email: "changed-" + uuid.NewString()[:8] + "@example.com",
+		EmailVerified: true, Name: "谷歌使用者",
+	})
+	if err != nil {
+		t.Fatalf("second sign-in: %v", err)
+	}
+	if second.ID != first.ID {
+		t.Errorf("the same Google account signed into %s and then %s — a changed "+
+			"address stranded the customer with their orders behind them",
+			first.ID, second.ID)
+	}
+}
+
+// TestGoogleWillNotLinkToAnUnverifiedAccount is the security decision.
+//
+// goen does not verify an address at REGISTRATION, so anybody may register
+// victim@example.com and use the account. If a Google sign-in auto-linked on the
+// address alone, an attacker could register the victim's address, wait, and
+// collect the victim the moment they first used Google: same account, attacker's
+// password, victim's orders and delivery address. That is pre-hijacking.
+//
+// So it refuses, and the way out is /forgot — the mail goes to the mailbox the
+// customer has just proved they read, and the reset ends every session, which
+// throws out whoever registered the address without owning it.
+func TestGoogleWillNotLinkToAnUnverifiedAccount(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	email := "oauth-collide-" + uuid.NewString()[:8] + "@example.com"
+
+	// The account somebody registered with a password and never verified.
+	victim := register(t, s, email)
+
+	_, err := s.SignInWithGoogle(ctx, account.Identity{
+		Subject: "google-sub-" + uuid.NewString()[:8],
+		Email:   email, EmailVerified: true, Name: "谷歌使用者",
+	})
+	if !errors.Is(err, account.ErrOAuthCollision) {
+		t.Fatalf("linking to an unverified account = %v, want ErrOAuthCollision", err)
+	}
+
+	// Nothing was written: no identity, and no second account for the address.
+	var identities, accounts int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM user_identities WHERE user_id = $1`, victim.ID).Scan(&identities); err != nil {
+		t.Fatalf("count identities: %v", err)
+	}
+	if identities != 0 {
+		t.Errorf("%d identities linked to an unverified account, want 0", identities)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM users WHERE lower(email) = lower($1)`, email).Scan(&accounts); err != nil {
+		t.Fatalf("count accounts: %v", err)
+	}
+	if accounts != 1 {
+		t.Errorf("%d accounts hold that address, want 1", accounts)
+	}
+}
+
+// TestGoogleLinksToAVerifiedAccount is the other side of that decision, and the
+// control that proves the refusal above is about VERIFICATION rather than about
+// refusing every existing account.
+//
+// Both sides have proved the same mailbox: Google says so, and goen's own
+// email_verified_at is set. Linking is then what the customer expects — they
+// have one account and two ways into it.
+func TestGoogleLinksToAVerifiedAccount(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	email := "oauth-verified-" + uuid.NewString()[:8] + "@example.com"
+
+	u := register(t, s, email)
+	if _, err := pool.Exec(ctx,
+		`UPDATE users SET email_verified_at = now() WHERE id = $1`, u.ID); err != nil {
+		t.Fatalf("verify the address: %v", err)
+	}
+
+	got, err := s.SignInWithGoogle(ctx, account.Identity{
+		Subject: "google-sub-" + uuid.NewString()[:8],
+		Email:   email, EmailVerified: true, Name: "谷歌使用者",
+	})
+	if err != nil {
+		t.Fatalf("SignInWithGoogle: %v", err)
+	}
+	if got.ID != u.ID {
+		t.Errorf("signed into %s, want the existing account %s", got.ID, u.ID)
+	}
+
+	// And the PASSWORD still works: linking adds a way in rather than replacing
+	// one, which is what a customer who uses both expects.
+	if _, authErr := s.Authenticate(ctx, email, "a sufficiently long password"); authErr != nil {
+		t.Errorf("the password stopped working after linking Google: %v", authErr)
+	}
+}
+
+// TestGoogleRefusesAnAddressGoogleHasNotVerified holds the claim goen must not
+// launder.
+//
+// email_verified is false for some Workspace configurations, where the domain
+// administrator controls what the address says. Trusting it there would let that
+// administrator claim any address in their domain — including one that already
+// has a goen account.
+func TestGoogleRefusesAnAddressGoogleHasNotVerified(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	email := "oauth-unverified-" + uuid.NewString()[:8] + "@example.com"
+
+	_, err := s.SignInWithGoogle(ctx, account.Identity{
+		Subject: "google-sub-" + uuid.NewString()[:8],
+		Email:   email, EmailVerified: false, Name: "谷歌使用者",
+	})
+	if !errors.Is(err, account.ErrOAuthUnverified) {
+		t.Fatalf("an unverified google address = %v, want ErrOAuthUnverified", err)
+	}
+	var accounts int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM users WHERE lower(email) = lower($1)`, email).Scan(&accounts); err != nil {
+		t.Fatalf("count accounts: %v", err)
+	}
+	if accounts != 0 {
+		t.Errorf("%d accounts created from an unverified address, want 0", accounts)
+	}
+}
+
+// TestUnlinkingTheOnlyWayInIsRefused stops a customer locking themselves out.
+//
+// The same shape as /admin/staff refusing to revoke the last admin: an account
+// with no password and no identity is one nobody can reach, and no form should
+// be able to produce it.
+func TestUnlinkingTheOnlyWayInIsRefused(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	email := "oauth-only-" + uuid.NewString()[:8] + "@example.com"
+
+	u, err := s.SignInWithGoogle(ctx, account.Identity{
+		Subject: "google-sub-" + uuid.NewString()[:8],
+		Email:   email, EmailVerified: true, Name: "谷歌使用者",
+	})
+	if err != nil {
+		t.Fatalf("SignInWithGoogle: %v", err)
+	}
+
+	if unlinkErr := s.UnlinkGoogle(ctx, u); !errors.Is(unlinkErr, account.ErrLastSignInMethod) {
+		t.Fatalf("unlinking the only way in = %v, want ErrLastSignInMethod", unlinkErr)
+	}
+	var identities int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM user_identities WHERE user_id = $1`, u.ID).Scan(&identities); err != nil {
+		t.Fatalf("count identities: %v", err)
+	}
+	if identities != 1 {
+		t.Errorf("%d identities after a refused unlink, want 1", identities)
+	}
+
+	// The control: with a password set, it unlinks. Without this a function that
+	// refused everything would pass the assertion above.
+	if _, err := pool.Exec(ctx, `
+		UPDATE users SET password_hash = 'x' WHERE id = $1`, u.ID); err != nil {
+		t.Fatalf("set a password: %v", err)
+	}
+	if err := s.UnlinkGoogle(ctx, u); err != nil {
+		t.Fatalf("unlinking with a password set: %v", err)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM user_identities WHERE user_id = $1`, u.ID).Scan(&identities); err != nil {
+		t.Fatalf("count identities: %v", err)
+	}
+	if identities != 0 {
+		t.Errorf("%d identities after unlinking, want 0", identities)
+	}
+}
+
+// TestErasingAnAccountTakesItsIdentities holds the half of erasure that is easy
+// to miss.
+//
+// user_identities cascades on the user, so erase_user reaches it without naming
+// it — but "without naming it" is exactly how a table comes to be missed when
+// the cascade is later changed. A link left behind would let the same Google
+// account sign back into an id that no longer exists.
+func TestErasingAnAccountTakesItsIdentities(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	email := "oauth-erase-" + uuid.NewString()[:8] + "@example.com"
+
+	u, err := s.SignInWithGoogle(ctx, account.Identity{
+		Subject: "google-sub-" + uuid.NewString()[:8],
+		Email:   email, EmailVerified: true, Name: "谷歌使用者",
+	})
+	if err != nil {
+		t.Fatalf("SignInWithGoogle: %v", err)
+	}
+	if err := s.Erase(ctx, u.ID); err != nil {
+		t.Fatalf("Erase: %v", err)
+	}
+
+	var identities int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM user_identities WHERE user_id = $1`, u.ID).Scan(&identities); err != nil {
+		t.Fatalf("count identities: %v", err)
+	}
+	if identities != 0 {
+		t.Errorf("%d identities survived erasure — the same Google account could "+
+			"sign back into an account that no longer exists", identities)
+	}
+}

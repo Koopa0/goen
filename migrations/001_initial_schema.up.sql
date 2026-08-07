@@ -5830,7 +5830,12 @@ GRANT EXECUTE ON FUNCTION redeem_loyalty_points(uuid, bigint, bigint, text) TO s
 -- `store` cannot UPDATE a role and can simply INSERT a row that already has one.
 -- role then takes its DEFAULT 'customer', which is what a registration means.
 REVOKE INSERT, UPDATE ON users FROM store;
-GRANT INSERT (email, password_hash, full_name, phone) ON users TO store;
+-- email_verified_at is INSERTABLE as well as updatable, for the identity path:
+-- an account created from a provider that has already proved the address is
+-- born verified, and making the customer prove it again to a shop they have
+-- just proved it to is ceremony. `role` stays out of both lists, which is what
+-- keeps a storefront request from creating an admin.
+GRANT INSERT (email, password_hash, full_name, phone, email_verified_at) ON users TO store;
 GRANT UPDATE (password_hash, last_login_at, full_name, phone, email,
               email_verified_at) ON users TO store;
 
@@ -5911,12 +5916,22 @@ GRANT UPDATE (created_at) ON order_access_grants TO store;
 -- which is the point: the read direction had been asked since round 3 and the
 -- write direction never had, so these accumulated silently as the schema grew.
 --
--- store: fulfilment is the back office's, and the 發票 tables have no writer at
--- all until a 加值中心 integration exists. user_identities waits for OAuth.
+-- store: fulfilment is the back office's, and the 發票 tables are the back
+-- office's too — a storefront request that could file a tax document is a
+-- customer issuing their own invoice.
 REVOKE INSERT, UPDATE, DELETE ON
     order_shipments, order_shipment_lines, invoice_documents,
-    invoice_document_lines, user_identities
+    invoice_document_lines
     FROM store;
+
+-- user_identities is the STOREFRONT's: signing in with Google writes it, and
+-- that is a customer-facing act. INSERT and DELETE only — linking and unlinking
+-- are the two things that happen to a link, and an UPDATE would repoint one
+-- identity at a different account, which is silent account takeover with no row
+-- to show for it. The two unique indexes are what make a link one-to-one; UPDATE
+-- is what would let somebody move it.
+REVOKE INSERT, UPDATE, DELETE ON user_identities FROM store;
+GRANT INSERT, DELETE ON user_identities TO store;
 
 -- admin: the storefront's own working tables — a cart, a wishlist, an address
 -- book, a reset token, a browser's order-access grant — are none of the back

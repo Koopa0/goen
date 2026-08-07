@@ -93,6 +93,11 @@ func TestThePrivacyPolicyNamesEveryCookie(t *testing.T) {
 		cart.PlacedCookieName:     {zh: "訂單瀏覽權限", en: "permission to view an order"},
 		i18n.CookieName:           {zh: "您選擇的語言", en: "the language you chose"},
 		home.DismissCookie:        {zh: "您關閉過的網站公告", en: "which site notice you have dismissed"},
+		// Set only while a Google sign-in is in flight, and cleared by the
+		// callback whatever the outcome. Disclosed anyway: the clause claims
+		// completeness, and "it only lasts ten minutes" is not an exemption from
+		// a sentence that says "and no others".
+		"__Host-goen_oauth": {zh: "用 Google 登入時暫存", en: "while you sign in with Google"},
 	}
 
 	var zh, en strings.Builder

@@ -2,6 +2,7 @@ package account
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -43,15 +44,23 @@ type Handler struct {
 	carts      CartFinder
 	log        *slog.Logger
 	secure     bool
+	// google may be a disabled client, which renders no button and 404s the two
+	// routes — the shape payment.Gateway and invoice.Gateway already have.
+	google *Google
 }
 
 // NewHandler returns a Handler over store.
-func NewHandler(store *Store, carts CartFinder, log *slog.Logger, secure bool) *Handler {
+func NewHandler(store *Store, carts CartFinder, log *slog.Logger, secure bool, google *Google) *Handler {
 	if store == nil || log == nil {
 		panic("account: NewHandler requires a store and a logger")
 	}
+	if google == nil {
+		// A disabled client rather than a nil one, so every call site can ask
+		// Enabled() without a nil check first.
+		google = &Google{}
+	}
 	return &Handler{
-		store: store, carts: carts, log: log, secure: secure,
+		store: store, carts: carts, log: log, secure: secure, google: google,
 		// Six attempts, one back every fifteen seconds. A person who mistypes
 		// their password three times never sees it; a script gets four
 		// guesses a minute against a given account, which turns a dictionary
@@ -131,7 +140,10 @@ func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/account", http.StatusSeeOther)
 		return
 	}
-	view := pages.AuthView{Next: SafeNext(r.URL.Query().Get("next"))}
+	view := pages.AuthView{
+		Next:         SafeNext(r.URL.Query().Get("next")),
+		GoogleSignIn: h.google.Enabled(),
+	}
 	switch {
 	case r.URL.Query().Get("registered") == "1":
 		view.Notice = i18n.T(r.Context(), i18n.KeyAccountCreated)
@@ -139,6 +151,10 @@ func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 		// The reset does NOT sign anybody in — see Handler.Reset. This is the
 		// page that tells them the new password works by asking for it.
 		view.Notice = i18n.T(r.Context(), i18n.KeyPasswordReset)
+	default:
+		// The four ways a Google sign-in ends other than signed in. Each names a
+		// different next move, which is why the callback carries which one.
+		view.Errors = oauthOutcome(r.Context(), r.URL.Query().Get("oauth"))
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.SignIn(pages.SignInMeta(r.Context()), view))
 }
@@ -314,6 +330,10 @@ func accountNotice(r *http.Request) string {
 		return i18n.T(ctx, i18n.KeyEmailTakenNotice)
 	case q.Get("email") == "invalid":
 		return i18n.T(ctx, i18n.KeyEmailInvalidNotice)
+	case q.Get("unlinked") == "1":
+		return i18n.T(ctx, i18n.KeyGoogleUnlinked)
+	case q.Get("lastmethod") == "1":
+		return i18n.T(ctx, i18n.KeyGoogleLastMethod)
 	}
 	return ""
 }
@@ -772,4 +792,204 @@ func (h *Handler) verifyFailed(w http.ResponseWriter, r *http.Request, heading, 
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.NewsletterAction(
 		pages.NewsletterMeta(heading),
 		pages.NewsletterActionView{Heading: heading, Body: body}))
+}
+
+// oauthOutcome turns the callback's one-shot parameter into a form-level
+// message. Errors rather than Notice, because every one of them is a sign-in
+// that did not happen.
+func oauthOutcome(ctx context.Context, outcome string) map[string]string {
+	var key i18n.Key
+	switch outcome {
+	case "failed":
+		key = i18n.KeyOAuthFailed
+	case "state":
+		key = i18n.KeyOAuthState
+	case "unverified":
+		key = i18n.KeyOAuthUnverified
+	case "collision":
+		key = i18n.KeyOAuthCollision
+	default:
+		return nil
+	}
+	return map[string]string{"form": i18n.T(ctx, key)}
+}
+
+// GoogleSignIn serves GET /auth/google.
+//
+// A GET, and that is deliberate rather than an exception to the write-face rule.
+// It writes no application state: it mints a state and a PKCE verifier into a
+// short-lived cookie and redirects. Nothing about the account changes until the
+// callback, which is where the rule's "a mutation is a POST" applies — and the
+// callback is a redirect FROM GOOGLE, whose method goen does not choose.
+func (h *Handler) GoogleSignIn(w http.ResponseWriter, r *http.Request) {
+	if !h.google.Enabled() {
+		http.NotFound(w, r)
+		return
+	}
+	// Bounded per IP. Each attempt costs a redirect to Google and a cookie, and
+	// an unbounded one is a way to make somebody else's server answer requests.
+	if retryAfter, ok := h.signinLimit.Allow("oauth:" + clientIP(r)); !ok {
+		ratelimit.Refuse(w, retryAfter)
+		return
+	}
+
+	target, state, err := h.google.AuthorizeURL(SafeNext(r.URL.Query().Get("next")))
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "build the google authorisation url", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	writeOAuthState(w, state, h.secure)
+	// target is built entirely by AuthorizeURL from the googleAuthURL constant
+	// and server-side values — the client id, the registered redirect URI, and
+	// two random secrets. The one piece of visitor input, `next`, goes into the
+	// STATE COOKIE and never into this URL; it is validated again by SafeNext
+	// when the callback reads it back.
+	//nolint:gosec // G710: no request value reaches target
+	http.Redirect(w, r, target, http.StatusSeeOther)
+}
+
+// GoogleCallback serves GET /auth/google/callback.
+//
+// Every failure ends at /signin with a message rather than an error page:
+// somebody who has just been to Google and consented is mid-sign-in, and a 500
+// there reads as goen having lost their account.
+func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
+	if !h.google.Enabled() {
+		http.NotFound(w, r)
+		return
+	}
+	state, ok := readOAuthState(r, h.secure)
+	clearOAuthState(w, h.secure)
+
+	// The state comparison is the CSRF defence, and it is the whole reason the
+	// cookie carries the __Host- prefix: an attacker who could write it could
+	// complete their own authorisation in the victim's browser and sign the
+	// victim into the attacker's account, where the victim's next order would
+	// land in a stranger's history.
+	if !ok || state.Value == "" || r.URL.Query().Get("state") != state.Value {
+		h.log.WarnContext(r.Context(), "google callback did not match this browser")
+		http.Redirect(w, r, "/signin?oauth=state", http.StatusSeeOther)
+		return
+	}
+	// Google reports a refused consent as error=access_denied rather than as an
+	// absent code. Not a failure — somebody changed their mind.
+	if r.URL.Query().Get("error") != "" {
+		http.Redirect(w, r, "/signin", http.StatusSeeOther)
+		return
+	}
+	code := r.URL.Query().Get("code")
+	if code == "" {
+		http.Redirect(w, r, "/signin?oauth=state", http.StatusSeeOther)
+		return
+	}
+
+	identity, err := h.google.Exchange(r.Context(), code, state.Verifier)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "exchange the google code", "error", err)
+		http.Redirect(w, r, "/signin?oauth=failed", http.StatusSeeOther)
+		return
+	}
+
+	u, err := h.store.SignInWithGoogle(r.Context(), identity)
+	switch {
+	case err == nil:
+	case errors.Is(err, ErrOAuthUnverified):
+		http.Redirect(w, r, "/signin?oauth=unverified", http.StatusSeeOther)
+		return
+	case errors.Is(err, ErrOAuthCollision):
+		// The address has an account nobody has proved. Sending them to /forgot
+		// is the recovery: the mail goes to the mailbox they just demonstrated
+		// they read, and the reset ends every session — which throws out anybody
+		// who registered the address without owning it.
+		http.Redirect(w, r, "/signin?oauth=collision", http.StatusSeeOther)
+		return
+	default:
+		h.log.ErrorContext(r.Context(), "sign in with google", "error", err)
+		http.Redirect(w, r, "/signin?oauth=failed", http.StatusSeeOther)
+		return
+	}
+
+	h.startSession(w, r, u)
+	http.Redirect(w, r, state.Next, http.StatusSeeOther)
+}
+
+// UnlinkGoogle serves POST /account/google/unlink.
+func (h *Handler) UnlinkGoogle(w http.ResponseWriter, r *http.Request) {
+	u, ok := FromContext(r.Context())
+	if !ok {
+		http.Redirect(w, r, "/signin", http.StatusSeeOther)
+		return
+	}
+	switch err := h.store.UnlinkGoogle(r.Context(), u); {
+	case err == nil:
+		http.Redirect(w, r, "/account?unlinked=1", http.StatusSeeOther)
+	case errors.Is(err, ErrLastSignInMethod):
+		http.Redirect(w, r, "/account?lastmethod=1", http.StatusSeeOther)
+	case errors.Is(err, ErrNotFound):
+		http.Redirect(w, r, "/account", http.StatusSeeOther)
+	default:
+		h.log.ErrorContext(r.Context(), "unlink google", "error", err)
+		h.serverError(w, r)
+	}
+}
+
+// writeOAuthState puts the state and the PKCE verifier where the callback can
+// read them.
+//
+// One cookie rather than a server-side row: it is a browser's own scratch space
+// for the next few minutes, and a table would need a sweeper, a retention
+// decision and a second place for the flow to be wrong. It is HttpOnly so no
+// script can read the verifier, and SameSite=Lax so it SURVIVES the redirect
+// back from Google — Strict would drop it and every sign-in would fail the state
+// check.
+func writeOAuthState(w http.ResponseWriter, s OAuthState, secure bool) {
+	raw := strings.Join([]string{s.Value, s.Verifier, s.Next}, "|")
+	//nolint:gosec // G124: Secure follows the deployment's own flag, as every cookie here does
+	http.SetCookie(w, &http.Cookie{
+		Name:     oauthCookieName(secure),
+		Value:    base64.RawURLEncoding.EncodeToString([]byte(raw)),
+		Path:     "/",
+		MaxAge:   int(oauthStateTTL.Seconds()),
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+// readOAuthState reads it back.
+func readOAuthState(r *http.Request, secure bool) (OAuthState, bool) {
+	c, err := r.Cookie(oauthCookieName(secure))
+	if err != nil || c.Value == "" {
+		return OAuthState{}, false
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(c.Value)
+	if err != nil {
+		return OAuthState{}, false
+	}
+	parts := strings.SplitN(string(raw), "|", 3)
+	if len(parts) != 3 {
+		return OAuthState{}, false
+	}
+	// SafeNext again on the way OUT, never trusting what came back: a cookie is
+	// something the browser holds, and an open redirect on a sign-in flow is how
+	// a phishing page borrows a real login.
+	return OAuthState{Value: parts[0], Verifier: parts[1], Next: SafeNext(parts[2])}, true
+}
+
+// clearOAuthState removes it, whatever the outcome. A state left behind is a
+// live one, and the next callback would match it.
+func clearOAuthState(w http.ResponseWriter, secure bool) {
+	//nolint:gosec // G124: as above
+	http.SetCookie(w, &http.Cookie{
+		Name: oauthCookieName(secure), Value: "", Path: "/", MaxAge: -1,
+		HttpOnly: true, Secure: secure, SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func oauthCookieName(secure bool) string {
+	if secure {
+		return oauthStateCookie
+	}
+	return "goen_oauth"
 }

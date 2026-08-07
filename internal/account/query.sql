@@ -6,7 +6,12 @@ SELECT id, email, password_hash, full_name, role
 FROM users WHERE lower(email) = lower($1);
 
 -- name: UserByID :one
-SELECT id, email, full_name, phone, role, created_at
+SELECT id, email, full_name, phone, role, created_at,
+       -- Whether this account can be signed into with a password at ALL. An
+       -- account created from an identity provider has none, and unlinking the
+       -- provider would then leave nobody able to reach it — which is what
+       -- UnlinkGoogle refuses and what the account page decides from.
+       (password_hash IS NOT NULL)::boolean AS has_password
 FROM users WHERE id = $1;
 
 -- name: CreateUser :one
@@ -374,3 +379,66 @@ SELECT EXISTS (
     SELECT 1 FROM users
     WHERE lower(email) = lower(@email::text) AND id <> @user_id
 ) AS taken;
+-- Who a Google account belongs to here, if anybody.
+--
+-- Keyed on the SUBJECT rather than the email, and that is the whole reason
+-- user_identities exists as a table instead of a column on users: a Google
+-- account can change its address, and a released Workspace address can be
+-- reassigned to a different person. The subject is stable for the life of the
+-- account and identifies the same human across both.
+-- name: UserByGoogleSubject :one
+SELECT u.id, u.email, u.full_name, u.role
+FROM user_identities i
+JOIN users u ON u.id = i.user_id
+WHERE i.provider = 'google' AND i.provider_subject = @subject::text;
+
+-- The account an address belongs to, and whether it has been PROVED.
+--
+-- Both halves, because linking a Google identity to an existing account turns on
+-- the second: an address goen has not verified may belong to whoever registered
+-- it rather than to whoever reads the mailbox. See linkOrCreate.
+-- name: UserForOAuthLink :one
+SELECT id, email, full_name, role,
+       (email_verified_at IS NOT NULL)::boolean AS verified,
+       (password_hash IS NOT NULL)::boolean AS has_password
+FROM users WHERE lower(email) = lower(@email::text);
+
+-- Create an account from an identity provider.
+--
+-- No password hash at all, which is legal: users.password_hash is nullable and
+-- Authenticate refuses a NULL one by name. Somebody who wants a password later
+-- gets it through /forgot, which is already the one path that proves they own
+-- the mailbox.
+--
+-- email_verified_at is set from Google's own claim, and the CALLER checks that
+-- claim first — a provider that has not verified an address has proved nothing
+-- about it, and copying that here would launder somebody else's guess into
+-- goen's own record.
+-- name: CreateUserFromIdentity :one
+INSERT INTO users (email, full_name, email_verified_at)
+VALUES (@email::text, nullif(@full_name::text, ''), now())
+RETURNING id, email, full_name, role;
+
+-- Link a provider account to a goen one.
+--
+-- ON CONFLICT DO NOTHING against (provider, provider_subject): two tabs
+-- finishing one sign-in are one link rather than a unique-violation the customer
+-- reads as a failed login.
+-- name: LinkIdentity :exec
+INSERT INTO user_identities (user_id, provider, provider_subject)
+VALUES (@user_id, 'google', @subject::text)
+ON CONFLICT (provider, provider_subject) DO NOTHING;
+
+-- The providers linked to an account, for the account page.
+-- name: IdentitiesForUser :many
+SELECT provider, created_at FROM user_identities
+WHERE user_id = @user_id ORDER BY created_at;
+
+-- Unlink a provider.
+--
+-- :execrows, and the caller refuses when the account has NO PASSWORD: unlinking
+-- the only way in locks somebody out of their own account, and the row count is
+-- how the caller learns whether it actually happened.
+-- name: UnlinkIdentity :execrows
+DELETE FROM user_identities
+WHERE user_id = @user_id AND provider = @provider::text;

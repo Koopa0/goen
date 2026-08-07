@@ -42,10 +42,14 @@ import (
 func TestEveryTableHasAWriter(t *testing.T) {
 	// Each entry is a claim that a table with no application writer is meant to have
 	// none — a decision, not a gap.
-	allowed := map[string]string{
-		"user_identities": "social sign-in waits for OAuth credentials goen does not " +
-			"have; the table is the shape that integration will need",
-	}
+	//
+	// EMPTY, and that is the point rather than an oversight. It held five when
+	// this guard was written and three for a long time after; the last of them —
+	// invoice_documents, its lines, and user_identities — went when the 加值中心
+	// and Google integrations arrived. Every table in this schema now has a door.
+	// The map stays because the next table to be added before its feature is the
+	// one this catches.
+	allowed := map[string]string{}
 	// golang-migrate's schema_migrations is NOT here, and it was — refused for the
 	// same reason TestEveryColumnIsReadOrWritten refused it: testcontainers applies
 	// 001 directly rather than through the tool, so the table is not in the schema

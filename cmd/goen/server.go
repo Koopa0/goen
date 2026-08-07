@@ -72,6 +72,10 @@ type RouterConfig struct {
 	// controls and says why, the way an absent Stripe key does — never a button
 	// that can only fail.
 	Invoices *invoice.Gateway
+	// Google signs customers in through their Google account. A disabled client
+	// renders no button and 404s its two routes, so a deployment without
+	// credentials looks like one that never offered it.
+	Google *account.Google
 }
 
 func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder admin.Refunder, cfg *RouterConfig, log *slog.Logger) http.Handler {
@@ -139,7 +143,7 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 	// the back office's — as a one-method interface each package defines for
 	// itself. Nil when there is no Stripe key; see sessionCloser.
 	basket := cart.NewHandler(basketStore, log, secureCookies, findLimit, sessionCloser(gateway))
-	customers := account.NewHandler(account.NewStore(pool), basket, log, secureCookies)
+	customers := account.NewHandler(account.NewStore(pool), basket, log, secureCookies, cfg.Google)
 	// The second factor, on the ADMIN pool — every route it serves is a
 	// back-office route, and every table it writes is a back-office table.
 	//
@@ -261,6 +265,12 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 	// One limiter shared by all three: they are the endpoints where a request
 	// is expensive or reveals whether an account exists, and an attacker moving
 	// between them should not get a fresh allowance for each.
+	// Google sign-in. GET on both: the first writes only a short-lived cookie
+	// and redirects, and the second is a redirect FROM GOOGLE whose method goen
+	// does not choose. Nothing about an account changes until the callback has
+	// matched the state it issued.
+	mux.HandleFunc("GET /auth/google", customers.GoogleSignIn)
+	mux.HandleFunc("GET /auth/google/callback", customers.GoogleCallback)
 	mux.HandleFunc("POST /signin", ratelimit.Guard(authLimit, log, customers.SignIn))
 	// The way back in when the password is gone. argon2 means nobody at the
 	// shop can look one up, so without these four routes a forgotten password
@@ -299,6 +309,9 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 	mux.HandleFunc("POST /account/password",
 		ratelimit.Guard(authLimit, log, customers.RequireUser(customers.ChangePassword)))
 	mux.HandleFunc("POST /account/erase", customers.RequireUser(customers.Erase))
+	// Unlinking is a POST, because it writes. Refused when it is the only way
+	// in: an account with no password and no identity is one nobody can reach.
+	mux.HandleFunc("POST /account/google/unlink", customers.RequireUser(customers.UnlinkGoogle))
 
 	// The back office. Every route is staff-only, and a signed-in customer gets
 	// a 404 rather than a 403 — a 403 confirms that /admin is a real place.
