@@ -13,14 +13,34 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
+
+// Invoicer files 統一發票, as the back office needs them.
+//
+// Defined HERE and satisfied by *invoice.Store, because the consumer names what
+// it needs — the same seam Refunder and SessionCloser already use. Three
+// methods, which is what an order page does with invoices: show what has been
+// filed, file one, cancel one.
+//
+// A NIL Invoicer is "no 加值中心 configured", and that is the whole off-switch:
+// the page renders no controls and says why, rather than a button that can only
+// fail. It is the shape payment.Gateway already has for a missing Stripe key.
+type Invoicer interface {
+	Documents(ctx context.Context, orderNumber string) ([]invoice.Document, error)
+	Issue(ctx context.Context, orderNumber string) (invoice.Document, error)
+	Void(ctx context.Context, orderNumber, reason string) error
+}
 
 // Store reads and writes through the ADMIN pool, which assumes the admin role.
 type Store struct {
 	pool     *pgxpool.Pool
 	q        *db.Queries
 	refunder Refunder
+	// invoices may be nil, which means this deployment has no 加值中心 and
+	// issues nothing. See Invoicer.
+	invoices Invoicer
 }
 
 // NewStore returns a Store over the admin pool.
@@ -28,11 +48,11 @@ type Store struct {
 // refunder may be a Refunder that refuses: a back office without Stripe
 // credentials can still approve and reject returns, and a refund it cannot pay
 // fails loudly rather than marking money returned that never moved.
-func NewStore(pool *pgxpool.Pool, refunder Refunder) *Store {
+func NewStore(pool *pgxpool.Pool, refunder Refunder, invoices Invoicer) *Store {
 	if pool == nil || refunder == nil {
 		panic("admin: NewStore requires a pool and a refunder")
 	}
-	return &Store{pool: pool, q: db.New(pool), refunder: refunder}
+	return &Store{pool: pool, q: db.New(pool), refunder: refunder, invoices: invoices}
 }
 
 // Dashboard reads the back office landing page.
@@ -170,6 +190,10 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 
 	if shipErr := s.fillShippable(ctx, &view, o.ID, o.FulfillmentStatus); shipErr != nil {
 		return pages.AdminOrderView{}, shipErr
+	}
+
+	if invErr := s.fillInvoices(ctx, &view, number); invErr != nil {
+		return pages.AdminOrderView{}, invErr
 	}
 	for _, n := range NextStatuses(o.FulfillmentStatus) {
 		view.Next = append(view.Next, pages.AdminTransition{Value: n, Label: StatusLabel(n)})
@@ -383,6 +407,38 @@ func eventKindFor(status string) string {
 	default:
 		panic("admin: no order_events kind for fulfilment status " + status)
 	}
+}
+
+// fillInvoices puts what has actually been FILED on the order page.
+//
+// A different question from what the customer asked for: the preference has been
+// collected since checkout shipped, and these are the 統一發票 and 折讓 that
+// exist because of it. A nil Invoicer is a deployment with no 加值中心, which
+// renders no controls and says why.
+func (s *Store) fillInvoices(ctx context.Context, view *pages.AdminOrderView, number string) error {
+	if s.invoices == nil {
+		return nil
+	}
+	view.InvoicingEnabled = true
+	docs, err := s.invoices.Documents(ctx, number)
+	if err != nil {
+		return err
+	}
+	for i := range docs {
+		d := &docs[i]
+		doc := pages.AdminInvoiceDocument{
+			Kind: d.Kind, Number: d.Number, ProviderRef: d.ProviderRef,
+			AmountCents: d.AmountCents, Status: d.Status,
+			IssuedAt: d.IssuedAt.Format("2006-01-02 15:04"),
+		}
+		for _, l := range d.Lines {
+			doc.Lines = append(doc.Lines, pages.AdminInvoiceLine{
+				Description: l.Description, Quantity: l.Quantity, AmountCents: l.AmountCents,
+			})
+		}
+		view.InvoiceDocuments = append(view.InvoiceDocuments, doc)
+	}
+	return nil
 }
 
 // fillShippable puts what an order still owes a dispatch on its page.
@@ -1437,4 +1493,38 @@ func (s *Store) Movements(ctx context.Context, sku string) (pages.AdminMovements
 		})
 	}
 	return view, nil
+}
+
+// IssueInvoice files a 統一發票 for an order.
+//
+// The audit row names the DOCUMENT and never the customer's details: an invoice
+// carries a name and possibly a 統編, audit_events is append-only, and
+// erase_user does not reach it — so anything copied there outlives the erasure
+// meant to remove it. The number is the shop's own reference and is safe.
+func (s *Store) IssueInvoice(ctx context.Context, number string) error {
+	if s.invoices == nil {
+		return fmt.Errorf("%w: no 加值中心 is configured", ErrRefused)
+	}
+	doc, err := s.invoices.Issue(ctx, number)
+	if err != nil {
+		return err
+	}
+	return s.audited(ctx, Event{
+		Action: ActionIssueInvoice, Table: "invoice_documents", ID: uuid.NullUUID{},
+		After: map[string]any{"order": number, "invoice": doc.Number},
+	}, func(context.Context, *db.Queries) error { return nil })
+}
+
+// VoidInvoice cancels an order's live invoice, at the 加值中心 and here.
+func (s *Store) VoidInvoice(ctx context.Context, number, reason string) error {
+	if s.invoices == nil {
+		return fmt.Errorf("%w: no 加值中心 is configured", ErrRefused)
+	}
+	if err := s.invoices.Void(ctx, number, reason); err != nil {
+		return err
+	}
+	return s.audited(ctx, Event{
+		Action: ActionVoidInvoice, Table: "invoice_documents", ID: uuid.NullUUID{},
+		After: map[string]any{"order": number, "reason": reason},
+	}, func(context.Context, *db.Queries) error { return nil })
 }

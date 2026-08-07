@@ -1646,9 +1646,55 @@ It writes nothing: capturing would be the defect, and extending the hold is the
 unbuilt feature.
 
 Checkout COLLECTS the 發票 choice — 會員載具 / 手機條碼載具 / 公司統編 — into
-`invoice_preferences`. ISSUING the document is not built: a real 統一發票 goes
-through a 加值中心, and `invoice_documents` is waiting for that integration.
-Building a fake issuer would be worse than not building one.
+`invoice_preferences`, and `internal/invoice` ISSUES the document through 綠界's
+B2C e-invoice API.
+
+**The real API against its published test environment**, which is the only
+honest third option. A production 加值中心 needs a business registration and a
+contract; a fake issuer that emits invoice-shaped numbers is worse than nothing,
+because only the absence is visible. ECPay publish staging credentials anybody
+may use (MerchantID `2000132`), so the code is real — real AES envelope, real
+error codes, real void and 折讓 — and going live is a credential change.
+
+The off-switch is Stripe's: no credentials issues nothing and the order page says
+so, and HALF a configuration does not start, because a merchant id cannot sign a
+request without its keys.
+
+Four things the live staging API taught that its field list does not say, each
+now a test:
+
+- **A 統編 invoice STILL needs a carrier.** It looks like the opposite — the
+  invoice goes to the company — and ECPay answer `5000028`,
+  「客戶資訊已填入統編，須請選擇載具類別或索取紙本發票」. The 統編 says who it is
+  FOR; the carrier says where it is held.
+- **A 折讓 comes back in `IA_Allow_No`**, and the reply's `InvoiceNo` is empty.
+  Reading the wrong field filed an allowance with the 加值中心 that goen could
+  not name — and the operation SUCCEEDED, so nothing looked wrong.
+- **`RelateNumber` is their idempotency key** and a repeat is `5070357`. A
+  統一發票 cannot be edited, so the only correction is void-then-reissue — and the
+  order number alone made that impossible. The reissue carries a suffix.
+- **The envelope's URL-encode step comes BEFORE the cipher**, in .NET's casing.
+  Getting it wrong is an envelope rejection with no indication of which character
+  was at fault, so the wire format is pinned by a known-answer test computed with
+  `openssl enc`, never by seal comparing to itself.
+
+`vat='1'` says the item prices already INCLUDE tax, which a Taiwanese shelf price
+does: NT$590 is NT$562 plus NT$28. Without it ECPay adds 5% and the invoice
+disagrees with what the card was charged, on every order. And amounts go out as
+whole DOLLARS — mistake #18 in reverse, where dividing a TWD charge by 100
+undercharged by 100x. The 財政部 platform records dollars; a card charge does not.
+
+Delivery is a LINE on the invoice, because the customer paid it and a 統一發票
+records what was charged — without it the itemisation and `SalesAmount` disagree
+by exactly the shipping fee, which is money on the document that nothing
+accounts for.
+
+The provider is called FIRST and the row written after, because the number is
+theirs to allocate. That leaves the window the refund path already documents, in
+the recoverable direction: a document filed with the 加值中心 and absent here is
+visible from ECPay's console and re-issuing is refused by
+`invoice_documents_one_active_invoice_per_order`. A row claiming a filing that
+does not exist would be visible from nowhere.
 
 Every account feature is linked from `/account`. Four of them — orders, points,
 wishlist, warranty — existed as working routes with NO LINK from anywhere, which

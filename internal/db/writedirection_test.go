@@ -613,6 +613,10 @@ var storefrontPackages = []string{
 // backOfficePackages run on the pool that does SET ROLE admin.
 var backOfficePackages = []string{
 	"admin", "media", "newsletter", "outbox", "twofactor",
+	// invoice runs on the admin pool: issuing a 統一發票 is the back office's
+	// act, and `store` holds no write on invoice_documents at all — a storefront
+	// request that could file a tax document is a customer issuing their own.
+	"invoice",
 }
 
 // maintenancePackages run on the pool that does SET ROLE maintenance.

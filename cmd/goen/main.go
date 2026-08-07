@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
@@ -71,6 +72,19 @@ type config struct {
 	// would leave the endpoint that marks orders paid unauthenticated.
 	StripeSecretKey     string
 	StripeWebhookSecret string
+	// The 加值中心. Empty means goen issues no 統一發票 and the order page says
+	// so, exactly as an empty Stripe key leaves the payment page saying
+	// 金流尚未啟用. HALF a configuration does not start: a merchant id cannot
+	// sign a request without its keys, and finding that out at the first issue
+	// is finding it out after an order was placed and money taken.
+	//
+	// ECPay publish staging credentials anybody may use (MerchantID 2000132),
+	// which is what makes this a real integration rather than a fake issuer.
+	// GOEN_ECPAY_BASE_URL defaults to staging; production is a URL change.
+	ECPayMerchantID string
+	ECPayHashKey    string
+	ECPayHashIV     string
+	ECPayBaseURL    string
 	// SMTP. An empty address means mail is written to the log instead of sent,
 	// which is what a development machine should do — visibly, not silently.
 	SMTPAddr     string
@@ -134,6 +148,10 @@ func loadConfig() (config, error) {
 		MaintenanceDatabaseURL: envOr("GOEN_MAINTENANCE_DATABASE_URL", url),
 
 		StripeSecretKey:     os.Getenv("GOEN_STRIPE_SECRET_KEY"),
+		ECPayMerchantID:     os.Getenv("GOEN_ECPAY_MERCHANT_ID"),
+		ECPayHashKey:        os.Getenv("GOEN_ECPAY_HASH_KEY"),
+		ECPayHashIV:         os.Getenv("GOEN_ECPAY_HASH_IV"),
+		ECPayBaseURL:        os.Getenv("GOEN_ECPAY_BASE_URL"),
 		StripeWebhookSecret: os.Getenv("GOEN_STRIPE_WEBHOOK_SECRET"),
 		// No guess in a production posture. The default below contradicted this
 		// field's own documentation — it said "it has no default: guessing it
@@ -244,6 +262,7 @@ func (cfg *config) trustedProxies(log *slog.Logger) (*ratelimit.Proxies, error) 
 func newServer(
 	cfg *config, log *slog.Logger, proxies *ratelimit.Proxies,
 	pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder admin.Refunder,
+	invoices *invoice.Gateway,
 ) *http.Server {
 	return &http.Server{
 		Addr: cfg.Addr,
@@ -254,6 +273,7 @@ func newServer(
 		// at all, not even a context value.
 		Handler: proxies.Resolve(newRouter(pool, adminPool, gateway, refunder, &RouterConfig{
 			BaseURL: cfg.BaseURL, SecureCookies: cfg.SecureCookies, TOTPKey: cfg.TOTPKey,
+			Invoices: invoices,
 		}, log)),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
@@ -323,6 +343,49 @@ func reachableAdminPool(ctx context.Context, url string) (*pgxpool.Pool, error) 
 	return pool, nil
 }
 
+// openInvoicing builds the 加值中心 gateway and says when there is none.
+//
+// Empty credentials issue nothing and the order page says so; HALF a
+// configuration does not start, because a merchant id cannot sign a request
+// without its keys — and finding that out at the first issue is finding it out
+// after an order was placed and money taken. Exactly the shape a Stripe key
+// without its webhook secret has.
+func openInvoicing(cfg *config, log *slog.Logger) (*invoice.Gateway, error) {
+	g, err := invoice.NewGateway(cfg.ECPayMerchantID, cfg.ECPayHashKey,
+		cfg.ECPayHashIV, cfg.ECPayBaseURL)
+	if err != nil {
+		return nil, err
+	}
+	if !g.Enabled() {
+		// i18n-exempt: a startup log line, read by an operator rather than a
+		// visitor — the same category as the Stripe and TOTP warnings beside it.
+		log.Warn("no 加值中心 configured; goen will issue no 統一發票",
+			"set", "GOEN_ECPAY_MERCHANT_ID, GOEN_ECPAY_HASH_KEY and GOEN_ECPAY_HASH_IV")
+	}
+	return g, nil
+}
+
+// openProviders builds the two outside services goen talks to and says when
+// either is absent.
+//
+// Together, because they share one posture: a deployment with no key still
+// serves the whole site and the page that would use it says so, while HALF a
+// configuration does not start at all. A Stripe key without its webhook secret
+// would take money over an unauthenticated endpoint; a 加值中心 merchant id
+// without its keys cannot sign a request, and finding that out at the first
+// issue is finding it out after an order was placed.
+func openProviders(cfg *config, log *slog.Logger) (
+	payments *payment.Gateway, invoices *invoice.Gateway, err error,
+) {
+	if payments, err = payment.NewGateway(cfg.StripeSecretKey, cfg.StripeWebhookSecret, cfg.BaseURL); err != nil {
+		return nil, nil, err
+	}
+	if invoices, err = openInvoicing(cfg, log); err != nil {
+		return nil, nil, err
+	}
+	return payments, invoices, nil
+}
+
 func run() error {
 	cfg, err := loadConfig()
 	if err != nil {
@@ -351,11 +414,7 @@ func run() error {
 	}
 	defer adminPool.Close()
 
-	// Stripe. A deployment without a key still serves the whole site; only the
-	// payment page changes what it says. A key without a webhook secret does
-	// NOT start, because that combination takes money over an endpoint nothing
-	// authenticates.
-	gateway, err := payment.NewGateway(cfg.StripeSecretKey, cfg.StripeWebhookSecret, cfg.BaseURL)
+	gateway, invoices, err := openProviders(&cfg, log)
 	if err != nil {
 		return err
 	}
@@ -378,7 +437,7 @@ func run() error {
 		return proxyErr
 	}
 
-	srv := newServer(&cfg, log, proxies, pool, adminPool, gateway, refunder)
+	srv := newServer(&cfg, log, proxies, pool, adminPool, gateway, refunder, invoices)
 
 	// Abandoned checkouts hold stock until something gives it back. The sweeper
 	// is that something, and it is OWNED here rather than started and forgotten:

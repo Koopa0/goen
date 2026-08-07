@@ -19,6 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/health"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
@@ -67,6 +68,10 @@ type RouterConfig struct {
 	// TOTPKey encrypts stored second-factor secrets. Empty disables enrolment
 	// rather than storing one in the clear.
 	TOTPKey string
+	// Invoices issues 統一發票 through the 加值中心. A disabled one renders no
+	// controls and says why, the way an absent Stripe key does — never a button
+	// that can only fail.
+	Invoices *invoice.Gateway
 }
 
 func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder admin.Refunder, cfg *RouterConfig, log *slog.Logger) http.Handler {
@@ -157,7 +162,13 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 	if factorStore.Enabled() {
 		stepUp = factors.StepUp
 	}
-	back := admin.NewHandler(admin.NewStore(adminPool, refunder),
+	// The 加值中心, or nil when none is configured — which renders no invoice
+	// controls and says why, rather than a button that can only fail.
+	var invoices admin.Invoicer
+	if cfg.Invoices.Enabled() {
+		invoices = invoice.NewStore(adminPool, cfg.Invoices)
+	}
+	back := admin.NewHandler(admin.NewStore(adminPool, refunder, invoices),
 		media.NewHandler(media.NewStore(adminPool), log),
 		// The queue, read-only from here: /admin/health lists which messages
 		// have given up. The worker that DELIVERS them is main's, on the
@@ -316,6 +327,10 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 	// opens it, and the sellable units go back on the shelf through the ledger.
 	mux.HandleFunc("POST /admin/returns/{id}/inspect", back.RequireStaff(back.Inspect))
 	mux.HandleFunc("POST /admin/returns/{id}/complete", back.RequireStaff(back.Complete))
+	// 統一發票. The preference has been collected at checkout since the day it
+	// shipped, and until now nothing could act on it.
+	mux.HandleFunc("POST /admin/orders/{number}/invoice", back.RequireStaff(back.IssueInvoice))
+	mux.HandleFunc("POST /admin/orders/{number}/invoice/void", back.RequireStaff(back.VoidInvoice))
 	mux.HandleFunc("POST /admin/products/{slug}/options", back.RequireStaff(back.AddOption))
 	mux.HandleFunc("POST /admin/products/{slug}/options/values", back.RequireStaff(back.AddOptionValue))
 	mux.HandleFunc("POST /admin/products/{slug}/specs", back.RequireStaff(back.AddSpec))
