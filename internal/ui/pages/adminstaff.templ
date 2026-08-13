@@ -1,6 +1,11 @@
 package pages
 
-import "github.com/koopa0/goen/internal/ui/layouts"
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
 
 // AdminStaff renders who can reach the back office, and who is protected.
 templ AdminStaff(p layouts.Page, v AdminStaffView) {
@@ -9,10 +14,10 @@ templ AdminStaff(p layouts.Page, v AdminStaffView) {
 			@adminNav("staff")
 			<div class="ui-page-head">
 				<div>
-					<p class="ui-page-head__eyebrow">後台</p>
-					<h1 class="ui-page-head__title">人員與兩階段驗證</h1>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageStaff) }</h1>
 					<p class="ui-page-head__sub">
-						兩階段驗證擋的是 /admin,不是登入。沒有啟用的人只用密碼就能進來。
+						{ i18n.T(ctx, i18n.KeyAdminStaffLead) }
 					</p>
 				</div>
 			</div>
@@ -21,16 +26,16 @@ templ AdminStaff(p layouts.Page, v AdminStaffView) {
 			}
 			if !v.AllProtected() {
 				<p class="ui-alert ui-alert--error" role="alert">
-					還有 { v.UnprotectedText() } 個帳號只用密碼就能進後台。請他們到 /admin/verify 啟用。
+					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminStaffUnprotected), v.UnprotectedText()) }
 				</p>
 			}
 			<div class="goen-admin__tablewrap">
 				<table class="ui-table goen-admin__table">
 					<thead>
 						<tr>
-							<th scope="col">人員</th>
-							<th scope="col">角色</th>
-							<th scope="col">兩階段驗證</th>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColPerson) }</th>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColRole) }</th>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColTwoFa) }</th>
 							<th scope="col"></th>
 						</tr>
 					</thead>
@@ -56,18 +61,18 @@ templ AdminStaff(p layouts.Page, v AdminStaffView) {
 									// wants, and revoking your own access is
 									// how a shop locks itself out.
 									if v.IsActor(r) {
-										<span class="ui-cart-line__meta">你自己</span>
+										<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyAdminStaffYou) }</span>
 									} else {
 										<div class="goen-admin__addractions">
 											if r.Enrolled {
 												<form method="post" action="/admin/staff/factor">
 													<input type="hidden" name="user" value={ r.ID }/>
-													<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">解除兩階段</button>
+													<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminStaffDropFa) }</button>
 												</form>
 											}
 											<form method="post" action="/admin/staff/revoke">
 												<input type="hidden" name="user" value={ r.ID }/>
-												<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">移除權限</button>
+												<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminStaffRevoke) }</button>
 											</form>
 										</div>
 									}
@@ -77,23 +82,22 @@ templ AdminStaff(p layouts.Page, v AdminStaffView) {
 					</tbody>
 				</table>
 			</div>
-			<h2 class="goen-admin__heading">新增人員</h2>
+			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminStaffAdd) }</h2>
 			<p class="goen-admin__hint">
-				不會設定密碼 —— 對方用「忘記密碼」自己設,那是唯一能證明信箱是他的路徑。
-				帳號在他設定之前無法登入。已經是顧客的信箱會直接升級,不會另開一個。
+				{ i18n.T(ctx, i18n.KeyAdminStaffAddLead) }
 			</p>
 			<form class="goen-admin__form" method="post" action="/admin/staff">
 				<div class="goen-admin__row">
 					<div class="ui-field">
-						<label class="ui-label" for="staff-email">電子郵件</label>
+						<label class="ui-label" for="staff-email">{ i18n.T(ctx, i18n.KeyAdminStaffEmail) }</label>
 						<input class="ui-input" id="staff-email" name="email" type="email" required maxlength="254"/>
 					</div>
 					<div class="ui-field">
-						<label class="ui-label" for="staff-name">姓名(選填)</label>
+						<label class="ui-label" for="staff-name">{ i18n.T(ctx, i18n.KeyAdminStaffName) }</label>
 						<input class="ui-input" id="staff-name" name="name" maxlength="60"/>
 					</div>
 					<div class="ui-field">
-						<label class="ui-label" for="staff-role">角色</label>
+						<label class="ui-label" for="staff-role">{ i18n.T(ctx, i18n.KeyAdminColRole) }</label>
 						<select class="ui-select" id="staff-role" name="role" required>
 							for _, role := range v.Roles {
 								<option value={ role.Value }>{ role.Label }</option>
@@ -101,7 +105,7 @@ templ AdminStaff(p layouts.Page, v AdminStaffView) {
 						</select>
 					</div>
 				</div>
-				<button class="ui-btn ui-btn--primary" type="submit">新增</button>
+				<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminAddButton) }</button>
 			</form>
 		</div>
 	}

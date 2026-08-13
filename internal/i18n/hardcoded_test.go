@@ -121,16 +121,13 @@ var pendingTranslation = map[string]struct{}{
 	"internal/ui/pages/adminfaq.templ":        {},
 	"internal/ui/pages/adminhealth.templ":     {},
 	"internal/ui/pages/adminhome.templ":       {},
-	"internal/ui/pages/adminmovements.templ":  {},
 	"internal/ui/pages/adminnewsletter.templ": {},
 	"internal/ui/pages/adminproduct.templ":    {},
 	"internal/ui/pages/adminreport.templ":     {},
 	"internal/ui/pages/adminreturns.templ":    {},
 	"internal/ui/pages/adminshipping.templ":   {},
-	"internal/ui/pages/adminstaff.templ":      {},
 	"internal/ui/pages/admintaxonomy.templ":   {},
 	"internal/ui/pages/admintiers.templ":      {},
-	"internal/ui/pages/adminwarranty.templ":   {},
 	"internal/ui/pages/twofactor.templ":       {},
 }
 

@@ -98,3 +98,106 @@ var (
 	KeyAdminQuestionSend = key("admin.question.send", Message{ZhHant: "送出官方回覆", En: "Post the shop's reply"})
 	KeyAdminQuestionHide = key("admin.question.hide", Message{ZhHant: "隱藏這則提問", En: "Hide this question"})
 )
+
+var (
+	// /admin/warranty. Exact on both, and the line says why: a serial is read
+	// off the label on the machine and an order number off a confirmation mail.
+	KeyAdminWarrantyLead = key("admin.warranty.lead", Message{
+		ZhHant: "用序號或訂單編號查一件的保固。兩個都要完全相符 —— 序號是從機身上唸出來的,訂單編號是從確認信上唸出來的,而登錄名單不是拿來瀏覽的。",
+		En: "Look a unit's cover up by serial number or order number. Both match exactly — a serial is " +
+			"read off the machine and an order number off a confirmation email, and a list of " +
+			"registrations is not something to browse.",
+	})
+	KeyAdminWarrantySearch      = key("admin.warranty.search", Message{ZhHant: "查詢保固", En: "Search warranties"})
+	KeyAdminWarrantyPlaceholder = key("admin.warranty.placeholder", Message{
+		ZhHant: "序號或訂單編號",
+		En:     "Serial or order number",
+	})
+	KeyAdminSearchButton = key("admin.search.button", Message{ZhHant: "查詢", En: "Search"})
+	KeyAdminSearchShort  = key("admin.search.short", Message{
+		ZhHant: "查詢字串太短,至少要兩個字。",
+		En:     "That search is too short — two characters at least.",
+	})
+	KeyAdminWarrantyNoneFound = key("admin.warranty.nonefound", Message{
+		ZhHant: "找不到「%s」的登錄紀錄。序號和訂單編號都是完全比對,如果是客人唸錯一碼就會查不到 —— 也可能是這一件根本沒登錄過。",
+		En: "No registration matches %q. Both fields match exactly, so one wrong character finds " +
+			"nothing — and it may simply never have been registered.",
+	})
+	KeyAdminColSerial     = key("admin.col.serial", Message{ZhHant: "序號", En: "Serial"})
+	KeyAdminColProduct    = key("admin.col.product", Message{ZhHant: "商品", En: "Product"})
+	KeyAdminColOrder      = key("admin.col.order", Message{ZhHant: "訂單", En: "Order"})
+	KeyAdminColCustomer   = key("admin.col.customer", Message{ZhHant: "客戶", En: "Customer"})
+	KeyAdminColRegistered = key("admin.col.registered", Message{ZhHant: "登錄日", En: "Registered"})
+	KeyAdminColExpires    = key("admin.col.expires", Message{ZhHant: "保固到期", En: "Cover ends"})
+	KeyAdminUnitNo        = key("admin.unit.no", Message{ZhHant: "第 %s 件", En: "unit %s"})
+	// The clock, stated on the page that answers claims about it.
+	KeyAdminWarrantyClock = key("admin.warranty.clock", Message{
+		ZhHant: "保固從送達那天起算,不是從出貨那天 —— 到期日是登錄當下用該筆包裹的送達時間和商品保固月數算出來的,存下來就不再變動。",
+		En: "Cover runs from the day the parcel ARRIVED, not the day it was dispatched. The end date is " +
+			"computed at registration from that parcel's delivery time and the product's term, and does " +
+			"not move afterwards.",
+	})
+
+	// /admin/stock/{sku} — the ledger.
+	KeyAdminStockLink    = key("admin.stock.link", Message{ZhHant: "庫存", En: "Stock"})
+	KeyAdminStockNowSafe = key("admin.stock.nowsafe", Message{
+		ZhHant: "· 目前 %s 件,安全庫存 %s",
+		En:     "· %s in stock, safety level %s",
+	})
+	KeyAdminLedgerEmpty = key("admin.ledger.empty", Message{
+		ZhHant: "這個規格還沒有任何異動。新規格的庫存是 0,所有的量都從這張帳本進來。",
+		En: "Nothing has moved for this variant yet. A new variant starts at zero, and every unit it " +
+			"ever holds arrives through this ledger.",
+	})
+	KeyAdminColWhen    = key("admin.col.when", Message{ZhHant: "時間", En: "When"})
+	KeyAdminColChange  = key("admin.col.change", Message{ZhHant: "異動", En: "Change"})
+	KeyAdminColReason  = key("admin.col.reason", Message{ZhHant: "原因", En: "Reason"})
+	KeyAdminColActor   = key("admin.col.actor", Message{ZhHant: "操作者", En: "By"})
+	KeyAdminColBalance = key("admin.col.balance", Message{ZhHant: "結存", En: "Balance"})
+	// The running total is computed over the WHOLE ledger rather than the page,
+	// so the last fifty rows still tell the truth.
+	KeyAdminLedgerFoot = key("admin.ledger.foot", Message{
+		ZhHant: "最近 50 筆。結存是從帳本開頭累加到那一筆的數字,所以就算只看這一頁也是對的。",
+		En: "The last 50 movements. The balance accumulates from the start of the ledger rather than " +
+			"from this page, so these rows are still true on their own.",
+	})
+	KeyAdminReceiveQty    = key("admin.receive.qty", Message{ZhHant: "進貨數量", En: "Quantity received"})
+	KeyAdminReceiveButton = key("admin.receive.button", Message{ZhHant: "登記進貨", En: "Record receipt"})
+	KeyAdminReceiveHint   = key("admin.receive.hint", Message{
+		ZhHant: "這會在帳本上記一筆「進貨」。數字算錯要往回修的話請用庫存頁的「調整」—— 東西進來和數字算錯是兩件事,帳本要分得出來。",
+		En: "This writes a goods receipt to the ledger. To correct a count downward use Adjust on the " +
+			"stock page — goods arriving and a number being wrong are two different things, and the " +
+			"ledger has to keep them apart.",
+	})
+
+	// /admin/staff. The second factor guards /admin rather than the sign-in, and
+	// the line says so, because that is what makes the warning below it mean
+	// something.
+	KeyAdminStaffLead = key("admin.staff.lead", Message{
+		ZhHant: "兩階段驗證擋的是 /admin,不是登入。沒有啟用的人只用密碼就能進來。",
+		En: "Two-factor guards /admin, not signing in. Anybody who has not enrolled reaches the back " +
+			"office with a password alone.",
+	})
+	KeyAdminStaffUnprotected = key("admin.staff.unprotected", Message{
+		ZhHant: "還有 %s 個帳號只用密碼就能進後台。請他們到 /admin/verify 啟用。",
+		En:     "%s accounts still reach the back office with a password alone. Ask them to enrol at /admin/verify.",
+	})
+	KeyAdminColPerson   = key("admin.col.person", Message{ZhHant: "人員", En: "Person"})
+	KeyAdminColRole     = key("admin.col.role", Message{ZhHant: "角色", En: "Role"})
+	KeyAdminColTwoFa    = key("admin.col.twofa", Message{ZhHant: "兩階段驗證", En: "Two-factor"})
+	KeyAdminStaffYou    = key("admin.staff.you", Message{ZhHant: "你自己", En: "you"})
+	KeyAdminStaffDropFa = key("admin.staff.dropfa", Message{ZhHant: "解除兩階段", En: "Remove two-factor"})
+	KeyAdminStaffRevoke = key("admin.staff.revoke", Message{ZhHant: "移除權限", En: "Revoke access"})
+	KeyAdminStaffAdd    = key("admin.staff.add", Message{ZhHant: "新增人員", En: "Add a colleague"})
+	// No password is set here ON PURPOSE: an admin who typed one would know it,
+	// and /forgot is already the one path that proves they own the mailbox.
+	KeyAdminStaffAddLead = key("admin.staff.addlead", Message{
+		ZhHant: "不會設定密碼 —— 對方用「忘記密碼」自己設,那是唯一能證明信箱是他的路徑。帳號在他設定之前無法登入。已經是顧客的信箱會直接升級,不會另開一個。",
+		En: "No password is set here — they set their own through Forgot password, which is the one " +
+			"path that proves they own the mailbox. The account cannot sign in until they do. An " +
+			"address that already belongs to a customer is promoted rather than duplicated.",
+	})
+	KeyAdminStaffEmail = key("admin.staff.email", Message{ZhHant: "電子郵件", En: "Email"})
+	KeyAdminStaffName  = key("admin.staff.name", Message{ZhHant: "姓名(選填)", En: "Name (optional)"})
+	KeyAdminAddButton  = key("admin.add.button", Message{ZhHant: "新增", En: "Add"})
+)
