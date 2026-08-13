@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"context"
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -476,12 +477,26 @@ func (v AdminVariantsView) Empty() bool { return len(v.Variants) == 0 }
 // HasNotice reports whether to show the banner.
 func (v AdminVariantsView) HasNotice() bool { return v.Notice != "" }
 
-// Admin chrome view models.
-var (
-	AdminMeta         = layouts.Page{Title: "後台"}
-	AdminOrdersMeta   = layouts.Page{Title: "訂單管理"}
-	AdminVariantsMeta = layouts.Page{Title: "庫存管理"}
-)
+// AdminMeta is the dashboard's chrome.
+//
+// The three admin metas are FUNCTIONS rather than package-level values, and the
+// reason is the locale: a var is built once at startup, where there is no
+// request and therefore no language to build it in. They were the last
+// hard-coded titles in the back office for exactly that reason, and ListingMeta
+// and ProductMeta already had this shape on the storefront.
+func AdminMeta(ctx context.Context) layouts.Page {
+	return layouts.Page{Title: i18n.T(ctx, i18n.KeyAdminPageDashboard)}
+}
+
+// AdminOrdersMeta is the order queue's chrome.
+func AdminOrdersMeta(ctx context.Context) layouts.Page {
+	return layouts.Page{Title: i18n.T(ctx, i18n.KeyAdminPageOrderList)}
+}
+
+// AdminVariantsMeta is the stock list's chrome.
+func AdminVariantsMeta(ctx context.Context) layouts.Page {
+	return layouts.Page{Title: i18n.T(ctx, i18n.KeyAdminPageStockList)}
+}
 
 // PriceText and CompareText are the prices in whole New Taiwan dollars, which
 // is what the form's number inputs carry.

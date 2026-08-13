@@ -90,9 +90,9 @@ func AdminAudit(p layouts.Page, v AuditView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var5 string
-					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(e.Label())
+					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(e.Label(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/audit.templ`, Line: 26, Col: 57}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/audit.templ`, Line: 26, Col: 60}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 					if templ_7745c5c3_Err != nil {

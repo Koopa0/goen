@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -62,7 +63,7 @@ func (h *Handler) Challenge(w http.ResponseWriter, r *http.Request) {
 		Notice:   noticeFor(r),
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.TwoFactor(
-		layouts.Page{Title: "兩階段驗證"}, view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTwoFactor)}, view))
 }
 
 // Verify serves POST /admin/verify.
@@ -73,7 +74,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	if retryAfter, allowed := h.limit.Allow("totp:" + u.ID); !allowed {
@@ -108,7 +109,7 @@ func (h *Handler) Enrol(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	secret, uri, err := h.store.Begin(r.Context(), u.ID, u.Email)
@@ -131,7 +132,7 @@ func (h *Handler) Enrol(w http.ResponseWriter, r *http.Request) {
 	// response and nowhere else, and a redirect would either lose it or have to
 	// carry it in a URL — into the browser history and every access log.
 	web.Render(w, r, h.log, http.StatusOK, pages.TwoFactor(
-		layouts.Page{Title: "兩階段驗證"}, pages.TwoFactorView{
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTwoFactor)}, pages.TwoFactorView{
 			Enabled: true, Enrolling: true,
 			Secret: EncodeSecret(secret), URI: uri,
 		}))
@@ -145,7 +146,7 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	if retryAfter, allowed := h.limit.Allow("totp:" + u.ID); !allowed {
@@ -171,13 +172,13 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 func noticeFor(r *http.Request) string {
 	switch {
 	case r.URL.Query().Get("bad") == "1":
-		return "驗證碼不正確,或是已經用過了。請看驗證器上目前的那一組。"
+		return i18n.T(r.Context(), i18n.KeyTOTPWrongCode)
 	case r.URL.Query().Get("badenrol") == "1":
-		return "驗證碼不正確。請確認驗證器裡的祕密字串和畫面上的一致。"
+		return i18n.T(r.Context(), i18n.KeyTOTPWrongSecret)
 	case r.URL.Query().Get("disabled") == "1":
-		return "這個環境沒有設定加密金鑰,無法啟用兩階段驗證。"
+		return i18n.T(r.Context(), i18n.KeyTOTPNoKey)
 	case r.URL.Query().Get("enrolled") == "1":
-		return "這個帳號已經完成兩階段驗證設定。要換一支手機,請另一位管理者先在 /admin/staff 移除,再重新設定。"
+		return i18n.T(r.Context(), i18n.KeyTOTPAlreadyEnrolled)
 	default:
 		return ""
 	}
@@ -207,13 +208,15 @@ func (h *Handler) Staff(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read staff 2FA status", "error", err)
 		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
-			layouts.Page{Title: "發生錯誤"}, "", "系統發生錯誤", "請稍後再試一次。"))
+			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminFaultTitle)}, "",
+			i18n.T(r.Context(), i18n.KeyAdminFaultHead),
+			i18n.T(r.Context(), i18n.KeyAdminFaultBody)))
 		return
 	}
 	if !h.store.Enabled() {
 		// GOEN_TOTP_KEY is empty, so enrolment is off. Saying so is the honest
 		// answer: without it the page reads as "nobody has bothered".
-		view.Notice = "GOEN_TOTP_KEY 沒有設定,兩階段驗證目前無法啟用。"
+		view.Notice = i18n.T(r.Context(), i18n.KeyTOTPNoKeyNotice)
 	}
 	if u, ok := account.FromContext(r.Context()); ok {
 		view.Actor = u.ID
@@ -227,13 +230,13 @@ func (h *Handler) Staff(w http.ResponseWriter, r *http.Request) {
 		view.Notice = n
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminStaff(
-		layouts.Page{Title: "人員與兩階段驗證"}, view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageStaff)}, view))
 }
 
 // AddStaff serves POST /admin/staff.
 func (h *Handler) AddStaff(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	h.redirectStaff(w, r, h.store.AddStaff(r.Context(),
@@ -244,7 +247,7 @@ func (h *Handler) AddStaff(w http.ResponseWriter, r *http.Request) {
 // RevokeStaff serves POST /admin/staff/revoke.
 func (h *Handler) RevokeStaff(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	h.redirectStaff(w, r, h.store.RevokeStaff(r.Context(),
@@ -259,7 +262,7 @@ func (h *Handler) RevokeStaff(w http.ResponseWriter, r *http.Request) {
 // authenticator was locked out of the back office permanently.
 func (h *Handler) RemoveFactor(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	h.redirectStaff(w, r, h.store.RemoveFactor(r.Context(),
@@ -288,7 +291,9 @@ func (h *Handler) redirectStaff(w http.ResponseWriter, r *http.Request, err erro
 	default:
 		h.log.ErrorContext(r.Context(), "change staff", "error", err)
 		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
-			layouts.Page{Title: "發生錯誤"}, "", "系統發生錯誤", "請稍後再試一次。"))
+			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminFaultTitle)}, "",
+			i18n.T(r.Context(), i18n.KeyAdminFaultHead),
+			i18n.T(r.Context(), i18n.KeyAdminFaultBody)))
 	}
 }
 
@@ -296,14 +301,13 @@ func (h *Handler) redirectStaff(w http.ResponseWriter, r *http.Request, err erro
 func staffNotice(r *http.Request) string {
 	switch {
 	case r.URL.Query().Get("ok") == "1":
-		return "已更新。"
+		return i18n.T(r.Context(), i18n.KeyAdminNoticeOK)
 	case r.URL.Query().Get("self") == "1":
-		return "不能對自己的帳號做這件事 —— 解除自己的兩階段驗證等於沒有第二因素," +
-			"移除自己的權限會把商店鎖在門外。請另一位管理員操作。"
+		return i18n.T(r.Context(), i18n.KeyStaffSelf)
 	case r.URL.Query().Get("last") == "1":
-		return "這是最後一位管理員。移除之後就沒有人能再新增管理員了。"
+		return i18n.T(r.Context(), i18n.KeyStaffLastAdmin)
 	case r.URL.Query().Get("needs") == "1":
-		return "資料不完整,或這個帳號沒有可以解除的兩階段驗證。"
+		return i18n.T(r.Context(), i18n.KeyStaffInvalid)
 	}
 	return ""
 }

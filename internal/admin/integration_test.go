@@ -2988,9 +2988,16 @@ func TestAnOverClaimIsRefusedInWordsRatherThanByAConstraint(t *testing.T) {
 	if !errors.Is(err, admin.ErrRefused) {
 		t.Fatalf("refused with %v, want ErrRefused", err)
 	}
-	// The numbers, not a constraint name. "只剩 50000 可退" is what a person
-	// can act on; "refunds_within_capture" is what they then have to ask about.
-	for _, want := range []string{"已退", "只剩", "150000", "50000"} {
+	// The NUMBERS, not a constraint name: "50000 remains" is what a person can
+	// act on and "refunds_within_capture" is what they then have to go and ask
+	// somebody about.
+	//
+	// Figures only. This list used to carry 已退 and 只剩 as well, and those two
+	// entries bound the test to the WORDING rather than to the claim — so
+	// translating the message into English broke a test that had nothing to say
+	// about translation. What the refusal owes its reader is the arithmetic;
+	// which language it is in is the locale's business, not this test's.
+	for _, want := range []string{"200000", "150000", "50000"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("the refusal does not mention %q: %v", want, err)
 		}
