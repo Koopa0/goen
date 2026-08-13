@@ -1,6 +1,11 @@
 package pages
 
-import "github.com/koopa0/goen/internal/ui/layouts"
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
 
 // AdminQuestions renders the customer questions waiting for the shop.
 templ AdminQuestions(p layouts.Page, v AdminQuestionsView) {
@@ -9,15 +14,14 @@ templ AdminQuestions(p layouts.Page, v AdminQuestionsView) {
 			@adminNav("questions")
 			<div class="ui-page-head">
 				<div>
-					<p class="ui-page-head__eyebrow">後台</p>
-					<h1 class="ui-page-head__title">顧客提問</h1>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageQuestions) }</h1>
 					<p class="ui-page-head__sub">
-						等最久的排在最前面 —— 問了三天沒人回的比今天早上剛問的更急。
-						回覆會標示「官方回覆」,並排在該問題的最上面。
+						{ i18n.T(ctx, i18n.KeyAdminQuestionsLead) }
 					</p>
 				</div>
 				if v.Waiting() > 0 {
-					<span class="ui-badge ui-badge--brand">{ v.WaitingText() } 則待回覆</span>
+					<span class="ui-badge ui-badge--brand">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQuestionsWaiting), v.WaitingText()) }</span>
 				}
 			</div>
 			if v.Notice != "" {
@@ -25,7 +29,7 @@ templ AdminQuestions(p layouts.Page, v AdminQuestionsView) {
 			}
 			if v.Empty() {
 				<div class="ui-empty">
-					<p class="ui-empty__title">還沒有人提問</p>
+					<p class="ui-empty__title">{ i18n.T(ctx, i18n.KeyAdminQuestionsEmpty) }</p>
 				</div>
 			} else {
 				<ul class="goen-admin__questions" role="list">
@@ -37,26 +41,26 @@ templ AdminQuestions(p layouts.Page, v AdminQuestionsView) {
 							</div>
 							<p class="goen-qa__question">{ q.Body }</p>
 							<span class="ui-cart-line__meta">
-								{ q.Who(ctx) } · { q.Asked } · { q.AnswersText() } 則回覆
+								{ q.Who(ctx) } · { q.Asked } · { fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQuestionAnswers), q.AnswersText()) }
 							</span>
 							<form class="goen-admin__form" method="post" action={ templ.SafeURL(q.AnswerAction()) }>
 								<div class="ui-field">
-									<label class="goen-sr-only" for={ "answer-" + q.ID }>回覆</label>
+									<label class="goen-sr-only" for={ "answer-" + q.ID }>{ i18n.T(ctx, i18n.KeyAdminQuestionReply) }</label>
 									<textarea
 										class="ui-input"
 										id={ "answer-" + q.ID }
 										name="body"
 										rows="2"
 										maxlength="1000"
-										placeholder="以 goen 的名義回覆"
+										placeholder={ i18n.T(ctx, i18n.KeyAdminQuestionHint) }
 									></textarea>
 								</div>
 								<div class="goen-admin__heroactions">
 									<button class="ui-btn ui-btn--primary" type="submit" name="action" value="answer">
-										送出官方回覆
+										{ i18n.T(ctx, i18n.KeyAdminQuestionSend) }
 									</button>
 									<button class="ui-btn ui-btn--secondary" type="submit" name="action" value="hide">
-										隱藏這則提問
+										{ i18n.T(ctx, i18n.KeyAdminQuestionHide) }
 									</button>
 								</div>
 							</form>

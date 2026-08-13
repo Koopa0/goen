@@ -1,6 +1,11 @@
 package pages
 
-import "github.com/koopa0/goen/internal/ui/layouts"
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
 
 // AdminReviews renders the review queue.
 templ AdminReviews(p layouts.Page, v AdminReviewsView) {
@@ -9,11 +14,10 @@ templ AdminReviews(p layouts.Page, v AdminReviewsView) {
 			@adminNav("reviews")
 			<div class="ui-page-head">
 				<div>
-					<p class="ui-page-head__eyebrow">後台</p>
-					<h1 class="ui-page-head__title">顧客評價</h1>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageReviews) }</h1>
 					<p class="ui-page-head__sub">
-						評價寫完就顯示,不先審 —— 每一則都要人核准的評價頁,讀起來就是廣告。
-						隱藏是例外,而且會把那一則從評分裡一起拿掉。
+						{ i18n.T(ctx, i18n.KeyAdminReviewsLead) }
 					</p>
 				</div>
 			</div>
@@ -21,7 +25,7 @@ templ AdminReviews(p layouts.Page, v AdminReviewsView) {
 				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
 			}
 			if v.Empty() {
-				<p class="goen-admin__hint">還沒有任何評價。</p>
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminReviewsEmpty) }</p>
 			} else {
 				<ul class="goen-admin__returns" role="list">
 					for _, r := range v.Rows {
@@ -32,13 +36,13 @@ templ AdminReviews(p layouts.Page, v AdminReviewsView) {
 								</p>
 								<span class="ui-cart-line__meta">
 									<span aria-hidden="true">{ r.Stars() }</span>
-									<span class="goen-sr-only">{ r.RatingText() } 分</span>
+									<span class="goen-sr-only">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminReviewStars), r.RatingText()) }</span>
 									· { r.DisplayAuthor(ctx) } · { r.At }
 									if r.Verified {
-										· 已購買
+										{ i18n.T(ctx, i18n.KeyAdminReviewBought) }
 									}
 									if r.Hidden {
-										· 已隱藏(不計入評分)
+										{ i18n.T(ctx, i18n.KeyAdminReviewHidden) }
 									}
 								</span>
 								if r.Title != "" {

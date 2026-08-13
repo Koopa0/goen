@@ -1,6 +1,9 @@
 package pages
 
-import "github.com/koopa0/goen/internal/ui/layouts"
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
 
 // AdminAudit renders the back office's own history.
 templ AdminAudit(p layouts.Page, v AuditView) {
@@ -9,15 +12,15 @@ templ AdminAudit(p layouts.Page, v AuditView) {
 			@adminNav("audit")
 			<div class="ui-page-head">
 				<div>
-					<p class="ui-page-head__eyebrow">後台</p>
-					<h1 class="ui-page-head__title">操作紀錄</h1>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageAudit) }</h1>
 					<p class="ui-page-head__sub">
-						誰在什麼時候做了什麼。這份紀錄只能新增,寫進去就改不了也刪不掉。
+						{ i18n.T(ctx, i18n.KeyAdminAuditLead) }
 					</p>
 				</div>
 			</div>
 			if v.Empty() {
-				<p class="goen-admin__hint">還沒有任何紀錄。</p>
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminAuditEmpty) }</p>
 			} else {
 				<ul class="goen-admin__audit" role="list">
 					for _, e := range v.Rows {
