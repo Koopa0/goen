@@ -1048,9 +1048,13 @@ func (s *Store) splitRefund(ctx context.Context, row *db.ReturnForDecisionRow) (
 		// what has already gone back, what each source has left, and what is being
 		// asked for. refunds_within_capture would refuse the card over-claim
 		// anyway, and nobody can act on a constraint name.
+		// English, like every error value here. It reaches the staff member as
+		// KeyAdminNoticeRefused and reaches the OPERATOR in full, in the log —
+		// which is the reader who can act on seven figures.
 		return refundSplit{}, fmt.Errorf(
-			"%w: 這筆訂單卡片收了 %d,已退 %d,只剩 %d 可退;購物金用了 %d,已還 %d,"+
-				"只剩 %d 可還。這次要退 %d,兩邊加起來不夠",
+			"%w: this order captured %d on the card, %d is already refunded and %d remains; "+
+				"%d of store credit was spent, %d returned and %d remains. "+
+				"Refunding %d does not fit across the two",
 			ErrRefused, row.CapturedAmountCents.Int64, alreadyRefunded, capturedRemaining,
 			credit.Spent, credit.Returned, creditRemaining, row.RefundableCents)
 	}
@@ -1099,10 +1103,17 @@ func (s *Store) approveWithRefund(ctx context.Context, row *db.ReturnForDecision
 		if _, err := s.q.CompensateReturnWithCredit(ctx, db.CompensateReturnWithCreditParams{
 			UserID:      row.UserID.UUID,
 			AmountCents: split.Credit,
-			Reason:      "退貨退回購物金",
-			OrderID:     row.OrderID,
-			ReturnID:    row.ID.String(),
-			Actor:       actor,
+			// i18n-exempt: a store_credit_entries.reason VALUE, not chrome. It is
+			// written once and read forever, so translating it at write time
+			// would stamp whichever language the staff member happened to be
+			// reading in onto a row that outlives the session — and the ledger
+			// is read only by /admin, whose LABELS follow the reader while its
+			// stored values do not. CLAUDE.md's line: copy typed into a table is
+			// the shop's to say however it likes.
+			Reason:   "退貨退回購物金",
+			OrderID:  row.OrderID,
+			ReturnID: row.ID.String(),
+			Actor:    actor,
 		}); err != nil {
 			return fmt.Errorf("compensate return %s with credit: %w", row.ID, err)
 		}
@@ -1189,7 +1200,8 @@ func (s *Store) refundCard(ctx context.Context, row *db.ReturnForDecisionRow,
 		// Terminal and no money moved. The return must NOT close: approving it
 		// would leave a settled return, an unpaid customer and no door back,
 		// since a return is decided once.
-		return "", state, fmt.Errorf("%w: 退款在金流端是 %s,錢沒有退出去 —— 退貨先不結案",
+		return "", state, fmt.Errorf(
+			"%w: the provider reports the refund as %s, so no money left — the return stays open",
 			ErrRefused, state)
 	default:
 		// RefundState is goen's own closed set and refundState is its only
@@ -1550,7 +1562,7 @@ func (s *Store) Movements(ctx context.Context, sku string) (pages.AdminMovements
 // meant to remove it. The number is the shop's own reference and is safe.
 func (s *Store) IssueInvoice(ctx context.Context, number string) error {
 	if s.invoices == nil {
-		return fmt.Errorf("%w: no 加值中心 is configured", ErrRefused)
+		return fmt.Errorf("%w: no e-invoice provider is configured", ErrRefused)
 	}
 	doc, err := s.invoices.Issue(ctx, number)
 	if err != nil {
@@ -1565,7 +1577,7 @@ func (s *Store) IssueInvoice(ctx context.Context, number string) error {
 // VoidInvoice cancels an order's live invoice, at the 加值中心 and here.
 func (s *Store) VoidInvoice(ctx context.Context, number, reason string) error {
 	if s.invoices == nil {
-		return fmt.Errorf("%w: no 加值中心 is configured", ErrRefused)
+		return fmt.Errorf("%w: no e-invoice provider is configured", ErrRefused)
 	}
 	if err := s.invoices.Void(ctx, number, reason); err != nil {
 		return err

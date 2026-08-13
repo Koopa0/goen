@@ -32,10 +32,16 @@ func (s *Store) AttachImage(
 ) error {
 	alt, altEn = strings.TrimSpace(alt), strings.TrimSpace(altEn)
 	if alt == "" || utf8.RuneCountInString(alt) > MaxAltRunes {
-		return fmt.Errorf("%w: 請填寫圖片說明文字", ErrInvalid)
+		// English, like every error string in this repository. It is never
+		// shown: the handler branches on ErrInvalid and redirects with
+		// ?noalt=1, and the SENTENCE the staff member reads is
+		// KeyAdminNoticeNoAlt. A Chinese error value here was a customer-facing
+		// string only by the sweep's reckoning, and English is what the
+		// convention asks of the log line it actually becomes.
+		return fmt.Errorf("%w: alt text is required and bounded at %d runes", ErrInvalid, MaxAltRunes)
 	}
 	if utf8.RuneCountInString(altEn) > MaxAltRunes {
-		return fmt.Errorf("%w: 英文圖片說明文字太長", ErrInvalid)
+		return fmt.Errorf("%w: the English alt text is longer than %d runes", ErrInvalid, MaxAltRunes)
 	}
 	return s.audited(ctx, Event{
 		Action: ActionAttachImage, Table: "product_images", ID: uuid.NullUUID{},
