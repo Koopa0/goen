@@ -130,8 +130,9 @@ func (h *Handler) RequireStaff(next http.HandlerFunc) http.HandlerFunc {
 		u, ok := account.FromContext(r.Context())
 		if !ok || !u.IsAdmin() {
 			web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
-				layouts.Page{Title: "找不到頁面"}, "404", "找不到這個頁面",
-				"這個網址目前沒有對應的內容。"))
+				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminNotFoundTitle)}, "404",
+				i18n.T(r.Context(), i18n.KeyAdminNotFoundHead),
+				i18n.T(r.Context(), i18n.KeyAdminNotFoundBody)))
 			return
 		}
 
@@ -184,8 +185,9 @@ func (h *Handler) RequireAdmin(next http.HandlerFunc) http.HandlerFunc {
 		u, ok := account.FromContext(r.Context())
 		if !ok || !u.IsStaff() {
 			web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
-				layouts.Page{Title: "找不到頁面"}, "404", "找不到這個頁面",
-				"這個網址目前沒有對應的內容。"))
+				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminNotFoundTitle)}, "404",
+				i18n.T(r.Context(), i18n.KeyAdminNotFoundHead),
+				i18n.T(r.Context(), i18n.KeyAdminNotFoundBody)))
 			return
 		}
 		next(w, r)
@@ -200,7 +202,7 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminDashboard(pages.AdminMeta, view))
+	web.Render(w, r, h.log, http.StatusOK, pages.AdminDashboard(pages.AdminMeta(r.Context()), view))
 }
 
 // Orders serves GET /admin/orders.
@@ -213,7 +215,7 @@ func (h *Handler) Orders(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminOrders(pages.AdminOrdersMeta, view))
+	web.Render(w, r, h.log, http.StatusOK, pages.AdminOrders(pages.AdminOrdersMeta(r.Context()), view))
 }
 
 // Order serves GET /admin/orders/{number}.
@@ -222,7 +224,9 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
-				layouts.Page{Title: "找不到訂單"}, "404", "找不到這筆訂單", "訂單編號不存在。"))
+				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminNoOrderTitle)}, "404",
+				i18n.T(r.Context(), i18n.KeyAdminNoOrderHead),
+				i18n.T(r.Context(), i18n.KeyAdminNoOrderBody)))
 			return
 		}
 		h.log.ErrorContext(r.Context(), "read order", "error", err)
@@ -231,13 +235,13 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = noticeFor(r)
 	web.Render(w, r, h.log, http.StatusOK,
-		pages.AdminOrder(layouts.Page{Title: "訂單 " + view.Number}, &view))
+		pages.AdminOrder(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }
 
 // AdvanceOrder serves POST /admin/orders/{number}/status.
 func (h *Handler) AdvanceOrder(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	number := r.PathValue("number")
@@ -274,7 +278,7 @@ func (h *Handler) AdvanceOrder(w http.ResponseWriter, r *http.Request) {
 // none of those may happen without the others.
 func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	number := r.PathValue("number")
@@ -375,7 +379,7 @@ func staffID(r *http.Request) uuid.NullUUID {
 // StaffNote serves POST /admin/orders/{number}/note.
 func (h *Handler) StaffNote(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	number := r.PathValue("number")
@@ -400,14 +404,14 @@ func (h *Handler) Variants(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = noticeFor(r)
-	web.Render(w, r, h.log, http.StatusOK, pages.AdminVariants(pages.AdminVariantsMeta, view))
+	web.Render(w, r, h.log, http.StatusOK, pages.AdminVariants(pages.AdminVariantsMeta(r.Context()), view))
 }
 
 // AdjustStock serves POST /admin/stock/adjust.
 func (h *Handler) AdjustStock(w http.ResponseWriter, r *http.Request) {
 	u, _ := account.FromContext(r.Context())
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	delta, ok := ParseAdjustment(r.PostFormValue("delta"))
@@ -443,7 +447,7 @@ func (h *Handler) AdjustStock(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ReceiveStock(w http.ResponseWriter, r *http.Request) {
 	u, _ := account.FromContext(r.Context())
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	sku := r.PostFormValue("sku")
@@ -479,7 +483,7 @@ func (h *Handler) ReceiveStock(w http.ResponseWriter, r *http.Request) {
 // SetVariantActive serves POST /admin/stock/active.
 func (h *Handler) SetVariantActive(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	err := h.store.SetVariantActive(r.Context(),
@@ -502,7 +506,7 @@ func (h *Handler) SetVariantActive(w http.ResponseWriter, r *http.Request) {
 // SetVariantPrice serves POST /admin/stock/price.
 func (h *Handler) SetVariantPrice(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	price, okPrice := ParsePrice(r.PostFormValue("price"))
@@ -537,40 +541,40 @@ func (h *Handler) SetVariantPrice(w http.ResponseWriter, r *http.Request) {
 //
 // i18n-exempt: the back office is the staff of one Taiwanese shop, which is the
 // category exemption the chrome-language rule already names.
-var adminNotices = map[string]string{
-	"ok":            "已更新。",
-	"refused":       "資料庫拒絕了這個變更。可能是狀態流程不允許,或會違反庫存與活動規則。",
-	"shipped":       "已出貨。配送資訊與庫存都已記錄。",
-	"toolate":       "這筆訂單已經出貨,收件資訊改不了了。包裹已經寄出,改紀錄只會讓紀錄和事實對不上。",
-	"needs":         "請填寫物流商與查詢編號。",
-	"toobig":        "圖片太大了,請用 8 MB 以內的檔案。",
-	"notimage":      "這個檔案不是可以辨識的圖片。支援 JPEG、PNG、GIF 與 WebP。",
-	"uploadfailed":  "圖片上傳失敗,請再試一次。",
-	"inuse":         "還有商品或子分類在用它,先把那些移到別的地方再刪。",
-	"attachrefused": "這張圖片已經在這個商品上了。",
-	"noalt":         "請填寫圖片說明文字 —— 讀螢幕的人靠它知道圖裡是什麼。",
-	"nodiscount":    "這個商品沒有標示原價,無法加入活動。先在商品頁設定原價再試一次。",
-	"refundfailed":  "退款沒有完成。退款紀錄已經留下,請確認 Stripe 後台再處理一次。",
-	"received":      "進貨已入庫,帳本上記的是「進貨」而不是「人工調整」。",
-	"badqty":        "進貨數量要是正整數。要往下修正數字請用「調整」—— 進貨是有東西進來,調整是數字算錯了,帳本分得出這兩件事。",
-	"inspected":     "驗貨已記錄,可再販售的數量已經入庫。",
-	"closed":        "退貨已結案。",
-	"badcount":      "數量填寫有問題:入庫數不能超過實際收到的數量,實際收到也不能超過申請退回的數量。",
-	"badparcel":     "出貨數量填寫有問題:每一項不能超過還沒出貨的數量,也不能超過這筆訂單保留的庫存。",
-	"invoiced":      "發票已開立。",
-	"voided":        "發票已作廢。要重開的話,現在可以再開一張。",
-	"hasinvoice":    "這筆訂單已經有一張有效的發票了。要換一張就先作廢。",
-	"noinvoice":     "這筆訂單沒有可以作廢的發票。",
-	"invoicefailed": "加值中心拒絕了這次操作,詳細原因在伺服器紀錄裡。常見的是統編格式或載具號碼不正確。",
+var adminNotices = map[string]i18n.Key{
+	"ok":            i18n.KeyAdminNoticeOK,
+	"refused":       i18n.KeyAdminNoticeRefused,
+	"shipped":       i18n.KeyAdminNoticeShipped,
+	"toolate":       i18n.KeyAdminNoticeTooLate,
+	"needs":         i18n.KeyAdminNoticeNeeds,
+	"toobig":        i18n.KeyAdminNoticeTooBig,
+	"notimage":      i18n.KeyAdminNoticeNotImage,
+	"uploadfailed":  i18n.KeyAdminNoticeUploadFailed,
+	"inuse":         i18n.KeyAdminNoticeInUse,
+	"attachrefused": i18n.KeyAdminNoticeAttachRefused,
+	"noalt":         i18n.KeyAdminNoticeNoAlt,
+	"nodiscount":    i18n.KeyAdminNoticeNoDiscount,
+	"refundfailed":  i18n.KeyAdminNoticeRefundFailed,
+	"received":      i18n.KeyAdminNoticeReceived,
+	"badqty":        i18n.KeyAdminNoticeBadQty,
+	"inspected":     i18n.KeyAdminNoticeInspected,
+	"closed":        i18n.KeyAdminNoticeClosed,
+	"badcount":      i18n.KeyAdminNoticeBadCount,
+	"badparcel":     i18n.KeyAdminNoticeBadParcel,
+	"invoiced":      i18n.KeyAdminNoticeInvoiced,
+	"voided":        i18n.KeyAdminNoticeVoided,
+	"hasinvoice":    i18n.KeyAdminNoticeHasInvoice,
+	"noinvoice":     i18n.KeyAdminNoticeNoInvoice,
+	"invoicefailed": i18n.KeyAdminNoticeInvoiceFailed,
 }
 
 // noticeFor turns the one-shot query parameter a redirect carries into the
 // message the page shows.
 func noticeFor(r *http.Request) string {
 	q := r.URL.Query()
-	for key, message := range adminNotices {
-		if q.Get(key) == "1" {
-			return message
+	for name, k := range adminNotices {
+		if q.Get(name) == "1" {
+			return i18n.T(r.Context(), k)
 		}
 	}
 	return ""
@@ -587,7 +591,9 @@ func newKey() string {
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
-		layouts.Page{Title: "暫時無法處理"}, "", "暫時無法處理", "請稍後再試。"))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminErrorTitle)}, "",
+		i18n.T(r.Context(), i18n.KeyAdminErrorTitle),
+		i18n.T(r.Context(), i18n.KeyAdminErrorBody)))
 }
 
 // Returns serves GET /admin/returns.
@@ -600,7 +606,7 @@ func (h *Handler) Returns(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = noticeFor(r)
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminReturns(
-		layouts.Page{Title: "退貨申請"}, view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReturns)}, view))
 }
 
 // Decide serves POST /admin/returns/{id}/decide.
@@ -610,7 +616,7 @@ func (h *Handler) Returns(w http.ResponseWriter, r *http.Request) {
 // a customer told they were refunded and no money moved.
 func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	err := h.store.Decide(r.Context(), r.PathValue("id"),
@@ -639,7 +645,7 @@ func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 // then refuses to close, with nothing on screen saying why.
 func (h *Handler) Inspect(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 
@@ -714,7 +720,7 @@ func inspectionLines(r *http.Request) ([]ReturnLineInspection, error) {
 // Complete serves POST /admin/returns/{id}/complete.
 func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	err := h.store.CompleteReturn(r.Context(), r.PathValue("id"),
@@ -746,7 +752,7 @@ func (h *Handler) Credit(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = creditNotice(r)
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminCredit(
-		layouts.Page{Title: "商店額度"}, view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, view))
 }
 
 // creditNotice is the credit page's own version of noticeFor.
@@ -763,7 +769,7 @@ func creditNotice(r *http.Request) string {
 	if err != nil {
 		return noticeFor(r)
 	}
-	return "已發放。這位顧客目前的餘額是 " + pages.TWD(balance) + "。"
+	return fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminNoticeCreditGranted), pages.TWD(balance))
 }
 
 // GrantCredit serves POST /admin/credit.
@@ -773,7 +779,7 @@ func creditNotice(r *http.Request) string {
 // that eventually gives somebody a hundred times too much.
 func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	dollars, parseErr := strconv.ParseInt(strings.TrimSpace(r.PostFormValue("amount")), 10, 32)
@@ -812,7 +818,7 @@ func (h *Handler) Products(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = noticeFor(r)
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminProducts(
-		layouts.Page{Title: "商品"}, view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageProducts)}, view))
 }
 
 // NewProduct serves GET /admin/products/new.
@@ -824,13 +830,13 @@ func (h *Handler) NewProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminProductForm(
-		layouts.Page{Title: "新增商品"}, view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewProduct)}, view))
 }
 
 // CreateProduct serves POST /admin/products.
 func (h *Handler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	f := productFormOf(r)
@@ -889,7 +895,7 @@ func (h *Handler) EditProduct(w http.ResponseWriter, r *http.Request) {
 // UpdateProduct serves POST /admin/products/{slug}.
 func (h *Handler) UpdateProduct(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	f := productFormOf(r)
@@ -911,7 +917,7 @@ func (h *Handler) UpdateProduct(w http.ResponseWriter, r *http.Request) {
 // PublishProduct serves POST /admin/products/{slug}/status.
 func (h *Handler) PublishProduct(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	slug := r.PathValue("slug")
@@ -929,7 +935,7 @@ func (h *Handler) PublishProduct(w http.ResponseWriter, r *http.Request) {
 // AddVariant serves POST /admin/products/{slug}/variants.
 func (h *Handler) AddVariant(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	slug := r.PathValue("slug")
@@ -1034,8 +1040,9 @@ func parseSafetyStock(s string) int32 {
 
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
-		layouts.Page{Title: "找不到頁面"}, "404", "找不到這個頁面",
-		"這個網址目前沒有對應的內容。"))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminNotFoundTitle)}, "404",
+		i18n.T(r.Context(), i18n.KeyAdminNotFoundHead),
+		i18n.T(r.Context(), i18n.KeyAdminNotFoundBody)))
 }
 
 // Coupons serves GET /admin/coupons.
@@ -1048,13 +1055,13 @@ func (h *Handler) Coupons(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = noticeFor(r)
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminCoupons(
-		layouts.Page{Title: "折扣碼"}, view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCoupons)}, view))
 }
 
 // CreateCoupon serves POST /admin/coupons.
 func (h *Handler) CreateCoupon(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	f := &CouponForm{
@@ -1095,7 +1102,7 @@ func (h *Handler) CreateCoupon(w http.ResponseWriter, r *http.Request) {
 			Days:        r.PostFormValue("days"),
 		}
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminCoupons(
-			layouts.Page{Title: "折扣碼"}, view))
+			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCoupons)}, view))
 	default:
 		http.Redirect(w, r, "/admin/coupons?ok=1", http.StatusSeeOther)
 	}
@@ -1104,7 +1111,7 @@ func (h *Handler) CreateCoupon(w http.ResponseWriter, r *http.Request) {
 // SetCouponActive serves POST /admin/coupons/{code}/active.
 func (h *Handler) SetCouponActive(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	if err := h.store.SetCouponActive(r.Context(), r.PathValue("code"),
@@ -1145,13 +1152,13 @@ func (h *Handler) Campaigns(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = noticeFor(r)
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminCampaigns(
-		layouts.Page{Title: "限時活動"}, view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCampaigns)}, view))
 }
 
 // CreateCampaign serves POST /admin/campaigns.
 func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	f := &CampaignForm{
@@ -1175,7 +1182,7 @@ func (h *Handler) CreateCampaign(w http.ResponseWriter, r *http.Request) {
 			Slug: f.Slug, Title: f.Title, Days: r.PostFormValue("days"),
 		}
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminCampaigns(
-			layouts.Page{Title: "限時活動"}, view))
+			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCampaigns)}, view))
 	default:
 		//nolint:gosec // G710: slug matched slugFormat in Validate
 		http.Redirect(w, r, "/admin/campaigns/"+f.Slug+"?ok=1", http.StatusSeeOther)
@@ -1200,7 +1207,7 @@ func (h *Handler) EditCampaign(w http.ResponseWriter, r *http.Request) {
 // FeatureProduct serves POST /admin/campaigns/{slug}/products.
 func (h *Handler) FeatureProduct(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	slug := r.PathValue("slug")
@@ -1225,7 +1232,7 @@ func (h *Handler) FeatureProduct(w http.ResponseWriter, r *http.Request) {
 // SetCampaignActive serves POST /admin/campaigns/{slug}/active.
 func (h *Handler) SetCampaignActive(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	if err := h.store.SetCampaignActive(r.Context(), r.PathValue("slug"),
@@ -1246,7 +1253,7 @@ func (h *Handler) Audit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminAudit(
-		layouts.Page{Title: "操作紀錄"}, view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageAudit)}, view))
 }
 
 // UploadImage serves POST /admin/products/{slug}/images.
@@ -1293,7 +1300,7 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 // the work does not.
 func (h *Handler) ReuseImage(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	slug := r.PathValue("slug")
@@ -1323,7 +1330,7 @@ func (h *Handler) ReuseImage(w http.ResponseWriter, r *http.Request) {
 // RemoveImage serves POST /admin/products/{slug}/images/remove.
 func (h *Handler) RemoveImage(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	slug := r.PathValue("slug")
@@ -1353,7 +1360,7 @@ func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
 // CreateShippingMethod serves POST /admin/shipping/method.
 func (h *Handler) CreateShippingMethod(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	m := &NewMethod{
@@ -1394,7 +1401,7 @@ func (h *Handler) CreateShippingMethod(w http.ResponseWriter, r *http.Request) {
 // method that ever carried a parcel is part of the record.
 func (h *Handler) SetShippingMethodActive(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	err := h.store.SetMethodActive(r.Context(), r.PathValue("id"),
@@ -1410,7 +1417,7 @@ func (h *Handler) SetShippingMethodActive(w http.ResponseWriter, r *http.Request
 // CreateShippingZone serves POST /admin/shipping/zone.
 func (h *Handler) CreateShippingZone(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	z := &NewZone{
@@ -1436,7 +1443,7 @@ func (h *Handler) CreateShippingZone(w http.ResponseWriter, r *http.Request) {
 // SetZonePrefixes serves POST /admin/shipping/zone/{id}/prefixes.
 func (h *Handler) SetZonePrefixes(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	errs, err := h.store.SetZonePrefixes(r.Context(), r.PathValue("id"),
@@ -1455,7 +1462,7 @@ func (h *Handler) SetZonePrefixes(w http.ResponseWriter, r *http.Request) {
 // DeleteShippingZone serves POST /admin/shipping/zone/{id}/delete.
 func (h *Handler) DeleteShippingZone(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	err := h.store.DeleteZone(r.Context(), r.PathValue("id"))
@@ -1484,7 +1491,7 @@ func (h *Handler) rejectShippingForm(
 	}
 	view.Errors, view.MethodDraft, view.ZoneDraft = errs, method, zone
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminShipping(
-		layouts.Page{Title: "配送與運費"}, view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }
 
 // dollars reads a whole-dollar amount, treating a blank or unparseable box as zero.
@@ -1510,13 +1517,13 @@ func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = noticeFor(r)
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminFAQ(
-		layouts.Page{Title: "常見問題"}, &view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
 }
 
 // CreateFAQEntry serves POST /admin/faq.
 func (h *Handler) CreateFAQEntry(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	f := faqFormOf(r)
@@ -1538,7 +1545,7 @@ func (h *Handler) CreateFAQEntry(w http.ResponseWriter, r *http.Request) {
 // the taxonomy rows do it: one decision a staff member makes on one row.
 func (h *Handler) EditFAQEntry(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	id := r.PathValue("id")
@@ -1595,7 +1602,7 @@ func (h *Handler) rejectFAQ(
 		CategoryEn: f.CategoryEn, QuestionEn: f.QuestionEn, AnswerEn: f.AnswerEn,
 	}
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminFAQ(
-		layouts.Page{Title: "常見問題"}, &view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageFAQ)}, &view))
 }
 
 // AddOption serves POST /admin/products/{slug}/options.
@@ -1625,7 +1632,7 @@ func (h *Handler) optionWrite(
 	w http.ResponseWriter, r *http.Request, write func(slug string) (map[string]string, error),
 ) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	slug := r.PathValue("slug")
@@ -1645,7 +1652,7 @@ func (h *Handler) optionWrite(
 // AddSpec serves POST /admin/products/{slug}/specs.
 func (h *Handler) AddSpec(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	slug := r.PathValue("slug")
@@ -1673,7 +1680,7 @@ func (h *Handler) AddSpec(w http.ResponseWriter, r *http.Request) {
 // RemoveSpec serves POST /admin/products/{slug}/specs/remove.
 func (h *Handler) RemoveSpec(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	slug := r.PathValue("slug")
@@ -1745,13 +1752,13 @@ func (h *Handler) HomeContent(w http.ResponseWriter, r *http.Request) {
 	view.Banners = banners
 	view.Notice = noticeFor(r)
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminHome(
-		layouts.Page{Title: "首頁主視覺"}, &view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
 }
 
 // CreateBanner serves POST /admin/home/banner.
 func (h *Handler) CreateBanner(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	f := &BannerForm{
@@ -1781,7 +1788,7 @@ func (h *Handler) CreateBanner(w http.ResponseWriter, r *http.Request) {
 // SetBannerActive serves POST /admin/home/banner/{id}/active.
 func (h *Handler) SetBannerActive(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	err := h.store.SetBannerActive(r.Context(), r.PathValue("id"),
@@ -1813,7 +1820,7 @@ func (h *Handler) rejectBanner(
 		MessageEn: f.MessageEn, ShortEn: f.ShortEn, CTALabelEn: f.CTALabelEn,
 	}
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminHome(
-		layouts.Page{Title: "首頁主視覺"}, &view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
 }
 
 // CreateHeroSlide serves POST /admin/home.
@@ -1870,7 +1877,7 @@ func (h *Handler) CreateHeroSlide(w http.ResponseWriter, r *http.Request) {
 			ImageAltEn: f.ImageAltEn,
 		}
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminHome(
-			layouts.Page{Title: "首頁主視覺"}, &view))
+			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
 	default:
 		http.Redirect(w, r, "/admin/home?ok=1", http.StatusSeeOther)
 	}
@@ -1879,7 +1886,7 @@ func (h *Handler) CreateHeroSlide(w http.ResponseWriter, r *http.Request) {
 // SetHeroSlideActive serves POST /admin/home/{id}/active.
 func (h *Handler) SetHeroSlideActive(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	if err := h.store.SetHeroSlideActive(r.Context(), r.PathValue("id"),
@@ -1894,7 +1901,7 @@ func (h *Handler) SetHeroSlideActive(w http.ResponseWriter, r *http.Request) {
 // PromoteHeroSlide serves POST /admin/home/{id}/promote.
 func (h *Handler) PromoteHeroSlide(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	if err := h.store.PromoteHeroSlide(r.Context(), r.PathValue("id")); err != nil {
@@ -1915,7 +1922,7 @@ func (h *Handler) Taxonomy(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = noticeFor(r)
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminTaxonomy(
-		layouts.Page{Title: "品牌與分類"}, &view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTaxonomy)}, &view))
 }
 
 // CreateTaxon serves POST /admin/taxonomy/{kind}.
@@ -1925,7 +1932,7 @@ func (h *Handler) Taxonomy(w http.ResponseWriter, r *http.Request) {
 // constrains rather than anything a form supplies.
 func (h *Handler) CreateTaxon(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	kind := r.PathValue("kind")
@@ -1958,7 +1965,7 @@ func (h *Handler) CreateTaxon(w http.ResponseWriter, r *http.Request) {
 			Slug: f.Slug, Name: f.Name, NameEn: f.NameEn, Parent: f.Parent,
 		}
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminTaxonomy(
-			layouts.Page{Title: "品牌與分類"}, &view))
+			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTaxonomy)}, &view))
 	default:
 		http.Redirect(w, r, "/admin/taxonomy?ok=1", http.StatusSeeOther)
 	}
@@ -1971,7 +1978,7 @@ func (h *Handler) CreateTaxon(w http.ResponseWriter, r *http.Request) {
 // for what is one decision a staff member makes on one row.
 func (h *Handler) EditTaxon(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	kind := "brand"
@@ -2020,7 +2027,7 @@ func (h *Handler) Reports(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminReport(
-		layouts.Page{Title: "報表"}, &view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReports)}, &view))
 }
 
 // Questions serves GET /admin/questions.
@@ -2033,7 +2040,7 @@ func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = noticeFor(r)
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminQuestions(
-		layouts.Page{Title: "顧客提問"}, view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageQuestions)}, view))
 }
 
 // AnswerQuestion serves POST /admin/questions/{id}.
@@ -2047,7 +2054,7 @@ func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	id := r.PathValue("id")
@@ -2081,7 +2088,7 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminHealth(
-		layouts.Page{Title: "背景作業"}, view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHealth)}, view))
 }
 
 // Shipping serves GET /admin/shipping.
@@ -2094,13 +2101,13 @@ func (h *Handler) Shipping(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = noticeFor(r)
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminShipping(
-		layouts.Page{Title: "配送與運費"}, view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }
 
 // PublishShippingVersion serves POST /admin/shipping/version.
 func (h *Handler) PublishShippingVersion(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	fee, feeErr := strconv.ParseInt(strings.TrimSpace(r.PostFormValue("fee")), 10, 64)
@@ -2136,7 +2143,7 @@ func (h *Handler) PublishShippingVersion(w http.ResponseWriter, r *http.Request)
 // SetZoneSurcharge serves POST /admin/shipping/surcharge.
 func (h *Handler) SetZoneSurcharge(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	// An empty box means zero here, which CLEARS the surcharge: the field is
@@ -2183,13 +2190,13 @@ func (h *Handler) Tiers(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = noticeFor(r)
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminTiers(
-		layouts.Page{Title: "會員等級"}, view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTiers)}, view))
 }
 
 // CreateTier serves POST /admin/tiers.
 func (h *Handler) CreateTier(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	threshold, tErr := strconv.ParseInt(strings.TrimSpace(r.PostFormValue("threshold")), 10, 64)
@@ -2206,7 +2213,7 @@ func (h *Handler) CreateTier(w http.ResponseWriter, r *http.Request) {
 // DeleteTier serves POST /admin/tiers/delete.
 func (h *Handler) DeleteTier(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	h.redirectTiers(w, r, h.store.DeleteTier(r.Context(), r.PostFormValue("tier")))
@@ -2231,7 +2238,7 @@ func (h *Handler) redirectTiers(w http.ResponseWriter, r *http.Request, err erro
 // CorrectDelivery serves POST /admin/orders/{number}/delivery.
 func (h *Handler) CorrectDelivery(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	number := r.PathValue("number")
@@ -2268,7 +2275,7 @@ func (h *Handler) Reviews(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = noticeFor(r)
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminReviews(
-		layouts.Page{Title: "顧客評價"}, view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReviews)}, view))
 }
 
 // HideReview serves POST /admin/reviews/hide.
@@ -2283,7 +2290,7 @@ func (h *Handler) ShowReview(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) setReviewHidden(w http.ResponseWriter, r *http.Request, hidden bool) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	switch err := h.store.SetReviewHidden(r.Context(), r.PostFormValue("review"), hidden); {
@@ -2307,7 +2314,7 @@ func (h *Handler) Messages(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = noticeFor(r)
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminMessages(
-		layouts.Page{Title: "聯絡訊息"}, view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageMessages)}, view))
 }
 
 // HandleMessage serves POST /admin/messages/handle.
@@ -2322,7 +2329,7 @@ func (h *Handler) ReopenMessage(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) setMessageHandled(w http.ResponseWriter, r *http.Request, handled bool) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	switch err := h.store.SetMessageHandled(r.Context(), r.PostFormValue("message"), handled); {
@@ -2354,14 +2361,14 @@ func (h *Handler) Newsletter(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Notice = noticeFor(r)
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminNewsletter(
-		layouts.Page{Title: "電子報"}, view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewsletter)}, view))
 }
 
 // ComposeNewsletter serves POST /admin/newsletter. It writes a DRAFT and sends
 // nothing: the irreversible step gets its own button.
 func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	subject, body := r.PostFormValue("subject"), r.PostFormValue("body")
@@ -2379,7 +2386,7 @@ func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
 			view.Errors[field] = i18n.T(r.Context(), k)
 		}
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminNewsletter(
-			layouts.Page{Title: "電子報"}, view))
+			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageNewsletter)}, view))
 		return
 	}
 
@@ -2443,7 +2450,7 @@ func (h *Handler) Customers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminCustomers(
-		layouts.Page{Title: "顧客"}, view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCustomers)}, view))
 }
 
 // Warranties serves GET /admin/warranty.
@@ -2461,7 +2468,7 @@ func (h *Handler) Warranties(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminWarranties(
-		layouts.Page{Title: "保固查詢"}, view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageWarranty)}, view))
 }
 
 // Customer serves GET /admin/customers/{id}.
@@ -2506,7 +2513,7 @@ func (h *Handler) IssueInvoice(w http.ResponseWriter, r *http.Request) {
 		// The 加值中心's own reason. Logged in full because it names the field
 		// to fix, and shown as a single message because a staff member cannot
 		// act on an RtnCode.
-		h.log.ErrorContext(r.Context(), "the 加值中心 refused the invoice",
+		h.log.ErrorContext(r.Context(), "the e-invoice provider refused the invoice",
 			"order", number, "error", err)
 		//nolint:gosec // G710: validated by IsOrderNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?invoicefailed=1", http.StatusSeeOther)
@@ -2523,7 +2530,7 @@ func (h *Handler) IssueInvoice(w http.ResponseWriter, r *http.Request) {
 // side and what the form's wording tells a staff member.
 func (h *Handler) VoidInvoice(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
-		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 	number := r.PathValue("number")
