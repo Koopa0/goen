@@ -2452,7 +2452,7 @@ func TestHealthIsDerivedFromTheWorkNotFromAHeartbeat(t *testing.T) {
 		t.Fatalf("health: %v", err)
 	}
 	if !clean.OutboxHealthy() {
-		t.Errorf("an empty outbox reads as unhealthy: %s", clean.OutboxText())
+		t.Errorf("an empty outbox reads as unhealthy: %s", clean.OutboxText(ctx))
 	}
 
 	// A message that has exhausted its attempts never resolves on its own —
@@ -2506,7 +2506,7 @@ func TestAMessageWaitingOnItsBackoffIsNotLate(t *testing.T) {
 		t.Errorf("a message not yet due reads as %v overdue", view.OutboxOldest)
 	}
 	if !view.OutboxHealthy() {
-		t.Errorf("a message waiting on its backoff reads as unhealthy: %s", view.OutboxText())
+		t.Errorf("a message waiting on its backoff reads as unhealthy: %s", view.OutboxText(ctx))
 	}
 }
 
@@ -2547,7 +2547,7 @@ func TestNeverRebuiltIsNotTheSameAsJustRebuilt(t *testing.T) {
 		t.Fatalf("health: %v", freshErr)
 	}
 	if !fresh.CopurchaseEverBuilt || !fresh.RecommendHealthy() {
-		t.Errorf("a just-rebuilt projection reads as %s", fresh.RecommendText())
+		t.Errorf("a just-rebuilt projection reads as %s", fresh.RecommendText(ctx))
 	}
 }
 
@@ -3608,8 +3608,8 @@ func TestTheInboxPutsTheLongestWaitFirst(t *testing.T) {
 				t.Error("a message from today reads as overdue")
 			}
 		case done:
-			if !r.Handled || r.Waiting() != "已處理" {
-				t.Errorf("a handled message reads as %q", r.Waiting())
+			if !r.Handled || r.Waiting(ctx) != "已處理" {
+				t.Errorf("a handled message reads as %q", r.Waiting(ctx))
 			}
 		}
 	}
@@ -4503,8 +4503,8 @@ func TestTheBackOfficeSeesWhoCancelled(t *testing.T) {
 			continue
 		}
 		found = true
-		if e.By() != "顧客" {
-			t.Errorf("the back office says %q cancelled it, want 顧客", e.By())
+		if e.By(ctx) != "顧客" {
+			t.Errorf("the back office says %q cancelled it, want 顧客", e.By(ctx))
 		}
 		if e.Note != "" {
 			t.Errorf("the cancellation still stores words: %q", e.Note)
@@ -5747,10 +5747,10 @@ func TestTheStockLedgerCanBeRead(t *testing.T) {
 	if newest.Delta != 7 {
 		t.Errorf("the newest movement is %d, want +7", newest.Delta)
 	}
-	if newest.Reason != "adjustment" || newest.ReasonText() != "人工調整" {
-		t.Errorf("the movement reads as %q / %q", newest.Reason, newest.ReasonText())
+	if newest.Reason != "adjustment" || newest.ReasonText(ctx) != "人工調整" {
+		t.Errorf("the movement reads as %q / %q", newest.Reason, newest.ReasonText(ctx))
 	}
-	if newest.By() == "系統" {
+	if newest.By(ctx) == "系統" {
 		t.Error("a hand adjustment is attributed to the system")
 	}
 	if newest.DeltaText() != "+7" {
@@ -5865,8 +5865,8 @@ func TestTheOrderPageShowsTheInvoiceChoice(t *testing.T) {
 	if !view.HasInvoice() {
 		t.Fatal("the order page does not show a 發票 preference that exists")
 	}
-	if view.InvoiceText() != "公司統編 12345678" {
-		t.Errorf("the page says %q, want 公司統編 12345678", view.InvoiceText())
+	if view.InvoiceText(ctx) != "公司統編 12345678" {
+		t.Errorf("the page says %q, want 公司統編 12345678", view.InvoiceText(ctx))
 	}
 
 	// An order with no preference says nothing rather than an empty row.

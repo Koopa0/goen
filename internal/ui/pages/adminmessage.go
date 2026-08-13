@@ -1,6 +1,12 @@
 package pages
 
-import "strconv"
+import (
+	"context"
+	"fmt"
+	"strconv"
+
+	"github.com/koopa0/goen/internal/i18n"
+)
 
 // AdminMessagesView is the customer-service inbox.
 //
@@ -55,16 +61,16 @@ func (m AdminMessage) HasOrderRef() bool { return m.OrderRef != "" }
 func (m AdminMessage) OrderHref() string { return "/admin/orders/" + m.OrderRef }
 
 // Waiting is how long it has been unanswered, in words.
-func (m AdminMessage) Waiting() string {
+func (m AdminMessage) Waiting(ctx context.Context) string {
 	switch {
 	case m.Handled:
-		return "已處理"
+		return i18n.T(ctx, i18n.KeyAdminMsgHandled)
 	case m.WaitingDays == 0:
-		return "今天"
+		return i18n.T(ctx, i18n.KeyAdminMsgToday)
 	case m.WaitingDays == 1:
-		return "等了 1 天"
+		return i18n.T(ctx, i18n.KeyAdminMsgOneDay)
 	default:
-		return "等了 " + strconv.Itoa(m.WaitingDays) + " 天"
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminMsgDays), m.WaitingDays)
 	}
 }
 
@@ -84,9 +90,9 @@ func (m AdminMessage) Action() string {
 }
 
 // ActionLabel is what the button says.
-func (m AdminMessage) ActionLabel() string {
+func (m AdminMessage) ActionLabel(ctx context.Context) string {
 	if m.Handled {
-		return "重新開啟"
+		return i18n.T(ctx, i18n.KeyAdminMsgReopen)
 	}
-	return "標記已處理"
+	return i18n.T(ctx, i18n.KeyAdminMsgHandle)
 }

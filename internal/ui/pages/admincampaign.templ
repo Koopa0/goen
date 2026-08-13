@@ -89,13 +89,13 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 								<li class="goen-admin__coupon">
 									<div class="goen-admin__couponhead">
 										<a class="goen-admin__sku" href={ templ.SafeURL(c.Href()) }>{ c.Title }</a>
-										<span class={ "ui-badge", templ.KV("ui-badge--brand", c.Live()) }>{ c.State() }</span>
+										<span class={ "ui-badge", templ.KV("ui-badge--brand", c.Live()) }>{ c.State(ctx) }</span>
 									</div>
 									<span class="ui-cart-line__meta">/s/{ c.Slug }</span>
 									<span class="ui-cart-line__meta">{ c.ProductsText() } 件商品 · 至 { c.EndsAt }</span>
 									<form method="post" action={ templ.SafeURL(c.ToggleAction()) }>
 										<input type="hidden" name="active" value={ c.NextActive() }/>
-										<button class="ui-btn ui-btn--secondary" type="submit">{ c.ToggleLabel() }</button>
+										<button class="ui-btn ui-btn--secondary" type="submit">{ c.ToggleLabel(ctx) }</button>
 									</form>
 								</li>
 							}

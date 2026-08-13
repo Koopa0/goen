@@ -1076,7 +1076,7 @@ SELECT
     o.shipping_cents,
     o.discount_cents,
     o.tax_cents,
-    coalesce(pd.recipient_name, '(已抹除)') AS recipient,
+    coalesce(pd.recipient_name, '') AS recipient,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
     order_is_committed(o.id) AS committed
@@ -1596,7 +1596,7 @@ SELECT
     o.shipping_cents,
     o.discount_cents,
     o.tax_cents,
-    coalesce(pd.recipient_name, '(已抹除)') AS recipient,
+    coalesce(pd.recipient_name, '') AS recipient,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
     order_is_committed(o.id) AS committed
@@ -2295,7 +2295,7 @@ func (q *Queries) AttachProductImage(ctx context.Context, arg AttachProductImage
 const auditEvents = `-- name: AuditEvents :many
 SELECT a.action, a.entity_table, a.entity_id, a.before, a.after,
        a.request_id, a.occurred_at,
-       coalesce(u.full_name, u.email, '(已刪除的帳號)') AS actor
+       coalesce(u.full_name, u.email, '') AS actor
 FROM audit_events a
 LEFT JOIN users u ON u.id = a.actor_user_id
 ORDER BY a.occurred_at DESC, a.id DESC
@@ -8719,7 +8719,7 @@ func (q *Queries) ReceiveStock(ctx context.Context, arg ReceiveStockParams) erro
 
 const recentCredit = `-- name: RecentCredit :many
 SELECT e.amount_cents, e.reason, e.created_at,
-       coalesce(u.email, '(已刪除)') AS email
+       coalesce(u.email, '') AS email
 FROM store_credit_entries e
 JOIN store_credit_accounts a ON a.id = e.account_id
 LEFT JOIN users u ON u.id = a.user_id

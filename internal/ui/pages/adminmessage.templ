@@ -1,6 +1,11 @@
 package pages
 
-import "github.com/koopa0/goen/internal/ui/layouts"
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
 
 // AdminMessages renders the customer-service inbox.
 templ AdminMessages(p layouts.Page, v AdminMessagesView) {
@@ -9,16 +14,15 @@ templ AdminMessages(p layouts.Page, v AdminMessagesView) {
 			@adminNav("messages")
 			<div class="ui-page-head">
 				<div>
-					<p class="ui-page-head__eyebrow">後台</p>
-					<h1 class="ui-page-head__title">聯絡訊息</h1>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageMessages) }</h1>
 					<p class="ui-page-head__sub">
-						等最久的排在最前面 —— 三天前寫信的人比今天早上寫的更急,
-						最新排在前面剛好把他埋掉。
+						{ i18n.T(ctx, i18n.KeyAdminMessagesLead) }
 					</p>
 				</div>
 				if !v.Empty() {
 					<div class="ui-page-head__actions">
-						<span class="ui-badge">待處理 { v.OpenCountText() }</span>
+						<span class="ui-badge">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminMessagesOpen), v.OpenCountText()) }</span>
 					</div>
 				}
 			</div>
@@ -26,7 +30,7 @@ templ AdminMessages(p layouts.Page, v AdminMessagesView) {
 				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
 			}
 			if v.Empty() {
-				<p class="goen-admin__hint">沒有任何聯絡訊息。</p>
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminMessagesEmpty) }</p>
 			} else {
 				<ul class="goen-admin__returns" role="list">
 					for _, m := range v.Rows {
@@ -38,20 +42,20 @@ templ AdminMessages(p layouts.Page, v AdminMessagesView) {
 							<div class="goen-admin__returninfo">
 								<p class="goen-admin__returnorder">{ m.Subject }</p>
 								<span class="ui-cart-line__meta">
-									{ m.Name } · { m.Email } · { m.At } · { m.Waiting() }
+									{ m.Name } · { m.Email } · { m.At } · { m.Waiting(ctx) }
 								</span>
 								if m.HasOrderRef() {
 									// A link, because "my order hasn't arrived" is
 									// answered by looking at the order.
 									<span class="ui-cart-line__meta">
-										訂單 <a class="goen-admin__productname" href={ templ.SafeURL(m.OrderHref()) }>{ m.OrderRef }</a>
+										{ i18n.T(ctx, i18n.KeyAdminMessagesOrder) } <a class="goen-admin__productname" href={ templ.SafeURL(m.OrderHref()) }>{ m.OrderRef }</a>
 									</span>
 								}
 								<p class="goen-admin__note">{ m.Message }</p>
 							</div>
 							<form class="goen-admin__decide" method="post" action={ templ.SafeURL(m.Action()) }>
 								<input type="hidden" name="message" value={ m.ID }/>
-								<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ m.ActionLabel() }</button>
+								<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ m.ActionLabel(ctx) }</button>
 							</form>
 						</li>
 					}

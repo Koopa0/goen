@@ -1,6 +1,11 @@
 package pages
 
-import "github.com/koopa0/goen/internal/ui/layouts"
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
 
 // AdminMovements renders one variant's stock ledger.
 //
@@ -15,12 +20,12 @@ templ AdminMovements(p layouts.Page, v *AdminMovementsView) {
 			<div class="ui-page-head">
 				<div>
 					<p class="ui-page-head__eyebrow">
-						<a href="/admin/stock">庫存</a>
+						<a href="/admin/stock">{ i18n.T(ctx, i18n.KeyAdminStockLink) }</a>
 					</p>
 					<h1 class="ui-page-head__title">{ v.SKU }</h1>
 					<p class="ui-page-head__sub">
 						<a href={ templ.SafeURL("/admin/products/" + v.Slug) }>{ v.ProductName }</a>
-						· 目前 { v.StockText() } 件,安全庫存 { v.SafetyText() }
+						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminStockNowSafe), v.StockText(), v.SafetyText()) }
 					</p>
 				</div>
 			</div>
@@ -30,19 +35,19 @@ templ AdminMovements(p layouts.Page, v *AdminMovementsView) {
 			@adminReceiveForm(v)
 			if v.Empty() {
 				<p class="goen-admin__hint">
-					這個規格還沒有任何異動。新規格的庫存是 0,所有的量都從這張帳本進來。
+					{ i18n.T(ctx, i18n.KeyAdminLedgerEmpty) }
 				</p>
 			} else {
 				<div class="goen-admin__tablewrap">
 					<table class="ui-table">
 						<thead>
 							<tr>
-								<th scope="col">時間</th>
-								<th scope="col">異動</th>
-								<th scope="col">原因</th>
-								<th scope="col">訂單</th>
-								<th scope="col">操作者</th>
-								<th scope="col">結存</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColWhen) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColChange) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColReason) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColOrder) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColActor) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColBalance) }</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -50,7 +55,7 @@ templ AdminMovements(p layouts.Page, v *AdminMovementsView) {
 								<tr>
 									<td>{ m.At }</td>
 									<td class={ templ.KV("goen-admin__in", m.In()) }>{ m.DeltaText() }</td>
-									<td>{ m.ReasonText() }</td>
+									<td>{ m.ReasonText(ctx) }</td>
 									<td>
 										if m.HasOrder() {
 											<a href={ templ.SafeURL("/admin/orders/" + m.OrderNumber) }>{ m.OrderNumber }</a>
@@ -58,7 +63,7 @@ templ AdminMovements(p layouts.Page, v *AdminMovementsView) {
 											—
 										}
 									</td>
-									<td>{ m.By() }</td>
+									<td>{ m.By(ctx) }</td>
 									<td>{ m.RunningText() }</td>
 								</tr>
 							}
@@ -66,7 +71,7 @@ templ AdminMovements(p layouts.Page, v *AdminMovementsView) {
 					</table>
 				</div>
 				<p class="goen-admin__hint">
-					最近 50 筆。結存是從帳本開頭累加到那一筆的數字,所以就算只看這一頁也是對的。
+					{ i18n.T(ctx, i18n.KeyAdminLedgerFoot) }
 				</p>
 			}
 		</div>
@@ -92,7 +97,7 @@ templ adminReceiveForm(v *AdminMovementsView) {
 		// one delivery: inventory_movements is unique on the key.
 		<input type="hidden" name="idempotency" value={ v.ReceiveKey() }/>
 		<label class="ui-field" for="receive-qty">
-			<span class="ui-label">進貨數量</span>
+			<span class="ui-label">{ i18n.T(ctx, i18n.KeyAdminReceiveQty) }</span>
 			<input
 				class="ui-input goen-admin__num"
 				id="receive-qty"
@@ -104,10 +109,9 @@ templ adminReceiveForm(v *AdminMovementsView) {
 				required
 			/>
 		</label>
-		<button class="ui-btn ui-btn--secondary" type="submit">登記進貨</button>
+		<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminReceiveButton) }</button>
 		<p class="goen-admin__hint">
-			這會在帳本上記一筆「進貨」。數字算錯要往回修的話請用庫存頁的「調整」——
-			東西進來和數字算錯是兩件事,帳本要分得出來。
+			{ i18n.T(ctx, i18n.KeyAdminReceiveHint) }
 		</p>
 	</form>
 }

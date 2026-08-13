@@ -2,6 +2,7 @@ package pages
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -131,15 +132,20 @@ func (v AdminOrdersView) Searching() bool { return v.Searched }
 func (v AdminOrdersView) TermTooShort() bool { return v.Term != "" && !v.Searched }
 
 // Tabs is the status filter, with counts.
-func (v AdminOrdersView) Tabs() []AdminStatusTab {
-	labels := []struct{ value, label string }{
-		{"", "全部"},
-		{"pending", "待付款"},
-		{"picking", "備貨中"},
-		{"shipped", "已出貨"},
-		{"delivered", "已送達"},
-		{"completed", "已完成"},
-		{"cancelled", "已取消"},
+func (v AdminOrdersView) Tabs(ctx context.Context) []AdminStatusTab {
+	labels := []struct {
+		value string
+		label i18n.Key
+	}{
+		// 全部 carries an EMPTY value because it is not a status — it is the
+		// absence of the filter.
+		{"", i18n.KeyAdminTabAll},
+		{"pending", i18n.KeyAdminStatusPending},
+		{"picking", i18n.KeyAdminStatusPicking},
+		{"shipped", i18n.KeyAdminStatusShipped},
+		{"delivered", i18n.KeyAdminStatusDelivered},
+		{"completed", i18n.KeyAdminStatusCompleted},
+		{"cancelled", i18n.KeyAdminStatusCancelled},
 	}
 	tabs := make([]AdminStatusTab, 0, len(labels))
 	for _, l := range labels {
@@ -152,7 +158,7 @@ func (v AdminOrdersView) Tabs() []AdminStatusTab {
 			n = v.Counts[l.value]
 		}
 		tabs = append(tabs, AdminStatusTab{
-			Value: l.value, Label: l.label, Count: n, Selected: l.value == v.Status,
+			Value: l.value, Label: i18n.T(ctx, l.label), Count: n, Selected: l.value == v.Status,
 		})
 	}
 	return tabs
@@ -163,6 +169,17 @@ func (v AdminOrdersView) Empty() bool { return len(v.Orders) == 0 }
 
 // HasNotice reports whether to show the banner.
 func (v AdminOrdersView) HasNotice() bool { return v.Notice != "" }
+
+// RecipientText is who it is going to, or a note that erase_user has been here.
+//
+// The fallback used to be a coalesce() inside the query — chrome written where
+// nobody can ask who is reading. It is decided here now, where the reader is.
+func (o AdminOrderRow) RecipientText(ctx context.Context) string {
+	if o.Recipient == "" {
+		return i18n.T(ctx, i18n.KeyAdminErasedRecipient)
+	}
+	return o.Recipient
+}
 
 // AdminOrderView is one order in the back office.
 type AdminOrderView struct {
@@ -273,14 +290,14 @@ func (e AdminOrderEvent) LabelKey() i18n.Key { return OrderEvent{Kind: e.Kind}.L
 // distinction — it used to be a Chinese sentence stored in the note, which the
 // customer's own order page then rendered at them whatever language they read.
 // The fact is structural now, and each audience is told it in their own words.
-func (e AdminOrderEvent) By() string {
+func (e AdminOrderEvent) By(ctx context.Context) string {
 	switch {
 	case e.Actor != "":
 		return e.Actor
 	case e.Kind == "cancelled":
-		return "顧客"
+		return i18n.T(ctx, i18n.KeyAdminActorCustomer)
 	default:
-		return "系統"
+		return i18n.T(ctx, i18n.KeyAdminActorSystem)
 	}
 }
 
@@ -362,6 +379,14 @@ func (v *AdminOrderView) CanAdvance() bool { return len(v.Next) > 0 }
 // HasNotice reports whether to show the banner.
 func (v *AdminOrderView) HasNotice() bool { return v.Notice != "" }
 
+// RecipientText is who it is going to, or a note that erase_user has been here.
+func (v *AdminOrderView) RecipientText(ctx context.Context) string {
+	if v.Recipient == "" {
+		return i18n.T(ctx, i18n.KeyAdminErasedRecipient)
+	}
+	return v.Recipient
+}
+
 // HasInvoice reports whether the customer stated a 發票 preference.
 func (v *AdminOrderView) HasInvoice() bool { return v.InvoiceType != "" }
 
@@ -370,14 +395,14 @@ func (v *AdminOrderView) HasInvoice() bool { return v.InvoiceType != "" }
 // A closed set — invoice_preferences_type_known has already refused anything else —
 // so an unknown value is a programming error and panics rather than printing a code
 // at a staff member who has to act on it.
-func (v *AdminOrderView) InvoiceText() string {
+func (v *AdminOrderView) InvoiceText(ctx context.Context) string {
 	switch v.InvoiceType {
 	case "member_carrier":
-		return "會員載具"
+		return i18n.T(ctx, i18n.KeyAdminCarrierMember)
 	case "mobile_carrier":
-		return "手機條碼載具 " + v.InvoiceCarrier
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCarrierMobile), v.InvoiceCarrier)
 	case "company":
-		return "公司統編 " + v.InvoiceTaxID
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCarrierTaxID), v.InvoiceTaxID)
 	default:
 		panic("pages: no label for invoice type " + v.InvoiceType)
 	}
@@ -412,11 +437,11 @@ func (l AdminInvoiceLine) Line() string {
 }
 
 // KindText names the document.
-func (d AdminInvoiceDocument) KindText() string {
+func (d AdminInvoiceDocument) KindText(ctx context.Context) string {
 	if d.Kind == "allowance" {
-		return "折讓"
+		return i18n.T(ctx, i18n.KeyAdminDocAllowance)
 	}
-	return "統一發票"
+	return i18n.T(ctx, i18n.KeyAdminDocInvoice)
 }
 
 // Amount is what it is for.
@@ -559,9 +584,9 @@ func (m AdminMovement) HasOrder() bool { return m.OrderNumber != "" }
 
 // By is who caused it, in words. "系統" rather than blank: a sale is the shop doing
 // its work, not a missing value.
-func (m AdminMovement) By() string {
+func (m AdminMovement) By(ctx context.Context) string {
 	if m.Actor == "" {
-		return "系統"
+		return i18n.T(ctx, i18n.KeyAdminActorSystem)
 	}
 	return m.Actor
 }
@@ -571,20 +596,20 @@ func (m AdminMovement) By() string {
 // A closed set, and a movement with an unknown reason is a programming error rather
 // than a runtime condition — inventory_movements_reason_known has already refused
 // anything else, so this panics instead of printing a code at somebody.
-func (m AdminMovement) ReasonText() string {
+func (m AdminMovement) ReasonText(ctx context.Context) string {
 	switch m.Reason {
 	case "receipt":
-		return "進貨"
+		return i18n.T(ctx, i18n.KeyAdminMoveReceipt)
 	case "hold":
-		return "結帳保留"
+		return i18n.T(ctx, i18n.KeyAdminMoveHold)
 	case "sale":
-		return "出貨扣除"
+		return i18n.T(ctx, i18n.KeyAdminMoveSale)
 	case "release":
-		return "釋放回架"
+		return i18n.T(ctx, i18n.KeyAdminMoveRelease)
 	case "return":
-		return "退貨入庫"
+		return i18n.T(ctx, i18n.KeyAdminMoveReturn)
 	case "adjustment":
-		return "人工調整"
+		return i18n.T(ctx, i18n.KeyAdminMoveAdjustment)
 	default:
 		panic("pages: no label for inventory movement reason " + m.Reason)
 	}

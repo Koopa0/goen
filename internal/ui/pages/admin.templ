@@ -132,7 +132,7 @@ templ AdminOrders(p layouts.Page, v AdminOrdersView) {
 				</p>
 			}
 			<div class="ui-filterbar goen-admin__tabs">
-				for _, t := range v.Tabs() {
+				for _, t := range v.Tabs(ctx) {
 					<a
 						class={ "ui-filter", templ.KV("is-active", t.Selected) }
 						href={ templ.URL("/admin/orders?status=" + t.Value) }
@@ -173,7 +173,7 @@ templ AdminOrders(p layouts.Page, v AdminOrdersView) {
 											<span class="ui-badge ui-badge--success">已成交</span>
 										}
 									</td>
-									<td>{ o.Recipient }</td>
+									<td>{ o.RecipientText(ctx) }</td>
 									<td>{ o.PlacedAt }</td>
 									<td>{ o.Total() }</td>
 								</tr>
@@ -232,7 +232,7 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 					<dl class="ui-dl">
 						<div class="ui-dl__row">
 							<dt class="ui-dl__term">收件人</dt>
-							<dd class="ui-dl__desc">{ v.Recipient }</dd>
+							<dd class="ui-dl__desc">{ v.RecipientText(ctx) }</dd>
 						</div>
 						<div class="ui-dl__row">
 							<dt class="ui-dl__term">電話</dt>
@@ -254,7 +254,7 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 							// by hand, and cannot do that from a table.
 							<div class="ui-dl__row">
 								<dt class="ui-dl__term">發票</dt>
-								<dd class="ui-dl__desc">{ v.InvoiceText() }</dd>
+								<dd class="ui-dl__desc">{ v.InvoiceText(ctx) }</dd>
 							</div>
 						}
 					</dl>
@@ -351,7 +351,7 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 							for _, e := range v.Timeline {
 								<li>
 									<span class="ui-cart-line__meta">{ i18n.T(ctx, e.LabelKey()) } · { e.At }</span>
-									<span class="ui-cart-line__meta">{ e.By() }</span>
+									<span class="ui-cart-line__meta">{ e.By(ctx) }</span>
 									if e.Note != "" {
 										<span class="ui-cart-line__meta">{ e.Note }</span>
 									}
@@ -475,7 +475,7 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 									for _, d := range v.InvoiceDocuments {
 										<li>
 											<span class="ui-cart-line__meta">
-												{ d.KindText() } { d.Number } · { d.Amount() }
+												{ d.KindText(ctx) } { d.Number } · { d.Amount() }
 												if d.Voided() {
 													<strong>(已作廢)</strong>
 												}
@@ -500,7 +500,7 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 								<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/invoice") }>
 									<button class="ui-btn ui-btn--primary ui-btn--block" type="submit">開立發票</button>
 									<p class="goen-admin__hint">
-										依結帳時選的 { v.InvoiceText() } 開立,金額為訂單總計。
+										依結帳時選的 { v.InvoiceText(ctx) } 開立,金額為訂單總計。
 									</p>
 								</form>
 							}

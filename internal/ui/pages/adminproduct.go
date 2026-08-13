@@ -1,8 +1,13 @@
 package pages
 
 import (
+	"context"
+	"fmt"
+
 	"strconv"
 	"strings"
+
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 // AdminChoice is one option in the brand or category select.
@@ -88,13 +93,12 @@ func (v AdminProductVariant) Compare() string {
 // StockText is what is on the shelf, and what of it is sellable. Both, because
 // safety stock is the difference between "we have twelve" and "you may sell
 // two", and a back office showing only the first oversells.
-func (v AdminProductVariant) StockText() string {
+func (v AdminProductVariant) StockText(ctx context.Context) string {
 	sellable := v.Stock - v.SafetyStock
 	if sellable < 0 {
 		sellable = 0
 	}
-	return strconv.FormatInt(int64(v.Stock), 10) + " 件(可售 " +
-		strconv.FormatInt(int64(sellable), 10) + ")"
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminStockOf), v.Stock, sellable)
 }
 
 // AdminProductView is the create-or-edit form.
@@ -203,9 +207,9 @@ func (v *AdminProductView) Action() string {
 }
 
 // Title is what the page is called.
-func (v *AdminProductView) Title() string {
+func (v *AdminProductView) Title(ctx context.Context) string {
 	if v.IsNew {
-		return "新增商品"
+		return i18n.T(ctx, i18n.KeyAdminPageNewProduct)
 	}
 	return v.Name
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -54,7 +55,7 @@ type HeroForm struct {
 // put an off-site link in the largest button on the storefront — and
 // "javascript:" would put script there. web.SitePath is the one owner of that
 // rule, the same one guarding the wishlist and the language switch.
-func (f *HeroForm) Validate() map[string]string {
+func (f *HeroForm) Validate(ctx context.Context) map[string]string {
 	f.Headline = strings.TrimSpace(f.Headline)
 	f.PrimaryLabel = strings.TrimSpace(f.PrimaryLabel)
 	f.SecondLabel = strings.TrimSpace(f.SecondLabel)
@@ -62,15 +63,15 @@ func (f *HeroForm) Validate() map[string]string {
 
 	errs := map[string]string{}
 	if f.Headline == "" || utf8.RuneCountInString(f.Headline) > MaxHeadlineRunes {
-		errs["headline"] = "請填寫標題,不超過 40 個字。"
+		errs["headline"] = i18n.T(ctx, i18n.KeyFormHeroHeadline)
 	}
 	if f.PrimaryLabel == "" {
-		errs["primary"] = "請填寫主要按鈕的文字。"
+		errs["primary"] = i18n.T(ctx, i18n.KeyFormHeroPrimary)
 	}
 	if href, ok := web.SitePath(f.PrimaryHref); ok {
 		f.PrimaryHref = href
 	} else {
-		errs["primaryhref"] = "連結必須是本站的路徑,例如 /deals。"
+		errs["primaryhref"] = i18n.T(ctx, i18n.KeyFormHeroPrimaryHref)
 	}
 
 	// Both or neither: hero_slides_secondary_cta_complete refuses half a
@@ -78,22 +79,22 @@ func (f *HeroForm) Validate() map[string]string {
 	switch {
 	case f.SecondLabel == "" && f.SecondHref == "":
 	case f.SecondLabel == "" || f.SecondHref == "":
-		errs["second"] = "次要按鈕的文字和連結要一起填,或都留空。"
+		errs["second"] = i18n.T(ctx, i18n.KeyFormHeroSecondPair)
 	default:
 		if href, ok := web.SitePath(f.SecondHref); ok {
 			f.SecondHref = href
 		} else {
-			errs["second"] = "連結必須是本站的路徑,例如 /about。"
+			errs["second"] = i18n.T(ctx, i18n.KeyFormHeroSecondHref)
 		}
 	}
 
 	// An image without alt text is refused by the schema. Asking here means the
 	// editor is told which field, rather than shown a constraint name.
 	if f.ImageKey != "" && f.ImageAlt == "" {
-		errs["alt"] = "有圖片就要有說明文字 —— 讀螢幕的人靠它知道圖裡是什麼。"
+		errs["alt"] = i18n.T(ctx, i18n.KeyFormHeroAlt)
 	}
 	if f.Days < 0 || f.Days > MaxHeroDays {
-		errs["days"] = "檔期天數必須介於 0(不限)到 365 天。"
+		errs["days"] = i18n.T(ctx, i18n.KeyFormRunDays)
 	}
 	return errs
 }
@@ -124,7 +125,7 @@ func (s *Store) HeroSlides(ctx context.Context) (pages.AdminHeroView, error) {
 // it replace the live home page immediately is a decision an editor should make
 // on purpose, which is what Promote is for.
 func (s *Store) CreateHeroSlide(ctx context.Context, f *HeroForm) (map[string]string, error) {
-	if errs := f.Validate(); len(errs) > 0 {
+	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
 	err := s.audited(ctx, Event{

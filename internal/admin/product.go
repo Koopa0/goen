@@ -64,7 +64,7 @@ type ProductForm struct {
 }
 
 // Validate refuses what the schema would refuse, in the chrome language.
-func (f *ProductForm) Validate() map[string]string {
+func (f *ProductForm) Validate(ctx context.Context) map[string]string {
 	f.Slug = strings.ToLower(strings.TrimSpace(f.Slug))
 	f.Name = strings.TrimSpace(f.Name)
 	f.NameEn = strings.TrimSpace(f.NameEn)
@@ -76,38 +76,38 @@ func (f *ProductForm) Validate() map[string]string {
 
 	errs := map[string]string{}
 	if !slugFormat.MatchString(f.Slug) || utf8.RuneCountInString(f.Slug) > maxSlugRunes {
-		errs["slug"] = "網址代稱只能用小寫英數與連字號,例如 pixelight-9-pro。"
+		errs["slug"] = i18n.T(ctx, i18n.KeyFormSlugFormatExample)
 	}
 	if f.Name == "" || utf8.RuneCountInString(f.Name) > maxNameRunes {
-		errs["name"] = "請填寫商品名稱。"
+		errs["name"] = i18n.T(ctx, i18n.KeyFormProductName)
 	}
 	if utf8.RuneCountInString(f.Summary) > maxSummaryRunes {
-		errs["summary"] = "一句話簡介太長了。"
+		errs["summary"] = i18n.T(ctx, i18n.KeyFormProductSummaryLong)
 	}
 	if utf8.RuneCountInString(f.Description) > maxDescriptionRunes {
-		errs["description"] = "商品說明太長了。"
+		errs["description"] = i18n.T(ctx, i18n.KeyFormProductDescriptionLong)
 	}
 	// The English copy is optional, so blank is not an error — but the bounds are
 	// the same fields on the same pages.
 	if utf8.RuneCountInString(f.NameEn) > maxNameRunes {
-		errs["name_en"] = "英文名稱太長了。"
+		errs["name_en"] = i18n.T(ctx, i18n.KeyFormProductNameEnLong)
 	}
 	if utf8.RuneCountInString(f.SummaryEn) > maxSummaryRunes {
-		errs["summary_en"] = "英文簡介太長了。"
+		errs["summary_en"] = i18n.T(ctx, i18n.KeyFormProductSummaryEnLong)
 	}
 	if utf8.RuneCountInString(f.DescriptionEn) > maxDescriptionRunes {
-		errs["description_en"] = "英文說明太長了。"
+		errs["description_en"] = i18n.T(ctx, i18n.KeyFormProductDescriptionEnLong)
 	}
 	// The same range products_warranty_months_sane demands. 0 is "not stated", which
 	// the query turns into NULL.
 	if f.WarrantyMonths < 0 || f.WarrantyMonths > MaxWarrantyMonths {
-		errs["warranty_months"] = "保固月數請填 1 到 120,或留空表示未提供保固。"
+		errs["warranty_months"] = i18n.T(ctx, i18n.KeyFormWarrantyMonths)
 	}
 	if _, err := uuid.Parse(f.BrandID); err != nil {
-		errs["brand"] = "請選擇品牌。"
+		errs["brand"] = i18n.T(ctx, i18n.KeyFormBrandRequired)
 	}
 	if _, err := uuid.Parse(f.CategoryID); err != nil {
-		errs["category"] = "請選擇分類。"
+		errs["category"] = i18n.T(ctx, i18n.KeyFormCategoryRequired)
 	}
 	return errs
 }
@@ -139,21 +139,21 @@ type VariantForm struct {
 // through the adjustment form, which posts a movement. There is no field here
 // to type a number into, because the privilege model would refuse it anyway —
 // admin's INSERT grant does not include stock_quantity.
-func (f *VariantForm) Validate() map[string]string {
+func (f *VariantForm) Validate(ctx context.Context) map[string]string {
 	f.SKU = strings.ToUpper(strings.TrimSpace(f.SKU))
 
 	errs := map[string]string{}
 	if f.SKU == "" || utf8.RuneCountInString(f.SKU) > maxSKURunes {
-		errs["sku"] = "請填寫 SKU。"
+		errs["sku"] = i18n.T(ctx, i18n.KeyFormSKURequired)
 	}
 	if f.PriceCents <= 0 || f.PriceCents > MaxPriceCents {
-		errs["price"] = "價格必須大於 0。"
+		errs["price"] = i18n.T(ctx, i18n.KeyFormPricePositive)
 	}
 	if f.CompareCents != 0 && f.CompareCents <= f.PriceCents {
-		errs["compare"] = "原價要高於售價,否則就不是折扣。"
+		errs["compare"] = i18n.T(ctx, i18n.KeyFormCompareHigher)
 	}
 	if f.SafetyStock < 0 {
-		errs["safety"] = "安全庫存不能是負數。"
+		errs["safety"] = i18n.T(ctx, i18n.KeyFormSafetyStock)
 	}
 	return errs
 }
@@ -302,7 +302,7 @@ func (s *Store) loadChoices(ctx context.Context, view *pages.AdminProductView) e
 // a product may go active, and a product with no variants has no price at all.
 // Publishing is its own decision, made once it is ready to be seen.
 func (s *Store) CreateProduct(ctx context.Context, f *ProductForm) (slug string, fieldErrs map[string]string, err error) {
-	if errs := f.Validate(); len(errs) > 0 {
+	if errs := f.Validate(ctx); len(errs) > 0 {
 		return "", errs, nil
 	}
 	brandID, categoryID := uuid.MustParse(f.BrandID), uuid.MustParse(f.CategoryID)
@@ -327,7 +327,7 @@ func (s *Store) CreateProduct(ctx context.Context, f *ProductForm) (slug string,
 		// bound to the constraint name rather than a substring of the message.
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
 			pgErr.ConstraintName == "products_slug_key" {
-			return "", map[string]string{"slug": "這個網址代稱已經有人用了。"}, nil
+			return "", map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenProduct)}, nil
 		}
 		return "", nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
 	}
@@ -337,7 +337,7 @@ func (s *Store) CreateProduct(ctx context.Context, f *ProductForm) (slug string,
 // UpdateProduct edits a product's own fields. Its status is a separate write,
 // because publishing is a decision and renaming is not.
 func (s *Store) UpdateProduct(ctx context.Context, f *ProductForm) (map[string]string, error) {
-	if errs := f.Validate(); len(errs) > 0 {
+	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
 	if err := s.q.UpdateProduct(ctx, db.UpdateProductParams{
@@ -380,7 +380,7 @@ func (s *Store) SetProductStatus(ctx context.Context, slug, status string) error
 
 // AddVariant adds a variant at zero stock.
 func (s *Store) AddVariant(ctx context.Context, slug string, f *VariantForm) (map[string]string, error) {
-	if errs := f.Validate(); len(errs) > 0 {
+	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
 	chosen, errs := s.chosenOptionValues(ctx, slug, f.OptionValues)
@@ -424,10 +424,10 @@ func (s *Store) AddVariant(ctx context.Context, slug string, f *VariantForm) (ma
 		}); err != nil {
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
 			pgErr.ConstraintName == "product_variants_sku_key" {
-			return map[string]string{"sku": "這個 SKU 已經有人用了。"}, nil
+			return map[string]string{"sku": i18n.T(ctx, i18n.KeyFormSKUTaken)}, nil
 		}
 		if errors.Is(err, ErrNotFound) {
-			return map[string]string{"options": "規格選項有誤,請重新選擇。"}, nil
+			return map[string]string{"options": i18n.T(ctx, i18n.KeyFormOptionsInvalid)}, nil
 		}
 		return nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
 	}
@@ -481,21 +481,21 @@ func (s *Store) AddSpec(ctx context.Context, slug string, d SpecDraft) (map[stri
 	errs := map[string]string{}
 	switch {
 	case label == "":
-		errs["spec_label"] = "請填寫規格名稱"
+		errs["spec_label"] = i18n.T(ctx, i18n.KeyFormSpecLabel)
 	case len([]rune(label)) > SpecLabelRunes:
-		errs["spec_label"] = "規格名稱太長"
+		errs["spec_label"] = i18n.T(ctx, i18n.KeyFormSpecLabelLong)
 	}
 	switch {
 	case value == "":
-		errs["spec_value"] = "請填寫規格內容"
+		errs["spec_value"] = i18n.T(ctx, i18n.KeyFormSpecValue)
 	case len([]rune(value)) > SpecValueRunes:
-		errs["spec_value"] = "規格內容太長"
+		errs["spec_value"] = i18n.T(ctx, i18n.KeyFormSpecValueLong)
 	}
 	if len([]rune(labelEn)) > SpecLabelRunes {
-		errs["spec_label_en"] = "英文規格名稱太長"
+		errs["spec_label_en"] = i18n.T(ctx, i18n.KeyFormSpecLabelEnLong)
 	}
 	if len([]rune(valueEn)) > SpecValueRunes {
-		errs["spec_value_en"] = "英文規格內容太長"
+		errs["spec_value_en"] = i18n.T(ctx, i18n.KeyFormSpecValueEnLong)
 	}
 	if len(errs) > 0 {
 		return errs, nil
@@ -562,7 +562,7 @@ func (s *Store) chosenOptionValues(ctx context.Context, slug string, raw []strin
 ) {
 	options, err := s.q.ProductOptionCount(ctx, slug)
 	if err != nil {
-		return nil, map[string]string{"options": "讀取規格項目失敗,請重試。"}
+		return nil, map[string]string{"options": i18n.T(ctx, i18n.KeyFormOptionsUnreadable)}
 	}
 	chosen = make([]uuid.UUID, 0, len(raw))
 	for _, value := range raw {
@@ -571,13 +571,13 @@ func (s *Store) chosenOptionValues(ctx context.Context, slug string, raw []strin
 		}
 		id, parseErr := uuid.Parse(value)
 		if parseErr != nil {
-			return nil, map[string]string{"options": "規格選項有誤,請重新選擇。"}
+			return nil, map[string]string{"options": i18n.T(ctx, i18n.KeyFormOptionsInvalid)}
 		}
 		chosen = append(chosen, id)
 	}
 	if int64(len(chosen)) != options {
 		return nil, map[string]string{
-			"options": "每一個規格項目都要選一個值,否則商品頁的選擇器找不到這個規格。",
+			"options": i18n.T(ctx, i18n.KeyFormVariantNeedsEveryOption),
 		}
 	}
 	return chosen, nil
@@ -605,7 +605,7 @@ type OptionDraft struct {
 // AddOption appends an option — an axis like 顏色 — to a product.
 func (s *Store) AddOption(ctx context.Context, slug string, d OptionDraft) (map[string]string, error) {
 	name, nameEn := strings.TrimSpace(d.Name), strings.TrimSpace(d.NameEn)
-	if errs := optionErrors(name, nameEn, "option"); len(errs) > 0 {
+	if errs := optionErrors(ctx, name, nameEn, "option"); len(errs) > 0 {
 		return errs, nil
 	}
 
@@ -624,7 +624,7 @@ func (s *Store) AddOption(ctx context.Context, slug string, d OptionDraft) (map[
 		return nil
 	}); err != nil {
 		if takenBy(err, "product_options_name_key") {
-			return map[string]string{"option": "這個商品已經有同名的規格項目了。"}, nil
+			return map[string]string{"option": i18n.T(ctx, i18n.KeyFormOptionNameTaken)}, nil
 		}
 		if errors.Is(err, ErrNotFound) {
 			return nil, ErrNotFound
@@ -638,10 +638,10 @@ func (s *Store) AddOption(ctx context.Context, slug string, d OptionDraft) (map[
 func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) (map[string]string, error) {
 	optionID, err := uuid.Parse(d.OptionID)
 	if err != nil {
-		return map[string]string{"value": "請選擇要加值的規格項目。"}, nil
+		return map[string]string{"value": i18n.T(ctx, i18n.KeyFormOptionPick)}, nil
 	}
 	name, nameEn := strings.TrimSpace(d.Name), strings.TrimSpace(d.NameEn)
-	if errs := optionErrors(name, nameEn, "value"); len(errs) > 0 {
+	if errs := optionErrors(ctx, name, nameEn, "value"); len(errs) > 0 {
 		return errs, nil
 	}
 
@@ -663,10 +663,10 @@ func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) 
 		return nil
 	}); err != nil {
 		if takenBy(err, "product_option_values_value_key") {
-			return map[string]string{"value": "這個規格項目已經有同樣的值了。"}, nil
+			return map[string]string{"value": i18n.T(ctx, i18n.KeyFormOptionValueTaken)}, nil
 		}
 		if errors.Is(err, ErrNotFound) {
-			return map[string]string{"value": "找不到這個規格項目。"}, nil
+			return map[string]string{"value": i18n.T(ctx, i18n.KeyFormOptionMissing)}, nil
 		}
 		return nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
 	}
@@ -675,16 +675,16 @@ func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) 
 
 // optionErrors is the shared validation. field names which form is being refused,
 // so the page can put the message under the right box.
-func optionErrors(name, nameEn, field string) map[string]string {
+func optionErrors(ctx context.Context, name, nameEn, field string) map[string]string {
 	errs := map[string]string{}
 	switch {
 	case name == "":
-		errs[field] = "請填寫名稱。"
+		errs[field] = i18n.T(ctx, i18n.KeyFormOptionName)
 	case len([]rune(name)) > MaxOptionNameRunes:
-		errs[field] = "名稱太長。"
+		errs[field] = i18n.T(ctx, i18n.KeyFormOptionNameLong)
 	}
 	if len([]rune(nameEn)) > MaxOptionNameRunes {
-		errs[field+"_en"] = "英文名稱太長。"
+		errs[field+"_en"] = i18n.T(ctx, i18n.KeyFormOptionNameEnLong)
 	}
 	return errs
 }

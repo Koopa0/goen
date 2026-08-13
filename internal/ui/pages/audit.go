@@ -90,6 +90,19 @@ var actionLabels = map[string]i18n.Key{
 	"question.hide":          i18n.KeyAuditQuestionHide,
 }
 
+// ActorText is who did it, or a note that the account has since been erased.
+//
+// audit_events is append-only and erase_user does not reach it, so the ROW
+// outlives the person: the join comes back empty and the trail still has to say
+// what happened. The fallback was a coalesce() in the query and is decided here
+// now, where the reader is.
+func (e AuditEntry) ActorText(ctx context.Context) string {
+	if e.Actor == "" {
+		return i18n.T(ctx, i18n.KeyAdminErasedAccountPlain)
+	}
+	return e.Actor
+}
+
 // Money reports whether this action moved money or stock, which is what a
 // reader scanning the trail is looking for first.
 func (e AuditEntry) Money() bool {

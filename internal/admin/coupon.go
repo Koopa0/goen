@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -51,31 +52,31 @@ type CouponForm struct {
 }
 
 // Validate refuses what the schema would.
-func (f *CouponForm) Validate() map[string]string {
+func (f *CouponForm) Validate(ctx context.Context) map[string]string {
 	f.Code = strings.ToUpper(strings.TrimSpace(f.Code))
 	f.Description = strings.TrimSpace(f.Description)
 
 	errs := map[string]string{}
 	if !couponCode.MatchString(f.Code) {
-		errs["code"] = "折扣碼只能用英數與連字號,2 到 32 個字元。"
+		errs["code"] = i18n.T(ctx, i18n.KeyFormCouponCode)
 	}
 	if f.Description == "" || utf8.RuneCountInString(f.Description) > MaxCouponDescriptionRunes {
-		errs["description"] = "請填寫顧客會看到的說明,不超過 60 個字。"
+		errs["description"] = i18n.T(ctx, i18n.KeyFormCouponDescription)
 	}
 
-	f.validateKind(errs)
+	f.validateKind(ctx, errs)
 
 	if f.MinSpendDollars < 0 {
-		errs["min"] = "最低消費不能是負數。"
+		errs["min"] = i18n.T(ctx, i18n.KeyFormCouponMinSpend)
 	}
 	if f.MaxRedemptions < 0 {
-		errs["max"] = "總使用次數不能是負數。"
+		errs["max"] = i18n.T(ctx, i18n.KeyFormCouponMaxUses)
 	}
 	if f.PerCustomer < 1 {
-		errs["percustomer"] = "每人至少可以用一次。"
+		errs["percustomer"] = i18n.T(ctx, i18n.KeyFormCouponPerCustomer)
 	}
 	if f.Days < 0 {
-		errs["days"] = "天數不能是負數。"
+		errs["days"] = i18n.T(ctx, i18n.KeyFormCouponDays)
 	}
 	return errs
 }
@@ -102,30 +103,30 @@ func basisPoints(wholePercent int64) int32 {
 // Split from Validate to keep it under the complexity limit, and because these
 // are the rules coupons_value_matches_kind and coupons_cap_only_on_percent
 // enforce — grouped here so the two can be read against each other.
-func (f *CouponForm) validateKind(errs map[string]string) {
+func (f *CouponForm) validateKind(ctx context.Context, errs map[string]string) {
 	switch f.Kind {
 	case "amount":
 		if f.Value <= 0 || f.Value > MaxPriceCents/100 {
-			errs["value"] = "折抵金額必須大於 0。"
+			errs["value"] = i18n.T(ctx, i18n.KeyFormCouponAmount)
 		}
 		if f.CapDollars != 0 {
 			// coupons_cap_only_on_percent refuses this underneath. Saying so
 			// here explains WHY rather than reporting a constraint name.
-			errs["cap"] = "固定金額不需要上限,上限只用在百分比折扣。"
+			errs["cap"] = i18n.T(ctx, i18n.KeyFormCouponCapOnAmount)
 		}
 	case "percent":
 		if f.Value <= 0 || f.Value > 100 {
-			errs["value"] = "折扣百分比必須介於 1 到 100。"
+			errs["value"] = i18n.T(ctx, i18n.KeyFormCouponPercent)
 		}
 		if f.CapDollars < 0 {
-			errs["cap"] = "上限不能是負數。"
+			errs["cap"] = i18n.T(ctx, i18n.KeyFormCouponCapNegative)
 		}
 	case "free_shipping":
 		if f.CapDollars != 0 {
-			errs["cap"] = "免運不需要上限。"
+			errs["cap"] = i18n.T(ctx, i18n.KeyFormCouponCapOnShipping)
 		}
 	default:
-		errs["kind"] = "請選擇折扣類型。"
+		errs["kind"] = i18n.T(ctx, i18n.KeyFormCouponKind)
 	}
 }
 
@@ -140,7 +141,7 @@ func (s *Store) Coupons(ctx context.Context) (pages.AdminCouponsView, error) {
 		r := &rows[i]
 		view.Rows = append(view.Rows, pages.AdminCoupon{
 			Code: r.Code, Description: r.Description, Kind: r.Kind,
-			KindText:    CouponKindLabel(r.Kind),
+			KindText:    CouponKindLabel(ctx, r.Kind),
 			AmountCents: r.AmountCents.Int64,
 			PercentBP:   r.PercentBp.Int32,
 			CapCents:    r.MaxDiscountCents.Int64,
@@ -159,7 +160,7 @@ func (s *Store) Coupons(ctx context.Context) (pages.AdminCouponsView, error) {
 
 // CreateCoupon issues a promotion.
 func (s *Store) CreateCoupon(ctx context.Context, f *CouponForm) (map[string]string, error) {
-	if errs := f.Validate(); len(errs) > 0 {
+	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
 
@@ -202,7 +203,7 @@ func (s *Store) CreateCoupon(ctx context.Context, f *CouponForm) (map[string]str
 		// a message is a locale away from not matching.
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
 			pgErr.ConstraintName == "coupons_code_key" {
-			return map[string]string{"code": "這組折扣碼已經存在了。"}, nil
+			return map[string]string{"code": i18n.T(ctx, i18n.KeyFormCouponTaken)}, nil
 		}
 		return nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
 	}
@@ -235,15 +236,15 @@ func (s *Store) SetCouponActive(ctx context.Context, code string, active bool) e
 	return nil
 }
 
-// CouponKindLabel is a coupon kind in the chrome language.
-func CouponKindLabel(kind string) string {
+// CouponKindLabel is a coupon kind in the reader's language.
+func CouponKindLabel(ctx context.Context, kind string) string {
 	switch kind {
 	case "amount":
-		return "折抵金額"
+		return i18n.T(ctx, i18n.KeyCouponKindAmount)
 	case "percent":
-		return "百分比折扣"
+		return i18n.T(ctx, i18n.KeyCouponKindPercent)
 	case "free_shipping":
-		return "免運"
+		return i18n.T(ctx, i18n.KeyCouponKindShipping)
 	default:
 		panic("admin: no label for coupon kind " + kind)
 	}

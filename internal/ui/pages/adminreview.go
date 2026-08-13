@@ -1,6 +1,11 @@
 package pages
 
-import "strconv"
+import (
+	"context"
+	"strconv"
+
+	"github.com/koopa0/goen/internal/i18n"
+)
 
 // AdminReviewsView is the review queue.
 //
@@ -48,9 +53,9 @@ func (r AdminReview) RatingText() string { return strconv.Itoa(r.Rating) }
 
 // DisplayAuthor is who wrote it, or a stand-in — an erased account leaves the
 // review behind with no name, which is the point of user_id being nullable.
-func (r AdminReview) DisplayAuthor() string {
+func (r AdminReview) DisplayAuthor(ctx context.Context) string {
 	if r.Author == "" {
-		return "(已刪除帳號)"
+		return i18n.T(ctx, i18n.KeyAdminErasedAccount)
 	}
 	return r.Author
 }
@@ -70,9 +75,9 @@ func (r AdminReview) Action() string {
 }
 
 // ActionLabel is what the button says.
-func (r AdminReview) ActionLabel() string {
+func (r AdminReview) ActionLabel(ctx context.Context) string {
 	if r.Hidden {
-		return "恢復顯示"
+		return i18n.T(ctx, i18n.KeyAdminReviewShow)
 	}
-	return "隱藏"
+	return i18n.T(ctx, i18n.KeyAdminReviewHide)
 }

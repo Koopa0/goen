@@ -1,6 +1,11 @@
 package pages
 
-import "strconv"
+import (
+	"context"
+	"strconv"
+
+	"github.com/koopa0/goen/internal/i18n"
+)
 
 // AdminStaffView is who can reach the back office and who is protected by a
 // second factor.
@@ -45,21 +50,21 @@ func (r AdminStaffRow) DisplayName() string {
 }
 
 // State is the enrolment in words.
-func (r AdminStaffRow) State() string {
+func (r AdminStaffRow) State(ctx context.Context) string {
 	if r.Enrolled {
-		return "已啟用"
+		return i18n.T(ctx, i18n.KeyAdminTOTPOn)
 	}
-	return "尚未啟用"
+	return i18n.T(ctx, i18n.KeyAdminTOTPOff)
 }
 
 // RoleText is the role in words. No silent default: a role added to the
 // schema's CHECK and not here would render as an empty column.
-func (r AdminStaffRow) RoleText() string {
+func (r AdminStaffRow) RoleText(ctx context.Context) string {
 	switch r.Role {
 	case "admin":
-		return "管理員"
+		return i18n.T(ctx, i18n.KeyAdminRoleAdmin)
 	case "staff":
-		return "員工"
+		return i18n.T(ctx, i18n.KeyAdminRoleStaff)
 	default:
 		panic("pages: no label for staff role " + r.Role)
 	}

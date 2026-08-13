@@ -1,8 +1,13 @@
 package pages
 
 import (
+	"context"
+	"fmt"
+
 	"strconv"
 	"strings"
+
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 // AdminCoupon is one promotion as the back office sees it.
@@ -26,39 +31,39 @@ type AdminCoupon struct {
 
 // Value is what it takes off, written the way somebody running the promotion
 // would say it.
-func (c AdminCoupon) Value() string {
+func (c AdminCoupon) Value(ctx context.Context) string {
 	switch c.Kind {
 	case "amount":
 		return twd(c.AmountCents)
 	case "percent":
 		s := strconv.FormatInt(int64(c.PercentBP)/100, 10) + "%"
 		if c.CapCents > 0 {
-			s += "(上限 " + twd(c.CapCents) + ")"
+			s += fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCouponCap), twd(c.CapCents))
 		}
 		return s
 	default:
-		return "免運"
+		return i18n.T(ctx, i18n.KeyCouponKindShipping)
 	}
 }
 
 // Conditions is the fine print: the minimum spend and the limits.
-func (c AdminCoupon) Conditions() string {
+func (c AdminCoupon) Conditions(ctx context.Context) string {
 	parts := make([]string, 0, 3)
 	if c.MinSpend > 0 {
-		parts = append(parts, "滿 "+twd(c.MinSpend))
+		parts = append(parts, fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCouponMin), twd(c.MinSpend)))
 	}
 	if c.MaxRedeem > 0 {
-		parts = append(parts, "限量 "+strconv.FormatInt(int64(c.MaxRedeem), 10))
+		parts = append(parts, fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCouponTotalLimit), c.MaxRedeem))
 	}
-	parts = append(parts, "每人 "+strconv.FormatInt(int64(c.PerCustomer), 10)+" 次")
+	parts = append(parts, fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCouponPerPerson), c.PerCustomer))
 	return strings.Join(parts, " · ")
 }
 
 // Used is how many times it has been redeemed, and what that has cost.
-func (c AdminCoupon) Used() string {
-	s := strconv.FormatInt(c.Redeemed, 10) + " 次"
+func (c AdminCoupon) Used(ctx context.Context) string {
+	s := fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCouponUsed), c.Redeemed)
 	if c.GivenCents > 0 {
-		s += " · 已折抵 " + twd(c.GivenCents)
+		s += fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCouponGiven), twd(c.GivenCents))
 	}
 	return s
 }
@@ -68,14 +73,14 @@ func (c AdminCoupon) Used() string {
 // Active and current are different facts — a switched-on coupon whose window
 // has passed is off to a customer and on in the list, which is how somebody
 // spends an afternoon wondering why a code does not work.
-func (c AdminCoupon) State() string {
+func (c AdminCoupon) State(ctx context.Context) string {
 	switch {
 	case !c.Active:
-		return "已停用"
+		return i18n.T(ctx, i18n.KeyAdminCouponOff)
 	case !c.Current:
-		return "不在期間內"
+		return i18n.T(ctx, i18n.KeyAdminCouponOutside)
 	default:
-		return "使用中"
+		return i18n.T(ctx, i18n.KeyAdminCouponLive)
 	}
 }
 
@@ -94,11 +99,11 @@ func (c AdminCoupon) NextActive() string {
 }
 
 // ToggleLabel is what the button says.
-func (c AdminCoupon) ToggleLabel() string {
+func (c AdminCoupon) ToggleLabel(ctx context.Context) string {
 	if c.Active {
-		return "停用"
+		return i18n.T(ctx, i18n.KeyAdminToggleOff)
 	}
-	return "啟用"
+	return i18n.T(ctx, i18n.KeyAdminToggleOn)
 }
 
 // AdminCouponsView is the promotions page.

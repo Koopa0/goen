@@ -33,7 +33,7 @@ func TestAHeroLinkMustBeAPathOnThisSite(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := &HeroForm{Headline: "標題", PrimaryLabel: "去", PrimaryHref: tt.href}
-			errs := f.Validate()
+			errs := f.Validate(t.Context())
 			_, refused := errs["primaryhref"]
 			if refused == tt.ok {
 				t.Errorf("href %q: refused=%v, want refused=%v (errors: %v)",
@@ -67,7 +67,7 @@ func TestASecondaryButtonIsBothHalvesOrNeither(t *testing.T) {
 				Headline: "標題", PrimaryLabel: "去", PrimaryHref: "/deals",
 				SecondLabel: tt.label, SecondHref: tt.href,
 			}
-			if _, refused := f.Validate()["second"]; refused != tt.wantRefused {
+			if _, refused := f.Validate(t.Context())["second"]; refused != tt.wantRefused {
 				t.Errorf("refused=%v, want %v", refused, tt.wantRefused)
 			}
 		})
@@ -87,7 +87,7 @@ func TestAnImageWithoutAltTextIsRefused(t *testing.T) {
 	withImage := &HeroForm{
 		Headline: "標題", PrimaryLabel: "去", PrimaryHref: "/deals", ImageKey: digest,
 	}
-	if _, refused := withImage.Validate()["alt"]; !refused {
+	if _, refused := withImage.Validate(t.Context())["alt"]; !refused {
 		t.Error("an image with no alt text was accepted")
 	}
 
@@ -95,14 +95,14 @@ func TestAnImageWithoutAltTextIsRefused(t *testing.T) {
 		Headline: "標題", PrimaryLabel: "去", PrimaryHref: "/deals",
 		ImageKey: digest, ImageAlt: "夏季展主視覺",
 	}
-	if errs := withAlt.Validate(); len(errs) > 0 {
+	if errs := withAlt.Validate(t.Context()); len(errs) > 0 {
 		t.Errorf("a complete slide was refused: %v", errs)
 	}
 
 	// No image, no alt: fine. The built-in artwork carries alt="" on purpose,
 	// because the headline beside it already says what it is.
 	noImage := &HeroForm{Headline: "標題", PrimaryLabel: "去", PrimaryHref: "/deals"}
-	if errs := noImage.Validate(); len(errs) > 0 {
+	if errs := noImage.Validate(t.Context()); len(errs) > 0 {
 		t.Errorf("a slide with no image was refused: %v", errs)
 	}
 }

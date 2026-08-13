@@ -1,8 +1,12 @@
 package pages
 
 import (
+	"context"
+	"fmt"
 	"strconv"
 	"time"
+
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 // WorkerHealthView is what the background workers have and have not done.
@@ -77,12 +81,12 @@ func (v WorkerHealthView) HousekeepingHealthy() bool {
 }
 
 // HousekeepingText is the pruners' state.
-func (v WorkerHealthView) HousekeepingText() string {
+func (v WorkerHealthView) HousekeepingText(ctx context.Context) string {
 	if v.ExpiredSessions == 0 && v.UnreferencedMedia == 0 {
-		return "沒有待清理的過期 session 或未使用的圖片"
+		return i18n.T(ctx, i18n.KeyHealthSweeperClear)
 	}
-	return strconv.FormatInt(v.ExpiredSessions, 10) + " 個過期 session、" +
-		strconv.FormatInt(v.UnreferencedMedia, 10) + " 張沒被引用的圖片還沒清掉"
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthSweeperBacklog),
+		v.ExpiredSessions, v.UnreferencedMedia)
 }
 
 // RefundsHealthy reports whether every refund goen opened has landed.
@@ -105,46 +109,47 @@ func (v WorkerHealthView) AllHealthy() bool {
 }
 
 // OutboxText is the outbox's state in a sentence a person can act on.
-func (v WorkerHealthView) OutboxText() string {
+func (v WorkerHealthView) OutboxText(ctx context.Context) string {
 	switch {
 	case v.OutboxStuck > 0:
-		return strconv.FormatInt(v.OutboxStuck, 10) + " 封重試次數用盡 —— 不會自己好"
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthOutboxStuck), v.OutboxStuck)
 	case v.OutboxPending == 0:
-		return "沒有待送的訊息"
+		return i18n.T(ctx, i18n.KeyHealthOutboxClear)
 	case v.OutboxOldest >= v.OutboxStaleAfter:
-		return strconv.FormatInt(v.OutboxPending, 10) + " 封待送,最久的已經逾期 " +
-			humanDuration(v.OutboxOldest)
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthOutboxOverdue),
+			v.OutboxPending, humanDuration(ctx, v.OutboxOldest))
 	default:
 		if v.OutboxOldest == 0 {
-			return strconv.FormatInt(v.OutboxPending, 10) + " 封待送,都還沒到重試時間"
+			return fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthOutboxNotYetDue), v.OutboxPending)
 		}
-		return strconv.FormatInt(v.OutboxPending, 10) + " 封待送,最久的逾期 " +
-			humanDuration(v.OutboxOldest)
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthOutboxWaiting),
+			v.OutboxPending, humanDuration(ctx, v.OutboxOldest))
 	}
 }
 
 // SweeperText is the sweeper's state.
-func (v WorkerHealthView) SweeperText() string {
+func (v WorkerHealthView) SweeperText(ctx context.Context) string {
 	if v.ExpiredHolds == 0 {
-		return "沒有過期未釋放的保留"
+		return i18n.T(ctx, i18n.KeyHealthHoldsClear)
 	}
-	return strconv.FormatInt(v.ExpiredHolds, 10) + " 筆過期的庫存保留還沒釋放"
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthHoldsStuck), v.ExpiredHolds)
 }
 
 // RefundsText is the refund ledger's state.
-func (v WorkerHealthView) RefundsText() string {
+func (v WorkerHealthView) RefundsText(ctx context.Context) string {
 	if len(v.OpenRefunds) == 0 {
-		return "沒有卡住的退款"
+		return i18n.T(ctx, i18n.KeyHealthRefundsClear)
 	}
-	return strconv.Itoa(len(v.OpenRefunds)) + " 筆退款還沒退成功 —— 顧客還沒拿到錢"
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthRefundsStuck), len(v.OpenRefunds))
 }
 
 // RecommendText is the projection's state.
-func (v WorkerHealthView) RecommendText() string {
+func (v WorkerHealthView) RecommendText(ctx context.Context) string {
 	if !v.CopurchaseEverBuilt {
-		return "從來沒有重建過"
+		return i18n.T(ctx, i18n.KeyHealthProjectionNever)
 	}
-	return "上次重建於 " + humanDuration(v.CopurchaseAge) + "前"
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthProjectionAge),
+		humanDuration(ctx, v.CopurchaseAge))
 }
 
 // humanDuration is a duration in words, rounded.
@@ -152,16 +157,16 @@ func (v WorkerHealthView) RecommendText() string {
 // Rounded because the exact seconds are never the point: "8 分鐘" and "8 分 12
 // 秒" lead to the same decision, and the second reads like a number somebody
 // should be watching.
-func humanDuration(d time.Duration) string {
+func humanDuration(ctx context.Context, d time.Duration) string {
 	switch {
 	case d < time.Minute:
-		return strconv.Itoa(int(d.Seconds())) + " 秒"
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminSeconds), int(d.Seconds()))
 	case d < time.Hour:
-		return strconv.Itoa(int(d.Minutes())) + " 分鐘"
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminMinutes), int(d.Minutes()))
 	case d < 24*time.Hour:
-		return strconv.Itoa(int(d.Hours())) + " 小時"
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminHours), int(d.Hours()))
 	default:
-		return strconv.Itoa(int(d.Hours()/24)) + " 天"
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminDays), int(d.Hours()/24))
 	}
 }
 
@@ -179,9 +184,9 @@ func (m StuckMessage) AttemptsText() string { return strconv.FormatInt(int64(m.A
 
 // Reason is the last error, or a stand-in — a stuck message with no recorded
 // reason is still worth showing, and a blank cell reads as missing data.
-func (m StuckMessage) Reason() string {
+func (m StuckMessage) Reason(ctx context.Context) string {
 	if m.LastError == "" {
-		return "(沒有記錄原因)"
+		return i18n.T(ctx, i18n.KeyHealthNoReason)
 	}
 	return m.LastError
 }
@@ -213,14 +218,14 @@ func (r OpenRefund) Amount() string { return twd(r.AmountCents) }
 // bounded by the query's own WHERE clause, so a fourth value means that query
 // changed — and this is the page somebody opens to find out something is wrong,
 // which a 500 from a template would tell them rather less usefully.
-func (r OpenRefund) StatusText() string {
+func (r OpenRefund) StatusText(ctx context.Context) string {
 	switch r.Status {
 	case "pending":
-		return "已送出,還沒收到金流端的結果"
+		return i18n.T(ctx, i18n.KeyHealthRefundPending)
 	case "requires_action":
-		return "金流端說還需要處理才會退出去"
+		return i18n.T(ctx, i18n.KeyHealthRefundAction)
 	case "failed":
-		return "金流端拒絕了,錢沒有退出去,退貨也還沒結案"
+		return i18n.T(ctx, i18n.KeyHealthRefundFailed)
 	default:
 		return r.Status
 	}
@@ -229,9 +234,9 @@ func (r OpenRefund) StatusText() string {
 // Reference is the provider's own id, or a stand-in. It is blank exactly when
 // goen never got an answer — which is the case where the request key below is
 // the only way to find out what happened at Stripe.
-func (r OpenRefund) Reference() string {
+func (r OpenRefund) Reference(ctx context.Context) string {
 	if r.ProviderRef == "" {
-		return "(金流端沒有回覆編號)"
+		return i18n.T(ctx, i18n.KeyHealthNoRef)
 	}
 	return r.ProviderRef
 }

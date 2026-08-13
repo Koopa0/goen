@@ -1,6 +1,11 @@
 package pages
 
-import "strconv"
+import (
+	"context"
+	"strconv"
+
+	"github.com/koopa0/goen/internal/i18n"
+)
 
 // AdminShippingView is the shipping configuration the back office can change.
 //
@@ -106,20 +111,20 @@ func (m *AdminShippingMethod) FreeOverDollars() string {
 }
 
 // FreeOver is the threshold in words.
-func (m *AdminShippingMethod) FreeOver() string {
+func (m *AdminShippingMethod) FreeOver(ctx context.Context) string {
 	if m.FreeOverCents == 0 {
-		return "無"
+		return i18n.T(ctx, i18n.KeyAdminNone)
 	}
 	return twd(m.FreeOverCents)
 }
 
 // DestinationText is what the method collects: an address or a store.
-func (m *AdminShippingMethod) DestinationText() string {
+func (m *AdminShippingMethod) DestinationText(ctx context.Context) string {
 	switch m.Destination {
 	case "address":
-		return "宅配地址"
+		return i18n.T(ctx, i18n.KeyAdminDestAddress)
 	case "pickup_point":
-		return "超商門市"
+		return i18n.T(ctx, i18n.KeyAdminDestPickup)
 	default:
 		panic("pages: no label for destination kind " + m.Destination)
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -231,7 +232,7 @@ type NewMethod struct {
 }
 
 // Validate refuses what the schema would, with a message naming the field.
-func (m *NewMethod) Validate() map[string]string {
+func (m *NewMethod) Validate(ctx context.Context) map[string]string {
 	m.Code = strings.ToLower(strings.TrimSpace(m.Code))
 	m.Name = strings.TrimSpace(m.Name)
 	m.NameEn = strings.TrimSpace(m.NameEn)
@@ -240,19 +241,19 @@ func (m *NewMethod) Validate() map[string]string {
 
 	errs := map[string]string{}
 	if !methodCodeFormat.MatchString(m.Code) {
-		errs["code"] = "代碼只能用小寫英數與底線,例如 home_delivery。"
+		errs["code"] = i18n.T(ctx, i18n.KeyFormMethodCode)
 	}
 	if m.Name == "" || utf8.RuneCountInString(m.Name) > MaxTaxonomyNameRunes {
-		errs["name"] = "請填寫名稱,不超過 60 個字。"
+		errs["name"] = i18n.T(ctx, i18n.KeyFormNameRequired)
 	}
 	if m.Destination != "address" && m.Destination != "pickup_point" {
-		errs["destination"] = "請選擇送到地址或送到門市。"
+		errs["destination"] = i18n.T(ctx, i18n.KeyFormMethodDestination)
 	}
 	if m.FeeDollars < 0 || m.FeeDollars*100 > MaxShippingFee {
-		errs["fee"] = "運費超出範圍。"
+		errs["fee"] = i18n.T(ctx, i18n.KeyFormMethodFee)
 	}
 	if m.FreeOverDollars < 0 {
-		errs["free_over"] = "免運門檻不能是負數。"
+		errs["free_over"] = i18n.T(ctx, i18n.KeyFormMethodFreeOver)
 	}
 	return errs
 }
@@ -263,7 +264,7 @@ var methodCodeFormat = regexp.MustCompile(`^[a-z0-9]+(_[a-z0-9]+)*$`)
 
 // CreateMethod adds a delivery method and the version that prices it.
 func (s *Store) CreateMethod(ctx context.Context, m *NewMethod) (map[string]string, error) {
-	if errs := m.Validate(); len(errs) > 0 {
+	if errs := m.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
 	if err := s.audited(ctx, Event{
@@ -296,7 +297,7 @@ func (s *Store) CreateMethod(ctx context.Context, m *NewMethod) (map[string]stri
 		return nil
 	}); err != nil {
 		if takenBy(err, "shipping_methods_code_key") {
-			return map[string]string{"code": "這個代碼已經有配送方式用了。"}, nil
+			return map[string]string{"code": i18n.T(ctx, i18n.KeyFormMethodCodeTaken)}, nil
 		}
 		return nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
 	}
@@ -353,12 +354,12 @@ func (s *Store) CreateZone(ctx context.Context, z *NewZone) (map[string]string, 
 
 	errs := map[string]string{}
 	if !methodCodeFormat.MatchString(z.Code) {
-		errs["zone_code"] = "代碼只能用小寫英數與底線,例如 offshore。"
+		errs["zone_code"] = i18n.T(ctx, i18n.KeyFormZoneCode)
 	}
 	if z.Name == "" || utf8.RuneCountInString(z.Name) > MaxTaxonomyNameRunes {
-		errs["zone_name"] = "請填寫名稱,不超過 60 個字。"
+		errs["zone_name"] = i18n.T(ctx, i18n.KeyFormNameRequired)
 	}
-	prefixes, prefixErr := parsePrefixes(z.Prefixes)
+	prefixes, prefixErr := parsePrefixes(ctx, z.Prefixes)
 	if prefixErr != "" {
 		errs["prefixes"] = prefixErr
 	}
@@ -388,7 +389,7 @@ func (s *Store) CreateZone(ctx context.Context, z *NewZone) (map[string]string, 
 		return nil
 	}); err != nil {
 		if takenBy(err, "shipping_zones_code_key") {
-			return map[string]string{"zone_code": "這個代碼已經有區域用了。"}, nil
+			return map[string]string{"zone_code": i18n.T(ctx, i18n.KeyFormZoneCodeTaken)}, nil
 		}
 		return nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
 	}
@@ -406,7 +407,7 @@ func (s *Store) SetZonePrefixes(ctx context.Context, id, list string) (map[strin
 	if err != nil {
 		return nil, ErrNotFound
 	}
-	prefixes, prefixErr := parsePrefixes(list)
+	prefixes, prefixErr := parsePrefixes(ctx, list)
 	if prefixErr != "" {
 		return map[string]string{"prefixes": prefixErr}, nil
 	}
@@ -483,21 +484,21 @@ func (s *Store) DeleteZone(ctx context.Context, id string) error {
 // Whitespace, commas and newlines all separate, because that is how a person pastes
 // a list. Each is checked against the same shape shipping_zone_prefixes_format
 // demands, so the page can name the bad one instead of showing a constraint.
-func parsePrefixes(list string) (prefixes []string, message string) {
+func parsePrefixes(ctx context.Context, list string) (prefixes []string, message string) {
 	fields := strings.FieldsFunc(list, func(r rune) bool {
 		return r == ',' || r == ';' || r == '\n' || r == '\r' || r == '\t' || r == ' '
 	})
 	if len(fields) == 0 {
-		return nil, "請至少填一個三位數郵遞區號前綴。"
+		return nil, i18n.T(ctx, i18n.KeyFormZonePrefixRequired)
 	}
 	if len(fields) > MaxZonePrefixes {
-		return nil, "一次最多 100 個前綴。"
+		return nil, i18n.T(ctx, i18n.KeyFormZonePrefixTooMany)
 	}
 	seen := make(map[string]bool, len(fields))
 	out := make([]string, 0, len(fields))
 	for _, f := range fields {
 		if !zonePrefixFormat.MatchString(f) {
-			return nil, "前綴必須是三位數字,例如 880。看到的是「" + f + "」。"
+			return nil, fmt.Sprintf(i18n.T(ctx, i18n.KeyFormZonePrefixShape), f)
 		}
 		if seen[f] {
 			continue

@@ -29,10 +29,10 @@ templ AdminShipping(p layouts.Page, v AdminShippingView) {
 				<section class="goen-admin__panel">
 					<h2 class="goen-admin__heading">
 						{ m.Name }
-						<span class="ui-cart-line__meta">{ m.Code } · { m.DestinationText() }</span>
+						<span class="ui-cart-line__meta">{ m.Code } · { m.DestinationText(ctx) }</span>
 					</h2>
 					<p class="goen-admin__hint">
-						目前:{ m.Fee() },滿 { m.FreeOver() } 免運。
+						目前:{ m.Fee() },滿 { m.FreeOver(ctx) } 免運。
 						{ m.EffectiveAt } 起生效,共 { m.VersionCountText() } 個版本。
 					</p>
 					<form class="goen-admin__form" method="post" action="/admin/shipping/version">

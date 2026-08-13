@@ -1,6 +1,12 @@
 package pages
 
-import "strconv"
+import (
+	"context"
+	"fmt"
+	"strconv"
+
+	"github.com/koopa0/goen/internal/i18n"
+)
 
 // AdminTaxon is one brand or category as the back office sees it.
 type AdminTaxon struct {
@@ -30,17 +36,16 @@ func (t AdminTaxon) Removable() bool { return t.Products == 0 && t.Children == 0
 func (t AdminTaxon) ProductsText() string { return strconv.FormatInt(t.Products, 10) }
 
 // Why explains a refusal, when there is one.
-func (t AdminTaxon) Why() string {
+func (t AdminTaxon) Why(ctx context.Context) string {
 	switch {
 	case t.Removable():
 		return ""
 	case t.Children > 0 && t.Products > 0:
-		return "有 " + t.ProductsText() + " 個商品和 " +
-			strconv.FormatInt(t.Children, 10) + " 個子分類"
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxonomyBoth), t.ProductsText(), t.Children)
 	case t.Children > 0:
-		return "有 " + strconv.FormatInt(t.Children, 10) + " 個子分類"
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxonomyChildren), t.Children)
 	default:
-		return "有 " + t.ProductsText() + " 個商品"
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxonomyProducts), t.ProductsText())
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -32,19 +33,19 @@ type CampaignForm struct {
 }
 
 // Validate refuses what the schema would, and the window the shop should.
-func (f *CampaignForm) Validate() map[string]string {
+func (f *CampaignForm) Validate(ctx context.Context) map[string]string {
 	f.Slug = strings.ToLower(strings.TrimSpace(f.Slug))
 	f.Title = strings.TrimSpace(f.Title)
 
 	errs := map[string]string{}
 	if !slugFormat.MatchString(f.Slug) {
-		errs["slug"] = "網址代稱只能用小寫英數與連字號。"
+		errs["slug"] = i18n.T(ctx, i18n.KeyFormSlugFormat)
 	}
 	if f.Title == "" || utf8.RuneCountInString(f.Title) > MaxCampaignTitleRunes {
-		errs["title"] = "請填寫活動標題,不超過 60 個字。"
+		errs["title"] = i18n.T(ctx, i18n.KeyFormCampaignTitle)
 	}
 	if f.Days < 1 || f.Days > MaxCampaignDays {
-		errs["days"] = "活動天數必須介於 1 到 90 天。"
+		errs["days"] = i18n.T(ctx, i18n.KeyFormCampaignDays)
 	}
 	return errs
 }
@@ -74,7 +75,7 @@ func (s *Store) Campaigns(ctx context.Context) (pages.AdminCampaignsView, error)
 // a curation, and creating one pre-filled would be the software deciding what
 // is on offer.
 func (s *Store) CreateCampaign(ctx context.Context, f *CampaignForm) (map[string]string, error) {
-	if errs := f.Validate(); len(errs) > 0 {
+	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
 	err := s.audited(ctx, Event{
@@ -89,7 +90,7 @@ func (s *Store) CreateCampaign(ctx context.Context, f *CampaignForm) (map[string
 	if err != nil {
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
 			pgErr.ConstraintName == "sale_campaigns_slug_key" {
-			return map[string]string{"slug": "這個網址代稱已經有活動用了。"}, nil
+			return map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenCampaign)}, nil
 		}
 		return nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
 	}

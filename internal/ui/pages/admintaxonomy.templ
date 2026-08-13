@@ -175,7 +175,7 @@ templ taxonList(kind, title string, rows []AdminTaxon, v *AdminTaxonomyView) {
 								· 在 { t.Parent } 之下
 							}
 							if !t.Removable() {
-								· { t.Why() }
+								· { t.Why(ctx) }
 							}
 						</span>
 					</li>

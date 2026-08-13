@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -42,7 +43,7 @@ type BannerForm struct {
 }
 
 // Validate refuses what the schema would, and the two things it cannot see.
-func (f *BannerForm) Validate() map[string]string {
+func (f *BannerForm) Validate(ctx context.Context) map[string]string {
 	f.Message = strings.TrimSpace(f.Message)
 	f.Short = strings.TrimSpace(f.Short)
 	f.Code = strings.TrimSpace(f.Code)
@@ -54,7 +55,7 @@ func (f *BannerForm) Validate() map[string]string {
 
 	errs := map[string]string{}
 	if f.Message == "" || utf8.RuneCountInString(f.Message) > MaxBannerRunes {
-		errs["message"] = "請填寫訊息,不超過 60 個字。"
+		errs["message"] = i18n.T(ctx, i18n.KeyFormBannerMessage)
 	}
 	for field, value := range map[string]string{
 		"short":      f.Short,
@@ -62,14 +63,14 @@ func (f *BannerForm) Validate() map[string]string {
 		"short_en":   f.ShortEn,
 	} {
 		if utf8.RuneCountInString(value) > MaxBannerRunes {
-			errs[field] = "不超過 60 個字。"
+			errs[field] = i18n.T(ctx, i18n.KeyFormBannerFieldLong)
 		}
 	}
 
 	// Both or neither. promo_banners_cta_complete says the same in the schema, and
 	// this is what turns it into a sentence rather than a constraint name.
 	if (f.CTALabel == "") != (f.CTAHref == "") {
-		errs["cta"] = "按鈕文字和連結要一起填,或都留空。"
+		errs["cta"] = i18n.T(ctx, i18n.KeyFormBannerCTAPair)
 	}
 	// The href is typed by a person and rendered into the largest link at the top of
 	// every page. web.SitePath is the one owner of that rule: an absolute URL would
@@ -77,11 +78,11 @@ func (f *BannerForm) Validate() map[string]string {
 	// put script in it.
 	if f.CTAHref != "" {
 		if _, ok := web.SitePath(f.CTAHref); !ok {
-			errs["cta"] = "連結必須是本站路徑,例如 /deals。"
+			errs["cta"] = i18n.T(ctx, i18n.KeyFormBannerCTAHref)
 		}
 	}
 	if f.Days < 0 || f.Days > MaxHeroDays {
-		errs["days"] = "檔期天數必須介於 0(不限)到 365 天。"
+		errs["days"] = i18n.T(ctx, i18n.KeyFormRunDays)
 	}
 	return errs
 }
@@ -112,7 +113,7 @@ func (s *Store) Banners(ctx context.Context) ([]pages.AdminBanner, error) {
 // REPLACES what is on the home page and that is an editorial decision, while a strip
 // is an announcement — a shop writing one has already decided to make it.
 func (s *Store) CreateBanner(ctx context.Context, f *BannerForm) (map[string]string, error) {
-	if errs := f.Validate(); len(errs) > 0 {
+	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
 	if err := s.audited(ctx, Event{

@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -38,7 +39,7 @@ type TaxonomyForm struct {
 }
 
 // Validate refuses what the schema would, with a message naming the field.
-func (f *TaxonomyForm) Validate() map[string]string {
+func (f *TaxonomyForm) Validate(ctx context.Context) map[string]string {
 	f.Slug = strings.ToLower(strings.TrimSpace(f.Slug))
 	f.Name = strings.TrimSpace(f.Name)
 	f.NameEn = strings.TrimSpace(f.NameEn)
@@ -46,16 +47,16 @@ func (f *TaxonomyForm) Validate() map[string]string {
 
 	errs := map[string]string{}
 	if !slugFormat.MatchString(f.Slug) {
-		errs["slug"] = "網址代稱只能用小寫英數與連字號。"
+		errs["slug"] = i18n.T(ctx, i18n.KeyFormSlugFormat)
 	}
 	if f.Name == "" || utf8.RuneCountInString(f.Name) > MaxTaxonomyNameRunes {
-		errs["name"] = "請填寫名稱,不超過 60 個字。"
+		errs["name"] = i18n.T(ctx, i18n.KeyFormNameRequired)
 	}
 	// Blank is legal and means "not translated". Too long is not: it is the same
 	// header row, and nullif('') in the query is what turns blank into the NULL the
 	// column uses for absence.
 	if utf8.RuneCountInString(f.NameEn) > MaxTaxonomyNameRunes {
-		errs["name_en"] = "英文名稱不超過 60 個字。"
+		errs["name_en"] = i18n.T(ctx, i18n.KeyFormNameEnTooLong)
 	}
 	return errs
 }
@@ -90,7 +91,7 @@ func (s *Store) Taxonomy(ctx context.Context) (pages.AdminTaxonomyView, error) {
 
 // CreateBrand adds a brand.
 func (s *Store) CreateBrand(ctx context.Context, f *TaxonomyForm) (map[string]string, error) {
-	if errs := f.Validate(); len(errs) > 0 {
+	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
 	err := s.audited(ctx, Event{
@@ -102,7 +103,7 @@ func (s *Store) CreateBrand(ctx context.Context, f *TaxonomyForm) (map[string]st
 		})
 	if err != nil {
 		if takenBy(err, "brands_slug_key") {
-			return map[string]string{"slug": "這個網址代稱已經有品牌用了。"}, nil
+			return map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenBrand)}, nil
 		}
 		return nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
 	}
@@ -111,7 +112,7 @@ func (s *Store) CreateBrand(ctx context.Context, f *TaxonomyForm) (map[string]st
 
 // CreateCategory adds a category, optionally under a parent.
 func (s *Store) CreateCategory(ctx context.Context, f *TaxonomyForm) (map[string]string, error) {
-	if errs := f.Validate(); len(errs) > 0 {
+	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
 	err := s.audited(ctx, Event{
@@ -138,11 +139,11 @@ func (s *Store) CreateCategory(ctx context.Context, f *TaxonomyForm) (map[string
 	if err != nil {
 		switch {
 		case takenBy(err, "categories_slug_key"):
-			return map[string]string{"slug": "這個網址代稱已經有分類用了。"}, nil
+			return map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenCategory)}, nil
 		case errors.Is(err, ErrNotFound),
 			takenBy(err, "categories_parent_id_fkey"),
 			takenBy(err, "categories_not_own_parent"):
-			return map[string]string{"parent": "找不到這個上層分類。"}, nil
+			return map[string]string{"parent": i18n.T(ctx, i18n.KeyFormParentMissing)}, nil
 		}
 		return nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
 	}
