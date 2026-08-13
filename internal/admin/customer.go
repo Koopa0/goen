@@ -108,7 +108,7 @@ func (s *Store) Customer(ctx context.Context, id string, actor uuid.NullUUID) (
 		o := &orders[i]
 		view.Recent = append(view.Recent, pages.AdminOrderRow{
 			Number: o.OrderNumber, Status: o.FulfillmentStatus,
-			StatusText: StatusLabel(o.FulfillmentStatus),
+			StatusText: StatusLabel(ctx, o.FulfillmentStatus),
 			PlacedAt:   o.PlacedAt.Format("2006-01-02 15:04"),
 			TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
 		})

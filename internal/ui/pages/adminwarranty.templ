@@ -78,11 +78,11 @@ templ AdminWarranties(p layouts.Page, v AdminWarrantiesView) {
 										<a href={ templ.SafeURL(w.OrderHref()) }>{ w.Order }</a>
 										<span class="ui-cart-line__meta">{ w.OrderStatus }</span>
 									</td>
-									<td>{ w.Customer() }</td>
+									<td>{ w.Customer(ctx) }</td>
 									<td>{ w.RegisteredAt }</td>
 									<td>
 										{ w.ExpiresOn }
-										<span class="ui-cart-line__meta">{ w.StateText() }</span>
+										<span class="ui-cart-line__meta">{ w.StateText(ctx) }</span>
 									</td>
 								</tr>
 							}

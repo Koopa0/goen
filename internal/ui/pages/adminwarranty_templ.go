@@ -207,9 +207,9 @@ func AdminWarranties(p layouts.Page, v AdminWarrantiesView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var12 string
-					templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(w.Customer())
+					templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(w.Customer(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/adminwarranty.templ`, Line: 81, Col: 27}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/adminwarranty.templ`, Line: 81, Col: 30}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 					if templ_7745c5c3_Err != nil {
@@ -246,9 +246,9 @@ func AdminWarranties(p layouts.Page, v AdminWarrantiesView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var15 string
-					templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(w.StateText())
+					templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(w.StateText(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/adminwarranty.templ`, Line: 85, Col: 58}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/adminwarranty.templ`, Line: 85, Col: 61}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 					if templ_7745c5c3_Err != nil {

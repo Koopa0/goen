@@ -127,7 +127,7 @@ func (s *Store) Orders(ctx context.Context, status, term string) (pages.AdminOrd
 		view.Orders = append(view.Orders, pages.AdminOrderRow{
 			Number:     o.OrderNumber,
 			Status:     o.FulfillmentStatus,
-			StatusText: StatusLabel(o.FulfillmentStatus),
+			StatusText: StatusLabel(ctx, o.FulfillmentStatus),
 			PlacedAt:   o.PlacedAt.Format("2006-01-02 15:04"),
 			Recipient:  o.Recipient,
 			TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
@@ -154,7 +154,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 
 	view := pages.AdminOrderView{
 		Number: o.OrderNumber, Status: o.FulfillmentStatus,
-		StatusText:    StatusLabel(o.FulfillmentStatus),
+		StatusText:    StatusLabel(ctx, o.FulfillmentStatus),
 		PlacedAt:      o.PlacedAt.Format("2006-01-02 15:04"),
 		ShippingName:  o.ShippingMethodName,
 		SubtotalCents: o.SubtotalCents, ShippingCents: o.ShippingCents,
@@ -196,7 +196,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 		return pages.AdminOrderView{}, invErr
 	}
 	for _, n := range NextStatuses(o.FulfillmentStatus) {
-		view.Next = append(view.Next, pages.AdminTransition{Value: n, Label: StatusLabel(n)})
+		view.Next = append(view.Next, pages.AdminTransition{Value: n, Label: StatusLabel(ctx, n)})
 	}
 	for _, l := range lines {
 		view.Lines = append(view.Lines, pages.OrderLine{
@@ -919,7 +919,7 @@ func (s *Store) Returns(ctx context.Context) (pages.AdminReturnsView, error) {
 			ID:          r.ID.String(),
 			OrderNumber: r.OrderNumber,
 			Status:      r.Status,
-			StatusText:  ReturnStatusLabel(r.Status),
+			StatusText:  ReturnStatusLabel(ctx, r.Status),
 			Reason:      r.Reason,
 			Units:       r.Units,
 			AmountCents: r.RefundableCents,

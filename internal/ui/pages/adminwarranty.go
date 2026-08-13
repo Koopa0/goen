@@ -1,6 +1,11 @@
 package pages
 
-import "strconv"
+import (
+	"context"
+	"strconv"
+
+	"github.com/koopa0/goen/internal/i18n"
+)
 
 // AdminWarrantiesView is the back office's warranty lookup.
 //
@@ -59,11 +64,11 @@ func (r AdminWarrantyRow) SerialText() string {
 }
 
 // StateText is the one word a staff member on the phone is looking for.
-func (r AdminWarrantyRow) StateText() string {
+func (r AdminWarrantyRow) StateText(ctx context.Context) string {
 	if r.InForce {
-		return "保固中"
+		return i18n.T(ctx, i18n.KeyAdminWarrantyInForce)
 	}
-	return "已過期"
+	return i18n.T(ctx, i18n.KeyAdminWarrantyExpired)
 }
 
 // Customer is who registered it, or a note that the account is gone.
@@ -71,14 +76,14 @@ func (r AdminWarrantyRow) StateText() string {
 // warranty_registrations.user_id is ON DELETE SET NULL, so erase_user takes the
 // customer away and leaves the cover. A blank cell would read as a page fault;
 // this says which of the two it is.
-func (r AdminWarrantyRow) Customer() string {
+func (r AdminWarrantyRow) Customer(ctx context.Context) string {
 	switch {
 	case r.CustomerName != "":
 		return r.CustomerName
 	case r.CustomerEmail != "":
 		return r.CustomerEmail
 	default:
-		return "帳號已刪除"
+		return i18n.T(ctx, i18n.KeyAdminWarrantyErasedAccount)
 	}
 }
 

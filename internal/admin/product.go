@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -168,7 +169,7 @@ func (s *Store) Products(ctx context.Context) (pages.AdminProductsView, error) {
 		r := &rows[i]
 		view.Rows = append(view.Rows, pages.AdminProduct{
 			Slug: r.Slug, Name: r.Name, Status: r.Status,
-			StatusText: ProductStatusLabel(r.Status),
+			StatusText: ProductStatusLabel(ctx, r.Status),
 			Brand:      r.Brand, Category: r.Category,
 			Variants: r.Variants, FromCents: r.FromCents,
 			Translated: r.Translated,
@@ -188,7 +189,7 @@ func (s *Store) Product(ctx context.Context, slug string) (pages.AdminProductVie
 		Description: p.Description, WarrantyNote: p.WarrantyNote,
 		NameEn: p.NameEn, SummaryEn: p.SummaryEn, DescriptionEn: p.DescriptionEn,
 		WarrantyMonths: p.WarrantyMonths,
-		Status:         p.Status, StatusText: ProductStatusLabel(p.Status),
+		Status:         p.Status, StatusText: ProductStatusLabel(ctx, p.Status),
 		BrandID: p.BrandID.String(), CategoryID: p.CategoryID.String(),
 	}
 	variants, err := s.q.AdminProductVariants(ctx, p.ID)
@@ -433,15 +434,15 @@ func (s *Store) AddVariant(ctx context.Context, slug string, f *VariantForm) (ma
 	return nil, nil
 }
 
-// ProductStatusLabel is a product's state in the chrome language.
-func ProductStatusLabel(s string) string {
+// ProductStatusLabel is a product's state in the reader's language.
+func ProductStatusLabel(ctx context.Context, s string) string {
 	switch s {
 	case "draft":
-		return "草稿"
+		return i18n.T(ctx, i18n.KeyAdminProductDraft)
 	case "active":
-		return "已上架"
+		return i18n.T(ctx, i18n.KeyAdminProductActive)
 	case "archived":
-		return "已封存"
+		return i18n.T(ctx, i18n.KeyAdminProductArchived)
 	default:
 		panic("admin: no label for product status " + s)
 	}

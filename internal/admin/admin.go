@@ -8,9 +8,12 @@
 package admin
 
 import (
+	"context"
 	"errors"
 	"strconv"
 	"strings"
+
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 // Errors a handler branches on.
@@ -93,22 +96,32 @@ func NextStatuses(current string) []string {
 	}
 }
 
-// StatusLabel is a fulfilment state in the chrome language.
-func StatusLabel(s string) string {
+// StatusLabel is a fulfilment state in the reader's language.
+//
+// It takes a ctx because it BUILDS a word rather than mapping to one a caller
+// could resolve later — the second of the two patterns CLAUDE.md records, and the
+// same shape returns.StatusLabel already had on the customer's side. The
+// alternative, returning an i18n.Key, would push the lookup into every template
+// that renders a queue for no gain: each of them has the request.
+func StatusLabel(ctx context.Context, s string) string {
 	switch s {
 	case "pending":
-		return "待付款"
+		return i18n.T(ctx, i18n.KeyAdminStatusPending)
 	case "picking":
-		return "備貨中"
+		return i18n.T(ctx, i18n.KeyAdminStatusPicking)
 	case "shipped":
-		return "已出貨"
+		return i18n.T(ctx, i18n.KeyAdminStatusShipped)
 	case "delivered":
-		return "已送達"
+		return i18n.T(ctx, i18n.KeyAdminStatusDelivered)
 	case "completed":
-		return "已完成"
+		return i18n.T(ctx, i18n.KeyAdminStatusCompleted)
 	case "cancelled":
-		return "已取消"
+		return i18n.T(ctx, i18n.KeyAdminStatusCancelled)
 	default:
+		// The raw value rather than a panic, unlike its two neighbours: a status
+		// reaching here is a schema change nobody carried through, and a queue
+		// that still opens showing an untranslated word is worth more to the
+		// person on shift than a back office that will not load.
 		return s
 	}
 }
@@ -186,16 +199,16 @@ func ParsePrice(s string) (int64, bool) {
 // The states are return_requests_status_known's CHECK. An unknown one is a
 // schema change nobody carried through here, which must be loud rather than
 // rendered blank.
-func ReturnStatusLabel(s string) string {
+func ReturnStatusLabel(ctx context.Context, s string) string {
 	switch s {
 	case "requested":
-		return "待處理"
+		return i18n.T(ctx, i18n.KeyAdminReturnRequested)
 	case "approved":
-		return "已同意"
+		return i18n.T(ctx, i18n.KeyAdminReturnApproved)
 	case "rejected":
-		return "未同意"
+		return i18n.T(ctx, i18n.KeyAdminReturnRejected)
 	case "completed":
-		return "已完成"
+		return i18n.T(ctx, i18n.KeyAdminReturnCompleted)
 	default:
 		panic("admin: no label for return status " + s)
 	}
