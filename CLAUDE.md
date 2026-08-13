@@ -163,13 +163,45 @@ those ask questions ABOUT THE CATALOGUE, so 1,955 Han literals sat in the tree
 against 38 keys. It reads every customer-facing file and refuses Han in a string
 literal or in templ body text.
 
-What it does not read is excluded by CATEGORY with a reason — the back office
-(the staff of one Taiwanese shop), authored policy prose, email bodies, test
-fixtures. Never string by string: a per-string allowlist grows to the size of the
-debt and then says nothing. The per-line escape is `// i18n-exempt: <why>`, and
-its users are lines that run where no locale exists — `web.Render`'s own failure
-path, the rate limiter refusing ahead of the handler, a ledger row only
-`/admin/credit` reads.
+What it does not read is excluded by CATEGORY with a reason — authored policy
+prose, email bodies, test fixtures. Never string by string: a per-string
+allowlist grows to the size of the debt and then says nothing. The per-line
+escape is `// i18n-exempt: <why>`, and its users are lines that run where no
+locale exists — `web.Render`'s own failure path, the rate limiter refusing ahead
+of the handler, a ledger row only `/admin/credit` reads.
+
+**The back office used to head that list and no longer does.** It was excluded on
+the stated grounds that it serves the staff of one Taiwanese shop — a claim about
+the AUDIENCE, not about the code, and the owner has changed the answer: goen's
+chrome is bilingual everywhere the code writes it, `/admin` included. The
+exclusion named its own trigger ("if goen ever hires somebody who does not read
+Chinese, this line is what has to change first"), so it is deleted rather than
+narrowed.
+
+**1,058 strings across 52 files became DEBT in one commit**, which is what
+`pendingTranslation` is for and what the storefront's own 818-string migration
+did. The list may only shrink, and `TestThePendingListOnlyHoldsRealDebt` refuses
+an entry whose file is already clean — so a file cannot be translated and left
+looking owed, and nothing new can join. The migration is IN PROGRESS: read the
+list, not this paragraph, for where it stands.
+
+The expensive half is not the strings. A back-office view model computes its
+words in a method with no request to read a locale from — `StatusLabel`,
+`WindowText`, the audit trail's action map — so each becomes either a method
+returning an `i18n.Key` or one taking a `ctx`, per the two patterns above. The
+first tranche is the shared vocabulary every queue renders, because that is what
+fixes the shape for the other 49 files.
+
+`AdminReturn.WindowText`'s own comment said "no i18n: /admin is the staff of one
+Taiwanese shop, which is the documented category exclusion rather than an
+oversight" — **a comment citing a decision recorded somewhere else, which went on
+being persuasive after the decision was reversed.** Where a comment cites a rule
+it does not state, the rule can move without it.
+
+That surface earns the care: 鑑賞期 is not a trial period the shop grants, it is
+消保法 §19's unwaivable right to rescind, and the English says so. A staff member
+reading "in the trial window" would decide the way shop policy suggests, on the
+one screen built to inform a statutory decision.
 
 **A key and both its translations are ONE declaration.** They used to be three
 edits in three places — const block, Chinese map, English map, hundreds of lines

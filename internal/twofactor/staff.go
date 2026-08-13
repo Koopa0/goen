@@ -11,6 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 // Errors the staff page branches on.
@@ -36,12 +37,12 @@ var Roles = []string{"staff", "admin"}
 
 // RoleLabel is what a role is called. No silent default: a role added to the
 // schema's CHECK and not here would render as an empty option.
-func RoleLabel(role string) string {
+func RoleLabel(ctx context.Context, role string) string {
 	switch role {
 	case "staff":
-		return "員工"
+		return i18n.T(ctx, i18n.KeyAdminRoleStaff)
 	case "admin":
-		return "管理員"
+		return i18n.T(ctx, i18n.KeyAdminRoleAdmin)
 	default:
 		panic("twofactor: no label for role " + role)
 	}

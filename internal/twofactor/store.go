@@ -233,7 +233,7 @@ func (s *Store) Staff(ctx context.Context) (pages.AdminStaffView, error) {
 	view := pages.AdminStaffView{Rows: make([]pages.AdminStaffRow, 0, len(rows))}
 	for _, role := range Roles {
 		view.Roles = append(view.Roles, pages.StaffRoleChoice{
-			Value: role, Label: RoleLabel(role),
+			Value: role, Label: RoleLabel(ctx, role),
 		})
 	}
 	for i := range rows {

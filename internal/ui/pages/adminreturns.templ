@@ -39,9 +39,9 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 								// — and the page said nothing at all, so nobody deciding one could
 								// tell it from a goodwill return.
 								if r.Rescission() {
-									<span class="ui-cart-line__meta"><strong>{ r.WindowText() }</strong>(依法不得拒絕退貨,退款含原運費)</span>
+									<span class="ui-cart-line__meta"><strong>{ r.WindowText(ctx) }</strong>(依法不得拒絕退貨,退款含原運費)</span>
 								} else {
-									<span class="ui-cart-line__meta">{ r.WindowText() }</span>
+									<span class="ui-cart-line__meta">{ r.WindowText(ctx) }</span>
 								}
 								<span class="ui-cart-line__meta">{ r.Reason }</span>
 								if len(r.Lines) > 0 {

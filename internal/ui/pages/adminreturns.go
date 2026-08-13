@@ -1,6 +1,11 @@
 package pages
 
-import "strconv"
+import (
+	"context"
+	"strconv"
+
+	"github.com/koopa0/goen/internal/i18n"
+)
 
 // AdminReturn is one row in the back-office return queue.
 type AdminReturn struct {
@@ -80,18 +85,20 @@ func (r AdminReturn) RestockedUnitsText() string {
 // so the template can mark it.
 func (r AdminReturn) Rescission() bool { return r.Window == "within" }
 
-// WindowText names the window in the back office's own language.
+// WindowText names the window in the reader's language.
 //
-// No i18n: /admin is the staff of one Taiwanese shop, which is the documented
-// category exclusion rather than an oversight.
-func (r AdminReturn) WindowText() string {
+// It takes a ctx now. The comment here used to say "no i18n: /admin is the staff
+// of one Taiwanese shop, which is the documented category exclusion" — and the
+// exclusion it cited has been deleted, which is the hazard of a comment that
+// cites a decision made somewhere else.
+func (r AdminReturn) WindowText(ctx context.Context) string {
 	switch r.Window {
 	case "within":
-		return "七日鑑賞期內"
+		return i18n.T(ctx, i18n.KeyAdminReturnWindowWithin)
 	case "after":
-		return "已逾鑑賞期"
+		return i18n.T(ctx, i18n.KeyAdminReturnWindowAfter)
 	case "undelivered":
-		return "尚未送達"
+		return i18n.T(ctx, i18n.KeyAdminReturnWindowUndelivered)
 	default:
 		panic("pages: unknown rescission window: " + r.Window)
 	}

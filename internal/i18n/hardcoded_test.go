@@ -55,19 +55,15 @@ func TestNoChromeStringIsHardCoded(t *testing.T) {
 // Each entry is a DECISION. A reader disagreeing with one should argue with the
 // reason rather than discover the omission.
 var notChrome = map[string]string{
-	// The back office is the staff of one Taiwanese shop. Translating 594
-	// strings for an audience that reads Chinese buys nothing, and every one of
-	// them would then need an English reviewer who knows what 撿貨 means in this
-	// shop. If goen ever hires somebody who does not read Chinese, this line is
-	// what has to change first.
-	"internal/admin":                    "back office: staff-only, and the staff read Chinese",
-	"internal/twofactor":                "back office: guards /admin and is only ever seen there",
-	"internal/ui/pages/admin":           "back office pages",
-	"internal/ui/pages/audit.go":        "back office: the audit trail's labels",
-	"internal/ui/pages/audit.templ":     "back office: the audit trail page",
-	"internal/ui/pages/twofactor.templ": "back office: the /admin step-up and enrolment screens",
-	"internal/ui/pages/workerhealth.go": "back office: /admin/health",
-	"internal/ui/layouts/admin":         "back office shell",
+	// The back office USED TO BE HERE, on the grounds that it serves the staff of
+	// one Taiwanese shop. That was a decision about who reads it, and the owner
+	// has changed the answer: goen's chrome is bilingual everywhere the code
+	// writes it, /admin included. The entry even named its own trigger — "if goen
+	// ever hires somebody who does not read Chinese, this line is what has to
+	// change first" — so it is DELETED rather than narrowed, and the 53 files it
+	// covered are in pendingTranslation below, where a list that can only shrink
+	// is watching them.
+	//
 	// Prose in Go rather than in the catalogue, because a policy document changes
 	// when a LAWYER changes it and a lookup table is not where that belongs —
 	// paragraphs are also the wrong shape for key(), which exists for short
@@ -103,7 +99,71 @@ var notChrome = map[string]string{
 //
 // Distinct from notChrome above, which is a set of decisions with reasons. These
 // have no reason beyond "not done yet".
-var pendingTranslation = map[string]struct{}{}
+//
+// The list was EMPTY, and it is full again for a reason worth writing down: the
+// storefront migration finished and the back office was never in it, excused by
+// a notChrome entry that named the audience. The owner has changed the audience,
+// so 1,058 strings across 52 files became debt in one commit — which is what this
+// mechanism is for, and the honest alternative to a half-migrated tree where some
+// admin pages answer to a locale and some do not.
+//
+// The expensive half is not the strings. It is that a back-office view model
+// computes its words in a method with no request to read a locale from —
+// StatusLabel, ReasonText, the audit trail's action map — so each becomes either
+// a method returning an i18n.Key or one taking a ctx, per the two patterns
+// CLAUDE.md records. Every file that leaves this list takes its share of that
+// with it.
+var pendingTranslation = map[string]struct{}{
+	"internal/admin/banner.go":                {},
+	"internal/admin/campaign.go":              {},
+	"internal/admin/coupon.go":                {},
+	"internal/admin/faq.go":                   {},
+	"internal/admin/handler.go":               {},
+	"internal/admin/hero.go":                  {},
+	"internal/admin/image.go":                 {},
+	"internal/admin/product.go":               {},
+	"internal/admin/shipping.go":              {},
+	"internal/admin/query.sql":                {},
+	"internal/admin/store.go":                 {},
+	"internal/admin/taxonomy.go":              {},
+	"internal/twofactor/handler.go":           {},
+	"internal/ui/pages/admin.go":              {},
+	"internal/ui/pages/admin.templ":           {},
+	"internal/ui/pages/admincampaign.go":      {},
+	"internal/ui/pages/admincampaign.templ":   {},
+	"internal/ui/pages/admincoupon.go":        {},
+	"internal/ui/pages/admincoupon.templ":     {},
+	"internal/ui/pages/admincredit.templ":     {},
+	"internal/ui/pages/admincustomer.templ":   {},
+	"internal/ui/pages/adminfaq.templ":        {},
+	"internal/ui/pages/adminhealth.templ":     {},
+	"internal/ui/pages/adminhome.templ":       {},
+	"internal/ui/pages/adminmessage.go":       {},
+	"internal/ui/pages/adminmessage.templ":    {},
+	"internal/ui/pages/adminmovements.templ":  {},
+	"internal/ui/pages/adminnewsletter.templ": {},
+	"internal/ui/pages/adminproduct.go":       {},
+	"internal/ui/pages/adminproduct.templ":    {},
+	"internal/ui/pages/adminquestion.go":      {},
+	"internal/ui/pages/adminquestion.templ":   {},
+	"internal/ui/pages/adminreport.go":        {},
+	"internal/ui/pages/adminreport.templ":     {},
+	"internal/ui/pages/adminreturns.templ":    {},
+	"internal/ui/pages/adminreview.go":        {},
+	"internal/ui/pages/adminreview.templ":     {},
+	"internal/ui/pages/adminshipping.go":      {},
+	"internal/ui/pages/adminshipping.templ":   {},
+	"internal/ui/pages/adminstaff.go":         {},
+	"internal/ui/pages/adminstaff.templ":      {},
+	"internal/ui/pages/admintaxonomy.go":      {},
+	"internal/ui/pages/admintaxonomy.templ":   {},
+	"internal/ui/pages/admintiers.templ":      {},
+	"internal/ui/pages/adminwarranty.templ":   {},
+	"internal/ui/pages/audit.go":              {},
+	"internal/ui/pages/audit.templ":           {},
+	"internal/ui/pages/twofactor.templ":       {},
+	"internal/ui/pages/workerhealth.go":       {},
+}
 
 // chromeSources is every customer-facing Go and templ file, by path.
 //
