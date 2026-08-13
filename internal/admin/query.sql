@@ -1820,3 +1820,69 @@ LEFT JOIN orders ro ON ro.id = r.order_id
 WHERE pv.sku = @sku::text
 ORDER BY m.id DESC
 LIMIT @row_limit::integer;
+
+-- Receive goods onto the shelf.
+--
+-- reason 'receipt' and not 'adjustment', which is the whole of it. The ledger has
+-- carried that reason, its delta-direction CHECK and its back-office label since
+-- the schema was written, and the ONLY thing that ever posted one was the dev
+-- seed — so a shop's own purchasing was indistinguishable, in the shop's own
+-- ledger, from a staff member correcting a miscount. 「這個為什麼是四」 is the
+-- question /admin/stock/{sku} exists to answer, and it could not tell 「進了四箱」
+-- from 「數錯了改成四」.
+--
+-- A fixture that reaches past the application is a fixture for a feature with no
+-- entrance, and the seed posting the only receipts this schema had ever seen was
+-- exactly that.
+--
+-- source_type 'admin' like the adjustment beside it: both are a person at the
+-- back office rather than an order or a return. There is no source_id because
+-- goen has no purchasing table to point at, and inventing one is the L-sized
+-- feature this deliberately is not.
+-- name: ReceiveStock :exec
+SELECT record_inventory_movement(
+    @variant_id, @delta::integer, 'receipt',
+    @idempotency_key::text, 'admin', NULL, @actor_user_id::uuid
+);
+
+-- ---------------------------------------------------------------------------
+-- Warranty lookup
+--
+-- warranty_registrations was written by the customer and read by the customer,
+-- and by nobody at the shop. /warranty promises that a registered unit is
+-- collected and repaired at the shop's expense — and when that customer rang up,
+-- the only person who could see the registration was the person making the
+-- claim. A promise the shop cannot verify is a promise it keeps on trust or not
+-- at all.
+-- ---------------------------------------------------------------------------
+
+-- Look one unit's cover up, by serial number or by order number.
+--
+-- EXACT on both, and that is deliberate. A serial is read off the label on the
+-- machine in front of somebody and an order number off their confirmation mail,
+-- so a prefix would widen the ANSWER without widening what the person on the
+-- phone can tell you — and a browsable list of registrations is a page of other
+-- customers' names, which is the reason /admin/customers refuses to open on one.
+--
+-- The two shapes are told apart by the caller rather than OR-ed with wildcards,
+-- for the reason /admin/orders tells its three apart: each path is then served by
+-- an index (warranty_registrations_serial_key, orders_order_number_key) instead
+-- of scanning every registration on every lookup.
+-- name: AdminSearchWarranties :many
+SELECT w.id, w.unit_no, coalesce(w.serial_number, '') AS serial_number,
+       w.registered_at, w.expires_on,
+       (w.expires_on >= current_date)::boolean AS in_force,
+       ol.product_name, coalesce(ol.variant_label, '') AS variant_label,
+       o.order_number, o.fulfillment_status,
+       coalesce(u.full_name, '') AS customer_name,
+       coalesce(u.email, '') AS customer_email
+FROM warranty_registrations w
+JOIN order_lines ol ON ol.id = w.order_line_id
+JOIN orders o ON o.id = ol.order_id
+-- LEFT, because warranty_registrations.user_id is ON DELETE SET NULL: erase_user
+-- takes the customer away and leaves the registration, so a claim on an erased
+-- account still resolves to a product and an order rather than to nothing.
+LEFT JOIN users u ON u.id = w.user_id
+WHERE w.serial_number = @term::text OR o.order_number = @term::text
+ORDER BY w.expires_on DESC, w.id
+LIMIT @row_limit::integer;

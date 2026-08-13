@@ -35,6 +35,7 @@ import (
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/warranty"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -6611,4 +6612,306 @@ func TestEachParcelTellsTheCustomer(t *testing.T) {
 	if events != 2 {
 		t.Errorf("%d shipped events for two parcels, want 2", events)
 	}
+}
+
+// TestAReceiptIsFiledAsAReceiptAndNotAnAdjustment is the whole point of the
+// second stock door.
+//
+// inventory_movements has carried a 'receipt' reason — with a CHECK, a
+// delta-direction rule, a safety-stock exemption and a back-office label — since
+// the schema was written, and the ONLY thing that ever posted one was the dev
+// seed. So every unit a shop bought entered its own ledger as 人工調整,
+// indistinguishable from somebody correcting a miscount, on the page built to
+// answer 「這個為什麼是四」.
+//
+// The assertion is on the REASON and not merely on the stock figure: an
+// adjustment of +12 moves the number identically, and a test that checked only
+// the number would have passed for the whole time the defect existed.
+func TestAReceiptIsFiledAsAReceiptAndNotAnAdjustment(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	actor := staffID(t)
+
+	var sku string
+	var before int32
+	if err := pool.QueryRow(ctx, `
+		SELECT sku, stock_quantity FROM product_variants
+		WHERE is_active ORDER BY position LIMIT 1`).Scan(&sku, &before); err != nil {
+		t.Fatalf("read variant: %v", err)
+	}
+
+	key := "receipt-" + uuid.NewString()
+	if err := s.ReceiveStock(ctx, sku, 12, actor, key); err != nil {
+		t.Fatalf("receive: %v", err)
+	}
+
+	var delta int32
+	var reason, source string
+	var hasActor bool
+	if err := pool.QueryRow(ctx, `
+		SELECT m.delta, m.reason, coalesce(m.source_type, ''), m.actor_user_id IS NOT NULL
+		FROM inventory_movements m WHERE m.idempotency_key = $1`, key).
+		Scan(&delta, &reason, &source, &hasActor); err != nil {
+		t.Fatalf("the receipt left no movement row: %v", err)
+	}
+	if delta != 12 || reason != "receipt" || source != "admin" || !hasActor {
+		t.Errorf("movement = %d/%q/%q/actor:%v, want 12/receipt/admin/actor:true",
+			delta, reason, source, hasActor)
+	}
+
+	var after int32
+	if err := pool.QueryRow(ctx,
+		`SELECT stock_quantity FROM product_variants WHERE sku = $1`, sku).Scan(&after); err != nil {
+		t.Fatalf("read stock: %v", err)
+	}
+	if after != before+12 {
+		t.Errorf("stock went %d -> %d, want %d", before, after, before+12)
+	}
+}
+
+// TestAReceiptIsIdempotent is what stops a double-click booking one delivery in
+// twice. The form's key is derived from the SKU and the stock the ledger page
+// rendered with, so the same button pressed twice carries the same key and
+// inventory_movements' unique index refuses the second write.
+func TestAReceiptIsIdempotent(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	actor := staffID(t)
+
+	var sku string
+	if err := pool.QueryRow(ctx, `
+		SELECT sku FROM product_variants WHERE is_active ORDER BY position DESC LIMIT 1`).
+		Scan(&sku); err != nil {
+		t.Fatalf("read variant: %v", err)
+	}
+
+	key := "receipt-dup-" + uuid.NewString()
+	if err := s.ReceiveStock(ctx, sku, 4, actor, key); err != nil {
+		t.Fatalf("first receipt: %v", err)
+	}
+	var afterFirst int32
+	if err := pool.QueryRow(ctx,
+		`SELECT stock_quantity FROM product_variants WHERE sku = $1`, sku).Scan(&afterFirst); err != nil {
+		t.Fatalf("read stock: %v", err)
+	}
+
+	if err := s.ReceiveStock(ctx, sku, 4, actor, key); err == nil {
+		t.Error("the same idempotency key booked one delivery in twice")
+	}
+	var afterSecond int32
+	if err := pool.QueryRow(ctx,
+		`SELECT stock_quantity FROM product_variants WHERE sku = $1`, sku).Scan(&afterSecond); err != nil {
+		t.Fatalf("read stock: %v", err)
+	}
+	if afterSecond != afterFirst {
+		t.Errorf("stock moved again on the repeat: %d -> %d", afterFirst, afterSecond)
+	}
+}
+
+// TestAReceiptCannotTakeStockAway holds the line the two doors exist to draw.
+//
+// ParseReceipt refuses a negative quantity at the form so a mistyped minus sign
+// is a sentence somebody can act on, and this asserts the STORE refuses it too:
+// the parser is one caller, and a rule that lives only in a parser is a rule the
+// next caller does not have. inventory_movements_delta_direction is the
+// authority underneath both and is covered by the schema conformance suite.
+//
+// The stock assertion is the half that matters. An error with the stock already
+// moved is worse than no error at all.
+func TestAReceiptCannotTakeStockAway(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	actor := staffID(t)
+
+	var sku string
+	var before int32
+	if err := pool.QueryRow(ctx, `
+		SELECT sku, stock_quantity FROM product_variants
+		WHERE is_active AND stock_quantity > 5 ORDER BY position LIMIT 1`).Scan(&sku, &before); err != nil {
+		t.Fatalf("read variant: %v", err)
+	}
+
+	key := "receipt-neg-" + uuid.NewString()
+	if err := s.ReceiveStock(ctx, sku, -3, actor, key); !errors.Is(err, admin.ErrRefused) {
+		t.Errorf("a negative receipt gave %v, want ErrRefused — a correction filed "+
+			"as a delivery is the distinction this door exists to draw", err)
+	}
+	var after int32
+	if err := pool.QueryRow(ctx,
+		`SELECT stock_quantity FROM product_variants WHERE sku = $1`, sku).Scan(&after); err != nil {
+		t.Fatalf("read stock: %v", err)
+	}
+	if after != before {
+		t.Errorf("the refused receipt moved stock %d -> %d", before, after)
+	}
+}
+
+// TestTheShopCanFindAWarrantyTheCustomerRegistered is the two halves meeting.
+//
+// warranty_registrations was written by the customer and read by the customer,
+// and by nobody at the shop — while /warranty promises the shop collects a
+// registered unit and pays the carriage. So a claim arrived and the only record
+// of it was held by the person making the claim.
+//
+// The fixture registers through internal/warranty's own door rather than
+// inserting the row, because that is what makes this a test of the two halves
+// agreeing rather than of a query against a row this file invented.
+func TestTheShopCanFindAWarrantyTheCustomerRegistered(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	serial, number := registeredWarranty(t, "SN-"+strings.ToUpper(uuid.NewString()[:8]))
+
+	for _, term := range []struct {
+		name string
+		q    string
+	}{
+		{name: "by the serial off the label", q: serial},
+		{name: "by the order number off the confirmation mail", q: number},
+	} {
+		t.Run(term.name, func(t *testing.T) {
+			view, err := s.Warranties(ctx, term.q)
+			if err != nil {
+				t.Fatalf("search warranties: %v", err)
+			}
+			if !view.Searching() {
+				t.Fatal("the page did not run a search for a term long enough to be one")
+			}
+			if len(view.Rows) != 1 {
+				t.Fatalf("searching %q found %d registrations, want 1", term.q, len(view.Rows))
+			}
+			got := view.Rows[0]
+			if got.Serial != serial || got.Order != number {
+				t.Errorf("found serial %q on order %q, want %q on %q",
+					got.Serial, got.Order, serial, number)
+			}
+			if !got.InForce {
+				t.Error("a warranty registered today reads as expired")
+			}
+		})
+	}
+
+	// A serial nobody registered finds nothing rather than everything. The
+	// predicate is an equality on two columns, and a version that ORed a
+	// wildcard in would return the whole table for any term at all.
+	view, err := s.Warranties(ctx, "SN-NOSUCHTHING")
+	if err != nil {
+		t.Fatalf("search warranties: %v", err)
+	}
+	if len(view.Rows) != 0 {
+		t.Errorf("an unregistered serial found %d rows, want 0", len(view.Rows))
+	}
+}
+
+// TestTheWarrantyLookupRefusesToListEverything is the /admin/customers rule, one
+// page over.
+//
+// These rows carry a customer's name beside what they own, so nothing is listed
+// until somebody searches — and a term too short to be a search says so rather
+// than quietly showing the table. Term and Searched are separate fields for
+// exactly this: collapsing them made a page report "nothing found" for a
+// question it never asked.
+func TestTheWarrantyLookupRefusesToListEverything(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	registeredWarranty(t, "SN-"+strings.ToUpper(uuid.NewString()[:8]))
+
+	for _, term := range []string{"", " ", "A"} {
+		view, err := s.Warranties(ctx, term)
+		if err != nil {
+			t.Fatalf("search warranties %q: %v", term, err)
+		}
+		if view.Searching() {
+			t.Errorf("%q ran a search", term)
+		}
+		if len(view.Rows) != 0 {
+			t.Errorf("%q listed %d registrations without being asked", term, len(view.Rows))
+		}
+	}
+}
+
+// registeredWarranty is one customer's delivered order with one unit registered
+// against it, and returns the serial and the order number.
+//
+// It goes the whole way through the shop: the parcel is DELIVERED, because
+// warranty registration is bounded by what arrived rather than by what was
+// dispatched, and a fixture that only shipped would be a fixture for a state
+// registration refuses.
+func registeredWarranty(t *testing.T, serial string) (registered, orderNumber string) {
+	t.Helper()
+	ctx := t.Context()
+
+	var variantID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		SELECT pv.id FROM product_variants pv JOIN products p ON p.id = pv.product_id
+		WHERE pv.is_active AND p.warranty_months IS NOT NULL LIMIT 1`).Scan(&variantID); err != nil {
+		t.Fatalf("find a variant of a product with a stated term: %v", err)
+	}
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var userID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO users (email, role, full_name)
+		VALUES ('wr-' || gen_random_uuid() || '@goen.invalid', 'customer', '保固客戶')
+		RETURNING id`).Scan(&userID); err != nil {
+		t.Fatalf("create customer: %v", err)
+	}
+
+	var orderID uuid.UUID
+	var number string
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, user_id, shipping_version_id, shipping_method_code,
+		                    shipping_method_name, shipping_cents)
+		SELECT next_order_number(), $1, v.id, sm.code, v.name, 0
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1
+		RETURNING id, order_number`, userID).Scan(&orderID, &number); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+
+	var lineID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity)
+		VALUES ($1, $2, 'WR-SKU', '保固測試商品', 100000, 1) RETURNING id`,
+		orderID, variantID).Scan(&lineID); err != nil {
+		t.Fatalf("create line: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'wr@example.com', '收件人', '0912345678', '110', '台北市', '信義區', '路 1 號')`,
+		orderID); err != nil {
+		t.Fatalf("create private data: %v", err)
+	}
+	// Dispatched and ARRIVED. The tracking number is unique per run for the
+	// reason order_shipments_tracking_key made the /admin/returns fixture say so:
+	// a fixed one ships exactly once ever, and every run after the first passes
+	// on the row the first left behind.
+	var shipmentID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO order_shipments (order_id, carrier, tracking_number, shipped_at, delivered_at)
+		VALUES ($1, '黑貓', 'WR-' || $2, now() - interval '5 days', now() - interval '3 days')
+		RETURNING id`, orderID, number).Scan(&shipmentID); err != nil {
+		t.Fatalf("create shipment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+		VALUES ($1, $2, $3, 1)`, orderID, shipmentID, lineID); err != nil {
+		t.Fatalf("create shipment line: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+
+	// Through the customer's own door, so this asserts the shop can find what the
+	// customer actually registered rather than a row this fixture wrote.
+	if err := warranty.NewStore(pool).Register(
+		ctx, lineID.String(), userID.String(), serial, 1); err != nil {
+		t.Fatalf("register warranty: %v", err)
+	}
+	return serial, number
 }

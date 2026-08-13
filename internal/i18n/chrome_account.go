@@ -406,9 +406,12 @@ var (
 		ZhHant: "這項商品沒有設定保固期限。",
 		En:     "No warranty term is set for this product.",
 	})
-	KeyWarrantyNotShipped = key("warranty.notshipped", Message{
-		ZhHant: "這項商品還沒出貨,出貨後就可以登錄。",
-		En:     "This has not shipped yet. Registration opens when it does.",
+	// Delivery rather than dispatch, because that is when the cover starts. A
+	// customer told "registration opens when it ships" on a parcel that shipped
+	// yesterday would go looking for a button that is not there yet.
+	KeyWarrantyNotDelivered = key("warranty.notdelivered", Message{
+		ZhHant: "這項商品還沒送達,送達後就可以登錄 —— 保固是從送達那天起算的。",
+		En:     "This has not arrived yet. Registration opens on delivery, which is when the cover starts.",
 	})
 	KeyWarrantyAllDone = key("warranty.alldone", Message{
 		ZhHant: "這項商品已經全部登錄了。",

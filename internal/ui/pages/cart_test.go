@@ -357,19 +357,30 @@ func TestTheOrderNotFoundPageOffersAWayThrough(t *testing.T) {
 // TestEveryHardCodedLinkResolvesToARoute cannot see this by construction. It
 // asks link→route, the route IS linked one level up, and a templated href
 // carrying an order number is skipped by its parser either way.
-func TestAShippedOrderLinksToItsWarrantyForm(t *testing.T) {
+// This table used to say shipped → true, and it was a test written from the
+// IMPLEMENTATION rather than from the contract — the round-6 shape, where three
+// findings were each locked in by a test asserting the defect. The sentence above
+// it named the contract correctly the whole time ("cover starts when goods reach
+// somebody") and then asserted dispatch, which is a different moment: the term is
+// computed from order_shipments.delivered_at, so on a 'shipped' order the form
+// exists and can register nothing.
+func TestADeliveredOrderLinksToItsWarrantyForm(t *testing.T) {
 	tests := []struct {
 		name   string
 		status string
 		want   bool
 	}{
 		// Cover starts when goods reach somebody, which is what registration
-		// itself requires — so before dispatch the link would lead to a page
-		// whose every line says "not shipped yet".
+		// itself requires — so before DELIVERY the link would lead to a page
+		// whose every line says "not arrived yet".
 		{name: "pending", status: "pending", want: false},
 		{name: "picking", status: "picking", want: false},
-		{name: "shipped", status: "shipped", want: true},
+		{name: "shipped", status: "shipped", want: false},
 		{name: "delivered", status: "delivered", want: true},
+		// 超商取貨 moves shipped → completed with nobody at the counter to
+		// witness a handover, so 'completed' is the other end of a delivery and
+		// not a state beyond it. Leaving it out would hide the form from a whole
+		// channel — the mistake the delivered_at stamp itself made first.
 		{name: "completed", status: "completed", want: true},
 		{name: "cancelled", status: "cancelled", want: false},
 	}

@@ -22,15 +22,17 @@ type WarrantyLine struct {
 	// products_warranty_months_sane forbids zero, and a missing term is NULL.
 	Months  int
 	HasTerm bool
-	// Shipped is how many units reached the customer, which is the ceiling.
+	// Delivered is how many units ARRIVED, which is the ceiling. Not how many
+	// were dispatched: cover starts when the goods reach somebody, and a term
+	// counted from the warehouse door is a term short by the time in transit.
 	// Registered is how many of those already have cover.
-	Shipped    int
+	Delivered  int
 	Registered int
 }
 
 // Remaining is how many units can still be registered.
 func (l WarrantyLine) Remaining() int {
-	left := l.Shipped - l.Registered
+	left := l.Delivered - l.Registered
 	if left < 0 {
 		return 0
 	}
@@ -69,8 +71,8 @@ func (l WarrantyLine) Why(ctx context.Context) string {
 		return ""
 	case !l.HasTerm:
 		return i18n.T(ctx, i18n.KeyWarrantyNoTerm)
-	case l.Shipped == 0:
-		return i18n.T(ctx, i18n.KeyWarrantyNotShipped)
+	case l.Delivered == 0:
+		return i18n.T(ctx, i18n.KeyWarrantyNotDelivered)
 	default:
 		return i18n.T(ctx, i18n.KeyWarrantyAllDone)
 	}

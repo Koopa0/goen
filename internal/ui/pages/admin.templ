@@ -15,6 +15,7 @@ templ adminNav(current string) {
 		<a class={ "ui-navitem", templ.KV("is-active", current == "products") } href="/admin/products">商品</a>
 		<a class={ "ui-navitem", templ.KV("is-active", current == "stock") } href="/admin/stock">庫存</a>
 		<a class={ "ui-navitem", templ.KV("is-active", current == "returns") } href="/admin/returns">退貨</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "warranty") } href="/admin/warranty">保固</a>
 		<a class={ "ui-navitem", templ.KV("is-active", current == "questions") } href="/admin/questions">提問</a>
 		<a class={ "ui-navitem", templ.KV("is-active", current == "reviews") } href="/admin/reviews">評價</a>
 		<a class={ "ui-navitem", templ.KV("is-active", current == "customers") } href="/admin/customers">顧客</a>

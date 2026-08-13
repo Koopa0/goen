@@ -42,6 +42,7 @@ var actionLabels = map[string]string{
 	"return.decide":          "退貨決定",
 	"credit.grant":           "發放商店額度",
 	"stock.adjust":           "調整庫存",
+	"stock.receive":          "進貨",
 	"variant.reprice":        "調整售價",
 	"variant.retire":         "規格上下架",
 	"variant.create":         "新增規格",

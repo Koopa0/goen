@@ -1672,6 +1672,102 @@ func (q *Queries) AdminSearchOrders(ctx context.Context, arg AdminSearchOrdersPa
 	return items, nil
 }
 
+const adminSearchWarranties = `-- name: AdminSearchWarranties :many
+
+SELECT w.id, w.unit_no, coalesce(w.serial_number, '') AS serial_number,
+       w.registered_at, w.expires_on,
+       (w.expires_on >= current_date)::boolean AS in_force,
+       ol.product_name, coalesce(ol.variant_label, '') AS variant_label,
+       o.order_number, o.fulfillment_status,
+       coalesce(u.full_name, '') AS customer_name,
+       coalesce(u.email, '') AS customer_email
+FROM warranty_registrations w
+JOIN order_lines ol ON ol.id = w.order_line_id
+JOIN orders o ON o.id = ol.order_id
+LEFT JOIN users u ON u.id = w.user_id
+WHERE w.serial_number = $1::text OR o.order_number = $1::text
+ORDER BY w.expires_on DESC, w.id
+LIMIT $2::integer
+`
+
+type AdminSearchWarrantiesParams struct {
+	Term     string
+	RowLimit int32
+}
+
+type AdminSearchWarrantiesRow struct {
+	ID                uuid.UUID
+	UnitNo            int16
+	SerialNumber      string
+	RegisteredAt      time.Time
+	ExpiresOn         time.Time
+	InForce           bool
+	ProductName       string
+	VariantLabel      string
+	OrderNumber       string
+	FulfillmentStatus string
+	CustomerName      string
+	CustomerEmail     string
+}
+
+// ---------------------------------------------------------------------------
+// Warranty lookup
+//
+// warranty_registrations was written by the customer and read by the customer,
+// and by nobody at the shop. /warranty promises that a registered unit is
+// collected and repaired at the shop's expense — and when that customer rang up,
+// the only person who could see the registration was the person making the
+// claim. A promise the shop cannot verify is a promise it keeps on trust or not
+// at all.
+// ---------------------------------------------------------------------------
+// Look one unit's cover up, by serial number or by order number.
+//
+// EXACT on both, and that is deliberate. A serial is read off the label on the
+// machine in front of somebody and an order number off their confirmation mail,
+// so a prefix would widen the ANSWER without widening what the person on the
+// phone can tell you — and a browsable list of registrations is a page of other
+// customers' names, which is the reason /admin/customers refuses to open on one.
+//
+// The two shapes are told apart by the caller rather than OR-ed with wildcards,
+// for the reason /admin/orders tells its three apart: each path is then served by
+// an index (warranty_registrations_serial_key, orders_order_number_key) instead
+// of scanning every registration on every lookup.
+// LEFT, because warranty_registrations.user_id is ON DELETE SET NULL: erase_user
+// takes the customer away and leaves the registration, so a claim on an erased
+// account still resolves to a product and an order rather than to nothing.
+func (q *Queries) AdminSearchWarranties(ctx context.Context, arg AdminSearchWarrantiesParams) ([]AdminSearchWarrantiesRow, error) {
+	rows, err := q.db.Query(ctx, adminSearchWarranties, arg.Term, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminSearchWarrantiesRow{}
+	for rows.Next() {
+		var i AdminSearchWarrantiesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UnitNo,
+			&i.SerialNumber,
+			&i.RegisteredAt,
+			&i.ExpiresOn,
+			&i.InForce,
+			&i.ProductName,
+			&i.VariantLabel,
+			&i.OrderNumber,
+			&i.FulfillmentStatus,
+			&i.CustomerName,
+			&i.CustomerEmail,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const adminShippingMethods = `-- name: AdminShippingMethods :many
 SELECT DISTINCT ON (sm.id)
     sm.id AS method_id, sm.code, sm.destination_kind, sm.is_active,
@@ -8579,6 +8675,48 @@ func (q *Queries) PutMedia(ctx context.Context, arg PutMediaParams) error {
 	return err
 }
 
+const receiveStock = `-- name: ReceiveStock :exec
+SELECT record_inventory_movement(
+    $1, $2::integer, 'receipt',
+    $3::text, 'admin', NULL, $4::uuid
+)
+`
+
+type ReceiveStockParams struct {
+	VariantID      uuid.UUID
+	Delta          int32
+	IdempotencyKey string
+	ActorUserID    uuid.UUID
+}
+
+// Receive goods onto the shelf.
+//
+// reason 'receipt' and not 'adjustment', which is the whole of it. The ledger has
+// carried that reason, its delta-direction CHECK and its back-office label since
+// the schema was written, and the ONLY thing that ever posted one was the dev
+// seed — so a shop's own purchasing was indistinguishable, in the shop's own
+// ledger, from a staff member correcting a miscount. 「這個為什麼是四」 is the
+// question /admin/stock/{sku} exists to answer, and it could not tell 「進了四箱」
+// from 「數錯了改成四」.
+//
+// A fixture that reaches past the application is a fixture for a feature with no
+// entrance, and the seed posting the only receipts this schema had ever seen was
+// exactly that.
+//
+// source_type 'admin' like the adjustment beside it: both are a person at the
+// back office rather than an order or a return. There is no source_id because
+// goen has no purchasing table to point at, and inventing one is the L-sized
+// feature this deliberately is not.
+func (q *Queries) ReceiveStock(ctx context.Context, arg ReceiveStockParams) error {
+	_, err := q.db.Exec(ctx, receiveStock,
+		arg.VariantID,
+		arg.Delta,
+		arg.IdempotencyKey,
+		arg.ActorUserID,
+	)
+	return err
+}
+
 const recentCredit = `-- name: RecentCredit :many
 SELECT e.amount_cents, e.reason, e.created_at,
        coalesce(u.email, '(已刪除)') AS email
@@ -9083,21 +9221,21 @@ func (q *Queries) RefundedSoFar(ctx context.Context, arg RefundedSoFarParams) (i
 const registerWarranty = `-- name: RegisterWarranty :execrows
 INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, serial_number, expires_on)
 SELECT ol.id, $1::smallint, $2, nullif($3::text, ''),
-       (shipped.at + make_interval(months => p.warranty_months))::date
+       (delivered.at + make_interval(months => p.warranty_months))::date
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
 JOIN product_variants pv ON pv.id = ol.variant_id
 JOIN products p ON p.id = pv.product_id
 JOIN LATERAL (
-    SELECT min(s.shipped_at) AS at, sum(sl.quantity) AS units
+    SELECT min(s.delivered_at) AS at, sum(sl.quantity) AS units
     FROM order_shipment_lines sl
     JOIN order_shipments s ON s.id = sl.shipment_id
-    WHERE sl.order_line_id = ol.id
-) shipped ON shipped.at IS NOT NULL
+    WHERE sl.order_line_id = ol.id AND s.delivered_at IS NOT NULL
+) delivered ON delivered.at IS NOT NULL
 WHERE ol.id = $4
   AND o.user_id = $2
   AND p.warranty_months IS NOT NULL
-  AND $1::smallint <= shipped.units
+  AND $1::smallint <= delivered.units
 `
 
 type RegisterWarrantyParams struct {
@@ -9109,12 +9247,19 @@ type RegisterWarrantyParams struct {
 
 // Register one unit.
 //
-// expires_on is computed HERE from the shipment date and the product's term,
+// expires_on is computed HERE from the DELIVERY date and the product's term,
 // never passed in: an expiry a form could carry is an expiry a customer could
-// choose. The shipment date is the database's own, so this is one clock.
+// choose. The delivery date is the database's own, so this is one clock at both
+// ends — the /admin/messages lesson, which is also why it is not now() plus a
+// term read separately.
+//
+// min() across the parcels, so a line split between two boxes takes the date the
+// FIRST of them arrived. That is the reading that favours the shop by the
+// smallest margin available and is still defensible: the customer had a unit of
+// that line in their hands on that day.
 //
 // The whole thing is one statement guarded by a WHERE clause, so ownership,
-// "it shipped", and "the term exists" are all decided under the same read the
+// "it arrived", and "the term exists" are all decided under the same read the
 // insert uses. Checking them first in Go would be checking them against a state
 // another request can change in between.
 func (q *Queries) RegisterWarranty(ctx context.Context, arg RegisterWarrantyParams) (int64, error) {
@@ -9138,18 +9283,22 @@ SELECT
     p.slug AS product_slug,
     p.warranty_months,
     coalesce(p.warranty_note, '') AS warranty_note,
-    coalesce(shipped.units, 0)::integer AS shipped_units,
+    coalesce(delivered.units, 0)::integer AS delivered_units,
     coalesce(registered.units, 0)::integer AS registered_units
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
 LEFT JOIN product_variants pv ON pv.id = ol.variant_id
 LEFT JOIN products p ON p.id = pv.product_id
 LEFT JOIN LATERAL (
+    -- Only the parcels that ARRIVED. An order shipped in two boxes of which one
+    -- has landed can register what landed and no more, which is the same
+    -- per-parcel truth /admin/returns reads and the reason partial shipment had
+    -- to exist before this could be written.
     SELECT sum(sl.quantity) AS units
     FROM order_shipment_lines sl
     JOIN order_shipments s ON s.id = sl.shipment_id
-    WHERE sl.order_line_id = ol.id
-) shipped ON true
+    WHERE sl.order_line_id = ol.id AND s.delivered_at IS NOT NULL
+) delivered ON true
 LEFT JOIN LATERAL (
     SELECT count(*) AS units
     FROM warranty_registrations w WHERE w.order_line_id = ol.id
@@ -9171,16 +9320,25 @@ type RegistrableLinesRow struct {
 	ProductSlug     pgtype.Text
 	WarrantyMonths  pgtype.Int4
 	WarrantyNote    string
-	ShippedUnits    int32
+	DeliveredUnits  int32
 	RegisteredUnits int32
 }
 
 // What a customer may still register, for one of their orders.
 //
-// Bounded by what SHIPPED, not by what was ordered — a warranty starts when the
-// goods reach somebody, and registering cover for a box still in the warehouse
-// would start the clock early. Same rule internal/returns follows, for the same
-// reason.
+// Bounded by what was DELIVERED, not by what was dispatched and not by what was
+// ordered. A warranty starts when the goods reach somebody, and this query used
+// to say so in a comment while reading shipped_at: cover counted from dispatch
+// is one to three days short, and every one of those days is taken off the
+// CUSTOMER.
+//
+// It could not be written this way when the feature shipped, because
+// order_shipments.delivered_at was read by two pages and written by nothing.
+// applyStatusEffects stamps it now, on BOTH transitions that end a delivery, so
+// 宅配 and 超商取貨 each reach this. /admin/returns already reads that column to
+// decide whether a request is inside 消保法 §19's seven days — two features
+// asking "when did the goods reach somebody" have to read ONE column, or the
+// shop is answering the same question two ways.
 //
 // Ownership is IN the query. A registration form that read the order and then
 // checked who owned it in Go is a check somebody can skip by posting straight
@@ -9201,7 +9359,7 @@ func (q *Queries) RegistrableLines(ctx context.Context, arg RegistrableLinesPara
 			&i.ProductSlug,
 			&i.WarrantyMonths,
 			&i.WarrantyNote,
-			&i.ShippedUnits,
+			&i.DeliveredUnits,
 			&i.RegisteredUnits,
 		); err != nil {
 			return nil, err

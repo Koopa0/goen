@@ -896,6 +896,31 @@ comments, because `splitQueries` hands each query the NEXT one's introduction.
     way. A fixture that does not reach the state under test passes for a reason
     that has nothing to do with the fix.
 
+34. **A rule written correctly against a column that nothing wrote yet, and the
+    comment then outlived the reason.** `internal/warranty` says in its package
+    doc, in its query comment and in this file that cover starts when the goods
+    reach somebody — and computed `expires_on` from `min(shipped_at)`, taking one
+    to three days off every customer's warranty. The author was not careless: when
+    the feature shipped, `order_shipments.delivered_at` was read by two pages and
+    written by NOTHING, so dispatch was the only date that existed. The moment
+    `applyStatusEffects` began stamping it (see #17's fix), the comment became
+    true of the schema and false of the code, and nothing re-read it.
+    That is #31 a fourth time and the cheapest variant to miss, because there is
+    no disagreement to find between two functions: the correct sentence and the
+    incorrect line are touching. The question that finds it is **"is this comment
+    still describing the only implementation that was possible?"** — a claim
+    written under a constraint stops being a claim about the code the day the
+    constraint lifts.
+    `/admin/returns` had been reading `max(delivered_at)` for 消保法 §19 the whole
+    time, so the shop was answering "when did the goods arrive" two ways in two
+    features. **Where one question is asked in two places, the second one written
+    is not automatically the wrong one — but they are one fact and something has
+    to hold them together.**
+    The lock was false-green as well, and for its own reason: it asserted a MONTH
+    COUNT, and two days do not add a month, so the assertion was blind to exactly
+    the defect it sat beside. **An assertion coarser than the error it is meant to
+    catch is not a weak lock, it is no lock.**
+
 ## Build tools stay out of go.mod
 
 `templ` is a `tool` directive because it generates code this module compiles.
@@ -2093,9 +2118,31 @@ popular products would present a guess as a pattern, and a shopper cannot tell
 those apart. The minimum is TWO shared orders, because one is a coincidence.
 
 Warranty registration is `internal/warranty`: a customer registers a unit they
-bought and can show its cover without finding a receipt. Bounded by what SHIPPED,
-never by what was ordered — cover starts when goods reach somebody, so registering a
-box still in the warehouse would start the clock early, which costs the CUSTOMER.
+bought and can show its cover without finding a receipt. Bounded by what was
+DELIVERED, never by what was dispatched and never by what was ordered — cover starts
+when goods reach somebody, so a clock started at the warehouse door is short by the
+time in transit, and every one of those days comes off the CUSTOMER.
+
+**That sentence was in this file, and in the query's own comment, while the query
+read `shipped_at`.** It is #31's shape: a comment naming the rule sitting directly
+above code that does not implement it, and a reviewer reads the comment and stops.
+It could not have been written correctly when the feature shipped —
+`order_shipments.delivered_at` was read by two pages and written by NOTHING until
+`applyStatusEffects` began stamping it — so the fix arrived with the column, not
+with the feature. `/admin/returns` already read `max(delivered_at)` to decide
+消保法 §19's seven days, which is the tell: **two features asking "when did the
+goods reach somebody" were reading two different columns**, and only one of them
+was right.
+
+The link on the order page follows it. It was offered from `shipped` onward, so a
+customer whose parcel was two days out met a form that could register nothing —
+and the test now called `TestADeliveredOrderLinksToItsWarrantyForm` ASSERTED that
+under its old name, written from the implementation rather than from the contract,
+with the contract stated correctly in the comment directly above the table it
+contradicted. Both statuses that END a delivery are offered,
+because 超商取貨 moves `shipped → completed` with nobody at the counter to witness
+a handover; leaving `completed` out would hide the form from a whole channel,
+which is the mistake the `delivered_at` stamp itself made first.
 
 The term is `products.warranty_months`, per product and nullable — and until
 `/admin/products` exposed it, **it was read by the whole warranty feature and written
@@ -2105,12 +2152,35 @@ the same cover. NULL means the shop has not stated a term and registration is
 REFUSED — `expires_on` is NOT NULL, so something has to give, and defaulting it
 would have goen inventing a promise nobody made.
 
-Every rule lives in the INSERT's WHERE clause: ownership, "it shipped", "a term
-exists", "the unit is within what shipped". The expiry is computed there too,
-from the shipment date and the term, so a form can never carry one.
+Every rule lives in the INSERT's WHERE clause: ownership, "it arrived", "a term
+exists", "the unit is within what arrived". The expiry is computed there too,
+from the delivery date and the term, so a form can never carry one.
 `warranty_registrations_serial_key` is PARTIAL (`WHERE serial_number IS NOT NULL`),
 so a duplicate serial is caught while several registrations without one coexist; a
 duplicate almost always means a mistyped number, and the message says that.
+
+**The test that was supposed to lock the expiry could not see the defect it sat
+next to.** It asserted
+`EXTRACT(YEAR FROM age(expires_on, shipped_at)) * 12 + EXTRACT(MONTH ...) == 24`,
+and that is 24 whether the term runs from dispatch or from delivery — two days do
+not add a month. It compares DATES now, and it asserts the NEGATIVE half as well
+(`expires_on` must NOT equal dispatch plus the term), because without that a
+fixture stamping both timestamps at one instant would go green while proving
+nothing about which column was read. The fixture stamps them two days apart for
+exactly that reason.
+
+**The shop can find a registration, at `/admin/warranty`.** `warranty_registrations`
+was written by the customer and read by the customer, and by nobody at the shop —
+while `/warranty` promises the shop COLLECTS a registered unit and pays the
+carriage. So a claim arrived and the only record of it was held by the person
+making the claim. Exact match on a serial or an order number, because a serial is
+read off the label on the machine in front of somebody and an order number off
+their confirmation mail; a prefix would widen the ANSWER without widening what the
+person on the phone can tell you. Nothing is listed until somebody searches, the
+`/admin/customers` rule, since these rows carry a customer's name beside what they
+own. The read is NOT audited and that is a decision: `/admin/customers` records its
+reads because that page can be reached by browsing to it, and this one returns
+nothing without being handed an exact string.
 
 **The form is linked from the order page, and that sentence used to be false in
 the copy before it was true in the markup.** `/account/warranty` reaches the LIST
@@ -2118,11 +2188,32 @@ from the account nav, and the list's own text says 「從訂單頁進去登錄�
 `/account/warranty/{number}`, which carries the ONLY registration form, had no
 inbound link from any template. Every signed-in customer with every shipped order
 met that dead end, and the only way in was typing a URL the site never displays.
-Offered from `shipped` onward, because that is what registration itself requires:
-earlier, the link would lead to a page whose every line says "not shipped yet".
 The reachability sweep is blind to this by construction — the route IS linked,
 one level up from the page that does the work, so **"is this route linked?" and
 "can a customer get to the thing it does?" are different questions.**
+
+**進貨 has a door.** `inventory_movements` has carried a `receipt` reason — with a
+CHECK, a delta-direction rule, a safety-stock exemption and a back-office label —
+since the schema was written, and the ONLY thing that ever posted one was the dev
+seed. So every unit a shop bought entered its own ledger as 人工調整, and
+`/admin/stock/{sku}` — the page built to answer 「這個為什麼是四」 — could not tell
+「進了十二箱」 from 「數錯了改成十二」. A fixture that reaches past the application
+is a fixture for a feature with no entrance, and the seed was posting the only
+receipts this schema had ever seen.
+
+It is a second form on the LEDGER rather than a reason dropdown beside the stock
+list's 調整 box, because the two are different acts and a shop should not have to
+pick the right word out of a list to record the ordinary one. The quantity is
+positive: `inventory_movements_delta_direction` refuses a negative receipt at the
+database and stays the authority, while `ParseReceipt` exists so a mistyped minus
+sign is a sentence naming where corrections live rather than a constraint name.
+The key is derived from the SKU and the stock the page rendered with, exactly like
+the adjustment's, so a double-click is one delivery.
+
+Deliberately NOT a purchase order. goen has no supplier, no cost and no paperwork
+to point at, and modelling a state nothing can act on is the table-with-no-door
+this repository keeps finding. What it adds is the one fact the shop already had
+and could not record: these units ARRIVED.
 
 The back office needs a SECOND FACTOR: `internal/twofactor`, TOTP, guarding
 `/admin` rather than the sign-in. A password gets a normal session; reaching any
@@ -2620,7 +2711,12 @@ that sells boxed software and says nothing owes the full seven days anyway. goen
 claims no exception and the copy says so, rather than promising a per-product
 marking that nothing in the code renders.
 
-What is still NOT built: issuing invoices.
+What is still NOT built is in `docs/roadmap.md`, and that file is the only list of
+it. This sentence used to read "issuing invoices", which shipped in `internal/invoice`
+and is described at length above — **a stale claim of absence, in the file that
+already records what a stale roadmap cost**: a third-party review re-filed an
+already-closed finding because it read a superseded line as current state. One list,
+in one place, or the second one is what somebody reads.
 
 Known follow-ups, none of them blocking this batch:
 

@@ -332,6 +332,10 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 	mux.HandleFunc("GET /admin/stock", back.RequireStaff(back.Variants))
 	mux.HandleFunc("GET /admin/stock/{sku}", back.RequireStaff(back.Movements))
 	mux.HandleFunc("POST /admin/stock/adjust", back.RequireStaff(back.AdjustStock))
+	// 進貨, which is a different fact from a correction and had no door of its
+	// own: the ledger's 'receipt' reason was posted by the dev seed and by
+	// nothing a shop can reach.
+	mux.HandleFunc("POST /admin/stock/receive", back.RequireStaff(back.ReceiveStock))
 	mux.HandleFunc("POST /admin/stock/active", back.RequireStaff(back.SetVariantActive))
 	mux.HandleFunc("POST /admin/stock/price", back.RequireStaff(back.SetVariantPrice))
 	mux.HandleFunc("GET /admin/returns", back.RequireStaff(back.Returns))
@@ -382,6 +386,10 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 	mux.HandleFunc("GET /admin/faq", back.RequireStaff(back.FAQ))
 	mux.HandleFunc("POST /admin/faq", back.RequireStaff(back.CreateFAQEntry))
 	mux.HandleFunc("POST /admin/faq/{id}", back.RequireStaff(back.EditFAQEntry))
+	// The shop's half of warranty registration. The customer's half has existed
+	// since the feature shipped; this side had nothing, so a claim arrived and
+	// the only record of it was held by the person claiming.
+	mux.HandleFunc("GET /admin/warranty", back.RequireStaff(back.Warranties))
 	mux.HandleFunc("GET /admin/customers", back.RequireStaff(back.Customers))
 	mux.HandleFunc("GET /admin/customers/{id}", back.RequireStaff(back.Customer))
 	mux.HandleFunc("GET /admin/messages", back.RequireStaff(back.Messages))
