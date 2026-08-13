@@ -64,19 +64,33 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// fixture is one customer's order: `ordered` units bought, `shipped` gone out,
-// against a product covered for `months` (0 for a product with no term set).
+// parcel is what left the warehouse and whether it ARRIVED.
 //
-// The gap between ordered and shipped is the point: a warranty starts when
-// goods reach somebody, so an order where those numbers are equal cannot tell
-// the two ceilings apart.
+// Two fields rather than one count, because the distinction is the whole of
+// what this feature is bounded by and the fixture could not express it before:
+// every parcel it built was dispatched, so "shipped but not yet delivered" —
+// the state a customer is in for one to three days on every order — was a state
+// no test could reach.
+type parcel struct {
+	units   int
+	arrived bool
+}
+
+// fixture is one customer's order: `ordered` units bought, one parcel carrying
+// `p.units` of them, against a product covered for `months` (0 for a product
+// with no term set).
+//
+// The gap between ordered and shipped is one point: a warranty is bounded by
+// what reached somebody, so an order where those numbers are equal cannot tell
+// the two ceilings apart. The gap between shipped and DELIVERED is the other,
+// and it is the one that moves the expiry date.
 type fixture struct {
 	userID string
 	number string
 	lineID uuid.UUID
 }
 
-func newFixture(t *testing.T, ordered, shipped, months int) fixture {
+func newFixture(t *testing.T, ordered, months int, p parcel) fixture {
 	t.Helper()
 	ctx := t.Context()
 
@@ -156,17 +170,29 @@ func newFixture(t *testing.T, ordered, shipped, months int) fixture {
 		t.Fatalf("create delivery details: %v", err)
 	}
 
-	if shipped > 0 {
+	if p.units > 0 {
+		// Dispatched ten days ago and, when it arrived, delivered EIGHT days ago.
+		// The two dates differ on purpose: an expiry computed from the wrong one
+		// is two months plus two days rather than two months plus ten, and a
+		// fixture that stamped both at the same instant could not tell them
+		// apart — which is the whole defect this fixture now has to be able to
+		// see.
+		var delivered any
+		if p.arrived {
+			delivered = "8 days"
+		}
 		var shipmentID uuid.UUID
 		if err := tx.QueryRow(ctx, `
-			INSERT INTO order_shipments (order_id, carrier, tracking_number, shipped_at)
-			VALUES ($1, '黑貓', 'TW-'||$2, now() - interval '10 days') RETURNING id`,
-			orderID, number).Scan(&shipmentID); err != nil {
+			INSERT INTO order_shipments (order_id, carrier, tracking_number, shipped_at, delivered_at)
+			VALUES ($1, '黑貓', 'TW-'||$2, now() - interval '10 days',
+			        CASE WHEN $3::text IS NULL THEN NULL ELSE now() - $3::interval END)
+			RETURNING id`,
+			orderID, number, delivered).Scan(&shipmentID); err != nil {
 			t.Fatalf("create shipment: %v", err)
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
-			VALUES ($1, $2, $3, $4)`, orderID, shipmentID, lineID, shipped); err != nil {
+			VALUES ($1, $2, $3, $4)`, orderID, shipmentID, lineID, p.units); err != nil {
 			t.Fatalf("create shipment line: %v", err)
 		}
 	}
@@ -176,39 +202,81 @@ func newFixture(t *testing.T, ordered, shipped, months int) fixture {
 	return fixture{userID: userID.String(), number: number, lineID: lineID}
 }
 
-// TestRegistrationIsBoundedByWhatShipped proves cover cannot start before the
-// goods arrive.
+// TestRegistrationIsBoundedByWhatArrived proves cover cannot start before the
+// goods reach somebody.
 //
-// A warranty starts when goods reach somebody. Registering cover for a box
-// still in the warehouse would start the clock early, which shortens the cover
-// the customer actually gets — the same rule internal/returns follows, and for
-// a reason that costs the customer rather than the shop.
-func TestRegistrationIsBoundedByWhatShipped(t *testing.T) {
+// A warranty starts on DELIVERY. Registering cover for a box in transit starts
+// the clock early, and the days it loses come off the customer's cover, not the
+// shop's — the same direction every reading in this feature errs in.
+//
+// The "in transit" row is the one this could not ask before: order_shipments
+// carried delivered_at from the day the schema was written and NOTHING wrote it,
+// so every parcel in the world looked identical to this query and the boundary
+// had no second side.
+func TestRegistrationIsBoundedByWhatArrived(t *testing.T) {
 	s := warranty.NewStore(pool)
 
 	tests := []struct {
-		name             string
-		ordered, shipped int
-		unit             int
-		wantOK           bool
+		name    string
+		ordered int
+		p       parcel
+		unit    int
+		wantOK  bool
 	}{
-		{"nothing shipped", 3, 0, 1, false},
-		{"first of one shipped", 3, 1, 1, true},
-		{"second when only one shipped", 3, 1, 2, false},
-		{"all shipped", 2, 2, 2, true},
-		{"beyond what was ordered", 2, 2, 3, false},
-		{"zero is not a unit", 2, 2, 0, false},
-		{"negative is not a unit", 2, 2, -1, false},
+		{"nothing dispatched", 3, parcel{units: 0}, 1, false},
+		{"dispatched but still in transit", 3, parcel{units: 3, arrived: false}, 1, false},
+		{"first of one delivered", 3, parcel{units: 1, arrived: true}, 1, true},
+		{"second when only one delivered", 3, parcel{units: 1, arrived: true}, 2, false},
+		{"all delivered", 2, parcel{units: 2, arrived: true}, 2, true},
+		{"beyond what was ordered", 2, parcel{units: 2, arrived: true}, 3, false},
+		{"zero is not a unit", 2, parcel{units: 2, arrived: true}, 0, false},
+		{"negative is not a unit", 2, parcel{units: 2, arrived: true}, -1, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			f := newFixture(t, tt.ordered, tt.shipped, 24)
+			f := newFixture(t, tt.ordered, 24, tt.p)
 			err := s.Register(t.Context(), f.lineID.String(), f.userID, "", tt.unit)
 			if (err == nil) != tt.wantOK {
-				t.Errorf("register unit %d of %d shipped: err=%v, want ok=%v",
-					tt.unit, tt.shipped, err, tt.wantOK)
+				t.Errorf("register unit %d of a parcel of %d (arrived=%v): err=%v, want ok=%v",
+					tt.unit, tt.p.units, tt.p.arrived, err, tt.wantOK)
 			}
 		})
+	}
+}
+
+// TestTheFormOffersNothingWhileTheParcelIsInTransit is the READ side of the same
+// boundary.
+//
+// Register refusing is not enough: the page has to say so before somebody
+// presses a button. A customer whose parcel is two days out reads a line
+// explaining that registration opens on delivery, rather than a form that
+// refuses them.
+func TestTheFormOffersNothingWhileTheParcelIsInTransit(t *testing.T) {
+	ctx := t.Context()
+	s := warranty.NewStore(pool)
+
+	transit := newFixture(t, 1, 12, parcel{units: 1, arrived: false})
+	view, err := s.Registrable(ctx, transit.number, transit.userID)
+	if err != nil {
+		t.Fatalf("read registrable lines: %v", err)
+	}
+	if view.AnyRegistrable() {
+		t.Error("the form offered a unit that is still in transit")
+	}
+	if got := view.Lines[0].Delivered; got != 0 {
+		t.Errorf("a parcel in transit counted %d delivered units, want 0", got)
+	}
+
+	// The control, and it is the half that makes the case above mean anything: an
+	// identical order whose parcel ARRIVED is offered. Without it, a query that
+	// returned nothing for every order would pass the assertion above.
+	arrived := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
+	view, err = s.Registrable(ctx, arrived.number, arrived.userID)
+	if err != nil {
+		t.Fatalf("read registrable lines: %v", err)
+	}
+	if !view.AnyRegistrable() {
+		t.Error("a delivered unit was not offered for registration")
 	}
 }
 
@@ -221,7 +289,7 @@ func TestRegistrationIsBoundedByWhatShipped(t *testing.T) {
 func TestAProductWithNoTermCannotBeRegistered(t *testing.T) {
 	s := warranty.NewStore(pool)
 
-	noTerm := newFixture(t, 1, 1, 0)
+	noTerm := newFixture(t, 1, 0, parcel{units: 1, arrived: true})
 	err := s.Register(t.Context(), noTerm.lineID.String(), noTerm.userID, "", 1)
 	// ErrNotRegistrable specifically, not merely "an error". expires_on is NOT
 	// NULL, so a missing term ALSO produces a not-null violation further down —
@@ -234,39 +302,54 @@ func TestAProductWithNoTermCannotBeRegistered(t *testing.T) {
 	}
 
 	// The control: the same shape WITH a term registers.
-	withTerm := newFixture(t, 1, 1, 12)
+	withTerm := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
 	if err := s.Register(t.Context(), withTerm.lineID.String(), withTerm.userID, "", 1); err != nil {
 		t.Errorf("a product with a term was refused: %v", err)
 	}
 }
 
-// TestTheExpiryIsComputedFromTheShipmentAndTheTerm proves the expiry is not a
-// value a customer supplies.
+// TestTheExpiryRunsFromDeliveryAndNotFromDispatch is the lock on the clock.
 //
-// Never from a form field: an expiry a form could carry is an expiry a customer
-// could choose. It is computed in the same statement that reads the shipment
-// date, so the two cannot disagree.
-func TestTheExpiryIsComputedFromTheShipmentAndTheTerm(t *testing.T) {
+// Two things at once, and the second is the one that had been wrong: the expiry
+// is never a value a customer supplies — a form that could carry one is a form
+// that could choose one — and it is measured from the day the parcel ARRIVED.
+//
+// It compares DATES rather than a month count, and that is not fussiness. The
+// version this replaces asserted
+// `EXTRACT(YEAR FROM age(expires_on, shipped_at)) * 12 + EXTRACT(MONTH ...) == 24`,
+// which is 24 whether the term is counted from dispatch or from delivery: the
+// two days between them do not add a month, so the assertion was blind to
+// exactly the defect it sat next to. An expiry two days short is two days of
+// cover taken off a customer, and no test in this file could see it.
+//
+// The second assertion is what makes the first one a lock. Without
+// `fromDispatch == false`, a fixture that ever stamped both timestamps at one
+// instant would go green while proving nothing about which column was read.
+func TestTheExpiryRunsFromDeliveryAndNotFromDispatch(t *testing.T) {
 	ctx := t.Context()
 	s := warranty.NewStore(pool)
-	f := newFixture(t, 1, 1, 24)
+	f := newFixture(t, 1, 24, parcel{units: 1, arrived: true})
 
 	if err := s.Register(ctx, f.lineID.String(), f.userID, "", 1); err != nil {
 		t.Fatalf("register: %v", err)
 	}
 
-	var months int
+	var fromDelivery, fromDispatch bool
 	if err := pool.QueryRow(ctx, `
-		SELECT (EXTRACT(YEAR FROM age(w.expires_on, s.shipped_at::date)) * 12
-		        + EXTRACT(MONTH FROM age(w.expires_on, s.shipped_at::date)))::integer
+		SELECT w.expires_on = (s.delivered_at::date + interval '24 months')::date,
+		       w.expires_on = (s.shipped_at::date   + interval '24 months')::date
 		FROM warranty_registrations w
 		JOIN order_shipment_lines sl ON sl.order_line_id = w.order_line_id
 		JOIN order_shipments s ON s.id = sl.shipment_id
-		WHERE w.order_line_id = $1`, f.lineID).Scan(&months); err != nil {
+		WHERE w.order_line_id = $1`, f.lineID).Scan(&fromDelivery, &fromDispatch); err != nil {
 		t.Fatalf("read expiry: %v", err)
 	}
-	if months != 24 {
-		t.Errorf("the cover runs %d months from the shipment, want 24", months)
+	if !fromDelivery {
+		t.Error("the cover does not run 24 months from the day the parcel arrived")
+	}
+	if fromDispatch {
+		t.Error("the cover runs from the DISPATCH date, which is short by the time " +
+			"in transit — and the days lost come off the customer")
 	}
 }
 
@@ -278,8 +361,8 @@ func TestTheExpiryIsComputedFromTheShipmentAndTheTerm(t *testing.T) {
 func TestOnlyTheOwnerCanRegisterOrSee(t *testing.T) {
 	ctx := t.Context()
 	s := warranty.NewStore(pool)
-	mine := newFixture(t, 2, 2, 12)
-	theirs := newFixture(t, 1, 1, 12)
+	mine := newFixture(t, 2, 12, parcel{units: 2, arrived: true})
+	theirs := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
 
 	if err := s.Register(ctx, mine.lineID.String(), theirs.userID, "", 1); err == nil {
 		t.Error("somebody registered a warranty against another customer's order")
@@ -304,7 +387,7 @@ func TestOnlyTheOwnerCanRegisterOrSee(t *testing.T) {
 func TestAUnitIsRegisteredOnce(t *testing.T) {
 	ctx := t.Context()
 	s := warranty.NewStore(pool)
-	f := newFixture(t, 2, 2, 12)
+	f := newFixture(t, 2, 12, parcel{units: 2, arrived: true})
 
 	if err := s.Register(ctx, f.lineID.String(), f.userID, "", 1); err != nil {
 		t.Fatalf("first: %v", err)
@@ -328,8 +411,8 @@ func TestAUnitIsRegisteredOnce(t *testing.T) {
 func TestASerialNumberIsRegisteredOnceAcrossTheWholeShop(t *testing.T) {
 	ctx := t.Context()
 	s := warranty.NewStore(pool)
-	a := newFixture(t, 1, 1, 12)
-	b := newFixture(t, 1, 1, 12)
+	a := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
+	b := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
 
 	const serial = "SN-SHARED-0001"
 	if err := s.Register(ctx, a.lineID.String(), a.userID, serial, 1); err != nil {
@@ -345,7 +428,7 @@ func TestASerialNumberIsRegisteredOnceAcrossTheWholeShop(t *testing.T) {
 	if err := s.Register(ctx, b.lineID.String(), b.userID, "", 1); err != nil {
 		t.Errorf("a registration with no serial was refused: %v", err)
 	}
-	c := newFixture(t, 1, 1, 12)
+	c := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
 	if err := s.Register(ctx, c.lineID.String(), c.userID, "", 1); err != nil {
 		t.Errorf("a second registration with no serial was refused: %v", err)
 	}
@@ -355,8 +438,8 @@ func TestASerialNumberIsRegisteredOnceAcrossTheWholeShop(t *testing.T) {
 func TestMineShowsOnlyThisCustomersCover(t *testing.T) {
 	ctx := t.Context()
 	s := warranty.NewStore(pool)
-	mine := newFixture(t, 1, 1, 12)
-	theirs := newFixture(t, 1, 1, 12)
+	mine := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
+	theirs := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
 
 	if err := s.Register(ctx, mine.lineID.String(), mine.userID, "", 1); err != nil {
 		t.Fatalf("register mine: %v", err)

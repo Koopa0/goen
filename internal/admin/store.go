@@ -756,6 +756,53 @@ func (s *Store) AdjustStock(ctx context.Context, sku string, delta int32, actorI
 		})
 }
 
+// ReceiveStock books a delivery in, through the ledger's own 'receipt' reason.
+//
+// The reason existed from the day the schema was written — with a CHECK, a
+// delta-direction rule, a safety-stock exemption and a back-office label — and
+// the ONLY thing that ever posted one was the dev seed. So every unit a shop
+// bought entered its own ledger as 人工調整, indistinguishable from somebody
+// correcting a miscount, on the page built to answer 「這個為什麼是四」.
+//
+// A fixture that reaches past the application is a fixture for a feature with no
+// entrance, and the seed was posting the only receipts this schema had seen.
+//
+// Deliberately NOT a purchase order. goen has no supplier, no cost and no
+// paperwork to point at, and modelling a state nothing can act on is the
+// table-with-no-door this repository keeps finding. What this adds is the one
+// fact the shop already has and could not record: these units ARRIVED, they were
+// not conjured by a correction.
+func (s *Store) ReceiveStock(ctx context.Context, sku string, quantity int32, actorID, key string) error {
+	v, err := s.q.AdminVariantBySKU(ctx, sku)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		return fmt.Errorf("read variant: %w", err)
+	}
+	actor, err := uuid.Parse(actorID)
+	if err != nil {
+		return fmt.Errorf("receive stock: actor %q is not a user id: %w", actorID, err)
+	}
+	return s.audited(ctx, Event{
+		Action: ActionReceiveStock, Table: "product_variants", ID: nullableID(v.ID),
+		Before: map[string]any{"sku": sku, "stock": v.StockQuantity},
+		After:  map[string]any{"received": quantity},
+	},
+		func(ctx context.Context, q *db.Queries) error {
+			if err := q.ReceiveStock(ctx, db.ReceiveStockParams{
+				VariantID: v.ID, Delta: quantity, IdempotencyKey: key, ActorUserID: actor,
+			}); err != nil {
+				return fmt.Errorf("%w: %s", ErrRefused, err.Error())
+			}
+			// The same call AdjustStock makes, and for the same reason: a
+			// receipt is the movement most likely to carry a variant back above
+			// its safety stock, so a rule written only beside the adjustment
+			// would be a rule the door that most needs it does not have.
+			return enqueueRestockNotices(ctx, q, v.ID)
+		})
+}
+
 // SetVariantActive retires or restores a variant.
 //
 // A refusal here is sale_campaign_variant_still_valid: deactivating the last

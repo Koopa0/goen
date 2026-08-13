@@ -583,6 +583,22 @@ type AdminMovementsView struct {
 	Stock       int32
 	Safety      int32
 	Rows        []AdminMovement
+	Notice      string
+}
+
+// HasNotice reports whether to show the banner.
+func (v *AdminMovementsView) HasNotice() bool { return v.Notice != "" }
+
+// ReceiveKey is the idempotency key the 進貨 form carries.
+//
+// Derived from the SKU and the stock the page was rendered with, exactly like
+// AdjustKey and for the same reason: pressing the button twice is ONE receipt,
+// because inventory_movements is unique on the key and the second write is
+// refused rather than booking the delivery in twice. Prefixed differently from
+// an adjustment so a correction and a delivery posted against the same figure
+// are two distinct facts rather than one swallowed by the other.
+func (v *AdminMovementsView) ReceiveKey() string {
+	return "rcv:" + v.SKU + ":" + strconv.FormatInt(int64(v.Stock), 10)
 }
 
 // Empty reports whether nothing has ever moved. Possible: a variant is created with

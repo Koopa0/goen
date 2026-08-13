@@ -226,12 +226,20 @@ func (v *AccountOrderView) AwaitingPayment() bool {
 // cannot see it by construction: it asks whether a link resolves, and this route
 // IS linked, one level up from the page that does the work.
 //
-// Gated on the goods having shipped, which is what warranty registration itself
-// requires — cover starts when a parcel reaches somebody. Offering it earlier
-// would link to a page whose every line says "not shipped yet".
+// Gated on the goods having ARRIVED, which is what warranty registration itself
+// requires — cover starts when a parcel reaches somebody, so the term is
+// computed from delivered_at. 'shipped' used to be in this list and was the
+// wrong end of the same fact: it offered a link to a page whose every line said
+// the unit is not registrable yet, on exactly the orders a customer is most
+// likely to be looking at.
+//
+// Both statuses that END a delivery, because 超商取貨 moves shipped → completed
+// with nobody at the counter to witness a handover — the same pair
+// applyStatusEffects stamps delivered_at on. Leaving 'completed' out would hide
+// the form from a whole channel.
 func (v *AccountOrderView) CanRegisterWarranty() bool {
 	switch v.Status {
-	case "shipped", "delivered", "completed":
+	case "delivered", "completed":
 		return true
 	default:
 		return false

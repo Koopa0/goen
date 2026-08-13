@@ -24,6 +24,10 @@ templ AdminMovements(p layouts.Page, v *AdminMovementsView) {
 					</p>
 				</div>
 			</div>
+			if v.HasNotice() {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			@adminReceiveForm(v)
 			if v.Empty() {
 				<p class="goen-admin__hint">
 					這個規格還沒有任何異動。新規格的庫存是 0,所有的量都從這張帳本進來。
@@ -67,4 +71,43 @@ templ AdminMovements(p layouts.Page, v *AdminMovementsView) {
 			}
 		</div>
 	}
+}
+
+// adminReceiveForm books a delivery in.
+//
+// It lives HERE, on the ledger, and not beside the 調整 box on the stock list.
+// The list's row is one line of a table and a receipt is the entry somebody makes
+// while standing over an open box — but the real reason is that this is the page
+// that answers 「這個為什麼是四」, and 進貨 is the answer it could never give: the
+// ledger has carried a 'receipt' reason since the schema was written and the only
+// thing that ever posted one was the dev seed.
+//
+// The quantity is positive and the input says so. Correcting a number DOWNWARD is
+// a different act with a different word, and the hint names where it lives rather
+// than letting somebody type a minus sign and meet a constraint.
+templ adminReceiveForm(v *AdminMovementsView) {
+	<form class="goen-admin__form" method="post" action="/admin/stock/receive">
+		<input type="hidden" name="sku" value={ v.SKU }/>
+		// Derived from the stock this page rendered with, so a double submit is
+		// one delivery: inventory_movements is unique on the key.
+		<input type="hidden" name="idempotency" value={ v.ReceiveKey() }/>
+		<label class="ui-field" for="receive-qty">
+			<span class="ui-label">進貨數量</span>
+			<input
+				class="ui-input goen-admin__num"
+				id="receive-qty"
+				type="number"
+				name="quantity"
+				min="1"
+				step="1"
+				placeholder="10"
+				required
+			/>
+		</label>
+		<button class="ui-btn ui-btn--secondary" type="submit">登記進貨</button>
+		<p class="goen-admin__hint">
+			這會在帳本上記一筆「進貨」。數字算錯要往回修的話請用庫存頁的「調整」——
+			東西進來和數字算錯是兩件事,帳本要分得出來。
+		</p>
+	</form>
 }

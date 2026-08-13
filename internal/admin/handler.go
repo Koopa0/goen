@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -433,6 +434,48 @@ func (h *Handler) AdjustStock(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ReceiveStock serves POST /admin/stock/receive.
+//
+// Separate from AdjustStock rather than a "reason" dropdown beside it, because
+// the two are different acts and a shop should not have to pick the right word
+// out of a list to record the ordinary one. It redirects back to the LEDGER the
+// form lives on, so the row it just wrote is the first thing on screen.
+func (h *Handler) ReceiveStock(w http.ResponseWriter, r *http.Request) {
+	u, _ := account.FromContext(r.Context())
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, "400 表單無法解析", http.StatusBadRequest)
+		return
+	}
+	sku := r.PostFormValue("sku")
+	// Built from the SKU the FORM carried, so a refusal returns to the ledger
+	// that posted it. web.SitePath is not needed: the SKU is a path segment this
+	// server matched a route on, and the redirect is relative by construction.
+	back := "/admin/stock/" + url.PathEscape(sku)
+
+	quantity, ok := ParseReceipt(r.PostFormValue("quantity"))
+	if !ok {
+		http.Redirect(w, r, back+"?badqty=1", http.StatusSeeOther)
+		return
+	}
+	key := r.PostFormValue("idempotency")
+	if key == "" {
+		key = newKey()
+	}
+
+	err := h.store.ReceiveStock(r.Context(), sku, quantity, u.ID, key)
+	switch {
+	case err == nil:
+		http.Redirect(w, r, back+"?received=1", http.StatusSeeOther)
+	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
+		h.log.WarnContext(r.Context(), "goods receipt refused",
+			"sku", sku, "quantity", quantity, "error", err)
+		http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther)
+	default:
+		h.log.ErrorContext(r.Context(), "receive stock", "error", err)
+		h.serverError(w, r)
+	}
+}
+
 // SetVariantActive serves POST /admin/stock/active.
 func (h *Handler) SetVariantActive(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
@@ -508,6 +551,8 @@ var adminNotices = map[string]string{
 	"noalt":         "請填寫圖片說明文字 —— 讀螢幕的人靠它知道圖裡是什麼。",
 	"nodiscount":    "這個商品沒有標示原價,無法加入活動。先在商品頁設定原價再試一次。",
 	"refundfailed":  "退款沒有完成。退款紀錄已經留下,請確認 Stripe 後台再處理一次。",
+	"received":      "進貨已入庫,帳本上記的是「進貨」而不是「人工調整」。",
+	"badqty":        "進貨數量要是正整數。要往下修正數字請用「調整」—— 進貨是有東西進來,調整是數字算錯了,帳本分得出這兩件事。",
 	"inspected":     "驗貨已記錄,可再販售的數量已經入庫。",
 	"closed":        "退貨已結案。",
 	"badcount":      "數量填寫有問題:入庫數不能超過實際收到的數量,實際收到也不能超過申請退回的數量。",
@@ -1294,6 +1339,7 @@ func (h *Handler) Movements(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Movements(r.Context(), r.PathValue("sku"))
 	switch {
 	case err == nil:
+		view.Notice = noticeFor(r)
 		web.Render(w, r, h.log, http.StatusOK, pages.AdminMovements(
 			layouts.Page{Title: view.SKU}, &view))
 	case errors.Is(err, ErrNotFound):
@@ -2398,6 +2444,24 @@ func (h *Handler) Customers(w http.ResponseWriter, r *http.Request) {
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminCustomers(
 		layouts.Page{Title: "顧客"}, view))
+}
+
+// Warranties serves GET /admin/warranty.
+//
+// The shop's half of warranty registration, which had none: the customer could
+// register a unit and read their own cover, and nobody at the shop could see
+// either — while /warranty promises the shop collects the unit and pays the
+// carriage. A claim arrived and the only record of it was in the hands of the
+// person making it.
+func (h *Handler) Warranties(w http.ResponseWriter, r *http.Request) {
+	view, err := h.store.Warranties(r.Context(), r.URL.Query().Get("q"))
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "search warranties", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	web.Render(w, r, h.log, http.StatusOK, pages.AdminWarranties(
+		layouts.Page{Title: "保固查詢"}, view))
 }
 
 // Customer serves GET /admin/customers/{id}.

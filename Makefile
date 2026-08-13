@@ -186,6 +186,23 @@ check-layout:
 	@# only "the fixture did not run". The tracking number is unique in
 	@# order_shipments_tracking_key, so a fixed one ships exactly once ever.
 	@#
+	@# The chain now runs one step further, to DELIVERED, and then registers a
+	@# warranty — because /admin/warranty lists nothing until somebody searches and
+	@# a search finds nothing until somebody has registered. #26 again, and the
+	@# variant is selected with `warranty_months IS NOT NULL` for the same reason:
+	@# registration is REFUSED while the term is unset, and the seed deliberately
+	@# leaves two accessories without one, so an unfiltered pick would produce a
+	@# fixture that silently registers nothing on some runs and not others.
+	@#
+	@# Delivered rather than shipped, because cover starts when the parcel ARRIVES:
+	@# a shipped order offers no registration form at all. That also gives
+	@# /admin/returns' 消保法 §19 line a delivered order to compute a window from,
+	@# instead of the 尚未送達 it measured before.
+	@#
+	@# The serial carries $$$$ for the reason the tracking number does:
+	@# warranty_registrations_serial_key is unique, so a fixed one registers exactly
+	@# once ever and every later run passes on the row the first left behind.
+	@#
 	@# The reason carries $$$$ because GrantCredit is idempotent on
 	@# (customer, amount, reason) — a double-submitted form is one posting, which is
 	@# correct and which made a FIXED reason fund only the very first run. Every run
@@ -199,7 +216,7 @@ check-layout:
 		curl -s -o /dev/null -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
 			--data-urlencode 'email=layout-cust@goen.invalid' --data-urlencode 'amount=99999' \
 			--data-urlencode "reason=版面檢查用的退貨樣本 $$$$" $$U/admin/credit; \
-		VARIANT=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT pv.id FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE p.status = 'active' AND pv.is_active AND pv.stock_quantity > pv.safety_stock LIMIT 1"); \
+		VARIANT=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT pv.id FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE p.status = 'active' AND pv.is_active AND pv.stock_quantity > pv.safety_stock AND p.warranty_months IS NOT NULL LIMIT 1"); \
 		rm -f .layout-chrome/cust-cookies; \
 		curl -s -o /dev/null -c .layout-chrome/cust-cookies -b "goen_session=$$CT" \
 			-d "variant=$$VARIANT&quantity=1" $$U/cart/items; \
@@ -218,6 +235,11 @@ check-layout:
 			--data-urlencode 'carrier=黑貓宅急便' --data-urlencode "tracking=LAYOUTCHECK$$$$" \
 			--data-urlencode 'fee=80' $$U/admin/orders/$$RN/ship; \
 		LINE=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT ol.id FROM order_lines ol JOIN orders o ON o.id = ol.order_id WHERE o.order_number = '$$RN' LIMIT 1"); \
+		curl -s -o /dev/null -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
+			-d 'status=delivered' $$U/admin/orders/$$RN/status; \
+		curl -s -o /dev/null -b "goen_session=$$CT" -H 'Sec-Fetch-Site: same-origin' \
+			--data-urlencode "line=$$LINE" --data-urlencode 'unit=1' \
+			--data-urlencode "serial=LAYOUTSN$$$$" $$U/account/warranty/$$RN; \
 		curl -s -o /dev/null -b "goen_session=$$CT" -H 'Sec-Fetch-Site: same-origin' \
 			--data-urlencode 'reason=尺寸不合,想換一個顏色' --data-urlencode "qty_$$LINE=1" \
 			$$U/orders/$$RN/return
@@ -239,6 +261,7 @@ check-layout:
 		PLACED_TOKEN=$$PLACED_TOKEN \
 		PLACED_ORDER=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT o.order_number FROM orders o JOIN order_access_grants g ON g.order_id = o.id WHERE g.digest = sha256('$$PLACED_TOKEN'::bytea)") \
 		CUSTOMER_ID=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT id FROM users WHERE email = 'layout-cust@goen.invalid'") \
+		LAYOUT_SERIAL=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT w.serial_number FROM warranty_registrations w JOIN users u ON u.id = w.user_id WHERE u.email = 'layout-cust@goen.invalid' ORDER BY w.registered_at DESC LIMIT 1") \
 		ADMIN_TOKEN=$$(cat .layout-chrome/admin-token) node scripts/check-layout.mjs; status=$$?; \
 		kill $$(cat .layout-chrome/pid) 2>/dev/null; sleep 1; rm -rf .layout-chrome 2>/dev/null; \
 		exit $$status

@@ -1,0 +1,99 @@
+package pages
+
+import "github.com/koopa0/goen/internal/ui/layouts"
+
+// AdminWarranties renders the back office's warranty lookup.
+//
+// The shop side of a promise the customer side has kept alone: /warranty says a
+// registered unit is collected and repaired at the shop's expense, and until this
+// page the only person who could see a registration was the customer claiming
+// against it.
+templ AdminWarranties(p layouts.Page, v AdminWarrantiesView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("warranty")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">後台</p>
+					<h1 class="ui-page-head__title">保固查詢</h1>
+					<p class="ui-page-head__sub">
+						用序號或訂單編號查一件的保固。兩個都要完全相符 ——
+						序號是從機身上唸出來的,訂單編號是從確認信上唸出來的,
+						而登錄名單不是拿來瀏覽的。
+					</p>
+				</div>
+			</div>
+			// A GET form: looking something up reads and writes nothing.
+			<form class="goen-admin__form goen-admin__search" method="get" action="/admin/warranty">
+				<label class="goen-sr-only" for="warranty-search">查詢保固</label>
+				<input
+					class="ui-input"
+					id="warranty-search"
+					type="search"
+					name="q"
+					value={ v.Term }
+					placeholder="序號或訂單編號"
+					autocomplete="off"
+				/>
+				<button class="ui-btn ui-btn--secondary" type="submit">查詢</button>
+			</form>
+			if v.TermTooShort() {
+				<p class="ui-alert ui-alert--warn" role="status">
+					查詢字串太短,至少要兩個字。
+				</p>
+			}
+			if v.Searching() && v.Empty() {
+				<p class="goen-admin__hint">
+					找不到「{ v.Term }」的登錄紀錄。序號和訂單編號都是完全比對,
+					如果是客人唸錯一碼就會查不到 —— 也可能是這一件根本沒登錄過。
+				</p>
+			}
+			if v.Searching() && !v.Empty() {
+				<div class="goen-admin__tablewrap goen-admin__warranties">
+					<table class="ui-table">
+						<thead>
+							<tr>
+								<th scope="col">序號</th>
+								<th scope="col">商品</th>
+								<th scope="col">訂單</th>
+								<th scope="col">客戶</th>
+								<th scope="col">登錄日</th>
+								<th scope="col">保固到期</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, w := range v.Rows {
+								<tr>
+									<td>{ w.SerialText() }</td>
+									<td>
+										{ w.Product }
+										<span class="ui-cart-line__meta">
+											if w.Label != "" {
+												{ w.Label } ·
+											}
+											第 { w.UnitText() } 件
+										</span>
+									</td>
+									<td>
+										<a href={ templ.SafeURL(w.OrderHref()) }>{ w.Order }</a>
+										<span class="ui-cart-line__meta">{ w.OrderStatus }</span>
+									</td>
+									<td>{ w.Customer() }</td>
+									<td>{ w.RegisteredAt }</td>
+									<td>
+										{ w.ExpiresOn }
+										<span class="ui-cart-line__meta">{ w.StateText() }</span>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+				<p class="goen-admin__hint">
+					保固從<strong>送達</strong>那天起算,不是從出貨那天 ——
+					到期日是登錄當下用該筆包裹的送達時間和商品保固月數算出來的,存下來就不再變動。
+				</p>
+			}
+		</div>
+	}
+}

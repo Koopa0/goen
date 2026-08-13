@@ -54,8 +54,8 @@ func (s *Store) Registrable(ctx context.Context, orderNumber, userID string) (pa
 			ID: r.OrderLineID.String(), Name: r.ProductName,
 			Label: r.VariantLabel.String, Slug: r.ProductSlug.String,
 			Note: r.WarrantyNote, Months: int(r.WarrantyMonths.Int32),
-			HasTerm: r.WarrantyMonths.Valid,
-			Shipped: int(r.ShippedUnits), Registered: int(r.RegisteredUnits),
+			HasTerm:   r.WarrantyMonths.Valid,
+			Delivered: int(r.DeliveredUnits), Registered: int(r.RegisteredUnits),
 		})
 	}
 	return view, nil
@@ -63,10 +63,10 @@ func (s *Store) Registrable(ctx context.Context, orderNumber, userID string) (pa
 
 // Register records cover for one unit.
 //
-// Every rule is in the statement's WHERE clause — ownership, "it shipped", "the
-// term exists", "the unit is within what shipped". Checking them here first
+// Every rule is in the statement's WHERE clause — ownership, "it arrived", "the
+// term exists", "the unit is within what arrived". Checking them here first
 // would be checking them against a state another request can change before the
-// insert lands, and the expiry would be computed from a shipment date read
+// insert lands, and the expiry would be computed from a delivery date read
 // separately from the one it is derived from.
 func (s *Store) Register(ctx context.Context, lineID, userID, serial string, unit int) error {
 	owner, err := uuid.Parse(userID)

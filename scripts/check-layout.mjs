@@ -181,6 +181,13 @@ const ADMIN = [
   { label: 'admin newsletter 375', width: 375, height: 812, path: '/admin/newsletter', marker: '.goen-admin' },
   { label: 'admin newsletter 1440', width: 1440, height: 900, path: '/admin/newsletter', marker: '.goen-admin' },
   { label: 'admin questions 1440', width: 1440, height: 900, path: '/admin/questions', marker: '.goen-admin__questions' },
+  // /admin/warranty lists NOTHING until somebody searches — the /admin/customers
+  // rule, because these rows carry a customer's name beside what they own. So the
+  // row searches for the serial the Makefile's fixture registered, and the marker
+  // is the table that exists only when the search found it. A row against the bare
+  // path would measure a search box and report a checked page (CLAUDE.md #26).
+  { label: 'admin warranty 375', width: 375, height: 812, path: '/admin/warranty?q=LAYOUT_SERIAL', marker: '.goen-admin__warranties' },
+  { label: 'admin warranty 1440', width: 1440, height: 900, path: '/admin/warranty?q=LAYOUT_SERIAL', marker: '.goen-admin__warranties' },
   { label: 'admin returns 375', width: 375, height: 812, path: '/admin/returns', marker: '.goen-admin__returns' },
   { label: 'admin returns 1440', width: 1440, height: 900, path: '/admin/returns', marker: '.goen-admin__returns' },
   { label: 'admin taxonomy 375', width: 375, height: 812, path: '/admin/taxonomy', marker: '.goen-admin' },
@@ -784,6 +791,7 @@ if (process.env.ADMIN_TOKEN) {
     const target = ORIGIN + want.path
       .replace('PLACED_ORDER', process.env.PLACED_ORDER || '')
       .replace('CUSTOMER_ID', process.env.CUSTOMER_ID || '')
+      .replace('LAYOUT_SERIAL', process.env.LAYOUT_SERIAL || '')
       .replace('PRODUCT_SLUG', process.env.PRODUCT_SLUG || '');
     await send(ws, 'Page.navigate', { url: target });
     await settled(ws, want.label, target);

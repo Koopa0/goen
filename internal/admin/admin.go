@@ -150,6 +150,23 @@ func ParseAdjustment(s string) (int32, bool) {
 	return int32(n), true
 }
 
+// ParseReceipt reads a goods-receipt quantity, which is always POSITIVE.
+//
+// A receipt that takes stock away is not a receipt, and
+// inventory_movements_delta_direction refuses one at the database — this is here
+// so a mistyped minus sign is a form the shop can correct rather than a
+// constraint name, and the CHECK remains the authority for anything that reaches
+// it without passing through this. Bounded like an adjustment, for the reason
+// the bound was chosen: large enough for a delivery, small enough that a typo
+// cannot invent a warehouse.
+func ParseReceipt(s string) (int32, bool) {
+	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 32)
+	if err != nil || n <= 0 || n > maxAdjustment {
+		return 0, false
+	}
+	return int32(n), true
+}
+
 // ParsePrice reads a price in whole New Taiwan dollars and returns minor units.
 func ParsePrice(s string) (int64, bool) {
 	s = strings.TrimSpace(s)

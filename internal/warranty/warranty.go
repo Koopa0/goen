@@ -7,10 +7,12 @@
 //
 // # What bounds a registration
 //
-// What SHIPPED, never what was ordered. A warranty starts when goods reach
-// somebody, so registering cover for a box still in the warehouse would start
-// the clock early — the same rule internal/returns follows, for the same
-// reason.
+// What was DELIVERED, never what was dispatched and never what was ordered. A
+// warranty starts when goods reach somebody, and counting from dispatch takes
+// one to three days off the customer's cover — silently, and in the shop's
+// favour. order_shipments.delivered_at is stamped on both transitions that end
+// a delivery, so this is the same column /admin/returns reads to decide 消保法
+// §19's seven days: one question, one answer.
 //
 // The term is per PRODUCT and may be absent. A phone and a braided cable do not
 // carry the same cover, and a product whose term nobody set cannot be
@@ -32,7 +34,7 @@ var (
 	// One error for both, because the difference is exactly what a caller
 	// probing order numbers wants to learn.
 	ErrNotFound = errors.New("warranty: no such order")
-	// ErrNotRegistrable is a unit that cannot be registered: not shipped, no
+	// ErrNotRegistrable is a unit that cannot be registered: not delivered, no
 	// term set, already registered, or beyond what was bought.
 	ErrNotRegistrable = errors.New("warranty: this unit cannot be registered")
 	// ErrSerialTaken is a serial number already registered, which usually means

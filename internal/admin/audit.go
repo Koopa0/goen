@@ -39,6 +39,7 @@ const (
 	ActionVoidInvoice          Action = "invoice.void"
 	ActionGrantCredit          Action = "credit.grant"
 	ActionAdjustStock          Action = "stock.adjust"
+	ActionReceiveStock         Action = "stock.receive"
 	ActionPublishShipping      Action = "shipping.publish"
 	ActionSetSurcharge         Action = "shipping.surcharge"
 	ActionCreateTier           Action = "tier.create"
