@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -40,7 +41,7 @@ type FAQForm struct {
 }
 
 // Validate refuses what the schema would, with a message naming the field.
-func (f *FAQForm) Validate() map[string]string {
+func (f *FAQForm) Validate(ctx context.Context) map[string]string {
 	f.Category = strings.TrimSpace(f.Category)
 	f.Question = strings.TrimSpace(f.Question)
 	f.Answer = strings.TrimSpace(f.Answer)
@@ -50,24 +51,24 @@ func (f *FAQForm) Validate() map[string]string {
 
 	errs := map[string]string{}
 	if f.Category == "" || utf8.RuneCountInString(f.Category) > MaxFAQCategoryRunes {
-		errs["category"] = "請填寫分類,不超過 40 個字。"
+		errs["category"] = i18n.T(ctx, i18n.KeyFormFAQCategory)
 	}
 	if f.Question == "" || utf8.RuneCountInString(f.Question) > MaxFAQQuestionRunes {
-		errs["question"] = "請填寫問題,不超過 200 個字。"
+		errs["question"] = i18n.T(ctx, i18n.KeyFormFAQQuestion)
 	}
 	if f.Answer == "" || utf8.RuneCountInString(f.Answer) > MaxFAQAnswerRunes {
-		errs["answer"] = "請填寫答案,不超過 2000 個字。"
+		errs["answer"] = i18n.T(ctx, i18n.KeyFormFAQAnswer)
 	}
 	// The English fields are optional, so blank is not an error — but they render in
 	// the same places and the bounds are the same.
 	if utf8.RuneCountInString(f.CategoryEn) > MaxFAQCategoryRunes {
-		errs["category_en"] = "英文分類太長。"
+		errs["category_en"] = i18n.T(ctx, i18n.KeyFormFAQCategoryEnLong)
 	}
 	if utf8.RuneCountInString(f.QuestionEn) > MaxFAQQuestionRunes {
-		errs["question_en"] = "英文問題太長。"
+		errs["question_en"] = i18n.T(ctx, i18n.KeyFormFAQQuestionEnLong)
 	}
 	if utf8.RuneCountInString(f.AnswerEn) > MaxFAQAnswerRunes {
-		errs["answer_en"] = "英文答案太長。"
+		errs["answer_en"] = i18n.T(ctx, i18n.KeyFormFAQAnswerEnLong)
 	}
 	return errs
 }
@@ -92,7 +93,7 @@ func (s *Store) FAQ(ctx context.Context) (pages.AdminFAQView, error) {
 
 // CreateFAQEntry adds one to the end of its category.
 func (s *Store) CreateFAQEntry(ctx context.Context, f *FAQForm) (map[string]string, error) {
-	if errs := f.Validate(); len(errs) > 0 {
+	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
 	if err := s.audited(ctx, Event{
@@ -119,7 +120,7 @@ func (s *Store) UpdateFAQEntry(ctx context.Context, f *FAQForm) (map[string]stri
 	if err != nil {
 		return nil, ErrNotFound
 	}
-	if errs := f.Validate(); len(errs) > 0 {
+	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
 	if err := s.audited(ctx, Event{

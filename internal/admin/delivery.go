@@ -68,9 +68,10 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *Delivery)
 	}
 	addr.Trim()
 	if errs := addr.Validate(); len(errs) > 0 {
-		// The FIELD and the message key, not a sentence: this reaches an error
-		// string and a log line, and the back office is Chinese by decision
-		// rather than by a translation that happens to be handy here.
+		// The FIELD and the message KEY, not a rendered sentence. This reaches
+		// an error value and a log line, both of which are English here — and
+		// the key is what the RENDER would resolve, so the log names the rule
+		// without picking a language for it.
 		return fmt.Errorf("%w: %s (%s)", ErrInvalid, errs[0].Field, errs[0].MessageKey)
 	}
 	addr.ForDestination()

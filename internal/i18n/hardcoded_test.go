@@ -114,15 +114,7 @@ var notChrome = map[string]string{
 // CLAUDE.md records. Every file that leaves this list takes its share of that
 // with it.
 var pendingTranslation = map[string]struct{}{
-	"internal/admin/banner.go":                {},
-	"internal/admin/campaign.go":              {},
-	"internal/admin/coupon.go":                {},
-	"internal/admin/faq.go":                   {},
-	"internal/admin/hero.go":                  {},
-	"internal/admin/product.go":               {},
-	"internal/admin/shipping.go":              {},
 	"internal/admin/query.sql":                {},
-	"internal/admin/taxonomy.go":              {},
 	"internal/ui/pages/admin.go":              {},
 	"internal/ui/pages/admin.templ":           {},
 	"internal/ui/pages/admincampaign.go":      {},
