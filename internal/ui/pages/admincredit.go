@@ -1,5 +1,11 @@
 package pages
 
+import (
+	"context"
+
+	"github.com/koopa0/goen/internal/i18n"
+)
+
 // AdminCreditEntry is one posting in the ledger.
 type AdminCreditEntry struct {
 	Email       string
@@ -32,3 +38,14 @@ type AdminCreditView struct {
 
 // Empty reports whether the ledger has nothing in it yet.
 func (v AdminCreditView) Empty() bool { return len(v.Rows) == 0 }
+
+// Who is the account the posting went to, or a note that it has been erased.
+//
+// The fallback used to live in the query's own coalesce(), which is chrome
+// written where nobody can ask who is reading.
+func (e AdminCreditEntry) Who(ctx context.Context) string {
+	if e.Email == "" {
+		return i18n.T(ctx, i18n.KeyAdminErasedShort)
+	}
+	return e.Email
+}

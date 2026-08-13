@@ -26,6 +26,14 @@ var (
 	// the two states it is rather than going blank.
 	KeyAdminErasedAccount      = key("admin.erased.account", Message{ZhHant: "(已刪除帳號)", En: "(erased account)"})
 	KeyAdminErasedAccountPlain = key("admin.erased.plain", Message{ZhHant: "已刪除的帳號", En: "Erased account"})
+	// erase_user takes the customer's DETAILS and leaves the order, so the
+	// recipient name goes and the row stays. These used to be coalesce()
+	// fallbacks INSIDE the queries — chrome written where nobody can ask who is
+	// reading, the same correction RecordCancellation's note and /shipping's
+	// string_agg already took. The query returns the empty string now and the
+	// view decides the word.
+	KeyAdminErasedRecipient = key("admin.erased.recipient", Message{ZhHant: "(已抹除)", En: "(erased)"})
+	KeyAdminErasedShort     = key("admin.erased.short", Message{ZhHant: "(已刪除)", En: "(deleted)"})
 
 	// Moderating a review. Hiding takes it out of the SCORE as well as the list,
 	// which is the whole point, and it is reversible.

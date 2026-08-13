@@ -173,7 +173,7 @@ templ AdminOrders(p layouts.Page, v AdminOrdersView) {
 											<span class="ui-badge ui-badge--success">已成交</span>
 										}
 									</td>
-									<td>{ o.Recipient }</td>
+									<td>{ o.RecipientText(ctx) }</td>
 									<td>{ o.PlacedAt }</td>
 									<td>{ o.Total() }</td>
 								</tr>
@@ -232,7 +232,7 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 					<dl class="ui-dl">
 						<div class="ui-dl__row">
 							<dt class="ui-dl__term">收件人</dt>
-							<dd class="ui-dl__desc">{ v.Recipient }</dd>
+							<dd class="ui-dl__desc">{ v.RecipientText(ctx) }</dd>
 						</div>
 						<div class="ui-dl__row">
 							<dt class="ui-dl__term">電話</dt>

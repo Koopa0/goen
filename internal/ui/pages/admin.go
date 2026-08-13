@@ -170,6 +170,17 @@ func (v AdminOrdersView) Empty() bool { return len(v.Orders) == 0 }
 // HasNotice reports whether to show the banner.
 func (v AdminOrdersView) HasNotice() bool { return v.Notice != "" }
 
+// RecipientText is who it is going to, or a note that erase_user has been here.
+//
+// The fallback used to be a coalesce() inside the query — chrome written where
+// nobody can ask who is reading. It is decided here now, where the reader is.
+func (o AdminOrderRow) RecipientText(ctx context.Context) string {
+	if o.Recipient == "" {
+		return i18n.T(ctx, i18n.KeyAdminErasedRecipient)
+	}
+	return o.Recipient
+}
+
 // AdminOrderView is one order in the back office.
 type AdminOrderView struct {
 	Number        string
@@ -367,6 +378,14 @@ func (v *AdminOrderView) CanAdvance() bool { return len(v.Next) > 0 }
 
 // HasNotice reports whether to show the banner.
 func (v *AdminOrderView) HasNotice() bool { return v.Notice != "" }
+
+// RecipientText is who it is going to, or a note that erase_user has been here.
+func (v *AdminOrderView) RecipientText(ctx context.Context) string {
+	if v.Recipient == "" {
+		return i18n.T(ctx, i18n.KeyAdminErasedRecipient)
+	}
+	return v.Recipient
+}
 
 // HasInvoice reports whether the customer stated a 發票 preference.
 func (v *AdminOrderView) HasInvoice() bool { return v.InvoiceType != "" }

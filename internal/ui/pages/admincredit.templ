@@ -42,7 +42,7 @@ templ AdminCredit(p layouts.Page, v AdminCreditView) {
 					for _, e := range v.Rows {
 						<li class="goen-admin__entry">
 							<span class={ "goen-admin__amount", templ.KV("is-spend", e.IsSpend()) }>{ e.Amount() }</span>
-							<span class="ui-cart-line__meta">{ e.Email }</span>
+							<span class="ui-cart-line__meta">{ e.Who(ctx) }</span>
 							<span class="ui-cart-line__meta">{ e.Reason }</span>
 							<span class="ui-cart-line__meta">{ e.At }</span>
 						</li>

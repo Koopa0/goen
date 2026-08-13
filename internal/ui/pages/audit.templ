@@ -26,7 +26,7 @@ templ AdminAudit(p layouts.Page, v AuditView) {
 								<span class="goen-admin__auditaction">{ e.Label(ctx) }</span>
 								<span class="ui-cart-line__meta">{ e.At }</span>
 							</div>
-							<span class="ui-cart-line__meta">{ e.Actor } · { e.Entity }</span>
+							<span class="ui-cart-line__meta">{ e.ActorText(ctx) } · { e.Entity }</span>
 							if e.Detail != "" {
 								<code class="goen-admin__auditdetail">{ e.Detail }</code>
 							}
