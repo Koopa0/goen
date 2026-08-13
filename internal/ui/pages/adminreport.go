@@ -1,6 +1,12 @@
 package pages
 
-import "strconv"
+import (
+	"context"
+	"fmt"
+	"strconv"
+
+	"github.com/koopa0/goen/internal/i18n"
+)
 
 // AdminSeller is one product's sales over the window.
 type AdminSeller struct {
@@ -37,7 +43,9 @@ type AdminStockRisk struct {
 }
 
 // Cover is the days of stock left, in words.
-func (r AdminStockRisk) Cover() string { return strconv.Itoa(r.DaysCover) + " 天" }
+func (r AdminStockRisk) Cover(ctx context.Context) string {
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminDays), r.DaysCover)
+}
 
 // Urgent reports whether it runs out inside a fortnight, which is about the
 // time a reorder takes.
@@ -107,8 +115,8 @@ func (v AdminReportView) WindowHref(days int32) string {
 }
 
 // WindowLabel is what that link says.
-func (v AdminReportView) WindowLabel(days int32) string {
-	return strconv.FormatInt(int64(days), 10) + " 天"
+func (v AdminReportView) WindowLabel(ctx context.Context, days int32) string {
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminDays), days)
 }
 
 // IsWindow reports whether days is the one being shown.

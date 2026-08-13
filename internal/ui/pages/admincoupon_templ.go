@@ -399,9 +399,9 @@ func AdminCoupons(p layouts.Page, v AdminCouponsView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var20 string
-					templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(c.State())
+					templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(c.State(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincoupon.templ`, Line: 126, Col: 87}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincoupon.templ`, Line: 126, Col: 90}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 					if templ_7745c5c3_Err != nil {
@@ -438,9 +438,9 @@ func AdminCoupons(p layouts.Page, v AdminCouponsView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var23 string
-					templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(c.Value())
+					templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(c.Value(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincoupon.templ`, Line: 129, Col: 71}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincoupon.templ`, Line: 129, Col: 74}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 					if templ_7745c5c3_Err != nil {
@@ -451,9 +451,9 @@ func AdminCoupons(p layouts.Page, v AdminCouponsView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var24 string
-					templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(c.Conditions())
+					templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(c.Conditions(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincoupon.templ`, Line: 130, Col: 58}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincoupon.templ`, Line: 130, Col: 61}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 					if templ_7745c5c3_Err != nil {
@@ -464,9 +464,9 @@ func AdminCoupons(p layouts.Page, v AdminCouponsView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var25 string
-					templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(c.Used())
+					templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(c.Used(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincoupon.templ`, Line: 131, Col: 62}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincoupon.templ`, Line: 131, Col: 65}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 					if templ_7745c5c3_Err != nil {
@@ -526,9 +526,9 @@ func AdminCoupons(p layouts.Page, v AdminCouponsView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var29 string
-					templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(c.ToggleLabel())
+					templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(c.ToggleLabel(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincoupon.templ`, Line: 137, Col: 82}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admincoupon.templ`, Line: 137, Col: 85}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 					if templ_7745c5c3_Err != nil {

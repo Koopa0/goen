@@ -33,11 +33,11 @@ templ AdminQuestions(p layouts.Page, v AdminQuestionsView) {
 						<li class={ "goen-admin__question", templ.KV("is-waiting", q.Waiting()) }>
 							<div class="goen-admin__couponhead">
 								<a class="goen-admin__sku" href={ templ.SafeURL(q.ProductHref()) }>{ q.ProductName }</a>
-								<span class={ "ui-badge", templ.KV("ui-badge--brand", q.Waiting()) }>{ q.State() }</span>
+								<span class={ "ui-badge", templ.KV("ui-badge--brand", q.Waiting()) }>{ q.State(ctx) }</span>
 							</div>
 							<p class="goen-qa__question">{ q.Body }</p>
 							<span class="ui-cart-line__meta">
-								{ q.Who() } · { q.Asked } · { q.AnswersText() } 則回覆
+								{ q.Who(ctx) } · { q.Asked } · { q.AnswersText() } 則回覆
 							</span>
 							<form class="goen-admin__form" method="post" action={ templ.SafeURL(q.AnswerAction()) }>
 								<div class="ui-field">

@@ -123,18 +123,18 @@ templ AdminCoupons(p layouts.Page, v AdminCouponsView) {
 								<li class="goen-admin__coupon">
 									<div class="goen-admin__couponhead">
 										<span class="goen-admin__sku">{ c.Code }</span>
-										<span class={ "ui-badge", templ.KV("ui-badge--brand", c.Live()) }>{ c.State() }</span>
+										<span class={ "ui-badge", templ.KV("ui-badge--brand", c.Live()) }>{ c.State(ctx) }</span>
 									</div>
 									<span class="ui-cart-line__meta">{ c.Description }</span>
-									<span class="ui-cart-line__meta">{ c.KindText } · { c.Value() }</span>
-									<span class="ui-cart-line__meta">{ c.Conditions() }</span>
-									<span class="ui-cart-line__meta">已使用 { c.Used() }</span>
+									<span class="ui-cart-line__meta">{ c.KindText } · { c.Value(ctx) }</span>
+									<span class="ui-cart-line__meta">{ c.Conditions(ctx) }</span>
+									<span class="ui-cart-line__meta">已使用 { c.Used(ctx) }</span>
 									if c.EndsAt != "" {
 										<span class="ui-cart-line__meta">至 { c.EndsAt }</span>
 									}
 									<form method="post" action={ templ.SafeURL(c.Action()) }>
 										<input type="hidden" name="active" value={ c.NextActive() }/>
-										<button class="ui-btn ui-btn--secondary" type="submit">{ c.ToggleLabel() }</button>
+										<button class="ui-btn ui-btn--secondary" type="submit">{ c.ToggleLabel(ctx) }</button>
 									</form>
 								</li>
 							}

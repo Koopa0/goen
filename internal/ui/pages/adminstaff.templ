@@ -41,12 +41,12 @@ templ AdminStaff(p layouts.Page, v AdminStaffView) {
 									{ r.DisplayName() }
 									<span class="ui-cart-line__meta">{ r.Email }</span>
 								</td>
-								<td>{ r.RoleText() }</td>
+								<td>{ r.RoleText(ctx) }</td>
 								<td>
 									if r.Enrolled {
-										<span class="ui-badge ui-badge--brand">{ r.State() }</span>
+										<span class="ui-badge ui-badge--brand">{ r.State(ctx) }</span>
 									} else {
-										<span class="ui-badge ui-badge--warn">{ r.State() }</span>
+										<span class="ui-badge ui-badge--warn">{ r.State(ctx) }</span>
 									}
 								</td>
 								<td>

@@ -25,28 +25,28 @@ templ AdminHealth(p layouts.Page, v WorkerHealthView) {
 			<ul class="goen-health" role="list">
 				<li class={ "goen-health__item", templ.KV("is-bad", !v.OutboxHealthy()) }>
 					<span class="goen-health__name">通知信件(outbox)</span>
-					<span class="goen-health__state">{ v.OutboxText() }</span>
+					<span class="goen-health__state">{ v.OutboxText(ctx) }</span>
 					<span class="ui-cart-line__meta">
 						寄信在訂單的同一個交易裡排入,由背景 worker 送出。卡住代表顧客收不到通知。
 					</span>
 				</li>
 				<li class={ "goen-health__item", templ.KV("is-bad", !v.SweeperHealthy()) }>
 					<span class="goen-health__name">庫存保留清掃</span>
-					<span class="goen-health__state">{ v.SweeperText() }</span>
+					<span class="goen-health__state">{ v.SweeperText(ctx) }</span>
 					<span class="ui-cart-line__meta">
 						沒付款的訂單保留的庫存要放回架上。堆積代表有貨卻賣不出去。
 					</span>
 				</li>
 				<li class={ "goen-health__item", templ.KV("is-bad", !v.RecommendHealthy()) }>
 					<span class="goen-health__name">買了又買投影</span>
-					<span class="goen-health__state">{ v.RecommendText() }</span>
+					<span class="goen-health__state">{ v.RecommendText(ctx) }</span>
 					<span class="ui-cart-line__meta">
 						每 15 分鐘重建一次。過期只影響推薦的新鮮度,不影響任何交易。
 					</span>
 				</li>
 				<li class={ "goen-health__item", templ.KV("is-bad", !v.RefundsHealthy()) }>
 					<span class="goen-health__name">退款</span>
-					<span class="goen-health__state">{ v.RefundsText() }</span>
+					<span class="goen-health__state">{ v.RefundsText(ctx) }</span>
 					<span class="ui-cart-line__meta">
 						退款的紀錄是在打金流之前就寫進資料庫的,這樣中途斷線也留得下線索 ——
 						但沒有任何人在看那張表。這裡就是在看。沒有任何背景作業會自己把它結掉。
@@ -54,7 +54,7 @@ templ AdminHealth(p layouts.Page, v WorkerHealthView) {
 				</li>
 				<li class={ "goen-health__item", templ.KV("is-bad", !v.HousekeepingHealthy()) }>
 					<span class="goen-health__name">清理</span>
-					<span class="goen-health__state">{ v.HousekeepingText() }</span>
+					<span class="goen-health__state">{ v.HousekeepingText(ctx) }</span>
 					<span class="ui-cart-line__meta">
 						過期 session 每 6 小時、沒被引用的圖片每小時清一次。兩者都不影響
 						任何答案 —— 讀取本來就會擋過期 session —— 堆積的是資料表本身。
@@ -82,7 +82,7 @@ templ AdminHealth(p layouts.Page, v WorkerHealthView) {
 									<td>{ m.Topic }</td>
 									<td>{ m.Key }</td>
 									<td>{ m.AttemptsText() }</td>
-									<td>{ m.Reason() }</td>
+									<td>{ m.Reason(ctx) }</td>
 									<td>{ m.Since }</td>
 								</tr>
 							}
@@ -112,8 +112,8 @@ templ AdminHealth(p layouts.Page, v WorkerHealthView) {
 								<tr>
 									<td>{ r.OrderNumber }</td>
 									<td>{ r.Amount() }</td>
-									<td>{ r.StatusText() }</td>
-									<td>{ r.Reference() }</td>
+									<td>{ r.StatusText(ctx) }</td>
+									<td>{ r.Reference(ctx) }</td>
 									<td>{ r.Key }</td>
 									<td>{ r.Since }</td>
 								</tr>

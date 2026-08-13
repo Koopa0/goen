@@ -1,6 +1,11 @@
 package pages
 
-import "strconv"
+import (
+	"context"
+	"strconv"
+
+	"github.com/koopa0/goen/internal/i18n"
+)
 
 // AdminCampaign is one promotion as the back office sees it.
 type AdminCampaign struct {
@@ -18,18 +23,18 @@ type AdminCampaign struct {
 // Active and running are different facts, the same way they are for a coupon: a
 // switched-on campaign whose window has passed is off to a shopper and on in a
 // list that only reads is_active.
-func (c AdminCampaign) State() string {
+func (c AdminCampaign) State(ctx context.Context) string {
 	switch {
 	case !c.Active:
-		return "已停用"
+		return i18n.T(ctx, i18n.KeyAdminCampaignOff)
 	case !c.Running:
-		return "不在期間內"
+		return i18n.T(ctx, i18n.KeyAdminCampaignOutside)
 	case c.Products == 0:
 		// Running and featuring nothing is the state worth naming: the page
 		// exists, a shopper can reach it, and it is empty.
-		return "進行中(沒有商品)"
+		return i18n.T(ctx, i18n.KeyAdminCampaignEmpty)
 	default:
-		return "進行中"
+		return i18n.T(ctx, i18n.KeyAdminCampaignRunning)
 	}
 }
 
@@ -54,11 +59,11 @@ func (c AdminCampaign) NextActive() string {
 }
 
 // ToggleLabel is what the button says.
-func (c AdminCampaign) ToggleLabel() string {
+func (c AdminCampaign) ToggleLabel(ctx context.Context) string {
 	if c.Active {
-		return "停用"
+		return i18n.T(ctx, i18n.KeyAdminToggleOff)
 	}
-	return "啟用"
+	return i18n.T(ctx, i18n.KeyAdminToggleOn)
 }
 
 // AdminCampaignProduct is one featured product.

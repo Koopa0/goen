@@ -60,7 +60,7 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 					<p class="ui-page-head__eyebrow">
 						<a href="/admin/products">商品</a>
 					</p>
-					<h1 class="ui-page-head__title">{ v.Title() }</h1>
+					<h1 class="ui-page-head__title">{ v.Title(ctx) }</h1>
 					if !v.IsNew {
 						<p class="ui-page-head__sub">{ v.StatusText } · /p/{ v.Slug }</p>
 					}
@@ -440,7 +440,7 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 													· 原價 { sv.Compare() }
 												}
 											</span>
-											<span class="ui-cart-line__meta">{ sv.StockText() }</span>
+											<span class="ui-cart-line__meta">{ sv.StockText(ctx) }</span>
 										</li>
 									}
 								</ul>

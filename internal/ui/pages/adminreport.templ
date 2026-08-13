@@ -24,7 +24,7 @@ templ AdminReport(p layouts.Page, v *AdminReportView) {
 								aria-current="page"
 							}
 						>
-							{ v.WindowLabel(d) }
+							{ v.WindowLabel(ctx, d) }
 						</a>
 					}
 				</nav>
@@ -94,7 +94,7 @@ templ AdminReport(p layouts.Page, v *AdminReportView) {
 								// days left" means nothing without knowing it
 								// came from three sales or three hundred.
 								<span class="goen-report__num">近期售出 { item.SoldText() }</span>
-								<span class="goen-report__num">{ item.Cover() }</span>
+								<span class="goen-report__num">{ item.Cover(ctx) }</span>
 							</li>
 						}
 					</ul>

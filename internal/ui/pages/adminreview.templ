@@ -33,7 +33,7 @@ templ AdminReviews(p layouts.Page, v AdminReviewsView) {
 								<span class="ui-cart-line__meta">
 									<span aria-hidden="true">{ r.Stars() }</span>
 									<span class="goen-sr-only">{ r.RatingText() } 分</span>
-									· { r.DisplayAuthor() } · { r.At }
+									· { r.DisplayAuthor(ctx) } · { r.At }
 									if r.Verified {
 										· 已購買
 									}
@@ -48,7 +48,7 @@ templ AdminReviews(p layouts.Page, v AdminReviewsView) {
 							</div>
 							<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.Action()) }>
 								<input type="hidden" name="review" value={ r.ID }/>
-								<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ r.ActionLabel() }</button>
+								<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ r.ActionLabel(ctx) }</button>
 							</form>
 						</li>
 					}

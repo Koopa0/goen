@@ -1009,7 +1009,7 @@ func (h *Handler) rejectProduct(w http.ResponseWriter, r *http.Request, f *Produ
 	view.BrandID, view.CategoryID = f.BrandID, f.CategoryID
 	view.Errors = errs
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminProductForm(
-		layouts.Page{Title: view.Title()}, view))
+		layouts.Page{Title: view.Title(r.Context())}, view))
 }
 
 // dollarsToCents reads a price typed in DOLLARS.
@@ -1702,7 +1702,7 @@ func (h *Handler) editProductWithErrors(
 	}
 	view.Errors = errs
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminProductForm(
-		layouts.Page{Title: view.Title()}, view))
+		layouts.Page{Title: view.Title(r.Context())}, view))
 }
 
 // attachReason turns an attach failure into the query the page reads.

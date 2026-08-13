@@ -50,7 +50,7 @@ templ AdminMovements(p layouts.Page, v *AdminMovementsView) {
 								<tr>
 									<td>{ m.At }</td>
 									<td class={ templ.KV("goen-admin__in", m.In()) }>{ m.DeltaText() }</td>
-									<td>{ m.ReasonText() }</td>
+									<td>{ m.ReasonText(ctx) }</td>
 									<td>
 										if m.HasOrder() {
 											<a href={ templ.SafeURL("/admin/orders/" + m.OrderNumber) }>{ m.OrderNumber }</a>
@@ -58,7 +58,7 @@ templ AdminMovements(p layouts.Page, v *AdminMovementsView) {
 											—
 										}
 									</td>
-									<td>{ m.By() }</td>
+									<td>{ m.By(ctx) }</td>
 									<td>{ m.RunningText() }</td>
 								</tr>
 							}

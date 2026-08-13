@@ -38,7 +38,7 @@ templ AdminMessages(p layouts.Page, v AdminMessagesView) {
 							<div class="goen-admin__returninfo">
 								<p class="goen-admin__returnorder">{ m.Subject }</p>
 								<span class="ui-cart-line__meta">
-									{ m.Name } · { m.Email } · { m.At } · { m.Waiting() }
+									{ m.Name } · { m.Email } · { m.At } · { m.Waiting(ctx) }
 								</span>
 								if m.HasOrderRef() {
 									// A link, because "my order hasn't arrived" is
@@ -51,7 +51,7 @@ templ AdminMessages(p layouts.Page, v AdminMessagesView) {
 							</div>
 							<form class="goen-admin__decide" method="post" action={ templ.SafeURL(m.Action()) }>
 								<input type="hidden" name="message" value={ m.ID }/>
-								<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ m.ActionLabel() }</button>
+								<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ m.ActionLabel(ctx) }</button>
 							</form>
 						</li>
 					}

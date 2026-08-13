@@ -1,6 +1,11 @@
 package pages
 
-import "strconv"
+import (
+	"context"
+	"strconv"
+
+	"github.com/koopa0/goen/internal/i18n"
+)
 
 // AdminQuestion is one customer question as the back office sees it.
 type AdminQuestion struct {
@@ -21,14 +26,14 @@ type AdminQuestion struct {
 func (q AdminQuestion) Waiting() bool { return !q.AnsweredByShop }
 
 // State is the word a staff member scans for.
-func (q AdminQuestion) State() string {
+func (q AdminQuestion) State(ctx context.Context) string {
 	switch {
 	case q.AnsweredByShop:
-		return "已回覆"
+		return i18n.T(ctx, i18n.KeyAdminQAnswered)
 	case q.Answers > 0:
-		return "只有顧客回覆"
+		return i18n.T(ctx, i18n.KeyAdminQCustomerOnly)
 	default:
-		return "待回覆"
+		return i18n.T(ctx, i18n.KeyAdminQWaiting)
 	}
 }
 
@@ -36,9 +41,9 @@ func (q AdminQuestion) State() string {
 func (q AdminQuestion) AnswersText() string { return strconv.FormatInt(q.Answers, 10) }
 
 // Who is the person who asked.
-func (q AdminQuestion) Who() string {
+func (q AdminQuestion) Who(ctx context.Context) string {
 	if q.Asker == "" {
-		return "已刪除的帳號"
+		return i18n.T(ctx, i18n.KeyAdminErasedAccountPlain)
 	}
 	return q.Asker
 }
