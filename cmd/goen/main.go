@@ -57,14 +57,14 @@ type config struct {
 	// office reach the database as different accounts.
 	AdminDatabaseURL string
 	// MaintenanceDatabaseURL is what the recommendation projection's pool
-	// connects with, and it had no knob at all: the pool was opened from
-	// DatabaseURL, so it did `SET ROLE maintenance` on a connection made as
-	// store_svc, which is not a member of that role.
+	// connects with. It is its own knob because the worker does
+	// `SET ROLE maintenance`, and a pool opened from DatabaseURL does that on a
+	// connection made as store_svc, which is not a member of that role.
 	//
-	// pgxpool connects LAZILY, so the site still started and the failure surfaced
+	// pgxpool connects LAZILY, so the site starts clean and the failure surfaces
 	// only in the worker — permission denied at boot and again every fifteen
-	// minutes, for as long as anybody left it running. A dev superuser may assume
-	// any role, which is exactly why this went unnoticed on a laptop.
+	// minutes, for as long as anybody leaves it running. A dev superuser may
+	// assume any role, so a laptop is exactly where this goes unnoticed.
 	MaintenanceDatabaseURL string
 	// Stripe. An empty secret key is valid and means "this deployment does not
 	// take money yet": goen browses and places orders, and the payment page
@@ -195,23 +195,22 @@ func loadConfig() (config, error) {
 // only under GOEN_INSECURE_COOKIES, which is the development opt-out — so a
 // developer over plain HTTP is unaffected and gets a warning instead.
 //
-// Both of these were features that failed OPEN. An empty TOTP key left the
-// step-up function nil and RequireStaff skipped it, so the whole back office
-// fell back to a password with nothing anywhere saying so; a guessed BaseURL put
-// the container's own listen address into Stripe's success_url and every link
-// goen mails. Stripe already refuses to start on a half-configuration, and the
-// wiring comment claimed these were "the same shape as Stripe" while neither was
-// validated anywhere.
+// Both of the settings it checks fail OPEN when unset, which is why they are
+// checked here rather than described as "the same shape as Stripe" in a wiring
+// comment. An empty TOTP key leaves the step-up function nil and RequireStaff
+// skips it, so the whole back office falls back to a password with nothing
+// anywhere saying so; a guessed BaseURL puts the container's own listen address
+// into Stripe's success_url and into every link goen mails. Stripe itself
+// refuses to start on a half-configuration, and this function is what holds the
+// other two to the same line.
 func (cfg *config) checkProductionPosture(log *slog.Logger) error {
-	// The second factor fails CLOSED in a production posture, and it did not.
+	// The second factor fails CLOSED in a production posture, and this is the
+	// line that makes that true rather than aspirational.
 	//
 	// An empty GOEN_TOTP_KEY leaves the step-up function nil, and RequireStaff
-	// skips the check when it is nil — so the entire back office fell back to a
-	// password alone. Silently: the one page that could have said so overwrote
-	// its own warning, and nothing was logged at startup. The wiring comment
-	// claimed "the same shape as Stripe: the feature is off, loudly", and Stripe
-	// refuses to start on a half-configuration while this was never validated
-	// anywhere.
+	// skips the check when it is nil — so without this the entire back office
+	// falls back to a password alone, and silently: the one page that could say
+	// so overwrites its own warning, and nothing reaches the log at startup.
 	//
 	// SecureCookies is the production signal already in this config — it is off
 	// only under GOEN_INSECURE_COOKIES, which is the development opt-out — so a
@@ -244,7 +243,7 @@ func (cfg *config) checkProductionPosture(log *slog.Logger) error {
 // A parse failure is FATAL rather than a warning, and that is the point of
 // validating it here: a deployment that meant to name its load balancer and
 // mistyped the CIDR would otherwise start happily and keep the collapsed
-// single-bucket behaviour it was configuring its way out of — the failure being
+// single-bucket behaviour it is configuring its way out of — the failure being
 // fixed, still in place, now believed fixed.
 func (cfg *config) trustedProxies(log *slog.Logger) (*ratelimit.Proxies, error) {
 	// A parse failure is FATAL rather than a warning, and that is the whole point
@@ -576,15 +575,12 @@ func openAdminPool(ctx context.Context, url string) (*pgxpool.Pool, error) {
 // Two connections, because there is one ticker and a second is slack for a
 // rebuild that outlives its interval.
 func openMaintenancePool(ctx context.Context, url string) (*pgxpool.Pool, error) {
-	// maxConns is applied BEFORE the pool is built, and that is the fix rather
-	// than a tidy-up. This used to be `pool.Config().MaxConns = 2` after
-	// pgxpool.NewWithConfig — and pgxpool.Pool.Config() returns a COPY
-	// (`return p.config.Copy()`), so the assignment landed on a discarded object
-	// and the pool kept the default of max(4, numCPU). The two-connection
-	// reasoning in the comment below was never once in force.
-	//
-	// It is a third comment in this repository that outran its code, beside
-	// "BaseURL has no default" and "the result is cached for a year".
+	// maxConns is applied BEFORE the pool is built, and that is load-bearing
+	// rather than tidiness. pgxpool.Pool.Config() returns a COPY
+	// (`return p.config.Copy()`), so `pool.Config().MaxConns = 2` written after
+	// pgxpool.NewWithConfig lands on a discarded object and the pool keeps the
+	// default of max(4, numCPU) — leaving the two-connection reasoning above
+	// describing nothing that is in force, with no symptom to notice.
 	return openPoolAs(ctx, url, "maintenance", 2)
 }
 

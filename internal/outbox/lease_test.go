@@ -18,11 +18,11 @@ import (
 // longer claimed by the time it is being sent: a second replica's
 // `available_at <= now()` matches it, and two workers deliver it.
 //
-// The numbers used to be fifty messages at thirty seconds each under a
-// five-minute lease. Ten of the fifty were covered. The other forty were
-// visible to every other replica while this one was still working through them,
-// which for a receipt is a duplicate and for a password reset is a second live
-// token in somebody's mailbox.
+// The failure is arithmetic, not a race that needs unlucky timing: fifty
+// messages at thirty seconds each under a five-minute lease covers ten of them
+// and leaves forty visible to every other replica while this one is still
+// working through them — which for a receipt is a duplicate and for a password
+// reset is a second live token in somebody's mailbox.
 //
 // Three independent constants, so this is a relationship and not a restatement:
 // change any one of them and the test says whether the other two still hold.

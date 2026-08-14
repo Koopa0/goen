@@ -132,8 +132,8 @@ func tokenFor(t *testing.T, topic, email, field string) string {
 // TestAnAddressIsNotOnTheListUntilItSaysSo is double opt-in, asserted.
 //
 // The footer form is on every page and anybody can type anybody's address into
-// it. Before this, a submission WAS a subscription: one POST put a stranger on
-// the list, and there was no way off it.
+// it. Without this rule a submission IS a subscription: one POST puts a stranger
+// on the list, and there is no way off it.
 func TestAnAddressIsNotOnTheListUntilItSaysSo(t *testing.T) {
 	t.Parallel()
 	s, email := store(t), addr(t)
@@ -335,12 +335,12 @@ func TestAnUnknownUnsubscribeTokenIsRefused(t *testing.T) {
 	}
 }
 
-// TestReSubscribingAfterOptingOutNeedsTheMailboxAgain is the rule the old code
-// had exactly backwards.
+// TestReSubscribingAfterOptingOutNeedsTheMailboxAgain is the rule that is
+// easiest to write backwards.
 //
-// `ON CONFLICT DO UPDATE SET unsubscribed_at = NULL` meant one form submission
-// by ANYBODY put an opted-out person back on the list. An opt-out is undone only
-// by the owner of the mailbox.
+// `ON CONFLICT DO UPDATE SET unsubscribed_at = NULL` lets one form submission by
+// ANYBODY put an opted-out person back on the list. An opt-out is undone only by
+// the owner of the mailbox.
 func TestReSubscribingAfterOptingOutNeedsTheMailboxAgain(t *testing.T) {
 	t.Parallel()
 	s, email := store(t), addr(t)
@@ -411,10 +411,10 @@ func TestTheWelcomeMailCarriesAWorkingUnsubscribeLink(t *testing.T) {
 
 // TestARefusedRequestMailsNothing proves validation runs before the enqueue.
 //
-// Scoped to ONE address on purpose. The first version of this counted every
-// newsletter.confirm row in the table and failed under -shuffle, because the
-// tests beside it legitimately enqueue — a global count in a parallel suite is
-// the order-dependence this repository has already spent a day on.
+// Scoped to ONE address on purpose. Counting every newsletter.confirm row in the
+// table instead would fail under -shuffle, because the tests beside it
+// legitimately enqueue — a global count in a parallel suite is the
+// order-dependence this repository has already spent a day on.
 //
 // The stronger property — that the row and its message commit TOGETHER — is held
 // by TestASecondSubmissionDoesNotMailAnActiveSubscriber: putting the enqueue
@@ -432,9 +432,10 @@ func TestARefusedRequestMailsNothing(t *testing.T) {
 	}
 }
 
-// TestErasureTakesTheAddressOffTheList closes the hole erase_user had: the
-// newsletter keys on the ADDRESS, so deleting a user never reached it — and it is
-// the one table that would go on emailing somebody who asked to be forgotten.
+// TestErasureTakesTheAddressOffTheList holds the reach erase_user most easily
+// falls short of: the newsletter keys on the ADDRESS, so no cascade off the user
+// row touches it — and it is the one table that would go on emailing somebody
+// who asked to be forgotten.
 func TestErasureTakesTheAddressOffTheList(t *testing.T) {
 	t.Parallel()
 	s := store(t)
@@ -549,8 +550,8 @@ func TestTheShopCannotAddToItsOwnList(t *testing.T) {
 
 // TestASentIssueReachesEveryoneOnTheListExactlyOnce is the send.
 //
-// Consent and control came first because a send cannot be correct without them,
-// and this is what they were for. Three properties, all in one transaction:
+// Consent and control are what a send rests on — it cannot be correct without
+// them, and this is what they are for. Three properties, all in one transaction:
 // everybody active gets exactly one copy, nobody who left gets any, and every
 // copy carries a working unsubscribe link.
 func TestASentIssueReachesEveryoneOnTheListExactlyOnce(t *testing.T) {
@@ -596,14 +597,15 @@ func TestASentIssueReachesEveryoneOnTheListExactlyOnce(t *testing.T) {
 
 // TestAnIssueIsSentOnceUnderConcurrency proves the STATEMENT guard, not the Go one.
 //
-// The first version of this test called Send twice in a row and passed with
-// `AND sent_at IS NULL` deleted from the UPDATE — because Send reads the issue
-// first and refuses in Go, so a sequential second call never reaches the
-// statement at all. It proved the cheap check and claimed the expensive one.
+// Eight goroutines behind one barrier, and never two sequential calls to Send.
+// A sequential second call never reaches the statement at all — Send reads the
+// issue first and refuses in Go — so a test shaped that way stays green with
+// `AND sent_at IS NULL` deleted from the UPDATE: it proves the cheap check while
+// claiming the expensive one.
 //
-// Eight goroutines behind one barrier all pass the Go check, all enqueue, and
-// exactly one may stamp. That is the property: two people clicking Send at the
-// same moment must not mail the list twice.
+// Behind the barrier all eight pass the Go check, all enqueue, and exactly one
+// may stamp. That is the property: two people clicking Send at the same moment
+// must not mail the list twice.
 func TestAnIssueIsSentOnceUnderConcurrency(t *testing.T) {
 	emptyList(t)
 	ctx := t.Context()
@@ -639,10 +641,10 @@ func TestAnIssueIsSentOnceUnderConcurrency(t *testing.T) {
 	close(start)
 	wg.Wait()
 
-	// Deterministic now: the statement's WHERE clause is the only place the
-	// question is asked, so every racer that loses loses there. While a Go
-	// read-and-branch sat above it, this count varied run to run — 5 of 8 on the
-	// run that exposed it — which made the test a coin toss dressed as a lock.
+	// Deterministic: the statement's WHERE clause is the only place the question
+	// is asked, so every racer that loses loses there. A Go read-and-branch above
+	// it makes this count vary run to run — 5 of 8 on the run that exposes it —
+	// which is a coin toss dressed as a lock.
 	if sent != 1 {
 		t.Errorf("%d of %d concurrent sends succeeded, want exactly 1 — the list was "+
 			"mailed %d times", sent, racers, sent)
@@ -666,16 +668,15 @@ func TestAnIssueIsSentOnceUnderConcurrency(t *testing.T) {
 // TestABulkSendWaitsBehindTransactionalMail is the priority rule, asserted
 // through the queue's OWN claim.
 //
-// The first version of this test wrote `ORDER BY priority, available_at` in the
-// test and asked the database directly — so deleting `priority` from the real
-// claim changed nothing, and the test went on passing. It re-implemented the
-// thing it was meant to check, which is the most comfortable way to write a test
-// that cannot fail.
+// It drains for real and records what the handlers were given, rather than
+// writing `ORDER BY priority, available_at` here and asking the database
+// directly. A test that re-implements the ordering it is meant to check goes on
+// passing with `priority` deleted from the real claim, which is the most
+// comfortable way to write a test that cannot fail.
 //
-// This drains for real and records what the handlers were given. Without the
-// priority ordering the newsletter copies were enqueued first and come out first,
-// which is one issue to a large list sitting in front of every receipt written
-// after it.
+// Without the priority ordering the newsletter copies are enqueued first and come
+// out first, which is one issue to a large list sitting in front of every receipt
+// written after it.
 func TestABulkSendWaitsBehindTransactionalMail(t *testing.T) {
 	emptyList(t)
 	emptyOutbox(t)
@@ -816,9 +817,9 @@ func joinList(t *testing.T, s *newsletter.Store, email string) string {
 // direction, and it is deterministic.
 //
 // It exists because the concurrent test above is the honest property but a noisy
-// instrument: with a Go pre-check in front of the statement it went red only
+// instrument: put a Go pre-check in front of the statement and it goes red only
 // sometimes. This one calls Send twice in a row and must always be refused —
-// which is only true because the statement is now the only guard there is.
+// which is only true because the statement is the only guard there is.
 func TestASecondSendIsRefusedSequentially(t *testing.T) {
 	emptyList(t)
 	ctx := t.Context()

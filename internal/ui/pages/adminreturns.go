@@ -9,9 +9,10 @@ import (
 
 // AdminReturn is one row in the back-office return queue.
 type AdminReturn struct {
-	// Lines is WHAT is being sent back. The page showed a count and an amount
-	// and nothing else, so a staff member decided a return without being able
-	// to see what was in it — and the query for this existed, unused.
+	// Lines is WHAT is being sent back. A count and an amount are not something
+	// anybody can decide on: 「3 件 · 可退 NT$4,500」 says nothing about WHICH
+	// three, so a page carrying only those two figures asks a staff member to
+	// rule on a parcel they cannot see.
 	Lines       []AdminReturnLine
 	ID          string
 	OrderNumber string
@@ -22,25 +23,26 @@ type AdminReturn struct {
 	AmountCents int64
 	CreatedAt   string
 	// Window says whether this is a STATUTORY rescission or a goodwill return:
-	// "within", "after" or "undelivered". The page showed neither, so a staff
-	// member deciding a return could not tell a request the shop may not refuse
-	// from one that is entirely theirs to decline — 消保法 §19 I gives seven days
-	// from receipt and §19 V voids any agreement otherwise.
+	// "within", "after" or "undelivered". Unsaid, a staff member deciding a
+	// return cannot tell a request the shop may not refuse from one that is
+	// entirely theirs to decline — 消保法 §19 I gives seven days from receipt and
+	// §19 V voids any agreement otherwise.
 	//
-	// It INFORMS and does not restrict. Decide still accepts "rejected" for any
-	// open request, because an in-window rescission is not auto-approved either:
+	// It INFORMS and does not restrict. Decide accepts "rejected" for any open
+	// request, because an in-window rescission is not auto-approved either:
 	// §19-2 gives the trader fifteen days to refund after the goods come BACK, so
 	// "the parcel never arrived" is a legitimate refusal and only a person can
-	// know it. What was missing was the fact on screen, not a new rule.
+	// know it. What this supplies is the fact on screen, not a rule.
 	Window  string
 	Decided bool
 }
 
 // AwaitingGoods reports whether this return is approved and the parcel has not
-// been accounted for — the state the queue existed to leave out.
+// been accounted for.
 //
-// A return used to stop at 同意: the money went back, and the goods were in a
-// state nothing recorded and nobody could act on. This is the work that follows.
+// A return does not stop at 同意. The money goes back on the decision and the
+// goods arrive afterwards, so a queue that ends there leaves them in a state
+// nothing records and nobody can act on. This is the work that follows.
 func (r AdminReturn) AwaitingGoods() bool {
 	if r.Status != "approved" {
 		return false
@@ -85,12 +87,9 @@ func (r AdminReturn) RestockedUnitsText() string {
 // so the template can mark it.
 func (r AdminReturn) Rescission() bool { return r.Window == "within" }
 
-// WindowText names the window in the reader's language.
-//
-// It takes a ctx now. The comment here used to say "no i18n: /admin is the staff
-// of one Taiwanese shop, which is the documented category exclusion" — and the
-// exclusion it cited has been deleted, which is the hazard of a comment that
-// cites a decision made somewhere else.
+// WindowText names the window in the reader's language. A closed set, computed
+// by the query, so an unknown value is a programming error rather than something
+// to render at somebody who has to act on it.
 func (r AdminReturn) WindowText(ctx context.Context) string {
 	switch r.Window {
 	case "within":

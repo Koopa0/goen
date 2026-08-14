@@ -43,8 +43,8 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 								// Which KIND of return this is. 消保法 §19 I gives seven days from
 								// receipt and §19 V voids any agreement otherwise, so a request
 								// inside the window is not the shop's to refuse on window grounds
-								// — and the page said nothing at all, so nobody deciding one could
-								// tell it from a goodwill return.
+								// — and a page that says nothing leaves whoever decides it unable
+								// to tell one from a goodwill return.
 								if r.Rescission() {
 									<span class="ui-cart-line__meta">
 										<strong>{ r.WindowText(ctx) }</strong>
@@ -55,9 +55,9 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 								}
 								<span class="ui-cart-line__meta">{ r.Reason }</span>
 								if len(r.Lines) > 0 {
-									// WHAT is coming back. The row used to say
-									// "3 件 · 可退 NT$4,500" and nothing else, so
-									// the decision was made without it.
+									// WHAT is coming back. A row saying
+									// "3 件 · 可退 NT$4,500" and nothing else asks
+									// for a decision on goods nobody can see.
 									<ul class="goen-admin__returnlines" role="list">
 										for _, l := range r.Lines {
 											<li>
@@ -103,10 +103,11 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 									</div>
 								</form>
 							}
-							// The tail. A return used to stop at 同意: the money went
-							// back and the goods were in a state nothing recorded, so
-							// the 'return' movement reason had four declarations and
-							// no caller and the units never came back to the shelf.
+							// The tail, and 同意 is not the end of it: the money goes
+							// back on the decision and the goods arrive afterwards.
+							// Without this form the 'return' movement reason is four
+							// declarations with no caller and the units never come
+							// back to the shelf.
 							//
 							// ONE form for the whole parcel, because a parcel is opened
 							// once. Per line, because three things can come back as two

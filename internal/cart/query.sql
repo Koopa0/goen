@@ -233,8 +233,8 @@ INSERT INTO order_private_data (
     nullif(@pickup_store_name::text, '')
 );
 
--- Whether an account owns an order. Used to let a signed-in customer reach the
--- confirmation and payment pages without the placed-order cookie — after
+-- Whether an account owns an order. This is what lets a signed-in customer reach
+-- the confirmation and payment pages without the placed-order cookie — after
 -- signing in on another device, for instance.
 --
 -- internal/payment reads this too. sqlc generates one db package for the whole
@@ -249,8 +249,8 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        o.shipping_cents, o.discount_cents, o.tax_cents,
        -- WHICH discount, joined rather than snapshotted: coupons.code is never
        -- updated and the FK is ON DELETE RESTRICT, so one join always reaches it.
-       -- An order used to show "折扣 −NT$200" and nothing said why, to the
-       -- customer or to the shop.
+       -- Without it an order shows "折扣 −NT$200" with nothing saying why, to
+       -- the customer or to the shop.
        coalesce((SELECT c.code || ' · ' || c.description
                  FROM coupon_redemptions cr JOIN coupons c ON c.id = cr.coupon_id
                  WHERE cr.order_id = o.id), '')::text AS discount_reason,
@@ -383,11 +383,12 @@ SELECT release_reservation($1);
 -- touched it. The ABSENCE of an actor is what distinguishes this from a
 -- back-office cancel — the back office always writes one.
 --
--- It used to write '顧客自行取消' into the note for that purpose, and the
--- customer's own order page renders notes: an English customer who cancelled
--- read a Chinese sentence in their timeline, forever, and no test could see it
--- because a .sql file is not a .go file. A fact carried structurally is a fact
--- both audiences can be told in their own language.
+-- Structurally, and never as a note saying the same thing. The customer's own
+-- order page RENDERS notes, so '顧客自行取消' written here reaches an English
+-- customer as a Chinese sentence in their timeline, forever. A fact carried
+-- structurally is a fact each audience can be told in its own language — and a
+-- query that assembles chrome is chrome written where nobody can ask who is
+-- reading, which is why the Han sweep covers .sql literals too.
 -- name: RecordCancellation :exec
 INSERT INTO order_events (order_id, kind)
 SELECT id, 'cancelled' FROM orders WHERE order_number = $1;
@@ -400,10 +401,10 @@ ORDER BY r.id;
 
 -- Cancel an order, but only from the one state a customer may cancel from.
 --
--- Two predicates, each load-bearing since committed_orders stopped counting a
--- cancelled order: `pending` is what refuses a second cancellation and an order
--- the shop has started, and `not committed` is what refuses one somebody has
--- paid for. Both are proven by mutation.
+-- Two predicates, and each is load-bearing because committed_orders does NOT
+-- count a cancelled order: `pending` is what refuses a second cancellation and
+-- an order the shop has started, and `not committed` is what refuses one
+-- somebody has paid for. Both are proven by mutation.
 --
 -- In the WHERE clause rather than read first: two cancellations racing a
 -- capture must not both decide the order was cancellable.

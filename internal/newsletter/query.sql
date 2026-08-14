@@ -45,9 +45,9 @@ RETURNING email;
 --
 -- It is stored as the token, so every copy of it that has ever been mailed goes
 -- on working — which is the promise the link makes. Rotating it would silently
--- break the link in every issue already sitting in somebody's mailbox, and the
--- first version had to rotate only because it stored a hash and the caller could
--- not read the live token back.
+-- break the link in every issue already sitting in somebody's mailbox, and
+-- storing a digest instead forces exactly that rotation: the caller cannot read
+-- the live token back out of a hash, so it has nothing to mail but a new one.
 -- name: AddNewsletterSubscriber :one
 INSERT INTO newsletter_subscribers (email, unsubscribe_token, locale)
 VALUES ($1, $2, $3)

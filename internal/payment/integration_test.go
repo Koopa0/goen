@@ -257,9 +257,9 @@ func TestAFailedEffectLeavesTheEventReprocessable(t *testing.T) {
 // TestTheSchemaRefusesACaptureThatIsNotWhatTheOrderOwes proves the trigger, not
 // the Go check, is what stops a capture for the wrong figure.
 //
-// This is the DATABASE's guard, not Go's — the first version of this test
-// claimed to prove the Go-side check and stayed green with that check disabled,
-// because payments_capture_matches_order had refused every case first. Binding
+// This is the DATABASE's guard, not Go's. A test here claiming to prove the
+// Go-side check stays green with that check disabled, because
+// payments_capture_matches_order refuses every case first. Binding the assertion
 // to the constraint name is what makes the test say which rule it exercises.
 func TestTheSchemaRefusesACaptureThatIsNotWhatTheOrderOwes(t *testing.T) {
 	ctx := t.Context()
@@ -346,9 +346,10 @@ func TestCaptureRefusesAnAmountThatIsNotTheIntent(t *testing.T) {
 //
 // checkout.session.completed does not expand payment_intent.latest_charge, so
 // the event goen actually receives usually carries no card brand and no last4.
-// Sending ” for those put a value through payments_last4_format, which
-// requires four digits: every real capture was refused by a CHECK after the
-// money had already left the customer's account. Unknown is NULL.
+// Sending an empty string for those sends a value through
+// payments_last4_format, which requires four digits: every real capture is then
+// refused by a CHECK after the money has already left the customer's account.
+// Unknown is NULL.
 func TestCaptureWithNoCardDetails(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
@@ -419,12 +420,13 @@ func TestOpeningTheSamePaymentTwiceIsOneRow(t *testing.T) {
 // TestASecondPaymentAttemptReusesTheOpenSession is the double-charge defect and
 // the read that closes it.
 //
-// StartSession set no idempotency key and open_payment dedupes on
-// (order_id, provider_ref) — and every Checkout Session brings its own id — so
-// every POST to the pay route created a new session AND a new requires_payment
-// row. Two tabs were two real charges. payments_one_capture_per_order is PARTIAL
-// on status = 'succeeded', so the second capture is refused only AFTER the money
-// is at Stripe: the webhook 500s, Stripe retries forever, and nothing refunds.
+// open_payment dedupes on (order_id, provider_ref), and every Checkout Session
+// brings its own id, so without this read and without an idempotency key on
+// StartSession every POST to the pay route opens a new session AND a new
+// requires_payment row. Two tabs are two real charges.
+// payments_one_capture_per_order is PARTIAL on status = 'succeeded', so the
+// second capture is refused only AFTER the money is at Stripe: the webhook 500s,
+// Stripe retries forever, and nothing refunds.
 //
 // The assertion is the COUNT and the session named, never the capture. The
 // second capture is already guarded, so a test that asserted it would pass with
@@ -508,18 +510,19 @@ func TestASecondPaymentAttemptReusesTheOpenSession(t *testing.T) {
 // TestACaptureIsRefusedForACancelledOrder holds the guard that binds money to the
 // order's own state.
 //
-// payments_require_complete_order asked about lines, delivery details and a
-// non-negative total — everything about whether the order is COMPLETE — and never
-// about whether it is still live. capture_payment checks only the payment's own
-// status. So the ordinary two-tab sequence went straight through: start a
-// payment, cancel the order in the other tab, then pay at Stripe. The capture
-// succeeded against an order whose stock had already gone back on the shelf.
+// payments_require_complete_order asks about lines, delivery details and a
+// non-negative total — everything about whether the order is COMPLETE — and
+// nothing about whether it is still live, and capture_payment checks only the
+// payment's own status. payments_refuse_cancelled_order is what stands between
+// the ordinary two-tab sequence and money taken for goods on somebody else's
+// shelf: start a payment, cancel the order in the other tab, then pay at Stripe,
+// and the capture lands against an order whose stock has already gone back.
 //
 // The assertion is bound to the CONSTRAINT NAME. A capture on a cancelled order
 // can trip payments_capture_matches_order instead the moment store credit is
-// reversed by the cancellation, and a test happy with any error would report the
-// wrong guard as the one holding — which is how the credit-funded case came to
-// look covered while the plain card order was covered by nothing.
+// reversed by the cancellation, so a test happy with any error reports the wrong
+// guard as the one holding — which is how a credit-funded case looks covered
+// while the plain card order is covered by nothing.
 func TestACaptureIsRefusedForACancelledOrder(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
@@ -569,12 +572,12 @@ func TestACaptureIsRefusedForACancelledOrder(t *testing.T) {
 // TestTheSessionExpiryComesFromTheEarliestLiveHold is the other half of binding
 // payment to stock.
 //
-// The Checkout Session's expires_at used to be time.Now() + 30 minutes while the
-// hold was PlaceOrder + 30 minutes, under a comment claiming the session was
-// "deliberately shorter than cart.HoldTTL". Two equal durations measured from
-// different instants are not the same window: the session was strictly longer by
-// however long the customer sat on the pay page, so money could arrive for stock
-// the sweeper had already released and sold to somebody else.
+// A Checkout Session's expires_at of time.Now() + 30 minutes against a hold of
+// PlaceOrder + 30 minutes reads as deliberately shorter than cart.HoldTTL and is
+// not: two equal durations measured from different instants are not the same
+// window. The session is strictly longer by however long the customer sat on the
+// pay page, so money arrives for stock the sweeper has already released and sold
+// to somebody else.
 //
 // The EARLIEST hold is the deadline, not the latest: an order with two lines
 // holds two reservations and the session has to die with the first of them, or
@@ -698,10 +701,9 @@ func TestStoreCannotWriteASucceededPaymentDirectly(t *testing.T) {
 
 // TestACaptureEnqueuesTheReceipt holds that money arriving produces a receipt.
 //
-// order.paid existed as a topic constant from the day the outbox was built,
-// with nothing producing it and nothing handling it — so a customer was told
-// their order was placed and then never heard that the money arrived. The
-// payment page said 已付款; nothing else did.
+// The order.paid topic is worth nothing without a producer: declared and never
+// enqueued, a customer is told their order was placed and then never hears that
+// the money arrived. The payment page says 已付款 and nothing else does.
 //
 // The message is written in the CAPTURE's transaction, so the money moving and
 // the promise to say so commit together.
@@ -790,10 +792,11 @@ func TestARedeliveredWebhookSendsOneReceipt(t *testing.T) {
 
 // TestPickupOrderCanBePaid holds that a 超商取貨 order can reach the till.
 //
-// payments_require_complete_order demanded a street address, so the moment
-// 超商取貨 started collecting a 門市 instead, every pickup order became
-// unpayable — the customer reached Stripe, paid, and the capture threw. Nothing
-// caught it: every payment fixture in this file ships to an address.
+// payments_require_complete_order has to name BOTH destinations. Demanding a
+// street address makes every 超商取貨 order unpayable the moment a 門市 is
+// collected instead — the customer reaches Stripe, pays, and the capture throws.
+// Nothing else here catches that: every other payment fixture in this file ships
+// to an address.
 func TestPickupOrderCanBePaid(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
@@ -953,16 +956,16 @@ func payForOwnedOrder(t *testing.T, s *payment.Store, userID uuid.UUID, cents in
 	return points
 }
 
-// TestAPartCreditOrderIsChargedOnlyWhatItOwes is the money-loss defect a third-party
-// review found, and the test that would have caught it.
+// TestAPartCreditOrderIsChargedOnlyWhatItOwes binds the figure the payment page
+// sends to Stripe to the figure this database will accept.
 //
-// Store credit is spent at CHECKOUT, in the order's own transaction. The payment page
-// then read the order's GROSS total and asked Stripe for that, while
-// payments_capture_matches_order demands the NET. So a customer with NT$300 of credit
-// on a NT$1,000 order paid NT$1,000 at Stripe, and every webhook delivery rolled back
-// on a constraint — the money was taken and the order stayed unpaid forever.
+// Store credit is spent at CHECKOUT, in the order's own transaction, so the page
+// must ask for the NET and never the GROSS: payments_capture_matches_order demands
+// the net. A customer with NT$300 of credit on a NT$1,000 order charged NT$1,000 at
+// Stripe has every webhook delivery roll back on that constraint — the money is
+// taken and the order stays unpaid forever.
 //
-// Both figures come from order_amount_owed now, which is why they cannot disagree:
+// Both figures come from order_amount_owed, which is why they cannot disagree:
 // the capture guard, the funding check and the payment page read one function.
 func TestAPartCreditOrderIsChargedOnlyWhatItOwes(t *testing.T) {
 	ctx := t.Context()
@@ -989,8 +992,8 @@ func TestAPartCreditOrderIsChargedOnlyWhatItOwes(t *testing.T) {
 		t.Error("an order still owing NT$700 reports itself fully funded")
 	}
 
-	// And the capture of exactly that figure is accepted. Before the fix the page
-	// offered 100000, which this line refused — after the customer had paid it.
+	// And the capture of exactly that figure is accepted. A page that offered the
+	// gross 100000 is refused right here — after the customer has paid it.
 	const ref = "cs_part_credit"
 	if err := s.OpenPayment(ctx, number, ref, o.TotalCents); err != nil {
 		t.Fatalf("OpenPayment: %v", err)
@@ -1006,8 +1009,8 @@ func TestAPartCreditOrderIsChargedOnlyWhatItOwes(t *testing.T) {
 // An order can legally owe nothing — store credit covering all of it, or a 100%
 // discount — and orders_funded_to_leave_pending skips its payment check for exactly
 // that case. Stripe refuses a zero-amount session, so the pay page must not offer
-// one; before the fix it computed a non-zero gross and would have charged for an
-// order already paid for.
+// one — and a page computing the gross offers a non-zero figure, charging for an
+// order that is already paid for.
 func TestAFullyFundedOrderIsNeverSentToStripe(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
@@ -1063,16 +1066,16 @@ func (alwaysPlacedHere) PlacedHere(context.Context, *http.Request, string, bool)
 	return true
 }
 
-// TestTheWebhookRoutesEachEventToItsEffect is the HTTP-level test the routing
-// switch never had — for ANY branch.
+// TestTheWebhookRoutesEachEventToItsEffect is the HTTP-level lock on the routing
+// switch, branch by branch.
 //
 // The readers underneath it are each covered and mutation-proven (CaptureFrom,
 // AbandonedSessionFrom, UnsettledSessionFrom) and ProcessWebhook's claim-and-
-// apply transaction is covered from the store side. What was asserted by nothing
-// is the WIRING: which branch the handler picks for a given event, and therefore
+// apply transaction is covered from the store side. What none of them asserts is
+// the WIRING: which branch the handler picks for a given event, and therefore
 // whether a correct reader is reached at all. A case deleted from that switch
 // falls to `default`, is logged as one more event goen does not act on, and
-// every test in this package stays green.
+// every other test in this package stays green.
 //
 // Each case asserts the DATABASE, never a log line: what a webhook is for is the
 // row it leaves behind.

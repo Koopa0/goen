@@ -14,14 +14,18 @@ import (
 //
 // # Why this is a test and not a review habit
 //
-// goen has already shipped four of these. `orders.discount_code` was declared with
-// the table and never written, so the reflex when the discount had to be shown was
-// to fill it in — a second copy of a fact one join already reaches.
-// `users.email_verified_at` was declared and never set, and underneath it the
-// customer could not change their address at all. `layouts.Page.CartCount` is the
-// same defect one layer up. And `product_search_documents` was an entire projection
-// TABLE with a trigram index, no writer, no reader, and a note above it claiming it
-// had exactly one writer.
+// goen has shipped four of these, and each costs something different:
+//
+//   - `orders.discount_code`, declared with the table and never written — so the
+//     reflex when the discount finally has to be shown is to fill it in, which is a
+//     second copy of a fact one join already reaches;
+//   - `users.email_verified_at`, declared and never set, with the whole feature it
+//     belongs to missing underneath it: a customer who could not change their
+//     address at all;
+//   - `layouts.Page.CartCount`, the same defect one layer up — a view-model field
+//     no handler assigns, so the badge reads 0 for every visitor with a full cart;
+//   - `product_search_documents`, an entire projection TABLE with a trigram index,
+//     no writer, no reader, and a note above it claiming it had exactly one writer.
 //
 // None of these is a compile error, none fails a test, and none is visible in a
 // browser. A dead column reads to the next person as a feature — which is how it
@@ -36,18 +40,18 @@ import (
 // CREATE TABLE — so a column mentioned only by its own declaration and its own
 // CHECK does not count as used, which is exactly the shape the dead ones take.
 //
-// # The namesake, which is what this guard was actually passing on
+// # The namesake, which is what makes the scoping below the whole guard
 //
-// The first cut asked `\bcolumn\b` of the whole SQL corpus as ONE string, so a
-// column was covered by any OTHER table's column of the same name. A third-party
-// review proved it: a dead `note` added to `order_access_grants` passed, because
-// `order_events.note` is written; renaming it `grant_note` went red with the right
-// message; reverting went green again. THIRTY-ONE of 511 columns were passing on a
-// namesake alone. Seven of them belong to the unbuilt 發票 feature while the
-// allowlist below claimed exactly ONE such column — so the allowlist was a claim
-// about a set it did not describe, and its one entry survived only because
-// `tax_type` happens to be an unusual name. All three defects this guard has ever
-// caught were caught for the same accidental reason: a distinctive name.
+// Asking `\bcolumn\b` of the SQL corpus as ONE string covers a column by any OTHER
+// table's column of the same name. Measured against this schema: THIRTY-ONE of 511
+// columns pass on a namesake alone, a dead `note` on `order_access_grants` passes
+// because `order_events.note` is written, and renaming that column `grant_note` is
+// what turns it red. Seven of the thirty-one belong to the unbuilt 發票 feature
+// while the allowlist below names exactly ONE such column — so an unscoped guard
+// also makes its own allowlist a claim about a set it does not describe, and the
+// entry that survives does so only because `tax_type` happens to be an unusual name.
+// A guard that catches a dead column only when its name is distinctive catches
+// almost nothing.
 //
 // # What ties a mention to a table
 //
@@ -88,25 +92,18 @@ func TestEveryColumnIsReadOrWritten(t *testing.T) {
 	// Each entry is a claim that a column no SQL touches within its own table is
 	// meant to exist anyway. Keyed table.column, so an exemption cannot spread.
 	//
-	// golang-migrate's own schema_migrations is NOT here, and that is the
-	// completeness check earning its place: it was, and the test refused the entry
-	// because testcontainers applies 001 directly rather than through the tool, so
-	// the table does not exist in the schema this asks. An allowlist entry for a
-	// column the guard never sees is an entry that would go on reading as covered.
+	// golang-migrate's own schema_migrations is NOT here, and the completeness
+	// check below is what keeps it out: testcontainers applies 001 directly rather
+	// than through the tool, so the table does not exist in the schema this asks,
+	// and an entry for it is refused as stale. An allowlist entry for a column the
+	// guard never sees is an entry that would go on reading as covered.
 	allowed := map[string]string{
-		// The 發票 tables are shaped by law rather than by goen, and issuing one
-		// needs a 加值中心 integration goen does not have. CLAUDE.md records that
-		// as a decision; naming the columns here is what keeps it a decision
-		// rather than something a reader has to infer from an empty table.
-		//
-		// This list used to hold exactly one of them. The other six were passing
-		// on a namesake — `description`, `quantity`, `amount_cents` and
-		// `unit_price_cents` are on half the schema — which is why the entry that
-		// survived is the one whose name nothing else shares.
-
-		// OAuth: user_identities waits for credentials, and TestEveryTableHasAWriter
-		// already records the whole table as a decision. These two columns are the
-		// part of it no index and no erase_user statement happens to name.
+		// The OAuth link's surrogate key, and the same shape as the three below
+		// it: every query on user_identities keys on (provider, provider_subject)
+		// or on the user, both unique indexes are built from those columns, and
+		// erase_user deletes by user — so nothing names the id anywhere this
+		// corpus can see, and its only use is its own PRIMARY KEY constraint
+		// inside the CREATE TABLE block this guard cuts out.
 		"user_identities.id": "the unbuilt OAuth sign-in, whole table",
 
 		// A surrogate primary key nothing has had to name. The reason it is not
@@ -196,9 +193,9 @@ func TestEveryColumnIsReadOrWritten(t *testing.T) {
 			"allowlist with the reason.", key)
 	}
 
-	// By IDENTITY, never by count. The first version compared totals, which cannot
-	// say WHICH entry has gone stale and passes outright when one entry goes stale
-	// as another is added.
+	// By IDENTITY, never by count. A comparison of totals cannot say WHICH entry has
+	// gone stale, and it passes outright when one entry goes stale as another is
+	// added.
 	for key, why := range allowed {
 		if !exempted[key] {
 			t.Errorf("the allowlist exempts %s (%s), and either SQL names it within its "+
@@ -224,20 +221,19 @@ type sqlScope struct {
 // function body, a trigger's WHEN clause and a DEFAULT expression in an ALTER
 // are all real users of a column.
 //
-// GRANT and REVOKE go with them, and that is a CORRECTION. This comment used to
-// end "…and a GRANT are all real users of a column", which was harmless while
-// four tables carried column grants and became a hole the moment fourteen more
-// did: `GRANT INSERT (id, product_id, …)` names every column of a table, so
-// every one of them would read as USED and this guard would go blind on exactly
-// the eight tables the privilege work had just narrowed. It announced itself the
-// only way it could — two allowlist entries went stale in the same run that
-// added the grants, because product_answers.id and stock_notifications.created_at
-// are mentioned by NOTHING ELSE and had suddenly acquired a mention.
+// GRANT and REVOKE are dropped too, and that exclusion carries the whole guard
+// on the eight tables the privilege model narrows column by column.
+// `GRANT INSERT (id, product_id, …)` names every column of a table, so counting
+// one would make every column of those tables read as USED — the guard would go
+// blind on exactly the surface somebody took the trouble to narrow, and the only
+// visible symptom is oblique: allowlist entries for product_answers.id and
+// stock_notifications.created_at start reporting themselves stale, because those
+// columns are mentioned by NOTHING ELSE and a grant is a mention.
 //
 // A privilege list is a statement ABOUT a column, in the same category as its
 // declaration and its comment: it says who may write it, not that anybody does.
 // Counting it is how a guard keeps passing while its subject disappears — the
-// same shape as the DEFAULT filter that silenced `users.role` in the column
+// same shape as the DEFAULT filter that silences `users.role` in the column
 // guard next door.
 func sqlScopes(t *testing.T, tables map[string]bool) []sqlScope {
 	t.Helper()
@@ -273,7 +269,7 @@ func sqlScopes(t *testing.T, tables map[string]bool) []sqlScope {
 		}
 		// The signature and its inner statements are judged separately, so a
 		// function touching several tables cannot lend one table's column name to
-		// another's statement — which is how erase_user was covering a dead
+		// another's statement — which is how erase_user would cover a dead
 		// `order_access_grants.note` with `order_events.note`.
 		scopes = append(scopes, newSQLScope(strings.Replace(s, body, "", 1), tables))
 		for _, inner := range sqlStatements(body) {

@@ -16,22 +16,24 @@ import (
 // Every clause here describes what the code actually does, or what the law
 // requires of it regardless. Where a COMMERCIAL decision has not been made the
 // document says so rather than inventing a number the shop would then be held
-// to — pages.PolicySection.Pending is that mark, and NOTHING carries it now.
-// The three that did are decided: the warranty term is per product and always
-// was (products.warranty_months, rendered on the PDP, so filing it under
-// 尚未確定 contradicted the section above it), the goodwill return beyond §19 is
-// 14 days at the customer's postage, and the forum is 臺北地院 without prejudice
-// to 消保法 §47. Pending stays for the next real gap; an empty set is the point.
+// to — pages.PolicySection.Pending is that mark, and NOTHING carries it. An
+// empty set is the point rather than a sign the mechanism is unused: it stays
+// for the next real gap. What would otherwise sit under 尚未確定 is either
+// stated outright (the goodwill return beyond §19, 14 days at the customer's
+// postage; the forum, 臺北地院 without prejudice to 消保法 §47), stated
+// somewhere better (the warranty term is per product — products.warranty_months,
+// rendered on every PDP — so filing it here contradicts the section above it),
+// or was never the shop's to decide.
 //
-// That distinction is load-bearing in BOTH directions, and only one of them had
-// a guard. TestUndecidedTermsAreMarkedPending catches a gap set in the same
-// typeface as a rule. The MIRROR of it shipped here: 鑑賞期天數, who pays return
-// postage and whether opening the box matters were all filed under 尚未確定 —
-// and all three are fixed by 消保法 §19, which §19 V makes unwaivable. They were
-// never the owner's to set. A right dressed as a gap reads to the customer as
-// "you may not have one", which is the more expensive of the two mistakes, and
-// no test in this repository could see it. TestStatutoryTermsAreNotPending is
-// the other direction.
+// That distinction is load-bearing in BOTH directions, and each direction has
+// its own guard. TestUndecidedTermsAreMarkedPending catches a gap set in the
+// same typeface as a rule. TestStatutoryTermsAreNotPending is the mirror, and
+// the more expensive direction: 鑑賞期天數, who pays return postage and whether
+// opening the box matters are all fixed by 消保法 §19, which §19 V makes
+// unwaivable, so marking any of them 尚未確定 reads to the customer as "you may
+// not have this right at all". It asserts POSITIVELY — each statutory term
+// stated as a rule — because a Pending section is FORMATTED as a gap and
+// therefore looks correct to a reviewer who has not read the statute.
 var policies = map[string]pages.PolicyDoc{
 	"returns": {
 		Title:     "退換貨政策",
@@ -133,9 +135,10 @@ var policies = map[string]pages.PolicyDoc{
 					"The law allows a few narrow categories to be excluded, and only where the seller says so plainly BEFORE you buy. goen excludes nothing, so every product here carries the full seven days.",
 				},
 			},
-			// The one term on this page that IS goen's to set, now set. It is a
-			// goodwill offer BEYOND §19 and says so, because a customer who reads
-			// "fourteen days" must not come away thinking the statutory seven were
+			// The one term on this page that IS goen's to set, and it is stated
+			// rather than marked Pending. It is a goodwill offer BEYOND §19 and
+			// says so in both languages, because a customer who reads
+			// "fourteen days" must not come away thinking the statutory seven are
 			// a shop policy that could be shortened.
 			{
 				Heading:   "七天之外",
@@ -183,12 +186,12 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "庫存保留",
 				HeadingEn: "We hold the stock while you pay",
 				Body: []string{
-					// The number is INTERPOLATED, not typed. It used to be the
-					// literal 30 here and `%s` fed by pages.HoldMinutesText() on
-					// /shipping — one figure stated twice, with a test binding only
-					// one of them, so this copy could say something the till did not
-					// do and nothing would notice. It said exactly that the moment
-					// cart.HoldTTL moved.
+					// The number is INTERPOLATED, not typed. A literal 30 here,
+					// beside the `%s` that /shipping already feeds from
+					// pages.HoldMinutesText(), is one figure stated twice with a
+					// test binding only one of them — so this copy can say
+					// something the till does not do and nothing notices, which
+					// is exactly what happens the moment cart.HoldTTL moves.
 					fmt.Sprintf("送出訂單時系統會保留庫存 %s 分鐘。超過時間未完成付款,商品會回到架上,"+
 						"但訂單仍然存在,可以重新付款(若庫存還在)。", pages.HoldMinutesText()),
 				},
@@ -216,12 +219,14 @@ var policies = map[string]pages.PolicyDoc{
 					"What we sell is covered by the manufacturer. Each product page states its own term, and that page is what governs.",
 				},
 			},
-			// 保固期限 was listed as undecided here while the section above says
-			// each product page states its own — and it does, from
-			// products.warranty_months, rendered on every PDP. The two paragraphs
-			// contradicted each other, and the ENGLISH half had already dropped
-			// the term from the list without the Chinese being corrected: neither
-			// Pending guard read BodyEn, so the halves could disagree in silence.
+			// 保固期限 is STATED here and never filed under 尚未確定: the section
+			// above already says each product page carries its own term, and it
+			// does, from products.warranty_months, rendered on every PDP. Marking
+			// this one undecided makes the two paragraphs contradict each other.
+			//
+			// Both halves say it, because a correction applied to one language
+			// only is the failure mode here — the Pending guards read Body and
+			// BodyEn alike, so the two cannot disagree in silence.
 			{
 				Heading:   "保固期限",
 				HeadingEn: "How long you are covered",
@@ -275,12 +280,14 @@ var policies = map[string]pages.PolicyDoc{
 				HeadingEn: "What we do not do",
 				Body: []string{
 					"不將您的個人資料出售或提供給第三方作行銷用途。",
-					// The list is enumerated because the sentence claims completeness
-					// — 「只有…這幾種」 is falsifiable, and it was false: it named
-					// three while the site set five. The language cookie is written by
-					// the switch in the footer of every page, so the shortfall was
-					// reachable by any visitor who changed language.
-					// TestThePrivacyPolicyNamesEveryCookie is what keeps them equal.
+					// The list is enumerated because the sentence claims completeness,
+					// and 「只有…這幾種」 is falsifiable: name fewer kinds than the
+					// site sets and the shortfall is reachable by an ordinary
+					// visitor — the language cookie alone is written by the switch in
+					// the footer of every page.
+					// TestThePrivacyPolicyNamesEveryCookie is what keeps them equal,
+					// and it derives the list by walking the source rather than from
+					// a table somebody has to remember to extend.
 					"不在網站上使用第三方追蹤或廣告 cookie。goen 使用的 cookie 只有這幾種:購物車、登入狀態、訂單瀏覽權限、您選擇的語言、您關閉過的網站公告,以及用 Google 登入時暫存幾分鐘的驗證資料。",
 				},
 				BodyEn: []string{

@@ -21,9 +21,8 @@ func TestCheckoutHostOnlyAcceptsStripe(t *testing.T) {
 		{"userinfo pointing elsewhere", "https://checkout.stripe.com@evil.example/x", false},
 		// These two are the cases that separate an exact match from a suffix
 		// match. Both END with "checkout.stripe.com" and neither IS it, so a
-		// strings.HasSuffix implementation accepts them — the earlier version of
-		// this table had no such case and stayed green under exactly that
-		// mutation.
+		// strings.HasSuffix implementation accepts them — and a table without
+		// such a case stays green under exactly that mutation.
 		{"a host merely ending in the real one", "https://evilcheckout.stripe.com/x", false},
 		{"a subdomain of the real one", "https://x.checkout.stripe.com/y", false},
 		{"a longer host that contains it", "https://checkout.stripe.com.evil.example/x", false},

@@ -186,11 +186,11 @@ func optionLabel(names, values []string) string {
 // offer instead of an empty form.
 //
 // A guest gets none, and the QUERY is what says so: a null owner is the zero
-// uuid, which owns nothing. There was a `if !owner.Valid { return nil }` here
-// to save the round trip, and it had to go — it short-circuited the one path
-// TestAGuestHasNoAddressBook exists to hold, so removing the owner predicate
-// from the SQL left that test green. A guard that makes a test unprovable
-// costs more than the query it saves.
+// uuid, which owns nothing. An `if !owner.Valid { return nil }` short-circuit
+// here saves the round trip and costs the guarantee — it bypasses the one path
+// TestAGuestHasNoAddressBook exists to hold, so the owner predicate could be
+// deleted from the SQL with that test still green. A guard that makes a test
+// unprovable costs more than the query it saves.
 func (s *Store) SavedAddresses(ctx context.Context, owner uuid.NullUUID) ([]pages.SavedAddress, error) {
 	rows, err := s.q.SavedAddresses(ctx, owner.UUID)
 	if err != nil {
@@ -247,9 +247,9 @@ func (s *Store) quoteFor(ctx context.Context, v *db.ShippingVersionRow, subtotal
 //
 // The cart is a parameter because the answer depends on it: a method whose
 // carrier refuses a 27-inch monitor is not a choice for a basket with one in it.
-// Every active method used to be offered to every cart, so a customer could pick
-// 超商取貨 for something 7-ELEVEN will not take, pay for it, and the shop found
-// out at the counter with the parcel already packed.
+// Offering every active method to every cart lets a customer pick 超商取貨 for
+// something 7-ELEVEN will not take and pay for it, and the shop finds out at the
+// counter with the parcel already packed.
 func (s *Store) ShippingChoices(ctx context.Context, cartID uuid.UUID, subtotalCents int64) ([]pages.ShippingChoice, error) {
 	rows, err := s.q.ShippingChoices(ctx, db.ShippingChoicesParams{
 		Locale: string(i18n.FromContext(ctx)),
@@ -299,16 +299,15 @@ func (s *Store) PlaceOrder(
 	coupon *Coupon,
 	idempotencyKey string,
 ) (number string, err error) {
-	// There is no pre-check on the pool before this transaction, and there used to
-	// be one. It read checkout_attempts to answer a resubmit without opening a
-	// transaction — a reload, a back button, a retried request — and it was where
-	// the concurrency defect lived: two requests from one double-click both ran it
-	// before either had a transaction, so both missed and both went on to place an
-	// order.
+	// Nothing reads checkout_attempts on the pool before this transaction opens,
+	// deliberately. A pre-check there would answer the cheap resubmit cases — a
+	// reload, a back button, a retried request — without a transaction, and two
+	// requests from one double-click both run it before either has one: both miss,
+	// and both go on to place an order.
 	//
 	// claimCheckoutKey asks the same question under the lock, so it answers the
-	// resubmit case as well; keeping the earlier read would be a second copy of
-	// one decision, and the copy that can be wrong is the one made too early.
+	// resubmit case as well. A read above it would be a second copy of one
+	// decision, and the copy that can be wrong is the one made too early.
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return "", fmt.Errorf("begin checkout: %w", err)
@@ -607,16 +606,16 @@ func finishOrder(
 // claimCheckoutKey takes this checkout's idempotency key for the length of the
 // transaction, and reports the order a concurrent request already placed on it.
 //
-// It answers the case the read at the top of [Store.PlaceOrder] cannot: two
-// requests IN FLIGHT AT ONCE. A double-click sends them milliseconds apart, and
-// both used to run that read on the POOL before either had a transaction, so
-// both missed. The attempt row that would have collided was written
-// second-to-last, and its ON CONFLICT DO NOTHING was :exec, so the row count was
-// discarded and the loser committed its own order anyway. With stock for two the
-// customer got two orders, two stock holds, two confirmation emails and two
-// store-credit debits — the credit spend keys on the ORDER id, and there were
-// two of those. Nothing else could catch it: the hold key and the outbox dedupe
-// key are both derived from the new order's own identity, so neither collides.
+// It answers the case a read on the POOL cannot: two requests IN FLIGHT AT ONCE.
+// A double-click sends them milliseconds apart, so both read before either has a
+// transaction and both miss. Nothing further down catches them either — the
+// attempt row that would collide is written second-to-last and its
+// ON CONFLICT DO NOTHING is :exec, so the row count is discarded and the loser
+// commits its own order regardless, while the hold key and the outbox dedupe key
+// are both derived from the new order's own identity and so collide with
+// nothing. With stock for two the customer gets two orders, two stock holds, two
+// confirmation emails and two store-credit debits — the credit spend keys on the
+// ORDER id, and there are two of those.
 //
 // An advisory lock rather than moving the INSERT up, and the difference is what
 // happens to the LOSER. An early row holds the key while its order_id is still
@@ -632,8 +631,8 @@ func claimCheckoutKey(
 	if _, lockErr := q.LockCheckoutKey(ctx, key); lockErr != nil {
 		return "", false, fmt.Errorf("lock checkout key: %w", lockErr)
 	}
-	// Asked again INSIDE the lock, because the request that just waited is the
-	// one whose first read was too early. This is the reader of the row the
+	// Asked INSIDE the lock, because the request that just waited is exactly the
+	// one any earlier read would have missed. This is the reader of the row the
 	// winner wrote; without it the loser goes on to place a second order.
 	number, ok := priorOrderTx(ctx, q, key)
 	return number, ok, nil
@@ -822,23 +821,23 @@ func nullableTime(t pgtype.Timestamptz) string {
 // A guest has none — there is no account to hold it against — so this is a
 // no-op for guest checkout.
 //
-// The cap is the order's NET total, and the word "net" is the whole point: this
-// used to cap at `subtotal + shipping` with the DISCOUNT left out, so a coupon
-// and a credit balance on one order spent more credit than the order was worth.
-// A NT$1,000 order with a NT$300 coupon took NT$1,000 of credit and left
+// The cap is the order's NET total, and the word "net" is the whole point.
+// Capping at `subtotal + shipping` with the DISCOUNT left out lets a coupon and
+// a credit balance on one order spend more credit than the order is worth: a
+// NT$1,000 order with a NT$300 coupon takes NT$1,000 of credit and leaves
 // order_amount_owed at MINUS 300.
 //
 // Nothing underneath refuses that. store_credit_never_negative guards the
 // ACCOUNT balance, not the order, and no rule caps a spend at what its order
-// owes — so the customer lost the NT$300 and the order was then unpayable
+// owes — so the customer loses the NT$300 and the order is then unpayable
 // forever: FullyFunded() sees a non-positive figure and keeps it away from
 // Stripe, while orders_funded_to_leave_pending asks `owed <> 0`, which minus
 // 300 satisfies. Unpaid, unshippable, uncancellable-by-payment.
 //
-// The right figure already existed three lines above the call, as
-// orderParts.totalCents, which is what the confirmation email quotes. Two
-// expressions for one fact, and the one that was wrong was the one that moved
-// money — mistake #13 in this repository's own list, a second time.
+// The figure comes from orderParts.totalCents, three lines above the call and
+// the same one the confirmation email quotes. Two expressions for one fact is
+// how the one that moves money comes to be the wrong one — mistake #13 in this
+// repository's own list, a second time.
 //
 // store_credit_never_negative refuses an overdraft underneath, and the
 // idempotency key is the order, so a retried checkout debits once.

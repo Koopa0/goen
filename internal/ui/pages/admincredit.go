@@ -41,8 +41,9 @@ func (v AdminCreditView) Empty() bool { return len(v.Rows) == 0 }
 
 // Who is the account the posting went to, or a note that it has been erased.
 //
-// The fallback used to live in the query's own coalesce(), which is chrome
-// written where nobody can ask who is reading.
+// The fallback is decided here and never in the query's own coalesce(): a
+// sentence assembled in SQL is chrome written where nobody can ask who is
+// reading it.
 func (e AdminCreditEntry) Who(ctx context.Context) string {
 	if e.Email == "" {
 		return i18n.T(ctx, i18n.KeyAdminErasedShort)

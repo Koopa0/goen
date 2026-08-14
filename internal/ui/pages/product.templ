@@ -42,10 +42,10 @@ templ Product(p layouts.Page, v *ProductView) {
 						</section>
 					}
 					// The warranty is its OWN section, not a paragraph inside the
-					// description. It used to be nested there, so a product with no
-					// description stated no cover either — two unrelated facts sharing
-					// one condition, and the seed's products have no description at
-					// all, which is how it stayed invisible.
+					// description, and it carries its own condition. Nested there, a
+					// product with no description states no cover either — two unrelated
+					// facts sharing one condition — and the seed's products have no
+					// description at all, so nothing on the page would ever show it.
 					if v.HasWarranty() || v.WarrantyNote != "" {
 						<section class="goen-pdp__desc" aria-labelledby="warranty-heading">
 							<h2 id="warranty-heading" class="h4 goen-section__title">{ i18n.T(ctx, i18n.KeySectionWarranty) }</h2>
@@ -297,7 +297,8 @@ templ productBuy(v *ProductView) {
 				<input type="hidden" name="variant" value={ v.VariantID }/>
 				// h2 and not h3: this form is a section of the PAGE, and the
 				// nearest heading above it is the product's own h1 — so an h3 skips a
-				// level. The class keeps it the same size it always was.
+				// level. The h4 class carries the size, so the outline is correct
+				// without the panel changing shape.
 				<h2 class="h4">{ i18n.T(ctx, i18n.KeyRestockHeading) }</h2>
 				if v.NotifyTaken() {
 					<p class="ui-alert ui-alert--info" role="status">

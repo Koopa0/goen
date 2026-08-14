@@ -129,6 +129,12 @@ WHERE r.product_id = $1
 ORDER BY r.is_verified_purchase DESC, r.created_at DESC, r.id DESC
 LIMIT $2;
 
+-- The star breakdown for one product, keyed on its id.
+--
+-- The ONE place the PDP's rating is computed. A twin keyed on the slug — the
+-- same seven aggregates, reached from a different caller — is how two figures
+-- for one product come to disagree, so a second caller resolves the id and
+-- reads this rather than getting a query of its own.
 -- name: ProductRating :one
 SELECT
     coalesce(avg(rating), 0)::float8 AS rating,
@@ -177,11 +183,6 @@ WHERE p.status = 'active'
   AND p.id <> @exclude_id
 ORDER BY p.published_at DESC, p.id DESC
 LIMIT @row_limit::integer;
-
--- ProductRatingSummary used to sit here: the same seven aggregates as
--- ProductRating above, keyed on slug instead of id, and never called. Two
--- queries answering one question is how one of them comes to disagree with the
--- other, so it is deleted rather than given a caller.
 
 -- Whether this customer has bought this product on an order that went through.
 --

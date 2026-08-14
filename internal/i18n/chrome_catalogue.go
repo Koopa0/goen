@@ -156,11 +156,14 @@ var (
 		ZhHant: "原廠保固 · 到府收送",
 		En:     "Manufacturer's warranty · collected from your door",
 	})
-	// %s is the threshold, read from shipping_method_versions rather than typed —
-	// it was the literal NT$3,000 here, on two pages, against a figure a shop
-	// edits at /admin/shipping. /shipping has interpolated it from the start and
-	// says why in its query; this is the same promise on the two pages that make
-	// it first.
+	// %s is the threshold, read from shipping_method_versions rather than typed.
+	// A literal NT$3,000 in this catalogue is a promise made on two pages against
+	// a figure the shop edits at /admin/shipping, and the pages stop agreeing
+	// with the till the day somebody changes it — a page that states a fee is a
+	// promise, and the one place that promise is already kept is the table
+	// checkout charges from. /shipping interpolates the same figure and says so
+	// in its query; this is that promise on the two pages a customer meets before
+	// ever reaching /shipping.
 	KeyGuaranteeShipping = key("pdp.guarantee.shipping", Message{
 		ZhHant: "滿 %s 免運",
 		En:     "Free delivery over %s",
@@ -343,12 +346,13 @@ var (
 		En:     "Recommended",
 	})
 	KeySectionTrust = key("home.trust", Message{ZhHant: "購物保障", En: "Shopping with goen"})
-	// 「線上填單追蹤進度」 used to be the third clause, on the home page of a site
-	// with no repair route, no repair table and nothing that tracks anything —
-	// the largest promise goen made that no code kept. What DOES exist is
-	// /account/warranty: register a unit, and look up its cover without finding a
-	// receipt. That is what this says now. Copy is checkable against the tree,
-	// and a claim nothing implements is worth less than a smaller true one.
+	// The third clause is bounded by what the tree implements. 「線上填單追蹤進度」
+	// — file a repair online and follow its progress — would be the largest
+	// promise on the home page of a site with no repair route, no repair table
+	// and nothing that tracks anything. What DOES exist is /account/warranty:
+	// register a unit, and look up its cover without finding a receipt, which is
+	// what this says instead. Copy is checkable against the tree, and a claim
+	// nothing implements is worth less than a smaller true one.
 	KeyTrustWarrantyBody = key("home.trust.warranty", Message{
 		ZhHant: "全機種原廠保固,維修免費到府收送,保固可以線上登錄查詢。",
 		En: "Every model carries its manufacturer's warranty. We collect repairs from your " +

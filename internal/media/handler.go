@@ -23,8 +23,8 @@ type Handler struct {
 	store *Store
 	log   *slog.Logger
 	// renditions is what bounds the CPU a request can ask for. See render.go —
-	// serving a rendition straight out of the store was the one anonymous path
-	// in goen that decoded and rescaled an image per request.
+	// without it, serving a rendition is the one anonymous path in goen that
+	// decodes and rescales an image on every request.
 	renditions *renderer
 }
 
@@ -109,18 +109,17 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request) {
 			// The caller left while the render was in flight. There is nobody to
 			// answer and nothing went wrong.
 			//
-			// Canceled ONLY. DeadlineExceeded used to be handled here too, on the
-			// same reasoning, and it cannot mean that: the render detaches from
-			// the caller with context.WithoutCancel and imposes its own
-			// RenderTimeout, so a caller who leaves produces Canceled and a
-			// deadline can only be goen's own — every slot busy, or a stuck read
-			// of media_objects.
+			// Canceled ONLY, and never DeadlineExceeded beside it on the same
+			// reasoning: the render detaches from the caller with
+			// context.WithoutCancel and imposes its own RenderTimeout, so a
+			// caller who leaves produces Canceled and a deadline can only be
+			// goen's own — every slot busy, or a stuck read of media_objects.
 			//
-			// Treating it as "nobody is listening" returned having written
-			// nothing, so net/http sent 200 with Content-Length: 0 and no log
-			// line at all: a broken image, a CACHEABLE success status, and
-			// silence. That is the media sweeper's mistake in a second place —
-			// a server-side failure classified as the normal case.
+			// Treating that deadline as "nobody is listening" returns having
+			// written nothing, so net/http sends 200 with Content-Length: 0 and
+			// no log line at all: a broken image, a CACHEABLE success status,
+			// and silence. That is the media sweeper's mistake in a second
+			// place — a server-side failure classified as the normal case.
 		case errors.Is(err, context.DeadlineExceeded):
 			// goen ran out of time on its own work. 503 rather than 500 because
 			// it is load rather than a defect, and it must not be cached: a 200
@@ -146,10 +145,9 @@ func (h *Handler) Serve(w http.ResponseWriter, r *http.Request) {
 	// These bytes came from media_objects, which only ever holds what goen itself
 	// encoded from a decoded image — see Normalise. The Content-Type is goen's
 	// own choice and nosniff is set above, so there is nothing here a browser
-	// will treat as a document. (G705 used to read the old shape of this
-	// function as reflecting request data into a response and needed a nolint;
-	// it no longer does, and a directive that suppresses nothing is a claim
-	// nobody can check.)
+	// will treat as a document. No nolint for G705 either: it does not read this
+	// shape as reflecting request data into a response, and a directive that
+	// suppresses nothing is a claim nobody can check.
 	_, _ = w.Write(data)
 }
 

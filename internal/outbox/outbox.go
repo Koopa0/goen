@@ -121,12 +121,12 @@ const LeaseMargin = time.Minute
 //
 // Eight, and the number comes from [Lease]: a claim is delivered SERIALLY, so a
 // batch can take BatchSize × HandlerBudget before the last message is done, and
-// that has to fit inside the lease the claim took. It used to be fifty, which is
-// twenty-five minutes of work under a five-minute lease — so from the eleventh
-// message onwards a second replica could see the rest as due and deliver them
-// while this worker was still sending them. At-least-once turning into
-// reliably-twice: two receipts for one order, and for a password reset a second
-// live token sitting in the mailbox.
+// that has to fit inside the lease the claim took. Fifty would be twenty-five
+// minutes of work under a five-minute lease — so from the eleventh message
+// onwards a second replica sees the rest as due and delivers them while this
+// worker is still sending them. At-least-once turning into reliably-twice: two
+// receipts for one order, and for a password reset a second live token sitting
+// in the mailbox.
 //
 // It costs no throughput, because [Store.DrainAll] claims again as soon as a
 // pass comes back full. What it bounds is one CLAIM, which is the only thing the
@@ -147,17 +147,17 @@ const Lease = 5 * time.Minute
 
 // Retain is how long a DELIVERED message is kept.
 //
-// Until now: forever. Every message goen ever sent stayed in outbox_messages,
-// which is unbounded growth on the busiest write path in the schema — and it is
-// also where the plaintext tokens live. A reset link, an unsubscribe link and a
-// newsletter confirmation all travel in the payload, because the alternative
-// (sending from the handler) loses the message when the process dies mid-send.
-// That trade is only sound if the row does not outlive its own secret by years.
+// Keeping every message goen has ever sent is unbounded growth on the busiest
+// write path in the schema — and outbox_messages is also where the plaintext
+// tokens live. A reset link, an unsubscribe link and a newsletter confirmation
+// all travel in the payload, because the alternative (sending from the handler)
+// loses the message when the process dies mid-send. That trade is only sound if
+// the row does not outlive its own secret by years.
 //
 // Thirty days, which is long enough to answer "did we email them, and what did it
 // say?" about anything a customer is still asking about, and short enough that
 // nothing sits there for a year. The one thing it costs is the DEDUPE window: a
-// producer that legitimately re-enqueued the same (topic, dedupe_key) more than
+// producer legitimately re-enqueueing the same (topic, dedupe_key) more than
 // thirty days later would send twice. None does — every key here is an order
 // number, a tracking number, a spent notification row, or a token digest, and
 // none of those recurs.

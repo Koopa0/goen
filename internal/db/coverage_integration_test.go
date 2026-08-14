@@ -13,18 +13,16 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// This file exists because the previous suite lied.
+// Every test below derives what must be covered from the LIVE CATALOG, so a
+// constraint added to the migration without a case here fails the build.
 //
-// It reported 48 green subtests and was read as "every constraint is
-// exercised". Deleting constraints one at a time showed that 48 of the 65
-// named CHECKs could be removed without a single test turning red: the suite
-// asserted the rules it happened to think of, and its silence about the rest
-// looked exactly like coverage.
-//
-// The fix is to stop trusting a hand-written list. Every test below derives
-// its expectations from the live catalog, so a constraint added to the
-// migration without a case here fails the build rather than quietly joining
-// the untested majority.
+// A hand-written list is what that replaces, and the reason is that such a list
+// reports its own contents as coverage. Measured on this schema: 48 green
+// subtests read as "every constraint is exercised" while 48 of the 65 named
+// CHECKs could be deleted one at a time without a single test turning red. A
+// suite asserts the rules somebody thought of, and its silence about the rest
+// looks exactly like coverage — which is the one failure a green run cannot
+// report.
 
 // TestEveryCheckConstraintIsExercised is the completeness gate. It reads the
 // constraint names PostgreSQL actually created and requires a case for each.
@@ -112,9 +110,9 @@ func TestCheckConstraintNamesAreUnique(t *testing.T) {
 // TestCheckConstraintsReject runs every case's rejecting statement and requires
 // that the named constraint — not merely some constraint — is what refused it.
 //
-// Binding the assertion to the constraint name is the point. The old suite
-// accepted any error, so a statement that tripped an unrelated unique index
-// counted as proof that the CHECK worked.
+// Binding the assertion to the constraint name is the point. A case happy with
+// any error counts a statement that tripped an unrelated unique index as proof
+// that the CHECK worked.
 func TestCheckConstraintsReject(t *testing.T) {
 	for _, c := range checkCases {
 		t.Run(c.constraint, func(t *testing.T) {
@@ -333,9 +331,8 @@ type uniqueCase struct {
 
 // constraintViolation extracts the SQLSTATE and constraint name PostgreSQL
 // reported, so an assertion can name the rule it is proving instead of
-// accepting any failure at all. That distinction is what the previous suite
-// lacked: a statement tripping an unrelated unique index read as proof that
-// the CHECK under test worked.
+// accepting any failure at all. Without that distinction a statement tripping
+// an unrelated unique index reads as proof that the CHECK under test worked.
 func constraintViolation(err error) (code, constraint string) {
 	pgErr, ok := errors.AsType[*pgconn.PgError](err)
 	if !ok {
@@ -347,15 +344,15 @@ func constraintViolation(err error) (code, constraint string) {
 // ============================================================================
 // Privilege conformance.
 //
-// This block exists because the schema's central claim — that store cannot
-// write stock, money or a ledger except through a function, and cannot switch
-// the guards off — had no test at all. A round-3 review found the claim false
-// in several ways (INSERT was never revoked on payments/refunds/variants; the
-// SECURITY DEFINER functions were PUBLIC EXECUTE; unpinned trigger functions
-// could be shadowed via pg_temp) precisely because nothing here ever assumed
-// store and tried the forbidden write. These tests do, and each is proven by
-// mutation: re-grant the privilege, or unpin a function, and the matching test
-// goes red.
+// This block is the only thing that tests the schema's central claim — that
+// store cannot write stock, money or a ledger except through a function, and
+// cannot switch the guards off. The claim is porous in ways nothing else here
+// can see, because every other case connects as the OWNER: INSERT revoked on
+// none of payments/refunds/variants while UPDATE and DELETE are, SECURITY
+// DEFINER functions left PUBLIC EXECUTE, an unpinned trigger function shadowed
+// via pg_temp. Each is invisible until something assumes store and tries the
+// forbidden write, which is what these do — and each is proven by mutation:
+// re-grant the privilege, or unpin a function, and the matching test goes red.
 // ============================================================================
 
 // appWritableThroughDefiner names the tables a SECURITY DEFINER function writes
@@ -367,9 +364,10 @@ func constraintViolation(err error) (code, constraint string) {
 // so a new ledger is covered the day it exists rather than the day somebody
 // remembers to add it here.
 //
-// The hand-written list this replaced had eight entries and the catalog finds
-// eleven: loyalty_entries, coupon_redemptions and product_copurchases were all
-// added after it and none of them was noticed.
+// A hand-written list of definer-written tables names eight; the catalog finds
+// eleven. loyalty_entries, coupon_redemptions and product_copurchases are the
+// three that make the difference — each arrived after such a list would have
+// been written, and nothing would have said so.
 var appWritableThroughDefiner = map[string]string{
 	// The account is created on first use — a customer who has never held
 	// credit or points has no row, and refusing to make one would refuse their
@@ -390,8 +388,9 @@ func goenAppHasTablePriv(t *testing.T, table, priv string) bool {
 
 // TestStoreHasNoDirectWriteToMoney is the core of the privilege model: the
 // application role holds no INSERT/UPDATE/DELETE on any money, stock or ledger
-// table. The born-succeeded payment and phantom-stock variant the review wrote
-// as store both landed because INSERT was granted here.
+// table. INSERT is the verb worth naming, because revoking UPDATE and DELETE
+// alone still leaves store able to write a born-succeeded payment and a variant
+// carrying phantom stock, neither of which any function or ledger row explains.
 // TestEveryDefinerWrittenTableIsRevoked derives the rule from the catalog.
 //
 // A SECURITY DEFINER function exists to be the ONE door into a table. If the
@@ -399,8 +398,9 @@ func goenAppHasTablePriv(t *testing.T, table, priv string) bool {
 // than a control — and a convention is what the next query forgets.
 //
 // Derived rather than listed, because a hand-written list only covers what
-// somebody remembered: the list this replaced was written when goen had eight
-// such tables and never grew, while the schema grew to eleven.
+// somebody remembered on the day they wrote it: eight tables were definer-written
+// when such a list would have been drawn up, the schema has eleven, and a list
+// does not grow with the schema.
 func TestEveryDefinerWrittenTableIsRevoked(t *testing.T) {
 	tables := definerWrittenTables(t)
 	if len(tables) < 8 {
@@ -480,29 +480,25 @@ func hasTablePriv(t *testing.T, role, table, priv string) bool {
 	return ok
 }
 
-// TestReportingCannotReadCredentialsOrPII is the test migrations/001 has named
-// since order_access_grants joined the REVOKE list, and which did not exist.
+// TestReportingCannotReadCredentialsOrPII is the function migrations/001 names
+// beside its REVOKE list as the thing that asks the question, and asking it is
+// this function's whole job. A comment naming a test is not a test, and the
+// wording there — "a credential table added months after the list was written,
+// and nothing asked" — states precisely the drift that goes unseen without one.
 //
-// The comment there records the mechanism precisely — "a credential table added
-// months after the list was written, and nothing asked" — and then closes by
-// naming this function as what asks now. It is the FIFTH claim of enforcement in
-// this repository with nothing behind it, after product_search_documents'
-// "exactly one writer", Store.Remove's "another admin does this",
-// TestTopNavPointsAtRealCategories and TestTheAwardWindowMatchesTheProgramme.
-//
-// Nothing else could have caught the drift either. Every privilege guard here
-// asks about INSERT, UPDATE and DELETE — TestNoRoleHoldsAWriteItsQueriesNeverMake
-// iterates exactly those three — and TestEveryRoleCanReadWhatItsQueriesRead is a
-// POSITIVE assertion that a role CAN read, which by construction cannot fail on
-// a grant that is too wide. So `GRANT SELECT ON ALL TABLES ... TO reporting` had
-// no counterweight of any kind.
+// Nothing else here can see it. Every other privilege guard asks about INSERT,
+// UPDATE and DELETE — TestNoRoleHoldsAWriteItsQueriesNeverMake iterates exactly
+// those three — and TestEveryRoleCanReadWhatItsQueriesRead is a POSITIVE
+// assertion that a role CAN read, which by construction cannot fail on a grant
+// that is too WIDE. So `GRANT SELECT ON ALL TABLES ... TO reporting` has no
+// counterweight but this one.
 //
 // The question is DERIVED from information_schema rather than asked against a
-// list, because a list is exactly what failed: every new table carrying a token
-// or somebody's address is swept in by the blanket grant and has to be noticed
-// by a human. A column whose name says credential or contact detail is the
-// coarse-and-true signal, and a table that legitimately needs an exception is
-// named below with its reason.
+// list, because a list is exactly what fails here: every new table carrying a
+// token or somebody's address is swept in by the blanket grant, and a list has
+// to be extended by a human who noticed. A column whose name says credential or
+// contact detail is the coarse-and-true signal, and a table that legitimately
+// needs an exception is named below with its reason.
 func TestReportingCannotReadCredentialsOrPII(t *testing.T) {
 	// Why each of these is readable by a reporting dashboard despite matching.
 	// An entry here is a claim somebody read the table and meant it.
@@ -676,12 +672,11 @@ func TestStoreHasNoTempPrivilege(t *testing.T) {
 // pin of "pg_catalog, public" leaves the shadow open. The only safe shape is
 // pg_temp listed LAST, after public, so a real table always wins. This asserts
 // exactly that — every goen (non-extension) function's search_path ends in
-// pg_temp — and would fail the earlier "pg_catalog, public" pin that read as
-// fixed but was not.
+// pg_temp — so a pin of "pg_catalog, public", which reads as fixed, fails here.
 //
 // Every language, not only plpgsql: a LANGUAGE sql function resolves unqualified
 // relations the same way, so a plpgsql filter here (and in the migration's own
-// ALTER loop) was a blind spot waiting for the first SQL helper someone writes.
+// ALTER loop) is a blind spot the first LANGUAGE sql helper walks into.
 func TestEveryStoredFunctionEndsSearchPathWithPgTemp(t *testing.T) {
 	rows, err := schemaPool(t).Query(t.Context(), `
 		SELECT p.proname,
@@ -727,25 +722,24 @@ func TestEveryStoredFunctionEndsSearchPathWithPgTemp(t *testing.T) {
 }
 
 // TestSearchPathPinDefeatsTempShadowing is the behavioral proof behind the
-// catalog gate above: the earlier suite only checked that search_path was set,
-// which a review showed proved nothing. A decoy pg_temp.categories is planted
-// and a cycle is written that categories_reject_cycle must refuse. If the pin
-// were wrong the guard would read the empty decoy, find no cycle, and the UPDATE
-// would land.
+// catalog gate above. Asserting that search_path is SET proves nothing, because
+// the whole question is WHERE pg_temp sits in it: a decoy pg_temp.categories is
+// planted here and a cycle is written that categories_reject_cycle must refuse,
+// and with the pin wrong the guard reads the empty decoy, finds no cycle, and
+// the UPDATE lands.
 //
-// It no longer does this AS `store`, and the reason is that the attack it models
-// has since been closed twice over from the other side. `store` now holds no
-// write on categories at all — merchandising is not something a storefront
-// request does — so the setup could not even reach the trigger, and the test
-// failed with "permission denied" rather than proving anything about
-// search_path.
+// It runs as the OWNER rather than as `store`, because the attack it models is
+// closed twice over from the other side: `store` holds no write on categories at
+// all — merchandising is not something a storefront request does — so a setup
+// running as `store` cannot reach the trigger, and the case fails with
+// "permission denied" while proving nothing about search_path.
 //
 // The property is role-independent: pg_temp is searched ahead of public for ANY
 // role, so listing it LAST is what makes a real table win, and demonstrating
 // that with the owner demonstrates it for everybody. What `store` specifically
-// can no longer do is covered by TestStoreHasNoTempPrivilege and by the
-// categories revoke — two independent layers, each with its own test, which is
-// the arrangement rather than a weakening.
+// cannot do is covered by TestStoreHasNoTempPrivilege and by the categories
+// revoke — two independent layers, each with its own test, which is the
+// arrangement rather than a weakening.
 func TestSearchPathPinDefeatsTempShadowing(t *testing.T) {
 	ctx := t.Context()
 	tx, err := schemaPool(t).Begin(ctx)
@@ -783,15 +777,14 @@ func TestStoreCannotDeleteUsers(t *testing.T) {
 	if goenAppHasTablePriv(t, "users", "DELETE") {
 		t.Error("store can DELETE users directly, bypassing erase_user and leaving PII behind")
 	}
-	// UPDATE is now a COLUMN grant, so the table-level question answers "no" and
-	// the useful one is per column: the storefront changes a password and a
-	// profile, and never a ROLE.
+	// UPDATE is a COLUMN grant, so the table-level question answers "no" and the
+	// useful one is per column: the storefront changes a password and a profile,
+	// and never a ROLE.
 	//
-	// It held whole-table UPDATE until a third-party probe ran
-	// `UPDATE users SET role='admin'` as store and got `UPDATE 1` — a storefront
-	// request one statement from the back office. Asserting the table-level
-	// privilege is what MISSED that, because the answer was "yes" and the answer
-	// was right for the wrong column.
+	// The table-level question is the one that MISSES this. Under whole-table
+	// UPDATE it answers "yes" and is right for the columns the storefront needs,
+	// while `UPDATE users SET role='admin'` as store returns `UPDATE 1` — a
+	// storefront request one statement from the back office.
 	for _, col := range []string{"password_hash", "full_name", "phone", "email"} {
 		if !goenAppHasColumnPriv(t, "users", col, "UPDATE") {
 			t.Errorf("store cannot UPDATE users.%s; the storefront writes it", col)
@@ -900,10 +893,10 @@ func TestAdminCannotWriteMoneyOrStockDirectly(t *testing.T) {
 // table-level grant silently defeats.
 //
 // PostgreSQL reads table-level UPDATE as permission on every column, so a
-// column-level REVOKE against a table-level grant does nothing at all — the
-// first version of this rule looked right and left stock fully writable. The
-// grant is therefore column-by-column, and this asserts both halves: stock is
-// refused, and the columns the back office actually needs are not.
+// column-level REVOKE written against a table-level grant does nothing at all:
+// it reads as a rule and leaves stock fully writable. The grant is therefore
+// column-by-column, and this asserts both halves: stock is refused, and the
+// columns the back office actually needs are not.
 func TestAdminCannotSetStockQuantity(t *testing.T) {
 	for _, tc := range []struct {
 		column string
@@ -973,11 +966,11 @@ func roleHasColumnPriv(t *testing.T, role, table, column, priv string) bool {
 // that is what keeps the shelf and inventory_movements agreeing. A role that
 // can set the column writes stock with no ledger row behind it.
 //
-// This is asserted per COLUMN and per VERB, which is the part that was missed.
+// It is asserted per COLUMN and per VERB, and both halves are the point.
 // `admin` legitimately creates variants, so the table-level test written for
-// `store` does not transfer: admin had UPDATE revoked and INSERT left alone,
-// and could conjure a variant carrying 999 units at birth. Both verbs need the
-// column list; the INSERT one is the easier to forget.
+// `store` does not transfer; and with UPDATE revoked while INSERT is left alone,
+// admin conjures a variant carrying 999 units at birth with no ledger row behind
+// them. Both verbs need the column list, and INSERT is the easier to forget.
 func TestNoRoleCanWriteStockDirectly(t *testing.T) {
 	for _, role := range []string{"store", "admin", "reporting"} {
 		for _, priv := range []string{"INSERT", "UPDATE"} {
@@ -1034,10 +1027,9 @@ func TestAdminHasNoDirectWriteToMoney(t *testing.T) {
 //
 // It is REDUNDANT and says so. A grant naming a role created further down makes
 // the migration fail outright, so TestMain never gets a database and every case
-// in this package errors before it runs — which is loud, and is what happened
-// to me an hour ago.
+// in this package errors before it runs, which is as loud as a failure gets.
 //
-// It is kept for what that failure does NOT say. "role admin does not exist"
+// It exists for what that failure does NOT say. "role admin does not exist"
 // names the role and not the line, so the next person reads 4,000 lines of SQL
 // to find which of forty grants moved. This names the line and the line it must
 // come after. A mutation of it therefore comes back green, and that is recorded

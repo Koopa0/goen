@@ -20,10 +20,10 @@ var (
 	// cart line, and both are IDENTITY as well as text — so the guard asks that the
 	// query carry a localized column, not that it stop selecting the canonical one.
 	//
-	// Both spellings and both tables: the first cut wrote
-	// `product_option(_values)?` and matched product_option_values while missing
-	// product_optionS entirely, so three allowlist entries looked stale and the
-	// writes looked uncovered. The identity check is what said so.
+	// Both spellings and both tables: `product_option(_values)?` matches
+	// product_option_values and misses product_optionS entirely, which leaves three
+	// allowlist entries looking stale and the writes looking uncovered. The identity
+	// check at the end of each test is what says so.
 	readsOptionText = regexp.MustCompile(`\bproduct_option(s|_values)?\b`)
 
 	// A product's own copy. `name` is the identity a search matches and an order line
@@ -34,9 +34,9 @@ var (
 	// A -- comment, which splitQueries hands over as part of the PREVIOUS query's
 	// body — the marker it cuts at is the next `-- name:`, so every query carries
 	// the next one's introduction. Stripping comments is what makes the match about
-	// SQL: the first version of this guard refused CurrentPromoBanner, a query with
-	// no category in it at all, because the paragraph introducing NavCategories sat
-	// inside its body.
+	// SQL: without it CurrentPromoBanner — a query with no category in it at all —
+	// is refused, because the paragraph introducing NavCategories sits inside its
+	// body.
 	sqlComment        = regexp.MustCompile(`(?m)--.*$`)
 	readsCategoryName = regexp.MustCompile(`\bcategories\b`)
 	bareCategoryName  = regexp.MustCompile(`(?:^|[\s,(])(?:\w+\.)?name\b(?:\s|,|$)`)
@@ -45,14 +45,15 @@ var (
 
 // TestEveryCategoryNameIsLocalized holds the header of every page.
 //
-// A category name was treated as CONTENT — the shop's to say however it likes, the
-// way a product description is — and that was wrong in the one place it mattered
-// most: the header carries five of them on every page of the site, so an English
-// visitor met a Chinese navigation bar above a page whose every other word had been
-// translated. Worse, the header held its OWN hard-coded copy of the names, so there
-// were two answers to "what is this category called" and they could disagree.
+// A category name is CHROME, not content — "it comes from a table" is a different
+// question from "who is it for". The header carries five of them on every page of
+// the site, so a name that does not follow the visitor gives an English reader a
+// Chinese navigation bar above a page whose every other word is translated. A
+// second copy of those names anywhere — a hard-coded list in the header, say — is
+// the same defect from the other side: two answers to "what is this category
+// called", free to disagree.
 //
-// localized_name(name, name_en, locale) is the one definition now. This is what
+// localized_name(name, name_en, locale) is the one definition. This is what
 // stops the sixth query being written without it: the failure mode is a page whose
 // header says Phones and whose breadcrumb says 手機, which nobody notices in review
 // because both are correct in isolation.
@@ -71,9 +72,9 @@ func TestEveryCategoryNameIsLocalized(t *testing.T) {
 		"AdminProducts":   "back office: the product list's category column",
 	}
 
-	// Which allowlist entries were actually reached. Counting matches instead was
-	// the first version, and it was blind: an entry naming a query that no longer
-	// exists left the total above the entry count and the check passed. An
+	// Which allowlist entries were actually reached, by IDENTITY and never by
+	// counting matches. A count is blind to an entry naming a query that no longer
+	// exists: the total stays above the entry count and the check passes. An
 	// exemption for something that is not there reads as covered forever.
 	used := map[string]bool{}
 	for path, src := range queryFiles(t) {
@@ -156,9 +157,9 @@ func TestEverySpecLabelIsLocalized(t *testing.T) {
 
 // TestEveryOptionLabelIsLocalized is the picker's half of the same rule.
 //
-// 顏色 and 星霧藍 are what a visitor reads on the product page, and they were the
-// last chrome on the buying mainline still Chinese for everybody — the axis heading
-// and every swatch on it.
+// 顏色 and 星霧藍 are what a visitor reads on the product page — the axis heading
+// and every swatch on it, on the buying mainline. Chrome that does not follow the
+// reader there is chrome nobody at the shop can see is wrong.
 //
 // The exceptions are the interesting part, and each is about IDENTITY rather than
 // about the back office:
@@ -217,10 +218,10 @@ func TestEveryOptionLabelIsLocalized(t *testing.T) {
 // TestEveryProductNameIsLocalized is the last of the four.
 //
 // CLAUDE.md's editorial line — that translating product copy is a job for a person
-// and not a lookup table — was read for a long time as "so the copy stays Chinese for
-// everybody". Those are different claims. goen still never invents a translation; a
-// shop that HAS one can now say so, and a product with none renders its Chinese copy,
-// which is readable and visibly untranslated.
+// and not a lookup table — is not the claim that the copy therefore stays Chinese
+// for everybody, and reading it as that is the easy mistake. goen never invents a
+// translation; a shop that HAS one says so, and a product with none renders its
+// Chinese copy, which is readable and visibly untranslated.
 //
 // The exemptions divide into three kinds and each is worth reading:
 //

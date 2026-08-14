@@ -248,10 +248,10 @@ func (s *Store) Overview(ctx context.Context, u User) (pages.AccountView, error)
 
 	view := pages.AccountView{Email: u.Email, Name: u.Name}
 
-	// The profile form's phone field was blank on every visit: the column is
-	// written by registration and by the form itself, and nothing ever read it
-	// back. A form that forgets what you told it reads as a form that did not
-	// save — and UserByID, which exists for exactly this, had no caller.
+	// The profile row, read back so the form can show what it holds. The phone
+	// column is written by registration and by the form itself, and nothing else
+	// reads it — so without this the field is blank on every visit, and a form
+	// that forgets what you told it reads as a form that did not save.
 	profile, err := s.q.UserByID(ctx, id)
 	if err != nil {
 		return pages.AccountView{}, fmt.Errorf("read profile: %w", err)
@@ -271,9 +271,9 @@ func (s *Store) Overview(ctx context.Context, u User) (pages.AccountView, error)
 	// render.
 	//
 	// Read from the profile row this function already has, keyed on the ID.
-	// Looking it up by EMAIL was the first version and it was wrong twice over:
-	// a caller holding a User with no address made Overview fail outright, and
-	// the id was right there.
+	// Looking the same fact up by EMAIL is wrong twice over: it is a second query
+	// for something already in hand, and a caller holding a User with no address
+	// makes Overview fail outright.
 	view.CanUnlinkGoogle = view.GoogleLinked && profile.HasPassword
 
 	orders, err := s.q.UserOrders(ctx, db.UserOrdersParams{UserID: uuid.NullUUID{UUID: id, Valid: true}, Limit: 20})
@@ -451,11 +451,12 @@ const ResetTokenGrace = 7 * 24 * time.Hour
 
 // SweepSessions deletes every expired session and every dead reset token, once.
 //
-// Nothing called DeleteExpiredSessions before. Every session goen ever issued
-// stayed in the table: the reads were correct, because expiry is in their WHERE
-// clauses, and the table grew without bound behind them. A row that is nobody
-// is still a row somebody has to back up, and it holds the user id it belonged
-// to — which is data goen said it would not keep.
+// Without a caller for DeleteExpiredSessions every session goen has ever issued
+// stays in the table, and nothing misbehaves: the reads are correct because
+// expiry sits in their own WHERE clauses, so the table grows without bound
+// behind them with no symptom. A row that is nobody is still a row somebody has
+// to back up, and it holds the user id it belonged to — which is data goen said
+// it would not keep.
 func (s *Store) SweepSessions(ctx context.Context) error {
 	if err := s.q.DeleteExpiredSessions(ctx); err != nil {
 		return fmt.Errorf("delete expired sessions: %w", err)
@@ -498,8 +499,10 @@ func (s *Store) SweepSessionsForever(ctx context.Context, log *slog.Logger) {
 // form, and "is this mine?" asked afterwards is a question somebody forgets:
 // the failure here would be moving a stranger's default address.
 //
-// Nothing could change the default before this — the first address saved
-// became the default and stayed it forever, and checkout prefills from it.
+// It is the only door onto the default. Without it the FIRST address a customer
+// saves is their default for good, and checkout prefills from it — so somebody
+// who moves house can add the new address and still be shipped to at the old one
+// every time.
 func (s *Store) MakeDefaultAddress(ctx context.Context, userID, addressID string) error {
 	uid, err := uuid.Parse(userID)
 	if err != nil {
@@ -554,8 +557,8 @@ func (s *Store) DeleteAddress(ctx context.Context, userID, addressID string) err
 }
 
 // Erase runs the schema's erase_user, which is the ONLY way an account goes
-// away: store holds no DELETE on users, so a direct delete is refused and the
-// personal data on the account's orders would have been left behind.
+// away: store holds no DELETE on users, so a direct delete is refused — and it
+// would in any case leave the personal data on the account's orders behind.
 func (s *Store) Erase(ctx context.Context, userID string) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {

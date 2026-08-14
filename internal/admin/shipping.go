@@ -79,9 +79,9 @@ func (s *Store) Shipping(ctx context.Context) (pages.AdminShippingView, error) {
 
 // ShippingVersion is what the publish form submits.
 //
-// A struct because the parameter list had reached six and the two English fields
-// would have made eight — and two adjacent strings a caller can transpose is a bug
-// nothing catches.
+// A struct because the same thing as a parameter list is eight wide once the two
+// English fields are on it — and two adjacent strings a caller can transpose is a
+// bug nothing catches.
 type ShippingVersion struct {
 	MethodID string
 	Name     string

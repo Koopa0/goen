@@ -75,18 +75,19 @@ const integrationIdentifier = "goen-hosted-checkout-qkfmwzvt"
 // MinSessionLifetime is Stripe's own floor for a Checkout Session: expires_at
 // must be at least thirty minutes out or the create is refused.
 //
-// It used to be SessionTTL, a fixed 30 minutes added to time.Now(), with a
-// comment claiming it was "deliberately shorter than cart.HoldTTL". That was
-// FALSE in the direction that costs money. The hold starts at PlaceOrder and the
-// session starts when the customer presses Pay, so a session was strictly LONGER
-// than the hold behind it by however long they sat on the pay page — and a
-// session that outlives its hold is a customer completing payment for stock the
-// sweeper has already put back on the shelf and sold to somebody else. Two equal
-// durations measured from different instants are not the same window.
+// It is a FLOOR to check a hold against, never a duration to size a session
+// from. A fixed thirty minutes added to time.Now() is false in the direction
+// that costs money, however closely it matches cart.HoldTTL: the hold starts at
+// PlaceOrder and the session starts when the customer presses Pay, so such a
+// session is strictly LONGER than the hold behind it by however long they sat on
+// the pay page — and a session that outlives its hold is a customer completing
+// payment for stock the sweeper has already put back on the shelf and sold to
+// somebody else. Two equal durations measured from different instants are not
+// the same window.
 //
-// The expiry is derived from the RESERVATION now (see [Order.SessionExpiry]), so
-// the two ends of the window are one fact rather than two numbers that happen to
-// match.
+// The expiry is derived from the RESERVATION instead (see [Order.SessionExpiry]),
+// so the two ends of the window are one fact rather than two numbers that happen
+// to match.
 const MinSessionLifetime = 30 * time.Minute
 
 // Order is what the payment page needs to know about what is being paid.

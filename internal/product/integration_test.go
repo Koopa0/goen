@@ -471,10 +471,9 @@ func buy(t *testing.T, userID uuid.UUID, slug string) {
 
 // TestRestockNoticeIsIdempotent proves asking twice is one request.
 //
-// The PDP has said 補貨中 since it was built with nowhere to leave an address.
-// Now there is one, and pressing it twice must be one request — through the
-// partial unique index, not through a read-then-write guard two concurrent
-// visitors would both pass.
+// The PDP says 補貨中 and offers somewhere to leave an address, and pressing
+// that twice must be one request — through the partial unique index, not
+// through a read-then-write guard two concurrent visitors would both pass.
 func TestRestockNoticeIsIdempotent(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -668,7 +667,7 @@ func TestAnUncommittedOrderShapesNothing(t *testing.T) {
 	s := product.NewStore(pool)
 	// THREE unpaid orders, not one. With a minimum of two shared orders, a
 	// single one produces nothing whether or not it was paid — so a case built
-	// on one could not tell the committed filter from the threshold, and stayed
+	// on one cannot tell the committed filter from the threshold, and stays
 	// green with the filter deleted.
 	a, _ := twoProductsBoughtTogether(t, -3)
 
@@ -1043,9 +1042,9 @@ func latestQuestion(t *testing.T) string {
 // filter does its own work.
 //
 // Hiding one answer is a different act from hiding the question: the question
-// stays askable and the other answers stay useful. A test that only hid
-// questions could not see this — the answers vanish with the question anyway,
-// so the per-answer filter did nothing and stayed green when deleted.
+// stays askable and the other answers stay useful. A test that only hides
+// questions cannot see this — the answers vanish with the question anyway, so
+// the per-answer filter does nothing there and stays green when deleted.
 func TestASingleHiddenAnswerGoesWithoutTakingTheQuestion(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -1093,9 +1092,9 @@ func TestASingleHiddenAnswerGoesWithoutTakingTheQuestion(t *testing.T) {
 
 // TestTheProductPageKnowsWhatIsAlreadySaved holds the state the button renders.
 //
-// WishlistHas shipped with a comment naming the button it was for, and nothing
-// called it: the page said 加入願望清單 whether or not the customer had already
-// saved the product, so clicking it told them nothing about what had happened.
+// WishlistHas is what that button reads. Without it the page says 加入願望清單
+// whether or not the customer has already saved the product, so pressing it
+// tells them nothing about what just happened.
 func TestTheProductPageKnowsWhatIsAlreadySaved(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -1218,7 +1217,7 @@ func TestHidingAReviewTakesItOutOfTheScore(t *testing.T) {
 // product_reviews_product_user_key is on the BASE table, so a customer whose
 // review was hidden must still be told they have written one. Reading the
 // visible set here would offer them the form again and the insert would meet the
-// index — a 500 on a page that had just invited them to write.
+// index — a 500 on a page that has just invited them to write.
 func TestAHiddenReviewStillBlocksASecondOne(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -1256,9 +1255,9 @@ func TestAHiddenReviewStillBlocksASecondOne(t *testing.T) {
 // body.
 //
 // Both, because a test looking for the review in a rendered list needs the text
-// that was actually written. The first version rebuilt the body from the id and
-// the address it was really written from never matched — an assertion that
-// could not fail.
+// that was actually written. The body is derived from the ADDRESS, so a caller
+// that rebuilds it from the id instead searches for a string no review carries —
+// an assertion that cannot fail.
 func reviewBy(t *testing.T, productID uuid.UUID, address string, rating int) (id uuid.UUID, body string) {
 	t.Helper()
 	ctx := t.Context()

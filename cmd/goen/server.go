@@ -55,7 +55,7 @@ const contentSecurityPolicy = "default-src 'self'; " +
 
 // RouterConfig is what the router needs from configuration.
 //
-// A struct because the parameter list had reached eight, and three of them were
+// A struct because the parameter list runs to eight and three of them are
 // strings — at that width a call site says nothing about which argument is
 // which, which is the case the style guide names for a named type.
 type RouterConfig struct {
@@ -120,9 +120,9 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 	// newsletter_issues and an audit row, and `store` holds neither: the send
 	// belongs to the back office and runs as `admin`.
 	//
-	// One store over the storefront pool would have failed at the first compose,
-	// and only in production — every test connects as the owner, who is subject to
-	// no missing grant. That is the trap CLAUDE.md records from committed_orders.
+	// One store over the storefront pool fails at the first compose, and only in
+	// production — every test connects as the owner, who is subject to no missing
+	// grant. That is the trap CLAUDE.md records from committed_orders.
 	signups := newsletter.NewHandler(newsletter.NewStore(pool), signupLimit, log)
 	cover := warranty.NewHandler(warranty.NewStore(pool), log)
 	points := loyalty.NewHandler(loyalty.NewStore(pool), log)
@@ -147,21 +147,21 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 	// The second factor, on the ADMIN pool — every route it serves is a
 	// back-office route, and every table it writes is a back-office table.
 	//
-	// It used to run on the STOREFRONT pool, and that one line was what put the
-	// whole /admin story behind the role that serves anonymous product pages.
-	// `store` needed write on staff_totp_credentials to enrol, and write on
-	// users.role to manage colleagues — so any injection or logic slip reachable
-	// from a storefront handler escalated to admin in three statements: set your
-	// own role, delete the target's second factor, sign in. The privilege model
-	// was sound and the WIRING handed the keys around it.
+	// Running it on the STOREFRONT pool would put the whole /admin story behind
+	// the role that serves anonymous product pages. `store` would need write on
+	// staff_totp_credentials to enrol, and write on users.role to manage
+	// colleagues — so any injection or logic slip reachable from a storefront
+	// handler escalates to admin in three statements: set your own role, delete
+	// the target's second factor, sign in. A privilege model can be entirely
+	// sound and the WIRING still hand the keys around it.
 	//
 	// The split is the one internal/newsletter already makes for the same reason:
 	// which pool a store runs on is a statement about who may perform its writes.
 	factorStore := twofactor.NewStore(adminPool, totpKey)
 	factors := twofactor.NewHandler(factorStore, log, secureCookies)
-	// A deployment with no key gets a nil step-up function and a back office that
-	// behaves as it did before — the same shape as Stripe: the feature is off,
-	// loudly, rather than half on.
+	// A deployment with no key gets a nil step-up function and a back office
+	// guarded by the staff session alone — the same shape as Stripe: the feature
+	// is off, loudly, rather than half on with secrets in the clear.
 	var stepUp func(*http.Request) (bool, error)
 	if factorStore.Enabled() {
 		stepUp = factors.StepUp
@@ -332,20 +332,25 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 	mux.HandleFunc("GET /admin/stock", back.RequireStaff(back.Variants))
 	mux.HandleFunc("GET /admin/stock/{sku}", back.RequireStaff(back.Movements))
 	mux.HandleFunc("POST /admin/stock/adjust", back.RequireStaff(back.AdjustStock))
-	// 進貨, which is a different fact from a correction and had no door of its
-	// own: the ledger's 'receipt' reason was posted by the dev seed and by
-	// nothing a shop can reach.
+	// 進貨, which is a different fact from a correction and therefore its own
+	// door. Without it the ledger's 'receipt' reason is reachable by the dev seed
+	// and by nothing a shop can press, so every unit a shop buys enters its own
+	// ledger as 人工調整 and /admin/stock/{sku} cannot tell 進了十二箱 from
+	// 數錯了改成十二.
 	mux.HandleFunc("POST /admin/stock/receive", back.RequireStaff(back.ReceiveStock))
 	mux.HandleFunc("POST /admin/stock/active", back.RequireStaff(back.SetVariantActive))
 	mux.HandleFunc("POST /admin/stock/price", back.RequireStaff(back.SetVariantPrice))
 	mux.HandleFunc("GET /admin/returns", back.RequireStaff(back.Returns))
 	mux.HandleFunc("POST /admin/returns/{id}/decide", back.RequireStaff(back.Decide))
-	// The tail a return used to have no door to: the parcel arrives, somebody
-	// opens it, and the sellable units go back on the shelf through the ledger.
+	// A return's TAIL, which the decision alone does not reach: the parcel
+	// arrives, somebody opens it, and the sellable units go back on the shelf
+	// through the ledger. Stopping at 同意 puts the money back and leaves the
+	// GOODS in a state nothing records.
 	mux.HandleFunc("POST /admin/returns/{id}/inspect", back.RequireStaff(back.Inspect))
 	mux.HandleFunc("POST /admin/returns/{id}/complete", back.RequireStaff(back.Complete))
-	// 統一發票. The preference has been collected at checkout since the day it
-	// shipped, and until now nothing could act on it.
+	// 統一發票, and the door onto the preference checkout collects. Without a
+	// route that issues the document, that preference is data the shop can read
+	// and cannot act on.
 	mux.HandleFunc("POST /admin/orders/{number}/invoice", back.RequireStaff(back.IssueInvoice))
 	mux.HandleFunc("POST /admin/orders/{number}/invoice/void", back.RequireStaff(back.VoidInvoice))
 	mux.HandleFunc("POST /admin/products/{slug}/options", back.RequireStaff(back.AddOption))
@@ -369,12 +374,12 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 	mux.HandleFunc("POST /admin/shipping/zone", back.RequireStaff(back.CreateShippingZone))
 	mux.HandleFunc("POST /admin/shipping/zone/{id}/prefixes", back.RequireStaff(back.SetZonePrefixes))
 	mux.HandleFunc("POST /admin/shipping/zone/{id}/delete", back.RequireStaff(back.DeleteShippingZone))
-	// ADMIN only, not staff. Who works here is not a staff job — these four
-	// routes were gated on RequireStaff, which accepts `staff` as well, so any
-	// staff member could POST their own address with role=admin and be promoted,
-	// revoke a colleague, or strip an admin's second factor. The listing goes
-	// too: it names who has no second factor yet, which its own handler calls a
-	// map of where the back office is weakest.
+	// ADMIN only, not staff. Who works here is not a staff job, and RequireStaff
+	// accepts `staff` as well — so gating these four on it lets any staff member
+	// POST their own address with role=admin and be promoted, revoke a colleague,
+	// or strip an admin's second factor. The listing is admin-only for the same
+	// reason: it names who has no second factor yet, which its own handler calls
+	// a map of where the back office is weakest.
 	mux.HandleFunc("GET /admin/staff", back.RequireAdmin(factors.Staff))
 	mux.HandleFunc("POST /admin/staff", back.RequireAdmin(factors.AddStaff))
 	mux.HandleFunc("POST /admin/staff/revoke", back.RequireAdmin(factors.RevokeStaff))
@@ -386,9 +391,9 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 	mux.HandleFunc("GET /admin/faq", back.RequireStaff(back.FAQ))
 	mux.HandleFunc("POST /admin/faq", back.RequireStaff(back.CreateFAQEntry))
 	mux.HandleFunc("POST /admin/faq/{id}", back.RequireStaff(back.EditFAQEntry))
-	// The shop's half of warranty registration. The customer's half has existed
-	// since the feature shipped; this side had nothing, so a claim arrived and
-	// the only record of it was held by the person claiming.
+	// The shop's half of warranty registration. warranty_registrations is written
+	// by the customer and read by the customer, so without this route a claim
+	// arrives and the only record of it is held by the person making it.
 	mux.HandleFunc("GET /admin/warranty", back.RequireStaff(back.Warranties))
 	mux.HandleFunc("GET /admin/customers", back.RequireStaff(back.Customers))
 	mux.HandleFunc("GET /admin/customers/{id}", back.RequireStaff(back.Customer))
@@ -680,18 +685,18 @@ func withBanner(next http.Handler, store *home.Store, log *slog.Logger, secure b
 // header with no category links, which is far smaller than losing the page.
 func withTopNav(next http.Handler, store *home.Store, log *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// The same exclusions the banner uses, and it needed them more.
+		// The same exclusions the banner uses, and this needs them more.
 		//
-		// This skipped only non-GET and /admin, so `GET /healthz`, `GET /readyz`
-		// and every static asset and image request ran a category query — a
+		// Skipping only non-GET and /admin leaves `GET /healthz`, `GET /readyz`
+		// and every static asset and image request running a category query — a
 		// database round trip to build a navigation bar for a response that has
 		// no navigation bar. Liveness in particular: the probe an orchestrator
-		// uses to decide whether to restart this process was reaching the
+		// uses to decide whether to restart this process would reach the
 		// database, which is the one dependency a liveness check must not have an
 		// opinion about.
 		//
-		// It degrades rather than fails on error, so this was latency and not an
-		// outage — but a slow database made the probe slow, and a slow probe is
+		// It degrades rather than fails on error, so that is latency and not an
+		// outage — but a slow database makes the probe slow, and a slow probe is
 		// how a healthy process gets killed.
 		if r.Method != http.MethodGet || !storefrontPath(r.URL.Path) {
 			next.ServeHTTP(w, r)
@@ -722,7 +727,7 @@ func storefrontPath(path string) bool {
 // A *payment.Gateway is never nil — a deployment without a Stripe key gets one
 // that reports Enabled() false — so passing it straight through would make every
 // cancellation on a keyless deployment log a Warn about ErrDisabled. There is no
-// session to close there, because there was never a key to open one with.
+// session to close there, because there is no key to open one with.
 //
 // Returned as an explicitly nil INTERFACE rather than a nil *Gateway: a typed nil
 // in an interface is non-nil, so the `if h.sessions == nil` in both handlers would

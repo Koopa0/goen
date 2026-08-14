@@ -39,9 +39,9 @@ func (o AccountOrder) StatusText(ctx context.Context) string {
 	switch o.Status {
 	case "pending":
 		// 'pending' is two states wearing one name: nobody has paid yet, and the
-		// money has arrived but nobody at the shop has picked it. This badged both
-		// 待付款, so a customer who paid two seconds ago read their own order
-		// history as unpaid.
+		// money has arrived but nobody at the shop has picked it. Badging both
+		// 待付款 tells a customer who paid two seconds ago that their own order
+		// history says unpaid.
 		if o.Committed || o.OwedCents <= 0 {
 			return i18n.T(ctx, i18n.KeyStatusPaid)
 		}
@@ -89,19 +89,21 @@ func (a AccountAddress) DisplayLabel(ctx context.Context) string {
 
 // AccountView is the account landing page.
 type AccountView struct {
-	// EmailVerified reports whether the address has been proved. Nothing set
-	// users.email_verified_at before this section existed, and nothing could change
-	// the address either — so a customer who mistyped it at registration received
-	// nothing, for good.
+	// EmailVerified reports whether the address has been proved, and it sits
+	// beside the form that CHANGES the address because the two are one feature:
+	// an account that can neither prove its address nor correct it leaves a
+	// customer who mistyped at registration hearing nothing from the shop ever
+	// again, with no way to say so.
 	EmailVerified bool
 	// PendingEmail is an address waiting to be proved, shown so somebody who
 	// mistyped a CHANGE can see what they typed.
 	PendingEmail string
 	Email        string
 	Name         string
-	// Phone is what the customer told us. The form's field was blank every
-	// visit — written on registration, written by the form, read by nothing —
-	// so saving it looked like it had not worked.
+	// Phone is what the customer told us, read BACK into the form's field. A
+	// column written at registration and written by the form but read by nothing
+	// leaves that field blank on every visit, so saving it looks like it did not
+	// work.
 	Phone       string
 	Orders      []AccountOrder
 	Addresses   []AccountAddress
@@ -211,7 +213,7 @@ func (v *AccountOrderView) StatusText(ctx context.Context) string {
 // AwaitingPayment reports whether this order still needs paying.
 //
 // The same three-part question OrderView.AwaitingPayment asks, and for the same
-// reason: 'pending' alone said a paid order was unpaid.
+// reason: 'pending' alone reports a paid order as unpaid.
 func (v *AccountOrderView) AwaitingPayment() bool {
 	return v.Status == "pending" && !v.Committed && v.OwedCents > 0
 }
@@ -219,19 +221,19 @@ func (v *AccountOrderView) AwaitingPayment() bool {
 // CanRegisterWarranty reports whether to offer the registration form.
 //
 // /account/warranty/{number} carries the ONLY form that registers a unit, and
-// nothing anywhere linked to it: the account nav reaches the LIST, and the
-// list's own copy says 「從訂單頁進去登錄」 — a page that then had no such link.
-// Every signed-in customer with every shipped order met that dead end, and the
-// only way in was typing a URL the site never displays. The link→route sweep
-// cannot see it by construction: it asks whether a link resolves, and this route
-// IS linked, one level up from the page that does the work.
+// the order page is the one place linking to it: the account nav reaches the
+// LIST, and the list's own copy says 「從訂單頁進去登錄」. Drop the link here and
+// every signed-in customer with every delivered order meets a dead end whose
+// only way through is typing a URL the site never displays. The link→route
+// sweep cannot see that by construction: it asks whether a link resolves, and
+// this route IS linked, one level up from the page that does the work.
 //
 // Gated on the goods having ARRIVED, which is what warranty registration itself
 // requires — cover starts when a parcel reaches somebody, so the term is
-// computed from delivered_at. 'shipped' used to be in this list and was the
-// wrong end of the same fact: it offered a link to a page whose every line said
-// the unit is not registrable yet, on exactly the orders a customer is most
-// likely to be looking at.
+// computed from delivered_at. 'shipped' is the wrong end of that same fact:
+// offering the link there points at a page whose every line says the unit is
+// not registrable yet, on exactly the orders a customer is most likely to be
+// looking at.
 //
 // Both statuses that END a delivery, because 超商取貨 moves shipped → completed
 // with nobody at the counter to witness a handover — the same pair

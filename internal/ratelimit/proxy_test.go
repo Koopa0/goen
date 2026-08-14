@@ -33,12 +33,11 @@ func request(t *testing.T, remoteAddr string, forwarded ...string) *http.Request
 	return r
 }
 
-// TestNothingIsTrustedUntilSomethingIsConfigured proves the default did not
-// move.
+// TestNothingIsTrustedUntilSomethingIsConfigured proves the default.
 //
 // This is the half that must not regress. A header read on faith is strictly
 // worse than no limiter because it looks like there is one, so the state a
-// deployment reaches by omission has to be the old behaviour exactly — no
+// deployment reaches by omission has to be RemoteAddr and nothing else — no
 // header consulted, no context value in play, and Resolve handing back the
 // handler it was given.
 func TestNothingIsTrustedUntilSomethingIsConfigured(t *testing.T) {
@@ -190,14 +189,15 @@ func TestTheRightmostUntrustedHopIsTheClient(t *testing.T) {
 			want:       "10.0.0.8",
 		},
 		{
-			// THE ATTACK, and the case the first version of this table did not
-			// have. It covered a spoof from OUTSIDE the trusted set and a request
-			// where every hop was trusted; it never covered the mixed one — a
-			// trusted peer, a trusted client, and an untrusted entry the client
-			// wrote itself — which is the only one that broke.
+			// THE ATTACK, and the case a table covering only the obvious two
+			// misses. A spoof from OUTSIDE the trusted set and a request where
+			// every hop is trusted are both satisfied by a walk that skips any
+			// entry it trusts; the MIXED one — a trusted peer, a trusted client,
+			// and an untrusted entry the client wrote itself — is the only one
+			// that breaks under it.
 			//
 			// `.env.example` suggests 10.0.0.0/8, so every pod and VPN user is
-			// inside it. Skipping entries that are themselves trusted walked
+			// inside it. Skipping entries that are themselves trusted walks
 			// straight past the real client onto the forgery.
 			name:       "a client inside the trusted CIDR cannot pick its own key",
 			trusted:    "10.0.0.0/8",
@@ -225,10 +225,10 @@ func TestTheRightmostUntrustedHopIsTheClient(t *testing.T) {
 // TestASpoofedHeaderBuysNoFreshAllowance is the attack this configuration must
 // not open.
 //
-// The old behaviour was safe because it read nothing. The failure mode of
-// getting this wrong is not a wrong log line — it is one attacker holding an
-// unlimited supply of keys, which is the state the package doc calls strictly
-// worse than having no limiter at all.
+// Reading no header at all is safe by construction, so every risk here arrives
+// with the trust set. The failure mode of getting it wrong is not a wrong log
+// line — it is one attacker holding an unlimited supply of keys, which is the
+// state the package doc calls strictly worse than having no limiter at all.
 func TestASpoofedHeaderBuysNoFreshAllowance(t *testing.T) {
 	t.Parallel()
 
@@ -256,7 +256,7 @@ func TestASpoofedHeaderBuysNoFreshAllowance(t *testing.T) {
 	}
 
 	// And a genuinely different client behind the same proxy is still its own
-	// key, or the fix would have traded one collapse for another.
+	// key, or the rule would trade one collapse for another.
 	other := request(t, "10.0.0.7:443", "198.51.100.5")
 	if _, ok := l.Allow(proxied(t, p, other)); !ok {
 		t.Error("a second client behind the proxy was refused because the first " +

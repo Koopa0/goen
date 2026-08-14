@@ -12,34 +12,35 @@ import (
 )
 
 // TestNoRoleHoldsAWriteItsQueriesNeverMake is the MIRROR of
-// [TestEveryRoleCanReadWhatItsQueriesRead], and it exists because only one
-// direction was ever asked.
+// [TestEveryRoleCanReadWhatItsQueriesRead]: that one asks whether a role can do
+// its job, and this one asks whether it can do anything else.
 //
-// # What the missing direction cost
+// # What the missing direction costs
 //
-// A third-party probe escalated from the customer-facing role to back-office
-// admin in three statements, as `store`:
+// Without it, the customer-facing role escalates to back-office admin in three
+// statements, as `store`:
 //
 //	UPDATE users SET role = 'admin' WHERE id = <attacker>;   -- UPDATE 1
 //	DELETE FROM staff_totp_credentials WHERE user_id = <target>;
 //	-- sign in
 //
-// and impersonated any customer, as `admin`, leaving no audit row:
+// and `admin` impersonates any customer, leaving no audit row:
 //
 //	UPDATE users SET password_hash = 'x' WHERE …;            -- UPDATE 1
 //	INSERT INTO sessions (token_hash, user_id, expires_at) …;-- INSERT 1
 //
-// Both were pure capability. No handler makes either write, no feature wants
-// them, and no test noticed — because every privilege test in this repository is
-// a HAND-WRITTEN LIST of money, stock and ledger tables. Those were locked down
-// properly. The authentication tables had simply never been enumerated, and a
-// list cannot refuse a table nobody thought to put on it.
+// Both are pure capability. No handler makes either write and no feature wants
+// them, so nothing is missing from the application and nothing looks wrong. A
+// privilege test that is a HAND-WRITTEN LIST of money, stock and ledger tables
+// cannot see either one: those tables are locked down properly, and the
+// authentication tables are simply not on the list. A list cannot refuse a table
+// nobody thought to put on it.
 //
-// That is the same argument this project already accepted for
-// TestEveryDefinerWrittenTableIsRevoked, whose hand-written predecessor had
-// eight entries where the catalog finds eleven. The rule there is "a table a
-// SECURITY DEFINER function writes is a table the app writes only through it",
-// derived rather than listed. The rule here is the general form:
+// That is the same argument this project accepts for
+// TestEveryDefinerWrittenTableIsRevoked, where a hand-written list names eight
+// tables and the catalog finds eleven. The rule there is "a table a SECURITY
+// DEFINER function writes is a table the app writes only through it", derived
+// rather than listed. The rule here is the general form:
 //
 //	a role may hold INSERT, UPDATE or DELETE on a table only if some query
 //	that role actually runs writes it.
@@ -123,22 +124,22 @@ func TestNoRoleHoldsAWriteItsQueriesNeverMake(t *testing.T) {
 }
 
 // TestNoRoleHoldsAColumnWriteItsQueriesNeverMake is the same question one level
-// down, and it is the level the escalation actually lived at.
+// down, and it is the level the escalation lives at.
 //
-// The table-level guard above cannot see the first statement of the probe:
+// The table-level guard above cannot see the statement that matters:
 //
 //	UPDATE users SET role = 'admin' WHERE id = <attacker>;
 //
 // because `store` DOES write `users` — it registers accounts and changes
-// passwords — so a whole-table grant reads as legitimate. The privilege that
-// mattered was on ONE COLUMN of a table the role is entitled to write, and only
-// a column-level question finds it. That was proven the hard way: the first
-// mutation of the table-level guard restored `GRANT INSERT, UPDATE ON users TO
-// store` and the test stayed GREEN.
+// passwords — so a whole-table grant reads as legitimate. The dangerous privilege
+// is on ONE COLUMN of a table the role is entitled to write, and only a
+// column-level question finds it. That is the mutation which separates the two
+// guards: restore `GRANT INSERT, UPDATE ON users TO store` and the table-level
+// test stays GREEN while this one goes red.
 //
-// PostgreSQL already has the machinery — has_column_privilege — and this schema
-// already uses column grants for exactly this purpose on product_variants. What
-// was missing was anything asking whether they were complete.
+// PostgreSQL has the machinery — has_column_privilege — and this schema uses
+// column grants for exactly this purpose on product_variants. What nothing else
+// asks is whether they are complete.
 //
 // Tables whose expected column set is UNKNOWN are skipped here and covered by
 // the table-level guard instead; see [columnWrites] for when that happens.
@@ -160,13 +161,13 @@ func TestNoRoleHoldsAColumnWriteItsQueriesNeverMake(t *testing.T) {
 				// Columns the database GENERATES are excluded, and the exact
 				// shape of that filter is load-bearing.
 				//
-				// The first version excluded every column with a DEFAULT, to
-				// silence the id/created_at/updated_at noise that otherwise
-				// repeats on every table. It also silenced `users.role`, whose
-				// default is the literal 'customer' — so the mutation that gave
-				// `store` back the single privilege this whole guard exists to
-				// refuse stayed GREEN. A filter written for readability had
-				// quietly removed the subject.
+				// Excluding every column that HAS a default is the obvious way
+				// to silence the id/created_at/updated_at noise repeating on
+				// every table, and it also silences `users.role`, whose default
+				// is the literal 'customer' — so the mutation that gives `store`
+				// back the single privilege this whole guard exists to refuse
+				// stays GREEN. A filter written for readability removes the
+				// subject.
 				//
 				// So the test is on the default EXPRESSION, not on its presence:
 				// a default that manufactures a value per row (uuidv7(), now(),
@@ -228,22 +229,17 @@ func TestNoRoleHoldsAColumnWriteItsQueriesNeverMake(t *testing.T) {
 //
 // # Why it is not simply every table
 //
-// It nearly is, now. Twelve of the sixteen entries below were added at once,
-// and the note they replace is worth keeping because it was WRONG in an
-// instructive way. It said:
+// It nearly is. What holds a table back is the cost of getting the grant wrong
+// in the other direction: narrowing means hand-authoring a column list, and a
+// list one column too NARROW breaks a write path a customer is standing in.
+// Every suite here connects as the OWNER, who is subject to no missing grant, so
+// that class of mistake is invisible to almost everything in this package.
 //
-//	closing them means hand-authoring column grants for ten more tables, and a
-//	grant that is one column too NARROW fails nowhere in this test suite — every
-//	suite connects as the OWNER, who is subject to no missing grant. It would
-//	surface first in production, on a write path a customer is standing in.
-//
-// The first clause was true and the second stopped being true one commit
-// earlier. [TestEveryRoleCanRunItsOwnQueries] plans every generated query under
-// SET ROLE with EXPLAIN (GENERIC_PLAN), which resolves COLUMN privileges as
-// well as table ones — so a grant one column too narrow is a red test in about
-// a second, over 425 pairs. **The risk that justified queuing this had been
-// closed by a guard written for a different finding, and nobody re-read the
-// note.** A queued item is a claim about the world, and the world moves.
+// [TestEveryRoleCanRunItsOwnQueries] is the exception, and it is what makes
+// narrowing cheap enough to do everywhere: it plans every generated query under
+// SET ROLE with EXPLAIN (GENERIC_PLAN), which resolves COLUMN privileges as well
+// as table ones, so a grant one column too narrow is a red test in about a
+// second, over 425 pairs.
 //
 // The lists in the migration are DERIVED from this test rather than authored:
 // every column, minus the ones reported here. That is the difference between
@@ -255,9 +251,9 @@ func TestNoRoleHoldsAColumnWriteItsQueriesNeverMake(t *testing.T) {
 // skipped as UNKNOWN a few lines below. Narrowing on a set nobody derived is
 // the hand-authored grant this whole approach exists to avoid.
 var columnNarrowed = map[string]bool{
-	// The authentication surface, and the reason this guard exists. `store` held
-	// whole-table UPDATE on users, so it could set role = 'admin'; `admin` held
-	// it too, so it could set password_hash and take any customer's account.
+	// The authentication surface, and the reason this guard exists. Whole-table
+	// UPDATE on users lets `store` set role = 'admin', and lets `admin` set
+	// password_hash and take any customer's account.
 	"users": true,
 	// Creating a session is signing somebody in. admin may stamp
 	// totp_verified_at and nothing else.
@@ -463,8 +459,8 @@ var methodCall = regexp.MustCompile(`\.([A-Z]\w*)\(`)
 //
 // Test files are excluded: a query only a test runs is not something the
 // application does, and counting one would let a fixture justify a production
-// privilege. That is the same correction TestEveryViewModelFieldIsAssigned
-// needed when it was satisfied by its own proof.
+// privilege. TestEveryViewModelFieldIsAssigned excludes them for the same
+// reason — a field only a test fills is the defect, not the cure.
 //
 // The match is deliberately coarse — any `.Something(` whose name happens to be
 // a generated query counts, so a package that calls an unrelated method of the
@@ -696,10 +692,10 @@ func TestThePoolMapIsComplete(t *testing.T) {
 // TestNoStaleWriteExemption refuses an entry describing a privilege that is no
 // longer held.
 //
-// Checked by IDENTITY rather than by count, because comparing totals is what let
-// an entry naming a query that no longer existed pass in
-// TestEveryCategoryNameIsLocalized — and it immediately found two entries added
-// on a guess.
+// Checked by IDENTITY rather than by count. A comparison of totals cannot say
+// WHICH entry has gone stale, and it passes outright when one entry goes stale as
+// another is added — the same reason the allowlist checks in
+// TestEveryCategoryNameIsLocalized name their entries.
 func TestNoStaleWriteExemption(t *testing.T) {
 	ctx := t.Context()
 	for key, why := range writeExemptions {

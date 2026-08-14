@@ -1,8 +1,8 @@
--- AwardPoints used to sit here, a second door onto award_loyalty_points. The
--- award happens inside the CAPTURE's transaction — internal/payment calls the
--- function from AwardOrderPoints, where the money is — so a Store method that
--- opened its own connection could only ever be the wrong place to do it. One
--- door, in the transaction that owes the points.
+-- There is no award query here, and that is the design rather than a gap. The
+-- award happens inside the CAPTURE's transaction — internal/payment calls
+-- award_loyalty_points from AwardOrderPoints, where the money is — so a Store
+-- method in this package opening a connection of its own could only ever be the
+-- wrong place to do it. One door, in the transaction that owes the points.
 
 -- Spend points and post the credit they bought, in one transaction.
 -- name: RedeemPoints :one

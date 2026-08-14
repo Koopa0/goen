@@ -14,32 +14,30 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 )
 
-// TestAPlacedOrderCanActuallyBePaidFor is the test whose absence meant goen
-// could not take a single payment.
+// TestAPlacedOrderCanActuallyBePaidFor holds that an order placed through
+// checkout can still open a Checkout Session when the customer presses Pay. Its
+// absence is goen unable to take a single payment.
 //
-// cart.HoldTTL and payment.MinSessionLifetime were both thirty minutes, and
-// measured from DIFFERENT instants: the hold is stamped at PlaceOrder, the gate
-// is asked when the customer presses Pay. So
-// `HoldExpiresAt >= pay_at + MinSessionLifetime` reduced to `placed_at >=
-// pay_at` — false one second after checkout. Every Stripe-configured deployment
-// answered 409 on /orders/{number}/pay, forever.
+// cart.HoldTTL and payment.MinSessionLifetime are measured from DIFFERENT
+// instants: the hold is stamped at PlaceOrder, the gate is asked when the
+// customer presses Pay. Equal, `HoldExpiresAt >= pay_at + MinSessionLifetime`
+// reduces to `placed_at >= pay_at` — false one second after checkout, so every
+// Stripe-configured deployment answers 409 on /orders/{number}/pay, forever.
 //
-// Both tests that covered this were false-green BY CONSTRUCTION, and the shape
-// is worth keeping:
+// Two neighbouring tests are false-green on that BY CONSTRUCTION, and the shapes
+// are worth naming:
 //
 //   - TestASessionIsNeverOpenedOnALapsedHold below passes ONE frozen `now` as
 //     both the base the hold is computed from and the instant the gate is asked
-//     at, so elapsed time is zero — the single point where the old equality
-//     held.
-//   - The integration suite hand-wrote 35- and 45-minute holds through a
-//     fixture helper instead of going through PlaceOrder, so it never used
-//     HoldTTL at all; its own failure message ("35 minutes of hold is not
-//     enough to open a 30-minute session") shows the numbers were picked to
-//     clear the floor.
+//     at, so elapsed time is zero — the single point where the equality holds.
+//   - The integration suite writes 35- and 45-minute holds through a fixture
+//     helper rather than through PlaceOrder, so it never uses HoldTTL at all;
+//     its own failure message ("35 minutes of hold is not enough to open a
+//     30-minute session") shows the numbers are picked to clear the floor.
 //
-// This one therefore does the only thing neither did: it lets time PASS between
+// This one therefore does the thing neither does: it lets time PASS between
 // placing and paying, and it derives the hold from cart.HoldTTL rather than
-// from a literal. A constant that drifts back into the equality turns it red.
+// from a literal. A constant that drifts into the equality turns it red.
 func TestAPlacedOrderCanActuallyBePaidFor(t *testing.T) {
 	t.Parallel()
 
@@ -56,8 +54,8 @@ func TestAPlacedOrderCanActuallyBePaidFor(t *testing.T) {
 		{name: "halfway through the pay window", elapsed: cart.PayWindow / 2, want: true},
 		{name: "at the last moment of the pay window", elapsed: cart.PayWindow, want: true},
 		// Past the window the remaining hold is under Stripe's floor, and a
-		// session padded out to it would outlive the goods — the defect the
-		// expiry rework exists to close.
+		// session padded out to that floor would outlive the goods, which is
+		// exactly what binding the expiry to the reservation exists to stop.
 		{name: "one second past the pay window", elapsed: cart.PayWindow + time.Second, want: false},
 		{name: "long past it", elapsed: cart.HoldTTL, want: false},
 	}
@@ -78,8 +76,8 @@ func TestAPlacedOrderCanActuallyBePaidFor(t *testing.T) {
 // the constant payment owns.
 //
 // cart derives HoldTTL from its mirror of Stripe's session floor, and internal/
-// payment holds the real one. Nothing pointed the two at each other, which is
-// how they came to be equal to HoldTTL in the first place.
+// payment holds the real one. Nothing else points the two at each other, so a
+// drift between them is invisible until no session can be opened at all.
 func TestTheMirroredStripeFloorMatchesTheRealOne(t *testing.T) {
 	t.Parallel()
 
@@ -209,16 +207,15 @@ func typed(ev map[string]any, eventType string) map[string]any {
 // asynchronous payment method still processing, for instance. Acting on the
 // event type alone marks those orders paid for money that has not arrived.
 //
-// The asynchronous rows are the defect this test used to describe and not cover.
-// Dynamic payment methods used to be deliberately on, so a delayed method's
-// `completed` arrived with payment_status `unpaid`. The session pins card now
-// (the stock hold cannot outlive one), which makes these rows defence in depth
-// rather than the ordinary path — the event is still refused below, and this test's
-// own comment named that case. The success that FOLLOWS is
-// `checkout.session.async_payment_succeeded`, which nothing accepted: the
-// customer paid and the order stayed unpaid forever. It belongs here expecting
-// true, and NOT in TestOtherEventTypesAreNotCaptures, which is where the instinct
-// to "add the new event type" would put it and lock the bug in.
+// The asynchronous rows are defence in depth rather than the ordinary path: the
+// session pins card, because a stock hold cannot outlive a delayed method. A
+// delayed method's `completed` arrives with payment_status `unpaid` and is
+// refused by the row above it; the success that FOLLOWS is
+// `checkout.session.async_payment_succeeded` and nothing else, so a reader that
+// does not accept it leaves the customer paid and the order unpaid forever. It
+// belongs here expecting true, and NOT in TestOtherEventTypesAreNotCaptures,
+// which is where the instinct to "add the new event type" would put it and lock
+// the bug in.
 func TestOnlyAPaidSessionIsACapture(t *testing.T) {
 	g := enabledGateway(t)
 
@@ -263,9 +260,9 @@ func TestOnlyAPaidSessionIsACapture(t *testing.T) {
 // A delayed method that does not clear arrives as
 // `checkout.session.async_payment_failed`, and the payment row goen opened has
 // to stop saying it is waiting for something — the same job
-// `checkout.session.expired` does, so it goes to the same place. Nothing routed
-// it anywhere, so the row sat at requires_payment for ever and reconciliation
-// could not tell a dead checkout from one still in flight.
+// `checkout.session.expired` does, so it goes to the same place. Routed nowhere,
+// the row sits at requires_payment for ever and reconciliation cannot tell a
+// dead checkout from one still in flight.
 //
 // A capture event is in the table because these two readers must not overlap:
 // one of them cancels a payment and the other posts money to it.
@@ -307,9 +304,10 @@ func TestASessionThatEndsWithNoMoneyIsAbandoned(t *testing.T) {
 // A delayed payment method's `checkout.session.completed` arrives with
 // payment_status `unpaid`. CaptureFrom refuses it, correctly — no money has
 // moved. AbandonedSessionFrom refuses it, correctly — nothing failed, and a
-// COMPLETED session never fires `checkout.session.expired`. So it fell through
-// to the webhook handler's default branch and was logged as one more event goen
-// does not act on, indistinguishable from the dozen it genuinely does not.
+// COMPLETED session never fires `checkout.session.expired`. With no reader of
+// its own it falls through to the webhook handler's default branch and is logged
+// as one more event goen does not act on, indistinguishable from the dozen it
+// genuinely does not.
 //
 // It is the ONLY warning goen gets that its stock model has stopped holding. The
 // session is bounded by the stock hold on purpose; a delayed method settles days
@@ -440,11 +438,11 @@ func TestTheSessionKeyFollowsTheOrderTheAmountAndTheAttempt(t *testing.T) {
 // TestASessionIsNeverOpenedOnALapsedHold is the rule that binds a Checkout
 // Session to the stock behind it.
 //
-// The session used to be time.Now() + 30 minutes and the hold PlaceOrder + 30
-// minutes, with a comment claiming the session was "deliberately shorter". Two
-// equal durations measured from different instants are not the same window: the
-// session was strictly LONGER by however long the customer sat on the pay page,
-// so money could arrive for stock the sweeper had already released and sold.
+// A session of time.Now() + 30 minutes against a hold of PlaceOrder + 30 minutes
+// looks deliberately equal and is not: two equal durations measured from
+// different instants are not the same window. The session is strictly LONGER by
+// however long the customer sat on the pay page, so money arrives for stock the
+// sweeper has already released and sold.
 //
 // Stripe will not accept an expires_at less than thirty minutes out, so a hold
 // with less than that left has no honest session at all — padding it back up to
@@ -459,11 +457,12 @@ func TestASessionIsNeverOpenedOnALapsedHold(t *testing.T) {
 		hold  time.Time
 		start bool
 	}{
-		// NOT "a hold just placed", which is what this row used to be called and
-		// what made the whole table read as covering the real flow. `now` is both
-		// the base and the instant the gate is asked at here, so this is the
-		// zero-elapsed case and nothing else — exactly at Stripe's floor.
-		// TestAPlacedOrderCanActuallyBePaidFor is the one that lets time pass.
+		// NOT "a hold just placed": `now` is both the base and the instant the
+		// gate is asked at here, so this is the zero-elapsed case and nothing
+		// else — exactly at Stripe's floor. Naming it for a freshly placed order
+		// would make the whole table read as covering the real flow, which it
+		// does not; TestAPlacedOrderCanActuallyBePaidFor is the one that lets
+		// time pass.
 		{"exactly at Stripe's floor", now.Add(30 * time.Minute), true},
 		{"an hour of hold left", now.Add(time.Hour), true},
 		// 30 minutes is Stripe's floor, so one second under it is refused.

@@ -39,9 +39,9 @@
 --   * Read projections. `product_variants.stock_quantity` and
 --     `product_copurchases` are derived, and say so. They exist because the
 --     alternative is aggregating a ledger — or 14,963 PL/pgSQL calls — on every
---     page view. Each has exactly one writer, named at the definition. That
---     sentence used to name `product_search_documents`, which had no writer at
---     all; a claim of enforcement is worth only what a reader can check.
+--     page view. Each has exactly one writer, named at the definition, and the
+--     name is there to be checked: a claim of enforcement is worth only what a
+--     reader can go and read.
 --
 -- Otherwise nothing derivable is stored: no order total, no line total, no
 -- credit balance, no rating average. Those would introduce a dependency whose
@@ -446,17 +446,17 @@ CREATE TABLE product_images (
 CREATE UNIQUE INDEX product_images_position_key ON product_images (product_id, position);
 -- One image attached to one product once.
 --
--- This used to be UNIQUE (storage_key) alone, guarding a real problem the wrong
--- way: with the key being a filename, the same key on two rows could carry
--- 800x800 and 1200x1200, a dependency on a non-key column. Global uniqueness
--- made that impossible and made something legitimate impossible with it —
--- content-addressed uploads give the same picture ONE digest, so a generic
--- accessory shot used by two products was refused as a duplicate key.
+-- Per PRODUCT, and not UNIQUE (storage_key) alone. Global uniqueness on the key
+-- guards a real problem the wrong way: with the key being a filename, the same
+-- key on two rows could carry 800x800 and 1200x1200, a dependency on a non-key
+-- column — but making that impossible makes something legitimate impossible with
+-- it, because content-addressed uploads give the same picture ONE digest, so a
+-- generic accessory shot used by two products is refused as a duplicate key.
 --
--- The dimension problem is now solved where it belongs: an uploaded image's
--- size is media_objects.width/height, one row per set of bytes, and there is
--- nowhere for a second answer to live. What remains here is the attachment
--- rule, which is per product.
+-- The dimension problem is solved where it belongs: an uploaded image's size is
+-- media_objects.width/height, one row per set of bytes, and there is nowhere for
+-- a second answer to live. What this index holds is the attachment rule, which
+-- is per product.
 CREATE UNIQUE INDEX product_images_storage_key_key
     ON product_images (product_id, storage_key);
 
@@ -707,11 +707,10 @@ CREATE TABLE product_specs (
     CONSTRAINT product_specs_label_en_bounded CHECK (length(label_en) <= 40),
     CONSTRAINT product_specs_value_en_bounded CHECK (length(value_en) <= 200),
     CONSTRAINT product_specs_value_present CHECK (value ~ '[^[:space:]]'),
-    -- Bounded, in CHARACTERS, because the back office types these and until now
-    -- nothing could: the table was written by the seed alone, so no bound had ever
-    -- been reached. length() counts characters in PostgreSQL, which is the right
-    -- unit for the same reason the question and answer bodies use it — a byte
-    -- limit gives a Chinese label a third of the room an English one gets.
+    -- Bounded, in CHARACTERS, because the back office types these. length()
+    -- counts characters in PostgreSQL, which is the right unit for the same
+    -- reason the question and answer bodies use it — a byte limit gives a Chinese
+    -- label a third of the room an English one gets.
     --
     -- A spec is a table cell on /compare. A label longer than this is a sentence,
     -- and a comparison table whose first column wraps to three lines is the thing
@@ -723,21 +722,18 @@ CREATE TABLE product_specs (
 CREATE UNIQUE INDEX product_specs_position_key ON product_specs (product_id, position);
 CREATE INDEX product_specs_label_idx ON product_specs (label);
 
--- product_search_documents used to be declared here, under a paragraph describing
--- it as a projection of product name, brand, SKUs, option values and spec text
--- "rebuilt from its sources at any time". Nothing ever rebuilt it, nothing ever
--- read it, and the paragraph above the read-projection rule two hundred lines up
--- named it as one of the two projections with "exactly one writer, named at the
--- definition". Search ILIKEs products.name, summary and brands.name directly and
--- always has — measured at 1.5 ms for a Latin query at 10,000 products — so the
--- table was an empty index that read to anybody opening the schema as the thing
--- serving search.
+-- There is deliberately NO search projection table here.
 --
--- It is deleted rather than wired, and rather than left as scaffolding. The
--- projection that IS the documented next step is a BIGRAM TSVECTOR for short CJK
--- queries, gated on ~5,000 active products: a different shape from this one, so
--- keeping this would not even have been a head start. The same call the reserved
--- role names got — the design lives in CLAUDE.md, not in an empty table.
+-- Search ILIKEs products.name, summary and brands.name directly — measured at
+-- 1.5 ms for a Latin query at 10,000 products — so a projection of name, brand,
+-- SKUs, option values and spec text, "rebuilt from its sources at any time",
+-- would be an empty index that reads to anybody opening the schema as the thing
+-- serving search, and that nothing rebuilds and nothing reads.
+--
+-- The projection that IS the documented next step is a BIGRAM TSVECTOR for short
+-- CJK queries, gated on ~5,000 active products: a different shape, so a documents
+-- table would not even be a head start. The same call the reserved role names
+-- get — the design lives in CLAUDE.md, not in an empty table.
 
 -- ============================================================================
 -- People
@@ -757,8 +753,8 @@ CREATE TABLE users (
     updated_at        timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT users_email_present CHECK (email ~ '[^[:space:]]'),
     -- No surrounding whitespace of any kind. btrim strips only spaces, so
-    -- `btrim(email) = email` let a leading tab through and the folded unique
-    -- index below could then hold two rows for one mailbox.
+    -- `btrim(email) = email` would let a leading tab through, and the folded
+    -- unique index below would then hold two rows for one mailbox.
     CONSTRAINT users_email_trimmed CHECK (email !~ '^[[:space:]]|[[:space:]]$'),
     CONSTRAINT users_role_known CHECK (role IN ('customer', 'staff', 'admin'))
 );
@@ -873,10 +869,10 @@ CREATE INDEX password_reset_tokens_user_id_idx ON password_reset_tokens (user_id
 -- address and stamps email_verified_at. At registration the address is already the
 -- user's, so the move is a no-op; on a change it is the whole point.
 --
--- users.email_verified_at was declared with the users table and NOTHING ever set
--- it. What was missing underneath was worse: UpdateProfile writes full_name and
--- phone, so a customer could not change their address at all — somebody who
--- mistyped it at registration received nothing, for good.
+-- This table is what sets users.email_verified_at, and the only thing that does.
+-- Underneath it is the half that matters more: UpdateProfile writes full_name and
+-- phone, so with no door here a customer cannot change their address at all, and
+-- somebody who mistyped it at registration receives nothing, for good.
 --
 -- The change takes effect only on confirmation. Until then the account keeps the
 -- old address, so receipts and reset links keep arriving somewhere the customer
@@ -1065,14 +1061,13 @@ BEGIN
         ELSIF NEW.reverses_id IS NULL THEN
             -- A POSITIVE entry attributed to an order is a COMPENSATION: money
             -- being given back on an order that has already been paid for and
-            -- gone out. That is the case the comment below has always prescribed
-            -- for a shipped order, and the guard used to refuse it — the branch
-            -- above tested the ORDER STATE without testing the sign, so "credit
-            -- spent on an order" and "credit returned on an order" were one rule.
-            --
-            -- The effect was that a RETURN of a credit-funded order could not be
-            -- paid at all: the card portion was short of the claim, and the credit
-            -- portion had no legal way onto the ledger.
+            -- gone out. That is the case the branch below prescribes for a shipped
+            -- order, and it is a different rule from the branch above, which tests
+            -- the ORDER STATE alone. Testing the state without the SIGN makes
+            -- "credit spent on an order" and "credit returned on an order" one
+            -- rule, and a RETURN of a credit-funded order can then not be paid at
+            -- all: the card portion is short of the claim, and the credit portion
+            -- has no legal way onto the ledger.
             --
             -- Legal once the order is settled and not before. While it is still an
             -- open unpaid checkout there is nothing to compensate: the right move
@@ -1245,12 +1240,13 @@ CREATE TABLE inventory_reservations (
 -- At most one LIVE hold per (order, variant). Partial on state='held' so that a
 -- released or consumed reservation does not occupy the slot forever: after a
 -- hold is released (abandoned checkout), a fresh hold for the same order and
--- variant can be taken. A non-partial unique index made re-holding impossible.
+-- variant can be taken. A non-partial unique index would make re-holding
+-- impossible.
 CREATE UNIQUE INDEX inventory_reservations_order_variant_key
     ON inventory_reservations (order_id, variant_id)
     WHERE state = 'held';
--- The unique index above is partial now, so it no longer covers the order_id
--- foreign key for every state; a plain index does.
+-- The unique index above is partial, so it covers the order_id foreign key only
+-- for held rows; a plain index covers the rest.
 CREATE INDEX inventory_reservations_order_idx ON inventory_reservations (order_id);
 CREATE INDEX inventory_reservations_variant_idx ON inventory_reservations (variant_id);
 -- The sweeper's read: holds that have run out of time.
@@ -1385,10 +1381,10 @@ $$;
 -- yet picked and hand its stock back to the shelf, reselling a sold item. The
 -- only exit for such a hold is consume_reservation.
 --
--- TWO questions, because one of them cannot see the other's case. This comment
--- used to claim order_is_committed covered both and it did not, which is the
--- shape CLAUDE.md #13 and #30 describe: a comment and its predicate, correct
--- separately and disagreeing.
+-- TWO questions, because one of them cannot see the other's case. Reading
+-- order_is_committed as covering both is the shape CLAUDE.md #13 and #30
+-- describe: a comment and its predicate, each correct on its own and
+-- disagreeing with each other.
 --
 --   1. order_is_committed — a succeeded payment, or a status past pending.
 --   2. order_amount_owed = 0 on an order that is not cancelled.
@@ -1398,9 +1394,9 @@ $$;
 -- payments_succeeded_is_captured forbids a zero-value succeeded payment, and it
 -- legally sits at 'pending' until a human picks it, because
 -- orders_funded_to_leave_pending has nothing left to demand. So it is funded,
--- not committed, and the sweeper took its stock back thirty minutes after the
--- customer paid for it — measured, not theorised: the units returned to the
--- shelf and Ship then wrote a parcel while consuming no reservation at all,
+-- not committed, and without (2) the sweeper takes its stock back thirty minutes
+-- after the customer paid for it — measured, not theorised: the units go back on
+-- the shelf and Ship then writes a parcel while consuming no reservation at all,
 -- leaving stock_quantity permanently one too high.
 --
 -- 'cancelled' is excluded because a cancelled order's stock MUST come back, and
@@ -1663,11 +1659,12 @@ COMMENT ON VIEW visible_reviews IS
     'Reviews that count: not hidden by staff. Every rating and review count '
     'reads this, so hiding one moves the score as well as the list.';
 
--- is_verified_purchase was a plain boolean the caller set, with nothing behind
--- it: no link to an order line, no moderation column, and the table keeps its
--- ordinary DML. The displayed rating is computed live from these rows, so a row
+-- The 已購買 claim is not the caller's to make. is_verified_purchase is a plain
+-- boolean with no link to an order line and no moderation column, and the table
+-- keeps its ordinary DML — so without this the flag is whatever the writer says
+-- it is, while the displayed rating is computed live from these rows and a row
 -- claiming a purchase that never happened moves a product's public score. The
--- claim is now checked against a real committed order for the same product.
+-- claim is checked here against a real committed order for the same product.
 --
 -- Only the moment the flag is SET is guarded. Once true it stays true, because
 -- erase_user nulls user_id through the foreign key and re-verifying an erased
@@ -1788,20 +1785,19 @@ CREATE TABLE coupons (
 CREATE UNIQUE INDEX coupons_code_key ON coupons (upper(code));
 CREATE INDEX coupons_active_idx ON coupons (is_active, starts_at, ends_at);
 
--- coupons was the one table with an updated_at column and NO trigger to keep it,
--- so the column said "last changed" and held the creation time forever.
+-- What keeps coupons.updated_at truthful. Without it the column says "last
+-- changed" and holds the creation time forever.
 --
--- That is departure #3 in CLAUDE.md reopened from underneath. The whole argument
--- for keeping the timestamp in a trigger rather than at each write site is that
--- "a single set_updated_at trigger cannot forget" — true, and it does not apply
--- to a table that never got one. The write that mattered most is the one the
--- back office makes: /admin/coupons switches a promotion OFF rather than
--- deleting it, and that is exactly the change the column failed to record.
+-- That is departure #3 in CLAUDE.md, from underneath. The whole argument for
+-- keeping the timestamp in a trigger rather than at each write site is that "a
+-- single set_updated_at trigger cannot forget" — true, and it says nothing about
+-- a table that never gets one. The write that matters most is the one the back
+-- office makes: /admin/coupons switches a promotion OFF rather than deleting it,
+-- and that is exactly the change an unkept column fails to record.
 --
--- Found by TestEveryColumnIsReadOrWritten once its match was scoped to the
--- column's own table: coupons.updated_at was written by nothing and read by
--- nothing, and had been passing on the strength of every OTHER table's
--- updated_at.
+-- TestEveryColumnIsReadOrWritten is what asks, and only because its match is
+-- scoped to the column's own table: an updated_at written by nothing and read by
+-- nothing otherwise passes on the strength of every OTHER table's updated_at.
 CREATE TRIGGER coupons_set_updated_at
     BEFORE UPDATE ON coupons
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
@@ -1940,14 +1936,12 @@ CREATE INDEX shipping_zone_prefixes_zone_idx ON shipping_zone_prefixes (zone_id)
 --
 -- A version with NO row for a zone serves it at no surcharge. That is
 -- deliberate: a shop that has never thought about zones ships everywhere at one
--- price, which is what goen did before this table existed, and a new table must
--- not change what an untouched install does.
+-- price, and this table must not change what an untouched install does.
 --
 -- There is NO "serviceable" flag, and that is a decision rather than an
--- omission. It was written, and then deleted before it shipped: a zone is found
--- from the POSTAL CODE, and the only method that could not serve 離島 is
--- 超商取貨 — which has no postal code at all, because its destination is a
--- store. The flag's one real configuration could never fire.
+-- omission: a zone is found from the POSTAL CODE, and the only method that could
+-- not serve 離島 is 超商取貨 — which has no postal code at all, because its
+-- destination is a store. The flag's one real configuration could never fire.
 --
 -- Which chain has a 離島 store is the chain's own answer, and goen does not
 -- have their store list (the same 電子地圖 integration the picker is missing).
@@ -1973,11 +1967,11 @@ COMMENT ON COLUMN shipping_version_zones.surcharge_cents IS
 -- ============================================================================
 -- Orders
 --
--- One column per lifecycle. The previous design put payment, fulfilment and
--- returns in a single `status`, which cannot express a shipped order with a
--- refund request open — and, worse, made two concurrent writers of unrelated
--- facts overwrite each other. Payment state lives in `payments`, return state
--- in `return_requests`, and what remains here is fulfilment.
+-- One column per lifecycle. Payment, fulfilment and returns in a single `status`
+-- cannot express a shipped order with a refund request open — and, worse, make
+-- two concurrent writers of unrelated facts overwrite each other. Payment state
+-- lives in `payments`, return state in `return_requests`, and what remains here
+-- is fulfilment.
 --
 -- The money columns are the ones that are NOT derivable: a discount granted, a
 -- fee quoted, a tax assessed. Subtotal and total are computed from the lines.
@@ -2025,18 +2019,17 @@ CREATE TABLE orders (
     tax_cents            bigint NOT NULL DEFAULT 0,
     -- There is deliberately NO discount_code column here.
     --
-    -- One was declared with this table and never written, and the reflex is to
-    -- fill it — orders already snapshots shipping_method_code beside its FK, on
-    -- the argument that "the snapshot survives the version being superseded". A
-    -- coupon has nothing to survive: coupons.code is never updated (the back
-    -- office switches a coupon OFF rather than editing or deleting it) and
-    -- coupon_redemptions holds it by FK with ON DELETE RESTRICT, so the code is
-    -- always reachable by one join.
+    -- The reflex is to snapshot one — orders already snapshots
+    -- shipping_method_code beside its FK, on the argument that "the snapshot
+    -- survives the version being superseded". A coupon has nothing to survive:
+    -- coupons.code is never updated (the back office switches a coupon OFF rather
+    -- than editing or deleting it) and coupon_redemptions holds it by FK with
+    -- ON DELETE RESTRICT, so the code is always reachable by one join.
     --
-    -- So the column was a second copy of a recoverable fact, which is the shape
-    -- product_images and hero_slides were each caught by. What was actually
-    -- missing was a READER: an order showed "折扣 −NT$200" and nothing anywhere
-    -- said which discount, to the customer or to the shop.
+    -- So the column would be a second copy of a recoverable fact, which is the
+    -- shape product_images and hero_slides are each caught by. What an order
+    -- needs instead is a READER: without one it shows "折扣 −NT$200" and nothing
+    -- anywhere says which discount, to the customer or to the shop.
     -- The version that was in force, plus its name as shown. The FK explains
     -- the price; the snapshot survives the version being superseded.
     shipping_version_id  uuid NOT NULL REFERENCES shipping_method_versions (id) ON DELETE RESTRICT,
@@ -2062,13 +2055,13 @@ CREATE TABLE orders (
     completed_at         timestamptz,
     -- There is deliberately NO created_at column here.
     --
-    -- One was declared beside placed_at, both DEFAULT now(), and every listing,
-    -- report and account page reads placed_at. It was a second copy of one fact
-    -- that could only ever disagree with the first — the exact shape
-    -- orders.discount_code was deleted for, and product_search_documents before
-    -- it. Surfaced by TestEveryColumnIsReadOrWritten once its match was scoped
-    -- to the column's own table; until then it passed on every other table's
-    -- created_at.
+    -- placed_at is the moment, and every listing, report and account page reads
+    -- it. A created_at beside it, both DEFAULT now(), would be a second copy of
+    -- one fact that could only ever disagree with the first — the exact shape a
+    -- discount_code column is refused for, and a search projection table before
+    -- it. TestEveryColumnIsReadOrWritten is what surfaces one, and only because
+    -- its match is scoped to the column's own table; unscoped, it passes on every
+    -- other table's created_at.
     updated_at           timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT orders_number_format CHECK (order_number ~ '^GO-[0-9]{6}-[0-9]{6}$'),
     CONSTRAINT orders_currency_is_twd CHECK (currency = 'TWD'),
@@ -2097,9 +2090,10 @@ CREATE TABLE orders (
     CONSTRAINT orders_completed_after_placed
         CHECK (completed_at IS NULL OR completed_at >= placed_at),
     -- One-way, deliberately. The status may move on — a cancelled order can
-    -- later be refunded — but the moment it was called off is history and
-    -- keeps its timestamp. The previous two-way form made "cancelled then
-    -- refunded" impossible to express at all.
+    -- afterwards be refunded — but the moment it was called off is history and
+    -- keeps its timestamp. A two-way form, demanding the status wherever the
+    -- timestamp is set, makes "cancelled then refunded" impossible to express at
+    -- all.
     CONSTRAINT orders_cancelled_has_time
         CHECK (fulfillment_status <> 'cancelled' OR cancelled_at IS NOT NULL),
     CONSTRAINT orders_completed_has_time
@@ -2178,9 +2172,9 @@ BEGIN
         SELECT count(*), coalesce(sum(unit_price_cents * quantity), 0)
         INTO lines, subtotal FROM order_lines WHERE order_id = NEW.id;
         -- order_amount_owed is the ONE definition: total less store credit, net of
-        -- reversals. It used to be written out here and again in the capture guard,
-        -- and the payment page had no copy at all — which is how Stripe came to be
-        -- sent a figure this database would refuse.
+        -- reversals. Written out here and again in the capture guard, with the
+        -- payment page carrying no copy at all, is how Stripe comes to be sent a
+        -- figure this database refuses.
         owed := order_amount_owed(NEW.id);
         IF owed <> 0
            AND NOT EXISTS (SELECT 1 FROM payments
@@ -2244,16 +2238,17 @@ CREATE UNIQUE INDEX order_lines_order_key ON order_lines (order_id, id);
 
 -- What lets a browser see a guest's order.
 --
--- The cookie used to hold the ORDER NUMBER itself, and the number was the proof.
--- Numbers come off a per-day counter — GO-260803-000001, then 000002 — so anybody
--- could set that cookie by hand, increment, and read a stranger's email, address and
--- items, then cancel the order, start a payment or open a return. `__Host-`, Secure
--- and HttpOnly govern how a BROWSER treats a cookie; they prove nothing about where
--- the value came from, and curl does not care.
---
--- The cookie carries a high-entropy token now and this table holds its DIGEST, the
+-- The cookie carries a high-entropy TOKEN and this table holds its DIGEST — the
 -- same shape sessions, reset tokens and cart tokens already use: a database dump
 -- does not yield a working credential, and there is nothing to enumerate.
+--
+-- What it replaces is the obvious design, where the cookie holds the ORDER NUMBER
+-- and the number is the proof. Numbers come off a per-day counter —
+-- GO-260803-000001, then 000002 — so anybody can set that cookie by hand,
+-- increment, and read a stranger's email, address and items, then cancel the
+-- order, start a payment or open a return. `__Host-`, Secure and HttpOnly govern
+-- how a BROWSER treats a cookie; they prove nothing about where the value came
+-- from, and curl does not care.
 --
 -- Several rows per order on purpose. Somebody who places an order on a phone and
 -- then proves the email at /orders/find on a laptop should not lose the first
@@ -2267,15 +2262,15 @@ CREATE TABLE order_access_grants (
 
 CREATE INDEX order_access_grants_order_idx ON order_access_grants (order_id);
 
--- Keyed on created_at because that is what the SWEEP asks, and a grant is the
--- one credential here that had neither an expiry nor a retention policy.
+-- Keyed on created_at because that is what the SWEEP asks: a grant carries no
+-- expiry column of its own, so retention is the only thing that bounds it.
 --
 -- The cookie carrying the token has a 30-day MaxAge, so a grant older than that
 -- is unreachable by any browser — a dead credential kept forever, which is
 -- precisely what outbox_messages, password_reset_tokens and checkout_attempts
--- each acquired a policy to stop being. The one credential in this schema
+-- each carry a policy to stop being. The one credential in this schema
 -- deliberately left non-expiring is the newsletter unsubscribe token, and that
--- decision is written down beside it. This one had neither.
+-- decision is written down beside it.
 CREATE INDEX order_access_grants_created_at_idx ON order_access_grants (created_at);
 
 -- Where it went, and who to tell. Separate from `orders` because this is the
@@ -2304,11 +2299,10 @@ CREATE TABLE order_private_data (
     pickup_store_code text,
     pickup_store_name text,
     erased_at      timestamptz,
-    -- Two exhaustive states, not "erased iff nothing set". The old form —
-    -- `erased_at IS NOT NULL = (all NULL)` — was satisfied by a live row that
-    -- happened to have only some fields cleared, e.g. a row with an email but
-    -- no name and no erased_at. Delivery needs every field, or the row is
-    -- erased and holds none.
+    -- Two exhaustive states, not "erased iff nothing set". The weaker form —
+    -- `erased_at IS NOT NULL = (all NULL)` — is satisfied by a LIVE row that
+    -- happens to have only some fields cleared: an email, no name, no erased_at.
+    -- Delivery needs every field, or the row is erased and holds none.
     CONSTRAINT order_private_data_all_or_erased CHECK (
         (erased_at IS NULL
             AND email IS NOT NULL AND recipient_name IS NOT NULL
@@ -2352,18 +2346,18 @@ CREATE TABLE order_private_data (
         OR pickup_brand IN ('seven_eleven', 'family_mart', 'hi_life', 'ok_mart')
     ),
     -- Digits or uppercase letters, bounded at the length a 門市代碼 is published
-    -- with. This used to be digits only, on the stated ground that "what is true
-    -- of all of them is that a store code is a number" — which was a GUESS, and
-    -- this repository wrote it into a CHECK.
+    -- with. Digits ALONE reads as obvious — "what is true of all of them is that
+    -- a store code is a number" — and it is a GUESS, in a CHECK, which is the
+    -- strongest thing this schema can say.
     --
-    -- It is wrong. Measured against 綠界's own GetStoreList on 2026-08-06:
+    -- It is also wrong. Measured against 綠界's own GetStoreList on 2026-08-06:
     -- 7-ELEVEN (6,080 stores), 全家 (3,449) and OK (688) number theirs in six
     -- digits, but 萊爾富 uses FOUR characters and 149 of its 1,350 lead with a
-    -- letter — S884, H869, G850. Every one of those was a checkout this line
-    -- refused, with no other way through, for one customer at a time and
+    -- letter — S884, H869, G850. Every one of those is a checkout a digits-only
+    -- rule refuses, with no other way through, for one customer at a time and
     -- visible to nobody else.
     --
-    -- The rule still does the job it was written for: a 店名 typed into the code
+    -- The rule still does the job it is written for: a 店名 typed into the code
     -- field is Han text, which is in neither class.
     CONSTRAINT order_private_data_pickup_store_code_format CHECK (
         pickup_store_code IS NULL OR pickup_store_code ~ '^[0-9A-Z]{1,10}$'
@@ -2396,8 +2390,8 @@ CREATE UNIQUE INDEX order_shipments_order_key ON order_shipments (order_id, id);
 -- shipped in two boxes has two shipments and four rows here.
 --
 -- order_id is carried so the composite foreign keys can enforce that the line
--- and the shipment belong to the SAME order. Two plain foreign keys could not:
--- a shipment of order A was able to carry a line of order B.
+-- and the shipment belong to the SAME order. Two plain foreign keys cannot: with
+-- them, a shipment of order A can carry a line of order B.
 CREATE TABLE order_shipment_lines (
     order_id      uuid NOT NULL,
     shipment_id   uuid NOT NULL,
@@ -2445,13 +2439,11 @@ CREATE TRIGGER shipment_within_purchase
     BEFORE INSERT OR UPDATE ON order_shipment_lines
     FOR EACH ROW EXECUTE FUNCTION shipment_lines_within_purchase();
 
--- The timeline the customer sees. Append-only: an event that happened does not
--- stop having happened when the order moves on.
 -- The back office's order search, and its only users.
 --
--- /admin/orders filtered by STATUS and took the newest N, so a staff member on the
--- phone to a customer could find an order only by typing a URL they already knew.
--- By name or by address it was not possible at all.
+-- Without them /admin/orders can filter by STATUS and take the newest N and
+-- nothing else, so a staff member on the phone to a customer reaches an order
+-- only by typing a URL they already know — and by name or by address, not at all.
 --
 -- text_pattern_ops because the search is a PREFIX: that is what an index can serve
 -- without a trigram extension, and it is what somebody reading their own name or
@@ -2464,6 +2456,8 @@ CREATE INDEX order_private_data_email_prefix_idx
 CREATE INDEX order_private_data_recipient_prefix_idx
     ON order_private_data (recipient_name text_pattern_ops);
 
+-- The timeline the customer sees. Append-only: an event that happened does not
+-- stop having happened when the order moves on.
 CREATE TABLE order_events (
     id            uuid PRIMARY KEY DEFAULT uuidv7(),
     order_id      uuid NOT NULL REFERENCES orders (id) ON DELETE RESTRICT,
@@ -2604,18 +2598,18 @@ CREATE CONSTRAINT TRIGGER coupon_redemption_matches_order
 -- Once money has been captured, the itemisation that justified it is history.
 -- Editing a price afterwards makes the payment unexplainable; a correction is
 -- a refund, not an UPDATE.
--- "This order is committed" — the one definition, because the wrong one had
--- three exits.
+-- "This order is committed" — ONE definition, because the wrong one has three
+-- exits.
 --
--- Three guards (this file's order_lines_freeze, orders_freeze_money and
--- release_reservation) each read `EXISTS (succeeded payment)` as "committed".
--- That is false for a legitimate second kind of funded order. A zero-owed order
--- — 100% discount, or fully paid from store credit — leaves pending with no
--- payment row at all, because orders_funded_to_leave_pending skips its payment
--- check entirely when `order_total - credit_applied = 0`, while
--- payments_succeeded_is_captured forbids a zero-value succeeded payment. Such an
--- order can therefore never have one. All three guards silently did nothing for
--- it: its lines, its totals and its held stock stayed editable after it shipped.
+-- Three guards ask it: this file's order_lines_freeze, orders_freeze_money and
+-- release_reservation. Reading `EXISTS (succeeded payment)` as "committed" is
+-- false for a legitimate second kind of funded order. A zero-owed order — 100%
+-- discount, or fully paid from store credit — leaves pending with no payment row
+-- at all, because orders_funded_to_leave_pending skips its payment check entirely
+-- when `order_total - credit_applied = 0`, while payments_succeeded_is_captured
+-- forbids a zero-value succeeded payment. Such an order can therefore never have
+-- one, and all three guards then do nothing for it silently: its lines, its
+-- totals and its held stock stay editable after it ships.
 --
 -- Committed means money has settled against the order OR the order has left
 -- pending. The second half is what covers the zero-owed case, and it is sound
@@ -2651,8 +2645,8 @@ BEGIN
 END;
 $$;
 
--- INSERT included: a paid order used to accept a brand-new line, because the
--- trigger only fired on UPDATE and DELETE.
+-- INSERT included: bound to UPDATE and DELETE alone, this trigger lets a paid
+-- order accept a brand-new line.
 CREATE TRIGGER order_lines_frozen_once_committed
     BEFORE INSERT OR UPDATE OR DELETE ON order_lines
     FOR EACH ROW EXECUTE FUNCTION order_lines_freeze();
@@ -2716,13 +2710,13 @@ CREATE TRIGGER orders_money_frozen_once_committed
     BEFORE UPDATE ON orders
     FOR EACH ROW EXECUTE FUNCTION orders_freeze_money();
 
--- cancelled_at and completed_at are the moments themselves, and the column
--- comments say so — but nothing enforced it. orders_check_transition fires only
--- on UPDATE OF fulfillment_status and orders_freeze_money looks only at money
--- and the shipping snapshot, so an UPDATE touching just these two columns tripped
--- neither: the audit history could be moved to any instant after placed_at.
--- payments_settled_is_history and refunds_settled_is_history already hold this
--- line for their tables; this is the one that was missing.
+-- cancelled_at and completed_at are the moments themselves, and this is what
+-- holds them to it. orders_check_transition fires only on UPDATE OF
+-- fulfillment_status and orders_freeze_money looks only at money and the shipping
+-- snapshot, so an UPDATE touching just these two columns trips neither and the
+-- history can be moved to any instant after placed_at.
+-- payments_settled_is_history and refunds_settled_is_history hold the same line
+-- for their tables.
 --
 -- Only a change to an already-set timestamp is refused. Setting one for the
 -- first time is the transition doing its job, and clearing it is not possible —
@@ -2832,12 +2826,10 @@ CREATE INDEX return_request_lines_order_request_idx ON return_request_lines (ord
 
 -- You cannot return what was never sent to you.
 --
--- The ceiling is the SHIPPED quantity, not the ordered one. Bounding by what
--- was ordered was the gap round 5 recorded and deferred until there was a
--- dispatch to reconcile against: a customer could open a return — and, once
--- refunds pay out on approval, be paid for — goods still sitting in the
--- warehouse. Every dispatch writes order_shipment_lines, so the sum of those is
--- what has actually left.
+-- The ceiling is the SHIPPED quantity, not the ordered one. Bounding by what was
+-- ORDERED lets a customer open a return — and, since refunds pay out on approval,
+-- be paid for — goods still sitting in the warehouse. Every dispatch writes
+-- order_shipment_lines, so the sum of those is what has actually left.
 --
 -- An order with no shipment therefore has a ceiling of zero and admits no
 -- return at all. That is the intended reading: nothing has been sent, so
@@ -2896,9 +2888,8 @@ CREATE TRIGGER return_within_shipment
 -- The transition machine: requested → approved | rejected, approved →
 -- completed. Every advanced state is reached only through this UPDATE (birth is
 -- guarded to 'requested' below). There is deliberately no branch for leaving
--- 'rejected': it is terminal, so an earlier draft's "recount on revival" code
--- was unreachable and is gone — the file's own rule is to keep no guard that
--- can never fire.
+-- 'rejected': it is terminal, so a "recount on revival" branch could never fire,
+-- and this file keeps no guard that cannot.
 CREATE FUNCTION return_requests_recount() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
@@ -2959,7 +2950,7 @@ CREATE TRIGGER return_requests_start_requested
     FOR EACH ROW EXECUTE FUNCTION return_requests_check_initial();
 
 -- 保固中裝置. One row per unit, because buying two phones registers two
--- warranties — the previous one-row-per-line design could not say that.
+-- warranties, which one row per order LINE cannot say.
 CREATE TABLE warranty_registrations (
     id            uuid PRIMARY KEY DEFAULT uuidv7(),
     order_line_id uuid NOT NULL REFERENCES order_lines (id) ON DELETE RESTRICT,
@@ -2998,8 +2989,9 @@ CREATE TRIGGER warranty_unit_within_purchase
 -- ============================================================================
 -- Invoices — 電子發票
 --
--- Two things, previously one. What the customer asked for is a preference and
--- can be edited; what was issued to the tax authority is a document and cannot.
+-- TWO tables, because they are two things. What the customer asked for is a
+-- preference and can be edited; what was issued to the tax authority is a
+-- document and cannot.
 -- A return issues a 折讓證明單 rather than altering the original.
 -- ============================================================================
 
@@ -3011,7 +3003,7 @@ CREATE TABLE invoice_preferences (
     CONSTRAINT invoice_preferences_type_known
         CHECK (invoice_type IN ('mobile_carrier', 'member_carrier', 'company')),
     -- `type <> 'company' OR tax_id ~ regex` evaluates to NULL when tax_id is
-    -- NULL, and a NULL CHECK passes — so a company invoice with no 統編 got in.
+    -- NULL, and a NULL CHECK passes — so a company invoice with no 統編 gets in.
     -- The NOT NULL has to be spelled out before the regex.
     CONSTRAINT invoice_preferences_company_has_tax_id
         CHECK (invoice_type <> 'company'
@@ -3046,7 +3038,7 @@ CREATE TABLE invoice_documents (
     -- original_id NULL (allowance_has_original below) and an allowance's
     -- original must be a real invoice of the same order (the trigger), so
     -- original_id = id cannot arise for any row that passes those. A CHECK
-    -- that can never fire is one the review taught us not to keep.
+    -- that can never fire is one this file does not keep.
 );
 
 CREATE UNIQUE INDEX invoice_documents_number_key ON invoice_documents (number);
@@ -3191,16 +3183,16 @@ CREATE TABLE payments (
     CONSTRAINT payments_provider_known CHECK (provider IN ('stripe')),
     -- A failed ATTEMPT is not a terminal state for the payment: Stripe returns
     -- the PaymentIntent to requires_payment_method so the customer can try
-    -- another card. Only succeeded and cancelled end it. `failed` used to be
-    -- in this set and was treated as terminal, which made a recoverable
-    -- decline unrecoverable.
+    -- another card. Only succeeded and cancelled end it, and there is
+    -- deliberately no `failed` — a value the transition guard below would treat
+    -- as terminal, which makes a recoverable decline unrecoverable.
     CONSTRAINT payments_status_known
         CHECK (status IN ('requires_payment', 'requires_action', 'processing',
                           'succeeded', 'cancelled')),
     CONSTRAINT payments_intended_positive CHECK (intended_amount_cents > 0),
-    -- Same ceiling as every other money column (order_lines, refunds, …). Its
-    -- absence let a capture approach 2^63 and overflow the running sums the
-    -- refund and store-credit guards compute; bound the input instead.
+    -- Same ceiling as every other money column (order_lines, refunds, …).
+    -- Without it a capture can approach 2^63 and overflow the running sums the
+    -- refund and store-credit guards compute; the input is bounded instead.
     CONSTRAINT payments_intended_in_range CHECK (intended_amount_cents <= 10000000000),
     CONSTRAINT payments_captured_non_negative
         CHECK (captured_amount_cents IS NULL OR captured_amount_cents >= 0),
@@ -3211,11 +3203,11 @@ CREATE TABLE payments (
     -- Captured, paid_at and succeeded are one fact recorded three ways, and
     -- this must be an equivalence in BOTH directions.
     --
-    -- The previous form compared two booleans, which let a failed payment
-    -- carry a captured amount: false = (NULL IS NOT NULL AND 50 IS NOT NULL)
-    -- is false = false, and passed. The refund guard reads captured_amount
-    -- without reading status, so that row was refundable — real money out
-    -- against a payment that never took any in.
+    -- Written as two exhaustive branches rather than as a comparison of two
+    -- booleans, which lets a failed payment carry a captured amount:
+    -- false = (NULL IS NOT NULL AND 50 IS NOT NULL) is false = false, and passes.
+    -- The refund guard reads captured_amount without reading status, so that row
+    -- is refundable — real money out against a payment that never took any in.
     CONSTRAINT payments_succeeded_is_captured CHECK (
         (status = 'succeeded'
             AND paid_at IS NOT NULL
@@ -3316,21 +3308,21 @@ BEGIN
             USING ERRCODE = 'check_violation', CONSTRAINT = 'payments_require_complete_order';
     END IF;
 
-    -- A CANCELLED order cannot be paid, and nothing said so until now.
+    -- A CANCELLED order cannot be paid, and this is the only line that says so.
     --
-    -- This guard asked about lines, delivery details and a non-negative total —
-    -- everything about whether the order is COMPLETE — and never about whether it
-    -- is still live. capture_payment checks only the payment's own status. So the
-    -- ordinary two-tab sequence went through: start a payment, cancel the order in
-    -- the other tab, then pay at Stripe. The capture succeeded against an order
-    -- whose status is 'cancelled' and whose stock has already gone back on the
-    -- shelf — money taken for goods the shop has re-sold, and a record that
-    -- contradicts itself in three places at once.
+    -- The checks above ask about lines, delivery details and a non-negative total
+    -- — everything about whether the order is COMPLETE — and nothing about whether
+    -- it is still live, while capture_payment checks only the payment's own
+    -- status. Without this, the ordinary two-tab sequence goes through: start a
+    -- payment, cancel the order in the other tab, then pay at Stripe. The capture
+    -- succeeds against an order whose status is 'cancelled' and whose stock has
+    -- already gone back on the shelf — money taken for goods the shop has re-sold,
+    -- and a record that contradicts itself in three places at once.
     --
-    -- A credit-funded order was caught incidentally, because cancelling reverses
+    -- A credit-funded order is caught incidentally, because cancelling reverses
     -- the credit and that moves order_amount_owed into the capture check below. An
-    -- ordinary card order was caught by nothing at all, which is the reverse of the
-    -- usual shape here: the harder path was guarded and the simple one was not.
+    -- ordinary card order is caught by nothing else at all, which is the reverse of
+    -- the usual shape here: the harder path guarded and the simple one not.
     --
     -- The order row is already held FOR UPDATE above, so a cancel racing a capture
     -- serialises on it: one of them goes second and sees what the first did.
@@ -3343,10 +3335,10 @@ BEGIN
     -- store credit spent on it. Without this an NT$1 capture marks an NT$33,980
     -- order paid, and an overpay is just as wrong — the whole intended/captured
     -- split is pointless if captured need not match the order. Store credit spent
-    -- at checkout is a negative store_credit_entries row carrying the order_id;
-    -- there is no such flow yet, so today this is simply capture = order total.
-    -- When store-credit or cash-on-delivery funding arrives (batch ④), this is
-    -- the line that must learn about them.
+    -- at checkout is a negative store_credit_entries row carrying the order_id,
+    -- and order_amount_owed is the ONE place that arithmetic lives: this guard,
+    -- orders_funded_to_leave_pending and the payment page all read it. A new
+    -- funding source is added THERE, never re-derived at a fourth call site.
     owed := order_amount_owed(o.id);
     IF NEW.captured_amount_cents <> owed THEN
         RAISE EXCEPTION 'order % is owed % but the capture is %',
@@ -3405,8 +3397,8 @@ CREATE TABLE refunds (
     -- provider the rule is query-then-decide, never retry.
     request_key  text NOT NULL,
     -- Filled in once Stripe answers. NULL means "asked for, not yet confirmed"
-    -- — the state the previous NOT NULL column could not represent, which is
-    -- why the row had to be written after the money moved.
+    -- — the state a NOT NULL column cannot represent, which would force the row
+    -- to be written only after the money had already moved.
     provider_ref text,
     status       text NOT NULL DEFAULT 'pending',
     amount_cents bigint NOT NULL,
@@ -3454,8 +3446,9 @@ BEGIN
     SELECT captured_amount_cents, status, order_id INTO captured, pay_status, pay_order
     FROM payments WHERE id = NEW.payment_id FOR UPDATE;
 
-    -- Both halves matter. Reading captured alone accepted a failed payment
-    -- that carried an amount, which the old CHECK allowed.
+    -- Both halves matter. Reading captured alone accepts a failed payment that
+    -- carries an amount — the shape payments_succeeded_is_captured refuses at the
+    -- table, and this guard does not rest on that being the only way in.
     IF pay_status <> 'succeeded' OR captured IS NULL THEN
         RAISE EXCEPTION 'refunding a payment that is % and captured %',
             pay_status, coalesce(captured::text, 'nothing')
@@ -3488,9 +3481,9 @@ BEGIN
 END;
 $$;
 
--- Fires on every UPDATE, not only on the columns the sum reads: moving a
--- refund to another payment changed neither amount nor status and so was
--- invisible to the previous trigger.
+-- Fires on every UPDATE, not only on the columns the sum reads: moving a refund
+-- to another payment changes neither amount nor status, so a trigger bound to
+-- those columns cannot see it.
 CREATE TRIGGER refunds_within_capture
     BEFORE INSERT OR UPDATE ON refunds
     FOR EACH ROW EXECUTE FUNCTION refunds_guard();
@@ -3565,9 +3558,9 @@ CREATE TABLE payment_webhook_events (
     event_id            text NOT NULL,
     type                text NOT NULL,
     object_ref          text,
-    -- provider_created_at used to sit here and nothing ever wrote it. The event's
-    -- own timestamp is in the payload if reconciliation ever needs it; a column
-    -- for it is the speculative snapshot orders.discount_code already was.
+    -- There is deliberately no provider_created_at column. The event's own
+    -- timestamp is in the payload if reconciliation ever needs it, and a column
+    -- for it is a speculative snapshot of a fact the payload already carries.
     payload             jsonb NOT NULL,
     received_at         timestamptz NOT NULL DEFAULT now(),
     processed_at        timestamptz,
@@ -3672,12 +3665,12 @@ CREATE TABLE hero_slides (
     image_alt           text,
     -- The English hero, each field separately optional.
     --
-    -- pages.DefaultHero — the copy an untouched install renders — has always been
-    -- translated, because it is compiled into the binary. A SCHEDULED slide was
-    -- not, so the moment a shop used the feature the largest thing on its home
-    -- page went Chinese for every visitor. That is the same mistake the header's
-    -- hard-coded nav made, from the other direction: the default was chrome and the
-    -- data was treated as content, when both are read by the same person.
+    -- pages.DefaultHero — the copy an untouched install renders — is translated,
+    -- because it is compiled into the binary. Without these columns a SCHEDULED
+    -- slide is not, so the moment a shop uses the feature the largest thing on its
+    -- home page goes Chinese for every visitor. That is the same mistake a
+    -- hard-coded nav list makes from the other direction: the default treated as
+    -- chrome and the data as content, when both are read by the same person.
     --
     -- The HREFs are not translated. A link goes to one page.
     eyebrow_en             text,
@@ -3773,8 +3766,8 @@ CREATE TABLE promo_banners (
     cta_label     text,
     cta_href      text,
     -- The English strip. It sits above the header on every storefront page, which
-    -- makes it the first thing a visitor reads — and the LAST piece of shop-typed
-    -- chrome that was one language for everybody. The HREF has no twin; the CODE has
+    -- makes it the first thing a visitor reads, and shop-typed chrome with no twin
+    -- is chrome in one language for everybody. The HREF has none; the CODE has
     -- none either, because a coupon code is typed into a box and matched exactly.
     message_en       text,
     message_short_en text,
@@ -3877,16 +3870,16 @@ CREATE TRIGGER sale_campaign_needs_discount
 -- last discounted variant would leave a featured product with no saving. When
 -- a variant loses its compare-at price or goes inactive, refuse it if that
 -- product is in any campaign and nothing else is discounted.
--- AFTER, not BEFORE, and DELETE as well as UPDATE. The BEFORE-row form had two
+-- AFTER, not BEFORE, and DELETE as well as UPDATE. A BEFORE-row form has two
 -- ways through:
 --
 --   (a) `UPDATE product_variants SET compare_at_price_cents = NULL
---        WHERE product_id = X` cleared every discount in one statement. A
+--        WHERE product_id = X` clears every discount in one statement. A
 --        BEFORE-row trigger sees the pre-statement snapshot of its siblings, so
---        each row in turn read "another variant is still discounted" and all of
---        them passed — the same trap the categories cycle guard fell into.
---   (b) DELETE of the last discounted variant fired nothing at all: the trigger
---        was bound to UPDATE OF only.
+--        each row in turn reads "another variant is still discounted" and all of
+--        them pass — the same trap the categories cycle guard has to avoid.
+--   (b) DELETE of the last discounted variant fires nothing at all when the
+--        trigger is bound to UPDATE OF only.
 --
 -- AFTER-row triggers are queued and fired once the statement has finished, so
 -- the check reads the true final state and (a) closes. The product row is locked
@@ -3994,18 +3987,17 @@ CREATE TABLE newsletter_subscribers (
     -- somebody off the list, and telling them to sign in to a shop they may have
     -- no account at is not an answer.
     --
-    -- Storing the token rather than its hash is deliberate, and it is a
-    -- correction. The first version stored sha256(token), on the reflex that a
-    -- secret in a table should be hashed — but the threat that shapes this one is
-    -- a script on the open internet walking ids, not a reader of the database:
-    -- `store` holds SELECT and UPDATE here, because unsubscribing IS an update,
-    -- so anybody who could read the hash could already set unsubscribed_at
-    -- directly. The hash defended nothing it was not already open to.
+    -- Storing the token rather than its hash is deliberate. The reflex is to hash
+    -- a secret in a table — but the threat that shapes this one is a script on the
+    -- open internet walking ids, not a reader of the database: `store` holds
+    -- SELECT and UPDATE here, because unsubscribing IS an update, so anybody who
+    -- could read a hash could already set unsubscribed_at directly. A hash would
+    -- defend nothing this table is not already open to.
     --
-    -- What it cost was the whole feature. Only the digest was kept, so the token
-    -- existed once — in the welcome email — and the SEND could not reproduce it.
-    -- A newsletter could not carry an unsubscribe link, which is the one place
-    -- the link has to be, and a subscriber who lost that first email had no way
+    -- And it would cost the whole feature. With only the digest kept, the token
+    -- exists once — in the welcome email — and the SEND cannot reproduce it. A
+    -- newsletter could then carry no unsubscribe link, which is the one place the
+    -- link has to be, and a subscriber who lost that first email would have no way
     -- off the list but writing to support.
     unsubscribe_token  text NOT NULL,
     -- The language they were reading when they confirmed. Kept for the same
@@ -4030,10 +4022,10 @@ CREATE UNIQUE INDEX newsletter_subscribers_email_key ON newsletter_subscribers (
 CREATE UNIQUE INDEX newsletter_subscribers_unsubscribe_token_key
     ON newsletter_subscribers (unsubscribe_token);
 
--- The back office reads the list newest first. No partial index over the ACTIVE
--- subscribers yet: the only query that wants one is the send, which is not
--- built, and an index nothing uses is a claim about coverage this schema has
--- already been caught making once (contact_messages_unhandled_idx).
+-- The back office reads the list newest first. There is no partial index over the
+-- ACTIVE subscribers beside it: an index nothing uses is a claim about coverage
+-- this schema has already been caught making once
+-- (contact_messages_unhandled_idx).
 CREATE INDEX newsletter_subscribers_confirmed_at_idx
     ON newsletter_subscribers (confirmed_at DESC);
 
@@ -4214,29 +4206,16 @@ BEGIN
     IF addr IS NOT NULL THEN
         DELETE FROM newsletter_subscribers WHERE lower(email) = lower(addr);
         DELETE FROM newsletter_confirmations WHERE lower(email) = lower(addr);
-        -- contact_messages is the SECOND address-keyed table, and it was missed
-        -- for exactly the reason the newsletter was nearly missed: it has no
-        -- user_id, so a DELETE of a user never reaches it and no foreign key
-        -- says it exists. It holds a name, an address, a subject and whatever
-        -- the customer typed — which is routinely a delivery address and a phone
-        -- number, because "my order has not arrived" is what people write in
-        -- about — and /admin/messages reads it.
-        --
-        -- The reasoning above was applied to one address-keyed table and not the
-        -- other. That is the whole defect, and it is why the erasure probe is
-        -- now derived from the catalog rather than from a four-entry list.
+        -- contact_messages is the SECOND address-keyed table, and it is the one
+        -- the reasoning above is easiest to apply to the newsletter and not to:
+        -- it has no user_id, so a DELETE of a user never reaches it and no
+        -- foreign key says it exists. It holds a name, an address, a subject and
+        -- whatever the customer typed — which is routinely a delivery address and
+        -- a phone number, because "my order has not arrived" is what people write
+        -- in about — and /admin/messages reads it. The erasure probe is derived
+        -- from the catalog rather than from a four-entry list for exactly that
+        -- reason.
         DELETE FROM contact_messages WHERE lower(email) = lower(addr);
-        -- contact_messages is the SECOND address-keyed table, and it was missed
-        -- for exactly the reason the newsletter was nearly missed: it has no
-        -- user_id, so a DELETE of a user never reaches it and no foreign key
-        -- says it exists. It holds a name, an address, a subject and whatever
-        -- the customer typed — which is routinely a delivery address and a phone
-        -- number, because "my order has not arrived" is what people write in
-        -- about — and /admin/messages reads it.
-        --
-        -- The reasoning above was applied to one address-keyed table and not the
-        -- other. That is the whole defect, and it is why the erasure probe is
-        -- now derived from the catalog rather than from a four-entry list.
     END IF;
 
     -- Every browser's proof of access to this person's orders. The grants key on
@@ -4278,20 +4257,17 @@ GRANT INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO store;
 -- secret, a reset-token hash, an OAuth identity, a customer's delivery details,
 -- or a raw payment webhook payload. store keeps them — the application needs
 -- them — but the read-only role does not.
--- order_access_grants joined this list late, and the way it got in is the
--- lesson: it is a credential table added months after the list was written, and
--- nothing asked. The list was prose with no test behind it, so a new table
--- holding bearer-token digests was swept into `reporting` by the blanket
--- GRANT SELECT above and stayed there silently.
--- TestReportingCannotReadCredentialsOrPII is what asks now, per named table, so
--- the next one is covered by the row it adds.
+-- A credential table added after this list is written is swept into `reporting`
+-- by the blanket GRANT SELECT above and stays there silently, because a list in
+-- prose asks nothing — order_access_grants, holding bearer-token digests, is one
+-- that arrived months later. TestReportingCannotReadCredentialsOrPII is what
+-- asks, per named table, so the next one is covered by the row it adds.
 REVOKE SELECT ON
     sessions, password_reset_tokens, staff_totp_credentials, user_identities,
     order_private_data, payment_webhook_events, order_access_grants,
     email_verifications, newsletter_confirmations,
-    -- The eight the guard found the first time it was RUN, which is the point:
-    -- the list above was maintained by hand for as long as the test naming it
-    -- did not exist, and it had drifted this far.
+    -- The eight the guard reports, which is the point: a list above maintained by
+    -- hand, with nothing running against it, drifts exactly this far.
     --
     -- outbox_messages is the one that matters most and the least obvious.
     -- internal/email/notify.go concedes it: a reset link, an unsubscribe link
@@ -4323,17 +4299,16 @@ REVOKE SELECT ON
 --   inventory_movements — append-only ledger; INSERT is via
 --     record_inventory_movement, UPDATE/DELETE never.
 --   audit_events / store_credit_entries — append-only ledgers with ALL direct
---     DML revoked. Their posting functions (an audit writer, a store-credit
---     posting function) are NOT built yet — they arrive with the admin/account
---     batches (⑦/⑥). Until then the door is deliberately shut rather than left
---     ajar: the schema does not pretend a write path exists. Tracked as
---     "add store_credit posting + audit writer functions" for those batches.
---   payments / refunds — money; written through the payment service which runs
---     as owner, not as store. INSERT is revoked with UPDATE/DELETE, or
---     store could write a born-succeeded capture with no provider behind it.
---   product_variants.stock_quantity is function-owned; a create_variant posting
---     function (forcing stock_quantity=0 at birth) also arrives with the admin
---     batch. Direct DML stays revoked until then.
+--     DML revoked. record_audit_event and post_store_credit are their doors, and
+--     the only ones: a ledger with a second write path is a ledger whose guards
+--     are optional.
+--   payments / refunds — money; written through the payment posting functions,
+--     which run as owner and not as store. INSERT is revoked with UPDATE/DELETE,
+--     or store could write a born-succeeded capture with no provider behind it.
+--   product_variants — stock_quantity is function-owned, and the back office
+--     reaches the rest of the row through a column-level grant that omits it
+--     (see the admin section far below), so the column takes its DEFAULT 0 at
+--     birth and record_inventory_movement stays its one writer.
 --   order_number_counters — the atomic counter; only next_order_number (now a
 --     SECURITY DEFINER function) may touch it, or the numbering stops being
 --     unique under concurrency.
@@ -4420,16 +4395,16 @@ ALTER FUNCTION next_order_number() SECURITY DEFINER;
 -- report aggregates over order history, so that difference is the difference
 -- between a page and a wait.
 --
--- (Rewriting the function as LANGUAGE sql to let PostgreSQL inline it was the
--- first theory and it was WRONG — measured at 105 ms, unchanged. Inlining does
--- not help inside an aggregate expression, where there is no WHERE clause for a
--- semi-join to become.)
+-- (Writing the function as LANGUAGE sql so PostgreSQL can inline it does NOT
+-- close that gap — measured at 105 ms, unchanged. Inlining does not help inside
+-- an aggregate expression, where there is no WHERE clause for a semi-join to
+-- become.)
 --
 -- An order is committed when money or goods have moved: a succeeded payment, or
 -- a fulfilment status past pending. The second half is what covers a fully
--- store-credited order, which has no payment row at all — CLAUDE.md records
--- three guards that used "EXISTS a succeeded payment" and silently skipped
--- those orders.
+-- store-credited order, which has no payment row at all — a guard reading
+-- "EXISTS a succeeded payment" as committed skips such an order silently, and
+-- CLAUDE.md records three that did.
 CREATE VIEW committed_orders AS
     SELECT o.id
     FROM orders o
@@ -4444,16 +4419,17 @@ COMMENT ON VIEW committed_orders IS
 
 -- Every order whose money and lines are FINAL, which is not the same question.
 --
--- The two were one view, and `fulfillment_status <> pending` made a CANCELLED
--- order committed. That is right for the freeze guards — nobody may rewrite a
--- cancelled order's totals — and wrong for everything else, in a way that cost
--- real stock: release_reservation refuses a committed order's hold and the
--- sweeper skips one, so the units behind a cancelled order could never come
--- back to the shelf. By ANY path. They were gone until somebody noticed.
+-- One view for both questions makes a CANCELLED order committed, because
+-- `fulfillment_status <> pending` is true of it. That is right for the freeze
+-- guards — nobody may rewrite a cancelled order's totals — and wrong for
+-- everything else, in a way that costs real stock: release_reservation refuses a
+-- committed order's hold and the sweeper skips one, so the units behind a
+-- cancelled order can never come back to the shelf. By ANY path. They are gone
+-- until somebody notices.
 --
--- It was wrong in three other places at once. A cancelled order counted as
--- revenue and as a best seller, it earned its customer the 已購買 badge on a
--- product they never kept, and it fed 買了又買.
+-- It is wrong in three other places at the same time. A cancelled order counts as
+-- revenue and as a best seller, it earns its customer the 已購買 badge on a
+-- product they never kept, and it feeds 買了又買.
 --
 -- So: committed means the shop is doing the work, settled means the record is
 -- closed. Cancelled is settled and not committed.
@@ -4470,12 +4446,11 @@ COMMENT ON VIEW settled_orders IS
 -- statement already ran, so a view created below it starts with no privileges
 -- at all.
 --
--- The failure that taught this: order_is_committed() is SECURITY INVOKER and
--- reads this view, and order_lines' trigger calls it — so EVERY CHECKOUT died
--- with "permission denied for view committed_orders" the moment the view
--- replaced the inline predicate. Nothing in the test suite reached it, because
--- the integration tests connect as the owner. make check-layout found it, by
--- placing a real order through the site's own form.
+-- What its absence costs: order_is_committed() is SECURITY INVOKER and reads this
+-- view, and order_lines' trigger calls it — so EVERY CHECKOUT dies with
+-- "permission denied for view committed_orders". Nothing in the test suite
+-- reaches that, because the integration tests connect as the owner.
+-- make check-layout does, by placing a real order through the site's own form.
 GRANT SELECT ON committed_orders, settled_orders TO store, reporting;
 
 -- The row-at-a-time form, for triggers and guards.
@@ -4486,12 +4461,13 @@ GRANT SELECT ON committed_orders, settled_orders TO store, reporting;
 -- function equally, which is why one is written in terms of the other.
 -- What an order still owes: its total, less the store credit spent on it.
 --
--- ONE definition, for the reason committed_orders and store_credit_balances are one:
--- it was written out twice — in orders_check_transition and in
--- payments_capture_matches_order — and the PAYMENT path had no copy at all. It sent
--- the gross total to Stripe while the capture guard demanded the net, so an order
--- part-funded by store credit was charged in full at Stripe and then refused by this
--- database forever: the money left the customer and the order never went paid.
+-- ONE definition, for the reason committed_orders and store_credit_balances are one.
+-- Written out separately in orders_check_transition and in
+-- payments_capture_matches_order, with the PAYMENT path carrying no copy at all, is
+-- how the gross total goes to Stripe while the capture guard demands the net: an
+-- order part-funded by store credit is charged in full at Stripe and then refused by
+-- this database forever, so the money leaves the customer and the order never goes
+-- paid.
 --
 -- Credit is NET OF REVERSALS. Each spend is a negative entry carrying the order_id,
 -- paired with its reversal through reverses_id, so a spend that was given back
@@ -4522,23 +4498,24 @@ COMMENT ON FUNCTION order_amount_owed(uuid) IS
 
 -- What one return request is worth paying back.
 --
--- It was `sum(quantity * unit_price_cents)` written out in TWO queries — the
--- decision page and the queue — and it was wrong in both directions at once:
+-- ONE definition, read by the queue and by the decision page. Computing it as
+-- `sum(quantity * unit_price_cents)` in each of them instead is wrong in both
+-- directions at once:
 --
---   * It ignored `orders.discount_cents` while `payments_capture_matches_order`
+--   * It ignores `orders.discount_cents` while `payments_capture_matches_order`
 --     forces the capture to equal `order_amount_owed`, which is NET of the
 --     discount. Two NT$500 lines, a NT$500 coupon and NT$80 of shipping capture
---     NT$580; returning ONE line claimed NT$500 for an item the customer paid
---     NT$250 of, and `refunds_within_capture` was satisfied because the total
---     still fitted. Returning BOTH claimed NT$1,000 against NT$580 of headroom,
---     so the decision was refused outright — goods back at the shop and no door
---     that could pay for them. Invisible on any order with no coupon, because
---     shipping and tax are additive and the claim can never exceed the capture.
+--     NT$580; returning ONE line then claims NT$500 for an item the customer paid
+--     NT$250 of, and `refunds_within_capture` is satisfied because the total
+--     still fits. Returning BOTH claims NT$1,000 against NT$580 of headroom, so
+--     the decision is refused outright — goods back at the shop and no door that
+--     can pay for them. Invisible on any order with no coupon, because shipping
+--     and tax are additive and the claim can never exceed the capture.
 --
---   * It never refunded `orders.shipping_cents`. /returns states the statutory
+--   * It never refunds `orders.shipping_cents`. /returns states the statutory
 --     rescission under 消保法 §19 I, where the customer bears 任何費用 — no cost
 --     at all — so the delivery fee goen collected has to come back with the
---     goods. Nothing could return it short of a hand-granted store credit.
+--     goods, and nothing else can return it short of a hand-granted store credit.
 --
 -- The discount is allocated PROPORTIONALLY to what is going back, and rounded
 -- UP, so several partial returns can never sum past the capture and strand the
@@ -4697,20 +4674,19 @@ GRANT USAGE ON SCHEMA public TO admin;
 -- over: the sweeping GRANT ... ON ALL TABLES ran even earlier, so a view
 -- created after it starts with no privileges at all.
 --
--- LOAD-BEARING. This line used to be documented as "strictly redundant — admin
--- is a member of store, so removing it leaves every test green".
+-- LOAD-BEARING, and it reads as redundant — "admin is a member of store, so
+-- removing it leaves every test green". It is not.
 --
 -- admin is NOT a member of store. `pg_auth_members` holds exactly four
 -- application edges — admin_svc→admin, store_svc→store, maintenance_svc→
 -- maintenance, goen→goen_app — and no admin→store among them. Nothing inherits
 -- anything between the three application roles; each is granted what it holds.
 --
--- So the comment invited somebody to delete a GRANT the back office's every
+-- Reading it as redundant is how somebody deletes a GRANT the back office's every
 -- report depends on, on the strength of a membership that does not exist. It is
--- the same shape as the `product_search_documents` note claiming one writer and
--- the `Store.Remove` note claiming another admin does this: a claim of
--- enforcement with nothing behind it. Recorded here rather than quietly
--- corrected, because the reasoning that produced it is the reasoning to watch.
+-- the same shape as a note claiming a projection table has one writer, or that
+-- another admin performs a recovery no code performs: a claim of enforcement with
+-- nothing behind it.
 --
 -- The independence is also what makes the auth-surface revokes below WORK: a
 -- column granted to store would otherwise reach admin through membership, and
@@ -4747,7 +4723,8 @@ REVOKE INSERT, UPDATE, DELETE ON email_verifications FROM admin;
 -- ============================================================================
 -- The back office may not become a customer.
 --
--- A probe proved this as `admin`, and there is no feature behind either verb:
+-- Without the revokes below, a probe runs both of these as `admin`, and there is
+-- no feature behind either verb:
 --
 --     UPDATE users SET password_hash = 'x' WHERE …;                  -- UPDATE 1
 --     INSERT INTO sessions (token_hash, user_id, expires_at) …;      -- INSERT 1
@@ -4755,8 +4732,8 @@ REVOKE INSERT, UPDATE, DELETE ON email_verifications FROM admin;
 -- That is silent, complete impersonation. `admin` holds no INSERT on
 -- audit_events and record_audit_event is the only door, so a staff member who
 -- minted a session for a customer, read their addresses and order history, and
--- placed or cancelled an order as them left NOTHING behind. The back office has
--- no impersonation feature; this was capability the role held with no caller.
+-- placed or cancelled an order as them would leave NOTHING behind. The back
+-- office has no impersonation feature; that is capability with no caller.
 --
 -- The argument is the one email_verifications is already given three lines up,
 -- and it applies with more force here: a staff member who can write
@@ -4808,11 +4785,11 @@ REVOKE DELETE, TRUNCATE ON
 -- The back office creates and edits variants, but never sets stock directly.
 --
 -- BOTH verbs need the column list, and the INSERT one is the easier to forget:
--- revoking UPDATE alone left `admin` able to INSERT a variant carrying
+-- revoking UPDATE alone leaves `admin` able to INSERT a variant carrying
 -- stock_quantity = 999, which is stock conjured with no inventory_movements row
 -- behind it — the shelf and the ledger silently disagreeing from birth. It is
--- the same hole round 3 closed for `store`, reopened by adding a role and
--- copying only half the pattern.
+-- the same hole the `store` revokes above close, and adding a role while copying
+-- half the pattern is how it reopens.
 --
 -- Omitting stock_quantity from the INSERT list is what makes the column take
 -- its DEFAULT 0. Stock then has exactly one door for every role:
@@ -5001,11 +4978,11 @@ $$;
 
 -- Give back credit that was spent on an order nobody is going to ship.
 --
--- store_credit_entries.reverses_id, the unique index on it, and the whole
--- reversal branch of store_credit_guard were written when the ledger was and
--- then had NO CALLER. Cancelling an order released its stock and left the
--- customer's credit spent: the goods went back on the shelf, and their money
--- did not go back to them. This is the door that was missing.
+-- This is the door onto store_credit_entries.reverses_id, the unique index on it
+-- and the reversal branch of store_credit_guard — all of which are written with
+-- the ledger and reachable through nothing else. Without it, cancelling an order
+-- releases its stock and leaves the customer's credit spent: the goods go back on
+-- the shelf, and their money does not go back to them.
 --
 -- One function rather than a reverses_id parameter on post_store_credit,
 -- because the two are different acts under different rules. A posting grants or
@@ -5145,26 +5122,26 @@ $$;
 
 GRANT EXECUTE ON FUNCTION open_refund(uuid, text, bigint, text, uuid) TO admin;
 GRANT EXECUTE ON FUNCTION settle_refund(text, text, text) TO admin;
--- store does NOT settle refunds, and this grant is deleted rather than kept.
+-- store does NOT settle refunds, and there is deliberately no GRANT here.
 --
--- It read "store settles refunds because the Stripe webhook arrives on the
--- storefront pool, not the back office one" — true about routing, and false
--- about this webhook. internal/payment handles checkout.session.completed and
--- checkout.session.expired; nothing in it touches a refund, and SettleRefund's
--- only Go caller is internal/admin on the admin pool. The grant had NO CALLER.
+-- The argument for one is "store settles refunds because the Stripe webhook
+-- arrives on the storefront pool, not the back office one" — true about routing,
+-- and false about this webhook. internal/payment handles
+-- checkout.session.completed and checkout.session.expired; nothing in it touches
+-- a refund, and SettleRefund's only Go caller is internal/admin on the admin
+-- pool. Such a grant has NO CALLER.
 --
--- It was not a free no-op either. `store` is explicitly revoked INSERT, UPDATE
--- and DELETE on refunds, and this is a SECURITY DEFINER function — so the grant
--- was a live path around that revoke from the customer-facing role, and one that
--- can move a refund to 'failed' or 'cancelled'. Those two drop out of
+-- It would not be a free no-op either. `store` is explicitly revoked INSERT,
+-- UPDATE and DELETE on refunds, and this is a SECURITY DEFINER function — so the
+-- grant is a live path around that revoke from the customer-facing role, and one
+-- that can move a refund to 'failed' or 'cancelled'. Those two drop out of
 -- refunds_guard's sum, which frees the same capture's allowance to be claimed
 -- again: a way to refund a payment twice, reachable from the role that serves
 -- anonymous product pages.
 --
--- The same call the reserved role names and product_search_documents each got.
--- When the refund webhook is built — charge.refund.updated is the event — the
--- grant comes back IN THAT CHANGE, so the grant and its caller land together and
--- can be checked against each other.
+-- If the refund webhook is built — charge.refund.updated is the event — the grant
+-- belongs IN THAT CHANGE, so the grant and its caller land together and can be
+-- checked against each other.
 --
 -- The write-direction guard cannot see this one: it asks about TABLE privileges,
 -- and an EXECUTE grant on a definer function is exactly the door that exists to
@@ -5212,15 +5189,15 @@ BEGIN
     --
     -- coupon_redemptions is append-only and both roles are revoked all three
     -- write verbs, so a redemption cannot be deleted by anybody — including the
-    -- owner. With the count unconditional, a checkout that was cancelled two
-    -- minutes later consumed a total-limit slot and a per-customer slot FOREVER,
-    -- with no path in the product to free either and nothing the back office
-    -- could do but switch the coupon off: max_redemptions is write-once.
+    -- owner. With the count unconditional, a checkout cancelled two minutes
+    -- afterwards consumes a total-limit slot and a per-customer slot FOREVER,
+    -- with no path in the product to free either and nothing the back office can
+    -- do but switch the coupon off: max_redemptions is write-once.
     --
     -- The row stays, because it is the history of what was charged. It is the
-    -- QUESTION that was wrong, which is the committed_orders lesson exactly —
-    -- one predicate answering two things, and the shop's own cancel unable to
-    -- undo what it had just caused.
+    -- QUESTION that has to be right, which is the committed_orders lesson exactly
+    -- — one predicate answering two things, and the shop's own cancel unable to
+    -- undo what it has just caused.
     --
     -- A PENDING unpaid order still counts, deliberately. It is a checkout in
     -- flight, and not counting it is how two customers both pass the last slot.
@@ -5378,11 +5355,11 @@ REVOKE INSERT, UPDATE, DELETE ON loyalty_entries FROM store, admin;
 -- ---------------------------------------------------------------------------
 --
 -- ONE definition of "what this account is worth", for the reason loyalty_balances
--- and visible_reviews are each one: the balance is summed from the ledger, and
--- three packages had each written that sum out. The account page, the checkout and
--- the back office computing the same figure separately is three chances for one of
--- them to add a FILTER the others do not have — and a customer told two different
--- balances by two pages of one shop cannot tell which is true.
+-- and visible_reviews are each one: the balance is summed from the ledger, and the
+-- account page, the checkout and the back office each writing that sum out is
+-- three chances for one of them to add a FILTER the others do not have — and a
+-- customer told two different balances by two pages of one shop cannot tell which
+-- is true.
 --
 -- It carries user_id as well as account_id because every caller asks by customer.
 -- A caller that needs "one row per user even with no account" wraps it in a
@@ -5401,8 +5378,9 @@ COMMENT ON VIEW store_credit_balances IS
     'the ledger exists to prevent.';
 
 -- Explicitly, because GRANT ... ON ALL TABLES ran thousands of lines above and a
--- view created after it is granted to nobody. That is trap #20 in CLAUDE.md, and
--- it cost a production 500 the last time a view was added without this line.
+-- view created after it is granted to nobody. That is trap #20 in CLAUDE.md: a
+-- view added without this line is a production 500 on every page that reads it,
+-- and green in every test, because the tests connect as the owner.
 GRANT SELECT ON store_credit_balances TO store, admin, reporting;
 
 -- ---------------------------------------------------------------------------
@@ -5413,11 +5391,11 @@ GRANT SELECT ON store_credit_balances TO store, admin, reporting;
 --
 -- Computed per request, "what did people who bought X also buy" costs 3 ms for
 -- a product nobody buys and 136 ms for the one everybody does — because the
--- work is proportional to that product's ORDER HISTORY, which only grows. The
--- first measurement was of the cheap product and said the query was fine; the
--- second was of the popular one and said the opposite. The expensive part is
--- order_is_committed(), correctly called per candidate row: 14,963 PL/pgSQL
--- invocations for one page view.
+-- work is proportional to that product's ORDER HISTORY, which only grows.
+-- Measuring the cheap product says the query is fine; measuring the popular one
+-- says the opposite, and only the second is the page anybody loads. The expensive
+-- part is order_is_committed(), correctly called per candidate row: 14,963
+-- PL/pgSQL invocations for one page view.
 --
 -- Recommendations are also the read model where staleness costs nothing. An
 -- hour-old answer to "what goes with this" is the same answer; an hour-old
@@ -5785,11 +5763,11 @@ GRANT EXECUTE ON FUNCTION redeem_loyalty_points(uuid, bigint, bigint, text) TO s
 -- PUBLIC. Both are swept rather than written per function, because the failure
 -- mode is omission: a function added later simply would not be covered.
 --
--- It used to sit in the middle of the file, and the four payment posting
--- functions appended after it were PUBLIC EXECUTE for exactly that reason —
--- `reporting`, a read-only role, could have called capture_payment and posted
--- money. TestNoStoredFunctionIsPublicExecute caught it. Keeping the sweep last
--- is what makes the next append safe by construction rather than by memory.
+-- Anywhere but last, every function appended below it is PUBLIC EXECUTE for
+-- exactly that reason — with the four payment posting functions below it,
+-- `reporting`, a read-only role, can call capture_payment and post money.
+-- TestNoStoredFunctionIsPublicExecute is what asks. Keeping the sweep last is
+-- what makes the next append safe by construction rather than by memory.
 --
 -- Order is not a problem for the GRANTs above: REVOKE ... FROM PUBLIC does not
 -- touch a privilege granted to a named role.
@@ -5797,27 +5775,29 @@ GRANT EXECUTE ON FUNCTION redeem_loyalty_points(uuid, bigint, bigint, text) TO s
 -- The AUTHENTICATION and MERCHANDISING surfaces.
 --
 -- Placed HERE, after every table in the schema exists, and that placement is the
--- point rather than an accident of editing: the first draft of this block sat up
--- with the other store revokes and named media_objects, which is created 1,000
--- lines below it. The migration failed outright — trap #21 for the fourth time,
--- from yet another side. A REVOKE, like a GRANT, cannot name what does not exist
--- yet, and the only placement that is safe by construction is after everything.
+-- point rather than an accident of editing: up with the other store revokes, this
+-- block names media_objects, which is created 1,000 lines below them, and the
+-- migration fails outright — trap #21 for the fourth time, from yet another side.
+-- A REVOKE, like a GRANT, cannot name what does not exist yet, and the only
+-- placement that is safe by construction is after everything.
 -- ============================================================================
 
 -- ============================================================================
 -- The AUTHENTICATION surface, which store held in full and needs almost none of.
 --
--- A third-party probe escalated to admin in three statements as `store`:
+-- Without these revokes, `store` escalates to admin in three statements — a
+-- third-party probe ran exactly this:
 --
 --     UPDATE users SET role = 'admin' WHERE id = <attacker>;   -- UPDATE 1
 --     DELETE FROM staff_totp_credentials WHERE user_id = <target>;
 --     -- sign in
 --
--- Nothing stood in the way. The money and stock tables were locked down
--- properly; the auth tables had never been enumerated, because every privilege
--- test in this repository is a hand-written list of money/stock/ledger tables.
--- TestNoRoleHoldsAWriteItsQueriesNeverMake now derives the question instead, and
--- it is what these revokes are held to.
+-- Nothing stands in the way of it. The money and stock tables are locked down
+-- properly; the auth tables are the ones a hand-written list of
+-- money/stock/ledger tables never enumerates, which is what every privilege test
+-- in this repository would otherwise be.
+-- TestNoRoleHoldsAWriteItsQueriesNeverMake derives the question instead, and it
+-- is what these revokes are held to.
 --
 -- users: the storefront registers an account, changes a password, stamps a
 -- login, edits a profile and confirms an address. It never sets a ROLE. A
@@ -5840,15 +5820,15 @@ GRANT UPDATE (password_hash, last_login_at, full_name, phone, email,
               email_verified_at) ON users TO store;
 
 -- staff_totp_credentials is a password-equivalent guarding /admin, and the
--- storefront role has no business touching it in any direction. It held all
--- four verbs until now, so deleting a colleague's second factor — the whole
--- recovery ceremony /admin/staff exists to perform under two guards — was one
--- statement from a customer-facing connection.
+-- storefront role has no business touching it in any direction. With all four
+-- verbs, deleting a colleague's second factor — the whole recovery ceremony
+-- /admin/staff performs under two guards — is one statement from a
+-- customer-facing connection.
 --
--- Nothing on the storefront pool reads or writes it any more either: the
--- twofactor store moved to the ADMIN pool, which is where every route it serves
--- already lived. SELECT goes too, because a sealed secret plus its user id is
--- half of an offline attack and no storefront query asks for one.
+-- Nothing on the storefront pool reads or writes it either: the twofactor store
+-- runs on the ADMIN pool, which is where every route it serves lives. SELECT goes
+-- too, because a sealed secret plus its user id is half of an offline attack and
+-- no storefront query asks for one.
 REVOKE ALL ON staff_totp_credentials FROM store;
 
 -- sessions: the storefront creates one at sign-in and deletes them at sign-out,
@@ -5860,8 +5840,8 @@ REVOKE ALL ON staff_totp_credentials FROM store;
 -- create a session BORN step-up verified — and the back office's whole gate is
 -- "does this session carry a recent proof". A staff member's sign-in, or any bug
 -- on the sign-in path, could mint a session that had already cleared the second
--- factor without a code ever being entered. The column guard found this; no
--- amount of reading the REVOKE list would have.
+-- factor without a code ever being entered. The column guard is what asks this;
+-- no amount of reading a table-level REVOKE list can see it.
 REVOKE INSERT, UPDATE ON sessions FROM store;
 GRANT INSERT (token_hash, user_id, user_agent, ip, expires_at) ON sessions TO store;
 
@@ -5886,13 +5866,12 @@ REVOKE INSERT ON shipping_method_versions FROM store;
 -- present any more. Rewriting a digest is repointing somebody's access, and
 -- nothing does that, so UPDATE goes.
 --
--- DELETE stays, and it is a correction. It was revoked here on the argument that
--- "deleting one is locking a customer out of their own order" — which sounded
--- right and broke the retention sweep in the same commit that added it. The
--- sweeper runs as `store`, so every daily pass was refused, `GrantRetain` never
--- applied once, and the credential this table exists to expire was kept forever:
--- exactly the state the sweep was written to prevent, now with a comment claiming
--- it was prevented.
+-- DELETE stays, against the argument that "deleting one is locking a customer out
+-- of their own order" — which sounds right and breaks the retention sweep. The
+-- sweeper runs as `store`, so revoking DELETE refuses every daily pass,
+-- `GrantRetain` never applies once, and the credential this table exists to
+-- expire is kept forever: exactly the state the sweep exists to prevent, under a
+-- comment claiming it is prevented.
 --
 -- media_objects gets the opposite answer three sections down, and the difference
 -- is the point rather than an inconsistency. Deleting stored bytes is
@@ -5911,10 +5890,10 @@ REVOKE UPDATE ON order_access_grants FROM store;
 -- matters cannot be widened by the fix to a different one.
 GRANT UPDATE (created_at) ON order_access_grants TO store;
 
--- What each role holds and no query it runs exercises. Every line below was
+-- What each role holds and no query it runs exercises. Every line below is
 -- produced by TestNoRoleHoldsAWriteItsQueriesNeverMake rather than by reading,
--- which is the point: the read direction had been asked since round 3 and the
--- write direction never had, so these accumulated silently as the schema grew.
+-- which is the point: a privilege nothing exercises accumulates silently as the
+-- schema grows, and asking only the READ direction never finds one.
 --
 -- store: fulfilment is the back office's, and the 發票 tables are the back
 -- office's too — a storefront request that could file a tax document is a
@@ -5950,10 +5929,10 @@ REVOKE INSERT, UPDATE, DELETE ON
     FROM admin;
 REVOKE INSERT ON payment_webhook_events FROM admin;
 
--- The 發票 tables, given back to admin because the 加值中心 integration the
--- comment above waited for now exists. `store` keeps neither: a storefront
--- request that could file a tax document is a customer issuing their own
--- invoice, and every rule about what may be issued lives in the back office.
+-- The 發票 tables, granted to admin because filing a document with the 加值中心
+-- is the back office's act. `store` keeps neither: a storefront request that
+-- could file a tax document is a customer issuing their own invoice, and every
+-- rule about what may be issued lives in the back office.
 --
 -- INSERT and UPDATE, never DELETE. An issued 統一發票 is filed history — the
 -- 財政部 platform has it, and voiding is how it stops being live —
@@ -5968,20 +5947,18 @@ GRANT INSERT ON invoice_document_lines TO admin;
 -- ---------------------------------------------------------------------------
 -- The DECISION columns, on the eight tables both roles legitimately write.
 --
--- This block was QUEUED for two review rounds rather than written, and the
--- reason it gave was this: "a grant one column too NARROW fails nowhere in this
--- test suite — every suite connects as the OWNER, who is subject to no missing
--- grant. It would surface first in production, on a write path a customer is
--- standing in."
+-- The argument against writing a block like this is that "a grant one column too
+-- NARROW fails nowhere in this test suite — every suite connects as the OWNER,
+-- who is subject to no missing grant. It would surface first in production, on a
+-- write path a customer is standing in."
 --
--- That sentence is FALSE, and TestEveryRoleCanRunItsOwnQueries is what made it
--- false. SET ROLE binds ACLs even for a superuser, and EXPLAIN (GENERIC_PLAN)
--- plans a statement — resolving every table, COLUMN and function privilege —
--- without executing it or binding a parameter. So a grant one column too narrow
--- is a red test over all 425 (role, query) pairs, in about a second. **The
--- check whose absence was the argument for not doing this is the check that
--- makes it safe to do**, and it had already been written for another reason.
--- The queued note outlived its own justification by one commit.
+-- TestEveryRoleCanRunItsOwnQueries is what makes that false. SET ROLE binds ACLs
+-- even for a superuser, and EXPLAIN (GENERIC_PLAN) plans a statement — resolving
+-- every table, COLUMN and function privilege — without executing it or binding a
+-- parameter. So a grant one column too narrow is a red test over all 425
+-- (role, query) pairs, in about a second. **The check whose absence is the
+-- argument against narrowing these grants is the check that makes narrowing them
+-- safe.**
 --
 -- What each half is:
 --
@@ -6016,9 +5993,9 @@ GRANT INSERT ON invoice_document_lines TO admin;
 --  2. INSERT and UPDATE take the SAME list. The guard merges the two verbs into
 --     one set per table, so a per-verb split is not derivable from it — and this
 --     block is worth only as much as its derivation. `users` above does split
---     them, because that list was hand-authored from knowledge of four specific
---     statements; this one is not, and pretending otherwise would be the guess
---     the whole queued note was afraid of.
+--     them, because that list is hand-authored from knowledge of four specific
+--     statements; this one is not, and pretending otherwise would be exactly the
+--     guess the argument above warns against.
 --  3. `admin` on order_private_data and on stock_notifications is deliberately
 --     ABSENT. The write-column parser cannot resolve those two sets, so the
 --     guard skips them and reports nothing — and a list nobody derived is
@@ -6143,11 +6120,10 @@ DECLARE
     fn record;
 BEGIN
     -- Every language, not just plpgsql. A LANGUAGE sql function resolves its
-    -- unqualified relations exactly the same way, so filtering on plpgsql left a
-    -- blind spot that would open the moment someone wrote a one-line SQL helper.
-    -- localized_name is that helper, written later and covered by this from the
-    -- day it arrived — which is the whole argument for widening a filter while it
-    -- is still cheap.
+    -- unqualified relations exactly the same way, so filtering on plpgsql leaves
+    -- a blind spot that opens the moment somebody writes a one-line SQL helper —
+    -- localized_name is one, and it is covered here by asking about every
+    -- function rather than about a language.
     FOR fn IN
         SELECT p.oid::regprocedure AS sig
         FROM pg_proc p
@@ -6173,18 +6149,19 @@ BEGIN
     -- checked against the base table as the VIEW'S OWNER — which is `goen`, who
     -- is subject to none of the REVOKEs above. So `DELETE FROM committed_orders`
     -- as `admin` is ACCEPTED, with no "permission denied", while `admin` holds no
-    -- DELETE on `orders`. The revokes read like a boundary and were not one.
+    -- DELETE on `orders`. Without this loop the revokes read like a boundary and
+    -- are not one.
     --
-    -- It happened by ORDERING, not by intent: the sweeping grant to store runs
+    -- It arises from ORDERING rather than intent: the sweeping grant to store runs
     -- before the views exist, which is exactly why store shows SELECT-only on
-    -- them, and the grant to admin runs after and swept them up. Same trap as
+    -- them, and the grant to admin runs after and sweeps them up. Same trap as
     -- `committed_orders` being created after GRANT ... ON ALL TABLES, and as a
     -- GRANT naming a role the file has not created yet — the third face of one
     -- mistake, which is why the fix belongs HERE, at the end, where every object
     -- exists.
     --
-    -- Derived from pg_views rather than named, so a view added later is covered
-    -- by existing. TestEveryDefinerWrittenTableIsRevoked could not see this
+    -- Derived from pg_views rather than named, so a view added afterwards is
+    -- covered by existing. TestEveryDefinerWrittenTableIsRevoked cannot see this
     -- because it joins pg_tables; the write-direction guard asks pg_class and
     -- therefore does.
     --

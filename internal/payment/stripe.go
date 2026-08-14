@@ -105,21 +105,24 @@ func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (id
 	params := &stripe.CheckoutSessionCreateParams{
 		Mode:      stripe.String(string(stripe.CheckoutSessionModePayment)),
 		LineItems: items,
-		// Stripe's own page, in the visitor's language. Pinned to zh-TW until
-		// now, which made the payment step the one place an English visitor was
-		// handed a Chinese form.
+		// Stripe's own page, in the visitor's language. A locale pinned to one
+		// language makes the payment step the one place a visitor is handed a
+		// form they cannot read — and it is the step where being unsure what you
+		// are agreeing to matters most.
 		Locale: stripe.String(i18n.FromContext(ctx).StripeTag()),
 		// success_url is where the browser lands, NOT where the order is marked
 		// paid. It carries no session token for that reason: there is nothing on
 		// this page worth forging.
 		SuccessURL: stripe.String(g.baseURL + "/orders/" + url.PathEscape(o.Number) + "?paid=1"),
 		CancelURL:  stripe.String(g.baseURL + "/orders/" + url.PathEscape(o.Number) + "/pay?cancelled=1"),
-		// The session dies with the STOCK HOLD, not thirty minutes from now. Both
-		// were 30 minutes and measured from different instants — the hold from
-		// PlaceOrder, the session from this line — so the session always outlived
-		// the goods behind it, and a customer could finish paying for stock the
-		// sweeper had already released and sold. The caller refuses to get this
-		// far when there is not enough hold left for Stripe's own floor.
+		// The session dies with the STOCK HOLD, not thirty minutes from now.
+		// Thirty minutes from this line and thirty minutes from PlaceOrder are
+		// different instants however equal the two durations look, so a session
+		// sized from here outlives the goods behind it by however long the
+		// customer sat on the pay page — long enough for the sweeper to release
+		// the stock and somebody else to buy it while the checkout is still
+		// payable. The caller refuses to get this far when there is not enough
+		// hold left for Stripe's own floor.
 		ExpiresAt: stripe.Int64(o.SessionExpiry().Unix()),
 		// The order number travels to Stripe so a human reconciling the
 		// dashboard against goen has the join key in front of them.
@@ -131,12 +134,11 @@ func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (id
 		IntegrationIdentifier: stripe.String(integrationIdentifier),
 	}
 
-	// payment_method_types is PINNED, and it used to be deliberately absent so
-	// the Dashboard could decide — per currency, per country, per amount — which
-	// methods a customer sees. That reasoning was sound on its own and it
-	// CONTRADICTED the ExpiresAt decision ten lines above, which pins the session
-	// to the stock hold precisely so money cannot arrive after the goods are back
-	// on the shelf.
+	// payment_method_types is PINNED rather than omitted. Omitting it lets the
+	// Dashboard decide — per currency, per country, per amount — which methods a
+	// customer sees, and that reasoning is sound on its own while CONTRADICTING
+	// the ExpiresAt decision ten lines above, which pins the session to the stock
+	// hold precisely so money cannot arrive after the goods are back on the shelf.
 	//
 	// A DELAYED method breaks that. Its `checkout.session.completed` arrives with
 	// payment_status `unpaid` and the funds settle days later as
@@ -148,7 +150,7 @@ func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (id
 	// reservations and admin.Ship ranges over an empty held-reservation slice.
 	//
 	// Two halves each correct and disagreeing, which is the shape CLAUDE.md's
-	// mistake #13 records — and no guard here could see it, because every one of
+	// mistake #13 records — and no guard here can see it, because every one of
 	// them asks what is ABSENT.
 	//
 	// Card is what goen's 30-minute hold can survive, so card is what it offers.
@@ -205,12 +207,12 @@ func (g *Gateway) ResumeSession(ctx context.Context, sessionID string) (redirect
 // ExpireSession closes a Checkout Session at Stripe so nobody can pay it.
 //
 // Cancelling an order releases its stock and returns its store credit, and
-// until this existed it did NOT close the checkout the customer may still have
-// open in another tab. So the sequence "cancel, then finish paying on the tab
-// that is still there" put money against an order that had been called off and
-// whose goods had gone back on the shelf. goen already has a name for that
-// arriving — [ErrOrderCancelled] — and a comment that ends "a human refunds
-// it". This is what stops it happening rather than describing it afterwards.
+// without this it would leave the checkout the customer may still have open in
+// another tab PAYABLE. The sequence "cancel, then finish paying on the tab that
+// is still there" then puts money against an order that has been called off and
+// whose goods are back on the shelf. [ErrOrderCancelled] is the name goen has
+// for that money arriving, and its own comment ends "a human refunds it"; this
+// is what stops it happening rather than describing it afterwards.
 //
 // **Whether there is money in flight is Stripe's question, not goen's.** Stripe
 // expires an OPEN session and refuses anything else, so a session the customer
@@ -264,18 +266,16 @@ func (g *Gateway) VerifyWebhook(body []byte, sigHeader string) (stripe.Event, er
 
 // captureEvents are the two events that can carry money goen must record.
 //
-// `checkout.session.async_payment_succeeded` was missing, and its absence was a
-// hole the rest of this file DOCUMENTED without closing. The session PINS
-// payment_method_types to card now — see [Gateway.StartSession], where the
-// reasoning is — so a delayed method should not arise at all; these two events
-// are kept as defence in depth, and [UnsettledSessionFrom] reports at ERROR if
-// one ever does. For a delayed method the `completed` event arrives with
-// payment_status `unpaid` —
-// which the check below correctly refuses, and which
-// TestOnlyAPaidSessionIsACapture named "an asynchronous payment method still
-// processing" as the reason for. The success that follows arrives as
-// async_payment_succeeded, and goen logged it and answered 200. The customer
-// paid and the order stayed unpaid forever.
+// The session PINS payment_method_types to card — see [Gateway.StartSession],
+// where the reasoning is — so a delayed method should not arise at all, and
+// [UnsettledSessionFrom] reports at ERROR if one ever does.
+// `checkout.session.async_payment_succeeded` is here as defence in depth for
+// exactly that case. A delayed method's `completed` event arrives with
+// payment_status `unpaid`, which the check below refuses and
+// TestOnlyAPaidSessionIsACapture holds; the money clearing days later arrives as
+// async_payment_succeeded and as nothing else. A reader that accepts only
+// `completed` therefore logs that success, answers 200, and leaves the customer
+// paid with the order unpaid forever.
 //
 // The payload is a checkout.session either way, so the same reader serves both.
 var captureEvents = map[stripe.EventType]bool{
@@ -330,10 +330,10 @@ var abandonedEvents = map[stripe.EventType]bool{
 // AbandonedSessionFrom reports the session id of a Checkout session that ended
 // with no money.
 //
-// Stripe expires a session the customer never completed, and until this existed
-// nothing listened: the payment row goen opened stayed at requires_payment
-// forever, so reconciliation could not tell an abandoned checkout from one still
-// in flight. cancel_payment existed for exactly this and had no caller.
+// Stripe expires a session the customer never completed, and something has to
+// listen: with nothing reading these events the payment row goen opened stays at
+// requires_payment forever, so reconciliation cannot tell an abandoned checkout
+// from one still in flight. cancel_payment is the door that closes it.
 //
 // A session that expired AFTER being paid does not exist, but the guard is
 // cheap and cancel_payment refuses a succeeded row anyway: the state is decided
@@ -363,9 +363,9 @@ func AbandonedSessionFrom(ev *stripe.Event) (string, bool) {
 // ERROR rather than recording it and moving on.
 //
 // It deliberately writes NOTHING. Capturing would be the defect; extending the
-// hold is the feature that has not been built and needs a shop decision first.
-// What this buys is that the condition is no longer silent: before it, a
-// completed-but-unpaid session fell to the handler's default branch and was
+// hold is a feature that is not built and needs a shop decision first. What this
+// buys is that the condition is not silent: with no reader of its own, a
+// completed-but-unpaid session falls to the handler's default branch and is
 // logged as one more event goen does not act on, indistinguishable from the
 // dozen it genuinely does not act on.
 //

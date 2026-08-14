@@ -408,14 +408,13 @@ func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u User) {
 
 // clientIP is the address a session is recorded against.
 //
-// It defers to [ratelimit.ClientIP] rather than reading RemoteAddr itself, and
-// the reason is that there were TWO copies of this decision. This one said "only
-// the direct peer is trusted: X-Forwarded-For is set by the client", which was
-// right when nothing could tell a trusted proxy from a stranger — and stopped
-// being the whole truth the moment GOEN_TRUSTED_PROXIES existed. Left alone it
-// would have gone on stamping the load balancer's address onto every session
-// row, so the one field that says WHERE somebody signed in from would name the
-// same host for every customer in the deployment.
+// It defers to [ratelimit.ClientIP] rather than reading RemoteAddr itself,
+// because reading it here is a SECOND copy of one decision. "Only the direct
+// peer is trusted: X-Forwarded-For is set by the client" is the whole truth only
+// while nothing can tell a trusted proxy from a stranger, and GOEN_TRUSTED_PROXIES
+// is exactly that. A copy left behind here stamps the load balancer's address
+// onto every session row, so the one field that says WHERE somebody signed in
+// from names the same host for every customer in the deployment.
 //
 // One definition, for the reason committed_orders and store_credit_balances are
 // views: the rule would otherwise be restated wherever an address is needed, and
@@ -582,8 +581,8 @@ func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 // Erase serves POST /account/erase.
 //
 // It runs the schema's erase_user, which is the only door: store holds no
-// DELETE on users, so a direct delete is refused and the delivery details on
-// this account's orders would have been left behind.
+// DELETE on users, so a direct delete is refused — and it would in any case
+// leave the delivery details on this account's orders behind.
 func (h *Handler) Erase(w http.ResponseWriter, r *http.Request) {
 	u, ok := FromContext(r.Context())
 	if !ok {

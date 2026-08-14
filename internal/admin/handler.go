@@ -118,11 +118,11 @@ func (h *Handler) RequireStaff(next http.HandlerFunc) http.HandlerFunc {
 		// Signed out and signed-in-but-not-staff get the SAME answer, and it is
 		// the answer an absent page gives.
 		//
-		// This used to redirect a signed-out visitor to /signin?next=/admin,
-		// which told them /admin was real — the exact disclosure the 404 for
-		// customers was chosen to avoid — and wrote the back-office path into
-		// their history and referrer on the way. One branch saying "this does
-		// not exist" while another says "sign in and it will" is not a policy.
+		// Redirecting a signed-out visitor to /signin?next=/admin would tell
+		// them /admin is real — the exact disclosure the 404 for customers is
+		// chosen to avoid — and would write the back-office path into their
+		// history and referrer on the way. One branch saying "this does not
+		// exist" while another says "sign in and it will" is not a policy.
 		//
 		// The cost is a staff member with an expired session seeing a 404
 		// instead of a login prompt. They sign in at /signin and come back;
@@ -166,11 +166,10 @@ func (h *Handler) RequireStaff(next http.HandlerFunc) http.HandlerFunc {
 // RequireAdmin wraps a back-office handler that changes WHO WORKS HERE.
 //
 // Everything else in the back office is a staff job: orders, stock, refunds,
-// the catalogue. Deciding who holds a back-office account is not, and it was
-// gated on [account.User.IsStaff] like everything else — which made the
-// `staff` role indistinguishable from `admin` at every point a request is
-// decided, and turned the four /admin/staff routes into a self-service
-// promotion desk.
+// the catalogue. Deciding who holds a back-office account is not, so it asks a
+// role predicate of its own. Gated on the same one as everything else, `staff`
+// and `admin` are indistinguishable at every point a request is decided, and the
+// four /admin/staff routes are a self-service promotion desk.
 //
 // It wraps RequireStaff rather than repeating it, so the second factor, the
 // 404-not-403 disclosure rule and the session check stay in ONE place. A second
@@ -328,8 +327,8 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 // quantity.
 //
 // A nil map means "everything outstanding", which is what a form with no
-// quantity fields at all sends — the one-parcel dispatch that was the only kind
-// this back office could do, still reachable and still the common case.
+// quantity fields at all sends — the whole order in one parcel, which is still
+// the common case.
 func parcelLines(r *http.Request) (map[uuid.UUID]int32, error) {
 	var out map[uuid.UUID]int32
 	for name, values := range r.PostForm {
@@ -533,11 +532,10 @@ func (h *Handler) SetVariantPrice(w http.ResponseWriter, r *http.Request) {
 
 // adminNotices is the one-shot message each redirect parameter carries.
 //
-// A table rather than a switch, because it is one: every arm asked the same
-// question of a different key and returned a constant, so the branching was the
-// shape of a lookup written out longhand — and it grew past the complexity
-// budget the moment the return tail added three more. Order does not matter,
-// because a redirect sets exactly one.
+// A table rather than a switch, because it is one: every arm would ask the same
+// question of a different key and answer with a constant, which is a lookup
+// written out longhand — two dozen of them past what any complexity check
+// allows. Order does not matter, because a redirect sets exactly one.
 //
 // i18n-exempt: the back office is the staff of one Taiwanese shop, which is the
 // category exemption the chrome-language rule already names.
@@ -760,7 +758,7 @@ func (h *Handler) Credit(w http.ResponseWriter, r *http.Request) {
 // It exists to say the BALANCE after a grant. The form is a blank box, so
 // granting again because the first grant was not visible anywhere is how a
 // customer ends up with twice what they were owed — and the number is what
-// CreditBalance was written to show.
+// CreditBalance answers.
 func creditNotice(r *http.Request) string {
 	if r.URL.Query().Get("ok") != "1" {
 		return noticeFor(r)
@@ -1279,10 +1277,10 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.AttachImage(r.Context(), slug, obj.Digest, alt,
 		r.PostFormValue("alt_en"), obj.Width, obj.Height); err != nil {
 		h.log.WarnContext(r.Context(), "attach image", "error", err, "slug", slug)
-		// The reason is read from the error, not assumed. The first version
-		// sent "?noalt=1" for every failure, so a staff member whose alt text
-		// was fine was told to fill it in — a message that sends somebody to
-		// fix the one thing that was not wrong.
+		// The reason is read from the error, never assumed. One query for every
+		// failure — "?noalt=1" whatever went wrong — tells a staff member whose
+		// alt text was fine to fill it in, which is a message that sends
+		// somebody to fix the one thing that was not wrong.
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/products/"+slug+"?"+attachReason(err), http.StatusSeeOther)
 		return
@@ -2349,9 +2347,9 @@ const NewsletterIssueLimit = 50
 
 // Newsletter serves GET /admin/newsletter.
 //
-// The list was write-only for as long as it existed: the footer collected
-// addresses and no page could see them. This is the other half of the double
-// opt-in work.
+// This is the reading end of a list the footer writes to: without it the shop
+// collects addresses and no page can see them, which is a subscriber list that
+// exists and cannot be used.
 func (h *Handler) Newsletter(w http.ResponseWriter, r *http.Request) {
 	view, err := h.newsletterView(r)
 	if err != nil {
@@ -2455,11 +2453,10 @@ func (h *Handler) Customers(w http.ResponseWriter, r *http.Request) {
 
 // Warranties serves GET /admin/warranty.
 //
-// The shop's half of warranty registration, which had none: the customer could
-// register a unit and read their own cover, and nobody at the shop could see
-// either — while /warranty promises the shop collects the unit and pays the
-// carriage. A claim arrived and the only record of it was in the hands of the
-// person making it.
+// The shop's half of warranty registration. The customer registers a unit and
+// reads their own cover; without this nobody at the shop can see either — while
+// /warranty promises the shop collects the unit and pays the carriage. A claim
+// arrives and the only record of it is in the hands of the person making it.
 func (h *Handler) Warranties(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Warranties(r.Context(), r.URL.Query().Get("q"))
 	if err != nil {
@@ -2488,9 +2485,9 @@ func (h *Handler) Customer(w http.ResponseWriter, r *http.Request) {
 
 // IssueInvoice serves POST /admin/orders/{number}/invoice.
 //
-// The 發票 preference has been collected at checkout since the day it shipped
-// and nothing ever acted on it: a staff member packing an order could see that
-// it needed a 統編 invoice and had no way to issue one. This is that door.
+// The 發票 preference is collected at checkout and this is what acts on it.
+// Without it a staff member packing an order can see that it needs a 統編
+// invoice and has no way to issue one.
 func (h *Handler) IssueInvoice(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 	if !IsOrderNumber(number) {

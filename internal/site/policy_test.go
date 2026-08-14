@@ -41,7 +41,7 @@ func TestTheStatedHoldMatchesTheEnforcedOne(t *testing.T) {
 // every document is reachable.
 //
 // A route registered without an entry renders the 404 the footer links to,
-// which is the state this whole change existed to remove. The list is the
+// which is exactly the state this refuses. The list is the
 // server's own — kept here rather than derived, because the routes live in
 // package main and a test in this package cannot read them; the completeness
 // this asserts is that each NAMED path resolves.
@@ -73,17 +73,20 @@ func TestEveryPolicyRouteHasADocument(t *testing.T) {
 // completeness against the cookies the binary actually sets.
 //
 // 「goen 使用的 cookie 只有…」 / "and no others" is a falsifiable statement, and
-// it was false: it named three while the site set five. The language cookie is
-// written by the switch in the footer of EVERY page, so any visitor who changed
-// language was undisclosed — and the promotional-strip dismissal was the fifth.
+// naming fewer kinds than the site sets is reachable by an ordinary visitor: the
+// language cookie is written by the switch in the footer of EVERY page, so
+// anybody who has changed language is carrying an undisclosed one, and the
+// promotional-strip dismissal is another.
 //
-// This is the shape TestTheStatedHoldMatchesTheEnforcedOne already has one
-// section over: a page-says-versus-code-does guard. It was never extended here,
-// which is why the sentence could drift twice without anything going red.
+// This is the shape TestTheStatedHoldMatchesTheEnforcedOne has one section over:
+// a page-says-versus-code-does guard. Each such sentence needs its own, because
+// one guard does not extend itself to the next page that states a number, a list
+// or a limit the code also knows — which is how a sentence drifts with nothing
+// going red.
 //
 // Derived by WALKING THE SOURCE rather than from a list, so a sixth cookie fails
-// this the moment its constant is declared — a hand-written list would need
-// somebody to remember, which is exactly what did not happen.
+// this the moment its constant is declared. A hand-written list needs somebody
+// to remember to extend it, which is the failure this exists to catch.
 func TestThePrivacyPolicyNamesEveryCookie(t *testing.T) {
 	// One entry per cookie the binary can set, naming the words the policy uses
 	// for it. Both locales, because BodyEn is the half no other guard reads.
@@ -210,12 +213,12 @@ func TestPolicyDocumentsAreComplete(t *testing.T) {
 func TestUndecidedTermsAreMarkedPending(t *testing.T) {
 	for path, doc := range policies {
 		for _, s := range doc.Sections {
-			// BOTH halves. This read s.Body alone, so the English could say a term
-			// was undecided outside a Pending section and nothing looked — and the
-			// halves really had come apart: /warranty's Pending paragraph listed
-			// 保固期限 in Chinese and not in English, while the section above it
-			// stated the term as a rule. A guard over one locale is a guard over
-			// the locale whoever wrote it happened to read.
+			// BOTH halves. Reading s.Body alone lets the English say a term is
+			// undecided outside a Pending section with nothing ever looking, and
+			// the two halves really do come apart: a Pending paragraph listing
+			// 保固期限 in Chinese and not in English, above a section stating that
+			// same term as a rule. A guard over one locale is a guard over the
+			// locale whoever wrote it happened to read.
 			for _, para := range append(append([]string{}, s.Body...), s.BodyEn...) {
 				if (strings.Contains(para, "尚未確定") ||
 					strings.Contains(para, "not decided") ||
@@ -230,17 +233,17 @@ func TestUndecidedTermsAreMarkedPending(t *testing.T) {
 
 // TestEveryPolicyClauseIsTranslated refuses a policy page that goes half-English.
 //
-// These documents were Chinese for every visitor, exempted from
-// TestNoChromeStringIsHardCoded as "authored prose, translated editorially or
-// not at all". That put them on the CONTENT side of the line this project
-// draws, and CLAUDE.md's own test says otherwise: copy compiled into the binary
-// is goen's to say in both languages; copy typed into a table is the shop's to
-// say however it likes. `faq_entries` is the table. These are compiled in.
+// Leaving these Chinese for every visitor would put them on the CONTENT side of
+// the line this project draws — the ground TestNoChromeStringIsHardCoded exempts
+// as "authored prose, translated editorially or not at all" — and the line runs
+// the other way: copy compiled into the binary is goen's to say in both
+// languages; copy typed into a table is the shop's to say however it likes.
+// `faq_entries` is the table. These are compiled in.
 //
-// It stopped being untidy and became a legal exposure when /returns began
-// stating 消保法 §19 — §18 I 3 makes providing the rescission information the
-// trader's obligation, and an English-reading customer in Taiwan holds the same
-// unwaivable right on a page they could not read.
+// It is a legal exposure rather than untidiness, because /returns states
+// 消保法 §19 — §18 I 3 makes providing the rescission information the trader's
+// obligation, and an English-reading customer in Taiwan holds the same
+// unwaivable right on a page they cannot read.
 //
 // The failure this locks is the one the i18n work already met once: a half-
 // translated document reads as a broken page rather than as untranslated
@@ -296,16 +299,16 @@ func TestEveryPolicyClauseIsTranslated(t *testing.T) {
 
 // TestStatutoryTermsAreNotPending proves a RIGHT does not render as a gap.
 //
-// It is the mirror of the test above, and it exists because the mirror SHIPPED.
-// 鑑賞期天數, who pays return postage, and whether opening the box matters were
-// all filed under 尚未確定 — and all three are fixed by 消保法 §19, which §19 V
-// makes unwaivable. They were never the shop's to decide, so marking them
-// undecided told every customer they might have no right at all.
+// It is the mirror of the test above, and the mirror is the expensive
+// direction. 鑑賞期天數, who pays return postage, and whether opening the box
+// matters are all fixed by 消保法 §19, which §19 V makes unwaivable — never the
+// shop's to decide — so filing any of them under 尚未確定 tells every customer
+// they might have no right at all.
 //
-// Neither the test above nor any other guard in this repository could see it. A
+// Neither the test above nor any other guard in this repository can see that. A
 // Pending section is FORMATTED as a gap, so it looks correct to a reviewer who
-// has not read §19, and TestUndecidedTermsAreMarkedPending passes on it by
-// construction — the paragraph said 尚未確定 and was marked Pending, which is
+// has not read §19, and TestUndecidedTermsAreMarkedPending passes on it BY
+// CONSTRUCTION: the paragraph says 尚未確定 and is marked Pending, which is
 // exactly what that test asks for.
 //
 // The assertion is POSITIVE — each term must be stated as a rule somewhere the
@@ -323,11 +326,10 @@ func TestStatutoryTermsAreNotPending(t *testing.T) {
 	// needs in order to DISAGREE with the entry rather than quietly delete it,
 	// and the substance the page must state outside a Pending section.
 	// wantEn as well as want, because an unwaivable right stated in one language
-	// is stated for one reader. This asserted the Chinese alone, so the English
-	// half of every term below could have been dropped, softened or quietly
-	// turned into a shop policy with nothing going red — and the neighbouring
-	// Pending guard had the same blind spot, where the two halves really did come
-	// apart.
+	// is stated for one reader. Asserting the Chinese alone lets the English half
+	// of every term below be dropped, softened or quietly turned into a shop
+	// policy with nothing going red — and the neighbouring Pending guard has the
+	// same blind spot, which is where the two halves really do come apart.
 	statutory := []struct {
 		term   string
 		cite   string
@@ -406,10 +408,11 @@ func TestStatutoryTermsAreNotPending(t *testing.T) {
 // prices from, so the two cannot come to disagree — the reason the fee itself is
 // read rather than written into the copy.
 //
-// The phrase around it used to be built by string_agg IN SQL, which made it
-// Chinese for every reader: the words were right and there was nowhere in that
-// query to ask who was reading. Asserting both locales is what would have caught
-// it — HasSurcharges alone was green the whole time.
+// BOTH locales are asserted, and that is the half worth having. Build the phrase
+// around the figure with a string_agg in SQL and it is Chinese for every reader —
+// the words are right and there is nowhere in that query to ask who is reading —
+// while HasSurcharges stays green throughout, because a surcharge that exists is
+// a different question from a surcharge stated in the reader's language.
 func TestTheShippingPageStatesTheSurchargeItCharges(t *testing.T) {
 	t.Parallel()
 

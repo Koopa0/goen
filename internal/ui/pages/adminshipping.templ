@@ -51,8 +51,8 @@ templ AdminShipping(p layouts.Page, v AdminShippingView) {
 								<input class="ui-input" id={ "carrier-" + m.MethodID } name="carrier" value={ m.Carrier } maxlength="60"/>
 							</div>
 							// The English name and carrier. The CHECKOUT's method chooser
-							// reads these — an English customer picking delivery was
-							// reading 宅配到府 at the moment of paying.
+							// reads these, so an untranslated method puts 宅配到府 in front
+							// of an English customer at the moment of paying.
 							<div class="ui-field">
 								<label class="ui-label" for={ "name-en-" + m.MethodID }>{ i18n.T(ctx, i18n.KeyAdminColNameEn) }</label>
 								<input class="ui-input" id={ "name-en-" + m.MethodID } name="name_en" value={ m.NameEn } maxlength="60" placeholder="Home delivery"/>
@@ -117,9 +117,10 @@ templ AdminShipping(p layouts.Page, v AdminShippingView) {
 					}
 				</section>
 			}
-			// Adding a METHOD. Until this form existed a shop could publish new
-			// versions of the methods the seed created and could not offer a third —
-			// so it could change its prices and not its carriers.
+			// Adding a METHOD, which is a different act from publishing a version of
+			// one. Without this form a shop can only reprice the methods it was given
+			// and never offer a third — its prices are its own and its carriers are
+			// whatever it started with.
 			<section class="goen-admin__panel">
 				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminShipAddMethod) }</h2>
 				<form class="goen-admin__form" method="post" action="/admin/shipping/method">

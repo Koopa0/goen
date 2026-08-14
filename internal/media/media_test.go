@@ -150,10 +150,10 @@ func TestADecompressionBombIsRefusedBeforeItIsAllocated(t *testing.T) {
 	}
 	// ErrTooLarge and not ErrNotAnImage, and the difference is the whole point.
 	// This file also fails the FULL decode — it has no pixel data — so a test
-	// that only asked whether something was refused stayed green with the
-	// header check deleted, which the mutation run found. ErrTooLarge can only
-	// come from boundsOK, which runs before any pixel buffer is allocated; a
-	// bomb that reached the decoder would have cost 10GB to refuse.
+	// that only asks whether something was refused stays green with the header
+	// check deleted, which the mutation run shows. ErrTooLarge can only come
+	// from boundsOK, which runs before any pixel buffer is allocated; a bomb
+	// that reaches the decoder costs 10GB to refuse.
 	if !errors.Is(err, ErrTooLarge) {
 		t.Errorf("a decompression bomb was refused with %v, want ErrTooLarge — "+
 			"that means it was caught by the decoder rather than by the header "+
@@ -274,8 +274,8 @@ func TestByteSizeDescribesTheStoredBytes(t *testing.T) {
 // image really has.
 //
 // A srcset is a promise about pixel widths, and a browser both CHOOSES and
-// LAYS OUT on those numbers. Two ways to break that promise, both of which the
-// first version of this did:
+// LAYS OUT on those numbers. Two ways to break that promise, and both are easy
+// to write without noticing:
 //
 //   - Mixing a bare candidate with w-descriptors. HTML allows all-w, all-x, or
 //     one bare candidate alone; mixed, the bare one is a parse error and the

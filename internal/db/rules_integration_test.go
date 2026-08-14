@@ -187,7 +187,8 @@ var ruleCases = []ruleCase{
 		// pending cannot jump to shipped: the picking step is where stock leaves.
 		// The reject uses the unpaid order (the legal-transition check fires before
 		// the funded check, so it still names this rule); the accept must use the
-		// PAID order, since an unfunded order can no longer leave pending.
+		// PAID order, since orders_funded_to_leave_pending refuses an unfunded one
+		// whatever status it is moving to.
 		reject: `UPDATE orders SET fulfillment_status = 'shipped'
 		         WHERE order_number = 'GO-260721-000388';`,
 		accept: `UPDATE orders SET fulfillment_status = 'picking'
@@ -263,10 +264,12 @@ var ruleCases = []ruleCase{
 		// DEFERRED and `run` rolls back without ever committing — a deferred
 		// constraint would never be checked at all.
 		//
-		// The ids are the fixture's own. An earlier draft selected them with
-		// `WHERE c.parent_id IS NOT NULL`, and every fixture category is a root:
-		// the INSERT matched nothing, wrote nothing, raised nothing, and the
-		// case reported that the database "accepted" a statement it never ran.
+		// The ids are the fixture's own, spelled out rather than selected. A
+		// SELECT here is one predicate away from matching nothing — `WHERE
+		// c.parent_id IS NOT NULL` against a fixture whose every category is a
+		// root — and an INSERT that matches nothing writes nothing and raises
+		// nothing, so the case reports that the database "accepted" a statement
+		// it never ran.
 		reject: `SET CONSTRAINTS products_active_has_variant IMMEDIATE;
 		         INSERT INTO products (brand_id, category_id, slug, name, description, status, published_at)
 		         VALUES ('11111111-1111-4111-8111-111111111111',
@@ -285,9 +288,9 @@ var ruleCases = []ruleCase{
 	{
 		rule: "return_within_shipment",
 		// The line was ORDERED 2 and SHIPPED 1. Asking for 2 back is refused,
-		// and it is refused by the shipped ceiling — under the old ordered
-		// ceiling this same case would be accepted, which is what makes the
-		// difference between the two testable.
+		// and it is the SHIPPED ceiling that refuses it: a rule bounded by what
+		// was ordered accepts this same statement, which is what makes the two
+		// ceilings distinguishable at all.
 		reject: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
 		         VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 2);`,
 		accept: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
@@ -297,8 +300,9 @@ var ruleCases = []ruleCase{
 		rule: "warranty_unit_within_purchase",
 		reject: `INSERT INTO warranty_registrations (order_line_id, unit_no, expires_on)
 		         VALUES ('66660001-0000-4000-8000-000000000000', 3, current_date + 730);`,
-		// Two were bought, so unit 2 exists — the case the old one-row-per-line
-		// design could not represent at all.
+		// Two were bought, so unit 2 exists. Registration is per UNIT, which is
+		// why the accept registers both of them: one row per order line could
+		// not represent the second unit at all.
 		accept: `INSERT INTO warranty_registrations (order_line_id, unit_no, expires_on)
 		         VALUES ('66660001-0000-4000-8000-000000000000', 1, current_date + 730),
 		                ('66660001-0000-4000-8000-000000000000', 2, current_date + 730);`,
@@ -484,12 +488,12 @@ var ruleCases = []ruleCase{
 	},
 	{
 		rule: "orders_history_frozen",
-		// The moment an order was cancelled is history. Nothing guarded these two
-		// columns before: orders_check_transition fires only on
-		// fulfillment_status, and orders_freeze_money looks only at money and the
-		// shipping snapshot, so an UPDATE touching cancelled_at alone tripped
-		// neither. Cancelling is the first set and must still be allowed; moving
-		// the timestamp afterwards is what the guard refuses.
+		// The moment an order was cancelled is history, and this is the only guard
+		// that reaches it: orders_check_transition fires on fulfillment_status
+		// alone, and orders_freeze_money looks only at money and the shipping
+		// snapshot, so an UPDATE touching cancelled_at by itself trips neither.
+		// Cancelling is the first set and must still be allowed; moving the
+		// timestamp afterwards is what this refuses.
 		reject: `UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
 		         WHERE id = '6666aaaa-6666-4666-8666-666666666666';
 		         UPDATE orders SET cancelled_at = now() + interval '1 day'
@@ -563,9 +567,10 @@ func refund(key string, amount int) string {
 // raceOutcome runs two writers against the same row with a DETERMINISTIC
 // interleaving, which is the only way these guards can be tested.
 //
-// The first attempt at this used two goroutines released by a channel and
-// proved nothing: each statement finished in microseconds, so they never
-// overlapped, and removing the lock from the guard left every test green.
+// Two goroutines released by a start channel prove nothing here, and that is
+// what this shape exists to avoid: each statement finishes in microseconds, so
+// the two never overlap, and every guard below stays green with its lock
+// removed.
 //
 // Here T1 opens, executes, and STAYS OPEN. T2 then executes while T1 holds
 // whatever it holds — if the guard locks its aggregate root, T2 blocks; if it
@@ -614,9 +619,9 @@ func raceOutcome(t *testing.T, stmt1, stmt2 string) (err1, err2 error) {
 
 	// Advance only when T2 has reached a decided state: finished, or genuinely
 	// waiting on a lock. Polling pg_stat_activity removes the timing guess a
-	// fixed sleep depended on — on a slow runner the old 300ms could commit T1
-	// before T2 had even started, and an unguarded T2 would then read fresh
-	// data and pass while proving nothing.
+	// fixed sleep depends on — on a slow runner a 300ms wait commits T1 before
+	// T2 has even started, and an unguarded T2 then reads fresh data and passes
+	// while proving nothing.
 	waitForDecision(t, pid2, done)
 
 	if err1 == nil {
@@ -911,11 +916,11 @@ func TestReleaseReservationRefusesPaidOrder(t *testing.T) {
 // SETTLED: its money and its lines are frozen. A cancellation is recorded in
 // refunds and order_events, never by editing the order's own totals.
 //
-// NOT COMMITTED: its held stock must come back. Both were one predicate, and
-// the freeze half is what made the release half impossible — the units behind a
-// cancelled order could not be returned to the shelf by any door, because
-// release_reservation and the sweeper each refuse a committed order's hold.
-// internal/cart holds that half; this one holds the freeze.
+// NOT COMMITTED: its held stock must come back. One predicate answering both
+// questions is what makes that impossible — release_reservation and the sweeper
+// each refuse a committed order's hold, so a cancelled order that reads as
+// committed has units no door can return to the shelf. internal/cart holds that
+// half; this one holds the freeze.
 func TestACancelledOrderIsSettledButNotCommitted(t *testing.T) {
 	const pending = "6666aaaa-6666-4666-8666-666666666666"
 	cancel := `UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
@@ -942,7 +947,7 @@ func TestACancelledOrderIsSettledButNotCommitted(t *testing.T) {
 	})
 
 	t.Run("its stock is releasable", func(t *testing.T) {
-		// The half the old definition made unreachable. Asserted here as well
+		// The half a single predicate makes unreachable. Asserted here as well
 		// as in internal/cart because this is the file that says what the two
 		// views mean, and a reader comparing them should see both answers.
 		if err := run(t, cancel+`SELECT 1 FROM committed_orders WHERE id = '`+pending+`';`); err != nil {
@@ -970,16 +975,15 @@ func TestACancelledOrderIsSettledButNotCommitted(t *testing.T) {
 	})
 }
 
-// TestCampaignDiscountSurvivesBulkEdits covers the two doors the per-row form of
-// sale_campaign_variant_still_valid left open. The single-row rule case passes
-// either way, so without these a revert to BEFORE ... FOR EACH ROW would look
-// green.
+// TestCampaignDiscountSurvivesBulkEdits covers the two doors a per-row form of
+// sale_campaign_variant_still_valid leaves open. The single-row rule case passes
+// either way, so without these a change to BEFORE ... FOR EACH ROW looks green.
 //
 //   - One statement clearing every discount: a BEFORE-row trigger reads the
-//     pre-statement snapshot of the sibling rows, so each row in turn saw
-//     "another variant is still discounted" and the whole statement passed.
-//   - Deleting the last discounted variant: the trigger was bound to UPDATE OF
-//     only, so DELETE fired nothing at all.
+//     pre-statement snapshot of the sibling rows, so each row in turn sees
+//     "another variant is still discounted" and the whole statement passes.
+//   - Deleting the last discounted variant: bound to UPDATE OF alone, the
+//     trigger fires nothing at all on a DELETE.
 func TestCampaignDiscountSurvivesBulkEdits(t *testing.T) {
 	const (
 		product = "33333333-3333-4333-8333-333333333333"
@@ -1027,11 +1031,12 @@ func TestCampaignDiscountSurvivesBulkEdits(t *testing.T) {
 }
 
 // TestReleaseReservationLocksVariantBeforeOrder pins the lock ORDER, because
-// release_reservation took its two locks the opposite way round from
-// hold_inventory (which locks the variant through record_inventory_movement,
-// then the order through the reservation's foreign key). Concurrent re-hold and
-// release of the same (order, variant) closed a cycle and PostgreSQL aborted one
-// side with 40P01; no caller retries, so that surfaces as a failed checkout.
+// release_reservation is the one function that can take its two locks the wrong
+// way round. hold_inventory locks the variant through record_inventory_movement
+// and then the order through the reservation's foreign key; a release taking
+// them in the opposite sequence closes a cycle, so a concurrent re-hold and
+// release of the same (order, variant) deadlocks and PostgreSQL aborts one side
+// with 40P01. No caller retries, so that surfaces as a failed checkout.
 //
 // This reads the function source rather than racing two sessions. A deadlock
 // test needs a specific interleaving to reproduce and passes by luck when it
@@ -1060,11 +1065,11 @@ func TestReleaseReservationLocksVariantBeforeOrder(t *testing.T) {
 
 // TestEraseUserLeavesNoPersonalData walks every table erase_user is responsible
 // for and asserts each is actually clear afterwards, rather than asserting the
-// function ran. invoice_preferences is the row that was missed: it is keyed by
-// order, not by user, so nulling the account and blanking the delivery fields
-// left carrier_code — a 手機條碼載具, which identifies a person — behind for good.
-// The financial record must survive, so the order itself is checked to still be
-// there with its money intact.
+// function ran. invoice_preferences is the row easiest to miss: it is keyed by
+// ORDER and not by user, so nulling the account and blanking the delivery fields
+// leaves carrier_code — a 手機條碼載具, which identifies a person — behind for
+// good. The financial record must survive, so the order itself is checked to
+// still be there with its money intact.
 func TestEraseUserLeavesNoPersonalData(t *testing.T) {
 	ctx := t.Context()
 	tx, err := schemaPool(t).Begin(ctx)
@@ -1104,16 +1109,16 @@ func TestEraseUserLeavesNoPersonalData(t *testing.T) {
 		}
 	}
 
-	// And now the question the four probes above cannot ask: is there ANY table
+	// And the question the four probes above cannot ask: is there ANY table
 	// still holding this person's address?
 	//
-	// The list was hand-written, and it missed contact_messages — a table with a
+	// A hand-written list of probes misses contact_messages — a table with a
 	// name, an address, a subject and whatever the customer typed, which for
 	// "my order has not arrived" is routinely a delivery address and a phone
-	// number. erase_user's own comment explains the trap and applied it to only
-	// one of the two address-keyed tables: "the newsletter, which keys on the
-	// ADDRESS rather than the account — so a plain DELETE of a user never reaches
-	// it". contact_messages is the other one, has no user_id either, and
+	// number. erase_user's own comment states the trap and names one of the two
+	// tables it applies to: "the newsletter, which keys on the ADDRESS rather
+	// than the account — so a plain DELETE of a user never reaches it".
+	// contact_messages is the other one, has no user_id either, and
 	// /admin/messages reads it.
 	//
 	// Derived from information_schema, so a future table with an email column is
@@ -1131,19 +1136,19 @@ func TestEraseUserLeavesNoPersonalData(t *testing.T) {
 	}
 }
 
-// TestZeroOwedOrderIsCommitted is the regression for one wrong criterion with
-// three exits.
+// TestZeroOwedOrderIsCommitted holds one criterion at three exits, because one
+// wrong answer to "is this committed" opens all three at once.
 //
-// A zero-owed order — funded by a 100% discount today, or entirely by store
-// credit once batch ⑥ ships — can never carry a succeeded payment:
-// orders_funded_to_leave_pending skips its payment check when
-// order_total - credit_applied = 0, and payments_succeeded_is_captured forbids a
-// zero-value succeeded payment. So every guard that read "exists a succeeded
-// payment" as "this order is committed" did nothing at all for it. Its lines,
-// its totals and its held stock stayed editable after it had left pending.
+// A zero-owed order — funded by a 100% discount, or entirely by store credit —
+// can never carry a succeeded payment: orders_funded_to_leave_pending skips its
+// payment check when order_total - credit_applied = 0, and
+// payments_succeeded_is_captured forbids a zero-value succeeded payment. So a
+// guard reading "exists a succeeded payment" as "this order is committed" does
+// nothing at all for it: its lines, its totals and its held stock stay editable
+// after it has left pending, for an order the customer has paid in full.
 //
 // Each subtest goes red if order_is_committed loses its fulfillment_status half,
-// which is the mutation that restores the old payment-proxy behaviour.
+// which is the mutation that reduces it to that payment proxy.
 func TestZeroOwedOrderIsCommitted(t *testing.T) {
 	const zeroOwed = "6666bbbb-6666-4666-8666-666666666666"
 
@@ -1387,9 +1392,10 @@ func TestReversalCannotBeReversed(t *testing.T) {
 // TestOrderCannotLeavePendingUnfunded encodes the owner's decision that goen
 // does not ship what it has not collected: an unpaid order cannot move from
 // pending to picking, a paid one can, and cancelling from pending is always
-// allowed regardless of funding. A zero-owed order (none exists in fixtures) is
-// funded without a payment — that path is covered by the checkout batch's tests
-// when store credit lands.
+// allowed regardless of funding. A zero-owed order is the third case and is
+// funded with no payment row at all — orders_funded_to_leave_pending skips its
+// payment check for it — which is the fixture's 6666bbbb and is held by
+// [TestZeroOwedOrderIsCommitted] rather than here.
 func TestOrderCannotLeavePendingUnfunded(t *testing.T) {
 	// Unpaid order (6666aaaa) → picking: refused.
 	err := run(t, `UPDATE orders SET fulfillment_status = 'picking'
@@ -1512,11 +1518,12 @@ func TestDeletingTheLastVariantIsRefused(t *testing.T) {
 //
 // The suite connects as the OWNER, who is subject to no REVOKE and no missing
 // GRANT — so a privilege hole is invisible to every other case in this package.
-// One did ship: committed_orders was created after GRANT ... ON ALL TABLES had
-// already run, so `store` could not read it, and order_lines' trigger calls
-// order_is_committed() which does. EVERY CHECKOUT returned 500.
+// The shape it takes: a relation created BELOW `GRANT ... ON ALL TABLES` in the
+// migration is granted to nobody, so `store` cannot read committed_orders, and
+// order_lines' trigger calls order_is_committed(), which does. EVERY CHECKOUT
+// returns 500.
 //
-// Nothing in the test suite reached it. make check-layout did, by placing a
+// Nothing else in the suite reaches that. make check-layout does, by placing a
 // real order through the site's own form — which is a slow way to find out that
 // the storefront cannot sell anything.
 //

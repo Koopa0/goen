@@ -174,10 +174,10 @@ type CheckoutView struct {
 	Invoice        CheckoutInvoice
 	InvoiceChoices []InvoiceChoice
 	PickupBrands   []PickupBrandChoice
-	// SavedAddresses is the customer's address book, empty for a guest. The
-	// book existed from the day the account pages shipped and the one page that
-	// needed it did not read it, so every repeat customer retyped an address
-	// they had already given us.
+	// SavedAddresses is the customer's address book, empty for a guest. Read
+	// HERE and not only on the account page: a checkout that does not offer the
+	// book makes every repeat customer retype an address they have already given
+	// us, on the one form where a mistyped postal code costs a parcel.
 	SavedAddresses []SavedAddress
 	// ChosenAddress is the saved address the form is filled from, so the
 	// chooser can mark it. Empty means the fields were typed.
@@ -274,9 +274,10 @@ func PickupBrandLabel(code string) string {
 // Delivery is where one order goes, as read back from order_private_data.
 //
 // It exists so the two pages that show an order — the customer's and the back
-// office's — format the destination the same way. Each read the same columns
-// and each built the same string, which worked until a destination that is not
-// a street address arrived and both rendered a blank line.
+// office's — format the destination the same way. Each reads the same columns,
+// and a string assembled separately in each place holds only while every order
+// goes to a street address: the moment the destination is a 門市 instead, both
+// pages render a blank line.
 type Delivery struct {
 	PostalCode string
 	City       string
@@ -419,11 +420,11 @@ func (v *CheckoutView) ShippingFeeCents() int64 {
 //
 // The fee row and the surcharge row are two lines on the summary, deliberately
 // — the template's own comment says 「運費 NT$280」 for an order the customer
-// expected to pay NT$80 for reads as a mistake. But the fee row printed
-// ShippingFeeCents, which is the quote's TOTAL and already includes the
-// surcharge, so the two lines showed 280 and 200 while the total added 280
-// once: the exact reading that comment exists to prevent, produced by the code
-// underneath it.
+// expected to pay NT$80 for reads as a mistake. So the fee row prints the BASE
+// and never ShippingFeeCents, which is the quote's TOTAL and already carries
+// the surcharge: printing the total there shows 280 above 200 while the total
+// below adds 280 once, which is exactly the reading the two rows exist to
+// prevent.
 func (v *CheckoutView) BaseShippingCents() int64 {
 	return v.ShippingFeeCents() - v.SurchargeCents
 }
@@ -436,10 +437,10 @@ func (v *CheckoutView) ShippingText() string { return twd(v.BaseShippingCents())
 // ShipsFree reports whether delivery costs nothing, so the TEMPLATE can say so
 // in the visitor's language.
 //
-// The word used to be returned from here, which put a Chinese string in a view
-// model that has no locale — and left i18n.KeyFreeShipping translated and
-// unrendered. Deciding here and wording there is the split the rest of the
-// chrome already follows.
+// A bool and not the word: a view model has no request to read a locale from,
+// so returning the sentence from here puts a Chinese string on an English page
+// and leaves i18n.KeyFreeShipping translated and rendered by nothing. Deciding
+// here and wording there is the split the rest of the chrome follows.
 func (v *CheckoutView) ShipsFree() bool {
 	return v.CouponFreeShipping || v.BaseShippingCents() == 0
 }
@@ -457,17 +458,17 @@ func (v *CheckoutView) Total() string {
 // notices on their card statement, and the one they never trust the shop about
 // again.
 // A 免運 coupon zeroes the shop's BASE RATE and never the 離島 surcharge, which
-// is what a carrier charges to cross the water. This used to zero the whole
-// shipping figure — surcharge included — while cart.priceOrder deliberately
-// kept it, so the page promised subtotal-discount and the order was written at
-// subtotal+surcharge-discount. The customer met the difference one page later,
-// on /orders/{number}/pay, as an unexplained jump from the total they had just
+// is what a carrier charges to cross the water — so only BaseShippingCents goes
+// to zero and the surcharge is added back after it. Zeroing the whole shipping
+// figure here while cart.priceOrder keeps the surcharge makes the page promise
+// subtotal-discount while the order is written at subtotal+surcharge-discount,
+// and the customer meets the difference one page later, on
+// /orders/{number}/pay, as an unexplained jump from the total they had just
 // agreed to.
 //
 // The rule is stated in shipping_version_zones' own COMMENT ON COLUMN — 「免運
 // covers the base rate the shop advertises, never the 離島 surcharge a carrier
-// charges on top of it」 — and this was the one of its three readers that had
-// not learned it.
+// charges on top of it」 — and this is one of its three readers.
 func (v *CheckoutView) TotalCents() int64 {
 	shipping := v.BaseShippingCents()
 	if v.CouponFreeShipping {
@@ -570,9 +571,9 @@ type OrderView struct {
 	Status       string
 	Email        string
 	ShippingName string
-	// DeliveryTo is where the order goes, already formatted. The confirmation
-	// named the METHOD and never the destination, which is fine for 宅配 —
-	// the customer typed the address a moment ago — and wrong for 超商取貨,
+	// DeliveryTo is where the order goes, already formatted. The DESTINATION
+	// and not merely the method: naming the method is enough for 宅配 — the
+	// customer typed the address a moment ago — and useless for 超商取貨,
 	// where "which store did I pick?" is the whole question this page is read
 	// to answer.
 	DeliveryTo    string
@@ -632,10 +633,9 @@ func (v *OrderView) Shipping(ctx context.Context) string {
 
 // Discounted reports whether anything came off this order.
 //
-// The discount used to be absent from the order page entirely: subtotal plus
-// shipping did not equal the total, and nothing accounted for the difference. A
-// customer reading their own receipt could not tell whether they had been
-// overcharged.
+// The order page states it, because without the line subtotal plus shipping
+// does not equal the total and nothing accounts for the difference: a customer
+// reading their own receipt cannot tell whether they have been overcharged.
 func (v *OrderView) Discounted() bool { return v.DiscountCents > 0 }
 
 // Discount is what came off, as a negative figure.
@@ -664,16 +664,16 @@ func (v *OrderView) CanRequestReturn() bool {
 // AwaitingPayment reports whether the order is still waiting to be paid, which
 // is the state every order is in the moment it is placed.
 //
-// THREE questions, because 'pending' answers none of them. It used to read the
-// status alone, so an order stayed 尚未付款 with a 前往付款 link beside it from
-// the moment the webhook took the money until a human at the shop moved it to
-// picking — overnight, over a weekend, for as long as the queue was. That is the
-// first page a customer sees after paying (Stripe returns them to it) and the
-// page the receipt links back to, so "we have your money" arrived by email
-// while the linked page said otherwise.
+// THREE questions, because 'pending' answers none of them. Read the status
+// alone and an order stays 尚未付款 with a 前往付款 link beside it from the
+// moment the webhook takes the money until a human at the shop moves it to
+// picking — overnight, over a weekend, for as long as the queue is. That is the
+// page a customer lands on after paying (Stripe returns them to it) and the
+// page the receipt links back to, so "we have your money" arrives by email
+// while the linked page says otherwise.
 //
-// CanCancel, three lines up, has always read Committed. Two halves of one fact,
-// correct separately and disagreeing — CLAUDE.md #13.
+// CanCancel, three lines up, reads Committed. Two halves of one fact that must
+// not be allowed to disagree — CLAUDE.md #13.
 //
 // OwedCents as well as Committed, because neither covers the other's case: a
 // captured card leaves the order committed and still owing (order_amount_owed

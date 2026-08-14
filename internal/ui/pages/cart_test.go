@@ -123,18 +123,19 @@ func TestTheCheckoutShowsTheRequotedFigure(t *testing.T) {
 // against the arithmetic that actually writes the order.
 //
 // TotalCents' own doc comment says "the same arithmetic PlaceOrder does. It has
-// to be" — and it was not. Two things were wrong on the 離島 path and both are
-// here:
+// to be", and the 離島 path is where the two most easily part company. The two
+// ways they can are both here:
 //
-//   - A 免運 coupon zeroed the WHOLE shipping figure, surcharge included, while
+//   - A 免運 coupon pays the base rate and never the crossing, because
 //     cart.priceOrder keeps the surcharge deliberately (「免運 covers the base
 //     rate the shop advertises, never the 離島 surcharge a carrier charges on
-//     top of it」, from shipping_version_zones' own column comment). The page
-//     promised subtotal-discount and the order was written at
-//     subtotal+surcharge-discount.
-//   - The fee row printed the quote's TOTAL, which already contains the
-//     surcharge, while the surcharge got a second row of its own — so a reader
-//     saw 280 and 200 for a delivery charge of 280.
+//     top of it」, from shipping_version_zones' own column comment). Zeroing the
+//     WHOLE shipping figure here promises subtotal-discount on a page whose
+//     order is written at subtotal+surcharge-discount, and the customer meets
+//     the difference on the payment page.
+//   - The fee row states the BASE fee, because the surcharge already has a
+//     second row of its own. Printing the quote's TOTAL there — which contains
+//     the surcharge — shows a reader 280 and 200 for a delivery charge of 280.
 //
 // The expected values are hand-computed literals, not expressions over the
 // fixture, so the test states the arithmetic rather than restating the code.
@@ -196,10 +197,11 @@ func TestTheCheckoutSummaryAddsUpTheWayPlaceOrderDoes(t *testing.T) {
 
 // TestTheOrderPageShowsTheDiscountAndWhy renders the page and looks for the row.
 //
-// The failure this locks is silent: the discount used to be absent from the order
-// summary entirely, so subtotal plus shipping did not equal the total and nothing
-// accounted for the difference. Nothing about the view model would have told
-// anybody — the numbers were all there, and one of them was simply not rendered.
+// The failure this locks is silent: a discount absent from the order summary
+// leaves subtotal plus shipping not equal to the total with nothing accounting
+// for the difference, so somebody reading their own receipt cannot tell whether
+// they were overcharged. Nothing about the view model says so — every number is
+// there, and one of them is simply not rendered.
 //
 // Asserted against the HTML rather than against Discounted(), which is
 // `DiscountCents > 0` and would be a tautology to test.
@@ -230,17 +232,18 @@ func TestTheOrderPageShowsTheDiscountAndWhy(t *testing.T) {
 }
 
 // TestOnlyAnOrderThatOwesMoneyIsOfferedPayment holds the sentence a paid
-// customer used to read on the first page they saw after paying.
+// customer must not read on the first page they see after paying.
 //
-// AwaitingPayment tested `Status == "pending"` alone. An order stays pending
-// from the capture until a human at the shop picks it, so 尚未付款 and a 前往付款
-// link sat on an order that was paid for — and Stripe's success_url returns the
-// customer to exactly this page, with the emailed receipt linking back to it.
+// Deciding it from `Status == "pending"` alone is what puts it there: an order
+// stays pending from the capture until a human at the shop picks it, so 尚未付款
+// and a 前往付款 link would sit on an order that is paid for — and Stripe's
+// success_url returns the customer to exactly this page, with the emailed
+// receipt linking back to it.
 //
 // Asserted through the RENDER rather than the method, for the reason
-// TestTheOrderPageShowsTheDiscountAndWhy is: the view model held Committed
-// correctly the whole time (CanCancel read it, three lines away) and the
-// template still said the wrong thing.
+// TestTheOrderPageShowsTheDiscountAndWhy is: the view model can hold Committed
+// correctly — CanCancel reads it, three lines away — while the template says the
+// wrong thing, and only a render can see that.
 //
 // The two funded cases are separate rows because neither signal covers the
 // other: a captured card leaves the order committed and still owing, and a fully
@@ -284,9 +287,10 @@ func TestOnlyAnOrderThatOwesMoneyIsOfferedPayment(t *testing.T) {
 // TestAPaidOrderIsNotBadgedAwaitingPaymentInTheAccount is the same fact on the
 // two surfaces a signed-in customer reaches it from.
 //
-// The history list badged every pending order 待付款 from AccountOrder.StatusText,
-// and neither account query selected any funding column at all, so the account
-// side had no signal to be right with. The detail page carried the notice.
+// The history list badges a pending order from AccountOrder.StatusText and the
+// detail page carries the notice, so the funding columns have to reach both. An
+// account query that selects none leaves that surface with no signal to be right
+// with: every pending order is badged 待付款, captured or not.
 func TestAPaidOrderIsNotBadgedAwaitingPaymentInTheAccount(t *testing.T) {
 	paid := AccountOrder{
 		Number: "GO-260101-000010", Status: "pending", PlacedAt: "2026-01-01",
@@ -330,11 +334,14 @@ func TestAPaidOrderIsNotBadgedAwaitingPaymentInTheAccount(t *testing.T) {
 // An order page is shown to the browser that placed the order or to the account
 // that owns it; anything else is this 404. The guest it is most often shown to —
 // somebody who cleared their cookies, or opened the confirmation email on their
-// phone — was told to sign in to an account they may not have, while
-// /orders/find, built for exactly them, was linked from NOWHERE on the site.
+// phone — has no account to sign in to, so a page offering /signin alone is no
+// answer for them, and /orders/find is built for exactly that reader. Both are
+// offered, because the reader is one of two people and the page cannot tell
+// which.
 //
-// Asserted through the render, because the defect was never in a view model: the
-// route existed and worked the whole time. Only a page can be missing a link.
+// Asserted through the render, because there is no view model to be wrong:
+// /orders/find resolves whether or not anything points at it, and only a page
+// can be missing a link.
 func TestTheOrderNotFoundPageOffersAWayThrough(t *testing.T) {
 	html := renderToString(t, OrderNotFound(layouts.Page{Title: "404"}))
 
@@ -346,24 +353,25 @@ func TestTheOrderNotFoundPageOffersAWayThrough(t *testing.T) {
 	}
 }
 
-// TestAShippedOrderLinksToItsWarrantyForm closes a dead end every signed-in
-// customer met.
+// TestADeliveredOrderLinksToItsWarrantyForm closes the dead end every signed-in
+// customer otherwise meets.
 //
-// /account/warranty/{number} carries the ONLY form that registers a unit and had
-// no inbound link anywhere: the account nav reaches the LIST, and the list's own
-// copy says 「從訂單頁進去登錄」 — a page that did not link it. The only way in
-// was typing a URL the site never displays.
+// /account/warranty/{number} carries the ONLY form that registers a unit, and
+// the account nav reaches the LIST rather than the form — the list's own copy
+// says 「從訂單頁進去登錄」, so the order page is where the link has to be. Without
+// it the only way in is typing a URL the site never displays.
 //
 // TestEveryHardCodedLinkResolvesToARoute cannot see this by construction. It
 // asks link→route, the route IS linked one level up, and a templated href
 // carrying an order number is skipped by its parser either way.
-// This table used to say shipped → true, and it was a test written from the
-// IMPLEMENTATION rather than from the contract — the round-6 shape, where three
-// findings were each locked in by a test asserting the defect. The sentence above
-// it named the contract correctly the whole time ("cover starts when goods reach
-// somebody") and then asserted dispatch, which is a different moment: the term is
-// computed from order_shipments.delivered_at, so on a 'shipped' order the form
-// exists and can register nothing.
+//
+// The table asserts the CONTRACT and not the implementation. Cover starts when
+// goods reach somebody and the term is computed from
+// order_shipments.delivered_at, so a row saying shipped → true would offer the
+// link at DISPATCH, which is a different moment: on a 'shipped' order the form
+// exists and can register nothing. A table written from the implementation
+// asserts what the code does; only one written from the contract can disagree
+// with it.
 func TestADeliveredOrderLinksToItsWarrantyForm(t *testing.T) {
 	tests := []struct {
 		name   string

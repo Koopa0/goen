@@ -23,15 +23,14 @@ import (
 // available scaler is the right trade when the CPU is paid once and the quality
 // is seen every time.
 //
-// "Paid once" is a property of the CALLER, and the comment that used to sit here
-// said the result was "cached for a year" as though it were a property of this
-// function. It is not. The year is the CLIENT's Cache-Control, which does
-// nothing at all for the first request from every client, for a crawler, or for
-// anyone hammering the URL on purpose — and this ran in full for every one of
-// them. What makes the claim true on the server side is the renderer in
-// render.go: a bounded in-process cache in front of this, one flight per
-// (digest, width), and a limit on how many of these may run at once. This
-// function is the raw scaler and bounds nothing but the width it will accept.
+// "Paid once" is a property of the CALLER and never of this function. The
+// year-long Cache-Control belongs to the CLIENT, and it does nothing at all for
+// the first request from every client, for a crawler, or for anyone hammering the
+// URL on purpose — this runs in full for every one of them. What makes the claim
+// true on the server side is the renderer in render.go: a bounded in-process
+// cache in front of this, one flight per (digest, width), and a limit on how many
+// of these may run at once. This function is the raw scaler and bounds nothing
+// but the width it will accept.
 func Resize(data []byte, contentType string, width int) ([]byte, error) {
 	if !assets.KnownWidth(width) {
 		return nil, fmt.Errorf("media: %d is not a rendition goen offers", width)

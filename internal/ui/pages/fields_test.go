@@ -13,14 +13,14 @@ import (
 
 // TestEveryViewModelFieldIsAssigned refuses a field the pages read and nothing fills.
 //
-// # The defect, twice
+// # The defect, in the two fields this is named for
 //
-// layouts.Page.CartCount existed from the day the header was built and no handler
-// ever set it, so the cart badge read 0 for every visitor with anything in their
-// cart. layouts.Page.Nav was the same field three lines down: the header reads it to
-// mark the current category and to emit aria-current="page", and nothing assigned it
-// — so no navigation item had ever been highlighted and a screen reader was never
-// told where the visitor was.
+// layouts.Page.CartCount is read by the header to draw the cart badge, so a handler
+// that never sets it makes that badge read 0 for every visitor with something in
+// their cart. layouts.Page.Nav is the same field three lines down: the header reads
+// it to mark the current category and to emit aria-current="page", so an unassigned
+// Nav means no navigation item is ever highlighted and a screen reader is never told
+// where the visitor is.
 //
 // Neither is a compile error. `go vet` cannot see them either, because a zero value
 // is valid: an int that is 0 and a string that is "" are exactly what an unfilled
@@ -33,17 +33,17 @@ import (
 // literal, by an assignment, or by a compound operator. Reading it is not enough;
 // being read and never written is precisely the defect.
 //
-// # The namesake, which is what this guard was actually passing on
+// # Why both sides are keyed Type.Field
 //
-// The first cut keyed on the BARE FIELD NAME on both sides: it collected `Number`
-// rather than `Page.Number`, and asked whether anything in the repository matched
-// `Number:` or `.Number =`. So a field was covered by ANY other struct's field of
-// the same name. A third-party review proved it: a dead `Number` added to
-// layouts.Page passed, because internal/payment/handler.go fills `PayView.Number`;
-// renaming it `Numberz` went red naming Page correctly; reverting went green.
-// CartCount and Nav were caught only because those two names are unique in this
-// repository — a third field called Total, Status, Count, Name or ID would not have
-// been, and those are the names a view model is most likely to grow.
+// Keying on the BARE FIELD NAME instead — collecting `Number` rather than
+// `Page.Number`, and asking whether anything in the repository matches `Number:` or
+// `.Number =` — leaves a field covered by ANY other struct's field of the same name.
+// The mutation that separates the two is a dead `Number` added to layouts.Page:
+// keyed Type.Field the guard goes red naming Page, and keyed on the bare name it
+// passes, because internal/payment/handler.go fills `PayView.Number`. CartCount and
+// Nav are caught either way only because those two names are unique in this
+// repository — a third field called Total, Status, Count, Name or ID would not be,
+// and those are the names a view model is most likely to grow.
 //
 // # What ties an assignment to a type
 //
@@ -64,7 +64,7 @@ import (
 // which means golang.org/x/tools as a direct dependency of a repository that
 // measures its module graph before adding one. What is here is stdlib and reaches
 // 937 of the 946 fields; the nine it does not reach are in the allowlist with their
-// reasons, and every one of them turned out to be a real defect rather than a limit.
+// reasons, and every one of them is a real defect rather than a limit of the parse.
 //
 // # Known limits
 //
@@ -95,11 +95,11 @@ func TestEveryViewModelFieldIsAssigned(t *testing.T) {
 	// naming it here is the claim that somebody checked. Keyed Type.Field, so an
 	// exemption cannot spread to another view model's field of the same name.
 	//
-	// Every entry below is REPORTED rather than accepted. The bare-name match this
-	// guard used to run found none of them — each was covered by some other view
-	// model's Title, Email, Reason, Amount, Notice or NameEn — and the fix for each
-	// is in a handler or a store, not in this file. They are here so the build is
-	// not red while they wait, and each retires itself the moment it is filled.
+	// Every entry below is REPORTED rather than accepted. A bare-name match finds
+	// none of them — each is covered by some other view model's Title, Email,
+	// Reason, Amount, Notice or NameEn — and the fix for each is in a handler or a
+	// store, not in this file. They are here so the build is not red while they
+	// wait, and each retires itself the moment it is filled.
 	allowed := map[string]string{
 		// The credit grant form loses what an admin typed. These three carry a
 		// refused form's values back into it — their own comment says so — and
@@ -263,9 +263,10 @@ func parseDirs(t *testing.T, dirs ...string) []*ast.File {
 // field only a test fills is exactly the defect — the page reads it, the suite
 // constructs it, and no handler ever supplies it.
 //
-// It also stopped this guard being satisfied by its own proof. The first version
-// matched `.Nav = ` inside a t.Errorf message in the test below, so deleting the
-// real assignment left it green.
+// It also stops this guard being satisfied by its own proof: the test below names
+// `.Nav = ` inside a t.Errorf message, so a walk that read test files would match
+// that instead of a real assignment, and deleting the real one would leave the
+// guard green.
 func isHandWrittenGo(path string) bool {
 	return strings.HasSuffix(path, ".go") &&
 		!strings.HasSuffix(path, "_templ.go") && // generated from the .templ beside it

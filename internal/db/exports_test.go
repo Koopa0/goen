@@ -15,13 +15,13 @@ import (
 //
 // goen is entirely under internal/, so nothing here is public API: an exported
 // function with no caller is not "available to consumers", it is a feature
-// nobody finished. Seven were found the day this was written, including two
-// written an hour earlier in the same session —
+// nobody finished. What that costs, in the four shapes it takes here —
 //
-//   - twofactor.Store.Remove, documenting a 2FA recovery path that could not be
-//     reached, so a lost authenticator was a permanent lockout;
-//   - media.Store.Recent, "the back office's picker", for a picker that did not
-//     exist — so a shot belonging on three products was uploaded three times;
+//   - twofactor.Store.Remove, which documents a 2FA recovery path: unreached, a
+//     lost authenticator is a permanent lockout and the only fix is SQL against
+//     production;
+//   - media.Store.Recent, "the back office's picker", for a picker that does not
+//     exist — so a shot belonging on three products is uploaded three times;
 //   - AdminStockRisk.SoldText, the units figure that makes "14 days of cover"
 //     mean something;
 //   - ProductReview.ReviewStars, a rating for somebody scanning rather than
@@ -78,10 +78,12 @@ func exportedFunctions(t *testing.T) map[string]string {
 // referenced is every name USED as an identifier anywhere in the module,
 // tests included.
 //
-// Identifiers and not text: a doc comment naming the function it documents is
-// exactly what made the first version of this test report nothing at all, and
-// a function called only by a sibling in its own file is legitimately used —
-// which made the second version report fifteen false alarms.
+// Identifiers and not text, and a use anywhere counts. Both halves are
+// load-bearing and they pull in opposite directions: a raw text search finds
+// every function in its own doc comment and so reports no orphans at all, while
+// demanding a use from OUTSIDE the declaring file reports fifteen false alarms,
+// because a function called only by a sibling in its own file is legitimately
+// used.
 //
 // Tests count. `package foo_test` is the idiomatic choice here and it can only
 // reach exported names, so treating a test caller as no caller would push the

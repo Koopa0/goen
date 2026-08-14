@@ -28,12 +28,13 @@ ORDER BY sm.id, v.effective_at DESC;
 
 -- The zone surcharges those methods carry, as DATA.
 --
--- It used to be one column: string_agg built '離島 另加 NT$200、澎湖 另加 NT$150'
--- in SQL and the page printed it. The figures were right and the WORDS were
--- Chinese for every reader — a sentence assembled where no locale exists cannot
--- be anything else, and no catalogue test could see it because it was in a .sql
--- file. The zone NAME stays as the shop typed it; 另加 and the joiner are chrome
--- and follow the visitor.
+-- One row per surcharge, and never one column. A string_agg here would build
+-- '離島 另加 NT$200、澎湖 另加 NT$150' in SQL for the page to print: the figures
+-- right and the WORDS Chinese for every reader, because a sentence assembled
+-- where no locale exists cannot be anything else. A query that assembles chrome
+-- is chrome written where nobody can ask who is reading, which is why the Han
+-- sweep reads .sql literals and not only .go and .templ. The zone NAME stays as
+-- the shop typed it; 另加 and the joiner are chrome and follow the visitor.
 --
 -- Read from the SAME rows checkout charges from, for the reason the fee is: a
 -- page that restates a number is a page that eventually contradicts the till.

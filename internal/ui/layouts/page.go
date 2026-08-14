@@ -42,20 +42,21 @@ type topNavKey struct{}
 
 // WithTopNav carries the header's category row down to the chrome.
 //
-// It used to be a package-level var of five hard-coded NavItems, and that was
+// The row is read from the CATALOGUE and travels in the context, rather than
+// sitting in a package-level var of hard-coded NavItems. A hard-coded list is
 // wrong three ways at once:
 //
-//   - the names were Chinese for every visitor, exempted on the grounds that a
-//     category name is CONTENT. It is not: it is the most-read chrome on the
-//     site, in the header of every page, and an English visitor met a Chinese
-//     navigation bar on a page whose every other word had been translated.
-//   - it was a second copy of `categories`. The comment above it said as much and
+//   - the names are Chinese for every visitor, on the grounds that a category
+//     name is CONTENT. It is not: it is the most-read chrome on the site, in the
+//     header of every page, so an English visitor meets a Chinese navigation bar
+//     on a page whose every other word has been translated.
+//   - it is a second copy of `categories`, and the comment over goen's own list
 //     named TestTopNavPointsAtRealCategories as what kept the two from drifting. // named-test-exempt: this line RECORDS that the test was never written
 //     That test was never written — the third claim of enforcement this project
 //     has found with nothing behind it.
-//   - a slug that stopped resolving was a dead link on every page at once, which
-//     is exactly what happened when 耳機 pointed at /c/headphones and the
-//     category had always been audio.
+//   - a slug that stops resolving is a dead link on every page at once, which is
+//     what 耳機 became when it pointed at /c/headphones while the category was
+//     audio.
 //
 // Reading the catalogue removes all three: there is one name for a category, one
 // place it is translated, and a link cannot point at something that is not there.

@@ -1,14 +1,13 @@
 package payment
 
-// The HTTP interface to Stripe, which had no test of any kind.
+// The HTTP interface to Stripe: the part that actually leaves the process.
 //
-// Everything else in this package was covered from the outside: signature
-// verification, which events are captures, how a session's expiry is derived.
-// What was NOT covered is the part that actually leaves the process — the
-// request goen builds, and what it makes of the three answers Stripe can give.
-// [Gateway.ResumeSession]'s five lines of wiring had never been executed once,
-// and they carry a rule the doc comment calls the double charge arriving through
-// the code that exists to prevent it.
+// The rest of this package is covered from the outside — signature verification,
+// which events are captures, how a session's expiry is derived. What only these
+// tests can see is the REQUEST goen builds and what it makes of the three answers
+// Stripe can give. [Gateway.ResumeSession]'s five lines of wiring carry a rule
+// its own doc comment calls the double charge arriving through the code that
+// exists to prevent it, and nothing above the wire executes them.
 //
 // These are white-box (`package payment`) so the client can be pointed at an
 // httptest.Server. That is not an interface introduced for a test — rules/
@@ -114,10 +113,10 @@ func anOrder() *Order {
 // the reason rules/testing.md gives about wire expectations: computing 299780
 // from o.TotalCents would pass with the amount doubled at both ends.
 //
-// The unscaled amount is the point. Mistake #18 in CLAUDE.md is dividing a TWD
-// amount by 100 because the docs call TWD zero-decimal — which is true of manual
-// PAYOUTS and false of charges, and undercharges by 100x. Nothing asserted it
-// until now.
+// The unscaled amount is the point, and this is the only place it is asserted.
+// Mistake #18 in CLAUDE.md is dividing a TWD amount by 100 because the docs call
+// TWD zero-decimal — which is true of manual PAYOUTS and false of charges, and
+// undercharges by 100x.
 func TestTheSessionRequestCarriesWhatStripeCharges(t *testing.T) {
 	g, log := stripeAt(t, func(*call) (int, string) {
 		return http.StatusOK, `{"id":"cs_test_created","object":"checkout.session",` +
@@ -163,16 +162,15 @@ func TestTheSessionRequestCarriesWhatStripeCharges(t *testing.T) {
 		}
 	}
 
-	// payment_method_types is PINNED, and this assertion used to demand the
-	// opposite — it required the field to be ABSENT, and passed for as long as
-	// the defect existed.
+	// payment_method_types is PINNED, and this assertion is written from the
+	// CONTRACT rather than from the code: money must not arrive after the hold
+	// expires.
 	//
-	// That is the fourth time this repository has found a green test holding a
-	// bug in place, and the cause is the one docs/reviews/07 records: the test
-	// was written from the IMPLEMENTATION. A comment said the field was omitted
-	// on purpose, so the test asserted it was omitted. Only a test written from
-	// the CONTRACT — money must not arrive after the hold expires — can disagree
-	// with the code it covers.
+	// An assertion written from the IMPLEMENTATION demands the opposite — that
+	// the field be ABSENT, because a comment beside it says it is omitted on
+	// purpose — and it passes for as long as the defect lives. That is the shape
+	// docs/reviews/07 records: a green test holding a bug in place, and only a
+	// test written from the contract can disagree with the code it covers.
 	//
 	// The contract is on the pin in StartSession: a delayed method settles after
 	// the session goen deliberately bounded by the stock hold, so the sweeper
@@ -200,11 +198,11 @@ func TestTheSessionRequestCarriesWhatStripeCharges(t *testing.T) {
 
 // TestTheSessionExpiresWithTheStockHold reads expires_at off the wire.
 //
-// The session used to be 30 minutes from ITS OWN creation while the hold ran
-// from PlaceOrder, so the session always outlived the goods behind it and a
-// customer could finish paying for stock the sweeper had released and sold. The
-// fix derived it from the reservation; nothing had ever read the field Stripe
-// actually receives.
+// expires_at comes from the RESERVATION. Thirty minutes from the session's own
+// creation, against a hold that runs from PlaceOrder, makes the session outlive
+// the goods behind it — and a customer finishes paying for stock the sweeper has
+// released and sold. This is the only place the field Stripe actually receives is
+// read.
 func TestTheSessionExpiresWithTheStockHold(t *testing.T) {
 	g, log := stripeAt(t, func(*call) (int, string) {
 		return http.StatusOK, `{"id":"cs_x","object":"checkout.session","url":"https://x.test","status":"open"}`
@@ -247,8 +245,8 @@ func TestASessionIsNeverAskedForLessThanTheOrderTotals(t *testing.T) {
 // TestTheHostedPageFollowsTheVisitorsLanguage covers the one page in the flow
 // goen does not control.
 //
-// It was pinned to zh-TW, so the step where being unsure what you are agreeing
-// to matters most was Chinese for everybody.
+// A locale pinned to zh-TW makes the step where being unsure what you are
+// agreeing to matters most Chinese for everybody.
 func TestTheHostedPageFollowsTheVisitorsLanguage(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
@@ -279,7 +277,7 @@ func TestTheHostedPageFollowsTheVisitorsLanguage(t *testing.T) {
 // whether a new session is legal. What must never happen is `open` true for a
 // session with money in flight, or an error read as "not open" — the doc comment
 // calls the second one the double charge arriving through the code that exists
-// to prevent it, and nothing had executed either branch.
+// to prevent it, and this is what executes both branches.
 func TestOnlyAnOpenSessionIsResumable(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
@@ -331,11 +329,12 @@ func TestOnlyAnOpenSessionIsResumable(t *testing.T) {
 	}
 }
 
-// TestCancellingClosesTheCheckoutAtStripe covers the request H6.3 was about.
+// TestCancellingClosesTheCheckoutAtStripe covers the request that closes a
+// cancelled order's checkout.
 //
-// Cancelling released the stock and returned the credit and left the checkout
-// PAYABLE, so "cancel, then finish paying on the tab that is still open" put
-// money against an order whose goods were back on the shelf.
+// Cancelling releases the stock and returns the credit; leaving the checkout
+// PAYABLE on top of that means "cancel, then finish paying on the tab that is
+// still open" puts money against an order whose goods are back on the shelf.
 func TestCancellingClosesTheCheckoutAtStripe(t *testing.T) {
 	g, log := stripeAt(t, func(*call) (int, string) {
 		return http.StatusOK, `{"id":"cs_open","object":"checkout.session","status":"expired"}`

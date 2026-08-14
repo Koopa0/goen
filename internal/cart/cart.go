@@ -39,10 +39,10 @@ var (
 
 // PlacedCookieName carries the browser's proof that it placed an order.
 //
-// It holds TOKENS, not order numbers. It used to hold the numbers, and the number
-// was the proof — but numbers come off a per-day counter (GO-260803-000001, then
-// 000002), so anybody could set the cookie by hand, increment, and read a stranger's
-// email, address and items, then cancel the order, start a payment or open a return.
+// It holds TOKENS, not order numbers, because a number in here would BE the proof
+// and numbers come off a per-day counter (GO-260803-000001, then 000002). Anybody
+// could set such a cookie by hand, increment it, and read a stranger's email,
+// address and items, then cancel the order, start a payment or open a return.
 //
 // `__Host-`, Secure, HttpOnly and SameSite all govern how a BROWSER treats a cookie.
 // None of them says the value came from this server, and curl does not have to care.
@@ -202,17 +202,17 @@ const MaxLineQuantity = 999
 // PayWindow is how long after PLACING an order a customer may still start
 // paying for it.
 //
-// It is not the same quantity as [HoldTTL], and the two were conflated — both
-// were thirty minutes — which broke payment ENTIRELY. The hold is stamped at
-// PlaceOrder and the payment page asks whether enough of it is left to open a
-// Checkout Session against; Stripe will not accept one expiring less than
-// [StripeSessionFloor] out. With HoldTTL equal to that floor the question
-// reduces to `placed_at >= pay_at`, which is false the instant after checkout,
-// so no session could ever be created and no order could ever be paid for.
+// It is not the same quantity as [HoldTTL], and conflating them — thirty
+// minutes each — breaks payment ENTIRELY. The hold is stamped at PlaceOrder and
+// the payment page asks whether enough of it is left to open a Checkout Session
+// against; Stripe will not accept one expiring less than [StripeSessionFloor]
+// out. With HoldTTL equal to that floor the question reduces to
+// `placed_at >= pay_at`, which is false the instant after checkout — so no
+// session can ever be created and no order can ever be paid for.
 //
 // Two durations measured from DIFFERENT instants are not the same window — the
-// lesson [Order.SessionExpiry] already records, one level up, about the session
-// and the hold. This is that mistake in the two constants underneath it.
+// lesson [Order.SessionExpiry] records one level up, about the session and the
+// hold. The same trap sits in these two constants underneath it.
 const PayWindow = 30 * time.Minute
 
 // StripeSessionFloor mirrors payment.MinSessionLifetime, which is Stripe's own
@@ -221,9 +221,10 @@ const PayWindow = 30 * time.Minute
 // Mirrored rather than imported: internal/payment already reaches into this
 // package through a consumer-defined interface, and one number is a poor reason
 // to point the dependency back the other way.
-// TestAPlacedOrderCanActuallyBePaidFor binds the two through the real gate, and
-// through the real sequence — a hold stamped at placement, read at a LATER
-// instant — which is the shape neither of the tests that covered this had.
+// TestAPlacedOrderCanActuallyBePaidFor binds the two through the real gate and
+// the real sequence — a hold stamped at placement and read at a LATER instant.
+// That sequence is the lock: a test that reads the hold at the instant it was
+// stamped never reaches the comparison this constant decides.
 const StripeSessionFloor = 30 * time.Minute
 
 // HoldTTL is how long an order's stock is reserved while payment is attempted.
@@ -232,7 +233,7 @@ const StripeSessionFloor = 30 * time.Minute
 // moment of [PayWindow] must still leave behind a hold long enough for Stripe to
 // accept a session, and that session then expires with the hold rather than
 // after it. Writing it as a sum is what stops the two ends drifting into the
-// equality that broke this.
+// equality that leaves every order unpayable — see [PayWindow].
 //
 // The trade-off inside PayWindow is the real one. Too short and a customer
 // typing a card number loses the item under them; too long and an abandoned
@@ -524,16 +525,16 @@ func (a *Address) ForDestination() {
 
 // isStoreCode reports whether s is a convenience-store number.
 //
-// Digits or uppercase letters. It was digits only, on the claim that a store
-// code is always a number — a guess, and wrong: 萊爾富 numbers its stores in
-// four characters and 149 of its 1,350 lead with a letter, so this line refused
-// every one of them at checkout and offered no way through. The measurement is
-// recorded beside order_private_data_pickup_store_code_format, which is the
-// authority; this is the copy that answers with a field name rather than a
-// constraint violation at the end of a checkout.
+// Digits or uppercase letters, and never digits alone. "A store code is always
+// a number" is a guess, and it is wrong: 萊爾富 numbers its stores in four
+// characters and 149 of its 1,350 lead with a letter, so a digits-only rule
+// refuses every one of them at checkout and offers no way through. The
+// measurement is recorded beside order_private_data_pickup_store_code_format,
+// which is the authority; this is the copy that answers with a field name rather
+// than a constraint violation at the end of a checkout.
 //
-// It still catches what it was written to catch — a 店名 typed into the code
-// field is Han text, which is in neither class.
+// The wider class still catches what this rule is for — a 店名 typed into the
+// code field is Han text, which is in neither class.
 //
 // It is an EXACT mirror of that CHECK, deliberately: it neither trims nor folds
 // case. A validator looser than the schema accepts a value the write then
@@ -625,10 +626,10 @@ func isPostalCode(s string) bool {
 //
 // unicode.IsControl covers BOTH the C0 range (0x00–0x1F, 0x7F) and C1
 // (0x80–0x9F) — the second matters because C1 characters are invisible and are
-// the classic way past a check that only looked at ASCII. Verified rather than
-// assumed: an explicit C1 branch here was dead code, because IsControl already
-// returns true for U+0085 and its neighbours. U+00A0, the non-breaking space,
-// is correctly NOT a control character and stays allowed.
+// the classic way past a check that only looks at ASCII. Verified rather than
+// assumed: an explicit C1 branch here would be dead code, because IsControl
+// already returns true for U+0085 and its neighbours. U+00A0, the non-breaking
+// space, is correctly NOT a control character and stays allowed.
 func hasControl(s string) bool {
 	for _, r := range s {
 		if unicode.IsControl(r) {

@@ -41,7 +41,7 @@ func (s *Store) Enabled() bool { return s.cipher.Enabled() }
 //
 // The credential is NOT confirmed here. Somebody who mistypes the secret into
 // their app would otherwise have working 2FA on paper and no way to produce a
-// code, which locks them out of the thing 2FA was protecting.
+// code, which locks them out of exactly the thing 2FA is protecting.
 //
 // A credential that is already CONFIRMED is refused with [ErrEnrolled]. This
 // route is reached with a password and an ordinary session, so overwriting a
@@ -191,10 +191,11 @@ func (s *Store) Remove(ctx context.Context, userID string) error {
 // an unproved secret is legitimately in play — it is proving it — and everyone
 // else must treat an unconfirmed credential as absent.
 //
-// The first version had this check in the comment and not in the code, so a
-// half-finished enrolment reported itself enrolled: the challenge page asked
-// for a code the person had no way to generate, and there was no route back to
-// enrolment. The test found it.
+// It is a parameter enforced here and not a rule each caller remembers, because
+// a credential that reports itself enrolled while unconfirmed locks a
+// half-finished enrolment out of exactly what it protects: the challenge page
+// asks for a code the person has no way to generate, and there is no route back
+// to enrolment.
 func (s *Store) load(ctx context.Context, userID string, requireConfirmed bool) (id uuid.UUID, secret []byte, lastStep int64, err error) {
 	if !s.Enabled() {
 		return uuid.UUID{}, nil, 0, ErrDisabled
@@ -224,7 +225,7 @@ func (s *Store) load(ctx context.Context, userID string, requireConfirmed bool) 
 //
 // Enrolment is voluntary — nothing forces a staff member to set up a second
 // factor — so "who has it on" is the question a shop owner has to be able to
-// ask. StaffTOTPStatus was written for a page that did not exist.
+// ask, and StaffTOTPStatus is the answer /admin/staff renders.
 func (s *Store) Staff(ctx context.Context) (pages.AdminStaffView, error) {
 	rows, err := s.q.StaffTOTPStatus(ctx)
 	if err != nil {

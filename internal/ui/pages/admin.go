@@ -115,7 +115,7 @@ type AdminOrdersView struct {
 	Term string
 	// Searched reports whether a search actually RAN. Distinct from Term being
 	// non-empty, because a term below the minimum is a term nobody searched for —
-	// collapsing the two made the page claim results it had never looked for.
+	// collapsing the two makes the page claim results it never looked for.
 	Searched bool
 	Status   string
 	Orders   []AdminOrderRow
@@ -172,8 +172,9 @@ func (v AdminOrdersView) HasNotice() bool { return v.Notice != "" }
 
 // RecipientText is who it is going to, or a note that erase_user has been here.
 //
-// The fallback used to be a coalesce() inside the query — chrome written where
-// nobody can ask who is reading. It is decided here now, where the reader is.
+// Decided HERE and never in a coalesce() inside the query: the fallback is a
+// sentence somebody reads, and a sentence assembled in SQL is chrome written
+// where nobody can ask who is reading it.
 func (o AdminOrderRow) RecipientText(ctx context.Context) string {
 	if o.Recipient == "" {
 		return i18n.T(ctx, i18n.KeyAdminErasedRecipient)
@@ -201,16 +202,17 @@ type AdminOrderView struct {
 	Address        string
 	CustomerNote   string
 	StaffNote      string
-	// The 發票 the customer asked for. Collected at checkout and read by nothing
-	// until now, which meant somebody issuing one by hand — the only way, until the
-	// 加值中心 integration exists — could not see what to issue.
+	// The 發票 the customer asked for, collected at checkout. Shown here because
+	// somebody issuing one by hand — which is the only way wherever the 加值中心
+	// integration is unconfigured — has to be able to see what to issue.
 	InvoiceType    string
 	InvoiceCarrier string
 	InvoiceTaxID   string
 	// InvoiceDocuments is what has actually been FILED — the preference above
 	// says what the customer asked for, and these are the 統一發票 and 折讓 that
-	// exist because of it. The distinction is the whole feature: the preference
-	// was collected from the day checkout shipped and nothing ever acted on it.
+	// exist because of it. The distinction is the whole feature: a page showing
+	// only the preference cannot say whether anything was ever issued against it,
+	// which is the one question somebody reconciling an order has.
 	InvoiceDocuments []AdminInvoiceDocument
 	// InvoicingEnabled is whether this deployment has 加值中心 credentials at
 	// all. False renders no controls and says why, the way the payment page says
@@ -223,24 +225,26 @@ type AdminOrderView struct {
 	// own form because it carries the carrier and tracking number, and because
 	// it settles stock — a status dropdown cannot express either.
 	//
-	// It used to be `status == "picking"` alone, and nothing returns an order TO
-	// picking, so one order could hold exactly one parcel ever — against tables
-	// that model several with per-line quantities.
+	// It follows from what is still OUTSTANDING and never from the status alone.
+	// Nothing returns an order TO picking, so `status == "picking"` lets an order
+	// hold exactly one parcel ever — against tables that have modelled several,
+	// with per-line quantities, since the schema was written.
 	CanShip bool
 	// Shippable is what is still outstanding, per line, with how many of each.
 	// Empty on an order that has gone out in full.
 	Shippable []AdminShippableLine
 	Notice    string
 	// Timeline is the order's history WITH the staff member who caused each
-	// step. The customer's own page has had a timeline since checkout shipped
-	// and the back office had none, which is backwards: the actor is the whole
-	// reason these are two different queries.
+	// step. The actor is the whole reason this and the customer's own timeline
+	// are two different queries: an order page anybody holding the number can
+	// reach must not name the staff member who picked it, and the back office is
+	// the one audience for whom that name is the point.
 	Timeline  []AdminOrderEvent
 	Shipments []AdminShipment
 	// The delivery details as fields rather than one line, so the back office
-	// can CORRECT them. A customer who typed the wrong street had no way to fix
-	// it and neither did the shop: the only option was cancel and re-order,
-	// which loses the payment and the stock hold with it.
+	// can CORRECT them. Without a correction form a customer who typed the wrong
+	// street cannot fix it and neither can the shop: the only move left is
+	// cancel and re-order, which loses the payment and the stock hold with it.
 	Delivery AdminDelivery
 	// Correctable is false once the parcel has left. Rewriting the address then
 	// makes the record lie about where it went.
@@ -286,10 +290,11 @@ func (e AdminOrderEvent) LabelKey() i18n.Key { return OrderEvent{Kind: e.Kind}.L
 // blank reads as missing data and this is a fact: nobody at the shop did it.
 //
 // A CANCELLATION with no actor is the customer's own, and says so. The back
-// office always writes an actor when it cancels, so the absence is the
-// distinction — it used to be a Chinese sentence stored in the note, which the
-// customer's own order page then rendered at them whatever language they read.
-// The fact is structural now, and each audience is told it in their own words.
+// office always writes an actor when it cancels, so the ABSENCE is what tells
+// the two apart. Structural rather than a Chinese sentence in
+// order_events.note: the customer's own order page renders notes, so a sentence
+// stored there is read back at them whatever language they read in. Each
+// audience is told this in their own words instead.
 func (e AdminOrderEvent) By(ctx context.Context) string {
 	switch {
 	case e.Actor != "":
@@ -506,9 +511,8 @@ func (v AdminVariantsView) HasNotice() bool { return v.Notice != "" }
 //
 // The three admin metas are FUNCTIONS rather than package-level values, and the
 // reason is the locale: a var is built once at startup, where there is no
-// request and therefore no language to build it in. They were the last
-// hard-coded titles in the back office for exactly that reason, and ListingMeta
-// and ProductMeta already had this shape on the storefront.
+// request and therefore no language to build it in. ListingMeta and ProductMeta
+// have the same shape on the storefront, for the same reason.
 func AdminMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeyAdminPageDashboard)}
 }

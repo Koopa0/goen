@@ -37,10 +37,10 @@ func NewStore(pool *pgxpool.Pool) *Store {
 // it, through order_amount_owed, which is the one definition the funding check and
 // the capture guard also read.
 //
-// It used to read the gross total, and that was a way to lose money: the credit was
-// debited at checkout, Stripe was asked for the full amount, and the capture guard
-// then refused the payment because the order owed less. The customer paid, the
-// webhook rolled back on every retry, and the order stayed unpaid forever.
+// The NET figure, never the gross total, and getting it wrong loses money: the
+// credit is debited at checkout, so asking Stripe for the full amount makes the
+// capture guard refuse the payment for an order that owes less. The customer pays,
+// the webhook rolls back on every retry, and the order stays unpaid forever.
 func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 	row, err := s.q.OrderTotalByNumber(ctx, number)
 	if err != nil {
@@ -108,10 +108,10 @@ type Attempt struct {
 // order at this figure.
 //
 // It is the FIRST line of defence against charging one order twice. Without it
-// every POST to the pay route created a new session and a new requires_payment
+// every POST to the pay route creates a new session and a new requires_payment
 // row — open_payment only dedupes on (order_id, provider_ref), and each session
-// brings its own id — so two tabs meant two real charges, with
-// payments_one_capture_per_order refusing the second only after the money had
+// brings its own id — so two tabs are two real charges, with
+// payments_one_capture_per_order refusing the second only after the money has
 // left the customer's account.
 func (s *Store) PaymentAttempt(ctx context.Context, number string, owedCents int64) (*Attempt, error) {
 	row, err := s.q.PaymentAttemptForOrder(ctx, db.PaymentAttemptForOrderParams{
@@ -156,8 +156,8 @@ func (s *Store) OpenPayment(ctx context.Context, number, sessionID string, amoun
 //
 // # Why one transaction
 //
-// The claim and the effect used to be two calls, and the failure that exposes
-// is the worst one available here: a capture that errors AFTER the claim
+// The claim and the effect are ONE transaction, because two calls expose the
+// worst failure available here: a capture that errors AFTER the claim has
 // committed leaves the event marked seen. Stripe retries, the retry is told
 // "already seen", answers 200, and stops. The money is captured at Stripe and
 // the order stays unpaid forever, with nothing in the logs after the first

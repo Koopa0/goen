@@ -2,13 +2,14 @@ package i18n
 
 // The back office.
 //
-// /admin used to be excluded from the locale rule by CATEGORY, on the stated
-// grounds that it serves the staff of one Taiwanese shop. That was a claim about
-// the audience rather than about the code, and the owner has changed the answer:
-// goen's chrome is bilingual everywhere the code writes it. The old exemption
-// even named its own trigger — "if goen ever hires somebody who does not read
-// Chinese, this line is what has to change first" — so it is gone rather than
-// narrowed, and `pendingTranslation` is now carrying what it used to hide.
+// /admin is chrome, and chrome follows the reader: goen's chrome is bilingual
+// everywhere the code writes it, /admin included. Excluding a surface by
+// CATEGORY — "it serves the staff of one Taiwanese shop" — is a claim about the
+// AUDIENCE rather than about the code, and the audience is the shop's to change;
+// the day it hires somebody who does not read Chinese, an exemption written that
+// way is the thing that has to move first. There is none, so
+// TestNoChromeStringIsHardCoded reads the back office like every other
+// customer-facing file.
 //
 // # The vocabulary is the shop's, not the customer's
 //
@@ -16,9 +17,10 @@ package i18n
 // return page says 未同意退貨 / "Declined" because it is being told about its own
 // request; the queue a staff member works says 未同意 / "Declined" in a table
 // column where the noun is already the row. Collapsing them would make one of
-// the two read as though it had been written for the other reader, and this
-// project has the reverse mistake on record — the header that was a second copy
-// of `categories`, kept in step by a test that was never written.
+// the two read as though it had been written for the other reader. The mistake
+// in the opposite direction is on record here too — a second copy of
+// `categories` in the header, kept in step by a test that was never written —
+// so two keys where the readers differ, and one where they do not.
 //
 // What is NOT here, and stays out: anything a person TYPED into a table. A
 // product name, a category name, a coupon's description and a staff note are the
@@ -51,10 +53,10 @@ var (
 	KeyAdminReturnRejected  = key("admin.return.rejected", Message{ZhHant: "未同意", En: "Declined"})
 	KeyAdminReturnCompleted = key("admin.return.completed", Message{ZhHant: "已完成", En: "Completed"})
 
-	// A product's publication state. The Chinese is carried across UNCHANGED —
-	// translating a surface is not the moment to reword it, and 已封存 rather than
-	// 已下架 is the shop's own distinction: an archived product keeps its page and
-	// its history.
+	// A product's publication state, in the shop's own words rather than reworded
+	// into whatever translates most neatly — translating a surface is not a
+	// licence to restate it. 已封存 rather than 已下架 is a distinction the shop
+	// draws for itself: an archived product keeps its page and its history.
 	KeyAdminProductDraft    = key("admin.product.draft", Message{ZhHant: "草稿", En: "Draft"})
 	KeyAdminProductActive   = key("admin.product.active", Message{ZhHant: "已上架", En: "Published"})
 	KeyAdminProductArchived = key("admin.product.archived", Message{ZhHant: "已封存", En: "Archived"})
@@ -77,9 +79,10 @@ var (
 	// would read as shop policy, which is the exact misunderstanding the screen
 	// exists to prevent.
 	//
-	// 尚未送達 is neither answer, because the window has not started — see
-	// CLAUDE.md on why an unstamped parcel misinformed this screen in the shop's
-	// favour.
+	// 尚未送達 is neither answer, because the window has not started — and see
+	// CLAUDE.md on why a parcel left unstamped misinforms this screen in the
+	// shop's favour, on the one page built to inform an unwaivable-right
+	// decision.
 	KeyAdminReturnWindowWithin = key("admin.return.window.within", Message{
 		ZhHant: "七日鑑賞期內",
 		En:     "Within the statutory 7-day right to cancel",

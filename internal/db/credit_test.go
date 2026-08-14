@@ -5,11 +5,12 @@ import (
 	"testing"
 )
 
-// A balance is the credit LEDGER, added up. Both halves are needed: `amount_cents`
-// alone also names refunds and invoice allowances, and the first cut of this guard
-// duly refused RefundedSoFar — a sum over a different table entirely. Reading the
-// ledger row by row is what /admin/credit's history does and is not a balance;
-// adding the amounts up is the act that has to have one definition.
+// A balance is the credit LEDGER, added up. Both halves are needed, and the ledger
+// half is the one that is easy to leave out: `amount_cents` alone also names refunds
+// and invoice allowances, so a guard anchored on the arithmetic alone refuses
+// RefundedSoFar — a sum over a different table entirely. Reading the ledger row by
+// row is what /admin/credit's history does and is not a balance; adding the amounts
+// up is the act that has to have one definition.
 var (
 	touchesCreditLedger = regexp.MustCompile(`\bstore_credit_entries\b`)
 	sumsAmounts         = regexp.MustCompile(`sum\(\s*-?\s*(\w+\.)?amount_cents\s*\)`)
@@ -18,14 +19,14 @@ var (
 // TestEveryCreditBalanceReadsTheOneView holds the single definition of what an
 // account is worth.
 //
-// Four queries in three packages had each written out `sum(amount_cents)` over
-// store_credit_entries — the account page, the checkout, the back office's grant
-// form, and the customer page that was being built when this was found. Four
-// copies of one arithmetic is four chances for one of them to gain a FILTER the
-// others do not have, and a customer shown two different balances by two pages of
-// one shop cannot tell which is true.
+// Four surfaces ask what an account is worth — the account page, the checkout, the
+// back office's grant form and the customer page — and each of them could write out
+// its own `sum(amount_cents)` over store_credit_entries. Four copies of one
+// arithmetic is four chances for one to gain a FILTER the others do not have, and a
+// customer shown two different balances by two pages of one shop cannot tell which
+// is true.
 //
-// store_credit_balances is that definition now, the way visible_reviews and
+// store_credit_balances is that one definition, the way visible_reviews and
 // committed_orders each are, and this is what stops a fifth copy appearing.
 func TestEveryCreditBalanceReadsTheOneView(t *testing.T) {
 	t.Parallel()

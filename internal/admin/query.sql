@@ -63,7 +63,7 @@ SELECT
     o.shipping_cents, o.discount_cents, o.tax_cents, o.shipping_method_name,
        -- WHICH discount, joined rather than snapshotted: coupons.code is never
        -- updated and the FK is ON DELETE RESTRICT, so one join always reaches it.
-       -- An order used to show "折扣 −NT$200" and nothing said why, to the
+       -- Without it an order shows "折扣 −NT$200" and nothing says why, to the
        -- customer or to the shop.
        coalesce((SELECT c.code || ' · ' || c.description
                  FROM coupon_redemptions cr JOIN coupons c ON c.id = cr.coupon_id
@@ -81,14 +81,14 @@ SELECT
     coalesce(pd.pickup_brand, '') AS pickup_brand,
     coalesce(pd.pickup_store_code, '') AS pickup_store_code,
     coalesce(pd.pickup_store_name, '') AS pickup_store_name,
-    -- The 發票 the customer asked for. Collected at checkout since payment shipped
-    -- and read by NOTHING, so a staff member packing an order could not see whether
-    -- it needed a 統編 invoice — data collected and never shown, which is a feature
+    -- The 發票 the customer asked for. Collected at checkout and shown HERE,
+    -- because the staff member packing an order is the one who has to see that it
+    -- needs a 統編 invoice — a preference collected and never shown is a feature
     -- with no door from the other side.
     --
-    -- Issuing is still not built (a real 統一發票 goes through a 加值中心), and that
-    -- is exactly why showing it matters: until the integration exists, somebody
-    -- issues these by hand, and they cannot do it from a table they cannot read.
+    -- It matters most where issuing is off. A real 統一發票 goes through a 加值中心,
+    -- and a deployment holding no credentials for one issues nothing — so somebody
+    -- files these by hand, and they cannot do it from a table they cannot read.
     coalesce(ip.invoice_type, '') AS invoice_type,
     coalesce(ip.carrier_code, '') AS invoice_carrier,
     coalesce(ip.tax_id, '') AS invoice_tax_id,
@@ -106,9 +106,10 @@ WHERE o.order_number = $1;
 -- them for those two states and orders_history_frozen refuses a later change.
 -- Stamp the parcels of an order that has just been marked delivered.
 --
--- delivered_at was READ in two places and written in NONE: the order-level status
--- moved to 已送達 while every parcel row still said it was in transit, so the two
--- halves of the same fact disagreed and the customer's own page reads the parcel.
+-- delivered_at is READ by the customer's own order page and by /admin/orders, and
+-- this is what writes it. Without it the order-level status says 已送達 while every
+-- parcel row still says the goods are in transit — two halves of one fact
+-- disagreeing, and the half the customer reads is the parcel.
 --
 -- Only the ones with no stamp, so a re-run cannot move a date that has already
 -- been recorded — and never earlier than shipped_at, which
@@ -173,10 +174,10 @@ SELECT record_inventory_movement(
 -- Put a returned unit back on the shelf.
 --
 -- reason 'return' rather than 'adjustment', which is the whole point: the ledger
--- had the reason, its delta-direction CHECK and its safety-stock exemption from
--- the day it was written, and NOTHING ever posted one — so goods coming back
--- were indistinguishable from a staff member correcting a miscount. A shop
--- reading /admin/stock/{sku} could see the number move and not why.
+-- carries that reason, its delta-direction CHECK and its safety-stock exemption,
+-- and this is what posts one. Without it goods coming back are indistinguishable
+-- from a staff member correcting a miscount, and a shop reading
+-- /admin/stock/{sku} sees the number move and not why.
 --
 -- source_type/source_id point at the RETURN, so the ledger row answers "which
 -- return put this back" the way a hold points at its order and a release at its
@@ -233,8 +234,9 @@ SELECT consume_reservation_partial(@reservation_id, @quantity::integer);
 --
 -- LEFT JOIN on the reservation, not JOIN. A line whose variant was deleted has
 -- no hold and never did, and dropping the row here would silently ship it
--- without anybody noticing the stock did not move — which is the shape the
--- empty-reservation dispatch had. The caller refuses instead.
+-- without anybody noticing the stock did not move — the empty-reservation
+-- dispatch, where the parcel leaves the warehouse and stock_quantity stays where
+-- it was. The caller refuses instead.
 -- name: ShippableLines :many
 SELECT ol.id AS order_line_id,
        ol.sku,
@@ -259,7 +261,7 @@ ORDER BY ol.position, ol.id;
 -- ReleaseReservation and HeldReservationsForOrder are what a cancellation needs,
 -- and they are defined in internal/cart/query.sql. sqlc generates ONE db package
 -- for the whole module, so a second copy here is a duplicate-name error rather
--- than a second query — which is how this was found.
+-- than a second query.
 
 -- Append to an order's history. The table is append-only three ways — a
 -- forbid_change trigger, REVOKE UPDATE and REVOKE DELETE — so this is the only
@@ -299,9 +301,9 @@ SELECT r.id, r.status, r.reason, r.created_at, r.decided_at,
        (SELECT coalesce(sum(rl.quantity), 0) FROM return_request_lines rl
         WHERE rl.return_request_id = r.id)::integer AS units,
        -- The ONE definition, not a second copy of the arithmetic. The queue and
-       -- the decision page used to compute this separately, and both were wrong
-       -- the same two ways — a figure a staff member reads on one page and acts
-       -- on from another must not be able to differ.
+       -- the decision page need the same number, and computing it separately in
+       -- each is two chances to get it wrong — a figure a staff member reads on
+       -- one page and acts on from another must not be able to differ.
        return_refundable_amount(r.id)::bigint AS refundable_cents,
        -- Whether this request is a statutory rescission or a goodwill return,
        -- which the page could not tell apart and a staff member therefore could
@@ -334,8 +336,8 @@ LIMIT $1;
 -- The amount comes from return_refundable_amount, never from anything the
 -- request carried: a refund figure that came in on a form is the oldest hole
 -- there is, and this one pays out real money. It is a FUNCTION rather than an
--- expression here because the queue needs the same number, and the two copies
--- this replaced were each wrong in the same two ways.
+-- expression here because the queue needs the same number, and an expression
+-- written out in both places is two figures free to disagree about one refund.
 -- name: ReturnForDecision :one
 SELECT r.id, r.status, r.reason, r.order_id,
        o.order_number, o.fulfillment_status,
@@ -352,11 +354,10 @@ WHERE r.id = $1;
 -- WHAT is being sent back, for every request on the page.
 --
 -- Takes an ARRAY rather than one id, so a queue of fifty returns is one query
--- and not fifty. It was written for a single request and never called at all,
--- so the shape was free to be the one the only caller needs.
+-- and not fifty.
 --
--- Without it the queue said "3 件 · 可退 NT$4,500" and nothing else: a staff
--- member decided a return without being able to see what was in it.
+-- Without it the queue says "3 件 · 可退 NT$4,500" and nothing else: a staff
+-- member deciding a return cannot see what is in it.
 -- name: ReturnLines :many
 SELECT rl.return_request_id, ol.id AS order_line_id, ol.sku, ol.product_name,
        ol.variant_label, ol.unit_price_cents, rl.quantity,
@@ -447,11 +448,11 @@ WHERE id = @id AND status = 'approved';
 -- :execrows, because `status = 'requested'` in this WHERE clause is the ONLY
 -- place the question is asked under a lock. Decide reads the row on the pool
 -- BEFORE opening its transaction, so two staff members clicking 同意 and 不同意
--- on one request both pass that check; as :exec the loser updated zero rows,
--- SQL called it success, and it committed an audit row asserting a decision that
--- never happened — and, for an approval, after paying a refund. Zero rows is
--- "somebody decided this first", which is a sentence a caller can act on.
--- The SetProductStatus lesson, in the one place that also moves money.
+-- on one request both pass that check; as :exec the loser updates zero rows, SQL
+-- calls that success, and the transaction commits an audit row asserting a
+-- decision that never happened — and, for an approval, after paying a refund.
+-- Zero rows is "somebody decided this first", which is a sentence a caller can
+-- act on. The SetProductStatus lesson, in the one place that also moves money.
 -- name: DecideReturn :execrows
 UPDATE return_requests
 SET status = @status::text, resolution = @resolution, decided_at = now()
@@ -473,20 +474,20 @@ SELECT settle_refund(@request_key::text, nullif(@provider_ref::text, ''), @statu
 --
 -- It mirrors refunds_guard, and it has to: the trigger counts every refund on
 -- the payment that is not 'failed' and not 'cancelled', EXCLUDING the row being
--- written. Two ways this had drifted from it, both of which make the back
--- office compute headroom the database will not honour.
+-- written. Two ways the mirror can slip, both of which make the back office
+-- compute headroom the database will not honour.
 --
--- 'requires_action' was missing from the list. A refund Stripe has accepted and
--- not settled was money goen believed it could still claim and the trigger did
--- not — so the refusal would arrive from a constraint at the end of a refund
--- instead of from splitRefund's own sentence at the start.
+-- 'requires_action' belongs in the list. A refund Stripe has accepted and not
+-- settled is money the trigger counts, so leaving it out makes goen believe that
+-- money is still claimable — and the refusal then arrives from a constraint at
+-- the end of a refund instead of from splitRefund's own sentence at the start.
 --
 -- And the row belonging to THIS request_key is excluded, the way the trigger
 -- excludes NEW.id. open_refund is idempotent on request_key, so a Decide
 -- retried after a stalled provider call finds the row it wrote last time.
--- Counting that row made capturedRemaining zero, so the retry was refused with
--- ErrRefused before Stripe was ever called: the refund the two-transaction
--- design exists to make resumable could not be resumed by any door.
+-- Counting that row makes capturedRemaining zero, so the retry is refused with
+-- ErrRefused before Stripe is ever called: the refund the two-transaction design
+-- exists to make resumable would be resumable by no door.
 -- name: RefundedSoFar :one
 SELECT coalesce(sum(amount_cents), 0)::bigint
 FROM refunds
@@ -496,13 +497,12 @@ WHERE payment_id = @payment_id
 
 -- Refunds that have not landed, for /admin/health.
 --
--- This repository's own comments claimed that the refund row is committed
--- before the provider is called "so a crash between the two leaves something
--- reconciliation can find". NOTHING READ THAT ROW. The only query over `refunds`
--- was the arithmetic above, so an outstanding claim on real money was visible
--- to nobody — a table with no door, the shape product_specs and promo_banners
--- were each found in, except that this one holds money a customer is waiting
--- for.
+-- The refund row is committed before the provider is called so that a crash
+-- between the two leaves something reconciliation can find, and this is what
+-- reconciliation READS. Without it the only query over `refunds` is the
+-- arithmetic above, so an outstanding claim on real money is visible to nobody —
+-- a table with no door, the shape product_specs and promo_banners are each in,
+-- except that this one holds money a customer is waiting for.
 --
 -- 'failed' is listed beside the two outstanding states on purpose. It is
 -- terminal at Stripe, which is exactly why a person has to see it: the goods
@@ -531,10 +531,13 @@ LIMIT $1;
 SELECT id, email, coalesce(full_name, '') AS full_name FROM users
 WHERE lower(email) = lower(@email::text);
 
--- What a customer's ledger comes to. Summed rather than stored, so it cannot
--- drift from the entries that justify it.
--- What the back office is about to add to or spend from. From the one view that
--- defines a balance — this was the FOURTH hand-written copy of the same sum.
+-- What a customer's ledger comes to: what the back office is about to add to or
+-- spend from.
+--
+-- From store_credit_balances, the ONE view that defines a balance, and never a sum
+-- written out again here. A balance summed in four places is four chances for one
+-- of them to gain a filter the others do not have, and a customer shown two
+-- different figures by two pages of one shop cannot tell which is true.
 -- name: CreditBalance :one
 SELECT coalesce((SELECT b.balance_cents FROM store_credit_balances b
                  WHERE b.user_id = $1), 0)::bigint;
@@ -644,10 +647,10 @@ WHERE slug = @slug::text;
 -- published_at is stamped on the FIRST publish and kept afterwards: 本週新品 is
 -- a query over it, so re-publishing an old product must not make it new again.
 -- :execrows, not :exec. An UPDATE whose WHERE matches nothing is not an error
--- in SQL, so a status change against a slug that does not exist reported
--- success — to the staff member, and to the audit trail, which then held a row
--- saying a product had been published when no such product existed. The row
--- count is how the caller can tell the difference.
+-- in SQL, so as :exec a status change against a slug that does not exist reports
+-- success — to the staff member, and to the audit trail, which then holds a row
+-- saying a product was published when no such product exists. The row count is
+-- how the caller tells the difference.
 -- name: SetProductStatus :execrows
 UPDATE products
 SET status = @status::text,
@@ -660,7 +663,7 @@ WHERE slug = @slug::text;
 -- Add a variant. stock_quantity is deliberately absent: the column is not in
 -- admin's INSERT grant, so it takes DEFAULT 0 and stock arrives only through
 -- record_inventory_movement.
--- The parcel measurements are collected here rather than left for later,
+-- The parcel measurements are collected with the variant rather than left unset,
 -- because they decide which shipping methods the CUSTOMER is offered: a variant
 -- with no measurement is refused by no method, so an unmeasured monitor is
 -- offered 超商取貨 and the shop finds out at the counter. Zero means unmeasured
@@ -900,10 +903,10 @@ ORDER BY t.path, t.name;
 --
 -- :execrows, and the parent resolved by a JOIN rather than a scalar subquery.
 --
--- The first version wrote `(SELECT id FROM categories WHERE slug = @parent)`,
--- which yields NULL for a slug that does not exist — so naming a parent that
--- was not there created a ROOT category and reported success. The staff member
--- asked for one thing and silently got another, which is worse than a refusal.
+-- `(SELECT id FROM categories WHERE slug = @parent)` yields NULL for a slug that
+-- does not exist, so naming a parent that is not there would create a ROOT
+-- category and report success. The staff member asks for one thing and silently
+-- gets another, which is worse than a refusal.
 --
 -- The derived table has exactly one row when the parent exists, exactly one
 -- (NULL) row when no parent was named, and NO rows when a parent was named and
@@ -1023,9 +1026,9 @@ SELECT
     --
     -- Never NULL, because the WHERE below admits only variants that sold
     -- something — so the divisor is never zero and there is no unknowable case
-    -- to render. The first version guarded against a NULL that could not
-    -- happen, and sqlc typed the column non-nullable anyway, which would have
-    -- been a scan error the day the guard mattered.
+    -- to render. A NULL guard here would guard against something that cannot
+    -- happen, and sqlc types the column non-nullable regardless: the day such a
+    -- guard mattered it would be a scan error rather than a rendered blank.
     (pv.stock_quantity::numeric
      / (sold.units::numeric / @window_days::integer))::integer AS days_cover
 FROM product_variants pv
@@ -1154,13 +1157,13 @@ WHERE sn.variant_id = $1
                 AND pv.stock_quantity > pv.safety_stock)
 RETURNING sn.id, sn.email, sn.locale;
 
--- What a restock notice has to say: which product, and where to find it.
--- The product a restock notice is about, named in the RECIPIENT's language.
+-- What a restock notice has to say: which product, where to find it, and the name
+-- in the RECIPIENT's language.
 --
--- The letter's words already followed stock_notifications.locale and the product
--- name did not, so an English subscriber got an English letter about 保護殼 — the
--- half-translated failure the locale work exists to stop, arriving where nobody
--- would see it in review.
+-- The letter's words follow stock_notifications.locale and the product NAME has to
+-- follow it too. Read once in Chinese and copied into every payload, it sends an
+-- English subscriber an English letter about 保護殼 — the half-translated failure
+-- the locale work exists to stop, arriving where nobody would see it in review.
 --
 -- Called once per distinct locale in the claimed set rather than once per recipient:
 -- there are two locales and there can be dozens of subscribers.
@@ -1286,8 +1289,8 @@ DELETE FROM membership_tiers WHERE id = $1;
 
 -- Correct an order's delivery details before the parcel leaves.
 --
--- A customer who typed the wrong street has no way to fix it and, until this
--- existed, neither did the shop: the only option was to cancel and re-order,
+-- A customer who typed the wrong street has no way to fix it themselves, and
+-- without this neither has the shop: the only option is to cancel and re-order,
 -- which loses the payment and the stock hold with it.
 --
 -- The state guard is in the WHERE clause, not read first. Once an order is
@@ -1362,16 +1365,15 @@ WHERE id = $1 AND hidden_at IS NOT NULL;
 -- buries them exactly as they stop being answerable in time.
 --
 -- Unhandled ahead of handled, so the queue is work rather than an archive.
--- contact_messages_unhandled_idx is the partial index this was designed around
--- and nothing had used.
+-- contact_messages_unhandled_idx is the partial index that serves it.
 -- name: AdminMessages :many
 --
 -- waiting_days is computed HERE, by the database's clock, because created_at is
--- written by the database's clock. Go was subtracting one from the other: a
--- container milliseconds ahead of its host made a message inserted exactly four
--- days ago report three, which is the coupon-window lesson at the other end of the
--- same comparison. A whole-day figure is presentation, but the arithmetic under it
--- is not, and two clocks cannot be subtracted.
+-- written by the database's clock. Taking the difference in Go subtracts two
+-- clocks: a container milliseconds ahead of its host reports a message inserted
+-- exactly four days ago as three, which is the coupon-window lesson at the other
+-- end of the same comparison. A whole-day figure is presentation, but the
+-- arithmetic under it is not.
 SELECT id, name, email, subject, coalesce(order_ref, '') AS order_ref,
        message, handled_at, created_at,
        floor(extract(epoch FROM now() - created_at) / 86400)::integer AS waiting_days
@@ -1450,9 +1452,10 @@ LIMIT @row_limit::integer;
 -- One customer, as the back office needs to see them.
 --
 -- Everything about a person in ONE read: who they are, whether the address has been
--- proved, what they have spent, and what the shop owes them. Each of these existed
--- somewhere already and nothing brought them together — so answering "what is going
--- on with this customer" meant three pages and a guess.
+-- proved, what they have spent, and what the shop owes them. Each of these is
+-- available somewhere else on its own, and without one read that brings them
+-- together, answering "what is going on with this customer" is three pages and a
+-- guess.
 -- name: AdminCustomer :one
 SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
        coalesce(u.phone, '') AS phone, u.created_at,
@@ -1468,11 +1471,11 @@ SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
                        FROM orders o WHERE o.user_id = u.id
                          AND o.id IN (SELECT id FROM committed_orders)) o), 0)::bigint AS spent,
        -- Both balances come from the VIEWS that define them, never re-summed
-       -- here. The first cut of this query wrote out both sums and got the points
-       -- one subtly wrong — it kept an award with a NULL expiry, which
-       -- loyalty_entries_expiry_matches_sign forbids anyway, so the two agreed by
-       -- luck. A back office showing a customer a different balance from the one
-       -- their own account page shows is the failure this avoids.
+       -- here. Written out again, the points figure is the one that goes subtly
+       -- wrong — a hand-written sum keeps an award with a NULL expiry, which
+       -- loyalty_entries_expiry_matches_sign forbids anyway, so the two agree only
+       -- by luck. A back office showing a customer a different balance from the
+       -- one their own account page shows is the failure this avoids.
        coalesce((SELECT b.balance_cents FROM store_credit_balances b
                  WHERE b.user_id = u.id), 0)::bigint AS credit_cents,
        coalesce((SELECT lb.points FROM loyalty_balances lb
@@ -1500,9 +1503,9 @@ LIMIT $2;
 -- Product specs
 --
 -- 規格 is the whole promise of a 選品店 — /compare exists to put two of them side
--- by side — and until this section the table was written by the dev seed and by
--- nothing else. The back office could create a product, price it, photograph it
--- and publish it, and the comparison table for it was empty.
+-- by side — and these are product_specs' only writers outside the dev seed.
+-- Without them the back office can create a product, price it, photograph it and
+-- publish it, and the comparison table for it is empty.
 -- ---------------------------------------------------------------------------
 
 -- name: AdminProductSpecs :many
@@ -1540,9 +1543,10 @@ WHERE p.id = s.product_id AND p.slug = @slug::text AND s.id = @spec_id;
 -- Product options
 --
 -- 顏色 / 容量 and their values. Read by the PDP's variant picker, by the cart line
--- and by the facets — and written, until this section, by the dev seed and by
--- nothing else. A shop creating its own product could give it variants but no way
--- to tell them apart: the picker had nothing to pick.
+-- and by the facets, and written HERE — outside the dev seed, by nothing else.
+-- Without these a shop creating its own product can give it variants and no way to
+-- tell them apart: the picker has nothing to pick, and every variant after the
+-- first is unreachable.
 -- ---------------------------------------------------------------------------
 
 -- name: AdminProductOptions :many
@@ -1628,11 +1632,11 @@ ORDER BY pv.sku, o.position, o.id;
 -- ---------------------------------------------------------------------------
 -- The promotional strip
 --
--- promo_banners had NO door. The strip is documented as a feature the shop runs,
+-- These are promo_banners' only door. The strip is a feature the shop runs —
 -- middleware decides which paths carry it, dismissing one writes a cookie keyed on a
--- digest of its id — and the only way to create one was SQL. The layout check seeds
--- one with psql, which is the tell: a fixture that has to reach past the application
--- is a fixture for a feature with no entrance.
+-- digest of its id — and without them the only way to create one is SQL. The layout
+-- check seeds one with psql, which is the tell: a fixture that has to reach past the
+-- application is a fixture for a feature with no entrance.
 -- ---------------------------------------------------------------------------
 
 -- name: ManagedBanners :many
@@ -1670,9 +1674,9 @@ UPDATE promo_banners SET is_active = @is_active::boolean WHERE id = @banner_id;
 -- The FAQ
 --
 -- CLAUDE.md says /faq reads faq_entries "so support can answer a recurring question
--- WITHOUT A DEPLOY". That was not true: nothing could write the table. The promise
--- was the design intent and the door was never built — the third feature this sweep
--- found in that state, after product_specs and promo_banners.
+-- WITHOUT A DEPLOY", and these are what make that sentence true. Without a writer
+-- the table changes only by a deploy: the promise stated and the door missing,
+-- which is the shape product_specs and promo_banners are each in above.
 -- ---------------------------------------------------------------------------
 
 -- name: AdminFAQEntries :many
@@ -1719,10 +1723,11 @@ DELETE FROM faq_entries WHERE id = @entry_id;
 -- ---------------------------------------------------------------------------
 -- Delivery methods and zones
 --
--- shipping_methods and shipping_zones had no door either: /admin/shipping could
--- publish a new VERSION of a method the seed created, and set a surcharge for a zone
--- the seed created, and neither of the two things underneath. A shop could not offer
--- its third carrier, and could not say which postal codes cost more to reach.
+-- shipping_methods and shipping_zones are the two tables underneath /admin/shipping,
+-- and these are their door. Without them the page can publish a new VERSION of a
+-- method the seed created and set a surcharge for a zone the seed created, and
+-- neither of the two things underneath — so a shop could not offer its third
+-- carrier, and could not say which postal codes cost more to reach.
 -- ---------------------------------------------------------------------------
 
 -- Create a method AND its first version, so a method that exists can be priced.
@@ -1789,9 +1794,9 @@ WHERE z.id = @zone_id
 --
 -- inventory_movements is the ledger every stock change goes through —
 -- record_inventory_movement is the only writer of stock_quantity, which is what
--- makes "one writer" true rather than aspirational. And NOTHING read it. A shop
--- could see that a SKU has four units and could not see how it got there: which
--- sale, which return, which hand adjustment and by whom.
+-- makes "one writer" true rather than aspirational. This is what READS it. Without
+-- a reader a shop can see that a SKU has four units and not how it got there:
+-- which sale, which return, which hand adjustment and by whom.
 --
 -- That is the same shape as a feature with no door, from the other side: data
 -- collected and never shown.
@@ -1823,21 +1828,21 @@ LIMIT @row_limit::integer;
 
 -- Receive goods onto the shelf.
 --
--- reason 'receipt' and not 'adjustment', which is the whole of it. The ledger has
--- carried that reason, its delta-direction CHECK and its back-office label since
--- the schema was written, and the ONLY thing that ever posted one was the dev
--- seed — so a shop's own purchasing was indistinguishable, in the shop's own
--- ledger, from a staff member correcting a miscount. 「這個為什麼是四」 is the
--- question /admin/stock/{sku} exists to answer, and it could not tell 「進了四箱」
--- from 「數錯了改成四」.
+-- reason 'receipt' and not 'adjustment', which is the whole of it. The ledger
+-- carries that reason, its delta-direction CHECK and its back-office label, and
+-- this is the only thing that posts one outside the dev seed. Without it a shop's
+-- own purchasing is indistinguishable, in the shop's own ledger, from a staff
+-- member correcting a miscount: 「這個為什麼是四」 is the question
+-- /admin/stock/{sku} exists to answer, and it cannot tell 「進了四箱」 from
+-- 「數錯了改成四」.
 --
 -- A fixture that reaches past the application is a fixture for a feature with no
--- entrance, and the seed posting the only receipts this schema had ever seen was
--- exactly that.
+-- entrance, and a seed posting the only receipts a schema has ever seen is exactly
+-- that.
 --
 -- source_type 'admin' like the adjustment beside it: both are a person at the
 -- back office rather than an order or a return. There is no source_id because
--- goen has no purchasing table to point at, and inventing one is the L-sized
+-- goen has no purchasing table to point at, and inventing one is the much larger
 -- feature this deliberately is not.
 -- name: ReceiveStock :exec
 SELECT record_inventory_movement(
@@ -1848,12 +1853,12 @@ SELECT record_inventory_movement(
 -- ---------------------------------------------------------------------------
 -- Warranty lookup
 --
--- warranty_registrations was written by the customer and read by the customer,
--- and by nobody at the shop. /warranty promises that a registered unit is
--- collected and repaired at the shop's expense — and when that customer rang up,
--- the only person who could see the registration was the person making the
--- claim. A promise the shop cannot verify is a promise it keeps on trust or not
--- at all.
+-- warranty_registrations is written by the customer and read by the customer, and
+-- this is the shop's own way in. /warranty promises that a registered unit is
+-- collected and repaired at the shop's expense, so without this lookup the only
+-- person who can see the registration when that customer rings up is the person
+-- making the claim. A promise the shop cannot verify is a promise it keeps on
+-- trust or not at all.
 -- ---------------------------------------------------------------------------
 
 -- Look one unit's cover up, by serial number or by order number.

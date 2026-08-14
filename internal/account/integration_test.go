@@ -409,10 +409,10 @@ func TestSessionExpiryIsInTheFuture(t *testing.T) {
 // halves, and both matter: the personal data must be gone, and the financial
 // record must survive without it — an order is a tax record, not a courtesy.
 //
-// The invoice preference is the row that used to survive erasure entirely. It
-// is keyed by order rather than by user, so nulling the account and blanking
-// the delivery fields left carrier_code — a 手機條碼載具, which identifies a
-// person — behind for good.
+// The invoice preference is the row an erasure most easily misses. It is keyed
+// by ORDER rather than by user, so nulling the account and blanking the delivery
+// fields reaches everything except carrier_code — a 手機條碼載具, which
+// identifies a person, left behind for good.
 func TestEraseRemovesPersonalDataAndKeepsTheRecord(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -684,11 +684,10 @@ func TestAWeakNewPasswordIsRefusedWithoutSpendingTheToken(t *testing.T) {
 // TestTheDefaultAddressCanBeMoved holds that a customer can choose which
 // address their orders go to.
 //
-// SetDefaultAddress and ClearDefaultAddress were written when the address book
-// shipped and neither was ever called: the first address saved became the
-// default and stayed it forever, and checkout prefills from whichever one that
-// is. A customer who moved house could add the new address and never make it
-// the one their orders go to.
+// SetDefaultAddress and ClearDefaultAddress are what this drives, and with no
+// caller for them the FIRST address a customer saves is their default for good.
+// Checkout prefills from whichever one that is, so somebody who moves house can
+// add the new address and never make it the one their orders go to.
 func TestTheDefaultAddressCanBeMoved(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -789,10 +788,10 @@ func countDefaults(t *testing.T, userID string) int {
 // TestExpiredSessionsArePruned holds that dead session rows go away and live
 // ones do not.
 //
-// DeleteExpiredSessions shipped with the account pages and nothing called it.
-// The reads were all correct — every one enforces expiry in its own WHERE
-// clause — so nothing was ever wrong, and the table grew without bound behind
-// them. Each dead row still holds the user id it belonged to.
+// An uncalled DeleteExpiredSessions is invisible from every other direction: the
+// reads are all correct — each enforces expiry in its own WHERE clause — so
+// nothing ever behaves wrongly while the table grows without bound behind them,
+// and each dead row still holds the user id it belonged to.
 func TestExpiredSessionsArePruned(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -948,9 +947,9 @@ func committedOrderFor(t *testing.T, userID string, cents int64) uuid.UUID {
 // TestTheSweepDropsDeadResetTokensAndKeepsLiveOnes proves a reset token stops
 // being a row once it stops being a key.
 //
-// Nothing deleted these. Every reset goen ever issued stayed in the table, each
-// carrying the user id it belonged to — the same defect the session sweep was
-// written for, on the table beside it.
+// With nothing deleting these, every reset goen has ever issued stays in the
+// table, each carrying the user id it belonged to — the same shape the session
+// sweep answers, on the table beside it.
 //
 // The half that matters is the LIVE token: a sweep that took one would lock
 // somebody out of the account they are in the middle of recovering.
@@ -1000,10 +999,11 @@ func TestTheSweepDropsDeadResetTokensAndKeepsLiveOnes(t *testing.T) {
 
 // TestAnAddressIsProvedByFollowingTheLink is the whole feature.
 //
-// users.email_verified_at was declared with the users table and nothing ever set
-// it. Underneath that was worse: UpdateProfile writes full_name and phone, so a
-// customer could not change their address at all — somebody who mistyped it at
-// registration received nothing, for good.
+// Two halves that only look like one. users.email_verified_at is declared with
+// the users table and something has to SET it; underneath that is the worse
+// half, that UpdateProfile writes full_name and phone and no more — so without
+// this route a customer cannot change their address at all, and somebody who
+// mistyped it at registration receives nothing, for good.
 func TestAnAddressIsProvedByFollowingTheLink(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -1172,8 +1172,8 @@ func emailOf(t *testing.T, userID string) string {
 // TestRegisteringAsksForTheAddressToBeProved is where a typo becomes findable.
 //
 // Somebody who registers with gmial.com otherwise hears nothing, ever: the receipt
-// goes nowhere, the shop does not know, and there was no way for them to notice or
-// to fix it. The letter goes out with the account.
+// goes nowhere, the shop does not know, and they have no way to notice it or to
+// fix it. The letter goes out with the account.
 func TestRegisteringAsksForTheAddressToBeProved(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -1205,9 +1205,10 @@ func TestRegisteringAsksForTheAddressToBeProved(t *testing.T) {
 // 銀卡會員" — so a missing English name does not read as untranslated content. It
 // reads as a broken page, and only to the visitor.
 //
-// Driven through Overview rather than asserted against localized_name directly: the
-// first version did the latter, and mutating the QUERY left it green — it was testing
-// the SQL function, which every other guard already covers.
+// Driven through Overview rather than asserted against localized_name directly.
+// Calling the SQL function is a test of the function, which every other guard
+// already covers, and it stays green with the locale mutated out of THIS query —
+// the read that decides what the account page actually renders.
 func TestTheMembershipBandReadsInTheVisitorsLanguage(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)

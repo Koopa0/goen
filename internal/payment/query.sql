@@ -12,9 +12,9 @@ SELECT open_payment(@order_id, @provider_ref::text, @intended_amount_cents::bigi
 -- name: CapturePayment :one
 -- nullif, because "unknown" is NULL and not the empty string.
 -- checkout.session.completed does not expand payment_intent.latest_charge, so
--- the common event carries no card at all. Passing '' put a value through
--- payments_last4_format, which requires four digits — every real capture was
--- refused by a CHECK while the money had already been taken.
+-- the common event carries no card at all. Passing '' sends a value through
+-- payments_last4_format, which requires four digits — every real capture is then
+-- refused by a CHECK once the money has already been taken.
 SELECT capture_payment(@provider_ref::text, @captured_amount_cents::bigint,
                        nullif(@card_brand::text, ''), nullif(@card_last4::text, ''));
 
@@ -54,9 +54,9 @@ SELECT o.id,
        -- it, and sqlc types the result int32 — a 21,474,836 dollar ceiling
        -- that nothing in Go would warn about crossing.
        -- What is still OWED, not the gross total. The two differ by the store credit
-       -- already spent on this order, and charging the gross meant Stripe took money
-       -- this database then refused to record: payments_capture_matches_order demands
-       -- the net, so the webhook rolled back forever and the order stayed unpaid with
+       -- already spent on this order, and charging the gross has Stripe take money
+       -- this database then refuses to record: payments_capture_matches_order demands
+       -- the net, so the webhook rolls back forever and the order stays unpaid with
        -- the customer's money at Stripe.
        order_amount_owed(o.id)::bigint AS total_cents,
        coalesce(pd.email, '') AS email
@@ -69,9 +69,9 @@ WHERE o.order_number = $1;
 --
 -- A Checkout Session's expires_at is set from this, so Stripe stops accepting
 -- money at the same instant the sweeper may release the goods and sell them to
--- somebody else. It used to be time.Now() + 30 minutes, measured from the CLICK
--- while the hold was measured from PlaceOrder — so the session always outlived
--- the stock behind it by however long the customer sat on the pay page.
+-- somebody else. An expiry of time.Now() + 30 minutes is measured from the CLICK
+-- while the hold is measured from PlaceOrder, so a session sized that way
+-- outlives the stock behind it by however long the customer sat on the pay page.
 --
 -- No row is the honest answer for an order holding nothing, and it is not the
 -- same as "no deadline": the caller refuses to open a session at all. A
@@ -87,12 +87,12 @@ LIMIT 1;
 -- Whether a Checkout Session is already open for this order at this figure, and
 -- how many payment rows it has had.
 --
--- This is the FIRST line of defence against one order being charged twice. Every
--- POST to the pay route used to create a fresh Stripe session and a fresh
--- requires_payment row, because open_payment only dedupes on
--- (order_id, provider_ref) and each session has its own id. Two tabs meant two
--- sessions, two real charges, and payments_one_capture_per_order refusing the
--- second capture only AFTER the money was at Stripe — the webhook 500s, Stripe
+-- This is the FIRST line of defence against one order being charged twice.
+-- Without it every POST to the pay route creates a fresh Stripe session and a
+-- fresh requires_payment row, because open_payment only dedupes on
+-- (order_id, provider_ref) and each session has its own id. Two tabs are then two
+-- sessions and two real charges, with payments_one_capture_per_order refusing the
+-- second capture only AFTER the money is at Stripe — the webhook 500s, Stripe
 -- retries forever, nothing refunds.
 --
 -- The amount is part of the question and not a detail. What an order owes can

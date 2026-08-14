@@ -205,10 +205,9 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 		})
 	}
 
-	// The history, with WHO. Both queries existed and neither was called: the
-	// customer sees a timeline of their own order and the shop saw none of it,
-	// which is backwards — the actor is the whole reason the back office's
-	// version is a different query.
+	// The history, with WHO. The customer sees a timeline of their own order and
+	// the shop needs the same timeline plus the actor — which is the whole reason
+	// the back office reads a different query rather than the storefront's.
 	events, err := s.q.OrderEvents(ctx, o.ID)
 	if err != nil {
 		return pages.AdminOrderView{}, fmt.Errorf("read order events: %w", err)
@@ -336,14 +335,14 @@ type statusEffect struct {
 
 // applyStatusEffects does what a status move MEANS, beyond the column.
 //
-// Separate from Advance because each of these was added later and each was
-// missing when it was: the stock release (a cancelled order left the shelf short
-// until the sweeper noticed, and for a funded one it never did), the credit
-// reversal (the goods came back and the customer's money stayed spent), and the
-// parcel stamp (delivered_at was read by two pages and written by nothing). They
-// run in the CALLER's transaction, because a status that says one thing while the
-// stock, the money or the parcel says another is one fact recorded twice and
-// disagreeing.
+// Separate from Advance because the column move is the cheap half and each of
+// these is a fact the move implies: the stock release (without it a cancelled
+// order leaves the shelf short until the sweeper notices, and for a funded one it
+// never does), the credit reversal (without it the goods come back and the
+// customer's money stays spent), and the parcel stamp (without it delivered_at is
+// read by two pages and written by nothing). They run in the CALLER's transaction,
+// because a status that says one thing while the stock, the money or the parcel
+// says another is one fact recorded twice and disagreeing.
 func applyStatusEffects(ctx context.Context, q *db.Queries, e statusEffect) error {
 	for _, id := range e.held {
 		if err := q.ReleaseReservation(ctx, id); err != nil {
@@ -365,16 +364,16 @@ func applyStatusEffects(ctx context.Context, q *db.Queries, e statusEffect) erro
 		// completed DIRECTLY, and that is the ordinary click for 超商取貨: the shop
 		// has no delivery event to record for a parcel the customer walks in and
 		// collects, so 已完成 is the only move it can honestly make. Stamping only
-		// on 'delivered' left those parcels unstamped forever — mistake #17, a
-		// guard naming one shape of a thing that has two, and the fix for the
-		// unwritten delivered_at closing one of its two transitions.
+		// on 'delivered' leaves those parcels unstamped forever — mistake #17, a
+		// guard naming one shape of a thing that has two, and one of delivered_at's
+		// two doors left closed.
 		//
-		// What it costs is not cosmetic. /admin/returns reads
+		// What that costs is not cosmetic. /admin/returns reads
 		// max(delivered_at) to decide whether a request is inside 消保法 §19's
 		// seven days, and an unstamped parcel renders as 尚未送達 — "the window
 		// has not started" — for goods that demonstrably arrived. The one screen
-		// built to inform an unwaivable-right decision was misinforming it, in
-		// the shop's favour.
+		// built to inform an unwaivable-right decision would be misinforming it,
+		// in the shop's favour.
 		//
 		// Idempotent by the query's own WHERE: coming here from 'delivered'
 		// finds nothing left to stamp.
@@ -411,10 +410,10 @@ func eventKindFor(status string) string {
 
 // fillInvoices puts what has actually been FILED on the order page.
 //
-// A different question from what the customer asked for: the preference has been
-// collected since checkout shipped, and these are the 統一發票 and 折讓 that
-// exist because of it. A nil Invoicer is a deployment with no 加值中心, which
-// renders no controls and says why.
+// A different question from what the customer asked for: the preference is
+// collected at checkout, and these are the 統一發票 and 折讓 that exist because
+// of it. A nil Invoicer is a deployment with no 加值中心, which renders no
+// controls and says why.
 func (s *Store) fillInvoices(ctx context.Context, view *pages.AdminOrderView, number string) error {
 	if s.invoices == nil {
 		return nil
@@ -478,8 +477,7 @@ func (s *Store) fillShippable(
 // Dispatch is one parcel: what is in it, and who is carrying it.
 //
 // Lines may be empty, which means "everything still outstanding" — the whole
-// order in one parcel, which is what every dispatch was before this and is still
-// the common case.
+// order in one parcel, which is the common case.
 type Dispatch struct {
 	Carrier  string
 	Tracking string
@@ -500,11 +498,12 @@ type Dispatch struct {
 // who dispatched it.
 //
 // PARTIAL dispatch is why the parcel is a parameter rather than "everything
-// left". order_shipments modelled multiple parcels with per-line quantities from
-// the day it was written, and the application could produce exactly one per order
-// ever: CanShip admitted only 'picking' and the transition machine never returns
-// an order to it. So a shop that had two of three things on the shelf either sent
-// a parcel claiming all three or made the customer wait for the one on back-order.
+// left". order_shipments models several parcels per order with per-line
+// quantities, and writing every remaining line at once would collapse that to one
+// parcel ever — CanShip would have to key on 'picking', which the transition
+// machine never returns an order to. A shop with two of three things on the shelf
+// would then either send a parcel claiming all three or make the customer wait for
+// the one on back-order.
 func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.NullUUID) error {
 	carrier, tracking := strings.TrimSpace(d.Carrier), strings.TrimSpace(d.Tracking)
 	if carrier == "" || tracking == "" {
@@ -623,7 +622,7 @@ type parcelLine struct {
 // packParcel decides what is in this parcel and which holds it settles.
 //
 // `want` empty means everything still outstanding, which is the ordinary
-// dispatch and was the only one the back office could produce.
+// dispatch.
 //
 // Every refusal here is a state that would otherwise be SILENT:
 //
@@ -632,8 +631,8 @@ type parcelLine struct {
 //   - A line with no hold: the stock went back on the shelf under an order about
 //     to leave the warehouse. Shipping anyway posts no inventory movement, so
 //     the parcel goes out and stock_quantity stays where it was, over-stating
-//     the shelf by exactly this order forever. Ranging over an empty slice made
-//     that silent, which is the shape this repository found the hard way.
+//     the shelf by exactly this order forever. Ranging over an empty hold slice
+//     rather than refusing is what makes that silent.
 //   - More than remains, or more than is held: a dispatch of goods this order
 //     did not reserve. consume_reservation_partial refuses it under a lock too;
 //     saying it here is what turns a constraint name into a sentence.
@@ -758,20 +757,21 @@ func (s *Store) AdjustStock(ctx context.Context, sku string, delta int32, actorI
 
 // ReceiveStock books a delivery in, through the ledger's own 'receipt' reason.
 //
-// The reason existed from the day the schema was written — with a CHECK, a
-// delta-direction rule, a safety-stock exemption and a back-office label — and
-// the ONLY thing that ever posted one was the dev seed. So every unit a shop
-// bought entered its own ledger as 人工調整, indistinguishable from somebody
-// correcting a miscount, on the page built to answer 「這個為什麼是四」.
+// The reason has a CHECK, a delta-direction rule, a safety-stock exemption and a
+// back-office label, and this is the only thing that posts one outside the dev
+// seed. Without it every unit a shop buys enters its own ledger as 人工調整,
+// indistinguishable from somebody correcting a miscount, on the page built to
+// answer 「這個為什麼是四」.
 //
 // A fixture that reaches past the application is a fixture for a feature with no
-// entrance, and the seed was posting the only receipts this schema had seen.
+// entrance, and a seed posting the only receipts a schema has ever seen is
+// exactly that.
 //
 // Deliberately NOT a purchase order. goen has no supplier, no cost and no
 // paperwork to point at, and modelling a state nothing can act on is the
 // table-with-no-door this repository keeps finding. What this adds is the one
-// fact the shop already has and could not record: these units ARRIVED, they were
-// not conjured by a correction.
+// fact the shop already has and has nowhere else to record: these units ARRIVED,
+// they were not conjured by a correction.
 func (s *Store) ReceiveStock(ctx context.Context, sku string, quantity int32, actorID, key string) error {
 	v, err := s.q.AdminVariantBySKU(ctx, sku)
 	if err != nil {
@@ -831,7 +831,7 @@ func (s *Store) SetVariantActive(ctx context.Context, sku string, active bool) e
 		})
 }
 
-// SetVariantPrice repriced a variant. product_variants_compare_at_is_higher
+// SetVariantPrice reprices a variant. product_variants_compare_at_is_higher
 // refuses a compare-at price that is not above the price, so a "sale" that is
 // not a saving cannot be written.
 func (s *Store) SetVariantPrice(ctx context.Context, sku string, price, compareAt int64) error {
@@ -943,12 +943,13 @@ func (s *Store) Returns(ctx context.Context) (pages.AdminReturnsView, error) {
 // key, so the retry that follows a crash is one refund at Stripe and one row
 // here.
 //
-// Both halves of that were once only a claim. The retry was refused before it
-// reached Stripe, because the arithmetic counted the row THIS return had just
-// written as somebody else's claim on the capture (see splitRefund), and the
-// row nothing could resume was also a row nothing READ — /admin/health lists
-// them now. A design that leaves something for reconciliation to find has to be
-// checked from reconciliation's end, not only from the writer's.
+// Both halves of that have to hold in practice and not only on paper. The retry
+// must actually reach Stripe, which means the arithmetic must not count the row
+// THIS return just wrote as somebody else's claim on the capture (see
+// splitRefund); and the row left behind must actually be READ, which is what
+// /admin/health lists it for. A design that leaves something for reconciliation
+// to find has to be checked from reconciliation's end, not only from the
+// writer's.
 //
 // A rejection touches no money and is one transaction.
 func (s *Store) Decide(ctx context.Context, id, decision, resolution string, actor uuid.NullUUID) error {
@@ -987,16 +988,16 @@ func (s *Store) Decide(ctx context.Context, id, decision, resolution string, act
 // refundSplit is how a return is paid back: part to the card, part to the ledger.
 //
 // An order can be funded from two places at once — store credit plus a card — so
-// paying one back is two acts. Before this, RefundableCents was compared to what
-// the CARD captured, so a part-credit order claimed more than its capture and was
-// refused, and a wholly credit-funded order had no payment row at all. The
-// customer sent goods back and could not be paid.
+// paying one back is two acts. Compared against what the CARD captured alone, a
+// part-credit order claims more than its capture and is refused, and a wholly
+// credit-funded order has no payment row to compare with at all: the customer
+// sends goods back and cannot be paid.
 //
-// RefundableCents is return_refundable_amount now, and it used to be the raw line
-// prices — which claimed the UNDISCOUNTED total against a capture that
-// payments_capture_matches_order forces to be the discounted one. On a couponed
-// order that over-refunded a partial return and refused a full one outright. It
-// also never returned the delivery fee, which a statutory rescission has to.
+// RefundableCents is return_refundable_amount, never the raw line prices. Those
+// claim the UNDISCOUNTED total against a capture that
+// payments_capture_matches_order forces to be the discounted one — which on a
+// couponed order over-refunds a partial return and refuses a full one outright —
+// and they leave out the delivery fee, which a statutory rescission has to return.
 type refundSplit struct {
 	// Card is refunded through the provider. Zero means there is no provider call
 	// to make, which is the wholly-credit-funded case.
@@ -1022,9 +1023,9 @@ func (s *Store) splitRefund(ctx context.Context, row *db.ReturnForDecisionRow) (
 		// THIS return's own claim is excluded, the way refunds_guard excludes
 		// NEW.id. open_refund is idempotent on request_key, so a Decide retried
 		// after a stalled provider call finds the row it wrote last time —
-		// counting that row as somebody else's claim made the retry compute
-		// zero headroom and be refused here, BEFORE Stripe was reached. A
-		// refund that could not be resumed by any door.
+		// counting that row as somebody else's claim computes zero headroom and
+		// refuses the retry here, BEFORE Stripe is reached. A refund no door can
+		// resume.
 		if alreadyRefunded, err = s.q.RefundedSoFar(ctx, db.RefundedSoFarParams{
 			PaymentID:  row.PaymentID.UUID,
 			RequestKey: refundRequestKey(row.ID),
@@ -1093,8 +1094,8 @@ func (s *Store) approveWithRefund(ctx context.Context, row *db.ReturnForDecision
 		// A refund Stripe has ACCEPTED and not settled is real — the row
 		// records it and /admin/health lists it — but order_events is rendered
 		// on the customer's own order page, so an event written here would tell
-		// somebody their money is back while it is still in flight. That is the
-		// same claim the hard-coded 'succeeded' was making, one table over.
+		// somebody their money is back while it is still in flight — the same
+		// claim a hard-coded 'succeeded' makes, one table over.
 		if state == RefundSucceeded {
 			providerRef = ref
 		}
@@ -1158,13 +1159,13 @@ func (s *Store) refundCard(ctx context.Context, row *db.ReturnForDecisionRow,
 	}
 	providerRef, state, err := s.refunder.Refund(ctx, intentID, requestKey, cents)
 	if err != nil {
-		// UNKNOWN IS NOT FAILURE. Every error here used to be written as a
-		// terminal 'failed', including an ambiguous transport error in which
-		// Stripe may well have refunded and goen simply did not hear — and
-		// 'failed' drops the row out of refunds_guard's sum, so the same
-		// allowance could be claimed a second time. Only a decision from Stripe
-		// is terminal; anything else leaves the row 'pending' for the retry or
-		// for the person reading /admin/health.
+		// UNKNOWN IS NOT FAILURE. Writing every error here as a terminal
+		// 'failed' would include an ambiguous transport error in which Stripe
+		// may well have refunded and goen simply did not hear — and 'failed'
+		// drops the row out of refunds_guard's sum, so the same allowance could
+		// be claimed a second time. Only a decision from Stripe is terminal;
+		// anything else leaves the row 'pending' for the retry or for the person
+		// reading /admin/health.
 		if !declinedByStripe(err) {
 			return "", "", fmt.Errorf("refund for return %s: %w", row.ID, err)
 		}
@@ -1422,9 +1423,9 @@ func (s *Store) CompleteReturn(ctx context.Context, id, resolution string, actor
 
 // GrantCredit puts store credit on a customer's account.
 //
-// This is the input the ledger was missing: store credit was displayable but
-// nothing ever granted any, so a checkout that applied it would have been a
-// button over an empty ledger.
+// This is the ledger's one input: without it store credit is displayable and
+// nothing ever grants any, so the checkout's credit line is a button over an
+// empty ledger.
 //
 // The amount is in cents and must be positive — this grants, it does not take
 // away. A correction is its own posting with its own reason, so the ledger
@@ -1467,9 +1468,8 @@ func (s *Store) GrantCredit(ctx context.Context, email string, amountCents int64
 			// not one a concurrent spend could have moved in between.
 			//
 			// It matters because the form is a blank box: granting again
-			// because the first grant was not visible is how a customer ends
-			// up with twice what they were owed. CreditBalance was written for
-			// this and had no caller.
+			// because the first grant was not visible anywhere is how a
+			// customer ends up with twice what they were owed.
 			var balErr error
 			balanceCents, balErr = q.CreditBalance(ctx, uuid.NullUUID{UUID: user.ID, Valid: true})
 			if balErr != nil {
@@ -1517,9 +1517,9 @@ const MovementPageSize = 50
 // Movements reads one variant's stock ledger.
 //
 // inventory_movements is written by record_inventory_movement and by nothing else —
-// that is what makes "one writer" true rather than aspirational — and until this
-// method nothing READ it. A shop could see that a SKU has four units and not how it
-// got there: which sale, which return, which hand adjustment, and by whom.
+// that is what makes "one writer" true rather than aspirational — and this is what
+// READS it. Without a reader a shop can see that a SKU has four units and not how
+// it got there: which sale, which return, which hand adjustment, and by whom.
 func (s *Store) Movements(ctx context.Context, sku string) (pages.AdminMovementsView, error) {
 	v, err := s.q.AdminVariantBySKU(ctx, sku)
 	if err != nil {

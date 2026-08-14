@@ -653,11 +653,11 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO order_access_grants (digest, order_id) VALUES (sha256('a browser token'::bytea), '6666aaaa-6666-4666-8666-666666666666');`,
 	},
 	{
-		// A live row with no PHONE. The old case here used a missing STREET,
-		// which stopped proving this constraint the moment a second destination
-		// existed: a street is now optional and the row is refused by
-		// order_private_data_one_destination instead — a different rule, and an
-		// assertion bound to a constraint name is what said so.
+		// A live row with no PHONE, and the phone rather than the street. A
+		// street is optional once a second destination exists, so a row missing
+		// one is refused by order_private_data_one_destination — a different
+		// rule, reached by a case that reads as if it were proving this one.
+		// Binding the assertion to a constraint NAME is what tells them apart.
 		constraint: "order_private_data_all_or_erased",
 		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', NULL, '110', '台北市', '信義區', '松高路 100 號', NULL, NULL, NULL);`,
 		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', '110', '台北市', '信義區', '松高路 100 號', NULL, NULL, NULL);`,
@@ -693,10 +693,11 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		// catches.
 		//
 		// The ACCEPT is a real 萊爾富 code (高縣後庄店, read from 綠界's own
-		// GetStoreList on 2026-08-06) and not a six-digit one, deliberately. This
-		// constraint used to be '^[0-9]{1,10}$' and refused 149 of that chain's
-		// 1,350 stores; a six-digit accept passes under the old rule and the new
-		// one alike, so it would have gone green through the entire defect.
+		// GetStoreList on 2026-08-06) and not a six-digit one, deliberately. A
+		// digits-only predicate — '^[0-9]{1,10}$' — refuses 149 of that chain's
+		// 1,350 stores, one customer at a time, and a six-digit accept passes
+		// under that predicate and under this one alike: it would stay green
+		// through the whole defect while looking like proof.
 		constraint: "order_private_data_pickup_store_code_format",
 		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, 'hi_life', '後庄門市', '後庄門市');`,
 		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, 'hi_life', 'S884', '後庄門市');`,
@@ -744,7 +745,8 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	{
 		constraint: "orders_completed_has_time",
 		// Walks the fixture's PAID order (66666666) through fulfilment; the unpaid
-		// order can no longer leave pending (orders_funded_to_leave_pending).
+		// order cannot leave pending at all (orders_funded_to_leave_pending), so
+		// it would be refused by that rule before reaching this one.
 		reject: `UPDATE orders SET fulfillment_status = 'picking' WHERE id = '66666666-6666-4666-8666-666666666666'; UPDATE orders SET fulfillment_status = 'shipped' WHERE id = '66666666-6666-4666-8666-666666666666'; UPDATE orders SET fulfillment_status = 'completed' WHERE id = '66666666-6666-4666-8666-666666666666';`,
 		accept: `UPDATE orders SET fulfillment_status = 'picking' WHERE id = '66666666-6666-4666-8666-666666666666'; UPDATE orders SET fulfillment_status = 'shipped' WHERE id = '66666666-6666-4666-8666-666666666666'; UPDATE orders SET fulfillment_status = 'completed', completed_at = now() WHERE id = '66666666-6666-4666-8666-666666666666';`,
 	},
@@ -753,9 +755,8 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		// fallback would be silent.
 		constraint: "orders_locale_known",
 		// The code and the name are read off the SAME version row: they have their
-		// own CHECK (orders_shipping_snapshot_matches) and it fires first, which
-		// is how the suite caught the first draft of this case proving the wrong
-		// rule.
+		// own CHECK (orders_shipping_snapshot_matches) and it fires first, so a
+		// case that invents either of them proves that rule instead of this one.
 		reject: `INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name, locale)
 		         SELECT '11110001-0000-4000-8000-0000000000f1', 'GO-260101-000901', v.id, m.code, v.name, 'kling-on'
 		         FROM shipping_method_versions v JOIN shipping_methods m ON m.id = v.method_id LIMIT 1;`,
@@ -1091,7 +1092,7 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "refunds_amount_in_range",
-		// The capture can no longer be inflated past 1e10 to clear the way
+		// The capture cannot be inflated past 1e10 to clear the way
 		// (payments_captured_in_range forbids it), and refunds_guard would reject
 		// an over-capture amount first — so disable the trigger to let the range
 		// CHECK be the rule under test. CHECKs still fire under replica.
@@ -1132,8 +1133,9 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	// The inspection columns: what came back and how much of it went on the
 	// shelf. Each ACCEPT is chosen to be one step inside the rule rather than
-	// obviously legal, because a permissive accept passes under the rule and
-	// under its absence — the lesson the store-code regex left behind.
+	// obviously legal, because a comfortably legal accept passes under the rule
+	// and under its absence alike, and so says nothing about either — the same
+	// trap the pickup store-code accept above sets.
 	{
 		constraint: "return_request_lines_received_bounded",
 		// One more back than was ever asked for.
@@ -1145,8 +1147,8 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		// More on the shelf than came off the courier — the direction that
 		// oversells, and the one a miscounted form produces.
 		// quantity 1, not 2: the line has shipped one unit, so a claim for two
-		// trips return_within_shipment FIRST and the case would prove that rule
-		// instead of this one — CLAUDE.md #8, met while writing the case.
+		// trips return_within_shipment FIRST and the case then proves that rule
+		// instead of this one — CLAUDE.md #8.
 		reject: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity, received_quantity, restocked_quantity) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1, 0, 1);`,
 		accept: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity, received_quantity, restocked_quantity) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1, 1, 1);`,
 	},
@@ -1168,17 +1170,19 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "return_requests_decided_has_time",
-		// Tested from the 'requested' side so the new start-requested INSERT
-		// trigger does not shadow it: a requested row must have no decided_at.
+		// Tested from the 'requested' side so the start-requested INSERT trigger
+		// does not shadow it: a requested row must have no decided_at.
 		reject: `INSERT INTO return_requests (id, order_id, reason, decided_at) VALUES ('11110001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666', '退貨', now());`,
 		accept: `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666', '退貨');`,
 	},
 	{
-		// The ACCEPT is the EMPTY reason, deliberately. This constraint used to
-		// be return_requests_reason_present and refused exactly that — while
-		// /returns states 消保法 §19 I, under which a rescission inside seven
-		// days needs no reason at all. A non-blank accept passes under both the
-		// old rule and the new one, so it would lock nothing.
+		// The ACCEPT is the EMPTY reason, deliberately. A rule demanding a reason
+		// (return_requests_reason_present) refuses exactly that, while /returns
+		// states 消保法 §19 I, under which a rescission inside seven days needs
+		// no reason at all — so demanding one puts the schema in the way of an
+		// unwaivable right, where no amount of form-fiddling can talk past it.
+		// A non-blank accept passes under that rule and under this one alike, so
+		// it would lock nothing.
 		constraint: "return_requests_reason_bounded",
 		reject:     `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000002', '66666666-6666-4666-8666-666666666666', repeat('x', 501));`,
 		accept:     `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000002', '66666666-6666-4666-8666-666666666666', '');`,

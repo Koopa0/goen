@@ -40,19 +40,17 @@ type PolicyDoc struct {
 
 // For resolves the document into one locale's strings.
 //
-// The policy pages used to be Chinese for every reader, exempted from the
-// hard-coded-chrome guard as "authored prose, translated editorially or not at
-// all". That was the CONTENT half of the line this project draws — and it put
-// these documents on the wrong side of it. CLAUDE.md states the test:
-// **copy compiled into the binary is goen's to say in both languages; copy
-// typed into a table is the shop's to say however it likes.** These are
-// compiled in. `faq_entries` and the product copy are the table, and they keep
-// their optional-English rule.
+// A policy page is CHROME rather than content, however much prose it holds, so
+// it renders in the reader's language like every other piece of chrome. The
+// test CLAUDE.md states decides it: **copy compiled into the binary is goen's
+// to say in both languages; copy typed into a table is the shop's to say
+// however it likes.** These documents are compiled in. `faq_entries` and the
+// product copy are the table, and they keep their optional-English rule.
 //
-// It stopped being merely untidy when /returns began stating 消保法 §19. An
-// English-reading customer in Taiwan holds identical rights, §18 I 3 makes
-// providing the rescission information the trader's obligation, and the page
-// that stated it was one they could not read.
+// /returns is what makes this more than untidy, because it states 消保法 §19.
+// An English-reading customer in Taiwan holds identical rights, §18 I 3 makes
+// providing the rescission information the trader's obligation, and a page
+// stating it in a language that customer cannot read discharges nothing.
 func (d PolicyDoc) For(l i18n.Locale) PolicyDoc {
 	if l != i18n.En {
 		return d
@@ -94,9 +92,10 @@ type ShippingMethod struct {
 	Carrier       string
 	FeeCents      int64
 	FreeOverCents int64
-	// Surcharges is where this method costs extra, as DATA. The query used to
-	// build the sentence — string_agg with ' 另加 NT$' in the middle — which made
-	// it Chinese for every reader and put it somewhere no i18n test looks.
+	// Surcharges is where this method costs extra, as DATA. The query hands over
+	// rows and never the sentence: a string_agg with ' 另加 NT$' in the middle is
+	// chrome assembled in SQL, which makes it Chinese for every reader and puts
+	// it where no i18n guard reads.
 	Surcharges []ZoneSurcharge
 }
 
@@ -154,11 +153,11 @@ func (v ShippingView) Empty() bool { return len(v.Methods) == 0 }
 // a feature package — but it is one number, and if it drifts the shipping page
 // says something the till does not do.
 //
-// It is 60 because cart.HoldTTL is now PayWindow + StripeSessionFloor rather
-// than a flat thirty minutes: the two were equal, which made the hold exactly
-// Stripe's session floor and left no session goen could ever open. What a
-// customer reads here is the whole reservation, not the half of it they have to
-// start paying inside.
+// It is 60 because cart.HoldTTL is PayWindow + StripeSessionFloor, written as a
+// SUM so the two cannot drift into equality: equal, the hold is exactly Stripe's
+// session floor and there is no session goen can open inside it. What a customer
+// reads here is the whole reservation, not the half of it they have to start
+// paying inside.
 const HoldMinutes = 60
 
 // HoldMinutesText is that number, for the template.
