@@ -113,23 +113,7 @@ var notChrome = map[string]string{
 // a method returning an i18n.Key or one taking a ctx, per the two patterns
 // CLAUDE.md records. Every file that leaves this list takes its share of that
 // with it.
-var pendingTranslation = map[string]struct{}{
-	"internal/ui/pages/admin.templ":           {},
-	"internal/ui/pages/admincampaign.templ":   {},
-	"internal/ui/pages/admincoupon.templ":     {},
-	"internal/ui/pages/admincustomer.templ":   {},
-	"internal/ui/pages/adminfaq.templ":        {},
-	"internal/ui/pages/adminhealth.templ":     {},
-	"internal/ui/pages/adminhome.templ":       {},
-	"internal/ui/pages/adminnewsletter.templ": {},
-	"internal/ui/pages/adminproduct.templ":    {},
-	"internal/ui/pages/adminreport.templ":     {},
-	"internal/ui/pages/adminreturns.templ":    {},
-	"internal/ui/pages/adminshipping.templ":   {},
-	"internal/ui/pages/admintaxonomy.templ":   {},
-	"internal/ui/pages/admintiers.templ":      {},
-	"internal/ui/pages/twofactor.templ":       {},
-}
+var pendingTranslation = map[string]struct{}{}
 
 // chromeSources is every customer-facing Go and templ file, by path.
 //

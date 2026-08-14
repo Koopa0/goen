@@ -1,6 +1,11 @@
 package pages
 
-import "github.com/koopa0/goen/internal/ui/layouts"
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
 
 // AdminNewsletter renders the mailing list, the compose form and the issues.
 //
@@ -13,11 +18,10 @@ templ AdminNewsletter(p layouts.Page, v AdminNewsletterView) {
 			@adminNav("newsletter")
 			<div class="ui-page-head">
 				<div>
-					<p class="ui-page-head__eyebrow">後台</p>
-					<h1 class="ui-page-head__title">電子報</h1>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageNewsletter) }</h1>
 					<p class="ui-page-head__sub">
-						名單上只有自己確認過的信箱 —— 頁尾送出的只是「請求」,
-						點過信裡的連結才會進名單。
+						{ i18n.T(ctx, i18n.KeyAdminNewsLead) }
 					</p>
 				</div>
 			</div>
@@ -26,22 +30,22 @@ templ AdminNewsletter(p layouts.Page, v AdminNewsletterView) {
 			}
 			<div class="goen-admin__stats">
 				<div class="ui-stat">
-					<span class="ui-stat__label">名單人數</span>
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminNewsOnList) }</span>
 					<span class="ui-stat__value">{ v.ActiveText() }</span>
 				</div>
 				<div class="ui-stat">
-					<span class="ui-stat__label">等待確認</span>
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminNewsAwaiting) }</span>
 					<span class="ui-stat__value">{ v.AwaitingText() }</span>
 				</div>
 				<div class="ui-stat">
-					<span class="ui-stat__label">已退訂</span>
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminNewsUnsubscribed) }</span>
 					<span class="ui-stat__value">{ v.UnsubscribedText() }</span>
 				</div>
 			</div>
-			<h2 class="goen-admin__subhead">寫一封</h2>
+			<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminNewsCompose) }</h2>
 			<form class="goen-admin__form" method="post" action="/admin/newsletter">
 				<label class="ui-field" for="issue-subject">
-					<span class="ui-label">主旨</span>
+					<span class="ui-label">{ i18n.T(ctx, i18n.KeyAdminNewsSubject) }</span>
 					<input
 						class="ui-input"
 						id="issue-subject"
@@ -57,7 +61,7 @@ templ AdminNewsletter(p layouts.Page, v AdminNewsletterView) {
 					}
 				</label>
 				<label class="ui-field" for="issue-body">
-					<span class="ui-label">內容</span>
+					<span class="ui-label">{ i18n.T(ctx, i18n.KeyAdminNewsBody) }</span>
 					<textarea
 						class="ui-input goen-admin__textarea"
 						id="issue-body"
@@ -72,13 +76,13 @@ templ AdminNewsletter(p layouts.Page, v AdminNewsletterView) {
 					}
 				</label>
 				<p class="goen-admin__hint">
-					存成草稿,還不會寄出。退訂連結由系統加在每一封的最後,不用自己貼。
+					{ i18n.T(ctx, i18n.KeyAdminNewsDraftHint) }
 				</p>
-				<button class="ui-btn ui-btn--secondary" type="submit">存成草稿</button>
+				<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminNewsSaveDraft) }</button>
 			</form>
-			<h2 class="goen-admin__subhead">已寫的</h2>
+			<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminNewsIssues) }</h2>
 			if v.Empty() {
-				<p class="goen-admin__hint">還沒有任何一封。</p>
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminNewsEmpty) }</p>
 			} else {
 				<ul class="goen-admin__returns" role="list">
 					for _, issue := range v.Issues {
@@ -88,7 +92,7 @@ templ AdminNewsletter(p layouts.Page, v AdminNewsletterView) {
 								<span class="ui-cart-line__meta">{ issue.Preview() }</span>
 								if issue.Sent {
 									<span class="ui-cart-line__meta">
-										{ issue.SentAt } 寄出 · { issue.RecipientsText() } 封
+										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminNewsSentMeta), issue.SentAt, issue.RecipientsText()) }
 										if issue.SentBy != "" {
 											· { issue.SentBy }
 										}
@@ -96,15 +100,15 @@ templ AdminNewsletter(p layouts.Page, v AdminNewsletterView) {
 								}
 							</div>
 							if issue.Sent {
-								<span class="ui-badge">已寄出</span>
+								<span class="ui-badge">{ i18n.T(ctx, i18n.KeyAdminNewsSent) }</span>
 							} else if v.CanSend() {
 								<form method="post" action={ templ.SafeURL(issue.SendAction()) }>
 									<button class="ui-btn ui-btn--primary ui-btn--sm" type="submit">
-										寄給名單上的 { v.ActiveText() } 人
+										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminNewsSend), v.ActiveText()) }
 									</button>
 								</form>
 							} else {
-								<span class="ui-cart-line__meta">名單上還沒有人</span>
+								<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyAdminNewsNobody) }</span>
 							}
 						</li>
 					}

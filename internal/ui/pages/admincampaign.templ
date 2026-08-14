@@ -1,6 +1,11 @@
 package pages
 
-import "github.com/koopa0/goen/internal/ui/layouts"
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
 
 // AdminCampaigns renders the promotions and the form that starts one.
 templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
@@ -9,10 +14,10 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 			@adminNav("campaigns")
 			<div class="ui-page-head">
 				<div>
-					<p class="ui-page-head__eyebrow">後台</p>
-					<h1 class="ui-page-head__title">限時活動</h1>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageCampaigns) }</h1>
 					<p class="ui-page-head__sub">
-						活動只能收錄有標示原價的商品。新活動一開始是空的,建立後再挑選商品。
+						{ i18n.T(ctx, i18n.KeyAdminCampLead) }
 					</p>
 				</div>
 			</div>
@@ -22,14 +27,14 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 			<div class="goen-admin__productlayout">
 				<form class="goen-admin__form" method="post" action="/admin/campaigns">
 					<div class="ui-field">
-						<label class="ui-label" for="k-title">活動標題</label>
+						<label class="ui-label" for="k-title">{ i18n.T(ctx, i18n.KeyAdminCampTitle) }</label>
 						<input
 							class="ui-input"
 							id="k-title"
 							name="title"
 							required
 							maxlength="60"
-							placeholder="夏季 3C 展"
+							placeholder={ i18n.T(ctx, i18n.KeyAdminCampTitleExample) }
 							value={ v.Draft.Title }
 							if v.HasErr("title") {
 								aria-invalid="true"
@@ -41,7 +46,7 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 					</div>
 					<div class="goen-checkout__fields">
 						<div class="ui-field">
-							<label class="ui-label" for="k-slug">網址代稱</label>
+							<label class="ui-label" for="k-slug">{ i18n.T(ctx, i18n.KeyAdminColSlug) }</label>
 							<input
 								class="ui-input"
 								id="k-slug"
@@ -59,7 +64,7 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 							}
 						</div>
 						<div class="ui-field">
-							<label class="ui-label" for="k-days">活動天數</label>
+							<label class="ui-label" for="k-days">{ i18n.T(ctx, i18n.KeyAdminCampDays) }</label>
 							<input
 								class="ui-input"
 								id="k-days"
@@ -77,12 +82,12 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 							}
 						</div>
 					</div>
-					<button class="ui-btn ui-btn--primary" type="submit">建立活動</button>
+					<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminCampCreate) }</button>
 				</form>
 				<aside class="goen-admin__side">
-					<h2 class="goen-admin__subhead">目前的活動</h2>
+					<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminCampCurrent) }</h2>
 					if v.Empty() {
-						<p class="goen-admin__hint">還沒有任何活動。</p>
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCampEmpty) }</p>
 					} else {
 						<ul class="goen-admin__coupons" role="list">
 							for _, c := range v.Rows {
@@ -92,7 +97,7 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 										<span class={ "ui-badge", templ.KV("ui-badge--brand", c.Live()) }>{ c.State(ctx) }</span>
 									</div>
 									<span class="ui-cart-line__meta">/s/{ c.Slug }</span>
-									<span class="ui-cart-line__meta">{ c.ProductsText() } 件商品 · 至 { c.EndsAt }</span>
+									<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCampMeta), c.ProductsText(), c.EndsAt) }</span>
 									<form method="post" action={ templ.SafeURL(c.ToggleAction()) }>
 										<input type="hidden" name="active" value={ c.NextActive() }/>
 										<button class="ui-btn ui-btn--secondary" type="submit">{ c.ToggleLabel(ctx) }</button>
@@ -115,7 +120,7 @@ templ AdminCampaignForm(p layouts.Page, v AdminCampaignView) {
 			<div class="ui-page-head">
 				<div>
 					<p class="ui-page-head__eyebrow">
-						<a href="/admin/campaigns">限時活動</a>
+						<a href="/admin/campaigns">{ i18n.T(ctx, i18n.KeyAdminPageCampaigns) }</a>
 					</p>
 					<h1 class="ui-page-head__title">{ v.Slug }</h1>
 				</div>
@@ -125,15 +130,15 @@ templ AdminCampaignForm(p layouts.Page, v AdminCampaignView) {
 			}
 			<form class="goen-admin__form goen-admin__grant" method="post" action={ templ.SafeURL(v.FeatureAction()) }>
 				<div class="ui-field">
-					<label class="ui-label" for="k-product">商品網址代稱</label>
+					<label class="ui-label" for="k-product">{ i18n.T(ctx, i18n.KeyAdminCampProductSlug) }</label>
 					<input class="ui-input" id="k-product" name="product" required maxlength="120" placeholder="pixelight-9" autocomplete="off"/>
-					<p class="goen-admin__hint">商品必須已經標示原價,否則無法加入。</p>
+					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCampProductHint) }</p>
 				</div>
-				<button class="ui-btn ui-btn--primary" type="submit">加入活動</button>
+				<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminCampAdd) }</button>
 			</form>
-			<h2 class="goen-admin__subhead">活動商品</h2>
+			<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminCampProducts) }</h2>
 			if v.Empty() {
-				<p class="goen-admin__hint">這個活動還沒有收錄商品,顧客看到的會是空頁面。</p>
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCampNoProducts) }</p>
 			} else {
 				<ul class="goen-admin__catalogue" role="list">
 					for _, item := range v.Products {
@@ -145,7 +150,7 @@ templ AdminCampaignForm(p layouts.Page, v AdminCampaignView) {
 							<form method="post" action={ templ.SafeURL(v.FeatureAction()) }>
 								<input type="hidden" name="product" value={ item.Slug }/>
 								<input type="hidden" name="action" value="remove"/>
-								<button class="ui-btn ui-btn--secondary" type="submit">移除</button>
+								<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminRemove) }</button>
 							</form>
 						</li>
 					}

@@ -1,6 +1,11 @@
 package pages
 
-import "github.com/koopa0/goen/internal/ui/layouts"
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
 
 // AdminCustomers renders the customer search.
 templ AdminCustomers(p layouts.Page, v AdminCustomersView) {
@@ -9,45 +14,46 @@ templ AdminCustomers(p layouts.Page, v AdminCustomersView) {
 			@adminNav("customers")
 			<div class="ui-page-head">
 				<div>
-					<p class="ui-page-head__eyebrow">後台</p>
-					<h1 class="ui-page-head__title">顧客</h1>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageCustomers) }</h1>
 					<p class="ui-page-head__sub">
-						用 Email 或姓名的開頭搜尋。這一頁只在搜尋之後才列出人 ——
-						顧客名單不是拿來瀏覽的。
+						{ i18n.T(ctx, i18n.KeyAdminCustLead) }
 					</p>
 				</div>
 			</div>
 			// A GET form: searching reads and writes nothing.
 			<form class="goen-admin__form goen-admin__search" method="get" action="/admin/customers">
-				<label class="goen-sr-only" for="customer-search">搜尋顧客</label>
+				<label class="goen-sr-only" for="customer-search">{ i18n.T(ctx, i18n.KeyAdminCustSearch) }</label>
 				<input
 					class="ui-input"
 					id="customer-search"
 					type="search"
 					name="q"
 					value={ v.Term }
-					placeholder="Email 或姓名"
+					placeholder={ i18n.T(ctx, i18n.KeyAdminCustPlaceholder) }
 					autocomplete="off"
 				/>
-				<button class="ui-btn ui-btn--secondary" type="submit">搜尋</button>
+				<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminSearch) }</button>
 			</form>
 			if v.TermTooShort() {
 				<p class="ui-alert ui-alert--warn" role="status">
-					搜尋字串太短,至少要兩個字。
+					{ i18n.T(ctx, i18n.KeyAdminCustSearchShort) }
 				</p>
 			}
 			if v.Searching() && v.Empty() {
-				<p class="goen-admin__hint">找不到符合「{ v.Term }」的顧客。</p>
+				<p class="goen-admin__hint">
+					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCustNoneFound), v.Term) }
+				</p>
 			}
 			if v.Searching() && !v.Empty() {
 				<div class="goen-admin__tablewrap">
 					<table class="ui-table">
 						<thead>
 							<tr>
-								<th scope="col">顧客</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCustColCustomer) }</th>
 								<th scope="col">Email</th>
-								<th scope="col">訂單</th>
-								<th scope="col">註冊於</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColOrder) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCustSince) }</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -57,7 +63,7 @@ templ AdminCustomers(p layouts.Page, v AdminCustomersView) {
 									<td>
 										{ c.Email }
 										if !c.Verified {
-											<span class="ui-badge ui-badge--warn">未確認</span>
+											<span class="ui-badge ui-badge--warn">{ i18n.T(ctx, i18n.KeyAdminCustUnconfirmed) }</span>
 										}
 									</td>
 									<td>{ c.OrdersText() }</td>
@@ -79,36 +85,36 @@ templ AdminCustomer(p layouts.Page, v *AdminCustomerView) {
 			@adminNav("customers")
 			<div class="ui-page-head">
 				<div>
-					<p class="ui-page-head__eyebrow">顧客</p>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminPageCustomers) }</p>
 					<h1 class="ui-page-head__title">{ v.DisplayName() }</h1>
 					<p class="ui-page-head__sub">
 						{ v.Email }
 						if !v.Verified {
-							<span class="ui-badge ui-badge--warn">Email 未確認</span>
+							<span class="ui-badge ui-badge--warn">{ i18n.T(ctx, i18n.KeyAdminCustEmailUnconfirmed) }</span>
 						}
 					</p>
 				</div>
 			</div>
 			<div class="goen-admin__stats">
 				<div class="ui-stat">
-					<span class="ui-stat__label">訂單數</span>
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminCustStatOrders) }</span>
 					<span class="ui-stat__value">{ v.OrdersText() }</span>
 				</div>
 				<div class="ui-stat">
-					<span class="ui-stat__label">已完成消費</span>
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminCustStatSpent) }</span>
 					<span class="ui-stat__value">{ v.Spent() }</span>
 				</div>
 				<div class="ui-stat">
-					<span class="ui-stat__label">購物金餘額</span>
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminCustStatCredit) }</span>
 					<span class="ui-stat__value">{ v.Credit() }</span>
 				</div>
 				<div class="ui-stat">
-					<span class="ui-stat__label">可用點數</span>
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminCustStatPoints) }</span>
 					<span class="ui-stat__value">{ v.PointsText() }</span>
 				</div>
 			</div>
 			<dl class="ui-dl">
-				<dt class="ui-dl__term">電話</dt>
+				<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminColPhone) }</dt>
 				<dd class="ui-dl__desc">
 					if v.Phone != "" {
 						{ v.Phone }
@@ -116,21 +122,21 @@ templ AdminCustomer(p layouts.Page, v *AdminCustomerView) {
 						—
 					}
 				</dd>
-				<dt class="ui-dl__term">註冊於</dt>
+				<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminCustSince) }</dt>
 				<dd class="ui-dl__desc">{ v.Since }</dd>
 			</dl>
-			<h2 class="goen-admin__subhead">訂單</h2>
+			<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminCustOrders) }</h2>
 			if !v.HasOrders() {
-				<p class="goen-admin__hint">這位顧客還沒有下過訂單。</p>
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCustNoOrders) }</p>
 			} else {
 				<div class="goen-admin__tablewrap">
 					<table class="ui-table">
 						<thead>
 							<tr>
-								<th scope="col">編號</th>
-								<th scope="col">狀態</th>
-								<th scope="col">金額</th>
-								<th scope="col">下單時間</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCustColNumber) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColStatus) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColAmount) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColPlacedAt) }</th>
 							</tr>
 						</thead>
 						<tbody>

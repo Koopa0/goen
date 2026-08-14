@@ -1,6 +1,11 @@
 package pages
 
-import "github.com/koopa0/goen/internal/ui/layouts"
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
 
 // AdminReturns renders the return queue and the decision forms.
 //
@@ -13,10 +18,10 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 			@adminNav("returns")
 			<div class="ui-page-head">
 				<div>
-					<p class="ui-page-head__eyebrow">後台</p>
-					<h1 class="ui-page-head__title">退貨申請</h1>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageReturns) }</h1>
 					<p class="ui-page-head__sub">
-						同意退貨會立刻透過 Stripe 退款,金額由訂單本身的單價計算。
+						{ i18n.T(ctx, i18n.KeyAdminRetLead) }
 					</p>
 				</div>
 			</div>
@@ -24,7 +29,7 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
 			}
 			if v.Empty() {
-				<p class="goen-admin__hint">目前沒有退貨申請。</p>
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetEmpty) }</p>
 			} else {
 				<ul class="goen-admin__returns" role="list">
 					for _, r := range v.Rows {
@@ -32,14 +37,19 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 							<div class="goen-admin__returninfo">
 								<p class="goen-admin__returnorder">{ r.OrderNumber }</p>
 								<span class="ui-cart-line__meta">{ r.StatusText } · { r.CreatedAt }</span>
-								<span class="ui-cart-line__meta">{ r.UnitsText() } 件 · 可退 { r.Amount() }</span>
+								<span class="ui-cart-line__meta">
+									{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetUnitsAmount), r.UnitsText(), r.Amount()) }
+								</span>
 								// Which KIND of return this is. 消保法 §19 I gives seven days from
 								// receipt and §19 V voids any agreement otherwise, so a request
 								// inside the window is not the shop's to refuse on window grounds
 								// — and the page said nothing at all, so nobody deciding one could
 								// tell it from a goodwill return.
 								if r.Rescission() {
-									<span class="ui-cart-line__meta"><strong>{ r.WindowText(ctx) }</strong>(依法不得拒絕退貨,退款含原運費)</span>
+									<span class="ui-cart-line__meta">
+										<strong>{ r.WindowText(ctx) }</strong>
+										{ i18n.T(ctx, i18n.KeyAdminRetMustAccept) }
+									</span>
 								} else {
 									<span class="ui-cart-line__meta">{ r.WindowText(ctx) }</span>
 								}
@@ -60,12 +70,12 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 												// compare.
 												if l.Inspected {
 													<span class="ui-cart-line__meta">
-														收到 { l.ReceivedText() } · 入庫 { l.RestockedText() }
+														{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetReceivedRestocked), l.ReceivedText(), l.RestockedText()) }
 														if l.Shortfall() {
-															<strong>(短少)</strong>
+															<strong>{ i18n.T(ctx, i18n.KeyAdminRetShortfall) }</strong>
 														}
 														if l.Scrapped() {
-															<strong>(未入庫)</strong>
+															<strong>{ i18n.T(ctx, i18n.KeyAdminRetScrapped) }</strong>
 														}
 													</span>
 													if l.Note != "" {
@@ -80,15 +90,15 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 							if !r.Decided {
 								<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.Action()) }>
 									<div class="ui-field">
-										<label class="ui-label" for={ "res-" + r.ID }>處理說明</label>
+										<label class="ui-label" for={ "res-" + r.ID }>{ i18n.T(ctx, i18n.KeyAdminRetResolution) }</label>
 										<input class="ui-input" id={ "res-" + r.ID } name="resolution" maxlength="300" autocomplete="off"/>
 									</div>
 									<div class="goen-admin__decidebtns">
 										<button class="ui-btn ui-btn--primary" type="submit" name="decision" value="approved">
-											同意並退款
+											{ i18n.T(ctx, i18n.KeyAdminRetApprove) }
 										</button>
 										<button class="ui-btn ui-btn--secondary" type="submit" name="decision" value="rejected">
-											不同意
+											{ i18n.T(ctx, i18n.KeyAdminRetReject) }
 										</button>
 									</div>
 								</form>
@@ -104,12 +114,12 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 							// that.
 							if r.AwaitingGoods() {
 								<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.InspectAction()) }>
-									<p class="goen-admin__hint">收到退回的商品後,逐項填寫實際收到與可再販售的數量。</p>
+									<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetInspectHint) }</p>
 									for _, l := range r.Lines {
 										<fieldset class="goen-admin__inspectline">
 											<legend class="ui-cart-line__meta">{ l.Line() }</legend>
 											<div class="ui-field">
-												<label class="ui-label" for={ "recv-" + l.OrderLineID }>實際收到</label>
+												<label class="ui-label" for={ "recv-" + l.OrderLineID }>{ i18n.T(ctx, i18n.KeyAdminRetReceivedQty) }</label>
 												<input
 													class="ui-input"
 													id={ "recv-" + l.OrderLineID }
@@ -127,7 +137,7 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 											// write would refuse is worse than not offering one.
 											if l.Restockable {
 												<div class="ui-field">
-													<label class="ui-label" for={ "stock-" + l.OrderLineID }>可再販售(入庫)</label>
+													<label class="ui-label" for={ "stock-" + l.OrderLineID }>{ i18n.T(ctx, i18n.KeyAdminRetRestockedQty) }</label>
 													<input
 														class="ui-input"
 														id={ "stock-" + l.OrderLineID }
@@ -139,37 +149,37 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 													/>
 												</div>
 											} else {
-												<p class="goen-admin__hint">這個品項已無對應規格,無法入庫。</p>
+												<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetNoVariant) }</p>
 											}
 											<div class="ui-field">
-												<label class="ui-label" for={ "note-" + l.OrderLineID }>驗貨說明</label>
+												<label class="ui-label" for={ "note-" + l.OrderLineID }>{ i18n.T(ctx, i18n.KeyAdminRetNote) }</label>
 												<input
 													class="ui-input"
 													id={ "note-" + l.OrderLineID }
 													name={ "note_" + l.OrderLineID }
 													maxlength="500"
 													autocomplete="off"
-													placeholder="例如:外盒破損、配件缺少"
+													placeholder={ i18n.T(ctx, i18n.KeyAdminRetNotePlaceholder) }
 												/>
 											</div>
 										</fieldset>
 									}
 									<div class="goen-admin__decidebtns">
-										<button class="ui-btn ui-btn--primary" type="submit">記錄驗貨並入庫</button>
+										<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminRetInspectButton) }</button>
 									</div>
 								</form>
 							}
 							if r.CanComplete() {
 								<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.CompleteAction()) }>
 									<p class="goen-admin__hint">
-										驗貨已完成,共 { r.RestockedUnitsText() } 件回到庫存。
+										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetRestockedUnits), r.RestockedUnitsText()) }
 									</p>
 									<div class="ui-field">
-										<label class="ui-label" for={ "done-" + r.ID }>結案說明</label>
+										<label class="ui-label" for={ "done-" + r.ID }>{ i18n.T(ctx, i18n.KeyAdminRetCloseNote) }</label>
 										<input class="ui-input" id={ "done-" + r.ID } name="resolution" maxlength="300" autocomplete="off"/>
 									</div>
 									<div class="goen-admin__decidebtns">
-										<button class="ui-btn ui-btn--primary" type="submit">結案</button>
+										<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminRetCloseButton) }</button>
 									</div>
 								</form>
 							}
