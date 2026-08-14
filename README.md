@@ -170,7 +170,7 @@ The project is organised by feature, not by technical layer. There is no
 
 ### Prerequisites
 
-- Go 1.26.5 or later
+- Go 1.26.6 or later
 - Docker, for PostgreSQL and the integration tests
 - `psql`, for the seed and the layout check's fixtures
 
