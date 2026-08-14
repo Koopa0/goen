@@ -20,10 +20,11 @@ put something in a cart, check out as a guest or as an account, pay at Stripe,
 track the parcel, ask for a return, and register a warranty — and the shop can
 run all of it from `/admin` behind a second factor.
 
-One thing in the commerce path is deliberately not built: **issuing 統一發票
-invoices.** The choice is collected at checkout and shown to whoever packs the
-order, but a real invoice goes through a 加值中心 goen has no integration with,
-and a fake issuer would be worse than an absent one.
+What is not built, and what is deliberately refused, is in
+[`docs/roadmap.md`](docs/roadmap.md) — one list, in one place, because a second
+one drifts. This file has already carried a stale claim of absence: it said
+issuing 統一發票 invoices was the one gap in the commerce path, months after
+`internal/invoice` shipped against 綠界's published test environment.
 
 This repository is a demonstration and reference project. It is not affiliated
 with any company and is not an officially supported product.
@@ -57,9 +58,9 @@ The running server provides:
   before its transaction commits or lost when the process dies mid-send. A
   double-opt-in newsletter sits on the same queue at a lower priority.
 - **Traditional Chinese and English**, chosen by the visitor and stamped onto
-  `<html lang>` before the first byte. Chrome follows the visitor; authored
-  content follows what the shop has actually translated, and says so where it
-  has not.
+  `<html lang>` before the first byte — in the back office as well as the shop.
+  Chrome follows the reader; authored content follows what the shop has actually
+  translated, and says so where it has not.
 - Every mutation is a plain form that works with scripting off, answers
   `303 See Other` so a reload cannot resubmit, and re-renders at `422` with the
   submitted values and `aria-invalid` on each control it refused.
@@ -92,10 +93,13 @@ never writes, fails the build.
   effect it claims.
 - **Promotions** — coupons and their redemptions, timed sale campaigns, the
   site-wide promotional strip, and the home page's hero queue.
-- **Invoicing** — per-order 發票 preferences; the 統一發票 and 折讓 document
-  tables wait for a 加值中心 integration.
-- **Returns and warranty** — return requests limited to what SHIPPED, with
-  per-unit warranty registration against the product's own cover term.
+- **Invoicing** — per-order 發票 preferences, and the 統一發票 and 折讓
+  documents issued against them through 綠界's B2C API. Absent credentials issue
+  nothing and say so; half a configuration refuses to start.
+- **Returns and warranty** — return requests bounded by what SHIPPED and
+  received line by line, with per-unit warranty registration bounded by what was
+  DELIVERED: cover starts when the goods reach somebody, so a clock started at
+  the warehouse door is short by the time in transit.
 - **Store credit and loyalty** — two append-only ledgers, each read through a
   view so no page can compute a balance its own way.
 - **Accounts** — users, sessions, password-reset tokens, email verifications, an

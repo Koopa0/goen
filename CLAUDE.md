@@ -182,8 +182,19 @@ narrowed.
 `pendingTranslation` is for and what the storefront's own 818-string migration
 did. The list may only shrink, and `TestThePendingListOnlyHoldsRealDebt` refuses
 an entry whose file is already clean — so a file cannot be translated and left
-looking owed, and nothing new can join. The migration is IN PROGRESS: read the
-list, not this paragraph, for where it stands.
+looking owed, and nothing new can join. **It is empty.** 1,058 literals became
+402 keys plus 113 reuses of what the earlier tranches established, and the
+guard now watches every one of those files.
+
+The last tranche found the defect that makes this more than a sweep. Five paired
+fields — alt text, an option's name, an option's value, a spec label, a spec
+value — each show an EXAMPLE of what to type beside an `_en` twin. Translated,
+both inputs rendered the same string on an English page and the pair stopped
+saying which half wanted which language. **Which language those fields take is
+fixed by the schema, not by who is looking**, so their examples do not follow the
+reader; they are Go constants rather than template literals, because `templ fmt`
+splits a multi-attribute element across lines and separates an attribute from any
+comment above it, so a per-line exemption cannot survive a format there.
 
 The expensive half is not the strings. A back-office view model computes its
 words in a method with no request to read a locale from — `StatusLabel`,
