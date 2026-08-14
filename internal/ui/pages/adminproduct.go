@@ -284,3 +284,23 @@ func (v *AdminProductView) ReuseAction() string {
 // HasLibrary reports whether anything has been uploaded yet. A fresh install
 // has nothing, and an empty picker is noise rather than a feature.
 func (v *AdminProductView) HasLibrary() bool { return len(v.Library) > 0 }
+
+// The examples shown in the Chinese half of each paired field.
+//
+// They do NOT follow the reader's locale, and that is the point. Each of these
+// fields has an _en twin beside it, and which language it takes is fixed by the
+// schema rather than by who is looking: product_images.alt_text is required and
+// canonical, alt_text_en is the optional translation. Translated, the two inputs
+// rendered the SAME placeholder on an English page and the pair stopped saying
+// which half wanted which language.
+//
+// They live here rather than in the template because `templ fmt` splits a
+// multi-attribute element across lines, which separates an attribute from any
+// comment above it — so a per-line exemption cannot survive a format there.
+const (
+	altExample       = "銀色筆電,螢幕開啟,側面 45 度" // i18n-exempt: a Chinese example for a field that takes Chinese
+	optionExample    = "顏色"                // i18n-exempt: as above — 顏色, not Colour, is what goes in this box
+	optionValExample = "星霧藍"               // i18n-exempt: as above
+	specLabelExample = "螢幕"                // i18n-exempt: as above
+	specValueExample = "6.3 吋 OLED"        // i18n-exempt: as above
+)

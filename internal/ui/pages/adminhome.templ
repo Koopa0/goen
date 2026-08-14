@@ -1,6 +1,11 @@
 package pages
 
-import "github.com/koopa0/goen/internal/ui/layouts"
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
 
 // AdminHome renders the hero queue and the form that adds to it.
 templ AdminHome(p layouts.Page, v *AdminHeroView) {
@@ -9,10 +14,10 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 			@adminNav("home")
 			<div class="ui-page-head">
 				<div>
-					<p class="ui-page-head__eyebrow">後台</p>
-					<h1 class="ui-page-head__title">首頁主視覺</h1>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageHero) }</h1>
 					<p class="ui-page-head__sub">
-						顧客看到的是排在最前面、而且在檔期內的那一則。沒有任何一則符合時,首頁會顯示內建的預設文案。
+						{ i18n.T(ctx, i18n.KeyAdminHomeLead) }
 					</p>
 				</div>
 			</div>
@@ -20,7 +25,7 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
 			}
 			if v.UsingFallback() {
-				<p class="ui-alert" role="status">目前首頁顯示的是內建預設文案。</p>
+				<p class="ui-alert" role="status">{ i18n.T(ctx, i18n.KeyAdminHomeFallback) }</p>
 			}
 			<div class="goen-admin__productlayout">
 				<form
@@ -30,14 +35,16 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 					enctype="multipart/form-data"
 				>
 					<div class="ui-field">
-						<label class="ui-label" for="h-headline">標題</label>
+						<label class="ui-label" for="h-headline">{ i18n.T(ctx, i18n.KeyAdminHomeHeadline) }</label>
+						// The placeholder is the built-in hero's own headline, so the
+						// example a shop sees is the copy this field would replace.
 						<input
 							class="ui-input"
 							id="h-headline"
 							name="headline"
 							required
 							maxlength="40"
-							placeholder="挑一台好的,值得。"
+							placeholder={ i18n.T(ctx, i18n.KeyHeroHeadline) }
 							value={ v.Draft.Headline }
 							if v.HasErr("headline") {
 								aria-invalid="true"
@@ -48,16 +55,16 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 						}
 					</div>
 					<div class="ui-field">
-						<label class="ui-label" for="h-eyebrow">小標(選填)</label>
-						<input class="ui-input" id="h-eyebrow" name="eyebrow" maxlength="40" value={ v.Draft.Eyebrow } placeholder="台灣出貨 · 原廠保固"/>
+						<label class="ui-label" for="h-eyebrow">{ i18n.T(ctx, i18n.KeyAdminHomeEyebrow) }</label>
+						<input class="ui-input" id="h-eyebrow" name="eyebrow" maxlength="40" value={ v.Draft.Eyebrow } placeholder={ i18n.T(ctx, i18n.KeyHeroEyebrow) }/>
 					</div>
 					<div class="ui-field">
-						<label class="ui-label" for="h-body">說明(選填)</label>
+						<label class="ui-label" for="h-body">{ i18n.T(ctx, i18n.KeyAdminHomeBody) }</label>
 						<textarea class="ui-input" id="h-body" name="body" rows="2" maxlength="200">{ v.Draft.Body }</textarea>
 					</div>
 					<div class="goen-checkout__fields">
 						<div class="ui-field">
-							<label class="ui-label" for="h-plabel">主要按鈕文字</label>
+							<label class="ui-label" for="h-plabel">{ i18n.T(ctx, i18n.KeyAdminHomePrimaryLabel) }</label>
 							<input
 								class="ui-input"
 								id="h-plabel"
@@ -74,7 +81,7 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 							}
 						</div>
 						<div class="ui-field">
-							<label class="ui-label" for="h-phref">主要按鈕連結</label>
+							<label class="ui-label" for="h-phref">{ i18n.T(ctx, i18n.KeyAdminHomePrimaryHref) }</label>
 							<input
 								class="ui-input"
 								id="h-phref"
@@ -93,11 +100,11 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 					</div>
 					<div class="goen-checkout__fields">
 						<div class="ui-field">
-							<label class="ui-label" for="h-slabel">次要按鈕文字(選填)</label>
+							<label class="ui-label" for="h-slabel">{ i18n.T(ctx, i18n.KeyAdminHomeSecondLabel) }</label>
 							<input class="ui-input" id="h-slabel" name="second_label" maxlength="20" value={ v.Draft.SecondLabel }/>
 						</div>
 						<div class="ui-field">
-							<label class="ui-label" for="h-shref">次要按鈕連結</label>
+							<label class="ui-label" for="h-shref">{ i18n.T(ctx, i18n.KeyAdminHomeSecondHref) }</label>
 							<input
 								class="ui-input"
 								id="h-shref"
@@ -114,12 +121,12 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 						</div>
 					</div>
 					<div class="ui-field">
-						<label class="ui-label" for="h-image">主視覺圖片(選填)</label>
+						<label class="ui-label" for="h-image">{ i18n.T(ctx, i18n.KeyAdminHomeImage) }</label>
 						<input class="ui-input" id="h-image" name="image" type="file" accept="image/*"/>
-						<p class="goen-admin__hint">留空就沿用內建主視覺。</p>
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHomeImageHint) }</p>
 					</div>
 					<div class="ui-field">
-						<label class="ui-label" for="h-alt">圖片說明文字</label>
+						<label class="ui-label" for="h-alt">{ i18n.T(ctx, i18n.KeyAdminAltText) }</label>
 						<input
 							class="ui-input"
 							id="h-alt"
@@ -139,48 +146,51 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 					// a slide with no English copy makes the whole page look untranslated
 					// to an English visitor even when everything around it is not.
 					<div class="ui-field">
-						<label class="ui-label" for="h-eyebrow-en">小標(英文)</label>
+						<label class="ui-label" for="h-eyebrow-en">{ i18n.T(ctx, i18n.KeyAdminHomeEyebrowEn) }</label>
 						<input class="ui-input" id="h-eyebrow-en" name="eyebrow_en" maxlength="40" value={ v.Draft.EyebrowEn }/>
 					</div>
 					<div class="ui-field">
-						<label class="ui-label" for="h-headline-en">標題(英文)</label>
+						<label class="ui-label" for="h-headline-en">{ i18n.T(ctx, i18n.KeyAdminHomeHeadlineEn) }</label>
+						// The example stays English in both locales: this box collects
+						// English, so a Chinese placeholder would demonstrate the wrong
+						// thing to the reader it was translated for.
 						<input class="ui-input" id="h-headline-en" name="headline_en" maxlength="40" value={ v.Draft.HeadlineEn } placeholder="Choose one good thing."/>
 					</div>
 					<div class="ui-field">
-						<label class="ui-label" for="h-body-en">說明(英文)</label>
+						<label class="ui-label" for="h-body-en">{ i18n.T(ctx, i18n.KeyAdminHomeBodyEn) }</label>
 						<textarea class="ui-input goen-admin__textarea" id="h-body-en" name="body_en" rows="3" maxlength="200">{ v.Draft.BodyEn }</textarea>
 					</div>
 					<div class="goen-checkout__fields">
 						<div class="ui-field">
-							<label class="ui-label" for="h-plabel-en">主要按鈕(英文)</label>
+							<label class="ui-label" for="h-plabel-en">{ i18n.T(ctx, i18n.KeyAdminHomePrimaryLabelEn) }</label>
 							<input class="ui-input" id="h-plabel-en" name="primary_label_en" maxlength="20" value={ v.Draft.PrimaryLabelEn }/>
 						</div>
 						<div class="ui-field">
-							<label class="ui-label" for="h-slabel-en">次要按鈕(英文)</label>
+							<label class="ui-label" for="h-slabel-en">{ i18n.T(ctx, i18n.KeyAdminHomeSecondLabelEn) }</label>
 							<input class="ui-input" id="h-slabel-en" name="second_label_en" maxlength="20" value={ v.Draft.SecondLabelEn }/>
 						</div>
 					</div>
 					<div class="ui-field">
-						<label class="ui-label" for="h-alt-en">圖片替代文字(英文)</label>
+						<label class="ui-label" for="h-alt-en">{ i18n.T(ctx, i18n.KeyAdminHomeAltEn) }</label>
 						<input class="ui-input" id="h-alt-en" name="alt_en" maxlength="200" value={ v.Draft.ImageAltEn }/>
 						<p class="goen-admin__hint">
-							螢幕閱讀器會用頁面語言把這段文字唸出來,所以英文頁面需要英文的版本。
+							{ i18n.T(ctx, i18n.KeyAdminHomeAltEnHint) }
 						</p>
 					</div>
 					<div class="ui-field">
-						<label class="ui-label" for="h-days">檔期天數</label>
+						<label class="ui-label" for="h-days">{ i18n.T(ctx, i18n.KeyAdminHomeDays) }</label>
 						<input class="ui-input" id="h-days" name="days" type="number" min="0" max="365" step="1" inputmode="numeric" value={ v.Draft.Days } placeholder="0"/>
-						<p class="goen-admin__hint">0 表示不設結束日。</p>
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHomeDaysHint) }</p>
 						if v.HasErr("days") {
 							<p class="ui-error-text">{ v.Err("days") }</p>
 						}
 					</div>
-					<button class="ui-btn ui-btn--primary" type="submit">加入佇列</button>
+					<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminHomeAdd) }</button>
 				</form>
 				<aside class="goen-admin__side">
-					<h2 class="goen-admin__subhead">佇列</h2>
+					<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminHomeQueue) }</h2>
 					if v.Empty() {
-						<p class="goen-admin__hint">還沒有任何主視覺。</p>
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHomeEmpty) }</p>
 					} else {
 						<ul class="goen-admin__coupons" role="list">
 							for _, slide := range v.Rows {
@@ -188,7 +198,7 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 									<div class="goen-admin__couponhead">
 										<span class="goen-admin__sku">{ slide.Headline }</span>
 										if v.IsShowing(slide) {
-											<span class="ui-badge ui-badge--brand">顯示中</span>
+											<span class="ui-badge ui-badge--brand">{ i18n.T(ctx, i18n.KeyAdminHomeShowing) }</span>
 										} else {
 											<span class="ui-badge">{ slide.State() }</span>
 										}
@@ -198,12 +208,12 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 									}
 									<span class="ui-cart-line__meta">{ slide.CTALabel } → { slide.CTAHref }</span>
 									if slide.EndsAt != "" {
-										<span class="ui-cart-line__meta">至 { slide.EndsAt }</span>
+										<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminHomeEndsAt), slide.EndsAt) }</span>
 									}
 									<div class="goen-admin__heroactions">
 										if !v.IsShowing(slide) && slide.Active {
 											<form method="post" action={ templ.SafeURL(slide.PromoteAction()) }>
-												<button class="ui-btn ui-btn--secondary" type="submit">設為顯示</button>
+												<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminHomePromote) }</button>
 											</form>
 										}
 										<form method="post" action={ templ.SafeURL(slide.ToggleAction()) }>
@@ -221,15 +231,14 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 			// hero answers — what the storefront says before a visitor has chosen
 			// anything — and because until now it had no page at all: the only way to
 			// run a promotion was SQL.
-			<h2 class="goen-admin__subhead">促銷條</h2>
+			<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminHomeBanner) }</h2>
 			<p class="goen-admin__hint">
-				顯示在頁首上方,只在商店頁面。訪客關掉的是「這一條」,
-				下一條會再出現 —— 新的促銷是他們還沒讀過的資訊。
+				{ i18n.T(ctx, i18n.KeyAdminHomeBannerLead) }
 			</p>
 			<div class="goen-admin__split">
 				<form class="goen-admin__form" method="post" action="/admin/home/banner">
 					<div class="ui-field">
-						<label class="ui-label" for="b-message">訊息</label>
+						<label class="ui-label" for="b-message">{ i18n.T(ctx, i18n.KeyAdminHomeBannerMessage) }</label>
 						<input
 							class="ui-input"
 							id="b-message"
@@ -237,7 +246,7 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 							required
 							maxlength="60"
 							value={ v.BannerDraft.Message }
-							placeholder="全站滿 NT$3,000 免運"
+							placeholder={ i18n.T(ctx, i18n.KeyAdminHomeBannerMessageExample) }
 							if v.HasErr("message") {
 								aria-invalid="true"
 							}
@@ -247,25 +256,25 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 						}
 					</div>
 					<div class="ui-field">
-						<label class="ui-label" for="b-short">窄螢幕版本</label>
-						<input class="ui-input" id="b-short" name="short" maxlength="60" value={ v.BannerDraft.Short } placeholder="滿 3,000 免運"/>
-						<p class="goen-admin__hint">手機上顯示的另一種寫法,不是截斷。留空就用上面那句。</p>
+						<label class="ui-label" for="b-short">{ i18n.T(ctx, i18n.KeyAdminHomeBannerShort) }</label>
+						<input class="ui-input" id="b-short" name="short" maxlength="60" value={ v.BannerDraft.Short } placeholder={ i18n.T(ctx, i18n.KeyAdminHomeBannerShortExample) }/>
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHomeBannerShortHint) }</p>
 					</div>
 					<div class="ui-field">
-						<label class="ui-label" for="b-message-en">訊息(英文)</label>
+						<label class="ui-label" for="b-message-en">{ i18n.T(ctx, i18n.KeyAdminHomeBannerMessageEn) }</label>
 						<input class="ui-input" id="b-message-en" name="message_en" maxlength="60" value={ v.BannerDraft.MessageEn } placeholder="Free delivery over NT$3,000"/>
 					</div>
 					<div class="ui-field">
-						<label class="ui-label" for="b-short-en">窄螢幕版本(英文)</label>
+						<label class="ui-label" for="b-short-en">{ i18n.T(ctx, i18n.KeyAdminHomeBannerShortEn) }</label>
 						<input class="ui-input" id="b-short-en" name="short_en" maxlength="60" value={ v.BannerDraft.ShortEn }/>
 					</div>
 					<div class="goen-checkout__fields">
 						<div class="ui-field">
-							<label class="ui-label" for="b-code">優惠碼</label>
+							<label class="ui-label" for="b-code">{ i18n.T(ctx, i18n.KeyAdminHomeBannerCode) }</label>
 							<input class="ui-input" id="b-code" name="code" maxlength="40" value={ v.BannerDraft.Code } placeholder="FREESHIP"/>
 						</div>
 						<div class="ui-field">
-							<label class="ui-label" for="b-days">檔期天數</label>
+							<label class="ui-label" for="b-days">{ i18n.T(ctx, i18n.KeyAdminHomeDays) }</label>
 							<input class="ui-input" id="b-days" name="days" type="number" min="0" max="365" step="1" inputmode="numeric" value={ v.BannerDraft.Days } placeholder="0"/>
 							if v.HasErr("days") {
 								<p class="ui-error-text">{ v.Err("days") }</p>
@@ -274,27 +283,27 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 					</div>
 					<div class="goen-checkout__fields">
 						<div class="ui-field">
-							<label class="ui-label" for="b-cta-label">按鈕文字</label>
-							<input class="ui-input" id="b-cta-label" name="cta_label" maxlength="20" value={ v.BannerDraft.CTALabel } placeholder="看看"/>
+							<label class="ui-label" for="b-cta-label">{ i18n.T(ctx, i18n.KeyAdminHomeBannerCTALabel) }</label>
+							<input class="ui-input" id="b-cta-label" name="cta_label" maxlength="20" value={ v.BannerDraft.CTALabel } placeholder={ i18n.T(ctx, i18n.KeyAdminHomeBannerCTAExample) }/>
 						</div>
 						<div class="ui-field">
-							<label class="ui-label" for="b-cta-href">按鈕連結</label>
+							<label class="ui-label" for="b-cta-href">{ i18n.T(ctx, i18n.KeyAdminHomeBannerCTAHref) }</label>
 							<input class="ui-input" id="b-cta-href" name="cta_href" maxlength="200" value={ v.BannerDraft.CTAHref } placeholder="/deals"/>
 						</div>
 					</div>
 					<div class="ui-field">
-						<label class="ui-label" for="b-cta-label-en">按鈕文字(英文)</label>
+						<label class="ui-label" for="b-cta-label-en">{ i18n.T(ctx, i18n.KeyAdminHomeBannerCTALabelEn) }</label>
 						<input class="ui-input" id="b-cta-label-en" name="cta_label_en" maxlength="20" value={ v.BannerDraft.CTALabelEn } placeholder="Shop"/>
 					</div>
 					if v.HasErr("cta") {
 						<p class="ui-error-text">{ v.Err("cta") }</p>
 					}
-					<button class="ui-btn ui-btn--primary" type="submit">新增促銷條</button>
+					<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminHomeBannerAdd) }</button>
 				</form>
 				<aside class="goen-admin__side">
-					<h3 class="goen-admin__subhead">目前的促銷條</h3>
+					<h3 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminHomeBannerCurrent) }</h3>
 					if !v.HasBanners() {
-						<p class="goen-admin__hint">還沒有促銷條。沒有也是一個完整的網站。</p>
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHomeBannerEmpty) }</p>
 					} else {
 						<ul class="goen-admin__coupons" role="list">
 							for _, b := range v.Banners {
@@ -302,12 +311,12 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 									<div class="goen-admin__couponhead">
 										<span class="goen-admin__sku">{ b.Message }</span>
 										if b.Active {
-											<span class="ui-badge ui-badge--brand">顯示中</span>
+											<span class="ui-badge ui-badge--brand">{ i18n.T(ctx, i18n.KeyAdminHomeShowing) }</span>
 										} else {
-											<span class="ui-badge">已關閉</span>
+											<span class="ui-badge">{ i18n.T(ctx, i18n.KeyAdminHomeBannerOff) }</span>
 										}
 										if !b.Translated() {
-											<span class="ui-badge ui-badge--warn">未翻譯</span>
+											<span class="ui-badge ui-badge--warn">{ i18n.T(ctx, i18n.KeyAdminUntranslated) }</span>
 										}
 									</div>
 									<span class="ui-cart-line__meta">
@@ -318,16 +327,16 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 											· { b.CTALabel } → { b.CTAHref }
 										}
 										if b.Scheduled() {
-											· 到 { b.EndsAt }
+											{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminHomeBannerEndsAt), b.EndsAt) }
 										}
 									</span>
 									<form method="post" action={ templ.SafeURL("/admin/home/banner/" + b.ID + "/active") }>
 										if b.Active {
 											<input type="hidden" name="active" value="0"/>
-											<button class="ui-btn ui-btn--secondary" type="submit">關閉</button>
+											<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminHomeBannerClose) }</button>
 										} else {
 											<input type="hidden" name="active" value="1"/>
-											<button class="ui-btn ui-btn--secondary" type="submit">開啟</button>
+											<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminHomeBannerOpen) }</button>
 										}
 									</form>
 								</li>

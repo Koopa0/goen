@@ -1,6 +1,8 @@
 package pages
 
 import (
+	"fmt"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -9,31 +11,34 @@ import (
 // than in the site header: /admin is not part of the storefront's chrome, and a
 // customer must never see a link to it.
 templ adminNav(current string) {
-	<nav class="goen-admin__nav" aria-label="後台導覽">
-		<a class={ "ui-navitem", templ.KV("is-active", current == "dashboard") } href="/admin">總覽</a>
-		<a class={ "ui-navitem", templ.KV("is-active", current == "orders") } href="/admin/orders">訂單</a>
-		<a class={ "ui-navitem", templ.KV("is-active", current == "products") } href="/admin/products">商品</a>
-		<a class={ "ui-navitem", templ.KV("is-active", current == "stock") } href="/admin/stock">庫存</a>
-		<a class={ "ui-navitem", templ.KV("is-active", current == "returns") } href="/admin/returns">退貨</a>
-		<a class={ "ui-navitem", templ.KV("is-active", current == "warranty") } href="/admin/warranty">保固</a>
-		<a class={ "ui-navitem", templ.KV("is-active", current == "questions") } href="/admin/questions">提問</a>
-		<a class={ "ui-navitem", templ.KV("is-active", current == "reviews") } href="/admin/reviews">評價</a>
-		<a class={ "ui-navitem", templ.KV("is-active", current == "customers") } href="/admin/customers">顧客</a>
-		<a class={ "ui-navitem", templ.KV("is-active", current == "faq") } href="/admin/faq">常見問題</a>
-		<a class={ "ui-navitem", templ.KV("is-active", current == "messages") } href="/admin/messages">聯絡訊息</a>
-		<a class={ "ui-navitem", templ.KV("is-active", current == "newsletter") } href="/admin/newsletter">電子報</a>
-		<a class={ "ui-navitem", templ.KV("is-active", current == "reports") } href="/admin/reports">報表</a>
-		<a class={ "ui-navitem", templ.KV("is-active", current == "health") } href="/admin/health">背景作業</a>
-		<a class={ "ui-navitem", templ.KV("is-active", current == "taxonomy") } href="/admin/taxonomy">品牌分類</a>
-		<a class={ "ui-navitem", templ.KV("is-active", current == "home") } href="/admin/home">首頁</a>
-		<a class={ "ui-navitem", templ.KV("is-active", current == "campaigns") } href="/admin/campaigns">活動</a>
-		<a class={ "ui-navitem", templ.KV("is-active", current == "audit") } href="/admin/audit">操作紀錄</a>
-		<a class={ "ui-navitem", templ.KV("is-active", current == "coupons") } href="/admin/coupons">折扣碼</a>
-		<a class={ "ui-navitem", templ.KV("is-active", current == "credit") } href="/admin/credit">額度</a>
-		<a class={ "ui-navitem", templ.KV("is-active", current == "shipping") } href="/admin/shipping">運費</a>
-		<a class={ "ui-navitem", templ.KV("is-active", current == "tiers") } href="/admin/tiers">會員等級</a>
-		<a class={ "ui-navitem", templ.KV("is-active", current == "staff") } href="/admin/staff">人員</a>
-		<a class="ui-navitem" href="/">回到商店</a>
+	// Ten of these links carry the same word as the page they lead to and use
+	// that page's title key. The rest are their own, because the nav is shorter
+	// than the page: 訂單 leads to 訂單管理, 庫存 to 庫存管理.
+	<nav class="goen-admin__nav" aria-label={ i18n.T(ctx, i18n.KeyAdminQueueNavLabel) }>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "dashboard") } href="/admin">{ i18n.T(ctx, i18n.KeyAdminQueueOverview) }</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "orders") } href="/admin/orders">{ i18n.T(ctx, i18n.KeyAdminQueueOrders) }</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "products") } href="/admin/products">{ i18n.T(ctx, i18n.KeyAdminPageProducts) }</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "stock") } href="/admin/stock">{ i18n.T(ctx, i18n.KeyAdminQueueStock) }</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "returns") } href="/admin/returns">{ i18n.T(ctx, i18n.KeyAdminQueueReturns) }</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "warranty") } href="/admin/warranty">{ i18n.T(ctx, i18n.KeyAdminQueueWarranty) }</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "questions") } href="/admin/questions">{ i18n.T(ctx, i18n.KeyAdminQueueQuestions) }</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "reviews") } href="/admin/reviews">{ i18n.T(ctx, i18n.KeyAdminQueueReviews) }</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "customers") } href="/admin/customers">{ i18n.T(ctx, i18n.KeyAdminPageCustomers) }</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "faq") } href="/admin/faq">{ i18n.T(ctx, i18n.KeyAdminPageFAQ) }</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "messages") } href="/admin/messages">{ i18n.T(ctx, i18n.KeyAdminPageMessages) }</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "newsletter") } href="/admin/newsletter">{ i18n.T(ctx, i18n.KeyAdminPageNewsletter) }</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "reports") } href="/admin/reports">{ i18n.T(ctx, i18n.KeyAdminPageReports) }</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "health") } href="/admin/health">{ i18n.T(ctx, i18n.KeyAdminPageHealth) }</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "taxonomy") } href="/admin/taxonomy">{ i18n.T(ctx, i18n.KeyAdminQueueTaxonomy) }</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "home") } href="/admin/home">{ i18n.T(ctx, i18n.KeyAdminQueueHomePage) }</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "campaigns") } href="/admin/campaigns">{ i18n.T(ctx, i18n.KeyAdminQueueCampaigns) }</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "audit") } href="/admin/audit">{ i18n.T(ctx, i18n.KeyAdminPageAudit) }</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "coupons") } href="/admin/coupons">{ i18n.T(ctx, i18n.KeyAdminPageCoupons) }</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "credit") } href="/admin/credit">{ i18n.T(ctx, i18n.KeyAdminQueueCredit) }</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "shipping") } href="/admin/shipping">{ i18n.T(ctx, i18n.KeyAdminQueueShipping) }</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "tiers") } href="/admin/tiers">{ i18n.T(ctx, i18n.KeyAdminPageTiers) }</a>
+		<a class={ "ui-navitem", templ.KV("is-active", current == "staff") } href="/admin/staff">{ i18n.T(ctx, i18n.KeyAdminQueueStaff) }</a>
+		<a class="ui-navitem" href="/">{ i18n.T(ctx, i18n.KeyBackToShop) }</a>
 	</nav>
 }
 
@@ -44,44 +49,44 @@ templ AdminDashboard(p layouts.Page, v AdminDashboardView) {
 			@adminNav("dashboard")
 			<div class="ui-page-head">
 				<div>
-					<h1 class="ui-page-head__title">後台總覽</h1>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminQueueDashboardTitle) }</h1>
 				</div>
 			</div>
 			<div class="ui-stat-grid goen-admin__stats">
 				<div class="ui-stat">
-					<span class="ui-stat__label">待付款訂單</span>
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminQueueStatPending) }</span>
 					<span class="ui-stat__value">{ v.PendingText() }</span>
 				</div>
 				<div class="ui-stat">
-					<span class="ui-stat__label">備貨中</span>
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminStatusPicking) }</span>
 					<span class="ui-stat__value">{ v.PickingText() }</span>
 				</div>
 				<div class="ui-stat">
-					<span class="ui-stat__label">低庫存品項</span>
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminQueueStatLowStock) }</span>
 					<span class="ui-stat__value">{ v.LowStockText() }</span>
 				</div>
 				<div class="ui-stat">
-					<span class="ui-stat__label">上架商品</span>
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminQueueStatActive) }</span>
 					<span class="ui-stat__value">{ v.ActiveProductsText() }</span>
 				</div>
 				// A LINK, not a number. This tile has counted unhandled messages
 				// since the back office shipped and there was nowhere to open
 				// them: a customer wrote in and the shop saw a figure.
 				<a class="ui-stat" href="/admin/messages">
-					<span class="ui-stat__label">待回覆訊息</span>
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminQueueStatMessages) }</span>
 					<span class="ui-stat__value">{ v.OpenMessagesText() }</span>
 				</a>
 			</div>
 			if v.HasLow() {
 				<section class="goen-admin__panel" aria-labelledby="low-heading">
-					<h2 id="low-heading" class="goen-admin__heading">需要補貨</h2>
+					<h2 id="low-heading" class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminQueueRestockHead) }</h2>
 					<p class="goen-admin__hint">
-						「可售」是庫存減去安全庫存,也就是資料庫實際允許賣出的數量。
+						{ i18n.T(ctx, i18n.KeyAdminQueueSellableHint) }
 					</p>
 					<div class="goen-admin__tablewrap">
 						@adminVariantTable(v.Low)
 					</div>
-					<a class="ui-btn ui-btn--secondary ui-btn--sm" href="/admin/stock?low=1">查看全部低庫存</a>
+					<a class="ui-btn ui-btn--secondary ui-btn--sm" href="/admin/stock?low=1">{ i18n.T(ctx, i18n.KeyAdminQueueAllLowStock) }</a>
 				</section>
 			}
 		</div>
@@ -95,7 +100,7 @@ templ AdminOrders(p layouts.Page, v AdminOrdersView) {
 			@adminNav("orders")
 			<div class="ui-page-head">
 				<div>
-					<h1 class="ui-page-head__title">訂單</h1>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminQueueOrders) }</h1>
 				</div>
 			</div>
 			if v.HasNotice() {
@@ -105,30 +110,29 @@ templ AdminOrders(p layouts.Page, v AdminOrdersView) {
 			// the URL where it can be bookmarked, shared with a colleague and
 			// survive the back button.
 			<form class="goen-admin__form goen-admin__search" method="get" action="/admin/orders">
-				<label class="goen-sr-only" for="order-search">搜尋訂單</label>
+				<label class="goen-sr-only" for="order-search">{ i18n.T(ctx, i18n.KeyAdminQueueSearchLabel) }</label>
 				<input
 					class="ui-input"
 					id="order-search"
 					type="search"
 					name="q"
 					value={ v.Term }
-					placeholder="訂單編號、收件人姓名或 Email"
+					placeholder={ i18n.T(ctx, i18n.KeyAdminQueueSearchPlaceholder) }
 					autocomplete="off"
 				/>
-				<button class="ui-btn ui-btn--secondary" type="submit">搜尋</button>
+				<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminSearch) }</button>
 				if v.Searching() {
-					<a class="ui-btn ui-btn--ghost" href="/admin/orders">清除</a>
+					<a class="ui-btn ui-btn--ghost" href="/admin/orders">{ i18n.T(ctx, i18n.KeyAdminQueueClear) }</a>
 				}
 			</form>
 			if v.Searching() {
 				<p class="goen-admin__hint">
-					搜尋「{ v.Term }」 —— 編號是完整比對,姓名和 Email 從開頭比對。
-					搜尋時不套用上面的狀態篩選。
+					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueSearchNote), v.Term) }
 				</p>
 			}
 			if v.TermTooShort() {
 				<p class="ui-alert ui-alert--warn" role="status">
-					搜尋字串太短,至少要兩個字。下面是一般的訂單列表。
+					{ i18n.T(ctx, i18n.KeyAdminQueueSearchShort) }
 				</p>
 			}
 			<div class="ui-filterbar goen-admin__tabs">
@@ -147,18 +151,18 @@ templ AdminOrders(p layouts.Page, v AdminOrdersView) {
 			</div>
 			if v.Empty() {
 				<div class="ui-empty">
-					<p class="ui-empty__title">這個狀態沒有訂單</p>
+					<p class="ui-empty__title">{ i18n.T(ctx, i18n.KeyAdminQueueEmpty) }</p>
 				</div>
 			} else {
 				<div class="goen-admin__tablewrap">
 					<table class="ui-table goen-admin__table">
 						<thead>
 							<tr>
-								<th scope="col">訂單編號</th>
-								<th scope="col">狀態</th>
-								<th scope="col">收件人</th>
-								<th scope="col">下單時間</th>
-								<th scope="col">金額</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyFieldOrderNumber) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColStatus) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyFieldRecipient) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColPlacedAt) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColAmount) }</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -170,7 +174,7 @@ templ AdminOrders(p layouts.Page, v AdminOrdersView) {
 									<td>
 										<span class="ui-badge">{ o.StatusText }</span>
 										if o.Committed {
-											<span class="ui-badge ui-badge--success">已成交</span>
+											<span class="ui-badge ui-badge--success">{ i18n.T(ctx, i18n.KeyAdminQueueCommitted) }</span>
 										}
 									</td>
 									<td>{ o.RecipientText(ctx) }</td>
@@ -191,8 +195,8 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 	@layouts.Base(p) {
 		<div class="goen-admin">
 			@adminNav("orders")
-			<nav class="ui-crumbs" aria-label="麵包屑">
-				<a href="/admin/orders">訂單</a>
+			<nav class="ui-crumbs" aria-label={ i18n.T(ctx, i18n.KeyBreadcrumb) }>
+				<a href="/admin/orders">{ i18n.T(ctx, i18n.KeyAdminQueueOrders) }</a>
 				<span class="ui-crumbs__sep" aria-hidden="true">/</span>
 				<span class="ui-crumbs__current" aria-current="page">{ v.Number }</span>
 			</nav>
@@ -204,7 +208,7 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 				<div class="ui-page-head__actions">
 					<span class="ui-badge">{ v.StatusText }</span>
 					if v.Committed {
-						<span class="ui-badge ui-badge--success">已成交</span>
+						<span class="ui-badge ui-badge--success">{ i18n.T(ctx, i18n.KeyAdminQueueCommitted) }</span>
 					}
 				</div>
 			</div>
@@ -213,7 +217,7 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 			}
 			<div class="goen-admin__layout">
 				<div class="goen-admin__panel">
-					<h2 class="goen-admin__heading">商品</h2>
+					<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminQueueItems) }</h2>
 					<ul class="goen-order__lines" role="list">
 						for _, l := range v.Lines {
 							<li class="goen-order__line">
@@ -228,22 +232,22 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 							</li>
 						}
 					</ul>
-					<h2 class="goen-admin__heading">收件資訊</h2>
+					<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminQueueDelivery) }</h2>
 					<dl class="ui-dl">
 						<div class="ui-dl__row">
-							<dt class="ui-dl__term">收件人</dt>
+							<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldRecipient) }</dt>
 							<dd class="ui-dl__desc">{ v.RecipientText(ctx) }</dd>
 						</div>
 						<div class="ui-dl__row">
-							<dt class="ui-dl__term">電話</dt>
+							<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldPhoneShort) }</dt>
 							<dd class="ui-dl__desc">{ v.Phone }</dd>
 						</div>
 						<div class="ui-dl__row">
-							<dt class="ui-dl__term">電子郵件</dt>
+							<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldEmail) }</dt>
 							<dd class="ui-dl__desc">{ v.Email }</dd>
 						</div>
 						<div class="ui-dl__row">
-							<dt class="ui-dl__term">地址</dt>
+							<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminQueueAddress) }</dt>
 							<dd class="ui-dl__desc">{ v.Address }</dd>
 						</div>
 						if v.HasInvoice() {
@@ -253,7 +257,7 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 							// this has to be readable: until then somebody issues it
 							// by hand, and cannot do that from a table.
 							<div class="ui-dl__row">
-								<dt class="ui-dl__term">發票</dt>
+								<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeySectionInvoice) }</dt>
 								<dd class="ui-dl__desc">{ v.InvoiceText(ctx) }</dd>
 							</div>
 						}
@@ -265,26 +269,26 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 						// stock hold with it. Offered only while the parcel is
 						// still here: rewriting the address after dispatch makes
 						// the record lie about where it went.
-						<h2 class="goen-admin__heading">收件資訊</h2>
+						<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminQueueDelivery) }</h2>
 						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/delivery") }>
 							<div class="goen-admin__row">
 								<div class="ui-field">
-									<label class="ui-label" for="d-recipient">收件人</label>
+									<label class="ui-label" for="d-recipient">{ i18n.T(ctx, i18n.KeyFieldRecipient) }</label>
 									<input class="ui-input" id="d-recipient" name="recipient" value={ v.Delivery.Recipient } required maxlength="60"/>
 								</div>
 								<div class="ui-field">
-									<label class="ui-label" for="d-phone">電話</label>
+									<label class="ui-label" for="d-phone">{ i18n.T(ctx, i18n.KeyFieldPhoneShort) }</label>
 									<input class="ui-input" id="d-phone" name="phone" type="tel" value={ v.Delivery.Phone } required maxlength="30"/>
 								</div>
 								<div class="ui-field">
-									<label class="ui-label" for="d-email">電子郵件</label>
+									<label class="ui-label" for="d-email">{ i18n.T(ctx, i18n.KeyFieldEmail) }</label>
 									<input class="ui-input" id="d-email" name="email" type="email" value={ v.Delivery.Email } required maxlength="254"/>
 								</div>
 							</div>
 							if v.PickupDestination {
 								<div class="goen-admin__row">
 									<div class="ui-field">
-										<label class="ui-label" for="d-brand">超商</label>
+										<label class="ui-label" for="d-brand">{ i18n.T(ctx, i18n.KeyFieldPickupBrand) }</label>
 										<select class="ui-select" id="d-brand" name="pickup_brand" required>
 											for _, b := range v.PickupBrands {
 												<option value={ b.Value } selected?={ b.Value == v.Delivery.PickupBrand }>{ b.Label }</option>
@@ -292,51 +296,50 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 										</select>
 									</div>
 									<div class="ui-field">
-										<label class="ui-label" for="d-store-code">門市店號</label>
+										<label class="ui-label" for="d-store-code">{ i18n.T(ctx, i18n.KeyFieldStoreCode) }</label>
 										<input class="ui-input" id="d-store-code" name="pickup_store_code" value={ v.Delivery.PickupStoreCode } required maxlength="10"/>
 									</div>
 									<div class="ui-field">
-										<label class="ui-label" for="d-store-name">門市名稱</label>
+										<label class="ui-label" for="d-store-name">{ i18n.T(ctx, i18n.KeyFieldStoreName) }</label>
 										<input class="ui-input" id="d-store-name" name="pickup_store_name" value={ v.Delivery.PickupStoreName } required maxlength="40"/>
 									</div>
 								</div>
 							} else {
 								<div class="goen-admin__row">
 									<div class="ui-field">
-										<label class="ui-label" for="d-postal">郵遞區號</label>
+										<label class="ui-label" for="d-postal">{ i18n.T(ctx, i18n.KeyFieldPostalCode) }</label>
 										<input class="ui-input" id="d-postal" name="postal_code" value={ v.Delivery.PostalCode } required maxlength="6"/>
 									</div>
 									<div class="ui-field">
-										<label class="ui-label" for="d-city">縣市</label>
+										<label class="ui-label" for="d-city">{ i18n.T(ctx, i18n.KeyFieldCity) }</label>
 										<input class="ui-input" id="d-city" name="city" value={ v.Delivery.City } required maxlength="20"/>
 									</div>
 									<div class="ui-field">
-										<label class="ui-label" for="d-district">鄉鎮市區</label>
+										<label class="ui-label" for="d-district">{ i18n.T(ctx, i18n.KeyFieldDistrict) }</label>
 										<input class="ui-input" id="d-district" name="district" value={ v.Delivery.District } required maxlength="20"/>
 									</div>
 									<div class="ui-field goen-checkout__wide">
-										<label class="ui-label" for="d-street">地址</label>
+										<label class="ui-label" for="d-street">{ i18n.T(ctx, i18n.KeyFieldStreet) }</label>
 										<input class="ui-input" id="d-street" name="street" value={ v.Delivery.Street } required maxlength="200"/>
 									</div>
 								</div>
 							}
 							<p class="goen-admin__hint">
-								出貨之後就改不了 —— 那時候包裹已經寄出,改紀錄只會讓紀錄和事實對不上。
-								操作紀錄只會記下「改了收件資訊」,不會記下地址本身:顧客刪除帳號時清不到操作紀錄。
+								{ i18n.T(ctx, i18n.KeyAdminQueueDeliveryHint) }
 							</p>
-							<button class="ui-btn ui-btn--secondary" type="submit">更新收件資訊</button>
+							<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueueDeliverySave) }</button>
 						</form>
 					}
 					if len(v.Shipments) > 0 {
-						<h2 class="goen-admin__heading">出貨</h2>
+						<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminQueueDispatch) }</h2>
 						<ul class="goen-admin__returnlines" role="list">
 							for _, sh := range v.Shipments {
 								<li>
 									<span class="ui-cart-line__meta">{ sh.Carrier } · { sh.Tracking }</span>
 									if sh.Delivered() {
-										<span class="ui-cart-line__meta">{ sh.DeliveredAt } 送達</span>
+										<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueDelivered), sh.DeliveredAt) }</span>
 									} else {
-										<span class="ui-cart-line__meta">{ sh.ShippedAt } 出貨</span>
+										<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueDispatched), sh.ShippedAt) }</span>
 									}
 								</li>
 							}
@@ -346,7 +349,7 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 						// WITH the actor. The customer's page deliberately shows
 						// only what happened; this one answers "who", which is
 						// the question no per-entity history could before.
-						<h2 class="goen-admin__heading">訂單紀錄</h2>
+						<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminQueueTimeline) }</h2>
 						<ul class="goen-admin__returnlines" role="list">
 							for _, e := range v.Timeline {
 								<li>
@@ -360,31 +363,31 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 						</ul>
 					}
 					if v.HasCustomerNote() {
-						<h2 class="goen-admin__heading">顧客備註</h2>
+						<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminQueueCustomerNote) }</h2>
 						<p class="goen-admin__note">{ v.CustomerNote }</p>
 					}
-					<h2 class="goen-admin__heading">內部備註</h2>
+					<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminQueueStaffNote) }</h2>
 					<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/note") }>
-						<label class="goen-sr-only" for="staff-note">內部備註</label>
+						<label class="goen-sr-only" for="staff-note">{ i18n.T(ctx, i18n.KeyAdminQueueStaffNote) }</label>
 						<textarea class="ui-textarea" id="staff-note" name="note" rows="3" maxlength="1000">{ v.StaffNote }</textarea>
-						<p class="goen-admin__hint">只有後台看得到。顧客刪除帳號時不會被清除,所以不要放顧客寫的內容。</p>
-						<button class="ui-btn ui-btn--secondary" type="submit">儲存備註</button>
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueStaffNoteHint) }</p>
+						<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueueNoteSave) }</button>
 					</form>
 				</div>
 				<aside class="goen-admin__side">
 					<div class="ui-summary">
 						<div class="ui-summary__row">
-							<span>小計</span>
+							<span>{ i18n.T(ctx, i18n.KeySubtotal) }</span>
 							<span class="ui-summary__val">{ v.Subtotal() }</span>
 						</div>
 						<div class="ui-summary__row">
-							<span>運費</span>
+							<span>{ i18n.T(ctx, i18n.KeyShippingFee) }</span>
 							<span class="ui-summary__val">{ v.Shipping() }</span>
 						</div>
 						if v.Discounted() {
 							<div class="ui-summary__row">
 								<span>
-									折扣
+									{ i18n.T(ctx, i18n.KeyDiscount) }
 									if v.DiscountReason != "" {
 										({ v.DiscountReason })
 									}
@@ -393,18 +396,18 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 							</div>
 						}
 						<div class="ui-summary__row ui-summary__row--total">
-							<span>總計</span>
+							<span>{ i18n.T(ctx, i18n.KeyOrderGrandTotal) }</span>
 							<span class="ui-summary__val">{ v.Total() }</span>
 						</div>
 					</div>
 					if v.CanShip {
 						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/ship") }>
 							<div class="ui-field">
-								<label class="ui-label" for="ship-carrier">物流商</label>
+								<label class="ui-label" for="ship-carrier">{ i18n.T(ctx, i18n.KeyAdminColCarrier) }</label>
 								<input class="ui-input" id="ship-carrier" name="carrier" required maxlength="60" autocomplete="off"/>
 							</div>
 							<div class="ui-field">
-								<label class="ui-label" for="ship-tracking">查詢編號</label>
+								<label class="ui-label" for="ship-tracking">{ i18n.T(ctx, i18n.KeyAdminQueueTracking) }</label>
 								<input class="ui-input" id="ship-tracking" name="tracking" required maxlength="60" autocomplete="off"/>
 							</div>
 							// Per line, because a parcel can carry some of what is left:
@@ -415,7 +418,7 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 							for _, l := range v.Shippable {
 								<div class="ui-field">
 									<label class="ui-label" for={ "qty-" + l.OrderLineID }>
-										{ l.Line() }(剩 { l.RemainingText() })
+										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueRemaining), l.Line(), l.RemainingText()) }
 									</label>
 									<input
 										class="ui-input"
@@ -432,42 +435,42 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 									// here rather than left to fail at the write.
 									if l.Short() {
 										<p class="goen-admin__hint">
-											這一項只保留了 { l.HeldText() } 件,超過的部分無法出貨。
+											{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueShortHold), l.HeldText()) }
 										</p>
 									}
 								</div>
 							}
-							<button class="ui-btn ui-btn--primary ui-btn--block" type="submit">出貨</button>
+							<button class="ui-btn ui-btn--primary ui-btn--block" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueueDispatch) }</button>
 							<p class="goen-admin__hint">
-								出貨會同時記錄配送資訊、扣除保留的庫存,並寫入訂單紀錄。數量可以少於剩餘,剩下的之後再出一次。
+								{ i18n.T(ctx, i18n.KeyAdminQueueDispatchHint) }
 							</p>
 						</form>
 					}
 					if v.CanAdvance() {
 						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/status") }>
 							<div class="ui-field">
-								<label class="ui-label" for="next-status">變更狀態</label>
+								<label class="ui-label" for="next-status">{ i18n.T(ctx, i18n.KeyAdminQueueNextStatus) }</label>
 								<select class="ui-select" id="next-status" name="status">
 									for _, n := range v.Next {
 										<option value={ n.Value }>{ n.Label }</option>
 									}
 								</select>
 							</div>
-							<button class="ui-btn ui-btn--primary ui-btn--block" type="submit">更新狀態</button>
+							<button class="ui-btn ui-btn--primary ui-btn--block" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueueStatusSave) }</button>
 							<p class="goen-admin__hint">
-								只列出資料庫允許的下一步。未付款的訂單無法進入備貨。
+								{ i18n.T(ctx, i18n.KeyAdminQueueNextHint) }
 							</p>
 						</form>
 					} else {
-						<p class="goen-admin__hint">這筆訂單已經是最終狀態。</p>
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueFinal) }</p>
 					}
 					// 統一發票. The preference has been collected since checkout
 					// shipped and nothing ever acted on it — this is the door.
 					<section class="goen-admin__invoices" aria-labelledby="invoice-heading">
-						<h2 id="invoice-heading" class="goen-admin__subhead">統一發票</h2>
+						<h2 id="invoice-heading" class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminDocInvoice) }</h2>
 						if !v.InvoicingEnabled {
 							<p class="goen-admin__hint">
-								尚未設定加值中心,無法開立發票。設定 GOEN_ECPAY_MERCHANT_ID 後才會開放。
+								{ i18n.T(ctx, i18n.KeyAdminQueueNoInvoicing) }
 							</p>
 						} else {
 							if len(v.InvoiceDocuments) > 0 {
@@ -477,14 +480,14 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 											<span class="ui-cart-line__meta">
 												{ d.KindText(ctx) } { d.Number } · { d.Amount() }
 												if d.Voided() {
-													<strong>(已作廢)</strong>
+													<strong>{ i18n.T(ctx, i18n.KeyAdminQueueVoided) }</strong>
 												}
 											</span>
 											<span class="ui-cart-line__meta">{ d.IssuedAt }</span>
 											// The 隨機碼, which a customer needs to look the
 											// invoice up on the 財政部 platform.
 											if d.ProviderRef != "" {
-												<span class="ui-cart-line__meta">隨機碼 { d.ProviderRef }</span>
+												<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueRandomCode), d.ProviderRef) }</span>
 											}
 											// What the document says was sold. A shop
 											// reconciling an invoice against an order
@@ -498,26 +501,26 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 							}
 							if v.CanIssueInvoice() {
 								<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/invoice") }>
-									<button class="ui-btn ui-btn--primary ui-btn--block" type="submit">開立發票</button>
+									<button class="ui-btn ui-btn--primary ui-btn--block" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueueIssue) }</button>
 									<p class="goen-admin__hint">
-										依結帳時選的 { v.InvoiceText(ctx) } 開立,金額為訂單總計。
+										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueIssueHint), v.InvoiceText(ctx)) }
 									</p>
 								</form>
 							}
 							if v.CanVoidInvoice() {
 								<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/invoice/void") }>
 									<div class="ui-field">
-										<label class="ui-label" for="void-reason">作廢原因</label>
+										<label class="ui-label" for="void-reason">{ i18n.T(ctx, i18n.KeyAdminQueueVoidReason) }</label>
 										<input class="ui-input" id="void-reason" name="reason" required maxlength="20" autocomplete="off"/>
 									</div>
-									<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">作廢發票</button>
+									<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueueVoid) }</button>
 									<p class="goen-admin__hint">
-										發票不能修改,只能作廢後重開。原因會一併申報。
+										{ i18n.T(ctx, i18n.KeyAdminQueueVoidHint) }
 									</p>
 								</form>
 							}
 							if !v.CanIssueInvoice() && !v.CanVoidInvoice() && len(v.InvoiceDocuments) == 0 {
-								<p class="goen-admin__hint">訂單成立後才能開立發票。</p>
+								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueNotCommitted) }</p>
 							}
 						}
 					</section>
@@ -534,9 +537,9 @@ templ AdminVariants(p layouts.Page, v AdminVariantsView) {
 			@adminNav("stock")
 			<div class="ui-page-head">
 				<div>
-					<h1 class="ui-page-head__title">庫存</h1>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminQueueStock) }</h1>
 					<p class="ui-page-head__sub">
-						庫存只能透過調整寫入,每次調整都會留下一筆異動紀錄。
+						{ i18n.T(ctx, i18n.KeyAdminQueueStockLead) }
 					</p>
 				</div>
 			</div>
@@ -544,12 +547,12 @@ templ AdminVariants(p layouts.Page, v AdminVariantsView) {
 				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
 			}
 			<div class="ui-filterbar">
-				<a class={ "ui-filter", templ.KV("is-active", !v.LowOnly) } href="/admin/stock">全部</a>
-				<a class={ "ui-filter", templ.KV("is-active", v.LowOnly) } href="/admin/stock?low=1">僅低庫存</a>
+				<a class={ "ui-filter", templ.KV("is-active", !v.LowOnly) } href="/admin/stock">{ i18n.T(ctx, i18n.KeyAdminTabAll) }</a>
+				<a class={ "ui-filter", templ.KV("is-active", v.LowOnly) } href="/admin/stock?low=1">{ i18n.T(ctx, i18n.KeyAdminQueueLowOnly) }</a>
 			</div>
 			if v.Empty() {
 				<div class="ui-empty">
-					<p class="ui-empty__title">沒有符合的品項</p>
+					<p class="ui-empty__title">{ i18n.T(ctx, i18n.KeyAdminQueueNoVariants) }</p>
 				</div>
 			} else {
 				<div class="goen-admin__tablewrap">
@@ -567,10 +570,10 @@ templ adminVariantTable(variants []AdminVariant) {
 		<thead>
 			<tr>
 				<th scope="col">SKU</th>
-				<th scope="col">商品</th>
-				<th scope="col">庫存 / 安全 / 可售</th>
-				<th scope="col">價格</th>
-				<th scope="col">調整</th>
+				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColProduct) }</th>
+				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminQueueColStock) }</th>
+				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminQueueColPrice) }</th>
+				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminQueueAdjust) }</th>
 			</tr>
 		</thead>
 		<tbody>
@@ -582,10 +585,10 @@ templ adminVariantTable(variants []AdminVariant) {
 						// is "why is this four", and the answer is the movements.
 						<a href={ templ.SafeURL("/admin/stock/" + x.SKU) }>{ x.SKU }</a>
 						<span class="ui-cart-line__meta">
-							<a href={ templ.URL("/p/" + x.Slug) }>看商品頁</a>
+							<a href={ templ.URL("/p/" + x.Slug) }>{ i18n.T(ctx, i18n.KeyAdminQueueViewProduct) }</a>
 						</span>
 						if !x.Active {
-							<span class="ui-badge">已停用</span>
+							<span class="ui-badge">{ i18n.T(ctx, i18n.KeyAdminQueueVariantOff) }</span>
 						}
 					</td>
 					<td>
@@ -599,29 +602,38 @@ templ adminVariantTable(variants []AdminVariant) {
 					<td>
 						<form class="goen-admin__inline" method="post" action="/admin/stock/price">
 							<input type="hidden" name="sku" value={ x.SKU }/>
-							<label class="goen-sr-only" for={ "price-" + x.SKU }>售價</label>
+							<label class="goen-sr-only" for={ "price-" + x.SKU }>{ i18n.T(ctx, i18n.KeyAdminQueuePrice) }</label>
 							<input class="ui-input ui-input--sm goen-admin__num" id={ "price-" + x.SKU } type="number" name="price" value={ x.PriceText() } min="0" step="1"/>
-							<label class="goen-sr-only" for={ "cmp-" + x.SKU }>原價</label>
-							<input class="ui-input ui-input--sm goen-admin__num" id={ "cmp-" + x.SKU } type="number" name="compare_at" value={ x.CompareText() } min="0" step="1" placeholder="原價"/>
-							<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">改價</button>
+							<label class="goen-sr-only" for={ "cmp-" + x.SKU }>{ i18n.T(ctx, i18n.KeyAdminQueueComparePrice) }</label>
+							<input
+								class="ui-input ui-input--sm goen-admin__num"
+								id={ "cmp-" + x.SKU }
+								type="number"
+								name="compare_at"
+								value={ x.CompareText() }
+								min="0"
+								step="1"
+								placeholder={ i18n.T(ctx, i18n.KeyAdminQueueComparePrice) }
+							/>
+							<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueuePriceSave) }</button>
 						</form>
 					</td>
 					<td>
 						<form class="goen-admin__inline" method="post" action="/admin/stock/adjust">
 							<input type="hidden" name="sku" value={ x.SKU }/>
 							<input type="hidden" name="idempotency" value={ x.AdjustKey() }/>
-							<label class="goen-sr-only" for={ "adj-" + x.SKU }>調整數量</label>
+							<label class="goen-sr-only" for={ "adj-" + x.SKU }>{ i18n.T(ctx, i18n.KeyAdminQueueAdjustQty) }</label>
 							<input class="ui-input ui-input--sm goen-admin__num" id={ "adj-" + x.SKU } type="number" name="delta" placeholder="+10" step="1"/>
-							<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">調整</button>
+							<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueueAdjust) }</button>
 						</form>
 						<form class="goen-admin__inline" method="post" action="/admin/stock/active">
 							<input type="hidden" name="sku" value={ x.SKU }/>
 							if x.Active {
 								<input type="hidden" name="active" value="0"/>
-								<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">停用</button>
+								<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminToggleOff) }</button>
 							} else {
 								<input type="hidden" name="active" value="1"/>
-								<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">啟用</button>
+								<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminToggleOn) }</button>
 							}
 						</form>
 					</td>
