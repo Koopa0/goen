@@ -572,8 +572,9 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 		SubtotalCents: o.SubtotalCents,
 		ShippingCents: o.ShippingCents,
 		DiscountCents: o.DiscountCents, DiscountReason: o.DiscountReason,
-		TaxCents: o.TaxCents,
-		PlacedAt: o.PlacedAt.Format("2006-01-02 15:04"),
+		CreditCents: o.CreditCents,
+		TaxCents:    o.TaxCents,
+		PlacedAt:    o.PlacedAt.Format("2006-01-02 15:04"),
 	}
 	for _, l := range lines {
 		view.Lines = append(view.Lines, pages.OrderLine{

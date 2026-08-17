@@ -549,6 +549,15 @@ templ Order(p layouts.Page, v *OrderView) {
 							<span>{ i18n.T(ctx, i18n.KeyOrderGrandTotal) }</span>
 							<span class="ui-summary__val">{ v.Total() }</span>
 						</div>
+						// Below the total, because it is not a reduction of the
+						// price: the goods cost what they cost and this is part
+						// of how they were paid for.
+						if v.UsedCredit() {
+							<div class="ui-summary__row">
+								<span>{ i18n.T(ctx, i18n.KeyOrderCreditApplied) }</span>
+								<span class="ui-summary__val">{ v.Credit() }</span>
+							</div>
+						}
 					</div>
 					if v.CanRequestReturn() {
 						<a class="ui-btn ui-btn--secondary ui-btn--block" href={ templ.SafeURL("/orders/" + v.Number + "/return") }>

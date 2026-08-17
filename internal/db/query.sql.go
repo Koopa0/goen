@@ -6900,6 +6900,14 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        o.shipping_method_name, o.placed_at,
        coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                  WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
+       -- What store credit paid, as the difference between the total and what is
+       -- still owed rather than a second sum over the ledger: order_amount_owed
+       -- is the one definition of that arithmetic, and TestEveryCreditBalanceReadsTheOneView
+       -- refuses a page that re-derives it.
+       (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
+                  WHERE ol.order_id = o.id), 0)
+        - o.discount_cents + o.shipping_cents + o.tax_cents
+        - order_amount_owed(o.id))::bigint AS credit_cents,
        coalesce(pd.email, '') AS email,
        coalesce(pd.postal_code, '') AS postal_code,
        coalesce(pd.city, '') AS city,
@@ -6930,6 +6938,7 @@ type OrderSummaryByNumberRow struct {
 	ShippingMethodName string
 	PlacedAt           time.Time
 	SubtotalCents      int64
+	CreditCents        int64
 	Email              string
 	PostalCode         string
 	City               string
@@ -6956,6 +6965,7 @@ func (q *Queries) OrderSummaryByNumber(ctx context.Context, orderNumber string) 
 		&i.ShippingMethodName,
 		&i.PlacedAt,
 		&i.SubtotalCents,
+		&i.CreditCents,
 		&i.Email,
 		&i.PostalCode,
 		&i.City,

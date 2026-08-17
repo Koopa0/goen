@@ -208,6 +208,12 @@ var (
 	// lives on goen's own order page, which states the discount and the credit
 	// separately and which the confirmation links to.
 	KeyPayOrderLine = key("pay.orderline", Message{ZhHant: "訂單 %s", En: "Order %s"})
+	// Beneath the total on the order page: the goods cost what they cost, and
+	// this says how part of it was paid.
+	KeyOrderCreditApplied = key("order.credit", Message{
+		ZhHant: "商店額度折抵",
+		En:     "Paid with store credit",
+	})
 
 	KeyOrderNotFound = key("order.notfound", Message{ZhHant: "找不到這筆訂單", En: "Order not found"})
 	KeyOrderNotYours = key("order.notyours", Message{

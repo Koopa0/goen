@@ -454,6 +454,7 @@ type OrderView struct {
 	ShippingCents  int64
 	DiscountCents  int64
 	DiscountReason string
+	CreditCents    int64
 	TaxCents       int64
 	Timeline       []OrderEvent
 	Shipments      []OrderShipment
@@ -494,6 +495,17 @@ func (v *OrderView) Discount() string { return "-" + twd(v.DiscountCents) }
 func (v *OrderView) Total() string {
 	return twd(v.SubtotalCents - v.DiscountCents + v.ShippingCents + v.TaxCents)
 }
+
+// UsedCredit reports whether to show the store-credit row.
+//
+// Shown because it was not: the credit is debited in the order's own
+// transaction and appeared on no page, so the summary said one figure while the
+// payment page asked for another and nothing on the receipt accounted for the
+// difference — the discount row's defect, one term over.
+func (v *OrderView) UsedCredit() bool { return v.CreditCents > 0 }
+
+// Credit is what the store credit took off, as a negative figure.
+func (v *OrderView) Credit() string { return "-" + twd(v.CreditCents) }
 
 // CanRequestReturn reports whether the goods have left the warehouse.
 func (v *OrderView) CanRequestReturn() bool {
