@@ -146,9 +146,12 @@ var (
 	KeyReviewCount    = key("pdp.reviews.count", Message{ZhHant: "%s 則評價", En: "%s reviews"})
 	KeyStarsLabel     = key("pdp.reviews.stars", Message{ZhHant: "%s 星", En: "%s stars"})
 	KeyVerifiedBuyer  = key("pdp.reviews.verified", Message{ZhHant: "已購買", En: "Verified purchase"})
-	KeyVerifiedBuyers = key("pdp.reviews.verified.plural", Message{
-		ZhHant: "已購買的顧客",
-		En:     "Verified buyers",
+	// A reviewer who gave no name, and one whose account has been erased. Says
+	// nothing about whether they bought: the badge beside it does that, and
+	// product_reviews_verified_is_real is what makes the badge true.
+	KeyAnonymousReviewer = key("pdp.reviews.anonymous", Message{
+		ZhHant: "匿名顧客",
+		En:     "Anonymous",
 	})
 	KeyRatingOutOf = key("pdp.reviews.ratingof", Message{
 		ZhHant: "評分 %s 分,滿分 5 分",

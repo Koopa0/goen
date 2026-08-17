@@ -82,10 +82,17 @@ type ProductReview struct {
 // RatingText is the review's own score.
 func (r ProductReview) RatingText() string { return strconv.Itoa(r.Rating) }
 
-// DisplayAuthor is the reviewer's name, or a stand-in when the account was erased.
+// DisplayAuthor is the reviewer's name, or a stand-in when they gave none and
+// when erase_user has taken it away.
+//
+// NOT the verified-buyer heading, which this borrowed: a name is optional at
+// registration and erasure blanks it, so 23 of 24 reviews were bylined 已購買的
+// 顧客 — every one of them unverified. product_reviews_verified_is_real exists
+// to stop a false verified claim, and the byline made it in words beside the
+// badge that carries the real one.
 func (r ProductReview) DisplayAuthor(ctx context.Context) string {
 	if r.Author == "" {
-		return i18n.T(ctx, i18n.KeyVerifiedBuyers)
+		return i18n.T(ctx, i18n.KeyAnonymousReviewer)
 	}
 	return r.Author
 }
