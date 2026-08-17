@@ -1787,7 +1787,7 @@ func TestASlugIsNeverRenamed(t *testing.T) {
 	if errs, err := s.CreateBrand(ctx, &admin.TaxonomyForm{Slug: slug, Name: "原名"}); err != nil || len(errs) > 0 {
 		t.Fatalf("create: err=%v errs=%v", err, errs)
 	}
-	if err := s.Rename(ctx, "brand", slug, "新名字", ""); err != nil {
+	if err := s.Rename(ctx, "brand", slug, "新名字", "", ""); err != nil {
 		t.Fatalf("rename: %v", err)
 	}
 
@@ -1799,7 +1799,7 @@ func TestASlugIsNeverRenamed(t *testing.T) {
 	if name != "新名字" {
 		t.Errorf("name is %q, want 新名字", name)
 	}
-	if err := s.Rename(ctx, "brand", slug, "   ", ""); !errors.Is(err, admin.ErrInvalid) {
+	if err := s.Rename(ctx, "brand", slug, "   ", "", ""); !errors.Is(err, admin.ErrInvalid) {
 		t.Errorf("a blank name gave %v, want ErrInvalid", err)
 	}
 }
@@ -4194,7 +4194,7 @@ func TestACategoryCarriesItsEnglishName(t *testing.T) {
 	}
 
 	// A rename can CLEAR the translation: empty is stored as NULL.
-	if err := s.Rename(ctx, "category", slug, "測試分類", ""); err != nil {
+	if err := s.Rename(ctx, "category", slug, "測試分類", "", ""); err != nil {
 		t.Fatalf("rename: %v", err)
 	}
 	var cleared *string
@@ -5967,4 +5967,65 @@ func registeredWarranty(t *testing.T, serial string) (registered, orderNumber st
 		t.Fatalf("register warranty: %v", err)
 	}
 	return serial, number
+}
+
+// TestACategoryCreatedInTheBackOfficeCanCarryAnIcon closes a column that was
+// read and never written.
+//
+// The home page tiles a category with categories.icon_key, and the only writer
+// was the dev seed: every category a shop created through /admin/taxonomy had
+// no icon and no way to get one short of SQL. TestEveryColumnIsReadOrWritten
+// passes on it because the column IS mentioned — by the seed and by the read —
+// which is that guard's documented limit.
+//
+// The icon set is closed and icons.Category has no default arm, so an unknown
+// key draws nothing at all: the refusal is what stops a shop storing a value the
+// home page would silently drop.
+func TestACategoryCreatedInTheBackOfficeCanCarryAnIcon(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	slug := "iconcat-" + uuid.NewString()[:8]
+
+	errs, err := s.CreateCategory(ctx, &admin.TaxonomyForm{
+		Slug: slug, Name: "圖示分類", IconKey: "laptop",
+	})
+	if err != nil || len(errs) > 0 {
+		t.Fatalf("create category: err=%v fields=%v", err, errs)
+	}
+
+	var icon string
+	if readErr := pool.QueryRow(ctx,
+		`SELECT coalesce(icon_key, '') FROM categories WHERE slug = $1`, slug).Scan(&icon); readErr != nil {
+		t.Fatalf("read icon: %v", readErr)
+	}
+	if icon != "laptop" {
+		t.Errorf("icon_key = %q, want %q — the home page tiles this category with "+
+			"whatever is here, and an empty one draws nothing", icon, "laptop")
+	}
+
+	// Renaming carries the icon rather than clearing it: the form renders the
+	// current value, so a rename that dropped it would un-icon a category every
+	// time somebody fixed a typo.
+	if renameErr := s.Rename(ctx, "category", slug, "改名分類", "", "laptop"); renameErr != nil {
+		t.Fatalf("rename: %v", renameErr)
+	}
+	if readErr := pool.QueryRow(ctx,
+		`SELECT coalesce(icon_key, '') FROM categories WHERE slug = $1`, slug).Scan(&icon); readErr != nil {
+		t.Fatalf("read icon after rename: %v", readErr)
+	}
+	if icon != "laptop" {
+		t.Errorf("after a rename icon_key = %q, want laptop", icon)
+	}
+
+	// A key outside the closed set is refused rather than stored.
+	bad, err := s.CreateCategory(ctx, &admin.TaxonomyForm{
+		Slug: "iconbad-" + uuid.NewString()[:8], Name: "壞圖示", IconKey: "rocket",
+	})
+	if err != nil {
+		t.Fatalf("create with an unknown icon: %v", err)
+	}
+	if _, refused := bad["icon_key"]; !refused {
+		t.Error("an icon outside the set icons.Category can draw was accepted, " +
+			"which stores a value the home page renders as nothing")
+	}
 }

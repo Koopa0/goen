@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -29,7 +30,17 @@ type TaxonomyForm struct {
 	// Parent is a category's parent slug, empty for a root. Brands have no
 	// parent and leave it empty.
 	Parent string
+	// IconKey is the glyph the home page tiles a category with, empty for none.
+	// Brands have no tile and leave it empty.
+	IconKey string
 }
+
+// CategoryIcons is the closed set icons.Category can draw.
+//
+// A key outside it renders NOTHING — that switch has no default arm — so the
+// form offers these and Validate refuses the rest, rather than writing a value
+// the home page would silently drop.
+var CategoryIcons = []string{"phone", "laptop", "tablet", "headphones", "watch", "plug", "shield"}
 
 // Validate refuses what the schema would, with a message naming the field.
 func (f *TaxonomyForm) Validate(ctx context.Context) map[string]string {
@@ -49,6 +60,10 @@ func (f *TaxonomyForm) Validate(ctx context.Context) map[string]string {
 	// into the NULL the column uses for absence.
 	if utf8.RuneCountInString(f.NameEn) > MaxTaxonomyNameRunes {
 		errs["name_en"] = i18n.T(ctx, i18n.KeyFormNameEnTooLong)
+	}
+	f.IconKey = strings.TrimSpace(f.IconKey)
+	if f.IconKey != "" && !slices.Contains(CategoryIcons, f.IconKey) {
+		errs["icon_key"] = i18n.T(ctx, i18n.KeyFormIconUnknown)
 	}
 	return errs
 }
@@ -74,8 +89,9 @@ func (s *Store) Taxonomy(ctx context.Context) (pages.AdminTaxonomyView, error) {
 	for i := range cats {
 		c := &cats[i]
 		view.Categories = append(view.Categories, pages.AdminTaxon{
-			Slug: c.Slug, Name: c.Name, NameEn: c.NameEn, Products: c.Products,
-			Depth: int(c.Depth), Children: c.Children, Parent: c.ParentName,
+			Slug: c.Slug, Name: c.Name, NameEn: c.NameEn, IconKey: c.IconKey,
+			Products: c.Products,
+			Depth:    int(c.Depth), Children: c.Children, Parent: c.ParentName,
 		})
 	}
 	return view, nil
@@ -115,7 +131,8 @@ func (s *Store) CreateCategory(ctx context.Context, f *TaxonomyForm) (map[string
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			n, createErr := q.CreateCategory(ctx, db.CreateCategoryParams{
-				Slug: f.Slug, Name: f.Name, NameEn: f.NameEn, ParentSlug: f.Parent,
+				Slug: f.Slug, Name: f.Name, NameEn: f.NameEn,
+				IconKey: f.IconKey, ParentSlug: f.Parent,
 			})
 			if createErr != nil {
 				return createErr
@@ -144,12 +161,16 @@ func (s *Store) CreateCategory(ctx context.Context, f *TaxonomyForm) (map[string
 // Rename changes a brand's or a category's display name, never its slug — goen
 // has no redirect table, so a renamed slug is a dead link everywhere at once.
 // nameEn applies to categories only, and empty CLEARS it.
-func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn string) error {
+func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn, iconKey string) error {
 	name, nameEn = strings.TrimSpace(name), strings.TrimSpace(nameEn)
+	iconKey = strings.TrimSpace(iconKey)
 	if name == "" || utf8.RuneCountInString(name) > MaxTaxonomyNameRunes {
 		return ErrInvalid
 	}
 	if utf8.RuneCountInString(nameEn) > MaxTaxonomyNameRunes {
+		return ErrInvalid
+	}
+	if iconKey != "" && !slices.Contains(CategoryIcons, iconKey) {
 		return ErrInvalid
 	}
 	action, table := ActionRenameBrand, "brands"
@@ -159,7 +180,7 @@ func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn string) err
 	return s.audited(ctx, Event{
 		Action: action, Table: table,
 		Before: map[string]any{"slug": slug},
-		After:  map[string]any{"name": name, "name_en": nameEn},
+		After:  map[string]any{"name": name, "name_en": nameEn, "icon_key": iconKey},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			var n int64
@@ -168,7 +189,7 @@ func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn string) err
 				n, err = q.RenameBrand(ctx, db.RenameBrandParams{Slug: slug, Name: name})
 			} else {
 				n, err = q.RenameCategory(ctx, db.RenameCategoryParams{
-					Slug: slug, Name: name, NameEn: nameEn,
+					Slug: slug, Name: name, NameEn: nameEn, IconKey: iconKey,
 				})
 			}
 			if err != nil {

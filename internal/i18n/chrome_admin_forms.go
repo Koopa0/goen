@@ -388,3 +388,20 @@ var (
 		En:     "The English answer is too long.",
 	})
 )
+
+var (
+	// The home page tiles a category with a glyph from a closed set, and a key
+	// outside it renders nothing at all.
+	KeyFormIconUnknown = key("form.icon.unknown", Message{
+		ZhHant: "請從清單中選一個圖示。",
+		En:     "Pick an icon from the list.",
+	})
+	KeyAdminColIcon  = key("admin.col.icon", Message{ZhHant: "圖示", En: "Icon"})
+	KeyAdminIconNone = key("admin.icon.none", Message{ZhHant: "不設圖示", En: "No icon"})
+)
+
+// KeyAdminTaxIconOf labels the icon control on one category's row.
+var KeyAdminTaxIconOf = key("admin.tax.iconof", Message{
+	ZhHant: "%s 的圖示",
+	En:     "Icon for %s",
+})

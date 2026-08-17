@@ -882,15 +882,16 @@ WHERE b.slug = @slug::text
 -- it a cycle would make this query hang rather than return wrong rows.
 -- name: ManagedCategories :many
 WITH RECURSIVE tree AS (
-    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.position, 0 AS depth,
-           array[c.position, 0] AS path
+    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.position,
+           0 AS depth, array[c.position, 0] AS path
     FROM categories c WHERE c.parent_id IS NULL
     UNION ALL
-    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.position, t.depth + 1,
-           t.path || array[c.position, 0]
+    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.position,
+           t.depth + 1, t.path || array[c.position, 0]
     FROM categories c JOIN tree t ON t.id = c.parent_id
 )
 SELECT t.id, t.slug, t.name, coalesce(t.name_en, '') AS name_en,
+       coalesce(t.icon_key, '') AS icon_key,
        t.depth::integer AS depth,
        coalesce(p.name, '') AS parent_name,
        (SELECT count(*) FROM products x WHERE x.category_id = t.id)::bigint AS products,
@@ -913,8 +914,9 @@ ORDER BY t.path, t.name;
 -- not found. That last case inserts nothing, and the row count is how the
 -- caller learns it.
 -- name: CreateCategory :execrows
-INSERT INTO categories (slug, name, name_en, parent_id, position)
-SELECT @slug::text, @name::text, nullif(@name_en::text, ''), parent.id,
+INSERT INTO categories (slug, name, name_en, icon_key, parent_id, position)
+SELECT @slug::text, @name::text, nullif(@name_en::text, ''),
+       nullif(@icon_key::text, ''), parent.id,
        coalesce((SELECT max(c.position) + 1 FROM categories c
                  WHERE c.parent_id IS NOT DISTINCT FROM parent.id), 0)
 FROM (
@@ -930,7 +932,8 @@ FROM (
 -- empty box means "no translation", which is the one state the column expresses as
 -- NULL. Without that, a shop could add an English name and never take it back.
 -- name: RenameCategory :execrows
-UPDATE categories SET name = @name::text, name_en = nullif(@name_en::text, '')
+UPDATE categories SET name = @name::text, name_en = nullif(@name_en::text, ''),
+                     icon_key = nullif(@icon_key::text, '')
 WHERE slug = @slug::text;
 
 -- Delete a category with nothing in it and nothing under it.

@@ -1935,10 +1935,11 @@ func (h *Handler) CreateTaxon(w http.ResponseWriter, r *http.Request) {
 	}
 	kind := r.PathValue("kind")
 	f := &TaxonomyForm{
-		Slug:   r.PostFormValue("slug"),
-		Name:   r.PostFormValue("name"),
-		NameEn: r.PostFormValue("name_en"),
-		Parent: r.PostFormValue("parent"),
+		Slug:    r.PostFormValue("slug"),
+		Name:    r.PostFormValue("name"),
+		NameEn:  r.PostFormValue("name_en"),
+		Parent:  r.PostFormValue("parent"),
+		IconKey: r.PostFormValue("icon_key"),
 	}
 
 	var errs map[string]string
@@ -1961,6 +1962,7 @@ func (h *Handler) CreateTaxon(w http.ResponseWriter, r *http.Request) {
 		view.Which, view.Errors = kind, errs
 		view.Draft = pages.AdminTaxonDraft{
 			Slug: f.Slug, Name: f.Name, NameEn: f.NameEn, Parent: f.Parent,
+			IconKey: f.IconKey,
 		}
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminTaxonomy(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTaxonomy)}, &view))
@@ -1990,7 +1992,8 @@ func (h *Handler) EditTaxon(w http.ResponseWriter, r *http.Request) {
 		err = h.store.Delete(r.Context(), kind, slug)
 	} else {
 		err = h.store.Rename(r.Context(), kind, slug,
-			r.PostFormValue("name"), r.PostFormValue("name_en"))
+			r.PostFormValue("name"), r.PostFormValue("name_en"),
+			r.PostFormValue("icon_key"))
 	}
 	switch {
 	case err == nil:

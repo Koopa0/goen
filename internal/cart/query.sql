@@ -122,7 +122,7 @@ SELECT DISTINCT ON (sm.id)
     sm.code,
     sm.destination_kind,
     localized_name(v.name, v.name_en, @locale::text) AS name,
-    v.carrier,
+    coalesce(localized_name(v.carrier, v.carrier_en, @locale::text), '')::text AS carrier,
     v.fee_cents,
     v.free_over_cents
 FROM shipping_methods sm

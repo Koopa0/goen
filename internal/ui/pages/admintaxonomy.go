@@ -20,6 +20,9 @@ type AdminTaxon struct {
 	// removed. Shown rather than hidden: "you cannot delete this" without a
 	// number is a refusal a staff member cannot act on.
 	Products int64
+	// IconKey is the glyph the home page tiles this category with, empty for
+	// none. Only a category has one.
+	IconKey string
 	// Depth, Children and Parent are a category's; a brand leaves them zero.
 	Depth    int
 	Children int64
@@ -70,11 +73,17 @@ type AdminTaxonomyView struct {
 
 // AdminTaxonDraft carries a refused form's values back.
 type AdminTaxonDraft struct {
-	Slug   string
-	Name   string
-	NameEn string
-	Parent string
+	Slug    string
+	Name    string
+	NameEn  string
+	Parent  string
+	IconKey string
 }
+
+// CategoryIcons is the closed set the home page can draw. Offered as a select
+// rather than a text box: icons.Category has no default arm, so a key outside
+// this set renders nothing at all.
+var CategoryIcons = []string{"phone", "laptop", "tablet", "headphones", "watch", "plug", "shield"}
 
 // HasErr reports whether this form's field was refused.
 func (v AdminTaxonomyView) HasErr(which, field string) bool {
@@ -107,6 +116,8 @@ func (v AdminTaxonomyView) DraftFor(which, field string) string {
 		return v.Draft.NameEn
 	case "parent":
 		return v.Draft.Parent
+	case "icon_key":
+		return v.Draft.IconKey
 	default:
 		// Every caller is a template in this package naming one of the four
 		// fields above. A fifth is a typo, and a panic is how it is found in

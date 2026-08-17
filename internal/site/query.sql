@@ -4,10 +4,13 @@ SELECT localized_name(category, category_en, @locale::text) AS category,
        localized_name(question, question_en, @locale::text) AS question,
        localized_name(answer, answer_en, @locale::text) AS answer
 FROM faq_entries
--- Ordered by the CANONICAL category, not the localized one: grouping by what the
--- reader sees would split 訂單 from Orders into two headings the moment somebody
--- translates half the entries in a category.
-ORDER BY position, category, id;
+-- Category first: policy.go groups by ADJACENCY, and faq_entries_position_key is
+-- unique on (category, position), so positions repeat across categories and
+-- ordering by position interleaves them into one heading per question.
+--
+-- On the CANONICAL category, never the localized one, or a half-translated
+-- category splits into two headings.
+ORDER BY category, position, id;
 
 -- The shipping methods a policy page describes.
 --

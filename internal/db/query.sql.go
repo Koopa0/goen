@@ -4052,14 +4052,15 @@ func (q *Queries) CreateCart(ctx context.Context, arg CreateCartParams) (uuid.UU
 }
 
 const createCategory = `-- name: CreateCategory :execrows
-INSERT INTO categories (slug, name, name_en, parent_id, position)
-SELECT $1::text, $2::text, nullif($3::text, ''), parent.id,
+INSERT INTO categories (slug, name, name_en, icon_key, parent_id, position)
+SELECT $1::text, $2::text, nullif($3::text, ''),
+       nullif($4::text, ''), parent.id,
        coalesce((SELECT max(c.position) + 1 FROM categories c
                  WHERE c.parent_id IS NOT DISTINCT FROM parent.id), 0)
 FROM (
-    SELECT c.id FROM categories c WHERE c.slug = $4::text
+    SELECT c.id FROM categories c WHERE c.slug = $5::text
     UNION ALL
-    SELECT NULL::uuid WHERE $4::text = ''
+    SELECT NULL::uuid WHERE $5::text = ''
 ) parent
 `
 
@@ -4067,6 +4068,7 @@ type CreateCategoryParams struct {
 	Slug       string
 	Name       string
 	NameEn     string
+	IconKey    string
 	ParentSlug string
 }
 
@@ -4088,6 +4090,7 @@ func (q *Queries) CreateCategory(ctx context.Context, arg CreateCategoryParams) 
 		arg.Slug,
 		arg.Name,
 		arg.NameEn,
+		arg.IconKey,
 		arg.ParentSlug,
 	)
 	if err != nil {
@@ -5622,7 +5625,7 @@ SELECT localized_name(category, category_en, $1::text) AS category,
        localized_name(question, question_en, $1::text) AS question,
        localized_name(answer, answer_en, $1::text) AS answer
 FROM faq_entries
-ORDER BY position, category, id
+ORDER BY category, position, id
 `
 
 type FAQEntriesRow struct {
@@ -5632,9 +5635,12 @@ type FAQEntriesRow struct {
 }
 
 // The FAQ, grouped by category in the order the back office set.
-// Ordered by the CANONICAL category, not the localized one: grouping by what the
-// reader sees would split 訂單 from Orders into two headings the moment somebody
-// translates half the entries in a category.
+// Category first: policy.go groups by ADJACENCY, and faq_entries_position_key is
+// unique on (category, position), so positions repeat across categories and
+// ordering by position interleaves them into one heading per question.
+//
+// On the CANONICAL category, never the localized one, or a half-translated
+// category splits into two headings.
 func (q *Queries) FAQEntries(ctx context.Context, locale string) ([]FAQEntriesRow, error) {
 	rows, err := q.db.Query(ctx, fAQEntries, locale)
 	if err != nil {
@@ -6590,15 +6596,16 @@ func (q *Queries) ManagedBrands(ctx context.Context) ([]ManagedBrandsRow, error)
 
 const managedCategories = `-- name: ManagedCategories :many
 WITH RECURSIVE tree AS (
-    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.position, 0 AS depth,
-           array[c.position, 0] AS path
+    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.position,
+           0 AS depth, array[c.position, 0] AS path
     FROM categories c WHERE c.parent_id IS NULL
     UNION ALL
-    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.position, t.depth + 1,
-           t.path || array[c.position, 0]
+    SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.position,
+           t.depth + 1, t.path || array[c.position, 0]
     FROM categories c JOIN tree t ON t.id = c.parent_id
 )
 SELECT t.id, t.slug, t.name, coalesce(t.name_en, '') AS name_en,
+       coalesce(t.icon_key, '') AS icon_key,
        t.depth::integer AS depth,
        coalesce(p.name, '') AS parent_name,
        (SELECT count(*) FROM products x WHERE x.category_id = t.id)::bigint AS products,
@@ -6613,6 +6620,7 @@ type ManagedCategoriesRow struct {
 	Slug       string
 	Name       string
 	NameEn     string
+	IconKey    string
 	Depth      int32
 	ParentName string
 	Products   int64
@@ -6638,6 +6646,7 @@ func (q *Queries) ManagedCategories(ctx context.Context) ([]ManagedCategoriesRow
 			&i.Slug,
 			&i.Name,
 			&i.NameEn,
+			&i.IconKey,
 			&i.Depth,
 			&i.ParentName,
 			&i.Products,
@@ -9531,14 +9540,16 @@ func (q *Queries) RenameBrand(ctx context.Context, arg RenameBrandParams) (int64
 }
 
 const renameCategory = `-- name: RenameCategory :execrows
-UPDATE categories SET name = $1::text, name_en = nullif($2::text, '')
-WHERE slug = $3::text
+UPDATE categories SET name = $1::text, name_en = nullif($2::text, ''),
+                     icon_key = nullif($3::text, '')
+WHERE slug = $4::text
 `
 
 type RenameCategoryParams struct {
-	Name   string
-	NameEn string
-	Slug   string
+	Name    string
+	NameEn  string
+	IconKey string
+	Slug    string
 }
 
 // Rename the DISPLAY names, never the slug. A slug is in every URL a search engine
@@ -9548,7 +9559,12 @@ type RenameCategoryParams struct {
 // empty box means "no translation", which is the one state the column expresses as
 // NULL. Without that, a shop could add an English name and never take it back.
 func (q *Queries) RenameCategory(ctx context.Context, arg RenameCategoryParams) (int64, error) {
-	result, err := q.db.Exec(ctx, renameCategory, arg.Name, arg.NameEn, arg.Slug)
+	result, err := q.db.Exec(ctx, renameCategory,
+		arg.Name,
+		arg.NameEn,
+		arg.IconKey,
+		arg.Slug,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -11027,7 +11043,7 @@ SELECT DISTINCT ON (sm.id)
     sm.code,
     sm.destination_kind,
     localized_name(v.name, v.name_en, $1::text) AS name,
-    v.carrier,
+    coalesce(localized_name(v.carrier, v.carrier_en, $1::text), '')::text AS carrier,
     v.fee_cents,
     v.free_over_cents
 FROM shipping_methods sm
@@ -11057,7 +11073,7 @@ type ShippingChoicesRow struct {
 	Code            string
 	DestinationKind string
 	Name            string
-	Carrier         pgtype.Text
+	Carrier         string
 	FeeCents        int64
 	FreeOverCents   pgtype.Int8
 }

@@ -103,6 +103,20 @@ templ taxonForm(kind string, title i18n.Key, v *AdminTaxonomyView) {
 		</div>
 		if kind == "categories" {
 			<div class="ui-field">
+				<label class="ui-label" for="categories-icon">{ i18n.T(ctx, i18n.KeyAdminColIcon) }</label>
+				// A select and not a text box: icons.Category has no default arm,
+				// so a key outside this set draws nothing at all.
+				<select class="ui-input" id="categories-icon" name="icon_key">
+					<option value="">{ i18n.T(ctx, i18n.KeyAdminIconNone) }</option>
+					for _, k := range CategoryIcons {
+						<option value={ k } selected?={ v.DraftFor(kind, "icon_key") == k }>{ k }</option>
+					}
+				</select>
+				if v.HasErr(kind, "icon_key") {
+					<p class="ui-error-text">{ v.Err(kind, "icon_key") }</p>
+				}
+			</div>
+			<div class="ui-field">
 				<label class="ui-label" for="categories-parent">{ i18n.T(ctx, i18n.KeyAdminTaxParent) }</label>
 				<input
 					class="ui-input"
@@ -171,6 +185,20 @@ templ taxonList(kind string, title, empty i18n.Key, rows []AdminTaxon, v *AdminT
 									placeholder="English"
 									aria-label={ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxNameEnOf), t.Name) }
 								/>
+								// Its CURRENT icon, for the same reason name_en renders
+								// its current value: the rename writes what the form
+								// carries, so an empty control would drop the icon every
+								// time somebody fixed a typo.
+								<select
+									class="ui-input"
+									name="icon_key"
+									aria-label={ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxIconOf), t.Name) }
+								>
+									<option value="">{ i18n.T(ctx, i18n.KeyAdminIconNone) }</option>
+									for _, k := range CategoryIcons {
+										<option value={ k } selected?={ t.IconKey == k }>{ k }</option>
+									}
+								</select>
 							}
 							<button class="ui-btn ui-btn--secondary" type="submit" name="action" value="rename">
 								{ i18n.T(ctx, i18n.KeyAdminTaxRename) }

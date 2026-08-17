@@ -258,7 +258,7 @@ func (s *Store) ShippingChoices(ctx context.Context, cartID uuid.UUID, subtotalC
 			Code:            r.Code,
 			DestinationKind: r.DestinationKind,
 			Name:            r.Name,
-			Carrier:         r.Carrier.String,
+			Carrier:         r.Carrier,
 			FeeCents:        fee,
 			Free:            fee == 0,
 		})
