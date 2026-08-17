@@ -40,10 +40,11 @@ templ AdminCoupons(p layouts.Page, v AdminCouponsView) {
 								value={ v.Draft.Code }
 								if v.HasErr("code") {
 									aria-invalid="true"
+									aria-describedby="c-code-error"
 								}
 							/>
 							if v.HasErr("code") {
-								<p class="ui-error-text">{ v.Err("code") }</p>
+								<p class="ui-error-text" id="c-code-error">{ v.Err("code") }</p>
 							}
 						</div>
 						<div class="ui-field">
@@ -67,10 +68,11 @@ templ AdminCoupons(p layouts.Page, v AdminCouponsView) {
 							value={ v.Draft.Description }
 							if v.HasErr("description") {
 								aria-invalid="true"
+								aria-describedby="c-description-error"
 							}
 						/>
 						if v.HasErr("description") {
-							<p class="ui-error-text">{ v.Err("description") }</p>
+							<p class="ui-error-text" id="c-description-error">{ v.Err("description") }</p>
 						}
 					</div>
 					<div class="goen-checkout__fields">

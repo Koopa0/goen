@@ -44,10 +44,11 @@ templ AdminFAQ(p layouts.Page, v *AdminFAQView) {
 							placeholder={ i18n.T(ctx, i18n.KeyAdminFaqpCategoryPlaceholder) }
 							if v.HasErr("category") {
 								aria-invalid="true"
+								aria-describedby="faq-category-error"
 							}
 						/>
 						if v.HasErr("category") {
-							<p class="ui-error-text">{ v.Err("category") }</p>
+							<p class="ui-error-text" id="faq-category-error">{ v.Err("category") }</p>
 						}
 						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminFaqpCategoryHint) }</p>
 					</div>
@@ -62,10 +63,11 @@ templ AdminFAQ(p layouts.Page, v *AdminFAQView) {
 							value={ v.Draft.Question }
 							if v.HasErr("question") {
 								aria-invalid="true"
+								aria-describedby="faq-question-error"
 							}
 						/>
 						if v.HasErr("question") {
-							<p class="ui-error-text">{ v.Err("question") }</p>
+							<p class="ui-error-text" id="faq-question-error">{ v.Err("question") }</p>
 						}
 					</div>
 					<div class="ui-field">
@@ -79,10 +81,11 @@ templ AdminFAQ(p layouts.Page, v *AdminFAQView) {
 							required
 							if v.HasErr("answer") {
 								aria-invalid="true"
+								aria-describedby="faq-answer-error"
 							}
 						>{ v.Draft.Answer }</textarea>
 						if v.HasErr("answer") {
-							<p class="ui-error-text">{ v.Err("answer") }</p>
+							<p class="ui-error-text" id="faq-answer-error">{ v.Err("answer") }</p>
 						}
 					</div>
 					<div class="ui-field">

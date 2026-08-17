@@ -21,7 +21,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 				</div>
 			</div>
 			if v.Error != "" {
-				<p class="ui-alert ui-alert--error goen-returns__alert" role="alert">{ v.Error }</p>
+				<p class="ui-alert ui-alert--error goen-returns__alert" role="alert" id="return-reason-error">{ v.Error }</p>
 			}
 			if len(v.Existing) > 0 {
 				<section class="goen-returns__existing" aria-labelledby="existing-heading">
@@ -92,6 +92,7 @@ templ Returns(p layouts.Page, v ReturnsView) {
 							maxlength="500"
 							if v.Error != "" {
 								aria-invalid="true"
+								aria-describedby="return-reason-error"
 							}
 						>{ v.Reason }</textarea>
 					</div>

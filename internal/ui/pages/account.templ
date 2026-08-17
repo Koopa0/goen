@@ -17,7 +17,7 @@ templ SignIn(p layouts.Page, v AuthView) {
 					<p class="ui-alert ui-alert--success" role="status">{ v.Notice }</p>
 				}
 				if v.HasErr("form") {
-					<p class="ui-alert ui-alert--error" role="alert">{ v.Err("form") }</p>
+					<p class="ui-alert ui-alert--error" role="alert" id="signin-error">{ v.Err("form") }</p>
 				}
 				<form class="goen-auth__form" method="post" action="/signin">
 					<input type="hidden" name="next" value={ v.Next }/>
@@ -33,6 +33,9 @@ templ SignIn(p layouts.Page, v AuthView) {
 							autocomplete="email"
 							autofocus
 							aria-invalid={ v.Invalid("email") }
+							if v.HasErr("form") {
+								aria-describedby="signin-error"
+							}
 						/>
 					</div>
 					<div class="ui-field">
@@ -45,6 +48,9 @@ templ SignIn(p layouts.Page, v AuthView) {
 							required
 							autocomplete="current-password"
 							aria-invalid={ v.Invalid("password") }
+							if v.HasErr("form") {
+								aria-describedby="signin-error"
+							}
 						/>
 					</div>
 					<button class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block goen-auth__submit" type="submit">
@@ -130,11 +136,15 @@ templ Register(p layouts.Page, v AuthView) {
 							minlength="10"
 							autocomplete="new-password"
 							aria-invalid={ v.Invalid("password") }
-							aria-describedby="password-hint"
+							if v.HasErr("password") {
+								aria-describedby="password-error password-hint"
+							} else {
+								aria-describedby="password-hint"
+							}
 						/>
 						<p class="ui-hint" id="password-hint">{ i18n.T(ctx, i18n.KeyPasswordHint) }</p>
 						if v.HasErr("password") {
-							<p class="ui-error-text">{ v.Err("password") }</p>
+							<p class="ui-error-text" id="password-error">{ v.Err("password") }</p>
 						}
 					</div>
 					<div class="ui-field">

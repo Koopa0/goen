@@ -64,9 +64,12 @@ templ Reset(p layouts.Page, v ResetView) {
 								autocomplete="new-password"
 								autofocus
 								aria-invalid={ v.Invalid() }
+								if v.HasError() {
+									aria-describedby="reset-error"
+								}
 							/>
 							if v.HasError() {
-								<p class="ui-error-text" role="alert">{ v.Error }</p>
+								<p class="ui-error-text" role="alert" id="reset-error">{ v.Error }</p>
 							}
 						</div>
 						<div class="ui-field">
@@ -80,6 +83,9 @@ templ Reset(p layouts.Page, v ResetView) {
 								minlength="10"
 								autocomplete="new-password"
 								aria-invalid={ v.Invalid() }
+								if v.HasError() {
+									aria-describedby="reset-error"
+								}
 							/>
 						</div>
 						<p class="goen-auth__alt">

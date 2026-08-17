@@ -201,6 +201,9 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 									name="pickup_brand"
 									required
 									aria-invalid={ v.Invalid("pickup_brand") }
+									if v.HasErr("pickup_brand") {
+										aria-describedby="pickup_brand-error"
+									}
 								>
 									<option value="">{ i18n.T(ctx, i18n.KeySelectPlaceholder) }</option>
 									for _, b := range v.PickupBrands {
@@ -210,7 +213,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 									}
 								</select>
 								if v.HasErr("pickup_brand") {
-									<p class="ui-error-text">{ v.Err("pickup_brand") }</p>
+									<p class="ui-error-text" id="pickup_brand-error">{ v.Err("pickup_brand") }</p>
 								}
 							</div>
 							@field("pickup_store_code", i18n.T(ctx, i18n.KeyFieldStoreCode), "text", v.Address.PickupStoreCode, v, true)
@@ -270,9 +273,12 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 								maxlength="500"
 								rows="2"
 								aria-invalid={ v.Invalid("note") }
+								if v.HasErr("note") {
+									aria-describedby="note-error"
+								}
 							>{ v.Address.Note }</textarea>
 							if v.HasErr("note") {
-								<p class="ui-error-text">{ v.Err("note") }</p>
+								<p class="ui-error-text" id="note-error">{ v.Err("note") }</p>
 							}
 						</div>
 					</div>
@@ -306,10 +312,11 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 									value={ v.Invoice.Carrier }
 									if v.HasErr("invoice_carrier") {
 										aria-invalid="true"
+										aria-describedby="invoice_carrier-error"
 									}
 								/>
 								if v.HasErr("invoice_carrier") {
-									<p class="ui-error-text">{ v.Err("invoice_carrier") }</p>
+									<p class="ui-error-text" id="invoice_carrier-error">{ v.Err("invoice_carrier") }</p>
 								}
 							</div>
 						}
@@ -326,10 +333,11 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 									value={ v.Invoice.TaxID }
 									if v.HasErr("invoice_tax_id") {
 										aria-invalid="true"
+										aria-describedby="invoice_tax_id-error"
 									}
 								/>
 								if v.HasErr("invoice_tax_id") {
-									<p class="ui-error-text">{ v.Err("invoice_tax_id") }</p>
+									<p class="ui-error-text" id="invoice_tax_id-error">{ v.Err("invoice_tax_id") }</p>
 								}
 							</div>
 						}
@@ -397,10 +405,11 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 							value={ v.CouponCode }
 							if v.HasErr("coupon") {
 								aria-invalid="true"
+								aria-describedby="coupon-error"
 							}
 						/>
 						if v.HasErr("coupon") {
-							<p class="ui-error-text">{ v.Err("coupon") }</p>
+							<p class="ui-error-text" id="coupon-error">{ v.Err("coupon") }</p>
 						}
 						if v.HasCoupon() {
 							<p class="goen-checkout__note">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCouponApplied), v.CouponApplied) }</p>

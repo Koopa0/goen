@@ -123,10 +123,11 @@ templ AdminShipping(p layouts.Page, v AdminShippingView) {
 								placeholder="express_delivery"
 								if v.HasErr("code") {
 									aria-invalid="true"
+									aria-describedby="m-code-error"
 								}
 							/>
 							if v.HasErr("code") {
-								<p class="ui-error-text">{ v.Err("code") }</p>
+								<p class="ui-error-text" id="m-code-error">{ v.Err("code") }</p>
 							}
 							<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminShipCodeHint) }</p>
 						</div>
@@ -173,10 +174,11 @@ templ AdminShipping(p layouts.Page, v AdminShippingView) {
 								placeholder={ i18n.T(ctx, i18n.KeyAdminShipNamePlaceholder) }
 								if v.HasErr("name") {
 									aria-invalid="true"
+									aria-describedby="m-name-error"
 								}
 							/>
 							if v.HasErr("name") {
-								<p class="ui-error-text">{ v.Err("name") }</p>
+								<p class="ui-error-text" id="m-name-error">{ v.Err("name") }</p>
 							}
 						</div>
 						<div class="ui-field">
@@ -209,10 +211,11 @@ templ AdminShipping(p layouts.Page, v AdminShippingView) {
 								value={ v.MethodDraft.Fee }
 								if v.HasErr("fee") {
 									aria-invalid="true"
+									aria-describedby="m-fee-error"
 								}
 							/>
 							if v.HasErr("fee") {
-								<p class="ui-error-text">{ v.Err("fee") }</p>
+								<p class="ui-error-text" id="m-fee-error">{ v.Err("fee") }</p>
 							}
 						</div>
 						<div class="ui-field">
@@ -280,10 +283,11 @@ templ AdminShipping(p layouts.Page, v AdminShippingView) {
 								placeholder="offshore"
 								if v.HasErr("zone_code") {
 									aria-invalid="true"
+									aria-describedby="z-code-error"
 								}
 							/>
 							if v.HasErr("zone_code") {
-								<p class="ui-error-text">{ v.Err("zone_code") }</p>
+								<p class="ui-error-text" id="z-code-error">{ v.Err("zone_code") }</p>
 							}
 						</div>
 						<div class="ui-field">
@@ -298,10 +302,11 @@ templ AdminShipping(p layouts.Page, v AdminShippingView) {
 								placeholder={ i18n.T(ctx, i18n.KeyAdminShipZoneNamePlaceholder) }
 								if v.HasErr("zone_name") {
 									aria-invalid="true"
+									aria-describedby="z-name-error"
 								}
 							/>
 							if v.HasErr("zone_name") {
-								<p class="ui-error-text">{ v.Err("zone_name") }</p>
+								<p class="ui-error-text" id="z-name-error">{ v.Err("zone_name") }</p>
 							}
 						</div>
 					</div>
@@ -321,10 +326,11 @@ templ AdminShipping(p layouts.Page, v AdminShippingView) {
 							placeholder="880 881 882 890 891"
 							if v.HasErr("prefixes") {
 								aria-invalid="true"
+								aria-describedby="z-prefixes-error"
 							}
 						/>
 						if v.HasErr("prefixes") {
-							<p class="ui-error-text">{ v.Err("prefixes") }</p>
+							<p class="ui-error-text" id="z-prefixes-error">{ v.Err("prefixes") }</p>
 						}
 						<p class="goen-admin__hint">
 							{ i18n.T(ctx, i18n.KeyAdminShipPrefixesHint) }
