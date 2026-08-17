@@ -219,7 +219,7 @@ var (
 		En:     "Not found",
 	})
 	KeyPageNotFoundBody = key("site.notfound.body", Message{
-		ZhHant: "這個網址目前沒有對應的內容。商品、分類與結帳流程會在後續批次陸續上線。",
+		ZhHant: "這個網址目前沒有對應的內容。看看店裡其他的東西吧。",
 		En:     "Nothing lives at this address. Have a look at what else there is.",
 	})
 

@@ -46,10 +46,11 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 							value={ v.Draft.Headline }
 							if v.HasErr("headline") {
 								aria-invalid="true"
+								aria-describedby="h-headline-error"
 							}
 						/>
 						if v.HasErr("headline") {
-							<p class="ui-error-text">{ v.Err("headline") }</p>
+							<p class="ui-error-text" id="h-headline-error">{ v.Err("headline") }</p>
 						}
 					</div>
 					<div class="ui-field">
@@ -72,10 +73,11 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 								value={ v.Draft.PrimaryLabel }
 								if v.HasErr("primary") {
 									aria-invalid="true"
+									aria-describedby="h-plabel-error"
 								}
 							/>
 							if v.HasErr("primary") {
-								<p class="ui-error-text">{ v.Err("primary") }</p>
+								<p class="ui-error-text" id="h-plabel-error">{ v.Err("primary") }</p>
 							}
 						</div>
 						<div class="ui-field">
@@ -89,10 +91,11 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 								value={ v.Draft.PrimaryHref }
 								if v.HasErr("primaryhref") {
 									aria-invalid="true"
+									aria-describedby="h-phref-error"
 								}
 							/>
 							if v.HasErr("primaryhref") {
-								<p class="ui-error-text">{ v.Err("primaryhref") }</p>
+								<p class="ui-error-text" id="h-phref-error">{ v.Err("primaryhref") }</p>
 							}
 						</div>
 					</div>
@@ -111,10 +114,11 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 								value={ v.Draft.SecondHref }
 								if v.HasErr("second") {
 									aria-invalid="true"
+									aria-describedby="h-shref-error"
 								}
 							/>
 							if v.HasErr("second") {
-								<p class="ui-error-text">{ v.Err("second") }</p>
+								<p class="ui-error-text" id="h-shref-error">{ v.Err("second") }</p>
 							}
 						</div>
 					</div>
@@ -133,10 +137,11 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 							value={ v.Draft.ImageAlt }
 							if v.HasErr("alt") {
 								aria-invalid="true"
+								aria-describedby="h-alt-error"
 							}
 						/>
 						if v.HasErr("alt") {
-							<p class="ui-error-text">{ v.Err("alt") }</p>
+							<p class="ui-error-text" id="h-alt-error">{ v.Err("alt") }</p>
 						}
 					</div>
 					<div class="ui-field">
@@ -236,10 +241,11 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 							placeholder={ i18n.T(ctx, i18n.KeyAdminHomeBannerMessageExample) }
 							if v.HasErr("message") {
 								aria-invalid="true"
+								aria-describedby="b-message-error"
 							}
 						/>
 						if v.HasErr("message") {
-							<p class="ui-error-text">{ v.Err("message") }</p>
+							<p class="ui-error-text" id="b-message-error">{ v.Err("message") }</p>
 						}
 					</div>
 					<div class="ui-field">

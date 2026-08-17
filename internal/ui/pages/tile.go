@@ -11,11 +11,14 @@ import (
 
 // ProductTile is one product card and the cheapest buyable variant's price.
 type ProductTile struct {
-	Slug         string
-	Name         string
-	Summary      string
-	Brand        string
-	PriceCents   int64
+	Slug       string
+	Name       string
+	Summary    string
+	Brand      string
+	PriceCents int64
+	// PriceVaries reports that PriceCents is the cheapest of several, which is
+	// what makes it a "from" rather than the product's price.
+	PriceVaries  bool
 	CompareCents int64 // 0 when the product is not on sale
 	Rating       float64
 	RatingCount  int64
@@ -26,6 +29,15 @@ type ProductTile struct {
 	ImageAlt    string
 	ImageWidth  int32 // 0 when the stored media has no declared width
 	ImageHeight int32 // 0 when the stored media has no declared height
+	// Comparable renders the checkbox that builds a comparison. Set by the
+	// listing and by search, which are where somebody is choosing between
+	// candidates; a shop window, a promotional list and a wishlist are not.
+	Comparable bool
+}
+
+// CompareLabel is the checkbox's accessible name, which names the product.
+func (t ProductTile) CompareLabel(ctx context.Context) string {
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyCompareAddNamed), t.Name)
 }
 
 // OnSale reports whether the tile shows a struck-through compare-at price.

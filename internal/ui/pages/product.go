@@ -117,8 +117,15 @@ type ProductView struct {
 	Options []ProductOption
 	Specs   []ProductSpec
 
-	SelectionOK  bool
-	Exact        bool
+	SelectionOK bool
+	Exact       bool
+	// PriceVaries reports that dearer variants exist than the one priced here.
+	PriceVaries bool
+	// AnySellable reports whether ANY variant can be bought. Exact says whether
+	// this visitor has chosen one, and the two answer different questions: a
+	// page that knew only the second told somebody to pick a spec on a product
+	// where every spec was gone.
+	AnySellable  bool
 	VariantID    string
 	SKU          string
 	PriceCents   int64
@@ -139,7 +146,12 @@ type ProductView struct {
 	Comparing     []string
 	Questions     []Question
 	AskOutcome    string
-	AlsoBought    []ProductTile
+	// AddedOutcome is what the last add-to-cart did. backToProduct has carried
+	// it since the redirect was written and the page ignored it, so pressing
+	// 加入購物車 changed nothing on screen — and a refusal rendered the same page
+	// as a success, on the button a shopper presses most.
+	AddedOutcome string
+	AlsoBought   []ProductTile
 
 	Related []ProductTile
 }
@@ -176,6 +188,11 @@ func (v *ProductView) RootSlug() string {
 // Price is the resolved variant's price.
 func (v *ProductView) Price() string { return twd(v.PriceCents) }
 
+// PriceFrom reports that Price is the cheapest of several rather than this
+// product's price: either the visitor has chosen no variant yet, or the one
+// they chose is the cheapest and dearer ones exist.
+func (v *ProductView) PriceFrom() bool { return v.PriceVaries && !v.Exact }
+
 // Compare is its struck-through original, shown only when OnSale.
 func (v *ProductView) Compare() string { return twd(v.CompareCents) }
 
@@ -187,6 +204,9 @@ func (v *ProductView) CanBuy() bool { return v.SelectionOK && v.Exact && v.Sella
 
 // NeedsChoice reports whether the visitor still has an option to pick.
 func (v *ProductView) NeedsChoice() bool { return v.SelectionOK && !v.Exact }
+
+// AllSoldOut reports that nothing on this page is buyable, whatever is chosen.
+func (v *ProductView) AllSoldOut() bool { return v.SelectionOK && !v.AnySellable }
 
 // SoldOut reports whether the pinned combination exists but cannot be bought.
 func (v *ProductView) SoldOut() bool { return v.SelectionOK && v.Exact && !v.Sellable }
@@ -284,6 +304,14 @@ func (v *ProductView) AskTaken() bool { return v.AskOutcome == "1" }
 
 // AskRefused reports whether the question was not usable.
 func (v *ProductView) AskRefused() bool { return v.AskOutcome == "bad" }
+
+// JustAdded reports whether the last add-to-cart worked.
+func (v *ProductView) JustAdded() bool { return v.AddedOutcome == "added" }
+
+// AddRefused reports whether it did not, which looked identical before.
+func (v *ProductView) AddRefused() bool {
+	return v.AddedOutcome == "unavailable" || v.AddedOutcome == "unknown"
+}
 
 // AskAction is where the question form posts.
 func (v *ProductView) AskAction() string { return "/p/" + v.Slug + "/questions" }

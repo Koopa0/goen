@@ -49,6 +49,12 @@ func (l CartLine) effectiveQuantity() int32 {
 	return l.Quantity
 }
 
+// PricedQuantityText is how many this line is priced for, which differs from
+// what the cart holds exactly when the shelf cannot meet it.
+func (l CartLine) PricedQuantityText() string {
+	return strconv.FormatInt(int64(l.effectiveQuantity()), 10)
+}
+
 // QuantityText is how many the cart holds.
 func (l CartLine) QuantityText() string { return strconv.FormatInt(int64(l.Quantity), 10) }
 
@@ -140,7 +146,13 @@ type CheckoutView struct {
 	Chosen              string
 	QuotedShippingCents int64
 	SurchargeCents      int64
-	ZoneName            string
+	// Repriced is the offshore surcharge the customer has not seen yet. Not an
+	// Errors entry: nothing they typed was wrong, and the fee could not be
+	// priced until a postal code existed. Rendered as a notice, and still a 422
+	// — the submission was not accepted, and nobody is charged a figure they
+	// have not been shown.
+	Repriced string
+	ZoneName string
 	// Destination is decided by the server; no field carries it back.
 	Destination         string
 	Address             CheckoutAddress
@@ -277,6 +289,9 @@ func (v *CheckoutView) CheckoutLink(param, value string) string {
 	}
 	if v.ChosenAddress != "" {
 		q.Set("address", v.ChosenAddress)
+	}
+	if v.Invoice.Type != "" {
+		q.Set("invoice", v.Invoice.Type)
 	}
 	q.Set(param, value)
 	return "/checkout?" + q.Encode()
@@ -433,13 +448,25 @@ type CheckoutInvoice struct {
 	TaxID   string
 }
 
-// Is reports whether this is the chosen type, for the radio group.
-func (i CheckoutInvoice) Is(t string) bool {
+// Is reports whether this is the chosen type.
+func (i CheckoutInvoice) Is(t string) bool { return i.Chosen() == t }
+
+// Chosen is the type in force, which is the default until somebody picks one.
+func (i CheckoutInvoice) Chosen() string {
 	if i.Type == "" {
-		return t == "member_carrier"
+		return "member_carrier"
 	}
-	return i.Type == t
+	return i.Type
 }
+
+// NeedsCarrier and NeedsTaxID decide which half of the form exists. Rendering
+// both asks a customer to read two fields to find the one that applies, and
+// leaves required promising something the server will not demand — the reason
+// the delivery destination is chosen by a link rather than shown as both.
+func (i CheckoutInvoice) NeedsCarrier() bool { return i.Chosen() == "mobile_carrier" }
+
+// NeedsTaxID reports whether the 統編 field applies.
+func (i CheckoutInvoice) NeedsTaxID() bool { return i.Chosen() == "company" }
 
 // OrderView is the confirmation page.
 type OrderView struct {

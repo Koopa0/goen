@@ -50,7 +50,7 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	// nobody, and its address field is the sender's own claim, so bounding on it
 	// would let anybody buy more attempts by editing a field.
 	if retryAfter, allowed := h.limit.Allow(ratelimit.ClientIP(r)); !allowed {
-		ratelimit.Refuse(w, retryAfter)
+		ratelimit.Refuse(r.Context(), w, retryAfter)
 		return
 	}
 

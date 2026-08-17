@@ -50,10 +50,11 @@ templ taxonForm(kind string, title i18n.Key, v *AdminTaxonomyView) {
 				value={ v.DraftFor(kind, "name") }
 				if v.HasErr(kind, "name") {
 					aria-invalid="true"
+					aria-describedby={ kind + "-name" + "-error" }
 				}
 			/>
 			if v.HasErr(kind, "name") {
-				<p class="ui-error-text">{ v.Err(kind, "name") }</p>
+				<p class="ui-error-text" id={ kind + "-name" + "-error" }>{ v.Err(kind, "name") }</p>
 			}
 		</div>
 		if kind == "categories" {
@@ -67,10 +68,11 @@ templ taxonForm(kind string, title i18n.Key, v *AdminTaxonomyView) {
 					value={ v.DraftFor(kind, "name_en") }
 					if v.HasErr(kind, "name_en") {
 						aria-invalid="true"
+						aria-describedby={ kind + "-name-en" + "-error" }
 					}
 				/>
 				if v.HasErr(kind, "name_en") {
-					<p class="ui-error-text">{ v.Err(kind, "name_en") }</p>
+					<p class="ui-error-text" id={ kind + "-name-en" + "-error" }>{ v.Err(kind, "name_en") }</p>
 				}
 				<p class="goen-admin__hint">
 					{ i18n.T(ctx, i18n.KeyAdminTaxNameEnHint) }
@@ -89,10 +91,11 @@ templ taxonForm(kind string, title i18n.Key, v *AdminTaxonomyView) {
 				value={ v.DraftFor(kind, "slug") }
 				if v.HasErr(kind, "slug") {
 					aria-invalid="true"
+					aria-describedby={ kind + "-slug" + "-error" }
 				}
 			/>
 			if v.HasErr(kind, "slug") {
-				<p class="ui-error-text">{ v.Err(kind, "slug") }</p>
+				<p class="ui-error-text" id={ kind + "-slug" + "-error" }>{ v.Err(kind, "slug") }</p>
 			}
 			<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminTaxSlugFixed) }</p>
 		</div>
@@ -121,6 +124,7 @@ templ taxonForm(kind string, title i18n.Key, v *AdminTaxonomyView) {
 					value={ v.DraftFor(kind, "parent") }
 					if v.HasErr(kind, "parent") {
 						aria-invalid="true"
+						aria-describedby="categories-parent-error"
 					}
 				/>
 				<datalist id="category-slugs">
@@ -129,7 +133,7 @@ templ taxonForm(kind string, title i18n.Key, v *AdminTaxonomyView) {
 					}
 				</datalist>
 				if v.HasErr(kind, "parent") {
-					<p class="ui-error-text">{ v.Err(kind, "parent") }</p>
+					<p class="ui-error-text" id="categories-parent-error">{ v.Err(kind, "parent") }</p>
 				}
 				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminTaxParentHint) }</p>
 			</div>

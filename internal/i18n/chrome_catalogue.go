@@ -109,6 +109,17 @@ var (
 		ZhHant: "找不到這個組合,請重新選擇。",
 		En:     "That combination does not exist. Please choose again.",
 	})
+	// KeyAllSoldOut is the product with nothing left in any spec. Distinct from
+	// KeySoldOut, which is one combination: telling somebody to choose a spec
+	// when every spec is gone sends them through the picker to find out.
+	KeyAllSoldOut = key("pdp.allsoldout", Message{
+		ZhHant: "目前全部規格都已售完",
+		En:     "Every option is sold out",
+	})
+	KeyAllSoldOutHint = key("pdp.allsoldout.hint", Message{
+		ZhHant: "選一個規格,補貨時通知你。",
+		En:     "Pick an option and we will tell you when it is back.",
+	})
 	KeyRestockHeading = key("pdp.restock", Message{ZhHant: "到貨通知我", En: "Tell me when it is back"})
 	KeyRestockDone    = key("pdp.restock.done", Message{
 		ZhHant: "已經記下了,補貨時會寄信給你。",
@@ -356,6 +367,25 @@ var (
 	KeyCompareTooFewTail = key("compare.toofew.tail", Message{
 		ZhHant: "裡從商品頁加入比較,最多四個。",
 		En:     ".",
+	})
+	// KeyFromPrice marks the cheapest of several variant prices. Without it a
+	// card and an unchosen product page state one variant's price as the
+	// product's, which for 7 of the seed's 17 active products is not the price of
+	// the thing the shopper has in mind. The figure is INSIDE the message: 起 is
+	// a suffix and "From" is a prefix, so a bare word beside the price cannot
+	// serve both — and 最低 beside it is the price FILTER's label two columns to
+	// the left.
+	KeyFromPrice  = key("price.from", Message{ZhHant: "%s 起", En: "From %s"})
+	KeyCompareAdd = key("compare.add", Message{ZhHant: "比較", En: "Compare"})
+	// KeyCompareAddNamed is the checkbox's accessible name. Two dozen controls
+	// all called "Compare" is a screen reader reading one word two dozen times.
+	KeyCompareAddNamed = key("compare.add.named", Message{
+		ZhHant: "把 %s 加入比較",
+		En:     "Add %s to the comparison",
+	})
+	KeyCompareSelected = key("compare.selected", Message{
+		ZhHant: "比較所選商品",
+		En:     "Compare selected",
 	})
 	KeyCompareCaption = key("compare.caption", Message{
 		ZhHant: "商品規格比較",

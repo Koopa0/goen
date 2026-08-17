@@ -2316,6 +2316,12 @@ SELECT
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
     b.name AS brand,
     mv.price_cents AS min_price_cents,
+    -- Whether that price is the cheapest of several, so a card can say "from"
+    -- rather than state one variant's price as the product's.
+    EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+    ) AS price_varies,
     mv.compare_at_price_cents,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -2368,6 +2374,7 @@ type BoughtTogetherRow struct {
 	Summary             string
 	Brand               string
 	MinPriceCents       int64
+	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
 	Rating              float64
 	RatingCount         int64
@@ -2399,6 +2406,7 @@ func (q *Queries) BoughtTogether(ctx context.Context, arg BoughtTogetherParams) 
 			&i.Summary,
 			&i.Brand,
 			&i.MinPriceCents,
+			&i.PriceVaries,
 			&i.CompareAtPriceCents,
 			&i.Rating,
 			&i.RatingCount,
@@ -2426,6 +2434,12 @@ SELECT
     coalesce(localized_name(p.summary, p.summary_en, $2::text), '')::text AS summary,
     b.name AS brand,
     mv.price_cents AS min_price_cents,
+    -- Whether that price is the cheapest of several, so a card can say "from"
+    -- rather than state one variant's price as the product's.
+    EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+    ) AS price_varies,
     mv.compare_at_price_cents,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -2471,6 +2485,7 @@ type CampaignProductsRow struct {
 	Summary             string
 	Brand               string
 	MinPriceCents       int64
+	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
 	Rating              float64
 	RatingCount         int64
@@ -2497,6 +2512,7 @@ func (q *Queries) CampaignProducts(ctx context.Context, arg CampaignProductsPara
 			&i.Summary,
 			&i.Brand,
 			&i.MinPriceCents,
+			&i.PriceVaries,
 			&i.CompareAtPriceCents,
 			&i.Rating,
 			&i.RatingCount,
@@ -2917,6 +2933,12 @@ SELECT
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
     b.name AS brand,
     mv.price_cents AS min_price_cents,
+    -- Whether that price is the cheapest of several, so a card can say "from"
+    -- rather than state one variant's price as the product's.
+    EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+    ) AS price_varies,
     mv.compare_at_price_cents,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -2988,6 +3010,7 @@ type CategoryListingRow struct {
 	Summary             string
 	Brand               string
 	MinPriceCents       int64
+	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
 	Rating              float64
 	RatingCount         int64
@@ -3027,6 +3050,7 @@ func (q *Queries) CategoryListing(ctx context.Context, arg CategoryListingParams
 			&i.Summary,
 			&i.Brand,
 			&i.MinPriceCents,
+			&i.PriceVaries,
 			&i.CompareAtPriceCents,
 			&i.Rating,
 			&i.RatingCount,
@@ -3267,6 +3291,12 @@ SELECT
     b.name AS brand,
     localized_name(c.name, c.name_en, $1::text) AS category,
     mv.price_cents AS min_price_cents,
+    -- Whether that price is the cheapest of several, so a card can say "from"
+    -- rather than state one variant's price as the product's.
+    EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+    ) AS price_varies,
     mv.compare_at_price_cents,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -3315,6 +3345,7 @@ type CompareProductsRow struct {
 	Brand               string
 	Category            string
 	MinPriceCents       int64
+	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
 	Rating              float64
 	RatingCount         int64
@@ -3344,6 +3375,7 @@ func (q *Queries) CompareProducts(ctx context.Context, arg CompareProductsParams
 			&i.Brand,
 			&i.Category,
 			&i.MinPriceCents,
+			&i.PriceVaries,
 			&i.CompareAtPriceCents,
 			&i.Rating,
 			&i.RatingCount,
@@ -4619,6 +4651,12 @@ SELECT
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
     b.name AS brand,
     mv.price_cents AS min_price_cents,
+    -- Whether that price is the cheapest of several, so a card can say "from"
+    -- rather than state one variant's price as the product's.
+    EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+    ) AS price_varies,
     mv.compare_at_price_cents,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -4675,6 +4713,7 @@ type DealProductsRow struct {
 	Summary             string
 	Brand               string
 	MinPriceCents       int64
+	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
 	Rating              float64
 	RatingCount         int64
@@ -4702,6 +4741,7 @@ func (q *Queries) DealProducts(ctx context.Context, arg DealProductsParams) ([]D
 			&i.Summary,
 			&i.Brand,
 			&i.MinPriceCents,
+			&i.PriceVaries,
 			&i.CompareAtPriceCents,
 			&i.Rating,
 			&i.RatingCount,
@@ -5398,6 +5438,12 @@ SELECT
     coalesce(localized_name(p.summary, p.summary_en, $2::text), '')::text AS summary,
     b.name AS brand,
     mv.price_cents AS min_price_cents,
+    -- Whether that price is the cheapest of several, so a card can say "from"
+    -- rather than state one variant's price as the product's.
+    EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+    ) AS price_varies,
     mv.compare_at_price_cents,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -5455,6 +5501,7 @@ type HomeRecommendedTilesRow struct {
 	Summary             string
 	Brand               string
 	MinPriceCents       int64
+	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
 	Rating              float64
 	RatingCount         int64
@@ -5483,6 +5530,7 @@ func (q *Queries) HomeRecommendedTiles(ctx context.Context, arg HomeRecommendedT
 			&i.Summary,
 			&i.Brand,
 			&i.MinPriceCents,
+			&i.PriceVaries,
 			&i.CompareAtPriceCents,
 			&i.Rating,
 			&i.RatingCount,
@@ -8351,6 +8399,12 @@ const relatedProducts = `-- name: RelatedProducts :many
 SELECT
     p.slug, localized_name(p.name, p.name_en, $1::text) AS name, b.name AS brand,
     mv.price_cents AS min_price_cents,
+    -- Whether that price is the cheapest of several, so a card can say "from"
+    -- rather than state one variant's price as the product's.
+    EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+    ) AS price_varies,
     mv.compare_at_price_cents,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -8397,6 +8451,7 @@ type RelatedProductsRow struct {
 	Name                string
 	Brand               string
 	MinPriceCents       int64
+	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
 	Rating              float64
 	RatingCount         int64
@@ -8426,6 +8481,7 @@ func (q *Queries) RelatedProducts(ctx context.Context, arg RelatedProductsParams
 			&i.Name,
 			&i.Brand,
 			&i.MinPriceCents,
+			&i.PriceVaries,
 			&i.CompareAtPriceCents,
 			&i.Rating,
 			&i.RatingCount,
@@ -9351,6 +9407,12 @@ SELECT
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
     b.name AS brand,
     mv.price_cents AS min_price_cents,
+    -- Whether that price is the cheapest of several, so a card can say "from"
+    -- rather than state one variant's price as the product's.
+    EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+    ) AS price_varies,
     mv.compare_at_price_cents,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -9408,6 +9470,7 @@ type SearchProductsRow struct {
 	Summary             string
 	Brand               string
 	MinPriceCents       int64
+	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
 	Rating              float64
 	RatingCount         int64
@@ -9440,6 +9503,7 @@ func (q *Queries) SearchProducts(ctx context.Context, arg SearchProductsParams) 
 			&i.Summary,
 			&i.Brand,
 			&i.MinPriceCents,
+			&i.PriceVaries,
 			&i.CompareAtPriceCents,
 			&i.Rating,
 			&i.RatingCount,
@@ -11268,6 +11332,12 @@ SELECT
     p.summary,
     b.name AS brand,
     mv.price_cents AS min_price_cents,
+    -- Whether that price is the cheapest of several, so a card can say "from"
+    -- rather than state one variant's price as the product's.
+    EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+    ) AS price_varies,
     mv.compare_at_price_cents,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -11313,6 +11383,7 @@ type WishlistItemsRow struct {
 	Summary             pgtype.Text
 	Brand               string
 	MinPriceCents       int64
+	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
 	Rating              float64
 	RatingCount         int64
@@ -11340,6 +11411,7 @@ func (q *Queries) WishlistItems(ctx context.Context, arg WishlistItemsParams) ([
 			&i.Summary,
 			&i.Brand,
 			&i.MinPriceCents,
+			&i.PriceVaries,
 			&i.CompareAtPriceCents,
 			&i.Rating,
 			&i.RatingCount,

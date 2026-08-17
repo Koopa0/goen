@@ -56,6 +56,12 @@ SELECT
     coalesce(localized_name(p.summary, p.summary_en, @locale::text), '')::text AS summary,
     b.name AS brand,
     mv.price_cents AS min_price_cents,
+    -- Whether that price is the cheapest of several, so a card can say "from"
+    -- rather than state one variant's price as the product's.
+    EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+    ) AS price_varies,
     mv.compare_at_price_cents,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -134,6 +140,12 @@ SELECT
     coalesce(localized_name(p.summary, p.summary_en, @locale::text), '')::text AS summary,
     b.name AS brand,
     mv.price_cents AS min_price_cents,
+    -- Whether that price is the cheapest of several, so a card can say "from"
+    -- rather than state one variant's price as the product's.
+    EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+    ) AS price_varies,
     mv.compare_at_price_cents,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -198,6 +210,12 @@ SELECT
     coalesce(localized_name(p.summary, p.summary_en, @locale::text), '')::text AS summary,
     b.name AS brand,
     mv.price_cents AS min_price_cents,
+    -- Whether that price is the cheapest of several, so a card can say "from"
+    -- rather than state one variant's price as the product's.
+    EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+    ) AS price_varies,
     mv.compare_at_price_cents,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -294,6 +312,12 @@ SELECT
     coalesce(localized_name(p.summary, p.summary_en, @locale::text), '')::text AS summary,
     b.name AS brand,
     mv.price_cents AS min_price_cents,
+    -- Whether that price is the cheapest of several, so a card can say "from"
+    -- rather than state one variant's price as the product's.
+    EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+    ) AS price_varies,
     mv.compare_at_price_cents,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -336,6 +360,12 @@ SELECT
     b.name AS brand,
     localized_name(c.name, c.name_en, @locale::text) AS category,
     mv.price_cents AS min_price_cents,
+    -- Whether that price is the cheapest of several, so a card can say "from"
+    -- rather than state one variant's price as the product's.
+    EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
+    ) AS price_varies,
     mv.compare_at_price_cents,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,

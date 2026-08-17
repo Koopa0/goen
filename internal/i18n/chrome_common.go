@@ -14,6 +14,11 @@ var (
 		En:     "Keep the email address under %d characters",
 	})
 
+	KeyTooManyRequests = key("error.ratelimited", Message{
+		ZhHant: "請求過於頻繁,請稍後再試。",
+		En:     "Too many requests. Please try again shortly.",
+	})
+
 	KeyFormUnreadable = key("form.unreadable", Message{
 		ZhHant: "表單無法解析",
 		En:     "That form could not be read",

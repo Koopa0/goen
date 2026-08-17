@@ -51,9 +51,12 @@ templ AdminNewsletter(p layouts.Page, v AdminNewsletterView) {
 						maxlength="120"
 						required
 						aria-invalid={ v.Invalid("subject") }
+						if v.HasErr("subject") {
+							aria-describedby="issue-subject-error"
+						}
 					/>
 					if v.HasErr("subject") {
-						<span class="ui-error-text">{ v.Err("subject") }</span>
+						<span class="ui-error-text" id="issue-subject-error">{ v.Err("subject") }</span>
 					}
 				</label>
 				<label class="ui-field" for="issue-body">
@@ -66,9 +69,12 @@ templ AdminNewsletter(p layouts.Page, v AdminNewsletterView) {
 						maxlength="20000"
 						required
 						aria-invalid={ v.Invalid("body") }
+						if v.HasErr("body") {
+							aria-describedby="issue-body-error"
+						}
 					>{ v.Draft.Body }</textarea>
 					if v.HasErr("body") {
-						<span class="ui-error-text">{ v.Err("body") }</span>
+						<span class="ui-error-text" id="issue-body-error">{ v.Err("body") }</span>
 					}
 				</label>
 				<p class="goen-admin__hint">

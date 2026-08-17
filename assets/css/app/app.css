@@ -606,6 +606,37 @@ a:hover {
   text-decoration: none;
 }
 
+/* The compare checkbox sits over the card rather than above it: a row of its
+   own would push every tile down by its height on a page that is mostly tiles. */
+.goen-tile__cell {
+  position: relative;
+}
+
+.goen-tile__compare {
+  position: absolute;
+  z-index: 1;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface, #fff);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 18%);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* A bare .ui-btn is 31px: the design system's base padding plus a 13px line
+   box. Every other goen surface states its own touch target for the same
+   reason. */
+.goen-compare-pick__go {
+  margin-top: 16px;
+  min-height: 44px;
+}
+
 /* .ui-price is a nowrap inline-flex row. On the 375 artboard a sale tile's
    "now + was" pair measures ~171px against a ~166px column, and because a grid
    track will not shrink below its content, the whole page picked up 35px of

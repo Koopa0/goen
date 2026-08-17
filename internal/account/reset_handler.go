@@ -33,7 +33,7 @@ func (h *Handler) Forgot(w http.ResponseWriter, r *http.Request) {
 	email := r.PostFormValue("email")
 
 	if retryAfter, ok := h.resetLimit.Allow("forgot:" + normaliseForLimit(email)); !ok {
-		ratelimit.Refuse(w, retryAfter)
+		ratelimit.Refuse(r.Context(), w, retryAfter)
 		return
 	}
 

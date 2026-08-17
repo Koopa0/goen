@@ -70,6 +70,7 @@ func (s *Store) Load(ctx context.Context, recommended int32) (pages.HomeView, er
 			Summary:      t.Summary,
 			Brand:        t.Brand,
 			PriceCents:   t.MinPriceCents,
+			PriceVaries:  t.PriceVaries,
 			CompareCents: t.CompareAtPriceCents.Int64, // 0 when NULL
 			Rating:       t.Rating,
 			RatingCount:  t.RatingCount,

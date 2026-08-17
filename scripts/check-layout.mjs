@@ -294,6 +294,27 @@ const ACCESSIBILITY = `
     // own — which is why it is a defect rather than a preference.
     positiveTabindex: [...document.querySelectorAll('[tabindex]')]
       .filter((e) => +e.getAttribute('tabindex') > 0).length,
+    // A field marked invalid whose error text is not ATTACHED to it. The message
+    // is in the DOM either way, but without aria-describedby pointing at it a
+    // screen reader announces "invalid" and never says why — so the one person
+    // who cannot see the red paragraph is the one told least. Only fields the
+    // server has actually refused are asked: aria-invalid="false" is a decision,
+    // and a valid field needs nothing attached.
+    //
+    // The referenced element must be the ERROR and not merely something that
+    // exists. A password field already described by its own hint satisfied the
+    // first version of this rule while announcing "invalid" and then reading out
+    // the rules it had just broken, with the refusal itself never spoken.
+    unexplainedInvalids: [...document.querySelectorAll('[aria-invalid="true"]')]
+      .filter((e) => {
+        const ids = (e.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
+        return !ids.some((id) => {
+          const t = document.getElementById(id);
+          return t && (t.getAttribute('role') === 'alert' ||
+            t.classList.contains('ui-error-text') || t.classList.contains('ui-alert--error'));
+        });
+      })
+      .slice(0, 3).map((e) => e.tagName.toLowerCase() + '#' + (e.id || e.name || '?')),
     // <html lang> is what decides the voice a screen reader reads the page in. goen
     // stamps it from the locale cookie before the first byte; an empty one would
     // announce Chinese copy in an English voice.
@@ -429,6 +450,10 @@ const checkAccessibility = (at, got) => {
   }
   for (const c of got.unnamedTargets || []) {
     fail(at, `link or button with no accessible name: ${c}`);
+  }
+  for (const c of got.unexplainedInvalids || []) {
+    fail(at, `${c} is marked invalid with no error text attached — ` +
+      'aria-describedby must name an element that exists');
   }
   if (got.positiveTabindex > 0) {
     fail(at, `${got.positiveTabindex} elements carry a positive tabindex, which ` +

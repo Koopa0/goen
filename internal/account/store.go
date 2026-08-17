@@ -560,6 +560,7 @@ func (s *Store) Wishlist(ctx context.Context, userID string) ([]pages.ProductTil
 			Summary:      r.Summary.String,
 			Brand:        r.Brand,
 			PriceCents:   r.MinPriceCents,
+			PriceVaries:  r.PriceVaries,
 			CompareCents: r.CompareAtPriceCents.Int64,
 			Rating:       r.Rating,
 			RatingCount:  r.RatingCount,

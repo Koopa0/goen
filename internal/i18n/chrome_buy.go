@@ -1,7 +1,15 @@
 package i18n
 
 var (
-	KeyAddToCart     = key("buy.add", Message{ZhHant: "加入購物車", En: "Add to cart"})
+	KeyAddToCart = key("buy.add", Message{ZhHant: "加入購物車", En: "Add to cart"})
+	// After the redirect. role="status" on the success and role="alert" on the
+	// refusal, because the two rendered identically before — the same page, with
+	// the variant selection lost — on the one control a shopper presses most.
+	KeyAddedToCart = key("buy.added", Message{ZhHant: "已加入購物車。", En: "Added to your cart."})
+	KeyAddRefused  = key("buy.add.refused", Message{
+		ZhHant: "這個規格剛剛被買走了,沒有加入購物車。",
+		En:     "That option has just sold out, so nothing was added.",
+	})
 	KeySoldOut       = key("buy.soldout", Message{ZhHant: "補貨中", En: "Out of stock"})
 	KeyChooseOptions = key("buy.choose", Message{
 		ZhHant: "請選擇規格",

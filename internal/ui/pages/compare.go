@@ -30,9 +30,6 @@ type CompareProduct struct {
 // Price is what it costs.
 func (p CompareProduct) Price() string { return twd(p.PriceCents) }
 
-// Href is its page.
-func (p CompareProduct) Href() string { return "/p/" + p.Slug }
-
 // Stock is availability in a word.
 func (p CompareProduct) Stock(ctx context.Context) string {
 	if p.InStock {
@@ -94,6 +91,21 @@ func (v CompareView) Enough() bool { return len(v.Products) >= 2 }
 
 // Count is how many products are being compared.
 func (v CompareView) Count() int { return len(v.Products) }
+
+// ProductHref is one product's page, carrying the comparison it was reached from.
+func (v CompareView) ProductHref(slug string) string {
+	var b strings.Builder
+	b.WriteString("/p/")
+	b.WriteString(slug)
+	sep := "?"
+	for i := range v.Products {
+		b.WriteString(sep)
+		b.WriteString("p=")
+		b.WriteString(v.Products[i].Slug)
+		sep = "&"
+	}
+	return b.String()
+}
 
 // RemoveHref is the comparison without one product.
 func (v CompareView) RemoveHref(slug string) string {

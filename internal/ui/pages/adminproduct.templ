@@ -86,10 +86,11 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 							value={ v.Name }
 							if v.HasErr("name") {
 								aria-invalid="true"
+								aria-describedby="p-name-error"
 							}
 						/>
 						if v.HasErr("name") {
-							<p class="ui-error-text">{ v.Err("name") }</p>
+							<p class="ui-error-text" id="p-name-error">{ v.Err("name") }</p>
 						}
 					</div>
 					if v.IsNew {
@@ -105,11 +106,12 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 								value={ v.Slug }
 								if v.HasErr("slug") {
 									aria-invalid="true"
+									aria-describedby="p-slug-error"
 								}
 							/>
 							<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdSlugHint) }</p>
 							if v.HasErr("slug") {
-								<p class="ui-error-text">{ v.Err("slug") }</p>
+								<p class="ui-error-text" id="p-slug-error">{ v.Err("slug") }</p>
 							}
 						</div>
 					}
@@ -157,10 +159,11 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 							value={ v.NameEn }
 							if v.HasErr("name_en") {
 								aria-invalid="true"
+								aria-describedby="p-name-en-error"
 							}
 						/>
 						if v.HasErr("name_en") {
-							<p class="ui-error-text">{ v.Err("name_en") }</p>
+							<p class="ui-error-text" id="p-name-en-error">{ v.Err("name_en") }</p>
 						}
 					</div>
 					<div class="ui-field">
@@ -173,10 +176,11 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 							value={ v.SummaryEn }
 							if v.HasErr("summary_en") {
 								aria-invalid="true"
+								aria-describedby="p-summary-en-error"
 							}
 						/>
 						if v.HasErr("summary_en") {
-							<p class="ui-error-text">{ v.Err("summary_en") }</p>
+							<p class="ui-error-text" id="p-summary-en-error">{ v.Err("summary_en") }</p>
 						}
 					</div>
 					<div class="ui-field">
@@ -205,10 +209,11 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 							value={ v.WarrantyMonthsText() }
 							if v.HasErr("warranty_months") {
 								aria-invalid="true"
+								aria-describedby="p-warranty-months-error"
 							}
 						/>
 						if v.HasErr("warranty_months") {
-							<p class="ui-error-text">{ v.Err("warranty_months") }</p>
+							<p class="ui-error-text" id="p-warranty-months-error">{ v.Err("warranty_months") }</p>
 						}
 						<p class="goen-admin__hint">
 							{ i18n.T(ctx, i18n.KeyAdminProdWarrantyHint) }
@@ -343,10 +348,11 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 											placeholder={ optionExample }
 											if v.HasErr("option") {
 												aria-invalid="true"
+												aria-describedby="opt-name-error"
 											}
 										/>
 										if v.HasErr("option") {
-											<p class="ui-error-text">{ v.Err("option") }</p>
+											<p class="ui-error-text" id="opt-name-error">{ v.Err("option") }</p>
 										}
 									</div>
 									<div class="ui-field">
@@ -360,10 +366,11 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 											placeholder="Colour"
 											if v.HasErr("option_en") {
 												aria-invalid="true"
+												aria-describedby="opt-name-en-error"
 											}
 										/>
 										if v.HasErr("option_en") {
-											<p class="ui-error-text">{ v.Err("option_en") }</p>
+											<p class="ui-error-text" id="opt-name-en-error">{ v.Err("option_en") }</p>
 										}
 									</div>
 								</div>
@@ -394,10 +401,11 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 												placeholder={ optionValExample }
 												if v.HasErr("value") {
 													aria-invalid="true"
+													aria-describedby="optval-value-error"
 												}
 											/>
 											if v.HasErr("value") {
-												<p class="ui-error-text">{ v.Err("value") }</p>
+												<p class="ui-error-text" id="optval-value-error">{ v.Err("value") }</p>
 											}
 										</div>
 										<div class="ui-field">
@@ -411,10 +419,11 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 												placeholder="Mist Blue"
 												if v.HasErr("value_en") {
 													aria-invalid="true"
+													aria-describedby="optval-value-en-error"
 												}
 											/>
 											if v.HasErr("value_en") {
-												<p class="ui-error-text">{ v.Err("value_en") }</p>
+												<p class="ui-error-text" id="optval-value-en-error">{ v.Err("value_en") }</p>
 											}
 										</div>
 									</div>
@@ -568,10 +577,11 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 											placeholder={ specLabelExample }
 											if v.HasErr("spec_label") {
 												aria-invalid="true"
+												aria-describedby="spec-label-error"
 											}
 										/>
 										if v.HasErr("spec_label") {
-											<p class="ui-error-text">{ v.Err("spec_label") }</p>
+											<p class="ui-error-text" id="spec-label-error">{ v.Err("spec_label") }</p>
 										}
 									</div>
 									<div class="ui-field">
@@ -586,10 +596,11 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 											placeholder={ specValueExample }
 											if v.HasErr("spec_value") {
 												aria-invalid="true"
+												aria-describedby="spec-value-error"
 											}
 										/>
 										if v.HasErr("spec_value") {
-											<p class="ui-error-text">{ v.Err("spec_value") }</p>
+											<p class="ui-error-text" id="spec-value-error">{ v.Err("spec_value") }</p>
 										}
 									</div>
 								</div>
@@ -605,10 +616,11 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 											placeholder="Screen"
 											if v.HasErr("spec_label_en") {
 												aria-invalid="true"
+												aria-describedby="spec-label-en-error"
 											}
 										/>
 										if v.HasErr("spec_label_en") {
-											<p class="ui-error-text">{ v.Err("spec_label_en") }</p>
+											<p class="ui-error-text" id="spec-label-en-error">{ v.Err("spec_label_en") }</p>
 										}
 									</div>
 									<div class="ui-field">
@@ -622,10 +634,11 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 											placeholder="6.3-inch OLED"
 											if v.HasErr("spec_value_en") {
 												aria-invalid="true"
+												aria-describedby="spec-value-en-error"
 											}
 										/>
 										if v.HasErr("spec_value_en") {
-											<p class="ui-error-text">{ v.Err("spec_value_en") }</p>
+											<p class="ui-error-text" id="spec-value-en-error">{ v.Err("spec_value_en") }</p>
 										}
 									</div>
 								</div>

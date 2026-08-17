@@ -5,9 +5,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 // TestTheBurstIsSpentThenRefused proves the allowance is real and the numbers
@@ -209,3 +212,43 @@ func TestTheKeyIsTheAddressAndNeverAHeader(t *testing.T) {
 
 // discardLogger is a logger the tests do not read.
 func discardLogger() *slog.Logger { return slog.New(slog.DiscardHandler) }
+
+// TestARefusalIsInTheReadersLanguage holds an exemption whose reason was false.
+//
+// The 429's body carried an i18n-exempt saying the limiter "fires ahead of
+// anything that could read a locale". withLocale is applied OUTSIDE the mux and
+// every Guard is registered ON it, so the locale is on the context by the time
+// Refuse runs — the comment described a middleware order that is not this one,
+// and a throttled English visitor got a Chinese sentence on an endpoint whose
+// whole job is to be met by somebody having trouble.
+//
+// Still plain text: rendering a page here is the work the limiter exists to
+// avoid. That half of the reason was always sound.
+func TestARefusalIsInTheReadersLanguage(t *testing.T) {
+	t.Parallel()
+
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		t.Run(string(locale), func(t *testing.T) {
+			t.Parallel()
+			w := httptest.NewRecorder()
+			Refuse(i18n.WithLocale(t.Context(), locale), w, 3*time.Second)
+
+			if w.Code != http.StatusTooManyRequests {
+				t.Errorf("Refuse() status = %d, want %d", w.Code, http.StatusTooManyRequests)
+			}
+			want := i18n.T(i18n.WithLocale(t.Context(), locale), i18n.KeyTooManyRequests)
+			if got := w.Body.String(); !strings.Contains(got, want) {
+				t.Errorf("Refuse(%s) body = %q, want it to contain %q", locale, got, want)
+			}
+		})
+	}
+
+	// The two locales must not produce the same body, or the test above passes
+	// on a hard-coded string that happens to be in the catalogue.
+	zh, en := httptest.NewRecorder(), httptest.NewRecorder()
+	Refuse(i18n.WithLocale(t.Context(), i18n.ZhHant), zh, time.Second)
+	Refuse(i18n.WithLocale(t.Context(), i18n.En), en, time.Second)
+	if zh.Body.String() == en.Body.String() {
+		t.Errorf("both locales get %q", zh.Body.String())
+	}
+}

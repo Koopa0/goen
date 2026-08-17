@@ -160,6 +160,7 @@ func tiles(rows []db.CategoryListingRow) []pages.ProductTile {
 			Summary:      r.Summary,
 			Brand:        r.Brand,
 			PriceCents:   r.MinPriceCents,
+			PriceVaries:  r.PriceVaries,
 			CompareCents: r.CompareAtPriceCents.Int64,
 			Rating:       r.Rating,
 			RatingCount:  r.RatingCount,
@@ -169,6 +170,7 @@ func tiles(rows []db.CategoryListingRow) []pages.ProductTile {
 			ImageAlt:     r.ImageAlt,
 			ImageWidth:   r.ImageWidth,
 			ImageHeight:  r.ImageHeight,
+			Comparable:   true,
 		})
 	}
 	return out
@@ -184,6 +186,7 @@ func searchTiles(rows []db.SearchProductsRow) []pages.ProductTile {
 			Summary:      r.Summary,
 			Brand:        r.Brand,
 			PriceCents:   r.MinPriceCents,
+			PriceVaries:  r.PriceVaries,
 			CompareCents: r.CompareAtPriceCents.Int64,
 			Rating:       r.Rating,
 			RatingCount:  r.RatingCount,
@@ -193,6 +196,7 @@ func searchTiles(rows []db.SearchProductsRow) []pages.ProductTile {
 			ImageAlt:     r.ImageAlt,
 			ImageWidth:   r.ImageWidth,
 			ImageHeight:  r.ImageHeight,
+			Comparable:   true,
 		})
 	}
 	return out
@@ -233,6 +237,7 @@ func dealTiles(rows []db.DealProductsRow) []pages.ProductTile {
 			Summary:      r.Summary,
 			Brand:        r.Brand,
 			PriceCents:   r.MinPriceCents,
+			PriceVaries:  r.PriceVaries,
 			CompareCents: r.CompareAtPriceCents.Int64,
 			Rating:       r.Rating,
 			RatingCount:  r.RatingCount,

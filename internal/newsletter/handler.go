@@ -53,7 +53,7 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	// Keyed on the address and BEFORE the write: unbounded, the form mails a
 	// confirmation to whoever is typed into it, as often as the button is pressed.
 	if retryAfter, ok := h.limit.Allow("newsletter:" + addr); !ok {
-		ratelimit.Refuse(w, retryAfter)
+		ratelimit.Refuse(r.Context(), w, retryAfter)
 		return
 	}
 

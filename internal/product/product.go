@@ -95,7 +95,10 @@ func Resolve(variants []Variant, sel Selection) (chosen Variant, exact bool) {
 		if !found {
 			first, found = v, true
 		}
-		if v.Sellable && !pinned {
+		// The CHEAPEST buyable one, not the first: a listing tile quotes the
+		// cheapest and links here, so picking by position opened the page at a
+		// different price from the one the shopper clicked.
+		if v.Sellable && (!pinned || v.PriceCents < first.PriceCents) {
 			first, pinned = v, true
 		}
 	}

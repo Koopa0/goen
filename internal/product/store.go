@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -99,6 +100,8 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 		SelectionOK:  chosen.SKU != "",
 		Exact:        exact,
 	}
+	view.PriceVaries = dearerThan(chosen.PriceCents, variants)
+	view.AnySellable = slices.ContainsFunc(variants, func(v Variant) bool { return v.Sellable })
 	if view.SelectionOK {
 		view.VariantID = chosen.ID
 		view.SKU = chosen.SKU
@@ -234,8 +237,9 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *p
 		r := &related[i]
 		view.Related = append(view.Related, pages.ProductTile{
 			Slug: r.Slug, Name: r.Name, Brand: r.Brand,
-			PriceCents: r.MinPriceCents, CompareCents: r.CompareAtPriceCents.Int64,
-			Rating: r.Rating, RatingCount: r.RatingCount, InStock: r.InStock,
+			PriceCents: r.MinPriceCents, PriceVaries: r.PriceVaries,
+			CompareCents: r.CompareAtPriceCents.Int64,
+			Rating:       r.Rating, RatingCount: r.RatingCount, InStock: r.InStock,
 			ImageURL:    assets.ProductImageURL(r.ImageKey),
 			ImageSrcset: assets.ProductImageSrcsetAt(r.ImageKey, int(r.ImageWidth)),
 			ImageAlt:    r.ImageAlt, ImageWidth: r.ImageWidth, ImageHeight: r.ImageHeight,
@@ -269,6 +273,7 @@ func (s *Store) boughtTogether(ctx context.Context, productID uuid.UUID) ([]page
 			Summary:      r.Summary,
 			Brand:        r.Brand,
 			PriceCents:   r.MinPriceCents,
+			PriceVaries:  r.PriceVaries,
 			CompareCents: r.CompareAtPriceCents.Int64,
 			Rating:       r.Rating,
 			RatingCount:  r.RatingCount,
@@ -296,4 +301,10 @@ func (s *Store) SavedByUser(ctx context.Context, userID, slug string) bool {
 		return false // best-effort: a failed read falls back to "not saved"
 	}
 	return saved
+}
+
+// dearerThan reports whether any variant costs more than cents, which is what
+// makes the price on the page a "from" rather than the product's price.
+func dearerThan(cents int64, variants []Variant) bool {
+	return slices.ContainsFunc(variants, func(v Variant) bool { return v.PriceCents > cents })
 }
