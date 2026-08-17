@@ -59,16 +59,24 @@ type AdminReportView struct {
 	Days         int
 	Orders       int64
 	RevenueCents int64
-	AverageCents int64
-	Placed       int64
-	Committed    int64
-	Sellers      []AdminSeller
-	AtRisk       []AdminStockRisk
-	Windows      []int32
+	// RefundedCents is what went back over the window, beside the revenue rather
+	// than subtracted from it: Consumer Protection Act §19 makes a seven-day
+	// rescission unrefusable, so an owner needs the return rate as much as the
+	// net figure.
+	RefundedCents int64
+	AverageCents  int64
+	Placed        int64
+	Committed     int64
+	Sellers       []AdminSeller
+	AtRisk        []AdminStockRisk
+	Windows       []int32
 }
 
 // Revenue is what came in over the window.
 func (v AdminReportView) Revenue() string { return twd(v.RevenueCents) }
+
+// Refunded is what went back over the window.
+func (v AdminReportView) Refunded() string { return twd(v.RefundedCents) }
 
 // Average is the average committed order.
 func (v AdminReportView) Average() string { return twd(v.AverageCents) }

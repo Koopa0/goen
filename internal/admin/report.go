@@ -48,7 +48,7 @@ func (s *Store) Report(ctx context.Context, days int32) (pages.AdminReportView, 
 	view := pages.AdminReportView{
 		Days:         int(days),
 		Orders:       revenue.Orders,
-		RevenueCents: revenue.RevenueCents,
+		RevenueCents: revenue.RevenueCents, RefundedCents: revenue.RefundedCents,
 		AverageCents: revenue.AverageCents,
 		Placed:       completion.Placed,
 		Committed:    completion.Committed,

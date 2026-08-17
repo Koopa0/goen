@@ -45,6 +45,10 @@ templ AdminReport(p layouts.Page, v *AdminReportView) {
 						<span class="goen-report__value">{ v.Revenue() }</span>
 					</li>
 					<li class="goen-report__figure">
+						<span class="goen-report__label">{ i18n.T(ctx, i18n.KeyAdminRepRefunded) }</span>
+						<span class="goen-report__value">{ v.Refunded() }</span>
+					</li>
+					<li class="goen-report__figure">
 						<span class="goen-report__label">{ i18n.T(ctx, i18n.KeyAdminRepPaidOrders) }</span>
 						<span class="goen-report__value">{ v.OrdersText() }</span>
 					</li>

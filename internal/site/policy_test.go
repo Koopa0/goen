@@ -1,6 +1,7 @@
 package site
 
 import (
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -20,12 +21,29 @@ import (
 // code enforces. They are two constants because internal/ui must not import a
 // feature package.
 func TestTheStatedHoldMatchesTheEnforcedOne(t *testing.T) {
-	stated := pages.HoldMinutes
 	enforced := int(cart.HoldTTL.Minutes())
-	if stated != enforced {
+	if stated := pages.HoldMinutes; stated != enforced {
 		t.Errorf("the shipping page says stock is held for %d minutes and "+
 			"cart.HoldTTL holds it for %d — the page is telling customers "+
 			"something the till does not do", stated, enforced)
+	}
+
+	// The FAQ makes the same promise and was not covered: it said 30 minutes
+	// against an enforced 60, under a seed comment claiming the row states
+	// cart.HoldTTL. A guard over one of the two pages that make a claim reads as
+	// covering the claim.
+	seed, err := os.ReadFile(filepath.Join("..", "..", "seed", "dev_catalog.sql"))
+	if err != nil {
+		t.Fatalf("read the seed: %v", err)
+	}
+	for _, want := range []string{
+		fmt.Sprintf("保留庫存 %d 分鐘", enforced),
+		fmt.Sprintf("holds the stock for %d minutes", enforced),
+	} {
+		if !strings.Contains(string(seed), want) {
+			t.Errorf("no FAQ row states %q, so the answer a customer reads and the "+
+				"window the sweeper enforces are two different numbers", want)
+		}
 	}
 }
 

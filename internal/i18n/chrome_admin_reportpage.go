@@ -23,6 +23,9 @@ var (
 			"site's conversion rate — goen collects no traffic data, so it cannot work out what " +
 			"fraction of visitors ended up buying anything, and it will not show a number it invented.",
 	})
+	// Beside the revenue, never subtracted from it: a statutory rescission
+	// cannot be refused, so the return rate is a figure in its own right.
+	KeyAdminRepRefunded = key("admin.rep.refunded", Message{ZhHant: "退款金額", En: "Refunded"})
 
 	KeyAdminRepSellers      = key("admin.rep.sellers", Message{ZhHant: "熱賣商品", En: "Best sellers"})
 	KeyAdminRepSellersEmpty = key("admin.rep.sellers.empty", Message{

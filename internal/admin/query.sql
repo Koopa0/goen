@@ -710,7 +710,16 @@ WHERE c.slug = @slug::text
 SELECT
     count(*)::bigint AS orders,
     coalesce(sum(t.total), 0)::bigint AS revenue_cents,
-    (coalesce(sum(t.total), 0) / greatest(count(*), 1))::bigint AS average_cents
+    (coalesce(sum(t.total), 0) / greatest(count(*), 1))::bigint AS average_cents,
+    -- What went back, as its own figure rather than subtracted from the one
+    -- above. Consumer Protection Act §19 makes a seven-day rescission
+    -- unrefusable, so returns are certain rather than hypothetical, and an owner
+    -- needs the return rate as much as the net. Counted by when the money moved,
+    -- not by when the order was placed: a refund lands in the window it is paid.
+    coalesce((SELECT sum(r.amount_cents) FROM refunds r
+              WHERE r.status = 'succeeded'
+                AND r.created_at >= now() - make_interval(days => @window_days::integer)), 0)::bigint
+        AS refunded_cents
 FROM (
     SELECT (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
                       FROM order_lines ol WHERE ol.order_id = o.id), 0)
