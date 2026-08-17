@@ -85,7 +85,7 @@ func (h *Handler) closeSessions(ctx context.Context, number string, sessions []s
 func (h *Handler) RequireStaff(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, ok := account.FromContext(r.Context())
-		if !ok || !u.IsAdmin() {
+		if !ok || !u.IsStaff() {
 			web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
 				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminNotFoundTitle)}, "404",
 				i18n.T(r.Context(), i18n.KeyAdminNotFoundHead),
@@ -117,7 +117,7 @@ func (h *Handler) RequireStaff(next http.HandlerFunc) http.HandlerFunc {
 func (h *Handler) RequireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	return h.RequireStaff(func(w http.ResponseWriter, r *http.Request) {
 		u, ok := account.FromContext(r.Context())
-		if !ok || !u.IsStaff() {
+		if !ok || !u.IsAdmin() {
 			web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
 				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminNotFoundTitle)}, "404",
 				i18n.T(r.Context(), i18n.KeyAdminNotFoundHead),

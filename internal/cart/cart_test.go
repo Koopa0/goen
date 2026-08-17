@@ -436,3 +436,34 @@ func TestTheQuoteAddsTheSurchargeAfterTheThreshold(t *testing.T) {
 		})
 	}
 }
+
+// TestTheCheckoutRefusesWhatTheSenderWillRefuse holds one definition of an
+// email address across the collection point and the delivery point.
+//
+// internal/email is that definition — it is what SMTPSender.Send tests before
+// it will send anything. A checkout that accepts more than the sender does
+// takes the order, writes the confirmation into the outbox in the order's own
+// transaction, and then fails to deliver it on every one of MaxAttempts before
+// parking it on /admin/health. The customer is charged and never hears from the
+// shop, and the confirmation is what carries Consumer Protection Act §18 I's
+// disclosure.
+func TestTheCheckoutRefusesWhatTheSenderWillRefuse(t *testing.T) {
+	t.Parallel()
+
+	// Each is accepted by a hand-rolled "has an @ and a dot" check and refused
+	// by net/mail, because none of these is an atext character.
+	for _, addr := range []string{
+		"a,b@example.com",
+		"a(b@example.com",
+		"a;b@example.com",
+		"a<b@example.com",
+	} {
+		if emailError(addr) == "" {
+			t.Errorf("the checkout accepted %q, which internal/email refuses — the "+
+				"order commits and its confirmation can never be delivered", addr)
+		}
+	}
+	if got := emailError("shopper@example.com"); got != "" {
+		t.Errorf("an ordinary address was refused: %v", got)
+	}
+}

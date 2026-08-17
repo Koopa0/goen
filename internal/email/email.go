@@ -21,10 +21,21 @@ func Clean(s string) string {
 // Valid reports whether s is a bare, storable address: mail.ParseAddress accepts
 // a display name, so the parsed address must account for the whole input. It
 // already refuses control characters, quoted local part included.
+//
+// The domain must carry a dot, which RFC 5322 does not require — user@localhost
+// is a legal address and this refuses it. A shop that posts to the public
+// internet cannot reach a dotless domain, so accepting one only delays the
+// refusal until the customer is waiting for mail that cannot arrive.
 func Valid(s string) bool {
 	if s == "" || len(s) > Max {
 		return false
 	}
 	addr, err := mail.ParseAddress(s)
-	return err == nil && addr.Address == s
+	if err != nil || addr.Address != s {
+		return false
+	}
+	at := strings.LastIndexByte(s, '@')
+	domain := s[at+1:]
+	dot := strings.IndexByte(domain, '.')
+	return dot > 0 && dot < len(domain)-1
 }

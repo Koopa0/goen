@@ -79,10 +79,16 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 		}
 		u, err := h.store.SessionUser(r.Context(), token)
 		if err != nil {
-			if !errors.Is(err, ErrNotFound) {
+			// The cookie is cleared only when the session is genuinely GONE. A
+			// database that cannot answer has not said the session is invalid,
+			// and clearing on any error signs every customer and every staff
+			// member out at once during a blip — unrecoverably, because the row
+			// survives and the browser no longer holds the token for it.
+			if errors.Is(err, ErrNotFound) {
+				ClearSessionCookie(w, h.secure)
+			} else {
 				h.log.ErrorContext(r.Context(), "read session", "error", err)
 			}
-			ClearSessionCookie(w, h.secure)
 			next.ServeHTTP(w, r)
 			return
 		}

@@ -18,6 +18,7 @@ import (
 	"unicode"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -418,20 +419,10 @@ func emailError(s string) i18n.Key {
 		return i18n.KeyCheckoutEmailRequired
 	case len([]rune(s)) > maxEmailRunes:
 		return i18n.KeyCheckoutEmailTooLong
-	case !looksLikeEmail(s):
+	case !email.Valid(s):
 		return i18n.KeyCheckoutEmailMalformed
 	}
 	return ""
-}
-
-func looksLikeEmail(s string) bool {
-	at := strings.IndexByte(s, '@')
-	if at <= 0 || at == len(s)-1 || strings.Count(s, "@") != 1 {
-		return false
-	}
-	domain := s[at+1:]
-	dot := strings.IndexByte(domain, '.')
-	return dot > 0 && dot < len(domain)-1 && !strings.ContainsAny(s, " \t")
 }
 
 func looksLikePhone(s string) bool {

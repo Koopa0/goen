@@ -34,6 +34,7 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/site"
+	"github.com/koopa0/goen/internal/twofactor"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/warranty"
 	"github.com/koopa0/goen/internal/web"
@@ -1310,19 +1311,29 @@ func TestTheBackOfficeIsInvisibleToEveryoneButStaff(t *testing.T) {
 		})
 	}
 
-	var staffID uuid.UUID
-	if err := pool.QueryRow(ctx, `
-		INSERT INTO users (email, role) VALUES ('staff-'||gen_random_uuid()||'@example.com', 'admin')
-		RETURNING id`).Scan(&staffID); err != nil {
-		t.Fatalf("create staff: %v", err)
-	}
-	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin", nil)
-	req = req.WithContext(account.WithUser(req.Context(),
-		account.User{ID: staffID.String(), Role: "admin"}))
-	w := httptest.NewRecorder()
-	guarded(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("staff got %d, want 200 — the guard refuses everyone", w.Code)
+	// BOTH back-office roles, and 'staff' is the one that matters: this block
+	// asserted role 'admin' under a variable named staffID and a comment saying
+	// "create staff", so the role /admin/staff actually offers was never tested.
+	// RequireStaff asked IsAdmin, and every colleague hired as staff met a 404 on
+	// the whole back office.
+	for _, role := range twofactor.Roles {
+		t.Run(role+" reaches the back office", func(t *testing.T) {
+			var id uuid.UUID
+			if err := pool.QueryRow(ctx, `
+				INSERT INTO users (email, role) VALUES ('bo-'||gen_random_uuid()||'@example.com', $1)
+				RETURNING id`, role).Scan(&id); err != nil {
+				t.Fatalf("create %s: %v", role, err)
+			}
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin", nil)
+			req = req.WithContext(account.WithUser(req.Context(),
+				account.User{ID: id.String(), Role: role}))
+			w := httptest.NewRecorder()
+			guarded(w, req)
+			if w.Code != http.StatusOK {
+				t.Errorf("%s got %d, want 200 — /admin/staff offers this role, so a "+
+					"colleague hired into it can do no work at all", role, w.Code)
+			}
+		})
 	}
 }
 
