@@ -343,3 +343,48 @@ func TestANamelessReviewerIsNotBadgedAsABuyer(t *testing.T) {
 		t.Errorf("a named reviewer rendered as %q", named)
 	}
 }
+
+// TestTheProductPageSaysWhetherItAddedAnything asserts the HTML, because the
+// view model can carry the outcome correctly while the template renders it
+// nowhere — which is exactly what happened.
+//
+// backToProduct has carried added/unavailable/unknown since it was written, and
+// reservedParam listed "added" only to ignore it. So pressing 加入購物車
+// re-rendered a page identical to the one before, and identical again when the
+// variant had just sold out and nothing was added. The same template already
+// shows an outcome for its other three writes.
+func TestTheProductPageSaysWhetherItAddedAnything(t *testing.T) {
+	base := func(outcome string) *ProductView {
+		return &ProductView{
+			Slug: "pixelight-9-pro", Name: "Pixelight 9 Pro",
+			VariantID: "v1", PriceCents: 3690000, Available: 3,
+			AddedOutcome: outcome,
+		}
+	}
+
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	confirm := i18n.T(ctx, i18n.KeyAddedToCart)
+	refusal := i18n.T(ctx, i18n.KeyAddRefused)
+
+	// The exact words, not just role="status": the page carries other live
+	// regions, so asserting the role alone stays green with this one deleted.
+	added := renderToString(t, Product(layouts.Page{Title: "x"}, base("added")))
+	if !strings.Contains(added, confirm) {
+		t.Errorf("a successful add renders no confirmation; wanted %q", confirm)
+	}
+
+	refused := renderToString(t, Product(layouts.Page{Title: "x"}, base("unavailable")))
+	if !strings.Contains(refused, refusal) {
+		t.Errorf("a refused add renders no refusal; wanted %q", refusal)
+	}
+	if added == refused {
+		t.Error("the success and the refusal render identically, which is the " +
+			"defect: nothing added, and the page says the same thing either way")
+	}
+
+	// An ordinary visit shows neither.
+	plain := renderToString(t, Product(layouts.Page{Title: "x"}, base("")))
+	if strings.Contains(plain, confirm) || strings.Contains(plain, refusal) {
+		t.Error("an ordinary page visit renders an add-to-cart message")
+	}
+}

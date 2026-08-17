@@ -68,6 +68,7 @@ func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 	h.fillReviewForm(r, slug, &view)
 	view.NotifyOutcome = r.URL.Query().Get("notify")
 	view.AskOutcome = r.URL.Query().Get("ask")
+	view.AddedOutcome = r.URL.Query().Get("added")
 	view.Comparing = boundedSlugs(r.URL.Query()["p"])
 	meta := pages.ProductMeta(&view)
 	meta.StructuredData = pages.JSONLDSet(

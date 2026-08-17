@@ -352,9 +352,18 @@ func fieldMessages(ctx context.Context, errs []FieldError) map[string]string {
 	}
 	out := make(map[string]string, len(errs))
 	for _, e := range errs {
-		if _, seen := out[e.Field]; !seen {
-			out[e.Field] = fmt.Sprintf(i18n.T(ctx, e.MessageKey), MinPasswordRunes)
+		if _, seen := out[e.Field]; seen {
+			continue
 		}
+		msg := i18n.T(ctx, e.MessageKey)
+		// Only the too-short message carries a verb. Formatting every message
+		// with the length appended %!(EXTRA int=10) to the six that do not — on
+		// the registration form, which is where somebody decides whether to
+		// trust this site with a password.
+		if e.MessageKey == i18n.KeyPasswordTooShort {
+			msg = fmt.Sprintf(msg, MinPasswordRunes)
+		}
+		out[e.Field] = msg
 	}
 	return out
 }

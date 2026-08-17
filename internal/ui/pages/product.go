@@ -139,7 +139,12 @@ type ProductView struct {
 	Comparing     []string
 	Questions     []Question
 	AskOutcome    string
-	AlsoBought    []ProductTile
+	// AddedOutcome is what the last add-to-cart did. backToProduct has carried
+	// it since the redirect was written and the page ignored it, so pressing
+	// 加入購物車 changed nothing on screen — and a refusal rendered the same page
+	// as a success, on the button a shopper presses most.
+	AddedOutcome string
+	AlsoBought   []ProductTile
 
 	Related []ProductTile
 }
@@ -284,6 +289,14 @@ func (v *ProductView) AskTaken() bool { return v.AskOutcome == "1" }
 
 // AskRefused reports whether the question was not usable.
 func (v *ProductView) AskRefused() bool { return v.AskOutcome == "bad" }
+
+// JustAdded reports whether the last add-to-cart worked.
+func (v *ProductView) JustAdded() bool { return v.AddedOutcome == "added" }
+
+// AddRefused reports whether it did not, which looked identical before.
+func (v *ProductView) AddRefused() bool {
+	return v.AddedOutcome == "unavailable" || v.AddedOutcome == "unknown"
+}
 
 // AskAction is where the question form posts.
 func (v *ProductView) AskAction() string { return "/p/" + v.Slug + "/questions" }

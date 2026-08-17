@@ -1,8 +1,11 @@
 package account
 
 import (
+	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 func TestPasswordHashingRoundTrips(t *testing.T) {
@@ -211,5 +214,50 @@ func TestValidateRegistration(t *testing.T) {
 				t.Errorf("rejected, but not on %q: %+v", tt.field, errs)
 			}
 		})
+	}
+}
+
+// TestNoFieldMessageLeaksAFormatVerb reads what the form actually renders.
+//
+// fieldMessages formatted every message with MinPasswordRunes, and only the
+// too-short one carries a verb — so the six that do not rendered
+// "%!(EXTRA int=10)" beside the field, in both locales, on the first form the
+// site shows anybody and the one where they decide whether to trust it with a
+// password.
+//
+// It asserts the RENDERED string rather than the catalogue, because the
+// catalogue was correct: every message was translated, and the defect was in
+// what the handler did with it afterwards.
+func TestNoFieldMessageLeaksAFormatVerb(t *testing.T) {
+	t.Parallel()
+
+	every := []FieldError{
+		{Field: "email", MessageKey: i18n.KeyCheckoutEmailRequired},
+		{Field: "email2", MessageKey: i18n.KeyCheckoutEmailMalformed},
+		{Field: "email3", MessageKey: i18n.KeyCheckoutEmailTooLong},
+		{Field: "password", MessageKey: i18n.KeyPasswordRequired},
+		{Field: "password2", MessageKey: i18n.KeyPasswordTooShort},
+		{Field: "password3", MessageKey: i18n.KeyPasswordTooLong},
+		{Field: "confirm", MessageKey: i18n.KeyPasswordMismatch},
+	}
+
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		for field, msg := range fieldMessages(ctx, every) {
+			if strings.Contains(msg, "%!") || strings.Contains(msg, "%d") ||
+				strings.Contains(msg, "%s") {
+				t.Errorf("%s: the %s field renders %q — a format verb reached the "+
+					"customer", locale, field, msg)
+			}
+		}
+	}
+
+	// The one message that does carry a verb still gets its number.
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	short := fieldMessages(ctx, []FieldError{
+		{Field: "password", MessageKey: i18n.KeyPasswordTooShort},
+	})["password"]
+	if !strings.Contains(short, strconv.Itoa(MinPasswordRunes)) {
+		t.Errorf("the too-short message is %q and does not state the minimum", short)
 	}
 }
