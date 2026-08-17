@@ -815,8 +815,17 @@ SELECT
      FROM outbox_messages WHERE delivered_at IS NULL)::bigint AS outbox_oldest_seconds,
     (SELECT count(*) FROM outbox_messages
      WHERE delivered_at IS NULL AND attempts >= @max_attempts::integer)::bigint AS outbox_stuck,
-    (SELECT count(*) FROM inventory_reservations
-     WHERE state = 'held' AND expires_at < now())::bigint AS expired_holds,
+    -- The sweeper's own predicate, not merely expired: release_reservation
+    -- refuses a committed or fully-funded order's hold, so counting every
+    -- expired row reports stock the sweeper is designed never to release, on a
+    -- page whose caption says a backlog means goods nobody can buy. It can only
+    -- grow, which is alarm fatigue on the page built to make failure visible.
+    (SELECT count(*) FROM inventory_reservations ir
+     JOIN orders o ON o.id = ir.order_id
+     WHERE ir.state = 'held' AND ir.expires_at < now()
+       AND NOT order_is_committed(ir.order_id)
+       AND (o.fulfillment_status = 'cancelled'
+            OR order_amount_owed(ir.order_id) <> 0))::bigint AS expired_holds,
     (SELECT coalesce(extract(epoch FROM now() - max(computed_at)), 0)
      FROM product_copurchases)::bigint AS copurchase_age_seconds,
     EXISTS (SELECT 1 FROM product_copurchases) AS copurchase_ever_built,

@@ -69,7 +69,13 @@ var (
 		ZhHant: "最後一次的錯誤",
 		En:     "Last error",
 	})
-	KeyAdminHPColSince = key("admin.hp.col.since", Message{ZhHant: "自從", En: "Since"})
+	// available_at, which is when the message becomes DUE — pushed forward by
+	// every claim and every backoff, so it reads as a future timestamp and is not
+	// how long anything has been broken. outbox_messages has no created_at, so
+	// "since" is not computable; naming the column for what it holds is the
+	// honest option. Meaningless once the attempts are exhausted, which is
+	// exactly when this table is read.
+	KeyAdminHPColSince = key("admin.hp.col.since", Message{ZhHant: "下次重試", En: "Next retry"})
 
 	KeyAdminHPOpenRefundsHeading = key("admin.hp.openrefunds.heading", Message{
 		ZhHant: "還沒退成功的退款",
