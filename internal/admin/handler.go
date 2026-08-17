@@ -112,6 +112,27 @@ func (h *Handler) RequireStaff(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// StaffOnly answers 404 to anyone who does not work here, and runs no step-up.
+//
+// It is what the second-factor routes need: RequireStaff redirects an unverified
+// staff member TO /admin/verify, so guarding that page with it is a loop. Those
+// four routes were on RequireUser, which asks only that somebody is signed in —
+// so any customer could render the enrolment page, learning that /admin exists,
+// and POST an insert into staff_totp_credentials over the ADMIN pool.
+func (h *Handler) StaffOnly(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, ok := account.FromContext(r.Context())
+		if !ok || !u.IsStaff() {
+			web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
+				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminNotFoundTitle)}, "404",
+				i18n.T(r.Context(), i18n.KeyAdminNotFoundHead),
+				i18n.T(r.Context(), i18n.KeyAdminNotFoundBody)))
+			return
+		}
+		next(w, r)
+	}
+}
+
 // RequireAdmin wraps a back-office handler that changes WHO WORKS HERE: gated
 // on the staff predicate, /admin/staff is a self-service promotion desk.
 func (h *Handler) RequireAdmin(next http.HandlerFunc) http.HandlerFunc {

@@ -204,6 +204,10 @@ var (
 		ZhHant: "運費與稅金",
 		En:     "Delivery and tax",
 	})
+	// A reduced order reaches Stripe as one line naming itself: the itemisation
+	// lives on goen's own order page, which states the discount and the credit
+	// separately and which the confirmation links to.
+	KeyPayOrderLine = key("pay.orderline", Message{ZhHant: "訂單 %s", En: "Order %s"})
 
 	KeyOrderNotFound = key("order.notfound", Message{ZhHant: "找不到這筆訂單", En: "Order not found"})
 	KeyOrderNotYours = key("order.notyours", Message{

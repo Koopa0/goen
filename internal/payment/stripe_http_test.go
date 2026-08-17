@@ -7,6 +7,7 @@ package payment
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -176,25 +177,82 @@ func TestTheSessionExpiresWithTheStockHold(t *testing.T) {
 	}
 }
 
-// TestASessionIsNeverAskedForLessThanTheOrderTotals is the guard against sending
-// Stripe a page that adds up to less than goen will reconcile against.
-func TestASessionIsNeverAskedForLessThanTheOrderTotals(t *testing.T) {
-	g, log := stripeAt(t, func(*call) (int, string) {
-		return http.StatusOK, `{"id":"cs_x","object":"checkout.session","url":"https://x.test","status":"open"}`
-	})
-	o := anOrder()
-	o.TotalCents = 100 // far below its own lines
+// TestTheSessionTotalsWhatTheOrderOwes holds the one invariant Stripe's page
+// has to satisfy: payments_capture_matches_order refuses a capture that is not
+// exactly order_amount_owed, so the line items must sum to it.
+//
+// Both directions, and the second is the one that mattered. Shipping and tax add
+// to the lines; a coupon and store credit take away. StartSession refused a
+// negative difference outright, so an order reduced by either could never be
+// paid — and free delivery over the advertised threshold means any discount at
+// all lands below the lines. The customer's credit was debited and their coupon
+// spent by the checkout transaction, so the refusal came after the money.
+//
+// The previous version of this test asserted the refusal. It was written from
+// the implementation, and it had to be wrong for the code to look right.
+func TestTheSessionTotalsWhatTheOrderOwes(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		owed  int64
+		items int
+	}{
+		// anOrder()'s lines are 199900 + 2*49900 = 299700. Every figure below is
+		// a hand-computed literal, never an expression over the fixture, so an
+		// amount wrong at both ends still fails.
+		{name: "shipping on top", owed: 299780, items: 3},
+		{name: "nothing added or taken", owed: 299700, items: 2},
+		// A reduced order collapses to ONE line at the owed price. Stripe
+		// rejects a negative unit_amount — verified against the real API, which
+		// answered 400 "Invalid non-negative integer" to the version that sent
+		// the reduction as its own line.
+		{name: "a coupon takes it below the lines", owed: 294700, items: 1},
+		{name: "store credit takes most of it", owed: 9700, items: 1},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g, log := stripeAt(t, func(*call) (int, string) {
+				return http.StatusOK, `{"id":"cs_x","object":"checkout.session","url":"https://x.test","status":"open"}`
+			})
+			o := anOrder()
+			o.TotalCents = tt.owed
 
-	_, _, err := g.StartSession(t.Context(), o, 0)
-	if err == nil {
-		t.Fatal("StartSession() accepted an order totalling less than its lines")
-	}
-	if !strings.Contains(err.Error(), "below its lines") {
-		t.Errorf("error = %v, want it to name the mismatch", err)
-	}
-	if len(*log) != 0 {
-		t.Errorf("made %d requests; the refusal must happen before Stripe is asked",
-			len(*log))
+			if _, _, err := g.StartSession(t.Context(), o, 0); err != nil {
+				t.Fatalf("StartSession() refused an order owing %d: %v", tt.owed, err)
+			}
+			if len(*log) != 1 {
+				t.Fatalf("made %d requests, want 1", len(*log))
+			}
+
+			// Sum what actually left the process, from the wire rather than from
+			// the code's own arithmetic.
+			form := (*log)[0].form
+			var total int64
+			var n int
+			for i := 0; ; i++ {
+				amt := form.Get(fmt.Sprintf("line_items[%d][price_data][unit_amount]", i))
+				if amt == "" {
+					break
+				}
+				qty := form.Get(fmt.Sprintf("line_items[%d][quantity]", i))
+				a, err := strconv.ParseInt(amt, 10, 64)
+				if err != nil {
+					t.Fatalf("unit_amount %q: %v", amt, err)
+				}
+				q, err := strconv.ParseInt(qty, 10, 64)
+				if err != nil {
+					t.Fatalf("quantity %q: %v", qty, err)
+				}
+				total += a * q
+				n++
+			}
+			if n != tt.items {
+				t.Errorf("sent %d line items, want %d", n, tt.items)
+			}
+			if total != tt.owed {
+				t.Errorf("Stripe's page totals %d, want %d — capture_payment records "+
+					"what the provider charged and payments_capture_matches_order "+
+					"refuses anything but order_amount_owed", total, tt.owed)
+			}
+		})
 	}
 }
 

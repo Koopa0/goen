@@ -280,10 +280,10 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 	mux.HandleFunc("POST /admin/staff", back.RequireAdmin(factors.AddStaff))
 	mux.HandleFunc("POST /admin/staff/revoke", back.RequireAdmin(factors.RevokeStaff))
 	mux.HandleFunc("POST /admin/staff/factor", back.RequireAdmin(factors.RemoveFactor))
-	mux.HandleFunc("GET /admin/verify", customers.RequireUser(factors.Challenge))
-	mux.HandleFunc("POST /admin/verify", customers.RequireUser(factors.Verify))
-	mux.HandleFunc("POST /admin/verify/enrol", customers.RequireUser(factors.Enrol))
-	mux.HandleFunc("POST /admin/verify/confirm", customers.RequireUser(factors.Confirm))
+	mux.HandleFunc("GET /admin/verify", back.StaffOnly(factors.Challenge))
+	mux.HandleFunc("POST /admin/verify", back.StaffOnly(factors.Verify))
+	mux.HandleFunc("POST /admin/verify/enrol", back.StaffOnly(factors.Enrol))
+	mux.HandleFunc("POST /admin/verify/confirm", back.StaffOnly(factors.Confirm))
 	mux.HandleFunc("GET /admin/faq", back.RequireStaff(back.FAQ))
 	mux.HandleFunc("POST /admin/faq", back.RequireStaff(back.CreateFAQEntry))
 	mux.HandleFunc("POST /admin/faq/{id}", back.RequireStaff(back.EditFAQEntry))
@@ -512,12 +512,26 @@ func withBanner(next http.Handler, store *home.Store, log *slog.Logger, secure b
 	})
 }
 
+// navFreePrefixes are the paths whose header carries no category row: the ones
+// that render no storefront header at all, plus /admin, which has its own.
+//
+// Deliberately NOT bannerFreePrefixes. Excluding a promotion from the checkout
+// is a conversion decision; excluding NAVIGATION is not, and the cart, the
+// account pages and the sign-in form all render the site header — with an empty
+// category row, on the chrome CLAUDE.md calls the most-read on the site.
+var navFreePrefixes = []string{
+	"/admin", "/webhooks", "/media", "/static", "/healthz", "/readyz",
+}
+
 // withTopNav loads the header's category row. It runs inside withLocale,
 // because the names it reads are localized and the locale has to be on the
 // context before the query does. A failure degrades to a nav with no links.
+//
+// Every method, not just GET: a rejected form re-renders its own page at 422,
+// which is exactly when a visitor is most likely to navigate away.
 func withTopNav(next http.Handler, store *home.Store, log *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || !storefrontPath(r.URL.Path) {
+		if !navPath(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -529,6 +543,16 @@ func withTopNav(next http.Handler, store *home.Store, log *slog.Logger) http.Han
 		}
 		next.ServeHTTP(w, r.WithContext(layouts.WithTopNav(r.Context(), items)))
 	})
+}
+
+// navPath reports whether a path renders the storefront header.
+func navPath(path string) bool {
+	for _, prefix := range navFreePrefixes {
+		if path == prefix || strings.HasPrefix(path, prefix+"/") {
+			return false
+		}
+	}
+	return true
 }
 
 // storefrontPath reports whether a path is somewhere a promotion belongs.

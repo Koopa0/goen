@@ -46,46 +46,65 @@ func NewGateway(secretKey, webhookSecret, baseURL string) (*Gateway, error) {
 // Enabled reports whether goen can actually take money.
 func (g *Gateway) Enabled() bool { return g.client != nil }
 
+// lineItem is one row on Stripe's page.
+func lineItem(name string, unitCents, quantity int64) *stripe.CheckoutSessionCreateLineItemParams {
+	return &stripe.CheckoutSessionCreateLineItemParams{
+		Quantity: stripe.Int64(quantity),
+		PriceData: &stripe.CheckoutSessionCreateLineItemPriceDataParams{
+			Currency:   stripe.String(Currency),
+			UnitAmount: stripe.Int64(unitCents),
+			ProductData: &stripe.CheckoutSessionCreateLineItemPriceDataProductDataParams{
+				Name: stripe.String(name),
+			},
+		},
+	}
+}
+
 // StartSession creates a Checkout Session and returns its id and URL.
 func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (id, redirectURL string, err error) {
 	if !g.Enabled() {
 		return "", "", ErrDisabled
 	}
 
-	items := make([]*stripe.CheckoutSessionCreateLineItemParams, 0, len(o.Lines)+1)
+	// Stripe's page must total what capture_payment will record, and
+	// payments_capture_matches_order demands exactly order_amount_owed — which is
+	// o.TotalCents, the total less the store credit spent on it.
+	//
+	// The difference from the lines runs BOTH ways: shipping and tax add, while a
+	// coupon and store credit take away. Refusing the negative direction made
+	// every reduced order unpayable, and free delivery over the advertised
+	// threshold means any discount at all lands below the lines — with the
+	// customer's credit already debited and their coupon already spent by the
+	// checkout transaction, so the refusal arrived after the money was gone.
+	//
+	// A reduction is carried as ONE line for the whole order rather than spread
+	// across the goods or sent as a Stripe coupon. Stripe rejects a negative
+	// unit_amount outright, and a coupon is an object with its own lifetime to
+	// create, look up and expire for a figure goen has already decided; itemising
+	// the goods at a price nobody agreed to would make the receipt Stripe emails
+	// disagree with the shop's own.
 	var lineTotal int64
 	for i := range o.Lines {
-		l := &o.Lines[i]
-		lineTotal += l.UnitCents * int64(l.Quantity)
-		items = append(items, &stripe.CheckoutSessionCreateLineItemParams{
-			Quantity: stripe.Int64(int64(l.Quantity)),
-			PriceData: &stripe.CheckoutSessionCreateLineItemPriceDataParams{
-				Currency:   stripe.String(Currency),
-				UnitAmount: stripe.Int64(l.UnitCents),
-				ProductData: &stripe.CheckoutSessionCreateLineItemPriceDataProductDataParams{
-					Name: stripe.String(displayName(l)),
-				},
-			},
-		})
+		lineTotal += o.Lines[i].UnitCents * int64(o.Lines[i].Quantity)
 	}
 
-	// Shipping, tax and discount are the difference between the lines and the
-	// total, and Stripe's page must add up to what goen reconciles against.
-	if rest := o.TotalCents - lineTotal; rest != 0 {
-		if rest < 0 {
-			return "", "", fmt.Errorf("payment: order %s totals %d below its lines' %d",
-				o.Number, o.TotalCents, lineTotal)
+	var items []*stripe.CheckoutSessionCreateLineItemParams
+	if o.TotalCents >= lineTotal {
+		items = make([]*stripe.CheckoutSessionCreateLineItemParams, 0, len(o.Lines)+1)
+		for i := range o.Lines {
+			l := &o.Lines[i]
+			items = append(items, lineItem(displayName(l), l.UnitCents, int64(l.Quantity)))
 		}
-		items = append(items, &stripe.CheckoutSessionCreateLineItemParams{
-			Quantity: stripe.Int64(1),
-			PriceData: &stripe.CheckoutSessionCreateLineItemPriceDataParams{
-				Currency:   stripe.String(Currency),
-				UnitAmount: stripe.Int64(rest),
-				ProductData: &stripe.CheckoutSessionCreateLineItemPriceDataProductDataParams{
-					Name: stripe.String(i18n.T(ctx, i18n.KeyShippingAndTax)),
-				},
-			},
-		})
+		if rest := o.TotalCents - lineTotal; rest > 0 {
+			items = append(items, lineItem(i18n.T(ctx, i18n.KeyShippingAndTax), rest, 1))
+		}
+	} else {
+		// One line naming the order, priced at what is actually owed. The
+		// itemisation is on goen's own order page, which the confirmation links
+		// to and which states the discount and the credit separately.
+		items = []*stripe.CheckoutSessionCreateLineItemParams{
+			lineItem(fmt.Sprintf(i18n.T(ctx, i18n.KeyPayOrderLine), o.Number), o.TotalCents, 1),
+		}
 	}
 
 	params := &stripe.CheckoutSessionCreateParams{
