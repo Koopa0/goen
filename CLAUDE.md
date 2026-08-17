@@ -964,6 +964,61 @@ comments, because `splitQueries` hands each query the NEXT one's introduction.
     the defect it sat beside. **An assertion coarser than the error it is meant to
     catch is not a weak lock, it is no lock.**
 
+35. **A feature every guard could see, that no path could reach.** `/compare`
+    has a decision record, a localized spec table, a query that counts shared
+    labels and a lock of its own — and every link INTO it dropped the set, so a
+    shopper could reach it with exactly one product, forever. The PDP's button
+    appends its own product to whatever its URL already holds and nothing ever
+    gave it one; the table linked each column back to a bare `/p/{slug}`; the
+    too-few state pointed at the home page.
+    `TestEveryHardCodedLinkResolvesToARoute` is blind to this by construction —
+    it asks whether a link RESOLVES, never whether a state is reachable — and
+    `TestEveryTableIsRead` passes because `product_specs` is read on every
+    single-column render. **"Is it wired?" and "can a customer get there?" are
+    different questions,** which is `/account/warranty`'s form one level out:
+    the ROUTE was linked and the thing it does was not.
+    Found by using the site rather than reading it. The listing and search build
+    the set now — a checkbox per tile in a GET form, because a comparison writes
+    nothing — and the checkbox sits OUTSIDE the card, since the whole card is
+    one link and a control nested in an anchor is neither clickable nor valid.
+
+36. **A refusal announced with its reason attached to nothing.** The write-face
+    rule puts `aria-invalid` on every control a form refused, and thirteen
+    templates do it. `aria-invalid` says THAT a field is wrong; the paragraph
+    beside it says why, and nothing connects the two without `aria-describedby`.
+    So a screen reader read "edit text, invalid" and stopped — the message on
+    screen, in the DOM, and unreachable by the one visitor who could not simply
+    look at it. Forty-three fields, which is most of the forms on the site: the
+    checkout's own `field()` helper had it right from the day it was written and
+    nothing held anything else to it.
+    The registration password field is why the guard asks for an ERROR rather
+    than for something that exists — it was already described by its own HINT,
+    so the first version of the rule passed it while a rejected form announced
+    "invalid" and then read out the rules it had just broken, with the refusal
+    never spoken.
+    **And the browser rule that was going to gate it had no subject.**
+    `check-layout` carries the same check, and every row it measures is a GET:
+    no page it visits has ever rendered a refused field. That is #26 again, in
+    the act of being written. The coverage claim lives in a Go test that derives
+    its corpus from the templates; the browser keeps it as a backstop for
+    whatever renders one later.
+
+37. **Two answers to "what does this cost", one click apart.** A listing tile
+    takes the cheapest BUYABLE variant; the PDP's `Resolve` took the FIRST
+    buyable one in position order. They agree until the cheapest is out of
+    stock — `aurora-slate-11` in goen's own seed — and then a shopper clicks
+    NT$14,900 and lands on NT$17,900. #13's shape again, and `TestResolve` could
+    not see it: its matrix puts the cheapest buyable variant first, so "first
+    buyable" and "cheapest buyable" are the same row and the assertion is blind
+    to which rule produced it. **A fixture where two rules agree is a fixture
+    that tests neither.**
+    Neither surface said the figure was the bottom of a range, either. The
+    query's own column is called `min_price_cents` and nothing rendered it as a
+    minimum, for 7 of the seed's 17 active products. `price_varies` rides with
+    it in all nine tile queries. The mark is INSIDE the message — `%s 起` against
+    `From %s` — because 起 is a suffix and "From" is a prefix, and the first cut
+    used 最低, which is the price FILTER's label two columns to the left.
+
 ## Build tools stay out of go.mod
 
 `templ` is a `tool` directive because it generates code this module compiles.
@@ -1910,6 +1965,15 @@ row, no write of any kind — so it is shareable, bookmarkable, correct under th
 back button, and there is no state to expire or to disagree with the page.
 Adding a product is therefore a LINK, and the write-face rule has nothing to say
 about it because there is no mutation to make work without scripting.
+
+**That decision also means every link INTO the page has to CARRY the set, and
+for a long time none did** — mistake #35. The set is BUILT on the listing and on
+search, a checkbox per tile inside a GET form, because those are the two pages
+where somebody is choosing between candidates; a shop window, a promotional list
+and a wishlist are not, and comparing a discounted laptop against a discounted
+cable is a table of blanks. The checkbox sits outside the card and never inside
+it: the whole card is one link. And the table's own column headings link back
+through the set, or building a third column means starting from one again.
 
 Specs every product states come FIRST; a label only one carries is a footnote
 and reads quieter. A product that does not state a spec renders an absence, not
