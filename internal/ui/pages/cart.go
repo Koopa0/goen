@@ -49,6 +49,12 @@ func (l CartLine) effectiveQuantity() int32 {
 	return l.Quantity
 }
 
+// PricedQuantityText is how many this line is priced for, which differs from
+// what the cart holds exactly when the shelf cannot meet it.
+func (l CartLine) PricedQuantityText() string {
+	return strconv.FormatInt(int64(l.effectiveQuantity()), 10)
+}
+
 // QuantityText is how many the cart holds.
 func (l CartLine) QuantityText() string { return strconv.FormatInt(int64(l.Quantity), 10) }
 
@@ -140,7 +146,13 @@ type CheckoutView struct {
 	Chosen              string
 	QuotedShippingCents int64
 	SurchargeCents      int64
-	ZoneName            string
+	// Repriced is the offshore surcharge the customer has not seen yet. Not an
+	// Errors entry: nothing they typed was wrong, and the fee could not be
+	// priced until a postal code existed. Rendered as a notice, and still a 422
+	// — the submission was not accepted, and nobody is charged a figure they
+	// have not been shown.
+	Repriced string
+	ZoneName string
 	// Destination is decided by the server; no field carries it back.
 	Destination         string
 	Address             CheckoutAddress

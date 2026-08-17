@@ -178,3 +178,51 @@ func TestACheapestPriceSaysItIsTheCheapest(t *testing.T) {
 		})
 	}
 }
+
+// TestAProductWithNothingLeftSaysSo holds the state between "this combination
+// is gone" and "choose one".
+//
+// SoldOut() asks about the RESOLVED variant, so it is false until somebody has
+// picked every option — and on a product where every option is gone, the page
+// said nothing about stock, offered a button reading 請選擇規格, and left the
+// customer to work through the picker to discover that each combination it
+// could build was unavailable. The information was there, spread across four
+// values in the picker and absent from the two places anybody reads first.
+//
+// "Has this visitor chosen one" and "can anything here be bought" are different
+// questions; the view knew only the first.
+func TestAProductWithNothingLeftSaysSo(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	gone := i18n.T(ctx, i18n.KeyAllSoldOut)
+
+	tests := []struct {
+		name        string
+		anySellable bool
+		exact       bool
+		sellable    bool
+		want        bool
+	}{
+		{name: "nothing chosen and nothing to choose", anySellable: false, want: true},
+		{
+			name:        "one combination gone, others buyable",
+			anySellable: true, exact: true, sellable: false, want: false,
+		},
+		{name: "an ordinary product", anySellable: true, exact: true, sellable: true, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			v := ProductView{
+				Name: "Meridian Book 14", Brand: "Meridian", Slug: "meridian-book-14",
+				SelectionOK: true, AnySellable: tt.anySellable,
+				Exact: tt.exact, Sellable: tt.sellable, PriceCents: 4290000,
+			}
+			html := renderToString(t, Product(ProductMeta(&v), &v))
+			if got := strings.Contains(html, gone); got != tt.want {
+				t.Errorf("a product (anySellable=%v, exact=%v, sellable=%v) says %q = %v, want %v",
+					tt.anySellable, tt.exact, tt.sellable, gone, got, tt.want)
+			}
+		})
+	}
+}

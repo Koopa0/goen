@@ -110,7 +110,14 @@ templ cartLine(l CartLine) {
 			</form>
 		</div>
 		<div class="goen-cart__money">
-			<span class="ui-cart-line__price">{ l.LineTotal() }</span>
+			<span class="ui-cart-line__price">
+				{ l.LineTotal() }
+				if l.Short {
+					<span class="ui-cart-line__meta">
+						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPricedFor), l.PricedQuantityText()) }
+					</span>
+				}
+			</span>
 			<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyUnitPrice), l.UnitPrice()) }</span>
 		</div>
 	</li>
@@ -167,6 +174,9 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 					</div>
 					if v.HasErr("shipping") {
 						<p class="ui-error-text">{ v.Err("shipping") }</p>
+					}
+					if v.Repriced != "" {
+						<p class="ui-alert ui-alert--info" role="status">{ v.Repriced }</p>
 					}
 					<h2 class="goen-checkout__section">{ i18n.T(ctx, i18n.KeySectionRecipient) }</h2>
 					if v.OffersTheAddressBook() {

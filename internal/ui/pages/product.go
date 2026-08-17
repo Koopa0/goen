@@ -120,7 +120,12 @@ type ProductView struct {
 	SelectionOK bool
 	Exact       bool
 	// PriceVaries reports that dearer variants exist than the one priced here.
-	PriceVaries  bool
+	PriceVaries bool
+	// AnySellable reports whether ANY variant can be bought. Exact says whether
+	// this visitor has chosen one, and the two answer different questions: a
+	// page that knew only the second told somebody to pick a spec on a product
+	// where every spec was gone.
+	AnySellable  bool
 	VariantID    string
 	SKU          string
 	PriceCents   int64
@@ -199,6 +204,9 @@ func (v *ProductView) CanBuy() bool { return v.SelectionOK && v.Exact && v.Sella
 
 // NeedsChoice reports whether the visitor still has an option to pick.
 func (v *ProductView) NeedsChoice() bool { return v.SelectionOK && !v.Exact }
+
+// AllSoldOut reports that nothing on this page is buyable, whatever is chosen.
+func (v *ProductView) AllSoldOut() bool { return v.SelectionOK && !v.AnySellable }
 
 // SoldOut reports whether the pinned combination exists but cannot be bought.
 func (v *ProductView) SoldOut() bool { return v.SelectionOK && v.Exact && !v.Sellable }

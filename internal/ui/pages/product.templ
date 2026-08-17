@@ -215,7 +215,9 @@ templ productBuy(v *ProductView) {
 						<s class="ui-price__was">{ v.Compare() }</s>
 					}
 				</span>
-				if v.SoldOut() {
+				if v.AllSoldOut() {
+					<span class="ui-badge">{ i18n.T(ctx, i18n.KeyAllSoldOut) }</span>
+				} else if v.SoldOut() {
 					<span class="ui-badge">{ i18n.T(ctx, i18n.KeySoldOut) }</span>
 				} else if v.LowStock() {
 					<span class="ui-badge ui-badge--warn">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOnlyLeft), v.AvailableText()) }</span>
@@ -249,6 +251,10 @@ templ productBuy(v *ProductView) {
 			<p class="ui-alert ui-alert--warn goen-pdp__note" role="status">
 				{ i18n.T(ctx, i18n.KeyVariantNotFound) }
 			</p>
+		} else if v.AllSoldOut() {
+			<p class="ui-alert ui-alert--warn goen-pdp__note" role="status">
+				{ i18n.T(ctx, i18n.KeyAllSoldOutHint) }
+			</p>
 		} else if v.NeedsChoice() {
 			<p class="goen-pdp__note" role="status">{ i18n.T(ctx, i18n.KeyChooseBeforeAdding) }</p>
 		}
@@ -275,7 +281,9 @@ templ productBuy(v *ProductView) {
 				type="submit"
 				disabled?={ !v.CanBuy() }
 			>
-				if v.SoldOut() {
+				if v.AllSoldOut() {
+					{ i18n.T(ctx, i18n.KeyAllSoldOut) }
+				} else if v.SoldOut() {
 					{ i18n.T(ctx, i18n.KeySoldOut) }
 				} else if v.NeedsChoice() {
 					{ i18n.T(ctx, i18n.KeyChooseOptions) }

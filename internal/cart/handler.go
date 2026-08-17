@@ -307,7 +307,7 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 		// the postal code is not trustworthy, later and the customer has
 		// already committed to a figure.
 		if quoteErr := h.requote(r, &view, shippingID, addr); quoteErr != "" {
-			errs = map[string]string{"shipping": quoteErr}
+			view.Repriced = quoteErr
 		}
 	}
 	if couponErr != "" {
@@ -318,7 +318,7 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 		}
 		errs["coupon"] = couponErr
 	}
-	if len(errs) > 0 {
+	if len(errs) > 0 || view.Repriced != "" {
 		view.Errors = errs
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity,
 			pages.Checkout(pages.CheckoutMeta(r.Context()), &view))

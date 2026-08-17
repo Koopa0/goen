@@ -273,6 +273,13 @@ var (
 		ZhHant: "運費暫時無法計算,請再試一次。",
 		En:     "We could not work out the delivery charge. Please try again.",
 	})
+	// KeyPricedFor closes the arithmetic on a line the shelf cannot meet: the
+	// quantity box says 5 and the price is for 2, so the multiplication a
+	// customer does in their head disagrees with the figure beside it.
+	KeyPricedFor = key("cart.pricedfor", Message{
+		ZhHant: "以 %s 件計價",
+		En:     "priced for %s",
+	})
 	KeyShippingRepriced = key("checkout.shipping.repriced", Message{
 		ZhHant: "%s運費另計,已更新為 %s。確認後再送出一次。",
 		En:     "%s carries a delivery surcharge. The total is now %s — check it and submit again.",

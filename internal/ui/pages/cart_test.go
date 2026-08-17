@@ -6,6 +6,8 @@ import (
 
 	"github.com/a-h/templ"
 
+	"fmt"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -475,5 +477,87 @@ func TestTheInvoiceFormAsksForOneThing(t *testing.T) {
 	if got, want := v.CheckoutLink("ship", "ship-2"),
 		"/checkout?address=addr-1&invoice=company&ship=ship-2"; got != want {
 		t.Errorf("CheckoutLink(ship) = %q, want %q", got, want)
+	}
+}
+
+// TestAnOffshoreRequoteIsNotAnError holds a legitimate outcome that was dressed
+// as a mistake.
+//
+// The delivery method is chosen above the address, so the fee on screen is a
+// mainland estimate — there is no postal code yet. A parcel to 金門 is priced
+// on the first submission that carries one, and the customer is shown the real
+// figure before being charged it. That is the design, and nothing they typed
+// was wrong.
+//
+// It rendered as ui-error-text under the shipping section, beside "enter the
+// recipient's name" — so somebody who had filled the form correctly was told
+// they had made a mistake and left looking for it. It is a notice now, and
+// still a 422: the submission was not accepted, which is the half that must
+// not change.
+func TestAnOffshoreRequoteIsNotAnError(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	view := CheckoutView{
+		Cart:     CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Shipping: []ShippingChoice{{Code: "home", Name: "宅配到府"}},
+		Repriced: "離島運費另計,已更新為 NT$280。確認後再送出一次。",
+	}
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
+
+	if !strings.Contains(html, view.Repriced) {
+		t.Fatal("the re-quote is not shown at all")
+	}
+	// The element carrying it, not merely the words: the whole point is which
+	// one, and the string appears the same either way.
+	_, after, ok := strings.Cut(html, view.Repriced)
+	if !ok {
+		t.Fatal("could not locate the message")
+	}
+	before := html[:len(html)-len(after)-len(view.Repriced)]
+	i := strings.LastIndex(before, "<p ")
+	if i < 0 {
+		t.Fatal("the message is not in a paragraph")
+	}
+	tag := before[i:]
+	if strings.Contains(tag, "ui-error-text") || strings.Contains(tag, "ui-alert--error") {
+		t.Errorf("a re-quote is announced as a mistake the customer made: %s", tag)
+	}
+	if !strings.Contains(tag, `role="status"`) {
+		t.Errorf("the re-quote is not announced at all: %s", tag)
+	}
+}
+
+// TestAShortLineSaysWhatItIsPricedFor holds arithmetic a customer can check.
+//
+// A line the shelf cannot meet is priced for what CAN be supplied — the store
+// and the view agree on that, and the subtotal is right. What the page showed
+// was the quantity box holding 5 beside a figure for 2, so the multiplication
+// anybody does in their head disagreed with the total next to it, on the page
+// where they are deciding whether the number is correct.
+func TestAShortLineSaysWhatItIsPricedFor(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	short := CartLine{
+		VariantID: "v1", Slug: "x", Name: "Pixelight 9 Pro",
+		UnitCents: 100000, Quantity: 5, Available: 2, Short: true,
+	}
+	if got, want := short.LineTotal(), "NT$2,000"; got != want {
+		t.Errorf("LineTotal() = %q, want %q — the price is for what can be supplied", got, want)
+	}
+
+	html := renderToString(t, Cart(CartMeta(ctx), CartView{Lines: []CartLine{short}}))
+	said := fmt.Sprintf(i18n.T(ctx, i18n.KeyPricedFor), "2")
+	if !strings.Contains(html, said) {
+		t.Errorf("a line asking for 5 and priced for 2 does not say so; wanted %q", said)
+	}
+
+	// A line the shelf can meet says nothing: "priced for 5" beside "× 5" is
+	// noise on every ordinary row in the cart.
+	ok := CartLine{VariantID: "v2", Slug: "y", Name: "y", UnitCents: 100000, Quantity: 2, Available: 9}
+	full := renderToString(t, Cart(CartMeta(ctx), CartView{Lines: []CartLine{ok}}))
+	if strings.Contains(full, i18n.T(ctx, i18n.KeyPricedFor)[:3]) {
+		t.Error("an ordinary line is annotated with what it is priced for")
 	}
 }

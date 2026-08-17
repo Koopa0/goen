@@ -109,6 +109,17 @@ var (
 		ZhHant: "找不到這個組合,請重新選擇。",
 		En:     "That combination does not exist. Please choose again.",
 	})
+	// KeyAllSoldOut is the product with nothing left in any spec. Distinct from
+	// KeySoldOut, which is one combination: telling somebody to choose a spec
+	// when every spec is gone sends them through the picker to find out.
+	KeyAllSoldOut = key("pdp.allsoldout", Message{
+		ZhHant: "目前全部規格都已售完",
+		En:     "Every option is sold out",
+	})
+	KeyAllSoldOutHint = key("pdp.allsoldout.hint", Message{
+		ZhHant: "選一個規格,補貨時通知你。",
+		En:     "Pick an option and we will tell you when it is back.",
+	})
 	KeyRestockHeading = key("pdp.restock", Message{ZhHant: "到貨通知我", En: "Tell me when it is back"})
 	KeyRestockDone    = key("pdp.restock.done", Message{
 		ZhHant: "已經記下了,補貨時會寄信給你。",
