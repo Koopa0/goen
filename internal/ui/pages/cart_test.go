@@ -423,3 +423,57 @@ func TestTheCheckoutSummaryNamesTheVariant(t *testing.T) {
 		t.Errorf("the checkout summary does not name the variant:\n%s", summary)
 	}
 }
+
+// TestTheInvoiceFormAsksForOneThing holds which half of the form exists.
+//
+// 會員載具, 手機條碼載具 and 公司統編 need different information, and the page
+// rendered BOTH the carrier field and the 統編 field whatever was chosen. So a
+// customer taking the default read two fields neither of which applied to them,
+// and one entering a 統編 was shown a carrier box the validator blanks — the
+// server demanding one thing while the form offered two.
+//
+// The choice is a link for the reason the delivery method is: it decides which
+// field the form asks for, so a chooser only a script could act on would leave
+// the two disagreeing. Validate() already blanks the field that does not apply;
+// this is the page catching up with it.
+func TestTheInvoiceFormAsksForOneThing(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	tests := []struct {
+		name        string
+		kind        string
+		wantCarrier bool
+		wantTaxID   bool
+	}{
+		{name: "the default keeps neither", kind: "", wantCarrier: false, wantTaxID: false},
+		{name: "a mobile barcode needs the carrier", kind: "mobile_carrier", wantCarrier: true},
+		{name: "a company invoice needs the 統編", kind: "company", wantTaxID: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			view := CheckoutView{
+				Cart:           CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+				Shipping:       []ShippingChoice{{Code: "home", Name: "宅配到府"}},
+				Invoice:        CheckoutInvoice{Type: tt.kind},
+				InvoiceChoices: []InvoiceChoice{{Value: "member_carrier", Label: "會員載具"}},
+			}
+			html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
+			if got := strings.Contains(html, `id="invoice_carrier"`); got != tt.wantCarrier {
+				t.Errorf("invoice=%q renders the carrier field = %v, want %v", tt.kind, got, tt.wantCarrier)
+			}
+			if got := strings.Contains(html, `id="invoice_tax_id"`); got != tt.wantTaxID {
+				t.Errorf("invoice=%q renders the 統編 field = %v, want %v", tt.kind, got, tt.wantTaxID)
+			}
+		})
+	}
+
+	// And picking one must not silently undo the other two choices, which is
+	// what a chooser that rebuilt the URL from scratch would do.
+	v := &CheckoutView{Chosen: "ship-1", ChosenAddress: "addr-1", Invoice: CheckoutInvoice{Type: "company"}}
+	if got, want := v.CheckoutLink("ship", "ship-2"),
+		"/checkout?address=addr-1&invoice=company&ship=ship-2"; got != want {
+		t.Errorf("CheckoutLink(ship) = %q, want %q", got, want)
+	}
+}

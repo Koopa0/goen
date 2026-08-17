@@ -1,10 +1,13 @@
 package ratelimit
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 // Guard wraps a handler with a per-IP limit, answering 429 with Retry-After.
@@ -20,7 +23,7 @@ func Guard(l *Limiter, log *slog.Logger, next http.HandlerFunc) http.HandlerFunc
 		if !ok {
 			log.WarnContext(r.Context(), "rate limited",
 				"path", r.URL.Path, "retry_after_seconds", int(retryAfter.Seconds()+1))
-			Refuse(w, retryAfter)
+			Refuse(r.Context(), w, retryAfter)
 			return
 		}
 		next(w, r)
@@ -30,7 +33,7 @@ func Guard(l *Limiter, log *slog.Logger, next http.HandlerFunc) http.HandlerFunc
 // Refuse writes the 429. Exported so the sign-in handler's per-account refusal
 // is byte-identical to the per-IP one, which is what stops it answering "does
 // this account exist?".
-func Refuse(w http.ResponseWriter, retryAfter time.Duration) {
+func Refuse(ctx context.Context, w http.ResponseWriter, retryAfter time.Duration) {
 	// Rounded UP: rounding down tells a client to come back before it is
 	// allowed, which produces a second 429.
 	seconds := int(retryAfter.Seconds())
@@ -44,8 +47,11 @@ func Refuse(w http.ResponseWriter, retryAfter time.Duration) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusTooManyRequests)
-	// i18n-exempt: refusing before the handler runs is the whole point — this
-	// fires ahead of anything that could read a locale, and rendering a page
-	// here would be work the limiter exists to avoid doing.
-	_, _ = w.Write([]byte("429 請求過於頻繁,請稍後再試。\n"))
+	// Plain text rather than a page, because rendering one is the work the
+	// limiter exists to avoid — but in the visitor's own language, because
+	// withLocale is applied OUTSIDE the mux and every Guard is registered on it,
+	// so the locale is on this context. The exemption that used to sit here said
+	// otherwise and was the reason a throttled English visitor got a Chinese
+	// sentence: a comment stating a rule the middleware order does not implement.
+	_, _ = w.Write([]byte("429 " + i18n.T(ctx, i18n.KeyTooManyRequests) + "\n"))
 }

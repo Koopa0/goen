@@ -278,6 +278,9 @@ func (v *CheckoutView) CheckoutLink(param, value string) string {
 	if v.ChosenAddress != "" {
 		q.Set("address", v.ChosenAddress)
 	}
+	if v.Invoice.Type != "" {
+		q.Set("invoice", v.Invoice.Type)
+	}
 	q.Set(param, value)
 	return "/checkout?" + q.Encode()
 }
@@ -433,13 +436,25 @@ type CheckoutInvoice struct {
 	TaxID   string
 }
 
-// Is reports whether this is the chosen type, for the radio group.
-func (i CheckoutInvoice) Is(t string) bool {
+// Is reports whether this is the chosen type.
+func (i CheckoutInvoice) Is(t string) bool { return i.Chosen() == t }
+
+// Chosen is the type in force, which is the default until somebody picks one.
+func (i CheckoutInvoice) Chosen() string {
 	if i.Type == "" {
-		return t == "member_carrier"
+		return "member_carrier"
 	}
-	return i.Type == t
+	return i.Type
 }
+
+// NeedsCarrier and NeedsTaxID decide which half of the form exists. Rendering
+// both asks a customer to read two fields to find the one that applies, and
+// leaves required promising something the server will not demand — the reason
+// the delivery destination is chosen by a link rather than shown as both.
+func (i CheckoutInvoice) NeedsCarrier() bool { return i.Chosen() == "mobile_carrier" }
+
+// NeedsTaxID reports whether the 統編 field applies.
+func (i CheckoutInvoice) NeedsTaxID() bool { return i.Chosen() == "company" }
 
 // OrderView is the confirmation page.
 type OrderView struct {

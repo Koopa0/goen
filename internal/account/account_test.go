@@ -5,6 +5,11 @@ import (
 	"strings"
 	"testing"
 
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -259,5 +264,60 @@ func TestNoFieldMessageLeaksAFormatVerb(t *testing.T) {
 	})["password"]
 	if !strings.Contains(short, strconv.Itoa(MinPasswordRunes)) {
 		t.Errorf("the too-short message is %q and does not state the minimum", short)
+	}
+}
+
+// TestAGuestSavingIsSentBackToTheProduct holds where a refused save lands.
+//
+// Saving is a plain POST, so a signed-out visitor pressing it was redirected to
+// /signin?next=/account/wishlist — a fixed string. They signed in and arrived at
+// an empty list, having lost both the item they wanted and the page they were
+// reading. The form has carried a validated same-site return path since it was
+// written; the guest branch simply ran before the form was read.
+func TestAGuestSavingIsSentBackToTheProduct(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		ret  string
+		want string
+	}{
+		{
+			name: "back to the product",
+			ret:  "/p/pixelight-9-pro",
+			want: "/signin?next=/p/pixelight-9-pro",
+		},
+		{
+			// An off-site return is what SitePathOr exists to refuse, and the
+			// wishlist is the honest fallback rather than somebody else's host.
+			name: "an off-site return is refused",
+			ret:  "https://evil.example/steal",
+			want: "/signin?next=/account/wishlist",
+		},
+		{
+			name: "a protocol-relative path is refused too",
+			ret:  "//evil.example/steal",
+			want: "/signin?next=/account/wishlist",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			h := &Handler{log: slog.New(slog.DiscardHandler)}
+			body := url.Values{"slug": {"pixelight-9-pro"}, "return": {tt.ret}}
+			r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/account/wishlist",
+				strings.NewReader(body.Encode()))
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			w := httptest.NewRecorder()
+
+			h.SaveWishlist(w, r)
+
+			if w.Code != http.StatusSeeOther {
+				t.Fatalf("SaveWishlist(guest) status = %d, want %d", w.Code, http.StatusSeeOther)
+			}
+			if got := w.Header().Get("Location"); got != tt.want {
+				t.Errorf("SaveWishlist(return=%q) redirects to %q, want %q", tt.ret, got, tt.want)
+			}
+		})
 	}
 }

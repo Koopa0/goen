@@ -207,7 +207,7 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 
 	if retryAfter, allowed := h.askLimit.Allow("ask:" + u.ID); !allowed {
-		ratelimit.Refuse(w, retryAfter)
+		ratelimit.Refuse(r.Context(), w, retryAfter)
 		return
 	}
 

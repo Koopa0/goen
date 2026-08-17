@@ -141,7 +141,7 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 	// Before Authenticate: argon2 at 64 MiB is the cost this limit protects.
 	if retryAfter, ok := h.signinLimit.Allow("account:" + strings.ToLower(strings.TrimSpace(email))); !ok {
 		h.log.WarnContext(r.Context(), "sign-in throttled by account")
-		ratelimit.Refuse(w, retryAfter)
+		ratelimit.Refuse(r.Context(), w, retryAfter)
 		return
 	}
 
@@ -540,13 +540,21 @@ func (h *Handler) Wishlist(w http.ResponseWriter, r *http.Request) {
 
 // SaveWishlist serves POST /account/wishlist.
 func (h *Handler) SaveWishlist(w http.ResponseWriter, r *http.Request) {
-	u, ok := FromContext(r.Context())
-	if !ok {
-		http.Redirect(w, r, "/signin?next=/account/wishlist", http.StatusSeeOther)
-		return
-	}
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
+		return
+	}
+	// web.SitePathOr refuses anything but a same-site path, which is what makes
+	// a redirect target read off a form safe to use.
+	back := web.SitePathOr(r.PostFormValue("return"), "/account/wishlist")
+
+	u, ok := FromContext(r.Context())
+	if !ok {
+		// Back to the product, not to an empty wishlist: somebody who pressed
+		// save was looking at something, and sending them to a list of nothing
+		// after signing in loses both the item and the page they were on. The
+		// form is read BEFORE the check for exactly this.
+		http.Redirect(w, r, "/signin?next="+urlQueryEscape(back), http.StatusSeeOther)
 		return
 	}
 
@@ -562,11 +570,7 @@ func (h *Handler) SaveWishlist(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	//nolint:gosec // G710: web.SitePathOr refuses anything but a same-site path;
-	// the taint analyser cannot see through it, and internal/web's own tests
-	// are what keep that claim true.
-	http.Redirect(w, r, web.SitePathOr(r.PostFormValue("return"), "/account/wishlist"),
-		http.StatusSeeOther)
+	http.Redirect(w, r, back, http.StatusSeeOther)
 }
 
 // ChangeEmail serves POST /account/email.
@@ -689,7 +693,7 @@ func (h *Handler) GoogleSignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if retryAfter, ok := h.signinLimit.Allow("oauth:" + clientIP(r)); !ok {
-		ratelimit.Refuse(w, retryAfter)
+		ratelimit.Refuse(r.Context(), w, retryAfter)
 		return
 	}
 

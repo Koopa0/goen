@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -201,6 +202,12 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	view.Destination = string(destinationOf(view.Shipping, view.Chosen))
+	// The 發票 choice travels the same way, and for the same reason: it decides
+	// which field the form asks for, so a chooser that only a script could act
+	// on would leave the two disagreeing.
+	if kind := r.URL.Query().Get("invoice"); slices.Contains(InvoiceTypes, kind) {
+		view.Invoice.Type = kind
+	}
 
 	var prefill Address
 	fillFromBook(&view, &prefill, r.URL.Query().Get("address"))
@@ -767,7 +774,7 @@ func (h *Handler) FindOrder(w http.ResponseWriter, r *http.Request) {
 	// Bounded per IP, and BEFORE the read: unbounded, this endpoint is an oracle
 	// for the secret half of the pair.
 	if retryAfter, ok := h.findLimit.Allow("findorder:" + ratelimit.ClientIP(r)); !ok {
-		ratelimit.Refuse(w, retryAfter)
+		ratelimit.Refuse(r.Context(), w, retryAfter)
 		return
 	}
 

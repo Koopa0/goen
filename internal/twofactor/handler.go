@@ -75,7 +75,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	}
 	if retryAfter, allowed := h.limit.Allow("totp:" + u.ID); !allowed {
 		h.log.WarnContext(r.Context(), "totp throttled")
-		ratelimit.Refuse(w, retryAfter)
+		ratelimit.Refuse(r.Context(), w, retryAfter)
 		return
 	}
 
@@ -143,7 +143,7 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if retryAfter, allowed := h.limit.Allow("totp:" + u.ID); !allowed {
-		ratelimit.Refuse(w, retryAfter)
+		ratelimit.Refuse(r.Context(), w, retryAfter)
 		return
 	}
 	if err := h.store.Confirm(r.Context(), u.ID, r.PostFormValue("code")); err != nil {
