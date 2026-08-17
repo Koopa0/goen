@@ -5,14 +5,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/icons"
 )
 
-// Tile is one product card, used by the home grid and by a category listing —
-// they render the same component, so a second copy would be two visual
-// languages waiting to drift.
-//
-// The whole card is a single link, so it is one tab stop and one target. The
-// design's wishlist and quick-add buttons are deliberately absent until the
-// writes behind them exist: a control that does nothing is worse than no
-// control, and nesting a button inside a link would be invalid besides.
+// Tile is one product card, shared by the home grid and the category listing.
+// The whole card is a single link, so it is one tab stop and one target.
 templ Tile(t ProductTile) {
 	<li>
 		<a class="ui-product goen-tile" href={ templ.URL("/p/" + t.Slug) }>

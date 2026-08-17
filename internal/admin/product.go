@@ -17,26 +17,21 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// slugFormat is products_slug_format, restated so a bad slug is a message on
-// the form rather than a constraint violation the customer never sees.
+// slugFormat mirrors products_slug_format.
 var slugFormat = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
-// Field maxima. The schema does not cap these; the form does, so a paste of a
-// whole datasheet does not become an unbounded row.
-//
-// Counted in RUNES: a Traditional Chinese product name is three bytes a
-// character, and a byte limit would cut it at a third of the length.
+// Form field maxima. The schema does not cap these, and they count RUNES: a byte
+// limit would cut a Chinese name at a third of the length.
 const (
 	maxSlugRunes        = 120
 	maxNameRunes        = 200
 	maxSummaryRunes     = 500
 	maxDescriptionRunes = 20000
 	maxSKURunes         = 60
-	// MaxWarrantyMonths mirrors products_warranty_months_sane. Ten years is longer
-	// than any consumer electronics warranty and short enough that a typo shows.
+	// MaxWarrantyMonths mirrors products_warranty_months_sane.
 	MaxWarrantyMonths = 120
 
-	// MaxPriceCents is the same ceiling every money column carries.
+	// MaxPriceCents is the ceiling every money column carries.
 	MaxPriceCents = 10000000000
 )
 
@@ -46,24 +41,19 @@ type ProductForm struct {
 	Name        string
 	Summary     string
 	Description string
-	// The English copy, each half optional. goen never invents a translation —
-	// CLAUDE.md's editorial line stands — but a shop that HAS one can say so, and
-	// until these columns existed the answer was that the copy stayed Chinese for
-	// every visitor. An empty box clears whatever was there.
+	// The English copy, each half optional. An empty box clears what was there.
 	NameEn        string
 	SummaryEn     string
 	DescriptionEn string
 	WarrantyNote  string
-	// WarrantyMonths is how long this product is covered for, or 0 when the shop has
-	// not said. Per PRODUCT because it is not one number: a phone and a braided cable
-	// do not carry the same cover, and warranty registration is REFUSED while it is
-	// unset — expires_on is NOT NULL, so a default would have goen invent a promise.
+	// WarrantyMonths is 0 when the shop has not stated a term, which the query
+	// stores as NULL and warranty registration then refuses.
 	WarrantyMonths int32
 	BrandID        string
 	CategoryID     string
 }
 
-// Validate refuses what the schema would refuse, in the chrome language.
+// Validate refuses what the schema would, in the chrome language.
 func (f *ProductForm) Validate(ctx context.Context) map[string]string {
 	f.Slug = strings.ToLower(strings.TrimSpace(f.Slug))
 	f.Name = strings.TrimSpace(f.Name)
@@ -87,8 +77,6 @@ func (f *ProductForm) Validate(ctx context.Context) map[string]string {
 	if utf8.RuneCountInString(f.Description) > maxDescriptionRunes {
 		errs["description"] = i18n.T(ctx, i18n.KeyFormProductDescriptionLong)
 	}
-	// The English copy is optional, so blank is not an error — but the bounds are
-	// the same fields on the same pages.
 	if utf8.RuneCountInString(f.NameEn) > maxNameRunes {
 		errs["name_en"] = i18n.T(ctx, i18n.KeyFormProductNameEnLong)
 	}
@@ -98,8 +86,6 @@ func (f *ProductForm) Validate(ctx context.Context) map[string]string {
 	if utf8.RuneCountInString(f.DescriptionEn) > maxDescriptionRunes {
 		errs["description_en"] = i18n.T(ctx, i18n.KeyFormProductDescriptionEnLong)
 	}
-	// The same range products_warranty_months_sane demands. 0 is "not stated", which
-	// the query turns into NULL.
 	if f.WarrantyMonths < 0 || f.WarrantyMonths > MaxWarrantyMonths {
 		errs["warranty_months"] = i18n.T(ctx, i18n.KeyFormWarrantyMonths)
 	}
@@ -118,27 +104,20 @@ type VariantForm struct {
 	PriceCents   int64
 	CompareCents int64
 	SafetyStock  int32
-	// The PARCEL this variant ships as. Zero means unmeasured, which the insert
-	// stores as NULL — a form cannot express "I do not know" any other way, and
-	// the difference matters: a measurement that is absent refuses no shipping
-	// method, while one that is present can.
+	// The parcel this variant ships as. Zero is UNMEASURED, stored as NULL: an
+	// absent measurement refuses no shipping method, a present one can.
 	ParcelLongestMM int32
 	ParcelSumMM     int32
 	ParcelWeightG   int32
 	// OptionValues is one value id per option the product declares, in the order
-	// the form rendered them. A product with options and a variant that names none
-	// is a variant the picker cannot resolve and the listing's one-variant filter
-	// never matches — so the form demands one of each rather than allowing a
-	// half-specified variant to exist.
+	// the form rendered them.
 	OptionValues []string
 }
 
 // Validate refuses what the schema would.
 //
-// Stock is deliberately absent: a new variant starts at zero and stock arrives
-// through the adjustment form, which posts a movement. There is no field here
-// to type a number into, because the privilege model would refuse it anyway —
-// admin's INSERT grant does not include stock_quantity.
+// Stock is absent because admin's INSERT grant does not include stock_quantity:
+// a new variant starts at zero and stock arrives through the adjustment form.
 func (f *VariantForm) Validate(ctx context.Context) map[string]string {
 	f.SKU = strings.ToUpper(strings.TrimSpace(f.SKU))
 
@@ -205,9 +184,6 @@ func (s *Store) Product(ctx context.Context, slug string) (pages.AdminProductVie
 			Active: v.IsActive,
 		})
 	}
-	// Which values each variant carries, so the list shows 星霧藍 · 512GB rather
-	// than a column of SKUs nobody can tell apart. Read as rows and grouped here:
-	// one query for the product, not one per variant.
 	links, err := s.q.AdminVariantOptionValues(ctx, slug)
 	if err != nil {
 		return pages.AdminProductView{}, fmt.Errorf("read variant options: %w", err)
@@ -230,8 +206,8 @@ func (s *Store) Product(ctx context.Context, slug string) (pages.AdminProductVie
 		item := pages.AdminOption{
 			ID: o.ID.String(), Name: o.Name, NameEn: o.NameEn,
 		}
-		// The two arrays are aggregated in one ordering by one query; the shorter
-		// bounds the walk so a mismatch cannot pair a label with the wrong value.
+		// The shortest of the three aggregates bounds the walk: a mismatch must
+		// not pair a label with the wrong value.
 		for j := 0; j < len(o.Values) && j < len(o.ValueLabels) &&
 			j < len(o.ValueIds); j++ {
 			item.Values = append(item.Values, pages.AdminOptionValue{
@@ -287,20 +263,13 @@ func (s *Store) loadChoices(ctx context.Context, view *pages.AdminProductView) e
 		c := &cats[i]
 		view.Categories = append(view.Categories, pages.AdminChoice{
 			Value: c.ID.String(),
-			// Indented by depth: a flat list of a tree hides which category is
-			// inside which, and 「手機」 under 「配件」 is a different thing from
-			// 「手機」 at the root.
 			Label: strings.Repeat("　", int(c.Depth)) + c.Name,
 		})
 	}
 	return nil
 }
 
-// CreateProduct adds a product as a DRAFT.
-//
-// Draft on purpose: products_active_is_published requires a published_at before
-// a product may go active, and a product with no variants has no price at all.
-// Publishing is its own decision, made once it is ready to be seen.
+// CreateProduct adds a product as a DRAFT. Publishing is its own decision.
 func (s *Store) CreateProduct(ctx context.Context, f *ProductForm) (slug string, fieldErrs map[string]string, err error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return "", errs, nil
@@ -323,8 +292,6 @@ func (s *Store) CreateProduct(ctx context.Context, f *ProductForm) (slug string,
 			return createErr
 		})
 	if err != nil {
-		// products_slug_key is the one a staff member can actually act on,
-		// bound to the constraint name rather than a substring of the message.
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
 			pgErr.ConstraintName == "products_slug_key" {
 			return "", map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenProduct)}, nil
@@ -334,8 +301,7 @@ func (s *Store) CreateProduct(ctx context.Context, f *ProductForm) (slug string,
 	return slug, nil, nil
 }
 
-// UpdateProduct edits a product's own fields. Its status is a separate write,
-// because publishing is a decision and renaming is not.
+// UpdateProduct edits a product's own fields. Its status is a separate write.
 func (s *Store) UpdateProduct(ctx context.Context, f *ProductForm) (map[string]string, error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
@@ -367,8 +333,6 @@ func (s *Store) SetProductStatus(ctx context.Context, slug, status string) error
 				Slug: slug, Status: status,
 			})
 			if err != nil {
-				// products_active_is_published speaks here, and so does any rule
-				// about publishing something with nothing to sell.
 				return fmt.Errorf("%w: %s", ErrRefused, err.Error())
 			}
 			if n == 0 {
@@ -403,9 +367,8 @@ func (s *Store) AddVariant(ctx context.Context, slug string, f *VariantForm) (ma
 			}); createErr != nil {
 				return createErr
 			}
-			// In the SAME transaction as the variant. A variant that exists without
-			// its option values is one the picker cannot reach and nothing on the
-			// site would show — visible only as a SKU in the back office.
+			// In the variant's own transaction: a variant without its option
+			// values is one the picker cannot reach.
 			for _, valueID := range chosen {
 				n, linkErr := q.SetVariantOptionValue(ctx, db.SetVariantOptionValueParams{
 					SKU: f.SKU, OptionValueID: valueID,
@@ -414,9 +377,7 @@ func (s *Store) AddVariant(ctx context.Context, slug string, f *VariantForm) (ma
 					return linkErr
 				}
 				if n == 0 {
-					// The value belongs to another product, or does not exist. The
-					// composite foreign key would refuse the first; this catches
-					// both as a refusal rather than a 500.
+					// The value belongs to another product, or does not exist.
 					return ErrNotFound
 				}
 			}
@@ -448,21 +409,14 @@ func ProductStatusLabel(ctx context.Context, s string) string {
 	}
 }
 
-// SpecLabelRunes and SpecValueRunes bound what the back office may type.
-//
-// In RUNES, matching product_specs_label_bounded and product_specs_value_bounded,
-// which count characters. A byte limit would give a Chinese label a third of the
-// room an English one gets, on a site whose specs are written in Chinese.
+// SpecLabelRunes and SpecValueRunes bound what the back office may type, in
+// RUNES, matching product_specs_label_bounded and product_specs_value_bounded.
 const (
 	SpecLabelRunes = 40
 	SpecValueRunes = 200
 )
 
-// SpecDraft is one 規格表 row being added, in both languages.
-//
-// The English pair is optional and separately so: 「螢幕 / 6.3 吋 OLED」 needs the
-// label translated and the value barely at all, and making a shop retype a number
-// to translate a word is how a translation feature goes unused.
+// SpecDraft is one spec-table row being added, in both languages.
 type SpecDraft struct {
 	Label   string
 	Value   string
@@ -470,11 +424,9 @@ type SpecDraft struct {
 	ValueEn string
 }
 
-// AddSpec appends one 規格 row to a product.
-//
-// The position is computed inside the INSERT rather than read first: two staff
-// members editing one product would otherwise both read the same maximum and the
-// second would meet product_specs_position_key.
+// AddSpec appends one spec row to a product. The position is computed inside the
+// INSERT: two staff members editing one product would otherwise read the same
+// maximum and collide on product_specs_position_key.
 func (s *Store) AddSpec(ctx context.Context, slug string, d SpecDraft) (map[string]string, error) {
 	label, value := strings.TrimSpace(d.Label), strings.TrimSpace(d.Value)
 	labelEn, valueEn := strings.TrimSpace(d.LabelEn), strings.TrimSpace(d.ValueEn)
@@ -505,16 +457,10 @@ func (s *Store) AddSpec(ctx context.Context, slug string, d SpecDraft) (map[stri
 		Action: ActionAddSpec, Table: "product_specs", ID: uuid.NullUUID{},
 		Before: nil, After: map[string]any{"slug": slug, "label": label},
 	}, func(ctx context.Context, q *db.Queries) error {
-		// The returned id is not carried into the audit row: the row names the
-		// product and the label, which is what somebody asking "who added this
-		// spec" is looking at. An id nobody can read is not an answer.
 		if _, err := q.AddProductSpec(ctx, db.AddProductSpecParams{
 			Slug: slug, Label: label, Value: value,
 			LabelEn: labelEn, ValueEn: valueEn,
 		}); err != nil {
-			// A slug that does not exist matches no row, which SQL does not call
-			// an error — the defect SetProductStatus already had. :one turns it
-			// into ErrNoRows, and this turns that into a refusal.
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrNotFound
 			}
@@ -527,7 +473,7 @@ func (s *Store) AddSpec(ctx context.Context, slug string, d SpecDraft) (map[stri
 	return nil, nil
 }
 
-// RemoveSpec deletes one 規格 row, scoped to the product in the DELETE's own
+// RemoveSpec deletes one spec row, scoped to the product in the DELETE's own
 // WHERE clause so an id from another product cannot be passed in.
 func (s *Store) RemoveSpec(ctx context.Context, slug, id string) error {
 	specID, err := uuid.Parse(id)
@@ -552,11 +498,8 @@ func (s *Store) RemoveSpec(ctx context.Context, slug, id string) error {
 }
 
 // chosenOptionValues turns the form's option selects into value ids, and refuses a
-// variant that does not name one value per axis.
-//
-// Demanded here rather than discovered later: a product with two options and a
-// variant naming one is resolvable by no URL the picker can build, so it would exist
-// as a SKU in the back office and appear nowhere on the site.
+// variant that does not name one value per axis — one no URL the picker builds can
+// resolve, so it would exist as a SKU and appear nowhere on the site.
 func (s *Store) chosenOptionValues(ctx context.Context, slug string, raw []string) (
 	chosen []uuid.UUID, fieldErrs map[string]string,
 ) {
@@ -584,16 +527,11 @@ func (s *Store) chosenOptionValues(ctx context.Context, slug string, raw []strin
 }
 
 // MaxOptionNameRunes bounds an option name or one of its values.
-//
-// The picker renders a value as a swatch: something longer than this is a
-// description, and a row of them wraps into a wall.
 const MaxOptionNameRunes = 40
 
 // OptionDraft is an option or one of its values, in both languages.
 //
-// The English half is a LABEL and never an identifier. The variant picker puts the
-// choice in the URL and the URL carries the canonical text, so a link shared
-// between readers in two languages selects the same variant.
+// Name is the IDENTITY the picker puts in the URL; NameEn is only a label.
 type OptionDraft struct {
 	// OptionID is empty when adding the option itself, and names the axis when
 	// adding a value to it.
@@ -602,7 +540,7 @@ type OptionDraft struct {
 	NameEn   string
 }
 
-// AddOption appends an option — an axis like 顏色 — to a product.
+// AddOption appends an option — an axis such as colour — to a product.
 func (s *Store) AddOption(ctx context.Context, slug string, d OptionDraft) (map[string]string, error) {
 	name, nameEn := strings.TrimSpace(d.Name), strings.TrimSpace(d.NameEn)
 	if errs := optionErrors(ctx, name, nameEn, "option"); len(errs) > 0 {
@@ -634,7 +572,7 @@ func (s *Store) AddOption(ctx context.Context, slug string, d OptionDraft) (map[
 	return nil, nil
 }
 
-// AddOptionValue appends a value — 星霧藍 — to one of a product's options.
+// AddOptionValue appends a value to one of a product's options.
 func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) (map[string]string, error) {
 	optionID, err := uuid.Parse(d.OptionID)
 	if err != nil {
@@ -653,9 +591,7 @@ func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) 
 			Slug: slug, OptionID: optionID, Value: name, ValueEn: nameEn,
 		}); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				// The option belongs to another product, or does not exist. The
-				// query resolves product_id FROM the option, so this is the only
-				// way that can present itself.
+				// The option belongs to another product, or does not exist.
 				return ErrNotFound
 			}
 			return err
@@ -673,8 +609,7 @@ func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) 
 	return nil, nil
 }
 
-// optionErrors is the shared validation. field names which form is being refused,
-// so the page can put the message under the right box.
+// optionErrors is the shared validation; field names which form is being refused.
 func optionErrors(ctx context.Context, name, nameEn, field string) map[string]string {
 	errs := map[string]string{}
 	switch {

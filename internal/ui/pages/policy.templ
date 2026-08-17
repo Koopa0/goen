@@ -52,10 +52,6 @@ templ FAQ(p layouts.Page, v FAQView) {
 					<section class="goen-doc__section">
 						<h2 class="h4">{ g.Category }</h2>
 						for _, item := range g.Items {
-							// <details> rather than a script-driven accordion:
-							// it opens with JavaScript off, it is keyboard
-							// operable for free, and a browser's find-in-page
-							// can still reach the answer inside it.
 							<details class="goen-doc__qa">
 								<summary>{ item.Question }</summary>
 								<p>{ item.Answer }</p>
@@ -100,10 +96,6 @@ templ Shipping(p layouts.Page, v ShippingView) {
 										<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyShippingFreeOver), m.FreeOver()) }</span>
 									}
 									if m.HasSurcharges() {
-										// Said here because a customer in 金門
-										// otherwise meets the number for the
-										// first time at the last step of the
-										// checkout.
 										<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyShippingZoneNote), m.SurchargeText(ctx)) }</span>
 									}
 								</span>

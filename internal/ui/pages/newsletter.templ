@@ -5,13 +5,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// NewsletterAction is the page a link in a newsletter email opens.
-//
-// It is a page and not a redirect because the write is a POST. Following the
-// link must not change anything: mail clients, link scanners and corporate
-// security gateways fetch the URLs in a message before a human sees it, and a
-// confirmation a scanner can complete is not a confirmation. The button here is
-// what writes, which is also the write-face rule applied to an email.
+// NewsletterAction is the page a link in a newsletter email opens. Following
+// the link writes nothing: link scanners fetch the URLs in a message before a
+// human sees it, and a confirmation a scanner can complete is not one.
 templ NewsletterAction(p layouts.Page, v NewsletterActionView) {
 	@layouts.Base(p) {
 		<div class="notice">

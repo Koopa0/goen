@@ -18,15 +18,14 @@ type CartLine struct {
 	Name         string
 	Brand        string
 	SKU          string
-	Label        string // "星霧藍 · 512GB", or "" for a product with no options
+	Label        string
 	UnitCents    int64
 	CompareCents int64
 	Quantity     int32
 	Available    int32
 
-	// Unavailable is a line the catalogue can no longer honour at all;
-	// Short is one where fewer remain than the cart asks for. Both block
-	// checkout, and both are said per line rather than as one vague banner.
+	// Unavailable is a line the catalogue can no longer honour at all; Short is
+	// one where fewer remain than the cart asks for. Both block checkout.
 	Unavailable bool
 	Short       bool
 
@@ -76,20 +75,15 @@ type CartView struct {
 	Lines         []CartLine
 	SubtotalCents int64
 	ItemCount     int64
-	// What a 再買一次 put back, and what it could not. Counts rather than
-	// names: they arrive through a redirect, and what somebody bought is not a
-	// thing to write into a URL.
+
 	ReorderAdded   int
 	ReorderSkipped int
 }
 
-// FromReorder reports whether this page is showing the result of a 再買一次.
+// FromReorder reports whether this page is showing the result of a reorder.
 func (v CartView) FromReorder() bool { return v.ReorderAdded > 0 || v.ReorderSkipped > 0 }
 
 // ReorderText is what the reorder came to, in a sentence.
-//
-// The skipped count is named rather than hidden: a reorder that quietly drops
-// two of five lines is a customer who checks out with the wrong basket.
 func (v CartView) ReorderText(ctx context.Context) string {
 	switch {
 	case v.ReorderSkipped == 0:
@@ -102,10 +96,6 @@ func (v CartView) ReorderText(ctx context.Context) string {
 }
 
 // CartMeta is the chrome view model for the cart.
-//
-// A function of the request rather than a package var, because a page title is
-// chrome and chrome follows the visitor's language. Every Meta in this package
-// went the same way for the same reason.
 func CartMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeyCart)}
 }
@@ -119,9 +109,7 @@ func (v CartView) Subtotal() string { return twd(v.SubtotalCents) }
 // ItemCountText is how many units are in the cart.
 func (v CartView) ItemCountText() string { return strconv.FormatInt(v.ItemCount, 10) }
 
-// Blocked reports whether any line stops checkout. A cart holding something
-// that cannot be supplied must not reach the checkout form: the order would
-// fail at the inventory hold, after the visitor typed an address.
+// Blocked reports whether any line stops checkout.
 func (v CartView) Blocked() bool {
 	for i := range v.Lines {
 		if v.Lines[i].Unavailable || v.Lines[i].Short {
@@ -138,10 +126,9 @@ func (v CartView) CanCheckout() bool { return !v.Empty() && !v.Blocked() }
 type ShippingChoice struct {
 	VersionID string
 	Code      string
-	// DestinationKind decides which fields the form asks for: a street address
-	// or a convenience store. It comes from shipping_methods, so adding a
-	// method with a new destination is a schema decision rather than a branch
-	// somewhere in the checkout.
+	// DestinationKind decides which fields the form asks for. It comes from
+	// shipping_methods, so a new destination is a schema decision rather than a
+	// branch in the checkout.
 	DestinationKind string
 	Name            string
 	Carrier         string
@@ -149,41 +136,32 @@ type ShippingChoice struct {
 	Free            bool
 }
 
-// Fee is what this method costs for the current subtotal. The free case is the
-// template's to word — see CheckoutView.ShipsFree.
+// Fee is what this method costs for the current subtotal.
 func (c ShippingChoice) Fee() string { return twd(c.FeeCents) }
 
 // CheckoutView is the checkout form.
 type CheckoutView struct {
 	Cart     CartView
 	Shipping []ShippingChoice
-	Chosen   string // the selected shipping version id
-	// What delivery ACTUALLY costs for the address that was typed, which the
-	// method chooser could not know: it is a link, and the address is a form
-	// below it. The order carries this figure, and a customer is never charged
+	Chosen   string
+	// QuotedShippingCents is what delivery actually costs for the address that was
+	// typed, which the method chooser could not know. A customer is never charged
 	// it until they have seen it.
 	QuotedShippingCents int64
 	SurchargeCents      int64
 	ZoneName            string
-	// Destination is the chosen method's destination kind, decided by the
-	// server. The form renders the half of the address it names, and there is
-	// no field carrying it back: a submission cannot pick its own destination.
+	// Destination is the chosen method's destination kind, decided by the server:
+	// no field carries it back, so a submission cannot pick its own destination.
 	Destination    string
 	Address        CheckoutAddress
 	Errors         map[string]string
 	Invoice        CheckoutInvoice
 	InvoiceChoices []InvoiceChoice
 	PickupBrands   []PickupBrandChoice
-	// SavedAddresses is the customer's address book, empty for a guest. Read
-	// HERE and not only on the account page: a checkout that does not offer the
-	// book makes every repeat customer retype an address they have already given
-	// us, on the one form where a mistyped postal code costs a parcel.
 	SavedAddresses []SavedAddress
-	// ChosenAddress is the saved address the form is filled from, so the
-	// chooser can mark it. Empty means the fields were typed.
-	ChosenAddress string
-	// The coupon field and what it did, echoed back so the page explains the
-	// number it is showing.
+	// ChosenAddress is the saved address the form is filled from. Empty means the
+	// fields were typed.
+	ChosenAddress       string
 	CouponCode          string
 	CouponApplied       string
 	CouponDiscountCents int64
@@ -191,16 +169,13 @@ type CheckoutView struct {
 	Idempoten           string // the idempotency key this form carries
 }
 
-// InvoiceChoice is one option in the invoice-type radio group. It is built from
-// the package that owns the rule rather than restated here, so the form and the
-// validator cannot come to offer different things.
+// InvoiceChoice is one option in the invoice-type radio group.
 type InvoiceChoice struct {
 	Value string
 	Label string
 }
 
-// CheckoutAddress is the form's own values, echoed back on rejection so a
-// visitor never retypes a form the server refused.
+// CheckoutAddress is the form's own values, echoed back on rejection.
 type CheckoutAddress struct {
 	Email      string
 	Name       string
@@ -217,9 +192,7 @@ type CheckoutAddress struct {
 	Note string
 }
 
-// ToPickupPoint reports whether the chosen method delivers to a convenience
-// store. Named for what it means rather than compared to a string in the
-// template, so the two cannot drift apart.
+// ToPickupPoint reports whether the chosen method delivers to a convenience store.
 func (v *CheckoutView) ToPickupPoint() bool { return v.Destination == "pickup_point" }
 
 // PickupBrandChoice is one convenience-store chain the form offers.
@@ -228,11 +201,7 @@ type PickupBrandChoice struct {
 	Label string
 }
 
-// PickupBrandChoices is what any form collecting a 門市 offers.
-//
-// Built from PickupBrands and PickupBrandLabel rather than written out, so the
-// checkout and the back office's correction form cannot come to offer different
-// lists — and neither can offer one the validator refuses.
+// PickupBrandChoices is what any form collecting a pickup store offers.
 func PickupBrandChoices() []PickupBrandChoice {
 	out := make([]PickupBrandChoice, 0, len(PickupBrands))
 	for _, b := range PickupBrands {
@@ -241,22 +210,16 @@ func PickupBrandChoices() []PickupBrandChoice {
 	return out
 }
 
-// PickupBrands are the convenience-store chains a parcel may be sent to,
-// in the order the form offers them.
-//
-// An allowlist, because the brand decides which carrier's manifest the parcel
-// joins: free text there is a parcel that never leaves.
+// PickupBrands are the convenience-store chains a parcel may be sent to, in the
+// order the form offers them. An allowlist, because the brand decides which
+// carrier's manifest the parcel joins.
 var PickupBrands = []string{"seven_eleven", "family_mart", "hi_life", "ok_mart"}
 
-// PickupBrandLabel is what a customer reads. The switch has no silent default:
-// a brand added to PickupBrands and not here would otherwise render as an empty
-// label on the one control the customer has to choose from.
+// PickupBrandLabel is what a customer reads.
 func PickupBrandLabel(code string) string {
 	switch code {
 	case "":
-		// An erased or address-bound order. Rendering "" keeps Delivery.Line
-		// total, where the panic below is for a brand that was stored and never
-		// taught to this switch.
+		// An erased or address-bound order, which has no brand.
 		return ""
 	case "seven_eleven":
 		return "7-ELEVEN"
@@ -272,12 +235,6 @@ func PickupBrandLabel(code string) string {
 }
 
 // Delivery is where one order goes, as read back from order_private_data.
-//
-// It exists so the two pages that show an order — the customer's and the back
-// office's — format the destination the same way. Each reads the same columns,
-// and a string assembled separately in each place holds only while every order
-// goes to a street address: the moment the destination is a 門市 instead, both
-// pages render a blank line.
 type Delivery struct {
 	PostalCode string
 	City       string
@@ -289,18 +246,12 @@ type Delivery struct {
 	PickupStoreName string
 }
 
-// IsPickup reports whether this order is collected from a convenience store.
-//
-// Decided by the store CODE, which is the column that identifies the
-// destination — a brand alone identifies nothing, and a name alone is a label
-// no carrier can route on.
+// IsPickup reports whether this order is collected from a convenience store,
+// decided by the store code because that is the column identifying a destination.
 func (d Delivery) IsPickup() bool { return d.PickupStoreCode != "" }
 
-// Line is the destination as one line a person can read.
-//
-// An erased order has neither destination, and it renders as the empty string
-// rather than as stray punctuation — which is what a page should show for a
-// customer who asked to be forgotten.
+// Line is the destination as one line a person can read. An erased order has
+// neither destination and renders empty rather than as stray punctuation.
 func (d Delivery) Line() string {
 	if d.IsPickup() {
 		return PickupBrandLabel(d.PickupBrand) + " " + d.PickupStoreName +
@@ -310,10 +261,6 @@ func (d Delivery) Line() string {
 }
 
 // SavedAddress is one address from the customer's book, offered at checkout.
-//
-// It is a separate type from AccountAddress even though the fields match: that
-// one is the account page's model and grows with what the account page needs,
-// and a shared struct would make every change there a change to the checkout.
 type SavedAddress struct {
 	ID         string
 	Label      string
@@ -331,8 +278,7 @@ func (a SavedAddress) Line() string {
 	return strings.TrimSpace(a.PostalCode + " " + a.City + a.District + a.Street)
 }
 
-// DisplayLabel is the address's own name, or a stand-in. A customer who never
-// named one still needs something to click.
+// DisplayLabel is the address's own name, or a stand-in.
 func (a SavedAddress) DisplayLabel(ctx context.Context) string {
 	if a.Label == "" {
 		return i18n.T(ctx, i18n.KeyDeliveryToAddress)
@@ -340,12 +286,9 @@ func (a SavedAddress) DisplayLabel(ctx context.Context) string {
 	return a.Label
 }
 
-// CheckoutLink is this page's URL with one parameter changed.
-//
-// The chooser links have to carry the OTHER choice: a customer who picked 超商
-// 取貨 and then a saved address must not be sent back to 宅配 by the second
-// link. Built here rather than in the template so the two controls cannot come
-// to disagree about which parameters exist.
+// CheckoutLink is this page's URL with one parameter changed. Each chooser link
+// carries the other choice, so picking a saved address cannot move the order back
+// to home delivery.
 func (v *CheckoutView) CheckoutLink(param, value string) string {
 	q := url.Values{}
 	if v.Chosen != "" {
@@ -358,8 +301,7 @@ func (v *CheckoutView) CheckoutLink(param, value string) string {
 	return "/checkout?" + q.Encode()
 }
 
-// OffersTheAddressBook reports whether the chooser is worth rendering: a saved
-// address is only relevant when the parcel is going to an address.
+// OffersTheAddressBook reports whether the chooser is worth rendering.
 func (v *CheckoutView) OffersTheAddressBook() bool {
 	return !v.ToPickupPoint() && len(v.SavedAddresses) > 0
 }
@@ -398,9 +340,6 @@ func (v *CheckoutView) HasSurcharge() bool { return v.SurchargeCents > 0 }
 func (v *CheckoutView) Surcharge() string { return twd(v.SurchargeCents) }
 
 // ShippingFeeCents is what the chosen method charges, for the total.
-//
-// The re-quoted figure wins once it exists: it is the one priced against the
-// address the customer typed, and the chooser's number is a mainland estimate.
 func (v *CheckoutView) ShippingFeeCents() int64 {
 	if v.QuotedShippingCents > 0 {
 		return v.QuotedShippingCents
@@ -416,31 +355,18 @@ func (v *CheckoutView) ShippingFeeCents() int64 {
 	return 0
 }
 
-// BaseShippingCents is the delivery charge WITHOUT the 離島 surcharge.
-//
-// The fee row and the surcharge row are two lines on the summary, deliberately
-// — the template's own comment says 「運費 NT$280」 for an order the customer
-// expected to pay NT$80 for reads as a mistake. So the fee row prints the BASE
-// and never ShippingFeeCents, which is the quote's TOTAL and already carries
-// the surcharge: printing the total there shows 280 above 200 while the total
-// below adds 280 once, which is exactly the reading the two rows exist to
-// prevent.
+// BaseShippingCents is the delivery charge without the outlying-island surcharge.
+// ShippingFeeCents is the quote's total and already carries it, so the summary's
+// fee row prints this one and the surcharge is a row of its own.
 func (v *CheckoutView) BaseShippingCents() int64 {
 	return v.ShippingFeeCents() - v.SurchargeCents
 }
 
-// ShippingText is the chosen method's fee as money, after any free-shipping
-// coupon. A coupon that zeroes the fee must read as 免運 here and not as an
-// unexplained smaller total below.
+// ShippingText is the chosen method's fee as money, after any free-delivery coupon.
 func (v *CheckoutView) ShippingText() string { return twd(v.BaseShippingCents()) }
 
-// ShipsFree reports whether delivery costs nothing, so the TEMPLATE can say so
-// in the visitor's language.
-//
-// A bool and not the word: a view model has no request to read a locale from,
-// so returning the sentence from here puts a Chinese string on an English page
-// and leaves i18n.KeyFreeShipping translated and rendered by nothing. Deciding
-// here and wording there is the split the rest of the chrome follows.
+// ShipsFree reports whether delivery costs nothing, so the template can say so in
+// the visitor's language.
 func (v *CheckoutView) ShipsFree() bool {
 	return v.CouponFreeShipping || v.BaseShippingCents() == 0
 }
@@ -450,25 +376,9 @@ func (v *CheckoutView) Total() string {
 	return twd(v.TotalCents())
 }
 
-// TotalCents is what the customer will be charged, discount and free shipping
-// included.
-//
-// The same arithmetic PlaceOrder does. It has to be: a checkout page showing
-// one figure while the order is written at another is the bug a customer
-// notices on their card statement, and the one they never trust the shop about
-// again.
-// A 免運 coupon zeroes the shop's BASE RATE and never the 離島 surcharge, which
-// is what a carrier charges to cross the water — so only BaseShippingCents goes
-// to zero and the surcharge is added back after it. Zeroing the whole shipping
-// figure here while cart.priceOrder keeps the surcharge makes the page promise
-// subtotal-discount while the order is written at subtotal+surcharge-discount,
-// and the customer meets the difference one page later, on
-// /orders/{number}/pay, as an unexplained jump from the total they had just
-// agreed to.
-//
-// The rule is stated in shipping_version_zones' own COMMENT ON COLUMN — 「免運
-// covers the base rate the shop advertises, never the 離島 surcharge a carrier
-// charges on top of it」 — and this is one of its three readers.
+// TotalCents is what the customer will be charged, and has to stay the arithmetic
+// PlaceOrder does. A free-delivery coupon zeroes the shop's base rate and never the
+// outlying-island surcharge, which is what a carrier charges to cross the water.
 func (v *CheckoutView) TotalCents() int64 {
 	shipping := v.BaseShippingCents()
 	if v.CouponFreeShipping {
@@ -495,24 +405,16 @@ func (l OrderLine) LineTotal() string { return twd(l.UnitCents * int64(l.Quantit
 // QuantityText is how many were ordered.
 func (l OrderLine) QuantityText() string { return strconv.FormatInt(int64(l.Quantity), 10) }
 
-// OrderEvent is one entry in an order's history, as the CUSTOMER sees it.
-//
-// There is no actor field on purpose. An order page is reachable by anyone
-// holding the number, and a timeline naming the staff member who picked it
-// hands out employee identities with it.
+// OrderEvent is one entry in an order's history, as the customer sees it. It
+// carries no actor: anyone holding the order number can reach this page, and a
+// timeline naming staff hands out employee identities with it.
 type OrderEvent struct {
 	Kind string
 	Note string
 	At   string
 }
 
-// LabelKey names the entry's message. The kinds are order_events' CHECK, so an
-// unknown one is a schema change nobody carried through here — which must be
-// loud rather than rendered blank.
-//
-// A KEY rather than a string, because this method has no request to read a
-// locale from and taking one would put a context parameter on a pure mapping.
-// The template renders it.
+// LabelKey names the entry's message.
 func (e OrderEvent) LabelKey() i18n.Key {
 	switch e.Kind {
 	case "placed":
@@ -556,8 +458,7 @@ type CheckoutInvoice struct {
 	TaxID   string
 }
 
-// Is reports whether this is the chosen type, for the radio group. An empty
-// choice reads as the member carrier, which is the default the form opens on.
+// Is reports whether this is the chosen type, for the radio group.
 func (i CheckoutInvoice) Is(t string) bool {
 	if i.Type == "" {
 		return t == "member_carrier"
@@ -571,46 +472,25 @@ type OrderView struct {
 	Status       string
 	Email        string
 	ShippingName string
-	// DeliveryTo is where the order goes, already formatted. The DESTINATION
-	// and not merely the method: naming the method is enough for 宅配 — the
-	// customer typed the address a moment ago — and useless for 超商取貨,
-	// where "which store did I pick?" is the whole question this page is read
-	// to answer.
-	DeliveryTo    string
-	PlacedAt      string
-	Lines         []OrderLine
-	SubtotalCents int64
-	ShippingCents int64
-	DiscountCents int64
-	// DiscountReason is which coupon, as "CODE · description", or "" when the
-	// order had no coupon. Joined at read time rather than snapshotted here:
-	// coupons.code is never updated and the FK is ON DELETE RESTRICT.
+	// DeliveryTo is the destination and not merely the method: "which store did I
+	// pick?" is the question a convenience-store order is read to answer.
+	DeliveryTo     string
+	PlacedAt       string
+	Lines          []OrderLine
+	SubtotalCents  int64
+	ShippingCents  int64
+	DiscountCents  int64
 	DiscountReason string
 	TaxCents       int64
 	Timeline       []OrderEvent
 	Shipments      []OrderShipment
-	// Cancelled is the one-shot notice a successful cancellation redirects
-	// with, so a reload does not resubmit the form behind it.
-	Cancelled bool
-	// Committed is whether the order is funded — paid, or covered by store
-	// credit. NOT the same as a status: an order stays 'pending' between the
-	// capture and the shop picking it.
-	Committed bool
-	// OwedCents is what is left to pay: the total less the store credit spent on
-	// it. Committed cannot answer this on its own — a fully store-credited order
-	// has no payment row and stays 'pending', so committed_orders reports it
-	// false while the customer owes nothing.
+	Cancelled      bool
+	Committed      bool
+	// OwedCents is what is left to pay: the total less the store credit spent on it.
 	OwedCents int64
 }
 
 // CanCancel reports whether the customer may still call this order off.
-//
-// Unpaid and not yet being picked. A paid order is not cancelled but refunded,
-// and that is the shop's decision — the button is absent rather than present
-// and refused, because a control that always says no is worse than no control.
-//
-// The database decides the same thing in CancelOrderByCustomer's WHERE clause;
-// this only decides whether to offer the button.
 func (v *OrderView) CanCancel() bool {
 	return v.Status == "pending" && !v.Committed
 }
@@ -632,10 +512,6 @@ func (v *OrderView) Shipping(ctx context.Context) string {
 }
 
 // Discounted reports whether anything came off this order.
-//
-// The order page states it, because without the line subtotal plus shipping
-// does not equal the total and nothing accounts for the difference: a customer
-// reading their own receipt cannot tell whether they have been overcharged.
 func (v *OrderView) Discounted() bool { return v.DiscountCents > 0 }
 
 // Discount is what came off, as a negative figure.
@@ -646,12 +522,8 @@ func (v *OrderView) Total() string {
 	return twd(v.SubtotalCents - v.DiscountCents + v.ShippingCents + v.TaxCents)
 }
 
-// CanRequestReturn reports whether the order has reached a state where sending
-// something back is the right action.
-//
-// Anything before 'shipped' has not left the warehouse, and the answer there is
-// cancellation, not a return — return_within_shipment would refuse every line
-// anyway, so offering the link would be offering a form that cannot succeed.
+// CanRequestReturn reports whether the goods have left the warehouse, which is
+// what return_within_shipment bounds a return by.
 func (v *OrderView) CanRequestReturn() bool {
 	switch v.Status {
 	case "shipped", "delivered", "completed":
@@ -661,24 +533,9 @@ func (v *OrderView) CanRequestReturn() bool {
 	}
 }
 
-// AwaitingPayment reports whether the order is still waiting to be paid, which
-// is the state every order is in the moment it is placed.
-//
-// THREE questions, because 'pending' answers none of them. Read the status
-// alone and an order stays 尚未付款 with a 前往付款 link beside it from the
-// moment the webhook takes the money until a human at the shop moves it to
-// picking — overnight, over a weekend, for as long as the queue is. That is the
-// page a customer lands on after paying (Stripe returns them to it) and the
-// page the receipt links back to, so "we have your money" arrives by email
-// while the linked page says otherwise.
-//
-// CanCancel, three lines up, reads Committed. Two halves of one fact that must
-// not be allowed to disagree — CLAUDE.md #13.
-//
-// OwedCents as well as Committed, because neither covers the other's case: a
-// captured card leaves the order committed and still owing (order_amount_owed
-// nets store credit, not payments), while a fully store-credited order owes
-// nothing and is not committed until it leaves pending.
+// AwaitingPayment reports whether the order is still waiting to be paid. 'pending'
+// cannot answer alone: an order stays pending from the capture until somebody picks
+// it, and a fully store-credited order owes nothing while it is not yet committed.
 func (v *OrderView) AwaitingPayment() bool {
 	return v.Status == "pending" && !v.Committed && v.OwedCents > 0
 }
@@ -688,6 +545,5 @@ func (v *CheckoutView) HasCoupon() bool {
 	return v.CouponApplied != "" && (v.CouponDiscountCents > 0 || v.CouponFreeShipping)
 }
 
-// CouponDiscount is what it takes off, as a negative figure — a discount shown
-// as a positive number in a column of positives reads as another charge.
+// CouponDiscount is what it takes off, as a negative figure.
 func (v *CheckoutView) CouponDiscount() string { return "-" + twd(v.CouponDiscountCents) }

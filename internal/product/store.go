@@ -48,9 +48,6 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 	for i := range rows {
 		r := &rows[i]
 		opts := make(map[string]string, len(r.OptionNames))
-		// The two arrays are aggregated in one ordering by one query, but a
-		// mismatch would silently pair a value with the wrong option, so the
-		// shorter one bounds the walk.
 		for j := 0; j < len(r.OptionNames) && j < len(r.OptionValues); j++ {
 			opts[r.OptionNames[j]] = r.OptionValues[j]
 		}
@@ -85,10 +82,6 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 
 	chosen, exact := Resolve(variants, sel)
 
-	// The guarantee strip states the free-delivery threshold, which lives in
-	// shipping_method_versions and is edited at /admin/shipping. Read rather than
-	// typed: it was a literal in the i18n catalogue on this page and on the home
-	// page, against a figure neither of them owned.
 	freeOver, err := s.q.FreeDeliveryThreshold(ctx)
 	if err != nil {
 		return pages.ProductView{}, fmt.Errorf("read free delivery threshold: %w", err)
@@ -130,8 +123,6 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 		view.Options = append(view.Options, po)
 	}
 
-	// Anything the product still has to say is read after the variant work, so
-	// a failure there is not hidden behind a page that already looks fine.
 	if err := s.loadDetail(ctx, &p, &view); err != nil {
 		return pages.ProductView{}, err
 	}
@@ -139,8 +130,6 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 }
 
 // loadDetail fills the parts of the page that do not depend on the selection.
-// It is split by concern rather than written as one long function: each half
-// reads a different set of tables, and a failure in either has to name which.
 func (s *Store) loadDetail(ctx context.Context, p *db.ProductBySlugRow, view *pages.ProductView) error {
 	if err := s.loadPresentation(ctx, p, view); err != nil {
 		return err
@@ -148,13 +137,6 @@ func (s *Store) loadDetail(ctx context.Context, p *db.ProductBySlugRow, view *pa
 	if err := s.loadOpinion(ctx, p, view); err != nil {
 		return err
 	}
-	// Read here rather than in the handler, so the product's uuid never has to
-	// leave this package — a handler that needed it would need the view to
-	// carry it, and a view carrying a database key is a key that reaches a
-	// template.
-	//
-	// NOT fatal: losing the recommendation strip is far smaller than losing the
-	// page somebody came to read, and an empty strip renders as nothing at all.
 	also, err := s.boughtTogether(ctx, p.ID)
 	if err != nil {
 		return err
@@ -186,8 +168,6 @@ func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, vi
 	for _, img := range images {
 		u := assets.ProductImageURL(img.StorageKey)
 		if u == "" {
-			// Declared but not produced. The gallery falls back to its
-			// placeholder rather than a broken image, the rule the tiles follow.
 			continue
 		}
 		view.Images = append(view.Images, pages.ProductImage{
@@ -269,27 +249,13 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *p
 	return nil
 }
 
-// MinCoPurchases is how many shared orders make a pattern rather than an
-// accident.
-//
-// Two. One shared order is a coincidence, and at a catalogue this size a
-// threshold of one would make any two products that ever met "frequently bought
-// together" — a recommendation nobody can tell apart from an accident is worse
-// than an empty slot.
+// MinCoPurchases is how many shared orders make a pattern rather than an accident.
 const MinCoPurchases = 2
 
 // MaxRecommendations bounds the strip.
-//
-// Four, which is the product grid's row at every width goen renders. A fifth
-// would wrap to a second row holding one tile.
 const MaxRecommendations = 4
 
-// BoughtTogether is what people who bought this also bought.
-//
-// Computed per request rather than projected, and that is a MEASURED position
-// rather than a default — see docs/decisions/004-recommendation-read-model.md.
-// At 15,000 committed orders it costs 3.1 ms, which is affordable on a page
-// that already reads a product, its variants, its images and its reviews.
+// boughtTogether is what people who bought this also bought.
 func (s *Store) boughtTogether(ctx context.Context, productID uuid.UUID) ([]pages.ProductTile, error) {
 	rows, err := s.q.BoughtTogether(ctx, db.BoughtTogetherParams{
 		Locale:    string(i18n.FromContext(ctx)),
@@ -324,13 +290,6 @@ func (s *Store) boughtTogether(ctx context.Context, productID uuid.UUID) ([]page
 }
 
 // SavedByUser reports whether this customer has the product on their wishlist.
-//
-// The query is defined in internal/account/query.sql, which owns the wishlist —
-// sqlc generates one db package for the module, so it is written once and read
-// from here rather than duplicated. The same arrangement OrderBelongsTo has.
-//
-// A guest saves nothing and is told nothing: the button falls back to its
-// signed-out form, which sends them to sign in.
 func (s *Store) SavedByUser(ctx context.Context, userID, slug string) bool {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -340,8 +299,7 @@ func (s *Store) SavedByUser(ctx context.Context, userID, slug string) bool {
 		UserID: id, Slug: slug,
 	})
 	if err != nil {
-		// A read that fails must not turn a product page into an error page:
-		// the button falls back to "save", which is idempotent.
+		// Best effort: a failed read falls back to "not saved".
 		return false
 	}
 	return saved

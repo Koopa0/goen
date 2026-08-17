@@ -8,10 +8,9 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// Header renders the site header. The 1440 and 375 artboards are one element
-// here: the category row and language switch are hidden below the desktop
-// breakpoint, where a native <details> disclosure takes their place, and the
-// search field wraps onto its own row.
+// Header renders the site header. Below the desktop breakpoint the category row
+// and language switch are hidden and a native <details> disclosure takes their
+// place.
 templ Header(p Page) {
 	<header class="goen-header">
 		<div class="goen-header__bar">
@@ -72,16 +71,8 @@ templ Header(p Page) {
 	</header>
 }
 
-// cartLink renders the cart button and its badge.
-//
-// The count comes from the request CONTEXT, not from the view model. It used to
-// be a layouts.Page field that every page declared and nothing ever assigned,
-// so the badge read 0 for every visitor whatever was in their cart. A number
-// each handler must remember to fill is a number that goes unfilled; one
-// middleware cannot forget.
-//
-// The badge is absent at zero rather than showing "0" — an empty cart has
-// nothing to announce, and the aria-label already says so for a screen reader.
+// cartLink renders the cart button and its badge. The count comes from the
+// request context, never a view-model field each handler must remember to fill.
 templ cartLink() {
 	{{ count := web.CartCount(ctx) }}
 	<a class="ui-btn ui-btn--ghost ui-btn--icon goen-header__cart" href="/cart" aria-label={ cartLabel(ctx, count) }>
@@ -92,20 +83,13 @@ templ cartLink() {
 	</a>
 }
 
-// languageSwitch renders the locale control. The caller supplies the class
-// that governs where it appears, because the header's copy is desktop-bar
-// chrome while the footer's is present at every width.
-//
-// goen ships Traditional Chinese only, so the English option is marked
-// disabled rather than pretending to be a working control; wiring it is the
-// i18n batch's job.
+// languageSwitch renders the locale control; the caller supplies the class that
+// governs where it appears.
 templ languageSwitch(class, zh, en string) {
 	{{ current := i18n.FromContext(ctx) }}
 	<form class={ "ui-segmented", class } method="post" action="/locale" role="group" aria-label={ i18n.T(ctx, i18n.KeyLanguage) }>
-		// Where to come back to, so switching re-renders the page being read
-		// rather than sending somebody home. Validated server-side as a
-		// same-site path — a redirect target from a form is an open redirect
-		// unless something says otherwise.
+		// Validated server-side as a same-site path: a redirect target read
+		// from a form is otherwise an open redirect.
 		<input type="hidden" name="return" value={ returnPath(ctx) }/>
 		for _, l := range i18n.Locales() {
 			<button
@@ -125,7 +109,6 @@ templ languageSwitch(class, zh, en string) {
 	</form>
 }
 
-// pressed renders aria-pressed, which needs the string not the bool.
 func pressed(on bool) string {
 	if on {
 		return "true"

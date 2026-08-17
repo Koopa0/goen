@@ -10,21 +10,14 @@ import (
 	"github.com/koopa0/goen/internal/db"
 )
 
-// ErrTooLateToCorrect is a delivery address that can no longer be changed.
-//
-// Once the parcel has left, rewriting the recorded address makes the record lie
-// about where it went — which is worse than not being able to change it. The
-// shop's remaining option is the carrier's own redirection, which goen does not
-// pretend to drive.
+// ErrTooLateToCorrect is a delivery address that can no longer be changed: once
+// the parcel has left, rewriting it makes the record lie about where it went.
 var ErrTooLateToCorrect = errors.New("admin: this order has already shipped")
 
 // Delivery is the correction a staff member typed.
 //
-// Both destinations, exactly as the checkout collects them: which half applies
-// is decided from the ORDER's shipping method, never from the form. A
-// submission carrying both would otherwise reach
-// order_private_data_one_destination as a constraint violation instead of being
-// resolved before the write.
+// Both destinations, as the checkout collects them. Which half applies is decided
+// from the ORDER's shipping method, never from the form.
 type Delivery struct {
 	Email     string
 	Recipient string
@@ -40,13 +33,9 @@ type Delivery struct {
 	PickupStoreName string
 }
 
-// CorrectDelivery rewrites an order's delivery details.
-//
-// The AUDIT row names the fields that changed and not their values. audit_events
-// is append-only and erase_user does not reach it, so a customer's address
-// written there would outlive the erasure that was supposed to remove it — the
-// same reason staff_note is documented as no place for anything a customer
-// wrote.
+// CorrectDelivery rewrites an order's delivery details. The audit row names the
+// fields that changed and never their values: audit_events is append-only and
+// erase_user does not reach it, so an address there outlives the erasure.
 func (s *Store) CorrectDelivery(ctx context.Context, number string, d *Delivery) error {
 	row, err := s.q.OrderDestinationKind(ctx, number)
 	if err != nil {
@@ -58,8 +47,8 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *Delivery)
 			number, row.DestinationKind)
 	}
 
-	// The half that does not apply is blanked HERE, from the order's own
-	// method — the same resolution PlaceOrder does, for the same reason.
+	// The half that does not apply is blanked from the ORDER's own method, the
+	// same resolution PlaceOrder does.
 	addr := &cart.Address{
 		To: to, Email: d.Email, Name: d.Recipient, Phone: d.Phone,
 		PostalCode: d.PostalCode, City: d.City, District: d.District, Street: d.Street,
@@ -68,10 +57,8 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *Delivery)
 	}
 	addr.Trim()
 	if errs := addr.Validate(); len(errs) > 0 {
-		// The FIELD and the message KEY, not a rendered sentence. This reaches
-		// an error value and a log line, both of which are English here — and
-		// the key is what the RENDER would resolve, so the log names the rule
-		// without picking a language for it.
+		// The field and the message KEY, never a rendered sentence: this becomes
+		// a log line, which has no locale to render in.
 		return fmt.Errorf("%w: %s (%s)", ErrInvalid, errs[0].Field, errs[0].MessageKey)
 	}
 	addr.ForDestination()
@@ -79,8 +66,7 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *Delivery)
 	return s.audited(ctx, Event{
 		Action: ActionCorrectDelivery, Table: "order_private_data",
 		Before: nil,
-		// The FIELDS, never their values.
-		After: map[string]any{"order_number": number, "destination": string(to)},
+		After:  map[string]any{"order_number": number, "destination": string(to)},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			n, updErr := q.UpdateOrderDelivery(ctx, db.UpdateOrderDeliveryParams{
@@ -96,9 +82,8 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *Delivery)
 				return fmt.Errorf("%w: %s", ErrRefused, updErr.Error())
 			}
 			if n == 0 {
-				// Zero rows is the state guard in the WHERE clause speaking, or
-				// an erased order. Both mean the same thing to the page: this
-				// is no longer yours to change.
+				// The state guard in the WHERE clause speaking, or an erased
+				// order.
 				return ErrTooLateToCorrect
 			}
 			return nil

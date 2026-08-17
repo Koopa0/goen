@@ -9,7 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// PayLine is one item on the payment page, as the ORDER recorded it.
+// PayLine is one item on the payment page, as the order recorded it.
 type PayLine struct {
 	Name      string
 	Label     string
@@ -32,19 +32,19 @@ type PayView struct {
 	TotalCents int64
 	Email      string
 	Lines      []PayLine
-	// Enabled is false when goen is running without Stripe credentials. The
-	// page then explains that rather than offering a button that cannot work.
+	// Enabled is false without Stripe credentials; the page then explains rather
+	// than offering a button that cannot work.
 	Enabled bool
-	// Cancelled is true when the customer came back from Stripe without paying.
-	// It is not an error — the order and its stock are still held.
+	// Cancelled is a return from Stripe without paying. Not an error: the order
+	// and its stock are still held.
 	Cancelled bool
 }
 
 // Total is what is owed.
 func (v PayView) Total() string { return twd(v.TotalCents) }
 
-// Action is where the form posts. The order number is in the path, and it is
-// the ONLY thing the request carries: the amount is recomputed server-side.
+// Action is where the form posts. The order number is all the request carries;
+// the amount is recomputed server-side.
 func (v PayView) Action() string { return "/orders/" + v.Number + "/pay" }
 
 // PayMeta is the chrome view model for the payment page.

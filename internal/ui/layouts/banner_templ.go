@@ -10,16 +10,8 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import "github.com/koopa0/goen/internal/i18n"
 
-// promoBanner renders the site-wide promotional strip.
-//
-// Above the header and IN NORMAL FLOW, so it scrolls away. Sticky would levy a
-// permanent 44px tax on every screen for a sentence somebody has already read;
-// the header is what stays, because the header is navigation.
-//
-// The whole strip is one <form>: the close button submits it, the server sets a
-// cookie and answers 303. There is nothing here for JavaScript to add, and it
-// works with scripting off — which the write-face rule requires of every
-// mutation, and closing a banner is one.
+// promoBanner renders the site-wide promotional strip, above the header and in
+// normal flow so it scrolls away.
 func promoBanner() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -50,7 +42,7 @@ func promoBanner() templ.Component {
 			var templ_7745c5c3_Var2 templ.SafeURL
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(b.DismissAction()))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/banner.templ`, Line: 18, Col: 82}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/banner.templ`, Line: 10, Col: 82}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 			if templ_7745c5c3_Err != nil {
@@ -63,7 +55,7 @@ func promoBanner() templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(b.ID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/banner.templ`, Line: 19, Col: 50}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/banner.templ`, Line: 11, Col: 50}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 			if templ_7745c5c3_Err != nil {
@@ -76,7 +68,7 @@ func promoBanner() templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(returnPath(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/banner.templ`, Line: 23, Col: 61}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/banner.templ`, Line: 13, Col: 61}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 			if templ_7745c5c3_Err != nil {
@@ -87,14 +79,14 @@ func promoBanner() templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if b.HasCTA() {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "    <a class=\"goen-promo__link\" href=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "  <a class=\"goen-promo__link\" href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var5 templ.SafeURL
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(b.CTAHref))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/banner.templ`, Line: 29, Col: 63}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/banner.templ`, Line: 17, Col: 63}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -107,7 +99,7 @@ func promoBanner() templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(b.Message)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/banner.templ`, Line: 31, Col: 48}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/banner.templ`, Line: 19, Col: 48}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -120,7 +112,7 @@ func promoBanner() templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(b.Narrow())
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/banner.templ`, Line: 32, Col: 51}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/banner.templ`, Line: 20, Col: 51}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -143,7 +135,7 @@ func promoBanner() templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(b.CTALabel)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/banner.templ`, Line: 37, Col: 47}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/banner.templ`, Line: 25, Col: 47}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -169,7 +161,7 @@ func promoBanner() templ.Component {
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(b.Message)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/banner.templ`, Line: 43, Col: 48}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/banner.templ`, Line: 31, Col: 48}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -182,7 +174,7 @@ func promoBanner() templ.Component {
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(b.Narrow())
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/banner.templ`, Line: 44, Col: 51}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/banner.templ`, Line: 32, Col: 51}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -210,7 +202,7 @@ func promoBanner() templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, i18n.KeyCloseBanner))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/banner.templ`, Line: 51, Col: 96}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/banner.templ`, Line: 39, Col: 96}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 			if templ_7745c5c3_Err != nil {
@@ -233,11 +225,9 @@ func promoBanner() templ.Component {
 	})
 }
 
-// promoCode renders a discount code as a selectable chip.
-//
-// user-select: all, so one tap selects the whole thing and a long press copies
-// it. A copy BUTTON would need JavaScript, and the markup underneath has to
-// work without it — selectable text does, and it also prints and reads aloud.
+// promoCode renders a discount code as a selectable chip; user-select:all makes
+// one tap select the whole code, which a copy button could not do without
+// scripting.
 func promoCode(code string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -266,7 +256,7 @@ func promoCode(code string) templ.Component {
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(code)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/banner.templ`, Line: 64, Col: 38}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/banner.templ`, Line: 50, Col: 38}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -280,8 +270,7 @@ func promoCode(code string) templ.Component {
 	})
 }
 
-// chevronRight hints that the strip is tappable, at the width where the strip
-// itself is the link.
+// chevronRight hints that the strip is tappable.
 func chevronRight() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

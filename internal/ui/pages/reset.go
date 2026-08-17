@@ -8,18 +8,16 @@ import (
 
 // ForgotView is the "email me a link" page.
 type ForgotView struct {
-	// Sent is true after a submission — for ANY address, whether or not it
-	// belongs to somebody. The page cannot say more without becoming a way to
-	// find out which addresses are registered.
+	// Sent is true after a submission for any address, registered or not: saying
+	// more would make the page a way to enumerate accounts.
 	Sent bool
 }
 
 // ResetView is the "set a new password" page.
 type ResetView struct {
 	Token string
-	// Error is why the new password was refused, and Expired is a link that is
-	// spent, unknown or too old. They are separate because the customer's next
-	// step differs: one retypes, the other asks for a new link.
+	// Error is why the password was refused; Expired is a spent, unknown or old
+	// link. Separate because one is retyped and the other needs a new link.
 	Error   string
 	Expired bool
 }
@@ -38,9 +36,7 @@ func (v ResetView) Invalid() string {
 	return "false"
 }
 
-// Refusal is why the form is not being offered. The two readings are kept
-// apart because the customer's next step differs: a spent or expired link needs
-// a new one, and a URL with no token at all means they arrived some other way.
+// Refusal is why the form is not being offered.
 func (v ResetView) Refusal(ctx context.Context) string {
 	if v.Expired {
 		return i18n.T(ctx, i18n.KeyResetDead)

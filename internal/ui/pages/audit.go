@@ -12,35 +12,21 @@ type AuditEntry struct {
 	Entity string
 	Actor  string
 	At     string
-	// RequestID ties this row to the log lines from the same request, which is
-	// the difference between "somebody published this" and knowing what else
-	// that request did.
+	// RequestID ties this row to the log lines from the same request.
 	RequestID string
 	Detail    string
 }
 
-// Label is what the action is called on the page, in the reader's language.
-//
-// The map has no default that guesses: an action goen records and does not name
-// here renders as its raw key, which is visible and greppable rather than
-// silently mislabelled as something else.
+// Label is what the action is called on the page, in the reader's language. An
+// unnamed action renders as its raw key rather than borrowing another's label.
 func (e AuditEntry) Label(ctx context.Context) string {
 	if k, ok := actionLabels[e.Action]; ok {
 		return i18n.T(ctx, k)
 	}
-	// The raw key, which is visible and greppable — an action goen records and
-	// forgets to name here should look wrong on the page rather than quietly
-	// borrow another action's label.
 	return e.Action
 }
 
 // actionLabels is the catalogue key for each recorded action.
-//
-// A map rather than a switch: forty-six cases returning a constant is a lookup
-// wearing control flow, and gocyclo was right to say so. It holds KEYS rather
-// than words, so the trail is read in whichever language the staff member set —
-// the first of CLAUDE.md's two patterns, because a lookup table has no request
-// to read a locale from and its one caller does.
 var actionLabels = map[string]i18n.Key{
 	"customer.view":          i18n.KeyAuditCustomerView,
 	"newsletter.send":        i18n.KeyAuditNewsletterSend,
@@ -90,12 +76,8 @@ var actionLabels = map[string]i18n.Key{
 	"question.hide":          i18n.KeyAuditQuestionHide,
 }
 
-// ActorText is who did it, or a note that the account has since been erased.
-//
-// audit_events is append-only and erase_user does not reach it, so the ROW
-// outlives the person: the join comes back empty and the trail still has to say
-// what happened. The fallback was a coalesce() in the query and is decided here
-// now, where the reader is.
+// ActorText is who did it. audit_events is append-only and erase_user does not
+// reach it, so the row outlives the person and the join comes back empty.
 func (e AuditEntry) ActorText(ctx context.Context) string {
 	if e.Actor == "" {
 		return i18n.T(ctx, i18n.KeyAdminErasedAccountPlain)
@@ -103,8 +85,7 @@ func (e AuditEntry) ActorText(ctx context.Context) string {
 	return e.Actor
 }
 
-// Money reports whether this action moved money or stock, which is what a
-// reader scanning the trail is looking for first.
+// Money reports whether this action moved money or stock.
 func (e AuditEntry) Money() bool {
 	switch e.Action {
 	case "credit.grant", "return.decide", "stock.adjust", "variant.reprice":
@@ -138,6 +119,5 @@ type AdminImage struct {
 	Height int32
 }
 
-// URL is where it is served. An uploaded image is a digest; a seeded one is an
-// embedded filename, and assets.ProductImageURL knows the difference.
+// URL is where it is served.
 func (i AdminImage) URL() string { return "/media/" + i.Key }

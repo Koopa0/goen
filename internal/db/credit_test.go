@@ -5,34 +5,17 @@ import (
 	"testing"
 )
 
-// A balance is the credit LEDGER, added up. Both halves are needed, and the ledger
-// half is the one that is easy to leave out: `amount_cents` alone also names refunds
-// and invoice allowances, so a guard anchored on the arithmetic alone refuses
-// RefundedSoFar — a sum over a different table entirely. Reading the ledger row by
-// row is what /admin/credit's history does and is not a balance; adding the amounts
-// up is the act that has to have one definition.
+// Both halves matter: amount_cents alone also names refunds and invoice allowances.
 var (
 	touchesCreditLedger = regexp.MustCompile(`\bstore_credit_entries\b`)
 	sumsAmounts         = regexp.MustCompile(`sum\(\s*-?\s*(\w+\.)?amount_cents\s*\)`)
 )
 
-// TestEveryCreditBalanceReadsTheOneView holds the single definition of what an
-// account is worth.
-//
-// Four surfaces ask what an account is worth — the account page, the checkout, the
-// back office's grant form and the customer page — and each of them could write out
-// its own `sum(amount_cents)` over store_credit_entries. Four copies of one
-// arithmetic is four chances for one to gain a FILTER the others do not have, and a
-// customer shown two different balances by two pages of one shop cannot tell which
-// is true.
-//
-// store_credit_balances is that one definition, the way visible_reviews and
-// committed_orders each are, and this is what stops a fifth copy appearing.
+// TestEveryCreditBalanceReadsTheOneView holds store_credit_balances as the single
+// definition of what an account is worth.
 func TestEveryCreditBalanceReadsTheOneView(t *testing.T) {
 	t.Parallel()
 
-	// Keyed on the QUERY NAME. Each entry is a claim that this query is asking a
-	// question the balance view cannot answer — not that it is close enough.
 	allowed := map[string]string{
 		"OrderCreditPosition": "spent and returned on ONE order, split by sign — a " +
 			"position rather than a balance, and the refund split needs both halves",
@@ -56,10 +39,7 @@ func TestEveryCreditBalanceReadsTheOneView(t *testing.T) {
 				"with the reason.", path, q.name)
 		}
 	}
-	// Checked by IDENTITY, not by count. `found < len(allowed)` fires on a
-	// stale entry but cannot say WHICH, so it reports "the pattern stopped
-	// matching" — a message that sends the reader to the regex when the
-	// defect is an allowlist row naming a query that no longer exists.
+	// Checked by identity, not by count: a count cannot name the stale entry.
 	for name, why := range allowed {
 		if !used[name] {
 			t.Errorf("the allowlist names %s (%s) and nothing matched it: the "+

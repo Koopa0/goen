@@ -19,19 +19,14 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// couponCode is coupons_code_format, restated so a malformed code is a message
-// on the form rather than a constraint violation.
+// couponCode mirrors coupons_code_format.
 var couponCode = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]{1,31}$`)
 
 // MaxCouponDescriptionRunes bounds the label a customer sees on their cart.
 const MaxCouponDescriptionRunes = 60
 
-// CouponForm is what the back office submits.
-//
-// Amounts are typed in DOLLARS and the percentage in whole percent, because
-// that is what a person running a promotion says out loud. The conversion to
-// cents and basis points happens once, here, rather than in a form that asks a
-// staff member to do arithmetic.
+// CouponForm is what the back office submits. Amounts are in DOLLARS and the
+// percentage in whole percent; the conversion to cents and basis points is here.
 type CouponForm struct {
 	Code        string
 	Description string
@@ -81,12 +76,8 @@ func (f *CouponForm) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-// basisPoints turns whole percent into the basis points the schema stores.
-//
-// It returns int32 and clamps to 1..100 first, so there is no conversion for a
-// reader — or a linter — to have to reason about. Validate has already refused
-// anything outside that range; this is the same bound expressed where the
-// arithmetic happens rather than asserted about it.
+// basisPoints turns whole percent into the basis points the schema stores,
+// clamped to 1..100 so the int32 narrowing is safe on its own.
 func basisPoints(wholePercent int64) int32 {
 	switch {
 	case wholePercent < 1:
@@ -98,11 +89,8 @@ func basisPoints(wholePercent int64) int32 {
 	}
 }
 
-// validateKind checks what only one kind carries.
-//
-// Split from Validate to keep it under the complexity limit, and because these
-// are the rules coupons_value_matches_kind and coupons_cap_only_on_percent
-// enforce — grouped here so the two can be read against each other.
+// validateKind checks what only one kind carries: coupons_value_matches_kind
+// and coupons_cap_only_on_percent.
 func (f *CouponForm) validateKind(ctx context.Context, errs map[string]string) {
 	switch f.Kind {
 	case "amount":
@@ -110,8 +98,6 @@ func (f *CouponForm) validateKind(ctx context.Context, errs map[string]string) {
 			errs["value"] = i18n.T(ctx, i18n.KeyFormCouponAmount)
 		}
 		if f.CapDollars != 0 {
-			// coupons_cap_only_on_percent refuses this underneath. Saying so
-			// here explains WHY rather than reporting a constraint name.
 			errs["cap"] = i18n.T(ctx, i18n.KeyFormCouponCapOnAmount)
 		}
 	case "percent":
@@ -173,7 +159,6 @@ func (s *Store) CreateCoupon(ctx context.Context, f *CouponForm) (map[string]str
 	case "amount":
 		params.AmountCents = pgtype.Int8{Int64: f.Value * 100, Valid: true}
 	case "percent":
-		// Whole percent to basis points: 20 becomes 2000.
 		params.PercentBp = pgtype.Int4{Int32: basisPoints(f.Value), Valid: true}
 		if f.CapDollars > 0 {
 			params.MaxDiscountCents = pgtype.Int8{Int64: f.CapDollars * 100, Valid: true}
@@ -183,9 +168,8 @@ func (s *Store) CreateCoupon(ctx context.Context, f *CouponForm) (map[string]str
 		params.MaxRedemptions = pgtype.Int4{Int32: f.MaxRedemptions, Valid: true}
 	}
 	if f.Days > 0 {
-		// Relative to the DATABASE's clock, for the reason CouponByCode judges
-		// the window there: starts_at defaults to its now(), and an end date
-		// computed from Go's would be measured against a different one.
+		// starts_at defaults to the DATABASE's now() and the window is judged
+		// there, so an end date from Go's clock is measured against another one.
 		params.EndsAt = pgtype.Timestamptz{
 			Time: time.Now().AddDate(0, 0, int(f.Days)), Valid: true,
 		}
@@ -198,9 +182,6 @@ func (s *Store) CreateCoupon(ctx context.Context, f *CouponForm) (map[string]str
 		func(ctx context.Context, q *db.Queries) error {
 			return q.CreateCoupon(ctx, params)
 		}); err != nil {
-		// Bound to the constraint NAME, not to a substring of the message:
-		// rules/error-handling.md forbids strings.Contains(err.Error(), …), and
-		// a message is a locale away from not matching.
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
 			pgErr.ConstraintName == "coupons_code_key" {
 			return map[string]string{"code": i18n.T(ctx, i18n.KeyFormCouponTaken)}, nil
@@ -210,10 +191,8 @@ func (s *Store) CreateCoupon(ctx context.Context, f *CouponForm) (map[string]str
 	return nil, nil
 }
 
-// SetCouponActive switches a promotion on or off.
-//
-// Never deleted: coupon_redemptions references it, and a promotion that ran is
-// part of what past orders were charged.
+// SetCouponActive switches a promotion on or off. Never deleted: a promotion
+// that ran is part of what past orders were charged.
 func (s *Store) SetCouponActive(ctx context.Context, code string, active bool) error {
 	if err := s.audited(ctx, Event{
 		Action: ActionToggleCoupon, Table: "coupons", ID: uuid.NullUUID{},

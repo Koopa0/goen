@@ -17,9 +17,8 @@ type PointsEntry struct {
 	// ExpiresOn is empty for a spend, which has already happened and cannot
 	// expire.
 	ExpiresOn string
-	// Expired is whether an award has passed its date. Shown rather than
-	// hidden: a balance that silently shrank is a support ticket, and "these
-	// forty points expired in March" is the answer to it.
+	// Expired is whether an award has passed its date. Shown rather than hidden:
+	// a balance that silently shrank is a support ticket.
 	Expired bool
 }
 
@@ -100,9 +99,6 @@ func (v PointsView) ExpiringText(ctx context.Context) string {
 // Empty reports whether nothing has ever happened.
 func (v PointsView) Empty() bool { return len(v.Entries) == 0 }
 
-// StepText is the increment the redemption field accepts.
-//
-// One whole exchange, so the browser cannot offer a number the server will
-// refuse — the server still decides, but a field that lets somebody type 105
-// and then rejects it is a field that wasted their time.
+// StepText is the increment the redemption field accepts: one whole exchange,
+// so the browser does not offer a number the server will refuse.
 func (v PointsView) StepText() string { return strconv.FormatInt(v.PerCredit, 10) }

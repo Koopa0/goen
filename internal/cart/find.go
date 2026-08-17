@@ -10,25 +10,8 @@ import (
 )
 
 // FindOrder reports whether an order number and an email address name the same
-// order.
-//
-// # Why this exists
-//
-// An order page is shown to the browser that placed the order, or to the account
-// that owns it. A GUEST who clears their cookies, or opens the confirmation email
-// on their phone, is neither — and until now that was the end of it: they had an
-// order number, an email in their hand, and no way to look at their own order.
-//
-// # Why the pair is the credential
-//
-// Order numbers come off a per-day counter and are guessable, which is exactly why
-// reaching the page by number alone is refused. The address is the only secret
-// here, so the two are checked TOGETHER in one statement and the answer is a
-// boolean: nothing above this line can tell which half was wrong, because nothing
-// below it knows.
-//
-// The caller must answer identically either way, and bound the attempts — see
-// the handler.
+// order. The pair is the credential and only the address is secret, so the two
+// are checked in ONE statement whose answer cannot say which half was wrong.
 func (s *Store) FindOrder(ctx context.Context, number, addr string) (bool, error) {
 	number = strings.ToUpper(strings.TrimSpace(number))
 	addr = email.Clean(addr)

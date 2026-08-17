@@ -13,13 +13,10 @@ import (
 	"github.com/koopa0/goen/internal/db"
 )
 
-// Coupon-specific sentinel errors. Each is a distinct thing to tell a customer,
-// which is why they are not one ErrCoupon: "expired" and "you already used it"
-// send a shopper to different next actions.
 var (
-	// ErrNoSuchCoupon is a code that names nothing. Deliberately also returned
-	// for a coupon that exists but is switched off — a shop should not confirm
-	// which of its codes are real to somebody guessing.
+	// ErrNoSuchCoupon is a code that names nothing. Also returned for a coupon
+	// that exists but is switched off, so a shop does not confirm which of its
+	// codes are real to somebody guessing.
 	ErrNoSuchCoupon = errors.New("cart: no such coupon")
 	// ErrCouponExpired is outside its window.
 	ErrCouponExpired = errors.New("cart: coupon expired")
@@ -41,8 +38,7 @@ type Coupon struct {
 	Code        string
 	Description string
 	Kind        string
-	// DiscountCents is what it takes off THIS order, already capped and already
-	// bounded by the order total. Computed by Price, not stored.
+	// DiscountCents is what it takes off this order, computed by Price.
 	DiscountCents int64
 	// FreeShipping is set by a free_shipping coupon; the caller zeroes the fee
 	// rather than turning it into a discount, so the order still records what
@@ -50,38 +46,23 @@ type Coupon struct {
 	FreeShipping bool
 }
 
-// NormaliseCode is what a typed code becomes before it is looked up.
-//
-// Upper-cased and trimmed, because a code is read off a card by a human. Not
-// stripped of hyphens: SUMMER-20 and SUMMER20 are different codes, and quietly
-// treating them as one would make two promotions collide.
+// NormaliseCode upper-cases and trims a typed code. Hyphens are not stripped:
+// SUMMER-20 and SUMMER20 are different codes, and folding them would make two
+// promotions collide.
 func NormaliseCode(s string) string { return strings.ToUpper(strings.TrimSpace(s)) }
 
 // Price works out what a coupon takes off an order.
 //
-// Everything about the arithmetic is deliberate:
-//
-//   - The discount is capped at the SUBTOTAL, never the total. A coupon that
-//     could eat the shipping fee would let a NT$50 coupon on a NT$50 order
-//     produce a negative total, which orders_total_non_negative refuses — and
-//     a refusal at the database is a failed checkout rather than a correct one.
-//   - A percentage is basis points and integer arithmetic throughout. Within
-//     goen's own money ceiling the two agree exactly — 10^10 cents times 10^4
-//     basis points is 10^14, well inside float64's exact range — so this is not
-//     a bug being avoided today. It is the arithmetic staying obviously correct
-//     if the ceiling ever rises, and not needing anybody to re-derive that it
-//     is safe. TestMoneyCeilingStaysInsideExactIntegerArithmetic is the alarm.
-//   - free_shipping is not a discount. It zeroes the fee, so the order still
-//     records what delivery would have cost and reconciliation can see the
-//     promotion rather than an unexplained smaller number.
+// The discount is capped at the subtotal and never the total: one that ate the
+// shipping fee would drive the total negative, which
+// orders_total_non_negative refuses in the middle of a checkout.
 func (c *Coupon) Price(subtotalCents, shippingCents int64) {
 	switch c.Kind {
 	case "amount":
 		c.DiscountCents = min(c.amount, subtotalCents)
 	case "percent":
-		// Integer basis points: (subtotal * bp) / 10000, truncated. Truncation
-		// rounds in the customer's favour by at most one cent, which is the
-		// direction to err.
+		// Integer basis points throughout; the truncation rounds in the
+		// customer's favour by at most one cent.
 		d := subtotalCents * int64(c.percentBP) / 10000
 		if c.capCents > 0 {
 			d = min(d, c.capCents)
@@ -96,8 +77,6 @@ func (c *Coupon) Price(subtotalCents, shippingCents int64) {
 	}
 }
 
-// The value fields, unexported because only Price reads them — a caller that
-// could see amount and percent could apply the wrong one.
 type couponValue struct {
 	amount    int64
 	percentBP int32
@@ -107,10 +86,8 @@ type couponValue struct {
 
 // FindCoupon looks a code up and prices it against an order.
 //
-// The window and the limits are NOT checked here: redeem_coupon holds them
-// under a lock on the coupon row, and checking them here as well would be
-// checking them without one — two concurrent checkouts would each pass. What is
-// checked here is what a customer can act on: the code, and the minimum spend.
+// The limits are NOT checked here: redeem_coupon counts them under a lock on the
+// coupon row, and counting them here as well would be counting them without one.
 func (s *Store) FindCoupon(ctx context.Context, code string, subtotalCents, shippingCents int64) (*Coupon, error) {
 	code = NormaliseCode(code)
 	if !couponCode.MatchString(code) {
@@ -121,13 +98,10 @@ func (s *Store) FindCoupon(ctx context.Context, code string, subtotalCents, ship
 	if err != nil {
 		return nil, ErrNoSuchCoupon
 	}
-	// A switched-off coupon reads as an unknown one. Saying "this code is
-	// disabled" tells somebody guessing which of a shop's codes are real.
 	if !row.IsActive {
 		return nil, ErrNoSuchCoupon
 	}
-	// Computed by the query against the database's own clock, not compared
-	// here against Go's — see CouponByCode.
+	// Computed by the query against the database's own clock, never against Go's.
 	if !row.IsCurrent {
 		return nil, ErrCouponExpired
 	}
@@ -148,10 +122,9 @@ func (s *Store) FindCoupon(ctx context.Context, code string, subtotalCents, ship
 	return c, nil
 }
 
-// redeemCoupon posts the redemption inside the order's transaction.
-//
-// It runs AFTER the order exists and carries the discount the order was
-// actually given, which coupon_redemption_matches_order holds it to.
+// redeemCoupon posts the redemption inside the order's transaction, carrying
+// the discount the order was actually given —
+// coupon_redemption_matches_order holds the two to each other.
 func redeemCoupon(ctx context.Context, q *db.Queries, c *Coupon, orderID uuid.UUID, userID uuid.NullUUID) error {
 	if c == nil {
 		return nil
@@ -160,16 +133,9 @@ func redeemCoupon(ctx context.Context, q *db.Queries, c *Coupon, orderID uuid.UU
 		CouponID: c.ID, OrderID: orderID, UserID: userID,
 		AmountCents: c.DiscountCents,
 	}); err != nil {
-		// The limits speak here, under the lock redeem_coupon takes. Mapped to
-		// a sentinel so a customer sees why rather than a 500.
-		//
-		// Bound to the CONSTRAINT NAME, not to the message. This matched on
-		// err.Error(), and pgconn renders a PgError as severity + message +
-		// SQLSTATE — the name RAISE sets travels in PgError.ConstraintName and
-		// is not in that string at all. So neither branch could ever be taken:
-		// every refusal fell through to the wrap below and reached the customer
-		// as a 500 at the moment of checkout. CLAUDE.md #8, and the reason
-		// error-handling.md forbids Contains on an error string.
+		// Bound to the constraint NAME, never to the message: pgconn renders a
+		// PgError as severity + message + SQLSTATE, and the name RAISE sets is
+		// not in that string at all.
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
 			switch pgErr.ConstraintName {
 			case "coupon_within_total_limit", "coupon_within_customer_limit":

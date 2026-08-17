@@ -12,33 +12,11 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// addressSurvivors is a table that may still hold an erased address, with the
-// reason. Every entry is a claim that somebody looked.
-//
-// It is empty, and that is the point: there is no table in this schema where a
-// forgotten customer's address is allowed to remain. An entry here would be a
-// decision to keep one, which is the kind of decision that has to be argued in
-// writing rather than discovered by a reader.
+// addressSurvivors names any table allowed to keep an erased address, with the
+// reason. It is empty.
 var addressSurvivors = map[string]string{}
 
-// TestTheLastAdminCannotBeErased holds the door nobody was watching.
-//
-// /account/erase checks that the person typed their own address and then calls
-// erase_user. It never consults guardLastAdmin — that guard lives in the staff
-// feature, and erasure is an account feature — so the last admin could erase
-// their own account and lock the shop out of its own back office permanently.
-// It is the exact outcome ErrLastAdmin exists to prevent, reached through a door
-// that never asked, and there is no recovery short of promoting somebody by hand
-// in SQL.
-//
-// The guard is in erase_user rather than in the handler because CLAUDE.md
-// documents that function as the ONLY door that removes a person: a second door
-// added later would have to remember, and the one that forgot would be whichever
-// was written next. That is how this one was missed in the first place.
-//
-// Bound to the CONSTRAINT NAME, not to "an error happened": a statement meant to
-// prove one rule routinely trips a different one first, and a test that cannot
-// tell them apart is a test that passes for the wrong reason.
+// TestTheLastAdminCannotBeErased holds erase_user to refusing the only admin.
 func TestTheLastAdminCannotBeErased(t *testing.T) {
 	ctx := t.Context()
 	tx, beginErr := schemaPool(t).Begin(ctx)
@@ -57,8 +35,8 @@ func TestTheLastAdminCannotBeErased(t *testing.T) {
 		t.Fatalf("make an admin: %v", err)
 	}
 
-	// Inside a SAVEPOINT, because the refusal aborts the transaction and the
-	// control below has to run in the same fixtures.
+	// Inside a SAVEPOINT: the refusal aborts the transaction, and the control
+	// below has to run in the same fixtures.
 	if _, err := tx.Exec(ctx, `SAVEPOINT last_admin`); err != nil {
 		t.Fatalf("savepoint: %v", err)
 	}
@@ -71,10 +49,8 @@ func TestTheLastAdminCannotBeErased(t *testing.T) {
 		t.Fatalf("roll back to the savepoint: %v", err)
 	}
 
-	// The CONTROL, and it is the half that makes the test mean something: with a
-	// SECOND admin present the same erasure must go through. A function that
-	// refused every admin would satisfy the assertion above and quietly make the
-	// shop unable to remove anybody.
+	// The control: with a second admin present the same erasure must go through,
+	// or a function refusing every admin would satisfy the assertion above.
 	if _, err := tx.Exec(ctx,
 		`UPDATE users SET role = 'admin' WHERE id = $1`, second); err != nil {
 		t.Fatalf("make a second admin: %v", err)
@@ -84,39 +60,10 @@ func TestTheLastAdminCannotBeErased(t *testing.T) {
 	}
 }
 
-// assertNoTableHoldsTheAddress asks every table with an email column whether it
-// still holds one, after erasure.
-//
-// # Why the question is derived rather than listed
-//
-// TestEraseUserLeavesNoPersonalData probed four tables by hand, and the list was
-// wrong: contact_messages holds a name, an address, a subject and whatever the
-// customer typed — which for "my order has not arrived" is routinely a delivery
-// address and a phone number — and erase_user never touched it. /admin/messages
-// reads that table, so an erased customer's own words and address stayed
-// readable by the shop forever.
-//
-// The reasoning to catch it was already written IN erase_user, about the other
-// table of the same shape: "the newsletter, which keys on the ADDRESS rather
-// than the account — so a plain DELETE of a user never reaches it". It was
-// applied once and not the second time. A hand-written probe list cannot notice
-// that, because the missing entry is the defect.
-//
-// So the corpus comes from information_schema: every text column named `email`
-// in a base table. A table added later is covered by existing rather than by
-// somebody remembering this file, which is the same standard
-// TestEveryDefinerWrittenTableIsRevoked and TestEveryColumnIsReadOrWritten are
-// already held to.
-//
-// # What it does NOT ask
-//
-// Only the address, not every field that could identify somebody. A name, a
-// phone number and a street are all personal data too, and they live in columns
-// with no single name to derive from — order_private_data.recipient_name,
-// addresses.street, contact_messages.name. The address is the one identifier
-// that is spelled the same everywhere, and it is also the KEY the two missed
-// tables were reachable by. Coarse and true beats precise and unwritten; this
-// limit is stated rather than left for a reader to discover.
+// assertNoTableHoldsTheAddress asks every base table carrying a text `email`
+// column, derived from information_schema, whether it still holds one after
+// erasure. Only the address: it is the one identifier spelled the same
+// everywhere, and a name or a street is not asked about here.
 func assertNoTableHoldsTheAddress(ctx context.Context, t *testing.T, tx pgx.Tx, addr string) {
 	t.Helper()
 
@@ -143,8 +90,7 @@ func assertNoTableHoldsTheAddress(ctx context.Context, t *testing.T, tx pgx.Tx, 
 	if err := rows.Err(); err != nil {
 		t.Fatalf("walk the tables holding an address: %v", err)
 	}
-	// A schema with no email column anywhere means the query is wrong, not that
-	// goen has stopped storing addresses.
+	// Too few means the query above is wrong, not that goen stopped storing addresses.
 	if len(tables) < 4 {
 		t.Fatalf("only %d tables carry an email column, want more — the query is wrong",
 			len(tables))

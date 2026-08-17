@@ -17,27 +17,15 @@ const MaxAltRunes = 200
 
 // AttachImage records an uploaded image against a product.
 //
-// Alt text is REQUIRED, not optional. A product photograph with no alt text is
-// a page a screen reader cannot describe, and the moment it is optional it is
-// empty — hero_slides already makes the same demand in the schema
-// (hero_slides_image_has_alt), and this is the same rule applied where the
-// schema cannot: product_images.alt_text is nullable because the seed predates
-// the rule.
-// altEn is optional and falls back to alt. A screen reader announces alt text in
-// the language <html lang> declares, so an English page with Chinese alt text is
-// announced in the wrong voice — the fallback is still better than silence, which
-// is why this is not required the way alt is.
+// Alt text is REQUIRED here because product_images.alt_text is nullable — the
+// schema cannot demand it. altEn is optional and falls back to alt.
 func (s *Store) AttachImage(
 	ctx context.Context, slug, digest, alt, altEn string, width, height int32,
 ) error {
 	alt, altEn = strings.TrimSpace(alt), strings.TrimSpace(altEn)
 	if alt == "" || utf8.RuneCountInString(alt) > MaxAltRunes {
-		// English, like every error string in this repository. It is never
-		// shown: the handler branches on ErrInvalid and redirects with
-		// ?noalt=1, and the SENTENCE the staff member reads is
-		// KeyAdminNoticeNoAlt. A Chinese error value here was a customer-facing
-		// string only by the sweep's reckoning, and English is what the
-		// convention asks of the log line it actually becomes.
+		// Never shown: the handler branches on ErrInvalid and the sentence the
+		// staff member reads is KeyAdminNoticeNoAlt.
 		return fmt.Errorf("%w: alt text is required and bounded at %d runes", ErrInvalid, MaxAltRunes)
 	}
 	if utf8.RuneCountInString(altEn) > MaxAltRunes {
@@ -58,11 +46,8 @@ func (s *Store) AttachImage(
 		})
 }
 
-// DetachImage removes one from a product.
-//
-// The media object itself is not deleted: the same image may be attached
-// elsewhere, and the digest is shared by definition. UnreferencedMedia is what
-// reclaims one nothing points at.
+// DetachImage removes one from a product. The media object itself is not
+// deleted — the digest is shared, and UnreferencedMedia reclaims it.
 func (s *Store) DetachImage(ctx context.Context, slug, digest string) error {
 	return s.audited(ctx, Event{
 		Action: ActionDetachImage, Table: "product_images", ID: uuid.NullUUID{},

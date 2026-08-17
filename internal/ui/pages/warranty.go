@@ -15,16 +15,14 @@ type WarrantyLine struct {
 	Name  string
 	Label string
 	Slug  string
-	// Note is the product's own warranty wording, which is editorial content
-	// and is shown as written rather than summarised.
+	// Note is the product's own warranty wording, shown as written.
 	Note string
-	// Months is the term. HasTerm is separate because zero is not "no term" —
-	// products_warranty_months_sane forbids zero, and a missing term is NULL.
+	// Months is the term. HasTerm is separate because a missing term is NULL:
+	// products_warranty_months_sane forbids zero.
 	Months  int
 	HasTerm bool
-	// Delivered is how many units ARRIVED, which is the ceiling. Not how many
-	// were dispatched: cover starts when the goods reach somebody, and a term
-	// counted from the warehouse door is a term short by the time in transit.
+	// Delivered is how many units arrived, which is the ceiling — never how many
+	// were dispatched, since cover starts when the goods reach somebody.
 	// Registered is how many of those already have cover.
 	Delivered  int
 	Registered int
@@ -42,11 +40,8 @@ func (l WarrantyLine) Remaining() int {
 // Registrable reports whether the form should offer this line.
 func (l WarrantyLine) Registrable() bool { return l.HasTerm && l.Remaining() > 0 }
 
-// NextUnit is the unit number the form submits.
-//
-// Units are registered in order, so the next one is however many already have
-// cover, plus one. A customer does not choose which physical unit is which —
-// they are identical — so asking would be asking a question with no answer.
+// NextUnit is the unit number the form submits. Units are registered in order
+// and are identical, so the customer is never asked which one.
 func (l WarrantyLine) NextUnit() string { return strconv.Itoa(l.Registered + 1) }
 
 // TermText is the cover length in words.
@@ -61,10 +56,6 @@ func (l WarrantyLine) TermText(ctx context.Context) string {
 }
 
 // Why explains, when a line cannot be registered, which of the reasons applies.
-//
-// Named rather than left blank: "the button is missing" is the worst kind of
-// refusal, because the customer cannot tell whether it is their mistake or the
-// site's.
 func (l WarrantyLine) Why(ctx context.Context) string {
 	switch {
 	case l.Registrable():

@@ -27,20 +27,14 @@ func (s *Store) Questions(ctx context.Context) (pages.AdminQuestionsView, error)
 		view.Rows = append(view.Rows, pages.AdminQuestion{
 			ID: r.ID.String(), Body: r.Body, Asker: r.Asker,
 			ProductSlug: r.ProductSlug, ProductName: r.ProductName,
-			Asked: r.CreatedAt.Format("2006-01-02 15:04"),
-			// Days waiting, computed here rather than in the template: how long
-			// is a fact about now, and a template would compute it against
-			// whatever clock rendered the page.
+			Asked:   r.CreatedAt.Format("2006-01-02 15:04"),
 			Answers: r.Answers, AnsweredByShop: r.AnsweredByShop,
 		})
 	}
 	return view, nil
 }
 
-// HideQuestion takes a question off the product page.
-//
-// The answers go with it, which the storefront query already does — an answer
-// published under nothing is text with no context.
+// HideQuestion takes a question off the product page. Its answers go with it.
 func (s *Store) HideQuestion(ctx context.Context, id string) error {
 	qID, err := uuid.Parse(id)
 	if err != nil {
@@ -64,10 +58,8 @@ func (s *Store) HideQuestion(ctx context.Context, id string) error {
 
 // AnswerQuestion posts the SHOP's answer.
 //
-// is_staff is true and stored, because this endpoint is the shop — not because
-// of who is signed in. A staff member answering from their own account on the
-// storefront would be answering as a customer, which is the correct reading of
-// where the words appeared.
+// is_staff is stored true because this ENDPOINT is the shop, never because of
+// who is signed in: the same person answering from the storefront is a customer.
 func (s *Store) AnswerQuestion(ctx context.Context, id, userID, body string) error {
 	body = strings.TrimSpace(body)
 	if body == "" || utf8.RuneCountInString(body) > MaxStaffAnswerRunes {
@@ -96,18 +88,14 @@ func (s *Store) AnswerQuestion(ctx context.Context, id, userID, body string) err
 				return fmt.Errorf("%w: %s", ErrRefused, answerErr.Error())
 			}
 			if n == 0 {
-				// The question is gone or somebody hid it while this was being
-				// typed. An answer under a hidden question would be text with
-				// no context.
+				// The question is gone, or somebody hid it while this was
+				// being typed.
 				return ErrNotFound
 			}
 			return nil
 		})
 }
 
-// MaxStaffAnswerRunes bounds the shop's reply.
-//
-// Longer than a customer's, because an official answer to "does this support PD
-// 3.1" sometimes needs the caveats — and counted in runes for the reason every
-// other limit here is.
+// MaxStaffAnswerRunes bounds the shop's reply, in RUNES and longer than a
+// customer's.
 const MaxStaffAnswerRunes = 1000

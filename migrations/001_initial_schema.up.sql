@@ -125,11 +125,11 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 -- reaches them only by calling the function. Direct DML on those tables is
 -- revoked.
 --
--- Batch ⑦'s back office needs a wider set than store (it writes product
--- variants and campaigns, which store is revoked from). Its roles are named
--- here rather than created: `admin` and `admin_svc`, added with the feature.
--- An empty role with no grants and no member would be privilege scaffolding
--- for something that does not exist yet.
+-- The back office needs a wider set than store (it writes product variants and
+-- campaigns, which store is revoked from). Its roles are named here and created
+-- far below, with their grants: `admin` and `admin_svc`. A role created here,
+-- with no grants and no member, would be privilege scaffolding sitting a
+-- thousand lines from the thing it protects.
 --
 -- NOLOGIN: store and reporting are privilege sets, granted to whatever login
 -- role a deployment creates. `GRANT store TO goen;` in a dev database.
@@ -280,8 +280,8 @@ COMMENT ON FUNCTION localized_name(text, text, text) IS
 
 -- Its GRANT is NOT here. `admin` and `reporting` do not exist yet at this point in
 -- the file, and a GRANT naming a role the file has not created fails the migration
--- outright — which is how this was found, on the first run. It is with the other
--- function grants, far below, where the roles are real.
+-- outright. It is with the other function grants, far below, where the roles are
+-- real.
 
 CREATE UNIQUE INDEX categories_slug_key ON categories (slug);
 CREATE INDEX categories_parent_id_idx ON categories (parent_id);
@@ -1065,7 +1065,7 @@ BEGIN
             -- order, and it is a different rule from the branch above, which tests
             -- the ORDER STATE alone. Testing the state without the SIGN makes
             -- "credit spent on an order" and "credit returned on an order" one
-            -- rule, and a RETURN of a credit-funded order can then not be paid at
+            -- rule, and a RETURN of a credit-funded order then cannot be paid at
             -- all: the card portion is short of the claim, and the credit portion
             -- has no legal way onto the ledger.
             --
@@ -3141,9 +3141,9 @@ CREATE TABLE invoice_document_lines (
     -- A line's unit price cannot be negative (a -500 line would let an issued
     -- invoice be padded with a credit that no allowance recorded), and both
     -- amounts share the ceiling every money column carries. The full
-    -- header-equals-sum(lines) reconciliation waits for the draft→issued issue
-    -- flow (tracked with the invoicing batch); these are the bounds that hold
-    -- regardless of it.
+    -- header-equals-sum(lines) reconciliation belongs with a draft→issued issue
+    -- flow and is not asked here; these are the bounds that hold regardless of
+    -- it.
     CONSTRAINT invoice_document_lines_unit_price_in_range
         CHECK (unit_price_cents >= 0 AND unit_price_cents <= 10000000000),
     CONSTRAINT invoice_document_lines_amount_in_range CHECK (amount_cents <= 10000000000),
@@ -4206,15 +4206,14 @@ BEGIN
     IF addr IS NOT NULL THEN
         DELETE FROM newsletter_subscribers WHERE lower(email) = lower(addr);
         DELETE FROM newsletter_confirmations WHERE lower(email) = lower(addr);
-        -- contact_messages is the SECOND address-keyed table, and it is the one
-        -- the reasoning above is easiest to apply to the newsletter and not to:
-        -- it has no user_id, so a DELETE of a user never reaches it and no
-        -- foreign key says it exists. It holds a name, an address, a subject and
-        -- whatever the customer typed — which is routinely a delivery address and
-        -- a phone number, because "my order has not arrived" is what people write
-        -- in about — and /admin/messages reads it. The erasure probe is derived
-        -- from the catalog rather than from a four-entry list for exactly that
-        -- reason.
+        -- contact_messages is the SECOND address-keyed table, and applying the
+        -- reasoning above to the newsletter alone is what leaves it behind: it
+        -- has no user_id, so a DELETE of a user never reaches it and no foreign
+        -- key says it exists. It holds a name, an address, a subject and whatever
+        -- the customer typed — which is routinely a delivery address and a phone
+        -- number, because "my order has not arrived" is what people write in
+        -- about — and /admin/messages reads it. The erasure probe is derived from
+        -- the catalog rather than from a four-entry list for exactly that reason.
         DELETE FROM contact_messages WHERE lower(email) = lower(addr);
     END IF;
 
@@ -4259,9 +4258,9 @@ GRANT INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO store;
 -- them — but the read-only role does not.
 -- A credential table added after this list is written is swept into `reporting`
 -- by the blanket GRANT SELECT above and stays there silently, because a list in
--- prose asks nothing — order_access_grants, holding bearer-token digests, is one
--- that arrived months later. TestReportingCannotReadCredentialsOrPII is what
--- asks, per named table, so the next one is covered by the row it adds.
+-- prose asks nothing — order_access_grants, holding bearer-token digests, is
+-- exactly that shape. TestReportingCannotReadCredentialsOrPII is what asks, per
+-- named table, so the next such table is covered by the row it adds.
 REVOKE SELECT ON
     sessions, password_reset_tokens, staff_totp_credentials, user_identities,
     order_private_data, payment_webhook_events, order_access_grants,
@@ -4642,10 +4641,10 @@ GRANT EXECUTE ON FUNCTION member_tier(uuid, integer, uuid) TO store;
 -- ============================================================================
 -- The back office
 --
--- `admin` is what batch ⑦'s pages may do. It is a WIDER set than store, not a
--- superset of everything: the point of the model is that no connecting role can
--- write money or stock directly, and that holds for the back office too. An
--- admin adjusts stock through record_inventory_movement, exactly as the
+-- `admin` is what the back office's pages may do. It is a WIDER set than store,
+-- not a superset of everything: the point of the model is that no connecting
+-- role can write money or stock directly, and that holds for the back office
+-- too. An admin adjusts stock through record_inventory_movement, exactly as the
 -- storefront does, so every movement lands in the ledger with a reason.
 --
 -- The binary opens a SECOND pool for these pages and does SET ROLE admin on it.
@@ -5763,11 +5762,11 @@ GRANT EXECUTE ON FUNCTION redeem_loyalty_points(uuid, bigint, bigint, text) TO s
 -- PUBLIC. Both are swept rather than written per function, because the failure
 -- mode is omission: a function added later simply would not be covered.
 --
--- Anywhere but last, every function appended below it is PUBLIC EXECUTE for
--- exactly that reason — with the four payment posting functions below it,
--- `reporting`, a read-only role, can call capture_payment and post money.
--- TestNoStoredFunctionIsPublicExecute is what asks. Keeping the sweep last is
--- what makes the next append safe by construction rather than by memory.
+-- Anywhere but last, and every function appended below it keeps PUBLIC EXECUTE
+-- for exactly that reason: with the sweep above the four payment posting
+-- functions, `reporting` — a read-only role — can call capture_payment and post
+-- money. TestNoStoredFunctionIsPublicExecute is what asks. Keeping the sweep
+-- last is what makes the next append safe by construction rather than by memory.
 --
 -- Order is not a problem for the GRANTs above: REVOKE ... FROM PUBLIC does not
 -- touch a privilege granted to a named role.
@@ -5793,9 +5792,8 @@ GRANT EXECUTE ON FUNCTION redeem_loyalty_points(uuid, bigint, bigint, text) TO s
 --     -- sign in
 --
 -- Nothing stands in the way of it. The money and stock tables are locked down
--- properly; the auth tables are the ones a hand-written list of
--- money/stock/ledger tables never enumerates, which is what every privilege test
--- in this repository would otherwise be.
+-- properly; the auth tables are the ones a privilege test written as a
+-- hand-written list of money/stock/ledger tables never enumerates.
 -- TestNoRoleHoldsAWriteItsQueriesNeverMake derives the question instead, and it
 -- is what these revokes are held to.
 --

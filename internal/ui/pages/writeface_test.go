@@ -8,20 +8,13 @@ import (
 	"testing"
 )
 
-// formOpen matches the start of a form element and everything up to its closing
-// bracket, across newlines — templ formats attributes one per line.
+// formOpen matches a form element's opening tag across newlines, since templ
+// formats attributes one per line.
 var formOpen = regexp.MustCompile(`(?s)<form\b(.*?)>`)
 
-// TestEveryFormWorksWithScriptingOff is the write-face rule, mechanised.
-//
-// CLAUDE.md states it as the project's central pin: every mutation is a plain
-// <form method="post"> that works with scripting off, and hx-* may only change
-// what is written BACK. It names the failure exactly — "hx-post on a form with
-// no action" — and until now nothing but review enforced it.
-//
-// A form that loses its action is not a compile error, not a test failure, and
-// not visible in a browser that has JavaScript. It is visible to the customer
-// whose extension blocked it, and to nobody else.
+// TestEveryFormWorksWithScriptingOff is the write-face rule, mechanised: a form
+// that loses its action is not a compile error, not a test failure and not
+// visible in a browser that has JavaScript.
 func TestEveryFormWorksWithScriptingOff(t *testing.T) {
 	t.Parallel()
 
@@ -37,8 +30,8 @@ func TestEveryFormWorksWithScriptingOff(t *testing.T) {
 				t.Errorf("%s\n  has no action — with scripting off it posts to the "+
 					"current URL, which is almost never the handler it means", where)
 			}
-			// GET forms are search and filter, which are not mutations. Anything
-			// that writes must say so, or a reload resubmits it.
+			// GET forms are search and filter; a write must say post, or a
+			// reload resubmits it.
 			method := strings.ToLower(attrValue(attrs, "method"))
 			if method != "get" && method != "post" {
 				t.Errorf("%s\n  has method=%q, want get or post", where, method)
@@ -55,10 +48,9 @@ func TestEveryFormWorksWithScriptingOff(t *testing.T) {
 	}
 }
 
-// attrValue reads a quoted attribute, or "" when it is absent or dynamic.
-//
-// A templ expression — action={ templ.SafeURL(...) } — counts as present: the
-// rule is that the form names its handler, not that the name is a literal.
+// attrValue reads a quoted attribute, or "" when it is absent. A templ
+// expression counts as present: the rule is that the form names its handler,
+// not that the name is a literal.
 func attrValue(attrs, name string) string {
 	if m := regexp.MustCompile(name + `="([^"]*)"`).FindStringSubmatch(attrs); m != nil {
 		return m[1]
@@ -69,8 +61,8 @@ func attrValue(attrs, name string) string {
 	return ""
 }
 
-// withoutComments drops // lines, which in a .templ file are Go comments in
-// the template body as well as above it.
+// withoutComments drops // lines, which in a .templ file appear in the template
+// body as well as above it.
 func withoutComments(src string) string {
 	lines := strings.Split(src, "\n")
 	kept := lines[:0]
@@ -103,9 +95,8 @@ func templateSources(t *testing.T) map[string]string {
 		if readErr != nil {
 			return readErr
 		}
-		// Comments stripped first: a doc comment explaining the rule quotes
-		// `<form method="post">`, and the first run of this test reported two
-		// of its own explanations as violations.
+		// Comments are stripped first, or a doc comment quoting `<form
+		// method="post">` is read as a form.
 		out[filepath.Base(path)] = withoutComments(string(src))
 		return nil
 	})

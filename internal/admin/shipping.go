@@ -15,12 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// MaxShippingFee bounds a fee a staff member can publish.
-//
-// NT$5,000 to send one parcel is a typo, not a price. The bound is here rather
-// than in the schema because it is a judgement about this shop rather than an
-// invariant about shipping — a freight company moving pallets would set it
-// higher, and the CHECK would then be the wrong place to argue with.
+// MaxShippingFee bounds a fee a staff member can publish. Deliberately not a
+// CHECK: it is a judgement about this shop rather than an invariant.
 const MaxShippingFee = 500000
 
 // Shipping reads what the back office may change about delivery.
@@ -34,9 +30,6 @@ func (s *Store) Shipping(ctx context.Context) (pages.AdminShippingView, error) {
 	for i := range rows {
 		versionIDs = append(versionIDs, rows[i].VersionID)
 	}
-	// One query for every method on the page rather than one per method: the
-	// list is short, and a per-row read is the shape a list page has to avoid
-	// on principle rather than by measurement.
 	zoneRows, err := s.q.AdminVersionZones(ctx, versionIDs)
 	if err != nil {
 		return pages.AdminShippingView{}, fmt.Errorf("read version zones: %w", err)
@@ -78,16 +71,11 @@ func (s *Store) Shipping(ctx context.Context) (pages.AdminShippingView, error) {
 }
 
 // ShippingVersion is what the publish form submits.
-//
-// A struct because the same thing as a parameter list is eight wide once the two
-// English fields are on it — and two adjacent strings a caller can transpose is a
-// bug nothing catches.
 type ShippingVersion struct {
 	MethodID string
 	Name     string
 	Carrier  string
-	// The English name and carrier, optional. The checkout's method chooser reads
-	// these, which makes them the last shop-typed chrome on the buying mainline.
+	// The English name and carrier, optional; the checkout's chooser reads them.
 	NameEn          string
 	CarrierEn       string
 	FeeDollars      int64
@@ -96,14 +84,8 @@ type ShippingVersion struct {
 
 // PublishShippingVersion puts a new fee in force for one method.
 //
-// An INSERT and never an UPDATE. shipping_method_versions_append_only refuses
-// the latter, and the reason is that every past order names the version it was
-// priced from: editing a fee would rewrite what a customer was charged last
-// month.
-//
-// The amounts arrive in DOLLARS, which is what a staff member setting NT$80
-// types. A form that asks for cents is a form that eventually charges a hundred
-// times too much.
+// An INSERT, never an UPDATE: every past order names the version it was priced
+// from. The amounts arrive in DOLLARS and are scaled here.
 func (s *Store) PublishShippingVersion(ctx context.Context, v ShippingVersion) error {
 	id, err := uuid.Parse(v.MethodID)
 	if err != nil {
@@ -139,10 +121,9 @@ func (s *Store) PublishShippingVersion(ctx context.Context, v ShippingVersion) e
 			if insErr != nil {
 				return fmt.Errorf("%w: %s", ErrRefused, insErr.Error())
 			}
-			// The zone surcharges come with it, in the same transaction. They
-			// key on the version, so a new version starts with none — and a
-			// shop that raised its base fee would silently start shipping to
-			// 離島 at the mainland rate.
+			// Surcharges key on the VERSION, so a new one starts with none: a
+			// shop raising its base fee would silently start shipping to the
+			// outlying islands at the mainland rate.
 			if carryErr := q.CarryZoneSurcharges(ctx, db.CarryZoneSurchargesParams{
 				NewVersionID: versionID, MethodID: id,
 			}); carryErr != nil {
@@ -154,9 +135,8 @@ func (s *Store) PublishShippingVersion(ctx context.Context, v ShippingVersion) e
 
 // SetZoneSurcharge sets, or clears, what one version charges for one zone.
 //
-// Zero CLEARS rather than storing a zero: absence is what "no surcharge" means
-// — the lookup coalesces a missing row to nothing — so a row saying zero would
-// be a second way to express one state, and the CHECK refuses it.
+// Zero DELETES the row: absence is what "no surcharge" means to the lookup, and
+// shipping_version_zones_surcharge_positive refuses a stored zero.
 func (s *Store) SetZoneSurcharge(ctx context.Context, versionID, zoneID string, dollars int64) error {
 	vid, err := uuid.Parse(versionID)
 	if err != nil {
@@ -197,27 +177,19 @@ func (s *Store) SetZoneSurcharge(ctx context.Context, versionID, zoneID string, 
 		})
 }
 
-// MaxZonePrefixes bounds one submission of postal prefixes.
-//
-// Taiwan has about 370 three-digit prefixes, so a zone naming more than this is a
-// paste of the whole country — which is what "no zone at all" already means, and far
-// more cheaply.
+// MaxZonePrefixes bounds one submission of postal prefixes. Taiwan has about 370
+// three-digit prefixes, so more than this is a paste of the whole country.
 const MaxZonePrefixes = 100
 
-// NewMethod is a delivery method being created, with the first version that prices
-// it. Both together, because a method with no version is one the checkout finds and
-// cannot price.
+// NewMethod is a delivery method being created, with the first version that
+// prices it — a method with no version is one the checkout cannot price.
 type NewMethod struct {
 	Code string
 	// Destination is 'address' or 'pickup_point'. It decides which half of the
-	// checkout form exists, which is why it is asked HERE rather than derived from
-	// the code — a rule written in Go is a rule the next method forgets.
+	// checkout form exists, so it is asked rather than derived from the code.
 	Destination string
-	// The carrier's PARCEL ceilings, in millimetres and grams. Zero means "no
-	// stated limit", which is the honest default for 宅配 — a courier takes what
-	// fits in a van. 超商店到店 is why they exist: 45cm longest side, 105cm across
-	// three, 10kg (萊爾富 5kg), and without them a customer is offered a method
-	// their monitor cannot go by.
+	// The carrier's parcel ceilings, in millimetres and grams. Zero is NO STATED
+	// LIMIT rather than zero capacity, so an unmeasured method refuses nothing.
 	MaxParcelLongestMM int32
 	MaxParcelSumMM     int32
 	MaxParcelWeightG   int32
@@ -258,8 +230,7 @@ func (m *NewMethod) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-// methodCodeFormat mirrors shipping_methods_code_format. Checked here so the page can
-// say what is wrong; the CHECK is what makes it true.
+// methodCodeFormat mirrors shipping_methods_code_format.
 var methodCodeFormat = regexp.MustCompile(`^[a-z0-9]+(_[a-z0-9]+)*$`)
 
 // CreateMethod adds a delivery method and the version that prices it.
@@ -283,9 +254,8 @@ func (s *Store) CreateMethod(ctx context.Context, m *NewMethod) (map[string]stri
 		if insErr != nil {
 			return insErr
 		}
-		// The first version, in the SAME transaction. Without it the method exists
-		// and nothing can price it — and shipping_method_versions is append-only, so
-		// there is no repairing that by editing.
+		// The first version, in the same transaction: shipping_method_versions is
+		// append-only, so a method left unpriced cannot be repaired by editing.
 		if _, verErr := q.PublishShippingVersion(ctx, db.PublishShippingVersionParams{
 			MethodID: methodID, Name: m.Name, Carrier: m.Carrier,
 			NameEn: m.NameEn, CarrierEn: m.CarrierEn,
@@ -304,11 +274,8 @@ func (s *Store) CreateMethod(ctx context.Context, m *NewMethod) (map[string]stri
 	return nil, nil
 }
 
-// SetMethodActive switches a method on or off.
-//
-// Off and never deleted: shipping_method_versions references it ON DELETE RESTRICT,
-// and every past order names the version it was priced from — a method that ever
-// carried a parcel is part of the record.
+// SetMethodActive switches a method on or off. Never deleted: every past order
+// names the version it was priced from.
 func (s *Store) SetMethodActive(ctx context.Context, id string, active bool) error {
 	methodID, err := uuid.Parse(id)
 	if err != nil {
@@ -342,11 +309,8 @@ type NewZone struct {
 	Prefixes string
 }
 
-// CreateZone adds a zone and assigns its prefixes.
-//
-// One transaction, because a zone with no prefixes is one no postal code can ever
-// resolve to: the surcharge lookup finds a zone BY prefix, so an empty zone is a row
-// nothing can reach and a surcharge nobody is charged.
+// CreateZone adds a zone and assigns its prefixes, in one transaction: the
+// surcharge lookup finds a zone BY prefix, so an empty zone is unreachable.
 func (s *Store) CreateZone(ctx context.Context, z *NewZone) (map[string]string, error) {
 	z.Code = strings.ToLower(strings.TrimSpace(z.Code))
 	z.Name = strings.TrimSpace(z.Name)
@@ -398,10 +362,8 @@ func (s *Store) CreateZone(ctx context.Context, z *NewZone) (map[string]string, 
 
 // SetZonePrefixes replaces one zone's prefix list.
 //
-// An UPSERT per prefix rather than delete-then-insert: prefix is the primary key of
-// shipping_zone_prefixes, so a prefix belongs to exactly one zone by construction and
-// MOVING one between zones is the ordinary edit. Deleting first would briefly leave a
-// postal code in no zone, and a checkout priced in that window would undercharge.
+// An UPSERT per prefix, never delete-then-insert: a postal code left in no zone
+// for that moment is a checkout priced without its surcharge.
 func (s *Store) SetZonePrefixes(ctx context.Context, id, list string) (map[string]string, error) {
 	zoneID, err := uuid.Parse(id)
 	if err != nil {
@@ -471,19 +433,15 @@ func (s *Store) DeleteZone(ctx context.Context, id string) error {
 			return fmt.Errorf("%w: %s", ErrRefused, execErr.Error())
 		}
 		if n == 0 {
-			// Prefixes or surcharges still point at it. The foreign keys would
-			// refuse anyway; the row count is what lets the page say which.
+			// Prefixes or surcharges still point at it.
 			return ErrInUse
 		}
 		return nil
 	})
 }
 
-// parsePrefixes reads a pasted list of three-digit postal prefixes.
-//
-// Whitespace, commas and newlines all separate, because that is how a person pastes
-// a list. Each is checked against the same shape shipping_zone_prefixes_format
-// demands, so the page can name the bad one instead of showing a constraint.
+// parsePrefixes reads a pasted list of three-digit postal prefixes, separated by
+// whitespace, commas or newlines.
 func parsePrefixes(ctx context.Context, list string) (prefixes []string, message string) {
 	fields := strings.FieldsFunc(list, func(r rune) bool {
 		return r == ',' || r == ';' || r == '\n' || r == '\r' || r == '\t' || r == ' '
@@ -510,6 +468,4 @@ func parsePrefixes(ctx context.Context, list string) (prefixes []string, message
 }
 
 // zonePrefixFormat mirrors shipping_zone_prefixes_format.
-// Written as \d rather than [0-9] because gocritic asks; the CHECK it mirrors uses
-// the POSIX class, and the two agree on the only alphabet that matters here.
 var zonePrefixFormat = regexp.MustCompile(`^\d{3}$`)

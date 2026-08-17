@@ -26,14 +26,13 @@ type AdminVariant struct {
 // Price is the variant's price.
 func (v AdminVariant) Price() string { return twd(v.PriceCents) }
 
-// StockText and SafetyText are the numbers as text.
+// StockText is the stock on hand, as text.
 func (v AdminVariant) StockText() string { return strconv.FormatInt(int64(v.Stock), 10) }
 
 // SafetyText is the floor below which nothing may be sold.
 func (v AdminVariant) SafetyText() string { return strconv.FormatInt(int64(v.Safety), 10) }
 
-// SellableText is how many may actually be sold — stock above the floor, which
-// is what record_inventory_movement will allow.
+// SellableText is how many may actually be sold — the stock above the safety floor.
 func (v AdminVariant) SellableText() string {
 	n := v.Stock - v.Safety
 	if n < 0 {
@@ -42,8 +41,7 @@ func (v AdminVariant) SellableText() string {
 	return strconv.FormatInt(int64(n), 10)
 }
 
-// Low reports whether this variant is at or under its floor, which is what the
-// back office is looking for.
+// Low reports whether this variant is at or under its safety floor.
 func (v AdminVariant) Low() bool { return v.Stock <= v.Safety }
 
 // AdminOrderRow is one row of the order queue.
@@ -111,11 +109,7 @@ func (v AdminDashboardView) HasLow() bool { return len(v.Low) > 0 }
 
 // AdminOrdersView is the order queue.
 type AdminOrdersView struct {
-	// Term is what was TYPED, echoed so the box keeps it.
-	Term string
-	// Searched reports whether a search actually RAN. Distinct from Term being
-	// non-empty, because a term below the minimum is a term nobody searched for —
-	// collapsing the two makes the page claim results it never looked for.
+	Term     string
 	Searched bool
 	Status   string
 	Orders   []AdminOrderRow
@@ -123,12 +117,10 @@ type AdminOrdersView struct {
 	Notice   string
 }
 
-// Searching reports whether this page is showing search RESULTS.
+// Searching reports whether this page is showing search results.
 func (v AdminOrdersView) Searching() bool { return v.Searched }
 
-// TermTooShort reports that something was typed and it was not enough to search
-// with. Said out loud rather than silently falling back to the queue, which is a
-// page that looks like an answer and is not.
+// TermTooShort reports that something was typed and it was not enough to search with.
 func (v AdminOrdersView) TermTooShort() bool { return v.Term != "" && !v.Searched }
 
 // Tabs is the status filter, with counts.
@@ -137,8 +129,6 @@ func (v AdminOrdersView) Tabs(ctx context.Context) []AdminStatusTab {
 		value string
 		label i18n.Key
 	}{
-		// 全部 carries an EMPTY value because it is not a status — it is the
-		// absence of the filter.
 		{"", i18n.KeyAdminTabAll},
 		{"pending", i18n.KeyAdminStatusPending},
 		{"picking", i18n.KeyAdminStatusPicking},
@@ -171,10 +161,6 @@ func (v AdminOrdersView) Empty() bool { return len(v.Orders) == 0 }
 func (v AdminOrdersView) HasNotice() bool { return v.Notice != "" }
 
 // RecipientText is who it is going to, or a note that erase_user has been here.
-//
-// Decided HERE and never in a coalesce() inside the query: the fallback is a
-// sentence somebody reads, and a sentence assembled in SQL is chrome written
-// where nobody can ask who is reading it.
 func (o AdminOrderRow) RecipientText(ctx context.Context) string {
 	if o.Recipient == "" {
 		return i18n.T(ctx, i18n.KeyAdminErasedRecipient)
@@ -184,16 +170,15 @@ func (o AdminOrderRow) RecipientText(ctx context.Context) string {
 
 // AdminOrderView is one order in the back office.
 type AdminOrderView struct {
-	Number        string
-	Status        string
-	StatusText    string
-	PlacedAt      string
-	ShippingName  string
-	Lines         []OrderLine
-	SubtotalCents int64
-	ShippingCents int64
-	DiscountCents int64
-	// DiscountReason is which coupon, or "" for an order that had none.
+	Number         string
+	Status         string
+	StatusText     string
+	PlacedAt       string
+	ShippingName   string
+	Lines          []OrderLine
+	SubtotalCents  int64
+	ShippingCents  int64
+	DiscountCents  int64
 	DiscountReason string
 	TaxCents       int64
 	Email          string
@@ -202,55 +187,22 @@ type AdminOrderView struct {
 	Address        string
 	CustomerNote   string
 	StaffNote      string
-	// The 發票 the customer asked for, collected at checkout. Shown here because
-	// somebody issuing one by hand — which is the only way wherever the 加值中心
-	// integration is unconfigured — has to be able to see what to issue.
 	InvoiceType    string
 	InvoiceCarrier string
 	InvoiceTaxID   string
-	// InvoiceDocuments is what has actually been FILED — the preference above
-	// says what the customer asked for, and these are the 統一發票 and 折讓 that
-	// exist because of it. The distinction is the whole feature: a page showing
-	// only the preference cannot say whether anything was ever issued against it,
-	// which is the one question somebody reconciling an order has.
+	// InvoiceDocuments is what has been filed, as against the preference above.
 	InvoiceDocuments []AdminInvoiceDocument
-	// InvoicingEnabled is whether this deployment has 加值中心 credentials at
-	// all. False renders no controls and says why, the way the payment page says
-	// 金流尚未啟用 — never a button that can only fail.
 	InvoicingEnabled bool
 	Committed        bool
 	Next             []AdminTransition
-	// CanShip is whether a parcel can go out: the order is picking, or it has
-	// already shipped one and something is still outstanding. Dispatch is its
-	// own form because it carries the carrier and tracking number, and because
-	// it settles stock — a status dropdown cannot express either.
-	//
-	// It follows from what is still OUTSTANDING and never from the status alone.
-	// Nothing returns an order TO picking, so `status == "picking"` lets an order
-	// hold exactly one parcel ever — against tables that have modelled several,
-	// with per-line quantities, since the schema was written.
-	CanShip bool
-	// Shippable is what is still outstanding, per line, with how many of each.
-	// Empty on an order that has gone out in full.
-	Shippable []AdminShippableLine
-	Notice    string
-	// Timeline is the order's history WITH the staff member who caused each
-	// step. The actor is the whole reason this and the customer's own timeline
-	// are two different queries: an order page anybody holding the number can
-	// reach must not name the staff member who picked it, and the back office is
-	// the one audience for whom that name is the point.
-	Timeline  []AdminOrderEvent
-	Shipments []AdminShipment
-	// The delivery details as fields rather than one line, so the back office
-	// can CORRECT them. Without a correction form a customer who typed the wrong
-	// street cannot fix it and neither can the shop: the only move left is
-	// cancel and re-order, which loses the payment and the stock hold with it.
-	Delivery AdminDelivery
-	// Correctable is false once the parcel has left. Rewriting the address then
-	// makes the record lie about where it went.
-	Correctable bool
-	// PickupDestination decides which half of the form is shown, from the
-	// order's own shipping method rather than from anything submitted.
+	// CanShip follows from what is still outstanding, never from the status.
+	CanShip           bool
+	Shippable         []AdminShippableLine
+	Notice            string
+	Timeline          []AdminOrderEvent
+	Shipments         []AdminShipment
+	Delivery          AdminDelivery
+	Correctable       bool
 	PickupDestination bool
 	PickupBrands      []PickupBrandChoice
 }
@@ -273,28 +225,17 @@ type AdminDelivery struct {
 
 // AdminOrderEvent is one step in an order's history, as the shop sees it.
 type AdminOrderEvent struct {
-	Kind string
-	Note string
-	At   string
-	// Actor is the staff member who caused it, or "" for something the system
-	// did — a webhook capture, a customer's own cancellation.
+	Kind  string
+	Note  string
+	At    string
 	Actor string
 }
 
-// LabelKey names the step's message. It delegates to OrderEvent rather than
-// repeating the switch: two copies of a nine-case mapping is how one of them
-// comes to be missing the tenth.
+// LabelKey names the step's message.
 func (e AdminOrderEvent) LabelKey() i18n.Key { return OrderEvent{Kind: e.Kind}.LabelKey() }
 
-// By is who did it, in words. "系統" rather than an empty column, because a
-// blank reads as missing data and this is a fact: nobody at the shop did it.
-//
-// A CANCELLATION with no actor is the customer's own, and says so. The back
-// office always writes an actor when it cancels, so the ABSENCE is what tells
-// the two apart. Structural rather than a Chinese sentence in
-// order_events.note: the customer's own order page renders notes, so a sentence
-// stored there is read back at them whatever language they read in. Each
-// audience is told this in their own words instead.
+// By is who did it, in words. A cancellation with no actor is the customer's own:
+// the back office always writes an actor, so the absence is what tells them apart.
 func (e AdminOrderEvent) By(ctx context.Context) string {
 	switch {
 	case e.Actor != "":
@@ -323,13 +264,8 @@ type AdminShippableLine struct {
 	SKU         string
 	Name        string
 	Label       string
-	// Remaining is how many of this line have not gone out yet, which is what
-	// the form's quantity box defaults to and is bounded by.
-	Remaining int32
-	// Held is how many the order still has reserved for it. Fewer than Remaining
-	// means somebody released part of the hold, and the form says so rather than
-	// letting the dispatch fail at the write.
-	Held int32
+	Remaining   int32
+	Held        int32
 }
 
 // Line is the item as one row of text.
@@ -346,12 +282,7 @@ func (l AdminShippableLine) RemainingText() string {
 	return strconv.FormatInt(int64(l.Remaining), 10)
 }
 
-// Short reports whether this line holds less stock than it still owes.
-//
-// It means part of the hold went back on the shelf — the sweeper, or a
-// cancellation that did not finish — and the dispatch of that part would post no
-// inventory movement. The form says it rather than letting the write refuse with
-// a constraint name.
+// Short reports a hold smaller than the line still owes; that dispatch posts no movement.
 func (l AdminShippableLine) Short() bool { return l.Held < l.Remaining }
 
 // HeldText is how many units the order still has reserved for this line.
@@ -392,14 +323,10 @@ func (v *AdminOrderView) RecipientText(ctx context.Context) string {
 	return v.Recipient
 }
 
-// HasInvoice reports whether the customer stated a 發票 preference.
+// HasInvoice reports whether the customer stated an invoice preference.
 func (v *AdminOrderView) HasInvoice() bool { return v.InvoiceType != "" }
 
 // InvoiceText is the preference in words, with the detail that goes with it.
-//
-// A closed set — invoice_preferences_type_known has already refused anything else —
-// so an unknown value is a programming error and panics rather than printing a code
-// at a staff member who has to act on it.
 func (v *AdminOrderView) InvoiceText(ctx context.Context) string {
 	switch v.InvoiceType {
 	case "member_carrier":
@@ -413,20 +340,16 @@ func (v *AdminOrderView) InvoiceText(ctx context.Context) string {
 	}
 }
 
-// AdminInvoiceDocument is one 統一發票 or 折讓 filed against an order.
+// AdminInvoiceDocument is one uniform invoice or credit note filed against an order.
 type AdminInvoiceDocument struct {
 	Kind   string
 	Number string
-	// ProviderRef is the four-digit 隨機碼, which a customer needs to look the
-	// invoice up on the 財政部 platform and a void needs alongside the number.
+	// ProviderRef is the four-digit random code a void needs alongside the number.
 	ProviderRef string
 	AmountCents int64
 	Status      string
 	IssuedAt    string
-	// Lines is what the document says was sold. A shop reconciling an invoice
-	// against an order compares lines rather than totals, which is why
-	// invoice_document_lines exists at all.
-	Lines []AdminInvoiceLine
+	Lines       []AdminInvoiceLine
 }
 
 // AdminInvoiceLine is one item on a filed document.
@@ -455,14 +378,7 @@ func (d AdminInvoiceDocument) Amount() string { return twd(d.AmountCents) }
 // Voided reports whether it has been cancelled.
 func (d AdminInvoiceDocument) Voided() bool { return d.Status == "voided" }
 
-// CanIssueInvoice reports whether to offer the issue button.
-//
-// A COMMITTED order only: issuing for a checkout nobody paid for files a tax
-// document for a sale that did not happen, and undoing that is a correction with
-// the 財政部 rather than a delete. The database says the same thing — the store
-// checks committed_orders before it calls the 加值中心 — and this only decides
-// whether to show the control, because one that can only be refused is worse
-// than none.
+// CanIssueInvoice reports whether to offer the issue button: committed, no live invoice.
 func (v *AdminOrderView) CanIssueInvoice() bool {
 	if !v.InvoicingEnabled || !v.Committed {
 		return false
@@ -508,11 +424,6 @@ func (v AdminVariantsView) Empty() bool { return len(v.Variants) == 0 }
 func (v AdminVariantsView) HasNotice() bool { return v.Notice != "" }
 
 // AdminMeta is the dashboard's chrome.
-//
-// The three admin metas are FUNCTIONS rather than package-level values, and the
-// reason is the locale: a var is built once at startup, where there is no
-// request and therefore no language to build it in. ListingMeta and ProductMeta
-// have the same shape on the storefront, for the same reason.
 func AdminMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeyAdminPageDashboard)}
 }
@@ -527,8 +438,7 @@ func AdminVariantsMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeyAdminPageStockList)}
 }
 
-// PriceText and CompareText are the prices in whole New Taiwan dollars, which
-// is what the form's number inputs carry.
+// PriceText is the price in whole dollars, which is what the form's number input carries.
 func (v AdminVariant) PriceText() string { return strconv.FormatInt(v.PriceCents/100, 10) }
 
 // CompareText is the compare-at price, empty when the variant is not on sale.
@@ -539,37 +449,25 @@ func (v AdminVariant) CompareText() string {
 	return strconv.FormatInt(v.CompareCents/100, 10)
 }
 
-// AdjustKey is the idempotency key this row's adjustment form carries.
-//
-// It is derived from the SKU and the stock the page was rendered with, so
-// pressing the same button twice is ONE adjustment: inventory_movements has a
-// unique index on the key, and the second write is refused rather than doubling
-// the correction. Reloading the page produces a new key, because the stock it
-// shows has changed.
+// AdjustKey is the adjustment form's idempotency key, derived from the stock the
+// page rendered with, so pressing the button twice is one adjustment.
 func (v AdminVariant) AdjustKey() string {
 	return "adj:" + v.SKU + ":" + strconv.FormatInt(int64(v.Stock), 10)
 }
 
 // AdminMovement is one row of a variant's stock ledger.
 type AdminMovement struct {
-	At     string
-	Delta  int32
-	Reason string
-	// OrderNumber is the order a sale, hold or release belongs to, or "" for a
-	// receipt or a hand adjustment — which belong to nothing but the person who
-	// made them.
+	At          string
+	Delta       int32
+	Reason      string
 	OrderNumber string
-	// Actor is the staff member, or "" for a movement the system made. A sale is
-	// not somebody's decision; a hand adjustment is.
-	Actor string
-	// Running is the stock this movement left behind, summed over the ledger up to
-	// and including it. Computed in SQL because the answer is a fact about the whole
-	// ledger and only the last page of it is shown.
+	Actor       string
+	// Running is the stock this movement left behind, summed over the whole ledger
+	// rather than the page.
 	Running int32
 }
 
-// DeltaText is the movement with its sign, because +3 and -3 are the whole story of
-// a row and a bare 3 is half of it.
+// DeltaText is the movement with its sign.
 func (m AdminMovement) DeltaText() string {
 	if m.Delta > 0 {
 		return "+" + strconv.FormatInt(int64(m.Delta), 10)
@@ -586,8 +484,7 @@ func (m AdminMovement) In() bool { return m.Delta > 0 }
 // HasOrder reports whether this movement names an order.
 func (m AdminMovement) HasOrder() bool { return m.OrderNumber != "" }
 
-// By is who caused it, in words. "系統" rather than blank: a sale is the shop doing
-// its work, not a missing value.
+// By is who caused it, in words, or the system when nobody at the shop decided it.
 func (m AdminMovement) By(ctx context.Context) string {
 	if m.Actor == "" {
 		return i18n.T(ctx, i18n.KeyAdminActorSystem)
@@ -596,10 +493,6 @@ func (m AdminMovement) By(ctx context.Context) string {
 }
 
 // ReasonText is why, in the back office's language.
-//
-// A closed set, and a movement with an unknown reason is a programming error rather
-// than a runtime condition — inventory_movements_reason_known has already refused
-// anything else, so this panics instead of printing a code at somebody.
 func (m AdminMovement) ReasonText(ctx context.Context) string {
 	switch m.Reason {
 	case "receipt":
@@ -633,23 +526,17 @@ type AdminMovementsView struct {
 // HasNotice reports whether to show the banner.
 func (v *AdminMovementsView) HasNotice() bool { return v.Notice != "" }
 
-// ReceiveKey is the idempotency key the 進貨 form carries.
-//
-// Derived from the SKU and the stock the page was rendered with, exactly like
-// AdjustKey and for the same reason: pressing the button twice is ONE receipt,
-// because inventory_movements is unique on the key and the second write is
-// refused rather than booking the delivery in twice. Prefixed differently from
-// an adjustment so a correction and a delivery posted against the same figure
-// are two distinct facts rather than one swallowed by the other.
+// ReceiveKey is the idempotency key the goods-receipt form carries. Prefixed apart
+// from AdjustKey, so a correction and a delivery posted against the same figure are
+// two distinct facts rather than one swallowed by the other.
 func (v *AdminMovementsView) ReceiveKey() string {
 	return "rcv:" + v.SKU + ":" + strconv.FormatInt(int64(v.Stock), 10)
 }
 
-// Empty reports whether nothing has ever moved. Possible: a variant is created with
-// no stock at all, and record_inventory_movement is the only way any arrives.
+// Empty reports whether nothing has ever moved.
 func (v *AdminMovementsView) Empty() bool { return len(v.Rows) == 0 }
 
-// StockText and SafetyText are the current figures.
+// StockText is the current stock.
 func (v *AdminMovementsView) StockText() string { return strconv.FormatInt(int64(v.Stock), 10) }
 
 // SafetyText is the floor below which nothing may be sold.

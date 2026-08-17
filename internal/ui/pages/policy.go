@@ -14,18 +14,10 @@ type PolicySection struct {
 	Heading string
 	Body    []string
 	// HeadingEn and BodyEn are the English the same section renders in.
-	//
-	// Declared BESIDE the Chinese rather than in a second map, for the reason
-	// i18n.Message pairs a key with both its translations: three edits in three
-	// places, hundreds of lines apart, is how half a locale ships. A missing
-	// translation is visible at the line that forgot it, and
-	// TestEveryPolicyClauseIsTranslated refuses one.
 	HeadingEn string
 	BodyEn    []string
-	// Pending marks a section describing what has NOT been decided. It renders
-	// differently on purpose: a reader must be able to tell a rule from a gap,
-	// and a shop that hides its gaps in the same typeface as its promises is
-	// making a promise by accident.
+	// Pending marks a section describing what has not been decided; it renders
+	// as a visible gap so a reader can tell a rule from one.
 	Pending bool
 }
 
@@ -38,19 +30,9 @@ type PolicyDoc struct {
 	Sections  []PolicySection
 }
 
-// For resolves the document into one locale's strings.
-//
-// A policy page is CHROME rather than content, however much prose it holds, so
-// it renders in the reader's language like every other piece of chrome. The
-// test CLAUDE.md states decides it: **copy compiled into the binary is goen's
-// to say in both languages; copy typed into a table is the shop's to say
-// however it likes.** These documents are compiled in. `faq_entries` and the
-// product copy are the table, and they keep their optional-English rule.
-//
-// /returns is what makes this more than untidy, because it states 消保法 §19.
-// An English-reading customer in Taiwan holds identical rights, §18 I 3 makes
-// providing the rescission information the trader's obligation, and a page
-// stating it in a language that customer cannot read discharges nothing.
+// For resolves the document into one locale's strings. Consumer Protection Act
+// §18 I 3 makes stating the rescission information the trader's obligation, and
+// a page stating it in a language the customer cannot read discharges nothing.
 func (d PolicyDoc) For(l i18n.Locale) PolicyDoc {
 	if l != i18n.En {
 		return d
@@ -92,17 +74,12 @@ type ShippingMethod struct {
 	Carrier       string
 	FeeCents      int64
 	FreeOverCents int64
-	// Surcharges is where this method costs extra, as DATA. The query hands over
-	// rows and never the sentence: a string_agg with ' 另加 NT$' in the middle is
-	// chrome assembled in SQL, which makes it Chinese for every reader and puts
-	// it where no i18n guard reads.
+	// Surcharges is where this method costs extra, as data: the query hands over
+	// rows and never the sentence, which is chrome and follows the visitor.
 	Surcharges []ZoneSurcharge
 }
 
 // ZoneSurcharge is one place that costs more to reach, and how much more.
-//
-// The NAME is the shop's own word for that zone and stays as typed; the sentence
-// around it is chrome and follows the visitor.
 type ZoneSurcharge struct {
 	Name  string
 	Cents int64
@@ -112,11 +89,6 @@ type ZoneSurcharge struct {
 func (m ShippingMethod) HasSurcharges() bool { return len(m.Surcharges) > 0 }
 
 // SurchargeText is the surcharges as one phrase in the visitor's language.
-//
-// It takes a ctx because it is a sentence built from a message plus data, which
-// is the pattern CLAUDE.md prescribes for exactly this: the words have to render
-// to be assembled, so they cannot be decided by a pure mapping — and they
-// certainly cannot be decided in SQL.
 func (m ShippingMethod) SurchargeText(ctx context.Context) string {
 	parts := make([]string, 0, len(m.Surcharges))
 	for _, z := range m.Surcharges {
@@ -146,18 +118,9 @@ type ShippingView struct {
 // Empty reports whether no method is configured.
 func (v ShippingView) Empty() bool { return len(v.Methods) == 0 }
 
-// HoldMinutes is how long checkout reserves stock, stated on the page so the
-// number a customer reads is the one the code enforces.
-//
-// It mirrors cart.HoldTTL. Not imported, because internal/ui must not depend on
-// a feature package — but it is one number, and if it drifts the shipping page
-// says something the till does not do.
-//
-// It is 60 because cart.HoldTTL is PayWindow + StripeSessionFloor, written as a
-// SUM so the two cannot drift into equality: equal, the hold is exactly Stripe's
-// session floor and there is no session goen can open inside it. What a customer
-// reads here is the whole reservation, not the half of it they have to start
-// paying inside.
+// HoldMinutes is how long checkout reserves stock. It mirrors cart.HoldTTL,
+// which internal/ui may not import, so the page and the till share one number
+// only as long as this one is kept equal to it.
 const HoldMinutes = 60
 
 // HoldMinutesText is that number, for the template.
@@ -176,10 +139,9 @@ type AdminFAQEntry struct {
 	UpdatedAt  string
 }
 
-// Translated reports whether this entry reads in English.
-//
-// The ANSWER decides. A translated question above a Chinese answer is worse than an
-// untranslated pair: it invites a reader in and then does not answer them.
+// Translated reports whether this entry reads in English. The answer decides: a
+// translated question above a Chinese answer invites a reader in and then does
+// not answer them.
 func (e AdminFAQEntry) Translated() bool { return e.AnswerEn != "" }
 
 // AdminFAQView is the FAQ management page.
@@ -202,8 +164,7 @@ func (v *AdminFAQView) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
 // Err is why.
 func (v *AdminFAQView) Err(f string) string { return v.Errors[f] }
 
-// Untranslated is how many entries an English visitor reads in Chinese. Said as a
-// number because /faq groups by category and the gaps are easy to lose in the list.
+// Untranslated is how many entries an English visitor reads in Chinese.
 func (v *AdminFAQView) Untranslated() int {
 	n := 0
 	for i := range v.Rows {
@@ -214,5 +175,4 @@ func (v *AdminFAQView) Untranslated() int {
 	return n
 }
 
-// untranslatedText is the count as text, for the page's warning line.
 func untranslatedText(v *AdminFAQView) string { return strconv.Itoa(v.Untranslated()) }

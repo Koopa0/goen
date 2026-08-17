@@ -9,38 +9,26 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// The thresholds at which a figure stops being normal.
-//
-// Each is a MULTIPLE of the interval the worker runs on, not a number somebody
-// liked: a backlog older than several ticks means the ticks are not happening,
-// and anything shorter would alarm on the gap between two healthy runs.
+// The thresholds at which a figure stops being normal. Each is a MULTIPLE of the
+// interval its worker runs on, so a healthy gap between two ticks cannot alarm.
 const (
 	// OutboxStaleAfter is how old the oldest undelivered message may be.
-	// The worker polls every 5s and retries with backoff, so ten minutes is
-	// far past any legitimate retry sequence.
 	OutboxStaleAfter = 10 * time.Minute
-	// HoldsStaleAfter is not a duration but a COUNT: the sweeper runs on a
-	// ticker and a few expired holds always exist between runs. Fifty is a
-	// backlog rather than a moment.
+	// MaxExpiredHolds is a COUNT, not a duration: a few always exist between
+	// sweeper runs.
 	MaxExpiredHolds = 50
-	// CopurchaseStaleAfter is three refresh intervals. One missed rebuild is a
-	// slow database; three is a worker that is not running.
+	// CopurchaseStaleAfter is three refresh intervals.
 	CopurchaseStaleAfter = 45 * time.Minute
-	// The housekeeping pruners run every six hours and every hour, so a healthy
-	// system always carries some of both between ticks. These are the counts at
-	// which the number stops looking like a gap and starts looking like a
-	// worker that stopped.
+	// MaxExpiredSessions and MaxUnreferencedMedia are counts, for pruners that
+	// run every six hours and every hour.
 	MaxExpiredSessions   = 500
 	MaxUnreferencedMedia = 200
 )
 
 // WorkerHealth reads what the background workers have and have not done.
 //
-// Every figure is derived from the WORK — a count of undelivered messages, the
-// age of the oldest one — rather than from a heartbeat the workers write. A
-// heartbeat says "I am running"; these say "the work is being done", and those
-// are different claims. A worker looping without making progress passes the
-// first and fails the second.
+// Every figure is derived from the WORK, never from a heartbeat: a worker
+// looping without progress passes "I am running" and fails this.
 func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (pages.WorkerHealthView, error) {
 	row, err := s.q.WorkerHealth(ctx, outbox.MaxAttempts)
 	if err != nil {
@@ -63,9 +51,8 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (pages
 		MaxUnreferencedMedia: MaxUnreferencedMedia,
 	}
 
-	// WHICH messages, not just how many. A page that says "3 stuck" and cannot
-	// name them tells an operator that something is wrong and nothing about
-	// what to do.
+	// WHICH messages, not just how many: "3 stuck" is not something an operator
+	// can act on.
 	stuck, err := messages.Stuck(ctx, StuckListLimit)
 	if err != nil {
 		return pages.WorkerHealthView{}, fmt.Errorf("read stuck messages: %w", err)
@@ -78,12 +65,8 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (pages
 		})
 	}
 
-	// The refunds nobody could see. `refunds` was written by the back office
-	// and read by one sum, so a refund that stalled at the provider — the exact
-	// state the row is committed BEFORE the call in order to record — existed
-	// in the database and on no page. Nothing settles one by itself either:
-	// goen consumes no refund webhook, so this list is the only thing that ever
-	// says a customer has not been paid.
+	// goen consumes no refund webhook, so nothing settles a stalled refund by
+	// itself: this list is the only thing that says a customer is unpaid.
 	open, err := s.q.OpenRefunds(ctx, OpenRefundListLimit)
 	if err != nil {
 		return pages.WorkerHealthView{}, fmt.Errorf("read open refunds: %w", err)
@@ -102,12 +85,8 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (pages
 	return view, nil
 }
 
-// StuckListLimit bounds the list. A page showing every stuck message in a
-// backlog of ten thousand is a page nobody can read; the count beside it is
-// what says how many there really are.
+// StuckListLimit bounds the list; the count beside it says how many there are.
 const StuckListLimit = 20
 
-// OpenRefundListLimit bounds the refund list for the same reason, and is
-// smaller: a shop with twenty refunds it has not settled has a problem no
-// longer list would help with.
+// OpenRefundListLimit bounds the refund list.
 const OpenRefundListLimit = 20

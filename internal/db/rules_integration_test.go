@@ -1486,8 +1486,8 @@ func TestDeactivatingTheLastVariantIsRefused(t *testing.T) {
 //
 // It has its own test because DELETE is the case where the trigger has no NEW
 // record at all — referring to NEW.product_id there is a runtime error plpgsql
-// cannot catch at compile time, so the guard would have failed the first time
-// anybody deleted a variant rather than when it was written.
+// cannot catch when the function is defined, so a guard written that way is
+// accepted by the database and fails on the first DELETE a shop makes.
 func TestDeletingTheLastVariantIsRefused(t *testing.T) {
 	// A product of its own, because the fixture's variant is referenced by a
 	// committed order — deleting THAT is refused by

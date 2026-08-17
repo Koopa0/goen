@@ -1,12 +1,9 @@
-// Package icons holds goen's inline SVG icons.
-//
-// They are inline rather than <img> or a sprite so they can inherit
-// currentColor and the design system's accent tokens. The package imports
-// nothing from the rest of the UI, so both layouts and pages may use it.
+// Package icons holds goen's inline SVG icons. They are inline rather than
+// <img> or a sprite so they inherit currentColor and the design system's accent
+// tokens.
 package icons
 
-// Mark is the goen brand mark: two rings meeting. The second ring carries the
-// accent so the mark picks up the active theme.
+// Mark is the goen brand mark: two rings meeting.
 templ Mark(class string) {
 	<svg class={ class } viewBox="0 0 40 40" fill="none" aria-hidden="true">
 		<circle cx="15" cy="15" r="9" stroke="var(--fg)" stroke-width="2.5"></circle>
@@ -88,21 +85,16 @@ templ Facebook() {
 	</svg>
 }
 
-// Star is the rating glyph. Stroke-only, like every other icon here — the
-// design system's rating component carries the fill/empty distinction in
-// colour (.ui-rating__stars / .is-empty), not in shape.
+// Star is the rating glyph. Stroke-only: the design system's rating component
+// carries the fill/empty distinction in colour, not in shape.
 templ Star() {
 	<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 		<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
 	</svg>
 }
 
-// Category renders the tile glyph for a category's icon_key.
-//
-// The keys are database values, not a closed Go enum, so an unrecognised key
-// renders nothing rather than panicking: adding a category row must never be
-// able to take the home page down. The tile is designed to read without a
-// glyph, so "nothing" is a complete answer.
+// Category renders the tile glyph for a category's icon_key. The keys are
+// database values, so an unrecognised one renders nothing rather than panicking.
 templ Category(key string) {
 	switch key {
 		case "phone":

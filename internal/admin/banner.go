@@ -14,23 +14,17 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// MaxBanners bounds the back office's list, for the reason MaxSlides does: one
-// promotion shows at a time and a shop with more than this queued has lost track.
+// MaxBanners bounds the back office's list.
 const MaxBanners = 20
 
-// MaxBannerRunes bounds the strip's copy.
-//
-// It is ONE row above the header at every width — check-layout measures exactly
-// that — so a message this long is already pushing it, and anything longer wraps and
-// levies a second line's height on every page.
+// MaxBannerRunes bounds the strip's copy. The strip is ONE row above the header
+// at every width, which check-layout measures; longer copy wraps to two.
 const MaxBannerRunes = 60
 
 // BannerForm is what the back office submits.
 type BannerForm struct {
 	Message string
-	// Short is the narrow-screen wording. Different copy, not a truncation: 60
-	// characters that fit on a laptop do not fit on a phone, and cutting a
-	// sentence in the middle is worse than writing a shorter one.
+	// Short is the narrow-screen wording: different copy, not a truncation.
 	Short    string
 	Code     string
 	CTALabel string
@@ -67,15 +61,12 @@ func (f *BannerForm) Validate(ctx context.Context) map[string]string {
 		}
 	}
 
-	// Both or neither. promo_banners_cta_complete says the same in the schema, and
-	// this is what turns it into a sentence rather than a constraint name.
+	// Both or neither: promo_banners_cta_complete says the same in the schema.
 	if (f.CTALabel == "") != (f.CTAHref == "") {
 		errs["cta"] = i18n.T(ctx, i18n.KeyFormBannerCTAPair)
 	}
-	// The href is typed by a person and rendered into the largest link at the top of
-	// every page. web.SitePath is the one owner of that rule: an absolute URL would
-	// send every visitor off-site from the top of the site, and `javascript:` would
-	// put script in it.
+	// Typed by a person and rendered into a link at the top of every storefront
+	// page, so it goes through web.SitePath.
 	if f.CTAHref != "" {
 		if _, ok := web.SitePath(f.CTAHref); !ok {
 			errs["cta"] = i18n.T(ctx, i18n.KeyFormBannerCTAHref)
@@ -107,11 +98,8 @@ func (s *Store) Banners(ctx context.Context) ([]pages.AdminBanner, error) {
 	return out, nil
 }
 
-// CreateBanner adds a promotion.
-//
-// Active immediately, unlike a hero slide. The two differ on purpose: a hero
-// REPLACES what is on the home page and that is an editorial decision, while a strip
-// is an announcement — a shop writing one has already decided to make it.
+// CreateBanner adds a promotion, active immediately — unlike a hero slide, which
+// replaces what is already on the home page.
 func (s *Store) CreateBanner(ctx context.Context, f *BannerForm) (map[string]string, error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
@@ -134,10 +122,8 @@ func (s *Store) CreateBanner(ctx context.Context, f *BannerForm) (map[string]str
 
 // SetBannerActive switches a promotion on or off.
 //
-// Off rather than deleted: a promotion that ran is part of what the storefront said,
-// and the dismissal cookie is keyed on the id — deleting the row and creating another
-// with the same copy would reappear for everybody who had closed it, which is right
-// only if it is genuinely a new promotion.
+// Off rather than deleted: the dismissal cookie is keyed on the id, so a new row
+// carrying the same copy reappears for everybody who had closed it.
 func (s *Store) SetBannerActive(ctx context.Context, id string, active bool) error {
 	bannerID, err := uuid.Parse(id)
 	if err != nil {

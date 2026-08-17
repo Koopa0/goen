@@ -1,9 +1,6 @@
-// Package cart holds goen's cart and checkout.
-//
-// A cart belongs to a browser before it belongs to an account: guest checkout
-// is supported, so the cart is identified by a cookie and adopted on sign-in.
-// The cookie carries a random token; the database stores only its SHA-256
-// digest, so a leaked table does not hand over live cart cookies.
+// Package cart holds goen's cart and checkout. A cart is identified by a cookie
+// whose random token the database stores only as a SHA-256 digest, and guest
+// checkout is supported.
 package cart
 
 import (
@@ -26,40 +23,26 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Errors a handler branches on.
 var (
 	// ErrNotFound is a cart, order or variant that does not exist.
 	ErrNotFound = errors.New("cart: not found")
-	// ErrUnavailable is a variant that cannot be added or ordered: inactive,
-	// its product not active, or not enough sellable stock.
+	// ErrUnavailable is a variant that cannot be added or ordered.
 	ErrUnavailable = errors.New("cart: variant unavailable")
 	// ErrEmpty is a checkout with nothing in the cart.
 	ErrEmpty = errors.New("cart: empty")
 )
 
-// PlacedCookieName carries the browser's proof that it placed an order.
-//
-// It holds TOKENS, not order numbers, because a number in here would BE the proof
-// and numbers come off a per-day counter (GO-260803-000001, then 000002). Anybody
-// could set such a cookie by hand, increment it, and read a stranger's email,
-// address and items, then cancel the order, start a payment or open a return.
-//
-// `__Host-`, Secure, HttpOnly and SameSite all govern how a BROWSER treats a cookie.
-// None of them says the value came from this server, and curl does not have to care.
-// The token is high-entropy and the server keeps only its digest, the same shape
-// sessions, reset tokens and cart tokens already use.
+// PlacedCookieName carries the browser's proof that it placed an order. It holds
+// high-entropy tokens and never order numbers, which come off a per-day counter
+// and so could be minted by hand and walked by increment.
 const PlacedCookieName = "__Host-goen_placed"
 
 // maxRememberedOrders bounds the list, because the cookie travels on every request.
-// Enough for a session's worth of ordering.
 const maxRememberedOrders = 10
 
 // RememberOrder issues a token for an order and adds it to the browser's list.
-//
-// The grant is written BEFORE the cookie is set: a cookie naming a token this
-// database does not know is a customer locked out of their own order, while a grant
-// with no cookie is a row nobody can use — one is a support ticket and the other is
-// nothing.
+// The grant is written before the cookie: a cookie naming a token this database
+// does not know locks the customer out of their own order.
 func (s *Store) RememberOrder(
 	ctx context.Context, w http.ResponseWriter, r *http.Request, number string, secure bool,
 ) error {
@@ -74,22 +57,13 @@ func (s *Store) RememberOrder(
 		return fmt.Errorf("grant access to order %s: %w", number, err)
 	}
 	if n == 0 {
-		// The INSERT ... SELECT matched no order, which SQL does not call an
-		// error. Without this the caller would set a cookie carrying a token no
-		// grant backs — a customer locked out of their own order with no failure
-		// anywhere to explain it.
+		// The INSERT ... SELECT matched no order, which SQL does not call an error.
 		return fmt.Errorf("grant access to order %s: %w", number, ErrNotFound)
 	}
 
-	// The cookie about to be written carries the OLDER tokens forward with a
-	// fresh MaxAge, so the grants behind them need their clock restarted on the
-	// same event — see TouchOrderAccessGrants.
-	//
-	// Its failure must NOT skip the cookie below. Returning early here would cost
-	// the customer the order they just placed, to avoid a lockout 30 days away
-	// that /orders/find already answers — so the cookie is written either way and
-	// the error is reported afterwards, where rememberOrder logs it without
-	// failing a completed checkout.
+	// The cookie below carries older tokens forward with a fresh MaxAge, so their
+	// grants need the same retention clock restart. A failure here must not skip
+	// that cookie, so the error is reported afterwards instead.
 	var touchErr error
 	if carried := placedTokens(r, secure); len(carried) > 0 {
 		digests := make([][]byte, 0, len(carried))
@@ -105,7 +79,6 @@ func (s *Store) RememberOrder(
 	return touchErr
 }
 
-// writePlacedCookie puts a token at the front of the browser's list.
 func writePlacedCookie(w http.ResponseWriter, r *http.Request, token string, secure bool) {
 	tokens := append([]string{token}, placedTokens(r, secure)...)
 	seen := make(map[string]bool, len(tokens))
@@ -120,9 +93,6 @@ func writePlacedCookie(w http.ResponseWriter, r *http.Request, token string, sec
 			break
 		}
 	}
-	// G124 is suppressed because Secure is a VARIABLE: it is false only under
-	// GOEN_INSECURE_COOKIES in development, where there is no TLS to mark. The
-	// __Host- prefix in the production name enforces the rest.
 	//nolint:gosec // G124: Secure is set from the deployment's own flag, below
 	http.SetCookie(w, &http.Cookie{
 		Name:     placedCookieName(secure),
@@ -135,7 +105,6 @@ func writePlacedCookie(w http.ResponseWriter, r *http.Request, token string, sec
 	})
 }
 
-// placedTokens is the tokens this browser is carrying.
 func placedTokens(r *http.Request, secure bool) []string {
 	c, err := r.Cookie(placedCookieName(secure))
 	if err != nil || c.Value == "" {
@@ -149,13 +118,6 @@ func placedTokens(r *http.Request, secure bool) []string {
 }
 
 // PlacedHere reports whether this browser holds a token for the named order.
-//
-// The comparison happens in the DATABASE, against digests, and the answer is a
-// boolean — the same shape FindOrder returns and for the same reason: a caller that
-// got rows back could say WHICH token matched, and which orders a browser can reach
-// is not something any page needs to disclose.
-//
-// An error is NOT access. A database that cannot answer has not said yes.
 func (s *Store) PlacedHere(ctx context.Context, r *http.Request, number string, secure bool) bool {
 	tokens := placedTokens(r, secure)
 	if len(tokens) == 0 || number == "" {
@@ -182,67 +144,32 @@ func placedCookieName(secure bool) string {
 }
 
 // CookieName is the cart cookie. The __Host- prefix binds it to this exact
-// origin with no Domain attribute and requires Secure, which is what stops a
-// sibling subdomain from writing a cart cookie the storefront would then trust.
+// origin, which stops a sibling subdomain writing a cart cookie goen would trust.
 const CookieName = "__Host-goen_cart"
 
-// cookieMaxAge is how long an abandoned cart survives. Long enough to come back
-// to tomorrow, short enough that a shared browser does not surface someone
-// else's cart weeks later.
+// cookieMaxAge is how long an abandoned cart survives.
 const cookieMaxAge = 30 * 24 * 60 * 60 // 30 days
 
-// tokenBytes is the token's entropy. 32 bytes is well past guessing, and the
-// token is the only thing standing between a stranger and a cart.
 const tokenBytes = 32
 
 // MaxLineQuantity is the most of one variant a cart may hold, matching the
 // schema's own CHECK.
 const MaxLineQuantity = 999
 
-// PayWindow is how long after PLACING an order a customer may still start
+// PayWindow is how long after placing an order a customer may still start
 // paying for it.
-//
-// It is not the same quantity as [HoldTTL], and conflating them — thirty
-// minutes each — breaks payment ENTIRELY. The hold is stamped at PlaceOrder and
-// the payment page asks whether enough of it is left to open a Checkout Session
-// against; Stripe will not accept one expiring less than [StripeSessionFloor]
-// out. With HoldTTL equal to that floor the question reduces to
-// `placed_at >= pay_at`, which is false the instant after checkout — so no
-// session can ever be created and no order can ever be paid for.
-//
-// Two durations measured from DIFFERENT instants are not the same window — the
-// lesson [Order.SessionExpiry] records one level up, about the session and the
-// hold. The same trap sits in these two constants underneath it.
 const PayWindow = 30 * time.Minute
 
 // StripeSessionFloor mirrors payment.MinSessionLifetime, which is Stripe's own
 // minimum for a Checkout Session's expires_at.
-//
-// Mirrored rather than imported: internal/payment already reaches into this
-// package through a consumer-defined interface, and one number is a poor reason
-// to point the dependency back the other way.
-// TestAPlacedOrderCanActuallyBePaidFor binds the two through the real gate and
-// the real sequence — a hold stamped at placement and read at a LATER instant.
-// That sequence is the lock: a test that reads the hold at the instant it was
-// stamped never reaches the comparison this constant decides.
 const StripeSessionFloor = 30 * time.Minute
 
 // HoldTTL is how long an order's stock is reserved while payment is attempted.
-//
-// It is DERIVED, not chosen: a customer who reaches the pay page at the last
-// moment of [PayWindow] must still leave behind a hold long enough for Stripe to
-// accept a session, and that session then expires with the hold rather than
-// after it. Writing it as a sum is what stops the two ends drifting into the
-// equality that leaves every order unpayable — see [PayWindow].
-//
-// The trade-off inside PayWindow is the real one. Too short and a customer
-// typing a card number loses the item under them; too long and an abandoned
-// checkout keeps stock off the shelf. inventory_reservations carries expires_at
-// so a sweeper can return what was never paid for.
+// Written as a sum so the two ends cannot drift into equality: with HoldTTL equal
+// to the floor, no session can be opened and no order can ever be paid for.
 const HoldTTL = PayWindow + StripeSessionFloor
 
-// NewToken returns a fresh cart token. crypto/rand, never math/rand: a
-// predictable token is a readable cart.
+// NewToken returns a fresh cart token.
 func NewToken() (string, error) {
 	b := make([]byte, tokenBytes)
 	if _, err := rand.Read(b); err != nil {
@@ -251,25 +178,16 @@ func NewToken() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-// HashToken digests a token for storage and lookup. The database never sees the
-// token itself.
+// HashToken digests a token for storage and lookup.
 func HashToken(token string) []byte {
 	sum := sha256.Sum256([]byte(token))
 	return sum[:]
 }
 
-// SetCookie writes the cart cookie.
-//
-// secure is false only in development over plain HTTP; the __Host- prefix
-// requires Secure, so the name is adjusted rather than the guarantee quietly
-// dropped — a cookie that claims __Host- without Secure is rejected by the
-// browser and the cart would silently never persist.
+// SetCookie writes the cart cookie. A cookie claiming __Host- without Secure is
+// rejected by the browser, so the insecure development path uses a different
+// name rather than dropping Secure.
 func SetCookie(w http.ResponseWriter, token string, secure bool) {
-	// gosec flags Secure=false. That is the development path and it is
-	// deliberate: a Secure cookie is never returned over the plain http:// the
-	// dev server speaks, so the cart would appear to lose itself on every
-	// request. The default is secure — GOEN_INSECURE_COOKIES=1 is what opts out
-	// — so a deployment that forgets fails closed.
 	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: dev-only opt-out, secure by default
 		Name:     cookieName(secure),
 		Value:    token,
@@ -290,8 +208,6 @@ func ReadCookie(r *http.Request, secure bool) string {
 	return c.Value
 }
 
-// cookieName is the __Host- form when the connection can carry it, and a plain
-// name in development.
 func cookieName(secure bool) string {
 	if secure {
 		return CookieName
@@ -300,11 +216,8 @@ func cookieName(secure bool) string {
 }
 
 // ParseQuantity reads a quantity from a form, clamped to what a line may hold.
-// Anything unparseable is one item: the visitor pressed a button meaning "add
-// this", and refusing over a malformed number they never typed helps nobody.
+// Anything unparseable is one item, because the button means "add this".
 func ParseQuantity(s string) int32 {
-	// ParseInt with bitSize 32 rather than Atoi: the API guarantees the result
-	// fits an int32, so there is no narrowing conversion to prove safe.
 	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 32)
 	switch {
 	case err != nil, n < 1:
@@ -328,28 +241,20 @@ func ParseQuantityAllowingZero(s string) (int32, bool) {
 	return int32(n), true
 }
 
-// Destination is where a shipping method delivers to, and therefore what the
-// checkout must ask for. It comes from shipping_methods.destination_kind — the
-// schema decides, not a branch here on a method code.
+// Destination is where a shipping method delivers to, from
+// shipping_methods.destination_kind.
 type Destination string
 
-// The destinations goen knows. A method with any other kind is unroutable, and
-// DestinationFor says so rather than guessing.
 const (
-	// ToAddress wants a street address: 宅配到府.
+	// ToAddress wants a street address (home delivery).
 	ToAddress Destination = "address"
-	// ToPickupPoint wants a convenience store: 超商取貨. A street address for
-	// one of these is data nobody will ever use.
+	// ToPickupPoint wants a convenience-store pickup point.
 	ToPickupPoint Destination = "pickup_point"
 )
 
-// DestinationFor turns the column's value into a Destination.
-//
-// An unknown kind is refused rather than defaulted to ToAddress. Defaulting
-// would mean a method added later, with a destination nothing here understands,
-// silently collects a street address and produces orders no one can deliver —
-// and the schema's CHECK would let it, because a street address is a valid
-// destination for something.
+// DestinationFor turns the column's value into a Destination. An unknown kind is
+// refused rather than defaulted, which would have a method added later silently
+// collect a street address for orders nobody can deliver.
 func DestinationFor(kind string) (Destination, bool) {
 	switch Destination(kind) {
 	case ToAddress:
@@ -360,18 +265,11 @@ func DestinationFor(kind string) (Destination, bool) {
 	return "", false
 }
 
-// Address is the delivery detail a checkout collects.
-//
-// It carries BOTH destinations and a Destination saying which one applies,
-// rather than being two types. The contact half — email, name, phone — is the
-// same for either, and splitting the type would duplicate it along with every
-// rule that validates it.
+// Address is the delivery detail a checkout collects, for either destination.
 type Address struct {
-	// To decides which half of this struct is real. Set from the chosen
-	// shipping method, never from the form: a hidden field naming the
-	// destination would let a hand-edited submission attach a street address to
-	// a pickup order, which the schema then refuses at the very end of a
-	// checkout instead of at its start.
+	// To decides which half of this struct is real. It is set from the chosen
+	// shipping method and never from the form, or a hand-edited submission could
+	// attach a street address to a pickup order.
 	To Destination
 
 	Email string
@@ -392,40 +290,28 @@ type Address struct {
 	Note string
 }
 
-// FieldError names one rejected field and why.
-//
-// The reason is a message KEY rather than a sentence. Validation runs where
-// there is no request and therefore no locale — Validate is called from a
-// handler, a test and a store — so the words are chosen at render time by
-// whoever knows who is reading.
+// FieldError names one rejected field and the message key saying why. A key
+// rather than a sentence, because Validate runs from a handler, a test and a
+// store, and none of them knows the locale.
 type FieldError struct {
 	Field      string
 	MessageKey i18n.Key
 }
 
-// maxima for the free-text fields. The schema does not cap them; these keep a
-// form submission from becoming an unbounded row.
+// The schema does not cap these fields; these bounds keep a form submission
+// from becoming an unbounded row.
 const (
-	maxNameRunes   = 60
-	maxStreetRunes = 200
-	// A 門市名稱 is short — 「台北車站門市」 and the like. The bound is what
-	// keeps a paste into the field from becoming an unbounded row.
+	maxNameRunes      = 60
+	maxStreetRunes    = 200
 	maxStoreNameRunes = 40
 	maxNoteRunes      = 500
 	maxEmailRunes     = 254
-	// A 門市代碼 as the chains publish it: six digits at 7-ELEVEN, 全家 and OK,
-	// four characters at 萊爾富. The bound is the one ECPay states for the field
-	// rather than any chain's own width, so a chain that renumbers does not make
-	// this line refuse a real store.
+	// The length ECPay publishes for a pickup-point store code, rather than any
+	// one chain's own width.
 	maxStoreCodeLen = 10
 )
 
-// Validate checks an address the way the server must: completely, and before
-// anything is written. The browser's required and type=email are the first
-// line, never the only one.
-//
-// Errors are returned in field order so the form's messages appear where the
-// eye already is, rather than in whatever order the checks happened to run.
+// Validate checks an address completely, and before anything is written.
 func (a *Address) Validate() []FieldError {
 	var errs []FieldError
 	add := func(f string, k i18n.Key) { errs = append(errs, FieldError{Field: f, MessageKey: k}) }
@@ -440,9 +326,6 @@ func (a *Address) Validate() []FieldError {
 		add("name", i18n.KeyNameTooLong)
 	}
 
-	// Taiwanese mobile and landline numbers, digits and separators only. Kept
-	// deliberately loose: rejecting a real number is worse than accepting an
-	// odd one, and the courier is the real validator.
 	switch {
 	case strings.TrimSpace(a.Phone) == "":
 		add("phone", i18n.KeyPhoneRequired)
@@ -459,11 +342,9 @@ func (a *Address) Validate() []FieldError {
 	return append(errs, a.controlCharErrors()...)
 }
 
-// destinationErrors validates the half of the struct that applies.
-//
-// The switch has no permissive default: a Destination nothing here recognises
-// means the method's destination_kind was never taught to this code, and
-// letting such an order through would write a row with no destination at all.
+// destinationErrors validates the half of the struct that applies. The switch
+// has no permissive default: an unrecognised destination would otherwise write
+// an order with no destination at all.
 func (a *Address) destinationErrors() []FieldError {
 	var errs []FieldError
 	add := func(f string, k i18n.Key) { errs = append(errs, FieldError{Field: f, MessageKey: k}) }
@@ -486,10 +367,8 @@ func (a *Address) destinationErrors() []FieldError {
 			add("street", i18n.KeyStreetTooLong)
 		}
 	case ToPickupPoint:
-		// Validated against the list the FORM offers, so a brand the page shows
-		// and the server refuses cannot exist. The authority for what may be
-		// stored is order_private_data_pickup_brand_known; this list is the one
-		// both the control and this check read.
+		// The same list the form offers, so a brand the page shows and the
+		// server refuses cannot exist.
 		if !slices.Contains(pages.PickupBrands, a.PickupBrand) {
 			add("pickup_brand", i18n.KeyPickupBrandRequired)
 		}
@@ -508,12 +387,9 @@ func (a *Address) destinationErrors() []FieldError {
 	return errs
 }
 
-// ForDestination blanks the half of the address that does not apply.
-//
-// Called after validation and before the write, so a customer who filled the
-// address fields, switched to 超商取貨 and submitted does not leave a home
-// address on a pickup order — order_private_data_one_destination would refuse
-// it, and refusing at the end of a checkout is the wrong place to find out.
+// ForDestination blanks the half of the address that does not apply. Called
+// after validation and before the write, because
+// order_private_data_one_destination refuses a row carrying both.
 func (a *Address) ForDestination() {
 	switch a.To {
 	case ToAddress:
@@ -523,24 +399,9 @@ func (a *Address) ForDestination() {
 	}
 }
 
-// isStoreCode reports whether s is a convenience-store number.
-//
-// Digits or uppercase letters, and never digits alone. "A store code is always
-// a number" is a guess, and it is wrong: 萊爾富 numbers its stores in four
-// characters and 149 of its 1,350 lead with a letter, so a digits-only rule
-// refuses every one of them at checkout and offers no way through. The
-// measurement is recorded beside order_private_data_pickup_store_code_format,
-// which is the authority; this is the copy that answers with a field name rather
-// than a constraint violation at the end of a checkout.
-//
-// The wider class still catches what this rule is for — a 店名 typed into the
-// code field is Han text, which is in neither class.
-//
-// It is an EXACT mirror of that CHECK, deliberately: it neither trims nor folds
-// case. A validator looser than the schema accepts a value the write then
-// refuses, which moves the refusal to the end of a checkout. [Address.Trim] is
-// where lowercase input is uppercased, and is what makes s884 reach here as
-// S884.
+// isStoreCode reports whether s is a convenience-store number: digits or upper
+// case, never digits alone — Hi-Life leads 149 of its 1,350 store codes with a
+// letter (ECPay GetStoreList, 2026-08-06). Address.Trim uppercases first.
 func isStoreCode(s string) bool {
 	if s == "" || len(s) > maxStoreCodeLen {
 		return false
@@ -553,9 +414,8 @@ func isStoreCode(s string) bool {
 	return true
 }
 
-// controlCharErrors reports any field carrying a control character. They are
-// invisible, and a newline in a name is how a shipping label or a confirmation
-// email gets a line it was never given.
+// controlCharErrors reports any field carrying a control character: a newline
+// in a name is how a shipping label gets a line it was never given.
 func (a *Address) controlCharErrors() []FieldError {
 	var errs []FieldError
 	for _, f := range []struct{ name, value string }{
@@ -622,14 +482,9 @@ func isPostalCode(s string) bool {
 	return true
 }
 
-// hasControl reports whether s carries a control character.
-//
-// unicode.IsControl covers BOTH the C0 range (0x00–0x1F, 0x7F) and C1
-// (0x80–0x9F) — the second matters because C1 characters are invisible and are
-// the classic way past a check that only looks at ASCII. Verified rather than
-// assumed: an explicit C1 branch here would be dead code, because IsControl
-// already returns true for U+0085 and its neighbours. U+00A0, the non-breaking
-// space, is correctly NOT a control character and stays allowed.
+// hasControl reports whether s carries a control character. unicode.IsControl
+// covers C1 (0x80–0x9F) as well as C0, which is the class an ASCII-only check
+// lets through.
 func hasControl(s string) bool {
 	for _, r := range s {
 		if unicode.IsControl(r) {
@@ -639,12 +494,8 @@ func hasControl(s string) bool {
 	return false
 }
 
-// Trim normalises what a form inevitably carries: the whitespace around every
-// field, and the CASE of a store code.
-//
-// 萊爾富's codes are uppercase — S884 — and somebody who types s884 has named
-// the right store. Refusing that would make this validator stricter than the
-// thing it models, over a shift key.
+// Trim strips the whitespace around every field and uppercases the store code,
+// which the chains publish in upper case and isStoreCode will not fold.
 func (a *Address) Trim() {
 	a.Email = strings.TrimSpace(a.Email)
 	a.Name = strings.TrimSpace(a.Name)
@@ -668,17 +519,13 @@ func ShippingFee(feeCents, freeOverCents, subtotalCents int64) int64 {
 	return feeCents
 }
 
-// Quote is what an order actually pays to be delivered.
-//
-// The surcharge is added AFTER the free-over threshold, and that ordering is
-// the commercial decision: 免運 is the shop's offer on its own base rate, and
-// the carrier still charges to cross the water. Folding the surcharge into the
-// threshold would make a NT$5,000 order to 金門 free to send, which it is not.
+// Quote is what an order actually pays to be delivered. The surcharge is added
+// after the free-over threshold: free delivery is the shop's offer on its own
+// base rate, and the carrier still charges to reach the outlying islands.
 type Quote struct {
 	FeeCents  int64
 	Surcharge int64
-	// ZoneName is what to call the surcharge on the page: 「離島加價」 rather
-	// than an unexplained larger number.
+	// ZoneName is what to call the surcharge on the page.
 	ZoneName string
 }
 
@@ -688,46 +535,32 @@ func (q Quote) Total() int64 { return q.FeeCents + q.Surcharge }
 // HasSurcharge reports whether this address costs extra to reach.
 func (q Quote) HasSurcharge() bool { return q.Surcharge > 0 }
 
-// Invoice is what a customer wants on their 統一發票.
-//
-// Taiwan e-invoices go to a carrier (載具) or to a company's 統編, and the
-// choice changes which other field is required. goen COLLECTS this at checkout;
-// issuing the document itself needs a 加值中心 integration that does not exist
-// yet, and the schema's invoice_documents is waiting for it.
+// Invoice is what a customer wants on their uniform invoice.
 type Invoice struct {
 	// Type is 'mobile_carrier', 'member_carrier' or 'company', matching
 	// invoice_preferences_type_known.
 	Type string
-	// Carrier is the 手機條碼載具: a slash and seven characters from a fixed
-	// alphabet. Only meaningful for mobile_carrier.
+	// Carrier is the mobile-barcode invoice carrier. Only meaningful for
+	// mobile_carrier.
 	Carrier string
-	// TaxID is the eight-digit 統一編號. Only meaningful for company.
+	// TaxID is the eight-digit business tax number. Only meaningful for company.
 	TaxID string
 }
 
-// InvoiceTypes is every choice the form offers, in the order it offers them.
-//
-// Derived from nothing — it IS the list, and invoice_preferences_type_known is
-// the same list in the schema. A value outside it is refused here so the
-// customer gets a message rather than a constraint violation.
+// InvoiceTypes is every choice the form offers, in the order it offers them,
+// and is the same list as invoice_preferences_type_known.
 var InvoiceTypes = []string{"member_carrier", "mobile_carrier", "company"}
 
-// mobileCarrier is the 手機條碼 format the Ministry of Finance issues: a slash
+// mobileCarrier is the barcode format the Ministry of Finance issues: a slash
 // followed by seven characters drawn from digits, capitals, and + - . only.
 var mobileCarrier = regexp.MustCompile(`^/[0-9A-Z+\-.]{7}$`)
 
-// taxID is the eight-digit 統一編號, matching the schema's own CHECK.
-// invoice_preferences_company_has_tax_id's own CHECK, so the two can be
-// compared by eye. \d would also admit non-ASCII digits under some engines.
+// taxID is the eight-digit business tax number.
 //
 //nolint:gocritic // regexpSimplify: kept character-for-character identical to
 var taxID = regexp.MustCompile(`^[0-9]{8}$`)
 
 // Validate refuses what the schema would refuse, in the customer's language.
-//
-// An empty Type is not an error: it means the customer left the default, which
-// is a member carrier. Defaulting here rather than in the template keeps the
-// rule in one place.
 func (i *Invoice) Validate() []FieldError {
 	i.Type = strings.TrimSpace(i.Type)
 	i.Carrier = strings.ToUpper(strings.TrimSpace(i.Carrier))
@@ -765,9 +598,6 @@ func (i *Invoice) Validate() []FieldError {
 }
 
 // InvoiceTypeLabelKey names the message for one choice.
-//
-// The types are invoice_preferences_type_known's CHECK. An unknown one is a
-// schema change nobody carried through here, which must be loud.
 func InvoiceTypeLabelKey(t string) i18n.Key {
 	switch t {
 	case "member_carrier":

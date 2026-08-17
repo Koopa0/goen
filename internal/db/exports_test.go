@@ -10,26 +10,9 @@ import (
 	"testing"
 )
 
-// TestEveryExportedFunctionHasACaller holds every export to being named
-// somewhere other than its own declaration.
-//
-// goen is entirely under internal/, so nothing here is public API: an exported
-// function with no caller is not "available to consumers", it is a feature
-// nobody finished. What that costs, in the four shapes it takes here —
-//
-//   - twofactor.Store.Remove, which documents a 2FA recovery path: unreached, a
-//     lost authenticator is a permanent lockout and the only fix is SQL against
-//     production;
-//   - media.Store.Recent, "the back office's picker", for a picker that does not
-//     exist — so a shot belonging on three products is uploaded three times;
-//   - AdminStockRisk.SoldText, the units figure that makes "14 days of cover"
-//     mean something;
-//   - ProductReview.ReviewStars, a rating for somebody scanning rather than
-//     reading.
-//
-// It lives in internal/db beside TestEveryGeneratedQueryHasACaller because the
-// two ask the same question at different layers, and a reader looking for one
-// should find the other.
+// TestEveryExportedFunctionHasACaller refuses an export named nowhere but its
+// own declaration. Nothing here is public API, so an unused export is a feature
+// nobody finished.
 func TestEveryExportedFunctionHasACaller(t *testing.T) {
 	t.Parallel()
 
@@ -75,20 +58,10 @@ func exportedFunctions(t *testing.T) map[string]string {
 	return out
 }
 
-// referenced is every name USED as an identifier anywhere in the module,
-// tests included.
-//
-// Identifiers and not text, and a use anywhere counts. Both halves are
-// load-bearing and they pull in opposite directions: a raw text search finds
-// every function in its own doc comment and so reports no orphans at all, while
-// demanding a use from OUTSIDE the declaring file reports fifteen false alarms,
-// because a function called only by a sibling in its own file is legitimately
-// used.
-//
-// Tests count. `package foo_test` is the idiomatic choice here and it can only
-// reach exported names, so treating a test caller as no caller would push the
-// codebase towards in-package tests to satisfy a lint. What this is for is the
-// function nobody calls at ALL.
+// referenced counts every name used as an identifier anywhere in the module,
+// tests included. Identifiers rather than text, or every function matches its
+// own doc comment; a use anywhere counts, or a helper called by a sibling in
+// its own file reads as an orphan.
 func referenced(t *testing.T) map[string]int {
 	t.Helper()
 	out := map[string]int{}
@@ -96,8 +69,7 @@ func referenced(t *testing.T) map[string]int {
 		ast.Inspect(file, func(n ast.Node) bool {
 			switch v := n.(type) {
 			case *ast.FuncDecl:
-				// The declaration's own name is not a use of it. Walk the body
-				// and signature, and skip the name node.
+				// The declaration's own name is not a use of it.
 				if v.Recv != nil {
 					ast.Inspect(v.Recv, countIdents(out))
 				}
@@ -125,10 +97,7 @@ func countIdents(into map[string]int) func(ast.Node) bool {
 }
 
 // forEachSource parses every Go file in the module, optionally including tests.
-//
-// .templ files are read as TEXT and their identifiers counted crudely, because
-// they are not Go until templ generates them — and the generated output is
-// skipped so a stale *_templ.go cannot keep a name alive.
+// Generated *_templ.go is skipped so a stale one cannot keep a name alive.
 func forEachSource(t *testing.T, withTests bool, fn func(string, *ast.File)) {
 	t.Helper()
 	err := filepath.WalkDir(filepath.Join("..", ".."), func(path string, d os.DirEntry, err error) error {
@@ -136,10 +105,8 @@ func forEachSource(t *testing.T, withTests bool, fn func(string, *ast.File)) {
 			return err
 		}
 		if d.IsDir() {
-			// internal/db is generated. cmd/ is skipped only when collecting
-			// DECLARATIONS — main and its wiring are called by the runtime, not
-			// by goen — but it must be WALKED for references, because
-			// server.go is where every handler is named.
+			// cmd/ is skipped for DECLARATIONS (the runtime calls main) but walked
+			// for references: server.go is where every handler is named.
 			if d.Name() == ".git" || d.Name() == "db" || (!withTests && d.Name() == "cmd") {
 				return filepath.SkipDir
 			}

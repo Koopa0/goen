@@ -17,10 +17,6 @@ var ErrNotifyInvalid = errors.New("product: invalid restock request")
 
 // RequestRestockNotice records that somebody wants to know when a variant is
 // back.
-//
-// Anyone may ask, signed in or not — the whole point is to reach a visitor who
-// has not committed to anything yet. A signed-in customer's account is recorded
-// alongside the address so an erasure can find it.
 func (s *Store) RequestRestockNotice(ctx context.Context, variantID, addr, userID string) error {
 	vid, err := uuid.Parse(variantID)
 	if err != nil {
@@ -38,8 +34,7 @@ func (s *Store) RequestRestockNotice(ctx context.Context, variantID, addr, userI
 
 	if err := s.q.RequestStockNotice(ctx, db.RequestStockNoticeParams{
 		VariantID: vid, UserID: owner, Email: addr,
-		// Kept because the notice is produced by a back-office stock adjustment,
-		// where the person who asked for it is not present.
+		// A worker with no request sends this, so the locale travels on the row.
 		Locale: i18n.FromContext(ctx).Tag(),
 	}); err != nil {
 		return fmt.Errorf("request restock notice: %w", err)

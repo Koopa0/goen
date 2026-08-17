@@ -14,10 +14,8 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// MaxSlides bounds the back office's list.
-//
-// Small, because hero_slides is a QUEUE and not a carousel: one shows, the rest
-// are scheduled. A shop with more than this many queued has lost track of them.
+// MaxSlides bounds the back office's list. hero_slides is a QUEUE and not a
+// carousel: one shows, the rest wait.
 const MaxSlides = 20
 
 // MaxHeadlineRunes bounds the largest text on the site.
@@ -37,8 +35,8 @@ type HeroForm struct {
 	SecondHref   string
 	ImageKey     string
 	ImageAlt     string
-	// The English hero, each field optional. The HREFs have no English twin: a
-	// link goes to one page.
+	// The English hero, each field optional. The HREFs have no twin: a link goes
+	// to one page.
 	EyebrowEn      string
 	HeadlineEn     string
 	BodyEn         string
@@ -48,13 +46,9 @@ type HeroForm struct {
 	Days           int32
 }
 
-// Validate refuses what the schema would, and what the schema cannot see.
-//
-// The CTA hrefs are the reason this is more than a length check: they are
-// written by a person and rendered into an href, so an absolute URL here would
-// put an off-site link in the largest button on the storefront — and
-// "javascript:" would put script there. web.SitePath is the one owner of that
-// rule, the same one guarding the wishlist and the language switch.
+// Validate refuses what the schema would, and what the schema cannot see: a CTA
+// href is typed by a person, so it goes through web.SitePath — an absolute URL
+// would point the storefront's largest button off-site.
 func (f *HeroForm) Validate(ctx context.Context) map[string]string {
 	f.Headline = strings.TrimSpace(f.Headline)
 	f.PrimaryLabel = strings.TrimSpace(f.PrimaryLabel)
@@ -74,8 +68,7 @@ func (f *HeroForm) Validate(ctx context.Context) map[string]string {
 		errs["primaryhref"] = i18n.T(ctx, i18n.KeyFormHeroPrimaryHref)
 	}
 
-	// Both or neither: hero_slides_secondary_cta_complete refuses half a
-	// button, and refusing it here says which half is missing.
+	// Both or neither: hero_slides_secondary_cta_complete refuses half a button.
 	switch {
 	case f.SecondLabel == "" && f.SecondHref == "":
 	case f.SecondLabel == "" || f.SecondHref == "":
@@ -88,8 +81,6 @@ func (f *HeroForm) Validate(ctx context.Context) map[string]string {
 		}
 	}
 
-	// An image without alt text is refused by the schema. Asking here means the
-	// editor is told which field, rather than shown a constraint name.
 	if f.ImageKey != "" && f.ImageAlt == "" {
 		errs["alt"] = i18n.T(ctx, i18n.KeyFormHeroAlt)
 	}
@@ -119,11 +110,7 @@ func (s *Store) HeroSlides(ctx context.Context) (pages.AdminHeroView, error) {
 	return view, nil
 }
 
-// CreateHeroSlide queues one.
-//
-// It goes to the BACK of the queue, not the front. Creating a slide and having
-// it replace the live home page immediately is a decision an editor should make
-// on purpose, which is what Promote is for.
+// CreateHeroSlide queues one, at the BACK. Promote is what makes one live.
 func (s *Store) CreateHeroSlide(ctx context.Context, f *HeroForm) (map[string]string, error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil

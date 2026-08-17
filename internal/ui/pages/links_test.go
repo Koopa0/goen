@@ -8,20 +8,9 @@ import (
 	"testing"
 )
 
-// TestEveryHardCodedLinkResolvesToARoute proves the site never points at its
-// own 404.
-//
-// A link to a route that does not exist is a 404 the site's own chrome points
-// at, and nothing else catches it: the templates compile, the handlers work,
-// and the page renders. Only somebody clicking finds out.
-//
-// It happened twice while the account navigation was being built —
-// /account/orders is /account/orders/{number} and nothing else — and the first
-// sweep missed it because that sweep asked whether anything LINKS TO each
-// route. This asks the other direction, which is the one a customer takes.
-//
-// Only literal hrefs. A templated one carries a value the template cannot know,
-// and its handler's own tests are what cover it.
+// TestEveryHardCodedLinkResolvesToARoute proves the site never points at its own
+// 404. Literal hrefs only; a templated one carries a value the template cannot
+// know, and its handler's own tests cover it.
 func TestEveryHardCodedLinkResolvesToARoute(t *testing.T) {
 	root := repoRoot(t)
 
@@ -37,9 +26,8 @@ func TestEveryHardCodedLinkResolvesToARoute(t *testing.T) {
 
 	for _, link := range links {
 		if strings.HasPrefix(link, "//") || strings.Contains(link, "://") {
-			continue // off-site, not this test's business
+			continue // off-site
 		}
-		// A fragment or a query belongs to the page, not the route.
 		path := link
 		if i := strings.IndexAny(path, "?#"); i >= 0 {
 			path = path[:i]

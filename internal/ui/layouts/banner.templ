@@ -2,30 +2,18 @@ package layouts
 
 import "github.com/koopa0/goen/internal/i18n"
 
-// promoBanner renders the site-wide promotional strip.
-//
-// Above the header and IN NORMAL FLOW, so it scrolls away. Sticky would levy a
-// permanent 44px tax on every screen for a sentence somebody has already read;
-// the header is what stays, because the header is navigation.
-//
-// The whole strip is one <form>: the close button submits it, the server sets a
-// cookie and answers 303. There is nothing here for JavaScript to add, and it
-// works with scripting off — which the write-face rule requires of every
-// mutation, and closing a banner is one.
+// promoBanner renders the site-wide promotional strip, above the header and in
+// normal flow so it scrolls away.
 templ promoBanner() {
 	{{ b := bannerFrom(ctx) }}
 	if b.Shown() {
 		<form class="goen-promo" method="post" action={ templ.SafeURL(b.DismissAction()) }>
 			<input type="hidden" name="banner" value={ b.ID }/>
-			// Where to come back to, so closing the strip re-renders the page
-			// being read rather than sending somebody home. Validated
-			// server-side as a same-site path by the one owner of that rule.
+			// Validated server-side as a same-site path.
 			<input type="hidden" name="return" value={ returnPath(ctx) }/>
 			if b.HasCTA() {
-				// At 375 the ENTIRE strip is the link — a row 44px tall cannot
-				// hold two touch targets without one of them being too small,
-				// so the CTA is not a separate button. At 1024 and up the
-				// message and the link separate, which the CSS does.
+				// At 375 the entire strip is the link: a 44px row cannot hold
+				// two touch targets that both meet the minimum size.
 				<a class="goen-promo__link" href={ templ.SafeURL(b.CTAHref) }>
 					<span class="goen-promo__message">
 						<span class="goen-promo__wide">{ b.Message }</span>
@@ -55,17 +43,14 @@ templ promoBanner() {
 	}
 }
 
-// promoCode renders a discount code as a selectable chip.
-//
-// user-select: all, so one tap selects the whole thing and a long press copies
-// it. A copy BUTTON would need JavaScript, and the markup underneath has to
-// work without it — selectable text does, and it also prints and reads aloud.
+// promoCode renders a discount code as a selectable chip; user-select:all makes
+// one tap select the whole code, which a copy button could not do without
+// scripting.
 templ promoCode(code string) {
 	<code class="goen-promo__code">{ code }</code>
 }
 
-// chevronRight hints that the strip is tappable, at the width where the strip
-// itself is the link.
+// chevronRight hints that the strip is tappable.
 templ chevronRight() {
 	<svg
 		class="goen-promo__chevron"

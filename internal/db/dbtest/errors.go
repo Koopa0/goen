@@ -21,8 +21,6 @@ type migrationError struct {
 func (e migrationError) Error() string { return fmt.Sprintf("apply %s: %v", e.file, e.err) }
 func (e migrationError) Unwrap() error { return e.err }
 
-// readFile reads one migration. The path comes from a glob over this
-// repository's own migrations directory, not from any external input.
 func readFile(path string) (string, error) {
 	b, err := os.ReadFile(path) //nolint:gosec // path is derived from this repo's migrations/ glob
 	if err != nil {

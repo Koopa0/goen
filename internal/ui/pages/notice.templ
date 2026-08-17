@@ -7,7 +7,6 @@ import (
 
 // Notice is a centred message page: not-found, an unexpected failure, or the
 // confirmation a write path shows when the browser posted without htmx.
-// Batch ⑧ replaces the 404/500 presentation with its own design.
 templ Notice(p layouts.Page, code, heading, body string) {
 	@layouts.Base(p) {
 		<div class="notice">
@@ -21,18 +20,9 @@ templ Notice(p layouts.Page, code, heading, body string) {
 	}
 }
 
-// OrderNotFound is the 404 for an order this browser may not see.
-//
-// Its own component rather than a Notice, because this is the one 404 with a way
-// THROUGH. The generic body told the reader to sign in — which is no answer at
-// all for the guest it is most often shown to: somebody who cleared their
-// cookies, or opened the confirmation email on a second device. /orders/find
-// exists for exactly them and nothing anywhere linked to it, so the recovery
-// path was reachable only by typing a URL the site never displays.
-//
-// Both doors, because the reader is one of two people and the page cannot tell
-// which: the account holder signs in, the guest proves the order with its number
-// and the email they gave.
+// OrderNotFound is the 404 for an order this browser may not see. It offers
+// both doors — sign in, or prove the order at /orders/find — because the page
+// cannot tell which of the two readers it has.
 templ OrderNotFound(p layouts.Page) {
 	@layouts.Base(p) {
 		<div class="notice">

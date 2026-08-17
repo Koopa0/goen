@@ -5,11 +5,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Pay hands the customer over to Stripe's hosted card form.
-//
-// The only control on this page is a plain form. There is no script here and
-// none is loaded: the button posts, the server creates the session, and the
-// response is a 303 to Stripe. Turning JavaScript off changes nothing.
+// Pay hands the customer over to Stripe's hosted card form: the button posts,
+// the server creates the session and answers 303.
 templ Pay(p layouts.Page, v PayView) {
 	@layouts.Base(p) {
 		<div class="goen-pay">

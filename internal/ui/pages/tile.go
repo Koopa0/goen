@@ -9,10 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// ProductTile is one product card — the same card on the home grid and in a
-// category listing, because they render the same component. It carries the
-// cheapest BUYABLE variant's price, a rating, and the primary image. Handlers
-// fill these from a store; the template only displays what it is given.
+// ProductTile is one product card, carrying the cheapest buyable variant's
+// price, a rating and the primary image.
 type ProductTile struct {
 	Slug         string
 	Name         string
@@ -22,10 +20,8 @@ type ProductTile struct {
 	CompareCents int64 // 0 when the product is not on sale
 	Rating       float64
 	RatingCount  int64
-	// InStock is whether any active variant can actually be BOUGHT — stock above
-	// safety_stock, which is the floor record_inventory_movement enforces on a
-	// sale or a hold. A variant sitting at the floor has stock and cannot be
-	// sold, so this is not "stock_quantity > 0".
+	// InStock is stock above safety_stock, the floor a sale or hold may not
+	// cross — not stock_quantity > 0.
 	InStock     bool
 	ImageURL    string // "" when the product has no usable image
 	ImageSrcset string
@@ -35,8 +31,7 @@ type ProductTile struct {
 }
 
 // OnSale reports whether the tile shows a struck-through compare-at price. A
-// sold-out product does not advertise its discount: the saving is not available
-// to anyone, and the tile has one flag position to spend.
+// sold-out product does not advertise a saving nobody can take.
 func (t ProductTile) OnSale() bool { return t.InStock && t.CompareCents > t.PriceCents }
 
 // SoldOut reports whether nothing on this product can be bought.
@@ -45,9 +40,8 @@ func (t ProductTile) SoldOut() bool { return !t.InStock }
 // HasImage reports whether the tile has a product image to show.
 func (t ProductTile) HasImage() bool { return t.ImageURL != "" }
 
-// HasImageDimensions reports whether both intrinsic image dimensions are
-// available. They are emitted together so the browser never receives a
-// misleading partial aspect ratio.
+// HasImageDimensions reports whether both dimensions are available; they are
+// emitted together so the browser never gets a partial aspect ratio.
 func (t ProductTile) HasImageDimensions() bool { return t.ImageWidth > 0 && t.ImageHeight > 0 }
 
 // ImageWidthText and ImageHeightText are the intrinsic dimensions as HTML
@@ -71,24 +65,18 @@ func (t ProductTile) HasReviews() bool { return t.RatingCount > 0 }
 // ReviewCountText is the number of ratings as text, e.g. "3".
 func (t ProductTile) ReviewCountText() string { return strconv.FormatInt(t.RatingCount, 10) }
 
-// RatingLabel is the rating as one sentence for assistive technology. The tile
-// hides the star, the score and the count from the accessibility tree and
-// announces this instead, so a screen reader hears "評分 4.7 分,共 3 則評價"
-// rather than a bare star glyph followed by two loose numbers.
+// RatingLabel is the rating as one sentence for assistive technology; the star,
+// the score and the count are hidden from the accessibility tree.
 func (t ProductTile) RatingLabel(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyRatingSummary), t.RatingText(), t.ReviewCountText())
 }
 
-// TWD is twd for callers outside this package.
-//
-// Exported reluctantly and for one reason: a handler that has to put money in a
-// flash message would otherwise format it itself, and two money formatters is
-// how one of them comes to be missing the thousands separator.
+// TWD is twd for callers outside this package, so a handler putting money in a
+// flash message does not write a second money formatter.
 func TWD(cents int64) string { return twd(cents) }
 
-// twd formats an amount in cents as New Taiwan dollars: 3398000 -> "NT$33,980".
-// TWD is quoted as a whole number, so the cents are folded into the dollar
-// amount and grouped in thousands.
+// twd formats cents as New Taiwan dollars: 3398000 -> "NT$33,980". TWD is
+// quoted as a whole number, so the cents fold into the dollar amount.
 func twd(cents int64) string {
 	neg := cents < 0
 	if neg {
@@ -108,16 +96,9 @@ func twd(cents int64) string {
 	return "NT$" + b.String()
 }
 
-// FreeDeliveryText is the threshold a guarantee strip states, or "" when the
-// shop offers no free delivery at all.
-//
-// The number is INTERPOLATED from the figure the till charges from, never
-// written as a literal in the i18n catalogue: it lives in
-// shipping_method_versions and is edited at /admin/shipping, so a copy in the
-// catalogue is a second place for one promise — and the one a shop changing its
-// own delivery charges cannot correct. Empty renders no claim rather than "free
-// over NT$0", because a shop that charges for every parcel must not appear to
-// be offering something.
+// FreeDeliveryText is the threshold a guarantee strip states, interpolated from
+// the figure the till charges from and never a literal in the catalogue. Empty
+// renders no claim rather than "free over NT$0".
 func FreeDeliveryText(cents int64) string {
 	if cents <= 0 {
 		return ""

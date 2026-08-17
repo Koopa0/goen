@@ -6,10 +6,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// CTA is a call to action: a label and where it goes.
-//
-// Both or neither. hero_slides_secondary_cta_complete holds that in the schema,
-// so a button with no destination cannot be stored.
+// CTA is a call to action: a label and where it goes, both or neither.
 type CTA struct {
 	Label string
 	Href  string
@@ -28,25 +25,17 @@ type Hero struct {
 	// ImageKey is a media digest, or empty for the built-in artwork.
 	ImageKey string
 	ImageAlt string
-	// ImageWidth is the original's width, which the srcset needs to state a
-	// number that is true. Zero when the built-in image is used.
+	// ImageWidth is the original's width, which the srcset states. Zero when the
+	// built-in image is used.
 	ImageWidth int
 }
 
 // Custom reports whether this came from the database rather than the fallback.
 func (h Hero) Custom() bool { return h.ImageKey != "" }
 
-// DefaultHero is what the home page shows when nothing is scheduled.
-//
-// The copy that was in the template before hero_slides had any code. Keeping it
-// here rather than seeding a row means an EMPTY TABLE IS A WORKING SITE:
-// content management a shop must populate before its home page renders is a
-// dependency, not a feature.
-//
-// Translated, unlike a slide the shop schedules. Copy compiled into the binary
-// is goen's to say in both languages; copy typed into hero_slides is the shop's
-// to say however it likes, and a promotion is authored content the way a product
-// description is.
+// DefaultHero is what the home page shows when nothing is scheduled, so an
+// empty hero_slides is a working site. It is translated, unlike a slide the
+// shop types.
 func DefaultHero(ctx context.Context) Hero {
 	return Hero{
 		Eyebrow:      i18n.T(ctx, i18n.KeyHeroEyebrow),
@@ -66,19 +55,15 @@ type AdminHeroSlide struct {
 	CTAHref  string
 	ImageKey string
 	Active   bool
-	// InWindow is whether its schedule allows it right now. Separate from
-	// Active for the same reason a coupon's is: a switched-on slide whose
-	// window has passed is off to a visitor and on in a list that reads only
-	// is_active.
+	// InWindow is whether its schedule allows it right now, which a switched-on
+	// slide past its window is not.
 	InWindow bool
 	Position int32
 	EndsAt   string
 }
 
-// Live reports whether a visitor could be seeing this one.
-//
-// Could, not is: only the FIRST slide that qualifies shows, and this type does
-// not know its neighbours. AdminHeroView.Showing is what names the one.
+// Live reports whether a visitor could be seeing this one. Could, not is: only
+// the first qualifying slide shows, and AdminHeroView.Showing names it.
 func (s AdminHeroSlide) Live() bool { return s.Active && s.InWindow }
 
 // State is the one word a staff member scans for.
@@ -123,17 +108,13 @@ func (s AdminHeroSlide) ToggleLabel() string {
 	return "啟用" // i18n-exempt: back office, /admin/home
 }
 
-// AdminHeroView is the queue page. It carries the promotional strip too: both are
-// "what the storefront says about itself", and a shop editing one is usually about
-// to look at the other.
+// AdminHeroView is the queue page; it carries the promotional strip too.
 type AdminHeroView struct {
 	Rows   []AdminHeroSlide
 	Notice string
 	Errors map[string]string
 	Draft  AdminHeroDraft
-	// Banners is the promotional strip's list. It had no back-office page at all
-	// until this field existed — the only way to run a promotion was SQL, which the
-	// layout check's psql fixture quietly documented.
+
 	Banners     []AdminBanner
 	BannerDraft AdminBannerDraft
 }
@@ -154,9 +135,7 @@ type AdminBanner struct {
 	EndsAt     string
 }
 
-// Translated reports whether this strip reads in English. The MESSAGE decides: it
-// is the strip, and a translated button under a Chinese sentence is not a
-// translated promotion.
+// Translated reports whether this strip reads in English; the message decides.
 func (b AdminBanner) Translated() bool { return b.MessageEn != "" }
 
 // HasCTA reports whether this strip carries a button.
@@ -191,12 +170,9 @@ type AdminHeroDraft struct {
 // Empty reports whether nothing is queued.
 func (v *AdminHeroView) Empty() bool { return len(v.Rows) == 0 }
 
-// Showing is the slide a visitor sees right now, or "" when the built-in copy
-// is showing.
-//
-// The FIRST qualifying slide in queue order, which is exactly what
-// CurrentHeroSlide's ORDER BY picks — computed the same way here so the page
-// names the same one the storefront renders.
+// Showing is the slide a visitor sees right now, or "" for the built-in copy.
+// It is the first qualifying slide in queue order, which is what
+// CurrentHeroSlide's ORDER BY picks.
 func (v *AdminHeroView) Showing() string {
 	for _, s := range v.Rows {
 		if s.Live() {

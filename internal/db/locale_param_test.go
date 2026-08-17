@@ -9,26 +9,7 @@ import (
 )
 
 // TestEveryLocaleParamIsAssigned refuses a localized query called with no locale.
-//
-// # The defect this exists to catch
-//
-// sqlc gives a query with a @locale parameter a `Locale string` field on its Params
-// struct. A caller that omits it compiles: a struct literal with named fields is
-// happy to leave one out, and the zero value is "". Then
-// `localized_name(name, name_en, ”)` takes the ELSE branch and returns the Chinese
-// name, so the page renders in Chinese with no error anywhere.
-//
-// That is exactly `layouts.Page.CartCount` — CLAUDE.md's mistake #19 — one layer
-// down: a field every caller must remember to fill is a field that goes unfilled,
-// and `go vet` cannot see it because a zero value is valid. On /search it shows as
-// a page that matched a product by its English name and then displayed the Chinese
-// one, which reads as a translation gap rather than as a missing argument.
-//
-// # How it is decided
-//
-// From the GENERATED code, never a list: whichever Params types carry a Locale field
-// are the ones that must be assigned, so a new localized query is covered the moment
-// sqlc emits it.
+// Which Params types need one is read from the generated code, never a list.
 func TestEveryLocaleParamIsAssigned(t *testing.T) {
 	t.Parallel()
 

@@ -231,17 +231,9 @@ func Base(p Page) templ.Component {
 	})
 }
 
-// structuredData emits a JSON-LD block.
-//
-// The whole element is templ.Raw, including its tags: templ treats the contents
-// of a <script> as literal text, so an @-expression written INSIDE one reaches
-// the browser as the characters "@templ.Raw(...)" — which is what the first
-// version of this did.
-//
-// The JSON was produced by encoding/json, so it carries no unescaped "<" and
-// cannot close the tag early. The CSP has no 'unsafe-inline' for script-src and
-// needs none: an ld+json block is data, never executed, so the directive does
-// not apply to it.
+// structuredData emits a JSON-LD block. The tags are inside the templ.Raw
+// because templ treats a <script> body as literal text: an @-expression written
+// inside one reaches the browser as the characters "@templ.Raw(...)".
 func structuredData(doc string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

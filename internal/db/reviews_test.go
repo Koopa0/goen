@@ -9,31 +9,13 @@ import (
 )
 
 // touchesReviews finds any query naming the base review table, read or write.
-//
-// Writes as well as reads, so the allowlist documents every query that touches
-// it rather than only the ones that could get the score wrong. A new INSERT is
-// then a deliberate entry rather than an omission nobody sees.
 var touchesReviews = regexp.MustCompile(`\bproduct_reviews\b`)
 
-// TestEveryRatingReadsTheVisibleReviews holds the single definition of a review
-// that counts.
-//
-// The displayed rating is computed LIVE from these rows in eleven queries across
-// five packages — the product page, the listing, search, the home page, the
-// account. A hidden review excluded from some of them means the same product
-// shows two different scores, and the one that forgot would be whichever query
-// was written next.
-//
-// So visible_reviews is the single definition, the way committed_orders is, and
-// this is what keeps it that way. Two callers are allowed the base table and
-// both are named with their reason: moderation has to see hidden rows to
-// un-hide them, and HasReviewed has to see them or the customer is offered a
-// second review and meets the unique index.
+// TestEveryRatingReadsTheVisibleReviews holds visible_reviews as the single
+// definition of a review that counts towards a rating.
 func TestEveryRatingReadsTheVisibleReviews(t *testing.T) {
 	t.Parallel()
 
-	// Keyed on the QUERY NAME, so the exception survives the SQL being
-	// reformatted and does not quietly cover a new query in the same file.
 	allowed := map[string]string{
 		"HasReviewed":  "must see a hidden review, or the form offers a second one",
 		"AdminReviews": "the moderation queue lists hidden reviews to un-hide them",
@@ -58,10 +40,7 @@ func TestEveryRatingReadsTheVisibleReviews(t *testing.T) {
 				"rows, name it in the allowlist with the reason.", path, q.name)
 		}
 	}
-	// Checked by IDENTITY, not by count. `found < len(allowed)` fires on a
-	// stale entry but cannot say WHICH, so it reports "the pattern stopped
-	// matching" — a message that sends the reader to the regex when the
-	// defect is an allowlist row naming a query that no longer exists.
+	// Checked by identity, not by count: a count cannot name the stale entry.
 	for name, why := range allowed {
 		if !used[name] {
 			t.Errorf("the allowlist names %s (%s) and nothing matched it: the "+

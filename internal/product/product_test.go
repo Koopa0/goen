@@ -9,7 +9,7 @@ import (
 )
 
 // matrix is the shape goen's real products have: two option groups, every
-// combination present. 星霧藍/512GB is the sold-out one.
+// combination present, one of them sold out.
 func matrix() []Variant {
 	return []Variant{
 		{ID: "1", SKU: "A-1-1", PriceCents: 3390000, Sellable: true, Available: 10,
@@ -37,8 +37,6 @@ func TestResolve(t *testing.T) {
 			wantExact: false,
 		},
 		{
-			// The point of preferring a sellable match: 星霧藍's first variant in
-			// position order is 256GB and buyable, so it is quoted.
 			name:      "one option chosen leaves the other open",
 			sel:       Selection{"顏色": "星霧藍"},
 			wantSKU:   "A-1-1",
@@ -51,16 +49,12 @@ func TestResolve(t *testing.T) {
 			wantExact: true,
 		},
 		{
-			// A sold-out combination still resolves — the page has to render it
-			// and say it is unavailable, not pretend it was never picked.
 			name:      "a sold-out combination still resolves exactly",
 			sel:       Selection{"顏色": "星霧藍", "容量": "512GB"},
 			wantSKU:   "A-1-2",
 			wantExact: true,
 		},
 		{
-			// With only a capacity chosen, the first colour offering it that can
-			// be bought is quoted rather than the sold-out one.
 			name:      "a partial choice prefers a variant that can be bought",
 			sel:       Selection{"容量": "512GB"},
 			wantSKU:   "A-2-2",
@@ -81,9 +75,7 @@ func TestResolve(t *testing.T) {
 	}
 }
 
-// TestResolveRejectsUnknownValues covers the URL a visitor edits by hand. A
-// value no variant carries must resolve to nothing, so the page can say so
-// rather than silently quoting an unrelated variant's price.
+// TestResolveRejectsUnknownValues covers the URL a visitor edits by hand.
 func TestResolveRejectsUnknownValues(t *testing.T) {
 	for _, sel := range []Selection{
 		{"顏色": "螢光粉"},
@@ -97,10 +89,7 @@ func TestResolveRejectsUnknownValues(t *testing.T) {
 }
 
 // TestBuildOptionsMarksAvailabilityAgainstOtherChoices is the one-variant rule
-// applied to a picker: with 512GB chosen, 星霧藍 must read as unavailable,
-// because 星霧藍 exists in 512GB only as a sold-out variant. Checking a value
-// against the whole product instead would mark it available — 星霧藍/256GB is
-// in stock — and send the visitor to a combination they cannot buy.
+// applied to a picker.
 func TestBuildOptionsMarksAvailabilityAgainstOtherChoices(t *testing.T) {
 	groups := choices(map[string][]string{
 		"顏色": {"星霧藍", "曜石黑"},
@@ -133,8 +122,7 @@ func TestBuildOptionsMarksAvailabilityAgainstOtherChoices(t *testing.T) {
 }
 
 // TestBuildOptionsHrefKeepsOtherChoices pins that clicking a colour does not
-// throw away the capacity already chosen — the failure that makes a two-option
-// picker unusable without scripting.
+// throw away the capacity already chosen.
 func TestBuildOptionsHrefKeepsOtherChoices(t *testing.T) {
 	groups := choices(map[string][]string{"顏色": {"曜石黑"}, "容量": {"256GB", "512GB"}})
 	opts := BuildOptions("phone", groups, []string{"顏色", "容量"},
@@ -200,10 +188,8 @@ func TestParseSelectionBoundsInput(t *testing.T) {
 	}
 }
 
-// choices turns the plain value lists these tests are written with into the
-// identity-and-label pairs BuildOptions takes. The label is left empty on purpose:
-// an untranslated option falls back to its canonical text, and that fallback is
-// what most of the catalogue will be for a long time.
+// choices turns plain value lists into the identity-and-label pairs BuildOptions
+// takes. The label is left empty so the untranslated fallback is exercised.
 func choices(in map[string][]string) map[string][]OptionChoice {
 	out := make(map[string][]OptionChoice, len(in))
 	for name, values := range in {
@@ -216,12 +202,6 @@ func choices(in map[string][]string) map[string][]OptionChoice {
 
 // TestThePickerShowsLabelsAndSelectsOnIdentity is the line between what a visitor
 // reads and what a URL carries.
-//
-// The picker puts the choice in the URL — that is what makes it work with scripting
-// off, survive the back button and have no state to expire. So the URL must carry
-// the CANONICAL value: if it carried the localized label, a link shared between a
-// Chinese reader and an English one would select different variants, or nothing at
-// all, and the page would silently fall back to "choose a variant".
 func TestThePickerShowsLabelsAndSelectsOnIdentity(t *testing.T) {
 	t.Parallel()
 
@@ -245,7 +225,6 @@ func TestThePickerShowsLabelsAndSelectsOnIdentity(t *testing.T) {
 	if colour.Label != "Colour" {
 		t.Errorf("the picker heading reads %q, want Colour", colour.Label)
 	}
-	// The IDENTITY is untouched, because everything downstream matches on it.
 	if colour.Name != "顏色" {
 		t.Errorf("the option's identity is %q, want 顏色", colour.Name)
 	}
@@ -255,7 +234,6 @@ func TestThePickerShowsLabelsAndSelectsOnIdentity(t *testing.T) {
 	if colour.Values[0].Value != "星霧藍" {
 		t.Errorf("the swatch's identity is %q, want 星霧藍", colour.Values[0].Value)
 	}
-	// And the URL carries the canonical text, not the label.
 	if got := colour.Values[0].Href; !strings.Contains(got, url.QueryEscape("星霧藍")) {
 		t.Errorf("href is %q, want the canonical 星霧藍 in it", got)
 	}
@@ -263,8 +241,6 @@ func TestThePickerShowsLabelsAndSelectsOnIdentity(t *testing.T) {
 		t.Errorf("href is %q — it carries the LABEL, so a link shared with a "+
 			"Chinese reader selects nothing", colour.Values[0].Href)
 	}
-
-	// An untranslated option falls back to its own text rather than to blank. A
 	// blank picker heading is unusable; a Chinese one is readable.
 	if capacity.Label != "容量" {
 		t.Errorf("an untranslated option reads %q, want its Chinese name", capacity.Label)

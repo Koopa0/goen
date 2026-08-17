@@ -13,8 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/icons"
 )
 
-// Footer renders the site footer. The two link columns sit side by side on
-// small screens and expand into the four-column desktop grid at 768px.
+// Footer renders the site footer.
 func Footer() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -51,7 +50,7 @@ func Footer() templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFooterTagline))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 18, Col: 78}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 17, Col: 78}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -64,7 +63,7 @@ func Footer() templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeySupportHours))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 20, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 19, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -77,7 +76,7 @@ func Footer() templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, i18n.KeyFooterHelp))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 25, Col: 79}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 24, Col: 79}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 		if templ_7745c5c3_Err != nil {
@@ -90,7 +89,7 @@ func Footer() templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFooterHelp))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 26, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 25, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {
@@ -108,7 +107,7 @@ func Footer() templ.Component {
 			var templ_7745c5c3_Var6 templ.SafeURL
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(l.Href))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 28, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 27, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -121,7 +120,7 @@ func Footer() templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(l.Label(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 28, Col: 63}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 27, Col: 63}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -139,7 +138,7 @@ func Footer() templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, i18n.KeyFooterPolicies))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 31, Col: 83}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 30, Col: 83}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 		if templ_7745c5c3_Err != nil {
@@ -152,7 +151,7 @@ func Footer() templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFooterPolicies))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 32, Col: 61}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 31, Col: 61}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -170,7 +169,7 @@ func Footer() templ.Component {
 			var templ_7745c5c3_Var10 templ.SafeURL
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(l.Href))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 34, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 33, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
@@ -183,7 +182,7 @@ func Footer() templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(l.Label(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 34, Col: 63}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 33, Col: 63}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -199,14 +198,14 @@ func Footer() templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if i18n.FromContext(ctx) != i18n.Default {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "    <p class=\"ui-sm goen-footer__contentnote\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "  <p class=\"ui-sm goen-footer__contentnote\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyContentNotice))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 42, Col: 82}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 39, Col: 82}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -224,7 +223,7 @@ func Footer() templ.Component {
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyNewsletter))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 45, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 42, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -237,7 +236,7 @@ func Footer() templ.Component {
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyNewsletterNote))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 46, Col: 82}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 43, Col: 82}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 		if templ_7745c5c3_Err != nil {
@@ -292,17 +291,15 @@ func Footer() templ.Component {
 }
 
 // NewsletterState carries the outcome of a subscribe attempt back into the
-// footer form. The zero value is the form's initial state.
+// footer form; the zero value is the form's initial state.
 type NewsletterState struct {
 	Email string
 	Error string
 	Done  bool
 }
 
-// NewsletterForm posts to /newsletter as a plain form: with scripting off the
-// browser follows the POST and the handler answers with a full confirmation
-// page. The hx-* attributes are enhancement only — htmx swaps this element for
-// the handler's partial so the visitor keeps their scroll position.
+// NewsletterForm posts to /newsletter as a plain form; the hx-* attributes only
+// change what is written back.
 func NewsletterForm(s NewsletterState) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -336,7 +333,7 @@ func NewsletterForm(s NewsletterState) templ.Component {
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyNewsletterInlineDone))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 97, Col: 102}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 92, Col: 102}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -354,7 +351,7 @@ func NewsletterForm(s NewsletterState) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyFieldEmail))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 99, Col: 87}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 94, Col: 87}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -367,7 +364,7 @@ func NewsletterForm(s NewsletterState) templ.Component {
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.ResolveAttributeValue(s.Email)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 105, Col: 19}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 100, Col: 19}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var18)
 			if templ_7745c5c3_Err != nil {
@@ -380,7 +377,7 @@ func NewsletterForm(s NewsletterState) templ.Component {
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.ResolveAttributeValue(boolAttr(s.Error != ""))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 110, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 105, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
 			if templ_7745c5c3_Err != nil {
@@ -403,7 +400,7 @@ func NewsletterForm(s NewsletterState) templ.Component {
 			var templ_7745c5c3_Var20 string
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyNewsletterSubmit))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 115, Col: 106}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 110, Col: 106}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {
@@ -421,7 +418,7 @@ func NewsletterForm(s NewsletterState) templ.Component {
 				var templ_7745c5c3_Var21 string
 				templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(s.Error)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 117, Col: 99}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/footer.templ`, Line: 112, Col: 99}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 				if templ_7745c5c3_Err != nil {

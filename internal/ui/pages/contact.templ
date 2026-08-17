@@ -49,9 +49,7 @@ templ Contact(p layouts.Page, f ContactForm) {
 	}
 }
 
-// contactMethod is one of the three ways to reach support. Each is a real
-// link, so the same markup is a card on the desktop grid and a 44px tap
-// target on a phone.
+// contactMethod is one of the three ways to reach support.
 templ contactMethod(href, label, value string) {
 	<a class="contact-method" href={ templ.URL(href) }>
 		<span class="contact-method__icon">
@@ -64,10 +62,8 @@ templ contactMethod(href, label, value string) {
 	</a>
 }
 
-// ContactPanel is the write face of this page. It is a plain form posting to
-// /contact: with scripting off the browser submits it and the handler answers
-// with a redirect on success or a re-rendered page carrying the errors. The
-// hx-* attributes only let htmx swap this element in place instead.
+// ContactPanel is a plain form posting to /contact; the hx-* attributes only
+// change what is written back.
 templ ContactPanel(f ContactForm) {
 	if f.Done {
 		<div class="ui-alert ui-alert--success contact__panel" role="status" id="contact-form">

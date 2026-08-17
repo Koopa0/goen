@@ -12,18 +12,12 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-// OrderPlaced is what an order.placed message carries.
-//
-// The email address is in the payload rather than looked up at delivery time,
-// and that is deliberate: erase_user blanks order_private_data, so a message
-// delivered after an erasure would otherwise have nowhere to go. Carrying it
-// means the message is a snapshot of what was true when the order was placed,
-// which is what a receipt is.
+// OrderPlaced is what an order.placed message carries. The email address travels
+// in the payload rather than being looked up at delivery time, because erase_user
+// blanks order_private_data.
 type OrderPlaced struct {
-	// Locale must match email.OrderPlaced. The two structs are
-	// deliberately separate — a consumer that imports the producer's types
-	// cannot be deployed a version behind — and TestEveryMailPayloadMatchesItsProducer
-	// is what stops the copies drifting.
+	// Every field must match email.OrderPlaced, which is a deliberately separate
+	// copy so a consumer cannot be deployed a version behind its producer.
 	Locale      string `json:"locale"`
 	OrderNumber string `json:"order_number"`
 	Email       string `json:"email"`
@@ -31,17 +25,14 @@ type OrderPlaced struct {
 	TotalCents  int64  `json:"total_cents"`
 }
 
-// enqueueOrderPlaced writes the message in the order's own transaction.
-//
-// dedupe_key is the order number, so a retried checkout under the same
-// idempotency key cannot produce a second confirmation email.
+// enqueueOrderPlaced writes the message in the order's own transaction. The
+// dedupe key is the order number, so a retried checkout cannot produce a second
+// confirmation email.
 func enqueueOrderPlaced(ctx context.Context, q *db.Queries, orderID uuid.UUID, number string, addr *Address, totalCents int64) error {
 	payload, err := json.Marshal(OrderPlaced{
 		OrderNumber: number, Email: addr.Email, Name: addr.Name, TotalCents: totalCents,
-		// The visitor is right here, so the request's own locale is the answer.
-		// The later messages about this order cannot do that and read
-		// orders.locale instead — which is the same value, written by the
-		// statement this one runs beside.
+		// The visitor is right here; later messages about this order have no
+		// request and read orders.locale, which this statement writes beside it.
 		Locale: i18n.FromContext(ctx).Tag(),
 	})
 	if err != nil {

@@ -16,11 +16,6 @@ import (
 )
 
 // Google's OAuth 2.0 endpoints.
-//
-// Constants rather than discovery: the document at
-// accounts.google.com/.well-known/openid-configuration has named these three
-// URLs for a decade, and fetching it at startup would make goen fail to boot
-// because somebody else's CDN was slow.
 const (
 	googleAuthURL = "https://accounts.google.com/o/oauth2/v2/auth"
 	//nolint:gosec // G101: a published endpoint URL that happens to contain the
@@ -31,40 +26,24 @@ const (
 
 // Errors the sign-in handler branches on.
 var (
-	// ErrOAuthDisabled is a deployment with no Google credentials. The site
-	// still signs people in with a password; only the button is absent.
+	// ErrOAuthDisabled is a deployment with no Google credentials.
 	ErrOAuthDisabled = errors.New("account: google sign-in is not configured")
-	// ErrOAuthState is a callback whose state does not match the cookie —
-	// a forged or stale callback, and never something to act on.
+	// ErrOAuthState is a callback whose state does not match the cookie.
 	ErrOAuthState = errors.New("account: the sign-in request does not match this browser")
-	// ErrOAuthUnverified is a Google account whose address Google itself has
-	// not proved. Trusting it would let anybody who controls a Workspace domain
-	// claim any address in it.
+	// ErrOAuthUnverified is a Google account whose address Google has not proved.
 	ErrOAuthUnverified = errors.New("account: google has not verified that address")
-	// ErrOAuthCollision is an address that already has a goen account which has
-	// not proved the address. See linkOrCreate for why that cannot be linked.
+	// ErrOAuthCollision is an address that already has an unproved goen account.
 	ErrOAuthCollision = errors.New("account: that address already has an unverified account here")
 )
 
 // oauthStateCookie carries the CSRF state and the PKCE verifier across the
 // redirect to Google and back.
-//
-// __Host-, so only this exact origin can set it. That is what makes the
-// state comparison meaningful: an attacker who could write this cookie could
-// complete their OWN authorisation in the victim's browser and sign the victim
-// into the attacker's account — a login CSRF that ends with the victim's next
-// order landing in a stranger's history.
 const oauthStateCookie = "__Host-goen_oauth"
 
-// oauthStateTTL bounds how long an unfinished sign-in stays valid.
-//
-// Long enough to read a consent screen and pick an account, short enough that a
-// state left in a shared browser is not a standing invitation.
 const oauthStateTTL = 10 * time.Minute
 
 // Google is the OAuth client. The zero value is DISABLED and answers
-// ErrOAuthDisabled, which is the shape payment.Gateway and invoice.Gateway
-// already have for absent credentials.
+// ErrOAuthDisabled.
 type Google struct {
 	clientID     string
 	clientSecret string
@@ -72,12 +51,7 @@ type Google struct {
 	http         *http.Client
 }
 
-// NewGoogle returns a client for the given credentials.
-//
-// Both or neither. A client id without its secret cannot exchange a code, so a
-// deployment that set one and forgot the other would offer a sign-in button that
-// fails after the customer has already been to Google and consented — which
-// looks like goen losing their account rather than a configuration mistake.
+// NewGoogle returns a client for the given credentials: both, or neither.
 func NewGoogle(clientID, clientSecret, baseURL string) (*Google, error) {
 	if clientID == "" && clientSecret == "" {
 		return &Google{}, nil
@@ -92,24 +66,15 @@ func NewGoogle(clientID, clientSecret, baseURL string) (*Google, error) {
 	return &Google{
 		clientID:     clientID,
 		clientSecret: clientSecret,
-		// Registered with Google and compared by them on every exchange, which
-		// is what stops an authorisation code being redirected somewhere else.
-		redirectURL: strings.TrimSuffix(baseURL, "/") + "/auth/google/callback",
-		http:        &http.Client{Timeout: 15 * time.Second},
+		redirectURL:  strings.TrimSuffix(baseURL, "/") + "/auth/google/callback",
+		http:         &http.Client{Timeout: 15 * time.Second},
 	}, nil
 }
 
 // Enabled reports whether this deployment offers Google sign-in.
 func (g *Google) Enabled() bool { return g != nil && g.clientID != "" }
 
-// AuthorizeURL starts the flow: it returns where to send the browser and the
-// state to remember.
-//
-// PKCE even though goen is a CONFIDENTIAL client with a secret. The secret
-// protects the exchange; the verifier protects the CODE, which travels through
-// the browser's address bar, the referrer of any resource the callback page
-// loads, and every proxy log between. Without it a code lifted from any of those
-// is redeemable by anybody who also has the secret — and secrets leak.
+// AuthorizeURL returns where to send the browser and the state to remember.
 func (g *Google) AuthorizeURL(next string) (target string, state OAuthState, err error) {
 	if !g.Enabled() {
 		return "", OAuthState{}, ErrOAuthDisabled
@@ -132,9 +97,7 @@ func (g *Google) AuthorizeURL(next string) (target string, state OAuthState, err
 		"state":                 {raw},
 		"code_challenge":        {base64.RawURLEncoding.EncodeToString(sum[:])},
 		"code_challenge_method": {"S256"},
-		// Google returns to the consent screen rather than silently reusing a
-		// previous grant, so somebody on a shared machine can pick an account.
-		"prompt": {"select_account"},
+		"prompt":                {"select_account"},
 	}
 	return googleAuthURL + "?" + q.Encode(),
 		OAuthState{Value: raw, Verifier: verifier, Next: next}, nil
@@ -144,33 +107,18 @@ func (g *Google) AuthorizeURL(next string) (target string, state OAuthState, err
 type OAuthState struct {
 	Value    string
 	Verifier string
-	// Next is where to go once signed in. Validated as a same-site PATH when it
-	// is read back, never trusted from the cookie — an open redirect on a
-	// sign-in flow is how a phishing page borrows a real login.
-	Next string
+	Next     string
 }
 
 // Identity is who Google says this is.
 type Identity struct {
-	// Subject is Google's own stable id for the account. The EMAIL is not: a
-	// Google account can change address, and a released Workspace address can be
-	// reassigned to a different person. user_identities keys on this.
-	Subject string
-	Email   string
-	// EmailVerified is Google's own claim about the address. False for some
-	// Workspace configurations, and trusting it there would let a domain
-	// administrator claim any address in their domain.
+	Subject       string
+	Email         string
 	EmailVerified bool
 	Name          string
 }
 
 // Exchange turns the callback's code into an identity.
-//
-// Two calls to Google over TLS, and no ID token is parsed. The token endpoint
-// answers this server directly, so the connection itself is what authenticates
-// the response — a signature check on top of it would verify the same claim
-// twice, and it would need a JWKS cache, a key-rotation policy and a JWT
-// library, each of which is a thing to get wrong.
 func (g *Google) Exchange(ctx context.Context, code, verifier string) (Identity, error) {
 	if !g.Enabled() {
 		return Identity{}, ErrOAuthDisabled
@@ -210,9 +158,6 @@ func (g *Google) token(ctx context.Context, code, verifier string) (string, erro
 		return "", fmt.Errorf("read the token response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		// Google's body names the reason — invalid_grant for a replayed code,
-		// redirect_uri_mismatch for a misconfiguration. It is logged and never
-		// shown: a customer cannot act on either.
 		return "", fmt.Errorf("google refused the code exchange: %d %s",
 			resp.StatusCode, strings.TrimSpace(string(body)))
 	}

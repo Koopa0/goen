@@ -15,11 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// MaxCampaignDays bounds how long one promotion may run.
-//
-// Ninety days. Not a schema rule — sale_campaigns takes any window — but a
-// "limited-time" offer that runs for a year is a price, and a form that lets
-// somebody type 3650 by accident is a form that eventually does.
+// MaxCampaignDays bounds how long one promotion may run. Not a schema rule:
+// sale_campaigns takes any window.
 const MaxCampaignDays = 90
 
 // MaxCampaignTitleRunes bounds the heading a shopper reads.
@@ -69,11 +66,7 @@ func (s *Store) Campaigns(ctx context.Context) (pages.AdminCampaignsView, error)
 	return view, nil
 }
 
-// CreateCampaign starts a promotion.
-//
-// It begins with nothing featured, and that is not an oversight: a campaign is
-// a curation, and creating one pre-filled would be the software deciding what
-// is on offer.
+// CreateCampaign starts a promotion, with nothing featured.
 func (s *Store) CreateCampaign(ctx context.Context, f *CampaignForm) (map[string]string, error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
@@ -119,10 +112,8 @@ func (s *Store) SetCampaignActive(ctx context.Context, slug string, active bool)
 
 // FeatureProduct adds a product to a campaign.
 //
-// sale_campaign_needs_discount decides whether it may be featured, under a lock
-// it takes on the product. Checking here as well would be checking without one
-// — a concurrent price change between the check and the write is exactly what
-// that guard exists to lose safely.
+// Whether it may be featured is sale_campaign_needs_discount's to decide, under
+// a lock it takes on the product; checking here would be checking without one.
 func (s *Store) FeatureProduct(ctx context.Context, campaign, product string) error {
 	return s.audited(ctx, Event{
 		Action: ActionFeatureProduct, Table: "sale_campaign_products", ID: uuid.NullUUID{},

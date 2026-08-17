@@ -10,19 +10,14 @@ import (
 type Answer struct {
 	Author string
 	Body   string
-	// IsStaff is what was true when it was written, not what is true about the
-	// author now — see product_answers.is_staff. A customer who later joins the
-	// shop must not retroactively turn their old answers into official ones.
+	// IsStaff is what was true when the answer was written, never what is true
+	// about the author now.
 	IsStaff bool
 	At      string
 }
 
-// Who is the name to show beside an answer.
-//
-// A staff answer is attributed to the SHOP, not to the person: a customer
-// deciding wants to know the answer is official, and which member of staff
-// typed it is not their business — and putting a staff member's name on a
-// public page is a decision nobody made.
+// Who is the name to show beside an answer. A staff answer is attributed to the
+// shop and never to the person who typed it.
 func (a Answer) Who(ctx context.Context) string {
 	if a.IsStaff {
 		return "goen"
@@ -52,8 +47,7 @@ func (q Question) Who(ctx context.Context) string {
 // Answered reports whether anybody has replied.
 func (q Question) Answered() bool { return len(q.Answers) > 0 }
 
-// AnsweredByShop reports whether the SHOP has replied, which is the thing
-// somebody deciding is looking for.
+// AnsweredByShop reports whether the shop itself has replied.
 func (q Question) AnsweredByShop() bool {
 	for _, a := range q.Answers {
 		if a.IsStaff {

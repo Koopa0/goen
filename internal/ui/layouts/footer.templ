@@ -5,8 +5,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/icons"
 )
 
-// Footer renders the site footer. The two link columns sit side by side on
-// small screens and expand into the four-column desktop grid at 768px.
+// Footer renders the site footer.
 templ Footer() {
 	<footer class="goen-footer">
 		<div class="goen-footer__grid">
@@ -35,10 +34,8 @@ templ Footer() {
 				}
 			</nav>
 			if i18n.FromContext(ctx) != i18n.Default {
-				// Said, not hidden. A visitor who switched to English and then
-				// meets a Chinese product description has been misled unless
-				// somebody told them the split first — the chrome follows the
-				// language, the content is authored in one.
+				// The chrome follows the language and the content is authored in
+				// one, so an English visitor is told rather than left to find out.
 				<p class="ui-sm goen-footer__contentnote">{ i18n.T(ctx, i18n.KeyContentNotice) }</p>
 			}
 			<div class="goen-footer__news">
@@ -72,17 +69,15 @@ templ Footer() {
 }
 
 // NewsletterState carries the outcome of a subscribe attempt back into the
-// footer form. The zero value is the form's initial state.
+// footer form; the zero value is the form's initial state.
 type NewsletterState struct {
 	Email string
 	Error string
 	Done  bool
 }
 
-// NewsletterForm posts to /newsletter as a plain form: with scripting off the
-// browser follows the POST and the handler answers with a full confirmation
-// page. The hx-* attributes are enhancement only — htmx swaps this element for
-// the handler's partial so the visitor keeps their scroll position.
+// NewsletterForm posts to /newsletter as a plain form; the hx-* attributes only
+// change what is written back.
 templ NewsletterForm(s NewsletterState) {
 	<form
 		class="goen-footer__signup"

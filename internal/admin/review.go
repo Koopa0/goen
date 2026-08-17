@@ -31,15 +31,9 @@ func (s *Store) Reviews(ctx context.Context) (pages.AdminReviewsView, error) {
 
 // SetReviewHidden hides a review or puts it back.
 //
-// Hiding takes it out of the SCORE as well as the list — visible_reviews is what
-// every rating is computed from — which is the whole point: an abusive or
-// planted one-star review moves a product's public rating, and hiding it while
-// leaving the average alone would achieve nothing.
-//
-// Reversible, because moderation is a judgement and a judgement made in a hurry
-// is one somebody should be able to undo. Hide and show are separate calls
-// rather than a toggle, so a double-submitted form cannot un-hide what a staff
-// member just hid.
+// Hiding takes it out of the SCORE as well as the list, because every rating is
+// computed from visible_reviews. Hide and show are separate calls, never a
+// toggle, so a double-submitted form cannot un-hide what was just hidden.
 func (s *Store) SetReviewHidden(ctx context.Context, id string, hidden bool) error {
 	reviewID, err := uuid.Parse(id)
 	if err != nil {
@@ -53,9 +47,8 @@ func (s *Store) SetReviewHidden(ctx context.Context, id string, hidden bool) err
 	return s.audited(ctx, Event{
 		Action: action, Table: "product_reviews", ID: nullableID(reviewID),
 		Before: nil,
-		// The review's own words are not repeated into the trail: it is already
-		// a row somebody can read, and audit_events is append-only where
-		// product_reviews is not — a body copied here would outlive an erasure.
+		// Never the review's own words: audit_events is append-only where
+		// product_reviews is not, so a body copied here outlives an erasure.
 		After: map[string]any{"review_id": id, "hidden": hidden},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -70,9 +63,7 @@ func (s *Store) SetReviewHidden(ctx context.Context, id string, hidden bool) err
 				return fmt.Errorf("set review hidden: %w", setErr)
 			}
 			if n == 0 {
-				// Zero rows is a review that is already in the state asked for,
-				// or one that does not exist. Both are ErrNotFound to the page:
-				// a staff member who double-clicked has the outcome they wanted.
+				// Already in the state asked for, or gone.
 				return ErrNotFound
 			}
 			return nil

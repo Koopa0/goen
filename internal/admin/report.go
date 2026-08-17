@@ -9,10 +9,6 @@ import (
 )
 
 // ReportWindows are the periods the report offers.
-//
-// Three, and no date picker. A shop owner asks "how was this week" and "how was
-// this month"; an arbitrary range is a different tool, and offering one here
-// would make the page look like a BI product it is not.
 var ReportWindows = []int32{7, 30, 90}
 
 // DefaultWindow is what the page opens on.
@@ -22,10 +18,6 @@ const DefaultWindow int32 = 30
 const MaxReportRows = 10
 
 // Report reads the numbers for one window.
-//
-// Four queries and not one: they answer different questions over different
-// groupings, and folding them together would produce a single query nobody can
-// read in order to save three round trips on a page a handful of people open.
 func (s *Store) Report(ctx context.Context, days int32) (pages.AdminReportView, error) {
 	if !validWindow(days) {
 		days = DefaultWindow
@@ -79,11 +71,8 @@ func (s *Store) Report(ctx context.Context, days int32) (pages.AdminReportView, 
 	return view, nil
 }
 
-// validWindow reports whether days is one the report offers.
-//
-// An allowlist, not a range: the window reaches a query that scans order
-// history, so an arbitrary number from a URL is an arbitrary amount of work
-// somebody can ask for.
+// validWindow reports whether days is one the report offers. An allowlist and
+// never a range: the window reaches a query that scans order history.
 func validWindow(days int32) bool {
 	for _, w := range ReportWindows {
 		if w == days {

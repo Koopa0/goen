@@ -18,9 +18,8 @@ type ReturnsLine struct {
 	Label      string
 	UnitCents  int64
 	Returnable int32
-	// Chosen is what was submitted, carried back when the form is re-rendered
-	// after a refusal — a form that loses its own values is one the customer
-	// has to fill in twice.
+	// Chosen is what was submitted, carried back when a refusal re-renders the
+	// form.
 	Chosen int32
 }
 

@@ -18,11 +18,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Store reads and writes carts and places orders.
-//
-// It holds the pool rather than a DBTX because placing an order spans several
-// statements that must succeed or fail together, and that needs a transaction
-// the store can open. Everything else runs on the pool directly.
+// Store reads and writes carts and places orders. It holds the pool rather than
+// a DBTX because placing an order needs a transaction the store itself opens.
 type Store struct {
 	pool *pgxpool.Pool
 	q    *db.Queries
@@ -60,11 +57,9 @@ func (s *Store) Create(ctx context.Context, token string, userID uuid.NullUUID) 
 	return id, nil
 }
 
-// Add puts a variant in a cart.
-//
-// The variant is checked BEFORE the write so an inactive variant, a draft
-// product or a quantity past what can be sold is a message rather than a
-// foreign-key error or a hold the database will refuse later.
+// Add puts a variant in a cart. The variant is checked before the write, so an
+// inactive one or an impossible quantity is a message rather than a foreign-key
+// error or a hold the database refuses later.
 func (s *Store) Add(ctx context.Context, cartID, variantID uuid.UUID, quantity int32) error {
 	v, err := s.q.VariantForCart(ctx, variantID)
 	if err != nil {
@@ -120,11 +115,9 @@ func (s *Store) Count(ctx context.Context, cartID uuid.UUID) (int64, error) {
 	return n, nil
 }
 
-// View reads a cart for display.
-//
-// Prices and availability are read fresh every time. A cart line is not a
-// promise: a variant can sell out or be repriced while it sits there, and a
-// visitor must never be quoted a total the checkout would then refuse.
+// View reads a cart for display. Prices and availability are read fresh every
+// time: a cart line is not a promise, and a visitor must never be quoted a total
+// the checkout would then refuse.
 func (s *Store) View(ctx context.Context, cartID uuid.UUID) (pages.CartView, error) {
 	rows, err := s.q.CartLines(ctx, db.CartLinesParams{
 		CartID: cartID, Locale: string(i18n.FromContext(ctx)),
@@ -150,9 +143,8 @@ func (s *Store) View(ctx context.Context, cartID uuid.UUID) (pages.CartView, err
 			ImageAlt:     r.ImageAlt,
 			CompareCents: r.CompareAtPriceCents.Int64,
 		}
-		// A line the catalogue can no longer honour: inactive, or short of
-		// stock. The page says so per line and blocks checkout, rather than
-		// letting the order fail at the hold.
+		// The page says so per line and blocks checkout, rather than letting the
+		// order fail at the hold.
 		line.Unavailable = !r.IsActive || r.SellableQuantity <= 0
 		line.Short = !line.Unavailable && r.Quantity > r.SellableQuantity
 
@@ -169,7 +161,7 @@ func (s *Store) View(ctx context.Context, cartID uuid.UUID) (pages.CartView, err
 	return view, nil
 }
 
-// optionLabel renders a variant's options as "星霧藍 · 512GB".
+// optionLabel renders a variant's option values, joined with a middle dot.
 func optionLabel(names, values []string) string {
 	n := min(len(names), len(values))
 	if n == 0 {

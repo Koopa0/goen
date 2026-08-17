@@ -14,11 +14,8 @@ import (
 )
 
 // Customers searches for a customer by the start of their address or their name.
-//
-// Nothing is listed until somebody searches. That is a decision rather than an
-// omission: a customer list is a page of addresses, and a back office that opens on
-// one invites reading it. The shop looks somebody up because they are dealing with
-// them.
+// Nothing is listed until somebody searches: a customer list is a page of
+// addresses, and a back office that opens on one invites reading it.
 func (s *Store) Customers(ctx context.Context, term string) (pages.AdminCustomersView, error) {
 	term = strings.TrimSpace(term)
 	view := pages.AdminCustomersView{Term: term}
@@ -46,15 +43,8 @@ func (s *Store) Customers(ctx context.Context, term string) (pages.AdminCustomer
 
 // Customer reads one customer, whole, and RECORDS that somebody looked.
 //
-// The audit row is the unusual part: audit_events is otherwise a record of writes,
-// and this is a read. It is here because this is the one page whose entire content
-// is somebody else's personal data — their address, their phone number, what they
-// have bought. A staff member reading it because they are dealing with that customer
-// is the job; a staff member reading it out of curiosity is the classic insider
-// problem, and a trail is the only thing that makes the difference visible.
-//
-// Bounded by STAFF activity rather than customer activity, so it is not a growth
-// problem: a shop looks up a few dozen people a day.
+// The audit row is the exception to audit_events being a record of writes: this
+// is the one page whose entire content is somebody else's personal data.
 func (s *Store) Customer(ctx context.Context, id string, actor uuid.NullUUID) (
 	pages.AdminCustomerView, error,
 ) {
@@ -85,9 +75,8 @@ func (s *Store) Customer(ctx context.Context, id string, actor uuid.NullUUID) (
 		return pages.AdminCustomerView{}, fmt.Errorf("read customer orders: %w", err)
 	}
 
-	// The row names WHO was looked at and never what was read. audit_events is
-	// append-only and erase_user does not reach it, so an address copied there would
-	// outlive the erasure meant to remove it — the same rule staff_note follows.
+	// WHO was looked at, never what was read: audit_events is append-only and
+	// erase_user does not reach it, so an address here outlives the erasure.
 	if auditErr := auditIn(ctx, q, Event{
 		Action: ActionViewCustomer, Table: "users", ID: nullableID(uid),
 		Before: nil, After: map[string]any{"user_id": id},

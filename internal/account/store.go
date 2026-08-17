@@ -37,9 +37,6 @@ func NewStore(pool *pgxpool.Pool) *Store {
 }
 
 // Register creates an account.
-//
-// A duplicate email is ErrEmailTaken rather than a raw constraint violation,
-// because it is the one failure the form has something to say about.
 func (s *Store) Register(ctx context.Context, c *Credentials) (User, error) {
 	hash, err := HashPassword(c.Password)
 	if err != nil {
@@ -60,11 +57,6 @@ func (s *Store) Register(ctx context.Context, c *Credentials) (User, error) {
 }
 
 // Authenticate checks an email and password.
-//
-// An unknown email and a wrong password both return ErrBadCredentials, and the
-// unknown-email path still runs a hash. Returning early would make a missing
-// account measurably faster to reject than a wrong password, which turns the
-// sign-in form into an account-enumeration oracle.
 func (s *Store) Authenticate(ctx context.Context, email, password string) (User, error) {
 	row, err := s.q.UserByEmail(ctx, email)
 	if err != nil {
@@ -75,8 +67,6 @@ func (s *Store) Authenticate(ctx context.Context, email, password string) (User,
 		return User{}, fmt.Errorf("read user: %w", err)
 	}
 	if !row.PasswordHash.Valid {
-		// An account with no password — created through an identity provider.
-		// Same answer, same cost.
 		burnHashTime(password)
 		return User{}, ErrBadCredentials
 	}
@@ -93,9 +83,6 @@ func (s *Store) Authenticate(ctx context.Context, email, password string) (User,
 // burnHashTime spends roughly what a real verification costs, so a wrong email
 // and a wrong password take the same time to refuse.
 func burnHashTime(password string) {
-	// The result is discarded on purpose: this exists only to spend the time a
-	// real verification would, so a wrong email and a wrong password are equally
-	// slow to refuse.
 	_, _ = HashPassword(password) //nolint:errcheck // discarding is the point
 }
 
@@ -109,9 +96,8 @@ func (s *Store) StartSession(ctx context.Context, userID, userAgent, ip string) 
 	if err != nil {
 		return "", err
 	}
-	// The column is inet, so the value has to parse as an address. An
-	// unparseable one is stored as NULL rather than refusing the sign-in: the
-	// session's audit trail is worth less than the sign-in itself.
+	// The column is inet: an unparseable address is stored as NULL rather than
+	// refusing the sign-in.
 	var addr *netip.Addr
 	if parsed, perr := netip.ParseAddr(ip); perr == nil {
 		addr = &parsed
@@ -128,9 +114,7 @@ func (s *Store) StartSession(ctx context.Context, userID, userAgent, ip string) 
 	return token, nil
 }
 
-// SessionUser returns who a session token belongs to. An expired session is
-// nobody: the query checks expires_at, so a session is dead the moment it
-// expires rather than when a sweeper next runs.
+// SessionUser returns who a session token belongs to.
 func (s *Store) SessionUser(ctx context.Context, token string) (User, error) {
 	if token == "" {
 		return User{}, ErrNotFound
@@ -157,10 +141,6 @@ func (s *Store) EndSession(ctx context.Context, token string) error {
 }
 
 // AdoptCart attaches a guest cart to an account on sign-in.
-//
-// The guest's lines are MERGED into whatever the account already had, rather
-// than replacing it: someone who added things while signed out has not agreed
-// to lose what was in their account cart, and the reverse is just as true.
 func (s *Store) AdoptCart(ctx context.Context, userID string, guestCartID uuid.UUID) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -177,7 +157,6 @@ func (s *Store) AdoptCart(ctx context.Context, userID string, guestCartID uuid.U
 	existing, err := q.CartForUser(ctx, uuid.NullUUID{UUID: id, Valid: true})
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
-		// No account cart yet: the guest cart becomes it.
 		if adoptErr := q.AdoptCart(ctx, db.AdoptCartParams{
 			ID: guestCartID, UserID: uuid.NullUUID{UUID: id, Valid: true},
 		}); adoptErr != nil {
@@ -203,11 +182,7 @@ func (s *Store) AdoptCart(ctx context.Context, userID string, guestCartID uuid.U
 	return nil
 }
 
-// ChangePassword sets a new password and ENDS every other session.
-//
-// The second half is the point. A password change that leaves existing sessions
-// alive has not locked anyone out, so a stolen session survives the very action
-// taken to stop it.
+// ChangePassword sets a new password and ends every other session.
 func (s *Store) ChangePassword(ctx context.Context, userID, password string) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -248,32 +223,17 @@ func (s *Store) Overview(ctx context.Context, u User) (pages.AccountView, error)
 
 	view := pages.AccountView{Email: u.Email, Name: u.Name}
 
-	// The profile row, read back so the form can show what it holds. The phone
-	// column is written by registration and by the form itself, and nothing else
-	// reads it — so without this the field is blank on every visit, and a form
-	// that forgets what you told it reads as a form that did not save.
 	profile, err := s.q.UserByID(ctx, id)
 	if err != nil {
 		return pages.AccountView{}, fmt.Errorf("read profile: %w", err)
 	}
 	view.Phone = profile.Phone.String
 
-	// Which ways this account can be signed into. A customer who has forgotten
-	// they used Google reads a password that does not work as a broken account.
 	identities, err := s.q.IdentitiesForUser(ctx, id)
 	if err != nil {
 		return pages.AccountView{}, fmt.Errorf("read linked identities: %w", err)
 	}
 	view.GoogleLinked = len(identities) > 0
-	// Unlinking the only way in locks somebody out of their own orders, so the
-	// control is absent rather than present and refused. UnlinkGoogle asks the
-	// same question again at the write, because this one only decides what to
-	// render.
-	//
-	// Read from the profile row this function already has, keyed on the ID.
-	// Looking the same fact up by EMAIL is wrong twice over: it is a second query
-	// for something already in hand, and a caller holding a User with no address
-	// makes Overview fail outright.
 	view.CanUnlinkGoogle = view.GoogleLinked && profile.HasPassword
 
 	orders, err := s.q.UserOrders(ctx, db.UserOrdersParams{UserID: uuid.NullUUID{UUID: id, Valid: true}, Limit: 20})
@@ -328,11 +288,6 @@ func (s *Store) Overview(ctx context.Context, u User) (pages.AccountView, error)
 }
 
 // Order reads one of this account's orders.
-//
-// The owner is part of the query, not a check afterwards: an order belonging to
-// someone else must be indistinguishable from one that does not exist, and a
-// query that returns the row and then filters is one forgotten branch away from
-// leaking it.
 func (s *Store) Order(ctx context.Context, u User, number string) (pages.AccountOrderView, error) {
 	id, err := uuid.Parse(u.ID)
 	if err != nil {
@@ -399,10 +354,9 @@ func text(s string) pgtype.Text {
 
 // AddAddress saves a delivery address.
 //
-// Making it the default clears the previous one in the SAME transaction,
-// because addresses_one_default_per_user is a unique partial index: two
-// defaults is not a state the table will hold, and clearing afterwards leaves a
-// window where the insert has already failed.
+// Making it the default clears the previous one in the SAME transaction:
+// addresses_one_default_per_user is a unique partial index, so clearing
+// afterwards leaves a window in which the insert has already been refused.
 func (s *Store) AddAddress(ctx context.Context, userID string, a *Address) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -435,35 +389,16 @@ func (s *Store) AddAddress(ctx context.Context, userID string, a *Address) error
 }
 
 // SessionSweepInterval is how often expired sessions are deleted.
-//
-// Expiry is enforced by the QUERY that reads a session, so a row past its date
-// is already nobody — this is about the table, not about correctness. Six
-// hourly is often enough that it never becomes a large delete and rare enough
-// that it is invisible.
 const SessionSweepInterval = 6 * time.Hour
 
 // ResetTokenGrace is how long a dead reset token is kept after it stops working.
-//
-// A week. The row is already nobody — the spend has `used_at IS NULL AND
-// expires_at > now()` in its own WHERE clause — so this is only about being able
-// to answer "did they ask for a reset?" while somebody is still asking.
 const ResetTokenGrace = 7 * 24 * time.Hour
 
 // SweepSessions deletes every expired session and every dead reset token, once.
-//
-// Without a caller for DeleteExpiredSessions every session goen has ever issued
-// stays in the table, and nothing misbehaves: the reads are correct because
-// expiry sits in their own WHERE clauses, so the table grows without bound
-// behind them with no symptom. A row that is nobody is still a row somebody has
-// to back up, and it holds the user id it belonged to — which is data goen said
-// it would not keep.
 func (s *Store) SweepSessions(ctx context.Context) error {
 	if err := s.q.DeleteExpiredSessions(ctx); err != nil {
 		return fmt.Errorf("delete expired sessions: %w", err)
 	}
-	// Same idea, same worker: an auth row that has stopped meaning anything.
-	// Separate statements rather than one, because the two tables have nothing to
-	// do with each other and a single failure should name which.
 	if err := s.q.DeleteDeadResetTokens(ctx, pgtype.Interval{
 		Microseconds: int64(ResetTokenGrace / time.Microsecond), Valid: true,
 	}); err != nil {
@@ -489,20 +424,6 @@ func (s *Store) SweepSessionsForever(ctx context.Context, log *slog.Logger) {
 }
 
 // MakeDefaultAddress moves the default to another of this account's addresses.
-//
-// The clear and the set are ONE transaction, because addresses_one_default_per_user
-// is a unique index over (user_id) WHERE is_default — two statements with a
-// commit between them are a moment where the account has two defaults, and the
-// index refuses the second.
-//
-// Both statements are scoped to the owner IN the query. The id comes off a
-// form, and "is this mine?" asked afterwards is a question somebody forgets:
-// the failure here would be moving a stranger's default address.
-//
-// It is the only door onto the default. Without it the FIRST address a customer
-// saves is their default for good, and checkout prefills from it — so somebody
-// who moves house can add the new address and still be shipped to at the old one
-// every time.
 func (s *Store) MakeDefaultAddress(ctx context.Context, userID, addressID string) error {
 	uid, err := uuid.Parse(userID)
 	if err != nil {
@@ -528,9 +449,8 @@ func (s *Store) MakeDefaultAddress(ctx context.Context, userID, addressID string
 		return fmt.Errorf("set default address: %w", err)
 	}
 	if n == 0 {
-		// Zero rows is an address that is not this account's, or is gone. The
-		// rollback matters: without it the account is left with NO default,
-		// which is worse than the one it had.
+		// Returning before the commit is what puts the old default back; without
+		// the rollback the account is left with none at all.
 		return ErrNotFound
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -539,8 +459,7 @@ func (s *Store) MakeDefaultAddress(ctx context.Context, userID, addressID string
 	return nil
 }
 
-// DeleteAddress removes one of this account's addresses. An id belonging to
-// someone else deletes nothing: the owner is part of the statement.
+// DeleteAddress removes one of this account's addresses.
 func (s *Store) DeleteAddress(ctx context.Context, userID, addressID string) error {
 	uid, err := uuid.Parse(userID)
 	if err != nil {
@@ -556,9 +475,7 @@ func (s *Store) DeleteAddress(ctx context.Context, userID, addressID string) err
 	return nil
 }
 
-// Erase runs the schema's erase_user, which is the ONLY way an account goes
-// away: store holds no DELETE on users, so a direct delete is refused — and it
-// would in any case leave the personal data on the account's orders behind.
+// Erase runs the schema's erase_user, the only door an account leaves by.
 func (s *Store) Erase(ctx context.Context, userID string) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -582,8 +499,7 @@ type Address struct {
 	Default    bool
 }
 
-// Validate checks an address before it is saved. Every field the schema marks
-// NOT NULL has to be present, and none may carry a control character.
+// Validate checks an address before it is saved.
 func (a *Address) Validate() []FieldError {
 	var errs []FieldError
 	add := func(f string, k i18n.Key) { errs = append(errs, FieldError{Field: f, MessageKey: k}) }
@@ -665,11 +581,6 @@ func (s *Store) Wishlist(ctx context.Context, userID string) ([]pages.ProductTil
 }
 
 // SaveToWishlist adds a product, or does nothing if it is already there.
-//
-// An unknown or unpublished slug writes nothing rather than erroring: the
-// SELECT that feeds the INSERT finds no row. A customer who followed a stale
-// link gets their wishlist unchanged, which is what they would want, and an
-// attacker learns nothing about which slugs exist.
 func (s *Store) SaveToWishlist(ctx context.Context, userID, slug string) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -698,35 +609,7 @@ func (s *Store) RemoveFromWishlist(ctx context.Context, userID, slug string) err
 }
 
 // SignInWithGoogle turns a verified Google identity into a goen session.
-//
-// # The three cases, and the one that is a security decision
-//
-//  1. The subject is already linked. Sign that account in. The EMAIL is not
-//     consulted at all: a Google account that changed address is the same
-//     person, and user_identities keys on the subject for exactly this.
-//
-//  2. No link, and no goen account with that address. Create one with no
-//     password and mark the address proved, because Google proved it.
-//
-//  3. No link, and an account with that address EXISTS. This is the decision.
-//
-// # Why case 3 does not auto-link an unverified account
-//
-// goen does not verify an address at registration — anybody may register
-// victim@example.com and use the account. If a Google sign-in auto-linked on the
-// address alone, an attacker could register the victim's address, wait, and
-// collect the victim the moment they first used Google: same account, attacker's
-// password, victim's orders and delivery address. That is pre-hijacking, and the
-// mitigation is not to link to a local account that has not proved the address.
-//
-// So it links only when goen's OWN copy is verified — when both sides have
-// proved the same mailbox. Otherwise it refuses and the customer is sent to
-// /forgot, which already ends every session and hands control to whoever reads
-// the mail: the legitimate owner recovers and an attacker sitting in the account
-// is thrown out.
 func (s *Store) SignInWithGoogle(ctx context.Context, id Identity) (User, error) {
-	// Google's own claim comes first. An unverified address proves nothing, and
-	// a Workspace administrator can set one to anything in their domain.
 	if !id.EmailVerified || id.Email == "" {
 		return User{}, ErrOAuthUnverified
 	}
@@ -752,12 +635,12 @@ func (s *Store) SignInWithGoogle(ctx context.Context, id Identity) (User, error)
 	case err != nil:
 		return User{}, fmt.Errorf("read the account for %s: %w", id.Email, err)
 	case !existing.Verified:
-		// See the header. The account exists and nobody has proved it belongs to
-		// the person holding the mailbox.
+		// Pre-hijacking: goen does not prove an address at registration, so an
+		// unverified account may belong to whoever registered it rather than to
+		// whoever reads the mailbox. Linking on the address alone hands it over.
 		return User{}, ErrOAuthCollision
 	}
 
-	// Both sides proved the same address. Link and sign in.
 	if linkErr := s.q.LinkIdentity(ctx, db.LinkIdentityParams{
 		UserID: existing.ID, Subject: id.Subject,
 	}); linkErr != nil {
@@ -772,13 +655,7 @@ func (s *Store) SignInWithGoogle(ctx context.Context, id Identity) (User, error)
 	}, nil
 }
 
-// createFromIdentity makes a new account for a provider that has proved an
-// address, in one transaction with its link.
-//
-// Together, because a user with no identity is an account nobody can sign in to
-// — it has no password either — and an identity with no user cannot exist at
-// all. Split, a crash between them leaves the first, which the NEXT sign-in
-// would then meet as an unverifiable collision.
+// createFromIdentity makes a new account and its link, in one transaction.
 func (s *Store) createFromIdentity(ctx context.Context, id Identity) (User, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -791,9 +668,8 @@ func (s *Store) createFromIdentity(ctx context.Context, id Identity) (User, erro
 		Email: id.Email, FullName: id.Name,
 	})
 	if err != nil {
-		// A race with another tab, or with a password registration that landed
-		// between the read above and this write. users_email_key is the real
-		// guard; the pre-check only decides which message to show.
+		// users_email_key is the real guard; the read above only decides which
+		// message to show, and an address can be taken between the two.
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == "23505" {
 			return User{}, ErrOAuthCollision
 		}
@@ -814,19 +690,11 @@ func (s *Store) createFromIdentity(ctx context.Context, id Identity) (User, erro
 }
 
 // UnlinkGoogle removes a provider from an account.
-//
-// Refused when the account has NO PASSWORD, because unlinking the only way in
-// locks somebody out of their own orders — the same shape as /admin/staff
-// refusing to revoke the last admin. The way out is to set a password first,
-// which /forgot does and which is already the one path that proves the mailbox.
 func (s *Store) UnlinkGoogle(ctx context.Context, u User) error {
 	id, err := uuid.Parse(u.ID)
 	if err != nil {
 		return fmt.Errorf("parse user id: %w", err)
 	}
-	// Keyed on the ID rather than the address, for the reason Overview is: the
-	// caller has an id and an address that may be empty, and only one of them is
-	// the account's identity.
 	row, err := s.q.UserByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("read the account: %w", err)

@@ -17,11 +17,8 @@ type AccountOrder struct {
 	PlacedAt   string
 	TotalCents int64
 	LineCount  int64
-	// Committed and OwedCents are the funding state, which Status cannot supply:
-	// an order stays 'pending' from the moment the money arrives until a human at
-	// the shop picks it. See OrderView for why it takes both.
-	Committed bool
-	OwedCents int64
+	Committed  bool
+	OwedCents  int64
 }
 
 // Total is what the order came to.
@@ -30,18 +27,12 @@ func (o AccountOrder) Total() string { return twd(o.TotalCents) }
 // LineCountText is how many lines it holds.
 func (o AccountOrder) LineCountText() string { return strconv.FormatInt(o.LineCount, 10) }
 
-// StatusText is the fulfilment state in the chrome language. A closed set, so a
-// value the schema does not allow would be a programming error rather than
-// something to render — but rendering the raw value is still better than
-// rendering nothing, because a customer service call about "picking" is
-// answerable and one about a blank cell is not.
+// StatusText is the fulfilment state in the chrome language.
 func (o AccountOrder) StatusText(ctx context.Context) string {
 	switch o.Status {
 	case "pending":
 		// 'pending' is two states wearing one name: nobody has paid yet, and the
-		// money has arrived but nobody at the shop has picked it. Badging both
-		// 待付款 tells a customer who paid two seconds ago that their own order
-		// history says unpaid.
+		// money has arrived but nobody at the shop has picked it.
 		if o.Committed || o.OwedCents <= 0 {
 			return i18n.T(ctx, i18n.KeyStatusPaid)
 		}
@@ -89,39 +80,21 @@ func (a AccountAddress) DisplayLabel(ctx context.Context) string {
 
 // AccountView is the account landing page.
 type AccountView struct {
-	// EmailVerified reports whether the address has been proved, and it sits
-	// beside the form that CHANGES the address because the two are one feature:
-	// an account that can neither prove its address nor correct it leaves a
-	// customer who mistyped at registration hearing nothing from the shop ever
-	// again, with no way to say so.
 	EmailVerified bool
 	// PendingEmail is an address waiting to be proved, shown so somebody who
-	// mistyped a CHANGE can see what they typed.
+	// mistyped a change can see what they typed.
 	PendingEmail string
 	Email        string
 	Name         string
-	// Phone is what the customer told us, read BACK into the form's field. A
-	// column written at registration and written by the form but read by nothing
-	// leaves that field blank on every visit, so saving it looks like it did not
-	// work.
-	Phone       string
-	Orders      []AccountOrder
-	Addresses   []AccountAddress
-	CreditCents int64
-	// Standing is the customer's 會員等級, derived from what they have spent
-	// rather than stored on their row.
-	Standing MemberStanding
-	// Notice is a one-shot message carried by the redirect after a successful
-	// write, so the page can confirm without the form re-submitting on reload.
-	Notice string
-	// GoogleLinked is whether this account can be signed into with Google.
-	// Shown because a customer who has forgotten which way they get in is a
-	// customer who thinks their password stopped working.
+	Phone        string
+	Orders       []AccountOrder
+	Addresses    []AccountAddress
+	CreditCents  int64
+	Standing     MemberStanding
+	Notice       string
 	GoogleLinked bool
-	// CanUnlinkGoogle is false when it is the ONLY way in: an account with no
-	// password and no identity is one nobody can reach, which is the same shape
-	// as /admin/staff refusing to revoke the last admin. The control is absent
-	// rather than present and refused.
+	// CanUnlinkGoogle is false when Google is the only way into this account: one
+	// with no password and no identity is one nobody can reach.
 	CanUnlinkGoogle bool
 }
 
@@ -156,25 +129,22 @@ func (v *AccountView) HasNotice() bool { return v.Notice != "" }
 
 // AccountOrderView is one order, seen by its owner.
 type AccountOrderView struct {
-	Number        string
-	Status        string
-	PlacedAt      string
-	ShippingName  string
-	Lines         []OrderLine
-	SubtotalCents int64
-	ShippingCents int64
-	DiscountCents int64
-	// DiscountReason is which coupon, or "" for an order that had none.
+	Number         string
+	Status         string
+	PlacedAt       string
+	ShippingName   string
+	Lines          []OrderLine
+	SubtotalCents  int64
+	ShippingCents  int64
+	DiscountCents  int64
 	DiscountReason string
 	TaxCents       int64
 	Recipient      string
 	Phone          string
 	Email          string
 	Address        string
-	// Committed and OwedCents are the funding state. See OrderView: 'pending'
-	// covers both "nobody has paid" and "paid, waiting to be picked".
-	Committed bool
-	OwedCents int64
+	Committed      bool
+	OwedCents      int64
 }
 
 // Subtotal is what the lines came to before shipping.
@@ -199,11 +169,9 @@ func (v *AccountOrderView) Total() string {
 	return twd(v.SubtotalCents - v.DiscountCents + v.ShippingCents + v.TaxCents)
 }
 
-// StatusText is the fulfilment state in the chrome language.
-//
-// The funding fields travel with the status, or this page and the list it was
-// reached from would badge the same order differently — a literal built here
-// with a field left out takes the zero value, and false reads as "unpaid".
+// StatusText is the fulfilment state in the chrome language. The funding fields
+// travel with the status, or this page and the list it was reached from badge the
+// same order differently.
 func (v *AccountOrderView) StatusText(ctx context.Context) string {
 	return AccountOrder{
 		Status: v.Status, Committed: v.Committed, OwedCents: v.OwedCents,
@@ -211,34 +179,13 @@ func (v *AccountOrderView) StatusText(ctx context.Context) string {
 }
 
 // AwaitingPayment reports whether this order still needs paying.
-//
-// The same three-part question OrderView.AwaitingPayment asks, and for the same
-// reason: 'pending' alone reports a paid order as unpaid.
 func (v *AccountOrderView) AwaitingPayment() bool {
 	return v.Status == "pending" && !v.Committed && v.OwedCents > 0
 }
 
-// CanRegisterWarranty reports whether to offer the registration form.
-//
-// /account/warranty/{number} carries the ONLY form that registers a unit, and
-// the order page is the one place linking to it: the account nav reaches the
-// LIST, and the list's own copy says 「從訂單頁進去登錄」. Drop the link here and
-// every signed-in customer with every delivered order meets a dead end whose
-// only way through is typing a URL the site never displays. The link→route
-// sweep cannot see that by construction: it asks whether a link resolves, and
-// this route IS linked, one level up from the page that does the work.
-//
-// Gated on the goods having ARRIVED, which is what warranty registration itself
-// requires — cover starts when a parcel reaches somebody, so the term is
-// computed from delivered_at. 'shipped' is the wrong end of that same fact:
-// offering the link there points at a page whose every line says the unit is
-// not registrable yet, on exactly the orders a customer is most likely to be
-// looking at.
-//
-// Both statuses that END a delivery, because 超商取貨 moves shipped → completed
-// with nobody at the counter to witness a handover — the same pair
-// applyStatusEffects stamps delivered_at on. Leaving 'completed' out would hide
-// the form from a whole channel.
+// CanRegisterWarranty reports whether to offer the registration form. Both
+// statuses that end a delivery, because convenience-store pickup moves
+// shipped → completed with nobody at the counter to witness a handover.
 func (v *AccountOrderView) CanRegisterWarranty() bool {
 	switch v.Status {
 	case "delivered", "completed":
@@ -253,16 +200,11 @@ func (v *AccountOrderView) WarrantyLink() string { return "/account/warranty/" +
 
 // AuthView is the sign-in and registration form.
 type AuthView struct {
-	Email  string
-	Name   string
-	Next   string
-	Errors map[string]string
-	// Notice carries a message from a redirect — "your password was changed",
-	// "check your email".
-	Notice string
-	// GoogleSignIn is whether this deployment offers it. False renders no
-	// button, which is what a deployment with no credentials should look like:
-	// one that never offered it, rather than one whose button fails.
+	Email        string
+	Name         string
+	Next         string
+	Errors       map[string]string
+	Notice       string
 	GoogleSignIn bool
 }
 
@@ -274,8 +216,7 @@ func (v AuthView) GoogleLink() string {
 	return "/auth/google?next=" + url.QueryEscape(v.Next)
 }
 
-// SignInMeta and RegisterMeta are the chrome view models. Functions rather than
-// vars, because a page title follows the visitor's language.
+// SignInMeta is the chrome view model for the sign-in page.
 func SignInMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeySignIn)}
 }
@@ -305,7 +246,7 @@ func (v AuthView) AnyErrors() bool { return len(v.Errors) > 0 }
 // HasNotice reports whether to show the banner.
 func (v AuthView) HasNotice() bool { return v.Notice != "" }
 
-// MemberStanding is a customer's 會員等級 and what the next one asks for.
+// MemberStanding is a customer's membership tier and what the next one asks for.
 type MemberStanding struct {
 	SpendCents     int64
 	TierName       string
@@ -315,19 +256,13 @@ type MemberStanding struct {
 }
 
 // HasTier reports whether the customer has reached any band.
-//
-// A customer below the first threshold is in NO tier rather than in a
-// "普通會員" one: a tier nobody can fail to reach is a label, not a benefit,
-// and calling it one makes the real bands mean less.
 func (m MemberStanding) HasTier() bool { return m.TierName != "" }
 
 // Spend is what they have spent in the window.
 func (m MemberStanding) Spend() string { return twd(m.SpendCents) }
 
-// Multiplier is what a point is worth here, in words — "1.3 倍".
-//
-// Rendered from basis points rather than stored as text, so the number a
-// customer reads and the number the capture multiplies by cannot disagree.
+// Multiplier is what a point is worth here, in words, rendered from basis points
+// so it cannot disagree with the number the capture multiplies by.
 func (m MemberStanding) Multiplier(ctx context.Context) string {
 	whole := m.MultiplierBP / 10000
 	frac := (m.MultiplierBP % 10000) / 1000

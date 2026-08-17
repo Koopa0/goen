@@ -8,11 +8,6 @@ import (
 )
 
 // Returns is the customer's return request form.
-//
-// Every control is a plain input inside one `<form method="post">`. The
-// quantity per line is a `number` field named for that line, so what is being
-// returned is fully expressed in the request body — turning JavaScript off
-// changes nothing about this page.
 templ Returns(p layouts.Page, v ReturnsView) {
 	@layouts.Base(p) {
 		<div class="goen-returns">

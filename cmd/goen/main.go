@@ -249,7 +249,7 @@ func (cfg *config) trustedProxies(log *slog.Logger) (*ratelimit.Proxies, error) 
 	// A parse failure is FATAL rather than a warning, and that is the whole point
 	// of validating it here: a deployment that meant to name its load balancer
 	// and mistyped the CIDR would otherwise start happily and keep the collapsed
-	// single-bucket behaviour it was configuring its way out of — the failure
+	// single-bucket behaviour it is configuring its way out of — the failure
 	// being fixed, still in place, now believed fixed.
 	proxies, err := ratelimit.ParseProxies(cfg.TrustedProxies)
 	if err != nil {
@@ -266,8 +266,8 @@ func (cfg *config) trustedProxies(log *slog.Logger) (*ratelimit.Proxies, error) 
 }
 
 // newServer builds the HTTP server, with its timeouts and its outermost
-// middleware. Split out of run() because that function had grown past its
-// complexity budget, and this is the part of it that is pure assembly.
+// middleware. Split out of run(), which otherwise runs past its complexity
+// budget, and this is the part of it that is pure assembly.
 func newServer(
 	cfg *config, log *slog.Logger, proxies *ratelimit.Proxies,
 	pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder admin.Refunder,
@@ -299,7 +299,7 @@ func newServer(
 // reachDatabase proves the pool works before anything else is built, and warns
 // about a login role that could undo the privilege model.
 //
-// Split out of run() because that function had grown past its complexity budget.
+// Split out of run(), which otherwise runs past its complexity budget.
 func reachDatabase(ctx context.Context, pool *pgxpool.Pool, url string, log *slog.Logger) error {
 	pingCtx, cancelPing := context.WithTimeout(ctx, 5*time.Second)
 	defer cancelPing()
@@ -330,12 +330,12 @@ func reachDatabase(ctx context.Context, pool *pgxpool.Pool, url string, log *slo
 // GOEN_ADMIN_DATABASE_URL at admin_svc so the two connect as different accounts.
 //
 // REACHED, not just opened, and that is the whole reason this is not two lines
-// inline. pgxpool connects lazily, so a wrong admin DSN produced a clean start,
-// a 200 from /readyz and a back office that 500ed on every page — the storefront
-// pool was the only one anything asked about. Failing here is the right shape: a
-// process that cannot do half its job should not be the one an orchestrator is
-// told to send traffic to. health.NewHandler now asks the same question of both
-// pools for the rest of the process's life.
+// inline. pgxpool connects lazily, so a wrong admin DSN gives a clean start, a
+// 200 from /readyz and a back office that 500s on every page, for as long as the
+// storefront pool is the only one anything asks about. Failing here is the right
+// shape: a process that cannot do half its job should not be the one an
+// orchestrator is told to send traffic to. health.NewHandler asks the same
+// question of both pools for the rest of the process's life.
 func reachableAdminPool(ctx context.Context, url string) (*pgxpool.Pool, error) {
 	pool, err := openAdminPool(ctx, url)
 	if err != nil {
@@ -513,15 +513,15 @@ func run() error {
 
 	select {
 	case err := <-serveErr:
-		// stop() BEFORE returning, and that ordering is the whole fix.
+		// stop() BEFORE returning, and the ordering is the whole point.
 		//
 		// `defer stop()` is registered near the top and `defer background.Wait()`
 		// far below, so LIFO runs Wait() FIRST — with the context still live,
-		// because nothing had cancelled it on this path. Every worker sits in its
-		// `select { case <-ctx.Done() }` and Wait() blocks: a port-in-use failure
-		// produced a process that hung instead of exiting, so the crash-loop
-		// signal an orchestrator depends on never arrived until it timed out and
-		// killed the thing itself.
+		// because nothing on this path has cancelled it. Every worker then sits
+		// in its `select { case <-ctx.Done() }` and Wait() blocks: a port-in-use
+		// failure produces a process that hangs instead of exiting, so the
+		// crash-loop signal an orchestrator depends on never arrives until it
+		// times out and kills the thing itself.
 		//
 		// Calling stop() here cancels the context first, the workers drain, Wait()
 		// returns, and the process exits non-zero the moment it cannot serve.
@@ -690,8 +690,8 @@ func newSender(cfg *config, log *slog.Logger) email.Sender {
 
 // workerDeps is what the background workers need.
 //
-// A struct because the list had reached six, half of them pointers that a
-// positional call site could not tell apart.
+// A struct because the list runs to six, half of them pointers that a positional
+// call site cannot tell apart.
 type workerDeps struct {
 	pool *pgxpool.Pool
 	// admin is the back office's pool, and the workers that use it are the
@@ -710,7 +710,7 @@ type workerDeps struct {
 // startWorkers wires everything that runs on its own schedule.
 //
 // Extracted from run() because they are one group — each owns a ticker or a
-// loop, each stops with ctx, and together they were half of run()'s branches.
+// loop, each stops with ctx, and together they are half of run()'s branches.
 func startWorkers(ctx context.Context, d workerDeps) {
 	messages := outbox.NewStore(d.pool, d.log)
 	notifier := email.Notifier{
@@ -791,16 +791,16 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	// but both tables grow without bound otherwise, and a session row holds the
 	// user id it belonged to long after it stops meaning anything.
 	d.run(func() { account.NewStore(d.pool).SweepSessionsForever(ctx, d.log) })
-	// The media sweeper is on the ADMIN pool, and it was on the storefront one —
-	// where `store` holds SELECT on media_objects and nothing else, so the DELETE
-	// was refused every hour since the sweeper was written and NOTHING had ever
-	// been reclaimed.
+	// The media sweeper is on the ADMIN pool, and never the storefront one:
+	// `store` holds SELECT on media_objects and nothing else, so from there the
+	// DELETE is refused every hour and NOTHING is ever reclaimed.
 	//
-	// It failed quietly because the refusal was logged at Warn under a comment
-	// saying a failed delete is "a foreign key refusing, and that is the guard
-	// working" — so a permission denial read as the guard working. Sweep returned
-	// nil, reclaimed stayed 0, and SweepForever logs nothing when it reclaims
-	// nothing. Images are bytes in PostgreSQL at up to 8 MiB each.
+	// It fails QUIETLY, which is what makes the pool choice worth stating. A
+	// refusal logged at Warn beside a comment reading "a foreign key refusing,
+	// and THAT is the guard working" makes a permission denial read as the guard
+	// working; Sweep returns nil, reclaimed stays 0, and SweepForever logs
+	// nothing when it reclaims nothing. Images are bytes in PostgreSQL at up to
+	// 8 MiB each.
 	//
 	// admin rather than a grant to store, and the two tables get different
 	// answers on purpose: deleting stored bytes is irreversible, so the role that

@@ -1,12 +1,8 @@
 //go:build integration
 
-// Schema conformance. Every rule 001 encodes is exercised against a value it
-// must refuse — a CHECK nobody has watched reject something is a comment with
-// a syntax — and against a neighbouring value it must accept, so a constraint
-// cannot pass by rejecting everything.
-//
-// Each case runs inside a transaction that is rolled back, so the cases are
-// independent and their order does not matter.
+// Schema conformance. Every rule 001 encodes is exercised against a value it must
+// refuse AND a neighbouring value it must accept, so a constraint cannot pass by
+// rejecting everything. Each case runs in a transaction that is rolled back.
 package db_test
 
 import (
@@ -23,8 +19,7 @@ import (
 
 var pool *pgxpool.Pool
 
-// TestMain owns the container: starting one per test function would spend
-// several seconds each, and every case here rolls back, so they can share.
+// TestMain owns the container: every case rolls back, so they can share one.
 func TestMain(m *testing.M) {
 	p, stop, err := dbtest.Start(context.Background())
 	if err != nil {
@@ -63,9 +58,8 @@ func run(t *testing.T, stmt string) error {
 }
 
 // expectedForeignKeys is every foreign key the schema declares, pinned by name.
-// TestEveryForeignKeyIsIndexed only inspects the FKs that still exist, so
-// dropping one removes it from that test's input and the drop goes unnoticed.
-// This set is what makes a removed — or an unrecorded new — FK fail.
+// TestEveryForeignKeyIsIndexed inspects only the FKs that still exist, so a drop
+// leaves its input smaller and goes unnoticed; this set is what fails on one.
 var expectedForeignKeys = map[string]bool{
 	"email_verifications_user_id_fkey":            true,
 	"newsletter_issues_sent_by_fkey":              true,
@@ -150,8 +144,7 @@ var expectedForeignKeys = map[string]bool{
 }
 
 // TestForeignKeySetIsComplete requires the live foreign keys to equal
-// expectedForeignKeys exactly. A dropped FK is missing from live; a new one is
-// missing from the set. Either way, this is where it surfaces.
+// expectedForeignKeys exactly.
 func TestForeignKeySetIsComplete(t *testing.T) {
 	rows, err := schemaPool(t).Query(t.Context(), `
 		SELECT conname
@@ -188,8 +181,7 @@ func TestForeignKeySetIsComplete(t *testing.T) {
 }
 
 // TestEveryForeignKeyIsIndexed catches the omission PostgreSQL does not: it
-// creates no index for a foreign key, so an unindexed one turns every parent
-// delete into a sequential scan of the child and every join into a slow one.
+// creates no index for a foreign key, so a parent delete scans the child.
 func TestEveryForeignKeyIsIndexed(t *testing.T) {
 	rows, err := schemaPool(t).Query(t.Context(), `
 		SELECT c.conrelid::regclass::text, c.conname
@@ -197,12 +189,10 @@ func TestEveryForeignKeyIsIndexed(t *testing.T) {
 		WHERE c.contype = 'f'
 		  AND connamespace = 'public'::regnamespace
 		  AND NOT EXISTS (
-			-- The referencing columns must be a PREFIX of some index, not merely
-			-- present in one: an index on (b, a) does nothing for a lookup by a.
-			-- indkey is an int2vector, and casting one straight to smallint[]
-			-- yields an array whose lower bound is 0, so slicing it from 1 quietly
-			-- drops the leading column. Going through its text form gives an
-			-- ordinary 1-based array.
+			-- The referencing columns must be a PREFIX of some index: an index on
+			-- (b, a) does nothing for a lookup by a. indkey cast straight to
+			-- smallint[] has lower bound 0, so slicing from 1 would drop the
+			-- leading column; its text form gives an ordinary 1-based array.
 			SELECT 1 FROM pg_index i
 			WHERE i.indrelid = c.conrelid
 			  AND i.indisvalid AND i.indislive
@@ -210,9 +200,8 @@ func TestEveryForeignKeyIsIndexed(t *testing.T) {
 			      = c.conkey::smallint[]
 			  AND (
 			      i.indpred IS NULL
-			      -- A partial index still serves the FK when its predicate is
-			      -- exactly that the FK columns are NOT NULL: an FK lookup is
-			      -- always an equality on those columns, which implies NOT NULL.
+			      -- A partial index still serves the FK when its predicate is exactly
+			      -- that the FK columns are NOT NULL: the lookup is an equality.
 			      OR pg_get_expr(i.indpred, i.indrelid) = (
 			          SELECT string_agg('(' || quote_ident(a.attname) || ' IS NOT NULL)', ' AND ')
 			          FROM unnest(c.conkey) WITH ORDINALITY AS k(attnum, ord)

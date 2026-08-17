@@ -8,9 +8,8 @@ type TwoFactorView struct {
 	Enrolled bool
 	// Enrolling is whether a secret has just been generated and is being shown.
 	Enrolling bool
-	// Secret and URI exist only during enrolment, in exactly one response. They
-	// are never stored in a view that could be re-rendered: a page that could
-	// redisplay the secret is a page a stolen session could read.
+	// Secret and URI exist in exactly one response and are never re-rendered: a
+	// page that could redisplay the secret is one a stolen session could read.
 	Secret string
 	URI    string
 	Notice string
@@ -23,11 +22,8 @@ func (v TwoFactorView) NeedsEnrolment() bool { return v.Enabled && !v.Enrolled &
 // CanVerify reports whether a code can be submitted.
 func (v TwoFactorView) CanVerify() bool { return v.Enabled && v.Enrolled && !v.Enrolling }
 
-// SecretGroups breaks the secret into readable blocks.
-//
-// Four characters at a time, because a person typing 32 unbroken characters
-// into a phone loses their place — and a mistyped secret is an authenticator
-// that generates codes goen rejects, with no clue why.
+// SecretGroups breaks the secret into four-character blocks: a mistyped secret
+// is an authenticator generating codes goen rejects, with no clue why.
 func (v TwoFactorView) SecretGroups() []string {
 	const group = 4
 	out := make([]string, 0, len(v.Secret)/group+1)

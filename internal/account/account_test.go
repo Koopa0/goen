@@ -5,9 +5,8 @@ import (
 	"testing"
 )
 
-// TestPasswordHashingRoundTrips is the basic contract, plus the two properties
-// that make it a password hash rather than a checksum: the same password hashes
-// differently every time (a salt), and a wrong password never verifies.
+// TestPasswordHashingRoundTrips also covers the two properties that make this a
+// password hash rather than a checksum: a salt, and a wrong password failing.
 func TestPasswordHashingRoundTrips(t *testing.T) {
 	t.Parallel()
 
@@ -37,16 +36,13 @@ func TestPasswordHashingRoundTrips(t *testing.T) {
 		t.Error("the same password hashed identically twice; the hash is unsalted, " +
 			"so one rainbow table covers every account that shares a password")
 	}
-	// And the second hash still verifies — a salt that broke verification would
-	// pass the check above.
 	if !VerifyPassword(other, pw) {
 		t.Error("the second hash of the same password does not verify")
 	}
 }
 
-// TestHashCarriesItsParameters pins that the cost is encoded in the hash. A
-// hash without it cannot be re-verified after the parameters change, so raising
-// the cost later would mean resetting every password at once.
+// TestHashCarriesItsParameters pins that the cost is encoded in the hash, so
+// raising it later does not mean resetting every password at once.
 func TestHashCarriesItsParameters(t *testing.T) {
 	t.Parallel()
 
@@ -65,7 +61,7 @@ func TestHashCarriesItsParameters(t *testing.T) {
 }
 
 // TestVerifyRejectsMalformedHashes covers what a corrupted or hand-edited
-// column would produce. None of it may verify, and none of it may panic.
+// column would produce: none of it may verify, and none of it may panic.
 func TestVerifyRejectsMalformedHashes(t *testing.T) {
 	t.Parallel()
 
@@ -99,9 +95,8 @@ func TestHashTokenIsNotTheToken(t *testing.T) {
 	if string(HashToken(tok)) == tok {
 		t.Error("HashToken returns the token; the database would hold live sessions")
 	}
-	// Determinism against a value captured first, not against a second call in
-	// the same expression — that form is two identical expressions and cannot
-	// fail whatever HashToken does.
+	// Against a value captured first: comparing two calls in one expression is a
+	// tautology that cannot fail whatever HashToken does.
 	first := string(HashToken(tok))
 	if string(HashToken(tok)) != first {
 		t.Error("HashToken is not deterministic; a returning visitor would lose their session")
@@ -135,9 +130,8 @@ func TestNewTokenIsUnpredictable(t *testing.T) {
 	}
 }
 
-// TestSafeNext is the open-redirect guard. Everything that is not a path on
-// this site must fall back, and the protocol-relative forms are the ones a
-// naive "starts with /" check lets through.
+// TestSafeNext is the open-redirect guard: the protocol-relative forms are the
+// ones a naive "starts with /" check lets through.
 func TestSafeNext(t *testing.T) {
 	t.Parallel()
 
@@ -175,14 +169,11 @@ func TestPasswordError(t *testing.T) {
 	if PasswordError(strings.Repeat("a", MaxPasswordBytes+1)) == "" {
 		t.Error("an unbounded password was accepted")
 	}
-	// The floor counts RUNES, not bytes. Ten Han characters is a fine password
-	// and passes either way, so it proves nothing on its own.
 	if PasswordError("密碼密碼密碼密碼密碼") != "" {
 		t.Error("a ten-character Chinese password was rejected")
 	}
-	// This is the case that separates the two: four Han characters is 12 bytes
-	// and 4 characters. Counted in bytes it clears a floor of 10 and a weak
-	// password gets in; counted in runes it is correctly refused.
+	// The case that separates runes from bytes: four Han characters is 12 bytes
+	// and 4 characters, so a byte floor of 10 would admit it.
 	if PasswordError("密碼安全") == "" {
 		t.Error("a four-character password was accepted; the floor is counting bytes, " +
 			"so any short CJK password clears it")

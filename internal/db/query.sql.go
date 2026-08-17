@@ -2155,11 +2155,7 @@ type AnswerQuestionParams struct {
 	QuestionID uuid.UUID
 }
 
-// Answer a question.
-//
-// is_staff is passed in and stored, never derived from the author's role at
-// read time — see the column's comment. The question must still be visible: an
-// answer to something staff hid would be published under nothing.
+// Answer a question. The question must still be visible.
 func (q *Queries) AnswerQuestion(ctx context.Context, arg AnswerQuestionParams) (int64, error) {
 	result, err := q.db.Exec(ctx, answerQuestion,
 		arg.UserID,
@@ -2190,8 +2186,6 @@ type AnswersForQuestionsRow struct {
 	Author     string
 }
 
-// Staff answers first: the shop's answer is the one somebody deciding came for,
-// and burying it under three customer replies is the same as not having it.
 func (q *Queries) AnswersForQuestions(ctx context.Context, questionIds []uuid.UUID) ([]AnswersForQuestionsRow, error) {
 	rows, err := q.db.Query(ctx, answersForQuestions, questionIds)
 	if err != nil {
@@ -2547,9 +2541,7 @@ LEFT JOIN LATERAL (
 ) img ON true
 WHERE cp.product_id = $2
   AND cp.orders >= $3::integer
-  -- Only what can still be bought. A recommendation slot pointing at an
-  -- archived product is a 404 somebody chose to click, and the projection
-  -- outlives a product being retired.
+  -- The projection outlives a product being retired.
   AND p.status = 'active'
 ORDER BY cp.orders DESC, p.id
 LIMIT $4::integer
@@ -2579,16 +2571,7 @@ type BoughtTogetherRow struct {
 	BoughtTogether      int64
 }
 
-// 買了又買, read from the projection.
-//
-// An indexed lookup, not an aggregation. The per-request version cost 136 ms
-// for the most-bought product because order_is_committed() ran once per
-// candidate row — 14,963 PL/pgSQL calls for one page view — and grew with order
-// history forever. This is 0.04 ms and does not.
-//
-// The minimum is applied HERE rather than in the projection: what counts as a
-// pattern rather than a coincidence is a presentation decision, and baking it
-// into the stored rows would mean rebuilding to change it.
+// What people who bought this also bought, read from the projection.
 func (q *Queries) BoughtTogether(ctx context.Context, arg BoughtTogetherParams) ([]BoughtTogetherRow, error) {
 	rows, err := q.db.Query(ctx, boughtTogether,
 		arg.Locale,
@@ -2782,13 +2765,10 @@ type CapturePaymentParams struct {
 	CardLast4           string
 }
 
-// Record that Stripe captured money. Called ONLY from the verified webhook —
-// never from the browser's return to success_url, which anybody can request.
-// nullif, because "unknown" is NULL and not the empty string.
-// checkout.session.completed does not expand payment_intent.latest_charge, so
-// the common event carries no card at all. Passing ” sends a value through
-// payments_last4_format, which requires four digits — every real capture is then
-// refused by a CHECK once the money has already been taken.
+// Called ONLY from the verified webhook, never from the return to success_url.
+// nullif, because an unknown card is NULL and not ”. The usual event carries no
+// card at all, and ” is a value that fails payments_last4_format — refusing
+// every real capture after the money has been taken.
 func (q *Queries) CapturePayment(ctx context.Context, arg CapturePaymentParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, capturePayment,
 		arg.ProviderRef,
@@ -4623,11 +4603,8 @@ type CreateReviewParams struct {
 	Slug     string
 }
 
-// Leave a review.
-//
-// is_verified_purchase is passed in rather than computed here, and
-// product_reviews_verified_is_real refuses it if the claim is false — so a bug
-// in the caller becomes a refusal rather than a badge nobody earned.
+// Leave a review. product_reviews_verified_is_real refuses a false
+// is_verified_purchase.
 func (q *Queries) CreateReview(ctx context.Context, arg CreateReviewParams) error {
 	_, err := q.db.Exec(ctx, createReview,
 		arg.UserID,
@@ -5777,10 +5754,8 @@ type HasBoughtProductParams struct {
 }
 
 // Whether this customer has bought this product on an order that went through.
-//
-// order_is_committed, never "EXISTS a succeeded payment": an order fully
-// covered by store credit is committed with no payment row at all, and its
-// buyer has as much right to review as anyone.
+// order_is_committed, never "EXISTS a succeeded payment": a store-credit-funded
+// order is committed with no payment row at all.
 func (q *Queries) HasBoughtProduct(ctx context.Context, arg HasBoughtProductParams) (bool, error) {
 	row := q.db.QueryRow(ctx, hasBoughtProduct, arg.UserID, arg.Slug)
 	var exists bool
@@ -5817,12 +5792,9 @@ type HasReviewedParams struct {
 	Slug   string
 }
 
-// Whether this customer has already reviewed this product.
-//
-// The BASE table, not visible_reviews. The unique index is on the base table, so
-// a customer whose review was hidden must still be told they have written one —
-// otherwise the form offers to take a second and the insert meets the index.
-// Every OTHER reader wants the visible set; this one wants the truth.
+// Whether this customer has already reviewed this product. The BASE table, not
+// visible_reviews: the unique index is on the base table, so a hidden review
+// must still block a second one.
 func (q *Queries) HasReviewed(ctx context.Context, arg HasReviewedParams) (bool, error) {
 	row := q.db.QueryRow(ctx, hasReviewed, arg.UserID, arg.Slug)
 	var exists bool
@@ -5843,8 +5815,7 @@ type HasStockNoticeParams struct {
 	Email     string
 }
 
-// Whether this visitor is already waiting, so the page says so instead of
-// offering a button that does nothing visible.
+// Whether this visitor is already waiting.
 func (q *Queries) HasStockNotice(ctx context.Context, arg HasStockNoticeParams) (bool, error) {
 	row := q.db.QueryRow(ctx, hasStockNotice, arg.VariantID, arg.Email)
 	var exists bool
@@ -7101,12 +7072,8 @@ type OpenPaymentParams struct {
 	IntendedAmountCents int64
 }
 
-// Open a payment against an order, for a Stripe Checkout Session that has just
-// been created. SECURITY DEFINER, because store cannot write `payments`
-// directly — a born-succeeded payment row is the forgery the revoke prevents.
-//
-// It is idempotent on (order_id, provider_ref): a customer who reloads the
-// payment page gets the row that already exists rather than a second one.
+// Idempotent on (order_id, provider_ref), so a reloaded payment page opens no
+// second row.
 func (q *Queries) OpenPayment(ctx context.Context, arg OpenPaymentParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, openPayment, arg.OrderID, arg.ProviderRef, arg.IntendedAmountCents)
 	var open_payment uuid.UUID
@@ -7355,9 +7322,8 @@ type OrderByPaymentRefRow struct {
 	IntendedAmountCents int64
 }
 
-// The order a Stripe session belongs to, for the webhook. The webhook is
-// trusted for WHAT happened, never for WHICH order it happened to: the order is
-// looked up through the payment row goen itself wrote at open time.
+// The webhook is trusted for WHAT happened, never for WHICH order: that is
+// looked up through the payment row goen wrote at open time.
 func (q *Queries) OrderByPaymentRef(ctx context.Context, providerRef string) (OrderByPaymentRefRow, error) {
 	row := q.db.QueryRow(ctx, orderByPaymentRef, providerRef)
 	var i OrderByPaymentRefRow
@@ -7834,15 +7800,11 @@ const orderTotalByNumber = `-- name: OrderTotalByNumber :one
 SELECT o.id,
        o.order_number,
        o.fulfillment_status,
-       -- The cast wraps the WHOLE expression, not just the sum. Casting only
-       -- the sum leaves the additions at the int width of the columns beside
-       -- it, and sqlc types the result int32 — a 21,474,836 dollar ceiling
-       -- that nothing in Go would warn about crossing.
-       -- What is still OWED, not the gross total. The two differ by the store credit
-       -- already spent on this order, and charging the gross has Stripe take money
-       -- this database then refuses to record: payments_capture_matches_order demands
-       -- the net, so the webhook rolls back forever and the order stays unpaid with
-       -- the customer's money at Stripe.
+       -- The cast wraps the WHOLE expression: casting only the sum leaves the
+       -- additions at the columns' int width and sqlc types the result int32.
+       -- What is still OWED, never the gross — payments_capture_matches_order
+       -- demands the net, so charging the gross leaves the order unpaid for ever
+       -- with the customer's money at Stripe.
        order_amount_owed(o.id)::bigint AS total_cents,
        coalesce(pd.email, '') AS email
 FROM orders o
@@ -7858,9 +7820,8 @@ type OrderTotalByNumberRow struct {
 	Email             string
 }
 
-// What an order is owed, recomputed from its own lines. The browser never
-// carries an amount: a form field saying "pay NT$1" is the oldest hole there
-// is, so the figure sent to Stripe is derived here.
+// What an order is owed, derived here because the browser never carries an
+// amount.
 func (q *Queries) OrderTotalByNumber(ctx context.Context, orderNumber string) (OrderTotalByNumberRow, error) {
 	row := q.db.QueryRow(ctx, orderTotalByNumber, orderNumber)
 	var i OrderTotalByNumberRow
@@ -8167,12 +8128,7 @@ type ProductBySlugRow struct {
 	CategoryParentID uuid.NullUUID
 }
 
-// The product a detail URL names.
-//
-// status = 'active' is a literal for the same reason it is everywhere else, and
-// it is also the access rule: a draft or archived product is not a 404 by
-// accident here, it is one on purpose. A URL that renders a draft is how an
-// unannounced product leaks.
+// The product a detail URL names. A draft or archived product is a 404.
 func (q *Queries) ProductBySlug(ctx context.Context, arg ProductBySlugParams) (ProductBySlugRow, error) {
 	row := q.db.QueryRow(ctx, productBySlug, arg.Slug, arg.Locale)
 	var i ProductBySlugRow
@@ -8217,8 +8173,6 @@ type ProductImagesRow struct {
 }
 
 // Every image on the product, in display order.
-// The PDP's gallery. alt_text is read ALOUD by a screen reader in the language
-// <html lang> declares, so it follows the visitor like every other word on the page.
 func (q *Queries) ProductImages(ctx context.Context, arg ProductImagesParams) ([]ProductImagesRow, error) {
 	rows, err := q.db.Query(ctx, productImages, arg.Locale, arg.ProductID)
 	if err != nil {
@@ -8287,13 +8241,9 @@ type ProductOptionsRow struct {
 	ValueLabel  string
 }
 
-// The option groups and their values, in the order the page renders the
-// pickers. Values a product declares but no active variant uses are excluded:
-// a swatch that selects nothing is worse than no swatch.
-// Four columns and not two, and the distinction is the point: option_name and
-// value are IDENTITY — what the URL selects on and what variant matching compares —
-// while the _label columns are what the visitor reads. Selecting on the label would
-// make a shared link resolve differently for a reader in another language.
+// The option groups and their values, in the order the page renders the pickers.
+// option_name and value are IDENTITY, what the URL selects on; the _label
+// columns are what the visitor reads.
 func (q *Queries) ProductOptions(ctx context.Context, arg ProductOptionsParams) ([]ProductOptionsRow, error) {
 	rows, err := q.db.Query(ctx, productOptions, arg.ProductID, arg.Locale)
 	if err != nil {
@@ -8341,11 +8291,7 @@ type ProductQuestionsRow struct {
 	Asker     string
 }
 
-// The questions on a product, with their answers.
-//
-// Two queries and not one join: a question with three answers would repeat the
-// question three times, and assembling that back into a tree in Go is work the
-// database already did. Two round trips is the cheaper mistake.
+// The questions on a product; their answers come from AnswersForQuestions.
 func (q *Queries) ProductQuestions(ctx context.Context, arg ProductQuestionsParams) ([]ProductQuestionsRow, error) {
 	rows, err := q.db.Query(ctx, productQuestions, arg.ProductID, arg.Limit)
 	if err != nil {
@@ -8394,11 +8340,6 @@ type ProductRatingRow struct {
 }
 
 // The star breakdown for one product, keyed on its id.
-//
-// The ONE place the PDP's rating is computed. A twin keyed on the slug — the
-// same seven aggregates, reached from a different caller — is how two figures
-// for one product come to disagree, so a second caller resolves the id and
-// reads this rather than getting a query of its own.
 func (q *Queries) ProductRating(ctx context.Context, productID uuid.UUID) (ProductRatingRow, error) {
 	row := q.db.QueryRow(ctx, productRating, productID)
 	var i ProductRatingRow
@@ -8439,8 +8380,6 @@ type ProductReviewsRow struct {
 }
 
 // The reviews shown on the page, newest first, and the rating summary.
-// Verified purchases lead. A page whose first review is from somebody who
-// never bought the thing is a page a reader learns to distrust.
 func (q *Queries) ProductReviews(ctx context.Context, arg ProductReviewsParams) ([]ProductReviewsRow, error) {
 	rows, err := q.db.Query(ctx, productReviews, arg.ProductID, arg.Limit)
 	if err != nil {
@@ -8548,16 +8487,8 @@ type ProductVariantsRow struct {
 	OptionValues        []string
 }
 
-// Every active variant with its option values flattened into one row.
-//
-// The page builds its option pickers from this: each variant is a combination,
-// and a picker entry links to the URL that selects it. That is what makes
-// variant selection work with scripting off — the choice is a link, not a
-// click handler.
-//
-// sellable is stock_quantity > safety_stock, the floor
-// record_inventory_movement enforces. A variant at the floor has stock and
-// cannot be bought.
+// Every active variant with its option values flattened into one row. sellable
+// is stock_quantity > safety_stock, the floor record_inventory_movement enforces.
 func (q *Queries) ProductVariants(ctx context.Context, productID uuid.UUID) ([]ProductVariantsRow, error) {
 	rows, err := q.db.Query(ctx, productVariants, productID)
 	if err != nil {
@@ -9097,9 +9028,7 @@ type RecordWebhookEventParams struct {
 	Payload   []byte
 }
 
-// Record a provider webhook. The primary key is (provider, event_id), so a
-// resent event inserts zero rows rather than being processed twice — which is
-// the whole reason this table exists. :execrows is what makes the replay
+// The primary key is (provider, event_id), and :execrows is what makes a replay
 // visible to Go: 1 means "ours to process", 0 means "already seen".
 func (q *Queries) RecordWebhookEvent(ctx context.Context, arg RecordWebhookEventParams) (int64, error) {
 	result, err := q.db.Exec(ctx, recordWebhookEvent,
@@ -9783,15 +9712,9 @@ type RequestStockNoticeParams struct {
 	Locale    string
 }
 
-// Ask to be told when a variant is back.
-//
-// Idempotent through stock_notifications_pending_key, the partial unique index
-// on (variant_id, lower(email)) WHERE notified_at IS NULL.
-//
-// ON CONFLICT and not a NOT EXISTS guard: the guard reads and then writes, and
-// two concurrent requests both pass the read. The index decides, once, under
-// the write. Its partial predicate is also exactly right — a customer notified
-// about a previous restock may ask again for the next one.
+// Ask to be told when a variant is back. Idempotent through the PARTIAL unique
+// index stock_notifications_pending_key, so somebody notified about one restock
+// may ask again for the next.
 func (q *Queries) RequestStockNotice(ctx context.Context, arg RequestStockNoticeParams) error {
 	_, err := q.db.Exec(ctx, requestStockNotice,
 		arg.VariantID,

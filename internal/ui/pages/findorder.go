@@ -7,11 +7,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// FindOrderView carries a refused lookup's values back into the form.
-//
-// There is one Error and it is not per-field, deliberately: the two inputs are one
-// credential, and saying which half was wrong tells somebody walking order numbers
-// that a number was real.
+// FindOrderView carries a refused lookup's values back into the form. The one
+// Error is not per-field: the two inputs are one credential, and saying which
+// half was wrong would confirm that an order number is real.
 type FindOrderView struct {
 	Number string
 	Email  string

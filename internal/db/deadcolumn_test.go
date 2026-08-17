@@ -10,122 +10,20 @@ import (
 	"testing"
 )
 
-// TestEveryColumnIsReadOrWritten refuses a column nothing uses.
-//
-// # Why this is a test and not a review habit
-//
-// goen has shipped four of these, and each costs something different:
-//
-//   - `orders.discount_code`, declared with the table and never written — so the
-//     reflex when the discount finally has to be shown is to fill it in, which is a
-//     second copy of a fact one join already reaches;
-//   - `users.email_verified_at`, declared and never set, with the whole feature it
-//     belongs to missing underneath it: a customer who could not change their
-//     address at all;
-//   - `layouts.Page.CartCount`, the same defect one layer up — a view-model field
-//     no handler assigns, so the badge reads 0 for every visitor with a full cart;
-//   - `product_search_documents`, an entire projection TABLE with a trigram index,
-//     no writer, no reader, and a note above it claiming it had exactly one writer.
-//
-// None of these is a compile error, none fails a test, and none is visible in a
-// browser. A dead column reads to the next person as a feature — which is how it
-// becomes the wrong answer to the next question.
-//
-// # How coverage is decided
-//
-// From the CATALOG, never a list: information_schema names the tables and their
-// columns, and the question asked of each column is whether any SQL this repository
-// ships mentions it IN A STATEMENT THAT NAMES ITS OWN TABLE. The corpus is every
-// feature's query.sql, the seed, and everything in the migration that is not a
-// CREATE TABLE — so a column mentioned only by its own declaration and its own
-// CHECK does not count as used, which is exactly the shape the dead ones take.
-//
-// # The namesake, which is what makes the scoping below the whole guard
-//
-// Asking `\bcolumn\b` of the SQL corpus as ONE string covers a column by any OTHER
-// table's column of the same name. Measured against this schema: THIRTY-ONE of 511
-// columns pass on a namesake alone, a dead `note` on `order_access_grants` passes
-// because `order_events.note` is written, and renaming that column `grant_note` is
-// what turns it red. Seven of the thirty-one belong to the unbuilt 發票 feature
-// while the allowlist below names exactly ONE such column — so an unscoped guard
-// also makes its own allowlist a claim about a set it does not describe, and the
-// entry that survives does so only because `tax_type` happens to be an unusual name.
-// A guard that catches a dead column only when its name is distinctive catches
-// almost nothing.
-//
-// # What ties a mention to a table
-//
-// The SQL is cut into SCOPES — one per statement, and a stored function's body is
-// cut into its own statements as well — and a mention counts for a table only when
-// its scope NAMES that table: the FROM, the JOIN, the INSERT/UPDATE/DELETE target,
-// the table a CREATE INDEX, a GRANT or an ALTER TABLE is written against, or the
-// table a CREATE TRIGGER binds a function to. Within a scope a qualified
-// `alias.column` is resolved against that scope's own FROM/JOIN bindings, so
-// `p.name` in a statement joining products and product_variants is evidence for
-// products and for nothing else.
-//
-// # Known limits
-//
-// It is still a MENTION rather than a write. Telling a write from a read needs a
-// SQL parser, and the failure this catches is total — a dead column is mentioned
-// nowhere at all. A guard that is coarse and true beats one that is precise and
-// unwritten. Where it stays coarse it is written down here, because each of these
-// is a way a dead column could still hide:
-//
-//   - An UNQUALIFIED mention in a scope naming two tables counts for BOTH. A dead
-//     `products.position` would be covered by a statement joining products and
-//     product_specs that ends `ORDER BY position`.
-//   - A TRIGGER FUNCTION's body is credited whole to the table its trigger fires
-//     on. `NEW.x` and `OLD.x` name no table and there is nothing else to resolve
-//     them against, so a column of that table mentioned anywhere in that body
-//     counts.
-//   - An unknown qualifier — a CTE, a PL/pgSQL record variable — counts for
-//     whichever table its scope names, for the same reason.
-//   - A mention inside a STRING LITERAL counts. A mention inside a COMMENT does
-//     not: prose about a column is the one thing that is never a use of it, which
-//     is the same reason COMMENT ON COLUMN is dropped along with CREATE TABLE.
-//
-// `SELECT *` names no column and would cover every column of the table it reads.
-// goen writes it only into a PL/pgSQL record, never in a query, and this is the
-// line that would have to be revisited if that changed.
+// TestEveryColumnIsReadOrWritten refuses a column no SQL mentions in a statement
+// naming its own table. A mention rather than a write: telling those apart needs a
+// SQL parser, and a dead column is mentioned nowhere at all.
 func TestEveryColumnIsReadOrWritten(t *testing.T) {
-	// Each entry is a claim that a column no SQL touches within its own table is
-	// meant to exist anyway. Keyed table.column, so an exemption cannot spread.
-	//
-	// golang-migrate's own schema_migrations is NOT here, and the completeness
-	// check below is what keeps it out: testcontainers applies 001 directly rather
-	// than through the tool, so the table does not exist in the schema this asks,
-	// and an entry for it is refused as stale. An allowlist entry for a column the
-	// guard never sees is an entry that would go on reading as covered.
+	// Keyed table.column, so an exemption cannot spread.
 	allowed := map[string]string{
-		// The OAuth link's surrogate key, and the same shape as the three below
-		// it: every query on user_identities keys on (provider, provider_subject)
-		// or on the user, both unique indexes are built from those columns, and
-		// erase_user deletes by user — so nothing names the id anywhere this
-		// corpus can see, and its only use is its own PRIMARY KEY constraint
-		// inside the CREATE TABLE block this guard cuts out.
 		"user_identities.id": "the unbuilt OAuth sign-in, whole table",
 
-		// A surrogate primary key nothing has had to name. The reason it is not
-		// the defect this test hunts is that it IS used — by its own PRIMARY KEY
-		// constraint, which is written inside the CREATE TABLE block this guard
-		// deliberately cuts out. Nothing joins to these three and no query selects
-		// one, so the mention never appears anywhere the corpus can see it.
 		"email_verifications.id": "a surrogate primary key; its own constraint is the use, and that is inside the block this guard cuts",
 		"loyalty_entries.id":     "a surrogate primary key; its own constraint is the use, and that is inside the block this guard cuts",
 		"product_answers.id":     "a surrogate primary key; its own constraint is the use, and that is inside the block this guard cuts",
 
-		// Row-birth timestamps, written by their own DEFAULT now() and read by no
-		// query. The DEFAULT is inside the CREATE TABLE block, which is the one
-		// place this guard cannot look — so what these entries record is not "the
-		// column is unwritten" but "nothing shows it to anybody", the same
-		// question TestEveryTableIsRead asks one level up.
-		//
-		// They are listed one by one rather than exempted as a class, and that is
-		// the point: a NEW table whose created_at nothing reads has to come here
-		// and be decided, and any of these that starts being read retires its own
-		// entry. The list is the debt, visible and counted.
-		//
+		// Listed one by one rather than exempted as a class, so a new table whose
+		// created_at nothing reads has to come here and be decided.
 		"brands.created_at":                "a row-birth timestamp its own DEFAULT writes; no query shows it",
 		"carts.created_at":                 "a row-birth timestamp its own DEFAULT writes; no query shows it",
 		"categories.created_at":            "a row-birth timestamp its own DEFAULT writes; no query shows it",
@@ -193,9 +91,8 @@ func TestEveryColumnIsReadOrWritten(t *testing.T) {
 			"allowlist with the reason.", key)
 	}
 
-	// By IDENTITY, never by count. A comparison of totals cannot say WHICH entry has
-	// gone stale, and it passes outright when one entry goes stale as another is
-	// added.
+	// By identity, never by count: a count cannot name the stale entry, and it
+	// passes outright when one entry goes stale as another is added.
 	for key, why := range allowed {
 		if !exempted[key] {
 			t.Errorf("the allowlist exempts %s (%s), and either SQL names it within its "+
@@ -213,35 +110,16 @@ type sqlScope struct {
 	aliases map[string]string
 }
 
-// sqlScopes is every piece of SQL this repository ships, cut into scopes.
-//
-// CREATE TABLE is dropped so a column's own declaration and its own CHECK are not
-// a use of it, and COMMENT ON goes with it for the same reason: both are the
-// column being described rather than read. Everything else stays — a stored
-// function body, a trigger's WHEN clause and a DEFAULT expression in an ALTER
-// are all real users of a column.
-//
-// GRANT and REVOKE are dropped too, and that exclusion carries the whole guard
-// on the eight tables the privilege model narrows column by column.
-// `GRANT INSERT (id, product_id, …)` names every column of a table, so counting
-// one would make every column of those tables read as USED — the guard would go
-// blind on exactly the surface somebody took the trouble to narrow, and the only
-// visible symptom is oblique: allowlist entries for product_answers.id and
-// stock_notifications.created_at start reporting themselves stale, because those
-// columns are mentioned by NOTHING ELSE and a grant is a mention.
-//
-// A privilege list is a statement ABOUT a column, in the same category as its
-// declaration and its comment: it says who may write it, not that anybody does.
-// Counting it is how a guard keeps passing while its subject disappears — the
-// same shape as the DEFAULT filter that silences `users.role` in the column
-// guard next door.
+// sqlScopes is every piece of SQL this repository ships, cut into scopes. CREATE
+// TABLE, COMMENT ON, GRANT and REVOKE are dropped: each is a statement ABOUT a
+// column, and a grant naming every column would make a whole table read as used.
 func sqlScopes(t *testing.T, tables map[string]bool) []sqlScope {
 	t.Helper()
 
 	statements := repositorySQL(t)
 
-	// A trigger function's body says NEW.x and OLD.x and names no table, so the
-	// binding has to come from the CREATE TRIGGER that installs it.
+	// A trigger body says NEW.x and OLD.x and names no table, so the binding has
+	// to come from the CREATE TRIGGER that installs it.
 	bound := map[string]map[string]bool{}
 	for _, s := range statements {
 		for _, m := range triggerBinding.FindAllStringSubmatch(s, -1) {
@@ -269,8 +147,7 @@ func sqlScopes(t *testing.T, tables map[string]bool) []sqlScope {
 		}
 		// The signature and its inner statements are judged separately, so a
 		// function touching several tables cannot lend one table's column name to
-		// another's statement — which is how erase_user would cover a dead
-		// `order_access_grants.note` with `order_events.note`.
+		// another's statement.
 		scopes = append(scopes, newSQLScope(strings.Replace(s, body, "", 1), tables))
 		for _, inner := range sqlStatements(body) {
 			scopes = append(scopes, newSQLScope(inner, tables))
@@ -285,7 +162,7 @@ func sqlScopes(t *testing.T, tables map[string]bool) []sqlScope {
 }
 
 // triggerScope is the whole body of a trigger function, credited to the tables its
-// triggers fire on. Nothing else can resolve NEW and OLD.
+// triggers fire on: nothing else can resolve NEW and OLD.
 func triggerScope(statement, body string, bound map[string]map[string]bool, tables map[string]bool) []sqlScope {
 	m := functionHeader.FindStringSubmatch(statement)
 	if m == nil {
@@ -295,9 +172,8 @@ func triggerScope(statement, body string, bound map[string]map[string]bool, tabl
 	if len(fires) == 0 {
 		return nil
 	}
-	// Built over the whole body so the alias bindings survive — a `p.status` inside
-	// it still resolves to payments — and then narrowed to the trigger's own table,
-	// which is the only thing NEW and OLD can mean.
+	// Built over the whole body so the alias bindings survive, then narrowed to the
+	// trigger's own table, which is the only thing NEW and OLD can mean.
 	sc := newSQLScope(body, tables)
 	sc.tables = fires
 	return []sqlScope{sc}
@@ -340,12 +216,9 @@ func columnIsMentioned(scopes []sqlScope, tables map[string]bool, table, column 
 	return false
 }
 
-// mentionBelongsTo reads the qualifier in front of a mention.
-//
-// An unqualified name could be any table the scope names, so it counts. A
-// qualified one counts only when the qualifier resolves to this table — or to
-// nothing the scope can resolve at all, which is NEW, OLD, a CTE or a record
-// variable, and those are the coarse cases the doc comment names.
+// mentionBelongsTo reads the qualifier in front of a mention. An unqualified name
+// counts for every table the scope names; a qualified one counts only when the
+// qualifier resolves to this table, or to nothing at all (NEW, OLD, a CTE).
 func mentionBelongsTo(sc sqlScope, tables map[string]bool, table string, at int) bool {
 	if at == 0 || sc.text[at-1] != '.' {
 		return true
@@ -419,11 +292,9 @@ func repositorySQL(t *testing.T) []string {
 	return out
 }
 
-// sqlStatements cuts src on its top-level semicolons and drops its comments.
-//
-// It is quote-aware in both directions and both directions matter: a `--` inside a
-// string literal is not a comment, and the semicolons inside a $$-quoted function
-// body do not end a statement.
+// sqlStatements cuts src on its top-level semicolons and drops its comments. A
+// `--` inside a string literal is not a comment, and the semicolons inside a
+// $$-quoted body do not end a statement.
 func sqlStatements(src string) []string {
 	var out []string
 	var b strings.Builder

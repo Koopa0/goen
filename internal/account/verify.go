@@ -19,27 +19,16 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-// VerifyTokenTTL is how long a verification link works.
-//
-// Two days, like the newsletter's confirmation and for the same reason: this is
-// not a credential. It proves an address, and expiring it overnight refuses
-// somebody who read their mail the next morning. A password reset gets one hour
-// because holding that link IS holding the account.
+// VerifyTokenTTL is how long a verification link works. Two days, because this
+// proves an address rather than being a credential the way a reset link is.
 const VerifyTokenTTL = 48 * time.Hour
 
 // ErrVerifyInvalid is a link that is unknown, spent or expired.
-//
-// One error for all three: telling them apart tells somebody walking tokens which
-// guess was real, and the reader's next step is the same either way.
 var ErrVerifyInvalid = errors.New("account: that verification link is not usable")
 
 // Verification is what the account page shows about the customer's address.
 type Verification struct {
-	// Verified reports whether the CURRENT address has been proved.
-	Verified bool
-	// PendingEmail is the address waiting to be proved, or "" when none is. It is
-	// shown so a customer who mistyped a CHANGE can see what they typed and ask
-	// again — the whole reason this feature exists is a typo nobody can fix.
+	Verified     bool
 	PendingEmail string
 }
 
@@ -56,17 +45,9 @@ func (s *Store) EmailVerification(ctx context.Context, userID string) (Verificat
 	return Verification{Verified: row.Verified, PendingEmail: row.PendingEmail}, nil
 }
 
-// RequestVerification asks for an address to be proved, and returns the token for
-// the link.
-//
-// addr is where the letter goes. Passing the customer's CURRENT address is a
-// re-send; passing a new one is a change request, and the change takes effect only
-// when the link is followed — until then the account keeps the old address, so
-// receipts and reset links keep arriving somewhere the customer can read.
-//
-// The row and the message that carries its link commit together, for the reason
-// every other outbox producer does: enqueuing afterwards loses the link when the
-// process dies in between.
+// RequestVerification asks for addr to be proved and returns the token for the
+// link. The account keeps its OLD address until the link is followed, so a
+// mistyped change leaves receipts and reset links still arriving.
 func (s *Store) RequestVerification(ctx context.Context, userID, addr string) (string, error) {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -77,9 +58,6 @@ func (s *Store) RequestVerification(ctx context.Context, userID, addr string) (s
 		return "", fmt.Errorf("requesting verification of %q: not a usable address", addr)
 	}
 
-	// Refused early with a sentence somebody can act on. users_email_key is still
-	// the real guard — an address can be taken between here and the confirmation,
-	// and that race can only be caught at the write.
 	taken, takenErr := s.q.EmailBelongsToSomebodyElse(ctx, db.EmailBelongsToSomebodyElseParams{
 		Email: addr, UserID: id,
 	})
@@ -131,10 +109,6 @@ func (s *Store) RequestVerification(ctx context.Context, userID, addr string) (s
 }
 
 // ConfirmVerification spends a link, moves the address and marks it proved.
-//
-// One transaction: the spend, the move and the stamp. A customer whose address
-// moved without being marked proved would be asked to prove it again with a link
-// that no longer exists.
 func (s *Store) ConfirmVerification(ctx context.Context, token string) (string, error) {
 	if token == "" {
 		return "", ErrVerifyInvalid

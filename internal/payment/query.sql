@@ -1,29 +1,20 @@
--- Open a payment against an order, for a Stripe Checkout Session that has just
--- been created. SECURITY DEFINER, because store cannot write `payments`
--- directly — a born-succeeded payment row is the forgery the revoke prevents.
---
--- It is idempotent on (order_id, provider_ref): a customer who reloads the
--- payment page gets the row that already exists rather than a second one.
+-- Idempotent on (order_id, provider_ref), so a reloaded payment page opens no
+-- second row.
 -- name: OpenPayment :one
 SELECT open_payment(@order_id, @provider_ref::text, @intended_amount_cents::bigint);
 
--- Record that Stripe captured money. Called ONLY from the verified webhook —
--- never from the browser's return to success_url, which anybody can request.
+-- Called ONLY from the verified webhook, never from the return to success_url.
 -- name: CapturePayment :one
--- nullif, because "unknown" is NULL and not the empty string.
--- checkout.session.completed does not expand payment_intent.latest_charge, so
--- the common event carries no card at all. Passing '' sends a value through
--- payments_last4_format, which requires four digits — every real capture is then
--- refused by a CHECK once the money has already been taken.
+-- nullif, because an unknown card is NULL and not ''. The usual event carries no
+-- card at all, and '' is a value that fails payments_last4_format — refusing
+-- every real capture after the money has been taken.
 SELECT capture_payment(@provider_ref::text, @captured_amount_cents::bigint,
                        nullif(@card_brand::text, ''), nullif(@card_last4::text, ''));
 
 -- name: CancelPayment :exec
 SELECT cancel_payment(@provider_ref::text);
 
--- Record a provider webhook. The primary key is (provider, event_id), so a
--- resent event inserts zero rows rather than being processed twice — which is
--- the whole reason this table exists. :execrows is what makes the replay
+-- The primary key is (provider, event_id), and :execrows is what makes a replay
 -- visible to Go: 1 means "ours to process", 0 means "already seen".
 -- name: RecordWebhookEvent :execrows
 INSERT INTO payment_webhook_events (provider, event_id, type, object_ref, payload)
@@ -34,30 +25,24 @@ ON CONFLICT (provider, event_id) DO NOTHING;
 UPDATE payment_webhook_events SET processed_at = now()
 WHERE provider = 'stripe' AND event_id = $1;
 
--- The order a Stripe session belongs to, for the webhook. The webhook is
--- trusted for WHAT happened, never for WHICH order it happened to: the order is
--- looked up through the payment row goen itself wrote at open time.
+-- The webhook is trusted for WHAT happened, never for WHICH order: that is
+-- looked up through the payment row goen wrote at open time.
 -- name: OrderByPaymentRef :one
 SELECT o.id, o.order_number, o.fulfillment_status, p.intended_amount_cents
 FROM orders o JOIN payments p ON p.order_id = o.id
 WHERE p.provider_ref = $1;
 
--- What an order is owed, recomputed from its own lines. The browser never
--- carries an amount: a form field saying "pay NT$1" is the oldest hole there
--- is, so the figure sent to Stripe is derived here.
+-- What an order is owed, derived here because the browser never carries an
+-- amount.
 -- name: OrderTotalByNumber :one
 SELECT o.id,
        o.order_number,
        o.fulfillment_status,
-       -- The cast wraps the WHOLE expression, not just the sum. Casting only
-       -- the sum leaves the additions at the int width of the columns beside
-       -- it, and sqlc types the result int32 — a 21,474,836 dollar ceiling
-       -- that nothing in Go would warn about crossing.
-       -- What is still OWED, not the gross total. The two differ by the store credit
-       -- already spent on this order, and charging the gross has Stripe take money
-       -- this database then refuses to record: payments_capture_matches_order demands
-       -- the net, so the webhook rolls back forever and the order stays unpaid with
-       -- the customer's money at Stripe.
+       -- The cast wraps the WHOLE expression: casting only the sum leaves the
+       -- additions at the columns' int width and sqlc types the result int32.
+       -- What is still OWED, never the gross — payments_capture_matches_order
+       -- demands the net, so charging the gross leaves the order unpaid for ever
+       -- with the customer's money at Stripe.
        order_amount_owed(o.id)::bigint AS total_cents,
        coalesce(pd.email, '') AS email
 FROM orders o

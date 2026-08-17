@@ -13,14 +13,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// MaxFAQEntries bounds the back office's list. A FAQ longer than this is a manual,
-// and a manual is a page somebody has to design rather than a table.
+// MaxFAQEntries bounds the back office's list.
 const MaxFAQEntries = 200
 
 // FAQ field bounds, in RUNES.
-//
-// A question is a heading and an answer is a paragraph or two. The bounds exist
-// because nothing could write this table until now, so nothing had ever reached one.
 const (
 	MaxFAQCategoryRunes = 40
 	MaxFAQQuestionRunes = 200
@@ -33,8 +29,7 @@ type FAQForm struct {
 	Category string
 	Question string
 	Answer   string
-	// The English entry, each field optional. goen never invents a translation; a
-	// shop that has one can say so, and an entry with none renders its Chinese.
+	// The English entry, each field optional and each falling back.
 	CategoryEn string
 	QuestionEn string
 	AnswerEn   string
@@ -59,8 +54,6 @@ func (f *FAQForm) Validate(ctx context.Context) map[string]string {
 	if f.Answer == "" || utf8.RuneCountInString(f.Answer) > MaxFAQAnswerRunes {
 		errs["answer"] = i18n.T(ctx, i18n.KeyFormFAQAnswer)
 	}
-	// The English fields are optional, so blank is not an error — but they render in
-	// the same places and the bounds are the same.
 	if utf8.RuneCountInString(f.CategoryEn) > MaxFAQCategoryRunes {
 		errs["category_en"] = i18n.T(ctx, i18n.KeyFormFAQCategoryEnLong)
 	}
@@ -110,11 +103,8 @@ func (s *Store) CreateFAQEntry(ctx context.Context, f *FAQForm) (map[string]stri
 	return nil, nil
 }
 
-// UpdateFAQEntry rewrites one.
-//
-// The audit row names the ENTRY and not its text. An answer is prose a staff member
-// typed, and audit_events is append-only — a paragraph copied there outlives every
-// later correction of it.
+// UpdateFAQEntry rewrites one. The audit row names the ENTRY and never its text:
+// audit_events is append-only, so a paragraph there outlives every correction.
 func (s *Store) UpdateFAQEntry(ctx context.Context, f *FAQForm) (map[string]string, error) {
 	entryID, err := uuid.Parse(f.ID)
 	if err != nil {

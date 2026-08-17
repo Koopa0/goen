@@ -35,14 +35,10 @@ type ProductSpec struct {
 	Value string
 }
 
-// ProductOptionValue is one choice in a picker. Href is the URL that selects
-// it, keeping the other choices — that is what makes the picker work without
-// scripting.
+// ProductOptionValue is one choice in a picker.
 type ProductOptionValue struct {
-	// Value is the IDENTITY the URL carries; Label is what the visitor reads. Two
-	// fields rather than one because the picker puts the choice in the URL, and a
-	// link shared between readers in different languages has to select the same
-	// variant.
+	// Value is the identity the URL carries; Label is what the visitor reads. A
+	// href built from the label would resolve differently for another reader.
 	Value     string
 	Label     string
 	Selected  bool
@@ -70,9 +66,8 @@ func (b RatingBar) StarsText() string { return strconv.Itoa(b.Stars) }
 // CountText is how many reviews gave this many stars.
 func (b RatingBar) CountText() string { return strconv.FormatInt(b.Count, 10) }
 
-// PercentStyle is the inline width for the bar's fill. This is the one place
-// goen writes an inline style: the value is a computed proportion, which a
-// stylesheet cannot express, and it comes from a count rather than from input.
+// PercentStyle is the inline width for the bar's fill — the one inline style goen
+// writes, because a computed proportion is not something a stylesheet can express.
 func (b RatingBar) PercentStyle() string { return "width:" + strconv.Itoa(b.Percent) + "%" }
 
 // ProductReview is one published review.
@@ -88,8 +83,7 @@ type ProductReview struct {
 // RatingText is the review's own score.
 func (r ProductReview) RatingText() string { return strconv.Itoa(r.Rating) }
 
-// DisplayAuthor is the reviewer's name, or a stand-in when the account was
-// erased — a review outlives its author by design.
+// DisplayAuthor is the reviewer's name, or a stand-in when the account was erased.
 func (r ProductReview) DisplayAuthor(ctx context.Context) string {
 	if r.Author == "" {
 		return i18n.T(ctx, i18n.KeyVerifiedBuyers)
@@ -99,23 +93,17 @@ func (r ProductReview) DisplayAuthor(ctx context.Context) string {
 
 // ProductView is everything the detail page renders.
 type ProductView struct {
-	// Saved is whether the signed-in customer already has this on their
-	// wishlist. The button said 加入願望清單 whatever the answer was, so a
-	// customer could not tell what saving had done — the query for this
-	// existed, with a comment naming the button, and nothing called it.
 	Saved        bool
 	Slug         string
 	Name         string
 	Summary      string
 	Description  string
 	WarrantyNote string
-	// WarrantyMonths is the cover this product carries, or 0 when the shop has not
-	// stated one — in which case registration is refused and the page says nothing
-	// rather than implying a term.
+	// WarrantyMonths is 0 when the shop has stated no term, in which case
+	// registration is refused and the page says nothing rather than implying one.
 	WarrantyMonths int32
 	// FreeDeliveryCents is the threshold the guarantee strip states, read from
-	// shipping_method_versions rather than typed into the catalogue. Zero when the
-	// shop offers no free delivery, which renders no claim at all.
+	// shipping_method_versions rather than typed into the catalogue.
 	FreeDeliveryCents int64
 	Brand             string
 	CategorySlug      string
@@ -126,9 +114,8 @@ type ProductView struct {
 	Options []ProductOption
 	Specs   []ProductSpec
 
-	// The resolved variant. SelectionOK is false when the URL names a
-	// combination no variant has, which the page says rather than quoting an
-	// unrelated price.
+	// SelectionOK is false when the URL names a combination no variant has, which
+	// the page says rather than quoting an unrelated price.
 	SelectionOK  bool
 	Exact        bool
 	VariantID    string
@@ -138,12 +125,10 @@ type ProductView struct {
 	Sellable     bool
 	Available    int32
 
-	Rating      float64
-	RatingCount int64
-	RatingBars  []RatingBar
-	Reviews     []ProductReview
-	// The review form. Reviews have been displayable since the PDP was built
-	// and there was no way to leave one — every star came from the seed.
+	Rating       float64
+	RatingCount  int64
+	RatingBars   []RatingBar
+	Reviews      []ProductReview
 	SignedIn     bool
 	CanReview    bool
 	WouldVerify  bool
@@ -152,18 +137,16 @@ type ProductView struct {
 	// NotifyOutcome is "1" after a restock request was taken, "bad" after one
 	// was refused, and empty otherwise.
 	NotifyOutcome string
-	// Comparing is what the visitor is already comparing, read from the
-	// referring URL's own query. It is not stored anywhere — see CompareHref.
+	// Comparing is what the visitor is already comparing, read from the referring
+	// URL's own query and stored nowhere.
 	Comparing []string
-	// Questions is what people asked about this product. Empty renders the
-	// form and nothing else — a heading over no questions reads as broken.
 	Questions []Question
-	// AskOutcome is "1" after a question was taken, "bad" after one was
-	// refused, and empty otherwise.
+	// AskOutcome is "1" after a question was taken, "bad" after one was refused,
+	// and empty otherwise.
 	AskOutcome string
-	// AlsoBought is what people who bought this also bought. Empty is the
-	// normal state for a new product and renders NOTHING — filling the slot
-	// with popular products instead would present a guess as a pattern.
+	// AlsoBought is what people who bought this also bought. Empty renders
+	// nothing: filling the slot with popular products presents a guess as a
+	// pattern.
 	AlsoBought []ProductTile
 
 	Related []ProductTile
@@ -177,8 +160,6 @@ func ProductMeta(v *ProductView) layouts.Page {
 	}
 	return layouts.Page{
 		Title: v.Name + " — " + v.Brand, Description: desc,
-		// See ListingMeta: Page.Nav is read by the header and was assigned by
-		// nothing, so no category was ever marked current.
 		Nav: v.RootSlug(),
 	}
 }
@@ -193,8 +174,7 @@ func (v *ProductView) WarrantyText(ctx context.Context) string {
 }
 
 // RootSlug is the top-level category this product sits under — the one the header
-// marks as current. The crumbs run root-first, so it is the first of them, and the
-// product's own category when that category is already a root.
+// marks as current. The crumbs run root-first, so it is the first of them.
 func (v *ProductView) RootSlug() string {
 	if len(v.Crumbs) > 0 {
 		return v.Crumbs[0].Slug
@@ -208,30 +188,26 @@ func (v *ProductView) Price() string { return twd(v.PriceCents) }
 // Compare is its struck-through original, shown only when OnSale.
 func (v *ProductView) Compare() string { return twd(v.CompareCents) }
 
-// OnSale reports whether to show a struck-through price. A sold-out variant
-// does not advertise its saving — nobody can take it.
+// OnSale reports whether to show a struck-through price.
 func (v *ProductView) OnSale() bool { return v.Sellable && v.CompareCents > v.PriceCents }
 
 // CanBuy reports whether the page can offer an add-to-cart button: a single
 // combination is pinned and it can actually be bought.
 func (v *ProductView) CanBuy() bool { return v.SelectionOK && v.Exact && v.Sellable }
 
-// NeedsChoice reports whether the visitor still has an option to pick. The page
-// says so instead of showing a button that would guess for them.
+// NeedsChoice reports whether the visitor still has an option to pick.
 func (v *ProductView) NeedsChoice() bool { return v.SelectionOK && !v.Exact }
 
 // SoldOut reports whether the pinned combination exists but cannot be bought.
 func (v *ProductView) SoldOut() bool { return v.SelectionOK && v.Exact && !v.Sellable }
 
-// LowStock reports whether the remaining quantity is worth naming. Above this
-// the exact figure is noise; at or below it, it is a reason to decide now.
+// LowStock reports whether the remaining quantity is worth naming.
 func (v *ProductView) LowStock() bool { return v.Sellable && v.Available > 0 && v.Available <= 5 }
 
 // AvailableText is the buyable quantity as text.
 func (v *ProductView) AvailableText() string { return strconv.FormatInt(int64(v.Available), 10) }
 
-// MaxQuantity bounds the quantity input to what can actually be sold, so the
-// form cannot ask for more than the database will allow.
+// MaxQuantity bounds the quantity input to what can actually be sold.
 func (v *ProductView) MaxQuantity() string {
 	n := v.Available
 	if n > 99 {
@@ -297,8 +273,7 @@ func (r ProductReview) RatingLabel(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyRatingOutOf), strconv.Itoa(r.Rating))
 }
 
-// starsOf draws a rating. One function, so the summary and each review cannot
-// drift into drawing it differently.
+// starsOf draws a rating.
 func starsOf(n int) string {
 	n = max(0, min(n, 5))
 	return strings.Repeat("★", n) + strings.Repeat("☆", 5-n)
@@ -329,12 +304,7 @@ func (v *ProductView) AskRefused() bool { return v.AskOutcome == "bad" }
 func (v *ProductView) AskAction() string { return "/p/" + v.Slug + "/questions" }
 
 // CompareHref adds this product to a comparison, carrying whatever was already
-// being compared.
-//
-// A LINK and not a form, because adding to a comparison writes nothing: the set
-// lives in the URL. That makes it shareable, bookmarkable, back-button-correct,
-// and it means the write-face rule has nothing to say — there is no mutation to
-// make work without scripting, because there is no mutation.
+// being compared. The set lives in the URL and is written nowhere.
 func (v *ProductView) CompareHref() string {
 	var b strings.Builder
 	b.WriteString("/compare")

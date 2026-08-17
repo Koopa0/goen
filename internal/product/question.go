@@ -13,16 +13,11 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// MaxQuestionRunes and MaxAnswerRunes bound what can be written.
-//
-// Counted in RUNES, not bytes: a question in Chinese is three bytes a
-// character, and a byte limit would cut it to a third of an English one.
+// MaxQuestionRunes and MaxAnswerRunes bound what can be written, in runes.
 const (
 	MaxQuestionRunes = 300
 	MaxAnswerRunes   = 600
-	// MaxQuestions bounds what one product page shows. Ten, because a page
-	// with forty questions needs pagination and a search box, which is a
-	// different feature.
+	// MaxQuestions bounds what one product page shows.
 	MaxQuestions = 10
 )
 
@@ -31,10 +26,6 @@ const (
 var ErrQuestionInvalid = errors.New("product: the question or answer is not usable")
 
 // Ask records a question about a product.
-//
-// Signed in only, the same rule reviews follow. An anonymous public writing
-// surface is a spam target with nobody to hold responsible, and the sign-in is
-// the only thing that makes the rate limit mean anything.
 func (s *Store) Ask(ctx context.Context, slug, userID, body string) error {
 	body = strings.TrimSpace(body)
 	if body == "" || utf8.RuneCountInString(body) > MaxQuestionRunes {
@@ -52,10 +43,8 @@ func (s *Store) Ask(ctx context.Context, slug, userID, body string) error {
 	return nil
 }
 
-// Answer records an answer.
-//
-// staff is what the caller knows about the author RIGHT NOW, and it is stored
-// rather than re-derived at read time — see product_answers.is_staff.
+// Answer records an answer. staff is stored as the caller knows it now, never
+// re-derived at read time.
 func (s *Store) Answer(ctx context.Context, questionID, userID, body string, staff bool) error {
 	body = strings.TrimSpace(body)
 	if body == "" || utf8.RuneCountInString(body) > MaxAnswerRunes {
@@ -77,8 +66,7 @@ func (s *Store) Answer(ctx context.Context, questionID, userID, body string, sta
 		return fmt.Errorf("answer question: %w", err)
 	}
 	if n == 0 {
-		// The question does not exist or staff hid it. An answer published
-		// under a hidden question would be text with no context.
+		// The question does not exist, or staff hid it.
 		return ErrNotFound
 	}
 	return nil
@@ -116,8 +104,6 @@ func (s *Store) loadQuestions(ctx context.Context, productID uuid.UUID, view *pa
 		a := &answers[i]
 		at, ok := byID[a.QuestionID]
 		if !ok {
-			// An answer to a question this page did not load. Not an error —
-			// the question list is capped — but it belongs to nothing here.
 			continue
 		}
 		view.Questions[at].Answers = append(view.Questions[at].Answers, pages.Answer{
