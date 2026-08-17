@@ -383,6 +383,13 @@ var (
 		ZhHant: "把 %s 加入比較",
 		En:     "Add %s to the comparison",
 	})
+	// KeyCompareLimit is on the form rather than only in the empty state. Ticking
+	// six and being shown four is a silent cap, and this repository's rule is
+	// that a cap says so.
+	KeyCompareLimit = key("compare.limit", Message{
+		ZhHant: "最多比較四個",
+		En:     "Up to four at a time",
+	})
 	KeyCompareSelected = key("compare.selected", Message{
 		ZhHant: "比較所選商品",
 		En:     "Compare selected",

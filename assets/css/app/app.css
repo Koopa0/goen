@@ -629,11 +629,17 @@ a:hover {
   cursor: pointer;
 }
 
+.goen-compare-pick__go {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 16px;
+}
+
 /* A bare .ui-btn is 31px: the design system's base padding plus a 13px line
    box. Every other goen surface states its own touch target for the same
    reason. */
-.goen-compare-pick__go {
-  margin-top: 16px;
+.goen-compare-pick__go .ui-btn {
   min-height: 44px;
 }
 
