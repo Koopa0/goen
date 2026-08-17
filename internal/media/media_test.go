@@ -276,7 +276,7 @@ func TestSrcsetNeverMisleadsTheBrowser(t *testing.T) {
 			if got == "" {
 				return
 			}
-			for _, candidate := range strings.Split(got, ", ") {
+			for candidate := range strings.SplitSeq(got, ", ") {
 				if !strings.HasSuffix(candidate, "w") || !strings.Contains(candidate, " ") {
 					t.Errorf("candidate %q has no width descriptor", candidate)
 				}

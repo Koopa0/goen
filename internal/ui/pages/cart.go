@@ -57,10 +57,7 @@ func (l CartLine) AvailableText() string { return strconv.FormatInt(int64(l.Avai
 
 // MaxQuantity bounds the line's quantity input to what can be supplied.
 func (l CartLine) MaxQuantity() string {
-	n := l.Available
-	if n > 999 {
-		n = 999
-	}
+	n := min(l.Available, 999)
 	if n < 1 {
 		n = 1
 	}

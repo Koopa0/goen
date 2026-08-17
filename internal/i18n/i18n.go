@@ -102,7 +102,7 @@ func Detect(r *http.Request, secure bool) Locale {
 }
 
 func fromAcceptLanguage(header string) Locale {
-	for _, part := range strings.Split(header, ",") {
+	for part := range strings.SplitSeq(header, ",") {
 		tag := strings.ToLower(strings.TrimSpace(strings.SplitN(part, ";", 2)[0]))
 		switch {
 		case tag == "":

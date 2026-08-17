@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -73,10 +74,5 @@ func (s *Store) Report(ctx context.Context, days int32) (pages.AdminReportView, 
 
 // validWindow is an allowlist, never a range: it reaches a scanning query.
 func validWindow(days int32) bool {
-	for _, w := range ReportWindows {
-		if w == days {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(ReportWindows, days)
 }

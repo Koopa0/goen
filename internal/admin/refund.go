@@ -99,7 +99,7 @@ func (s StripeRefunder) Refund(ctx context.Context, paymentIntentID, requestKey 
 
 	ref, err := s.client.V1Refunds.Create(ctx, &stripe.RefundCreateParams{
 		PaymentIntent: stripe.String(paymentIntentID),
-		Amount:        stripe.Int64(amountCents),
+		Amount:        new(amountCents),
 		Params: stripe.Params{
 			IdempotencyKey: stripe.String(requestKey),
 			Metadata:       map[string]string{refundKeyTag: requestKey},

@@ -6,6 +6,7 @@ package admin
 import (
 	"context"
 	"errors"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -41,10 +42,8 @@ var Statuses = []string{"pending", "picking", "shipped", "delivered", "completed
 
 // ParseStatus maps a query value to a fulfilment state, or "" for all.
 func ParseStatus(s string) string {
-	for _, known := range Statuses {
-		if s == known {
-			return s
-		}
+	if slices.Contains(Statuses, s) {
+		return s
 	}
 	return ""
 }

@@ -41,13 +41,7 @@ func TestEveryPolicyRouteHasADocument(t *testing.T) {
 		}
 	}
 	for path := range policies {
-		found := false
-		for _, r := range routed {
-			if r == path {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(routed, path)
 		if !found {
 			t.Errorf("%q has a document and no route", path)
 		}

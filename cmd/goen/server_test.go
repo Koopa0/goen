@@ -61,7 +61,7 @@ func TestWebhookSurvivesTheMiddlewareChain(t *testing.T) {
 // permits the redirect that sends a customer to Stripe's card form.
 func TestCSPAllowsTheHandoverToStripe(t *testing.T) {
 	var directive string
-	for _, d := range strings.Split(contentSecurityPolicy, ";") {
+	for d := range strings.SplitSeq(contentSecurityPolicy, ";") {
 		if strings.HasPrefix(strings.TrimSpace(d), "form-action") {
 			directive = strings.TrimSpace(d)
 		}

@@ -3,6 +3,7 @@ package pages
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -191,10 +192,7 @@ func (v *ProductView) AvailableText() string { return strconv.FormatInt(int64(v.
 
 // MaxQuantity bounds the quantity input to what can actually be sold.
 func (v *ProductView) MaxQuantity() string {
-	n := v.Available
-	if n > 99 {
-		n = 99
-	}
+	n := min(v.Available, 99)
 	if n < 1 {
 		n = 1
 	}
@@ -305,12 +303,7 @@ func (v *ProductView) CompareHref() string {
 
 // AlreadyComparing reports whether this product is already in the set.
 func (v *ProductView) AlreadyComparing() bool {
-	for _, slug := range v.Comparing {
-		if slug == v.Slug {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(v.Comparing, v.Slug)
 }
 
 // ComparingFull reports whether the set has no room left.

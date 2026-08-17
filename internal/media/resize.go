@@ -28,10 +28,7 @@ func Resize(data []byte, contentType string, width int) ([]byte, error) {
 	if b.Dx() <= width {
 		return data, nil
 	}
-	height := b.Dy() * width / b.Dx()
-	if height < 1 {
-		height = 1
-	}
+	height := max(b.Dy()*width/b.Dx(), 1)
 
 	dst := image.NewRGBA(image.Rect(0, 0, width, height))
 	draw.CatmullRom.Scale(dst, dst.Bounds(), src, b, draw.Over, nil)

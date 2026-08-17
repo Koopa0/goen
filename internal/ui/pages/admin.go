@@ -34,10 +34,7 @@ func (v AdminVariant) SafetyText() string { return strconv.FormatInt(int64(v.Saf
 
 // SellableText is how many may actually be sold.
 func (v AdminVariant) SellableText() string {
-	n := v.Stock - v.Safety
-	if n < 0 {
-		n = 0
-	}
+	n := max(v.Stock-v.Safety, 0)
 	return strconv.FormatInt(int64(n), 10)
 }
 

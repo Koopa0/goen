@@ -82,10 +82,7 @@ func (v AdminProductVariant) Compare() string {
 
 // StockText is what is on the shelf and what of it is sellable.
 func (v AdminProductVariant) StockText(ctx context.Context) string {
-	sellable := v.Stock - v.SafetyStock
-	if sellable < 0 {
-		sellable = 0
-	}
+	sellable := max(v.Stock-v.SafetyStock, 0)
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminStockOf), v.Stock, sellable)
 }
 
