@@ -1,9 +1,4 @@
 -- The root categories only; children hang off these.
--- name: HomeCategories :many
-SELECT id, slug, localized_name(name, name_en, @locale::text) AS name, icon_key
-FROM categories
-WHERE parent_id IS NULL
-ORDER BY position;
 
 -- Bayesian-averaged rating (prior weight 5, global mean), so a lone 5-star does
 -- not outrank a well-reviewed 4.6. status = 'active' is a literal, not a
@@ -116,11 +111,16 @@ LIMIT 1;
 
 -- A query rather than a list in Go: a category has one name and one place it is
 -- translated, and a second copy in the header drifts from the catalogue.
--- name: NavCategories :many
-SELECT slug, localized_name(name, name_en, @locale::text) AS name
+-- The header's row AND the home page's tiles: the same six rows in the same
+-- order, because two queries answering "in what order are the categories" gave
+-- two answers the moment CreateCategory's max(position)+1 handed out a
+-- duplicate. Nothing stops it: there is no unique index on (parent_id,
+-- position), so two staff creating a category at once both read the same max.
+-- name: RootCategories :many
+SELECT id, slug, localized_name(name, name_en, @locale::text) AS name, icon_key
 FROM categories
 WHERE parent_id IS NULL
-ORDER BY position, name;
+ORDER BY position, name, id;
 
 -- MIN across methods: the strip makes one claim, and the most generous true one
 -- is the lowest threshold any active method honours. coalesce AND cast, because

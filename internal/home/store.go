@@ -31,7 +31,7 @@ func (s *Store) Load(ctx context.Context, recommended int32) (pages.HomeView, er
 	if err != nil {
 		return pages.HomeView{}, err
 	}
-	cats, err := s.q.HomeCategories(ctx, string(i18n.FromContext(ctx)))
+	cats, err := s.q.RootCategories(ctx, string(i18n.FromContext(ctx)))
 	if err != nil {
 		return pages.HomeView{}, fmt.Errorf("read home categories: %w", err)
 	}
