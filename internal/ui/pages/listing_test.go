@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -65,5 +66,56 @@ func TestThePageMarksTheCategoryYouAreIn(t *testing.T) {
 	// slug precisely so an unrelated page never highlights a category.
 	if got := (ProductMeta(&ProductView{Name: "x", Brand: "y"})).Nav; got != "" {
 		t.Errorf("a product with no category marks %q", got)
+	}
+}
+
+// TestAComparisonCanBeBuiltFromAListing holds the one path into /compare.
+//
+// The comparison lives in the URL and nowhere else, which is what makes it
+// shareable and correct under the back button. That also means every link into
+// it has to carry the set — and none did. The PDP's button appended the product
+// it was on to whatever the PDP's own URL already held, /compare's table linked
+// each column back to a bare /p/{slug}, and the too-few empty state pointed at
+// the home page. So a shopper could reach /compare with exactly ONE product,
+// forever: a feature with a decision record, a localized spec table and a lock
+// of its own, that nothing on the site could produce a second column for.
+//
+// The listing is where somebody chooses between candidates, so the listing is
+// where the set is built. A GET form, because a comparison writes nothing.
+func TestAComparisonCanBeBuiltFromAListing(t *testing.T) {
+	t.Parallel()
+
+	view := ListingView{
+		Slug: "phones", Name: "手機",
+		Products: []ProductTile{
+			{Slug: "pixelight-9-pro", Name: "Pixelight 9 Pro", Comparable: true},
+			{Slug: "aurora-fold-2", Name: "Aurora Fold 2", Comparable: true},
+		},
+	}
+	html := renderToString(t, Listing(ListingMeta(i18n.WithLocale(t.Context(), i18n.ZhHant), view), view))
+
+	// The form's action and method, not merely a checkbox: a checkbox that
+	// submits to the listing filters the listing.
+	if !strings.Contains(html, `method="get" action="/compare"`) {
+		t.Error("the listing carries no GET form to /compare")
+	}
+	for _, slug := range []string{"pixelight-9-pro", "aurora-fold-2"} {
+		if !strings.Contains(html, `<input type="checkbox" name="p" value="`+slug+`"`) {
+			t.Errorf("no compare checkbox for %q; one product can never become two", slug)
+		}
+	}
+
+	// Every control needs a name, and two dozen controls called 比較 are two
+	// dozen identical announcements. check-layout asserts the name exists; only
+	// this can assert it says which product.
+	if !strings.Contains(html, `aria-label="把 Pixelight 9 Pro 加入比較"`) {
+		t.Error("the checkbox does not name its product")
+	}
+
+	// And the set survives a click back out of the table, or building a third
+	// column means starting from one again.
+	cmp := CompareView{Products: []CompareProduct{{Slug: "a"}, {Slug: "b"}}}
+	if got, want := cmp.ProductHref("a"), "/p/a?p=a&p=b"; got != want {
+		t.Errorf("ProductHref(a) = %q, want %q", got, want)
 	}
 }

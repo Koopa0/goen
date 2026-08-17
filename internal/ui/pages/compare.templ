@@ -51,7 +51,7 @@ templ Compare(p layouts.Page, v CompareView) {
 													height="120"
 												/>
 											}
-											<a class="goen-compare__name" href={ templ.SafeURL(item.Href()) }>{ item.Name }</a>
+											<a class="goen-compare__name" href={ templ.SafeURL(v.ProductHref(item.Slug)) }>{ item.Name }</a>
 											<span class="ui-cart-line__meta">{ item.Brand }</span>
 											<a class="ui-sm goen-compare__remove" href={ templ.SafeURL(v.RemoveHref(item.Slug)) }>
 												{ i18n.T(ctx, i18n.KeyRemove) }

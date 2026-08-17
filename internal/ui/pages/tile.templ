@@ -5,9 +5,28 @@ import (
 	"github.com/koopa0/goen/internal/ui/icons"
 )
 
+// compareForm submits the ticked slugs to /compare. A GET, because a
+// comparison writes nothing — the set is the URL and there is no state to keep.
+templ compareForm() {
+	<form class="goen-compare-pick" method="get" action="/compare">
+		{ children... }
+		<button class="ui-btn ui-btn--secondary goen-compare-pick__go" type="submit">
+			{ i18n.T(ctx, i18n.KeyCompareSelected) }
+		</button>
+	</form>
+}
+
 // Tile is one product card; the whole card is a single link.
 templ Tile(t ProductTile) {
-	<li>
+	<li class="goen-tile__cell">
+		if t.Comparable {
+			// Outside the card, never inside: the whole card is one link, and a
+			// control nested in an anchor is neither clickable nor valid.
+			<label class="goen-tile__compare">
+				<input type="checkbox" name="p" value={ t.Slug } aria-label={ t.CompareLabel(ctx) }/>
+				<span aria-hidden="true">{ i18n.T(ctx, i18n.KeyCompareAdd) }</span>
+			</label>
+		}
 		<a class="ui-product goen-tile" href={ templ.URL("/p/" + t.Slug) }>
 			<div class="ui-product__media">
 				if t.HasImage() {

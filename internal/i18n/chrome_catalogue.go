@@ -357,6 +357,17 @@ var (
 		ZhHant: "裡從商品頁加入比較,最多四個。",
 		En:     ".",
 	})
+	KeyCompareAdd = key("compare.add", Message{ZhHant: "比較", En: "Compare"})
+	// KeyCompareAddNamed is the checkbox's accessible name. Two dozen controls
+	// all called "Compare" is a screen reader reading one word two dozen times.
+	KeyCompareAddNamed = key("compare.add.named", Message{
+		ZhHant: "把 %s 加入比較",
+		En:     "Add %s to the comparison",
+	})
+	KeyCompareSelected = key("compare.selected", Message{
+		ZhHant: "比較所選商品",
+		En:     "Compare selected",
+	})
 	KeyCompareCaption = key("compare.caption", Message{
 		ZhHant: "商品規格比較",
 		En:     "Product specification comparison",

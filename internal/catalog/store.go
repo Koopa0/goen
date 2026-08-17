@@ -169,6 +169,7 @@ func tiles(rows []db.CategoryListingRow) []pages.ProductTile {
 			ImageAlt:     r.ImageAlt,
 			ImageWidth:   r.ImageWidth,
 			ImageHeight:  r.ImageHeight,
+			Comparable:   true,
 		})
 	}
 	return out
@@ -193,6 +194,7 @@ func searchTiles(rows []db.SearchProductsRow) []pages.ProductTile {
 			ImageAlt:     r.ImageAlt,
 			ImageWidth:   r.ImageWidth,
 			ImageHeight:  r.ImageHeight,
+			Comparable:   true,
 		})
 	}
 	return out

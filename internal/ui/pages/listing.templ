@@ -38,11 +38,13 @@ templ Listing(p layouts.Page, v ListingView) {
 							</p>
 						</div>
 					} else {
-						<ul class="goen-tiles__grid" role="list">
-							for _, t := range v.Products {
-								@Tile(t)
-							}
-						</ul>
+						@compareForm() {
+							<ul class="goen-tiles__grid" role="list">
+								for _, t := range v.Products {
+									@Tile(t)
+								}
+							</ul>
+						}
 						@pager(v.HasPrev(), v.HasNext(), v.PrevHref(), v.NextHref(), v.PageText(), v.PagesText())
 					}
 				</div>
@@ -183,11 +185,13 @@ templ Search(p layouts.Page, v SearchView) {
 			} else {
 				// The grid's heading, visually hidden: without it a tile's h3 skips a level.
 				<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
-				<ul class="goen-tiles__grid" role="list">
-					for _, t := range v.Products {
-						@Tile(t)
-					}
-				</ul>
+				@compareForm() {
+					<ul class="goen-tiles__grid" role="list">
+						for _, t := range v.Products {
+							@Tile(t)
+						}
+					</ul>
+				}
 				@pager(v.HasPrev(), v.HasNext(), v.PrevHref(), v.NextHref(), v.PageText(), v.PagesText())
 			}
 		</div>
