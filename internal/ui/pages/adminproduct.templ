@@ -303,6 +303,7 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 												maxlength="200"
 												placeholder={ i18n.T(ctx, i18n.KeyAdminAltText) }
 											/>
+											<label class="goen-sr-only" for={ "reuse-alt-en-" + img.Key }>{ i18n.T(ctx, i18n.KeyAdminProdAltEn) }</label>
 											<input class="ui-input ui-input--sm" id={ "reuse-alt-en-" + img.Key } name="alt_en" maxlength="200" placeholder="English alt text"/>
 											<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminProdReuse) }</button>
 										</form>
