@@ -38,19 +38,11 @@ func jpegBytes(t *testing.T, w, h int) []byte {
 }
 
 // TestAnUploadIsReEncodedNotStored proves goen stores its own bytes.
-//
-// This is the security property the package exists for.
-//
-// The bytes goen keeps are the bytes goen produced. An upload that decodes and
-// is re-encoded from its pixels cannot carry anything that is not pixels — no
-// HTML polyglot a browser might sniff as a page, no EXIF payload, no appended
-// archive. Sanitising the input would be a list of things to remember;
-// re-encoding is nothing left to remember.
 func TestAnUploadIsReEncodedNotStored(t *testing.T) {
 	clean := pngBytes(t, 40, 30)
 
-	// A real PNG with junk appended: still decodes, and the trailer is exactly
-	// what a polyglot smuggles a payload in.
+	// A real PNG with junk appended: still decodes, and the trailer is where a
+	// polyglot smuggles its payload.
 	payload := []byte(`<html><script>alert(1)</script>`)
 	dirty := append(append([]byte{}, clean...), payload...)
 
@@ -68,7 +60,6 @@ func TestAnUploadIsReEncodedNotStored(t *testing.T) {
 	if obj.Width != 40 || obj.Height != 30 {
 		t.Errorf("dimensions are %dx%d, want 40x30", obj.Width, obj.Height)
 	}
-	// And what came out is genuinely decodable as what it claims to be.
 	if _, err := png.Decode(bytes.NewReader(stored)); err != nil {
 		t.Errorf("the stored PNG does not decode: %v", err)
 	}
@@ -76,11 +67,6 @@ func TestAnUploadIsReEncodedNotStored(t *testing.T) {
 
 // TestTheDigestIsOfWhatIsServed proves the digest names the output, not the
 // upload.
-//
-// Content addressing is only sound if the digest names the bytes a client will
-// receive. Taking it of the UPLOAD would let two files with the same pixels and
-// different trailers become two rows serving identical images — and would break
-// the immutability the year-long Cache-Control rests on.
 func TestTheDigestIsOfWhatIsServed(t *testing.T) {
 	clean := pngBytes(t, 20, 20)
 	withTrailer := append(append([]byte{}, clean...), []byte("junk")...)
@@ -106,10 +92,8 @@ func TestTheDigestIsOfWhatIsServed(t *testing.T) {
 	}
 }
 
-// TestNothingButAnImageIsAccepted proves the decoder decides, not the client.
-//
-// Every case here is a file a client could post with Content-Type: image/png
-// and a .png name. Neither is consulted — the decoder decides.
+// TestNothingButAnImageIsAccepted proves the decoder decides, not the client:
+// every case here could be posted as image/png with a .png name.
 func TestNothingButAnImageIsAccepted(t *testing.T) {
 	tests := []struct {
 		name string
@@ -136,10 +120,6 @@ func TestNothingButAnImageIsAccepted(t *testing.T) {
 
 // TestADecompressionBombIsRefusedBeforeItIsAllocated proves the header bound
 // runs before any pixel buffer.
-//
-// A tiny PNG can declare enormous dimensions: the file is 200 bytes and the
-// pixel buffer is gigabytes. A byte-size limit cannot see this, which is why
-// the header is checked separately and before the decode.
 func TestADecompressionBombIsRefusedBeforeItIsAllocated(t *testing.T) {
 	// Built by hand rather than encoded, because encoding one would itself
 	// allocate the buffer this test is about.
@@ -148,19 +128,15 @@ func TestADecompressionBombIsRefusedBeforeItIsAllocated(t *testing.T) {
 	if err == nil {
 		t.Fatal("a 50000x50000 declaration was accepted")
 	}
-	// ErrTooLarge and not ErrNotAnImage, and the difference is the whole point.
-	// This file also fails the FULL decode — it has no pixel data — so a test
-	// that only asks whether something was refused stays green with the header
-	// check deleted, which the mutation run shows. ErrTooLarge can only come
-	// from boundsOK, which runs before any pixel buffer is allocated; a bomb
-	// that reaches the decoder costs 10GB to refuse.
+	// ErrTooLarge specifically: this file also fails the full decode, so asking
+	// only whether it was refused stays green with the header check deleted.
 	if !errors.Is(err, ErrTooLarge) {
 		t.Errorf("a decompression bomb was refused with %v, want ErrTooLarge — "+
 			"that means it was caught by the decoder rather than by the header "+
 			"check, and a real bomb would have been allocated first", err)
 	}
 
-	// The boundary, both sides, so the limit is the limit and not roughly it.
+	// The boundary, both sides.
 	if err := boundsOK(MaxDimension, 1); err != nil {
 		t.Errorf("a %dx1 image was refused: %v", MaxDimension, err)
 	}
@@ -190,8 +166,7 @@ func forgedPNGHeader(w, h uint32) []byte {
 	return buf.Bytes()
 }
 
-// be32 is a big-endian uint32, which is how PNG writes every length and
-// dimension.
+// be32 is a big-endian uint32, which is how PNG writes a length.
 func be32(v uint32) []byte {
 	return []byte{byte(v >> 24 & 0xFF), byte(v >> 16 & 0xFF), byte(v >> 8 & 0xFF), byte(v & 0xFF)}
 }
@@ -216,11 +191,6 @@ func crcOf(b []byte) []byte {
 
 // TestTheOutputFormatIsGoensChoice proves the stored format comes from the
 // decode, never from a header.
-//
-// PNG stays PNG: a logo or screenshot with flat colour and hard edges is ruined
-// by JPEG, and transparency becomes black. Everything else becomes JPEG,
-// because a photograph as PNG is several times the bytes for nothing visible.
-// The decision comes from the DECODED format, never from a client's header.
 func TestTheOutputFormatIsGoensChoice(t *testing.T) {
 	tests := []struct {
 		name string
@@ -255,11 +225,8 @@ func gifBytes(t *testing.T, w, h int) []byte {
 	return buf.Bytes()
 }
 
-// TestByteSizeDescribesTheStoredBytes proves the recorded size is the real
-// one.
-//
-// media_objects_size_matches enforces it in the schema; this catches it before
-// the write, where the message can say what went wrong.
+// TestByteSizeDescribesTheStoredBytes proves the recorded size is the real one,
+// which media_objects_size_matches also enforces in the schema.
 func TestByteSizeDescribesTheStoredBytes(t *testing.T) {
 	obj, data, err := Normalise(bytes.NewReader(pngBytes(t, 64, 48)))
 	if err != nil {
@@ -271,18 +238,8 @@ func TestByteSizeDescribesTheStoredBytes(t *testing.T) {
 }
 
 // TestSrcsetNeverMisleadsTheBrowser proves every candidate states a width the
-// image really has.
-//
-// A srcset is a promise about pixel widths, and a browser both CHOOSES and
-// LAYS OUT on those numbers. Two ways to break that promise, and both are easy
-// to write without noticing:
-//
-//   - Mixing a bare candidate with w-descriptors. HTML allows all-w, all-x, or
-//     one bare candidate alone; mixed, the bare one is a parse error and the
-//     full-size image drops silently out of the set.
-//   - Offering a width the original does not have. Resize refuses to upscale,
-//     so an 800w candidate for a 600px image serves 600 pixels while claiming
-//     800.
+// image really has, and that no bare candidate is mixed with w-descriptors —
+// HTML makes that a parse error, and the full-size image drops out silently.
 func TestSrcsetNeverMisleadsTheBrowser(t *testing.T) {
 	const d = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
 
@@ -319,8 +276,7 @@ func TestSrcsetNeverMisleadsTheBrowser(t *testing.T) {
 			if got == "" {
 				return
 			}
-			// Every candidate carries a descriptor, or the set is malformed.
-			for _, candidate := range strings.Split(got, ", ") {
+			for candidate := range strings.SplitSeq(got, ", ") {
 				if !strings.HasSuffix(candidate, "w") || !strings.Contains(candidate, " ") {
 					t.Errorf("candidate %q has no width descriptor", candidate)
 				}
@@ -331,10 +287,6 @@ func TestSrcsetNeverMisleadsTheBrowser(t *testing.T) {
 
 // TestResizeNeverUpscalesAndOnlyServesKnownWidths proves the width allowlist
 // bounds the work an anonymous request can ask for.
-//
-// The allowlist is the security property: resizing costs CPU proportional to
-// the output, so an open ?w= is a denial of service that costs the attacker one
-// request.
 func TestResizeNeverUpscalesAndOnlyServesKnownWidths(t *testing.T) {
 	original := pngBytes(t, 1200, 900)
 	_, stored, err := Normalise(bytes.NewReader(original))
@@ -358,7 +310,7 @@ func TestResizeNeverUpscalesAndOnlyServesKnownWidths(t *testing.T) {
 		t.Errorf("the 400 rendition is %d tall, want 300 — the aspect ratio moved", cfg.Height)
 	}
 
-	// Upscaling returns the original bytes rather than a bigger, worse file.
+	// Upscaling returns the original bytes.
 	narrow := pngBytes(t, 200, 100)
 	_, storedNarrow, err := Normalise(bytes.NewReader(narrow))
 	if err != nil {
@@ -372,7 +324,6 @@ func TestResizeNeverUpscalesAndOnlyServesKnownWidths(t *testing.T) {
 		t.Error("a 200px image asked for at 800 was enlarged rather than returned as-is")
 	}
 
-	// Anything off the allowlist is refused, including plausible sizes.
 	for _, w := range []int{0, -1, 1, 399, 401, 1600, 100000} {
 		if _, err := Resize(stored, "image/png", w); err == nil {
 			t.Errorf("width %d was rendered; only %v are allowed", w, assets.MediaWidths)

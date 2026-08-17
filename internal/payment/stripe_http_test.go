@@ -1,23 +1,13 @@
 package payment
 
-// The HTTP interface to Stripe: the part that actually leaves the process.
-//
-// The rest of this package is covered from the outside — signature verification,
-// which events are captures, how a session's expiry is derived. What only these
-// tests can see is the REQUEST goen builds and what it makes of the three answers
-// Stripe can give. [Gateway.ResumeSession]'s five lines of wiring carry a rule
-// its own doc comment calls the double charge arriving through the code that
-// exists to prevent it, and nothing above the wire executes them.
-//
-// These are white-box (`package payment`) so the client can be pointed at an
-// httptest.Server. That is not an interface introduced for a test — rules/
-// interfaces.md forbids exactly that — it is the vendor's own backend injection,
-// and the alternative is a hand-written fake of Stripe that would agree with
-// whatever goen believes.
+// The HTTP interface to Stripe: what goen puts on the wire, and what it makes of
+// the answers. White-box so the SDK's own backend injection can point the client
+// at an httptest.Server.
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -34,21 +24,14 @@ import (
 
 // call is one request the SDK made, recorded off the wire.
 type call struct {
-	method string
-	path   string
-	form   url.Values
-	// idempotency is the header goen sets so two POSTs that both read "no live
-	// session" get one session out of Stripe.
+	method      string
+	path        string
+	form        url.Values
 	idempotency string
 }
 
-// stripeAt returns a Gateway talking to h instead of api.stripe.com, and the
-// log of what it sent.
-//
-// MaxNetworkRetries is 0 deliberately. The SDK retries 5xx and 429 twice by
-// default, so a test that asserts on a refusal would otherwise see three
-// requests and take a second doing it — and a test asserting "one request was
-// made" would be asserting the retry policy rather than goen's behaviour.
+// stripeAt returns a Gateway talking to h instead of api.stripe.com, and the log
+// of what it sent. MaxNetworkRetries is 0 so a refused request is one request.
 func stripeAt(t *testing.T, h func(*call) (int, string)) (*Gateway, *[]call) {
 	t.Helper()
 	var log []call
@@ -79,8 +62,7 @@ func stripeAt(t *testing.T, h func(*call) (int, string)) (*Gateway, *[]call) {
 	backend := stripe.GetBackendWithConfig(stripe.APIBackend, &stripe.BackendConfig{
 		URL: stripe.String(srv.URL), MaxNetworkRetries: &noRetries,
 	})
-	// Keys shaped like Stripe's, so the SDK builds an ordinary Authorization
-	// header; they authenticate nothing and reach nothing but the server above.
+	// Shaped like Stripe's so the SDK builds an ordinary Authorization header.
 	const testKey = "sk_test_notarealkey"
 	return &Gateway{ //nolint:gosec // G101: both strings are test fixtures
 		client: stripe.NewClient(testKey, stripe.WithBackends(&stripe.Backends{
@@ -91,8 +73,7 @@ func stripeAt(t *testing.T, h func(*call) (int, string)) (*Gateway, *[]call) {
 	}, &log
 }
 
-// anOrder is a two-line order owing more than its lines, so the remainder line
-// is exercised on every request built from it.
+// anOrder owes more than its lines, so the remainder line is always exercised.
 func anOrder() *Order {
 	return &Order{
 		Number: "GO-260806-000007",
@@ -108,15 +89,8 @@ func anOrder() *Order {
 }
 
 // TestTheSessionRequestCarriesWhatStripeCharges reads the request off the wire.
-//
-// The figures are INDEPENDENT literals, not expressions over the fixture, for
-// the reason rules/testing.md gives about wire expectations: computing 299780
-// from o.TotalCents would pass with the amount doubled at both ends.
-//
-// The unscaled amount is the point, and this is the only place it is asserted.
-// Mistake #18 in CLAUDE.md is dividing a TWD amount by 100 because the docs call
-// TWD zero-decimal — which is true of manual PAYOUTS and false of charges, and
-// undercharges by 100x.
+// The figures are independent literals, never expressions over the fixture, so
+// an amount wrong at both ends still fails.
 func TestTheSessionRequestCarriesWhatStripeCharges(t *testing.T) {
 	g, log := stripeAt(t, func(*call) (int, string) {
 		return http.StatusOK, `{"id":"cs_test_created","object":"checkout.session",` +
@@ -162,20 +136,8 @@ func TestTheSessionRequestCarriesWhatStripeCharges(t *testing.T) {
 		}
 	}
 
-	// payment_method_types is PINNED, and this assertion is written from the
-	// CONTRACT rather than from the code: money must not arrive after the hold
-	// expires.
-	//
-	// An assertion written from the IMPLEMENTATION demands the opposite — that
-	// the field be ABSENT, because a comment beside it says it is omitted on
-	// purpose — and it passes for as long as the defect lives. That is the shape
-	// docs/reviews/07 records: a green test holding a bug in place, and only a
-	// test written from the contract can disagree with the code it covers.
-	//
-	// The contract is on the pin in StartSession: a delayed method settles after
-	// the session goen deliberately bounded by the stock hold, so the sweeper
-	// releases the units and the capture then succeeds against stock that is
-	// gone.
+	// Written from the contract and not from the code: money must not arrive
+	// after the stock hold the session is bounded by has expired.
 	if got := sent.form["payment_method_types[0]"]; len(got) != 1 || got[0] != "card" {
 		t.Errorf("form[payment_method_types[0]] = %v, want [card]; without the pin "+
 			"the Dashboard may offer a DELAYED method, whose money settles days "+
@@ -196,13 +158,8 @@ func TestTheSessionRequestCarriesWhatStripeCharges(t *testing.T) {
 	}
 }
 
-// TestTheSessionExpiresWithTheStockHold reads expires_at off the wire.
-//
-// expires_at comes from the RESERVATION. Thirty minutes from the session's own
-// creation, against a hold that runs from PlaceOrder, makes the session outlive
-// the goods behind it — and a customer finishes paying for stock the sweeper has
-// released and sold. This is the only place the field Stripe actually receives is
-// read.
+// TestTheSessionExpiresWithTheStockHold reads expires_at off the wire; it comes
+// from the reservation.
 func TestTheSessionExpiresWithTheStockHold(t *testing.T) {
 	g, log := stripeAt(t, func(*call) (int, string) {
 		return http.StatusOK, `{"id":"cs_x","object":"checkout.session","url":"https://x.test","status":"open"}`
@@ -220,33 +177,87 @@ func TestTheSessionExpiresWithTheStockHold(t *testing.T) {
 	}
 }
 
-// TestASessionIsNeverAskedForLessThanTheOrderTotals is the guard against sending
-// Stripe a page that adds up to less than goen will reconcile against.
-func TestASessionIsNeverAskedForLessThanTheOrderTotals(t *testing.T) {
-	g, log := stripeAt(t, func(*call) (int, string) {
-		return http.StatusOK, `{"id":"cs_x","object":"checkout.session","url":"https://x.test","status":"open"}`
-	})
-	o := anOrder()
-	o.TotalCents = 100 // far below its own lines
+// TestTheSessionTotalsWhatTheOrderOwes holds the one invariant Stripe's page
+// has to satisfy: payments_capture_matches_order refuses a capture that is not
+// exactly order_amount_owed, so the line items must sum to it.
+//
+// Both directions, and the second is the one that mattered. Shipping and tax add
+// to the lines; a coupon and store credit take away. StartSession refused a
+// negative difference outright, so an order reduced by either could never be
+// paid — and free delivery over the advertised threshold means any discount at
+// all lands below the lines. The customer's credit was debited and their coupon
+// spent by the checkout transaction, so the refusal came after the money.
+//
+// The previous version of this test asserted the refusal. It was written from
+// the implementation, and it had to be wrong for the code to look right.
+func TestTheSessionTotalsWhatTheOrderOwes(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		owed  int64
+		items int
+	}{
+		// anOrder()'s lines are 199900 + 2*49900 = 299700. Every figure below is
+		// a hand-computed literal, never an expression over the fixture, so an
+		// amount wrong at both ends still fails.
+		{name: "shipping on top", owed: 299780, items: 3},
+		{name: "nothing added or taken", owed: 299700, items: 2},
+		// A reduced order collapses to ONE line at the owed price. Stripe
+		// rejects a negative unit_amount — verified against the real API, which
+		// answered 400 "Invalid non-negative integer" to the version that sent
+		// the reduction as its own line.
+		{name: "a coupon takes it below the lines", owed: 294700, items: 1},
+		{name: "store credit takes most of it", owed: 9700, items: 1},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g, log := stripeAt(t, func(*call) (int, string) {
+				return http.StatusOK, `{"id":"cs_x","object":"checkout.session","url":"https://x.test","status":"open"}`
+			})
+			o := anOrder()
+			o.TotalCents = tt.owed
 
-	_, _, err := g.StartSession(t.Context(), o, 0)
-	if err == nil {
-		t.Fatal("StartSession() accepted an order totalling less than its lines")
-	}
-	if !strings.Contains(err.Error(), "below its lines") {
-		t.Errorf("error = %v, want it to name the mismatch", err)
-	}
-	if len(*log) != 0 {
-		t.Errorf("made %d requests; the refusal must happen before Stripe is asked",
-			len(*log))
+			if _, _, err := g.StartSession(t.Context(), o, 0); err != nil {
+				t.Fatalf("StartSession() refused an order owing %d: %v", tt.owed, err)
+			}
+			if len(*log) != 1 {
+				t.Fatalf("made %d requests, want 1", len(*log))
+			}
+
+			// Sum what actually left the process, from the wire rather than from
+			// the code's own arithmetic.
+			form := (*log)[0].form
+			var total int64
+			var n int
+			for i := 0; ; i++ {
+				amt := form.Get(fmt.Sprintf("line_items[%d][price_data][unit_amount]", i))
+				if amt == "" {
+					break
+				}
+				qty := form.Get(fmt.Sprintf("line_items[%d][quantity]", i))
+				a, err := strconv.ParseInt(amt, 10, 64)
+				if err != nil {
+					t.Fatalf("unit_amount %q: %v", amt, err)
+				}
+				q, err := strconv.ParseInt(qty, 10, 64)
+				if err != nil {
+					t.Fatalf("quantity %q: %v", qty, err)
+				}
+				total += a * q
+				n++
+			}
+			if n != tt.items {
+				t.Errorf("sent %d line items, want %d", n, tt.items)
+			}
+			if total != tt.owed {
+				t.Errorf("Stripe's page totals %d, want %d — capture_payment records "+
+					"what the provider charged and payments_capture_matches_order "+
+					"refuses anything but order_amount_owed", total, tt.owed)
+			}
+		})
 	}
 }
 
 // TestTheHostedPageFollowsTheVisitorsLanguage covers the one page in the flow
 // goen does not control.
-//
-// A locale pinned to zh-TW makes the step where being unsure what you are
-// agreeing to matters most Chinese for everybody.
 func TestTheHostedPageFollowsTheVisitorsLanguage(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
@@ -271,13 +282,9 @@ func TestTheHostedPageFollowsTheVisitorsLanguage(t *testing.T) {
 	}
 }
 
-// TestOnlyAnOpenSessionIsResumable is the rule ResumeSession exists for.
-//
-// `open` false means "do not send them back here"; the CALLER then decides
-// whether a new session is legal. What must never happen is `open` true for a
-// session with money in flight, or an error read as "not open" — the doc comment
-// calls the second one the double charge arriving through the code that exists
-// to prevent it, and this is what executes both branches.
+// TestOnlyAnOpenSessionIsResumable is the rule ResumeSession exists for: never
+// `open` for a session with money in flight, and never an error read as "not
+// open".
 func TestOnlyAnOpenSessionIsResumable(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
@@ -330,11 +337,7 @@ func TestOnlyAnOpenSessionIsResumable(t *testing.T) {
 }
 
 // TestCancellingClosesTheCheckoutAtStripe covers the request that closes a
-// cancelled order's checkout.
-//
-// Cancelling releases the stock and returns the credit; leaving the checkout
-// PAYABLE on top of that means "cancel, then finish paying on the tab that is
-// still open" puts money against an order whose goods are back on the shelf.
+// cancelled order's checkout, whose goods are already back on the shelf.
 func TestCancellingClosesTheCheckoutAtStripe(t *testing.T) {
 	g, log := stripeAt(t, func(*call) (int, string) {
 		return http.StatusOK, `{"id":"cs_open","object":"checkout.session","status":"expired"}`
@@ -354,13 +357,7 @@ func TestCancellingClosesTheCheckoutAtStripe(t *testing.T) {
 }
 
 // TestStripeDecidesWhetherASessionCanBeClosed is the half that is easy to get
-// backwards.
-//
-// goen must NOT decide for itself that a session has no money in it. Its own
-// payment row still says requires_payment until the webhook lands, so a customer
-// who paid two seconds ago looks unpaid from here. Stripe refuses to expire
-// anything but an open session, and that refusal reaching the caller — rather
-// than being swallowed as success — is what makes the provider the authority.
+// backwards: a customer who paid two seconds ago looks unpaid from here.
 func TestStripeDecidesWhetherASessionCanBeClosed(t *testing.T) {
 	g, _ := stripeAt(t, func(*call) (int, string) {
 		return http.StatusBadRequest, `{"error":{"type":"invalid_request_error",` +
@@ -378,7 +375,7 @@ func TestStripeDecidesWhetherASessionCanBeClosed(t *testing.T) {
 }
 
 // TestADisabledGatewayMakesNoRequest covers the keyless deployment, where the
-// site still sells and the payment page says 金流尚未啟用.
+// site still sells and the payment page says payment is not configured.
 func TestADisabledGatewayMakesNoRequest(t *testing.T) {
 	g, err := NewGateway("", "", "https://goen.example")
 	if err != nil {
@@ -388,8 +385,7 @@ func TestADisabledGatewayMakesNoRequest(t *testing.T) {
 		t.Fatal("a gateway with no key reports itself enabled")
 	}
 
-	// Each of the three must refuse locally. A nil client reached over the wire
-	// is a panic in a handler; ErrDisabled is a page that says so.
+	// Each must refuse locally: a nil client reached over the wire panics.
 	if _, _, err := g.StartSession(t.Context(), anOrder(), 0); !errors.Is(err, ErrDisabled) {
 		t.Errorf("StartSession() error = %v, want ErrDisabled", err)
 	}
@@ -402,11 +398,6 @@ func TestADisabledGatewayMakesNoRequest(t *testing.T) {
 }
 
 // TestTheRequestCarriesTheCallersDeadline proves the context reaches the wire.
-//
-// A cancellation expires sessions after its own transaction has committed, on
-// the request's context — so a customer who closes the tab must not leave the
-// call hanging, and a context that was dropped on the way to the SDK would look
-// identical until it mattered.
 func TestTheRequestCarriesTheCallersDeadline(t *testing.T) {
 	g, log := stripeAt(t, func(*call) (int, string) {
 		return http.StatusOK, `{"id":"cs_1","object":"checkout.session","status":"expired"}`

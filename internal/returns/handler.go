@@ -16,11 +16,8 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// OrderAccess is the one thing this package needs from internal/cart: whether the
-// browser making this request holds a token for the order it is asking about.
-//
-// Defined here, by the consumer. internal/cart returns its concrete *Store and knows
-// nothing about this interface.
+// OrderAccess reports whether the browser making this request holds a token for
+// the order it is asking about.
 type OrderAccess interface {
 	PlacedHere(ctx context.Context, r *http.Request, number string, secure bool) bool
 }
@@ -41,9 +38,7 @@ func NewHandler(s *Store, access OrderAccess, log *slog.Logger, secureCookies bo
 	return &Handler{store: s, access: access, log: log, secure: secureCookies}
 }
 
-// Page shows what may be sent back.
-//
-// GET /orders/{number}/return
+// Page serves GET /orders/{number}/return.
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	o, ok := h.ownOrder(w, r)
 	if !ok {
@@ -53,13 +48,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		pages.ReturnsMeta(r.Context(), o.Number), viewOf(r.Context(), o, nil, "")))
 }
 
-// Submit files the request.
-//
-// POST /orders/{number}/return
-//
-// A plain form. Each returnable line carries a number input named for its own
-// id, so the request is fully expressed in the body and nothing about it needs
-// scripting.
+// Submit serves POST /orders/{number}/return.
 func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
@@ -77,9 +66,6 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 		if raw == "" {
 			continue
 		}
-		// Bounded parse. An unparseable or negative quantity is the form being
-		// hand-edited, and Validate refuses it — but a bound here keeps a
-		// twenty-digit number out of the int32 conversion entirely.
 		n, err := strconv.ParseInt(raw, 10, 32)
 		if err != nil || n < 0 || n > int64(l.Returnable) {
 			h.reject(w, r, o, req, i18n.T(r.Context(), i18n.KeyReturnTooMany))
@@ -98,9 +84,6 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	err := h.store.Open(r.Context(), o.Number, userID, req)
 	switch {
 	case err == nil:
-		// 303, so a reload cannot file a second request. o.Number came back
-		// from the database, so it matches orders_number_format and cannot
-		// steer the redirect.
 		http.Redirect(w, r, "/orders/"+o.Number+"/return?filed=1", http.StatusSeeOther)
 	case errors.Is(err, ErrAlreadyOpen):
 		h.reject(w, r, o, req, i18n.T(r.Context(), i18n.KeyReturnAlreadyOpen))
@@ -123,11 +106,9 @@ func (h *Handler) reject(w http.ResponseWriter, r *http.Request, o *Order, req *
 		pages.ReturnsMeta(r.Context(), o.Number), viewOf(r.Context(), o, req, msg)))
 }
 
-// ownOrder loads an order the requester may act on, or writes the refusal.
-//
-// The same gate as the confirmation and payment pages: an order number is a
-// per-day counter, so knowing one is not authorisation. A stranger gets the 404
-// an absent order gets.
+// ownOrder loads an order the requester may act on, or writes the refusal. An
+// order number is a per-day counter, so knowing one is not authorisation: a
+// stranger gets the 404 an absent order gets.
 func (h *Handler) ownOrder(w http.ResponseWriter, r *http.Request) (*Order, bool) {
 	number := r.PathValue("number")
 	if !h.access.PlacedHere(r.Context(), r, number, h.secure) && !h.ownedBySignedInUser(r, number) {
@@ -170,8 +151,7 @@ func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 		i18n.T(r.Context(), i18n.KeyOrderNotYours)))
 }
 
-// viewOf assembles the page. req is nil on a first render and carries the
-// submitted values when the form is being shown again after a refusal.
+// viewOf assembles the page; req is nil on a first render.
 func viewOf(ctx context.Context, o *Order, req *Request, errMsg string) pages.ReturnsView {
 	v := pages.ReturnsView{
 		Number: o.Number, HasOpen: o.HasOpen, Error: errMsg,

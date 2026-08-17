@@ -11,18 +11,16 @@ import (
 
 // CompareProduct is one column of a comparison.
 type CompareProduct struct {
-	Slug         string
-	Name         string
-	Summary      string
-	Brand        string
-	Category     string
-	PriceCents   int64
-	CompareCents int64
-	Rating       float64
-	RatingCount  int64
-	InStock      bool
-	// WarrantyMonths is zero when the shop has stated no term, which the table
-	// renders as an absence rather than as zero months.
+	Slug           string
+	Name           string
+	Summary        string
+	Brand          string
+	Category       string
+	PriceCents     int64
+	CompareCents   int64
+	Rating         float64
+	RatingCount    int64
+	InStock        bool
 	WarrantyMonths int
 	ImageURL       string
 	ImageSrcset    string
@@ -43,8 +41,7 @@ func (p CompareProduct) Stock(ctx context.Context) string {
 	return i18n.T(ctx, i18n.KeySoldOut)
 }
 
-// RatingText is the score, or "—" when nobody has rated it: zero is not a
-// rating and reads as the worst possible one.
+// RatingText is the score, or "—" when nobody has rated it.
 func (p CompareProduct) RatingText() string {
 	if p.RatingCount == 0 {
 		return "—"
@@ -67,15 +64,12 @@ func (p CompareProduct) Warranty(ctx context.Context) string {
 
 // CompareRow is one spec across every product.
 type CompareRow struct {
-	Label  string
-	Values []string
-	// SharedBy is how many of the compared products carry this label; the query
-	// orders the shared rows first.
+	Label    string
+	Values   []string
 	SharedBy int
 }
 
-// Value is the cell for column i, or "—" when that product does not state it:
-// a missing spec renders as an absence rather than shifting the columns.
+// Value is the cell for column i, or "—" when that product does not state it.
 func (r CompareRow) Value(i int) string {
 	if i < 0 || i >= len(r.Values) || r.Values[i] == "" {
 		return "—"
@@ -101,8 +95,7 @@ func (v CompareView) Enough() bool { return len(v.Products) >= 2 }
 // Count is how many products are being compared.
 func (v CompareView) Count() int { return len(v.Products) }
 
-// RemoveHref is the comparison without one product, so a column is dropped by a
-// plain link and the result is still shareable.
+// RemoveHref is the comparison without one product.
 func (v CompareView) RemoveHref(slug string) string {
 	var b strings.Builder
 	b.WriteString("/compare")

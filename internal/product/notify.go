@@ -15,8 +15,7 @@ import (
 // ErrNotifyInvalid is a restock request goen refused before the database saw it.
 var ErrNotifyInvalid = errors.New("product: invalid restock request")
 
-// RequestRestockNotice records that somebody wants to know when a variant is
-// back.
+// RequestRestockNotice records that somebody wants to know when a variant is back.
 func (s *Store) RequestRestockNotice(ctx context.Context, variantID, addr, userID string) error {
 	vid, err := uuid.Parse(variantID)
 	if err != nil {

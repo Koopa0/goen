@@ -17,39 +17,24 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-// Field bounds for an issue, counted in RUNES so a Chinese letter is measured the
-// way the person writing it would count it.
+// Field bounds for an issue, counted in RUNES.
 const (
 	MaxIssueSubjectRunes = 120
 	MaxIssueBodyRunes    = 20000
 )
 
 // ErrAlreadySent is an issue somebody is trying to send twice.
-//
-// Distinct from every other refusal because the caller's next step differs: there
-// is nothing to fix, and the mail has already gone.
 var ErrAlreadySent = errors.New("newsletter: that issue has already been sent")
 
-// ActionSend is what a send is called in audit_events.
-//
-// Declared here rather than beside internal/admin's other actions, because the
-// write is here: internal/admin imports this package, so the constant cannot live
-// there without a cycle, and a raw string at the call site is a name nothing can
-// find. internal/ui/pages/audit.go holds its label.
+// ActionSend is what a send is called in audit_events. It lives here rather than
+// beside internal/admin's other actions because internal/admin imports this
+// package.
 const ActionSend = "newsletter.send"
 
 // ErrNoActor is a send with nobody to attribute it to.
-//
-// Refused before anything is enqueued rather than left to record_audit_event's
-// own NOT NULL, so the caller gets a sentence instead of a SQLSTATE. Sending to
-// the whole list is the least anonymous thing the back office does.
 var ErrNoActor = errors.New("newsletter: a send needs a staff member to attribute it to")
 
 // ErrNoSuchIssue is an issue id that matches nothing.
-//
-// Its own sentinel rather than ErrNotFound, which reads "that link is not usable"
-// — a sentence about a confirmation link. Reusing it here put that message in the
-// log for a missing issue, which sends whoever is reading to the wrong feature.
 var ErrNoSuchIssue = errors.New("newsletter: no such issue")
 
 // Issue is one newsletter as the back office sees it.
@@ -64,9 +49,6 @@ type Issue struct {
 }
 
 // ValidateIssue returns the field errors in an issue, keyed by form field.
-//
-// Keys rather than sentences, for the reason every other validator in goen
-// returns them: this runs from a handler and from a test.
 func ValidateIssue(subject, body string) map[string]i18n.Key {
 	errs := map[string]i18n.Key{}
 	switch n := utf8.RuneCountInString(strings.TrimSpace(subject)); {
@@ -85,10 +67,6 @@ func ValidateIssue(subject, body string) map[string]i18n.Key {
 }
 
 // Compose writes a draft and returns its id. It sends nothing.
-//
-// Two steps rather than one, because a send is irreversible and a compose is not:
-// ten thousand mailboxes cannot be edited, so the moment of no return gets its own
-// button.
 func (s *Store) Compose(ctx context.Context, subject, body string) (string, error) {
 	if len(ValidateIssue(subject, body)) > 0 {
 		return "", errors.New("composing an issue: refused by validation")
@@ -103,25 +81,8 @@ func (s *Store) Compose(ctx context.Context, subject, body string) (string, erro
 }
 
 // Send enqueues one copy of an issue for everybody on the list, and stamps it.
-//
-// ONE transaction. The subscriber list, the messages and the stamp commit
-// together, which is what makes the recipient count honest and the send
-// unrepeatable:
-//
-//   - reading the list inside it means somebody who unsubscribes during the send
-//     is either in it or not, never half — the alternative is mailing an address
-//     the shop has already promised to stop mailing;
-//   - the stamp's own WHERE clause carries `sent_at IS NULL`, and that is the
-//     ONLY place "has this been sent?" is asked. There was a read-and-branch in Go
-//     above it as well, and it had to go: it answered first in the ordinary case,
-//     so the statement guard was almost never reached and a mutation deleting the
-//     WHERE clause only sometimes went red. A redundant check that makes the real
-//     one untestable is worse than no redundant check;
-//   - the count comes from the rows actually enqueued rather than from a figure
-//     read beforehand, so it cannot describe a send that did not happen.
-//
-// Every message goes in at [outbox.BulkPriority]. A receipt written a second later
-// is delivered first, which is the difference between a newsletter and an outage.
+// ONE transaction, and the stamp's own `sent_at IS NULL` is the ONLY place "has
+// this been sent?" is asked.
 func (s *Store) Send(ctx context.Context, issueID string, actor uuid.NullUUID) (int, error) {
 	id, err := uuid.Parse(issueID)
 	if err != nil {
@@ -155,13 +116,11 @@ func (s *Store) Send(ctx context.Context, issueID string, actor uuid.NullUUID) (
 		payload := email.NewsletterIssue{
 			Locale: to.Locale, Email: to.Email,
 			Subject: issue.Subject, Body: issue.Body,
-			// The token the subscriber already holds, so the link in this issue is
-			// the same one their welcome mail carried and the same one the next
-			// issue will carry.
+			// The token the subscriber already holds, so every link ever mailed
+			// to them goes on working.
 			UnsubscribeToken: to.UnsubscribeToken,
 		}
-		// Keyed on (issue, subscriber): a retried send cannot mail one person
-		// twice, and two issues to one address are two messages.
+		// Keyed on (issue, subscriber): a retried send cannot mail one person twice.
 		key := issueID + ":" + dedupeOf(to.UnsubscribeToken)
 		if enqErr := enqueueBulk(ctx, q, outbox.TopicNewsletterIssue, key, payload); enqErr != nil {
 			return 0, enqErr
@@ -180,10 +139,8 @@ func (s *Store) Send(ctx context.Context, issueID string, actor uuid.NullUUID) (
 		return 0, ErrAlreadySent
 	}
 
-	// In the SAME transaction as the send. The subject travels and the body does
-	// not: audit_events is append-only and erase_user does not reach it, so a
-	// letter copied there would outlive every other record of it, and
-	// newsletter_issues already holds the text.
+	// The subject travels and the body does not: audit_events is append-only and
+	// erase_user does not reach it.
 	after, err := json.Marshal(map[string]any{
 		"issue_id": issueID, "subject": issue.Subject, "recipients": len(subscribers),
 	})

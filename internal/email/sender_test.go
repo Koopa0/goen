@@ -13,20 +13,8 @@ import (
 )
 
 // TestTheEnvelopeSenderIsABareAddress proves what goes in MAIL FROM is a
-// reverse-path and not a header value.
-//
-// The default this repository ships is `goen <no-reply@goen.example>`, and it
-// was handed to smtp.Client.Mail verbatim — so goen wrote
-// `MAIL FROM:<goen <no-reply@goen.example>>` on the wire. A strict server
-// answers 501 and every message fails; a lenient one takes a bounce address
-// that is not an address. The package already owned the predicate that catches
-// it: Valid is applied to the recipient one line earlier and was never applied
-// to the sender.
-//
-// Asserted on envelopeFrom rather than through a live conversation because the
-// only observable form of it is a MAIL FROM line inside a required STARTTLS
-// session, and reaching that from a test would mean a TLS knob on SMTPSender
-// that exists for the test alone. Recorded here rather than dressed up.
+// reverse-path and not a header value. Asserted on envelopeFrom, because the
+// only live form of it is inside a required STARTTLS session.
 func TestTheEnvelopeSenderIsABareAddress(t *testing.T) {
 	t.Parallel()
 
@@ -70,8 +58,8 @@ func TestTheEnvelopeSenderIsABareAddress(t *testing.T) {
 			if got != tt.want {
 				t.Errorf("envelopeFrom(%q) = %q, want %q", tt.from, got, tt.want)
 			}
-			// The whole point: what comes out satisfies the rule the recipient
-			// is already held to. A display name does not.
+			// What comes out satisfies the rule the recipient is already held
+			// to; a display name does not.
 			if !Valid(got) {
 				t.Errorf("envelopeFrom(%q) = %q, which Valid refuses — that is the "+
 					"exact shape smtp.Client.Mail cannot be given", tt.from, got)
@@ -80,13 +68,9 @@ func TestTheEnvelopeSenderIsABareAddress(t *testing.T) {
 	}
 }
 
-// TestTheFromHeaderKeepsItsDisplayName proves the fix did not move the name off
-// the one line it belongs on.
-//
-// The envelope wants a bare address and the header wants the readable form.
-// Reducing both would make every letter goen sends arrive from a bare address
-// with no shop name against it, which is the failure a reader of the inbox sees
-// and no test of the envelope alone can.
+// TestTheFromHeaderKeepsItsDisplayName is the other half: the envelope wants a
+// bare address and the header wants the readable form, and reducing both is a
+// failure no test of the envelope alone can see.
 func TestTheFromHeaderKeepsItsDisplayName(t *testing.T) {
 	t.Parallel()
 
@@ -100,10 +84,6 @@ func TestTheFromHeaderKeepsItsDisplayName(t *testing.T) {
 
 // TestASenderWithAnUnusableFromNeverOpensASocket proves the refusal happens
 // before the connection.
-//
-// A From nobody can parse fails every message. Finding that out after a dial, a
-// greeting and a TLS handshake spends a worker slot per message on a
-// misconfiguration that one string comparison settles.
 func TestASenderWithAnUnusableFromNeverOpensASocket(t *testing.T) {
 	t.Parallel()
 
@@ -131,20 +111,9 @@ func TestASenderWithAnUnusableFromNeverOpensASocket(t *testing.T) {
 	}
 }
 
-// TestTheSocketHasADeadlineAndNotOnlyTheDial proves a server that goes quiet
-// cannot hold the sender.
-//
-// SendTimeout was put on a context and the context reached DialContext alone —
-// net/smtp has no context-aware call — so the greeting, STARTTLS, AUTH, MAIL,
-// RCPT and DATA all ran unbounded. This server completes the TCP handshake and
-// then says nothing, which is the cheapest thing a hostile or overloaded peer
-// can do, and before the deadline it stopped goen sending email at all: the
-// outbox drains serially, so one stalled connection stalls the queue behind it.
-//
-// Not synctest: the deadline is enforced by the kernel on a real socket rather
-// than by a Go timer, so a fake clock does not reach it. The bound comes from
-// the caller's own context instead — Send takes the earlier of that and
-// SendTimeout — which is what keeps this test short.
+// TestTheSocketHasADeadlineAndNotOnlyTheDial proves a server that completes the
+// TCP handshake and then says nothing cannot hold the sender. Not synctest: a
+// kernel socket deadline is not a Go timer, so a fake clock does not reach it.
 func TestTheSocketHasADeadlineAndNotOnlyTheDial(t *testing.T) {
 	t.Parallel()
 
@@ -154,8 +123,8 @@ func TestTheSocketHasADeadlineAndNotOnlyTheDial(t *testing.T) {
 		if err != nil {
 			return
 		}
-		// Accept and say nothing. Held open until the test ends, because a peer
-		// that closed the connection would fail the read for the wrong reason.
+		// Held open until the test ends: a peer that closed the connection would
+		// fail the read for the wrong reason.
 		t.Cleanup(func() { _ = c.Close() })
 	}()
 
@@ -171,9 +140,8 @@ func TestTheSocketHasADeadlineAndNotOnlyTheDial(t *testing.T) {
 		if err == nil {
 			t.Fatal("Send succeeded against a server that never spoke")
 		}
-		// Which error, not merely that one happened: a dial failure or a refused
-		// connection would also be non-nil here and would prove nothing about
-		// the phases after the dial.
+		// Which error, not merely that one happened: a dial failure would also
+		// be non-nil and would prove nothing about the phases after the dial.
 		if !errors.Is(err, os.ErrDeadlineExceeded) {
 			t.Errorf("Send() = %v, want a deadline on the socket — anything else "+
 				"means the read was ended by something other than the timeout", err)
@@ -199,22 +167,12 @@ func listener(t *testing.T) net.Listener {
 }
 
 // TestTheLogSenderNeverWritesTheBody proves the development fallback is not a
-// token dump.
-//
-// With no SMTP configured this sender returns nil, so the outbox stamps the
-// message DELIVERED and nothing looks wrong — while the body it logged holds a
-// live password-reset link, an email-verification token or a newsletter
-// unsubscribe token. A log is shipped, aggregated and kept; the mailbox it was
-// meant for is not.
-//
-// Both rows of ShowBody get a case, because a redaction with no way back would
-// have quietly broken local development of the three flows whose whole content
-// is the link.
+// token dump: it returns nil, so the outbox stamps the message DELIVERED and
+// nothing looks wrong while the logged body holds a live credential.
 func TestTheLogSenderNeverWritesTheBody(t *testing.T) {
 	t.Parallel()
 
-	// The one thing that must not reach a log. Named for what it is to a
-	// reader of the log rather than to gosec, which reads the identifier.
+	// Split so the literal does not read as a secret to gosec.
 	const liveResetLink = "https://goen.test/reset?" + "tok" + "en=cafebabe0123456789"
 
 	tests := []struct {
@@ -246,8 +204,6 @@ func TestTheLogSenderNeverWritesTheBody(t *testing.T) {
 					"log is a live credential in a place the customer cannot read "+
 					"and everybody else can:\n%s", got, tt.wantBody, line)
 			}
-			// The parts that are worth keeping are still there, or the line
-			// stops answering "did it fire, and to whom".
 			if !strings.Contains(line, "customer@example.com") {
 				t.Errorf("the recipient is missing from the log:\n%s", line)
 			}

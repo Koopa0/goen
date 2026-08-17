@@ -3,15 +3,7 @@ package pages
 import "strconv"
 
 // AdminCustomersView is the customer search.
-//
-// There was no customer page at all: credit was granted on one page, orders listed
-// on another, points and tier nowhere the shop could see. Answering "what is going
-// on with this customer" meant three pages and a guess.
 type AdminCustomersView struct {
-	// Term is what was TYPED and Searched is whether a search RAN — two fields for
-	// the reason the order queue needs two: a term below the minimum is a term
-	// nobody searched for, and one field made the page claim results it had never
-	// looked for.
 	Term     string
 	Searched bool
 	Rows     []AdminCustomerRow
@@ -31,8 +23,7 @@ type AdminCustomerRow struct {
 // Searching reports whether this page is showing results.
 func (v AdminCustomersView) Searching() bool { return v.Searched }
 
-// TermTooShort reports that something was typed and it was not enough to search
-// with, which the page says rather than showing an empty list.
+// TermTooShort reports that something was typed and it was too short to search.
 func (v AdminCustomersView) TermTooShort() bool { return v.Term != "" && !v.Searched }
 
 // Empty reports whether a search found nobody.
@@ -54,16 +45,13 @@ func (r AdminCustomerRow) DisplayName() string {
 
 // AdminCustomerView is one customer, whole.
 type AdminCustomerView struct {
-	ID       string
-	Email    string
-	Name     string
-	Phone    string
-	Since    string
-	Verified bool
-	Orders   int64
-	// SpentCents counts COMMITTED orders only. A cancelled order is not money the
-	// shop took, and counting it is the defect the committed/settled split exists
-	// to stop.
+	ID          string
+	Email       string
+	Name        string
+	Phone       string
+	Since       string
+	Verified    bool
+	Orders      int64
 	SpentCents  int64
 	CreditCents int64
 	Points      int64

@@ -5,8 +5,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// FindOrder is the lookup a guest who has lost their cookie uses. It writes the
-// same cookie placing an order writes, so it is a form and not a link.
+// FindOrder is the lookup a guest who has lost their cookie uses.
 templ FindOrder(p layouts.Page, v FindOrderView) {
 	@layouts.Base(p) {
 		<div class="goen-auth">

@@ -54,12 +54,7 @@ templ AdminProducts(p layouts.Page, v AdminProductsView) {
 	}
 }
 
-// AdminProductForm renders the create-or-edit form, its variants, and the
-// publish control.
-//
-// Three separate forms on one page, not one: editing the description, adding a
-// variant and publishing are three decisions, and a single submit button that
-// did all three would make each of them accidental.
+// AdminProductForm renders the create-or-edit form and its variants.
 templ AdminProductForm(p layouts.Page, v AdminProductView) {
 	@layouts.Base(p) {
 		<div class="goen-admin">
@@ -152,10 +147,6 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 						<label class="ui-label" for="p-description">{ i18n.T(ctx, i18n.KeyAdminProdDescription) }</label>
 						<textarea class="ui-input goen-admin__textarea" id="p-description" name="description" rows="8">{ v.Description }</textarea>
 					</div>
-					// The English copy, in one block below the Chinese so the shop can
-					// see what it is translating. Optional: goen never invents a
-					// translation, and a product with none renders its Chinese copy to
-					// an English visitor — readable, and visibly not translated.
 					<div class="ui-field">
 						<label class="ui-label" for="p-name-en">{ i18n.T(ctx, i18n.KeyAdminProdNameEn) }</label>
 						<input
@@ -255,9 +246,7 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 							} else {
 								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdNoImages) }</p>
 							}
-							// enctype is what makes the file reach the server at all. Without
-							// it a browser posts only the filename, and the handler sees an
-							// empty upload with no clue why.
+							// Without enctype a browser posts only the filename.
 							<form
 								class="goen-admin__form goen-admin__grant"
 								method="post"
@@ -284,10 +273,6 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 								<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminProdAddImage) }</button>
 							</form>
 							if v.HasLibrary() {
-								// A shot that belongs on three products is
-								// attached three times rather than uploaded
-								// three times. The bytes deduplicate either way;
-								// the staff work only does with a picker.
 								<h3 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminProdLibrary) }</h3>
 								<div class="goen-admin__library">
 									for _, img := range v.Library {
@@ -478,11 +463,6 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 									</div>
 								</div>
 								if v.HasOptions() {
-									// One select per axis, all named option_value, so the
-									// handler reads them as a list in the order they were
-									// rendered. A variant that names fewer than the product
-									// has options is refused: the picker could not resolve it
-									// and no page on the site would show it.
 									for _, o := range v.Options {
 										<div class="ui-field">
 											<label class="ui-label" for={ "v-opt-" + o.ID }>{ o.Name }</label>
@@ -508,10 +488,7 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 								</div>
 								<div class="ui-field">
 									<label class="ui-label" for="v-longest">{ i18n.T(ctx, i18n.KeyAdminProdLongest) }</label>
-									// The PARCEL, which decides which delivery methods the customer is
-									// offered. Blank means not measured — that refuses no method, so an
-									// unmeasured monitor is still offered 超商取貨 and the shop finds out
-									// at the counter. 空白代表未量測。
+									// The parcel, which decides which methods are offered; blank is unmeasured.
 									<input class="ui-input" id="v-longest" name="parcel_longest" type="number" min="0" step="1" inputmode="numeric"/>
 								</div>
 								<div class="ui-field">
@@ -531,10 +508,6 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 							</form>
 						</section>
 						<section>
-							// 規格表 rather than 規格, because this page already calls a
-							// VARIANT 規格 — the shop says 規格 for a SKU and 規格表 for
-							// the specification table a customer reads. Two things with
-							// one name on one page is how staff enter the wrong one.
 							<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminProdSpecs) }</h2>
 							<p class="goen-admin__hint">
 								{ i18n.T(ctx, i18n.KeyAdminProdSpecsLead) }
@@ -564,10 +537,6 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 																<span class="ui-cart-line__meta">{ sp.ValueEn }</span>
 															}
 														} else {
-															// Said out loud on the page that can fix
-															// it. An untranslated spec label is read
-															// in Chinese by every English visitor and
-															// by nobody at the shop.
 															<span class="ui-badge ui-badge--warn">{ i18n.T(ctx, i18n.KeyAdminUntranslated) }</span>
 														}
 													</td>

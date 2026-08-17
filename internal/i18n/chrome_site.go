@@ -1,12 +1,6 @@
 package i18n
 
-// The site's own pages and the chrome around every one of them: the header, the
-// footer, the promotional strip, 關於我們, 聯絡我們, the FAQ and the policy pages.
-
 var (
-	// The shop's own line about itself, which appears in the footer, in the
-	// document title and on the About page. Translated because it is goen's own
-	// copy: compiled into the binary rather than typed into a table.
 	KeyTagline = key("site.tagline", Message{
 		ZhHant: "讓買家與對的好商品相遇",
 		En:     "Bringing buyers and the right things together",
@@ -27,22 +21,17 @@ var (
 	KeyCategoryNav = key("nav.categories", Message{ZhHant: "商品分類", En: "Categories"})
 	KeyCloseBanner = key("site.banner.close", Message{ZhHant: "關閉公告", En: "Dismiss"})
 
-	// The newsletter form in the footer.
 	KeyNewsletter     = key("site.newsletter", Message{ZhHant: "電子報", En: "Newsletter"})
 	KeyNewsletterNote = key("site.newsletter.note", Message{
 		ZhHant: "每月一封,新品與比價重點,不灌水。",
 		En:     "One letter a month: new arrivals and what is worth comparing, nothing padded.",
 	})
-	KeyNewsletterSubmit = key("site.newsletter.submit", Message{ZhHant: "訂閱", En: "Subscribe"})
-	// The footer's inline acknowledgement, which htmx swaps in place. It says a
-	// letter is on its way, not that the subscription is done — the mailbox has
-	// to answer first.
+	KeyNewsletterSubmit     = key("site.newsletter.submit", Message{ZhHant: "訂閱", En: "Subscribe"})
 	KeyNewsletterInlineDone = key("site.newsletter.done", Message{
 		ZhHant: "確認信已寄出,請到信箱點一下連結。",
 		En:     "Check your inbox and follow the link to finish.",
 	})
 
-	// 關於我們.
 	KeyAboutTitle       = key("about.title", Message{ZhHant: "關於我們", En: "About us"})
 	KeyAboutDescription = key("about.description", Message{
 		ZhHant: "goen 是規格看得懂、保固靠得住的 3C 選品店。每件商品都先過我們自己的比較表。",
@@ -82,7 +71,6 @@ var (
 			"something at the same price, it does not go up.",
 	})
 
-	// 聯絡我們.
 	KeyContactTitle       = key("contact.title", Message{ZhHant: "聯絡我們", En: "Contact us"})
 	KeyContactDescription = key("contact.description", Message{
 		ZhHant: "goen 客服信箱、電話與 LINE 官方帳號,以及線上留言表單。週一至週五 09:00–18:00。",
@@ -128,10 +116,6 @@ var (
 		En:     "We cannot take the message right now. Try again shortly, or email us directly.",
 	})
 
-	// What the contact form's subjects are called. The VALUE stored in
-	// contact_messages stays as it is — it is what /admin/messages reads, and the
-	// back office is Chinese by decision — so this is a label beside a code, the
-	// same shape as an invoice type.
 	KeySubjectOrder       = key("contact.subject.order", Message{ZhHant: "訂單問題", En: "An order"})
 	KeySubjectReturns     = key("contact.subject.returns", Message{ZhHant: "退換貨", En: "Returns or exchanges"})
 	KeySubjectWarranty    = key("contact.subject.warranty", Message{ZhHant: "保固維修", En: "Warranty or repair"})
@@ -141,7 +125,6 @@ var (
 		En:     "A partnership",
 	})
 
-	// Contact-form validation.
 	KeyNameRequired2 = key("valid.contact.name", Message{ZhHant: "請填寫姓名", En: "Enter your name"})
 	KeyNameTooLong2  = key("valid.contact.name.long", Message{
 		ZhHant: "姓名請控制在 %d 個字以內",
@@ -176,13 +159,10 @@ var (
 		En:     "Cannot contain line breaks or control characters",
 	})
 
-	// The FAQ and the policy pages.
-	KeyPolicyEyebrow = key("policy.eyebrow", Message{ZhHant: "政策", En: "Policy"})
-	KeyPolicyHelp    = key("policy.help", Message{ZhHant: "說明", En: "Help"})
-	KeyPolicyMore    = key("policy.more", Message{ZhHant: "還有問題?", En: "Still stuck?"})
-	KeyPolicyMoreFAQ = key("policy.more.faq", Message{ZhHant: ",或看看", En: ", or have a look at the "})
-	// The full stop that closes a sentence with a link in the middle of it. A
-	// separate key because 。 and . are not the same character.
+	KeyPolicyEyebrow  = key("policy.eyebrow", Message{ZhHant: "政策", En: "Policy"})
+	KeyPolicyHelp     = key("policy.help", Message{ZhHant: "說明", En: "Help"})
+	KeyPolicyMore     = key("policy.more", Message{ZhHant: "還有問題?", En: "Still stuck?"})
+	KeyPolicyMoreFAQ  = key("policy.more.faq", Message{ZhHant: ",或看看", En: ", or have a look at the "})
 	KeyFAQEmptyTail   = key("faq.empty.tail", Message{ZhHant: "。", En: "."})
 	KeyFAQTitle       = key("faq.title", Message{ZhHant: "常見問題", En: "Frequently asked questions"})
 	KeyFAQDescription = key("faq.description", Message{
@@ -198,8 +178,6 @@ var (
 		ZhHant: "goen 的配送方式、運費與免運門檻。",
 		En:     "Delivery methods, charges and the free-delivery threshold.",
 	})
-	// The page reads the same rows the till prices from, which is why it can say
-	// this: a page that restates a fee is a page that eventually contradicts it.
 	KeyShippingSub = key("shipping.sub", Message{
 		ZhHant: "以下金額直接來自系統實際計費的設定。",
 		En:     "These figures come straight from what the checkout actually charges.",
@@ -218,17 +196,11 @@ var (
 		En:     "%s (not covered by free delivery)",
 	})
 
-	// One zone's surcharge. The zone NAME is the shop's own word and arrives as
-	// data; this is the sentence around it.
 	KeyShippingZoneSurcharge = key("shipping.zonesurcharge", Message{
 		ZhHant: "%s 另加 %s",
 		En:     "%s costs %s extra",
 	})
 
-	// How a list of things reads when it is spoken. A comma is not a comma
-	// everywhere: Chinese enumerates with 、 and English with ", ", and joining
-	// with the wrong one is the kind of detail that makes a page read as
-	// translated rather than written.
 	KeyListSeparator = key("common.listseparator", Message{
 		ZhHant: "、",
 		En:     ", ",
@@ -241,7 +213,6 @@ var (
 			"does not arrive, the goods go back on the shelf for somebody else.",
 	})
 
-	// 404.
 	KeyPageNotFound      = key("site.notfound", Message{ZhHant: "找不到這個頁面", En: "Page not found"})
 	KeyPageNotFoundTitle = key("site.notfound.title", Message{
 		ZhHant: "找不到頁面",
@@ -252,7 +223,6 @@ var (
 		En:     "Nothing lives at this address. Have a look at what else there is.",
 	})
 
-	// Long-form site copy that reaches a template as one paragraph.
 	KeyShippingTrackingBody = key("shipping.tracking.body", Message{
 		ZhHant: "付款完成後我們會開始備貨。出貨時會記錄物流商與查詢編號,您可以在訂單頁看到,系統也會寄信通知。",
 		En: "We start packing once the payment clears. When it ships we record the carrier " +

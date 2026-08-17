@@ -11,23 +11,17 @@ import (
 	"time"
 )
 
-// ECPay's published staging credentials. Public, documented, and usable without
-// a contract — which is what makes integrating the REAL API possible here at
-// all, rather than writing a fake issuer that emits invoice-shaped numbers.
+// ECPay's published staging credentials: public, documented and usable without
+// a contract.
 const (
 	testMerchantID = "2000132"
 	testHashKey    = "ejCk326UnaZWKisg"
 	testHashIV     = "q9jcZX8Ib9LM8wYk"
 )
 
-// TestTheEnvelopeRoundTrips proves seal and open are inverses.
-//
-// Weak on its own — a pair of no-ops round-trips too — so
-// TestTheEnvelopeIsAESNotSomethingElse below fixes the wire format against
-// independent expectations. This one exists to catch the ordering mistake that
-// would otherwise only surface as an envelope rejection from a third party with
-// no useful message: the URL-encode step comes BEFORE the cipher, and reversing
-// the two still round-trips locally while being unreadable to ECPay.
+// TestTheEnvelopeRoundTrips proves seal and open are inverses. Weak on its own —
+// a pair of no-ops round-trips too — so TestTheEnvelopeIsAESNotSomethingElse
+// fixes the wire format against independent expectations.
 func TestTheEnvelopeRoundTrips(t *testing.T) {
 	g, err := NewGateway(testMerchantID, testHashKey, testHashIV, StagingBaseURL)
 	if err != nil {
@@ -35,7 +29,7 @@ func TestTheEnvelopeRoundTrips(t *testing.T) {
 	}
 
 	// Chinese, a slash, a plus and an ampersand: every character the URL-encode
-	// step treats specially, and the catalogue is Chinese.
+	// step treats specially.
 	want := `{"ItemName":"保護殼 & 傳輸線","CarrierNum":"/ABC+123"}`
 	sealed, err := g.seal([]byte(want))
 	if err != nil {
@@ -54,23 +48,12 @@ func TestTheEnvelopeRoundTrips(t *testing.T) {
 }
 
 // TestTheEnvelopeIsAESNotSomethingElse fixes the wire format against a value
-// computed OUTSIDE this code.
-//
-// The expectation is a literal from `openssl enc -aes-128-cbc`, not something
-// seal produced. That is the rule for anything that has to agree with a third
-// party: a test that encrypts with the code under test and compares to itself
-// passes with the algorithm swapped, and every one of these choices is an
-// envelope ECPay refuses with no indication of which was wrong —
+// computed OUTSIDE this code — the .NET-UrlEncoded form of {"a":1}:
 //
 //	printf '%%7b%%22a%%22%%3a1%%7d' |
 //	  openssl enc -aes-128-cbc \
 //	    -K $(printf 'ejCk326UnaZWKisg' | xxd -p) \
 //	    -iv $(printf 'q9jcZX8Ib9LM8wYk' | xxd -p) | base64
-//
-// The plaintext there is the .NET-UrlEncoded form of {"a":1} — 17 bytes, which
-// is why the result is two blocks rather than one. Flip the mode to ECB, the
-// padding to zero-fill, the key derivation to a hash of the key, or drop the
-// URL-encode step, and this goes red.
 func TestTheEnvelopeIsAESNotSomethingElse(t *testing.T) {
 	const wantSealed = "GnpdFuAYZzKPghwgjwaxrwiQQYnT2LIzACtF7pm98Sk="
 
@@ -92,13 +75,8 @@ func TestTheEnvelopeIsAESNotSomethingElse(t *testing.T) {
 }
 
 // TestDotNetURLEncodeMatchesTheirEncoder holds the step that is easy to get
-// almost right.
-//
-// ECPay's own SDK is .NET, whose UrlEncode lower-cases hex digits and leaves
-// !()* alone. Go's url.QueryEscape upper-cases and escapes all four. A request
-// that differs decrypts on their side into a string their parser reads
-// differently — which surfaces as an envelope rejection with no indication of
-// which character was wrong.
+// almost right: .NET's UrlEncode lower-cases hex digits and leaves !()* alone,
+// where Go's url.QueryEscape upper-cases and escapes all four.
 func TestDotNetURLEncodeMatchesTheirEncoder(t *testing.T) {
 	tests := []struct {
 		name string
@@ -121,11 +99,8 @@ func TestDotNetURLEncodeMatchesTheirEncoder(t *testing.T) {
 }
 
 // TestPaddingRefusesWhatAThirdPartySends proves the unpad checks rather than
-// trusts.
-//
-// The last byte of a decrypted reply is a length, and it comes from somebody
-// else's server. Using it as a slice bound unverified is a panic — or worse, a
-// read — that a hostile or merely broken reply can trigger.
+// trusts: the last byte of a decrypted reply is a length from somebody else's
+// server.
 func TestPaddingRefusesWhatAThirdPartySends(t *testing.T) {
 	tests := []struct {
 		name string
@@ -145,8 +120,8 @@ func TestPaddingRefusesWhatAThirdPartySends(t *testing.T) {
 		})
 	}
 
-	// The control: valid padding is accepted, or a function that refused
-	// everything would pass every case above.
+	// The control: a function that refused everything would pass every case
+	// above.
 	valid := append([]byte("goen"), make([]byte, 12)...)
 	for i := 4; i < 16; i++ {
 		valid[i] = 12
@@ -161,10 +136,6 @@ func TestPaddingRefusesWhatAThirdPartySends(t *testing.T) {
 }
 
 // TestAnUnconfiguredGatewayIssuesNothingAndSaysSo holds the off-switch.
-//
-// The same shape payment.Gateway has for a missing Stripe key: the site still
-// sells, the preference is still recorded, and nothing is filed with a 加值中心
-// that does not exist. Half-on is the state neither has.
 func TestAnUnconfiguredGatewayIssuesNothingAndSaysSo(t *testing.T) {
 	g, err := NewGateway("", "", "", "")
 	if err != nil {
@@ -184,12 +155,9 @@ func TestAnUnconfiguredGatewayIssuesNothingAndSaysSo(t *testing.T) {
 	}
 }
 
-// TestHalfAConfigurationDoesNotStart is the other half of the off-switch.
-//
-// A merchant id without its keys cannot sign a request, so a deployment that set
-// one and forgot the others would fail at the first issue — after an order was
-// placed and money taken. It refuses to start instead, which is what a Stripe
-// key without its webhook secret does.
+// TestHalfAConfigurationDoesNotStart is the other half of the off-switch: a
+// merchant id without its keys cannot sign a request, and would otherwise fail
+// at the first issue, after an order was placed and money taken.
 func TestHalfAConfigurationDoesNotStart(t *testing.T) {
 	tests := []struct {
 		name              string
@@ -252,12 +220,9 @@ func TestIssueRefusesWhatTheProviderWould(t *testing.T) {
 	}
 }
 
-// TestTheRequestCarriesWhatTheInvoiceNeeds reads the actual wire bytes.
-//
-// Against an httptest.Server rather than a hand-written fake of the gateway,
-// which is the rule this repository already applies to Stripe: a fake agrees
-// with whatever goen believes, and the failure mode here is precisely a belief
-// that differs from ECPay's.
+// TestTheRequestCarriesWhatTheInvoiceNeeds reads the actual wire bytes, against
+// an httptest.Server rather than a fake that would agree with whatever goen
+// believes.
 func TestTheRequestCarriesWhatTheInvoiceNeeds(t *testing.T) {
 	var seen issueRequest
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -303,17 +268,13 @@ func TestTheRequestCarriesWhatTheInvoiceNeeds(t *testing.T) {
 		t.Fatalf("Issue: %v", err)
 	}
 
-	// The amounts are WHOLE DOLLARS. goen holds cents, ECPay wants dollars, and
-	// getting this backwards is mistake #18 in reverse — there, dividing a TWD
-	// charge by 100 undercharged by 100x.
+	// The amounts are WHOLE DOLLARS: goen holds cents and ECPay wants dollars.
 	if seen.SalesAmount != 670 {
 		t.Errorf("SalesAmount = %d, want 670 — goen's 67000 cents in dollars", seen.SalesAmount)
 	}
 	if len(seen.Items) != 1 || seen.Items[0].ItemAmount != 590 || seen.Items[0].ItemPrice != 295 {
 		t.Errorf("items = %+v, want one line at 295 x 2 = 590", seen.Items)
 	}
-	// vat='1' says the prices already include tax, which a Taiwanese shelf price
-	// does. Without it ECPay adds 5% and the invoice disagrees with the card.
 	if seen.Vat != "1" {
 		t.Errorf("vat = %q, want \"1\" — item prices are tax-inclusive", seen.Vat)
 	}
@@ -328,8 +289,7 @@ func TestTheRequestCarriesWhatTheInvoiceNeeds(t *testing.T) {
 	if doc.Number != "AB12345678" {
 		t.Errorf("the invoice number is %q, want AB12345678", doc.Number)
 	}
-	// The RandomNumber is kept because a VOID needs it alongside the number, and
-	// this reply is the only place ECPay ever returns it.
+	// The RandomNumber is kept because a VOID needs it alongside the number.
 	if doc.ProviderRef != "1234" {
 		t.Errorf("provider ref is %q, want the RandomNumber 1234", doc.ProviderRef)
 	}
@@ -338,9 +298,8 @@ func TestTheRequestCarriesWhatTheInvoiceNeeds(t *testing.T) {
 	}
 }
 
-// TestACompanyInvoiceCarriesTheTaxIDAndNoCarrier holds a rule ECPay enforces and
-// a reader would not guess: a 統編 invoice goes to the company, so it is not
-// carried, and sending both is a rejection.
+// TestACompanyInvoiceCarriesTheTaxIDAndNoCarrier holds a rule ECPay enforces
+// and a reader would not guess.
 func TestACompanyInvoiceCarriesTheTaxIDAndNoCarrier(t *testing.T) {
 	var seen issueRequest
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -367,11 +326,8 @@ func TestACompanyInvoiceCarriesTheTaxIDAndNoCarrier(t *testing.T) {
 	if seen.CustomerIdentifier != "12345678" {
 		t.Errorf("CustomerIdentifier = %q, want the 統編", seen.CustomerIdentifier)
 	}
-	// A 統編 invoice STILL needs a carrier, which is the opposite of what it
-	// looks like. The staging API is what said so — RtnCode 5000028,
-	// "客戶資訊已填入統編，須請選擇載具類別或索取紙本發票" — after this code sent
-	// one without and the first live probe was refused. The 統編 says who the
-	// invoice is FOR; the carrier says where it is held.
+	// A business-tax-number invoice STILL needs a carrier (ECPay RtnCode
+	// 5000028), which is the opposite of what it looks like.
 	if seen.CarrierT != CarrierMember {
 		t.Errorf("CarrierType = %q on a 統編 invoice, want the member carrier: "+
 			"ECPay refuses a 統編 with no carrier and goen does not print",
@@ -380,16 +336,11 @@ func TestACompanyInvoiceCarriesTheTaxIDAndNoCarrier(t *testing.T) {
 }
 
 // TestAnAllowanceReadsItsOwnNumberField holds a field name that looks
-// interchangeable and is not.
-//
-// A 折讓 has its own document number and comes back in IA_Allow_No; the reply's
-// InvoiceNo is EMPTY. Reading the wrong one produced an allowance that was filed
-// with the 加值中心 and unidentifiable here — the live staging call is what
-// surfaced it, because the operation SUCCEEDED and the number was blank.
+// interchangeable and is not: a credit note's number comes back in IA_Allow_No
+// and the reply's InvoiceNo is EMPTY.
 func TestAnAllowanceReadsItsOwnNumberField(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		// Exactly what staging returns: a number in IA_Allow_No and nothing in
-		// InvoiceNo.
+		// Exactly what staging returns.
 		reply(t, w, result{RtnCode: 1, AllowanceNo: "2026080715227214"})
 	}))
 	defer srv.Close()
@@ -412,11 +363,9 @@ func TestAnAllowanceReadsItsOwnNumberField(t *testing.T) {
 	}
 }
 
-// TestAProviderRefusalIsItsOwnError keeps the three failure surfaces apart.
-//
-// A transport failure is worth retrying, an envelope rejection is a bug here,
-// and a document rejection is data a staff member fixes. Collapsing them would
-// leave the back office retrying a 統編 that will never be valid.
+// TestAProviderRefusalIsItsOwnError keeps the three failure surfaces apart: a
+// transport failure is worth retrying, an envelope rejection is a bug here, and
+// a document rejection is data a staff member fixes.
 func TestAProviderRefusalIsItsOwnError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		reply(t, w, result{RtnCode: 2000006, RtnMsg: "CustomerIdentifier 格式錯誤"})
@@ -432,16 +381,14 @@ func TestAProviderRefusalIsItsOwnError(t *testing.T) {
 	if !errors.Is(err, ErrRejected) {
 		t.Fatalf("a refused document = %v, want ErrRejected", err)
 	}
-	// The provider's own message, because it names what to fix. A generic
-	// "invoice failed" sends a staff member to the logs.
+	// The provider's own message, because it names what to fix.
 	if !strings.Contains(err.Error(), "格式錯誤") {
 		t.Errorf("the error does not carry the provider's reason: %v", err)
 	}
 }
 
 // TestAnUnreadableEnvelopeIsNotADocumentRefusal proves the other half of that
-// split: TransCode is about whether ECPay could READ the request, which is
-// goen's bug and never something to show a staff member as fixable data.
+// split: TransCode is about whether ECPay could READ the request.
 func TestAnUnreadableEnvelopeIsNotADocumentRefusal(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -487,16 +434,9 @@ func reply(t *testing.T, w http.ResponseWriter, res result) {
 	}
 }
 
-// TestAReissueCarriesADistinctRelateNumber holds a rule ECPay enforces and
-// nothing in their field list hints at.
-//
-// RelateNumber is their idempotency key: a repeat is refused with RtnCode
-// 5070357, 自訂編號重覆. A 統一發票 cannot be edited — a wrong one is voided and
-// a correct one issued in its place — so the order number alone makes the ONLY
-// correction path impossible.
-//
-// Found by the staging API refusing exactly that: the first invoice issued, the
-// void succeeded, and the reissue came back 5070357.
+// TestAReissueCarriesADistinctRelateNumber holds ECPay's idempotency key: a
+// repeat is refused with RtnCode 5070357, so the order number alone makes the
+// void-then-reissue correction path impossible.
 func TestAReissueCarriesADistinctRelateNumber(t *testing.T) {
 	tests := []struct {
 		name    string

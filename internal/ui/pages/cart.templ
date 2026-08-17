@@ -8,10 +8,6 @@ import (
 )
 
 // Cart renders the cart page.
-//
-// Every control is a plain form. Changing a quantity is a POST that answers 303,
-// so a reload cannot resubmit it, and the page works with scripting off because
-// there is nothing here that needs scripting.
 templ Cart(p layouts.Page, v CartView) {
 	@layouts.Base(p) {
 		<div class="goen-cart">
@@ -75,8 +71,6 @@ templ Cart(p layouts.Page, v CartView) {
 	}
 }
 
-// cartLine is one line, with its own form so a quantity change posts only that
-// line rather than the whole cart.
 templ cartLine(l CartLine) {
 	<li class={ "goen-cart__line", templ.KV("goen-cart__line--out", l.Unavailable) }>
 		<a class="goen-cart__thumb" href={ templ.URL("/p/" + l.Slug) }>
@@ -122,12 +116,7 @@ templ cartLine(l CartLine) {
 	</li>
 }
 
-// Checkout renders the checkout form: delivery details, a shipping choice, and
-// what it all comes to.
-//
-// The form is a plain POST. A rejected submission comes back at 422 with every
-// value the visitor typed and aria-invalid on each control the server refused —
-// nobody retypes an address because a postal code was wrong.
+// Checkout renders the checkout form.
 templ Checkout(p layouts.Page, v *CheckoutView) {
 	@layouts.Base(p) {
 		<div class="goen-checkout">
@@ -144,21 +133,10 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 			}
 			<form class="goen-checkout__layout" method="post" action="/checkout">
 				<input type="hidden" name="idempotency" value={ v.Idempoten }/>
-				// What delivery was last QUOTED at. The server compares it with
-				// what the typed address actually costs, and refuses the first
-				// submission that finds a different figure — so a 離島 order
-				// is never charged a surcharge the customer has not seen.
+				// The server refuses the first submission whose address prices differently.
 				<input type="hidden" name="quoted_shipping" value={ v.QuotedShipping() }/>
-				// Which saved address filled the form, echoed so a rejected
-				// submission comes back with the same one marked. It selects
-				// nothing on its own — the fields are what is written.
 				<input type="hidden" name="address" value={ v.ChosenAddress }/>
 				<div class="goen-checkout__panel">
-					// The method comes first, because it decides what the rest of
-					// the form asks for. Each one is a LINK carrying the choice in
-					// the URL — no cookie, no stored state, correct under the back
-					// button, and working with scripting off because there is
-					// nothing to script.
 					<h2 class="goen-checkout__section">{ i18n.T(ctx, i18n.KeySectionShipping) }</h2>
 					<input type="hidden" name="shipping" value={ v.Chosen }/>
 					<div class="goen-checkout__shipping">
@@ -192,9 +170,6 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 					}
 					<h2 class="goen-checkout__section">{ i18n.T(ctx, i18n.KeySectionRecipient) }</h2>
 					if v.OffersTheAddressBook() {
-						// The customer's own address book. Links, like the method
-						// above — choosing one re-renders the form filled in, and
-						// the fields stay editable afterwards.
 						<div class="goen-checkout__shipping">
 							for _, a := range v.SavedAddresses {
 								<a
@@ -218,9 +193,6 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 						@field("name", i18n.T(ctx, i18n.KeyFieldName), "text", v.Address.Name, v, true)
 						@field("phone", i18n.T(ctx, i18n.KeyFieldPhone), "tel", v.Address.Phone, v, true)
 						if v.ToPickupPoint() {
-							// 超商取貨. A street address here would be data nobody
-							// ever reads: the parcel goes to the store, and the
-							// store is identified by its number.
 							<div class="ui-field">
 								<label class="ui-label" for="pickup_brand">{ i18n.T(ctx, i18n.KeyFieldPickupBrand) }</label>
 								<select
@@ -387,9 +359,6 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 							</span>
 						</div>
 						if v.HasSurcharge() {
-							// Named on its own line rather than folded into the
-							// fee: 「運費 NT$280」 for an order the customer
-							// expected to pay NT$80 for reads as a mistake.
 							<div class="ui-summary__row">
 								<span>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyZoneSurcharge), v.ZoneName) }</span>
 								<span class="ui-summary__val">{ v.Surcharge() }</span>
@@ -439,8 +408,6 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 	}
 }
 
-// field is one labelled input, with its error wired to aria-describedby so a
-// screen reader hears the reason rather than only that something is wrong.
 templ field(name, label, kind, value string, v *CheckoutView, required bool) {
 	<div class="ui-field">
 		<label class="ui-label" for={ name }>{ label }</label>
@@ -494,9 +461,6 @@ templ Order(p layouts.Page, v *OrderView) {
 				<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyOrderReorderNote) }</span>
 			</form>
 			if v.CanCancel() {
-				// A plain POST. The button is absent rather than present and
-				// refused once the order is paid or being picked — a control
-				// that can only say no is worse than no control.
 				<form class="goen-order__cancel" method="post" action={ templ.SafeURL("/orders/" + v.Number + "/cancel") }>
 					<button class="ui-btn ui-btn--ghost" type="submit">{ i18n.T(ctx, i18n.KeyOrderCancel) }</button>
 					<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyOrderCancelNote) }</span>
@@ -585,6 +549,15 @@ templ Order(p layouts.Page, v *OrderView) {
 							<span>{ i18n.T(ctx, i18n.KeyOrderGrandTotal) }</span>
 							<span class="ui-summary__val">{ v.Total() }</span>
 						</div>
+						// Below the total, because it is not a reduction of the
+						// price: the goods cost what they cost and this is part
+						// of how they were paid for.
+						if v.UsedCredit() {
+							<div class="ui-summary__row">
+								<span>{ i18n.T(ctx, i18n.KeyOrderCreditApplied) }</span>
+								<span class="ui-summary__val">{ v.Credit() }</span>
+							</div>
+						}
 					</div>
 					if v.CanRequestReturn() {
 						<a class="ui-btn ui-btn--secondary ui-btn--block" href={ templ.SafeURL("/orders/" + v.Number + "/return") }>

@@ -17,11 +17,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// slugFormat mirrors products_slug_format.
 var slugFormat = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
-// Form field maxima. The schema does not cap these, and they count RUNES: a byte
-// limit would cut a Chinese name at a third of the length.
 const (
 	maxSlugRunes        = 120
 	maxNameRunes        = 200
@@ -37,17 +34,15 @@ const (
 
 // ProductForm is what the back office submits to create or edit a product.
 type ProductForm struct {
-	Slug        string
-	Name        string
-	Summary     string
-	Description string
-	// The English copy, each half optional. An empty box clears what was there.
+	Slug          string
+	Name          string
+	Summary       string
+	Description   string
 	NameEn        string
 	SummaryEn     string
 	DescriptionEn string
 	WarrantyNote  string
-	// WarrantyMonths is 0 when the shop has not stated a term, which the query
-	// stores as NULL and warranty registration then refuses.
+	// WarrantyMonths is 0 when no term is stated; the query stores that as NULL.
 	WarrantyMonths int32
 	BrandID        string
 	CategoryID     string
@@ -104,20 +99,14 @@ type VariantForm struct {
 	PriceCents   int64
 	CompareCents int64
 	SafetyStock  int32
-	// The parcel this variant ships as. Zero is UNMEASURED, stored as NULL: an
-	// absent measurement refuses no shipping method, a present one can.
+	// Zero is UNMEASURED and stored as NULL, so it refuses no shipping method.
 	ParcelLongestMM int32
 	ParcelSumMM     int32
 	ParcelWeightG   int32
-	// OptionValues is one value id per option the product declares, in the order
-	// the form rendered them.
-	OptionValues []string
+	OptionValues    []string
 }
 
 // Validate refuses what the schema would.
-//
-// Stock is absent because admin's INSERT grant does not include stock_quantity:
-// a new variant starts at zero and stock arrives through the adjustment form.
 func (f *VariantForm) Validate(ctx context.Context) map[string]string {
 	f.SKU = strings.ToUpper(strings.TrimSpace(f.SKU))
 
@@ -206,8 +195,6 @@ func (s *Store) Product(ctx context.Context, slug string) (pages.AdminProductVie
 		item := pages.AdminOption{
 			ID: o.ID.String(), Name: o.Name, NameEn: o.NameEn,
 		}
-		// The shortest of the three aggregates bounds the walk: a mismatch must
-		// not pair a label with the wrong value.
 		for j := 0; j < len(o.Values) && j < len(o.ValueLabels) &&
 			j < len(o.ValueIds); j++ {
 			item.Values = append(item.Values, pages.AdminOptionValue{
@@ -244,7 +231,6 @@ func (s *Store) NewProduct(ctx context.Context) (pages.AdminProductView, error) 
 	return view, nil
 }
 
-// loadChoices fills the brand and category selects.
 func (s *Store) loadChoices(ctx context.Context, view *pages.AdminProductView) error {
 	brands, err := s.q.AdminBrands(ctx)
 	if err != nil {
@@ -367,8 +353,6 @@ func (s *Store) AddVariant(ctx context.Context, slug string, f *VariantForm) (ma
 			}); createErr != nil {
 				return createErr
 			}
-			// In the variant's own transaction: a variant without its option
-			// values is one the picker cannot reach.
 			for _, valueID := range chosen {
 				n, linkErr := q.SetVariantOptionValue(ctx, db.SetVariantOptionValueParams{
 					SKU: f.SKU, OptionValueID: valueID,
@@ -377,7 +361,6 @@ func (s *Store) AddVariant(ctx context.Context, slug string, f *VariantForm) (ma
 					return linkErr
 				}
 				if n == 0 {
-					// The value belongs to another product, or does not exist.
 					return ErrNotFound
 				}
 			}
@@ -409,8 +392,7 @@ func ProductStatusLabel(ctx context.Context, s string) string {
 	}
 }
 
-// SpecLabelRunes and SpecValueRunes bound what the back office may type, in
-// RUNES, matching product_specs_label_bounded and product_specs_value_bounded.
+// SpecLabelRunes and SpecValueRunes mirror the product_specs CHECKs, in RUNES.
 const (
 	SpecLabelRunes = 40
 	SpecValueRunes = 200
@@ -424,9 +406,7 @@ type SpecDraft struct {
 	ValueEn string
 }
 
-// AddSpec appends one spec row to a product. The position is computed inside the
-// INSERT: two staff members editing one product would otherwise read the same
-// maximum and collide on product_specs_position_key.
+// AddSpec appends one spec row to a product.
 func (s *Store) AddSpec(ctx context.Context, slug string, d SpecDraft) (map[string]string, error) {
 	label, value := strings.TrimSpace(d.Label), strings.TrimSpace(d.Value)
 	labelEn, valueEn := strings.TrimSpace(d.LabelEn), strings.TrimSpace(d.ValueEn)
@@ -473,8 +453,7 @@ func (s *Store) AddSpec(ctx context.Context, slug string, d SpecDraft) (map[stri
 	return nil, nil
 }
 
-// RemoveSpec deletes one spec row, scoped to the product in the DELETE's own
-// WHERE clause so an id from another product cannot be passed in.
+// RemoveSpec deletes one spec row.
 func (s *Store) RemoveSpec(ctx context.Context, slug, id string) error {
 	specID, err := uuid.Parse(id)
 	if err != nil {
@@ -497,9 +476,6 @@ func (s *Store) RemoveSpec(ctx context.Context, slug, id string) error {
 	})
 }
 
-// chosenOptionValues turns the form's option selects into value ids, and refuses a
-// variant that does not name one value per axis — one no URL the picker builds can
-// resolve, so it would exist as a SKU and appear nowhere on the site.
 func (s *Store) chosenOptionValues(ctx context.Context, slug string, raw []string) (
 	chosen []uuid.UUID, fieldErrs map[string]string,
 ) {
@@ -530,11 +506,7 @@ func (s *Store) chosenOptionValues(ctx context.Context, slug string, raw []strin
 const MaxOptionNameRunes = 40
 
 // OptionDraft is an option or one of its values, in both languages.
-//
-// Name is the IDENTITY the picker puts in the URL; NameEn is only a label.
 type OptionDraft struct {
-	// OptionID is empty when adding the option itself, and names the axis when
-	// adding a value to it.
 	OptionID string
 	Name     string
 	NameEn   string
@@ -591,7 +563,6 @@ func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) 
 			Slug: slug, OptionID: optionID, Value: name, ValueEn: nameEn,
 		}); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				// The option belongs to another product, or does not exist.
 				return ErrNotFound
 			}
 			return err
@@ -609,7 +580,6 @@ func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) 
 	return nil, nil
 }
 
-// optionErrors is the shared validation; field names which form is being refused.
 func optionErrors(ctx context.Context, name, nameEn, field string) map[string]string {
 	errs := map[string]string{}
 	switch {

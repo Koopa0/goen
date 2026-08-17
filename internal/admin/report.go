@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -47,7 +48,7 @@ func (s *Store) Report(ctx context.Context, days int32) (pages.AdminReportView, 
 	view := pages.AdminReportView{
 		Days:         int(days),
 		Orders:       revenue.Orders,
-		RevenueCents: revenue.RevenueCents,
+		RevenueCents: revenue.RevenueCents, RefundedCents: revenue.RefundedCents,
 		AverageCents: revenue.AverageCents,
 		Placed:       completion.Placed,
 		Committed:    completion.Committed,
@@ -71,13 +72,7 @@ func (s *Store) Report(ctx context.Context, days int32) (pages.AdminReportView, 
 	return view, nil
 }
 
-// validWindow reports whether days is one the report offers. An allowlist and
-// never a range: the window reaches a query that scans order history.
+// validWindow is an allowlist, never a range: it reaches a scanning query.
 func validWindow(days int32) bool {
-	for _, w := range ReportWindows {
-		if w == days {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(ReportWindows, days)
 }

@@ -54,8 +54,7 @@ func TestMain(m *testing.M) {
 	}
 	code := m.Run()
 	pool.Close()
-	// Terminated here rather than by a defer: os.Exit does not run defers, so
-	// a deferred terminate leaks the container on every run.
+	// Not deferred: os.Exit does not run defers, and the container would leak.
 	_ = testcontainers.TerminateContainer(container)
 	os.Exit(code)
 }
@@ -77,10 +76,6 @@ func samplePNG(t *testing.T, w, h int) []byte {
 }
 
 // TestTheSamePictureIsOneRow proves two uploads of one picture deduplicate.
-//
-// Content addressing is the whole storage model: two uploads of the same
-// picture must be one row, or every product that reuses a generic accessory
-// shot stores it again and a cache holds it twice under two URLs.
 func TestTheSamePictureIsOneRow(t *testing.T) {
 	ctx := t.Context()
 	s := media.NewStore(pool)
@@ -110,10 +105,7 @@ func TestTheSamePictureIsOneRow(t *testing.T) {
 }
 
 // TestTheStoredBytesAreServedBackUnchanged proves bytea round-trips exactly.
-//
-// Round-tripping through bytea must not alter a byte: an image that comes back
-// different is a corrupt image, and content addressing makes the failure silent
-// because the digest is never re-derived on read.
+// The digest is never re-derived on read, so corruption would be silent.
 func TestTheStoredBytesAreServedBackUnchanged(t *testing.T) {
 	ctx := t.Context()
 	s := media.NewStore(pool)
@@ -141,12 +133,8 @@ func TestTheStoredBytesAreServedBackUnchanged(t *testing.T) {
 	}
 }
 
-// TestAStoredImageCannotBeRewritten proves a digest always names the same
-// bytes.
-//
-// media_objects_immutable. The digest names the bytes, so changing the bytes
-// under a digest would make every cached copy in the world wrong — and the
-// year-long immutable Cache-Control is what makes that unfixable.
+// TestAStoredImageCannotBeRewritten proves media_objects_immutable holds: a
+// year-long immutable Cache-Control makes a rewritten digest unfixable.
 func TestAStoredImageCannotBeRewritten(t *testing.T) {
 	ctx := t.Context()
 	obj, err := media.NewStore(pool).Put(ctx, bytes.NewReader(samplePNG(t, 60, 60)))
@@ -171,11 +159,7 @@ func TestAStoredImageCannotBeRewritten(t *testing.T) {
 }
 
 // TestTheSchemaRefusesAnInconsistentRow proves each rule fires where it cannot
-// be bypassed.
-//
-// The Go side checks these too, but the schema is where they cannot be
-// bypassed — every one of these is a row that would make a page lie about what
-// a visitor is about to download.
+// be bypassed. The Go side checks these too.
 func TestTheSchemaRefusesAnInconsistentRow(t *testing.T) {
 	ctx := t.Context()
 	tests := []struct {
@@ -209,8 +193,7 @@ func TestTheSchemaRefusesAnInconsistentRow(t *testing.T) {
 				t.Fatal("accepted")
 			}
 			// Bound to the constraint NAME: several of these rows would trip
-			// more than one rule, and asserting "an error happened" would not
-			// say the intended one fired.
+			// more than one rule.
 			pgErr, ok := errors.AsType[*pgconn.PgError](err)
 			if !ok || pgErr.ConstraintName != tt.want {
 				t.Errorf("refused by %q, want %s", constraintOf(err), tt.want)
@@ -241,12 +224,6 @@ func constraintOf(err error) string {
 
 // TestAbandonedUploadsAreReclaimed holds that an upload nothing points at goes
 // away, and that one something points at does not.
-//
-// UnreferencedMedia and DeleteMedia shipped with the media pipeline and neither
-// was ever called: every abandoned upload — a staff member who picked the wrong
-// file, a form filled in and never saved — stayed in media_objects for good.
-// The bytes are stored IN PostgreSQL, which makes that the whole cost of the
-// storage decision paid for nothing.
 func TestAbandonedUploadsAreReclaimed(t *testing.T) {
 	ctx := t.Context()
 	s := media.NewStore(pool)
@@ -260,13 +237,9 @@ func TestAbandonedUploadsAreReclaimed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("upload the attached one: %v", err)
 	}
-	// Attached to a product, which is what makes it off limits. Without this
-	// the test would only prove that the sweeper deletes things.
-	//
-	// The product is created here rather than found: this suite loads the
-	// schema and no catalogue, so `SELECT ... FROM products LIMIT 1` matched
-	// nothing and the INSERT silently wrote zero rows — the attached upload was
-	// never attached, and the test failed for the right reason by luck.
+	// Attached to a product, which is what makes it off limits. The product is
+	// created here rather than found: this suite loads the schema and no
+	// catalogue, so selecting one matches nothing and attaches nothing.
 	tag, err := pool.Exec(ctx, `
 		WITH b AS (INSERT INTO brands (slug, name) VALUES ('sweep-brand', '測試品牌') RETURNING id),
 		     c AS (INSERT INTO categories (slug, name) VALUES ('sweep-cat', '測試分類') RETURNING id),
@@ -282,8 +255,7 @@ func TestAbandonedUploadsAreReclaimed(t *testing.T) {
 			tag.RowsAffected())
 	}
 
-	// Inside the grace window, both are left alone: an upload is stored before
-	// it is attached, and those are two requests.
+	// Inside the grace window, both are left alone.
 	early, err := s.Sweep(ctx, log)
 	if err != nil {
 		t.Fatalf("sweep: %v", err)
@@ -292,9 +264,6 @@ func TestAbandonedUploadsAreReclaimed(t *testing.T) {
 		t.Fatalf("the sweeper reclaimed %d uploads inside the grace window", early)
 	}
 
-	// media_objects is append-only, so the rows cannot be aged in place. The
-	// grace window is aged instead — a shorter one is the same test with the
-	// clock moved rather than a special case in the production query.
 	ageUploads(t, abandoned.Digest, attached.Digest)
 
 	reclaimed, err := s.Sweep(ctx, log)
@@ -313,9 +282,8 @@ func TestAbandonedUploadsAreReclaimed(t *testing.T) {
 	}
 }
 
-// TestAHeroSlidesImageIsNotReclaimed. The predicate names every referencing
-// column, and hero_slides is the one that is easy to forget: it was added after
-// product_images, and a delete that missed it would blank the front page.
+// TestAHeroSlidesImageIsNotReclaimed covers the referencing column that is
+// easy to forget; a delete that missed it would blank the front page.
 func TestAHeroSlidesImageIsNotReclaimed(t *testing.T) {
 	ctx := t.Context()
 	s := media.NewStore(pool)
@@ -350,12 +318,8 @@ func exists(t *testing.T, digest string) bool {
 	return n > 0
 }
 
-// ageUploads pushes rows past the sweeper's grace window.
-//
-// media_objects is append-only — media_objects_immutable refuses UPDATE, which
-// is the point of content addressing — so the row cannot be edited. The rows
-// are re-inserted from a copy carrying an older created_at instead, which is
-// the only door the schema leaves open and therefore the honest fixture.
+// ageUploads pushes rows past the sweeper's grace window. media_objects_immutable
+// refuses UPDATE, so each row is re-inserted with an older created_at.
 func ageUploads(t *testing.T, digests ...string) {
 	t.Helper()
 	for _, digest := range digests {

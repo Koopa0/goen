@@ -8,8 +8,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-// matrix is the shape goen's real products have: two option groups, every
-// combination present, one of them sold out.
 func matrix() []Variant {
 	return []Variant{
 		{ID: "1", SKU: "A-1-1", PriceCents: 3390000, Sellable: true, Available: 10,
@@ -75,7 +73,6 @@ func TestResolve(t *testing.T) {
 	}
 }
 
-// TestResolveRejectsUnknownValues covers the URL a visitor edits by hand.
 func TestResolveRejectsUnknownValues(t *testing.T) {
 	for _, sel := range []Selection{
 		{"顏色": "螢光粉"},
@@ -88,8 +85,6 @@ func TestResolveRejectsUnknownValues(t *testing.T) {
 	}
 }
 
-// TestBuildOptionsMarksAvailabilityAgainstOtherChoices is the one-variant rule
-// applied to a picker.
 func TestBuildOptionsMarksAvailabilityAgainstOtherChoices(t *testing.T) {
 	groups := choices(map[string][]string{
 		"顏色": {"星霧藍", "曜石黑"},
@@ -121,8 +116,6 @@ func TestBuildOptionsMarksAvailabilityAgainstOtherChoices(t *testing.T) {
 	}
 }
 
-// TestBuildOptionsHrefKeepsOtherChoices pins that clicking a colour does not
-// throw away the capacity already chosen.
 func TestBuildOptionsHrefKeepsOtherChoices(t *testing.T) {
 	groups := choices(map[string][]string{"顏色": {"曜石黑"}, "容量": {"256GB", "512GB"}})
 	opts := BuildOptions("phone", groups, []string{"顏色", "容量"},
@@ -171,8 +164,6 @@ func TestParseSelection(t *testing.T) {
 	}
 }
 
-// TestParseSelectionBoundsInput covers the hand-edited URL: a very long value
-// is truncated rather than carried, and a very long key is dropped.
 func TestParseSelectionBoundsInput(t *testing.T) {
 	long := make([]rune, maxOptionRunes+50)
 	for i := range long {
@@ -188,8 +179,6 @@ func TestParseSelectionBoundsInput(t *testing.T) {
 	}
 }
 
-// choices turns plain value lists into the identity-and-label pairs BuildOptions
-// takes. The label is left empty so the untranslated fallback is exercised.
 func choices(in map[string][]string) map[string][]OptionChoice {
 	out := make(map[string][]OptionChoice, len(in))
 	for name, values := range in {
@@ -200,8 +189,6 @@ func choices(in map[string][]string) map[string][]OptionChoice {
 	return out
 }
 
-// TestThePickerShowsLabelsAndSelectsOnIdentity is the line between what a visitor
-// reads and what a URL carries.
 func TestThePickerShowsLabelsAndSelectsOnIdentity(t *testing.T) {
 	t.Parallel()
 
@@ -241,7 +228,6 @@ func TestThePickerShowsLabelsAndSelectsOnIdentity(t *testing.T) {
 		t.Errorf("href is %q — it carries the LABEL, so a link shared with a "+
 			"Chinese reader selects nothing", colour.Values[0].Href)
 	}
-	// blank picker heading is unusable; a Chinese one is readable.
 	if capacity.Label != "容量" {
 		t.Errorf("an untranslated option reads %q, want its Chinese name", capacity.Label)
 	}

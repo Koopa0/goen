@@ -9,31 +9,14 @@ import (
 	"fmt"
 )
 
-// Cipher encrypts TOTP secrets at rest.
-//
-// A TOTP secret is a password-equivalent: whoever holds it can mint valid codes
-// forever. staff_totp_credentials.secret_encrypted is named for this reason —
-// a database dump alone must not defeat the second factor, so the key lives in
-// the environment where a dump does not reach.
-//
-// The zero value is a Cipher that refuses everything, which is what a
-// deployment with no key gets. Enrolment then fails loudly instead of storing a
-// secret in the clear.
+// Cipher encrypts TOTP secrets at rest. The zero value refuses everything,
+// which is what a deployment with no key gets.
 type Cipher struct {
 	aead cipher.AEAD
 }
 
-// NewCipher derives a Cipher from a configured key.
-//
-// An empty key yields a disabled Cipher rather than an error: goen runs without
-// 2FA the same way it runs without Stripe, and the back office says so instead
-// of refusing to start.
-//
-// The key is hashed rather than used directly, so the configured value may be
-// any length — a passphrase, a base64 blob — and still produce the 32 bytes
-// AES-256 needs. It is NOT a password hash and does not need to be: the input
-// is a machine-generated secret from the environment, not something a person
-// chose, so stretching it would cost startup time and buy nothing.
+// NewCipher derives a Cipher from a configured key. An empty key yields a
+// disabled Cipher rather than an error.
 func NewCipher(key string) *Cipher {
 	if key == "" {
 		return &Cipher{}
@@ -54,12 +37,9 @@ func NewCipher(key string) *Cipher {
 // Enabled reports whether secrets can be stored.
 func (c *Cipher) Enabled() bool { return c.aead != nil }
 
-// Seal encrypts a secret for storage.
-//
-// The nonce is random per call and prefixed to the ciphertext. GCM is
-// catastrophic under nonce reuse — two secrets sealed with the same nonce leak
-// their XOR and the authentication key — so it is never derived from anything
-// that could repeat, such as the user id.
+// Seal encrypts a secret for storage. The nonce is random per call and never
+// derived from anything that could repeat: GCM under nonce reuse leaks the XOR
+// of the two plaintexts and the authentication key.
 func (c *Cipher) Seal(secret []byte) ([]byte, error) {
 	if !c.Enabled() {
 		return nil, ErrDisabled
@@ -71,12 +51,8 @@ func (c *Cipher) Seal(secret []byte) ([]byte, error) {
 	return c.aead.Seal(nonce, nonce, secret, nil), nil
 }
 
-// Open decrypts a stored secret.
-//
-// A failure here is not "wrong password" — it is a ciphertext that does not
-// authenticate, which means the key changed or the row was tampered with. Both
-// are operational problems, so the error says so rather than being folded into
-// ErrBadCode.
+// Open decrypts a stored secret. A failure is an operational problem — the key
+// changed, or the row was tampered with — never a wrong code.
 func (c *Cipher) Open(sealed []byte) ([]byte, error) {
 	if !c.Enabled() {
 		return nil, ErrDisabled

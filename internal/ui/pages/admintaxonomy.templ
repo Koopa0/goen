@@ -36,7 +36,6 @@ templ AdminTaxonomy(p layouts.Page, v *AdminTaxonomyView) {
 	}
 }
 
-// taxonForm is the create form for one kind.
 templ taxonForm(kind string, title i18n.Key, v *AdminTaxonomyView) {
 	<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/taxonomy/" + kind) }>
 		<h2 class="goen-admin__subhead">{ i18n.T(ctx, title) }</h2>
@@ -58,10 +57,6 @@ templ taxonForm(kind string, title i18n.Key, v *AdminTaxonomyView) {
 			}
 		</div>
 		if kind == "categories" {
-			// Categories only. A category name is in the header of EVERY page, so
-			// leaving it untranslated is the half-English site the locale work
-			// exists to prevent; a brand name is a proper noun and reads the same
-			// either way.
 			<div class="ui-field">
 				<label class="ui-label" for={ kind + "-name-en" }>{ i18n.T(ctx, i18n.KeyAdminTaxNameEn) }</label>
 				<input
@@ -104,8 +99,6 @@ templ taxonForm(kind string, title i18n.Key, v *AdminTaxonomyView) {
 		if kind == "categories" {
 			<div class="ui-field">
 				<label class="ui-label" for="categories-icon">{ i18n.T(ctx, i18n.KeyAdminColIcon) }</label>
-				// A select and not a text box: icons.Category has no default arm,
-				// so a key outside this set draws nothing at all.
 				<select class="ui-input" id="categories-icon" name="icon_key">
 					<option value="">{ i18n.T(ctx, i18n.KeyAdminIconNone) }</option>
 					for _, k := range CategoryIcons {
@@ -130,9 +123,6 @@ templ taxonForm(kind string, title i18n.Key, v *AdminTaxonomyView) {
 						aria-invalid="true"
 					}
 				/>
-				// A datalist and not a select: it suggests without preventing,
-				// so the field still works with the list unrendered and a
-				// staff member can type a slug they know.
 				<datalist id="category-slugs">
 					for _, c := range v.Categories {
 						<option value={ c.Slug }>{ c.Name }</option>
@@ -148,15 +138,10 @@ templ taxonForm(kind string, title i18n.Key, v *AdminTaxonomyView) {
 	</form>
 }
 
-// taxonList is one kind's rows, each with rename and delete.
 templ taxonList(kind string, title, empty i18n.Key, rows []AdminTaxon, v *AdminTaxonomyView) {
 	<aside class="goen-admin__side">
 		<h2 class="goen-admin__subhead">{ i18n.T(ctx, title) }</h2>
 		if len(rows) == 0 {
-			// The empty state is its own message and never the heading inside a
-			// sentence: English lower-cases the noun there and Chinese does not
-			// distinguish the two, so gluing them would read correctly in one
-			// language only.
 			<p class="goen-admin__hint">{ i18n.T(ctx, empty) }</p>
 		} else {
 			<ul class="goen-admin__taxa" role="list">
@@ -172,11 +157,7 @@ templ taxonList(kind string, title, empty i18n.Key, rows []AdminTaxon, v *AdminT
 								aria-label={ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxNameOf), t.Name) }
 							/>
 							if kind == "categories" {
-								// Rendered WITH its current value, not as an empty box.
-								// Empty means "no translation" and the rename clears it,
-								// so a blank field here would silently un-translate a
-								// category every time somebody fixed a typo in its
-								// Chinese name.
+								// Rendered with its current value: the rename writes what the form carries.
 								<input
 									class="ui-input"
 									name="name_en"
@@ -185,10 +166,6 @@ templ taxonList(kind string, title, empty i18n.Key, rows []AdminTaxon, v *AdminT
 									placeholder="English"
 									aria-label={ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxNameEnOf), t.Name) }
 								/>
-								// Its CURRENT icon, for the same reason name_en renders
-								// its current value: the rename writes what the form
-								// carries, so an empty control would drop the icon every
-								// time somebody fixed a typo.
 								<select
 									class="ui-input"
 									name="icon_key"
@@ -212,10 +189,6 @@ templ taxonList(kind string, title, empty i18n.Key, rows []AdminTaxon, v *AdminT
 						<span class="ui-cart-line__meta">
 							{ t.Slug }
 							if kind == "categories" && !t.Translated() {
-								// Said out loud, because this is the one page that can
-								// fix it. An untranslated category shows its Chinese
-								// name in the header of every page an English visitor
-								// reads — visible to them and to nobody at the shop.
 								<span class="ui-badge ui-badge--warn">{ i18n.T(ctx, i18n.KeyAdminUntranslated) }</span>
 							}
 							if t.Parent != "" {

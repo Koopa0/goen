@@ -24,8 +24,7 @@ func (h *Handler) ForgotPage(w http.ResponseWriter, r *http.Request) {
 		pages.ForgotView{Sent: r.URL.Query().Get("sent") == "1"}))
 }
 
-// Forgot serves POST /forgot. It answers the same thing whether or not the
-// address belongs to anybody.
+// Forgot serves POST /forgot, identically whether or not the address is known.
 func (h *Handler) Forgot(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
@@ -54,8 +53,7 @@ func (h *Handler) Forgot(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/forgot?sent=1", http.StatusSeeOther)
 }
 
-// ResetPage serves GET /reset. The token is echoed into the form and never
-// checked here: checking it would tell a guesser whether it was real.
+// ResetPage serves GET /reset; checking the token here would tell a guesser it is real.
 func (h *Handler) ResetPage(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusOK, pages.Reset(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyResetTitle)},
@@ -97,8 +95,7 @@ func (h *Handler) Reset(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// normaliseForLimit keys the rate limiter on the address lowercased, so varying
-// the case does not buy a fresh allowance.
+// normaliseForLimit lowercases, so varying the case does not buy a fresh allowance.
 func normaliseForLimit(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }

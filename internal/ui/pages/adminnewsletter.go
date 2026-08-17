@@ -3,20 +3,14 @@ package pages
 import "strconv"
 
 // AdminNewsletterView is the mailing list and what has been sent to it.
-//
-// The list was write-only for as long as it existed: the footer collected
-// addresses and the shop had no page that could see them, let alone write to
-// them. This is the other half of the double opt-in work — consent came first
-// because a send cannot be correct without it.
 type AdminNewsletterView struct {
 	Active       int64
 	Unsubscribed int64
 	Awaiting     int64
 	Issues       []AdminNewsletterIssue
-	// Draft carries a refused compose form's values back into it.
-	Draft  AdminNewsletterDraft
-	Errors map[string]string
-	Notice string
+	Draft        AdminNewsletterDraft
+	Errors       map[string]string
+	Notice       string
 }
 
 // AdminNewsletterDraft is what the compose form holds.
@@ -36,8 +30,7 @@ type AdminNewsletterIssue struct {
 	SentBy     string
 }
 
-// ActiveText and the two beside it are the three figures a person running a
-// newsletter asks for, as text.
+// ActiveText is how many are subscribed.
 func (v AdminNewsletterView) ActiveText() string { return strconv.FormatInt(v.Active, 10) }
 
 // UnsubscribedText is how many have left.
@@ -52,9 +45,6 @@ func (v AdminNewsletterView) AwaitingText() string { return strconv.FormatInt(v.
 func (v AdminNewsletterView) Empty() bool { return len(v.Issues) == 0 }
 
 // CanSend reports whether there is anybody to send to.
-//
-// A send to an empty list is not an error, but the button says so rather than
-// letting somebody press it and read "0 recipients" afterwards.
 func (v AdminNewsletterView) CanSend() bool { return v.Active > 0 }
 
 // Err returns the message for a field, or "".
@@ -76,14 +66,10 @@ func (i AdminNewsletterIssue) RecipientsText() string {
 	return strconv.FormatInt(int64(i.Recipients), 10)
 }
 
-// SendAction is where the send form posts. One issue, one URL: the id is in the
-// path and nothing else about the request decides what goes out.
+// SendAction is where the send form posts.
 func (i AdminNewsletterIssue) SendAction() string { return "/admin/newsletter/" + i.ID + "/send" }
 
-// Preview is the issue's opening, for a list that has to stay scannable.
-//
-// Bounded in RUNES rather than bytes, so a Chinese letter is cut where a reader
-// would cut it and not a third of the way in.
+// Preview is the issue's opening, bounded in runes rather than bytes.
 func (i AdminNewsletterIssue) Preview() string {
 	const limit = 80
 	r := []rune(i.Body)

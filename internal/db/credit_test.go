@@ -5,14 +5,12 @@ import (
 	"testing"
 )
 
-// Both halves matter: amount_cents alone also names refunds and invoice allowances.
 var (
 	touchesCreditLedger = regexp.MustCompile(`\bstore_credit_entries\b`)
 	sumsAmounts         = regexp.MustCompile(`sum\(\s*-?\s*(\w+\.)?amount_cents\s*\)`)
 )
 
-// TestEveryCreditBalanceReadsTheOneView holds store_credit_balances as the single
-// definition of what an account is worth.
+// TestEveryCreditBalanceReadsTheOneView holds store_credit_balances as the one definition of a balance.
 func TestEveryCreditBalanceReadsTheOneView(t *testing.T) {
 	t.Parallel()
 
@@ -39,7 +37,6 @@ func TestEveryCreditBalanceReadsTheOneView(t *testing.T) {
 				"with the reason.", path, q.name)
 		}
 	}
-	// Checked by identity, not by count: a count cannot name the stale entry.
 	for name, why := range allowed {
 		if !used[name] {
 			t.Errorf("the allowlist names %s (%s) and nothing matched it: the "+

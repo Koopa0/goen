@@ -11,14 +11,11 @@ import (
 
 // PolicySection is one heading and its paragraphs.
 type PolicySection struct {
-	Heading string
-	Body    []string
-	// HeadingEn and BodyEn are the English the same section renders in.
+	Heading   string
+	Body      []string
 	HeadingEn string
 	BodyEn    []string
-	// Pending marks a section describing what has not been decided; it renders
-	// as a visible gap so a reader can tell a rule from one.
-	Pending bool
+	Pending   bool
 }
 
 // PolicyDoc is a static policy page.
@@ -30,9 +27,7 @@ type PolicyDoc struct {
 	Sections  []PolicySection
 }
 
-// For resolves the document into one locale's strings. Consumer Protection Act
-// §18 I 3 makes stating the rescission information the trader's obligation, and
-// a page stating it in a language the customer cannot read discharges nothing.
+// For resolves the document into one locale's strings.
 func (d PolicyDoc) For(l i18n.Locale) PolicyDoc {
 	if l != i18n.En {
 		return d
@@ -74,9 +69,7 @@ type ShippingMethod struct {
 	Carrier       string
 	FeeCents      int64
 	FreeOverCents int64
-	// Surcharges is where this method costs extra, as data: the query hands over
-	// rows and never the sentence, which is chrome and follows the visitor.
-	Surcharges []ZoneSurcharge
+	Surcharges    []ZoneSurcharge
 }
 
 // ZoneSurcharge is one place that costs more to reach, and how much more.
@@ -101,8 +94,7 @@ func (m ShippingMethod) SurchargeText(ctx context.Context) string {
 // Fee is what it costs.
 func (m ShippingMethod) Fee() string { return twd(m.FeeCents) }
 
-// FreeOver is the threshold above which it costs nothing, or empty when there
-// is none.
+// FreeOver is the threshold above which it costs nothing, or empty for none.
 func (m ShippingMethod) FreeOver() string {
 	if m.FreeOverCents <= 0 {
 		return ""
@@ -118,9 +110,7 @@ type ShippingView struct {
 // Empty reports whether no method is configured.
 func (v ShippingView) Empty() bool { return len(v.Methods) == 0 }
 
-// HoldMinutes is how long checkout reserves stock. It mirrors cart.HoldTTL,
-// which internal/ui may not import, so the page and the till share one number
-// only as long as this one is kept equal to it.
+// HoldMinutes mirrors cart.HoldTTL, which internal/ui may not import.
 const HoldMinutes = 60
 
 // HoldMinutesText is that number, for the template.
@@ -128,20 +118,17 @@ func HoldMinutesText() string { return strconv.Itoa(HoldMinutes) }
 
 // AdminFAQEntry is one FAQ row as the back office lists it.
 type AdminFAQEntry struct {
-	ID       string
-	Category string
-	Question string
-	Answer   string
-	// The English entry, empty for what nobody has translated.
+	ID         string
+	Category   string
+	Question   string
+	Answer     string
 	CategoryEn string
 	QuestionEn string
 	AnswerEn   string
 	UpdatedAt  string
 }
 
-// Translated reports whether this entry reads in English. The answer decides: a
-// translated question above a Chinese answer invites a reader in and then does
-// not answer them.
+// Translated reports whether this entry reads in English; the answer decides.
 func (e AdminFAQEntry) Translated() bool { return e.AnswerEn != "" }
 
 // AdminFAQView is the FAQ management page.

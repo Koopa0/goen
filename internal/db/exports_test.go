@@ -10,9 +10,7 @@ import (
 	"testing"
 )
 
-// TestEveryExportedFunctionHasACaller refuses an export named nowhere but its
-// own declaration. Nothing here is public API, so an unused export is a feature
-// nobody finished.
+// TestEveryExportedFunctionHasACaller refuses an export named nowhere but its own declaration.
 func TestEveryExportedFunctionHasACaller(t *testing.T) {
 	t.Parallel()
 
@@ -39,8 +37,7 @@ func TestEveryExportedFunctionHasACaller(t *testing.T) {
 	}
 }
 
-// exportedFunctions maps each exported function or method name to the file that
-// declares it.
+// exportedFunctions maps each exported function or method name to the file that declares it.
 func exportedFunctions(t *testing.T) map[string]string {
 	t.Helper()
 	out := map[string]string{}
@@ -58,10 +55,8 @@ func exportedFunctions(t *testing.T) map[string]string {
 	return out
 }
 
-// referenced counts every name used as an identifier anywhere in the module,
-// tests included. Identifiers rather than text, or every function matches its
-// own doc comment; a use anywhere counts, or a helper called by a sibling in
-// its own file reads as an orphan.
+// referenced counts every name used as an identifier anywhere in the module, tests included.
+// Identifiers rather than text, or every function matches its own doc comment.
 func referenced(t *testing.T) map[string]int {
 	t.Helper()
 	out := map[string]int{}
@@ -105,8 +100,7 @@ func forEachSource(t *testing.T, withTests bool, fn func(string, *ast.File)) {
 			return err
 		}
 		if d.IsDir() {
-			// cmd/ is skipped for DECLARATIONS (the runtime calls main) but walked
-			// for references: server.go is where every handler is named.
+			// cmd/ is skipped for declarations but walked for references: server.go names every handler.
 			if d.Name() == ".git" || d.Name() == "db" || (!withTests && d.Name() == "cmd") {
 				return filepath.SkipDir
 			}

@@ -17,8 +17,7 @@ import (
 )
 
 // Store is the database side of taking money. It holds the pool rather than a
-// DBTX because processing a webhook spans two writes that must succeed or fail
-// together — see [Store.ProcessWebhook].
+// DBTX because processing a webhook spans two writes that must commit together.
 type Store struct {
 	pool *pgxpool.Pool
 	q    *db.Queries
@@ -32,9 +31,8 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool, q: db.New(pool)}
 }
 
-// Order reads what an order OWES, through order_amount_owed — the one
-// definition the funding check and the capture guard also read. The NET figure,
-// never the gross: a capture for the gross is refused after the money is taken.
+// Order reads what an order OWES, through the order_amount_owed the funding
+// check and the capture guard also read.
 func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 	row, err := s.q.OrderTotalByNumber(ctx, number)
 	if err != nil {
@@ -54,8 +52,7 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 		return nil, fmt.Errorf("read lines of order %s: %w", number, err)
 	}
 
-	// No live hold is not an error: the sweeper has already put the stock back,
-	// and the caller refuses to open a session at all.
+	// No live hold is not an error: the caller then opens no session at all.
 	holdUntil, err := s.q.OrderHoldExpiry(ctx, row.ID)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("read stock hold of order %s: %w", number, err)
@@ -88,17 +85,14 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 // Attempt is what a POST to the pay route needs to know about the payments this
 // order has already had.
 type Attempt struct {
-	// SessionID is a Checkout Session still open at Stripe for exactly what the
-	// order owes NOW, or "" when there is none to send the customer back to.
+	// SessionID is a session still open at Stripe for what the order owes NOW.
 	SessionID string
-	// Prior is how many payment rows the order has had, live or not — see
-	// [SessionKey].
+	// Prior is how many payment rows the order has had, live or not.
 	Prior int32
 }
 
 // PaymentAttempt reports whether a Checkout Session is already open for this
-// order at this figure. It is the FIRST line of defence against charging one
-// order twice; the idempotency key is only the second.
+// order at this figure, which is the first defence against a double charge.
 func (s *Store) PaymentAttempt(ctx context.Context, number string, owedCents int64) (*Attempt, error) {
 	row, err := s.q.PaymentAttemptForOrder(ctx, db.PaymentAttemptForOrderParams{
 		OrderNumber: number, OwedCents: owedCents,
@@ -132,8 +126,8 @@ func (s *Store) OpenPayment(ctx context.Context, number, sessionID string, amoun
 }
 
 // ProcessWebhook records an event and applies its effect in ONE transaction, so
-// a failed effect un-claims the event and Stripe's retry actually retries.
-// claimed is false for a redelivery; apply may be nil.
+// a failed effect un-claims it and Stripe's retry actually retries. claimed is
+// false for a redelivery; apply may be nil.
 func (s *Store) ProcessWebhook(
 	ctx context.Context,
 	ev *WebhookEvent,
@@ -179,11 +173,8 @@ func (s *Store) ProcessWebhook(
 	return true, nil
 }
 
-// Capture posts money against the payment the session opened, and reports the
-// order it belongs to.
-//
-// WHICH order comes from the payment row goen wrote at open time, never from the
-// event: a forged or misrouted webhook must not name the order it marks paid.
+// Capture posts money against the payment the session opened. WHICH order comes
+// from the payment row goen wrote at open time, never from the event.
 func (s *Store) Capture(ctx context.Context, c *Capture) (orderNumber string, err error) {
 	row, err := s.q.OrderByPaymentRef(ctx, c.SessionID)
 	if err != nil {
@@ -217,9 +208,6 @@ func (s *Store) Capture(ctx context.Context, c *Capture) (orderNumber string, er
 		return "", fmt.Errorf("record paid event for order %s: %w", row.OrderNumber, err)
 	}
 
-	// Points ride the capture's transaction and the function is idempotent on the
-	// order, so a webhook Stripe delivered twice awards once. A guest order earns
-	// nothing and returns zero rather than erroring.
 	if _, err := s.q.AwardOrderPoints(ctx, db.AwardOrderPointsParams{
 		OrderID: row.ID, ValidityDays: LoyaltyValidityDays,
 		WindowDays: MembershipWindowDays,
@@ -236,8 +224,7 @@ func (s *Store) Capture(ctx context.Context, c *Capture) (orderNumber string, er
 }
 
 // CancelSession marks an abandoned checkout's payment cancelled. cancel_payment
-// refuses a succeeded row, so an expiry racing a capture leaves the money where
-// it is — the guard is in the function, so it holds for every caller.
+// refuses a succeeded row, so an expiry racing a capture changes nothing.
 func (s *Store) CancelSession(ctx context.Context, sessionID string) error {
 	if err := s.q.CancelPayment(ctx, sessionID); err != nil {
 		return fmt.Errorf("cancel payment for session %s: %w", sessionID, err)
@@ -260,8 +247,7 @@ func (s *Store) OrderBelongsTo(ctx context.Context, number, userID string) (bool
 	return owns, nil
 }
 
-// cardLabel is what the history shows about how an order was paid. Empty when
-// Stripe sent no card details, which is the usual case.
+// cardLabel is what the history shows about how an order was paid.
 func cardLabel(c *Capture) string {
 	if c.CardBrand == "" || c.CardLast4 == "" {
 		return ""
@@ -274,13 +260,10 @@ func text(s string) pgtype.Text {
 	return pgtype.Text{String: s, Valid: s != ""}
 }
 
-// LoyaltyValidityDays mirrors loyalty.Validity rather than importing it, kept
-// equal by TestTheLoyaltyConstantsMatchTheProgramme.
-//
+// LoyaltyValidityDays mirrors loyalty.Validity, kept equal by TestTheLoyaltyConstantsMatchTheProgramme.
 // This comment used to name TestTheAwardWindowMatchesTheProgramme, which does // named-test-exempt: this line RECORDS the name that was wrong
 // not exist.
 const LoyaltyValidityDays int32 = 365
 
-// MembershipWindowDays mirrors loyalty.MembershipWindow, kept equal by the same
-// test.
+// MembershipWindowDays mirrors loyalty.MembershipWindow.
 const MembershipWindowDays int32 = 365

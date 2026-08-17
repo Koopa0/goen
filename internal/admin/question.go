@@ -56,10 +56,8 @@ func (s *Store) HideQuestion(ctx context.Context, id string) error {
 		})
 }
 
-// AnswerQuestion posts the SHOP's answer.
-//
-// is_staff is stored true because this ENDPOINT is the shop, never because of
-// who is signed in: the same person answering from the storefront is a customer.
+// AnswerQuestion posts the SHOP's answer; is_staff is true because of the
+// ENDPOINT, never of who is signed in.
 func (s *Store) AnswerQuestion(ctx context.Context, id, userID, body string) error {
 	body = strings.TrimSpace(body)
 	if body == "" || utf8.RuneCountInString(body) > MaxStaffAnswerRunes {
@@ -88,14 +86,11 @@ func (s *Store) AnswerQuestion(ctx context.Context, id, userID, body string) err
 				return fmt.Errorf("%w: %s", ErrRefused, answerErr.Error())
 			}
 			if n == 0 {
-				// The question is gone, or somebody hid it while this was
-				// being typed.
 				return ErrNotFound
 			}
 			return nil
 		})
 }
 
-// MaxStaffAnswerRunes bounds the shop's reply, in RUNES and longer than a
-// customer's.
+// MaxStaffAnswerRunes bounds the shop's reply, in RUNES.
 const MaxStaffAnswerRunes = 1000

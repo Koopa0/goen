@@ -14,9 +14,8 @@ import (
 )
 
 var (
-	// ErrNoSuchCoupon is a code that names nothing. Also returned for a coupon
-	// that exists but is switched off, so a shop does not confirm which of its
-	// codes are real to somebody guessing.
+	// ErrNoSuchCoupon is a code that names nothing, and also one that is switched
+	// off, so a shop does not confirm which codes are real to somebody guessing.
 	ErrNoSuchCoupon = errors.New("cart: no such coupon")
 	// ErrCouponExpired is outside its window.
 	ErrCouponExpired = errors.New("cart: coupon expired")
@@ -46,16 +45,11 @@ type Coupon struct {
 	FreeShipping bool
 }
 
-// NormaliseCode upper-cases and trims a typed code. Hyphens are not stripped:
-// SUMMER-20 and SUMMER20 are different codes, and folding them would make two
-// promotions collide.
+// NormaliseCode upper-cases and trims a typed code, leaving hyphens alone.
 func NormaliseCode(s string) string { return strings.ToUpper(strings.TrimSpace(s)) }
 
-// Price works out what a coupon takes off an order.
-//
-// The discount is capped at the subtotal and never the total: one that ate the
-// shipping fee would drive the total negative, which
-// orders_total_non_negative refuses in the middle of a checkout.
+// Price works out what a coupon takes off an order. The discount is capped at
+// the subtotal and never the total, which orders_total_non_negative refuses.
 func (c *Coupon) Price(subtotalCents, shippingCents int64) {
 	switch c.Kind {
 	case "amount":
@@ -84,10 +78,8 @@ type couponValue struct {
 	minSpend  int64
 }
 
-// FindCoupon looks a code up and prices it against an order.
-//
-// The limits are NOT checked here: redeem_coupon counts them under a lock on the
-// coupon row, and counting them here as well would be counting them without one.
+// FindCoupon looks a code up and prices it against an order. The limits are NOT
+// checked here: redeem_coupon counts them under a lock on the coupon row.
 func (s *Store) FindCoupon(ctx context.Context, code string, subtotalCents, shippingCents int64) (*Coupon, error) {
 	code = NormaliseCode(code)
 	if !couponCode.MatchString(code) {
@@ -101,7 +93,7 @@ func (s *Store) FindCoupon(ctx context.Context, code string, subtotalCents, ship
 	if !row.IsActive {
 		return nil, ErrNoSuchCoupon
 	}
-	// Computed by the query against the database's own clock, never against Go's.
+	// Decided by the query, against the database's own clock and never Go's.
 	if !row.IsCurrent {
 		return nil, ErrCouponExpired
 	}
@@ -122,9 +114,8 @@ func (s *Store) FindCoupon(ctx context.Context, code string, subtotalCents, ship
 	return c, nil
 }
 
-// redeemCoupon posts the redemption inside the order's transaction, carrying
-// the discount the order was actually given —
-// coupon_redemption_matches_order holds the two to each other.
+// redeemCoupon posts the redemption inside the order's transaction, carrying the
+// discount given — coupon_redemption_matches_order holds the two to each other.
 func redeemCoupon(ctx context.Context, q *db.Queries, c *Coupon, orderID uuid.UUID, userID uuid.NullUUID) error {
 	if c == nil {
 		return nil
@@ -134,8 +125,7 @@ func redeemCoupon(ctx context.Context, q *db.Queries, c *Coupon, orderID uuid.UU
 		AmountCents: c.DiscountCents,
 	}); err != nil {
 		// Bound to the constraint NAME, never to the message: pgconn renders a
-		// PgError as severity + message + SQLSTATE, and the name RAISE sets is
-		// not in that string at all.
+		// PgError as severity + message + SQLSTATE, and the name is not in it.
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
 			switch pgErr.ConstraintName {
 			case "coupon_within_total_limit", "coupon_within_customer_limit":

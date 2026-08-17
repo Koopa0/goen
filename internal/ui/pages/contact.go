@@ -15,8 +15,7 @@ func ContactMeta(ctx context.Context) layouts.Page {
 	}
 }
 
-// ContactSubject is one option in the subject control: what gets stored, and
-// what the reader sees.
+// ContactSubject is one option in the subject control.
 type ContactSubject struct {
 	Value string
 	Label string
@@ -30,16 +29,10 @@ type ContactForm struct {
 	OrderRef string
 	Message  string
 
-	// Subjects is supplied by the handler, so the allowed set has one
-	// definition. The stored value is Chinese by design; the label follows the
-	// reader.
 	Subjects []ContactSubject
 
-	// Errors maps a field name to its message; the empty key is a form-level
-	// error belonging to no single field.
 	Errors map[string]string
 
-	// Done replaces the form with an acknowledgement.
 	Done bool
 }
 
@@ -52,8 +45,6 @@ func (f ContactForm) invalid(field string) string {
 	return "false"
 }
 
-// describedBy names the element holding a field's error message, and "" when
-// the field is valid so the attribute is omitted rather than dangling.
 func (f ContactForm) describedBy(field string) string {
 	if f.Errors[field] == "" {
 		return ""

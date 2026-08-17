@@ -57,10 +57,7 @@ func (l CartLine) AvailableText() string { return strconv.FormatInt(int64(l.Avai
 
 // MaxQuantity bounds the line's quantity input to what can be supplied.
 func (l CartLine) MaxQuantity() string {
-	n := l.Available
-	if n > 999 {
-		n = 999
-	}
+	n := min(l.Available, 999)
 	if n < 1 {
 		n = 1
 	}
@@ -124,11 +121,8 @@ func (v CartView) CanCheckout() bool { return !v.Empty() && !v.Blocked() }
 
 // ShippingChoice is one delivery method at checkout.
 type ShippingChoice struct {
-	VersionID string
-	Code      string
-	// DestinationKind decides which fields the form asks for. It comes from
-	// shipping_methods, so a new destination is a schema decision rather than a
-	// branch in the checkout.
+	VersionID       string
+	Code            string
 	DestinationKind string
 	Name            string
 	Carrier         string
@@ -141,32 +135,26 @@ func (c ShippingChoice) Fee() string { return twd(c.FeeCents) }
 
 // CheckoutView is the checkout form.
 type CheckoutView struct {
-	Cart     CartView
-	Shipping []ShippingChoice
-	Chosen   string
-	// QuotedShippingCents is what delivery actually costs for the address that was
-	// typed, which the method chooser could not know. A customer is never charged
-	// it until they have seen it.
+	Cart                CartView
+	Shipping            []ShippingChoice
+	Chosen              string
 	QuotedShippingCents int64
 	SurchargeCents      int64
 	ZoneName            string
-	// Destination is the chosen method's destination kind, decided by the server:
-	// no field carries it back, so a submission cannot pick its own destination.
-	Destination    string
-	Address        CheckoutAddress
-	Errors         map[string]string
-	Invoice        CheckoutInvoice
-	InvoiceChoices []InvoiceChoice
-	PickupBrands   []PickupBrandChoice
-	SavedAddresses []SavedAddress
-	// ChosenAddress is the saved address the form is filled from. Empty means the
-	// fields were typed.
+	// Destination is decided by the server; no field carries it back.
+	Destination         string
+	Address             CheckoutAddress
+	Errors              map[string]string
+	Invoice             CheckoutInvoice
+	InvoiceChoices      []InvoiceChoice
+	PickupBrands        []PickupBrandChoice
+	SavedAddresses      []SavedAddress
 	ChosenAddress       string
 	CouponCode          string
 	CouponApplied       string
 	CouponDiscountCents int64
 	CouponFreeShipping  bool
-	Idempoten           string // the idempotency key this form carries
+	Idempoten           string
 }
 
 // InvoiceChoice is one option in the invoice-type radio group.
@@ -210,16 +198,13 @@ func PickupBrandChoices() []PickupBrandChoice {
 	return out
 }
 
-// PickupBrands are the convenience-store chains a parcel may be sent to, in the
-// order the form offers them. An allowlist, because the brand decides which
-// carrier's manifest the parcel joins.
+// PickupBrands are the convenience-store chains a parcel may be sent to.
 var PickupBrands = []string{"seven_eleven", "family_mart", "hi_life", "ok_mart"}
 
 // PickupBrandLabel is what a customer reads.
 func PickupBrandLabel(code string) string {
 	switch code {
 	case "":
-		// An erased or address-bound order, which has no brand.
 		return ""
 	case "seven_eleven":
 		return "7-ELEVEN"
@@ -246,12 +231,10 @@ type Delivery struct {
 	PickupStoreName string
 }
 
-// IsPickup reports whether this order is collected from a convenience store,
-// decided by the store code because that is the column identifying a destination.
+// IsPickup reports whether this order is collected from a convenience store.
 func (d Delivery) IsPickup() bool { return d.PickupStoreCode != "" }
 
-// Line is the destination as one line a person can read. An erased order has
-// neither destination and renders empty rather than as stray punctuation.
+// Line is the destination as one line a person can read.
 func (d Delivery) Line() string {
 	if d.IsPickup() {
 		return PickupBrandLabel(d.PickupBrand) + " " + d.PickupStoreName +
@@ -286,9 +269,7 @@ func (a SavedAddress) DisplayLabel(ctx context.Context) string {
 	return a.Label
 }
 
-// CheckoutLink is this page's URL with one parameter changed. Each chooser link
-// carries the other choice, so picking a saved address cannot move the order back
-// to home delivery.
+// CheckoutLink is this page's URL with one parameter changed.
 func (v *CheckoutView) CheckoutLink(param, value string) string {
 	q := url.Values{}
 	if v.Chosen != "" {
@@ -355,9 +336,7 @@ func (v *CheckoutView) ShippingFeeCents() int64 {
 	return 0
 }
 
-// BaseShippingCents is the delivery charge without the outlying-island surcharge.
-// ShippingFeeCents is the quote's total and already carries it, so the summary's
-// fee row prints this one and the surcharge is a row of its own.
+// BaseShippingCents is the delivery charge less the surcharge ShippingFeeCents carries.
 func (v *CheckoutView) BaseShippingCents() int64 {
 	return v.ShippingFeeCents() - v.SurchargeCents
 }
@@ -365,8 +344,7 @@ func (v *CheckoutView) BaseShippingCents() int64 {
 // ShippingText is the chosen method's fee as money, after any free-delivery coupon.
 func (v *CheckoutView) ShippingText() string { return twd(v.BaseShippingCents()) }
 
-// ShipsFree reports whether delivery costs nothing, so the template can say so in
-// the visitor's language.
+// ShipsFree reports whether delivery costs nothing.
 func (v *CheckoutView) ShipsFree() bool {
 	return v.CouponFreeShipping || v.BaseShippingCents() == 0
 }
@@ -376,9 +354,7 @@ func (v *CheckoutView) Total() string {
 	return twd(v.TotalCents())
 }
 
-// TotalCents is what the customer will be charged, and has to stay the arithmetic
-// PlaceOrder does. A free-delivery coupon zeroes the shop's base rate and never the
-// outlying-island surcharge, which is what a carrier charges to cross the water.
+// TotalCents is what the customer will be charged; it must match PlaceOrder's arithmetic.
 func (v *CheckoutView) TotalCents() int64 {
 	shipping := v.BaseShippingCents()
 	if v.CouponFreeShipping {
@@ -405,9 +381,8 @@ func (l OrderLine) LineTotal() string { return twd(l.UnitCents * int64(l.Quantit
 // QuantityText is how many were ordered.
 func (l OrderLine) QuantityText() string { return strconv.FormatInt(int64(l.Quantity), 10) }
 
-// OrderEvent is one entry in an order's history, as the customer sees it. It
-// carries no actor: anyone holding the order number can reach this page, and a
-// timeline naming staff hands out employee identities with it.
+// OrderEvent is one entry in an order's history, as the customer sees it. It carries
+// no actor: anyone holding the order number can reach this page.
 type OrderEvent struct {
 	Kind string
 	Note string
@@ -468,12 +443,10 @@ func (i CheckoutInvoice) Is(t string) bool {
 
 // OrderView is the confirmation page.
 type OrderView struct {
-	Number       string
-	Status       string
-	Email        string
-	ShippingName string
-	// DeliveryTo is the destination and not merely the method: "which store did I
-	// pick?" is the question a convenience-store order is read to answer.
+	Number         string
+	Status         string
+	Email          string
+	ShippingName   string
 	DeliveryTo     string
 	PlacedAt       string
 	Lines          []OrderLine
@@ -481,6 +454,7 @@ type OrderView struct {
 	ShippingCents  int64
 	DiscountCents  int64
 	DiscountReason string
+	CreditCents    int64
 	TaxCents       int64
 	Timeline       []OrderEvent
 	Shipments      []OrderShipment
@@ -522,8 +496,18 @@ func (v *OrderView) Total() string {
 	return twd(v.SubtotalCents - v.DiscountCents + v.ShippingCents + v.TaxCents)
 }
 
-// CanRequestReturn reports whether the goods have left the warehouse, which is
-// what return_within_shipment bounds a return by.
+// UsedCredit reports whether to show the store-credit row.
+//
+// Shown because it was not: the credit is debited in the order's own
+// transaction and appeared on no page, so the summary said one figure while the
+// payment page asked for another and nothing on the receipt accounted for the
+// difference — the discount row's defect, one term over.
+func (v *OrderView) UsedCredit() bool { return v.CreditCents > 0 }
+
+// Credit is what the store credit took off, as a negative figure.
+func (v *OrderView) Credit() string { return "-" + twd(v.CreditCents) }
+
+// CanRequestReturn reports whether the goods have left the warehouse.
 func (v *OrderView) CanRequestReturn() bool {
 	switch v.Status {
 	case "shipped", "delivered", "completed":
@@ -533,9 +517,7 @@ func (v *OrderView) CanRequestReturn() bool {
 	}
 }
 
-// AwaitingPayment reports whether the order is still waiting to be paid. 'pending'
-// cannot answer alone: an order stays pending from the capture until somebody picks
-// it, and a fully store-credited order owes nothing while it is not yet committed.
+// AwaitingPayment reports whether the order is waiting to be paid; 'pending' alone cannot say.
 func (v *OrderView) AwaitingPayment() bool {
 	return v.Status == "pending" && !v.Committed && v.OwedCents > 0
 }

@@ -64,7 +64,7 @@ func TestClean(t *testing.T) {
 }
 
 // valid is a submission every field of which passes, so a case can change one
-// field and attribute the failure to that field alone.
+// field and attribute the failure to it.
 func valid() contact.Message {
 	return contact.Message{
 		Name:     "王小明",
@@ -79,10 +79,8 @@ func TestValidate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		mutate func(m *contact.Message)
-		// wantFields is every field key expected to carry an error. An empty
-		// slice asserts the message is acceptable.
+		name       string
+		mutate     func(m *contact.Message)
 		wantFields []string
 	}{
 		{name: "accepts a complete message", mutate: func(*contact.Message) {}, wantFields: nil},
@@ -235,8 +233,8 @@ func TestValidateSubjectsAreAccepted(t *testing.T) {
 			if got := contact.Validate(t.Context(), msg); len(got) != 0 {
 				t.Errorf("Validate() rejected offered subject %q: %v", subject.Value, got)
 			}
-			// And its label exists. A topic with a key nothing translates would
-			// render the key name into the form's dropdown.
+			// A topic whose key nothing translates renders the key name into
+			// the form's dropdown.
 			if _, ok := i18n.MessageFor(subject.LabelKey); !ok {
 				t.Errorf("subject %q names %q, which the catalogue does not define",
 					subject.Value, subject.LabelKey)

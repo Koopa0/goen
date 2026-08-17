@@ -5,8 +5,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// Base is goen's document shell. The theme-blue class on <html> selects the
-// accent hue; the design system's own tokens supply everything else.
+// Base is goen's document shell.
 templ Base(p Page) {
 	<!DOCTYPE html>
 	<html lang={ i18n.FromContext(ctx).Tag() } class="theme-blue">
@@ -43,9 +42,7 @@ templ Base(p Page) {
 	</html>
 }
 
-// structuredData emits a JSON-LD block. The tags are inside the templ.Raw
-// because templ treats a <script> body as literal text: an @-expression written
-// inside one reaches the browser as the characters "@templ.Raw(...)".
+// Inside templ.Raw because templ treats a <script> body as literal text.
 templ structuredData(doc string) {
 	@templ.Raw(`<script type="application/ld+json">` + doc + `</script>`)
 }

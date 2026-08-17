@@ -7,15 +7,9 @@ import (
 	"time"
 )
 
-// Guard wraps a handler with a per-IP limit.
-//
-// Middleware and not a check inside the handler, because the ordering is the
-// whole point: this must run before anything expensive, and a handler that
-// checks partway down its own body is one refactor away from checking too late.
-//
-// It answers 429 with Retry-After. Not 403: the client is not forbidden, it is
-// early, and a status that says so is what lets a well-behaved one back off
-// instead of retrying immediately.
+// Guard wraps a handler with a per-IP limit, answering 429 with Retry-After.
+// Middleware and not a check inside the handler, because it must run before
+// anything expensive.
 func Guard(l *Limiter, log *slog.Logger, next http.HandlerFunc) http.HandlerFunc {
 	if l == nil || log == nil {
 		panic("ratelimit: Guard requires a limiter and a logger")
@@ -33,16 +27,12 @@ func Guard(l *Limiter, log *slog.Logger, next http.HandlerFunc) http.HandlerFunc
 	}
 }
 
-// Refuse writes the 429.
-//
-// Exported because the per-account check happens inside the sign-in handler,
-// which has already read the form, and both refusals must look identical from
-// outside. A 429 that differed by reason would answer "does this account
-// exist?" — the question the whole sign-in flow is careful not to answer.
+// Refuse writes the 429. Exported so the sign-in handler's per-account refusal
+// is byte-identical to the per-IP one, which is what stops it answering "does
+// this account exist?".
 func Refuse(w http.ResponseWriter, retryAfter time.Duration) {
-	// Rounded UP: Retry-After is whole seconds, and rounding down tells a
-	// client to come back before it is allowed, which produces a second 429 and
-	// looks like the limiter is broken.
+	// Rounded UP: rounding down tells a client to come back before it is
+	// allowed, which produces a second 429.
 	seconds := int(retryAfter.Seconds())
 	if retryAfter > time.Duration(seconds)*time.Second {
 		seconds++

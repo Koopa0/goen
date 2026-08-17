@@ -10,28 +10,16 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// NewsletterConfirm is what a newsletter.confirm message carries.
-//
-// The TOKEN travels in the payload, so it is written to outbox_messages and
-// lives there for as long as that row does. The same trade as a password reset,
-// with far less at stake: the link joins a mailing list, expires in two days,
-// and is spent by the first use. What it must not become is a way to confirm
-// somebody else's address, and it cannot — a leaked one can only subscribe the
-// address it was issued for, which then holds a working unsubscribe link.
+// NewsletterConfirm is what a newsletter.confirm message carries. The TOKEN
+// travels in the payload and lives as long as the outbox row does.
 type NewsletterConfirm struct {
-	// Locale is the language to send in, recorded by the producer. See
-	// [Notifier.locale].
+	// Locale is the language to send in, recorded by the producer.
 	Locale string `json:"locale"`
 	Email  string `json:"email"`
 	Token  string `json:"token"`
 }
 
 // SendNewsletterConfirm asks a mailbox whether it wants the newsletter.
-//
-// The message is deliberately quiet about goen and loud about the question. It
-// is sent to an address that somebody typed into a form, and the person reading
-// it may not be the person who typed it — so the first thing it has to say is
-// how to ignore it.
 func (n Notifier) SendNewsletterConfirm(ctx context.Context, p *NewsletterConfirm) error {
 	if !Valid(p.Email) {
 		return errors.New("a newsletter confirmation has no usable email address")
@@ -46,18 +34,11 @@ func (n Notifier) SendNewsletterConfirm(ctx context.Context, p *NewsletterConfir
 	})
 }
 
-// NewsletterWelcome is what a newsletter.welcome message carries.
-//
-// It exists to deliver the unsubscribe link. That link never expires — an email
-// sent a year ago still has to be able to take somebody off the list — so this
-// token sits in outbox_messages indefinitely, which is the one place goen's
-// token exposure is not bounded by an expiry. Recovering it from the database
-// buys somebody the ability to unsubscribe one address from a newsletter, and
-// pruning delivered messages is queued work rather than a mitigation claimed
-// here.
+// NewsletterWelcome is what a newsletter.welcome message carries. Its
+// unsubscribe token never expires, because an email sent a year ago still has to
+// take somebody off the list.
 type NewsletterWelcome struct {
-	// Locale is the language to send in, recorded by the producer. See
-	// [Notifier.locale].
+	// Locale is the language to send in, recorded by the producer.
 	Locale           string `json:"locale"`
 	Email            string `json:"email"`
 	UnsubscribeToken string `json:"unsubscribe_token"`
@@ -79,12 +60,9 @@ func (n Notifier) SendNewsletterWelcome(ctx context.Context, p *NewsletterWelcom
 	})
 }
 
-// NewsletterIssue is one copy of one newsletter, addressed to one person.
-//
-// The subject and body are the shop's own words, authored in the back office and
-// sent as written: they are content, like a product description, and a lookup
-// table is not where a monthly letter belongs. What IS translated is the
-// unsubscribe footer, which is chrome and which every copy has to carry.
+// NewsletterIssue is one copy of one newsletter, addressed to one person. The
+// subject and body are the shop's own words and go out as written; only the
+// unsubscribe footer is translated.
 type NewsletterIssue struct {
 	Locale           string `json:"locale"`
 	Email            string `json:"email"`
@@ -93,19 +71,15 @@ type NewsletterIssue struct {
 	UnsubscribeToken string `json:"unsubscribe_token"`
 }
 
-// SendNewsletterIssue delivers one copy.
-//
-// The unsubscribe link is appended by the sender rather than left to whoever
-// wrote the issue. A newsletter without one is the thing this whole feature was
-// built to make impossible, and "remember to paste the link" is not a mechanism.
+// SendNewsletterIssue delivers one copy. The unsubscribe link is appended here
+// rather than left to whoever wrote the issue.
 func (n Notifier) SendNewsletterIssue(ctx context.Context, p *NewsletterIssue) error {
 	if !Valid(p.Email) {
 		return errors.New("a newsletter issue has no usable email address")
 	}
 	if p.UnsubscribeToken == "" {
-		// Refused rather than sent without one. The outbox reschedules it and
-		// Stuck() shows a human, which is the right amount of noise for "we were
-		// about to send mail nobody could opt out of".
+		// Refused rather than sent without one: the outbox reschedules it and
+		// Stuck() shows a human.
 		return errors.New("a newsletter issue has no unsubscribe token")
 	}
 
@@ -121,12 +95,9 @@ func (n Notifier) SendNewsletterIssue(ctx context.Context, p *NewsletterIssue) e
 	return n.Sender.Send(ctx, &Message{To: p.Email, Subject: p.Subject, Body: body})
 }
 
-// EmailVerify is what an account.email_verify message carries.
-//
-// The address is in the payload as well as being the recipient, because a CHANGE
-// sends to the new address while the account still holds the old one — the letter
-// has to name which address it is about, or somebody with two accounts cannot tell
-// what they are confirming.
+// EmailVerify is what an account.email_verify message carries. The address is in
+// the payload as well as being the recipient, because a CHANGE sends to the new
+// address while the account still holds the old one.
 type EmailVerify struct {
 	Locale string `json:"locale"`
 	Email  string `json:"email"`

@@ -15,7 +15,6 @@ import (
 	"time"
 )
 
-// Google's OAuth 2.0 endpoints.
 const (
 	googleAuthURL = "https://accounts.google.com/o/oauth2/v2/auth"
 	//nolint:gosec // G101: a published endpoint URL that happens to contain the
@@ -24,7 +23,6 @@ const (
 	googleUserInfoURL = "https://openidconnect.googleapis.com/v1/userinfo"
 )
 
-// Errors the sign-in handler branches on.
 var (
 	// ErrOAuthDisabled is a deployment with no Google credentials.
 	ErrOAuthDisabled = errors.New("account: google sign-in is not configured")
@@ -36,14 +34,12 @@ var (
 	ErrOAuthCollision = errors.New("account: that address already has an unverified account here")
 )
 
-// oauthStateCookie carries the CSRF state and the PKCE verifier across the
-// redirect to Google and back.
+// oauthStateCookie carries the CSRF state and the PKCE verifier to the callback.
 const oauthStateCookie = "__Host-goen_oauth"
 
 const oauthStateTTL = 10 * time.Minute
 
-// Google is the OAuth client. The zero value is DISABLED and answers
-// ErrOAuthDisabled.
+// Google is the OAuth client; the zero value is disabled.
 type Google struct {
 	clientID     string
 	clientSecret string
@@ -130,7 +126,6 @@ func (g *Google) Exchange(ctx context.Context, code, verifier string) (Identity,
 	return g.userInfo(ctx, token)
 }
 
-// token redeems the authorisation code.
 func (g *Google) token(ctx context.Context, code, verifier string) (string, error) {
 	form := url.Values{
 		"code":          {code},
@@ -173,7 +168,6 @@ func (g *Google) token(ctx context.Context, code, verifier string) (string, erro
 	return out.AccessToken, nil
 }
 
-// userInfo asks who the token belongs to.
 func (g *Google) userInfo(ctx context.Context, token string) (Identity, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, googleUserInfoURL, http.NoBody)
 	if err != nil {
@@ -212,7 +206,6 @@ func (g *Google) userInfo(ctx context.Context, token string) (Identity, error) {
 	}, nil
 }
 
-// randomToken is a URL-safe 32-byte secret.
 func randomToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {

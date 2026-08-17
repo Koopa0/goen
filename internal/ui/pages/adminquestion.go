@@ -9,16 +9,13 @@ import (
 
 // AdminQuestion is one customer question as the back office sees it.
 type AdminQuestion struct {
-	ID          string
-	Body        string
-	Asker       string
-	ProductSlug string
-	ProductName string
-	Asked       string
-	Answers     int64
-	// AnsweredByShop is the only thing that decides urgency. Three customer
-	// replies and no official one is still an unanswered question — the person
-	// deciding came for the shop's answer.
+	ID             string
+	Body           string
+	Asker          string
+	ProductSlug    string
+	ProductName    string
+	Asked          string
+	Answers        int64
 	AnsweredByShop bool
 }
 
@@ -48,8 +45,7 @@ func (q AdminQuestion) Who(ctx context.Context) string {
 	return q.Asker
 }
 
-// ProductHref is the product's page on the storefront, so a staff member can
-// see what the customer was looking at before answering.
+// ProductHref is the product's page on the storefront.
 func (q AdminQuestion) ProductHref() string { return "/p/" + q.ProductSlug }
 
 // AnswerAction is where the reply form posts.

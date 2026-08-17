@@ -55,11 +55,6 @@ templ AdminStaff(p layouts.Page, v AdminStaffView) {
 									}
 								</td>
 								<td>
-									// Neither control is offered on your own
-									// row. Removing your own second factor is
-									// what an attacker holding your session
-									// wants, and revoking your own access is
-									// how a shop locks itself out.
 									if v.IsActor(r) {
 										<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyAdminStaffYou) }</span>
 									} else {

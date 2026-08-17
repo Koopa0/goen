@@ -1,7 +1,5 @@
 package i18n
 
-// The header, the navigation and the footer: the chrome every page carries.
-
 var (
 	KeySkipToContent = key("nav.skip", Message{ZhHant: "跳至主要內容", En: "Skip to main content"})
 	KeySearch        = key("nav.search", Message{ZhHant: "搜尋", En: "Search"})
@@ -34,9 +32,6 @@ var (
 	KeyPrivacyPolicy  = key("footer.privacy", Message{ZhHant: "隱私權政策", En: "Privacy"})
 	KeyTermsPolicy    = key("footer.terms", Message{ZhHant: "服務條款", En: "Terms"})
 
-	// A visitor who switched to English needs to know what did not switch. Said
-	// plainly rather than buried: one who meets a Chinese product description
-	// with no warning has been misled about what the shop knows.
 	KeyContentNotice = key("notice.content", Message{
 		ZhHant: "商品說明與政策條文以繁體中文撰寫。",
 		En:     "Product descriptions and policy documents are written in Traditional Chinese.",

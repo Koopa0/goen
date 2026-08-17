@@ -7,17 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Listing renders a category page: crumbs, the filter panel, and the product
-// grid.
-//
-// Everything here is the design system's own vocabulary — ui-crumbs, ui-check,
-// ui-filterbar, ui-pagination, ui-empty, ui-product — because it already
-// defines all of it. goen-* owns only the two-column composition and the fold
-// that puts the filters above the grid on a small screen.
-//
-// The filter panel is a plain GET form. Filtering is a read, so it needs no
-// POST, and with scripting off the browser submits it and the server answers a
-// whole page. Each group is a native <details>, which discloses without script.
+// Listing renders a category page: crumbs, filters and the product grid.
 templ Listing(p layouts.Page, v ListingView) {
 	@layouts.Base(p) {
 		<div class="goen-listing">
@@ -61,10 +51,6 @@ templ Listing(p layouts.Page, v ListingView) {
 	}
 }
 
-// listingFilters is the filter panel: a GET form whose submit button is the
-// only thing needed to apply it. The button is not hidden when scripting is on
-// — goen has no client-side filtering, so hiding it would leave nothing to
-// press.
 templ listingFilters(v ListingView) {
 	<form class="goen-filters" method="get" action={ templ.SafeURL("/c/" + v.Slug) }>
 		<div class="goen-filters__head">
@@ -145,9 +131,6 @@ templ listingFilters(v ListingView) {
 	</form>
 }
 
-// pager is the previous/next control. Numbered links are deliberately absent:
-// the catalogue is small, and a numbered pager over a filtered listing means
-// building every page's URL to render links most visitors never use.
 templ pager(hasPrev, hasNext bool, prev, next, page, pages string) {
 	if hasPrev || hasNext {
 		<nav class="goen-pager" aria-label={ i18n.T(ctx, i18n.KeyPagination) }>
@@ -166,9 +149,7 @@ templ pager(hasPrev, hasNext bool, prev, next, page, pages string) {
 	}
 }
 
-// Search renders the search results page. It has no filter panel: a visitor who
-// typed a term is answering "do you have this", and facets over a cross-category
-// result set would filter on options most of the matches do not share.
+// Search renders the search results page, which has no filter panel.
 templ Search(p layouts.Page, v SearchView) {
 	@layouts.Base(p) {
 		<div class="goen-listing">
@@ -200,11 +181,7 @@ templ Search(p layouts.Page, v SearchView) {
 					</p>
 				</div>
 			} else {
-				// The grid's heading, visually hidden. A product tile's name is an
-				// h3, and on this page the nearest heading above it is the page's own
-				// h1 — a skipped level, which breaks the outline a screen-reader user
-				// navigates by. The listing page never had the problem because its
-				// filter panel supplies an h2.
+				// The grid's heading, visually hidden: without it a tile's h3 skips a level.
 				<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
 				<ul class="goen-tiles__grid" role="list">
 					for _, t := range v.Products {

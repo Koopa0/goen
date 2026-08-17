@@ -1,8 +1,7 @@
 //go:build integration
 
-// Schema conformance. Every rule 001 encodes is exercised against a value it must
-// refuse AND a neighbouring value it must accept, so a constraint cannot pass by
-// rejecting everything. Each case runs in a transaction that is rolled back.
+// Schema conformance. Every rule 001 encodes is exercised against a value it must refuse AND a
+// neighbouring value it must accept, so a constraint cannot pass by rejecting everything.
 package db_test
 
 import (
@@ -38,8 +37,7 @@ func schemaPool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-// run executes stmt against a rolled-back transaction that already holds the
-// fixtures, and reports whether the database accepted it.
+// run executes stmt against a rolled-back transaction holding the fixtures, and reports the outcome.
 func run(t *testing.T, stmt string) error {
 	t.Helper()
 
@@ -57,9 +55,7 @@ func run(t *testing.T, stmt string) error {
 	return err
 }
 
-// expectedForeignKeys is every foreign key the schema declares, pinned by name.
-// TestEveryForeignKeyIsIndexed inspects only the FKs that still exist, so a drop
-// leaves its input smaller and goes unnoticed; this set is what fails on one.
+// expectedForeignKeys is every foreign key the schema declares, pinned by name so a drop fails.
 var expectedForeignKeys = map[string]bool{
 	"email_verifications_user_id_fkey":            true,
 	"newsletter_issues_sent_by_fkey":              true,
@@ -143,8 +139,7 @@ var expectedForeignKeys = map[string]bool{
 	"wishlist_items_user_id_fkey":                 true,
 }
 
-// TestForeignKeySetIsComplete requires the live foreign keys to equal
-// expectedForeignKeys exactly.
+// TestForeignKeySetIsComplete requires the live foreign keys to equal expectedForeignKeys exactly.
 func TestForeignKeySetIsComplete(t *testing.T) {
 	rows, err := schemaPool(t).Query(t.Context(), `
 		SELECT conname
@@ -180,8 +175,8 @@ func TestForeignKeySetIsComplete(t *testing.T) {
 	}
 }
 
-// TestEveryForeignKeyIsIndexed catches the omission PostgreSQL does not: it
-// creates no index for a foreign key, so a parent delete scans the child.
+// TestEveryForeignKeyIsIndexed catches what PostgreSQL does not: it creates no index for a
+// foreign key, so a parent delete scans the child.
 func TestEveryForeignKeyIsIndexed(t *testing.T) {
 	rows, err := schemaPool(t).Query(t.Context(), `
 		SELECT c.conrelid::regclass::text, c.conname
@@ -189,10 +184,8 @@ func TestEveryForeignKeyIsIndexed(t *testing.T) {
 		WHERE c.contype = 'f'
 		  AND connamespace = 'public'::regnamespace
 		  AND NOT EXISTS (
-			-- The referencing columns must be a PREFIX of some index: an index on
-			-- (b, a) does nothing for a lookup by a. indkey cast straight to
-			-- smallint[] has lower bound 0, so slicing from 1 would drop the
-			-- leading column; its text form gives an ordinary 1-based array.
+			-- The referencing columns must be a PREFIX of some index. indkey cast straight to
+			-- smallint[] has lower bound 0; its text form gives an ordinary 1-based array.
 			SELECT 1 FROM pg_index i
 			WHERE i.indrelid = c.conrelid
 			  AND i.indisvalid AND i.indislive
@@ -200,8 +193,8 @@ func TestEveryForeignKeyIsIndexed(t *testing.T) {
 			      = c.conkey::smallint[]
 			  AND (
 			      i.indpred IS NULL
-			      -- A partial index still serves the FK when its predicate is exactly
-			      -- that the FK columns are NOT NULL: the lookup is an equality.
+			      -- A partial index still serves the FK when its predicate is exactly that the
+			      -- FK columns are NOT NULL: the lookup is an equality.
 			      OR pg_get_expr(i.indpred, i.indrelid) = (
 			          SELECT string_agg('(' || quote_ident(a.attname) || ' IS NOT NULL)', ' AND ')
 			          FROM unnest(c.conkey) WITH ORDINALITY AS k(attnum, ord)

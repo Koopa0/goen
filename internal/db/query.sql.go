@@ -27,11 +27,8 @@ type ActiveSubscribersRow struct {
 	UnsubscribeToken string
 }
 
-// Everybody on the list right now, with the language to write to them in.
-//
-// Read inside the send's own transaction. A count taken beforehand is a count
-// that can disagree with what was enqueued: somebody unsubscribing between the
-// two would be sent an issue the shop had already promised not to send them.
+// Read inside the send's own transaction, so somebody who unsubscribes during a
+// send is either in the list or not, never half.
 func (q *Queries) ActiveSubscribers(ctx context.Context) ([]ActiveSubscribersRow, error) {
 	rows, err := q.db.Query(ctx, activeSubscribers)
 	if err != nil {
@@ -67,11 +64,9 @@ type AddCampaignProductParams struct {
 	Product  string
 }
 
-// Feature a product.
-//
-// sale_campaign_needs_discount refuses a product with nothing marked down, and
-// it takes a lock on the product first — so this is one statement and the guard
-// decides, rather than a check here that a concurrent price change invalidates.
+// ONE statement: sale_campaign_needs_discount refuses a product with nothing
+// marked down and takes a lock on it first, so a check here would be a check a
+// concurrent price change invalidates.
 func (q *Queries) AddCampaignProduct(ctx context.Context, arg AddCampaignProductParams) error {
 	_, err := q.db.Exec(ctx, addCampaignProduct, arg.Campaign, arg.Product)
 	return err
@@ -90,13 +85,8 @@ type AddCartItemParams struct {
 	Quantity  int32
 }
 
-// Add to a cart, or raise the quantity of what is already there. Adding the
-// same variant twice is one line with more of it, not two lines — the primary
-// key says so and this makes the write agree.
-//
-// The cap is the CHECK's own ceiling, applied with least() so a repeat add
-// stops at the limit rather than raising a constraint violation the visitor did
-// nothing to deserve.
+// least() caps a repeat add at the CHECK's own ceiling rather than raising a
+// constraint violation the visitor did nothing to deserve.
 func (q *Queries) AddCartItem(ctx context.Context, arg AddCartItemParams) error {
 	_, err := q.db.Exec(ctx, addCartItem, arg.CartID, arg.VariantID, arg.Quantity)
 	return err
@@ -118,18 +108,9 @@ type AddNewsletterSubscriberParams struct {
 	Locale           string
 }
 
-// Confirming is what puts an address on the list, and the only thing that
-// clears a previous opt-out. A re-subscription therefore costs another trip
-// through the mailbox, which is the point: a form submission by somebody else
-// must not undo "stop emailing me".
-//
-// The unsubscribe secret is KEPT when an address rejoins, not rotated.
-//
-// It is stored as the token, so every copy of it that has ever been mailed goes
-// on working — which is the promise the link makes. Rotating it would silently
-// break the link in every issue already sitting in somebody's mailbox, and
-// storing a digest instead forces exactly that rotation: the caller cannot read
-// the live token back out of a hash, so it has nothing to mail but a new one.
+// Confirming is the only thing that clears a previous opt-out, so a form
+// submission by somebody else cannot undo it. The unsubscribe secret is KEPT
+// when an address rejoins, so every link ever mailed to it goes on working.
 func (q *Queries) AddNewsletterSubscriber(ctx context.Context, arg AddNewsletterSubscriberParams) (string, error) {
 	row := q.db.QueryRow(ctx, addNewsletterSubscriber, arg.Email, arg.UnsubscribeToken, arg.Locale)
 	var unsubscribe_token string
@@ -153,7 +134,6 @@ type AddProductOptionParams struct {
 	Slug   string
 }
 
-// Append an option to a product.
 func (q *Queries) AddProductOption(ctx context.Context, arg AddProductOptionParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, addProductOption, arg.Name, arg.NameEn, arg.Slug)
 	var id uuid.UUID
@@ -179,11 +159,9 @@ type AddProductOptionValueParams struct {
 	OptionID uuid.UUID
 }
 
-// Append a value to one of a product's options.
-//
-// product_id comes from the OPTION rather than from the caller, so a value cannot
-// be attached to an option of a different product — the composite foreign key
-// would refuse it, and reading it from the row means the caller cannot try.
+// product_id comes from the OPTION and not from the caller, so a value cannot be
+// attached to an option of a different product: the composite foreign key would
+// refuse it, and resolving it here means the caller cannot try.
 func (q *Queries) AddProductOptionValue(ctx context.Context, arg AddProductOptionValueParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, addProductOptionValue,
 		arg.Value,
@@ -215,12 +193,9 @@ type AddProductSpecParams struct {
 	Slug    string
 }
 
-// Append a spec at the end.
-//
-// The position is computed IN the insert, from max(position) under the row lock
-// the insert takes on the index — product_specs_position_key is unique on
-// (product_id, position), so reading the maximum in Go and then writing it is a
-// race two staff members editing one product would meet.
+// The position is computed IN the insert: product_specs_position_key is unique
+// on (product_id, position), so reading max(position) in Go and then writing it
+// is a race two staff members editing one product would meet.
 func (q *Queries) AddProductSpec(ctx context.Context, arg AddProductSpecParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, addProductSpec,
 		arg.Label,
@@ -245,8 +220,6 @@ type AddWishlistItemParams struct {
 	Slug   string
 }
 
-// Save a product. Idempotent: saving something twice is one entry, not an
-// error the customer did nothing to deserve.
 func (q *Queries) AddWishlistItem(ctx context.Context, arg AddWishlistItemParams) error {
 	_, err := q.db.Exec(ctx, addWishlistItem, arg.UserID, arg.Slug)
 	return err
@@ -314,12 +287,8 @@ type AdjustStockParams struct {
 	ActorUserID    uuid.UUID
 }
 
-// Adjust stock through the ledger.
-//
 // record_inventory_movement is the ONLY door: admin has no UPDATE on
-// stock_quantity, so a direct write is refused by the database rather than by
-// convention. Every adjustment therefore lands in inventory_movements with a
-// reason and an actor.
+// stock_quantity, so a direct write is refused by the database.
 func (q *Queries) AdjustStock(ctx context.Context, arg AdjustStockParams) error {
 	_, err := q.db.Exec(ctx, adjustStock,
 		arg.VariantID,
@@ -339,8 +308,6 @@ type AdminBrandsRow struct {
 	Name string
 }
 
-// The choices the product form offers. Both are small and rarely change, so
-// they are read whole rather than paged.
 func (q *Queries) AdminBrands(ctx context.Context) ([]AdminBrandsRow, error) {
 	rows, err := q.db.Query(ctx, adminBrands)
 	if err != nil {
@@ -376,7 +343,6 @@ type AdminCampaignProductsRow struct {
 	Position int32
 }
 
-// What one campaign features, for its edit page.
 func (q *Queries) AdminCampaignProducts(ctx context.Context, campaign string) ([]AdminCampaignProductsRow, error) {
 	rows, err := q.db.Query(ctx, adminCampaignProducts, campaign)
 	if err != nil {
@@ -417,7 +383,6 @@ type AdminCampaignsRow struct {
 	IsRunning bool
 }
 
-// Every campaign, with what it features and whether it is on right now.
 func (q *Queries) AdminCampaigns(ctx context.Context, limit int32) ([]AdminCampaignsRow, error) {
 	rows, err := q.db.Query(ctx, adminCampaigns, limit)
 	if err != nil {
@@ -467,9 +432,6 @@ type AdminCategoriesRow struct {
 	Depth int32
 }
 
-// Categories as a flat list with their depth, so the form can indent them
-// rather than pretending the tree is flat. Ordered by the path from the root,
-// which is what puts a child directly under its parent.
 func (q *Queries) AdminCategories(ctx context.Context) ([]AdminCategoriesRow, error) {
 	rows, err := q.db.Query(ctx, adminCategories)
 	if err != nil {
@@ -527,9 +489,8 @@ type AdminCouponsRow struct {
 	IsCurrent        bool
 }
 
-// Every coupon, with what it has actually done. The redemption count comes from
-// the ledger, never from a column: the ledger is what the limit is counted from
-// at checkout, and a second number here would be one that could disagree.
+// The redemption count comes from the ledger and never from a column: the ledger
+// is what the limit is counted from at checkout.
 func (q *Queries) AdminCoupons(ctx context.Context, limit int32) ([]AdminCouponsRow, error) {
 	rows, err := q.db.Query(ctx, adminCoupons, limit)
 	if err != nil {
@@ -572,21 +533,12 @@ SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
        coalesce(u.phone, '') AS phone, u.created_at,
        (u.email_verified_at IS NOT NULL)::boolean AS verified,
        (SELECT count(*) FROM orders o WHERE o.user_id = u.id)::bigint AS orders,
-       -- Spend counts COMMITTED orders only: a cancelled order is not money the
-       -- shop took, and treating it as spend is the defect committed_orders was
-       -- split out to stop.
        coalesce((SELECT sum(o.subtotal + o.shipping_cents + o.tax_cents - o.discount_cents)
                  FROM (SELECT o.id, o.shipping_cents, o.tax_cents, o.discount_cents,
                               coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
                                         FROM order_lines ol WHERE ol.order_id = o.id), 0) AS subtotal
                        FROM orders o WHERE o.user_id = u.id
                          AND o.id IN (SELECT id FROM committed_orders)) o), 0)::bigint AS spent,
-       -- Both balances come from the VIEWS that define them, never re-summed
-       -- here. Written out again, the points figure is the one that goes subtly
-       -- wrong — a hand-written sum keeps an award with a NULL expiry, which
-       -- loyalty_entries_expiry_matches_sign forbids anyway, so the two agree only
-       -- by luck. A back office showing a customer a different balance from the
-       -- one their own account page shows is the failure this avoids.
        coalesce((SELECT b.balance_cents FROM store_credit_balances b
                  WHERE b.user_id = u.id), 0)::bigint AS credit_cents,
        coalesce((SELECT lb.points FROM loyalty_balances lb
@@ -609,17 +561,9 @@ type AdminCustomerRow struct {
 	Points      int64
 }
 
-// One customer, as the back office needs to see them.
-//
-// Everything about a person in ONE read: who they are, whether the address has been
-// proved, what they have spent, and what the shop owes them. Each of these is
-// available somewhere else on its own, and without one read that brings them
-// together, answering "what is going on with this customer" is three pages and a
-// guess.
-// No role predicate, and that is deliberate. /admin/staff PROMOTES an existing
-// customer, which moves their role and leaves every order they have placed where
-// it was: a `role = 'customer'` filter here would make a colleague's own order
-// history unreachable from the one page built to answer questions about it.
+// Spend counts COMMITTED orders only, and both balances come from the VIEWS that
+// define them. No role predicate, deliberately: /admin/staff promotes an
+// existing customer, whose order history must stay reachable from this page.
 func (q *Queries) AdminCustomer(ctx context.Context, id uuid.UUID) (AdminCustomerRow, error) {
 	row := q.db.QueryRow(ctx, adminCustomer, id)
 	var i AdminCustomerRow
@@ -641,6 +585,8 @@ func (q *Queries) AdminCustomer(ctx context.Context, id uuid.UUID) (AdminCustome
 const adminCustomerOrders = `-- name: AdminCustomerOrders :many
 SELECT o.order_number, o.fulfillment_status, o.placed_at,
        o.shipping_cents, o.discount_cents, o.tax_cents,
+       order_is_committed(o.id) AS committed,
+       order_amount_owed(o.id) AS owed_cents,
        coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                  WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents
 FROM orders o
@@ -661,10 +607,11 @@ type AdminCustomerOrdersRow struct {
 	ShippingCents     int64
 	DiscountCents     int64
 	TaxCents          int64
+	Committed         bool
+	OwedCents         int64
 	SubtotalCents     int64
 }
 
-// A customer's orders, newest first.
 func (q *Queries) AdminCustomerOrders(ctx context.Context, arg AdminCustomerOrdersParams) ([]AdminCustomerOrdersRow, error) {
 	rows, err := q.db.Query(ctx, adminCustomerOrders, arg.UserID, arg.Limit)
 	if err != nil {
@@ -681,6 +628,8 @@ func (q *Queries) AdminCustomerOrders(ctx context.Context, arg AdminCustomerOrde
 			&i.ShippingCents,
 			&i.DiscountCents,
 			&i.TaxCents,
+			&i.Committed,
+			&i.OwedCents,
 			&i.SubtotalCents,
 		); err != nil {
 			return nil, err
@@ -694,7 +643,6 @@ func (q *Queries) AdminCustomerOrders(ctx context.Context, arg AdminCustomerOrde
 }
 
 const adminFAQEntries = `-- name: AdminFAQEntries :many
-
 SELECT id, category, question, answer,
        coalesce(category_en, '') AS category_en,
        coalesce(question_en, '') AS question_en,
@@ -717,14 +665,6 @@ type AdminFAQEntriesRow struct {
 	UpdatedAt  time.Time
 }
 
-// ---------------------------------------------------------------------------
-// The FAQ
-//
-// CLAUDE.md says /faq reads faq_entries "so support can answer a recurring question
-// WITHOUT A DEPLOY", and these are what make that sentence true. Without a writer
-// the table changes only by a deploy: the promise stated and the door missing,
-// which is the shape product_specs and promo_banners are each in above.
-// ---------------------------------------------------------------------------
 func (q *Queries) AdminFAQEntries(ctx context.Context, limit int32) ([]AdminFAQEntriesRow, error) {
 	rows, err := q.db.Query(ctx, adminFAQEntries, limit)
 	if err != nil {
@@ -780,7 +720,6 @@ type AdminHeroSlidesRow struct {
 	InWindow        bool
 }
 
-// Every hero slide, with whether it is the one showing.
 func (q *Queries) AdminHeroSlides(ctx context.Context, limit int32) ([]AdminHeroSlidesRow, error) {
 	rows, err := q.db.Query(ctx, adminHeroSlides, limit)
 	if err != nil {
@@ -833,10 +772,6 @@ type AdminMembershipTiersRow struct {
 	Members            int64
 }
 
-// The 會員等級 bands, and how many customers are in each.
-//
-// The count is derived like the tier is: nothing stores which band a customer
-// is in, so "how many are in 金卡" is a question about their orders.
 func (q *Queries) AdminMembershipTiers(ctx context.Context, windowDays int32) ([]AdminMembershipTiersRow, error) {
 	rows, err := q.db.Query(ctx, adminMembershipTiers, windowDays)
 	if err != nil {
@@ -887,21 +822,9 @@ type AdminMessagesRow struct {
 	WaitingDays int32
 }
 
-// The customer-service inbox, OLDEST first.
-//
-// Oldest first for the reason /admin/questions is: somebody who wrote in three
-// days ago is more urgent than somebody who wrote this morning, and newest-first
-// buries them exactly as they stop being answerable in time.
-//
-// Unhandled ahead of handled, so the queue is work rather than an archive.
-// contact_messages_unhandled_idx is the partial index that serves it.
-//
-// waiting_days is computed HERE, by the database's clock, because created_at is
-// written by the database's clock. Taking the difference in Go subtracts two
-// clocks: a container milliseconds ahead of its host reports a message inserted
-// exactly four days ago as three, which is the coupon-window lesson at the other
-// end of the same comparison. A whole-day figure is presentation, but the
-// arithmetic under it is not.
+// waiting_days is computed HERE because created_at is written by the database's
+// clock: taking the difference in Go subtracts two clocks, and a container
+// milliseconds ahead of its host reports a four-day-old message as three.
 func (q *Queries) AdminMessages(ctx context.Context, limit int32) ([]AdminMessagesRow, error) {
 	rows, err := q.db.Query(ctx, adminMessages, limit)
 	if err != nil {
@@ -936,10 +859,6 @@ const adminOrderByNumber = `-- name: AdminOrderByNumber :one
 SELECT
     o.id, o.order_number, o.fulfillment_status, o.placed_at,
     o.shipping_cents, o.discount_cents, o.tax_cents, o.shipping_method_name,
-       -- WHICH discount, joined rather than snapshotted: coupons.code is never
-       -- updated and the FK is ON DELETE RESTRICT, so one join always reaches it.
-       -- Without it an order shows "折扣 −NT$200" and nothing says why, to the
-       -- customer or to the shop.
        coalesce((SELECT c.code || ' · ' || c.description
                  FROM coupon_redemptions cr JOIN coupons c ON c.id = cr.coupon_id
                  WHERE cr.order_id = o.id), '')::text AS discount_reason,
@@ -956,18 +875,11 @@ SELECT
     coalesce(pd.pickup_brand, '') AS pickup_brand,
     coalesce(pd.pickup_store_code, '') AS pickup_store_code,
     coalesce(pd.pickup_store_name, '') AS pickup_store_name,
-    -- The 發票 the customer asked for. Collected at checkout and shown HERE,
-    -- because the staff member packing an order is the one who has to see that it
-    -- needs a 統編 invoice — a preference collected and never shown is a feature
-    -- with no door from the other side.
-    --
-    -- It matters most where issuing is off. A real 統一發票 goes through a 加值中心,
-    -- and a deployment holding no credentials for one issues nothing — so somebody
-    -- files these by hand, and they cannot do it from a table they cannot read.
     coalesce(ip.invoice_type, '') AS invoice_type,
     coalesce(ip.carrier_code, '') AS invoice_carrier,
     coalesce(ip.tax_id, '') AS invoice_tax_id,
-    order_is_committed(o.id) AS committed
+    order_is_committed(o.id) AS committed,
+    order_amount_owed(o.id) AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
@@ -1001,8 +913,11 @@ type AdminOrderByNumberRow struct {
 	InvoiceCarrier     string
 	InvoiceTaxID       string
 	Committed          bool
+	OwedCents          int64
 }
 
+// discount_reason is JOINED and not snapshotted: coupons.code is never updated
+// and the FK is ON DELETE RESTRICT, so one join always reaches it.
 func (q *Queries) AdminOrderByNumber(ctx context.Context, orderNumber string) (AdminOrderByNumberRow, error) {
 	row := q.db.QueryRow(ctx, adminOrderByNumber, orderNumber)
 	var i AdminOrderByNumberRow
@@ -1033,6 +948,7 @@ func (q *Queries) AdminOrderByNumber(ctx context.Context, orderNumber string) (A
 		&i.InvoiceCarrier,
 		&i.InvoiceTaxID,
 		&i.Committed,
+		&i.OwedCents,
 	)
 	return i, err
 }
@@ -1079,7 +995,8 @@ SELECT
     coalesce(pd.recipient_name, '') AS recipient,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
-    order_is_committed(o.id) AS committed
+    order_is_committed(o.id) AS committed,
+    order_amount_owed(o.id) AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE ($1::text = '' OR o.fulfillment_status = $1::text)
@@ -1103,9 +1020,9 @@ type AdminOrdersRow struct {
 	Recipient         string
 	SubtotalCents     int64
 	Committed         bool
+	OwedCents         int64
 }
 
-// The order queue, newest first, optionally narrowed to one fulfilment state.
 func (q *Queries) AdminOrders(ctx context.Context, arg AdminOrdersParams) ([]AdminOrdersRow, error) {
 	rows, err := q.db.Query(ctx, adminOrders, arg.Status, arg.RowLimit)
 	if err != nil {
@@ -1126,6 +1043,7 @@ func (q *Queries) AdminOrders(ctx context.Context, arg AdminOrdersParams) ([]Adm
 			&i.Recipient,
 			&i.SubtotalCents,
 			&i.Committed,
+			&i.OwedCents,
 		); err != nil {
 			return nil, err
 		}
@@ -1202,7 +1120,6 @@ type AdminProductImagesRow struct {
 	Height     pgtype.Int4
 }
 
-// What a product currently shows.
 func (q *Queries) AdminProductImages(ctx context.Context, slug string) ([]AdminProductImagesRow, error) {
 	rows, err := q.db.Query(ctx, adminProductImages, slug)
 	if err != nil {
@@ -1229,7 +1146,6 @@ func (q *Queries) AdminProductImages(ctx context.Context, slug string) ([]AdminP
 }
 
 const adminProductOptions = `-- name: AdminProductOptions :many
-
 SELECT o.id, o.name, coalesce(o.name_en, '') AS name_en, o.position,
        coalesce(
            (SELECT array_agg(v.id::text ORDER BY v.position, v.id)
@@ -1262,15 +1178,6 @@ type AdminProductOptionsRow struct {
 	ValueLabels []string
 }
 
-// ---------------------------------------------------------------------------
-// Product options
-//
-// 顏色 / 容量 and their values. Read by the PDP's variant picker, by the cart line
-// and by the facets, and written HERE — outside the dev seed, by nothing else.
-// Without these a shop creating its own product can give it variants and no way to
-// tell them apart: the picker has nothing to pick, and every variant after the
-// first is unreachable.
-// ---------------------------------------------------------------------------
 func (q *Queries) AdminProductOptions(ctx context.Context, slug string) ([]AdminProductOptionsRow, error) {
 	rows, err := q.db.Query(ctx, adminProductOptions, slug)
 	if err != nil {
@@ -1300,7 +1207,6 @@ func (q *Queries) AdminProductOptions(ctx context.Context, slug string) ([]Admin
 }
 
 const adminProductSpecs = `-- name: AdminProductSpecs :many
-
 SELECT s.id, s.label, s.value,
        coalesce(s.label_en, '') AS label_en, coalesce(s.value_en, '') AS value_en,
        s.position
@@ -1319,14 +1225,6 @@ type AdminProductSpecsRow struct {
 	Position int32
 }
 
-// ---------------------------------------------------------------------------
-// Product specs
-//
-// 規格 is the whole promise of a 選品店 — /compare exists to put two of them side
-// by side — and these are product_specs' only writers outside the dev seed.
-// Without them the back office can create a product, price it, photograph it and
-// publish it, and the comparison table for it is empty.
-// ---------------------------------------------------------------------------
 func (q *Queries) AdminProductSpecs(ctx context.Context, slug string) ([]AdminProductSpecsRow, error) {
 	rows, err := q.db.Query(ctx, adminProductSpecs, slug)
 	if err != nil {
@@ -1427,8 +1325,6 @@ type AdminProductsRow struct {
 	FromCents   int64
 }
 
-// The catalogue as the back office sees it: every product whatever its status,
-// because draft and archived ones are exactly what needs managing.
 func (q *Queries) AdminProducts(ctx context.Context, limit int32) ([]AdminProductsRow, error) {
 	rows, err := q.db.Query(ctx, adminProducts, limit)
 	if err != nil {
@@ -1485,14 +1381,7 @@ type AdminReviewsRow struct {
 	Author             string
 }
 
-// The review queue, newest first.
-//
-// Newest first, unlike /admin/questions which is oldest first. A question
-// waiting three days is more urgent than one asked this morning because it is
-// owed an answer; a review is owed nothing, and what a shop wants to see is
-// what has just appeared on its product pages.
-//
-// The BASE table, so hidden reviews are listed too — un-hiding one is not
+// The BASE table, so hidden reviews are listed too: un-hiding one is not
 // possible from a list that cannot show it.
 func (q *Queries) AdminReviews(ctx context.Context, limit int32) ([]AdminReviewsRow, error) {
 	rows, err := q.db.Query(ctx, adminReviews, limit)
@@ -1550,17 +1439,9 @@ type AdminSearchCustomersRow struct {
 	Orders    int64
 }
 
-// Find a customer from whatever the shop was told.
-//
-// The same shape as the order search and for the same reasons: a PREFIX of the
-// address or the name, each index-backed, and a floor on the term enforced by the
-// caller. Told apart from an exact match is unnecessary here — an email IS the
-// prefix somebody gives you in full.
-//
-// Only real accounts. An erased customer's row is gone (erase_user DELETEs it), so
-// nothing extra is needed for that.
-// Searched across every role, for the reason AdminCustomer takes no role
-// predicate: a promoted customer is still the person who placed those orders.
+// Prefix on both, each index-backed, with a floor on the term enforced by the
+// caller. Every role is searched, for AdminCustomer's reason. An erased
+// customer's row is gone, so nothing extra is needed to exclude one.
 func (q *Queries) AdminSearchCustomers(ctx context.Context, arg AdminSearchCustomersParams) ([]AdminSearchCustomersRow, error) {
 	rows, err := q.db.Query(ctx, adminSearchCustomers, arg.Term, arg.RowLimit)
 	if err != nil {
@@ -1600,7 +1481,8 @@ SELECT
     coalesce(pd.recipient_name, '') AS recipient,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
-    order_is_committed(o.id) AS committed
+    order_is_committed(o.id) AS committed,
+    order_amount_owed(o.id) AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE o.order_number = upper($1::text)
@@ -1626,22 +1508,12 @@ type AdminSearchOrdersRow struct {
 	Recipient         string
 	SubtotalCents     int64
 	Committed         bool
+	OwedCents         int64
 }
 
-// Find an order from whatever the customer said on the phone.
-//
-// ONE box, and what it matches depends on what it looks like. A string shaped like
-// an order number is looked up exactly, on the unique index; anything else is a
-// PREFIX of the recipient's name or their address. Each path is index-backed, which
-// is the reason the shapes are told apart here rather than OR-ed together — a query
-// that tried all three at once with leading wildcards would scan order history on
-// every keystroke a staff member makes.
-//
-// The term is bounded by the caller: below two characters this matches most of the
-// table, and a prefix that broad is a list rather than a search.
-//
-// An erased order matches nothing, and nothing extra is needed for that: erase_user
-// sets the name and the address to NULL, so both comparisons are NULL.
+// An order-number-shaped term is matched exactly and anything else as a prefix,
+// told apart rather than OR-ed with wildcards so each path stays index-backed.
+// An erased order matches nothing: erase_user NULLs the name and the address.
 func (q *Queries) AdminSearchOrders(ctx context.Context, arg AdminSearchOrdersParams) ([]AdminSearchOrdersRow, error) {
 	rows, err := q.db.Query(ctx, adminSearchOrders, arg.Term, arg.RowLimit)
 	if err != nil {
@@ -1662,6 +1534,7 @@ func (q *Queries) AdminSearchOrders(ctx context.Context, arg AdminSearchOrdersPa
 			&i.Recipient,
 			&i.SubtotalCents,
 			&i.Committed,
+			&i.OwedCents,
 		); err != nil {
 			return nil, err
 		}
@@ -1674,7 +1547,6 @@ func (q *Queries) AdminSearchOrders(ctx context.Context, arg AdminSearchOrdersPa
 }
 
 const adminSearchWarranties = `-- name: AdminSearchWarranties :many
-
 SELECT w.id, w.unit_no, coalesce(w.serial_number, '') AS serial_number,
        w.registered_at, w.expires_on,
        (w.expires_on >= current_date)::boolean AS in_force,
@@ -1711,31 +1583,9 @@ type AdminSearchWarrantiesRow struct {
 	CustomerEmail     string
 }
 
-// ---------------------------------------------------------------------------
-// Warranty lookup
-//
-// warranty_registrations is written by the customer and read by the customer, and
-// this is the shop's own way in. /warranty promises that a registered unit is
-// collected and repaired at the shop's expense, so without this lookup the only
-// person who can see the registration when that customer rings up is the person
-// making the claim. A promise the shop cannot verify is a promise it keeps on
-// trust or not at all.
-// ---------------------------------------------------------------------------
-// Look one unit's cover up, by serial number or by order number.
-//
-// EXACT on both, and that is deliberate. A serial is read off the label on the
-// machine in front of somebody and an order number off their confirmation mail,
-// so a prefix would widen the ANSWER without widening what the person on the
-// phone can tell you — and a browsable list of registrations is a page of other
-// customers' names, which is the reason /admin/customers refuses to open on one.
-//
-// The two shapes are told apart by the caller rather than OR-ed with wildcards,
-// for the reason /admin/orders tells its three apart: each path is then served by
-// an index (warranty_registrations_serial_key, orders_order_number_key) instead
-// of scanning every registration on every lookup.
-// LEFT, because warranty_registrations.user_id is ON DELETE SET NULL: erase_user
-// takes the customer away and leaves the registration, so a claim on an erased
-// account still resolves to a product and an order rather than to nothing.
+// EXACT on both, told apart by the caller: a prefix would widen the answer
+// without widening what the person on the phone can tell you. LEFT JOIN on the
+// user, because user_id is ON DELETE SET NULL and erase_user leaves the row.
 func (q *Queries) AdminSearchWarranties(ctx context.Context, arg AdminSearchWarrantiesParams) ([]AdminSearchWarrantiesRow, error) {
 	rows, err := q.db.Query(ctx, adminSearchWarranties, arg.Term, arg.RowLimit)
 	if err != nil {
@@ -1799,12 +1649,8 @@ type AdminShippingMethodsRow struct {
 	VersionCount    int64
 }
 
-// Every shipping method with the version currently in force, and what it
-// charges extra for.
-//
 // DISTINCT ON the method, ordered by effective_at DESC: the versions table is
-// append-only, so "the current fee" is the newest row that has taken effect and
-// never the only row.
+// append-only, so the current fee is the newest row that has taken effect.
 func (q *Queries) AdminShippingMethods(ctx context.Context) ([]AdminShippingMethodsRow, error) {
 	rows, err := q.db.Query(ctx, adminShippingMethods)
 	if err != nil {
@@ -1890,7 +1736,11 @@ func (q *Queries) AdminShippingZones(ctx context.Context) ([]AdminShippingZonesR
 
 const adminSummary = `-- name: AdminSummary :one
 SELECT
-    (SELECT count(*) FROM orders WHERE fulfillment_status = 'pending')::bigint AS pending_orders,
+    -- Genuinely UNPAID, not merely pending: an order funded by store credit or
+    -- a full discount sits at pending for good, and counting it here sends
+    -- somebody looking for money that has already arrived.
+    (SELECT count(*) FROM orders o WHERE o.fulfillment_status = 'pending'
+       AND NOT order_is_committed(o.id) AND order_amount_owed(o.id) > 0)::bigint AS pending_orders,
     (SELECT count(*) FROM orders WHERE fulfillment_status = 'picking')::bigint AS picking_orders,
     (SELECT count(*) FROM product_variants
      WHERE is_active AND stock_quantity <= safety_stock)::bigint AS low_stock,
@@ -1906,7 +1756,6 @@ type AdminSummaryRow struct {
 	OpenMessages   int64
 }
 
-// What the dashboard leads with.
 func (q *Queries) AdminSummary(ctx context.Context) (AdminSummaryRow, error) {
 	row := q.db.QueryRow(ctx, adminSummary)
 	var i AdminSummaryRow
@@ -1939,8 +1788,8 @@ type AdminVariantBySKURow struct {
 	Slug          string
 }
 
-// price_cents is read for the audit trail's "before": a reprice recorded
-// without the price it replaced records the least interesting half of the fact.
+// price_cents is read for the audit trail's "before": a reprice recorded without
+// the price it replaced records the least interesting half of the fact.
 func (q *Queries) AdminVariantBySKU(ctx context.Context, sku string) (AdminVariantBySKURow, error) {
 	row := q.db.QueryRow(ctx, adminVariantBySKU, sku)
 	var i AdminVariantBySKURow
@@ -1974,7 +1823,6 @@ type AdminVariantOptionValuesRow struct {
 	Value      string
 }
 
-// The values a variant carries, for the back office's variant list.
 func (q *Queries) AdminVariantOptionValues(ctx context.Context, slug string) ([]AdminVariantOptionValuesRow, error) {
 	rows, err := q.db.Query(ctx, adminVariantOptionValues, slug)
 	if err != nil {
@@ -2035,7 +1883,6 @@ type AdminVariantsRow struct {
 	Brand               string
 }
 
-// The variants a back office needs to see: what is low, what is off.
 func (q *Queries) AdminVariants(ctx context.Context, arg AdminVariantsParams) ([]AdminVariantsRow, error) {
 	rows, err := q.db.Query(ctx, adminVariants, arg.LowOnly, arg.RowLimit)
 	if err != nil {
@@ -2083,7 +1930,6 @@ type AdminVersionZonesRow struct {
 	SurchargeCents int64
 }
 
-// The surcharges on one version, for the page to list under it.
 func (q *Queries) AdminVersionZones(ctx context.Context, versionIds []uuid.UUID) ([]AdminVersionZonesRow, error) {
 	rows, err := q.db.Query(ctx, adminVersionZones, versionIds)
 	if err != nil {
@@ -2136,6 +1982,9 @@ type AdvanceOrderParams struct {
 	OrderNumber string
 }
 
+// orders_check_transition validates the move, so this does not re-derive it.
+// cancelled_at and completed_at are set here because the schema requires them
+// for those two states and orders_history_frozen refuses a later change.
 func (q *Queries) AdvanceOrder(ctx context.Context, arg AdvanceOrderParams) error {
 	_, err := q.db.Exec(ctx, advanceOrder, arg.Status, arg.OrderNumber)
 	return err
@@ -2155,7 +2004,6 @@ type AnswerQuestionParams struct {
 	QuestionID uuid.UUID
 }
 
-// Answer a question. The question must still be visible.
 func (q *Queries) AnswerQuestion(ctx context.Context, arg AnswerQuestionParams) (int64, error) {
 	result, err := q.db.Exec(ctx, answerQuestion,
 		arg.UserID,
@@ -2240,11 +2088,8 @@ type AssignZonePrefixParams struct {
 	ZoneID uuid.UUID
 }
 
-// Give a zone a postal prefix.
-//
-// prefix is the PRIMARY KEY of the table, so a prefix belongs to exactly one zone by
-// construction — "which zone is 880 in" cannot have two answers. Moving one is
-// therefore an upsert rather than an insert.
+// prefix is the PRIMARY KEY, so a postal code belongs to exactly one zone by
+// construction and moving one is an upsert rather than an insert.
 func (q *Queries) AssignZonePrefix(ctx context.Context, arg AssignZonePrefixParams) error {
 	_, err := q.db.Exec(ctx, assignZonePrefix, arg.Prefix, arg.ZoneID)
 	return err
@@ -2269,12 +2114,9 @@ type AttachProductImageParams struct {
 	Slug       string
 }
 
-// Attach an uploaded image to a product.
-//
-// The storage key is a media_objects digest, not a filename. No foreign key:
-// product_images predates media_objects and still holds embedded-asset names
-// from the seed, so the column carries two kinds of key. UnreferencedMedia is
-// what keeps the two consistent from the other direction.
+// No foreign key on storage_key: product_images predates media_objects and still
+// holds embedded-asset names from the seed, so the column carries two kinds of
+// key.
 func (q *Queries) AttachProductImage(ctx context.Context, arg AttachProductImageParams) error {
 	_, err := q.db.Exec(ctx, attachProductImage,
 		arg.StorageKey,
@@ -2308,8 +2150,6 @@ type AuditEventsRow struct {
 	Actor       string
 }
 
-// The trail, newest first. Joined to users so a page shows a name rather than a
-// uuid — the actor is the whole reason this table exists.
 func (q *Queries) AuditEvents(ctx context.Context, limit int32) ([]AuditEventsRow, error) {
 	rows, err := q.db.Query(ctx, auditEvents, limit)
 	if err != nil {
@@ -2344,8 +2184,7 @@ SELECT coalesce((SELECT b.balance_cents FROM store_credit_balances b
                  WHERE b.user_id = $1), 0)::bigint
 `
 
-// What a signed-in customer has to spend, from store_credit_balances — the one
-// definition of the figure. Summed from the ledger, never stored.
+// From store_credit_balances, the one definition of the figure.
 func (q *Queries) AvailableCredit(ctx context.Context, userID uuid.NullUUID) (int64, error) {
 	row := q.db.QueryRow(ctx, availableCredit, userID)
 	var column_1 int64
@@ -2356,16 +2195,9 @@ func (q *Queries) AvailableCredit(ctx context.Context, userID uuid.NullUUID) (in
 const awardOrderPoints = `-- name: AwardOrderPoints :one
 SELECT award_loyalty_points(
     o.id,
-    -- One point per NT$100 of what the order came to, times what the
-    -- customer's tier earns. Integer division, so the fraction is dropped
-    -- rather than rounded — a NT$50 order earns nothing, and rounding up would
-    -- pay out on the smallest possible purchase.
-    --
-    -- The multiplier is read HERE, inside the capture's transaction, from the
-    -- spend the customer had BEFORE this order counted: the tier is derived
-    -- from committed orders, and this one is being committed by the very
-    -- statement that would read it. Awarding the new tier's rate on the order
-    -- that earned the tier is a benefit nobody promised.
+    -- One point per NT$100 times the customer's tier, integer division so a
+    -- NT$50 order earns nothing. The multiplier is read from the spend the
+    -- customer had BEFORE this order, which this statement is committing.
     ((coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                 WHERE ol.order_id = o.id), 0)
       - o.discount_cents + o.shipping_cents + o.tax_cents) / 10000
@@ -2383,12 +2215,8 @@ type AwardOrderPointsParams struct {
 	OrderID      uuid.UUID
 }
 
-// Award the points a captured order earned.
-//
-// Called from inside the webhook's transaction, so the points and the payment
-// commit together. Idempotent on the order — a webhook Stripe delivered twice
-// awards once — which is why the amount is recomputed here rather than passed:
-// a caller supplying it could supply a different one on the retry.
+// Idempotent on the order, which is why the amount is recomputed here rather
+// than passed: a caller could supply a different one on the retry.
 func (q *Queries) AwardOrderPoints(ctx context.Context, arg AwardOrderPointsParams) (int64, error) {
 	row := q.db.QueryRow(ctx, awardOrderPoints, arg.WindowDays, arg.ValidityDays, arg.OrderID)
 	var award_loyalty_points int64
@@ -2412,24 +2240,9 @@ type BeginTOTPEnrolmentParams struct {
 	SecretEncrypted []byte
 }
 
-// Start or restart enrolment, but never REPLACE a factor that has been proved.
-//
-// ON CONFLICT overwrites an UNCONFIRMED row, which is what restarting means:
-// somebody who mistyped the secret into their app tries again, and nothing has
-// been proved yet, so there is nothing to protect.
-//
-// A CONFIRMED row is refused, and that is the whole guard. This route needs only
-// an ordinary signed-in session, so without the WHERE clause a stolen PASSWORD
-// was enough to take the back office: sign in, enrol the attacker's own
-// authenticator over the real one, confirm it, and the session is step-up
-// verified. The second factor became a formality the password already cleared.
-// Store.Remove names that exact threat as the reason an admin cannot drop their
-// OWN factor — and this path let one skip the removal entirely.
-//
-// Recovery is therefore what it always said it was: another admin removes the
-// credential at /admin/staff, which clears confirmed_at and reopens this door.
-// The guard is in the statement rather than in Go because a read-then-write is a
-// race two concurrent enrolments both win.
+// Start or restart enrolment, but never replace a factor that has been proved.
+// The WHERE clause is the guard, in the statement because a read-then-write is
+// a race two concurrent enrolments both win.
 func (q *Queries) BeginTOTPEnrolment(ctx context.Context, arg BeginTOTPEnrolmentParams) (int64, error) {
 	result, err := q.db.Exec(ctx, beginTOTPEnrolment, arg.UserID, arg.SecretEncrypted)
 	if err != nil {
@@ -2470,11 +2283,6 @@ type BestSellersSinceRow struct {
 	RevenueCents int64
 }
 
-// What sold, over a window.
-//
-// By PRODUCT and not by variant: a shop owner asks "how is the Pixelight 9
-// doing", not "how is the 256GB black one doing". The variant breakdown is a
-// different question and would be a different report.
 func (q *Queries) BestSellersSince(ctx context.Context, arg BestSellersSinceParams) ([]BestSellersSinceRow, error) {
 	rows, err := q.db.Query(ctx, bestSellersSince, arg.WindowDays, arg.LimitTo)
 	if err != nil {
@@ -2571,7 +2379,6 @@ type BoughtTogetherRow struct {
 	BoughtTogether      int64
 }
 
-// What people who bought this also bought, read from the projection.
 func (q *Queries) BoughtTogether(ctx context.Context, arg BoughtTogetherParams) ([]BoughtTogetherRow, error) {
 	rows, err := q.db.Query(ctx, boughtTogether,
 		arg.Locale,
@@ -2674,12 +2481,7 @@ type CampaignProductsRow struct {
 	ImageHeight         int32
 }
 
-// What a campaign features.
-//
-// The same tile shape every other listing uses, so a campaign page is the
-// product grid with a different heading rather than a second way to draw a
-// product. Ordered by the position the back office set: a campaign is
-// merchandising, and the order it lists things in is the point.
+// Ordered by the position the back office set: a campaign is merchandising.
 func (q *Queries) CampaignProducts(ctx context.Context, arg CampaignProductsParams) ([]CampaignProductsRow, error) {
 	rows, err := q.db.Query(ctx, campaignProducts, arg.CampaignID, arg.Locale)
 	if err != nil {
@@ -2721,21 +2523,9 @@ WHERE order_number = $1
   AND id NOT IN (SELECT id FROM committed_orders)
 `
 
-// Cancel an order, but only from the one state a customer may cancel from.
-//
-// Two predicates, and each is load-bearing because committed_orders does NOT
-// count a cancelled order: `pending` is what refuses a second cancellation and
-// an order the shop has started, and `not committed` is what refuses one
-// somebody has paid for. Both are proven by mutation.
-//
-// In the WHERE clause rather than read first: two cancellations racing a
-// capture must not both decide the order was cancellable.
-// orders_check_transition would refuse an illegal move anyway; this makes the
-// refusal a row count the page can act on.
-//
-// Not the same statement as the back office's AdvanceOrder: that one moves an
-// order to any legal status and is audited as staff work, and widening it to
-// carry a customer's own cancellation would put "who did this" back into doubt.
+// Both predicates are load-bearing: `pending` refuses a second cancellation,
+// `not committed` refuses one somebody has paid for. In the WHERE clause, so two
+// cancellations racing a capture cannot both decide it was cancellable.
 func (q *Queries) CancelOrderByCustomer(ctx context.Context, orderNumber string) (int64, error) {
 	result, err := q.db.Exec(ctx, cancelOrderByCustomer, orderNumber)
 	if err != nil {
@@ -2765,10 +2555,8 @@ type CapturePaymentParams struct {
 	CardLast4           string
 }
 
-// Called ONLY from the verified webhook, never from the return to success_url.
-// nullif, because an unknown card is NULL and not ”. The usual event carries no
-// card at all, and ” is a value that fails payments_last4_format — refusing
-// every real capture after the money has been taken.
+// nullif, because an unknown card is NULL and not ”: ” is a value that fails
+// payments_last4_format, and the usual event carries no card at all.
 func (q *Queries) CapturePayment(ctx context.Context, arg CapturePaymentParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, capturePayment,
 		arg.ProviderRef,
@@ -2800,16 +2588,9 @@ type CarryZoneSurchargesParams struct {
 	MethodID     uuid.UUID
 }
 
-// Carry a method's zone surcharges onto a newly published version.
-//
 // Without this, publishing a new base fee silently drops every surcharge: the
-// rows key on the VERSION, and the new version has none. A shop that raised
-// 宅配 from NT$80 to NT$100 would start shipping to 金門 for NT$100 — under-
-// charging exactly where it was already losing money.
-//
-// Copied from the version that was in force, which is what the staff member
-// was looking at when they typed the new fee. Changing the base rate is not a
-// statement about zones.
+// rows key on the VERSION, and the new version has none — so a shop raising its
+// home-delivery fee would start shipping to the outlying islands at that fee.
 func (q *Queries) CarryZoneSurcharges(ctx context.Context, arg CarryZoneSurchargesParams) error {
 	_, err := q.db.Exec(ctx, carryZoneSurcharges, arg.NewVersionID, arg.MethodID)
 	return err
@@ -2824,9 +2605,6 @@ type CartByTokenRow struct {
 	UserID uuid.NullUUID
 }
 
-// The cart a token names. Carts are found by the HASH of the cookie's token,
-// never by the token itself: the column holds a digest so a database leak does
-// not hand over live cart cookies.
 func (q *Queries) CartByToken(ctx context.Context, tokenHash []byte) (CartByTokenRow, error) {
 	row := q.db.QueryRow(ctx, cartByToken, tokenHash)
 	var i CartByTokenRow
@@ -2849,9 +2627,7 @@ const cartItemCount = `-- name: CartItemCount :one
 SELECT coalesce(sum(quantity), 0)::bigint FROM cart_items WHERE cart_id = $1
 `
 
-// How many items a cart holds, for the header badge. Counts UNITS, not lines:
-// a badge reading 1 over a cart holding three of something is wrong in the way
-// a visitor notices at checkout.
+// How many items a cart holds, for the header badge. UNITS, not lines.
 func (q *Queries) CartItemCount(ctx context.Context, cartID uuid.UUID) (int64, error) {
 	row := q.db.QueryRow(ctx, cartItemCount, cartID)
 	var column_1 int64
@@ -2871,9 +2647,8 @@ SELECT
     p.slug,
     localized_name(p.name, p.name_en, $2::text) AS name,
     b.name AS brand,
-    -- The cart line SHOWS the selection (「星霧藍 · 512GB」) rather than matching on
-    -- it — the line names its variant by id — so these are localized. The PDP's own
-    -- variant query is the opposite case and is exempt for exactly that reason.
+    -- Localized because the cart line SHOWS the selection; the PDP's variant
+    -- query matches on it and is exempt for exactly that reason.
     coalesce(
         (SELECT array_agg(localized_name(o.name, o.name_en, $2::text)
                           ORDER BY o.position, o.id)
@@ -2927,13 +2702,8 @@ type CartLinesRow struct {
 	ImageAlt            string
 }
 
-// Everything in a cart, with what it costs and whether it can still be bought.
-//
-// A cart line is not a promise: a variant can sell out or change price while it
-// sits there. The page shows the CURRENT price and the CURRENT availability, so
-// a visitor is never quoted a total the checkout will refuse. sellable_quantity
-// is what may actually be taken — stock above safety_stock, the floor
-// record_inventory_movement enforces.
+// Everything in a cart, at CURRENT prices and availability. sellable_quantity is
+// stock above safety_stock, the floor record_inventory_movement enforces.
 func (q *Queries) CartLines(ctx context.Context, arg CartLinesParams) ([]CartLinesRow, error) {
 	rows, err := q.db.Query(ctx, cartLines, arg.CartID, arg.Locale)
 	if err != nil {
@@ -2992,7 +2762,7 @@ type CategoryAncestorsRow struct {
 	Name string
 }
 
-// The trail above a category, for the crumbs. Root-first.
+// Root-first.
 func (q *Queries) CategoryAncestors(ctx context.Context, arg CategoryAncestorsParams) ([]CategoryAncestorsRow, error) {
 	rows, err := q.db.Query(ctx, categoryAncestors, arg.Locale, arg.CategoryID)
 	if err != nil {
@@ -3030,9 +2800,8 @@ type CategoryBrandsRow struct {
 	ProductCount int64
 }
 
-// The brands present in a subtree, for the brand facet. Counted over products
-// that would appear with no other filter applied, so a brand offering nothing
-// is not listed.
+// Counted over products that would appear with no other filter applied, so a
+// brand offering nothing is not listed.
 func (q *Queries) CategoryBrands(ctx context.Context, categoryIds []uuid.UUID) ([]CategoryBrandsRow, error) {
 	rows, err := q.db.Query(ctx, categoryBrands, categoryIds)
 	if err != nil {
@@ -3073,8 +2842,7 @@ WITH RECURSIVE trail AS (
 SELECT
     self.id,
     self.name,
-    -- Ancestors root-first, which is the order the crumbs render in. Empty for
-    -- a root category.
+    -- Root-first, the order the crumbs render in. Empty for a root category.
     coalesce(
         (SELECT array_agg(a.slug ORDER BY a.depth DESC) FROM trail a WHERE a.depth > 0),
         ARRAY[]::text[]
@@ -3099,12 +2867,7 @@ type CategoryBySlugRow struct {
 	AncestorNames []string
 }
 
-// The category a listing URL names, plus the trail above it for the crumbs.
-// Walking upward is bounded by the tree's depth, and categories_acyclic
-// guarantees the walk terminates.
-// Every name goes through localized_name, the one place that decides which name a
-// reader gets. A category name is in the header of every page, so getting it in one
-// query and not another shows a visitor Phones at the top and 手機 in the crumb.
+// categories_acyclic is what guarantees the upward walk terminates.
 func (q *Queries) CategoryBySlug(ctx context.Context, arg CategoryBySlugParams) (CategoryBySlugRow, error) {
 	row := q.db.QueryRow(ctx, categoryBySlug, arg.Slug, arg.Locale)
 	var i CategoryBySlugRow
@@ -3127,10 +2890,6 @@ SELECT d.id FROM d
 `
 
 // Every category in the subtree rooted at $1, including $1 itself.
-//
-// A listing shows its descendants' products: /c/accessories holds none of its
-// own and the site header links straight to it, so an exact category_id match
-// renders an empty page from goen's own navigation.
 func (q *Queries) CategoryDescendants(ctx context.Context, id uuid.UUID) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, categoryDescendants, id)
 	if err != nil {
@@ -3176,8 +2935,7 @@ JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
     WHERE product_id = p.id AND is_active
-    -- A buyable variant first: the price on a card is a promise, so it has to
-    -- be the price of something a visitor can actually put in a cart.
+    -- A buyable variant first: the price on a card is a promise.
     ORDER BY (stock_quantity > safety_stock) DESC, price_cents
     LIMIT 1
 ) mv ON true
@@ -3192,7 +2950,7 @@ LEFT JOIN LATERAL (
 WHERE p.status = 'active'
   AND p.category_id = ANY($2::uuid[])
   AND ($3::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY($3::uuid[]))
-  -- One variant satisfies every variant-level filter at once. See note 2.
+  -- One variant satisfies every variant-level filter at once.
   AND (
       NOT $4::boolean
       OR EXISTS (
@@ -3240,28 +2998,9 @@ type CategoryListingRow struct {
 	ImageHeight         int32
 }
 
-// One page of a category listing.
-//
-// Three things here are load-bearing and each is measured in
-// docs/decisions/003-listing-read-model.md:
-//
-//  1. status = 'active' is a LITERAL. The planner cannot prove a parameter is
-//     always 'active', so parameterising it loses
-//     products_category_published_idx entirely (CLAUDE.md, predictable mistake
-//     #10). Verified in the plan, not assumed.
-//
-//  2. Every variant condition sits inside ONE EXISTS. Splitting them lets each
-//     find a different variant, which is how a listing answers "in stock and
-//     under NT$10,000" with a product whose cheap variant is sold out and whose
-//     available one costs ten times that. The rule fires without any option
-//     facets; price and stock alone collide.
-//
-//  3. Sellable is stock_quantity > safety_stock, never > 0.
-//     record_inventory_movement refuses a sale or hold that would breach the
-//     floor, so a variant sitting AT it has stock and cannot be bought.
-//
-// Sorting is chosen by $-parameter rather than composed in Go: an ORDER BY built
-// from a request is where an injection gets in, and sqlc would not see it.
+// status = 'active' is a literal, or the planner cannot use
+// products_category_published_idx. Every variant condition sits in ONE EXISTS, or
+// each finds a different variant. Sellable is stock_quantity > safety_stock.
 func (q *Queries) CategoryListing(ctx context.Context, arg CategoryListingParams) ([]CategoryListingRow, error) {
 	rows, err := q.db.Query(ctx, categoryListing,
 		arg.Locale,
@@ -3334,9 +3073,7 @@ type CategoryListingCountParams struct {
 	MaxPrice       int64
 }
 
-// How many products the current filters match, for the pager. Deliberately the
-// same predicate as CategoryListing and nothing else — no LATERAL joins, no
-// image, no rating — because this is only ever a number.
+// The same predicate as CategoryListing, and nothing else: this is only a number.
 func (q *Queries) CategoryListingCount(ctx context.Context, arg CategoryListingCountParams) (int64, error) {
 	row := q.db.QueryRow(ctx, categoryListingCount,
 		arg.CategoryIds,
@@ -3365,10 +3102,6 @@ func (q *Queries) CheckoutAttempt(ctx context.Context, idempotencyKey string) (u
 const checkoutCompletionSince = `-- name: CheckoutCompletionSince :one
 SELECT
     count(*)::bigint AS placed,
-    -- A LEFT JOIN and a CASE, not a per-row function call. Asked row by row
-    -- this costs 106 ms over 14,000 orders; asked as a join it is 7.7 ms,
-    -- because the planner can turn a join into a merge and cannot turn a
-    -- function call into anything.
     coalesce(sum(CASE WHEN c.id IS NOT NULL THEN 1 ELSE 0 END), 0)::bigint AS committed
 FROM orders o
 LEFT JOIN committed_orders c ON c.id = o.id
@@ -3380,12 +3113,9 @@ type CheckoutCompletionSinceRow struct {
 	Committed int64
 }
 
-// Checkout completion: orders placed against orders that became revenue.
-//
-// NOT a conversion rate. goen collects no traffic data, so what fraction of
-// VISITORS bought is a number it cannot know — and presenting one would be
-// inventing it. This is the fraction of started orders that were paid for,
-// which is real and is the number a shop can act on.
+// NOT a conversion rate: goen collects no traffic data. This is the fraction of
+// started orders that were paid for. A LEFT JOIN and a CASE, never a per-row
+// function call — measured at 106 ms over 14,000 orders against 7.7 ms.
 func (q *Queries) CheckoutCompletionSince(ctx context.Context, windowDays int32) (CheckoutCompletionSinceRow, error) {
 	row := q.db.QueryRow(ctx, checkoutCompletionSince, windowDays)
 	var i CheckoutCompletionSinceRow
@@ -3397,9 +3127,7 @@ const claimOutbox = `-- name: ClaimOutbox :many
 WITH due AS (
     SELECT id FROM outbox_messages
     WHERE delivered_at IS NULL AND available_at <= now()
-    -- Priority first, then age. A bulk send sits behind every transactional
-    -- message written after it, which is the whole point: a receipt must not
-    -- wait for a newsletter.
+    -- Priority first, then age: a receipt must not wait for a newsletter.
     ORDER BY priority, available_at
     LIMIT $2::integer
     FOR UPDATE SKIP LOCKED
@@ -3424,28 +3152,10 @@ type ClaimOutboxRow struct {
 	Attempts int32
 }
 
-// Claim a batch of due messages, taking a LEASE on each.
-//
-// FOR UPDATE SKIP LOCKED alone is not enough, and this is the part that is easy
-// to get wrong: the row lock lives only for the duration of THIS statement.
-// The moment it returns, delivered_at is still NULL and a second worker's
-// `available_at <= now()` matches the same rows — measured, not theorised: two
-// concurrent drains delivered five messages twice.
-//
-// So the claim also pushes available_at into the future. That is the lease: for
-// as long as it lasts the message is invisible to every other worker, and if
-// this one dies mid-delivery the lease expires and the message comes back. It
-// is what makes "at least once" a recovery rather than a leak.
-//
-// SKIP LOCKED still earns its place, but it is now a THROUGHPUT property rather
-// than a correctness one: without it a second worker blocks until the first
-// claim's statement finishes, then finds the lease and takes nothing. Removing
-// it leaves every test green, which is recorded here rather than dressed up —
-// the lease is the guarantee, and this is what stops the two contending.
-//
-// attempts rises on the CLAIM, not on success. A message whose handler panics
-// has still been attempted, and a counter that only rises on success counts
-// nothing about failures.
+// Claim a batch of due messages, taking a LEASE on each. FOR UPDATE SKIP LOCKED
+// is not enough — that lock lives only for THIS statement — so pushing
+// available_at forward is what makes the claim exclusive.
+// attempts rises on the CLAIM, or it counts nothing about failures.
 func (q *Queries) ClaimOutbox(ctx context.Context, arg ClaimOutboxParams) ([]ClaimOutboxRow, error) {
 	rows, err := q.db.Query(ctx, claimOutbox, arg.Lease, arg.BatchSize)
 	if err != nil {
@@ -3488,18 +3198,9 @@ type ClaimRestockNoticesRow struct {
 	Locale string
 }
 
-// Claim every pending restock notice for a variant that is back in stock.
-//
 // The claim and the enqueue are ONE transaction, so notified_at means "the
-// outbox has this" rather than "an email was sent" — which is the honest
-// reading, because the outbox is what guarantees delivery from there. Claiming
-// without enqueuing would tell nobody and never try again.
-//
-// RETURNING drives the enqueue, so the set claimed is exactly the set told.
-//
-// The threshold is the same one the listing calls "in stock":
-// stock_quantity > safety_stock. Telling somebody about a unit the shop will
-// not sell them is worse than not telling them.
+// outbox has this": claiming without enqueuing tells nobody and never retries.
+// The threshold is the one the listing calls in stock, stock > safety_stock.
 func (q *Queries) ClaimRestockNotices(ctx context.Context, variantID uuid.UUID) ([]ClaimRestockNoticesRow, error) {
 	rows, err := q.db.Query(ctx, claimRestockNotices, variantID)
 	if err != nil {
@@ -3533,8 +3234,7 @@ const clearDefaultAddress = `-- name: ClearDefaultAddress :exec
 UPDATE addresses SET is_default = false WHERE user_id = $1 AND is_default
 `
 
-// Clear every default on an account, so setting a new one cannot collide with
-// addresses_one_default_per_user. Run in the same transaction as the set.
+// Run in the same transaction as the set: addresses_one_default_per_user is unique.
 func (q *Queries) ClearDefaultAddress(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, clearDefaultAddress, userID)
 	return err
@@ -3549,8 +3249,8 @@ type ClearZoneSurchargeParams struct {
 	ZoneID    uuid.UUID
 }
 
-// Remove a surcharge. Absence is what "no surcharge" means — the lookup
-// coalesces a missing row to zero — so clearing is a DELETE and not a zero.
+// Absence is what "no surcharge" means to the lookup, which coalesces a missing
+// row to zero, so clearing is a DELETE and never a stored zero.
 func (q *Queries) ClearZoneSurcharge(ctx context.Context, arg ClearZoneSurchargeParams) (int64, error) {
 	result, err := q.db.Exec(ctx, clearZoneSurcharge, arg.VersionID, arg.ZoneID)
 	if err != nil {
@@ -3627,11 +3327,7 @@ type CompareProductsRow struct {
 	Position            int32
 }
 
-// The products in a comparison, in the order the URL named them.
-//
-// WITH ORDINALITY, so the columns appear in the order somebody chose rather
-// than in whatever order the join produced — a comparison whose columns move
-// between page loads is one nobody can point at.
+// WITH ORDINALITY, so the columns appear in the order the URL named them.
 func (q *Queries) CompareProducts(ctx context.Context, arg CompareProductsParams) ([]CompareProductsRow, error) {
 	rows, err := q.db.Query(ctx, compareProducts, arg.Locale, arg.Slugs)
 	if err != nil {
@@ -3673,22 +3369,12 @@ const compareSpecs = `-- name: CompareSpecs :many
 SELECT
     p.slug,
     localized_name(s.label, s.label_en, $1::text) AS label,
-    -- The UNTRANSLATED label, which is what identifies a row. shared_by is
-    -- counted on it for the reason below, and the Go that builds the table has
-    -- to group on the same thing or the two disagree: it keyed its rows on the
-    -- localized text, so two distinct Chinese labels that translate to one
-    -- English word collapsed into one row and the second product's value
-    -- overwrote the first. The seed does exactly that — 輸出 and 孔位 are both
-    -- "Ports" — so an English reader of /compare lost a spec the English PDP
-    -- showed. Identity is the Chinese label; the translation is a LABEL, the
-    -- same split the variant picker draws between name and name_en.
+    -- The untranslated label identifies a row, and the Go that builds the table
+    -- must group on the same thing or two labels sharing a translation merge.
     s.label AS label_key,
     localized_name(s.value, s.value_en, $1::text) AS value,
-    -- Counted on the UNTRANSLATED label, deliberately. Two products state 螢幕 and
-    -- one of them has an English label for it: grouping by what the reader sees
-    -- would split that row in two and report each as stated by one product, which
-    -- is the opposite of what this number is for. The rows are the same spec; only
-    -- the words shown differ.
+    -- Counted on the untranslated label: grouping by what the reader sees would
+    -- split one spec in two and report each as stated by one product.
     (SELECT count(DISTINCT sp.product_id)
      FROM product_specs sp
      JOIN products op ON op.id = sp.product_id
@@ -3714,12 +3400,8 @@ type CompareSpecsRow struct {
 	Position int32
 }
 
-// Every spec of every product in the comparison.
-//
-// Ordered so the rows a reader can actually compare come first: a label two
-// products share is the point of the table, and one only a single product
-// carries is a footnote. Ties break on the label's own position, so a product's
-// own ordering survives where nothing else decides.
+// Ordered so the rows a reader can compare come first; ties break on the label's
+// own position.
 func (q *Queries) CompareSpecs(ctx context.Context, arg CompareSpecsParams) ([]CompareSpecsRow, error) {
 	rows, err := q.db.Query(ctx, compareSpecs, arg.Locale, arg.Slugs)
 	if err != nil {
@@ -3763,14 +3445,9 @@ type CompensateReturnWithCreditParams struct {
 	Actor       uuid.NullUUID
 }
 
-// Give part of a return back as store credit.
-//
-// A NEW POSITIVE entry rather than a reversal of the spend, which is what the
-// schema has always prescribed for an order that has shipped: a reversal un-funds
-// the order, and this order was paid for and went out. The compensation carries
-// the order id so the ledger says which return it belongs to.
-//
-// Idempotent on the return: a retried decision compensates once.
+// A NEW POSITIVE entry and not a reversal of the spend, which the schema
+// prescribes for an order that has shipped: a reversal un-funds the order, and
+// this one was paid for and went out. Idempotent on the return.
 func (q *Queries) CompensateReturnWithCredit(ctx context.Context, arg CompensateReturnWithCreditParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, compensateReturnWithCredit,
 		arg.UserID,
@@ -3796,13 +3473,9 @@ type CompleteReturnParams struct {
 	ID         uuid.UUID
 }
 
-// Close an inspected return.
-//
 // return_requests_completed_is_inspected refuses this while any line is
-// un-inspected, so the WHERE clause here does not restate that rule — the
-// database is the one place it lives. `status = 'approved'` IS restated, for the
-// reason DecideReturn restates it: it is what makes two staff members closing
-// one return resolve to one winner.
+// un-inspected. `status = 'approved'` is restated for DecideReturn's reason: it
+// is what makes two staff members closing one return resolve to one winner.
 func (q *Queries) CompleteReturn(ctx context.Context, arg CompleteReturnParams) (int64, error) {
 	result, err := q.db.Exec(ctx, completeReturn, arg.Resolution, arg.ID)
 	if err != nil {
@@ -3823,12 +3496,9 @@ type ConfirmTOTPParams struct {
 	UserID uuid.UUID
 }
 
-// Confirm enrolment and record the step in ONE statement.
-//
-// Two statements would leave a window in which the credential is confirmed and
-// its step is not recorded, and the code just proved could be replayed through
-// it. The WHERE clause is the same guard the verification uses, so a concurrent
-// second submission of the same code updates zero rows.
+// Confirm enrolment and record the step in ONE statement: two would leave a
+// window in which the credential is confirmed and the code just proved is
+// still replayable.
 func (q *Queries) ConfirmTOTP(ctx context.Context, arg ConfirmTOTPParams) (int64, error) {
 	result, err := q.db.Exec(ctx, confirmTOTP, arg.Step, arg.UserID)
 	if err != nil {
@@ -3846,7 +3516,6 @@ type ConsumeReservationPartialParams struct {
 	Quantity      int32
 }
 
-// Settle the part of a hold that is actually going out in this parcel.
 func (q *Queries) ConsumeReservationPartial(ctx context.Context, arg ConsumeReservationPartialParams) error {
 	_, err := q.db.Exec(ctx, consumeReservationPartial, arg.ReservationID, arg.Quantity)
 	return err
@@ -3856,7 +3525,6 @@ const countAdmins = `-- name: CountAdmins :one
 SELECT count(*)::bigint FROM users WHERE role = 'admin'
 `
 
-// How many admins remain, for the guard that stops the last one being removed.
 func (q *Queries) CountAdmins(ctx context.Context) (int64, error) {
 	row := q.db.QueryRow(ctx, countAdmins)
 	var column_1 int64
@@ -3887,22 +3555,9 @@ type CouponByCodeRow struct {
 	IsCurrent        bool
 }
 
-// A coupon by the code a customer typed.
-//
-// Matched on upper(code) so it hits coupons_code_key, and so SUMMER20 and
-// summer20 are the same code — which is what a customer reading it off a card
-// expects.
-//
-// The window is decided HERE, in SQL, against the DATABASE's clock.
-//
-// starts_at defaults to the database's now(); comparing it to Go's time.Now()
-// is comparing two clocks, and a container a few milliseconds ahead of its host
-// makes a coupon that was just created read as "not started yet". They are one
-// clock now.
-//
-// The LIMITS are still not decided here: redeem_coupon counts them under a lock
-// on the coupon row, and counting them in this query would be counting them
-// without one — two concurrent checkouts would each pass.
+// The window is decided HERE against the DATABASE's clock: starts_at defaults to
+// its now(), and comparing that to Go's is comparing two clocks. The LIMITS are
+// not: redeem_coupon counts them under a lock on the coupon row.
 func (q *Queries) CouponByCode(ctx context.Context, code string) (CouponByCodeRow, error) {
 	row := q.db.QueryRow(ctx, couponByCode, code)
 	var i CouponByCodeRow
@@ -3941,7 +3596,6 @@ type CreateAddressParams struct {
 	IsDefault     bool
 }
 
-// Save a delivery address to an account.
 func (q *Queries) CreateAddress(ctx context.Context, arg CreateAddressParams) error {
 	_, err := q.db.Exec(ctx, createAddress,
 		arg.UserID,
@@ -3982,7 +3636,7 @@ type CreateBannerParams struct {
 	Days           int32
 }
 
-// Create one. The CTA is both-or-neither, which promo_banners_cta_complete also says.
+// The CTA is both-or-neither, which promo_banners_cta_complete also says.
 func (q *Queries) CreateBanner(ctx context.Context, arg CreateBannerParams) error {
 	_, err := q.db.Exec(ctx, createBanner,
 		arg.Message,
@@ -4072,19 +3726,9 @@ type CreateCategoryParams struct {
 	ParentSlug string
 }
 
-// Create a category, optionally under a parent.
-//
-// :execrows, and the parent resolved by a JOIN rather than a scalar subquery.
-//
-// `(SELECT id FROM categories WHERE slug = @parent)` yields NULL for a slug that
-// does not exist, so naming a parent that is not there would create a ROOT
-// category and report success. The staff member asks for one thing and silently
-// gets another, which is worse than a refusal.
-//
-// The derived table has exactly one row when the parent exists, exactly one
-// (NULL) row when no parent was named, and NO rows when a parent was named and
-// not found. That last case inserts nothing, and the row count is how the
-// caller learns it.
+// The parent is a derived table and not a scalar subquery: that would yield NULL
+// for a slug that does not exist, creating a ROOT category and reporting
+// success. No rows is how the caller learns the parent was not found.
 func (q *Queries) CreateCategory(ctx context.Context, arg CreateCategoryParams) (int64, error) {
 	result, err := q.db.Exec(ctx, createCategory,
 		arg.Slug,
@@ -4190,11 +3834,8 @@ type CreateFAQEntryParams struct {
 	AnswerEn   string
 }
 
-// Append an entry to a category.
-//
-// The position is computed IN the insert from max(position) WITHIN that category,
-// because faq_entries_position_key is unique on (category, position) — two staff
-// members adding to the same category would otherwise both read the same maximum.
+// The position is computed WITHIN the category, because faq_entries_position_key
+// is unique on (category, position).
 func (q *Queries) CreateFAQEntry(ctx context.Context, arg CreateFAQEntryParams) error {
 	_, err := q.db.Exec(ctx, createFAQEntry,
 		arg.Category,
@@ -4280,9 +3921,6 @@ type CreateInvoicePreferenceParams struct {
 	TaxID       string
 }
 
-// What the customer asked for on their invoice. Written with the order, because
-// the choice is part of what was agreed and erase_user clears it alongside the
-// delivery details.
 func (q *Queries) CreateInvoicePreference(ctx context.Context, arg CreateInvoicePreferenceParams) error {
 	_, err := q.db.Exec(ctx, createInvoicePreference,
 		arg.OrderID,
@@ -4332,13 +3970,6 @@ type CreateNewsletterIssueParams struct {
 	Body    string
 }
 
-// Record the language somebody was reading when they confirmed.
-//
-// Set on the subscriber rather than carried in each message's payload, because an
-// ISSUE is enqueued by a back-office click where the subscriber is not present —
-// the same reason orders.locale and stock_notifications.locale exist.
-// Compose a draft. Sending is a separate statement, so a half-written issue is a
-// row nobody has received rather than a mail somebody has.
 func (q *Queries) CreateNewsletterIssue(ctx context.Context, arg CreateNewsletterIssueParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, createNewsletterIssue, arg.Subject, arg.Body)
 	var id uuid.UUID
@@ -4375,8 +4006,8 @@ type CreateOrderRow struct {
 	OrderNumber string
 }
 
-// Place the order header. The order_number comes from next_order_number(),
-// which is SECURITY DEFINER because store cannot write the counter directly.
+// next_order_number() is SECURITY DEFINER because store cannot write the
+// counter directly.
 func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (CreateOrderRow, error) {
 	row := q.db.QueryRow(ctx, createOrder,
 		arg.UserID,
@@ -4411,9 +4042,8 @@ type CreateOrderLineParams struct {
 	Position       int32
 }
 
-// One order line, priced from the variant as it stands at this moment. The
-// price is COPIED rather than referenced: an order is a record of what was
-// agreed, and a later price change must not rewrite it.
+// The price is COPIED rather than referenced: a later price change must not
+// rewrite a placed order.
 func (q *Queries) CreateOrderLine(ctx context.Context, arg CreateOrderLineParams) error {
 	_, err := q.db.Exec(ctx, createOrderLine,
 		arg.OrderID,
@@ -4455,13 +4085,8 @@ type CreateOrderPrivateDataParams struct {
 	PickupStoreName string
 }
 
-// The delivery details, which live in their own table so erase_user can blank
-// them without touching the financial record.
-// The address columns and the pickup columns are BOTH written, and exactly one
-// group is non-NULL — order_private_data_one_destination refuses anything else.
-// Passing all of them and letting the caller null the group that does not apply
-// keeps the two destinations one statement rather than two INSERTs and a branch
-// in Go deciding which order gets which.
+// Both destination groups are written and exactly one is non-NULL, which
+// order_private_data_one_destination is what refuses anything else.
 func (q *Queries) CreateOrderPrivateData(ctx context.Context, arg CreateOrderPrivateDataParams) error {
 	_, err := q.db.Exec(ctx, createOrderPrivateData,
 		arg.OrderID,
@@ -4490,13 +4115,7 @@ type CreatePasswordResetTokenParams struct {
 	Ttl       pgtype.Interval
 }
 
-// Password reset. The token is stored hashed for the same reason a session is.
-// Issue a reset token.
-//
-// The expiry is computed from the DATABASE's clock, not Go's. The window is
-// read back by `expires_at > now()`, which is the database's clock too, and
-// deriving the two ends of one comparison from two clocks is what made a coupon
-// created that instant read as "not started yet".
+// The expiry is computed from the DATABASE's clock, which is what reads it back.
 func (q *Queries) CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) error {
 	_, err := q.db.Exec(ctx, createPasswordResetToken, arg.TokenHash, arg.UserID, arg.Ttl)
 	return err
@@ -4528,9 +4147,8 @@ type CreateProductParams struct {
 	WarrantyMonths int32
 }
 
-// Create a product. It is born a DRAFT: products_active_is_published requires a
-// published_at before a product may go active, and a product with no variants
-// has no price — publishing is its own decision, made once it is ready.
+// Born a DRAFT: products_active_is_published wants a published_at before a
+// product may go active, and a product with no variants has no price.
 func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (string, error) {
 	row := q.db.QueryRow(ctx, createProduct,
 		arg.BrandID,
@@ -4606,8 +4224,7 @@ type CreateReviewParams struct {
 	Slug     string
 }
 
-// Leave a review. product_reviews_verified_is_real refuses a false
-// is_verified_purchase.
+// product_reviews_verified_is_real refuses a false is_verified_purchase.
 func (q *Queries) CreateReview(ctx context.Context, arg CreateReviewParams) error {
 	_, err := q.db.Exec(ctx, createReview,
 		arg.UserID,
@@ -4657,9 +4274,6 @@ type CreateShipmentParams struct {
 	EstimatedDeliveryOn pgtype.Date
 }
 
-// Record a shipment. carrier and tracking_number both carry CHECKs requiring a
-// non-blank value, so a shipment with an empty tracking number is refused by the
-// schema rather than saved as a shipment nobody can follow.
 func (q *Queries) CreateShipment(ctx context.Context, arg CreateShipmentParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, createShipment,
 		arg.OrderID,
@@ -4684,9 +4298,8 @@ type CreateShipmentLineParams struct {
 	Quantity    int32
 }
 
-// What a shipment contains. Written with the shipment, because a dispatch that
-// records no lines is one nothing can later reconcile against: a return has to
-// be bounded by what actually went out, not by what was ordered.
+// Written with the shipment: a return has to be bounded by what actually went
+// out, not by what was ordered.
 func (q *Queries) CreateShipmentLine(ctx context.Context, arg CreateShipmentLineParams) error {
 	_, err := q.db.Exec(ctx, createShipmentLine,
 		arg.OrderID,
@@ -4698,7 +4311,6 @@ func (q *Queries) CreateShipmentLine(ctx context.Context, arg CreateShipmentLine
 }
 
 const createShippingMethod = `-- name: CreateShippingMethod :one
-
 INSERT INTO shipping_methods (code, destination_kind, position,
                               max_parcel_longest_mm, max_parcel_sum_mm, max_parcel_weight_g)
 VALUES ($1::text, $2::text,
@@ -4717,24 +4329,9 @@ type CreateShippingMethodParams struct {
 	MaxParcelWeightG   int32
 }
 
-// ---------------------------------------------------------------------------
-// Delivery methods and zones
-//
-// shipping_methods and shipping_zones are the two tables underneath /admin/shipping,
-// and these are their door. Without them the page can publish a new VERSION of a
-// method the seed created and set a surcharge for a zone the seed created, and
-// neither of the two things underneath — so a shop could not offer its third
-// carrier, and could not say which postal codes cost more to reach.
-// ---------------------------------------------------------------------------
-// Create a method AND its first version, so a method that exists can be priced.
-//
-// Two statements in the caller's transaction rather than one: a method with no
-// version is one the checkout finds and cannot price, which is worse than a method
-// that does not exist.
-// The parcel ceilings are the carrier's, and they are asked for HERE because a
-// method that has them and a method that does not are different offers. 超商取貨
-// is 45cm on the longest side, 105cm across three, 10kg — 萊爾富 5kg. Zero means
-// "no stated limit" and stores NULL, which is the honest default for 宅配.
+// The caller writes the first VERSION in the same transaction: a method with no
+// version is one the checkout finds and cannot price. Zero on a parcel ceiling
+// means "no stated limit" and stores NULL, the honest default for home delivery.
 func (q *Queries) CreateShippingMethod(ctx context.Context, arg CreateShippingMethodParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, createShippingMethod,
 		arg.Code,
@@ -4823,17 +4420,8 @@ type CreateUserFromIdentityRow struct {
 	Role     string
 }
 
-// Create an account from an identity provider.
-//
-// No password hash at all, which is legal: users.password_hash is nullable and
-// Authenticate refuses a NULL one by name. Somebody who wants a password later
-// gets it through /forgot, which is already the one path that proves they own
-// the mailbox.
-//
-// email_verified_at is set from Google's own claim, and the CALLER checks that
-// claim first — a provider that has not verified an address has proved nothing
-// about it, and copying that here would launder somebody else's guess into
-// goen's own record.
+// No password hash, which is legal; the CALLER checks the provider's verified
+// claim before email_verified_at is set from it.
 func (q *Queries) CreateUserFromIdentity(ctx context.Context, arg CreateUserFromIdentityParams) (CreateUserFromIdentityRow, error) {
 	row := q.db.QueryRow(ctx, createUserFromIdentity, arg.Email, arg.FullName)
 	var i CreateUserFromIdentityRow
@@ -4871,14 +4459,9 @@ type CreateVariantParams struct {
 	Slug                string
 }
 
-// Add a variant. stock_quantity is deliberately absent: the column is not in
-// admin's INSERT grant, so it takes DEFAULT 0 and stock arrives only through
-// record_inventory_movement.
-// The parcel measurements are collected with the variant rather than left unset,
-// because they decide which shipping methods the CUSTOMER is offered: a variant
-// with no measurement is refused by no method, so an unmeasured monitor is
-// offered 超商取貨 and the shop finds out at the counter. Zero means unmeasured
-// and stores NULL — the form cannot express "I do not know" any other way.
+// stock_quantity is deliberately absent: it is not in admin's INSERT grant, so
+// it takes DEFAULT 0 and stock arrives only through record_inventory_movement.
+// A zero parcel measurement stores NULL, meaning UNMEASURED.
 func (q *Queries) CreateVariant(ctx context.Context, arg CreateVariantParams) error {
 	_, err := q.db.Exec(ctx, createVariant,
 		arg.SKU,
@@ -4898,13 +4481,8 @@ SELECT coalesce((SELECT b.balance_cents FROM store_credit_balances b
                  WHERE b.user_id = $1), 0)::bigint
 `
 
-// What a customer's ledger comes to: what the back office is about to add to or
-// spend from.
-//
-// From store_credit_balances, the ONE view that defines a balance, and never a sum
-// written out again here. A balance summed in four places is four chances for one
-// of them to gain a filter the others do not have, and a customer shown two
-// different figures by two pages of one shop cannot tell which is true.
+// From store_credit_balances, the ONE view that defines a balance, never a sum
+// written out again here.
 func (q *Queries) CreditBalance(ctx context.Context, userID uuid.NullUUID) (int64, error) {
 	row := q.db.QueryRow(ctx, creditBalance, userID)
 	var column_1 int64
@@ -4925,11 +4503,7 @@ SELECT coalesce(localized_name(h.eyebrow, h.eyebrow_en, $1::text), '')::text
        h.secondary_cta_href, h.image_key,
        coalesce(localized_name(h.image_alt, h.image_alt_en, $1::text), '')::text
            AS image_alt,
-       -- The image's width comes from media_objects, not from a column on this
-       -- table. product_images already showed what happens when a stored
-       -- object's dimensions are copied next to every reference: two rows
-       -- disagree and a unique index gets bolted on to stop them. One row of
-       -- bytes, one row of dimensions.
+       -- Width comes from media_objects: one row of bytes, one row of dimensions.
        coalesce(m.width, 0)::integer AS image_width
 FROM hero_slides h
 LEFT JOIN media_objects m ON m.digest = h.image_key
@@ -4953,25 +4527,11 @@ type CurrentHeroSlideRow struct {
 	ImageWidth        int32
 }
 
-// The hero slide showing right now.
-//
-// ONE, not a carousel. A rotating hero moves what somebody is reading, needs
-// JavaScript to rotate, and is a keyboard trap unless carefully built — all of
-// which the write-face rule argues against for the first thing on the page.
-// `position` is how an editor queues the next one, not how five rotate.
-//
-// The window is judged in SQL against the DATABASE's clock, for the same reason
-// the coupon and campaign windows are: these timestamps were written by now()
-// here, and comparing them to Go's time.Now() is comparing two clocks.
-// Every word follows the visitor; the HREFs do not, because a link goes to one page.
-// pages.DefaultHero has always been translated because it is compiled in — a
-// SCHEDULED slide was not, so using the feature turned the largest thing on the home
-// page Chinese for everybody.
-// The nullable fields are COALESCED, not merely wrapped. localized_name(NULL, NULL,
-// ...) is NULL, and sqlc types the function's result as non-null — so a slide with no
-// eyebrow made the home page fail to scan its own hero. Found by a mutation run
-// against a slide that had one; the seed ships no slides at all, which is exactly why
-// an empty table has to be a working site rather than an untested path.
+// One slide, not a carousel: `position` is how an editor queues the next one.
+// The window is judged against the database's clock, which wrote the timestamps.
+// Every word follows the visitor; the HREFs do not, because a link goes to one
+// page. The nullable fields are coalesced as well as wrapped: localized_name(NULL,
+// NULL, ...) is NULL and sqlc types the result as non-null.
 func (q *Queries) CurrentHeroSlide(ctx context.Context, locale string) (CurrentHeroSlideRow, error) {
 	row := q.db.QueryRow(ctx, currentHeroSlide, locale)
 	var i CurrentHeroSlideRow
@@ -5016,10 +4576,7 @@ type CurrentPromoBannerRow struct {
 	CtaHref      string
 }
 
-// The banner running right now, if there is one.
-//
-// The window is judged in SQL against the database's clock, for the reason
-// every other window in goen is: these timestamps were written by now() here.
+// The window is judged against the database's clock, which wrote the timestamps.
 func (q *Queries) CurrentPromoBanner(ctx context.Context, locale string) (CurrentPromoBannerRow, error) {
 	row := q.db.QueryRow(ctx, currentPromoBanner, locale)
 	var i CurrentPromoBannerRow
@@ -5045,11 +4602,9 @@ type CustomerByEmailRow struct {
 	FullName string
 }
 
-// A customer by email, for granting credit.
-//
-// internal/account already defines UserByEmail for sign-in, and sqlc generates
-// one db package for the module, so this one is named for what it is FOR. It
-// also selects less: the back office has no business reading a password hash.
+// internal/account already defines UserByEmail for sign-in and sqlc generates
+// one db package, so this one is named for what it is FOR. It also selects less:
+// the back office has no business reading a password hash.
 func (q *Queries) CustomerByEmail(ctx context.Context, email string) (CustomerByEmailRow, error) {
 	row := q.db.QueryRow(ctx, customerByEmail, email)
 	var i CustomerByEmailRow
@@ -5101,9 +4656,7 @@ WHERE p.status = 'active'
         AND dv.compare_at_price_cents > dv.price_cents
   )
 ORDER BY
-    -- Deepest discount first, as a fraction rather than an amount: 30% off a
-    -- NT$900 case is a better deal than NT$500 off a NT$50,000 laptop, and a
-    -- shopper reading a deals page is looking for the former.
+    -- Deepest discount first, as a fraction rather than an amount.
     ((mv.compare_at_price_cents - mv.price_cents)::float8
      / nullif(mv.compare_at_price_cents, 0)) DESC NULLS LAST,
     p.published_at DESC, p.id DESC
@@ -5132,15 +4685,8 @@ type DealProductsRow struct {
 	ImageHeight         int32
 }
 
-// Products with something marked down.
-//
-// "On sale" is a VARIANT fact — compare_at_price_cents above price_cents — and
-// a product qualifies when any active variant carries one. The row shown is the
-// cheapest sellable variant, the same one every other listing shows, so a
-// product does not appear at one price here and another on its own page.
-//
-// Ordered by how deep the cut is. A deals page sorted by newest buries the
-// reason anyone opened it.
+// "On sale" is a variant fact, and a product qualifies when any active variant
+// carries one.
 func (q *Queries) DealProducts(ctx context.Context, arg DealProductsParams) ([]DealProductsRow, error) {
 	rows, err := q.db.Query(ctx, dealProducts, arg.Locale, arg.PageOffset, arg.PageSize)
 	if err != nil {
@@ -5206,17 +4752,10 @@ type DecideReturnParams struct {
 	ID         uuid.UUID
 }
 
-// Decide a return. return_requests_recount guards the transition and
-// return_requests_decided_has_time requires the timestamp to arrive with it.
-//
-// :execrows, because `status = 'requested'` in this WHERE clause is the ONLY
-// place the question is asked under a lock. Decide reads the row on the pool
-// BEFORE opening its transaction, so two staff members clicking 同意 and 不同意
-// on one request both pass that check; as :exec the loser updates zero rows, SQL
-// calls that success, and the transaction commits an audit row asserting a
-// decision that never happened — and, for an approval, after paying a refund.
-// Zero rows is "somebody decided this first", which is a sentence a caller can
-// act on. The SetProductStatus lesson, in the one place that also moves money.
+// :execrows, because `status = 'requested'` here is the ONLY place the question
+// is asked under a lock: as :exec, the loser of two simultaneous decisions
+// updates zero rows, SQL calls that success, and an audit row claims a decision
+// nobody made — after paying a refund.
 func (q *Queries) DecideReturn(ctx context.Context, arg DecideReturnParams) (int64, error) {
 	result, err := q.db.Exec(ctx, decideReturn, arg.Status, arg.Resolution, arg.ID)
 	if err != nil {
@@ -5234,8 +4773,7 @@ type DeleteAddressParams struct {
 	ID     uuid.UUID
 }
 
-// Deleting is scoped to the owner for the same reason reading is: an id that
-// belongs to someone else must do nothing, not delete their address.
+// Scoped to the owner: an id belonging to somebody else must do nothing.
 func (q *Queries) DeleteAddress(ctx context.Context, arg DeleteAddressParams) error {
 	_, err := q.db.Exec(ctx, deleteAddress, arg.UserID, arg.ID)
 	return err
@@ -5247,13 +4785,9 @@ WHERE b.slug = $1::text
   AND NOT EXISTS (SELECT 1 FROM products p WHERE p.brand_id = b.id)
 `
 
-// Delete a brand nothing references.
-//
-// The emptiness check is in the statement, not in Go: a product created between
-// a check and a delete would be orphaned — except products.brand_id is NOT NULL
-// with ON DELETE RESTRICT, so the database would refuse it anyway. This makes
-// the refusal a row count instead of a foreign-key error, which is the
-// difference between a sentence and a constraint name.
+// The emptiness check is in the statement, not read first. The foreign keys are
+// ON DELETE RESTRICT and would refuse anyway; this turns the refusal into a row
+// count, which is the difference between a sentence and a constraint name.
 func (q *Queries) DeleteBrand(ctx context.Context, slug string) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteBrand, slug)
 	if err != nil {
@@ -5278,7 +4812,6 @@ WHERE c.slug = $1::text
   AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.parent_id = c.id)
 `
 
-// Delete a category with nothing in it and nothing under it.
 func (q *Queries) DeleteCategory(ctx context.Context, slug string) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteCategory, slug)
 	if err != nil {
@@ -5293,15 +4826,8 @@ WHERE (used_at IS NOT NULL OR expires_at <= now())
   AND created_at < now() - $1::interval
 `
 
-// Reset tokens that have stopped meaning anything: spent, or past their hour.
-//
-// Nothing reads either state. SpendPasswordResetToken has `used_at IS NULL AND
-// expires_at > now()` in its own WHERE clause, so a dead row is already nobody —
-// and every reset goen has ever issued was still in the table, each carrying the
-// user id it belonged to.
-//
-// A grace period rather than `now()`, so a row survives long enough to answer
-// "did they ask for a reset yesterday?" while support has somebody on the phone.
+// A grace period rather than now(), so support can still answer "did they ask
+// for a reset yesterday?".
 func (q *Queries) DeleteDeadResetTokens(ctx context.Context, grace pgtype.Interval) error {
 	_, err := q.db.Exec(ctx, deleteDeadResetTokens, grace)
 	return err
@@ -5320,8 +4846,6 @@ const deleteFAQEntry = `-- name: DeleteFAQEntry :execrows
 DELETE FROM faq_entries WHERE id = $1
 `
 
-// Delete one. A FAQ answer is not history: nothing references it, and an answer the
-// shop no longer stands behind should stop being on the page.
 func (q *Queries) DeleteFAQEntry(ctx context.Context, entryID uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteFAQEntry, entryID)
 	if err != nil {
@@ -5343,9 +4867,8 @@ const deleteMembershipTier = `-- name: DeleteMembershipTier :execrows
 DELETE FROM membership_tiers WHERE id = $1
 `
 
-// Retiring a band. A DELETE and not a flag, because a tier nobody is in is not
-// history: no order references it, and the customers who were in it are simply
-// re-derived into whichever band they now qualify for.
+// A DELETE and not a flag: no order references a tier, and the customers who
+// were in it are re-derived into whichever band they now qualify for.
 func (q *Queries) DeleteMembershipTier(ctx context.Context, id uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteMembershipTier, id)
 	if err != nil {
@@ -5359,16 +4882,8 @@ DELETE FROM checkout_attempts
 WHERE created_at < now() - $1::interval
 `
 
-// Checkout idempotency keys past their replay window.
-//
-// One row per checkout attempt, keyed on what the form carried, and nothing ever
-// deleted them: the table grows with every submission goen has ever seen,
-// successful or not.
-//
-// Deleting a row frees its key to be replayed, which is why the window is weeks
-// rather than hours. A key belongs to one rendered form; a browser holding one
-// for a month has long since been closed, and a double-submit that far apart is
-// not the failure this table defends against.
+// Checkout idempotency keys past their replay window. Deleting a row frees its
+// key to be replayed, which is why the window is weeks rather than hours.
 func (q *Queries) DeleteOldCheckoutAttempts(ctx context.Context, retain pgtype.Interval) error {
 	_, err := q.db.Exec(ctx, deleteOldCheckoutAttempts, retain)
 	return err
@@ -5378,16 +4893,8 @@ const deleteOldOrderAccessGrants = `-- name: DeleteOldOrderAccessGrants :exec
 DELETE FROM order_access_grants WHERE created_at < now() - $1::interval
 `
 
-// Drop access grants nobody can present any more.
-//
-// The cookie carrying these tokens has a 30-day MaxAge, so a grant older than
-// that is unreachable by any browser: a live bearer credential — it opens the
-// order page, the cancel form and the return form — kept forever for nobody.
-// One recovered from a proxy log or an old backup worked indefinitely.
-//
-// Retention rather than an expires_at column, because the question is "is this
-// older than the cookie that carries it" and there is exactly one answer for
-// every row. A column would be a second place to write the same interval.
+// Drop access grants nobody can present any more: older than the cookie's
+// MaxAge, they are live bearer credentials kept forever for nobody.
 func (q *Queries) DeleteOldOrderAccessGrants(ctx context.Context, retain pgtype.Interval) error {
 	_, err := q.db.Exec(ctx, deleteOldOrderAccessGrants, retain)
 	return err
@@ -5409,12 +4916,7 @@ WHERE z.id = $1
   AND NOT EXISTS (SELECT 1 FROM shipping_version_zones v WHERE v.zone_id = z.id)
 `
 
-// Delete a zone that nothing points at.
-//
-// Decided by the DELETE's own WHERE clause rather than by a count read first, the
-// same way the taxonomy delete is: the foreign keys would refuse an orphaning delete
-// anyway, and doing it this way turns the refusal into a row count the page can
-// explain instead of a constraint name.
+// Decided by the DELETE's own WHERE clause, like DeleteBrand.
 func (q *Queries) DeleteShippingZone(ctx context.Context, zoneID uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteShippingZone, zoneID)
 	if err != nil {
@@ -5427,8 +4929,6 @@ const deleteUserSessions = `-- name: DeleteUserSessions :exec
 DELETE FROM sessions WHERE user_id = $1
 `
 
-// Every other session of this account. Used when a password changes: a password
-// reset that leaves the thief's session alive has changed nothing.
 func (q *Queries) DeleteUserSessions(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteUserSessions, userID)
 	return err
@@ -5465,11 +4965,7 @@ type EmailBelongsToSomebodyElseParams struct {
 	UserID uuid.UUID
 }
 
-// Does this address already belong to a DIFFERENT account?
-//
-// Asked before a change request so the refusal is a sentence rather than a
-// constraint name. It is not the guard: users_email_key is, because an address can
-// be taken between this question and the confirmation.
+// Not the guard: users_email_key is, because an address can be taken in between.
 func (q *Queries) EmailBelongsToSomebodyElse(ctx context.Context, arg EmailBelongsToSomebodyElseParams) (bool, error) {
 	row := q.db.QueryRow(ctx, emailBelongsToSomebodyElse, arg.Email, arg.UserID)
 	var taken bool
@@ -5489,7 +4985,6 @@ type EmailVerificationRow struct {
 	PendingEmail string
 }
 
-// Is this customer's current address proved?
 func (q *Queries) EmailVerification(ctx context.Context, id uuid.UUID) (EmailVerificationRow, error) {
 	row := q.db.QueryRow(ctx, emailVerification, id)
 	var i EmailVerificationRow
@@ -5501,11 +4996,6 @@ const endStaffSessions = `-- name: EndStaffSessions :exec
 DELETE FROM sessions WHERE user_id = $1
 `
 
-// Every session belonging to somebody whose access was just revoked.
-//
-// Without this a revoked colleague keeps whatever session they had until it
-// expires, which is up to its full lifetime of back-office access after being
-// told they no longer have any.
 func (q *Queries) EndStaffSessions(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, endStaffSessions, userID)
 	return err
@@ -5524,11 +5014,8 @@ type EnqueueBulkMessageParams struct {
 	Priority  int16
 }
 
-// The same enqueue, behind everything transactional.
-//
-// A separate query rather than a priority parameter on the one above, because
-// every existing caller is transactional and a parameter would let one of them
-// pass the wrong number. Bulk is the exception and it says so at the call site.
+// The same enqueue, behind everything transactional. A separate query rather
+// than a parameter, because every other caller is transactional.
 func (q *Queries) EnqueueBulkMessage(ctx context.Context, arg EnqueueBulkMessageParams) error {
 	_, err := q.db.Exec(ctx, enqueueBulkMessage,
 		arg.Topic,
@@ -5551,15 +5038,8 @@ type EnqueueMessageParams struct {
 	Payload   []byte
 }
 
-// Enqueue a message in the SAME transaction as the fact it is about.
-//
-// That is the whole point of an outbox: the order and the intent to email about
-// it commit together, so a crash cannot leave one without the other. Sending
-// after the commit loses messages; sending before it sends about orders that
-// never happened.
-//
-// ON CONFLICT DO NOTHING against (topic, dedupe_key), so a retried checkout
-// enqueues once.
+// Enqueue a message in the SAME transaction as the fact it is about. ON CONFLICT
+// DO NOTHING against (topic, dedupe_key), so a retried checkout enqueues once.
 func (q *Queries) EnqueueMessage(ctx context.Context, arg EnqueueMessageParams) error {
 	_, err := q.db.Exec(ctx, enqueueMessage, arg.Topic, arg.DedupeKey, arg.Payload)
 	return err
@@ -5581,25 +5061,14 @@ JOIN orders o ON o.id = ir.order_id
 WHERE ir.state = 'held'
   AND ir.expires_at < now()
   AND NOT order_is_committed(ir.order_id)
-  -- Committed is not the whole question. A zero-owed order — fully store-credited,
-  -- or zeroed by a 100% coupon — has no payment row and sits at 'pending' until a
-  -- human picks it, so committed_orders reports it false while the customer has
-  -- already paid in full. release_reservation refuses it by name; this keeps the
-  -- sweeper from asking every minute and counting the refusal as a skip.
+  -- Committed is not the whole question: a zero-owed order has no payment row and
+  -- sits at 'pending' while the customer has already paid in full.
   AND (o.fulfillment_status = 'cancelled' OR order_amount_owed(ir.order_id) <> 0)
 ORDER BY ir.expires_at
 LIMIT $1
 `
 
 // Reservations whose hold has run out and whose order never got funded.
-//
-// order_is_committed, not "exists a succeeded payment": a zero-owed order — a
-// 100% discount, or one fully covered by store credit — is committed with no
-// payment row at all, and releasing its stock would take the shelf away from
-// goods that are going to be shipped.
-//
-// Bounded, because a sweeper that tries to clear a year of abandoned checkouts
-// in one pass holds locks for as long as that takes. It runs again in a minute.
 func (q *Queries) ExpiredReservations(ctx context.Context, limit int32) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, expiredReservations, limit)
 	if err != nil {
@@ -5635,12 +5104,9 @@ type FAQEntriesRow struct {
 }
 
 // The FAQ, grouped by category in the order the back office set.
-// Category first: policy.go groups by ADJACENCY, and faq_entries_position_key is
-// unique on (category, position), so positions repeat across categories and
-// ordering by position interleaves them into one heading per question.
-//
-// On the CANONICAL category, never the localized one, or a half-translated
-// category splits into two headings.
+// Category first, because position is unique only within a category and the
+// handler groups by adjacency. On the canonical category, never the localized
+// one, or a half-translated category splits into two headings.
 func (q *Queries) FAQEntries(ctx context.Context, locale string) ([]FAQEntriesRow, error) {
 	rows, err := q.db.Query(ctx, fAQEntries, locale)
 	if err != nil {
@@ -5673,25 +5139,9 @@ WHERE sm.is_active
               ORDER BY effective_at DESC LIMIT 1)
 `
 
-// The lowest free-delivery threshold the shop currently offers.
-//
-// The home strip and the PDP's guarantee list both tell a shopper what it takes
-// to get free delivery, and both used to state 「滿 NT$3,000 免運」 as a LITERAL
-// while the figure lives in shipping_method_versions and is editable at
-// /admin/shipping. ShippingPolicy's own comment already says why that is wrong —
-// "a page that states a fee is a promise, and the one place that promise is
-// already kept is the table checkout charges from" — and the principle was
-// applied to /shipping and to neither of the other two.
-//
-// MIN across methods, because the strip makes one claim and the most generous
-// true one is the lowest threshold any active method honours. NULL when nothing
-// offers free delivery at all, which the caller renders as no claim rather than
-// as "free over NT$0".
-// coalesce AND cast, because min() over an empty set is NULL and sqlc cannot see
-// that a function changed the column's nullability — the trap CLAUDE.md records
-// against localized_name, met again here. Without it a shop with no free-delivery
-// threshold at all crashes the home page it was supposed to render plainly, and
-// the test that says so is the one that found it.
+// MIN across methods: the strip makes one claim, and the most generous true one
+// is the lowest threshold any active method honours. coalesce AND cast, because
+// min() over an empty set is NULL and sqlc types the result as non-null.
 func (q *Queries) FreeDeliveryThreshold(ctx context.Context) (int64, error) {
 	row := q.db.QueryRow(ctx, freeDeliveryThreshold)
 	var free_over_cents int64
@@ -5711,15 +5161,8 @@ type GrantOrderAccessParams struct {
 }
 
 // Give a browser access to an order it just placed, or just proved the email for.
-//
-// :execrows rather than :exec, because the INSERT ... SELECT writes NO ROWS when
-// the order number matches nothing — and SQL does not call that an error. The
-// caller would return nil, set a cookie, and hand the browser a token no grant
-// backs: a customer locked out of their own order, with no failure anywhere to
-// explain it. Both call sites hold a number the database just gave them, so it
-// is unreachable today; it is the SHAPE that becomes a silent lockout, and it is
-// the same correction the three admin toggles got when SetProductStatus on a
-// missing slug answered 303 and wrote an audit row saying it had published.
+// :execrows, because the INSERT ... SELECT writes NO ROWS when the order number
+// matches nothing and a cookie no grant backs is a silent lockout.
 func (q *Queries) GrantOrderAccess(ctx context.Context, arg GrantOrderAccessParams) (int64, error) {
 	result, err := q.db.Exec(ctx, grantOrderAccess, arg.Digest, arg.OrderNumber)
 	if err != nil {
@@ -5733,7 +5176,6 @@ UPDATE contact_messages SET handled_at = now()
 WHERE id = $1 AND handled_at IS NULL
 `
 
-// Mark a message dealt with.
 func (q *Queries) HandleMessage(ctx context.Context, id uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, handleMessage, id)
 	if err != nil {
@@ -5759,7 +5201,6 @@ type HasBoughtProductParams struct {
 	Slug   string
 }
 
-// Whether this customer has bought this product on an order that went through.
 // order_is_committed, never "EXISTS a succeeded payment": a store-credit-funded
 // order is committed with no payment row at all.
 func (q *Queries) HasBoughtProduct(ctx context.Context, arg HasBoughtProductParams) (bool, error) {
@@ -5775,9 +5216,7 @@ SELECT EXISTS (
 )
 `
 
-// Whether this order already has a request nobody has decided yet. One open
-// request at a time keeps the back office queue honest and stops a customer
-// filing the same thing twice while waiting.
+// Whether this order already has a request nobody has decided yet.
 func (q *Queries) HasOpenReturn(ctx context.Context, orderID uuid.UUID) (bool, error) {
 	row := q.db.QueryRow(ctx, hasOpenReturn, orderID)
 	var exists bool
@@ -5798,9 +5237,8 @@ type HasReviewedParams struct {
 	Slug   string
 }
 
-// Whether this customer has already reviewed this product. The BASE table, not
-// visible_reviews: the unique index is on the base table, so a hidden review
-// must still block a second one.
+// The base table, not visible_reviews: the unique index is on the base table, so
+// a hidden review must still block a second one.
 func (q *Queries) HasReviewed(ctx context.Context, arg HasReviewedParams) (bool, error) {
 	row := q.db.QueryRow(ctx, hasReviewed, arg.UserID, arg.Slug)
 	var exists bool
@@ -5821,7 +5259,6 @@ type HasStockNoticeParams struct {
 	Email     string
 }
 
-// Whether this visitor is already waiting.
 func (q *Queries) HasStockNotice(ctx context.Context, arg HasStockNoticeParams) (bool, error) {
 	row := q.db.QueryRow(ctx, hasStockNotice, arg.VariantID, arg.Email)
 	var exists bool
@@ -5836,6 +5273,8 @@ WHERE o.order_number = $1 AND r.state = 'held'
 ORDER BY r.id
 `
 
+// Ordered by id so two cancellations of one order take the variant locks in the
+// same sequence; release_reservation locks the variant and then the order.
 func (q *Queries) HeldReservationsForOrder(ctx context.Context, orderNumber string) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, heldReservationsForOrder, orderNumber)
 	if err != nil {
@@ -5874,7 +5313,6 @@ UPDATE product_reviews SET hidden_at = now()
 WHERE id = $1 AND hidden_at IS NULL
 `
 
-// Hide a review, which takes it out of the list AND out of the score.
 func (q *Queries) HideReview(ctx context.Context, id uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, hideReview, id)
 	if err != nil {
@@ -5897,8 +5335,6 @@ type HoldForOrderParams struct {
 	IdempotencyKey string
 }
 
-// Hold the stock an order needs. The reservation expires, so an abandoned
-// checkout returns its stock to the shelf rather than holding it forever.
 func (q *Queries) HoldForOrder(ctx context.Context, arg HoldForOrderParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, holdForOrder,
 		arg.OrderID,
@@ -5926,8 +5362,7 @@ type HomeCategoriesRow struct {
 	IconKey pgtype.Text
 }
 
-// The root categories, in their display order, for the home page's category
-// tiles. Children hang off these but the home shows only the top level.
+// The root categories only; children hang off these.
 func (q *Queries) HomeCategories(ctx context.Context, locale string) ([]HomeCategoriesRow, error) {
 	rows, err := q.db.Query(ctx, homeCategories, locale)
 	if err != nil {
@@ -5966,18 +5401,14 @@ SELECT
     mv.compare_at_price_cents,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
-    -- LEFT JOIN: a product with no image yields NULL, which sqlc types as a
-    -- non-null string and pgx cannot scan. coalesce keeps it a real empty
-    -- string the view treats as "no image, show the placeholder".
+    -- A product with no image yields NULL, which sqlc types as a non-null string
+    -- and pgx cannot scan.
     coalesce(img.storage_key, '') AS image_key,
     coalesce(localized_name(img.alt_text, img.alt_text_en, $2::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height,
-    -- Sellable, not merely present. record_inventory_movement refuses a sale or
-    -- hold that would take stock below safety_stock, so a variant sitting AT the
-    -- floor cannot be bought however available ` + "`" + `stock_quantity > 0` + "`" + ` makes it
-    -- look. Reading it the naive way makes the storefront promise what the
-    -- database is going to refuse.
+    -- Sellable, not merely present: record_inventory_movement refuses a hold
+    -- that would take stock below safety_stock.
     EXISTS (
         SELECT 1 FROM product_variants
         WHERE product_id = p.id AND is_active
@@ -5989,11 +5420,8 @@ JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
     WHERE product_id = p.id AND is_active
-    -- A buyable variant first. The price on a tile is a promise, so when
-    -- anything can be bought it has to be the price of something that can;
-    -- otherwise the cheapest sold-out colour sets a figure no visitor can pay.
-    -- Falls back to the cheapest overall so a wholly sold-out product still
-    -- shows what it costs rather than disappearing.
+    -- A buyable variant first: the price on a tile is a promise. Falls back to
+    -- the cheapest overall so a sold-out product still shows what it costs.
     ORDER BY (stock_quantity > safety_stock) DESC, price_cents
     LIMIT 1
 ) mv ON true
@@ -6037,11 +5465,9 @@ type HomeRecommendedTilesRow struct {
 	InStock             bool
 }
 
-// The recommended product tiles: the cheapest active variant's price, a
-// Bayesian-averaged rating (prior weight 5, global mean, so a lone 5-star does
-// not outrank a well-reviewed 4.6), and the primary image. status = 'active' is
-// a literal, not a parameter, so the partial index stays usable. The read model
-// is per-view by measurement (docs/decisions/001-home-read-model.md).
+// Bayesian-averaged rating (prior weight 5, global mean), so a lone 5-star does
+// not outrank a well-reviewed 4.6. status = 'active' is a literal, not a
+// parameter, so the partial index stays usable.
 func (q *Queries) HomeRecommendedTiles(ctx context.Context, arg HomeRecommendedTilesParams) ([]HomeRecommendedTilesRow, error) {
 	rows, err := q.db.Query(ctx, homeRecommendedTiles, arg.Limit, arg.Locale)
 	if err != nil {
@@ -6086,7 +5512,6 @@ type IdentitiesForUserRow struct {
 	CreatedAt time.Time
 }
 
-// The providers linked to an account, for the account page.
 func (q *Queries) IdentitiesForUser(ctx context.Context, userID uuid.UUID) ([]IdentitiesForUserRow, error) {
 	rows, err := q.db.Query(ctx, identitiesForUser, userID)
 	if err != nil {
@@ -6128,24 +5553,9 @@ type InspectReturnLineParams struct {
 	OrderLineID uuid.UUID
 }
 
-// Record what came back on one line of a return.
-//
-// Scoped to an APPROVED request in its own WHERE clause, and :execrows so zero
-// means the caller is told rather than the write silently doing nothing: a
-// rejected return has no parcel coming, and inspecting one that was never
-// approved would put stock back for goods the shop refused to take.
-//
-// ONCE, which is what `received_quantity IS NULL` is doing here. A parcel is
-// opened once, and the restock behind it posts an inventory movement keyed on
-// (request, line) — so a second inspection either double-restocks or is
-// swallowed by the unique index, and the swallowed one is worse: a staff member
-// who miscounted, corrected the figure and resubmitted would see the new number
-// on screen with the stock still at the old one. Refusing says so.
-//
-// The correction path is the one that already exists and is already audited:
-// /admin/stock/{sku} posts an 'adjustment' with an actor, which is exactly what
-// a recount is. A second door into the same ledger is how the two come to
-// disagree.
+// `received_quantity IS NULL` makes a line inspectable ONCE: the restock behind
+// it posts a movement keyed on (request, line), so a second inspection would be
+// swallowed by that index and show a corrected count over unmoved stock.
 func (q *Queries) InspectReturnLine(ctx context.Context, arg InspectReturnLineParams) (int64, error) {
 	result, err := q.db.Exec(ctx, inspectReturnLine,
 		arg.Received,
@@ -6165,11 +5575,7 @@ UPDATE password_reset_tokens SET used_at = now()
 WHERE user_id = $1 AND used_at IS NULL
 `
 
-// Every other unused token for this user, invalidated.
-//
-// Somebody who clicked "forgot password" three times has three live tokens, and
-// two of them are in their mailbox after the reset. A mailbox is exactly what
-// an attacker reads.
+// Somebody who asked three times leaves two more live links in their mailbox.
 func (q *Queries) InvalidateResetTokens(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, invalidateResetTokens, userID)
 	return err
@@ -6193,13 +5599,8 @@ type InvoiceDocumentLinesRow struct {
 	TaxType        string
 }
 
-// What one filed document says was sold.
-//
-// The itemisation is the whole reason invoice_document_lines exists rather than
-// a single amount: a 統一發票 states what was bought, and a shop reconciling one
-// against an order needs to compare lines rather than a total. Without this read
-// the lines were written and shown to nobody — the half-a-door shape this
-// repository keeps finding, and TestEveryTableIsRead is what caught it here.
+// What one filed document says was sold; a shop reconciling an invoice against
+// an order compares lines rather than totals.
 func (q *Queries) InvoiceDocumentLines(ctx context.Context, documentIds []uuid.UUID) ([]InvoiceDocumentLinesRow, error) {
 	rows, err := q.db.Query(ctx, invoiceDocumentLines, documentIds)
 	if err != nil {
@@ -6289,17 +5690,12 @@ SELECT o.id,
        (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                   WHERE ol.order_id = o.id), 0)
         - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents,
-       -- Only a COMMITTED order gets an invoice. Issuing for a checkout nobody
-       -- paid for files a tax document for a sale that did not happen, and
-       -- voiding it is a correction with the 財政部 rather than a delete.
+       -- Only a COMMITTED order gets an invoice: a checkout nobody paid for is
+       -- not a sale, and undoing a filed document is a tax correction.
        (o.id IN (SELECT id FROM committed_orders))::boolean AS committed,
-       -- How many invoices this order has already had, live or voided.
-       --
-       -- RelateNumber is ECPay's own idempotency key and they refuse a repeat
-       -- (RtnCode 5070357) — which the staging API taught, by refusing the
-       -- REISSUE after a void. The order number alone is therefore not enough:
-       -- a wrong invoice is voided and a correct one issued in its place, and
-       -- the second attempt has to be distinguishable from the first.
+       -- How many invoices this order has already had, live or voided. ECPay
+       -- refuse a repeated RelateNumber (RtnCode 5070357), so a reissue after a
+       -- void has to be distinguishable from the first attempt.
        (SELECT count(*) FROM invoice_documents d
         WHERE d.order_id = o.id AND d.kind = 'invoice')::integer AS attempt
 FROM orders o
@@ -6321,16 +5717,9 @@ type InvoiceSubjectRow struct {
 	Attempt      int32
 }
 
-// What an order needs to become an invoice.
-//
-// The preference is what the customer chose at checkout — 會員載具, 手機條碼載具
-// or 公司統編 — and until this query nothing read it for anything but showing a
-// staff member what to do by hand.
-//
-// The amount is order_amount_owed's numerator rather than the net: a 統一發票
-// records the SALE, and store credit is how the customer paid rather than a
-// reduction in what was sold. An order settled entirely from credit still had a
-// price and still owes a tax document for it.
+// What an order needs to become an invoice. The amount is order_amount_owed's
+// numerator rather than the net: an invoice records the SALE, and store credit
+// is how the customer paid rather than a reduction in what was sold.
 func (q *Queries) InvoiceSubject(ctx context.Context, orderNumber string) (InvoiceSubjectRow, error) {
 	row := q.db.QueryRow(ctx, invoiceSubject, orderNumber)
 	var i InvoiceSubjectRow
@@ -6404,11 +5793,7 @@ type LinkIdentityParams struct {
 	Subject string
 }
 
-// Link a provider account to a goen one.
-//
-// ON CONFLICT DO NOTHING against (provider, provider_subject): two tabs
-// finishing one sign-in are one link rather than a unique-violation the customer
-// reads as a failed login.
+// ON CONFLICT DO NOTHING: two tabs finishing one sign-in are one link.
 func (q *Queries) LinkIdentity(ctx context.Context, arg LinkIdentityParams) error {
 	_, err := q.db.Exec(ctx, linkIdentity, arg.UserID, arg.Subject)
 	return err
@@ -6431,11 +5816,8 @@ type LiveInvoiceRow struct {
 	IssuedAt    time.Time
 }
 
-// The live invoice of an order, if it has one.
-//
-// `status <> 'voided'` matches invoice_documents_one_active_invoice_per_order,
-// so this returns the row that index guarantees is unique — a voided invoice
-// frees the slot for a corrected reissue and must not be found here.
+// The live invoice of an order, if it has one. `status <> 'voided'` matches
+// invoice_documents_one_active_invoice_per_order, so the row is unique.
 func (q *Queries) LiveInvoice(ctx context.Context, orderNumber string) (LiveInvoiceRow, error) {
 	row := q.db.QueryRow(ctx, liveInvoice, orderNumber)
 	var i LiveInvoiceRow
@@ -6453,23 +5835,9 @@ const lockCheckoutKey = `-- name: LockCheckoutKey :one
 SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))
 `
 
-// Hold the checkout's idempotency key for the length of this transaction.
-//
-// Two requests from one double-click arrive milliseconds apart, and the read
-// above them ran on the pool before either had a transaction — so both missed,
-// and both went on to place an order. The attempt row that would have collided
-// was written second-to-last, with ON CONFLICT DO NOTHING as :exec, so its row
-// count was discarded and the loser committed anyway.
-//
-// An advisory lock rather than an early INSERT, because of what happens to the
-// LOSER: an early row would hold the key while its order_id is still NULL, so
-// the second request would find a claim it cannot answer with a number. Waiting
-// means that by the time it looks, the winner has committed and there IS a
-// number to hand back. Same order, one placement, no error shown to anybody.
-//
-// xact, so it releases on commit or rollback with nothing to remember. The key
-// is hashed to the bigint the lock space wants; a collision between two
-// different keys costs one request a short wait and nothing else.
+// Hold the checkout's idempotency key for the length of this transaction. An
+// advisory lock rather than an early INSERT, whose row would hold the key with
+// order_id still NULL; xact, so it releases on commit or rollback.
 func (q *Queries) LockCheckoutKey(ctx context.Context, idempotencyKey string) (interface{}, error) {
 	row := q.db.QueryRow(ctx, lockCheckoutKey, idempotencyKey)
 	var pg_advisory_xact_lock interface{}
@@ -6478,7 +5846,6 @@ func (q *Queries) LockCheckoutKey(ctx context.Context, idempotencyKey string) (i
 }
 
 const managedBanners = `-- name: ManagedBanners :many
-
 SELECT id, message, coalesce(message_short, '') AS message_short,
        coalesce(code, '') AS code,
        coalesce(cta_label, '') AS cta_label, coalesce(cta_href, '') AS cta_href,
@@ -6507,15 +5874,6 @@ type ManagedBannersRow struct {
 	CreatedAt      time.Time
 }
 
-// ---------------------------------------------------------------------------
-// The promotional strip
-//
-// These are promo_banners' only door. The strip is a feature the shop runs —
-// middleware decides which paths carry it, dismissing one writes a cookie keyed on a
-// digest of its id — and without them the only way to create one is SQL. The layout
-// check seeds one with psql, which is the tell: a fixture that has to reach past the
-// application is a fixture for a feature with no entrance.
-// ---------------------------------------------------------------------------
 func (q *Queries) ManagedBanners(ctx context.Context, limit int32) ([]ManagedBannersRow, error) {
 	rows, err := q.db.Query(ctx, managedBanners, limit)
 	if err != nil {
@@ -6564,11 +5922,6 @@ type ManagedBrandsRow struct {
 	Products int64
 }
 
-// Brands, with how many products each carries.
-//
-// The count is what makes deletion decidable: a brand with products cannot go,
-// and a page that offered the button anyway would be a button that always
-// fails.
 func (q *Queries) ManagedBrands(ctx context.Context) ([]ManagedBrandsRow, error) {
 	rows, err := q.db.Query(ctx, managedBrands)
 	if err != nil {
@@ -6627,11 +5980,6 @@ type ManagedCategoriesRow struct {
 	Children   int64
 }
 
-// Categories as a tree, with each one's depth and product count.
-//
-// Recursive, because the tree has no fixed depth and the back office shows it
-// indented. categories_acyclic is what makes the recursion terminate — without
-// it a cycle would make this query hang rather than return wrong rows.
 func (q *Queries) ManagedCategories(ctx context.Context) ([]ManagedCategoriesRow, error) {
 	rows, err := q.db.Query(ctx, managedCategories)
 	if err != nil {
@@ -6674,11 +6022,8 @@ type MarkNewsletterIssueSentParams struct {
 	ID         uuid.UUID
 }
 
-// Stamp an issue as sent, with what the send actually enqueued.
-//
 // The WHERE clause is the guard: an issue that has already gone out matches
-// nothing, so a double-submitted form sends once. Checking it in Go first is a
-// check two concurrent requests both pass.
+// nothing, so a double-submitted form sends once.
 func (q *Queries) MarkNewsletterIssueSent(ctx context.Context, arg MarkNewsletterIssueSentParams) (int64, error) {
 	result, err := q.db.Exec(ctx, markNewsletterIssueSent, arg.Recipients, arg.SentBy, arg.ID)
 	if err != nil {
@@ -6700,7 +6045,6 @@ const markSessionVerified = `-- name: MarkSessionVerified :exec
 UPDATE sessions SET totp_verified_at = now() WHERE token_hash = $1
 `
 
-// Mark this session as having proved a second factor.
 func (q *Queries) MarkSessionVerified(ctx context.Context, tokenHash []byte) error {
 	_, err := q.db.Exec(ctx, markSessionVerified, tokenHash)
 	return err
@@ -6711,23 +6055,8 @@ UPDATE order_shipments SET delivered_at = greatest(now(), shipped_at)
 WHERE order_id = $1 AND delivered_at IS NULL
 `
 
-// Move an order along its lifecycle.
-//
-// The transition itself is validated by orders_check_transition, which knows
-// the state machine and refuses an illegal move — so this does not re-derive
-// it. cancelled_at and completed_at are set here because the schema requires
-// them for those two states and orders_history_frozen refuses a later change.
-// Stamp the parcels of an order that has just been marked delivered.
-//
-// delivered_at is READ by the customer's own order page and by /admin/orders, and
-// this is what writes it. Without it the order-level status says 已送達 while every
-// parcel row still says the goods are in transit — two halves of one fact
-// disagreeing, and the half the customer reads is the parcel.
-//
-// Only the ones with no stamp, so a re-run cannot move a date that has already
-// been recorded — and never earlier than shipped_at, which
-// order_shipments_delivered_after_shipped would refuse anyway: a clock cannot make
-// a parcel arrive before it left.
+// Only parcels with no stamp, so a re-run cannot move a recorded date, and never
+// earlier than shipped_at, which order_shipments_delivered_after_shipped refuses.
 func (q *Queries) MarkShipmentsDelivered(ctx context.Context, orderID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, markShipmentsDelivered, orderID)
 	return err
@@ -6774,17 +6103,8 @@ type MediaObjectRow struct {
 	ByteSize    int32
 }
 
-// Uploads nothing points at.
-//
-// An upload is stored before it is attached — the two are separate steps, and
-// an abandoned form leaves a row. This is how those are reclaimed, and every
-// referencing column has to appear below: a delete that missed one would break
-// a live image.
-// One stored object's metadata, for a caller attaching it somewhere.
-//
-// The dimensions are read from HERE rather than taken from a form: they are
-// what the srcset is built from, and a browser lays out against them before a
-// byte of the image arrives.
+// One stored object's metadata, including the dimensions the srcset is built
+// from.
 func (q *Queries) MediaObject(ctx context.Context, digest string) (MediaObjectRow, error) {
 	row := q.db.QueryRow(ctx, mediaObject, digest)
 	var i MediaObjectRow
@@ -6832,15 +6152,8 @@ type MemberStandingRow struct {
 	NextNeedsCents int64
 }
 
-// A customer's 會員等級: what they have spent in the window, the tier it earns,
-// and what the next one needs.
-//
-// Derived every time it is read, never stored. A stored tier drifts from the
-// orders behind it the moment one is refunded, and nobody notices until a
-// customer asks why a benefit they were told they had has gone.
-//
-// The NEXT tier is part of the same answer because "NT$8,000 more for 金卡" is
-// the only part of this a customer can act on.
+// Derived on every read, never stored: a stored tier drifts from the orders
+// behind it the moment one is cancelled.
 func (q *Queries) MemberStanding(ctx context.Context, arg MemberStandingParams) (MemberStandingRow, error) {
 	row := q.db.QueryRow(ctx, memberStanding, arg.UserID, arg.WindowDays, arg.Locale)
 	var i MemberStandingRow
@@ -6866,11 +6179,7 @@ type MergeCartItemsParams struct {
 	CartID_2 uuid.UUID
 }
 
-// A guest cart adopted on sign-in.
-//
-// The guest's lines are merged into the account's cart rather than replacing
-// it: someone who added things while signed out has not agreed to lose what
-// was already there. Quantities add, capped at the line ceiling.
+// Quantities add rather than replace, capped at the line ceiling.
 func (q *Queries) MergeCartItems(ctx context.Context, arg MergeCartItemsParams) error {
 	_, err := q.db.Exec(ctx, mergeCartItems, arg.CartID, arg.CartID_2)
 	return err
@@ -6948,13 +6257,8 @@ type NavCategoriesRow struct {
 	Name string
 }
 
-// The header's category row.
-//
-// The same root categories the home page tiles, but only what a link needs — the
-// header renders on every page, so it reads three columns and no icon. It is a
-// query rather than a list in Go because a category has ONE name and one place it
-// is translated; the header carrying its own copy is how 耳機 came to point at a
-// category called audio.
+// A query rather than a list in Go: a category has one name and one place it is
+// translated, and a second copy in the header drifts from the catalogue.
 func (q *Queries) NavCategories(ctx context.Context, locale string) ([]NavCategoriesRow, error) {
 	rows, err := q.db.Query(ctx, navCategories, locale)
 	if err != nil {
@@ -6989,11 +6293,6 @@ type NewsletterCountsRow struct {
 	Awaiting     int64
 }
 
-// What the back office needs to see about its own list.
-//
-// Counted rather than listed by default: a mailing list is a column of addresses
-// and a page of them is a page nobody reads. The three states are what a person
-// running a newsletter actually asks.
 func (q *Queries) NewsletterCounts(ctx context.Context) (NewsletterCountsRow, error) {
 	row := q.db.QueryRow(ctx, newsletterCounts)
 	var i NewsletterCountsRow
@@ -7012,7 +6311,6 @@ type NewsletterIssueRow struct {
 	SentAt  pgtype.Timestamptz
 }
 
-// One issue, for the send.
 func (q *Queries) NewsletterIssue(ctx context.Context, id uuid.UUID) (NewsletterIssueRow, error) {
 	row := q.db.QueryRow(ctx, newsletterIssue, id)
 	var i NewsletterIssueRow
@@ -7043,7 +6341,6 @@ type NewsletterIssuesRow struct {
 	SentByEmail string
 }
 
-// The issues, newest first, for the back office.
 func (q *Queries) NewsletterIssues(ctx context.Context, limit int32) ([]NewsletterIssuesRow, error) {
 	rows, err := q.db.Query(ctx, newsletterIssues, limit)
 	if err != nil {
@@ -7081,8 +6378,7 @@ type OpenPaymentParams struct {
 	IntendedAmountCents int64
 }
 
-// Idempotent on (order_id, provider_ref), so a reloaded payment page opens no
-// second row.
+// Idempotent on (order_id, provider_ref).
 func (q *Queries) OpenPayment(ctx context.Context, arg OpenPaymentParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, openPayment, arg.OrderID, arg.ProviderRef, arg.IntendedAmountCents)
 	var open_payment uuid.UUID
@@ -7138,22 +6434,9 @@ type OpenRefundsRow struct {
 	OrderNumber string
 }
 
-// Refunds that have not landed, for /admin/health.
-//
-// The refund row is committed before the provider is called so that a crash
-// between the two leaves something reconciliation can find, and this is what
-// reconciliation READS. Without it the only query over `refunds` is the
-// arithmetic above, so an outstanding claim on real money is visible to nobody —
-// a table with no door, the shape product_specs and promo_banners are each in,
-// except that this one holds money a customer is waiting for.
-//
-// 'failed' is listed beside the two outstanding states on purpose. It is
-// terminal at Stripe, which is exactly why a person has to see it: the goods
-// came back, the return did NOT close, and nobody has been paid.
-//
-// OLDEST first, like /admin/questions and /admin/messages. A refund outstanding
-// for three days is more urgent than one opened this morning, and newest-first
-// buries it exactly as it becomes the one worth chasing.
+// 'failed' is listed beside the two outstanding states on purpose: it is
+// terminal at Stripe, the goods came back, the return did not close, and nobody
+// has been paid.
 func (q *Queries) OpenRefunds(ctx context.Context, limit int32) ([]OpenRefundsRow, error) {
 	rows, err := q.db.Query(ctx, openRefunds, limit)
 	if err != nil {
@@ -7189,21 +6472,9 @@ WHERE o.order_number = $1::text AND p.status = 'requires_payment'
 ORDER BY p.created_at
 `
 
-// Every Checkout Session this order still has open at Stripe.
-//
-// Read INSIDE the cancelling transaction and acted on after it commits, the same
-// shape as HeldReservationsForOrder above: the set a cancellation acts on is the
-// one that transaction decided, not whatever a second read finds later.
-//
-// 'requires_payment' is goen's record of an open session, and it is only ever a
-// HINT here — a customer who paid seconds ago still has this row, because only
-// the webhook moves it. Stripe decides whether each of these can be expired, by
-// refusing anything but an open session. Reading this as "no money has arrived"
-// would be the mistake the whole webhook path is built to avoid.
-//
-// Called by internal/admin as well as internal/cart: sqlc builds one package, and
-// the two cancel doors ask one question. A second copy of it in the back office's
-// query.sql is a second place for the predicate to be wrong.
+// Every Checkout Session this order still has open at Stripe. 'requires_payment'
+// is only ever a HINT: a customer who paid seconds ago still has this row,
+// because only the webhook moves it, and Stripe refuses to expire anything else.
 func (q *Queries) OpenSessionsForOrder(ctx context.Context, orderNumber string) ([]string, error) {
 	rows, err := q.db.Query(ctx, openSessionsForOrder, orderNumber)
 	if err != nil {
@@ -7237,12 +6508,8 @@ type OrderAccessibleWithParams struct {
 	Digests     [][]byte
 }
 
-// Which of the orders this browser holds tokens for is the one being asked about.
-//
-// The digests are compared IN THE DATABASE and the answer is a boolean, for the
-// reason FindOrder returns one: a caller that got rows back could report WHICH token
-// matched, and the set of tokens a browser holds is not something any page needs to
-// disclose.
+// Compared IN the database and answered as a boolean: which token matched is not
+// something any page needs to disclose.
 func (q *Queries) OrderAccessibleWith(ctx context.Context, arg OrderAccessibleWithParams) (bool, error) {
 	row := q.db.QueryRow(ctx, orderAccessibleWith, arg.OrderNumber, arg.Digests)
 	var exists bool
@@ -7261,12 +6528,6 @@ type OrderBelongsToParams struct {
 	UserID      uuid.NullUUID
 }
 
-// Whether an account owns an order. This is what lets a signed-in customer reach
-// the confirmation and payment pages without the placed-order cookie — after
-// signing in on another device, for instance.
-//
-// internal/payment reads this too. sqlc generates one db package for the whole
-// module, so the query is defined once here rather than duplicated there.
 func (q *Queries) OrderBelongsTo(ctx context.Context, arg OrderBelongsToParams) (bool, error) {
 	row := q.db.QueryRow(ctx, orderBelongsTo, arg.OrderNumber, arg.UserID)
 	var exists bool
@@ -7275,7 +6536,6 @@ func (q *Queries) OrderBelongsTo(ctx context.Context, arg OrderBelongsToParams) 
 }
 
 const orderBelongsToEmail = `-- name: OrderBelongsToEmail :one
-
 SELECT EXISTS (
     SELECT 1 FROM orders o
     JOIN order_private_data pd ON pd.order_id = o.id
@@ -7290,27 +6550,9 @@ type OrderBelongsToEmailParams struct {
 	Email       string
 }
 
-// OrderIDByNumber is defined in internal/admin/query.sql. sqlc builds ONE db
-// package for the module, so it is written once and called from here.
-// Does this order number belong to this email address?
-//
-// Both in ONE statement, and the answer is a boolean rather than a row. A guest
-// who has lost the cookie that proves they placed an order has only these two
-// things, and the pair is the whole credential: order numbers come off a per-day
-// counter and are guessable, so the address is the only secret in it.
-//
-// Returning a row would tempt a caller into comparing the address in Go, and a
-// caller that compares would be a caller that can report WHICH half was wrong.
-// One boolean cannot.
-//
-// Matched case-insensitively on the address as stored.
-//
-// `erased_at IS NULL` is belt to the email's braces, and saying so matters: what
-// actually excludes an erased order is that erase_user sets email to NULL, so the
-// comparison below is NULL rather than true. Deleting the erased_at predicate does
-// not open the door — proven by mutation, which is why this comment does not claim
-// it does. It stays because it says what the query means, and because a future
-// erasure that blanked less would then still be caught here.
+// Does this order number belong to this email address? Both halves in ONE
+// statement answering a boolean: a caller that got a row back could report WHICH
+// half was wrong, and only the address is secret.
 func (q *Queries) OrderBelongsToEmail(ctx context.Context, arg OrderBelongsToEmailParams) (bool, error) {
 	row := q.db.QueryRow(ctx, orderBelongsToEmail, arg.OrderNumber, arg.Email)
 	var ok bool
@@ -7331,8 +6573,7 @@ type OrderByPaymentRefRow struct {
 	IntendedAmountCents int64
 }
 
-// The webhook is trusted for WHAT happened, never for WHICH order: that is
-// looked up through the payment row goen wrote at open time.
+// The webhook is trusted for what happened, never for which order.
 func (q *Queries) OrderByPaymentRef(ctx context.Context, providerRef string) (OrderByPaymentRefRow, error) {
 	row := q.db.QueryRow(ctx, orderByPaymentRef, providerRef)
 	var i OrderByPaymentRefRow
@@ -7346,7 +6587,6 @@ func (q *Queries) OrderByPaymentRef(ctx context.Context, providerRef string) (Or
 }
 
 const orderCreditPosition = `-- name: OrderCreditPosition :one
-
 SELECT
     coalesce(-sum(amount_cents) FILTER (WHERE amount_cents < 0), 0)::bigint AS spent,
     coalesce(sum(amount_cents) FILTER (WHERE amount_cents > 0), 0)::bigint  AS returned
@@ -7359,19 +6599,9 @@ type OrderCreditPositionRow struct {
 	Returned int64
 }
 
-// Give back store credit spent on an order the back office is cancelling.
-//
-// The same door the customer's own cancellation uses. Defined in
-// internal/cart/query.sql — sqlc builds ONE db package for the module, so
-// ReverseOrderCredit is written once and called from both.
-// How much of an order was paid with store credit, and how much of that has
-// already been given back.
-//
-// Two figures rather than one net number, because they answer different
-// questions: what CAN still be returned is the difference, and a reader
-// reconciling a return needs to see both sides of it.
-//
 // Signs as the ledger stores them: a spend is negative, a compensation positive.
+// Two figures and not one net number, because a reader reconciling a return
+// needs both sides. ReverseOrderCredit lives in internal/cart/query.sql.
 func (q *Queries) OrderCreditPosition(ctx context.Context, orderID uuid.NullUUID) (OrderCreditPositionRow, error) {
 	row := q.db.QueryRow(ctx, orderCreditPosition, orderID)
 	var i OrderCreditPositionRow
@@ -7392,7 +6622,6 @@ type OrderDestinationKindRow struct {
 	FulfillmentStatus string
 }
 
-// What an order collects, so the edit form asks for the right half.
 func (q *Queries) OrderDestinationKind(ctx context.Context, orderNumber string) (OrderDestinationKindRow, error) {
 	row := q.db.QueryRow(ctx, orderDestinationKind, orderNumber)
 	var i OrderDestinationKindRow
@@ -7415,9 +6644,8 @@ type OrderEventsRow struct {
 	ActorName  string
 }
 
-// An order's history, oldest first. occurred_at then id, because two events
-// recorded in the same statement share a timestamp and the uuidv7 primary key
-// is the tie-break that keeps them in the order they happened.
+// Oldest first: occurred_at then id, because two events recorded in the same
+// statement share a timestamp and the uuidv7 key is the tie-break.
 func (q *Queries) OrderEvents(ctx context.Context, orderID uuid.UUID) ([]OrderEventsRow, error) {
 	rows, err := q.db.Query(ctx, orderEvents, orderID)
 	if err != nil {
@@ -7454,8 +6682,7 @@ type OrderForReturnRow struct {
 	FulfillmentStatus string
 }
 
-// The order a return is being asked for, and whether it is in a state that
-// admits one at all.
+// The order a return is being asked for.
 func (q *Queries) OrderForReturn(ctx context.Context, orderNumber string) (OrderForReturnRow, error) {
 	row := q.db.QueryRow(ctx, orderForReturn, orderNumber)
 	var i OrderForReturnRow
@@ -7471,19 +6698,8 @@ ORDER BY ir.expires_at
 LIMIT 1
 `
 
-// When the stock behind an order goes back on the shelf: the earliest expiry
-// among the holds still live for it.
-//
-// A Checkout Session's expires_at is set from this, so Stripe stops accepting
-// money at the same instant the sweeper may release the goods and sell them to
-// somebody else. An expiry of time.Now() + 30 minutes is measured from the CLICK
-// while the hold is measured from PlaceOrder, so a session sized that way
-// outlives the stock behind it by however long the customer sat on the pay page.
-//
-// No row is the honest answer for an order holding nothing, and it is not the
-// same as "no deadline": the caller refuses to open a session at all. A
-// coalesced sentinel would have to be compared against and would read as a real
-// date to anyone who forgot to.
+// The earliest expiry among an order's live holds; a session's expires_at is set
+// from it, so Stripe stops taking money when the sweeper may release the goods.
 func (q *Queries) OrderHoldExpiry(ctx context.Context, orderID uuid.UUID) (time.Time, error) {
 	row := q.db.QueryRow(ctx, orderHoldExpiry, orderID)
 	var expires_at time.Time
@@ -7513,8 +6729,6 @@ SELECT EXISTS (
 )
 `
 
-// Whether an order already has money against it, so the payment page can send a
-// paid order to its confirmation instead of opening a second session.
 func (q *Queries) OrderIsPaid(ctx context.Context, orderID uuid.UUID) (bool, error) {
 	row := q.db.QueryRow(ctx, orderIsPaid, orderID)
 	var exists bool
@@ -7573,9 +6787,8 @@ type OrderLinesForPaymentRow struct {
 	Quantity       int32
 }
 
-// The lines Stripe should show on its hosted page. Named from the order, not
-// the catalogue: an order is a record of what was agreed, and re-reading the
-// product would show a renamed or repriced item at payment time.
+// Named from the order rather than the catalogue: a renamed or repriced product
+// must not move at payment.
 func (q *Queries) OrderLinesForPayment(ctx context.Context, orderID uuid.UUID) ([]OrderLinesForPaymentRow, error) {
 	rows, err := q.db.Query(ctx, orderLinesForPayment, orderID)
 	if err != nil {
@@ -7628,12 +6841,8 @@ type OrderRecipientRow struct {
 	Locale        string
 }
 
-// Who to tell that an order was paid, and what they paid.
-//
-// Read inside the capture's own transaction and carried in the message, not
-// looked up at delivery: erase_user blanks order_private_data, so a message
-// delivered after an erasure would have nowhere to go. A receipt is a snapshot
-// of what was true when the money moved.
+// Carried in the message rather than read at delivery: erase_user blanks
+// order_private_data, so a later delivery would have nowhere to go.
 func (q *Queries) OrderRecipient(ctx context.Context, id uuid.UUID) (OrderRecipientRow, error) {
 	row := q.db.QueryRow(ctx, orderRecipient, id)
 	var i OrderRecipientRow
@@ -7685,14 +6894,20 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        o.shipping_cents, o.discount_cents, o.tax_cents,
        -- WHICH discount, joined rather than snapshotted: coupons.code is never
        -- updated and the FK is ON DELETE RESTRICT, so one join always reaches it.
-       -- Without it an order shows "折扣 −NT$200" with nothing saying why, to
-       -- the customer or to the shop.
        coalesce((SELECT c.code || ' · ' || c.description
                  FROM coupon_redemptions cr JOIN coupons c ON c.id = cr.coupon_id
                  WHERE cr.order_id = o.id), '')::text AS discount_reason,
        o.shipping_method_name, o.placed_at,
        coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                  WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
+       -- What store credit paid, as the difference between the total and what is
+       -- still owed rather than a second sum over the ledger: order_amount_owed
+       -- is the one definition of that arithmetic, and TestEveryCreditBalanceReadsTheOneView
+       -- refuses a page that re-derives it.
+       (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
+                  WHERE ol.order_id = o.id), 0)
+        - o.discount_cents + o.shipping_cents + o.tax_cents
+        - order_amount_owed(o.id))::bigint AS credit_cents,
        coalesce(pd.email, '') AS email,
        coalesce(pd.postal_code, '') AS postal_code,
        coalesce(pd.city, '') AS city,
@@ -7701,17 +6916,11 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        coalesce(pd.pickup_brand, '') AS pickup_brand,
        coalesce(pd.pickup_store_code, '') AS pickup_store_code,
        coalesce(pd.pickup_store_name, '') AS pickup_store_name,
-       -- Whether the order is funded. 'pending' does NOT mean unpaid: a webhook
-       -- can have captured the money minutes before the shop moves the order to
-       -- picking, and offering a cancel button on that order is a control that
-       -- can only say no. Read through committed_orders, the one definition.
+       -- 'pending' does NOT mean unpaid: a webhook can capture minutes before
+       -- the shop moves the order to picking.
        (o.id IN (SELECT id FROM committed_orders))::boolean AS committed,
-       -- What is left to pay, and NOT derivable from ` + "`" + `committed` + "`" + ` above. A fully
-       -- store-credited order has no payment row and stays 'pending' until a
-       -- human picks it, so committed_orders reports it false while the customer
-       -- owes nothing. Both columns, because neither answers the other's case —
-       -- this is the same pair internal/payment already reads as Paid and
-       -- FullyFunded before it will open a Stripe session.
+       -- NOT derivable from ` + "`" + `committed` + "`" + `: a fully store-credited order has no
+       -- payment row and stays 'pending' while the customer owes nothing.
        order_amount_owed(o.id)::bigint AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
@@ -7729,6 +6938,7 @@ type OrderSummaryByNumberRow struct {
 	ShippingMethodName string
 	PlacedAt           time.Time
 	SubtotalCents      int64
+	CreditCents        int64
 	Email              string
 	PostalCode         string
 	City               string
@@ -7755,6 +6965,7 @@ func (q *Queries) OrderSummaryByNumber(ctx context.Context, orderNumber string) 
 		&i.ShippingMethodName,
 		&i.PlacedAt,
 		&i.SubtotalCents,
+		&i.CreditCents,
 		&i.Email,
 		&i.PostalCode,
 		&i.City,
@@ -7780,11 +6991,8 @@ type OrderTimelineRow struct {
 	OccurredAt time.Time
 }
 
-// The order's history, for the customer's own confirmation page.
-//
-// The customer sees WHAT happened, never WHO did it: an order timeline that
-// names the shop assistant who picked it leaks staff identity to anyone with
-// the order number. The back office reads the same table with the actor joined.
+// The customer sees WHAT happened, never WHO did it; the back office reads the
+// same table with the actor joined.
 func (q *Queries) OrderTimeline(ctx context.Context, orderID uuid.UUID) ([]OrderTimelineRow, error) {
 	rows, err := q.db.Query(ctx, orderTimeline, orderID)
 	if err != nil {
@@ -7809,11 +7017,8 @@ const orderTotalByNumber = `-- name: OrderTotalByNumber :one
 SELECT o.id,
        o.order_number,
        o.fulfillment_status,
-       -- The cast wraps the WHOLE expression: casting only the sum leaves the
+       -- The cast wraps the whole expression: casting only the sum leaves the
        -- additions at the columns' int width and sqlc types the result int32.
-       -- What is still OWED, never the gross — payments_capture_matches_order
-       -- demands the net, so charging the gross leaves the order unpaid for ever
-       -- with the customer's money at Stripe.
        order_amount_owed(o.id)::bigint AS total_cents,
        coalesce(pd.email, '') AS email
 FROM orders o
@@ -7829,8 +7034,8 @@ type OrderTotalByNumberRow struct {
 	Email             string
 }
 
-// What an order is owed, derived here because the browser never carries an
-// amount.
+// What an order still OWES, never the gross: payments_capture_matches_order
+// demands the net.
 func (q *Queries) OrderTotalByNumber(ctx context.Context, orderNumber string) (OrderTotalByNumberRow, error) {
 	row := q.db.QueryRow(ctx, orderTotalByNumber, orderNumber)
 	var i OrderTotalByNumberRow
@@ -7886,8 +7091,6 @@ SELECT user_id FROM password_reset_tokens
 WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
 `
 
-// An unused, unexpired reset token. Both conditions are in the query, so a
-// token cannot be spent twice and cannot outlive its window.
 func (q *Queries) PasswordResetToken(ctx context.Context, tokenHash []byte) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, passwordResetToken, tokenHash)
 	var user_id uuid.UUID
@@ -7903,9 +7106,8 @@ SELECT
                 AND p.intended_amount_cents = $2::bigint
               ORDER BY p.created_at DESC
               LIMIT 1), '')::text AS live_session,
-    -- Not a count of live sessions — a count of every attempt this order has
-    -- made. It goes into the Stripe idempotency key so that a customer whose
-    -- first session died is not handed the dead one back for the next 24 hours.
+    -- Every attempt, not only the live ones: it goes into the Stripe idempotency
+    -- key, which Stripe honours for 24 hours.
     (SELECT count(*) FROM payments p WHERE p.order_id = o.id)::integer AS prior_attempts
 FROM orders o
 WHERE o.order_number = $1
@@ -7921,26 +7123,8 @@ type PaymentAttemptForOrderRow struct {
 	PriorAttempts int32
 }
 
-// Whether a Checkout Session is already open for this order at this figure, and
-// how many payment rows it has had.
-//
-// This is the FIRST line of defence against one order being charged twice.
-// Without it every POST to the pay route creates a fresh Stripe session and a
-// fresh requires_payment row, because open_payment only dedupes on
-// (order_id, provider_ref) and each session has its own id. Two tabs are then two
-// sessions and two real charges, with payments_one_capture_per_order refusing the
-// second capture only AFTER the money is at Stripe — the webhook 500s, Stripe
-// retries forever, nothing refunds.
-//
-// The amount is part of the question and not a detail. What an order owes can
-// legitimately move (store credit reversed, a coupon applied), and a session for
-// the old figure must NOT be handed back: the customer would be charged a total
-// the order no longer owes. A stale session is left to expire instead, which it
-// does with the stock hold it was created against.
-//
-// 'requires_payment' rather than "not succeeded": a cancelled row is a session
-// Stripe has finished with, and sending somebody back to it is sending them to a
-// page that cannot take their money.
+// Whether a session is open for this order AT THIS FIGURE, since what an order
+// owes can move; 'requires_payment' because a cancelled row cannot take money.
 func (q *Queries) PaymentAttemptForOrder(ctx context.Context, arg PaymentAttemptForOrderParams) (PaymentAttemptForOrderRow, error) {
 	row := q.db.QueryRow(ctx, paymentAttemptForOrder, arg.OrderNumber, arg.OwedCents)
 	var i PaymentAttemptForOrderRow
@@ -7960,10 +7144,7 @@ type PointsBalanceRow struct {
 	Points    int64
 }
 
-// A customer's spendable balance and their account.
-//
-// The account may not exist — a customer who has never held points or credit —
-// which is a real state and not an error.
+// A customer's spendable balance and their account, which may not exist.
 func (q *Queries) PointsBalance(ctx context.Context, userID uuid.NullUUID) (PointsBalanceRow, error) {
 	row := q.db.QueryRow(ctx, pointsBalance, userID)
 	var i PointsBalanceRow
@@ -7973,12 +7154,8 @@ func (q *Queries) PointsBalance(ctx context.Context, userID uuid.NullUUID) (Poin
 
 const pointsExpiringSoon = `-- name: PointsExpiringSoon :one
 SELECT coalesce(sum(e.points), 0)::bigint AS points,
-       -- Two columns, not one nullable date.
-       --
-       -- min() over no rows is NULL, and sqlc infers the column non-nullable
-       -- whichever way it is cast — so pgx would refuse to scan it for any
-       -- customer with nothing expiring, which is most of them. The third time
-       -- this shape has appeared in goen; it is written this way every time.
+       -- Two columns, not one nullable date: min() over no rows is NULL and sqlc
+       -- infers the column non-nullable however it is cast, so pgx cannot scan it.
        coalesce(min(e.expires_on), current_date)::date AS soonest,
        (count(*) > 0) AS any_expiring
 FROM loyalty_entries e
@@ -8034,10 +7211,7 @@ type PointsHistoryRow struct {
 	Expired     pgtype.Bool
 }
 
-// The ledger a customer sees.
-//
-// Expired awards are shown, marked: a balance that silently shrank is a support
-// ticket, and "these 40 points expired in March" is the answer to it.
+// The ledger a customer sees, expired awards included and marked.
 func (q *Queries) PointsHistory(ctx context.Context, arg PointsHistoryParams) ([]PointsHistoryRow, error) {
 	rows, err := q.db.Query(ctx, pointsHistory, arg.Limit, arg.UserID)
 	if err != nil {
@@ -8079,9 +7253,8 @@ type PostStoreCreditParams struct {
 	ActorUserID    uuid.NullUUID
 }
 
-// A grant has no order behind it, and may have no actor if the posting came
-// from somewhere other than a staff member's form. sqlc reads a bare parameter
-// as non-nullable, so both are cast to make the nullability explicit.
+// The casts are what make the nullability explicit: sqlc reads a bare parameter
+// as non-nullable, and a grant has no order behind it and may have no actor.
 func (q *Queries) PostStoreCredit(ctx context.Context, arg PostStoreCreditParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, postStoreCredit,
 		arg.UserID,
@@ -8137,7 +7310,6 @@ type ProductBySlugRow struct {
 	CategoryParentID uuid.NullUUID
 }
 
-// The product a detail URL names. A draft or archived product is a 404.
 func (q *Queries) ProductBySlug(ctx context.Context, arg ProductBySlugParams) (ProductBySlugRow, error) {
 	row := q.db.QueryRow(ctx, productBySlug, arg.Slug, arg.Locale)
 	var i ProductBySlugRow
@@ -8181,7 +7353,6 @@ type ProductImagesRow struct {
 	Height     int32
 }
 
-// Every image on the product, in display order.
 func (q *Queries) ProductImages(ctx context.Context, arg ProductImagesParams) ([]ProductImagesRow, error) {
 	rows, err := q.db.Query(ctx, productImages, arg.Locale, arg.ProductID)
 	if err != nil {
@@ -8213,8 +7384,6 @@ JOIN products p ON p.id = o.product_id
 WHERE p.slug = $1
 `
 
-// How many options a product declares. A variant must name a value for each one,
-// or the picker cannot resolve it.
 func (q *Queries) ProductOptionCount(ctx context.Context, slug string) (int64, error) {
 	row := q.db.QueryRow(ctx, productOptionCount, slug)
 	var column_1 int64
@@ -8250,9 +7419,8 @@ type ProductOptionsRow struct {
 	ValueLabel  string
 }
 
-// The option groups and their values, in the order the page renders the pickers.
-// option_name and value are IDENTITY, what the URL selects on; the _label
-// columns are what the visitor reads.
+// option_name and value are identity, what the URL selects on; the _label columns
+// are what the visitor reads.
 func (q *Queries) ProductOptions(ctx context.Context, arg ProductOptionsParams) ([]ProductOptionsRow, error) {
 	rows, err := q.db.Query(ctx, productOptions, arg.ProductID, arg.Locale)
 	if err != nil {
@@ -8300,7 +7468,6 @@ type ProductQuestionsRow struct {
 	Asker     string
 }
 
-// The questions on a product; their answers come from AnswersForQuestions.
 func (q *Queries) ProductQuestions(ctx context.Context, arg ProductQuestionsParams) ([]ProductQuestionsRow, error) {
 	rows, err := q.db.Query(ctx, productQuestions, arg.ProductID, arg.Limit)
 	if err != nil {
@@ -8348,7 +7515,6 @@ type ProductRatingRow struct {
 	One         int64
 }
 
-// The star breakdown for one product, keyed on its id.
 func (q *Queries) ProductRating(ctx context.Context, productID uuid.UUID) (ProductRatingRow, error) {
 	row := q.db.QueryRow(ctx, productRating, productID)
 	var i ProductRatingRow
@@ -8388,7 +7554,6 @@ type ProductReviewsRow struct {
 	Author             string
 }
 
-// The reviews shown on the page, newest first, and the rating summary.
 func (q *Queries) ProductReviews(ctx context.Context, arg ProductReviewsParams) ([]ProductReviewsRow, error) {
 	rows, err := q.db.Query(ctx, productReviews, arg.ProductID, arg.Limit)
 	if err != nil {
@@ -8434,7 +7599,6 @@ type ProductSpecsRow struct {
 	Value string
 }
 
-// The spec table.
 func (q *Queries) ProductSpecs(ctx context.Context, arg ProductSpecsParams) ([]ProductSpecsRow, error) {
 	rows, err := q.db.Query(ctx, productSpecs, arg.ProductID, arg.Locale)
 	if err != nil {
@@ -8496,8 +7660,8 @@ type ProductVariantsRow struct {
 	OptionValues        []string
 }
 
-// Every active variant with its option values flattened into one row. sellable
-// is stock_quantity > safety_stock, the floor record_inventory_movement enforces.
+// sellable is stock_quantity > safety_stock, the floor record_inventory_movement
+// enforces.
 func (q *Queries) ProductVariants(ctx context.Context, productID uuid.UUID) ([]ProductVariantsRow, error) {
 	rows, err := q.db.Query(ctx, productVariants, productID)
 	if err != nil {
@@ -8534,13 +7698,8 @@ SET position = coalesce((SELECT min(o.position) FROM hero_slides o), 0) - 1
 WHERE h.id = $1
 `
 
-// Move a slide to the front, which is how an editor chooses which one shows.
-//
-// One statement touching ONE row: the promoted slide takes a position below
-// every other, rather than everything else shifting up. Shifting would rewrite
-// the whole table per promotion and grow position without bound; this rewrites
-// one row. Ties do not matter — CurrentHeroSlide orders by (position, id), so
-// the order is total either way.
+// ONE row: the promoted slide takes a position below every other, rather than
+// everything else shifting up and position growing without bound.
 func (q *Queries) PromoteHeroSlide(ctx context.Context, id uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, promoteHeroSlide, id)
 	if err != nil {
@@ -8568,11 +7727,8 @@ type PublishShippingVersionParams struct {
 	FreeOverCents interface{}
 }
 
-// Publish a new version of a shipping method.
-//
 // An INSERT and never an UPDATE: shipping_method_versions_append_only refuses
-// one, and the reason is that every past order names the version it was priced
-// from. Editing a fee would rewrite what a customer was charged last month.
+// one, because every past order names the version it was priced from.
 func (q *Queries) PublishShippingVersion(ctx context.Context, arg PublishShippingVersionParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, publishShippingVersion,
 		arg.MethodID,
@@ -8604,11 +7760,9 @@ type PutMediaParams struct {
 	ByteSize    int32
 }
 
-// Store an image, or recognise one already stored.
-//
-// ON CONFLICT DO NOTHING and not an upsert: the digest IS the content, so a
-// conflict means these exact bytes are already here. Rewriting the row would
-// write identical values, and media_objects_immutable forbids it anyway.
+// Store an image, or recognise one already stored. The digest IS the content,
+// so a conflict means these exact bytes are here; media_objects_immutable
+// forbids the rewrite an upsert would do.
 func (q *Queries) PutMedia(ctx context.Context, arg PutMediaParams) error {
 	_, err := q.db.Exec(ctx, putMedia,
 		arg.Digest,
@@ -8635,24 +7789,9 @@ type ReceiveStockParams struct {
 	ActorUserID    uuid.UUID
 }
 
-// Receive goods onto the shelf.
-//
-// reason 'receipt' and not 'adjustment', which is the whole of it. The ledger
-// carries that reason, its delta-direction CHECK and its back-office label, and
-// this is the only thing that posts one outside the dev seed. Without it a shop's
-// own purchasing is indistinguishable, in the shop's own ledger, from a staff
-// member correcting a miscount: 「這個為什麼是四」 is the question
-// /admin/stock/{sku} exists to answer, and it cannot tell 「進了四箱」 from
-// 「數錯了改成四」.
-//
-// A fixture that reaches past the application is a fixture for a feature with no
-// entrance, and a seed posting the only receipts a schema has ever seen is exactly
-// that.
-//
-// source_type 'admin' like the adjustment beside it: both are a person at the
-// back office rather than an order or a return. There is no source_id because
-// goen has no purchasing table to point at, and inventing one is the much larger
-// feature this deliberately is not.
+// reason 'receipt' and not 'adjustment', which is the whole of it: goods a shop
+// bought must be distinguishable in its own ledger from a corrected miscount.
+// There is no source_id, because goen has no purchasing table to point at.
 func (q *Queries) ReceiveStock(ctx context.Context, arg ReceiveStockParams) error {
 	_, err := q.db.Exec(ctx, receiveStock,
 		arg.VariantID,
@@ -8680,7 +7819,6 @@ type RecentCreditRow struct {
 	Email       string
 }
 
-// The most recent postings, so the back office can see what it has been doing.
 func (q *Queries) RecentCredit(ctx context.Context, limit int32) ([]RecentCreditRow, error) {
 	rows, err := q.db.Query(ctx, recentCredit, limit)
 	if err != nil {
@@ -8722,9 +7860,7 @@ type RecentMediaRow struct {
 	CreatedAt   time.Time
 }
 
-// What the back office's picker shows. Deliberately does NOT select bytes: a
-// listing that carried every image's pixels would read megabytes to render a
-// grid of thumbnails.
+// What the back office's picker shows. Deliberately does NOT select bytes.
 func (q *Queries) RecentMedia(ctx context.Context, limit int32) ([]RecentMediaRow, error) {
 	rows, err := q.db.Query(ctx, recentMedia, limit)
 	if err != nil {
@@ -8788,24 +7924,9 @@ INSERT INTO order_events (order_id, kind)
 SELECT id, 'cancelled' FROM orders WHERE order_number = $1
 `
 
-// The held reservations on one order, for cancelling it.
-//
-// Ordered by id so two cancellations of the same order take the variant locks
-// in the same sequence — release_reservation locks the variant then the order,
-// and two callers walking the same set in different orders is a deadlock.
-// The customer's own cancellation, recorded in the order's history.
-//
-// actor_user_id stays NULL: a guest has no account, and putting the shop's own
-// id there would attribute the customer's decision to a staff member who never
-// touched it. The ABSENCE of an actor is what distinguishes this from a
-// back-office cancel — the back office always writes one.
-//
-// Structurally, and never as a note saying the same thing. The customer's own
-// order page RENDERS notes, so '顧客自行取消' written here reaches an English
-// customer as a Chinese sentence in their timeline, forever. A fact carried
-// structurally is a fact each audience can be told in its own language — and a
-// query that assembles chrome is chrome written where nobody can ask who is
-// reading, which is why the Han sweep covers .sql literals too.
+// The customer's own cancellation. The ABSENCE of an actor is what distinguishes
+// it from a back-office cancel, and it is carried structurally because the
+// customer's own order page renders any note in whatever language it was written.
 func (q *Queries) RecordCancellation(ctx context.Context, orderNumber string) error {
 	_, err := q.db.Exec(ctx, recordCancellation, orderNumber)
 	return err
@@ -8823,9 +7944,6 @@ type RecordCheckoutAttemptParams struct {
 	OrderID        uuid.NullUUID
 }
 
-// Record that a checkout attempt produced an order, keyed by the idempotency
-// key the form carried. A resubmitted checkout finds its own order here instead
-// of placing a second one.
 func (q *Queries) RecordCheckoutAttempt(ctx context.Context, arg RecordCheckoutAttemptParams) error {
 	_, err := q.db.Exec(ctx, recordCheckoutAttempt, arg.IdempotencyKey, arg.CartID, arg.OrderID)
 	return err
@@ -8848,17 +7966,9 @@ type RecordInvoiceDocumentParams struct {
 	IssuedAt    time.Time
 }
 
-// File an issued document.
-//
-// Written AFTER the provider accepted it, because the number is theirs to
-// allocate: a row written first would carry a number goen invented, and
-// invoice_documents_number_present has no way to tell the two apart.
-//
-// The reverse ordering — provider first, row second — has the failure the refund
-// path already documents: a document filed with the 加值中心 and absent here.
-// That is the recoverable direction, because /admin/orders shows it and ECPay's
-// own console can be queried. A row with no document is not: it claims a tax
-// filing that does not exist.
+// File an issued document, AFTER the provider accepted it: the number is theirs
+// to allocate, and invoice_documents_number_present cannot tell an invented one
+// from a real one.
 func (q *Queries) RecordInvoiceDocument(ctx context.Context, arg RecordInvoiceDocumentParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, recordInvoiceDocument,
 		arg.OrderID,
@@ -8917,16 +8027,9 @@ type RecordNewsletterSendParams struct {
 	After   []byte
 }
 
-// The audit row for a send, written in the SEND's own transaction.
-//
 // record_audit_event is granted to `admin` and to nobody else, which is why the
-// back office's newsletter store runs on the admin pool. An audit row for work
-// that rolled back is a lie and work that commits without one is a gap; sharing
-// the commit is what makes neither possible.
-//
-// The subject travels, the BODY does not. audit_events is append-only and
-// erase_user does not reach it, so a letter copied in there would outlive every
-// other record of it — and newsletter_issues already holds the text.
+// back office's newsletter store runs on the admin pool. The subject travels,
+// the BODY does not: audit_events is append-only and erase_user does not reach it.
 func (q *Queries) RecordNewsletterSend(ctx context.Context, arg RecordNewsletterSendParams) error {
 	_, err := q.db.Exec(ctx, recordNewsletterSend,
 		arg.Actor,
@@ -8938,7 +8041,6 @@ func (q *Queries) RecordNewsletterSend(ctx context.Context, arg RecordNewsletter
 }
 
 const recordOrderEvent = `-- name: RecordOrderEvent :exec
-
 INSERT INTO order_events (order_id, kind, note, actor_user_id)
 VALUES ($1, $2::text, $3, $4)
 `
@@ -8950,13 +8052,8 @@ type RecordOrderEventParams struct {
 	ActorUserID uuid.NullUUID
 }
 
-// ReleaseReservation and HeldReservationsForOrder are what a cancellation needs,
-// and they are defined in internal/cart/query.sql. sqlc generates ONE db package
-// for the whole module, so a second copy here is a duplicate-name error rather
-// than a second query.
-// Append to an order's history. The table is append-only three ways — a
-// forbid_change trigger, REVOKE UPDATE and REVOKE DELETE — so this is the only
-// thing that may ever be done to it.
+// order_events is append-only three ways — a forbid_change trigger, REVOKE
+// UPDATE and REVOKE DELETE — so this is the only thing that may touch it.
 func (q *Queries) RecordOrderEvent(ctx context.Context, arg RecordOrderEventParams) error {
 	_, err := q.db.Exec(ctx, recordOrderEvent,
 		arg.OrderID,
@@ -8976,8 +8073,6 @@ type RecordPaidEventParams struct {
 	Note    pgtype.Text
 }
 
-// The 'paid' history entry, written in the same transaction as the capture so
-// an order cannot be paid without its history saying when.
 func (q *Queries) RecordPaidEvent(ctx context.Context, arg RecordPaidEventParams) error {
 	_, err := q.db.Exec(ctx, recordPaidEvent, arg.OrderID, arg.Note)
 	return err
@@ -8987,12 +8082,6 @@ const recordPlacedEvent = `-- name: RecordPlacedEvent :exec
 INSERT INTO order_events (order_id, kind) VALUES ($1, 'placed')
 `
 
-// The order's first history entry. Written in the same transaction as the order
-// itself, so an order without a 'placed' event cannot exist.
-//
-// internal/admin and internal/payment append to this table too; sqlc generates
-// one db package for the whole module, so the query lives wherever it was
-// first needed rather than being duplicated per feature.
 func (q *Queries) RecordPlacedEvent(ctx context.Context, orderID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, recordPlacedEvent, orderID)
 	return err
@@ -9011,11 +8100,8 @@ type RecordTOTPStepParams struct {
 	UserID uuid.UUID
 }
 
-// Record an accepted code.
-//
-// The step guard is IN the statement, not in Go. Two requests replaying one
-// code concurrently both read the same last_step and both pass a check made in
-// the application; only one can win here.
+// Record an accepted code. The step guard is in the statement: two requests
+// replaying one code both pass a check made in Go, and only one can win here.
 func (q *Queries) RecordTOTPStep(ctx context.Context, arg RecordTOTPStepParams) (int64, error) {
 	result, err := q.db.Exec(ctx, recordTOTPStep, arg.Step, arg.UserID)
 	if err != nil {
@@ -9037,8 +8123,8 @@ type RecordWebhookEventParams struct {
 	Payload   []byte
 }
 
-// The primary key is (provider, event_id), and :execrows is what makes a replay
-// visible to Go: 1 means "ours to process", 0 means "already seen".
+// :execrows is what makes a replay visible to Go: 1 means "ours to process",
+// 0 means "already seen".
 func (q *Queries) RecordWebhookEvent(ctx context.Context, arg RecordWebhookEventParams) (int64, error) {
 	result, err := q.db.Exec(ctx, recordWebhookEvent,
 		arg.EventID,
@@ -9063,9 +8149,8 @@ type RedeemCouponParams struct {
 	AmountCents int64
 }
 
-// sqlc.narg on the user: a guest checkout has no account, and redeem_coupon
-// treats NULL as "no per-customer limit to count against" rather than as a
-// customer whose id happens to be zero.
+// sqlc.narg on the user: redeem_coupon reads NULL as "no per-customer limit"
+// rather than as a customer whose id happens to be zero.
 func (q *Queries) RedeemCoupon(ctx context.Context, arg RedeemCouponParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, redeemCoupon,
 		arg.CouponID,
@@ -9090,11 +8175,8 @@ type RedeemPointsParams struct {
 	Key       string
 }
 
-// There is no award query here, and that is the design rather than a gap. The
-// award happens inside the CAPTURE's transaction — internal/payment calls
-// award_loyalty_points from AwardOrderPoints, where the money is — so a Store
-// method in this package opening a connection of its own could only ever be the
-// wrong place to do it. One door, in the transaction that owes the points.
+// No award query here: the award runs inside the capture's own transaction,
+// from internal/payment.
 // Spend points and post the credit they bought, in one transaction.
 func (q *Queries) RedeemPoints(ctx context.Context, arg RedeemPointsParams) (int64, error) {
 	row := q.db.QueryRow(ctx, redeemPoints,
@@ -9112,10 +8194,7 @@ const refreshCopurchases = `-- name: RefreshCopurchases :one
 SELECT refresh_copurchases()
 `
 
-// Rebuild the co-purchase projection.
-//
-// Returns how many pairs it wrote, so the worker can log something a person can
-// sanity-check rather than "done".
+// Returns how many pairs it wrote.
 func (q *Queries) RefreshCopurchases(ctx context.Context) (int32, error) {
 	row := q.db.QueryRow(ctx, refreshCopurchases)
 	var refresh_copurchases int32
@@ -9136,26 +8215,9 @@ type RefundedSoFarParams struct {
 	RequestKey string
 }
 
-// How much is already claimed against a payment, so the back office can show
-// what is left rather than letting refunds_within_capture be the first time
-// anyone finds out.
-//
-// It mirrors refunds_guard, and it has to: the trigger counts every refund on
-// the payment that is not 'failed' and not 'cancelled', EXCLUDING the row being
-// written. Two ways the mirror can slip, both of which make the back office
-// compute headroom the database will not honour.
-//
-// 'requires_action' belongs in the list. A refund Stripe has accepted and not
-// settled is money the trigger counts, so leaving it out makes goen believe that
-// money is still claimable — and the refusal then arrives from a constraint at
-// the end of a refund instead of from splitRefund's own sentence at the start.
-//
-// And the row belonging to THIS request_key is excluded, the way the trigger
-// excludes NEW.id. open_refund is idempotent on request_key, so a Decide
-// retried after a stalled provider call finds the row it wrote last time.
-// Counting that row makes capturedRemaining zero, so the retry is refused with
-// ErrRefused before Stripe is ever called: the refund the two-transaction design
-// exists to make resumable would be resumable by no door.
+// This mirrors refunds_guard and has to. 'requires_action' belongs in the list
+// because the trigger counts it, and the row for THIS request_key is excluded
+// as the trigger excludes NEW.id: counting it would refuse its own retry.
 func (q *Queries) RefundedSoFar(ctx context.Context, arg RefundedSoFarParams) (int64, error) {
 	row := q.db.QueryRow(ctx, refundedSoFar, arg.PaymentID, arg.RequestKey)
 	var column_1 int64
@@ -9190,23 +8252,9 @@ type RegisterWarrantyParams struct {
 	OrderLineID  uuid.UUID
 }
 
-// Register one unit.
-//
-// expires_on is computed HERE from the DELIVERY date and the product's term,
-// never passed in: an expiry a form could carry is an expiry a customer could
-// choose. The delivery date is the database's own, so this is one clock at both
-// ends — the /admin/messages lesson, which is also why it is not now() plus a
-// term read separately.
-//
-// min() across the parcels, so a line split between two boxes takes the date the
-// FIRST of them arrived. That is the reading that favours the shop by the
-// smallest margin available and is still defensible: the customer had a unit of
-// that line in their hands on that day.
-//
-// The whole thing is one statement guarded by a WHERE clause, so ownership,
-// "it arrived", and "the term exists" are all decided under the same read the
-// insert uses. Checking them first in Go would be checking them against a state
-// another request can change in between.
+// Register one unit. expires_on is computed here from the delivery date and the
+// product's term, never passed in, and min() across the parcels runs a split
+// line from the day the first box arrived.
 func (q *Queries) RegisterWarranty(ctx context.Context, arg RegisterWarrantyParams) (int64, error) {
 	result, err := q.db.Exec(ctx, registerWarranty,
 		arg.UnitNo,
@@ -9235,10 +8283,8 @@ JOIN orders o ON o.id = ol.order_id
 LEFT JOIN product_variants pv ON pv.id = ol.variant_id
 LEFT JOIN products p ON p.id = pv.product_id
 LEFT JOIN LATERAL (
-    -- Only the parcels that ARRIVED. An order shipped in two boxes of which one
-    -- has landed can register what landed and no more, which is the same
-    -- per-parcel truth /admin/returns reads and the reason partial shipment had
-    -- to exist before this could be written.
+    -- Only the parcels that ARRIVED: an order shipped in two boxes of which one
+    -- has landed can register what landed and no more.
     SELECT sum(sl.quantity) AS units
     FROM order_shipment_lines sl
     JOIN order_shipments s ON s.id = sl.shipment_id
@@ -9269,25 +8315,9 @@ type RegistrableLinesRow struct {
 	RegisteredUnits int32
 }
 
-// What a customer may still register, for one of their orders.
-//
-// Bounded by what was DELIVERED, not by what was dispatched and not by what was
-// ordered. A warranty starts when the goods reach somebody, and this query used
-// to say so in a comment while reading shipped_at: cover counted from dispatch
-// is one to three days short, and every one of those days is taken off the
-// CUSTOMER.
-//
-// It could not be written this way when the feature shipped, because
-// order_shipments.delivered_at was read by two pages and written by nothing.
-// applyStatusEffects stamps it now, on BOTH transitions that end a delivery, so
-// 宅配 and 超商取貨 each reach this. /admin/returns already reads that column to
-// decide whether a request is inside 消保法 §19's seven days — two features
-// asking "when did the goods reach somebody" have to read ONE column, or the
-// shop is answering the same question two ways.
-//
-// Ownership is IN the query. A registration form that read the order and then
-// checked who owned it in Go is a check somebody can skip by posting straight
-// to the endpoint.
+// What a customer may still register, bounded by delivered_at and never by
+// shipped_at: cover counted from dispatch is one to three days short, all of
+// them off the customer. Ownership is in the query, so it cannot be skipped.
 func (q *Queries) RegistrableLines(ctx context.Context, arg RegistrableLinesParams) ([]RegistrableLinesRow, error) {
 	rows, err := q.db.Query(ctx, registrableLines, arg.OrderNumber, arg.UserID)
 	if err != nil {
@@ -9377,7 +8407,6 @@ type RelatedProductsRow struct {
 	ImageHeight         int32
 }
 
-// Products to show alongside: same category, excluding this one.
 func (q *Queries) RelatedProducts(ctx context.Context, arg RelatedProductsParams) ([]RelatedProductsRow, error) {
 	rows, err := q.db.Query(ctx, relatedProducts,
 		arg.Locale,
@@ -9512,8 +8541,8 @@ type RemoveZonePrefixParams struct {
 	ZoneID uuid.UUID
 }
 
-// Take a prefix out of every zone. Scoped to the zone in the DELETE's own WHERE
-// clause, so a stale form cannot remove a prefix that has since moved elsewhere.
+// Scoped to the zone in the DELETE's own WHERE clause, so a stale form cannot
+// remove a prefix that has since moved elsewhere.
 func (q *Queries) RemoveZonePrefix(ctx context.Context, arg RemoveZonePrefixParams) (int64, error) {
 	result, err := q.db.Exec(ctx, removeZonePrefix, arg.Prefix, arg.ZoneID)
 	if err != nil {
@@ -9552,12 +8581,8 @@ type RenameCategoryParams struct {
 	Slug    string
 }
 
-// Rename the DISPLAY names, never the slug. A slug is in every URL a search engine
-// has indexed and goen has no redirect table.
-//
-// The English name is set here too, and nullif(”) is what lets it be CLEARED: an
-// empty box means "no translation", which is the one state the column expresses as
-// NULL. Without that, a shop could add an English name and never take it back.
+// The DISPLAY names only: a slug is in every URL a search engine has indexed and
+// goen has no redirect table. nullif(”) is what lets name_en be cleared.
 func (q *Queries) RenameCategory(ctx context.Context, arg RenameCategoryParams) (int64, error) {
 	result, err := q.db.Exec(ctx, renameCategory,
 		arg.Name,
@@ -9576,9 +8601,6 @@ UPDATE contact_messages SET handled_at = NULL
 WHERE id = $1 AND handled_at IS NOT NULL
 `
 
-// Put one back in the queue. Marking something handled by mistake is the
-// ordinary kind of mistake, and a queue you cannot correct is one people stop
-// trusting.
 func (q *Queries) ReopenMessage(ctx context.Context, id uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, reopenMessage, id)
 	if err != nil {
@@ -9608,13 +8630,9 @@ type ReorderLinesRow struct {
 	Available    int32
 }
 
-// An order's lines as a REORDER sees them: what was bought, and what of it can
-// still be bought.
-//
-// LEFT JOIN and not JOIN: order_lines keeps the product name and price it was
-// sold at, and variant_id is nullable precisely so a line survives the variant
-// being deleted. An order from last year will have some, and dropping those
-// rows silently would make the page say it added everything.
+// An order's lines as a REORDER sees them. LEFT JOIN and not JOIN: variant_id is
+// nullable so a line survives its variant being deleted, and dropping those rows
+// would make the page say it added everything.
 func (q *Queries) ReorderLines(ctx context.Context, orderNumber string) ([]ReorderLinesRow, error) {
 	rows, err := q.db.Query(ctx, reorderLines, orderNumber)
 	if err != nil {
@@ -9659,11 +8677,7 @@ type RequestEmailVerificationParams struct {
 	Ttl    pgtype.Interval
 }
 
-// Ask for an address to be proved.
-//
-// Replaces any earlier request for this customer, so a mailbox holds one live link.
-// The address is stored as given and compared with lower() at confirmation, the way
-// users.email is.
+// Replaces any earlier request, so a mailbox holds one live link.
 func (q *Queries) RequestEmailVerification(ctx context.Context, arg RequestEmailVerificationParams) error {
 	_, err := q.db.Exec(ctx, requestEmailVerification,
 		arg.UserID,
@@ -9697,17 +8711,9 @@ type RequestNewsletterConfirmParams struct {
 	Ttl    pgtype.Interval
 }
 
-// A submission ASKS the address to join; it does not join it. Anybody can type
-// anybody's address into a footer form, so nothing is added to the list until
-// the mailbox answers.
-//
 // Zero rows means "send nothing", and the way to get there is the WHERE NOT
-// EXISTS: the address is already an active subscriber. A second submission must
-// not mail them again, or the form is a way to deliver a hundred emails to
-// somebody by pressing a button a hundred times.
-//
-// The ON CONFLICT is what keeps one live link per mailbox. Somebody who has
-// submitted three times holds one key, not three.
+// EXISTS: the address is already an active subscriber. The ON CONFLICT keeps one
+// live link per mailbox.
 func (q *Queries) RequestNewsletterConfirm(ctx context.Context, arg RequestNewsletterConfirmParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, requestNewsletterConfirm, arg.Email, arg.Digest, arg.Ttl)
 	var id uuid.UUID
@@ -9728,9 +8734,8 @@ type RequestStockNoticeParams struct {
 	Locale    string
 }
 
-// Ask to be told when a variant is back. Idempotent through the PARTIAL unique
-// index stock_notifications_pending_key, so somebody notified about one restock
-// may ask again for the next.
+// Idempotent through the partial unique index stock_notifications_pending_key, so
+// somebody notified about one restock may ask again for the next.
 func (q *Queries) RequestStockNotice(ctx context.Context, arg RequestStockNoticeParams) error {
 	_, err := q.db.Exec(ctx, requestStockNotice,
 		arg.VariantID,
@@ -9753,11 +8758,7 @@ type RescheduleOutboxParams struct {
 	LastError   string
 }
 
-// Push a failed message into the future.
-//
-// The backoff is computed by the caller and passed as a timestamp, because the
-// schedule is a policy decision and the query should not be the place somebody
-// has to look for it.
+// Push a failed message into the future. The backoff is computed by the caller.
 func (q *Queries) RescheduleOutbox(ctx context.Context, arg RescheduleOutboxParams) error {
 	_, err := q.db.Exec(ctx, rescheduleOutbox, arg.ID, arg.AvailableAt, arg.LastError)
 	return err
@@ -9778,23 +8779,9 @@ type RestockReturnedUnitsParams struct {
 	ActorUserID    uuid.NullUUID
 }
 
-// Put a returned unit back on the shelf.
-//
-// reason 'return' rather than 'adjustment', which is the whole point: the ledger
-// carries that reason, its delta-direction CHECK and its safety-stock exemption,
-// and this is what posts one. Without it goods coming back are indistinguishable
-// from a staff member correcting a miscount, and a shop reading
-// /admin/stock/{sku} sees the number move and not why.
-//
-// source_type/source_id point at the RETURN, so the ledger row answers "which
-// return put this back" the way a hold points at its order and a release at its
-// reservation. The idempotency key is per (request, line), so a resubmitted
-// inspection posts one movement.
-//
-// sqlc.narg on the actor: inventory_movements.actor_user_id is nullable with a
-// foreign key, so a zero UUID is not "nobody" — it is a user id that does not
-// exist, and the FK would refuse it. NULL is how the ledger says a movement had
-// no human behind it.
+// sqlc.narg on the actor: actor_user_id is nullable with a foreign key, so a
+// zero UUID is not "nobody" — it is an id that does not exist, and the FK
+// refuses it.
 func (q *Queries) RestockReturnedUnits(ctx context.Context, arg RestockReturnedUnitsParams) error {
 	_, err := q.db.Exec(ctx, restockReturnedUnits,
 		arg.VariantID,
@@ -9826,16 +8813,8 @@ type RestockSubjectRow struct {
 	SKU         string
 }
 
-// What a restock notice has to say: which product, where to find it, and the name
-// in the RECIPIENT's language.
-//
-// The letter's words follow stock_notifications.locale and the product NAME has to
-// follow it too. Read once in Chinese and copied into every payload, it sends an
-// English subscriber an English letter about 保護殼 — the half-translated failure
-// the locale work exists to stop, arriving where nobody would see it in review.
-//
-// Called once per distinct locale in the claimed set rather than once per recipient:
-// there are two locales and there can be dozens of subscribers.
+// Called once per distinct LOCALE in the claimed set, not once per recipient:
+// the product name has to follow the reader as the letter's words do.
 func (q *Queries) RestockSubject(ctx context.Context, arg RestockSubjectParams) (RestockSubjectRow, error) {
 	row := q.db.QueryRow(ctx, restockSubject, arg.Locale, arg.VariantID)
 	var i RestockSubjectRow
@@ -9871,13 +8850,9 @@ type ReturnForDecisionRow struct {
 	UserID              uuid.NullUUID
 }
 
-// One return, with what it would cost to refund.
-//
-// The amount comes from return_refundable_amount, never from anything the
-// request carried: a refund figure that came in on a form is the oldest hole
-// there is, and this one pays out real money. It is a FUNCTION rather than an
-// expression here because the queue needs the same number, and an expression
-// written out in both places is two figures free to disagree about one refund.
+// The amount comes from return_refundable_amount and never from anything the
+// request carried. It is a FUNCTION rather than an expression because the queue
+// needs the same number, and two copies are two figures free to disagree.
 func (q *Queries) ReturnForDecision(ctx context.Context, id uuid.UUID) (ReturnForDecisionRow, error) {
 	row := q.db.QueryRow(ctx, returnForDecision, id)
 	var i ReturnForDecisionRow
@@ -9900,17 +8875,8 @@ func (q *Queries) ReturnForDecision(ctx context.Context, id uuid.UUID) (ReturnFo
 const returnLines = `-- name: ReturnLines :many
 SELECT rl.return_request_id, ol.id AS order_line_id, ol.sku, ol.product_name,
        ol.variant_label, ol.unit_price_cents, rl.quantity,
-       -- The inspection, NULL until somebody opens the parcel. "Not looked at
-       -- yet" and "looked at, nothing arrived" are different facts and the form
-       -- has to tell them apart: one is work outstanding, the other is a
-       -- conversation with the customer.
        rl.received_quantity, rl.restocked_quantity,
        coalesce(rl.inspection_note, '')::text AS inspection_note,
-       -- Whether the unit can go back on a shelf at all. A line whose variant was
-       -- deleted, or which never had one, cannot be restocked however sellable it
-       -- looks — order_lines.variant_id is nullable precisely so a line survives
-       -- its variant, and the form must not offer a control the write would then
-       -- refuse.
        (ol.variant_id IS NOT NULL)::boolean AS restockable
 FROM return_request_lines rl
 JOIN order_lines ol ON ol.id = rl.order_line_id
@@ -9932,13 +8898,9 @@ type ReturnLinesRow struct {
 	Restockable       bool
 }
 
-// WHAT is being sent back, for every request on the page.
-//
-// Takes an ARRAY rather than one id, so a queue of fifty returns is one query
-// and not fifty.
-//
-// Without it the queue says "3 件 · 可退 NT$4,500" and nothing else: a staff
-// member deciding a return cannot see what is in it.
+// received_quantity is NULL until somebody opens the parcel: "not looked at yet"
+// and "looked at, nothing arrived" are different facts. restockable is false for
+// a line whose variant was deleted, so the form cannot offer a refused control.
 func (q *Queries) ReturnLines(ctx context.Context, requestIds []uuid.UUID) ([]ReturnLinesRow, error) {
 	rows, err := q.db.Query(ctx, returnLines, requestIds)
 	if err != nil {
@@ -9976,23 +8938,7 @@ SELECT r.id, r.status, r.reason, r.created_at, r.decided_at,
        o.order_number,
        (SELECT coalesce(sum(rl.quantity), 0) FROM return_request_lines rl
         WHERE rl.return_request_id = r.id)::integer AS units,
-       -- The ONE definition, not a second copy of the arithmetic. The queue and
-       -- the decision page need the same number, and computing it separately in
-       -- each is two chances to get it wrong — a figure a staff member reads on
-       -- one page and acts on from another must not be able to differ.
        return_refundable_amount(r.id)::bigint AS refundable_cents,
-       -- Whether this request is a statutory rescission or a goodwill return,
-       -- which the page could not tell apart and a staff member therefore could
-       -- not either. 消保法 §19 I runs seven days from RECEIPT of the goods,
-       -- 民法 §120 II excludes the day of receipt so day one is the day after,
-       -- and §19 IV fixes the moment on the customer's SIDE — the request going
-       -- out, not the shop reading it. So the comparison is created_at against
-       -- delivered_at, both written by this database: one clock at both ends,
-       -- which is the /admin/messages lesson.
-       --
-       -- Undelivered is neither answer. The window has not started, so nothing
-       -- here is late; a return before the parcel lands is bounded by
-       -- return_lines_within_purchase instead.
        (CASE
             WHEN d.delivered_at IS NULL THEN 'undelivered'
             WHEN r.created_at::date <= d.delivered_at::date + 7 THEN 'within'
@@ -10020,7 +8966,10 @@ type ReturnQueueRow struct {
 	RescissionWindow string
 }
 
-// The return queue. Undecided first, because that is the work.
+// rescission_window: Consumer Protection Act §19 I runs seven days from RECEIPT,
+// Civil Code §120 II excludes the day of receipt, and §19 IV fixes the moment on
+// the customer's side — so created_at against delivered_at, both database
+// clocks. Undelivered is neither answer, because the window has not started.
 func (q *Queries) ReturnQueue(ctx context.Context, limit int32) ([]ReturnQueueRow, error) {
 	rows, err := q.db.Query(ctx, returnQueue, limit)
 	if err != nil {
@@ -10068,18 +9017,9 @@ type ReturnRestockLinesRow struct {
 	OrderLineID uuid.UUID
 }
 
-// The variant and quantity a restock has to post, read back from the inspection.
-//
-// Read AFTER the inspection is written and inside the same transaction, so the
-// movement posted is the one this transaction recorded rather than whatever a
-// later read finds. Only lines that restocked something and still have a variant
-// to restock into.
-//
-// The cast on variant_id is load-bearing: order_lines.variant_id is NULLABLE so
-// a line survives its variant being deleted, and the WHERE clause below excludes
-// the NULLs — but sqlc reads the column's declaration and not the predicate, so
-// without it every caller unwraps a NullUUID that can never be null. Cast, the
-// way localized_name's callers coalesce.
+// The cast on variant_id is load-bearing: the column is nullable and the WHERE
+// clause excludes the NULLs, but sqlc reads the declaration and not the
+// predicate, so without it every caller unwraps a NullUUID that cannot be null.
 func (q *Queries) ReturnRestockLines(ctx context.Context, requestID uuid.UUID) ([]ReturnRestockLinesRow, error) {
 	rows, err := q.db.Query(ctx, returnRestockLines, requestID)
 	if err != nil {
@@ -10126,12 +9066,8 @@ type ReturnableLinesRow struct {
 	Returnable     int32
 }
 
-// What an order's customer may ask to return.
-//
-// The quantity offered is bounded by what SHIPPED, minus what has already been
-// claimed on a request that was not rejected. The database enforces the same
-// bound in return_within_shipment; this query exists so the form shows a number
-// the customer can actually submit rather than one the write will refuse.
+// What an order's customer may ask to return: what SHIPPED, minus what an
+// unrejected request already claims. return_within_shipment enforces the same.
 func (q *Queries) ReturnableLines(ctx context.Context, orderID uuid.UUID) ([]ReturnableLinesRow, error) {
 	rows, err := q.db.Query(ctx, returnableLines, orderID)
 	if err != nil {
@@ -10174,9 +9110,8 @@ type ReturnsForOrderRow struct {
 	DecidedAt  pgtype.Timestamptz
 }
 
-// An order's return requests, for the customer's own page. No actor: the same
-// rule as the order timeline — this page is reachable by anyone holding the
-// number, so it must not name staff.
+// An order's return requests, for the customer's own page. No actor: the page is
+// reachable by anyone holding the number, so it must not name staff.
 func (q *Queries) ReturnsForOrder(ctx context.Context, orderID uuid.UUID) ([]ReturnsForOrderRow, error) {
 	rows, err := q.db.Query(ctx, returnsForOrder, orderID)
 	if err != nil {
@@ -10208,10 +9143,16 @@ const revenueSince = `-- name: RevenueSince :one
 SELECT
     count(*)::bigint AS orders,
     coalesce(sum(t.total), 0)::bigint AS revenue_cents,
-    -- Integer division, so no float ever touches money, and coalesced because
-    -- an empty window divides by zero. Whole cents: an average order value with
-    -- fractions of a cent is not a number anybody can act on.
-    (coalesce(sum(t.total), 0) / greatest(count(*), 1))::bigint AS average_cents
+    (coalesce(sum(t.total), 0) / greatest(count(*), 1))::bigint AS average_cents,
+    -- What went back, as its own figure rather than subtracted from the one
+    -- above. Consumer Protection Act §19 makes a seven-day rescission
+    -- unrefusable, so returns are certain rather than hypothetical, and an owner
+    -- needs the return rate as much as the net. Counted by when the money moved,
+    -- not by when the order was placed: a refund lands in the window it is paid.
+    coalesce((SELECT sum(r.amount_cents) FROM refunds r
+              WHERE r.status = 'succeeded'
+                AND r.created_at >= now() - make_interval(days => $1::integer)), 0)::bigint
+        AS refunded_cents
 FROM (
     SELECT (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
                       FROM order_lines ol WHERE ol.order_id = o.id), 0)
@@ -10223,25 +9164,24 @@ FROM (
 `
 
 type RevenueSinceRow struct {
-	Orders       int64
-	RevenueCents int64
-	AverageCents int64
+	Orders        int64
+	RevenueCents  int64
+	AverageCents  int64
+	RefundedCents int64
 }
 
-// Revenue over a window, from COMMITTED orders only.
-//
-// An order that was placed and never paid is not revenue, and counting it would
-// make every abandoned checkout look like a sale. order_is_committed is the one
-// place that decides what committed means — it counts a fully store-credited
-// order with no payment row, which "EXISTS a succeeded payment" would miss.
-//
-// The total is recomputed from the lines plus the order's own shipping, tax and
-// discount, because orders carries no total column: the total IS the lines, and
-// a stored copy is a second answer waiting to disagree.
+// COMMITTED orders only, and the total is recomputed from the lines because
+// orders carries no total column. Integer division on the average, so no float
+// touches money, and greatest(count, 1) because an empty window divides by zero.
 func (q *Queries) RevenueSince(ctx context.Context, windowDays int32) (RevenueSinceRow, error) {
 	row := q.db.QueryRow(ctx, revenueSince, windowDays)
 	var i RevenueSinceRow
-	err := row.Scan(&i.Orders, &i.RevenueCents, &i.AverageCents)
+	err := row.Scan(
+		&i.Orders,
+		&i.RevenueCents,
+		&i.AverageCents,
+		&i.RefundedCents,
+	)
 	return i, err
 }
 
@@ -10249,12 +9189,8 @@ const reverseOrderCredit = `-- name: ReverseOrderCredit :one
 SELECT reverse_order_credit($1)::bigint AS returned_cents
 `
 
-// Give back store credit spent on an order being cancelled.
-//
-// Called in the cancellation's OWN transaction, beside the stock release and for
-// the same reason: the status change is what makes both legal, and a cancellation
-// that committed without them would leave the units off the shelf and the money
-// gone.
+// Called in the cancellation's own transaction, beside the stock release: the
+// status change is what makes both legal.
 func (q *Queries) ReverseOrderCredit(ctx context.Context, orderID uuid.UUID) (int64, error) {
 	row := q.db.QueryRow(ctx, reverseOrderCredit, orderID)
 	var returned_cents int64
@@ -10266,12 +9202,9 @@ const revokeStaff = `-- name: RevokeStaff :execrows
 UPDATE users SET role = 'customer' WHERE id = $1 AND role IN ('staff', 'admin')
 `
 
-// Take somebody's back-office access away.
-//
-// Their role goes back to 'customer' rather than the row being deleted: they
-// may have placed orders, written reviews and answered questions, and erase_user
-// is the only door that removes a person — for a colleague who has left, the
-// shop wants the history and not the access.
+// Take somebody's back-office access away. The role goes back to 'customer'
+// rather than the row being deleted: erase_user is the only door that removes
+// a person.
 func (q *Queries) RevokeStaff(ctx context.Context, id uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, revokeStaff, id)
 	if err != nil {
@@ -10299,11 +9232,7 @@ type RunningCampaignRow struct {
 	EndsAt time.Time
 }
 
-// The campaign a slug names, if it is running right now.
-//
-// The window is judged in SQL against the DATABASE's clock, for the reason the
-// coupon window is: starts_at and ends_at were written by now() here, and
-// comparing them to Go's time.Now() is comparing two clocks.
+// The window is judged against the database's clock, which wrote the timestamps.
 func (q *Queries) RunningCampaign(ctx context.Context, arg RunningCampaignParams) (RunningCampaignRow, error) {
 	row := q.db.QueryRow(ctx, runningCampaign, arg.Locale, arg.Slug)
 	var i RunningCampaignRow
@@ -10339,7 +9268,6 @@ type RunningCampaignsRow struct {
 	Products int64
 }
 
-// Every campaign running now, for the home page and the deals page.
 func (q *Queries) RunningCampaigns(ctx context.Context, arg RunningCampaignsParams) ([]RunningCampaignsRow, error) {
 	rows, err := q.db.Query(ctx, runningCampaigns, arg.Limit, arg.Locale)
 	if err != nil {
@@ -10384,19 +9312,8 @@ type SavedAddressesRow struct {
 	IsDefault     bool
 }
 
-// One shipping version, re-read at order time. The form's value is not trusted:
-// a hand-edited version id must not let an order be placed at a fee that was
-// never offered.
-// The delivery addresses an account has saved, for the checkout to offer.
-//
-// Scoped to the owner IN the query rather than checked afterwards: the id comes
-// off a URL, and "is this mine?" asked after the read is a question somebody
-// eventually forgets to ask.
-//
-// internal/account owns the address book and its CRUD. This is a read of the
-// same rows from the one page that has to fill a form with them; duplicating
-// the columns here rather than importing account's store is what keeps the two
-// features from depending on each other's internals.
+// The delivery addresses an account has saved, scoped to the owner IN the query
+// rather than checked after the read: the id comes off a URL.
 func (q *Queries) SavedAddresses(ctx context.Context, userID uuid.UUID) ([]SavedAddressesRow, error) {
 	rows, err := q.db.Query(ctx, savedAddresses, userID)
 	if err != nil {
@@ -10464,20 +9381,15 @@ LEFT JOIN LATERAL (
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
-  -- BOTH names, and that is not the same rule as the display one. A search matches
-  -- on IDENTITY: an English visitor typing "case" must find 保護殼 and a Chinese
-  -- visitor typing 保護殼 must still find it after somebody adds an English name.
-  -- Matching only the localized column would make the catalogue searchable in one
-  -- language at a time, which is worse than not translating it at all.
+  -- Both names: matching only the localized column would make the catalogue
+  -- searchable in one language at a time.
   AND (p.name ILIKE $2::text
        OR coalesce(p.name_en, '') ILIKE $2::text
        OR coalesce(p.summary, '') ILIKE $2::text
        OR coalesce(p.summary_en, '') ILIKE $2::text
        OR b.name ILIKE $2::text)
 ORDER BY
-    -- A name match outranks a summary or brand match: someone typing a model
-    -- number wants that product, not everything the brand makes. Either name
-    -- counts, for the reason the predicate takes both.
+    -- A name match outranks a summary or brand match. Either name counts.
     (p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text) DESC,
     p.published_at DESC, p.id DESC
 LIMIT $4::integer OFFSET $3::integer
@@ -10506,17 +9418,8 @@ type SearchProductsRow struct {
 	ImageHeight         int32
 }
 
-// Search across the catalogue.
-//
-// ILIKE with a trigram GIN index: measured, that index serves Latin queries
-// ("%pixel%", 1.5 ms at 10,000 products) and short Chinese queries fall back to
-// a sequential scan (8.8 ms) because their trigrams are too unselective for the
-// planner to prefer it. That is the honest limit today; the bigram projection
-// that fixes Chinese properly is a named follow-up in
-// docs/decisions/003-listing-read-model.md.
-//
-// The caller escapes %, _ and \ before binding, so a query string of "%" finds
-// products containing a percent sign rather than everything.
+// The trigram GIN index serves Latin queries; short Chinese ones fall back to a
+// sequential scan. The caller escapes %, _ and \ before binding.
 func (q *Queries) SearchProducts(ctx context.Context, arg SearchProductsParams) ([]SearchProductsRow, error) {
 	rows, err := q.db.Query(ctx, searchProducts,
 		arg.Locale,
@@ -10568,9 +9471,7 @@ WHERE p.status = 'active'
        OR b.name ILIKE $1::text)
 `
 
-// The same predicate as SearchProducts, and it has to STAY the same: a count that
-// matches on fewer columns than the list reports a different number of results from
-// the number of rows shown.
+// The same predicate as SearchProducts, and it has to stay the same.
 func (q *Queries) SearchProductsCount(ctx context.Context, pattern string) (int64, error) {
 	row := q.db.QueryRow(ctx, searchProductsCount, pattern)
 	var column_1 int64
@@ -10589,7 +9490,6 @@ type SessionTOTPVerifiedParams struct {
 	MaxAge    pgtype.Interval
 }
 
-// Whether a session's proof is still current.
 func (q *Queries) SessionTOTPVerified(ctx context.Context, arg SessionTOTPVerifiedParams) (bool, error) {
 	row := q.db.QueryRow(ctx, sessionTOTPVerified, arg.TokenHash, arg.MaxAge)
 	var verified bool
@@ -10611,11 +9511,7 @@ type SessionUserRow struct {
 	Role     string
 }
 
-// Sessions are found by the HASH of the cookie's token, never by the token: the
-// column holds a digest so a database leak does not hand over live sessions.
-//
-// The expiry is checked HERE rather than by a sweeper, so an expired session is
-// dead the moment it expires even if nothing has cleaned it up yet.
+// The expiry is checked here, so an expired session is dead before anything sweeps it.
 func (q *Queries) SessionUser(ctx context.Context, tokenHash []byte) (SessionUserRow, error) {
 	row := q.db.QueryRow(ctx, sessionUser, tokenHash)
 	var i SessionUserRow
@@ -10637,8 +9533,8 @@ type SetBannerActiveParams struct {
 	BannerID uuid.UUID
 }
 
-// Switch one off rather than delete it: a promotion that ran is part of what the
-// storefront said, the same reason a coupon is switched off.
+// Switched off, never deleted: the dismissal cookie is keyed on the id, so a new
+// row with the same copy would reappear for everybody who had closed it.
 func (q *Queries) SetBannerActive(ctx context.Context, arg SetBannerActiveParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setBannerActive, arg.IsActive, arg.BannerID)
 	if err != nil {
@@ -10689,8 +9585,8 @@ type SetCouponActiveParams struct {
 	Code     string
 }
 
-// Switch a coupon off. Never deleted: coupon_redemptions references it, and a
-// promotion that ran is part of what past orders were charged.
+// Switched off, never deleted: coupon_redemptions references it, and a promotion
+// that ran is part of what past orders were charged.
 func (q *Queries) SetCouponActive(ctx context.Context, arg SetCouponActiveParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setCouponActive, arg.IsActive, arg.Code)
 	if err != nil {
@@ -10708,8 +9604,7 @@ type SetDefaultAddressParams struct {
 	ID     uuid.UUID
 }
 
-// :execrows, so an id belonging to somebody else is ErrNotFound rather than a
-// silent success — the same defect the three admin toggles had.
+// :execrows, so an id belonging to somebody else is ErrNotFound, not a silent success.
 func (q *Queries) SetDefaultAddress(ctx context.Context, arg SetDefaultAddressParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setDefaultAddress, arg.UserID, arg.ID)
 	if err != nil {
@@ -10764,15 +9659,10 @@ type SetProductStatusParams struct {
 	Slug   string
 }
 
-// Publish or unpublish.
-//
-// published_at is stamped on the FIRST publish and kept afterwards: 本週新品 is
-// a query over it, so re-publishing an old product must not make it new again.
-// :execrows, not :exec. An UPDATE whose WHERE matches nothing is not an error
-// in SQL, so as :exec a status change against a slug that does not exist reports
-// success — to the staff member, and to the audit trail, which then holds a row
-// saying a product was published when no such product exists. The row count is
-// how the caller tells the difference.
+// published_at is stamped on the FIRST publish and kept, so re-publishing an old
+// product does not make it new again. :execrows because an UPDATE matching
+// nothing is not an error in SQL: as :exec, a slug that does not exist reports
+// success to the staff member and to the audit trail.
 func (q *Queries) SetProductStatus(ctx context.Context, arg SetProductStatusParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setProductStatus, arg.Status, arg.Slug)
 	if err != nil {
@@ -10790,9 +9680,6 @@ type SetShippingMethodActiveParams struct {
 	MethodID uuid.UUID
 }
 
-// Switch a method off. Never a DELETE: shipping_method_versions references it with
-// ON DELETE RESTRICT and every past order names the version it was priced from, so a
-// method that ever carried a parcel is part of the record.
 func (q *Queries) SetShippingMethodActive(ctx context.Context, arg SetShippingMethodActiveParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setShippingMethodActive, arg.IsActive, arg.MethodID)
 	if err != nil {
@@ -10843,12 +9730,9 @@ type SetVariantOptionValueParams struct {
 	SKU           string
 }
 
-// Attach a variant to one option value.
-//
-// Every id is resolved from the SKU and the value id in this statement, so nothing
-// crosses products: variant_option_values carries product_id precisely so the
-// composite keys can enforce that, and reading it here means a caller cannot
-// present a mismatched pair to be checked.
+// Every id is resolved inside the statement, so nothing crosses products:
+// variant_option_values carries product_id precisely so the composite keys can
+// refuse a variant of A paired with a value of B.
 func (q *Queries) SetVariantOptionValue(ctx context.Context, arg SetVariantOptionValueParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setVariantOptionValue, arg.OptionValueID, arg.SKU)
 	if err != nil {
@@ -10884,15 +9768,8 @@ type SetVerifiedEmailParams struct {
 	UserID uuid.UUID
 }
 
-// Move the address and mark it proved.
-//
-// One statement, because they are one fact: an address goen has proved and an
-// address goen is using must not be able to disagree. At registration the address
-// is already the user's and the move is a no-op; on a change it is the point.
-//
-// users_email_key refuses an address that now belongs to somebody else — which can
-// happen between the request and the confirmation, and is the only place that race
-// can be caught.
+// One statement, because an address goen has proved and one goen is using must
+// not be able to disagree. users_email_key catches an address taken in between.
 func (q *Queries) SetVerifiedEmail(ctx context.Context, arg SetVerifiedEmailParams) error {
 	_, err := q.db.Exec(ctx, setVerifiedEmail, arg.Email, arg.UserID)
 	return err
@@ -10911,8 +9788,6 @@ type SetZoneSurchargeParams struct {
 	SurchargeCents int64
 }
 
-// Set what one version charges for one zone.
-//
 // ON CONFLICT so the form is idempotent: a staff member who submits twice has
 // set one surcharge, not failed the second time.
 func (q *Queries) SetZoneSurcharge(ctx context.Context, arg SetZoneSurchargeParams) error {
@@ -10931,7 +9806,7 @@ type SettleRefundParams struct {
 }
 
 // nullif again: a failed refund has no provider reference, and settle_refund
-// coalesces NULL onto whatever is already there rather than blanking it.
+// coalesces NULL onto whatever is there rather than blanking it.
 func (q *Queries) SettleRefund(ctx context.Context, arg SettleRefundParams) error {
 	_, err := q.db.Exec(ctx, settleRefund, arg.RequestKey, arg.ProviderRef, arg.Status)
 	return err
@@ -10952,11 +9827,9 @@ type ShipmentRecipientRow struct {
 	Locale        string
 }
 
-// Who to tell that an order shipped, and in which language.
-//
-// The locale comes off the ORDER, never off the staff member who pressed Ship.
-// Reading it from the request would send a Taiwanese shopkeeper's language to an
-// English customer.
+// The locale comes off the ORDER and never off the staff member who pressed
+// Ship, which would send a Taiwanese shopkeeper's language to an English
+// customer.
 func (q *Queries) ShipmentRecipient(ctx context.Context, id uuid.UUID) (ShipmentRecipientRow, error) {
 	row := q.db.QueryRow(ctx, shipmentRecipient, id)
 	var i ShipmentRecipientRow
@@ -10996,19 +9869,10 @@ type ShippableLinesRow struct {
 	Held          int32
 }
 
-// What each order line still owes a dispatch, and which hold covers it.
-//
-// The two questions are answered TOGETHER because a partial dispatch has to
-// reconcile them line by line: shipping two of three units settles two of the
-// three that line's variant holds, and reading the remaining quantities from one
-// query and the reservations from another leaves the two free to disagree about
-// an order somebody is editing.
-//
-// LEFT JOIN on the reservation, not JOIN. A line whose variant was deleted has
-// no hold and never did, and dropping the row here would silently ship it
-// without anybody noticing the stock did not move — the empty-reservation
-// dispatch, where the parcel leaves the warehouse and stock_quantity stays where
-// it was. The caller refuses instead.
+// LEFT JOIN on the reservation, not JOIN: a line whose variant was deleted has
+// no hold, and dropping the row here would ship it without moving stock. The
+// caller refuses instead. ReleaseReservation and HeldReservationsForOrder live
+// in internal/cart/query.sql — sqlc generates ONE db package for the module.
 func (q *Queries) ShippableLines(ctx context.Context, orderID uuid.UUID) ([]ShippableLinesRow, error) {
 	rows, err := q.db.Query(ctx, shippableLines, orderID)
 	if err != nil {
@@ -11078,24 +9942,9 @@ type ShippingChoicesRow struct {
 	FreeOverCents   pgtype.Int8
 }
 
-// The shipping choices at checkout: each method's CURRENT version.
-//
-// DISTINCT ON takes the newest version per method. An order stores the version
-// id it was placed under, so a later price change cannot rewrite what an old
-// order was charged.
-// A method is offered only if this cart's contents can physically go by it.
-//
-// The test is PER ITEM, not over the cart total, and that is the whole rule:
-// more parcels are always possible, so two things that each fit are two
-// parcels — but a single item that does not fit cannot be split, whatever else
-// is in the basket. Weight is per item for the same reason.
-//
-// A method with NULL limits accepts everything, and a variant with NULL
-// measurements is refused by nothing. Unknown is not "too big": a shop that has
-// not measured its catalogue would otherwise lose 超商取貨 — the channel 75.2%
-// of Taiwanese online shoppers prefer — on every product at once, silently, and
-// that costs more than the counter refusal it would prevent. /admin/products
-// shows what is unmeasured.
+// Each method's newest version, offered only for a cart its carrier will take.
+// The test is PER ITEM: one item that does not fit cannot be split, while NULL
+// on either side is unmeasured rather than too big.
 func (q *Queries) ShippingChoices(ctx context.Context, arg ShippingChoicesParams) ([]ShippingChoicesRow, error) {
 	rows, err := q.db.Query(ctx, shippingChoices, arg.Locale, arg.CartID)
 	if err != nil {
@@ -11147,10 +9996,6 @@ type ShippingPolicyRow struct {
 }
 
 // The shipping methods a policy page describes.
-//
-// Read from the database rather than written into prose: a page that states a
-// fee is a promise, and the one place that promise is already kept is the table
-// checkout charges from. A page that restates it can drift; this one cannot.
 func (q *Queries) ShippingPolicy(ctx context.Context, locale string) ([]ShippingPolicyRow, error) {
 	rows, err := q.db.Query(ctx, shippingPolicy, locale)
 	if err != nil {
@@ -11198,18 +10043,8 @@ type ShippingPolicyZonesRow struct {
 	SurchargeCents int64
 }
 
-// The zone surcharges those methods carry, as DATA.
-//
-// One row per surcharge, and never one column. A string_agg here would build
-// '離島 另加 NT$200、澎湖 另加 NT$150' in SQL for the page to print: the figures
-// right and the WORDS Chinese for every reader, because a sentence assembled
-// where no locale exists cannot be anything else. A query that assembles chrome
-// is chrome written where nobody can ask who is reading, which is why the Han
-// sweep reads .sql literals and not only .go and .templ. The zone NAME stays as
-// the shop typed it; 另加 and the joiner are chrome and follow the visitor.
-//
-// Read from the SAME rows checkout charges from, for the reason the fee is: a
-// page that restates a number is a page that eventually contradicts the till.
+// The zone surcharges those methods carry, one row per surcharge. A string_agg
+// would assemble the sentence here, where no locale exists to write it in.
 func (q *Queries) ShippingPolicyZones(ctx context.Context, arg ShippingPolicyZonesParams) ([]ShippingPolicyZonesRow, error) {
 	rows, err := q.db.Query(ctx, shippingPolicyZones, arg.Locale, arg.VersionIds)
 	if err != nil {
@@ -11291,18 +10126,9 @@ type ShippingZoneForRow struct {
 	ZoneName       string
 }
 
-// What one version charges to send an order to one postal code.
-//
-// The zone lookup is the QUERY; the arithmetic is ShippingFee in Go, beside the
-// coupon capping and the totals it has to agree with. It was a SQL function
-// first — one rule, three callers — and sqlc cannot resolve the columns of a
-// set-returning function, so the choice was a composite blob in Go or the rule
-// split across two languages. One definition in Go, read by every caller, is
-// the same guarantee without either.
-//
-// postal_code may be empty: a 超商取貨 order has no postal code, because its
-// destination is a store. Such an order matches no prefix and gets the mainland
-// answer, which is right rather than a special case.
+// What one version charges to send an order to one postal code. postal_code may
+// be empty: a convenience-store pickup has no postal code, so it matches no
+// prefix and gets the mainland answer.
 func (q *Queries) ShippingZoneFor(ctx context.Context, arg ShippingZoneForParams) (ShippingZoneForRow, error) {
 	row := q.db.QueryRow(ctx, shippingZoneFor, arg.Locale, arg.PostalCode, arg.VersionID)
 	var i ShippingZoneForRow
@@ -11315,8 +10141,6 @@ UPDATE product_reviews SET hidden_at = NULL
 WHERE id = $1 AND hidden_at IS NOT NULL
 `
 
-// Put one back. Hiding is reversible because moderation is a judgement, and a
-// judgement made in a hurry is one somebody should be able to undo.
 func (q *Queries) ShowReview(ctx context.Context, id uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, showReview, id)
 	if err != nil {
@@ -11372,11 +10196,8 @@ type SitemapProductsRow struct {
 	UpdatedAt time.Time
 }
 
-// Everything a sitemap lists, with when it last changed.
-//
-// Only ACTIVE products and only categories that have something in them: a
-// sitemap is a claim that these URLs are worth crawling, and pointing a crawler
-// at an empty category spends its budget on a page with nothing on it.
+// Only active products, and only categories with something in them: a sitemap is
+// a claim that these URLs are worth crawling.
 func (q *Queries) SitemapProducts(ctx context.Context, limit int32) ([]SitemapProductsRow, error) {
 	rows, err := q.db.Query(ctx, sitemapProducts, limit)
 	if err != nil {
@@ -11410,10 +10231,7 @@ type SpendCreditParams struct {
 	IdempotencyKey string
 }
 
-// Spend credit against an order. A NEGATIVE amount, keyed on the order so a
-// retried checkout debits once — post_store_credit returns the existing entry
-// rather than writing a second, and store_credit_never_negative refuses a
-// balance the customer does not have.
+// A NEGATIVE amount, keyed on the order so a retried checkout debits once.
 func (q *Queries) SpendCredit(ctx context.Context, arg SpendCreditParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, spendCredit,
 		arg.UserID,
@@ -11438,11 +10256,7 @@ type SpendEmailVerificationRow struct {
 	Email  string
 }
 
-// Spend a verification link.
-//
-// Spent BY THIS STATEMENT, not by a check above it: several requests carrying one
-// token all reach this line and exactly one deletes a row. Expiry is judged by the
-// database's clock, the same one that wrote expires_at.
+// Spent BY THIS STATEMENT: several requests carrying one token reach it and one wins.
 func (q *Queries) SpendEmailVerification(ctx context.Context, digest []byte) (SpendEmailVerificationRow, error) {
 	row := q.db.QueryRow(ctx, spendEmailVerification, digest)
 	var i SpendEmailVerificationRow
@@ -11456,12 +10270,9 @@ WHERE digest = $1 AND expires_at > now()
 RETURNING email
 `
 
-// The token is SPENT by this statement, not by a check in Go before it. Several
-// requests carrying one token all reach this line and exactly one deletes a row;
-// a read-then-delete in the handler is a race every one of them wins.
-//
-// Expiry is judged by the database's clock, the same clock that wrote
-// expires_at. Comparing it to Go's time.Now() compares two clocks.
+// The token is SPENT by this statement, not by a check in Go before it: several
+// requests carrying one token all reach this line and exactly one deletes a row.
+// Expiry is judged by the clock that wrote expires_at.
 func (q *Queries) SpendNewsletterConfirmation(ctx context.Context, digest []byte) (string, error) {
 	row := q.db.QueryRow(ctx, spendNewsletterConfirmation, digest)
 	var email string
@@ -11475,19 +10286,8 @@ WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
 RETURNING user_id
 `
 
-// Spend a reset token, ONCE.
-//
-// :execrows and `used_at IS NULL` in the WHERE, so two requests carrying the
-// same token cannot both proceed: the loser updates zero rows and is refused.
-// A read-then-write guard in Go is a guard both of them pass, and the prize
-// here is somebody else's account.
-//
-// The caller runs this in the SAME transaction as the password change. Spending
-// first and changing after would leave a token burnt on a password that never
-// changed — the customer is locked out AND their one reset is gone.
-// It RETURNS the user, so the account whose password changes is the one on the
-// row that was actually spent — not one read a moment earlier by a separate
-// statement that could disagree.
+// used_at IS NULL is in the WHERE, so two requests carrying one token cannot both
+// win, and the caller runs this in the SAME transaction as the password change.
 func (q *Queries) SpendPasswordResetToken(ctx context.Context, tokenHash []byte) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, spendPasswordResetToken, tokenHash)
 	var user_id uuid.UUID
@@ -11512,8 +10312,6 @@ type StaffTOTPStatusRow struct {
 	Enrolled bool
 }
 
-// Every staff account and whether it has a confirmed credential, for the page
-// that shows who is protected.
 func (q *Queries) StaffTOTPStatus(ctx context.Context) ([]StaffTOTPStatusRow, error) {
 	rows, err := q.db.Query(ctx, staffTOTPStatus)
 	if err != nil {
@@ -11548,13 +10346,6 @@ SELECT
     pv.stock_quantity,
     pv.safety_stock,
     sold.units::bigint AS units_sold,
-    -- Days of cover at the recent rate.
-    --
-    -- Never NULL, because the WHERE below admits only variants that sold
-    -- something — so the divisor is never zero and there is no unknowable case
-    -- to render. A NULL guard here would guard against something that cannot
-    -- happen, and sqlc types the column non-nullable regardless: the day such a
-    -- guard mattered it would be a scan error rather than a rendered blank.
     (pv.stock_quantity::numeric
      / (sold.units::numeric / $1::integer))::integer AS days_cover
 FROM product_variants pv
@@ -11587,12 +10378,8 @@ type StockAtRiskRow struct {
 	DaysCover     int32
 }
 
-// Stock about to run out on something that is selling.
-//
-// Velocity AND level together, which is the only way the question is useful: a
-// variant with two left that sells one a month is fine, and one with twenty
-// left that sells fifty a week is the emergency. Ordered by days of cover, so
-// the top of the list is what runs out first.
+// days_cover is never NULL because the WHERE clause admits only variants that
+// sold something, so the divisor cannot be zero.
 func (q *Queries) StockAtRisk(ctx context.Context, arg StockAtRiskParams) ([]StockAtRiskRow, error) {
 	rows, err := q.db.Query(ctx, stockAtRisk, arg.WindowDays, arg.LimitTo)
 	if err != nil {
@@ -11626,11 +10413,7 @@ SELECT coalesce((SELECT b.balance_cents FROM store_credit_balances b
                  WHERE b.user_id = $1), 0)::bigint AS balance_cents
 `
 
-// The store-credit balance on an account, from the one view that defines it.
-//
-// Wrapped in a scalar subquery so a customer who has never held credit gets 0
-// rather than no row: the account is created on first use, and having none is the
-// ordinary state of most accounts rather than an error.
+// A scalar subquery, so an account that has never held credit gets 0 and not no row.
 func (q *Queries) StoreCreditBalance(ctx context.Context, userID uuid.NullUUID) (int64, error) {
 	row := q.db.QueryRow(ctx, storeCreditBalance, userID)
 	var balance_cents int64
@@ -11660,8 +10443,7 @@ type StuckOutboxRow struct {
 	AvailableAt time.Time
 }
 
-// Messages that have failed too many times, for a human to look at. A queue
-// with no way to see what is stuck is a queue that quietly stops working.
+// Messages that have failed too many times, for a human to look at.
 func (q *Queries) StuckOutbox(ctx context.Context, arg StuckOutboxParams) ([]StuckOutboxRow, error) {
 	rows, err := q.db.Query(ctx, stuckOutbox, arg.Limit, arg.MinAttempts)
 	if err != nil {
@@ -11695,15 +10477,9 @@ WHERE delivered_at IS NOT NULL
   AND delivered_at < now() - $1::interval
 `
 
-// Delete delivered messages past their retention window.
-//
-// DELIVERED only. A message that has exhausted MaxAttempts is not delivered, so
-// it is kept forever and /admin/health goes on listing it: sweeping a failure
-// would make the queue look healthy by forgetting what went wrong.
-//
-// available_at rather than any other column, because the row has none that says
-// when it was DELIVERED past delivered_at itself — and delivered_at is the honest
-// clock here: retention is measured from when goen stopped needing the row.
+// DELIVERED only, and keyed on delivered_at: a message that exhausted its
+// attempts is kept so /admin/health lists it, and available_at moves forward on
+// every claim, so keying on that would delete unsent mail.
 func (q *Queries) SweepDeliveredMessages(ctx context.Context, retain pgtype.Interval) (int64, error) {
 	result, err := q.db.Exec(ctx, sweepDeliveredMessages, retain)
 	if err != nil {
@@ -11723,7 +10499,6 @@ type TOTPCredentialRow struct {
 	LastStep        pgtype.Int8
 }
 
-// The credential for one staff member.
 func (q *Queries) TOTPCredential(ctx context.Context, userID uuid.UUID) (TOTPCredentialRow, error) {
 	row := q.db.QueryRow(ctx, tOTPCredential, userID)
 	var i TOTPCredentialRow
@@ -11745,24 +10520,9 @@ UPDATE order_access_grants SET created_at = now()
 WHERE digest = ANY($1::bytea[])
 `
 
-// Restart the retention clock on the grants a browser is still carrying.
-//
-// The cookie holds up to ten tokens and is RE-ISSUED with a fresh MaxAge every
-// time an order is placed, carrying the older ones forward. The grants behind
-// them were swept on their own created_at, so the two clocks came apart the
-// moment somebody ordered twice: a customer who bought on day 0 and again on day
-// 25 held a cookie live until day 55 naming an order whose grant died on day 30.
-//
-// GrantRetain's own comment names that state as the one that must never happen —
-// "a grant swept while its cookie is still live locks a customer out of their own
-// order" — and equality between the two constants only delivers it if the cookie
-// is never re-issued. It is. So the clock is restarted HERE, on the same event
-// that restarts the cookie's, which is what makes the two intervals comparable
-// at all.
-//
-// Scoped to the digests presented: a token this browser is not carrying is not
-// evidence of anything, and touching every grant on the order would extend a
-// credential held by some other browser.
+// The cookie is RE-ISSUED with a fresh MaxAge on every order, carrying older
+// tokens forward, so their grants' retention clock restarts on the same event or
+// one dies under a live cookie. Scoped to the digests actually presented.
 func (q *Queries) TouchOrderAccessGrants(ctx context.Context, digests [][]byte) error {
 	_, err := q.db.Exec(ctx, touchOrderAccessGrants, digests)
 	return err
@@ -11795,11 +10555,6 @@ type UnansweredQuestionsRow struct {
 	AnsweredByShop bool
 }
 
-// The questions waiting for the shop, oldest first.
-//
-// Oldest FIRST, unlike every other back-office list: a question that has been
-// waiting three days is more urgent than one asked this morning, and newest-
-// first would bury it exactly as it becomes worth answering.
 func (q *Queries) UnansweredQuestions(ctx context.Context, limit int32) ([]UnansweredQuestionsRow, error) {
 	rows, err := q.db.Query(ctx, unansweredQuestions, limit)
 	if err != nil {
@@ -11839,11 +10594,8 @@ type UnlinkIdentityParams struct {
 	Provider string
 }
 
-// Unlink a provider.
-//
-// :execrows, and the caller refuses when the account has NO PASSWORD: unlinking
-// the only way in locks somebody out of their own account, and the row count is
-// how the caller learns whether it actually happened.
+// :execrows: the caller refuses when the account has no password, and the row
+// count is how it learns whether the delete happened.
 func (q *Queries) UnlinkIdentity(ctx context.Context, arg UnlinkIdentityParams) (int64, error) {
 	result, err := q.db.Exec(ctx, unlinkIdentity, arg.UserID, arg.Provider)
 	if err != nil {
@@ -11861,6 +10613,8 @@ ORDER BY m.created_at
 LIMIT $1
 `
 
+// Uploads nothing points at. Every referencing column has to appear here: a
+// delete that missed one would break a live image.
 func (q *Queries) UnreferencedMedia(ctx context.Context, limit int32) ([]string, error) {
 	rows, err := q.db.Query(ctx, unreferencedMedia, limit)
 	if err != nil {
@@ -11888,15 +10642,9 @@ WHERE unsubscribe_token = $1
 RETURNING email
 `
 
-// Idempotent in one statement. A mail client that prefetches, a person who
-// clicks twice, a link followed a year later: all of them answer "you are off
-// the list", and coalesce keeps the FIRST time — the truthful one — rather than
-// moving it forward on every click.
-//
-// Matching on the digest alone (not `AND unsubscribed_at IS NULL`) is what lets
-// a caller tell "already off the list" from "that link is not ours": the first
-// returns a row, the second returns none. Only the second is worth telling
-// somebody about, because only there is their address still on the list.
+// coalesce keeps the FIRST opt-out rather than moving it forward on every click.
+// Matching on the digest alone lets a caller tell "already off the list" from
+// "that link is not ours": the first returns a row, the second returns none.
 func (q *Queries) UnsubscribeNewsletter(ctx context.Context, unsubscribeToken string) (string, error) {
 	row := q.db.QueryRow(ctx, unsubscribeNewsletter, unsubscribeToken)
 	var email string
@@ -11922,8 +10670,8 @@ type UpdateFAQEntryParams struct {
 	EntryID    uuid.UUID
 }
 
-// Rewrite one. The CATEGORY is not editable here: moving an entry between
-// categories has to renumber its position, and a form that silently collides with
+// The CATEGORY is not editable: moving an entry between categories has to
+// renumber its position, and a form that silently collides with
 // faq_entries_position_key is worse than one that does not offer the move.
 func (q *Queries) UpdateFAQEntry(ctx context.Context, arg UpdateFAQEntryParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateFAQEntry,
@@ -11973,20 +10721,10 @@ type UpdateOrderDeliveryParams struct {
 	OrderNumber     string
 }
 
-// Correct an order's delivery details before the parcel leaves.
-//
-// A customer who typed the wrong street has no way to fix it themselves, and
-// without this neither has the shop: the only option is to cancel and re-order,
-// which loses the payment and the stock hold with it.
-//
-// The state guard is in the WHERE clause, not read first. Once an order is
-// shipped the parcel has gone, and rewriting the address then makes the record
-// lie about where it went — which is worse than not being able to change it.
-//
-// Both destination groups are written and exactly one survives, the same way
-// the insert does it. order_private_data_one_destination refuses anything else,
-// and the CALLER decides which half to blank from the order's own shipping
-// method rather than from the form.
+// The state guard is in the WHERE clause and never read first: once an order has
+// shipped, rewriting the address makes the record lie about where it went. Both
+// destination groups are written and exactly one survives; the CALLER decides
+// which half to blank, from the order's own shipping method not from the form.
 func (q *Queries) UpdateOrderDelivery(ctx context.Context, arg UpdateOrderDeliveryParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateOrderDelivery,
 		arg.Email,
@@ -12015,10 +10753,6 @@ SET brand_id = $1, category_id = $2, name = $3::text,
     summary_en = nullif($7::text, ''),
     description_en = nullif($8::text, ''),
     warranty_note = nullif($9::text, ''),
-    -- Zero means "the shop has not stated a term", which is what NULL means in the
-    -- column: registration is then REFUSED rather than given a default, because
-    -- expires_on is NOT NULL and defaulting it would have goen invent a promise
-    -- nobody made.
     warranty_months = nullif($10::integer, 0)
 WHERE slug = $11::text
 `
@@ -12037,9 +10771,9 @@ type UpdateProductParams struct {
 	Slug           string
 }
 
-// The English copy is set here too, and an empty box CLEARS it — the same rule the
-// category rename follows, and for the same reason: a shop that added a translation
-// must be able to take it back, and absence is the one state the column expresses.
+// Every nullif(”) is what lets a translation be CLEARED; absence is the state
+// the column expresses. warranty_months zero means the shop has stated no term,
+// and registration is then refused rather than given a default.
 func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) error {
 	_, err := q.db.Exec(ctx, updateProduct,
 		arg.BrandID,
@@ -12087,17 +10821,9 @@ type UpsertStaffParams struct {
 	Role     string
 }
 
-// Create a staff account with NO password.
-//
-// Deliberately: an admin who typed a colleague's password would know it, and a
-// generated one has to be delivered somehow. The colleague sets their own
-// through /forgot, which already ends every session and invalidates every other
-// token — so the account is unusable until the person who owns the mailbox
-// proves they own it.
-//
-// ON CONFLICT so an existing CUSTOMER can be promoted rather than refused: a
-// shop hiring somebody who already shops there is the common case, and telling
-// the admin "that email is taken" would be an answer they cannot act on.
+// Create a staff account with NO password; they set their own through /forgot,
+// which is the one path that proves they own the mailbox. ON CONFLICT so an
+// existing customer is promoted rather than refused.
 func (q *Queries) UpsertStaff(ctx context.Context, arg UpsertStaffParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, upsertStaff, arg.Email, arg.FullName, arg.Role)
 	var id uuid.UUID
@@ -12118,9 +10844,7 @@ type UserByEmailRow struct {
 	Role         string
 }
 
-// The account an email names, for sign-in. lower(email) matches the unique
-// index, so a visitor who registered as Ming@Example.com signs in as
-// ming@example.com.
+// lower(email) matches the unique index.
 func (q *Queries) UserByEmail(ctx context.Context, lower string) (UserByEmailRow, error) {
 	row := q.db.QueryRow(ctx, userByEmail, lower)
 	var i UserByEmailRow
@@ -12148,13 +10872,8 @@ type UserByGoogleSubjectRow struct {
 	Role     string
 }
 
-// Who a Google account belongs to here, if anybody.
-//
-// Keyed on the SUBJECT rather than the email, and that is the whole reason
-// user_identities exists as a table instead of a column on users: a Google
-// account can change its address, and a released Workspace address can be
-// reassigned to a different person. The subject is stable for the life of the
-// account and identifies the same human across both.
+// Keyed on the SUBJECT: a Google account can change address, and a released
+// Workspace address can be reassigned to somebody else.
 func (q *Queries) UserByGoogleSubject(ctx context.Context, subject string) (UserByGoogleSubjectRow, error) {
 	row := q.db.QueryRow(ctx, userByGoogleSubject, subject)
 	var i UserByGoogleSubjectRow
@@ -12169,10 +10888,6 @@ func (q *Queries) UserByGoogleSubject(ctx context.Context, subject string) (User
 
 const userByID = `-- name: UserByID :one
 SELECT id, email, full_name, phone, role, created_at,
-       -- Whether this account can be signed into with a password at ALL. An
-       -- account created from an identity provider has none, and unlinking the
-       -- provider would then leave nobody able to reach it — which is what
-       -- UnlinkGoogle refuses and what the account page decides from.
        (password_hash IS NOT NULL)::boolean AS has_password
 FROM users WHERE id = $1
 `
@@ -12218,11 +10933,8 @@ type UserForOAuthLinkRow struct {
 	HasPassword bool
 }
 
-// The account an address belongs to, and whether it has been PROVED.
-//
-// Both halves, because linking a Google identity to an existing account turns on
-// the second: an address goen has not verified may belong to whoever registered
-// it rather than to whoever reads the mailbox. See linkOrCreate.
+// verified is what linking turns on: an unverified address may belong to whoever
+// registered it rather than to whoever reads the mailbox.
 func (q *Queries) UserForOAuthLink(ctx context.Context, email string) (UserForOAuthLinkRow, error) {
 	row := q.db.QueryRow(ctx, userForOAuthLink, email)
 	var i UserForOAuthLinkRow
@@ -12248,16 +10960,9 @@ type UserHasEmailParams struct {
 	Email string
 }
 
-// Whether an address belongs to the account asking.
-//
-// UpsertStaff resolves an account BY ADDRESS, so submitting your own address is
-// submitting your own row — and its DO UPDATE sets the role. That is how the
-// promotion worked, and comparing ids after the write would be comparing them to
-// a row the write had already changed.
-//
-// Folded, because users_email_key is unique on lower(email): two addresses
-// differing only in case are one mailbox, and a check that missed that would be
-// bypassed by pressing shift.
+// Whether an address belongs to the account asking. Folded, because
+// users_email_key is unique on lower(email): two addresses differing only in
+// case are one mailbox, and a literal comparison is bypassed by pressing shift.
 func (q *Queries) UserHasEmail(ctx context.Context, arg UserHasEmailParams) (bool, error) {
 	row := q.db.QueryRow(ctx, userHasEmail, arg.ID, arg.Email)
 	var exists bool
@@ -12269,10 +10974,8 @@ const userOrderByNumber = `-- name: UserOrderByNumber :one
 SELECT
     o.id, o.order_number, o.fulfillment_status, o.placed_at,
     o.shipping_cents, o.discount_cents, o.tax_cents, o.shipping_method_name,
-       -- WHICH discount, joined rather than snapshotted: coupons.code is never
-       -- updated and the FK is ON DELETE RESTRICT, so one join always reaches it.
-       -- An order used to show "折扣 −NT$200" and nothing said why, to the
-       -- customer or to the shop.
+       -- Joined rather than snapshotted: coupons.code is never updated and the
+       -- FK is ON DELETE RESTRICT, so one join always reaches it.
        coalesce((SELECT c.code || ' · ' || c.description
                  FROM coupon_redemptions cr JOIN coupons c ON c.id = cr.coupon_id
                  WHERE cr.order_id = o.id), '')::text AS discount_reason,
@@ -12326,12 +11029,7 @@ type UserOrderByNumberRow struct {
 	OwedCents          int64
 }
 
-// One order, scoped to its owner.
-//
-// The user_id is part of the WHERE, not checked afterwards in Go: an order
-// belonging to someone else must be indistinguishable from one that does not
-// exist, and a query that returns the row and then filters is one forgotten
-// branch away from leaking it.
+// The user_id is part of the WHERE, never checked afterwards in Go.
 func (q *Queries) UserOrderByNumber(ctx context.Context, arg UserOrderByNumberParams) (UserOrderByNumberRow, error) {
 	row := q.db.QueryRow(ctx, userOrderByNumber, arg.OrderNumber, arg.UserID)
 	var i UserOrderByNumberRow
@@ -12373,12 +11071,9 @@ SELECT
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
     (SELECT count(*) FROM order_lines ol WHERE ol.order_id = o.id)::bigint AS line_count,
-    -- The funding state, which the status cannot supply. This list badged every
-    -- 'pending' order 待付款, so an order paid minutes ago read as unpaid until a
-    -- human at the shop moved it to picking. Both columns for the reason
-    -- OrderSummaryByNumber carries both: a captured card leaves the order
-    -- committed and still owing, a fully store-credited one owes nothing and is
-    -- not committed until it leaves pending.
+    -- Both columns: a captured card leaves the order committed and still owing,
+    -- a fully store-credited one owes nothing and is not committed until it
+    -- leaves pending.
     (o.id IN (SELECT id FROM committed_orders))::boolean AS committed,
     order_amount_owed(o.id)::bigint AS owed_cents
 FROM orders o
@@ -12405,7 +11100,6 @@ type UserOrdersRow struct {
 	OwedCents         int64
 }
 
-// The orders on an account, newest first.
 func (q *Queries) UserOrders(ctx context.Context, arg UserOrdersParams) ([]UserOrdersRow, error) {
 	rows, err := q.db.Query(ctx, userOrders, arg.UserID, arg.Limit)
 	if err != nil {
@@ -12454,8 +11148,6 @@ type VariantForCartRow struct {
 	Status           string
 }
 
-// A variant a visitor is trying to add. Checked before the write so an inactive
-// or missing variant is a message rather than a foreign-key error.
 func (q *Queries) VariantForCart(ctx context.Context, id uuid.UUID) (VariantForCartRow, error) {
 	row := q.db.QueryRow(ctx, variantForCart, id)
 	var i VariantForCartRow
@@ -12470,7 +11162,6 @@ func (q *Queries) VariantForCart(ctx context.Context, id uuid.UUID) (VariantForC
 }
 
 const variantMovements = `-- name: VariantMovements :many
-
 SELECT m.created_at, m.delta, m.reason, m.source_type,
        coalesce(o.order_number, ro.order_number, '') AS order_number,
        coalesce(u.full_name, u.email, '') AS actor,
@@ -12503,25 +11194,9 @@ type VariantMovementsRow struct {
 	RunningTotal int32
 }
 
-// ---------------------------------------------------------------------------
-// The stock ledger, read
-//
-// inventory_movements is the ledger every stock change goes through —
-// record_inventory_movement is the only writer of stock_quantity, which is what
-// makes "one writer" true rather than aspirational. This is what READS it. Without
-// a reader a shop can see that a SKU has four units and not how it got there:
-// which sale, which return, which hand adjustment and by whom.
-//
-// That is the same shape as a feature with no door, from the other side: data
-// collected and never shown.
-// ---------------------------------------------------------------------------
-// The order a movement belongs to, when it has one. source_id is a bare uuid with
-// no foreign key — it points at whichever table source_type names — so the join is
-// guarded by that discriminator rather than by a constraint.
-// A HOLD points at the reservation rather than the order, because the hold is taken
-// during checkout before the order exists. Reaching through it is what makes the two
-// units under a customer's unpaid order legible as that order rather than as a
-// reservation id nobody can look up.
+// source_id is a bare uuid with no foreign key — it points at whichever table
+// source_type names — so each join is guarded by that discriminator. A HOLD
+// points at the reservation, because it is taken before the order exists.
 func (q *Queries) VariantMovements(ctx context.Context, arg VariantMovementsParams) ([]VariantMovementsRow, error) {
 	rows, err := q.db.Query(ctx, variantMovements, arg.SKU, arg.RowLimit)
 	if err != nil {
@@ -12556,13 +11231,9 @@ SET status = 'voided', voided_at = now()
 WHERE id = $1 AND status <> 'voided'
 `
 
-// Void a filed invoice.
-//
-// :execrows, because `status <> 'voided'` in this WHERE clause is the only place
-// the question is asked under a lock — two staff members voiding one invoice
-// both pass a read taken before the transaction. Zero rows is "somebody voided
-// it first", which is a sentence a caller can act on rather than a second call
-// to the 加值中心 for a document that is already cancelled.
+// Void a filed invoice. :execrows, because `status <> 'voided'` here is the only
+// place the question is asked under a lock: two staff members voiding one
+// invoice both pass a read taken before the transaction.
 func (q *Queries) VoidInvoiceDocument(ctx context.Context, id uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, voidInvoiceDocument, id)
 	if err != nil {
@@ -12583,7 +11254,6 @@ type WishlistHasParams struct {
 	Slug   string
 }
 
-// Whether this customer has saved this product, for the button on its page.
 func (q *Queries) WishlistHas(ctx context.Context, arg WishlistHasParams) (bool, error) {
 	row := q.db.QueryRow(ctx, wishlistHas, arg.UserID, arg.Slug)
 	var exists bool
@@ -12653,13 +11323,8 @@ type WishlistItemsRow struct {
 	ImageHeight         int32
 }
 
-// A customer's saved products, newest first.
-//
-// The tile carries everything the product grid needs, read the same way the
-// listing reads it: the cheapest sellable variant sets the price, so a product
-// does not show one figure here and another on its own page.
-// status = 'active' as a LITERAL: the partial index cannot be used against a
-// parameter the planner cannot prove is always 'active'.
+// The cheapest sellable variant sets the price, the way the listing reads it.
+// status = 'active' as a LITERAL: a parameter cannot use the partial index.
 func (q *Queries) WishlistItems(ctx context.Context, arg WishlistItemsParams) ([]WishlistItemsRow, error) {
 	rows, err := q.db.Query(ctx, wishlistItems, arg.UserID, arg.Locale)
 	if err != nil {
@@ -12696,45 +11361,27 @@ func (q *Queries) WishlistItems(ctx context.Context, arg WishlistItemsParams) ([
 
 const workerHealth = `-- name: WorkerHealth :one
 SELECT
-    -- Undelivered messages, and the oldest one's age. A backlog that is
-    -- growing and a backlog that is old are different problems: the first is a
-    -- worker too slow, the second is a worker stopped.
     (SELECT count(*) FROM outbox_messages
      WHERE delivered_at IS NULL)::bigint AS outbox_pending,
-    -- Measured from available_at, which is when the message became DUE — not
-    -- when it was written. The claim pushes available_at forward by a lease and
-    -- the backoff pushes it further, so "overdue" is exactly the number that
-    -- says delivery is not keeping up. A negative value means everything due is
-    -- in the future, which is healthy, so it floors at zero.
     (SELECT greatest(coalesce(extract(epoch FROM now() - min(available_at)), 0), 0)
      FROM outbox_messages WHERE delivered_at IS NULL)::bigint AS outbox_oldest_seconds,
-    -- Messages that have exhausted their attempts. These never resolve on
-    -- their own — the worker has given up — so one is worth a person's time.
     (SELECT count(*) FROM outbox_messages
      WHERE delivered_at IS NULL AND attempts >= $1::integer)::bigint AS outbox_stuck,
-    -- Reservations past their expiry that the sweeper has not released. A
-    -- handful is normal between ticks; a growing number is a sweeper that
-    -- stopped, and every one of them is stock nobody can buy.
-    (SELECT count(*) FROM inventory_reservations
-     WHERE state = 'held' AND expires_at < now())::bigint AS expired_holds,
-    -- How stale the co-purchase projection is.
-    --
-    -- Two columns and not one nullable age, because "never rebuilt" and
-    -- "rebuilt just now" are different facts that a single number collapses —
-    -- and because max() over an empty table is NULL, which sqlc infers as a
-    -- non-nullable bigint and pgx then refuses to scan. The bug would have
-    -- appeared on exactly one deployment: a fresh one.
+    -- The sweeper's own predicate, not merely expired: release_reservation
+    -- refuses a committed or fully-funded order's hold, so counting every
+    -- expired row reports stock the sweeper is designed never to release, on a
+    -- page whose caption says a backlog means goods nobody can buy. It can only
+    -- grow, which is alarm fatigue on the page built to make failure visible.
+    (SELECT count(*) FROM inventory_reservations ir
+     JOIN orders o ON o.id = ir.order_id
+     WHERE ir.state = 'held' AND ir.expires_at < now()
+       AND NOT order_is_committed(ir.order_id)
+       AND (o.fulfillment_status = 'cancelled'
+            OR order_amount_owed(ir.order_id) <> 0))::bigint AS expired_holds,
     (SELECT coalesce(extract(epoch FROM now() - max(computed_at)), 0)
      FROM product_copurchases)::bigint AS copurchase_age_seconds,
     EXISTS (SELECT 1 FROM product_copurchases) AS copurchase_ever_built,
-    -- Sessions past their expiry that the pruner has not deleted. They are
-    -- already nobody — every read enforces expiry in its own WHERE clause — so
-    -- this is not a correctness signal. It is the table growing without bound,
-    -- and each row holds the user id it belonged to.
     (SELECT count(*) FROM sessions WHERE expires_at <= now())::bigint AS expired_sessions,
-    -- Uploads nothing points at, past their grace period. The same shape: not
-    -- wrong, just never reclaimed — and these are image bytes in PostgreSQL,
-    -- which is the whole cost of the storage decision paid for nothing.
     (SELECT count(*) FROM media_objects m
      WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
@@ -12752,13 +11399,10 @@ type WorkerHealthRow struct {
 	UnreferencedMedia    int64
 }
 
-// What the background workers have and have not done.
-//
-// ONE query, because these are read together and separately they would be four
-// round trips to answer one question — "is anything wrong". Every figure is a
-// COUNT or an AGE, never a status somebody has to keep updated: a health signal
-// derived from the work itself cannot say "fine" while the work is not being
-// done.
+// Overdue is measured from available_at — when a message became DUE — because
+// the claim lease and the backoff push it forward. copurchase_ever_built is
+// separate from the age because max() over an empty table is NULL, which sqlc
+// infers as non-nullable and pgx then refuses to scan: a fresh deployment only.
 func (q *Queries) WorkerHealth(ctx context.Context, maxAttempts int32) (WorkerHealthRow, error) {
 	row := q.db.QueryRow(ctx, workerHealth, maxAttempts)
 	var i WorkerHealthRow

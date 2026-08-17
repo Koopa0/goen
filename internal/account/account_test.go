@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// TestPasswordHashingRoundTrips also covers the two properties that make this a
-// password hash rather than a checksum: a salt, and a wrong password failing.
 func TestPasswordHashingRoundTrips(t *testing.T) {
 	t.Parallel()
 
@@ -41,8 +39,6 @@ func TestPasswordHashingRoundTrips(t *testing.T) {
 	}
 }
 
-// TestHashCarriesItsParameters pins that the cost is encoded in the hash, so
-// raising it later does not mean resetting every password at once.
 func TestHashCarriesItsParameters(t *testing.T) {
 	t.Parallel()
 
@@ -60,8 +56,6 @@ func TestHashCarriesItsParameters(t *testing.T) {
 	}
 }
 
-// TestVerifyRejectsMalformedHashes covers what a corrupted or hand-edited
-// column would produce: none of it may verify, and none of it may panic.
 func TestVerifyRejectsMalformedHashes(t *testing.T) {
 	t.Parallel()
 
@@ -95,8 +89,7 @@ func TestHashTokenIsNotTheToken(t *testing.T) {
 	if string(HashToken(tok)) == tok {
 		t.Error("HashToken returns the token; the database would hold live sessions")
 	}
-	// Against a value captured first: comparing two calls in one expression is a
-	// tautology that cannot fail whatever HashToken does.
+	// Captured first: comparing two calls in one expression is a tautology.
 	first := string(HashToken(tok))
 	if string(HashToken(tok)) != first {
 		t.Error("HashToken is not deterministic; a returning visitor would lose their session")
@@ -130,8 +123,6 @@ func TestNewTokenIsUnpredictable(t *testing.T) {
 	}
 }
 
-// TestSafeNext is the open-redirect guard: the protocol-relative forms are the
-// ones a naive "starts with /" check lets through.
 func TestSafeNext(t *testing.T) {
 	t.Parallel()
 
@@ -172,8 +163,7 @@ func TestPasswordError(t *testing.T) {
 	if PasswordError("密碼密碼密碼密碼密碼") != "" {
 		t.Error("a ten-character Chinese password was rejected")
 	}
-	// The case that separates runes from bytes: four Han characters is 12 bytes
-	// and 4 characters, so a byte floor of 10 would admit it.
+	// Four Han characters is 12 bytes and 4 runes: a byte floor of 10 admits it.
 	if PasswordError("密碼安全") == "" {
 		t.Error("a four-character password was accepted; the floor is counting bytes, " +
 			"so any short CJK password clears it")

@@ -50,11 +50,8 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// order writes a placed order and returns its number and id.
-//
-// One transaction, because orders_has_lines is DEFERRABLE: three autocommitting
-// statements trip it on the first, since an order with no lines yet is exactly
-// what the constraint refuses.
+// order writes a placed order and returns its number and id. One transaction,
+// because orders_has_lines refuses an order with no lines yet.
 func order(t *testing.T, totalCents int64) (number string, id uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
@@ -91,8 +88,7 @@ func order(t *testing.T, totalCents int64) (number string, id uuid.UUID) {
 }
 
 // TestCaptureMarksTheOrderPaid is the happy path, end to end through the real
-// SECURITY DEFINER functions: a session is opened, a capture posts against it,
-// and the payment row carries the money.
+// SECURITY DEFINER functions.
 func TestCaptureMarksTheOrderPaid(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
@@ -147,9 +143,7 @@ func TestCaptureMarksTheOrderPaid(t *testing.T) {
 }
 
 // TestReplayedWebhookIsProcessedOnce proves a redelivered event is claimed only
-// on its first arrival. Stripe delivers at least once, not exactly once — it
-// retries until acknowledged and can send the same event twice on its own.
-// Without the (provider, event_id) claim, a retried capture posts money again.
+// on its first arrival. Stripe delivers at least once, not exactly once.
 func TestReplayedWebhookIsProcessedOnce(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
@@ -192,13 +186,8 @@ func TestReplayedWebhookIsProcessedOnce(t *testing.T) {
 	}
 }
 
-// TestAFailedEffectLeavesTheEventReprocessable is the failure this design
-// exists to survive, and it is the one that costs real money.
-//
-// If the claim commits and the effect does not, Stripe's retry is told "already
-// seen", answers 200 and stops. The capture succeeded at Stripe; the order
-// stays unpaid; nothing after the first error says so. The claim must roll back
-// with the effect, so a retry actually retries.
+// TestAFailedEffectLeavesTheEventReprocessable holds the claim to its effect: a
+// claim that commits alone tells Stripe's retry the event is already seen.
 func TestAFailedEffectLeavesTheEventReprocessable(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
@@ -218,8 +207,6 @@ func TestAFailedEffectLeavesTheEventReprocessable(t *testing.T) {
 		t.Fatalf("error is %v, want the effect's own error so the handler answers 500", err)
 	}
 
-	// Nothing may remain: a row here is Stripe being told, on every retry from
-	// now on, that this event is done.
 	var rows int
 	if countErr := pool.QueryRow(ctx,
 		`SELECT count(*) FROM payment_webhook_events WHERE event_id = 'evt_rollback'`).Scan(&rows); countErr != nil {
@@ -230,7 +217,6 @@ func TestAFailedEffectLeavesTheEventReprocessable(t *testing.T) {
 			"the event is already processed and the capture is lost", rows)
 	}
 
-	// And the retry must actually run the effect.
 	ran := false
 	claimed, err = s.ProcessWebhook(ctx, ev, func(context.Context, *payment.Store) error {
 		ran = true
@@ -255,12 +241,7 @@ func TestAFailedEffectLeavesTheEventReprocessable(t *testing.T) {
 }
 
 // TestTheSchemaRefusesACaptureThatIsNotWhatTheOrderOwes proves the trigger, not
-// the Go check, is what stops a capture for the wrong figure.
-//
-// This is the DATABASE's guard, not Go's. A test here claiming to prove the
-// Go-side check stays green with that check disabled, because
-// payments_capture_matches_order refuses every case first. Binding the assertion
-// to the constraint name is what makes the test say which rule it exercises.
+// the Go check, stops a capture for the wrong figure.
 func TestTheSchemaRefusesACaptureThatIsNotWhatTheOrderOwes(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
@@ -272,8 +253,7 @@ func TestTheSchemaRefusesACaptureThatIsNotWhatTheOrderOwes(t *testing.T) {
 	}
 
 	for _, amount := range []int64{1, 199899, 199901, 999900} {
-		// Straight at the posting function, so the Go-side intent check is not
-		// what is being measured here.
+		// Straight at the posting function: the Go check is not what is measured.
 		_, err := pool.Exec(ctx,
 			`SELECT capture_payment($1, $2, NULL, NULL)`, session, amount)
 		if err == nil {
@@ -297,27 +277,20 @@ func TestTheSchemaRefusesACaptureThatIsNotWhatTheOrderOwes(t *testing.T) {
 	_ = id
 }
 
-// TestCaptureRefusesAnAmountThatIsNotTheIntent is the GO-side check, and it
-// covers a case the schema's guard does not.
-//
-// payments_capture_matches_order compares the capture to what the order is owed
-// NOW. The Go check compares it to what the Checkout Session was opened for.
-// Those diverge the moment the order changes after the session was created — an
-// adjusted shipping fee, a discount applied by the back office — and the schema
-// would then accept a capture for a figure the customer was never shown.
+// TestCaptureRefusesAnAmountThatIsNotTheIntent covers what the schema's guard
+// cannot: payments_capture_matches_order compares the capture to what the order
+// owes NOW, and the Go check to what the session was opened for.
 func TestCaptureRefusesAnAmountThatIsNotTheIntent(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, id := order(t, 100000)
 	session := "cs_intent_" + number
 
-	// Opened for 100000 — this is what the customer saw on Stripe's page.
 	if err := s.OpenPayment(ctx, number, session, 100000); err != nil {
 		t.Fatalf("open: %v", err)
 	}
 
-	// The order changes afterwards. Now it is owed 130000, and the schema's
-	// guard would happily accept a capture of 130000.
+	// The order changes afterwards, so the schema would now accept 130000.
 	if _, err := pool.Exec(ctx,
 		`UPDATE orders SET shipping_cents = 30000 WHERE id = $1`, id); err != nil {
 		t.Fatalf("adjust order: %v", err)
@@ -342,14 +315,7 @@ func TestCaptureRefusesAnAmountThatIsNotTheIntent(t *testing.T) {
 }
 
 // TestCaptureWithNoCardDetails proves a capture succeeds when Stripe sends no
-// card brand or last4, which is the common case.
-//
-// checkout.session.completed does not expand payment_intent.latest_charge, so
-// the event goen actually receives usually carries no card brand and no last4.
-// Sending an empty string for those sends a value through
-// payments_last4_format, which requires four digits: every real capture is then
-// refused by a CHECK after the money has already left the customer's account.
-// Unknown is NULL.
+// card brand or last4, because unknown is NULL and never "".
 func TestCaptureWithNoCardDetails(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
@@ -379,8 +345,7 @@ func TestCaptureWithNoCardDetails(t *testing.T) {
 }
 
 // TestCaptureForAnUnknownSessionIsNotFound proves a webhook naming a session
-// goen never opened creates no payment — that is how a forged or misrouted
-// event would otherwise manufacture a payment.
+// goen never opened creates no payment.
 func TestCaptureForAnUnknownSessionIsNotFound(t *testing.T) {
 	s := payment.NewStore(pool)
 	_, err := s.Capture(t.Context(), &payment.Capture{SessionID: "cs_never_opened", AmountRecv: 100})
@@ -392,9 +357,7 @@ func TestCaptureForAnUnknownSessionIsNotFound(t *testing.T) {
 	}
 }
 
-// TestOpeningTheSamePaymentTwiceIsOneRow proves opening is idempotent. A
-// customer who reloads the payment page, or a retried POST, must not open a
-// second payment against one order.
+// TestOpeningTheSamePaymentTwiceIsOneRow proves opening is idempotent.
 func TestOpeningTheSamePaymentTwiceIsOneRow(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
@@ -418,28 +381,13 @@ func TestOpeningTheSamePaymentTwiceIsOneRow(t *testing.T) {
 }
 
 // TestASecondPaymentAttemptReusesTheOpenSession is the double-charge defect and
-// the read that closes it.
-//
-// open_payment dedupes on (order_id, provider_ref), and every Checkout Session
-// brings its own id, so without this read and without an idempotency key on
-// StartSession every POST to the pay route opens a new session AND a new
-// requires_payment row. Two tabs are two real charges.
-// payments_one_capture_per_order is PARTIAL on status = 'succeeded', so the
-// second capture is refused only AFTER the money is at Stripe: the webhook 500s,
-// Stripe retries forever, and nothing refunds.
-//
-// The assertion is the COUNT and the session named, never the capture. The
-// second capture is already guarded, so a test that asserted it would pass with
-// this whole read deleted.
-//
-// TestOpeningTheSamePaymentTwiceIsOneRow is NOT coverage for this: it loops one
-// session id three times, which is the case open_payment always handled.
+// the read that closes it: open_payment dedupes on (order_id, provider_ref) and
+// every session brings its own id, so two tabs are two real charges.
 func TestASecondPaymentAttemptReusesTheOpenSession(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, id := order(t, 149900)
 
-	// The first POST. Nothing is open, so a session is created.
 	first, err := s.PaymentAttempt(ctx, number, 149900)
 	if err != nil {
 		t.Fatalf("first attempt: %v", err)
@@ -456,8 +404,6 @@ func TestASecondPaymentAttemptReusesTheOpenSession(t *testing.T) {
 		t.Fatalf("open: %v", openErr)
 	}
 
-	// The second POST, from the other tab. It must be sent back to the session
-	// that already exists rather than opening another.
 	second, err := s.PaymentAttempt(ctx, number, 149900)
 	if err != nil {
 		t.Fatalf("second attempt: %v", err)
@@ -472,9 +418,7 @@ func TestASecondPaymentAttemptReusesTheOpenSession(t *testing.T) {
 			"key would not move when a dead session has to be replaced", second.Prior)
 	}
 
-	// What the order owes can legitimately move: store credit reversed, a coupon
-	// applied. A session for the OLD figure must not be handed back, or the
-	// customer is charged a total the order no longer owes.
+	// What the order owes can move; a stale session must not be handed back.
 	stale, err := s.PaymentAttempt(ctx, number, 119900)
 	if err != nil {
 		t.Fatalf("attempt at a new figure: %v", err)
@@ -483,8 +427,7 @@ func TestASecondPaymentAttemptReusesTheOpenSession(t *testing.T) {
 		t.Errorf("a session opened for 149900 was offered for an order owing 119900")
 	}
 
-	// And a session Stripe has finished with is not somewhere to send anybody:
-	// the page cannot take their money.
+	// A session Stripe has finished with cannot take anybody's money.
 	if _, cancelErr := pool.Exec(ctx, `SELECT cancel_payment($1)`, session); cancelErr != nil {
 		t.Fatalf("cancel the session: %v", cancelErr)
 	}
@@ -508,21 +451,7 @@ func TestASecondPaymentAttemptReusesTheOpenSession(t *testing.T) {
 }
 
 // TestACaptureIsRefusedForACancelledOrder holds the guard that binds money to the
-// order's own state.
-//
-// payments_require_complete_order asks about lines, delivery details and a
-// non-negative total — everything about whether the order is COMPLETE — and
-// nothing about whether it is still live, and capture_payment checks only the
-// payment's own status. payments_refuse_cancelled_order is what stands between
-// the ordinary two-tab sequence and money taken for goods on somebody else's
-// shelf: start a payment, cancel the order in the other tab, then pay at Stripe,
-// and the capture lands against an order whose stock has already gone back.
-//
-// The assertion is bound to the CONSTRAINT NAME. A capture on a cancelled order
-// can trip payments_capture_matches_order instead the moment store credit is
-// reversed by the cancellation, so a test happy with any error reports the wrong
-// guard as the one holding — which is how a credit-funded case looks covered
-// while the plain card order is covered by nothing.
+// order's own state: start a payment, cancel in the other tab, pay at Stripe.
 func TestACaptureIsRefusedForACancelledOrder(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
@@ -532,15 +461,13 @@ func TestACaptureIsRefusedForACancelledOrder(t *testing.T) {
 	if err := s.OpenPayment(ctx, number, session, 88800); err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	// Cancelled in the other tab, while the Stripe session is still open.
 	if _, err := pool.Exec(ctx,
 		`UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
 		 WHERE id = $1`, id); err != nil {
 		t.Fatalf("cancel the order: %v", err)
 	}
 
-	// Straight at the posting function, so what is being measured is the schema's
-	// guard rather than anything Go decides on the way.
+	// Straight at the posting function, so the schema's guard is what is measured.
 	_, err := pool.Exec(ctx, `SELECT capture_payment($1, $2::bigint, NULL, NULL)`, session, int64(88800))
 	if err == nil {
 		t.Fatal("a capture against a cancelled order was accepted")
@@ -550,10 +477,7 @@ func TestACaptureIsRefusedForACancelledOrder(t *testing.T) {
 		t.Fatalf("refused by %v, want payments_refuse_cancelled_order", err)
 	}
 
-	// And the store turns that one refusal into the one decision the webhook can
-	// act on. Every other capture failure is retried by Stripe; this one never
-	// can be — 'cancelled' is terminal — so it is recorded, reported, and refunded
-	// by a person.
+	// The one capture failure Stripe must not retry, because it never succeeds.
 	if _, err := s.Capture(ctx, &payment.Capture{SessionID: session, AmountRecv: 88800}); !errors.Is(err, payment.ErrOrderCancelled) {
 		t.Errorf("Capture returned %v, want ErrOrderCancelled so the webhook records "+
 			"the event and stops Stripe retrying something that can never succeed", err)
@@ -569,19 +493,8 @@ func TestACaptureIsRefusedForACancelledOrder(t *testing.T) {
 	}
 }
 
-// TestTheSessionExpiryComesFromTheEarliestLiveHold is the other half of binding
-// payment to stock.
-//
-// A Checkout Session's expires_at of time.Now() + 30 minutes against a hold of
-// PlaceOrder + 30 minutes reads as deliberately shorter than cart.HoldTTL and is
-// not: two equal durations measured from different instants are not the same
-// window. The session is strictly longer by however long the customer sat on the
-// pay page, so money arrives for stock the sweeper has already released and sold
-// to somebody else.
-//
-// The EARLIEST hold is the deadline, not the latest: an order with two lines
-// holds two reservations and the session has to die with the first of them, or
-// it outlives one of the things being paid for.
+// TestTheSessionExpiryComesFromTheEarliestLiveHold binds payment to stock: the
+// EARLIEST hold is the deadline, never the latest.
 func TestTheSessionExpiryComesFromTheEarliestLiveHold(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
@@ -620,8 +533,7 @@ func TestTheSessionExpiryComesFromTheEarliestLiveHold(t *testing.T) {
 	}
 }
 
-// hold reserves one unit of the nth-largest-stock variant for an order, so a
-// payment fixture can have the live hold a real order gets from PlaceOrder.
+// hold reserves one unit of the nth-largest-stock variant for an order.
 func hold(t *testing.T, orderID uuid.UUID, nth int, until time.Time, key string) {
 	t.Helper()
 	if _, err := pool.Exec(t.Context(), `
@@ -633,10 +545,7 @@ func hold(t *testing.T, orderID uuid.UUID, nth int, until time.Time, key string)
 }
 
 // TestStoreCannotWriteASucceededPaymentDirectly proves the store role cannot
-// forge a payment. This is the privilege boundary this
-// whole design rests on. If `store` could INSERT into payments, every guard
-// above is decoration: a handler bug — or an injection — could write a
-// born-succeeded row and skip the gateway entirely.
+// forge a payment, which is the privilege boundary every guard above rests on.
 func TestStoreCannotWriteASucceededPaymentDirectly(t *testing.T) {
 	ctx := t.Context()
 	number, id := order(t, 12345)
@@ -650,9 +559,7 @@ func TestStoreCannotWriteASucceededPaymentDirectly(t *testing.T) {
 	if _, err := tx.Exec(ctx, `SET ROLE store`); err != nil {
 		t.Fatalf("set role: %v", err)
 	}
-	// Proof the role actually took. Without it a failed SET ROLE would leave
-	// the test running as the owner, every write would succeed, and the
-	// assertions below would report a boundary that was never crossed.
+	// Proof the role took: as the owner every write below succeeds.
 	var who string
 	if err := tx.QueryRow(ctx, `SELECT current_user`).Scan(&who); err != nil {
 		t.Fatalf("current_user: %v", err)
@@ -682,16 +589,13 @@ func TestStoreCannotWriteASucceededPaymentDirectly(t *testing.T) {
 			if err == nil {
 				t.Fatal("store performed a write that must be revoked")
 			}
-			// WHICH refusal matters. A born-succeeded payment also violates
-			// payments_succeeded_is_captured, so a test happy with any error
-			// would stay green with every REVOKE removed — the constraint
-			// would catch it and the privilege boundary would be untested.
+			// WHICH refusal matters: a born-succeeded payment also violates
+			// payments_succeeded_is_captured, so any-error stays green with
+			// every REVOKE removed.
 			pgErr, ok := errors.AsType[*pgconn.PgError](err)
 			if !ok || pgErr.Code != "42501" {
 				t.Errorf("refused by %v, want SQLSTATE 42501 insufficient_privilege", err)
 			}
-			// The transaction is poisoned by the failed statement; each case
-			// needs its own savepoint to run independently.
 		})
 		if _, err := tx.Exec(ctx, `ROLLBACK TO SAVEPOINT probe`); err != nil {
 			t.Fatalf("rollback to savepoint: %v", err)
@@ -699,23 +603,16 @@ func TestStoreCannotWriteASucceededPaymentDirectly(t *testing.T) {
 	}
 }
 
-// TestACaptureEnqueuesTheReceipt holds that money arriving produces a receipt.
-//
-// The order.paid topic is worth nothing without a producer: declared and never
-// enqueued, a customer is told their order was placed and then never hears that
-// the money arrived. The payment page says 已付款 and nothing else does.
-//
-// The message is written in the CAPTURE's transaction, so the money moving and
-// the promise to say so commit together.
+// TestACaptureEnqueuesTheReceipt holds that money arriving produces a receipt,
+// written in the capture's own transaction.
 func TestACaptureEnqueuesTheReceipt(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, _ := order(t, 149900)
 	session := "cs_receipt_" + number
 
-	// The order was placed in English. A capture runs from a Stripe webhook,
-	// where nobody is reading anything, so if the receipt is not English then the
-	// locale came from somewhere it must never come from.
+	// A capture runs from a webhook, where nobody is reading, so a receipt that
+	// is not English read its locale from somewhere it never may.
 	if _, err := pool.Exec(ctx,
 		`UPDATE orders SET locale = 'en' WHERE order_number = $1`, number); err != nil {
 		t.Fatalf("set the order locale: %v", err)
@@ -740,13 +637,11 @@ func TestACaptureEnqueuesTheReceipt(t *testing.T) {
 	if err := json.Unmarshal(payload, &got); err != nil {
 		t.Fatalf("decode receipt: %v", err)
 	}
-	// The address is carried in the payload rather than looked up at delivery,
-	// because erase_user blanks order_private_data — a receipt delivered after
-	// an erasure would otherwise have nowhere to go.
+	// Carried in the payload rather than read at delivery: erase_user blanks
+	// order_private_data.
 	want := email.OrderPaid{
 		OrderNumber: number, Email: "pay@example.com", Name: "收件",
 		AmountCents: 149900, Card: "visa ****4242",
-		// Off the order, not off the request that got here.
 		Locale: "en",
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
@@ -754,8 +649,8 @@ func TestACaptureEnqueuesTheReceipt(t *testing.T) {
 	}
 }
 
-// TestARedeliveredWebhookSendsOneReceipt. Stripe delivers at least once, and
-// the dedupe key is what turns that into one email rather than two.
+// TestARedeliveredWebhookSendsOneReceipt holds the dedupe key that turns
+// at-least-once delivery into one email.
 func TestARedeliveredWebhookSendsOneReceipt(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
@@ -769,9 +664,7 @@ func TestARedeliveredWebhookSendsOneReceipt(t *testing.T) {
 		_, err := s.Capture(ctx, &payment.Capture{SessionID: session, AmountRecv: 99900})
 		return err
 	}
-	// Twice, deliberately. ProcessWebhook's claim is the primary guard and this
-	// is what is left if it ever fails: the dedupe key on (topic, order number)
-	// collapses the second enqueue.
+	// Twice, deliberately: the dedupe key is what is left if the claim fails.
 	if err := capture(); err != nil {
 		t.Fatalf("capture: %v", err)
 	}
@@ -790,13 +683,8 @@ func TestARedeliveredWebhookSendsOneReceipt(t *testing.T) {
 	}
 }
 
-// TestPickupOrderCanBePaid holds that a 超商取貨 order can reach the till.
-//
-// payments_require_complete_order has to name BOTH destinations. Demanding a
-// street address makes every 超商取貨 order unpayable the moment a 門市 is
-// collected instead — the customer reaches Stripe, pays, and the capture throws.
-// Nothing else here catches that: every other payment fixture in this file ships
-// to an address.
+// TestPickupOrderCanBePaid holds that a convenience-store pickup order reaches
+// the till: payments_require_complete_order has to name BOTH destinations.
 func TestPickupOrderCanBePaid(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
@@ -822,7 +710,7 @@ func TestPickupOrderCanBePaid(t *testing.T) {
 }
 
 // pickupOrder writes an order collected from a convenience store: no street
-// address at all, which is what order_private_data_one_destination requires.
+// address at all, as order_private_data_one_destination requires.
 func pickupOrder(t *testing.T, totalCents int64) (number string, id uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
@@ -859,20 +747,13 @@ func pickupOrder(t *testing.T, totalCents int64) (number string, id uuid.UUID) {
 	return number, id
 }
 
-// TestPointsAreMultipliedByTheCustomersTier holds the rate an order earns at.
-//
-// The multiplier is read inside the capture's transaction, from the spend the
-// customer had BEFORE this order counted — the tier is derived from committed
-// orders, and this order is being committed by the very statement that would
-// read it. Awarding the new tier's rate on the order that earned the tier is a
-// benefit nobody promised.
+// TestPointsAreMultipliedByTheCustomersTier holds the rate an order earns at:
+// the multiplier comes from the spend the customer had BEFORE this order.
 func TestPointsAreMultipliedByTheCustomersTier(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 
-	// A threshold of its own: membership_tiers_min_spend_key holds one tier per
-	// band, so reusing the seed's NT$10,000 would be a duplicate rather than an
-	// override — which is the index doing exactly what it is for.
+	// A threshold of its own: membership_tiers_min_spend_key is one tier a band.
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO membership_tiers (code, name, min_spend_cents, points_multiplier_bp, position)
 		VALUES ('tiertest', '測試等級', 1100000, 20000, 9)
@@ -886,23 +767,20 @@ func TestPointsAreMultipliedByTheCustomersTier(t *testing.T) {
 		t.Fatalf("create user: %v", err)
 	}
 
-	// The first order is what earns the tier. It is captured at the BASE rate,
-	// because at the moment it is priced the customer has spent nothing.
+	// The first order earns the tier and is captured at the base rate.
 	first := payForOwnedOrder(t, s, userID, 1200000, "cs_tier_first")
 	if first != 120 {
 		t.Errorf("the order that earned the tier awarded %d points, want 120 at the "+
 			"base rate — it was paid at the tier it created", first)
 	}
 
-	// The second is at the tier's rate.
 	second := payForOwnedOrder(t, s, userID, 1200000, "cs_tier_second")
 	if second != 240 {
 		t.Errorf("the second order awarded %d points, want 240 at 2x", second)
 	}
 }
 
-// payForOwnedOrder places and captures an order for one customer, and reports
-// the points it awarded.
+// payForOwnedOrder places and captures an order, and reports the points awarded.
 func payForOwnedOrder(t *testing.T, s *payment.Store, userID uuid.UUID, cents int64, session string) int64 {
 	t.Helper()
 	ctx := t.Context()
@@ -957,22 +835,13 @@ func payForOwnedOrder(t *testing.T, s *payment.Store, userID uuid.UUID, cents in
 }
 
 // TestAPartCreditOrderIsChargedOnlyWhatItOwes binds the figure the payment page
-// sends to Stripe to the figure this database will accept.
-//
-// Store credit is spent at CHECKOUT, in the order's own transaction, so the page
-// must ask for the NET and never the GROSS: payments_capture_matches_order demands
-// the net. A customer with NT$300 of credit on a NT$1,000 order charged NT$1,000 at
-// Stripe has every webhook delivery roll back on that constraint — the money is
-// taken and the order stays unpaid forever.
-//
-// Both figures come from order_amount_owed, which is why they cannot disagree:
-// the capture guard, the funding check and the payment page read one function.
+// sends to Stripe to the figure this database accepts: charging the gross takes
+// the money and leaves the order unpaid forever.
 func TestAPartCreditOrderIsChargedOnlyWhatItOwes(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, orderID := order(t, 100000)
 
-	// NT$300 of credit spent on this order, exactly as checkout spends it.
 	userID := creditedUser(t, 30000)
 	if _, err := pool.Exec(ctx,
 		`SELECT post_store_credit($1, $2, '結帳折抵', $3, $4, NULL)`,
@@ -992,8 +861,7 @@ func TestAPartCreditOrderIsChargedOnlyWhatItOwes(t *testing.T) {
 		t.Error("an order still owing NT$700 reports itself fully funded")
 	}
 
-	// And the capture of exactly that figure is accepted. A page that offered the
-	// gross 100000 is refused right here — after the customer has paid it.
+	// A page that offered the gross is refused here, after the customer paid it.
 	const ref = "cs_part_credit"
 	if err := s.OpenPayment(ctx, number, ref, o.TotalCents); err != nil {
 		t.Fatalf("OpenPayment: %v", err)
@@ -1004,13 +872,8 @@ func TestAPartCreditOrderIsChargedOnlyWhatItOwes(t *testing.T) {
 	}
 }
 
-// TestAFullyFundedOrderIsNeverSentToStripe holds the other half.
-//
-// An order can legally owe nothing — store credit covering all of it, or a 100%
-// discount — and orders_funded_to_leave_pending skips its payment check for exactly
-// that case. Stripe refuses a zero-amount session, so the pay page must not offer
-// one — and a page computing the gross offers a non-zero figure, charging for an
-// order that is already paid for.
+// TestAFullyFundedOrderIsNeverSentToStripe holds the other half: an order can
+// legally owe nothing, and Stripe refuses a zero-amount session.
 func TestAFullyFundedOrderIsNeverSentToStripe(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
@@ -1055,11 +918,7 @@ func creditedUser(t *testing.T, cents int64) uuid.UUID {
 }
 
 // alwaysPlacedHere is the one method internal/payment needs from internal/cart.
-//
-// A hand-written fake of an EXISTING consumer-defined interface, which is what
-// rules/testing.md permits — and it is asserted on nothing. What this test reads
-// is database state; the access check is a precondition of reaching the handler
-// at all, and the webhook does not use it.
+// The webhook does not use it, and nothing here asserts on it.
 type alwaysPlacedHere struct{}
 
 func (alwaysPlacedHere) PlacedHere(context.Context, *http.Request, string, bool) bool {
@@ -1067,18 +926,8 @@ func (alwaysPlacedHere) PlacedHere(context.Context, *http.Request, string, bool)
 }
 
 // TestTheWebhookRoutesEachEventToItsEffect is the HTTP-level lock on the routing
-// switch, branch by branch.
-//
-// The readers underneath it are each covered and mutation-proven (CaptureFrom,
-// AbandonedSessionFrom, UnsettledSessionFrom) and ProcessWebhook's claim-and-
-// apply transaction is covered from the store side. What none of them asserts is
-// the WIRING: which branch the handler picks for a given event, and therefore
-// whether a correct reader is reached at all. A case deleted from that switch
-// falls to `default`, is logged as one more event goen does not act on, and
-// every other test in this package stays green.
-//
-// Each case asserts the DATABASE, never a log line: what a webhook is for is the
-// row it leaves behind.
+// switch: a case deleted from it falls to `default` and every other test here
+// stays green.
 func TestTheWebhookRoutesEachEventToItsEffect(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
@@ -1102,9 +951,7 @@ func TestTheWebhookRoutesEachEventToItsEffect(t *testing.T) {
 			payStatus: "paid", wantStatus: "succeeded", wantPaid: true,
 		},
 		{
-			// The alarm branch. Money is in flight: capturing would mark an order
-			// paid days early, and cancelling would throw away the record that it
-			// is coming. Neither happens, and the row stays open.
+			// The alarm branch: money is in flight, so the row stays open.
 			name:      "a delayed method still in flight does neither",
 			eventType: "checkout.session.completed",
 			payStatus: "unpaid", wantStatus: "requires_payment",
@@ -1120,7 +967,6 @@ func TestTheWebhookRoutesEachEventToItsEffect(t *testing.T) {
 			payStatus: "unpaid", wantStatus: "cancelled",
 		},
 		{
-			// Subscribed for the history and acted on by nothing.
 			name:      "an event goen records and does not act on",
 			eventType: "payment_intent.processing",
 			payStatus: "unpaid", wantStatus: "requires_payment",
@@ -1143,8 +989,7 @@ func TestTheWebhookRoutesEachEventToItsEffect(t *testing.T) {
 			w := httptest.NewRecorder()
 			h.Webhook(w, req)
 
-			// 200 for every one of them: an event goen cannot act on is still an
-			// event goen has seen, and a 5xx here gets the endpoint disabled.
+			// 200 for every one of them: a 5xx gets the endpoint disabled.
 			if w.Code != http.StatusOK {
 				t.Fatalf("Webhook() status = %d, want 200", w.Code)
 			}
@@ -1170,8 +1015,7 @@ func TestTheWebhookRoutesEachEventToItsEffect(t *testing.T) {
 					"this event to the wrong branch, or to none", tt.eventType, paid, tt.wantPaid)
 			}
 
-			// The event is recorded whatever branch it took: the row is what
-			// makes at-least-once delivery idempotent, and the audit trail.
+			// Recorded whatever branch it took: that row is the idempotency.
 			var seen int
 			if err := pool.QueryRow(ctx,
 				`SELECT count(*) FROM payment_webhook_events WHERE event_id = $1`,

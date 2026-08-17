@@ -13,17 +13,12 @@ import (
 	"github.com/a-h/templ"
 )
 
-// MaxFormBytes bounds a form submission. goen's largest form is the contact
-// message at 2,000 runes; 64 KiB leaves room for multi-byte text and the field
-// names without letting an unbounded body reach ParseForm, which reads it all
-// into memory before anything gets to reject it.
+// MaxFormBytes bounds a form submission. ParseForm reads the whole body into
+// memory before anything can reject it; goen's largest form is 2,000 runes.
 const MaxFormBytes = 64 << 10
 
-// ParseForm reads a bounded form body.
-//
-// It exists so no handler can call r.ParseForm directly and forget the limit:
-// the reason for the cap is not visible at the call site, and the failure it
-// prevents only appears under load.
+// ParseForm reads a bounded form body, so no handler calls r.ParseForm directly
+// and forgets the limit.
 func ParseForm(w http.ResponseWriter, r *http.Request) error {
 	r.Body = http.MaxBytesReader(w, r.Body, MaxFormBytes)
 	if err := r.ParseForm(); err != nil {
@@ -32,27 +27,22 @@ func ParseForm(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// IsHTMX reports whether htmx issued this request. htmx sets the header on
-// every request it makes, so its absence means a plain browser navigation and
-// the handler must answer with a whole page.
+// IsHTMX reports whether htmx issued this request. Its absence means a plain
+// browser navigation, so the handler must answer with a whole page.
 func IsHTMX(r *http.Request) bool {
 	return r.Header.Get("HX-Request") == "true"
 }
 
-// Render writes c to the response with the given status.
-//
-// The component is rendered into memory first. A template that fails halfway
-// through would otherwise leave a truncated body under an already-sent 200,
-// which reads to the visitor as a broken page and to a monitor as a success.
+// Render writes c to the response with the given status, rendering into memory
+// first: a template that fails halfway would otherwise leave a truncated body
+// under an already-sent 200.
 func Render(w http.ResponseWriter, r *http.Request, log *slog.Logger, status int, c templ.Component) {
 	var buf bytes.Buffer
 	if err := c.Render(r.Context(), &buf); err != nil {
 		log.ErrorContext(r.Context(), "render component", "error", err, "path", r.URL.Path)
 		// i18n-exempt: the render itself failed, so there is no page to put a
-		// translated message on and no guarantee the locale middleware ran. A
-		// second render that may fail too is not the answer; both languages in
-		// the literal is, so an English visitor is not left with a line only a
-		// Chinese reader can use.
+		// translated message on and no guarantee the locale middleware ran.
+		// Both languages in the literal, so neither reader is left out.
 		http.Error(w, "500 內部錯誤 / Internal error", http.StatusInternalServerError)
 		return
 	}
@@ -64,25 +54,17 @@ func Render(w http.ResponseWriter, r *http.Request, log *slog.Logger, status int
 	}
 }
 
-// cartCountKey is unexported so nothing outside this package can put a value
-// under it, which is what keeps [CartCount] honest about where the number came
-// from.
+// cartCountKey is unexported so nothing outside this package can write it.
 type cartCountKey struct{}
 
-// WithCartCount carries the visitor's cart size down to the page chrome.
-//
-// It goes through the CONTEXT rather than through every handler's view model.
-// layouts.Page has carried a CartCount field since the header was built and
-// nothing ever assigned it, so the badge read 0 for every visitor with any
-// number of items in their cart — which is exactly how "each handler remembers
-// to set it" fails. One middleware cannot forget.
+// WithCartCount carries the visitor's cart size down to the page chrome, from
+// middleware rather than from each handler's view model.
 func WithCartCount(ctx context.Context, n int) context.Context {
 	return context.WithValue(ctx, cartCountKey{}, n)
 }
 
 // CartCount is how many items the visitor's cart holds, or zero when nothing
-// put a count there — a page rendered outside the middleware, or a visitor with
-// no cart.
+// put a count there.
 func CartCount(ctx context.Context) int {
 	n, ok := ctx.Value(cartCountKey{}).(int)
 	if !ok {
@@ -117,12 +99,8 @@ func WithRequestID(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, requestIDKey{}, id)
 }
 
-// RequestID is that identifier, or "" outside a request.
-//
-// The audit trail stamps it onto every back-office row, so a row and the log
-// lines from the same request can be put beside each other — which is the
-// difference between "somebody published this" and knowing what else that
-// request did.
+// RequestID is that identifier, or "" outside a request. The audit trail stamps
+// it onto every back-office row, so a row and its log lines can be put together.
 func RequestID(ctx context.Context) string {
 	id, ok := ctx.Value(requestIDKey{}).(string)
 	if !ok {

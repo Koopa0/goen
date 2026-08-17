@@ -7,11 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// AdminReviewsView is the review queue.
-//
-// Newest first, unlike the question queue. A question waiting three days is
-// owed an answer and gets more urgent; a review is owed nothing, and what a
-// shop wants to see is what has just appeared on its product pages.
+// AdminReviewsView is the review queue, newest first.
 type AdminReviewsView struct {
 	Rows   []AdminReview
 	Notice string
@@ -51,8 +47,7 @@ func (r AdminReview) Stars() string { return starsOf(r.Rating) }
 // RatingText is the number beside them, for anyone the stars do not reach.
 func (r AdminReview) RatingText() string { return strconv.Itoa(r.Rating) }
 
-// DisplayAuthor is who wrote it, or a stand-in — an erased account leaves the
-// review behind with no name, which is the point of user_id being nullable.
+// DisplayAuthor is who wrote it, or a stand-in for an erased account.
 func (r AdminReview) DisplayAuthor(ctx context.Context) string {
 	if r.Author == "" {
 		return i18n.T(ctx, i18n.KeyAdminErasedAccount)
@@ -60,13 +55,10 @@ func (r AdminReview) DisplayAuthor(ctx context.Context) string {
 	return r.Author
 }
 
-// Href is the product page it appears on, so a staff member can see it in
-// context before deciding.
+// Href is the product page it appears on.
 func (r AdminReview) Href() string { return "/p/" + r.Slug }
 
-// Action is where the toggle posts. Hiding and showing are separate paths
-// rather than one toggle, so a double-submitted form cannot un-hide something
-// the staff member just hid.
+// Action is where the toggle posts; hiding and showing are separate paths.
 func (r AdminReview) Action() string {
 	if r.Hidden {
 		return "/admin/reviews/show"

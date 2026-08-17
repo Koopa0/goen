@@ -24,7 +24,7 @@ func AboutMeta(ctx context.Context) layouts.Page {
 	}
 }
 
-// About renders 關於我們.
+// About renders the about page.
 func About(p layouts.Page) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

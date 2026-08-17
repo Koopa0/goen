@@ -11,10 +11,8 @@ import (
 	"testing"
 )
 
-// TestNoRoleHoldsAWriteItsQueriesNeverMake holds the rule that a role may have
-// INSERT, UPDATE or DELETE on a table only if some query that role runs writes it.
-// Which role performs a write is decided by the pool a store is constructed on,
-// which lives in Go and not in SQL — hence the pool maps below.
+// TestNoRoleHoldsAWriteItsQueriesNeverMake holds a role to writing only tables its own queries
+// write. Which role performs a write is the pool a store is constructed on, which lives in Go.
 func TestNoRoleHoldsAWriteItsQueriesNeverMake(t *testing.T) {
 	ctx := t.Context()
 
@@ -71,9 +69,8 @@ func TestNoRoleHoldsAWriteItsQueriesNeverMake(t *testing.T) {
 	}
 }
 
-// TestNoRoleHoldsAColumnWriteItsQueriesNeverMake is the same question one level
-// down. `store` writes `users` legitimately, so a whole-table guard cannot see
-// that it also reaches users.role; only has_column_privilege can.
+// TestNoRoleHoldsAColumnWriteItsQueriesNeverMake is the same question one level down: `store`
+// writes `users` legitimately, so only has_column_privilege can see it reaching users.role.
 func TestNoRoleHoldsAColumnWriteItsQueriesNeverMake(t *testing.T) {
 	ctx := t.Context()
 
@@ -89,9 +86,8 @@ func TestNoRoleHoldsAColumnWriteItsQueriesNeverMake(t *testing.T) {
 				if !columnNarrowed[table] {
 					continue
 				}
-				// The filter is on the default EXPRESSION, never on its presence:
-				// excluding every column that HAS a default would also excuse
-				// users.role, whose default is the constant 'customer'.
+				// The filter is on the default EXPRESSION, never on its presence: excluding
+				// every column that HAS one would also excuse users.role, defaulted 'customer'.
 				rows, err := pool.Query(ctx, `
 					SELECT c.column_name, p.priv
 					FROM information_schema.columns c
@@ -135,8 +131,7 @@ func TestNoRoleHoldsAColumnWriteItsQueriesNeverMake(t *testing.T) {
 	}
 }
 
-// columnNarrowed is the tables whose column grants are deliberate, and which this
-// guard therefore holds to being complete and no wider. It is a scope, not an
+// columnNarrowed is the tables whose column grants are deliberate. It is a scope, not an
 // allowlist: a table absent from it is still covered by the table-level guard.
 var columnNarrowed = map[string]bool{
 	"users":                  true,
@@ -153,8 +148,8 @@ var columnNarrowed = map[string]bool{
 	"order_private_data":     true,
 }
 
-// columnExemptions is a column privilege a role holds that its queries never
-// exercise, with the reason. Keyed role.table.column.
+// columnExemptions is a column privilege a role holds that its queries never exercise, keyed
+// role.table.column, with the reason.
 var columnExemptions = map[string]string{
 	"store.users.id":                             "supplied by the default; naming no column grant for it would trap the next INSERT",
 	"store.users.created_at":                     "supplied by the default",
@@ -165,7 +160,6 @@ var columnExemptions = map[string]string{
 	"admin.product_variants.preorder_release_on": "the variant form does not collect it yet; the column is read and not yet written",
 }
 
-// writableColumns is every column a role's queries write, per table.
 func writableColumns(t *testing.T, role string) map[string]map[string]bool {
 	t.Helper()
 	var pkgs []string
@@ -202,7 +196,6 @@ func writableColumns(t *testing.T, role string) map[string]map[string]bool {
 	return out
 }
 
-// queryColumnWrites maps each generated query to the columns it writes.
 func queryColumnWrites(t *testing.T) map[string]map[string]map[string]bool {
 	t.Helper()
 	src, err := os.ReadFile("query.sql.go")
@@ -216,7 +209,6 @@ func queryColumnWrites(t *testing.T) map[string]map[string]map[string]bool {
 	return out
 }
 
-// calledQueries is every generated query method a package calls.
 func calledQueries(t *testing.T, pkg string) []string {
 	t.Helper()
 	known := queryWrites(t)
@@ -254,20 +246,18 @@ func sortedColumnKeys(m map[string]map[string]bool) []string {
 	return out
 }
 
-// writeExemptions is a privilege a role holds that its own queries never
-// exercise, with the reason. Keyed role.table so an exemption cannot spread.
+// writeExemptions is a privilege a role holds that its own queries never exercise, keyed
+// role.table, with the reason.
 var writeExemptions = map[string]string{
 	"store.store_credit_accounts": "created on first use; every other verb is revoked and the ledger goes through post_store_credit",
 	"admin.store_credit_accounts": "created on first use when the back office grants credit to a customer with no account yet",
 }
 
-// generatedQuery matches one sqlc-generated query constant and its SQL body. The
-// generated file is the source rather than each feature's query.sql: sqlc emits one
-// db package, so any store may call any query whichever .sql file declared it.
+// generatedQuery matches one sqlc-generated query constant and its SQL body. sqlc emits one db
+// package, so any store may call any query whichever .sql file declared it.
 var generatedQuery = regexp.MustCompile(
 	"(?s)const \\w+ = `-- name: (\\w+) :\\w+\n(.*?)\n`")
 
-// queryWrites maps each generated query method to the tables it writes.
 func queryWrites(t *testing.T) map[string]map[string]bool {
 	t.Helper()
 	src, err := os.ReadFile("query.sql.go")
@@ -288,9 +278,8 @@ func queryWrites(t *testing.T) map[string]map[string]bool {
 // methodCall matches a call to a db.Queries method on any receiver.
 var methodCall = regexp.MustCompile(`\.([A-Z]\w*)\(`)
 
-// packageWrites is every table the given feature package writes, derived from the
-// generated queries it calls. Test files are excluded: counting one would let a
-// fixture justify a production privilege.
+// packageWrites is every table a feature package writes. Test files are excluded: counting one
+// would let a fixture justify a production privilege.
 func packageWrites(t *testing.T, pkg string, byQuery map[string]map[string]bool) map[string]bool {
 	t.Helper()
 	dir := filepath.Join("..", "..", "internal", pkg)
@@ -317,12 +306,10 @@ func packageWrites(t *testing.T, pkg string, byQuery map[string]map[string]bool)
 	return out
 }
 
-// writeTarget matches the table an INSERT, UPDATE or DELETE names. Coarse in the
-// safe direction: over-reporting a write only makes the guard more permissive.
+// writeTarget matches the table an INSERT, UPDATE or DELETE names.
 var writeTarget = regexp.MustCompile(
 	`(?is)\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)`)
 
-// writeTargets is every table the given SQL writes.
 func writeTargets(src string) map[string]bool {
 	out := map[string]bool{}
 	for _, m := range writeTarget.FindAllStringSubmatch(stripSQLComments(src), -1) {
@@ -333,26 +320,21 @@ func writeTargets(src string) map[string]bool {
 	return out
 }
 
-// insertColumns matches an INSERT that names its columns.
 var insertColumns = regexp.MustCompile(
 	`(?is)\bINSERT\s+INTO\s+([a-z_][a-z0-9_]*)\s*\(([^)]*)\)`)
 
-// bareInsert matches an INSERT that does NOT name its columns, which means every
-// column and therefore no useful expectation.
+// bareInsert matches an INSERT that does NOT name its columns, which means every column.
 var bareInsert = regexp.MustCompile(
 	`(?is)\bINSERT\s+INTO\s+([a-z_][a-z0-9_]*)\s+(?:VALUES|SELECT|DEFAULT)\b`)
 
-// updateSet matches an UPDATE's target and its SET clause up to the first
-// clause that ends it.
+// updateSet matches an UPDATE's target and its SET clause up to the first clause that ends it.
 var updateSet = regexp.MustCompile(
 	`(?is)\bUPDATE\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)\s+SET\s+(.*?)(?:\bWHERE\b|\bRETURNING\b|\bFROM\b|;|$)`)
 
-// assignedColumn matches the identifier on the left of one SET assignment.
 var assignedColumn = regexp.MustCompile(`(?i)(?:^|,)\s*([a-z_][a-z0-9_]*)\s*=`)
 
-// columnWrites is the columns each table's writes name. A table maps to nil when
-// some statement writes it without naming columns: nil means UNKNOWN, and unknown
-// degrades that table to the table-level check rather than inventing expectations.
+// columnWrites is the columns each table's writes name. nil means UNKNOWN — some statement
+// writes the table without naming columns — which degrades it to the table-level check.
 func columnWrites(src string) map[string]map[string]bool {
 	clean := stripSQLComments(src)
 	out := map[string]map[string]bool{}
@@ -393,8 +375,8 @@ func columnWrites(src string) map[string]map[string]bool {
 	return out
 }
 
-// stripSQLComments removes -- comments so a table named only in prose does not
-// read as a write: sqlc's doc comment sits above each query and names the table.
+// stripSQLComments removes -- comments: sqlc's doc comment sits above each query and names
+// its table, which would otherwise read as a write.
 func stripSQLComments(src string) string {
 	var b strings.Builder
 	for line := range strings.SplitSeq(src, "\n") {
@@ -407,8 +389,7 @@ func stripSQLComments(src string) string {
 	return b.String()
 }
 
-// storefrontPackages run on the pool that does SET ROLE store. Mirrors cmd/goen's
-// wiring; a package in both maps has halves on two pools.
+// storefrontPackages run on the pool that does SET ROLE store, mirroring cmd/goen's wiring.
 var storefrontPackages = []string{
 	"account", "cart", "catalog", "contact", "home", "loyalty", "media",
 	"newsletter", "outbox", "payment", "product", "returns", "site", "warranty",
@@ -419,12 +400,9 @@ var backOfficePackages = []string{
 	"admin", "media", "newsletter", "outbox", "twofactor", "invoice",
 }
 
-// maintenancePackages run on the pool that does SET ROLE maintenance. The role
-// holds no table write at all: refresh_copurchases is SECURITY DEFINER, so who
-// may call it is the entire control.
+// maintenancePackages run on the pool that does SET ROLE maintenance, which holds no table write.
 var maintenancePackages = []string{"recommend"}
 
-// writableTables is every table a role's own queries write.
 func writableTables(t *testing.T, role string) map[string]bool {
 	t.Helper()
 	var pkgs []string
@@ -452,8 +430,7 @@ func writableTables(t *testing.T, role string) map[string]bool {
 	return out
 }
 
-// TestThePoolMapIsComplete refuses a feature package named by neither map, which
-// would otherwise opt that feature's tables out of the guard entirely.
+// TestThePoolMapIsComplete refuses a feature package on no pool map, which opts it out entirely.
 func TestThePoolMapIsComplete(t *testing.T) {
 	named := map[string]bool{}
 	for _, pkg := range storefrontPackages {
@@ -486,8 +463,7 @@ func TestThePoolMapIsComplete(t *testing.T) {
 	}
 }
 
-// TestNoStaleWriteExemption refuses an entry describing a privilege that is no
-// longer held, by identity rather than by count.
+// TestNoStaleWriteExemption refuses a writeExemptions entry whose privilege is no longer held.
 func TestNoStaleWriteExemption(t *testing.T) {
 	ctx := t.Context()
 	for key, why := range writeExemptions {

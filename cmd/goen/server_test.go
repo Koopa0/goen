@@ -9,16 +9,6 @@ import (
 
 // TestWebhookSurvivesTheMiddlewareChain proves Stripe can reach the webhook
 // through goen's CSRF defence while a cross-site browser post still cannot.
-//
-// goen's forms carry no CSRF token: crossOriginProtection refuses cross-site
-// posts using the browser's own Sec-Fetch-Site signal instead. Stripe's webhook
-// is a server-to-server POST that sends neither Sec-Fetch-Site nor Origin, and
-// whether that check lets such a request through is a property of the standard
-// library, not of anything in this repository.
-//
-// If it ever stops letting it through, every capture silently stops arriving
-// and orders sit unpaid with the money already taken. That is worth exercising
-// the real chain rather than trusting an assumption in a comment.
 func TestWebhookSurvivesTheMiddlewareChain(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -69,14 +59,9 @@ func TestWebhookSurvivesTheMiddlewareChain(t *testing.T) {
 
 // TestCSPAllowsTheHandoverToStripe proves the Content-Security-Policy still
 // permits the redirect that sends a customer to Stripe's card form.
-//
-// The payment form posts to goen and goen answers 303 to checkout.stripe.com.
-// Browsers have historically applied form-action to the destination a form
-// submission lands on, so 'self' alone makes paying work in some browsers and
-// not in others — a failure no server-side test would ever see.
 func TestCSPAllowsTheHandoverToStripe(t *testing.T) {
 	var directive string
-	for _, d := range strings.Split(contentSecurityPolicy, ";") {
+	for d := range strings.SplitSeq(contentSecurityPolicy, ";") {
 		if strings.HasPrefix(strings.TrimSpace(d), "form-action") {
 			directive = strings.TrimSpace(d)
 		}

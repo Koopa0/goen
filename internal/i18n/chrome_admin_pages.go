@@ -1,19 +1,6 @@
 package i18n
 
-// Back-office page titles, notices and the two failure pages.
-//
-// A title is what the browser tab says and what the history list keeps, so a
-// staff member with six tabs open finds the right one by it. That is the whole
-// argument for translating them: the tab strip is read at a glance, and a glance
-// is exactly where an unfamiliar script costs the most.
-//
-// The NOTICES are one-shot messages a redirect carries in a query parameter.
-// Each says what happened and, when the answer is "no", what to do instead —
-// this back office refuses things a person can fix, so a refusal that only says
-// "refused" sends them to ask somebody.
-
 var (
-	// Page titles, in the order /admin's own navigation offers them.
 	KeyAdminPageOrder      = key("admin.page.order", Message{ZhHant: "訂單 %s", En: "Order %s"})
 	KeyAdminPageProducts   = key("admin.page.products", Message{ZhHant: "商品", En: "Products"})
 	KeyAdminPageNewProduct = key("admin.page.product.new", Message{
@@ -43,16 +30,10 @@ var (
 		En:     "Staff and two-factor",
 	})
 	KeyAdminPageTwoFactor = key("admin.page.twofactor", Message{ZhHant: "兩階段驗證", En: "Two-factor"})
-	// Three that were package-level layouts.Page VALUES and are now functions
-	// taking a ctx. A var cannot read a locale — that is the whole reason these
-	// three were the last hard-coded titles in the back office, and the same
-	// shape ListingMeta and ProductMeta already have on the storefront.
 	KeyAdminPageDashboard = key("admin.page.dashboard", Message{ZhHant: "後台", En: "Back office"})
 	KeyAdminPageOrderList = key("admin.page.orderlist", Message{ZhHant: "訂單管理", En: "Order management"})
 	KeyAdminPageStockList = key("admin.page.stocklist", Message{ZhHant: "庫存管理", En: "Stock management"})
 
-	// The two failure pages. Both are reached when something has already gone
-	// wrong, so neither offers a next step it cannot deliver.
 	KeyAdminNotFoundTitle = key("admin.notfound.title", Message{ZhHant: "找不到頁面", En: "Page not found"})
 	KeyAdminNotFoundHead  = key("admin.notfound.head", Message{ZhHant: "找不到這個頁面", En: "No such page"})
 	KeyAdminNotFoundBody  = key("admin.notfound.body", Message{
@@ -67,8 +48,6 @@ var (
 	})
 	KeyAdminErrorTitle = key("admin.error.title", Message{ZhHant: "暫時無法處理", En: "Temporarily unavailable"})
 	KeyAdminErrorBody  = key("admin.error.body", Message{ZhHant: "請稍後再試。", En: "Please try again shortly."})
-	// A second pair, worded differently on purpose: this one is a fault rather
-	// than a busy moment, and the copy in the tree already drew that line.
 	KeyAdminFaultTitle = key("admin.fault.title", Message{ZhHant: "發生錯誤", En: "Something went wrong"})
 	KeyAdminFaultHead  = key("admin.fault.head", Message{ZhHant: "系統發生錯誤", En: "A system error"})
 	KeyAdminFaultBody  = key("admin.fault.body", Message{
@@ -76,9 +55,6 @@ var (
 		En:     "Please try again in a moment.",
 	})
 
-	// A form the server could not parse at all. It is a plain http.Error rather
-	// than a rendered page, because a body that will not decode is not a form
-	// whose values can be handed back.
 	KeyAdminBadForm = key("admin.badform", Message{
 		ZhHant: "400 表單無法解析",
 		En:     "400 that form could not be read",
@@ -86,7 +62,6 @@ var (
 )
 
 var (
-	// The one-shot notices a redirect carries.
 	KeyAdminNoticeOK      = key("admin.notice.ok", Message{ZhHant: "已更新。", En: "Saved."})
 	KeyAdminNoticeRefused = key("admin.notice.refused", Message{
 		ZhHant: "資料庫拒絕了這個變更。可能是狀態流程不允許,或會違反庫存與活動規則。",
@@ -97,8 +72,6 @@ var (
 		ZhHant: "已出貨。配送資訊與庫存都已記錄。",
 		En:     "Dispatched. The delivery details and the stock movement are both recorded.",
 	})
-	// Names WHY it cannot be changed rather than only that it cannot: the record
-	// would stop agreeing with where the parcel actually went.
 	KeyAdminNoticeTooLate = key("admin.notice.toolate", Message{
 		ZhHant: "這筆訂單已經出貨,收件資訊改不了了。包裹已經寄出,改紀錄只會讓紀錄和事實對不上。",
 		En: "This order has shipped, so the delivery details can no longer be changed. " +
@@ -128,8 +101,6 @@ var (
 		ZhHant: "這張圖片已經在這個商品上了。",
 		En:     "That image is already on this product.",
 	})
-	// The accessibility half, and the reason is in the message: alt text is not
-	// decoration, it is what a screen reader announces.
 	KeyAdminNoticeNoAlt = key("admin.notice.noalt", Message{
 		ZhHant: "請填寫圖片說明文字 —— 讀螢幕的人靠它知道圖裡是什麼。",
 		En:     "Alt text is required — it is how somebody using a screen reader knows what the picture shows.",
@@ -181,22 +152,11 @@ var (
 		ZhHant: "這筆訂單沒有可以作廢的發票。",
 		En:     "This order has no invoice to void.",
 	})
-	// 加值中心 is the certified e-invoice intermediary — ECPay here. "The
-	// e-invoice provider" rather than a transliteration, because the English
-	// reader needs to know WHO refused, not what the role is called in Chinese.
-	//
-	// The English says "business tax number" and not 統編, and that is
-	// TestEnglishIsActuallyEnglish doing its job rather than pedantry: a Han
-	// string in the English catalogue is invisible in review, because the entry
-	// looks filled in. The guard has exactly one named exception and this is not
-	// a good enough reason to be the second.
 	KeyAdminNoticeInvoiceFailed = key("admin.notice.invoicefailed", Message{
 		ZhHant: "加值中心拒絕了這次操作,詳細原因在伺服器紀錄裡。常見的是統編格式或載具號碼不正確。",
 		En: "The e-invoice provider refused that operation; the reason is in the server log. " +
 			"Usually it is a malformed business tax number or carrier code.",
 	})
-	// Built from a message and a figure, so it is a %s rather than a bare label —
-	// the second of CLAUDE.md's two patterns.
 	KeyAdminNoticeCreditGranted = key("admin.notice.credit.granted", Message{
 		ZhHant: "已發放。這位顧客目前的餘額是 %s。",
 		En:     "Granted. This customer's balance is now %s.",
@@ -204,12 +164,6 @@ var (
 )
 
 var (
-	// The back office's second factor, and the staff page that recovers it.
-	//
-	// Every refusal here names the way OUT, because each is a lockout in
-	// miniature: somebody who cannot produce a code, or an admin who has just
-	// been told they may not do the thing they are trying to do, needs to know
-	// who can.
 	KeyTOTPWrongCode = key("twofactor.wrongcode", Message{
 		ZhHant: "驗證碼不正確,或是已經用過了。請看驗證器上目前的那一組。",
 		En: "That code is wrong, or it has already been used. " +
@@ -219,8 +173,6 @@ var (
 		ZhHant: "驗證碼不正確。請確認驗證器裡的祕密字串和畫面上的一致。",
 		En:     "That code is wrong. Check that the secret in your authenticator matches the one on screen.",
 	})
-	// An absent GOEN_TOTP_KEY means enrolment is OFF and says so, the shape an
-	// empty Stripe key already has — never half on, with secrets in the clear.
 	KeyTOTPNoKey = key("twofactor.nokey", Message{
 		ZhHant: "這個環境沒有設定加密金鑰,無法啟用兩階段驗證。",
 		En:     "This deployment has no encryption key set, so two-factor cannot be enabled.",
@@ -229,9 +181,6 @@ var (
 		ZhHant: "GOEN_TOTP_KEY 沒有設定,兩階段驗證目前無法啟用。",
 		En:     "GOEN_TOTP_KEY is not set, so two-factor cannot be enabled here.",
 	})
-	// Re-enrolment goes through another admin ON PURPOSE: a session that could
-	// drop its own factor and re-enrol on a new device turns a stolen session
-	// into permanent access.
 	KeyTOTPAlreadyEnrolled = key("twofactor.enrolled", Message{
 		ZhHant: "這個帳號已經完成兩階段驗證設定。要換一支手機,請另一位管理者先在 /admin/staff 移除,再重新設定。",
 		En: "This account already has two-factor set up. To move to a new phone, ask another " +

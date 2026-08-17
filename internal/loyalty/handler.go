@@ -56,8 +56,7 @@ func (h *Handler) Redeem(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
-	// The form names POINTS, never an amount of credit: a request supplying the
-	// cents would be a request choosing the exchange rate.
+	// The form names POINTS: a request supplying cents would choose the rate.
 	points, parseErr := strconv.ParseInt(r.PostFormValue("points"), 10, 64)
 	if parseErr != nil {
 		points = 0

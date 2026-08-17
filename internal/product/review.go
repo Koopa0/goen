@@ -22,7 +22,7 @@ var (
 	ErrReviewInvalid = errors.New("product: invalid review")
 )
 
-// Review length bounds, counted in RUNES.
+// Review length bounds, counted in runes.
 const (
 	MaxReviewTitleRunes = 80
 	MaxReviewBodyRunes  = 2000
@@ -36,8 +36,8 @@ type Review struct {
 	Body   string
 }
 
-// Validate refuses what the schema would, returning message KEYS rather than
-// sentences so the caller renders them in the reader's locale.
+// Validate refuses what the schema would, returning keys the caller renders in
+// the reader's locale.
 func (r *Review) Validate() map[string]i18n.Key {
 	r.Title = strings.TrimSpace(r.Title)
 	r.Body = strings.TrimSpace(r.Body)
@@ -62,8 +62,8 @@ func (r *Review) Validate() map[string]i18n.Key {
 	return errs
 }
 
-// CanReview reports whether this customer may leave a review, and whether it
-// would carry the verified badge.
+// CanReview reports whether this customer may review, and whether it would
+// carry the verified badge.
 func (s *Store) CanReview(ctx context.Context, slug, userID string) (allowed, verified bool, err error) {
 	id, parseErr := uuid.Parse(userID)
 	if parseErr != nil {

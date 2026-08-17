@@ -28,10 +28,6 @@ func NewHandler(store *Store, log *slog.Logger) *Handler {
 }
 
 // Listing serves GET /c/{slug}.
-//
-// A slug naming no category is a 404 with the site's not-found page, not an
-// empty listing: an empty listing tells a visitor the category exists and
-// happens to be bare, which is a different and false statement.
 func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	f := parseFilters(r.URL.Query())
@@ -58,10 +54,6 @@ func (h *Handler) Listing(w http.ResponseWriter, r *http.Request) {
 }
 
 // Search serves GET /search.
-//
-// A blank term is the page itself rather than a redirect or an error: someone
-// pressing enter on an empty box gets the search page back, with the prompt
-// still there.
 func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query().Get("q")
 	pattern := SearchPattern(q)
@@ -97,7 +89,7 @@ func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 }
 
 // parseFilters reads the listing's query string. Every value is bounded or
-// discarded here, so nothing downstream has to wonder whether it was checked.
+// discarded here, so nothing downstream has to check again.
 func parseFilters(q url.Values) Filters {
 	return Filters{
 		BrandSlugs:  boundedBrands(q["brand"]),
@@ -109,9 +101,7 @@ func parseFilters(q url.Values) Filters {
 	}
 }
 
-// maxBrandFilters caps how many brand values one URL may carry. Unknown slugs
-// are dropped by the store anyway, but an unbounded list would still be built
-// into an array parameter first.
+// maxBrandFilters caps how many brand values one URL may carry.
 const maxBrandFilters = 32
 
 func boundedBrands(v []string) []string {
@@ -130,14 +120,8 @@ func boundedBrands(v []string) []string {
 	return out
 }
 
-// canonicalQuery rebuilds the listing's query string from the PARSED filters,
-// not from the request.
-//
-// Rebuilding is what makes a pagination link safe: the request's own query
-// string can carry anything, and echoing it into an href would put a visitor's
-// text back into the page's links. Everything here has already been validated
-// or clamped, and url.Values.Encode sorts the keys, so the same filters always
-// produce the same URL.
+// canonicalQuery rebuilds the listing's query string from the parsed filters
+// rather than the request, so a pagination href carries nothing a visitor typed.
 func canonicalQuery(f Filters) string {
 	q := url.Values{}
 	for _, b := range f.BrandSlugs {
@@ -158,12 +142,11 @@ func canonicalQuery(f Filters) string {
 	return q.Encode()
 }
 
-// trimForDisplay bounds what a search term may be echoed back as, so a very
-// long query cannot become a very long heading.
+// trimForDisplay bounds what a search term may be echoed back as.
 func trimForDisplay(q string) string {
 	r := []rune(q)
-	// Trim leading and trailing whitespace the same way SearchPattern does, so
-	// the heading and the search agree about what was searched for.
+	// Trimmed the same way SearchPattern does, so the heading and the search
+	// agree about what was searched for.
 	for len(r) > 0 && (r[0] == ' ' || r[0] == '\t' || r[0] == '\n' || r[0] == '\r') {
 		r = r[1:]
 	}
@@ -181,10 +164,6 @@ func trimForDisplay(q string) string {
 }
 
 // Deals serves GET /deals.
-//
-// It renders the search page, because a deals page IS a search results page
-// with the query fixed: a heading, a grid, a pager. The header and footer have
-// linked here since the chrome was built and it answered 404 on every page.
 func (h *Handler) Deals(w http.ResponseWriter, r *http.Request) {
 	page := ParsePage(r.URL.Query().Get("page"))
 	view, err := h.store.Deals(r.Context(), page)
@@ -193,24 +172,16 @@ func (h *Handler) Deals(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	// Running promotions lead. A campaign is a curated, ending thing and a
-	// marked-down product is a standing one — a shopper reading a deals page
-	// wants the first before the second.
 	campaigns, err := h.store.RunningCampaigns(r.Context())
 	if err != nil {
-		// Not fatal: the discounted products are the page's substance, and
-		// losing the campaign strip is smaller than losing the page.
+		// best-effort: the discounted products are the page's substance.
 		h.log.ErrorContext(r.Context(), "load campaigns", "error", err)
 	}
 	view.Campaigns = campaigns
 	web.Render(w, r, h.log, http.StatusOK, pages.Deals(pages.DealsMeta(r.Context()), view))
 }
 
-// Campaign serves GET /s/{slug}.
-//
-// A campaign outside its window is the 404 an unknown slug gets. That is the
-// honest answer: the promotion is over, and a page saying so would be a page
-// somebody keeps linking to.
+// Campaign serves GET /s/{slug}. One outside its window is a 404.
 func (h *Handler) Campaign(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
 	view, err := h.store.Campaign(r.Context(), slug)
@@ -230,12 +201,7 @@ func (h *Handler) Campaign(w http.ResponseWriter, r *http.Request) {
 		pages.CampaignMeta(r.Context(), view.Title), view))
 }
 
-// Compare serves GET /compare.
-//
-// The comparison set lives in the URL — `?p=a&p=b` — and nowhere else. No
-// cookie, no session row, no write of any kind: the result is shareable,
-// bookmarkable, and there is no state to expire or to get out of step with what
-// the page shows.
+// Compare serves GET /compare. The set lives in the URL and nowhere else.
 func (h *Handler) Compare(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Compare(r.Context(), r.URL.Query()["p"])
 	if err != nil {

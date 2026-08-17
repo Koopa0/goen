@@ -11,10 +11,8 @@ func TestValidate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
-		in   string
-		// wantOK asserts acceptance; a rejection is asserted by a non-empty
-		// message rather than by its exact wording.
+		name   string
+		in     string
 		wantOK bool
 	}{
 		{name: "ordinary address", in: "me@example.com", wantOK: true},

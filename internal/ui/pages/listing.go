@@ -10,8 +10,6 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// queryEscape encodes a value for a query string. url.QueryEscape turns a space
-// into '+', which is correct for a query parameter.
 func queryEscape(s string) string { return url.QueryEscape(s) }
 
 // Crumb is one ancestor in a category's breadcrumb trail.
@@ -42,23 +40,16 @@ type ListingView struct {
 	Page     int
 	PageSize int
 
-	// Query is the listing's current query string without the page parameter,
-	// so pagination links can append their own without accumulating duplicates.
-	Query string
-	// Filtered is whether anything narrows this listing, which decides whether
-	// the page offers a way to clear.
+	Query    string
 	Filtered bool
 
-	// The filter panel re-renders the visitor's own inputs, so a rejected or
-	// partial filter comes back showing what they asked for rather than blank.
 	InStockOnly bool
 	MinPrice    int64 // minor units; 0 is no bound
 	MaxPrice    int64
 	Sort        string
 }
 
-// MinPriceText and MaxPriceText are the price bounds as whole New Taiwan
-// dollars for the number inputs, empty when unbounded.
+// MinPriceText and MaxPriceText are the bounds in whole dollars.
 func (v ListingView) MinPriceText() string { return priceField(v.MinPrice) }
 func (v ListingView) MaxPriceText() string { return priceField(v.MaxPrice) }
 
@@ -76,9 +67,7 @@ type SortOption struct {
 	Selected bool
 }
 
-// SortOptions is the ordering choices, with the active one marked. The list
-// lives here rather than in the template so the labels and the values that
-// reach the query cannot drift apart.
+// SortOptions is the ordering choices, with the active one marked.
 func (v ListingView) SortOptions(ctx context.Context) []SortOption {
 	opts := []SortOption{
 		{Value: "", Label: i18n.T(ctx, i18n.KeySortNewest)},
@@ -97,24 +86,11 @@ func ListingMeta(ctx context.Context, v ListingView) layouts.Page {
 	return layouts.Page{
 		Title:       v.Name,
 		Description: fmt.Sprintf(i18n.T(ctx, i18n.KeyListingDescription), v.Name),
-		// The header marks the top-level category this page sits under. Page.Nav is
-		// read by every header render and was assigned by NOTHING, so no navigation
-		// item had ever been highlighted and aria-current never fired — the
-		// layouts.Page.CartCount defect, in the same struct, three fields down.
-		//
-		// Set HERE rather than by the handler, for the reason the cart badge moved to
-		// middleware: a field each caller must remember to fill is a field that goes
-		// unfilled. This function is the one place a listing's chrome is built.
-		Nav: v.RootSlug(),
+		Nav:         v.RootSlug(),
 	}
 }
 
-// RootSlug is the top-level category this listing sits under — the one the header
-// marks as current. It is the FIRST crumb when there is a trail (the crumbs run
-// root-first) and the listing's own slug when it is already a root.
-//
-// A method rather than a field, because it is derivable from what the view already
-// carries and a second copy is a second thing to keep true.
+// RootSlug is the top-level category this listing sits under.
 func (v ListingView) RootSlug() string {
 	if len(v.Crumbs) > 0 {
 		return v.Crumbs[0].Slug
@@ -141,8 +117,7 @@ func (v ListingView) Pages() int {
 func (v ListingView) HasPrev() bool { return v.Page > 1 }
 func (v ListingView) HasNext() bool { return v.Page < v.Pages() }
 
-// PrevHref and NextHref are the neighbouring pages, carrying the current
-// filters. They are only read when the corresponding Has* is true.
+// PrevHref and NextHref are the neighbouring pages under these filters.
 func (v ListingView) PrevHref() string { return v.PageHref(v.Page - 1) }
 func (v ListingView) NextHref() string { return v.PageHref(v.Page + 1) }
 
@@ -170,18 +145,13 @@ func (v ListingView) PagesText() string { return strconv.Itoa(v.Pages()) }
 
 // SearchView is everything the search results page renders.
 type SearchView struct {
-	Query    string
-	Products []ProductTile
-	Total    int64
-	Page     int
-	PageSize int
-	// Campaigns is the running promotions shown above the grid, on /deals only.
+	Query     string
+	Products  []ProductTile
+	Total     int64
+	Page      int
+	PageSize  int
 	Campaigns []CampaignSummary
-	// Path is where the pager's links point. Empty means /search, which keeps
-	// every existing caller unchanged; /deals sets it, because the two pages
-	// share this view and a pager that always linked to /search would walk a
-	// deals visitor out of the page they were reading.
-	Path string
+	Path      string
 }
 
 // SearchMeta is the chrome view model for the search page.
@@ -192,8 +162,7 @@ func SearchMeta(ctx context.Context, q string) layouts.Page {
 	return layouts.Page{Title: fmt.Sprintf(i18n.T(ctx, i18n.KeySearchFor), q)}
 }
 
-// Searched reports whether a term was actually submitted, as opposed to the
-// bare /search page.
+// Searched reports whether a term was actually submitted.
 func (v SearchView) Searched() bool { return v.Query != "" }
 
 // Empty reports whether a search ran and matched nothing.
@@ -202,8 +171,7 @@ func (v SearchView) Empty() bool { return v.Searched() && len(v.Products) == 0 }
 // TotalText is the number of matches as text.
 func (v SearchView) TotalText() string { return strconv.FormatInt(v.Total, 10) }
 
-// Pages is how many pages of results the current term produces. It and the
-// HasPrev/HasNext/href methods below mirror ListingView's, over /search.
+// Pages is how many pages of results the current term produces.
 func (v SearchView) Pages() int {
 	if v.PageSize <= 0 || v.Total <= 0 {
 		return 1
@@ -218,9 +186,7 @@ func (v SearchView) HasNext() bool { return v.Page < v.Pages() }
 func (v SearchView) PrevHref() string { return v.PageHref(v.Page - 1) }
 func (v SearchView) NextHref() string { return v.PageHref(v.Page + 1) }
 
-// PageHref builds a search URL. The term is not escaped here — templ escapes
-// attribute values, and building the URL as a string keeps the query parameter
-// order stable so a link never differs only in ordering.
+// PageHref builds a search URL.
 func (v SearchView) PageHref(n int) string {
 	if v.Path != "" {
 		if n > 1 {

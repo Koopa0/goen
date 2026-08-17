@@ -54,7 +54,7 @@ func TestEveryNamedTestExists(t *testing.T) {
 		if strings.HasSuffix(path, "_test.go") {
 			// Test files declare; they are not read for mentions, or this guard
 			// could be satisfied by its own error message.
-			for _, line := range strings.Split(text, "\n") {
+			for line := range strings.SplitSeq(text, "\n") {
 				if after, ok := strings.CutPrefix(line, "func Test"); ok {
 					if i := strings.IndexAny(after, "("); i > 0 {
 						declared["Test"+strings.TrimSpace(after[:i])] = true
@@ -63,7 +63,7 @@ func TestEveryNamedTestExists(t *testing.T) {
 			}
 			return nil
 		}
-		for _, line := range strings.Split(text, "\n") {
+		for line := range strings.SplitSeq(text, "\n") {
 			// The per-line escape, for a line whose subject is a test that was
 			// never written and whose absence is the thing being recorded.
 			if strings.Contains(line, "named-test-exempt:") {

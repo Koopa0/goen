@@ -25,11 +25,10 @@ const (
 
 // FAQForm is one entry being written.
 type FAQForm struct {
-	ID       string
-	Category string
-	Question string
-	Answer   string
-	// The English entry, each field optional and each falling back.
+	ID         string
+	Category   string
+	Question   string
+	Answer     string
 	CategoryEn string
 	QuestionEn string
 	AnswerEn   string
@@ -103,8 +102,7 @@ func (s *Store) CreateFAQEntry(ctx context.Context, f *FAQForm) (map[string]stri
 	return nil, nil
 }
 
-// UpdateFAQEntry rewrites one. The audit row names the ENTRY and never its text:
-// audit_events is append-only, so a paragraph there outlives every correction.
+// UpdateFAQEntry rewrites one.
 func (s *Store) UpdateFAQEntry(ctx context.Context, f *FAQForm) (map[string]string, error) {
 	entryID, err := uuid.Parse(f.ID)
 	if err != nil {

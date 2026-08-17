@@ -12,11 +12,6 @@ import (
 
 // TestTheBurstIsSpentThenRefused proves the allowance is real and the numbers
 // are the ones intended.
-//
-// The numbers are the contract: a person who mistypes a password a few times
-// must never meet this, and a script must. A limiter that refused the third
-// attempt would be a support ticket, and one that never refused would be
-// decoration.
 func TestTheBurstIsSpentThenRefused(t *testing.T) {
 	l := New(Config{Every: time.Minute, Burst: 3, TTL: time.Hour})
 
@@ -36,27 +31,20 @@ func TestTheBurstIsSpentThenRefused(t *testing.T) {
 
 // TestARefusedAttemptDoesNotSpendTheAllowance proves a throttle never becomes
 // a lockout.
-//
-// A refused request must not consume the token a permitted one would have
-// used. Without the cancel, a client held at the limit is pushed further behind
-// by its own retries and never recovers — the limiter turns into a lockout,
-// which is the thing this package explicitly is not.
 func TestARefusedAttemptDoesNotSpendTheAllowance(t *testing.T) {
 	l := New(Config{Every: 10 * time.Millisecond, Burst: 1, TTL: time.Hour})
 
 	if _, ok := l.Allow("k"); !ok {
 		t.Fatal("the first attempt was refused")
 	}
-	// Hammer it while refused. Each of these would eat a future token if the
-	// reservation were not cancelled.
+	// Each of these eats a future token if the reservation is not cancelled.
 	for range 50 {
 		if _, ok := l.Allow("k"); ok {
 			t.Fatal("an attempt was allowed inside the refill interval")
 		}
 	}
 
-	// One interval later, exactly one token is back — not zero, which is what
-	// fifty uncancelled reservations would have left.
+	// One token back, not the zero fifty uncancelled reservations would leave.
 	time.Sleep(30 * time.Millisecond)
 	if _, ok := l.Allow("k"); !ok {
 		t.Error("the key never recovered; refused attempts are consuming the " +
@@ -65,10 +53,7 @@ func TestARefusedAttemptDoesNotSpendTheAllowance(t *testing.T) {
 }
 
 // TestKeysAreIndependent proves one client at its limit does not affect
-// another.
-//
-// One customer at the limit must not affect another, and per-IP and
-// per-account keys must not collide — which is why the caller prefixes them.
+// another, and that per-IP and per-account keys do not collide.
 func TestKeysAreIndependent(t *testing.T) {
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour})
 
@@ -88,10 +73,6 @@ func TestKeysAreIndependent(t *testing.T) {
 
 // TestIdleKeysAreEvicted proves the limiter does not leak the memory it
 // exists to protect.
-//
-// The map is keyed by client. Without eviction it grows with every distinct IP,
-// which is a slower version of the memory exhaustion this package exists to
-// stop — a limiter that leaks is an attack surface wearing a defence.
 func TestIdleKeysAreEvicted(t *testing.T) {
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: 20 * time.Millisecond})
 
@@ -103,8 +84,7 @@ func TestIdleKeysAreEvicted(t *testing.T) {
 	}
 
 	time.Sleep(40 * time.Millisecond)
-	// A new key triggers the sweep, which is when it is needed: the map can
-	// only grow here.
+	// A new key triggers the sweep: the map can only grow here.
 	l.Allow("fresh")
 	if got := l.Size(); got != 1 {
 		t.Errorf("%d keys held after the TTL passed, want 1 — idle keys are not "+
@@ -113,9 +93,6 @@ func TestIdleKeysAreEvicted(t *testing.T) {
 }
 
 // TestTheLimiterIsSafeUnderConcurrency proves the shared state is guarded.
-//
-// It sits on the sign-in path, so every request touches it at once. A data race
-// here is a crash on the endpoint that most needs to stay up.
 func TestTheLimiterIsSafeUnderConcurrency(t *testing.T) {
 	l := New(Config{Every: time.Millisecond, Burst: 5, TTL: time.Hour})
 
@@ -129,8 +106,8 @@ func TestTheLimiterIsSafeUnderConcurrency(t *testing.T) {
 		})
 	}
 	wg.Wait()
-	// The assertion is that -race saw nothing; Size is here so the test has a
-	// value to look at rather than passing on absence alone.
+	// The assertion is that -race saw nothing; Size stops this passing on
+	// absence alone.
 	if l.Size() == 0 {
 		t.Error("no keys were recorded")
 	}
@@ -138,11 +115,6 @@ func TestTheLimiterIsSafeUnderConcurrency(t *testing.T) {
 
 // TestGuardAnswers429WithARetryAfter proves a refused request never reaches
 // the handler.
-//
-// 429 and not 403: the client is early, not forbidden, and a status that says
-// so is what lets a well-behaved one back off. Retry-After rounds UP, because
-// telling a client to return before it is allowed produces a second 429 and
-// looks broken.
 func TestGuardAnswers429WithARetryAfter(t *testing.T) {
 	l := New(Config{Every: 30 * time.Second, Burst: 1, TTL: time.Hour})
 	reached := 0
@@ -179,14 +151,7 @@ func TestGuardAnswers429WithARetryAfter(t *testing.T) {
 }
 
 // TestRetryAfterIsNeverZero proves a sub-second delay still tells a client to
-// wait.
-//
-// The header is whole seconds. A sub-second delay rounded DOWN is "0", which
-// tells a client to retry immediately — it does, gets another 429, and the
-// limiter looks broken to anything that obeys the header.
-//
-// The 30-second case above cannot see this: rounding it down still gives a
-// usable number, which is why that case stayed green with the rounding deleted.
+// wait. The 30-second case above stayed green with the rounding deleted.
 func TestRetryAfterIsNeverZero(t *testing.T) {
 	// 100ms refill: every refusal's true delay is well under one second.
 	l := New(Config{Every: 100 * time.Millisecond, Burst: 1, TTL: time.Hour})
@@ -217,10 +182,6 @@ func TestRetryAfterIsNeverZero(t *testing.T) {
 
 // TestTheKeyIsTheAddressAndNeverAHeader proves the key cannot be chosen by
 // the client.
-//
-// X-Forwarded-For is set by the client. Keying on it hands an attacker an
-// unlimited supply of keys, which is strictly worse than having no limiter —
-// because it looks like there is one.
 func TestTheKeyIsTheAddressAndNeverAHeader(t *testing.T) {
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin", http.NoBody)
 	r.RemoteAddr = "203.0.113.9:54321"

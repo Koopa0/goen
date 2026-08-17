@@ -34,6 +34,7 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/site"
+	"github.com/koopa0/goen/internal/twofactor"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/warranty"
 	"github.com/koopa0/goen/internal/web"
@@ -75,7 +76,6 @@ func staffID(t *testing.T) string {
 	return id.String()
 }
 
-// TestStockMovesOnlyThroughTheLedger asserts an adjustment leaves a movement row.
 func TestStockMovesOnlyThroughTheLedger(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -117,7 +117,6 @@ func TestStockMovesOnlyThroughTheLedger(t *testing.T) {
 	}
 }
 
-// TestAdjustmentIsIdempotent asserts a repeated key does not adjust stock twice.
 func TestAdjustmentIsIdempotent(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -153,7 +152,6 @@ func TestAdjustmentIsIdempotent(t *testing.T) {
 	}
 }
 
-// TestAdvanceRefusesAnUnfundedOrder asserts an unpaid order cannot enter fulfilment.
 func TestAdvanceRefusesAnUnfundedOrder(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -171,7 +169,6 @@ func TestAdvanceRefusesAnUnfundedOrder(t *testing.T) {
 	}
 }
 
-// TestAdvanceRefusesAnIllegalTransition covers the state machine itself.
 func TestAdvanceRefusesAnIllegalTransition(t *testing.T) {
 	ctx := t.Context()
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -185,7 +182,6 @@ func TestAdvanceRefusesAnIllegalTransition(t *testing.T) {
 	}
 }
 
-// placeUnpaidOrder writes an order in pending with no payment against it.
 func placeUnpaidOrder(t *testing.T) string {
 	t.Helper()
 	ctx := t.Context()
@@ -224,7 +220,6 @@ func placeUnpaidOrder(t *testing.T) string {
 	return number
 }
 
-// TestRetiringTheLastDiscountedVariantIsRefused exercises sale_campaign_variant_still_valid.
 func TestRetiringTheLastDiscountedVariantIsRefused(t *testing.T) {
 	ctx := t.Context()
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -275,7 +270,6 @@ func TestRetiringTheLastDiscountedVariantIsRefused(t *testing.T) {
 	}
 }
 
-// pickingOrderHoldingStock writes a paid order in picking holding one unit of a real variant.
 func pickingOrderHoldingStock(t *testing.T) (number string, orderID uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
@@ -319,7 +313,6 @@ func pickingOrderHoldingStock(t *testing.T) (number string, orderID uuid.UUID) {
 		orderID, variantID, "ship-test:"+number); err != nil {
 		t.Fatalf("hold: %v", err)
 	}
-	// Funded, so orders_funded_to_leave_pending lets it into picking.
 	if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, 100000)`, orderID, "cs_ship_"+number); err != nil {
 		t.Fatalf("open payment: %v", err)
 	}
@@ -336,7 +329,6 @@ func pickingOrderHoldingStock(t *testing.T) (number string, orderID uuid.UUID) {
 	return number, orderID
 }
 
-// TestShipDoesAllFourWritesOrNone proves dispatch is atomic.
 func TestShipDoesAllFourWritesOrNone(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -411,11 +403,10 @@ func TestShipDoesAllFourWritesOrNone(t *testing.T) {
 	}
 }
 
-// TestShipRollsEverythingBackWhenTheStatusMoveIsRefused proves a refused dispatch writes nothing.
 func TestShipRollsEverythingBackWhenTheStatusMoveIsRefused(t *testing.T) {
 	ctx := t.Context()
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
-	number := placeUnpaidOrder(t) // still pending: picking -> shipped is the only legal path
+	number := placeUnpaidOrder(t)
 
 	var orderID uuid.UUID
 	if err := pool.QueryRow(ctx,
@@ -443,7 +434,6 @@ func TestShipRollsEverythingBackWhenTheStatusMoveIsRefused(t *testing.T) {
 	}
 }
 
-// TestShipNeedsACarrierAndATracking refuses a blank one in Go rather than at the CHECK.
 func TestShipNeedsACarrierAndATracking(t *testing.T) {
 	ctx := t.Context()
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -464,7 +454,6 @@ func TestShipNeedsACarrierAndATracking(t *testing.T) {
 	}
 }
 
-// TestAdvanceCannotShip proves the status endpoint is not a second door to dispatch.
 func TestAdvanceCannotShip(t *testing.T) {
 	ctx := t.Context()
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -483,7 +472,6 @@ func TestAdvanceCannotShip(t *testing.T) {
 	}
 }
 
-// TestAdvanceRecordsWhoAndWhen asserts a status move leaves an event naming its actor.
 func TestAdvanceRecordsWhoAndWhen(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -516,12 +504,10 @@ func TestAdvanceRecordsWhoAndWhen(t *testing.T) {
 	}
 }
 
-// fakeRefunder stands in for Stripe.
 type fakeRefunder struct {
 	failIntent bool
-	// refundErr is ambiguous unless it is a *stripe.Error: only that is Stripe saying no.
-	refundErr error
-	state     admin.RefundState
+	refundErr  error
+	state      admin.RefundState
 }
 
 func (f fakeRefunder) PaymentIntentFor(_ context.Context, sessionID string) (string, error) {
@@ -542,7 +528,6 @@ func (f fakeRefunder) Refund(_ context.Context, intentID, requestKey string, _ i
 	return "re_" + requestKey + "_" + intentID[:6], state, nil
 }
 
-// returnedOrder writes a shipped, paid order with an open return for qty of its only line.
 func returnedOrder(t *testing.T, qty int32) (requestID uuid.UUID, orderNumber string) {
 	t.Helper()
 	ctx := t.Context()
@@ -576,7 +561,6 @@ func returnedOrder(t *testing.T, qty int32) (requestID uuid.UUID, orderNumber st
 		orderID); err != nil {
 		t.Fatalf("create private data: %v", err)
 	}
-	// Paid in full: 2 x 100000, no shipping.
 	if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, 200000)`,
 		orderID, "cs_ret_"+orderNumber); err != nil {
 		t.Fatalf("open payment: %v", err)
@@ -612,7 +596,6 @@ func returnedOrder(t *testing.T, qty int32) (requestID uuid.UUID, orderNumber st
 	return requestID, orderNumber
 }
 
-// couponedShippedOrder ships two NT$500 lines against a NT$500 coupon and NT$80 delivery, capturing 58000.
 func couponedShippedOrder(t *testing.T, lines int) (requestID uuid.UUID, orderNumber string) {
 	t.Helper()
 	ctx := t.Context()
@@ -687,7 +670,6 @@ func couponedShippedOrder(t *testing.T, lines int) (requestID uuid.UUID, orderNu
 	return requestID, orderNumber
 }
 
-// TestARefundIsWhatTheCustomerPaid refunds what was paid, never the undiscounted line sum.
 func TestARefundIsWhatTheCustomerPaid(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -697,13 +679,11 @@ func TestARefundIsWhatTheCustomerPaid(t *testing.T) {
 	}{
 		{
 			name: "one of two lines, so a proportional share of the coupon", lines: 1,
-			// 50000 goods less its half of the 50000 coupon.
 			want: 25000,
 			why:  "the customer paid NT$250 for this item after the coupon, not NT$500",
 		},
 		{
 			name: "both lines, so the whole contract and the delivery fee with it", lines: 2,
-			// 100000 goods - 50000 coupon + 8000 delivery, which is the capture.
 			want: 58000,
 			why:  "a rescission returns everything paid under the contract, delivery included",
 		},
@@ -730,11 +710,10 @@ func TestARefundIsWhatTheCustomerPaid(t *testing.T) {
 	}
 }
 
-// TestApprovingAReturnRefundsWhatTheORDERSays takes the figure from the order's own line prices.
 func TestApprovingAReturnRefundsWhatTheORDERSays(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
-	requestID, _ := returnedOrder(t, 1) // 1 of 2 units at 100000
+	requestID, _ := returnedOrder(t, 1)
 
 	if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", uuid.NullUUID{}); err != nil {
 		t.Fatalf("approve: %v", err)
@@ -768,7 +747,6 @@ func TestApprovingAReturnRefundsWhatTheORDERSays(t *testing.T) {
 	}
 }
 
-// TestAFailedRefundLeavesARowToReconcile asserts only a decision from Stripe is terminal.
 func TestAFailedRefundLeavesARowToReconcile(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -838,8 +816,6 @@ func TestAFailedRefundLeavesARowToReconcile(t *testing.T) {
 	}
 }
 
-// TestAStalledRefundCanBeRetriedToCompletion asserts a stalled refund resumes on the
-// same request key, against the whole capture so the arithmetic has no slack.
 func TestAStalledRefundCanBeRetriedToCompletion(t *testing.T) {
 	ctx, _ := staffContext(t)
 	requestID, _ := returnedOrder(t, 2)
@@ -886,7 +862,6 @@ func TestAStalledRefundCanBeRetriedToCompletion(t *testing.T) {
 	}
 }
 
-// TestAPendingProviderRefundIsNotRecordedAsSucceeded records the state Stripe returned, stamp and status together.
 func TestAPendingProviderRefundIsNotRecordedAsSucceeded(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -952,7 +927,6 @@ func TestAPendingProviderRefundIsNotRecordedAsSucceeded(t *testing.T) {
 	}
 }
 
-// TestARefundStripeRefusedOutrightLeavesTheReturnOpen covers a call that succeeded with the answer 'failed'.
 func TestARefundStripeRefusedOutrightLeavesTheReturnOpen(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{state: admin.RefundFailed}, nil)
@@ -974,7 +948,6 @@ func TestARefundStripeRefusedOutrightLeavesTheReturnOpen(t *testing.T) {
 	}
 }
 
-// TestTheHealthPageNamesARefundThatDidNotLand asserts a stalled refund is named on the page, not counted.
 func TestTheHealthPageNamesARefundThatDidNotLand(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{
@@ -1019,7 +992,6 @@ func TestTheHealthPageNamesARefundThatDidNotLand(t *testing.T) {
 	}
 }
 
-// TestRejectingAReturnMovesNoMoney proves a refusal writes no refund at all.
 func TestRejectingAReturnMovesNoMoney(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -1049,7 +1021,6 @@ func TestRejectingAReturnMovesNoMoney(t *testing.T) {
 	}
 }
 
-// TestAReturnIsDecidedOnce refuses a second decision, which would refund the same money twice.
 func TestAReturnIsDecidedOnce(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -1072,9 +1043,6 @@ func TestAReturnIsDecidedOnce(t *testing.T) {
 	}
 }
 
-// TestTheLoserOfTwoSimultaneousDecisionsWritesNoAuditRow holds DecideReturn's row
-// count as the decision. T1's transaction is held OPEN across T2's whole pre-check,
-// because two goroutines and a start channel finish microseconds apart and never overlap.
 func TestTheLoserOfTwoSimultaneousDecisionsWritesNoAuditRow(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -1093,7 +1061,6 @@ func TestTheLoserOfTwoSimultaneousDecisionsWritesNoAuditRow(t *testing.T) {
 		t.Fatalf("T1 decide: %v", err)
 	}
 
-	// T2's pre-check reads the committed row, still 'requested', then blocks on T1's lock.
 	decided := make(chan error, 1)
 	go func() { decided <- s.Decide(ctx, requestID.String(), "approved", "", uuid.NullUUID{}) }()
 
@@ -1139,11 +1106,10 @@ func auditRowsFor(t *testing.T, requestID uuid.UUID) int {
 	return n
 }
 
-// TestARefundCannotExceedWhatWasCaptured reaches refunds_within_capture through the back office.
 func TestARefundCannotExceedWhatWasCaptured(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
-	requestID, orderNumber := returnedOrder(t, 2) // the whole order: 200000
+	requestID, orderNumber := returnedOrder(t, 2)
 
 	if err := s.Decide(ctx, requestID.String(), "approved", "", uuid.NullUUID{}); err != nil {
 		t.Fatalf("first approval: %v", err)
@@ -1183,7 +1149,6 @@ func TestARefundCannotExceedWhatWasCaptured(t *testing.T) {
 	}
 }
 
-// TestGrantIsBoundedAndPositive asserts the grant form refuses a fat-finger and a negative.
 func TestGrantIsBoundedAndPositive(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -1239,7 +1204,6 @@ func TestGrantIsBoundedAndPositive(t *testing.T) {
 	}
 }
 
-// TestGrantIsIdempotent asserts a double-submitted form is one posting.
 func TestGrantIsIdempotent(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -1274,7 +1238,6 @@ func TestGrantIsIdempotent(t *testing.T) {
 			"times, want 1 of 50000", entries, balance)
 	}
 
-	// The key carries the amount and the reason, or a customer owed two apologies gets one.
 	if _, err := s.GrantCredit(ctx, email, 30000, "另一次補償", uuid.NullUUID{}); err != nil {
 		t.Fatalf("second, different grant: %v", err)
 	}
@@ -1294,7 +1257,6 @@ func TestGrantIsIdempotent(t *testing.T) {
 	}
 }
 
-// TestTheBackOfficeIsInvisibleToEveryoneButStaff gives a signed-out visitor and a customer the same 404.
 func TestTheBackOfficeIsInvisibleToEveryoneButStaff(t *testing.T) {
 	ctx := t.Context()
 	h := admin.NewHandler(admin.NewStore(pool, fakeRefunder{}, nil),
@@ -1349,23 +1311,32 @@ func TestTheBackOfficeIsInvisibleToEveryoneButStaff(t *testing.T) {
 		})
 	}
 
-	var staffID uuid.UUID
-	if err := pool.QueryRow(ctx, `
-		INSERT INTO users (email, role) VALUES ('staff-'||gen_random_uuid()||'@example.com', 'admin')
-		RETURNING id`).Scan(&staffID); err != nil {
-		t.Fatalf("create staff: %v", err)
-	}
-	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin", nil)
-	req = req.WithContext(account.WithUser(req.Context(),
-		account.User{ID: staffID.String(), Role: "admin"}))
-	w := httptest.NewRecorder()
-	guarded(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("staff got %d, want 200 — the guard refuses everyone", w.Code)
+	// BOTH back-office roles, and 'staff' is the one that matters: this block
+	// asserted role 'admin' under a variable named staffID and a comment saying
+	// "create staff", so the role /admin/staff actually offers was never tested.
+	// RequireStaff asked IsAdmin, and every colleague hired as staff met a 404 on
+	// the whole back office.
+	for _, role := range twofactor.Roles {
+		t.Run(role+" reaches the back office", func(t *testing.T) {
+			var id uuid.UUID
+			if err := pool.QueryRow(ctx, `
+				INSERT INTO users (email, role) VALUES ('bo-'||gen_random_uuid()||'@example.com', $1)
+				RETURNING id`, role).Scan(&id); err != nil {
+				t.Fatalf("create %s: %v", role, err)
+			}
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin", nil)
+			req = req.WithContext(account.WithUser(req.Context(),
+				account.User{ID: id.String(), Role: role}))
+			w := httptest.NewRecorder()
+			guarded(w, req)
+			if w.Code != http.StatusOK {
+				t.Errorf("%s got %d, want 200 — /admin/staff offers this role, so a "+
+					"colleague hired into it can do no work at all", role, w.Code)
+			}
+		})
 	}
 }
 
-// TestOnlyAnAdminReachesTheStaffPage asserts RequireAdmin refuses the 'staff' role RequireStaff admits.
 func TestOnlyAnAdminReachesTheStaffPage(t *testing.T) {
 	ctx := t.Context()
 	h := admin.NewHandler(admin.NewStore(pool, fakeRefunder{}, nil),
@@ -1423,7 +1394,6 @@ func TestOnlyAnAdminReachesTheStaffPage(t *testing.T) {
 	}
 }
 
-// staffContext is a request context carrying a signed-in staff member.
 func staffContext(t *testing.T) (context.Context, uuid.UUID) {
 	t.Helper()
 	var id uuid.UUID
@@ -1447,7 +1417,6 @@ func auditRows(t *testing.T, action admin.Action) int {
 	return n
 }
 
-// TestEveryBackOfficeWriteLeavesATrail drives each store method and asserts a row appeared.
 func TestEveryBackOfficeWriteLeavesATrail(t *testing.T) {
 	ctx, actor := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -1495,7 +1464,6 @@ func TestEveryBackOfficeWriteLeavesATrail(t *testing.T) {
 	}
 }
 
-// TestAnAuditRowNamesItsActorAndRequest asserts a row carries the actor and the request id.
 func TestAnAuditRowNamesItsActorAndRequest(t *testing.T) {
 	ctx, actor := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -1524,7 +1492,6 @@ func TestAnAuditRowNamesItsActorAndRequest(t *testing.T) {
 	}
 }
 
-// TestAnActionWithNoActorIsRefused proves an unattributable write does not happen.
 func TestAnActionWithNoActorIsRefused(t *testing.T) {
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	slug := anyProductSlug(t)
@@ -1540,7 +1507,6 @@ func TestAnActionWithNoActorIsRefused(t *testing.T) {
 		target = "archived"
 	}
 
-	// t.Context(), never staffContext: a context that carries no actor at all.
 	err := s.SetProductStatus(t.Context(), slug, target)
 	if !errors.Is(err, admin.ErrNoActor) {
 		t.Fatalf("a back-office write with no actor gave %v, want ErrNoActor", err)
@@ -1557,7 +1523,6 @@ func TestAnActionWithNoActorIsRefused(t *testing.T) {
 	}
 }
 
-// TestAFailedWriteLeavesNoAuditRow proves the trail describes only work that committed.
 func TestAFailedWriteLeavesNoAuditRow(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -1566,7 +1531,6 @@ func TestAFailedWriteLeavesNoAuditRow(t *testing.T) {
 	if err := s.SetProductStatus(ctx, anyProductSlug(t), "nonsense"); err == nil {
 		t.Fatal("an invalid status was accepted")
 	}
-	// An UPDATE matching no rows is not an error in SQL, so the toggle reads its row count.
 	if err := s.SetProductStatus(ctx, "no-such-product-"+uuid.NewString(), "active"); !errors.Is(err, admin.ErrNotFound) {
 		t.Errorf("publishing an absent product gave %v, want ErrNotFound", err)
 	}
@@ -1575,7 +1539,6 @@ func TestAFailedWriteLeavesNoAuditRow(t *testing.T) {
 	}
 }
 
-// TestTheTrailCannotBeRewritten asserts audit_events refuses UPDATE and DELETE from everyone.
 func TestTheTrailCannotBeRewritten(t *testing.T) {
 	ctx, _ := staffContext(t)
 	if err := admin.NewStore(pool, fakeRefunder{}, nil).
@@ -1592,7 +1555,6 @@ func TestTheTrailCannotBeRewritten(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// As the OWNER, the strongest caller there is: if the owner cannot do it, nobody can.
 			if _, err := pool.Exec(ctx, tt.stmt); err == nil {
 				t.Fatalf("%s succeeded against an append-only table", tt.name)
 			} else if _, name := constraintFrom(err); name != "audit_events_append_only" {
@@ -1601,7 +1563,6 @@ func TestTheTrailCannotBeRewritten(t *testing.T) {
 		})
 	}
 
-	// As admin and not as the owner, who can — an owner check would prove the opposite.
 	if err := asAdmin(ctx, t, `INSERT INTO audit_events (action, entity_table)
 		VALUES ('forged', 'x')`); err == nil {
 		t.Error("admin inserted an audit row directly, bypassing record_audit_event")
@@ -1613,7 +1574,6 @@ func TestTheTrailCannotBeRewritten(t *testing.T) {
 	}
 }
 
-// constraintFrom pulls the constraint out of a pg error.
 func constraintFrom(err error) (code, name string) {
 	pgErr, ok := errors.AsType[*pgconn.PgError](err)
 	if !ok {
@@ -1676,7 +1636,6 @@ func asAdmin(ctx context.Context, t *testing.T, stmt string) error {
 	return execErr
 }
 
-// TestANamedParentThatDoesNotExistIsRefused refuses a missing parent rather than creating a root.
 func TestANamedParentThatDoesNotExistIsRefused(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -1702,7 +1661,6 @@ func TestANamedParentThatDoesNotExistIsRefused(t *testing.T) {
 	}
 }
 
-// TestACategoryIsCreatedUnderTheParentItNames proves the tree is built where asked.
 func TestACategoryIsCreatedUnderTheParentItNames(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -1733,7 +1691,6 @@ func TestACategoryIsCreatedUnderTheParentItNames(t *testing.T) {
 	}
 }
 
-// TestSomethingInUseCannotBeDeleted asserts the DELETE's own WHERE clause decides emptiness.
 func TestSomethingInUseCannotBeDeleted(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -1778,7 +1735,6 @@ func TestSomethingInUseCannotBeDeleted(t *testing.T) {
 	}
 }
 
-// TestASlugIsNeverRenamed asserts Rename touches the display name and never the slug.
 func TestASlugIsNeverRenamed(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -1804,7 +1760,6 @@ func TestASlugIsNeverRenamed(t *testing.T) {
 	}
 }
 
-// TestRevenueCountsOnlyCommittedOrders proves an abandoned checkout is not a sale.
 func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -1839,7 +1794,6 @@ func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
 	}
 }
 
-// TestTheWindowIsAnAllowlist proves a URL cannot ask for an arbitrary report window.
 func TestTheWindowIsAnAllowlist(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -1865,7 +1819,6 @@ func TestTheWindowIsAnAllowlist(t *testing.T) {
 	}
 }
 
-// reportOrder places one order for `cents` and optionally pays for it.
 func reportOrder(t *testing.T, cents int64, paid bool) uuid.UUID {
 	t.Helper()
 	ctx := t.Context()
@@ -1915,7 +1868,6 @@ func reportOrder(t *testing.T, cents int64, paid bool) uuid.UUID {
 	return orderID
 }
 
-// TestCommittedCoversAnOrderWithNoPaymentRow counts an order that legally has none.
 func TestCommittedCoversAnOrderWithNoPaymentRow(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -1925,7 +1877,6 @@ func TestCommittedCoversAnOrderWithNoPaymentRow(t *testing.T) {
 		t.Fatalf("report: %v", err)
 	}
 
-	// A zero-owed order: orders_funded_to_leave_pending would refuse to advance one that still owes.
 	orderID := reportOrder(t, 0, false)
 	if _, advErr := pool.Exec(ctx,
 		`UPDATE orders SET fulfillment_status = 'picking' WHERE id = $1`, orderID); advErr != nil {
@@ -1955,7 +1906,6 @@ func TestCommittedCoversAnOrderWithNoPaymentRow(t *testing.T) {
 	}
 }
 
-// TestTheQueuePutsWhatTheShopOwesFirst asserts what the shop still owes leads, oldest first.
 func TestTheQueuePutsWhatTheShopOwesFirst(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -1994,7 +1944,6 @@ func TestTheQueuePutsWhatTheShopOwesFirst(t *testing.T) {
 	}
 }
 
-// TestHidingAQuestionIsRecordedAndCannotBeRepeated asserts the row describes work that happened.
 func TestHidingAQuestionIsRecordedAndCannotBeRepeated(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -2017,7 +1966,6 @@ func TestHidingAQuestionIsRecordedAndCannotBeRepeated(t *testing.T) {
 	}
 }
 
-// TestAnEmptyOfficialAnswerIsRefused proves the shop cannot publish nothing.
 func TestAnEmptyOfficialAnswerIsRefused(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -2035,7 +1983,6 @@ func TestAnEmptyOfficialAnswerIsRefused(t *testing.T) {
 	}
 }
 
-// ask posts a question and back-dates it by `days`, returning its id.
 func ask(t *testing.T, s *product.Store, slug, userID, body string, days int) string {
 	t.Helper()
 	ctx := t.Context()
@@ -2073,7 +2020,6 @@ func anyActiveProductSlug(t *testing.T) string {
 	return slug
 }
 
-// TestHealthIsDerivedFromTheWorkNotFromAHeartbeat asserts every figure comes from the work.
 func TestHealthIsDerivedFromTheWorkNotFromAHeartbeat(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -2089,7 +2035,6 @@ func TestHealthIsDerivedFromTheWorkNotFromAHeartbeat(t *testing.T) {
 		t.Errorf("an empty outbox reads as unhealthy: %s", clean.OutboxText(ctx))
 	}
 
-	// A message out of attempts never resolves on its own, so one is worth a person's time.
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO outbox_messages (topic, dedupe_key, payload, attempts, available_at)
 		VALUES ('test.health', 'health-stuck', '{}'::jsonb, 99, now())`); err != nil {
@@ -2107,8 +2052,6 @@ func TestHealthIsDerivedFromTheWorkNotFromAHeartbeat(t *testing.T) {
 	}
 }
 
-// TestAMessageWaitingOnItsBackoffIsNotLate asserts overdue is measured from
-// available_at, which the claim's lease and the backoff both push forward.
 func TestAMessageWaitingOnItsBackoffIsNotLate(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -2137,8 +2080,6 @@ func TestAMessageWaitingOnItsBackoffIsNotLate(t *testing.T) {
 	}
 }
 
-// TestNeverRebuiltIsNotTheSameAsJustRebuilt keeps the one state meaning "never ran"
-// from reading as the healthiest: max() over an empty table is NULL.
 func TestNeverRebuiltIsNotTheSameAsJustRebuilt(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -2172,7 +2113,6 @@ func TestNeverRebuiltIsNotTheSameAsJustRebuilt(t *testing.T) {
 	}
 }
 
-// TestCancellingAnOrderInTheBackOfficeReturnsItsStock puts the release in the cancellation itself.
 func TestCancellingAnOrderInTheBackOfficeReturnsItsStock(t *testing.T) {
 	ctx := t.Context()
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -2223,7 +2163,6 @@ func TestCancellingAnOrderInTheBackOfficeReturnsItsStock(t *testing.T) {
 	}
 }
 
-// placeHeldOrder writes an unpaid order holding one unit of vid.
 func placeHeldOrder(t *testing.T, vid uuid.UUID) string {
 	t.Helper()
 	ctx := t.Context()
@@ -2267,11 +2206,9 @@ func placeHeldOrder(t *testing.T, vid uuid.UUID) string {
 	return number
 }
 
-// TestShippingEnqueuesTheDispatchNotice asserts Ship produces order.shipped.
 func TestShippingEnqueuesTheDispatchNotice(t *testing.T) {
 	ctx := t.Context()
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
-	// Placed in English: the notice follows orders.locale, never the staff member reading Chinese.
 	number := shippableOrder(t, "en")
 
 	var staff uuid.UUID
@@ -2307,7 +2244,6 @@ func TestShippingEnqueuesTheDispatchNotice(t *testing.T) {
 	}
 }
 
-// TestRestockingTellsEverybodyWhoAsked holds the restock notice end to end.
 func TestRestockingTellsEverybodyWhoAsked(t *testing.T) {
 	ctx := t.Context()
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -2376,7 +2312,6 @@ func TestRestockingTellsEverybodyWhoAsked(t *testing.T) {
 	}
 }
 
-// TestAnAdjustmentBelowTheThresholdTellsNobody holds "in stock" to stock_quantity > safety_stock.
 func TestAnAdjustmentBelowTheThresholdTellsNobody(t *testing.T) {
 	ctx := t.Context()
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -2458,7 +2393,6 @@ func emptyTheShelf(t *testing.T, vid uuid.UUID, key string) {
 	}
 }
 
-// shippableOrder writes a funded order sitting in picking, holding its stock.
 func shippableOrder(t *testing.T, locale string) string {
 	t.Helper()
 	ctx := t.Context()
@@ -2523,13 +2457,12 @@ func shippableOrder(t *testing.T, locale string) string {
 	return number
 }
 
-// TestAnOverClaimIsRefusedInWordsRatherThanByAConstraint asserts the refusal names the
-// figures. It goes through a goodwill refund because a second return meets
-// return_within_shipment first and never reaches this guard.
+// TestAnOverClaimIsRefusedInWordsRatherThanByAConstraint goes through a goodwill refund:
+// a second return meets return_within_shipment first and never reaches this guard.
 func TestAnOverClaimIsRefusedInWordsRatherThanByAConstraint(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
-	requestID, orderNumber := returnedOrder(t, 2) // 200000 captured, 200000 claimed
+	requestID, orderNumber := returnedOrder(t, 2)
 
 	var paymentID uuid.UUID
 	if err := pool.QueryRow(ctx, `
@@ -2538,7 +2471,6 @@ func TestAnOverClaimIsRefusedInWordsRatherThanByAConstraint(t *testing.T) {
 		orderNumber).Scan(&paymentID); err != nil {
 		t.Fatalf("find payment: %v", err)
 	}
-	// 150,000 already paid back for some other reason. 50,000 remains.
 	if _, err := pool.Exec(ctx,
 		`SELECT open_refund($1, $2, 150000, '善意退款', NULL)`,
 		paymentID, "goodwill:"+orderNumber); err != nil {
@@ -2572,7 +2504,6 @@ func TestAnOverClaimIsRefusedInWordsRatherThanByAConstraint(t *testing.T) {
 	}
 }
 
-// TestTheReturnQueueShowsWhatIsComingBack asserts a queue row carries the lines coming back.
 func TestTheReturnQueueShowsWhatIsComingBack(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -2601,7 +2532,6 @@ func TestTheReturnQueueShowsWhatIsComingBack(t *testing.T) {
 	}
 }
 
-// TestPublishingAVersionCarriesItsZoneSurcharges carries the old version's surcharges across.
 func TestPublishingAVersionCarriesItsZoneSurcharges(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -2657,7 +2587,6 @@ func TestPublishingAVersionCarriesItsZoneSurcharges(t *testing.T) {
 	}
 }
 
-// TestAZeroSurchargeClearsTheRowRatherThanStoringZero asserts absence is how "none" is written.
 func TestAZeroSurchargeClearsTheRowRatherThanStoringZero(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -2716,14 +2645,12 @@ func surchargeRows(t *testing.T, versionID uuid.UUID) int {
 	return n
 }
 
-// TestTheTierWindowMatchesTheProgramme asserts the back office reads internal/loyalty's window.
 func TestTheTierWindowMatchesTheProgramme(t *testing.T) {
 	if got, want := admin.MembershipWindowDays, loyalty.Days(loyalty.MembershipWindow); got != want {
 		t.Errorf("the back office reads a %d-day window and the programme says %d", got, want)
 	}
 }
 
-// TestTwoTiersCannotShareAThreshold asserts "which tier is NT$50,000 in" has one answer.
 func TestTwoTiersCannotShareAThreshold(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -2737,7 +2664,6 @@ func TestTwoTiersCannotShareAThreshold(t *testing.T) {
 	}
 }
 
-// TestATierCannotEarnLessThanNoTier refuses a band that earns below the base rate.
 func TestATierCannotEarnLessThanNoTier(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -2750,7 +2676,6 @@ func TestATierCannotEarnLessThanNoTier(t *testing.T) {
 	}
 }
 
-// TestOneUploadCanBeAttachedToTwoProducts holds product_images_storage_key_key as (product_id, storage_key).
 func TestOneUploadCanBeAttachedToTwoProducts(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -2781,13 +2706,11 @@ func TestOneUploadCanBeAttachedToTwoProducts(t *testing.T) {
 	if n != 2 {
 		t.Errorf("the image is attached to %d products, want 2", n)
 	}
-	// Twice on the SAME product is the duplicate the index is for.
 	if err := s.AttachImage(ctx, first, digest, "再一次", "", 800, 600); err == nil {
 		t.Error("the same image was attached to one product twice")
 	}
 }
 
-// twoProducts returns the slugs of two draft products of this test's own.
 func twoProducts(t *testing.T) (first, second string) {
 	t.Helper()
 	slugs := make([]string, 0, 2)
@@ -2804,11 +2727,10 @@ func twoProducts(t *testing.T) (first, second string) {
 	return slugs[0], slugs[1]
 }
 
-// TestADeliveryAddressCanBeCorrectedUntilItShips holds the cut-off in the UPDATE's own WHERE clause.
 func TestADeliveryAddressCanBeCorrectedUntilItShips(t *testing.T) {
 	ctx, staffID := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
-	number := shippableOrder(t, "zh-Hant") // funded, sitting in picking
+	number := shippableOrder(t, "zh-Hant")
 
 	correction := &admin.Delivery{
 		Email: "fixed@example.com", Recipient: "收件人", Phone: "0922333444",
@@ -2834,8 +2756,6 @@ func TestADeliveryAddressCanBeCorrectedUntilItShips(t *testing.T) {
 	}
 }
 
-// TestCorrectingADeliveryDoesNotWriteTheAddressIntoTheAuditTrail keeps the address out
-// of an append-only table erase_user does not reach.
 func TestCorrectingADeliveryDoesNotWriteTheAddressIntoTheAuditTrail(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -2866,13 +2786,11 @@ func TestCorrectingADeliveryDoesNotWriteTheAddressIntoTheAuditTrail(t *testing.T
 	}
 }
 
-// TestCorrectingAPickupOrderCannotTurnItIntoAnAddressOne resolves the destination from the ORDER.
 func TestCorrectingAPickupOrderCannotTurnItIntoAnAddressOne(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	number := pickupOrderForCorrection(t)
 
-	// Both halves submitted, as a hand-edited form would.
 	if err := s.CorrectDelivery(ctx, number, &admin.Delivery{
 		Email: "pickup@example.com", Recipient: "收件人", Phone: "0922333444",
 		PostalCode: "106", City: "台北市", District: "大安區", Street: "不該存下來的地址",
@@ -2908,7 +2826,6 @@ func streetOf(t *testing.T, number string) string {
 	return street
 }
 
-// pickupOrderForCorrection writes an unshipped convenience-store pickup order.
 func pickupOrderForCorrection(t *testing.T) string {
 	t.Helper()
 	ctx := t.Context()
@@ -2948,7 +2865,6 @@ func pickupOrderForCorrection(t *testing.T) string {
 	return number
 }
 
-// TestHidingAReviewIsReversibleAndAudited keeps hide and show separate paths, both audited.
 func TestHidingAReviewIsReversibleAndAudited(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -2991,7 +2907,6 @@ func TestHidingAReviewIsReversibleAndAudited(t *testing.T) {
 	}
 }
 
-// TestTheReviewQueueShowsHiddenOnes keeps a hidden review in the queue so it can be put back.
 func TestTheReviewQueueShowsHiddenOnes(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -3047,7 +2962,6 @@ func reviewHidden(t *testing.T, id string) bool {
 	return hidden
 }
 
-// TestTheInboxPutsTheLongestWaitFirst asserts unhandled leads, longest wait first.
 func TestTheInboxPutsTheLongestWaitFirst(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -3097,7 +3011,6 @@ func TestTheInboxPutsTheLongestWaitFirst(t *testing.T) {
 	}
 }
 
-// TestHandlingAMessageIsReversibleAndAudited asserts marking handled can be undone.
 func TestHandlingAMessageIsReversibleAndAudited(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -3140,7 +3053,6 @@ func TestHandlingAMessageIsReversibleAndAudited(t *testing.T) {
 	}
 }
 
-// TestTheInboxDoesNotCopyTheMessageIntoTheAuditTrail keeps a customer's words out of it.
 func TestTheInboxDoesNotCopyTheMessageIntoTheAuditTrail(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -3171,9 +3083,6 @@ func TestTheInboxDoesNotCopyTheMessageIntoTheAuditTrail(t *testing.T) {
 	}
 }
 
-// messageAgedDays writes a message that has been waiting days days, an HOUR past the
-// boundary: the age is computed in SQL, and a row exactly on the edge reports either
-// side of it under clock skew.
 func messageAgedDays(t *testing.T, subject string, days int) string {
 	t.Helper()
 	var id string
@@ -3198,11 +3107,9 @@ func messageHandled(t *testing.T, id string) bool {
 	return handled
 }
 
-// TestAReturnPaysBackBothSources is the case splitRefund exists for: card first, credit last.
 func TestAReturnPaysBackBothSources(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
-	// 200,000 of goods: 60,000 paid with credit, 140,000 on the card.
 	requestID, orderNumber, accountID := creditFundedReturn(t, 2, 60000)
 
 	if err := s.Decide(ctx, requestID.String(), "approved", "退貨完成", uuid.NullUUID{}); err != nil {
@@ -3222,7 +3129,6 @@ func TestAReturnPaysBackBothSources(t *testing.T) {
 		t.Errorf("card refunded %d, want 140000 — the whole capture, card first", refunded)
 	}
 
-	// A positive entry and not a reversal: this order shipped, and a reversal says it was never funded.
 	var compensated int64
 	if err := pool.QueryRow(ctx, `
 		SELECT coalesce(sum(e.amount_cents), 0) FROM store_credit_entries e
@@ -3239,12 +3145,9 @@ func TestAReturnPaysBackBothSources(t *testing.T) {
 	}
 }
 
-// TestAPartialReturnPaysTheCardFirst is the only shape that can tell card-first from
-// credit-first: a full return pays the same either way.
 func TestAPartialReturnPaysTheCardFirst(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
-	// 60,000 credit and 140,000 card; one of two units back, so the claim of 100,000 fits on the card.
 	requestID, orderNumber, accountID := creditFundedReturn(t, 1, 60000)
 
 	if err := s.Decide(ctx, requestID.String(), "approved", "退一件", uuid.NullUUID{}); err != nil {
@@ -3269,11 +3172,9 @@ func TestAPartialReturnPaysTheCardFirst(t *testing.T) {
 	}
 }
 
-// TestAWhollyCreditFundedReturnNeedsNoProvider proves the zero-owed path, which has no payment row.
 func TestAWhollyCreditFundedReturnNeedsNoProvider(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
-	// 200,000 of goods, all of it credit.
 	requestID, orderNumber, accountID := creditFundedReturn(t, 2, 200000)
 
 	if err := s.Decide(ctx, requestID.String(), "approved", "全額購物金", uuid.NullUUID{}); err != nil {
@@ -3296,7 +3197,6 @@ func TestAWhollyCreditFundedReturnNeedsNoProvider(t *testing.T) {
 	}
 }
 
-// TestCompensatingAReturnTwiceGivesCreditOnce keys the compensation on the return.
 func TestCompensatingAReturnTwiceGivesCreditOnce(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -3305,7 +3205,6 @@ func TestCompensatingAReturnTwiceGivesCreditOnce(t *testing.T) {
 	if err := s.Decide(ctx, requestID.String(), "approved", "第一次", uuid.NullUUID{}); err != nil {
 		t.Fatalf("first Decide: %v", err)
 	}
-	// The return is no longer 'requested', so drive the compensation a retry would reach.
 	var orderID, userID uuid.UUID
 	if err := pool.QueryRow(ctx, `
 		SELECT o.id, o.user_id FROM orders o
@@ -3337,8 +3236,6 @@ func creditBalanceOf(t *testing.T, accountID uuid.UUID) int64 {
 	return cents
 }
 
-// creditFundedReturn is returnedOrder with part of the price paid from store credit.
-// creditCents == the whole price opens NO payment, which is the zero-owed case.
 func creditFundedReturn(t *testing.T, qty int32, creditCents int64) (
 	requestID uuid.UUID, orderNumber string, accountID uuid.UUID,
 ) {
@@ -3361,7 +3258,6 @@ func creditFundedReturn(t *testing.T, qty int32, creditCents int64) (
 		RETURNING id`).Scan(&userID); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	// They start with the credit they are about to spend, so the same balance after means whole.
 	if _, err := tx.Exec(ctx, `SELECT post_store_credit($1, $2, '測試發放', NULL, $3, NULL)`,
 		userID, creditCents, "grant:"+userID.String()); err != nil {
 		t.Fatalf("grant credit: %v", err)
@@ -3418,7 +3314,6 @@ func creditFundedReturn(t *testing.T, qty int32, creditCents int64) (
 		VALUES ($1, $2, $3, 2)`, orderID, shipmentID, lineID); err != nil {
 		t.Fatalf("create shipment line: %v", err)
 	}
-	// Settled, because a compensation is legal only once the order is.
 	for _, status := range []string{"picking", "shipped"} {
 		if _, err := tx.Exec(ctx,
 			`UPDATE orders SET fulfillment_status = $2 WHERE id = $1`,
@@ -3447,7 +3342,6 @@ func creditFundedReturn(t *testing.T, qty int32, creditCents int64) (
 	return requestID, orderNumber, accountID
 }
 
-// TestTheBackOfficeCanFindAnOrder matches a number exactly and anything else as a prefix.
 func TestTheBackOfficeCanFindAnOrder(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -3474,7 +3368,6 @@ func TestTheBackOfficeCanFindAnOrder(t *testing.T) {
 	}
 }
 
-// TestASearchIgnoresTheStatusFilter proves the status tab does not hide the answer.
 func TestASearchIgnoresTheStatusFilter(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -3489,7 +3382,6 @@ func TestASearchIgnoresTheStatusFilter(t *testing.T) {
 	}
 }
 
-// TestATooShortSearchIsNotASearch asserts a one-character term falls back to the queue.
 func TestATooShortSearchIsNotASearch(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -3503,7 +3395,6 @@ func TestATooShortSearchIsNotASearch(t *testing.T) {
 	}
 }
 
-// TestAnErasedOrderIsNotFoundByItsOldAddress checks the search door against erasure.
 func TestAnErasedOrderIsNotFoundByItsOldAddress(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -3527,7 +3418,6 @@ func TestAnErasedOrderIsNotFoundByItsOldAddress(t *testing.T) {
 			t.Errorf("an erased order was found by %q, which it no longer holds", term)
 		}
 	}
-	// Its NUMBER still finds it: the order survives as a financial record.
 	view, err := s.Orders(ctx, "", number)
 	if err != nil {
 		t.Fatalf("Orders: %v", err)
@@ -3546,7 +3436,6 @@ func hasOrder(v pages.AdminOrdersView, number string) bool {
 	return false
 }
 
-// searchableOrder places a pending order with a distinctive recipient and address.
 func searchableOrder(t *testing.T) (number, recipient, addr string) {
 	t.Helper()
 	ctx := t.Context()
@@ -3587,7 +3476,6 @@ func searchableOrder(t *testing.T) (number, recipient, addr string) {
 	return number, recipient, addr
 }
 
-// TestTheBackOfficeCanSeeOneCustomerWhole answers one question with one read.
 func TestTheBackOfficeCanSeeOneCustomerWhole(t *testing.T) {
 	ctx, staff := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -3608,8 +3496,6 @@ func TestTheBackOfficeCanSeeOneCustomerWhole(t *testing.T) {
 	}
 }
 
-// TestLookingAtACustomerIsRecorded holds the one READ in audit_events: this page's
-// whole content is somebody else's personal data.
 func TestLookingAtACustomerIsRecorded(t *testing.T) {
 	ctx, staff := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -3646,7 +3532,6 @@ func TestLookingAtACustomerIsRecorded(t *testing.T) {
 	}
 }
 
-// TestACustomerSearchNeedsATerm proves nothing is listed until somebody searches.
 func TestACustomerSearchNeedsATerm(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -3665,7 +3550,6 @@ func TestACustomerSearchNeedsATerm(t *testing.T) {
 	}
 }
 
-// TestACustomerIsFoundByTheStartOfTheirAddress is the search itself.
 func TestACustomerIsFoundByTheStartOfTheirAddress(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -3697,7 +3581,6 @@ func TestACustomerIsFoundByTheStartOfTheirAddress(t *testing.T) {
 	}
 }
 
-// creditedAccount makes a customer with a store-credit balance and returns their user id.
 func creditedAccount(t *testing.T, cents int64) uuid.UUID {
 	t.Helper()
 	ctx := t.Context()
@@ -3724,7 +3607,6 @@ func creditedAccount(t *testing.T, cents int64) uuid.UUID {
 	return userID
 }
 
-// TestACustomersSpendCountsOnlyCommittedOrders keeps a cancelled order out of the spend.
 func TestACustomersSpendCountsOnlyCommittedOrders(t *testing.T) {
 	ctx, staff := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -3748,13 +3630,11 @@ func TestACustomersSpendCountsOnlyCommittedOrders(t *testing.T) {
 		t.Errorf("spend is %d, want 120000 — the cancelled order is being counted",
 			view.SpentCents)
 	}
-	// Both are still their orders: only the money is filtered.
 	if view.Orders != 2 {
 		t.Errorf("order count is %d, want 2", view.Orders)
 	}
 }
 
-// TestAPromotedCustomerIsStillFindable holds the reason neither customer query takes a role predicate.
 func TestAPromotedCustomerIsStillFindable(t *testing.T) {
 	ctx, staff := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -3794,7 +3674,6 @@ func TestAPromotedCustomerIsStillFindable(t *testing.T) {
 	}
 }
 
-// orderForCustomer places one order owned by userID; paid means captured, hence committed.
 func orderForCustomer(t *testing.T, userID uuid.UUID, cents int64, paid bool) uuid.UUID {
 	t.Helper()
 	ctx := t.Context()
@@ -3844,7 +3723,6 @@ func orderForCustomer(t *testing.T, userID uuid.UUID, cents int64, paid bool) uu
 	return orderID
 }
 
-// TestTheBackOfficeSeesWhoCancelled proves an absent actor is what says the customer cancelled.
 func TestTheBackOfficeSeesWhoCancelled(t *testing.T) {
 	ctx, _ := staffContext(t)
 	basket := cart.NewStore(pool)
@@ -3877,7 +3755,6 @@ func TestTheBackOfficeSeesWhoCancelled(t *testing.T) {
 	}
 }
 
-// TestADeliveredOrderMarksItsParcelsDelivered holds the status move to the column that records it.
 func TestADeliveredOrderMarksItsParcelsDelivered(t *testing.T) {
 	ctx, staff := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -3909,8 +3786,6 @@ func TestADeliveredOrderMarksItsParcelsDelivered(t *testing.T) {
 		t.Error("the order is delivered and its parcel still says otherwise")
 	}
 
-	// Stamped once, and read from the ROW: DeliveredAt is formatted to the minute, so a
-	// second stamp in the same minute is invisible in the view.
 	first := deliveredAt(t, number)
 	if first.IsZero() {
 		t.Fatal("the parcel has no delivery timestamp at all")
@@ -3924,8 +3799,6 @@ func TestADeliveredOrderMarksItsParcelsDelivered(t *testing.T) {
 	}
 }
 
-// TestAnOrderCompletedWithoutADeliveryStepStillStampsItsParcels covers the other
-// transition that ends a delivery: shipped -> completed, which store pickup uses.
 func TestAnOrderCompletedWithoutADeliveryStepStillStampsItsParcels(t *testing.T) {
 	ctx, staff := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -3950,8 +3823,6 @@ func TestAnOrderCompletedWithoutADeliveryStepStillStampsItsParcels(t *testing.T)
 	}
 }
 
-// TestShippingIsRefusedWhenTheOrderHoldsNoStock stops a parcel leaving under an order
-// whose hold is gone: Ship consumes by ranging, and an empty slice ranges silently.
 func TestShippingIsRefusedWhenTheOrderHoldsNoStock(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -3986,7 +3857,6 @@ func TestShippingIsRefusedWhenTheOrderHoldsNoStock(t *testing.T) {
 	}
 }
 
-// deliveredAt is when the order's one parcel was recorded as arriving.
 func deliveredAt(t *testing.T, number string) time.Time {
 	t.Helper()
 	var at *time.Time
@@ -4002,7 +3872,6 @@ func deliveredAt(t *testing.T, number string) time.Time {
 	return *at
 }
 
-// TestTheShopCanGiveAProductASpecTable is product_specs' door.
 func TestTheShopCanGiveAProductASpecTable(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -4031,7 +3900,6 @@ func TestTheShopCanGiveAProductASpecTable(t *testing.T) {
 	for _, sp := range view.Specs {
 		got = append(got, sp.Label)
 	}
-	// In the order they were added, which is the order /compare and the PDP read.
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("spec labels (-want +got):\n%s", diff)
 	}
@@ -4053,7 +3921,6 @@ func TestTheShopCanGiveAProductASpecTable(t *testing.T) {
 	}
 }
 
-// TestASpecIsRefusedRatherThanTruncated bounds a spec in RUNES, in Go and in the CHECK.
 func TestASpecIsRefusedRatherThanTruncated(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -4101,7 +3968,6 @@ func TestASpecIsRefusedRatherThanTruncated(t *testing.T) {
 		})
 	}
 
-	// And in the database: exactly at the bound is accepted, one past it is refused by name.
 	if errs, err := s.AddSpec(ctx, slug, admin.SpecDraft{
 		Label: strings.Repeat("螢", admin.SpecLabelRunes), Value: "剛好",
 	}); err != nil || len(errs) > 0 {
@@ -4117,8 +3983,6 @@ func TestASpecIsRefusedRatherThanTruncated(t *testing.T) {
 	}
 }
 
-// draftProduct creates a product with no variants and returns its slug. It takes the
-// caller's ctx because record_audit_event refuses a row attributed to nobody.
 func draftProduct(t *testing.T, ctx context.Context, s *admin.Store) string {
 	t.Helper()
 
@@ -4141,7 +4005,6 @@ func draftProduct(t *testing.T, ctx context.Context, s *admin.Store) string {
 	return created
 }
 
-// TestACategoryCarriesItsEnglishName holds a category name as chrome, in every page's header.
 func TestACategoryCarriesItsEnglishName(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -4175,7 +4038,6 @@ func TestACategoryCarriesItsEnglishName(t *testing.T) {
 		})
 	}
 
-	// An untranslated category falls back to the Chinese name rather than to blank.
 	plain := "tax-plain-" + uuid.NewString()[:8]
 	if errs, err := s.CreateCategory(ctx, &admin.TaxonomyForm{
 		Slug: plain, Name: "沒翻的分類",
@@ -4193,7 +4055,6 @@ func TestACategoryCarriesItsEnglishName(t *testing.T) {
 			"Chinese name", fallback)
 	}
 
-	// A rename can CLEAR the translation: empty is stored as NULL.
 	if err := s.Rename(ctx, "category", slug, "測試分類", "", ""); err != nil {
 		t.Fatalf("rename: %v", err)
 	}
@@ -4207,7 +4068,6 @@ func TestACategoryCarriesItsEnglishName(t *testing.T) {
 	}
 }
 
-// TestTheShopCanGiveAProductAVariantPicker is product_options' door.
 func TestTheShopCanGiveAProductAVariantPicker(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -4252,7 +4112,6 @@ func TestTheShopCanGiveAProductAVariantPicker(t *testing.T) {
 		view.Options[0].Values[0].Label != "Mist Blue" {
 		t.Errorf("the first value is %+v", view.Options[0].Values[0])
 	}
-	// An untranslated value carries an empty label rather than a copy of itself.
 	if view.Options[0].Values[1].Label != "" {
 		t.Errorf("an untranslated value reports label %q",
 			view.Options[0].Values[1].Label)
@@ -4292,7 +4151,6 @@ func TestTheShopCanGiveAProductAVariantPicker(t *testing.T) {
 	}
 }
 
-// TestAVariantCannotBorrowAnotherProductsOptionValue holds the composite key from the Go side.
 func TestAVariantCannotBorrowAnotherProductsOptionValue(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -4317,7 +4175,6 @@ func TestAVariantCannotBorrowAnotherProductsOptionValue(t *testing.T) {
 	}
 	borrowed := firstView.Options[0].Values[0].ID
 
-	// The second product declares an axis of its own, so the only thing wrong is whose value it is.
 	second := draftProduct(t, ctx, s)
 	if errs, addErr := s.AddOption(ctx, second, admin.OptionDraft{Name: "顏色"}); addErr != nil ||
 		len(errs) > 0 {
@@ -4333,7 +4190,6 @@ func TestAVariantCannotBorrowAnotherProductsOptionValue(t *testing.T) {
 	if errs["options"] == "" {
 		t.Errorf("a variant borrowing another product's value was accepted: %v", errs)
 	}
-	// And nothing was left behind: the variant and its link share a transaction.
 	var variants int
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*) FROM product_variants WHERE sku = 'BORROW-1'`).Scan(&variants); err != nil {
@@ -4344,7 +4200,6 @@ func TestAVariantCannotBorrowAnotherProductsOptionValue(t *testing.T) {
 	}
 }
 
-// TestTheOptionValueIsAddedToTheRightProduct refuses a value on another product's axis.
 func TestTheOptionValueIsAddedToTheRightProduct(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -4371,12 +4226,10 @@ func TestTheOptionValueIsAddedToTheRightProduct(t *testing.T) {
 	}
 }
 
-// TestARestockNoticeNamesTheProductInTheReadersLanguage follows stock_notifications.locale.
 func TestARestockNoticeNamesTheProductInTheReadersLanguage(t *testing.T) {
 	ctx := t.Context()
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
 
-	// A product whose two names differ, so the payload can be told apart.
 	var vid uuid.UUID
 	var sku string
 	if err := pool.QueryRow(ctx, `
@@ -4445,8 +4298,6 @@ func TestARestockNoticeNamesTheProductInTheReadersLanguage(t *testing.T) {
 	}
 }
 
-// TestAltTextFollowsThePagesLanguage asserts alt text follows <html lang>, and that a
-// missing English one falls back to the Chinese rather than to silence.
 func TestAltTextFollowsThePagesLanguage(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -4496,7 +4347,6 @@ func TestAltTextFollowsThePagesLanguage(t *testing.T) {
 	}
 }
 
-// storeMedia puts one image of its own in media_objects and returns its digest.
 func storeMedia(t *testing.T) string {
 	t.Helper()
 	digest := fmt.Sprintf("%064x", uuid.New().ID())
@@ -4510,7 +4360,6 @@ func storeMedia(t *testing.T) string {
 	return digest
 }
 
-// TestTheShopCanRunAPromotion is promo_banners' door.
 func TestTheShopCanRunAPromotion(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -4540,7 +4389,6 @@ func TestTheShopCanRunAPromotion(t *testing.T) {
 		t.Errorf("the promotion reads as %+v", *made)
 	}
 
-	// And the storefront shows it, through the same read the site's middleware does.
 	shop := home.NewStore(pool)
 	for _, tt := range []struct {
 		name   string
@@ -4561,7 +4409,6 @@ func TestTheShopCanRunAPromotion(t *testing.T) {
 		})
 	}
 
-	// Switching it off leaves the row: a promotion that ran is part of what the site said.
 	if err := s.SetBannerActive(ctx, made.ID, false); err != nil {
 		t.Fatalf("SetBannerActive: %v", err)
 	}
@@ -4576,7 +4423,6 @@ func TestTheShopCanRunAPromotion(t *testing.T) {
 	}
 }
 
-// TestAPromotionsButtonMustStayOnThisSite holds the CTA href to a same-site path.
 func TestAPromotionsButtonMustStayOnThisSite(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -4597,7 +4443,6 @@ func TestAPromotionsButtonMustStayOnThisSite(t *testing.T) {
 		}
 	}
 
-	// Half a CTA is refused; promo_banners_cta_complete says the same in the schema.
 	errs, err := s.CreateBanner(ctx, &admin.BannerForm{Message: "測試", CTALabel: "看看"})
 	if err != nil {
 		t.Fatalf("CreateBanner: %v", err)
@@ -4607,7 +4452,6 @@ func TestAPromotionsButtonMustStayOnThisSite(t *testing.T) {
 	}
 }
 
-// TestSupportCanAnswerAQuestionWithoutADeploy is faq_entries' door.
 func TestSupportCanAnswerAQuestionWithoutADeploy(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -4638,7 +4482,6 @@ func TestSupportCanAnswerAQuestionWithoutADeploy(t *testing.T) {
 		t.Error("an entry with an English answer reads as untranslated")
 	}
 
-	// And the storefront shows it, through the same read /faq does.
 	content := site.NewStore(pool)
 	for _, tt := range []struct {
 		name   string
@@ -4699,7 +4542,6 @@ func TestSupportCanAnswerAQuestionWithoutADeploy(t *testing.T) {
 	}
 }
 
-// TestTwoFAQEntriesInOneCategoryDoNotCollide holds faq_entries_position_key, unique on (category, position).
 func TestTwoFAQEntriesInOneCategoryDoNotCollide(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -4732,11 +4574,9 @@ func TestTwoFAQEntriesInOneCategoryDoNotCollide(t *testing.T) {
 	}
 }
 
-// TestAShopCanOfferAThirdDeliveryMethod is shipping_methods' own door.
 func TestAShopCanOfferAThirdDeliveryMethod(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
-	// An empty cart: which methods are offered depends on what the carrier will take.
 	emptyCart, cartErr := cart.NewStore(pool).Create(ctx, uuid.NewString(), uuid.NullUUID{})
 	if cartErr != nil {
 		t.Fatalf("create cart: %v", cartErr)
@@ -4752,7 +4592,6 @@ func TestAShopCanOfferAThirdDeliveryMethod(t *testing.T) {
 		t.Fatalf("CreateMethod: %v %v", err, errs)
 	}
 
-	// A method and its first version in one transaction: an unversioned method cannot be priced.
 	var versions int
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*) FROM shipping_method_versions v
@@ -4764,7 +4603,6 @@ func TestAShopCanOfferAThirdDeliveryMethod(t *testing.T) {
 		t.Errorf("%d versions for a new method, want exactly 1", versions)
 	}
 
-	// And the CHECKOUT offers it, in both languages, through the site's own read.
 	basket := cart.NewStore(pool)
 	for _, tt := range []struct {
 		name   string
@@ -4818,7 +4656,6 @@ func TestAShopCanOfferAThirdDeliveryMethod(t *testing.T) {
 	}
 }
 
-// TestAShopCanSayWhichPostalCodesCostMore is shipping_zones' own door.
 func TestAShopCanSayWhichPostalCodesCostMore(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -4849,12 +4686,10 @@ func TestAShopCanSayWhichPostalCodesCostMore(t *testing.T) {
 		}
 		prefixes = append(prefixes, p)
 	}
-	// Spaces, commas and both separate, because that is how a person pastes a list.
 	if diff := cmp.Diff([]string{"546", "552", "553"}, prefixes); diff != "" {
 		t.Errorf("prefixes (-want +got):\n%s", diff)
 	}
 
-	// A prefix is the PRIMARY KEY, so assigning it elsewhere MOVES it rather than failing.
 	other := "remote2" + uuid.NewString()[:6]
 	if errs, zoneErr := s.CreateZone(ctx, &admin.NewZone{
 		Code: other, Name: "另一區", Prefixes: "546",
@@ -4872,7 +4707,6 @@ func TestAShopCanSayWhichPostalCodesCostMore(t *testing.T) {
 	}
 }
 
-// TestAZonePrefixMustBeThreeDigits refuses what the schema would, with a sentence.
 func TestAZonePrefixMustBeThreeDigits(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -4889,7 +4723,6 @@ func TestAZonePrefixMustBeThreeDigits(t *testing.T) {
 		}
 	}
 
-	// A zone with prefixes cannot be deleted; the DELETE's own WHERE clause decides.
 	code := "empty" + uuid.NewString()[:6]
 	if errs, err := s.CreateZone(ctx, &admin.NewZone{
 		Code: code, Name: "空的", Prefixes: "999",
@@ -4912,7 +4745,6 @@ func TestAZonePrefixMustBeThreeDigits(t *testing.T) {
 	}
 }
 
-// TestTheStockLedgerCanBeRead is the reading door on inventory_movements.
 func TestTheStockLedgerCanBeRead(t *testing.T) {
 	ctx, staff := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -4949,7 +4781,6 @@ func TestTheStockLedgerCanBeRead(t *testing.T) {
 		t.Fatalf("%d rows after one adjustment, had %d", len(after.Rows), len(before.Rows))
 	}
 
-	// Newest first: the question at a stock list is "what just happened".
 	newest := after.Rows[0]
 	if newest.Delta != 7 {
 		t.Errorf("the newest movement is %d, want +7", newest.Delta)
@@ -4964,7 +4795,6 @@ func TestTheStockLedgerCanBeRead(t *testing.T) {
 		t.Errorf("the delta reads %q, want +7 — a bare 7 is half the story",
 			newest.DeltaText())
 	}
-	// The running total is computed over the WHOLE ledger rather than the page.
 	if newest.Running != before.Stock+7 {
 		t.Errorf("the newest running total is %d, want %d — the stock before plus "+
 			"this movement", newest.Running, before.Stock+7)
@@ -5031,7 +4861,6 @@ func TestAReleaseInTheLedgerNamesItsOrder(t *testing.T) {
 	}
 }
 
-// TestTheOrderPageShowsTheInvoiceChoice is the reading door on invoice_preferences.
 func TestTheOrderPageShowsTheInvoiceChoice(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -5068,7 +4897,6 @@ func TestTheOrderPageShowsTheInvoiceChoice(t *testing.T) {
 	}
 }
 
-// TestTheShopSetsEachProductsWarrantyTerm is the writing door on products.warranty_months.
 func TestTheShopSetsEachProductsWarrantyTerm(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -5078,7 +4906,6 @@ func TestTheShopSetsEachProductsWarrantyTerm(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Product: %v", err)
 	}
-	// "No cover" and "we have not said" are different claims, so an unset term shows blank.
 	if view.WarrantyMonths != 0 || view.WarrantyMonthsText() != "" {
 		t.Errorf("a new product reports %d months (%q)",
 			view.WarrantyMonths, view.WarrantyMonthsText())
@@ -5101,7 +4928,6 @@ func TestTheShopSetsEachProductsWarrantyTerm(t *testing.T) {
 		t.Errorf("the product states %d months, want 24", after.WarrantyMonths)
 	}
 
-	// Cleared is NULL, which is what makes registration refuse rather than invent a date.
 	form.WarrantyMonths = 0
 	if errs, updErr := s.UpdateProduct(ctx, form); updErr != nil || len(errs) > 0 {
 		t.Fatalf("UpdateProduct: %v %v", updErr, errs)
@@ -5152,7 +4978,6 @@ func returnedOrderWithStock(t *testing.T, name string, qty int32) (requestID, va
 		productID, slug).Scan(&variantID); err != nil {
 		t.Fatalf("create variant: %v", err)
 	}
-	// Stock arrives through the ledger, never by writing the column: no role can.
 	if _, err := tx.Exec(ctx,
 		`SELECT record_inventory_movement($1, 5, 'receipt', $2, NULL, NULL, NULL)`,
 		variantID, "seed:"+slug); err != nil {
@@ -5229,7 +5054,6 @@ func stockOf(t *testing.T, variantID uuid.UUID) int32 {
 	return n
 }
 
-// returnLineID is the order line one return request is about.
 func returnLineID(t *testing.T, requestID uuid.UUID) uuid.UUID {
 	t.Helper()
 	var id uuid.UUID
@@ -5241,8 +5065,6 @@ func returnLineID(t *testing.T, requestID uuid.UUID) uuid.UUID {
 	return id
 }
 
-// TestAnInspectedReturnPutsTheSellableUnitsBack restocks two of three units, the case
-// a single figure cannot express.
 func TestAnInspectedReturnPutsTheSellableUnitsBack(t *testing.T) {
 	ctx, staff := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -5254,7 +5076,6 @@ func TestAnInspectedReturnPutsTheSellableUnitsBack(t *testing.T) {
 	if err := s.Decide(ctx, requestID.String(), "approved", "", actor); err != nil {
 		t.Fatalf("approve: %v", err)
 	}
-	// Approving moves money, never stock, or the restock below has the wrong baseline.
 	if got := stockOf(t, variantID); got != before {
 		t.Fatalf("approving a return moved stock %d -> %d; nothing has come back yet",
 			before, got)
@@ -5270,7 +5091,6 @@ func TestAnInspectedReturnPutsTheSellableUnitsBack(t *testing.T) {
 		t.Errorf("stock is %d after restocking one of two returned units, want %d", got, want)
 	}
 
-	// The ledger, not just the count: a return must be distinguishable from a miscount.
 	var reason, sourceType string
 	var delta int32
 	if err := pool.QueryRow(ctx, `
@@ -5288,7 +5108,6 @@ func TestAnInspectedReturnPutsTheSellableUnitsBack(t *testing.T) {
 	}
 }
 
-// TestAReturnCannotCloseWithAnUninspectedLine holds the guard that makes 'completed' mean something.
 func TestAReturnCannotCloseWithAnUninspectedLine(t *testing.T) {
 	ctx, staff := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -5327,14 +5146,12 @@ func TestAReturnCannotCloseWithAnUninspectedLine(t *testing.T) {
 	if status != "completed" {
 		t.Errorf("the return is %q after closing, want completed", status)
 	}
-	// Closing posts no second movement: the stock moved at inspection.
 	if got, want := stockOf(t, variantID), int32(5-0+2); got != want {
 		t.Errorf("stock is %d after closing, want %d — completing a return must not "+
 			"restock a second time", got, want)
 	}
 }
 
-// TestInspectingIsRefusedBeforeApproval stops stock moving for goods the shop refused.
 func TestInspectingIsRefusedBeforeApproval(t *testing.T) {
 	ctx, staff := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -5354,7 +5171,6 @@ func TestInspectingIsRefusedBeforeApproval(t *testing.T) {
 	}
 }
 
-// TestRestockingMoreThanArrivedIsRefused says in words what the CHECK refuses anyway.
 func TestRestockingMoreThanArrivedIsRefused(t *testing.T) {
 	ctx, staff := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -5378,9 +5194,6 @@ func TestRestockingMoreThanArrivedIsRefused(t *testing.T) {
 	}
 }
 
-// TestALineIsInspectedOnceAndACorrectionIsAnAdjustment refuses a second inspection:
-// swallowed by the unique index, a corrected figure would show on screen with the
-// stock still at the old one.
 func TestALineIsInspectedOnceAndACorrectionIsAnAdjustment(t *testing.T) {
 	ctx, staff := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -5399,7 +5212,6 @@ func TestALineIsInspectedOnceAndACorrectionIsAnAdjustment(t *testing.T) {
 		t.Fatalf("first inspection: %v", err)
 	}
 
-	// A CORRECTED resubmission, which is the dangerous one: different numbers.
 	err := s.InspectReturn(ctx, requestID.String(), []admin.ReturnLineInspection{{
 		OrderLineID: lineID, Received: 2, Restocked: 1,
 	}}, actor)
@@ -5432,7 +5244,6 @@ func TestALineIsInspectedOnceAndACorrectionIsAnAdjustment(t *testing.T) {
 	}
 }
 
-// twoLineOrderWithStock is a picking order holding two DIFFERENT variants, its own per call.
 func twoLineOrderWithStock(t *testing.T, name string) (
 	number string, orderID uuid.UUID, lineIDs, variantIDs []uuid.UUID,
 ) {
@@ -5455,7 +5266,6 @@ func twoLineOrderWithStock(t *testing.T, name string) (
 		t.Fatalf("create order: %v", err)
 	}
 
-	// Three units each, so a parcel can carry some of one line and all of the other.
 	for i := range 2 {
 		slug := fmt.Sprintf("%s-%d-%s", name, i, uuid.NewString()[:8])
 		var productID, variantID, lineID uuid.UUID
@@ -5517,7 +5327,6 @@ func twoLineOrderWithStock(t *testing.T, name string) (
 	return number, orderID, lineIDs, variantIDs
 }
 
-// heldFor is how many units an order still has reserved for one variant.
 func heldFor(t *testing.T, orderID, variantID uuid.UUID) int32 {
 	t.Helper()
 	var n int32
@@ -5530,7 +5339,6 @@ func heldFor(t *testing.T, orderID, variantID uuid.UUID) int32 {
 	return n
 }
 
-// shippedFor is how many units of one line have gone out across every parcel.
 func shippedFor(t *testing.T, lineID uuid.UUID) int32 {
 	t.Helper()
 	var n int32
@@ -5542,14 +5350,12 @@ func shippedFor(t *testing.T, lineID uuid.UUID) int32 {
 	return n
 }
 
-// TestAnOrderCanShipInTwoParcels asserts CanShip follows what is outstanding, not the status.
 func TestAnOrderCanShipInTwoParcels(t *testing.T) {
 	ctx, staff := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	number, orderID, lines, variants := twoLineOrderWithStock(t, "partial")
 
-	// First parcel: two of the first line's three, none of the second.
 	if err := s.Ship(ctx, number, admin.Dispatch{
 		Carrier: "黑貓宅急便", Tracking: "P1-" + number,
 		Lines: map[uuid.UUID]int32{lines[0]: 2},
@@ -5563,7 +5369,6 @@ func TestAnOrderCanShipInTwoParcels(t *testing.T) {
 	if got := shippedFor(t, lines[1]); got != 0 {
 		t.Errorf("line 2 has shipped %d, want 0 — it was not in this parcel", got)
 	}
-	// The hold settles by the same amount, or the stock story and the parcel disagree.
 	if got := heldFor(t, orderID, variants[0]); got != 1 {
 		t.Errorf("line 1 still holds %d, want 1", got)
 	}
@@ -5580,7 +5385,6 @@ func TestAnOrderCanShipInTwoParcels(t *testing.T) {
 		t.Errorf("the order is %q after its first parcel, want shipped", status)
 	}
 
-	// The rest, from an order already 'shipped' — the move a status-driven CanShip cannot make.
 	if err := s.Ship(ctx, number, admin.Dispatch{
 		Carrier: "黑貓宅急便", Tracking: "P2-" + number,
 	}, actor); err != nil {
@@ -5610,7 +5414,6 @@ func TestAnOrderCanShipInTwoParcels(t *testing.T) {
 		t.Errorf("%d parcels, want 2", parcels)
 	}
 
-	// A third is refused: a tracking number the customer chases for an empty box.
 	err := s.Ship(ctx, number, admin.Dispatch{
 		Carrier: "黑貓宅急便", Tracking: "P3-" + number,
 	}, actor)
@@ -5619,7 +5422,6 @@ func TestAnOrderCanShipInTwoParcels(t *testing.T) {
 	}
 }
 
-// TestAParcelCannotCarryMoreThanRemains says in words what consume_reservation_partial refuses under a lock.
 func TestAParcelCannotCarryMoreThanRemains(t *testing.T) {
 	ctx, staff := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -5634,7 +5436,6 @@ func TestAParcelCannotCarryMoreThanRemains(t *testing.T) {
 		t.Fatalf("shipping 4 of 3 = %v, want ErrQuantity", err)
 	}
 
-	// The shipment row is written before its lines, so a refusal has to take it with it.
 	var parcels int
 	if err := pool.QueryRow(ctx,
 		`SELECT count(*) FROM order_shipments WHERE order_id = $1`, orderID).Scan(&parcels); err != nil {
@@ -5648,7 +5449,6 @@ func TestAParcelCannotCarryMoreThanRemains(t *testing.T) {
 	}
 }
 
-// TestAnEmptyParcelIsRefused stops a tracking number going out for an empty box.
 func TestAnEmptyParcelIsRefused(t *testing.T) {
 	ctx, staff := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -5672,8 +5472,6 @@ func TestAnEmptyParcelIsRefused(t *testing.T) {
 	}
 }
 
-// TestEachParcelTellsTheCustomer holds the notice's dedupe on the TRACKING number:
-// keyed on the order, the second parcel's message is swallowed by the index.
 func TestEachParcelTellsTheCustomer(t *testing.T) {
 	ctx, staff := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -5716,8 +5514,6 @@ func TestEachParcelTellsTheCustomer(t *testing.T) {
 	}
 }
 
-// TestAReceiptIsFiledAsAReceiptAndNotAnAdjustment asserts the REASON and not only the
-// figure: an adjustment of +12 moves the number identically.
 func TestAReceiptIsFiledAsAReceiptAndNotAnAdjustment(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -5760,7 +5556,6 @@ func TestAReceiptIsFiledAsAReceiptAndNotAnAdjustment(t *testing.T) {
 	}
 }
 
-// TestAReceiptIsIdempotent stops a double-click booking one delivery in twice.
 func TestAReceiptIsIdempotent(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -5796,8 +5591,6 @@ func TestAReceiptIsIdempotent(t *testing.T) {
 	}
 }
 
-// TestAReceiptCannotTakeStockAway asserts the STORE refuses a negative quantity and not
-// only ParseReceipt: a rule that lives in a parser is one the next caller does not have.
 func TestAReceiptCannotTakeStockAway(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -5826,8 +5619,6 @@ func TestAReceiptCannotTakeStockAway(t *testing.T) {
 	}
 }
 
-// TestTheShopCanFindAWarrantyTheCustomerRegistered registers through internal/warranty's
-// own door, so this holds the two halves agreeing rather than a row it invented.
 func TestTheShopCanFindAWarrantyTheCustomerRegistered(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -5862,7 +5653,6 @@ func TestTheShopCanFindAWarrantyTheCustomerRegistered(t *testing.T) {
 		})
 	}
 
-	// An equality on two columns: a wildcard ORed in would return the whole table.
 	view, err := s.Warranties(ctx, "SN-NOSUCHTHING")
 	if err != nil {
 		t.Fatalf("search warranties: %v", err)
@@ -5872,7 +5662,6 @@ func TestTheShopCanFindAWarrantyTheCustomerRegistered(t *testing.T) {
 	}
 }
 
-// TestTheWarrantyLookupRefusesToListEverything is the /admin/customers rule, one page over.
 func TestTheWarrantyLookupRefusesToListEverything(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -5892,8 +5681,6 @@ func TestTheWarrantyLookupRefusesToListEverything(t *testing.T) {
 	}
 }
 
-// registeredWarranty is one customer's DELIVERED order with one unit registered against
-// it: registration is bounded by what arrived, never by what was dispatched.
 func registeredWarranty(t *testing.T, serial string) (registered, orderNumber string) {
 	t.Helper()
 	ctx := t.Context()
@@ -5945,7 +5732,6 @@ func registeredWarranty(t *testing.T, serial string) (registered, orderNumber st
 		orderID); err != nil {
 		t.Fatalf("create private data: %v", err)
 	}
-	// The tracking number is unique per run: order_shipments_tracking_key ships a fixed one once ever.
 	var shipmentID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id, carrier, tracking_number, shipped_at, delivered_at)
@@ -5969,18 +5755,8 @@ func registeredWarranty(t *testing.T, serial string) (registered, orderNumber st
 	return serial, number
 }
 
-// TestACategoryCreatedInTheBackOfficeCanCarryAnIcon closes a column that was
-// read and never written.
-//
-// The home page tiles a category with categories.icon_key, and the only writer
-// was the dev seed: every category a shop created through /admin/taxonomy had
-// no icon and no way to get one short of SQL. TestEveryColumnIsReadOrWritten
-// passes on it because the column IS mentioned — by the seed and by the read —
-// which is that guard's documented limit.
-//
-// The icon set is closed and icons.Category has no default arm, so an unknown
-// key draws nothing at all: the refusal is what stops a shop storing a value the
-// home page would silently drop.
+// TestACategoryCreatedInTheBackOfficeCanCarryAnIcon covers categories.icon_key. The
+// icon set is closed and icons.Category has no default arm, so an unknown key is refused.
 func TestACategoryCreatedInTheBackOfficeCanCarryAnIcon(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -6003,9 +5779,6 @@ func TestACategoryCreatedInTheBackOfficeCanCarryAnIcon(t *testing.T) {
 			"whatever is here, and an empty one draws nothing", icon, "laptop")
 	}
 
-	// Renaming carries the icon rather than clearing it: the form renders the
-	// current value, so a rename that dropped it would un-icon a category every
-	// time somebody fixed a typo.
 	if renameErr := s.Rename(ctx, "category", slug, "改名分類", "", "laptop"); renameErr != nil {
 		t.Fatalf("rename: %v", renameErr)
 	}
@@ -6017,7 +5790,6 @@ func TestACategoryCreatedInTheBackOfficeCanCarryAnIcon(t *testing.T) {
 		t.Errorf("after a rename icon_key = %q, want laptop", icon)
 	}
 
-	// A key outside the closed set is refused rather than stored.
 	bad, err := s.CreateCategory(ctx, &admin.TaxonomyForm{
 		Slug: "iconbad-" + uuid.NewString()[:8], Name: "壞圖示", IconKey: "rocket",
 	})

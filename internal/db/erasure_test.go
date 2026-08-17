@@ -12,8 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// addressSurvivors names any table allowed to keep an erased address, with the
-// reason. It is empty.
+// addressSurvivors names any table allowed to keep an erased address, with the reason.
 var addressSurvivors = map[string]string{}
 
 // TestTheLastAdminCannotBeErased holds erase_user to refusing the only admin.
@@ -35,8 +34,7 @@ func TestTheLastAdminCannotBeErased(t *testing.T) {
 		t.Fatalf("make an admin: %v", err)
 	}
 
-	// Inside a SAVEPOINT: the refusal aborts the transaction, and the control
-	// below has to run in the same fixtures.
+	// Inside a SAVEPOINT: the refusal aborts the transaction, and the control below needs these fixtures.
 	if _, err := tx.Exec(ctx, `SAVEPOINT last_admin`); err != nil {
 		t.Fatalf("savepoint: %v", err)
 	}
@@ -49,8 +47,7 @@ func TestTheLastAdminCannotBeErased(t *testing.T) {
 		t.Fatalf("roll back to the savepoint: %v", err)
 	}
 
-	// The control: with a second admin present the same erasure must go through,
-	// or a function refusing every admin would satisfy the assertion above.
+	// The control: a function refusing EVERY admin would satisfy the assertion above.
 	if _, err := tx.Exec(ctx,
 		`UPDATE users SET role = 'admin' WHERE id = $1`, second); err != nil {
 		t.Fatalf("make a second admin: %v", err)
@@ -60,10 +57,8 @@ func TestTheLastAdminCannotBeErased(t *testing.T) {
 	}
 }
 
-// assertNoTableHoldsTheAddress asks every base table carrying a text `email`
-// column, derived from information_schema, whether it still holds one after
-// erasure. Only the address: it is the one identifier spelled the same
-// everywhere, and a name or a street is not asked about here.
+// assertNoTableHoldsTheAddress asks every table with a text email column, derived from
+// information_schema, whether it still holds the address after erasure.
 func assertNoTableHoldsTheAddress(ctx context.Context, t *testing.T, tx pgx.Tx, addr string) {
 	t.Helper()
 
@@ -90,7 +85,6 @@ func assertNoTableHoldsTheAddress(ctx context.Context, t *testing.T, tx pgx.Tx, 
 	if err := rows.Err(); err != nil {
 		t.Fatalf("walk the tables holding an address: %v", err)
 	}
-	// Too few means the query above is wrong, not that goen stopped storing addresses.
 	if len(tables) < 4 {
 		t.Fatalf("only %d tables carry an email column, want more — the query is wrong",
 			len(tables))

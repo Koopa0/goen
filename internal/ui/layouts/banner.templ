@@ -2,18 +2,13 @@ package layouts
 
 import "github.com/koopa0/goen/internal/i18n"
 
-// promoBanner renders the site-wide promotional strip, above the header and in
-// normal flow so it scrolls away.
 templ promoBanner() {
 	{{ b := bannerFrom(ctx) }}
 	if b.Shown() {
 		<form class="goen-promo" method="post" action={ templ.SafeURL(b.DismissAction()) }>
 			<input type="hidden" name="banner" value={ b.ID }/>
-			// Validated server-side as a same-site path.
 			<input type="hidden" name="return" value={ returnPath(ctx) }/>
 			if b.HasCTA() {
-				// At 375 the entire strip is the link: a 44px row cannot hold
-				// two touch targets that both meet the minimum size.
 				<a class="goen-promo__link" href={ templ.SafeURL(b.CTAHref) }>
 					<span class="goen-promo__message">
 						<span class="goen-promo__wide">{ b.Message }</span>
@@ -43,14 +38,10 @@ templ promoBanner() {
 	}
 }
 
-// promoCode renders a discount code as a selectable chip; user-select:all makes
-// one tap select the whole code, which a copy button could not do without
-// scripting.
 templ promoCode(code string) {
 	<code class="goen-promo__code">{ code }</code>
 }
 
-// chevronRight hints that the strip is tappable.
 templ chevronRight() {
 	<svg
 		class="goen-promo__chevron"
@@ -68,7 +59,6 @@ templ chevronRight() {
 	</svg>
 }
 
-// closeIcon is the dismiss control's glyph.
 templ closeIcon() {
 	<svg
 		width="15"

@@ -19,8 +19,7 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-// VerifyTokenTTL is how long a verification link works. Two days, because this
-// proves an address rather than being a credential the way a reset link is.
+// VerifyTokenTTL is how long a verification link works.
 const VerifyTokenTTL = 48 * time.Hour
 
 // ErrVerifyInvalid is a link that is unknown, spent or expired.
@@ -46,8 +45,7 @@ func (s *Store) EmailVerification(ctx context.Context, userID string) (Verificat
 }
 
 // RequestVerification asks for addr to be proved and returns the token for the
-// link. The account keeps its OLD address until the link is followed, so a
-// mistyped change leaves receipts and reset links still arriving.
+// link. The account keeps its OLD address until the link is followed.
 func (s *Store) RequestVerification(ctx context.Context, userID, addr string) (string, error) {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -132,8 +130,7 @@ func (s *Store) ConfirmVerification(ctx context.Context, token string) (string, 
 	if err := q.SetVerifiedEmail(ctx, db.SetVerifiedEmailParams{
 		UserID: row.UserID, Email: row.Email,
 	}); err != nil {
-		// Taken between the request and now. The whole transaction rolls back, so
-		// the link is unspent and the customer can ask again for a different one.
+		// Taken between the request and now; the rollback leaves the link unspent.
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == "23505" {
 			return "", ErrEmailTaken
 		}

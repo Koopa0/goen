@@ -68,17 +68,13 @@ func get(t *testing.T, target string) (status int, body string) {
 	return res.Code, res.Body.String()
 }
 
-// TestListingIncludesDescendants is the regression for the defect the batch
-// opened with: /c/accessories has no products of its own, its children chargers
-// and cases hold four between them, and the site header links straight to it.
-// Matching category_id exactly rendered an empty page from goen's own
-// navigation.
+// /c/accessories holds no products of its own; chargers and cases hold four
+// between them.
 func TestListingIncludesDescendants(t *testing.T) {
 	code, body := get(t, "/c/accessories")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
-	// Two from chargers, two from cases.
 	for _, name := range []string{
 		"Aurora GaN 65W 充電器",
 		"Koto 編織 USB-C 線 2m",
@@ -91,9 +87,6 @@ func TestListingIncludesDescendants(t *testing.T) {
 	}
 }
 
-// TestUnknownCategoryIs404 pins that a slug naming nothing is a 404 rather than
-// an empty listing. An empty listing states that the category exists and
-// happens to be bare, which is a different and false claim.
 func TestUnknownCategoryIs404(t *testing.T) {
 	code, body := get(t, "/c/no-such-category")
 	if code != http.StatusNotFound {
@@ -104,17 +97,8 @@ func TestUnknownCategoryIs404(t *testing.T) {
 	}
 }
 
-// TestFacetsMatchOneVariant is the rule CLAUDE.md names, proven against a
-// fixture built to break it rather than against whatever the seed happens to
-// contain.
-//
-// The product has a CHEAP variant that is sold out and an EXPENSIVE one that is
-// available. Filtering by "in stock, at most the cheap price" must not return
-// it: no single variant is both in stock and that cheap. A query that checks
-// the two conditions separately finds one variant for each and wrongly matches.
-//
-// The trap needs no option facets. Price and stock alone collide, and those
-// ship in this batch.
+// The fixture has a cheap sold-out variant and an expensive available one, so a
+// query checking the two conditions separately finds one variant for each.
 func TestFacetsMatchOneVariant(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
@@ -138,8 +122,7 @@ func TestFacetsMatchOneVariant(t *testing.T) {
 
 	store := catalog.NewStore(tx)
 
-	// The trap: in stock AND at most NT$1,000. Only the sold-out variant is that
-	// cheap, so nothing matches.
+	// In stock AND at most NT$1,000: only the sold-out variant is that cheap.
 	trapped, trapErr := store.Listing(ctx, "phones", catalog.Filters{
 		InStockOnly: true,
 		MaxPrice:    100000,
@@ -155,8 +138,7 @@ func TestFacetsMatchOneVariant(t *testing.T) {
 		}
 	}
 
-	// Positive control. Without this the test would pass if the query returned
-	// nothing at all, which proves nothing.
+	// The control: without it a query returning nothing at all would pass.
 	found, findErr := store.Listing(ctx, "phones", catalog.Filters{
 		InStockOnly: true,
 		MinPrice:    900000,
@@ -177,11 +159,8 @@ func TestFacetsMatchOneVariant(t *testing.T) {
 	}
 }
 
-// TestInStockMeansSellable pins the predicate. record_inventory_movement
-// refuses a sale or hold that would take stock below safety_stock, so a variant
-// sitting AT the floor has stock and cannot be bought. Filtering on
-// stock_quantity > 0 would include it and the storefront would promise what the
-// database refuses.
+// record_inventory_movement refuses a hold that would take stock below
+// safety_stock, so a variant sitting at the floor has stock and cannot be sold.
 func TestInStockMeansSellable(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
@@ -190,7 +169,6 @@ func TestInStockMeansSellable(t *testing.T) {
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	// One product, one variant, holding exactly the safety floor.
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO products (id, brand_id, category_id, slug, name, status, published_at)
 		SELECT 'eeee0003-0000-4000-8000-000000000001', b.id, c.id, 'at-the-floor', '安全庫存機', 'active', now()
@@ -213,7 +191,6 @@ func TestInStockMeansSellable(t *testing.T) {
 		}
 	}
 
-	// And it is still listed when the filter is off, with its sold-out state.
 	all, allErr := catalog.NewStore(tx).Listing(ctx, "phones", catalog.Filters{Page: 1})
 	if allErr != nil {
 		t.Fatalf("listing: %v", allErr)
@@ -232,9 +209,6 @@ func TestInStockMeansSellable(t *testing.T) {
 	}
 }
 
-// TestSearchEscapesWildcards pins that ILIKE syntax in a search term is treated
-// as text. Without escaping, a search for "%" matches every product, and "a_b"
-// matches "axb".
 func TestSearchEscapesWildcards(t *testing.T) {
 	code, body := get(t, "/search?q=%25")
 	if code != http.StatusOK {
@@ -248,8 +222,7 @@ func TestSearchEscapesWildcards(t *testing.T) {
 	}
 }
 
-// TestSearchFindsLatinAndChinese covers both scripts, because the index only
-// serves one of them and a regression in the scan path would be silent.
+// The trigram index serves only one of the two scripts.
 func TestSearchFindsLatinAndChinese(t *testing.T) {
 	for _, tc := range []struct{ q, want string }{
 		{"pixel", "Pixelight"},
@@ -268,9 +241,6 @@ func TestSearchFindsLatinAndChinese(t *testing.T) {
 	}
 }
 
-// TestListingPriceIsBuyable pins that the price on a card is a price a visitor
-// can actually pay. Showing the cheapest variant regardless of stock puts a
-// figure on the card that the sold-out colour sets and nobody can buy.
 func TestListingPriceIsBuyable(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
@@ -308,13 +278,8 @@ func TestListingPriceIsBuyable(t *testing.T) {
 	t.Error("the fixture product is not in the listing")
 }
 
-// TestDealsShowsOnlyWhatIsMarkedDown proves the page lists exactly the products
-// with a discounted variant.
-//
-// "On sale" is a VARIANT fact, and a product qualifies when ANY active variant
-// carries one. A page that listed everything would be a catalogue with a
-// misleading heading, and one that required EVERY variant to be discounted
-// would hide most real sales.
+// "On sale" is a variant fact, and a product qualifies when ANY active variant
+// carries one.
 func TestDealsShowsOnlyWhatIsMarkedDown(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool)
@@ -327,7 +292,6 @@ func TestDealsShowsOnlyWhatIsMarkedDown(t *testing.T) {
 		t.Fatal("no deals at all; the seed has marked-down variants, so the query is wrong")
 	}
 
-	// Every product shown must actually have a discounted variant.
 	for _, tile := range view.Products {
 		var discounted bool
 		if err := pool.QueryRow(ctx, `
@@ -343,7 +307,6 @@ func TestDealsShowsOnlyWhatIsMarkedDown(t *testing.T) {
 		}
 	}
 
-	// And nothing marked down is missing — the count matches the catalogue.
 	var expected int64
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*) FROM products p
@@ -359,12 +322,8 @@ func TestDealsShowsOnlyWhatIsMarkedDown(t *testing.T) {
 	}
 }
 
-// TestDealsAreOrderedByHowDeepTheCutIs proves the deepest discount comes first.
-//
-// By FRACTION, not amount: 30% off a NT$900 case is a better deal than NT$500
-// off a NT$50,000 laptop, and a shopper reading a deals page wants the former
-// first. Ordering by absolute saving puts the expensive things on top, which is
-// a price list, not a sale.
+// By fraction, not amount: ordering by absolute saving puts the expensive
+// things on top, which is a price list rather than a sale.
 func TestDealsAreOrderedByHowDeepTheCutIs(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool)
@@ -392,9 +351,6 @@ func TestDealsAreOrderedByHowDeepTheCutIs(t *testing.T) {
 }
 
 // campaign creates one running for a week and returns its slug.
-//
-// The window is fixed because every case that cares about it moves the dates
-// afterwards — a parameter here would be one nothing ever varied.
 func campaign(t *testing.T, slug string) string {
 	t.Helper()
 	if _, err := pool.Exec(t.Context(), `
@@ -405,7 +361,6 @@ func campaign(t *testing.T, slug string) string {
 	return slug
 }
 
-// feature adds a product, returning whether the database allowed it.
 func feature(t *testing.T, campaignSlug, productSlug string) error {
 	t.Helper()
 	_, err := pool.Exec(t.Context(), `
@@ -415,8 +370,6 @@ func feature(t *testing.T, campaignSlug, productSlug string) error {
 	return err
 }
 
-// discountedSlug is a product with something marked down, and plainSlug one
-// without.
 func discountedSlug(t *testing.T) string {
 	t.Helper()
 	var slug string
@@ -444,10 +397,6 @@ func plainSlug(t *testing.T) string {
 	return slug
 }
 
-// TestACampaignOutsideItsWindowIsNotFound proves a finished promotion is a 404.
-//
-// Not an empty page: the URL is real and the promotion is over. A page saying
-// "0 products" reads as a bug, and it is a page somebody keeps linking to.
 func TestACampaignOutsideItsWindowIsNotFound(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool)
@@ -462,9 +411,7 @@ func TestACampaignOutsideItsWindowIsNotFound(t *testing.T) {
 
 	tests := []struct {
 		name string
-		// slug is spelled out rather than derived from name: sale_campaigns_
-		// slug_format allows no spaces, and slicing a test name produced
-		// "window-not s".
+		// Spelled out: sale_campaigns_slug_format allows no spaces.
 		slug  string
 		setup string
 	}{
@@ -490,13 +437,8 @@ func TestACampaignOutsideItsWindowIsNotFound(t *testing.T) {
 	}
 }
 
-// TestOnlyDiscountedProductsCanBeFeatured proves a full-price product cannot
-// join a sale.
-//
-// sale_campaign_needs_discount is the guard, and it takes a lock on the product
-// before it reads the variants — so a concurrent price change between the check
-// and the write is lost safely rather than leaving a campaign advertising a
-// product at full price.
+// sale_campaign_needs_discount takes a lock on the product before it reads the
+// variants.
 func TestOnlyDiscountedProductsCanBeFeatured(t *testing.T) {
 	slug := campaign(t, "only-discounted")
 
@@ -514,10 +456,6 @@ func TestOnlyDiscountedProductsCanBeFeatured(t *testing.T) {
 	}
 }
 
-// TestACampaignShowsOnlyActiveProducts proves an unpublished product drops off.
-//
-// A product archived while a campaign features it must drop off the page rather
-// than render a tile linking to a 404.
 func TestACampaignShowsOnlyActiveProducts(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool)
@@ -555,7 +493,6 @@ func TestACampaignShowsOnlyActiveProducts(t *testing.T) {
 	}
 }
 
-// constraintName pulls the constraint out of a pg error.
 func constraintName(err error) (code, name string) {
 	pgErr, ok := errors.AsType[*pgconn.PgError](err)
 	if !ok {
@@ -564,12 +501,6 @@ func constraintName(err error) (code, name string) {
 	return pgErr.Code, pgErr.ConstraintName
 }
 
-// TestComparisonIsBoundedDeduplicatedAndForgiving proves a hand-edited URL
-// cannot break the page or ask for unbounded work.
-//
-// The set comes from a URL, which means it is shared, bookmarked, and
-// occasionally hand-edited. Three properties follow from that and each is a
-// case here.
 func TestComparisonIsBoundedDeduplicatedAndForgiving(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool)
@@ -582,12 +513,8 @@ func TestComparisonIsBoundedDeduplicatedAndForgiving(t *testing.T) {
 	}{
 		{"two products", slugs[:2], 2},
 		{"the ceiling", slugs[:4], 4},
-		// Bounded: the list reaches a query, so an unbounded one is unbounded
-		// work anybody can request by editing a URL.
 		{"past the ceiling", slugs, 4},
 		{"a repeat is one column", []string{slugs[0], slugs[0], slugs[1]}, 2},
-		// Forgiving: a comparison URL outlives the products in it, and one
-		// being retired must not turn the whole link into an error page.
 		{"an unknown slug is dropped", []string{slugs[0], "no-such-product", slugs[1]}, 2},
 		{"nothing at all", nil, 0},
 		{"only unknown slugs", []string{"nope", "also-nope"}, 0},
@@ -609,20 +536,8 @@ func TestComparisonIsBoundedDeduplicatedAndForgiving(t *testing.T) {
 	}
 }
 
-// TestTwoSpecsThatShareATranslationStayTwoRows holds a spec that VANISHED for
-// an English reader.
-//
-// A spec row's identity is its untranslated label; the translation is a label.
-// The query counted shared_by on the untranslated one — deliberately, and its
-// comment says why — while the Go keyed its row map on the LOCALIZED text. So
-// two distinct Chinese labels translating to one English word collapsed into a
-// single row and the later product's value overwrote the earlier one. The seed
-// ships exactly that pair: 輸出 and 孔位 are both "Ports" on aurora-charger-65,
-// so English /compare showed 65W GaN and simply lost USB-C x2 — which the
-// English PDP displayed the whole time.
-//
-// Asserted in BOTH locales, because the Chinese page was always correct and a
-// fix that only moved the collision would still pass a one-locale test.
+// Both locales: the Chinese page was always correct, so a fix that only moved
+// the collision would pass a one-locale test.
 func TestTwoSpecsThatShareATranslationStayTwoRows(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
@@ -631,9 +546,8 @@ func TestTwoSpecsThatShareATranslationStayTwoRows(t *testing.T) {
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	// Two labels, one English word. Hand-written rather than leaning on the
-	// seed's 輸出/孔位 pair: a seed a shop later translates differently would
-	// silently stop exercising this.
+	// Two labels, one English word, hand-written: a seed a shop later
+	// translates differently would silently stop exercising this.
 	const setup = `
 	INSERT INTO products (id, brand_id, category_id, slug, name, status, published_at)
 	SELECT 'eeee0009-0000-4000-8000-000000000001', b.id, c.id, 'collide-spec', '同譯規格機', 'active', now()
@@ -663,9 +577,8 @@ func TestTwoSpecsThatShareATranslationStayTwoRows(t *testing.T) {
 				t.Fatalf("compare: %v", err)
 			}
 
-			// Both values present, whatever the rows are headed. The VALUES are
-			// what a reader is comparing; asserting only the row count would pass
-			// on two rows that both said 65W GaN.
+			// The values, not the row count: two rows both saying 65W GaN would
+			// pass a count assertion.
 			var got []string
 			for _, row := range view.Rows {
 				got = append(got, row.Values...)
@@ -680,11 +593,6 @@ func TestTwoSpecsThatShareATranslationStayTwoRows(t *testing.T) {
 	}
 }
 
-// TestTheColumnsKeepTheOrderTheURLNamed proves "the middle one" keeps meaning
-// the same product.
-//
-// A comparison whose columns move between page loads is one nobody can point
-// at — "the middle one" has to keep meaning the same product.
 func TestTheColumnsKeepTheOrderTheURLNamed(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool)
@@ -711,13 +619,6 @@ func TestTheColumnsKeepTheOrderTheURLNamed(t *testing.T) {
 	}
 }
 
-// TestSharedSpecsComeFirstAndGapsAreVisible proves the comparable rows are at
-// the top and the cells line up.
-//
-// A label two products share is the point of the table; one only a single
-// product carries is a footnote. And a product that does not state a spec must
-// render an ABSENCE rather than shifting the columns — a comparison where the
-// cells do not line up is worse than no comparison.
 func TestSharedSpecsComeFirstAndGapsAreVisible(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool)
@@ -732,14 +633,12 @@ func TestSharedSpecsComeFirstAndGapsAreVisible(t *testing.T) {
 			len(view.Rows))
 	}
 
-	// Shared first.
 	if view.Rows[0].SharedBy < view.Rows[len(view.Rows)-1].SharedBy {
 		t.Errorf("the first row is shared by %d products and the last by %d — "+
 			"the rows worth comparing are not at the top",
 			view.Rows[0].SharedBy, view.Rows[len(view.Rows)-1].SharedBy)
 	}
 
-	// Every row has a cell per product, filled or not.
 	for _, row := range view.Rows {
 		if len(row.Values) != len(view.Products) {
 			t.Errorf("row %q has %d cells for %d products; the columns would "+
@@ -747,7 +646,6 @@ func TestSharedSpecsComeFirstAndGapsAreVisible(t *testing.T) {
 		}
 	}
 
-	// The lone spec renders as an absence in the column that lacks it.
 	var lone *pages.CompareRow
 	for i := range view.Rows {
 		if view.Rows[i].SharedBy == 1 {
@@ -769,7 +667,6 @@ func TestSharedSpecsComeFirstAndGapsAreVisible(t *testing.T) {
 	}
 }
 
-// activeSlugs is n active products.
 func activeSlugs(t *testing.T, n int) []string {
 	t.Helper()
 	rows, err := pool.Query(t.Context(),
@@ -796,9 +693,8 @@ func activeSlugs(t *testing.T, n int) []string {
 	return out
 }
 
-// twoProductsWithSpecs builds a pair sharing one spec, with one spec each that
-// the other does not have — which is the shape the ordering and the gaps are
-// about.
+// twoProductsWithSpecs builds a pair sharing one spec, each with one the other
+// lacks.
 func twoProductsWithSpecs(t *testing.T) (first, second string) {
 	t.Helper()
 	ctx := t.Context()
@@ -825,11 +721,8 @@ func twoProductsWithSpecs(t *testing.T) (first, second string) {
 			`UPDATE products SET status = 'active' WHERE slug = $1`, *slug); err != nil {
 			t.Fatalf("publish: %v", err)
 		}
-		// One label both carry, one only this product does — and the LONE
-		// label sorts alphabetically BEFORE the shared one on purpose. With
-		// them the other way round, ordering by label alone put the shared
-		// row first by accident and the case stayed green with the
-		// shared_by DESC deleted.
+		// The lone label sorts alphabetically BEFORE the shared one: the other
+		// way round, the case stays green with shared_by DESC deleted.
 		if _, err := pool.Exec(ctx, `
 			INSERT INTO product_specs (product_id, label, value, position)
 			VALUES ($1, 'ZZ 共同規格', $2, 0), ($1, $3, '獨有的值', 1)`,
@@ -842,19 +735,12 @@ func twoProductsWithSpecs(t *testing.T) (first, second string) {
 	return first, second
 }
 
-// TestSearchFindsAProductByItsEnglishName is the other half of that predicate.
-//
-// An English visitor typing "case" has to find 保護殼, and the previous test proves a
-// Chinese visitor still finds it by the Chinese name. Matching only the localized
-// column would make the catalogue searchable in one language at a time, which is
-// worse than not translating it at all — and a shop cannot see that failure, because
-// the language it reads in is the one that works.
+// Matching only the localized column would make the catalogue searchable in one
+// language at a time, which the shop cannot see because its language works.
 func TestSearchFindsAProductByItsEnglishName(t *testing.T) {
 	s := catalog.NewStore(pool)
 	ctx := t.Context()
 
-	// The seed's own English copy, so the fixture is the catalogue rather than a
-	// product invented for the test.
 	view, err := s.Search(ctx, "%case%", 1)
 	if err != nil {
 		t.Fatalf("Search: %v", err)
@@ -873,9 +759,8 @@ func TestSearchFindsAProductByItsEnglishName(t *testing.T) {
 		t.Errorf("searching \"Case\" found %v, want pixelight-9-pro-case", names)
 	}
 
-	// And the COUNT agrees with the rows. It is a second query with the same
-	// predicate, so a page reporting "3 results" above one row is what happens when
-	// only one of them is updated.
+	// The count is a second query with the same predicate; updating one and not
+	// the other reports "3 results" above one row.
 	if view.Total < int64(len(view.Products)) {
 		t.Errorf("the page shows %d products and reports %d results",
 			len(view.Products), view.Total)

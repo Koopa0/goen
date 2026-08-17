@@ -8,11 +8,9 @@ import (
 	"testing"
 )
 
-// touchesReviews finds any query naming the base review table, read or write.
 var touchesReviews = regexp.MustCompile(`\bproduct_reviews\b`)
 
-// TestEveryRatingReadsTheVisibleReviews holds visible_reviews as the single
-// definition of a review that counts towards a rating.
+// TestEveryRatingReadsTheVisibleReviews holds visible_reviews as the one definition of a counted review.
 func TestEveryRatingReadsTheVisibleReviews(t *testing.T) {
 	t.Parallel()
 
@@ -40,7 +38,6 @@ func TestEveryRatingReadsTheVisibleReviews(t *testing.T) {
 				"rows, name it in the allowlist with the reason.", path, q.name)
 		}
 	}
-	// Checked by identity, not by count: a count cannot name the stale entry.
 	for name, why := range allowed {
 		if !used[name] {
 			t.Errorf("the allowlist names %s (%s) and nothing matched it: the "+

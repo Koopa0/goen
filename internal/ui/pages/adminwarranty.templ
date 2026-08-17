@@ -8,11 +8,6 @@ import (
 )
 
 // AdminWarranties renders the back office's warranty lookup.
-//
-// The shop side of a promise the customer side has kept alone: /warranty says a
-// registered unit is collected and repaired at the shop's expense, and until this
-// page the only person who could see a registration was the customer claiming
-// against it.
 templ AdminWarranties(p layouts.Page, v AdminWarrantiesView) {
 	@layouts.Base(p) {
 		<div class="goen-admin">
@@ -26,7 +21,6 @@ templ AdminWarranties(p layouts.Page, v AdminWarrantiesView) {
 					</p>
 				</div>
 			</div>
-			// A GET form: looking something up reads and writes nothing.
 			<form class="goen-admin__form goen-admin__search" method="get" action="/admin/warranty">
 				<label class="goen-sr-only" for="warranty-search">{ i18n.T(ctx, i18n.KeyAdminWarrantySearch) }</label>
 				<input

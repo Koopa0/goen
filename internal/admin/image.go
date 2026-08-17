@@ -15,17 +15,13 @@ import (
 // MaxAltRunes bounds the alternative text.
 const MaxAltRunes = 200
 
-// AttachImage records an uploaded image against a product.
-//
-// Alt text is REQUIRED here because product_images.alt_text is nullable — the
-// schema cannot demand it. altEn is optional and falls back to alt.
+// AttachImage records an uploaded image. Alt text is required here because
+// product_images.alt_text is nullable.
 func (s *Store) AttachImage(
 	ctx context.Context, slug, digest, alt, altEn string, width, height int32,
 ) error {
 	alt, altEn = strings.TrimSpace(alt), strings.TrimSpace(altEn)
 	if alt == "" || utf8.RuneCountInString(alt) > MaxAltRunes {
-		// Never shown: the handler branches on ErrInvalid and the sentence the
-		// staff member reads is KeyAdminNoticeNoAlt.
 		return fmt.Errorf("%w: alt text is required and bounded at %d runes", ErrInvalid, MaxAltRunes)
 	}
 	if utf8.RuneCountInString(altEn) > MaxAltRunes {
@@ -46,8 +42,7 @@ func (s *Store) AttachImage(
 		})
 }
 
-// DetachImage removes one from a product. The media object itself is not
-// deleted — the digest is shared, and UnreferencedMedia reclaims it.
+// DetachImage removes one from a product; the shared media object is not deleted.
 func (s *Store) DetachImage(ctx context.Context, slug, digest string) error {
 	return s.audited(ctx, Event{
 		Action: ActionDetachImage, Table: "product_images", ID: uuid.NullUUID{},

@@ -10,8 +10,7 @@ import (
 	"testing"
 )
 
-// TestEveryGeneratedQueryHasACaller refuses a generated query with no caller
-// outside internal/db. There is no allowlist: wire the query or delete it.
+// TestEveryGeneratedQueryHasACaller refuses a generated query with no caller outside internal/db.
 func TestEveryGeneratedQueryHasACaller(t *testing.T) {
 	t.Parallel()
 

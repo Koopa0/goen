@@ -12,13 +12,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// TestEveryRoleCanRunItsOwnQueries refuses a privilege model tightened so far
-// that a role cannot run a query its own code calls. SET ROLE binds ACLs even
-// for a superuser, and EXPLAIN (GENERIC_PLAN) resolves every table, column and
-// function privilege without executing the statement or binding parameters.
+// TestEveryRoleCanRunItsOwnQueries refuses a role that cannot run a query its own code calls.
 func TestEveryRoleCanRunItsOwnQueries(t *testing.T) {
 	ctx := t.Context()
-	byQuery := queryWrites(t) // presence check only; the SQL comes from generatedSQL
+	byQuery := queryWrites(t)
 	sql := generatedSQL(t)
 	if len(sql) != len(byQuery) {
 		t.Fatalf("parsed %d query bodies and %d write sets — the two parsers disagree",
@@ -55,9 +52,7 @@ func TestEveryRoleCanRunItsOwnQueries(t *testing.T) {
 				if planErr == nil {
 					continue
 				}
-				// 42501 is insufficient_privilege, the only failure this test is
-				// about; anything GENERIC_PLAN simply cannot plan is reported apart
-				// from it rather than counted as a privilege finding.
+				// 42501 is insufficient_privilege, the only failure this test is about.
 				pgErr, isPg := errors.AsType[*pgconn.PgError](planErr)
 				if !isPg || pgErr.Code != "42501" {
 					t.Errorf("%s: EXPLAIN of %s failed for a reason that is not a "+
@@ -81,9 +76,7 @@ func TestEveryRoleCanRunItsOwnQueries(t *testing.T) {
 	t.Logf("checked %d (role, query) pairs", checked)
 }
 
-// runExemptions is a query a package calls that one of its roles cannot run,
-// with the reason. Keyed role.Query so an exemption cannot spread to another
-// role. Every entry exists because a package spans two pools.
+// runExemptions is a query a package calls that one of its roles cannot run, keyed role.Query.
 var runExemptions = map[string]string{
 	"store.DeleteMedia":                 "the sweeper runs on the admin pool; store serves images and never deletes one",
 	"store.PutMedia":                    "only the back office uploads; store serves what is already stored",
@@ -96,8 +89,7 @@ var runExemptions = map[string]string{
 	"admin.UnsubscribeNewsletter":       "only the address owner leaves",
 }
 
-// TestNoStaleRunExemption refuses an entry the schema has outgrown, by identity
-// rather than by count: a count cannot name the stale entry.
+// TestNoStaleRunExemption refuses a runExemptions entry the schema has outgrown, by identity.
 func TestNoStaleRunExemption(t *testing.T) {
 	ctx := t.Context()
 	sql := generatedSQL(t)

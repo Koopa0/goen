@@ -10,9 +10,7 @@ import (
 	"testing"
 )
 
-// TestEveryTableHasAWriter refuses a table the application never writes: a
-// feature with no door. The tables come from the catalog; a writer is an
-// INSERT/UPDATE/DELETE in a query.sql or inside a stored function body.
+// TestEveryTableHasAWriter refuses a table the application never writes: a feature with no door.
 func TestEveryTableHasAWriter(t *testing.T) {
 	allowed := map[string]string{}
 
@@ -80,8 +78,7 @@ func writesTo(src, table string) bool {
 	return false
 }
 
-// applicationSQL is every feature's query.sql. The dev seed is excluded: seeding
-// a table is what a doorless feature can do and no shop can.
+// applicationSQL is every feature's query.sql, less the dev seed.
 func applicationSQL(t *testing.T) string {
 	t.Helper()
 
@@ -99,9 +96,7 @@ func applicationSQL(t *testing.T) string {
 	return b.String()
 }
 
-// storedFunctionBodies is every $$-quoted function body in the migration, each of
-// which is a door: a SECURITY DEFINER function is the only writer of stock and the
-// ledgers.
+// storedFunctionBodies is every $$-quoted function body in the migration.
 func storedFunctionBodies(t *testing.T) string {
 	t.Helper()
 
@@ -117,8 +112,7 @@ func storedFunctionBodies(t *testing.T) string {
 	return strings.Join(bodies, "\n")
 }
 
-// TestEveryTableIsRead is the mirror: a table the application writes and never
-// reads is data collected and never shown.
+// TestEveryTableIsRead is the mirror: a table written and never read is data collected and never shown.
 func TestEveryTableIsRead(t *testing.T) {
 	allowed := map[string]string{
 		"payment_webhook_events": "an idempotency CLAIM: its whole purpose is the " +
@@ -154,8 +148,7 @@ func TestEveryTableIsRead(t *testing.T) {
 	definers := storedFunctionBodies(t)
 	used := map[string]bool{}
 	for _, table := range tables {
-		// Only tables something WRITES: one that is neither is the other guard's
-		// finding, and reporting it twice makes one decision look like two problems.
+		// Only tables something WRITES: one that is neither is the other guard's finding.
 		if !writesTo(app, table) && !writesTo(definers, table) {
 			continue
 		}
@@ -180,8 +173,7 @@ func TestEveryTableIsRead(t *testing.T) {
 	}
 }
 
-// readsFrom reports whether the application SQL names table in a FROM or JOIN; a
-// stored function reading its own bookkeeping deliberately does not count.
+// readsFrom reports whether the application SQL names table in a FROM or JOIN.
 func readsFrom(src, table string) bool {
 	return regexp.MustCompile(`(?i)(FROM|JOIN)\s+(?:ONLY\s+)?` + table + `\b`).MatchString(src)
 }

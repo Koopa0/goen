@@ -76,8 +76,8 @@ func withoutComments(src string) string {
 }
 
 func firstLine(s string) string {
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		return strings.TrimSpace(s[:i])
+	if before, _, ok := strings.Cut(s, "\n"); ok {
+		return strings.TrimSpace(before)
 	}
 	return strings.TrimSpace(s)
 }

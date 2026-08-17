@@ -6,34 +6,9 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// policies is the static policy documents, keyed by their path segment.
-//
-// Prose in Go rather than in a database: unlike the FAQ, these change when a
-// LAWYER changes them, not when support notices a question recurring. A deploy
-// is the right amount of ceremony for that, and it puts the text under review
-// alongside the code that has to honour it.
-//
-// Every clause here describes what the code actually does, or what the law
-// requires of it regardless. Where a COMMERCIAL decision has not been made the
-// document says so rather than inventing a number the shop would then be held
-// to — pages.PolicySection.Pending is that mark, and NOTHING carries it. An
-// empty set is the point rather than a sign the mechanism is unused: it stays
-// for the next real gap. What would otherwise sit under 尚未確定 is either
-// stated outright (the goodwill return beyond §19, 14 days at the customer's
-// postage; the forum, 臺北地院 without prejudice to 消保法 §47), stated
-// somewhere better (the warranty term is per product — products.warranty_months,
-// rendered on every PDP — so filing it here contradicts the section above it),
-// or was never the shop's to decide.
-//
-// That distinction is load-bearing in BOTH directions, and each direction has
-// its own guard. TestUndecidedTermsAreMarkedPending catches a gap set in the
-// same typeface as a rule. TestStatutoryTermsAreNotPending is the mirror, and
-// the more expensive direction: 鑑賞期天數, who pays return postage and whether
-// opening the box matters are all fixed by 消保法 §19, which §19 V makes
-// unwaivable, so marking any of them 尚未確定 reads to the customer as "you may
-// not have this right at all". It asserts POSITIVELY — each statutory term
-// stated as a rule — because a Pending section is FORMATTED as a gap and
-// therefore looks correct to a reviewer who has not read the statute.
+// policies is the static policy documents, keyed by their path segment. A
+// section marked Pending renders as a visible gap, and a term the law already
+// fixes is never the shop's to leave Pending.
 var policies = map[string]pages.PolicyDoc{
 	"returns": {
 		Title:     "退換貨政策",
@@ -77,11 +52,9 @@ var policies = map[string]pages.PolicyDoc{
 					"A refund always goes back to the way you paid. We will not substitute another channel.",
 				},
 			},
-			// 消保法 §19 I fixes seven days from RECEIPT, with no reason and no
-			// cost to the consumer; §19 V voids any agreement to the contrary, so
-			// none of the three clauses below is goen's to write differently.
-			// 民法 §120 II is why day one is the day AFTER delivery, and §19 IV is
-			// why posting on the last day is in time whenever it arrives.
+			// Consumer Protection Act §19 I: seven days from receipt, no reason,
+			// no cost; §19 V voids any agreement otherwise. Civil Code §120 II
+			// excludes the day of receipt, and §19 IV fixes it on dispatch.
 			{
 				Heading:   "鑑賞期",
 				HeadingEn: "Your seven-day right to cancel",
@@ -96,12 +69,8 @@ var policies = map[string]pages.PolicyDoc{
 					"The seven days are for INSPECTING what you bought, exactly as you would pick it up in a shop. Damage or change caused by that inspection does not cost you the right.",
 				},
 			},
-			// The only statutory hook for this is §19 I's 「不負擔任何費用」 — a
-			// construction of those four characters, and the reading a consumer
-			// authority takes. NOT §19-2, which is about the trader's duty to
-			// collect and contains no cost-allocation sentence at all; and NOT
-			// 消保法字第0960012078號函, which reasons from 施行細則 §19 and §20,
-			// both deleted in the 104/12/31 amendment.
+			// The hook is Consumer Protection Act §19 I ("bears no cost"), not
+			// §19-2, which allocates no costs at all.
 			{
 				Heading:   "退貨運費",
 				HeadingEn: "Who pays return postage",
@@ -112,17 +81,9 @@ var policies = map[string]pages.PolicyDoc{
 					"We do. Cancelling inside the seven days costs you nothing at all, return postage included, and the delivery fee you originally paid comes back with the goods.",
 				},
 			},
-			// 通訊交易解除權合理例外情事適用準則 §2 is a CLOSED list of seven, and
-			// opened 3C hardware is on none of them. Its chapeau also conditions
-			// every one of the seven on 「並經企業經營者告知消費者」 — an exception
-			// is not self-executing, so a shop that sells boxed software and says
-			// nothing owes the full seven days anyway.
-			//
-			// goen therefore claims no exception, and the copy says so rather than
-			// promising a per-product marking that nothing in the code renders. If
-			// the catalogue ever carries software or a hygiene item, this clause
-			// changes together with the disclosure that makes it true — 消保法
-			// §18 I 4 requires that separately.
+			// The Regulations on Reasonable Exceptions to Rescission in Distance
+			// Sales §2 are a closed list of seven, each conditioned on the trader
+			// having disclosed it before the sale. goen claims none.
 			{
 				Heading:   "拆封之後還能退嗎",
 				HeadingEn: "Can I still return it once it is opened?",
@@ -135,11 +96,6 @@ var policies = map[string]pages.PolicyDoc{
 					"The law allows a few narrow categories to be excluded, and only where the seller says so plainly BEFORE you buy. goen excludes nothing, so every product here carries the full seven days.",
 				},
 			},
-			// The one term on this page that IS goen's to set, and it is stated
-			// rather than marked Pending. It is a goodwill offer BEYOND §19 and
-			// says so in both languages, because a customer who reads
-			// "fourteen days" must not come away thinking the statutory seven are
-			// a shop policy that could be shortened.
 			{
 				Heading:   "七天之外",
 				HeadingEn: "Beyond the seven days",
@@ -186,12 +142,8 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "庫存保留",
 				HeadingEn: "We hold the stock while you pay",
 				Body: []string{
-					// The number is INTERPOLATED, not typed. A literal 30 here,
-					// beside the `%s` that /shipping already feeds from
-					// pages.HoldMinutesText(), is one figure stated twice with a
-					// test binding only one of them — so this copy can say
-					// something the till does not do and nothing notices, which
-					// is exactly what happens the moment cart.HoldTTL moves.
+					// Interpolated, never typed: a literal here is a second copy
+					// of cart.HoldTTL that no test binds.
 					fmt.Sprintf("送出訂單時系統會保留庫存 %s 分鐘。超過時間未完成付款,商品會回到架上,"+
 						"但訂單仍然存在,可以重新付款(若庫存還在)。", pages.HoldMinutesText()),
 				},
@@ -219,14 +171,6 @@ var policies = map[string]pages.PolicyDoc{
 					"What we sell is covered by the manufacturer. Each product page states its own term, and that page is what governs.",
 				},
 			},
-			// 保固期限 is STATED here and never filed under 尚未確定: the section
-			// above already says each product page carries its own term, and it
-			// does, from products.warranty_months, rendered on every PDP. Marking
-			// this one undecided makes the two paragraphs contradict each other.
-			//
-			// Both halves say it, because a correction applied to one language
-			// only is the failure mode here — the Pending guards read Body and
-			// BodyEn alike, so the two cannot disagree in silence.
 			{
 				Heading:   "保固期限",
 				HeadingEn: "How long you are covered",
@@ -280,14 +224,8 @@ var policies = map[string]pages.PolicyDoc{
 				HeadingEn: "What we do not do",
 				Body: []string{
 					"不將您的個人資料出售或提供給第三方作行銷用途。",
-					// The list is enumerated because the sentence claims completeness,
-					// and 「只有…這幾種」 is falsifiable: name fewer kinds than the
-					// site sets and the shortfall is reachable by an ordinary
-					// visitor — the language cookie alone is written by the switch in
-					// the footer of every page.
-					// TestThePrivacyPolicyNamesEveryCookie is what keeps them equal,
-					// and it derives the list by walking the source rather than from
-					// a table somebody has to remember to extend.
+					// The cookie list claims completeness, in both locales:
+					// TestThePrivacyPolicyNamesEveryCookie holds it against the source.
 					"不在網站上使用第三方追蹤或廣告 cookie。goen 使用的 cookie 只有這幾種:購物車、登入狀態、訂單瀏覽權限、您選擇的語言、您關閉過的網站公告,以及用 Google 登入時暫存幾分鐘的驗證資料。",
 				},
 				BodyEn: []string{
@@ -345,12 +283,9 @@ var policies = map[string]pages.PolicyDoc{
 					"Keep your password to yourself. Changing it signs out every other device at the same time.",
 				},
 			},
-			// 消保法 §47 and 民訴 §12 both already put a consumer suit where the
-			// consumer is, and §19 V voids anything that shortens the rescission
-			// right — so a forum clause here can only ADD a court, never take one
-			// away. Said plainly rather than left blank: a jurisdiction section
-			// marked 尚未確定 reads to a customer as "we have not said whether you
-			// can sue us", which is worse than the answer the law already gives.
+			// Consumer Protection Act §47 and Code of Civil Procedure §12 already
+			// let a consumer sue where they live, so this clause can only add a
+			// court, never take one away.
 			{
 				Heading:   "準據法與管轄",
 				HeadingEn: "Governing law",

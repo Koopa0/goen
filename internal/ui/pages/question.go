@@ -10,14 +10,12 @@ import (
 type Answer struct {
 	Author string
 	Body   string
-	// IsStaff is what was true when the answer was written, never what is true
-	// about the author now.
+	// IsStaff is what was true when the answer was written, never now.
 	IsStaff bool
 	At      string
 }
 
-// Who is the name to show beside an answer. A staff answer is attributed to the
-// shop and never to the person who typed it.
+// Who is the name to show beside an answer; a staff answer is the shop's.
 func (a Answer) Who(ctx context.Context) string {
 	if a.IsStaff {
 		return "goen"

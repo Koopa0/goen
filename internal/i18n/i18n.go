@@ -1,23 +1,7 @@
 // Package i18n decides what language a page speaks.
 //
-// # What is translated and what is not
-//
-// The CHROME is: navigation, buttons, labels, validation messages, empty
-// states — everything the code writes. Product names, descriptions and the
-// policy documents are NOT: those are content, and translating them is an
-// editorial job that belongs to whoever writes them, not to a lookup table.
-//
-// That split is stated on the page rather than hidden. A visitor who switches
-// to English and finds the buttons in English and the product copy in Chinese
-// has been told what to expect; one who finds a machine-translated product
-// description has been misled about what the shop knows.
-//
-// # Why not a library
-//
-// goen has two locales and a few hundred strings. A catalogue and a lookup are
-// the whole job; golang.org/x/text/message would bring plural rules and
-// CLDR data for a shop that pluralises nothing — 中文 has no plural form and
-// the English side is UI chrome with fixed counts beside it.
+// The chrome — navigation, buttons, labels, validation messages, empty states —
+// follows the visitor. Product copy and the policy documents do not.
 package i18n
 
 import (
@@ -29,32 +13,21 @@ import (
 // Locale is a language goen speaks.
 type Locale string
 
-// The locales, and the tags they become in <html lang>.
 const (
-	// ZhHant is Traditional Chinese, the default and the language the content
-	// is authored in.
+	// ZhHant is Traditional Chinese, the language the content is authored in.
 	ZhHant Locale = "zh-Hant"
 	// En is English.
 	En Locale = "en"
 )
 
 // Default is what a visitor gets who has expressed no preference.
-//
-// Traditional Chinese, because that is what the catalogue is written in and
-// what every product description is. A visitor from anywhere lands on a
-// coherent page and can switch.
 const Default = ZhHant
 
 // CookieName remembers a visitor's choice.
-//
-// The server reads it and stamps the language onto <html lang> before the first
-// byte, so the page never renders in one language and then changes — which is
-// what a client-side switch does, and what makes a locale toggle feel broken.
 const CookieName = "__Host-goen_locale"
 
-// insecureCookieName is the development name. A __Host- cookie is never sent
-// back over plain http://, so a dev machine would appear to forget the choice
-// on every request.
+// insecureCookieName is the development name: a __Host- cookie is never sent
+// back over plain http://, so a dev machine would forget the choice every request.
 const insecureCookieName = "goen_locale"
 
 // CookieMaxAge is a year. A language preference is not a session.
@@ -76,9 +49,7 @@ func Parse(s string) Locale {
 // Tag is the value for <html lang>.
 func (l Locale) Tag() string { return string(l) }
 
-// Label is what the switch calls this locale, in that locale — a visitor
-// looking for their own language should not have to read another one to find
-// it.
+// Label is what the switch calls this locale, in that locale.
 func (l Locale) Label() string {
 	if l == En {
 		return "English"
@@ -86,8 +57,6 @@ func (l Locale) Label() string {
 	return "繁體中文"
 }
 
-// localeKey is unexported so nothing outside this package can put a value under
-// it.
 type localeKey struct{}
 
 // WithLocale attaches a locale to a request context.
@@ -104,15 +73,8 @@ func FromContext(ctx context.Context) Locale {
 	return l
 }
 
-// StripeTag is the locale to hand Stripe's hosted Checkout.
-//
-// Stripe renders a page goen does not control, and it takes a locale of its own.
-// It was pinned to zh-TW, so an English visitor filled in an English form,
-// pressed an English button and landed on a Chinese payment page — the one page
-// in the flow where being unsure what you are agreeing to matters most.
-//
-// Stripe's tag for Traditional Chinese is zh-TW, not zh-Hant, which is why this
-// is a mapping rather than Tag().
+// StripeTag is the locale to hand Stripe's hosted Checkout. Stripe's tag for
+// Traditional Chinese is zh-TW, not zh-Hant, so this is a mapping and not Tag().
 func (l Locale) StripeTag() string {
 	switch l {
 	case ZhHant:
@@ -131,12 +93,7 @@ func CookieNameFor(secure bool) string {
 	return insecureCookieName
 }
 
-// Detect works out what language to serve.
-//
-// The cookie wins, because it is an explicit choice. Accept-Language is a hint
-// from a browser the visitor may never have configured, so it only decides for
-// somebody who has not chosen — and it is read leniently, because a header that
-// does not parse should mean "no preference", never an error page.
+// Detect works out what language to serve: the cookie wins, then Accept-Language.
 func Detect(r *http.Request, secure bool) Locale {
 	if c, err := r.Cookie(CookieNameFor(secure)); err == nil && Known(c.Value) {
 		return Locale(c.Value)
@@ -144,21 +101,13 @@ func Detect(r *http.Request, secure bool) Locale {
 	return fromAcceptLanguage(r.Header.Get("Accept-Language"))
 }
 
-// fromAcceptLanguage picks a locale from the header.
-//
-// Quality values are ignored on purpose: with two locales and Chinese as the
-// default, the only question is whether English appears BEFORE any Chinese
-// variant. Parsing q-values to answer that would be arithmetic in service of a
-// decision it cannot change.
 func fromAcceptLanguage(header string) Locale {
-	for _, part := range strings.Split(header, ",") {
+	for part := range strings.SplitSeq(header, ",") {
 		tag := strings.ToLower(strings.TrimSpace(strings.SplitN(part, ";", 2)[0]))
 		switch {
 		case tag == "":
 			continue
 		case strings.HasPrefix(tag, "zh"):
-			// Any Chinese, including zh-CN: a Simplified reader is far better
-			// served by Traditional than by English.
 			return ZhHant
 		case strings.HasPrefix(tag, "en"):
 			return En

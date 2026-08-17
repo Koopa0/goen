@@ -1,17 +1,11 @@
 package i18n
 
-// The customer's own pages: signing in, the account, points, the wishlist,
-// warranty registration and returns.
-
 var (
-	// Signing in and registering.
 	KeySignIn           = key("auth.signin", Message{ZhHant: "登入", En: "Sign in"})
 	KeySignInWithGoogle = key("auth.signin.google", Message{
 		ZhHant: "用 Google 帳號登入",
 		En:     "Continue with Google",
 	})
-	// The four ways a Google sign-in ends other than signed in. Each is a
-	// different next move, which is why they are not one message.
 	KeyOAuthFailed = key("auth.google.failed", Message{
 		ZhHant: "Google 登入沒有完成,請再試一次,或用密碼登入。",
 		En:     "That Google sign-in did not complete. Try again, or sign in with your password.",
@@ -25,10 +19,6 @@ var (
 		En: "Google has not verified that account's email address, so we cannot sign you in with it. " +
 			"Register or sign in with a password instead.",
 	})
-	// The collision. It names the way OUT rather than only the refusal: /forgot
-	// sends mail to the mailbox they have just shown they read, and the reset
-	// ends every session — so somebody who registered the address without owning
-	// it is thrown out by the same act.
 	KeyOAuthCollision = key("auth.google.collision", Message{
 		ZhHant: "這個信箱已經有一個 goen 帳號,而且還沒完成信箱驗證,所以不能直接綁定 Google。" +
 			"請用「忘記密碼」收信重設,設定完成後就可以再綁定。",
@@ -72,14 +62,11 @@ var (
 		En:     "Some fields need fixing — see the notes below.",
 	})
 
-	// Resetting a password.
 	KeyForgotTitle = key("auth.forgot.title", Message{ZhHant: "忘記密碼", En: "Forgotten password"})
 	KeyForgotSub   = key("auth.forgot.sub", Message{
 		ZhHant: "我們寄一個連結給你,一小時內有效。",
 		En:     "We will send you a link. It works for one hour.",
 	})
-	// Said the same whether or not the address is registered: otherwise the form
-	// is a way to find out who has an account here.
 	KeyForgotSent = key("auth.forgot.sent", Message{
 		ZhHant: "如果這個信箱有註冊過,重設連結已經寄出了。沒收到請看看垃圾郵件。",
 		En: "If that address has an account, the reset link is on its way. If it has not " +
@@ -107,7 +94,6 @@ var (
 		En:     "Those two passwords do not match.",
 	})
 
-	// Auth validation and notices.
 	KeyPasswordsDiffer = key("valid.password.mismatch", Message{
 		ZhHant: "兩次輸入的密碼不一致",
 		En:     "Those two passwords do not match",
@@ -135,7 +121,6 @@ var (
 		En:     "Your password is reset. Sign in with the new one.",
 	})
 
-	// The account page.
 	KeyAccountTitle     = key("account.title", Message{ZhHant: "會員中心", En: "Your account"})
 	KeySignOut          = key("account.signout", Message{ZhHant: "登出", En: "Sign out"})
 	KeyMembershipTier   = key("account.tier", Message{ZhHant: "會員等級", En: "Membership tier"})
@@ -223,16 +208,11 @@ var (
 		ZhHant: "永久刪除帳號",
 		En:     "Delete my account permanently",
 	})
-	// Written before payment existed, and left saying so long after it shipped:
-	// it told a customer looking at a genuinely unpaid order that they could not
-	// pay it yet, on a site that takes cards. It renders only for an order that
-	// really does owe money now, so it can say the useful thing instead.
 	KeyPayLaterNotice = key("account.order.paylater", Message{
 		ZhHant: "這筆訂單尚未付款,商品已為您保留。",
 		En:     "This order is not paid for yet. The stock is being held for you.",
 	})
 
-	// Account notices.
 	KeyProfileSaved   = key("account.notice.saved", Message{ZhHant: "資料已更新。", En: "Saved."})
 	KeyLinkedAccounts = key("account.linked", Message{ZhHant: "連結的帳號", En: "Linked accounts"})
 	KeyGoogleLinked   = key("account.linked.google", Message{
@@ -279,13 +259,10 @@ var (
 	KeyBusyTitle = key("error.busy", Message{ZhHant: "暫時無法處理", En: "Cannot do that right now"})
 	KeyBusyBody  = key("error.busy.body", Message{ZhHant: "請稍後再試。", En: "Please try again shortly."})
 
-	// A customer's own order status, which is a shorter vocabulary than the back
-	// office's — 待付款 rather than 訂單成立.
 	KeyStatusAwaitingPayment = key("account.status.pending", Message{ZhHant: "待付款", En: "Awaiting payment"})
 	KeyStatusDone            = key("account.status.completed", Message{ZhHant: "已完成", En: "Completed"})
 	KeyStatusCalledOff       = key("account.status.cancelled", Message{ZhHant: "已取消", En: "Cancelled"})
 
-	// Points.
 	KeyPointsTitle = key("points.title", Message{ZhHant: "會員點數", En: "Points"})
 	KeyPointsSub   = key("points.sub", Message{
 		ZhHant: "每消費 NT$100 得 1 點,%s,可以兌換成商店額度在結帳時折抵。",
@@ -338,7 +315,6 @@ var (
 		En:     "Not enough points — some may have just expired.",
 	})
 
-	// The wishlist.
 	KeyWishlistEmpty = key("wishlist.empty", Message{
 		ZhHant: "還沒有收藏任何商品",
 		En:     "Nothing saved yet",
@@ -352,7 +328,6 @@ var (
 		En:     "Browse from the home page",
 	})
 
-	// Warranty registration.
 	KeyWarrantySub = key("warranty.sub", Message{
 		ZhHant: "登錄之後,送修時不用再找收據。從訂單頁進去登錄。",
 		En: "Register a unit and you will never need the receipt to claim. Start from " +
@@ -406,9 +381,6 @@ var (
 		ZhHant: "這項商品沒有設定保固期限。",
 		En:     "No warranty term is set for this product.",
 	})
-	// Delivery rather than dispatch, because that is when the cover starts. A
-	// customer told "registration opens when it ships" on a parcel that shipped
-	// yesterday would go looking for a button that is not there yet.
 	KeyWarrantyNotDelivered = key("warranty.notdelivered", Message{
 		ZhHant: "這項商品還沒送達,送達後就可以登錄 —— 保固是從送達那天起算的。",
 		En:     "This has not arrived yet. Registration opens on delivery, which is when the cover starts.",
@@ -436,7 +408,6 @@ var (
 		En:     "No order matches that number, or it is not on your account.",
 	})
 
-	// Returns.
 	KeyReturnTitle = key("returns.title", Message{ZhHant: "退貨申請", En: "Return request"})
 	KeyReturnSub   = key("returns.sub", Message{
 		ZhHant: "可退貨的數量是「已出貨」的數量,扣掉先前已經申請過的部分。",
@@ -487,13 +458,11 @@ var (
 	})
 	KeyReturnMeta = key("returns.meta", Message{ZhHant: "退貨申請 %s", En: "Return request — %s"})
 
-	// A return's state, as the customer reads it.
 	KeyReturnStateOpen     = key("returns.state.open", Message{ZhHant: "已送出,等待處理", En: "Sent, awaiting a decision"})
 	KeyReturnStateApproved = key("returns.state.approved", Message{ZhHant: "已同意退貨", En: "Approved"})
 	KeyReturnStateRefused  = key("returns.state.refused", Message{ZhHant: "未同意退貨", En: "Declined"})
 	KeyReturnStateDone     = key("returns.state.done", Message{ZhHant: "退貨完成", En: "Completed"})
 
-	// Proving an email address.
 	KeyVerifyTitle = key("verify.title", Message{
 		ZhHant: "確認電子郵件",
 		En:     "Confirm your email address",
@@ -528,7 +497,6 @@ var (
 			"and its current address are unchanged.",
 	})
 
-	// What the account page says about it.
 	KeyEmailSection  = key("account.email", Message{ZhHant: "電子郵件", En: "Email address"})
 	KeyEmailVerified = key("account.email.verified", Message{
 		ZhHant: "已確認",

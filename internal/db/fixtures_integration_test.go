@@ -2,13 +2,7 @@
 
 package db_test
 
-// fixtures are the rows every case hangs off: one of everything the catalogue,
-// order and payment graphs need, with fixed ids so a case can reference them
-// without first creating its own world.
-//
-// Ids are readable on purpose. When a failure prints
-// `55555555-5555-4555-8555-555555555555` it should be obvious that the user is
-// meant, not that some opaque value leaked.
+// fixtures are the rows every case hangs off, with fixed ids so a case can reference them.
 const fixtures = `
 -- catalogue
 INSERT INTO brands (id, slug, name) VALUES
@@ -23,13 +17,8 @@ INSERT INTO products (id, brand_id, category_id, slug, name, status, published_a
      '11111111-1111-4111-8111-111111111111',
      '22222222-2222-4222-8222-222222222222',
      'pixelight-9-pro', 'Pixelight 9 Pro 5G', 'active', now()),
-    -- A SECOND product, in draft so it needs no variant.
-    --
-    -- Every pair-shaped rule needs two: product_copurchases_not_self can only
-    -- be told from product_copurchases_orders_positive if a legal pair exists,
-    -- and with one product the cross join is empty — the statement inserts
-    -- nothing, raises nothing, and the case reports that the database accepted
-    -- a row it never wrote.
+    -- A SECOND product, in draft so it needs no variant: with one product a pair-shaped
+    -- rule's cross join is empty, and the case reports an accepted row it never wrote.
     ('3333aaaa-3333-4333-8333-333333333333',
      '11111111-1111-4111-8111-111111111111',
      '22222222-2222-4222-8222-222222222222',
@@ -70,14 +59,8 @@ INSERT INTO users (id, email, full_name) VALUES
     ('55555555-5555-4555-8555-555555555555', 'Ming@Example.com', '王小明'),
     ('5555aaaa-5555-4555-8555-555555555555', 'hua@example.com', '李大華');
 
--- The two tables that key on the ADDRESS and not on the account, which is what
--- makes them unreachable from a DELETE of a user. Both are here so the erasure
--- guard has something to find: without them it would probe an empty schema and
--- pass whatever erase_user did, which is a test that cannot fail.
---
--- contact_messages is the one that was actually missed, and its body carries
--- exactly what a real one does — "my order has not arrived" is answered with an
--- address and a phone number.
+-- The two tables that key on the ADDRESS and not on the account, so a DELETE of a user
+-- cannot reach them. Without both the erasure guard probes an empty schema and cannot fail.
 INSERT INTO contact_messages (name, email, subject, message) VALUES
     ('王小明', 'Ming@Example.com', '出貨進度',
      '我的地址是台北市信義區松高路 1 號,電話 0912345678,想問訂單什麼時候出貨');
@@ -103,8 +86,7 @@ INSERT INTO shipping_method_versions (id, method_id, name, carrier, fee_cents, f
     ('ffff0002-0000-4000-8000-000000000000', 'ffff0001-0000-4000-8000-000000000000',
      '宅配到府(黑貓)', '黑貓宅急便', 8000, 300000);
 
--- one complete order: lines and delivery details included, because the
--- deferred trigger refuses an order that has neither
+-- One complete order: the deferred trigger refuses an order with no lines and no delivery details.
 INSERT INTO orders (id, order_number, user_id, shipping_version_id,
                     shipping_method_code, shipping_method_name, shipping_cents) VALUES
     ('66666666-6666-4666-8666-666666666666', 'GO-260721-000387',
@@ -116,17 +98,9 @@ INSERT INTO order_lines (id, order_id, variant_id, sku, product_name, variant_la
     ('66660001-0000-4000-8000-000000000000', '66666666-6666-4666-8666-666666666666',
      '44444444-4444-4444-8444-444444444444', 'PXL-9P-256-BL',
      'Pixelight 9 Pro 5G', '星霧藍 256GB', 3390000, 2, 0),
-    -- A SECOND line, and the one the shipment below covers.
-    --
-    -- return_within_shipment needs a line that HAS shipped; shipment_within_
-    -- purchase needs one that has NOT, so it can test shipping against a clean
-    -- ceiling. One line cannot be both, and sharing it made each case pass or
-    -- fail depending on which ran first.
-    --
-    -- Deliberately cheap. Every capture must equal the order total exactly
-    -- (payments_capture_matches_order), so adding a line moves a figure that
-    -- refunds_within_capture's cases are calibrated against. At 1000 a unit the
-    -- total moves by 2000 and both of those cases stay on the same side of it.
+    -- A SECOND line, the one the shipment below covers: one line cannot be both shipped and
+    -- unshipped. Deliberately cheap — every capture must equal the order total exactly
+    -- (payments_capture_matches_order), which refunds_within_capture's cases are calibrated to.
     ('66660003-0000-4000-8000-000000000000', '66666666-6666-4666-8666-666666666666',
      '44444444-4444-4444-8444-444444444444', 'PXL-9P-256-BK',
      '保護貼', '9H 鋼化', 1000, 2, 1);
@@ -140,13 +114,8 @@ INSERT INTO order_shipments (id, order_id, carrier, tracking_number) VALUES
     ('66660002-0000-4000-8000-000000000000', '66666666-6666-4666-8666-666666666666',
      '黑貓宅急便', '903-2214-8871');
 
--- What was in that parcel. return_within_shipment bounds a return by what
--- actually went out, so without these lines the ceiling is zero and no return
--- case could ever be accepted — the shipment row alone is not the record.
--- ONE of the two, deliberately. A line whose shipped quantity equals its
--- ordered quantity cannot tell the two ceilings apart, so the return cases
--- passed either way — a partial dispatch is what makes "you cannot return what
--- was never sent" a testable claim rather than a comment.
+-- What was in that parcel, and ONE of the two deliberately: a line shipped in full cannot tell
+-- return_within_shipment from shipment_within_purchase, so the return cases pass either way.
 INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity) VALUES
     ('66666666-6666-4666-8666-666666666666', '66660002-0000-4000-8000-000000000000',
      '66660003-0000-4000-8000-000000000000', 1);
@@ -155,12 +124,10 @@ INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity
 INSERT INTO payments (id, order_id, provider_ref, status, intended_amount_cents,
                       captured_amount_cents, paid_at) VALUES
     ('77770001-0000-4000-8000-000000000000', '66666666-6666-4666-8666-666666666666',
-     -- 3390000*2 + 1000*2 + 8000 shipping. It must be the total to the cent:
-     -- payments_capture_matches_order compares them directly.
+     -- 3390000*2 + 1000*2 + 8000 shipping: payments_capture_matches_order compares to the cent.
      'pi_fixture', 'succeeded', 6790000, 6790000, now());
 
--- a second order still awaiting payment, for cases that must not run against a
--- settled one
+-- A second order still awaiting payment, for cases that must not run against a settled one.
 INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name) VALUES
     ('6666aaaa-6666-4666-8666-666666666666', 'GO-260721-000388',
      'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');
@@ -174,9 +141,7 @@ INSERT INTO order_private_data (order_id, email, recipient_name, phone,
     ('6666aaaa-6666-4666-8666-666666666666', 'guest@example.com', '訪客', '0900000000',
      '110', '台北市', '信義區', '松高路 1 號');
 
--- A zero-owed order: a 100% discount funds it, so it leaves pending legally
--- with no payment row at all. This is the shape the three payment-proxy guards
--- were blind to — order_is_committed exists to see it.
+-- A zero-owed order: a 100% discount funds it, so it leaves pending legally with no payment row.
 INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code,
                     shipping_method_name, discount_cents) VALUES
     ('6666bbbb-6666-4666-8666-666666666666', 'GO-260721-000389',
@@ -191,14 +156,13 @@ INSERT INTO order_private_data (order_id, email, recipient_name, phone,
     ('6666bbbb-6666-4666-8666-666666666666', 'free@example.com', '免單', '0900000001',
      '110', '台北市', '信義區', '松高路 1 號');
 
--- Out of pending through the legal door: orders_funded_to_leave_pending sees
--- order_total - credit_applied = 0 and skips its payment check entirely. The
--- UPDATE is what proves the state is reachable, rather than inserted into place.
+-- Out of pending through the legal door: orders_funded_to_leave_pending skips its payment
+-- check at zero owed, and the UPDATE proves the state is reachable rather than inserted.
 UPDATE orders SET fulfillment_status = 'picking'
 WHERE id = '6666bbbb-6666-4666-8666-666666666666';
 
--- 王小明's invoice preference: a 手機條碼載具 is a personal identifier, and it
--- outlived erasure entirely until erase_user learned to drop it.
+-- An invoice carrier is a personal identifier, and it outlived erasure until erase_user
+-- learned to drop it.
 INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code) VALUES
     ('66666666-6666-4666-8666-666666666666', 'mobile_carrier', '/ABC+123');
 
@@ -224,10 +188,8 @@ INSERT INTO hero_slides (id, headline, primary_cta_label, primary_cta_href, posi
 INSERT INTO promo_banners (id, message) VALUES
     ('eeee1111-0000-4000-8000-000000000000', '全站滿 NT$3,000 免運');
 
--- A coupon and a redemption, so the uniqueness and matching cases have
--- something to collide with. The redemption is on the paid fixture order, and
--- its amount matches that order's discount_cents (0) as
--- coupon_redemption_matches_order requires.
+-- A coupon and a redemption to collide with. The redemption's amount matches the paid fixture
+-- order's discount_cents (0), as coupon_redemption_matches_order requires.
 INSERT INTO coupons (id, code, description, kind, amount_cents) VALUES
     ('cccc0009-0000-4000-8000-000000000009', 'FIXTURECODE', '固定金額測試', 'amount', 20000);
 
@@ -235,13 +197,9 @@ INSERT INTO coupon_redemptions (id, coupon_id, order_id, amount_cents) VALUES
     ('cccc000a-0000-4000-8000-00000000000a', 'cccc0009-0000-4000-8000-000000000009',
      '66666666-6666-4666-8666-666666666666', 0);
 
--- Force the deferred order-completeness check to run against the fixtures
--- themselves, so a broken fixture is reported here rather than surfacing as a
--- confusing failure inside somebody's case.
---
--- Then put it back: SET CONSTRAINTS changes the mode for the REST of the
--- transaction, so leaving it immediate would make every later order fail the
--- moment it is inserted — before the lines that complete it can exist.
+-- Run the deferred completeness check against the fixtures themselves, then put it back:
+-- SET CONSTRAINTS changes the mode for the REST of the transaction, and leaving it immediate
+-- would fail every later order at insert, before the lines completing it can exist.
 SET CONSTRAINTS orders_have_lines IMMEDIATE;
 SET CONSTRAINTS orders_have_lines DEFERRED;
 `

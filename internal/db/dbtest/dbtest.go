@@ -33,8 +33,7 @@ func Pool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-// Start brings up PostgreSQL, applies every migration, and returns a pool
-// together with the function that tears it down.
+// Start brings up PostgreSQL, applies every migration, and returns a pool and its teardown.
 func Start(ctx context.Context) (*pgxpool.Pool, func(), error) {
 	container, err := postgres.Run(ctx, image,
 		postgres.WithDatabase("goen_test"),

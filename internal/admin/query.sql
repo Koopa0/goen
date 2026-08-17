@@ -1,4 +1,3 @@
--- The order queue, newest first, optionally narrowed to one fulfilment state.
 -- name: AdminOrders :many
 SELECT
     o.id,
@@ -11,27 +10,17 @@ SELECT
     coalesce(pd.recipient_name, '') AS recipient,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
-    order_is_committed(o.id) AS committed
+    order_is_committed(o.id) AS committed,
+    order_amount_owed(o.id) AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE (@status::text = '' OR o.fulfillment_status = @status::text)
 ORDER BY o.placed_at DESC, o.id DESC
 LIMIT @row_limit::integer;
 
--- Find an order from whatever the customer said on the phone.
---
--- ONE box, and what it matches depends on what it looks like. A string shaped like
--- an order number is looked up exactly, on the unique index; anything else is a
--- PREFIX of the recipient's name or their address. Each path is index-backed, which
--- is the reason the shapes are told apart here rather than OR-ed together — a query
--- that tried all three at once with leading wildcards would scan order history on
--- every keystroke a staff member makes.
---
--- The term is bounded by the caller: below two characters this matches most of the
--- table, and a prefix that broad is a list rather than a search.
---
--- An erased order matches nothing, and nothing extra is needed for that: erase_user
--- sets the name and the address to NULL, so both comparisons are NULL.
+-- An order-number-shaped term is matched exactly and anything else as a prefix,
+-- told apart rather than OR-ed with wildcards so each path stays index-backed.
+-- An erased order matches nothing: erase_user NULLs the name and the address.
 -- name: AdminSearchOrders :many
 SELECT
     o.id,
@@ -44,7 +33,8 @@ SELECT
     coalesce(pd.recipient_name, '') AS recipient,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
-    order_is_committed(o.id) AS committed
+    order_is_committed(o.id) AS committed,
+    order_amount_owed(o.id) AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE o.order_number = upper(@term::text)
@@ -57,14 +47,12 @@ LIMIT @row_limit::integer;
 SELECT fulfillment_status, count(*)::bigint AS n
 FROM orders GROUP BY fulfillment_status;
 
+-- discount_reason is JOINED and not snapshotted: coupons.code is never updated
+-- and the FK is ON DELETE RESTRICT, so one join always reaches it.
 -- name: AdminOrderByNumber :one
 SELECT
     o.id, o.order_number, o.fulfillment_status, o.placed_at,
     o.shipping_cents, o.discount_cents, o.tax_cents, o.shipping_method_name,
-       -- WHICH discount, joined rather than snapshotted: coupons.code is never
-       -- updated and the FK is ON DELETE RESTRICT, so one join always reaches it.
-       -- Without it an order shows "折扣 −NT$200" and nothing says why, to the
-       -- customer or to the shop.
        coalesce((SELECT c.code || ' · ' || c.description
                  FROM coupon_redemptions cr JOIN coupons c ON c.id = cr.coupon_id
                  WHERE cr.order_id = o.id), '')::text AS discount_reason,
@@ -81,44 +69,25 @@ SELECT
     coalesce(pd.pickup_brand, '') AS pickup_brand,
     coalesce(pd.pickup_store_code, '') AS pickup_store_code,
     coalesce(pd.pickup_store_name, '') AS pickup_store_name,
-    -- The 發票 the customer asked for. Collected at checkout and shown HERE,
-    -- because the staff member packing an order is the one who has to see that it
-    -- needs a 統編 invoice — a preference collected and never shown is a feature
-    -- with no door from the other side.
-    --
-    -- It matters most where issuing is off. A real 統一發票 goes through a 加值中心,
-    -- and a deployment holding no credentials for one issues nothing — so somebody
-    -- files these by hand, and they cannot do it from a table they cannot read.
     coalesce(ip.invoice_type, '') AS invoice_type,
     coalesce(ip.carrier_code, '') AS invoice_carrier,
     coalesce(ip.tax_id, '') AS invoice_tax_id,
-    order_is_committed(o.id) AS committed
+    order_is_committed(o.id) AS committed,
+    order_amount_owed(o.id) AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
 WHERE o.order_number = $1;
 
--- Move an order along its lifecycle.
---
--- The transition itself is validated by orders_check_transition, which knows
--- the state machine and refuses an illegal move — so this does not re-derive
--- it. cancelled_at and completed_at are set here because the schema requires
--- them for those two states and orders_history_frozen refuses a later change.
--- Stamp the parcels of an order that has just been marked delivered.
---
--- delivered_at is READ by the customer's own order page and by /admin/orders, and
--- this is what writes it. Without it the order-level status says 已送達 while every
--- parcel row still says the goods are in transit — two halves of one fact
--- disagreeing, and the half the customer reads is the parcel.
---
--- Only the ones with no stamp, so a re-run cannot move a date that has already
--- been recorded — and never earlier than shipped_at, which
--- order_shipments_delivered_after_shipped would refuse anyway: a clock cannot make
--- a parcel arrive before it left.
+-- Only parcels with no stamp, so a re-run cannot move a recorded date, and never
+-- earlier than shipped_at, which order_shipments_delivered_after_shipped refuses.
 -- name: MarkShipmentsDelivered :exec
 UPDATE order_shipments SET delivered_at = greatest(now(), shipped_at)
 WHERE order_id = $1 AND delivered_at IS NULL;
 
+-- orders_check_transition validates the move, so this does not re-derive it.
+-- cancelled_at and completed_at are set here because the schema requires them
+-- for those two states and orders_history_frozen refuses a later change.
 -- name: AdvanceOrder :exec
 UPDATE orders
 SET fulfillment_status = @status::text,
@@ -129,7 +98,6 @@ WHERE order_number = @order_number::text;
 -- name: SetStaffNote :exec
 UPDATE orders SET staff_note = $2 WHERE order_number = $1;
 
--- The variants a back office needs to see: what is low, what is off.
 -- name: AdminVariants :many
 SELECT
     pv.id,
@@ -150,44 +118,26 @@ WHERE (@low_only::boolean = false OR pv.stock_quantity <= pv.safety_stock)
 ORDER BY (pv.stock_quantity - pv.safety_stock), p.name, pv.position
 LIMIT @row_limit::integer;
 
+-- price_cents is read for the audit trail's "before": a reprice recorded without
+-- the price it replaced records the least interesting half of the fact.
 -- name: AdminVariantBySKU :one
--- price_cents is read for the audit trail's "before": a reprice recorded
--- without the price it replaced records the least interesting half of the fact.
 SELECT pv.id, pv.sku, pv.stock_quantity, pv.safety_stock, pv.is_active,
        pv.price_cents, p.name AS product_name, p.slug
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 WHERE pv.sku = $1;
 
--- Adjust stock through the ledger.
---
 -- record_inventory_movement is the ONLY door: admin has no UPDATE on
--- stock_quantity, so a direct write is refused by the database rather than by
--- convention. Every adjustment therefore lands in inventory_movements with a
--- reason and an actor.
+-- stock_quantity, so a direct write is refused by the database.
 -- name: AdjustStock :exec
 SELECT record_inventory_movement(
     @variant_id, @delta::integer, 'adjustment',
     @idempotency_key::text, 'admin', NULL, @actor_user_id::uuid
 );
 
--- Put a returned unit back on the shelf.
---
--- reason 'return' rather than 'adjustment', which is the whole point: the ledger
--- carries that reason, its delta-direction CHECK and its safety-stock exemption,
--- and this is what posts one. Without it goods coming back are indistinguishable
--- from a staff member correcting a miscount, and a shop reading
--- /admin/stock/{sku} sees the number move and not why.
---
--- source_type/source_id point at the RETURN, so the ledger row answers "which
--- return put this back" the way a hold points at its order and a release at its
--- reservation. The idempotency key is per (request, line), so a resubmitted
--- inspection posts one movement.
---
--- sqlc.narg on the actor: inventory_movements.actor_user_id is nullable with a
--- foreign key, so a zero UUID is not "nobody" — it is a user id that does not
--- exist, and the FK would refuse it. NULL is how the ledger says a movement had
--- no human behind it.
+-- sqlc.narg on the actor: actor_user_id is nullable with a foreign key, so a
+-- zero UUID is not "nobody" — it is an id that does not exist, and the FK
+-- refuses it.
 -- name: RestockReturnedUnits :exec
 SELECT record_inventory_movement(
     @variant_id, @delta::integer, 'return',
@@ -202,41 +152,31 @@ UPDATE product_variants
 SET price_cents = @price_cents, compare_at_price_cents = @compare_at_price_cents
 WHERE id = @id;
 
--- What the dashboard leads with.
 -- name: AdminSummary :one
 SELECT
-    (SELECT count(*) FROM orders WHERE fulfillment_status = 'pending')::bigint AS pending_orders,
+    -- Genuinely UNPAID, not merely pending: an order funded by store credit or
+    -- a full discount sits at pending for good, and counting it here sends
+    -- somebody looking for money that has already arrived.
+    (SELECT count(*) FROM orders o WHERE o.fulfillment_status = 'pending'
+       AND NOT order_is_committed(o.id) AND order_amount_owed(o.id) > 0)::bigint AS pending_orders,
     (SELECT count(*) FROM orders WHERE fulfillment_status = 'picking')::bigint AS picking_orders,
     (SELECT count(*) FROM product_variants
      WHERE is_active AND stock_quantity <= safety_stock)::bigint AS low_stock,
     (SELECT count(*) FROM products WHERE status = 'active')::bigint AS active_products,
     (SELECT count(*) FROM contact_messages WHERE handled_at IS NULL)::bigint AS open_messages;
 
--- Record a shipment. carrier and tracking_number both carry CHECKs requiring a
--- non-blank value, so a shipment with an empty tracking number is refused by the
--- schema rather than saved as a shipment nobody can follow.
 -- name: CreateShipment :one
 INSERT INTO order_shipments (order_id, carrier, tracking_number, estimated_delivery_on)
 VALUES (@order_id, @carrier::text, @tracking_number::text, @estimated_delivery_on)
 RETURNING id;
 
--- Settle the part of a hold that is actually going out in this parcel.
 -- name: ConsumeReservationPartial :exec
 SELECT consume_reservation_partial(@reservation_id, @quantity::integer);
 
--- What each order line still owes a dispatch, and which hold covers it.
---
--- The two questions are answered TOGETHER because a partial dispatch has to
--- reconcile them line by line: shipping two of three units settles two of the
--- three that line's variant holds, and reading the remaining quantities from one
--- query and the reservations from another leaves the two free to disagree about
--- an order somebody is editing.
---
--- LEFT JOIN on the reservation, not JOIN. A line whose variant was deleted has
--- no hold and never did, and dropping the row here would silently ship it
--- without anybody noticing the stock did not move — the empty-reservation
--- dispatch, where the parcel leaves the warehouse and stock_quantity stays where
--- it was. The caller refuses instead.
+-- LEFT JOIN on the reservation, not JOIN: a line whose variant was deleted has
+-- no hold, and dropping the row here would ship it without moving stock. The
+-- caller refuses instead. ReleaseReservation and HeldReservationsForOrder live
+-- in internal/cart/query.sql — sqlc generates ONE db package for the module.
 -- name: ShippableLines :many
 SELECT ol.id AS order_line_id,
        ol.sku,
@@ -258,14 +198,8 @@ WHERE ol.order_id = @order_id
       WHERE sl.order_line_id = ol.id), 0)
 ORDER BY ol.position, ol.id;
 
--- ReleaseReservation and HeldReservationsForOrder are what a cancellation needs,
--- and they are defined in internal/cart/query.sql. sqlc generates ONE db package
--- for the whole module, so a second copy here is a duplicate-name error rather
--- than a second query.
-
--- Append to an order's history. The table is append-only three ways — a
--- forbid_change trigger, REVOKE UPDATE and REVOKE DELETE — so this is the only
--- thing that may ever be done to it.
+-- order_events is append-only three ways — a forbid_change trigger, REVOKE
+-- UPDATE and REVOKE DELETE — so this is the only thing that may touch it.
 -- name: RecordOrderEvent :exec
 INSERT INTO order_events (order_id, kind, note, actor_user_id)
 VALUES (@order_id, @kind::text, @note, @actor_user_id);
@@ -273,9 +207,8 @@ VALUES (@order_id, @kind::text, @note, @actor_user_id);
 -- name: OrderIDByNumber :one
 SELECT id, fulfillment_status FROM orders WHERE order_number = $1;
 
--- An order's history, oldest first. occurred_at then id, because two events
--- recorded in the same statement share a timestamp and the uuidv7 primary key
--- is the tie-break that keeps them in the order they happened.
+-- Oldest first: occurred_at then id, because two events recorded in the same
+-- statement share a timestamp and the uuidv7 key is the tie-break.
 -- name: OrderEvents :many
 SELECT e.kind, e.note, e.occurred_at, coalesce(u.full_name, '') AS actor_name
 FROM order_events e
@@ -287,36 +220,22 @@ ORDER BY e.occurred_at, e.id;
 SELECT carrier, tracking_number, shipped_at, delivered_at, estimated_delivery_on
 FROM order_shipments WHERE order_id = $1 ORDER BY shipped_at, id;
 
--- What a shipment contains. Written with the shipment, because a dispatch that
--- records no lines is one nothing can later reconcile against: a return has to
--- be bounded by what actually went out, not by what was ordered.
+-- Written with the shipment: a return has to be bounded by what actually went
+-- out, not by what was ordered.
 -- name: CreateShipmentLine :exec
 INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
 VALUES (@order_id, @shipment_id, @order_line_id, @quantity::integer);
 
--- The return queue. Undecided first, because that is the work.
+-- rescission_window: Consumer Protection Act §19 I runs seven days from RECEIPT,
+-- Civil Code §120 II excludes the day of receipt, and §19 IV fixes the moment on
+-- the customer's side — so created_at against delivered_at, both database
+-- clocks. Undelivered is neither answer, because the window has not started.
 -- name: ReturnQueue :many
 SELECT r.id, r.status, r.reason, r.created_at, r.decided_at,
        o.order_number,
        (SELECT coalesce(sum(rl.quantity), 0) FROM return_request_lines rl
         WHERE rl.return_request_id = r.id)::integer AS units,
-       -- The ONE definition, not a second copy of the arithmetic. The queue and
-       -- the decision page need the same number, and computing it separately in
-       -- each is two chances to get it wrong — a figure a staff member reads on
-       -- one page and acts on from another must not be able to differ.
        return_refundable_amount(r.id)::bigint AS refundable_cents,
-       -- Whether this request is a statutory rescission or a goodwill return,
-       -- which the page could not tell apart and a staff member therefore could
-       -- not either. 消保法 §19 I runs seven days from RECEIPT of the goods,
-       -- 民法 §120 II excludes the day of receipt so day one is the day after,
-       -- and §19 IV fixes the moment on the customer's SIDE — the request going
-       -- out, not the shop reading it. So the comparison is created_at against
-       -- delivered_at, both written by this database: one clock at both ends,
-       -- which is the /admin/messages lesson.
-       --
-       -- Undelivered is neither answer. The window has not started, so nothing
-       -- here is late; a return before the parcel lands is bounded by
-       -- return_lines_within_purchase instead.
        (CASE
             WHEN d.delivered_at IS NULL THEN 'undelivered'
             WHEN r.created_at::date <= d.delivered_at::date + 7 THEN 'within'
@@ -331,13 +250,9 @@ LEFT JOIN LATERAL (
 ORDER BY (r.status = 'requested') DESC, r.created_at DESC
 LIMIT $1;
 
--- One return, with what it would cost to refund.
---
--- The amount comes from return_refundable_amount, never from anything the
--- request carried: a refund figure that came in on a form is the oldest hole
--- there is, and this one pays out real money. It is a FUNCTION rather than an
--- expression here because the queue needs the same number, and an expression
--- written out in both places is two figures free to disagree about one refund.
+-- The amount comes from return_refundable_amount and never from anything the
+-- request carried. It is a FUNCTION rather than an expression because the queue
+-- needs the same number, and two copies are two figures free to disagree.
 -- name: ReturnForDecision :one
 SELECT r.id, r.status, r.reason, r.order_id,
        o.order_number, o.fulfillment_status,
@@ -351,51 +266,23 @@ JOIN orders o ON o.id = r.order_id
 LEFT JOIN payments p ON p.order_id = o.id AND p.status = 'succeeded'
 WHERE r.id = $1;
 
--- WHAT is being sent back, for every request on the page.
---
--- Takes an ARRAY rather than one id, so a queue of fifty returns is one query
--- and not fifty.
---
--- Without it the queue says "3 件 · 可退 NT$4,500" and nothing else: a staff
--- member deciding a return cannot see what is in it.
+-- received_quantity is NULL until somebody opens the parcel: "not looked at yet"
+-- and "looked at, nothing arrived" are different facts. restockable is false for
+-- a line whose variant was deleted, so the form cannot offer a refused control.
 -- name: ReturnLines :many
 SELECT rl.return_request_id, ol.id AS order_line_id, ol.sku, ol.product_name,
        ol.variant_label, ol.unit_price_cents, rl.quantity,
-       -- The inspection, NULL until somebody opens the parcel. "Not looked at
-       -- yet" and "looked at, nothing arrived" are different facts and the form
-       -- has to tell them apart: one is work outstanding, the other is a
-       -- conversation with the customer.
        rl.received_quantity, rl.restocked_quantity,
        coalesce(rl.inspection_note, '')::text AS inspection_note,
-       -- Whether the unit can go back on a shelf at all. A line whose variant was
-       -- deleted, or which never had one, cannot be restocked however sellable it
-       -- looks — order_lines.variant_id is nullable precisely so a line survives
-       -- its variant, and the form must not offer a control the write would then
-       -- refuse.
        (ol.variant_id IS NOT NULL)::boolean AS restockable
 FROM return_request_lines rl
 JOIN order_lines ol ON ol.id = rl.order_line_id
 WHERE rl.return_request_id = ANY(@request_ids::uuid[])
 ORDER BY rl.return_request_id, ol.position, ol.id;
 
--- Record what came back on one line of a return.
---
--- Scoped to an APPROVED request in its own WHERE clause, and :execrows so zero
--- means the caller is told rather than the write silently doing nothing: a
--- rejected return has no parcel coming, and inspecting one that was never
--- approved would put stock back for goods the shop refused to take.
---
--- ONCE, which is what `received_quantity IS NULL` is doing here. A parcel is
--- opened once, and the restock behind it posts an inventory movement keyed on
--- (request, line) — so a second inspection either double-restocks or is
--- swallowed by the unique index, and the swallowed one is worse: a staff member
--- who miscounted, corrected the figure and resubmitted would see the new number
--- on screen with the stock still at the old one. Refusing says so.
---
--- The correction path is the one that already exists and is already audited:
--- /admin/stock/{sku} posts an 'adjustment' with an actor, which is exactly what
--- a recount is. A second door into the same ledger is how the two come to
--- disagree.
+-- `received_quantity IS NULL` makes a line inspectable ONCE: the restock behind
+-- it posts a movement keyed on (request, line), so a second inspection would be
+-- swallowed by that index and show a corrected count over unmoved stock.
 -- name: InspectReturnLine :execrows
 UPDATE return_request_lines rl
 SET received_quantity = @received::integer,
@@ -408,18 +295,9 @@ WHERE r.id = rl.return_request_id
   AND r.status = 'approved'
   AND rl.received_quantity IS NULL;
 
--- The variant and quantity a restock has to post, read back from the inspection.
---
--- Read AFTER the inspection is written and inside the same transaction, so the
--- movement posted is the one this transaction recorded rather than whatever a
--- later read finds. Only lines that restocked something and still have a variant
--- to restock into.
---
--- The cast on variant_id is load-bearing: order_lines.variant_id is NULLABLE so
--- a line survives its variant being deleted, and the WHERE clause below excludes
--- the NULLs — but sqlc reads the column's declaration and not the predicate, so
--- without it every caller unwraps a NullUUID that can never be null. Cast, the
--- way localized_name's callers coalesce.
+-- The cast on variant_id is load-bearing: the column is nullable and the WHERE
+-- clause excludes the NULLs, but sqlc reads the declaration and not the
+-- predicate, so without it every caller unwraps a NullUUID that cannot be null.
 -- name: ReturnRestockLines :many
 SELECT ol.variant_id::uuid AS variant_id,
        rl.restocked_quantity::integer AS quantity, rl.order_line_id
@@ -430,64 +308,36 @@ WHERE rl.return_request_id = @request_id
   AND ol.variant_id IS NOT NULL
 ORDER BY rl.order_line_id;
 
--- Close an inspected return.
---
 -- return_requests_completed_is_inspected refuses this while any line is
--- un-inspected, so the WHERE clause here does not restate that rule — the
--- database is the one place it lives. `status = 'approved'` IS restated, for the
--- reason DecideReturn restates it: it is what makes two staff members closing
--- one return resolve to one winner.
+-- un-inspected. `status = 'approved'` is restated for DecideReturn's reason: it
+-- is what makes two staff members closing one return resolve to one winner.
 -- name: CompleteReturn :execrows
 UPDATE return_requests
 SET status = 'completed', resolution = coalesce(nullif(@resolution::text, ''), resolution)
 WHERE id = @id AND status = 'approved';
 
--- Decide a return. return_requests_recount guards the transition and
--- return_requests_decided_has_time requires the timestamp to arrive with it.
---
--- :execrows, because `status = 'requested'` in this WHERE clause is the ONLY
--- place the question is asked under a lock. Decide reads the row on the pool
--- BEFORE opening its transaction, so two staff members clicking 同意 and 不同意
--- on one request both pass that check; as :exec the loser updates zero rows, SQL
--- calls that success, and the transaction commits an audit row asserting a
--- decision that never happened — and, for an approval, after paying a refund.
--- Zero rows is "somebody decided this first", which is a sentence a caller can
--- act on. The SetProductStatus lesson, in the one place that also moves money.
+-- :execrows, because `status = 'requested'` here is the ONLY place the question
+-- is asked under a lock: as :exec, the loser of two simultaneous decisions
+-- updates zero rows, SQL calls that success, and an audit row claims a decision
+-- nobody made — after paying a refund.
 -- name: DecideReturn :execrows
 UPDATE return_requests
 SET status = @status::text, resolution = @resolution, decided_at = now()
 WHERE id = @id AND status = 'requested';
 
--- name: OpenRefund :one
 -- nullif on the reason: "no note" is NULL, not an empty string.
+-- name: OpenRefund :one
 SELECT open_refund(@payment_id, @request_key::text, @amount_cents::bigint,
                    nullif(@reason::text, ''), @return_request_id);
 
--- name: SettleRefund :exec
 -- nullif again: a failed refund has no provider reference, and settle_refund
--- coalesces NULL onto whatever is already there rather than blanking it.
+-- coalesces NULL onto whatever is there rather than blanking it.
+-- name: SettleRefund :exec
 SELECT settle_refund(@request_key::text, nullif(@provider_ref::text, ''), @status::text);
 
--- How much is already claimed against a payment, so the back office can show
--- what is left rather than letting refunds_within_capture be the first time
--- anyone finds out.
---
--- It mirrors refunds_guard, and it has to: the trigger counts every refund on
--- the payment that is not 'failed' and not 'cancelled', EXCLUDING the row being
--- written. Two ways the mirror can slip, both of which make the back office
--- compute headroom the database will not honour.
---
--- 'requires_action' belongs in the list. A refund Stripe has accepted and not
--- settled is money the trigger counts, so leaving it out makes goen believe that
--- money is still claimable — and the refusal then arrives from a constraint at
--- the end of a refund instead of from splitRefund's own sentence at the start.
---
--- And the row belonging to THIS request_key is excluded, the way the trigger
--- excludes NEW.id. open_refund is idempotent on request_key, so a Decide
--- retried after a stalled provider call finds the row it wrote last time.
--- Counting that row makes capturedRemaining zero, so the retry is refused with
--- ErrRefused before Stripe is ever called: the refund the two-transaction design
--- exists to make resumable would be resumable by no door.
+-- This mirrors refunds_guard and has to. 'requires_action' belongs in the list
+-- because the trigger counts it, and the row for THIS request_key is excluded
+-- as the trigger excludes NEW.id: counting it would refuse its own retry.
 -- name: RefundedSoFar :one
 SELECT coalesce(sum(amount_cents), 0)::bigint
 FROM refunds
@@ -495,22 +345,9 @@ WHERE payment_id = @payment_id
   AND status IN ('pending', 'requires_action', 'succeeded')
   AND request_key <> @request_key::text;
 
--- Refunds that have not landed, for /admin/health.
---
--- The refund row is committed before the provider is called so that a crash
--- between the two leaves something reconciliation can find, and this is what
--- reconciliation READS. Without it the only query over `refunds` is the
--- arithmetic above, so an outstanding claim on real money is visible to nobody —
--- a table with no door, the shape product_specs and promo_banners are each in,
--- except that this one holds money a customer is waiting for.
---
--- 'failed' is listed beside the two outstanding states on purpose. It is
--- terminal at Stripe, which is exactly why a person has to see it: the goods
--- came back, the return did NOT close, and nobody has been paid.
---
--- OLDEST first, like /admin/questions and /admin/messages. A refund outstanding
--- for three days is more urgent than one opened this morning, and newest-first
--- buries it exactly as it becomes the one worth chasing.
+-- 'failed' is listed beside the two outstanding states on purpose: it is
+-- terminal at Stripe, the goods came back, the return did not close, and nobody
+-- has been paid.
 -- name: OpenRefunds :many
 SELECT r.request_key, r.status, r.amount_cents, r.created_at,
        coalesce(r.provider_ref, '')::text AS provider_ref,
@@ -522,35 +359,26 @@ WHERE r.status IN ('pending', 'requires_action', 'failed')
 ORDER BY r.created_at
 LIMIT $1;
 
--- A customer by email, for granting credit.
---
--- internal/account already defines UserByEmail for sign-in, and sqlc generates
--- one db package for the module, so this one is named for what it is FOR. It
--- also selects less: the back office has no business reading a password hash.
+-- internal/account already defines UserByEmail for sign-in and sqlc generates
+-- one db package, so this one is named for what it is FOR. It also selects less:
+-- the back office has no business reading a password hash.
 -- name: CustomerByEmail :one
 SELECT id, email, coalesce(full_name, '') AS full_name FROM users
 WHERE lower(email) = lower(@email::text);
 
--- What a customer's ledger comes to: what the back office is about to add to or
--- spend from.
---
--- From store_credit_balances, the ONE view that defines a balance, and never a sum
--- written out again here. A balance summed in four places is four chances for one
--- of them to gain a filter the others do not have, and a customer shown two
--- different figures by two pages of one shop cannot tell which is true.
+-- From store_credit_balances, the ONE view that defines a balance, never a sum
+-- written out again here.
 -- name: CreditBalance :one
 SELECT coalesce((SELECT b.balance_cents FROM store_credit_balances b
                  WHERE b.user_id = $1), 0)::bigint;
 
--- A grant has no order behind it, and may have no actor if the posting came
--- from somewhere other than a staff member's form. sqlc reads a bare parameter
--- as non-nullable, so both are cast to make the nullability explicit.
+-- The casts are what make the nullability explicit: sqlc reads a bare parameter
+-- as non-nullable, and a grant has no order behind it and may have no actor.
 -- name: PostStoreCredit :one
 SELECT post_store_credit(@user_id, @amount_cents::bigint, @reason::text,
                          NULL::uuid, @idempotency_key::text,
                          sqlc.narg(actor_user_id)::uuid);
 
--- The most recent postings, so the back office can see what it has been doing.
 -- name: RecentCredit :many
 SELECT e.amount_cents, e.reason, e.created_at,
        coalesce(u.email, '') AS email
@@ -560,8 +388,6 @@ LEFT JOIN users u ON u.id = a.user_id
 ORDER BY e.created_at DESC, e.id DESC
 LIMIT $1;
 
--- The catalogue as the back office sees it: every product whatever its status,
--- because draft and archived ones are exactly what needs managing.
 -- name: AdminProducts :many
 SELECT p.id, p.slug, p.name, p.status, p.published_at,
        (p.name_en IS NOT NULL)::boolean AS translated,
@@ -590,14 +416,9 @@ SELECT id, sku, price_cents, compare_at_price_cents, stock_quantity,
        safety_stock, position, is_active
 FROM product_variants WHERE product_id = $1 ORDER BY position, id;
 
--- The choices the product form offers. Both are small and rarely change, so
--- they are read whole rather than paged.
 -- name: AdminBrands :many
 SELECT id, name FROM brands ORDER BY name;
 
--- Categories as a flat list with their depth, so the form can indent them
--- rather than pretending the tree is flat. Ordered by the path from the root,
--- which is what puts a child directly under its parent.
 -- name: AdminCategories :many
 WITH RECURSIVE tree AS (
     SELECT id, name, slug, parent_id, 0 AS depth,
@@ -610,9 +431,8 @@ WITH RECURSIVE tree AS (
 )
 SELECT id, name, slug, depth::integer AS depth FROM tree ORDER BY sort;
 
--- Create a product. It is born a DRAFT: products_active_is_published requires a
--- published_at before a product may go active, and a product with no variants
--- has no price — publishing is its own decision, made once it is ready.
+-- Born a DRAFT: products_active_is_published wants a published_at before a
+-- product may go active, and a product with no variants has no price.
 -- name: CreateProduct :one
 INSERT INTO products (brand_id, category_id, slug, name, summary, description,
                       name_en, summary_en, description_en, warranty_note,
@@ -624,9 +444,9 @@ VALUES (@brand_id, @category_id, @slug::text, @name::text,
         nullif(@warranty_months::integer, 0))
 RETURNING slug;
 
--- The English copy is set here too, and an empty box CLEARS it — the same rule the
--- category rename follows, and for the same reason: a shop that added a translation
--- must be able to take it back, and absence is the one state the column expresses.
+-- Every nullif('') is what lets a translation be CLEARED; absence is the state
+-- the column expresses. warranty_months zero means the shop has stated no term,
+-- and registration is then refused rather than given a default.
 -- name: UpdateProduct :exec
 UPDATE products
 SET brand_id = @brand_id, category_id = @category_id, name = @name::text,
@@ -635,22 +455,13 @@ SET brand_id = @brand_id, category_id = @category_id, name = @name::text,
     summary_en = nullif(@summary_en::text, ''),
     description_en = nullif(@description_en::text, ''),
     warranty_note = nullif(@warranty_note::text, ''),
-    -- Zero means "the shop has not stated a term", which is what NULL means in the
-    -- column: registration is then REFUSED rather than given a default, because
-    -- expires_on is NOT NULL and defaulting it would have goen invent a promise
-    -- nobody made.
     warranty_months = nullif(@warranty_months::integer, 0)
 WHERE slug = @slug::text;
 
--- Publish or unpublish.
---
--- published_at is stamped on the FIRST publish and kept afterwards: 本週新品 is
--- a query over it, so re-publishing an old product must not make it new again.
--- :execrows, not :exec. An UPDATE whose WHERE matches nothing is not an error
--- in SQL, so as :exec a status change against a slug that does not exist reports
--- success — to the staff member, and to the audit trail, which then holds a row
--- saying a product was published when no such product exists. The row count is
--- how the caller tells the difference.
+-- published_at is stamped on the FIRST publish and kept, so re-publishing an old
+-- product does not make it new again. :execrows because an UPDATE matching
+-- nothing is not an error in SQL: as :exec, a slug that does not exist reports
+-- success to the staff member and to the audit trail.
 -- name: SetProductStatus :execrows
 UPDATE products
 SET status = @status::text,
@@ -660,14 +471,9 @@ SET status = @status::text,
     END
 WHERE slug = @slug::text;
 
--- Add a variant. stock_quantity is deliberately absent: the column is not in
--- admin's INSERT grant, so it takes DEFAULT 0 and stock arrives only through
--- record_inventory_movement.
--- The parcel measurements are collected with the variant rather than left unset,
--- because they decide which shipping methods the CUSTOMER is offered: a variant
--- with no measurement is refused by no method, so an unmeasured monitor is
--- offered 超商取貨 and the shop finds out at the counter. Zero means unmeasured
--- and stores NULL — the form cannot express "I do not know" any other way.
+-- stock_quantity is deliberately absent: it is not in admin's INSERT grant, so
+-- it takes DEFAULT 0 and stock arrives only through record_inventory_movement.
+-- A zero parcel measurement stores NULL, meaning UNMEASURED.
 -- name: CreateVariant :exec
 INSERT INTO product_variants (product_id, sku, price_cents, compare_at_price_cents,
                               safety_stock, position, is_active,
@@ -681,9 +487,8 @@ SELECT p.id, @sku::text, @price_cents::bigint,
        nullif(@parcel_weight_g::integer, 0)
 FROM products p WHERE p.slug = @slug::text;
 
--- Every coupon, with what it has actually done. The redemption count comes from
--- the ledger, never from a column: the ledger is what the limit is counted from
--- at checkout, and a second number here would be one that could disagree.
+-- The redemption count comes from the ledger and never from a column: the ledger
+-- is what the limit is counted from at checkout.
 -- name: AdminCoupons :many
 SELECT c.id, c.code, c.description, c.kind, c.amount_cents, c.percent_bp,
        c.min_subtotal_cents, c.max_discount_cents, c.max_redemptions,
@@ -706,12 +511,11 @@ VALUES (@code::text, @description::text, @kind::text,
         sqlc.narg(max_redemptions)::integer, @per_customer_limit::integer,
         sqlc.narg(ends_at)::timestamptz);
 
--- Switch a coupon off. Never deleted: coupon_redemptions references it, and a
--- promotion that ran is part of what past orders were charged.
+-- Switched off, never deleted: coupon_redemptions references it, and a promotion
+-- that ran is part of what past orders were charged.
 -- name: SetCouponActive :execrows
 UPDATE coupons SET is_active = @is_active::boolean WHERE upper(code) = upper(@code::text);
 
--- Every campaign, with what it features and whether it is on right now.
 -- name: AdminCampaigns :many
 SELECT c.id, c.slug, c.title, c.starts_at, c.ends_at, c.is_active,
        (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products,
@@ -728,11 +532,9 @@ VALUES (@slug::text, @title::text, nullif(@title_en::text, ''),
 -- name: SetCampaignActive :execrows
 UPDATE sale_campaigns SET is_active = @is_active::boolean WHERE slug = @slug::text;
 
--- Feature a product.
---
--- sale_campaign_needs_discount refuses a product with nothing marked down, and
--- it takes a lock on the product first — so this is one statement and the guard
--- decides, rather than a check here that a concurrent price change invalidates.
+-- ONE statement: sale_campaign_needs_discount refuses a product with nothing
+-- marked down and takes a lock on it first, so a check here would be a check a
+-- concurrent price change invalidates.
 -- name: AddCampaignProduct :exec
 INSERT INTO sale_campaign_products (campaign_id, product_id, position)
 SELECT c.id, p.id,
@@ -748,7 +550,6 @@ USING sale_campaigns c, products p
 WHERE cp.campaign_id = c.id AND cp.product_id = p.id
   AND c.slug = @campaign::text AND p.slug = @product::text;
 
--- What one campaign features, for its edit page.
 -- name: AdminCampaignProducts :many
 SELECT p.slug, p.name, cp.position
 FROM sale_campaign_products cp
@@ -762,8 +563,6 @@ SELECT record_audit_event(@actor, @action::text, @entity_table::text,
                           sqlc.narg('entity_id')::uuid,
                           @before, @after, sqlc.narg('request_id')::text);
 
--- The trail, newest first. Joined to users so a page shows a name rather than a
--- uuid — the actor is the whole reason this table exists.
 -- name: AuditEvents :many
 SELECT a.action, a.entity_table, a.entity_id, a.before, a.after,
        a.request_id, a.occurred_at,
@@ -773,12 +572,9 @@ LEFT JOIN users u ON u.id = a.actor_user_id
 ORDER BY a.occurred_at DESC, a.id DESC
 LIMIT $1;
 
--- Attach an uploaded image to a product.
---
--- The storage key is a media_objects digest, not a filename. No foreign key:
--- product_images predates media_objects and still holds embedded-asset names
--- from the seed, so the column carries two kinds of key. UnreferencedMedia is
--- what keeps the two consistent from the other direction.
+-- No foreign key on storage_key: product_images predates media_objects and still
+-- holds embedded-asset names from the seed, so the column carries two kinds of
+-- key.
 -- name: AttachProductImage :exec
 INSERT INTO product_images (product_id, storage_key, alt_text, alt_text_en,
                             width, height, position)
@@ -793,7 +589,6 @@ DELETE FROM product_images pi
 USING products p
 WHERE pi.product_id = p.id AND p.slug = @slug::text AND pi.storage_key = @storage_key::text;
 
--- What a product currently shows.
 -- name: AdminProductImages :many
 SELECT pi.storage_key, pi.alt_text, pi.width, pi.height
 FROM product_images pi
@@ -801,7 +596,6 @@ JOIN products p ON p.id = pi.product_id
 WHERE p.slug = @slug::text
 ORDER BY pi.position, pi.id;
 
--- Every hero slide, with whether it is the one showing.
 -- name: AdminHeroSlides :many
 SELECT h.id, h.eyebrow, h.headline, h.primary_cta_label, h.primary_cta_href,
        h.image_key, h.position, h.is_active, h.starts_at, h.ends_at,
@@ -834,23 +628,13 @@ INSERT INTO hero_slides (
 -- name: SetHeroSlideActive :execrows
 UPDATE hero_slides SET is_active = @is_active::boolean WHERE id = @id;
 
--- Move a slide to the front, which is how an editor chooses which one shows.
---
--- One statement touching ONE row: the promoted slide takes a position below
--- every other, rather than everything else shifting up. Shifting would rewrite
--- the whole table per promotion and grow position without bound; this rewrites
--- one row. Ties do not matter — CurrentHeroSlide orders by (position, id), so
--- the order is total either way.
+-- ONE row: the promoted slide takes a position below every other, rather than
+-- everything else shifting up and position growing without bound.
 -- name: PromoteHeroSlide :execrows
 UPDATE hero_slides h
 SET position = coalesce((SELECT min(o.position) FROM hero_slides o), 0) - 1
 WHERE h.id = @id;
 
--- Brands, with how many products each carries.
---
--- The count is what makes deletion decidable: a brand with products cannot go,
--- and a page that offered the button anyway would be a button that always
--- fails.
 -- name: ManagedBrands :many
 SELECT b.id, b.slug, b.name,
        (SELECT count(*) FROM products p WHERE p.brand_id = b.id)::bigint AS products
@@ -863,23 +647,14 @@ INSERT INTO brands (slug, name) VALUES (@slug::text, @name::text);
 -- name: RenameBrand :execrows
 UPDATE brands SET name = @name::text WHERE slug = @slug::text;
 
--- Delete a brand nothing references.
---
--- The emptiness check is in the statement, not in Go: a product created between
--- a check and a delete would be orphaned — except products.brand_id is NOT NULL
--- with ON DELETE RESTRICT, so the database would refuse it anyway. This makes
--- the refusal a row count instead of a foreign-key error, which is the
--- difference between a sentence and a constraint name.
+-- The emptiness check is in the statement, not read first. The foreign keys are
+-- ON DELETE RESTRICT and would refuse anyway; this turns the refusal into a row
+-- count, which is the difference between a sentence and a constraint name.
 -- name: DeleteBrand :execrows
 DELETE FROM brands b
 WHERE b.slug = @slug::text
   AND NOT EXISTS (SELECT 1 FROM products p WHERE p.brand_id = b.id);
 
--- Categories as a tree, with each one's depth and product count.
---
--- Recursive, because the tree has no fixed depth and the back office shows it
--- indented. categories_acyclic is what makes the recursion terminate — without
--- it a cycle would make this query hang rather than return wrong rows.
 -- name: ManagedCategories :many
 WITH RECURSIVE tree AS (
     SELECT c.id, c.parent_id, c.slug, c.name, c.name_en, c.icon_key, c.position,
@@ -900,19 +675,9 @@ FROM tree t
 LEFT JOIN categories p ON p.id = t.parent_id
 ORDER BY t.path, t.name;
 
--- Create a category, optionally under a parent.
---
--- :execrows, and the parent resolved by a JOIN rather than a scalar subquery.
---
--- `(SELECT id FROM categories WHERE slug = @parent)` yields NULL for a slug that
--- does not exist, so naming a parent that is not there would create a ROOT
--- category and report success. The staff member asks for one thing and silently
--- gets another, which is worse than a refusal.
---
--- The derived table has exactly one row when the parent exists, exactly one
--- (NULL) row when no parent was named, and NO rows when a parent was named and
--- not found. That last case inserts nothing, and the row count is how the
--- caller learns it.
+-- The parent is a derived table and not a scalar subquery: that would yield NULL
+-- for a slug that does not exist, creating a ROOT category and reporting
+-- success. No rows is how the caller learns the parent was not found.
 -- name: CreateCategory :execrows
 INSERT INTO categories (slug, name, name_en, icon_key, parent_id, position)
 SELECT @slug::text, @name::text, nullif(@name_en::text, ''),
@@ -925,42 +690,36 @@ FROM (
     SELECT NULL::uuid WHERE @parent_slug::text = ''
 ) parent;
 
--- Rename the DISPLAY names, never the slug. A slug is in every URL a search engine
--- has indexed and goen has no redirect table.
---
--- The English name is set here too, and nullif('') is what lets it be CLEARED: an
--- empty box means "no translation", which is the one state the column expresses as
--- NULL. Without that, a shop could add an English name and never take it back.
+-- The DISPLAY names only: a slug is in every URL a search engine has indexed and
+-- goen has no redirect table. nullif('') is what lets name_en be cleared.
 -- name: RenameCategory :execrows
 UPDATE categories SET name = @name::text, name_en = nullif(@name_en::text, ''),
                      icon_key = nullif(@icon_key::text, '')
 WHERE slug = @slug::text;
 
--- Delete a category with nothing in it and nothing under it.
 -- name: DeleteCategory :execrows
 DELETE FROM categories c
 WHERE c.slug = @slug::text
   AND NOT EXISTS (SELECT 1 FROM products p WHERE p.category_id = c.id)
   AND NOT EXISTS (SELECT 1 FROM categories k WHERE k.parent_id = c.id);
 
--- Revenue over a window, from COMMITTED orders only.
---
--- An order that was placed and never paid is not revenue, and counting it would
--- make every abandoned checkout look like a sale. order_is_committed is the one
--- place that decides what committed means — it counts a fully store-credited
--- order with no payment row, which "EXISTS a succeeded payment" would miss.
---
--- The total is recomputed from the lines plus the order's own shipping, tax and
--- discount, because orders carries no total column: the total IS the lines, and
--- a stored copy is a second answer waiting to disagree.
+-- COMMITTED orders only, and the total is recomputed from the lines because
+-- orders carries no total column. Integer division on the average, so no float
+-- touches money, and greatest(count, 1) because an empty window divides by zero.
 -- name: RevenueSince :one
 SELECT
     count(*)::bigint AS orders,
     coalesce(sum(t.total), 0)::bigint AS revenue_cents,
-    -- Integer division, so no float ever touches money, and coalesced because
-    -- an empty window divides by zero. Whole cents: an average order value with
-    -- fractions of a cent is not a number anybody can act on.
-    (coalesce(sum(t.total), 0) / greatest(count(*), 1))::bigint AS average_cents
+    (coalesce(sum(t.total), 0) / greatest(count(*), 1))::bigint AS average_cents,
+    -- What went back, as its own figure rather than subtracted from the one
+    -- above. Consumer Protection Act §19 makes a seven-day rescission
+    -- unrefusable, so returns are certain rather than hypothetical, and an owner
+    -- needs the return rate as much as the net. Counted by when the money moved,
+    -- not by when the order was placed: a refund lands in the window it is paid.
+    coalesce((SELECT sum(r.amount_cents) FROM refunds r
+              WHERE r.status = 'succeeded'
+                AND r.created_at >= now() - make_interval(days => @window_days::integer)), 0)::bigint
+        AS refunded_cents
 FROM (
     SELECT (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
                       FROM order_lines ol WHERE ol.order_id = o.id), 0)
@@ -970,11 +729,6 @@ FROM (
     WHERE o.placed_at >= now() - make_interval(days => @window_days::integer)
 ) t;
 
--- What sold, over a window.
---
--- By PRODUCT and not by variant: a shop owner asks "how is the Pixelight 9
--- doing", not "how is the 256GB black one doing". The variant breakdown is a
--- different question and would be a different report.
 -- name: BestSellersSince :many
 SELECT
     p.slug,
@@ -993,30 +747,19 @@ GROUP BY p.slug, p.name, b.name
 ORDER BY units DESC, revenue_cents DESC
 LIMIT @limit_to::integer;
 
--- Checkout completion: orders placed against orders that became revenue.
---
--- NOT a conversion rate. goen collects no traffic data, so what fraction of
--- VISITORS bought is a number it cannot know — and presenting one would be
--- inventing it. This is the fraction of started orders that were paid for,
--- which is real and is the number a shop can act on.
+-- NOT a conversion rate: goen collects no traffic data. This is the fraction of
+-- started orders that were paid for. A LEFT JOIN and a CASE, never a per-row
+-- function call — measured at 106 ms over 14,000 orders against 7.7 ms.
 -- name: CheckoutCompletionSince :one
 SELECT
     count(*)::bigint AS placed,
-    -- A LEFT JOIN and a CASE, not a per-row function call. Asked row by row
-    -- this costs 106 ms over 14,000 orders; asked as a join it is 7.7 ms,
-    -- because the planner can turn a join into a merge and cannot turn a
-    -- function call into anything.
     coalesce(sum(CASE WHEN c.id IS NOT NULL THEN 1 ELSE 0 END), 0)::bigint AS committed
 FROM orders o
 LEFT JOIN committed_orders c ON c.id = o.id
 WHERE o.placed_at >= now() - make_interval(days => @window_days::integer);
 
--- Stock about to run out on something that is selling.
---
--- Velocity AND level together, which is the only way the question is useful: a
--- variant with two left that sells one a month is fine, and one with twenty
--- left that sells fifty a week is the emergency. Ordered by days of cover, so
--- the top of the list is what runs out first.
+-- days_cover is never NULL because the WHERE clause admits only variants that
+-- sold something, so the divisor cannot be zero.
 -- name: StockAtRisk :many
 SELECT
     pv.sku,
@@ -1025,13 +768,6 @@ SELECT
     pv.stock_quantity,
     pv.safety_stock,
     sold.units::bigint AS units_sold,
-    -- Days of cover at the recent rate.
-    --
-    -- Never NULL, because the WHERE below admits only variants that sold
-    -- something — so the divisor is never zero and there is no unknowable case
-    -- to render. A NULL guard here would guard against something that cannot
-    -- happen, and sqlc types the column non-nullable regardless: the day such a
-    -- guard mattered it would be a scan error rather than a rendered blank.
     (pv.stock_quantity::numeric
      / (sold.units::numeric / @window_days::integer))::integer AS days_cover
 FROM product_variants pv
@@ -1048,11 +784,6 @@ WHERE pv.is_active AND p.status = 'active' AND sold.units > 0
 ORDER BY days_cover NULLS LAST, pv.stock_quantity
 LIMIT @limit_to::integer;
 
--- The questions waiting for the shop, oldest first.
---
--- Oldest FIRST, unlike every other back-office list: a question that has been
--- waiting three days is more urgent than one asked this morning, and newest-
--- first would bury it exactly as it becomes worth answering.
 -- name: UnansweredQuestions :many
 SELECT q.id, q.body, q.created_at,
        p.slug AS product_slug, p.name AS product_name,
@@ -1072,64 +803,41 @@ LIMIT $1;
 UPDATE product_questions SET hidden_at = now()
 WHERE id = @question_id AND hidden_at IS NULL;
 
--- What the background workers have and have not done.
---
--- ONE query, because these are read together and separately they would be four
--- round trips to answer one question — "is anything wrong". Every figure is a
--- COUNT or an AGE, never a status somebody has to keep updated: a health signal
--- derived from the work itself cannot say "fine" while the work is not being
--- done.
+-- Overdue is measured from available_at — when a message became DUE — because
+-- the claim lease and the backoff push it forward. copurchase_ever_built is
+-- separate from the age because max() over an empty table is NULL, which sqlc
+-- infers as non-nullable and pgx then refuses to scan: a fresh deployment only.
 -- name: WorkerHealth :one
 SELECT
-    -- Undelivered messages, and the oldest one's age. A backlog that is
-    -- growing and a backlog that is old are different problems: the first is a
-    -- worker too slow, the second is a worker stopped.
     (SELECT count(*) FROM outbox_messages
      WHERE delivered_at IS NULL)::bigint AS outbox_pending,
-    -- Measured from available_at, which is when the message became DUE — not
-    -- when it was written. The claim pushes available_at forward by a lease and
-    -- the backoff pushes it further, so "overdue" is exactly the number that
-    -- says delivery is not keeping up. A negative value means everything due is
-    -- in the future, which is healthy, so it floors at zero.
     (SELECT greatest(coalesce(extract(epoch FROM now() - min(available_at)), 0), 0)
      FROM outbox_messages WHERE delivered_at IS NULL)::bigint AS outbox_oldest_seconds,
-    -- Messages that have exhausted their attempts. These never resolve on
-    -- their own — the worker has given up — so one is worth a person's time.
     (SELECT count(*) FROM outbox_messages
      WHERE delivered_at IS NULL AND attempts >= @max_attempts::integer)::bigint AS outbox_stuck,
-    -- Reservations past their expiry that the sweeper has not released. A
-    -- handful is normal between ticks; a growing number is a sweeper that
-    -- stopped, and every one of them is stock nobody can buy.
-    (SELECT count(*) FROM inventory_reservations
-     WHERE state = 'held' AND expires_at < now())::bigint AS expired_holds,
-    -- How stale the co-purchase projection is.
-    --
-    -- Two columns and not one nullable age, because "never rebuilt" and
-    -- "rebuilt just now" are different facts that a single number collapses —
-    -- and because max() over an empty table is NULL, which sqlc infers as a
-    -- non-nullable bigint and pgx then refuses to scan. The bug would have
-    -- appeared on exactly one deployment: a fresh one.
+    -- The sweeper's own predicate, not merely expired: release_reservation
+    -- refuses a committed or fully-funded order's hold, so counting every
+    -- expired row reports stock the sweeper is designed never to release, on a
+    -- page whose caption says a backlog means goods nobody can buy. It can only
+    -- grow, which is alarm fatigue on the page built to make failure visible.
+    (SELECT count(*) FROM inventory_reservations ir
+     JOIN orders o ON o.id = ir.order_id
+     WHERE ir.state = 'held' AND ir.expires_at < now()
+       AND NOT order_is_committed(ir.order_id)
+       AND (o.fulfillment_status = 'cancelled'
+            OR order_amount_owed(ir.order_id) <> 0))::bigint AS expired_holds,
     (SELECT coalesce(extract(epoch FROM now() - max(computed_at)), 0)
      FROM product_copurchases)::bigint AS copurchase_age_seconds,
     EXISTS (SELECT 1 FROM product_copurchases) AS copurchase_ever_built,
-    -- Sessions past their expiry that the pruner has not deleted. They are
-    -- already nobody — every read enforces expiry in its own WHERE clause — so
-    -- this is not a correctness signal. It is the table growing without bound,
-    -- and each row holds the user id it belonged to.
     (SELECT count(*) FROM sessions WHERE expires_at <= now())::bigint AS expired_sessions,
-    -- Uploads nothing points at, past their grace period. The same shape: not
-    -- wrong, just never reclaimed — and these are image bytes in PostgreSQL,
-    -- which is the whole cost of the storage decision paid for nothing.
     (SELECT count(*) FROM media_objects m
      WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
        AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media;
 
--- Who to tell that an order shipped, and in which language.
---
--- The locale comes off the ORDER, never off the staff member who pressed Ship.
--- Reading it from the request would send a Taiwanese shopkeeper's language to an
--- English customer.
+-- The locale comes off the ORDER and never off the staff member who pressed
+-- Ship, which would send a Taiwanese shopkeeper's language to an English
+-- customer.
 -- name: ShipmentRecipient :one
 SELECT coalesce(pd.email, '') AS email,
        coalesce(pd.recipient_name, '') AS recipient_name,
@@ -1138,18 +846,9 @@ FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE o.id = $1;
 
--- Claim every pending restock notice for a variant that is back in stock.
---
 -- The claim and the enqueue are ONE transaction, so notified_at means "the
--- outbox has this" rather than "an email was sent" — which is the honest
--- reading, because the outbox is what guarantees delivery from there. Claiming
--- without enqueuing would tell nobody and never try again.
---
--- RETURNING drives the enqueue, so the set claimed is exactly the set told.
---
--- The threshold is the same one the listing calls "in stock":
--- stock_quantity > safety_stock. Telling somebody about a unit the shop will
--- not sell them is worse than not telling them.
+-- outbox has this": claiming without enqueuing tells nobody and never retries.
+-- The threshold is the one the listing calls in stock, stock > safety_stock.
 -- name: ClaimRestockNotices :many
 UPDATE stock_notifications sn SET notified_at = now()
 WHERE sn.variant_id = $1
@@ -1160,16 +859,8 @@ WHERE sn.variant_id = $1
                 AND pv.stock_quantity > pv.safety_stock)
 RETURNING sn.id, sn.email, sn.locale;
 
--- What a restock notice has to say: which product, where to find it, and the name
--- in the RECIPIENT's language.
---
--- The letter's words follow stock_notifications.locale and the product NAME has to
--- follow it too. Read once in Chinese and copied into every payload, it sends an
--- English subscriber an English letter about 保護殼 — the half-translated failure
--- the locale work exists to stop, arriving where nobody would see it in review.
---
--- Called once per distinct locale in the claimed set rather than once per recipient:
--- there are two locales and there can be dozens of subscribers.
+-- Called once per distinct LOCALE in the claimed set, not once per recipient:
+-- the product name has to follow the reader as the letter's words do.
 -- name: RestockSubject :one
 SELECT p.slug,
        localized_name(p.name, p.name_en, @locale::text) AS product_name,
@@ -1178,12 +869,8 @@ FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 WHERE pv.id = @variant_id;
 
--- Every shipping method with the version currently in force, and what it
--- charges extra for.
---
 -- DISTINCT ON the method, ordered by effective_at DESC: the versions table is
--- append-only, so "the current fee" is the newest row that has taken effect and
--- never the only row.
+-- append-only, so the current fee is the newest row that has taken effect.
 -- name: AdminShippingMethods :many
 SELECT DISTINCT ON (sm.id)
     sm.id AS method_id, sm.code, sm.destination_kind, sm.is_active,
@@ -1197,7 +884,6 @@ JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE v.effective_at <= now()
 ORDER BY sm.id, v.effective_at DESC;
 
--- The surcharges on one version, for the page to list under it.
 -- name: AdminVersionZones :many
 SELECT z.id AS zone_id, z.code, z.name, vz.surcharge_cents
 FROM shipping_version_zones vz
@@ -1205,11 +891,8 @@ JOIN shipping_zones z ON z.id = vz.zone_id
 WHERE vz.version_id = ANY(@version_ids::uuid[])
 ORDER BY z.position, z.name;
 
--- Publish a new version of a shipping method.
---
 -- An INSERT and never an UPDATE: shipping_method_versions_append_only refuses
--- one, and the reason is that every past order names the version it was priced
--- from. Editing a fee would rewrite what a customer was charged last month.
+-- one, because every past order names the version it was priced from.
 -- name: PublishShippingVersion :one
 INSERT INTO shipping_method_versions (method_id, name, carrier, name_en, carrier_en,
                                       fee_cents, free_over_cents)
@@ -1218,16 +901,9 @@ VALUES (@method_id, @name, nullif(@carrier::text, ''),
         @fee_cents, nullif(@free_over_cents, 0))
 RETURNING id;
 
--- Carry a method's zone surcharges onto a newly published version.
---
 -- Without this, publishing a new base fee silently drops every surcharge: the
--- rows key on the VERSION, and the new version has none. A shop that raised
--- 宅配 from NT$80 to NT$100 would start shipping to 金門 for NT$100 — under-
--- charging exactly where it was already losing money.
---
--- Copied from the version that was in force, which is what the staff member
--- was looking at when they typed the new fee. Changing the base rate is not a
--- statement about zones.
+-- rows key on the VERSION, and the new version has none — so a shop raising its
+-- home-delivery fee would start shipping to the outlying islands at that fee.
 -- name: CarryZoneSurcharges :exec
 INSERT INTO shipping_version_zones (version_id, zone_id, surcharge_cents)
 SELECT @new_version_id, vz.zone_id, vz.surcharge_cents
@@ -1251,8 +927,6 @@ SELECT z.id, z.code, z.name, coalesce(z.name_en, '') AS name_en, z.position,
 FROM shipping_zones z
 ORDER BY z.position, z.name;
 
--- Set what one version charges for one zone.
---
 -- ON CONFLICT so the form is idempotent: a staff member who submits twice has
 -- set one surcharge, not failed the second time.
 -- name: SetZoneSurcharge :exec
@@ -1261,15 +935,11 @@ VALUES (@version_id, @zone_id, @surcharge_cents)
 ON CONFLICT (version_id, zone_id) DO UPDATE
 SET surcharge_cents = EXCLUDED.surcharge_cents;
 
--- Remove a surcharge. Absence is what "no surcharge" means — the lookup
--- coalesces a missing row to zero — so clearing is a DELETE and not a zero.
+-- Absence is what "no surcharge" means to the lookup, which coalesces a missing
+-- row to zero, so clearing is a DELETE and never a stored zero.
 -- name: ClearZoneSurcharge :execrows
 DELETE FROM shipping_version_zones WHERE version_id = $1 AND zone_id = $2;
 
--- The 會員等級 bands, and how many customers are in each.
---
--- The count is derived like the tier is: nothing stores which band a customer
--- is in, so "how many are in 金卡" is a question about their orders.
 -- name: AdminMembershipTiers :many
 SELECT t.id, t.code, t.name, coalesce(t.name_en, '') AS name_en,
        t.min_spend_cents, t.points_multiplier_bp, t.position,
@@ -1284,26 +954,15 @@ INSERT INTO membership_tiers (code, name, name_en, min_spend_cents,
 VALUES (@code, @name, nullif(@name_en::text, ''), @min_spend_cents,
         @points_multiplier_bp, @position);
 
--- Retiring a band. A DELETE and not a flag, because a tier nobody is in is not
--- history: no order references it, and the customers who were in it are simply
--- re-derived into whichever band they now qualify for.
+-- A DELETE and not a flag: no order references a tier, and the customers who
+-- were in it are re-derived into whichever band they now qualify for.
 -- name: DeleteMembershipTier :execrows
 DELETE FROM membership_tiers WHERE id = $1;
 
--- Correct an order's delivery details before the parcel leaves.
---
--- A customer who typed the wrong street has no way to fix it themselves, and
--- without this neither has the shop: the only option is to cancel and re-order,
--- which loses the payment and the stock hold with it.
---
--- The state guard is in the WHERE clause, not read first. Once an order is
--- shipped the parcel has gone, and rewriting the address then makes the record
--- lie about where it went — which is worse than not being able to change it.
---
--- Both destination groups are written and exactly one survives, the same way
--- the insert does it. order_private_data_one_destination refuses anything else,
--- and the CALLER decides which half to blank from the order's own shipping
--- method rather than from the form.
+-- The state guard is in the WHERE clause and never read first: once an order has
+-- shipped, rewriting the address makes the record lie about where it went. Both
+-- destination groups are written and exactly one survives; the CALLER decides
+-- which half to blank, from the order's own shipping method not from the form.
 -- name: UpdateOrderDelivery :execrows
 UPDATE order_private_data pd SET
     email = @email,
@@ -1322,7 +981,6 @@ WHERE pd.order_id = o.id
   AND pd.erased_at IS NULL
   AND o.fulfillment_status NOT IN ('shipped', 'delivered', 'completed');
 
--- What an order collects, so the edit form asks for the right half.
 -- name: OrderDestinationKind :one
 SELECT sm.destination_kind, o.fulfillment_status
 FROM orders o
@@ -1330,14 +988,7 @@ JOIN shipping_method_versions v ON v.id = o.shipping_version_id
 JOIN shipping_methods sm ON sm.id = v.method_id
 WHERE o.order_number = $1;
 
--- The review queue, newest first.
---
--- Newest first, unlike /admin/questions which is oldest first. A question
--- waiting three days is more urgent than one asked this morning because it is
--- owed an answer; a review is owed nothing, and what a shop wants to see is
--- what has just appeared on its product pages.
---
--- The BASE table, so hidden reviews are listed too — un-hiding one is not
+-- The BASE table, so hidden reviews are listed too: un-hiding one is not
 -- possible from a list that cannot show it.
 -- name: AdminReviews :many
 SELECT r.id, r.rating, coalesce(r.title, '') AS title, r.body,
@@ -1350,33 +1001,18 @@ LEFT JOIN users u ON u.id = r.user_id
 ORDER BY r.created_at DESC, r.id DESC
 LIMIT $1;
 
--- Hide a review, which takes it out of the list AND out of the score.
 -- name: HideReview :execrows
 UPDATE product_reviews SET hidden_at = now()
 WHERE id = $1 AND hidden_at IS NULL;
 
--- Put one back. Hiding is reversible because moderation is a judgement, and a
--- judgement made in a hurry is one somebody should be able to undo.
 -- name: ShowReview :execrows
 UPDATE product_reviews SET hidden_at = NULL
 WHERE id = $1 AND hidden_at IS NOT NULL;
 
--- The customer-service inbox, OLDEST first.
---
--- Oldest first for the reason /admin/questions is: somebody who wrote in three
--- days ago is more urgent than somebody who wrote this morning, and newest-first
--- buries them exactly as they stop being answerable in time.
---
--- Unhandled ahead of handled, so the queue is work rather than an archive.
--- contact_messages_unhandled_idx is the partial index that serves it.
+-- waiting_days is computed HERE because created_at is written by the database's
+-- clock: taking the difference in Go subtracts two clocks, and a container
+-- milliseconds ahead of its host reports a four-day-old message as three.
 -- name: AdminMessages :many
---
--- waiting_days is computed HERE, by the database's clock, because created_at is
--- written by the database's clock. Taking the difference in Go subtracts two
--- clocks: a container milliseconds ahead of its host reports a message inserted
--- exactly four days ago as three, which is the coupon-window lesson at the other
--- end of the same comparison. A whole-day figure is presentation, but the
--- arithmetic under it is not.
 SELECT id, name, email, subject, coalesce(order_ref, '') AS order_ref,
        message, handled_at, created_at,
        floor(extract(epoch FROM now() - created_at) / 86400)::integer AS waiting_days
@@ -1384,32 +1020,17 @@ FROM contact_messages
 ORDER BY (handled_at IS NOT NULL), created_at
 LIMIT $1;
 
--- Mark a message dealt with.
 -- name: HandleMessage :execrows
 UPDATE contact_messages SET handled_at = now()
 WHERE id = $1 AND handled_at IS NULL;
 
--- Put one back in the queue. Marking something handled by mistake is the
--- ordinary kind of mistake, and a queue you cannot correct is one people stop
--- trusting.
 -- name: ReopenMessage :execrows
 UPDATE contact_messages SET handled_at = NULL
 WHERE id = $1 AND handled_at IS NOT NULL;
 
--- Give back store credit spent on an order the back office is cancelling.
---
--- The same door the customer's own cancellation uses. Defined in
--- internal/cart/query.sql — sqlc builds ONE db package for the module, so
--- ReverseOrderCredit is written once and called from both.
-
--- How much of an order was paid with store credit, and how much of that has
--- already been given back.
---
--- Two figures rather than one net number, because they answer different
--- questions: what CAN still be returned is the difference, and a reader
--- reconciling a return needs to see both sides of it.
---
 -- Signs as the ledger stores them: a spend is negative, a compensation positive.
+-- Two figures and not one net number, because a reader reconciling a return
+-- needs both sides. ReverseOrderCredit lives in internal/cart/query.sql.
 -- name: OrderCreditPosition :one
 SELECT
     coalesce(-sum(amount_cents) FILTER (WHERE amount_cents < 0), 0)::bigint AS spent,
@@ -1417,99 +1038,61 @@ SELECT
 FROM store_credit_entries
 WHERE order_id = $1;
 
--- Give part of a return back as store credit.
---
--- A NEW POSITIVE entry rather than a reversal of the spend, which is what the
--- schema has always prescribed for an order that has shipped: a reversal un-funds
--- the order, and this order was paid for and went out. The compensation carries
--- the order id so the ledger says which return it belongs to.
---
--- Idempotent on the return: a retried decision compensates once.
+-- A NEW POSITIVE entry and not a reversal of the spend, which the schema
+-- prescribes for an order that has shipped: a reversal un-funds the order, and
+-- this one was paid for and went out. Idempotent on the return.
 -- name: CompensateReturnWithCredit :one
 SELECT post_store_credit(
     @user_id, @amount_cents::bigint, @reason::text, @order_id,
     'return-credit:' || @return_id::text, sqlc.narg(actor)::uuid
 )::uuid AS entry_id;
 
--- Find a customer from whatever the shop was told.
---
--- The same shape as the order search and for the same reasons: a PREFIX of the
--- address or the name, each index-backed, and a floor on the term enforced by the
--- caller. Told apart from an exact match is unnecessary here — an email IS the
--- prefix somebody gives you in full.
---
--- Only real accounts. An erased customer's row is gone (erase_user DELETEs it), so
--- nothing extra is needed for that.
+-- Prefix on both, each index-backed, with a floor on the term enforced by the
+-- caller. Every role is searched, for AdminCustomer's reason. An erased
+-- customer's row is gone, so nothing extra is needed to exclude one.
 -- name: AdminSearchCustomers :many
 SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name, u.created_at,
        (u.email_verified_at IS NOT NULL)::boolean AS verified,
        (SELECT count(*) FROM orders o WHERE o.user_id = u.id)::bigint AS orders
 FROM users u
--- Searched across every role, for the reason AdminCustomer takes no role
--- predicate: a promoted customer is still the person who placed those orders.
 WHERE (lower(u.email) LIKE lower(@term::text) || '%'
        OR u.full_name LIKE @term::text || '%')
 ORDER BY u.created_at DESC
 LIMIT @row_limit::integer;
 
--- One customer, as the back office needs to see them.
---
--- Everything about a person in ONE read: who they are, whether the address has been
--- proved, what they have spent, and what the shop owes them. Each of these is
--- available somewhere else on its own, and without one read that brings them
--- together, answering "what is going on with this customer" is three pages and a
--- guess.
+-- Spend counts COMMITTED orders only, and both balances come from the VIEWS that
+-- define them. No role predicate, deliberately: /admin/staff promotes an
+-- existing customer, whose order history must stay reachable from this page.
 -- name: AdminCustomer :one
 SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
        coalesce(u.phone, '') AS phone, u.created_at,
        (u.email_verified_at IS NOT NULL)::boolean AS verified,
        (SELECT count(*) FROM orders o WHERE o.user_id = u.id)::bigint AS orders,
-       -- Spend counts COMMITTED orders only: a cancelled order is not money the
-       -- shop took, and treating it as spend is the defect committed_orders was
-       -- split out to stop.
        coalesce((SELECT sum(o.subtotal + o.shipping_cents + o.tax_cents - o.discount_cents)
                  FROM (SELECT o.id, o.shipping_cents, o.tax_cents, o.discount_cents,
                               coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
                                         FROM order_lines ol WHERE ol.order_id = o.id), 0) AS subtotal
                        FROM orders o WHERE o.user_id = u.id
                          AND o.id IN (SELECT id FROM committed_orders)) o), 0)::bigint AS spent,
-       -- Both balances come from the VIEWS that define them, never re-summed
-       -- here. Written out again, the points figure is the one that goes subtly
-       -- wrong — a hand-written sum keeps an award with a NULL expiry, which
-       -- loyalty_entries_expiry_matches_sign forbids anyway, so the two agree only
-       -- by luck. A back office showing a customer a different balance from the
-       -- one their own account page shows is the failure this avoids.
        coalesce((SELECT b.balance_cents FROM store_credit_balances b
                  WHERE b.user_id = u.id), 0)::bigint AS credit_cents,
        coalesce((SELECT lb.points FROM loyalty_balances lb
                  JOIN store_credit_accounts a ON a.id = lb.account_id
                  WHERE a.user_id = u.id), 0)::bigint AS points
 FROM users u
--- No role predicate, and that is deliberate. /admin/staff PROMOTES an existing
--- customer, which moves their role and leaves every order they have placed where
--- it was: a `role = 'customer'` filter here would make a colleague's own order
--- history unreachable from the one page built to answer questions about it.
 WHERE u.id = $1;
 
--- A customer's orders, newest first.
 -- name: AdminCustomerOrders :many
 SELECT o.order_number, o.fulfillment_status, o.placed_at,
        o.shipping_cents, o.discount_cents, o.tax_cents,
+       order_is_committed(o.id) AS committed,
+       order_amount_owed(o.id) AS owed_cents,
        coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                  WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents
 FROM orders o
 WHERE o.user_id = $1
 ORDER BY o.placed_at DESC
 LIMIT $2;
-
--- ---------------------------------------------------------------------------
--- Product specs
---
--- 規格 is the whole promise of a 選品店 — /compare exists to put two of them side
--- by side — and these are product_specs' only writers outside the dev seed.
--- Without them the back office can create a product, price it, photograph it and
--- publish it, and the comparison table for it is empty.
--- ---------------------------------------------------------------------------
 
 -- name: AdminProductSpecs :many
 SELECT s.id, s.label, s.value,
@@ -1520,12 +1103,9 @@ JOIN products p ON p.id = s.product_id
 WHERE p.slug = $1
 ORDER BY s.position, s.label;
 
--- Append a spec at the end.
---
--- The position is computed IN the insert, from max(position) under the row lock
--- the insert takes on the index — product_specs_position_key is unique on
--- (product_id, position), so reading the maximum in Go and then writing it is a
--- race two staff members editing one product would meet.
+-- The position is computed IN the insert: product_specs_position_key is unique
+-- on (product_id, position), so reading max(position) in Go and then writing it
+-- is a race two staff members editing one product would meet.
 -- name: AddProductSpec :one
 INSERT INTO product_specs (product_id, label, value, label_en, value_en, position)
 SELECT p.id, @label::text, @value::text,
@@ -1540,17 +1120,6 @@ RETURNING id;
 DELETE FROM product_specs s
 USING products p
 WHERE p.id = s.product_id AND p.slug = @slug::text AND s.id = @spec_id;
-
-
--- ---------------------------------------------------------------------------
--- Product options
---
--- 顏色 / 容量 and their values. Read by the PDP's variant picker, by the cart line
--- and by the facets, and written HERE — outside the dev seed, by nothing else.
--- Without these a shop creating its own product can give it variants and no way to
--- tell them apart: the picker has nothing to pick, and every variant after the
--- first is unreachable.
--- ---------------------------------------------------------------------------
 
 -- name: AdminProductOptions :many
 SELECT o.id, o.name, coalesce(o.name_en, '') AS name_en, o.position,
@@ -1574,7 +1143,6 @@ JOIN products p ON p.id = o.product_id
 WHERE p.slug = $1
 ORDER BY o.position, o.id;
 
--- Append an option to a product.
 -- name: AddProductOption :one
 INSERT INTO product_options (product_id, name, name_en, position)
 SELECT p.id, @name::text, nullif(@name_en::text, ''),
@@ -1584,11 +1152,9 @@ FROM products p
 WHERE p.slug = @slug::text
 RETURNING id;
 
--- Append a value to one of a product's options.
---
--- product_id comes from the OPTION rather than from the caller, so a value cannot
--- be attached to an option of a different product — the composite foreign key
--- would refuse it, and reading it from the row means the caller cannot try.
+-- product_id comes from the OPTION and not from the caller, so a value cannot be
+-- attached to an option of a different product: the composite foreign key would
+-- refuse it, and resolving it here means the caller cannot try.
 -- name: AddProductOptionValue :one
 INSERT INTO product_option_values (product_id, option_id, value, value_en, position)
 SELECT o.product_id, o.id, @value::text, nullif(@value_en::text, ''),
@@ -1599,19 +1165,14 @@ JOIN products p ON p.id = o.product_id
 WHERE p.slug = @slug::text AND o.id = @option_id
 RETURNING id;
 
--- How many options a product declares. A variant must name a value for each one,
--- or the picker cannot resolve it.
 -- name: ProductOptionCount :one
 SELECT count(*)::bigint FROM product_options o
 JOIN products p ON p.id = o.product_id
 WHERE p.slug = $1;
 
--- Attach a variant to one option value.
---
--- Every id is resolved from the SKU and the value id in this statement, so nothing
--- crosses products: variant_option_values carries product_id precisely so the
--- composite keys can enforce that, and reading it here means a caller cannot
--- present a mismatched pair to be checked.
+-- Every id is resolved inside the statement, so nothing crosses products:
+-- variant_option_values carries product_id precisely so the composite keys can
+-- refuse a variant of A paired with a value of B.
 -- name: SetVariantOptionValue :execrows
 INSERT INTO variant_option_values (product_id, variant_id, option_id, option_value_id)
 SELECT pv.product_id, pv.id, v.option_id, v.id
@@ -1620,7 +1181,6 @@ JOIN product_option_values v
   ON v.product_id = pv.product_id AND v.id = @option_value_id
 WHERE pv.sku = @sku::text;
 
--- The values a variant carries, for the back office's variant list.
 -- name: AdminVariantOptionValues :many
 SELECT pv.sku, o.name AS option_name, v.value
 FROM variant_option_values vov
@@ -1630,17 +1190,6 @@ JOIN product_option_values v ON v.id = vov.option_value_id
 JOIN products p ON p.id = pv.product_id
 WHERE p.slug = $1
 ORDER BY pv.sku, o.position, o.id;
-
-
--- ---------------------------------------------------------------------------
--- The promotional strip
---
--- These are promo_banners' only door. The strip is a feature the shop runs —
--- middleware decides which paths carry it, dismissing one writes a cookie keyed on a
--- digest of its id — and without them the only way to create one is SQL. The layout
--- check seeds one with psql, which is the tell: a fixture that has to reach past the
--- application is a fixture for a feature with no entrance.
--- ---------------------------------------------------------------------------
 
 -- name: ManagedBanners :many
 SELECT id, message, coalesce(message_short, '') AS message_short,
@@ -1654,7 +1203,7 @@ FROM promo_banners
 ORDER BY is_active DESC, created_at DESC
 LIMIT $1;
 
--- Create one. The CTA is both-or-neither, which promo_banners_cta_complete also says.
+-- The CTA is both-or-neither, which promo_banners_cta_complete also says.
 -- name: CreateBanner :exec
 INSERT INTO promo_banners (
     message, message_short, code, cta_label, cta_href,
@@ -1667,20 +1216,10 @@ INSERT INTO promo_banners (
     CASE WHEN @days::integer > 0 THEN now() + make_interval(days => @days::integer) END
 );
 
--- Switch one off rather than delete it: a promotion that ran is part of what the
--- storefront said, the same reason a coupon is switched off.
+-- Switched off, never deleted: the dismissal cookie is keyed on the id, so a new
+-- row with the same copy would reappear for everybody who had closed it.
 -- name: SetBannerActive :execrows
 UPDATE promo_banners SET is_active = @is_active::boolean WHERE id = @banner_id;
-
-
--- ---------------------------------------------------------------------------
--- The FAQ
---
--- CLAUDE.md says /faq reads faq_entries "so support can answer a recurring question
--- WITHOUT A DEPLOY", and these are what make that sentence true. Without a writer
--- the table changes only by a deploy: the promise stated and the door missing,
--- which is the shape product_specs and promo_banners are each in above.
--- ---------------------------------------------------------------------------
 
 -- name: AdminFAQEntries :many
 SELECT id, category, question, answer,
@@ -1692,11 +1231,8 @@ FROM faq_entries
 ORDER BY category, position, id
 LIMIT $1;
 
--- Append an entry to a category.
---
--- The position is computed IN the insert from max(position) WITHIN that category,
--- because faq_entries_position_key is unique on (category, position) — two staff
--- members adding to the same category would otherwise both read the same maximum.
+-- The position is computed WITHIN the category, because faq_entries_position_key
+-- is unique on (category, position).
 -- name: CreateFAQEntry :exec
 INSERT INTO faq_entries (category, question, answer,
                          category_en, question_en, answer_en, position)
@@ -1706,8 +1242,8 @@ VALUES (@category::text, @question::text, @answer::text,
         coalesce((SELECT max(f.position) FROM faq_entries f
                   WHERE f.category = @category::text), 0) + 1);
 
--- Rewrite one. The CATEGORY is not editable here: moving an entry between
--- categories has to renumber its position, and a form that silently collides with
+-- The CATEGORY is not editable: moving an entry between categories has to
+-- renumber its position, and a form that silently collides with
 -- faq_entries_position_key is worse than one that does not offer the move.
 -- name: UpdateFAQEntry :execrows
 UPDATE faq_entries
@@ -1717,31 +1253,12 @@ SET question = @question::text, answer = @answer::text,
     category_en = nullif(@category_en::text, '')
 WHERE id = @entry_id;
 
--- Delete one. A FAQ answer is not history: nothing references it, and an answer the
--- shop no longer stands behind should stop being on the page.
 -- name: DeleteFAQEntry :execrows
 DELETE FROM faq_entries WHERE id = @entry_id;
 
-
--- ---------------------------------------------------------------------------
--- Delivery methods and zones
---
--- shipping_methods and shipping_zones are the two tables underneath /admin/shipping,
--- and these are their door. Without them the page can publish a new VERSION of a
--- method the seed created and set a surcharge for a zone the seed created, and
--- neither of the two things underneath — so a shop could not offer its third
--- carrier, and could not say which postal codes cost more to reach.
--- ---------------------------------------------------------------------------
-
--- Create a method AND its first version, so a method that exists can be priced.
---
--- Two statements in the caller's transaction rather than one: a method with no
--- version is one the checkout finds and cannot price, which is worse than a method
--- that does not exist.
--- The parcel ceilings are the carrier's, and they are asked for HERE because a
--- method that has them and a method that does not are different offers. 超商取貨
--- is 45cm on the longest side, 105cm across three, 10kg — 萊爾富 5kg. Zero means
--- "no stated limit" and stores NULL, which is the honest default for 宅配.
+-- The caller writes the first VERSION in the same transaction: a method with no
+-- version is one the checkout finds and cannot price. Zero on a parcel ceiling
+-- means "no stated limit" and stores NULL, the honest default for home delivery.
 -- name: CreateShippingMethod :one
 INSERT INTO shipping_methods (code, destination_kind, position,
                               max_parcel_longest_mm, max_parcel_sum_mm, max_parcel_weight_g)
@@ -1752,9 +1269,6 @@ VALUES (@code::text, @destination_kind::text,
         nullif(@max_parcel_weight_g::integer, 0))
 RETURNING id;
 
--- Switch a method off. Never a DELETE: shipping_method_versions references it with
--- ON DELETE RESTRICT and every past order names the version it was priced from, so a
--- method that ever carried a parcel is part of the record.
 -- name: SetShippingMethodActive :execrows
 UPDATE shipping_methods SET is_active = @is_active::boolean WHERE id = @method_id;
 
@@ -1764,47 +1278,28 @@ VALUES (@code::text, @name::text, nullif(@name_en::text, ''),
         coalesce((SELECT max(position) FROM shipping_zones), 0) + 1)
 RETURNING id;
 
--- Give a zone a postal prefix.
---
--- prefix is the PRIMARY KEY of the table, so a prefix belongs to exactly one zone by
--- construction — "which zone is 880 in" cannot have two answers. Moving one is
--- therefore an upsert rather than an insert.
+-- prefix is the PRIMARY KEY, so a postal code belongs to exactly one zone by
+-- construction and moving one is an upsert rather than an insert.
 -- name: AssignZonePrefix :exec
 INSERT INTO shipping_zone_prefixes (prefix, zone_id)
 VALUES (@prefix::text, @zone_id)
 ON CONFLICT (prefix) DO UPDATE SET zone_id = @zone_id;
 
--- Take a prefix out of every zone. Scoped to the zone in the DELETE's own WHERE
--- clause, so a stale form cannot remove a prefix that has since moved elsewhere.
+-- Scoped to the zone in the DELETE's own WHERE clause, so a stale form cannot
+-- remove a prefix that has since moved elsewhere.
 -- name: RemoveZonePrefix :execrows
 DELETE FROM shipping_zone_prefixes WHERE prefix = @prefix::text AND zone_id = @zone_id;
 
--- Delete a zone that nothing points at.
---
--- Decided by the DELETE's own WHERE clause rather than by a count read first, the
--- same way the taxonomy delete is: the foreign keys would refuse an orphaning delete
--- anyway, and doing it this way turns the refusal into a row count the page can
--- explain instead of a constraint name.
+-- Decided by the DELETE's own WHERE clause, like DeleteBrand.
 -- name: DeleteShippingZone :execrows
 DELETE FROM shipping_zones z
 WHERE z.id = @zone_id
   AND NOT EXISTS (SELECT 1 FROM shipping_zone_prefixes p WHERE p.zone_id = z.id)
   AND NOT EXISTS (SELECT 1 FROM shipping_version_zones v WHERE v.zone_id = z.id);
 
-
--- ---------------------------------------------------------------------------
--- The stock ledger, read
---
--- inventory_movements is the ledger every stock change goes through —
--- record_inventory_movement is the only writer of stock_quantity, which is what
--- makes "one writer" true rather than aspirational. This is what READS it. Without
--- a reader a shop can see that a SKU has four units and not how it got there:
--- which sale, which return, which hand adjustment and by whom.
---
--- That is the same shape as a feature with no door, from the other side: data
--- collected and never shown.
--- ---------------------------------------------------------------------------
-
+-- source_id is a bare uuid with no foreign key — it points at whichever table
+-- source_type names — so each join is guarded by that discriminator. A HOLD
+-- points at the reservation, because it is taken before the order exists.
 -- name: VariantMovements :many
 SELECT m.created_at, m.delta, m.reason, m.source_type,
        coalesce(o.order_number, ro.order_number, '') AS order_number,
@@ -1814,14 +1309,7 @@ SELECT m.created_at, m.delta, m.reason, m.source_type,
 FROM inventory_movements m
 JOIN product_variants pv ON pv.id = m.variant_id
 LEFT JOIN users u ON u.id = m.actor_user_id
--- The order a movement belongs to, when it has one. source_id is a bare uuid with
--- no foreign key — it points at whichever table source_type names — so the join is
--- guarded by that discriminator rather than by a constraint.
 LEFT JOIN orders o ON m.source_type = 'order' AND o.id = m.source_id
--- A HOLD points at the reservation rather than the order, because the hold is taken
--- during checkout before the order exists. Reaching through it is what makes the two
--- units under a customer's unpaid order legible as that order rather than as a
--- reservation id nobody can look up.
 LEFT JOIN inventory_reservations r
        ON m.source_type = 'reservation' AND r.id = m.source_id
 LEFT JOIN orders ro ON ro.id = r.order_id
@@ -1829,53 +1317,18 @@ WHERE pv.sku = @sku::text
 ORDER BY m.id DESC
 LIMIT @row_limit::integer;
 
--- Receive goods onto the shelf.
---
--- reason 'receipt' and not 'adjustment', which is the whole of it. The ledger
--- carries that reason, its delta-direction CHECK and its back-office label, and
--- this is the only thing that posts one outside the dev seed. Without it a shop's
--- own purchasing is indistinguishable, in the shop's own ledger, from a staff
--- member correcting a miscount: 「這個為什麼是四」 is the question
--- /admin/stock/{sku} exists to answer, and it cannot tell 「進了四箱」 from
--- 「數錯了改成四」.
---
--- A fixture that reaches past the application is a fixture for a feature with no
--- entrance, and a seed posting the only receipts a schema has ever seen is exactly
--- that.
---
--- source_type 'admin' like the adjustment beside it: both are a person at the
--- back office rather than an order or a return. There is no source_id because
--- goen has no purchasing table to point at, and inventing one is the much larger
--- feature this deliberately is not.
+-- reason 'receipt' and not 'adjustment', which is the whole of it: goods a shop
+-- bought must be distinguishable in its own ledger from a corrected miscount.
+-- There is no source_id, because goen has no purchasing table to point at.
 -- name: ReceiveStock :exec
 SELECT record_inventory_movement(
     @variant_id, @delta::integer, 'receipt',
     @idempotency_key::text, 'admin', NULL, @actor_user_id::uuid
 );
 
--- ---------------------------------------------------------------------------
--- Warranty lookup
---
--- warranty_registrations is written by the customer and read by the customer, and
--- this is the shop's own way in. /warranty promises that a registered unit is
--- collected and repaired at the shop's expense, so without this lookup the only
--- person who can see the registration when that customer rings up is the person
--- making the claim. A promise the shop cannot verify is a promise it keeps on
--- trust or not at all.
--- ---------------------------------------------------------------------------
-
--- Look one unit's cover up, by serial number or by order number.
---
--- EXACT on both, and that is deliberate. A serial is read off the label on the
--- machine in front of somebody and an order number off their confirmation mail,
--- so a prefix would widen the ANSWER without widening what the person on the
--- phone can tell you — and a browsable list of registrations is a page of other
--- customers' names, which is the reason /admin/customers refuses to open on one.
---
--- The two shapes are told apart by the caller rather than OR-ed with wildcards,
--- for the reason /admin/orders tells its three apart: each path is then served by
--- an index (warranty_registrations_serial_key, orders_order_number_key) instead
--- of scanning every registration on every lookup.
+-- EXACT on both, told apart by the caller: a prefix would widen the answer
+-- without widening what the person on the phone can tell you. LEFT JOIN on the
+-- user, because user_id is ON DELETE SET NULL and erase_user leaves the row.
 -- name: AdminSearchWarranties :many
 SELECT w.id, w.unit_no, coalesce(w.serial_number, '') AS serial_number,
        w.registered_at, w.expires_on,
@@ -1887,9 +1340,6 @@ SELECT w.id, w.unit_no, coalesce(w.serial_number, '') AS serial_number,
 FROM warranty_registrations w
 JOIN order_lines ol ON ol.id = w.order_line_id
 JOIN orders o ON o.id = ol.order_id
--- LEFT, because warranty_registrations.user_id is ON DELETE SET NULL: erase_user
--- takes the customer away and leaves the registration, so a claim on an erased
--- account still resolves to a product and an order rather than to nothing.
 LEFT JOIN users u ON u.id = w.user_id
 WHERE w.serial_number = @term::text OR o.order_number = @term::text
 ORDER BY w.expires_on DESC, w.id

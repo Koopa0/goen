@@ -1,38 +1,18 @@
 package i18n
 
-// The words /admin/health's TEMPLATE writes.
-//
-// The figures themselves are in chrome_admin_views.go, beside the view model
-// that computes them. These are the page around them: the sentence that says
-// where every number comes from, the name and the explanation for each of the
-// five workers, and the two tables that name WHICH message and WHICH refund an
-// operator has to act on.
-//
-// Each worker's explanation says what breaks when that worker stops, not what
-// the worker does. That is the sentence somebody reads at the moment a row goes
-// red, and it is the difference between a number and a decision.
-
 var (
-	// The page's own claim about itself: every figure is derived from the WORK,
-	// never from a heartbeat. A worker looping without progress passes "I am
-	// running" and fails everything below, which is the whole reason the line is
-	// on the page rather than only in the code.
 	KeyAdminHPLead = key("admin.hp.lead", Message{
 		ZhHant: "這些數字全部是從「工作有沒有被做完」算出來的,不是從 worker 自己回報的心跳 —— 一個空轉的 worker 心跳正常,但工作沒有前進。",
 		En: "Every figure here is derived from whether the WORK has been done, not from a heartbeat a " +
 			"worker reports about itself — a worker spinning without progress has a perfectly healthy " +
 			"heartbeat while nothing moves.",
 	})
-	// The badge covers refunds as well as the four workers, so it answers "is
-	// there anything nobody has been told about" rather than "are the workers
-	// running".
 	KeyAdminHPAllClear  = key("admin.hp.allclear", Message{ZhHant: "一切正常", En: "All clear"})
 	KeyAdminHPNeedsLook = key("admin.hp.needslook", Message{
 		ZhHant: "有需要看的地方",
 		En:     "Something needs a look",
 	})
 
-	// The five rows, each a name and what its failure costs.
 	KeyAdminHPOutboxName = key("admin.hp.outbox.name", Message{
 		ZhHant: "通知信件(outbox)",
 		En:     "Notification email (outbox)",
@@ -61,9 +41,6 @@ var (
 			"affects no transaction.",
 	})
 	KeyAdminHPRefundsName = key("admin.hp.refunds.name", Message{ZhHant: "退款", En: "Refunds"})
-	// Nothing settles a refund by itself — goen consumes no refund webhook — so
-	// the note has to say that, or an operator waits for a worker that does not
-	// exist.
 	KeyAdminHPRefundsNote = key("admin.hp.refunds.note", Message{
 		ZhHant: "退款的紀錄是在打金流之前就寫進資料庫的,這樣中途斷線也留得下線索 —— 但沒有任何人在看那張表。這裡就是在看。沒有任何背景作業會自己把它結掉。",
 		En: "A refund is written to the database BEFORE the payment provider is called, so a crash " +
@@ -81,14 +58,10 @@ var (
 			"table itself.",
 	})
 
-	// The stuck-message table. It exists because a count cannot be acted on:
-	// these have exhausted their attempts and will not come back by themselves.
 	KeyAdminHPStuckHeading = key("admin.hp.stuck.heading", Message{
 		ZhHant: "重試次數用盡的訊息",
 		En:     "Messages that have exhausted their retries",
 	})
-	// 主題 here is the outbox TOPIC — order.paid, order.shipped — and not the
-	// subject line of a letter, which is why it is not the contact form's key.
 	KeyAdminHPColTopic     = key("admin.hp.col.topic", Message{ZhHant: "主題", En: "Topic"})
 	KeyAdminHPColKey       = key("admin.hp.col.key", Message{ZhHant: "識別碼", En: "Key"})
 	KeyAdminHPColAttempts  = key("admin.hp.col.attempts", Message{ZhHant: "次數", En: "Attempts"})
@@ -96,11 +69,14 @@ var (
 		ZhHant: "最後一次的錯誤",
 		En:     "Last error",
 	})
-	KeyAdminHPColSince = key("admin.hp.col.since", Message{ZhHant: "自從", En: "Since"})
+	// available_at, which is when the message becomes DUE — pushed forward by
+	// every claim and every backoff, so it reads as a future timestamp and is not
+	// how long anything has been broken. outbox_messages has no created_at, so
+	// "since" is not computable; naming the column for what it holds is the
+	// honest option. Meaningless once the attempts are exhausted, which is
+	// exactly when this table is read.
+	KeyAdminHPColSince = key("admin.hp.col.since", Message{ZhHant: "下次重試", En: "Next retry"})
 
-	// The open-refund table. Two identifiers rather than one: the provider's own
-	// reference is blank exactly when goen never heard an answer, and the key it
-	// sent is then the only handle on what happened at the provider.
 	KeyAdminHPOpenRefundsHeading = key("admin.hp.openrefunds.heading", Message{
 		ZhHant: "還沒退成功的退款",
 		En:     "Refunds that have not gone through",

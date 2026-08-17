@@ -32,9 +32,6 @@ func TestMain(m *testing.M) {
 	}
 	pool = p
 
-	// The home page reads the catalogue, so the dev seed is the fixture. It
-	// wraps itself in BEGIN/COMMIT and is loaded as the owner, exactly as
-	// `make db-seed` does.
 	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
 	if err != nil {
 		slog.Error("read seed", "error", err)
@@ -51,9 +48,8 @@ func TestMain(m *testing.M) {
 }
 
 func TestHomeShowsCategoriesAndProducts(t *testing.T) {
-	// The assertions below are about the DEFAULT hero, which shows only when no
-	// slide qualifies — so the state has to be established rather than assumed.
-	// Another test's slide made this fail under -shuffle and pass in file order.
+	// The assertions below are about the default hero, which shows only when no
+	// slide qualifies.
 	emptyHeroSlides(t)
 
 	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler), false)
@@ -66,25 +62,19 @@ func TestHomeShowsCategoriesAndProducts(t *testing.T) {
 	}
 	body := res.Body.String()
 
-	// The seed's top-level categories are the tiles.
 	for _, cat := range []string{"手機", "筆電", "平板", "耳機與音響", "穿戴裝置", "周邊配件"} {
 		if !strings.Contains(body, cat) {
 			t.Errorf("category tile %q is missing", cat)
 		}
 	}
-	// A seed product, its brand, and a price formatted as New Taiwan dollars.
 	if !strings.Contains(body, "Meridian Book 14") {
 		t.Error("recommended products are missing")
 	}
 	if !strings.Contains(body, "NT$") {
 		t.Error("no price is formatted; the tiles have no price")
 	}
-	// The mapping is asserted by its shape, not by naming one file. A tile only
-	// renders an <img> when the artwork is actually embedded — the catalogue
-	// declares fifteen images and they arrive a few at a time — so pinning this
-	// to a particular product makes the test fail for the state of the media
-	// directory rather than for the behaviour. assets.TestProductImageURL* cover
-	// the key-to-URL rule itself, including the not-embedded case.
+	// By shape, not by naming one file: a tile renders an <img> only when the
+	// artwork is embedded, and they arrive a few at a time.
 	if !strings.Contains(body, `src="/static/media/products/`) {
 		t.Error("no product storage key was mapped to an embedded media URL")
 	}
@@ -97,9 +87,7 @@ func TestHomeShowsCategoriesAndProducts(t *testing.T) {
 	if !strings.Contains(body, `width="1600" height="1200" loading="lazy"`) {
 		t.Error("product image is missing its intrinsic dimensions or lazy-loading hint")
 	}
-	// The other half of the same rule: a product whose artwork has not been
-	// produced yet falls back to the tile placeholder instead of emitting a src
-	// the asset handler answers with 404.
+	// A product with no artwork yet falls back to the tile placeholder.
 	if !strings.Contains(body, "goen-tile__ph") && strings.Count(body, "/static/media/products/") < 8 {
 		t.Error("a tile without embedded artwork rendered neither an image nor the placeholder")
 	}
@@ -114,7 +102,6 @@ func TestHomeShowsCategoriesAndProducts(t *testing.T) {
 	if !strings.Contains(body, `width="1440" height="900" decoding="async" fetchpriority="high"`) {
 		t.Error("home hero is missing its intrinsic dimensions or priority hint")
 	}
-	// It is a whole document, not a fragment: this is a full page load.
 	if !strings.Contains(body, "<html") {
 		t.Error("the home response is not a full document")
 	}
@@ -148,12 +135,6 @@ func TestStoreLoadAggregatesTiles(t *testing.T) {
 	}
 }
 
-// TestAnEmptyHeroTableIsAWorkingHomePage proves an unpopulated install still
-// renders a finished home page.
-//
-// Content management a shop must populate before its home page renders is a
-// dependency, not a feature. The fallback is the copy that was in the template
-// before hero_slides had any code, so an untouched install looks finished.
 func TestAnEmptyHeroTableIsAWorkingHomePage(t *testing.T) {
 	ctx := t.Context()
 	emptyHeroSlides(t)
@@ -173,13 +154,7 @@ func TestAnEmptyHeroTableIsAWorkingHomePage(t *testing.T) {
 	}
 }
 
-// TestTheScheduledSlideIsTheOneShown proves the window decides, on the
-// database clock.
-//
-// The window is judged by the DATABASE's clock in SQL. Comparing a
-// database-written starts_at against Go's time.Now() is comparing two clocks —
-// a testcontainer milliseconds ahead of its host made a coupon created that
-// instant read as "not started yet", and the same trap is here.
+// The window is judged by the database's clock, which wrote starts_at.
 func TestTheScheduledSlideIsTheOneShown(t *testing.T) {
 	ctx := t.Context()
 	s := home.NewStore(pool)
@@ -230,12 +205,6 @@ func TestTheScheduledSlideIsTheOneShown(t *testing.T) {
 	}
 }
 
-// TestTheFirstQualifyingSlideWins proves the queue skips what cannot show and
-// stops at the first that can.
-//
-// hero_slides is a QUEUE, not a carousel: position picks one and the rest wait.
-// A page that rotated would move what somebody is reading and would need
-// JavaScript to do it.
 func TestTheFirstQualifyingSlideWins(t *testing.T) {
 	ctx := t.Context()
 	if _, err := pool.Exec(ctx, `DELETE FROM hero_slides`); err != nil {
@@ -262,21 +231,12 @@ func TestTheFirstQualifyingSlideWins(t *testing.T) {
 	if err != nil {
 		t.Fatalf("hero: %v", err)
 	}
-	// Position 0 is switched off, so position 1 wins — not position 2, and not
-	// the switched-off one.
 	if hero.Headline != "第二" {
 		t.Errorf("headline is %q, want 第二 — the queue must skip a disabled slide "+
 			"and stop at the first that qualifies", hero.Headline)
 	}
 }
 
-// TestTheHeroImageCarriesItsRealWidth proves the width comes from the stored
-// object.
-//
-// The srcset states pixel widths a browser both chooses and lays out on. The
-// width comes from media_objects, not from a column beside the reference —
-// product_images already showed what two copies of a stored object's dimensions
-// turn into.
 func TestTheHeroImageCarriesItsRealWidth(t *testing.T) {
 	ctx := t.Context()
 	if _, err := pool.Exec(ctx, `DELETE FROM hero_slides`); err != nil {
@@ -308,17 +268,6 @@ func TestTheHeroImageCarriesItsRealWidth(t *testing.T) {
 	}
 }
 
-// TestDismissingOneBannerDoesNotSilenceTheNext proves a dismissal is scoped to
-// one promotion.
-//
-// The cookie is keyed to a BANNER, not to "banners". Closing this promotion
-// hides this promotion; when the shop runs the next one the id changes and it
-// reappears — which is correct, because a new promotion is new information and
-// the visitor has not read it.
-//
-// The alternative, a cookie meaning "no banners for 30 days", either keeps
-// nagging somebody who has already read the message or silences an
-// announcement they needed.
 func TestDismissingOneBannerDoesNotSilenceTheNext(t *testing.T) {
 	ctx := t.Context()
 	s := home.NewStore(pool)
@@ -336,7 +285,6 @@ func TestDismissingOneBannerDoesNotSilenceTheNext(t *testing.T) {
 		t.Fatalf("the running banner did not show: %+v", shown)
 	}
 
-	// Dismissed.
 	dismissed := home.DismissDigest(first)
 	hidden, hiddenErr := s.Banner(ctx, dismissed)
 	if hiddenErr != nil {
@@ -346,7 +294,6 @@ func TestDismissingOneBannerDoesNotSilenceTheNext(t *testing.T) {
 		t.Error("a dismissed banner is still showing")
 	}
 
-	// The shop runs the next one.
 	if _, err := pool.Exec(ctx, `UPDATE promo_banners SET is_active = false`); err != nil {
 		t.Fatalf("retire: %v", err)
 	}
@@ -364,13 +311,6 @@ func TestDismissingOneBannerDoesNotSilenceTheNext(t *testing.T) {
 	}
 }
 
-// TestTheCookieCarriesADigestNotTheID proves nothing correlatable rides on
-// every request.
-//
-// The cookie travels on every request. A raw uuid there is a stable value
-// somebody can correlate across sessions for no benefit — the server only ever
-// asks "is this the banner they closed", and a digest answers exactly that and
-// nothing else.
 func TestTheCookieCarriesADigestNotTheID(t *testing.T) {
 	const id = "019fa72c-dd04-7383-acc5-4c32f889c790"
 	digest := home.DismissDigest(id)
@@ -382,17 +322,14 @@ func TestTheCookieCarriesADigestNotTheID(t *testing.T) {
 		t.Errorf("the cookie value is %d characters; it travels on every request",
 			len(digest))
 	}
-	// Stable, or a dismissal would not survive the next page load.
 	if again := home.DismissDigest(id); again != digest {
 		t.Error("the digest is not stable")
 	}
-	// And distinct per banner, or dismissing one would dismiss the next.
 	if other := home.DismissDigest("019fa72c-dd04-7383-acc5-4c32f889c791"); other == digest {
 		t.Error("two banners share a digest")
 	}
 }
 
-// TestABannerOutsideItsWindowDoesNotShow proves the schedule decides.
 func TestABannerOutsideItsWindowDoesNotShow(t *testing.T) {
 	ctx := t.Context()
 	s := home.NewStore(pool)
@@ -429,12 +366,6 @@ func TestABannerOutsideItsWindowDoesNotShow(t *testing.T) {
 	}
 }
 
-// TestAnOffSiteCTAIsDroppedNotRendered proves the top of every page cannot be
-// pointed off-site.
-//
-// The href is typed by a person and rendered into the largest link at the top
-// of every storefront page. An absolute URL there would send every visitor
-// off-site on arrival, and "javascript:" would put script in it.
 func TestAnOffSiteCTAIsDroppedNotRendered(t *testing.T) {
 	ctx := t.Context()
 	s := home.NewStore(pool)
@@ -457,14 +388,11 @@ func TestAnOffSiteCTAIsDroppedNotRendered(t *testing.T) {
 		if banner.HasCTA() {
 			t.Errorf("an off-site CTA %q was rendered as %q", href, banner.CTAHref)
 		}
-		// The banner itself still shows: the message is fine, only the button
-		// is not.
 		if !banner.Shown() {
 			t.Errorf("a bad CTA hid the whole banner")
 		}
 	}
 
-	// A same-site path is kept.
 	if _, err := pool.Exec(ctx, `DELETE FROM promo_banners`); err != nil {
 		t.Fatalf("clear: %v", err)
 	}
@@ -482,7 +410,6 @@ func TestAnOffSiteCTAIsDroppedNotRendered(t *testing.T) {
 	}
 }
 
-// seedBanner writes a running banner and returns its id.
 func seedBanner(t *testing.T, message string) string {
 	t.Helper()
 	var id uuid.UUID
@@ -494,8 +421,6 @@ func seedBanner(t *testing.T, message string) string {
 	return id.String()
 }
 
-// emptyHeroSlides puts the hero table back to the state an untouched install
-// has, which is the state the default-hero assertions are about.
 func emptyHeroSlides(t *testing.T) {
 	t.Helper()
 	if _, err := pool.Exec(t.Context(), `DELETE FROM hero_slides`); err != nil {
@@ -503,21 +428,12 @@ func emptyHeroSlides(t *testing.T) {
 	}
 }
 
-// TestTheHeroSpeaksTheVisitorsLanguage is the largest thing on the site.
-//
-// pages.DefaultHero — the copy an untouched install renders — has been translated
-// since the locale work, because it is compiled into the binary. A SCHEDULED slide
-// was not, so the moment a shop used the feature its home page headline went Chinese
-// for every visitor: the biggest text on the site, above a page whose every other
-// word had been translated.
-//
-// The HREFs are deliberately not localized. A link goes to one page.
 func TestTheHeroSpeaksTheVisitorsLanguage(t *testing.T) {
 	ctx := t.Context()
 	s := home.NewStore(pool)
 
-	// Its own slide, at the FRONT of the queue, cleaned up afterwards: the hero is
-	// a queue and another test's slide would otherwise decide what this one reads.
+	// Its own slide, at the front of the queue: the hero is a queue, so another
+	// test's slide would decide what this one reads.
 	var id uuid.UUID
 	if err := pool.QueryRow(ctx, `
 		INSERT INTO hero_slides (eyebrow, headline, body, primary_cta_label,
@@ -529,10 +445,7 @@ func TestTheHeroSpeaksTheVisitorsLanguage(t *testing.T) {
 		t.Fatalf("queue a slide: %v", err)
 	}
 	t.Cleanup(func() {
-		// Its own context: t.Context() is cancelled before cleanups run, so a
-		// delete on it would be refused and the slide would outlive the test —
-		// and the hero is a QUEUE, so a leftover slide decides what the next
-		// test reads.
+		// Its own context: t.Context() is cancelled before cleanups run.
 		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
 		if _, err := pool.Exec(clean, `DELETE FROM hero_slides WHERE id = $1`, id); err != nil {
@@ -560,7 +473,6 @@ func TestTheHeroSpeaksTheVisitorsLanguage(t *testing.T) {
 			if hero.PrimaryCTA.Label != tt.cta {
 				t.Errorf("the button reads %q, want %q", hero.PrimaryCTA.Label, tt.cta)
 			}
-			// One page, both languages.
 			if hero.PrimaryCTA.Href != "/c/phones" {
 				t.Errorf("the button points at %q, want /c/phones", hero.PrimaryCTA.Href)
 			}
@@ -568,12 +480,8 @@ func TestTheHeroSpeaksTheVisitorsLanguage(t *testing.T) {
 	}
 }
 
-// TestASlideWithNoEyebrowStillRenders holds what a mutation run found.
-//
-// localized_name(NULL, NULL, ...) is NULL and sqlc types the function's result as
-// non-null, so wrapping a nullable column without coalescing made the home page fail
-// to scan its own hero the moment a slide left the optional fields empty. The seed
-// ships no slides, so nothing exercised it.
+// localized_name(NULL, NULL, ...) is NULL while sqlc types the result as
+// non-null, so an uncoalesced wrap fails to scan a slide with no eyebrow.
 func TestASlideWithNoEyebrowStillRenders(t *testing.T) {
 	ctx := t.Context()
 	s := home.NewStore(pool)
@@ -586,10 +494,7 @@ func TestASlideWithNoEyebrowStillRenders(t *testing.T) {
 		t.Fatalf("queue a bare slide: %v", err)
 	}
 	t.Cleanup(func() {
-		// Its own context: t.Context() is cancelled before cleanups run, so a
-		// delete on it would be refused and the slide would outlive the test —
-		// and the hero is a QUEUE, so a leftover slide decides what the next
-		// test reads.
+		// Its own context: t.Context() is cancelled before cleanups run.
 		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
 		if _, err := pool.Exec(clean, `DELETE FROM hero_slides WHERE id = $1`, id); err != nil {
@@ -609,24 +514,12 @@ func TestASlideWithNoEyebrowStillRenders(t *testing.T) {
 	}
 }
 
-// TestTheFreeDeliveryStripStatesWhatTheTillCharges holds a promise the page used
-// to own a copy of.
-//
-// The trust strip and the PDP's guarantee list both said 「滿 NT$3,000 免運」 as a
-// LITERAL in the i18n catalogue, while free_over_cents lives in
-// shipping_method_versions and a shop edits it at /admin/shipping. Nothing bound
-// the two, so raising the threshold left both storefront pages advertising the
-// old one — the drift ShippingPolicy's own comment exists to prevent, applied to
-// /shipping and to neither of the pages that make the promise first.
-//
-// Asserted through the rendered PAGE rather than the view model: the number was
-// correct in the database the whole time, and only a render can show what the
-// customer is told.
+// free_over_cents lives in shipping_method_versions and a shop edits it at
+// /admin/shipping, so a page stating the figure can drift from the till.
 func TestTheFreeDeliveryStripStatesWhatTheTillCharges(t *testing.T) {
 	ctx := t.Context()
 
-	// Move the threshold. A new VERSION, because shipping_method_versions is
-	// append-only — editing the old row is what the schema exists to refuse.
+	// A new version, because shipping_method_versions is append-only.
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO shipping_method_versions
 		    (method_id, name, carrier, fee_cents, free_over_cents, effective_at)
@@ -643,16 +536,13 @@ func TestTheFreeDeliveryStripStatesWhatTheTillCharges(t *testing.T) {
 		t.Fatalf("load home: %v", err)
 	}
 
-	// The lowest threshold on offer is what the one-line claim may state: the
-	// other active method still carries the seeded 300000, so that is the honest
-	// figure and 5555 must NOT appear.
+	// The other active method still carries the seeded 300000, which is the
+	// lowest and therefore the honest figure.
 	if got := view.FreeDelivery(); got != "NT$3,000" {
 		t.Errorf("the strip states %q, want NT$3,000 — the lowest threshold any "+
 			"active method honours", got)
 	}
 
-	// And with every threshold removed the strip makes no claim at all, rather
-	// than offering free delivery over NT$0.
 	if _, bareErr := pool.Exec(ctx, `
 		INSERT INTO shipping_method_versions
 		    (method_id, name, carrier, fee_cents, free_over_cents, effective_at)

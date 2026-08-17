@@ -8,24 +8,9 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-// TestTheLeaseCoversTheWholeBatch holds the arithmetic that makes a claim
-// exclusive.
-//
-// A claim takes ONE lease over the whole batch — the UPDATE pushes available_at
-// forward for every row at once — and the batch is then delivered SERIALLY.
-// So the last message in a batch starts (BatchSize-1) handler budgets after the
-// claim and finishes one more later, and if that exceeds the lease it is no
-// longer claimed by the time it is being sent: a second replica's
-// `available_at <= now()` matches it, and two workers deliver it.
-//
-// The failure is arithmetic, not a race that needs unlucky timing: fifty
-// messages at thirty seconds each under a five-minute lease covers ten of them
-// and leaves forty visible to every other replica while this one is still
-// working through them — which for a receipt is a duplicate and for a password
-// reset is a second live token in somebody's mailbox.
-//
-// Three independent constants, so this is a relationship and not a restatement:
-// change any one of them and the test says whether the other two still hold.
+// TestTheLeaseCoversTheWholeBatch: one lease covers the whole batch and the
+// batch is delivered SERIALLY, so work exceeding the lease leaves the tail
+// visible to every other replica while this one is still sending it.
 func TestTheLeaseCoversTheWholeBatch(t *testing.T) {
 	t.Parallel()
 
@@ -38,17 +23,9 @@ func TestTheLeaseCoversTheWholeBatch(t *testing.T) {
 	}
 }
 
-// TestTheHandlerBudgetIsTheSendersOwnTimeout is the drift half of the same
-// lock.
-//
-// [outbox.HandlerBudget] is a mirror of email.SendTimeout, because the queue has
-// no business importing the mail for one number. A mirror with nothing checking
-// it is how the arithmetic above goes quietly wrong: raise the sender's timeout
-// to two minutes and every batch becomes four times the work under the same
-// lease, with nothing anywhere to say so.
-//
-// The mail sender is the slowest handler goen registers, and it is the one whose
-// timeout is a stated bound rather than a hope.
+// TestTheHandlerBudgetIsTheSendersOwnTimeout is the drift half of the same lock:
+// [outbox.HandlerBudget] mirrors email.SendTimeout, and raising the sender's
+// timeout would otherwise quadruple a batch's work under an unchanged lease.
 func TestTheHandlerBudgetIsTheSendersOwnTimeout(t *testing.T) {
 	t.Parallel()
 

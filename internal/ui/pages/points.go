@@ -10,16 +10,12 @@ import (
 
 // PointsEntry is one line of the ledger.
 type PointsEntry struct {
-	Points int64
-	Reason string
-	Order  string
-	At     string
-	// ExpiresOn is empty for a spend, which has already happened and cannot
-	// expire.
+	Points    int64
+	Reason    string
+	Order     string
+	At        string
 	ExpiresOn string
-	// Expired is whether an award has passed its date. Shown rather than hidden:
-	// a balance that silently shrank is a support ticket.
-	Expired bool
+	Expired   bool
 }
 
 // Earned reports whether this line added points.
@@ -50,9 +46,7 @@ func (e PointsEntry) What(ctx context.Context) string {
 
 // PointsView is the customer's points page.
 type PointsView struct {
-	Balance int64
-	// Redeemable is the balance rounded down to a whole exchange, which is what
-	// the form may actually ask for.
+	Balance     int64
 	Redeemable  int64
 	CreditCents int64
 
@@ -99,6 +93,5 @@ func (v PointsView) ExpiringText(ctx context.Context) string {
 // Empty reports whether nothing has ever happened.
 func (v PointsView) Empty() bool { return len(v.Entries) == 0 }
 
-// StepText is the increment the redemption field accepts: one whole exchange,
-// so the browser does not offer a number the server will refuse.
+// StepText is the increment the redemption field accepts: one whole exchange.
 func (v PointsView) StepText() string { return strconv.FormatInt(v.PerCredit, 10) }

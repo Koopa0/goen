@@ -19,31 +19,23 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// couponCode mirrors coupons_code_format.
 var couponCode = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]{1,31}$`)
 
 // MaxCouponDescriptionRunes bounds the label a customer sees on their cart.
 const MaxCouponDescriptionRunes = 60
 
-// CouponForm is what the back office submits. Amounts are in DOLLARS and the
-// percentage in whole percent; the conversion to cents and basis points is here.
+// CouponForm is what the back office submits, in DOLLARS and whole percent.
 type CouponForm struct {
 	Code        string
 	Description string
 	Kind        string
-	// Value is the amount in dollars for `amount`, or whole percent for
-	// `percent`. Ignored for free_shipping.
-	Value int64
-	// CapDollars bounds a percentage discount. 0 means uncapped.
-	CapDollars int64
-	// MinSpendDollars is the order minimum. 0 means none.
+	// Value is dollars for `amount` and whole percent for `percent`.
+	Value           int64
+	CapDollars      int64
 	MinSpendDollars int64
-	// MaxRedemptions is the total cap. 0 means unlimited.
-	MaxRedemptions int32
-	// PerCustomer is how many times one account may use it.
-	PerCustomer int32
-	// Days is how long it runs for. 0 means no end date.
-	Days int32
+	MaxRedemptions  int32
+	PerCustomer     int32
+	Days            int32
 }
 
 // Validate refuses what the schema would.
@@ -76,8 +68,7 @@ func (f *CouponForm) Validate(ctx context.Context) map[string]string {
 	return errs
 }
 
-// basisPoints turns whole percent into the basis points the schema stores,
-// clamped to 1..100 so the int32 narrowing is safe on its own.
+// basisPoints clamps to 1..100 percent, which is what makes the int32 narrowing safe.
 func basisPoints(wholePercent int64) int32 {
 	switch {
 	case wholePercent < 1:
@@ -89,8 +80,6 @@ func basisPoints(wholePercent int64) int32 {
 	}
 }
 
-// validateKind checks what only one kind carries: coupons_value_matches_kind
-// and coupons_cap_only_on_percent.
 func (f *CouponForm) validateKind(ctx context.Context, errs map[string]string) {
 	switch f.Kind {
 	case "amount":
@@ -168,8 +157,7 @@ func (s *Store) CreateCoupon(ctx context.Context, f *CouponForm) (map[string]str
 		params.MaxRedemptions = pgtype.Int4{Int32: f.MaxRedemptions, Valid: true}
 	}
 	if f.Days > 0 {
-		// starts_at defaults to the DATABASE's now() and the window is judged
-		// there, so an end date from Go's clock is measured against another one.
+		// The window is judged by the DATABASE's clock, not the one setting this.
 		params.EndsAt = pgtype.Timestamptz{
 			Time: time.Now().AddDate(0, 0, int(f.Days)), Valid: true,
 		}
@@ -191,8 +179,7 @@ func (s *Store) CreateCoupon(ctx context.Context, f *CouponForm) (map[string]str
 	return nil, nil
 }
 
-// SetCouponActive switches a promotion on or off. Never deleted: a promotion
-// that ran is part of what past orders were charged.
+// SetCouponActive switches a promotion on or off.
 func (s *Store) SetCouponActive(ctx context.Context, code string, active bool) error {
 	if err := s.audited(ctx, Event{
 		Action: ActionToggleCoupon, Table: "coupons", ID: uuid.NullUUID{},
@@ -229,7 +216,6 @@ func CouponKindLabel(ctx context.Context, kind string) string {
 	}
 }
 
-// nullableDate formats a timestamp that may be absent.
 func nullableDate(t pgtype.Timestamptz) string {
 	if !t.Valid {
 		return ""

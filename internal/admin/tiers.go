@@ -12,8 +12,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// MembershipWindowDays mirrors loyalty.MembershipWindow, copied rather than
-// imported; TestTheTierWindowMatchesTheProgramme keeps them equal.
+// MembershipWindowDays mirrors loyalty.MembershipWindow, copied rather than imported.
 const MembershipWindowDays int32 = 365
 
 // MaxTierMultiplierBP bounds what a band may earn, at three times the base rate.
@@ -37,10 +36,8 @@ func (s *Store) Tiers(ctx context.Context) (pages.AdminTiersView, error) {
 	return view, nil
 }
 
-// CreateTier adds a band.
-//
-// The threshold arrives in DOLLARS and the multiplier in whole percent; the
-// column stores basis points. nameEn is optional and falls back to name.
+// CreateTier adds a band, from DOLLARS and whole percent; the columns store
+// cents and basis points.
 func (s *Store) CreateTier(
 	ctx context.Context, code, name, nameEn string, thresholdDollars, percent int64,
 ) error {
@@ -53,8 +50,6 @@ func (s *Store) CreateTier(
 	if multiplierBP < 10000 || multiplierBP > MaxTierMultiplierBP {
 		return ErrInvalid
 	}
-	// Bounded above by MaxTierMultiplierBP and below by the base rate, so both
-	// narrowings are safe.
 	multiplier := int32(multiplierBP)
 	position := int32(min(thresholdDollars/10000, math.MaxInt32))
 
@@ -73,16 +68,13 @@ func (s *Store) CreateTier(
 				PointsMultiplierBp: multiplier,
 				Position:           position,
 			}); err != nil {
-				// membership_tiers_min_spend_key speaks when two bands share a
-				// threshold: "which tier is this spend in" must have one answer.
 				return fmt.Errorf("%w: %s", ErrRefused, err.Error())
 			}
 			return nil
 		})
 }
 
-// DeleteTier retires a band. A DELETE rather than a flag because no order
-// references a tier: a customer's band is derived on read.
+// DeleteTier retires a band.
 func (s *Store) DeleteTier(ctx context.Context, id string) error {
 	tierID, err := uuid.Parse(id)
 	if err != nil {

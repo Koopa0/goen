@@ -36,8 +36,6 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 				>
 					<div class="ui-field">
 						<label class="ui-label" for="h-headline">{ i18n.T(ctx, i18n.KeyAdminHomeHeadline) }</label>
-						// The placeholder is the built-in hero's own headline, so the
-						// example a shop sees is the copy this field would replace.
 						<input
 							class="ui-input"
 							id="h-headline"
@@ -141,19 +139,12 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 							<p class="ui-error-text">{ v.Err("alt") }</p>
 						}
 					</div>
-					// The English hero. Optional, and every field falls back to the
-					// Chinese one — but the headline is the largest thing on the site, so
-					// a slide with no English copy makes the whole page look untranslated
-					// to an English visitor even when everything around it is not.
 					<div class="ui-field">
 						<label class="ui-label" for="h-eyebrow-en">{ i18n.T(ctx, i18n.KeyAdminHomeEyebrowEn) }</label>
 						<input class="ui-input" id="h-eyebrow-en" name="eyebrow_en" maxlength="40" value={ v.Draft.EyebrowEn }/>
 					</div>
 					<div class="ui-field">
 						<label class="ui-label" for="h-headline-en">{ i18n.T(ctx, i18n.KeyAdminHomeHeadlineEn) }</label>
-						// The example stays English in both locales: this box collects
-						// English, so a Chinese placeholder would demonstrate the wrong
-						// thing to the reader it was translated for.
 						<input class="ui-input" id="h-headline-en" name="headline_en" maxlength="40" value={ v.Draft.HeadlineEn } placeholder="Choose one good thing."/>
 					</div>
 					<div class="ui-field">
@@ -227,10 +218,6 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 					}
 				</aside>
 			</div>
-			// The promotional strip. On this page because it is the same question the
-			// hero answers — what the storefront says before a visitor has chosen
-			// anything — and because until now it had no page at all: the only way to
-			// run a promotion was SQL.
 			<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminHomeBanner) }</h2>
 			<p class="goen-admin__hint">
 				{ i18n.T(ctx, i18n.KeyAdminHomeBannerLead) }

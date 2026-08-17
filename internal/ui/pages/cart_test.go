@@ -317,3 +317,29 @@ func renderToString(t *testing.T, c templ.Component) string {
 	}
 	return b.String()
 }
+
+// TestANamelessReviewerIsNotBadgedAsABuyer holds the byline apart from the badge.
+//
+// A name is optional at registration and erase_user blanks it, so the fallback
+// is the common case rather than the rare one: 23 of 24 seeded reviews had no
+// name, and every one of them was unverified. The byline said 已購買的顧客 —
+// borrowing the heading over the verified section — while the badge that carries
+// the real claim sat two lines below, guarded by
+// product_reviews_verified_is_real. The constraint cannot see a claim made in
+// the author slot.
+func TestANamelessReviewerIsNotBadgedAsABuyer(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	bought := i18n.T(ctx, i18n.KeyVerifiedBuyer)
+
+	nameless := ProductReview{Author: "", Rating: 1}
+	if got := nameless.DisplayAuthor(ctx); strings.Contains(got, bought) {
+		t.Errorf("a nameless reviewer is bylined %q, which contains the verified "+
+			"claim %q — the badge is what says somebody bought, and this review "+
+			"has not", got, bought)
+	}
+	if named := (ProductReview{Author: "王小明"}).DisplayAuthor(ctx); named != "王小明" {
+		t.Errorf("a named reviewer rendered as %q", named)
+	}
+}

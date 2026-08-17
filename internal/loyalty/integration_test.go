@@ -105,12 +105,7 @@ func balance(t *testing.T, accountID uuid.UUID) int64 {
 }
 
 // TestPointsCannotGoNegativeEvenConcurrently proves a balance cannot be spent
-// twice.
-//
-// Two redemptions racing each read a balance the other is about to invalidate.
-// loyalty_never_negative locks the account FIRST, exactly as
-// store_credit_never_negative does — without the lock both pass and the
-// customer spends points twice.
+// twice: loyalty_never_negative locks the account before it reads.
 func TestPointsCannotGoNegativeEvenConcurrently(t *testing.T) {
 	ctx := t.Context()
 	_, accountID := customer(t, 1000)
@@ -122,10 +117,6 @@ func TestPointsCannotGoNegativeEvenConcurrently(t *testing.T) {
 	for i := range racers {
 		wg.Go(func() {
 			<-start
-			// The key is built in Go, not concatenated in SQL: passing an int
-			// where the statement casts to text made every racer fail to
-			// ENCODE, and the case then read as "the guard let nobody
-			// through" — a fixture bug wearing the shape of a passing lock.
 			_, err := pool.Exec(ctx, `
 				SELECT redeem_loyalty_points($1, 1000, 10000, $2)`,
 				accountID, fmt.Sprintf("race:%d", i))
@@ -150,12 +141,8 @@ func TestPointsCannotGoNegativeEvenConcurrently(t *testing.T) {
 	}
 }
 
-// TestARedemptionPostsPointsAndCreditTogether proves the customer never pays
-// and receives nothing.
-//
-// Both or neither. Two statements would let the points go and the credit not
-// arrive — the customer pays and receives nothing, which is the worst available
-// failure here.
+// TestARedemptionPostsPointsAndCreditTogether proves the customer never spends
+// points and receives no credit.
 func TestARedemptionPostsPointsAndCreditTogether(t *testing.T) {
 	ctx := t.Context()
 	userID, accountID := customer(t, 500)
@@ -183,11 +170,8 @@ func TestARedemptionPostsPointsAndCreditTogether(t *testing.T) {
 	}
 }
 
-// TestExpiredPointsAreNotSpendable proves expiry does not wait for a job.
-//
-// Expiry is applied ON READ rather than by a job that writes expiry rows. A job
-// that has not run yet would leave expired points spendable, and a customer
-// spending points the shop believes are gone is the failure this must not have.
+// TestExpiredPointsAreNotSpendable proves expiry is applied ON READ, so it never
+// waits for a job that has not run.
 func TestExpiredPointsAreNotSpendable(t *testing.T) {
 	ctx := t.Context()
 	userID, accountID := customer(t, 0)
@@ -204,7 +188,6 @@ func TestExpiredPointsAreNotSpendable(t *testing.T) {
 	if got := balance(t, accountID); got != 200 {
 		t.Errorf("the balance is %d, want 200 — expired points are still spendable", got)
 	}
-	// And the database refuses to spend them even if something asks.
 	s := loyalty.NewStore(pool)
 	if _, err := s.Redeem(ctx, userID, 500); !errors.Is(err, loyalty.ErrNotEnough) {
 		t.Errorf("spending expired points gave %v, want ErrNotEnough", err)
@@ -214,11 +197,8 @@ func TestExpiredPointsAreNotSpendable(t *testing.T) {
 	}
 }
 
-// TestAnOrderIsAwardedOnce proves at-least-once delivery awards exactly once.
-//
-// Stripe delivers at least once and the capture tolerates that; the award has
-// to as well. Idempotency is the database's, keyed on the order — a check in Go
-// would be one two concurrent deliveries both pass.
+// TestAnOrderIsAwardedOnce proves at-least-once delivery awards exactly once,
+// keyed on the order in the database rather than checked in Go.
 func TestAnOrderIsAwardedOnce(t *testing.T) {
 	ctx := t.Context()
 	userID, accountID := customer(t, 0)
@@ -243,11 +223,7 @@ func TestAnOrderIsAwardedOnce(t *testing.T) {
 }
 
 // TestAGuestOrderEarnsNothingAndDoesNotError proves a guest capture is not
-// failed by the award.
-//
-// Guest checkout is supported and points are a membership benefit. Refusing the
-// award would fail the webhook, which would make Stripe retry a capture that
-// already succeeded.
+// failed by the award, which would make Stripe retry a capture that succeeded.
 func TestAGuestOrderEarnsNothingAndDoesNotError(t *testing.T) {
 	ctx := t.Context()
 	orderID := orderFor(t, "", 250000)
@@ -320,20 +296,8 @@ func orderFor(t *testing.T, userID string, cents int64) uuid.UUID {
 }
 
 // TestTheLoyaltyGuardHoldsOnItsOwn proves the account lock is what serialises
-// spends, not PostgreSQL's deadlock detector.
-//
-// Three things had to be got right before this case said anything:
-//
-//  1. The case above races REDEMPTIONS, and a redemption also posts store
-//     credit — whose own guard locks the account. It passes with the loyalty
-//     guard's lock removed, because the other lock covers it.
-//  2. Racing the ledger directly was not enough either: without the lock the
-//     losers came back with DEADLOCK DETECTED, so exactly one still won and the
-//     case read as a passing lock. PostgreSQL was doing the work, by accident,
-//     and a deadlock is not a guard — it is a coin toss that happens to have
-//     one survivor.
-//  3. So the assertion is bound to the CONSTRAINT NAME. A refusal that is not
-//     loyalty_never_negative is not this guard working.
+// spends, not PostgreSQL's deadlock detector — which also leaves one survivor.
+// The assertion is bound to the constraint name for exactly that reason.
 func TestTheLoyaltyGuardHoldsOnItsOwn(t *testing.T) {
 	ctx := t.Context()
 	_, accountID := customer(t, 1000)
@@ -347,10 +311,7 @@ func TestTheLoyaltyGuardHoldsOnItsOwn(t *testing.T) {
 		wg.Go(func() {
 			<-start
 			// Through the posting FUNCTION, which is the only path goen has:
-			// `store` and `admin` hold no INSERT on the ledger. A raw insert
-			// would race without the function's own lock and deadlock — which
-			// is exactly what this case was written to stop being mistaken for
-			// a guard.
+			// `store` and `admin` hold no INSERT on the ledger.
 			_, err := pool.Exec(ctx, `
 				SELECT redeem_loyalty_points($1, 1000, 10000, $2)`,
 				accountID, fmt.Sprintf("solo:%d", i))
@@ -378,9 +339,7 @@ func TestTheLoyaltyGuardHoldsOnItsOwn(t *testing.T) {
 		t.Errorf("the balance is %d", left)
 	}
 
-	// Every loser must have been refused by THIS guard. A deadlock also leaves
-	// one survivor, so counting winners cannot tell the two apart — and a
-	// deadlock is not a guard.
+	// Every loser must have been refused by THIS guard.
 	for i, why := range refusals {
 		if won[i] {
 			continue

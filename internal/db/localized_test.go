@@ -5,7 +5,6 @@ import (
 	"testing"
 )
 
-// The bare column is what these match; localized_name() wrapping it does not.
 var (
 	readsSpecText = regexp.MustCompile(`\bproduct_specs\b`)
 	bareSpecText  = regexp.MustCompile(`(?:^|[\s,(])(?:\w+\.)?(?:label|value)\b(?:\s|,|$)`)
@@ -16,16 +15,14 @@ var (
 	readsProductText = regexp.MustCompile(`\bproducts\b`)
 	bareProductName  = regexp.MustCompile(`(?:^|[\s,(])(?:\w+\.)?name\b(?:\s|,|$)`)
 
-	// splitQueries cuts at the next `-- name:`, so each body carries the next
-	// query's introduction: strip comments or a match is made against prose.
+	// Each split body carries the NEXT query's introduction: strip comments or prose is matched.
 	sqlComment        = regexp.MustCompile(`(?m)--.*$`)
 	readsCategoryName = regexp.MustCompile(`\bcategories\b`)
 	bareCategoryName  = regexp.MustCompile(`(?:^|[\s,(])(?:\w+\.)?name\b(?:\s|,|$)`)
 	localizes         = regexp.MustCompile(`localized_name\(`)
 )
 
-// TestEveryCategoryNameIsLocalized holds localized_name as the one definition of
-// what a category is called.
+// TestEveryCategoryNameIsLocalized holds localized_name as the one definition of a category name.
 func TestEveryCategoryNameIsLocalized(t *testing.T) {
 	t.Parallel()
 
@@ -38,7 +35,6 @@ func TestEveryCategoryNameIsLocalized(t *testing.T) {
 		"AdminProducts":   "back office: the product list's category column",
 	}
 
-	// Reached by identity, never by count: a count cannot name the stale entry.
 	used := map[string]bool{}
 	for path, src := range queryFiles(t) {
 		for _, q := range splitQueries(src) {
@@ -71,8 +67,6 @@ func TestEveryCategoryNameIsLocalized(t *testing.T) {
 }
 
 // TestEverySpecLabelIsLocalized is the same rule for a spec label and its value.
-// CompareSpecs still GROUPS on the untranslated label: grouping on what the reader
-// sees would split one spec into two rows, each claimed by one product.
 func TestEverySpecLabelIsLocalized(t *testing.T) {
 	t.Parallel()
 
@@ -111,9 +105,7 @@ func TestEverySpecLabelIsLocalized(t *testing.T) {
 	}
 }
 
-// TestEveryOptionLabelIsLocalized is the picker's half of the same rule. A query
-// that MATCHES a variant against a URL selection is exempt: the URL carries the
-// canonical value, so localizing it would resolve differently per reader.
+// TestEveryOptionLabelIsLocalized is the picker's half of the same rule.
 func TestEveryOptionLabelIsLocalized(t *testing.T) {
 	t.Parallel()
 
@@ -160,10 +152,7 @@ func TestEveryOptionLabelIsLocalized(t *testing.T) {
 	}
 }
 
-// TestEveryProductNameIsLocalized is the last of the four. A query that SNAPSHOTS
-// the name onto an order line or MATCHES on it is exempt: localizing a snapshot
-// makes a receipt disagree with the one emailed, and matching one column only makes
-// the catalogue searchable in one language at a time.
+// TestEveryProductNameIsLocalized is the last of the four.
 func TestEveryProductNameIsLocalized(t *testing.T) {
 	t.Parallel()
 

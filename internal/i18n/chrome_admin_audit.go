@@ -1,19 +1,5 @@
 package i18n
 
-// The audit trail's action names.
-//
-// One key per Action constant `internal/admin` records. They are their own file
-// because they are a VOCABULARY rather than a page: the trail is read by
-// scanning a column of them, so they have to be short, parallel in shape, and
-// consistent about the verb — "Grant store credit", never "Store credit granted"
-// beside "Granting credit".
-//
-// The English says what the staff member DID, in the imperative-noun form a log
-// column wants. Where the Chinese is a state rather than an act — 折扣碼啟用狀態
-// is "the coupon's active state", written that way because one control both
-// enables and disables — the English keeps that reading rather than picking one
-// direction and being wrong half the time.
-
 var (
 	KeyAuditCustomerView   = key("audit.customer.view", Message{ZhHant: "查看顧客", En: "View customer"})
 	KeyAuditNewsletterSend = key("audit.newsletter.send", Message{ZhHant: "寄送電子報", En: "Send newsletter"})
@@ -24,10 +10,6 @@ var (
 	KeyAuditStockAdjust    = key("audit.stock.adjust", Message{ZhHant: "調整庫存", En: "Adjust stock"})
 	KeyAuditStockReceive   = key("audit.stock.receive", Message{ZhHant: "進貨", En: "Receive stock"})
 
-	// 規格 is a VARIANT here, not a spec sheet. The two share a word in Chinese
-	// on this very page — 新增規格 is a variant and 新增商品規格 is a spec row —
-	// and English has to keep them apart, or the trail says the same thing about
-	// two different acts.
 	KeyAuditVariantReprice = key("audit.variant.reprice", Message{ZhHant: "調整售價", En: "Change price"})
 	KeyAuditVariantRetire  = key("audit.variant.retire", Message{ZhHant: "規格上下架", En: "Variant availability"})
 	KeyAuditVariantCreate  = key("audit.variant.create", Message{ZhHant: "新增規格", En: "Add variant"})
@@ -45,18 +27,12 @@ var (
 		En:     "Remove product from campaign",
 	})
 
-	// An OPTION is the axis (顏色) and an option VALUE is one of its choices
-	// (星霧藍). The distinction is the picker's whole design — the URL carries
-	// the canonical value — so the trail names both halves rather than calling
-	// each "option".
 	KeyAuditOptionAdd      = key("audit.option.add", Message{ZhHant: "新增規格項目", En: "Add option"})
 	KeyAuditOptionValueAdd = key("audit.option.value.add", Message{ZhHant: "新增規格選項值", En: "Add option value"})
 
 	KeyAuditSpecAdd    = key("audit.spec.add", Message{ZhHant: "新增商品規格", En: "Add spec row"})
 	KeyAuditSpecRemove = key("audit.spec.remove", Message{ZhHant: "移除商品規格", En: "Remove spec row"})
 
-	// Attach/detach rather than add/delete: an image is content-addressed and
-	// shared, so removing it from a product does not remove the object.
 	KeyAuditImageAttach = key("audit.image.attach", Message{ZhHant: "新增商品圖片", En: "Attach product image"})
 	KeyAuditImageDetach = key("audit.image.detach", Message{ZhHant: "移除商品圖片", En: "Detach product image"})
 
@@ -85,18 +61,12 @@ var (
 	KeyAuditFAQUpdate = key("audit.faq.update", Message{ZhHant: "修改常見問題", En: "Edit FAQ entry"})
 	KeyAuditFAQDelete = key("audit.faq.delete", Message{ZhHant: "刪除常見問題", En: "Delete FAQ entry"})
 
-	// 促銷條 is the strip above the header, 主視覺 the hero below it. "Banner"
-	// for both would make the trail unable to say which one somebody changed.
 	KeyAuditBannerCreate = key("audit.banner.create", Message{ZhHant: "新增促銷條", En: "Add promo strip"})
 	KeyAuditBannerToggle = key("audit.banner.toggle", Message{ZhHant: "開關促銷條", En: "Promo strip active state"})
 	KeyAuditHeroCreate   = key("audit.hero.create", Message{ZhHant: "新增主視覺", En: "Add hero slide"})
 	KeyAuditHeroToggle   = key("audit.hero.toggle", Message{ZhHant: "主視覺啟用狀態", En: "Hero slide active state"})
-	// Promote, not "set": the hero is a QUEUE and promoting one moves it to the
-	// front of the others rather than replacing them.
-	KeyAuditHeroPromote = key("audit.hero.promote", Message{ZhHant: "切換首頁主視覺", En: "Promote hero slide"})
+	KeyAuditHeroPromote  = key("audit.hero.promote", Message{ZhHant: "切換首頁主視覺", En: "Promote hero slide"})
 
-	// Rename and not "edit": a slug is never renamed, only the display name, so
-	// the trail names the half that can actually change.
 	KeyAuditBrandCreate    = key("audit.brand.create", Message{ZhHant: "新增品牌", En: "Add brand"})
 	KeyAuditBrandRename    = key("audit.brand.rename", Message{ZhHant: "更名品牌", En: "Rename brand"})
 	KeyAuditBrandDelete    = key("audit.brand.delete", Message{ZhHant: "刪除品牌", En: "Delete brand"})

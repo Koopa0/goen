@@ -8,8 +8,7 @@ import (
 )
 
 // proxied runs r through Resolve and reports the address the limiters would key
-// on — which is the only thing about this middleware that is observable, and
-// the only thing that matters.
+// on.
 func proxied(t *testing.T, p *Proxies, r *http.Request) string {
 	t.Helper()
 
@@ -33,13 +32,8 @@ func request(t *testing.T, remoteAddr string, forwarded ...string) *http.Request
 	return r
 }
 
-// TestNothingIsTrustedUntilSomethingIsConfigured proves the default.
-//
-// This is the half that must not regress. A header read on faith is strictly
-// worse than no limiter because it looks like there is one, so the state a
-// deployment reaches by omission has to be RemoteAddr and nothing else — no
-// header consulted, no context value in play, and Resolve handing back the
-// handler it was given.
+// TestNothingIsTrustedUntilSomethingIsConfigured proves the default: RemoteAddr
+// and nothing else, with no header consulted.
 func TestNothingIsTrustedUntilSomethingIsConfigured(t *testing.T) {
 	t.Parallel()
 
@@ -58,8 +52,7 @@ func TestNothingIsTrustedUntilSomethingIsConfigured(t *testing.T) {
 		t.Errorf("ClientIP through a nil Proxies = %q, want %q", got, "203.0.113.9")
 	}
 
-	// Resolve wraps nothing when it has nothing to decide: the request that
-	// reaches the handler is the request that arrived.
+	// Resolve wraps nothing when it has nothing to decide.
 	next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
 	if got := empty.Resolve(next); got == nil {
 		t.Error("Resolve returned nil")
@@ -67,12 +60,7 @@ func TestNothingIsTrustedUntilSomethingIsConfigured(t *testing.T) {
 }
 
 // TestTheRightmostUntrustedHopIsTheClient proves which entry is believed.
-//
-// A proxy APPENDS the address it is speaking to, so the list grows left to
-// right and everything left of the last trusted hop is the client's own
-// writing. Walking from the right past the hops goen trusts is the only rule
-// that survives a client sending a header of its own; taking the leftmost —
-// the shape most frameworks ship — hands the attacker the key.
+// Taking the leftmost — the shape most frameworks ship — hands over the key.
 func TestTheRightmostUntrustedHopIsTheClient(t *testing.T) {
 	t.Parallel()
 
@@ -98,16 +86,8 @@ func TestTheRightmostUntrustedHopIsTheClient(t *testing.T) {
 			want:       "198.51.100.4",
 		},
 		{
-			// TWO trusted hops, and the answer is the inner PROXY rather than the
-			// client. That is the documented cost of taking the rightmost entry:
-			// goen steps back exactly one hop, so behind a chain everybody shares
-			// the inner proxy's bucket.
-			//
-			// It is the safe direction to be wrong in — degraded, never forged —
-			// and the alternative is what a reviewer broke: skipping entries that
-			// are themselves trusted lets any client inside the trusted CIDR
-			// choose its own key. Closing this properly needs a hop COUNT, because
-			// no set of addresses can tell a proxy from a client in the same range.
+			// The documented cost of taking the rightmost entry: behind a chain
+			// everybody shares the inner proxy's bucket. Degraded, never forged.
 			name:       "two proxies deep: the inner proxy, not the client",
 			trusted:    "10.0.0.0/8",
 			remoteAddr: "10.0.0.9:443",
@@ -150,8 +130,6 @@ func TestTheRightmostUntrustedHopIsTheClient(t *testing.T) {
 			want:       "2001:db8:beef::9",
 		},
 		{
-			// A visitor inside the trusted network, behind one proxy. The proxy
-			// appended what it saw, and that is the answer.
 			name:       "a request from inside the trusted network",
 			trusted:    "10.0.0.0/8",
 			remoteAddr: "10.0.0.9:443",
@@ -166,8 +144,6 @@ func TestTheRightmostUntrustedHopIsTheClient(t *testing.T) {
 			want:       "10.0.0.7",
 		},
 		{
-			// The whole point of the trusted set. This peer is not a proxy goen
-			// named, so its header is worth nothing whatever it says.
 			name:       "an untrusted peer's header is ignored",
 			trusted:    "10.0.0.0/8",
 			remoteAddr: "203.0.113.9:54321",
@@ -189,16 +165,9 @@ func TestTheRightmostUntrustedHopIsTheClient(t *testing.T) {
 			want:       "10.0.0.8",
 		},
 		{
-			// THE ATTACK, and the case a table covering only the obvious two
-			// misses. A spoof from OUTSIDE the trusted set and a request where
-			// every hop is trusted are both satisfied by a walk that skips any
-			// entry it trusts; the MIXED one — a trusted peer, a trusted client,
-			// and an untrusted entry the client wrote itself — is the only one
-			// that breaks under it.
-			//
-			// `.env.example` suggests 10.0.0.0/8, so every pod and VPN user is
-			// inside it. Skipping entries that are themselves trusted walks
-			// straight past the real client onto the forgery.
+			// THE ATTACK: a trusted peer, a trusted client, and an untrusted
+			// entry the client wrote itself is the only mix that breaks under a
+			// walk that skips entries it trusts.
 			name:       "a client inside the trusted CIDR cannot pick its own key",
 			trusted:    "10.0.0.0/8",
 			remoteAddr: "10.0.0.9:443",
@@ -223,12 +192,7 @@ func TestTheRightmostUntrustedHopIsTheClient(t *testing.T) {
 }
 
 // TestASpoofedHeaderBuysNoFreshAllowance is the attack this configuration must
-// not open.
-//
-// Reading no header at all is safe by construction, so every risk here arrives
-// with the trust set. The failure mode of getting it wrong is not a wrong log
-// line — it is one attacker holding an unlimited supply of keys, which is the
-// state the package doc calls strictly worse than having no limiter at all.
+// not open: one attacker holding an unlimited supply of keys.
 func TestASpoofedHeaderBuysNoFreshAllowance(t *testing.T) {
 	t.Parallel()
 
@@ -238,8 +202,7 @@ func TestASpoofedHeaderBuysNoFreshAllowance(t *testing.T) {
 	}
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour})
 
-	// One client behind the proxy, changing the part of the header it controls
-	// on every request.
+	// One client behind the proxy, changing the half of the header it controls.
 	spend := func(spoof string) bool {
 		r := request(t, "10.0.0.7:443", spoof+", 198.51.100.4")
 		_, ok := l.Allow(proxied(t, p, r))
@@ -255,8 +218,8 @@ func TestASpoofedHeaderBuysNoFreshAllowance(t *testing.T) {
 		}
 	}
 
-	// And a genuinely different client behind the same proxy is still its own
-	// key, or the rule would trade one collapse for another.
+	// A genuinely different client is still its own key, or the rule would
+	// trade one collapse for another.
 	other := request(t, "10.0.0.7:443", "198.51.100.5")
 	if _, ok := l.Allow(proxied(t, p, other)); !ok {
 		t.Error("a second client behind the proxy was refused because the first " +
@@ -265,13 +228,7 @@ func TestASpoofedHeaderBuysNoFreshAllowance(t *testing.T) {
 }
 
 // TestParseProxiesRefusesWhatCannotBeAConfiguration proves the operator's list
-// is read strictly.
-//
-// A typo that parsed as something else would silently trust the wrong network,
-// and there is no way to see that from the outside. `0.0.0.0/0` gets its own
-// case because it is not a typo — it is "believe everybody" written in a form
-// that looks like configuration, and accepting it would put the limiter back in
-// the state this whole change exists to avoid.
+// is read strictly, `0.0.0.0/0` included.
 func TestParseProxiesRefusesWhatCannotBeAConfiguration(t *testing.T) {
 	t.Parallel()
 

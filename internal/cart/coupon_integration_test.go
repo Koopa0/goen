@@ -38,8 +38,7 @@ func coupon(t *testing.T, code, kind string, amount, percent, cap_, minSpend int
 	return code
 }
 
-// TestCouponPricing is the arithmetic, and every case is a hand-computed
-// literal rather than a re-run of the code under test.
+// TestCouponPricing is the arithmetic, every case a hand-computed literal.
 func TestCouponPricing(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -62,10 +61,8 @@ func TestCouponPricing(t *testing.T) {
 		{"capped percent", "PCT20CAP", 500000, 8000, 50000, false},
 		{"percent under the cap", "PCT20CAP", 100000, 8000, 20000, false},
 		{"free shipping is not a discount", "SHIP", 500000, 8000, 0, true},
-		// The discount may never exceed the subtotal: a coupon worth more than
-		// the goods would eat the shipping fee and drive the total negative,
-		// which orders_total_non_negative refuses — a failed checkout instead
-		// of a correct one.
+		// The discount may never exceed the subtotal, or the total goes negative
+		// and orders_total_non_negative refuses the checkout.
 		{"coupon larger than the order", "BIG", 100000, 8000, 100000, false},
 		// 33% of 1001 cents truncates to 330, not 330.33. Integer throughout.
 		{"truncation favours the customer", "PCT20", 1001, 0, 200, false},
@@ -95,19 +92,14 @@ func TestCouponMinimumSpend(t *testing.T) {
 	if _, err := s.FindCoupon(ctx, "MIN1000", 99999, 0); !errors.Is(err, cart.ErrCouponMinimum) {
 		t.Errorf("below the minimum gave %v, want ErrCouponMinimum", err)
 	}
-	// Exactly the minimum qualifies — the boundary, which is where an
-	// off-by-one lives.
+	// Exactly the minimum qualifies — the boundary.
 	if _, err := s.FindCoupon(ctx, "MIN1000", 100000, 0); err != nil {
 		t.Errorf("exactly the minimum was refused: %v", err)
 	}
 }
 
-// TestUnknownAndDisabledCouponsLookTheSame proves a switched-off code is
-// indistinguishable from one that never existed.
-//
-// A disabled coupon reads as an unknown one on purpose: telling somebody
-// "this code exists but is switched off" confirms which of a shop's codes are
-// real to anyone guessing.
+// TestUnknownAndDisabledCouponsLookTheSame: telling somebody a code exists but
+// is switched off confirms which of a shop's codes are real.
 func TestUnknownAndDisabledCouponsLookTheSame(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -124,8 +116,7 @@ func TestUnknownAndDisabledCouponsLookTheSame(t *testing.T) {
 	}
 }
 
-// TestCouponCodeIsCaseInsensitive proves the lookup matches what a human typed.
-// A code is read off a card, not copied by a machine.
+// TestCouponCodeIsCaseInsensitive: a code is read off a card by a human.
 func TestCouponCodeIsCaseInsensitive(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -138,10 +129,8 @@ func TestCouponCodeIsCaseInsensitive(t *testing.T) {
 	}
 }
 
-// TestTotalRedemptionLimitIsEnforced is the one a shop loses money on.
-//
-// The limit is counted from coupon_redemptions under a lock on the coupon row,
-// never from a counter two checkouts could each read and each increment.
+// TestTotalRedemptionLimitIsEnforced. The limit is counted from
+// coupon_redemptions under a lock, never from a counter two checkouts could read.
 func TestTotalRedemptionLimitIsEnforced(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -177,9 +166,6 @@ func TestTotalRedemptionLimitIsEnforced(t *testing.T) {
 }
 
 // TestTheRedemptionMatchesTheOrdersDiscount proves the two numbers are one fact.
-//
-// The row and orders.discount_cents are one fact. Two independent numbers is
-// how a shop ends up unable to say what an order was actually given.
 func TestTheRedemptionMatchesTheOrdersDiscount(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -210,22 +196,8 @@ func TestTheRedemptionMatchesTheOrdersDiscount(t *testing.T) {
 }
 
 // TestASpentCouponIsRefusedAsItselfRatherThanAsAnUnknownFailure holds the
-// sentinel the checkout handler branches on.
-//
-// redeemCoupon MAPPED this refusal by matching strings.Contains on err.Error().
-// pgconn renders a PgError as severity + message + SQLSTATE, and the constraint
-// name RAISE sets travels in PgError.ConstraintName — it is not in that string,
-// so neither branch could ever be taken. Every over-limit redemption fell
-// through to the generic wrap, PlaceOrder's switch had no case for it, and the
-// customer got a full-page 500 with their whole checkout form discarded.
-//
-// It is not a race. FindCoupon deliberately reads no limit at all, so a spent
-// code passes the form validation every time and is refused here every time.
-//
-// TestTotalRedemptionLimitIsEnforced was already driving this exact path four
-// times against a cap of two and asserting only `placed != 2` — so the dead
-// branch executed green on every integration run. A count says the database held
-// the line; only the ERROR says what the customer is about to be shown.
+// sentinel the checkout handler branches on; anything else is a 500 with the
+// checkout form discarded. FindCoupon reads no limit, so this is not a race.
 func TestASpentCouponIsRefusedAsItselfRatherThanAsAnUnknownFailure(t *testing.T) {
 	s := cart.NewStore(pool)
 	code := coupon(t, "SPENTONCE", "amount", 10000, 0, 0, 0, 1)
@@ -238,8 +210,7 @@ func TestASpentCouponIsRefusedAsItselfRatherThanAsAnUnknownFailure(t *testing.T)
 		t.Fatalf("the first order should have gone through: %v", placeErr)
 	}
 
-	// The pre-check passes again — that is the point. The limit lives under
-	// redeem_coupon's lock and FindCoupon does not read it.
+	// The pre-check passes again — that is the point.
 	again, err := s.FindCoupon(t.Context(), code, 500000, 0)
 	if err != nil {
 		t.Fatalf("a spent coupon must still pass the field validation, "+
@@ -254,13 +225,9 @@ func TestASpentCouponIsRefusedAsItselfRatherThanAsAnUnknownFailure(t *testing.T)
 	}
 }
 
-// placeWithCoupon places an order carrying a coupon and returns its number.
-//
-// Its own variant per call, not the seeded koto-over-ear one. Placing an order
-// CONSUMES stock, and several tests here place four apiece, so every caller was
-// drawing down one shared seeded row: the suite passed in file order and failed
-// under -shuffle with "no true variant", which names an empty shelf and not the
-// coupon under test. CLAUDE.md #23, found by adding the fifth consumer.
+// placeWithCoupon places an order carrying a coupon and returns its number. Its
+// own variant per call, because placing an order consumes stock and a shared
+// seeded row fails under -shuffle.
 func placeWithCoupon(t *testing.T, s *cart.Store, c *cart.Coupon, n int) (string, error) {
 	t.Helper()
 	ctx := t.Context()
@@ -283,23 +250,12 @@ func placeWithCoupon(t *testing.T, s *cart.Store, c *cart.Coupon, n int) (string
 		"coupon-test-"+c.Code+"-"+strconv.Itoa(n))
 }
 
-// TestMoneyCeilingStaysInsideExactIntegerArithmetic is the alarm on a margin
-// the comments elsewhere rely on.
-//
-// The percentage discount is subtotal * basis_points / 10000 in int64. That is
-// exact for any input, and it also happens to agree with float64 arithmetic
-// everywhere goen can reach — because the largest product the schema allows,
-// 10^10 cents times 10^4 basis points, is 10^14, and float64 represents every
-// integer up to 2^53 ≈ 9.0e15 exactly.
-//
-// This test is the alarm on that margin. Raising the money ceiling past ~9e11
-// cents would put the product outside float64's exact range, at which point
-// "the two agree" stops being true and any float creeping into a money path
-// starts rounding differently on different totals. The integer code would still
-// be right; the reasoning in the comments would not be.
+// TestMoneyCeilingStaysInsideExactIntegerArithmetic: the discount is int64 and
+// exact, and it agrees with float64 only while the largest product the schema
+// allows, 10^10 cents by 10^4 basis points, stays inside 2^53.
 func TestMoneyCeilingStaysInsideExactIntegerArithmetic(t *testing.T) {
-	// The ceiling every money CHECK in the schema uses, read from the schema
-	// rather than restated — a literal here would pass after somebody raised it.
+	// Read from the schema rather than restated: a literal here would pass after
+	// somebody raised it.
 	var ceiling int64
 	if err := pool.QueryRow(t.Context(), `
 		-- PostgreSQL renders the literal quoted and cast: <= '10000000000'::bigint
@@ -322,31 +278,9 @@ func TestMoneyCeilingStaysInsideExactIntegerArithmetic(t *testing.T) {
 	}
 }
 
-// TestTheCouponWindowUsesOneClock proves the window is judged by the clock that
-// set it.
-//
-// starts_at defaults to the DATABASE's now(). Comparing it against Go's
-// time.Now() is comparing two clocks, and a container milliseconds ahead of its
-// host makes a coupon created a moment ago read as "not started yet" — which is
-// exactly how this surfaced.
-//
-// Both bounds are asserted, so the check cannot be satisfied by ignoring the
-// window entirely.
-// TestCancellingAnOrderGivesItsCouponSlotBack proves a cancelled checkout stops
-// consuming a coupon's limits.
-//
-// The counts had no predicate on the order at all, and coupon_redemptions is
-// append-only with INSERT, UPDATE and DELETE revoked from every role — so a
-// checkout cancelled two minutes later spent a total-limit slot and a
-// per-customer slot FOREVER. No door in the product could free either, and the
-// back office could only switch the coupon off: max_redemptions is write-once.
-//
-// The row is kept, because it is the record of what an order was charged. It is
-// the QUESTION that was wrong — the committed_orders lesson, one predicate
-// answering two things, with the shop's own cancel unable to undo what it caused.
-//
-// A PENDING unpaid order still counts, and that half matters as much: not
-// counting it is how two customers both pass the last remaining slot.
+// TestCancellingAnOrderGivesItsCouponSlotBack. coupon_redemptions is append-only
+// with every write revoked, so a slot a cancelled checkout still consumed could
+// be freed by no door. A PENDING unpaid order still counts.
 func TestCancellingAnOrderGivesItsCouponSlotBack(t *testing.T) {
 	ctx := t.Context()
 
@@ -358,8 +292,7 @@ func TestCancellingAnOrderGivesItsCouponSlotBack(t *testing.T) {
 		t.Fatalf("create coupon: %v", err)
 	}
 
-	// The header and its lines go in ONE transaction: orders_has_lines is
-	// deferred, so an order committed on its own is refused at commit.
+	// ONE transaction: orders_has_lines is deferred.
 	place := func(t *testing.T) uuid.UUID {
 		t.Helper()
 		tx, err := pool.Begin(ctx)
@@ -402,8 +335,7 @@ func TestCancellingAnOrderGivesItsCouponSlotBack(t *testing.T) {
 		t.Fatalf("first redemption: %v", err)
 	}
 
-	// While it is still pending, the slot is taken — a second checkout must not
-	// get it.
+	// While it is still pending, the slot is taken.
 	second := place(t)
 	if _, err := pool.Exec(ctx, `SELECT redeem_coupon($1, $2, NULL, 20000)`,
 		couponID, second); err == nil {
@@ -425,6 +357,8 @@ func TestCancellingAnOrderGivesItsCouponSlotBack(t *testing.T) {
 	}
 }
 
+// TestTheCouponWindowUsesOneClock. starts_at defaults to the DATABASE's now(),
+// so comparing it against Go's time.Now() is comparing two clocks.
 func TestTheCouponWindowUsesOneClock(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)

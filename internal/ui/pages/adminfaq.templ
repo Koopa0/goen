@@ -8,10 +8,6 @@ import (
 )
 
 // AdminFAQ renders the FAQ management page.
-//
-// It exists because CLAUDE.md claimed /faq let support "answer a recurring question
-// without a deploy" and nothing could write the table. The claim was the design
-// intent; this is the door.
 templ AdminFAQ(p layouts.Page, v *AdminFAQView) {
 	@layouts.Base(p) {
 		<div class="goen-admin">
@@ -118,8 +114,6 @@ templ AdminFAQ(p layouts.Page, v *AdminFAQView) {
 											<span class="ui-badge ui-badge--warn">{ i18n.T(ctx, i18n.KeyAdminUntranslated) }</span>
 										}
 									</div>
-									// One form per row: editing a FAQ answer is typing
-									// into it, not opening a second page.
 									<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/faq/" + e.ID) }>
 										<div class="ui-field">
 											<label class="goen-sr-only" for={ "q-" + e.ID }>{ i18n.T(ctx, i18n.KeyAdminFaqpQuestion) }</label>

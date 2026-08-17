@@ -18,13 +18,10 @@ import (
 type Handler struct {
 	store *Store
 	log   *slog.Logger
-	// limit bounds code submissions. A six-digit code is a million
-	// possibilities, which sounds like a lot until an unthrottled endpoint is
-	// asked a thousand times a second — that is under twenty minutes for a
-	// single account, and the code only has to be right once.
+	// limit bounds code submissions: unthrottled, a million possibilities is
+	// under twenty minutes at a thousand guesses a second.
 	limit *ratelimit.Limiter
-	// secure selects the session cookie's name, the same way every other
-	// package that reads it does.
+	// secure selects the session cookie's name.
 	secure bool
 }
 
@@ -35,9 +32,8 @@ func NewHandler(store *Store, log *slog.Logger, secure bool) *Handler {
 	}
 	return &Handler{
 		store: store, log: log, secure: secure,
-		// Ten attempts, one back a minute. A person reading a code off their
-		// phone never meets it; a script gets 60 guesses an hour against a
-		// million possibilities, which is 1,900 years.
+		// Ten attempts, one back a minute: 60 guesses an hour against a million
+		// possibilities is 1,900 years.
 		limit: ratelimit.New(ratelimit.Config{
 			Every: time.Minute, Burst: 10, TTL: time.Hour,
 		}),
@@ -118,8 +114,6 @@ func (h *Handler) Enrol(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/admin/verify?disabled=1", http.StatusSeeOther)
 			return
 		}
-		// Already proved. Not an error the person can act on by retrying, so it
-		// says who CAN act: another admin removes the credential.
 		if errors.Is(err, ErrEnrolled) {
 			http.Redirect(w, r, "/admin/verify?enrolled=1", http.StatusSeeOther)
 			return
@@ -128,9 +122,8 @@ func (h *Handler) Enrol(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "500", http.StatusInternalServerError)
 		return
 	}
-	// Rendered directly rather than redirected to: the secret exists in this
-	// response and nowhere else, and a redirect would either lose it or have to
-	// carry it in a URL — into the browser history and every access log.
+	// Rendered rather than redirected to: a redirect would have to carry the
+	// secret in a URL, into the browser history and every access log.
 	web.Render(w, r, h.log, http.StatusOK, pages.TwoFactor(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTwoFactor)}, pages.TwoFactorView{
 			Enabled: true, Enrolling: true,
@@ -158,8 +151,7 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/verify?badenrol=1", http.StatusSeeOther)
 		return
 	}
-	// Confirming proves the factor, so the session is verified too — asking for
-	// a second code immediately after the first would be ceremony, not security.
+	// Confirming proves the factor, so the session is verified too.
 	if token := account.ReadSessionCookie(r, h.secure); token != "" {
 		if err := h.store.MarkVerified(r.Context(), token); err != nil {
 			h.log.ErrorContext(r.Context(), "mark session verified", "error", err)
@@ -186,10 +178,6 @@ func noticeFor(r *http.Request) string {
 
 // StepUp reports whether a request's session has proved a second factor
 // recently.
-//
-// Handed to internal/admin as a function so that package depends on one answer
-// rather than on this whole package — and so a deployment with no encryption
-// key can pass nil and get a back office that behaves as it did before.
 func (h *Handler) StepUp(r *http.Request) (bool, error) {
 	token := account.ReadSessionCookie(r, h.secure)
 	if token == "" {
@@ -199,10 +187,6 @@ func (h *Handler) StepUp(r *http.Request) (bool, error) {
 }
 
 // Staff serves GET /admin/staff.
-//
-// Behind RequireStaff and the step-up like every other back-office page: who
-// has a second factor is a map of where the back office is weakest, and that is
-// not a thing to leave reachable with a password alone.
 func (h *Handler) Staff(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Staff(r.Context())
 	if err != nil {
@@ -214,18 +198,13 @@ func (h *Handler) Staff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !h.store.Enabled() {
-		// GOEN_TOTP_KEY is empty, so enrolment is off. Saying so is the honest
-		// answer: without it the page reads as "nobody has bothered".
 		view.Notice = i18n.T(r.Context(), i18n.KeyTOTPNoKeyNotice)
 	}
 	if u, ok := account.FromContext(r.Context()); ok {
 		view.Actor = u.ID
 	}
-	// Only when there IS one. This used to assign unconditionally, which on an
-	// ordinary visit — no query flag, so an empty string — silently overwrote the
-	// "GOEN_TOTP_KEY 沒有設定" warning set above. The one message telling an
-	// operator their second factor is off was dead code from the day it was
-	// written, on the only page that could have shown it.
+	// Only when there IS one: an unconditional assignment overwrites the
+	// no-key warning set above with an empty string on an ordinary visit.
 	if n := staffNotice(r); n != "" {
 		view.Notice = n
 	}
@@ -255,11 +234,6 @@ func (h *Handler) RevokeStaff(w http.ResponseWriter, r *http.Request) {
 }
 
 // RemoveFactor serves POST /admin/staff/factor.
-//
-// The recovery path CLAUDE.md has described since 2FA shipped: another admin
-// removes the credential, and the person enrols again on their new phone. The
-// store method for it existed with no caller, so an admin who lost their
-// authenticator was locked out of the back office permanently.
 func (h *Handler) RemoveFactor(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)

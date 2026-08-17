@@ -4,18 +4,12 @@ import "context"
 
 // Banner is the site-wide promotional strip above the header.
 type Banner struct {
-	// ID is what a dismissal is keyed on, so the next promotion reappears for
-	// somebody who closed this one.
-	ID string
-	// Message is the wide copy; MessageShort is different copy for a narrow
-	// screen rather than a truncation of it.
+	ID           string
 	Message      string
 	MessageShort string
-	// Code is a discount code, rendered as a selectable chip.
-	Code string
-	// CTALabel and CTAHref are both or neither.
-	CTALabel string
-	CTAHref  string
+	Code         string
+	CTALabel     string
+	CTAHref      string
 }
 
 // Shown reports whether there is a promotion to draw.

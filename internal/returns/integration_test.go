@@ -41,9 +41,8 @@ func TestMain(m *testing.M) {
 }
 
 // shippedOrder writes a paid order with one line of `ordered` units, of which
-// `shipped` have gone out. The gap between the two is the whole point: a return
-// is bounded by what LEFT, and an order where those numbers are equal cannot
-// tell the two ceilings apart.
+// `shipped` have gone out. An order where the two are equal cannot tell the two
+// ceilings apart.
 func shippedOrder(t *testing.T, ordered, shipped int32) (number string, lineID uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
@@ -96,10 +95,8 @@ func shippedOrder(t *testing.T, ordered, shipped int32) (number string, lineID u
 	return number, lineID
 }
 
-// TestReturnableIsWhatShippedNotWhatWasOrdered is the rule round 5 deferred.
-//
-// A customer who could open a return for goods still in the warehouse would —
-// once refunds pay out on approval — be paid for them.
+// TestReturnableIsWhatShippedNotWhatWasOrdered proves a return cannot claim
+// goods still in the warehouse, which refunds would then pay out on.
 func TestReturnableIsWhatShippedNotWhatWasOrdered(t *testing.T) {
 	s := returns.NewStore(pool)
 
@@ -130,17 +127,9 @@ func TestReturnableIsWhatShippedNotWhatWasOrdered(t *testing.T) {
 	}
 }
 
-// TestOpenRefusesMoreThanShipped proves an over-claim writes nothing.
-//
-// It does NOT prove the Go-side ceiling check, and cannot: return_within_shipment
-// refuses the same claim underneath and Open wraps that as ErrInvalid too, so
-// the two are indistinguishable from here. Removing the Go check leaves this
-// test green — which was worth finding out rather than assuming.
-//
-// The DATABASE is the lock, and it is proven by mutation in internal/db
-// (TestRulesReject/return_within_shipment). The Go check earns its place by
-// turning a constraint violation into a message on the form, not by being the
-// guarantee.
+// TestOpenRefusesMoreThanShipped proves an over-claim writes nothing. It does
+// NOT prove the Go-side check: return_within_shipment refuses the same claim and
+// Open wraps it as ErrInvalid too, so deleting the Go check leaves this green.
 func TestOpenRefusesMoreThanShipped(t *testing.T) {
 	ctx := t.Context()
 	s := returns.NewStore(pool)
@@ -164,9 +153,8 @@ func TestOpenRefusesMoreThanShipped(t *testing.T) {
 	}
 }
 
-// TestOpenWritesHeaderAndLinesTogether. A header with no lines is a row in the
-// back-office queue asking for nothing, and every quantity guard lives on the
-// lines — so a header committed alone has passed no check at all.
+// TestOpenWritesHeaderAndLinesTogether proves a header cannot commit alone,
+// which would be a claim past every quantity guard.
 func TestOpenWritesHeaderAndLinesTogether(t *testing.T) {
 	ctx := t.Context()
 	s := returns.NewStore(pool)
@@ -198,7 +186,6 @@ func TestOpenWritesHeaderAndLinesTogether(t *testing.T) {
 		t.Errorf("%d lines totalling %d, want 1 line of 2", lines, quantity)
 	}
 
-	// The claimed units come off what is still returnable.
 	o, err := s.Order(ctx, number)
 	if err != nil {
 		t.Fatalf("re-read: %v", err)
@@ -210,8 +197,7 @@ func TestOpenWritesHeaderAndLinesTogether(t *testing.T) {
 }
 
 // TestOnlyOneOpenRequestAtATime proves a second request is refused while one is
-// still undecided. Without it a customer waiting on a decision files the same
-// thing again, and the back office sees two rows for one parcel.
+// still undecided.
 func TestOnlyOneOpenRequestAtATime(t *testing.T) {
 	ctx := t.Context()
 	s := returns.NewStore(pool)
@@ -227,17 +213,8 @@ func TestOnlyOneOpenRequestAtATime(t *testing.T) {
 	}
 }
 
-// TestOpenRefusesAnEmptyRequest proves the form's own validation.
-//
-// The two REASON rows are gone, and they were asserting a defect. This test used
-// to be TestOpenRefusesAnEmptyOrReasonlessRequest and demanded that a blank
-// reason be refused — while /returns states 消保法 §19 I, under which rescinding
-// inside seven days is done 無須說明理由. The requirement stood in three places
-// at once (here, `required` on the textarea, and a CHECK in the schema), so a
-// customer exercising an unwaivable statutory right could not submit the form.
-//
-// A reasonless request is now legal and has its own case below. What is still
-// refused is a request with nothing IN it: no lines is not a return.
+// TestOpenRefusesAnEmptyRequest proves the form's own validation. A blank reason
+// is legal and has its own case below; a request with no lines is not a return.
 func TestOpenRefusesAnEmptyRequest(t *testing.T) {
 	ctx := t.Context()
 	s := returns.NewStore(pool)
@@ -265,15 +242,8 @@ func TestOpenRefusesAnEmptyRequest(t *testing.T) {
 	}
 }
 
-// TestAReturnNeedsNoReason holds 消保法 §19 I, which says a customer rescinding a
-// 通訊交易 inside seven days does so 無須說明理由 — and §19 V voids any agreement
-// to the contrary, so this is not the shop's to require.
-//
-// It was required in three places at once: internal/returns' own Validate,
-// `required` on the textarea, and return_requests_reason_present in the schema.
-// A page stating a right the form refuses to let anybody exercise is the shape
-// this whole batch keeps finding, and the schema half is the one no amount of
-// form-fiddling could talk its way past.
+// TestAReturnNeedsNoReason holds Consumer Protection Act §19 I: rescinding
+// inside seven days needs no reason, and §19 V makes that unwaivable.
 func TestAReturnNeedsNoReason(t *testing.T) {
 	ctx := t.Context()
 	s := returns.NewStore(pool)
@@ -291,18 +261,15 @@ func TestAReturnNeedsNoReason(t *testing.T) {
 	}
 }
 
-// TestReasonIsBoundedInRunesNotBytes proves the length limit counts characters.
-//
-// A Traditional Chinese reason is three bytes a character. A byte limit would
-// cut a Chinese customer off at a third of the length an English one gets, and
-// could split a character in half.
+// TestReasonIsBoundedInRunesNotBytes proves the length limit counts characters,
+// so a Chinese customer is not cut off at a third of an English one's room.
 func TestReasonIsBoundedInRunesNotBytes(t *testing.T) {
 	ctx := t.Context()
 	s := returns.NewStore(pool)
 	number, lineID := shippedOrder(t, 2, 2)
 	id := lineID.String()
 
-	// 500 Han characters: 500 runes, 1500 bytes. At the limit, so accepted.
+	// 500 runes, 1500 bytes: at the limit, so accepted.
 	atLimit := strings.Repeat("退", returns.MaxReasonRunes)
 	if err := s.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
 		Reason: atLimit, Lines: map[string]int32{id: 1},

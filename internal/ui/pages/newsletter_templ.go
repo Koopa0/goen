@@ -13,9 +13,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// NewsletterAction is the page a link in a newsletter email opens. Following
-// the link writes nothing: link scanners fetch the URLs in a message before a
-// human sees it, and a confirmation a scanner can complete is not one.
+// NewsletterAction is the page a newsletter link opens; it writes nothing.
 func NewsletterAction(p layouts.Page, v NewsletterActionView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -56,7 +54,7 @@ func NewsletterAction(p layouts.Page, v NewsletterActionView) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(v.Heading)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/newsletter.templ`, Line: 14, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/newsletter.templ`, Line: 12, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -69,7 +67,7 @@ func NewsletterAction(p layouts.Page, v NewsletterActionView) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(v.Body)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/newsletter.templ`, Line: 15, Col: 40}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/newsletter.templ`, Line: 13, Col: 40}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -87,7 +85,7 @@ func NewsletterAction(p layouts.Page, v NewsletterActionView) templ.Component {
 				var templ_7745c5c3_Var5 templ.SafeURL
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(v.Action))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/newsletter.templ`, Line: 17, Col: 77}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/newsletter.templ`, Line: 15, Col: 77}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -100,7 +98,7 @@ func NewsletterAction(p layouts.Page, v NewsletterActionView) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Token)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/newsletter.templ`, Line: 18, Col: 54}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/newsletter.templ`, Line: 16, Col: 54}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 				if templ_7745c5c3_Err != nil {
@@ -113,7 +111,7 @@ func NewsletterAction(p layouts.Page, v NewsletterActionView) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(v.Submit)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/newsletter.templ`, Line: 19, Col: 79}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/newsletter.templ`, Line: 17, Col: 79}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -131,7 +129,7 @@ func NewsletterAction(p layouts.Page, v NewsletterActionView) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyBackToShop))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/newsletter.templ`, Line: 22, Col: 77}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/newsletter.templ`, Line: 20, Col: 77}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {

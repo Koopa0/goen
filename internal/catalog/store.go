@@ -27,12 +27,9 @@ func NewStore(dbtx db.DBTX) *Store {
 	return &Store{q: db.New(dbtx)}
 }
 
-// Listing reads one page of a category listing, with its crumbs and facets.
-//
-// The descendant expansion happens here rather than in the page query so the
-// same set of ids serves the listing, the count and the brand facet — three
-// reads that must agree about which categories are in scope or the facet counts
-// describe a different page than the one shown.
+// Listing reads one page of a category listing, with its crumbs and facets. One
+// set of descendant ids serves the listing, the count and the brand facet, which
+// otherwise disagree about scope.
 func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.ListingView, error) {
 	cat, err := s.q.CategoryBySlug(ctx, db.CategoryBySlugParams{
 		Slug: slug, Locale: string(i18n.FromContext(ctx)),
@@ -54,9 +51,6 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		return pages.ListingView{}, fmt.Errorf("read brands for %q: %w", slug, err)
 	}
 
-	// Brand slugs arrive from the query string; map them to ids here so an
-	// unknown slug narrows to nothing rather than being silently ignored, which
-	// would show an unfiltered page under a filtered URL.
 	brandIDs := make([]uuid.UUID, 0, len(f.BrandSlugs))
 	selected := make(map[string]bool, len(f.BrandSlugs))
 	for _, want := range f.BrandSlugs {
@@ -68,9 +62,8 @@ func (s *Store) Listing(ctx context.Context, slug string, f Filters) (pages.List
 		}
 	}
 	if len(f.BrandSlugs) > 0 && len(brandIDs) == 0 {
-		// Every named brand was unknown here. uuid.Nil matches no product, which
-		// is the honest answer: the visitor asked for something this category
-		// does not carry.
+		// Every named brand was unknown here, and uuid.Nil matches no product —
+		// an unfiltered page under a filtered URL would be the wrong answer.
 		brandIDs = append(brandIDs, uuid.Nil)
 	}
 
@@ -146,9 +139,8 @@ func (s *Store) Search(ctx context.Context, pattern string, page int) (pages.Sea
 	}, nil
 }
 
-// crumbs pairs the ancestor slugs with their names. The two arrays come from
-// one query ordered identically, but a mismatched length would silently shift
-// every label onto the wrong link, so the shorter one wins.
+// crumbs pairs the ancestor slugs with their names. The shorter array wins: a
+// mismatched length would shift every label onto the wrong link.
 func crumbs(slugs, names []string) []pages.Crumb {
 	n := min(len(slugs), len(names))
 	out := make([]pages.Crumb, 0, n)
@@ -207,11 +199,6 @@ func searchTiles(rows []db.SearchProductsRow) []pages.ProductTile {
 }
 
 // Deals reads the products with something marked down.
-//
-// It returns a SearchView because a deals page and a search results page are the
-// same shape: a heading, a grid of product tiles, and a pager. A second view
-// model with the same fields would be two things to keep in step for no reason
-// a reader could name.
 func (s *Store) Deals(ctx context.Context, page int) (pages.SearchView, error) {
 	rows, err := s.q.DealProducts(ctx, db.DealProductsParams{
 		Locale:     string(i18n.FromContext(ctx)),
@@ -234,11 +221,8 @@ func (s *Store) Deals(ctx context.Context, page int) (pages.SearchView, error) {
 	}, nil
 }
 
-// dealTiles is searchTiles for the deals query.
-//
-// The same fields, and a duplicate for a reason worth naming: sqlc emits a
-// distinct row struct per query, so one function cannot take both without an
-// interface or reflection. Twenty lines of assignment beat either.
+// dealTiles is searchTiles for the deals query; sqlc emits a row struct per
+// query, so one function cannot take both.
 func dealTiles(rows []db.DealProductsRow) []pages.ProductTile {
 	out := make([]pages.ProductTile, 0, len(rows))
 	for i := range rows {

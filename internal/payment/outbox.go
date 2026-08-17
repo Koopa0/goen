@@ -11,9 +11,8 @@ import (
 	"github.com/koopa0/goen/internal/outbox"
 )
 
-// OrderPaid is what an order.paid message carries. Deliberately a separate type
-// from email.OrderPaid, which decodes it; the two are held equal by
-// TestEveryMailPayloadMatchesItsProducer.
+// OrderPaid is what an order.paid message carries. It is deliberately a
+// separate type from email.OrderPaid, which decodes it.
 type OrderPaid struct {
 	Locale      string `json:"locale"`
 	OrderNumber string `json:"order_number"`
@@ -23,9 +22,8 @@ type OrderPaid struct {
 	Card        string `json:"card"`
 }
 
-// enqueueOrderPaid writes the receipt in the CAPTURE's transaction, so the money
-// moving and the promise to say so commit together. The dedupe key is the order
-// number, so at-least-once delivery produces one receipt.
+// enqueueOrderPaid writes the receipt in the capture's transaction, keyed on the
+// order number so at-least-once delivery produces one receipt.
 func enqueueOrderPaid(ctx context.Context, q *db.Queries, orderID uuid.UUID, p *OrderPaid) error {
 	to, err := q.OrderRecipient(ctx, orderID)
 	if err != nil {
@@ -35,7 +33,7 @@ func enqueueOrderPaid(ctx context.Context, q *db.Queries, orderID uuid.UUID, p *
 		// An erased order: nobody to tell, and no failure to report.
 		return nil
 	}
-	// Off the ORDER: a capture runs from a webhook, where nobody is reading.
+	// Off the order: a capture runs from a webhook, where nobody is reading.
 	p.Email, p.Name, p.Locale = to.Email, to.RecipientName, to.Locale
 
 	payload, err := json.Marshal(p)

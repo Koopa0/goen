@@ -15,9 +15,7 @@ type CampaignSummary struct {
 	Title    string
 	Products int64
 	EndsAt   string
-	// EndsIn is roughly how long is left, computed server-side: a precise
-	// countdown that only moves on reload is worse than none.
-	EndsIn string
+	EndsIn   string
 }
 
 // Href is the campaign's page.

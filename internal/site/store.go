@@ -36,13 +36,6 @@ func (s *Store) FAQEntries(ctx context.Context) ([]db.FAQEntriesRow, error) {
 
 // ShippingPolicy is each active method's current version, with the zones that
 // cost extra to reach.
-//
-// Two queries and not one, because the surcharges come back as ROWS and the
-// phrase around them is assembled where a locale exists. A string_agg in SQL
-// would build the sentence instead — correct figures in words no locale chose,
-// which is chrome written where nobody can ask who is reading. The second query
-// is keyed on the versions the first returned, so it is one round trip rather
-// than one per method.
 func (s *Store) ShippingPolicy(ctx context.Context) ([]pages.ShippingMethod, error) {
 	rows, err := s.q.ShippingPolicy(ctx, string(i18n.FromContext(ctx)))
 	if err != nil {

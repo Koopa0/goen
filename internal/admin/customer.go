@@ -14,8 +14,6 @@ import (
 )
 
 // Customers searches for a customer by the start of their address or their name.
-// Nothing is listed until somebody searches: a customer list is a page of
-// addresses, and a back office that opens on one invites reading it.
 func (s *Store) Customers(ctx context.Context, term string) (pages.AdminCustomersView, error) {
 	term = strings.TrimSpace(term)
 	view := pages.AdminCustomersView{Term: term}
@@ -42,9 +40,6 @@ func (s *Store) Customers(ctx context.Context, term string) (pages.AdminCustomer
 }
 
 // Customer reads one customer, whole, and RECORDS that somebody looked.
-//
-// The audit row is the exception to audit_events being a record of writes: this
-// is the one page whose entire content is somebody else's personal data.
 func (s *Store) Customer(ctx context.Context, id string, actor uuid.NullUUID) (
 	pages.AdminCustomerView, error,
 ) {
@@ -75,8 +70,7 @@ func (s *Store) Customer(ctx context.Context, id string, actor uuid.NullUUID) (
 		return pages.AdminCustomerView{}, fmt.Errorf("read customer orders: %w", err)
 	}
 
-	// WHO was looked at, never what was read: audit_events is append-only and
-	// erase_user does not reach it, so an address here outlives the erasure.
+	// WHO was looked at, never what was read: audit_events outlives an erasure.
 	if auditErr := auditIn(ctx, q, Event{
 		Action: ActionViewCustomer, Table: "users", ID: nullableID(uid),
 		Before: nil, After: map[string]any{"user_id": id},
@@ -97,7 +91,7 @@ func (s *Store) Customer(ctx context.Context, id string, actor uuid.NullUUID) (
 		o := &orders[i]
 		view.Recent = append(view.Recent, pages.AdminOrderRow{
 			Number: o.OrderNumber, Status: o.FulfillmentStatus,
-			StatusText: StatusLabel(ctx, o.FulfillmentStatus),
+			StatusText: FundedStatusLabel(ctx, o.FulfillmentStatus, o.Committed, o.OwedCents),
 			PlacedAt:   o.PlacedAt.Format("2006-01-02 15:04"),
 			TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
 		})

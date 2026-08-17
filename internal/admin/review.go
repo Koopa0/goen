@@ -29,11 +29,7 @@ func (s *Store) Reviews(ctx context.Context) (pages.AdminReviewsView, error) {
 	return view, nil
 }
 
-// SetReviewHidden hides a review or puts it back.
-//
-// Hiding takes it out of the SCORE as well as the list, because every rating is
-// computed from visible_reviews. Hide and show are separate calls, never a
-// toggle, so a double-submitted form cannot un-hide what was just hidden.
+// SetReviewHidden hides a review or puts it back; separate calls, never a toggle.
 func (s *Store) SetReviewHidden(ctx context.Context, id string, hidden bool) error {
 	reviewID, err := uuid.Parse(id)
 	if err != nil {
@@ -47,9 +43,7 @@ func (s *Store) SetReviewHidden(ctx context.Context, id string, hidden bool) err
 	return s.audited(ctx, Event{
 		Action: action, Table: "product_reviews", ID: nullableID(reviewID),
 		Before: nil,
-		// Never the review's own words: audit_events is append-only where
-		// product_reviews is not, so a body copied here outlives an erasure.
-		After: map[string]any{"review_id": id, "hidden": hidden},
+		After:  map[string]any{"review_id": id, "hidden": hidden},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			var n int64
@@ -63,7 +57,6 @@ func (s *Store) SetReviewHidden(ctx context.Context, id string, hidden bool) err
 				return fmt.Errorf("set review hidden: %w", setErr)
 			}
 			if n == 0 {
-				// Already in the state asked for, or gone.
 				return ErrNotFound
 			}
 			return nil

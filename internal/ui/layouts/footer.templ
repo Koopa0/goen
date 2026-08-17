@@ -34,8 +34,6 @@ templ Footer() {
 				}
 			</nav>
 			if i18n.FromContext(ctx) != i18n.Default {
-				// The chrome follows the language and the content is authored in
-				// one, so an English visitor is told rather than left to find out.
 				<p class="ui-sm goen-footer__contentnote">{ i18n.T(ctx, i18n.KeyContentNotice) }</p>
 			}
 			<div class="goen-footer__news">
@@ -57,9 +55,7 @@ templ Footer() {
 		</div>
 		<div class="goen-footer__bottom">
 			<div class="goen-footer__bottominner">
-				// i18n-exempt: a company registration line. The 統編 is a Taiwanese tax
-				// number and the legal name is the legal name; translating either
-				// would misstate a matter of record.
+				// i18n-exempt: a company registration line: a legal name and a tax number.
 				<span class="caption">© 2026 goen Co., Ltd. 統編 90123456</span>
 				// i18n-exempt: a language's own name, shown in both locales on purpose.
 				@languageSwitch("goen-footer__lang", "繁體中文", "English")
@@ -68,16 +64,14 @@ templ Footer() {
 	</footer>
 }
 
-// NewsletterState carries the outcome of a subscribe attempt back into the
-// footer form; the zero value is the form's initial state.
+// NewsletterState carries the outcome of a subscribe attempt into the form.
 type NewsletterState struct {
 	Email string
 	Error string
 	Done  bool
 }
 
-// NewsletterForm posts to /newsletter as a plain form; the hx-* attributes only
-// change what is written back.
+// NewsletterForm posts to /newsletter as a plain form.
 templ NewsletterForm(s NewsletterState) {
 	<form
 		class="goen-footer__signup"
