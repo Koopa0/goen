@@ -12,9 +12,12 @@ import (
 templ compareForm() {
 	<form class="goen-compare-pick" method="get" action="/compare">
 		{ children... }
-		<button class="ui-btn ui-btn--secondary goen-compare-pick__go" type="submit">
-			{ i18n.T(ctx, i18n.KeyCompareSelected) }
-		</button>
+		<div class="goen-compare-pick__go">
+			<button class="ui-btn ui-btn--secondary" type="submit">
+				{ i18n.T(ctx, i18n.KeyCompareSelected) }
+			</button>
+			<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyCompareLimit) }</span>
+		</div>
 	</form>
 }
 
