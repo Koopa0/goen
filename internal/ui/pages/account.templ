@@ -7,11 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// SignIn renders the sign-in form.
-//
-// The form-level error is one message for a wrong email and a wrong password
-// alike. Telling them apart would tell an attacker which addresses have
-// accounts, which is worth more than the small convenience of a precise message.
+// SignIn renders the sign-in form; one message covers both refusals.
 templ SignIn(p layouts.Page, v AuthView) {
 	@layouts.Base(p) {
 		<div class="goen-auth">
@@ -56,11 +52,6 @@ templ SignIn(p layouts.Page, v AuthView) {
 					</button>
 				</form>
 				if v.GoogleSignIn {
-					// A LINK, not a form: it writes no application state, only a
-					// short-lived cookie carrying the state and the PKCE verifier.
-					// Absent entirely when no credentials are configured, so a
-					// deployment without them looks like one that never offered it
-					// rather than one whose button fails.
 					<div class="goen-auth__alt">
 						<a class="ui-btn ui-btn--secondary ui-btn--block goen-auth__oauth" href={ templ.SafeURL(v.GoogleLink()) }>
 							{ i18n.T(ctx, i18n.KeySignInWithGoogle) }
@@ -176,8 +167,7 @@ templ Register(p layouts.Page, v AuthView) {
 	}
 }
 
-// Account renders the account landing page: orders, addresses, and the profile
-// form.
+// Account renders the account landing page.
 templ Account(p layouts.Page, v *AccountView) {
 	@layouts.Base(p) {
 		<div class="goen-account">
@@ -209,20 +199,11 @@ templ Account(p layouts.Page, v *AccountView) {
 					{ fmt.Sprintf(i18n.T(ctx, i18n.KeySpendLastYear), v.Standing.Spend()) }
 				</span>
 				if v.Standing.HasNext() {
-					// The only part of this a customer can act on.
 					<span class="ui-cart-line__meta">
 						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyNextTier), v.Standing.NextNeeds(), v.Standing.NextName) }
 					</span>
 				}
 			</section>
-			// Every account page, linked from the one place a customer lands.
-			// Four of these existed as routes with no link from anywhere: a
-			// feature reachable only by typing its URL is one nobody uses, and
-			// building it was the easy half.
-			// Orders are NOT here: they are the list further down this page,
-			// and a link to /account/orders would be a link to a route that
-			// does not exist. The reachability sweep believed it because it
-			// checks that something links TO a route, not that a link resolves.
 			<nav class="goen-account__nav" aria-label={ i18n.T(ctx, i18n.KeyAccountNav) }>
 				<a class="goen-account__navitem" href="/account/points">
 					<span class="goen-account__navname">{ i18n.T(ctx, i18n.KeyLoyaltyPoints) }</span>
@@ -300,9 +281,6 @@ templ Account(p layouts.Page, v *AccountView) {
 										<span class="ui-cart-line__meta">{ a.Line() }</span>
 										<div class="goen-account__addractions">
 											if !a.Default {
-												// Nothing could move the default before this: the
-												// first address saved became it and stayed it, and
-												// checkout prefills from whichever one it is.
 												<form method="post" action="/account/addresses/default">
 													<input type="hidden" name="address" value={ a.ID }/>
 													<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyMakeDefault) }</button>
@@ -418,9 +396,6 @@ templ Account(p layouts.Page, v *AccountView) {
 							</form>
 						</details>
 					</section>
-					// How this account can be signed into. Shown because a customer
-					// who has forgotten they used Google reads a password that does
-					// not work as a broken account.
 					if v.GoogleLinked {
 						<section class="goen-account__section" aria-labelledby="google-heading">
 							<h2 id="google-heading" class="goen-account__heading">{ i18n.T(ctx, i18n.KeyLinkedAccounts) }</h2>
@@ -430,8 +405,6 @@ templ Account(p layouts.Page, v *AccountView) {
 									<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyUnlinkGoogle) }</button>
 								</form>
 							} else {
-								// Absent rather than refused: unlinking the only way in
-								// leaves nobody able to reach the account.
 								<p class="ui-hint">{ i18n.T(ctx, i18n.KeyGoogleOnlyMethod) }</p>
 							}
 						</section>
@@ -458,8 +431,7 @@ templ Account(p layouts.Page, v *AccountView) {
 	}
 }
 
-// AccountOrderPage renders one order for its owner, with the delivery details
-// the confirmation page does not show.
+// AccountOrderPage renders one order for its owner, delivery details included.
 templ AccountOrderPage(p layouts.Page, v *AccountOrderView) {
 	@layouts.Base(p) {
 		<div class="goen-order">
@@ -475,18 +447,10 @@ templ AccountOrderPage(p layouts.Page, v *AccountOrderView) {
 				</div>
 				<div class="ui-page-head__actions">
 					<span class="ui-badge">{ v.StatusText(ctx) }</span>
-					// 再買一次. A plain POST that fills the cart from what this
-					// order held, at today's prices — a reorder is a new
-					// purchase, not a copy of an old one.
 					<form method="post" action={ templ.SafeURL("/orders/" + v.Number + "/reorder") }>
 						<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyOrderReorder) }</button>
 					</form>
 					if v.CanRegisterWarranty() {
-						// The warranty page's own copy says to register from here,
-						// and this link is what makes that sentence true:
-						// /account/warranty reaches the LIST, and the form lives one
-						// level down at /account/warranty/{number} with nothing
-						// anywhere pointing at it.
 						<a class="ui-btn ui-btn--secondary" href={ templ.SafeURL(v.WarrantyLink()) }>
 							{ i18n.T(ctx, i18n.KeyWarrantyTitle) }
 						</a>
@@ -494,10 +458,6 @@ templ AccountOrderPage(p layouts.Page, v *AccountOrderView) {
 				</div>
 			</div>
 			if v.AwaitingPayment() {
-				// The link matters as much as the sentence. This notice said an
-				// order was unpaid and offered nothing to do about it, on the one
-				// page a signed-in customer reaches their orders from — the same
-				// orphan shape as a route nothing links to.
 				<p class="ui-alert ui-alert--info" role="status">
 					{ i18n.T(ctx, i18n.KeyPayLaterNotice) }
 					<a href={ templ.SafeURL("/orders/" + v.Number + "/pay") }>{ i18n.T(ctx, i18n.KeyPay) }</a>

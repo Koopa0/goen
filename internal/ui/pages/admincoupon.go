@@ -29,8 +29,7 @@ type AdminCoupon struct {
 	EndsAt      string
 }
 
-// Value is what it takes off, written the way somebody running the promotion
-// would say it.
+// Value is what it takes off.
 func (c AdminCoupon) Value(ctx context.Context) string {
 	switch c.Kind {
 	case "amount":
@@ -68,11 +67,7 @@ func (c AdminCoupon) Used(ctx context.Context) string {
 	return s
 }
 
-// State is the one thing a staff member scans for: whether it works right now.
-//
-// Active and current are different facts — a switched-on coupon whose window
-// has passed is off to a customer and on in the list, which is how somebody
-// spends an afternoon wondering why a code does not work.
+// State is whether the coupon works right now; active and current differ.
 func (c AdminCoupon) State(ctx context.Context) string {
 	switch {
 	case !c.Active:

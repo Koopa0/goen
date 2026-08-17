@@ -33,24 +33,9 @@ func NewStore(pool *pgxpool.Pool, key string) *Store {
 // Enabled reports whether enrolment is possible in this deployment.
 func (s *Store) Enabled() bool { return s.cipher.Enabled() }
 
-// Begin starts enrolment and returns the secret to show once.
-//
-// Shown once and never again: after this response the plaintext exists only in
-// the enrolling person's authenticator. A page that could redisplay it would be
-// a page an attacker with a stolen session could read.
-//
-// The credential is NOT confirmed here. Somebody who mistypes the secret into
-// their app would otherwise have working 2FA on paper and no way to produce a
-// code, which locks them out of exactly the thing 2FA is protecting.
-//
-// A credential that is already CONFIRMED is refused with [ErrEnrolled]. This
-// route is reached with a password and an ordinary session, so overwriting a
-// proved factor here would mean a stolen password is the whole back office:
-// enrol your own authenticator over theirs, confirm it, and the session is
-// step-up verified. Recovery is another admin removing the credential.
-// The account label is the EMAIL, not the user id: it is what an authenticator
-// app shows beside the code, and a person with two accounts needs to tell them
-// apart. A UUID there is unreadable and identical-looking to every other one.
+// Begin starts enrolment and returns the secret to show once. The credential is
+// not confirmed here, and an already-confirmed one is refused with
+// [ErrEnrolled] — recovery is another admin removing it.
 func (s *Store) Begin(ctx context.Context, userID, email string) (secret []byte, uri string, err error) {
 	if !s.Enabled() {
 		return nil, "", ErrDisabled
@@ -74,8 +59,6 @@ func (s *Store) Begin(ctx context.Context, userID, email string) (secret []byte,
 		return nil, "", fmt.Errorf("begin totp enrolment: %w", err)
 	}
 	if n == 0 {
-		// The statement's own WHERE refused: this credential is already proved,
-		// and replacing it needs more than the password that got us here.
 		return nil, "", ErrEnrolled
 	}
 	return secret, ProvisioningURI(email, secret), nil
@@ -96,18 +79,15 @@ func (s *Store) Confirm(ctx context.Context, userID, code string) error {
 		return fmt.Errorf("confirm totp: %w", err)
 	}
 	if n == 0 {
-		// The step guard refused, which means a concurrent request used this
-		// same code first.
+		// A concurrent request used this same code first.
 		return ErrBadCode
 	}
 	return nil
 }
 
-// Verify checks a code for a confirmed credential and records the step.
-//
-// The step is recorded by the same statement that guards it, so two requests
-// replaying one code cannot both win — a check made in Go would be a check both
-// of them pass.
+// Verify checks a code for a confirmed credential and records the step. The
+// step is recorded by the same statement that guards it, so a check made in Go
+// would be a check two requests replaying one code both pass.
 func (s *Store) Verify(ctx context.Context, userID, code string) error {
 	id, secret, lastStep, err := s.load(ctx, userID, true)
 	if err != nil {
@@ -166,10 +146,7 @@ func (s *Store) SessionVerified(ctx context.Context, token string) (bool, error)
 }
 
 // Remove deletes a credential, which is how a lost authenticator is recovered.
-//
-// Another admin does this; there are no backup codes. That is a deliberate
-// trade: printed codes are a second password-equivalent that people keep in
-// their email, and a shop with more than one admin has a recovery path already.
+// Another admin does this; there are no backup codes.
 func (s *Store) Remove(ctx context.Context, userID string) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -185,17 +162,8 @@ func (s *Store) Remove(ctx context.Context, userID string) error {
 	return nil
 }
 
-// load reads and decrypts a credential.
-//
-// requireConfirmed is what separates the two callers. Confirm is the one moment
-// an unproved secret is legitimately in play — it is proving it — and everyone
-// else must treat an unconfirmed credential as absent.
-//
-// It is a parameter enforced here and not a rule each caller remembers, because
-// a credential that reports itself enrolled while unconfirmed locks a
-// half-finished enrolment out of exactly what it protects: the challenge page
-// asks for a code the person has no way to generate, and there is no route back
-// to enrolment.
+// load reads and decrypts a credential. Confirm is the one caller for which an
+// unproved secret is legitimately in play; everyone else passes requireConfirmed.
 func (s *Store) load(ctx context.Context, userID string, requireConfirmed bool) (id uuid.UUID, secret []byte, lastStep int64, err error) {
 	if !s.Enabled() {
 		return uuid.UUID{}, nil, 0, ErrDisabled
@@ -222,10 +190,6 @@ func (s *Store) load(ctx context.Context, userID string, requireConfirmed bool) 
 }
 
 // Staff reads who can reach the back office and who is protected.
-//
-// Enrolment is voluntary — nothing forces a staff member to set up a second
-// factor — so "who has it on" is the question a shop owner has to be able to
-// ask, and StaffTOTPStatus is the answer /admin/staff renders.
 func (s *Store) Staff(ctx context.Context) (pages.AdminStaffView, error) {
 	rows, err := s.q.StaffTOTPStatus(ctx)
 	if err != nil {

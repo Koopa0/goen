@@ -12,22 +12,13 @@ import (
 )
 
 // MinCompare and MaxCompare bound how many products a comparison holds.
-//
-// Two, because comparing one thing is a product page. Four, because a fifth
-// column does not fit at 375 and the table becomes a horizontal scroll — which
-// is the one interaction that makes a comparison harder than reading two pages
-// separately.
 const (
 	MinCompare = 2
 	MaxCompare = 4
 )
 
-// Compare reads the products a URL named and the specs that let them be told
-// apart.
-//
-// A slug that is not an active product is dropped rather than refused: a
-// comparison URL is shared and bookmarked, and one product being retired should
-// not turn the whole link into an error page.
+// Compare reads the products a URL named and the specs that tell them apart. A
+// slug naming no active product is dropped rather than refused.
 func (s *Store) Compare(ctx context.Context, slugs []string) (pages.CompareView, error) {
 	slugs = normaliseSlugs(slugs)
 	if len(slugs) == 0 {
@@ -67,18 +58,8 @@ func (s *Store) Compare(ctx context.Context, slugs []string) (pages.CompareView,
 		return pages.CompareView{}, fmt.Errorf("read comparison specs: %w", err)
 	}
 
-	// One row per label, with a cell per product. The query already ordered the
-	// labels so the shared ones come first; this preserves that order and fills
-	// the gaps, because a missing spec is a fact about the product and must
-	// render as one rather than shifting the columns.
-	// Keyed on the UNTRANSLATED label, which is the row's identity — never on the
-	// localized text this renders. Two Chinese labels can translate to one
-	// English word (輸出 and 孔位 are both "Ports" in the seed), and keying on
-	// what the reader sees merged them into one row where the second product's
-	// value overwrote the first: a spec present on the English PDP simply
-	// vanished from the English comparison. The query counts shared_by on the
-	// same untranslated label, so this is also what keeps the count and the
-	// grouping talking about the same thing.
+	// Keyed on the untranslated label, which is the row's identity, and which is
+	// what the query counts shared_by on. Two labels can share a translation.
 	rowAt := make(map[string]int)
 	for i := range specs {
 		sp := &specs[i]
@@ -100,10 +81,6 @@ func (s *Store) Compare(ctx context.Context, slugs []string) (pages.CompareView,
 }
 
 // normaliseSlugs bounds and deduplicates what a URL asked for.
-//
-// Deduplicated because comparing a product with itself is a column of identical
-// values that teaches nothing, and bounded because the slug list reaches a
-// query — an unbounded one is an unbounded amount of work anybody can request.
 func normaliseSlugs(raw []string) []string {
 	out := make([]string, 0, MaxCompare)
 	for _, s := range raw {

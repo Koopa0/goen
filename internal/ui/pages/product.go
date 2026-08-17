@@ -25,8 +25,7 @@ func (i ProductImage) WidthText() string { return strconv.FormatInt(int64(i.Widt
 // HeightText is the intrinsic height as an attribute value.
 func (i ProductImage) HeightText() string { return strconv.FormatInt(int64(i.Height), 10) }
 
-// HasDimensions reports whether both are known, so the pair is emitted together
-// or not at all.
+// HasDimensions reports whether both are known.
 func (i ProductImage) HasDimensions() bool { return i.Width > 0 && i.Height > 0 }
 
 // ProductSpec is one row of the spec table.
@@ -66,8 +65,7 @@ func (b RatingBar) StarsText() string { return strconv.Itoa(b.Stars) }
 // CountText is how many reviews gave this many stars.
 func (b RatingBar) CountText() string { return strconv.FormatInt(b.Count, 10) }
 
-// PercentStyle is the inline width for the bar's fill — the one inline style goen
-// writes, because a computed proportion is not something a stylesheet can express.
+// PercentStyle is the inline width for the bar's fill.
 func (b RatingBar) PercentStyle() string { return "width:" + strconv.Itoa(b.Percent) + "%" }
 
 // ProductReview is one published review.
@@ -99,11 +97,8 @@ type ProductView struct {
 	Summary      string
 	Description  string
 	WarrantyNote string
-	// WarrantyMonths is 0 when the shop has stated no term, in which case
-	// registration is refused and the page says nothing rather than implying one.
-	WarrantyMonths int32
-	// FreeDeliveryCents is the threshold the guarantee strip states, read from
-	// shipping_method_versions rather than typed into the catalogue.
+	// WarrantyMonths is 0 when the shop has stated no term, and registration is refused.
+	WarrantyMonths    int32
 	FreeDeliveryCents int64
 	Brand             string
 	CategorySlug      string
@@ -114,8 +109,6 @@ type ProductView struct {
 	Options []ProductOption
 	Specs   []ProductSpec
 
-	// SelectionOK is false when the URL names a combination no variant has, which
-	// the page says rather than quoting an unrelated price.
 	SelectionOK  bool
 	Exact        bool
 	VariantID    string
@@ -125,29 +118,20 @@ type ProductView struct {
 	Sellable     bool
 	Available    int32
 
-	Rating       float64
-	RatingCount  int64
-	RatingBars   []RatingBar
-	Reviews      []ProductReview
-	SignedIn     bool
-	CanReview    bool
-	WouldVerify  bool
-	ReviewErrors map[string]string
-	ReviewDraft  ReviewDraft
-	// NotifyOutcome is "1" after a restock request was taken, "bad" after one
-	// was refused, and empty otherwise.
+	Rating        float64
+	RatingCount   int64
+	RatingBars    []RatingBar
+	Reviews       []ProductReview
+	SignedIn      bool
+	CanReview     bool
+	WouldVerify   bool
+	ReviewErrors  map[string]string
+	ReviewDraft   ReviewDraft
 	NotifyOutcome string
-	// Comparing is what the visitor is already comparing, read from the referring
-	// URL's own query and stored nowhere.
-	Comparing []string
-	Questions []Question
-	// AskOutcome is "1" after a question was taken, "bad" after one was refused,
-	// and empty otherwise.
-	AskOutcome string
-	// AlsoBought is what people who bought this also bought. Empty renders
-	// nothing: filling the slot with popular products presents a guess as a
-	// pattern.
-	AlsoBought []ProductTile
+	Comparing     []string
+	Questions     []Question
+	AskOutcome    string
+	AlsoBought    []ProductTile
 
 	Related []ProductTile
 }
@@ -173,8 +157,7 @@ func (v *ProductView) WarrantyText(ctx context.Context) string {
 		strconv.FormatInt(int64(v.WarrantyMonths), 10))
 }
 
-// RootSlug is the top-level category this product sits under — the one the header
-// marks as current. The crumbs run root-first, so it is the first of them.
+// RootSlug is the top-level category this product sits under.
 func (v *ProductView) RootSlug() string {
 	if len(v.Crumbs) > 0 {
 		return v.Crumbs[0].Slug
@@ -191,8 +174,7 @@ func (v *ProductView) Compare() string { return twd(v.CompareCents) }
 // OnSale reports whether to show a struck-through price.
 func (v *ProductView) OnSale() bool { return v.Sellable && v.CompareCents > v.PriceCents }
 
-// CanBuy reports whether the page can offer an add-to-cart button: a single
-// combination is pinned and it can actually be bought.
+// CanBuy reports whether the page can offer an add-to-cart button.
 func (v *ProductView) CanBuy() bool { return v.SelectionOK && v.Exact && v.Sellable }
 
 // NeedsChoice reports whether the visitor still has an option to pick.
@@ -264,16 +246,14 @@ func (v *ProductView) HasReviewErr(f string) bool { _, ok := v.ReviewErrors[f]; 
 // ReviewErr is why a review field was refused.
 func (v *ProductView) ReviewErr(f string) string { return v.ReviewErrors[f] }
 
-// ReviewStars is a rating drawn for somebody scanning rather than reading.
+// ReviewStars is the rating drawn as stars.
 func (r ProductReview) ReviewStars() string { return starsOf(r.Rating) }
 
-// RatingLabel is what a screen reader is told, because the stars themselves are
-// punctuation to it.
+// RatingLabel is what a screen reader is told, because the stars are punctuation to it.
 func (r ProductReview) RatingLabel(ctx context.Context) string {
 	return fmt.Sprintf(i18n.T(ctx, i18n.KeyRatingOutOf), strconv.Itoa(r.Rating))
 }
 
-// starsOf draws a rating.
 func starsOf(n int) string {
 	n = max(0, min(n, 5))
 	return strings.Repeat("★", n) + strings.Repeat("☆", 5-n)
@@ -303,8 +283,7 @@ func (v *ProductView) AskRefused() bool { return v.AskOutcome == "bad" }
 // AskAction is where the question form posts.
 func (v *ProductView) AskAction() string { return "/p/" + v.Slug + "/questions" }
 
-// CompareHref adds this product to a comparison, carrying whatever was already
-// being compared. The set lives in the URL and is written nowhere.
+// CompareHref adds this product to a comparison, carrying whatever was already there.
 func (v *ProductView) CompareHref() string {
 	var b strings.Builder
 	b.WriteString("/compare")

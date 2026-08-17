@@ -28,8 +28,6 @@ templ Compare(p layouts.Page, v CompareView) {
 					</p>
 				</div>
 			} else {
-				// The table scrolls inside its own container: four columns do
-				// not fit at 375 and the page body must never scroll sideways.
 				<div class="goen-compare__scroll">
 					<table class="goen-compare__table">
 						<caption class="goen-sr-only">{ i18n.T(ctx, i18n.KeyCompareCaption) }</caption>

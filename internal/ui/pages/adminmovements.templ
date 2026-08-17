@@ -8,11 +8,6 @@ import (
 )
 
 // AdminMovements renders one variant's stock ledger.
-//
-// inventory_movements is the table every stock change goes through, and nothing read
-// it until this page: a shop could see that a SKU has four units and not how it got
-// there. That is a feature with no door from the other side — data collected and
-// never shown.
 templ AdminMovements(p layouts.Page, v *AdminMovementsView) {
 	@layouts.Base(p) {
 		<div class="goen-admin">
@@ -78,23 +73,9 @@ templ AdminMovements(p layouts.Page, v *AdminMovementsView) {
 	}
 }
 
-// adminReceiveForm books a delivery in.
-//
-// It lives HERE, on the ledger, and not beside the 調整 box on the stock list.
-// The list's row is one line of a table and a receipt is the entry somebody makes
-// while standing over an open box — but the real reason is that this is the page
-// that answers 「這個為什麼是四」, and 進貨 is the answer it could never give: the
-// ledger has carried a 'receipt' reason since the schema was written and the only
-// thing that ever posted one was the dev seed.
-//
-// The quantity is positive and the input says so. Correcting a number DOWNWARD is
-// a different act with a different word, and the hint names where it lives rather
-// than letting somebody type a minus sign and meet a constraint.
 templ adminReceiveForm(v *AdminMovementsView) {
 	<form class="goen-admin__form" method="post" action="/admin/stock/receive">
 		<input type="hidden" name="sku" value={ v.SKU }/>
-		// Derived from the stock this page rendered with, so a double submit is
-		// one delivery: inventory_movements is unique on the key.
 		<input type="hidden" name="idempotency" value={ v.ReceiveKey() }/>
 		<label class="ui-field" for="receive-qty">
 			<span class="ui-label">{ i18n.T(ctx, i18n.KeyAdminReceiveQty) }</span>

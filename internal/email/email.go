@@ -1,10 +1,6 @@
-// Package email holds goen's policy for an email address.
-//
-// The parsing is net/mail's, not ours. What lives here is the little that the
-// standard library does not decide: how an address is normalised before it is
-// stored, the length goen accepts, and the rule that a field collecting an
-// address rejects a display name. The contact form and the newsletter signup
-// would otherwise each carry their own copy and drift apart.
+// Package email holds goen's policy for an email address: how one is normalised
+// before it is stored, the length goen accepts, and the rule that a field
+// collecting an address rejects a display name. The parsing is net/mail's.
 package email
 
 import (
@@ -22,14 +18,9 @@ func Clean(s string) string {
 	return strings.ToLower(strings.TrimSpace(s))
 }
 
-// Valid reports whether s is a bare, storable address. mail.ParseAddress also
-// accepts a display name such as `王小明 <a@example.com>`, which no goen field
-// collects, so the parsed address must account for the whole input.
-//
-// It needs no control-character check of its own: mail.ParseAddress refuses
-// them, in a quoted local part as well as outside one. A loop added here on
-// the assumption that it did not was unreachable, and a mutation run is what
-// showed it — removing it changed no test.
+// Valid reports whether s is a bare, storable address: mail.ParseAddress accepts
+// a display name, so the parsed address must account for the whole input. It
+// already refuses control characters, quoted local part included.
 func Valid(s string) bool {
 	if s == "" || len(s) > Max {
 		return false

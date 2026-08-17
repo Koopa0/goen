@@ -18,11 +18,7 @@ type AdminCampaign struct {
 	EndsAt   string
 }
 
-// State is the one thing a staff member scans for.
-//
-// Active and running are different facts, the same way they are for a coupon: a
-// switched-on campaign whose window has passed is off to a shopper and on in a
-// list that only reads is_active.
+// State is the word a staff member scans for; active and running differ.
 func (c AdminCampaign) State(ctx context.Context) string {
 	switch {
 	case !c.Active:
@@ -30,8 +26,6 @@ func (c AdminCampaign) State(ctx context.Context) string {
 	case !c.Running:
 		return i18n.T(ctx, i18n.KeyAdminCampaignOutside)
 	case c.Products == 0:
-		// Running and featuring nothing is the state worth naming: the page
-		// exists, a shopper can reach it, and it is empty.
 		return i18n.T(ctx, i18n.KeyAdminCampaignEmpty)
 	default:
 		return i18n.T(ctx, i18n.KeyAdminCampaignRunning)

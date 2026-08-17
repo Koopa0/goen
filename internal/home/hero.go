@@ -11,12 +11,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// Hero reads the slide the home page should show, or the built-in one.
-//
-// A missing row is not an error: a shop with nothing scheduled has a working
-// home page, which is the difference between content management and a
-// dependency. A read FAILURE is an error, because that is the database being
-// unreachable and the rest of the page will not render either.
+// Hero reads the slide the home page should show, or the built-in one. A missing
+// row is not an error; a read failure is.
 func (s *Store) Hero(ctx context.Context) (pages.Hero, error) {
 	row, err := s.q.CurrentHeroSlide(ctx, string(i18n.FromContext(ctx)))
 	if err != nil {

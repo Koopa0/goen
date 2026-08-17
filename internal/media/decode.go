@@ -11,46 +11,31 @@ import (
 	"image/png"
 	"io"
 
-	// Registered for their decoders only. goen re-encodes everything it accepts
-	// into JPEG or PNG, so a GIF or WebP upload is read and then written back
-	// as one of those two — the input format is a convenience, the output
-	// format is a decision.
+	// Registered for their decoders only: goen re-encodes everything it accepts
+	// as JPEG or PNG.
 	_ "image/gif"
 
 	_ "golang.org/x/image/webp"
 )
 
-// Normalise reads an upload and returns the bytes goen will store.
-//
-// The returned bytes are goen's own encoding of the decoded pixels, never the
-// caller's file. That is the security property this function exists for: an
-// upload that decodes as an image and is re-encoded cannot carry anything that
-// is not pixels — no polyglot, no EXIF, no appended archive.
-//
-// It is also why the digest is taken AFTER re-encoding: the identity of a
-// stored image is the identity of what goen serves, so two different uploads of
-// the same photograph deduplicate only if what comes out is byte-identical.
+// Normalise reads an upload and returns the bytes goen will store: its own
+// encoding of the decoded pixels, digested after re-encoding. The caller must
+// have bounded r, which is read into memory whole.
 func Normalise(r io.Reader) (obj Object, data []byte, err error) {
-	// Read once into memory. The caller has already bounded the reader with
-	// http.MaxBytesReader, so this cannot be unbounded — and both the header
-	// check and the full decode need to start from the beginning.
 	raw, err := io.ReadAll(r)
 	if err != nil {
 		if errors.Is(err, io.ErrUnexpectedEOF) {
 			return Object{}, nil, ErrNotAnImage
 		}
-		// A MaxBytesReader overrun arrives here. It is the caller's limit that
-		// was hit, so say so rather than reporting a read failure.
+		// A MaxBytesReader overrun arrives here.
 		return Object{}, nil, fmt.Errorf("%w: %s", ErrTooLarge, err.Error())
 	}
 	if len(raw) == 0 {
 		return Object{}, nil, ErrNotAnImage
 	}
 
-	// The HEADER first, before any pixel buffer exists. DecodeConfig reads only
-	// enough to learn the dimensions, which is what makes a decompression bomb
-	// cheap to refuse: a 200-byte PNG declaring 50000x50000 is rejected here for
-	// the price of parsing its header.
+	// The header first: a 200-byte PNG can declare 50000x50000, which no
+	// byte-size limit can see and which costs 10GB to decode.
 	cfg, format, err := image.DecodeConfig(bytes.NewReader(raw))
 	if err != nil {
 		return Object{}, nil, ErrNotAnImage
@@ -61,8 +46,6 @@ func Normalise(r io.Reader) (obj Object, data []byte, err error) {
 
 	img, _, decodeErr := image.Decode(bytes.NewReader(raw))
 	if decodeErr != nil {
-		// A header that parses and pixels that do not is a truncated or
-		// malformed file, and it is not goen's job to guess the rest.
 		return Object{}, nil, ErrNotAnImage
 	}
 
@@ -71,10 +54,9 @@ func Normalise(r io.Reader) (obj Object, data []byte, err error) {
 		return Object{}, nil, err
 	}
 
-	// Re-checked against the DECODED bounds, not only the header's. A decoder
-	// that produced something other than the header declared would otherwise
-	// write a row past media_objects_dimensions_sane, and the constraint would
-	// refuse it with a message about the schema rather than about the upload.
+	// Re-checked against the DECODED bounds: a decoder that produced something
+	// other than the header declared would write a row past
+	// media_objects_dimensions_sane.
 	b := img.Bounds()
 	if boundsErr := boundsOK(b.Dx(), b.Dy()); boundsErr != nil {
 		return Object{}, nil, boundsErr
@@ -84,11 +66,9 @@ func Normalise(r io.Reader) (obj Object, data []byte, err error) {
 	return Object{
 		Digest:      hex.EncodeToString(sum[:]),
 		ContentType: contentType,
-		// Safe: boundsOK just bounded both at MaxDimension, and the encoded
-		// length is bounded by MaxUploadBytes several times over.
-		Width:    int32(b.Dx()),       //nolint:gosec // G115: bounded by boundsOK above
-		Height:   int32(b.Dy()),       //nolint:gosec // G115: bounded by boundsOK above
-		ByteSize: int32(len(encoded)), //nolint:gosec // G115: bounded by MaxUploadBytes
+		Width:       int32(b.Dx()),       //nolint:gosec // G115: bounded by boundsOK above
+		Height:      int32(b.Dy()),       //nolint:gosec // G115: bounded by boundsOK above
+		ByteSize:    int32(len(encoded)), //nolint:gosec // G115: bounded by MaxUploadBytes
 	}, encoded, nil
 }
 
@@ -108,14 +88,8 @@ func boundsOK(w, h int) error {
 	return nil
 }
 
-// encode writes the decoded pixels back out in one of goen's two formats.
-//
-// PNG in, PNG out — a screenshot or a logo with flat colour and hard edges is
-// destroyed by JPEG, and a transparent background becomes black. Everything
-// else becomes JPEG, because a photograph as PNG is several times the bytes for
-// no visible gain.
-//
-// The choice is made from the DECODED format, not from a client-supplied type.
+// encode writes the decoded pixels back out as PNG or JPEG, chosen from the
+// DECODED format rather than from a client-supplied type.
 func encode(img image.Image, format string) (data []byte, contentType string, err error) {
 	var buf bytes.Buffer
 	if format == "png" {

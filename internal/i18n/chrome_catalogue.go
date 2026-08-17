@@ -1,10 +1,6 @@
 package i18n
 
-// The catalogue: the home page, a listing, search, the product page, /compare
-// and the campaign pages.
-
 var (
-	// Document shells.
 	KeyHomeTitle = key("home.title", Message{
 		ZhHant: "goen — 3C 選物",
 		En:     "goen — curated 3C",
@@ -21,11 +17,9 @@ var (
 	KeySearchTitle = key("search.title", Message{ZhHant: "搜尋", En: "Search"})
 	KeySearchFor   = key("search.for", Message{ZhHant: "搜尋:%s", En: "Search: %s"})
 
-	// Breadcrumbs.
 	KeyBreadcrumb = key("nav.breadcrumb", Message{ZhHant: "麵包屑", En: "Breadcrumb"})
 	KeyHome       = key("nav.home", Message{ZhHant: "首頁", En: "Home"})
 
-	// A listing.
 	KeyListingCount = key("listing.count", Message{ZhHant: "共 %s 件商品", En: "%s products"})
 	KeyListingEmpty = key("listing.empty", Message{
 		ZhHant: "找不到符合的商品",
@@ -51,27 +45,19 @@ var (
 	KeyPriceMinShort = key("listing.facet.price.min.short", Message{ZhHant: "最低", En: "Min"})
 	KeyPriceMaxShort = key("listing.facet.price.max.short", Message{ZhHant: "最高", En: "Max"})
 
-	// Sorting. The values are an allowlist in the handler; these are what a
-	// person reads beside them.
 	KeySort          = key("listing.sort", Message{ZhHant: "排序", En: "Sort"})
 	KeySortNewest    = key("listing.sort.newest", Message{ZhHant: "最新上架", En: "Newest"})
 	KeySortPriceAsc  = key("listing.sort.price.asc", Message{ZhHant: "價格由低到高", En: "Price, low to high"})
 	KeySortPriceDesc = key("listing.sort.price.desc", Message{ZhHant: "價格由高到低", En: "Price, high to low"})
 	KeySortRating    = key("listing.sort.rating", Message{ZhHant: "評價最高", En: "Best rated"})
 
-	// Paging.
 	KeyPagination = key("listing.pager", Message{ZhHant: "分頁", En: "Pagination"})
 	KeyPrevPage   = key("listing.pager.prev", Message{ZhHant: "上一頁", En: "Previous"})
 	KeyNextPage   = key("listing.pager.next", Message{ZhHant: "下一頁", En: "Next"})
 	KeyPageOf     = key("listing.pager.at", Message{ZhHant: "第 %s / %s 頁", En: "Page %s of %s"})
 
-	// Search.
-	KeySearchHeading = key("search.heading", Message{ZhHant: "搜尋商品", En: "Search products"})
-	KeySearchResults = key("search.results", Message{ZhHant: "找到 %s 件商品", En: "%s products found"})
-	// The results grid's own heading. Visually hidden — the page already says what
-	// it found in its sub-line — but present in the OUTLINE, which is what a screen
-	// reader navigates by: without it the tiles' h3 headings hang directly off the
-	// page's h1 and the level is skipped.
+	KeySearchHeading    = key("search.heading", Message{ZhHant: "搜尋商品", En: "Search products"})
+	KeySearchResults    = key("search.results", Message{ZhHant: "找到 %s 件商品", En: "%s products found"})
 	KeyResultsHeading   = key("search.results.heading", Message{ZhHant: "搜尋結果", En: "Results"})
 	KeySearchPrompt     = key("search.prompt", Message{ZhHant: "想找什麼?", En: "What are you looking for?"})
 	KeySearchPromptHint = key("search.prompt.hint", Message{
@@ -91,7 +77,6 @@ var (
 		En:     "browse the categories from the home page",
 	})
 
-	// Product-card flags.
 	KeyOnSale        = key("card.onsale", Message{ZhHant: "特價", En: "On sale"})
 	KeyWasPrice      = key("card.wasprice", Message{ZhHant: "原價", En: "Was"})
 	KeyRatingSummary = key("card.rating", Message{
@@ -99,16 +84,9 @@ var (
 		En:     "Rated %s out of 5, from %s reviews",
 	})
 
-	// The product page.
 	KeySectionDescription = key("pdp.description", Message{ZhHant: "商品說明", En: "Description"})
 	KeySectionSpecs       = key("pdp.specs", Message{ZhHant: "規格", En: "Specifications"})
 
-	// The cover this product carries. Shown to somebody DECIDING, rather than left
-	// to be discovered at registration: warranty_months is per product precisely
-	// because a phone and a cable differ, and that difference is a reason to buy one.
-	// Named for the PAGE, not the unit: /compare already has KeyWarrantyMonths for
-	// the cell in its table, and two keys called the same thing is how one of them
-	// ends up in the wrong place.
 	KeySectionWarranty = key("pdp.warranty", Message{ZhHant: "保固", En: "Warranty"})
 	KeyPDPWarranty     = key("pdp.warranty.months", Message{
 		ZhHant: "保固 %s 個月",
@@ -149,21 +127,12 @@ var (
 	})
 	KeyWishlistAdd = key("pdp.wishlist.add", Message{ZhHant: "加入願望清單", En: "Save for later"})
 
-	// The three guarantee claims beside the buy button. They are a commercial
-	// promise as much as copy, and CLAUDE.md records that they need a pre-launch
-	// truth check against what the shop actually offers.
 	KeyGuaranteeWarranty = key("pdp.guarantee.warranty", Message{
 		ZhHant: "原廠保固 · 到府收送",
 		En:     "Manufacturer's warranty · collected from your door",
 	})
-	// %s is the threshold, read from shipping_method_versions rather than typed.
-	// A literal NT$3,000 in this catalogue is a promise made on two pages against
-	// a figure the shop edits at /admin/shipping, and the pages stop agreeing
-	// with the till the day somebody changes it — a page that states a fee is a
-	// promise, and the one place that promise is already kept is the table
-	// checkout charges from. /shipping interpolates the same figure and says so
-	// in its query; this is that promise on the two pages a customer meets before
-	// ever reaching /shipping.
+	// %s is the threshold, interpolated from shipping_method_versions: a literal
+	// here is a promise that stops agreeing with what checkout charges.
 	KeyGuaranteeShipping = key("pdp.guarantee.shipping", Message{
 		ZhHant: "滿 %s 免運",
 		En:     "Free delivery over %s",
@@ -173,7 +142,6 @@ var (
 		En:     "7-day return window",
 	})
 
-	// Reviews.
 	KeySectionReviews = key("pdp.reviews", Message{ZhHant: "顧客評價", En: "Customer reviews"})
 	KeyReviewCount    = key("pdp.reviews.count", Message{ZhHant: "%s 則評價", En: "%s reviews"})
 	KeyStarsLabel     = key("pdp.reviews.stars", Message{ZhHant: "%s 星", En: "%s stars"})
@@ -209,7 +177,6 @@ var (
 	KeyFieldReviewBody = key("field.review.body", Message{ZhHant: "心得", En: "Your review"})
 	KeyReviewSubmit    = key("pdp.reviews.submit", Message{ZhHant: "送出評價", En: "Post review"})
 
-	// Review validation.
 	KeyRatingOutOfRange = key("valid.rating", Message{
 		ZhHant: "請選擇 1 到 5 顆星。",
 		En:     "Choose between 1 and 5 stars.",
@@ -227,7 +194,6 @@ var (
 		En:     "That contains characters we cannot display.",
 	})
 
-	// Questions and answers.
 	KeySectionQA      = key("pdp.qa", Message{ZhHant: "問與答", En: "Questions & answers"})
 	KeyQuestionPosted = key("pdp.qa.posted", Message{
 		ZhHant: "問題已經送出了。我們回覆之後會出現在這裡。",
@@ -255,12 +221,9 @@ var (
 		ZhHant: "需要登入才能發問。回答會公開顯示。",
 		En:     "Sign in to ask. Answers are shown publicly.",
 	})
-	KeyAskSubmit = key("pdp.qa.submit", Message{ZhHant: "送出問題", En: "Ask"})
-	// An author whose account has been erased. The question and its answers stay
-	// — they are useful to the next reader — and the name does not.
+	KeyAskSubmit     = key("pdp.qa.submit", Message{ZhHant: "送出問題", En: "Ask"})
 	KeyErasedAccount = key("pdp.qa.erased", Message{ZhHant: "已刪除的帳號", En: "Deleted account"})
 
-	// /compare.
 	KeyCompareTitle       = key("compare.title", Message{ZhHant: "比較", En: "Compare"})
 	KeyCompareDescription = key("compare.description", Message{
 		ZhHant: "把規格擺在一起看,而不是在兩個分頁之間來回。",
@@ -270,7 +233,6 @@ var (
 	KeyWarrantyYears  = key("compare.warranty.years", Message{ZhHant: "%d 年", En: "%d years"})
 	KeyWarrantyMonths = key("compare.warranty.months", Message{ZhHant: "%d 個月", En: "%d months"})
 
-	// Campaigns and /deals.
 	KeyCampaignEyebrow = key("campaign.eyebrow", Message{ZhHant: "限時活動", En: "Limited-time offer"})
 	KeyCampaignEndsAt  = key("campaign.endsat", Message{ZhHant: "活動至 %s", En: "Until %s"})
 	KeyCampaignEmpty   = key("campaign.empty", Message{
@@ -295,8 +257,6 @@ var (
 		En:     "Nothing is on sale at the moment. Have a look through the categories.",
 	})
 
-	// A campaign's countdown. Rendered from a duration, so each is its own
-	// message rather than a number glued to a unit.
 	KeyEndsWithinHour = key("campaign.ends.soon", Message{
 		ZhHant: "不到 1 小時",
 		En:     "under an hour left",
@@ -304,7 +264,6 @@ var (
 	KeyEndsInHours = key("campaign.ends.hours", Message{ZhHant: "剩 %d 小時", En: "%d hours left"})
 	KeyEndsInDays  = key("campaign.ends.days", Message{ZhHant: "剩 %d 天", En: "%d days left"})
 
-	// Refusals the catalogue can reach.
 	KeyProductNotFound     = key("pdp.notfound", Message{ZhHant: "找不到這個商品", En: "Product not found"})
 	KeyProductNotFoundBody = key("pdp.notfound.body", Message{
 		ZhHant: "這個商品目前沒有販售,可能已經下架。回首頁看看其他選擇。",
@@ -335,7 +294,6 @@ var (
 		En:     "We cannot show the home page right now. Please try again shortly.",
 	})
 
-	// The home page.
 	KeyHeroPlaceholder = key("home.hero.placeholder", Message{
 		ZhHant: "主視覺待實拍素材",
 		En:     "Hero photography pending",
@@ -345,14 +303,7 @@ var (
 		ZhHant: "綜合推薦",
 		En:     "Recommended",
 	})
-	KeySectionTrust = key("home.trust", Message{ZhHant: "購物保障", En: "Shopping with goen"})
-	// The third clause is bounded by what the tree implements. 「線上填單追蹤進度」
-	// — file a repair online and follow its progress — would be the largest
-	// promise on the home page of a site with no repair route, no repair table
-	// and nothing that tracks anything. What DOES exist is /account/warranty:
-	// register a unit, and look up its cover without finding a receipt, which is
-	// what this says instead. Copy is checkable against the tree, and a claim
-	// nothing implements is worth less than a smaller true one.
+	KeySectionTrust      = key("home.trust", Message{ZhHant: "購物保障", En: "Shopping with goen"})
 	KeyTrustWarrantyBody = key("home.trust.warranty", Message{
 		ZhHant: "全機種原廠保固,維修免費到府收送,保固可以線上登錄查詢。",
 		En: "Every model carries its manufacturer's warranty. We collect repairs from your " +
@@ -374,12 +325,10 @@ var (
 		En:     "Stripe handles the card. Your number never touches a goen server.",
 	})
 
-	// /deals.
 	KeyDeals2     = key("deals.eyebrow", Message{ZhHant: "優惠", En: "Offers"})
 	KeyDealsTitle = key("deals.title", Message{ZhHant: "現正優惠", En: "On sale now"})
 	KeyDealsCount = key("deals.count", Message{ZhHant: "%s 件商品正在特價", En: "%s products reduced"})
 
-	// /compare.
 	KeyCompareHeading = key("compare.heading", Message{
 		ZhHant: "把規格擺在一起",
 		En:     "Specifications, side by side",
@@ -416,14 +365,6 @@ var (
 	KeyCompareRowWarranty = key("compare.row.warranty", Message{ZhHant: "保固", En: "Warranty"})
 	KeyCompareRowCategory = key("compare.row.category", Message{ZhHant: "分類", En: "Category"})
 
-	// The built-in hero, which the home page shows until the shop schedules a
-	// slide of its own.
-	//
-	// It is translated because it is OURS: copy compiled into the binary is
-	// goen's to say in both languages, and copy the shop types into hero_slides
-	// is the shop's to say however it likes. That is the same chrome/content line
-	// the rest of this catalogue draws, applied to the one page where the two sit
-	// in the same slot.
 	KeyHeroEyebrow = key("home.hero.eyebrow", Message{
 		ZhHant: "台灣出貨 · 原廠保固",
 		En:     "Ships from Taiwan · manufacturer's warranty",

@@ -9,7 +9,6 @@ import (
 )
 
 // TestEveryLocaleParamIsAssigned refuses a localized query called with no locale.
-// Which Params types need one is read from the generated code, never a list.
 func TestEveryLocaleParamIsAssigned(t *testing.T) {
 	t.Parallel()
 
@@ -64,8 +63,7 @@ type paramLiteral struct {
 	body     string
 }
 
-// paramLiterals finds every db.*Params{...} in src, brace-balanced so a nested
-// literal does not cut the body short.
+// paramLiterals finds every db.*Params{...} in src, brace-balanced so a nested literal does not cut it short.
 func paramLiterals(src string) []paramLiteral {
 	head := regexp.MustCompile(`db\.(\w+Params)\{`)
 	found := head.FindAllStringSubmatchIndex(src, -1)
@@ -108,7 +106,6 @@ func goSources(t *testing.T) map[string]string {
 		switch {
 		case !strings.HasSuffix(path, ".go"),
 			strings.HasSuffix(path, "_templ.go"),
-			// The generated file declares these types; it does not call them.
 			strings.Contains(filepath.ToSlash(path), "internal/db/query.sql.go"):
 			return nil
 		}

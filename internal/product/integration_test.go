@@ -46,7 +46,6 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// sel builds the query string for an option selection.
 func sel(pairs ...string) string {
 	q := url.Values{}
 	for i := 0; i+1 < len(pairs); i += 2 {
@@ -69,8 +68,6 @@ func get(t *testing.T, slug, query string) (status int, body string) {
 	return res.Code, res.Body.String()
 }
 
-// TestDraftProductIs404 is the access rule: a product that is not active must
-// not render at all.
 func TestDraftProductIs404(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
@@ -90,8 +87,6 @@ func TestDraftProductIs404(t *testing.T) {
 	}
 }
 
-// TestVariantSelectionIsAURL is the whole point of the picker: choosing an
-// option is a navigation, so the price on the page follows the URL.
 func TestVariantSelectionIsAURL(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
@@ -114,8 +109,6 @@ func TestVariantSelectionIsAURL(t *testing.T) {
 	}
 }
 
-// TestPickerMarksUnavailableAgainstOtherChoices is the one-variant rule applied
-// to the picker, against real seed data.
 func TestPickerMarksUnavailableAgainstOtherChoices(t *testing.T) {
 	view, err := product.NewStore(pool).Load(t.Context(), "aurora-slate-11",
 		product.Selection{"容量": "128GB"})
@@ -147,8 +140,6 @@ func TestPickerMarksUnavailableAgainstOtherChoices(t *testing.T) {
 	}
 }
 
-// TestSoldOutCombinationCannotBeBought covers the button: the combination
-// renders with its price and no way to add it to a cart.
 func TestSoldOutCombinationCannotBeBought(t *testing.T) {
 	code, body := get(t, "aurora-slate-11", sel("顏色", "曙光金", "容量", "128GB"))
 	if code != http.StatusOK {
@@ -162,8 +153,6 @@ func TestSoldOutCombinationCannotBeBought(t *testing.T) {
 	}
 }
 
-// TestVariantAtTheSafetyFloorCannotBeBought covers the band a stock_quantity
-// check alone misses: a variant holding exactly safety_stock cannot be sold.
 func TestVariantAtTheSafetyFloorCannotBeBought(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
@@ -172,7 +161,6 @@ func TestVariantAtTheSafetyFloorCannotBeBought(t *testing.T) {
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	// Put every variant of this product at exactly its floor.
 	if _, fixErr := tx.Exec(ctx, `
 		UPDATE product_variants pv SET stock_quantity = pv.safety_stock
 		FROM products p WHERE p.id = pv.product_id AND p.slug = 'pixelight-9-pro';`,
@@ -194,8 +182,6 @@ func TestVariantAtTheSafetyFloorCannotBeBought(t *testing.T) {
 	}
 }
 
-// TestUnknownCombinationSaysSo covers the hand-edited URL: a combination no
-// variant has must not fall back to another variant's price.
 func TestUnknownCombinationSaysSo(t *testing.T) {
 	code, body := get(t, "pixelight-9-pro", sel("顏色", "螢光粉", "容量", "1TB"))
 	if code != http.StatusOK {
@@ -209,8 +195,6 @@ func TestUnknownCombinationSaysSo(t *testing.T) {
 	}
 }
 
-// TestPartialSelectionOffersNoButton pins that the page does not choose for the
-// visitor.
 func TestPartialSelectionOffersNoButton(t *testing.T) {
 	code, body := get(t, "pixelight-9-pro", sel("顏色", "星霧藍"))
 	if code != http.StatusOK {
@@ -224,8 +208,6 @@ func TestPartialSelectionOffersNoButton(t *testing.T) {
 	}
 }
 
-// TestDetailShowsWhatThePageIsFor is the broad check: the parts a detail page
-// exists to show are present for a real product.
 func TestDetailShowsWhatThePageIsFor(t *testing.T) {
 	code, body := get(t, "pixelight-9-pro", "")
 	if code != http.StatusOK {
@@ -247,8 +229,6 @@ func TestDetailShowsWhatThePageIsFor(t *testing.T) {
 	}
 }
 
-// TestOnlyACommittedPurchaseEarnsTheBadge proves the verified badge tracks a
-// committed order and nothing else.
 func TestOnlyACommittedPurchaseEarnsTheBadge(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -290,7 +270,6 @@ func TestOnlyACommittedPurchaseEarnsTheBadge(t *testing.T) {
 	}
 }
 
-// TestOneReviewPerPersonPerProduct proves a second review writes nothing.
 func TestOneReviewPerPersonPerProduct(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -319,8 +298,6 @@ func TestOneReviewPerPersonPerProduct(t *testing.T) {
 	}
 }
 
-// TestReviewValidation proves the form refuses what the schema would, before
-// it gets there.
 func TestReviewValidation(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -363,7 +340,6 @@ func TestReviewValidation(t *testing.T) {
 	}
 }
 
-// reviewer makes a customer with a unique email.
 func reviewer(t *testing.T, tag string) uuid.UUID {
 	t.Helper()
 	var id uuid.UUID
@@ -376,7 +352,6 @@ func reviewer(t *testing.T, tag string) uuid.UUID {
 	return id
 }
 
-// activeSlug is a product anyone may review.
 func activeSlug(t *testing.T) string {
 	t.Helper()
 	var slug string
@@ -387,8 +362,7 @@ func activeSlug(t *testing.T) string {
 	return slug
 }
 
-// buy gives a customer a committed order for a product, which is what earns the
-// verified badge.
+// buy gives a customer a committed order, which is what earns the badge.
 func buy(t *testing.T, userID uuid.UUID, slug string) {
 	t.Helper()
 	ctx := t.Context()
@@ -437,7 +411,6 @@ func buy(t *testing.T, userID uuid.UUID, slug string) {
 	}
 }
 
-// TestRestockNoticeIsIdempotent proves asking twice is one request.
 func TestRestockNoticeIsIdempotent(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -464,8 +437,7 @@ func TestRestockNoticeIsIdempotent(t *testing.T) {
 	if err := s.RequestRestockNotice(ctx, vid.String(), strings.ToUpper(waitingAddr(t)), ""); err != nil {
 		t.Fatalf("uppercase: %v", err)
 	}
-	// Scoped to the ADDRESS as well as the variant: every restock test shares one
-	// variant, so a bare per-variant count is whatever the others left.
+	// Scoped to the address too: every restock test shares one variant.
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*) FROM stock_notifications
 		WHERE variant_id = $1 AND lower(email) = lower($2)`, vid, addr).Scan(&n); err != nil {
@@ -484,8 +456,6 @@ func TestRestockNoticeIsIdempotent(t *testing.T) {
 	}
 }
 
-// TestANotifiedRequestDoesNotBlockTheNextOne proves the index bounds PENDING
-// requests, not every request ever made.
 func TestANotifiedRequestDoesNotBlockTheNextOne(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -517,8 +487,6 @@ func TestANotifiedRequestDoesNotBlockTheNextOne(t *testing.T) {
 	}
 }
 
-// TestRestockNoticeRefusesAnUnusableAddress proves a bad address never reaches
-// the table.
 func TestRestockNoticeRefusesAnUnusableAddress(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -535,7 +503,6 @@ func TestRestockNoticeRefusesAnUnusableAddress(t *testing.T) {
 	}
 }
 
-// soldOutVariant is a variant nobody can buy.
 func soldOutVariant(t *testing.T) uuid.UUID {
 	t.Helper()
 	var id uuid.UUID
@@ -549,8 +516,6 @@ func soldOutVariant(t *testing.T) uuid.UUID {
 	return id
 }
 
-// TestRecommendationsComeFromTheProjection proves the read is a lookup, not an
-// aggregation.
 func TestRecommendationsComeFromTheProjection(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -558,7 +523,6 @@ func TestRecommendationsComeFromTheProjection(t *testing.T) {
 	// Two products bought together twice, which is the minimum that counts.
 	a, b := twoProductsBoughtTogether(t, 2)
 
-	// Before any refresh: nothing.
 	view, err := s.Load(ctx, a, product.Selection{})
 	if err != nil {
 		t.Fatalf("load: %v", err)
@@ -584,8 +548,6 @@ func TestRecommendationsComeFromTheProjection(t *testing.T) {
 	}
 }
 
-// TestOneSharedOrderIsNotARecommendation proves a coincidence is not shown as a
-// pattern.
 func TestOneSharedOrderIsNotARecommendation(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -604,8 +566,6 @@ func TestOneSharedOrderIsNotARecommendation(t *testing.T) {
 	}
 }
 
-// TestAnUncommittedOrderShapesNothing proves an abandoned checkout is not a
-// signal.
 func TestAnUncommittedOrderShapesNothing(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -627,8 +587,7 @@ func TestAnUncommittedOrderShapesNothing(t *testing.T) {
 }
 
 // twoProductsBoughtTogether writes `committed` paid orders each containing two
-// fresh products, and returns their slugs.
-// A NEGATIVE `committed` places that many orders and leaves them unpaid.
+// fresh products. A NEGATIVE `committed` leaves that many orders unpaid.
 func twoProductsBoughtTogether(t *testing.T, committed int) (first, second string) {
 	t.Helper()
 	ctx := t.Context()
@@ -652,8 +611,7 @@ func twoProductsBoughtTogether(t *testing.T, committed int) (first, second strin
 			RETURNING id`, *slug).Scan(&variantID); err != nil {
 			t.Fatalf("create product: %v", err)
 		}
-		// Published after the variant exists: products_active_has_variant is
-		// deferred and refuses an active product with nothing to sell.
+		// products_active_has_variant is deferred, so publish after the variant.
 		if _, err := pool.Exec(ctx,
 			`UPDATE products SET status = 'active' WHERE slug = $1`, *slug); err != nil {
 			t.Fatalf("publish: %v", err)
@@ -679,8 +637,6 @@ func twoProductsBoughtTogether(t *testing.T, committed int) (first, second strin
 	return first, second
 }
 
-// TestAnArchivedProductIsNotRecommended proves the strip never links to
-// something nobody can buy.
 func TestAnArchivedProductIsNotRecommended(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -697,8 +653,7 @@ func TestAnArchivedProductIsNotRecommended(t *testing.T) {
 		t.Fatalf("%d recommendations before archiving, want 1", len(view.AlsoBought))
 	}
 
-	// Archived WITHOUT rebuilding: the projection still holds the pair, which
-	// is exactly the state a ticker leaves between runs.
+	// No rebuild: the projection still holds the pair, as between ticks.
 	if _, err := pool.Exec(ctx,
 		`UPDATE products SET status = 'archived' WHERE slug = $1`, b); err != nil {
 		t.Fatalf("archive: %v", err)
@@ -715,7 +670,7 @@ func TestAnArchivedProductIsNotRecommended(t *testing.T) {
 }
 
 // writeOrder places one order containing both variants and returns its id.
-// orders_has_lines is DEFERRED, so the header and its lines share a transaction.
+// orders_has_lines is deferred, so the header and its lines share a transaction.
 func writeOrder(t *testing.T, v1, v2 uuid.UUID) uuid.UUID {
 	t.Helper()
 	ctx := t.Context()
@@ -757,8 +712,7 @@ func writeOrder(t *testing.T, v1, v2 uuid.UUID) uuid.UUID {
 	return orderID
 }
 
-// payFor commits an order through the same posting functions a real payment
-// uses, so order_is_committed sees what it would see in production.
+// payFor commits an order through the posting functions a real payment uses.
 func payFor(t *testing.T, orderID uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
@@ -773,8 +727,6 @@ func payFor(t *testing.T, orderID uuid.UUID) {
 	}
 }
 
-// TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole proves the badge records
-// what was true when it was written.
 func TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -786,8 +738,8 @@ func TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole(t *testing.T) {
 	}
 	qID := latestQuestion(t)
 
-	// The CUSTOMER answers first: with the staff answer inserted first,
-	// insertion order agrees with the intended order by accident.
+	// The customer answers first, or insertion order matches the intended
+	// order by accident.
 	if err := s.Answer(ctx, qID, customer, "我實測過可以。", false); err != nil {
 		t.Fatalf("customer answer: %v", err)
 	}
@@ -812,7 +764,6 @@ func TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole(t *testing.T) {
 	if len(answers) != 2 {
 		t.Fatalf("%d answers, want 2", len(answers))
 	}
-	// Staff FIRST, even though it was written second.
 	if !answers[0].IsStaff {
 		t.Error("the shop's answer is not first, or it lost its badge when the " +
 			"author's role changed")
@@ -822,8 +773,6 @@ func TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole(t *testing.T) {
 	}
 }
 
-// TestAHiddenQuestionDisappearsWithItsAnswers proves nothing is left stranded
-// without its context.
 func TestAHiddenQuestionDisappearsWithItsAnswers(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -867,14 +816,11 @@ func TestAHiddenQuestionDisappearsWithItsAnswers(t *testing.T) {
 		}
 	}
 
-	// And no new answer can be added to it.
 	if err := s.Answer(ctx, qID, customer, "太遲了", true); err == nil {
 		t.Error("a hidden question accepted a new answer")
 	}
 }
 
-// TestAQuestionIsBoundedInRunesNotBytes proves a Chinese question gets the same
-// room as an English one.
 func TestAQuestionIsBoundedInRunesNotBytes(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -897,7 +843,6 @@ func TestAQuestionIsBoundedInRunesNotBytes(t *testing.T) {
 	}
 }
 
-// containsQuestion reports whether a body is among the loaded questions.
 func containsQuestion(qs []pages.Question, body string) bool {
 	for _, q := range qs {
 		if q.Body == body {
@@ -907,7 +852,6 @@ func containsQuestion(qs []pages.Question, body string) bool {
 	return false
 }
 
-// anyActiveProduct is a product a question can be asked about.
 func anyActiveProduct(t *testing.T) string {
 	t.Helper()
 	var slug string
@@ -918,7 +862,6 @@ func anyActiveProduct(t *testing.T) string {
 	return slug
 }
 
-// newCustomer is a fresh signed-in customer.
 func newCustomer(t *testing.T) string {
 	t.Helper()
 	var id uuid.UUID
@@ -931,7 +874,6 @@ func newCustomer(t *testing.T) string {
 	return id.String()
 }
 
-// latestQuestion is the most recently asked question's id.
 func latestQuestion(t *testing.T) string {
 	t.Helper()
 	var id uuid.UUID
@@ -942,8 +884,6 @@ func latestQuestion(t *testing.T) string {
 	return id.String()
 }
 
-// TestASingleHiddenAnswerGoesWithoutTakingTheQuestion proves the per-answer
-// filter does its own work.
 func TestASingleHiddenAnswerGoesWithoutTakingTheQuestion(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -989,7 +929,6 @@ func TestASingleHiddenAnswerGoesWithoutTakingTheQuestion(t *testing.T) {
 	}
 }
 
-// TestTheProductPageKnowsWhatIsAlreadySaved holds the state the button renders.
 func TestTheProductPageKnowsWhatIsAlreadySaved(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -1018,7 +957,6 @@ func TestTheProductPageKnowsWhatIsAlreadySaved(t *testing.T) {
 	if s.SavedByUser(ctx, userID.String(), "pixelight-9") {
 		t.Error("an unsaved product reported as saved")
 	}
-	// And another customer's wishlist is not this one's.
 	var other uuid.UUID
 	if err := pool.QueryRow(ctx,
 		`INSERT INTO users (email) VALUES ('wishother@example.com') RETURNING id`).Scan(&other); err != nil {
@@ -1027,20 +965,16 @@ func TestTheProductPageKnowsWhatIsAlreadySaved(t *testing.T) {
 	if s.SavedByUser(ctx, other.String(), slug) {
 		t.Error("one customer's wishlist answered for another")
 	}
-	// A guest has no id at all and must not error into a true.
 	if s.SavedByUser(ctx, "", slug) {
 		t.Error("a guest reported as having saved something")
 	}
 }
 
-// waitingAddr is an address of this test's own.
 func waitingAddr(t *testing.T) string {
 	t.Helper()
 	return "waiting-" + strings.ToLower(t.Name()) + "@example.com"
 }
 
-// TestHidingAReviewTakesItOutOfTheScore holds the half of moderation that
-// matters.
 func TestHidingAReviewTakesItOutOfTheScore(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -1052,8 +986,8 @@ func TestHidingAReviewTakesItOutOfTheScore(t *testing.T) {
 		t.Fatalf("find product: %v", err)
 	}
 
-	// Two reviews of this test's own: five stars, and a one-star to hide. Hiding
-	// the only review would take the count to zero and prove nothing.
+	// Two of this test's own: hiding the only review would take the count to
+	// zero and prove nothing.
 	reviewBy(t, productID, "reviewhigh@example.com", 5)
 	low, lowBody := reviewBy(t, productID, "reviewlow@example.com", 1)
 
@@ -1083,7 +1017,6 @@ func TestHidingAReviewTakesItOutOfTheScore(t *testing.T) {
 		t.Errorf("the score went from %.2f to %.2f — hiding a one-star review did "+
 			"not move it", before.Rating, after.Rating)
 	}
-	// And the review itself is gone from the list.
 	for _, r := range after.Reviews {
 		if r.Body == lowBody {
 			t.Error("a hidden review is still shown on the page")
@@ -1091,8 +1024,6 @@ func TestHidingAReviewTakesItOutOfTheScore(t *testing.T) {
 	}
 }
 
-// TestAHiddenReviewStillBlocksASecondOne holds the one reader that wants the
-// hidden rows.
 func TestAHiddenReviewStillBlocksASecondOne(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -1126,8 +1057,7 @@ func TestAHiddenReviewStillBlocksASecondOne(t *testing.T) {
 	}
 }
 
-// reviewBy writes one review from a new account and returns its id AND its
-// body.
+// reviewBy writes one review from a new account and returns its id and body.
 func reviewBy(t *testing.T, productID uuid.UUID, address string, rating int) (id uuid.UUID, body string) {
 	t.Helper()
 	ctx := t.Context()

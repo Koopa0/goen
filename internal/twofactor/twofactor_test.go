@@ -9,21 +9,11 @@ import (
 	"time"
 )
 
-// rfcSecret is the shared secret from RFC 6238's test vectors: the ASCII string
-// "12345678901234567890".
+// rfcSecret is the shared secret from RFC 6238's test vectors.
 var rfcSecret = []byte("12345678901234567890")
 
 // TestCodeMatchesTheRFCTestVectors proves goen agrees with every authenticator
-// app.
-//
-// The point of testing against RFC 6238's own vectors rather than against
-// goen's output is that they are INDEPENDENT: a home-made expectation would
-// pass against a home-made bug, and the failure would be a back office nobody
-// can sign into because Google Authenticator disagrees.
-//
-// The RFC's table is 8-digit; goen uses 6, which is the low six of the same
-// number — that relationship is part of RFC 4226 and is why truncating is
-// valid rather than a shortcut.
+// app. RFC 6238's table is 8-digit; goen uses the low six, per RFC 4226.
 func TestCodeMatchesTheRFCTestVectors(t *testing.T) {
 	tests := []struct {
 		unix int64
@@ -45,10 +35,6 @@ func TestCodeMatchesTheRFCTestVectors(t *testing.T) {
 }
 
 // TestACodeCannotBeUsedTwice proves a code is spent when it is used.
-//
-// The replay defence, and the thing a naive implementation omits. A code is
-// valid for its whole 30-second step and the skew window makes that 90 seconds
-// — long enough for somebody who read it over a shoulder to type it in.
 func TestACodeCannotBeUsedTwice(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	step := StepAt(now)
@@ -62,13 +48,11 @@ func TestACodeCannotBeUsedTwice(t *testing.T) {
 		t.Errorf("matched step %d, want %d", matched, step)
 	}
 
-	// The same code again, with the step now recorded.
 	if _, err := Verify(rfcSecret, code, matched, now); err == nil {
 		t.Error("a code was accepted twice; it can be replayed for the rest of " +
 			"its window")
 	}
 
-	// And an OLDER code cannot be used after a newer one has been seen.
 	older := Code(rfcSecret, step-1)
 	if _, err := Verify(rfcSecret, older, matched, now); err == nil {
 		t.Error("a code from an earlier step was accepted after a later one")
@@ -77,10 +61,6 @@ func TestACodeCannotBeUsedTwice(t *testing.T) {
 
 // TestTheSkewWindowIsExactlyOneStep proves the acceptance window is as narrow
 // as it claims.
-//
-// Each extra step widens the replay window and the number of codes valid at
-// once. One covers a phone 30 seconds out, which is every phone; five would be
-// forgiving of a clock nobody has and five times the surface.
 func TestTheSkewWindowIsExactlyOneStep(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	current := StepAt(now)
@@ -123,8 +103,7 @@ func TestNothingButASixDigitCodeIsAccepted(t *testing.T) {
 		}
 	}
 
-	// Whitespace around and inside a real code IS tolerated: apps display
-	// "123 456" and a person types what they see.
+	// Apps display "123 456" and a person types what they see.
 	spaced := valid[:3] + " " + valid[3:]
 	if _, err := Verify(rfcSecret, "  "+spaced+"  ", 0, now); err != nil {
 		t.Errorf("a correct code with the spacing an app displays was refused: %v", err)
@@ -156,9 +135,8 @@ func TestASealedSecretRoundTripsAndIsNotThePlaintext(t *testing.T) {
 		t.Error("the secret did not round-trip")
 	}
 
-	// Two seals of the SAME secret differ, because the nonce is fresh. Equal
-	// ciphertexts would mean a reused nonce, which in GCM leaks the XOR of the
-	// two plaintexts and the authentication key.
+	// Equal ciphertexts would mean a reused nonce, which in GCM leaks the XOR
+	// of the two plaintexts and the authentication key.
 	again, err := c.Seal(secret)
 	if err != nil {
 		t.Fatalf("seal again: %v", err)
@@ -170,10 +148,6 @@ func TestASealedSecretRoundTripsAndIsNotThePlaintext(t *testing.T) {
 
 // TestATamperedSecretDoesNotOpen proves the encryption authenticates rather
 // than merely obscures.
-//
-// GCM authenticates. A row edited in the database must fail to decrypt rather
-// than yield a secret an attacker chose — otherwise the encryption is
-// obfuscation.
 func TestATamperedSecretDoesNotOpen(t *testing.T) {
 	c := NewCipher("a-key-from-the-environment")
 	secret, _ := NewSecret()
@@ -190,22 +164,17 @@ func TestATamperedSecretDoesNotOpen(t *testing.T) {
 		}
 	}
 
-	// A different key does not open it either.
 	if _, err := NewCipher("a-different-key").Open(sealed); err == nil {
 		t.Error("a secret opened under the wrong key")
 	}
-	// And a truncated value is refused rather than panicking on a short slice.
+	// A truncated value is refused rather than panicking on a short slice.
 	if _, err := c.Open(sealed[:4]); err == nil {
 		t.Error("a truncated ciphertext opened")
 	}
 }
 
 // TestNoKeyMeansNoStoredSecret proves an unconfigured deployment refuses
-// rather than degrades.
-//
-// A deployment without a key must refuse enrolment, not store the secret in the
-// clear. Silently degrading is how a feature that looks enabled protects
-// nothing.
+// enrolment rather than storing the secret in the clear.
 func TestNoKeyMeansNoStoredSecret(t *testing.T) {
 	c := NewCipher("")
 	if c.Enabled() {
@@ -220,10 +189,6 @@ func TestNoKeyMeansNoStoredSecret(t *testing.T) {
 }
 
 // TestTheProvisioningURIIsWhatAnAppExpects proves an app can import it.
-//
-// If this is wrong the enrolling person's app generates codes goen rejects, and
-// the symptom — "my authenticator is broken" — points at everything except the
-// URI.
 func TestTheProvisioningURIIsWhatAnAppExpects(t *testing.T) {
 	secret := []byte("12345678901234567890")
 	uri := ProvisioningURI("staff@goen.example", secret)
@@ -245,8 +210,7 @@ func TestTheProvisioningURIIsWhatAnAppExpects(t *testing.T) {
 			q.Get("digits"), q.Get("period"), q.Get("algorithm"))
 	}
 
-	// The secret is unpadded base32 and decodes back to what went in. Padding
-	// is stripped because several apps refuse a secret containing "=".
+	// Padding is stripped because several apps refuse a secret containing "=".
 	encoded := q.Get("secret")
 	if strings.Contains(encoded, "=") {
 		t.Errorf("the encoded secret %q carries base32 padding", encoded)
@@ -259,7 +223,6 @@ func TestTheProvisioningURIIsWhatAnAppExpects(t *testing.T) {
 		t.Error("the encoded secret is not the one given")
 	}
 
-	// An account name containing a URI metacharacter must not escape the label.
 	odd := ProvisioningURI("a?b#c/d@goen.example", secret)
 	if _, err := url.Parse(odd); err != nil {
 		t.Errorf("an account name with metacharacters broke the URI: %v", err)

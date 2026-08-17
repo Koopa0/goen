@@ -8,10 +8,6 @@ import (
 )
 
 // AdminNewsletter renders the mailing list, the compose form and the issues.
-//
-// Both writes are plain forms answering 303, and the SEND is a form of its own on
-// each issue rather than a link — it is the one irreversible button in the back
-// office, because ten thousand mailboxes cannot be edited afterwards.
 templ AdminNewsletter(p layouts.Page, v AdminNewsletterView) {
 	@layouts.Base(p) {
 		<div class="goen-admin">

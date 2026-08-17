@@ -13,16 +13,15 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// MaxQuestionRunes and MaxAnswerRunes bound what can be written, in runes.
+// MaxQuestionRunes, MaxAnswerRunes and MaxQuestions bound what can be written
+// and shown, counted in runes.
 const (
 	MaxQuestionRunes = 300
 	MaxAnswerRunes   = 600
-	// MaxQuestions bounds what one product page shows.
-	MaxQuestions = 10
+	MaxQuestions     = 10
 )
 
-// ErrQuestionInvalid is a question or answer goen refused before the database
-// saw it.
+// ErrQuestionInvalid is a question or answer goen refused before the database saw it.
 var ErrQuestionInvalid = errors.New("product: the question or answer is not usable")
 
 // Ask records a question about a product.
@@ -43,8 +42,7 @@ func (s *Store) Ask(ctx context.Context, slug, userID, body string) error {
 	return nil
 }
 
-// Answer records an answer. staff is stored as the caller knows it now, never
-// re-derived at read time.
+// Answer records an answer, storing staff as the caller knows it now.
 func (s *Store) Answer(ctx context.Context, questionID, userID, body string, staff bool) error {
 	body = strings.TrimSpace(body)
 	if body == "" || utf8.RuneCountInString(body) > MaxAnswerRunes {
@@ -66,13 +64,11 @@ func (s *Store) Answer(ctx context.Context, questionID, userID, body string, sta
 		return fmt.Errorf("answer question: %w", err)
 	}
 	if n == 0 {
-		// The question does not exist, or staff hid it.
 		return ErrNotFound
 	}
 	return nil
 }
 
-// loadQuestions fills the Q&A section of a product page.
 func (s *Store) loadQuestions(ctx context.Context, productID uuid.UUID, view *pages.ProductView) error {
 	rows, err := s.q.ProductQuestions(ctx, db.ProductQuestionsParams{
 		ProductID: productID, Limit: MaxQuestions,

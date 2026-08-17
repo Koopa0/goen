@@ -16,17 +16,15 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// Gateway is the only thing in goen that knows Stripe exists. Everything above
-// it deals in [Order] and [Capture].
+// Gateway is the only thing in goen that knows Stripe exists.
 type Gateway struct {
 	client        *stripe.Client
 	webhookSecret string
 	baseURL       string
 }
 
-// NewGateway wires Stripe. A blank secret key is not an error — the site still
-// sells and the payment page says so — but a key without a webhook secret is,
-// because it leaves the endpoint that marks orders paid unauthenticated.
+// NewGateway wires Stripe. A blank secret key is not an error; a key with no
+// webhook secret is, and leaves the endpoint that takes money open.
 func NewGateway(secretKey, webhookSecret, baseURL string) (*Gateway, error) {
 	if secretKey == "" {
 		return &Gateway{baseURL: baseURL}, nil
@@ -48,9 +46,7 @@ func NewGateway(secretKey, webhookSecret, baseURL string) (*Gateway, error) {
 // Enabled reports whether goen can actually take money.
 func (g *Gateway) Enabled() bool { return g.client != nil }
 
-// StartSession creates a Stripe Checkout Session for an order and returns the
-// session id and the URL to send the customer to. attempt is how many payments
-// the order has already had — see [SessionKey].
+// StartSession creates a Checkout Session and returns its id and URL.
 func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (id, redirectURL string, err error) {
 	if !g.Enabled() {
 		return "", "", ErrDisabled
@@ -74,8 +70,7 @@ func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (id
 	}
 
 	// Shipping, tax and discount are the difference between the lines and the
-	// order total, and Stripe's page must add up to the figure goen reconciles
-	// against — so the remainder goes as its own line rather than being dropped.
+	// total, and Stripe's page must add up to what goen reconciles against.
 	if rest := o.TotalCents - lineTotal; rest != 0 {
 		if rest < 0 {
 			return "", "", fmt.Errorf("payment: order %s totals %d below its lines' %d",
@@ -97,22 +92,19 @@ func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (id
 		Mode:      stripe.String(string(stripe.CheckoutSessionModePayment)),
 		LineItems: items,
 		Locale:    stripe.String(i18n.FromContext(ctx).StripeTag()),
-		// success_url is where the browser lands, NOT where the order is marked
-		// paid, so it carries no token: there is nothing here worth forging.
+		// Where the browser lands, never where an order is marked paid.
 		SuccessURL: stripe.String(g.baseURL + "/orders/" + url.PathEscape(o.Number) + "?paid=1"),
 		CancelURL:  stripe.String(g.baseURL + "/orders/" + url.PathEscape(o.Number) + "/pay?cancelled=1"),
-		// The session dies with the STOCK HOLD, not thirty minutes from now: a
-		// window measured from here outlives the goods by however long the
-		// customer sat on the pay page.
+		// The session dies with the stock hold: a window measured from here
+		// outlives the goods.
 		ExpiresAt:             stripe.Int64(o.SessionExpiry().Unix()),
 		ClientReferenceID:     stripe.String(o.Number),
 		Metadata:              map[string]string{"order_number": o.Number},
 		IntegrationIdentifier: stripe.String(integrationIdentifier),
 	}
 
-	// PINNED, never omitted. A delayed method settles days after the session that
-	// ExpiresAt bound to the stock hold, so the units are released and re-sold
-	// before the capture lands. Card is what a 30-minute hold can survive.
+	// Pinned, never omitted: a delayed method settles days after ExpiresAt, so
+	// the units are released and re-sold before the capture lands.
 	params.PaymentMethodTypes = stripe.StringSlice([]string{"card"})
 
 	if o.Email != "" {
@@ -128,12 +120,8 @@ func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (id
 	return sess.ID, sess.URL, nil
 }
 
-// ResumeSession reports where to send a customer who already has a Checkout
-// Session open, and whether it is still open at all.
-//
-// Stripe is asked because the checkout URL is not derivable from the session id
-// goen stores. An error is returned rather than read as "not open": creating a
-// second session on a failed check is the double charge.
+// ResumeSession reports where to send a customer who already has a session open,
+// and whether it still is. An error is never read as "not open".
 func (g *Gateway) ResumeSession(ctx context.Context, sessionID string) (redirectURL string, open bool, err error) {
 	if !g.Enabled() {
 		return "", false, ErrDisabled
@@ -148,12 +136,9 @@ func (g *Gateway) ResumeSession(ctx context.Context, sessionID string) (redirect
 	return sess.URL, true, nil
 }
 
-// ExpireSession closes a Checkout Session at Stripe so nobody can pay a
-// cancelled order on a tab they still have open.
-//
-// Whether money is in flight is Stripe's question: it expires an OPEN session
-// and refuses anything else, and that refusal is returned rather than failing
-// the cancellation, which has already committed.
+// ExpireSession closes a Checkout Session so nobody can pay a cancelled order on
+// a tab they still have open. Stripe refuses anything but an open session, and
+// that refusal is returned rather than swallowed.
 func (g *Gateway) ExpireSession(ctx context.Context, sessionID string) error {
 	if !g.Enabled() {
 		return ErrDisabled
@@ -165,8 +150,7 @@ func (g *Gateway) ExpireSession(ctx context.Context, sessionID string) error {
 	return nil
 }
 
-// displayName is what Stripe's page calls a line: the product name with its
-// variant label folded in, so the customer sees which one they are buying.
+// displayName is what Stripe's page calls a line.
 func displayName(l *Line) string {
 	if l.Label == "" {
 		return l.Name
@@ -181,8 +165,7 @@ func (g *Gateway) VerifyWebhook(body []byte, sigHeader string) (stripe.Event, er
 		return stripe.Event{}, ErrDisabled
 	}
 	// The API-version check is off on purpose: Stripe upgrades an account's
-	// version independently of this binary. The signature and the timestamp
-	// tolerance are not relaxed.
+	// version independently of this binary. Nothing else is relaxed.
 	ev, err := webhook.ConstructEventWithOptions(body, sigHeader, g.webhookSecret,
 		webhook.ConstructEventOptions{IgnoreAPIVersionMismatch: true})
 	if err != nil {
@@ -191,17 +174,15 @@ func (g *Gateway) VerifyWebhook(body []byte, sigHeader string) (stripe.Event, er
 	return ev, nil
 }
 
-// captureEvents are the two events that can carry money goen must record. A
-// delayed method's money clears as async_payment_succeeded and as nothing else,
-// so a reader accepting only `completed` leaves the order unpaid for ever.
+// captureEvents are the two events that can carry money. A delayed method's
+// money clears as async_payment_succeeded and as nothing else.
 var captureEvents = map[stripe.EventType]bool{
 	"checkout.session.completed":               true,
 	"checkout.session.async_payment_succeeded": true,
 }
 
-// CaptureFrom reads a paid-checkout event into a [Capture], or reports that the
-// event is not one goen acts on. Only payment_status `paid` is a capture: acting
-// on the event TYPE alone marks orders paid for money that has not arrived.
+// CaptureFrom reads a paid-checkout event into a [Capture]. Only payment_status
+// `paid` is a capture: the event type alone marks orders paid unfunded.
 func CaptureFrom(ev *stripe.Event) (Capture, bool) {
 	if !captureEvents[ev.Type] {
 		return Capture{}, false
@@ -233,8 +214,7 @@ var abandonedEvents = map[stripe.EventType]bool{
 }
 
 // AbandonedSessionFrom reports the session id of a Checkout Session that ended
-// with no money. Without a reader for these, the payment row goen opened sits at
-// requires_payment for ever.
+// with no money.
 func AbandonedSessionFrom(ev *stripe.Event) (string, bool) {
 	if !abandonedEvents[ev.Type] {
 		return "", false
@@ -250,11 +230,8 @@ func AbandonedSessionFrom(ev *stripe.Event) (string, bool) {
 }
 
 // UnsettledSessionFrom reports the session id of a checkout the customer
-// FINISHED while the money is still on its way.
-//
-// It is the one signal that a delayed payment method is in play, which the pin
-// in [Gateway.StartSession] exists to prevent. It writes NOTHING: capturing
-// would mark an order paid days early, and extending the hold is unbuilt.
+// finished while the money is still on its way: the one signal that a delayed
+// payment method is in play.
 func UnsettledSessionFrom(ev *stripe.Event) (string, bool) {
 	if ev.Type != "checkout.session.completed" {
 		return "", false
@@ -269,8 +246,7 @@ func UnsettledSessionFrom(ev *stripe.Event) (string, bool) {
 	return sess.ID, true
 }
 
-// ObjectRef is the Stripe id an event is about, for the audit row. Best effort:
-// the row is worth writing even when the id cannot be read.
+// ObjectRef is the Stripe id an event is about, or "" when it cannot be read.
 func ObjectRef(ev *stripe.Event) string {
 	if id, ok := ev.Data.Object["id"].(string); ok {
 		return id

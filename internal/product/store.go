@@ -27,8 +27,7 @@ func NewStore(dbtx db.DBTX) *Store {
 	return &Store{q: db.New(dbtx)}
 }
 
-// Load reads everything the detail page renders, resolving sel to the variant
-// it names.
+// Load reads everything the detail page renders, resolving sel to a variant.
 func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.ProductView, error) {
 	p, err := s.q.ProductBySlug(ctx, db.ProductBySlugParams{
 		Slug: slug, Locale: string(i18n.FromContext(ctx)),
@@ -129,7 +128,6 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 	return view, nil
 }
 
-// loadDetail fills the parts of the page that do not depend on the selection.
 func (s *Store) loadDetail(ctx context.Context, p *db.ProductBySlugRow, view *pages.ProductView) error {
 	if err := s.loadPresentation(ctx, p, view); err != nil {
 		return err
@@ -145,7 +143,6 @@ func (s *Store) loadDetail(ctx context.Context, p *db.ProductBySlugRow, view *pa
 	return s.loadQuestions(ctx, p.ID, view)
 }
 
-// loadPresentation reads what the product IS: its crumbs, gallery and specs.
 func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, view *pages.ProductView) error {
 	if p.CategoryParentID.Valid {
 		trail, err := s.q.CategoryAncestors(ctx, db.CategoryAncestorsParams{
@@ -191,8 +188,6 @@ func (s *Store) loadPresentation(ctx context.Context, p *db.ProductBySlugRow, vi
 	return nil
 }
 
-// loadOpinion reads what OTHERS say about it: the rating, the reviews, and the
-// products shown alongside.
 func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *pages.ProductView) error {
 	rating, err := s.q.ProductRating(ctx, p.ID)
 	if err != nil {
@@ -255,7 +250,6 @@ const MinCoPurchases = 2
 // MaxRecommendations bounds the strip.
 const MaxRecommendations = 4
 
-// boughtTogether is what people who bought this also bought.
 func (s *Store) boughtTogether(ctx context.Context, productID uuid.UUID) ([]pages.ProductTile, error) {
 	rows, err := s.q.BoughtTogether(ctx, db.BoughtTogetherParams{
 		Locale:    string(i18n.FromContext(ctx)),
@@ -299,8 +293,7 @@ func (s *Store) SavedByUser(ctx context.Context, userID, slug string) bool {
 		UserID: id, Slug: slug,
 	})
 	if err != nil {
-		// Best effort: a failed read falls back to "not saved".
-		return false
+		return false // best-effort: a failed read falls back to "not saved"
 	}
 	return saved
 }

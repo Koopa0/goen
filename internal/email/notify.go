@@ -12,36 +12,19 @@ import (
 )
 
 // Notifier turns outbox messages into mail.
-//
-// It lives here rather than in internal/outbox because what an order.placed
-// message SAYS is an email concern; that it gets delivered at all is the
-// outbox's. The outbox knows nothing about mail, and this knows nothing about
-// retries.
 type Notifier struct {
 	Sender Sender
-	// BaseURL is where a link in an email points. Required: a receipt whose
-	// "view your order" link goes to 127.0.0.1 is a receipt nobody can use.
+	// BaseURL is where a link in an email points. Required.
 	BaseURL string
-	// Seller and SellerContact are 消保法 §18 I item 1 — who the trader is, and
-	// a way to reach them quickly and effectively. They travel with the
-	// confirmation because §18 II wants the disclosure in a form the consumer
-	// can STORE, and a page is not obviously that.
-	//
-	// Configured rather than compiled in: the registration line and the support
-	// address are facts about the SHOP, and a demo that ships somebody else's
-	// 統編 in its binary is worse than one that ships a blank.
+	// Seller and SellerContact are Consumer Protection Act §18 I item 1 — who
+	// the trader is, and how to reach them. They travel with the confirmation
+	// because §18 II wants the disclosure in a form the consumer can STORE.
 	Seller        string
 	SellerContact string
 }
 
-// statutoryDisclosure is 消保法 §18 I, appended to the order confirmation.
-//
-// Empty when the shop has not been configured, and that is deliberate: a
-// disclosure naming nobody discloses nothing, and printing a blank seller would
-// make the letter LOOK compliant while telling the customer less than silence
-// would. An unconfigured deployment sends the confirmation without it — and
-// TestTheConfirmationCarriesTheStatutoryDisclosure names that as the one case,
-// so it cannot become the quiet default.
+// statutoryDisclosure is Consumer Protection Act §18 I. Empty when the shop is
+// unconfigured: a disclosure naming nobody makes the letter merely look compliant.
 func (n Notifier) statutoryDisclosure(ctx context.Context) string {
 	if n.Seller == "" || n.SellerContact == "" {
 		return ""
@@ -50,27 +33,14 @@ func (n Notifier) statutoryDisclosure(ctx context.Context) string {
 		n.Seller, n.SellerContact)
 }
 
-// locale returns a context that speaks the language the message was recorded in.
-//
-// The worker's own context has no locale — it is not serving anybody — so the
-// language has to come from the payload, and the payload gets it from whoever
-// produced the message. Two of them are produced with no visitor present: the
-// receipt comes from a Stripe webhook and the dispatch notice from a
-// back-office click, and both read orders.locale rather than the request they
-// happen to be running in.
-//
-// An empty or unknown tag falls back to the default rather than failing. A row
-// written before this column existed would otherwise be a message nobody can
-// send, and the fallback is the language the shop is written in.
+// locale returns a context speaking the language the message was recorded in.
+// The worker's own context has none; an unknown tag falls back to the default.
 func (n Notifier) locale(ctx context.Context, tag string) context.Context {
 	return i18n.WithLocale(ctx, i18n.Parse(tag))
 }
 
 // letter wraps a body in the greeting and the sign-off every message shares.
-//
-// One function, so a new message cannot arrive without them and none of them can
-// drift. name may be empty — a restock notice goes to an address nobody has
-// necessarily named — and the greeting drops the placeholder rather than
+// name may be empty, and the greeting then drops the placeholder rather than
 // addressing somebody as an empty string.
 func (n Notifier) letter(ctx context.Context, name, body string) string {
 	greeting := i18n.T(ctx, i18n.KeyMailHello)
@@ -89,10 +59,9 @@ func (n Notifier) orderURL(number string) string {
 
 // OrderPlaced is the payload of an order.placed message. Declared again here
 // rather than imported from internal/cart, because a consumer that imports the
-// producer's types is a consumer that cannot be deployed a version behind.
+// producer's types cannot be deployed a version behind.
 type OrderPlaced struct {
-	// Locale is the language to send in, recorded by the producer. See
-	// [Notifier.locale].
+	// Locale is the language to send in, recorded by the producer.
 	Locale      string `json:"locale"`
 	OrderNumber string `json:"order_number"`
 	Email       string `json:"email"`
@@ -103,10 +72,8 @@ type OrderPlaced struct {
 // SendOrderPlaced sends the confirmation.
 func (n Notifier) SendOrderPlaced(ctx context.Context, p *OrderPlaced) error {
 	if !Valid(p.Email) {
-		// A message with no usable address will never succeed however often it
-		// is retried, but it is still an error: the outbox reschedules it and
-		// Stuck() shows it to a human, which is the right amount of noise for
-		// "an order was placed and we cannot tell anyone".
+		// Still an error though no retry can fix it: the outbox reschedules and
+		// Stuck() shows it to a human.
 		return fmt.Errorf("order %s has no usable email address", p.OrderNumber)
 	}
 
@@ -121,14 +88,9 @@ func (n Notifier) SendOrderPlaced(ctx context.Context, p *OrderPlaced) error {
 }
 
 // twd formats cents as New Taiwan dollars.
-//
-// Duplicated from the UI's own formatter on purpose: an email is not a page,
-// and importing the template package here would drag the whole rendering layer
-// into a worker that renders nothing.
 func twd(cents int64) string {
 	whole := cents / 100
 	s := strconv.FormatInt(whole, 10)
-	// Thousands separators, inserted from the right.
 	var out strings.Builder
 	out.WriteString("NT$")
 	for i, r := range s {
@@ -140,21 +102,11 @@ func twd(cents int64) string {
 	return out.String()
 }
 
-// PasswordReset is what a reset message needs.
-//
-// The TOKEN travels in the payload, which means it is written to
-// outbox_messages and lives there until the row is cleaned up. That is a real
-// exposure and it is bounded on purpose: the token expires in an hour, it is
-// single-use, and using it ends every session — so a token recovered from an
-// old outbox row is a token that no longer opens anything.
-//
-// The alternative — sending from the handler to keep it out of the database —
-// loses the message when the process dies between the write and the send, and
-// a reset nobody receives is a customer permanently locked out. Of the two, an
-// hour-long window on a spent credential is the smaller one.
+// PasswordReset is what a reset message needs. The TOKEN travels in the payload
+// and lives in outbox_messages until the row is swept; it expires in an hour, is
+// single-use, and using it ends every session.
 type PasswordReset struct {
-	// Locale is the language to send in, recorded by the producer. See
-	// [Notifier.locale].
+	// Locale is the language to send in, recorded by the producer.
 	Locale string `json:"locale"`
 	Email  string
 	Token  string

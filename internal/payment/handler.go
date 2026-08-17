@@ -16,12 +16,9 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// maxWebhookBody bounds what Stripe may post. The endpoint is unauthenticated
-// until the signature is checked, and the whole body must be read to check it.
 const maxWebhookBody = 1 << 20
 
-// OrderAccess reports whether the browser making this request holds a token for
-// the order it is asking about.
+// OrderAccess reports whether this browser holds a token for the order.
 type OrderAccess interface {
 	PlacedHere(ctx context.Context, r *http.Request, number string, secure bool) bool
 }
@@ -51,8 +48,6 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if o.Paid || o.FullyFunded() {
-		// o.Number and not the path value: it came back from the database, so it
-		// provably matches orders_number_format and cannot steer the redirect.
 		http.Redirect(w, r, "/orders/"+o.Number, http.StatusSeeOther)
 		return
 	}
@@ -74,7 +69,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 }
 
 // Start creates the Stripe Checkout Session and sends the customer to it with a
-// 303. No amount is read from the request body; the figure comes off the order.
+// 303. The figure comes off the order; no amount is read from the request.
 func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 	o, ok := h.payableOrder(w, r, number)
@@ -97,7 +92,6 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// One order, one live session: two tabs would otherwise be two real charges.
 	attempt, err := h.store.PaymentAttempt(r.Context(), number, o.TotalCents)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read payment attempt", "order", number, "error", err)
@@ -126,8 +120,7 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Before the redirect: a capture with no row to land on is money goen cannot
-	// attribute to an order, while a session nobody paid costs nothing.
+	// Before the redirect: a capture with no row to land on is unattributable.
 	if err := h.store.OpenPayment(r.Context(), number, sessionID, o.TotalCents); err != nil {
 		h.log.ErrorContext(r.Context(), "open payment", "order", number, "error", err)
 		h.serverError(w, r)
@@ -137,9 +130,8 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 	h.toCheckout(w, r, number, redirectURL)
 }
 
-// resume sends a customer back to the Checkout Session they already have. A
-// session Stripe has finished with, or one goen cannot read, is never replaced
-// with a second: both may have money in flight.
+// resume sends a customer back to the Checkout Session they already have. One
+// Stripe has finished with, or one goen cannot read, is never replaced.
 func (h *Handler) resume(w http.ResponseWriter, r *http.Request, o *Order, sessionID string) {
 	redirectURL, open, err := h.gateway.ResumeSession(r.Context(), sessionID)
 	if err != nil {
@@ -162,7 +154,7 @@ func (h *Handler) resume(w http.ResponseWriter, r *http.Request, o *Order, sessi
 }
 
 // toCheckout sends the customer to Stripe, having checked that is where the URL
-// actually goes. The guard is against a substituted API base, not the visitor.
+// actually goes.
 func (h *Handler) toCheckout(w http.ResponseWriter, r *http.Request, number, redirectURL string) {
 	if !checkoutHost(redirectURL) {
 		h.log.ErrorContext(r.Context(), "refusing a checkout redirect off Stripe",
@@ -176,9 +168,8 @@ func (h *Handler) toCheckout(w http.ResponseWriter, r *http.Request, number, red
 	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 }
 
-// stripeCheckoutHosts is where a Checkout Session may legitimately live. A
-// merchant custom domain added here must also be added to the CSP's
-// form-action, or the browser blocks what this permits.
+// stripeCheckoutHosts is where a Checkout Session may live. A host added here
+// must also be added to the CSP's form-action.
 var stripeCheckoutHosts = map[string]bool{
 	"checkout.stripe.com": true,
 }
@@ -192,17 +183,17 @@ func checkoutHost(raw string) bool {
 	return stripeCheckoutHosts[u.Hostname()]
 }
 
-// Webhook is where an order actually becomes paid; nothing else in goen marks a
-// payment succeeded. Stripe retries anything that is not 2xx, so a forgery is
-// 400, an event goen does not act on is 200, and a database failure is 500.
+// Webhook is where an order becomes paid; nothing else in goen marks a payment
+// succeeded. Stripe retries anything that is not 2xx, so a forgery is 400, an
+// event goen does not act on is 200, and a database failure is 500.
 func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 	if !h.gateway.Enabled() {
 		http.Error(w, "payments are not configured", http.StatusServiceUnavailable)
 		return
 	}
 
-	// Raw bytes: the signature is over exactly what was sent, so anything that
-	// decodes and re-encodes the JSON first breaks verification.
+	// Raw bytes: the signature is over exactly what was sent, so decoding and
+	// re-encoding the JSON first breaks verification.
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxWebhookBody))
 	if err != nil {
 		http.Error(w, "could not read request body", http.StatusRequestEntityTooLarge)
@@ -216,8 +207,6 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Decided before the transaction, so the transaction holds only the two
-	// writes that must agree.
 	capture, isCapture := CaptureFrom(&ev)
 	abandonedSession, isAbandoned := AbandonedSessionFrom(&ev)
 	unsettledSession, isUnsettled := UnsettledSessionFrom(&ev)
@@ -226,8 +215,6 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 	var unknownSession, cancelledOrder bool
 	switch {
 	case isAbandoned:
-		// Without this the payment row sits at requires_payment for ever, and
-		// nothing can tell an abandoned checkout from one still in flight.
 		apply = func(ctx context.Context, st *Store) error {
 			return st.CancelSession(ctx, abandonedSession)
 		}
@@ -242,7 +229,6 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 				return nil
 			}
 			if errors.Is(captureErr, ErrNotFound) {
-				// A session goen never opened — record the event, write nothing.
 				unknownSession = true
 				return nil
 			}
@@ -256,15 +242,13 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 	}, apply)
 	switch {
 	case err != nil:
-		// 500 so Stripe retries, and the claim rolled back with the effect, so
-		// that retry reprocesses rather than being told it is a duplicate.
+		// 500 so Stripe retries; the claim rolled back with the effect.
 		h.log.ErrorContext(r.Context(), "process stripe webhook",
 			"event", ev.ID, "type", ev.Type, "error", err)
 		http.Error(w, "could not process event", http.StatusInternalServerError)
 		return
 
 	case !claimed:
-		// A redelivery of an event already processed.
 		h.log.InfoContext(r.Context(), "stripe webhook already processed", "event", ev.ID)
 		w.WriteHeader(http.StatusOK)
 		return
@@ -285,23 +269,20 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 		h.log.InfoContext(r.Context(), "payment captured",
 			"order", number, "event", ev.ID, "amount_cents", capture.AmountRecv)
 	case isUnsettled:
-		// ERROR because the session pins card: an event reaching here is a
-		// configuration change, not anything a customer did. See
-		// UnsettledSessionFrom for why nothing is written.
+		// ERROR because the session pins card: this is a configuration change.
 		h.log.ErrorContext(r.Context(),
 			"a delayed payment method completed a checkout — goen's stock hold cannot outlive it",
 			"event", ev.ID, "session", unsettledSession)
 	default:
-		// goen subscribes to more than it handles, so the history is complete.
 		h.log.InfoContext(r.Context(), "stripe webhook recorded",
 			"event", ev.ID, "type", ev.Type, "age", EventAge(&ev))
 	}
 	w.WriteHeader(http.StatusOK)
 }
 
-// payableOrder loads an order the requester is allowed to pay for, or writes the
-// refusal itself and reports false. A stranger gets the 404 an absent order
-// gets, because a 403 would confirm the number is real.
+// payableOrder loads an order the requester may pay for, or writes the refusal
+// itself and reports false. A stranger gets a 404, because a 403 confirms the
+// number is real.
 func (h *Handler) payableOrder(w http.ResponseWriter, r *http.Request, number string) (*Order, bool) {
 	if !h.access.PlacedHere(r.Context(), r, number, h.secure) && !h.ownedBySignedInUser(r, number) {
 		h.notFound(w, r)
@@ -317,8 +298,7 @@ func (h *Handler) payableOrder(w http.ResponseWriter, r *http.Request, number st
 		h.serverError(w, r)
 		return nil, false
 	}
-	// A cancelled order with an open payment page is how a customer pays for
-	// something nobody will ship.
+	// An open payment page on a cancelled order takes money for no goods.
 	if o.Fulfillment != "pending" && !o.Paid {
 		h.notice(w, r, http.StatusConflict,
 			i18n.T(r.Context(), i18n.KeyPayRefusedTitle),

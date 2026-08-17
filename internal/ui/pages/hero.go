@@ -22,20 +22,15 @@ type Hero struct {
 	Body         string
 	PrimaryCTA   CTA
 	SecondaryCTA CTA
-	// ImageKey is a media digest, or empty for the built-in artwork.
-	ImageKey string
-	ImageAlt string
-	// ImageWidth is the original's width, which the srcset states. Zero when the
-	// built-in image is used.
-	ImageWidth int
+	ImageKey     string
+	ImageAlt     string
+	ImageWidth   int
 }
 
 // Custom reports whether this came from the database rather than the fallback.
 func (h Hero) Custom() bool { return h.ImageKey != "" }
 
-// DefaultHero is what the home page shows when nothing is scheduled, so an
-// empty hero_slides is a working site. It is translated, unlike a slide the
-// shop types.
+// DefaultHero is what the home page shows when nothing is scheduled.
 func DefaultHero(ctx context.Context) Hero {
 	return Hero{
 		Eyebrow:      i18n.T(ctx, i18n.KeyHeroEyebrow),
@@ -55,15 +50,12 @@ type AdminHeroSlide struct {
 	CTAHref  string
 	ImageKey string
 	Active   bool
-	// InWindow is whether its schedule allows it right now, which a switched-on
-	// slide past its window is not.
 	InWindow bool
 	Position int32
 	EndsAt   string
 }
 
-// Live reports whether a visitor could be seeing this one. Could, not is: only
-// the first qualifying slide shows, and AdminHeroView.Showing names it.
+// Live reports whether a visitor could be seeing this one.
 func (s AdminHeroSlide) Live() bool { return s.Active && s.InWindow }
 
 // State is the one word a staff member scans for.
@@ -121,13 +113,12 @@ type AdminHeroView struct {
 
 // AdminBanner is one promotional strip as the back office lists it.
 type AdminBanner struct {
-	ID       string
-	Message  string
-	Short    string
-	Code     string
-	CTALabel string
-	CTAHref  string
-	// The English strip, empty for what nobody has translated.
+	ID         string
+	Message    string
+	Short      string
+	Code       string
+	CTALabel   string
+	CTAHref    string
 	MessageEn  string
 	ShortEn    string
 	CTALabelEn string
@@ -157,11 +148,10 @@ func (v *AdminHeroView) HasBanners() bool { return len(v.Banners) > 0 }
 
 // AdminHeroDraft carries a refused form's values back.
 type AdminHeroDraft struct {
-	Eyebrow, Headline, Body   string
-	PrimaryLabel, PrimaryHref string
-	SecondLabel, SecondHref   string
-	ImageKey, ImageAlt, Days  string
-	// The English hero. No English href: a link goes to one page.
+	Eyebrow, Headline, Body       string
+	PrimaryLabel, PrimaryHref     string
+	SecondLabel, SecondHref       string
+	ImageKey, ImageAlt, Days      string
 	EyebrowEn, HeadlineEn, BodyEn string
 	PrimaryLabelEn, SecondLabelEn string
 	ImageAltEn                    string
@@ -171,8 +161,6 @@ type AdminHeroDraft struct {
 func (v *AdminHeroView) Empty() bool { return len(v.Rows) == 0 }
 
 // Showing is the slide a visitor sees right now, or "" for the built-in copy.
-// It is the first qualifying slide in queue order, which is what
-// CurrentHeroSlide's ORDER BY picks.
 func (v *AdminHeroView) Showing() string {
 	for _, s := range v.Rows {
 		if s.Live() {

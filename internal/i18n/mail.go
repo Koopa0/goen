@@ -1,27 +1,15 @@
 package i18n
 
-// Transactional email.
-//
-// A separate area from the page chrome because the constraints differ. An email
-// has no layout to lean on, so each message is a whole letter rather than a
-// label: a greeting, the fact, the link, and the line telling somebody not to
-// reply. Splitting those into a dozen keys per message would put the SHAPE of
-// the letter in the template and its words here, and the two would drift.
-//
-// So each body is ONE message with %s holes, and the notifier fills them. The
-// English is written as English rather than translated line by line — a receipt
-// reads differently in the two languages and pretending otherwise produces the
-// stilted register that makes a shop look like a machine.
+// Transactional email. Each body is one message with %s holes, so the shape of
+// a letter stays with its words.
 
 var (
-	// The greeting and the sign-off, shared by every letter so they cannot drift.
 	KeyMailGreeting = key("mail.greeting", Message{ZhHant: "%s 您好,", En: "Hello %s,"})
 	KeyMailNoReply  = key("mail.noreply", Message{
 		ZhHant: "這封信是系統自動發送的,請勿直接回覆。",
 		En:     "This message was sent automatically. Please do not reply to it.",
 	})
 
-	// The confirmation, sent the moment an order is placed.
 	KeyMailPlacedSubject = key("mail.placed.subject", Message{
 		ZhHant: "訂單 %s 已成立",
 		En:     "Order %s received",
@@ -31,30 +19,9 @@ var (
 		En:     "We have your order %s.\n\nAmount due: %s\n\nView it and pay:\n%s",
 	})
 
-	// 消保法 §18 I's disclosure, carried by the order confirmation.
-	//
-	// §18 I lists six items a 通訊交易 trader must give the consumer in clear
-	// wording, and §18 II requires an INTERNET trader to do it in an electronic
-	// form the consumer can 完整查閱、**儲存**. A rendered page satisfies 查閱;
-	// storage is the half a server-rendered site forgets, and an email is an
-	// artefact the customer keeps without doing anything.
-	//
-	// It is also what stops the seven days running long. §19 III: if the
-	// rescission information is not PROVIDED when the goods are received, the
-	// window runs from the day after it finally is, expiring only at four
-	// months — so a shop that states its terms on a page nobody was handed
-	// carries a four-month tail on every order.
-	//
-	// ONE message with holes rather than six keys, like every other body here:
-	// the SHAPE of a letter belongs with its words. Items 1, 3, 4 and 5 are
-	// stated in full; item 2 — what was bought, for how much, and how it is paid
-	// and delivered — is the letter above this and the order page it links to.
-	//
-	// Item 4 reads "nothing is excluded" rather than naming exclusions, and that
-	// is the truth about this catalogue: 通訊交易解除權合理例外情事適用準則 §2's
-	// chapeau conditions all seven exceptions on the seller having said so
-	// BEFORE the sale, so a shop that claims none owes the full seven days and
-	// must say that much.
+	// KeyMailStatutoryDisclosure carries Consumer Protection Act §18's disclosure.
+	// Under §19 III the seven-day window runs from the day after it is finally
+	// provided and survives four months, so an order sent without it carries that tail.
 	KeyMailStatutoryDisclosure = key("mail.disclosure", Message{
 		ZhHant: "───────────────\n" +
 			"依消費者保護法第 18 條應告知事項\n\n" +
@@ -80,7 +47,6 @@ var (
 			"consumer protection group or to your local government's consumer service centre.",
 	})
 
-	// The receipt, sent by the capture and by nothing else.
 	KeyMailPaidSubject = key("mail.paid.subject", Message{
 		ZhHant: "訂單 %s 付款完成",
 		En:     "Payment received for order %s",
@@ -91,7 +57,6 @@ var (
 			"shortly, and send another note when it ships.\n\nView the order:\n%s",
 	})
 
-	// The dispatch notice.
 	KeyMailShippedSubject = key("mail.shipped.subject", Message{
 		ZhHant: "訂單 %s 已出貨",
 		En:     "Order %s has shipped",
@@ -101,9 +66,7 @@ var (
 		En:     "Your order %s is on its way.\n\nCarrier: %s\nTracking number: %s\n\nView the order:\n%s",
 	})
 
-	// The restock notice. It says the stock is limited and does not pretend to
-	// hold any: goen reserves nothing for a notice, so promising otherwise would
-	// be a promise the shop breaks for everybody after the first.
+	// KeyMailRestockSubject heads the restock notice; goen reserves no stock for one.
 	KeyMailRestockSubject = key("mail.restock.subject", Message{
 		ZhHant: "「%s」補貨通知",
 		En:     "%s is back in stock",
@@ -116,7 +79,6 @@ var (
 	KeyMailPaidCard = key("mail.paid.card", Message{ZhHant: "付款方式:%s", En: "Paid with: %s"})
 	KeyMailHello    = key("mail.hello", Message{ZhHant: "您好,", En: "Hello,"})
 
-	// The password reset.
 	KeyMailResetSubject = key("mail.reset.subject", Message{
 		ZhHant: "重設 goen 的密碼",
 		En:     "Reset your goen password",
@@ -129,7 +91,6 @@ var (
 			"ignore this message — nothing about your password changes.",
 	})
 
-	// The newsletter's two letters.
 	KeyMailNewsConfirmSubject = key("mail.news.confirm.subject", Message{
 		ZhHant: "確認訂閱 goen 電子報",
 		En:     "Confirm your goen newsletter subscription",
@@ -152,18 +113,12 @@ var (
 			"as well.",
 	})
 
-	// A newsletter issue. Its subject and body are AUTHORED by the shop and pass
-	// through untranslated — that is the content half of the line — but the
-	// unsubscribe footer is chrome and every copy carries it.
+	// KeyMailIssueFooter is the one translated part of an issue; the shop authors the rest.
 	KeyMailIssueFooter = key("mail.issue.footer", Message{
 		ZhHant: "不想再收到電子報?用這個連結退訂:\n%s",
 		En:     "Not interested any more? Unsubscribe here:\n%s",
 	})
 
-	// Proving an address. %s is the address, then the link — the address is named
-	// because a CHANGE sends to a new one while the account still holds the old,
-	// and a letter that does not say which address it is about is one somebody
-	// cannot act on.
 	KeyMailVerifySubject = key("mail.verify.subject", Message{
 		ZhHant: "確認你的 goen 電子郵件",
 		En:     "Confirm your goen email address",

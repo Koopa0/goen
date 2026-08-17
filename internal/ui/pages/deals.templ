@@ -13,8 +13,7 @@ func DealsMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeyDeals2)}
 }
 
-// Deals renders the marked-down products, reusing SearchView and the product
-// grid.
+// Deals renders the marked-down products, reusing SearchView.
 templ Deals(p layouts.Page, v SearchView) {
 	@layouts.Base(p) {
 		<div class="goen-listing">
@@ -35,8 +34,6 @@ templ Deals(p layouts.Page, v SearchView) {
 					{ i18n.T(ctx, i18n.KeyDealsEmpty) }
 				</p>
 			} else {
-				// A tile's name is an h3; without this heading the nearest one
-				// above it is the page's h1, which is a skipped level.
 				<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
 				<ul class="goen-tiles__grid" role="list">
 					for _, t := range v.Products {

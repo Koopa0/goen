@@ -5,8 +5,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Pay hands the customer over to Stripe's hosted card form: the button posts,
-// the server creates the session and answers 303.
+// Pay hands the customer over to Stripe's hosted card form.
 templ Pay(p layouts.Page, v PayView) {
 	@layouts.Base(p) {
 		<div class="goen-pay">

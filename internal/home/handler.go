@@ -10,15 +10,13 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// recommendedCount is how many product tiles the recommended grid shows.
 const recommendedCount = 8
 
 // Handler serves the storefront home page.
 type Handler struct {
 	store *Store
 	log   *slog.Logger
-	// secure selects the dismissal cookie's name, the same way it does for the
-	// session and the cart.
+	// secure selects the dismissal cookie's name.
 	secure bool
 }
 
@@ -30,8 +28,7 @@ func NewHandler(store *Store, log *slog.Logger, secure bool) *Handler {
 	return &Handler{store: store, log: log, secure: secure}
 }
 
-// Home renders the home page. There is nothing to write here, so it is a plain
-// GET; the read failing is a 5xx with a generic notice, not the visitor's fault.
+// Home renders the home page.
 func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Load(r.Context(), recommendedCount)
 	if err != nil {

@@ -10,11 +10,6 @@ import (
 )
 
 // Product renders the detail page: gallery, the buy panel, specs and reviews.
-//
-// The option pickers are LINKS, not buttons. Choosing 512GB navigates to the
-// URL that selects it, and the server renders that combination's price and
-// stock. That is the only way a picker can work with scripting off, and goen's
-// write-face rule makes it the only way it may work at all.
 templ Product(p layouts.Page, v *ProductView) {
 	@layouts.Base(p) {
 		<div class="goen-pdp">
@@ -41,11 +36,6 @@ templ Product(p layouts.Page, v *ProductView) {
 							<p class="goen-pdp__prose">{ v.Description }</p>
 						</section>
 					}
-					// The warranty is its OWN section, not a paragraph inside the
-					// description, and it carries its own condition. Nested there, a
-					// product with no description states no cover either — two unrelated
-					// facts sharing one condition — and the seed's products have no
-					// description at all, so nothing on the page would ever show it.
 					if v.HasWarranty() || v.WarrantyNote != "" {
 						<section class="goen-pdp__desc" aria-labelledby="warranty-heading">
 							<h2 id="warranty-heading" class="h4 goen-section__title">{ i18n.T(ctx, i18n.KeySectionWarranty) }</h2>
@@ -161,9 +151,6 @@ templ Product(p layouts.Page, v *ProductView) {
 	}
 }
 
-// productGallery shows every image the product has. There is no lightbox and no
-// thumbnail switcher: both need scripting to be worth anything, and a column of
-// full images reads the same on every device.
 templ productGallery(v *ProductView) {
 	<div class="goen-pdp__gallery">
 		if v.HasImages() {
@@ -195,8 +182,6 @@ templ productGallery(v *ProductView) {
 	</div>
 }
 
-// productBuy is the panel beside the gallery: identity, price, the pickers, and
-// the add-to-cart form.
 templ productBuy(v *ProductView) {
 	<div class="goen-pdp__buy">
 		<p class="ui-product__brand goen-pdp__brand">{ v.Brand }</p>
@@ -295,10 +280,7 @@ templ productBuy(v *ProductView) {
 		if v.SoldOut() {
 			<form class="goen-pdp__notify" method="post" action={ templ.SafeURL(v.NotifyAction()) }>
 				<input type="hidden" name="variant" value={ v.VariantID }/>
-				// h2 and not h3: this form is a section of the PAGE, and the
-				// nearest heading above it is the product's own h1 — so an h3 skips a
-				// level. The h4 class carries the size, so the outline is correct
-				// without the panel changing shape.
+				// h2 and not h3: the nearest heading above is the product's own h1.
 				<h2 class="h4">{ i18n.T(ctx, i18n.KeyRestockHeading) }</h2>
 				if v.NotifyTaken() {
 					<p class="ui-alert ui-alert--info" role="status">
@@ -329,9 +311,6 @@ templ productBuy(v *ProductView) {
 				}
 			</form>
 		}
-		// A LINK, because adding to a comparison writes nothing — the set is
-		// the URL. Nothing to make work without scripting, because there is no
-		// mutation.
 		if !v.AlreadyComparing() && !v.ComparingFull() {
 			<a class="ui-btn ui-btn--secondary ui-btn--block" href={ templ.SafeURL(v.CompareHref()) }>
 				{ i18n.T(ctx, i18n.KeyAddToCompare) }
@@ -357,8 +336,6 @@ templ productBuy(v *ProductView) {
 		</form>
 		<ul class="goen-pdp__assurances" role="list">
 			<li>{ i18n.T(ctx, i18n.KeyGuaranteeWarranty) }</li>
-			// Absent rather than stated at zero: a shop that charges for every
-			// parcel must not appear to be offering free delivery.
 			if v.FreeDelivery() != "" {
 				<li>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyGuaranteeShipping), v.FreeDelivery()) }</li>
 			}
@@ -367,7 +344,6 @@ templ productBuy(v *ProductView) {
 	</div>
 }
 
-// productReviews is the rating summary and the most recent reviews.
 templ productReviews(v *ProductView) {
 	<section class="goen-pdp__reviews" id="reviews" aria-labelledby="reviews-heading">
 		<h2 id="reviews-heading" class="h3 goen-section__title">{ i18n.T(ctx, i18n.KeySectionReviews) }</h2>
@@ -411,26 +387,12 @@ templ productReviews(v *ProductView) {
 	</section>
 }
 
-// reviewForm is where a customer leaves one.
-//
-// The rating is a radio group, not a star widget: a widget needs JavaScript to
-// report which star was clicked, and the write-face rule forbids that being how
-// a form works. Styled to look like stars, it reads as one and submits as five
-// ordinary inputs.
-//
-// The badge is not a field. Whether a review counts as a verified purchase is
-// derived from the customer's committed orders and enforced by
-// product_reviews_verified_is_real — a form that could claim it would be a
-// badge anyone can wear.
 templ reviewForm(v *ProductView) {
 	if !v.SignedIn {
 		<p class="goen-pdp__reviewnote">
 			<a href={ templ.SafeURL("/signin?next=/p/" + v.Slug) }>{ i18n.T(ctx, i18n.KeySignInFirst) }</a>{ i18n.T(ctx, i18n.KeySignInToReview) }
 		</p>
 	} else if !v.CanReview {
-		// No form, so nothing to carry a draft back into — one review per
-		// person is the rule (product_reviews_author_key), and offering a form
-		// that cannot be submitted would be worse than saying so.
 		<p class="goen-pdp__reviewnote">{ i18n.T(ctx, i18n.KeyAlreadyReviewed) }</p>
 	} else {
 		<form class="goen-pdp__reviewform" method="post" action={ templ.SafeURL(v.ReviewAction()) }>

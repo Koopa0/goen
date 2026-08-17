@@ -5,9 +5,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// NewsletterAction is the page a link in a newsletter email opens. Following
-// the link writes nothing: link scanners fetch the URLs in a message before a
-// human sees it, and a confirmation a scanner can complete is not one.
+// NewsletterAction is the page a newsletter link opens; it writes nothing.
 templ NewsletterAction(p layouts.Page, v NewsletterActionView) {
 	@layouts.Base(p) {
 		<div class="notice">

@@ -11,24 +11,16 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// Handler serves 聯絡我們.
+// Handler serves the contact form.
 type Handler struct {
 	store *Store
 	limit *ratelimit.Limiter
 	log   *slog.Logger
 }
 
-// NewHandler returns a Handler writing through store.
-//
-// The limiter is required rather than optional, and this form was the ONE public
-// write path in goen with no bound on it — every other one (sign-in, register,
-// /forgot, /reset, the newsletter, /orders/find, the restock notice) was
-// guarded, and this sat directly above the newsletter's route without one.
-//
-// What it costs unbounded is not an argon2 amplifier but a table and a queue: a
-// script fills contact_messages and buries the real customer who wrote in
-// yesterday under ten thousand rows on a page ordered oldest-first, which is the
-// page's whole design. Nobody at the shop can tell which is which.
+// NewHandler returns a Handler writing through store. The limiter is required:
+// unbounded, a script fills contact_messages and buries the real customer on a
+// page ordered oldest-first.
 func NewHandler(store *Store, limit *ratelimit.Limiter, log *slog.Logger) *Handler {
 	if store == nil || limit == nil || log == nil {
 		panic("contact: NewHandler requires a store, a limiter and a logger")
@@ -48,21 +40,15 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 }
 
 // Submit serves POST /contact.
-//
-// The plain form is the whole write path: it validates, stores, and redirects
-// (303) so a reload is safe. htmx, when present, only changes what is written
-// back — the panel alone instead of the page — and never how the write happens.
 func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		h.log.WarnContext(r.Context(), "parse contact form", "error", err)
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
-	// Keyed on the IP alone, unlike /forgot and the newsletter which also key on
-	// the ADDRESS. Those two MAIL the address somebody types, so an unbounded
-	// form is a way to fill a stranger's mailbox; this one writes a row the shop
-	// reads. The address here is the sender's own claim about themselves and
-	// bounding on it would let anybody buy more attempts by editing a field.
+	// Keyed on the IP alone, unlike /forgot and the newsletter: this form mails
+	// nobody, and its address field is the sender's own claim, so bounding on it
+	// would let anybody buy more attempts by editing a field.
 	if retryAfter, allowed := h.limit.Allow(ratelimit.ClientIP(r)); !allowed {
 		ratelimit.Refuse(w, retryAfter)
 		return
@@ -106,8 +92,7 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/contact?sent=1", http.StatusSeeOther)
 }
 
-// respond writes the panel back to htmx and the whole page to a plain browser,
-// under the same status either way.
+// respond writes the panel back to htmx and the whole page to a plain browser.
 func (h *Handler) respond(w http.ResponseWriter, r *http.Request, status int, form pages.ContactForm) {
 	if web.IsHTMX(r) {
 		web.Render(w, r, h.log, status, pages.ContactPanel(form))

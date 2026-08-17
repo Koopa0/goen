@@ -23,23 +23,14 @@ var ErrInUse = errors.New("admin: something still uses this")
 
 // TaxonomyForm is a brand or a category being created.
 type TaxonomyForm struct {
-	Slug string
-	Name string
-	// NameEn is empty for a category the shop has not translated.
-	NameEn string
-	// Parent is a category's parent slug, empty for a root. Brands have no
-	// parent and leave it empty.
-	Parent string
-	// IconKey is the glyph the home page tiles a category with, empty for none.
-	// Brands have no tile and leave it empty.
+	Slug    string
+	Name    string
+	NameEn  string
+	Parent  string
 	IconKey string
 }
 
-// CategoryIcons is the closed set icons.Category can draw.
-//
-// A key outside it renders NOTHING — that switch has no default arm — so the
-// form offers these and Validate refuses the rest, rather than writing a value
-// the home page would silently drop.
+// CategoryIcons is the closed set icons.Category draws; anything else renders NOTHING.
 var CategoryIcons = []string{"phone", "laptop", "tablet", "headphones", "watch", "plug", "shield"}
 
 // Validate refuses what the schema would, with a message naming the field.
@@ -56,8 +47,6 @@ func (f *TaxonomyForm) Validate(ctx context.Context) map[string]string {
 	if f.Name == "" || utf8.RuneCountInString(f.Name) > MaxTaxonomyNameRunes {
 		errs["name"] = i18n.T(ctx, i18n.KeyFormNameRequired)
 	}
-	// Blank is legal and means "not translated"; nullif('') in the query turns it
-	// into the NULL the column uses for absence.
 	if utf8.RuneCountInString(f.NameEn) > MaxTaxonomyNameRunes {
 		errs["name_en"] = i18n.T(ctx, i18n.KeyFormNameEnTooLong)
 	}
@@ -138,8 +127,6 @@ func (s *Store) CreateCategory(ctx context.Context, f *TaxonomyForm) (map[string
 				return createErr
 			}
 			if n == 0 {
-				// A parent was named and does not exist. Refused rather than
-				// quietly created at the root.
 				return ErrNotFound
 			}
 			return nil
@@ -158,9 +145,7 @@ func (s *Store) CreateCategory(ctx context.Context, f *TaxonomyForm) (map[string
 	return nil, nil
 }
 
-// Rename changes a brand's or a category's display name, never its slug — goen
-// has no redirect table, so a renamed slug is a dead link everywhere at once.
-// nameEn applies to categories only, and empty CLEARS it.
+// Rename changes a display name, never a slug: goen has no redirect table.
 func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn, iconKey string) error {
 	name, nameEn = strings.TrimSpace(name), strings.TrimSpace(nameEn)
 	iconKey = strings.TrimSpace(iconKey)
@@ -202,10 +187,7 @@ func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn, iconKey st
 		})
 }
 
-// Delete removes a brand or category nothing points at.
-//
-// Emptiness is decided by the statement's own WHERE clause, never by a count
-// read first: a product created between the two would be orphaned.
+// Delete removes a brand or category, decided by the DELETE's own WHERE clause.
 func (s *Store) Delete(ctx context.Context, kind, slug string) error {
 	action, table := ActionDeleteBrand, "brands"
 	if kind == "category" {
@@ -226,16 +208,14 @@ func (s *Store) Delete(ctx context.Context, kind, slug string) error {
 				return fmt.Errorf("%w: %s", ErrRefused, err.Error())
 			}
 			if n == 0 {
-				// Either it does not exist or something still uses it; the
-				// second is the one a staff member can act on.
 				return ErrInUse
 			}
 			return nil
 		})
 }
 
-// takenBy reports whether err is this constraint. Bound to PgError.ConstraintName
-// and never a substring of the message, which never contains it.
+// takenBy reports whether err is this constraint. Bound to ConstraintName: a
+// PgError's message never contains it, so a substring search cannot match.
 func takenBy(err error, constraint string) bool {
 	pgErr, ok := errors.AsType[*pgconn.PgError](err)
 	return ok && pgErr.ConstraintName == constraint

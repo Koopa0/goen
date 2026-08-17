@@ -21,12 +21,9 @@ type Handler struct {
 	log   *slog.Logger
 }
 
-// NewHandler returns a Handler writing through store.
-//
-// limit bounds submissions per ADDRESS. Per-IP is middleware in cmd/goen, and
-// neither alone is enough: filling somebody else's mailbox takes one request per
-// machine, which per-IP limiting cannot see, and a distributed script walking
-// addresses is invisible to a per-address bucket.
+// NewHandler returns a Handler writing through store. limit bounds submissions
+// per ADDRESS; per-IP is middleware in cmd/goen, and neither alone can see the
+// attack the other bounds.
 func NewHandler(store *Store, limit *ratelimit.Limiter, log *slog.Logger) *Handler {
 	if store == nil || limit == nil || log == nil {
 		panic("newsletter: NewHandler requires a store, a limiter and a logger")
@@ -34,16 +31,8 @@ func NewHandler(store *Store, limit *ratelimit.Limiter, log *slog.Logger) *Handl
 	return &Handler{store: store, limit: limit, log: log}
 }
 
-// Submit serves POST /newsletter.
-//
-// The form lives in the footer of every page, so a plain browser cannot be
-// answered with "the same page again" — it is redirected to the acknowledgement
-// instead.
-//
-// Nothing joins the list here. The answer is the same whether a link was sent,
-// whether the address was already on the list, and whether it belongs to the
-// person who typed it: a form that says "you are already subscribed" reports
-// membership of a mailing list to anybody who cares to type an address in.
+// Submit serves POST /newsletter. Nothing joins the list here, and every
+// outcome is answered identically.
 func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		h.log.WarnContext(r.Context(), "parse newsletter form", "error", err)
@@ -54,18 +43,15 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	addr := email.Clean(r.PostFormValue("email"))
 
 	if k := Validate(addr); k != "" {
-		// The length message carries the limit. Sprintf on a message with no
-		// verb is a no-op, so one call covers all three rather than a switch
-		// that has to be kept in step with the validator.
+		// Sprintf on a message with no verb is a no-op, so one call covers all
+		// three messages and only the length one consumes the limit.
 		h.fail(w, r, http.StatusUnprocessableEntity, addr,
 			fmt.Sprintf(i18n.T(r.Context(), k), email.Max))
 		return
 	}
 
-	// Keyed on the address, and BEFORE the write: without it the form mails a
-	// confirmation to whoever is typed into it, as often as somebody presses the
-	// button. That is the abuse this endpoint has, and it is not credential
-	// guessing — it is using goen to deliver mail to a stranger.
+	// Keyed on the address and BEFORE the write: unbounded, the form mails a
+	// confirmation to whoever is typed into it, as often as the button is pressed.
 	if retryAfter, ok := h.limit.Allow("newsletter:" + addr); !ok {
 		ratelimit.Refuse(w, retryAfter)
 		return
@@ -85,11 +71,7 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 }
 
 // Thanks serves GET /newsletter/thanks, the landing point of the plain form's
-// redirect.
-//
-// It says a letter is on its way, not that the subscription is done, because it
-// is not: the mailbox has to answer. Saying "已訂閱" here is what the page used
-// to do, and it was a promise the shop had no way to keep.
+// redirect. It says a letter is on its way, not that the subscription is done.
 func (h *Handler) Thanks(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	meta := layouts.Page{
@@ -104,12 +86,9 @@ func (h *Handler) Thanks(w http.ResponseWriter, r *http.Request) {
 	))
 }
 
-// ConfirmPage serves GET /newsletter/confirm.
-//
-// The token is echoed into a form rather than acted on. Following a link must
-// not write anything: mail clients and security gateways fetch the URLs in a
-// message before a human sees it, and a confirmation a scanner can complete is
-// not a confirmation of anything.
+// ConfirmPage serves GET /newsletter/confirm. The token is echoed into a form
+// rather than acted on: a confirmation a link scanner can complete confirms
+// nothing.
 func (h *Handler) ConfirmPage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
@@ -152,8 +131,7 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 }
 
 // UnsubscribePage serves GET /newsletter/unsubscribe, for the same reason
-// ConfirmPage exists: a scanner that follows the link must not take somebody off
-// the list without their knowing.
+// ConfirmPage exists.
 func (h *Handler) UnsubscribePage(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
@@ -167,11 +145,9 @@ func (h *Handler) UnsubscribePage(w http.ResponseWriter, r *http.Request) {
 		}))
 }
 
-// Unsubscribe serves POST /newsletter/unsubscribe.
-//
-// A second click answers the same success as the first. Only a token matching
-// nothing is a failure worth showing, because only there is the reader's address
-// still on the list.
+// Unsubscribe serves POST /newsletter/unsubscribe. A second click answers the
+// same success as the first; only a token matching nothing is worth showing as
+// a failure, because only there is the reader still on the list.
 func (h *Handler) Unsubscribe(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
@@ -199,16 +175,15 @@ func (h *Handler) Unsubscribe(w http.ResponseWriter, r *http.Request) {
 		}))
 }
 
-// linkFailed answers a link that cannot be acted on. 422 rather than 404: the
-// route exists and the request was understood — what failed is the token in it.
+// linkFailed answers a link that cannot be acted on.
 func (h *Handler) linkFailed(w http.ResponseWriter, r *http.Request, heading, body string) {
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.NewsletterAction(
 		pages.NewsletterMeta(heading),
 		pages.NewsletterActionView{Heading: heading, Body: body}))
 }
 
-// fail answers a rejected submission: the form itself for htmx, and a standalone
-// page for a browser that has left the page the form was on.
+// fail answers a rejected submission: the form itself for htmx, a standalone
+// page otherwise.
 func (h *Handler) fail(w http.ResponseWriter, r *http.Request, status int, addr, msg string) {
 	if web.IsHTMX(r) {
 		state := layouts.NewsletterState{Email: addr, Error: msg}

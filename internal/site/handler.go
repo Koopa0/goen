@@ -1,5 +1,4 @@
-// Package site serves goen's standing informational pages — the ones with no
-// state behind them beyond the copy itself — and the not-found page.
+// Package site serves goen's standing informational pages and the not-found page.
 package site
 
 import (
@@ -16,16 +15,11 @@ import (
 
 // Handler serves the informational pages.
 type Handler struct {
-	log *slog.Logger
-	// baseURL and catalogue exist for the sitemap. A sitemap is a list of
-	// absolute URLs, so it needs the origin; and it lists what is actually for
-	// sale, so it needs to read the catalogue.
+	log       *slog.Logger
 	baseURL   string
 	catalogue Catalogue
 	content   Content
-	// secure governs the cookie prefix, the same way it does for the cart and
-	// the session.
-	secure bool
+	secure    bool
 }
 
 // Content is what the policy pages read, defined here by the consumer.
@@ -34,9 +28,7 @@ type Content interface {
 	ShippingPolicy(ctx context.Context) ([]pages.ShippingMethod, error)
 }
 
-// Catalogue is the subset of the catalogue this package needs, defined here by
-// the consumer. internal/catalog returns its concrete *Store and knows nothing
-// about this interface.
+// Catalogue is the subset of the catalogue this package needs.
 type Catalogue interface {
 	SitemapProducts(ctx context.Context, limit int32) ([]db.SitemapProductsRow, error)
 	SitemapCategories(ctx context.Context) ([]db.SitemapCategoriesRow, error)

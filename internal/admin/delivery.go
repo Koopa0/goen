@@ -10,13 +10,10 @@ import (
 	"github.com/koopa0/goen/internal/db"
 )
 
-// ErrTooLateToCorrect is a delivery address that can no longer be changed: once
-// the parcel has left, rewriting it makes the record lie about where it went.
+// ErrTooLateToCorrect is a delivery address that can no longer be changed.
 var ErrTooLateToCorrect = errors.New("admin: this order has already shipped")
 
-// Delivery is the correction a staff member typed.
-//
-// Both destinations, as the checkout collects them. Which half applies is decided
+// Delivery is the correction a staff member typed; which half applies follows
 // from the ORDER's shipping method, never from the form.
 type Delivery struct {
 	Email     string
@@ -33,9 +30,7 @@ type Delivery struct {
 	PickupStoreName string
 }
 
-// CorrectDelivery rewrites an order's delivery details. The audit row names the
-// fields that changed and never their values: audit_events is append-only and
-// erase_user does not reach it, so an address there outlives the erasure.
+// CorrectDelivery rewrites an order's delivery details.
 func (s *Store) CorrectDelivery(ctx context.Context, number string, d *Delivery) error {
 	row, err := s.q.OrderDestinationKind(ctx, number)
 	if err != nil {
@@ -47,8 +42,6 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *Delivery)
 			number, row.DestinationKind)
 	}
 
-	// The half that does not apply is blanked from the ORDER's own method, the
-	// same resolution PlaceOrder does.
 	addr := &cart.Address{
 		To: to, Email: d.Email, Name: d.Recipient, Phone: d.Phone,
 		PostalCode: d.PostalCode, City: d.City, District: d.District, Street: d.Street,
@@ -57,8 +50,6 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *Delivery)
 	}
 	addr.Trim()
 	if errs := addr.Validate(); len(errs) > 0 {
-		// The field and the message KEY, never a rendered sentence: this becomes
-		// a log line, which has no locale to render in.
 		return fmt.Errorf("%w: %s (%s)", ErrInvalid, errs[0].Field, errs[0].MessageKey)
 	}
 	addr.ForDestination()
@@ -82,15 +73,12 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *Delivery)
 				return fmt.Errorf("%w: %s", ErrRefused, updErr.Error())
 			}
 			if n == 0 {
-				// The state guard in the WHERE clause speaking, or an erased
-				// order.
 				return ErrTooLateToCorrect
 			}
 			return nil
 		})
 }
 
-// deliveryFormOf reads the correction a staff member typed.
 func deliveryFormOf(values func(string) string) *Delivery {
 	get := func(k string) string { return strings.TrimSpace(values(k)) }
 	return &Delivery{

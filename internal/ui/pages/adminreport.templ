@@ -55,9 +55,6 @@ templ AdminReport(p layouts.Page, v *AdminReportView) {
 					<li class="goen-report__figure">
 						<span class="goen-report__label">{ i18n.T(ctx, i18n.KeyAdminRepCompletion) }</span>
 						<span class="goen-report__value">{ v.Completion() }</span>
-						// The two counts are shown beside the percentage, because
-						// a rate of eleven orders reads very differently from a
-						// rate of eleven thousand.
 						<span class="ui-cart-line__meta">
 							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepCounts), v.CommittedText(), v.PlacedText()) }
 						</span>
@@ -94,9 +91,6 @@ templ AdminReport(p layouts.Page, v *AdminReportView) {
 								<a class="goen-admin__productname" href={ templ.SafeURL(item.Href()) }>{ item.Name }</a>
 								<span class="ui-cart-line__meta">{ item.SKU }</span>
 								<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepLeft), item.StockText()) }</span>
-								// The units that produced the cover figure. "14
-								// days left" means nothing without knowing it
-								// came from three sales or three hundred.
 								<span class="goen-report__num">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRepSold), item.SoldText()) }</span>
 								<span class="goen-report__num">{ item.Cover(ctx) }</span>
 							</li>

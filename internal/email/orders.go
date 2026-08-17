@@ -10,13 +10,8 @@ import (
 )
 
 // OrderPaid is what an order.paid message carries.
-//
-// Declared here rather than imported from internal/payment, for the reason
-// OrderPlaced is: a consumer that imports the producer's types is a consumer
-// that cannot be deployed a version behind.
 type OrderPaid struct {
-	// Locale is the language to send in, recorded by the producer. See
-	// [Notifier.locale].
+	// Locale is the language to send in, recorded by the producer.
 	Locale      string `json:"locale"`
 	OrderNumber string `json:"order_number"`
 	Email       string `json:"email"`
@@ -29,10 +24,6 @@ type OrderPaid struct {
 }
 
 // SendOrderPaid tells somebody their money arrived.
-//
-// A receipt is the one email a customer looks for later, and until now goen
-// sent none: the topic constant existed, nothing produced it, and nothing
-// handled it. A payment page that says 已付款 is a page; an email is a record.
 func (n Notifier) SendOrderPaid(ctx context.Context, p *OrderPaid) error {
 	if !Valid(p.Email) {
 		return errors.New("an order.paid message has no usable email address")
@@ -42,9 +33,7 @@ func (n Notifier) SendOrderPaid(ctx context.Context, p *OrderPaid) error {
 	body := n.letter(ctx, p.Name, fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPaidBody),
 		p.OrderNumber, twd(p.AmountCents), n.orderURL(p.OrderNumber)))
 	if p.Card != "" {
-		// Appended rather than woven into the message: a payment method is often
-		// absent — checkout.session.completed does not expand the charge — and a
-		// sentence with a hole in it reads worse than one line fewer.
+		// Appended rather than woven in, because the card is often absent.
 		body += "\n" + fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPaidCard), p.Card)
 	}
 
@@ -57,8 +46,7 @@ func (n Notifier) SendOrderPaid(ctx context.Context, p *OrderPaid) error {
 
 // OrderShipped is what an order.shipped message carries.
 type OrderShipped struct {
-	// Locale is the language to send in, recorded by the producer. See
-	// [Notifier.locale].
+	// Locale is the language to send in, recorded by the producer.
 	Locale      string `json:"locale"`
 	OrderNumber string `json:"order_number"`
 	Email       string `json:"email"`
@@ -67,11 +55,8 @@ type OrderShipped struct {
 	Tracking    string `json:"tracking"`
 }
 
-// SendOrderShipped tells somebody their parcel is on its way.
-//
-// The tracking number is IN the mail rather than only on the order page. It is
-// what the customer takes to the carrier's own site, and making them sign in to
-// find it is the difference between a notification and a nudge to come back.
+// SendOrderShipped tells somebody their parcel is on its way, with the tracking
+// number in the mail rather than only on the order page.
 func (n Notifier) SendOrderShipped(ctx context.Context, p *OrderShipped) error {
 	if !Valid(p.Email) {
 		return errors.New("an order.shipped message has no usable email address")
@@ -87,12 +72,8 @@ func (n Notifier) SendOrderShipped(ctx context.Context, p *OrderShipped) error {
 }
 
 // RestockNotice is what a catalogue.restocked message carries.
-//
-// The product SLUG rather than an id: the link is the whole point of the mail,
-// and a slug is what a URL is made of.
 type RestockNotice struct {
-	// Locale is the language to send in, recorded by the producer. See
-	// [Notifier.locale].
+	// Locale is the language to send in, recorded by the producer.
 	Locale      string `json:"locale"`
 	Email       string `json:"email"`
 	ProductName string `json:"product_name"`
@@ -100,11 +81,8 @@ type RestockNotice struct {
 	SKU         string `json:"sku"`
 }
 
-// SendRestockNotice tells somebody the thing they wanted is back.
-//
-// It says the stock is limited and does not pretend to hold any: goen reserves
-// nothing for a notice, so promising otherwise would be a promise the shop
-// breaks for everybody after the first.
+// SendRestockNotice tells somebody the thing they wanted is back. It reserves
+// nothing and the copy does not pretend otherwise.
 func (n Notifier) SendRestockNotice(ctx context.Context, p *RestockNotice) error {
 	if !Valid(p.Email) {
 		return errors.New("a restock notice has no usable email address")

@@ -7,22 +7,12 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// AdminStaffView is who can reach the back office and who is protected by a
-// second factor.
-//
-// The query for this shipped with the 2FA feature and had no caller, so the
-// answer to "who has it on" lived only in the database. That is the one
-// question a shop owner has to be able to ask about their own back office:
-// enrolment is voluntary until somebody checks.
+// AdminStaffView is who can reach the back office, and who has a second factor.
 type AdminStaffView struct {
 	Rows   []AdminStaffRow
 	Roles  []StaffRoleChoice
 	Notice string
-	// Actor is the signed-in admin's id, so the page can leave out the controls
-	// that would act on their own account: removing your own second factor is
-	// what an attacker holding your session wants, and revoking your own access
-	// is how a shop locks itself out.
-	Actor string
+	Actor  string
 }
 
 // StaffRoleChoice is one role the form offers.
@@ -40,8 +30,7 @@ type AdminStaffRow struct {
 	Enrolled bool
 }
 
-// DisplayName is the person's name, or their address when they have not given
-// one — never blank, because a blank row cannot be acted on.
+// DisplayName is the person's name, or their address when they gave none.
 func (r AdminStaffRow) DisplayName() string {
 	if r.Name == "" {
 		return r.Email
@@ -57,8 +46,7 @@ func (r AdminStaffRow) State(ctx context.Context) string {
 	return i18n.T(ctx, i18n.KeyAdminTOTPOff)
 }
 
-// RoleText is the role in words. No silent default: a role added to the
-// schema's CHECK and not here would render as an empty column.
+// RoleText is the role in words.
 func (r AdminStaffRow) RoleText(ctx context.Context) string {
 	switch r.Role {
 	case "admin":
@@ -73,8 +61,7 @@ func (r AdminStaffRow) RoleText(ctx context.Context) string {
 // IsActor reports whether this row is the admin reading the page.
 func (v AdminStaffView) IsActor(r AdminStaffRow) bool { return r.ID == v.Actor }
 
-// Unprotected counts the accounts that could reach /admin with a password
-// alone. It is the number the page exists to show.
+// Unprotected counts the accounts that could reach /admin with a password alone.
 func (v AdminStaffView) Unprotected() int {
 	n := 0
 	for _, r := range v.Rows {
@@ -85,8 +72,7 @@ func (v AdminStaffView) Unprotected() int {
 	return n
 }
 
-// UnprotectedText is that count, for the warning that names it. A number is
-// what tells a shop owner whether this is one colleague or the whole team.
+// UnprotectedText is that count, for the warning that names it.
 func (v AdminStaffView) UnprotectedText() string { return strconv.Itoa(v.Unprotected()) }
 
 // AllProtected reports whether every staff account has a second factor.

@@ -34,12 +34,9 @@ func TestMain(m *testing.M) {
 
 func quiet() *slog.Logger { return slog.New(slog.DiscardHandler) }
 
-// enqueue writes a message directly, standing in for a business transaction.
 // emptyOutbox clears the queue before a test that asserts on GLOBAL counts.
-//
-// Drain is global by design — that is what a worker does — so a message another
-// test left pending is a message this one's counts include. The suite passed in
-// file order and failed under -shuffle until each test started from empty.
+// Drain is global by design, so another test's pending message is in this one's
+// counts.
 func emptyOutbox(t *testing.T) {
 	t.Helper()
 	if _, err := pool.Exec(t.Context(), `DELETE FROM outbox_messages`); err != nil {
@@ -92,10 +89,6 @@ func TestDrainDeliversAndStamps(t *testing.T) {
 }
 
 // TestAFailedHandlerIsRetriedNotLost proves a failure leaves something to retry.
-//
-// The message stays pending with its attempt count and a reason. A queue that
-// dropped what it could not deliver would be a queue that lies about being
-// empty.
 func TestAFailedHandlerIsRetriedNotLost(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
@@ -136,10 +129,7 @@ func TestAFailedHandlerIsRetriedNotLost(t *testing.T) {
 }
 
 // TestBackoffPushesTheRetryIntoTheFuture proves a failing message is not retried
-// every poll.
-//
-// Without it a permanently failing message is retried every poll, which turns
-// one broken provider into a tight loop against it.
+// every poll, which would turn one broken provider into a tight loop against it.
 func TestBackoffPushesTheRetryIntoTheFuture(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
@@ -164,7 +154,6 @@ func TestBackoffPushesTheRetryIntoTheFuture(t *testing.T) {
 			"message would be retried every poll", due)
 	}
 
-	// And the immediate next drain must not pick it up again.
 	delivered, failed, err := s.Drain(ctx)
 	if err != nil {
 		t.Fatalf("second drain: %v", err)
@@ -174,10 +163,8 @@ func TestBackoffPushesTheRetryIntoTheFuture(t *testing.T) {
 	}
 }
 
-// TestAnUnregisteredTopicIsKeptNotDropped proves an unknown topic survives.
-//
-// A deployment that publishes something it cannot yet consume must not lose the
-// message: the next release may know what to do with it.
+// TestAnUnregisteredTopicIsKeptNotDropped proves an unknown topic survives, so a
+// deployment that publishes what it cannot yet consume does not lose the message.
 func TestAnUnregisteredTopicIsKeptNotDropped(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
@@ -200,11 +187,8 @@ func TestAnUnregisteredTopicIsKeptNotDropped(t *testing.T) {
 	}
 }
 
-// TestTwoWorkersDoNotDeliverTheSameMessage is what SKIP LOCKED is for.
-//
-// Two goroutines drain at once against the same table. Without FOR UPDATE both
-// send every message; without SKIP LOCKED the second waits on the first and
-// does nothing useful.
+// TestTwoWorkersDoNotDeliverTheSameMessage drains twice at once against the same
+// table.
 func TestTwoWorkersDoNotDeliverTheSameMessage(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
@@ -236,11 +220,8 @@ func TestTwoWorkersDoNotDeliverTheSameMessage(t *testing.T) {
 	a.Handle("test.concurrent", count)
 	b.Handle("test.concurrent", count)
 
-	// DrainAll and not Drain, because twenty messages no longer fit in one
-	// claim: BatchSize is eight, so that the lease a claim takes can cover the
-	// serial work it implies. Two workers each draining to empty is also the
-	// harder case — several contended claims rather than one — and it is what
-	// Run does per tick.
+	// DrainAll and not Drain: twenty messages no longer fit in one claim, and two
+	// workers each draining to empty is the harder case.
 	var wg sync.WaitGroup
 	wg.Go(func() { _, _, _ = a.DrainAll(ctx) })
 	wg.Go(func() { _, _, _ = b.DrainAll(ctx) })
@@ -261,20 +242,13 @@ func TestTwoWorkersDoNotDeliverTheSameMessage(t *testing.T) {
 }
 
 // TestAClaimedMessageIsInvisibleUntilItsLeaseExpires proves the claim takes a
-// lease, not just a row lock.
-//
-// The row lock the claim takes lives only for that statement. Without a lease
-// pushing available_at forward, a second worker's "due" predicate matches the
-// same rows the moment the first claim returns — which is how the concurrency
-// test above failed before the lease existed.
+// lease, not just a row lock — that lock lives only for its own statement.
 func TestAClaimedMessageIsInvisibleUntilItsLeaseExpires(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
 	key := uuid.NewString()
 	enqueue(t, "test.lease", key, `{}`)
 
-	// Claim it with a handler that does nothing, so the message is neither
-	// delivered nor rescheduled — exactly the window a lease must cover.
 	claimer := outbox.NewStore(pool, quiet())
 	claimer.Handle("test.lease", func(context.Context, []byte) error {
 		return errStopHere
@@ -294,29 +268,15 @@ func TestAClaimedMessageIsInvisibleUntilItsLeaseExpires(t *testing.T) {
 	}
 }
 
-// errStopHere makes a handler fail without pretending the failure means
-// anything.
 var errStopHere = errors.New("handler declined, for the test")
 
-// TestOneTickDrainsABacklogRatherThanOneBatch proves the small batch did not
-// buy exclusivity at the cost of throughput.
-//
-// BatchSize had to come down to eight, because a claim takes one lease over the
-// whole batch and the batch is delivered serially — fifty messages at the send
-// timeout is twenty-five minutes of work under a five-minute lease. Left there,
-// eight per five-second tick would be a hard ceiling of ninety-six messages a
-// minute, and a newsletter to ten thousand subscribers would take an hour and a
-// half.
-//
-// So a pass that comes back FULL is followed by another claim. Each claim still
-// fits inside its own lease, which is the property that had to hold; the queue
-// still drains at the speed the handler runs.
+// TestOneTickDrainsABacklogRatherThanOneBatch: a pass that comes back FULL is
+// followed by another claim, so one tick is not a ceiling of BatchSize.
 func TestOneTickDrainsABacklogRatherThanOneBatch(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
 
-	// Two and a bit batches, so a single claim cannot account for them and the
-	// last pass is a short one.
+	// Two and a bit batches, so the last pass is a short one.
 	const backlog = outbox.BatchSize*2 + 3
 	for range backlog {
 		enqueue(t, "test.backlog", uuid.NewString(), `{}`)
@@ -352,20 +312,9 @@ func TestOneTickDrainsABacklogRatherThanOneBatch(t *testing.T) {
 	}
 }
 
-// TestDrainAllStopsWhenEveryMessageFails proves the loop cannot spin.
-//
-// "Claim again while the pass came back full" is a loop, and a full pass of
-// FAILURES is the case it could run away on: a provider that is down fails all
-// eight, and if those eight were still due the next claim would take the same
-// eight again, at the speed of the database. What bounds it is the BACKOFF —
-// a failed message is rescheduled into the future, so the second claim finds
-// nothing.
-//
-// The damage without it is not a hung worker; MaxAttempts would stop it after
-// eight passes. It is that those eight passes happen inside ONE tick, so a
-// message that should have been retried over the next few hours has spent every
-// attempt it has in a second and gone straight to Stuck() — a customer's receipt
-// abandoned because the mail server was briefly unreachable.
+// TestDrainAllStopsWhenEveryMessageFails proves the loop cannot spin: the
+// BACKOFF is what bounds a full pass of failures, and without it a message
+// spends every retry it has inside one tick.
 func TestDrainAllStopsWhenEveryMessageFails(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
@@ -413,8 +362,7 @@ func TestDrainAllStopsWhenEveryMessageFails(t *testing.T) {
 	}
 }
 
-// TestEnqueueIsIdempotent proves one dedupe key is one message. The dedupe key is what makes a retried business
-// transaction produce one message.
+// TestEnqueueIsIdempotent proves one dedupe key is one message.
 func TestEnqueueIsIdempotent(t *testing.T) {
 	key := uuid.NewString()
 	for range 3 {
@@ -430,17 +378,9 @@ func TestEnqueueIsIdempotent(t *testing.T) {
 	}
 }
 
-// TestTheSweepKeepsWhatWentWrongAndDropsWhatWorked is the retention rule, and
-// the second half is the one that matters.
-//
-// Nothing pruned outbox_messages: every message goen ever sent stayed, with its
-// payload — which is where the mailed tokens live, because a reset link and an
-// unsubscribe link travel in it. Unbounded growth was the visible half; a
-// plaintext credential outliving its own row by years was the other.
-//
-// What must NOT be swept is a message that failed. A queue that forgets what it
-// could not deliver reports itself empty, /admin/health stops listing it, and the
-// customer nobody could email is nobody's problem any more.
+// TestTheSweepKeepsWhatWentWrongAndDropsWhatWorked is the retention rule. The
+// half that matters: a FAILED message must not be swept, or the queue reports
+// itself empty and /admin/health stops listing it.
 func TestTheSweepKeepsWhatWentWrongAndDropsWhatWorked(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
@@ -488,8 +428,7 @@ func TestTheSweepKeepsWhatWentWrongAndDropsWhatWorked(t *testing.T) {
 		}
 	}
 
-	// And the stuck one is still what an operator is shown. Sweeping it would
-	// make the queue look healthy by forgetting the failure.
+	// And the stuck one is still what an operator is shown.
 	stuck, err := s.Stuck(ctx, 10)
 	if err != nil {
 		t.Fatalf("Stuck: %v", err)
@@ -506,11 +445,8 @@ func TestTheSweepKeepsWhatWentWrongAndDropsWhatWorked(t *testing.T) {
 }
 
 // TestTheSweepLeavesAPendingMessageAlone proves the window is judged on
-// delivered_at and not on age.
-//
-// available_at moves forward on every claim and every backoff, so a message
-// legitimately waiting can be arbitrarily old by any other clock. Keying the
-// delete on that instead would delete mail that has not been sent yet.
+// delivered_at and not on age: available_at moves forward on every claim, so a
+// message legitimately waiting can be arbitrarily old by that clock.
 func TestTheSweepLeavesAPendingMessageAlone(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()

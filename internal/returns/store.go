@@ -14,9 +14,6 @@ import (
 )
 
 // Store is the database side of a customer's return request.
-//
-// It holds the pool because opening a request writes a header and its lines,
-// and a header with no lines is a request for nothing.
 type Store struct {
 	pool *pgxpool.Pool
 	q    *db.Queries
@@ -106,12 +103,9 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 	return o, nil
 }
 
-// Open files a return request.
-//
-// The header and its lines are ONE transaction. A request with no lines is a
-// row in the back office queue asking for nothing, and return_request_lines is
-// where every quantity guard lives — so a header committed on its own is a
-// claim that has passed no check at all.
+// Open files a return request. The header and its lines are one transaction:
+// every quantity guard lives on the lines, so a header committed alone has
+// passed no check at all.
 func (s *Store) Open(ctx context.Context, number string, userID uuid.NullUUID, req *Request) error {
 	if err := req.Validate(); err != nil {
 		return err
@@ -128,9 +122,6 @@ func (s *Store) Open(ctx context.Context, number string, userID uuid.NullUUID, r
 		return ErrNotReturnable
 	}
 
-	// What the form asked for, checked against what this order can offer. The
-	// database enforces the same ceiling; refusing here is what turns a
-	// constraint violation into a message the customer can act on.
 	allowed := make(map[string]int32, len(o.Lines))
 	for i := range o.Lines {
 		allowed[o.Lines[i].ID] = o.Lines[i].Returnable
@@ -168,8 +159,6 @@ func (s *Store) Open(ctx context.Context, number string, userID uuid.NullUUID, r
 			OrderID: o.ID, ReturnRequestID: requestID,
 			OrderLineID: lineID, Quantity: qty,
 		}); lineErr != nil {
-			// return_within_shipment is the rule most likely to speak here, and
-			// it means the form was built against a state that has since moved.
 			return fmt.Errorf("%w: %s", ErrInvalid, lineErr.Error())
 		}
 	}
@@ -186,11 +175,8 @@ func nullableTime(t pgtype.Timestamptz) string {
 	return t.Time.Format("2006-01-02 15:04")
 }
 
-// parseWanted turns one submitted line into a validated id, or refuses it.
-//
-// Split out of Open so that function stays under the complexity limit; the
-// check itself is the same one the database makes, made here so an over-claim
-// reaches the customer as a message rather than as a constraint violation.
+// parseWanted turns one submitted line into a validated id, or refuses it. The
+// database makes the same check; here it becomes a message on the form.
 func parseWanted(id string, qty int32, allowed map[string]int32) (uuid.UUID, error) {
 	ceiling, ok := allowed[id]
 	if !ok || qty > ceiling {

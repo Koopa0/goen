@@ -17,11 +17,8 @@ type Store struct {
 	log *slog.Logger
 }
 
-// NewStore returns a Store over pool.
-//
-// pool must be the OWNER's, not the storefront's: refresh_copurchases writes a
-// table `store` and `admin` hold no INSERT on, which is what stops a request
-// rewriting the projection it reads.
+// NewStore returns a Store over pool, which must be the owner's: `store` and
+// `admin` hold no INSERT on what refresh_copurchases writes.
 func NewStore(pool *pgxpool.Pool, log *slog.Logger) *Store {
 	if pool == nil || log == nil {
 		panic("recommend: NewStore requires a pool and a logger")
@@ -41,18 +38,8 @@ func (s *Store) Refresh(ctx context.Context) (int32, error) {
 	return pairs, nil
 }
 
-// RefreshForever rebuilds on a ticker until ctx is cancelled.
-//
-// Owned by main, like the outbox worker and the reservation sweeper. It rebuilds
-// ONCE at startup before the first tick: a freshly restored database would
-// otherwise show no recommendations for the first quarter of an hour, and
-// "empty because nothing has run yet" is indistinguishable on the page from
-// "empty because nothing sells together".
-//
-// A failure is logged and the ticker continues. The projection being stale is a
-// smaller problem than the worker stopping, and the next tick is fifteen
-// minutes away — there is no backoff to design because there is nothing to
-// overwhelm.
+// RefreshForever rebuilds on a ticker until ctx is cancelled, once at startup
+// before the first tick. A failure is logged and the ticker continues.
 func (s *Store) RefreshForever(ctx context.Context) {
 	if _, err := s.Refresh(ctx); err != nil && ctx.Err() == nil {
 		s.log.ErrorContext(ctx, "initial co-purchase refresh", "error", err)

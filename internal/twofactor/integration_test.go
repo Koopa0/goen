@@ -87,14 +87,7 @@ func enrol(t *testing.T, s *twofactor.Store, userID, email string) []byte {
 }
 
 // TestACodeIsAcceptedExactlyOnceEvenConcurrently proves the replay guard is in
-// the statement.
-//
-// The replay guard is a WHERE clause, not a Go comparison. Two requests
-// replaying one code both read the same last_step, and a check made in the
-// application is a check both of them pass — which is a 90-second window in
-// which a shoulder-surfed code works twice.
-//
-// Concurrency here is the point: a sequential test passes with the guard in Go.
+// the statement. A sequential test passes with the guard in Go.
 func TestACodeIsAcceptedExactlyOnceEvenConcurrently(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey)
@@ -103,14 +96,9 @@ func TestACodeIsAcceptedExactlyOnceEvenConcurrently(t *testing.T) {
 
 	_ = secret
 
-	// The STATEMENT is what is being tested, driven concurrently.
-	//
-	// Calling Store.Verify from N goroutines does not test it: each one reads
-	// last_step, and they stagger enough that the later reads already see the
-	// earlier writes — so the case passed with the guard removed from the SQL
-	// and left only in Go. Every goroutine here starts from the same recorded
-	// step by construction, which is the state two genuinely simultaneous
-	// requests are in.
+	// The STATEMENT is driven directly: calling Store.Verify from N goroutines
+	// staggers enough that later reads see earlier writes, so that version
+	// passed with the guard removed from the SQL.
 	var current int64
 	if err := pool.QueryRow(ctx,
 		`SELECT coalesce(last_step, 0) FROM staff_totp_credentials WHERE user_id = $1`,
@@ -151,7 +139,6 @@ func TestACodeIsAcceptedExactlyOnceEvenConcurrently(t *testing.T) {
 			"simultaneous requests", wins, racers, step)
 	}
 
-	// And the store agrees: the step is spent, so Verify refuses that code.
 	if err := s.Verify(ctx, userID, twofactor.Code(secret, step)); err == nil {
 		t.Error("the code for a spent step was accepted")
 	}
@@ -159,21 +146,13 @@ func TestACodeIsAcceptedExactlyOnceEvenConcurrently(t *testing.T) {
 
 // TestRestartingEnrolmentInvalidatesTheOldSecret proves a replaced secret stops
 // working immediately.
-//
-// Somebody who lost their phone enrols again. The old secret must stop working
-// the moment the new one is written, or a stolen authenticator keeps producing
-// valid codes forever.
 func TestRestartingEnrolmentInvalidatesTheOldSecret(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey)
 	userID, email := staff(t)
 	old := enrol(t, s, userID, email)
 
-	// Through the RECOVERY path, because that is the only way a proved factor is
-	// replaced: another admin removes it at /admin/staff. This test used to call
-	// Begin straight over a confirmed credential and assert the overwrite was
-	// correct — which is the hole, not the feature. A password and a session were
-	// then enough to swap the second factor for the attacker's own device.
+	// Through the RECOVERY path, the only way a proved factor is replaced.
 	if err := s.Remove(ctx, userID); err != nil {
 		t.Fatalf("remove the old factor: %v", err)
 	}
@@ -187,11 +166,8 @@ func TestRestartingEnrolmentInvalidatesTheOldSecret(t *testing.T) {
 	if err := s.Confirm(ctx, userID, twofactor.Code(old, step)); err == nil {
 		t.Error("a code from the replaced secret was accepted")
 	}
-	// Re-enrolment must also UNCONFIRM the credential: the new secret has not
-	// been proved, and leaving it confirmed means somebody who started a
-	// re-enrolment and walked away still has working 2FA against a secret in no
-	// authenticator. That is what the ON CONFLICT clause resets, and asserting
-	// only "the old secret stopped working" could not see it.
+	// Re-enrolment must also UNCONFIRM: otherwise somebody who started one and
+	// walked away has working 2FA against a secret in no authenticator.
 	enrolled, enrolErr := s.Enrolled(ctx, userID)
 	if enrolErr != nil {
 		t.Fatalf("enrolled: %v", enrolErr)
@@ -209,20 +185,8 @@ func TestRestartingEnrolmentInvalidatesTheOldSecret(t *testing.T) {
 	}
 }
 
-// TestAConfirmedFactorCannotBeReplacedByItsOwnHolder is the Critical a
-// third-party review found.
-//
-// The enrolment route needs only an ordinary signed-in session, so before this
-// guard a stolen PASSWORD was the entire back office: sign in, enrol your own
-// authenticator over the real one, confirm it — and confirming marks the session
-// step-up verified, so the attacker walks straight into /admin. The second
-// factor became a formality the password had already cleared.
-//
-// Store.Remove names this exact threat as the reason nobody may drop their OWN
-// factor, and Begin let one skip the removal entirely.
-//
-// The refusal is in the statement's own WHERE clause rather than a read in Go,
-// because a read-then-write is a race two concurrent enrolments both win.
+// TestAConfirmedFactorCannotBeReplacedByItsOwnHolder proves a stolen password
+// alone cannot swap the second factor for the attacker's own device.
 func TestAConfirmedFactorCannotBeReplacedByItsOwnHolder(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey)
@@ -233,8 +197,8 @@ func TestAConfirmedFactorCannotBeReplacedByItsOwnHolder(t *testing.T) {
 		t.Errorf("Begin over a confirmed credential = %v, want ErrEnrolled", err)
 	}
 
-	// The original factor still works, which is the half that matters: a refusal
-	// that also broke the real holder's authenticator would be its own lockout.
+	// A refusal that also broke the real holder's authenticator would be its
+	// own lockout.
 	if enrolled, err := s.Enrolled(ctx, userID); err != nil || !enrolled {
 		t.Errorf("the confirmed credential was disturbed by the refused enrolment (err=%v)", err)
 	}
@@ -242,8 +206,7 @@ func TestAConfirmedFactorCannotBeReplacedByItsOwnHolder(t *testing.T) {
 		t.Errorf("the original secret stopped working after a refused re-enrolment: %v", err)
 	}
 
-	// An UNCONFIRMED enrolment is still restartable — somebody who mistyped the
-	// secret into their app has proved nothing, so there is nothing to protect.
+	// An UNCONFIRMED enrolment is still restartable: nothing has been proved.
 	other, otherEmail := staff(t)
 	if _, _, err := s.Begin(ctx, other, otherEmail); err != nil {
 		t.Fatalf("first enrolment: %v", err)
@@ -255,10 +218,6 @@ func TestAConfirmedFactorCannotBeReplacedByItsOwnHolder(t *testing.T) {
 
 // TestAnUnconfirmedCredentialCannotVerify proves an unproved secret counts for
 // nothing.
-//
-// Enrolment is two steps because somebody who mistypes the secret into their
-// app would otherwise have working 2FA on paper and no way to produce a code —
-// locked out of the thing 2FA was protecting.
 func TestAnUnconfirmedCredentialCannotVerify(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey)
@@ -285,10 +244,6 @@ func TestAnUnconfirmedCredentialCannotVerify(t *testing.T) {
 
 // TestAStoredSecretIsNotReadableFromTheDatabase proves a dump alone does not
 // defeat the factor.
-//
-// A staff_totp_credentials row is a password-equivalent: whoever holds the
-// secret mints valid codes forever. The point of the encryption is that a
-// database dump alone does not defeat the second factor.
 func TestAStoredSecretIsNotReadableFromTheDatabase(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey)
@@ -309,7 +264,6 @@ func TestAStoredSecretIsNotReadableFromTheDatabase(t *testing.T) {
 		t.Fatal("the plaintext secret appears in the stored bytes")
 	}
 
-	// And a store with a different key cannot use it.
 	other := twofactor.NewStore(pool, "a-different-key")
 	if err := other.Verify(ctx, userID, twofactor.Code(secret, twofactor.StepAt(time.Now())+1)); err == nil {
 		t.Error("a credential verified under the wrong encryption key")
@@ -317,9 +271,6 @@ func TestAStoredSecretIsNotReadableFromTheDatabase(t *testing.T) {
 }
 
 // TestSessionVerificationExpires proves a proof does not last forever.
-//
-// The proof is time-boxed, or a session stolen months later carries a
-// verification made once.
 func TestSessionVerificationExpires(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey)
@@ -369,8 +320,7 @@ func TestSessionVerificationExpires(t *testing.T) {
 			13*time.Hour, twofactor.StepUpWindow)
 	}
 
-	// An unknown token is not verified, and is not an error either — that is a
-	// signed-out request, not a failure.
+	// An unknown token is a signed-out request, not a failure.
 	verified, err = s.SessionVerified(ctx, "no-such-token")
 	if err != nil || verified {
 		t.Errorf("an unknown token gave verified=%v err=%v", verified, err)
@@ -378,10 +328,6 @@ func TestSessionVerificationExpires(t *testing.T) {
 }
 
 // TestNoKeyMeansNoEnrolment proves an unconfigured deployment writes nothing.
-//
-// A deployment without a key must refuse rather than store a secret in the
-// clear. Silently degrading is how a feature that looks enabled protects
-// nothing.
 func TestNoKeyMeansNoEnrolment(t *testing.T) {
 	s := twofactor.NewStore(pool, "")
 	userID, email := staff(t)
@@ -404,15 +350,8 @@ func TestNoKeyMeansNoEnrolment(t *testing.T) {
 	}
 }
 
-// TestAnotherAdminCanRecoverALostAuthenticator holds the recovery path the
-// design has always described.
-//
-// This is the recovery path CLAUDE.md has described since 2FA shipped: no
-// printed backup codes, because those are a second password-equivalent people
-// keep in their email, and a shop with more than one admin has a recovery path
-// already. Store.Remove existed with that comment and NO CALLER, so the path
-// was a paragraph — an admin who lost their phone was locked out of the back
-// office for good, and the only fix was SQL against production.
+// TestAnotherAdminCanRecoverALostAuthenticator holds the recovery path: another
+// admin removes the credential, and there are no printed backup codes.
 func TestAnotherAdminCanRecoverALostAuthenticator(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey)
@@ -431,8 +370,7 @@ func TestAnotherAdminCanRecoverALostAuthenticator(t *testing.T) {
 		t.Error("the credential survived")
 	}
 
-	// And they can enrol again on the new phone, which is the point of removing
-	// it rather than the removal itself.
+	// Enrolling again on the new phone is the point, not the removal itself.
 	enrol(t, s, lost, lostEmail)
 	if !enrolled(t, lost) {
 		t.Error("the account could not enrol again")
@@ -440,12 +378,7 @@ func TestAnotherAdminCanRecoverALostAuthenticator(t *testing.T) {
 }
 
 // TestAnAdminCannotRemoveTheirOwnFactor is the guard that makes the recovery
-// path safe.
-//
-// The session doing this is already step-up verified, so an attacker holding it
-// could drop the factor and re-enrol on their own device — turning a stolen
-// session into permanent access. Recovery is another admin's job, which is what
-// the design says and now what the code enforces.
+// path safe: the session doing it is already step-up verified.
 func TestAnAdminCannotRemoveTheirOwnFactor(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey)
@@ -462,14 +395,12 @@ func TestAnAdminCannotRemoveTheirOwnFactor(t *testing.T) {
 }
 
 // TestTheLastAdminCannotBeRevoked. Removing the only admin leaves nobody who
-// can add one back, and the fix is SQL against production — which is exactly
-// what a back office exists to avoid.
+// can add one back.
 func TestTheLastAdminCannotBeRevoked(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey)
 
-	// This suite's other tests create admins, so the state has to be made
-	// rather than assumed: everyone down to customer, then one admin back.
+	// This suite's other tests create admins, so the state is made not assumed.
 	if _, err := pool.Exec(ctx, `UPDATE users SET role = 'customer' WHERE role = 'admin'`); err != nil {
 		t.Fatalf("clear admins: %v", err)
 	}
@@ -494,9 +425,7 @@ func TestTheLastAdminCannotBeRevoked(t *testing.T) {
 	}
 }
 
-// TestRevokingAccessEndsTheSessionsThatHadIt. Without this a revoked colleague
-// keeps the back office for the rest of a session's life after being told they
-// no longer have it.
+// TestRevokingAccessEndsTheSessionsThatHadIt, for the rest of a session's life.
 func TestRevokingAccessEndsTheSessionsThatHadIt(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey)
@@ -523,19 +452,11 @@ func TestRevokingAccessEndsTheSessionsThatHadIt(t *testing.T) {
 	}
 }
 
-// TestANewColleagueHasNoPassword holds how a staff account comes into being.
-//
-// An admin who typed a colleague's password would know it, and a generated one
-// has to be delivered somehow. They set their own through /forgot, which is
-// already the one path that proves they own the mailbox — and the account
-// cannot be signed into until they do.
+// TestANewColleagueHasNoPassword: they set their own through /forgot, the one
+// path that proves they own the mailbox.
 func TestANewColleagueHasNoPassword(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey)
-	// An ADMIN does this, and the actor is now part of the call: AddStaff is an
-	// upsert keyed on the address, so submitting your own is submitting your own
-	// row and its DO UPDATE sets the role. See
-	// TestNobodyCanPromoteThemselvesThroughTheStaffForm.
 	actor, _ := staff(t)
 
 	const address = "newcolleague@goen.invalid"
@@ -557,9 +478,7 @@ func TestANewColleagueHasNoPassword(t *testing.T) {
 		t.Error("a password was set for somebody else")
 	}
 
-	// An existing CUSTOMER is promoted rather than refused: a shop hiring
-	// somebody who already shops there is the common case, and "that email is
-	// taken" is an answer the admin cannot act on.
+	// An existing CUSTOMER is promoted rather than refused.
 	if _, err := pool.Exec(ctx,
 		`INSERT INTO users (email, role) VALUES ('shopper@goen.invalid', 'customer')`); err != nil {
 		t.Fatalf("create customer: %v", err)
@@ -577,26 +496,14 @@ func TestANewColleagueHasNoPassword(t *testing.T) {
 	}
 }
 
-// TestNobodyCanPromoteThemselvesThroughTheStaffForm is half of the Critical a
-// third-party review found. The other half is the route gate: /admin/staff is
-// RequireAdmin now, so a plain staff member never reaches this code at all.
-//
-// This closes the case the route cannot see. AddStaff is an UPSERT resolved by
-// ADDRESS, so submitting your own address is submitting your own row and its
-// DO UPDATE sets the role — an admin editing their own entry, or any future
-// caller that forgets, would change their own privileges. It was the escalation
-// in its simplest form: POST your own email with role=admin.
-//
-// The case fold matters and is asserted: users_email_key is unique on
-// lower(email), so two addresses differing only in case are ONE mailbox, and a
-// self-check that compared them literally would be bypassed by pressing shift.
+// TestNobodyCanPromoteThemselvesThroughTheStaffForm. AddStaff is an upsert
+// resolved by address, so POSTing your own email with role=admin is a
+// self-promotion; the case fold is asserted because users_email_key folds too.
 func TestNobodyCanPromoteThemselvesThroughTheStaffForm(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey)
 	actor, address := staff(t)
-	// Demoted to plain staff first, so a successful promotion would be VISIBLE.
-	// The helper creates an admin, and asserting "is still admin" of somebody who
-	// was already one is an assertion that cannot fail.
+	// Demoted first, or "is still admin" of an admin cannot fail.
 	if _, err := pool.Exec(ctx,
 		`UPDATE users SET role = 'staff' WHERE id = $1`, actor); err != nil {
 		t.Fatalf("demote the actor: %v", err)
@@ -619,8 +526,7 @@ func TestNobodyCanPromoteThemselvesThroughTheStaffForm(t *testing.T) {
 		t.Error("the actor promoted themselves to admin")
 	}
 
-	// The CONTROL: adding somebody ELSE still works, or a store that refused
-	// every submission would pass everything above.
+	// The CONTROL: a store that refused everything would pass the above.
 	other := "colleague-" + uuid.NewString() + "@goen.invalid"
 	if err := s.AddStaff(ctx, other, "同事", "staff", actor); err != nil {
 		t.Errorf("adding a colleague was refused: %v", err)

@@ -41,9 +41,6 @@ func (s *Store) Registrable(ctx context.Context, orderNumber, userID string) (pa
 		return pages.WarrantyOrderView{}, fmt.Errorf("read registrable lines: %w", err)
 	}
 	if len(rows) == 0 {
-		// No rows means the order is not this customer's, or is not an order.
-		// The same answer for both: telling them apart is what a caller probing
-		// order numbers is trying to do.
 		return pages.WarrantyOrderView{}, ErrNotFound
 	}
 
@@ -61,13 +58,9 @@ func (s *Store) Registrable(ctx context.Context, orderNumber, userID string) (pa
 	return view, nil
 }
 
-// Register records cover for one unit.
-//
-// Every rule is in the statement's WHERE clause — ownership, "it arrived", "the
-// term exists", "the unit is within what arrived". Checking them here first
-// would be checking them against a state another request can change before the
-// insert lands, and the expiry would be computed from a delivery date read
-// separately from the one it is derived from.
+// Register records cover for one unit. Ownership, delivery and the term are all
+// in the statement's WHERE clause, so they are decided under the same read the
+// insert uses.
 func (s *Store) Register(ctx context.Context, lineID, userID, serial string, unit int) error {
 	owner, err := uuid.Parse(userID)
 	if err != nil {
@@ -86,8 +79,7 @@ func (s *Store) Register(ctx context.Context, lineID, userID, serial string, uni
 	}
 
 	n, err := s.q.RegisterWarranty(ctx, db.RegisterWarrantyParams{
-		OrderLineID: line,
-		// Safe: bounded to [1, maxUnits] above, well inside int16.
+		OrderLineID:  line,
 		UnitNo:       int16(unit),
 		UserID:       uuid.NullUUID{UUID: owner, Valid: true},
 		SerialNumber: serial,
@@ -98,8 +90,6 @@ func (s *Store) Register(ctx context.Context, lineID, userID, serial string, uni
 			case "warranty_registrations_serial_key":
 				return ErrSerialTaken
 			case "warranty_registrations_unit_key":
-				// This unit already has cover. Not an error the customer needs
-				// explained differently from the others they can act on.
 				return ErrNotRegistrable
 			case "warranty_unit_within_purchase":
 				return ErrNotRegistrable
@@ -108,7 +98,7 @@ func (s *Store) Register(ctx context.Context, lineID, userID, serial string, uni
 		return fmt.Errorf("register warranty: %w", err)
 	}
 	if n == 0 {
-		// The WHERE clause refused: not owned, not shipped, or no term set.
+		// The WHERE clause refused: not owned, not delivered, or no term set.
 		return ErrNotRegistrable
 	}
 	return nil
@@ -139,9 +129,6 @@ func (s *Store) Mine(ctx context.Context, userID string) ([]pages.Warranty, erro
 	return out, nil
 }
 
-// maxUnits bounds the unit number a form may name.
-//
-// warranty_unit_within_purchase decides the real ceiling from the line's
-// quantity; this only stops an absurd value reaching the database as a
-// smallint, where 40000 would be a valid cast and a confusing refusal.
+// maxUnits keeps an absurd unit number out of the smallint cast;
+// warranty_unit_within_purchase decides the real ceiling.
 const maxUnits = 1000

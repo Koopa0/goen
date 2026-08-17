@@ -62,8 +62,6 @@ templ AdminHealth(p layouts.Page, v WorkerHealthView) {
 				</li>
 			</ul>
 			if len(v.Stuck) > 0 {
-				// WHICH ones. The count above says something is wrong; this is
-				// the part an operator can act on.
 				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminHPStuckHeading) }</h2>
 				<div class="goen-admin__tablewrap">
 					<table class="ui-table goen-admin__table">
@@ -91,9 +89,6 @@ templ AdminHealth(p layouts.Page, v WorkerHealthView) {
 				</div>
 			}
 			if len(v.OpenRefunds) > 0 {
-				// WHICH refunds, and enough to act on each: the order to find
-				// the customer by, what they are owed, and the two identifiers
-				// that find it at Stripe.
 				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminHPOpenRefundsHeading) }</h2>
 				<div class="goen-admin__tablewrap">
 					<table class="ui-table goen-admin__table">

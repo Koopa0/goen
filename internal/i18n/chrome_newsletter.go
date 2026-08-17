@@ -1,7 +1,5 @@
 package i18n
 
-// The newsletter: the footer form, and the two links it leads to.
-
 var (
 	KeyNewsletterSent = key("news.sent", Message{
 		ZhHant: "確認信已寄出",
@@ -32,9 +30,6 @@ var (
 		ZhHant: "已訂閱,感謝你的信任",
 		En:     "Subscribed — thank you",
 	})
-	// %s is the address. The sentence is built around it rather than concatenated
-	// beside it, because where an address sits in the sentence is not the same in
-	// both languages.
 	KeyNewsletterDoneBody = key("news.done.body", Message{
 		ZhHant: "%s 已經在名單上。每月一封,新品與比價重點,不灌水;退訂連結在剛剛寄出的那封信裡。",
 		En: "%s is on the list. One letter a month — new arrivals and what is worth comparing, " +
@@ -78,8 +73,6 @@ var (
 		En:     "We cannot process that right now. Please try again shortly.",
 	})
 
-	// Composing an issue, in the back office. The FORM's validation messages are
-	// chrome by the same rule as any other: they sit beside a control.
 	KeyIssueSubjectRequired = key("valid.issue.subject", Message{
 		ZhHant: "請填寫主旨",
 		En:     "Write a subject line",

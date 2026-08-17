@@ -13,20 +13,14 @@ import (
 )
 
 // mailPayloads is every payload type a mail message carries, and the packages
-// that declare a copy of it.
-//
-// The copies are deliberate: internal/email declares what it decodes, and each
-// producer declares what it encodes, so a consumer never imports a producer's
-// types and can be deployed a version behind. What that buys is independence;
-// what it costs is two structs that must agree, and nothing was checking.
+// that declare a copy of it. The copies are deliberate: a consumer never imports
+// a producer's types, so it can be deployed a version behind.
 var mailPayloads = map[string][]string{
 	"OrderPlaced":   {"../email", "../cart"},
 	"OrderPaid":     {"../email", "../payment"},
 	"OrderShipped":  {"../email", "../admin"},
 	"RestockNotice": {"../email", "../admin"},
-	// Declared once. The producer marshals email's own type, because these two
-	// carry a token that only the producer has ever seen — there is nothing for a
-	// second struct to add.
+	// Declared once: the producer marshals email's own type.
 	"PasswordReset":     {"../email"},
 	"NewsletterConfirm": {"../email"},
 	"NewsletterWelcome": {"../email"},
@@ -35,14 +29,8 @@ var mailPayloads = map[string][]string{
 }
 
 // TestEveryMailPayloadMatchesItsProducer holds the duplicated structs to each
-// other, field for field.
-//
-// The drift this catches is silent in both directions. A field added to the
-// producer and not to the consumer is a value written to outbox_messages and
-// thrown away at delivery. A field added to the consumer and not to the producer
-// is a zero value the notifier reads as real — which is how orders.locale would
-// have shipped: every payload gaining a Locale, every producer still sending
-// nothing, and every email going out in whichever language the fallback picked.
+// other, field for field. The drift is silent in both directions: a value
+// thrown away at delivery, or a zero value the notifier reads as real.
 func TestEveryMailPayloadMatchesItsProducer(t *testing.T) {
 	t.Parallel()
 
@@ -68,12 +56,8 @@ func TestEveryMailPayloadMatchesItsProducer(t *testing.T) {
 	}
 }
 
-// TestEveryMailPayloadCarriesALocale is the specific rule underneath.
-//
-// The worker has no locale of its own: it is not serving anybody. So the language
-// travels in the payload, and a message type without one is a letter that goes
-// out in whatever the fallback is — which for an English customer is Chinese, and
-// is exactly the half-translated failure the locale work exists to stop.
+// TestEveryMailPayloadCarriesALocale is the specific rule underneath: the worker
+// has no locale of its own, so the language has to travel in the payload.
 func TestEveryMailPayloadCarriesALocale(t *testing.T) {
 	t.Parallel()
 
@@ -158,11 +142,8 @@ func jsonName(tag string) string {
 	return name
 }
 
-// TestTheFixtureDirsExist stops a rename turning this file into a no-op.
-//
-// jsonFields walks a directory by path. A package moved or renamed would make
-// every lookup fail — which t.Errorf reports, but only if somebody is watching
-// the right test. This says it once, plainly.
+// TestTheFixtureDirsExist stops a rename turning this file into a no-op:
+// jsonFields walks a directory by path.
 func TestTheFixtureDirsExist(t *testing.T) {
 	t.Parallel()
 

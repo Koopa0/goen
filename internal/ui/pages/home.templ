@@ -9,15 +9,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Home renders the storefront home page: a hero band, the top-level category
-// tiles, the recommended product grid, and the shopping-guarantee strip.
-//
-// The product card, price, rating and guarantee strip are the design system's
-// commerce pack (ui-product, ui-price, ui-rating, ui-incentives) rather than
-// classes of goen's own — a second product card is how two visual languages
-// start. goen-* here is page composition only: the grids, the hero split, and
-// the responsive fold from the 1440 and 375 artboards into one document.
-//
+// Home renders the storefront home page.
 templ Home(p layouts.Page, v HomeView) {
 	@layouts.Base(p) {
 		<div class="goen-home">
@@ -45,9 +37,6 @@ templ Home(p layouts.Page, v HomeView) {
 				</div>
 				<div class="goen-hero__media">
 					if v.Hero.Custom() {
-						// An uploaded hero. alt carries the editor's words —
-						// hero_slides_image_has_alt makes an image without them
-						// impossible to store.
 						<img
 							class="goen-hero__image"
 							src={ assets.MediaURL(v.Hero.ImageKey) }
@@ -58,9 +47,6 @@ templ Home(p layouts.Page, v HomeView) {
 							fetchpriority="high"
 						/>
 					} else if assets.Has(assets.HomeHeroImage) {
-						// The built-in artwork. alt is empty on purpose: the
-						// headline beside it already says what this is, and a
-						// screen reader repeating it is noise.
 						<img
 							class="goen-hero__image"
 							src={ assets.URL(assets.HomeHeroImage) }
@@ -115,7 +101,6 @@ templ Home(p layouts.Page, v HomeView) {
 	}
 }
 
-// incentive is one cell of the shopping-guarantee strip.
 templ incentive(icon templ.Component, title, desc string) {
 	<div class="ui-incentive">
 		<span class="ui-incentive__icon">

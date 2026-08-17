@@ -58,8 +58,6 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Registrable(r.Context(), number, u.ID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			// The same answer for "not yours" and "does not exist". Telling
-			// them apart is what somebody probing order numbers wants.
 			web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
 				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}, "404",
 				i18n.T(r.Context(), i18n.KeyOrderNotFound),
@@ -92,9 +90,6 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		unit = 0
 	}
 
-	// PathEscape, so an order number carrying anything odd cannot start a new
-	// path segment or a query. It is the route's own path value, but escaping
-	// it costs nothing and removes the question.
 	back := "/account/warranty/" + url.PathEscape(number)
 	switch err := h.store.Register(r.Context(), r.PostFormValue("line"), u.ID,
 		r.PostFormValue("serial"), unit); {

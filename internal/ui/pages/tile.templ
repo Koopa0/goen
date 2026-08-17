@@ -5,8 +5,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/icons"
 )
 
-// Tile is one product card, shared by the home grid and the category listing.
-// The whole card is a single link, so it is one tab stop and one target.
+// Tile is one product card; the whole card is a single link.
 templ Tile(t ProductTile) {
 	<li>
 		<a class="ui-product goen-tile" href={ templ.URL("/p/" + t.Slug) }>

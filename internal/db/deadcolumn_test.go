@@ -10,11 +10,8 @@ import (
 	"testing"
 )
 
-// TestEveryColumnIsReadOrWritten refuses a column no SQL mentions in a statement
-// naming its own table. A mention rather than a write: telling those apart needs a
-// SQL parser, and a dead column is mentioned nowhere at all.
+// TestEveryColumnIsReadOrWritten refuses a column no SQL mentions in a statement naming its table.
 func TestEveryColumnIsReadOrWritten(t *testing.T) {
-	// Keyed table.column, so an exemption cannot spread.
 	allowed := map[string]string{
 		"user_identities.id": "the unbuilt OAuth sign-in, whole table",
 
@@ -22,8 +19,7 @@ func TestEveryColumnIsReadOrWritten(t *testing.T) {
 		"loyalty_entries.id":     "a surrogate primary key; its own constraint is the use, and that is inside the block this guard cuts",
 		"product_answers.id":     "a surrogate primary key; its own constraint is the use, and that is inside the block this guard cuts",
 
-		// Listed one by one rather than exempted as a class, so a new table whose
-		// created_at nothing reads has to come here and be decided.
+		// Listed one by one rather than exempted as a class, so a new one has to be decided here.
 		"brands.created_at":                "a row-birth timestamp its own DEFAULT writes; no query shows it",
 		"carts.created_at":                 "a row-birth timestamp its own DEFAULT writes; no query shows it",
 		"categories.created_at":            "a row-birth timestamp its own DEFAULT writes; no query shows it",
@@ -91,8 +87,6 @@ func TestEveryColumnIsReadOrWritten(t *testing.T) {
 			"allowlist with the reason.", key)
 	}
 
-	// By identity, never by count: a count cannot name the stale entry, and it
-	// passes outright when one entry goes stale as another is added.
 	for key, why := range allowed {
 		if !exempted[key] {
 			t.Errorf("the allowlist exempts %s (%s), and either SQL names it within its "+
@@ -102,24 +96,21 @@ func TestEveryColumnIsReadOrWritten(t *testing.T) {
 	}
 }
 
-// sqlScope is one statement, together with the tables it names and the aliases it
-// binds them to. It is the unit a column mention is judged in.
+// sqlScope is one statement with the tables it names and the aliases it binds them to.
 type sqlScope struct {
 	text    string
 	tables  map[string]bool
 	aliases map[string]string
 }
 
-// sqlScopes is every piece of SQL this repository ships, cut into scopes. CREATE
-// TABLE, COMMENT ON, GRANT and REVOKE are dropped: each is a statement ABOUT a
-// column, and a grant naming every column would make a whole table read as used.
+// sqlScopes is every piece of SQL this repository ships, cut into scopes. CREATE TABLE,
+// COMMENT ON, GRANT and REVOKE are dropped: each is a statement ABOUT a column, not a use.
 func sqlScopes(t *testing.T, tables map[string]bool) []sqlScope {
 	t.Helper()
 
 	statements := repositorySQL(t)
 
-	// A trigger body says NEW.x and OLD.x and names no table, so the binding has
-	// to come from the CREATE TRIGGER that installs it.
+	// A trigger body says NEW.x and names no table: the binding comes from the CREATE TRIGGER.
 	bound := map[string]map[string]bool{}
 	for _, s := range statements {
 		for _, m := range triggerBinding.FindAllStringSubmatch(s, -1) {
@@ -145,9 +136,7 @@ func sqlScopes(t *testing.T, tables map[string]bool) []sqlScope {
 			scopes = append(scopes, newSQLScope(s, tables))
 			continue
 		}
-		// The signature and its inner statements are judged separately, so a
-		// function touching several tables cannot lend one table's column name to
-		// another's statement.
+		// Signature and inner statements judged apart, so one table cannot lend a name to another.
 		scopes = append(scopes, newSQLScope(strings.Replace(s, body, "", 1), tables))
 		for _, inner := range sqlStatements(body) {
 			scopes = append(scopes, newSQLScope(inner, tables))
@@ -161,8 +150,7 @@ func sqlScopes(t *testing.T, tables map[string]bool) []sqlScope {
 	return scopes
 }
 
-// triggerScope is the whole body of a trigger function, credited to the tables its
-// triggers fire on: nothing else can resolve NEW and OLD.
+// triggerScope is a trigger function's body credited to the tables its triggers fire on.
 func triggerScope(statement, body string, bound map[string]map[string]bool, tables map[string]bool) []sqlScope {
 	m := functionHeader.FindStringSubmatch(statement)
 	if m == nil {
@@ -172,8 +160,7 @@ func triggerScope(statement, body string, bound map[string]map[string]bool, tabl
 	if len(fires) == 0 {
 		return nil
 	}
-	// Built over the whole body so the alias bindings survive, then narrowed to the
-	// trigger's own table, which is the only thing NEW and OLD can mean.
+	// Built over the whole body so the alias bindings survive, then narrowed to the trigger's table.
 	sc := newSQLScope(body, tables)
 	sc.tables = fires
 	return []sqlScope{sc}
@@ -199,8 +186,7 @@ func newSQLScope(text string, tables map[string]bool) sqlScope {
 	return sc
 }
 
-// columnIsMentioned reports whether any scope naming table mentions column in a
-// position that could be that table's.
+// columnIsMentioned reports whether any scope naming table mentions column in a position it owns.
 func columnIsMentioned(scopes []sqlScope, tables map[string]bool, table, column string) bool {
 	mention := regexp.MustCompile(`\b` + regexp.QuoteMeta(column) + `\b`)
 	for _, sc := range scopes {
@@ -216,9 +202,8 @@ func columnIsMentioned(scopes []sqlScope, tables map[string]bool, table, column 
 	return false
 }
 
-// mentionBelongsTo reads the qualifier in front of a mention. An unqualified name
-// counts for every table the scope names; a qualified one counts only when the
-// qualifier resolves to this table, or to nothing at all (NEW, OLD, a CTE).
+// mentionBelongsTo reads the qualifier in front of a mention: an unqualified name counts for
+// every table the scope names, a qualified one only for the table it resolves to.
 func mentionBelongsTo(sc sqlScope, tables map[string]bool, table string, at int) bool {
 	if at == 0 || sc.text[at-1] != '.' {
 		return true
@@ -238,7 +223,6 @@ func mentionBelongsTo(sc sqlScope, tables map[string]bool, table string, at int)
 }
 
 var (
-	// relationClause finds a table and the alias, if any, the statement gives it.
 	relationClause = regexp.MustCompile(
 		`(?i)\b(?:FROM|JOIN|UPDATE|INTO|USING|TABLE)\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)(?:\s+(?:AS\s+)?([a-z_][a-z0-9_]*))?`)
 	// triggerBinding reads which table a trigger fires on and which function it runs.
@@ -249,8 +233,7 @@ var (
 	dollarBody     = regexp.MustCompile(`(?s)\$[a-zA-Z_]*\$(.*)\$[a-zA-Z_]*\$`)
 )
 
-// aliasStopWords are the words that follow a table name without being its alias.
-// Binding one would make `FROM orders WHERE ...` call the table "where".
+// aliasStopWords follow a table name without being its alias: FROM orders WHERE binds no alias.
 var aliasStopWords = map[string]bool{
 	"where": true, "set": true, "on": true, "using": true, "values": true,
 	"select": true, "left": true, "right": true, "inner": true, "outer": true,
@@ -292,9 +275,8 @@ func repositorySQL(t *testing.T) []string {
 	return out
 }
 
-// sqlStatements cuts src on its top-level semicolons and drops its comments. A
-// `--` inside a string literal is not a comment, and the semicolons inside a
-// $$-quoted body do not end a statement.
+// sqlStatements cuts src on its top-level semicolons and drops its comments. A `--` inside a
+// string literal is not a comment, and semicolons inside a $$-quoted body do not end a statement.
 func sqlStatements(src string) []string {
 	var out []string
 	var b strings.Builder

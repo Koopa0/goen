@@ -14,8 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// MaxSlides bounds the back office's list. hero_slides is a QUEUE and not a
-// carousel: one shows, the rest wait.
+// MaxSlides bounds the back office's list.
 const MaxSlides = 20
 
 // MaxHeadlineRunes bounds the largest text on the site.
@@ -26,17 +25,15 @@ const MaxHeroDays = 365
 
 // HeroForm is what the back office submits.
 type HeroForm struct {
-	Eyebrow      string
-	Headline     string
-	Body         string
-	PrimaryLabel string
-	PrimaryHref  string
-	SecondLabel  string
-	SecondHref   string
-	ImageKey     string
-	ImageAlt     string
-	// The English hero, each field optional. The HREFs have no twin: a link goes
-	// to one page.
+	Eyebrow        string
+	Headline       string
+	Body           string
+	PrimaryLabel   string
+	PrimaryHref    string
+	SecondLabel    string
+	SecondHref     string
+	ImageKey       string
+	ImageAlt       string
 	EyebrowEn      string
 	HeadlineEn     string
 	BodyEn         string
@@ -46,9 +43,7 @@ type HeroForm struct {
 	Days           int32
 }
 
-// Validate refuses what the schema would, and what the schema cannot see: a CTA
-// href is typed by a person, so it goes through web.SitePath — an absolute URL
-// would point the storefront's largest button off-site.
+// Validate refuses what the schema would, and a CTA href that leaves this site.
 func (f *HeroForm) Validate(ctx context.Context) map[string]string {
 	f.Headline = strings.TrimSpace(f.Headline)
 	f.PrimaryLabel = strings.TrimSpace(f.PrimaryLabel)
@@ -110,7 +105,7 @@ func (s *Store) HeroSlides(ctx context.Context) (pages.AdminHeroView, error) {
 	return view, nil
 }
 
-// CreateHeroSlide queues one, at the BACK. Promote is what makes one live.
+// CreateHeroSlide queues one at the BACK; Promote is what makes one live.
 func (s *Store) CreateHeroSlide(ctx context.Context, f *HeroForm) (map[string]string, error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil

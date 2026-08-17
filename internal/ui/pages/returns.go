@@ -18,9 +18,7 @@ type ReturnsLine struct {
 	Label      string
 	UnitCents  int64
 	Returnable int32
-	// Chosen is what was submitted, carried back when a refusal re-renders the
-	// form.
-	Chosen int32
+	Chosen     int32
 }
 
 // CanReturn reports whether any of this line is still returnable.

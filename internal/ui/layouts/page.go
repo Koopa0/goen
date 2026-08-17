@@ -1,6 +1,4 @@
-// Package layouts renders goen's shared page chrome: the document shell, the
-// site header and the site footer. Pages compose their own content inside
-// [Base] and never render <html>, <head>, the header or the footer themselves.
+// Package layouts renders goen's shared page chrome.
 package layouts
 
 import (
@@ -13,13 +11,9 @@ import (
 
 // Page is the chrome-level view model every goen page supplies.
 type Page struct {
-	// Title is the page title without the site suffix.
-	Title string
-	// Description fills the meta description tag; empty omits the tag.
-	Description string
-	// Nav is the slug of the top-level category to mark as current.
-	Nav string
-	// StructuredData is a JSON-LD document; empty omits the script entirely.
+	Title          string
+	Description    string
+	Nav            string
 	StructuredData string
 }
 
@@ -39,8 +33,7 @@ func WithTopNav(ctx context.Context, items []NavItem) context.Context {
 	return context.WithValue(ctx, topNavKey{}, items)
 }
 
-// TopNavFrom is the header's category row, or nothing when a page renders
-// outside the middleware.
+// TopNavFrom is the header's category row, empty outside the middleware.
 func TopNavFrom(ctx context.Context) []NavItem {
 	items, ok := ctx.Value(topNavKey{}).([]NavItem)
 	if !ok {
@@ -100,13 +93,10 @@ func boolAttr(v bool) string {
 	return "false"
 }
 
-// cartLabel names the cart link for assistive technology; the badge is
-// decorative and screen readers do not read it.
 func cartLabel(ctx context.Context, count int) string {
 	if count == 0 {
 		return i18n.T(ctx, i18n.KeyCartEmpty)
 	}
-	// Substituted, not appended: the two languages put the count in different
-	// places within the sentence.
+	// Substituted, not appended: the two languages put the count in different places.
 	return strings.Replace(i18n.T(ctx, i18n.KeyCartCount), "%s", strconv.Itoa(count), 1)
 }

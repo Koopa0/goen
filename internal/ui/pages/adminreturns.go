@@ -9,10 +9,6 @@ import (
 
 // AdminReturn is one row in the back-office return queue.
 type AdminReturn struct {
-	// Lines is WHAT is being sent back. A count and an amount are not something
-	// anybody can decide on: 「3 件 · 可退 NT$4,500」 says nothing about WHICH
-	// three, so a page carrying only those two figures asks a staff member to
-	// rule on a parcel they cannot see.
 	Lines       []AdminReturnLine
 	ID          string
 	OrderNumber string
@@ -22,27 +18,13 @@ type AdminReturn struct {
 	Units       int32
 	AmountCents int64
 	CreatedAt   string
-	// Window says whether this is a STATUTORY rescission or a goodwill return:
-	// "within", "after" or "undelivered". Unsaid, a staff member deciding a
-	// return cannot tell a request the shop may not refuse from one that is
-	// entirely theirs to decline — 消保法 §19 I gives seven days from receipt and
-	// §19 V voids any agreement otherwise.
-	//
-	// It INFORMS and does not restrict. Decide accepts "rejected" for any open
-	// request, because an in-window rescission is not auto-approved either:
-	// §19-2 gives the trader fifteen days to refund after the goods come BACK, so
-	// "the parcel never arrived" is a legitimate refusal and only a person can
-	// know it. What this supplies is the fact on screen, not a rule.
+	// Window is "within", "after" or "undelivered" against Consumer Protection
+	// Act §19 I's seven days from receipt.
 	Window  string
 	Decided bool
 }
 
-// AwaitingGoods reports whether this return is approved and the parcel has not
-// been accounted for.
-//
-// A return does not stop at 同意. The money goes back on the decision and the
-// goods arrive afterwards, so a queue that ends there leaves them in a state
-// nothing records and nobody can act on. This is the work that follows.
+// AwaitingGoods reports whether an approved parcel is still unaccounted for.
 func (r AdminReturn) AwaitingGoods() bool {
 	if r.Status != "approved" {
 		return false
@@ -55,9 +37,7 @@ func (r AdminReturn) AwaitingGoods() bool {
 	return false
 }
 
-// CanComplete reports whether every line has been inspected, which is what
-// return_requests_completed_is_inspected demands before the status may move.
-// The database is the authority; this only decides whether to offer the button.
+// CanComplete reports whether every line has been inspected.
 func (r AdminReturn) CanComplete() bool {
 	if r.Status != "approved" || len(r.Lines) == 0 {
 		return false
@@ -71,10 +51,6 @@ func (r AdminReturn) CanComplete() bool {
 }
 
 // RestockedUnitsText is how many units this return put back on the shelf.
-//
-// Shown beside the close button, because that is the moment a staff member is
-// asked to agree the return is finished — and "three came back, two went on the
-// shelf" is the fact they are agreeing to.
 func (r AdminReturn) RestockedUnitsText() string {
 	var n int32
 	for _, l := range r.Lines {
@@ -83,13 +59,10 @@ func (r AdminReturn) RestockedUnitsText() string {
 	return strconv.FormatInt(int64(n), 10)
 }
 
-// Rescission reports whether this request is inside the statutory seven days,
-// so the template can mark it.
+// Rescission reports whether this request is inside the statutory seven days.
 func (r AdminReturn) Rescission() bool { return r.Window == "within" }
 
-// WindowText names the window in the reader's language. A closed set, computed
-// by the query, so an unknown value is a programming error rather than something
-// to render at somebody who has to act on it.
+// WindowText names the window in the reader's language.
 func (r AdminReturn) WindowText(ctx context.Context) string {
 	switch r.Window {
 	case "within":
@@ -129,26 +102,16 @@ func (v AdminReturnsView) Empty() bool { return len(v.Rows) == 0 }
 
 // AdminReturnLine is one item in a return request.
 type AdminReturnLine struct {
-	SKU       string
-	Name      string
-	Label     string
-	UnitCents int64
-	Quantity  int32
-	// OrderLineID names this line to the inspection form. The form posts per
-	// line, because a parcel of three can come back as two sellable and one
-	// broken and a single figure for the request cannot say that.
+	SKU         string
+	Name        string
+	Label       string
+	UnitCents   int64
+	Quantity    int32
 	OrderLineID string
-	// Inspected, and what was found. Absent is "nobody has opened the parcel",
-	// which is different from "opened it, nothing was in it" — one is work
-	// outstanding and the other is a conversation with the customer.
-	Inspected bool
-	Received  int32
-	Restocked int32
-	Note      string
-	// Restockable is whether the unit has a variant to go back into at all.
-	// order_lines.variant_id is nullable so a line survives its variant being
-	// deleted, and offering a restock control the write would refuse is worse
-	// than not offering one.
+	Inspected   bool
+	Received    int32
+	Restocked   int32
+	Note        string
 	Restockable bool
 }
 
@@ -167,9 +130,7 @@ func (l AdminReturnLine) MaxQuantityText() string {
 	return strconv.FormatInt(int64(l.Quantity), 10)
 }
 
-// Shortfall reports whether fewer units arrived than the customer said they were
-// sending. It is the one difference a staff member has to act on rather than
-// merely record, so the page says it rather than leaving two numbers to compare.
+// Shortfall reports whether fewer units arrived than were claimed.
 func (l AdminReturnLine) Shortfall() bool { return l.Inspected && l.Received < l.Quantity }
 
 // Scrapped reports whether something came back that could not be resold.

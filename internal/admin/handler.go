@@ -28,23 +28,13 @@ import (
 // Handler serves the back office.
 type Handler struct {
 	// outbox is the queue, for the health page's list of what has given up.
-	// Held by the handler for the same reason images is: the store's job is
-	// this feature's own tables.
 	outbox *outbox.Store
-	// images is the media pipeline. Held by the handler and not the store,
-	// because reading a multipart body is an HTTP concern — the store deals in
-	// a digest that already exists.
+	// images is the media pipeline.
 	images *media.Handler
-	// stepUp reports whether this request's session has proved a second factor.
-	//
-	// A function and not a *twofactor.Store, because internal/admin needs one
-	// answer out of a package that does a great deal more — and because a
-	// deployment without an encryption key passes nil, which is what makes 2FA
-	// optional without a boolean flag threaded through every call.
+	// stepUp reports whether this session proved a second factor; nil is a
+	// deployment with no encryption key, where 2FA is off.
 	stepUp func(*http.Request) (bool, error)
-	// letters is the mailing list. Held by the handler rather than reached through
-	// the admin store for the same reason outbox and images are: the store's job
-	// is this feature's own tables, and newsletter owns its own.
+	// letters is the mailing list.
 	letters *newsletter.Store
 	// sessions closes a cancelled order's checkout at the payment provider. Nil
 	// on a deployment with no Stripe key, where no session was ever opened.
@@ -53,14 +43,7 @@ type Handler struct {
 	log      *slog.Logger
 }
 
-// SessionCloser closes a checkout the customer may still have open at the
-// payment provider.
-//
-// Defined here rather than imported, the same one-method seam internal/cart
-// defines for the same *payment.Gateway. Two consumers naming one method is the
-// rule this repository already follows for order access; importing internal/
-// payment from the back office to share a type would couple the two features for
-// one signature.
+// SessionCloser closes a checkout still open at the payment provider.
 type SessionCloser interface {
 	ExpireSession(ctx context.Context, sessionID string) error
 }
@@ -80,53 +63,27 @@ func NewHandler(store *Store, images *media.Handler, messages *outbox.Store,
 	}
 }
 
-// closeSessions expires the checkouts a cancelled order left open at Stripe.
-//
-// The customer's own cancel does this too, and it has to be done from BOTH
-// doors for the reason the store-credit reversal is: the shop cancelling on
-// somebody's behalf must not be the path that leaves their checkout payable.
-//
-// Post-commit and best effort. The order is already cancelled and its stock and
-// credit are already back; a slow third party is not a reason to undo that. A
-// failure costs nothing new — the session dies with the stock hold anyway, and
-// money that beats it arrives as payment.ErrOrderCancelled, which is refused and
-// recorded rather than captured.
+// closeSessions expires the checkouts a cancelled order left open at Stripe,
+// post-commit and best effort — the stock and the credit are already back.
 func (h *Handler) closeSessions(ctx context.Context, number string, sessions []string) {
 	if h.sessions == nil {
 		return
 	}
 	for _, id := range sessions {
 		if err := h.sessions.ExpireSession(ctx, id); err != nil {
-			// Warn rather than Error: Stripe refuses to expire anything but an
-			// OPEN session, so a checkout the customer completed a moment ago
-			// lands here. That is the provider deciding whether money is in
-			// flight, which is exactly what goen must not decide for itself.
+			// Warn, not Error: Stripe refuses to expire anything but an OPEN
+			// session, so a checkout completed a moment ago lands here.
 			h.log.WarnContext(ctx, "expire checkout session of a cancelled order",
 				"order_number", number, "session_id", id, "error", err)
 		}
 	}
 }
 
-// RequireStaff wraps a back-office handler.
-//
-// A signed-out visitor gets the sign-in page; a signed-in CUSTOMER gets a 404,
-// not a 403. A 403 confirms that /admin is a real place with something behind
-// it, which is worth more to someone probing than the accuracy is to a customer
-// who has no business here.
+// RequireStaff wraps a back-office handler. Signed out and signed-in-but-not-
+// staff get the SAME answer, a 404: anything else — a 403, or a redirect to
+// /signin?next=/admin — confirms that /admin is a real place.
 func (h *Handler) RequireStaff(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Signed out and signed-in-but-not-staff get the SAME answer, and it is
-		// the answer an absent page gives.
-		//
-		// Redirecting a signed-out visitor to /signin?next=/admin would tell
-		// them /admin is real — the exact disclosure the 404 for customers is
-		// chosen to avoid — and would write the back-office path into their
-		// history and referrer on the way. One branch saying "this does not
-		// exist" while another says "sign in and it will" is not a policy.
-		//
-		// The cost is a staff member with an expired session seeing a 404
-		// instead of a login prompt. They sign in at /signin and come back;
-		// that is a smaller price than advertising where the back office is.
 		u, ok := account.FromContext(r.Context())
 		if !ok || !u.IsAdmin() {
 			web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
@@ -136,17 +93,9 @@ func (h *Handler) RequireStaff(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		// The SECOND factor, checked here rather than at sign-in.
-		//
-		// One gate in front of every back-office route is what makes the
-		// guarantee auditable: no refund, no store credit, no stock adjustment
-		// without a code verified in this session and recent. Checking it in
-		// the login flow instead would need a half-authenticated state to live
-		// somewhere, and a session that "does not count yet" eventually counts.
-		//
-		// The redirect goes to /admin/verify, which IS a disclosure — but only
-		// to somebody who has already proved they are staff, so it discloses
-		// nothing the 404 above was protecting.
+		// The SECOND factor, checked here rather than at sign-in: gating the
+		// login would need a half-authenticated state to live somewhere, and a
+		// session that "does not count yet" eventually counts.
 		if h.stepUp != nil {
 			verified, err := h.stepUp(r)
 			if err != nil {
@@ -163,22 +112,8 @@ func (h *Handler) RequireStaff(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// RequireAdmin wraps a back-office handler that changes WHO WORKS HERE.
-//
-// Everything else in the back office is a staff job: orders, stock, refunds,
-// the catalogue. Deciding who holds a back-office account is not, so it asks a
-// role predicate of its own. Gated on the same one as everything else, `staff`
-// and `admin` are indistinguishable at every point a request is decided, and the
-// four /admin/staff routes are a self-service promotion desk.
-//
-// It wraps RequireStaff rather than repeating it, so the second factor, the
-// 404-not-403 disclosure rule and the session check stay in ONE place. A second
-// copy of that reasoning is a second place for it to drift.
-//
-// A staff member who reaches one of these gets the same 404 a customer gets at
-// /admin, for the same reason: it is the answer an absent page gives, and
-// telling somebody their colleagues' page exists but is not for them is worth
-// more to a prober than the accuracy is to them.
+// RequireAdmin wraps a back-office handler that changes WHO WORKS HERE: gated
+// on the staff predicate, /admin/staff is a self-service promotion desk.
 func (h *Handler) RequireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	return h.RequireStaff(func(w http.ResponseWriter, r *http.Request) {
 		u, ok := account.FromContext(r.Context())
@@ -252,13 +187,9 @@ func (h *Handler) AdvanceOrder(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case err == nil:
 		h.closeSessions(r.Context(), number, sessions)
-		// number passed IsOrderNumber: GO- followed by digits and one hyphen, so
-		// it is a path segment and cannot carry a scheme, a second slash or a
-		// query separator. gosec's taint analysis does not follow the check.
 		http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
 	case errors.Is(err, ErrRefused):
-		// The database refused the transition and its message names the rule.
-		// Logged in full; the page says the move was refused, because a
+		// Logged in full; the page only says the move was refused, because a
 		// constraint name is not something a shop assistant can act on.
 		h.log.WarnContext(r.Context(), "order transition refused",
 			"order", number, "error", err)
@@ -269,12 +200,7 @@ func (h *Handler) AdvanceOrder(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Ship serves POST /admin/orders/{number}/ship.
-//
-// A plain form: carrier, tracking number, and how many of each line are in this
-// parcel. It records the shipment, settles the stock those units were holding
-// and appends to the order's history, all together — see [Store.Ship] for why
-// none of those may happen without the others.
+// Ship serves POST /admin/orders/{number}/ship. See [Store.Ship].
 func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -319,16 +245,8 @@ func (h *Handler) Ship(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// parcelLines reads how many of each order line the dispatch form is sending.
-//
-// Named `qty_<order_line_id>` rather than parallel arrays, for the reason the
-// return inspection form uses the same shape: a browser is free to reorder
-// repeated fields, and two lists that drifted apart would ship the wrong line's
-// quantity.
-//
-// A nil map means "everything outstanding", which is what a form with no
-// quantity fields at all sends — the whole order in one parcel, which is still
-// the common case.
+// parcelLines reads the `qty_<order_line_id>` fields; a nil map means everything
+// outstanding. Keyed by id because a browser may reorder repeated fields.
 func parcelLines(r *http.Request) (map[uuid.UUID]int32, error) {
 	var out map[uuid.UUID]int32
 	for name, values := range r.PostForm {
@@ -359,9 +277,7 @@ func parcelLines(r *http.Request) (map[uuid.UUID]int32, error) {
 	return out, nil
 }
 
-// staffID is who is acting, for the history. A staff member always has a
-// session here — RequireStaff would not have let the request through otherwise
-// — so an unparseable id is a bug, and the event records "nobody" rather than
+// staffID is who is acting. An unparseable id records "nobody" rather than
 // failing a dispatch that has physically happened.
 func staffID(r *http.Request) uuid.NullUUID {
 	u, ok := account.FromContext(r.Context())
@@ -437,12 +353,7 @@ func (h *Handler) AdjustStock(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// ReceiveStock serves POST /admin/stock/receive.
-//
-// Separate from AdjustStock rather than a "reason" dropdown beside it, because
-// the two are different acts and a shop should not have to pick the right word
-// out of a list to record the ordinary one. It redirects back to the LEDGER the
-// form lives on, so the row it just wrote is the first thing on screen.
+// ReceiveStock serves POST /admin/stock/receive, redirecting to the ledger.
 func (h *Handler) ReceiveStock(w http.ResponseWriter, r *http.Request) {
 	u, _ := account.FromContext(r.Context())
 	if err := web.ParseForm(w, r); err != nil {
@@ -450,9 +361,6 @@ func (h *Handler) ReceiveStock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	sku := r.PostFormValue("sku")
-	// Built from the SKU the FORM carried, so a refusal returns to the ledger
-	// that posted it. web.SitePath is not needed: the SKU is a path segment this
-	// server matched a route on, and the redirect is relative by construction.
 	back := "/admin/stock/" + url.PathEscape(sku)
 
 	quantity, ok := ParseReceipt(r.PostFormValue("quantity"))
@@ -491,8 +399,6 @@ func (h *Handler) SetVariantActive(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		http.Redirect(w, r, "/admin/stock?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
-		// Most often sale_campaign_variant_still_valid: retiring the last
-		// discounted variant of a product a campaign features.
 		h.log.WarnContext(r.Context(), "variant activation refused",
 			"sku", r.PostFormValue("sku"), "error", err)
 		http.Redirect(w, r, "/admin/stock?refused=1", http.StatusSeeOther)
@@ -520,7 +426,6 @@ func (h *Handler) SetVariantPrice(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		http.Redirect(w, r, "/admin/stock?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused), errors.Is(err, ErrNotFound):
-		// product_variants_compare_at_is_higher: a "sale" that is not a saving.
 		h.log.WarnContext(r.Context(), "reprice refused",
 			"sku", r.PostFormValue("sku"), "error", err)
 		http.Redirect(w, r, "/admin/stock?refused=1", http.StatusSeeOther)
@@ -531,14 +436,6 @@ func (h *Handler) SetVariantPrice(w http.ResponseWriter, r *http.Request) {
 }
 
 // adminNotices is the one-shot message each redirect parameter carries.
-//
-// A table rather than a switch, because it is one: every arm would ask the same
-// question of a different key and answer with a constant, which is a lookup
-// written out longhand — two dozen of them past what any complexity check
-// allows. Order does not matter, because a redirect sets exactly one.
-//
-// i18n-exempt: the back office is the staff of one Taiwanese shop, which is the
-// category exemption the chrome-language rule already names.
 var adminNotices = map[string]i18n.Key{
 	"ok":            i18n.KeyAdminNoticeOK,
 	"refused":       i18n.KeyAdminNoticeRefused,
@@ -566,8 +463,7 @@ var adminNotices = map[string]i18n.Key{
 	"invoicefailed": i18n.KeyAdminNoticeInvoiceFailed,
 }
 
-// noticeFor turns the one-shot query parameter a redirect carries into the
-// message the page shows.
+// noticeFor turns a redirect's one-shot query parameter into a message.
 func noticeFor(r *http.Request) string {
 	q := r.URL.Query()
 	for name, k := range adminNotices {
@@ -607,11 +503,8 @@ func (h *Handler) Returns(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReturns)}, view))
 }
 
-// Decide serves POST /admin/returns/{id}/decide.
-//
-// Approving pays money back, so a refusal from the database or from Stripe is
-// reported rather than swallowed: an approval that silently failed would leave
-// a customer told they were refunded and no money moved.
+// Decide serves POST /admin/returns/{id}/decide. Approving pays money back, so
+// a refusal from the database or from Stripe is reported and never swallowed.
 func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -627,20 +520,15 @@ func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 			"return", r.PathValue("id"), "error", err)
 		http.Redirect(w, r, "/admin/returns?refused=1", http.StatusSeeOther)
 	default:
-		// A Stripe failure lands here. The refund row is already committed as
-		// 'failed', so the money is a job for a human rather than a lost write.
+		// A Stripe failure lands here, with the refund row already committed as
+		// 'failed': a job for a human rather than a lost write.
 		h.log.ErrorContext(r.Context(), "decide return",
 			"return", r.PathValue("id"), "error", err)
 		http.Redirect(w, r, "/admin/returns?refundfailed=1", http.StatusSeeOther)
 	}
 }
 
-// Inspect serves POST /admin/returns/{id}/inspect.
-//
-// One form for the whole parcel: a return of three things is opened once, and
-// three separate submissions would leave the shop able to record two lines and
-// forget the third — which is the state return_requests_completed_is_inspected
-// then refuses to close, with nothing on screen saying why.
+// Inspect serves POST /admin/returns/{id}/inspect, one form per parcel.
 func (h *Handler) Inspect(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -672,12 +560,8 @@ func (h *Handler) Inspect(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// inspectionLines reads the per-line counts off the form.
-//
-// Named `received_<order_line_id>` and `restocked_<order_line_id>` rather than
-// parallel arrays, because a browser is free to reorder repeated fields and two
-// lists that drifted apart would restock the wrong variant — the same reason the
-// return form itself keys quantities by line id.
+// inspectionLines reads the per-line counts off the form, keyed by line id for
+// parcelLines' reason: two drifted lists would restock the wrong variant.
 func inspectionLines(r *http.Request) ([]ReturnLineInspection, error) {
 	var out []ReturnLineInspection
 	for name, values := range r.PostForm {
@@ -693,9 +577,8 @@ func inspectionLines(r *http.Request) ([]ReturnLineInspection, error) {
 		if err != nil {
 			return nil, fmt.Errorf("received count on %s: %w", rest, err)
 		}
-		// Absent means zero. A staff member who leaves the restock box empty on a
-		// line that arrived broken is saying "none of it", and reading that as
-		// "all of it" would put damaged goods back on the shelf.
+		// Absent means zero: an empty restock box says "none of it", and reading
+		// it as "all of it" would put damaged goods back on the shelf.
 		var restocked int64
 		if raw := strings.TrimSpace(r.PostFormValue("restocked_" + rest)); raw != "" {
 			if restocked, err = strconv.ParseInt(raw, 10, 32); err != nil {
@@ -727,9 +610,6 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		http.Redirect(w, r, "/admin/returns?closed=1", http.StatusSeeOther)
 	case errors.Is(err, ErrRefused):
-		// return_requests_completed_is_inspected lands here: a parcel nobody has
-		// opened cannot be closed, and the page says so rather than showing a
-		// constraint name.
 		h.log.WarnContext(r.Context(), "return completion refused",
 			"return", r.PathValue("id"), "error", err)
 		http.Redirect(w, r, "/admin/returns?refused=1", http.StatusSeeOther)
@@ -753,12 +633,8 @@ func (h *Handler) Credit(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, view))
 }
 
-// creditNotice is the credit page's own version of noticeFor.
-//
-// It exists to say the BALANCE after a grant. The form is a blank box, so
-// granting again because the first grant was not visible anywhere is how a
-// customer ends up with twice what they were owed — and the number is what
-// CreditBalance answers.
+// creditNotice is noticeFor plus the BALANCE a grant produced: the form is a
+// blank box, so a grant nothing confirms is one somebody makes twice.
 func creditNotice(r *http.Request) string {
 	if r.URL.Query().Get("ok") != "1" {
 		return noticeFor(r)
@@ -770,11 +646,8 @@ func creditNotice(r *http.Request) string {
 	return fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminNoticeCreditGranted), pages.TWD(balance))
 }
 
-// GrantCredit serves POST /admin/credit.
-//
-// The amount is typed in DOLLARS and stored in cents. A staff member giving a
-// customer NT$500 types 500, not 50000 — a form that asks for cents is a form
-// that eventually gives somebody a hundred times too much.
+// GrantCredit serves POST /admin/credit. The amount is typed in DOLLARS and
+// stored in cents.
 func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -790,9 +663,8 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 		dollars*100, r.PostFormValue("reason"), staffID(r))
 	switch {
 	case err == nil:
-		// The resulting balance travels as a number, never the address it
-		// belongs to: a query string is logged, and whose balance it is would
-		// be the personal half of that pair.
+		// The balance travels as a number and never the address it belongs to,
+		// because a query string is logged.
 		http.Redirect(w, r, "/admin/credit?ok=1&balance="+
 			strconv.FormatInt(balance, 10), http.StatusSeeOther)
 	case errors.Is(err, ErrInvalid):
@@ -864,19 +736,12 @@ func (h *Handler) EditProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = noticeFor(r)
-	// Read separately rather than joined into Product: an image list is a
-	// different cardinality from a product row, and folding it in would make
-	// every other caller of Product pay for a join it does not read.
 	if images, imgErr := h.store.ProductImages(r.Context(), r.PathValue("slug")); imgErr != nil {
-		// Not fatal. Losing the image strip is much smaller than losing the
-		// page a staff member came here to edit.
+		// Not fatal: losing the image strip is smaller than losing the page.
 		h.log.ErrorContext(r.Context(), "read product images", "error", imgErr)
 	} else {
 		view.Images = images
 	}
-	// Images already uploaded, so a shot that belongs on three products is
-	// attached three times rather than uploaded three times. Content addressing
-	// deduplicates the BYTES; without a picker the staff work is still repeated.
 	if recent, recentErr := h.images.Recent(r.Context()); recentErr != nil {
 		h.log.ErrorContext(r.Context(), "read recent uploads", "error", recentErr)
 	} else {
@@ -942,14 +807,13 @@ func (h *Handler) AddVariant(w http.ResponseWriter, r *http.Request) {
 		PriceCents:   dollarsToCents(r.PostFormValue("price")),
 		CompareCents: dollarsToCents(r.PostFormValue("compare")),
 		SafetyStock:  parseSafetyStock(r.PostFormValue("safety")),
-		// Zero is UNMEASURED and stores NULL, so a blank field leaves the
-		// variant refused by no shipping method rather than blocked from all of
-		// them.
+		// Zero is UNMEASURED and stores NULL, so a blank field leaves the variant
+		// refused by no shipping method rather than blocked from all of them.
 		ParcelLongestMM: parseSafetyStock(r.PostFormValue("parcel_longest")),
 		ParcelSumMM:     parseSafetyStock(r.PostFormValue("parcel_sum")),
 		ParcelWeightG:   parseSafetyStock(r.PostFormValue("parcel_weight")),
-		// One select per option, all named option_value. PostForm holds them in
-		// document order, which is the order the page rendered the axes.
+		// One select per option, all named option_value; PostForm holds them in
+		// the order the page rendered the axes.
 		OptionValues: r.PostForm["option_value"],
 	}
 	errs, err := h.store.AddVariant(r.Context(), slug, f)
@@ -958,9 +822,6 @@ func (h *Handler) AddVariant(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "add variant", "error", err)
 		h.serverError(w, r)
 	case len(errs) > 0:
-		// Re-rendered at 422 with the refusal on the page rather than redirected,
-		// because "every axis needs a value" is a sentence about what was submitted
-		// and a query parameter cannot say which axis was missing.
 		h.editProductWithErrors(w, r, slug, errs)
 	default:
 		//nolint:gosec // G710: validated by the route's own slug
@@ -1010,11 +871,7 @@ func (h *Handler) rejectProduct(w http.ResponseWriter, r *http.Request, f *Produ
 		layouts.Page{Title: view.Title(r.Context())}, view))
 }
 
-// dollarsToCents reads a price typed in DOLLARS.
-//
-// The form asks for dollars because a staff member pricing something at NT$500
-// types 500. A form that asks for cents is a form that eventually prices
-// something at a hundredth of what was meant.
+// dollarsToCents reads a price typed in whole New Taiwan DOLLARS.
 func dollarsToCents(s string) int64 {
 	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 64)
 	if err != nil || n < 0 || n > MaxPriceCents/100 {
@@ -1023,11 +880,8 @@ func dollarsToCents(s string) int64 {
 	return n * 100
 }
 
-// parseSafetyStock reads the safety-stock field.
-//
-// It returns int32 directly rather than converting a bounded int64 at the call
-// site: gosec cannot see that parseBounded's ceiling makes the conversion safe,
-// and a //nolint would be asserting the bound rather than expressing it.
+// parseSafetyStock reads the safety-stock field, returning int32 directly
+// because gosec cannot see that a caller-side ceiling makes the conversion safe.
 func parseSafetyStock(s string) int32 {
 	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 32)
 	if err != nil || n < 0 || n > 1_000_000 {
@@ -1130,8 +984,7 @@ func whole(s string) int64 {
 	return n
 }
 
-// small reads a small count, bounded well below int32 so no conversion can
-// overflow.
+// small reads a count bounded well below int32, so no conversion overflows.
 func small(s string) int32 {
 	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 32)
 	if err != nil || n < 0 || n > 1_000_000 {
@@ -1216,8 +1069,7 @@ func (h *Handler) FeatureProduct(w http.ResponseWriter, r *http.Request) {
 		err = h.store.FeatureProduct(r.Context(), slug, r.PostFormValue("product"))
 	}
 	if err != nil {
-		// sale_campaign_needs_discount speaks here when the product has nothing
-		// marked down, which is the refusal a staff member most needs told.
+		// Usually sale_campaign_needs_discount: nothing is marked down.
 		h.log.WarnContext(r.Context(), "feature product", "campaign", slug, "error", err)
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/campaigns/"+slug+"?nodiscount=1", http.StatusSeeOther)
@@ -1254,17 +1106,11 @@ func (h *Handler) Audit(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageAudit)}, view))
 }
 
-// UploadImage serves POST /admin/products/{slug}/images.
-//
-// Two writes that are deliberately NOT one transaction: the image is stored,
-// then attached. Storing is idempotent by content, so a failure between the two
-// leaves an orphan that UnreferencedMedia reclaims — whereas holding an 8 MB
-// upload inside the attach transaction would hold a row lock for the length of
-// a decode.
+// UploadImage serves POST /admin/products/{slug}/images. Store then attach,
+// deliberately NOT one transaction: storing is idempotent by content, so a
+// failure between them leaves only an orphan UnreferencedMedia reclaims.
 func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	slug := r.PathValue("slug")
-	// Read the alt text BEFORE the file: ParseMultipartForm populates both, and
-	// a rejected image should not lose what was typed beside it.
 	obj, err := h.images.ReadUpload(w, r, "image")
 	if err != nil {
 		h.log.WarnContext(r.Context(), "image upload", "error", err, "slug", slug)
@@ -1277,10 +1123,6 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.AttachImage(r.Context(), slug, obj.Digest, alt,
 		r.PostFormValue("alt_en"), obj.Width, obj.Height); err != nil {
 		h.log.WarnContext(r.Context(), "attach image", "error", err, "slug", slug)
-		// The reason is read from the error, never assumed. One query for every
-		// failure — "?noalt=1" whatever went wrong — tells a staff member whose
-		// alt text was fine to fill it in, which is a message that sends
-		// somebody to fix the one thing that was not wrong.
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/products/"+slug+"?"+attachReason(err), http.StatusSeeOther)
 		return
@@ -1289,13 +1131,8 @@ func (h *Handler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
 }
 
-// ReuseImage serves POST /admin/products/{slug}/images/reuse.
-//
-// Attaches an image ALREADY uploaded, which is what content addressing is for:
-// `product_images_storage_key_key` is (product_id, storage_key) precisely so a
-// generic accessory shot can sit on two products. Without a picker the staff
-// member re-uploads the same file for every product — the bytes deduplicate and
-// the work does not.
+// ReuseImage serves POST /admin/products/{slug}/images/reuse, attaching an
+// image ALREADY uploaded to a second product.
 func (h *Handler) ReuseImage(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -1303,9 +1140,8 @@ func (h *Handler) ReuseImage(w http.ResponseWriter, r *http.Request) {
 	}
 	slug := r.PathValue("slug")
 
-	// The dimensions come from the STORED object rather than the form: they are
-	// what the srcset is built from, and a hand-edited pair would make a
-	// browser lay out against a size the image does not have.
+	// The dimensions come from the STORED object and not the form: the srcset is
+	// built from them, so a hand-edited pair lays out against the wrong size.
 	obj, err := h.images.Object(r.Context(), r.PostFormValue("digest"))
 	if err != nil {
 		h.log.WarnContext(r.Context(), "reuse image", "error", err, "slug", slug)
@@ -1364,7 +1200,7 @@ func (h *Handler) CreateShippingMethod(w http.ResponseWriter, r *http.Request) {
 	m := &NewMethod{
 		Code:        r.PostFormValue("code"),
 		Destination: r.PostFormValue("destination"),
-		// Zero is "no stated limit", the honest default for 宅配.
+		// Zero is "no stated limit", the honest default for home delivery.
 		MaxParcelLongestMM: parseSafetyStock(r.PostFormValue("max_parcel_longest")),
 		MaxParcelSumMM:     parseSafetyStock(r.PostFormValue("max_parcel_sum")),
 		MaxParcelWeightG:   parseSafetyStock(r.PostFormValue("max_parcel_weight")),
@@ -1392,11 +1228,8 @@ func (h *Handler) CreateShippingMethod(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// SetShippingMethodActive serves POST /admin/shipping/method/{id}/active.
-//
-// A method is switched OFF, never deleted: shipping_method_versions references it
-// ON DELETE RESTRICT, and every past order names the version it was priced from — a
-// method that ever carried a parcel is part of the record.
+// SetShippingMethodActive serves POST /admin/shipping/method/{id}/active. A
+// method is switched OFF, never deleted: past orders name their version.
 func (h *Handler) SetShippingMethodActive(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -1468,8 +1301,6 @@ func (h *Handler) DeleteShippingZone(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrInUse):
-		// Prefixes or surcharges still point at it, which is a sentence a staff
-		// member can act on rather than a constraint name.
 		http.Redirect(w, r, "/admin/shipping?inuse=1", http.StatusSeeOther)
 	default:
 		h.log.WarnContext(r.Context(), "delete shipping zone", "error", err)
@@ -1492,11 +1323,8 @@ func (h *Handler) rejectShippingForm(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }
 
-// dollars reads a whole-dollar amount, treating a blank or unparseable box as zero.
-//
-// Zero is a real answer for the free-over threshold (there isn't one) and a refused
-// one for the fee, which NewMethod.Validate decides — the parse does not need to
-// distinguish them.
+// dollars reads a whole-dollar amount; a blank or unparseable box is zero,
+// which NewMethod.Validate reads per field.
 func dollars(v string) int64 {
 	n, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
 	if err != nil || n < 0 {
@@ -1537,10 +1365,7 @@ func (h *Handler) CreateFAQEntry(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// EditFAQEntry serves POST /admin/faq/{id}.
-//
-// Save and delete on one endpoint, chosen by the submitted button, for the reason
-// the taxonomy rows do it: one decision a staff member makes on one row.
+// EditFAQEntry serves POST /admin/faq/{id}: save or delete, by submitted button.
 func (h *Handler) EditFAQEntry(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -1624,8 +1449,7 @@ func (h *Handler) AddOptionValue(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// optionWrite is the shape both option forms share: parse, write, and either
-// re-render with the refusal or answer 303.
+// optionWrite is the shape both option forms share.
 func (h *Handler) optionWrite(
 	w http.ResponseWriter, r *http.Request, write func(slug string) (map[string]string, error),
 ) {
@@ -1666,8 +1490,6 @@ func (h *Handler) AddSpec(w http.ResponseWriter, r *http.Request) {
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/products/"+slug+"?specfailed=1", http.StatusSeeOther)
 	case len(errs) > 0:
-		// Refused for what was typed. The page re-renders WITH the values, the
-		// same as every other rejected form here.
 		h.editProductWithErrors(w, r, slug, errs)
 	default:
 		//nolint:gosec // G710: slug is the route's own path value
@@ -1715,11 +1537,8 @@ func attachReason(err error) string {
 	}
 }
 
-// uploadReason turns a rejection into the query the page reads.
-//
-// The two cases a staff member can act on are named; everything else is the
-// generic one. Telling somebody WHICH decoder refused their file would be
-// telling an attacker which decoders are wired up.
+// uploadReason turns a rejection into the query the page reads. Naming WHICH
+// decoder refused a file would tell an attacker which decoders are wired up.
 func uploadReason(err error) string {
 	switch {
 	case errors.Is(err, media.ErrTooLarge):
@@ -1739,8 +1558,6 @@ func (h *Handler) HomeContent(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	// The strip belongs on this page for the same reason the hero does: both are
-	// what the storefront says about itself before a visitor has chosen anything.
 	banners, err := h.store.Banners(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read promo banners", "error", err)
@@ -1821,11 +1638,9 @@ func (h *Handler) rejectBanner(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHero)}, &view))
 }
 
-// CreateHeroSlide serves POST /admin/home.
-//
-// Multipart, because the artwork arrives with the copy. The image is optional:
-// a slide with none falls back to the built-in artwork, which is better than
-// refusing a text change because nobody had a photograph ready.
+// CreateHeroSlide serves POST /admin/home. Multipart, because the artwork
+// arrives with the copy; the image is optional and a slide with none falls back
+// to the built-in artwork.
 func (h *Handler) CreateHeroSlide(w http.ResponseWriter, r *http.Request) {
 	obj, err := h.images.ReadUpload(w, r, "image")
 	if err != nil && !errors.Is(err, media.ErrNotAnImage) {
@@ -1923,11 +1738,8 @@ func (h *Handler) Taxonomy(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTaxonomy)}, &view))
 }
 
-// CreateTaxon serves POST /admin/taxonomy/{kind}.
-//
-// One handler for both, because they differ in one call. Two would be two
-// places to forget the audit event, and the kind is a path value the router
-// constrains rather than anything a form supplies.
+// CreateTaxon serves POST /admin/taxonomy/{kind}. The kind is a path value the
+// router constrains, never anything a form supplies.
 func (h *Handler) CreateTaxon(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -1971,11 +1783,7 @@ func (h *Handler) CreateTaxon(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// EditTaxon serves POST /admin/taxonomy/{kind}/{slug}.
-//
-// Rename and delete on one endpoint, chosen by the submitted button. Two
-// separate routes would be two RequireStaff wrappings and two audit call sites
-// for what is one decision a staff member makes on one row.
+// EditTaxon serves POST /admin/taxonomy/{kind}/{slug}: rename or delete.
 func (h *Handler) EditTaxon(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -2010,13 +1818,8 @@ func (h *Handler) EditTaxon(w http.ResponseWriter, r *http.Request) {
 
 // Reports serves GET /admin/reports.
 func (h *Handler) Reports(w http.ResponseWriter, r *http.Request) {
-	// An unparseable or out-of-range window falls back to the default rather
-	// than erroring: the number reaches a query that scans order history, and
-	// an allowlist in the store is what bounds the work — a 400 here would just
-	// be a worse way to say the same thing.
 	// A parse failure is zero, which the store's allowlist turns into the
-	// default — the same answer an out-of-range number gets, because both mean
-	// "not one of the windows this page offers".
+	// default — the same answer an out-of-range number gets.
 	days, parseErr := strconv.ParseInt(r.URL.Query().Get("days"), 10, 32)
 	if parseErr != nil {
 		days = 0
@@ -2044,10 +1847,7 @@ func (h *Handler) Questions(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageQuestions)}, view))
 }
 
-// AnswerQuestion serves POST /admin/questions/{id}.
-//
-// Answer and hide on one endpoint, chosen by the submitted button: they are one
-// decision a staff member makes about one question.
+// AnswerQuestion serves POST /admin/questions/{id}: answer or hide.
 func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 	u, ok := account.FromContext(r.Context())
 	if !ok {
@@ -2064,9 +1864,8 @@ func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 	if r.PostFormValue("action") == "hide" {
 		err = h.store.HideQuestion(r.Context(), id)
 	} else {
-		// staff=true, because this endpoint IS the shop. The flag is stored
-		// with the answer rather than re-derived later — see
-		// product_answers.is_staff.
+		// staff=true, because this endpoint IS the shop; product_answers.is_staff
+		// is stored with the answer rather than re-derived later.
 		err = h.store.AnswerQuestion(r.Context(), id, u.ID, r.PostFormValue("body"))
 	}
 	switch {
@@ -2116,8 +1915,8 @@ func (h *Handler) PublishShippingVersion(w http.ResponseWriter, r *http.Request)
 		http.Redirect(w, r, "/admin/shipping?needs=1", http.StatusSeeOther)
 		return
 	}
-	// An empty threshold is "no free shipping", not zero — and ParseInt refuses
-	// "" rather than answering 0, which is why it is read separately.
+	// An empty threshold is "no free shipping" and not zero, and ParseInt
+	// refuses "" rather than answering 0.
 	var freeOver int64
 	if raw := strings.TrimSpace(r.PostFormValue("free_over")); raw != "" {
 		parsed, parseErr := strconv.ParseInt(raw, 10, 64)
@@ -2132,7 +1931,7 @@ func (h *Handler) PublishShippingVersion(w http.ResponseWriter, r *http.Request)
 		MethodID: r.PostFormValue("method"),
 		Name:     r.PostFormValue("name"),
 		Carrier:  r.PostFormValue("carrier"),
-		// Optional, and the checkout's chooser is what reads them.
+		// Optional; the checkout's chooser reads them.
 		NameEn:          r.PostFormValue("name_en"),
 		CarrierEn:       r.PostFormValue("carrier_en"),
 		FeeDollars:      fee,
@@ -2147,9 +1946,8 @@ func (h *Handler) SetZoneSurcharge(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	// An empty box means zero here, which CLEARS the surcharge: the field is
-	// rendered blank when there is none, so submitting it untouched must be a
-	// no-op rather than a parse error.
+	// An empty box means zero here, which CLEARS the surcharge: the field renders
+	// blank when there is none, so submitting it untouched must be a no-op.
 	var amount int64
 	if raw := strings.TrimSpace(r.PostFormValue("amount")); raw != "" {
 		parsed, parseErr := strconv.ParseInt(raw, 10, 64)
@@ -2344,15 +2142,10 @@ func (h *Handler) setMessageHandled(w http.ResponseWriter, r *http.Request, hand
 	}
 }
 
-// NewsletterIssueLimit bounds the issue list. A newsletter is monthly; fifty is
-// four years of them, and nobody scrolls further than that in a back office.
+// NewsletterIssueLimit bounds the issue list.
 const NewsletterIssueLimit = 50
 
 // Newsletter serves GET /admin/newsletter.
-//
-// This is the reading end of a list the footer writes to: without it the shop
-// collects addresses and no page can see them, which is a subscriber list that
-// exists and cannot be used.
 func (h *Handler) Newsletter(w http.ResponseWriter, r *http.Request) {
 	view, err := h.newsletterView(r)
 	if err != nil {
@@ -2399,11 +2192,9 @@ func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/admin/newsletter?saved=1", http.StatusSeeOther)
 }
 
-// SendNewsletter serves POST /admin/newsletter/{id}/send.
-//
-// The one irreversible button in the back office. It answers 303 so a reload
-// cannot resubmit it, and the store refuses a second send in the UPDATE's own
-// WHERE clause — because a reload is not the only way two of these arrive.
+// SendNewsletter serves POST /admin/newsletter/{id}/send. The store refuses a
+// second send in the UPDATE's own WHERE clause, because a reload is not the
+// only way two of these arrive.
 func (h *Handler) SendNewsletter(w http.ResponseWriter, r *http.Request) {
 	switch _, err := h.letters.Send(r.Context(), r.PathValue("id"), staffID(r)); {
 	case err == nil:
@@ -2454,12 +2245,7 @@ func (h *Handler) Customers(w http.ResponseWriter, r *http.Request) {
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCustomers)}, view))
 }
 
-// Warranties serves GET /admin/warranty.
-//
-// The shop's half of warranty registration. The customer registers a unit and
-// reads their own cover; without this nobody at the shop can see either — while
-// /warranty promises the shop collects the unit and pays the carriage. A claim
-// arrives and the only record of it is in the hands of the person making it.
+// Warranties serves GET /admin/warranty, the shop's half of registration.
 func (h *Handler) Warranties(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Warranties(r.Context(), r.URL.Query().Get("q"))
 	if err != nil {
@@ -2486,11 +2272,8 @@ func (h *Handler) Customer(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// IssueInvoice serves POST /admin/orders/{number}/invoice.
-//
-// The 發票 preference is collected at checkout and this is what acts on it.
-// Without it a staff member packing an order can see that it needs a 統編
-// invoice and has no way to issue one.
+// IssueInvoice serves POST /admin/orders/{number}/invoice, acting on the
+// invoice preference collected at checkout.
 func (h *Handler) IssueInvoice(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 	if !IsOrderNumber(number) {
@@ -2510,9 +2293,8 @@ func (h *Handler) IssueInvoice(w http.ResponseWriter, r *http.Request) {
 		//nolint:gosec // G710: validated by IsOrderNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrRejected):
-		// The 加值中心's own reason. Logged in full because it names the field
-		// to fix, and shown as a single message because a staff member cannot
-		// act on an RtnCode.
+		// The provider's own reason, logged in full because it names the field to
+		// fix; the page says one thing, because nobody can act on an RtnCode.
 		h.log.ErrorContext(r.Context(), "the e-invoice provider refused the invoice",
 			"order", number, "error", err)
 		//nolint:gosec // G710: validated by IsOrderNumber
@@ -2523,11 +2305,9 @@ func (h *Handler) IssueInvoice(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// VoidInvoice serves POST /admin/orders/{number}/invoice/void.
-//
-// A 統一發票 cannot be edited. A wrong one is voided and a correct one issued in
-// its place, which is what invoice_documents_guard enforces from the database's
-// side and what the form's wording tells a staff member.
+// VoidInvoice serves POST /admin/orders/{number}/invoice/void. A uniform
+// invoice cannot be edited: a wrong one is voided and a correct one issued in
+// its place, which invoice_documents_guard enforces.
 func (h *Handler) VoidInvoice(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)

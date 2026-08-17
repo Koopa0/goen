@@ -8,17 +8,15 @@ import (
 
 // AuditEntry is one recorded back-office action.
 type AuditEntry struct {
-	Action string
-	Entity string
-	Actor  string
-	At     string
-	// RequestID ties this row to the log lines from the same request.
+	Action    string
+	Entity    string
+	Actor     string
+	At        string
 	RequestID string
 	Detail    string
 }
 
-// Label is what the action is called on the page, in the reader's language. An
-// unnamed action renders as its raw key rather than borrowing another's label.
+// Label is what the action is called on the page, in the reader's language.
 func (e AuditEntry) Label(ctx context.Context) string {
 	if k, ok := actionLabels[e.Action]; ok {
 		return i18n.T(ctx, k)
@@ -26,7 +24,6 @@ func (e AuditEntry) Label(ctx context.Context) string {
 	return e.Action
 }
 
-// actionLabels is the catalogue key for each recorded action.
 var actionLabels = map[string]i18n.Key{
 	"customer.view":          i18n.KeyAuditCustomerView,
 	"newsletter.send":        i18n.KeyAuditNewsletterSend,
@@ -76,8 +73,7 @@ var actionLabels = map[string]i18n.Key{
 	"question.hide":          i18n.KeyAuditQuestionHide,
 }
 
-// ActorText is who did it. audit_events is append-only and erase_user does not
-// reach it, so the row outlives the person and the join comes back empty.
+// ActorText is who did it, or a stand-in for an account that is gone.
 func (e AuditEntry) ActorText(ctx context.Context) string {
 	if e.Actor == "" {
 		return i18n.T(ctx, i18n.KeyAdminErasedAccountPlain)

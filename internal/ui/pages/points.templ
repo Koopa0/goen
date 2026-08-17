@@ -39,8 +39,6 @@ templ Points(p layouts.Page, v PointsView) {
 				</li>
 			</ul>
 			if v.Expiring() {
-				// Said before it happens: a balance that shrank without warning
-				// is a support ticket.
 				<p class="ui-alert" role="status">{ v.ExpiringText(ctx) }</p>
 			}
 			if v.CanRedeem() {

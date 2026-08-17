@@ -45,8 +45,6 @@ templ AdminMessages(p layouts.Page, v AdminMessagesView) {
 									{ m.Name } · { m.Email } · { m.At } · { m.Waiting(ctx) }
 								</span>
 								if m.HasOrderRef() {
-									// A link, because "my order hasn't arrived" is
-									// answered by looking at the order.
 									<span class="ui-cart-line__meta">
 										{ i18n.T(ctx, i18n.KeyAdminMessagesOrder) } <a class="goen-admin__productname" href={ templ.SafeURL(m.OrderHref()) }>{ m.OrderRef }</a>
 									</span>

@@ -1,9 +1,4 @@
--- The category a listing URL names, plus the trail above it for the crumbs.
--- Walking upward is bounded by the tree's depth, and categories_acyclic
--- guarantees the walk terminates.
--- Every name goes through localized_name, the one place that decides which name a
--- reader gets. A category name is in the header of every page, so getting it in one
--- query and not another shows a visitor Phones at the top and 手機 in the crumb.
+-- categories_acyclic is what guarantees the upward walk terminates.
 -- name: CategoryBySlug :one
 WITH RECURSIVE trail AS (
     SELECT c.id, c.parent_id, c.slug,
@@ -19,8 +14,7 @@ WITH RECURSIVE trail AS (
 SELECT
     self.id,
     self.name,
-    -- Ancestors root-first, which is the order the crumbs render in. Empty for
-    -- a root category.
+    -- Root-first, the order the crumbs render in. Empty for a root category.
     coalesce(
         (SELECT array_agg(a.slug ORDER BY a.depth DESC) FROM trail a WHERE a.depth > 0),
         ARRAY[]::text[]
@@ -33,10 +27,6 @@ FROM trail self
 WHERE self.depth = 0;
 
 -- Every category in the subtree rooted at $1, including $1 itself.
---
--- A listing shows its descendants' products: /c/accessories holds none of its
--- own and the site header links straight to it, so an exact category_id match
--- renders an empty page from goen's own navigation.
 -- name: CategoryDescendants :many
 WITH RECURSIVE d AS (
     SELECT c.id FROM categories c WHERE c.id = $1
@@ -45,9 +35,8 @@ WITH RECURSIVE d AS (
 )
 SELECT d.id FROM d;
 
--- The brands present in a subtree, for the brand facet. Counted over products
--- that would appear with no other filter applied, so a brand offering nothing
--- is not listed.
+-- Counted over products that would appear with no other filter applied, so a
+-- brand offering nothing is not listed.
 -- name: CategoryBrands :many
 SELECT b.id, b.slug, b.name, count(*)::bigint AS product_count
 FROM products p
@@ -57,28 +46,9 @@ WHERE p.status = 'active'
 GROUP BY b.id, b.slug, b.name
 ORDER BY b.name;
 
--- One page of a category listing.
---
--- Three things here are load-bearing and each is measured in
--- docs/decisions/003-listing-read-model.md:
---
---  1. status = 'active' is a LITERAL. The planner cannot prove a parameter is
---     always 'active', so parameterising it loses
---     products_category_published_idx entirely (CLAUDE.md, predictable mistake
---     #10). Verified in the plan, not assumed.
---
---  2. Every variant condition sits inside ONE EXISTS. Splitting them lets each
---     find a different variant, which is how a listing answers "in stock and
---     under NT$10,000" with a product whose cheap variant is sold out and whose
---     available one costs ten times that. The rule fires without any option
---     facets; price and stock alone collide.
---
---  3. Sellable is stock_quantity > safety_stock, never > 0.
---     record_inventory_movement refuses a sale or hold that would breach the
---     floor, so a variant sitting AT it has stock and cannot be bought.
---
--- Sorting is chosen by $-parameter rather than composed in Go: an ORDER BY built
--- from a request is where an injection gets in, and sqlc would not see it.
+-- status = 'active' is a literal, or the planner cannot use
+-- products_category_published_idx. Every variant condition sits in ONE EXISTS, or
+-- each finds a different variant. Sellable is stock_quantity > safety_stock.
 -- name: CategoryListing :many
 SELECT
     p.slug,
@@ -104,8 +74,7 @@ JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
     WHERE product_id = p.id AND is_active
-    -- A buyable variant first: the price on a card is a promise, so it has to
-    -- be the price of something a visitor can actually put in a cart.
+    -- A buyable variant first: the price on a card is a promise.
     ORDER BY (stock_quantity > safety_stock) DESC, price_cents
     LIMIT 1
 ) mv ON true
@@ -120,7 +89,7 @@ LEFT JOIN LATERAL (
 WHERE p.status = 'active'
   AND p.category_id = ANY(@category_ids::uuid[])
   AND (@brand_ids::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY(@brand_ids::uuid[]))
-  -- One variant satisfies every variant-level filter at once. See note 2.
+  -- One variant satisfies every variant-level filter at once.
   AND (
       NOT @filter_variants::boolean
       OR EXISTS (
@@ -138,9 +107,7 @@ ORDER BY
     p.published_at DESC, p.id DESC
 LIMIT @page_size::integer OFFSET @page_offset::integer;
 
--- How many products the current filters match, for the pager. Deliberately the
--- same predicate as CategoryListing and nothing else — no LATERAL joins, no
--- image, no rating — because this is only ever a number.
+-- The same predicate as CategoryListing, and nothing else: this is only a number.
 -- name: CategoryListingCount :one
 SELECT count(*)::bigint
 FROM products p
@@ -158,17 +125,8 @@ WHERE p.status = 'active'
       )
   );
 
--- Search across the catalogue.
---
--- ILIKE with a trigram GIN index: measured, that index serves Latin queries
--- ("%pixel%", 1.5 ms at 10,000 products) and short Chinese queries fall back to
--- a sequential scan (8.8 ms) because their trigrams are too unselective for the
--- planner to prefer it. That is the honest limit today; the bigram projection
--- that fixes Chinese properly is a named follow-up in
--- docs/decisions/003-listing-read-model.md.
---
--- The caller escapes %, _ and \ before binding, so a query string of "%" finds
--- products containing a percent sign rather than everything.
+-- The trigram GIN index serves Latin queries; short Chinese ones fall back to a
+-- sequential scan. The caller escapes %, _ and \ before binding.
 -- name: SearchProducts :many
 SELECT
     p.slug,
@@ -206,27 +164,20 @@ LEFT JOIN LATERAL (
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
 WHERE p.status = 'active'
-  -- BOTH names, and that is not the same rule as the display one. A search matches
-  -- on IDENTITY: an English visitor typing "case" must find 保護殼 and a Chinese
-  -- visitor typing 保護殼 must still find it after somebody adds an English name.
-  -- Matching only the localized column would make the catalogue searchable in one
-  -- language at a time, which is worse than not translating it at all.
+  -- Both names: matching only the localized column would make the catalogue
+  -- searchable in one language at a time.
   AND (p.name ILIKE @pattern::text
        OR coalesce(p.name_en, '') ILIKE @pattern::text
        OR coalesce(p.summary, '') ILIKE @pattern::text
        OR coalesce(p.summary_en, '') ILIKE @pattern::text
        OR b.name ILIKE @pattern::text)
 ORDER BY
-    -- A name match outranks a summary or brand match: someone typing a model
-    -- number wants that product, not everything the brand makes. Either name
-    -- counts, for the reason the predicate takes both.
+    -- A name match outranks a summary or brand match. Either name counts.
     (p.name ILIKE @pattern::text OR coalesce(p.name_en, '') ILIKE @pattern::text) DESC,
     p.published_at DESC, p.id DESC
 LIMIT @page_size::integer OFFSET @page_offset::integer;
 
--- The same predicate as SearchProducts, and it has to STAY the same: a count that
--- matches on fewer columns than the list reports a different number of results from
--- the number of rows shown.
+-- The same predicate as SearchProducts, and it has to stay the same.
 -- name: SearchProductsCount :one
 SELECT count(*)::bigint
 FROM products p
@@ -238,15 +189,8 @@ WHERE p.status = 'active'
        OR coalesce(p.summary_en, '') ILIKE @pattern::text
        OR b.name ILIKE @pattern::text);
 
--- Products with something marked down.
---
--- "On sale" is a VARIANT fact — compare_at_price_cents above price_cents — and
--- a product qualifies when any active variant carries one. The row shown is the
--- cheapest sellable variant, the same one every other listing shows, so a
--- product does not appear at one price here and another on its own page.
---
--- Ordered by how deep the cut is. A deals page sorted by newest buries the
--- reason anyone opened it.
+-- "On sale" is a variant fact, and a product qualifies when any active variant
+-- carries one.
 -- name: DealProducts :many
 SELECT
     p.slug,
@@ -291,9 +235,7 @@ WHERE p.status = 'active'
         AND dv.compare_at_price_cents > dv.price_cents
   )
 ORDER BY
-    -- Deepest discount first, as a fraction rather than an amount: 30% off a
-    -- NT$900 case is a better deal than NT$500 off a NT$50,000 laptop, and a
-    -- shopper reading a deals page is looking for the former.
+    -- Deepest discount first, as a fraction rather than an amount.
     ((mv.compare_at_price_cents - mv.price_cents)::float8
      / nullif(mv.compare_at_price_cents, 0)) DESC NULLS LAST,
     p.published_at DESC, p.id DESC
@@ -311,11 +253,8 @@ WHERE p.status = 'active'
   );
 
 
--- Everything a sitemap lists, with when it last changed.
---
--- Only ACTIVE products and only categories that have something in them: a
--- sitemap is a claim that these URLs are worth crawling, and pointing a crawler
--- at an empty category spends its budget on a page with nothing on it.
+-- Only active products, and only categories with something in them: a sitemap is
+-- a claim that these URLs are worth crawling.
 -- name: SitemapProducts :many
 SELECT slug, updated_at FROM products
 WHERE status = 'active'
@@ -331,18 +270,13 @@ WHERE EXISTS (
 )
 ORDER BY c.updated_at DESC;
 
--- The campaign a slug names, if it is running right now.
---
--- The window is judged in SQL against the DATABASE's clock, for the reason the
--- coupon window is: starts_at and ends_at were written by now() here, and
--- comparing them to Go's time.Now() is comparing two clocks.
+-- The window is judged against the database's clock, which wrote the timestamps.
 -- name: RunningCampaign :one
 SELECT id, slug, localized_name(title, title_en, @locale::text) AS title, ends_at
 FROM sale_campaigns
 WHERE slug = @slug::text AND is_active
   AND starts_at <= now() AND ends_at > now();
 
--- Every campaign running now, for the home page and the deals page.
 -- name: RunningCampaigns :many
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
        c.ends_at,
@@ -352,12 +286,7 @@ WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
 ORDER BY c.ends_at
 LIMIT $1;
 
--- What a campaign features.
---
--- The same tile shape every other listing uses, so a campaign page is the
--- product grid with a different heading rather than a second way to draw a
--- product. Ordered by the position the back office set: a campaign is
--- merchandising, and the order it lists things in is the point.
+-- Ordered by the position the back office set: a campaign is merchandising.
 -- name: CampaignProducts :many
 SELECT
     p.slug,
@@ -398,11 +327,7 @@ LEFT JOIN LATERAL (
 WHERE cp.campaign_id = $1 AND p.status = 'active'
 ORDER BY cp.position, p.id;
 
--- The products in a comparison, in the order the URL named them.
---
--- WITH ORDINALITY, so the columns appear in the order somebody chose rather
--- than in whatever order the join produced — a comparison whose columns move
--- between page loads is one nobody can point at.
+-- WITH ORDINALITY, so the columns appear in the order the URL named them.
 -- name: CompareProducts :many
 SELECT
     p.slug,
@@ -446,32 +371,18 @@ LEFT JOIN LATERAL (
 ) img ON true
 ORDER BY asked.ord;
 
--- Every spec of every product in the comparison.
---
--- Ordered so the rows a reader can actually compare come first: a label two
--- products share is the point of the table, and one only a single product
--- carries is a footnote. Ties break on the label's own position, so a product's
--- own ordering survives where nothing else decides.
+-- Ordered so the rows a reader can compare come first; ties break on the label's
+-- own position.
 -- name: CompareSpecs :many
 SELECT
     p.slug,
     localized_name(s.label, s.label_en, @locale::text) AS label,
-    -- The UNTRANSLATED label, which is what identifies a row. shared_by is
-    -- counted on it for the reason below, and the Go that builds the table has
-    -- to group on the same thing or the two disagree: it keyed its rows on the
-    -- localized text, so two distinct Chinese labels that translate to one
-    -- English word collapsed into one row and the second product's value
-    -- overwrote the first. The seed does exactly that — 輸出 and 孔位 are both
-    -- "Ports" — so an English reader of /compare lost a spec the English PDP
-    -- showed. Identity is the Chinese label; the translation is a LABEL, the
-    -- same split the variant picker draws between name and name_en.
+    -- The untranslated label identifies a row, and the Go that builds the table
+    -- must group on the same thing or two labels sharing a translation merge.
     s.label AS label_key,
     localized_name(s.value, s.value_en, @locale::text) AS value,
-    -- Counted on the UNTRANSLATED label, deliberately. Two products state 螢幕 and
-    -- one of them has an English label for it: grouping by what the reader sees
-    -- would split that row in two and report each as stated by one product, which
-    -- is the opposite of what this number is for. The rows are the same spec; only
-    -- the words shown differ.
+    -- Counted on the untranslated label: grouping by what the reader sees would
+    -- split one spec in two and report each as stated by one product.
     (SELECT count(DISTINCT sp.product_id)
      FROM product_specs sp
      JOIN products op ON op.id = sp.product_id

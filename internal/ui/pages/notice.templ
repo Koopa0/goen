@@ -5,8 +5,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Notice is a centred message page: not-found, an unexpected failure, or the
-// confirmation a write path shows when the browser posted without htmx.
+// Notice is a centred message page.
 templ Notice(p layouts.Page, code, heading, body string) {
 	@layouts.Base(p) {
 		<div class="notice">
@@ -20,9 +19,7 @@ templ Notice(p layouts.Page, code, heading, body string) {
 	}
 }
 
-// OrderNotFound is the 404 for an order this browser may not see. It offers
-// both doors — sign in, or prove the order at /orders/find — because the page
-// cannot tell which of the two readers it has.
+// OrderNotFound is the 404 for an order this browser may not see.
 templ OrderNotFound(p layouts.Page) {
 	@layouts.Base(p) {
 		<div class="notice">

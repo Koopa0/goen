@@ -13,12 +13,10 @@ import (
 	"testing/synctest"
 )
 
-// aDigest is a well-formed digest. The renderer never looks at it beyond using
-// it as a key, and the route refuses anything that is not 64 hex characters.
+// aDigest is a well-formed digest; the route refuses anything else.
 const aDigest = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
 
-// storedPNG is a stored image of the given size, in the form the store hands
-// back: goen's own re-encoding, not an upload.
+// storedPNG is a stored image of the given size, as the store hands it back.
 func storedPNG(t *testing.T, w, h int) []byte {
 	t.Helper()
 
@@ -42,17 +40,8 @@ func serveRendition(t *testing.T, h *Handler, digest, width string) *httptest.Re
 }
 
 // TestARenditionIsRenderedOnceAndThenServedFromMemory proves the expensive path
-// is paid once per URL rather than once per request.
-//
-// Before this, every request without a matching If-None-Match read the whole
-// stored image, decoded it to as many as forty million pixels, scaled it with
-// CatmullRom and re-encoded it. The width allowlist bounded the OUTPUT and
-// nothing bounded the input or the repetition, so the same product photo in the
-// srcset of every listing page was decoded again for every visitor — and again
-// for every reload, and again for a crawler that ignores caches.
-//
-// Asserted through Serve rather than on the renderer alone, because a cache the
-// handler does not call is a cache that does nothing.
+// is paid once per URL rather than once per request. Asserted through Serve,
+// because a cache the handler does not call is a cache that does nothing.
 func TestARenditionIsRenderedOnceAndThenServedFromMemory(t *testing.T) {
 	t.Parallel()
 
@@ -82,9 +71,7 @@ func TestARenditionIsRenderedOnceAndThenServedFromMemory(t *testing.T) {
 		t.Error("two requests for one rendition returned different bytes")
 	}
 
-	// And what was cached is the RENDITION, not the stored image. A cache that
-	// returned the original would be free and wrong: the srcset promises 400
-	// pixels and a browser lays out on that number.
+	// And what was cached is the RENDITION, not the stored image.
 	cfg, _, err := image.DecodeConfig(bytes.NewReader(second.Body.Bytes()))
 	if err != nil {
 		t.Fatalf("decode the served rendition: %v", err)
@@ -98,17 +85,8 @@ func TestARenditionIsRenderedOnceAndThenServedFromMemory(t *testing.T) {
 }
 
 // TestConcurrentRequestsForOneRenditionRenderItOnce proves the cache is not the
-// whole answer.
-//
-// A cache does nothing for the FIRST hundred requests: they all miss together,
-// and without collapsing them the stampede is exactly as expensive as having no
-// cache at all — which is the shape of the attack, since an attacker picks one
-// cold URL and opens a hundred connections to it.
-//
-// synctest, because the assertion is "they are all waiting on the one render",
-// and there is no way to know they have arrived without a fake clock and a
-// durably-blocked check. A sleep here would be a test that passes on a fast
-// machine and lies on a slow one.
+// whole answer: a cold URL is where the stampede is. synctest, because a sleep
+// would pass on a fast machine and lie on a slow one.
 func TestConcurrentRequestsForOneRenditionRenderItOnce(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const callers = 20
@@ -157,13 +135,9 @@ func TestConcurrentRequestsForOneRenditionRenderItOnce(t *testing.T) {
 	})
 }
 
-// TestRendersAreBoundedInFlight proves the third problem is fixed too.
-//
-// Singleflight collapses requests for ONE image. A hundred requests for a
-// hundred different images cannot be collapsed and must not all decode at once:
-// each holds a pixel buffer of up to forty million pixels, so an unbounded
-// number of them is the memory exhaustion, and the CPU contention is the denial
-// of service.
+// TestRendersAreBoundedInFlight proves requests for DIFFERENT images, which
+// singleflight cannot collapse, do not all decode at once — each holds a pixel
+// buffer of up to forty million pixels.
 func TestRendersAreBoundedInFlight(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const slots = 2
@@ -212,14 +186,8 @@ func TestRendersAreBoundedInFlight(t *testing.T) {
 }
 
 // TestTheCacheIsBoundedAndEvictsTheLeastRecentlyUsed proves the fix is not a
-// second memory leak.
-//
-// An unbounded map of rendered images is the same denial of service from the
-// other side: an attacker walks the catalogue at both widths and the process
-// grows until it is killed. Least-recently-used rather than first-in, because
-// what a storefront re-reads is the images on the pages people are looking at,
-// and evicting those to keep something nobody has asked for since startup would
-// make the cache miss exactly when it matters.
+// second memory leak: an unbounded map of rendered images is the same denial of
+// service from the other side.
 func TestTheCacheIsBoundedAndEvictsTheLeastRecentlyUsed(t *testing.T) {
 	t.Parallel()
 
@@ -258,8 +226,7 @@ func TestTheCacheIsBoundedAndEvictsTheLeastRecentlyUsed(t *testing.T) {
 			"running total has drifted from what is actually stored", held, entries)
 	}
 
-	// One entry bigger than the whole cache is not stored at all: it would evict
-	// everything else and then be evicted itself on the next insert.
+	// One entry bigger than the whole cache is not stored at all.
 	r.put("huge", "image/jpeg", make([]byte, limit+1))
 	if _, _, ok := r.cached("huge"); ok {
 		t.Error("an entry larger than the cache was stored")

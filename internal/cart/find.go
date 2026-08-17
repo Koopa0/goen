@@ -10,8 +10,7 @@ import (
 )
 
 // FindOrder reports whether an order number and an email address name the same
-// order. The pair is the credential and only the address is secret, so the two
-// are checked in ONE statement whose answer cannot say which half was wrong.
+// order, in ONE statement whose answer cannot say which half was wrong.
 func (s *Store) FindOrder(ctx context.Context, number, addr string) (bool, error) {
 	number = strings.ToUpper(strings.TrimSpace(number))
 	addr = email.Clean(addr)

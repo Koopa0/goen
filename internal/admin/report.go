@@ -71,8 +71,7 @@ func (s *Store) Report(ctx context.Context, days int32) (pages.AdminReportView, 
 	return view, nil
 }
 
-// validWindow reports whether days is one the report offers. An allowlist and
-// never a range: the window reaches a query that scans order history.
+// validWindow is an allowlist, never a range: it reaches a scanning query.
 func validWindow(days int32) bool {
 	for _, w := range ReportWindows {
 		if w == days {

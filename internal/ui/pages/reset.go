@@ -8,16 +8,13 @@ import (
 
 // ForgotView is the "email me a link" page.
 type ForgotView struct {
-	// Sent is true after a submission for any address, registered or not: saying
-	// more would make the page a way to enumerate accounts.
+	// Sent is true for any address, so accounts cannot be enumerated.
 	Sent bool
 }
 
 // ResetView is the "set a new password" page.
 type ResetView struct {
-	Token string
-	// Error is why the password was refused; Expired is a spent, unknown or old
-	// link. Separate because one is retyped and the other needs a new link.
+	Token   string
 	Error   string
 	Expired bool
 }

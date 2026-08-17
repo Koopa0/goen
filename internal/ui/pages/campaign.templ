@@ -36,7 +36,6 @@ templ Campaign(p layouts.Page, v CampaignView) {
 	}
 }
 
-// campaignStrip lists the running promotions above a grid.
 templ campaignStrip(campaigns []CampaignSummary) {
 	<section class="goen-campaigns" aria-labelledby="campaigns-heading">
 		<h2 id="campaigns-heading" class="h4">{ i18n.T(ctx, i18n.KeyCampaignEyebrow) }</h2>

@@ -37,8 +37,7 @@ func ProductJSONLD(v *ProductView, baseURL string) string {
 	return encode(doc)
 }
 
-// BreadcrumbJSONLD describes where a page sits, so a search result shows the
-// path rather than a bare URL.
+// BreadcrumbJSONLD describes where a page sits.
 func BreadcrumbJSONLD(crumbs []Crumb, name, baseURL string) string {
 	base := strings.TrimRight(baseURL, "/")
 	items := make([]any, 0, len(crumbs)+1)
@@ -60,8 +59,6 @@ func BreadcrumbJSONLD(crumbs []Crumb, name, baseURL string) string {
 	})
 }
 
-// availability is schema.org's own vocabulary; a shop's own words here are
-// words the crawler ignores.
 func availability(inStock bool) string {
 	if inStock {
 		return "https://schema.org/InStock"
@@ -69,8 +66,6 @@ func availability(inStock bool) string {
 	return "https://schema.org/OutOfStock"
 }
 
-// dollars renders cents as a decimal string. Integer division and a padded
-// remainder, never a float: money through float64 is how a price ends .9999999.
 func dollars(cents int64) string {
 	sub := strconv.FormatInt(cents%100, 10)
 	if len(sub) == 1 {
@@ -79,8 +74,6 @@ func dollars(cents int64) string {
 	return strconv.FormatInt(cents/100, 10) + "." + sub
 }
 
-// encode marshals and returns "" on failure: a page with no structured data
-// still reads, a page with a broken script tag does not.
 func encode(doc map[string]any) string {
 	b, err := json.Marshal(doc)
 	if err != nil {
@@ -89,8 +82,7 @@ func encode(doc map[string]any) string {
 	return string(b)
 }
 
-// JSONLDSet puts several documents in one block, which schema.org accepts as a
-// top-level array. Empty documents are dropped rather than emitted as nulls.
+// JSONLDSet puts several documents in one top-level array.
 func JSONLDSet(docs ...string) string {
 	kept := make([]string, 0, len(docs))
 	for _, d := range docs {

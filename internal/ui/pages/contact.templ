@@ -7,7 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// Contact renders 聯絡我們.
+// Contact renders the contact page.
 templ Contact(p layouts.Page, f ContactForm) {
 	@layouts.Base(p) {
 		<div class="contact">
@@ -37,8 +37,7 @@ templ Contact(p layouts.Page, f ContactForm) {
 					<p class="caption contact__address">
 						goen Co., Ltd.
 						<br/>
-						// i18n-exempt: a street address. A courier reads it, and translating an
-						// address is how a parcel goes to the wrong place.
+						// i18n-exempt: a street address; a courier reads it.
 						台北市信義區松高路 68 號 12F
 						<br/>
 						{ i18n.T(ctx, i18n.KeyContactDirections) }
@@ -49,7 +48,6 @@ templ Contact(p layouts.Page, f ContactForm) {
 	}
 }
 
-// contactMethod is one of the three ways to reach support.
 templ contactMethod(href, label, value string) {
 	<a class="contact-method" href={ templ.URL(href) }>
 		<span class="contact-method__icon">
@@ -62,8 +60,7 @@ templ contactMethod(href, label, value string) {
 	</a>
 }
 
-// ContactPanel is a plain form posting to /contact; the hx-* attributes only
-// change what is written back.
+// ContactPanel is a plain form posting to /contact.
 templ ContactPanel(f ContactForm) {
 	if f.Done {
 		<div class="ui-alert ui-alert--success contact__panel" role="status" id="contact-form">

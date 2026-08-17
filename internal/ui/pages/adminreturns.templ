@@ -8,10 +8,6 @@ import (
 )
 
 // AdminReturns renders the return queue and the decision forms.
-//
-// Each row's decision is a plain form with two submit buttons carrying
-// different values, so approving and rejecting are one round trip each and
-// neither needs scripting.
 templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 	@layouts.Base(p) {
 		<div class="goen-admin">
@@ -40,11 +36,7 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 								<span class="ui-cart-line__meta">
 									{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetUnitsAmount), r.UnitsText(), r.Amount()) }
 								</span>
-								// Which KIND of return this is. 消保法 §19 I gives seven days from
-								// receipt and §19 V voids any agreement otherwise, so a request
-								// inside the window is not the shop's to refuse on window grounds
-								// — and a page that says nothing leaves whoever decides it unable
-								// to tell one from a goodwill return.
+								// Consumer Protection Act §19 I: seven days from receipt, unwaivable under §19 V.
 								if r.Rescission() {
 									<span class="ui-cart-line__meta">
 										<strong>{ r.WindowText(ctx) }</strong>
@@ -55,19 +47,11 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 								}
 								<span class="ui-cart-line__meta">{ r.Reason }</span>
 								if len(r.Lines) > 0 {
-									// WHAT is coming back. A row saying
-									// "3 件 · 可退 NT$4,500" and nothing else asks
-									// for a decision on goods nobody can see.
 									<ul class="goen-admin__returnlines" role="list">
 										for _, l := range r.Lines {
 											<li>
 												<span class="ui-cart-line__meta">{ l.Line() }</span>
 												<span class="ui-cart-line__meta">{ l.SKU } · { l.UnitPrice() }</span>
-												// What was actually found, once somebody has looked.
-												// A shortfall and a scrapped unit are the two facts a
-												// staff member acts on rather than merely files, so
-												// they are said rather than left as two numbers to
-												// compare.
 												if l.Inspected {
 													<span class="ui-cart-line__meta">
 														{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetReceivedRestocked), l.ReceivedText(), l.RestockedText()) }
@@ -103,16 +87,6 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 									</div>
 								</form>
 							}
-							// The tail, and 同意 is not the end of it: the money goes
-							// back on the decision and the goods arrive afterwards.
-							// Without this form the 'return' movement reason is four
-							// declarations with no caller and the units never come
-							// back to the shelf.
-							//
-							// ONE form for the whole parcel, because a parcel is opened
-							// once. Per line, because three things can come back as two
-							// sellable and one broken and a single figure cannot say
-							// that.
 							if r.AwaitingGoods() {
 								<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.InspectAction()) }>
 									<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetInspectHint) }</p>
@@ -132,10 +106,6 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 													required
 												/>
 											</div>
-											// Absent for a line with no variant to restock into:
-											// order_lines.variant_id is nullable so a line
-											// survives its variant, and offering a control the
-											// write would refuse is worse than not offering one.
 											if l.Restockable {
 												<div class="ui-field">
 													<label class="ui-label" for={ "stock-" + l.OrderLineID }>{ i18n.T(ctx, i18n.KeyAdminRetRestockedQty) }</label>

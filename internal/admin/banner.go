@@ -17,19 +17,16 @@ import (
 // MaxBanners bounds the back office's list.
 const MaxBanners = 20
 
-// MaxBannerRunes bounds the strip's copy. The strip is ONE row above the header
-// at every width, which check-layout measures; longer copy wraps to two.
+// MaxBannerRunes bounds the strip's copy: it is ONE row at every width.
 const MaxBannerRunes = 60
 
 // BannerForm is what the back office submits.
 type BannerForm struct {
-	Message string
-	// Short is the narrow-screen wording: different copy, not a truncation.
-	Short    string
-	Code     string
-	CTALabel string
-	CTAHref  string
-	// The English strip, all optional and all falling back.
+	Message    string
+	Short      string
+	Code       string
+	CTALabel   string
+	CTAHref    string
 	MessageEn  string
 	ShortEn    string
 	CTALabelEn string
@@ -61,12 +58,9 @@ func (f *BannerForm) Validate(ctx context.Context) map[string]string {
 		}
 	}
 
-	// Both or neither: promo_banners_cta_complete says the same in the schema.
 	if (f.CTALabel == "") != (f.CTAHref == "") {
 		errs["cta"] = i18n.T(ctx, i18n.KeyFormBannerCTAPair)
 	}
-	// Typed by a person and rendered into a link at the top of every storefront
-	// page, so it goes through web.SitePath.
 	if f.CTAHref != "" {
 		if _, ok := web.SitePath(f.CTAHref); !ok {
 			errs["cta"] = i18n.T(ctx, i18n.KeyFormBannerCTAHref)
@@ -98,8 +92,7 @@ func (s *Store) Banners(ctx context.Context) ([]pages.AdminBanner, error) {
 	return out, nil
 }
 
-// CreateBanner adds a promotion, active immediately — unlike a hero slide, which
-// replaces what is already on the home page.
+// CreateBanner adds a promotion, active immediately.
 func (s *Store) CreateBanner(ctx context.Context, f *BannerForm) (map[string]string, error) {
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
@@ -120,10 +113,7 @@ func (s *Store) CreateBanner(ctx context.Context, f *BannerForm) (map[string]str
 	return nil, nil
 }
 
-// SetBannerActive switches a promotion on or off.
-//
-// Off rather than deleted: the dismissal cookie is keyed on the id, so a new row
-// carrying the same copy reappears for everybody who had closed it.
+// SetBannerActive toggles a promotion; the dismissal cookie is keyed on the id.
 func (s *Store) SetBannerActive(ctx context.Context, id string, active bool) error {
 	bannerID, err := uuid.Parse(id)
 	if err != nil {

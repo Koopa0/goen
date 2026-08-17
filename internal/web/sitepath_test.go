@@ -2,16 +2,8 @@ package web
 
 import "testing"
 
-// TestSitePathRefusesAnythingButAPathOnThisSite proves each real bypass is
-// refused.
-//
-// This rule guards three doors — the wishlist's return field, the language
-// switch's, and the hero links the back office writes. It lived in two copies
-// before the third arrived; one owner is what stops the copies drifting, and
-// this is the one test that has to be right.
-//
-// Each refusal below is a real bypass of the naive check (strings.HasPrefix
-// "/"), not a hypothetical.
+// TestSitePathRefusesAnythingButAPathOnThisSite. Each refusal below is a real
+// bypass of the naive check (strings.HasPrefix "/"), not a hypothetical.
 func TestSitePathRefusesAnythingButAPathOnThisSite(t *testing.T) {
 	tests := []struct {
 		name string
@@ -60,11 +52,8 @@ func TestSitePathRefusesAnythingButAPathOnThisSite(t *testing.T) {
 	}
 }
 
-// TestSitePathOrFallsBackRatherThanErroring proves a refused target is not a
-// dead end.
-//
-// A refused target must not be a dead end. Somebody switching language cannot
-// read the error page they would land on.
+// TestSitePathOrFallsBackRatherThanErroring: somebody switching language cannot
+// read the error page they would otherwise land on.
 func TestSitePathOrFallsBackRatherThanErroring(t *testing.T) {
 	if got := SitePathOr("//evil.example", "/"); got != "/" {
 		t.Errorf("a refused target gave %q, want the fallback", got)
@@ -72,8 +61,7 @@ func TestSitePathOrFallsBackRatherThanErroring(t *testing.T) {
 	if got := SitePathOr("/deals", "/"); got != "/deals" {
 		t.Errorf("a good target gave %q", got)
 	}
-	// The fallback is returned verbatim: it is the CALLER's constant, not user
-	// input, so validating it would be validating our own source code.
+	// The fallback is returned verbatim: it is the caller's constant.
 	if got := SitePathOr("", "/account/wishlist"); got != "/account/wishlist" {
 		t.Errorf("empty gave %q", got)
 	}

@@ -28,11 +28,8 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{q: db.New(pool)}
 }
 
-// Put normalises an upload and stores it, returning what it became.
-//
-// Storing an image goen already has is not an error and not a second row: the
-// digest is the content, so the caller gets back the same Object either way and
-// can attach it without caring which happened.
+// Put normalises an upload and stores it, returning what it became. An image
+// goen already holds is the same Object and not a second row.
 func (s *Store) Put(ctx context.Context, r io.Reader) (Object, error) {
 	obj, data, err := Normalise(r)
 	if err != nil {
@@ -59,10 +56,8 @@ func (s *Store) Bytes(ctx context.Context, digest string) (contentType string, d
 	return row.ContentType, row.Bytes, nil
 }
 
-// Object reads one stored image's metadata.
-//
-// The caller attaching it needs the dimensions, and taking them from the form
-// instead would let a hand-edited pair set the size a browser lays out against.
+// Object reads one stored image's metadata, including the dimensions a caller
+// attaching it needs.
 func (s *Store) Object(ctx context.Context, digest string) (Object, error) {
 	row, err := s.q.MediaObject(ctx, digest)
 	if err != nil {

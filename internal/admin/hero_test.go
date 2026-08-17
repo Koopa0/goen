@@ -2,17 +2,7 @@ package admin
 
 import "testing"
 
-// TestAHeroLinkMustBeAPathOnThisSite proves the largest button on the site
-// cannot be pointed off it.
-//
-// A CTA href is typed by a person and rendered into the largest button on the
-// storefront. An absolute URL there sends every visitor off-site from the home
-// page, and "javascript:" puts script in it — so the field goes through
-// web.SitePath, the same owner guarding the wishlist and the language switch.
-//
-// templ.SafeURL would neutralise a javascript: URL at render time. That is not
-// a reason to accept one: a value that never lands cannot be rendered by some
-// future template that forgets.
+// TestAHeroLinkMustBeAPathOnThisSite proves that button cannot be pointed off-site.
 func TestAHeroLinkMustBeAPathOnThisSite(t *testing.T) {
 	tests := []struct {
 		name string
@@ -43,12 +33,7 @@ func TestAHeroLinkMustBeAPathOnThisSite(t *testing.T) {
 	}
 }
 
-// TestASecondaryButtonIsBothHalvesOrNeither proves half a button is refused
-// with a message naming the missing half.
-//
-// hero_slides_secondary_cta_complete refuses half a button in the schema.
-// Refusing it here is what turns a constraint name into a sentence naming the
-// missing half.
+// TestASecondaryButtonIsBothHalvesOrNeither proves half a button is refused.
 func TestASecondaryButtonIsBothHalvesOrNeither(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -74,13 +59,7 @@ func TestASecondaryButtonIsBothHalvesOrNeither(t *testing.T) {
 	}
 }
 
-// TestAnImageWithoutAltTextIsRefused proves a hero a screen reader cannot
-// describe never reaches the table.
-//
-// hero_slides_image_has_alt says the same thing in the schema. Saying it here
-// too is what names the field instead of showing a constraint — and alt text is
-// the whole difference between a hero a screen reader can describe and one it
-// cannot.
+// TestAnImageWithoutAltTextIsRefused proves an undescribable hero is refused.
 func TestAnImageWithoutAltTextIsRefused(t *testing.T) {
 	const digest = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
 
@@ -99,8 +78,6 @@ func TestAnImageWithoutAltTextIsRefused(t *testing.T) {
 		t.Errorf("a complete slide was refused: %v", errs)
 	}
 
-	// No image, no alt: fine. The built-in artwork carries alt="" on purpose,
-	// because the headline beside it already says what it is.
 	noImage := &HeroForm{Headline: "標題", PrimaryLabel: "去", PrimaryHref: "/deals"}
 	if errs := noImage.Validate(t.Context()); len(errs) > 0 {
 		t.Errorf("a slide with no image was refused: %v", errs)

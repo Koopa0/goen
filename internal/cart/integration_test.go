@@ -51,7 +51,6 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// variant returns a sellable variant of a product, and one that is not.
 func variantOf(t *testing.T, slug string, sellable bool) uuid.UUID {
 	t.Helper()
 	cmp := ">"
@@ -84,9 +83,6 @@ func newCart(t *testing.T, s *cart.Store) uuid.UUID {
 	return id
 }
 
-// TestCartIsFoundByTokenNotByID is the access rule for a guest cart. The cookie
-// is the only credential, and it is stored hashed — so a cart is reachable by
-// its token and by nothing else.
 func TestCartIsFoundByTokenNotByID(t *testing.T) {
 	s := cart.NewStore(pool)
 	tok, err := cart.NewToken()
@@ -109,7 +105,6 @@ func TestCartIsFoundByTokenNotByID(t *testing.T) {
 		t.Error("an empty token found a cart")
 	}
 
-	// The token itself must not be in the table — only its digest.
 	var stored []byte
 	if err := pool.QueryRow(t.Context(),
 		`SELECT token_hash FROM carts WHERE id = $1`, id).Scan(&stored); err != nil {
@@ -120,18 +115,10 @@ func TestCartIsFoundByTokenNotByID(t *testing.T) {
 	}
 }
 
-// TestAddRefusesWhatCannotBeSold covers the check that happens before the
-// write. Without it an unsellable variant lands in the cart and fails later, at
-// the inventory hold, after an address has been typed.
 func TestAddRefusesWhatCannotBeSold(t *testing.T) {
 	s := cart.NewStore(pool)
 	id := newCart(t, s)
 
-	// Bound to WHICH error, not merely that one happened. Without the guard the
-	// quantity clamps to zero and the schema's own cart_items_quantity_in_range
-	// CHECK refuses the insert — the cart is still protected, but by accident
-	// and with a message no visitor can be shown. Asserting on ErrUnavailable is
-	// what tells the two apart.
 	unsellable := variantOf(t, "meridian-book-14", false) // wholly sold out in the seed
 	err := s.Add(t.Context(), id, unsellable, 1)
 	if err == nil {
@@ -142,24 +129,16 @@ func TestAddRefusesWhatCannotBeSold(t *testing.T) {
 			"before the write, not leave it to a constraint violation", err)
 	}
 
-	// Control: a sellable one goes in, so the refusal above is not "refuses
-	// everything".
 	ok := variantOf(t, "pixelight-9-pro", true)
 	if err := s.Add(t.Context(), id, ok, 1); err != nil {
 		t.Fatalf("a sellable variant was refused: %v", err)
 	}
 }
 
-// TestAddClampsToWhatCanBeSupplied pins that asking for more than exists does
-// not put an impossible quantity in the cart. Without the clamp the line sits
-// there looking fine and fails at the inventory hold, after an address has been
-// typed.
 func TestAddClampsToWhatCanBeSupplied(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 
-	// A variant with a known, small supply. Restored afterwards so the seed the
-	// other tests read stays as it was.
 	vid := freshVariant(t, "stockfix-1")
 	var wasStock, wasSafety int32
 	if err := pool.QueryRow(ctx,
@@ -168,9 +147,6 @@ func TestAddClampsToWhatCanBeSupplied(t *testing.T) {
 		t.Fatalf("read stock: %v", err)
 	}
 	t.Cleanup(func() {
-		// context.Background, not t.Context: Go cancels the test's context just
-		// before cleanup runs, so t.Context() here would abort the restore and
-		// leave the seed altered for every test after this one.
 		_, _ = pool.Exec(context.Background(), //nolint:usetesting // t.Context is already cancelled in Cleanup
 			`UPDATE product_variants SET stock_quantity = $2, safety_stock = $3 WHERE id = $1`,
 			vid, wasStock, wasSafety)
@@ -198,9 +174,6 @@ func TestAddClampsToWhatCanBeSupplied(t *testing.T) {
 	}
 }
 
-// TestCartShowsCurrentPriceAndAvailability is the rule that a cart line is not
-// a promise. A variant can sell out while it sits there, and the page must say
-// so rather than quoting a total the checkout will refuse.
 func TestCartShowsCurrentPriceAndAvailability(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -229,9 +202,6 @@ func TestCartShowsCurrentPriceAndAvailability(t *testing.T) {
 	}
 }
 
-// TestPlaceOrderIsIdempotent is what stops a double-click and a back button
-// from becoming two orders. The form carries a key; the same key must find the
-// order it already placed.
 func TestPlaceOrderIsIdempotent(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -274,9 +244,6 @@ func TestPlaceOrderIsIdempotent(t *testing.T) {
 	}
 }
 
-// TestPlaceOrderEmptiesTheCart pins that the cart and the order move together.
-// Emptying afterwards would leave a window where the order exists and the cart
-// still looks full, and a failure in that window loses or duplicates the order.
 func TestPlaceOrderEmptiesTheCart(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -307,9 +274,6 @@ func TestPlaceOrderEmptiesTheCart(t *testing.T) {
 	}
 }
 
-// TestPlaceOrderRefusesAFabricatedShippingVersion is what stops a hand-edited
-// form from placing an order at a fee that was never offered. The version is
-// re-read from the database, and the fee is computed from what it says.
 func TestPlaceOrderRefusesAFabricatedShippingVersion(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -326,9 +290,6 @@ func TestPlaceOrderRefusesAFabricatedShippingVersion(t *testing.T) {
 	}
 }
 
-// TestPlaceOrderRefusesAnEmptyCart covers the deferred orders_have_lines
-// constraint from the application side: an order with no lines is not a legal
-// row, so the attempt must fail before it starts rather than at commit.
 func TestPlaceOrderRefusesAnEmptyCart(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -348,8 +309,6 @@ func TestPlaceOrderRefusesAnEmptyCart(t *testing.T) {
 	}
 }
 
-// TestOrderPricesAreCopiedNotReferenced pins that an order records what was
-// agreed. A later price change must not rewrite an order that has been placed.
 func TestOrderPricesAreCopiedNotReferenced(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -377,13 +336,11 @@ func TestOrderPricesAreCopiedNotReferenced(t *testing.T) {
 		t.Fatalf("read order: %v", err)
 	}
 
-	// The catalogue price moves. The placed order must not.
 	if _, err := pool.Exec(ctx,
 		`UPDATE product_variants SET price_cents = price_cents + 100000 WHERE id = $1`, vid); err != nil {
 		t.Fatalf("reprice: %v", err)
 	}
 	t.Cleanup(func() {
-		// See above: t.Context() is cancelled before Cleanup runs.
 		_, _ = pool.Exec(context.Background(), //nolint:usetesting // t.Context is already cancelled in Cleanup
 			`UPDATE product_variants SET price_cents = price_cents - 100000 WHERE id = $1`, vid)
 	})
@@ -398,15 +355,6 @@ func TestOrderPricesAreCopiedNotReferenced(t *testing.T) {
 	}
 }
 
-// TestOrderConfirmationIsNotEnumerable is the access rule on the confirmation
-// page, and it exists because of what an order number IS.
-//
-// next_order_number() produces GO-YYMMDD-NNNNNN off a per-day counter, so
-// numbers are sequential and guessable. The page carries an email and a
-// delivery address. Reachable by number alone, it is an enumeration hole:
-// increment the digits and read the next customer's details.
-//
-// Access is therefore the browser that placed it, or the account that owns it.
 func TestOrderConfirmationIsNotEnumerable(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -429,14 +377,9 @@ func TestOrderConfirmationIsNotEnumerable(t *testing.T) {
 	}
 
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
-		// Generous: these cases are about the lookup's ANSWER, and a limiter that
-		// refused mid-suite would be testing the limiter.
 		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour}),
-		// nil: no Stripe key in an integration test, so no session was ever opened
-		// and there is nothing for a cancellation to close.
 		nil)
 
-	// A browser that did not place it and is not signed in.
 	stranger := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number, http.NoBody)
 	stranger.SetPathValue("number", number)
 	res := httptest.NewRecorder()
@@ -452,12 +395,8 @@ func TestOrderConfirmationIsNotEnumerable(t *testing.T) {
 		t.Error("the confirmation page leaked the delivery address to a stranger")
 	}
 
-	// The browser that placed it does reach the page — the control, without
-	// which a handler that 404s unconditionally would pass the check above.
 	placer := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number, http.NoBody)
 	placer.SetPathValue("number", number)
-	// A bare test cookie: the attributes the handler sets are not what is under
-	// test here, and adding them would assert the fixture rather than the rule.
 	placer.AddCookie(placedCookie(t, s, number))
 	ok := httptest.NewRecorder()
 	h.OrderPage(ok, placer)
@@ -470,10 +409,6 @@ func TestOrderConfirmationIsNotEnumerable(t *testing.T) {
 	}
 }
 
-// TestOrderIsAttachedToASignedInCustomer pins that a signed-in checkout
-// produces an order the account can see. Without the owner the order is a
-// guest's: it never appears in the history, and the customer has only the
-// confirmation link.
 func TestOrderIsAttachedToASignedInCustomer(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -512,7 +447,6 @@ func TestOrderIsAttachedToASignedInCustomer(t *testing.T) {
 		t.Error("a signed-in customer's order is not attached to their account")
 	}
 
-	// And it is not attached to somebody else.
 	var otherID uuid.UUID
 	if err := pool.QueryRow(ctx, `
 		INSERT INTO users (email) VALUES ($1) RETURNING id`,
@@ -528,11 +462,6 @@ func TestOrderIsAttachedToASignedInCustomer(t *testing.T) {
 	}
 }
 
-// TestCheckoutHoldsStock is the correctness rule underneath the whole cart.
-//
-// Placing an order must reserve what it promises. Without a hold, two customers
-// each read "one available", each write an order, and nothing between them
-// decrements anything — both succeed and one of them will never be shipped.
 func TestCheckoutHoldsStock(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -566,10 +495,7 @@ func TestCheckoutHoldsStock(t *testing.T) {
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
 	}
 
-	// The delta, not the absolute figure. Earlier tests in this package place
-	// orders too, and placing one holds stock, so a test asserting "stock is
-	// exactly 2" or "one unit is held anywhere" is measuring the whole
-	// package's history rather than this order.
+	// The delta, not the absolute figure: other tests in this package hold stock too.
 	var before int32
 	if err := pool.QueryRow(ctx,
 		`SELECT stock_quantity FROM product_variants WHERE id = $1`, vid).Scan(&before); err != nil {
@@ -595,7 +521,6 @@ func TestCheckoutHoldsStock(t *testing.T) {
 			before, after, before-after)
 	}
 
-	// Held against THIS order, which is the claim being made.
 	var reserved int32
 	if err := pool.QueryRow(ctx, `
 		SELECT coalesce(sum(ir.quantity), 0) FROM inventory_reservations ir
@@ -608,8 +533,6 @@ func TestCheckoutHoldsStock(t *testing.T) {
 		t.Errorf("order %s holds %d units, want 1", number, reserved)
 	}
 
-	// The shelf and the ledger move together: a hold that decrements stock
-	// without posting a movement is how an audit stops adding up.
 	var movements int
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*) FROM inventory_movements
@@ -624,17 +547,8 @@ func TestCheckoutHoldsStock(t *testing.T) {
 }
 
 // TestTwoOrdersCannotTakeTheSameLastUnit is the race the hold exists to lose
-// safely. Both transactions are open at once, and the second must be refused by
-// record_inventory_movement's floor rather than by luck.
-//
-// T1's transaction is held OPEN while T2 runs. Two goroutines with a start
-// channel finish microseconds apart and never actually overlap — the failure
-// mode CLAUDE.md names — so the overlap is constructed explicitly.
-//
-// Both orders are created and COMMITTED first. next_order_number() locks the
-// per-day counter row, so creating the second order inside a second open
-// transaction blocks on the first and the test deadlocks before it reaches the
-// contention it is about to measure. The orders are setup; only the holds race.
+// safely. T1's transaction is held OPEN while T2 runs, and both orders are
+// created first because next_order_number() locks the per-day counter row.
 func TestTwoOrdersCannotTakeTheSameLastUnit(t *testing.T) {
 	ctx := t.Context()
 
@@ -661,7 +575,6 @@ func TestTwoOrdersCannotTakeTheSameLastUnit(t *testing.T) {
 	order1 := commitBareOrder(t)
 	order2 := commitBareOrder(t)
 
-	// T1 takes the last unit and stays open.
 	tx1, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin t1: %v", err)
@@ -673,16 +586,13 @@ func TestTwoOrdersCannotTakeTheSameLastUnit(t *testing.T) {
 		t.Fatalf("t1 hold: %v", holdErr)
 	}
 
-	// T2 tries for the same unit while T1 is still open. It must block on the
-	// row lock and then be refused — not succeed.
 	tx2, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin t2: %v", err)
 	}
 	defer func() { _ = tx2.Rollback(ctx) }()
 
-	// T2's backend id, read BEFORE the racing statement, so the wait below can
-	// watch the right connection.
+	// T2's backend id, read BEFORE the racing statement.
 	var pid int
 	if err := tx2.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&pid); err != nil {
 		t.Fatalf("read t2 pid: %v", err)
@@ -690,7 +600,7 @@ func TestTwoOrdersCannotTakeTheSameLastUnit(t *testing.T) {
 
 	done := make(chan error, 1)
 	// t.Context() and not context.Background(): the goroutine must be cancelled
-	// with the test, or a hold that never unblocks outlives it.
+	// with the test.
 	raceCtx := t.Context()
 	go func() {
 		_, holdErr := tx2.Exec(raceCtx,
@@ -699,13 +609,8 @@ func TestTwoOrdersCannotTakeTheSameLastUnit(t *testing.T) {
 		done <- holdErr
 	}()
 
-	// Wait until T2 is ACTUALLY blocked on a lock, then release T1.
-	//
-	// Not a fixed pause, which makes the interleaving an assumption: on a loaded
-	// machine T2 may not have reached the lock by the time the pause expires, T1
-	// commits first, and the test passes having proven nothing about contention
-	// — green for the wrong reason, which is the failure mode a concurrency test
-	// can least afford.
+	// Wait until T2 is ACTUALLY blocked rather than pausing: on a loaded machine
+	// T1 would commit first and the case would prove nothing about contention.
 	waitUntilBlocked(t, pid, done)
 	if err := tx1.Commit(ctx); err != nil {
 		t.Fatalf("commit t1: %v", err)
@@ -716,10 +621,8 @@ func TestTwoOrdersCannotTakeTheSameLastUnit(t *testing.T) {
 		if holdErr == nil {
 			t.Fatal("both orders held the same last unit; the stock floor did not bite")
 		}
-		// Which rule refused matters. A hold can fail for reasons that are not
-		// the stock floor — a bad order id, a duplicate idempotency key — and a
-		// test that accepts any error would stay green when the floor is gone.
-		// The name is on PgError, not in the message text.
+		// WHICH rule refused matters, and the name is on PgError rather than in the
+		// message text.
 		pgErr, ok := errors.AsType[*pgconn.PgError](holdErr)
 		if !ok || pgErr.ConstraintName != "inventory_never_negative" {
 			t.Errorf("t2 was refused by %v, want constraint inventory_never_negative", holdErr)
@@ -729,8 +632,7 @@ func TestTwoOrdersCannotTakeTheSameLastUnit(t *testing.T) {
 	}
 }
 
-// commitBareOrder writes the minimum an order needs to exist and commits it, so
-// the transactions that race afterwards contend only over stock.
+// commitBareOrder writes the minimum an order needs to exist, and commits it.
 func commitBareOrder(t *testing.T) uuid.UUID {
 	t.Helper()
 	ctx := t.Context()
@@ -766,8 +668,8 @@ func commitBareOrder(t *testing.T) uuid.UUID {
 	return id
 }
 
-// heldOrder writes an order holding one unit, with a hold that expired `ago`
-// in the past. paid decides whether it is funded.
+// heldOrder writes an order holding one unit of vid whose hold expired `ago` in
+// the past. paid decides whether it is funded.
 func heldOrder(t *testing.T, vid uuid.UUID, ago time.Duration, paid bool) (orderID uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
@@ -800,10 +702,8 @@ func heldOrder(t *testing.T, vid uuid.UUID, ago time.Duration, paid bool) (order
 		orderID); err != nil {
 		t.Fatalf("create private data: %v", err)
 	}
-	// Held normally, then aged — BOTH timestamps move, because the schema keeps
-	// expires_at > created_at and a hold that expired an hour ago was taken out
-	// before that. Backdating only the expiry fabricates a row time could never
-	// produce, and the CHECK says so.
+	// Held normally, then aged — BOTH timestamps move, because expires_at >
+	// created_at is a CHECK and a hold that expired an hour ago was taken before it.
 	if _, err := tx.Exec(ctx,
 		`SELECT hold_inventory($1, $2, 1, now() + interval '30 minutes', $3)`,
 		orderID, vid, "sweep:"+number); err != nil {
@@ -832,13 +732,6 @@ func heldOrder(t *testing.T, vid uuid.UUID, ago time.Duration, paid bool) (order
 	return orderID
 }
 
-// TestSweepReturnsAbandonedHoldsToTheShelf proves an abandoned checkout's stock
-// comes back.
-//
-// The sweep is the only thing that releases these. Without it an abandoned
-// checkout holds its stock until somebody deletes the row by hand, so a customer
-// reads "out of stock" for goods sitting against a session somebody closed half
-// an hour ago.
 func TestSweepReturnsAbandonedHoldsToTheShelf(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -884,7 +777,6 @@ func TestSweepReturnsAbandonedHoldsToTheShelf(t *testing.T) {
 		t.Errorf("reservation is %q, want released", state)
 	}
 
-	// The shelf and the ledger move together, or an audit stops adding up.
 	var movements int
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*) FROM inventory_movements
@@ -896,25 +788,15 @@ func TestSweepReturnsAbandonedHoldsToTheShelf(t *testing.T) {
 	}
 }
 
-// TestSweepNeverTouchesAPaidOrdersHold is the one that costs money.
-//
-// The LOCK here is the database: release_reservation refuses a committed
-// order's hold outright, and internal/db proves that bound to
-// inventory_reservation_committed_no_release. The query filter this test also
-// exercises is defence in depth — removing it leaves this test green, because
-// the function refuses anyway. Recorded rather than dressed up as a lock it
-// does not hold.
-//
-// A paid order's stock is spoken for. Releasing it puts goods back on the shelf
-// that are going to be shipped, so the next customer buys something that is
-// already gone — an oversell created by the cleanup, not by the sale.
+// TestSweepNeverTouchesAPaidOrdersHold. The lock here is the database:
+// release_reservation refuses a committed order's hold anyway, so the query
+// filter this also exercises is defence in depth rather than a lock.
 func TestSweepNeverTouchesAPaidOrdersHold(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	vid := freshVariant(t, "stockfix-3")
 
-	// Expired AND paid. The expiry is what makes this a real test: a sweeper
-	// that only skipped unexpired holds would pass with the funding check gone.
+	// Expired AND paid: without the expiry this passes with the funding check gone.
 	paidOrder := heldOrder(t, vid, time.Hour, true)
 	abandoned := heldOrder(t, vid, time.Hour, false)
 
@@ -935,27 +817,14 @@ func TestSweepNeverTouchesAPaidOrdersHold(t *testing.T) {
 		t.Errorf("a PAID order's hold is %q after a sweep, want held — its stock "+
 			"is now sellable twice", paidState)
 	}
-	// The control: without it, a sweeper that released nothing at all would pass.
 	if abandonedState != "released" {
 		t.Errorf("the abandoned hold is %q, want released", abandonedState)
 	}
 }
 
-// TestSweepNeverTouchesAFullyCreditFundedOrdersHold is the other half of the
-// test above, and the half committed_orders cannot answer.
-//
-// The paid fixture opens and captures a payment, so committed_orders sees a
-// succeeded row and the sweeper stands off. A fully store-credited order has no
-// payment row and CANNOT have one — payments_succeeded_is_captured forbids a
-// zero-value succeeded payment — and it stays 'pending' until a human picks it,
-// because orders_funded_to_leave_pending has nothing left to demand. So the view
-// reports it uncommitted while the customer has paid in full, and a sweeper that
-// asks committed_orders alone puts the units back on the shelf thirty minutes
-// later.
-//
-// Measured end to end through the site's own forms: stock 10 -> 11 on an order
-// that then SHIPPED, consuming no reservation, leaving the shelf permanently one
-// too high.
+// TestSweepNeverTouchesAFullyCreditFundedOrdersHold is the half committed_orders
+// cannot answer: a fully store-credited order has no payment row and cannot have
+// one, so the view reports it uncommitted while the customer has paid in full.
 func TestSweepNeverTouchesAFullyCreditFundedOrdersHold(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -967,10 +836,7 @@ func TestSweepNeverTouchesAFullyCreditFundedOrdersHold(t *testing.T) {
 		t.Fatalf("read stock: %v", err)
 	}
 
-	// Expired AND funded. The expiry is what makes this a real test: a sweeper
-	// that only skipped unexpired holds would pass with the funding check gone.
 	funded := creditFundedHeldOrder(t, vid, time.Hour)
-	// The control. Without it a sweeper that released nothing at all would pass.
 	abandoned := heldOrder(t, vid, time.Hour, false)
 
 	if _, _, err := s.Sweep(ctx, slog.New(slog.DiscardHandler)); err != nil {
@@ -994,7 +860,6 @@ func TestSweepNeverTouchesAFullyCreditFundedOrdersHold(t *testing.T) {
 		t.Errorf("the abandoned hold is %q, want released", abandonedState)
 	}
 
-	// The shelf, not just the row: two units left it and exactly one came back.
 	var after int32
 	if err := pool.QueryRow(ctx,
 		`SELECT stock_quantity FROM product_variants WHERE id = $1`, vid).Scan(&after); err != nil {
@@ -1006,15 +871,6 @@ func TestSweepNeverTouchesAFullyCreditFundedOrdersHold(t *testing.T) {
 	}
 }
 
-// TestReleasingAFundedOrdersHoldIsRefusedByName holds the DOOR rather than the
-// query that walks up to it.
-//
-// ExpiredReservations declines to offer a funded order's hold, and a guard that
-// lives only in the query it is written for is a guard the next caller does not
-// get. The refusal is bound to the constraint NAME because a statement meant to
-// prove one rule often trips another first (CLAUDE.md #8), and because the
-// sweeper's own classification reads that name to tell "being safe" from
-// "broken".
 func TestReleasingAFundedOrdersHoldIsRefusedByName(t *testing.T) {
 	ctx := t.Context()
 	vid := freshVariant(t, "stockfix-credit-door")
@@ -1049,19 +905,14 @@ func TestReleasingAFundedOrdersHoldIsRefusedByName(t *testing.T) {
 	}
 }
 
-// creditFundedHeldOrder writes an order holding one unit of vid whose whole
-// total is paid from store credit, with a hold that expired `ago` in the past.
-//
-// Written by hand rather than through PlaceOrder because what matters is the
-// FUNDING shape — owing nothing, with no payment row, still pending — and
-// PlaceOrder would need a cart, a session and a shipping choice to reach it.
+// creditFundedHeldOrder writes an order holding one unit of vid, paid entirely
+// from store credit, whose hold expired `ago` in the past.
 func creditFundedHeldOrder(t *testing.T, vid uuid.UUID, ago time.Duration) (orderID uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
 
-	// The line price IS the order total: no shipping, no discount, no tax. That
-	// is what makes order_amount_owed come to exactly zero once the credit is
-	// spent, which is the state under test.
+	// The line price IS the order total, which is what makes order_amount_owed come
+	// to exactly zero once the credit is spent.
 	const cents = 100000
 	userID := creditedCustomer(t, cents)
 
@@ -1093,9 +944,6 @@ func creditFundedHeldOrder(t *testing.T, vid uuid.UUID, ago time.Duration) (orde
 		orderID); err != nil {
 		t.Fatalf("create private data: %v", err)
 	}
-	// Held normally, then aged — BOTH timestamps move, for the reason heldOrder
-	// gives: expires_at > created_at is a CHECK, and a hold that expired an hour
-	// ago was taken out before that.
 	if _, err := tx.Exec(ctx,
 		`SELECT hold_inventory($1, $2, 1, now() + interval '30 minutes', $3)`,
 		orderID, vid, "sweep-credit:"+number); err != nil {
@@ -1119,8 +967,6 @@ func creditFundedHeldOrder(t *testing.T, vid uuid.UUID, ago time.Duration) (orde
 	return orderID
 }
 
-// TestSweepLeavesUnexpiredHolds. A customer typing a card number must not lose
-// the item under them.
 func TestSweepLeavesUnexpiredHolds(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -1144,9 +990,6 @@ func TestSweepLeavesUnexpiredHolds(t *testing.T) {
 	}
 }
 
-// TestSweepIsIdempotent. Two instances of the binary sweep the same rows, and
-// the loser must not turn a released reservation into an error the logs fill up
-// with.
 func TestSweepIsIdempotent(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -1184,23 +1027,15 @@ func TestSweepIsIdempotent(t *testing.T) {
 	}
 }
 
-// TestSweepCountsABenignRefusalAsSkippedNotFailed proves the sweeper tells a
-// safe refusal apart from a real failure.
-//
-// "Another instance released it first" and "the order became committed" are the
-// sweeper being safe. If those were counted as failures an operator would see a
-// permanent error rate and learn to ignore it — which is how a real failure
-// then goes unnoticed.
 func TestSweepCountsABenignRefusalAsSkippedNotFailed(t *testing.T) {
 	ctx := t.Context()
 	vid := freshVariant(t, "stockfix-6")
 
-	// Expired, and paid — so it appears to a sweeper whose query filter is gone
-	// and is refused by release_reservation. That is exactly the benign case.
+	// Expired, and paid — the benign case: a sweeper whose query filter is gone
+	// still sees it, and release_reservation refuses it.
 	paid := heldOrder(t, vid, time.Hour, true)
 
-	// Reach past the query and hand the reservation straight to the release, so
-	// the refusal happens for certain rather than being filtered out first.
+	// Reach past the query, so the refusal happens rather than being filtered out.
 	var reservationID uuid.UUID
 	if err := pool.QueryRow(ctx,
 		`SELECT id FROM inventory_reservations WHERE order_id = $1`, paid).Scan(&reservationID); err != nil {
@@ -1218,35 +1053,18 @@ func TestSweepCountsABenignRefusalAsSkippedNotFailed(t *testing.T) {
 		t.Error("the sweeper would count this refusal as a failure; it is the sweeper being safe")
 	}
 
-	// And a refusal that is NOT benign must still read as one.
 	if cart.BenignSweepFailure(errors.New("connection reset")) {
 		t.Error("an ordinary error was classified as benign")
 	}
 }
 
-// TestCreditIsCappedAtWhatTheOrderOwesAfterTheDiscount holds the cap to the NET
-// total.
-//
-// The cap is `subtotal - discount + shipping`, and leaving the DISCOUNT out of
-// it is how a coupon and a credit balance on one order spend more credit than
-// the order is worth, driving order_amount_owed NEGATIVE.
-//
-// Nothing underneath refuses that: store_credit_never_negative guards the
-// ACCOUNT, not the order, and no rule caps a spend at what its order owes. The
-// customer loses the difference and the order is then unpayable forever —
-// FullyFunded() keeps a non-positive figure away from Stripe, while
-// orders_funded_to_leave_pending asks `owed <> 0`, which a negative satisfies.
-//
-// The assertion is the invariant rather than an arithmetic re-derivation: an
-// order may never owe less than nothing, and the debit may never exceed the
-// order's own recorded total. Both are readable off the row.
+// TestCreditIsCappedAtWhatTheOrderOwesAfterTheDiscount. The cap is
+// `subtotal - discount + shipping`: leaving the discount out lets a coupon and a
+// balance spend more credit than the order is worth, which nothing refuses.
 func TestCreditIsCappedAtWhatTheOrderOwesAfterTheDiscount(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 
-	// A coupon big enough that the gross and the net differ by a visible amount,
-	// and a balance big enough to cover the gross — which is what makes the
-	// missing discount reachable at all.
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO coupons (code, description, kind, amount_cents, min_subtotal_cents)
 		VALUES ('CREDITCAP', '測試折抵', 'amount', 30000, 0)`); err != nil {
@@ -1285,53 +1103,27 @@ func TestCreditIsCappedAtWhatTheOrderOwesAfterTheDiscount(t *testing.T) {
 		t.Fatalf("read the order: %v", err)
 	}
 
-	// Exactly zero, and that figure is stated rather than re-derived: the balance
-	// is NT$100,000 against an order of a few hundred, so credit covers the whole
-	// net total and the order owes nothing. A cap that ignores the coupon lands
-	// on MINUS the discount — the order owes less than nothing.
 	if owed != 0 {
 		t.Errorf("order_amount_owed(%s) = %d, want 0. A negative figure means credit was "+
 			"spent against the GROSS total, which loses the customer the discount and "+
 			"leaves the order permanently unpayable", number, owed)
 	}
-	// And the credit really was spent, or a spendCredit that did nothing at all
-	// would satisfy the line above by leaving a positive balance owing.
 	if debit <= 0 {
 		t.Errorf("credit debited %d on the order, want a positive spend", debit)
 	}
 }
 
-// TestADoubleClickedCheckoutPlacesOneOrder holds the concurrent half of
-// checkout idempotency.
-//
-// The serial half is TestPlaceOrderIsIdempotent: a resubmit AFTER the first
-// checkout committed reads the attempt row and gets the same order number. This
-// is the other case — two requests IN FLIGHT AT ONCE, a double-click or a
-// browser retrying a request it thinks timed out.
-//
-// The advisory lock on the key is what serialises them. Reading the attempt
-// table on the POOL before either request has a transaction is how both miss,
-// and an attempt INSERT whose ON CONFLICT DO NOTHING discards its row count is
-// how the loser then commits its own order regardless. With stock for two the
-// customer gets two orders, two stock holds, two confirmation emails and two
-// store-credit debits — the credit spend keys on the ORDER id, and there are
-// two.
-//
-// # Why this is not two goroutines and a start channel
-//
-// Mistake #9 in this repository: they finish microseconds apart and never
-// actually overlap, and every guard here stayed green with its lock removed.
-// T1's transaction is held OPEN while T2 runs, so the overlap is a fact of the
-// test rather than a hope about the scheduler. T2 must block on the advisory
-// lock; if it does not, it is not being serialised and the test says so.
+// TestADoubleClickedCheckoutPlacesOneOrder covers two requests IN FLIGHT AT
+// ONCE, which the advisory lock on the key serialises. T1's transaction is held
+// OPEN while T2 runs, rather than raced from two goroutines that never overlap.
 func TestADoubleClickedCheckoutPlacesOneOrder(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	key := "double-" + uuid.NewString()
 	vid := freshVariant(t, "doubleclick")
 
-	// T1 takes the lock on the key by hand and HOLDS it, which is exactly the
-	// state a first checkout is in between its lock and its commit.
+	// T1 takes the lock on the key by hand and HOLDS it, which is the state a first
+	// checkout is in between its lock and its commit.
 	t1, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin T1: %v", err)
@@ -1342,7 +1134,6 @@ func TestADoubleClickedCheckoutPlacesOneOrder(t *testing.T) {
 		t.Fatalf("T1 take the lock: %v", err)
 	}
 
-	// T2 is a real checkout carrying the same key. It must BLOCK.
 	id := newCart(t, s)
 	if err := s.Add(ctx, id, vid, 1); err != nil {
 		t.Fatalf("add: %v", err)
@@ -1357,8 +1148,6 @@ func TestADoubleClickedCheckoutPlacesOneOrder(t *testing.T) {
 		placed <- placeErr
 	}()
 
-	// It must still be waiting. A checkout that has finished while another
-	// transaction holds its key was never serialised at all.
 	select {
 	case err := <-placed:
 		t.Fatalf("the second checkout completed (%v) while the key was held by "+
@@ -1366,7 +1155,6 @@ func TestADoubleClickedCheckoutPlacesOneOrder(t *testing.T) {
 	case <-time.After(750 * time.Millisecond):
 	}
 
-	// Release, and let it through.
 	if err := t1.Rollback(ctx); err != nil {
 		t.Fatalf("release T1: %v", err)
 	}
@@ -1411,13 +1199,6 @@ func creditedCustomer(t *testing.T, cents int64) uuid.UUID {
 	return id
 }
 
-// TestCreditIsSpentInsideTheOrdersOwnTransaction proves the debit lands with
-// the order rather than after it.
-//
-// orders_funded_to_leave_pending reads the LEDGER to decide whether an order is
-// funded. A debit posted after the order commits leaves a window in which a
-// fully-credited order looks unpaid — and the back office could pick it up,
-// find it unfunded, and refuse to ship something already paid for.
 func TestCreditIsSpentInsideTheOrdersOwnTransaction(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -1468,12 +1249,6 @@ func TestCreditIsSpentInsideTheOrdersOwnTransaction(t *testing.T) {
 	}
 }
 
-// TestCreditNeverExceedsWhatTheOrderOwes proves credit is capped at the total,
-// and walks the zero-owed order all the way into fulfilment.
-//
-// A debit larger than the order hands money back as a negative balance, which
-// store_credit_never_negative would refuse — but the refusal would be a failed
-// checkout rather than a correct one.
 func TestCreditNeverExceedsWhatTheOrderOwes(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -1516,8 +1291,6 @@ func TestCreditNeverExceedsWhatTheOrderOwes(t *testing.T) {
 			-spent, total)
 	}
 
-	// A fully-credited order owes nothing and is funded with NO payment row —
-	// the zero-owed path order_is_committed exists for.
 	var orderID uuid.UUID
 	if err := pool.QueryRow(ctx,
 		`SELECT id FROM orders WHERE order_number = $1`, number).Scan(&orderID); err != nil {
@@ -1538,7 +1311,6 @@ func TestCreditNeverExceedsWhatTheOrderOwes(t *testing.T) {
 	}
 }
 
-// TestAGuestSpendsNoCredit. There is no account to hold it against.
 func TestAGuestSpendsNoCredit(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -1572,16 +1344,6 @@ func TestAGuestSpendsNoCredit(t *testing.T) {
 	}
 }
 
-// TestTheHeaderBadgeCountsWhatTheCartHolds proves the badge tracks units in
-// this cart.
-//
-// The count comes from middleware through the request context, because a
-// layouts.Page field each handler must remember to fill is a field that goes
-// unfilled — and an unassigned CartCount reads 0 for every visitor whatever is
-// in their cart, silently, since a zero value is one go vet cannot object to.
-//
-// It counts UNITS, not lines: a badge reading 1 over a cart holding three of
-// something is wrong in the way a visitor notices at checkout.
 func TestTheHeaderBadgeCountsWhatTheCartHolds(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -1606,7 +1368,6 @@ func TestTheHeaderBadgeCountsWhatTheCartHolds(t *testing.T) {
 	if got := count(); got != 1 {
 		t.Errorf("one unit counts %d, want 1", got)
 	}
-	// The same variant again: one LINE, three UNITS.
 	if err := s.Add(ctx, id, a, 2); err != nil {
 		t.Fatalf("add: %v", err)
 	}
@@ -1614,7 +1375,6 @@ func TestTheHeaderBadgeCountsWhatTheCartHolds(t *testing.T) {
 		t.Errorf("three units of one variant count %d, want 3 — the badge is "+
 			"counting lines, not items", got)
 	}
-	// A second variant: two lines, four units.
 	if err := s.Add(ctx, id, b, 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
@@ -1622,7 +1382,6 @@ func TestTheHeaderBadgeCountsWhatTheCartHolds(t *testing.T) {
 		t.Errorf("four units across two variants count %d, want 4", got)
 	}
 
-	// Another cart's contents are not this one's.
 	other := newCart(t, s)
 	if err := s.Add(ctx, other, a, 5); err != nil {
 		t.Fatalf("add to other: %v", err)
@@ -1632,14 +1391,6 @@ func TestTheHeaderBadgeCountsWhatTheCartHolds(t *testing.T) {
 	}
 }
 
-// TestTheConfirmationMessageCommitsWithTheOrder is the whole point of an
-// outbox, and it is asserted in BOTH directions.
-//
-// Sending from the handler is wrong in either ordering: before the commit tells
-// somebody about an order that may roll back, after it loses the message when
-// the process dies in between. Writing the intent to the same transaction
-// removes the choice — so a placed order always has its message, and a failed
-// checkout never does.
 func TestTheConfirmationMessageCommitsWithTheOrder(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -1655,7 +1406,6 @@ func TestTheConfirmationMessageCommitsWithTheOrder(t *testing.T) {
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "路 1 號",
 	}
 
-	// A successful order carries its message.
 	id := newCart(t, s)
 	if err := s.Add(ctx, id, vid, 1); err != nil {
 		t.Fatalf("add: %v", err)
@@ -1674,9 +1424,8 @@ func TestTheConfirmationMessageCommitsWithTheOrder(t *testing.T) {
 		t.Errorf("%d messages for a placed order, want 1", messages)
 	}
 
-	// A checkout that FAILS leaves none. A fabricated shipping version is
-	// refused after the transaction has begun, which is exactly the window
-	// where a message written outside it would survive.
+	// A fabricated shipping version is refused AFTER the transaction has begun,
+	// which is the window a message written outside it would survive.
 	before := countMessages(t)
 	failed := newCart(t, s)
 	if err := s.Add(ctx, failed, vid, 1); err != nil {
@@ -1702,16 +1451,9 @@ func countMessages(t *testing.T) int {
 	return n
 }
 
-// waitUntilBlocked returns once the backend at pid is waiting on a lock, or
-// once done fires.
-//
-// pg_stat_activity is the synchronisation point: it reports what PostgreSQL is
-// actually doing, so the caller commits at a moment where the interleaving is a
-// fact rather than an assumption. It fails the test if the second writer
-// neither finishes nor blocks — that would mean the case proved nothing.
-//
-// The 5ms is a poll interval with a deadline above it, not a guess at how long
-// something takes.
+// waitUntilBlocked returns once the backend at pid is waiting on a lock, or once
+// done fires. pg_stat_activity is the synchronisation point, so the interleaving
+// is a fact rather than an assumption; the 5ms is a poll interval, not a guess.
 func waitUntilBlocked(t *testing.T, pid int, done <-chan error) {
 	t.Helper()
 	ctx := t.Context()
@@ -1719,11 +1461,8 @@ func waitUntilBlocked(t *testing.T, pid int, done <-chan error) {
 	for {
 		select {
 		case <-done:
-			// T2 finished while T1 still held its row. That means hold_inventory
-			// did not take the lock, which is the defect this case exists to
-			// catch — and without this branch the case would pass anyway,
-			// because T2 running AFTER T1 commits is also refused. The
-			// interleaving has to be load-bearing or the test is theatre.
+			// T2 finishing while T1 still held its row means hold_inventory never took the
+			// lock, and without this branch the case would pass anyway.
 			t.Fatal("the second writer finished without ever blocking; nothing " +
 				"serialised the two, so the row lock is not being taken")
 		default:
@@ -1774,13 +1513,6 @@ func destinationOf(t *testing.T, number string) (street, brand, code, name strin
 	return deref(s), deref(b), deref(c), deref(n)
 }
 
-// TestThePickupDestinationComesFromTheMethodNotTheForm is the property that
-// makes 超商取貨 real rather than a label on an order nobody can deliver.
-//
-// The submission below carries BOTH destinations, which is what a hand-edited
-// form does. The address must not survive: the method says where the parcel
-// goes, and a street address on a pickup order is a second answer to a question
-// that has one.
 func TestThePickupDestinationComesFromTheMethodNotTheForm(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -1790,8 +1522,8 @@ func TestThePickupDestinationComesFromTheMethodNotTheForm(t *testing.T) {
 	}
 
 	addr := &cart.Address{
-		// The destination the CALLER claims is deliberately wrong. PlaceOrder
-		// re-reads the method and overrides it.
+		// The destination the CALLER claims is deliberately wrong: PlaceOrder re-reads
+		// the method and overrides it.
 		To:    cart.ToAddress,
 		Email: "pickup@example.com", Name: "陳小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
@@ -1813,9 +1545,6 @@ func TestThePickupDestinationComesFromTheMethodNotTheForm(t *testing.T) {
 	}
 }
 
-// TestAnAddressOrderKeepsNoPickupPoint is the other direction. A customer who
-// filled the store fields, switched to 宅配 and submitted must not leave a
-// convenience store attached to a parcel going to their house.
 func TestAnAddressOrderKeepsNoPickupPoint(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -1845,9 +1574,6 @@ func TestAnAddressOrderKeepsNoPickupPoint(t *testing.T) {
 	}
 }
 
-// TestBothPagesShowWhereAPickupOrderGoes. The destination is useless if only
-// the database has it: the customer checks which store they picked, and the
-// back office has to put it on the label.
 func TestBothPagesShowWhereAPickupOrderGoes(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -1869,9 +1595,6 @@ func TestBothPagesShowWhereAPickupOrderGoes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read order view: %v", err)
 	}
-	// The label, the store name and the code — a customer checking they picked
-	// the right shop needs all three, and a page showing only "萊爾富" names
-	// about 1,400 of them.
 	for _, want := range []string{"萊爾富", "民生門市", "778899"} {
 		if !strings.Contains(view.DeliveryTo, want) {
 			t.Errorf("the confirmation does not show %q: %q", want, view.DeliveryTo)
@@ -1879,10 +1602,6 @@ func TestBothPagesShowWhereAPickupOrderGoes(t *testing.T) {
 	}
 }
 
-// TestTheAddressBookIsScopedToItsOwner. The address id comes off a URL, and the
-// scoping is in the query rather than checked after the read — a check
-// afterwards is a check somebody eventually forgets, and what leaks is a
-// stranger's home address.
 func TestTheAddressBookIsScopedToItsOwner(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -1898,8 +1617,6 @@ func TestTheAddressBookIsScopedToItsOwner(t *testing.T) {
 		t.Fatalf("read %d addresses %+v, want only my own", len(got), got)
 	}
 
-	// The control: the other account's row exists, so the assertion above is
-	// about scoping rather than about an empty table.
 	other, err := s.SavedAddresses(ctx, uuid.NullUUID{UUID: theirs, Valid: true})
 	if err != nil {
 		t.Fatalf("read the other account's addresses: %v", err)
@@ -1909,11 +1626,8 @@ func TestTheAddressBookIsScopedToItsOwner(t *testing.T) {
 	}
 }
 
-// TestAGuestHasNoAddressBook. A null owner must not read every address in the
-// table, which is what a query with no owner predicate would do.
 func TestAGuestHasNoAddressBook(t *testing.T) {
 	s := cart.NewStore(pool)
-	// A row exists, so an empty result is scoping rather than an empty table.
 	addressOwner(t, "guestcontrol@example.com", "有人的地址")
 
 	got, err := s.SavedAddresses(t.Context(), uuid.NullUUID{})
@@ -1965,23 +1679,9 @@ func stockOf(t *testing.T, vid uuid.UUID) int32 {
 	return n
 }
 
-// TestCancellingAnOrderHandsBackItsOpenCheckouts is the database half of
-// closing a cancelled order's checkout at Stripe.
-//
-// Releasing the stock and returning the credit leave the CHECKOUT payable on
-// their own, so "cancel the order, then finish paying on the tab that is still
-// open" puts money against goods already back on the shelf. goen has a name for
-// that money arriving — payment.ErrOrderCancelled — and its comment ends "a
-// human refunds it".
-//
-// What is asserted here is the handover, not the Stripe call: the session ids
-// come out of the cancelling transaction, and closing them is the handler's
-// post-commit job. The HTTP half is TestCancellingClosesTheCheckoutAtStripe.
-//
-// The row is opened through open_payment rather than an INSERT, because `store`
-// holds no INSERT on payments — a born-succeeded payment row is the forgery that
-// revoke prevents, and a fixture reaching past it would be a fixture for a claim
-// nobody is testing.
+// TestCancellingAnOrderHandsBackItsOpenCheckouts is the database half of closing
+// a cancelled order's checkout at Stripe. The row is opened through open_payment
+// because `store` holds no INSERT on payments.
 func TestCancellingAnOrderHandsBackItsOpenCheckouts(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -1998,9 +1698,6 @@ func TestCancellingAnOrderHandsBackItsOpenCheckouts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
-	// slices.Equal rather than cmp.Diff: a local in this file is already named
-	// cmp, so importing go-cmp would mean renaming it across the file for one
-	// string-slice assertion.
 	want := []string{"cs_test_still_open"}
 	if !slices.Equal(sessions, want) {
 		t.Errorf("Cancel() sessions = %v, want %v\n"+
@@ -2009,21 +1706,13 @@ func TestCancellingAnOrderHandsBackItsOpenCheckouts(t *testing.T) {
 	}
 }
 
-// TestCancellingAnOrderWithNoCheckoutHandsBackNothing is the other half, and it
-// is what stops the test above passing on a query with no predicate at all.
-//
-// An order can be cancelled before anybody has opened a payment — that is the
-// ordinary case, since the pay page is a separate click — and a cancellation that
-// reported a session there would send the handler to Stripe with an id that names
-// nothing.
 func TestCancellingAnOrderWithNoCheckoutHandsBackNothing(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	vid := freshVariant(t, "cancel-session-2")
 
 	// A DIFFERENT order with a live session, so the query is asked to tell two
-	// orders apart rather than merely to find none. Without it, a predicate
-	// missing its order join would still return an empty slice here.
+	// orders apart rather than merely to find none.
 	other := heldOrder(t, freshVariant(t, "cancel-session-3"), -time.Hour, false)
 	if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, 100000)`,
 		other, "cs_test_someone_elses"); err != nil {
@@ -2041,12 +1730,6 @@ func TestCancellingAnOrderWithNoCheckoutHandsBackNothing(t *testing.T) {
 	}
 }
 
-// TestCancellingAnOrderPutsTheStockBack holds that a cancellation is a shelf
-// movement and not only a status change.
-//
-// The status change on its own is bookkeeping: the units stay off the shelf
-// until the sweeper notices, which is up to HoldTTL later. For the last unit of
-// something that is a sale lost to a customer who changed their mind.
 func TestCancellingAnOrderPutsTheStockBack(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -2075,13 +1758,6 @@ func TestCancellingAnOrderPutsTheStockBack(t *testing.T) {
 	}
 }
 
-// TestAFundedOrderCannotBeCancelledByItsCustomer holds the funding half of the
-// rule from the side where stock is still held.
-//
-// Paid is the shop's problem, not a button's: an order somebody has been
-// charged for is refunded, on a decision that belongs to the shop. The guard is
-// in the UPDATE's own WHERE clause, so a capture landing while the customer
-// looks at the page cannot be raced.
 func TestAFundedOrderCannotBeCancelledByItsCustomer(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -2107,9 +1783,6 @@ func TestAFundedOrderCannotBeCancelledByItsCustomer(t *testing.T) {
 	}
 }
 
-// TestCancellingTwiceIsRefusedTheSecondTime. The second POST reaches the same
-// WHERE clause and matches nothing, which is what makes the button safe to
-// double-click and safe to reload.
 func TestCancellingTwiceIsRefusedTheSecondTime(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -2129,8 +1802,6 @@ func TestCancellingTwiceIsRefusedTheSecondTime(t *testing.T) {
 	}
 }
 
-// TestCancellingAnOrderThatIsBeingPickedIsRefused. Once the shop has started,
-// stopping it is a conversation rather than a form.
 func TestCancellingAnOrderThatIsBeingPickedIsRefused(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -2148,9 +1819,6 @@ func TestCancellingAnOrderThatIsBeingPickedIsRefused(t *testing.T) {
 	}
 }
 
-// TestCancellingAnOrderThatDoesNotExistIsTheSameRefusal. Order numbers come off
-// a guessable counter, so "no such order" and "not yours to cancel" must be one
-// answer — telling them apart says which numbers are real.
 func TestCancellingAnOrderThatDoesNotExistIsTheSameRefusal(t *testing.T) {
 	s := cart.NewStore(pool)
 	if _, err := s.Cancel(t.Context(), "GO-990101-999999"); !errors.Is(err, cart.ErrNotCancellable) {
@@ -2158,14 +1826,9 @@ func TestCancellingAnOrderThatDoesNotExistIsTheSameRefusal(t *testing.T) {
 	}
 }
 
-// TestAFundedOrderWithNoHeldStockIsStillRefused is what proves the funding
-// guard in CancelOrderByCustomer rather than the one in release_reservation.
-//
-// With stock held, a paid order is refused by the release — so
-// TestAFundedOrderCannotBeCancelledByItsCustomer stays green with the UPDATE's
-// own predicate deleted and says nothing about it. An order whose holds are
-// already consumed reaches the UPDATE with an empty loop behind it, and only
-// the WHERE clause is left to refuse.
+// TestAFundedOrderWithNoHeldStockIsStillRefused proves the funding guard in
+// CancelOrderByCustomer rather than the one in release_reservation: with stock
+// held the release refuses first, and only the WHERE clause is left here.
 func TestAFundedOrderWithNoHeldStockIsStillRefused(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -2173,8 +1836,6 @@ func TestAFundedOrderWithNoHeldStockIsStillRefused(t *testing.T) {
 
 	orderID := heldOrder(t, vid, -time.Hour, true) // funded
 	number := numberOf(t, orderID)
-	// Consume the hold, the way a dispatch does. The order is now funded with
-	// nothing held against it.
 	var reservation uuid.UUID
 	if err := pool.QueryRow(ctx,
 		`SELECT id FROM inventory_reservations WHERE order_id = $1`, orderID).Scan(&reservation); err != nil {
@@ -2197,14 +1858,6 @@ func TestAFundedOrderWithNoHeldStockIsStillRefused(t *testing.T) {
 	}
 }
 
-// TestAStrangerCannotCancelSomebodyElsesOrder holds the cancel endpoint to the
-// same access rule as the page it is posted from.
-//
-// Order numbers come off a per-day counter, so they are guessable: without the
-// same access rule the confirmation page has, cancelling a stranger's order is
-// one form submission. That it changes nothing is the important half — a 404
-// that had already released the stock would be a denial of service with a
-// polite status code.
 func TestAStrangerCannotCancelSomebodyElsesOrder(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -2214,11 +1867,7 @@ func TestAStrangerCannotCancelSomebodyElsesOrder(t *testing.T) {
 	before := stockOf(t, vid)
 
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
-		// Generous: these cases are about the lookup's ANSWER, and a limiter that
-		// refused mid-suite would be testing the limiter.
 		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour}),
-		// nil: no Stripe key in an integration test, so no session was ever opened
-		// and there is nothing for a cancellation to close.
 		nil)
 
 	stranger := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/cancel", http.NoBody)
@@ -2241,8 +1890,6 @@ func TestAStrangerCannotCancelSomebodyElsesOrder(t *testing.T) {
 		t.Errorf("a stranger's cancellation moved stock to %d, want %d", got, before)
 	}
 
-	// The control: the browser that placed it does cancel, without which a
-	// handler that 404s unconditionally would pass every check above.
 	placer := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/cancel", http.NoBody)
 	placer.SetPathValue("number", number)
 	placer.AddCookie(placedCookie(t, s, number))
@@ -2257,25 +1904,14 @@ func TestAStrangerCannotCancelSomebodyElsesOrder(t *testing.T) {
 	}
 }
 
-// TestACancelledOrdersStockComesBackByEveryDoor is what the split between
-// committed_orders and settled_orders is for.
-//
-// Cancelled is SETTLED and not committed. Reading any non-pending status as
-// committed puts a cancelled order on the wrong side of both doors —
-// release_reservation refuses a committed order's hold and the sweeper skips
-// one — so the units behind it come back by no route at all. They are simply
-// gone.
-//
-// The case that matters most is a FUNDED order the shop cancels: nothing else
-// in the system would ever release it.
+// TestACancelledOrdersStockComesBackByEveryDoor. Cancelled is SETTLED and not
+// committed: reading any non-pending status as committed puts a cancelled order
+// on the wrong side of both doors, and its units come back by no route at all.
 func TestACancelledOrdersStockComesBackByEveryDoor(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	vid := freshVariant(t, "stockfix-14")
 
-	// A funded order, cancelled the way the back office cancels one — the
-	// status moved directly, with no release. This is the state that is
-	// permanent if a cancelled order counts as committed.
 	orderID := heldOrder(t, vid, time.Hour, true) // expired hold, paid
 	if _, err := pool.Exec(ctx,
 		`UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
@@ -2313,9 +1949,6 @@ func TestACancelledOrdersStockComesBackByEveryDoor(t *testing.T) {
 	}
 }
 
-// TestACancelledOrderIsNotAVerifiedPurchase. The same conflation hands the 已購買
-// badge to somebody whose order was cancelled — a claim about a product they
-// never received, on a page other customers read to decide.
 func TestACancelledOrderIsNotAVerifiedPurchase(t *testing.T) {
 	ctx := t.Context()
 	vid := freshVariant(t, "stockfix-15")
@@ -2345,7 +1978,6 @@ func TestACancelledOrderIsNotAVerifiedPurchase(t *testing.T) {
 		return err
 	}
 
-	// The control: while the order stands, the claim is true and accepted.
 	if err := review(); err != nil {
 		t.Fatalf("a real purchase could not claim 已購買: %v", err)
 	}
@@ -2367,21 +1999,11 @@ func TestACancelledOrderIsNotAVerifiedPurchase(t *testing.T) {
 	}
 }
 
-// TestAnOffshoreAddressCostsMoreThanATaipeiOne holds the surcharge and its
-// relationship to the free-shipping threshold.
-//
-// One fee for the whole country charges a parcel to 金門 a Taipei price and
-// leaves the shop paying the crossing out of its margin. shipping_zones is what
-// prices it instead.
-//
-// The surcharge survives 免運 on purpose: the threshold is the shop's own offer
-// on its own base rate, and the carrier still charges to cross the water.
 func TestAnOffshoreAddressCostsMoreThanATaipeiOne(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	version := shipVersionFor(t, "home_delivery")
 
-	// Under the free-over threshold: base fee plus surcharge.
 	taipei, err := s.QuoteShipping(ctx, version, 100000, "110")
 	if err != nil {
 		t.Fatalf("quote for Taipei: %v", err)
@@ -2398,10 +2020,8 @@ func TestAnOffshoreAddressCostsMoreThanATaipeiOne(t *testing.T) {
 		t.Errorf("the quote does not name the surcharge: %+v", kinmen)
 	}
 
-	// A FIVE-digit code. Taiwan writes 3+2 and Address.Validate accepts 3 to 6
-	// digits, so this is what a customer actually types — and the zone is found
-	// from the first three. Without the truncation the surcharge silently
-	// vanishes for everybody who fills the field in properly.
+	// A FIVE-digit code, which is what a customer types: Taiwan writes 3+2, and the
+	// zone is found from the first three.
 	full, err := s.QuoteShipping(ctx, version, 100000, "89052")
 	if err != nil {
 		t.Fatalf("quote for a five-digit Kinmen code: %v", err)
@@ -2411,7 +2031,6 @@ func TestAnOffshoreAddressCostsMoreThanATaipeiOne(t *testing.T) {
 			full.Total(), kinmen.Total())
 	}
 
-	// Over the threshold: the base goes to zero and the surcharge does not.
 	freeTaipei, err := s.QuoteShipping(ctx, version, 500000, "110")
 	if err != nil {
 		t.Fatalf("quote for a large Taipei order: %v", err)
@@ -2430,10 +2049,6 @@ func TestAnOffshoreAddressCostsMoreThanATaipeiOne(t *testing.T) {
 	}
 }
 
-// TestAPickupOrderIsNeverInAZone. Its destination is a store, so there is no
-// postal code to find a zone from — which is why shipping_version_zones has no
-// serviceable flag: the one method that could not serve 離島 is the one that
-// can never be matched to it.
 func TestAPickupOrderIsNeverInAZone(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -2447,9 +2062,6 @@ func TestAPickupOrderIsNeverInAZone(t *testing.T) {
 	}
 }
 
-// TestAnOrderIsChargedTheZoneItShipsTo is the property the whole feature is
-// for: the number in the ORDER is the one the address earns, not the one the
-// method chooser showed before an address existed.
 func TestAnOrderIsChargedTheZoneItShipsTo(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -2489,13 +2101,6 @@ func TestAnOrderIsChargedTheZoneItShipsTo(t *testing.T) {
 	}
 }
 
-// TestAFreeShippingCouponDoesNotPayForTheCrossing holds a 免運 coupon to the
-// same line the free-over threshold is held to.
-//
-// 免運 is the shop's own offer on its own base rate. A coupon that also ate the
-// 離島 surcharge would have the shop paying NT$200 a parcel to honour a NT$0
-// discount — which is the same reasoning the free-over threshold follows, and
-// the two must not disagree.
 func TestAFreeShippingCouponDoesNotPayForTheCrossing(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -2545,27 +2150,16 @@ func TestAFreeShippingCouponDoesNotPayForTheCrossing(t *testing.T) {
 	}
 }
 
-// TestReorderPutsBackWhatCanStillBeBought holds what a 再買一次 adds and what
-// it reports it could not.
-//
-// A reorder that quietly drops two of five lines is a customer who checks out
-// with the wrong basket, so what was SKIPPED is reported alongside what was
-// added — and the two reasons are kept apart, because "no longer sold" and
-// "sold out" lead somewhere different.
 func TestReorderPutsBackWhatCanStillBeBought(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 
-	// Variants of this test's OWN product. Retiring and emptying a seeded one
-	// breaks every other test that needs it — invisibly while the suite happens
-	// to run in file order, and then under -shuffle for whichever test draws it
-	// next.
 	live, retired, empty := threeVariants(t, "reorder-fixture")
 
 	number := orderOfVariants(t, map[uuid.UUID]int32{live: 2, retired: 1, empty: 1})
 
-	// One variant is retired and one is emptied, AFTER the order — which is the
-	// whole case: an order from last year has both.
+	// One variant is retired and one emptied AFTER the order, which is what an order
+	// from last year has.
 	if _, err := pool.Exec(ctx,
 		`UPDATE product_variants SET is_active = false WHERE id = $1`, retired); err != nil {
 		t.Fatalf("retire: %v", err)
@@ -2595,7 +2189,6 @@ func TestReorderPutsBackWhatCanStillBeBought(t *testing.T) {
 		t.Errorf("the reasons are %v, want one gone and one sold out", reasons)
 	}
 
-	// And the cart holds what was put back, at the quantity that was bought.
 	view, err := s.View(ctx, basket)
 	if err != nil {
 		t.Fatalf("read cart: %v", err)
@@ -2605,15 +2198,12 @@ func TestReorderPutsBackWhatCanStillBeBought(t *testing.T) {
 	}
 }
 
-// TestReorderPricesFromTheCatalogueAndNotTheOrder. A reorder is a new purchase:
-// showing last year's price would quote a figure the checkout will not honour.
 func TestReorderPricesFromTheCatalogueAndNotTheOrder(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	vid, _, _ := threeVariants(t, "reorder-price-fixture")
 	number := orderOfVariants(t, map[uuid.UUID]int32{vid: 1})
 
-	// The price moves after the order, which is what an old order has.
 	if _, err := pool.Exec(ctx,
 		`UPDATE product_variants SET price_cents = price_cents + 100000 WHERE id = $1`,
 		vid); err != nil {
@@ -2705,12 +2295,6 @@ func emptyTheShelfFor(t *testing.T, vid uuid.UUID) {
 	}
 }
 
-// TestAStrangerCannotFillTheirCartFromSomebodyElsesOrder holds the reorder
-// endpoint to the same access rule as the page it is posted from.
-//
-// Order numbers come off a guessable per-day counter, so without the same
-// access rule the page has, a stranger learns what somebody bought by watching
-// their own cart fill up.
 func TestAStrangerCannotFillTheirCartFromSomebodyElsesOrder(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -2718,11 +2302,7 @@ func TestAStrangerCannotFillTheirCartFromSomebodyElsesOrder(t *testing.T) {
 	number := orderOfVariants(t, map[uuid.UUID]int32{own: 1})
 
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
-		// Generous: these cases are about the lookup's ANSWER, and a limiter that
-		// refused mid-suite would be testing the limiter.
 		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour}),
-		// nil: no Stripe key in an integration test, so no session was ever opened
-		// and there is nothing for a cancellation to close.
 		nil)
 
 	stranger := httptest.NewRequestWithContext(ctx, http.MethodPost,
@@ -2734,13 +2314,12 @@ func TestAStrangerCannotFillTheirCartFromSomebodyElsesOrder(t *testing.T) {
 	if res.Code != http.StatusNotFound {
 		t.Errorf("a stranger's reorder answered %d, want 404", res.Code)
 	}
-	// No cart was opened either: a 404 that had already set a cookie and filled
-	// a basket would leak the order's contents by another route.
+	// No cart was opened either: a 404 that had filled a basket would leak the
+	// order's contents by another route.
 	if cookie := res.Header().Get("Set-Cookie"); strings.Contains(cookie, "goen_cart") {
 		t.Errorf("a refused reorder opened a cart: %q", cookie)
 	}
 
-	// The control: the browser that placed it does reorder.
 	placer := httptest.NewRequestWithContext(ctx, http.MethodPost,
 		"/orders/"+number+"/reorder", http.NoBody)
 	placer.SetPathValue("number", number)
@@ -2756,26 +2335,13 @@ func TestAStrangerCannotFillTheirCartFromSomebodyElsesOrder(t *testing.T) {
 	}
 }
 
-// TestAMethodIsNotOfferedForAParcelItsCarrierRefuses holds the rule that decides
-// which delivery methods a customer sees.
-//
-// A method is offered only for a cart its carrier will physically take.
-// 超商店到店 refuses a parcel over 45cm on its longest side, 105cm across three,
-// or 10kg — so offering every active method to every cart puts 超商取貨 in front
-// of a shop selling a 27-inch monitor: the customer chooses it, the order is
-// placed and paid, and the shop finds out at the counter with the parcel packed
-// and the customer waiting.
-//
-// The test is PER ITEM and never over the cart total, which is the half worth
-// locking: more parcels are always possible, so two things that each fit are two
-// parcels — but one item that does not fit cannot be split, whatever else is in
-// the basket. The "one fits, one does not" case is what tells the two rules
-// apart; a cart with a single oversized item passes under either.
+// TestAMethodIsNotOfferedForAParcelItsCarrierRefuses. A method is offered only
+// for a cart its carrier will physically take, PER ITEM and never over the cart
+// total: two things that each fit are two parcels, but one item cannot be split.
 func TestAMethodIsNotOfferedForAParcelItsCarrierRefuses(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 
-	// A method with 超商店到店's real ceilings, and the seeded methods beside it.
 	code := "cvs" + uuid.NewString()[:6]
 	var methodID uuid.UUID
 	if err := pool.QueryRow(ctx, `
@@ -2791,7 +2357,6 @@ func TestAMethodIsNotOfferedForAParcelItsCarrierRefuses(t *testing.T) {
 	}
 
 	small, big, _ := variantsOf(t, "parcel", 3)
-	// A phone-sized box, and a 27-inch monitor.
 	if _, err := pool.Exec(ctx, `
 		UPDATE product_variants SET parcel_longest_mm = 180, parcel_sum_mm = 320, parcel_weight_g = 400
 		WHERE id = $1`, small); err != nil {
@@ -2867,19 +2432,15 @@ func TestAMethodIsNotOfferedForAParcelItsCarrierRefuses(t *testing.T) {
 }
 
 // freshVariant creates a product of this test's own with one sellable variant.
-//
-// Tests that HOLD, retire or empty stock must not share a variant: each one
-// takes units the next assumes are there, so a shared one passes in file order
-// and fails under -shuffle. test-integration shuffles, which is what makes that
-// a failure somebody sees rather than an ordering nobody can.
+// Tests that hold, retire or empty stock must not share one: test-integration
+// shuffles, so a shared variant fails whenever the order changes.
 func freshVariant(t *testing.T, slug string) uuid.UUID {
 	t.Helper()
 	a, _, _ := variantsOf(t, slug, 1)
 	return a
 }
 
-// threeVariants is freshVariant with three, for a test that needs them to
-// differ from one another.
+// threeVariants is freshVariant with three.
 func threeVariants(t *testing.T, slug string) (a, b, c uuid.UUID) {
 	t.Helper()
 	return variantsOf(t, slug, 3)
@@ -2890,8 +2451,8 @@ func variantsOf(t *testing.T, name string, n int) (a, b, c uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
 
-	// A unique slug per CALL, not per test: a test that needs two independent
-	// products calls this twice, and products_slug_key would refuse the second.
+	// A unique slug per CALL, not per test: products_slug_key would refuse the
+	// second product of a test that needs two.
 	slug := name + "-" + uuid.NewString()[:8]
 
 	var productID uuid.UUID
@@ -2914,7 +2475,6 @@ func variantsOf(t *testing.T, name string, n int) (a, b, c uuid.UUID) {
 			productID, strings.ToUpper(slug)+"-"+strconv.Itoa(i), i).Scan(&vid); err != nil {
 			t.Fatalf("create variant: %v", err)
 		}
-		// Stock arrives through the one door, as it does everywhere else.
 		if _, err := pool.Exec(ctx,
 			`SELECT record_inventory_movement($1, 10, 'adjustment', $2, NULL, NULL, NULL)`,
 			vid, "fixture:"+vid.String()); err != nil {
@@ -2922,8 +2482,8 @@ func variantsOf(t *testing.T, name string, n int) (a, b, c uuid.UUID) {
 		}
 		ids[i] = vid
 	}
-	// Published only now: products_active_has_variant is DEFERRED and fires
-	// from both sides, so a product cannot be active before it has one.
+	// Published only now: products_active_has_variant is DEFERRED and fires from
+	// both sides.
 	if _, err := pool.Exec(ctx,
 		`UPDATE products SET status = 'active', published_at = now() WHERE id = $1`,
 		productID); err != nil {
@@ -2932,13 +2492,6 @@ func variantsOf(t *testing.T, name string, n int) (a, b, c uuid.UUID) {
 	return ids[0], ids[1], ids[2]
 }
 
-// TestTheAttemptSweepKeepsRecentKeys is the retention rule for checkout's
-// idempotency ledger.
-//
-// checkout_attempts holds one row per submission goen has ever seen, so it grows
-// without bound unless something prunes it. The half that matters is the RECENT
-// key: deleting a row frees it to be replayed, so a sweep that reached into this
-// week would turn a double-click into two orders.
 func TestTheAttemptSweepKeepsRecentKeys(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -2973,14 +2526,6 @@ func TestTheAttemptSweepKeepsRecentKeys(t *testing.T) {
 	}
 }
 
-// TestCancellingReturnsSpentStoreCredit is money the customer would otherwise
-// lose.
-//
-// reverse_order_credit is the door to store_credit_entries.reverses_id, its
-// unique partial index and the reversal branch of store_credit_guard. A
-// cancellation that releases the stock and stops there puts the goods back on the
-// shelf with the credit still spent, so a customer who part-paid with credit and
-// then changed their mind is simply out that money.
 func TestCancellingReturnsSpentStoreCredit(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -2999,9 +2544,6 @@ func TestCancellingReturnsSpentStoreCredit(t *testing.T) {
 		t.Errorf("balance after cancelling = %d, want 50000 — the credit spent on a "+
 			"cancelled order has to come back, the same way the stock does", got)
 	}
-	// And it came back as a REVERSAL of the spend, not as a fresh grant: the
-	// reversal is what ties the refund to the entry it undoes, so a second
-	// cancellation cannot pay twice.
 	var reversals int
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*) FROM store_credit_entries e
@@ -3014,12 +2556,6 @@ func TestCancellingReturnsSpentStoreCredit(t *testing.T) {
 	}
 }
 
-// TestReversingCancelledCreditIsIdempotent proves a retried cancellation does not
-// pay twice.
-//
-// The idempotency key is derived from the entry being reversed, and the unique
-// partial index on reverses_id refuses a second one — so this is the schema's
-// guarantee rather than the handler's care.
 func TestReversingCancelledCreditIsIdempotent(t *testing.T) {
 	ctx := t.Context()
 	userID, accountID := creditedAccount(t, 50000)
@@ -3051,19 +2587,13 @@ func TestReversingCancelledCreditIsIdempotent(t *testing.T) {
 	}
 }
 
-// TestAShippedOrdersCreditIsNotReversed proves the rule the schema itself states.
-//
-// A funded or shipped order is compensated with a refund or a new positive entry,
-// never by undoing the spend — an order that is going to ship was paid for, and
-// reversing its credit would mean the shop shipped goods nobody paid for.
 func TestAShippedOrdersCreditIsNotReversed(t *testing.T) {
 	ctx := t.Context()
 	userID, accountID := creditedAccount(t, 50000)
 	number := pendingOrderSpendingCredit(t, userID, 20000)
 
-	// Through the real transitions: orders_check_transition refuses
-	// pending → shipped, because an order is picked before it leaves. The order is
-	// wholly credit-funded, which is what lets it leave pending at all.
+	// Through the real transitions: orders_check_transition refuses pending →
+	// shipped, because an order is picked before it leaves.
 	var orderID uuid.UUID
 	for _, status := range []string{"picking", "shipped"} {
 		if err := pool.QueryRow(ctx,
@@ -3085,8 +2615,7 @@ func TestAShippedOrdersCreditIsNotReversed(t *testing.T) {
 	}
 }
 
-// creditedAccount is creditedCustomer plus the account id, which a balance
-// assertion needs.
+// creditedAccount is creditedCustomer plus the account id.
 func creditedAccount(t *testing.T, cents int64) (userID, accountID uuid.UUID) {
 	t.Helper()
 	userID = creditedCustomer(t, cents)
@@ -3110,18 +2639,14 @@ func creditBalance(t *testing.T, accountID uuid.UUID) int64 {
 	return cents
 }
 
-// pendingOrderSpendingCredit places an order for userID that spends `cents` of
-// their credit and leaves it pending and unpaid — the state a cancellation acts on.
-//
-// Written by hand rather than through PlaceOrder because what matters here is the
-// LEDGER's shape, not the checkout's: one spend attributed to one pending order.
+// pendingOrderSpendingCredit places a pending unpaid order for userID that
+// spends `cents` of their credit — the state a cancellation acts on.
 func pendingOrderSpendingCredit(t *testing.T, userID uuid.UUID, cents int64) string {
 	t.Helper()
 	ctx := t.Context()
 
-	// One transaction: orders_has_lines is DEFERRED, so an order and its lines
-	// have to commit together — an order with no lines is refused at commit, not
-	// at insert.
+	// One transaction: orders_has_lines is DEFERRED, so an order and its lines have
+	// to commit together.
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin: %v", err)
@@ -3144,7 +2669,6 @@ func pendingOrderSpendingCredit(t *testing.T, userID uuid.UUID, cents int64) str
 		VALUES ($1, 'CREDIT-SKU', '測試商品', $2, 1)`, orderID, cents); err != nil {
 		t.Fatalf("create line: %v", err)
 	}
-	// order_private_data too: orders_has_delivery_details is deferred the same way.
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
 		                                postal_code, city, district, street)
@@ -3163,17 +2687,6 @@ func pendingOrderSpendingCredit(t *testing.T, userID uuid.UUID, cents int64) str
 	return number
 }
 
-// TestAnOrderSaysWhyItWasDiscounted holds a figure a customer reads and can
-// otherwise do nothing about.
-//
-// An order page showing a subtotal, a shipping fee and a total with the discount
-// absent from all three is a page where subtotal plus shipping does not equal the
-// total and nothing accounts for the difference. Somebody reading their own
-// receipt cannot tell whether they have been overcharged.
-//
-// The reason is JOINED rather than snapshotted on the order. A discount_code
-// column on orders would be a second copy of a recoverable fact — coupons.code is
-// never updated and the FK is ON DELETE RESTRICT, so one join always reaches it.
 func TestAnOrderSaysWhyItWasDiscounted(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -3202,8 +2715,6 @@ func TestAnOrderSaysWhyItWasDiscounted(t *testing.T) {
 	}
 }
 
-// TestAnOrderWithNoCouponHasNoReason proves the empty case reads as absent rather
-// than as a stray separator.
 func TestAnOrderWithNoCouponHasNoReason(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -3235,8 +2746,7 @@ func orderWithCoupon(t *testing.T, code string) string {
 		t.Fatalf("read coupon: %v", err)
 	}
 	// The discount and the redemption together: coupon_redemption_matches_order
-	// holds orders.discount_cents and the row to each other, because they are one
-	// fact.
+	// holds them to each other.
 	tx, err := pool.Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin: %v", err)
@@ -3256,12 +2766,6 @@ func orderWithCoupon(t *testing.T, code string) string {
 	return number
 }
 
-// TestAGuestCanFindTheirOwnOrderWithTheEmail is the gap a customer actually hits.
-//
-// The order page is shown to the browser that placed the order or to the account
-// that owns it. A guest who clears their cookies, or opens the confirmation email
-// on a different device, is neither — so without this lookup that is the end of
-// it: they hold a number, an address, and no way to see their own order.
 func TestAGuestCanFindTheirOwnOrderWithTheEmail(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -3283,8 +2787,6 @@ func TestAGuestCanFindTheirOwnOrderWithTheEmail(t *testing.T) {
 		t.Error("the order's own number and address did not find it")
 	}
 
-	// Case and surrounding space are the two things somebody retyping from an
-	// email gets wrong, and neither is a reason to refuse them.
 	if ok, err := s.FindOrder(ctx, "  "+strings.ToLower(number)+" ", strings.ToUpper(addr)); err != nil {
 		t.Fatalf("FindOrder with odd casing: %v", err)
 	} else if !ok {
@@ -3292,12 +2794,6 @@ func TestAGuestCanFindTheirOwnOrderWithTheEmail(t *testing.T) {
 	}
 }
 
-// TestTheWrongEmailFindsNothing is the half of the credential that is secret.
-//
-// Order numbers come off a per-day counter and are guessable — which is why
-// reaching the page by number alone is refused in the first place. If the address
-// did not have to match, this endpoint would hand out delivery addresses to
-// anybody who can count.
 func TestTheWrongEmailFindsNothing(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -3306,7 +2802,6 @@ func TestTheWrongEmailFindsNothing(t *testing.T) {
 	for _, addr := range []string{
 		"somebody-else@example.com",
 		"",
-		// A near miss on the real address, so the test is not passing on length.
 		"x" + uuid.NewString() + "@example.com",
 	} {
 		if ok, err := s.FindOrder(ctx, number, addr); err != nil {
@@ -3317,12 +2812,6 @@ func TestTheWrongEmailFindsNothing(t *testing.T) {
 	}
 }
 
-// TestAnErasedOrderCannotBeFound proves erasure reaches this door too.
-//
-// erase_user blanks order_private_data and the order survives as a financial
-// record. A lookup that still matched on the blanked address would be a way to
-// reach an order the shop has promised to stop knowing anything about — and it
-// would be a NEW door, opened after the erasure was written.
 func TestAnErasedOrderCannotBeFound(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -3356,26 +2845,13 @@ func TestAnErasedOrderCannotBeFound(t *testing.T) {
 	}
 }
 
-// TestAnOrderLineIsSnapshottedInTheBuyersLanguage locks a property that currently
-// holds by construction, which is exactly the kind that regresses silently.
-//
-// order_lines.product_name is a SNAPSHOT: an order is a record of what was agreed,
-// and a later catalogue change must not rewrite it. That is also why it cannot be
-// localized at read time — a receipt already sent in one language must not start
-// disagreeing with the copy in somebody's mailbox, which is the same rule
-// orders_freeze_money holds orders.locale to.
-//
-// So the language has to be decided at PLACEMENT, and it is: the lines are copied
-// from the cart read, which localizes. If some future change reads the catalogue
-// directly here instead, this goes red.
+// TestAnOrderLineIsSnapshottedInTheBuyersLanguage. order_lines.product_name is
+// a SNAPSHOT, so the language is decided at PLACEMENT by the cart read that
+// localizes; a receipt already sent must not start disagreeing with itself.
 func TestAnOrderLineIsSnapshottedInTheBuyersLanguage(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 
-	// Its OWN product, created here rather than borrowed from the seed. This case
-	// places two orders, so borrowing the seed's koto-over-ear takes stock that two
-	// other tests assume is on the shelf — trap #22 in CLAUDE.md, and the shuffle
-	// is what surfaces it.
 	vid, zhName, enName := translatedVariant(t)
 
 	for _, tt := range []struct {
@@ -3408,8 +2884,8 @@ func TestAnOrderLineIsSnapshottedInTheBuyersLanguage(t *testing.T) {
 	}
 }
 
-// placeOrderInLocale puts one unit of vid through a cart and places the order, with
-// the buying context's locale carried all the way through.
+// placeOrderInLocale puts one unit of vid through a cart and places the order,
+// carrying the buying context's locale.
 func placeOrderInLocale(
 	t *testing.T, ctx context.Context, s *cart.Store, vid uuid.UUID, key string,
 ) string {
@@ -3437,8 +2913,8 @@ func placeOrderInLocale(
 	return number
 }
 
-// translatedVariant makes a product whose Chinese and English names differ, with a
-// sellable variant, and returns the variant id and both names.
+// translatedVariant makes a product whose Chinese and English names differ, and
+// returns the variant id and both names.
 func translatedVariant(t *testing.T) (variantID uuid.UUID, zhName, enName string) {
 	t.Helper()
 	ctx := t.Context()
@@ -3462,15 +2938,12 @@ func translatedVariant(t *testing.T) (variantID uuid.UUID, zhName, enName string
 		productID, "SNAP-"+strings.ToUpper(suffix)).Scan(&variantID); err != nil {
 		t.Fatalf("create variant: %v", err)
 	}
-	// Stock arrives through the ledger, the same door the application uses — there
-	// is no other way to write stock_quantity.
+	// Stock arrives through the ledger, the only door that writes stock_quantity.
 	if _, err := pool.Exec(ctx,
 		`SELECT record_inventory_movement($1, 5, 'receipt', $2, NULL, NULL)`,
 		variantID, "snapshot-stock-"+suffix); err != nil {
 		t.Fatalf("stock the variant: %v", err)
 	}
-	// Published only once it has something to sell: products_active_has_variant is
-	// deferred and fires from both sides.
 	if _, err := pool.Exec(ctx,
 		`UPDATE products SET status = 'active' WHERE id = $1`, productID); err != nil {
 		t.Fatalf("publish: %v", err)
@@ -3478,20 +2951,10 @@ func translatedVariant(t *testing.T) (variantID uuid.UUID, zhName, enName string
 	return variantID, zhName, enName
 }
 
-// TestTheCheckoutOffersDeliveryInTheVisitorsLanguage covers the last shop-typed
-// chrome on the buying mainline.
-//
-// The method chooser is a set of LINKS — the choice lives in the URL, which is what
-// makes it work with scripting off — and its labels come from
-// shipping_method_versions.name. Untranslated, that name puts 宅配到府 and 超商取貨
-// in front of an English customer at the moment of paying, on a page whose every
-// other word is in their language.
 func TestTheCheckoutOffersDeliveryInTheVisitorsLanguage(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	// An empty cart: what a method is OFFERED for depends on what is in the
-	// basket, because a carrier that refuses a 27-inch monitor is not a choice
-	// for a basket with one in it.
+	// An empty cart: what a method is OFFERED for depends on what is in the basket.
 	id := newCart(t, s)
 
 	for _, tt := range []struct {
@@ -3528,14 +2991,9 @@ func TestTheCheckoutOffersDeliveryInTheVisitorsLanguage(t *testing.T) {
 	}
 }
 
-// placedCookie issues a REAL access token for an order and returns the cookie a
-// browser that placed it would carry.
-//
-// It goes through the same grant the checkout writes, because a fixture that put
-// the order NUMBER in the cookie would assert a forgeable design rather than the
-// rule: numbers are sequential, so a cookie whose value IS the number can be minted
-// with curl and walked by increment. Such a fixture passes, and what it is evidence
-// of is the hole.
+// placedCookie issues a REAL access token through the same grant the checkout
+// writes: a fixture putting the order NUMBER in the cookie would assert a
+// forgeable design rather than the rule.
 func placedCookie(t *testing.T, s *cart.Store, number string) *http.Cookie {
 	t.Helper()
 	w := httptest.NewRecorder()
@@ -3552,20 +3010,9 @@ func placedCookie(t *testing.T, s *cart.Store, number string) *http.Cookie {
 	return nil
 }
 
-// TestASecondOrderKeepsTheFirstOnesGrantAlive closes a lockout the sweeper's own
-// comment names as the thing that must never happen.
-//
-// GrantRetain equals the placed cookie's MaxAge, and its comment says that is
-// what keeps a grant alive for as long as any browser can present it. Equality
-// only delivers that if the cookie is never re-issued — and it is re-issued with
-// a FRESH MaxAge on every order, carrying up to ten older tokens forward. A grant
-// swept on its own created_at therefore dies underneath a cookie that is still
-// live: a customer who orders on day 0 and again on day 25 holds a cookie until
-// day 55 naming an order whose grant died on day 30, and their own order page,
-// cancel form and return form go with it.
-//
-// Two intervals are only comparable if they start from the same event. The second
-// order restarts the carried grants' clock, which is what makes them comparable.
+// TestASecondOrderKeepsTheFirstOnesGrantAlive. The cookie is re-issued with a
+// fresh MaxAge on every order while a grant is swept on its own created_at, so
+// equal durations are not equal deadlines unless the second order restarts it.
 func TestASecondOrderKeepsTheFirstOnesGrantAlive(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -3574,10 +3021,8 @@ func TestASecondOrderKeepsTheFirstOnesGrantAlive(t *testing.T) {
 	first := placeUnpaidOrderFor(t, s, "twice@example.com")
 	firstCookie := placedCookie(t, s, first)
 
-	// Age the first grant PAST the retention window — the state a re-issued cookie
-	// produces and the sweeper acts on. Just inside it proves nothing: the sweep
-	// spares the row either way, so a fixture that stops short of the boundary
-	// stays green with the refresh deleted.
+	// Aged PAST the retention window: just inside it, the sweep spares the row
+	// either way and the case stays green with the refresh deleted.
 	if _, err := pool.Exec(ctx, `
 		UPDATE order_access_grants SET created_at = now() - $2::interval
 		WHERE order_id = (SELECT id FROM orders WHERE order_number = $1)`,
@@ -3585,8 +3030,6 @@ func TestASecondOrderKeepsTheFirstOnesGrantAlive(t *testing.T) {
 		t.Fatalf("age the first grant: %v", err)
 	}
 
-	// A second order, placed from the SAME browser: RememberOrder is handed the
-	// request carrying the first cookie, exactly as the checkout hands it one.
 	second := placeUnpaidOrderFor(t, s, "twice@example.com")
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody)
@@ -3603,18 +3046,15 @@ func TestASecondOrderKeepsTheFirstOnesGrantAlive(t *testing.T) {
 	if carried == nil {
 		t.Fatal("the second order set no cookie")
 	}
-	// The fixture only means something if the cookie really did carry both.
 	if !strings.Contains(carried.Value, firstCookie.Value) {
 		t.Fatalf("the re-issued cookie dropped the first order's token; " +
 			"this test would pass for the wrong reason")
 	}
 
-	// Now run the sweep, which is what deletes a grant whose clock never restarted.
 	if err := s.SweepAttempts(ctx); err != nil {
 		t.Fatalf("sweep: %v", err)
 	}
 
-	// The browser presents the carried cookie for the FIRST order.
 	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+first, http.NoBody)
 	req.SetPathValue("number", first)
 	req.AddCookie(carried)
@@ -3628,36 +3068,17 @@ func TestASecondOrderKeepsTheFirstOnesGrantAlive(t *testing.T) {
 	}
 }
 
-// TestAForgedPlacedCookieReachesNothing holds what the placed cookie's value has
-// to be worth.
-//
-// It carries high-entropy TOKENS and never the ORDER NUMBER, because a number is
-// no proof: numbers come off a per-day counter — GO-260803-000001, then 000002 —
-// so a cookie whose value is the number is set by hand and incremented, and out
-// comes a stranger's email, delivery address and items, plus the ability to cancel
-// the order, start a payment or open a return.
-//
-// __Host-, Secure, HttpOnly and SameSite govern how a BROWSER treats a cookie. None
-// of them says the value came from this server, and curl does not have to care.
 func TestAForgedPlacedCookieReachesNothing(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil)
 	number := placeUnpaidOrderFor(t, s, "forged@example.com")
 
-	// The VICTIM's own browser holds a real grant before the attack starts, and
-	// that is what makes this a test rather than a coincidence.
-	//
-	// Without it the order has no grant at all, so the access query's EXISTS is
-	// false whatever the digest comparison does — and the case stays GREEN with
-	// `g.digest = ANY(...)` replaced by `OR true`. It would refuse the forgery
-	// for the wrong reason: not "your token is not for this order" but "nobody
-	// has a token for this order". With the victim's grant present, the digest
-	// comparison is the only thing left that can refuse.
+	// The VICTIM's own browser holds a REAL grant before the attack starts: without
+	// it the access query's EXISTS is false whatever the digest comparison does, and
+	// the case stays green with `g.digest = ANY(...)` replaced by `OR true`.
 	victim := placedCookie(t, s, number)
 
-	// Every shape an attacker would try: the number itself, a neighbouring number,
-	// and the number dressed up as a token.
 	for _, value := range []string{
 		number,
 		nextOrderNumber(number),
@@ -3679,8 +3100,6 @@ func TestAForgedPlacedCookieReachesNothing(t *testing.T) {
 		})
 	}
 
-	// The control: a REAL token does reach it, or a handler that 404s
-	// unconditionally would pass everything above.
 	held := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number, http.NoBody)
 	held.SetPathValue("number", number)
 	held.AddCookie(victim)
@@ -3691,8 +3110,6 @@ func TestAForgedPlacedCookieReachesNothing(t *testing.T) {
 	}
 }
 
-// TestATokenReachesOnlyItsOwnOrder holds the other half: a token is not a skeleton
-// key. A browser that placed one order must not reach the next one by number.
 func TestATokenReachesOnlyItsOwnOrder(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -3701,9 +3118,6 @@ func TestATokenReachesOnlyItsOwnOrder(t *testing.T) {
 	mine := placeUnpaidOrderFor(t, s, "mine@example.com")
 	theirs := placeUnpaidOrderFor(t, s, "theirs@example.com")
 
-	// Their browser holds a token for their own order. Without this the target has
-	// no grant at all and the refusal proves nothing about WHOSE token was
-	// presented — the same false green the forged-cookie test above guards against.
 	placedCookie(t, s, theirs)
 
 	r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+theirs, http.NoBody)
@@ -3720,8 +3134,7 @@ func TestATokenReachesOnlyItsOwnOrder(t *testing.T) {
 	}
 }
 
-// nextOrderNumber increments the counter half of an order number, which is what an
-// attacker walking the sequence would do.
+// nextOrderNumber increments the counter half of an order number.
 func nextOrderNumber(number string) string {
 	i := strings.LastIndex(number, "-")
 	if i < 0 {
@@ -3734,15 +3147,14 @@ func nextOrderNumber(number string) string {
 	return fmt.Sprintf("%s-%06d", number[:i], n+1)
 }
 
-// testLimiter is generous on purpose: these cases are about an ANSWER, and a limiter
-// that refused mid-suite would be testing the limiter.
+// testLimiter is generous on purpose: these cases are about an ANSWER, and a
+// limiter that refused mid-suite would be testing the limiter.
 func testLimiter() *ratelimit.Limiter {
 	return ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour})
 }
 
 // placeUnpaidOrderFor places one order for an address, through the store's own
-// checkout — so the order, its hold and its access grant are written the way the
-// site writes them.
+// checkout.
 func placeUnpaidOrderFor(t *testing.T, s *cart.Store, address string) string {
 	t.Helper()
 	ctx := t.Context()

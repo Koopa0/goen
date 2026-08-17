@@ -15,8 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// MaxCampaignDays bounds how long one promotion may run. Not a schema rule:
-// sale_campaigns takes any window.
+// MaxCampaignDays bounds how long one promotion may run.
 const MaxCampaignDays = 90
 
 // MaxCampaignTitleRunes bounds the heading a shopper reads.
@@ -29,7 +28,7 @@ type CampaignForm struct {
 	Days  int32
 }
 
-// Validate refuses what the schema would, and the window the shop should.
+// Validate refuses what the schema would, and the window the shop should refuse.
 func (f *CampaignForm) Validate(ctx context.Context) map[string]string {
 	f.Slug = strings.ToLower(strings.TrimSpace(f.Slug))
 	f.Title = strings.TrimSpace(f.Title)
@@ -110,10 +109,7 @@ func (s *Store) SetCampaignActive(ctx context.Context, slug string, active bool)
 		})
 }
 
-// FeatureProduct adds a product to a campaign.
-//
-// Whether it may be featured is sale_campaign_needs_discount's to decide, under
-// a lock it takes on the product; checking here would be checking without one.
+// FeatureProduct adds a product; sale_campaign_needs_discount decides eligibility.
 func (s *Store) FeatureProduct(ctx context.Context, campaign, product string) error {
 	return s.audited(ctx, Event{
 		Action: ActionFeatureProduct, Table: "sale_campaign_products", ID: uuid.NullUUID{},

@@ -10,13 +10,6 @@ import (
 	"testing"
 )
 
-// TestTheAuthorizationURLCarriesEverySecurityParameter reads the URL a customer
-// is actually sent to.
-//
-// Each of these is a distinct attack it closes, and each is invisible once the
-// browser has left: a missing state is login CSRF, a missing PKCE challenge
-// makes a leaked code redeemable, and a wrong redirect_uri is a code delivered
-// somewhere else.
 func TestTheAuthorizationURLCarriesEverySecurityParameter(t *testing.T) {
 	g, err := NewGoogle("client-id", "client-secret", "https://goen.example")
 	if err != nil {
@@ -45,8 +38,7 @@ func TestTheAuthorizationURLCarriesEverySecurityParameter(t *testing.T) {
 		t.Errorf("code_challenge_method = %q, want S256 — 'plain' is no protection at all",
 			q.Get("code_challenge_method"))
 	}
-	// The challenge must be the SHA-256 of the verifier the browser keeps, or
-	// PKCE is decoration: Google compares them and the exchange would fail.
+	// The challenge must be the SHA-256 of the verifier, or PKCE is decoration.
 	sum := sha256.Sum256([]byte(state.Verifier))
 	if want := base64.RawURLEncoding.EncodeToString(sum[:]); q.Get("code_challenge") != want {
 		t.Errorf("code_challenge is %q, want the SHA-256 of the verifier", q.Get("code_challenge"))
@@ -59,8 +51,7 @@ func TestTheAuthorizationURLCarriesEverySecurityParameter(t *testing.T) {
 			"the address bar", q.Get("response_type"))
 	}
 
-	// `next` travels in the STATE, never in the URL. In the URL it would be an
-	// open redirect Google itself would echo back.
+	// next travels in the STATE: in the URL it is an open redirect Google echoes back.
 	if strings.Contains(target, "/account/orders") {
 		t.Error("the authorisation URL carries the return path; it belongs in the state cookie")
 	}
@@ -69,10 +60,6 @@ func TestTheAuthorizationURLCarriesEverySecurityParameter(t *testing.T) {
 	}
 }
 
-// TestTwoSignInsDoNotShareAState proves the state and verifier are per attempt.
-//
-// A fixed state is no CSRF protection at all — an attacker who learns it once
-// can forge every callback after.
 func TestTwoSignInsDoNotShareAState(t *testing.T) {
 	g, _ := NewGoogle("client-id", "client-secret", "https://goen.example")
 	_, first, err := g.AuthorizeURL("/")
@@ -91,9 +78,6 @@ func TestTwoSignInsDoNotShareAState(t *testing.T) {
 	}
 }
 
-// TestAnUnconfiguredClientOffersNothing holds the off-switch: password
-// authentication is complete on its own, so an absent Google is an ordinary
-// deployment rather than a broken one.
 func TestAnUnconfiguredClientOffersNothing(t *testing.T) {
 	g, err := NewGoogle("", "", "https://goen.example")
 	if err != nil {
@@ -106,9 +90,7 @@ func TestAnUnconfiguredClientOffersNothing(t *testing.T) {
 		t.Error("an unconfigured client built an authorisation URL")
 	}
 
-	// And HALF a configuration does not start. A client id without its secret
-	// fails at the EXCHANGE — after the customer has been to Google and
-	// consented — which reads as goen losing their account.
+	// Half a configuration does not start: it would fail at the exchange, after consent.
 	if _, err := NewGoogle("client-id", "", "https://goen.example"); err == nil {
 		t.Error("a client id with no secret was accepted")
 	}
@@ -117,13 +99,6 @@ func TestAnUnconfiguredClientOffersNothing(t *testing.T) {
 	}
 }
 
-// TestTheStateCookieSurvivesTheRedirectAndCarriesNoOpenRedirect holds the two
-// properties the callback depends on.
-//
-// SameSite=Lax rather than Strict, which is the one that would break everything:
-// Strict drops the cookie on a cross-site navigation, so every sign-in would come
-// back and fail its own state check. And HttpOnly, because the verifier is the
-// secret half of PKCE and a script that could read it could redeem a stolen code.
 func TestTheStateCookieSurvivesTheRedirectAndCarriesNoOpenRedirect(t *testing.T) {
 	w := httptest.NewRecorder()
 	writeOAuthState(w, OAuthState{
@@ -148,7 +123,6 @@ func TestTheStateCookieSurvivesTheRedirectAndCarriesNoOpenRedirect(t *testing.T)
 			"Google and every sign-in would fail its own state check", c.SameSite)
 	}
 
-	// Read back through a request, which is the only path that matters.
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/auth/google/callback", http.NoBody)
 	r.AddCookie(c)
 	got, ok := readOAuthState(r, true)
@@ -159,9 +133,7 @@ func TestTheStateCookieSurvivesTheRedirectAndCarriesNoOpenRedirect(t *testing.T)
 		t.Errorf("read back %+v, want the state and verifier that were written", got)
 	}
 
-	// An off-site Next is refused on the way OUT, not merely on the way in: a
-	// cookie is something the browser holds, and an open redirect at the end of
-	// a real sign-in is exactly what a phishing page wants to borrow.
+	// An off-site Next is refused on the way OUT, not merely on the way in.
 	evil := httptest.NewRecorder()
 	writeOAuthState(evil, OAuthState{Value: "s", Verifier: "v", Next: "//evil.example/"}, true)
 	er := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
@@ -172,8 +144,6 @@ func TestTheStateCookieSurvivesTheRedirectAndCarriesNoOpenRedirect(t *testing.T)
 	}
 }
 
-// TestAMissingOrTamperedCookieIsRefused proves readOAuthState says no rather
-// than returning a half-read state the callback would then compare against.
 func TestAMissingOrTamperedCookieIsRefused(t *testing.T) {
 	tests := []struct {
 		name  string

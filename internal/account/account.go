@@ -17,29 +17,25 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// Errors a handler branches on.
 var (
 	// ErrNotFound is an account, order or token that does not exist.
 	ErrNotFound = errors.New("account: not found")
 	// ErrLastSignInMethod is unlinking the only way into an account.
 	ErrLastSignInMethod = errors.New("account: that is the only way to sign in")
-	// ErrBadCredentials is a wrong email or a wrong password — one error for
-	// both, or the form is an account-enumeration oracle.
+	// ErrBadCredentials is a wrong email or password: one error for both, or the form enumerates accounts.
 	ErrBadCredentials = errors.New("account: bad credentials")
-	// ErrEmailTaken is a registration for an address that already has an
-	// account.
+	// ErrEmailTaken is a registration for an address that already has an account.
 	ErrEmailTaken = errors.New("account: email taken")
 )
 
-// SessionCookieName is the session cookie. The __Host- prefix is what stops a
-// sibling subdomain writing a session cookie this site would then trust.
+// SessionCookieName is the session cookie; __Host- refuses a subdomain's forgery.
 const SessionCookieName = "__Host-goen_session"
 
 // SessionTTL is how long a session lives.
-const SessionTTL = 14 * 24 * 60 * 60 // 14 days, in seconds
+const SessionTTL = 14 * 24 * 60 * 60
 
 // ResetTTL is how long a password-reset link is good for.
-const ResetTTL = 60 * 60 // 1 hour, in seconds
+const ResetTTL = 60 * 60
 
 // Password bounds.
 const (
@@ -47,8 +43,7 @@ const (
 	MaxPasswordBytes = 512
 )
 
-// argon2id parameters: OWASP's recommended second option (64 MiB, 3 passes,
-// 4 lanes), encoded into every hash so raising them re-hashes on next sign-in.
+// argon2id parameters: OWASP's recommended second option (64 MiB, 3 passes, 4 lanes).
 const (
 	argonTime    = 3
 	argonMemory  = 64 * 1024 // KiB
@@ -195,7 +190,7 @@ type Credentials struct {
 }
 
 // Trim normalises whitespace. The password is NOT trimmed: a leading space is a
-// character the visitor chose, and removing it breaks their password manager.
+// character the visitor chose.
 func (c *Credentials) Trim() {
 	c.Email = strings.TrimSpace(c.Email)
 	c.Name = strings.TrimSpace(c.Name)
@@ -266,8 +261,7 @@ func hasControl(s string) bool {
 	return false
 }
 
-// SafeNext bounds a post-sign-in redirect to a path within this site.
-//
+// SafeNext bounds a post-sign-in redirect to a path within this site:
 // "//evil.example" and "/\evil" are other origins to a browser, not paths.
 func SafeNext(next string) string {
 	const fallback = "/account"
@@ -283,6 +277,5 @@ func SafeNext(next string) string {
 	return next
 }
 
-// MembershipWindowDays mirrors loyalty.MembershipWindow, copied rather than
-// imported because internal/loyalty imports this package.
+// MembershipWindowDays mirrors loyalty.MembershipWindow; importing it would be a cycle.
 const MembershipWindowDays int32 = 365

@@ -2,14 +2,8 @@
 
 package db_test
 
-// One case per constraint, each written and adversarially re-verified against a
-// live PostgreSQL 18 before being checked in. Ordinary source from here on.
-//
-// The catalog is the authority on what must be covered, not this list:
-// TestEveryCheckConstraintIsExercised and TestEveryUniqueConstraintIsExercised
-// read pg_constraint and pg_index and fail when anything here is missing or
-// names a constraint the database does not have. That gate is what keeps this
-// file from drifting behind the schema.
+// One case per constraint. The catalog is the authority on what must be covered:
+// TestEveryCheckConstraintIsExercised and TestEveryUniqueConstraintIsExercised fail on a drift.
 
 var checkCases = []checkCase{
 	{
@@ -209,24 +203,20 @@ var checkCases = []checkCase{
 	},
 	{
 		constraint: "media_objects_digest_format",
-		// The digest reaches a URL path, so its shape is the reason the
-		// handler needs no escaping at all.
+		// The digest reaches a URL path, which is why the handler needs no escaping.
 		reject: `INSERT INTO media_objects (digest, content_type, bytes, width, height, byte_size) VALUES ('not-a-digest', 'image/png', '\x89504e47'::bytea, 10, 10, 4);`,
 		accept: `INSERT INTO media_objects (digest, content_type, bytes, width, height, byte_size) VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'image/png', '\x89504e47'::bytea, 10, 10, 4);`,
 	},
 	{
 		constraint: "media_objects_dimensions_sane",
-		// Past the ceiling rather than zero: a decompression bomb that survived
-		// decoding is what this stops being stored.
+		// Past the ceiling rather than zero: this stops a decompression bomb being stored.
 		reject: `INSERT INTO media_objects (digest, content_type, bytes, width, height, byte_size) VALUES ('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'image/png', '\x89504e47'::bytea, 9000, 10, 4);`,
 		accept: `INSERT INTO media_objects (digest, content_type, bytes, width, height, byte_size) VALUES ('cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc', 'image/png', '\x89504e47'::bytea, 10, 10, 4);`,
 	},
 	{
 		constraint: "media_objects_size_matches",
-		// byte_size must describe the bytes beside it, or a page states a
-		// download size that is not the truth.
-		reject: `INSERT INTO media_objects (digest, content_type, bytes, width, height, byte_size) VALUES ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd', 'image/png', '\x89504e47'::bytea, 10, 10, 999);`,
-		accept: `INSERT INTO media_objects (digest, content_type, bytes, width, height, byte_size) VALUES ('eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', 'image/png', '\x89504e47'::bytea, 10, 10, 4);`,
+		reject:     `INSERT INTO media_objects (digest, content_type, bytes, width, height, byte_size) VALUES ('dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd', 'image/png', '\x89504e47'::bytea, 10, 10, 999);`,
+		accept:     `INSERT INTO media_objects (digest, content_type, bytes, width, height, byte_size) VALUES ('eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee', 'image/png', '\x89504e47'::bytea, 10, 10, 4);`,
 	},
 	{
 		constraint: "media_objects_size_positive",
@@ -235,18 +225,14 @@ var checkCases = []checkCase{
 	},
 	{
 		constraint: "media_objects_type_supported",
-		// Only what goen re-encodes itself. SVG is a document, not a raster,
-		// and serving one is serving markup.
+		// Only what goen re-encodes itself: an SVG is a document, and serving one is serving markup.
 		reject: `INSERT INTO media_objects (digest, content_type, bytes, width, height, byte_size) VALUES ('1111111111111111111111111111111111111111111111111111111111111111', 'image/svg+xml', '\x89504e47'::bytea, 10, 10, 4);`,
 		accept: `INSERT INTO media_objects (digest, content_type, bytes, width, height, byte_size) VALUES ('2222222222222222222222222222222222222222222222222222222222222222', 'image/png', '\x89504e47'::bytea, 10, 10, 4);`,
 	},
 	{
 		constraint: "loyalty_entries_points_nonzero",
-		// A zero entry is a row that changes nothing and still has to be read.
-		//
-		// No expiry on the rejecting row: zero is not positive, so an expiry
-		// beside it trips loyalty_entries_expiry_matches_sign FIRST and the
-		// case would prove the wrong rule.
+		// No expiry on the rejecting row: zero is not positive, so an expiry beside it trips
+		// loyalty_entries_expiry_matches_sign FIRST and the case would prove the wrong rule.
 		reject: `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 0, 'test', 'k-zero', NULL);`,
 		accept: `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 10, 'test', 'k-nonzero', current_date + 365);`,
 	},
@@ -257,16 +243,12 @@ var checkCases = []checkCase{
 	},
 	{
 		constraint: "loyalty_entries_key_present",
-		// The key is what makes an award idempotent. A blank one makes every
-		// award look like a different one.
-		reject: `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 10, 'test', E'\t', current_date + 365);`,
-		accept: `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 10, 'test', 'k-present', current_date + 365);`,
+		reject:     `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 10, 'test', E'\t', current_date + 365);`,
+		accept:     `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 10, 'test', 'k-present', current_date + 365);`,
 	},
 	{
 		constraint: "loyalty_entries_expiry_matches_sign",
-		// An award with no expiry never leaves the balance; a spend WITH one
-		// silently disappears from it, which reads to the customer as points
-		// being taken back.
+		// A spend WITH an expiry disappears from the balance, which reads as points taken back.
 		reject: `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 10, 'test', 'k-noexpiry', NULL);`,
 		accept: `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 10, 'test', 'k-expiry', current_date + 365);`,
 	},
@@ -277,10 +259,8 @@ var checkCases = []checkCase{
 	},
 	{
 		constraint: "product_questions_body_bounded",
-		// A public writing surface with no ceiling is a place to paste a
-		// megabyte, and every product page then carries it.
-		reject: `INSERT INTO product_questions (product_id, body) SELECT id, repeat('問', 1001) FROM products LIMIT 1;`,
-		accept: `INSERT INTO product_questions (product_id, body) SELECT id, repeat('問', 1000) FROM products LIMIT 1;`,
+		reject:     `INSERT INTO product_questions (product_id, body) SELECT id, repeat('問', 1001) FROM products LIMIT 1;`,
+		accept:     `INSERT INTO product_questions (product_id, body) SELECT id, repeat('問', 1000) FROM products LIMIT 1;`,
 	},
 	{
 		constraint: "product_answers_body_present",
@@ -294,8 +274,7 @@ var checkCases = []checkCase{
 	},
 	{
 		constraint: "product_copurchases_not_self",
-		// Without this the pair (X, X) ranks first on every page, because X is
-		// in every order that contains X.
+		// Without this the pair (X, X) ranks first on every page: X is in every order containing X.
 		reject: `INSERT INTO product_copurchases (product_id, other_product_id, orders)
 		         SELECT p.id, p.id, 3 FROM products p LIMIT 1;`,
 		accept: `INSERT INTO product_copurchases (product_id, other_product_id, orders)
@@ -304,11 +283,8 @@ var checkCases = []checkCase{
 	},
 	{
 		constraint: "product_copurchases_orders_positive",
-		// A pair that was never bought together is an absent row, not a row
-		// saying zero — and a zero would sort into the ranking.
-		// Spelled out rather than selected: a SELECT that matches nothing
-		// inserts nothing and raises nothing, and the case then reports
-		// that the database accepted a row it never wrote.
+		// Spelled out rather than selected: a SELECT that matches nothing inserts nothing and raises
+		// nothing, and the case then reports that the database accepted a row it never wrote.
 		reject: `INSERT INTO product_copurchases (product_id, other_product_id, orders)
 		         VALUES ('33333333-3333-4333-8333-333333333333',
 		                 '3333aaaa-3333-4333-8333-333333333333', 0);`,
@@ -318,30 +294,22 @@ var checkCases = []checkCase{
 	},
 	{
 		constraint: "products_warranty_months_sane",
-		// A term of zero or 200 years is a typo, and the expiry computed from
-		// it would be a promise nobody meant. NULL stays legal: it is how the
-		// shop says it has not set one, and registration is refused rather
-		// than defaulted.
+		// NULL stays legal: it is how the shop says it has stated no term, and registration is refused.
 		reject: `INSERT INTO products (brand_id, category_id, slug, name, warranty_months) SELECT b.id, c.id, 'warranty-check-a', '保固測試', 0 FROM brands b, categories c LIMIT 1;`,
 		accept: `INSERT INTO products (brand_id, category_id, slug, name, warranty_months) SELECT b.id, c.id, 'warranty-check-b', '保固測試', 24 FROM brands b, categories c LIMIT 1;`,
 	},
 	{
 		constraint: "staff_totp_secret_present",
-		// An empty secret would generate codes nobody's authenticator agrees
-		// with, and the person is locked out of the thing 2FA protects.
-		reject: `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step) SELECT id, ''::bytea, NULL, NULL FROM users LIMIT 1;`,
-		accept: `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step) SELECT id, '\x0102'::bytea, NULL, NULL FROM users LIMIT 1;`,
+		reject:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step) SELECT id, ''::bytea, NULL, NULL FROM users LIMIT 1;`,
+		accept:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step) SELECT id, '\x0102'::bytea, NULL, NULL FROM users LIMIT 1;`,
 	},
 	{
 		constraint: "staff_totp_step_needs_confirmation",
-		// A credential that has never been proved cannot have accepted a code.
-		reject: `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step) SELECT id, '\x0102'::bytea, NULL, 12345 FROM users LIMIT 1;`,
-		accept: `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step) SELECT id, '\x0102'::bytea, now(), 12345 FROM users LIMIT 1;`,
+		reject:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step) SELECT id, '\x0102'::bytea, NULL, 12345 FROM users LIMIT 1;`,
+		accept:     `INSERT INTO staff_totp_credentials (user_id, secret_encrypted, confirmed_at, last_step) SELECT id, '\x0102'::bytea, now(), 12345 FROM users LIMIT 1;`,
 	},
 	{
 		constraint: "sessions_totp_after_creation",
-		// A second factor proved before the session existed is a clock problem
-		// or a forged row; either way the row is not describing anything real.
 		reject: `INSERT INTO sessions (token_hash, user_id, expires_at, created_at, totp_verified_at)
 		         SELECT sha256('totp-check-a'::bytea), id, now() + interval '1 day',
 		                now(), now() - interval '1 hour' FROM users LIMIT 1;`,
@@ -383,9 +351,7 @@ VALUES ('44444444-4444-4444-8444-444444444444', 1, 'adjustment', 'im-delta-1');`
 	},
 	{
 		constraint: "inventory_movements_delta_direction",
-		// A sale takes stock out, so its delta must be negative; a positive
-		// 'sale' would post a backwards ledger entry. The neighbour is the same
-		// sale with the correct sign.
+		// A sale takes stock out, so its delta must be negative; the neighbour is the correct sign.
 		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
 VALUES ('44444444-4444-4444-8444-444444444444', 5, 'sale', 'im-dir-1');`,
 		accept: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
@@ -521,14 +487,11 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO newsletter_subscribers (email, unsubscribe_token) VALUES ('sub@example.com', 'a-token-of-at-least-thirty-two-chars');`,
 	},
 	{
-		// The unsubscribe secret is a sha256 and nothing else. A short one would
-		// be a link that cannot be looked up; a long one is not a digest.
 		constraint: "newsletter_subscribers_unsubscribe_token_present",
 		reject:     `INSERT INTO newsletter_subscribers (email, unsubscribe_token) VALUES ('sub@example.com', 'short');`,
 		accept:     `INSERT INTO newsletter_subscribers (email, unsubscribe_token) VALUES ('sub@example.com', 'a-token-of-at-least-thirty-two-chars');`,
 	},
 	{
-		// Nobody left the list before they joined it.
 		constraint: "newsletter_subscribers_unsubscribed_after_confirmed",
 		reject: `INSERT INTO newsletter_subscribers (email, unsubscribe_token, confirmed_at, unsubscribed_at)
 		         VALUES ('sub@example.com', 'a-token-of-at-least-thirty-two-chars', now(), now() - interval '1 day');`,
@@ -536,9 +499,7 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		         VALUES ('sub@example.com', 'a-token-of-at-least-thirty-two-chars', now() - interval '1 day', now());`,
 	},
 	{
-		// Lower is sooner, so a negative priority would put a message in front of
-		// everything transactional — which is the opposite of what the column is
-		// for.
+		// Lower is sooner, so a negative priority would outrank everything transactional.
 		constraint: "outbox_messages_priority_non_negative",
 		reject:     `INSERT INTO outbox_messages (topic, dedupe_key, payload, priority) VALUES ('t.priority', 'neg', '{}'::jsonb, -1);`,
 		accept:     `INSERT INTO outbox_messages (topic, dedupe_key, payload, priority) VALUES ('t.priority', 'neg', '{}'::jsonb, 100);`,
@@ -559,8 +520,7 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO email_verifications (user_id, email, digest, expires_at) VALUES ((SELECT id FROM users LIMIT 1), 'new@example.com', sha256('v1'::bytea), now() + interval '1 day');`,
 	},
 	{
-		// A link that expired before it was sent is one nobody can follow, and it is
-		// what an interval subtracted instead of added looks like.
+		// What an interval subtracted instead of added looks like.
 		constraint: "email_verifications_expires_after_created",
 		reject:     `INSERT INTO email_verifications (user_id, email, digest, expires_at) VALUES ((SELECT id FROM users LIMIT 1), 'new@example.com', sha256('v1'::bytea), now() - interval '1 day');`,
 		accept:     `INSERT INTO email_verifications (user_id, email, digest, expires_at) VALUES ((SELECT id FROM users LIMIT 1), 'new@example.com', sha256('v1'::bytea), now() + interval '1 day');`,
@@ -586,7 +546,6 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO newsletter_issues (subject, body, sent_at, recipients) VALUES ('主旨', '內容', now(), 1);`,
 	},
 	{
-		// An issue nobody received has no send to have counted.
 		constraint: "newsletter_issues_unsent_has_no_recipients",
 		reject:     `INSERT INTO newsletter_issues (subject, body, recipients) VALUES ('主旨', '內容', 5);`,
 		accept:     `INSERT INTO newsletter_issues (subject, body, sent_at, recipients) VALUES ('主旨', '內容', now(), 5);`,
@@ -607,9 +566,6 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO newsletter_confirmations (email, digest, expires_at) VALUES ('ask@example.com', sha256('c1'::bytea), now() + interval '1 day');`,
 	},
 	{
-		// A request that expired before it was made is a request nothing can
-		// answer, and it is what an interval subtracted instead of added looks
-		// like.
 		constraint: "newsletter_confirmations_expires_after_created",
 		reject:     `INSERT INTO newsletter_confirmations (email, digest, expires_at) VALUES ('ask@example.com', sha256('c1'::bytea), now() - interval '1 day');`,
 		accept:     `INSERT INTO newsletter_confirmations (email, digest, expires_at) VALUES ('ask@example.com', sha256('c1'::bytea), now() + interval '1 day');`,
@@ -645,28 +601,20 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO order_number_counters (business_date, last_no) VALUES ('2026-07-24', 1);`,
 	},
 	{
-		// The digest is a sha256 and nothing else. A shorter one means somebody
-		// stored a raw token or a truncation, and a truncated digest is a
-		// credential carrying a fraction of its entropy.
 		constraint: "order_access_grants_digest_sha256",
 		reject:     `INSERT INTO order_access_grants (digest, order_id) VALUES ('\x00'::bytea, '6666aaaa-6666-4666-8666-666666666666');`,
 		accept:     `INSERT INTO order_access_grants (digest, order_id) VALUES (sha256('a browser token'::bytea), '6666aaaa-6666-4666-8666-666666666666');`,
 	},
 	{
-		// A live row with no PHONE, and the phone rather than the street. A
-		// street is optional once a second destination exists, so a row missing
-		// one is refused by order_private_data_one_destination — a different
-		// rule, reached by a case that reads as if it were proving this one.
-		// Binding the assertion to a constraint NAME is what tells them apart.
+		// A live row with no PHONE, and the phone rather than the street: a missing street is refused
+		// by order_private_data_one_destination, which is a different rule.
 		constraint: "order_private_data_all_or_erased",
 		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', NULL, '110', '台北市', '信義區', '松高路 100 號', NULL, NULL, NULL);`,
 		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', '110', '台北市', '信義區', '松高路 100 號', NULL, NULL, NULL);`,
 	},
 	{
-		// Three of the four address columns. The pickup side is complete so
-		// order_private_data_one_destination is satisfied and this constraint is
-		// the only one left to refuse — a row with a partial address and no
-		// pickup would trip whichever of the two PostgreSQL evaluated first.
+		// Three of the four address columns, the pickup side complete so
+		// order_private_data_one_destination is satisfied and this constraint is the only one left.
 		constraint: "order_private_data_address_complete",
 		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, '台北市', '信義區', '松高路 100 號', 'seven_eleven', '123456', '信義門市');`,
 		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', '110', '台北市', '信義區', '松高路 100 號', NULL, NULL, NULL);`,
@@ -677,8 +625,6 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, 'seven_eleven', '123456', '信義門市');`,
 	},
 	{
-		// Both destinations at once. Two answers to "where does this go", and
-		// the person packing it has to guess which the customer meant.
 		constraint: "order_private_data_one_destination",
 		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', '110', '台北市', '信義區', '松高路 100 號', 'seven_eleven', '123456', '信義門市');`,
 		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, 'seven_eleven', '123456', '信義門市');`,
@@ -689,15 +635,8 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, 'seven_eleven', '123456', '信義門市');`,
 	},
 	{
-		// A 店名 typed into the 店號 field, which is the mistake this format
-		// catches.
-		//
-		// The ACCEPT is a real 萊爾富 code (高縣後庄店, read from 綠界's own
-		// GetStoreList on 2026-08-06) and not a six-digit one, deliberately. A
-		// digits-only predicate — '^[0-9]{1,10}$' — refuses 149 of that chain's
-		// 1,350 stores, one customer at a time, and a six-digit accept passes
-		// under that predicate and under this one alike: it would stay green
-		// through the whole defect while looking like proof.
+		// The ACCEPT is a real convenience-store code, read from ECPay's GetStoreList on 2026-08-06,
+		// and not a six-digit one: a six-digit accept passes under a digits-only predicate too.
 		constraint: "order_private_data_pickup_store_code_format",
 		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, 'hi_life', '後庄門市', '後庄門市');`,
 		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, 'hi_life', 'S884', '後庄門市');`,
@@ -744,19 +683,15 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "orders_completed_has_time",
-		// Walks the fixture's PAID order (66666666) through fulfilment; the unpaid
-		// order cannot leave pending at all (orders_funded_to_leave_pending), so
-		// it would be refused by that rule before reaching this one.
+		// Walks the fixture's PAID order through fulfilment: the unpaid one cannot leave pending at
+		// all (orders_funded_to_leave_pending), so that rule would refuse it before this one.
 		reject: `UPDATE orders SET fulfillment_status = 'picking' WHERE id = '66666666-6666-4666-8666-666666666666'; UPDATE orders SET fulfillment_status = 'shipped' WHERE id = '66666666-6666-4666-8666-666666666666'; UPDATE orders SET fulfillment_status = 'completed' WHERE id = '66666666-6666-4666-8666-666666666666';`,
 		accept: `UPDATE orders SET fulfillment_status = 'picking' WHERE id = '66666666-6666-4666-8666-666666666666'; UPDATE orders SET fulfillment_status = 'shipped' WHERE id = '66666666-6666-4666-8666-666666666666'; UPDATE orders SET fulfillment_status = 'completed', completed_at = now() WHERE id = '66666666-6666-4666-8666-666666666666';`,
 	},
 	{
-		// A locale goen cannot render is a message nobody can read, and the
-		// fallback would be silent.
 		constraint: "orders_locale_known",
-		// The code and the name are read off the SAME version row: they have their
-		// own CHECK (orders_shipping_snapshot_matches) and it fires first, so a
-		// case that invents either of them proves that rule instead of this one.
+		// The code and the name are read off the SAME version row, and
+		// orders_shipping_snapshot_matches fires first on either invented alone.
 		reject: `INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name, locale)
 		         SELECT '11110001-0000-4000-8000-0000000000f1', 'GO-260101-000901', v.id, m.code, v.name, 'kling-on'
 		         FROM shipping_method_versions v JOIN shipping_methods m ON m.id = v.method_id LIMIT 1;`,
@@ -783,12 +718,8 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "orders_fulfillment_status_known",
-		// The orders_start_pending INSERT trigger and orders_legal_transition
-		// UPDATE trigger both shadow this CHECK: any non-'pending' status trips
-		// a trigger before the CHECK is reached. session_replication_role =
-		// replica disables user triggers (CHECKs still fire) for the
-		// transaction, isolating the CHECK — the same technique the
-		// categories_not_own_parent case uses.
+		// Both order triggers shadow this CHECK, so session_replication_role = replica disables user
+		// triggers for the transaction; CHECKs still fire.
 		reject: `SET LOCAL session_replication_role = replica;
 		         INSERT INTO orders (id, fulfillment_status, shipping_version_id, shipping_method_code, shipping_method_name) VALUES ('11110001-0000-4000-8000-000000000001', '在路上', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');`,
 		accept: `SET LOCAL session_replication_role = replica;
@@ -806,10 +737,8 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "orders_shipping_code_present",
-		// A blank code is also a code that matches no version, so the
-		// orders_shipping_snapshot_matches trigger would refuse it first; disable
-		// triggers to reach the presence CHECK. The neighbour has a real,
-		// matching code and needs no bypass.
+		// A blank code matches no version, so orders_shipping_snapshot_matches refuses it first;
+		// disable triggers to reach the presence CHECK.
 		reject: `SET LOCAL session_replication_role = replica;
 		         INSERT INTO orders (id, shipping_version_id, shipping_method_code, shipping_method_name) VALUES ('11110001-0000-4000-8000-000000000001', 'ffff0002-0000-4000-8000-000000000000', E'\t', '宅配到府');`,
 		accept: `INSERT INTO orders (id, shipping_version_id, shipping_method_code, shipping_method_name) VALUES ('11110001-0000-4000-8000-000000000001', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');`,
@@ -871,10 +800,8 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "payments_captured_in_range",
-		// A capture over the ceiling. The complete-order and one-capture guards
-		// are beside the point here, so disable triggers; the range CHECK, the
-		// non-negative CHECK and succeeded_is_captured all still fire, and it is
-		// captured_in_range that this row trips (intended sits on the ceiling).
+		// A capture over the ceiling, triggers disabled: the range CHECK, the non-negative CHECK and
+		// succeeded_is_captured all still fire, and captured_in_range is what this row trips.
 		reject: `SET LOCAL session_replication_role = replica;
 		         INSERT INTO payments (id, order_id, provider_ref, status, intended_amount_cents, captured_amount_cents, paid_at) VALUES ('11110001-0000-4000-8000-00000000000f','6666aaaa-6666-4666-8666-666666666666','pi_rej_caprange','succeeded',10000000000,10000000001,now());`,
 		accept: `SET LOCAL session_replication_role = replica;
@@ -1092,10 +1019,8 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "refunds_amount_in_range",
-		// The capture cannot be inflated past 1e10 to clear the way
-		// (payments_captured_in_range forbids it), and refunds_guard would reject
-		// an over-capture amount first — so disable the trigger to let the range
-		// CHECK be the rule under test. CHECKs still fire under replica.
+		// refunds_guard would reject an over-capture amount first, so disable the trigger to let the
+		// range CHECK be the rule under test. CHECKs still fire under replica.
 		reject: `SET LOCAL session_replication_role = replica;
 		         INSERT INTO refunds (id, payment_id, request_key, status, amount_cents) VALUES ('11110003-0000-4000-8000-00000000000a','77770001-0000-4000-8000-000000000000','rk-range','pending',10000000001);`,
 		accept: `SET LOCAL session_replication_role = replica;
@@ -1131,36 +1056,24 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		reject:     `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 0);`,
 		accept:     `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1);`,
 	},
-	// The inspection columns: what came back and how much of it went on the
-	// shelf. Each ACCEPT is chosen to be one step inside the rule rather than
-	// obviously legal, because a comfortably legal accept passes under the rule
-	// and under its absence alike, and so says nothing about either — the same
-	// trap the pickup store-code accept above sets.
+	// Each ACCEPT is one step inside the rule rather than obviously legal: a comfortably legal
+	// accept passes under the rule and under its absence alike.
 	{
 		constraint: "return_request_lines_received_bounded",
-		// One more back than was ever asked for.
-		reject: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity, received_quantity, restocked_quantity) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1, 2, 0);`,
-		accept: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity, received_quantity, restocked_quantity) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1, 1, 0);`,
+		reject:     `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity, received_quantity, restocked_quantity) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1, 2, 0);`,
+		accept:     `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity, received_quantity, restocked_quantity) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1, 1, 0);`,
 	},
 	{
 		constraint: "return_request_lines_restocked_bounded",
-		// More on the shelf than came off the courier — the direction that
-		// oversells, and the one a miscounted form produces.
-		// quantity 1, not 2: the line has shipped one unit, so a claim for two
-		// trips return_within_shipment FIRST and the case then proves that rule
-		// instead of this one — CLAUDE.md #8.
+		// quantity 1, not 2: the line has shipped one unit, so a claim for two trips
+		// return_within_shipment FIRST and the case then proves that rule instead.
 		reject: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity, received_quantity, restocked_quantity) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1, 0, 1);`,
 		accept: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity, received_quantity, restocked_quantity) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1, 1, 1);`,
 	},
 	{
 		constraint: "return_request_lines_inspected_together",
-		// A quantity received and nothing said about what happened to it. The
-		// row would claim goods arrived and refuse to say whether they are
-		// sellable, which is the one thing the inspection exists to record.
-		reject: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity, received_quantity) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1, 1);`,
-		// NEITHER, which is the ordinary state of a line nobody has opened yet —
-		// and the accept has to be that rather than both, or it would pass under
-		// a rule that merely demanded received_quantity.
+		reject:     `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity, received_quantity) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1, 1);`,
+		// NEITHER rather than both: both passes under a rule that merely demanded received_quantity.
 		accept: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1);`,
 	},
 	{
@@ -1170,28 +1083,21 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "return_requests_decided_has_time",
-		// Tested from the 'requested' side so the start-requested INSERT trigger
-		// does not shadow it: a requested row must have no decided_at.
+		// Tested from the 'requested' side so the start-requested INSERT trigger does not shadow it.
 		reject: `INSERT INTO return_requests (id, order_id, reason, decided_at) VALUES ('11110001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666', '退貨', now());`,
 		accept: `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666', '退貨');`,
 	},
 	{
-		// The ACCEPT is the EMPTY reason, deliberately. A rule demanding a reason
-		// (return_requests_reason_present) refuses exactly that, while /returns
-		// states 消保法 §19 I, under which a rescission inside seven days needs
-		// no reason at all — so demanding one puts the schema in the way of an
-		// unwaivable right, where no amount of form-fiddling can talk past it.
-		// A non-blank accept passes under that rule and under this one alike, so
-		// it would lock nothing.
+		// The ACCEPT is the EMPTY reason, deliberately: Consumer Protection Act §19 I gives a
+		// rescission inside seven days with no reason at all, so a non-blank accept would lock nothing.
 		constraint: "return_requests_reason_bounded",
 		reject:     `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000002', '66666666-6666-4666-8666-666666666666', repeat('x', 501));`,
 		accept:     `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000002', '66666666-6666-4666-8666-666666666666', '');`,
 	},
 	{
 		constraint: "return_requests_status_known",
-		// An unknown status is necessarily not 'requested', so the start-requested
-		// INSERT trigger would refuse it first; disable triggers to reach the
-		// CHECK. The legal neighbour is a plain requested row, which needs no bypass.
+		// An unknown status is not 'requested', so the start-requested INSERT trigger refuses it first;
+		// disable triggers to reach the CHECK.
 		reject: `SET LOCAL session_replication_role = replica;
 		         INSERT INTO return_requests (id, order_id, status, reason, decided_at) VALUES ('11110001-0000-4000-8000-000000000003', '66666666-6666-4666-8666-666666666666', 'shipped', '退貨', now());`,
 		accept: `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000003', '66666666-6666-4666-8666-666666666666', '退貨');`,
@@ -1242,8 +1148,6 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO membership_tiers (code, name, min_spend_cents) VALUES ('negtier', '負卡', 5000002);`,
 	},
 	{
-		// A tier earning FEWER points than no tier at all would be a punishment
-		// for spending more.
 		constraint: "membership_tiers_multiplier_at_least_base",
 		reject:     `INSERT INTO membership_tiers (code, name, min_spend_cents, points_multiplier_bp) VALUES ('worsetier', '倒扣卡', 5000003, 9000);`,
 		accept:     `INSERT INTO membership_tiers (code, name, min_spend_cents, points_multiplier_bp) VALUES ('worsetier', '倒扣卡', 5000003, 12000);`,
@@ -1264,8 +1168,7 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO shipping_zones (id, code, name) VALUES ('11110004-0000-4000-8000-000000000002', 'blank', '離島');`,
 	},
 	{
-		// Three digits. A five-digit code stored as a prefix would match
-		// nothing, because the lookup takes left(postal_code, 3).
+		// Three digits: the lookup takes left(postal_code, 3), so a five-digit prefix matches nothing.
 		constraint: "shipping_zone_prefixes_format",
 		reject: `INSERT INTO shipping_zones (id, code, name) VALUES ('11110004-0000-4000-8000-000000000003', 'z', '離島');
 		         INSERT INTO shipping_zone_prefixes (prefix, zone_id) VALUES ('89052', '11110004-0000-4000-8000-000000000003');`,
@@ -1273,9 +1176,7 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		         INSERT INTO shipping_zone_prefixes (prefix, zone_id) VALUES ('890', '11110004-0000-4000-8000-000000000003');`,
 	},
 	{
-		// A zero surcharge is the ABSENCE of a row, not a row saying zero: the
-		// lookup coalesces a missing row to no surcharge, so both would mean
-		// the same thing and one of them would be a row nobody can explain.
+		// A zero surcharge is the ABSENCE of a row: the lookup coalesces a missing one to no surcharge.
 		constraint: "shipping_version_zones_surcharge_positive",
 		reject: `INSERT INTO shipping_zones (id, code, name) VALUES ('11110004-0000-4000-8000-000000000004', 'z2', '離島');
 		         INSERT INTO shipping_version_zones (version_id, zone_id, surcharge_cents)
@@ -1310,8 +1211,7 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO shipping_method_versions (id, method_id, name, fee_cents, effective_at) VALUES ('11110001-0000-4000-8000-000000000001', 'ffff0001-0000-4000-8000-000000000000', '快遞', 8000, '2027-01-01');`,
 	},
 	{
-		// A measurement that EXISTS is positive. NULL is unmeasured, which is a
-		// different fact and the one the shipping filter reads as "refuse nothing".
+		// NULL is unmeasured, which the shipping filter reads as "refuse nothing".
 		constraint: "product_variants_parcel_longest_sane",
 		reject:     `INSERT INTO product_variants (id, product_id, sku, price_cents, safety_stock, position, parcel_longest_mm) VALUES ('11110008-0000-4000-8000-000000000009', '33333333-3333-4333-8333-333333333333', 'PXL-9P-PARCEL', 3390000, 0, 91, 0);`,
 		accept:     `INSERT INTO product_variants (id, product_id, sku, price_cents, safety_stock, position, parcel_longest_mm) VALUES ('11110008-0000-4000-8000-000000000009', '33333333-3333-4333-8333-333333333333', 'PXL-9P-PARCEL', 3390000, 0, 91, 180);`,
@@ -1327,14 +1227,12 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO product_variants (id, product_id, sku, price_cents, safety_stock, position, parcel_weight_g) VALUES ('11110008-0000-4000-8000-000000000009', '33333333-3333-4333-8333-333333333333', 'PXL-9P-PARCEL', 3390000, 0, 91, 400);`,
 	},
 	{
-		// Three sides cannot add up to less than the longest of them.
 		constraint: "product_variants_parcel_sum_covers_longest",
 		reject:     `INSERT INTO product_variants (id, product_id, sku, price_cents, safety_stock, position, parcel_longest_mm, parcel_sum_mm) VALUES ('11110008-0000-4000-8000-000000000009', '33333333-3333-4333-8333-333333333333', 'PXL-9P-PARCEL', 3390000, 0, 91, 500, 400);`,
 		accept:     `INSERT INTO product_variants (id, product_id, sku, price_cents, safety_stock, position, parcel_longest_mm, parcel_sum_mm) VALUES ('11110008-0000-4000-8000-000000000009', '33333333-3333-4333-8333-333333333333', 'PXL-9P-PARCEL', 3390000, 0, 91, 180, 320);`,
 	},
 	{
-		// A ceiling that exists is positive. NULL is "no stated limit", which is
-		// the honest default for 宅配 and is what makes the filter refuse nothing.
+		// NULL is "no stated limit", which is what makes the filter refuse nothing.
 		constraint: "shipping_methods_max_longest_positive",
 		reject:     `INSERT INTO shipping_methods (id, code, max_parcel_longest_mm) VALUES ('11110001-0000-4000-8000-000000000009', 'parcel_test', 0);`,
 		accept:     `INSERT INTO shipping_methods (id, code, max_parcel_longest_mm) VALUES ('11110001-0000-4000-8000-000000000009', 'parcel_test', 450);`,
@@ -1368,9 +1266,8 @@ VALUES ('a0000001-0000-4000-8000-000000000000', 1, '購物金調整', 'sc-amount
 	},
 	{
 		constraint: "store_credit_entries_amount_in_range",
-		// A positive credit over the ceiling: the guard permits it (the balance
-		// only climbs), so the range CHECK is what refuses it — which is the
-		// point, since without the bound the guard's running sum could overflow.
+		// A positive credit over the ceiling: the guard permits it (the balance only climbs), so the
+		// range CHECK is what refuses it.
 		reject: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
 VALUES ('a0000001-0000-4000-8000-000000000000', 10000000001, '購物金調整', 'sc-range');`,
 		accept: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
@@ -1430,47 +1327,37 @@ var uniqueCases = []uniqueCase{
 		         INSERT INTO membership_tiers (code, name, min_spend_cents) VALUES ('dupcode', '另一個', 7000001);`,
 	},
 	{
-		// One tier per band, so "which tier is NT$70,000 in" has one answer.
 		index:  "membership_tiers_min_spend_key",
 		accept: `INSERT INTO membership_tiers (code, name, min_spend_cents) VALUES ('bandone', '一', 7000002);`,
 		reject: `INSERT INTO membership_tiers (code, name, min_spend_cents) VALUES ('bandone', '一', 7000002);
 		         INSERT INTO membership_tiers (code, name, min_spend_cents) VALUES ('bandtwo', '二', 7000002);`,
 	}, {
-		// A zone code names one region. Two zones sharing a code would make
-		// "which surcharge applies" depend on which row was read first.
 		index:  "shipping_zones_code_key",
 		accept: `INSERT INTO shipping_zones (code, name) VALUES ('offshore_two', '離島二');`,
 		reject: `INSERT INTO shipping_zones (code, name) VALUES ('offshore_two', '離島二');
 		         INSERT INTO shipping_zones (code, name) VALUES ('offshore_two', '另一個');`,
 	}, {
 		index: "loyalty_entries_idempotency_key",
-		// Two awards under one key is the same award twice, which is what a
-		// webhook delivered twice would produce.
-		// TWICE. One insert cannot collide with itself, and a case that only
-		// inserts once reports that the database accepted a duplicate it never
-		// wrote.
+		// TWICE. One insert cannot collide with itself, and a case that inserts once reports that the
+		// database accepted a duplicate it never wrote.
 		reject: `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 10, 'test', 'fixture-dup', current_date + 365);
 		         INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 10, 'test', 'fixture-dup', current_date + 365);`,
 		accept: `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 10, 'test', 'fixture-other', current_date + 365);`,
 	},
 	{
 		index: "coupons_code_key",
-		// Case-insensitive: to a customer reading a card, SUMMER20 and
-		// summer20 are the same code.
+		// Case-insensitive: SUMMER20 and summer20 are one code to a customer reading a card.
 		reject: `INSERT INTO coupons (id, code, description, kind, amount_cents) VALUES ('cccc0003-0000-4000-8000-000000000001', 'fixturecode', '測試', 'amount', 20000);`,
 		accept: `INSERT INTO coupons (id, code, description, kind, amount_cents) VALUES ('cccc0003-0000-4000-8000-000000000001', 'OTHERCODE', '測試', 'amount', 20000);`,
 	},
 	{
-		index: "coupon_redemptions_order_key",
-		// One coupon per order: stacking is a policy decision with real
-		// arithmetic behind it, and goen does not make it.
+		index:  "coupon_redemptions_order_key",
 		reject: `INSERT INTO coupon_redemptions (id, coupon_id, order_id, amount_cents) VALUES ('cccc0004-0000-4000-8000-000000000001', 'cccc0009-0000-4000-8000-000000000009', '66666666-6666-4666-8666-666666666666', 0);`,
 		accept: `INSERT INTO coupon_redemptions (id, coupon_id, order_id, amount_cents) VALUES ('cccc0004-0000-4000-8000-000000000001', 'cccc0009-0000-4000-8000-000000000009', '6666aaaa-6666-4666-8666-666666666666', 0);`,
 	},
 	{
 		index:  "store_credit_accounts_user_id_key",
 		reject: `INSERT INTO store_credit_accounts (id, user_id) VALUES ('11115002-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555');`,
-		// A different user may have their own account.
 		accept: `INSERT INTO store_credit_accounts (id, user_id) VALUES ('11115002-0000-4000-8000-000000000001', '5555aaaa-5555-4555-8555-555555555555');`,
 	},
 	{
@@ -1552,8 +1439,7 @@ VALUES ('66666666-6666-4666-8666-666666666666', '4444aaaa-4444-4444-8444-4444444
 	},
 	{
 		index: "invoice_documents_one_active_invoice_per_order",
-		// A second live invoice for the same order is refused; voiding the first
-		// (the dimension the partial index excludes) frees the slot for a reissue.
+		// Voiding the first — the dimension the partial index excludes — frees the slot for a reissue.
 		reject: `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents) VALUES ('11110001-0000-4000-8000-00000000001a', '6666aaaa-6666-4666-8666-666666666666', 'invoice', 'GD-ACT-A', 100);
 		         INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents) VALUES ('11110001-0000-4000-8000-00000000001b', '6666aaaa-6666-4666-8666-666666666666', 'invoice', 'GD-ACT-B', 100);`,
 		accept: `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents) VALUES ('11110001-0000-4000-8000-00000000001a', '6666aaaa-6666-4666-8666-666666666666', 'invoice', 'GD-ACT-A', 100);
@@ -1561,8 +1447,6 @@ VALUES ('66666666-6666-4666-8666-666666666666', '4444aaaa-4444-4444-8444-4444444
 		         INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents) VALUES ('11110001-0000-4000-8000-00000000001b', '6666aaaa-6666-4666-8666-666666666666', 'invoice', 'GD-ACT-B', 100);`,
 	},
 	{
-		// One outstanding request per customer: asking again REPLACES rather than
-		// adding a second live link to the same mailbox.
 		index:  "email_verifications_user_key",
 		reject: `INSERT INTO email_verifications (user_id, email, digest, expires_at) VALUES ((SELECT id FROM users LIMIT 1), 'a@example.com', sha256('v1'::bytea), now() + interval '1 day'); INSERT INTO email_verifications (user_id, email, digest, expires_at) VALUES ((SELECT id FROM users LIMIT 1), 'b@example.com', sha256('v2'::bytea), now() + interval '1 day');`,
 		accept: `INSERT INTO email_verifications (user_id, email, digest, expires_at) VALUES ((SELECT id FROM users LIMIT 1), 'a@example.com', sha256('v1'::bytea), now() + interval '1 day');`,
@@ -1578,15 +1462,12 @@ VALUES ('66666666-6666-4666-8666-666666666666', '4444aaaa-4444-4444-8444-4444444
 		accept: `INSERT INTO newsletter_subscribers (email, unsubscribe_token) VALUES ('reader1@example.com', 'a-token-of-at-least-thirty-two-chars'); INSERT INTO newsletter_subscribers (email, unsubscribe_token) VALUES ('reader2@example.com', 'another-token-of-thirty-two-plus-chars');`,
 	},
 	{
-		// Two rows sharing an unsubscribe secret would make which subscriber a
-		// link removes a matter of plan order.
 		index:  "newsletter_subscribers_unsubscribe_token_key",
 		reject: `INSERT INTO newsletter_subscribers (email, unsubscribe_token) VALUES ('r1@example.com', 'a-token-of-at-least-thirty-two-chars'); INSERT INTO newsletter_subscribers (email, unsubscribe_token) VALUES ('r2@example.com', 'a-token-of-at-least-thirty-two-chars');`,
 		accept: `INSERT INTO newsletter_subscribers (email, unsubscribe_token) VALUES ('r1@example.com', 'a-token-of-at-least-thirty-two-chars'); INSERT INTO newsletter_subscribers (email, unsubscribe_token) VALUES ('r2@example.com', 'another-token-of-thirty-two-plus-chars');`,
 	},
 	{
-		// One outstanding request per mailbox. Three submissions must leave one
-		// live link, not three keys sitting in an inbox somebody else may read.
+		// Three submissions must leave one live link, not three keys sitting in a mailbox.
 		index:  "newsletter_confirmations_email_key",
 		reject: `INSERT INTO newsletter_confirmations (email, digest, expires_at) VALUES ('Ask@Example.com', sha256('c1'::bytea), now() + interval '1 day'); INSERT INTO newsletter_confirmations (email, digest, expires_at) VALUES ('ask@example.com', sha256('c2'::bytea), now() + interval '1 day');`,
 		accept: `INSERT INTO newsletter_confirmations (email, digest, expires_at) VALUES ('ask1@example.com', sha256('c1'::bytea), now() + interval '1 day'); INSERT INTO newsletter_confirmations (email, digest, expires_at) VALUES ('ask2@example.com', sha256('c2'::bytea), now() + interval '1 day');`,

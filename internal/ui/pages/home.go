@@ -24,11 +24,8 @@ type HomeCategory struct {
 
 // HomeView is everything the home page renders.
 type HomeView struct {
-	// Hero is never zero: Load falls back to the built-in copy when nothing is
-	// scheduled.
-	Hero       Hero
-	Categories []HomeCategory
-	// FreeDeliveryCents is the threshold the trust strip states.
+	Hero              Hero
+	Categories        []HomeCategory
 	FreeDeliveryCents int64
 	Recommended       []ProductTile
 }

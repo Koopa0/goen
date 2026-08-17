@@ -1,6 +1,4 @@
-// Package icons holds goen's inline SVG icons. They are inline rather than
-// <img> or a sprite so they inherit currentColor and the design system's accent
-// tokens.
+// Package icons holds goen's inline SVG icons, inline so they inherit currentColor.
 package icons
 
 // Mark is the goen brand mark: two rings meeting.
@@ -85,16 +83,14 @@ templ Facebook() {
 	</svg>
 }
 
-// Star is the rating glyph. Stroke-only: the design system's rating component
-// carries the fill/empty distinction in colour, not in shape.
+// Star is the rating glyph, stroke-only.
 templ Star() {
 	<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 		<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
 	</svg>
 }
 
-// Category renders the tile glyph for a category's icon_key. The keys are
-// database values, so an unrecognised one renders nothing rather than panicking.
+// Category renders the tile glyph, and nothing for a key it does not know.
 templ Category(key string) {
 	switch key {
 		case "phone":

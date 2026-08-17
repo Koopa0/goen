@@ -27,13 +27,10 @@ import (
 type Handler struct {
 	store *Store
 	log   *slog.Logger
-	// secure says whether cookies may claim the __Host- prefix. False in
-	// development over plain HTTP, where a Secure cookie would never be sent
-	// back and the cart would silently never persist.
+	// secure says whether cookies may claim the __Host- prefix.
 	secure bool
-	// findLimit bounds the order lookup. Half of that credential — the order
-	// number — is guessable, so an unbounded endpoint is an oracle for the other
-	// half, and the other half is somebody's delivery address.
+	// findLimit bounds the order lookup, which is otherwise an oracle for the
+	// secret half of a credential whose other half is guessable.
 	findLimit *ratelimit.Limiter
 	// sessions closes a cancelled order's checkout at the payment provider. Nil
 	// on a deployment with no Stripe key, where there is no session to close.
@@ -42,23 +39,12 @@ type Handler struct {
 
 // SessionCloser closes a checkout the customer may still have open at the
 // payment provider.
-//
-// Defined HERE and satisfied by *payment.Gateway, because the consumer names
-// what it needs: internal/cart already lends its store to internal/payment
-// through an interface that package defines, and this is the same seam pointing
-// the other way. One method, because cancelling an order asks the provider
-// exactly one thing.
 type SessionCloser interface {
 	ExpireSession(ctx context.Context, sessionID string) error
 }
 
-// NewHandler returns a Handler writing through store.
-//
-// sessions may be nil, and that is the same shape [payment.Gateway] uses for a
-// missing Stripe key: with no provider configured no session was ever opened, so
-// there is nothing for a cancellation to close. A nil here is "the feature is
-// off", never "somebody forgot" — an order cannot have a live session without
-// the key that created it.
+// NewHandler returns a Handler writing through store. A nil sessions means no
+// provider is configured, so no session was ever opened to close.
 func NewHandler(store *Store, log *slog.Logger, secure bool, findLimit *ratelimit.Limiter,
 	sessions SessionCloser,
 ) *Handler {
@@ -70,30 +56,17 @@ func NewHandler(store *Store, log *slog.Logger, secure bool, findLimit *ratelimi
 	}
 }
 
-// closeSessions expires the checkouts a cancelled order left open at Stripe.
-//
-// Post-commit and best effort, and both halves are deliberate. The order is
-// already cancelled, its stock is back and its credit is returned; none of that
-// is worth rolling back because a third party is slow. What a failure costs is
-// bounded and already handled: the session dies with the stock hold within
-// [HoldTTL] anyway, and money that beats it there arrives as
-// payment.ErrOrderCancelled, which is recorded and refused rather than captured.
-//
-// So this turns "a human refunds it" into "it does not happen", and when it
-// cannot, the log line names the order and the session so the human still can.
-// A cancellation that reported failure because Stripe was unreachable would be
-// worse: the customer would be told their order was not called off when it was.
+// closeSessions expires the checkouts a cancelled order left open at Stripe,
+// post-commit and best effort: the cancellation has already committed, and money
+// that beats this there arrives as payment.ErrOrderCancelled.
 func (h *Handler) closeSessions(ctx context.Context, number string, sessions []string) {
 	if h.sessions == nil {
 		return
 	}
 	for _, id := range sessions {
 		if err := h.sessions.ExpireSession(ctx, id); err != nil {
-			// Warn, not Error: Stripe REFUSES to expire a session that is not
-			// open, and a customer who finished paying in the other tab a second
-			// before cancelling produces exactly that refusal. It is the guard
-			// working — goen must not decide for itself that a session is empty —
-			// so it is worth seeing and is not an alarm.
+			// Warn, not Error: Stripe refuses to expire a session that is not
+			// open, which is what a customer who paid in the other tab produces.
 			h.log.WarnContext(ctx, "expire checkout session of a cancelled order",
 				"order_number", number, "session_id", id, "error", err)
 		}
@@ -117,26 +90,17 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusOK, pages.Cart(pages.CartMeta(r.Context()), view))
 }
 
-// reorderOutcome reads what a 再買一次 redirect is reporting.
-//
-// Counts and nothing else. Values that will not parse are zero, which renders
-// as no notice at all — a hand-edited URL must not be able to tell somebody
-// their cart holds things it does not.
+// reorderOutcome reads the counts a reorder redirect is reporting. A
+// hand-edited URL must not be able to tell somebody their cart holds things it
+// does not, so anything that will not parse renders as no notice at all.
 func reorderOutcome(r *http.Request) (added, skipped int) {
 	q := r.URL.Query()
-	// A value that will not parse is zero, which renders as no notice at all.
-	// The errors are discarded deliberately rather than reported: a hand-edited
-	// URL is not a fault to log, it is a visitor typing.
 	added, _ = strconv.Atoi(q.Get("added"))     //nolint:errcheck // unparseable is zero, which renders nothing
 	skipped, _ = strconv.Atoi(q.Get("skipped")) //nolint:errcheck // same
 	return max(added, 0), max(skipped, 0)
 }
 
-// AddItem serves POST /cart/items.
-//
-// It answers 303 so a reload cannot resubmit — the write-face rule — and sends
-// the visitor back to the product they were looking at, which is where they
-// want to be to keep shopping.
+// AddItem serves POST /cart/items, answering 303 to the product it came from.
 func (h *Handler) AddItem(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
@@ -227,14 +191,8 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 		return
 	}
-	// The chosen method lives in the URL and nowhere else — no cookie, no cart
-	// column, nothing to expire or disagree with the page. It is therefore a
-	// LINK rather than a control, which is the same answer the product page's
-	// variant picker gives: the choice works with scripting off because there
-	// is nothing to script.
-	//
-	// Nothing personal is ever in that query string; the destination fields are
-	// typed after the method is chosen, and they travel by POST.
+	// The chosen method lives in the URL and nowhere else, so it is a link and
+	// the choice works with scripting off.
 	if ship := r.URL.Query().Get("ship"); ship != "" {
 		for i := range view.Shipping {
 			if view.Shipping[i].VersionID == ship {
@@ -244,9 +202,6 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Destination = string(destinationOf(view.Shipping, view.Chosen))
 
-	// A signed-in customer starts from the address they already gave us. The
-	// book has existed since the account pages shipped and this page never read
-	// it, so a repeat customer retyped a postal code every order.
 	var prefill Address
 	fillFromBook(&view, &prefill, r.URL.Query().Get("address"))
 	view.Address = pages.CheckoutAddress{
@@ -257,8 +212,7 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusOK, pages.Checkout(pages.CheckoutMeta(r.Context()), &view))
 }
 
-// emailOf is the signed-in customer's address, or "". A guest types one; a
-// customer should not have to give the shop an address it already mails them at.
+// emailOf is the signed-in customer's address, or "".
 func emailOf(r *http.Request) string {
 	if u, ok := account.FromContext(r.Context()); ok {
 		return u.Email
@@ -266,23 +220,16 @@ func emailOf(r *http.Request) string {
 	return ""
 }
 
-// rememberOrder gives this browser a token for an order it is allowed to see.
-//
-// A failure is logged and NOT fatal. The order exists and only the browser's proof
-// of it failed: the customer still reaches it from the confirmation email or by
-// signing in, and refusing a completed checkout over a cookie would cost more than
-// the inconvenience.
+// rememberOrder gives this browser a token for an order it is allowed to see. A
+// failure is logged and NOT fatal: only the browser's proof of it failed.
 func (h *Handler) rememberOrder(w http.ResponseWriter, r *http.Request, number string) {
 	if err := h.store.RememberOrder(r.Context(), w, r, number, h.secure); err != nil {
 		h.log.ErrorContext(r.Context(), "remember order", "error", err, "order", number)
 	}
 }
 
-// PlaceOrder serves POST /checkout.
-//
-// A rejected form re-renders at 422 with the submitted values intact and
-// aria-invalid on each control the server refused, which is the write-face
-// rule's own wording. A successful order answers 303 to its confirmation.
+// PlaceOrder serves POST /checkout, re-rendering at 422 with the submitted
+// values intact or answering 303 to payment.
 func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
@@ -318,8 +265,7 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	// What was SUBMITTED, echoed back — never re-filled from the book. A
-	// rejected form that quietly reverted an edited address to the saved one
+	// What was SUBMITTED, echoed back — never re-filled from the book, which
 	// would overwrite the correction the customer just made.
 	view.ChosenAddress = r.PostFormValue("address")
 	view.Address = pages.CheckoutAddress{
@@ -331,9 +277,7 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	view.Chosen = r.PostFormValue("shipping")
 	// WHERE this order goes is decided by the method the server offered, never
-	// by the form. A hidden field naming the destination would let a hand-edited
-	// submission attach a street address to a pickup order — and the page would
-	// then ask for, and validate, the wrong half of the address.
+	// by the form.
 	view.Destination = string(destinationOf(view.Shipping, view.Chosen))
 	addr.To = Destination(view.Destination)
 	view.Idempoten = r.PostFormValue("idempotency")
@@ -347,23 +291,21 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 		Type: inv.Type, Carrier: inv.Carrier, TaxID: inv.TaxID,
 	}
 
-	// The coupon is looked up before the order is priced, so a bad code is a
-	// message on the form rather than an order placed at the wrong total.
 	coupon, couponErr := h.resolveCoupon(r, &view)
 
 	shippingID, shipErr := uuid.Parse(view.Chosen)
 	errs := checkoutErrors(r.Context(), addr, shipErr, inv)
 	if shipErr == nil && errs == nil {
-		// The address is valid, so the fee can be priced for real. Anything
-		// earlier and the postal code is not trustworthy yet; anything later
-		// and the customer has already committed to a figure.
+		// The address is valid, so the fee can be priced for real: earlier and
+		// the postal code is not trustworthy, later and the customer has
+		// already committed to a figure.
 		if quoteErr := h.requote(r, &view, shippingID, addr); quoteErr != "" {
 			errs = map[string]string{"shipping": quoteErr}
 		}
 	}
 	if couponErr != "" {
 		// checkoutErrors returns a nil map when nothing was wrong, and writing
-		// to a nil map panics — which turned a bad coupon code into a 500.
+		// to a nil map panics.
 		if errs == nil {
 			errs = map[string]string{}
 		}
@@ -378,8 +320,7 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 
 	key := view.Idempoten
 	if key == "" {
-		// A form that lost its key still gets one, so a retry at least cannot
-		// duplicate itself within this request.
+		// A form that lost its key still gets one.
 		key = newIdempotencyKey()
 	}
 
@@ -388,50 +329,30 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 }
 
 // answerPlacement turns the outcome of a checkout write into a response.
-//
-// Split from PlaceOrder because each branch is a different thing to tell a
-// customer, and the list grew: a coupon spent between the form's validation and
-// the transaction's lock used to fall to the default and come back as a 500 with
-// the whole address discarded.
 func (h *Handler) answerPlacement(
 	w http.ResponseWriter, r *http.Request,
 	view *pages.CheckoutView, number string, err error,
 ) {
 	switch {
 	case err == nil:
-		// The browser remembers what it placed. Order numbers come off a per-day
-		// counter and are therefore guessable, so this is what keeps the
-		// confirmation page — which carries an email and an address — from being
-		// enumerable.
 		h.rememberOrder(w, r, number)
-		// Straight to payment rather than to the confirmation. The order exists
-		// and its stock is held, but neither is worth anything until it is
-		// funded, and a confirmation page shown before payment reads as "done"
-		// to a customer who then closes the tab.
-		//
-		// number comes from next_order_number() and matches orders_number_format.
-		// Nothing the request supplied reaches it.
+		// Straight to payment rather than to the confirmation, which shown
+		// before payment reads as "done" to a customer who then closes the tab.
 		http.Redirect(w, r, "/orders/"+number+"/pay", http.StatusSeeOther) //nolint:gosec // G710: server-generated order number
 	case errors.Is(err, ErrEmpty):
 		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 	case errors.Is(err, ErrUnavailable):
-		// Something sold out between the cart page and this write. Back to the
-		// cart, which says which line and why.
+		// Something sold out between the cart page and this write; the cart page
+		// says which line and why.
 		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
 		view.Errors = map[string]string{"shipping": i18n.T(r.Context(), i18n.KeyChooseShipping)}
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity,
 			pages.Checkout(pages.CheckoutMeta(r.Context()), view))
 	case errors.Is(err, ErrCouponUsedUp), errors.Is(err, ErrCouponExpired):
-		// The coupon was fine when the form was validated and was refused inside
+		// The coupon was fine when the form was validated and is refused inside
 		// the transaction, where redeem_coupon counts the limits under its lock.
-		// FindCoupon deliberately does not count them — counting without the lock
-		// is two concurrent checkouts each passing — so this is the ONLY place a
-		// spent code can be caught, and neither sentinel was handled: the whole
-		// checkout came back as a 500 with the address retyped.
-		//
-		// Not a rare race, either. The pre-check reads no limit at all, so a
-		// customer reusing a one-per-customer code reaches here every single time.
+		// Not a rare race: the pre-check reads no limit at all.
 		reason := i18n.KeyCouponUsedUp
 		if errors.Is(err, ErrCouponExpired) {
 			reason = i18n.KeyCouponExpired
@@ -445,11 +366,8 @@ func (h *Handler) answerPlacement(
 	}
 }
 
-// resolveCoupon looks up the typed code and prices it, or reports why not.
-//
-// An empty field is not an error: most checkouts have no coupon. The view is
-// updated either way so the page shows what was applied — a smaller total with
-// no explanation is worse than no discount.
+// resolveCoupon looks up the typed code and prices it, or reports why not. An
+// empty field is not an error.
 func (h *Handler) resolveCoupon(r *http.Request, view *pages.CheckoutView) (coupon *Coupon, formError string) {
 	raw := r.PostFormValue("coupon")
 	view.CouponCode = NormaliseCode(raw)
@@ -499,16 +417,8 @@ func checkoutErrors(ctx context.Context, addr *Address, shipErr error, inv *Invo
 }
 
 // requote prices the chosen method against the address that was actually typed,
-// and refuses to place the order when the figure has moved.
-//
-// The fee shown when the method was chosen is a MAINLAND fee: the customer had
-// not typed a postal code yet, because the method chooser is a link and the
-// address is a form below it. An order to 金門 costs more, and charging that
-// silently on submit is the customer paying a number they were never shown.
-//
-// So the first submission that finds a different figure is refused, the page
-// re-renders with the surcharge named, and the second submission goes through.
-// One extra round trip, no scripting, and nobody is charged a surprise.
+// and refuses the order when the figure has moved. The fee shown when the method
+// was chosen is a mainland fee, because no postal code had been typed yet.
 func (h *Handler) requote(r *http.Request, view *pages.CheckoutView, versionID uuid.UUID, addr *Address) string {
 	quote, err := h.store.QuoteShipping(r.Context(), versionID, view.Cart.SubtotalCents, addr.PostalCode)
 	if err != nil {
@@ -522,8 +432,7 @@ func (h *Handler) requote(r *http.Request, view *pages.CheckoutView, versionID u
 		return ""
 	}
 
-	// The form carries what the customer was last shown. Equal means they have
-	// seen this number; different means they have not, and they see it now.
+	// The form carries what the customer was last shown.
 	shown, err := strconv.ParseInt(r.PostFormValue("quoted_shipping"), 10, 64)
 	if err == nil && shown == quote.Total() {
 		return ""
@@ -533,10 +442,6 @@ func (h *Handler) requote(r *http.Request, view *pages.CheckoutView, versionID u
 }
 
 // ownerOf is the signed-in customer, or a null id for a guest.
-//
-// A guest order has no owner, which is what guest checkout means; a signed-in
-// one belongs to the account, so it shows in their history and is reachable
-// without the placed-order cookie.
 func ownerOf(r *http.Request) uuid.NullUUID {
 	u, ok := account.FromContext(r.Context())
 	if !ok {
@@ -549,13 +454,8 @@ func ownerOf(r *http.Request) uuid.NullUUID {
 	return uuid.NullUUID{UUID: id, Valid: true}
 }
 
-// fillFromBook fills the form from a saved address, and says which one.
-//
-// The choice travels as an id in the query string — the customer's own address,
-// reachable only through their session, and no personal data in the URL itself.
-// An id that names nothing (a guest's guess, or an address since deleted) falls
-// through to the default one, because the alternative is an error page in the
-// middle of a checkout over a field nobody typed.
+// fillFromBook fills the form from a saved address, and says which one. An id
+// that names nothing falls through to the default rather than to an error page.
 func fillFromBook(view *pages.CheckoutView, addr *Address, wanted string) {
 	if len(view.SavedAddresses) == 0 {
 		return
@@ -573,10 +473,7 @@ func fillFromBook(view *pages.CheckoutView, addr *Address, wanted string) {
 }
 
 // destinationOf is the destination of the chosen method, or "" if the form named
-// one that is not on offer.
-//
-// It reads the CHOICES the server just built rather than the form, which is
-// what makes the destination the shop's answer rather than the customer's.
+// one that is not on offer. It reads the choices the server built, not the form.
 func destinationOf(choices []pages.ShippingChoice, versionID string) Destination {
 	for i := range choices {
 		if choices[i].VersionID == versionID {
@@ -593,17 +490,11 @@ func destinationOf(choices []pages.ShippingChoice, versionID string) Destination
 func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 
-	// Order numbers come off a per-day counter, so they are guessable. The page
-	// carries an email and a delivery address, which makes "reachable by number"
-	// an enumeration hole. It is shown to the browser that placed the order, or
-	// to the account that owns it — and anything else is the same 404 as an
-	// order that does not exist.
+	// Shown to the browser that placed the order or to the account that owns it,
+	// and anything else is the same 404 as an order that does not exist.
 	if !h.store.PlacedHere(r.Context(), r, number, h.secure) && !h.ownedBySignedInUser(r, number) {
-		// Its own page rather than a bare Notice, because this 404 has a way
-		// through and used only to name one of them. A guest who cleared their
-		// cookies or opened the confirmation email on a second device was told to
-		// sign in to an account they do not have, while /orders/find — built for
-		// exactly them — was linked from nowhere on the site.
+		// Its own page rather than a bare Notice: this is the one 404 with a way
+		// through, and the reader is either a guest or a signed-out customer.
 		web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(h.notFoundPage(r)))
 		return
 	}
@@ -624,11 +515,8 @@ func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusOK, pages.Order(pages.OrderMeta(r.Context(), view.Number), &view))
 }
 
-// ReorderItems serves POST /orders/{number}/reorder.
-//
-// The same access rule as the page it is posted from: the browser that placed
-// the order, or the account that owns it. Order numbers come off a guessable
-// counter, and without it filling a stranger's cart is one form submission.
+// ReorderItems serves POST /orders/{number}/reorder, under the same access rule
+// as the page it is posted from.
 func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 	if !h.store.PlacedHere(r.Context(), r, number, h.secure) && !h.ownedBySignedInUser(r, number) {
@@ -638,9 +526,8 @@ func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The cart is CREATED if there is none: somebody reordering has an empty
-	// cart far more often than not, and refusing because of that would be
-	// refusing the whole point.
+	// The cart is CREATED if there is none: somebody reordering usually has an
+	// empty one.
 	cartID, err := h.cartForWrite(w, r)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "cart for reorder", "error", err)
@@ -655,19 +542,15 @@ func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The outcome travels as counts, never as product names: a query string is
-	// logged, and what somebody bought is theirs.
+	// Counts, never product names: a query string is logged.
 	http.Redirect(w, r, "/cart?"+url.Values{
 		"added":   {strconv.Itoa(result.Added)},
 		"skipped": {strconv.Itoa(len(result.Skipped))},
 	}.Encode(), http.StatusSeeOther)
 }
 
-// CancelOrder serves POST /orders/{number}/cancel.
-//
-// The same access rule as the page it is posted from: the browser that placed
-// the order, or the account that owns it. Without it, order numbers come off a
-// guessable counter and cancelling somebody else's order is a form submission.
+// CancelOrder serves POST /orders/{number}/cancel, under the same access rule as
+// the page it is posted from.
 func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 	number := r.PathValue("number")
 	if !h.store.PlacedHere(r.Context(), r, number, h.secure) && !h.ownedBySignedInUser(r, number) {
@@ -683,8 +566,7 @@ func (h *Handler) CancelOrder(w http.ResponseWriter, r *http.Request) {
 		h.closeSessions(r.Context(), number, sessions)
 		http.Redirect(w, r, "/orders/"+url.PathEscape(number)+"?cancelled=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotCancellable):
-		// 422 and not a redirect: nothing was written, and the page has to say
-		// why rather than showing a cancelled order that is not cancelled.
+		// 422 and not a redirect: nothing was written.
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCancelRefusedTitle)}, "",
 			i18n.T(r.Context(), i18n.KeyCancelRefusedTitle),
@@ -737,10 +619,8 @@ func (h *Handler) checkoutView(ctx context.Context, cartID uuid.UUID, owner uuid
 	return view, nil
 }
 
-// invoiceChoices is what the form offers. Built from InvoiceTypes and
-// InvoiceTypeLabelKey so the page and the validator cannot list different
-// things — adding a type in one place and forgetting the other is how a form
-// comes to offer something the server refuses.
+// invoiceChoices is what the form offers, built from InvoiceTypes so the page
+// and the validator cannot list different things.
 func invoiceChoices(ctx context.Context) []pages.InvoiceChoice {
 	out := make([]pages.InvoiceChoice, 0, len(InvoiceTypes))
 	for _, t := range InvoiceTypes {
@@ -764,7 +644,7 @@ func (h *Handler) existingCart(r *http.Request) (uuid.UUID, bool) {
 }
 
 // cartForWrite returns the request's cart, opening one if this is the visitor's
-// first item. Only a POST reaches this.
+// first item.
 func (h *Handler) cartForWrite(w http.ResponseWriter, r *http.Request) (uuid.UUID, error) {
 	if id, ok := h.existingCart(r); ok {
 		return id, nil
@@ -782,23 +662,19 @@ func (h *Handler) cartForWrite(w http.ResponseWriter, r *http.Request) (uuid.UUI
 }
 
 // backToProduct answers 303 to the product the form came from, carrying an
-// outcome the page can show. The slug is checked against the form's own field
-// rather than the Referer, which a request controls.
+// outcome the page can show. The slug comes from the form's own field rather
+// than the Referer, which a request controls.
 func (h *Handler) backToProduct(w http.ResponseWriter, r *http.Request, outcome string) {
 	slug := r.PostFormValue("back")
 	if !isSlug(slug) {
 		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 		return
 	}
-	// slug passed isSlug, so it is lowercase letters, digits and hyphens only —
-	// it cannot start with "//" or carry a scheme, which is what would make this
-	// an open redirect. outcome is one of this file's own literals.
 	http.Redirect(w, r, "/p/"+slug+"?added="+outcome, http.StatusSeeOther) //nolint:gosec // G710: slug validated by isSlug
 }
 
-// isSlug reports whether s is a product slug and nothing else. This is what
-// stops a form field from becoming an open redirect: without it, "back" could
-// name any URL and the 303 would send the visitor there.
+// isSlug reports whether s is a product slug and nothing else, which is what
+// stops the "back" field from becoming an open redirect.
 func isSlug(s string) bool {
 	if s == "" || len(s) > 120 {
 		return false
@@ -817,8 +693,8 @@ func isSlug(s string) bool {
 func newIdempotencyKey() string {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
-		// A key that cannot be generated must not silently become a constant,
-		// which would make every checkout look like a repeat of the first.
+		// A key that cannot be generated must not become a constant, which would
+		// make every checkout look like a repeat of the first.
 		return ""
 	}
 	return base64.RawURLEncoding.EncodeToString(b)
@@ -831,16 +707,13 @@ func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 		i18n.T(r.Context(), i18n.KeyCartUnavailable)))
 }
 
-// notFoundPage is the shell for "no such order", which four handlers answer with
-// the same title and three different reasons.
+// notFoundPage is the shell for "no such order".
 func (h *Handler) notFoundPage(r *http.Request) layouts.Page {
 	return layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}
 }
 
 // CartIDForRequest returns the cart a request's cookie names, without creating
-// one. It exists for the account package's sign-in path, which adopts a guest
-// cart — expressed as a one-method interface there rather than an import of
-// this type.
+// one.
 func (h *Handler) CartIDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool) {
 	token := ReadCookie(r, h.secure)
 	if token == "" {
@@ -854,15 +727,8 @@ func (h *Handler) CartIDForRequest(ctx context.Context, r *http.Request) (uuid.U
 }
 
 // WithCount puts the visitor's cart size into the request context, for the
-// header badge.
-//
-// Middleware rather than a line in every handler: layouts.Page has carried a
-// CartCount field since the header was built and NOTHING ever assigned it, so
-// the badge showed 0 to every visitor whatever was in their cart. A field each
-// handler must remember to fill is a field that goes unfilled.
-//
-// A visitor with no cart cookie costs no query. One with a cookie costs a
-// single indexed sum, which is the price of a header that tells the truth.
+// header badge. Middleware rather than a line in every handler, because a field
+// each handler must remember to fill is a field that goes unfilled.
 func (h *Handler) WithCount(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id, ok := h.CartIDForRequest(r.Context(), r)
@@ -872,8 +738,7 @@ func (h *Handler) WithCount(next http.Handler) http.Handler {
 		}
 		n, err := h.store.ItemCount(r.Context(), id)
 		if err != nil {
-			// A badge is not worth failing a page for. Logged, and the header
-			// shows nothing rather than a wrong number.
+			// A badge is not worth failing a page for.
 			h.log.ErrorContext(r.Context(), "count cart items", "error", err)
 			next.ServeHTTP(w, r)
 			return
@@ -888,16 +753,9 @@ func (h *Handler) FindOrderPage(w http.ResponseWriter, r *http.Request) {
 		pages.FindOrderMeta(r.Context()), pages.FindOrderView{}))
 }
 
-// FindOrder serves POST /orders/find.
-//
-// On success it writes the SAME cookie placing an order writes, and redirects to
-// the order page. Reusing that mechanism rather than inventing a second one is the
-// point: there is one answer to "may this browser see this order", and adding a
-// parallel path would be a second place for it to be wrong.
-//
-// It answers IDENTICALLY on every failure. Order numbers come off a per-day
-// counter and are guessable, so "that number exists but the address is wrong" is a
-// sentence that hands somebody half a credential.
+// FindOrder serves POST /orders/find. On success it writes the SAME cookie
+// placing an order writes, and it answers IDENTICALLY on every failure, since
+// "that number exists but the address is wrong" hands over half a credential.
 func (h *Handler) FindOrder(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
@@ -906,10 +764,8 @@ func (h *Handler) FindOrder(w http.ResponseWriter, r *http.Request) {
 	number := strings.ToUpper(strings.TrimSpace(r.PostFormValue("number")))
 	addr := r.PostFormValue("email")
 
-	// Bounded per IP, and BEFORE the read. The pair is guessable in one half, so
-	// this endpoint is an oracle for the other half if it can be asked without
-	// limit — and the limiter is the only thing standing between a script and
-	// somebody's delivery address.
+	// Bounded per IP, and BEFORE the read: unbounded, this endpoint is an oracle
+	// for the secret half of the pair.
 	if retryAfter, ok := h.findLimit.Allow("findorder:" + ratelimit.ClientIP(r)); !ok {
 		ratelimit.Refuse(w, retryAfter)
 		return

@@ -1,14 +1,8 @@
-// Package returns is the customer's side of sending something back.
+// Package returns is the customer's side of sending something back. Deciding
+// one and refunding it are back-office writes and live in internal/admin.
 //
-// The decision and the money are NOT here: approving a return and issuing a
-// refund are back-office writes on the admin pool, and they live in
-// internal/admin. This package runs as `store`, which is what a customer-facing
-// request may do — it can open a request and read its own order's, and nothing
-// it can reach touches a payment.
-//
-// What a customer may return is bounded by what SHIPPED, not by what was
-// ordered. The database holds that rule in return_within_shipment; the form
-// here shows the same number so the page offers what the write will accept.
+// What may be returned is bounded by what SHIPPED, a rule the database holds in
+// return_within_shipment.
 package returns
 
 import (
@@ -35,10 +29,6 @@ var (
 )
 
 // MaxReasonRunes bounds the reason field.
-//
-// Counted in RUNES, not bytes. A Traditional Chinese reason is three bytes a
-// character, so a byte limit would cut a Chinese customer off at a third of the
-// length an English one gets — and could split a character in half.
 const MaxReasonRunes = 500
 
 // Line is one order line a customer may send back.
@@ -58,26 +48,15 @@ type Request struct {
 	Lines map[string]int32
 }
 
-// Validate refuses what the form should never have submitted.
-//
-// The database refuses these too. Checking here turns a constraint violation —
-// which reaches the customer as a 500 — into a message on the form with their
-// own words still in it.
-// A BLANK reason is legal, and that is 消保法 §19 I: a customer rescinding a
-// 通訊交易 inside seven days does so 無須說明理由. Demanding one here — as this
-// did, alongside `required` on the textarea and a CHECK in the schema — put a
-// barrier in front of an unwaivable statutory right, and /returns states that
-// right as a rule. The field is still offered, because most returns are not
-// rescissions and the shop wants to know; it is no longer a condition of
-// exercising one.
+// Validate refuses what the form should never have submitted. A blank reason is
+// legal: Consumer Protection Act §19 I lets a consumer rescind inside seven days
+// without giving one, and §19 V voids any agreement otherwise.
 func (r *Request) Validate() error {
 	r.Reason = strings.TrimSpace(r.Reason)
 	if utf8.RuneCountInString(r.Reason) > MaxReasonRunes {
 		return ErrInvalid
 	}
 	for _, c := range r.Reason {
-		// unicode.IsControl covers C0, DEL and C1. Tab and newline are control
-		// characters and are allowed: a reason is a paragraph, not a label.
 		if unicode.IsControl(c) && c != '\n' && c != '\t' && c != '\r' {
 			return ErrInvalid
 		}
@@ -97,10 +76,6 @@ func (r *Request) Validate() error {
 }
 
 // StatusLabel is a return's state in the chrome language.
-//
-// The states are return_requests_status_known's CHECK. An unknown one is a
-// schema change nobody carried through to here, which must be loud rather than
-// rendered blank.
 func StatusLabel(ctx context.Context, s string) string {
 	switch s {
 	case "requested":

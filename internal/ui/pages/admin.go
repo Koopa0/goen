@@ -32,7 +32,7 @@ func (v AdminVariant) StockText() string { return strconv.FormatInt(int64(v.Stoc
 // SafetyText is the floor below which nothing may be sold.
 func (v AdminVariant) SafetyText() string { return strconv.FormatInt(int64(v.Safety), 10) }
 
-// SellableText is how many may actually be sold — the stock above the safety floor.
+// SellableText is how many may actually be sold.
 func (v AdminVariant) SellableText() string {
 	n := v.Stock - v.Safety
 	if n < 0 {
@@ -170,32 +170,30 @@ func (o AdminOrderRow) RecipientText(ctx context.Context) string {
 
 // AdminOrderView is one order in the back office.
 type AdminOrderView struct {
-	Number         string
-	Status         string
-	StatusText     string
-	PlacedAt       string
-	ShippingName   string
-	Lines          []OrderLine
-	SubtotalCents  int64
-	ShippingCents  int64
-	DiscountCents  int64
-	DiscountReason string
-	TaxCents       int64
-	Email          string
-	Recipient      string
-	Phone          string
-	Address        string
-	CustomerNote   string
-	StaffNote      string
-	InvoiceType    string
-	InvoiceCarrier string
-	InvoiceTaxID   string
-	// InvoiceDocuments is what has been filed, as against the preference above.
-	InvoiceDocuments []AdminInvoiceDocument
-	InvoicingEnabled bool
-	Committed        bool
-	Next             []AdminTransition
-	// CanShip follows from what is still outstanding, never from the status.
+	Number            string
+	Status            string
+	StatusText        string
+	PlacedAt          string
+	ShippingName      string
+	Lines             []OrderLine
+	SubtotalCents     int64
+	ShippingCents     int64
+	DiscountCents     int64
+	DiscountReason    string
+	TaxCents          int64
+	Email             string
+	Recipient         string
+	Phone             string
+	Address           string
+	CustomerNote      string
+	StaffNote         string
+	InvoiceType       string
+	InvoiceCarrier    string
+	InvoiceTaxID      string
+	InvoiceDocuments  []AdminInvoiceDocument
+	InvoicingEnabled  bool
+	Committed         bool
+	Next              []AdminTransition
 	CanShip           bool
 	Shippable         []AdminShippableLine
 	Notice            string
@@ -234,8 +232,7 @@ type AdminOrderEvent struct {
 // LabelKey names the step's message.
 func (e AdminOrderEvent) LabelKey() i18n.Key { return OrderEvent{Kind: e.Kind}.LabelKey() }
 
-// By is who did it, in words. A cancellation with no actor is the customer's own:
-// the back office always writes an actor, so the absence is what tells them apart.
+// By is who did it, in words.
 func (e AdminOrderEvent) By(ctx context.Context) string {
 	switch {
 	case e.Actor != "":
@@ -378,7 +375,7 @@ func (d AdminInvoiceDocument) Amount() string { return twd(d.AmountCents) }
 // Voided reports whether it has been cancelled.
 func (d AdminInvoiceDocument) Voided() bool { return d.Status == "voided" }
 
-// CanIssueInvoice reports whether to offer the issue button: committed, no live invoice.
+// CanIssueInvoice reports whether to offer the issue button.
 func (v *AdminOrderView) CanIssueInvoice() bool {
 	if !v.InvoicingEnabled || !v.Committed {
 		return false
@@ -449,8 +446,7 @@ func (v AdminVariant) CompareText() string {
 	return strconv.FormatInt(v.CompareCents/100, 10)
 }
 
-// AdjustKey is the adjustment form's idempotency key, derived from the stock the
-// page rendered with, so pressing the button twice is one adjustment.
+// AdjustKey is the adjustment form's idempotency key.
 func (v AdminVariant) AdjustKey() string {
 	return "adj:" + v.SKU + ":" + strconv.FormatInt(int64(v.Stock), 10)
 }
@@ -462,9 +458,7 @@ type AdminMovement struct {
 	Reason      string
 	OrderNumber string
 	Actor       string
-	// Running is the stock this movement left behind, summed over the whole ledger
-	// rather than the page.
-	Running int32
+	Running     int32
 }
 
 // DeltaText is the movement with its sign.
@@ -478,13 +472,13 @@ func (m AdminMovement) DeltaText() string {
 // RunningText is the stock after this movement.
 func (m AdminMovement) RunningText() string { return strconv.FormatInt(int64(m.Running), 10) }
 
-// In reports whether stock came in, which is what decides the row's colour.
+// In reports whether stock came in.
 func (m AdminMovement) In() bool { return m.Delta > 0 }
 
 // HasOrder reports whether this movement names an order.
 func (m AdminMovement) HasOrder() bool { return m.OrderNumber != "" }
 
-// By is who caused it, in words, or the system when nobody at the shop decided it.
+// By is who caused it, in words.
 func (m AdminMovement) By(ctx context.Context) string {
 	if m.Actor == "" {
 		return i18n.T(ctx, i18n.KeyAdminActorSystem)
@@ -526,9 +520,8 @@ type AdminMovementsView struct {
 // HasNotice reports whether to show the banner.
 func (v *AdminMovementsView) HasNotice() bool { return v.Notice != "" }
 
-// ReceiveKey is the idempotency key the goods-receipt form carries. Prefixed apart
-// from AdjustKey, so a correction and a delivery posted against the same figure are
-// two distinct facts rather than one swallowed by the other.
+// ReceiveKey is the goods-receipt form's idempotency key. Its prefix differs from
+// AdjustKey's, or a correction and a delivery against the same figure collide.
 func (v *AdminMovementsView) ReceiveKey() string {
 	return "rcv:" + v.SKU + ":" + strconv.FormatInt(int64(v.Stock), 10)
 }

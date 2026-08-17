@@ -1,4 +1,4 @@
-// Package contact accepts and stores messages sent from 聯絡我們.
+// Package contact accepts and stores messages sent from the contact form.
 package contact
 
 import (
@@ -14,19 +14,14 @@ import (
 )
 
 // Subject is one topic the form offers: the value STORED and the label read.
-//
-// The value stays Chinese and is the canonical code — it is what
-// contact_messages holds and what /admin/messages reads, and the back office is
-// Chinese by decision. Translating it at write time would put whichever language
-// the visitor happened to have into a permanent row.
+// Translating the value at write time would put the visitor's language in a row.
 type Subject struct {
 	Value    string
 	LabelKey i18n.Key
 }
 
-// Subjects is the closed set of topics the form offers. This slice is the only
-// definition of that set: the template renders it and [Validate] checks
-// against it, so a topic cannot be offered without also being accepted.
+// Subjects is the closed set of topics the form offers, and the only definition
+// of that set: the template renders it and [Validate] checks against it.
 var Subjects = []Subject{
 	// i18n-exempt: the STORED value, per the note on Subject.
 	{Value: "訂單問題", LabelKey: i18n.KeySubjectOrder},
@@ -50,8 +45,7 @@ func offersSubject(v string) bool {
 	return false
 }
 
-// Field length bounds, counted in runes so a Chinese message is measured the
-// way the person writing it would count it.
+// Field length bounds, counted in RUNES.
 const (
 	maxName     = 80
 	maxOrderRef = 32
@@ -80,20 +74,13 @@ func Clean(m Message) Message {
 	}
 }
 
-// Validate reports every problem with m keyed by the form field name, so the
-// page can mark each control it rejected. An empty map means m may be stored.
-// Callers pass the result of [Clean]; validating raw input would reject a
-// value the trimmed form accepts.
-// It takes a context because several of its messages carry a bound — "at most
-// %d characters" — so they are sentences built from a message plus data rather
-// than pure mappings, and the words have to be chosen where the reader is known.
+// Validate reports every problem with m keyed by the form field name; an empty
+// map means m may be stored. Callers pass the result of [Clean].
 func Validate(ctx context.Context, m Message) map[string]string {
 	errs := problems{}
 
-	// Control characters are checked first because they make a field unusable
-	// whatever its length: a newline in a name reaches the support queue and
-	// the notification mail as a forged second line. The body is exempt from
-	// the newline rule, where line breaks are the point.
+	// Checked first: a newline in a name reaches the notification mail as a
+	// forged second line, whatever the field's length.
 	errs.set("name", controlCharProblem(ctx, m.Name, false))
 	errs.set("email", controlCharProblem(ctx, m.Email, false))
 	errs.set("subject", controlCharProblem(ctx, m.Subject, false))
@@ -136,9 +123,7 @@ func Validate(ctx context.Context, m Message) map[string]string {
 	return errs
 }
 
-// problems collects one message per field. The first message wins, so a check
-// that runs earlier because it matters more is not overwritten by a later one
-// describing the same broken value in weaker terms.
+// problems collects one message per field, first message wins.
 type problems map[string]string
 
 func (p problems) set(field, msg string) {
@@ -150,8 +135,8 @@ func (p problems) set(field, msg string) {
 	}
 }
 
-// controlCharProblem returns the message for a value carrying a character that
-// has no business in typed text, or "" when it is clean.
+// controlCharProblem returns the message for a value carrying a control
+// character, or "" when it is clean.
 func controlCharProblem(ctx context.Context, s string, allowNewlines bool) string {
 	if !hasControlChars(s, allowNewlines) {
 		return ""
@@ -162,8 +147,8 @@ func controlCharProblem(ctx context.Context, s string, allowNewlines bool) strin
 	return i18n.T(ctx, i18n.KeyNoNewlines)
 }
 
-// hasControlChars reports whether s carries a character that has no business
-// in typed text. allowNewlines keeps \n and \r legal for a multi-line field.
+// hasControlChars reports whether s carries a control character. allowNewlines
+// keeps \n and \r legal for a multi-line field.
 func hasControlChars(s string, allowNewlines bool) bool {
 	for _, r := range s {
 		if allowNewlines && (r == '\n' || r == '\r') {

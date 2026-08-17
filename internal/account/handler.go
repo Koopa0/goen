@@ -19,25 +19,20 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// CartFinder is the id of the cart a request's cookie names, so a guest cart
-// can be adopted at sign-in.
+// CartFinder finds the cart a request's cookie names, so sign-in can adopt it.
 type CartFinder interface {
 	CartIDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool)
 }
 
 // Handler serves sign-in, registration and the customer's own pages.
 type Handler struct {
-	// signinLimit is keyed on the ACCOUNT; the per-IP half is middleware in
-	// cmd/goen, and either alone leaves the other attack open.
 	signinLimit *ratelimit.Limiter
-	// resetLimit is keyed on the ADDRESS: filling somebody else's mailbox takes
-	// one request per machine, which per-IP limiting cannot see.
-	resetLimit *ratelimit.Limiter
-	store      *Store
-	carts      CartFinder
-	log        *slog.Logger
-	secure     bool
-	google     *Google
+	resetLimit  *ratelimit.Limiter
+	store       *Store
+	carts       CartFinder
+	log         *slog.Logger
+	secure      bool
+	google      *Google
 }
 
 // NewHandler returns a Handler over store.
@@ -46,8 +41,6 @@ func NewHandler(store *Store, carts CartFinder, log *slog.Logger, secure bool, g
 		panic("account: NewHandler requires a store and a logger")
 	}
 	if google == nil {
-		// A disabled client rather than a nil one, so every call site can ask
-		// Enabled() without a nil check first.
 		google = &Google{}
 	}
 	return &Handler{
@@ -77,7 +70,6 @@ func FromContext(ctx context.Context) (User, bool) {
 }
 
 // Authenticate is middleware that attaches the signed-in user to every request.
-// It rejects nobody; a page that needs an account says so through RequireUser.
 func (h *Handler) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := ReadSessionCookie(r, h.secure)
@@ -98,8 +90,7 @@ func (h *Handler) Authenticate(next http.Handler) http.Handler {
 	})
 }
 
-// RequireUser wraps a handler that needs an account, sending a signed-out
-// visitor to sign in and back again afterwards.
+// RequireUser wraps a handler that needs an account, sending a visitor to sign in.
 func (h *Handler) RequireUser(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if _, ok := FromContext(r.Context()); !ok {
@@ -141,8 +132,7 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 	password := r.PostFormValue("password")
 	next := SafeNext(r.PostFormValue("next"))
 
-	// Checked BEFORE Authenticate: argon2 at 64 MiB is the cost this protects,
-	// and paying it to discover the caller was over the limit defends nothing.
+	// Before Authenticate: argon2 at 64 MiB is the cost this limit protects.
 	if retryAfter, ok := h.signinLimit.Allow("account:" + strings.ToLower(strings.TrimSpace(email))); !ok {
 		h.log.WarnContext(r.Context(), "sign-in throttled by account")
 		ratelimit.Refuse(w, retryAfter)
@@ -214,8 +204,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Logged and swallowed: an account with an unproved address is a working
-	// account, and a mail problem must not become a lost registration.
+	// Swallowed: a mail problem must not become a lost registration.
 	if _, err := h.store.RequestVerification(r.Context(), u.ID, u.Email); err != nil {
 		h.log.WarnContext(r.Context(), "request verification at registration", "error", err)
 	}
@@ -246,8 +235,7 @@ func (h *Handler) Overview(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	// A failure here loses the badge and not the page, and the section then says
-	// "not confirmed" — the safe direction to be wrong in.
+	// A failure here loses the badge and not the page, which is the safe direction.
 	if state, vErr := h.store.EmailVerification(r.Context(), u.ID); vErr != nil {
 		h.log.WarnContext(r.Context(), "read verification state", "error", vErr)
 	} else {
@@ -257,8 +245,6 @@ func (h *Handler) Overview(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusOK, pages.Account(pages.AccountMeta(r.Context()), &view))
 }
 
-// accountNotice turns the one-shot query parameter a redirect carries into the
-// message the page shows.
 func accountNotice(r *http.Request) string {
 	ctx := r.Context()
 	q := r.URL.Query()
@@ -331,7 +317,6 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/account?saved=1", http.StatusSeeOther)
 }
 
-// startSession issues the session cookie and adopts any guest cart.
 func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u User) {
 	token, err := h.store.StartSession(r.Context(), u.ID, r.UserAgent(), clientIP(r))
 	if err != nil {
@@ -351,14 +336,10 @@ func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u User) {
 	}
 }
 
-// clientIP is the address a session is recorded against. It defers to
-// ratelimit.ClientIP rather than reading RemoteAddr, so a proxy header is
-// honoured exactly where GOEN_TRUSTED_PROXIES says it may be.
 func clientIP(r *http.Request) string {
 	return ratelimit.ClientIP(r)
 }
 
-// fieldMessages collapses field errors to one message each.
 func fieldMessages(ctx context.Context, errs []FieldError) map[string]string {
 	if len(errs) == 0 {
 		return nil
@@ -366,15 +347,12 @@ func fieldMessages(ctx context.Context, errs []FieldError) map[string]string {
 	out := make(map[string]string, len(errs))
 	for _, e := range errs {
 		if _, seen := out[e.Field]; !seen {
-			// Sprintf carries the password minimum; a message with no verb
-			// passes through unchanged.
 			out[e.Field] = fmt.Sprintf(i18n.T(ctx, e.MessageKey), MinPasswordRunes)
 		}
 	}
 	return out
 }
 
-// urlQueryEscape escapes a value for a query parameter.
 func urlQueryEscape(s string) string {
 	var b []byte
 	for i := range len(s) {
@@ -666,16 +644,12 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// verifyFailed answers a link that cannot be acted on. 422: the route exists and
-// the request was understood — what failed is the token in it.
 func (h *Handler) verifyFailed(w http.ResponseWriter, r *http.Request, heading, body string) {
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.NewsletterAction(
 		pages.NewsletterMeta(heading),
 		pages.NewsletterActionView{Heading: heading, Body: body}))
 }
 
-// oauthOutcome turns the callback's one-shot parameter into a form-level
-// message.
 func oauthOutcome(ctx context.Context, outcome string) map[string]string {
 	var key i18n.Key
 	switch outcome {
@@ -715,11 +689,8 @@ func (h *Handler) GoogleSignIn(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 
-// GoogleCallback serves GET /auth/google/callback.
-//
-// Every failure ends at /signin with a message rather than an error page:
-// somebody who has just consented at Google is mid-sign-in, and a 500 there
-// reads as goen having lost their account.
+// GoogleCallback serves GET /auth/google/callback. Every failure ends at /signin
+// with a message rather than an error page: the customer is mid-sign-in.
 func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	if !h.google.Enabled() {
 		http.NotFound(w, r)
@@ -733,8 +704,7 @@ func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/signin?oauth=state", http.StatusSeeOther)
 		return
 	}
-	// Google reports a refused consent as error=access_denied rather than as an
-	// absent code. Not a failure — somebody changed their mind.
+	// Google reports a refused consent as error=access_denied, not an absent code.
 	if r.URL.Query().Get("error") != "" {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
@@ -791,8 +761,6 @@ func (h *Handler) UnlinkGoogle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// writeOAuthState puts the state and the PKCE verifier where the callback can
-// read them.
 func writeOAuthState(w http.ResponseWriter, s OAuthState, secure bool) {
 	raw := strings.Join([]string{s.Value, s.Verifier, s.Next}, "|")
 	//nolint:gosec // G124: Secure follows the deployment's own flag, as every cookie here does
@@ -807,7 +775,6 @@ func writeOAuthState(w http.ResponseWriter, s OAuthState, secure bool) {
 	})
 }
 
-// readOAuthState reads it back.
 func readOAuthState(r *http.Request, secure bool) (OAuthState, bool) {
 	c, err := r.Cookie(oauthCookieName(secure))
 	if err != nil || c.Value == "" {
@@ -824,8 +791,7 @@ func readOAuthState(r *http.Request, secure bool) (OAuthState, bool) {
 	return OAuthState{Value: parts[0], Verifier: parts[1], Next: SafeNext(parts[2])}, true
 }
 
-// clearOAuthState removes it, whatever the outcome. A state left behind is a
-// live one, and the next callback would match it.
+// clearOAuthState removes it; a state left behind would match the next callback.
 func clearOAuthState(w http.ResponseWriter, secure bool) {
 	//nolint:gosec // G124: as above
 	http.SetCookie(w, &http.Cookie{

@@ -64,8 +64,7 @@ templ FAQ(p layouts.Page, v FAQView) {
 	}
 }
 
-// Shipping renders the delivery policy, with the fees read from the same rows
-// checkout charges from.
+// Shipping renders the delivery policy, priced from the rows checkout uses.
 templ Shipping(p layouts.Page, v ShippingView) {
 	@layouts.Base(p) {
 		<div class="goen-doc">

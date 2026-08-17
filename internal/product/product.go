@@ -16,19 +16,15 @@ const RelatedCount = 4
 // ReviewCount is how many reviews the page lists.
 const ReviewCount = 6
 
-// maxOptionRunes bounds one option value taken from a query string.
 const maxOptionRunes = 64
 
-// maxOptions bounds how many option groups a selection may name.
 const maxOptions = 8
 
-// Selection is the option values a URL picks, keyed by option name. Not a
-// variant id: it has to express a colour picked but no capacity yet.
+// Selection is the option values a URL picks, keyed by option name.
 type Selection map[string]string
 
 // ParseSelection reads a selection from a query string, ignoring the keys the
-// page uses for other purposes. An unknown option name is KEPT, because
-// dropping it would turn a typo into "no filter".
+// page uses for other purposes.
 func ParseSelection(q url.Values) Selection {
 	sel := make(Selection, len(q))
 	for k, vs := range q {
@@ -53,8 +49,6 @@ func ParseSelection(q url.Values) Selection {
 	return sel
 }
 
-// reservedParam reports whether a query key means something other than an
-// option choice.
 func reservedParam(k string) bool {
 	switch k {
 	case "page", "sort", "q", "added":
@@ -72,8 +66,7 @@ type Variant struct {
 	CompareCents int64 // 0 when not discounted
 	Sellable     bool
 	Available    int32
-	// Options maps option name to the value this variant carries.
-	Options map[string]string
+	Options      map[string]string
 }
 
 // Matches reports whether this variant satisfies every value in sel. A
@@ -116,19 +109,17 @@ func Resolve(variants []Variant, sel Selection) (chosen Variant, exact bool) {
 type OptionValue struct {
 	Value    string
 	Selected bool
-	// Available is whether choosing this value leads to anything buyable, given
-	// the OTHER choices already made.
+	// Available is whether this value leads to anything buyable given the OTHER
+	// choices already made.
 	Available bool
-	// Href is the URL that selects this value, keeping the other choices.
-	Href string
-	// Label is what the visitor reads. Value is what the URL carries.
+	Href      string
+	// Label is what the visitor reads; Value is what the URL carries.
 	Label string
 }
 
 // Option is one picker: a group name and its values.
 type Option struct {
-	// Name is the option's IDENTITY — what the URL carries and what variant
-	// matching compares. Never localized.
+	// Name is the option's identity, what the URL carries. Never localized.
 	Name   string
 	Label  string
 	Values []OptionValue
@@ -175,7 +166,6 @@ type OptionChoice struct {
 	Label string
 }
 
-// labelOr falls back to the canonical text when there is no translation.
 func labelOr(label, canonical string) string {
 	if label == "" {
 		return canonical
@@ -183,8 +173,6 @@ func labelOr(label, canonical string) string {
 	return label
 }
 
-// anySellable reports whether any single variant satisfies every value in sel
-// and can be bought.
 func anySellable(variants []Variant, sel Selection) bool {
 	for _, v := range variants {
 		if v.Sellable && v.Matches(sel) {

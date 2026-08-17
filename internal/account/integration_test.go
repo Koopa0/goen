@@ -57,8 +57,6 @@ func register(t *testing.T, s *account.Store, email string) account.User {
 	return u
 }
 
-// TestPasswordIsNeverStoredInTheClear is the property a leak turns on. The
-// column must hold an argon2id hash and nothing resembling the password.
 func TestPasswordIsNeverStoredInTheClear(t *testing.T) {
 	s := account.NewStore(pool)
 	const pw = "a sufficiently long password"
@@ -80,9 +78,6 @@ func TestPasswordIsNeverStoredInTheClear(t *testing.T) {
 	}
 }
 
-// TestAuthenticateDoesNotDistinguishUnknownFromWrong is the anti-enumeration
-// rule: a wrong email and a wrong password must be the same answer, or the form
-// tells an attacker which addresses have accounts.
 func TestAuthenticateDoesNotDistinguishUnknownFromWrong(t *testing.T) {
 	s := account.NewStore(pool)
 	register(t, s, "enum@example.com")
@@ -98,9 +93,7 @@ func TestAuthenticateDoesNotDistinguishUnknownFromWrong(t *testing.T) {
 	}
 }
 
-// TestAuthenticateIsCaseInsensitiveOnEmail matches the unique index, which is
-// on lower(email). Without this someone who registered as Ming@Example.com
-// could not sign in as ming@example.com, and worse, could register twice.
+// The unique index is on lower(email).
 func TestAuthenticateIsCaseInsensitiveOnEmail(t *testing.T) {
 	s := account.NewStore(pool)
 	register(t, s, "Mixed@Example.com")
@@ -115,8 +108,6 @@ func TestAuthenticateIsCaseInsensitiveOnEmail(t *testing.T) {
 	}
 }
 
-// TestSessionsAreStoredHashed is the same rule as the cart's: a leaked sessions
-// table must not hand over live sessions.
 func TestSessionsAreStoredHashed(t *testing.T) {
 	s := account.NewStore(pool)
 	u := register(t, s, "session@example.com")
@@ -144,9 +135,6 @@ func TestSessionsAreStoredHashed(t *testing.T) {
 	}
 }
 
-// TestExpiredSessionIsNobody pins that expiry is enforced by the query rather
-// than by a sweeper. A session that has expired must be dead immediately, not
-// whenever something next cleans up.
 func TestExpiredSessionIsNobody(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -156,11 +144,8 @@ func TestExpiredSessionIsNobody(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start session: %v", err)
 	}
-	// Both timestamps move: sessions_expiry_after_creation requires expires_at
-	// to be later than created_at, so an expired session is one whose whole
-	// lifetime is in the past. Setting expires_at alone to "a second from
-	// creation" leaves it in the future for the first second and the test would
-	// pass or fail depending on how quickly it ran.
+	// Both timestamps move: sessions_expiry_after_creation refuses a row whose
+	// window closed before it opened.
 	if _, err := pool.Exec(ctx, `
 		UPDATE sessions
 		SET created_at = now() - interval '2 hours',
@@ -168,7 +153,6 @@ func TestExpiredSessionIsNobody(t *testing.T) {
 		WHERE token_hash = $1`, account.HashToken(token)); err != nil {
 		t.Fatalf("expire: %v", err)
 	}
-	// The row still exists — nothing has swept it — and must still be refused.
 	var n int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM sessions WHERE token_hash = $1`,
 		account.HashToken(token)).Scan(&n); err != nil {
@@ -182,9 +166,6 @@ func TestExpiredSessionIsNobody(t *testing.T) {
 	}
 }
 
-// TestChangingPasswordEndsEveryOtherSession is the point of a password change.
-// One that leaves existing sessions alive has locked nobody out, so a stolen
-// session survives the very action taken to stop it.
 func TestChangingPasswordEndsEveryOtherSession(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -212,9 +193,6 @@ func TestChangingPasswordEndsEveryOtherSession(t *testing.T) {
 	}
 }
 
-// TestOrdersAreScopedToTheirOwner is the access rule for the account pages. An
-// order belonging to someone else must be indistinguishable from one that does
-// not exist — the owner is part of the query, not a check afterwards.
 func TestOrdersAreScopedToTheirOwner(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -223,12 +201,9 @@ func TestOrdersAreScopedToTheirOwner(t *testing.T) {
 
 	number := placeOrderFor(t, theirs.ID)
 
-	// Its owner sees it.
 	if _, err := s.Order(ctx, theirs, number); err != nil {
 		t.Fatalf("the owner cannot see their own order: %v", err)
 	}
-	// Nobody else does, and the answer is the same as for an order that does
-	// not exist.
 	_, otherErr := s.Order(ctx, mine, number)
 	_, missingErr := s.Order(ctx, mine, "GO-000000-999999")
 	if !errors.Is(otherErr, account.ErrNotFound) {
@@ -238,7 +213,6 @@ func TestOrdersAreScopedToTheirOwner(t *testing.T) {
 		t.Errorf("a nonexistent order gave %v, want ErrNotFound", missingErr)
 	}
 
-	// And it does not appear in the wrong account's history either.
 	view, err := s.Overview(ctx, mine)
 	if err != nil {
 		t.Fatalf("overview: %v", err)
@@ -301,9 +275,6 @@ func placeOrderFor(t *testing.T, userID string) string {
 	return number
 }
 
-// TestAdoptCartMergesRatherThanReplaces pins that signing in does not throw
-// away either cart. Someone who added things while signed out has not agreed to
-// lose what was already in their account, and the reverse is just as true.
 func TestAdoptCartMergesRatherThanReplaces(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -321,7 +292,6 @@ func TestAdoptCartMergesRatherThanReplaces(t *testing.T) {
 		t.Fatalf("variant b: %v", err)
 	}
 
-	// The account already has a cart holding variant a.
 	var accountCart uuid.UUID
 	if err := pool.QueryRow(ctx,
 		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
@@ -334,7 +304,6 @@ func TestAdoptCartMergesRatherThanReplaces(t *testing.T) {
 		t.Fatalf("account line: %v", err)
 	}
 
-	// The guest cart holds a and b.
 	var guestCart uuid.UUID
 	if err := pool.QueryRow(ctx,
 		`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
@@ -383,9 +352,6 @@ func TestAdoptCartMergesRatherThanReplaces(t *testing.T) {
 	}
 }
 
-// TestSessionExpiryIsInTheFuture is a sanity check on the TTL: a session that
-// expires on creation would sign everyone straight back out, and the schema's
-// own CHECK would refuse it.
 func TestSessionExpiryIsInTheFuture(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -405,14 +371,8 @@ func TestSessionExpiryIsInTheFuture(t *testing.T) {
 	}
 }
 
-// TestEraseRemovesPersonalDataAndKeepsTheRecord is the erasure contract. Two
-// halves, and both matter: the personal data must be gone, and the financial
-// record must survive without it — an order is a tax record, not a courtesy.
-//
-// The invoice preference is the row an erasure most easily misses. It is keyed
-// by ORDER rather than by user, so nulling the account and blanking the delivery
-// fields reaches everything except carrier_code — a 手機條碼載具, which
-// identifies a person, left behind for good.
+// invoice_preferences is keyed by ORDER rather than by user, so nulling the
+// account does not reach the invoice carrier that identifies a person.
 func TestEraseRemovesPersonalDataAndKeepsTheRecord(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -459,7 +419,6 @@ func TestEraseRemovesPersonalDataAndKeepsTheRecord(t *testing.T) {
 		}
 	}
 
-	// The order itself remains, with its money.
 	var subtotal int64
 	if err := pool.QueryRow(ctx, `
 		SELECT coalesce(sum(unit_price_cents * quantity), 0) FROM order_lines WHERE order_id = $1`,
@@ -472,12 +431,6 @@ func TestEraseRemovesPersonalDataAndKeepsTheRecord(t *testing.T) {
 	}
 }
 
-// TestAResetTokenIsSpentExactlyOnce is the property that decides whether a
-// reset link is a credential or a key.
-//
-// Eight requests carry the same token through one barrier. The guard is in the
-// UPDATE's own WHERE clause, so exactly one may win; a read-then-write check in
-// Go is a check all eight pass, and the prize is somebody else's account.
 func TestAResetTokenIsSpentExactlyOnce(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -495,8 +448,7 @@ func TestAResetTokenIsSpentExactlyOnce(t *testing.T) {
 	for i := range racers {
 		wg.Go(func() {
 			<-start
-			// A different password per racer, so a survivor can be identified
-			// by which one authenticates.
+			// A different password per racer, so the survivor is identifiable.
 			results <- s.CompleteReset(ctx, token, "racer password number "+strconv.Itoa(i))
 		})
 	}
@@ -519,9 +471,6 @@ func TestAResetTokenIsSpentExactlyOnce(t *testing.T) {
 	}
 }
 
-// TestAnExpiredResetTokenIsRefused holds the window. The link is the whole
-// credential, so a link that outlives its hour is a standing key sitting in a
-// mailbox.
 func TestAnExpiredResetTokenIsRefused(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -531,10 +480,8 @@ func TestAnExpiredResetTokenIsRefused(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin reset: %v", err)
 	}
-	// Aged past its window in the database rather than by waiting an hour. The
-	// row is found by the same digest the store computes, and created_at moves
-	// with it — password_reset_tokens_expiry_after_creation refuses a row whose
-	// window closed before it opened, which is the constraint doing its job.
+	// created_at moves with it: password_reset_tokens_expiry_after_creation
+	// refuses a row whose window closed before it opened.
 	digest := sha256.Sum256([]byte(token))
 	tag, err := pool.Exec(ctx,
 		`UPDATE password_reset_tokens
@@ -549,9 +496,8 @@ func TestAnExpiredResetTokenIsRefused(t *testing.T) {
 			tag.RowsAffected())
 	}
 
-	// Distinct from the password register() sets, or the second assertion
-	// passes because the two are the same string rather than because nothing
-	// changed — which is how this test first read green.
+	// Distinct from the password register() sets, or the second assertion passes
+	// for a reason that has nothing to do with the fix.
 	const attempted = "the password an expired link tried to set"
 	if err := s.CompleteReset(ctx, token, attempted); !errors.Is(err, account.ErrResetInvalid) {
 		t.Errorf("an expired token was accepted: %v", err)
@@ -561,11 +507,6 @@ func TestAnExpiredResetTokenIsRefused(t *testing.T) {
 	}
 }
 
-// TestAResetInvalidatesSiblingTokensAndSessions is the clean-up a reset owes.
-//
-// Somebody who clicked "forgot password" three times has two more live links in
-// the mailbox an attacker is reading, and a session that survives the reset
-// means the reset changed nothing for whoever was already inside.
 func TestAResetInvalidatesSiblingTokensAndSessions(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -602,12 +543,6 @@ func TestAResetInvalidatesSiblingTokensAndSessions(t *testing.T) {
 	}
 }
 
-// TestBeginResetSaysNothingAboutWhoHasAnAccount is the anti-oracle property.
-//
-// It reads the store rather than the handler because that is where the answer
-// is decided: found is the ONLY difference between the two calls, and the
-// handler redirects identically on both. An error, a different duration or a
-// different shape would each be a way to enumerate the customer list.
 func TestBeginResetSaysNothingAboutWhoHasAnAccount(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -632,8 +567,6 @@ func TestBeginResetSaysNothingAboutWhoHasAnAccount(t *testing.T) {
 	}
 }
 
-// TestAResetTokenIsStoredHashed. The table holds a digest, so a database dump
-// is not a pile of working reset links.
 func TestAResetTokenIsStoredHashed(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -661,9 +594,6 @@ func TestAResetTokenIsStoredHashed(t *testing.T) {
 	}
 }
 
-// TestAWeakNewPasswordIsRefusedWithoutSpendingTheToken. Getting the rules wrong
-// must not cost the customer their one link — otherwise the reset form locks
-// people out on a typo.
 func TestAWeakNewPasswordIsRefusedWithoutSpendingTheToken(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -681,13 +611,6 @@ func TestAWeakNewPasswordIsRefusedWithoutSpendingTheToken(t *testing.T) {
 	}
 }
 
-// TestTheDefaultAddressCanBeMoved holds that a customer can choose which
-// address their orders go to.
-//
-// SetDefaultAddress and ClearDefaultAddress are what this drives, and with no
-// caller for them the FIRST address a customer saves is their default for good.
-// Checkout prefills from whichever one that is, so somebody who moves house can
-// add the new address and never make it the one their orders go to.
 func TestTheDefaultAddressCanBeMoved(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -704,15 +627,13 @@ func TestTheDefaultAddressCanBeMoved(t *testing.T) {
 	if got != work {
 		t.Errorf("the default is %s, want the work address %s", got, work)
 	}
-	// Exactly one, which addresses_one_default_per_user enforces and this
-	// asserts anyway: a transaction that set before it cleared would trip the
-	// index, and one that cleared without setting would leave none.
+	// Exactly one: setting before clearing trips addresses_one_default_per_user,
+	// and clearing without setting leaves none.
 	if n := countDefaults(t, u.ID); n != 1 {
 		t.Errorf("the account has %d default addresses, want 1", n)
 	}
 
-	// And back again, so the test is about moving rather than about the first
-	// move happening to work.
+	// And back again, so this is about moving rather than about the first move.
 	if err := s.MakeDefaultAddress(ctx, u.ID, home); err != nil {
 		t.Fatalf("move it back: %v", err)
 	}
@@ -721,9 +642,6 @@ func TestTheDefaultAddressCanBeMoved(t *testing.T) {
 	}
 }
 
-// TestMovingTheDefaultToSomebodyElsesAddressChangesNothing. The id comes off a
-// form, and the scoping is in the query — a check afterwards is one somebody
-// forgets, and what it costs is a stranger's address book.
 func TestMovingTheDefaultToSomebodyElsesAddressChangesNothing(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -736,8 +654,7 @@ func TestMovingTheDefaultToSomebodyElsesAddressChangesNothing(t *testing.T) {
 	if err := s.MakeDefaultAddress(ctx, mine.ID, theirHome); !errors.Is(err, account.ErrNotFound) {
 		t.Fatalf("setting a stranger's address as my default answered %v, want ErrNotFound", err)
 	}
-	// Mine is untouched — the rollback is what guarantees it. Without one the
-	// clear would have run and left me with no default at all.
+	// Mine is untouched: without the rollback the clear would have left me none.
 	if got := defaultAddressID(t, mine.ID); got != myHome {
 		t.Errorf("my default became %s, want %s", got, myHome)
 	}
@@ -785,13 +702,6 @@ func countDefaults(t *testing.T, userID string) int {
 	return n
 }
 
-// TestExpiredSessionsArePruned holds that dead session rows go away and live
-// ones do not.
-//
-// An uncalled DeleteExpiredSessions is invisible from every other direction: the
-// reads are all correct — each enforces expiry in its own WHERE clause — so
-// nothing ever behaves wrongly while the table grows without bound behind them,
-// and each dead row still holds the user id it belonged to.
 func TestExpiredSessionsArePruned(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -806,8 +716,7 @@ func TestExpiredSessionsArePruned(t *testing.T) {
 		t.Fatalf("start second session: %v", err)
 	}
 	// created_at moves with it: sessions_expiry_after_creation refuses a row
-	// whose window closed before it opened, and a session that expired an hour
-	// ago was issued before that.
+	// whose window closed before it opened.
 	tag, err := pool.Exec(ctx, `
 		UPDATE sessions
 		SET created_at = now() - interval '2 hours',
@@ -828,8 +737,7 @@ func TestExpiredSessionsArePruned(t *testing.T) {
 	if n := sessionRows(t, u.ID); n != 1 {
 		t.Errorf("%d session rows survive, want 1 — the expired one was not deleted", n)
 	}
-	// The live one still works, which is the half that matters: a pruner that
-	// deleted everything would pass a count-only assertion.
+	// A pruner that deleted everything would pass a count-only assertion.
 	if _, err := s.SessionUser(ctx, live); err != nil {
 		t.Errorf("the live session was pruned too: %v", err)
 	}
@@ -845,12 +753,6 @@ func sessionRows(t *testing.T, userID string) int {
 	return n
 }
 
-// TestATierIsDerivedFromSpendAndNotStored holds that a tier follows the orders
-// behind it.
-//
-// A stored tier drifts from the orders behind it the moment one is cancelled,
-// and nobody notices until a customer asks why a benefit they were told they
-// had has gone. This walks a customer up a band and then takes the order away.
 func TestATierIsDerivedFromSpendAndNotStored(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -881,7 +783,6 @@ func TestATierIsDerivedFromSpendAndNotStored(t *testing.T) {
 		t.Errorf("the tier earns %d bp, want more than the base rate", after.Standing.MultiplierBP)
 	}
 
-	// Cancel it. A derived tier goes with the order; a stored one would not.
 	if _, cancelErr := pool.Exec(ctx,
 		`UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
 		 WHERE id = $1`, orderID); cancelErr != nil {
@@ -944,15 +845,6 @@ func committedOrderFor(t *testing.T, userID string, cents int64) uuid.UUID {
 	return orderID
 }
 
-// TestTheSweepDropsDeadResetTokensAndKeepsLiveOnes proves a reset token stops
-// being a row once it stops being a key.
-//
-// With nothing deleting these, every reset goen has ever issued stays in the
-// table, each carrying the user id it belonged to — the same shape the session
-// sweep answers, on the table beside it.
-//
-// The half that matters is the LIVE token: a sweep that took one would lock
-// somebody out of the account they are in the middle of recovering.
 func TestTheSweepDropsDeadResetTokensAndKeepsLiveOnes(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -997,13 +889,6 @@ func TestTheSweepDropsDeadResetTokensAndKeepsLiveOnes(t *testing.T) {
 	}
 }
 
-// TestAnAddressIsProvedByFollowingTheLink is the whole feature.
-//
-// Two halves that only look like one. users.email_verified_at is declared with
-// the users table and something has to SET it; underneath that is the worse
-// half, that UpdateProfile writes full_name and phone and no more — so without
-// this route a customer cannot change their address at all, and somebody who
-// mistyped it at registration receives nothing, for good.
 func TestAnAddressIsProvedByFollowingTheLink(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -1032,16 +917,11 @@ func TestAnAddressIsProvedByFollowingTheLink(t *testing.T) {
 	if !state.Verified {
 		t.Error("the address is not proved after its link was followed")
 	}
-	// Spent by the statement: a second use finds nothing.
 	if _, err := s.ConfirmVerification(ctx, token); !errors.Is(err, account.ErrVerifyInvalid) {
 		t.Errorf("re-using the link = %v, want ErrVerifyInvalid", err)
 	}
 }
 
-// TestAChangeTakesEffectOnlyWhenConfirmed is why the old address keeps receiving.
-//
-// A mistyped change would otherwise point the account at an address nobody reads,
-// and the reset link — the one way back in — would go there too.
 func TestAChangeTakesEffectOnlyWhenConfirmed(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -1054,7 +934,6 @@ func TestAChangeTakesEffectOnlyWhenConfirmed(t *testing.T) {
 		t.Fatalf("RequestVerification: %v", err)
 	}
 
-	// Still the old address, and the pending one is visible so a typo is fixable.
 	if got := emailOf(t, u.ID); got != old {
 		t.Errorf("the account moved to %q before the link was followed", got)
 	}
@@ -1074,11 +953,8 @@ func TestAChangeTakesEffectOnlyWhenConfirmed(t *testing.T) {
 	}
 }
 
-// TestAChangeToATakenAddressIsRefused proves the unique index is the real guard.
-//
-// The early check gives a staff-readable sentence, but an address can be taken
-// between the request and the confirmation — and only the write can catch that.
-// This drives exactly that race: request first, then let somebody else take it.
+// users_email_key is the real guard: this requests first, then lets somebody
+// else take the address before the confirmation.
 func TestAChangeToATakenAddressIsRefused(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -1089,22 +965,16 @@ func TestAChangeToATakenAddressIsRefused(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RequestVerification: %v", err)
 	}
-	// Somebody else registers it first.
 	register(t, s, wanted)
 
 	if _, err := s.ConfirmVerification(ctx, token); !errors.Is(err, account.ErrEmailTaken) {
 		t.Errorf("confirming a taken address = %v, want ErrEmailTaken", err)
 	}
-	// And my account is untouched — the whole transaction rolled back.
 	if got := emailOf(t, mine.ID); got != mine.Email {
 		t.Errorf("my address became %q after a refused change, want %q", got, mine.Email)
 	}
 }
 
-// TestAskingAgainLeavesOneLiveLink proves the replace.
-//
-// Somebody who pressed the button three times holds one key, not three, and it is
-// the newest — the letter that just arrived is the one they will use.
 func TestAskingAgainLeavesOneLiveLink(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -1135,8 +1005,6 @@ func TestAskingAgainLeavesOneLiveLink(t *testing.T) {
 	}
 }
 
-// TestAnExpiredVerificationIsRefused proves the window, judged by the DATABASE's
-// clock — the same one that wrote expires_at.
 func TestAnExpiredVerificationIsRefused(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -1158,7 +1026,6 @@ func TestAnExpiredVerificationIsRefused(t *testing.T) {
 	}
 }
 
-// emailOf is the address on an account right now.
 func emailOf(t *testing.T, userID string) string {
 	t.Helper()
 	var addr string
@@ -1169,11 +1036,6 @@ func emailOf(t *testing.T, userID string) string {
 	return addr
 }
 
-// TestRegisteringAsksForTheAddressToBeProved is where a typo becomes findable.
-//
-// Somebody who registers with gmial.com otherwise hears nothing, ever: the receipt
-// goes nowhere, the shop does not know, and they have no way to notice it or to
-// fix it. The letter goes out with the account.
 func TestRegisteringAsksForTheAddressToBeProved(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -1181,8 +1043,7 @@ func TestRegisteringAsksForTheAddressToBeProved(t *testing.T) {
 
 	u := register(t, s, addr)
 
-	// register() goes through the store, not the handler, so ask for it the way
-	// the handler does and assert the message that carries the link.
+	// register() goes through the store, so ask the way the handler does.
 	if _, err := s.RequestVerification(ctx, u.ID, u.Email); err != nil {
 		t.Fatalf("RequestVerification: %v", err)
 	}
@@ -1198,23 +1059,13 @@ func TestRegisteringAsksForTheAddressToBeProved(t *testing.T) {
 	}
 }
 
-// TestTheMembershipBandReadsInTheVisitorsLanguage closes the worst shape a missing
-// translation takes.
-//
-// The account page puts the band name INSIDE a sentence — "NT$10,000 more reaches
-// 銀卡會員" — so a missing English name does not read as untranslated content. It
-// reads as a broken page, and only to the visitor.
-//
-// Driven through Overview rather than asserted against localized_name directly.
-// Calling the SQL function is a test of the function, which every other guard
-// already covers, and it stays green with the locale mutated out of THIS query —
-// the read that decides what the account page actually renders.
+// Driven through Overview: asserting against localized_name directly stays green
+// with the locale mutated out of the query the account page actually reads.
 func TestTheMembershipBandReadsInTheVisitorsLanguage(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
 
-	// A customer with no spend at all, so the NEXT band is the lowest one and the
-	// sentence under test is the one an ordinary account page shows.
+	// No spend at all, so the NEXT band is the lowest one.
 	var id string
 	if err := pool.QueryRow(ctx, `
 		INSERT INTO users (email, role, full_name)
@@ -1250,13 +1101,6 @@ func TestTheMembershipBandReadsInTheVisitorsLanguage(t *testing.T) {
 	}
 }
 
-// TestGoogleSignInCreatesAnAccountWithNoPassword is the ordinary first sign-in.
-//
-// No password hash at all, which users.password_hash being nullable is FOR — and
-// Authenticate refuses a NULL one by name, so the account cannot be entered with
-// an empty password. email_verified_at is set from Google's own claim, because
-// Google proved the address and making the customer prove it again to a shop
-// they have just proved it to is ceremony.
 func TestGoogleSignInCreatesAnAccountWithNoPassword(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -1287,19 +1131,12 @@ func TestGoogleSignInCreatesAnAccountWithNoPassword(t *testing.T) {
 		t.Error("google proved the address and goen did not record it as proved")
 	}
 
-	// A blank password does not get in. VerifyPassword never runs on a NULL
-	// hash, and the answer is the same ErrBadCredentials an unknown address gets.
 	if _, authErr := s.Authenticate(ctx, email, ""); !errors.Is(authErr, account.ErrBadCredentials) {
 		t.Errorf("signing in with no password gave %v, want ErrBadCredentials", authErr)
 	}
 }
 
-// TestGoogleSignInIsIdempotentOnTheSubject proves a second sign-in finds the
-// same account rather than creating another.
-//
-// Keyed on the SUBJECT, and the test changes the EMAIL to prove it: a Google
-// account that changes address is the same person, and matching on the address
-// would strand them with a new empty account and their orders behind them.
+// Keyed on the SUBJECT, and the test changes the EMAIL to prove it.
 func TestGoogleSignInIsIdempotentOnTheSubject(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -1327,23 +1164,11 @@ func TestGoogleSignInIsIdempotentOnTheSubject(t *testing.T) {
 	}
 }
 
-// TestGoogleWillNotLinkToAnUnverifiedAccount is the security decision.
-//
-// goen does not verify an address at REGISTRATION, so anybody may register
-// victim@example.com and use the account. If a Google sign-in auto-linked on the
-// address alone, an attacker could register the victim's address, wait, and
-// collect the victim the moment they first used Google: same account, attacker's
-// password, victim's orders and delivery address. That is pre-hijacking.
-//
-// So it refuses, and the way out is /forgot — the mail goes to the mailbox the
-// customer has just proved they read, and the reset ends every session, which
-// throws out whoever registered the address without owning it.
 func TestGoogleWillNotLinkToAnUnverifiedAccount(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
 	email := "oauth-collide-" + uuid.NewString()[:8] + "@example.com"
 
-	// The account somebody registered with a password and never verified.
 	victim := register(t, s, email)
 
 	_, err := s.SignInWithGoogle(ctx, account.Identity{
@@ -1354,7 +1179,6 @@ func TestGoogleWillNotLinkToAnUnverifiedAccount(t *testing.T) {
 		t.Fatalf("linking to an unverified account = %v, want ErrOAuthCollision", err)
 	}
 
-	// Nothing was written: no identity, and no second account for the address.
 	var identities, accounts int
 	if err := pool.QueryRow(ctx,
 		`SELECT count(*) FROM user_identities WHERE user_id = $1`, victim.ID).Scan(&identities); err != nil {
@@ -1372,13 +1196,8 @@ func TestGoogleWillNotLinkToAnUnverifiedAccount(t *testing.T) {
 	}
 }
 
-// TestGoogleLinksToAVerifiedAccount is the other side of that decision, and the
-// control that proves the refusal above is about VERIFICATION rather than about
-// refusing every existing account.
-//
-// Both sides have proved the same mailbox: Google says so, and goen's own
-// email_verified_at is set. Linking is then what the customer expects — they
-// have one account and two ways into it.
+// The control that proves the refusal above is about verification rather than
+// about refusing every existing account.
 func TestGoogleLinksToAVerifiedAccount(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -1401,20 +1220,14 @@ func TestGoogleLinksToAVerifiedAccount(t *testing.T) {
 		t.Errorf("signed into %s, want the existing account %s", got.ID, u.ID)
 	}
 
-	// And the PASSWORD still works: linking adds a way in rather than replacing
-	// one, which is what a customer who uses both expects.
+	// The password still works: linking adds a way in rather than replacing one.
 	if _, authErr := s.Authenticate(ctx, email, "a sufficiently long password"); authErr != nil {
 		t.Errorf("the password stopped working after linking Google: %v", authErr)
 	}
 }
 
-// TestGoogleRefusesAnAddressGoogleHasNotVerified holds the claim goen must not
-// launder.
-//
 // email_verified is false for some Workspace configurations, where the domain
-// administrator controls what the address says. Trusting it there would let that
-// administrator claim any address in their domain — including one that already
-// has a goen account.
+// administrator controls what the address says.
 func TestGoogleRefusesAnAddressGoogleHasNotVerified(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -1437,11 +1250,6 @@ func TestGoogleRefusesAnAddressGoogleHasNotVerified(t *testing.T) {
 	}
 }
 
-// TestUnlinkingTheOnlyWayInIsRefused stops a customer locking themselves out.
-//
-// The same shape as /admin/staff refusing to revoke the last admin: an account
-// with no password and no identity is one nobody can reach, and no form should
-// be able to produce it.
 func TestUnlinkingTheOnlyWayInIsRefused(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -1467,8 +1275,7 @@ func TestUnlinkingTheOnlyWayInIsRefused(t *testing.T) {
 		t.Errorf("%d identities after a refused unlink, want 1", identities)
 	}
 
-	// The control: with a password set, it unlinks. Without this a function that
-	// refused everything would pass the assertion above.
+	// The control: a function that refused everything would pass the assertion above.
 	if _, err := pool.Exec(ctx, `
 		UPDATE users SET password_hash = 'x' WHERE id = $1`, u.ID); err != nil {
 		t.Fatalf("set a password: %v", err)
@@ -1485,13 +1292,7 @@ func TestUnlinkingTheOnlyWayInIsRefused(t *testing.T) {
 	}
 }
 
-// TestErasingAnAccountTakesItsIdentities holds the half of erasure that is easy
-// to miss.
-//
-// user_identities cascades on the user, so erase_user reaches it without naming
-// it — but "without naming it" is exactly how a table comes to be missed when
-// the cascade is later changed. A link left behind would let the same Google
-// account sign back into an id that no longer exists.
+// user_identities cascades on the user, so erase_user reaches it without naming it.
 func TestErasingAnAccountTakesItsIdentities(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)

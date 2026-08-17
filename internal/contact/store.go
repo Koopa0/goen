@@ -12,15 +12,10 @@ import (
 	"github.com/koopa0/goen/internal/db"
 )
 
-// ErrDuplicate reports that an equivalent message is already stored. It exists
-// so a caller can tell "we already have this" from "the database is down"
-// without reading a driver error code.
+// ErrDuplicate reports that an equivalent message is already stored.
 var ErrDuplicate = errors.New("contact: message already recorded")
 
 // Store records contact messages in PostgreSQL.
-//
-// It holds a [db.DBTX] rather than a pool, so the same code serves a pooled
-// call and a call inside a transaction — see [Store.WithTx].
 type Store struct {
 	q *db.Queries
 }
@@ -33,9 +28,7 @@ func NewStore(dbtx db.DBTX) *Store {
 	return &Store{q: db.New(dbtx)}
 }
 
-// WithTx returns a Store whose writes join tx, so a caller composing several
-// features into one transaction does not have to reach past this package to do
-// it.
+// WithTx returns a Store whose writes join tx.
 func (s *Store) WithTx(tx pgx.Tx) *Store {
 	return &Store{q: db.New(tx)}
 }
@@ -56,8 +49,6 @@ func (s *Store) Create(ctx context.Context, m Message) error {
 }
 
 // wrap turns a driver error into something this package's callers can act on.
-// A unique violation is a fact about the request, not a failure of the system,
-// and only this layer knows which SQLSTATE means which.
 func wrap(op string, err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("%s: %w", op, pgx.ErrNoRows)
@@ -74,7 +65,7 @@ func wrap(op string, err error) error {
 }
 
 // optionalText maps an omitted field to SQL NULL, so "no order reference" and
-// "an order reference that is the empty string" do not become the same row.
+// "an empty one" are not the same row.
 func optionalText(s string) pgtype.Text {
 	return pgtype.Text{String: s, Valid: s != ""}
 }

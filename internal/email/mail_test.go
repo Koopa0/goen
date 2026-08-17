@@ -7,8 +7,7 @@ import (
 	"unicode"
 )
 
-// captured is the last message a test sent. A plain struct rather than a mock:
-// what is asserted is the OUTPUT, never that Send was called.
+// captured is the last message a test sent.
 type captured struct {
 	msg *Message
 }
@@ -35,16 +34,8 @@ func hasHan(s string) bool {
 }
 
 // TestEveryMessageIsSentInThePayloadsLanguage is the whole point of
-// orders.locale.
-//
-// An English customer used to get an English checkout, an English confirmation
-// PAGE, and then a Chinese receipt — the half-translated failure the locale work
-// exists to stop, arriving by email where nobody would see it in review. The
-// worker has no locale of its own, so if this is wrong there is no second place
-// that could be right.
-//
-// Driven per topic rather than once, because each producer records the locale
-// differently: two from a request and two off the order row.
+// orders.locale. Driven per topic, because each producer records the locale
+// differently: some from a request, some off the order row.
 func TestEveryMessageIsSentInThePayloadsLanguage(t *testing.T) {
 	t.Parallel()
 
@@ -98,14 +89,13 @@ func TestEveryMessageIsSentInThePayloadsLanguage(t *testing.T) {
 			if sink.msg == nil {
 				t.Fatal("nothing was sent")
 			}
-			// The product name is the customer's own data and stays as authored,
-			// so only the SUBJECT is asserted Han-free — it is goen's words plus
-			// an order number.
+			// Only the SUBJECT is asserted Han-free: a product name is the
+			// shop's own data and stays as authored.
 			if hasHan(sink.msg.Subject) {
 				t.Errorf("the English subject is Chinese: %q", sink.msg.Subject)
 			}
-			// The body carries the shop's sentences. A restock notice quotes a
-			// product name, so that one is checked for the SENTENCES instead.
+			// A restock notice quotes a product name, so that one is checked for
+			// the sign-off instead.
 			if topic != "catalogue.restocked" && hasHan(sink.msg.Body) {
 				t.Errorf("the English body is Chinese:\n%s", sink.msg.Body)
 			}
@@ -113,8 +103,8 @@ func TestEveryMessageIsSentInThePayloadsLanguage(t *testing.T) {
 				t.Errorf("the English body has no English sign-off:\n%s", sink.msg.Body)
 			}
 
-			// And the same message in Chinese is Chinese, or the test above would
-			// pass on a notifier that only ever spoke English.
+			// Or the assertions above would pass on a notifier that only ever
+			// spoke English.
 			n, sink = notifier(t)
 			if err := fn(n, t.Context(), "zh-Hant"); err != nil {
 				t.Fatalf("send zh-Hant: %v", err)
@@ -128,10 +118,6 @@ func TestEveryMessageIsSentInThePayloadsLanguage(t *testing.T) {
 
 // TestAnUnknownLocaleFallsBackRatherThanFailing proves a row written before
 // orders.locale existed still produces a letter.
-//
-// The fallback is the language the shop is written in, and it is silent on
-// purpose: a message nobody can send is a customer nobody tells, and the outbox
-// would retry it until Stuck() surfaced it.
 func TestAnUnknownLocaleFallsBackRatherThanFailing(t *testing.T) {
 	t.Parallel()
 
@@ -149,10 +135,7 @@ func TestAnUnknownLocaleFallsBackRatherThanFailing(t *testing.T) {
 }
 
 // TestTheGreetingDropsAnEmptyName proves a letter to an address nobody named
-// does not address them as nothing.
-//
-// A restock notice and a password reset both go to an address rather than to a
-// person, and "Hello ," is the kind of detail that makes a shop look automated.
+// does not open "Hello ,".
 func TestTheGreetingDropsAnEmptyName(t *testing.T) {
 	t.Parallel()
 
@@ -170,25 +153,9 @@ func TestTheGreetingDropsAnEmptyName(t *testing.T) {
 	}
 }
 
-// TestTheConfirmationCarriesTheStatutoryDisclosure holds 消保法 §18 II.
-//
-// §18 I lists six items a 通訊交易 trader must give the consumer, and §18 II
-// requires an INTERNET trader to do it in an electronic form the consumer can
-// 完整查閱、**儲存**. The policy pages satisfy 查閱; a rendered page is not
-// obviously storage, and an email is an artefact the customer keeps without
-// doing anything.
-//
-// §19 III is what makes the omission expensive rather than untidy: where the
-// rescission information is not PROVIDED when the goods are received, the seven
-// days run from the day after it finally is and the right survives four months.
-// A shop whose terms live only on a page nobody was handed carries that tail on
-// every order.
-//
-// The unconfigured case is asserted too, and it is the interesting one. A
-// disclosure naming no seller discloses nothing, so it is omitted entirely
-// rather than printed with a blank — a letter that LOOKS compliant while saying
-// less than silence is the worse of the two failures, and without this case it
-// would be the quiet default for every deployment that forgot the variable.
+// TestTheConfirmationCarriesTheStatutoryDisclosure holds Consumer Protection Act
+// §18 II: §18 I's six items must reach the consumer in a form they can STORE,
+// and under §19 III an omission restarts the seven-day rescission window.
 func TestTheConfirmationCarriesTheStatutoryDisclosure(t *testing.T) {
 	t.Parallel()
 
@@ -209,14 +176,14 @@ func TestTheConfirmationCarriesTheStatutoryDisclosure(t *testing.T) {
 			t.Fatalf("send: %v", err)
 		}
 		body := sink.msg.Body
-		// §18 I item 1: who is selling, and how to reach them quickly.
+		// §18 I item 1: who is selling, and how to reach them.
 		for _, want := range []string{"goen Co., Ltd. 統編 90123456", "support@goen.tw"} {
 			if !strings.Contains(body, want) {
 				t.Errorf("the confirmation does not name %q — §18 I item 1", want)
 			}
 		}
-		// Item 3: the window and how to exercise it. Item 4: what is excluded.
-		// Item 5: how to complain.
+		// Items 3, 4 and 5: the window and how to exercise it, what is excluded,
+		// and how to complain.
 		for _, want := range []string{"七日", "解除契約", "沒有任何商品排除", "消費申訴"} {
 			if !strings.Contains(body, want) {
 				t.Errorf("the confirmation does not carry %q; §18 I wants the "+
@@ -248,6 +215,7 @@ func TestTheConfirmationCarriesTheStatutoryDisclosure(t *testing.T) {
 		}
 	})
 
+	// A disclosure naming no seller is omitted entirely rather than printed blank.
 	t.Run("unconfigured omits it rather than printing a blank seller", func(t *testing.T) {
 		t.Parallel()
 		n, sink := notifier(t)
@@ -258,7 +226,7 @@ func TestTheConfirmationCarriesTheStatutoryDisclosure(t *testing.T) {
 			t.Error("a disclosure naming no seller was sent; it discloses nothing " +
 				"and makes the letter look compliant while saying less than silence")
 		}
-		// The letter itself still goes out — the order was placed.
+		// The letter itself still goes out.
 		if !strings.Contains(sink.msg.Body, "GO-260806-000001") {
 			t.Error("the confirmation itself went missing with the disclosure")
 		}

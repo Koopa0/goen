@@ -1,13 +1,6 @@
--- What an order needs to become an invoice.
---
--- The preference is what the customer chose at checkout — 會員載具, 手機條碼載具
--- or 公司統編 — and until this query nothing read it for anything but showing a
--- staff member what to do by hand.
---
--- The amount is order_amount_owed's numerator rather than the net: a 統一發票
--- records the SALE, and store credit is how the customer paid rather than a
--- reduction in what was sold. An order settled entirely from credit still had a
--- price and still owes a tax document for it.
+-- What an order needs to become an invoice. The amount is order_amount_owed's
+-- numerator rather than the net: an invoice records the SALE, and store credit
+-- is how the customer paid rather than a reduction in what was sold.
 -- name: InvoiceSubject :one
 SELECT o.id,
        o.order_number,
@@ -19,17 +12,12 @@ SELECT o.id,
        (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                   WHERE ol.order_id = o.id), 0)
         - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents,
-       -- Only a COMMITTED order gets an invoice. Issuing for a checkout nobody
-       -- paid for files a tax document for a sale that did not happen, and
-       -- voiding it is a correction with the 財政部 rather than a delete.
+       -- Only a COMMITTED order gets an invoice: a checkout nobody paid for is
+       -- not a sale, and undoing a filed document is a tax correction.
        (o.id IN (SELECT id FROM committed_orders))::boolean AS committed,
-       -- How many invoices this order has already had, live or voided.
-       --
-       -- RelateNumber is ECPay's own idempotency key and they refuse a repeat
-       -- (RtnCode 5070357) — which the staging API taught, by refusing the
-       -- REISSUE after a void. The order number alone is therefore not enough:
-       -- a wrong invoice is voided and a correct one issued in its place, and
-       -- the second attempt has to be distinguishable from the first.
+       -- How many invoices this order has already had, live or voided. ECPay
+       -- refuse a repeated RelateNumber (RtnCode 5070357), so a reissue after a
+       -- void has to be distinguishable from the first attempt.
        (SELECT count(*) FROM invoice_documents d
         WHERE d.order_id = o.id AND d.kind = 'invoice')::integer AS attempt
 FROM orders o
@@ -46,17 +34,9 @@ FROM order_lines ol
 WHERE ol.order_id = @order_id
 ORDER BY ol.position, ol.id;
 
--- File an issued document.
---
--- Written AFTER the provider accepted it, because the number is theirs to
--- allocate: a row written first would carry a number goen invented, and
--- invoice_documents_number_present has no way to tell the two apart.
---
--- The reverse ordering — provider first, row second — has the failure the refund
--- path already documents: a document filed with the 加值中心 and absent here.
--- That is the recoverable direction, because /admin/orders shows it and ECPay's
--- own console can be queried. A row with no document is not: it claims a tax
--- filing that does not exist.
+-- File an issued document, AFTER the provider accepted it: the number is theirs
+-- to allocate, and invoice_documents_number_present cannot tell an invented one
+-- from a real one.
 -- name: RecordInvoiceDocument :one
 INSERT INTO invoice_documents (order_id, kind, original_id, number, amount_cents, provider_ref, issued_at)
 VALUES (@order_id, @kind::text, sqlc.narg(original_id)::uuid, @number::text,
@@ -79,13 +59,8 @@ FROM invoice_documents d
 WHERE d.order_id = (SELECT id FROM orders WHERE order_number = @order_number::text)
 ORDER BY d.issued_at DESC, d.id DESC;
 
--- What one filed document says was sold.
---
--- The itemisation is the whole reason invoice_document_lines exists rather than
--- a single amount: a 統一發票 states what was bought, and a shop reconciling one
--- against an order needs to compare lines rather than a total. Without this read
--- the lines were written and shown to nobody — the half-a-door shape this
--- repository keeps finding, and TestEveryTableIsRead is what caught it here.
+-- What one filed document says was sold; a shop reconciling an invoice against
+-- an order compares lines rather than totals.
 -- name: InvoiceDocumentLines :many
 SELECT l.document_id, l.id, l.description, l.quantity, l.unit_price_cents,
        l.amount_cents, l.tax_type
@@ -93,11 +68,8 @@ FROM invoice_document_lines l
 WHERE l.document_id = ANY(@document_ids::uuid[])
 ORDER BY l.document_id, l.position, l.id;
 
--- The live invoice of an order, if it has one.
---
--- `status <> 'voided'` matches invoice_documents_one_active_invoice_per_order,
--- so this returns the row that index guarantees is unique — a voided invoice
--- frees the slot for a corrected reissue and must not be found here.
+-- The live invoice of an order, if it has one. `status <> 'voided'` matches
+-- invoice_documents_one_active_invoice_per_order, so the row is unique.
 -- name: LiveInvoice :one
 SELECT d.id, d.number, d.amount_cents, coalesce(d.provider_ref, '')::text AS provider_ref,
        d.issued_at
@@ -106,13 +78,9 @@ JOIN orders o ON o.id = d.order_id
 WHERE o.order_number = @order_number::text
   AND d.kind = 'invoice' AND d.status <> 'voided';
 
--- Void a filed invoice.
---
--- :execrows, because `status <> 'voided'` in this WHERE clause is the only place
--- the question is asked under a lock — two staff members voiding one invoice
--- both pass a read taken before the transaction. Zero rows is "somebody voided
--- it first", which is a sentence a caller can act on rather than a second call
--- to the 加值中心 for a document that is already cancelled.
+-- Void a filed invoice. :execrows, because `status <> 'voided'` here is the only
+-- place the question is asked under a lock: two staff members voiding one
+-- invoice both pass a read taken before the transaction.
 -- name: VoidInvoiceDocument :execrows
 UPDATE invoice_documents
 SET status = 'voided', voided_at = now()

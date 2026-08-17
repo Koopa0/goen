@@ -9,9 +9,6 @@ import (
 )
 
 // AdminMessagesView is the customer-service inbox.
-//
-// The dashboard has counted unhandled messages since the back office shipped and
-// there was no page to open them: a customer wrote in, and the shop saw a number.
 type AdminMessagesView struct {
 	Rows   []AdminMessage
 	Notice string
@@ -19,16 +16,14 @@ type AdminMessagesView struct {
 
 // AdminMessage is one thing a customer wrote in about.
 type AdminMessage struct {
-	ID       string
-	Name     string
-	Email    string
-	Subject  string
-	OrderRef string
-	Message  string
-	Handled  bool
-	At       string
-	// WaitingDays is how long an unhandled message has been waiting. It is the
-	// number that decides what to do next, and a date makes a reader work it out.
+	ID          string
+	Name        string
+	Email       string
+	Subject     string
+	OrderRef    string
+	Message     string
+	Handled     bool
+	At          string
 	WaitingDays int
 }
 
@@ -52,12 +47,7 @@ func (v AdminMessagesView) OpenCountText() string { return strconv.Itoa(v.OpenCo
 // HasOrderRef reports whether the customer quoted an order.
 func (m AdminMessage) HasOrderRef() bool { return m.OrderRef != "" }
 
-// OrderHref is the back-office page for the order they quoted.
-//
-// A LINK, because "my order hasn't arrived" is answered by looking at the order
-// and a staff member should not have to retype the number to get there. It is
-// what the CUSTOMER typed, so it may name nothing — the admin order page answers
-// a 404 for that, which is the honest outcome.
+// OrderHref is the order they quoted, which may name nothing.
 func (m AdminMessage) OrderHref() string { return "/admin/orders/" + m.OrderRef }
 
 // Waiting is how long it has been unanswered, in words.
@@ -74,14 +64,10 @@ func (m AdminMessage) Waiting(ctx context.Context) string {
 	}
 }
 
-// Overdue reports whether it has waited long enough to be embarrassing.
-//
-// Three days. Not a threshold anybody asked for, but a queue with no notion of
-// late is a queue where the oldest item is just the last row.
+// Overdue reports whether it has waited three days or more.
 func (m AdminMessage) Overdue() bool { return !m.Handled && m.WaitingDays >= 3 }
 
-// Action is where the toggle posts. Separate paths rather than one toggle, so a
-// double-submitted form cannot reopen what was just handled.
+// Action is where the toggle posts; separate paths, so a double submit
 func (m AdminMessage) Action() string {
 	if m.Handled {
 		return "/admin/messages/reopen"

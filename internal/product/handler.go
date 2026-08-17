@@ -146,7 +146,6 @@ func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// rejectReview re-renders the product page with the form's own values.
 func (h *Handler) rejectReview(w http.ResponseWriter, r *http.Request, slug string, review *Review, errs map[string]i18n.Key) {
 	view, err := h.store.Load(r.Context(), slug, ParseSelection(r.URL.Query()))
 	if err != nil {
@@ -169,7 +168,6 @@ func (h *Handler) rejectReview(w http.ResponseWriter, r *http.Request, slug stri
 		pages.Product(pages.ProductMeta(&view), &view))
 }
 
-// fillReviewForm decides what the review form offers this visitor.
 func (h *Handler) fillReviewForm(r *http.Request, slug string, view *pages.ProductView) {
 	u, signedIn := account.FromContext(r.Context())
 	view.SignedIn = signedIn
@@ -184,8 +182,7 @@ func (h *Handler) fillReviewForm(r *http.Request, slug string, view *pages.Produ
 	view.CanReview, view.WouldVerify = allowed, verified
 }
 
-// parseRating reads the star field, refusing anything outside 1..5 by
-// returning 0 — which Validate then reports as a missing rating.
+// parseRating returns 0 outside 1..5, which Validate reports as a missing rating.
 func parseRating(s string) int16 {
 	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 16)
 	if err != nil || n < 1 || n > 5 {
@@ -222,7 +219,6 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 		http.StatusSeeOther)
 }
 
-// boundedSlugs is the comparison set a URL carried, bounded and sanitised.
 func boundedSlugs(raw []string) []string {
 	const maxCompare = 4
 	out := make([]string, 0, maxCompare)
@@ -238,5 +234,4 @@ func boundedSlugs(raw []string) []string {
 	return out
 }
 
-// slugFormat is the shape of every slug goen mints.
 var slugFormat = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)

@@ -1,22 +1,6 @@
 package i18n
 
-// What /admin/home writes — the hero queue and the promotional strip under it.
-//
-// One page for two things because they answer one question: what the storefront
-// says before a visitor has chosen anything. The words keep them apart where
-// careless English would not — 主視覺 is the band at the top of the home page
-// and 促銷條 is the bar above the header, and "banner" names both.
-//
-// A slide's own words are not here. AdminHeroSlide.State and .ToggleLabel
-// compute theirs from a row, in hero.go, which is where that pattern belongs.
-
 var (
-	// The heading's sentence, and the alert that says the queue produced
-	// nothing.
-	//
-	// Both conditions are stated. A slide has to be FIRST and IN WINDOW, and a
-	// staff member who reads only the first cannot work out why a switched-on
-	// slide is not on screen.
 	KeyAdminHomeLead = key("admin.home.lead", Message{
 		ZhHant: "顧客看到的是排在最前面、而且在檔期內的那一則。沒有任何一則符合時,首頁會顯示內建的預設文案。",
 		En: "Visitors see the first slide in the queue that is also inside its window. " +
@@ -29,7 +13,6 @@ var (
 )
 
 var (
-	// The slide form. Its Chinese half.
 	KeyAdminHomeHeadline     = key("admin.home.headline", Message{ZhHant: "標題", En: "Headline"})
 	KeyAdminHomeEyebrow      = key("admin.home.eyebrow", Message{ZhHant: "小標(選填)", En: "Eyebrow (optional)"})
 	KeyAdminHomeBody         = key("admin.home.body", Message{ZhHant: "說明(選填)", En: "Body (optional)"})
@@ -53,15 +36,11 @@ var (
 		ZhHant: "主視覺圖片(選填)",
 		En:     "Hero image (optional)",
 	})
-	// An empty table is a working site: no image keeps the built-in artwork
-	// rather than leaving the slot blank, which is what the hint has to say.
 	KeyAdminHomeImageHint = key("admin.home.image.hint", Message{
 		ZhHant: "留空就沿用內建主視覺。",
 		En:     "Leave it blank to keep the built-in hero image.",
 	})
 
-	// The slide form's English half. Every field falls back to the Chinese one,
-	// so the labels only mark which language a box collects.
 	KeyAdminHomeEyebrowEn = key("admin.home.eyebrow.en", Message{
 		ZhHant: "小標(英文)",
 		En:     "Eyebrow (English)",
@@ -82,10 +61,6 @@ var (
 		ZhHant: "次要按鈕(英文)",
 		En:     "Secondary button (English)",
 	})
-	// 圖片說明文字 labels the Chinese box (admin.alttext, shared with four other
-	// forms) and this labels the English one. Alt text stays required in Chinese
-	// and optional in English: a screen reader announces it in whatever
-	// <html lang> declares, and mispronounced beats silent.
 	KeyAdminHomeAltEn = key("admin.home.alt.en", Message{
 		ZhHant: "圖片替代文字(英文)",
 		En:     "Alt text (English)",
@@ -96,8 +71,6 @@ var (
 			"page needs an English version of it.",
 	})
 
-	// The window. Shared by the slide form and the strip form below it: both
-	// schedule the same way, and 0 means the same thing to each.
 	KeyAdminHomeDays     = key("admin.home.days", Message{ZhHant: "檔期天數", En: "Days to run"})
 	KeyAdminHomeDaysHint = key("admin.home.days.hint", Message{
 		ZhHant: "0 表示不設結束日。",
@@ -108,37 +81,25 @@ var (
 )
 
 var (
-	// The queue beside the form.
 	KeyAdminHomeQueue = key("admin.home.queue", Message{ZhHant: "佇列", En: "Queue"})
 	KeyAdminHomeEmpty = key("admin.home.empty", Message{
 		ZhHant: "還沒有任何主視覺。",
 		En:     "No hero slides yet.",
 	})
-	// The badge on the one a visitor is seeing. The strip list below uses it for
-	// the same fact about itself.
 	KeyAdminHomeShowing = key("admin.home.showing", Message{ZhHant: "顯示中", En: "Showing"})
 	KeyAdminHomeEndsAt  = key("admin.home.endsat", Message{ZhHant: "至 %s", En: "until %s"})
-	// Promotion moves ONE row: the promoted slide takes a position below every
-	// other, so the button says which slide it is about and not what the queue
-	// does.
 	KeyAdminHomePromote = key("admin.home.promote", Message{ZhHant: "設為顯示", En: "Show this one"})
 )
 
 var (
-	// The promotional strip.
-	KeyAdminHomeBanner = key("admin.home.banner", Message{ZhHant: "促銷條", En: "Promotional strip"})
-	// The dismissal cookie is keyed on a digest of the strip's id, which is the
-	// mechanism this sentence is describing and the reason switching one off is
-	// not deleting it.
+	KeyAdminHomeBanner     = key("admin.home.banner", Message{ZhHant: "促銷條", En: "Promotional strip"})
 	KeyAdminHomeBannerLead = key("admin.home.banner.lead", Message{
 		ZhHant: "顯示在頁首上方,只在商店頁面。訪客關掉的是「這一條」,下一條會再出現 —— 新的促銷是他們還沒讀過的資訊。",
 		En: "It sits above the header, on the storefront only. What a visitor closes is THIS " +
 			"strip — the next one appears again, because a new promotion is information they " +
 			"have not read.",
 	})
-	KeyAdminHomeBannerMessage = key("admin.home.banner.message", Message{ZhHant: "訊息", En: "Message"})
-	// The examples are placeholders, and the pair is the point: the second says
-	// the same thing in fewer words, which is what the narrow-screen box is for.
+	KeyAdminHomeBannerMessage        = key("admin.home.banner.message", Message{ZhHant: "訊息", En: "Message"})
 	KeyAdminHomeBannerMessageExample = key("admin.home.banner.message.example", Message{
 		ZhHant: "全站滿 NT$3,000 免運",
 		En:     "Free delivery site-wide over NT$3,000",
@@ -188,7 +149,6 @@ var (
 )
 
 var (
-	// The strips the shop already has.
 	KeyAdminHomeBannerCurrent = key("admin.home.banner.current", Message{
 		ZhHant: "目前的促銷條",
 		En:     "Existing strips",
@@ -202,9 +162,6 @@ var (
 		ZhHant: "· 到 %s",
 		En:     "· until %s",
 	})
-	// 關閉 and 開啟 rather than the shared 停用 / 啟用 (admin.toggle.*), because
-	// this list says them that way and translating a surface is not the moment
-	// to reword it.
 	KeyAdminHomeBannerClose = key("admin.home.banner.close", Message{ZhHant: "關閉", En: "Switch off"})
 	KeyAdminHomeBannerOpen  = key("admin.home.banner.open", Message{ZhHant: "開啟", En: "Switch on"})
 )

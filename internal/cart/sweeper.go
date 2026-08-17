@@ -18,10 +18,8 @@ const SweepInterval = time.Minute
 // row that live checkouts need.
 const SweepBatch = 200
 
-// Sweep returns expired holds to the shelf, once.
-//
-// Each release is its own statement rather than one transaction over the batch,
-// so a reservation that cannot be released does not take the other 199 with it.
+// Sweep returns expired holds to the shelf, once. Each release is its own
+// statement, so one that cannot be released does not take the batch with it.
 func (s *Store) Sweep(ctx context.Context, log *slog.Logger) (released, skipped int, err error) {
 	ids, err := s.q.ExpiredReservations(ctx, SweepBatch)
 	if err != nil {
@@ -48,9 +46,8 @@ func benignSweepFailure(err error) bool {
 	return BenignSweepFailure(err)
 }
 
-// BenignSweepFailure reports whether a refusal is one the sweeper expects —
-// another instance got there first, or the order became committed. Bound to the
-// constraint name, because a PgError's message never carries it.
+// BenignSweepFailure reports whether a refusal is one the sweeper expects.
+// Bound to the constraint name, because a PgError's message never carries it.
 func BenignSweepFailure(err error) bool {
 	pgErr, ok := errors.AsType[*pgconn.PgError](err)
 	if !ok {
@@ -69,7 +66,7 @@ func BenignSweepFailure(err error) bool {
 }
 
 // SweepForever runs Sweep on a ticker until ctx is cancelled. It blocks, so the
-// caller owns the goroutine and can wait for it at shutdown.
+// caller owns the goroutine.
 func (s *Store) SweepForever(ctx context.Context, log *slog.Logger) {
 	t := time.NewTicker(SweepInterval)
 	defer t.Stop()
@@ -98,11 +95,9 @@ const AttemptRetain = 30 * 24 * time.Hour
 // AttemptSweepInterval is how often that runs.
 const AttemptSweepInterval = 24 * time.Hour
 
-// GrantRetain is how long a browser's proof of access to an order is kept.
-//
-// It must never be SHORTER than the placed cookie's MaxAge: a grant swept while
-// its cookie is still live locks a customer out of their own order. That holds
-// only because TouchOrderAccessGrants restarts this clock with the cookie's.
+// GrantRetain is how long a browser's proof of access to an order is kept. It
+// must never be SHORTER than the placed cookie's MaxAge, which holds only
+// because TouchOrderAccessGrants restarts this clock with the cookie's.
 const GrantRetain = cookieMaxAge * time.Second
 
 // SweepAttempts deletes checkout keys past [AttemptRetain] and access grants

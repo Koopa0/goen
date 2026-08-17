@@ -10,13 +10,8 @@ import (
 )
 
 // Warranties looks one unit's cover up, from a serial number or an order number.
-//
-// Nothing is listed until somebody searches, the /admin/customers rule: these
-// rows carry a customer's name beside what they own. The read is deliberately
-// NOT audited — no query here returns a row without an exact string.
 func (s *Store) Warranties(ctx context.Context, term string) (pages.AdminWarrantiesView, error) {
-	// Uppercased because a serial is typed off a label and a shift key is not a
-	// failed lookup. Order numbers are already uppercase.
+	// Uppercased: a serial is typed off a label and a shift key is not a failed lookup.
 	term = strings.ToUpper(strings.TrimSpace(term))
 	view := pages.AdminWarrantiesView{Term: term}
 	if len([]rune(term)) < MinSearchRunes {

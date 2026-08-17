@@ -11,11 +11,6 @@ import (
 )
 
 // FAQ serves GET /faq.
-//
-// Read from faq_entries rather than written into the template, so the back
-// office can answer a question that keeps arriving without a deploy — which is
-// the difference between an FAQ that is maintained and one that is a snapshot
-// of what somebody once assumed people would ask.
 func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.content.FAQEntries(r.Context())
 	if err != nil {
@@ -43,11 +38,7 @@ func (h *Handler) FAQ(w http.ResponseWriter, r *http.Request) {
 		}, view))
 }
 
-// Shipping serves GET /shipping.
-//
-// The fees come from the database — the same rows checkout charges from — so
-// the page cannot promise a figure the till does not honour. A policy page that
-// restates a number is a policy page that eventually contradicts one.
+// Shipping serves GET /shipping, from the same rows checkout charges from.
 func (h *Handler) Shipping(w http.ResponseWriter, r *http.Request) {
 	methods, err := h.content.ShippingPolicy(r.Context())
 	if err != nil {
@@ -64,22 +55,12 @@ func (h *Handler) Shipping(w http.ResponseWriter, r *http.Request) {
 }
 
 // Policy serves the remaining static policy pages.
-//
-// One handler over a table rather than six near-identical ones: they differ in
-// their words and in nothing else, and six copies of the same render call is
-// six places to fix a layout change.
 func (h *Handler) Policy(w http.ResponseWriter, r *http.Request) {
-	// Keyed on the request path rather than a wildcard segment: each policy has
-	// its own literal route, so a URL that is not one of them never reaches
-	// here — it falls through to the catch-all 404 like any other unknown path.
 	doc, ok := policies[strings.TrimPrefix(r.URL.Path, "/")]
 	if !ok {
 		h.NotFound(w, r)
 		return
 	}
-	// Resolved to the visitor's own language. These pages were Chinese for every
-	// reader until /returns began stating 消保法 §19 — a right an English-reading
-	// customer in Taiwan holds identically, on a page they could not read.
 	doc = doc.For(i18n.FromContext(r.Context()))
 	web.Render(w, r, h.log, http.StatusOK, pages.Policy(
 		layouts.Page{Title: doc.Title, Description: doc.Summary}, doc))

@@ -128,9 +128,6 @@ func TestAddressValidateRejects(t *testing.T) {
 	t.Parallel()
 
 	valid := Address{
-		// The destination decides which half of the struct is required, so
-		// every fixture here names one. A zero To is refused outright, which is
-		// what stops a method nothing understands collecting a street address.
 		To:    ToAddress,
 		Email: "a@example.com", Name: "王小明", Phone: "0912345678",
 		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
@@ -154,11 +151,7 @@ func TestAddressValidateRejects(t *testing.T) {
 		{"no city", func(a *Address) { a.City = "" }, "city"},
 		{"no district", func(a *Address) { a.District = "" }, "district"},
 		{"no street", func(a *Address) { a.Street = "" }, "street"},
-		// A newline in a name is how a header or a shipping label gets a second
-		// line it was never given.
 		{"newline in the name", func(a *Address) { a.Name = "王小明\nX" }, "name"},
-		// C1 controls are invisible and are the classic way past a check that
-		// only looked at ASCII.
 		{"C1 control in the street", func(a *Address) { a.Street = "松高路\u0085 1 號" }, "street"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -183,8 +176,8 @@ func TestAddressValidateRejects(t *testing.T) {
 	}
 }
 
-// TestAddressValidateAccepts is the control: without it, a Validate that
-// rejected everything would pass every case above.
+// TestAddressValidateAccepts is the control: a Validate that rejected everything
+// would pass every case above.
 func TestAddressValidateAccepts(t *testing.T) {
 	t.Parallel()
 
@@ -194,7 +187,7 @@ func TestAddressValidateAccepts(t *testing.T) {
 		{To: ToAddress, Email: "someone.long+tag@sub.example.co.uk", Name: "Li Hua", Phone: "+886 2 2700-1234",
 			PostalCode: "10041", City: "台北市", District: "中正區", Street: "重慶南路一段 122 號",
 			Note: "請放管理室"},
-		// 超商取貨, which has no street at all.
+		// Convenience-store pickup, which has no street at all.
 		{To: ToPickupPoint, Email: "pick@example.com", Name: "陳小明", Phone: "0933444555",
 			PickupBrand: "family_mart", PickupStoreCode: "012345", PickupStoreName: "台北車站門市"},
 	} {
@@ -204,12 +197,9 @@ func TestAddressValidateAccepts(t *testing.T) {
 	}
 }
 
-// TestValidateAsksForTheDestinationTheMethodNeeds is the rule that decides
-// which half of the form is required.
-//
-// The cases below are the four combinations that matter: each destination with
-// its own fields, and each with the OTHER destination's fields — which is what
-// a customer who filled one section and then switched methods submits.
+// TestValidateAsksForTheDestinationTheMethodNeeds covers each destination with
+// its own fields and with the OTHER destination's, which is what a customer who
+// filled one section and then switched methods submits.
 func TestValidateAsksForTheDestinationTheMethodNeeds(t *testing.T) {
 	contact := func(a *Address) {
 		a.Email, a.Name, a.Phone = "who@example.com", "王小明", "0912345678"
@@ -238,23 +228,18 @@ func TestValidateAsksForTheDestinationTheMethodNeeds(t *testing.T) {
 			fill: []func(*Address){contact, pickup},
 		},
 		{
-			// The store fields do not stand in for an address.
 			name:  "an address order carrying only a store",
 			to:    ToAddress,
 			fill:  []func(*Address){contact, pickup},
 			wants: []string{"postal_code", "city", "district", "street"},
 		},
 		{
-			// Nor the other way round.
 			name:  "a pickup order carrying only an address",
 			to:    ToPickupPoint,
 			fill:  []func(*Address){contact, address},
 			wants: []string{"pickup_brand", "pickup_store_code", "pickup_store_name"},
 		},
 		{
-			// A destination nothing recognises is refused rather than defaulted
-			// to an address, which would let a method added later quietly
-			// collect a street nobody can deliver to.
 			name:  "a method whose destination is unknown here",
 			to:    Destination("depot"),
 			fill:  []func(*Address){contact, address, pickup},
@@ -282,19 +267,9 @@ func TestValidateAsksForTheDestinationTheMethodNeeds(t *testing.T) {
 	}
 }
 
-// The store codes below are REAL, read from 綠界's own GetStoreList on
-// 2026-08-06 — the authority for how a chain numbers its stores, rather than
-// this repository's guess about it.
-//
-// 萊爾富 is why the test exists. It numbers stores in FOUR characters and 149 of
-// its 1,350 lead with a letter, so the digits-only rule this validator used to
-// carry refused every one of them at checkout: no way through, one customer at a
-// time, and nothing the shop could see. The comment that rule shipped under —
-// "what is true of all of them is that a store code is a number" — was never
-// checked against a chain.
-//
-// The case that has to stay red under the old rule is 萊爾富 S884. A test built
-// only from six-digit codes passes either way and locks nothing.
+// The store codes below are REAL, read from ECPay's own GetStoreList on
+// 2026-08-06: Hi-Life numbers its stores in four characters and 149 of its 1,350
+// lead with a letter, so S884 must stay red under a digits-only rule.
 func TestAPickupStoreCodeIsWhateverTheChainNumbersItsStores(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -310,7 +285,6 @@ func TestAPickupStoreCodeIsWhateverTheChainNumbersItsStores(t *testing.T) {
 		// Trim uppercases, so a shift key is not a rejected checkout.
 		{name: "萊爾富 高縣後庄店 typed in lower case", brand: "hi_life", code: "s884"},
 
-		// What the rule is actually for, and it still holds.
 		{name: "a 店名 typed into the code field", brand: "seven_eleven", code: "信義門市", refuse: true},
 		{name: "no code at all", brand: "seven_eleven", code: "", refuse: true},
 		{name: "longer than a 門市代碼", brand: "seven_eleven", code: "11008011008", refuse: true},
@@ -345,8 +319,8 @@ func TestAPickupStoreCodeIsWhateverTheChainNumbersItsStores(t *testing.T) {
 }
 
 // TestForDestinationDropsTheOtherHalf. Validation passes on a submission
-// carrying both — every field it looked at was filled — so this is what stops
-// the pair reaching order_private_data_one_destination.
+// carrying both, so this is what stops the pair reaching
+// order_private_data_one_destination.
 func TestForDestinationDropsTheOtherHalf(t *testing.T) {
 	both := func(to Destination) *Address {
 		return &Address{
@@ -377,9 +351,8 @@ func TestForDestinationDropsTheOtherHalf(t *testing.T) {
 	}
 }
 
-// TestDestinationForRefusesWhatItDoesNotKnow. Defaulting an unknown kind to an
-// address is the failure this prevents: a method added to shipping_methods with
-// a destination nothing here understands would silently collect a street.
+// TestDestinationForRefusesWhatItDoesNotKnow. A method added to
+// shipping_methods with an unknown destination must not collect a street.
 func TestDestinationForRefusesWhatItDoesNotKnow(t *testing.T) {
 	for _, kind := range []string{"address", "pickup_point"} {
 		if d, ok := DestinationFor(kind); !ok || string(d) != kind {
@@ -394,12 +367,8 @@ func TestDestinationForRefusesWhatItDoesNotKnow(t *testing.T) {
 }
 
 // TestFillFromBookPrefersTheNamedAddressAndFallsBackToTheDefault holds both
-// halves: the named address wins, and anything else starts from the default.
-//
-// The fallback matters as much as the choice: the id comes off a query string,
-// so a guess, a stale bookmark or an address deleted since the page was opened
-// all arrive here — and an error page in the middle of a checkout, over a field
-// nobody typed, is worse than starting from the default.
+// halves: the named address wins, and anything else — a guess, a stale
+// bookmark, an address since deleted — starts from the default.
 func TestFillFromBookPrefersTheNamedAddressAndFallsBackToTheDefault(t *testing.T) {
 	t.Parallel()
 
@@ -430,8 +399,7 @@ func TestFillFromBookPrefersTheNamedAddressAndFallsBackToTheDefault(t *testing.T
 	}
 }
 
-// TestFillFromBookLeavesAnEmptyBookAlone — a guest, or a customer who has never
-// saved one, gets the form they always got.
+// TestFillFromBookLeavesAnEmptyBookAlone — a guest gets the form they always got.
 func TestFillFromBookLeavesAnEmptyBookAlone(t *testing.T) {
 	t.Parallel()
 	view := pages.CheckoutView{}
@@ -442,12 +410,9 @@ func TestFillFromBookLeavesAnEmptyBookAlone(t *testing.T) {
 	}
 }
 
-// TestTheQuoteAddsTheSurchargeAfterTheThreshold holds the order the two parts
-// of a delivery charge are combined in.
-//
-// The ordering is the commercial decision and the one that is easy to get
-// backwards: folding the surcharge into the free-over test would make a large
-// order to 金門 free to send, which it is not.
+// TestTheQuoteAddsTheSurchargeAfterTheThreshold holds the order the two parts of
+// a delivery charge are combined in: folding the surcharge into the free-over
+// test would make a large order to the outlying islands free to send.
 func TestTheQuoteAddsTheSurchargeAfterTheThreshold(t *testing.T) {
 	t.Parallel()
 

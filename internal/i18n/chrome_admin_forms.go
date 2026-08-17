@@ -1,26 +1,6 @@
 package i18n
 
-// What the back office's forms say when they refuse.
-//
-// Every one of these is a FIELD error: it renders beside the control it refused,
-// with the submitted value still in it, because the write-face rule asks that of
-// every rejection on this site and the back office is not exempt from it.
-//
-// Two rules the wording follows, and both are why these are longer than a label:
-//
-//   - a bound is STATED, never implied. "不超過 60 個字" and "60 characters at
-//     most" tell somebody what to cut; "太長" and "too long" send them guessing.
-//   - a refusal that has a REASON gives it. 固定金額不需要上限 is not a rule the
-//     shop chose, it is what a cap means — and a staff member who is told that
-//     stops trying rather than filing a bug.
-//
-// A few carry an EXAMPLE (`例如 /deals`, `例如 880`). Those are the fields whose
-// format is not guessable from the label, and the example is the fastest way to
-// say it in either language.
-
 var (
-	// Slugs. Never renamed once set — a slug is in every URL anybody has
-	// indexed or sent — so the error is the only place its shape is explained.
 	KeyFormSlugFormat = key("form.slug.format", Message{
 		ZhHant: "網址代稱只能用小寫英數與連字號。",
 		En:     "A slug takes lower-case letters, digits and hyphens only.",
@@ -46,7 +26,6 @@ var (
 		En:     "Something already uses that slug.",
 	})
 
-	// Names and copy.
 	KeyFormNameRequired = key("form.name.required", Message{
 		ZhHant: "請填寫名稱,不超過 60 個字。",
 		En:     "A name is required, 60 characters at most.",
@@ -55,8 +34,6 @@ var (
 		ZhHant: "英文名稱不超過 60 個字。",
 		En:     "The English name is 60 characters at most.",
 	})
-	// An option axis or one of its values. Shared between two forms, so the
-	// message names neither: `field` decides which box it lands under.
 	KeyFormOptionName = key("form.option.name", Message{
 		ZhHant: "請填寫名稱。",
 		En:     "A name is required.",
@@ -77,17 +54,10 @@ var (
 		ZhHant: "這個規格項目已經有同樣的值了。",
 		En:     "That option already has this value.",
 	})
-	// The query resolves product_id FROM the option, so "belongs to another
-	// product" and "does not exist" present identically — and they are the same
-	// answer to the person looking at one product's form.
 	KeyFormOptionMissing = key("form.option.missing", Message{
 		ZhHant: "找不到這個規格項目。",
 		En:     "No such option on this product.",
 	})
-	// Demanded at the WRITE rather than discovered later: a product with two
-	// options and a variant naming one is resolvable by no URL the picker can
-	// build, so it would exist as a SKU in the back office and appear nowhere on
-	// the site. The message says that, because "invalid" would not.
 	KeyFormVariantNeedsEveryOption = key("form.variant.everyoption", Message{
 		ZhHant: "每一個規格項目都要選一個值,否則商品頁的選擇器找不到這個規格。",
 		En: "Every option needs a value chosen, or the product page's picker cannot " +
@@ -102,7 +72,6 @@ var (
 		En:     "No such parent category.",
 	})
 
-	// A product.
 	KeyFormProductName = key("form.product.name", Message{
 		ZhHant: "請填寫商品名稱。",
 		En:     "A product name is required.",
@@ -127,9 +96,6 @@ var (
 		ZhHant: "英文說明太長了。",
 		En:     "The English description is too long.",
 	})
-	// Blank is a real answer here and the message says so: NULL means the shop
-	// has not stated a term, and registration is refused rather than goen
-	// inventing a promise nobody made.
 	KeyFormWarrantyMonths = key("form.warranty.months", Message{
 		ZhHant: "保固月數請填 1 到 120,或留空表示未提供保固。",
 		En:     "A warranty term is 1 to 120 months, or blank for no stated cover.",
@@ -137,7 +103,6 @@ var (
 	KeyFormBrandRequired    = key("form.brand.required", Message{ZhHant: "請選擇品牌。", En: "Pick a brand."})
 	KeyFormCategoryRequired = key("form.category.required", Message{ZhHant: "請選擇分類。", En: "Pick a category."})
 
-	// A variant.
 	KeyFormSKURequired = key("form.sku.required", Message{ZhHant: "請填寫 SKU。", En: "A SKU is required."})
 	KeyFormSKUTaken    = key("form.sku.taken", Message{
 		ZhHant: "這個 SKU 已經有人用了。",
@@ -147,9 +112,6 @@ var (
 		ZhHant: "價格必須大於 0。",
 		En:     "A price has to be above zero.",
 	})
-	// The reason, not the rule: a compare-at price that is not higher is not a
-	// saving, so calling it one would be the shop advertising a discount it is
-	// not giving.
 	KeyFormCompareHigher = key("form.compare.higher", Message{
 		ZhHant: "原價要高於售價,否則就不是折扣。",
 		En:     "The compare-at price has to be above the selling price, or it is not a discount.",
@@ -167,8 +129,6 @@ var (
 		En:     "The option list could not be read. Please try again.",
 	})
 
-	// A spec row. Bounded in CHARACTERS because a spec is a table cell on
-	// /compare, and a label that is a sentence makes the first column wrap.
 	KeyFormSpecLabel       = key("form.spec.label", Message{ZhHant: "請填寫規格名稱", En: "A spec label is required"})
 	KeyFormSpecLabelLong   = key("form.spec.label.long", Message{ZhHant: "規格名稱太長", En: "That spec label is too long"})
 	KeyFormSpecValue       = key("form.spec.value", Message{ZhHant: "請填寫規格內容", En: "A spec value is required"})
@@ -184,12 +144,10 @@ var (
 )
 
 var (
-	// A coupon.
 	KeyFormCouponCode = key("form.coupon.code", Message{
 		ZhHant: "折扣碼只能用英數與連字號,2 到 32 個字元。",
 		En:     "A coupon code takes letters, digits and hyphens, 2 to 32 characters.",
 	})
-	// Names WHO reads it, because that is what decides how it should be worded.
 	KeyFormCouponDescription = key("form.coupon.description", Message{
 		ZhHant: "請填寫顧客會看到的說明,不超過 60 個字。",
 		En:     "A description the customer will see is required, 60 characters at most.",
@@ -226,9 +184,6 @@ var (
 		ZhHant: "上限不能是負數。",
 		En:     "A cap cannot be negative.",
 	})
-	// Both cap refusals explain rather than forbid: a cap on a fixed amount and
-	// a cap on free shipping are each a figure that could never apply, so the
-	// message says what a cap IS instead of naming a rule.
 	KeyFormCouponCapOnAmount = key("form.coupon.cap.amount", Message{
 		ZhHant: "固定金額不需要上限,上限只用在百分比折扣。",
 		En:     "A fixed amount needs no cap — a cap only bounds a percentage discount.",
@@ -241,20 +196,16 @@ var (
 		ZhHant: "這組折扣碼已經存在了。",
 		En:     "That coupon code already exists.",
 	})
-	// The three kinds, as the form offers them.
 	KeyCouponKindAmount   = key("coupon.kind.amount", Message{ZhHant: "折抵金額", En: "Fixed amount"})
 	KeyCouponKindPercent  = key("coupon.kind.percent", Message{ZhHant: "百分比折扣", En: "Percentage off"})
 	KeyCouponKindShipping = key("coupon.kind.shipping", Message{ZhHant: "免運", En: "Free shipping"})
 )
 
 var (
-	// A delivery method and its zones.
 	KeyFormMethodCode = key("form.method.code", Message{
 		ZhHant: "代碼只能用小寫英數與底線,例如 home_delivery。",
 		En:     "A code takes lower-case letters, digits and underscores — home_delivery, for example.",
 	})
-	// destination_kind decides which half of the checkout exists, which is why
-	// it is asked rather than derived from the code.
 	KeyFormMethodDestination = key("form.method.destination", Message{
 		ZhHant: "請選擇送到地址或送到門市。",
 		En:     "Choose whether this delivers to an address or to a pickup store.",
@@ -279,8 +230,6 @@ var (
 		ZhHant: "這個代碼已經有區域用了。",
 		En:     "Another zone already uses that code.",
 	})
-	// A zone is created WITH its prefixes: the surcharge lookup finds a zone BY
-	// prefix, so an empty zone is a row nothing can reach.
 	KeyFormZonePrefixRequired = key("form.zone.prefix.required", Message{
 		ZhHant: "請至少填一個三位數郵遞區號前綴。",
 		En:     "At least one three-digit postal-code prefix is required.",
@@ -289,8 +238,6 @@ var (
 		ZhHant: "一次最多 100 個前綴。",
 		En:     "100 prefixes at a time, at most.",
 	})
-	// Quotes the offending value back, because with a hundred prefixes in one
-	// box "one of these is wrong" is not something anybody can act on.
 	KeyFormZonePrefixShape = key("form.zone.prefix.shape", Message{
 		ZhHant: "前綴必須是三位數字,例如 880。看到的是「%s」。",
 		En:     "A prefix is three digits — 880, for example. This one reads %q.",
@@ -298,7 +245,6 @@ var (
 )
 
 var (
-	// The home page's hero and the promotional strip above the header.
 	KeyFormHeroHeadline = key("form.hero.headline", Message{
 		ZhHant: "請填寫標題,不超過 40 個字。",
 		En:     "A headline is required, 40 characters at most.",
@@ -307,9 +253,6 @@ var (
 		ZhHant: "請填寫主要按鈕的文字。",
 		En:     "The main button needs a label.",
 	})
-	// A CTA href is typed by a person and rendered into the largest button on
-	// the storefront, so it goes through web.SitePath: an absolute URL there
-	// sends every visitor off-site from the home page.
 	KeyFormHeroPrimaryHref = key("form.hero.primary.href", Message{
 		ZhHant: "連結必須是本站的路徑,例如 /deals。",
 		En:     "The link has to be a path on this site — /deals, for example.",
@@ -322,14 +265,10 @@ var (
 		ZhHant: "連結必須是本站的路徑,例如 /about。",
 		En:     "The link has to be a path on this site — /about, for example.",
 	})
-	// Alt text is the ACCESSIBILITY half, not a cosmetic one: a screen reader
-	// announces it, and Chinese alt text on an English page is announced in the
-	// wrong voice or not at all.
 	KeyFormHeroAlt = key("form.hero.alt", Message{
 		ZhHant: "有圖片就要有說明文字 —— 讀螢幕的人靠它知道圖裡是什麼。",
 		En:     "An image needs alt text — it is how somebody using a screen reader knows what it shows.",
 	})
-	// Zero means "no end", which is a real answer and not a missing one.
 	KeyFormRunDays = key("form.run.days", Message{
 		ZhHant: "檔期天數必須介於 0(不限)到 365 天。",
 		En:     "A run is 0 days (no end) to 365 days.",
@@ -351,7 +290,6 @@ var (
 		En:     "The link has to be a path on this site — /deals, for example.",
 	})
 
-	// A campaign.
 	KeyFormCampaignTitle = key("form.campaign.title", Message{
 		ZhHant: "請填寫活動標題,不超過 60 個字。",
 		En:     "A campaign title is required, 60 characters at most.",
@@ -361,8 +299,6 @@ var (
 		En:     "A campaign runs 1 to 90 days.",
 	})
 
-	// The FAQ. Support answers a recurring question here without a deploy, so
-	// each bound is stated: these are the longest fields the back office has.
 	KeyFormFAQCategory = key("form.faq.category", Message{
 		ZhHant: "請填寫分類,不超過 40 個字。",
 		En:     "A category is required, 40 characters at most.",
@@ -390,8 +326,6 @@ var (
 )
 
 var (
-	// The home page tiles a category with a glyph from a closed set, and a key
-	// outside it renders nothing at all.
 	KeyFormIconUnknown = key("form.icon.unknown", Message{
 		ZhHant: "請從清單中選一個圖示。",
 		En:     "Pick an icon from the list.",

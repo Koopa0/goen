@@ -8,17 +8,10 @@ import (
 )
 
 // AdminShippingView is the shipping configuration the back office can change.
-//
-// Until this page existed a shop could not alter its own delivery charges at
-// all: the methods, their fees and the 離島 surcharge all came from the seed,
-// which is the same gap the catalogue had before /admin/products.
 type AdminShippingView struct {
-	Methods []AdminShippingMethod
-	Zones   []AdminShippingZone
-	Notice  string
-	// Errors and the drafts belong to the two CREATE forms — a method and a zone.
-	// Publishing a new version of an existing method redirects, because the form
-	// sits on the method's own row and there is nothing to re-render into.
+	Methods     []AdminShippingMethod
+	Zones       []AdminShippingZone
+	Notice      string
 	Errors      map[string]string
 	MethodDraft AdminMethodDraft
 	ZoneDraft   AdminZoneDraft
@@ -43,27 +36,22 @@ func (v *AdminShippingView) HasErr(f string) bool { _, ok := v.Errors[f]; return
 // Err is why.
 func (v *AdminShippingView) Err(f string) string { return v.Errors[f] }
 
-// PickupSelected reports whether the method form's draft chose a pickup point, so a
-// refused form comes back with the same answer selected.
+// PickupSelected reports whether the method form's draft chose a pickup point.
 func (v *AdminShippingView) PickupSelected() bool {
 	return v.MethodDraft.Destination == "pickup_point"
 }
 
 // AdminShippingMethod is one method and the version currently in force.
 type AdminShippingMethod struct {
-	MethodID    string
-	VersionID   string
-	Code        string
-	Destination string
-	Name        string
-	Carrier     string
-	// The English name and carrier of the CURRENT version, empty for what nobody
-	// has translated. The checkout's method chooser reads them.
-	NameEn    string
-	CarrierEn string
-	FeeCents  int64
-	// FreeOverCents is the order value above which the base rate is waived.
-	// Zero means the fee always applies.
+	MethodID      string
+	VersionID     string
+	Code          string
+	Destination   string
+	Name          string
+	Carrier       string
+	NameEn        string
+	CarrierEn     string
+	FeeCents      int64
 	FreeOverCents int64
 	EffectiveAt   string
 	VersionCount  int64
@@ -82,11 +70,9 @@ type AdminZoneSurcharge struct {
 
 // AdminShippingZone is a region with its postal-code prefixes.
 type AdminShippingZone struct {
-	ID   string
-	Code string
-	Name string
-	// The English zone name. 離島 is read on /shipping and inside the surcharge
-	// sentence the checkout shows before charging it.
+	ID          string
+	Code        string
+	Name        string
 	NameEn      string
 	Prefixes    string
 	PrefixCount int64
@@ -95,9 +81,7 @@ type AdminShippingZone struct {
 // Fee is what the method charges.
 func (m *AdminShippingMethod) Fee() string { return twd(m.FeeCents) }
 
-// FeeDollars is the fee as the form's number field wants it: whole dollars,
-// because a staff member setting NT$80 types 80. A form that asks for cents is
-// a form that eventually charges a hundred times too much.
+// FeeDollars is the fee as the form's number field wants it: whole dollars.
 func (m *AdminShippingMethod) FeeDollars() string {
 	return strconv.FormatInt(m.FeeCents/100, 10)
 }
@@ -135,15 +119,10 @@ func (m *AdminShippingMethod) VersionCountText() string {
 	return strconv.FormatInt(m.VersionCount, 10)
 }
 
-// Zoned reports whether this method can carry a zone surcharge at all.
-//
-// A 超商取貨 order has no postal code, so it is never matched to a zone —
-// offering the form would be offering a setting that cannot take effect.
+// Zoned is false for pickup, which has no postal code to match a zone on.
 func (m *AdminShippingMethod) Zoned() bool { return m.Destination == "address" }
 
-// SurchargeDollars is what this version charges for one zone, in dollars —
-// blank when there is no surcharge, because an empty field reads as "nothing
-// set" and a 0 reads as "somebody decided zero".
+// SurchargeDollars is the zone's surcharge, blank when there is none.
 func (m *AdminShippingMethod) SurchargeDollars(zoneID string) string {
 	for _, s := range m.Surcharges {
 		if s.ZoneID == zoneID {

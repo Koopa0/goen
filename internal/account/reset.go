@@ -22,16 +22,14 @@ import (
 // ResetTokenTTL is how long a reset link works.
 const ResetTokenTTL = time.Hour
 
-// ErrResetInvalid is a token that is unknown, spent, or expired — one error for
-// all three, so probing tokens says nothing about which guess was real.
+// ErrResetInvalid is a token that is unknown, spent or expired: one error for all three.
 var ErrResetInvalid = errors.New("account: that reset link is not usable")
 
 // ErrInvalidPassword is a new password the rules refuse.
 var ErrInvalidPassword = errors.New("account: password refused")
 
-// BeginReset issues a reset token for an email address, if it belongs to
-// anybody. The caller must answer identically whether or not found is true, or
-// the form is an oracle for which addresses are registered.
+// BeginReset issues a reset token if the address belongs to anybody. The caller
+// must answer identically whether or not found is true, or it is an oracle.
 func (s *Store) BeginReset(ctx context.Context, email string) (token, sendTo string, found bool, err error) {
 	email = email2.Clean(email)
 	if EmailError(email) != "" {
@@ -68,9 +66,7 @@ func (s *Store) CompleteReset(ctx context.Context, token, password string) error
 	}
 	digest := sha256.Sum256([]byte(token))
 
-	// A cheap gate before argon2: without it anybody spends 64 MiB and 28 ms of
-	// this process per garbage token they invent. The UPDATE below is the
-	// authoritative check.
+	// A cheap gate before argon2, which costs 64 MiB a call; the UPDATE decides.
 	if _, err := s.q.PasswordResetToken(ctx, digest[:]); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrResetInvalid

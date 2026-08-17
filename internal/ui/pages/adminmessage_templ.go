@@ -256,14 +256,14 @@ func AdminMessages(p layouts.Page, v AdminMessagesView) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					if m.HasOrderRef() {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "  <span class=\"ui-cart-line__meta\">")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<span class=\"ui-cart-line__meta\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var16 string
 						templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminMessagesOrder))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/adminmessage.templ`, Line: 51, Col: 51}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/adminmessage.templ`, Line: 49, Col: 51}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 						if templ_7745c5c3_Err != nil {
@@ -276,7 +276,7 @@ func AdminMessages(p layouts.Page, v AdminMessagesView) templ.Component {
 						var templ_7745c5c3_Var17 templ.SafeURL
 						templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(m.OrderHref()))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/adminmessage.templ`, Line: 51, Col: 124}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/adminmessage.templ`, Line: 49, Col: 124}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 						if templ_7745c5c3_Err != nil {
@@ -289,7 +289,7 @@ func AdminMessages(p layouts.Page, v AdminMessagesView) templ.Component {
 						var templ_7745c5c3_Var18 string
 						templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(m.OrderRef)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/adminmessage.templ`, Line: 51, Col: 139}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/adminmessage.templ`, Line: 49, Col: 139}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 						if templ_7745c5c3_Err != nil {
@@ -307,7 +307,7 @@ func AdminMessages(p layouts.Page, v AdminMessagesView) templ.Component {
 					var templ_7745c5c3_Var19 string
 					templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(m.Message)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/adminmessage.templ`, Line: 54, Col: 47}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/adminmessage.templ`, Line: 52, Col: 47}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 					if templ_7745c5c3_Err != nil {
@@ -320,7 +320,7 @@ func AdminMessages(p layouts.Page, v AdminMessagesView) templ.Component {
 					var templ_7745c5c3_Var20 templ.SafeURL
 					templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(m.Action()))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/adminmessage.templ`, Line: 56, Col: 88}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/adminmessage.templ`, Line: 54, Col: 88}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 					if templ_7745c5c3_Err != nil {
@@ -333,7 +333,7 @@ func AdminMessages(p layouts.Page, v AdminMessagesView) templ.Component {
 					var templ_7745c5c3_Var21 string
 					templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.ResolveAttributeValue(m.ID)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/adminmessage.templ`, Line: 57, Col: 56}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/adminmessage.templ`, Line: 55, Col: 56}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var21)
 					if templ_7745c5c3_Err != nil {
@@ -346,7 +346,7 @@ func AdminMessages(p layouts.Page, v AdminMessagesView) templ.Component {
 					var templ_7745c5c3_Var22 string
 					templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(m.ActionLabel(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/adminmessage.templ`, Line: 58, Col: 94}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/adminmessage.templ`, Line: 56, Col: 94}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 					if templ_7745c5c3_Err != nil {

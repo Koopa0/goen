@@ -80,8 +80,7 @@ func (s *Store) Authenticate(ctx context.Context, email, password string) (User,
 	return User{ID: row.ID.String(), Email: row.Email, Name: row.FullName.String, Role: row.Role}, nil
 }
 
-// burnHashTime spends roughly what a real verification costs, so a wrong email
-// and a wrong password take the same time to refuse.
+// burnHashTime makes a wrong email cost the time a wrong password does.
 func burnHashTime(password string) {
 	_, _ = HashPassword(password) //nolint:errcheck // discarding is the point
 }
@@ -96,8 +95,7 @@ func (s *Store) StartSession(ctx context.Context, userID, userAgent, ip string) 
 	if err != nil {
 		return "", err
 	}
-	// The column is inet: an unparseable address is stored as NULL rather than
-	// refusing the sign-in.
+	// The column is inet: an unparseable address is NULL rather than a refused sign-in.
 	var addr *netip.Addr
 	if parsed, perr := netip.ParseAddr(ip); perr == nil {
 		addr = &parsed
@@ -352,11 +350,8 @@ func text(s string) pgtype.Text {
 	return pgtype.Text{String: s, Valid: true}
 }
 
-// AddAddress saves a delivery address.
-//
-// Making it the default clears the previous one in the SAME transaction:
-// addresses_one_default_per_user is a unique partial index, so clearing
-// afterwards leaves a window in which the insert has already been refused.
+// AddAddress saves a delivery address. Clearing the previous default happens in
+// the same transaction: addresses_one_default_per_user is a unique partial index.
 func (s *Store) AddAddress(ctx context.Context, userID string, a *Address) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -449,8 +444,7 @@ func (s *Store) MakeDefaultAddress(ctx context.Context, userID, addressID string
 		return fmt.Errorf("set default address: %w", err)
 	}
 	if n == 0 {
-		// Returning before the commit is what puts the old default back; without
-		// the rollback the account is left with none at all.
+		// Returning before the commit is what puts the old default back.
 		return ErrNotFound
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -635,9 +629,8 @@ func (s *Store) SignInWithGoogle(ctx context.Context, id Identity) (User, error)
 	case err != nil:
 		return User{}, fmt.Errorf("read the account for %s: %w", id.Email, err)
 	case !existing.Verified:
-		// Pre-hijacking: goen does not prove an address at registration, so an
-		// unverified account may belong to whoever registered it rather than to
-		// whoever reads the mailbox. Linking on the address alone hands it over.
+		// Pre-hijacking: an unverified account may belong to whoever registered
+		// the address rather than to whoever reads the mailbox.
 		return User{}, ErrOAuthCollision
 	}
 
@@ -668,8 +661,7 @@ func (s *Store) createFromIdentity(ctx context.Context, id Identity) (User, erro
 		Email: id.Email, FullName: id.Name,
 	})
 	if err != nil {
-		// users_email_key is the real guard; the read above only decides which
-		// message to show, and an address can be taken between the two.
+		// users_email_key is the real guard: an address can be taken between the two.
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == "23505" {
 			return User{}, ErrOAuthCollision
 		}

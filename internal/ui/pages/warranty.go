@@ -15,15 +15,11 @@ type WarrantyLine struct {
 	Name  string
 	Label string
 	Slug  string
-	// Note is the product's own warranty wording, shown as written.
-	Note string
-	// Months is the term. HasTerm is separate because a missing term is NULL:
-	// products_warranty_months_sane forbids zero.
+	Note  string
+	// Months is the term; HasTerm is separate because a missing term is NULL.
 	Months  int
 	HasTerm bool
-	// Delivered is how many units arrived, which is the ceiling — never how many
-	// were dispatched, since cover starts when the goods reach somebody.
-	// Registered is how many of those already have cover.
+	// Delivered is how many units arrived, never how many were dispatched.
 	Delivered  int
 	Registered int
 }
@@ -40,8 +36,7 @@ func (l WarrantyLine) Remaining() int {
 // Registrable reports whether the form should offer this line.
 func (l WarrantyLine) Registrable() bool { return l.HasTerm && l.Remaining() > 0 }
 
-// NextUnit is the unit number the form submits. Units are registered in order
-// and are identical, so the customer is never asked which one.
+// NextUnit is the unit number the form submits.
 func (l WarrantyLine) NextUnit() string { return strconv.Itoa(l.Registered + 1) }
 
 // TermText is the cover length in words.

@@ -14,9 +14,6 @@ import (
 )
 
 // ExpiryWarningDays is how far ahead the page warns.
-//
-// Thirty. Long enough to plan a purchase around, short enough that the warning
-// still means something — a notice a year out is one nobody acts on.
 const ExpiryWarningDays = 30
 
 // MaxHistoryRows bounds the ledger a customer sees.
@@ -43,7 +40,6 @@ func (s *Store) Balance(ctx context.Context, userID string) (uuid.UUID, int64, e
 	row, err := s.q.PointsBalance(ctx, uuid.NullUUID{UUID: owner, Valid: true})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			// Never held points or credit. A real state, not an error.
 			return uuid.UUID{}, 0, ErrNoAccount
 		}
 		return uuid.UUID{}, 0, fmt.Errorf("read points balance: %w", err)
@@ -51,15 +47,9 @@ func (s *Store) Balance(ctx context.Context, userID string) (uuid.UUID, int64, e
 	return row.AccountID, row.Points, nil
 }
 
-// Redeem turns points into store credit.
-//
-// The amount is derived from the points HERE and passed to the function, never
-// taken from a form: a request naming its own credit amount is a request that
-// chooses the exchange rate.
-//
-// The overdraw check is the database's — loyalty_never_negative, under a lock
-// on the account. Reading the balance first and comparing in Go would be
-// reading it without one, and two concurrent redemptions would both pass.
+// Redeem turns points into store credit. The cents are derived here and never
+// taken from a form; the overdraw check is loyalty_never_negative's, under a
+// lock on the account, because a comparison in Go is one two racers both pass.
 func (s *Store) Redeem(ctx context.Context, userID string, points int64) (int64, error) {
 	accountID, balance, err := s.Balance(ctx, userID)
 	if err != nil {
@@ -69,12 +59,8 @@ func (s *Store) Redeem(ctx context.Context, userID string, points int64) (int64,
 		return 0, ErrTooSmall
 	}
 	if points%PointsPerCredit != 0 {
-		// Not a whole exchange. Refused rather than rounded, because rounding
-		// either keeps the remainder or gives it away.
 		return 0, ErrTooSmall
 	}
-	// Checked here so the customer gets a sentence rather than a constraint
-	// name — the database still decides, under its lock.
 	if points > balance {
 		return 0, ErrNotEnough
 	}

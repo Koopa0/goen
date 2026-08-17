@@ -15,20 +15,12 @@ import (
 )
 
 // Action is what a back-office write did.
-//
-// Named constants rather than free strings, because the audit page groups by
-// them and a typo would silently create a second category that looks like the
-// first.
 type Action string
 
 // The actions goen records. Money, stock, and anything a customer can see.
 const (
-	// ActionViewCustomer is a READ, and the only one recorded here.
-	//
-	// audit_events is otherwise a record of writes. This one is in it because the
-	// customer page is the one whose entire content is somebody else's personal
-	// data, and a trail is what makes the difference between looking because you
-	// are dealing with them and looking out of curiosity.
+	// ActionViewCustomer is a READ, and the only one recorded here: that page's
+	// entire content is somebody else's personal data.
 	ActionViewCustomer         Action = "customer.view"
 	ActionShipOrder            Action = "order.ship"
 	ActionAdvanceOrder         Action = "order.advance"
@@ -91,54 +83,28 @@ const (
 
 // ErrNoActor is a back-office write that reached the store without a signed-in
 // staff member.
-//
-// A distinct sentinel rather than a generic error, because the caller's
-// decision differs: this is a wiring mistake to fix, not a refusal to show
-// somebody. It also lets a test say which rule refused — the foreign key on
-// actor_user_id would refuse a zero uuid too, and a test asserting only "an
-// error happened" cannot tell the two apart.
 var ErrNoActor = errors.New("admin: a back-office write reached the store with no actor")
 
 // MaxAuditRows bounds the trail page.
 const MaxAuditRows = 200
 
-// Event is one thing to record.
-//
-// A struct rather than seven parameters: Before and After are both `any` and
-// adjacent, so at a call site the positional form said nothing about which was
-// which — the case the style guide names for preferring a named type.
-//
-// The zero value is not usable: Action and Table are required, and an Event
-// with neither is a row that answers nothing. [Store.audited] is the only
-// constructor there is, and it refuses without an actor.
+// Event is one thing to record. Action and Table are required.
 type Event struct {
 	// Action is what was done.
 	Action Action
-	// Table is what it was done to. Not a foreign key — audit rows outlive the
-	// rows they describe, and a trail that vanished with its subject would be
-	// most useful exactly when it is gone.
+	// Table is what it was done to. Not a foreign key: audit rows outlive the
+	// rows they describe.
 	Table string
-	// ID is the affected row, when there is one. Absent for an action that
-	// spans rows or creates one whose id the caller does not read back.
+	// ID is the affected row, when there is one.
 	ID uuid.NullUUID
-	// Before and After are state snapshots, either of which may be nil. They
-	// are marshalled to JSON; a value that will not marshal becomes NULL rather
-	// than failing the write it belongs to.
+	// Before and After are state snapshots, either of which may be nil.
 	Before any
 	After  any
 }
 
-// audited runs a back-office write and records who did it, in ONE transaction.
-//
-// The transaction is the point. An audit row for work that rolled back is a
-// lie; work that commits without one is a gap. Wrapping both in one commit
-// removes the possibility of either, and it means a write is audited or it is
-// not — visible at the call site, rather than depending on somebody remembering
-// a second call.
-//
-// The actor comes from the request context, not a parameter. A parameter is a
-// thing to forget, and CartCount already taught this codebase what a field each
-// caller must remember to fill turns into.
+// audited runs a back-office write and records who did it, in ONE transaction:
+// an audit row for work that rolled back is a lie, and work that commits
+// without one is a gap.
 func (s *Store) audited(ctx context.Context, e Event, work func(context.Context, *db.Queries) error) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -159,17 +125,11 @@ func (s *Store) audited(ctx context.Context, e Event, work func(context.Context,
 	return nil
 }
 
-// auditIn records an action inside a transaction the caller already opened.
-//
-// [Store.audited] is for a write that is one statement; this is for the ones
-// that are already several — shipping, deciding a return, granting credit. Same
-// guarantee either way: the audit row and the work share a commit.
+// auditIn records an action inside a transaction the caller already opened,
+// which is what a write of several statements needs instead of [Store.audited].
 func auditIn(ctx context.Context, q *db.Queries, e Event) error {
 	actor, ok := actorFrom(ctx)
 	if !ok {
-		// RequireStaff guarantees a signed-in user reached every caller, so an
-		// absent actor is a wiring mistake rather than a state a request can
-		// reach — and it must stop the write, not let it proceed unaudited.
 		return fmt.Errorf("%w: %s", ErrNoActor, e.Action)
 	}
 	if _, err := q.RecordAuditEvent(ctx, db.RecordAuditEventParams{
@@ -199,12 +159,8 @@ func actorFrom(ctx context.Context) (uuid.UUID, bool) {
 	return id, true
 }
 
-// encodeState turns a before/after value into jsonb, or NULL.
-//
-// A value that will not marshal becomes NULL rather than failing the write. The
-// audit row's job is to say who did what; losing the detail of a state snapshot
-// is much smaller than refusing a legitimate back-office action because a field
-// would not encode.
+// encodeState turns a before/after value into jsonb, or NULL. A value that will
+// not marshal becomes NULL rather than failing the write it belongs to.
 func encodeState(v any) []byte {
 	if v == nil {
 		return nil
@@ -235,11 +191,7 @@ func (s *Store) Audit(ctx context.Context) (pages.AuditView, error) {
 	return view, nil
 }
 
-// summarise renders a before/after pair as something readable.
-//
-// The raw JSON is kept in the row for anybody who needs it; the page shows a
-// line a person can scan. A trail nobody reads is a trail that is not doing its
-// job.
+// summarise renders a before/after pair as one line a person can scan.
 func summarise(before, after []byte) string {
 	switch {
 	case len(after) > 0 && len(before) > 0:

@@ -20,12 +20,6 @@ import (
 	"github.com/koopa0/goen/internal/ratelimit"
 )
 
-// These were unit tests against a hand-written fake store, which meant the
-// assertion "the message was stored" only ever proved that a Go struct had
-// been assigned to. The rule is Real First: a test that seems to need an
-// interface needs a real database, and the fake it replaces cannot enforce a
-// single one of the CHECK constraints the write actually meets.
-
 var pool *pgxpool.Pool
 
 func TestMain(m *testing.M) {
@@ -45,25 +39,22 @@ func TestMain(m *testing.M) {
 func handler(t *testing.T) *contact.Handler {
 	t.Helper()
 	// t.Context() is cancelled just before cleanups run, so the delete would
-	// never reach the database. WithoutCancel keeps the values and drops the
-	// cancellation, which is exactly what tearing down after a test needs.
+	// never reach the database without WithoutCancel.
 	t.Cleanup(func() {
 		ctx := context.WithoutCancel(t.Context())
 		if _, err := pool.Exec(ctx, `DELETE FROM contact_messages`); err != nil {
 			t.Logf("clean contact_messages: %v", err)
 		}
 	})
-	// A generous limiter: these cases are about what the handler WRITES, and one
-	// that refused mid-test would be testing the limiter. The bound itself is
-	// held by internal/ratelimit's own suite.
+	// Generous: these cases are about what the handler WRITES, and the bound
+	// itself is held by internal/ratelimit's own suite.
 	limit := ratelimit.New(ratelimit.Config{
 		Every: time.Millisecond, Burst: 1000, TTL: time.Hour,
 	})
 	return contact.NewHandler(contact.NewStore(pool), limit, slog.New(slog.DiscardHandler))
 }
 
-// stored reports how many messages are in the table, which is the assertion
-// the fake could only pretend to make.
+// stored reports how many messages are in the table.
 func stored(t *testing.T) int {
 	t.Helper()
 	var n int
@@ -102,8 +93,8 @@ func TestSubmitPlainFormRedirects(t *testing.T) {
 	h := handler(t)
 	res := postForm(t, h, validForm(), false)
 
-	// 303 specifically: it turns the browser's POST into a GET, so a reload of
-	// the acknowledgement cannot resend the message.
+	// 303 specifically: it turns the POST into a GET, so a reload of the
+	// acknowledgement cannot resend the message.
 	if res.Code != http.StatusSeeOther {
 		t.Errorf("status = %d; want 303", res.Code)
 	}
@@ -144,8 +135,7 @@ func TestSubmitNormalisesBeforeStoring(t *testing.T) {
 	}
 }
 
-// TestSubmitOmittedOrderRefIsNull covers the distinction the store's
-// optionalText exists for, which no fake could have shown.
+// TestSubmitOmittedOrderRefIsNull covers the distinction optionalText exists for.
 func TestSubmitOmittedOrderRefIsNull(t *testing.T) {
 	h := handler(t)
 	form := validForm()
@@ -176,8 +166,6 @@ func TestSubmitHTMXReturnsPanel(t *testing.T) {
 	if !strings.Contains(body, "訊息已送出") {
 		t.Errorf("body does not acknowledge the message:\n%s", body)
 	}
-	// A partial replaces one element; a whole document would nest a second
-	// page inside the first.
 	if strings.Contains(body, "<html") {
 		t.Error("htmx response contains a full document; want the panel only")
 	}
@@ -206,7 +194,6 @@ func TestSubmitRejectsInvalidWithoutStoring(t *testing.T) {
 	if !strings.Contains(body, `aria-invalid="true"`) {
 		t.Error("no control is marked invalid; assistive technology would not announce the rejection")
 	}
-	// The visitor must not have to retype the fields that were accepted.
 	if !strings.Contains(body, "me@example.com") {
 		t.Error("body does not preserve the submitted email")
 	}
@@ -243,8 +230,8 @@ func TestPageShowsFormAndOfferedSubjects(t *testing.T) {
 		t.Error("no form posting to /contact; the page has no no-JS write path")
 	}
 	for _, subject := range contact.Subjects {
-		// The VALUE, which is what the option posts back and what the row will
-		// hold. The label follows the locale and is checked in contact_test.go.
+		// The VALUE, which is what the option posts back and what the row holds;
+		// the label follows the locale and is checked in contact_test.go.
 		if !strings.Contains(body, `value="`+subject.Value+`"`) {
 			t.Errorf("subject %q is missing from the form", subject.Value)
 		}

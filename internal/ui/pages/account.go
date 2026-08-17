@@ -31,8 +31,6 @@ func (o AccountOrder) LineCountText() string { return strconv.FormatInt(o.LineCo
 func (o AccountOrder) StatusText(ctx context.Context) string {
 	switch o.Status {
 	case "pending":
-		// 'pending' is two states wearing one name: nobody has paid yet, and the
-		// money has arrived but nobody at the shop has picked it.
 		if o.Committed || o.OwedCents <= 0 {
 			return i18n.T(ctx, i18n.KeyStatusPaid)
 		}
@@ -80,21 +78,17 @@ func (a AccountAddress) DisplayLabel(ctx context.Context) string {
 
 // AccountView is the account landing page.
 type AccountView struct {
-	EmailVerified bool
-	// PendingEmail is an address waiting to be proved, shown so somebody who
-	// mistyped a change can see what they typed.
-	PendingEmail string
-	Email        string
-	Name         string
-	Phone        string
-	Orders       []AccountOrder
-	Addresses    []AccountAddress
-	CreditCents  int64
-	Standing     MemberStanding
-	Notice       string
-	GoogleLinked bool
-	// CanUnlinkGoogle is false when Google is the only way into this account: one
-	// with no password and no identity is one nobody can reach.
+	EmailVerified   bool
+	PendingEmail    string
+	Email           string
+	Name            string
+	Phone           string
+	Orders          []AccountOrder
+	Addresses       []AccountAddress
+	CreditCents     int64
+	Standing        MemberStanding
+	Notice          string
+	GoogleLinked    bool
 	CanUnlinkGoogle bool
 }
 
@@ -103,8 +97,7 @@ func AccountMeta(ctx context.Context) layouts.Page {
 	return layouts.Page{Title: i18n.T(ctx, i18n.KeyAccountTitle)}
 }
 
-// DisplayName is the customer's name, or their email when they have not given
-// one.
+// DisplayName is the customer's name, or their email when they have not given one.
 func (v *AccountView) DisplayName() string {
 	if v.Name == "" {
 		return v.Email
@@ -169,9 +162,7 @@ func (v *AccountOrderView) Total() string {
 	return twd(v.SubtotalCents - v.DiscountCents + v.ShippingCents + v.TaxCents)
 }
 
-// StatusText is the fulfilment state in the chrome language. The funding fields
-// travel with the status, or this page and the list it was reached from badge the
-// same order differently.
+// StatusText is the fulfilment state in the chrome language.
 func (v *AccountOrderView) StatusText(ctx context.Context) string {
 	return AccountOrder{
 		Status: v.Status, Committed: v.Committed, OwedCents: v.OwedCents,
@@ -183,9 +174,7 @@ func (v *AccountOrderView) AwaitingPayment() bool {
 	return v.Status == "pending" && !v.Committed && v.OwedCents > 0
 }
 
-// CanRegisterWarranty reports whether to offer the registration form. Both
-// statuses that end a delivery, because convenience-store pickup moves
-// shipped → completed with nobody at the counter to witness a handover.
+// CanRegisterWarranty reports whether to offer the form: both statuses that end a delivery.
 func (v *AccountOrderView) CanRegisterWarranty() bool {
 	switch v.Status {
 	case "delivered", "completed":
@@ -261,8 +250,7 @@ func (m MemberStanding) HasTier() bool { return m.TierName != "" }
 // Spend is what they have spent in the window.
 func (m MemberStanding) Spend() string { return twd(m.SpendCents) }
 
-// Multiplier is what a point is worth here, in words, rendered from basis points
-// so it cannot disagree with the number the capture multiplies by.
+// Multiplier is what a point is worth here, in words.
 func (m MemberStanding) Multiplier(ctx context.Context) string {
 	whole := m.MultiplierBP / 10000
 	frac := (m.MultiplierBP % 10000) / 1000

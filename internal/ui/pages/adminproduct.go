@@ -29,8 +29,7 @@ type AdminProduct struct {
 	Translated bool
 }
 
-// From is the cheapest active variant's price, or a dash when there is nothing to
-// sell yet — NT$0 would read as free rather than as unfinished.
+// From is the cheapest active variant's price, or a dash when there is nothing to sell.
 func (p AdminProduct) From() string {
 	if p.Variants == 0 || p.FromCents == 0 {
 		return "—"
@@ -64,14 +63,10 @@ type AdminProductVariant struct {
 	Stock        int32
 	SafetyStock  int32
 	Active       bool
-	// Options is the values this variant carries, in the product's axis order.
-	// Empty for a single-variant product, and for one created before the form
-	// demanded them.
-	Options []string
+	Options      []string
 }
 
-// OptionText is the variant's selection as one line, or "" for a product with no
-// axes.
+// OptionText is the variant's selection as one line.
 func (v AdminProductVariant) OptionText() string { return strings.Join(v.Options, " · ") }
 
 // Price is what it sells for.
@@ -85,8 +80,7 @@ func (v AdminProductVariant) Compare() string {
 	return twd(v.CompareCents)
 }
 
-// StockText is what is on the shelf and what of it is sellable — safety stock is
-// the difference between "we have twelve" and "you may sell two".
+// StockText is what is on the shelf and what of it is sellable.
 func (v AdminProductVariant) StockText(ctx context.Context) string {
 	sellable := v.Stock - v.SafetyStock
 	if sellable < 0 {
@@ -112,16 +106,14 @@ type AdminProductView struct {
 	BrandID        string
 	CategoryID     string
 	Images         []AdminImage
-	// Library is what has already been uploaded, for attaching a shot that belongs
-	// on more than one product.
-	Library    []AdminImage
-	Brands     []AdminChoice
-	Categories []AdminChoice
-	Variants   []AdminProductVariant
-	Options    []AdminOption
-	Specs      []AdminSpec
-	Errors     map[string]string
-	Notice     string
+	Library        []AdminImage
+	Brands         []AdminChoice
+	Categories     []AdminChoice
+	Variants       []AdminProductVariant
+	Options        []AdminOption
+	Specs          []AdminSpec
+	Errors         map[string]string
+	Notice         string
 }
 
 // AdminOption is one axis of a product's variants.
@@ -134,8 +126,8 @@ type AdminOption struct {
 
 // AdminOptionValue is one choice on an axis.
 type AdminOptionValue struct {
-	// ID is what the variant form posts. The variant is linked by value id and
-	// never by text, because two options of one product may share a value.
+	// ID is what the variant form posts: two options of one product may share a
+	// value, so the link is by id and never by text.
 	ID     string
 	Value  string
 	Label  string
@@ -157,12 +149,10 @@ type AdminSpec struct {
 	ValueEn string
 }
 
-// Translated reports whether this row reads in English, which the label decides:
-// a value that is already a measurement barely needs translating.
+// Translated reports whether this row reads in English, which the label decides.
 func (s AdminSpec) Translated() bool { return s.LabelEn != "" }
 
-// WarrantyMonthsText is the term for the form's number field, empty when the shop
-// has not stated one — a 0 in the box claims there is no cover.
+// WarrantyMonthsText is the form's number field, empty when unstated — 0 claims no cover.
 func (v *AdminProductView) WarrantyMonthsText() string {
 	if v.WarrantyMonths <= 0 {
 		return ""
@@ -205,8 +195,7 @@ func (v *AdminProductView) CanPublish() bool {
 	return !v.IsNew && v.Status != "active" && len(v.Variants) > 0
 }
 
-// NeedsVariant reports whether the reason it cannot be published is that it has
-// nothing to sell.
+// NeedsVariant reports whether it cannot be published because it has nothing to sell.
 func (v *AdminProductView) NeedsVariant() bool { return !v.IsNew && len(v.Variants) == 0 }
 
 // HasOptions reports whether this product has variant axes at all.
@@ -252,9 +241,8 @@ func (v *AdminProductView) ReuseAction() string {
 // HasLibrary reports whether anything has been uploaded yet.
 func (v *AdminProductView) HasLibrary() bool { return len(v.Library) > 0 }
 
-// The examples shown in the Chinese half of each paired field. They do NOT follow
-// the reader's locale: which language each field takes is fixed by the schema. They
-// are Go constants because `templ fmt` separates an attribute from a comment above it.
+// Examples for the Chinese half of each paired field. They do not follow the reader's
+// locale: which language each field takes is fixed by the schema.
 const (
 	altExample       = "銀色筆電,螢幕開啟,側面 45 度" // i18n-exempt: a Chinese example for a field that takes Chinese
 	optionExample    = "顏色"                // i18n-exempt: as above — 顏色, not Colour, is what goes in this box

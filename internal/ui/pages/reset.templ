@@ -13,8 +13,6 @@ templ Forgot(p layouts.Page, v ForgotView) {
 				<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeyForgotTitle) }</h1>
 				<p class="goen-auth__alt">{ i18n.T(ctx, i18n.KeyForgotSub) }</p>
 				if v.Sent {
-					// The same message whether or not the address is registered:
-					// anything else enumerates accounts.
 					<p class="ui-alert ui-alert--success" role="status">
 						{ i18n.T(ctx, i18n.KeyForgotSent) }
 					</p>

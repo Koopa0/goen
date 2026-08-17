@@ -4,19 +4,12 @@ SELECT localized_name(category, category_en, @locale::text) AS category,
        localized_name(question, question_en, @locale::text) AS question,
        localized_name(answer, answer_en, @locale::text) AS answer
 FROM faq_entries
--- Category first: policy.go groups by ADJACENCY, and faq_entries_position_key is
--- unique on (category, position), so positions repeat across categories and
--- ordering by position interleaves them into one heading per question.
---
--- On the CANONICAL category, never the localized one, or a half-translated
--- category splits into two headings.
+-- Category first, because position is unique only within a category and the
+-- handler groups by adjacency. On the canonical category, never the localized
+-- one, or a half-translated category splits into two headings.
 ORDER BY category, position, id;
 
 -- The shipping methods a policy page describes.
---
--- Read from the database rather than written into prose: a page that states a
--- fee is a promise, and the one place that promise is already kept is the table
--- checkout charges from. A page that restates it can drift; this one cannot.
 -- name: ShippingPolicy :many
 SELECT DISTINCT ON (sm.id)
     sm.code,
@@ -29,18 +22,8 @@ JOIN shipping_method_versions v ON v.method_id = sm.id
 WHERE sm.is_active AND v.effective_at <= now()
 ORDER BY sm.id, v.effective_at DESC;
 
--- The zone surcharges those methods carry, as DATA.
---
--- One row per surcharge, and never one column. A string_agg here would build
--- '離島 另加 NT$200、澎湖 另加 NT$150' in SQL for the page to print: the figures
--- right and the WORDS Chinese for every reader, because a sentence assembled
--- where no locale exists cannot be anything else. A query that assembles chrome
--- is chrome written where nobody can ask who is reading, which is why the Han
--- sweep reads .sql literals and not only .go and .templ. The zone NAME stays as
--- the shop typed it; 另加 and the joiner are chrome and follow the visitor.
---
--- Read from the SAME rows checkout charges from, for the reason the fee is: a
--- page that restates a number is a page that eventually contradicts the till.
+-- The zone surcharges those methods carry, one row per surcharge. A string_agg
+-- would assemble the sentence here, where no locale exists to write it in.
 -- name: ShippingPolicyZones :many
 SELECT vz.version_id, localized_name(z.name, z.name_en, @locale::text) AS name,
        vz.surcharge_cents

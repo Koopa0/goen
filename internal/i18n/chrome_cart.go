@@ -1,14 +1,6 @@
 package i18n
 
-// The buying mainline: the cart, the checkout form, the order page and the till.
-//
-// This is the surface the locale feature was built for and the one it had least
-// of — fourteen translated keys sat unused here while the pages themselves were
-// hard-coded Chinese, so an English visitor got a half-English site at exactly
-// the moment they were being asked for money.
-
 var (
-	// The cart.
 	KeyCartItemCount = key("cart.count", Message{ZhHant: "%s 件商品", En: "%s items"})
 	KeyCartEmptyDesc = key("cart.empty.desc", Message{
 		ZhHant: "還沒有挑到東西?",
@@ -37,7 +29,6 @@ var (
 		En:     "%s each",
 	})
 
-	// Putting a past order back in the cart.
 	KeyReorderAll = key("cart.reorder.all", Message{
 		ZhHant: "已把上次的 %d 項商品放回購物車。",
 		En:     "Put %d items from that order back in your cart.",
@@ -52,7 +43,6 @@ var (
 		En:     "Put %d items back. %d are discontinued or out of stock.",
 	})
 
-	// The checkout form.
 	KeyCheckoutTitle = key("checkout.title", Message{ZhHant: "結帳", En: "Checkout"})
 	KeyCheckoutSub   = key("checkout.sub", Message{
 		ZhHant: "填寫收件資訊,確認後送出訂單。",
@@ -88,9 +78,6 @@ var (
 		En:     "Applied: %s",
 	})
 
-	// Delivery fields. Their labels are also what a validation message names, so
-	// the two have to come from one place or a form says "地址" above a control
-	// and "street" beside its error.
 	KeyFieldEmail       = key("field.email", Message{ZhHant: "電子郵件", En: "Email"})
 	KeyFieldName        = key("field.name", Message{ZhHant: "收件人姓名", En: "Recipient name"})
 	KeyFieldPhone       = key("field.phone", Message{ZhHant: "聯絡電話", En: "Phone"})
@@ -105,8 +92,6 @@ var (
 	KeyFieldCarrier     = key("field.invoice.carrier", Message{ZhHant: "手機條碼載具", En: "Mobile barcode carrier"})
 	KeyFieldTaxID       = key("field.invoice.taxid", Message{ZhHant: "統一編號", En: "Company tax ID"})
 
-	// What the till calls the invoice choices. Taiwanese tax instruments with no
-	// English equivalent, so the English names them rather than translating it.
 	KeyInvoiceMember = key("invoice.member", Message{
 		ZhHant: "會員載具(存入會員帳號)",
 		En:     "Member carrier (held in your goen account)",
@@ -120,13 +105,8 @@ var (
 		En:     "Company tax ID",
 	})
 
-	// The stand-in name for a saved address a customer never named. There is no
-	// pickup counterpart, and TestEveryKeyIsRendered is why: one was written
-	// here, nothing rendered it, and a key with no caller is the same defect as
-	// a topic with no producer.
 	KeyDeliveryToAddress = key("checkout.dest.address", Message{ZhHant: "收件地址", En: "Delivery address"})
 
-	// The order page.
 	KeyOrderPlaced   = key("order.placed", Message{ZhHant: "訂單成立", En: "Order placed"})
 	KeyOrderPlacedAt = key("order.placedat", Message{
 		ZhHant: "%s 送出",
@@ -168,7 +148,6 @@ var (
 	KeyOrderReturn      = key("order.return", Message{ZhHant: "申請退貨", En: "Request a return"})
 	KeyOrderMeta        = key("order.meta", Message{ZhHant: "訂單 %s", En: "Order %s"})
 
-	// Fulfilment states, as a customer reads them.
 	KeyStatusPlaced    = key("order.status.placed", Message{ZhHant: "訂單成立", En: "Placed"})
 	KeyStatusPaid      = key("order.status.paid", Message{ZhHant: "付款完成", En: "Paid"})
 	KeyStatusPicking   = key("order.status.picking", Message{ZhHant: "備貨中", En: "Being packed"})
@@ -179,7 +158,6 @@ var (
 	KeyStatusCancelled = key("order.status.cancelled", Message{ZhHant: "訂單取消", En: "Cancelled"})
 	KeyStatusRefunded  = key("order.status.refunded", Message{ZhHant: "已退款", En: "Refunded"})
 
-	// The till.
 	KeyPayEyebrow = key("pay.eyebrow", Message{ZhHant: "完成付款", En: "Complete payment"})
 	KeyPayBody    = key("pay.body", Message{
 		ZhHant: "訂單已成立,商品已為您保留。完成付款後我們會立即安排出貨。",
@@ -220,16 +198,13 @@ var (
 		ZhHant: "我們已經記錄這個問題。請稍後再試一次。",
 		En:     "We have logged the problem. Please try again shortly.",
 	})
-	KeyPayViewOrder = key("pay.vieworder", Message{ZhHant: "查看訂單", En: "View order"})
-	KeyPayMeta      = key("pay.meta", Message{ZhHant: "付款 %s", En: "Pay for %s"})
-	// The remainder line on Stripe's hosted page. Stripe renders it, so it has
-	// to be chosen here rather than left to Stripe's own locale.
+	KeyPayViewOrder   = key("pay.vieworder", Message{ZhHant: "查看訂單", En: "View order"})
+	KeyPayMeta        = key("pay.meta", Message{ZhHant: "付款 %s", En: "Pay for %s"})
 	KeyShippingAndTax = key("pay.shippingandtax", Message{
 		ZhHant: "運費與稅金",
 		En:     "Delivery and tax",
 	})
 
-	// Refusals the buying path can reach.
 	KeyOrderNotFound = key("order.notfound", Message{ZhHant: "找不到這筆訂單", En: "Order not found"})
 	KeyOrderNotYours = key("order.notyours", Message{
 		ZhHant: "訂單編號可能不正確,或這筆訂單不屬於這個瀏覽器。登入後可以在會員中心查看。",
@@ -258,8 +233,6 @@ var (
 		En:     "The cart is unavailable right now. Please try again shortly.",
 	})
 
-	// Coupons. Four reasons rather than one, because the customer's next move
-	// differs: an expired code is gone, a threshold is something they can meet.
 	KeyCouponExpired = key("coupon.expired", Message{
 		ZhHant: "這組折扣碼已經過期了。",
 		En:     "That discount code has expired.",
@@ -276,17 +249,12 @@ var (
 		ZhHant: "折扣碼暫時無法使用。",
 		En:     "That discount code cannot be used right now.",
 	})
-	// Decided under redeem_coupon's lock and nowhere else, so this is the one
-	// message that arrives from inside the checkout transaction rather than from
-	// the field validation above it. Its own next move: this code is spent, the
-	// order is not.
 	KeyCouponUsedUp = key("coupon.usedup", Message{
 		ZhHant: "這組折扣碼的使用次數已經用完了。訂單沒有送出,拿掉折扣碼就可以繼續結帳。",
 		En: "That discount code has been fully used. Your order was not placed — " +
 			"clear the code to carry on.",
 	})
 
-	// Shipping.
 	KeyChooseShipping = key("checkout.shipping.choose", Message{
 		ZhHant: "請選擇配送方式",
 		En:     "Choose a delivery method",
@@ -295,15 +263,11 @@ var (
 		ZhHant: "運費暫時無法計算,請再試一次。",
 		En:     "We could not work out the delivery charge. Please try again.",
 	})
-	// The 離島 case: the fee shown before an address was typed was a mainland
-	// estimate, and the customer sees the real figure before being charged it.
 	KeyShippingRepriced = key("checkout.shipping.repriced", Message{
 		ZhHant: "%s運費另計,已更新為 %s。確認後再送出一次。",
 		En:     "%s carries a delivery surcharge. The total is now %s — check it and submit again.",
 	})
 
-	// Delivery-field validation. Server-side is the authority; `required` and
-	// `pattern` are the first line and never the only one.
 	KeyNameRequired   = key("valid.name.required", Message{ZhHant: "請填寫收件人姓名", En: "Enter the recipient's name"})
 	KeyNameTooLong    = key("valid.name.toolong", Message{ZhHant: "姓名過長", En: "That name is too long"})
 	KeyPhoneRequired  = key("valid.phone.required", Message{ZhHant: "請填寫聯絡電話", En: "Enter a phone number"})
@@ -369,7 +333,6 @@ var (
 		En:     "A company tax ID is eight digits.",
 	})
 
-	// Looking up an order without a cookie and without an account.
 	KeyFindOrderTitle = key("order.find.title", Message{
 		ZhHant: "查詢訂單",
 		En:     "Find your order",
@@ -385,9 +348,6 @@ var (
 		ZhHant: "有帳號的話,",
 		En:     "If you have an account, ",
 	})
-	// Said the same whether the number is wrong, the address is wrong, or the
-	// order does not exist. Order numbers are guessable, so telling somebody which
-	// half they got right is telling them a number was real.
 	KeyFindOrderRefused = key("order.find.refused", Message{
 		ZhHant: "查不到符合的訂單。請確認訂單編號和 Email 都和確認信上的一樣。",
 		En: "No order matches those details. Check that the number and the address are " +

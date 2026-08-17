@@ -7,9 +7,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// Reorder is the outcome of putting a past order back in the cart. It reports
-// what was skipped as well as what was added, because a reorder that quietly
-// drops two of five lines is a customer checking out with the wrong basket.
+// Reorder is the outcome of putting a past order back in the cart, reporting
+// what was skipped as well as what was added.
 type Reorder struct {
 	Added   int
 	Skipped []SkippedLine
@@ -33,8 +32,7 @@ const (
 )
 
 // Reorder puts every still-sellable line of a past order back in the cart, at
-// today's prices rather than the order's: a reorder is a new purchase, and
-// quoting last year's figure is quoting one the checkout will not honour.
+// today's prices rather than the order's.
 func (s *Store) Reorder(ctx context.Context, cartID uuid.UUID, number string) (Reorder, error) {
 	lines, err := s.q.ReorderLines(ctx, number)
 	if err != nil {
@@ -58,8 +56,8 @@ func (s *Store) Reorder(ctx context.Context, cartID uuid.UUID, number string) (R
 		}
 
 		if err := s.Add(ctx, cartID, l.VariantID.UUID, l.Quantity); err != nil {
-			// Add already clamps what is short, so an error here is the write
-			// failing rather than "out of stock", and must not be skipped.
+			// Add clamps what is short, so an error here is the write failing
+			// rather than "out of stock", and must not be skipped.
 			return Reorder{}, fmt.Errorf("add %s to cart: %w", l.ProductName, err)
 		}
 		out.Added++

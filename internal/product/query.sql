@@ -1,4 +1,3 @@
--- The product a detail URL names. A draft or archived product is a 404.
 -- name: ProductBySlug :one
 SELECT
     p.id,
@@ -19,7 +18,7 @@ JOIN brands b ON b.id = p.brand_id
 JOIN categories c ON c.id = p.category_id
 WHERE p.slug = $1 AND p.status = 'active';
 
--- The trail above a category, for the crumbs. Root-first.
+-- Root-first.
 -- name: CategoryAncestors :many
 WITH RECURSIVE trail AS (
     SELECT c.id, c.parent_id, c.slug,
@@ -32,7 +31,6 @@ WITH RECURSIVE trail AS (
 )
 SELECT trail.slug, trail.name FROM trail ORDER BY trail.depth DESC;
 
--- Every image on the product, in display order.
 -- name: ProductImages :many
 SELECT storage_key,
        localized_name(alt_text, alt_text_en, @locale::text) AS alt_text,
@@ -42,7 +40,6 @@ FROM product_images
 WHERE product_id = @product_id
 ORDER BY position, id;
 
--- The spec table.
 -- name: ProductSpecs :many
 SELECT localized_name(label, label_en, @locale::text) AS label,
        localized_name(value, value_en, @locale::text) AS value
@@ -50,8 +47,8 @@ FROM product_specs
 WHERE product_id = $1
 ORDER BY position, id;
 
--- Every active variant with its option values flattened into one row. sellable
--- is stock_quantity > safety_stock, the floor record_inventory_movement enforces.
+-- sellable is stock_quantity > safety_stock, the floor record_inventory_movement
+-- enforces.
 -- name: ProductVariants :many
 SELECT
     pv.id,
@@ -80,9 +77,8 @@ FROM product_variants pv
 WHERE pv.product_id = $1 AND pv.is_active
 ORDER BY pv.position, pv.id;
 
--- The option groups and their values, in the order the page renders the pickers.
--- option_name and value are IDENTITY, what the URL selects on; the _label
--- columns are what the visitor reads.
+-- option_name and value are identity, what the URL selects on; the _label columns
+-- are what the visitor reads.
 -- name: ProductOptions :many
 SELECT o.name AS option_name,
        localized_name(o.name, o.name_en, @locale::text) AS option_label,
@@ -98,7 +94,6 @@ WHERE o.product_id = $1
   )
 ORDER BY o.position, o.id, v.position, v.id;
 
--- The reviews shown on the page, newest first, and the rating summary.
 -- name: ProductReviews :many
 SELECT r.rating, r.title, r.body, r.is_verified_purchase, r.created_at,
        coalesce(u.full_name, '') AS author
@@ -108,7 +103,6 @@ WHERE r.product_id = $1
 ORDER BY r.is_verified_purchase DESC, r.created_at DESC, r.id DESC
 LIMIT $2;
 
--- The star breakdown for one product, keyed on its id.
 -- name: ProductRating :one
 SELECT
     coalesce(avg(rating), 0)::float8 AS rating,
@@ -120,7 +114,6 @@ SELECT
     count(*) FILTER (WHERE rating = 1)::bigint AS one
 FROM visible_reviews WHERE product_id = $1;
 
--- Products to show alongside: same category, excluding this one.
 -- name: RelatedProducts :many
 SELECT
     p.slug, localized_name(p.name, p.name_en, @locale::text) AS name, b.name AS brand,
@@ -158,7 +151,6 @@ WHERE p.status = 'active'
 ORDER BY p.published_at DESC, p.id DESC
 LIMIT @row_limit::integer;
 
--- Whether this customer has bought this product on an order that went through.
 -- order_is_committed, never "EXISTS a succeeded payment": a store-credit-funded
 -- order is committed with no payment row at all.
 -- name: HasBoughtProduct :one
@@ -172,9 +164,8 @@ SELECT EXISTS (
       AND order_is_committed(o.id)
 );
 
--- Whether this customer has already reviewed this product. The BASE table, not
--- visible_reviews: the unique index is on the base table, so a hidden review
--- must still block a second one.
+-- The base table, not visible_reviews: the unique index is on the base table, so
+-- a hidden review must still block a second one.
 -- name: HasReviewed :one
 SELECT EXISTS (
     SELECT 1 FROM product_reviews r
@@ -182,22 +173,19 @@ SELECT EXISTS (
     WHERE r.user_id = @user_id AND p.slug = @slug::text
 );
 
--- Leave a review. product_reviews_verified_is_real refuses a false
--- is_verified_purchase.
+-- product_reviews_verified_is_real refuses a false is_verified_purchase.
 -- name: CreateReview :exec
 INSERT INTO product_reviews (product_id, user_id, rating, title, body, is_verified_purchase)
 SELECT p.id, @user_id, @rating::smallint, nullif(@title::text, ''), @body::text, @verified::boolean
 FROM products p WHERE p.slug = @slug::text AND p.status = 'active';
 
--- Ask to be told when a variant is back. Idempotent through the PARTIAL unique
--- index stock_notifications_pending_key, so somebody notified about one restock
--- may ask again for the next.
+-- Idempotent through the partial unique index stock_notifications_pending_key, so
+-- somebody notified about one restock may ask again for the next.
 -- name: RequestStockNotice :exec
 INSERT INTO stock_notifications (variant_id, user_id, email, locale)
 VALUES (@variant_id, @user_id, @email::text, @locale)
 ON CONFLICT (variant_id, lower(email)) WHERE notified_at IS NULL DO NOTHING;
 
--- Whether this visitor is already waiting.
 -- name: HasStockNotice :one
 SELECT EXISTS (
     SELECT 1 FROM stock_notifications
@@ -205,7 +193,6 @@ SELECT EXISTS (
       AND notified_at IS NULL
 );
 
--- What people who bought this also bought, read from the projection.
 -- name: BoughtTogether :many
 SELECT
     p.slug,
@@ -251,7 +238,6 @@ WHERE cp.product_id = @product_id
 ORDER BY cp.orders DESC, p.id
 LIMIT @limit_to::integer;
 
--- The questions on a product; their answers come from AnswersForQuestions.
 -- name: ProductQuestions :many
 SELECT q.id, q.body, q.created_at,
        coalesce(u.full_name, '') AS asker
@@ -274,7 +260,6 @@ INSERT INTO product_questions (product_id, user_id, body)
 SELECT p.id, @user_id, @body::text FROM products p
 WHERE p.slug = @slug::text AND p.status = 'active';
 
--- Answer a question. The question must still be visible.
 -- name: AnswerQuestion :execrows
 INSERT INTO product_answers (question_id, user_id, body, is_staff)
 SELECT q.id, @user_id, @body::text, @is_staff::boolean

@@ -11,21 +11,9 @@ import (
 	"testing"
 )
 
-// TestEveryTopicHasAProducerAndAHandler holds each declared topic to both ends
-// of the wire it is supposed to be.
-//
-// Three topics shipped as constants with neither. order.paid and order.shipped
-// were declared when the outbox was built and nothing ever wrote or read them,
-// so a customer was told their order was placed and then never heard again —
-// not when the money arrived, not when the parcel left. The constants read as
-// working features.
-//
-// A topic with no handler is worse than absent: Store.reschedule sends it round
-// again with "no handler registered", so it retries until Stuck() surfaces it.
-//
-// Derived from the SOURCE rather than from a list, for the reason the schema
-// suite derives its coverage from the catalog: a hand-written list is a list
-// somebody adds a constant without touching.
+// TestEveryTopicHasAProducerAndAHandler holds each topic to both ends of the
+// wire. A topic with no handler is worse than absent: it retries until Stuck()
+// surfaces it. Derived from the SOURCE, because a list goes un-updated.
 func TestEveryTopicHasAProducerAndAHandler(t *testing.T) {
 	t.Parallel()
 
@@ -85,7 +73,7 @@ func topicConstants(t *testing.T) map[string]struct{} {
 }
 
 // producerSources is every non-test Go file under internal/ except this
-// package's own — the outbox declaring its topics is not a producer of them.
+// package's own: declaring a topic is not producing it.
 func producerSources(t *testing.T) []string {
 	t.Helper()
 	var out []string

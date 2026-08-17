@@ -1,7 +1,5 @@
 package i18n
 
-// Buying: the product page's buy panel, the cart, and the checkout.
-
 var (
 	KeyAddToCart     = key("buy.add", Message{ZhHant: "加入購物車", En: "Add to cart"})
 	KeySoldOut       = key("buy.soldout", Message{ZhHant: "補貨中", En: "Out of stock"})

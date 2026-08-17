@@ -32,19 +32,14 @@ type PayView struct {
 	TotalCents int64
 	Email      string
 	Lines      []PayLine
-	// Enabled is false without Stripe credentials; the page then explains rather
-	// than offering a button that cannot work.
-	Enabled bool
-	// Cancelled is a return from Stripe without paying. Not an error: the order
-	// and its stock are still held.
-	Cancelled bool
+	Enabled    bool
+	Cancelled  bool
 }
 
 // Total is what is owed.
 func (v PayView) Total() string { return twd(v.TotalCents) }
 
-// Action is where the form posts. The order number is all the request carries;
-// the amount is recomputed server-side.
+// Action is where the form posts; the amount is recomputed server-side.
 func (v PayView) Action() string { return "/orders/" + v.Number + "/pay" }
 
 // PayMeta is the chrome view model for the payment page.

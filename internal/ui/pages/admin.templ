@@ -7,13 +7,7 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// adminNav is the back office's own navigation. It sits inside each page rather
-// than in the site header: /admin is not part of the storefront's chrome, and a
-// customer must never see a link to it.
 templ adminNav(current string) {
-	// Ten of these links carry the same word as the page they lead to and use
-	// that page's title key. The rest are their own, because the nav is shorter
-	// than the page: 訂單 leads to 訂單管理, 庫存 to 庫存管理.
 	<nav class="goen-admin__nav" aria-label={ i18n.T(ctx, i18n.KeyAdminQueueNavLabel) }>
 		<a class={ "ui-navitem", templ.KV("is-active", current == "dashboard") } href="/admin">{ i18n.T(ctx, i18n.KeyAdminQueueOverview) }</a>
 		<a class={ "ui-navitem", templ.KV("is-active", current == "orders") } href="/admin/orders">{ i18n.T(ctx, i18n.KeyAdminQueueOrders) }</a>
@@ -69,9 +63,6 @@ templ AdminDashboard(p layouts.Page, v AdminDashboardView) {
 					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminQueueStatActive) }</span>
 					<span class="ui-stat__value">{ v.ActiveProductsText() }</span>
 				</div>
-				// A LINK, not a number. This tile has counted unhandled messages
-				// since the back office shipped and there was nowhere to open
-				// them: a customer wrote in and the shop saw a figure.
 				<a class="ui-stat" href="/admin/messages">
 					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminQueueStatMessages) }</span>
 					<span class="ui-stat__value">{ v.OpenMessagesText() }</span>
@@ -106,9 +97,6 @@ templ AdminOrders(p layouts.Page, v AdminOrdersView) {
 			if v.HasNotice() {
 				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
 			}
-			// A GET form: searching reads and writes nothing, so the term belongs in
-			// the URL where it can be bookmarked, shared with a colleague and
-			// survive the back button.
 			<form class="goen-admin__form goen-admin__search" method="get" action="/admin/orders">
 				<label class="goen-sr-only" for="order-search">{ i18n.T(ctx, i18n.KeyAdminQueueSearchLabel) }</label>
 				<input
@@ -251,11 +239,6 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 							<dd class="ui-dl__desc">{ v.Address }</dd>
 						</div>
 						if v.HasInvoice() {
-							// Collected at checkout since payment shipped and shown
-							// nowhere until now. Issuing a 統一發票 needs a 加值中心
-							// integration goen does not have, which is exactly why
-							// this has to be readable: until then somebody issues it
-							// by hand, and cannot do that from a table.
 							<div class="ui-dl__row">
 								<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeySectionInvoice) }</dt>
 								<dd class="ui-dl__desc">{ v.InvoiceText(ctx) }</dd>
@@ -263,12 +246,6 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 						}
 					</dl>
 					if v.Correctable {
-						// A customer who typed the wrong street had no way to
-						// fix it and neither did the shop — the only option was
-						// cancel and re-order, which loses the payment and the
-						// stock hold with it. Offered only while the parcel is
-						// still here: rewriting the address after dispatch makes
-						// the record lie about where it went.
 						<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminQueueDelivery) }</h2>
 						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/delivery") }>
 							<div class="goen-admin__row">
@@ -346,9 +323,6 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 						</ul>
 					}
 					if len(v.Timeline) > 0 {
-						// WITH the actor. The customer's page deliberately shows
-						// only what happened; this one answers "who", which is
-						// the question no per-entity history could before.
 						<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminQueueTimeline) }</h2>
 						<ul class="goen-admin__returnlines" role="list">
 							for _, e := range v.Timeline {
@@ -410,11 +384,6 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 								<label class="ui-label" for="ship-tracking">{ i18n.T(ctx, i18n.KeyAdminQueueTracking) }</label>
 								<input class="ui-input" id="ship-tracking" name="tracking" required maxlength="60" autocomplete="off"/>
 							</div>
-							// Per line, because a parcel can carry some of what is left:
-							// the other two are on back-order, or would not fit the
-							// carrier's box. Defaulting to everything outstanding keeps
-							// the one-parcel dispatch a single click, which is what it
-							// was and still is the common case.
 							for _, l := range v.Shippable {
 								<div class="ui-field">
 									<label class="ui-label" for={ "qty-" + l.OrderLineID }>
@@ -429,10 +398,7 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 										min="0"
 										max={ l.RemainingText() }
 									/>
-									// A line holding less than it owes cannot be fully
-									// dispatched: part of its stock went back on the shelf,
-									// and shipping it would post no movement at all. Said
-									// here rather than left to fail at the write.
+									// A line holding less than it owes cannot ship: no movement is posted.
 									if l.Short() {
 										<p class="goen-admin__hint">
 											{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueShortHold), l.HeldText()) }
@@ -464,8 +430,6 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 					} else {
 						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueFinal) }</p>
 					}
-					// 統一發票. The preference has been collected since checkout
-					// shipped and nothing ever acted on it — this is the door.
 					<section class="goen-admin__invoices" aria-labelledby="invoice-heading">
 						<h2 id="invoice-heading" class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminDocInvoice) }</h2>
 						if !v.InvoicingEnabled {
@@ -484,14 +448,9 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 												}
 											</span>
 											<span class="ui-cart-line__meta">{ d.IssuedAt }</span>
-											// The 隨機碼, which a customer needs to look the
-											// invoice up on the 財政部 platform.
 											if d.ProviderRef != "" {
 												<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueRandomCode), d.ProviderRef) }</span>
 											}
-											// What the document says was sold. A shop
-											// reconciling an invoice against an order
-											// compares lines, not totals.
 											for _, l := range d.Lines {
 												<span class="ui-cart-line__meta">{ l.Line() }</span>
 											}
@@ -563,8 +522,6 @@ templ AdminVariants(p layouts.Page, v AdminVariantsView) {
 	}
 }
 
-// adminVariantTable is the stock table, with each row's own forms. The forms
-// are per row rather than one bulk form, so a mistake affects one variant.
 templ adminVariantTable(variants []AdminVariant) {
 	<table class="ui-table goen-admin__table">
 		<thead>
@@ -580,9 +537,6 @@ templ adminVariantTable(variants []AdminVariant) {
 			for _, x := range variants {
 				<tr class={ templ.KV("goen-admin__row--low", x.Low()) }>
 					<td>
-						// The SKU links to its own LEDGER, not to the storefront page.
-						// This is the stock list: the question a staff member has here
-						// is "why is this four", and the answer is the movements.
 						<a href={ templ.SafeURL("/admin/stock/" + x.SKU) }>{ x.SKU }</a>
 						<span class="ui-cart-line__meta">
 							<a href={ templ.URL("/p/" + x.Slug) }>{ i18n.T(ctx, i18n.KeyAdminQueueViewProduct) }</a>

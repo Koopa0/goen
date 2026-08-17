@@ -1,22 +1,6 @@
--- What a customer may still register, for one of their orders.
---
--- Bounded by what was DELIVERED, not by what was dispatched and not by what was
--- ordered. A warranty starts when the goods reach somebody, and this query used
--- to say so in a comment while reading shipped_at: cover counted from dispatch
--- is one to three days short, and every one of those days is taken off the
--- CUSTOMER.
---
--- It could not be written this way when the feature shipped, because
--- order_shipments.delivered_at was read by two pages and written by nothing.
--- applyStatusEffects stamps it now, on BOTH transitions that end a delivery, so
--- 宅配 and 超商取貨 each reach this. /admin/returns already reads that column to
--- decide whether a request is inside 消保法 §19's seven days — two features
--- asking "when did the goods reach somebody" have to read ONE column, or the
--- shop is answering the same question two ways.
---
--- Ownership is IN the query. A registration form that read the order and then
--- checked who owned it in Go is a check somebody can skip by posting straight
--- to the endpoint.
+-- What a customer may still register, bounded by delivered_at and never by
+-- shipped_at: cover counted from dispatch is one to three days short, all of
+-- them off the customer. Ownership is in the query, so it cannot be skipped.
 -- name: RegistrableLines :many
 SELECT
     ol.id AS order_line_id,
@@ -32,10 +16,8 @@ JOIN orders o ON o.id = ol.order_id
 LEFT JOIN product_variants pv ON pv.id = ol.variant_id
 LEFT JOIN products p ON p.id = pv.product_id
 LEFT JOIN LATERAL (
-    -- Only the parcels that ARRIVED. An order shipped in two boxes of which one
-    -- has landed can register what landed and no more, which is the same
-    -- per-parcel truth /admin/returns reads and the reason partial shipment had
-    -- to exist before this could be written.
+    -- Only the parcels that ARRIVED: an order shipped in two boxes of which one
+    -- has landed can register what landed and no more.
     SELECT sum(sl.quantity) AS units
     FROM order_shipment_lines sl
     JOIN order_shipments s ON s.id = sl.shipment_id
@@ -49,23 +31,9 @@ WHERE o.order_number = @order_number::text
   AND o.user_id = @user_id
 ORDER BY ol.position, ol.id;
 
--- Register one unit.
---
--- expires_on is computed HERE from the DELIVERY date and the product's term,
--- never passed in: an expiry a form could carry is an expiry a customer could
--- choose. The delivery date is the database's own, so this is one clock at both
--- ends — the /admin/messages lesson, which is also why it is not now() plus a
--- term read separately.
---
--- min() across the parcels, so a line split between two boxes takes the date the
--- FIRST of them arrived. That is the reading that favours the shop by the
--- smallest margin available and is still defensible: the customer had a unit of
--- that line in their hands on that day.
---
--- The whole thing is one statement guarded by a WHERE clause, so ownership,
--- "it arrived", and "the term exists" are all decided under the same read the
--- insert uses. Checking them first in Go would be checking them against a state
--- another request can change in between.
+-- Register one unit. expires_on is computed here from the delivery date and the
+-- product's term, never passed in, and min() across the parcels runs a split
+-- line from the day the first box arrived.
 -- name: RegisterWarranty :execrows
 INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, serial_number, expires_on)
 SELECT ol.id, @unit_no::smallint, @user_id, nullif(@serial_number::text, ''),
