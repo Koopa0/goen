@@ -585,6 +585,8 @@ func (q *Queries) AdminCustomer(ctx context.Context, id uuid.UUID) (AdminCustome
 const adminCustomerOrders = `-- name: AdminCustomerOrders :many
 SELECT o.order_number, o.fulfillment_status, o.placed_at,
        o.shipping_cents, o.discount_cents, o.tax_cents,
+       order_is_committed(o.id) AS committed,
+       order_amount_owed(o.id) AS owed_cents,
        coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                  WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents
 FROM orders o
@@ -605,6 +607,8 @@ type AdminCustomerOrdersRow struct {
 	ShippingCents     int64
 	DiscountCents     int64
 	TaxCents          int64
+	Committed         bool
+	OwedCents         int64
 	SubtotalCents     int64
 }
 
@@ -624,6 +628,8 @@ func (q *Queries) AdminCustomerOrders(ctx context.Context, arg AdminCustomerOrde
 			&i.ShippingCents,
 			&i.DiscountCents,
 			&i.TaxCents,
+			&i.Committed,
+			&i.OwedCents,
 			&i.SubtotalCents,
 		); err != nil {
 			return nil, err
@@ -872,7 +878,8 @@ SELECT
     coalesce(ip.invoice_type, '') AS invoice_type,
     coalesce(ip.carrier_code, '') AS invoice_carrier,
     coalesce(ip.tax_id, '') AS invoice_tax_id,
-    order_is_committed(o.id) AS committed
+    order_is_committed(o.id) AS committed,
+    order_amount_owed(o.id) AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
@@ -906,6 +913,7 @@ type AdminOrderByNumberRow struct {
 	InvoiceCarrier     string
 	InvoiceTaxID       string
 	Committed          bool
+	OwedCents          int64
 }
 
 // discount_reason is JOINED and not snapshotted: coupons.code is never updated
@@ -940,6 +948,7 @@ func (q *Queries) AdminOrderByNumber(ctx context.Context, orderNumber string) (A
 		&i.InvoiceCarrier,
 		&i.InvoiceTaxID,
 		&i.Committed,
+		&i.OwedCents,
 	)
 	return i, err
 }
@@ -986,7 +995,8 @@ SELECT
     coalesce(pd.recipient_name, '') AS recipient,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
-    order_is_committed(o.id) AS committed
+    order_is_committed(o.id) AS committed,
+    order_amount_owed(o.id) AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE ($1::text = '' OR o.fulfillment_status = $1::text)
@@ -1010,6 +1020,7 @@ type AdminOrdersRow struct {
 	Recipient         string
 	SubtotalCents     int64
 	Committed         bool
+	OwedCents         int64
 }
 
 func (q *Queries) AdminOrders(ctx context.Context, arg AdminOrdersParams) ([]AdminOrdersRow, error) {
@@ -1032,6 +1043,7 @@ func (q *Queries) AdminOrders(ctx context.Context, arg AdminOrdersParams) ([]Adm
 			&i.Recipient,
 			&i.SubtotalCents,
 			&i.Committed,
+			&i.OwedCents,
 		); err != nil {
 			return nil, err
 		}
@@ -1469,7 +1481,8 @@ SELECT
     coalesce(pd.recipient_name, '') AS recipient,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
-    order_is_committed(o.id) AS committed
+    order_is_committed(o.id) AS committed,
+    order_amount_owed(o.id) AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE o.order_number = upper($1::text)
@@ -1495,6 +1508,7 @@ type AdminSearchOrdersRow struct {
 	Recipient         string
 	SubtotalCents     int64
 	Committed         bool
+	OwedCents         int64
 }
 
 // An order-number-shaped term is matched exactly and anything else as a prefix,
@@ -1520,6 +1534,7 @@ func (q *Queries) AdminSearchOrders(ctx context.Context, arg AdminSearchOrdersPa
 			&i.Recipient,
 			&i.SubtotalCents,
 			&i.Committed,
+			&i.OwedCents,
 		); err != nil {
 			return nil, err
 		}
@@ -1721,7 +1736,11 @@ func (q *Queries) AdminShippingZones(ctx context.Context) ([]AdminShippingZonesR
 
 const adminSummary = `-- name: AdminSummary :one
 SELECT
-    (SELECT count(*) FROM orders WHERE fulfillment_status = 'pending')::bigint AS pending_orders,
+    -- Genuinely UNPAID, not merely pending: an order funded by store credit or
+    -- a full discount sits at pending for good, and counting it here sends
+    -- somebody looking for money that has already arrived.
+    (SELECT count(*) FROM orders o WHERE o.fulfillment_status = 'pending'
+       AND NOT order_is_committed(o.id) AND order_amount_owed(o.id) > 0)::bigint AS pending_orders,
     (SELECT count(*) FROM orders WHERE fulfillment_status = 'picking')::bigint AS picking_orders,
     (SELECT count(*) FROM product_variants
      WHERE is_active AND stock_quantity <= safety_stock)::bigint AS low_stock,

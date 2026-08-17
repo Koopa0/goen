@@ -1,12 +1,16 @@
 package i18n
 
 var (
-	KeyAdminStatusPending   = key("admin.status.pending", Message{ZhHant: "待付款", En: "Awaiting payment"})
-	KeyAdminStatusPicking   = key("admin.status.picking", Message{ZhHant: "備貨中", En: "Picking"})
-	KeyAdminStatusShipped   = key("admin.status.shipped", Message{ZhHant: "已出貨", En: "Shipped"})
-	KeyAdminStatusDelivered = key("admin.status.delivered", Message{ZhHant: "已送達", En: "Delivered"})
-	KeyAdminStatusCompleted = key("admin.status.completed", Message{ZhHant: "已完成", En: "Completed"})
-	KeyAdminStatusCancelled = key("admin.status.cancelled", Message{ZhHant: "已取消", En: "Cancelled"})
+	KeyAdminStatusPending = key("admin.status.pending", Message{ZhHant: "待付款", En: "Awaiting payment"})
+	KeyAdminStatusPicking = key("admin.status.picking", Message{ZhHant: "備貨中", En: "Picking"})
+	// The other half of 'pending': paid, and waiting for somebody to pick it.
+	// Not a schema state — orders_check_transition knows six — but the queue has
+	// to tell a paid order from an unpaid one, and no status does.
+	KeyAdminStatusReadyToPick = key("admin.status.readytopick", Message{ZhHant: "待出貨", En: "Ready to pick"})
+	KeyAdminStatusShipped     = key("admin.status.shipped", Message{ZhHant: "已出貨", En: "Shipped"})
+	KeyAdminStatusDelivered   = key("admin.status.delivered", Message{ZhHant: "已送達", En: "Delivered"})
+	KeyAdminStatusCompleted   = key("admin.status.completed", Message{ZhHant: "已完成", En: "Completed"})
+	KeyAdminStatusCancelled   = key("admin.status.cancelled", Message{ZhHant: "已取消", En: "Cancelled"})
 
 	KeyAdminReturnRequested = key("admin.return.requested", Message{ZhHant: "待處理", En: "Open"})
 	KeyAdminReturnApproved  = key("admin.return.approved", Message{ZhHant: "已同意", En: "Approved"})

@@ -10,7 +10,8 @@ SELECT
     coalesce(pd.recipient_name, '') AS recipient,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
-    order_is_committed(o.id) AS committed
+    order_is_committed(o.id) AS committed,
+    order_amount_owed(o.id) AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE (@status::text = '' OR o.fulfillment_status = @status::text)
@@ -32,7 +33,8 @@ SELECT
     coalesce(pd.recipient_name, '') AS recipient,
     coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
               WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
-    order_is_committed(o.id) AS committed
+    order_is_committed(o.id) AS committed,
+    order_amount_owed(o.id) AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 WHERE o.order_number = upper(@term::text)
@@ -70,7 +72,8 @@ SELECT
     coalesce(ip.invoice_type, '') AS invoice_type,
     coalesce(ip.carrier_code, '') AS invoice_carrier,
     coalesce(ip.tax_id, '') AS invoice_tax_id,
-    order_is_committed(o.id) AS committed
+    order_is_committed(o.id) AS committed,
+    order_amount_owed(o.id) AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
 LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
@@ -151,7 +154,11 @@ WHERE id = @id;
 
 -- name: AdminSummary :one
 SELECT
-    (SELECT count(*) FROM orders WHERE fulfillment_status = 'pending')::bigint AS pending_orders,
+    -- Genuinely UNPAID, not merely pending: an order funded by store credit or
+    -- a full discount sits at pending for good, and counting it here sends
+    -- somebody looking for money that has already arrived.
+    (SELECT count(*) FROM orders o WHERE o.fulfillment_status = 'pending'
+       AND NOT order_is_committed(o.id) AND order_amount_owed(o.id) > 0)::bigint AS pending_orders,
     (SELECT count(*) FROM orders WHERE fulfillment_status = 'picking')::bigint AS picking_orders,
     (SELECT count(*) FROM product_variants
      WHERE is_active AND stock_quantity <= safety_stock)::bigint AS low_stock,
@@ -1060,6 +1067,8 @@ WHERE u.id = $1;
 -- name: AdminCustomerOrders :many
 SELECT o.order_number, o.fulfillment_status, o.placed_at,
        o.shipping_cents, o.discount_cents, o.tax_cents,
+       order_is_committed(o.id) AS committed,
+       order_amount_owed(o.id) AS owed_cents,
        coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                  WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents
 FROM orders o

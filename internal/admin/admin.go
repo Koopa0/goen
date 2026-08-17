@@ -67,6 +67,9 @@ func NextStatuses(current string) []string {
 }
 
 // StatusLabel is a fulfilment state in the reader's language.
+//
+// It answers from the status alone, which is right everywhere but 'pending' —
+// see FundedStatusLabel, which the order surfaces use.
 func StatusLabel(ctx context.Context, s string) string {
 	switch s {
 	case "pending":
@@ -164,3 +167,22 @@ func ReturnStatusLabel(ctx context.Context, s string) string {
 // MaxCreditGrant bounds one posting, in cents: NT$100,000. Not a schema limit,
 // a fat-finger guard on a form that gives money away.
 const MaxCreditGrant = 10000000
+
+// FundedStatusLabel is a fulfilment state read together with what the order
+// owes, which is the only way to tell the two halves of 'pending' apart.
+//
+// An order stays pending from the moment the money arrives until a human picks
+// it, and one paid entirely from store credit has no payment row at all and sits
+// there for good — so the status alone badged a paid order 待付款, on the queue
+// somebody works and beside the customer's own page saying 付款完成. Nothing will
+// ever move it, because no payment is coming.
+//
+// committed means the shop has taken the order on; owed == 0 means nothing is
+// due. Either is enough here: a card capture sets the first, and store credit or
+// a full discount sets the second.
+func FundedStatusLabel(ctx context.Context, status string, committed bool, owedCents int64) string {
+	if status == "pending" && (committed || owedCents <= 0) {
+		return i18n.T(ctx, i18n.KeyAdminStatusReadyToPick)
+	}
+	return StatusLabel(ctx, status)
+}

@@ -116,7 +116,7 @@ func (s *Store) Orders(ctx context.Context, status, term string) (pages.AdminOrd
 		view.Orders = append(view.Orders, pages.AdminOrderRow{
 			Number:     o.OrderNumber,
 			Status:     o.FulfillmentStatus,
-			StatusText: StatusLabel(ctx, o.FulfillmentStatus),
+			StatusText: FundedStatusLabel(ctx, o.FulfillmentStatus, o.Committed, o.OwedCents),
 			PlacedAt:   o.PlacedAt.Format("2006-01-02 15:04"),
 			Recipient:  o.Recipient,
 			TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
@@ -143,7 +143,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 
 	view := pages.AdminOrderView{
 		Number: o.OrderNumber, Status: o.FulfillmentStatus,
-		StatusText:    StatusLabel(ctx, o.FulfillmentStatus),
+		StatusText:    FundedStatusLabel(ctx, o.FulfillmentStatus, o.Committed, o.OwedCents),
 		PlacedAt:      o.PlacedAt.Format("2006-01-02 15:04"),
 		ShippingName:  o.ShippingMethodName,
 		SubtotalCents: o.SubtotalCents, ShippingCents: o.ShippingCents,
