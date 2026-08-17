@@ -388,3 +388,38 @@ func TestTheProductPageSaysWhetherItAddedAnything(t *testing.T) {
 		t.Error("an ordinary page visit renders an add-to-cart message")
 	}
 }
+
+// TestTheCheckoutSummaryNamesTheVariant holds the one page that dropped it.
+//
+// The cart names the variant beside each line, and so does the order page after
+// the fact. Between them sits checkout, whose summary rendered "Name × qty" and
+// nothing else — so at the moment of committing money, a customer buying the
+// 星霧藍 512GB read the same line as one buying the 曜石黑 128GB, on the one
+// screen built to confirm what they are about to pay for. The label was on the
+// same struct the template was already ranging over.
+func TestTheCheckoutSummaryNamesTheVariant(t *testing.T) {
+	t.Parallel()
+
+	view := CheckoutView{
+		Cart: CartView{Lines: []CartLine{{
+			Name: "Pixelight 9 Pro", Label: "星霧藍 / 512GB",
+			Quantity: 1, UnitCents: 3190000,
+		}}},
+		Shipping: []ShippingChoice{{Code: "home", Name: "宅配到府", FeeCents: 8000}},
+		Chosen:   "home",
+	}
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
+
+	// The summary specifically, not the page: the line above the fold carries
+	// the label too, so asserting the string against the whole document stays
+	// green with the summary still saying nothing.
+	_, summary, ok := strings.Cut(html, "goen-checkout__lines")
+	if !ok {
+		t.Fatal("the checkout rendered no summary list")
+	}
+	summary, _, _ = strings.Cut(summary, "</ul>")
+	if !strings.Contains(summary, "星霧藍 / 512GB") {
+		t.Errorf("the checkout summary does not name the variant:\n%s", summary)
+	}
+}

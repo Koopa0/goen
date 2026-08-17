@@ -117,8 +117,10 @@ type ProductView struct {
 	Options []ProductOption
 	Specs   []ProductSpec
 
-	SelectionOK  bool
-	Exact        bool
+	SelectionOK bool
+	Exact       bool
+	// PriceVaries reports that dearer variants exist than the one priced here.
+	PriceVaries  bool
 	VariantID    string
 	SKU          string
 	PriceCents   int64
@@ -180,6 +182,11 @@ func (v *ProductView) RootSlug() string {
 
 // Price is the resolved variant's price.
 func (v *ProductView) Price() string { return twd(v.PriceCents) }
+
+// PriceFrom reports that Price is the cheapest of several rather than this
+// product's price: either the visitor has chosen no variant yet, or the one
+// they chose is the cheapest and dearer ones exist.
+func (v *ProductView) PriceFrom() bool { return v.PriceVaries && !v.Exact }
 
 // Compare is its struck-through original, shown only when OnSale.
 func (v *ProductView) Compare() string { return twd(v.CompareCents) }

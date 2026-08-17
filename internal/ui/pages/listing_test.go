@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -117,5 +118,63 @@ func TestAComparisonCanBeBuiltFromAListing(t *testing.T) {
 	cmp := CompareView{Products: []CompareProduct{{Slug: "a"}, {Slug: "b"}}}
 	if got, want := cmp.ProductHref("a"), "/p/a?p=a&p=b"; got != want {
 		t.Errorf("ProductHref(a) = %q, want %q", got, want)
+	}
+}
+
+// TestACheapestPriceSaysItIsTheCheapest holds a number that read as a promise.
+//
+// A tile and an unchosen product page both render the cheapest BUYABLE
+// variant's price — the query's own column is called min_price_cents — with
+// nothing marking it as the bottom of a range. Seven of the seed's seventeen
+// active products span more than one price, so for 41% of the catalogue the
+// figure beside the name was not the price of the thing the shopper had in
+// mind, on the page where they decide whether to open it.
+//
+// The PDP is the sharper half: there the number sits beside a buy button with
+// the option picker still unselected, and choosing the 512GB changes it.
+func TestACheapestPriceSaysItIsTheCheapest(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	// The whole rendered figure, not a loose word: 最低 beside a price is also
+	// the price FILTER's label two columns to the left, so asserting the word
+	// alone passes on a page that never marked anything.
+	marked := fmt.Sprintf(i18n.T(ctx, i18n.KeyFromPrice), "NT$25,900")
+
+	// One price for the product: the figure IS the price, and saying "from"
+	// there would be worse than saying nothing.
+	one := ListingView{Slug: "phones", Name: "手機", Products: []ProductTile{
+		{Slug: "solo", Name: "Solo", PriceCents: 2590000},
+	}}
+	if got := renderToString(t, Listing(ListingMeta(ctx, one), one)); strings.Contains(got, marked) {
+		t.Errorf("a single-priced product renders %q", marked)
+	}
+
+	many := ListingView{Slug: "phones", Name: "手機", Products: []ProductTile{
+		{Slug: "spread", Name: "Spread", PriceCents: 2590000, PriceVaries: true},
+	}}
+	if got := renderToString(t, Listing(ListingMeta(ctx, many), many)); !strings.Contains(got, marked) {
+		t.Errorf("a product spanning prices states NT$25,900 as its price, unmarked")
+	}
+
+	// And the PDP marks it only while the choice is still open: once a variant
+	// is resolved the price is that variant's, whatever else the product sells.
+	tests := []struct {
+		name          string
+		varies, exact bool
+		want          bool
+	}{
+		{name: "nothing chosen, dearer ones exist", varies: true, exact: false, want: true},
+		{name: "chosen: this is its price", varies: true, exact: true, want: false},
+		{name: "nothing chosen, one price only", varies: false, exact: false, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			v := ProductView{PriceVaries: tt.varies, Exact: tt.exact}
+			if got := v.PriceFrom(); got != tt.want {
+				t.Errorf("PriceFrom(varies=%v, exact=%v) = %v, want %v",
+					tt.varies, tt.exact, got, tt.want)
+			}
+		})
 	}
 }

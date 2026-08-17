@@ -1,6 +1,8 @@
 package pages
 
 import (
+	"fmt"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/icons"
 )
@@ -66,7 +68,13 @@ templ Tile(t ProductTile) {
 				}
 				<div class="ui-product__foot">
 					<span class={ "ui-price", templ.KV("ui-price--sale", t.OnSale()) }>
-						<span class="ui-price__now">{ t.Price() }</span>
+						<span class="ui-price__now">
+							if t.PriceVaries {
+								{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFromPrice), t.Price()) }
+							} else {
+								{ t.Price() }
+							}
+						</span>
 						if t.OnSale() {
 							<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyWasPrice) }</span>
 							<s class="ui-price__was">{ t.Compare() }</s>

@@ -357,6 +357,14 @@ var (
 		ZhHant: "裡從商品頁加入比較,最多四個。",
 		En:     ".",
 	})
+	// KeyFromPrice marks the cheapest of several variant prices. Without it a
+	// card and an unchosen product page state one variant's price as the
+	// product's, which for 7 of the seed's 17 active products is not the price of
+	// the thing the shopper has in mind. The figure is INSIDE the message: 起 is
+	// a suffix and "From" is a prefix, so a bare word beside the price cannot
+	// serve both — and 最低 beside it is the price FILTER's label two columns to
+	// the left.
+	KeyFromPrice  = key("price.from", Message{ZhHant: "%s 起", En: "From %s"})
 	KeyCompareAdd = key("compare.add", Message{ZhHant: "比較", En: "Compare"})
 	// KeyCompareAddNamed is the checkbox's accessible name. Two dozen controls
 	// all called "Compare" is a screen reader reading one word two dozen times.

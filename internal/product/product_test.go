@@ -60,6 +60,25 @@ func TestResolve(t *testing.T) {
 		},
 	}
 
+	// The matrix above cannot tell "first buyable" from "cheapest buyable"
+	// apart, because its first variant is both. The seed's own catalogue can:
+	// aurora-slate-11's cheapest is out of stock, so position order pinned the
+	// DEARER one — the tile advertised NT$14,900 起 and the page it linked to
+	// opened at NT$17,900. A listing quotes the cheapest buyable variant, so
+	// this has to agree with it or the price is a different number one click on.
+	skewed := []Variant{
+		{ID: "1", SKU: "S-1-1", PriceCents: 1490000, Sellable: false,
+			Options: map[string]string{"顏色": "銀", "容量": "128GB"}},
+		{ID: "2", SKU: "S-1-2", PriceCents: 1790000, Sellable: true, Available: 3,
+			Options: map[string]string{"顏色": "銀", "容量": "256GB"}},
+		{ID: "3", SKU: "S-2-1", PriceCents: 1490000, Sellable: true, Available: 4,
+			Options: map[string]string{"顏色": "灰", "容量": "128GB"}},
+	}
+	if got, _ := Resolve(skewed, Selection{}); got.SKU != "S-2-1" {
+		t.Errorf("Resolve(nothing chosen) SKU = %q, want S-2-1 — the cheapest buyable, "+
+			"which is what the listing tile quoted", got.SKU)
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, exact := Resolve(matrix(), tt.sel)

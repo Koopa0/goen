@@ -11,11 +11,14 @@ import (
 
 // ProductTile is one product card and the cheapest buyable variant's price.
 type ProductTile struct {
-	Slug         string
-	Name         string
-	Summary      string
-	Brand        string
-	PriceCents   int64
+	Slug       string
+	Name       string
+	Summary    string
+	Brand      string
+	PriceCents int64
+	// PriceVaries reports that PriceCents is the cheapest of several, which is
+	// what makes it a "from" rather than the product's price.
+	PriceVaries  bool
 	CompareCents int64 // 0 when the product is not on sale
 	Rating       float64
 	RatingCount  int64

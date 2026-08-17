@@ -202,7 +202,13 @@ templ productBuy(v *ProductView) {
 		if v.SelectionOK {
 			<div class="goen-pdp__pricebox">
 				<span class={ "ui-price", "goen-pdp__price", templ.KV("ui-price--sale", v.OnSale()) }>
-					<span class="ui-price__now">{ v.Price() }</span>
+					<span class="ui-price__now">
+						if v.PriceFrom() {
+							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFromPrice), v.Price()) }
+						} else {
+							{ v.Price() }
+						}
+					</span>
 					if v.OnSale() {
 						<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyWasPrice) }</span>
 						<s class="ui-price__was">{ v.Compare() }</s>

@@ -338,7 +338,12 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 					<ul class="goen-checkout__lines" role="list">
 						for _, l := range v.Cart.Lines {
 							<li>
-								<span>{ l.Name } × { l.QuantityText() }</span>
+								<span>
+									{ l.Name } × { l.QuantityText() }
+									if l.Label != "" {
+										<span class="ui-cart-line__meta">{ l.Label }</span>
+									}
+								</span>
 								<span class="ui-summary__val">{ l.LineTotal() }</span>
 							</li>
 						}
