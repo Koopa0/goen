@@ -1162,7 +1162,7 @@ reviewer should see them named rather than discover them.
 ## The database enforces what it can
 
 goen's data rules live in the schema, not only in Go: 241 CHECKs, 80 foreign
-keys, 60 unique indexes and 39 rule triggers, measured from `pg_constraint`,
+keys, 61 unique indexes and 39 rule triggers, measured from `pg_constraint`,
 `pg_index` and `pg_trigger` against the built schema rather than counted by hand
 — counted by hand they had drifted to roughly half.
 

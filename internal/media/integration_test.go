@@ -242,7 +242,7 @@ func TestAbandonedUploadsAreReclaimed(t *testing.T) {
 	// catalogue, so selecting one matches nothing and attaches nothing.
 	tag, err := pool.Exec(ctx, `
 		WITH b AS (INSERT INTO brands (slug, name) VALUES ('sweep-brand', '測試品牌') RETURNING id),
-		     c AS (INSERT INTO categories (slug, name) VALUES ('sweep-cat', '測試分類') RETURNING id),
+		     c AS (INSERT INTO categories (slug, name, position) SELECT 'sweep-cat', '測試分類', coalesce(max(position) + 1, 0) FROM categories WHERE parent_id IS NULL RETURNING id),
 		     p AS (INSERT INTO products (brand_id, category_id, slug, name)
 		           SELECT b.id, c.id, 'sweep-product', '測試商品' FROM b, c RETURNING id)
 		INSERT INTO product_images (product_id, storage_key, alt_text, position)

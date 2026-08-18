@@ -705,7 +705,7 @@ func twoProductsWithSpecs(t *testing.T) (first, second string) {
 			WITH b AS (
 				INSERT INTO brands (slug, name) VALUES ('cb-'||gen_random_uuid(), '比較品牌') RETURNING id
 			), c AS (
-				INSERT INTO categories (slug, name) VALUES ('cc-'||gen_random_uuid(), '比較分類') RETURNING id
+				INSERT INTO categories (slug, name, position) SELECT 'cc-'||gen_random_uuid(), '比較分類', coalesce(max(position) + 1, 0) FROM categories WHERE parent_id IS NULL RETURNING id
 			), p AS (
 				INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
 				SELECT b.id, c.id, $1, '比較測試商品', 'draft', now() FROM b, c RETURNING id

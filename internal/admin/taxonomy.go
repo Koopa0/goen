@@ -139,6 +139,11 @@ func (s *Store) CreateCategory(ctx context.Context, f *TaxonomyForm) (map[string
 			takenBy(err, "categories_parent_id_fkey"),
 			takenBy(err, "categories_not_own_parent"):
 			return map[string]string{"parent": i18n.T(ctx, i18n.KeyFormParentMissing)}, nil
+		case takenBy(err, "categories_position_key"):
+			// Not a field: position is computed inside the INSERT and never
+			// typed, so there is nothing on the form to point at. The second
+			// attempt reads a fresh maximum and goes through.
+			return map[string]string{"form": i18n.T(ctx, i18n.KeyFormPositionTaken)}, nil
 		}
 		return nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
 	}

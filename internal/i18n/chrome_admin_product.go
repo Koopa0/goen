@@ -1,6 +1,15 @@
 package i18n
 
 var (
+	// KeyFormPositionTaken is a collision, not a mistake. CreateCategory computes
+	// position as max(position) + 1, so two staff members adding a category at
+	// the same moment both read the same maximum and categories_position_key
+	// refuses the loser. Nothing they typed is wrong and the second attempt
+	// computes a fresh maximum, so the message says exactly that.
+	KeyFormPositionTaken = key("admin.taxonomy.positiontaken", Message{
+		ZhHant: "剛剛有人同時新增了分類,請再送出一次。",
+		En:     "Someone added a category at the same moment. Please submit again.",
+	})
 	KeyAdminProdLead = key("admin.prod.lead", Message{
 		ZhHant: "新商品是草稿,加了變體、確認資料之後再上架。",
 		En: "A new product is a draft. Add its variants, check the details, and publish it " +

@@ -39,6 +39,9 @@ templ AdminTaxonomy(p layouts.Page, v *AdminTaxonomyView) {
 templ taxonForm(kind string, title i18n.Key, v *AdminTaxonomyView) {
 	<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/taxonomy/" + kind) }>
 		<h2 class="goen-admin__subhead">{ i18n.T(ctx, title) }</h2>
+		if v.HasErr(kind, "form") {
+			<p class="ui-alert ui-alert--error" role="alert">{ v.Err(kind, "form") }</p>
+		}
 		<div class="ui-field">
 			<label class="ui-label" for={ kind + "-name" }>{ i18n.T(ctx, i18n.KeyAdminColName) }</label>
 			<input

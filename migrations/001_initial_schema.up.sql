@@ -112,6 +112,19 @@ CREATE TABLE categories (
     CONSTRAINT categories_not_own_parent CHECK (parent_id IS DISTINCT FROM id)
 );
 
+-- Position decides the order of the header and of the home page's tiles, and
+-- CreateCategory computes it as max(position) + 1 — which two staff members
+-- adding a category at the same moment both read. product_specs and faq_entries
+-- have carried the same index for the same reason since they were written; this
+-- table computed the position the same way and had nothing behind it, so the
+-- collision was silent and the shop got an order nobody chose.
+--
+-- NULLS NOT DISTINCT because parent_id is nullable and the ROOT categories are
+-- exactly the rows that matter here: they are the header. Without it PostgreSQL
+-- treats every root as distinct and the index constrains only the subtrees.
+CREATE UNIQUE INDEX categories_position_key
+    ON categories (parent_id, position) NULLS NOT DISTINCT;
+
 CREATE FUNCTION localized_name(zh_hant text, en text, locale text)
 RETURNS text
 LANGUAGE sql

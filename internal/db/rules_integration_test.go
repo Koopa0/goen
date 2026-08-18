@@ -598,7 +598,14 @@ func TestStockCannotOversell(t *testing.T) {
 	variant := "11110005-0000-4000-8000-000000000001"
 	setup(t, `
 		INSERT INTO brands (id, slug, name) VALUES ('11110006-0000-4000-8000-000000000001','oversell','O');
-		INSERT INTO categories (id, slug, name) VALUES ('11110007-0000-4000-8000-000000000001','oversell','O');
+		-- setup COMMITS, because the oversell proof needs two real transactions —
+		-- so this row outlives the test and every later fixture load meets it,
+		-- and categories_position_key refuses a second root at the same position.
+		-- A literal outside the fixtures' range rather than max(position) + 1:
+		-- the fixtures live only inside rolled-back transactions, so a maximum
+		-- read here sees an empty table and computes the very 0 they take.
+		INSERT INTO categories (id, slug, name, position)
+		VALUES ('11110007-0000-4000-8000-000000000001','oversell','O',900);
 		INSERT INTO products (id, brand_id, category_id, slug, name, status, published_at)
 		VALUES ('11110008-0000-4000-8000-000000000001','11110006-0000-4000-8000-000000000001',
 		        '11110007-0000-4000-8000-000000000001','oversell','O','active',now());
