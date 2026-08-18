@@ -147,6 +147,14 @@ func (s *Store) SessionVerified(ctx context.Context, token string) (bool, error)
 
 // Remove deletes a credential, which is how a lost authenticator is recovered.
 // Another admin does this; there are no backup codes.
+//
+// It ENDS the sessions too. Removing the factor is the moment it stops being
+// proof, and a session carries its own step-up stamp that SessionTOTPVerified
+// trusts for the rest of StepUpWindow — so a stolen session kept the back
+// office for up to twelve hours after the credential it was admitted on was
+// taken away, and could use StaffOnly to enrol a replacement of its own
+// choosing. Revoking the ROLE already ends sessions for the same reason; this
+// is the other door into the same room.
 func (s *Store) Remove(ctx context.Context, userID string) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
@@ -158,6 +166,9 @@ func (s *Store) Remove(ctx context.Context, userID string) error {
 	}
 	if n == 0 {
 		return ErrNotEnrolled
+	}
+	if err := s.q.EndStaffSessions(ctx, id); err != nil {
+		return fmt.Errorf("end the sessions admitted on the removed factor: %w", err)
 	}
 	return nil
 }

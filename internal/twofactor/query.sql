@@ -76,11 +76,23 @@ FROM promoted p;
 -- Take somebody's back-office access away. The role goes back to 'customer'
 -- rather than the row being deleted: erase_user is the only door that removes
 -- a person.
+-- The last admin cannot be revoked, and the count is taken INSIDE the statement
+-- that revokes. Read separately it is a race two admins both pass: each sees
+-- two, each writes, and the shop is left with none and no way back — the state
+-- /admin/staff exists to make impossible. Reproduced against a scratch database
+-- before this was one statement.
+--
+-- FOR UPDATE on the admin rows, so the second statement waits for the first to
+-- commit and then counts what is actually left rather than what was there when
+-- it started.
 -- name: RevokeStaff :execrows
-UPDATE users SET role = 'customer' WHERE id = $1 AND role IN ('staff', 'admin');
-
--- name: CountAdmins :one
-SELECT count(*)::bigint FROM users WHERE role = 'admin';
+WITH admins AS (
+    SELECT u.id AS admin_id FROM users u WHERE u.role = 'admin' FOR UPDATE
+)
+UPDATE users SET role = 'customer'
+WHERE users.id = $1
+  AND users.role IN ('staff', 'admin')
+  AND (users.role <> 'admin' OR (SELECT count(*) FROM admins) > 1);
 
 -- Whether an address belongs to the account asking. Folded, because
 -- users_email_key is unique on lower(email): two addresses differing only in

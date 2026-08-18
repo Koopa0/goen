@@ -3224,6 +3224,14 @@ BEGIN
         -- foreign key, and it holds a name, an address and whatever the customer
         -- typed.
         DELETE FROM contact_messages WHERE lower(email) = lower(addr);
+
+        -- The OUTBOX holds the address inside its payload, and outbox.Retain
+        -- keeps a delivered message for 30 days — so without this, an erased
+        -- customer's address survives the erasure by a month, in the one table
+        -- that also carries reset links and unsubscribe tokens. Undelivered
+        -- messages go with it: a letter to an address the shop has been told to
+        -- forget must not still be waiting to leave.
+        DELETE FROM outbox_messages WHERE lower(payload->>'email') = lower(addr);
     END IF;
 
     -- Every browser's proof of access to this person's orders: a live bearer
