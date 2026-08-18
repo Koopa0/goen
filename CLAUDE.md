@@ -904,11 +904,24 @@ comments, because `splitQueries` hands each query the NEXT one's introduction.
 32. **`strings.Contains(err.Error(), …)` on a `PgError`, which cannot match.**
     `redeemCoupon` mapped a spent coupon to `ErrCouponUsedUp` by searching the
     error string for the constraint name. pgconn renders a `PgError` as
-    severity + message + SQLSTATE; `ConstraintName` is a struct FIELD and is
-    never in that string, so both branches were unreachable and every over-limit
-    redemption reached the customer as a 500 at the moment of checkout, with the
-    whole address discarded. Bind to `PgError.ConstraintName` — #8, and the
-    reason `error-handling.md` forbids `Contains` on an error at all.
+    severity + message + SQLSTATE, and the coupon limits are raised by a
+    TRIGGER, whose message is the `RAISE` text: `ConstraintName` travels in a
+    struct FIELD and appears nowhere in it. So both branches were unreachable
+    and every over-limit redemption reached the customer as a 500 at the moment
+    of checkout, with the whole address discarded. Bind to
+    `PgError.ConstraintName` — #8, and the reason `error-handling.md` forbids
+    `Contains` on an error at all.
+    **This entry used to say the name is "never in that string", and that is
+    measured to be false for one kind of constraint** — which matters, because a
+    reader who believes it will diagnose a working `Contains` as already broken,
+    as happened. PostgreSQL writes the index name INTO the message for a unique
+    violation (`duplicate key value violates unique constraint "x_key"`) and
+    does not for a trigger raise (`the rule refused this row`). So
+    `internal/product/review.go` was matching a real substring — and was still
+    wrong to, because the message is prose: localized by `lc_messages` and
+    reworded between releases, while the field is neither. **A rule that holds
+    for the right reason in one case and by luck in another is one case from
+    silently failing.**
     It was not a race: `FindCoupon` deliberately checks no limit (they belong
     under `redeem_coupon`'s lock), so a spent code passes the form validation
     EVERY time and fails in the transaction EVERY time. And
