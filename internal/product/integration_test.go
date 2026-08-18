@@ -16,6 +16,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"time"
+
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -1074,4 +1076,67 @@ func reviewBy(t *testing.T, productID uuid.UUID, address string, rating int) (id
 		t.Fatalf("create review: %v", err)
 	}
 	return id, body
+}
+
+// TestASimultaneousSecondReviewIsRefusedByName reaches the branch the ordinary
+// path never touches.
+//
+// AddReview asks CanReview first, and in every ordinary case that is what
+// answers: TestOneReviewPerPersonPerProduct drives the pre-check twice and
+// never reaches the INSERT's own refusal. So the error mapping below it — the
+// one that turns product_reviews_author_key into ErrAlreadyReviewed — is
+// reached ONLY when two submissions race, which is the path least exercised
+// and least able to announce that it had stopped matching. That is the coupon
+// lesson exactly: a count proves the database held the line; only the ERROR
+// says what the customer is about to be shown.
+//
+// The race is made deterministic rather than hoped for. T1 inserts the row and
+// holds its transaction OPEN: under read committed the row is invisible, so
+// CanReview passes, and the second INSERT then blocks on the unique index until
+// T1 commits. Two goroutines behind a start channel would finish microseconds
+// apart and never overlap.
+func TestASimultaneousSecondReviewIsRefusedByName(t *testing.T) {
+	ctx := t.Context()
+	s := product.NewStore(pool)
+	who := reviewer(t, "race")
+	slug := activeSlug(t)
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO product_reviews (product_id, user_id, rating, body, is_verified_purchase)
+		SELECT p.id, $1, 5, '搶先寫進去的評價內容。', false
+		FROM products p WHERE p.slug = $2`, who, slug); err != nil {
+		t.Fatalf("hold the first review open: %v", err)
+	}
+
+	// The second submission sees nothing yet, so it gets past CanReview and
+	// then waits on the index.
+	refused := make(chan error, 1)
+	go func() {
+		_, addErr := s.AddReview(context.WithoutCancel(ctx), slug, who.String(), &product.Review{
+			Rating: 1, Body: "同時送出的第二則評價內容。",
+		})
+		refused <- addErr
+	}()
+
+	// Give it time to reach the INSERT and block; then release it.
+	time.Sleep(300 * time.Millisecond)
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit the first review: %v", err)
+	}
+
+	select {
+	case addErr := <-refused:
+		if !errors.Is(addErr, product.ErrAlreadyReviewed) {
+			t.Errorf("a simultaneous second review gave %v, want ErrAlreadyReviewed — "+
+				"the customer is shown a 500 instead of being told they have already reviewed it", addErr)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the second review never returned")
+	}
 }

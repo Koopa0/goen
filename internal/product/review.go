@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/db"
 
@@ -108,7 +109,16 @@ func (s *Store) AddReview(ctx context.Context, slug, userID string, r *Review) (
 		Slug: slug, UserID: owner, Rating: r.Rating,
 		Title: r.Title, Body: r.Body, Verified: verified,
 	}); err != nil {
-		if strings.Contains(err.Error(), "product_reviews_author_key") {
+		// Bound to the CONSTRAINT rather than to the message text. Searching
+		// err.Error() happens to work for a unique violation, because
+		// PostgreSQL names the index in that one message — but the name is a
+		// FIELD, the message is prose, and prose is localized by lc_messages
+		// and reworded between releases. CanReview answers first in the
+		// ordinary case, so this branch is only ever reached by two
+		// submissions racing: the path least exercised and least able to
+		// announce that it had stopped matching.
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
+			pgErr.ConstraintName == "product_reviews_author_key" {
 			return nil, ErrAlreadyReviewed
 		}
 		return nil, fmt.Errorf("create review: %w", err)
