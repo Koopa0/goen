@@ -153,6 +153,13 @@ var (
 		En:     "7-day return window",
 	})
 
+	// The empty state that makes the first review possible. The form lives
+	// inside the reviews section, so a section that only rendered when a rating
+	// already existed meant no product could ever receive one.
+	KeyNoReviewsYet = key("pdp.reviews.none", Message{
+		ZhHant: "還沒有人評價這個商品 —— 你可以是第一個。",
+		En:     "Nobody has reviewed this yet — you could be the first.",
+	})
 	KeySectionReviews = key("pdp.reviews", Message{ZhHant: "顧客評價", En: "Customer reviews"})
 	KeyReviewCount    = key("pdp.reviews.count", Message{ZhHant: "%s 則評價", En: "%s reviews"})
 	KeyStarsLabel     = key("pdp.reviews.stars", Message{ZhHant: "%s 星", En: "%s stars"})

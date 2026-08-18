@@ -3,7 +3,6 @@ package pages
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"strconv"
 	"strings"
 
@@ -279,22 +278,6 @@ func (a SavedAddress) DisplayLabel(ctx context.Context) string {
 		return i18n.T(ctx, i18n.KeyDeliveryToAddress)
 	}
 	return a.Label
-}
-
-// CheckoutLink is this page's URL with one parameter changed.
-func (v *CheckoutView) CheckoutLink(param, value string) string {
-	q := url.Values{}
-	if v.Chosen != "" {
-		q.Set("ship", v.Chosen)
-	}
-	if v.ChosenAddress != "" {
-		q.Set("address", v.ChosenAddress)
-	}
-	if v.Invoice.Type != "" {
-		q.Set("invoice", v.Invoice.Type)
-	}
-	q.Set(param, value)
-	return "/checkout?" + q.Encode()
 }
 
 // OffersTheAddressBook reports whether the chooser is worth rendering.

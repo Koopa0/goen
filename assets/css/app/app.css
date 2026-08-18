@@ -3981,3 +3981,11 @@ a:hover {
   box-sizing: border-box;
   min-height: 44px;
 }
+
+/* The button that applies a chooser. Small and quiet: it is a step inside the
+   form, not the thing the customer came to press. */
+.goen-checkout__apply {
+  align-self: start;
+  margin: -4px 0 4px;
+  min-height: 44px;
+}

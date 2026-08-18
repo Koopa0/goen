@@ -12,25 +12,55 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// TestCheckoutLinkKeepsTheOtherChoice holds that each chooser link carries what
-// the other one chose.
-func TestCheckoutLinkKeepsTheOtherChoice(t *testing.T) {
+// TestEveryCheckoutChoiceSurvivesChangingAnother holds what the chooser links
+// used to buy, and what they cost.
+//
+// Each was an <a> carrying only the chooser parameters, so pressing one
+// discarded the name, phone, address, note, coupon and carrier already typed.
+// The 發票 chooser sits BELOW the address fields, which makes it the sharpest
+// case: choosing how to be invoiced threw away a whole recipient.
+//
+// They are radio groups in the checkout form now, with a submit button that
+// re-renders. The form carries everything, so composition is structural rather
+// than something each link has to remember to rebuild — and it still works with
+// scripting off, which is what the link shape was protecting.
+func TestEveryCheckoutChoiceSurvivesChangingAnother(t *testing.T) {
 	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
-	v := &CheckoutView{Chosen: "ship-1", ChosenAddress: "addr-1"}
-
-	if got, want := v.CheckoutLink("address", "addr-2"),
-		"/checkout?address=addr-2&ship=ship-1"; got != want {
-		t.Errorf("the address link dropped the method: %q, want %q", got, want)
+	typed := CheckoutView{
+		Cart:     CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Shipping: []ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
+		Chosen:   "ship-1",
+		Address: CheckoutAddress{
+			Name: "王小明", Phone: "0912345678", Street: "松高路 99 號", Note: "放管理室",
+		},
+		CouponCode:     "SAVE10",
+		Invoice:        CheckoutInvoice{Type: "mobile_carrier", Carrier: "/ABC+123"},
+		InvoiceChoices: []InvoiceChoice{{Value: "mobile_carrier", Label: "手機條碼載具"}},
 	}
-	if got, want := v.CheckoutLink("ship", "ship-2"),
-		"/checkout?address=addr-1&ship=ship-2"; got != want {
-		t.Errorf("the method link dropped the address: %q, want %q", got, want)
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &typed))
+
+	// Everything typed is still in the document, so a re-render returns it.
+	for _, want := range []string{"王小明", "0912345678", "松高路 99 號", "放管理室", "SAVE10", "/ABC+123"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the checkout does not carry %q back", want)
+		}
 	}
 
-	empty := &CheckoutView{}
-	if got, want := empty.CheckoutLink("ship", "ship-2"), "/checkout?ship=ship-2"; got != want {
-		t.Errorf("a first choice carried baggage: %q, want %q", got, want)
+	// And the choosers are inside the form rather than links beside it.
+	for _, want := range []string{
+		`type="radio" name="shipping"`,
+		`type="radio" name="invoice_type"`,
+		`name="update" value="1"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the checkout does not carry %s — a chooser outside the form "+
+				"cannot preserve what has been typed into it", want)
+		}
+	}
+	if strings.Contains(html, "/checkout?ship=") || strings.Contains(html, "/checkout?invoice=") {
+		t.Error("a chooser is still a link carrying only its own parameter")
 	}
 }
 
@@ -471,12 +501,27 @@ func TestTheInvoiceFormAsksForOneThing(t *testing.T) {
 		})
 	}
 
-	// And picking one must not silently undo the other two choices, which is
-	// what a chooser that rebuilt the URL from scratch would do.
-	v := &CheckoutView{Chosen: "ship-1", ChosenAddress: "addr-1", Invoice: CheckoutInvoice{Type: "company"}}
-	if got, want := v.CheckoutLink("ship", "ship-2"),
-		"/checkout?address=addr-1&invoice=company&ship=ship-2"; got != want {
-		t.Errorf("CheckoutLink(ship) = %q, want %q", got, want)
+	// The three choosers compose because they are three radio groups in ONE
+	// form, so a submission carries all of them. They used to be links, and
+	// composing meant every link rebuilding the other two parameters — which
+	// worked, and discarded everything the customer had typed.
+	full := CheckoutView{
+		Cart:           CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Shipping:       []ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
+		Chosen:         "ship-1",
+		Invoice:        CheckoutInvoice{Type: "company"},
+		InvoiceChoices: []InvoiceChoice{{Value: "company", Label: "公司統編"}},
+	}
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &full))
+	for _, want := range []string{
+		`type="radio" name="shipping"`,
+		`type="radio" name="invoice_type"`,
+		`name="update" value="1"`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the checkout does not carry %s — a chooser outside the form "+
+				"cannot preserve what has been typed into it", want)
+		}
 	}
 }
 
