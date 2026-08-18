@@ -1248,7 +1248,13 @@ func (s *Store) GrantCredit(ctx context.Context, email string, amountCents int64
 		strconv.FormatInt(amountCents, 10) + ":" + reason
 	err = s.audited(ctx, Event{
 		Action: ActionGrantCredit, Table: "store_credit_entries", ID: nullableID(user.ID),
-		Before: nil, After: map[string]any{"email": email, "amount_cents": amountCents, "reason": reason},
+		// The customer is named by ID and never by address. audit_events is
+		// append-only and erase_user does not reach it, so an email written
+		// here outlives the erasure meant to remove it — which is the reason
+		// this file already gives for an audit row naming FIELDS rather than
+		// their values, and the privacy policy promises the address goes.
+		// The row already carries user.ID above.
+		Before: nil, After: map[string]any{"amount_cents": amountCents, "reason": reason},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			if _, postErr := q.PostStoreCredit(ctx, db.PostStoreCreditParams{

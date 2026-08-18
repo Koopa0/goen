@@ -92,16 +92,18 @@ func (s *Store) RevokeStaff(ctx context.Context, userID, actorID string) error {
 	if userID == actorID {
 		return ErrSelf
 	}
-	if guardErr := s.guardLastAdmin(ctx, target); guardErr != nil {
-		return guardErr
-	}
 
 	n, err := s.q.RevokeStaff(ctx, target)
 	if err != nil {
 		return fmt.Errorf("revoke staff: %w", err)
 	}
 	if n == 0 {
-		return ErrInvalidStaff
+		// The statement asks the last-admin question under FOR UPDATE, so this
+		// is where it is answered — and it answers two questions at once.
+		// A Go pre-check would give a nicer message and would make the real
+		// guard almost unreachable, which is how a redundant check comes to be
+		// the only one anybody has watched work.
+		return s.whyRevokeMatchedNothing(ctx, target)
 	}
 	// Without this they keep the back office for the rest of a session's life.
 	if err := s.q.EndStaffSessions(ctx, target); err != nil {
@@ -119,15 +121,9 @@ func (s *Store) RemoveFactor(ctx context.Context, userID, actorID string) error 
 	return s.Remove(ctx, userID)
 }
 
-// guardLastAdmin refuses a change that would leave nobody able to make another.
-func (s *Store) guardLastAdmin(ctx context.Context, target uuid.UUID) error {
-	admins, err := s.q.CountAdmins(ctx)
-	if err != nil {
-		return fmt.Errorf("count admins: %w", err)
-	}
-	if admins > 1 {
-		return nil
-	}
+// whyRevokeMatchedNothing turns a zero row count into the sentence the staff
+// member needs: the target was not staff at all, or it was the last admin.
+func (s *Store) whyRevokeMatchedNothing(ctx context.Context, target uuid.UUID) error {
 	rows, err := s.q.StaffTOTPStatus(ctx)
 	if err != nil {
 		return fmt.Errorf("read staff: %w", err)
@@ -137,7 +133,7 @@ func (s *Store) guardLastAdmin(ctx context.Context, target uuid.UUID) error {
 			return ErrLastAdmin
 		}
 	}
-	return nil
+	return ErrInvalidStaff
 }
 
 func contains(all []string, want string) bool { return slices.Contains(all, want) }

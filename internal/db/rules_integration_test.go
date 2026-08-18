@@ -946,6 +946,20 @@ func TestEraseUserLeavesNoPersonalData(t *testing.T) {
 	}
 
 	const user = "55555555-5555-4555-8555-555555555555"
+
+	// A letter to this customer, waiting to go out. Without it the JSON half of
+	// the sweep below has no subject: it would report a clean outbox because
+	// the outbox was empty, which is a check over data that needs the data
+	// seeded. The payload is the shape enqueueBulk and the order producers
+	// write — the address frozen in, because the worker serves nobody and
+	// cannot look one up.
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO outbox_messages (topic, dedupe_key, payload)
+		VALUES ('order.paid', 'erasure-probe',
+		        jsonb_build_object('email', 'Ming@Example.com', 'order_number', 'GO-260721-000387'))`); err != nil {
+		t.Fatalf("enqueue a letter to the customer being erased: %v", err)
+	}
+
 	if _, err := tx.Exec(ctx, `SELECT erase_user($1)`, user); err != nil {
 		t.Fatalf("erase_user: %v", err)
 	}

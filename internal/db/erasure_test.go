@@ -61,6 +61,7 @@ func TestTheLastAdminCannotBeErased(t *testing.T) {
 // information_schema, whether it still holds the address after erasure.
 func assertNoTableHoldsTheAddress(ctx context.Context, t *testing.T, tx pgx.Tx, addr string) {
 	t.Helper()
+	assertNoJSONHoldsTheAddress(ctx, t, tx, addr)
 
 	rows, err := tx.Query(ctx, `
 		SELECT c.table_name
@@ -118,5 +119,67 @@ func assertNoTableHoldsTheAddress(ctx context.Context, t *testing.T, tx pgx.Tx, 
 		t.Errorf("%d of the %d addressSurvivors entries actually hold the address; the "+
 			"rest are stale entries claiming a gap that has been closed",
 			found, len(addressSurvivors))
+	}
+}
+
+// assertNoJSONHoldsTheAddress is the half a column sweep cannot see.
+//
+// The sweep above finds a text column literally named `email`. An address
+// inside a jsonb payload is invisible to it, and goen has two such stores: the
+// outbox freezes the recipient into every message it enqueues, and audit_events
+// is append-only with erase_user unable to reach it at all. A review found the
+// store-credit grant writing a customer's address into the second of those, so
+// the erasure promised on the privacy page was defeated by a table nothing
+// could clean afterwards.
+//
+// Derived from information_schema like its neighbour, so a third jsonb store is
+// covered the day it is added rather than the day somebody remembers.
+func assertNoJSONHoldsTheAddress(ctx context.Context, t *testing.T, tx pgx.Tx, addr string) {
+	t.Helper()
+
+	rows, err := tx.Query(ctx, `
+		SELECT c.table_name, c.column_name
+		FROM information_schema.columns c
+		JOIN information_schema.tables t
+		  ON t.table_schema = c.table_schema AND t.table_name = c.table_name
+		WHERE c.table_schema = 'public' AND t.table_type = 'BASE TABLE'
+		  AND c.data_type IN ('jsonb', 'json')
+		ORDER BY c.table_name, c.column_name`)
+	if err != nil {
+		t.Fatalf("find the jsonb columns: %v", err)
+	}
+	type col struct{ table, name string }
+	var cols []col
+	for rows.Next() {
+		var c col
+		if scanErr := rows.Scan(&c.table, &c.name); scanErr != nil {
+			t.Fatalf("scan a jsonb column: %v", scanErr)
+		}
+		cols = append(cols, c)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		t.Fatalf("walk the jsonb columns: %v", err)
+	}
+	if len(cols) < 2 {
+		t.Fatalf("only %d jsonb columns found, want at least the outbox payload and "+
+			"the audit trail — the query is wrong and this proved nothing", len(cols))
+	}
+
+	// The whole value as text, not payload->>'email': an address can sit at any
+	// key, and the point is that it is GONE rather than gone from one field.
+	for _, c := range cols {
+		var n int
+		if err := tx.QueryRow(ctx, fmt.Sprintf(
+			`SELECT count(*) FROM %s WHERE %s::text ILIKE '%%' || $1 || '%%'`,
+			pgx.Identifier{c.table}.Sanitize(),
+			pgx.Identifier{c.name}.Sanitize()), addr).Scan(&n); err != nil {
+			t.Fatalf("probe %s.%s for the erased address: %v", c.table, c.name, err)
+		}
+		if n > 0 {
+			t.Errorf("%s.%s still holds the erased address in %d row(s) — the privacy "+
+				"page promises it is deleted, and JSON is where a column sweep does not look",
+				c.table, c.name, n)
+		}
 	}
 }

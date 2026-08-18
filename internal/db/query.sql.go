@@ -3553,17 +3553,6 @@ func (q *Queries) ConsumeReservationPartial(ctx context.Context, arg ConsumeRese
 	return err
 }
 
-const countAdmins = `-- name: CountAdmins :one
-SELECT count(*)::bigint FROM users WHERE role = 'admin'
-`
-
-func (q *Queries) CountAdmins(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countAdmins)
-	var column_1 int64
-	err := row.Scan(&column_1)
-	return column_1, err
-}
-
 const couponByCode = `-- name: CouponByCode :one
 SELECT id, code, description, kind, amount_cents, percent_bp,
        min_subtotal_cents, max_discount_cents,
@@ -9200,12 +9189,27 @@ func (q *Queries) ReverseOrderCredit(ctx context.Context, orderID uuid.UUID) (in
 }
 
 const revokeStaff = `-- name: RevokeStaff :execrows
-UPDATE users SET role = 'customer' WHERE id = $1 AND role IN ('staff', 'admin')
+WITH admins AS (
+    SELECT u.id AS admin_id FROM users u WHERE u.role = 'admin' FOR UPDATE
+)
+UPDATE users SET role = 'customer'
+WHERE users.id = $1
+  AND users.role IN ('staff', 'admin')
+  AND (users.role <> 'admin' OR (SELECT count(*) FROM admins) > 1)
 `
 
 // Take somebody's back-office access away. The role goes back to 'customer'
 // rather than the row being deleted: erase_user is the only door that removes
 // a person.
+// The last admin cannot be revoked, and the count is taken INSIDE the statement
+// that revokes. Read separately it is a race two admins both pass: each sees
+// two, each writes, and the shop is left with none and no way back — the state
+// /admin/staff exists to make impossible. Reproduced against a scratch database
+// before this was one statement.
+//
+// FOR UPDATE on the admin rows, so the second statement waits for the first to
+// commit and then counts what is actually left rather than what was there when
+// it started.
 func (q *Queries) RevokeStaff(ctx context.Context, id uuid.UUID) (int64, error) {
 	result, err := q.db.Exec(ctx, revokeStaff, id)
 	if err != nil {

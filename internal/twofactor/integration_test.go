@@ -652,3 +652,107 @@ func TestPromotingAProvedAccountKeepsIt(t *testing.T) {
 		t.Error("a customer who had proved their address lost their password on being hired")
 	}
 }
+
+// TestRecoveringAFactorEndsTheSessionsItAdmitted holds the other door into the
+// room RevokeStaff already guards.
+//
+// Removing a second factor is the moment it stops being proof. But a session
+// carries its own step-up stamp that SessionTOTPVerified trusts for the rest of
+// StepUpWindow, so a stolen session kept the back office for up to twelve hours
+// after the credential it was admitted on was taken away — and could use
+// StaffOnly to enrol a replacement of the attacker's own choosing, which is
+// exactly the recovery path this function exists to be.
+func TestRecoveringAFactorEndsTheSessionsItAdmitted(t *testing.T) {
+	ctx := t.Context()
+	s := twofactor.NewStore(pool, testKey)
+
+	victim, victimEmail := staff(t)
+	other, _ := staff(t)
+	enrol(t, s, victim, victimEmail)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO sessions (token_hash, user_id, expires_at, totp_verified_at)
+		VALUES (sha256('stolen-token'::bytea), $1, now() + interval '14 days', now())`,
+		victim); err != nil {
+		t.Fatalf("create the stepped-up session: %v", err)
+	}
+
+	if err := s.RemoveFactor(ctx, victim, other); err != nil {
+		t.Fatalf("recover: %v", err)
+	}
+
+	var sessions int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM sessions WHERE user_id = $1`, victim).Scan(&sessions); err != nil {
+		t.Fatalf("count sessions: %v", err)
+	}
+	if sessions != 0 {
+		t.Errorf("%d sessions survive the removal of the factor they were admitted on; "+
+			"each keeps the back office until its step-up stamp expires, and can enrol "+
+			"a new factor from there", sessions)
+	}
+}
+
+// TestTwoAdminsRevokingEachOtherLeaveOne holds a guard that used to be a
+// read-then-write.
+//
+// CountAdmins ran on the pool and RevokeStaff wrote separately, so two admins
+// revoking each other at once both read two, both passed `admins > 1`, and both
+// wrote. Reproduced against a scratch database: zero admins left, and no way
+// back — granting the role needs /admin/staff, which needs an admin. That is
+// the state this page was built to make impossible.
+func TestTwoAdminsRevokingEachOtherLeaveOne(t *testing.T) {
+	ctx := t.Context()
+	s := twofactor.NewStore(pool, testKey)
+
+	a, _ := staff(t)
+	b, _ := staff(t)
+	if _, err := pool.Exec(ctx,
+		`UPDATE users SET role = 'customer' WHERE role = 'admin' AND id <> $1 AND id <> $2`,
+		a, b); err != nil {
+		t.Fatalf("leave exactly these two admins: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE users SET role = 'admin' WHERE id IN ($1, $2)`, a, b); err != nil {
+		t.Fatalf("make both admins: %v", err)
+	}
+
+	// T1 holds its revoke open across T2's whole attempt: two goroutines behind
+	// a start channel finish microseconds apart and never overlap.
+	t1, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin T1: %v", err)
+	}
+	defer func() { _ = t1.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := t1.Exec(ctx, `
+		WITH admins AS (SELECT u.id AS admin_id FROM users u WHERE u.role = 'admin' FOR UPDATE)
+		UPDATE users SET role = 'customer'
+		WHERE users.id = $1 AND users.role IN ('staff','admin')
+		  AND (users.role <> 'admin' OR (SELECT count(*) FROM admins) > 1)`, a); err != nil {
+		t.Fatalf("T1 revoke: %v", err)
+	}
+
+	revoked := make(chan error, 1)
+	go func() { revoked <- s.RevokeStaff(context.WithoutCancel(ctx), b, a) }()
+
+	select {
+	case err := <-revoked:
+		t.Fatalf("T2 finished before T1 committed (%v); it never met the lock", err)
+	case <-time.After(250 * time.Millisecond):
+	}
+	if err := t1.Commit(ctx); err != nil {
+		t.Fatalf("commit T1: %v", err)
+	}
+
+	if err := <-revoked; !errors.Is(err, twofactor.ErrLastAdmin) {
+		t.Errorf("the second revoke returned %v, want ErrLastAdmin", err)
+	}
+
+	var admins int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM users WHERE role = 'admin'`).Scan(&admins); err != nil {
+		t.Fatalf("count admins: %v", err)
+	}
+	if admins == 0 {
+		t.Error("both revokes went through and the shop is locked out of its own " +
+			"back office, with no path back")
+	}
+}
