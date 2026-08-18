@@ -24,6 +24,12 @@ var (
 	ErrSelf = errors.New("twofactor: an admin cannot do that to their own account")
 	// ErrInvalidStaff is a form the rules refuse.
 	ErrInvalidStaff = errors.New("twofactor: that is not a usable staff account")
+
+	// ErrCredentialCleared is a SUCCESS the admin has to be told about. The
+	// address already had an account that had never proved the mailbox, so its
+	// password was cleared and its sessions ended; the new colleague sets one
+	// through /forgot, exactly as one created from scratch does.
+	ErrCredentialCleared = errors.New("twofactor: the promoted account had not proved its address")
 )
 
 // Roles a staff account may hold, in the order the form offers them.
@@ -62,10 +68,17 @@ func (s *Store) AddStaff(ctx context.Context, address, name, role, actorID strin
 	if self {
 		return ErrSelf
 	}
-	if _, err := s.q.UpsertStaff(ctx, db.UpsertStaffParams{
+	row, err := s.q.UpsertStaff(ctx, db.UpsertStaffParams{
 		Email: address, FullName: name, Role: role,
-	}); err != nil {
+	})
+	if err != nil {
 		return fmt.Errorf("add staff %s: %w", address, err)
+	}
+	if row.CredentialCleared {
+		// Said rather than swallowed: the person being hired now has no way in
+		// until they set a password through /forgot, and the admin is the one
+		// who has to tell them.
+		return ErrCredentialCleared
 	}
 	return nil
 }

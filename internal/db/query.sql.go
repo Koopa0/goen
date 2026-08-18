@@ -8984,6 +8984,23 @@ func (q *Queries) ReturnQueue(ctx context.Context, limit int32) ([]ReturnQueueRo
 	return items, nil
 }
 
+const returnRefundSettled = `-- name: ReturnRefundSettled :one
+SELECT EXISTS (
+    SELECT 1 FROM refunds
+    WHERE return_request_id = $1 AND status = 'succeeded'
+)::boolean AS settled
+`
+
+// Whether this return's money has actually gone. Read on a RETRY, so pressing
+// 同意 again on a return whose refund already succeeded does nothing rather than
+// asking the provider a second time.
+func (q *Queries) ReturnRefundSettled(ctx context.Context, returnRequestID uuid.NullUUID) (bool, error) {
+	row := q.db.QueryRow(ctx, returnRefundSettled, returnRequestID)
+	var settled bool
+	err := row.Scan(&settled)
+	return settled, err
+}
+
 const returnRestockLines = `-- name: ReturnRestockLines :many
 SELECT ol.variant_id::uuid AS variant_id,
        rl.restocked_quantity::integer AS quantity, rl.order_line_id
@@ -10845,12 +10862,16 @@ func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) er
 }
 
 const upsertStaff = `-- name: UpsertStaff :one
-INSERT INTO users (email, full_name, role)
-VALUES ($1, nullif($2::text, ''), $3)
-ON CONFLICT (lower(email)) DO UPDATE
-SET role = EXCLUDED.role,
-    full_name = coalesce(nullif(EXCLUDED.full_name, ''), users.full_name)
-RETURNING id
+WITH promoted AS (
+    INSERT INTO users (email, full_name, role)
+    VALUES ($1, nullif($2::text, ''), $3)
+    ON CONFLICT (lower(email)) DO UPDATE
+    SET role = EXCLUDED.role,
+        full_name = coalesce(nullif(EXCLUDED.full_name, ''), users.full_name)
+    RETURNING id
+)
+SELECT p.id, secure_promoted_account(p.id)::boolean AS credential_cleared
+FROM promoted p
 `
 
 type UpsertStaffParams struct {
@@ -10859,14 +10880,25 @@ type UpsertStaffParams struct {
 	Role     string
 }
 
+type UpsertStaffRow struct {
+	ID                uuid.UUID
+	CredentialCleared bool
+}
+
 // Create a staff account with NO password; they set their own through /forgot,
 // which is the one path that proves they own the mailbox. ON CONFLICT so an
-// existing customer is promoted rather than refused.
-func (q *Queries) UpsertStaff(ctx context.Context, arg UpsertStaffParams) (uuid.UUID, error) {
+// existing customer is promoted rather than refused — and SecurePromotedAccount
+// is what applies the same rule to the account it just promoted, because this
+// statement leaves an existing password_hash and existing sessions exactly
+// where they were.
+// ONE statement, so a promotion cannot commit without the account being
+// secured. Two statements would need a transaction, and a transaction is a
+// thing a caller can forget to open.
+func (q *Queries) UpsertStaff(ctx context.Context, arg UpsertStaffParams) (UpsertStaffRow, error) {
 	row := q.db.QueryRow(ctx, upsertStaff, arg.Email, arg.FullName, arg.Role)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
+	var i UpsertStaffRow
+	err := row.Scan(&i.ID, &i.CredentialCleared)
+	return i, err
 }
 
 const userByEmail = `-- name: UserByEmail :one

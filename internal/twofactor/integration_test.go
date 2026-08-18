@@ -552,3 +552,103 @@ func roleOf(t *testing.T, userID string) string {
 	}
 	return role
 }
+
+// TestPromotingAnUnprovedAccountTakesItsCredential closes a full takeover.
+//
+// goen does not verify an address at registration, which is recorded and
+// deliberate. So somebody who knows an address is about to be hired can
+// register it FIRST with their own password, keep a live session, and wait.
+// UpsertStaff resolved ON CONFLICT and set only the role — leaving that
+// password and those sessions exactly where they were — while sessions read
+// users.role live on every request. The promotion handed the back office to
+// whoever had registered the address, and StaffOnly then let the same session
+// enrol its own second factor.
+//
+// The rule restored here is the one the statement beside it already stated: a
+// new colleague gets NO password and proves the mailbox through /forgot. An
+// account that has never proved its address is in exactly that position,
+// whoever created it.
+func TestPromotingAnUnprovedAccountTakesItsCredential(t *testing.T) {
+	ctx := t.Context()
+	s := twofactor.NewStore(pool, testKey)
+	actor, _ := staff(t)
+
+	const address = "newhire@goen.invalid"
+	// The attacker registers the address first, with their own password.
+	var attacker string
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO users (email, role, password_hash)
+		VALUES ($1, 'customer', '$argon2id$v=19$m=65536,t=1,p=4$attacker')
+		RETURNING id`, address).Scan(&attacker); err != nil {
+		t.Fatalf("register first: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO sessions (token_hash, user_id, expires_at)
+		VALUES (sha256('attacker-token'::bytea), $1, now() + interval '14 days')`,
+		attacker); err != nil {
+		t.Fatalf("attacker session: %v", err)
+	}
+
+	// The shop hires the person that address belongs to.
+	err := s.AddStaff(ctx, address, "新同事", "admin", actor)
+	if !errors.Is(err, twofactor.ErrCredentialCleared) {
+		t.Fatalf("AddStaff = %v, want ErrCredentialCleared — the admin is not "+
+			"told that the account they promoted had never proved its address", err)
+	}
+
+	var role string
+	var hasPassword bool
+	var sessions int
+	if err := pool.QueryRow(ctx, `
+		SELECT u.role, u.password_hash IS NOT NULL,
+		       (SELECT count(*) FROM sessions s WHERE s.user_id = u.id)
+		FROM users u WHERE u.id = $1`, attacker).Scan(&role, &hasPassword, &sessions); err != nil {
+		t.Fatalf("read the promoted account: %v", err)
+	}
+	if role != "admin" {
+		t.Errorf("role = %q, want admin — the promotion itself must still happen", role)
+	}
+	if hasPassword {
+		t.Error("the promoted account kept the password whoever registered it chose; " +
+			"that password now opens the back office")
+	}
+	if sessions != 0 {
+		t.Errorf("%d sessions predating the promotion survive it, and role is read "+
+			"live per request", sessions)
+	}
+}
+
+// TestPromotingAProvedAccountKeepsIt is the other half, and the reason the rule
+// asks about the ADDRESS rather than about promotion.
+//
+// A verified address provably belongs to whoever reads that mailbox — which is
+// the person being hired. Clearing their password would be friction bought with
+// nothing, and would make the common case (a shop hiring somebody who already
+// shops there, which is the recorded reason promotion exists at all) worse than
+// before.
+func TestPromotingAProvedAccountKeepsIt(t *testing.T) {
+	ctx := t.Context()
+	s := twofactor.NewStore(pool, testKey)
+	actor, _ := staff(t)
+
+	const address = "provencustomer@goen.invalid"
+	var customer string
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO users (email, role, password_hash, email_verified_at)
+		VALUES ($1, 'customer', '$argon2id$v=19$m=65536,t=1,p=4$theirs', now())
+		RETURNING id`, address).Scan(&customer); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	if err := s.AddStaff(ctx, address, "老顧客", "staff", actor); err != nil {
+		t.Fatalf("AddStaff = %v, want nil — a proved account is promoted as it was", err)
+	}
+	var hasPassword bool
+	if err := pool.QueryRow(ctx,
+		`SELECT password_hash IS NOT NULL FROM users WHERE id = $1`, customer).Scan(&hasPassword); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if !hasPassword {
+		t.Error("a customer who had proved their address lost their password on being hired")
+	}
+}

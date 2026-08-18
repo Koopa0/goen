@@ -21,6 +21,14 @@ var (
 	// ErrRefused is a write the database declined; its message is the database's
 	// own, because that names the rule.
 	ErrRefused = errors.New("admin: refused")
+
+	// ErrRefundIncomplete is a return that WAS approved and whose money did not
+	// go. It is its own sentinel because it sends a staff member somewhere
+	// different from every other refusal: the decision stands and cannot be
+	// retaken, and what is outstanding is a payment. open_refund has already
+	// committed a `pending` row keyed on the return, so the attempt is on
+	// record rather than lost.
+	ErrRefundIncomplete = errors.New("admin: the return is approved and the refund did not complete")
 	// ErrInvalid is a form goen itself rejected before the database saw it.
 	ErrInvalid = errors.New("admin: invalid input")
 	// ErrQuantity is a per-line count the order cannot honour: more than remains

@@ -780,7 +780,7 @@ func TestAFailedRefundLeavesARowToReconcile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := t.Context()
+			ctx, _ := staffContext(t)
 			s := admin.NewStore(pool, tt.refunder, nil)
 			requestID, _ := returnedOrder(t, 2)
 
@@ -808,9 +808,17 @@ func TestAFailedRefundLeavesARowToReconcile(t *testing.T) {
 				`SELECT status FROM return_requests WHERE id = $1`, requestID).Scan(&returnStatus); err != nil {
 				t.Fatalf("read return: %v", err)
 			}
-			if returnStatus != "requested" {
-				t.Errorf("return is %q after a refund that did not happen, want requested",
-					returnStatus)
+			// APPROVED, and that is the fix rather than a regression. The
+			// decision commits before a cent moves, which is what stops two
+			// staff members deciding one return at once from both paying — so
+			// a refund that fails afterwards can no longer leave the return
+			// open. What must be true instead is that the attempt is on record
+			// and can be finished, which the row above and
+			// TestAStalledRefundCanBeRetriedToCompletion hold.
+			if returnStatus != "approved" {
+				t.Errorf("return is %q after a refund that did not happen, want "+
+					"approved — the shop DID agree to the return, and the money "+
+					"is what is outstanding", returnStatus)
 			}
 		})
 	}
@@ -927,13 +935,26 @@ func TestAPendingProviderRefundIsNotRecordedAsSucceeded(t *testing.T) {
 	}
 }
 
-func TestARefundStripeRefusedOutrightLeavesTheReturnOpen(t *testing.T) {
+// TestARefundStripeRefusedOutrightLeavesTheDecisionStanding replaces a test that
+// asserted the defect's own shape.
+//
+// It used to require the return to stay `requested` after a refund Stripe
+// refused, so it could be decided again — which is only safe if deciding is
+// where the money is settled, and it was not: the payout ran BEFORE the CAS, so
+// two staff members deciding at once could both pay. The claim moved ahead of
+// the money, and a failed refund therefore leaves the decision standing.
+//
+// The property that has to survive is the one the old name was reaching for —
+// a customer who sent goods back must not be stranded — and it does, in two
+// pieces the old contract folded into one: the refund row is on record, and
+// approving again resumes the payout rather than retaking the decision.
+func TestARefundStripeRefusedOutrightLeavesTheDecisionStanding(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{state: admin.RefundFailed}, nil)
 	requestID, _ := returnedOrder(t, 1)
 
-	if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
-		t.Fatalf("approving with a failed refund gave %v, want ErrRefused", err)
+	if err := s.Decide(ctx, requestID.String(), "approved", "已收到退貨", uuid.NullUUID{}); err == nil {
+		t.Fatal("a refund Stripe refused was reported as success")
 	}
 
 	var returnStatus string
@@ -941,13 +962,42 @@ func TestARefundStripeRefusedOutrightLeavesTheReturnOpen(t *testing.T) {
 		`SELECT status FROM return_requests WHERE id = $1`, requestID).Scan(&returnStatus); err != nil {
 		t.Fatalf("read return: %v", err)
 	}
-	if returnStatus != "requested" {
-		t.Errorf("return is %q after a refund Stripe refused, want requested — "+
-			"closing it strands a customer who sent goods back and was not paid",
+	if returnStatus != "approved" {
+		t.Errorf("return is %q, want approved — the decision is taken before any "+
+			"money moves, which is what stops two staff members both paying",
 			returnStatus)
 	}
-}
 
+	// On record, so nothing is lost while it is outstanding.
+	var refundStatus string
+	if err := pool.QueryRow(ctx,
+		`SELECT status FROM refunds WHERE return_request_id = $1`, requestID).Scan(&refundStatus); err != nil {
+		t.Fatalf("no refund row survives a refusal, so nothing can reconcile it: %v", err)
+	}
+	if refundStatus != "failed" {
+		t.Errorf("refund is %q, want failed — Stripe was asked and said no", refundStatus)
+	}
+
+	// A refund Stripe REFUSED is not retryable here, and that is the schema's
+	// deliberate position rather than a gap this change opened:
+	// refunds_settled_is_history forbids `failed` becoming `succeeded`, and
+	// refundRequestKey means a second attempt finds the same row. The old
+	// contract left the return `requested` as though it could be decided again,
+	// but any retry met the same wall — so what it offered was the appearance
+	// of recovery, not recovery.
+	//
+	// What is real is that the refusal is on record and surfaced:
+	// TestTheHealthPageNamesARefundThatDidNotLand holds /admin/health, and the
+	// staff notice says to check the Stripe dashboard. A STALLED refund — one
+	// left `pending` because nobody knows what Stripe did — is the case that
+	// genuinely resumes, and TestAStalledRefundCanBeRetriedToCompletion holds it.
+	healthy := admin.NewStore(pool, fakeRefunder{}, nil)
+	err := healthy.Decide(ctx, requestID.String(), "approved", "已收到退貨", uuid.NullUUID{})
+	if !errors.Is(err, admin.ErrRefundIncomplete) {
+		t.Errorf("re-approving after a hard refusal gave %v, want ErrRefundIncomplete — "+
+			"a staff member must be told the money still has not gone", err)
+	}
+}
 func TestTheHealthPageNamesARefundThatDidNotLand(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{
@@ -1092,6 +1142,21 @@ func TestTheLoserOfTwoSimultaneousDecisionsWritesNoAuditRow(t *testing.T) {
 	}
 	if status != "rejected" {
 		t.Errorf("the return is %q, want rejected — the loser overwrote the winner", status)
+	}
+
+	// THE MONEY. Every assertion above was true while the loser refunded: it
+	// returned ErrRefused, wrote no audit row and left the winner's status
+	// standing, because the payout happened before the CAS it went on to lose.
+	// A count proves the database held the line; only this says whether a cent
+	// moved.
+	var refunds int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM refunds WHERE return_request_id = $1`, requestID).Scan(&refunds); err != nil {
+		t.Fatalf("count refunds: %v", err)
+	}
+	if refunds != 0 {
+		t.Errorf("%d refunds against a return that was REJECTED — the losing "+
+			"decision paid before it found out it had lost", refunds)
 	}
 }
 
@@ -5800,4 +5865,62 @@ func TestACategoryCreatedInTheBackOfficeCanCarryAnIcon(t *testing.T) {
 		t.Error("an icon outside the set icons.Category can draw was accepted, " +
 			"which stores a value the home page renders as nothing")
 	}
+}
+
+// TestTheLoserOfTwoSimultaneousDecisionsPostsNoCredit is the same rule with no
+// provider anywhere in it.
+//
+// The card path can look like a Stripe problem. This one cannot: a wholly
+// credit-funded order has no payment row at all, so the losing decision's payout
+// is a single INSERT into the ledger — committed, on its own, before the CAS it
+// was about to lose. The customer's balance went up on a return the shop had
+// just refused, and nothing recorded who did it.
+func TestTheLoserOfTwoSimultaneousDecisionsPostsNoCredit(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	// WHOLLY credit-funded: no payment row exists, so the payout on this path is
+	// one INSERT into the ledger and there is no provider to blame.
+	requestID, _, accountID := creditFundedReturn(t, 2, 200000)
+	before := creditBalance(t, accountID)
+
+	t1, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin T1: %v", err)
+	}
+	defer func() { _ = t1.Rollback(ctx) }()
+	if _, err := t1.Exec(ctx, `
+		UPDATE return_requests SET status = 'rejected', decided_at = now()
+		WHERE id = $1 AND status = 'requested'`, requestID); err != nil {
+		t.Fatalf("T1 decide: %v", err)
+	}
+
+	decided := make(chan error, 1)
+	go func() { decided <- s.Decide(ctx, requestID.String(), "approved", "", uuid.NullUUID{}) }()
+
+	select {
+	case err := <-decided:
+		t.Fatalf("T2 finished before T1 committed (%v); it never met the lock", err)
+	case <-time.After(250 * time.Millisecond):
+	}
+	if err := t1.Commit(ctx); err != nil {
+		t.Fatalf("commit T1: %v", err)
+	}
+	if err := <-decided; !errors.Is(err, admin.ErrRefused) {
+		t.Errorf("the second decision returned %v, want ErrRefused", err)
+	}
+
+	if after := creditBalance(t, accountID); after != before {
+		t.Errorf("store credit went %d -> %d on a return that was REJECTED", before, after)
+	}
+}
+
+func creditBalance(t *testing.T, accountID uuid.UUID) int64 {
+	t.Helper()
+	var cents int64
+	if err := pool.QueryRow(t.Context(),
+		`SELECT coalesce(sum(amount_cents), 0)::bigint FROM store_credit_entries
+		 WHERE account_id = $1`, accountID).Scan(&cents); err != nil {
+		t.Fatalf("read credit balance: %v", err)
+	}
+	return cents
 }

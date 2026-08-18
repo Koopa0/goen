@@ -118,7 +118,7 @@ holds several properties that application code alone cannot guarantee:
 - **A single writer for money and stock.** A customer-facing request runs as
   `store` and the back office as `admin`; both have their direct writes to
   payments, refunds, stock, ledgers, and the audit log revoked. Those writes
-  happen only through 19 `SECURITY DEFINER` functions, so there is no second path
+  happen only through 20 `SECURITY DEFINER` functions, so there is no second path
   that can corrupt them. What each role may write is derived from the catalogue
   by a test, never from a list somebody keeps up to date.
 - **Cross-row invariants are triggers that lock first.** A refund may not exceed

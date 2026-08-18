@@ -54,14 +54,24 @@ ORDER BY u.email;
 
 -- Create a staff account with NO password; they set their own through /forgot,
 -- which is the one path that proves they own the mailbox. ON CONFLICT so an
--- existing customer is promoted rather than refused.
+-- existing customer is promoted rather than refused — and SecurePromotedAccount
+-- is what applies the same rule to the account it just promoted, because this
+-- statement leaves an existing password_hash and existing sessions exactly
+-- where they were.
 -- name: UpsertStaff :one
-INSERT INTO users (email, full_name, role)
-VALUES (@email, nullif(@full_name::text, ''), @role)
-ON CONFLICT (lower(email)) DO UPDATE
-SET role = EXCLUDED.role,
-    full_name = coalesce(nullif(EXCLUDED.full_name, ''), users.full_name)
-RETURNING id;
+WITH promoted AS (
+    INSERT INTO users (email, full_name, role)
+    VALUES (@email, nullif(@full_name::text, ''), @role)
+    ON CONFLICT (lower(email)) DO UPDATE
+    SET role = EXCLUDED.role,
+        full_name = coalesce(nullif(EXCLUDED.full_name, ''), users.full_name)
+    RETURNING id
+)
+-- ONE statement, so a promotion cannot commit without the account being
+-- secured. Two statements would need a transaction, and a transaction is a
+-- thing a caller can forget to open.
+SELECT p.id, secure_promoted_account(p.id)::boolean AS credential_cleared
+FROM promoted p;
 
 -- Take somebody's back-office access away. The role goes back to 'customer'
 -- rather than the row being deleted: erase_user is the only door that removes

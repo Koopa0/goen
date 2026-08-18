@@ -110,10 +110,16 @@ var (
 		En: "This product has no compare-at price, so nothing on it is marked down and a campaign " +
 			"cannot feature it. Set one on the product page and try again.",
 	})
+	// The DECISION stands: it is committed before any money moves, so that two
+	// staff members deciding at once cannot both pay. What is outstanding here
+	// is the payment, and saying "the refund failed" without saying the return
+	// is already approved would send somebody looking for a decision to retake.
 	KeyAdminNoticeRefundFailed = key("admin.notice.refundfailed", Message{
-		ZhHant: "退款沒有完成。退款紀錄已經留下,請確認 Stripe 後台再處理一次。",
-		En: "The refund did not complete. Its record has been written either way — check the Stripe " +
-			"dashboard before running it again.",
+		ZhHant: "這筆退貨已經核准,但退款沒有完成。退款紀錄已經留下,請確認 Stripe 後台再處理一次 —— " +
+			"核准本身不需要、也無法重做。",
+		En: "This return is approved, but the refund did not complete. Its record has been written " +
+			"either way — check the Stripe dashboard before running it again. The approval itself " +
+			"neither needs nor allows redoing.",
 	})
 	KeyAdminNoticeReceived = key("admin.notice.received", Message{
 		ZhHant: "進貨已入庫,帳本上記的是「進貨」而不是「人工調整」。",
@@ -185,6 +191,17 @@ var (
 		ZhHant: "這個帳號已經完成兩階段驗證設定。要換一支手機,請另一位管理者先在 /admin/staff 移除,再重新設定。",
 		En: "This account already has two-factor set up. To move to a new phone, ask another " +
 			"administrator to remove it at /admin/staff first, then enrol again.",
+	})
+	// A success the admin has to relay, not a refusal. The address already had
+	// an account that had never proved the mailbox, so whatever password it
+	// carried is gone — otherwise promoting it would hand the back office to
+	// whoever registered the address first.
+	KeyStaffCredentialCleared = key("staff.cleared", Message{
+		ZhHant: "已加入。這個地址原本就有一個尚未驗證的帳號,舊密碼與登入狀態都已清除 —— " +
+			"請對方用「忘記密碼」設定新密碼,那是唯一能證明信箱是他的路徑。",
+		En: "Added. That address already had an account which had never proved the mailbox, " +
+			"so its old password and sign-ins were cleared — ask them to set a password through " +
+			"“Forgot password”, which is the one path that proves the mailbox is theirs.",
 	})
 	KeyStaffSelf = key("staff.self", Message{
 		ZhHant: "不能對自己的帳號做這件事 —— 解除自己的兩階段驗證等於沒有第二因素," +
