@@ -561,3 +561,75 @@ func TestTheFreeDeliveryStripStatesWhatTheTillCharges(t *testing.T) {
 		t.Errorf("a shop that charges for every parcel advertises free delivery over %q", got)
 	}
 }
+
+// TestTheHeaderAndTheTilesAgreeOnOrder holds one question that had two answers.
+//
+// NavCategories ordered by (position, name) and HomeCategories by (position)
+// alone — the same six rows, read by the header and by the tiles directly below
+// it on the same page. They agree until two root categories share a position,
+// and nothing stops that: CreateCategory takes max(position) + 1 with no unique
+// index behind it, so two staff members adding a category at the same moment
+// both read the same maximum and both get it.
+//
+// Measured before the fix: the header read accessories > phones > laptops and
+// the tiles read phones > accessories > laptops, on one render.
+//
+// It is one query now. That also removes a round trip from every storefront
+// page, which is the cheap half of the answer to "should goen cache this" —
+// see docs/roadmap.md §B. The saving is real and the staleness is nil, because
+// there is no second copy.
+func TestTheHeaderAndTheTilesAgreeOnOrder(t *testing.T) {
+	ctx := t.Context()
+
+	// Two root categories at one position, which is what CreateCategory can
+	// hand out and no index refuses.
+	if _, err := pool.Exec(ctx, `
+		UPDATE categories SET position = (
+		    SELECT min(position) FROM categories WHERE parent_id IS NULL
+		) WHERE slug = (
+		    SELECT slug FROM categories WHERE parent_id IS NULL
+		    ORDER BY position DESC LIMIT 1
+		)`); err != nil {
+		t.Fatalf("collide two positions: %v", err)
+	}
+	t.Cleanup(func() {
+		// Restore, or every later test in this package reads a catalogue this
+		// one reordered. Derived rather than t.Context(): that one is cancelled
+		// just before cleanups run, so the restore would never execute.
+		if _, err := pool.Exec(context.WithoutCancel(ctx), `
+			UPDATE categories c SET position = n.rn - 1
+			FROM (SELECT id, row_number() OVER (ORDER BY slug) rn
+			      FROM categories WHERE parent_id IS NULL) n
+			WHERE c.id = n.id`); err != nil {
+			t.Errorf("restore positions: %v", err)
+		}
+	})
+
+	locale := i18n.WithLocale(ctx, i18n.ZhHant)
+	store := home.NewStore(pool)
+
+	nav, err := store.Nav(locale)
+	if err != nil {
+		t.Fatalf("read the header: %v", err)
+	}
+	view, err := store.Load(locale, 4)
+	if err != nil {
+		t.Fatalf("read the home page: %v", err)
+	}
+	if len(nav) == 0 || len(view.Categories) == 0 {
+		t.Fatal("one of the two read nothing, so this compared nothing")
+	}
+
+	header := make([]string, 0, len(nav))
+	for i := range nav {
+		header = append(header, nav[i].Slug)
+	}
+	tiles := make([]string, 0, len(view.Categories))
+	for i := range view.Categories {
+		tiles = append(tiles, view.Categories[i].Slug)
+	}
+	if strings.Join(header, ">") != strings.Join(tiles, ">") {
+		t.Errorf("the header says %v and the tiles say %v, on one page",
+			header, tiles)
+	}
+}

@@ -5388,47 +5388,8 @@ func (q *Queries) HoldForOrder(ctx context.Context, arg HoldForOrderParams) (uui
 	return hold_inventory, err
 }
 
-const homeCategories = `-- name: HomeCategories :many
-SELECT id, slug, localized_name(name, name_en, $1::text) AS name, icon_key
-FROM categories
-WHERE parent_id IS NULL
-ORDER BY position
-`
-
-type HomeCategoriesRow struct {
-	ID      uuid.UUID
-	Slug    string
-	Name    string
-	IconKey pgtype.Text
-}
-
-// The root categories only; children hang off these.
-func (q *Queries) HomeCategories(ctx context.Context, locale string) ([]HomeCategoriesRow, error) {
-	rows, err := q.db.Query(ctx, homeCategories, locale)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []HomeCategoriesRow{}
-	for rows.Next() {
-		var i HomeCategoriesRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Slug,
-			&i.Name,
-			&i.IconKey,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const homeRecommendedTiles = `-- name: HomeRecommendedTiles :many
+
 WITH global AS (
     SELECT coalesce(avg(rating), 0)::float8 AS m FROM visible_reviews
 )
@@ -5512,6 +5473,7 @@ type HomeRecommendedTilesRow struct {
 	InStock             bool
 }
 
+// The root categories only; children hang off these.
 // Bayesian-averaged rating (prior weight 5, global mean), so a lone 5-star does
 // not outrank a well-reviewed 4.6. status = 'active' is a literal, not a
 // parameter, so the partial index stays usable.
@@ -6283,40 +6245,6 @@ func (q *Queries) MyWarranties(ctx context.Context, userID uuid.NullUUID) ([]MyW
 			&i.OrderNumber,
 			&i.ProductSlug,
 		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const navCategories = `-- name: NavCategories :many
-SELECT slug, localized_name(name, name_en, $1::text) AS name
-FROM categories
-WHERE parent_id IS NULL
-ORDER BY position, name
-`
-
-type NavCategoriesRow struct {
-	Slug string
-	Name string
-}
-
-// A query rather than a list in Go: a category has one name and one place it is
-// translated, and a second copy in the header drifts from the catalogue.
-func (q *Queries) NavCategories(ctx context.Context, locale string) ([]NavCategoriesRow, error) {
-	rows, err := q.db.Query(ctx, navCategories, locale)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []NavCategoriesRow{}
-	for rows.Next() {
-		var i NavCategoriesRow
-		if err := rows.Scan(&i.Slug, &i.Name); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -9267,6 +9195,52 @@ func (q *Queries) RevokeStaff(ctx context.Context, id uuid.UUID) (int64, error) 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const rootCategories = `-- name: RootCategories :many
+SELECT id, slug, localized_name(name, name_en, $1::text) AS name, icon_key
+FROM categories
+WHERE parent_id IS NULL
+ORDER BY position, name, id
+`
+
+type RootCategoriesRow struct {
+	ID      uuid.UUID
+	Slug    string
+	Name    string
+	IconKey pgtype.Text
+}
+
+// A query rather than a list in Go: a category has one name and one place it is
+// translated, and a second copy in the header drifts from the catalogue.
+// The header's row AND the home page's tiles: the same six rows in the same
+// order, because two queries answering "in what order are the categories" gave
+// two answers the moment CreateCategory's max(position)+1 handed out a
+// duplicate. Nothing stops it: there is no unique index on (parent_id,
+// position), so two staff creating a category at once both read the same max.
+func (q *Queries) RootCategories(ctx context.Context, locale string) ([]RootCategoriesRow, error) {
+	rows, err := q.db.Query(ctx, rootCategories, locale)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RootCategoriesRow{}
+	for rows.Next() {
+		var i RootCategoriesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Name,
+			&i.IconKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const runningCampaign = `-- name: RunningCampaign :one

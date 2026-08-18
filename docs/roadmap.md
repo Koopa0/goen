@@ -115,6 +115,58 @@ Grafana,而 `/admin/health` 的規則照套:量**工作**,不要量心跳。
 一起買」的一小時前答案還是同一個答案,而一小時前的庫存數字是超賣。那個不對稱就是
 全部的理由。
 
+### B1. In-memory cache(ristretto / badger)—— 量過了,結論是**不要**
+
+不是「以後再說」,是**量完之後的決定**。`EXPLAIN (ANALYZE, BUFFERS)` 加
+`pgbench -M extended -c 4`,對照 2026-08-17 的 PostgreSQL 18.4。
+
+**能安全快取的東西只值一頁的 7%。** 首頁 p50 是 5.2ms;快取能服務的五個
+shop-wide 讀取合計 1.13ms,而其中三個**不能**快取,理由是正確性不是成本:
+
+- `FreeDeliveryThreshold` —— CLAUDE.md 才剛關掉這條漂移:「一個頁面說出的運費是
+  一個承諾,而唯一守著那個承諾的地方是結帳收費的那張表」。加 TTL 等於**把漂移
+  裝上計時器再打開一次**,而且每個 replica 一份。
+- `CurrentPromoBanner` —— `cmd/goen/server.go` 已經用文字拒絕過:「不快取,因為
+  店家把促銷關掉時預期它就是不見了」。
+- `CurrentHeroSlide` —— 視窗是拿資料庫的 `now()` 比的;快取會讓排程的檔期**晚
+  開始**最多一個 TTL。
+
+剩下的 `NavCategories` + `HomeCategories` 是 0.378ms —— 5.2ms 的 7.3%,而且
+`sync.Map` + `time.Ticker` 就收得到,不需要相依。**那兩個查詢現在已經合併成
+`RootCategories` 一個**,所以那 0.378ms 有一半是永久省下的,過時為零。
+
+**大數字的兩條路,答案是投影不是快取。** 9,999 個上架商品時
+`HomeRecommendedTiles` 是 275.7ms 冷 / 69.5ms 熱(130,912 buffers 換 8 列),
+`CategoryListing` 是 72.1ms —— 這**確認**了 `001` 已經寫下的門檻(它記的是 60ms /
+221ms),沒有推翻它。而這兩個查詢都帶 `in_stock` 和 `min_price_cents`:**快取它們
+就是快取庫存和價格**,而這個 repo 自己的判準是「一小時前的『跟這個一起買』還是同一個
+答案,一小時前的庫存數字是超賣」。
+
+決定性的論證是**副本數**:一個投影是 PostgreSQL 裡**一份共用的複本**,
+`TestEveryTableIsRead`、`TestEveryTableHasAWriter`、`TestEveryColumnIsReadOrWritten`
+都看得到它,`/admin/health` 已經在報它的年齡。**N 個 process-local 快取是 N 份會
+互相不一致、而且這個 repo 每一個守衛都看不見的複本** —— 每個守衛問的都是「有沒有
+缺」,而這正是 #13、#30、#31 記下的盲點。兩個 replica 對同一個 SKU 回兩個庫存數字,
+是 #13 的形狀而且沒有一行程式碼可以指。
+
+模組圖的代價量過了:goen 現在 103,加 ristretto 是 106(+3),加 badger 是 114
+(+11)。ristretto 以 `ko` 的標準(104→528)算便宜 —— 但它仍然是錯的工具,因為
+**goen 可快取的鍵空間是 2 個查詢 × 2 個語系 = 4 個鍵**。TinyLFU 的准入策略和
+成本式淘汰是為了大而雜、有記憶體壓力的鍵空間;蓋在 4 個鍵上純粹是額外開銷。「它在
+核准清單上」不是在 map 才是誠實資料結構的地方使用它的理由。
+
+**badger 是無條件不要**,而且不是效能理由:它是持久化的 LSM 儲存,不是快取。它會
+把耐久狀態放到磁碟,而 goen 的架構是一個 binary 加一個 PostgreSQL;它需要 `ko` 不
+提供的 volume(這正是 `internal/media` 的圖片放在 PostgreSQL 裡的同一個限制),並
+且替一個沒有 compaction 也沒有 crash recovery 的行程加上這兩件事。
+
+| 項目 | 觸發條件 | 現在的數字 |
+|---|---|---|
+| **chrome 的 in-memory 快取** | chrome middleware 的來回佔 storefront p50 超過 20%,或連線池出現非零 `EmptyAcquireCount` | 合併後 1 次來回,5.2ms 的頁面上約 3.6% |
+| **ristretto 本身** | 快取鍵空間超過約 10,000 個鍵且有記憶體壓力 | 4 個鍵 |
+
+跟上面兩條一樣,**這兩個門檻也沒有感測器**。
+
 ---
 
 ## C. 決定不蓋

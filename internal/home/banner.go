@@ -116,7 +116,7 @@ func (h *Handler) Dismiss(w http.ResponseWriter, r *http.Request) {
 // Nav is the header's category row, in the reader's language. Like Banner it is
 // read by middleware rather than by a page's own handler.
 func (s *Store) Nav(ctx context.Context) ([]layouts.NavItem, error) {
-	rows, err := s.q.NavCategories(ctx, string(i18n.FromContext(ctx)))
+	rows, err := s.q.RootCategories(ctx, string(i18n.FromContext(ctx)))
 	if err != nil {
 		return nil, fmt.Errorf("read nav categories: %w", err)
 	}
