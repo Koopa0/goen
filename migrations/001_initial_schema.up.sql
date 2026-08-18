@@ -3240,6 +3240,51 @@ END;
 $$;
 
 -- ============================================================================
+-- Promoting an existing account must not hand over whatever credential it holds.
+--
+-- goen does not verify an address at REGISTRATION, so anybody may register an
+-- address they expect to be hired at, keep their own password and a live
+-- session, and wait. UpsertStaff resolves ON CONFLICT (lower(email)) and sets
+-- only the role, so the promotion handed that person the back office: sessions
+-- read users.role live, and StaffOnly then let the same session enrol its own
+-- second factor. Reproduced end to end before this existed.
+--
+-- The rule this restores is the one the INSERT beside it already states — a new
+-- colleague gets NO password and proves the mailbox through /forgot. An account
+-- that has not proved its address is in exactly that position, whoever created
+-- it, so its credential is cleared and its sessions end. A VERIFIED account
+-- provably belongs to whoever reads that mailbox, which is the person being
+-- hired, and keeps both.
+--
+-- SECURITY DEFINER because `admin` deliberately holds no UPDATE on
+-- users.password_hash: with it, a staff member could impersonate a customer
+-- silently. This is erase_user's pattern rather than record_inventory_movement's
+-- — it elevates ONE narrow act for a role denied the general privilege, and is
+-- not a sole door to the column, which the app still writes for password
+-- changes and resets.
+-- ============================================================================
+CREATE FUNCTION secure_promoted_account(p_user_id uuid) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+    cleared boolean := false;
+BEGIN
+    UPDATE users SET password_hash = NULL
+    WHERE id = p_user_id AND email_verified_at IS NULL AND password_hash IS NOT NULL;
+    cleared := FOUND;
+
+    -- Always, not only when the credential was cleared: a session that predates
+    -- the promotion was opened by somebody the shop had not yet decided to trust
+    -- with the back office, and role is read live on every request.
+    DELETE FROM sessions WHERE user_id = p_user_id;
+
+    RETURN cleared;
+END $$;
+
+COMMENT ON FUNCTION secure_promoted_account(uuid) IS
+    'Neutralises an unproved credential on an account being given back-office access, and ends its sessions.';
+
+
+-- ============================================================================
 -- Privileges
 --
 -- Applied last, once every table and function exists: store gets ordinary
@@ -3581,6 +3626,10 @@ GRANT EXECUTE ON FUNCTION order_is_settled(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION member_spend(uuid, integer, uuid) TO admin;
 GRANT EXECUTE ON FUNCTION member_tier(uuid, integer, uuid) TO admin;
 GRANT EXECUTE ON FUNCTION erase_user(uuid) TO admin;
+-- The back office promotes; the function is how it neutralises whatever
+-- credential an unproved account was carrying, which admin's own column
+-- grants deliberately cannot reach.
+GRANT EXECUTE ON FUNCTION secure_promoted_account(uuid) TO admin;
 
 DO $$
 BEGIN

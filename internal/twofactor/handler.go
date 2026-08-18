@@ -260,6 +260,8 @@ func (h *Handler) redirectStaff(w http.ResponseWriter, r *http.Request, err erro
 		http.Redirect(w, r, "/admin/staff?self=1", http.StatusSeeOther)
 	case errors.Is(err, ErrLastAdmin):
 		http.Redirect(w, r, "/admin/staff?last=1", http.StatusSeeOther)
+	case errors.Is(err, ErrCredentialCleared):
+		http.Redirect(w, r, "/admin/staff?cleared=1", http.StatusSeeOther)
 	case errors.Is(err, ErrInvalidStaff), errors.Is(err, ErrNotEnrolled):
 		http.Redirect(w, r, "/admin/staff?needs=1", http.StatusSeeOther)
 	default:
@@ -276,6 +278,8 @@ func staffNotice(r *http.Request) string {
 	switch {
 	case r.URL.Query().Get("ok") == "1":
 		return i18n.T(r.Context(), i18n.KeyAdminNoticeOK)
+	case r.URL.Query().Get("cleared") == "1":
+		return i18n.T(r.Context(), i18n.KeyStaffCredentialCleared)
 	case r.URL.Query().Get("self") == "1":
 		return i18n.T(r.Context(), i18n.KeyStaffSelf)
 	case r.URL.Query().Get("last") == "1":

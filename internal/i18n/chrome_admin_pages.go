@@ -186,6 +186,17 @@ var (
 		En: "This account already has two-factor set up. To move to a new phone, ask another " +
 			"administrator to remove it at /admin/staff first, then enrol again.",
 	})
+	// A success the admin has to relay, not a refusal. The address already had
+	// an account that had never proved the mailbox, so whatever password it
+	// carried is gone — otherwise promoting it would hand the back office to
+	// whoever registered the address first.
+	KeyStaffCredentialCleared = key("staff.cleared", Message{
+		ZhHant: "已加入。這個地址原本就有一個尚未驗證的帳號,舊密碼與登入狀態都已清除 —— " +
+			"請對方用「忘記密碼」設定新密碼,那是唯一能證明信箱是他的路徑。",
+		En: "Added. That address already had an account which had never proved the mailbox, " +
+			"so its old password and sign-ins were cleared — ask them to set a password through " +
+			"“Forgot password”, which is the one path that proves the mailbox is theirs.",
+	})
 	KeyStaffSelf = key("staff.self", Message{
 		ZhHant: "不能對自己的帳號做這件事 —— 解除自己的兩階段驗證等於沒有第二因素," +
 			"移除自己的權限會把商店鎖在門外。請另一位管理員操作。",
