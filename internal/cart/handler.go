@@ -300,6 +300,18 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 
 	coupon, couponErr := h.resolveCoupon(r, &view)
 
+	// A CHOOSER CHANGE, not an order. The delivery method, the saved address and
+	// the 發票 type each decide which fields the form asks for, so changing one
+	// has to re-render — and it used to do that through a link carrying only the
+	// choice, which discarded everything already typed. The values come back
+	// because this handler has already rebuilt the whole view from the
+	// submission; nothing is validated, because nobody has finished.
+	if r.PostFormValue("update") != "" {
+		web.Render(w, r, h.log, http.StatusOK,
+			pages.Checkout(pages.CheckoutMeta(r.Context()), &view))
+		return
+	}
+
 	shippingID, shipErr := uuid.Parse(view.Chosen)
 	errs := checkoutErrors(r.Context(), addr, shipErr, inv)
 	if shipErr == nil && errs == nil {

@@ -145,17 +145,23 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 				<input type="hidden" name="address" value={ v.ChosenAddress }/>
 				<div class="goen-checkout__panel">
 					<h2 class="goen-checkout__section">{ i18n.T(ctx, i18n.KeySectionShipping) }</h2>
-					<input type="hidden" name="shipping" value={ v.Chosen }/>
+					// A radio inside the form, not a link beside it. The choice
+					// decides which fields the form asks for, so changing it has
+					// to re-render — and a link carrying only the choice threw
+					// away everything already typed.
 					<div class="goen-checkout__shipping">
 						for _, c := range v.Shipping {
-							<a
+							<label
 								class={ "goen-checkout__ship",
 									templ.KV("goen-checkout__ship--on", c.VersionID == v.Chosen) }
-								href={ templ.URL(v.CheckoutLink("ship", c.VersionID)) }
-								if c.VersionID == v.Chosen {
-									aria-current="true"
-								}
 							>
+								<input
+									class="ui-radio"
+									type="radio"
+									name="shipping"
+									value={ c.VersionID }
+									checked?={ c.VersionID == v.Chosen }
+								/>
 								<span class="goen-checkout__shipname">
 									{ c.Name }
 									if c.Carrier != "" {
@@ -169,9 +175,10 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 										{ c.Fee() }
 									}
 								</span>
-							</a>
+							</label>
 						}
 					</div>
+					@applyChoice()
 					if v.HasErr("shipping") {
 						<p class="ui-error-text">{ v.Err("shipping") }</p>
 					}
@@ -182,21 +189,25 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 					if v.OffersTheAddressBook() {
 						<div class="goen-checkout__shipping">
 							for _, a := range v.SavedAddresses {
-								<a
+								<label
 									class={ "goen-checkout__ship",
 										templ.KV("goen-checkout__ship--on", a.ID == v.ChosenAddress) }
-									href={ templ.URL(v.CheckoutLink("address", a.ID)) }
-									if a.ID == v.ChosenAddress {
-										aria-current="true"
-									}
 								>
+									<input
+										class="ui-radio"
+										type="radio"
+										name="address"
+										value={ a.ID }
+										checked?={ a.ID == v.ChosenAddress }
+									/>
 									<span class="goen-checkout__shipname">
 										{ a.DisplayLabel(ctx) }
 										<span class="ui-cart-line__meta">{ a.Line() }</span>
 									</span>
-								</a>
+								</label>
 							}
 						</div>
+						@applyChoice()
 					}
 					<div class="goen-checkout__fields">
 						@field("email", i18n.T(ctx, i18n.KeyFieldEmail), "email", v.Address.Email, v, true)
@@ -293,21 +304,27 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 						</div>
 					</div>
 					<h2 class="goen-checkout__legend">{ i18n.T(ctx, i18n.KeySectionInvoice) }</h2>
-					<input type="hidden" name="invoice_type" value={ v.Invoice.Chosen() }/>
+					// This one sat BELOW the address fields, so choosing it through
+					// a link discarded a whole recipient the customer had just
+					// typed. It is the sharpest case of the three.
 					<div class="goen-checkout__invoice">
 						for _, c := range v.InvoiceChoices {
-							<a
+							<label
 								class={ "goen-checkout__ship",
 									templ.KV("goen-checkout__ship--on", v.Invoice.Is(c.Value)) }
-								href={ templ.URL(v.CheckoutLink("invoice", c.Value)) }
-								if v.Invoice.Is(c.Value) {
-									aria-current="true"
-								}
 							>
+								<input
+									class="ui-radio"
+									type="radio"
+									name="invoice_type"
+									value={ c.Value }
+									checked?={ v.Invoice.Is(c.Value) }
+								/>
 								<span class="goen-checkout__shipname">{ c.Label }</span>
-							</a>
+							</label>
 						}
 					</div>
+					@applyChoice()
 					<div class="goen-checkout__fields">
 						if v.Invoice.NeedsCarrier() {
 							<div class="ui-field">
@@ -435,6 +452,21 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 			</form>
 		</div>
 	}
+}
+
+// applyChoice re-renders the form with the choice above it applied. A submit
+// button rather than a link, because the form carries everything the customer
+// has typed and a link carries only the choice.
+templ applyChoice() {
+	<button
+		class="ui-btn ui-btn--secondary ui-btn--sm goen-checkout__apply"
+		type="submit"
+		name="update"
+		value="1"
+		formnovalidate
+	>
+		{ i18n.T(ctx, i18n.KeyApplyChoice) }
+	</button>
 }
 
 templ field(name, label, kind, value string, v *CheckoutView, required bool) {

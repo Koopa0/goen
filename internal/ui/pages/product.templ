@@ -62,9 +62,7 @@ templ Product(p layouts.Page, v *ProductView) {
 					}
 				</div>
 			}
-			if v.HasRating() {
-				@productReviews(v)
-			}
+			@productReviews(v)
 			if v.HasRelated() {
 				<section class="goen-pdp__related" aria-labelledby="related-heading">
 					<h2 id="related-heading" class="h3 goen-section__title">{ i18n.T(ctx, i18n.KeySectionRelated) }</h2>
@@ -376,42 +374,50 @@ templ productBuy(v *ProductView) {
 templ productReviews(v *ProductView) {
 	<section class="goen-pdp__reviews" id="reviews" aria-labelledby="reviews-heading">
 		<h2 id="reviews-heading" class="h3 goen-section__title">{ i18n.T(ctx, i18n.KeySectionReviews) }</h2>
-		<div class="goen-pdp__reviewlayout">
-			<div class="goen-pdp__summary">
-				<p class="goen-pdp__score">{ v.RatingText() }</p>
-				<p class="caption">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyReviewCount), v.ReviewCountText()) }</p>
-				<div class="goen-pdp__bars">
-					for _, b := range v.RatingBars {
-						<div class="goen-pdp__bar">
-							<span class="goen-pdp__barlabel">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyStarsLabel), b.StarsText()) }</span>
-							<span class="ui-progress goen-pdp__bartrack">
-								<span class="ui-progress__fill" style={ b.PercentStyle() }></span>
-							</span>
-							<span class="goen-pdp__barcount">{ b.CountText() }</span>
-						</div>
+		// The SUMMARY is what depends on there being ratings, not the section:
+		// the form that writes the first one is inside here, so gating the whole
+		// section on RatingCount > 0 meant a product could never receive one.
+		if !v.HasRating() {
+			<p class="goen-pdp__noreviews">{ i18n.T(ctx, i18n.KeyNoReviewsYet) }</p>
+		}
+		if v.HasRating() {
+			<div class="goen-pdp__reviewlayout">
+				<div class="goen-pdp__summary">
+					<p class="goen-pdp__score">{ v.RatingText() }</p>
+					<p class="caption">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyReviewCount), v.ReviewCountText()) }</p>
+					<div class="goen-pdp__bars">
+						for _, b := range v.RatingBars {
+							<div class="goen-pdp__bar">
+								<span class="goen-pdp__barlabel">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyStarsLabel), b.StarsText()) }</span>
+								<span class="ui-progress goen-pdp__bartrack">
+									<span class="ui-progress__fill" style={ b.PercentStyle() }></span>
+								</span>
+								<span class="goen-pdp__barcount">{ b.CountText() }</span>
+							</div>
+						}
+					</div>
+				</div>
+				<div class="goen-pdp__reviewlist">
+					for _, r := range v.Reviews {
+						<article class="ui-review">
+							<div class="ui-review__head">
+								<span class="ui-review__name">{ r.DisplayAuthor(ctx) }</span>
+								<span class="ui-review__stars" aria-label={ r.RatingLabel(ctx) }>{ r.ReviewStars() }</span>
+								if r.Verified {
+									<span class="ui-review__verified">{ i18n.T(ctx, i18n.KeyVerifiedBuyer) }</span>
+								}
+								<span class="ui-review__date">{ r.Date }</span>
+							</div>
+							<p class="goen-sr-only">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyRatingScore), r.RatingText()) }</p>
+							if r.Title != "" {
+								<p class="ui-review__name">{ r.Title }</p>
+							}
+							<p class="ui-review__body">{ r.Body }</p>
+						</article>
 					}
 				</div>
 			</div>
-			<div class="goen-pdp__reviewlist">
-				for _, r := range v.Reviews {
-					<article class="ui-review">
-						<div class="ui-review__head">
-							<span class="ui-review__name">{ r.DisplayAuthor(ctx) }</span>
-							<span class="ui-review__stars" aria-label={ r.RatingLabel(ctx) }>{ r.ReviewStars() }</span>
-							if r.Verified {
-								<span class="ui-review__verified">{ i18n.T(ctx, i18n.KeyVerifiedBuyer) }</span>
-							}
-							<span class="ui-review__date">{ r.Date }</span>
-						</div>
-						<p class="goen-sr-only">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyRatingScore), r.RatingText()) }</p>
-						if r.Title != "" {
-							<p class="ui-review__name">{ r.Title }</p>
-						}
-						<p class="ui-review__body">{ r.Body }</p>
-					</article>
-				}
-			</div>
-		</div>
+		}
 		@reviewForm(v)
 	</section>
 }

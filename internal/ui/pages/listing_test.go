@@ -226,3 +226,47 @@ func TestAProductWithNothingLeftSaysSo(t *testing.T) {
 		})
 	}
 }
+
+// TestAProductWithNoReviewsCanReceiveItsFirst holds a bootstrap deadlock.
+//
+// The reviews SECTION was rendered only when RatingCount > 0, and the form that
+// writes a review lives inside it. So a product with no reviews offered no way
+// to leave one, and no product could ever receive its first through the UI. The
+// back office can create a product; every product it creates was born unable to
+// be reviewed.
+//
+// Nothing caught it because the dev seed gives all 15 active products reviews,
+// so the state exists in no fixture and on no page check-layout visits — the
+// same reason /compare's unreachable state survived.
+func TestAProductWithNoReviewsCanReceiveItsFirst(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	fresh := ProductView{
+		Name: "Newly Listed", Brand: "Meridian", Slug: "newly-listed",
+		SelectionOK: true, Exact: true, Sellable: true, AnySellable: true,
+		PriceCents: 100000, SignedIn: true, CanReview: true, RatingCount: 0,
+	}
+	html := renderToString(t, Product(ProductMeta(&fresh), &fresh))
+
+	if !strings.Contains(html, `action="/p/newly-listed/reviews"`) {
+		t.Error("a product with no reviews offers no way to write one, so it can " +
+			"never have any")
+	}
+	if !strings.Contains(html, i18n.T(ctx, i18n.KeyNoReviewsYet)) {
+		t.Error("the section renders with no reviews and says nothing about why it is empty")
+	}
+	// The score summary is what depends on there being ratings. Rendering
+	// "0.0" above an empty bar chart is worse than saying nobody has reviewed it.
+	if strings.Contains(html, `class="goen-pdp__score"`) {
+		t.Error("a product with no reviews renders a score")
+	}
+
+	rated := fresh
+	rated.RatingCount = 3
+	rated.Rating = 4.5
+	withScore := renderToString(t, Product(ProductMeta(&rated), &rated))
+	if !strings.Contains(withScore, `class="goen-pdp__score"`) {
+		t.Error("a rated product lost its score summary")
+	}
+}

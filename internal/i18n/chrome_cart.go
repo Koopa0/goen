@@ -280,6 +280,13 @@ var (
 		ZhHant: "以 %s 件計價",
 		En:     "priced for %s",
 	})
+	// The button beside each checkout chooser. formnovalidate, because the
+	// customer is mid-form: the browser must not refuse to re-render because a
+	// field they have not reached yet is empty.
+	KeyApplyChoice = key("checkout.apply", Message{
+		ZhHant: "更新",
+		En:     "Update",
+	})
 	KeyShippingRepriced = key("checkout.shipping.repriced", Message{
 		ZhHant: "%s運費另計,已更新為 %s。確認後再送出一次。",
 		En:     "%s carries a delivery surcharge. The total is now %s — check it and submit again.",
