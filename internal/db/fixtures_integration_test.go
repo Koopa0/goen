@@ -8,9 +8,12 @@ const fixtures = `
 INSERT INTO brands (id, slug, name) VALUES
     ('11111111-1111-4111-8111-111111111111', 'pixelight', 'Pixelight');
 
-INSERT INTO categories (id, slug, name) VALUES
-    ('22222222-2222-4222-8222-222222222222', 'phones', '手機'),
-    ('2222aaaa-2222-4222-8222-222222222222', 'laptops', '筆電');
+-- Positions stated rather than defaulted: both are roots, and
+-- categories_position_key is NULLS NOT DISTINCT, so two rows taking the
+-- DEFAULT 0 are the collision the index exists to refuse.
+INSERT INTO categories (id, slug, name, position) VALUES
+    ('22222222-2222-4222-8222-222222222222', 'phones', '手機', 0),
+    ('2222aaaa-2222-4222-8222-222222222222', 'laptops', '筆電', 1);
 
 INSERT INTO products (id, brand_id, category_id, slug, name, status, published_at) VALUES
     ('33333333-3333-4333-8333-333333333333',

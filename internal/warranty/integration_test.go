@@ -108,7 +108,7 @@ func newFixture(t *testing.T, ordered, months int, p parcel) fixture {
 			INSERT INTO brands (slug, name) VALUES ('wb-' || gen_random_uuid(), '保固品牌')
 			RETURNING id
 		), c AS (
-			INSERT INTO categories (slug, name) VALUES ('wc-' || gen_random_uuid(), '保固分類')
+			INSERT INTO categories (slug, name, position) SELECT 'wc-' || gen_random_uuid(), '保固分類', coalesce(max(position) + 1, 0) FROM categories WHERE parent_id IS NULL
 			RETURNING id
 		), p AS (
 			INSERT INTO products (brand_id, category_id, slug, name, warranty_months)

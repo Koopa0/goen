@@ -111,7 +111,7 @@ never writes, fails the build.
 
 ### Integrity and safety
 
-The schema carries 241 `CHECK` constraints, 80 foreign keys, 60 unique indexes,
+The schema carries 241 `CHECK` constraints, 80 foreign keys, 61 unique indexes,
 and 39 rule triggers (beside 16 that only keep `updated_at` truthful), and it
 holds several properties that application code alone cannot guarantee:
 

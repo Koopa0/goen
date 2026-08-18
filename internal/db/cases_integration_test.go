@@ -128,23 +128,23 @@ var checkCases = []checkCase{
 	},
 	{
 		constraint: "categories_name_present",
-		reject:     `INSERT INTO categories (id, slug, name) VALUES ('11110002-0000-4000-8000-000000000001', 'tablets', E'	');`,
-		accept:     `INSERT INTO categories (id, slug, name) VALUES ('11110002-0000-4000-8000-000000000001', 'tablets', '平板');`,
+		reject:     `INSERT INTO categories (id, slug, name, position) VALUES ('11110002-0000-4000-8000-000000000001', 'tablets', E'	', 11);`,
+		accept:     `INSERT INTO categories (id, slug, name, position) VALUES ('11110002-0000-4000-8000-000000000001', 'tablets', '平板', 11);`,
 	},
 	{
 		constraint: "categories_name_en_present",
-		reject:     `INSERT INTO categories (id, slug, name, name_en) VALUES ('00000091-0000-4000-8000-000000000091', 'blank-en', '空白英文', E'\t');`,
-		accept:     `INSERT INTO categories (id, slug, name, name_en) VALUES ('00000091-0000-4000-8000-000000000091', 'blank-en', '空白英文', 'Blank English');`,
+		reject:     `INSERT INTO categories (id, slug, name, name_en, position) VALUES ('00000091-0000-4000-8000-000000000091', 'blank-en', '空白英文', E'\t', 12);`,
+		accept:     `INSERT INTO categories (id, slug, name, name_en, position) VALUES ('00000091-0000-4000-8000-000000000091', 'blank-en', '空白英文', 'Blank English', 12);`,
 	},
 	{
 		constraint: "categories_not_own_parent",
-		reject:     `SET LOCAL session_replication_role = replica; INSERT INTO categories (id, parent_id, slug, name) VALUES ('11110002-0000-4000-8000-000000000001', '11110002-0000-4000-8000-000000000001', 'tablets', '平板');`,
-		accept:     `SET LOCAL session_replication_role = replica; INSERT INTO categories (id, parent_id, slug, name) VALUES ('11110002-0000-4000-8000-000000000001', '22222222-2222-4222-8222-222222222222', 'tablets', '平板');`,
+		reject:     `SET LOCAL session_replication_role = replica; INSERT INTO categories (id, parent_id, slug, name, position) VALUES ('11110002-0000-4000-8000-000000000001', '11110002-0000-4000-8000-000000000001', 'tablets', '平板', 13);`,
+		accept:     `SET LOCAL session_replication_role = replica; INSERT INTO categories (id, parent_id, slug, name, position) VALUES ('11110002-0000-4000-8000-000000000001', '22222222-2222-4222-8222-222222222222', 'tablets', '平板', 13);`,
 	},
 	{
 		constraint: "categories_slug_format",
-		reject:     `INSERT INTO categories (id, slug, name) VALUES ('11110002-0000-4000-8000-000000000001', 'Tablets', '平板');`,
-		accept:     `INSERT INTO categories (id, slug, name) VALUES ('11110002-0000-4000-8000-000000000001', 'tablets', '平板');`,
+		reject:     `INSERT INTO categories (id, slug, name, position) VALUES ('11110002-0000-4000-8000-000000000001', 'Tablets', '平板', 14);`,
+		accept:     `INSERT INTO categories (id, slug, name, position) VALUES ('11110002-0000-4000-8000-000000000001', 'tablets', '平板', 11);`,
 	},
 	{
 		constraint: "checkout_attempts_key_present",
@@ -1386,9 +1386,18 @@ var uniqueCases = []uniqueCase{
 		accept: `INSERT INTO brands (id, slug, name) VALUES ('11110001-0000-4000-8000-000000000001', 'pixelight-2', '宏碁');`,
 	},
 	{
+		// NULLS NOT DISTINCT is the half worth exercising: both rows here are
+		// ROOTS, so a plain UNIQUE (parent_id, position) would treat their NULL
+		// parents as distinct and accept the pair — the header's own order, left
+		// to whatever the planner returned.
+		index:  "categories_position_key",
+		reject: `INSERT INTO categories (id, slug, name, position) VALUES ('11110003-0000-4000-8000-000000000001', 'phones-3', '手機三', 0);`,
+		accept: `INSERT INTO categories (id, slug, name, position) VALUES ('11110003-0000-4000-8000-000000000001', 'phones-3', '手機三', 7);`,
+	},
+	{
 		index:  "categories_slug_key",
-		reject: `INSERT INTO categories (id, slug, name) VALUES ('11110002-0000-4000-8000-000000000001', 'phones', '手機二');`,
-		accept: `INSERT INTO categories (id, slug, name) VALUES ('11110002-0000-4000-8000-000000000001', 'phones-2', '手機二');`,
+		reject: `INSERT INTO categories (id, slug, name, position) VALUES ('11110002-0000-4000-8000-000000000001', 'phones', '手機二', 15);`,
+		accept: `INSERT INTO categories (id, slug, name, position) VALUES ('11110002-0000-4000-8000-000000000001', 'phones-2', '手機二', 15);`,
 	},
 	{
 		index:  "checkout_attempts_order_key",

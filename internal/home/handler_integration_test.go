@@ -14,7 +14,10 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"errors"
 
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/home"
@@ -566,45 +569,46 @@ func TestTheFreeDeliveryStripStatesWhatTheTillCharges(t *testing.T) {
 //
 // NavCategories ordered by (position, name) and HomeCategories by (position)
 // alone — the same six rows, read by the header and by the tiles directly below
-// it on the same page. They agree until two root categories share a position,
-// and nothing stops that: CreateCategory takes max(position) + 1 with no unique
-// index behind it, so two staff members adding a category at the same moment
-// both read the same maximum and both get it.
+// it on the same page. Measured before the fix, by colliding two positions: the
+// header read accessories > phones > laptops and the tiles read phones >
+// accessories > laptops, on one render.
 //
-// Measured before the fix: the header read accessories > phones > laptops and
-// the tiles read phones > accessories > laptops, on one render.
+// It is one query now, so the two cannot disagree however the rows are ordered.
+// And the collision that made them disagree is refused at the schema:
+// categories_position_key is NULLS NOT DISTINCT precisely because the ROOT
+// categories are the header, and a plain unique index would treat their NULL
+// parents as distinct and allow the pair.
 //
-// It is one query now. That also removes a round trip from every storefront
-// page, which is the cheap half of the answer to "should goen cache this" —
-// see docs/roadmap.md §B. The saving is real and the staleness is nil, because
-// there is no second copy.
+// The staged collision this test used to build is therefore a state the
+// application can no longer reach, so it asserts the refusal by NAME instead —
+// a fixture for an impossible state proves nothing about the code that runs.
 func TestTheHeaderAndTheTilesAgreeOnOrder(t *testing.T) {
 	ctx := t.Context()
 
-	// Two root categories at one position, which is what CreateCategory can
-	// hand out and no index refuses.
-	if _, err := pool.Exec(ctx, `
+	// Two roots at one position is what CreateCategory's max(position) + 1 could
+	// hand out to two staff members at once, and what nothing used to refuse.
+	_, err := pool.Exec(ctx, `
 		UPDATE categories SET position = (
 		    SELECT min(position) FROM categories WHERE parent_id IS NULL
 		) WHERE slug = (
 		    SELECT slug FROM categories WHERE parent_id IS NULL
 		    ORDER BY position DESC LIMIT 1
-		)`); err != nil {
-		t.Fatalf("collide two positions: %v", err)
+		)`)
+	if err == nil {
+		t.Fatal("two root categories were allowed to share a position; " +
+			"the header's order is then whatever the planner returned")
 	}
-	t.Cleanup(func() {
-		// Restore, or every later test in this package reads a catalogue this
-		// one reordered. Derived rather than t.Context(): that one is cancelled
-		// just before cleanups run, so the restore would never execute.
-		if _, err := pool.Exec(context.WithoutCancel(ctx), `
-			UPDATE categories c SET position = n.rn - 1
-			FROM (SELECT id, row_number() OVER (ORDER BY slug) rn
-			      FROM categories WHERE parent_id IS NULL) n
-			WHERE c.id = n.id`); err != nil {
-			t.Errorf("restore positions: %v", err)
-		}
-	})
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	if !ok {
+		t.Fatalf("refused by something other than a constraint: %v", err)
+	}
+	if pgErr.ConstraintName != "categories_position_key" {
+		t.Errorf("refused by %q, want categories_position_key — bound to the "+
+			"constraint, because a statement meant to prove one rule often trips "+
+			"another first", pgErr.ConstraintName)
+	}
 
+	// And both surfaces read one query, so there is no second order to drift.
 	locale := i18n.WithLocale(ctx, i18n.ZhHant)
 	store := home.NewStore(pool)
 
@@ -629,7 +633,6 @@ func TestTheHeaderAndTheTilesAgreeOnOrder(t *testing.T) {
 		tiles = append(tiles, view.Categories[i].Slug)
 	}
 	if strings.Join(header, ">") != strings.Join(tiles, ">") {
-		t.Errorf("the header says %v and the tiles say %v, on one page",
-			header, tiles)
+		t.Errorf("the header says %v and the tiles say %v, on one page", header, tiles)
 	}
 }

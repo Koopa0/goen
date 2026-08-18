@@ -603,7 +603,7 @@ func twoProductsBoughtTogether(t *testing.T, committed int) (first, second strin
 			WITH b AS (
 				INSERT INTO brands (slug, name) VALUES ('rb-'||gen_random_uuid(), '推薦品牌') RETURNING id
 			), c AS (
-				INSERT INTO categories (slug, name) VALUES ('rc-'||gen_random_uuid(), '推薦分類') RETURNING id
+				INSERT INTO categories (slug, name, position) SELECT 'rc-'||gen_random_uuid(), '推薦分類', coalesce(max(position) + 1, 0) FROM categories WHERE parent_id IS NULL RETURNING id
 			), p AS (
 				INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
 				SELECT b.id, c.id, $1, '推薦測試商品', 'draft', now() FROM b, c RETURNING id
