@@ -1344,3 +1344,12 @@ LEFT JOIN users u ON u.id = w.user_id
 WHERE w.serial_number = @term::text OR o.order_number = @term::text
 ORDER BY w.expires_on DESC, w.id
 LIMIT @row_limit::integer;
+
+-- Whether this return's money has actually gone. Read on a RETRY, so pressing
+-- 同意 again on a return whose refund already succeeded does nothing rather than
+-- asking the provider a second time.
+-- name: ReturnRefundSettled :one
+SELECT EXISTS (
+    SELECT 1 FROM refunds
+    WHERE return_request_id = $1 AND status = 'succeeded'
+)::boolean AS settled;

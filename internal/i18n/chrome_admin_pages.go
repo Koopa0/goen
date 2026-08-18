@@ -110,10 +110,16 @@ var (
 		En: "This product has no compare-at price, so nothing on it is marked down and a campaign " +
 			"cannot feature it. Set one on the product page and try again.",
 	})
+	// The DECISION stands: it is committed before any money moves, so that two
+	// staff members deciding at once cannot both pay. What is outstanding here
+	// is the payment, and saying "the refund failed" without saying the return
+	// is already approved would send somebody looking for a decision to retake.
 	KeyAdminNoticeRefundFailed = key("admin.notice.refundfailed", Message{
-		ZhHant: "退款沒有完成。退款紀錄已經留下,請確認 Stripe 後台再處理一次。",
-		En: "The refund did not complete. Its record has been written either way — check the Stripe " +
-			"dashboard before running it again.",
+		ZhHant: "這筆退貨已經核准,但退款沒有完成。退款紀錄已經留下,請確認 Stripe 後台再處理一次 —— " +
+			"核准本身不需要、也無法重做。",
+		En: "This return is approved, but the refund did not complete. Its record has been written " +
+			"either way — check the Stripe dashboard before running it again. The approval itself " +
+			"neither needs nor allows redoing.",
 	})
 	KeyAdminNoticeReceived = key("admin.notice.received", Message{
 		ZhHant: "進貨已入庫,帳本上記的是「進貨」而不是「人工調整」。",

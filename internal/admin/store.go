@@ -783,35 +783,91 @@ func (s *Store) Returns(ctx context.Context) (pages.AdminReturnsView, error) {
 // after, so a crash between the two leaves something reconciliation can find;
 // request_key is what makes the retry one refund at Stripe and one row here.
 func (s *Store) Decide(ctx context.Context, id, decision, resolution string, actor uuid.NullUUID) error {
-	requestID, err := uuid.Parse(id)
+	requestID, row, retry, err := s.returnUnderDecision(ctx, id, decision)
 	if err != nil {
-		return ErrRefused
+		return err
 	}
-	if decision != "approved" && decision != "rejected" {
-		return ErrRefused
-	}
-
-	row, err := s.q.ReturnForDecision(ctx, requestID)
-	if err != nil {
-		return fmt.Errorf("%w: %s", ErrRefused, err.Error())
-	}
-	if row.Status != "requested" {
-		return fmt.Errorf("%w: return %s is already %s", ErrRefused, id, row.Status)
-	}
-
 	if decision == "rejected" {
-		return s.closeReturn(ctx, requestID, row.OrderID, "rejected", resolution, "", actor)
+		return s.closeReturn(ctx, requestID, "rejected", resolution)
 	}
 
-	if row.RefundableCents == 0 {
-		return s.closeReturn(ctx, requestID, row.OrderID, "approved", resolution, "", actor)
+	if retry {
+		done, doneErr := s.refundAlreadyLanded(ctx, requestID, row.RefundableCents)
+		if doneErr != nil {
+			return doneErr
+		}
+		if done {
+			// Refused rather than reported as done: a return is decided once,
+			// and pressing 同意 on one that is already approved AND paid did
+			// nothing. Saying so is what tells the staff member the decision
+			// was somebody else's.
+			return fmt.Errorf("%w: return %s is already approved and its refund has landed",
+				ErrRefused, id)
+		}
+	} else if row.RefundableCents == 0 {
+		return s.closeReturn(ctx, requestID, "approved", resolution)
 	}
 
+	// Validated BEFORE the claim, and it only reads: a claim that cannot be paid
+	// should leave the return open for somebody to work out why.
 	split, err := s.splitRefund(ctx, &row)
 	if err != nil {
 		return err
 	}
-	return s.approveWithRefund(ctx, &row, split, resolution, actor)
+
+	// THE CLAIM, and it commits before a cent moves. Two staff members deciding
+	// one return at once both passed the pool read above; only one wins this,
+	// and the loser must not have paid anything on the way to finding out.
+	if !retry {
+		if err := s.closeReturn(ctx, requestID, "approved", resolution); err != nil {
+			return err
+		}
+	}
+	return s.payApprovedReturn(ctx, &row, split, resolution, actor)
+}
+
+// returnUnderDecision reads the return this decision is about and says whether
+// it is a first decision or a RETRY of a payout that did not complete.
+//
+// An already-approved return being approved again is not a second decision. The
+// claim moved ahead of the money, which is what stops two staff members both
+// paying — and it also means a refund that failed no longer leaves the return
+// open to be decided again. Pressing 同意 once more is how it resumes: the
+// decision is not retaken, and refundRequestKey makes the provider call the
+// same one.
+func (s *Store) returnUnderDecision(ctx context.Context, id, decision string) (
+	uuid.UUID, db.ReturnForDecisionRow, bool, error,
+) {
+	requestID, err := uuid.Parse(id)
+	if err != nil {
+		return uuid.Nil, db.ReturnForDecisionRow{}, false, ErrRefused
+	}
+	if decision != "approved" && decision != "rejected" {
+		return uuid.Nil, db.ReturnForDecisionRow{}, false, ErrRefused
+	}
+	row, err := s.q.ReturnForDecision(ctx, requestID)
+	if err != nil {
+		return uuid.Nil, db.ReturnForDecisionRow{}, false, fmt.Errorf("%w: %s", ErrRefused, err.Error())
+	}
+	retry := row.Status == "approved" && decision == "approved"
+	if row.Status != "requested" && !retry {
+		return uuid.Nil, db.ReturnForDecisionRow{}, false,
+			fmt.Errorf("%w: return %s is already %s", ErrRefused, id, row.Status)
+	}
+	return requestID, row, retry, nil
+}
+
+// refundAlreadyLanded reports whether a retry has nothing left to do: the money
+// has gone, or there was never any to send.
+func (s *Store) refundAlreadyLanded(ctx context.Context, requestID uuid.UUID, refundable int64) (bool, error) {
+	if refundable == 0 {
+		return true, nil
+	}
+	settled, err := s.q.ReturnRefundSettled(ctx, uuid.NullUUID{UUID: requestID, Valid: true})
+	if err != nil {
+		return false, fmt.Errorf("read the refund for return %s: %w", requestID, err)
+	}
+	return settled, nil
 }
 
 // refundSplit is how a return is paid back: part to the card, part to the
@@ -872,17 +928,24 @@ func (s *Store) splitRefund(ctx context.Context, row *db.ReturnForDecisionRow) (
 	return split, nil
 }
 
-// approveWithRefund pays the money back and closes the return. The CREDIT
-// portion is posted in the closing transaction and not beside the refund row:
-// it involves no provider, so a failed card refund leaves nothing to reconcile.
-func (s *Store) approveWithRefund(ctx context.Context, row *db.ReturnForDecisionRow,
+// payApprovedReturn pays the money back on a return this caller has already
+// won. It runs AFTER the decision is committed, which is the whole point: the
+// claim is what settles which of two staff members decides, and it used to
+// settle it after the payout, so the loser had already refunded.
+//
+// A failure here leaves the return approved and the money not sent — visible,
+// and recoverable, because open_refund has already committed a `pending` row
+// keyed on the return. The old ordering left the opposite: money sent against a
+// decision that lost, on a return frozen at `rejected` with no audit row saying
+// who caused it.
+func (s *Store) payApprovedReturn(ctx context.Context, row *db.ReturnForDecisionRow,
 	split refundSplit, resolution string, actor uuid.NullUUID,
 ) error {
 	providerRef := ""
 	if split.Card > 0 {
 		ref, state, err := s.refundCard(ctx, row, split.Card, resolution)
 		if err != nil {
-			return err
+			return fmt.Errorf("%w: %s", ErrRefundIncomplete, err.Error())
 		}
 		// order_events is rendered on the customer's own order page, so a
 		// refunded event is written only once the money has actually left.
@@ -901,10 +964,21 @@ func (s *Store) approveWithRefund(ctx context.Context, row *db.ReturnForDecision
 			ReturnID: row.ID.String(),
 			Actor:    actor,
 		}); err != nil {
-			return fmt.Errorf("compensate return %s with credit: %w", row.ID, err)
+			return fmt.Errorf("%w: compensate return %s with credit: %s",
+				ErrRefundIncomplete, row.ID, err.Error())
 		}
 	}
-	return s.closeReturn(ctx, row.ID, row.OrderID, "approved", resolution, providerRef, actor)
+	// Written once the money has actually left, which is why it cannot ride in
+	// the claiming transaction any more.
+	if providerRef != "" {
+		if err := s.q.RecordOrderEvent(ctx, db.RecordOrderEventParams{
+			OrderID: row.OrderID, Kind: "refunded", ActorUserID: actor,
+			Note: text(providerRef),
+		}); err != nil {
+			return fmt.Errorf("record refunded event for return %s: %w", row.ID, err)
+		}
+	}
+	return nil
 }
 
 // refundRequestKey is goen's own idempotency key for a return's refund. Derived
@@ -978,9 +1052,8 @@ func (s *Store) refundCard(ctx context.Context, row *db.ReturnForDecisionRow,
 // closeReturn stamps the decision and appends to the order's history, together.
 func (s *Store) closeReturn(
 	ctx context.Context,
-	requestID, orderID uuid.UUID,
-	status, resolution, providerRef string,
-	actor uuid.NullUUID,
+	requestID uuid.UUID,
+	status, resolution string,
 ) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -991,7 +1064,9 @@ func (s *Store) closeReturn(
 
 	// The row count is the decision. Decide's pre-check runs on the pool outside
 	// this transaction, so the statement's own `status = 'requested'` is what
-	// settles which of two staff members deciding at once wins.
+	// settles which of two staff members deciding at once wins — and this now
+	// runs BEFORE the money, because settling it afterwards meant the loser had
+	// already refunded.
 	decided, decideErr := q.DecideReturn(ctx, db.DecideReturnParams{
 		ID: requestID, Status: status, Resolution: text(resolution),
 	})
@@ -1002,19 +1077,9 @@ func (s *Store) closeReturn(
 		return fmt.Errorf("%w: return %s was decided by somebody else first",
 			ErrRefused, requestID)
 	}
-	if status == "approved" && providerRef != "" {
-		if evErr := q.RecordOrderEvent(ctx, db.RecordOrderEventParams{
-			OrderID: orderID, Kind: "refunded", ActorUserID: actor,
-			Note: text(providerRef),
-		}); evErr != nil {
-			return fmt.Errorf("record refunded event: %w", evErr)
-		}
-	}
 	if err := auditIn(ctx, q, Event{
 		Action: ActionDecideReturn, Table: "return_requests", ID: nullableID(requestID),
-		After: map[string]any{
-			"decision": status, "resolution": resolution, "refund_ref": providerRef,
-		},
+		After: map[string]any{"decision": status, "resolution": resolution},
 	}); err != nil {
 		return err
 	}

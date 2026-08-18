@@ -8984,6 +8984,23 @@ func (q *Queries) ReturnQueue(ctx context.Context, limit int32) ([]ReturnQueueRo
 	return items, nil
 }
 
+const returnRefundSettled = `-- name: ReturnRefundSettled :one
+SELECT EXISTS (
+    SELECT 1 FROM refunds
+    WHERE return_request_id = $1 AND status = 'succeeded'
+)::boolean AS settled
+`
+
+// Whether this return's money has actually gone. Read on a RETRY, so pressing
+// 同意 again on a return whose refund already succeeded does nothing rather than
+// asking the provider a second time.
+func (q *Queries) ReturnRefundSettled(ctx context.Context, returnRequestID uuid.NullUUID) (bool, error) {
+	row := q.db.QueryRow(ctx, returnRefundSettled, returnRequestID)
+	var settled bool
+	err := row.Scan(&settled)
+	return settled, err
+}
+
 const returnRestockLines = `-- name: ReturnRestockLines :many
 SELECT ol.variant_id::uuid AS variant_id,
        rl.restocked_quantity::integer AS quantity, rl.order_line_id
