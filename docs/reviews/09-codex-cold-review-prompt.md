@@ -1,70 +1,130 @@
-# Cold review: everything since PR #22
+# Cold review: the whole of goen
 
-You are reviewing goen, a Traditional-Chinese 3C storefront in Go. **Read the
-diff before you read anything anyone says about it.** `review-process.md` calls
-this cold-first acceptance, and the reason is that a builder's report hands you
-its own frame: you inherit which things it thought were interesting, and you
-stop looking where it stopped.
+You are reviewing goen entire — not a diff, not a release. Every file in this
+repository is in scope, including the ones nobody has touched in months, which
+are the ones least likely to have been looked at twice.
 
-## Scope
+## What it is, and what it is for
 
-```
-git diff bc11c22~1..HEAD
-```
+A Traditional-Chinese storefront for 3C goods. One Go binary serves the
+storefront, the customer account and `/admin`; pages are rendered server-side
+with `templ`; PostgreSQL holds everything including the catalogue's photography.
+It is a demonstration and reference project, so **the software engineering is
+part of what is being demonstrated** — a defect in how a rule is enforced counts
+as much as a defect a customer would meet.
 
-85 files, +5283 / −3053, thirteen commits. Everything in it was written by one
-session with no second pair of eyes. **That session also wrote every test that
-now passes**, which is the specific thing you are here to distrust.
+| | |
+|---|---|
+| Go source (excluding generated) | ~33,400 lines across 25 packages |
+| Tests | ~32,800 lines, 665 top-level test functions |
+| Templates | ~7,900 lines of `templ` |
+| Schema | one 4,509-line migration: 68 tables, 5 views, 88 functions, 8 roles |
+| HTTP routes | 173 |
+| Chrome strings | 1,430 i18n keys, two locales |
 
-## What you are NOT given
+## Read the code before you read the claims
 
-The PR descriptions, the commit bodies, and this repository's own account of
-what each change was for. Form your findings first. Read them afterwards, and
-only to check whether a finding is already answered — not to decide whether to
-raise it.
+`CLAUDE.md` is 2,946 lines and `README.md` is 282. Together they are the most
+detailed account of this system that exists — and they are **claims**, not
+evidence. Form your findings from the code, the schema and the running site
+first; consult the prose afterwards, and then chiefly to ask a different
+question: *is this still true?*
 
-## Where this codebase's guards are known to be blind
+That is not a stylistic preference. This project has three recorded cases of a
+comment or document asserting an enforcement that did not exist:
 
-Stated so you spend your effort where the machinery cannot reach, not so you
-trust it:
+- `product_search_documents` carried a note claiming it had "exactly one
+  writer". It had none, and no reader. The whole table was deleted.
+- `Store.Remove` shipped with a comment saying "another admin does this" and no
+  caller, so an admin who lost their 2FA phone was locked out permanently.
+- A header comment named `TestTopNavPointsAtRealCategories` as the guard keeping
+  two copies of the category list in step. **That test was never written.**
 
-- **Every completeness guard here asks about ABSENCE** — a table with no writer,
-  a field nobody assigns, a column nobody reads, a key nobody renders. None of
-  them can see **two correct halves that disagree**. Mistakes #13, #30, #31, #34
-  and #37 in `CLAUDE.md` are all that shape and all were found by people.
-- **A route being linked is not a state being reachable.** #35 shipped a whole
-  feature that no path could produce a second column for, with every guard green.
+A fourth was found last week: `CLAUDE.md` said its schema counts were "measured
+… rather than counted by hand", and three of the six had drifted. Treat every
+sentence of the form *"X is enforced by Y"* as a hypothesis with a name you can
+grep for.
+
+## Use the site, do not only read it
+
+`make db-up && make migrate-up && make db-seed && make run` brings it up on
+`127.0.0.1:9700`; `make check-layout` drives a real browser over 85 viewports.
+The back office is at `/admin` behind TOTP step-up.
+
+The most expensive defect this project has shipped was found by *using* it: a
+whole comparison feature — decision record, localized spec table, a query, its
+own lock — that no path on the site could reach with more than one product.
+Every guard was green. `TestEveryHardCodedLinkResolvesToARoute` passed, because
+it asks whether a link **resolves**, never whether a state is **reachable**.
+
+Place an order. Cancel it. Return something. Register a warranty. Run the shop
+from `/admin` and try to make it contradict itself.
+
+## Where the machinery is structurally blind
+
+Stated so you spend effort where the guards cannot reach — not so you trust them
+elsewhere.
+
+- **Every completeness guard here asks about ABSENCE**: a table with no writer, a
+  table nobody reads, a column nobody mentions, a view-model field nobody
+  assigns, an i18n key nothing renders. None of them can see **two correct
+  halves that disagree**. Six recorded mistakes are exactly that shape, and
+  every one was found by a person: a payment page charging gross while the
+  constraint demanded net; a session flag that reopened a decision made ten lines
+  above it; a comment naming a forbidden state whose predicate still allowed it;
+  a warranty clock started at dispatch under a comment saying delivery; a tile
+  and a product page quoting two different prices for one product.
+- **Linked is not reachable.** See above.
 - **A test written from the implementation asserts what the code does.** Three
-  findings in round 6 were each locked in by a passing test.
+  findings in an earlier round were each *locked in* by a passing test, so each
+  fix had to change a green test. Assume some of the 665 are in that state.
+- **A fixture that reaches past the application is a fixture for a claim nobody
+  is testing.** Several have been found seeding tables the app cannot write.
 
-## What to attack, in order
+## Attack in this order
 
-1. **Money and stock.** `internal/payment`, `internal/cart`, the
-   `SECURITY DEFINER` functions, `order_amount_owed`. Anything where two places
-   compute one number.
-2. **Authorisation.** `order_access_grants`, `RequireStaff` / `RequireAdmin` /
-   `StaffOnly`, the admin column grants. Ask whether the guard on a route is
-   weaker than the thing it protects.
-3. **The new schema object.** `categories_position_key` is `NULLS NOT DISTINCT`
-   and was added by amending `001` in place. Ask what it made newly reachable,
-   what write path can now fail that could not before, and whether every caller
-   maps that failure to something a person can act on.
-4. **The new tests themselves.** Each is a review target
-   (`review-process.md`). For each one ask: *what mutation would this NOT
-   catch?* Several are asserted against rendered HTML; at least one guard is
-   static and reads templates rather than output. Say where that is too weak.
-5. **The claims in prose.** `CLAUDE.md` and `README.md` state numbers, lists and
-   limits. One guard now binds four of them to the catalogue. Find a stated
-   claim that nothing holds.
+1. **Money and stock.** `internal/payment`, `internal/cart`, `internal/returns`,
+   the `SECURITY DEFINER` posting functions, `order_amount_owed`. Anywhere one
+   number is computed in two places, or a webhook is trusted for more than "what
+   happened".
+2. **Authorisation and privacy.** `order_access_grants`, the `store` / `admin` /
+   `reporting` / `maintenance` role split and its column-level grants,
+   `RequireStaff` / `RequireAdmin` / `StaffOnly`, `erase_user`. Ask whether the
+   guard on a route is weaker than the thing it protects, and whether anything a
+   customer wrote can outlive their erasure.
+3. **The state machines.** Order status, reservation lifecycle, return →
+   refund → restock, invoice void/allowance. Look for a status that claims work
+   is finished with nothing making it true, and for a transition whose side
+   effects live outside the transition.
+4. **Concurrency.** ~39 rule triggers claim to lock their aggregate root before
+   reading. Check the claim per trigger. Two writers, both passing, is the
+   failure this schema exists to prevent.
+5. **The tests themselves.** They are review targets. For each guard you meet:
+   *what mutation would this not catch?* Say where a lock is weaker than the
+   error it sits beside.
+6. **The prose.** Find a stated number, list or limit that nothing holds to the
+   code.
+
+## Decisions, not defects
+
+Some things are deliberate and recorded with reasons: triggers used for
+cross-row integrity, `updated_at` by trigger, `uuidv7()` keys, amending `001` in
+place while nothing is deployed, images in PostgreSQL, no observability yet,
+card-only payment methods, 超商取貨 carrying no 離島 surcharge. **Challenge the
+reasoning if it is wrong — but say which recorded reason you are refuting**,
+rather than reporting the decision as an oversight. A finding that a recorded
+trade-off has stopped being true is among the most valuable kinds here.
 
 ## What a useful finding looks like
 
-- The **mechanism**, not the smell. Name the inputs and the wrong outcome.
-- **Which existing guard should have caught it and why it did not.**
-- If you cannot construct the failing path, say so and mark it uncertain rather
-  than dropping it — an unproven mechanism that names a real question is worth
-  more than silence, and this project's rules require every finding to reach one
-  of three states rather than be waved through.
+- The **mechanism**: inputs, and the wrong outcome. Not a smell.
+- **Which existing guard should have caught it, and why it did not.** A finding
+  that also explains the gap in the machinery is worth several that do not.
+- If you cannot construct the failing path, mark it uncertain and say so.
+  Every finding must reach one of three states before merge — fixed, queued by
+  name, or refused in writing — so an unproven mechanism naming a real question
+  is worth more than silence.
 
-Do not soften findings. A too-large or skipped notice is answered, never
-absorbed.
+Do not soften findings, and do not batch-approve areas you did not read. A
+too-large or skipped notice is answered, never absorbed: say which parts you did
+not reach.
