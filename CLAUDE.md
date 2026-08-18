@@ -1148,10 +1148,24 @@ reviewer should see them named rather than discover them.
 
 ## The database enforces what it can
 
-goen's data rules live in the schema, not only in Go: 230 CHECKs, 80 foreign
+goen's data rules live in the schema, not only in Go: 241 CHECKs, 80 foreign
 keys, 60 unique indexes and 39 rule triggers, measured from `pg_constraint`,
 `pg_index` and `pg_trigger` against the built schema rather than counted by hand
-— counted by hand they had drifted to roughly half. Application code is where rules
+— counted by hand they had drifted to roughly half.
+
+**And then they drifted again, in this sentence.** "Measured" described how the
+figures were once ARRIVED at, not how they were kept: they were typed here and
+into README.md and left, and by the time anybody re-ran the query the schema had
+241 CHECKs against 230 stated, 16 `updated_at` triggers against 15, and 19
+SECURITY DEFINER functions against 18. Nothing was wrong with the schema — the
+prose describing it had stopped being true, in the two files a reader opens
+first. `TestTheStatedSchemaTotalsAreTheRealOnes` reads both documents and the
+catalogue and refuses a disagreement, which is
+`TestTheStatedHoldMatchesTheEnforcedOne`'s shape applied to the other set of
+numbers this repository states. **A number described as measured is not thereby
+kept measured; only something that re-reads it is.**
+
+Application code is where rules
 go to be forgotten — a second write path appears, a retry runs a step twice —
 so anything that would corrupt money, stock or history is refused by
 PostgreSQL, where there is no second path.
