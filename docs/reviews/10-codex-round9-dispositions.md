@@ -82,3 +82,71 @@ Worth recording, because it is the machinery working rather than the review:
 - **A mutation that did not compile is not a red test.** One attempt removed the
   last reference to an import.
 - **`git checkout` on a file with uncommitted work reverted my own fixes** twice.
+
+## Round 10: what the role reviews found in the fixes
+
+A fix made in response to a finding is new work. Six role lenses over the
+completed set produced 42 findings; 14 were adversarially verified and none was
+refuted. The most severe were regressions from the earlier fixes in this same
+document, which is the rule `review-process.md` states and the reason it is
+stated: **a fix that closes one hole routinely opens the next.**
+
+Four survived into a second pass, each because the earlier lock could not see
+the thing it named.
+
+### The unreconciled alarm had no off switch
+
+`payment_webhook_events.unreconciled` was added so money arriving for a cancelled
+order left something countable rather than one ERROR log. Nothing could clear it,
+so `/admin/health` was unhealthy forever after the first arrival — **and an alarm
+that is always on is one nobody reads**, which is the failure the flag was added
+to prevent, arriving one step later.
+
+`reconciled_at` is the acknowledgement, written from a plain form on
+`/admin/health` and audited. The only thing anybody can do about that money is a
+refund by hand at the provider, which goen cannot see land, so the operator
+saying they did it IS the record. The question is asked in the UPDATE's own WHERE
+clause, so two staff members pressing it is one row and one audit entry.
+
+`store` INSERTs that table, so a whole-table grant would have carried the new
+column. It is narrowed to the five columns the webhook writes: `reconciled_at` is
+the shop's statement about money, not the storefront's.
+
+### The lock on that flag drove a callback of its own
+
+`TestMoneyForACancelledOrderLeavesSomethingToActOn` passed its own function to
+`ProcessWebhook`, and that function called `Unreconciled`. So it proved the store
+could record the outcome, never that the switch in `handler.go` asks it to —
+deleting the real branch left it green, with 671 tests still passing. The
+replacement drives the signed webhook through the handler and is proven red
+against that deletion.
+
+### Eleven rules were raised by a function and asserted by nothing
+
+`TestEveryRuleTriggerIsExercised` keys on the TRIGGER, and a trigger function
+raises as many distinct rules as it has branches: `orders_check_complete` raises
+three, `redeem_coupon` four. Deleting one branch removes no trigger, so the
+coverage guard stayed green while the rule stopped being enforced — and a case
+asserting only that a row was refused cannot tell the difference either (#8).
+
+`TestEveryRaisedRuleIsAssertedByName` derives its corpus from `pg_proc`, so a
+rule added to a function body is covered the moment it is written. It asks for
+the name inside a Go string literal, because a name in a comment is how a guard
+comes to be satisfied by nothing. Twelve rules were in the gap and all twelve are
+proven red.
+
+### Three branches ran with no test behind them
+
+- **main's newsletter consent gate.** The send freezes one outbox row per
+  subscriber and drains at bulk priority behind every transactional message, so
+  an unsubscribe committing in that window is only visible at DELIVERY — and
+  delivery is wiring, which is where a rule goes to be deleted without anything
+  noticing. `cmd/goen` has an integration test now.
+- **The checkout's 422 for a spent coupon.** Store-tested, never driven through
+  the handler where the mapping lives. `FindCoupon` reads no limit by design, so
+  that refusal is an ordinary outcome on the buying mainline; the 500 it replaced
+  discarded the whole address at the moment of paying.
+- **A form action nothing answers.** `TestEveryFormWorksWithScriptingOff` asks
+  that a form HAS an action and never that a handler exists for it. A form
+  posting to an unregistered path reaches the mux's 404, which looks like a
+  working page until somebody presses the button — #35 on the write face.
