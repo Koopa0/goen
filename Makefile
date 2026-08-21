@@ -243,6 +243,18 @@ check-layout:
 		curl -s -o /dev/null -b "goen_session=$$CT" -H 'Sec-Fetch-Site: same-origin' \
 			--data-urlencode 'reason=尺寸不合,想換一個顏色' --data-urlencode "qty_$$LINE=1" \
 			$$U/orders/$$RN/return
+	@# /admin/health's two ALARM tables and the 折讓 claim row on an order page.
+	@# Each renders only when there is something wrong, so the page a browser sees
+	@# without them is the healthy one — chrome, a status list, and none of the
+	@# markup added for the states an operator actually has to act on. That is the
+	@# no-fixture trap this file already records for the promotional strip and for
+	@# /admin/questions: a check over DATA needs the data seeded.
+	@#
+	@# The webhook row is money that arrived for an order goen had cancelled; the
+	@# claim is a 折讓 the provider never answered, aged past the window that tells
+	@# a stuck one from a call in flight.
+	@psql "$$GOEN_DATABASE_URL" -qtAc "INSERT INTO payment_webhook_events (provider, event_id, type, object_ref, payload, unreconciled) SELECT 'stripe', 'evt_layout_check', 'checkout.session.completed', 'cs_layout_check', '{}'::jsonb, '版面檢查:款項落在已取消的訂單上' WHERE NOT EXISTS (SELECT 1 FROM payment_webhook_events WHERE event_id = 'evt_layout_check')" >/dev/null
+	@psql "$$GOEN_DATABASE_URL" -qtAc "WITH inv AS (INSERT INTO invoice_documents (order_id, kind, number, amount_cents) SELECT o.id, 'invoice', 'GD-LAYOUT1', 100000 FROM orders o JOIN order_access_grants g ON g.order_id = o.id WHERE g.digest = sha256('$$(awk '/goen_placed/ {print $$7}' .layout-chrome/cookies)'::bytea) AND NOT EXISTS (SELECT 1 FROM invoice_documents WHERE number = 'GD-LAYOUT1') RETURNING id, order_id) INSERT INTO invoice_documents (order_id, kind, number, amount_cents, status, request_key, original_id, issued_at) SELECT inv.order_id, 'allowance', '', 50000, 'pending', 'allowance:layout-check', inv.id, now() - interval '1 hour' FROM inv" >/dev/null
 	@# The placed-order cookie carries TOKENS, not order numbers. It used to carry
 	@# the numbers and they were the proof — but a number comes off a per-day
 	@# counter, so anybody could set the cookie by hand and increment into somebody

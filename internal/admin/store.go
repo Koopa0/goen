@@ -947,7 +947,12 @@ func (s *Store) splitRefund(ctx context.Context, row *db.ReturnForDecisionRow) (
 		capturedRemaining = row.CapturedAmountCents.Int64 - alreadyRefunded
 	}
 
-	credit, err := s.q.OrderCreditPosition(ctx, uuid.NullUUID{UUID: row.OrderID, Valid: true})
+	// THIS return's own compensation is excluded, exactly as its own refund row
+	// is above. Without it a retry reads the credit it already posted as credit
+	// already returned, and refuses its own resume.
+	credit, err := s.q.OrderCreditPositionExcluding(ctx, db.OrderCreditPositionExcludingParams{
+		OrderID: uuid.NullUUID{UUID: row.OrderID, Valid: true}, ReturnID: row.ID.String(),
+	})
 	if err != nil {
 		return refundSplit{}, fmt.Errorf("read credit position for return %s: %w", row.ID, err)
 	}

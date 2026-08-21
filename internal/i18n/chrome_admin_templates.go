@@ -127,6 +127,17 @@ var (
 	KeyAdminHPColEvent = key("admin.hp.col.event", Message{ZhHant: "事件編號", En: "Event"})
 	// The only thing that can be done about money against a cancelled order is a
 	// refund by hand at the provider; this records that somebody did it.
+	KeyAdminHPClaimsHeading = key("admin.hp.claims.heading", Message{
+		ZhHant: "尚未確認的折讓",
+		En:     "Credit notes awaiting confirmation",
+	})
+	KeyAdminHPClaimsHint = key("admin.hp.claims.hint", Message{
+		ZhHant: "呼叫加值中心時沒有收到回應，無法確定發票是否已經開出。請到綠界後台查看，" +
+			"再決定要作廢或重新開立。在確認之前，這張訂單無法再開折讓。",
+		En: "The e-invoice provider did not answer, so whether the document was filed is unknown. " +
+			"Check the ECPay console before voiding or re-filing. Until it is settled, " +
+			"no further credit note can be filed against this order.",
+	})
 	KeyAdminHPReconcile = key("admin.hp.reconcile", Message{
 		ZhHant: "已手動退款",
 		En:     "Refunded by hand",

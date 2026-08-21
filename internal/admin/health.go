@@ -73,6 +73,24 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (pages
 		})
 	}
 
+	// 折讓 claims the provider never answered. The claim is right to survive —
+	// whether ECPay filed is not knowable from here — and that leaves a row only
+	// a person can settle, which is exactly why it belongs on this page beside
+	// the unreconciled payments. Without it the only sign was a 折讓 button that
+	// refused, on one order, with a message about checking ECPay.
+	stranded, err := s.q.StrandedInvoiceClaims(ctx)
+	if err != nil {
+		return pages.WorkerHealthView{}, fmt.Errorf("read stranded invoice claims: %w", err)
+	}
+	for i := range stranded {
+		c := &stranded[i]
+		view.StrandedClaims = append(view.StrandedClaims, pages.StrandedClaim{
+			OrderNumber: c.OrderNumber, Kind: c.Kind,
+			AmountCents: c.AmountCents,
+			Since:       c.IssuedAt.Format("2006-01-02 15:04"),
+		})
+	}
+
 	// goen consumes no refund webhook: this list is the only unpaid-customer alarm.
 	open, err := s.q.OpenRefunds(ctx, OpenRefundListLimit)
 	if err != nil {

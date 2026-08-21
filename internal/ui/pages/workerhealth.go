@@ -27,6 +27,10 @@ type WorkerHealthView struct {
 	Stuck                []StuckMessage
 	// Unreconciled is named rather than counted: each needs a refund by hand.
 	Unreconciled []UnreconciledPayment
+	// StrandedClaims is a 折讓 claim the provider never answered: nothing may be
+	// at the 加值中心 under it and only a person can find out. Named rather than
+	// counted, like its neighbours.
+	StrandedClaims []StrandedClaim
 	// Notice is the one-shot message a redirect carries. A page that writes
 	// something and answers 303 has to say what it did, or the operator is left
 	// reading a table to work out whether the button worked.
@@ -81,7 +85,7 @@ func (v *WorkerHealthView) PaymentsReconciled() bool { return v.UnreconciledPaym
 func (v *WorkerHealthView) AllHealthy() bool {
 	return v.OutboxHealthy() && v.SweeperHealthy() &&
 		v.RecommendHealthy() && v.HousekeepingHealthy() && v.RefundsHealthy() &&
-		v.PaymentsReconciled()
+		v.PaymentsReconciled() && v.ClaimsSettled()
 }
 
 // OutboxText is the outbox's state in a sentence a person can act on.
@@ -205,3 +209,19 @@ func (r OpenRefund) Reference(ctx context.Context) string {
 	}
 	return r.ProviderRef
 }
+
+// StrandedClaim is a 折讓 claim taken before the provider was asked, on a call
+// that never answered. The claim is right to survive — whether ECPay filed is
+// not knowable from here — so settling it is a person going to look.
+type StrandedClaim struct {
+	OrderNumber string
+	Kind        string
+	AmountCents int64
+	Since       string
+}
+
+// Amount is what the claim was for.
+func (c StrandedClaim) Amount() string { return twd(c.AmountCents) }
+
+// ClaimsSettled reports whether nothing is waiting on the provider.
+func (v *WorkerHealthView) ClaimsSettled() bool { return len(v.StrandedClaims) == 0 }

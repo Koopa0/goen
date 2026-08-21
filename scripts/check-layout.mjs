@@ -149,8 +149,19 @@ const ADMIN = [
   { label: 'admin coupons 1440', width: 1440, height: 900, path: '/admin/coupons', marker: '.goen-admin' },
   { label: 'admin credit 375', width: 375, height: 812, path: '/admin/credit', marker: '.goen-admin' },
   { label: 'admin credit 1440', width: 1440, height: 900, path: '/admin/credit', marker: '.goen-admin' },
-  { label: 'admin health 375', width: 375, height: 812, path: '/admin/health', marker: '.goen-health' },
-  { label: 'admin health 1440', width: 1440, height: 900, path: '/admin/health', marker: '.goen-health' },
+  // .ui-table and not .goen-health: the status list is always present, so a
+  // marker on it measures the HEALTHY page — chrome and nothing else — while
+  // the alarm tables an operator has to act on go unrendered. The Makefile
+  // seeds an unreconciled payment and a stranded 折讓 claim for exactly this.
+  { label: 'admin health 375', width: 375, height: 812, path: '/admin/health', marker: '.ui-table' },
+  { label: 'admin health 1440', width: 1440, height: 900, path: '/admin/health', marker: '.ui-table' },
+  // ONE order in full, which is where every invoice control lives: issue, void
+  // and the 折讓 form. The list had rows and the detail page had none, so no
+  // browser had ever rendered a form on the page that files a tax document —
+  // and the Makefile's fixture leaves a pending claim on it, so the "not filed,
+  // check ECPay" row is on screen too.
+  { label: 'admin order 375', width: 375, height: 812, path: '/admin/orders/PLACED_ORDER', marker: '.goen-admin__form' },
+  { label: 'admin order 1440', width: 1440, height: 900, path: '/admin/orders/PLACED_ORDER', marker: '.goen-admin__form' },
   { label: 'admin home 375', width: 375, height: 812, path: '/admin/home', marker: '.goen-admin' },
   { label: 'admin home 1440', width: 1440, height: 900, path: '/admin/home', marker: '.goen-admin' },
   { label: 'admin questions 375', width: 375, height: 812, path: '/admin/questions', marker: '.goen-admin__questions' },

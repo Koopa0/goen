@@ -179,7 +179,13 @@ var (
 		En: "No e-invoice provider is configured, so nothing can be issued. Setting " +
 			"GOEN_ECPAY_MERCHANT_ID is what turns this on.",
 	})
-	KeyAdminQueueVoided     = key("admin.queue.voided", Message{ZhHant: "(已作廢)", En: "(voided)"})
+	KeyAdminQueueVoided = key("admin.queue.voided", Message{ZhHant: "(已作廢)", En: "(voided)"})
+	// A CLAIM, not a document: the provider was asked and did not answer, so
+	// nothing may be at the 加值中心 under it and somebody has to check.
+	KeyAdminQueuePending = key("admin.queue.pendingdoc", Message{
+		ZhHant: "(尚未開立，請到綠界確認)",
+		En:     "(not filed — check ECPay)",
+	})
 	KeyAdminQueueRandomCode = key("admin.queue.randomcode", Message{
 		ZhHant: "隨機碼 %s",
 		En:     "Random code %s",

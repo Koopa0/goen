@@ -130,6 +130,38 @@ templ AdminHealth(p layouts.Page, v *WorkerHealthView) {
 					</table>
 				</div>
 			}
+			if len(v.StrandedClaims) > 0 {
+				// A 折讓 claim taken before the provider was asked, on a call that
+				// never answered. Keeping it is right — whether ECPay filed is not
+				// knowable from here — and the order is what an operator needs to
+				// go and look, so the row links to it.
+				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminHPClaimsHeading) }</h2>
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHPClaimsHint) }</p>
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table goen-admin__table">
+						<thead>
+							<tr>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColOrder) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColKind) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColAmount) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColStarted) }</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, c := range v.StrandedClaims {
+								<tr>
+									<td>
+										<a href={ templ.SafeURL("/admin/orders/" + c.OrderNumber) }>{ c.OrderNumber }</a>
+									</td>
+									<td>{ c.Kind }</td>
+									<td>{ c.Amount() }</td>
+									<td>{ c.Since }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
 			if len(v.OpenRefunds) > 0 {
 				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminHPOpenRefundsHeading) }</h2>
 				<div class="goen-admin__tablewrap">

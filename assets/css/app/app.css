@@ -2428,6 +2428,21 @@ a:hover {
   gap: 10px;
 }
 
+/* The design system's description list is a fixed 180px term column plus the
+   value, which is right at a desk and 18px too wide on a phone: the order page
+   scrolled sideways at 375. It stacks below the wide breakpoint, and the value
+   may break inside a word — a provider reference and an email address have no
+   space to break at. Page composition, so it belongs here rather than upstream:
+   the two-column form is correct for every viewport the design system draws. */
+.goen-admin .ui-dl__row {
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+
+.goen-admin .ui-dl__desc {
+  overflow-wrap: anywhere;
+}
+
 .goen-admin__form .ui-textarea,
 .goen-admin__form .ui-select {
   width: 100%;
@@ -2471,6 +2486,13 @@ a:hover {
   background: var(--accent-faint);
   border-color: var(--accent);
   color: var(--fg);
+}
+
+@media (min-width: 768px) {
+  .goen-admin .ui-dl__row {
+    grid-template-columns: 180px 1fr;
+    gap: 16px;
+  }
 }
 
 @media (min-width: 768px) {

@@ -6703,6 +6703,41 @@ func (q *Queries) OrderCreditPosition(ctx context.Context, orderID uuid.NullUUID
 	return i, err
 }
 
+const orderCreditPositionExcluding = `-- name: OrderCreditPositionExcluding :one
+SELECT
+    coalesce(-sum(amount_cents) FILTER (WHERE amount_cents < 0), 0)::bigint AS spent,
+    coalesce(sum(amount_cents) FILTER (WHERE amount_cents > 0), 0)::bigint  AS returned
+FROM store_credit_entries
+WHERE order_id = $1
+  AND idempotency_key <> 'return-credit:' || $2::text
+`
+
+type OrderCreditPositionExcludingParams struct {
+	OrderID  uuid.NullUUID
+	ReturnID string
+}
+
+type OrderCreditPositionExcludingRow struct {
+	Spent    int64
+	Returned int64
+}
+
+// The same position with ONE return's own compensation left out, which is what a
+// RETRY has to ask. The card side already excludes its own row — post_store_credit
+// and open_refund are both idempotent, so counting what a stalled attempt wrote
+// refuses its own retry — and the credit side did not: a split return whose CREDIT
+// half landed and whose CARD half stayed pending read its own compensation as
+// credit already returned, collapsed the remaining credit to zero, and refused
+// "does not fit across the two" before the resume logic was ever consulted. The
+// card half could then never be sent, and goen consumes no refund webhook, so
+// pressing 同意 again was the only door and it was shut.
+func (q *Queries) OrderCreditPositionExcluding(ctx context.Context, arg OrderCreditPositionExcludingParams) (OrderCreditPositionExcludingRow, error) {
+	row := q.db.QueryRow(ctx, orderCreditPositionExcluding, arg.OrderID, arg.ReturnID)
+	var i OrderCreditPositionExcludingRow
+	err := row.Scan(&i.Spent, &i.Returned)
+	return i, err
+}
+
 const orderDestinationKind = `-- name: OrderDestinationKind :one
 SELECT sm.destination_kind, o.fulfillment_status
 FROM orders o
@@ -10730,6 +10765,67 @@ func (q *Queries) StoreCreditBalance(ctx context.Context, userID uuid.NullUUID) 
 	var balance_cents int64
 	err := row.Scan(&balance_cents)
 	return balance_cents, err
+}
+
+const strandedInvoiceClaims = `-- name: StrandedInvoiceClaims :many
+SELECT d.id, o.order_number, d.kind, d.amount_cents, d.issued_at
+FROM invoice_documents d
+JOIN orders o ON o.id = d.order_id
+WHERE d.status = 'pending'
+  AND d.issued_at < now() - interval '15 minutes'
+ORDER BY d.issued_at
+LIMIT 50
+`
+
+type StrandedInvoiceClaimsRow struct {
+	ID          uuid.UUID
+	OrderNumber string
+	Kind        string
+	AmountCents int64
+	IssuedAt    time.Time
+}
+
+// The claims a person has to settle at the provider.
+//
+// A 折讓 claim is taken before ECPay is asked, because their allowance endpoint
+// carries no idempotency field, and a call that was not ANSWERED keeps it:
+// whether the document was filed is not knowable from here. That is right, and
+// it leaves a row only a person can settle — the payment_webhook_events shape
+// exactly, and the same reason it belongs on this page.
+//
+// NAMED and never counted, for the reason the unreconciled payments are: an
+// operator needs the order to go and look. A count beside the list would be a
+// second definition of the same figure, and whichever gained a predicate first
+// would be the one that disagreed.
+//
+// issued_at, because a PENDING row has no provider date yet: it defaults to
+// now() when the claim is taken and is overwritten with the provider's own date
+// when it settles. A claim in flight is legitimately pending for the seconds the
+// call takes, so the window is what tells one apart from one that is stuck.
+func (q *Queries) StrandedInvoiceClaims(ctx context.Context) ([]StrandedInvoiceClaimsRow, error) {
+	rows, err := q.db.Query(ctx, strandedInvoiceClaims)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []StrandedInvoiceClaimsRow{}
+	for rows.Next() {
+		var i StrandedInvoiceClaimsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrderNumber,
+			&i.Kind,
+			&i.AmountCents,
+			&i.IssuedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const stuckOutbox = `-- name: StuckOutbox :many

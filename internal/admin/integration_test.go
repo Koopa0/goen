@@ -6329,3 +6329,130 @@ func (noDocuments) Void(context.Context, string, string) error { return invoice.
 func (noDocuments) Allowance(context.Context, string, int64) (invoice.Document, error) {
 	return invoice.Document{}, invoice.ErrDisabled
 }
+
+// TestASplitReturnResumesWhenTheCREDITHalfLanded is the mirror of its
+// neighbour, and the direction the card-side exclusion did not cover.
+//
+// refundCard answers (ref, RefundPending, nil) for a refund Stripe has accepted
+// and not settled — no error — so payApprovedReturn goes on to post the credit.
+// goen consumes no refund webhook, so that row stays pending for ever and
+// pressing 同意 again is the only door.
+//
+// It was shut. splitRefund excluded this return's own REFUND row from the card
+// side and did not exclude its own COMPENSATION from the credit side, so the
+// retry read the credit it had just posted as credit already returned,
+// collapsed the remaining credit to zero, and refused "does not fit across the
+// two" before stillOwedOnReturn was ever consulted.
+func TestASplitReturnResumesWhenTheCREDITHalfLanded(t *testing.T) {
+	ctx, _ := staffContext(t)
+	requestID, orderNumber, accountID := creditFundedReturn(t, 2, 60000)
+
+	// Approved, with the CREDIT half posted under the key the compensation uses
+	// and the card half left PENDING — which is what a Stripe refund that has
+	// been accepted and not settled looks like.
+	if _, err := pool.Exec(ctx, `
+		UPDATE return_requests SET status = 'approved', decided_at = now(),
+		       resolution = '退貨完成'
+		WHERE id = $1`, requestID); err != nil {
+		t.Fatalf("approve the return: %v", err)
+	}
+	var userID, orderID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT user_id, id FROM orders WHERE order_number = $1`, orderNumber).
+		Scan(&userID, &orderID); err != nil {
+		t.Fatalf("read the order: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		SELECT post_store_credit($1, $2::bigint, $3::text, $4, $5::text, NULL)`,
+		userID, int64(60000), "退貨補償", orderID,
+		"return-credit:"+requestID.String()); err != nil {
+		t.Fatalf("post the credit half: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO refunds (payment_id, request_key, amount_cents, reason,
+		                     return_request_id, status)
+		SELECT p.id, 'return:' || $1::text, 140000, '退貨完成', $1::uuid, 'pending'
+		FROM payments p JOIN orders o ON o.id = p.order_id
+		WHERE o.order_number = $2 AND p.status = 'succeeded'`,
+		requestID, orderNumber); err != nil {
+		t.Fatalf("open the card half: %v", err)
+	}
+	if got := cardRefunded(t, orderNumber); got != 0 {
+		t.Fatalf("the card half reads %d settled, want 0 — the fixture did not "+
+			"build the state under test", got)
+	}
+	before := creditBalance(t, accountID)
+
+	sent := &atomic.Int64{}
+	s := admin.NewStore(pool, fakeRefunder{sent: sent}, nil)
+	if err := s.Decide(ctx, requestID.String(), "approved", "退貨完成", uuid.NullUUID{}); err != nil {
+		t.Fatalf("the retry was refused (%v), so the CARD half can never be sent "+
+			"and the customer stays short — goen consumes no refund webhook, so "+
+			"pressing 同意 again is the only door", err)
+	}
+	if sent.Load() != 1 {
+		t.Errorf("the provider was called %d time(s); the card half was the one "+
+			"still owed", sent.Load())
+	}
+	if after := creditBalance(t, accountID); after != before {
+		t.Errorf("store credit went %d -> %d; the credit half had already landed "+
+			"and resuming means paying only what is MISSING", before, after)
+	}
+}
+
+// TestAStrandedInvoiceClaimIsOnTheHealthPage holds the alarm for a state only a
+// person can settle.
+//
+// A 折讓 claim is taken before ECPay is asked, because their allowance endpoint
+// carries no idempotency field. A call that was not ANSWERED keeps its claim —
+// right, because whether the document was filed is not knowable from here — and
+// that leaves a row nothing else can resolve. It is the shape
+// payment_webhook_events.unreconciled already has, and the only sign of it used
+// to be a 折讓 button that refused on one order.
+func TestAStrandedInvoiceClaimIsOnTheHealthPage(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
+
+	number, orderID, _, _ := twoLineOrderWithStock(t, "stranded")
+	var invoiceID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO invoice_documents (order_id, kind, number, amount_cents)
+		VALUES ($1, 'invoice', 'GD-' || substr(replace(gen_random_uuid()::text,'-',''),1,8), 100000)
+		RETURNING id`, orderID).Scan(&invoiceID); err != nil {
+		t.Fatalf("file an invoice: %v", err)
+	}
+
+	// A claim taken JUST NOW is a call in flight, not a stuck one: the window is
+	// the whole distinction, so the fixture has to sit on the far side of it.
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO invoice_documents (order_id, kind, number, amount_cents, status,
+		                               request_key, original_id, issued_at)
+		VALUES ($1, 'allowance', '', 50000, 'pending', $2, $3, now() - interval '1 hour')`,
+		orderID, "allowance:"+number+":stranded", invoiceID); err != nil {
+		t.Fatalf("strand a claim: %v", err)
+	}
+
+	view, err := s.WorkerHealth(ctx, worker)
+	if err != nil {
+		t.Fatalf("health: %v", err)
+	}
+	if view.ClaimsSettled() {
+		t.Fatal("a 折讓 claim the provider never answered is invisible on the one " +
+			"page built to show what needs doing — the only sign is a button that " +
+			"refuses, on one order, months later")
+	}
+	if view.AllHealthy() {
+		t.Error("the page reads healthy with a claim nobody can settle outstanding")
+	}
+	var named bool
+	for _, c := range view.StrandedClaims {
+		if c.OrderNumber == number {
+			named = true
+		}
+	}
+	if !named {
+		t.Errorf("the claim is counted and not named; an operator needs the order "+
+			"to go and look at ECPay. Got %d claim(s).", len(view.StrandedClaims))
+	}
+}

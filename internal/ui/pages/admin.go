@@ -374,6 +374,15 @@ func (d AdminInvoiceDocument) Amount() string { return twd(d.AmountCents) }
 // Voided reports whether it has been cancelled.
 func (d AdminInvoiceDocument) Voided() bool { return d.Status == "voided" }
 
+// Pending reports a CLAIM: a row holding its request key while the provider is
+// asked, with no number yet because allocating one is the 加值中心's job.
+//
+// It renders as a claim and not as a document. The row was shown as
+// 「折讓  · NT$1,000」 — a filed allowance with a blank number — and an operator
+// reads that as done, which is the opposite of what it means: nothing is at the
+// 加值中心 under it and somebody has to find out whether anything was filed.
+func (d AdminInvoiceDocument) Pending() bool { return d.Status == "pending" }
+
 // CanIssueInvoice reports whether to offer the issue button.
 func (v *AdminOrderView) CanIssueInvoice() bool {
 	if !v.InvoicingEnabled || !v.Committed {

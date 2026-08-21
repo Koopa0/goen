@@ -854,6 +854,32 @@ WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL
 ORDER BY received_at
 LIMIT 50;
 
+-- The claims a person has to settle at the provider.
+--
+-- A 折讓 claim is taken before ECPay is asked, because their allowance endpoint
+-- carries no idempotency field, and a call that was not ANSWERED keeps it:
+-- whether the document was filed is not knowable from here. That is right, and
+-- it leaves a row only a person can settle — the payment_webhook_events shape
+-- exactly, and the same reason it belongs on this page.
+--
+-- NAMED and never counted, for the reason the unreconciled payments are: an
+-- operator needs the order to go and look. A count beside the list would be a
+-- second definition of the same figure, and whichever gained a predicate first
+-- would be the one that disagreed.
+--
+-- issued_at, because a PENDING row has no provider date yet: it defaults to
+-- now() when the claim is taken and is overwritten with the provider's own date
+-- when it settles. A claim in flight is legitimately pending for the seconds the
+-- call takes, so the window is what tells one apart from one that is stuck.
+-- name: StrandedInvoiceClaims :many
+SELECT d.id, o.order_number, d.kind, d.amount_cents, d.issued_at
+FROM invoice_documents d
+JOIN orders o ON o.id = d.order_id
+WHERE d.status = 'pending'
+  AND d.issued_at < now() - interval '15 minutes'
+ORDER BY d.issued_at
+LIMIT 50;
+
 -- The locale comes off the ORDER and never off the staff member who pressed
 -- Ship, which would send a Taiwanese shopkeeper's language to an English
 -- customer.
@@ -1056,6 +1082,23 @@ SELECT
     coalesce(sum(amount_cents) FILTER (WHERE amount_cents > 0), 0)::bigint  AS returned
 FROM store_credit_entries
 WHERE order_id = $1;
+
+-- The same position with ONE return's own compensation left out, which is what a
+-- RETRY has to ask. The card side already excludes its own row — post_store_credit
+-- and open_refund are both idempotent, so counting what a stalled attempt wrote
+-- refuses its own retry — and the credit side did not: a split return whose CREDIT
+-- half landed and whose CARD half stayed pending read its own compensation as
+-- credit already returned, collapsed the remaining credit to zero, and refused
+-- "does not fit across the two" before the resume logic was ever consulted. The
+-- card half could then never be sent, and goen consumes no refund webhook, so
+-- pressing 同意 again was the only door and it was shut.
+-- name: OrderCreditPositionExcluding :one
+SELECT
+    coalesce(-sum(amount_cents) FILTER (WHERE amount_cents < 0), 0)::bigint AS spent,
+    coalesce(sum(amount_cents) FILTER (WHERE amount_cents > 0), 0)::bigint  AS returned
+FROM store_credit_entries
+WHERE order_id = $1
+  AND idempotency_key <> 'return-credit:' || @return_id::text;
 
 -- A NEW POSITIVE entry and not a reversal of the spend, which the schema
 -- prescribes for an order that has shipped: a reversal un-funds the order, and
