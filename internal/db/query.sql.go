@@ -8849,6 +8849,24 @@ func (q *Queries) RestockSubject(ctx context.Context, arg RestockSubjectParams) 
 	return i, err
 }
 
+const returnCreditPosted = `-- name: ReturnCreditPosted :one
+SELECT EXISTS (
+    SELECT 1 FROM store_credit_entries
+    WHERE idempotency_key = 'return-credit:' || $1::text
+)::boolean AS posted
+`
+
+// Whether the CREDIT half of a return has already been posted. post_store_credit
+// keys the entry on 'return-credit:<id>', which is what makes the compensation
+// idempotent — and what lets a retry tell a half that landed from one that did
+// not.
+func (q *Queries) ReturnCreditPosted(ctx context.Context, returnID string) (bool, error) {
+	row := q.db.QueryRow(ctx, returnCreditPosted, returnID)
+	var posted bool
+	err := row.Scan(&posted)
+	return posted, err
+}
+
 const returnForDecision = `-- name: ReturnForDecision :one
 SELECT r.id, r.status, r.reason, r.order_id,
        o.order_number, o.fulfillment_status,

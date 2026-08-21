@@ -80,6 +80,19 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 			OptionChoice{Value: o.Value, Label: o.ValueLabel})
 	}
 
+	// A query key is a variant option only if some variant actually carries it.
+	// reservedParam is a DENYLIST and the page's own redirects outran it: ?ask=,
+	// ?notify= and the /compare set's ?p= were each read by this handler and each
+	// parsed as an option nothing could satisfy — so an in-stock product answered
+	// 找不到這個組合, lost its price box entirely, and emitted OutOfStock with a
+	// price of 0.00 in its JSON-LD. The restock form's own 303 lands on
+	// ?&notify=1, so asking to be told about a restock took the customer to a
+	// page saying the thing does not exist.
+	//
+	// Derived from the variants rather than listed, because the next parameter
+	// somebody adds will not be added to a list.
+	sel = sel.OnlyOptionsOf(variants)
+
 	chosen, exact := Resolve(variants, sel)
 
 	freeOver, err := s.q.FreeDeliveryThreshold(ctx)

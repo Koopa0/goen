@@ -49,6 +49,32 @@ func ParseSelection(q url.Values) Selection {
 	return sel
 }
 
+// OnlyOptionsOf drops every key no variant carries as an option name.
+//
+// ParseSelection cannot tell a variant option from any other query parameter —
+// it sees a bare query string — so the filtering happens where the product's
+// own options are known. Without it, a key nothing matches makes Resolve find
+// no variant at all, which the page renders as "that combination does not
+// exist" on a product that is in stock.
+func (s Selection) OnlyOptionsOf(variants []Variant) Selection {
+	if len(s) == 0 {
+		return s
+	}
+	known := make(map[string]struct{})
+	for i := range variants {
+		for name := range variants[i].Options {
+			known[name] = struct{}{}
+		}
+	}
+	out := make(Selection, len(s))
+	for k, v := range s {
+		if _, ok := known[k]; ok {
+			out[k] = v
+		}
+	}
+	return out
+}
+
 func reservedParam(k string) bool {
 	switch k {
 	case "page", "sort", "q", "added":

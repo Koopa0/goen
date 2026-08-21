@@ -802,10 +802,17 @@ func (s *Store) Decide(ctx context.Context, id, decision, resolution string, act
 		return s.closeReturn(ctx, requestID, "rejected", resolution)
 	}
 
+	// Validated BEFORE the claim, and it only reads: a claim that cannot be paid
+	// should leave the return open for somebody to work out why.
+	split, err := s.splitRefund(ctx, &row)
+	if err != nil {
+		return err
+	}
+
 	if retry {
-		done, doneErr := s.refundAlreadyLanded(ctx, requestID, row.RefundableCents)
-		if doneErr != nil {
-			return doneErr
+		outstanding, done, outErr := s.stillOwedOnReturn(ctx, requestID, split)
+		if outErr != nil {
+			return outErr
 		}
 		if done {
 			// Refused rather than reported as done: a return is decided once,
@@ -815,15 +822,13 @@ func (s *Store) Decide(ctx context.Context, id, decision, resolution string, act
 			return fmt.Errorf("%w: return %s is already approved and its refund has landed",
 				ErrRefused, id)
 		}
+		// Only what is MISSING. Re-sending a card refund that already settled
+		// meets refunds_settled_is_history, and re-posting the credit meets the
+		// idempotency key — so a retry that resent both could never finish the
+		// half that had failed.
+		split = outstanding
 	} else if row.RefundableCents == 0 {
 		return s.closeReturn(ctx, requestID, "approved", resolution)
-	}
-
-	// Validated BEFORE the claim, and it only reads: a claim that cannot be paid
-	// should leave the return open for somebody to work out why.
-	split, err := s.splitRefund(ctx, &row)
-	if err != nil {
-		return err
 	}
 
 	// THE CLAIM, and it commits before a cent moves. Two staff members deciding
@@ -868,17 +873,38 @@ func (s *Store) returnUnderDecision(ctx context.Context, id, decision string) (
 	return requestID, row, retry, nil
 }
 
-// refundAlreadyLanded reports whether a retry has nothing left to do: the money
-// has gone, or there was never any to send.
-func (s *Store) refundAlreadyLanded(ctx context.Context, requestID uuid.UUID, refundable int64) (bool, error) {
-	if refundable == 0 {
-		return true, nil
+// stillOwedOnReturn reports what a RETRY still has to send, and whether there is
+// anything at all.
+//
+// It used to ask only whether the CARD half had settled. A return paid from both
+// sources whose card refund landed and whose store-credit compensation failed
+// was therefore reported as done: the retry was refused, no other door posts
+// that credit, and the customer was short by the credit portion with nothing on
+// /admin/health to say so. The two halves are separate facts and have to be
+// asked separately.
+func (s *Store) stillOwedOnReturn(ctx context.Context, requestID uuid.UUID, split refundSplit) (
+	refundSplit, bool, error,
+) {
+	out := split
+	if split.Card > 0 {
+		settled, err := s.q.ReturnRefundSettled(ctx, uuid.NullUUID{UUID: requestID, Valid: true})
+		if err != nil {
+			return refundSplit{}, false, fmt.Errorf("read the refund for return %s: %w", requestID, err)
+		}
+		if settled {
+			out.Card = 0
+		}
 	}
-	settled, err := s.q.ReturnRefundSettled(ctx, uuid.NullUUID{UUID: requestID, Valid: true})
-	if err != nil {
-		return false, fmt.Errorf("read the refund for return %s: %w", requestID, err)
+	if split.Credit > 0 {
+		posted, err := s.q.ReturnCreditPosted(ctx, requestID.String())
+		if err != nil {
+			return refundSplit{}, false, fmt.Errorf("read the credit for return %s: %w", requestID, err)
+		}
+		if posted {
+			out.Credit = 0
+		}
 	}
-	return settled, nil
+	return out, out.Card == 0 && out.Credit == 0, nil
 }
 
 // refundSplit is how a return is paid back: part to the card, part to the

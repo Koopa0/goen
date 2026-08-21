@@ -6037,3 +6037,84 @@ func TestTwoCarriersSharingATrackingNumberBothNotify(t *testing.T) {
 			"want 2 — one customer's parcel left and nothing told them", notices)
 	}
 }
+
+// TestASplitReturnResumesTheHalfThatFailed holds a resume gate that asked one
+// of two questions.
+//
+// A return can be paid from BOTH sources — card first, credit last — and the
+// two commit separately: the card through the provider, the credit as a ledger
+// entry afterwards. The gate deciding whether a retry has anything left to do
+// asked only whether the CARD half had settled. So a return whose card refund
+// landed and whose credit compensation did NOT was reported as finished: the
+// retry was refused by name, no other door posts that credit, and the customer
+// was short by the credit portion with nothing on /admin/health saying so.
+//
+// It also has to resume only what is MISSING. Re-sending a settled card refund
+// meets refunds_settled_is_history and re-posting the credit meets its
+// idempotency key, so a retry that sent both could never finish the failed half.
+//
+// The half-paid state is CONSTRUCTED rather than raced into. An earlier version
+// injected the failure by holding the credit account's row and cancelling on a
+// timer, and it was flaky three runs in four — sometimes the credit landed
+// anyway, and the test then failed for a reason that had nothing to do with the
+// gate. What is under test is the resume, not how the state arose.
+func TestASplitReturnResumesTheHalfThatFailed(t *testing.T) {
+	ctx, _ := staffContext(t)
+	requestID, orderNumber, accountID := creditFundedReturn(t, 2, 60000)
+
+	// Approved, with the CARD half settled under the return's own request key —
+	// which is what refundRequestKey produces and what makes a retry find the
+	// same row — and no credit entry at all.
+	if _, err := pool.Exec(ctx, `
+		UPDATE return_requests SET status = 'approved', decided_at = now(),
+		       resolution = '退貨完成'
+		WHERE id = $1`, requestID); err != nil {
+		t.Fatalf("approve the return: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO refunds (payment_id, request_key, amount_cents, reason,
+		                     return_request_id, status, provider_ref, succeeded_at)
+		SELECT p.id, 'return:' || $1::text, 140000, '退貨完成', $1::uuid, 'succeeded',
+		       're_constructed', now()
+		FROM payments p JOIN orders o ON o.id = p.order_id
+		WHERE o.order_number = $2 AND p.status = 'succeeded'`,
+		requestID, orderNumber); err != nil {
+		t.Fatalf("settle the card half: %v", err)
+	}
+	if got := cardRefunded(t, orderNumber); got != 140000 {
+		t.Fatalf("the card half reads %d, want 140000 — the fixture did not build the "+
+			"state under test", got)
+	}
+	before := creditBalance(t, accountID)
+
+	// The retry must RESUME the credit half rather than refuse the whole return.
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	if err := s.Decide(ctx, requestID.String(), "approved", "退貨完成", uuid.NullUUID{}); err != nil {
+		t.Fatalf("the retry was refused (%v), so the credit half can never be paid "+
+			"and the customer stays short", err)
+	}
+	if after := creditBalance(t, accountID); after <= before {
+		t.Errorf("store credit went %d -> %d; the failed half was not resumed", before, after)
+	}
+
+	// And the card half is not sent twice: it was already settled, so the retry
+	// must have left it alone.
+	if got := cardRefunded(t, orderNumber); got != 140000 {
+		t.Errorf("the card half is now %d, want 140000 — the retry re-sent a refund "+
+			"that had already landed", got)
+	}
+}
+
+func cardRefunded(t *testing.T, orderNumber string) int64 {
+	t.Helper()
+	var cents int64
+	if err := pool.QueryRow(t.Context(), `
+		SELECT coalesce(sum(r.amount_cents), 0) FROM refunds r
+		JOIN payments p ON p.id = r.payment_id
+		JOIN orders o ON o.id = p.order_id
+		WHERE o.order_number = $1 AND r.status = 'succeeded'`,
+		orderNumber).Scan(&cents); err != nil {
+		t.Fatalf("read refunds: %v", err)
+	}
+	return cents
+}
