@@ -13,6 +13,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -509,6 +510,11 @@ type fakeRefunder struct {
 	failIntent bool
 	refundErr  error
 	state      admin.RefundState
+	// sent counts calls to Refund. The database cannot answer "was this sent
+	// twice": the request key makes a repeat hit the same row and settle_refund
+	// returns early on 'succeeded', so a sum over refunds reads the same either
+	// way. Only the provider knows, which is what this stands in for.
+	sent *atomic.Int64
 }
 
 func (f fakeRefunder) PaymentIntentFor(_ context.Context, sessionID string) (string, error) {
@@ -519,6 +525,9 @@ func (f fakeRefunder) PaymentIntentFor(_ context.Context, sessionID string) (str
 }
 
 func (f fakeRefunder) Refund(_ context.Context, intentID, requestKey string, _ int64) (string, admin.RefundState, error) {
+	if f.sent != nil {
+		f.sent.Add(1)
+	}
 	if f.refundErr != nil {
 		return "", "", f.refundErr
 	}
@@ -6180,7 +6189,8 @@ func TestASplitReturnResumesTheHalfThatFailed(t *testing.T) {
 	before := creditBalance(t, accountID)
 
 	// The retry must RESUME the credit half rather than refuse the whole return.
-	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	sent := &atomic.Int64{}
+	s := admin.NewStore(pool, fakeRefunder{sent: sent}, nil)
 	if err := s.Decide(ctx, requestID.String(), "approved", "退貨完成", uuid.NullUUID{}); err != nil {
 		t.Fatalf("the retry was refused (%v), so the credit half can never be paid "+
 			"and the customer stays short", err)
@@ -6189,8 +6199,14 @@ func TestASplitReturnResumesTheHalfThatFailed(t *testing.T) {
 		t.Errorf("store credit went %d -> %d; the failed half was not resumed", before, after)
 	}
 
-	// And the card half is not sent twice: it was already settled, so the retry
-	// must have left it alone.
+	// And the card half is not sent TO STRIPE twice. The row count cannot say so
+	// — the request key makes a repeat hit the same row, and settle_refund
+	// returns early on 'succeeded', so the sum is 140000 whether or not the call
+	// went out. Only the provider knows, which is what the counter stands for.
+	if n := sent.Load(); n != 0 {
+		t.Errorf("the retry sent %d refund(s) to the provider; the card half had "+
+			"already landed and resuming means paying only what is MISSING", n)
+	}
 	if got := cardRefunded(t, orderNumber); got != 140000 {
 		t.Errorf("the card half is now %d, want 140000 — the retry re-sent a refund "+
 			"that had already landed", got)

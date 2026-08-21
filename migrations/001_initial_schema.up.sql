@@ -3383,7 +3383,15 @@ BEGIN
         -- that also carries reset links and unsubscribe tokens. Undelivered
         -- messages go with it: a letter to an address the shop has been told to
         -- forget must not still be waiting to leave.
-        DELETE FROM outbox_messages WHERE lower(payload->>'email') = lower(addr);
+        -- The whole payload as text, not payload->>'email'. A Go struct field
+        -- with no json tag marshals under its GO name, and a jsonb key is
+        -- case-sensitive — so the ONE message that carries a live password
+        -- reset token was the one this could not reach, and it survived the
+        -- erasure for the 30 days outbox.Retain keeps a row. A predicate that
+        -- depends on somebody remembering a struct tag is a predicate that
+        -- eventually misses one; every row here is a letter, so an address
+        -- appearing anywhere in it means the letter is to that person.
+        DELETE FROM outbox_messages WHERE payload::text ILIKE '%' || addr || '%';
     END IF;
 
     -- Every browser's proof of access to this person's orders: a live bearer

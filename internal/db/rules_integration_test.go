@@ -1143,6 +1143,27 @@ func TestEraseUserLeavesNoPersonalData(t *testing.T) {
 		        jsonb_build_object('email', 'Ming@Example.com', 'order_number', 'GO-260721-000387'))`); err != nil {
 		t.Fatalf("enqueue a letter to the customer being erased: %v", err)
 	}
+	// A payload whose address key is CAPITALISED. Go marshals a field with no
+	// json tag under its Go name, and payload->>'email' is case-sensitive, so a
+	// per-key delete reaches one of these and not the other. The sweep below
+	// reads the whole value as text and is blind to the difference, which is why
+	// it is the guard that has to have a subject.
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO outbox_messages (topic, dedupe_key, payload)
+		VALUES ('password.reset', 'erasure-probe-capitalised',
+		        jsonb_build_object('Email', 'Ming@Example.com', 'Token', 'abc'))`); err != nil {
+		t.Fatalf("enqueue a reset letter: %v", err)
+	}
+	// The OTHER jsonb store the sweep derives, and the one erase_user cannot
+	// reach at all: audit_events is append-only. A review found the store-credit
+	// grant writing a customer's address into it, so the guard exists — and it
+	// was passing over an empty table, which is a check over data with no data.
+	if _, err := tx.Exec(ctx, `
+		SELECT record_audit_event($1, 'credit.granted', 'store_credit_entries', NULL,
+		       NULL, jsonb_build_object('amount_cents', 10000, 'reason', '補償'))`,
+		"5555aaaa-5555-4555-8555-555555555555"); err != nil {
+		t.Fatalf("write an audit row: %v", err)
+	}
 
 	if _, err := tx.Exec(ctx, `SELECT erase_user($1)`, user); err != nil {
 		t.Fatalf("erase_user: %v", err)

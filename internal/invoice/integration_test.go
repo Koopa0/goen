@@ -15,6 +15,7 @@ package invoice
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -396,4 +397,194 @@ func creditRefund(t *testing.T, orderNumber string, cents int64) {
 		userID, cents, "退貨補償", orderID, "return-credit:"+orderNumber); err != nil {
 		t.Fatalf("post the credit refund: %v", err)
 	}
+}
+
+// TestIssueFilesAnItemisationThatSumsToTheHeader drives Store.Issue and reads
+// what actually goes on the wire.
+//
+// The three unit tests for this call discountLines and then append the 運費 line
+// IN THE TEST BODY, so they lock the two helpers and not the order Issue puts
+// them in — which is the defect: the delivery line used to be the RESIDUAL,
+// total - sum(lines), which is shipping MINUS discount. Where the discount was
+// larger the residual is negative, no line is written, and ECPay refuses the
+// document (5000022 「與商品合計金額不符」), so every discounted order that also
+// earned 免運 could be invoiced by no path. Where the fee was larger it
+// SUCCEEDED, filing a 統一發票 stating a carriage charge nobody paid.
+//
+// Nothing else in the tree drives Store.Issue: the six g.Issue calls in
+// invoice_test.go are the GATEWAY.
+func TestIssueFilesAnItemisationThatSumsToTheHeader(t *testing.T) {
+	ctx := t.Context()
+
+	var filed issueRequest
+	issued := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		filed = openIssue(t, r)
+		// A number per document: the 加值中心 allocates them, and two invoices
+		// sharing one is a collision the number index is right to refuse.
+		issued++
+		reply(t, w, result{RtnCode: 1,
+			InvoiceNo:   fmt.Sprintf("AA123456%02d", issued),
+			InvoiceDate: "2026-08-21 10:00:00"})
+	}))
+	defer srv.Close()
+
+	g, err := NewGateway(testMerchantID, testHashKey, testHashIV, srv.URL)
+	if err != nil {
+		t.Fatalf("gateway: %v", err)
+	}
+	s := NewStore(pool, g)
+
+	tests := []struct {
+		name                               string
+		itemCents, shippingCents, discount int64
+		wantDeliveryLine                   bool
+	}{
+		{
+			// The case that could be invoiced by NO path: a discount larger than
+			// the delivery fee makes the residual negative.
+			name:      "discounted and 免運 together",
+			itemCents: 100000, shippingCents: 0, discount: 20000,
+			wantDeliveryLine: false,
+		},
+		{
+			// The case that SUCCEEDED and filed a wrong document: the residual
+			// was smaller than the fee, so the carriage charge on the 統一發票
+			// was not what the customer paid.
+			name:      "a delivery fee and a smaller discount",
+			itemCents: 100000, shippingCents: 8000, discount: 3000,
+			wantDeliveryLine: true,
+		},
+		{
+			name:      "no discount at all",
+			itemCents: 100000, shippingCents: 8000, discount: 0,
+			wantDeliveryLine: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			number := orderToInvoice(t, tt.itemCents, tt.shippingCents, tt.discount)
+			if _, err := s.Issue(ctx, number); err != nil {
+				t.Fatalf("Issue: %v", err)
+			}
+
+			var sum int64
+			delivery := false
+			for _, it := range filed.Items {
+				sum += it.ItemAmount
+				if it.ItemName == "運費" {
+					delivery = true
+					if it.ItemAmount != tt.shippingCents/100 {
+						t.Errorf("the delivery line is %d, want %d — a 統一發票 stating "+
+							"a carriage charge nobody paid is filed with the 財政部",
+							it.ItemAmount, tt.shippingCents/100)
+					}
+				}
+				if it.ItemAmount < 0 {
+					t.Errorf("item %q is %d; ECPay's amounts are unsigned",
+						it.ItemName, it.ItemAmount)
+				}
+			}
+			if delivery != tt.wantDeliveryLine {
+				t.Errorf("delivery line present = %v, want %v", delivery, tt.wantDeliveryLine)
+			}
+			if sum != filed.SalesAmount {
+				t.Errorf("the items total %d and the header says %d — ECPay refuses "+
+					"that outright (5000022 「與商品合計金額不符」), so this order can "+
+					"be invoiced by no path", sum, filed.SalesAmount)
+			}
+			want := (tt.itemCents - tt.discount + tt.shippingCents) / 100
+			if filed.SalesAmount != want {
+				t.Errorf("the header is %d, want %d — the document disagrees with "+
+					"what the customer was charged", filed.SalesAmount, want)
+			}
+		})
+	}
+}
+
+// openIssue unseals the request ECPay would receive. Reading it off the wire
+// rather than from the caller's own struct is the point: what the 財政部 records
+// is what was SENT.
+func openIssue(t *testing.T, r *http.Request) issueRequest {
+	t.Helper()
+	g, err := NewGateway(testMerchantID, testHashKey, testHashIV, "")
+	if err != nil {
+		t.Fatalf("gateway: %v", err)
+	}
+	var envelope struct {
+		Data string `json:"Data"`
+	}
+	if decodeErr := json.NewDecoder(r.Body).Decode(&envelope); decodeErr != nil {
+		t.Fatalf("decode the envelope: %v", decodeErr)
+	}
+	plain, openErr := g.open(envelope.Data)
+	if openErr != nil {
+		t.Fatalf("open the envelope: %v", openErr)
+	}
+	var out issueRequest
+	if unmarshalErr := json.Unmarshal(plain, &out); unmarshalErr != nil {
+		t.Fatalf("decode the request: %v", unmarshalErr)
+	}
+	return out
+}
+
+// orderToInvoice is a paid order with one item line, a delivery fee and a
+// discount, and NO invoice yet.
+func orderToInvoice(t *testing.T, itemCents, shippingCents, discountCents int64) string {
+	t.Helper()
+	ctx := t.Context()
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+
+	var orderID, number string
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
+		                    shipping_method_name, shipping_cents, discount_cents,
+		                    locale, fulfillment_status)
+		SELECT 'GO-991230-' || lpad((floor(random()*900000)+100000)::bigint::text, 6, '0'),
+		       smv.id, sm.code, smv.name, $1, $2, 'zh-Hant', 'pending'
+		FROM shipping_method_versions smv
+		JOIN shipping_methods sm ON sm.id = smv.method_id
+		LIMIT 1
+		RETURNING id::text, order_number`, shippingCents, discountCents).
+		Scan(&orderID, &number); err != nil {
+		t.Fatalf("create the order: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_lines (order_id, variant_id, sku, product_name,
+		                         unit_price_cents, quantity, position)
+		SELECT $1, pv.id, 'ISSUE-SKU-1', '開立測試商品', $2, 1, 0
+		FROM product_variants pv JOIN products p ON p.id = pv.product_id
+		WHERE p.status = 'active' LIMIT 1`, orderID, itemCents); err != nil {
+		t.Fatalf("add a line: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'issue@goen.invalid', '王小明', '0912345678',
+		        '110', '台北市', '信義區', '松高路 1 號')`, orderID); err != nil {
+		t.Fatalf("add delivery details: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO invoice_preferences (order_id, invoice_type)
+		VALUES ($1, 'member_carrier')`, orderID); err != nil {
+		t.Fatalf("record the 發票 preference: %v", err)
+	}
+	owed := itemCents - discountCents + shippingCents
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO payments (order_id, provider, provider_ref, intended_amount_cents,
+		                      captured_amount_cents, status, paid_at)
+		VALUES ($1, 'stripe', 'cs_issue_' || $2, $3, $3, 'succeeded', now())`,
+		orderID, number, owed); err != nil {
+		t.Fatalf("capture: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit the fixture: %v", err)
+	}
+	return number
 }
