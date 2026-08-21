@@ -660,6 +660,53 @@ func TestPromotingAProvedAccountKeepsIt(t *testing.T) {
 	}
 }
 
+// TestPromotionEndsTheSessionsOpenedBeforeIt holds the half the credential test
+// cannot see. secure_promoted_account ends sessions ALWAYS and not only when it
+// cleared an unproved password — its own comment says so — and the only test
+// covering a PROVED promotion asserted the password and nothing else, so
+// wrapping the DELETE in the cleared branch left every suite green.
+//
+// role is read live on every request, so a session opened before the promotion
+// becomes a back-office session the moment the role moves: one the shop had not
+// yet decided to trust with /admin, on whatever machine it was left open.
+func TestPromotionEndsTheSessionsOpenedBeforeIt(t *testing.T) {
+	ctx := t.Context()
+	s := twofactor.NewStore(pool, testKey)
+	actor, _ := staff(t)
+
+	address := "sessioncustomer" + uuid.NewString()[:8] + "@goen.invalid"
+	var customer string
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO users (email, role, password_hash, email_verified_at)
+		VALUES ($1, 'customer', '$argon2id$v=19$m=65536,t=1,p=4$theirs', now())
+		RETURNING id`, address).Scan(&customer); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	// PROVED, deliberately: the unproved path clears the password too, so the
+	// two rules agree there and the fixture would test neither.
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO sessions (token_hash, user_id, expires_at)
+		VALUES (sha256($1::bytea), $2, now() + interval '30 days')`,
+		"before-promotion-"+customer, customer); err != nil {
+		t.Fatalf("open a session: %v", err)
+	}
+
+	if _, err := s.AddStaff(ctx, address, "老顧客", "staff", actor); err != nil {
+		t.Fatalf("AddStaff: %v", err)
+	}
+
+	var live int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM sessions WHERE user_id = $1`, customer).Scan(&live); err != nil {
+		t.Fatalf("count sessions: %v", err)
+	}
+	if live != 0 {
+		t.Errorf("%d session(s) opened before the promotion are still live, and "+
+			"role is read live on every request — so each is now a back-office "+
+			"session nobody decided to open", live)
+	}
+}
+
 // TestRecoveringAFactorEndsTheSessionsItAdmitted holds the other door into the
 // room RevokeStaff already guards.
 //

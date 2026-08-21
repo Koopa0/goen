@@ -3274,3 +3274,85 @@ func TestASpentCouponComesBackAsAFieldErrorNotA500(t *testing.T) {
 			"left to guess which field was refused")
 	}
 }
+
+// TestPressingUpdateChangesTheChoiceAndPlacesNothing is the SERVER half of the
+// chooser. The template half is locked by a markup test, and with the branch in
+// handler.go deleted every one of those stayed green — while the 更新 button
+// carries formnovalidate, so a form the customer had already filled in fell
+// straight through and PLACED THE ORDER. Somebody changing their 發票 type
+// bought the basket.
+func TestPressingUpdateChangesTheChoiceAndPlacesNothing(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+
+	token, err := cart.NewToken()
+	if err != nil {
+		t.Fatalf("token: %v", err)
+	}
+	id, err := s.Create(ctx, token, uuid.NullUUID{})
+	if err != nil {
+		t.Fatalf("create cart: %v", err)
+	}
+	if err := s.Add(ctx, id, variantOf(t, "pixelight-9-pro", true), 1); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	var shipID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
+		t.Fatalf("shipping: %v", err)
+	}
+
+	// A COMPLETE form: every field the server would demand is present, so the
+	// only thing standing between this submission and an order is the branch.
+	form := url.Values{
+		"email": {"update@example.com"}, "name": {"王小明"}, "phone": {"0912345678"},
+		"postal_code": {"110"}, "city": {"台北市"}, "district": {"信義區"},
+		"street":      {"松高路 68 號"},
+		"shipping":    {shipID.String()},
+		"idempotency": {"upd-" + uuid.NewString()[:8]},
+		"update":      {"1"},
+	}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
+		strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	//nolint:gosec // G124: the browser's own cart cookie, read back by this handler
+	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour}),
+		nil)
+	res := httptest.NewRecorder()
+	h.PlaceOrder(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("changing a choice answered %d, want 200 — a 303 means it placed "+
+			"the order somebody was still filling in", res.Code)
+	}
+	if loc := res.Header().Get("Location"); loc != "" {
+		t.Errorf("changing a choice redirected to %q; nothing was written, so there "+
+			"is nowhere to go", loc)
+	}
+	// The values come back: the whole reason this is a submission and not a link.
+	if body := res.Body.String(); !strings.Contains(body, "松高路 68 號") {
+		t.Error("changing a choice discarded the address already typed, which is " +
+			"what the link this replaced did")
+	}
+
+	var orders int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM order_private_data WHERE email = 'update@example.com'`).
+		Scan(&orders); err != nil {
+		t.Fatalf("count orders: %v", err)
+	}
+	if orders != 0 {
+		t.Errorf("%d order(s) were placed by pressing 更新", orders)
+	}
+	// And the cart is still there to finish.
+	view, viewErr := s.View(ctx, id)
+	if viewErr != nil {
+		t.Fatalf("read the cart: %v", viewErr)
+	}
+	if len(view.Lines) == 0 {
+		t.Error("the cart was emptied by a chooser change")
+	}
+}
