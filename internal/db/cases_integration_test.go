@@ -776,6 +776,11 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO password_reset_tokens (token_hash, user_id, created_at, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00.000001+00');`,
 	},
 	{
+		constraint: "payment_webhook_events_unreconciled_present",
+		reject:     `INSERT INTO payment_webhook_events (provider, event_id, type, payload, unreconciled) VALUES ('stripe', 'evt_blank_reason', 'checkout.session.completed', '{}'::jsonb, '   ');`,
+		accept:     `INSERT INTO payment_webhook_events (provider, event_id, type, payload, unreconciled) VALUES ('stripe', 'evt_blank_reason', 'checkout.session.completed', '{}'::jsonb, 'money arrived for a cancelled order');`,
+	},
+	{
 		constraint: "payment_webhook_events_type_present",
 		reject:     `INSERT INTO payment_webhook_events (provider, event_id, type, payload) VALUES ('stripe','evt_rej_type',E'\t','{}'::jsonb);`,
 		accept:     `INSERT INTO payment_webhook_events (provider, event_id, type, payload) VALUES ('stripe','evt_acc_type','payment_intent.succeeded','{}'::jsonb);`,

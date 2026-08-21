@@ -22,6 +22,14 @@ ON CONFLICT (provider, event_id) DO NOTHING;
 UPDATE payment_webhook_events SET processed_at = now()
 WHERE provider = 'stripe' AND event_id = $1;
 
+-- Processed, and NOT acted on. Marked in the same transaction as the claim, so
+-- an event that could not be applied cannot be recorded as seen without also
+-- being recorded as needing a person — which is ProcessWebhook's whole rule,
+-- applied to the outcome rather than to the effect.
+-- name: MarkWebhookUnreconciled :exec
+UPDATE payment_webhook_events SET processed_at = now(), unreconciled = @reason::text
+WHERE provider = 'stripe' AND event_id = @event_id::text;
+
 -- The webhook is trusted for what happened, never for which order.
 -- name: OrderByPaymentRef :one
 SELECT o.id, o.order_number, o.fulfillment_status, p.intended_amount_cents

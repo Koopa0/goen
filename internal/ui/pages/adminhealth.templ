@@ -88,6 +88,36 @@ templ AdminHealth(p layouts.Page, v WorkerHealthView) {
 					</table>
 				</div>
 			}
+			if len(v.Unreconciled) > 0 {
+				// Named, not counted: each is money at the provider against goods
+				// already back on the shelf, and only a person can move it.
+				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminHPUnreconciledHeading) }</h2>
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHPUnreconciledHint) }</p>
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table goen-admin__table">
+						<thead>
+							<tr>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColEvent) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColKind) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColProviderRef) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColReason) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColStarted) }</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, u := range v.Unreconciled {
+								<tr>
+									<td>{ u.EventID }</td>
+									<td>{ u.Type }</td>
+									<td>{ u.Ref }</td>
+									<td>{ u.Reason }</td>
+									<td>{ u.Since }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
 			if len(v.OpenRefunds) > 0 {
 				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminHPOpenRefundsHeading) }</h2>
 				<div class="goen-admin__tablewrap">

@@ -21,6 +21,14 @@ import (
 type Store struct {
 	pool *pgxpool.Pool
 	q    *db.Queries
+	// tx is set only on the store ProcessWebhook hands to its apply function.
+	// A refused posting function ABORTS the transaction it runs in — PostgreSQL
+	// ignores every later command with 25P02 — so an effect that is allowed to
+	// fail and be recorded has to run inside a SAVEPOINT. Without one, money
+	// arriving for a cancelled order took the whole webhook transaction down
+	// with it: the event was never marked processed, the handler answered 500,
+	// and Stripe retried something that can never succeed.
+	tx pgx.Tx
 }
 
 // NewStore returns a Store over pool.
@@ -143,7 +151,7 @@ func (s *Store) ProcessWebhook(
 	}
 	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
 
-	txStore := &Store{pool: s.pool, q: s.q.WithTx(tx)}
+	txStore := &Store{pool: s.pool, q: s.q.WithTx(tx), tx: tx}
 
 	n, err := txStore.q.RecordWebhookEvent(ctx, db.RecordWebhookEventParams{
 		EventID:   ev.ID,
@@ -173,6 +181,55 @@ func (s *Store) ProcessWebhook(
 	return true, nil
 }
 
+// postCapture calls the posting function inside a SAVEPOINT when it is running
+// in somebody else's transaction.
+//
+// capture_payment can be refused — payments_refuse_cancelled_order is the whole
+// reason ErrOrderCancelled exists — and a refusal ABORTS the transaction, so
+// every later command fails with 25P02. Without the savepoint the caller cannot
+// record what happened, mark the event processed, or commit: the webhook
+// answered 500 and Stripe retried a capture that can never succeed, forever.
+func (s *Store) postCapture(ctx context.Context, c *Capture) error {
+	post := func(q *db.Queries) error {
+		_, err := q.CapturePayment(ctx, db.CapturePaymentParams{
+			ProviderRef:         c.SessionID,
+			CapturedAmountCents: c.AmountRecv,
+			CardBrand:           c.CardBrand,
+			CardLast4:           c.CardLast4,
+		})
+		return err
+	}
+	if s.tx == nil {
+		return post(s.q)
+	}
+	sp, err := s.tx.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("open a savepoint for the capture: %w", err)
+	}
+	if postErr := post(s.q.WithTx(sp)); postErr != nil {
+		// Back to the savepoint, so the transaction is usable and the caller can
+		// say what happened.
+		_ = sp.Rollback(ctx) //nolint:errcheck // the error being reported is postErr
+		return postErr
+	}
+	return sp.Commit(ctx)
+}
+
+// Unreconciled marks an event as accepted and NOT acted on, so a person has to.
+//
+// Called from inside ProcessWebhook's transaction, which is what makes it
+// impossible to mark an event seen without also marking that it needs somebody
+// — the rule ProcessWebhook already holds for the effect, applied to the
+// outcome.
+func (s *Store) Unreconciled(ctx context.Context, eventID, reason string) error {
+	if err := s.q.MarkWebhookUnreconciled(ctx, db.MarkWebhookUnreconciledParams{
+		EventID: eventID, Reason: reason,
+	}); err != nil {
+		return fmt.Errorf("mark webhook %s unreconciled: %w", eventID, err)
+	}
+	return nil
+}
+
 // Capture posts money against the payment the session opened. WHICH order comes
 // from the payment row goen wrote at open time, never from the event.
 func (s *Store) Capture(ctx context.Context, c *Capture) (orderNumber string, err error) {
@@ -188,12 +245,7 @@ func (s *Store) Capture(ctx context.Context, c *Capture) (orderNumber string, er
 			c.SessionID, c.AmountRecv, row.IntendedAmountCents, row.OrderNumber)
 	}
 
-	if _, err := s.q.CapturePayment(ctx, db.CapturePaymentParams{
-		ProviderRef:         c.SessionID,
-		CapturedAmountCents: c.AmountRecv,
-		CardBrand:           c.CardBrand,
-		CardLast4:           c.CardLast4,
-	}); err != nil {
+	if err := s.postCapture(ctx, c); err != nil {
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
 			pgErr.ConstraintName == "payments_refuse_cancelled_order" {
 			return row.OrderNumber, fmt.Errorf("%w: order %s, session %s",

@@ -833,7 +833,26 @@ SELECT
     (SELECT count(*) FROM media_objects m
      WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
-       AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media;
+       AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media,
+    -- Events accepted and NOT acted on. The only one goen writes today is money
+    -- arriving for an order it had already cancelled: the capture is refused by
+    -- payments_refuse_cancelled_order, the event is still marked processed so
+    -- Stripe stops retrying — correct, because retrying changes nothing — and
+    -- the money sits at Stripe against goods that are back on the shelf. It used
+    -- to leave one log line, which nothing reads and nothing can count.
+    (SELECT count(*) FROM payment_webhook_events
+     WHERE unreconciled IS NOT NULL)::bigint AS unreconciled_payments;
+
+-- The events a person has to act on, named rather than counted: a page saying
+-- "1 unreconciled" that cannot say WHICH tells an operator something is wrong
+-- and nothing about what to do, which is the reason outbox.Stuck() lists.
+-- name: UnreconciledPayments :many
+SELECT event_id, type, coalesce(object_ref, '') AS object_ref,
+       unreconciled::text AS reason, received_at
+FROM payment_webhook_events
+WHERE unreconciled IS NOT NULL
+ORDER BY received_at
+LIMIT 50;
 
 -- The locale comes off the ORDER and never off the staff member who pressed
 -- Ship, which would send a Taiwanese shopkeeper's language to an English

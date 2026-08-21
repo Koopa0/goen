@@ -6083,6 +6083,25 @@ func (q *Queries) MarkWebhookProcessed(ctx context.Context, eventID string) erro
 	return err
 }
 
+const markWebhookUnreconciled = `-- name: MarkWebhookUnreconciled :exec
+UPDATE payment_webhook_events SET processed_at = now(), unreconciled = $1::text
+WHERE provider = 'stripe' AND event_id = $2::text
+`
+
+type MarkWebhookUnreconciledParams struct {
+	Reason  string
+	EventID string
+}
+
+// Processed, and NOT acted on. Marked in the same transaction as the claim, so
+// an event that could not be applied cannot be recorded as seen without also
+// being recorded as needing a person — which is ProcessWebhook's whole rule,
+// applied to the outcome rather than to the effect.
+func (q *Queries) MarkWebhookUnreconciled(ctx context.Context, arg MarkWebhookUnreconciledParams) error {
+	_, err := q.db.Exec(ctx, markWebhookUnreconciled, arg.Reason, arg.EventID)
+	return err
+}
+
 const mediaBytes = `-- name: MediaBytes :one
 SELECT content_type, bytes, byte_size FROM media_objects WHERE digest = $1
 `
@@ -10693,6 +10712,52 @@ func (q *Queries) UnlinkIdentity(ctx context.Context, arg UnlinkIdentityParams) 
 	return result.RowsAffected(), nil
 }
 
+const unreconciledPayments = `-- name: UnreconciledPayments :many
+SELECT event_id, type, coalesce(object_ref, '') AS object_ref,
+       unreconciled::text AS reason, received_at
+FROM payment_webhook_events
+WHERE unreconciled IS NOT NULL
+ORDER BY received_at
+LIMIT 50
+`
+
+type UnreconciledPaymentsRow struct {
+	EventID    string
+	Type       string
+	ObjectRef  string
+	Reason     string
+	ReceivedAt time.Time
+}
+
+// The events a person has to act on, named rather than counted: a page saying
+// "1 unreconciled" that cannot say WHICH tells an operator something is wrong
+// and nothing about what to do, which is the reason outbox.Stuck() lists.
+func (q *Queries) UnreconciledPayments(ctx context.Context) ([]UnreconciledPaymentsRow, error) {
+	rows, err := q.db.Query(ctx, unreconciledPayments)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []UnreconciledPaymentsRow{}
+	for rows.Next() {
+		var i UnreconciledPaymentsRow
+		if err := rows.Scan(
+			&i.EventID,
+			&i.Type,
+			&i.ObjectRef,
+			&i.Reason,
+			&i.ReceivedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const unreferencedMedia = `-- name: UnreferencedMedia :many
 SELECT digest FROM media_objects m
 WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
@@ -11497,7 +11562,15 @@ SELECT
     (SELECT count(*) FROM media_objects m
      WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
-       AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media
+       AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media,
+    -- Events accepted and NOT acted on. The only one goen writes today is money
+    -- arriving for an order it had already cancelled: the capture is refused by
+    -- payments_refuse_cancelled_order, the event is still marked processed so
+    -- Stripe stops retrying — correct, because retrying changes nothing — and
+    -- the money sits at Stripe against goods that are back on the shelf. It used
+    -- to leave one log line, which nothing reads and nothing can count.
+    (SELECT count(*) FROM payment_webhook_events
+     WHERE unreconciled IS NOT NULL)::bigint AS unreconciled_payments
 `
 
 type WorkerHealthRow struct {
@@ -11509,6 +11582,7 @@ type WorkerHealthRow struct {
 	CopurchaseEverBuilt  bool
 	ExpiredSessions      int64
 	UnreferencedMedia    int64
+	UnreconciledPayments int64
 }
 
 // Overdue is measured from available_at — when a message became DUE — because
@@ -11527,6 +11601,7 @@ func (q *Queries) WorkerHealth(ctx context.Context, maxAttempts int32) (WorkerHe
 		&i.CopurchaseEverBuilt,
 		&i.ExpiredSessions,
 		&i.UnreferencedMedia,
+		&i.UnreconciledPayments,
 	)
 	return i, err
 }

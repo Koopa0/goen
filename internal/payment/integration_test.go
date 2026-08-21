@@ -1028,3 +1028,74 @@ func TestTheWebhookRoutesEachEventToItsEffect(t *testing.T) {
 		})
 	}
 }
+
+// TestMoneyForACancelledOrderLeavesSomethingToActOn holds the difference
+// between a log line and a record.
+//
+// A slow webhook and a cancel race: the capture is refused by
+// payments_refuse_cancelled_order, and the event is still marked processed —
+// which is correct, because retrying changes nothing and rolling the claim back
+// would lose the only trace that money arrived. But the money IS at Stripe,
+// against goods already back on the shelf, and the only output was one ERROR
+// log. Nothing reads a log: /admin/health could not count it, no refund row
+// existed, no outbox topic carried it, and the shop found out when the customer
+// asked.
+//
+// The event is marked UNRECONCILED in the same transaction as the claim, which
+// is ProcessWebhook's own rule — an event may not be recorded as seen unless
+// what it needs is recorded with it — applied to the outcome rather than the
+// effect.
+func TestMoneyForACancelledOrderLeavesSomethingToActOn(t *testing.T) {
+	ctx := t.Context()
+	s := payment.NewStore(pool)
+	number, id := order(t, 77700)
+	session := "cs_unreconciled_" + number
+
+	if err := s.OpenPayment(ctx, number, session, 77700); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
+		 WHERE id = $1`, id); err != nil {
+		t.Fatalf("cancel the order: %v", err)
+	}
+
+	const eventID = "evt_unreconciled_probe"
+	claimed, err := s.ProcessWebhook(ctx, &payment.WebhookEvent{
+		ID: eventID, Type: "checkout.session.completed", ObjectRef: session,
+		Payload: []byte(`{"probe":true}`),
+	}, func(ctx context.Context, st *payment.Store) error {
+		_, captureErr := st.Capture(ctx, &payment.Capture{SessionID: session, AmountRecv: 77700})
+		if !errors.Is(captureErr, payment.ErrOrderCancelled) {
+			return captureErr
+		}
+		return st.Unreconciled(ctx, eventID, "money arrived for an order that was already cancelled")
+	})
+	if err != nil {
+		t.Fatalf("process the webhook: %v", err)
+	}
+	if !claimed {
+		t.Fatal("the event was not claimed, so this proved nothing")
+	}
+
+	var processed bool
+	var reason *string
+	if err := pool.QueryRow(ctx, `
+		SELECT processed_at IS NOT NULL, unreconciled
+		FROM payment_webhook_events WHERE provider = 'stripe' AND event_id = $1`,
+		eventID).Scan(&processed, &reason); err != nil {
+		t.Fatalf("read the event: %v", err)
+	}
+	if !processed {
+		t.Error("the event was not marked processed, so Stripe will retry something " +
+			"that can never succeed")
+	}
+	if reason == nil {
+		t.Fatal("money arrived for a cancelled order and the event records nothing " +
+			"about it — a log line is not something /admin/health can count, and " +
+			"nobody will refund it")
+	}
+	if !strings.Contains(*reason, "cancelled") {
+		t.Errorf("the reason is %q, which does not say what happened", *reason)
+	}
+}

@@ -2760,9 +2760,28 @@ CREATE TABLE payment_webhook_events (
     payload             jsonb NOT NULL,
     received_at         timestamptz NOT NULL DEFAULT now(),
     processed_at        timestamptz,
+    -- Why this event could not be acted on, for the cases where "processed"
+    -- means "seen and refused" rather than "done". Money arriving for an order
+    -- goen had already cancelled is the one that matters: the capture is refused
+    -- by payments_refuse_cancelled_order, the event is still marked processed so
+    -- Stripe stops retrying — which is correct, retrying changes nothing — and
+    -- the only trace used to be a log line. The money is at Stripe and the goods
+    -- are back on the shelf, so somebody has to refund it by hand; without a row
+    -- there is nothing for /admin/health to name and nothing to reconcile
+    -- against.
+    unreconciled        text,
     PRIMARY KEY (provider, event_id),
-    CONSTRAINT payment_webhook_events_type_present CHECK (type ~ '[^[:space:]]')
+    CONSTRAINT payment_webhook_events_type_present CHECK (type ~ '[^[:space:]]'),
+    CONSTRAINT payment_webhook_events_unreconciled_present
+        CHECK (unreconciled IS NULL OR unreconciled ~ '[^[:space:]]')
 );
+
+COMMENT ON COLUMN payment_webhook_events.unreconciled IS
+    'Set when an event was accepted but its effect could not be applied, and a person must act.';
+
+CREATE INDEX payment_webhook_events_unreconciled_idx
+    ON payment_webhook_events (received_at)
+    WHERE unreconciled IS NOT NULL;
 
 CREATE INDEX payment_webhook_events_unprocessed_idx
     ON payment_webhook_events (received_at)
@@ -3374,7 +3393,7 @@ REVOKE UPDATE, DELETE ON store_credit_accounts FROM store;
 -- else, and coupon_redemptions is a ledger that goes through a function.
 REVOKE INSERT, UPDATE, DELETE ON coupons, coupon_redemptions FROM store;
 REVOKE UPDATE, DELETE ON payment_webhook_events FROM store;
-GRANT UPDATE (processed_at) ON payment_webhook_events TO store;
+GRANT UPDATE (processed_at, unreconciled) ON payment_webhook_events TO store;
 -- order_events and shipping_method_versions are append-only too, so the privilege
 -- layer backs forbid_change. INSERT stays: the app appends an event, and a new
 -- shipping version is an insert.
