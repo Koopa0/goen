@@ -4963,8 +4963,20 @@ WHERE m.digest = $1::text
 // invisible to the second — the sweeper's own comment said a foreign key caught
 // that, and there is none: product_images.storage_key holds either an embedded
 // filename from the seed or a digest, so it cannot point at media_objects.
-// Asking again inside the DELETE makes the attach win, and :execrows is what
-// lets the caller tell "somebody attached it" from "deleted".
+// Asking again inside the DELETE makes a COMMITTED attach win, and :execrows is
+// what lets the caller tell "somebody attached it" from "deleted".
+//
+// COMMITTED is the word this comment was missing, and it is not a detail. Under
+// READ COMMITTED the DELETE cannot see an attach that is still in flight, so a
+// transaction that inserts the hero slide, is interrupted, and commits after the
+// sweeper has run leaves a slide pointing at a deleted object. Measured — it is
+// not a theory.
+//
+// Left open, and the reason is the shape of the column rather than the size of
+// the window: closing it properly is a foreign key, and storage_key deliberately
+// holds two kinds of key — an embedded filename from the seed or a digest — so
+// it cannot reference media_objects at all. The window itself is the
+// milliseconds of one DELETE against an orphan more than 24 hours old.
 func (q *Queries) DeleteMedia(ctx context.Context, digest string) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteMedia, digest)
 	if err != nil {
