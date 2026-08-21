@@ -19,3 +19,4 @@ stripe-*.txt
 # The compiled binary, if somebody runs `go build` without -o. It is 25 MB and
 # has been left in the tree by a review before now.
 /goen
+.claude/worktrees/
