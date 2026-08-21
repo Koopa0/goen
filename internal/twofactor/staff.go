@@ -24,12 +24,6 @@ var (
 	ErrSelf = errors.New("twofactor: an admin cannot do that to their own account")
 	// ErrInvalidStaff is a form the rules refuse.
 	ErrInvalidStaff = errors.New("twofactor: that is not a usable staff account")
-
-	// ErrCredentialCleared is a SUCCESS the admin has to be told about. The
-	// address already had an account that had never proved the mailbox, so its
-	// password was cleared and its sessions ended; the new colleague sets one
-	// through /forgot, exactly as one created from scratch does.
-	ErrCredentialCleared = errors.New("twofactor: the promoted account had not proved its address")
 )
 
 // Roles a staff account may hold, in the order the form offers them.
@@ -50,37 +44,39 @@ func RoleLabel(ctx context.Context, role string) string {
 // AddStaff gives somebody back-office access, with no password set. It is an
 // UPSERT resolved by address, so submitting your own address is a
 // self-promotion; the actor is compared for that reason.
-func (s *Store) AddStaff(ctx context.Context, address, name, role, actorID string) error {
+// The bool is an OUTCOME, not an error: the promotion SUCCEEDED, and what the
+// caller has to relay is that the address already had an account which had
+// never proved the mailbox, so its password was cleared and its sessions ended.
+// Carrying that as a sentinel made every `if err != nil` in the chain read a
+// success as a failure.
+func (s *Store) AddStaff(ctx context.Context, address, name, role, actorID string) (bool, error) {
 	address, name = strings.TrimSpace(address), strings.TrimSpace(name)
 	if !email.Valid(address) || !contains(Roles, role) {
-		return ErrInvalidStaff
+		return false, ErrInvalidStaff
 	}
 	actor, err := uuid.Parse(actorID)
 	if err != nil {
-		return ErrInvalidStaff
+		return false, ErrInvalidStaff
 	}
 	// Before the write: afterwards there is nothing to compare but the row the
 	// upsert already changed.
 	self, err := s.q.UserHasEmail(ctx, db.UserHasEmailParams{ID: actor, Email: address})
 	if err != nil {
-		return fmt.Errorf("check the actor's own address: %w", err)
+		return false, fmt.Errorf("check the actor's own address: %w", err)
 	}
 	if self {
-		return ErrSelf
+		return false, ErrSelf
 	}
 	row, err := s.q.UpsertStaff(ctx, db.UpsertStaffParams{
 		Email: address, FullName: name, Role: role,
 	})
 	if err != nil {
-		return fmt.Errorf("add staff %s: %w", address, err)
+		return false, fmt.Errorf("add staff %s: %w", address, err)
 	}
-	if row.CredentialCleared {
-		// Said rather than swallowed: the person being hired now has no way in
-		// until they set a password through /forgot, and the admin is the one
-		// who has to tell them.
-		return ErrCredentialCleared
-	}
-	return nil
+	// Said rather than swallowed: the person being hired now has no way in until
+	// they set a password through /forgot, and the admin is the one who has to
+	// tell them.
+	return row.CredentialCleared, nil
 }
 
 // RevokeStaff takes back-office access away, and ends every session that had it.
