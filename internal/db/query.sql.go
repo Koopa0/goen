@@ -4706,13 +4706,22 @@ SELECT
     localized_name(p.name, p.name_en, $1::text) AS name,
     coalesce(localized_name(p.summary, p.summary_en, $1::text), '')::text AS summary,
     b.name AS brand,
-    mv.price_cents AS min_price_cents,
-    -- Whether that price is the cheapest of several, so a card can say "from"
-    -- rather than state one variant's price as the product's.
-    EXISTS (
+    -- Named for what it IS: the price this tile shows, which on THIS page is the
+    -- discounted variant rather than the cheapest one. Calling it
+    -- min_price_cents here would be a claim the LATERAL below does not make.
+    mv.price_cents AS tile_price_cents,
+    -- "From X" says X is the bottom of the range, so it needs BOTH halves:
+    -- something dearer exists AND nothing cheaper does. On the listing the
+    -- chosen variant is the cheapest buyable one, so the second half is free;
+    -- here it is not, and asking only the first put 起 on a price with cheaper
+    -- variants sitting under it.
+    (EXISTS (
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
-    ) AS price_varies,
+    ) AND NOT EXISTS (
+        SELECT 1 FROM product_variants cv
+        WHERE cv.product_id = p.id AND cv.is_active AND cv.price_cents < mv.price_cents
+    ))::boolean AS price_varies,
     mv.compare_at_price_cents,
     coalesce(rv.rating, 0)::float8 AS rating,
     coalesce(rv.n, 0)::bigint AS rating_count,
@@ -4771,7 +4780,7 @@ type DealProductsRow struct {
 	Name                string
 	Summary             string
 	Brand               string
-	MinPriceCents       int64
+	TilePriceCents      int64
 	PriceVaries         bool
 	CompareAtPriceCents pgtype.Int8
 	Rating              float64
@@ -4806,7 +4815,7 @@ func (q *Queries) DealProducts(ctx context.Context, arg DealProductsParams) ([]D
 			&i.Name,
 			&i.Summary,
 			&i.Brand,
-			&i.MinPriceCents,
+			&i.TilePriceCents,
 			&i.PriceVaries,
 			&i.CompareAtPriceCents,
 			&i.Rating,
