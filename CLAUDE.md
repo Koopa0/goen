@@ -2717,6 +2717,23 @@ miss: a link already sitting in the mailbox would let an erased address rejoin
 after the erasure. The newsletter keys on the ADDRESS rather than the account, so
 nothing else in the function could reach it.
 
+**And it was not the only one.** `stock_notifications` takes an address off the
+FORM and a user off the SESSION — anyone may ask for a restock notice signed out,
+which is the documented point of it — so a notice taken before the customer had an
+account carries NO user_id, and `erase_user` deleted by user_id alone. The row
+survived the erasure and the worker would email that address the day the variant
+came back. It deletes by both keys now, and all three shapes are in the fixture,
+because a signed-in customer may also type an address that is not their account's.
+
+The guard could not see it for two separate reasons, and the second is the worse
+one. There was no fixture row at all — a probe over data that needs the data
+seeded, #26. And the probe asked `WHERE user_id = <the erased account>`, on a
+column that is `ON DELETE SET NULL`: **it read zero whether or not a single row
+was deleted.** The comment four lines above it says exactly that about
+`order_private_data` — "a probe joining on the user id could never come back
+non-zero and could never fail" — and the line under it did it anyway. #31, inside
+the test rather than the code.
+
 **Sending is built, on top of that consent.** `/admin/newsletter` shows the list's
 three figures, composes a draft, and sends it — composing and sending are two forms,
 because ten thousand mailboxes cannot be edited afterwards.

@@ -3328,6 +3328,12 @@ BEGIN
     WHERE user_id = p_user_id AND customer_note IS NOT NULL;
 
     -- The restock email is NOT NULL and cannot be blanked, so the rows go.
+    -- By user_id AND by address, because anyone may ask for one signed OUT:
+    -- a notice taken before the customer had an account carries no user_id,
+    -- so a delete keyed on the account never reaches it — and the worker
+    -- would then email an address the shop has been told to forget, the day
+    -- the variant comes back. This is the contact_messages shape, and the
+    -- newsletter is not the only table that keys on the address.
     DELETE FROM stock_notifications WHERE user_id = p_user_id;
 
     -- The invoice PREFERENCE carries a personal carrier id and a business tax
@@ -3347,6 +3353,7 @@ BEGIN
         -- foreign key, and it holds a name, an address and whatever the customer
         -- typed.
         DELETE FROM contact_messages WHERE lower(email) = lower(addr);
+        DELETE FROM stock_notifications WHERE lower(email) = lower(addr);
 
         -- The OUTBOX holds the address inside its payload, and outbox.Retain
         -- keeps a delivered message for 30 days — so without this, an erased

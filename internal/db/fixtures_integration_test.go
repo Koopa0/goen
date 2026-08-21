@@ -200,6 +200,22 @@ INSERT INTO coupon_redemptions (id, coupon_id, order_id, amount_cents) VALUES
     ('cccc000a-0000-4000-8000-00000000000a', 'cccc0009-0000-4000-8000-000000000009',
      '66666666-6666-4666-8666-666666666666', 0);
 
+-- Three restock notices for one person, and the three differ on purpose. The
+-- address comes off the FORM and the user off the SESSION, so all three shapes
+-- are reachable, and each is reached by a different half of erase_user:
+--   1. signed in, account address     — either delete finds it
+--   2. signed OUT, account address    — only the address delete: no user_id
+--   3. signed in, SOME OTHER address  — only the account delete: addr misses it
+-- Without the third, deleting the account-keyed line stays green, because the
+-- address-keyed one sweeps the same rows: two rules agreeing in one fixture
+-- is a fixture that tests neither.
+INSERT INTO stock_notifications (variant_id, email, user_id, notified_at) VALUES
+    ('4444aaaa-4444-4444-8444-444444444444', 'Ming@Example.com',
+     '55555555-5555-4555-8555-555555555555', now()),
+    ('4444aaaa-4444-4444-8444-444444444444', 'ming@example.com', NULL, NULL),
+    ('44444444-4444-4444-8444-444444444444', 'ming.work@example.com',
+     '55555555-5555-4555-8555-555555555555', NULL);
+
 -- Run the deferred completeness check against the fixtures themselves, then put it back:
 -- SET CONSTRAINTS changes the mode for the REST of the transaction, and leaving it immediate
 -- would fail every later order at insert, before the lines completing it can exist.

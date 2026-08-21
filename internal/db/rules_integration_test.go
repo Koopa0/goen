@@ -1131,7 +1131,13 @@ func TestEraseUserLeavesNoPersonalData(t *testing.T) {
 			WHERE o.order_number = 'GO-260721-000387' AND pd.email IS NOT NULL`},
 		{"the invoice carrier", `SELECT count(*) FROM invoice_preferences ip JOIN orders o ON o.id = ip.order_id
 			WHERE o.order_number = 'GO-260721-000387'`},
-		{"restock notifications", `SELECT count(*) FROM stock_notifications WHERE user_id = '` + user + `'`},
+		// By ADDRESS and never by user_id: stock_notifications.user_id is ON
+		// DELETE SET NULL, so a probe asking for the account reads zero whether
+		// or not a single row was deleted — the shape the comment four lines
+		// above warns about, committed on the line under it. Both addresses,
+		// because a signed-in customer may ask using any address they type.
+		{"restock notifications", `SELECT count(*) FROM stock_notifications
+			WHERE lower(email) IN ('ming@example.com', 'ming.work@example.com')`},
 	} {
 		var n int
 		if err := tx.QueryRow(ctx, probe.query).Scan(&n); err != nil {
