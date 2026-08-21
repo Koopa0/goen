@@ -6,10 +6,13 @@ import (
 )
 
 // AdminHealth renders what the background workers have and have not done.
-templ AdminHealth(p layouts.Page, v WorkerHealthView) {
+templ AdminHealth(p layouts.Page, v *WorkerHealthView) {
 	@layouts.Base(p) {
 		<div class="goen-admin">
 			@adminNav("health")
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
 			<div class="ui-page-head">
 				<div>
 					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>

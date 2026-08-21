@@ -1,6 +1,11 @@
 package admin
 
 import (
+	"os"
+	"path/filepath"
+	"regexp"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -74,5 +79,73 @@ func TestAFundedOrderIsNotBadgedUnpaid(t *testing.T) {
 					tt.status, tt.committed, tt.owed, got, tt.want)
 			}
 		})
+	}
+}
+
+// TestEveryRedirectNoticeHasAMessage asks the question the notice map cannot ask
+// of itself: a handler answering 303 with "?done=1" and no entry here renders a
+// blank page and tells the operator nothing.
+//
+// Three of the parameters this branch added were in exactly that state — a 折讓
+// filed with the 財政部 confirmed nothing, a refused amount said nothing, and
+// /admin/health answered two parameters its own handler never read. The map is
+// hand-written; the corpus is the SOURCE, so a new redirect is covered the
+// moment it is written.
+func TestEveryRedirectNoticeHasAMessage(t *testing.T) {
+	t.Parallel()
+
+	// Every file in the package, not handler.go alone: the image and hero
+	// handlers redirect too, and a corpus one file narrower reported five real
+	// notices as orphans.
+	names, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatalf("list the package: %v", err)
+	}
+	// "?name=1", "&name=1", and a bare "name=1" returned by a helper — which is
+	// how the image handlers write theirs, and matching only inside the
+	// Redirect call reported five real notices as orphans.
+	param := regexp.MustCompile(`[?&"]([a-z]+)=1`)
+	found := map[string]bool{}
+	for _, name := range names {
+		if strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		src, readErr := os.ReadFile(name) //nolint:gosec // G304: this package's own files
+		if readErr != nil {
+			t.Fatalf("read %s: %v", name, readErr)
+		}
+		for _, m := range param.FindAllStringSubmatch(string(src), -1) {
+			found[m[1]] = true
+		}
+	}
+	if len(found) < 15 {
+		t.Fatalf("only %d redirect parameters found; the parser stopped matching", len(found))
+	}
+
+	var missing []string
+	for name := range found {
+		if _, ok := adminNotices[name]; !ok {
+			missing = append(missing, name)
+		}
+	}
+	if len(missing) > 0 {
+		sort.Strings(missing)
+		t.Errorf("%d redirect parameter(s) carry no message:\n  %s\n"+
+			"The page renders nothing, so the operator cannot tell whether the "+
+			"button did anything.", len(missing), strings.Join(missing, "\n  "))
+	}
+
+	// And the other direction: an entry naming a parameter no handler writes is
+	// a message nothing can show, which is how a list grows past its subject.
+	var orphaned []string
+	for name := range adminNotices {
+		if !found[name] {
+			orphaned = append(orphaned, name)
+		}
+	}
+	if len(orphaned) > 0 {
+		sort.Strings(orphaned)
+		t.Errorf("%d notice(s) name a parameter no redirect writes:\n  %s",
+			len(orphaned), strings.Join(orphaned, "\n  "))
 	}
 }

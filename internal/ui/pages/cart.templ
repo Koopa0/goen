@@ -155,14 +155,32 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 				<input type="hidden" name="idempotency" value={ v.Idempoten }/>
 				// The server refuses the first submission whose address prices differently.
 				<input type="hidden" name="quoted_shipping" value={ v.QuotedShipping() }/>
-				<input type="hidden" name="address" value={ v.ChosenAddress }/>
+				// No hidden `address` here. It carried the same NAME as the radios
+				// below and came FIRST, so PostFormValue returned it every time and
+				// the customer's pick was discarded — the whole chooser was inert.
+				// It is a leftover from when picking an address was a link.
 				<div class="goen-checkout__panel">
-					<h2 class="goen-checkout__section">{ i18n.T(ctx, i18n.KeySectionShipping) }</h2>
+					<h2 class="goen-checkout__section" id="shipping-heading">{ i18n.T(ctx, i18n.KeySectionShipping) }</h2>
 					// A radio inside the form, not a link beside it. The choice
 					// decides which fields the form asks for, so changing it has
 					// to re-render — and a link carrying only the choice threw
 					// away everything already typed.
-					<div class="goen-checkout__shipping">
+					//
+					// The refusal is announced on the GROUP and not on an option:
+					// a form refuses the choice, not one of the things on offer.
+					// These were <a> elements until the chooser moved inside the
+					// form, so the write-face rule genuinely did not apply — and
+					// making them controls a form can refuse did not carry it
+					// across.
+					<div
+						class="goen-checkout__shipping"
+						role="radiogroup"
+						aria-labelledby="shipping-heading"
+						aria-invalid={ v.Invalid("shipping") }
+						if v.HasErr("shipping") {
+							aria-describedby="shipping-error"
+						}
+					>
 						for _, c := range v.Shipping {
 							<label
 								class={ "goen-checkout__ship",
@@ -191,16 +209,24 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 							</label>
 						}
 					</div>
-					@applyChoice()
+					@applyChoice("shipping")
 					if v.HasErr("shipping") {
-						<p class="ui-error-text">{ v.Err("shipping") }</p>
+						<p class="ui-error-text" id="shipping-error">{ v.Err("shipping") }</p>
 					}
 					if v.Repriced != "" {
 						<p class="ui-alert ui-alert--info" role="status">{ v.Repriced }</p>
 					}
-					<h2 class="goen-checkout__section">{ i18n.T(ctx, i18n.KeySectionRecipient) }</h2>
+					<h2 class="goen-checkout__section" id="recipient-heading">{ i18n.T(ctx, i18n.KeySectionRecipient) }</h2>
 					if v.OffersTheAddressBook() {
-						<div class="goen-checkout__shipping">
+						<div
+							class="goen-checkout__shipping"
+							role="radiogroup"
+							aria-labelledby="recipient-heading"
+							aria-invalid={ v.Invalid("address") }
+							if v.HasErr("address") {
+								aria-describedby="address-error"
+							}
+						>
 							for _, a := range v.SavedAddresses {
 								<label
 									class={ "goen-checkout__ship",
@@ -220,7 +246,10 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 								</label>
 							}
 						</div>
-						@applyChoice()
+						@applyChoice("address")
+						if v.HasErr("address") {
+							<p class="ui-error-text" id="address-error">{ v.Err("address") }</p>
+						}
 					}
 					<div class="goen-checkout__fields">
 						@field("email", i18n.T(ctx, i18n.KeyFieldEmail), "email", v.Address.Email, v, true)
@@ -316,11 +345,19 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 							}
 						</div>
 					</div>
-					<h2 class="goen-checkout__legend">{ i18n.T(ctx, i18n.KeySectionInvoice) }</h2>
+					<h2 class="goen-checkout__legend" id="invoice-heading">{ i18n.T(ctx, i18n.KeySectionInvoice) }</h2>
 					// This one sat BELOW the address fields, so choosing it through
 					// a link discarded a whole recipient the customer had just
 					// typed. It is the sharpest case of the three.
-					<div class="goen-checkout__invoice">
+					<div
+						class="goen-checkout__invoice"
+						role="radiogroup"
+						aria-labelledby="invoice-heading"
+						aria-invalid={ v.Invalid("invoice_type") }
+						if v.HasErr("invoice_type") {
+							aria-describedby="invoice_type-error"
+						}
+					>
 						for _, c := range v.InvoiceChoices {
 							<label
 								class={ "goen-checkout__ship",
@@ -337,7 +374,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 							</label>
 						}
 					</div>
-					@applyChoice()
+					@applyChoice("invoice")
 					<div class="goen-checkout__fields">
 						if v.Invoice.NeedsCarrier() {
 							<div class="ui-field">
@@ -383,7 +420,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 						}
 					</div>
 					if v.HasErr("invoice_type") {
-						<p class="ui-error-text">{ v.Err("invoice_type") }</p>
+						<p class="ui-error-text" id="invoice_type-error">{ v.Err("invoice_type") }</p>
 					}
 				</div>
 				<aside class="goen-checkout__summary">
@@ -470,12 +507,12 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 // applyChoice re-renders the form with the choice above it applied. A submit
 // button rather than a link, because the form carries everything the customer
 // has typed and a link carries only the choice.
-templ applyChoice() {
+templ applyChoice(which string) {
 	<button
 		class="ui-btn ui-btn--secondary ui-btn--sm goen-checkout__apply"
 		type="submit"
 		name="update"
-		value="1"
+		value={ which }
 		formnovalidate
 	>
 		{ i18n.T(ctx, i18n.KeyApplyChoice) }

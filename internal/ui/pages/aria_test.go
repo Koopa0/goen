@@ -92,3 +92,98 @@ func TestEveryRefusedFieldNamesItsError(t *testing.T) {
 		t.Errorf("only %d templates were examined; the corpus is 13 files deep", covered)
 	}
 }
+
+// TestEveryRefusableControlCanBeMarkedInvalid is the direction its neighbour
+// cannot look.
+//
+// That one starts from `aria-invalid` and asks what it points at, so a control a
+// form can REFUSE that never gets the attribute at all is invisible to it. The
+// checkout's three choosers were exactly that: they were <a> elements until the
+// chooser moved inside the form, so the rule genuinely did not apply — and
+// making them controls a form can refuse did not carry it across. A screen
+// reader was told nothing at all about a refused delivery method.
+//
+// The corpus is every field a view model can carry an error for, derived from
+// the Err/HasErr calls in the templates rather than from a list.
+func TestEveryRefusableControlCanBeMarkedInvalid(t *testing.T) {
+	t.Parallel()
+
+	files, err := filepath.Glob("*.templ")
+	if err != nil || len(files) == 0 {
+		t.Fatalf("no templates to read: %v", err)
+	}
+	// v.Err("name") / v.HasErr("name") — the view model saying this field is
+	// refusable, which is the definition the templates already use.
+	refusable := regexp.MustCompile(`\.(?:Has)?Err\("([a-z_]+)"\)`)
+
+	checked := 0
+	for _, name := range files {
+		body, readErr := os.ReadFile(name) //nolint:gosec // G304: globbed from this package
+		if readErr != nil {
+			t.Fatalf("read %s: %v", name, readErr)
+		}
+		src := string(body)
+		fields := map[string]bool{}
+		for _, m := range refusable.FindAllStringSubmatch(src, -1) {
+			fields[m[1]] = true
+		}
+		if len(fields) == 0 {
+			continue
+		}
+		checked++
+		for field := range fields {
+			// Three legitimate shapes, and the third is the one the back office
+			// uses everywhere: the attribute lives INSIDE the same HasErr block
+			// that renders the message. A guard looking only for Invalid(field)
+			// reported forty-three correct fields as defects.
+			// Never a blanket `Invalid(name)`: the checkout's field() helper
+			// contains it, so accepting it made every field in that file pass —
+			// including the three radio groups that carry nothing at all. The
+			// helper covers exactly the names it is CALLED with.
+			marked := strings.Contains(src, `Invalid("`+field+`")`) ||
+				strings.Contains(src, `@field("`+field+`"`)
+			for _, block := range guardedBlocks(src, field) {
+				// role="alert" is announced on render, so a FORM-level banner
+				// needs no control marked: there is no one control it refers to.
+				if strings.Contains(block, "aria-invalid") || strings.Contains(block, `role="alert"`) {
+					marked = true
+				}
+			}
+			if !marked {
+				t.Errorf("%s can refuse %q and never marks it aria-invalid — the "+
+					"message renders on screen and a screen reader is told nothing",
+					name, field)
+			}
+		}
+	}
+	if checked < 5 {
+		t.Fatalf("only %d templates carry a refusable field; the pattern stopped matching", checked)
+	}
+}
+
+// guardedBlocks is the body of every `if …HasErr("field") {` block in src,
+// matched by counting braces rather than by a regex: templ nests, and a
+// pattern stopping at the first close brace reads half a block.
+func guardedBlocks(src, field string) []string {
+	var out []string
+	needle := `HasErr("` + field + `") {`
+	for i := 0; ; {
+		at := strings.Index(src[i:], needle)
+		if at < 0 {
+			return out
+		}
+		start := i + at + len(needle)
+		depth := 1
+		j := start
+		for ; j < len(src) && depth > 0; j++ {
+			switch src[j] {
+			case '{':
+				depth++
+			case '}':
+				depth--
+			}
+		}
+		out = append(out, src[start:j])
+		i = j
+	}
+}

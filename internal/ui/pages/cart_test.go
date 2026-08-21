@@ -52,7 +52,12 @@ func TestEveryCheckoutChoiceSurvivesChangingAnother(t *testing.T) {
 	for _, want := range []string{
 		`type="radio" name="shipping"`,
 		`type="radio" name="invoice_type"`,
-		`name="update" value="1"`,
+		// Each 更新 names the chooser it applies. A single value="1" left the
+		// handler unable to tell which one was pressed, so the address chooser
+		// could not fill the fields from the book without wiping a typed
+		// address whenever somebody changed their 發票 type instead.
+		`name="update" value="shipping"`,
+		`name="update" value="invoice"`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("the checkout does not carry %s — a chooser outside the form "+
@@ -516,7 +521,12 @@ func TestTheInvoiceFormAsksForOneThing(t *testing.T) {
 	for _, want := range []string{
 		`type="radio" name="shipping"`,
 		`type="radio" name="invoice_type"`,
-		`name="update" value="1"`,
+		// Each 更新 names the chooser it applies. A single value="1" left the
+		// handler unable to tell which one was pressed, so the address chooser
+		// could not fill the fields from the book without wiping a typed
+		// address whenever somebody changed their 發票 type instead.
+		`name="update" value="shipping"`,
+		`name="update" value="invoice"`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("the checkout does not carry %s — a chooser outside the form "+

@@ -317,10 +317,12 @@ func TestAnUnansweredAllowanceKeepsItsClaim(t *testing.T) {
 	}
 
 	down = false
-	if _, err := s.Allowance(ctx, number, 50000); !errors.Is(err, ErrRejected) {
-		t.Errorf("pressing again after an unanswered 折讓 = %v, want the claim to "+
-			"refuse it: whether ECPay filed is not knowable from here, and two "+
-			"折讓 for one refund is what reaches the 財政部", err)
+	// ErrClaimed and not ErrRejected: the two send a staff member to different
+	// places — this one to ECPay's console, the other to the figure they typed.
+	if _, err := s.Allowance(ctx, number, 50000); !errors.Is(err, ErrClaimed) {
+		t.Errorf("pressing again after an unanswered 折讓 = %v, want ErrClaimed: "+
+			"whether ECPay filed is not knowable from here, and two 折讓 for one "+
+			"refund is what reaches the 財政部", err)
 	}
 }
 
@@ -363,8 +365,8 @@ func TestAnAllowanceRelievesACreditRefundToo(t *testing.T) {
 
 	// And the bound still holds on the same figure: one dollar more than went
 	// back is refused, whichever source it came from.
-	if _, err := s.Allowance(ctx, number, 100); !errors.Is(err, ErrRejected) {
-		t.Errorf("relieving more than went back = %v, want ErrRejected", err)
+	if _, err := s.Allowance(ctx, number, 100); !errors.Is(err, ErrTooMuch) {
+		t.Errorf("relieving more than went back = %v, want ErrTooMuch", err)
 	}
 }
 

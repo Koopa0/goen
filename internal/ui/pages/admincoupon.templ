@@ -78,18 +78,44 @@ templ AdminCoupons(p layouts.Page, v AdminCouponsView) {
 					<div class="goen-checkout__fields">
 						<div class="ui-field">
 							<label class="ui-label" for="c-value">{ i18n.T(ctx, i18n.KeyAdminCoupValue) }</label>
-							<input class="ui-input" id="c-value" name="value" type="number" min="0" step="1" inputmode="numeric" value={ v.Draft.Value }/>
+							<input
+								class="ui-input"
+								id="c-value"
+								name="value"
+								type="number"
+								min="0"
+								step="1"
+								inputmode="numeric"
+								value={ v.Draft.Value }
+								if v.HasErr("value") {
+									aria-invalid="true"
+									aria-describedby="c-value-error"
+								}
+							/>
 							<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCoupValueHint) }</p>
 							if v.HasErr("value") {
-								<p class="ui-error-text">{ v.Err("value") }</p>
+								<p class="ui-error-text" id="c-value-error">{ v.Err("value") }</p>
 							}
 						</div>
 						<div class="ui-field">
 							<label class="ui-label" for="c-cap">{ i18n.T(ctx, i18n.KeyAdminCoupCap) }</label>
-							<input class="ui-input" id="c-cap" name="cap" type="number" min="0" step="1" inputmode="numeric" value={ v.Draft.Cap }/>
+							<input
+								class="ui-input"
+								id="c-cap"
+								name="cap"
+								type="number"
+								min="0"
+								step="1"
+								inputmode="numeric"
+								value={ v.Draft.Cap }
+								if v.HasErr("cap") {
+									aria-invalid="true"
+									aria-describedby="c-cap-error"
+								}
+							/>
 							<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCoupCapHint) }</p>
 							if v.HasErr("cap") {
-								<p class="ui-error-text">{ v.Err("cap") }</p>
+								<p class="ui-error-text" id="c-cap-error">{ v.Err("cap") }</p>
 							}
 						</div>
 					</div>
@@ -112,9 +138,23 @@ templ AdminCoupons(p layouts.Page, v AdminCouponsView) {
 						</div>
 						<div class="ui-field">
 							<label class="ui-label" for="c-percustomer">{ i18n.T(ctx, i18n.KeyAdminCoupPerCustomer) }</label>
-							<input class="ui-input" id="c-percustomer" name="percustomer" type="number" min="1" step="1" inputmode="numeric" value={ v.Draft.PerCustomer } placeholder="1"/>
+							<input
+								class="ui-input"
+								id="c-percustomer"
+								name="percustomer"
+								type="number"
+								min="1"
+								step="1"
+								inputmode="numeric"
+								value={ v.Draft.PerCustomer }
+								placeholder="1"
+								if v.HasErr("percustomer") {
+									aria-invalid="true"
+									aria-describedby="c-percustomer-error"
+								}
+							/>
 							if v.HasErr("percustomer") {
-								<p class="ui-error-text">{ v.Err("percustomer") }</p>
+								<p class="ui-error-text" id="c-percustomer-error">{ v.Err("percustomer") }</p>
 							}
 						</div>
 					</div>

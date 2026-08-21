@@ -253,7 +253,7 @@ func (s *Store) Allowance(ctx context.Context, orderNumber string, amountCents i
 			return Document{}, fmt.Errorf(
 				"%w: an allowance of %d against order %s has already been filed or is in "+
 					"flight; check ECPay before filing another",
-				ErrRejected, amountCents, orderNumber)
+				ErrClaimed, amountCents, orderNumber)
 		}
 		return Document{}, fmt.Errorf("claim an allowance for %s: %w", orderNumber, err)
 	}
@@ -314,7 +314,7 @@ func (s *Store) refundableRoom(
 		return 0, fmt.Errorf(
 			"%w: %d has gone back to the customer on order %s and %d is already relieved; "+
 				"an allowance of %d would relieve more than was refunded",
-			ErrRejected, refunded, orderNumber, already, amountCents)
+			ErrTooMuch, refunded, orderNumber, already, amountCents)
 	}
 	return refunded, nil
 }

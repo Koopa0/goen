@@ -274,7 +274,19 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	// What was SUBMITTED, echoed back — never re-filled from the book, which
 	// would overwrite the correction the customer just made.
+	//
+	// EXCEPT when the address chooser itself is what was pressed. That is the
+	// one submission where the customer is asking for the saved address to be
+	// put in the fields, and it is why 更新 says WHICH chooser it applies:
+	// filling on every re-render would wipe a typed address the moment somebody
+	// changed their 發票 type. The chooser did nothing at all before — a hidden
+	// input carried the same name and came first, so PostFormValue never saw
+	// the pick — and a repeat customer with two saved addresses could use only
+	// the default, for ever.
 	view.ChosenAddress = r.PostFormValue("address")
+	if r.PostFormValue("update") == "address" {
+		fillFromBook(&view, addr, view.ChosenAddress)
+	}
 	view.Address = pages.CheckoutAddress{
 		Email: addr.Email, Name: addr.Name, Phone: addr.Phone,
 		PostalCode: addr.PostalCode, City: addr.City,
