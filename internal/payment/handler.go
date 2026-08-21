@@ -223,10 +223,16 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 			n, captureErr := st.Capture(ctx, &capture)
 			if errors.Is(captureErr, ErrOrderCancelled) {
 				// Swallowed inside the transaction: returning would roll the
-				// claim back and lose the only record that money arrived.
+				// claim back and lose the only record that money arrived. But
+				// the event is marked UNRECONCILED in that same transaction —
+				// the money is at Stripe, the goods are back on the shelf, and
+				// somebody has to refund it by hand. A log line is not a record:
+				// nothing reads it, /admin/health cannot count it, and the shop
+				// finds out when the customer asks.
 				cancelledOrder = true
 				number = n
-				return nil
+				return st.Unreconciled(ctx, ev.ID,
+					"money arrived for an order that was already cancelled")
 			}
 			if errors.Is(captureErr, ErrNotFound) {
 				unknownSession = true

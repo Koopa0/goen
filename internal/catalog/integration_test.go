@@ -766,3 +766,72 @@ func TestSearchFindsAProductByItsEnglishName(t *testing.T) {
 			len(view.Products), view.Total)
 	}
 }
+
+// TestADealsTileIsPricedOnTheDiscountedVariant holds two rules that agree on
+// every product in the seed and are not the same rule.
+//
+// A product is on /deals when ANY active variant carries a discount. The tile's
+// price came from the listing's LATERAL, which takes the cheapest BUYABLE
+// variant — a different variant whenever the discounted one is dearer or out of
+// stock. The sale page could then quote a price with no discount on it, and no
+// badge beside it, because OnSale() compares the figures it was given.
+//
+// Measured against the dev seed, both orderings pick the same variant for all
+// eight qualifying products: the defect is latent there, which is exactly what
+// mistake #37 says a fixture where two rules agree is worth. This one is built
+// so they disagree — the discounted variant is the DEARER one.
+func TestADealsTileIsPricedOnTheDiscountedVariant(t *testing.T) {
+	ctx := t.Context()
+	s := catalog.NewStore(pool)
+
+	var slug string
+	if err := pool.QueryRow(ctx, `
+		WITH b AS (SELECT id FROM brands LIMIT 1),
+		     c AS (SELECT id FROM categories WHERE parent_id IS NULL LIMIT 1),
+		     p AS (
+		         INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+		         SELECT b.id, c.id, 'deals-split-' || gen_random_uuid(), '折扣分岔測試',
+		                'active', now()
+		         FROM b, c RETURNING id, slug
+		     ),
+		     cheap AS (
+		         INSERT INTO product_variants (product_id, sku, price_cents, stock_quantity, safety_stock, position)
+		         SELECT p.id, 'SPLIT-CHEAP-' || upper(replace(gen_random_uuid()::text, '-', '')), 100000, 10, 0, 0 FROM p
+		     ),
+		     dear AS (
+		         INSERT INTO product_variants
+		             (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
+		         SELECT p.id, 'SPLIT-DEAR-' || upper(replace(gen_random_uuid()::text, '-', '')), 150000, 300000, 10, 0, 1 FROM p
+		     )
+		SELECT slug FROM p`).Scan(&slug); err != nil {
+		t.Fatalf("build a product whose discount is on the dearer variant: %v", err)
+	}
+
+	view, err := s.Deals(ctx, 1)
+	if err != nil {
+		t.Fatalf("deals: %v", err)
+	}
+	var tile *pages.ProductTile
+	for i := range view.Products {
+		if view.Products[i].Slug == slug {
+			tile = &view.Products[i]
+			break
+		}
+	}
+	if tile == nil {
+		t.Fatalf("the product is not on /deals at all, so this proved nothing")
+	}
+
+	// The DEARER variant, because it is the one carrying the discount that put
+	// the product here. Pricing the cheaper one quotes NT$1,000 with no
+	// markdown on a page that exists to show markdowns.
+	if tile.PriceCents != 150000 {
+		t.Errorf("the deals tile is priced at %d, want 150000 — the cheapest buyable "+
+			"variant carries no discount, and this page is about discounts",
+			tile.PriceCents)
+	}
+	if !tile.OnSale() {
+		t.Error("a product on the sale page shows no sale badge, because the variant " +
+			"it was priced on is not the one that is marked down")
+	}
+}

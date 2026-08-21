@@ -25,6 +25,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/media"
+	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -537,13 +538,8 @@ func startWorkers(ctx context.Context, d workerDeps) {
 		}
 		return notifier.SendEmailVerify(ctx, &p)
 	})
-	messages.Handle(outbox.TopicNewsletterIssue, func(ctx context.Context, payload []byte) error {
-		var p email.NewsletterIssue
-		if decodeErr := outbox.Decode(payload, &p); decodeErr != nil {
-			return decodeErr
-		}
-		return notifier.SendNewsletterIssue(ctx, &p)
-	})
+	messages.Handle(outbox.TopicNewsletterIssue,
+		newsletterIssueHandler(newsletter.NewStore(d.pool), notifier))
 	messages.Handle(outbox.TopicRestocked, func(ctx context.Context, payload []byte) error {
 		var p email.RestockNotice
 		if decodeErr := outbox.Decode(payload, &p); decodeErr != nil {
@@ -561,4 +557,32 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	d.run(func() { media.NewStore(d.admin).SweepForever(ctx, d.log) })
 
 	d.run(func() { recommend.NewStore(d.maintenance, d.log).RefreshForever(ctx) })
+}
+
+// newsletterIssueHandler delivers one copy of an issue, and asks at DELIVERY
+// whether the address still wants it.
+//
+// The send freezes one outbox row per subscriber and the queue drains at bulk
+// priority behind every transactional message — minutes to hours for a real
+// list — so an unsubscribe committing anywhere in that window used to have its
+// copy delivered anyway. The producer and the handler were each individually
+// correct and disagreed about WHEN consent is true, which is the shape every
+// guard here is blind to.
+func newsletterIssueHandler(subscribers *newsletter.Store, notifier email.Notifier) func(context.Context, []byte) error {
+	return func(ctx context.Context, payload []byte) error {
+		var p email.NewsletterIssue
+		if decodeErr := outbox.Decode(payload, &p); decodeErr != nil {
+			return decodeErr
+		}
+		wanted, err := subscribers.StillSubscribed(ctx, p.Email)
+		if err != nil {
+			return err
+		}
+		if !wanted {
+			// Nothing left to do rather than a failure: sending is what must not
+			// happen, and rescheduling would retry exactly that.
+			return nil
+		}
+		return notifier.SendNewsletterIssue(ctx, &p)
+	}
 }

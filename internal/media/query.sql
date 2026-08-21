@@ -34,5 +34,15 @@ WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
 ORDER BY m.created_at
 LIMIT $1;
 
--- name: DeleteMedia :exec
-DELETE FROM media_objects WHERE digest = @digest::text;
+-- The reference predicate is REPEATED here, not assumed. Selecting candidates
+-- and deleting them are two statements, and an upload attached in between is
+-- invisible to the second — the sweeper's own comment said a foreign key caught
+-- that, and there is none: product_images.storage_key holds either an embedded
+-- filename from the seed or a digest, so it cannot point at media_objects.
+-- Asking again inside the DELETE makes the attach win, and :execrows is what
+-- lets the caller tell "somebody attached it" from "deleted".
+-- name: DeleteMedia :execrows
+DELETE FROM media_objects m
+WHERE m.digest = @digest::text
+  AND NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
+  AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest);

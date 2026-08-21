@@ -29,14 +29,15 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (pages
 		return pages.WorkerHealthView{}, fmt.Errorf("read worker health: %w", err)
 	}
 	view := pages.WorkerHealthView{
-		OutboxPending:       row.OutboxPending,
-		OutboxOldest:        time.Duration(row.OutboxOldestSeconds) * time.Second,
-		OutboxStuck:         row.OutboxStuck,
-		ExpiredHolds:        row.ExpiredHolds,
-		CopurchaseAge:       time.Duration(row.CopurchaseAgeSeconds) * time.Second,
-		CopurchaseEverBuilt: row.CopurchaseEverBuilt,
-		ExpiredSessions:     row.ExpiredSessions,
-		UnreferencedMedia:   row.UnreferencedMedia,
+		OutboxPending:        row.OutboxPending,
+		OutboxOldest:         time.Duration(row.OutboxOldestSeconds) * time.Second,
+		OutboxStuck:          row.OutboxStuck,
+		ExpiredHolds:         row.ExpiredHolds,
+		CopurchaseAge:        time.Duration(row.CopurchaseAgeSeconds) * time.Second,
+		CopurchaseEverBuilt:  row.CopurchaseEverBuilt,
+		ExpiredSessions:      row.ExpiredSessions,
+		UnreferencedMedia:    row.UnreferencedMedia,
+		UnreconciledPayments: row.UnreconciledPayments,
 
 		OutboxStaleAfter:     OutboxStaleAfter,
 		MaxExpiredHolds:      MaxExpiredHolds,
@@ -54,6 +55,21 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (pages
 		view.Stuck = append(view.Stuck, pages.StuckMessage{
 			Topic: m.Topic, Key: m.DedupeKey, Attempts: m.Attempts,
 			LastError: m.LastError, Since: m.Since.Format("2006-01-02 15:04"),
+		})
+	}
+
+	// Money that arrived for an order goen had already cancelled. NAMED rather
+	// than counted, for the reason the stuck list is: an operator has to refund
+	// each one by hand at Stripe, and a number tells them nothing about which.
+	unreconciled, err := s.q.UnreconciledPayments(ctx)
+	if err != nil {
+		return pages.WorkerHealthView{}, fmt.Errorf("read unreconciled payments: %w", err)
+	}
+	for i := range unreconciled {
+		u := &unreconciled[i]
+		view.Unreconciled = append(view.Unreconciled, pages.UnreconciledPayment{
+			EventID: u.EventID, Type: u.Type, Ref: u.ObjectRef,
+			Reason: u.Reason, Since: u.ReceivedAt.Format("2006-01-02 15:04"),
 		})
 	}
 

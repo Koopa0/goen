@@ -21,8 +21,13 @@ type WorkerHealthView struct {
 
 	ExpiredSessions   int64
 	UnreferencedMedia int64
-	Stuck             []StuckMessage
-	OpenRefunds       []OpenRefund
+	// UnreconciledPayments is money accepted that nothing could act on. Today
+	// that is one case: it arrived for an order already cancelled.
+	UnreconciledPayments int64
+	Stuck                []StuckMessage
+	// Unreconciled is named rather than counted: each needs a refund by hand.
+	Unreconciled []UnreconciledPayment
+	OpenRefunds  []OpenRefund
 
 	OutboxStaleAfter     time.Duration
 	MaxExpiredHolds      int64
@@ -63,10 +68,16 @@ func (v WorkerHealthView) HousekeepingText(ctx context.Context) string {
 // RefundsHealthy reports whether every refund goen opened has landed.
 func (v WorkerHealthView) RefundsHealthy() bool { return len(v.OpenRefunds) == 0 }
 
+// PaymentsReconciled reports whether every accepted event was acted on. Any at
+// all is unhealthy: each one is money at the provider against goods the shop has
+// already taken back, and only a person can move it.
+func (v WorkerHealthView) PaymentsReconciled() bool { return v.UnreconciledPayments == 0 }
+
 // AllHealthy reports whether everything is doing its job.
 func (v WorkerHealthView) AllHealthy() bool {
 	return v.OutboxHealthy() && v.SweeperHealthy() &&
-		v.RecommendHealthy() && v.HousekeepingHealthy() && v.RefundsHealthy()
+		v.RecommendHealthy() && v.HousekeepingHealthy() && v.RefundsHealthy() &&
+		v.PaymentsReconciled()
 }
 
 // OutboxText is the outbox's state in a sentence a person can act on.
@@ -124,6 +135,16 @@ func humanDuration(ctx context.Context, d time.Duration) string {
 	default:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminDays), int(d.Hours()/24))
 	}
+}
+
+// UnreconciledPayment is a webhook goen accepted and could not act on: the
+// money is at the provider and a person has to move it.
+type UnreconciledPayment struct {
+	EventID string
+	Type    string
+	Ref     string
+	Reason  string
+	Since   string
 }
 
 // StuckMessage is one delivery that has exhausted its attempts.

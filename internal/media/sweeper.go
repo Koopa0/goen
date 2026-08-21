@@ -2,12 +2,9 @@ package media
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // SweepInterval is how often abandoned uploads are reclaimed.
@@ -21,9 +18,29 @@ const SweepBatch = 100
 // constant alone changes nothing.
 const SweepGrace = 24 * time.Hour
 
+// Candidates is the list Sweep works from: uploads nothing points at and that
+// are older than the grace window.
+//
+// Exported so the window between the list and the deletes can be DRIVEN in a
+// test. Sweep is two statements, and the defect it used to carry lived between
+// them; a test that calls Sweep alone re-reads the list and never meets it.
+func (s *Store) Candidates(ctx context.Context, limit int32) ([]string, error) {
+	return s.q.UnreferencedMedia(ctx, limit)
+}
+
+// Reclaim deletes one candidate, and reports whether it went. Zero means
+// something points at it now — the DELETE asks again — so the upload is live.
+func (s *Store) Reclaim(ctx context.Context, digest string) (bool, error) {
+	gone, err := s.q.DeleteMedia(ctx, digest)
+	if err != nil {
+		return false, fmt.Errorf("reclaim %s: %w", digest, err)
+	}
+	return gone > 0, nil
+}
+
 // Sweep reclaims uploads nothing points at, once.
 func (s *Store) Sweep(ctx context.Context, log *slog.Logger) (reclaimed int, err error) {
-	digests, err := s.q.UnreferencedMedia(ctx, SweepBatch)
+	digests, err := s.Candidates(ctx, SweepBatch)
 	if err != nil {
 		return 0, err
 	}
@@ -31,13 +48,16 @@ func (s *Store) Sweep(ctx context.Context, log *slog.Logger) (reclaimed int, err
 		if ctx.Err() != nil {
 			return reclaimed, ctx.Err()
 		}
-		if delErr := s.q.DeleteMedia(ctx, digest); delErr != nil {
-			// A digest attached between the read and the delete is the foreign
-			// key working. Anything else stops the pass, or a sweeper that can
-			// delete nothing reports every hour as healthy.
-			if !foreignKeyRefusal(delErr) {
-				return reclaimed, fmt.Errorf("reclaim %s: %w", digest, delErr)
-			}
+		gone, delErr := s.Reclaim(ctx, digest)
+		if delErr != nil {
+			// Anything at all stops the pass: a sweeper that can delete nothing
+			// must not report every hour as healthy.
+			return reclaimed, delErr
+		}
+		if !gone {
+			// The DELETE re-asked whether anything points at it and something
+			// does — attached between the read and here. Not a failure; the
+			// upload is live and the next pass will not offer it.
 			log.WarnContext(ctx, "upload was attached between the read and the delete",
 				"digest", digest)
 			continue
@@ -45,13 +65,6 @@ func (s *Store) Sweep(ctx context.Context, log *slog.Logger) (reclaimed int, err
 		reclaimed++
 	}
 	return reclaimed, nil
-}
-
-// foreignKeyRefusal reports whether err is the one failure [Store.Sweep]
-// expects. SQLSTATE 23503 is foreign_key_violation.
-func foreignKeyRefusal(err error) bool {
-	pgErr, ok := errors.AsType[*pgconn.PgError](err)
-	return ok && pgErr.Code == "23503"
 }
 
 // SweepForever runs Sweep on a ticker until ctx is cancelled.

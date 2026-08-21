@@ -776,3 +776,57 @@ func TestASendNeedsAnActor(t *testing.T) {
 		t.Errorf("%d copies were enqueued for a send that was refused, want 0", got)
 	}
 }
+
+// TestAnUnsubscribeAfterTheSendIsHonouredAtDelivery holds the half a race test
+// would have missed.
+//
+// Send freezes the recipient list into one outbox row per subscriber, and
+// nothing downstream re-read consent. The reported defect was a race between
+// the list read and the enqueue — real, and the SMALLER half: because delivery
+// never asked, an unsubscribe committing entirely AFTER the send transaction
+// had the same outcome for every copy not yet delivered. The issue goes out at
+// BulkPriority behind every transactional message, and the queue drains eight
+// at a time on a five-second tick, so that window is minutes to hours rather
+// than microseconds.
+//
+// This drives the easier and larger case on purpose: no race at all, just an
+// unsubscribe while the letter waits in the queue.
+func TestAnUnsubscribeAfterTheSendIsHonouredAtDelivery(t *testing.T) {
+	ctx := t.Context()
+	s := newsletter.NewStore(pool)
+
+	const address = "waiting@goen.invalid"
+	var token string
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO newsletter_subscribers (email, locale, unsubscribe_token, confirmed_at)
+		VALUES ($1, 'zh-Hant', 'tok-waiting-probe-0123456789abcdefghij', now())
+		RETURNING unsubscribe_token`, address).Scan(&token); err != nil {
+		t.Fatalf("subscribe: %v", err)
+	}
+
+	if yes, err := s.StillSubscribed(ctx, address); err != nil || !yes {
+		t.Fatalf("StillSubscribed = %v, %v — want true before the opt-out", yes, err)
+	}
+
+	// The letter is now queued. They unsubscribe while it waits.
+	if _, err := pool.Exec(ctx,
+		`UPDATE newsletter_subscribers SET unsubscribed_at = now() WHERE unsubscribe_token = $1`,
+		token); err != nil {
+		t.Fatalf("unsubscribe: %v", err)
+	}
+
+	yes, err := s.StillSubscribed(ctx, address)
+	if err != nil {
+		t.Fatalf("StillSubscribed: %v", err)
+	}
+	if yes {
+		t.Error("an address that opted out while its copy waited in the queue is " +
+			"still reported as wanting the newsletter, so the copy goes out")
+	}
+
+	// Case-folded, because users_email_key and every other address comparison
+	// here is: an opt-out typed in another case is the same mailbox.
+	if shouty, err := s.StillSubscribed(ctx, "WAITING@GOEN.INVALID"); err != nil || shouty {
+		t.Errorf("StillSubscribed(upper case) = %v, %v — want false", shouty, err)
+	}
+}

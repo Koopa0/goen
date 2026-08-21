@@ -1179,7 +1179,7 @@ reviewer should see them named rather than discover them.
 
 ## The database enforces what it can
 
-goen's data rules live in the schema, not only in Go: 241 CHECKs, 80 foreign
+goen's data rules live in the schema, not only in Go: 242 CHECKs, 80 foreign
 keys, 61 unique indexes and 39 rule triggers, measured from `pg_constraint`,
 `pg_index` and `pg_trigger` against the built schema rather than counted by hand
 — counted by hand they had drifted to roughly half.
@@ -1852,6 +1852,28 @@ and **no guard here could see it because every one of them asks what is ABSENT.*
 Card is what a 30-minute hold can survive, so card is what goen offers; Apple Pay
 and Google Pay ride on that type. Supporting a delayed method is a FEATURE and
 not a flag — see the follow-up, and the commercial question underneath it.
+
+**Money that arrives for an order goen has already CANCELLED leaves a row, not a
+log line.** The capture is refused by `payments_refuse_cancelled_order`, and the
+event is still marked processed because retrying changes nothing — but the money
+is at Stripe against goods already back on the shelf, and the only trace was one
+ERROR log. Nothing reads a log: `/admin/health` could not count it, no refund
+row existed, and the shop found out when the customer asked.
+`payment_webhook_events.unreconciled` is written in the same transaction as the
+claim, which is `ProcessWebhook`'s own rule — an event may not be recorded as
+seen unless what it needs is recorded with it — applied to the OUTCOME rather
+than the effect. `/admin/health` names them, because a page saying "1
+unreconciled" that cannot say which tells an operator nothing about what to do.
+
+**And that path could not have worked at all, which is worse than the finding
+said.** A refused posting function ABORTS its transaction: PostgreSQL answers
+every later command with 25P02. So `MarkWebhookProcessed` never ran, the handler
+answered 500, and Stripe retried a capture that can never succeed — the comment
+saying the refusal was "swallowed inside the transaction so the response is 200"
+described something the database does not allow. The capture runs inside a
+SAVEPOINT now, which is what makes a failure recordable rather than fatal. The
+existing test drove `Capture` directly rather than through `ProcessWebhook`, so
+it never met the aborted transaction.
 
 `UnsettledSessionFrom` is the alarm rather than the cure. A completed-but-unpaid
 session used to fall to the webhook handler's `default` branch and be logged as

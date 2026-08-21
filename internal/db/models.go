@@ -426,6 +426,8 @@ type PaymentWebhookEvent struct {
 	Payload     []byte
 	ReceivedAt  time.Time
 	ProcessedAt pgtype.Timestamptz
+	// Set when an event was accepted but its effect could not be applied, and a person must act.
+	Unreconciled pgtype.Text
 }
 
 type Product struct {

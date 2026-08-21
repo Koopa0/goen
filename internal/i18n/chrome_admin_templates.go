@@ -123,6 +123,21 @@ var (
 	KeyAdminColWhen    = key("admin.col.when", Message{ZhHant: "時間", En: "When"})
 	KeyAdminColChange  = key("admin.col.change", Message{ZhHant: "異動", En: "Change"})
 	KeyAdminColReason  = key("admin.col.reason", Message{ZhHant: "原因", En: "Reason"})
+	KeyAdminColKind    = key("admin.col.kind", Message{ZhHant: "種類", En: "Kind"})
+	KeyAdminHPColEvent = key("admin.hp.col.event", Message{ZhHant: "事件編號", En: "Event"})
+	// Money at the provider against goods the shop has already taken back. The
+	// only case goen writes today is a capture that arrived after a cancel: the
+	// database refuses it, Stripe is told the event was handled because retrying
+	// changes nothing, and somebody has to refund it by hand.
+	KeyAdminHPUnreconciledHeading = key("admin.hp.unreconciled", Message{
+		ZhHant: "收到但無法處理的款項",
+		En:     "Payments accepted and not applied",
+	})
+	KeyAdminHPUnreconciledHint = key("admin.hp.unreconciled.hint", Message{
+		ZhHant: "錢在金流商那裡,商品已經回到架上 —— 每一筆都要到 Stripe 後台手動退款。",
+		En: "The money is at the payment provider and the goods are back on the shelf. " +
+			"Each of these has to be refunded by hand in the Stripe dashboard.",
+	})
 	KeyAdminColActor   = key("admin.col.actor", Message{ZhHant: "操作者", En: "By"})
 	KeyAdminColBalance = key("admin.col.balance", Message{ZhHant: "結存", En: "Balance"})
 	KeyAdminLedgerFoot = key("admin.ledger.foot", Message{

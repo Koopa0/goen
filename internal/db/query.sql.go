@@ -4664,7 +4664,10 @@ JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
     WHERE product_id = p.id AND is_active
-    ORDER BY (stock_quantity > safety_stock) DESC, price_cents
+    ORDER BY (compare_at_price_cents IS NOT NULL
+              AND compare_at_price_cents > price_cents) DESC,
+             (stock_quantity > safety_stock) DESC,
+             price_cents
     LIMIT 1
 ) mv ON true
 LEFT JOIN LATERAL (
@@ -4715,6 +4718,13 @@ type DealProductsRow struct {
 
 // "On sale" is a variant fact, and a product qualifies when any active variant
 // carries one.
+// A DISCOUNTED variant first, which is what puts the product on this page at
+// all. The listing's LATERAL takes the cheapest buyable one, and a product
+// qualifies here when ANY variant carries a discount — two different variants
+// whenever the discounted one is dearer or out of stock, so the sale page could
+// quote a price with no discount on it and no badge beside it. They agree on
+// every product in the dev seed, which is what a fixture where two rules agree
+// is worth.
 func (q *Queries) DealProducts(ctx context.Context, arg DealProductsParams) ([]DealProductsRow, error) {
 	rows, err := q.db.Query(ctx, dealProducts, arg.Locale, arg.PageOffset, arg.PageSize)
 	if err != nil {
@@ -4883,13 +4893,26 @@ func (q *Queries) DeleteFAQEntry(ctx context.Context, entryID uuid.UUID) (int64,
 	return result.RowsAffected(), nil
 }
 
-const deleteMedia = `-- name: DeleteMedia :exec
-DELETE FROM media_objects WHERE digest = $1::text
+const deleteMedia = `-- name: DeleteMedia :execrows
+DELETE FROM media_objects m
+WHERE m.digest = $1::text
+  AND NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
+  AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
 `
 
-func (q *Queries) DeleteMedia(ctx context.Context, digest string) error {
-	_, err := q.db.Exec(ctx, deleteMedia, digest)
-	return err
+// The reference predicate is REPEATED here, not assumed. Selecting candidates
+// and deleting them are two statements, and an upload attached in between is
+// invisible to the second — the sweeper's own comment said a foreign key caught
+// that, and there is none: product_images.storage_key holds either an embedded
+// filename from the seed or a digest, so it cannot point at media_objects.
+// Asking again inside the DELETE makes the attach win, and :execrows is what
+// lets the caller tell "somebody attached it" from "deleted".
+func (q *Queries) DeleteMedia(ctx context.Context, digest string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteMedia, digest)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteMembershipTier = `-- name: DeleteMembershipTier :execrows
@@ -6080,6 +6103,25 @@ WHERE provider = 'stripe' AND event_id = $1
 
 func (q *Queries) MarkWebhookProcessed(ctx context.Context, eventID string) error {
 	_, err := q.db.Exec(ctx, markWebhookProcessed, eventID)
+	return err
+}
+
+const markWebhookUnreconciled = `-- name: MarkWebhookUnreconciled :exec
+UPDATE payment_webhook_events SET processed_at = now(), unreconciled = $1::text
+WHERE provider = 'stripe' AND event_id = $2::text
+`
+
+type MarkWebhookUnreconciledParams struct {
+	Reason  string
+	EventID string
+}
+
+// Processed, and NOT acted on. Marked in the same transaction as the claim, so
+// an event that could not be applied cannot be recorded as seen without also
+// being recorded as needing a person — which is ProcessWebhook's whole rule,
+// applied to the outcome rather than to the effect.
+func (q *Queries) MarkWebhookUnreconciled(ctx context.Context, arg MarkWebhookUnreconciledParams) error {
+	_, err := q.db.Exec(ctx, markWebhookUnreconciled, arg.Reason, arg.EventID)
 	return err
 }
 
@@ -10427,6 +10469,28 @@ func (q *Queries) StaffTOTPStatus(ctx context.Context) ([]StaffTOTPStatusRow, er
 	return items, nil
 }
 
+const stillSubscribed = `-- name: StillSubscribed :one
+SELECT EXISTS (
+    SELECT 1 FROM newsletter_subscribers
+    WHERE lower(email) = lower($1::text) AND unsubscribed_at IS NULL
+)::boolean AS subscribed
+`
+
+// Whether this address still wants the newsletter, asked at DELIVERY.
+//
+// The send freezes the recipient list into one outbox row per subscriber, and
+// the queue drains at BulkPriority behind every transactional message — minutes
+// to hours for a real list. Nothing downstream re-read consent, so an
+// unsubscribe committing at any point in that window, or even after the send
+// transaction committed, still had its copy delivered. The read↔enqueue race is
+// the small half of that; the missing check is the whole of it.
+func (q *Queries) StillSubscribed(ctx context.Context, email string) (bool, error) {
+	row := q.db.QueryRow(ctx, stillSubscribed, email)
+	var subscribed bool
+	err := row.Scan(&subscribed)
+	return subscribed, err
+}
+
 const stockAtRisk = `-- name: StockAtRisk :many
 SELECT
     pv.sku,
@@ -10691,6 +10755,52 @@ func (q *Queries) UnlinkIdentity(ctx context.Context, arg UnlinkIdentityParams) 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const unreconciledPayments = `-- name: UnreconciledPayments :many
+SELECT event_id, type, coalesce(object_ref, '') AS object_ref,
+       unreconciled::text AS reason, received_at
+FROM payment_webhook_events
+WHERE unreconciled IS NOT NULL
+ORDER BY received_at
+LIMIT 50
+`
+
+type UnreconciledPaymentsRow struct {
+	EventID    string
+	Type       string
+	ObjectRef  string
+	Reason     string
+	ReceivedAt time.Time
+}
+
+// The events a person has to act on, named rather than counted: a page saying
+// "1 unreconciled" that cannot say WHICH tells an operator something is wrong
+// and nothing about what to do, which is the reason outbox.Stuck() lists.
+func (q *Queries) UnreconciledPayments(ctx context.Context) ([]UnreconciledPaymentsRow, error) {
+	rows, err := q.db.Query(ctx, unreconciledPayments)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []UnreconciledPaymentsRow{}
+	for rows.Next() {
+		var i UnreconciledPaymentsRow
+		if err := rows.Scan(
+			&i.EventID,
+			&i.Type,
+			&i.ObjectRef,
+			&i.Reason,
+			&i.ReceivedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const unreferencedMedia = `-- name: UnreferencedMedia :many
@@ -11497,7 +11607,15 @@ SELECT
     (SELECT count(*) FROM media_objects m
      WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
-       AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media
+       AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media,
+    -- Events accepted and NOT acted on. The only one goen writes today is money
+    -- arriving for an order it had already cancelled: the capture is refused by
+    -- payments_refuse_cancelled_order, the event is still marked processed so
+    -- Stripe stops retrying — correct, because retrying changes nothing — and
+    -- the money sits at Stripe against goods that are back on the shelf. It used
+    -- to leave one log line, which nothing reads and nothing can count.
+    (SELECT count(*) FROM payment_webhook_events
+     WHERE unreconciled IS NOT NULL)::bigint AS unreconciled_payments
 `
 
 type WorkerHealthRow struct {
@@ -11509,6 +11627,7 @@ type WorkerHealthRow struct {
 	CopurchaseEverBuilt  bool
 	ExpiredSessions      int64
 	UnreferencedMedia    int64
+	UnreconciledPayments int64
 }
 
 // Overdue is measured from available_at — when a message became DUE — because
@@ -11527,6 +11646,7 @@ func (q *Queries) WorkerHealth(ctx context.Context, maxAttempts int32) (WorkerHe
 		&i.CopurchaseEverBuilt,
 		&i.ExpiredSessions,
 		&i.UnreferencedMedia,
+		&i.UnreconciledPayments,
 	)
 	return i, err
 }
