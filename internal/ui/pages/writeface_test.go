@@ -48,6 +48,52 @@ func TestEveryFormWorksWithScriptingOff(t *testing.T) {
 	}
 }
 
+// TestEveryFormActionResolvesToAPostRoute is the other half of naming a handler:
+// the guard above asks that a form HAS an action, never that anything answers
+// it. A form posting to a route nobody registered reaches the ServeMux's 404 —
+// which is not a compile error, not a test failure, and looks like a working
+// page until somebody presses the button. It is mistake #35 on the write face:
+// "is it wired?" and "does a handler exist?" are different questions.
+func TestEveryFormActionResolvesToAPostRoute(t *testing.T) {
+	t.Parallel()
+
+	root := repoRoot(t)
+	posts := routesFor(t, filepath.Join(root, "cmd", "goen", "server.go"), "POST")
+	gets := routesFor(t, filepath.Join(root, "cmd", "goen", "server.go"), "GET")
+	if len(posts) < 20 {
+		t.Fatalf("only %d POST routes found; the parser is not reading server.go", len(posts))
+	}
+
+	checked := 0
+	for path, src := range templateSources(t) {
+		for _, m := range formOpen.FindAllStringSubmatch(src, -1) {
+			attrs := m[1]
+			action := attrValue(attrs, "action")
+			// A templ expression is a path built at render time, which this
+			// cannot resolve; the rule it satisfies is the one above.
+			if action == "" || action == "{expr}" || !strings.HasPrefix(action, "/") {
+				continue
+			}
+			// A query string is the chooser's, not the route's.
+			if i := strings.IndexByte(action, '?'); i >= 0 {
+				action = action[:i]
+			}
+			checked++
+			want := posts
+			if strings.ToLower(attrValue(attrs, "method")) == "get" {
+				want = gets
+			}
+			if !resolves(action, want) {
+				t.Errorf("%s: %s\n  posts to a path the server registers no handler for",
+					path, firstLine(m[0]))
+			}
+		}
+	}
+	if checked < 15 {
+		t.Fatalf("only %d literal form actions resolved; the parser stopped matching", checked)
+	}
+}
+
 // attrValue reads a quoted attribute, or "" when it is absent. A templ
 // expression counts as present: the rule is that the form names its handler,
 // not that the name is a literal.

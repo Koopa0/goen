@@ -44,13 +44,19 @@ func TestEveryHardCodedLinkResolvesToARoute(t *testing.T) {
 // readRoutes is every GET path the server registers, as a matcher.
 func readRoutes(t *testing.T, serverGo string) []*regexp.Regexp {
 	t.Helper()
+	return routesFor(t, serverGo, "GET")
+}
+
+// routesFor is every path the server registers under one method, as a matcher.
+func routesFor(t *testing.T, serverGo, method string) []*regexp.Regexp {
+	t.Helper()
 	//nolint:gosec // G304: the path is this test's own constant, joined to the
 	// repository root it just located
 	src, err := os.ReadFile(serverGo)
 	if err != nil {
 		t.Fatalf("read routes: %v", err)
 	}
-	declared := regexp.MustCompile(`mux\.HandleFunc\("GET (/[^"]*)"`).FindAllStringSubmatch(string(src), -1)
+	declared := regexp.MustCompile(`mux\.HandleFunc\("`+method+` (/[^"]*)"`).FindAllStringSubmatch(string(src), -1)
 
 	out := make([]*regexp.Regexp, 0, len(declared))
 	for _, m := range declared {

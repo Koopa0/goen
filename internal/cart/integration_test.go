@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"slices"
 	"strconv"
@@ -3179,4 +3180,97 @@ func placeUnpaidOrderFor(t *testing.T, s *cart.Store, address string) string {
 		t.Fatalf("place: %v", err)
 	}
 	return number
+}
+
+// TestASpentCouponComesBackAsAFieldErrorNotA500 drives the checkout handler,
+// because the branch that maps ErrCouponUsedUp to a 422 lives there and nothing
+// else reaches it. FindCoupon deliberately reads no limit — they are counted
+// under redeem_coupon's lock — so a spent code passes the form validation EVERY
+// time and is refused inside the transaction EVERY time. That makes this an
+// ordinary outcome on the buying mainline, and the failure it replaced discarded
+// the whole address the customer had just typed.
+func TestASpentCouponComesBackAsAFieldErrorNotA500(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+
+	code := "SPENT" + strings.ToUpper(uuid.NewString()[:6])
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO coupons (code, description, kind, amount_cents, max_redemptions)
+		VALUES ($1, '已用完', 'amount', 10000, 1)`, code); err != nil {
+		t.Fatalf("create coupon: %v", err)
+	}
+
+	// Spend the only slot through the door a checkout uses, so the state under
+	// test is one the application can actually produce.
+	spender := newCart(t, s)
+	variant := variantOf(t, "pixelight-9-pro", true)
+	if err := s.Add(ctx, spender, variant, 1); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	var shipID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
+		t.Fatalf("shipping: %v", err)
+	}
+	spent, err := s.FindCoupon(ctx, code, 3390000, 8000)
+	if err != nil {
+		t.Fatalf("find the coupon: %v", err)
+	}
+	addr := &cart.Address{
+		Email: "spender@example.com", Name: "王小明", Phone: "0912345678",
+		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
+	}
+	if _, placeErr := s.PlaceOrder(ctx, spender, uuid.NullUUID{}, shipID, addr, nil, spent,
+		"coupon-spend-"+code); placeErr != nil {
+		t.Fatalf("spend the slot: %v", placeErr)
+	}
+
+	// A second customer types the same code.
+	token, err := cart.NewToken()
+	if err != nil {
+		t.Fatalf("token: %v", err)
+	}
+	second, err := s.Create(ctx, token, uuid.NullUUID{})
+	if err != nil {
+		t.Fatalf("create cart: %v", err)
+	}
+	if err := s.Add(ctx, second, variant, 1); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+
+	form := url.Values{
+		"email": {"late@example.com"}, "name": {"李大華"}, "phone": {"0987654321"},
+		"postal_code": {"110"}, "city": {"台北市"}, "district": {"信義區"},
+		"street":      {"松仁路 100 號"},
+		"shipping":    {shipID.String()},
+		"coupon":      {code},
+		"idempotency": {"late-" + uuid.NewString()[:8]},
+	}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
+		strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	//nolint:gosec // G124: the browser's own cart cookie, read back by this handler
+	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour}),
+		nil)
+	res := httptest.NewRecorder()
+	h.PlaceOrder(res, req)
+
+	if res.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("a spent coupon answered %d, want 422 — a 500 discards everything "+
+			"the customer typed at the moment of paying", res.Code)
+	}
+	body := res.Body.String()
+	if !strings.Contains(body, "松仁路 100 號") {
+		t.Error("the re-rendered form lost the street the customer had typed")
+	}
+	if !strings.Contains(body, "late@example.com") {
+		t.Error("the re-rendered form lost the email the customer had typed")
+	}
+	if !strings.Contains(body, i18n.T(ctx, i18n.KeyCouponUsedUp)) {
+		t.Error("the page does not say the coupon is spent, so the customer is " +
+			"left to guess which field was refused")
+	}
 }
