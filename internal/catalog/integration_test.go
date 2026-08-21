@@ -802,6 +802,15 @@ func TestADealsTileIsPricedOnTheDiscountedVariant(t *testing.T) {
 		         INSERT INTO product_variants
 		             (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
 		         SELECT p.id, 'SPLIT-DEAR-' || upper(replace(gen_random_uuid()::text, '-', '')), 150000, 300000, 10, 0, 1 FROM p
+		     ),
+		     -- A THIRD, dearer still and undiscounted. Without it the tile's price
+		     -- is the highest, so "is anything dearer" is false either way and the
+		     -- range claim cannot be exercised at all — a fixture that cannot
+		     -- reach the state under test.
+		     dearest AS (
+		         INSERT INTO product_variants
+		             (product_id, sku, price_cents, stock_quantity, safety_stock, position)
+		         SELECT p.id, 'SPLIT-TOP-' || upper(replace(gen_random_uuid()::text, '-', '')), 200000, 10, 0, 2 FROM p
 		     )
 		SELECT slug FROM p`).Scan(&slug); err != nil {
 		t.Fatalf("build a product whose discount is on the dearer variant: %v", err)
@@ -833,5 +842,15 @@ func TestADealsTileIsPricedOnTheDiscountedVariant(t *testing.T) {
 	if !tile.OnSale() {
 		t.Error("a product on the sale page shows no sale badge, because the variant " +
 			"it was priced on is not the one that is marked down")
+	}
+
+	// And it must NOT say 起. "From X" claims X is the bottom of the range, and
+	// the discounted variant here is the DEARER one — there is a cheaper variant
+	// sitting under the price the tile shows. Asking only "is anything dearer"
+	// put that claim on every deals tile whose discount is not on its cheapest
+	// variant.
+	if tile.PriceVaries {
+		t.Error("the deals tile is marked as a range starting at this price, and a " +
+			"cheaper variant exists — 起 on a price that is not the lowest")
 	}
 }

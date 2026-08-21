@@ -5961,17 +5961,36 @@ func TestAnOrderCannotFinishWhileItStillOwesAParcel(t *testing.T) {
 		t.Fatalf("first parcel: %v", err)
 	}
 
-	for _, ending := range []string{"delivered", "completed"} {
-		_, err := s.Advance(ctx, number, ending, actor)
-		if err == nil {
-			t.Fatalf("an order still owing a parcel was moved to %q; whatever is "+
-				"still held is now stranded with no door out", ending)
-		}
-		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
-			pgErr.ConstraintName != "orders_finished_when_shipped" {
-			t.Errorf("refused by %q, want orders_finished_when_shipped — a statement "+
-				"meant to prove one rule often trips another first", pgErr.ConstraintName)
-		}
+	// DELIVERED is allowed and must be: it is a fact about the parcel that went
+	// out, and it is the ONLY thing that stamps order_shipments.delivered_at.
+	// Refusing it left a partially shipped order unable to record that anything
+	// had arrived, so /admin/returns read 尚未送達 for goods the customer held —
+	// on the screen built to inform a 消保法 §19 decision.
+	if _, err := s.Advance(ctx, number, "delivered", actor); err != nil {
+		t.Fatalf("a partially shipped order could not record its first parcel as "+
+			"delivered: %v", err)
+	}
+	var stamped int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM order_shipments sh JOIN orders o ON o.id = sh.order_id
+		WHERE o.order_number = $1 AND sh.delivered_at IS NOT NULL`,
+		number).Scan(&stamped); err != nil {
+		t.Fatalf("count stamped parcels: %v", err)
+	}
+	if stamped == 0 {
+		t.Error("no parcel was stamped delivered, so the rescission window never starts")
+	}
+
+	// COMPLETED is refused: the order is not finished while it still owes a parcel.
+	_, err := s.Advance(ctx, number, "completed", actor)
+	if err == nil {
+		t.Fatal("an order still owing a parcel was completed; whatever is still " +
+			"held is now stranded with no door out")
+	}
+	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
+		pgErr.ConstraintName != "orders_finished_when_shipped" {
+		t.Errorf("refused by %q, want orders_finished_when_shipped — a statement "+
+			"meant to prove one rule often trips another first", pgErr.ConstraintName)
 	}
 
 	// And once everything has gone out, finishing works and nothing is held.
@@ -6036,4 +6055,85 @@ func TestTwoCarriersSharingATrackingNumberBothNotify(t *testing.T) {
 		t.Errorf("%d dispatch notices for two parcels sharing a tracking number, "+
 			"want 2 — one customer's parcel left and nothing told them", notices)
 	}
+}
+
+// TestASplitReturnResumesTheHalfThatFailed holds a resume gate that asked one
+// of two questions.
+//
+// A return can be paid from BOTH sources — card first, credit last — and the
+// two commit separately: the card through the provider, the credit as a ledger
+// entry afterwards. The gate deciding whether a retry has anything left to do
+// asked only whether the CARD half had settled. So a return whose card refund
+// landed and whose credit compensation did NOT was reported as finished: the
+// retry was refused by name, no other door posts that credit, and the customer
+// was short by the credit portion with nothing on /admin/health saying so.
+//
+// It also has to resume only what is MISSING. Re-sending a settled card refund
+// meets refunds_settled_is_history and re-posting the credit meets its
+// idempotency key, so a retry that sent both could never finish the failed half.
+//
+// The half-paid state is CONSTRUCTED rather than raced into. An earlier version
+// injected the failure by holding the credit account's row and cancelling on a
+// timer, and it was flaky three runs in four — sometimes the credit landed
+// anyway, and the test then failed for a reason that had nothing to do with the
+// gate. What is under test is the resume, not how the state arose.
+func TestASplitReturnResumesTheHalfThatFailed(t *testing.T) {
+	ctx, _ := staffContext(t)
+	requestID, orderNumber, accountID := creditFundedReturn(t, 2, 60000)
+
+	// Approved, with the CARD half settled under the return's own request key —
+	// which is what refundRequestKey produces and what makes a retry find the
+	// same row — and no credit entry at all.
+	if _, err := pool.Exec(ctx, `
+		UPDATE return_requests SET status = 'approved', decided_at = now(),
+		       resolution = '退貨完成'
+		WHERE id = $1`, requestID); err != nil {
+		t.Fatalf("approve the return: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO refunds (payment_id, request_key, amount_cents, reason,
+		                     return_request_id, status, provider_ref, succeeded_at)
+		SELECT p.id, 'return:' || $1::text, 140000, '退貨完成', $1::uuid, 'succeeded',
+		       're_constructed', now()
+		FROM payments p JOIN orders o ON o.id = p.order_id
+		WHERE o.order_number = $2 AND p.status = 'succeeded'`,
+		requestID, orderNumber); err != nil {
+		t.Fatalf("settle the card half: %v", err)
+	}
+	if got := cardRefunded(t, orderNumber); got != 140000 {
+		t.Fatalf("the card half reads %d, want 140000 — the fixture did not build the "+
+			"state under test", got)
+	}
+	before := creditBalance(t, accountID)
+
+	// The retry must RESUME the credit half rather than refuse the whole return.
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	if err := s.Decide(ctx, requestID.String(), "approved", "退貨完成", uuid.NullUUID{}); err != nil {
+		t.Fatalf("the retry was refused (%v), so the credit half can never be paid "+
+			"and the customer stays short", err)
+	}
+	if after := creditBalance(t, accountID); after <= before {
+		t.Errorf("store credit went %d -> %d; the failed half was not resumed", before, after)
+	}
+
+	// And the card half is not sent twice: it was already settled, so the retry
+	// must have left it alone.
+	if got := cardRefunded(t, orderNumber); got != 140000 {
+		t.Errorf("the card half is now %d, want 140000 — the retry re-sent a refund "+
+			"that had already landed", got)
+	}
+}
+
+func cardRefunded(t *testing.T, orderNumber string) int64 {
+	t.Helper()
+	var cents int64
+	if err := pool.QueryRow(t.Context(), `
+		SELECT coalesce(sum(r.amount_cents), 0) FROM refunds r
+		JOIN payments p ON p.id = r.payment_id
+		JOIN orders o ON o.id = p.order_id
+		WHERE o.order_number = $1 AND r.status = 'succeeded'`,
+		orderNumber).Scan(&cents); err != nil {
+		t.Fatalf("read refunds: %v", err)
+	}
+	return cents
 }

@@ -205,6 +205,7 @@ type InvoiceDocument struct {
 	AmountCents int64
 	Status      string
 	ProviderRef pgtype.Text
+	RequestKey  pgtype.Text
 	IssuedAt    time.Time
 	VoidedAt    pgtype.Timestamptz
 }

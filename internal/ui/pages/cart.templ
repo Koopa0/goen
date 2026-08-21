@@ -139,6 +139,19 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 				</p>
 			}
 			<form class="goen-checkout__layout" method="post" action="/checkout">
+				// The form's DEFAULT button, and the reason it is first: HTML
+				// makes the first submit button in tree order the one Enter
+				// activates, and the chooser's 更新 buttons sit above the real
+				// one — so pressing Enter in any field re-rendered the form
+				// instead of placing the order. Inert to the keyboard and to a
+				// screen reader; the visible button below is the real control,
+				// and this carries the same words so the two cannot drift.
+				<button
+					class="goen-sr-only"
+					type="submit"
+					tabindex="-1"
+					aria-hidden="true"
+				>{ i18n.T(ctx, i18n.KeyPlaceOrder) }</button>
 				<input type="hidden" name="idempotency" value={ v.Idempoten }/>
 				// The server refuses the first submission whose address prices differently.
 				<input type="hidden" name="quoted_shipping" value={ v.QuotedShipping() }/>

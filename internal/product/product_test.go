@@ -254,3 +254,65 @@ func TestThePickerShowsLabelsAndSelectsOnIdentity(t *testing.T) {
 		t.Errorf("an untranslated value reads %q, want 256GB", capacity.Values[0].Label)
 	}
 }
+
+// TestThePagesOwnParametersAreNotVariantOptions holds a denylist that the page
+// outran.
+//
+// ParseSelection treats every query key it does not RESERVE as a variant option,
+// and reservedParam listed four: page, sort, q, added. The same handler reads
+// three more off the same query — ?ask= and ?notify= are its own redirect
+// outcomes, and ?p= is the comparison set /compare links back with. Each became
+// a selection no variant could satisfy, so Resolve matched nothing and an
+// in-stock product answered 找不到這個組合, lost its price box entirely, and
+// emitted OutOfStock with a price of 0.00 in its JSON-LD.
+//
+// The restock form's own 303 lands on ?&notify=1, so asking to be told about a
+// restock took the customer to a page saying the thing does not exist — and
+// offered no confirmation, because the form is inside the block that vanished.
+//
+// Derived from the variants rather than listed: the next parameter somebody
+// adds will not be added to a list either.
+func TestThePagesOwnParametersAreNotVariantOptions(t *testing.T) {
+	variants := matrix()
+
+	tests := []struct {
+		name string
+		sel  Selection
+		want int // how many keys survive as options
+	}{
+		{name: "the page's own outcome", sel: Selection{"ask": "1"}, want: 0},
+		{name: "the restock redirect", sel: Selection{"notify": "1"}, want: 0},
+		{name: "a comparison set", sel: Selection{"p": "pixelight-9"}, want: 0},
+		{name: "a real option", sel: Selection{"顏色": "星霧藍"}, want: 1},
+		{
+			name: "a real option beside a page parameter",
+			sel:  Selection{"顏色": "星霧藍", "notify": "1"},
+			want: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := len(tt.sel.OnlyOptionsOf(variants)); got != tt.want {
+				t.Errorf("OnlyOptionsOf(%v) kept %d keys, want %d", tt.sel, got, tt.want)
+			}
+		})
+	}
+
+	// And the consequence, not just the filter: a page parameter must leave the
+	// product resolvable. Unfiltered, Resolve finds nothing at all.
+	polluted := Selection{"notify": "1"}
+	if _, exact := Resolve(variants, polluted.OnlyOptionsOf(variants)); exact {
+		t.Error("a bare page parameter resolved an EXACT variant; it should leave the " +
+			"choice open, not pin one")
+	}
+	if chosen, _ := Resolve(variants, polluted.OnlyOptionsOf(variants)); chosen.SKU == "" {
+		t.Error("a page parameter left the product with no resolvable variant, so it " +
+			"renders as sold out with no price")
+	}
+
+	// A wrong VALUE for a real option must still refuse: filtering keys must not
+	// become filtering answers.
+	if chosen, _ := Resolve(variants, Selection{"顏色": "沒有這個顏色"}.OnlyOptionsOf(variants)); chosen.SKU != "" {
+		t.Error("a colour no variant has resolved to a variant")
+	}
+}

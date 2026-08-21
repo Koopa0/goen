@@ -1140,3 +1140,44 @@ func TestASimultaneousSecondReviewIsRefusedByName(t *testing.T) {
 		t.Fatal("the second review never returned")
 	}
 }
+
+// TestLoadIgnoresThePagesOwnParameters holds the WIRING, not the filter.
+//
+// OnlyOptionsOf has its own unit test, and deleting the call to it from Load
+// left that test green — the method was proven and its use was not. This drives
+// the whole path: the query the restock form's own redirect produces, against a
+// product that is in stock.
+func TestLoadIgnoresThePagesOwnParameters(t *testing.T) {
+	ctx := t.Context()
+	s := product.NewStore(pool)
+	slug := activeSlug(t)
+
+	clean, err := s.Load(ctx, slug, nil)
+	if err != nil {
+		t.Fatalf("load %s: %v", slug, err)
+	}
+	if !clean.SelectionOK {
+		t.Fatalf("%s resolves no variant even with no parameters, so this proves nothing", slug)
+	}
+
+	// Exactly what POST /p/{slug}/notify redirects to, and what /compare links
+	// back with.
+	for _, sel := range []product.Selection{
+		{"notify": "1"},
+		{"ask": "1"},
+		{"p": slug},
+	} {
+		got, loadErr := s.Load(ctx, slug, sel)
+		if loadErr != nil {
+			t.Fatalf("load %s with %v: %v", slug, sel, loadErr)
+		}
+		if !got.SelectionOK {
+			t.Errorf("%v makes an in-stock product resolve no variant: the page says "+
+				"the combination does not exist, renders no price box, and emits "+
+				"OutOfStock with a price of 0.00 in its JSON-LD", sel)
+		}
+		if got.PriceCents != clean.PriceCents {
+			t.Errorf("%v changed the price from %d to %d", sel, clean.PriceCents, got.PriceCents)
+		}
+	}
+}

@@ -400,8 +400,18 @@ equal peers with no hint that one carries a side effect, which is why the rule
 belongs in `applyStatusEffects` and not in the operator's head.
 
 **And an order does not FINISH while it still owes a parcel.**
-`orders_finished_when_shipped` refuses 'delivered' and 'completed' — both end a
-delivery — while any line is short of what was bought. Without it, shipping one
+`orders_finished_when_shipped` refuses 'completed' while any line is short of
+what was bought — and NOT 'delivered', which is the distinction the first cut of
+it got wrong. DELIVERED is a fact about what went out: the parcels that shipped
+have arrived, and that is true whether or not more is still to come. COMPLETED
+says the order is finished, which an order still owing a parcel is not.
+
+Guarding both closed the ONLY writer of `order_shipments.delivered_at`, so a
+partially shipped order could never record that anything had arrived and
+`/admin/returns` read 尚未送達 for goods the customer was holding — on the one
+screen built to inform a 消保法 §19 decision, in the shop's favour. That is
+mistake #17's cost exactly, reintroduced from the other side by the fix for the
+stranded stock. Without it, shipping one
 parcel of several and then finishing the order stranded the rest: the holds stay
 `held`, `release_reservation` refuses them by name because a completed order is
 committed, `ExpiredReservations` excludes committed orders, and `/admin/health`
@@ -1179,8 +1189,8 @@ reviewer should see them named rather than discover them.
 
 ## The database enforces what it can
 
-goen's data rules live in the schema, not only in Go: 242 CHECKs, 80 foreign
-keys, 61 unique indexes and 39 rule triggers, measured from `pg_constraint`,
+goen's data rules live in the schema, not only in Go: 244 CHECKs, 80 foreign
+keys, 62 unique indexes and 39 rule triggers, measured from `pg_constraint`,
 `pg_index` and `pg_trigger` against the built schema rather than counted by hand
 — counted by hand they had drifted to roughly half.
 

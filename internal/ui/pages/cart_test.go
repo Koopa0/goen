@@ -606,3 +606,51 @@ func TestAShortLineSaysWhatItIsPricedFor(t *testing.T) {
 		t.Error("an ordinary line is annotated with what it is priced for")
 	}
 }
+
+// TestEnterInTheCheckoutPlacesTheOrder holds a rule the browser applies and no
+// linter can see.
+//
+// HTML makes the FIRST submit button in tree order the one Enter activates in
+// any text field. Turning the checkout choosers into radio groups put their
+// 更新 buttons above the real one, so pressing Enter re-rendered the form
+// instead of placing the order — nothing lost, and the primary action of the
+// page unreachable from the keyboard.
+//
+// The fix is a leading submit carrying the same words, inert to the keyboard
+// and to a screen reader. Asserting ORDER is the whole point: both buttons
+// exist either way.
+func TestEnterInTheCheckoutPlacesTheOrder(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	view := CheckoutView{
+		Cart:           CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Shipping:       []ShippingChoice{{VersionID: "s1", Code: "home", Name: "宅配到府"}},
+		Chosen:         "s1",
+		InvoiceChoices: []InvoiceChoice{{Value: "member_carrier", Label: "會員載具"}},
+	}
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
+
+	_, form, ok := strings.Cut(html, `action="/checkout"`)
+	if !ok {
+		t.Fatal("the checkout rendered no form")
+	}
+	form, _, _ = strings.Cut(form, "</form>")
+
+	place := strings.Index(form, i18n.T(ctx, i18n.KeyPlaceOrder))
+	update := strings.Index(form, i18n.T(ctx, i18n.KeyApplyChoice))
+	if place < 0 || update < 0 {
+		t.Fatalf("the form is missing a button: place=%d update=%d", place, update)
+	}
+	if place > update {
+		t.Error("a chooser's 更新 button comes before the order button, so Enter in " +
+			"any field re-renders the form instead of placing the order")
+	}
+
+	// Inert, or the page has two order buttons for anyone using a screen reader.
+	lead := form[:place+40]
+	if !strings.Contains(lead, `tabindex="-1"`) || !strings.Contains(lead, `aria-hidden="true"`) {
+		t.Error("the leading submit is reachable by keyboard or announced, so it is a " +
+			"duplicate control rather than a default")
+	}
+}

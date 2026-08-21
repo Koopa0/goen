@@ -460,7 +460,7 @@ func TestANewColleagueHasNoPassword(t *testing.T) {
 	actor, _ := staff(t)
 
 	const address = "newcolleague@goen.invalid"
-	if err := s.AddStaff(ctx, address, "新同事", "staff", actor); err != nil {
+	if _, err := s.AddStaff(ctx, address, "新同事", "staff", actor); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 
@@ -483,7 +483,7 @@ func TestANewColleagueHasNoPassword(t *testing.T) {
 		`INSERT INTO users (email, role) VALUES ('shopper@goen.invalid', 'customer')`); err != nil {
 		t.Fatalf("create customer: %v", err)
 	}
-	if err := s.AddStaff(ctx, "shopper@goen.invalid", "", "admin", actor); err != nil {
+	if _, err := s.AddStaff(ctx, "shopper@goen.invalid", "", "admin", actor); err != nil {
 		t.Fatalf("promote: %v", err)
 	}
 	var promoted string
@@ -511,7 +511,7 @@ func TestNobodyCanPromoteThemselvesThroughTheStaffForm(t *testing.T) {
 
 	for _, submitted := range []string{address, strings.ToUpper(address)} {
 		t.Run(submitted, func(t *testing.T) {
-			if err := s.AddStaff(ctx, submitted, "我自己", "admin", actor); !errors.Is(err, twofactor.ErrSelf) {
+			if _, err := s.AddStaff(ctx, submitted, "我自己", "admin", actor); !errors.Is(err, twofactor.ErrSelf) {
 				t.Errorf("AddStaff on the actor's own address = %v, want ErrSelf", err)
 			}
 		})
@@ -528,7 +528,7 @@ func TestNobodyCanPromoteThemselvesThroughTheStaffForm(t *testing.T) {
 
 	// The CONTROL: a store that refused everything would pass the above.
 	other := "colleague-" + uuid.NewString() + "@goen.invalid"
-	if err := s.AddStaff(ctx, other, "同事", "staff", actor); err != nil {
+	if _, err := s.AddStaff(ctx, other, "同事", "staff", actor); err != nil {
 		t.Errorf("adding a colleague was refused: %v", err)
 	}
 }
@@ -590,10 +590,13 @@ func TestPromotingAnUnprovedAccountTakesItsCredential(t *testing.T) {
 	}
 
 	// The shop hires the person that address belongs to.
-	err := s.AddStaff(ctx, address, "新同事", "admin", actor)
-	if !errors.Is(err, twofactor.ErrCredentialCleared) {
-		t.Fatalf("AddStaff = %v, want ErrCredentialCleared — the admin is not "+
-			"told that the account they promoted had never proved its address", err)
+	cleared, err := s.AddStaff(ctx, address, "新同事", "admin", actor)
+	if err != nil {
+		t.Fatalf("AddStaff = %v, want nil — the promotion itself succeeds", err)
+	}
+	if !cleared {
+		t.Fatal("AddStaff reported nothing cleared, so the admin is not told that " +
+			"the account they promoted had never proved its address")
 	}
 
 	var role string
@@ -640,8 +643,12 @@ func TestPromotingAProvedAccountKeepsIt(t *testing.T) {
 		t.Fatalf("register: %v", err)
 	}
 
-	if err := s.AddStaff(ctx, address, "老顧客", "staff", actor); err != nil {
+	cleared, err := s.AddStaff(ctx, address, "老顧客", "staff", actor)
+	if err != nil {
 		t.Fatalf("AddStaff = %v, want nil — a proved account is promoted as it was", err)
+	}
+	if cleared {
+		t.Error("a customer who had proved their address was reported as cleared")
 	}
 	var hasPassword bool
 	if err := pool.QueryRow(ctx,

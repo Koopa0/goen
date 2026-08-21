@@ -218,9 +218,16 @@ func (h *Handler) AddStaff(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	h.redirectStaff(w, r, h.store.AddStaff(r.Context(),
+	cleared, err := h.store.AddStaff(r.Context(),
 		r.PostFormValue("email"), r.PostFormValue("name"), r.PostFormValue("role"),
-		actorID(r)))
+		actorID(r))
+	if err == nil && cleared {
+		// A success the admin has to relay: the new colleague cannot get in
+		// until they set a password through /forgot.
+		http.Redirect(w, r, "/admin/staff?cleared=1", http.StatusSeeOther)
+		return
+	}
+	h.redirectStaff(w, r, err)
 }
 
 // RevokeStaff serves POST /admin/staff/revoke.
@@ -260,8 +267,6 @@ func (h *Handler) redirectStaff(w http.ResponseWriter, r *http.Request, err erro
 		http.Redirect(w, r, "/admin/staff?self=1", http.StatusSeeOther)
 	case errors.Is(err, ErrLastAdmin):
 		http.Redirect(w, r, "/admin/staff?last=1", http.StatusSeeOther)
-	case errors.Is(err, ErrCredentialCleared):
-		http.Redirect(w, r, "/admin/staff?cleared=1", http.StatusSeeOther)
 	case errors.Is(err, ErrInvalidStaff), errors.Is(err, ErrNotEnrolled):
 		http.Redirect(w, r, "/admin/staff?needs=1", http.StatusSeeOther)
 	default:

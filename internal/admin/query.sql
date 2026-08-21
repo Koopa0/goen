@@ -1382,3 +1382,13 @@ FROM refunds r
 JOIN payments p ON p.id = r.payment_id
 JOIN orders o ON o.id = p.order_id
 WHERE o.order_number = @order_number::text AND r.status = 'succeeded';
+
+-- Whether the CREDIT half of a return has already been posted. post_store_credit
+-- keys the entry on 'return-credit:<id>', which is what makes the compensation
+-- idempotent — and what lets a retry tell a half that landed from one that did
+-- not.
+-- name: ReturnCreditPosted :one
+SELECT EXISTS (
+    SELECT 1 FROM store_credit_entries
+    WHERE idempotency_key = 'return-credit:' || @return_id::text
+)::boolean AS posted;
