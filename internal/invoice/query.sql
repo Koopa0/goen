@@ -93,3 +93,39 @@ WHERE o.order_number = @order_number::text
 UPDATE invoice_documents
 SET status = 'voided', voided_at = now()
 WHERE id = @id AND status <> 'voided';
+
+-- Claim a filing BEFORE the provider is asked. The unique index on request_key
+-- is what makes a second press — or a retry after a timeout — refusable here
+-- rather than at the 財政部, where the damage is a second 折讓 against one
+-- refund. The number is blank because allocating one is the provider's job.
+-- name: ClaimInvoiceDocument :one
+INSERT INTO invoice_documents
+    (order_id, kind, original_id, number, amount_cents, request_key, status)
+VALUES (@order_id, @kind::text, sqlc.narg(original_id)::uuid, '',
+        @amount_cents::bigint, @request_key::text, 'pending')
+RETURNING id;
+
+-- Settle a claim with what the provider allocated.
+-- name: SettleInvoiceDocument :execrows
+UPDATE invoice_documents
+SET number = @number::text, provider_ref = nullif(@provider_ref::text, ''),
+    issued_at = @issued_at, status = 'issued'
+WHERE id = @id AND status = 'pending';
+
+-- What the CARD has sent back on this order. The credit half is
+-- OrderCreditPosition's `returned`, which is the one definition of that figure
+-- and the reason this query does not sum the ledger itself.
+-- name: CardRefundedForOrder :one
+SELECT coalesce(sum(r.amount_cents), 0)::bigint AS refunded_cents
+FROM refunds r
+JOIN payments p ON p.id = r.payment_id
+JOIN orders o ON o.id = p.order_id
+WHERE o.order_number = @order_number::text AND r.status = 'succeeded';
+
+-- What this order has already had relieved, live documents only.
+-- name: AllowedTotalForOrder :one
+SELECT coalesce(sum(d.amount_cents), 0)::bigint AS allowed_cents
+FROM invoice_documents d
+JOIN orders o ON o.id = d.order_id
+WHERE o.order_number = @order_number::text
+  AND d.kind = 'allowance' AND d.status <> 'voided';

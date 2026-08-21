@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
@@ -223,6 +224,54 @@ func (s *Store) Allowance(ctx context.Context, orderNumber string, amountCents i
 		UnitPriceCents: amountCents, AmountCents: amountCents,
 	}}
 
+	// A 折讓 relieves the part of a sale that did not happen, so it may not
+	// relieve more than has actually gone back — across BOTH sources, because a
+	// refund can be paid to the card, to store credit, or split. Relieving more
+	// than was refunded understates what the shop owes the 財政部, and
+	// invoice_allowance_valid cannot see it: it holds the allowance total
+	// against the INVOICE, which says nothing about refunds.
+	card, err := s.q.CardRefundedForOrder(ctx, orderNumber)
+	if err != nil {
+		return Document{}, fmt.Errorf("read what was refunded on %s: %w", orderNumber, err)
+	}
+	credit, err := s.q.OrderCreditPosition(ctx,
+		uuid.NullUUID{UUID: subject.ID, Valid: true})
+	if err != nil {
+		return Document{}, fmt.Errorf("read the credit position of %s: %w", orderNumber, err)
+	}
+	refunded := card + credit.Returned
+	if already, sumErr := s.q.AllowedTotalForOrder(ctx, orderNumber); sumErr != nil {
+		return Document{}, fmt.Errorf("read the allowances of %s: %w", orderNumber, sumErr)
+	} else if already+amountCents > refunded {
+		return Document{}, fmt.Errorf(
+			"%w: %d has gone back to the customer on order %s and %d is already relieved; "+
+				"an allowance of %d would relieve more than was refunded",
+			ErrRejected, refunded, orderNumber, already, amountCents)
+	}
+
+	// CLAIMED before the provider is asked. ECPay's allowance endpoint carries
+	// no idempotency field — Issue has RelateNumber and this has nothing — so
+	// filing first and recording after, which is right for an invoice, put two
+	// 折讓 in front of the 財政部 when an operator pressed twice or a timed-out
+	// call was retried. The key is the order plus what had been refunded when
+	// the form was rendered: a double press repeats it, a genuine second 折讓
+	// after a further refund does not.
+	key := allowanceKey(orderNumber, refunded, amountCents)
+	claim, err := s.q.ClaimInvoiceDocument(ctx, db.ClaimInvoiceDocumentParams{
+		OrderID: subject.ID, Kind: "allowance",
+		OriginalID:  uuid.NullUUID{UUID: live.ID, Valid: true},
+		AmountCents: amountCents, RequestKey: key,
+	})
+	if err != nil {
+		if isUniqueViolation(err) {
+			return Document{}, fmt.Errorf(
+				"%w: an allowance of %d against order %s has already been filed or is in "+
+					"flight; check ECPay before filing another",
+				ErrRejected, amountCents, orderNumber)
+		}
+		return Document{}, fmt.Errorf("claim an allowance for %s: %w", orderNumber, err)
+	}
+
 	doc, err := s.gateway.Allowance(ctx, AllowanceRequest{
 		InvoiceNumber: live.Number,
 		InvoiceDate:   live.IssuedAt,
@@ -232,14 +281,64 @@ func (s *Store) Allowance(ctx context.Context, orderNumber string, amountCents i
 		Lines:         lines,
 	})
 	if err != nil {
+		// The claim STAYS, holding its key. Whether ECPay filed is not knowable
+		// from here, and a claim that cleared itself would let the next press
+		// file a second one against the same refund.
 		return Document{}, err
 	}
 
-	if err := s.file(ctx, subject.ID,
-		uuid.NullUUID{UUID: live.ID, Valid: true}, doc, lines); err != nil {
+	if err := s.settle(ctx, claim, doc, lines); err != nil {
 		return Document{}, err
 	}
 	return doc, nil
+}
+
+// settle turns a claim into the document the provider allocated, with its lines.
+func (s *Store) settle(ctx context.Context, claimID uuid.UUID, doc Document, lines []Line) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin invoice settlement: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	q := s.q.WithTx(tx)
+
+	n, err := q.SettleInvoiceDocument(ctx, db.SettleInvoiceDocumentParams{
+		ID: claimID, Number: doc.Number, ProviderRef: doc.ProviderRef, IssuedAt: doc.IssuedAt,
+	})
+	if err != nil {
+		return fmt.Errorf("settle %s %s: %w", doc.Kind, doc.Number, err)
+	}
+	if n == 0 {
+		return fmt.Errorf("%w: the claim for %s was settled by somebody else",
+			ErrRejected, doc.Number)
+	}
+	for i, l := range lines {
+		if err := q.RecordInvoiceLine(ctx, db.RecordInvoiceLineParams{
+			DocumentID: claimID, Description: l.Description, Quantity: l.Quantity,
+			UnitPriceCents: l.UnitPriceCents, AmountCents: l.AmountCents, Position: int32(i),
+		}); err != nil {
+			return fmt.Errorf("record a line of %s: %w", doc.Number, err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit the settlement of %s: %w", doc.Number, err)
+	}
+	return nil
+}
+
+// isUniqueViolation reports whether err is a unique index refusing a duplicate.
+// Bound to the SQLSTATE rather than the message: pgconn renders a PgError as
+// prose, which lc_messages localises and releases reword.
+func isUniqueViolation(err error) bool {
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	return ok && pgErr.Code == "23505"
+}
+
+// allowanceKey is what a REPEATED filing would be. Derived rather than
+// generated, so a double-click is one document and a genuine second 折讓 — after
+// a further refund, so against a different refunded total — is another.
+func allowanceKey(orderNumber string, refundedCents, amountCents int64) string {
+	return fmt.Sprintf("allowance:%s:%d:%d", orderNumber, refundedCents, amountCents)
 }
 
 // Documents is every filing against one order, for the back office.

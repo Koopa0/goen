@@ -2300,14 +2300,40 @@ CREATE TABLE invoice_documents (
     amount_cents bigint NOT NULL,
     status       text NOT NULL DEFAULT 'issued',
     provider_ref text,
+    -- What a repeated FILING would be, so that it cannot become a second
+    -- document. ECPay's B2C allowance endpoint carries no idempotency field —
+    -- Issue has RelateNumber and Allowance has nothing — so the key is goen's,
+    -- and it is derived from the order plus the refunded total the form was
+    -- rendered with: a double-click sends the same key, while a genuine second
+    -- 折讓 after a further refund carries a different one. NULL on an invoice,
+    -- whose repeat is refused by RelateNumber at the provider.
+    request_key  text,
     issued_at    timestamptz NOT NULL DEFAULT now(),
     voided_at    timestamptz,
     CONSTRAINT invoice_documents_kind_known CHECK (kind IN ('invoice', 'allowance')),
-    CONSTRAINT invoice_documents_status_known CHECK (status IN ('issued', 'voided')),
-    CONSTRAINT invoice_documents_number_present CHECK (number ~ '[^[:space:]]'),
+    CONSTRAINT invoice_documents_request_key_present
+        CHECK (request_key IS NULL OR request_key ~ '[^[:space:]]'),
+    -- 'pending' is a CLAIM, not a document: it says an attempt with this
+    -- request key is in flight, which is what makes a second press refusable
+    -- BEFORE the provider is asked. ECPay's allowance endpoint carries no
+    -- idempotency field of its own, so filing first and recording after —
+    -- correct for an invoice, whose repeat RelateNumber refuses — put two 折讓
+    -- in front of the 財政部 for one refund.
+    CONSTRAINT invoice_documents_status_known
+        CHECK (status IN ('pending', 'issued', 'voided')),
+    -- A pending claim has no number yet: allocating one is the provider's job,
+    -- and inventing one is what this exists to stop. Both halves, because
+    -- "pending means empty" alone would let an ISSUED document carry whitespace
+    -- as its number, which the rule refused before the claim state existed.
+    CONSTRAINT invoice_documents_number_present
+        CHECK ((status = 'pending' AND number = '')
+               OR (status <> 'pending' AND number ~ '[^[:space:]]')),
     CONSTRAINT invoice_documents_amount_positive CHECK (amount_cents > 0),
     CONSTRAINT invoice_documents_voided_has_time
         CHECK ((status = 'voided') = (voided_at IS NOT NULL)),
+    -- A claim carries the key it is claiming, or it claims nothing.
+    CONSTRAINT invoice_documents_pending_is_claimed
+        CHECK (status <> 'pending' OR request_key IS NOT NULL),
     CONSTRAINT invoice_documents_allowance_has_original
         CHECK ((kind = 'allowance') = (original_id IS NOT NULL))
     -- No self-reference CHECK: an invoice must have original_id NULL and a
@@ -2324,6 +2350,16 @@ CREATE UNIQUE INDEX invoice_documents_one_active_invoice_per_order
     ON invoice_documents (order_id)
     WHERE kind = 'invoice' AND status <> 'voided';
 
+-- One document per request. The invoice half is covered by RelateNumber at the
+-- provider (a repeat is 5070357); the allowance half had nothing at all, so an
+-- operator who pressed the button twice — or whose first press timed out after
+-- ECPay had filed — put two 折讓 in front of the 財政部 for one refund. A VOIDED
+-- allowance leaves its key free, because reissuing after a correction is the
+-- legitimate repeat.
+CREATE UNIQUE INDEX invoice_documents_request_key
+    ON invoice_documents (request_key)
+    WHERE request_key IS NOT NULL AND status <> 'voided';
+
 -- Issued documents are filed, not edited.
 CREATE FUNCTION invoice_documents_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
@@ -2331,6 +2367,20 @@ BEGIN
     IF TG_OP = 'DELETE' THEN
         RAISE EXCEPTION 'invoice documents are filed, not deleted'
             USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_documents_only_void';
+    END IF;
+
+    -- A PENDING claim is not yet a document: settling it is what writes the
+    -- number the provider allocated, and that is the one rewrite this rule must
+    -- allow. Everything it guards stays guarded the moment the row is issued.
+    IF OLD.status = 'pending' AND NEW.status = 'issued' THEN
+        IF NEW.id <> OLD.id OR NEW.order_id <> OLD.order_id OR NEW.kind <> OLD.kind
+           OR NEW.amount_cents <> OLD.amount_cents
+           OR NEW.original_id IS DISTINCT FROM OLD.original_id
+           OR NEW.request_key IS DISTINCT FROM OLD.request_key THEN
+            RAISE EXCEPTION 'settling a claim may only write its number, not restate it'
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_documents_only_void';
+        END IF;
+        RETURN NEW;
     END IF;
 
     IF NEW.id <> OLD.id OR NEW.order_id <> OLD.order_id OR NEW.kind <> OLD.kind

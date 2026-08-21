@@ -1990,6 +1990,22 @@ func (q *Queries) AdvanceOrder(ctx context.Context, arg AdvanceOrderParams) erro
 	return err
 }
 
+const allowedTotalForOrder = `-- name: AllowedTotalForOrder :one
+SELECT coalesce(sum(d.amount_cents), 0)::bigint AS allowed_cents
+FROM invoice_documents d
+JOIN orders o ON o.id = d.order_id
+WHERE o.order_number = $1::text
+  AND d.kind = 'allowance' AND d.status <> 'voided'
+`
+
+// What this order has already had relieved, live documents only.
+func (q *Queries) AllowedTotalForOrder(ctx context.Context, orderNumber string) (int64, error) {
+	row := q.db.QueryRow(ctx, allowedTotalForOrder, orderNumber)
+	var allowed_cents int64
+	err := row.Scan(&allowed_cents)
+	return allowed_cents, err
+}
+
 const answerQuestion = `-- name: AnswerQuestion :execrows
 INSERT INTO product_answers (question_id, user_id, body, is_staff)
 SELECT q.id, $1, $2::text, $3::boolean
@@ -2585,6 +2601,24 @@ func (q *Queries) CapturePayment(ctx context.Context, arg CapturePaymentParams) 
 	return capture_payment, err
 }
 
+const cardRefundedForOrder = `-- name: CardRefundedForOrder :one
+SELECT coalesce(sum(r.amount_cents), 0)::bigint AS refunded_cents
+FROM refunds r
+JOIN payments p ON p.id = r.payment_id
+JOIN orders o ON o.id = p.order_id
+WHERE o.order_number = $1::text AND r.status = 'succeeded'
+`
+
+// What the CARD has sent back on this order. The credit half is
+// OrderCreditPosition's `returned`, which is the one definition of that figure
+// and the reason this query does not sum the ledger itself.
+func (q *Queries) CardRefundedForOrder(ctx context.Context, orderNumber string) (int64, error) {
+	row := q.db.QueryRow(ctx, cardRefundedForOrder, orderNumber)
+	var refunded_cents int64
+	err := row.Scan(&refunded_cents)
+	return refunded_cents, err
+}
+
 const carryZoneSurcharges = `-- name: CarryZoneSurcharges :exec
 INSERT INTO shipping_version_zones (version_id, zone_id, surcharge_cents)
 SELECT $1, vz.zone_id, vz.surcharge_cents
@@ -3145,6 +3179,39 @@ func (q *Queries) CheckoutCompletionSince(ctx context.Context, windowDays int32)
 	var i CheckoutCompletionSinceRow
 	err := row.Scan(&i.Placed, &i.Committed)
 	return i, err
+}
+
+const claimInvoiceDocument = `-- name: ClaimInvoiceDocument :one
+INSERT INTO invoice_documents
+    (order_id, kind, original_id, number, amount_cents, request_key, status)
+VALUES ($1, $2::text, $3::uuid, '',
+        $4::bigint, $5::text, 'pending')
+RETURNING id
+`
+
+type ClaimInvoiceDocumentParams struct {
+	OrderID     uuid.UUID
+	Kind        string
+	OriginalID  uuid.NullUUID
+	AmountCents int64
+	RequestKey  string
+}
+
+// Claim a filing BEFORE the provider is asked. The unique index on request_key
+// is what makes a second press — or a retry after a timeout — refusable here
+// rather than at the 財政部, where the damage is a second 折讓 against one
+// refund. The number is blank because allocating one is the provider's job.
+func (q *Queries) ClaimInvoiceDocument(ctx context.Context, arg ClaimInvoiceDocumentParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, claimInvoiceDocument,
+		arg.OrderID,
+		arg.Kind,
+		arg.OriginalID,
+		arg.AmountCents,
+		arg.RequestKey,
+	)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const claimOutbox = `-- name: ClaimOutbox :many
@@ -9924,6 +9991,34 @@ type SetZoneSurchargeParams struct {
 func (q *Queries) SetZoneSurcharge(ctx context.Context, arg SetZoneSurchargeParams) error {
 	_, err := q.db.Exec(ctx, setZoneSurcharge, arg.VersionID, arg.ZoneID, arg.SurchargeCents)
 	return err
+}
+
+const settleInvoiceDocument = `-- name: SettleInvoiceDocument :execrows
+UPDATE invoice_documents
+SET number = $1::text, provider_ref = nullif($2::text, ''),
+    issued_at = $3, status = 'issued'
+WHERE id = $4 AND status = 'pending'
+`
+
+type SettleInvoiceDocumentParams struct {
+	Number      string
+	ProviderRef string
+	IssuedAt    time.Time
+	ID          uuid.UUID
+}
+
+// Settle a claim with what the provider allocated.
+func (q *Queries) SettleInvoiceDocument(ctx context.Context, arg SettleInvoiceDocumentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, settleInvoiceDocument,
+		arg.Number,
+		arg.ProviderRef,
+		arg.IssuedAt,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const settleRefund = `-- name: SettleRefund :exec

@@ -447,6 +447,17 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents) VALUES ('11110001-0000-4000-8000-000000000001', '6666aaaa-6666-4666-8666-666666666666', 'invoice', 'GD-90000001', 100);`,
 	},
 	{
+		// A claim carries the key it claims, or it claims nothing.
+		constraint: "invoice_documents_pending_is_claimed",
+		reject:     `INSERT INTO invoice_documents (id, order_id, kind, original_id, number, amount_cents, status) VALUES ('11110001-0000-4000-8000-000000000031', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', '', 100, 'pending');`,
+		accept:     `INSERT INTO invoice_documents (id, order_id, kind, original_id, number, amount_cents, status, request_key) VALUES ('11110001-0000-4000-8000-000000000031', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', '', 100, 'pending', 'allowance:probe:0:100');`,
+	},
+	{
+		constraint: "invoice_documents_request_key_present",
+		reject:     `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents, request_key) VALUES ('11110001-0000-4000-8000-000000000032', '6666aaaa-6666-4666-8666-666666666666', 'invoice', 'GD-90000032', 100, '   ');`,
+		accept:     `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents, request_key) VALUES ('11110001-0000-4000-8000-000000000032', '6666aaaa-6666-4666-8666-666666666666', 'invoice', 'GD-90000032', 100, 'allowance:probe:0:100');`,
+	},
+	{
 		constraint: "invoice_documents_number_present",
 		reject:     `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents) VALUES ('11110001-0000-4000-8000-000000000003', '6666aaaa-6666-4666-8666-666666666666', 'invoice', E'	', 100);`,
 		accept:     `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents) VALUES ('11110001-0000-4000-8000-000000000003', '6666aaaa-6666-4666-8666-666666666666', 'invoice', 'GD-90000003', 100);`,
@@ -1391,6 +1402,14 @@ var uniqueCases = []uniqueCase{
 		index:  "brands_slug_key",
 		reject: `INSERT INTO brands (id, slug, name) VALUES ('11110001-0000-4000-8000-000000000001', 'pixelight', '宏碁');`,
 		accept: `INSERT INTO brands (id, slug, name) VALUES ('11110001-0000-4000-8000-000000000001', 'pixelight-2', '宏碁');`,
+	},
+	{
+		// One document per request key: ECPay's allowance endpoint carries no
+		// idempotency field, so a second press must be refused here or it
+		// becomes a second 折讓 at the 財政部.
+		index:  "invoice_documents_request_key",
+		reject: `INSERT INTO invoice_documents (id, order_id, kind, original_id, number, amount_cents, request_key) VALUES ('11110001-0000-4000-8000-000000000033', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', 'GD-90000033', 100, 'dup-key'); INSERT INTO invoice_documents (id, order_id, kind, original_id, number, amount_cents, request_key) VALUES ('11110001-0000-4000-8000-000000000034', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', 'GD-90000034', 100, 'dup-key');`,
+		accept: `INSERT INTO invoice_documents (id, order_id, kind, original_id, number, amount_cents, request_key) VALUES ('11110001-0000-4000-8000-000000000033', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', 'GD-90000033', 100, 'dup-key-a'); INSERT INTO invoice_documents (id, order_id, kind, original_id, number, amount_cents, request_key) VALUES ('11110001-0000-4000-8000-000000000034', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', 'GD-90000034', 100, 'dup-key-b');`,
 	},
 	{
 		// NULLS NOT DISTINCT is the half worth exercising: both rows here are
