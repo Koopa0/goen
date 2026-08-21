@@ -6151,6 +6151,23 @@ func (q *Queries) MarkOutboxDelivered(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const markPaymentReconciled = `-- name: MarkPaymentReconciled :execrows
+UPDATE payment_webhook_events SET reconciled_at = now()
+WHERE provider = 'stripe' AND event_id = $1::text
+  AND unreconciled IS NOT NULL AND reconciled_at IS NULL
+`
+
+// Somebody refunded it by hand at the provider and says so. The row keeps its
+// reason: what happened is worth reading after it is handled, and this is the
+// only thing that takes it off /admin/health.
+func (q *Queries) MarkPaymentReconciled(ctx context.Context, eventID string) (int64, error) {
+	result, err := q.db.Exec(ctx, markPaymentReconciled, eventID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const markSessionVerified = `-- name: MarkSessionVerified :exec
 UPDATE sessions SET totp_verified_at = now() WHERE token_hash = $1
 `
@@ -10883,7 +10900,7 @@ const unreconciledPayments = `-- name: UnreconciledPayments :many
 SELECT event_id, type, coalesce(object_ref, '') AS object_ref,
        unreconciled::text AS reason, received_at
 FROM payment_webhook_events
-WHERE unreconciled IS NOT NULL
+WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL
 ORDER BY received_at
 LIMIT 50
 `
@@ -11737,7 +11754,7 @@ SELECT
     -- the money sits at Stripe against goods that are back on the shelf. It used
     -- to leave one log line, which nothing reads and nothing can count.
     (SELECT count(*) FROM payment_webhook_events
-     WHERE unreconciled IS NOT NULL)::bigint AS unreconciled_payments
+     WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL)::bigint AS unreconciled_payments
 `
 
 type WorkerHealthRow struct {

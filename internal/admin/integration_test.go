@@ -2117,6 +2117,68 @@ func TestHealthIsDerivedFromTheWorkNotFromAHeartbeat(t *testing.T) {
 	}
 }
 
+// TestAnAcknowledgedPaymentLeavesTheAlarm is the other half of flagging one.
+// The refund is at Stripe and nothing here can see it land, so the alarm has an
+// off switch or /admin/health is unhealthy forever after the first arrival —
+// and an alarm that is always on is one nobody reads.
+func TestAnAcknowledgedPaymentLeavesTheAlarm(t *testing.T) {
+	ctx, actor := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
+
+	eventID := "evt_ack_" + uuid.NewString()[:12]
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO payment_webhook_events (provider, event_id, type, payload, unreconciled)
+		VALUES ('stripe', $1, 'checkout.session.completed', '{}'::jsonb,
+		        'money arrived for an order that was already cancelled')`,
+		eventID); err != nil {
+		t.Fatalf("flag the event: %v", err)
+	}
+
+	flagged, err := s.WorkerHealth(ctx, worker)
+	if err != nil {
+		t.Fatalf("health: %v", err)
+	}
+	if flagged.PaymentsReconciled() {
+		t.Fatal("money arrived for a cancelled order and /admin/health says there " +
+			"is nothing to do, so this proves nothing about clearing it")
+	}
+
+	if err := s.ReconcilePayment(ctx, eventID, uuid.NullUUID{UUID: actor, Valid: true}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	settled, settledErr := s.WorkerHealth(ctx, worker)
+	if settledErr != nil {
+		t.Fatalf("health: %v", settledErr)
+	}
+	if !settled.PaymentsReconciled() {
+		t.Errorf("%d payments still read as unreconciled after the refund was "+
+			"acknowledged — the alarm is monotone and stops meaning anything",
+			settled.UnreconciledPayments)
+	}
+	if auditRows(t, admin.ActionReconcilePayment) == 0 {
+		t.Error("saying the money went back by hand is the shop's statement about " +
+			"money and it left no audit row")
+	}
+
+	// A second press changes nothing: the row count is where the question is
+	// asked, so there is no read-then-write for two staff members to both pass.
+	if err := s.ReconcilePayment(ctx, eventID, uuid.NullUUID{UUID: actor, Valid: true}); !errors.Is(err, admin.ErrNotFound) {
+		t.Errorf("acknowledging it twice = %v, want ErrNotFound", err)
+	}
+	// And an event nobody flagged is not acknowledgeable at all.
+	unflagged := "evt_plain_" + uuid.NewString()[:12]
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO payment_webhook_events (provider, event_id, type, payload)
+		VALUES ('stripe', $1, 'payment_intent.processing', '{}'::jsonb)`, unflagged); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	if err := s.ReconcilePayment(ctx, unflagged, uuid.NullUUID{UUID: actor, Valid: true}); !errors.Is(err, admin.ErrNotFound) {
+		t.Errorf("acknowledging an event that was never flagged = %v, want ErrNotFound", err)
+	}
+}
+
 func TestAMessageWaitingOnItsBackoffIsNotLate(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)

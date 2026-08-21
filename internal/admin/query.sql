@@ -841,7 +841,7 @@ SELECT
     -- the money sits at Stripe against goods that are back on the shelf. It used
     -- to leave one log line, which nothing reads and nothing can count.
     (SELECT count(*) FROM payment_webhook_events
-     WHERE unreconciled IS NOT NULL)::bigint AS unreconciled_payments;
+     WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL)::bigint AS unreconciled_payments;
 
 -- The events a person has to act on, named rather than counted: a page saying
 -- "1 unreconciled" that cannot say WHICH tells an operator something is wrong
@@ -850,7 +850,7 @@ SELECT
 SELECT event_id, type, coalesce(object_ref, '') AS object_ref,
        unreconciled::text AS reason, received_at
 FROM payment_webhook_events
-WHERE unreconciled IS NOT NULL
+WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL
 ORDER BY received_at
 LIMIT 50;
 
@@ -1392,3 +1392,11 @@ SELECT EXISTS (
     SELECT 1 FROM store_credit_entries
     WHERE idempotency_key = 'return-credit:' || @return_id::text
 )::boolean AS posted;
+
+-- Somebody refunded it by hand at the provider and says so. The row keeps its
+-- reason: what happened is worth reading after it is handled, and this is the
+-- only thing that takes it off /admin/health.
+-- name: MarkPaymentReconciled :execrows
+UPDATE payment_webhook_events SET reconciled_at = now()
+WHERE provider = 'stripe' AND event_id = @event_id::text
+  AND unreconciled IS NOT NULL AND reconciled_at IS NULL;

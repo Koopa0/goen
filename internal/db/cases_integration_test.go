@@ -792,6 +792,11 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO payment_webhook_events (provider, event_id, type, payload, unreconciled) VALUES ('stripe', 'evt_blank_reason', 'checkout.session.completed', '{}'::jsonb, 'money arrived for a cancelled order');`,
 	},
 	{
+		constraint: "payment_webhook_events_reconciled_was_flagged",
+		reject:     `INSERT INTO payment_webhook_events (provider, event_id, type, payload, reconciled_at) VALUES ('stripe', 'evt_rec_unflagged', 'checkout.session.completed', '{}'::jsonb, now());`,
+		accept:     `INSERT INTO payment_webhook_events (provider, event_id, type, payload, unreconciled, reconciled_at) VALUES ('stripe', 'evt_rec_flagged', 'checkout.session.completed', '{}'::jsonb, 'money arrived for a cancelled order', now());`,
+	},
+	{
 		constraint: "payment_webhook_events_type_present",
 		reject:     `INSERT INTO payment_webhook_events (provider, event_id, type, payload) VALUES ('stripe','evt_rej_type',E'\t','{}'::jsonb);`,
 		accept:     `INSERT INTO payment_webhook_events (provider, event_id, type, payload) VALUES ('stripe','evt_acc_type','payment_intent.succeeded','{}'::jsonb);`,

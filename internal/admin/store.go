@@ -1399,6 +1399,33 @@ func (s *Store) IssueInvoice(ctx context.Context, number string) error {
 	}, func(context.Context, *db.Queries) error { return nil })
 }
 
+// ReconcilePayment records that somebody dealt with an event goen accepted and
+// could not act on — refunded it by hand at the provider, which is the only
+// thing that can be done about money against a cancelled order.
+//
+// The row keeps its reason. Clearing the flag would delete what happened, and
+// what happened is the part worth reading afterwards.
+func (s *Store) ReconcilePayment(ctx context.Context, eventID string, actor uuid.NullUUID) error {
+	if strings.TrimSpace(eventID) == "" {
+		return ErrInvalid
+	}
+	return s.audited(ctx, Event{
+		Action: ActionReconcilePayment, Table: "payment_webhook_events", ID: uuid.NullUUID{},
+		After: map[string]any{"event": eventID},
+	}, func(ctx context.Context, q *db.Queries) error {
+		n, err := q.MarkPaymentReconciled(ctx, eventID)
+		if err != nil {
+			return fmt.Errorf("mark %s reconciled: %w", eventID, err)
+		}
+		if n == 0 {
+			// Nothing outstanding under that id: already dealt with, or never
+			// flagged. The row count is the answer, not a read beforehand.
+			return ErrNotFound
+		}
+		return nil
+	})
+}
+
 // AllowInvoice files a 折讓 against an order's live invoice, relieving the part
 // of the sale that was refunded. A void is for an invoice that should not exist;
 // an allowance is for one that should exist for less.

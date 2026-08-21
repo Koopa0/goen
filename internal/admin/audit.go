@@ -30,6 +30,7 @@ const (
 	ActionIssueInvoice         Action = "invoice.issue"
 	ActionVoidInvoice          Action = "invoice.void"
 	ActionAllowInvoice         Action = "invoice.allowance"
+	ActionReconcilePayment     Action = "payment.reconciled"
 	ActionGrantCredit          Action = "credit.grant"
 	ActionAdjustStock          Action = "stock.adjust"
 	ActionReceiveStock         Action = "stock.receive"

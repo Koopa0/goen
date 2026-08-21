@@ -125,6 +125,12 @@ var (
 	KeyAdminColReason  = key("admin.col.reason", Message{ZhHant: "原因", En: "Reason"})
 	KeyAdminColKind    = key("admin.col.kind", Message{ZhHant: "種類", En: "Kind"})
 	KeyAdminHPColEvent = key("admin.hp.col.event", Message{ZhHant: "事件編號", En: "Event"})
+	// The only thing that can be done about money against a cancelled order is a
+	// refund by hand at the provider; this records that somebody did it.
+	KeyAdminHPReconcile = key("admin.hp.reconcile", Message{
+		ZhHant: "已手動退款",
+		En:     "Refunded by hand",
+	})
 	// Money at the provider against goods the shop has already taken back. The
 	// only case goen writes today is a capture that arrived after a cancel: the
 	// database refuses it, Stripe is told the event was handled because retrying

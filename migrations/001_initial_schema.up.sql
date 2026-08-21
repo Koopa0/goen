@@ -2831,10 +2831,20 @@ CREATE TABLE payment_webhook_events (
     -- there is nothing for /admin/health to name and nothing to reconcile
     -- against.
     unreconciled        text,
+    -- When somebody dealt with it. The alarm is monotone without this: once an
+    -- event lands unreconciled, /admin/health is unhealthy forever, which is
+    -- alarm fatigue on the page built to make failure visible — the objection
+    -- expired_holds already carries. The row KEEPS its reason, because what
+    -- happened is worth reading after it is handled; contact_messages.handled_at
+    -- is the same shape.
+    reconciled_at       timestamptz,
     PRIMARY KEY (provider, event_id),
     CONSTRAINT payment_webhook_events_type_present CHECK (type ~ '[^[:space:]]'),
     CONSTRAINT payment_webhook_events_unreconciled_present
-        CHECK (unreconciled IS NULL OR unreconciled ~ '[^[:space:]]')
+        CHECK (unreconciled IS NULL OR unreconciled ~ '[^[:space:]]'),
+    -- Nothing to reconcile means nothing to mark reconciled.
+    CONSTRAINT payment_webhook_events_reconciled_was_flagged
+        CHECK (reconciled_at IS NULL OR unreconciled IS NOT NULL)
 );
 
 COMMENT ON COLUMN payment_webhook_events.unreconciled IS
@@ -2842,7 +2852,7 @@ COMMENT ON COLUMN payment_webhook_events.unreconciled IS
 
 CREATE INDEX payment_webhook_events_unreconciled_idx
     ON payment_webhook_events (received_at)
-    WHERE unreconciled IS NOT NULL;
+    WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL;
 
 CREATE INDEX payment_webhook_events_unprocessed_idx
     ON payment_webhook_events (received_at)
@@ -3455,6 +3465,10 @@ REVOKE UPDATE, DELETE ON store_credit_accounts FROM store;
 REVOKE INSERT, UPDATE, DELETE ON coupons, coupon_redemptions FROM store;
 REVOKE UPDATE, DELETE ON payment_webhook_events FROM store;
 GRANT UPDATE (processed_at, unreconciled) ON payment_webhook_events TO store;
+-- reconciled_at is the SHOP saying it refunded money by hand, so it is admin's
+-- to write and not the storefront's. A whole-table INSERT would carry it.
+REVOKE INSERT ON payment_webhook_events FROM store;
+GRANT INSERT (provider, event_id, type, object_ref, payload) ON payment_webhook_events TO store;
 -- order_events and shipping_method_versions are append-only too, so the privilege
 -- layer backs forbid_change. INSERT stays: the app appends an event, and a new
 -- shipping version is an insert.
@@ -3681,7 +3695,13 @@ REVOKE UPDATE, DELETE ON store_credit_accounts FROM admin;
 -- is a fact about an order's money, posted by the same function the storefront
 -- uses.
 REVOKE INSERT, UPDATE, DELETE ON coupon_redemptions FROM admin;
+-- The back office may say it dealt with an event and nothing else: what an
+-- event SAID is the provider's statement and not the shop's to edit, while
+-- whether somebody acted on it is exactly the shop's to record. Without the
+-- column grant the alarm is monotone and /admin/health is unhealthy forever
+-- after the first one.
 REVOKE UPDATE, DELETE ON payment_webhook_events FROM admin;
+GRANT UPDATE (reconciled_at) ON payment_webhook_events TO admin;
 REVOKE UPDATE ON order_events, shipping_method_versions FROM admin;
 REVOKE DELETE ON users FROM admin;
 -- Verification is the customer answering a letter, and a staff member who could

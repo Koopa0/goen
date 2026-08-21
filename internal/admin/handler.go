@@ -1900,6 +1900,28 @@ func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ReconcilePayment serves POST /admin/health/reconcile.
+//
+// Money that arrived for a cancelled order can only be refunded by hand at the
+// provider; this is how the operator says they have. Without it the alarm is
+// monotone and /admin/health is unhealthy forever after the first one.
+func (h *Handler) ReconcilePayment(w http.ResponseWriter, r *http.Request) {
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
+		return
+	}
+	err := h.store.ReconcilePayment(r.Context(), r.PostFormValue("event"), staffID(r))
+	switch {
+	case err == nil:
+		http.Redirect(w, r, "/admin/health?ok=1", http.StatusSeeOther)
+	case errors.Is(err, ErrNotFound), errors.Is(err, ErrInvalid):
+		http.Redirect(w, r, "/admin/health?gone=1", http.StatusSeeOther)
+	default:
+		h.log.ErrorContext(r.Context(), "reconcile payment", "error", err)
+		h.serverError(w, r)
+	}
+}
+
 // Health serves GET /admin/health.
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.WorkerHealth(r.Context(), h.outbox)

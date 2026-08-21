@@ -102,6 +102,7 @@ templ AdminHealth(p layouts.Page, v WorkerHealthView) {
 								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColProviderRef) }</th>
 								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColReason) }</th>
 								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColStarted) }</th>
+								<th scope="col"><span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminHPReconcile) }</span></th>
 							</tr>
 						</thead>
 						<tbody>
@@ -112,6 +113,14 @@ templ AdminHealth(p layouts.Page, v WorkerHealthView) {
 									<td>{ u.Ref }</td>
 									<td>{ u.Reason }</td>
 									<td>{ u.Since }</td>
+									<td>
+										<form method="post" action="/admin/health/reconcile">
+											<input type="hidden" name="event" value={ u.EventID }/>
+											<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">
+												{ i18n.T(ctx, i18n.KeyAdminHPReconcile) }
+											</button>
+										</form>
+									</td>
 								</tr>
 							}
 						</tbody>

@@ -1029,6 +1029,51 @@ func TestTheWebhookRoutesEachEventToItsEffect(t *testing.T) {
 	}
 }
 
+// TestTheWebhookItselfFlagsMoneyForACancelledOrder drives the real handler,
+// because the test below drives a callback of its own: it proves the store can
+// record the outcome, not that the switch in handler.go ever asks it to. With
+// the branch deleted there the money still arrives, the capture is still
+// refused, and nothing anywhere is unreconciled — which is the whole defect.
+func TestTheWebhookItselfFlagsMoneyForACancelledOrder(t *testing.T) {
+	ctx := t.Context()
+	s := payment.NewStore(pool)
+	h := payment.NewHandler(s, enabledGateway(t), alwaysPlacedHere{},
+		slog.New(slog.DiscardHandler), false)
+
+	number, id := order(t, 88800)
+	session := "cs_handler_unrec_" + uuid.NewString()[:12]
+	if err := s.OpenPayment(ctx, number, session, 88800); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
+		 WHERE id = $1`, id); err != nil {
+		t.Fatalf("cancel the order: %v", err)
+	}
+
+	eventID := "evt_" + uuid.NewString()[:12]
+	body, header := signed(t, typed(sessionEvent(eventID, session, "paid", 88800),
+		"checkout.session.completed"))
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/webhooks/stripe", bytes.NewReader(body))
+	req.Header.Set("Stripe-Signature", header)
+	w := httptest.NewRecorder()
+	h.Webhook(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Webhook() status = %d, want 200 — a 5xx gets the endpoint disabled", w.Code)
+	}
+	var reason *string
+	if err := pool.QueryRow(ctx,
+		`SELECT unreconciled FROM payment_webhook_events WHERE event_id = $1`,
+		eventID).Scan(&reason); err != nil {
+		t.Fatalf("read the event: %v", err)
+	}
+	if reason == nil {
+		t.Fatal("the webhook took money for a cancelled order and left nothing " +
+			"for /admin/health to count — the shop finds out when the customer asks")
+	}
+}
+
 // TestMoneyForACancelledOrderLeavesSomethingToActOn holds the difference
 // between a log line and a record.
 //
