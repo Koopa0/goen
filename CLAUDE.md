@@ -1854,6 +1854,42 @@ because only the absence is visible. ECPay publish staging credentials anybody
 may use (MerchantID `2000132`), so the code is real — real AES envelope, real
 error codes, real void and 折讓 — and going live is a credential change.
 
+**折讓 had no door for as long as it existed, and this file said it was
+delivered.** `invoice.Store.Allowance` was written with the feature; the
+`admin.Invoicer` interface the back office is built against declared only
+`Documents`, `Issue` and `Void`, so no handler could call it and no route
+existed. A refunded customer kept a 統一發票 recording the whole sale, which is
+a tax document disagreeing with what the shop actually took. Mistake #35's shape
+— every guard reports it as wired, and the one that looks at links asks whether
+a link RESOLVES, never whether a capability has an entrance.
+
+It is a form beside the void form at `/admin/orders/{number}`, offered only when
+money has actually gone back, defaulting to the settled refund total: an
+allowance relieving nothing is refused downstream anyway, and a figure a staff
+member types from memory is how the wrong number reaches the 財政部. A VOID is
+for an invoice that should not exist; an allowance is for one that should exist
+for less, and the form says so.
+
+**The itemisation has to reconstruct the header, not infer it.** The delivery
+line was `total - sum(lines)`, which is shipping MINUS discount. Where the
+discount was larger the residual was negative, no line was written, and ECPay
+refused the document outright (`5000022`「與商品合計金額不符」) — so every
+discounted order that also earned 免運 could not be invoiced by any path, one
+staff click failing every time. Where the fee was larger it was worse, because
+it SUCCEEDED: a 統一發票 filed stating a carriage charge nobody paid, with the
+discount invisible. Delivery carries its own figure now and the discount is
+allocated across the ITEMS — never the delivery, which a coupon is capped short
+of — by largest remainder, so every amount stays unsigned and the sum is exact.
+
+And the document is filed in whole DOLLARS, so it is reconciled in dollars.
+Rounding the header and each item independently splits them the moment a
+percentage coupon leaves fractional cents: 15% off NT$999 is a header of 849
+beside an item of 999. `internal/payment` had already met this and solved it —
+when what is owed falls below the line total it sends ONE line at the owed
+price, with a comment saying why — so the invoice producer and the Stripe
+producer of an itemisation disagreed about the same question. That is #13's
+shape, which every guard here is blind to.
+
 The off-switch is Stripe's: no credentials issues nothing and the order page says
 so, and HALF a configuration does not start, because a merchant id cannot sign a
 request without its keys.

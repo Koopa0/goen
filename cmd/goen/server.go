@@ -255,6 +255,7 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 	mux.HandleFunc("POST /admin/returns/{id}/complete", back.RequireStaff(back.Complete))
 	mux.HandleFunc("POST /admin/orders/{number}/invoice", back.RequireStaff(back.IssueInvoice))
 	mux.HandleFunc("POST /admin/orders/{number}/invoice/void", back.RequireStaff(back.VoidInvoice))
+	mux.HandleFunc("POST /admin/orders/{number}/invoice/allowance", back.RequireStaff(back.AllowInvoice))
 	mux.HandleFunc("POST /admin/products/{slug}/options", back.RequireStaff(back.AddOption))
 	mux.HandleFunc("POST /admin/products/{slug}/options/values", back.RequireStaff(back.AddOptionValue))
 	mux.HandleFunc("POST /admin/products/{slug}/specs", back.RequireStaff(back.AddSpec))

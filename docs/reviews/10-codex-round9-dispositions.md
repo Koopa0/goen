@@ -9,7 +9,7 @@ a claim; re-running it is what turns the claim into a fact.
 
 ## Verified by hand before the fan-out
 
-### F6 — 折讓 is claimed complete and no path reaches it — CONFIRMED
+### F6 — 折讓 is claimed complete and no path reaches it — CONFIRMED, FIXED
 `invoice.Store.Allowance` exists and calls the gateway. But `admin.Invoicer` —
 the consumer interface the back office is built against — declares only
 `Documents`, `Issue` and `Void`. **Allowance is not in the interface at all**, so
@@ -22,7 +22,7 @@ wired that no path can reach — and the guard blind to it is the same one:
 `TestEveryHardCodedLinkResolvesToARoute` asks whether a link resolves, never
 whether a capability has a door.
 
-### F12(b) — a product with no reviews can never receive its first — CONFIRMED
+### F12(b) — a product with no reviews can never receive its first — CONFIRMED, FIXED
 `productReviews` is rendered only `if v.HasRating()`, which is `RatingCount > 0`,
 and the review FORM is inside it. Proven by render:
 

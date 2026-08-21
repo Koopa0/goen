@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 // TestThePageMarksTheCategoryYouAreIn holds a field that was read and never written.
@@ -268,5 +269,53 @@ func TestAProductWithNoReviewsCanReceiveItsFirst(t *testing.T) {
 	withScore := renderToString(t, Product(ProductMeta(&rated), &rated))
 	if !strings.Contains(withScore, `class="goen-pdp__score"`) {
 		t.Error("a rated product lost its score summary")
+	}
+}
+
+// TestARefundedOrderCanFileAnAllowance holds a capability that was claimed
+// delivered and had no door.
+//
+// internal/invoice has filed 折讓 since the feature shipped — real ECPay call,
+// real error codes, a test for the IA_Allow_No field that a review of the live
+// API taught. But admin.Invoicer, the interface the back office is built
+// against, declared only Documents/Issue/Void: Allowance was not in it, so no
+// handler could call it even if a route had existed, and none did. README.md
+// stated the 折讓 document as issued through 綠界's API.
+//
+// A customer was refunded while the 統一發票 still recorded the whole sale.
+// That is mistake #35's shape — a feature every guard reports as wired that no
+// path can reach — and the guard blind to it is the same one:
+// TestEveryHardCodedLinkResolvesToARoute asks whether a link RESOLVES, never
+// whether a capability has a door.
+func TestARefundedOrderCanFileAnAllowance(t *testing.T) {
+	t.Parallel()
+
+	refunded := AdminOrderView{
+		Number: "GO-260721-000387", Status: "completed",
+		Committed: true, InvoicingEnabled: true, RefundedCents: 84900,
+		InvoiceDocuments: []AdminInvoiceDocument{
+			{Kind: "invoice", Number: "AA12345678", Status: "issued", AmountCents: 100000},
+		},
+	}
+	html := renderToString(t, AdminOrder(layouts.Page{Title: "x"}, &refunded))
+
+	if !strings.Contains(html, `action="/admin/orders/GO-260721-000387/invoice/allowance"`) {
+		t.Error("a refunded order offers no way to file a 折讓, so the tax document " +
+			"keeps recording a sale that partly did not happen")
+	}
+	// Defaulted to what actually went back: a figure typed from memory is how
+	// the wrong number reaches the 財政部.
+	if !strings.Contains(html, `value="849"`) {
+		t.Error("the allowance amount does not default to the refunded total")
+	}
+
+	// And it is not offered when nothing has been refunded — an allowance
+	// relieving nothing is refused downstream, and the form would be an
+	// invitation to invent a figure.
+	nothingBack := refunded
+	nothingBack.RefundedCents = 0
+	if strings.Contains(renderToString(t, AdminOrder(layouts.Page{Title: "x"}, &nothingBack)),
+		"/invoice/allowance") {
+		t.Error("an order with no refund is offered a 折讓 form")
 	}
 }

@@ -2357,3 +2357,46 @@ func (h *Handler) VoidInvoice(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 	}
 }
+
+// AllowInvoice serves POST /admin/orders/{number}/invoice/allowance.
+//
+// A refund leaves the 統一發票 recording a sale that partly did not happen, and
+// a 折讓 is the correction the 財政部 accepts for it — a void is for an invoice
+// that should not exist, an allowance for one that should exist for less. The
+// amount is typed in DOLLARS, which is the unit the document is filed in and
+// the unit a person reading a refund says out loud.
+func (h *Handler) AllowInvoice(w http.ResponseWriter, r *http.Request) {
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
+		return
+	}
+	number := r.PathValue("number")
+	if !IsOrderNumber(number) {
+		http.NotFound(w, r)
+		return
+	}
+	dollars, convErr := strconv.ParseInt(strings.TrimSpace(r.PostFormValue("amount")), 10, 64)
+	if convErr != nil || dollars <= 0 {
+		//nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?badamount=1", http.StatusSeeOther)
+		return
+	}
+
+	err := h.store.AllowInvoice(r.Context(), number, dollars*100)
+	switch {
+	case err == nil:
+		//nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?allowed=1", http.StatusSeeOther)
+	case errors.Is(err, invoice.ErrNotFound):
+		//nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?noinvoice=1", http.StatusSeeOther)
+	case errors.Is(err, invoice.ErrRejected), errors.Is(err, invoice.ErrDisabled),
+		errors.Is(err, ErrRefused):
+		h.log.WarnContext(r.Context(), "invoice allowance refused", "order", number, "error", err)
+		//nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?invoicefailed=1", http.StatusSeeOther)
+	default:
+		h.log.ErrorContext(r.Context(), "file invoice allowance", "order", number, "error", err)
+		h.serverError(w, r)
+	}
+}
