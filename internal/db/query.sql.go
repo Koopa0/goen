@@ -8565,6 +8565,24 @@ func (q *Queries) RelatedProducts(ctx context.Context, arg RelatedProductsParams
 	return items, nil
 }
 
+const releaseInvoiceClaim = `-- name: ReleaseInvoiceClaim :execrows
+DELETE FROM invoice_documents
+WHERE id = $1 AND status = 'pending'
+`
+
+// A claim the provider REFUSED. ECPay answering with a business verdict proves
+// nothing was filed, so the reservation is the only thing left and holding it
+// would lock that refund out of ever being relieved. A transport failure is a
+// different case and keeps its claim: whether the 加值中心 has the document is
+// not knowable from here, and clearing it would let the next press file twice.
+func (q *Queries) ReleaseInvoiceClaim(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, releaseInvoiceClaim, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const releaseReservation = `-- name: ReleaseReservation :exec
 SELECT release_reservation($1)
 `

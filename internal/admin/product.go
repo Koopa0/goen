@@ -150,7 +150,7 @@ func (s *Store) Products(ctx context.Context) (pages.AdminProductsView, error) {
 func (s *Store) Product(ctx context.Context, slug string) (pages.AdminProductView, error) {
 	p, err := s.q.AdminProduct(ctx, slug)
 	if err != nil {
-		return pages.AdminProductView{}, fmt.Errorf("%w: %s", ErrRefused, err.Error())
+		return pages.AdminProductView{}, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	view := pages.AdminProductView{
 		Slug: p.Slug, Name: p.Name, Summary: p.Summary,
@@ -282,7 +282,7 @@ func (s *Store) CreateProduct(ctx context.Context, f *ProductForm) (slug string,
 			pgErr.ConstraintName == "products_slug_key" {
 			return "", map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenProduct)}, nil
 		}
-		return "", nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
+		return "", nil, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	return slug, nil, nil
 }
@@ -300,7 +300,7 @@ func (s *Store) UpdateProduct(ctx context.Context, f *ProductForm) (map[string]s
 		NameEn: f.NameEn, SummaryEn: f.SummaryEn, DescriptionEn: f.DescriptionEn,
 		WarrantyMonths: f.WarrantyMonths,
 	}); err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
+		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	return nil, nil
 }
@@ -319,7 +319,7 @@ func (s *Store) SetProductStatus(ctx context.Context, slug, status string) error
 				Slug: slug, Status: status,
 			})
 			if err != nil {
-				return fmt.Errorf("%w: %s", ErrRefused, err.Error())
+				return fmt.Errorf("%w: %w", ErrRefused, err)
 			}
 			if n == 0 {
 				return ErrNotFound
@@ -373,7 +373,7 @@ func (s *Store) AddVariant(ctx context.Context, slug string, f *VariantForm) (ma
 		if errors.Is(err, ErrNotFound) {
 			return map[string]string{"options": i18n.T(ctx, i18n.KeyFormOptionsInvalid)}, nil
 		}
-		return nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
+		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	return nil, nil
 }
@@ -444,7 +444,7 @@ func (s *Store) AddSpec(ctx context.Context, slug string, d SpecDraft) (map[stri
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrNotFound
 			}
-			return fmt.Errorf("%w: %s", ErrRefused, err.Error())
+			return fmt.Errorf("%w: %w", ErrRefused, err)
 		}
 		return nil
 	}); err != nil {
@@ -539,7 +539,7 @@ func (s *Store) AddOption(ctx context.Context, slug string, d OptionDraft) (map[
 		if errors.Is(err, ErrNotFound) {
 			return nil, ErrNotFound
 		}
-		return nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
+		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	return nil, nil
 }
@@ -575,7 +575,7 @@ func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) 
 		if errors.Is(err, ErrNotFound) {
 			return map[string]string{"value": i18n.T(ctx, i18n.KeyFormOptionMissing)}, nil
 		}
-		return nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
+		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	return nil, nil
 }

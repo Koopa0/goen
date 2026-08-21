@@ -108,7 +108,7 @@ func (s *Store) CreateBanner(ctx context.Context, f *BannerForm) (map[string]str
 			CtaLabelEn: f.CTALabelEn, Days: f.Days,
 		})
 	}); err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
+		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	return nil, nil
 }
@@ -127,7 +127,7 @@ func (s *Store) SetBannerActive(ctx context.Context, id string, active bool) err
 			BannerID: bannerID, IsActive: active,
 		})
 		if execErr != nil {
-			return fmt.Errorf("%w: %s", ErrRefused, execErr.Error())
+			return fmt.Errorf("%w: %w", ErrRefused, execErr)
 		}
 		if n == 0 {
 			return ErrNotFound

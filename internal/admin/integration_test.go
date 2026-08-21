@@ -6049,8 +6049,18 @@ func TestAnOrderCannotFinishWhileItStillOwesAParcel(t *testing.T) {
 		t.Fatal("an order still owing a parcel was completed; whatever is still " +
 			"held is now stranded with no door out")
 	}
-	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
-		pgErr.ConstraintName != "orders_finished_when_shipped" {
+	// The `ok` is asserted, not used as a condition. Advance used to wrap with
+	// "%w: %s", which puts the message in the string and the PgError nowhere in
+	// the chain — so `ok` was always false, the whole clause was skipped, and the
+	// test asked only that SOMETHING was refused. Every other rule on that
+	// statement passed it, including the pre-database refusals that never reach
+	// PostgreSQL at all.
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	if !ok {
+		t.Fatalf("the refusal does not carry the rule that made it: %v\n"+
+			"Asserting only that an error happened cannot tell one rule from another", err)
+	}
+	if pgErr.ConstraintName != "orders_finished_when_shipped" {
 		t.Errorf("refused by %q, want orders_finished_when_shipped — a statement "+
 			"meant to prove one rule often trips another first", pgErr.ConstraintName)
 	}
@@ -6198,4 +6208,64 @@ func cardRefunded(t *testing.T, orderNumber string) int64 {
 		t.Fatalf("read refunds: %v", err)
 	}
 	return cents
+}
+
+// TestADeliveredOrderCanStillShipWhatItOwes is the exit from a trap that had
+// none. orders_legal_transition permits shipped -> delivered with a line still
+// outstanding, deliberately — delivered says the parcels that WENT OUT have
+// arrived, which is true whether or not more is to come — and
+// orders_finished_when_shipped then refuses 'completed'. With no dispatch form
+// at 'delivered' the order is wedged for ever, and the outstanding line's hold
+// is stranded: release_reservation refuses a committed order, ExpiredReservations
+// excludes it, and /admin/health counts neither.
+//
+// The dropdown offers 已送達 and 已完成 as peers with no hint that one is a
+// one-way door, which is why this belongs in the code and not the operator's head.
+func TestADeliveredOrderCanStillShipWhatItOwes(t *testing.T) {
+	ctx, staff := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	actor := uuid.NullUUID{UUID: staff, Valid: true}
+	number, _, lines, _ := twoLineOrderWithStock(t, "wedged")
+
+	// One parcel carrying part of the first line, then straight to delivered:
+	// what went out has arrived, and the rest is still to come.
+	if err := s.Ship(ctx, number, admin.Dispatch{
+		Carrier: "黑貓宅急便", Tracking: "D1-" + number,
+		Lines: map[uuid.UUID]int32{lines[0]: 1},
+	}, actor); err != nil {
+		t.Fatalf("first parcel: %v", err)
+	}
+	if _, err := s.Advance(ctx, number, "delivered", actor); err != nil {
+		t.Fatalf("deliver: %v", err)
+	}
+
+	view, err := s.Order(ctx, number)
+	if err != nil {
+		t.Fatalf("read the order: %v", err)
+	}
+	if !view.CanShip {
+		t.Fatal("a delivered order that still owes a parcel offers no dispatch form, " +
+			"and completing it is refused — the order is wedged and its remaining " +
+			"hold is stranded off the shelf where nothing counts it")
+	}
+
+	if err := s.Ship(ctx, number, admin.Dispatch{
+		Carrier: "黑貓宅急便", Tracking: "D2-" + number,
+	}, actor); err != nil {
+		t.Fatalf("the second parcel of a delivered order was refused: %v", err)
+	}
+	if _, err := s.Advance(ctx, number, "completed", actor); err != nil {
+		t.Errorf("finishing an order that owes nothing was refused: %v", err)
+	}
+
+	var held int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM inventory_reservations ir
+		JOIN orders o ON o.id = ir.order_id
+		WHERE o.order_number = $1 AND ir.state = 'held'`, number).Scan(&held); err != nil {
+		t.Fatalf("read the holds: %v", err)
+	}
+	if held != 0 {
+		t.Errorf("%d hold(s) still on the shelf after everything shipped", held)
+	}
 }

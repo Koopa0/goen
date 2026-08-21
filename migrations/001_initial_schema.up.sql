@@ -2351,7 +2351,15 @@ CREATE TABLE invoice_documents (
     -- credit note's original must be a real invoice, so it can never fire.
 );
 
-CREATE UNIQUE INDEX invoice_documents_number_key ON invoice_documents (number);
+-- Partial, because a PENDING claim has no number and carries '' to say so. A
+-- whole-table unique on `number` puts every claim in one another's way: two
+-- allowances on two different orders, with two different request keys, collide
+-- on the empty string, so at most ONE claim could be in flight in the entire
+-- database. One provider failure then refused every 折讓 the shop would ever
+-- file — and the refusal named the OTHER order's key, so nobody could see why.
+CREATE UNIQUE INDEX invoice_documents_number_key
+    ON invoice_documents (number)
+    WHERE status <> 'pending';
 CREATE INDEX invoice_documents_order_idx ON invoice_documents (order_id);
 CREATE INDEX invoice_documents_original_idx ON invoice_documents (original_id);
 -- At most one live invoice per order: a second while the first stands files two
@@ -2376,6 +2384,15 @@ CREATE FUNCTION invoice_documents_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
     IF TG_OP = 'DELETE' THEN
+        -- A PENDING claim is a reservation, not a document: nothing is at the
+        -- 加值中心 under it and it has no number. Releasing one is the only way
+        -- out for a claim whose provider call was REFUSED — an answer proving
+        -- nothing was filed — and without it a rejected 折讓 holds its key for
+        -- ever, with no door: it cannot be voided (a void needs a number), the
+        -- key cannot be cleared, and the row cannot be deleted.
+        IF OLD.status = 'pending' THEN
+            RETURN OLD;
+        END IF;
         RAISE EXCEPTION 'invoice documents are filed, not deleted'
             USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_documents_only_void';
     END IF;
@@ -2394,9 +2411,14 @@ BEGIN
         RETURN NEW;
     END IF;
 
+    -- request_key belongs in this list for the reason the others do: clearing it
+    -- on an issued allowance takes the row out of invoice_documents_request_key
+    -- and lets the SAME refund be filed a second time at the 財政部, which is
+    -- exactly what that index was added to stop.
     IF NEW.id <> OLD.id OR NEW.order_id <> OLD.order_id OR NEW.kind <> OLD.kind
        OR NEW.number <> OLD.number OR NEW.amount_cents <> OLD.amount_cents
        OR NEW.original_id IS DISTINCT FROM OLD.original_id
+       OR NEW.request_key IS DISTINCT FROM OLD.request_key
        OR NEW.issued_at <> OLD.issued_at THEN
         RAISE EXCEPTION 'an issued document may only be voided, not rewritten'
             USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_documents_only_void';
@@ -4544,10 +4566,14 @@ REVOKE INSERT, UPDATE, DELETE ON
     FROM admin;
 REVOKE INSERT ON payment_webhook_events FROM admin;
 
--- Filing a document with the tax authority is the back office's act. INSERT and
--- UPDATE, never DELETE: an issued invoice is filed history, and voiding is how it
--- stops being live.
-GRANT INSERT, UPDATE ON invoice_documents TO admin;
+-- Filing a document with the tax authority is the back office's act. DELETE is
+-- granted for ONE row shape and invoice_documents_only_void is what holds it
+-- there: a PENDING claim, which is a reservation with no number and nothing at
+-- the 加值中心 under it. Releasing one is the only door out of a 折讓 the
+-- provider refused, and the trigger refuses the delete of anything filed —
+-- which is where that rule belongs, since it is a rule about the ROW and not
+-- about who is asking.
+GRANT INSERT, UPDATE, DELETE ON invoice_documents TO admin;
 -- Lines are written with their document and never touched again.
 GRANT INSERT ON invoice_document_lines TO admin;
 

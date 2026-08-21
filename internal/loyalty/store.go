@@ -70,7 +70,7 @@ func (s *Store) Redeem(ctx context.Context, userID string, points int64) (int64,
 		Key: "points:" + uuid.NewString(),
 	})
 	if err != nil {
-		return 0, fmt.Errorf("%w: %s", ErrNotEnough, err.Error())
+		return 0, fmt.Errorf("%w: %w", ErrNotEnough, err)
 	}
 	return cents, nil
 }

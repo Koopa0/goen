@@ -174,7 +174,7 @@ func (s *Store) CreateCoupon(ctx context.Context, f *CouponForm) (map[string]str
 			pgErr.ConstraintName == "coupons_code_key" {
 			return map[string]string{"code": i18n.T(ctx, i18n.KeyFormCouponTaken)}, nil
 		}
-		return nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
+		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	return nil, nil
 }
@@ -197,7 +197,7 @@ func (s *Store) SetCouponActive(ctx context.Context, code string, active bool) e
 			}
 			return nil
 		}); err != nil {
-		return fmt.Errorf("%w: %s", ErrRefused, err.Error())
+		return fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	return nil
 }

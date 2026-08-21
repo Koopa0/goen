@@ -272,6 +272,34 @@ var ruleCases = []ruleCase{
 		         WHERE id = '99990001-0000-4000-8000-000000000000';`,
 	},
 	{
+		// Clearing the key on an ISSUED allowance takes the row out of
+		// invoice_documents_request_key and lets the same refund be filed a
+		// second time at the 財政部, which is what that index exists to stop.
+		rule: "invoice_documents_only_void",
+		// The document must HOLD a key first: the fixture's invoice carries none,
+		// so clearing it is NULL to NULL and changes nothing — a statement that
+		// cannot violate the rule it is meant to prove.
+		reject: `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents, original_id, request_key)
+		         VALUES ('11110025-0000-4000-8000-000000000001',
+		                 '66666666-6666-4666-8666-666666666666', 'allowance', 'GD-ALLOW-01', 100,
+		                 '99990001-0000-4000-8000-000000000000', 'allowance:key');
+		         UPDATE invoice_documents SET request_key = NULL
+		         WHERE id = '11110025-0000-4000-8000-000000000001';`,
+		acceptNote: "the void above is the legal neighbour; an issued document's key never moves",
+	},
+	{
+		// A filed document is filed. A PENDING claim is a reservation with no
+		// number and nothing at the 加值中心, and releasing one is the only door
+		// out of a 折讓 the provider refused.
+		rule: "invoice_documents_only_void",
+		reject: `DELETE FROM invoice_documents
+		         WHERE id = '99990001-0000-4000-8000-000000000000';`,
+		accept: `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents, status, request_key)
+		         VALUES ('11110024-0000-4000-8000-000000000001',
+		                 '6666aaaa-6666-4666-8666-666666666666', 'invoice', '', 100, 'pending', 'released');
+		         DELETE FROM invoice_documents WHERE id = '11110024-0000-4000-8000-000000000001';`,
+	},
+	{
 		rule: "payments_no_regression",
 		reject: `UPDATE payments SET status = 'processing'
 		         WHERE id = '77770001-0000-4000-8000-000000000000';`,

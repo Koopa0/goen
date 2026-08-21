@@ -127,7 +127,7 @@ func (s *Store) CreateHeroSlide(ctx context.Context, f *HeroForm) (map[string]st
 			})
 		})
 	if err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
+		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	return nil, nil
 }
@@ -148,7 +148,7 @@ func (s *Store) SetHeroSlideActive(ctx context.Context, id string, active bool) 
 				ID: slideID, IsActive: active,
 			})
 			if setErr != nil {
-				return fmt.Errorf("%w: %s", ErrRefused, setErr.Error())
+				return fmt.Errorf("%w: %w", ErrRefused, setErr)
 			}
 			if n == 0 {
 				return ErrNotFound
@@ -170,7 +170,7 @@ func (s *Store) PromoteHeroSlide(ctx context.Context, id string) error {
 		func(ctx context.Context, q *db.Queries) error {
 			n, promoteErr := q.PromoteHeroSlide(ctx, slideID)
 			if promoteErr != nil {
-				return fmt.Errorf("%w: %s", ErrRefused, promoteErr.Error())
+				return fmt.Errorf("%w: %w", ErrRefused, promoteErr)
 			}
 			if n == 0 {
 				return ErrNotFound

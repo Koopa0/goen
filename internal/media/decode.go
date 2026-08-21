@@ -28,7 +28,7 @@ func Normalise(r io.Reader) (obj Object, data []byte, err error) {
 			return Object{}, nil, ErrNotAnImage
 		}
 		// A MaxBytesReader overrun arrives here.
-		return Object{}, nil, fmt.Errorf("%w: %s", ErrTooLarge, err.Error())
+		return Object{}, nil, fmt.Errorf("%w: %w", ErrTooLarge, err)
 	}
 	if len(raw) == 0 {
 		return Object{}, nil, ErrNotAnImage

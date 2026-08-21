@@ -114,7 +114,7 @@ func (s *Store) PublishShippingVersion(ctx context.Context, v ShippingVersion) e
 				FreeOverCents: pgtype.Int8{Int64: freeOverDollars * 100, Valid: true},
 			})
 			if insErr != nil {
-				return fmt.Errorf("%w: %s", ErrRefused, insErr.Error())
+				return fmt.Errorf("%w: %w", ErrRefused, insErr)
 			}
 			if carryErr := q.CarryZoneSurcharges(ctx, db.CarryZoneSurchargesParams{
 				NewVersionID: versionID, MethodID: id,
@@ -160,7 +160,7 @@ func (s *Store) SetZoneSurcharge(ctx context.Context, versionID, zoneID string, 
 			if err := q.SetZoneSurcharge(ctx, db.SetZoneSurchargeParams{
 				VersionID: vid, ZoneID: zid, SurchargeCents: dollars * 100,
 			}); err != nil {
-				return fmt.Errorf("%w: %s", ErrRefused, err.Error())
+				return fmt.Errorf("%w: %w", ErrRefused, err)
 			}
 			return nil
 		})
@@ -248,7 +248,7 @@ func (s *Store) CreateMethod(ctx context.Context, m *NewMethod) (map[string]stri
 		if takenBy(err, "shipping_methods_code_key") {
 			return map[string]string{"code": i18n.T(ctx, i18n.KeyFormMethodCodeTaken)}, nil
 		}
-		return nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
+		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	return nil, nil
 }
@@ -268,7 +268,7 @@ func (s *Store) SetMethodActive(ctx context.Context, id string, active bool) err
 			MethodID: methodID, IsActive: active,
 		})
 		if execErr != nil {
-			return fmt.Errorf("%w: %s", ErrRefused, execErr.Error())
+			return fmt.Errorf("%w: %w", ErrRefused, execErr)
 		}
 		if n == 0 {
 			return ErrNotFound
@@ -330,7 +330,7 @@ func (s *Store) CreateZone(ctx context.Context, z *NewZone) (map[string]string, 
 		if takenBy(err, "shipping_zones_code_key") {
 			return map[string]string{"zone_code": i18n.T(ctx, i18n.KeyFormZoneCodeTaken)}, nil
 		}
-		return nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
+		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	return nil, nil
 }
@@ -360,7 +360,7 @@ func (s *Store) SetZonePrefixes(ctx context.Context, id, list string) (map[strin
 		}
 		return nil
 	}); err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
+		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	return nil, nil
 }
@@ -381,7 +381,7 @@ func (s *Store) RemoveZonePrefix(ctx context.Context, id, prefix string) error {
 			Prefix: prefix, ZoneID: zoneID,
 		})
 		if execErr != nil {
-			return fmt.Errorf("%w: %s", ErrRefused, execErr.Error())
+			return fmt.Errorf("%w: %w", ErrRefused, execErr)
 		}
 		if n == 0 {
 			return ErrNotFound
@@ -402,7 +402,7 @@ func (s *Store) DeleteZone(ctx context.Context, id string) error {
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, execErr := q.DeleteShippingZone(ctx, zoneID)
 		if execErr != nil {
-			return fmt.Errorf("%w: %s", ErrRefused, execErr.Error())
+			return fmt.Errorf("%w: %w", ErrRefused, execErr)
 		}
 		if n == 0 {
 			return ErrInUse

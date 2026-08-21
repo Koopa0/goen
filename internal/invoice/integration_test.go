@@ -15,6 +15,8 @@ package invoice
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -207,4 +209,110 @@ func invoicedOrderWithRefund(t *testing.T, refundCents int64) string {
 		t.Fatalf("commit the fixture: %v", err)
 	}
 	return number
+}
+
+// TestARefusedAllowanceLeavesEveryOtherOrderFilable is the failure a global
+// unique on `number` produced: a pending claim carries ” to say it has no
+// number yet, so every claim in the database collided with every other. One
+// provider refusal then left a stuck claim that refused EVERY 折讓 the shop
+// would ever file — naming the wrong order's key, so nobody could see why — and
+// the stuck row could be neither voided (a void needs a number), nor cleared,
+// nor deleted.
+//
+// Two orders, deliberately: with one, the claim and the retry collide on the
+// request key and the test proves nothing about the number index.
+func TestARefusedAllowanceLeavesEveryOtherOrderFilable(t *testing.T) {
+	ctx := t.Context()
+
+	var refuse bool
+	filed := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if refuse {
+			reply(t, w, result{RtnCode: 5000022, RtnMsg: "與商品合計金額不符"})
+			return
+		}
+		// A number per filing: the 加值中心 allocates them, and two documents
+		// sharing one is a collision the number index is right to refuse.
+		filed++
+		reply(t, w, result{RtnCode: 1,
+			AllowanceNo: fmt.Sprintf("20260807152272%02d", filed)})
+	}))
+	defer srv.Close()
+
+	g, err := NewGateway(testMerchantID, testHashKey, testHashIV, srv.URL)
+	if err != nil {
+		t.Fatalf("gateway: %v", err)
+	}
+	s := NewStore(pool, g)
+
+	first := invoicedOrderWithRefund(t, 100000)
+	second := invoicedOrderWithRefund(t, 100000)
+
+	refuse = true
+	if _, err := s.Allowance(ctx, first, 50000); !errors.Is(err, ErrRejected) {
+		t.Fatalf("the provider refused and Allowance returned %v, want ErrRejected", err)
+	}
+
+	// An UNRELATED order, whose provider call works.
+	refuse = false
+	if _, err := s.Allowance(ctx, second, 50000); err != nil {
+		t.Fatalf("a 折讓 on an unrelated order was refused after a different order's "+
+			"claim failed: %v\nOne provider failure has taken the feature away from "+
+			"the whole shop", err)
+	}
+
+	// And the refused one is filable again: ECPay ANSWERED, so nothing is at the
+	// 加值中心 under that claim and holding its key relieves nothing for ever.
+	if _, err := s.Allowance(ctx, first, 50000); err != nil {
+		t.Errorf("the order whose 折讓 the provider refused cannot be filed again: %v\n"+
+			"A claim for a document that was never filed has no door out", err)
+	}
+}
+
+// TestAnUnansweredAllowanceKeepsItsClaim is the other half, and the reason the
+// release above is bound to ErrRejected rather than to any error. A transport
+// failure says nothing about whether ECPay filed, so the claim must hold: a
+// second press against the same refund would otherwise put two 折讓 in front of
+// the 財政部 for one refund, which is what the request key exists to stop.
+func TestAnUnansweredAllowanceKeepsItsClaim(t *testing.T) {
+	ctx := t.Context()
+
+	var down bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if down {
+			// A gateway error page rather than a dropped connection: the point is
+			// an error that is NOT the provider answering, and a closed socket is
+			// retried by net/http on its own schedule, which made this flaky
+			// under load. What ECPay's own front door returns when the service
+			// behind it is unreachable says nothing about whether a 折讓 was
+			// filed, which is exactly the case under test.
+			w.WriteHeader(http.StatusBadGateway)
+			_, _ = w.Write([]byte("<html>502 Bad Gateway</html>"))
+			return
+		}
+		reply(t, w, result{RtnCode: 1, AllowanceNo: "2026080715227216"})
+	}))
+	defer srv.Close()
+
+	g, err := NewGateway(testMerchantID, testHashKey, testHashIV, srv.URL)
+	if err != nil {
+		t.Fatalf("gateway: %v", err)
+	}
+	s := NewStore(pool, g)
+	number := invoicedOrderWithRefund(t, 100000)
+
+	down = true
+	if _, err := s.Allowance(ctx, number, 50000); err == nil {
+		t.Fatal("a gateway error was reported as a filed 折讓")
+	} else if errors.Is(err, ErrRejected) {
+		t.Fatalf("an unanswered call was read as the provider refusing: %v\n"+
+			"Only an ANSWER proves nothing was filed", err)
+	}
+
+	down = false
+	if _, err := s.Allowance(ctx, number, 50000); !errors.Is(err, ErrRejected) {
+		t.Errorf("pressing again after an unanswered 折讓 = %v, want the claim to "+
+			"refuse it: whether ECPay filed is not knowable from here, and two "+
+			"折讓 for one refund is what reaches the 財政部", err)
+	}
 }

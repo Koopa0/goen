@@ -653,7 +653,13 @@ const CART_PROBE = `(() => {
   };
   // Every control a finger has to hit. The radio INPUT is intentionally small —
   // its label is the target — so the label is measured where one wraps it.
+  // A control that is aria-hidden AND out of the tab order is a target for
+  // nobody: no pointer user can see it and no keyboard user can reach it. The
+  // checkout's default submit button is one — it exists so Enter places the
+  // order rather than pressing a 更新 button above it. Both attributes are
+  // required, because either one alone is a defect rather than an intention.
   const targets = [...document.querySelectorAll('button, .ui-btn, input[type=number], label.goen-checkout__ship, a.goen-checkout__ship')]
+    .filter((e) => !(e.getAttribute('aria-hidden') === 'true' && e.getAttribute('tabindex') === '-1'))
     .filter((e) => e.getBoundingClientRect().width > 0 && !e.closest('.goen-footer, .goen-header'))
     .map((e) => +e.getBoundingClientRect().height.toFixed(1));
   return {

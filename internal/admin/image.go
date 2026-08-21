@@ -36,7 +36,7 @@ func (s *Store) AttachImage(
 				Slug: slug, StorageKey: digest, AltText: alt, AltTextEn: altEn,
 				Width: width, Height: height,
 			}); err != nil {
-				return fmt.Errorf("%w: %s", ErrRefused, err.Error())
+				return fmt.Errorf("%w: %w", ErrRefused, err)
 			}
 			return nil
 		})
@@ -53,7 +53,7 @@ func (s *Store) DetachImage(ctx context.Context, slug, digest string) error {
 				Slug: slug, StorageKey: digest,
 			})
 			if err != nil {
-				return fmt.Errorf("%w: %s", ErrRefused, err.Error())
+				return fmt.Errorf("%w: %w", ErrRefused, err)
 			}
 			if n == 0 {
 				return ErrNotFound

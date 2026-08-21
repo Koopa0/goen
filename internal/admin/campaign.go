@@ -84,7 +84,7 @@ func (s *Store) CreateCampaign(ctx context.Context, f *CampaignForm) (map[string
 			pgErr.ConstraintName == "sale_campaigns_slug_key" {
 			return map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenCampaign)}, nil
 		}
-		return nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
+		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	return nil, nil
 }
@@ -100,7 +100,7 @@ func (s *Store) SetCampaignActive(ctx context.Context, slug string, active bool)
 				Slug: strings.TrimSpace(slug), IsActive: active,
 			})
 			if err != nil {
-				return fmt.Errorf("%w: %s", ErrRefused, err.Error())
+				return fmt.Errorf("%w: %w", ErrRefused, err)
 			}
 			if n == 0 {
 				return ErrNotFound
@@ -119,7 +119,7 @@ func (s *Store) FeatureProduct(ctx context.Context, campaign, product string) er
 			if err := q.AddCampaignProduct(ctx, db.AddCampaignProductParams{
 				Campaign: strings.TrimSpace(campaign), Product: strings.TrimSpace(product),
 			}); err != nil {
-				return fmt.Errorf("%w: %s", ErrRefused, err.Error())
+				return fmt.Errorf("%w: %w", ErrRefused, err)
 			}
 			return nil
 		})
@@ -135,7 +135,7 @@ func (s *Store) UnfeatureProduct(ctx context.Context, campaign, product string) 
 			if err := q.RemoveCampaignProduct(ctx, db.RemoveCampaignProductParams{
 				Campaign: strings.TrimSpace(campaign), Product: strings.TrimSpace(product),
 			}); err != nil {
-				return fmt.Errorf("%w: %s", ErrRefused, err.Error())
+				return fmt.Errorf("%w: %w", ErrRefused, err)
 			}
 			return nil
 		})

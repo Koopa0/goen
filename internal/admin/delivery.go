@@ -70,7 +70,7 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *Delivery)
 				PickupStoreName: addr.PickupStoreName,
 			})
 			if updErr != nil {
-				return fmt.Errorf("%w: %s", ErrRefused, updErr.Error())
+				return fmt.Errorf("%w: %w", ErrRefused, updErr)
 			}
 			if n == 0 {
 				return ErrTooLateToCorrect
