@@ -496,9 +496,11 @@ columns for the shop's own products), `product_options` (so the picker had nothi
 pick and every variant after the first was unreachable), `promo_banners`,
 `faq_entries`, and `shipping_methods`/`shipping_zones` — a shop could publish a new
 VERSION of the two seeded delivery methods and not add a third, and set a surcharge
-for a zone the seed created and not define one. Three entries remain, each a decision
-rather than a gap: `invoice_documents` and its lines wait for a 加值中心, and
-`user_identities` for OAuth credentials.
+for a zone the seed created and not define one. **The allowlist is EMPTY now.** It
+held three entries described as decisions rather than gaps — `invoice_documents`
+and its lines waiting for a 加值中心, `user_identities` for OAuth credentials —
+and all three grew a door: 綠界's staging API, the 折讓 form, and Google sign-in.
+A queued item is a claim about the world, and the world moves.
 
 **`TestEveryTableIsRead`** — the mirror. Data collected and never shown is a feature
 with no door from the other side. `inventory_movements` is the stock LEDGER —
@@ -1114,10 +1116,18 @@ reviewer should see them named rather than discover them.
    revoked `store` role, which `database.md`'s "handler controls the
    transaction" does not describe.** The application connects and does
    `SET ROLE store`, which cannot write `stock_quantity`, a ledger, or a
-   payment directly — only `record_inventory_movement`, `hold_inventory`,
-   `consume_reservation`, `release_reservation`, `next_order_number` and
-   `erase_user` can. This is what makes "one writer" true rather than
-   aspirational; a comment claiming it is not enforcement.
+   payment directly — only a SECURITY DEFINER function can, and `store` may
+   execute fourteen of them: `record_inventory_movement`, `hold_inventory`,
+   `consume_reservation`, `consume_reservation_partial`, `release_reservation`,
+   `open_payment`, `capture_payment`, `cancel_payment`, `post_store_credit`,
+   `reverse_order_credit`, `award_loyalty_points`, `redeem_loyalty_points`,
+   `redeem_coupon`, `next_order_number` and `erase_user`. This sentence used to
+   name six of them, and the three PAYMENT writers were the ones it left out —
+   in a list whose own subject is "a ledger, or a payment". Read
+   `has_function_privilege` rather than the list: this is a number about the
+   catalogue, and a number typed here is a number that stops being measured.
+   This is what makes "one writer" true rather than aspirational; a comment
+   claiming it is not enforcement.
 
    Each role name answers one question, and nothing else: `goen` owns the
    schema and runs migrations, `store` is what a customer-facing request may do,
@@ -2530,6 +2540,23 @@ existing customer is PROMOTED rather than refused: a shop hiring somebody who
 already shops there is the common case, and "that email is taken" is an answer
 the admin cannot act on.
 
+**And a promotion secures the account it promotes.** `secure_promoted_account`
+does two things in the same statement as the role change, and both are about the
+gap between "somebody registered this address" and "the shop decided to trust
+them with `/admin`":
+
+- an UNPROVED password is cleared. goen does not verify an address at
+  registration, so anybody may register the future colleague's address and set a
+  password on it; promoting that row would hand `/admin` to whoever did. With no
+  hash the account can only be entered through `/forgot`, which proves the
+  mailbox. A customer who HAS proved their address keeps their password — they
+  are the common case and there is nothing to defend against.
+- every session ends, **always and not only when the password was cleared**. The
+  role is read live on every request, so a session opened before the promotion
+  becomes a back-office session the moment the role moves — on whatever machine
+  it was left open. The only test covering a proved promotion asserted the
+  password and nothing else, so the "always" was free to become an `if`.
+
 The secret is AES-256-GCM at rest, keyed by `GOEN_TOTP_KEY`. A
 `staff_totp_credentials` row is a password-equivalent, so the point is that a
 database dump alone does not defeat the factor. An empty key disables enrolment
@@ -3112,8 +3139,12 @@ Known follow-ups, none of them blocking this batch:
 - **The review rounds are dispositioned in `docs/reviews/`.** Round 5
   (`06-schema-round5-findings.md`) is fixed and proven by mutation; what remains
   there is the set that cannot be settled without the feature it belongs to
-  (return ↔ refund ↔ shipped reconciliation, invoice allowance vs refund, the
-  `order_number_counters` ceiling). Rounds 6–8 are in
+  (return ↔ refund ↔ shipped reconciliation, the `order_number_counters` ceiling)
+  — **"invoice allowance vs refund" came off that list and this line said
+  otherwise for a round.** `Allowance` refuses more than has gone back across
+  both sources, `order_refunds` is the one definition of that figure, and the
+  form offers exactly it. Recording a closed finding as open is the mistake this
+  file names one section down, in the paragraph about a stale roadmap. Rounds 6–8 are in
   `07-codex-round6-dispositions.md` and it is the one to read first — round 6 was
   a third-party ACCEPTANCE rather than a schema review, and three of its five
   Criticals were live while every gate here was green, because every guard here
