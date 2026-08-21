@@ -5961,17 +5961,36 @@ func TestAnOrderCannotFinishWhileItStillOwesAParcel(t *testing.T) {
 		t.Fatalf("first parcel: %v", err)
 	}
 
-	for _, ending := range []string{"delivered", "completed"} {
-		_, err := s.Advance(ctx, number, ending, actor)
-		if err == nil {
-			t.Fatalf("an order still owing a parcel was moved to %q; whatever is "+
-				"still held is now stranded with no door out", ending)
-		}
-		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
-			pgErr.ConstraintName != "orders_finished_when_shipped" {
-			t.Errorf("refused by %q, want orders_finished_when_shipped — a statement "+
-				"meant to prove one rule often trips another first", pgErr.ConstraintName)
-		}
+	// DELIVERED is allowed and must be: it is a fact about the parcel that went
+	// out, and it is the ONLY thing that stamps order_shipments.delivered_at.
+	// Refusing it left a partially shipped order unable to record that anything
+	// had arrived, so /admin/returns read 尚未送達 for goods the customer held —
+	// on the screen built to inform a 消保法 §19 decision.
+	if _, err := s.Advance(ctx, number, "delivered", actor); err != nil {
+		t.Fatalf("a partially shipped order could not record its first parcel as "+
+			"delivered: %v", err)
+	}
+	var stamped int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM order_shipments sh JOIN orders o ON o.id = sh.order_id
+		WHERE o.order_number = $1 AND sh.delivered_at IS NOT NULL`,
+		number).Scan(&stamped); err != nil {
+		t.Fatalf("count stamped parcels: %v", err)
+	}
+	if stamped == 0 {
+		t.Error("no parcel was stamped delivered, so the rescission window never starts")
+	}
+
+	// COMPLETED is refused: the order is not finished while it still owes a parcel.
+	_, err := s.Advance(ctx, number, "completed", actor)
+	if err == nil {
+		t.Fatal("an order still owing a parcel was completed; whatever is still " +
+			"held is now stranded with no door out")
+	}
+	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
+		pgErr.ConstraintName != "orders_finished_when_shipped" {
+		t.Errorf("refused by %q, want orders_finished_when_shipped — a statement "+
+			"meant to prove one rule often trips another first", pgErr.ConstraintName)
 	}
 
 	// And once everything has gone out, finishing works and nothing is held.

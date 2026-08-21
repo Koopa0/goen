@@ -1599,7 +1599,18 @@ BEGIN
     -- going out — CanShip already allows the second parcel, and follows from what
     -- is outstanding rather than from the status — or it is an abandonment,
     -- which is a decision a person makes and not a side effect of a dropdown.
-    IF NEW.fulfillment_status IN ('delivered', 'completed')
+    -- 'completed' only, and the distinction is the point. DELIVERED is a fact
+    -- about what went out — the parcels that shipped have arrived — and it is
+    -- true whether or not more is still to come. COMPLETED says the order is
+    -- finished, which an order still owing a parcel is not.
+    --
+    -- Guarding both closed the ONLY writer of order_shipments.delivered_at, so a
+    -- partially shipped order could never record that anything had arrived and
+    -- /admin/returns read 尚未送達 for goods the customer was holding — on the
+    -- one screen built to inform a 消保法 §19 decision, in the shop's favour.
+    -- That is the cost mistake #17 already recorded, reintroduced from the
+    -- other side.
+    IF NEW.fulfillment_status = 'completed'
        AND OLD.fulfillment_status <> NEW.fulfillment_status THEN
         SELECT count(*) INTO lines
         FROM order_lines ol
