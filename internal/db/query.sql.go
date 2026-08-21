@@ -2601,24 +2601,6 @@ func (q *Queries) CapturePayment(ctx context.Context, arg CapturePaymentParams) 
 	return capture_payment, err
 }
 
-const cardRefundedForOrder = `-- name: CardRefundedForOrder :one
-SELECT coalesce(sum(r.amount_cents), 0)::bigint AS refunded_cents
-FROM refunds r
-JOIN payments p ON p.id = r.payment_id
-JOIN orders o ON o.id = p.order_id
-WHERE o.order_number = $1::text AND r.status = 'succeeded'
-`
-
-// What the CARD has sent back on this order. The credit half is
-// OrderCreditPosition's `returned`, which is the one definition of that figure
-// and the reason this query does not sum the ledger itself.
-func (q *Queries) CardRefundedForOrder(ctx context.Context, orderNumber string) (int64, error) {
-	row := q.db.QueryRow(ctx, cardRefundedForOrder, orderNumber)
-	var refunded_cents int64
-	err := row.Scan(&refunded_cents)
-	return refunded_cents, err
-}
-
 const carryZoneSurcharges = `-- name: CarryZoneSurcharges :exec
 INSERT INTO shipping_version_zones (version_id, zone_id, surcharge_cents)
 SELECT $1, vz.zone_id, vz.surcharge_cents
@@ -8314,6 +8296,24 @@ func (q *Queries) RefreshCopurchases(ctx context.Context) (int32, error) {
 	return refresh_copurchases, err
 }
 
+const refundedForOrder = `-- name: RefundedForOrder :one
+SELECT (card_cents + credit_cents)::bigint AS refunded_cents
+FROM order_refunds
+WHERE order_number = $1::text
+`
+
+// What the CARD has sent back on this order. The credit half is
+// OrderCreditPosition's `returned`, which is the one definition of that figure
+// and the reason this query does not sum the ledger itself.
+// Both sources, from the one view: a refund is paid to the card, to store
+// credit, or split, and an allowance may not relieve more than the sum.
+func (q *Queries) RefundedForOrder(ctx context.Context, orderNumber string) (int64, error) {
+	row := q.db.QueryRow(ctx, refundedForOrder, orderNumber)
+	var refunded_cents int64
+	err := row.Scan(&refunded_cents)
+	return refunded_cents, err
+}
+
 const refundedSoFar = `-- name: RefundedSoFar :one
 SELECT coalesce(sum(amount_cents), 0)::bigint
 FROM refunds
@@ -10083,16 +10083,17 @@ func (q *Queries) SettleRefund(ctx context.Context, arg SettleRefundParams) erro
 }
 
 const settledRefundsForOrder = `-- name: SettledRefundsForOrder :one
-SELECT coalesce(sum(r.amount_cents), 0)::bigint AS refunded_cents
-FROM refunds r
-JOIN payments p ON p.id = r.payment_id
-JOIN orders o ON o.id = p.order_id
-WHERE o.order_number = $1::text AND r.status = 'succeeded'
+SELECT (card_cents + credit_cents)::bigint AS refunded_cents
+FROM order_refunds
+WHERE order_number = $1::text
 `
 
 // What has actually gone back to the customer on this order, so an allowance
 // form can default to it. A staff member typing a refund figure from memory is
 // how the wrong number reaches the 財政部.
+// What the 折讓 form offers, which must be what an allowance is allowed to
+// relieve: both sources, from the one view. Card-only defaulted the form to the
+// card half of a split refund, so the 統一發票 kept recording a reversed sale.
 func (q *Queries) SettledRefundsForOrder(ctx context.Context, orderNumber string) (int64, error) {
 	row := q.db.QueryRow(ctx, settledRefundsForOrder, orderNumber)
 	var refunded_cents int64

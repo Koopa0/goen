@@ -4219,6 +4219,43 @@ COMMENT ON VIEW store_credit_balances IS
 -- view created after it is granted to nobody.
 GRANT SELECT ON store_credit_balances TO store, admin, reporting;
 
+-- What has gone back to the customer on one order, by source and in total.
+--
+-- A refund is paid to the card, to store credit, or split between them —
+-- splitRefund pays the card first and credit last — so "what has been refunded"
+-- has two halves and every caller needs the sum. It was computed in three
+-- places instead: two byte-identical card-only queries and one Go addition of
+-- the card figure to the credit position. The two that stopped at the card
+-- decided what the 折讓 form OFFERS, while the one that added credit decided
+-- what an allowance is ALLOWED to relieve — so a split-refunded order defaulted
+-- the form to the card half, and the 統一發票 went on recording a sale that was
+-- reversed. An order refunded ENTIRELY from credit offered no form at all.
+--
+-- A view for the reason committed_orders and store_credit_balances are: the
+-- rule would otherwise be copied into whichever caller was written next.
+CREATE VIEW order_refunds AS
+    SELECT o.id AS order_id,
+           o.order_number,
+           coalesce((SELECT sum(r.amount_cents)
+                     FROM refunds r
+                     JOIN payments p ON p.id = r.payment_id
+                     WHERE p.order_id = o.id AND r.status = 'succeeded'), 0)::bigint
+               AS card_cents,
+           -- POSITIVE entries only: a negative one is credit SPENT on this
+           -- order, which is the customer paying rather than being paid.
+           coalesce((SELECT sum(e.amount_cents)
+                     FROM store_credit_entries e
+                     WHERE e.order_id = o.id AND e.amount_cents > 0), 0)::bigint
+               AS credit_cents
+    FROM orders o;
+
+COMMENT ON VIEW order_refunds IS
+    'What has gone back to the customer on one order, card and store credit '
+    'separately and summed by the caller. The one definition: a 折讓 may not '
+    'relieve more than this, and the form that files one offers exactly this.';
+
+GRANT SELECT ON order_refunds TO store, admin, reporting;
+
 -- ---------------------------------------------------------------------------
 -- Co-purchase projection
 --

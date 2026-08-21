@@ -1376,12 +1376,13 @@ SELECT EXISTS (
 -- What has actually gone back to the customer on this order, so an allowance
 -- form can default to it. A staff member typing a refund figure from memory is
 -- how the wrong number reaches the 財政部.
+-- What the 折讓 form offers, which must be what an allowance is allowed to
+-- relieve: both sources, from the one view. Card-only defaulted the form to the
+-- card half of a split refund, so the 統一發票 kept recording a reversed sale.
 -- name: SettledRefundsForOrder :one
-SELECT coalesce(sum(r.amount_cents), 0)::bigint AS refunded_cents
-FROM refunds r
-JOIN payments p ON p.id = r.payment_id
-JOIN orders o ON o.id = p.order_id
-WHERE o.order_number = @order_number::text AND r.status = 'succeeded';
+SELECT (card_cents + credit_cents)::bigint AS refunded_cents
+FROM order_refunds
+WHERE order_number = @order_number::text;
 
 -- Whether the CREDIT half of a return has already been posted. post_store_credit
 -- keys the entry on 'return-credit:<id>', which is what makes the compensation

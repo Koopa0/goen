@@ -366,6 +366,14 @@ type OrderPrivateDatum struct {
 	ErasedAt        pgtype.Timestamptz
 }
 
+// What has gone back to the customer on one order, card and store credit separately and summed by the caller. The one definition: a 折讓 may not relieve more than this, and the form that files one offers exactly this.
+type OrderRefund struct {
+	OrderID     uuid.UUID
+	OrderNumber string
+	CardCents   int64
+	CreditCents int64
+}
+
 type OrderShipment struct {
 	ID                  uuid.UUID
 	OrderID             uuid.UUID

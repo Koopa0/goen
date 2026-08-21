@@ -198,12 +198,18 @@ func invoicedOrderWithRefund(t *testing.T, refundCents int64) string {
 		orderID); err != nil {
 		t.Fatalf("file the invoice: %v", err)
 	}
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO refunds (payment_id, request_key, amount_cents, reason,
-		                     status, provider_ref, succeeded_at)
-		VALUES ($1, 'allow-fixture:' || $2, $3, '退貨', 'succeeded',
-		        're_allow_' || $2, now())`, paymentID, number, refundCents); err != nil {
-		t.Fatalf("settle a refund: %v", err)
+	// Zero means no CARD refund, which is what a return compensated entirely
+	// from store credit looks like: refunds_amount_positive refuses a zero row,
+	// and inserting one anyway would make the fixture describe a state the
+	// application cannot produce.
+	if refundCents > 0 {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO refunds (payment_id, request_key, amount_cents, reason,
+			                     status, provider_ref, succeeded_at)
+			VALUES ($1, 'allow-fixture:' || $2, $3, '退貨', 'succeeded',
+			        're_allow_' || $2, now())`, paymentID, number, refundCents); err != nil {
+			t.Fatalf("settle a refund: %v", err)
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatalf("commit the fixture: %v", err)
@@ -314,5 +320,80 @@ func TestAnUnansweredAllowanceKeepsItsClaim(t *testing.T) {
 		t.Errorf("pressing again after an unanswered 折讓 = %v, want the claim to "+
 			"refuse it: whether ECPay filed is not knowable from here, and two "+
 			"折讓 for one refund is what reaches the 財政部", err)
+	}
+}
+
+// TestAnAllowanceRelievesACreditRefundToo is the half the card-only fixture
+// could not reach. A refund is paid to the card, to store credit, or split —
+// splitRefund pays the card first and credit last — and a customer refunded
+// wholly in store credit has a card figure of zero. Read card-only, that order
+// can have no 折讓 filed at all, so its 統一發票 goes on recording a sale the
+// shop reversed.
+//
+// The bound and the form's default figure now come from one view, and this is
+// the fixture that tells the two rules apart: with card-only, "card" and
+// "card + credit" agree on every other order in this file.
+func TestAnAllowanceRelievesACreditRefundToo(t *testing.T) {
+	ctx := t.Context()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reply(t, w, result{RtnCode: 1, AllowanceNo: "2026080715227299"})
+	}))
+	defer srv.Close()
+	g, err := NewGateway(testMerchantID, testHashKey, testHashIV, srv.URL)
+	if err != nil {
+		t.Fatalf("gateway: %v", err)
+	}
+	s := NewStore(pool, g)
+
+	// No card refund at all: everything went back as store credit.
+	number := invoicedOrderWithRefund(t, 0)
+	creditRefund(t, number, 40000)
+
+	doc, err := s.Allowance(ctx, number, 40000)
+	if err != nil {
+		t.Fatalf("a 折讓 for a refund paid entirely in store credit was refused: %v\n"+
+			"Read card-only, that order can never be relieved and its 統一發票 "+
+			"keeps recording a sale the shop reversed", err)
+	}
+	if doc.Number == "" {
+		t.Error("the allowance was filed with no number")
+	}
+
+	// And the bound still holds on the same figure: one dollar more than went
+	// back is refused, whichever source it came from.
+	if _, err := s.Allowance(ctx, number, 100); !errors.Is(err, ErrRejected) {
+		t.Errorf("relieving more than went back = %v, want ErrRejected", err)
+	}
+}
+
+// creditRefund posts a positive store-credit entry against the order, which is
+// what compensating a return out of credit writes.
+func creditRefund(t *testing.T, orderNumber string, cents int64) {
+	t.Helper()
+	ctx := t.Context()
+
+	var userID, orderID string
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO users (email, full_name)
+		VALUES ('credit-' || gen_random_uuid() || '@goen.invalid', '王小明')
+		RETURNING id::text`).Scan(&userID); err != nil {
+		t.Fatalf("create the customer: %v", err)
+	}
+	if err := pool.QueryRow(ctx,
+		`UPDATE orders SET user_id = $1 WHERE order_number = $2 RETURNING id::text`,
+		userID, orderNumber).Scan(&orderID); err != nil {
+		t.Fatalf("attach the order to a customer: %v", err)
+	}
+	var accountID string
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO store_credit_accounts (user_id) VALUES ($1) RETURNING id::text`,
+		userID).Scan(&accountID); err != nil {
+		t.Fatalf("open a credit account: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		SELECT post_store_credit($1, $2::bigint, $3::text, $4, $5::text, NULL)`,
+		userID, cents, "退貨補償", orderID, "return-credit:"+orderNumber); err != nil {
+		t.Fatalf("post the credit refund: %v", err)
 	}
 }

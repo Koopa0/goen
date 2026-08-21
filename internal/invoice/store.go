@@ -230,7 +230,7 @@ func (s *Store) Allowance(ctx context.Context, orderNumber string, amountCents i
 	// than was refunded understates what the shop owes the 財政部, and
 	// invoice_allowance_valid cannot see it: it holds the allowance total
 	// against the INVOICE, which says nothing about refunds.
-	refunded, err := s.refundableRoom(ctx, orderNumber, subject.ID, amountCents)
+	refunded, err := s.refundableRoom(ctx, orderNumber, amountCents)
 	if err != nil {
 		return Document{}, err
 	}
@@ -299,17 +299,12 @@ func (s *Store) Allowance(ctx context.Context, orderNumber string, amountCents i
 // 財政部, and invoice_allowance_valid cannot see it: it holds the allowance
 // total against the INVOICE, which says nothing about refunds.
 func (s *Store) refundableRoom(
-	ctx context.Context, orderNumber string, orderID uuid.UUID, amountCents int64,
+	ctx context.Context, orderNumber string, amountCents int64,
 ) (int64, error) {
-	card, err := s.q.CardRefundedForOrder(ctx, orderNumber)
+	refunded, err := s.q.RefundedForOrder(ctx, orderNumber)
 	if err != nil {
 		return 0, fmt.Errorf("read what was refunded on %s: %w", orderNumber, err)
 	}
-	credit, err := s.q.OrderCreditPosition(ctx, uuid.NullUUID{UUID: orderID, Valid: true})
-	if err != nil {
-		return 0, fmt.Errorf("read the credit position of %s: %w", orderNumber, err)
-	}
-	refunded := card + credit.Returned
 
 	already, err := s.q.AllowedTotalForOrder(ctx, orderNumber)
 	if err != nil {

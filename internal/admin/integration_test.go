@@ -28,6 +28,7 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
@@ -6194,6 +6195,30 @@ func TestASplitReturnResumesTheHalfThatFailed(t *testing.T) {
 		t.Errorf("the card half is now %d, want 140000 — the retry re-sent a refund "+
 			"that had already landed", got)
 	}
+
+	// The order now holds a refund from BOTH sources, which is the only shape
+	// that can tell the two definitions of "what has gone back" apart. The 折讓
+	// form offers this figure and internal/invoice bounds an allowance by it,
+	// and they were computed separately: card-only here, card + credit there.
+	// So a split-refunded order defaulted the form to the card half and the
+	// 統一發票 went on recording a sale that was reversed.
+	// An invoicer, because the 折讓 figure is only filled when one is configured
+	// — no provider, no form, no number to get wrong.
+	withInvoices := admin.NewStore(pool, fakeRefunder{}, noDocuments{})
+	view, viewErr := withInvoices.Order(ctx, orderNumber)
+	if viewErr != nil {
+		t.Fatalf("read the order: %v", viewErr)
+	}
+	credited := creditBalance(t, accountID) - before
+	if credited <= 0 {
+		t.Fatal("no credit was returned, so this proves nothing about the sum")
+	}
+	if want := int64(140000) + credited; view.RefundedCents != want {
+		t.Errorf("the 折讓 form offers %d and %d has gone back (card %d + credit %d).\n"+
+			"The form's figure and the bound an allowance is held to are one fact, "+
+			"and a 折讓 short of what was refunded over-reports the sale to the 財政部",
+			view.RefundedCents, want, 140000, credited)
+	}
 }
 
 func cardRefunded(t *testing.T, orderNumber string) int64 {
@@ -6268,4 +6293,23 @@ func TestADeliveredOrderCanStillShipWhatItOwes(t *testing.T) {
 	if held != 0 {
 		t.Errorf("%d hold(s) still on the shelf after everything shipped", held)
 	}
+}
+
+// noDocuments is an Invoicer that has filed nothing. The figure under test is
+// what has been REFUNDED, which is a question about money and not about
+// documents, so the documents are the part that can be empty.
+type noDocuments struct{}
+
+func (noDocuments) Documents(context.Context, string) ([]invoice.Document, error) {
+	return nil, nil
+}
+
+func (noDocuments) Issue(context.Context, string) (invoice.Document, error) {
+	return invoice.Document{}, invoice.ErrDisabled
+}
+
+func (noDocuments) Void(context.Context, string, string) error { return invoice.ErrDisabled }
+
+func (noDocuments) Allowance(context.Context, string, int64) (invoice.Document, error) {
+	return invoice.Document{}, invoice.ErrDisabled
 }

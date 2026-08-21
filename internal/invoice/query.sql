@@ -115,12 +115,12 @@ WHERE id = @id AND status = 'pending';
 -- What the CARD has sent back on this order. The credit half is
 -- OrderCreditPosition's `returned`, which is the one definition of that figure
 -- and the reason this query does not sum the ledger itself.
--- name: CardRefundedForOrder :one
-SELECT coalesce(sum(r.amount_cents), 0)::bigint AS refunded_cents
-FROM refunds r
-JOIN payments p ON p.id = r.payment_id
-JOIN orders o ON o.id = p.order_id
-WHERE o.order_number = @order_number::text AND r.status = 'succeeded';
+-- Both sources, from the one view: a refund is paid to the card, to store
+-- credit, or split, and an allowance may not relieve more than the sum.
+-- name: RefundedForOrder :one
+SELECT (card_cents + credit_cents)::bigint AS refunded_cents
+FROM order_refunds
+WHERE order_number = @order_number::text;
 
 -- What this order has already had relieved, live documents only.
 -- name: AllowedTotalForOrder :one
