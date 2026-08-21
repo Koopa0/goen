@@ -1076,15 +1076,14 @@ WHERE id = $1 AND handled_at IS NOT NULL;
 -- Signs as the ledger stores them: a spend is negative, a compensation positive.
 -- Two figures and not one net number, because a reader reconciling a return
 -- needs both sides. ReverseOrderCredit lives in internal/cart/query.sql.
--- name: OrderCreditPosition :one
-SELECT
-    coalesce(-sum(amount_cents) FILTER (WHERE amount_cents < 0), 0)::bigint AS spent,
-    coalesce(sum(amount_cents) FILTER (WHERE amount_cents > 0), 0)::bigint  AS returned
-FROM store_credit_entries
-WHERE order_id = $1;
-
--- The same position with ONE return's own compensation left out, which is what a
--- RETRY has to ask. The card side already excludes its own row — post_store_credit
+-- Spent and returned on ONE order, split by sign — a position rather than a
+-- balance, which is why it is allowed to sum the ledger itself.
+--
+-- It takes the return whose own compensation to LEAVE OUT, because that is what
+-- a RETRY has to ask, and passing a return that has posted nothing asks the
+-- plain question. There is no second, unfiltered copy: the two would be one
+-- fact in two places, and whichever gained a predicate first would be the one
+-- that disagreed. The card side already excludes its own row — post_store_credit
 -- and open_refund are both idempotent, so counting what a stalled attempt wrote
 -- refuses its own retry — and the credit side did not: a split return whose CREDIT
 -- half landed and whose CARD half stayed pending read its own compensation as

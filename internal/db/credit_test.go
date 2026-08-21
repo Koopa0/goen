@@ -15,12 +15,11 @@ func TestEveryCreditBalanceReadsTheOneView(t *testing.T) {
 	t.Parallel()
 
 	allowed := map[string]string{
-		"OrderCreditPosition": "spent and returned on ONE order, split by sign — a " +
-			"position rather than a balance, and the refund split needs both halves",
-		"OrderCreditPositionExcluding": "the same position with one return's own " +
-			"compensation left out, which is what a RETRY has to ask: without it a " +
-			"split return reads the credit it just posted as credit already returned " +
-			"and refuses its own resume",
+		"OrderCreditPositionExcluding": "spent and returned on ONE order, split by " +
+			"sign — a position rather than a balance, and the refund split needs both " +
+			"halves. It leaves out one return's own compensation because that is what " +
+			"a RETRY has to ask: without it a split return reads the credit it just " +
+			"posted as credit already returned and refuses its own resume",
 	}
 
 	used := map[string]bool{}
