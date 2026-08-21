@@ -230,11 +230,21 @@ SELECT
     coalesce(img.height, 0)::integer AS image_height
 FROM products p
 JOIN brands b ON b.id = p.brand_id
+-- A DISCOUNTED variant first, which is what puts the product on this page at
+-- all. The listing's LATERAL takes the cheapest buyable one, and a product
+-- qualifies here when ANY variant carries a discount — two different variants
+-- whenever the discounted one is dearer or out of stock, so the sale page could
+-- quote a price with no discount on it and no badge beside it. They agree on
+-- every product in the dev seed, which is what a fixture where two rules agree
+-- is worth.
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
     WHERE product_id = p.id AND is_active
-    ORDER BY (stock_quantity > safety_stock) DESC, price_cents
+    ORDER BY (compare_at_price_cents IS NOT NULL
+              AND compare_at_price_cents > price_cents) DESC,
+             (stock_quantity > safety_stock) DESC,
+             price_cents
     LIMIT 1
 ) mv ON true
 LEFT JOIN LATERAL (

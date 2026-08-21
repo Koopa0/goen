@@ -4664,7 +4664,10 @@ JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
     WHERE product_id = p.id AND is_active
-    ORDER BY (stock_quantity > safety_stock) DESC, price_cents
+    ORDER BY (compare_at_price_cents IS NOT NULL
+              AND compare_at_price_cents > price_cents) DESC,
+             (stock_quantity > safety_stock) DESC,
+             price_cents
     LIMIT 1
 ) mv ON true
 LEFT JOIN LATERAL (
@@ -4715,6 +4718,13 @@ type DealProductsRow struct {
 
 // "On sale" is a variant fact, and a product qualifies when any active variant
 // carries one.
+// A DISCOUNTED variant first, which is what puts the product on this page at
+// all. The listing's LATERAL takes the cheapest buyable one, and a product
+// qualifies here when ANY variant carries a discount — two different variants
+// whenever the discounted one is dearer or out of stock, so the sale page could
+// quote a price with no discount on it and no badge beside it. They agree on
+// every product in the dev seed, which is what a fixture where two rules agree
+// is worth.
 func (q *Queries) DealProducts(ctx context.Context, arg DealProductsParams) ([]DealProductsRow, error) {
 	rows, err := q.db.Query(ctx, dealProducts, arg.Locale, arg.PageOffset, arg.PageSize)
 	if err != nil {
@@ -4883,13 +4893,26 @@ func (q *Queries) DeleteFAQEntry(ctx context.Context, entryID uuid.UUID) (int64,
 	return result.RowsAffected(), nil
 }
 
-const deleteMedia = `-- name: DeleteMedia :exec
-DELETE FROM media_objects WHERE digest = $1::text
+const deleteMedia = `-- name: DeleteMedia :execrows
+DELETE FROM media_objects m
+WHERE m.digest = $1::text
+  AND NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
+  AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
 `
 
-func (q *Queries) DeleteMedia(ctx context.Context, digest string) error {
-	_, err := q.db.Exec(ctx, deleteMedia, digest)
-	return err
+// The reference predicate is REPEATED here, not assumed. Selecting candidates
+// and deleting them are two statements, and an upload attached in between is
+// invisible to the second — the sweeper's own comment said a foreign key caught
+// that, and there is none: product_images.storage_key holds either an embedded
+// filename from the seed or a digest, so it cannot point at media_objects.
+// Asking again inside the DELETE makes the attach win, and :execrows is what
+// lets the caller tell "somebody attached it" from "deleted".
+func (q *Queries) DeleteMedia(ctx context.Context, digest string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteMedia, digest)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteMembershipTier = `-- name: DeleteMembershipTier :execrows
@@ -10444,6 +10467,28 @@ func (q *Queries) StaffTOTPStatus(ctx context.Context) ([]StaffTOTPStatusRow, er
 		return nil, err
 	}
 	return items, nil
+}
+
+const stillSubscribed = `-- name: StillSubscribed :one
+SELECT EXISTS (
+    SELECT 1 FROM newsletter_subscribers
+    WHERE lower(email) = lower($1::text) AND unsubscribed_at IS NULL
+)::boolean AS subscribed
+`
+
+// Whether this address still wants the newsletter, asked at DELIVERY.
+//
+// The send freezes the recipient list into one outbox row per subscriber, and
+// the queue drains at BulkPriority behind every transactional message — minutes
+// to hours for a real list. Nothing downstream re-read consent, so an
+// unsubscribe committing at any point in that window, or even after the send
+// transaction committed, still had its copy delivered. The read↔enqueue race is
+// the small half of that; the missing check is the whole of it.
+func (q *Queries) StillSubscribed(ctx context.Context, email string) (bool, error) {
+	row := q.db.QueryRow(ctx, stillSubscribed, email)
+	var subscribed bool
+	err := row.Scan(&subscribed)
+	return subscribed, err
 }
 
 const stockAtRisk = `-- name: StockAtRisk :many

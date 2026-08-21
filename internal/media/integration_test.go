@@ -11,6 +11,7 @@ import (
 	"image/png"
 	"log/slog"
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -330,5 +331,66 @@ func ageUploads(t *testing.T, digests ...string) {
 			FROM old`, digest); err != nil {
 			t.Fatalf("age %s: %v", digest, err)
 		}
+	}
+}
+
+// TestAnUploadAttachedMidSweepSurvivesIt holds the window between the two
+// statements the sweep is made of.
+//
+// Sweep selects candidates in one statement and deletes them one at a time in
+// later ones. Its own comment said an upload attached in between was caught by
+// "the foreign key working" — and there is no foreign key:
+// product_images.storage_key holds either an embedded filename from the seed or
+// a digest, so it cannot point at media_objects, which is exactly why one was
+// never added. A comment naming a mechanism that does not exist is the shape
+// this repository keeps finding, and here it meant a photograph attached to a
+// product one second before the sweeper reached it was deleted, leaving the
+// listing pointing at a 404.
+//
+// The reference predicate is repeated inside the DELETE now, so the attach wins.
+// The interleaving is DRIVEN rather than hoped for: the candidate list is taken
+// first, the attach commits, and only then is the delete asked for.
+func TestAnUploadAttachedMidSweepSurvivesIt(t *testing.T) {
+	ctx := t.Context()
+	s := media.NewStore(pool)
+
+	up, err := s.Put(ctx, bytes.NewReader(samplePNG(t, 73, 53)))
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	ageUploads(t, up.Digest)
+
+	// Sweep's FIRST statement, taken while nothing points at the upload.
+	candidates, err := s.Candidates(ctx, 200)
+	if err != nil {
+		t.Fatalf("read the candidate list: %v", err)
+	}
+	if !slices.Contains(candidates, up.Digest) {
+		t.Fatalf("the upload is not a sweep candidate, so this proved nothing")
+	}
+	candidate := up.Digest
+
+	// Attached AFTER that read, exactly as a staff member saving a product would.
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href,
+		                         image_key, image_alt, position)
+		VALUES ('搶在清掃前掛上', '看看', '/deals', $1, '測試圖片', 98)`,
+		candidate); err != nil {
+		t.Fatalf("attach: %v", err)
+	}
+
+	// And now Sweep's SECOND statement, issued against that stale list — which
+	// is the whole window. Calling Sweep here instead would re-read the list,
+	// never offer the digest, and pass without the fix.
+	gone, reclaimErr := s.Reclaim(ctx, candidate)
+	if reclaimErr != nil {
+		t.Fatalf("reclaim: %v", reclaimErr)
+	}
+	if gone {
+		t.Error("the delete went through against a stale list")
+	}
+	if !exists(t, candidate) {
+		t.Error("an upload attached between the sweeper's read and its delete was " +
+			"reclaimed; whatever it was attached to now points at a 404")
 	}
 }

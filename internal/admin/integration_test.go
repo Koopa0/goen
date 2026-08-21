@@ -2289,9 +2289,14 @@ func TestShippingEnqueuesTheDispatchNotice(t *testing.T) {
 		t.Fatalf("ship: %v", err)
 	}
 
+	// Found by what the notice IS about, not by the dedupe key: the key is
+	// deduplication's business — it carries the carrier as well now, because
+	// order_shipments is unique on the pair — and a test bound to it asserts the
+	// scheme rather than the notice.
 	var payload []byte
 	if err := pool.QueryRow(ctx,
-		`SELECT payload FROM outbox_messages WHERE topic = 'order.shipped' AND dedupe_key = $1`,
+		`SELECT payload FROM outbox_messages
+		 WHERE topic = 'order.shipped' AND payload->>'tracking' = $1`,
 		"903-2214-0001").Scan(&payload); err != nil {
 		t.Fatalf("no dispatch notice was enqueued for %s: %v", number, err)
 	}
@@ -5982,5 +5987,53 @@ func TestAnOrderCannotFinishWhileItStillOwesAParcel(t *testing.T) {
 		if got := heldFor(t, orderID, v); got != 0 {
 			t.Errorf("line %d still holds %d on a completed order", i+1, got)
 		}
+	}
+}
+
+// TestTwoCarriersSharingATrackingNumberBothNotify holds a dedupe key that was
+// narrower than the fact it was deduplicating.
+//
+// order_shipments is unique on (carrier, tracking_number) — the schema's own
+// statement that a tracking number identifies a parcel only alongside who is
+// carrying it. The dispatch notice keyed on the tracking number ALONE, so a
+// second shipment with a colliding number from a different carrier met
+// ON CONFLICT DO NOTHING in the outbox: Ship still succeeded, the parcel went
+// out, and the customer was never told.
+//
+// The comment above it says an order shipped in two parcels is two notices, and
+// that stays true — two parcels of one order carry two tracking numbers. What
+// it did not cover is two parcels of DIFFERENT orders that happen to share one.
+func TestTwoCarriersSharingATrackingNumberBothNotify(t *testing.T) {
+	ctx, staff := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	actor := uuid.NullUUID{UUID: staff, Valid: true}
+
+	const shared = "SHARED-1234567890"
+	first, _, firstLines, _ := twoLineOrderWithStock(t, "carrier-a")
+	second, _, secondLines, _ := twoLineOrderWithStock(t, "carrier-b")
+
+	if err := s.Ship(ctx, first, admin.Dispatch{
+		Carrier: "黑貓宅急便", Tracking: shared,
+		Lines: map[uuid.UUID]int32{firstLines[0]: 1},
+	}, actor); err != nil {
+		t.Fatalf("first carrier: %v", err)
+	}
+	if err := s.Ship(ctx, second, admin.Dispatch{
+		Carrier: "新竹物流", Tracking: shared,
+		Lines: map[uuid.UUID]int32{secondLines[0]: 1},
+	}, actor); err != nil {
+		t.Fatalf("second carrier: %v — the database allows the pair, so the "+
+			"application must too", err)
+	}
+
+	var notices int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM outbox_messages
+		WHERE topic = 'order.shipped' AND payload->>'tracking' = $1`, shared).Scan(&notices); err != nil {
+		t.Fatalf("count dispatch notices: %v", err)
+	}
+	if notices != 2 {
+		t.Errorf("%d dispatch notices for two parcels sharing a tracking number, "+
+			"want 2 — one customer's parcel left and nothing told them", notices)
 	}
 }

@@ -92,3 +92,16 @@ SELECT record_audit_event(
     sqlc.narg(actor)::uuid, @action::text, 'newsletter_issues', @issue_id::uuid,
     NULL, @after, NULL
 );
+-- Whether this address still wants the newsletter, asked at DELIVERY.
+--
+-- The send freezes the recipient list into one outbox row per subscriber, and
+-- the queue drains at BulkPriority behind every transactional message — minutes
+-- to hours for a real list. Nothing downstream re-read consent, so an
+-- unsubscribe committing at any point in that window, or even after the send
+-- transaction committed, still had its copy delivered. The read↔enqueue race is
+-- the small half of that; the missing check is the whole of it.
+-- name: StillSubscribed :one
+SELECT EXISTS (
+    SELECT 1 FROM newsletter_subscribers
+    WHERE lower(email) = lower(@email::text) AND unsubscribed_at IS NULL
+)::boolean AS subscribed;

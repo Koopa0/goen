@@ -189,3 +189,14 @@ func enqueueBulk(ctx context.Context, q *db.Queries, topic, dedupeKey string, pa
 	}
 	return nil
 }
+
+// StillSubscribed reports whether an address has not opted out since the issue
+// was queued. Asked at delivery, because the enqueue froze the recipient and
+// the queue can take hours to reach it.
+func (s *Store) StillSubscribed(ctx context.Context, address string) (bool, error) {
+	yes, err := s.q.StillSubscribed(ctx, address)
+	if err != nil {
+		return false, fmt.Errorf("check consent for a newsletter recipient: %w", err)
+	}
+	return yes, nil
+}
