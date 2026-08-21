@@ -1353,3 +1353,13 @@ SELECT EXISTS (
     SELECT 1 FROM refunds
     WHERE return_request_id = $1 AND status = 'succeeded'
 )::boolean AS settled;
+
+-- What has actually gone back to the customer on this order, so an allowance
+-- form can default to it. A staff member typing a refund figure from memory is
+-- how the wrong number reaches the 財政部.
+-- name: SettledRefundsForOrder :one
+SELECT coalesce(sum(r.amount_cents), 0)::bigint AS refunded_cents
+FROM refunds r
+JOIN payments p ON p.id = r.payment_id
+JOIN orders o ON o.id = p.order_id
+WHERE o.order_number = @order_number::text AND r.status = 'succeeded';

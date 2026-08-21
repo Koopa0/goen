@@ -24,6 +24,12 @@ type Invoicer interface {
 	Documents(ctx context.Context, orderNumber string) ([]invoice.Document, error)
 	Issue(ctx context.Context, orderNumber string) (invoice.Document, error)
 	Void(ctx context.Context, orderNumber, reason string) error
+	// Allowance relieves part of a live invoice, which is what a REFUND leaves
+	// owed to the 財政部. internal/invoice has had it since the feature shipped
+	// and this interface did not declare it, so no handler could call it and no
+	// route existed: a customer was refunded while the tax document still
+	// recorded the whole sale. README.md said it was delivered.
+	Allowance(ctx context.Context, orderNumber string, amountCents int64) (invoice.Document, error)
 }
 
 // Store reads and writes through the ADMIN pool, which assumes the admin role.
@@ -370,6 +376,11 @@ func (s *Store) fillInvoices(ctx context.Context, view *pages.AdminOrderView, nu
 		}
 		view.InvoiceDocuments = append(view.InvoiceDocuments, doc)
 	}
+	refunded, err := s.q.SettledRefundsForOrder(ctx, number)
+	if err != nil {
+		return fmt.Errorf("read settled refunds for %s: %w", number, err)
+	}
+	view.RefundedCents = refunded
 	return nil
 }
 
@@ -1359,6 +1370,23 @@ func (s *Store) IssueInvoice(ctx context.Context, number string) error {
 	return s.audited(ctx, Event{
 		Action: ActionIssueInvoice, Table: "invoice_documents", ID: uuid.NullUUID{},
 		After: map[string]any{"order": number, "invoice": doc.Number},
+	}, func(context.Context, *db.Queries) error { return nil })
+}
+
+// AllowInvoice files a 折讓 against an order's live invoice, relieving the part
+// of the sale that was refunded. A void is for an invoice that should not exist;
+// an allowance is for one that should exist for less.
+func (s *Store) AllowInvoice(ctx context.Context, number string, amountCents int64) error {
+	if s.invoices == nil {
+		return fmt.Errorf("%w: no e-invoice provider is configured", ErrRefused)
+	}
+	doc, err := s.invoices.Allowance(ctx, number, amountCents)
+	if err != nil {
+		return err
+	}
+	return s.audited(ctx, Event{
+		Action: ActionAllowInvoice, Table: "invoice_documents", ID: uuid.NullUUID{},
+		After: map[string]any{"order": number, "allowance": doc.Number, "amount_cents": amountCents},
 	}, func(context.Context, *db.Queries) error { return nil })
 }
 

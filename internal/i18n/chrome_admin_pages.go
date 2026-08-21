@@ -203,6 +203,23 @@ var (
 			"so its old password and sign-ins were cleared — ask them to set a password through " +
 			"“Forgot password”, which is the one path that proves the mailbox is theirs.",
 	})
+	KeyAdminQueueAllowance = key("admin.queue.allowance", Message{
+		ZhHant: "開立折讓單",
+		En:     "File a credit note",
+	})
+	KeyAdminQueueAllowanceAmount = key("admin.queue.allowance.amount", Message{
+		ZhHant: "折讓金額(元)",
+		En:     "Allowance amount (NT$)",
+	})
+	// A void is for an invoice that should not exist; an allowance is for one
+	// that should exist for less. Saying which is which is the whole hint.
+	KeyAdminQueueAllowanceHint = key("admin.queue.allowance.hint", Message{
+		ZhHant: "退款之後,發票上仍記著原本的銷售額。折讓單是向財政部沖銷退掉的那一部分 —— " +
+			"預設帶入已經退回的金額。整張都不該存在時請用作廢。",
+		En: "After a refund the invoice still records the whole sale. A credit note relieves " +
+			"the refunded part with the tax authority; the amount defaults to what has gone " +
+			"back. Use a void instead when the invoice should not exist at all.",
+	})
 	KeyStaffSelf = key("staff.self", Message{
 		ZhHant: "不能對自己的帳號做這件事 —— 解除自己的兩階段驗證等於沒有第二因素," +
 			"移除自己的權限會把商店鎖在門外。請另一位管理員操作。",

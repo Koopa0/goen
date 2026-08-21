@@ -5689,6 +5689,14 @@ SELECT o.id,
        (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                   WHERE ol.order_id = o.id), 0)
         - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents,
+       -- Both halves separately, because the itemisation has to reconstruct the
+       -- header rather than infer it. Deriving the delivery line as
+       -- total - sum(lines) makes it shipping MINUS discount: a document that
+       -- states a carriage charge nobody paid when the discount is smaller, and
+       -- one ECPay refuses outright (5000022) when it is larger — which is every
+       -- discounted order that also qualified for 免運.
+       o.shipping_cents,
+       o.discount_cents,
        -- Only a COMMITTED order gets an invoice: a checkout nobody paid for is
        -- not a sale, and undoing a filed document is a tax correction.
        (o.id IN (SELECT id FROM committed_orders))::boolean AS committed,
@@ -5704,16 +5712,18 @@ WHERE o.order_number = $1::text
 `
 
 type InvoiceSubjectRow struct {
-	ID           uuid.UUID
-	OrderNumber  string
-	CustomerName string
-	Email        string
-	InvoiceType  string
-	CarrierCode  string
-	TaxID        string
-	TotalCents   int64
-	Committed    bool
-	Attempt      int32
+	ID            uuid.UUID
+	OrderNumber   string
+	CustomerName  string
+	Email         string
+	InvoiceType   string
+	CarrierCode   string
+	TaxID         string
+	TotalCents    int64
+	ShippingCents int64
+	DiscountCents int64
+	Committed     bool
+	Attempt       int32
 }
 
 // What an order needs to become an invoice. The amount is order_amount_owed's
@@ -5731,6 +5741,8 @@ func (q *Queries) InvoiceSubject(ctx context.Context, orderNumber string) (Invoi
 		&i.CarrierCode,
 		&i.TaxID,
 		&i.TotalCents,
+		&i.ShippingCents,
+		&i.DiscountCents,
 		&i.Committed,
 		&i.Attempt,
 	)
@@ -9869,6 +9881,24 @@ type SettleRefundParams struct {
 func (q *Queries) SettleRefund(ctx context.Context, arg SettleRefundParams) error {
 	_, err := q.db.Exec(ctx, settleRefund, arg.RequestKey, arg.ProviderRef, arg.Status)
 	return err
+}
+
+const settledRefundsForOrder = `-- name: SettledRefundsForOrder :one
+SELECT coalesce(sum(r.amount_cents), 0)::bigint AS refunded_cents
+FROM refunds r
+JOIN payments p ON p.id = r.payment_id
+JOIN orders o ON o.id = p.order_id
+WHERE o.order_number = $1::text AND r.status = 'succeeded'
+`
+
+// What has actually gone back to the customer on this order, so an allowance
+// form can default to it. A staff member typing a refund figure from memory is
+// how the wrong number reaches the 財政部.
+func (q *Queries) SettledRefundsForOrder(ctx context.Context, orderNumber string) (int64, error) {
+	row := q.db.QueryRow(ctx, settledRefundsForOrder, orderNumber)
+	var refunded_cents int64
+	err := row.Scan(&refunded_cents)
+	return refunded_cents, err
 }
 
 const shipmentRecipient = `-- name: ShipmentRecipient :one

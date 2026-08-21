@@ -12,6 +12,14 @@ SELECT o.id,
        (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
                   WHERE ol.order_id = o.id), 0)
         - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents,
+       -- Both halves separately, because the itemisation has to reconstruct the
+       -- header rather than infer it. Deriving the delivery line as
+       -- total - sum(lines) makes it shipping MINUS discount: a document that
+       -- states a carriage charge nobody paid when the discount is smaller, and
+       -- one ECPay refuses outright (5000022) when it is larger — which is every
+       -- discounted order that also qualified for 免運.
+       o.shipping_cents,
+       o.discount_cents,
        -- Only a COMMITTED order gets an invoice: a checkout nobody paid for is
        -- not a sale, and undoing a filed document is a tax correction.
        (o.id IN (SELECT id FROM committed_orders))::boolean AS committed,

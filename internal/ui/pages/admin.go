@@ -167,28 +167,30 @@ func (o AdminOrderRow) RecipientText(ctx context.Context) string {
 
 // AdminOrderView is one order in the back office.
 type AdminOrderView struct {
-	Number            string
-	Status            string
-	StatusText        string
-	PlacedAt          string
-	ShippingName      string
-	Lines             []OrderLine
-	SubtotalCents     int64
-	ShippingCents     int64
-	DiscountCents     int64
-	DiscountReason    string
-	TaxCents          int64
-	Email             string
-	Recipient         string
-	Phone             string
-	Address           string
-	CustomerNote      string
-	StaffNote         string
-	InvoiceType       string
-	InvoiceCarrier    string
-	InvoiceTaxID      string
-	InvoiceDocuments  []AdminInvoiceDocument
-	InvoicingEnabled  bool
+	Number           string
+	Status           string
+	StatusText       string
+	PlacedAt         string
+	ShippingName     string
+	Lines            []OrderLine
+	SubtotalCents    int64
+	ShippingCents    int64
+	DiscountCents    int64
+	DiscountReason   string
+	TaxCents         int64
+	Email            string
+	Recipient        string
+	Phone            string
+	Address          string
+	CustomerNote     string
+	StaffNote        string
+	InvoiceType      string
+	InvoiceCarrier   string
+	InvoiceTaxID     string
+	InvoiceDocuments []AdminInvoiceDocument
+	InvoicingEnabled bool
+	// RefundedCents is what has actually gone back, and what a 折讓 relieves.
+	RefundedCents     int64
 	Committed         bool
 	Next              []AdminTransition
 	CanShip           bool
@@ -399,6 +401,20 @@ func (v *AdminOrderView) LiveInvoice() (AdminInvoiceDocument, bool) {
 func (v *AdminOrderView) CanVoidInvoice() bool {
 	_, ok := v.LiveInvoice()
 	return ok && v.InvoicingEnabled
+}
+
+// CanAllowInvoice reports whether a 折讓 can be filed: there is a live invoice
+// and money has actually gone back. An allowance relieving nothing is refused
+// downstream anyway, and offering the form with no refund invites a figure
+// somebody made up.
+func (v *AdminOrderView) CanAllowInvoice() bool {
+	return v.CanVoidInvoice() && v.RefundedCents > 0
+}
+
+// AllowanceDefault is the refunded total in whole dollars, which is the unit a
+// 統一發票 is filed in and the figure the allowance should almost always be.
+func (v *AdminOrderView) AllowanceDefault() string {
+	return strconv.FormatInt(v.RefundedCents/100, 10)
 }
 
 // HasCustomerNote reports whether the customer left one.

@@ -1581,6 +1581,39 @@ BEGIN
                 USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_funded_to_leave_pending';
         END IF;
     END IF;
+
+    -- An order does not FINISH while it still owes a parcel. 'delivered' and
+    -- 'completed' both end a delivery — 超商取貨 goes straight to the second,
+    -- because nobody at the counter witnesses a handover — and the dropdown
+    -- offers them as peers with no hint that anything is outstanding.
+    --
+    -- Without this, shipping one parcel of several and then completing the order
+    -- stranded the rest: the holds stay `held`, release_reservation refuses them
+    -- by name because a completed order is committed, ExpiredReservations
+    -- excludes committed orders, and /admin/health counts expired holds with
+    -- that same predicate — so the stock was off the shelf permanently and
+    -- invisible on the one page built to show stock backlogs, while the customer
+    -- read 已完成 for goods that never left.
+    --
+    -- It refuses rather than releasing. What has not gone out is either still
+    -- going out — CanShip already allows the second parcel, and follows from what
+    -- is outstanding rather than from the status — or it is an abandonment,
+    -- which is a decision a person makes and not a side effect of a dropdown.
+    IF NEW.fulfillment_status IN ('delivered', 'completed')
+       AND OLD.fulfillment_status <> NEW.fulfillment_status THEN
+        SELECT count(*) INTO lines
+        FROM order_lines ol
+        WHERE ol.order_id = NEW.id
+          AND ol.quantity > coalesce((
+              SELECT sum(sl.quantity) FROM order_shipment_lines sl
+              WHERE sl.order_line_id = ol.id), 0);
+        IF lines > 0 THEN
+            RAISE EXCEPTION 'order % still owes % line(s) a parcel and cannot be %',
+                NEW.order_number, lines, NEW.fulfillment_status
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_finished_when_shipped';
+        END IF;
+    END IF;
+
     RETURN NEW;
 END;
 $$;

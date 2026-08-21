@@ -478,6 +478,32 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 									</p>
 								</form>
 							}
+							if v.CanAllowInvoice() {
+								// The door 折讓 never had. internal/invoice has filed
+								// them since the feature shipped; nothing could reach
+								// it, so a refunded customer left the 統一發票 still
+								// recording the whole sale.
+								<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/invoice/allowance") }>
+									<div class="ui-field">
+										<label class="ui-label" for="allowance-amount">{ i18n.T(ctx, i18n.KeyAdminQueueAllowanceAmount) }</label>
+										<input
+											class="ui-input"
+											id="allowance-amount"
+											name="amount"
+											type="number"
+											min="1"
+											required
+											inputmode="numeric"
+											autocomplete="off"
+											value={ v.AllowanceDefault() }
+										/>
+									</div>
+									<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueueAllowance) }</button>
+									<p class="goen-admin__hint">
+										{ i18n.T(ctx, i18n.KeyAdminQueueAllowanceHint) }
+									</p>
+								</form>
+							}
 							if !v.CanIssueInvoice() && !v.CanVoidInvoice() && len(v.InvoiceDocuments) == 0 {
 								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueNotCommitted) }</p>
 							}

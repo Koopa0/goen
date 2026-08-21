@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -453,5 +454,156 @@ func TestAReissueCarriesADistinctRelateNumber(t *testing.T) {
 				t.Errorf("relateNumber(%d) = %q, want %q", tt.attempt, got, tt.want)
 			}
 		})
+	}
+}
+
+// TestTheItemisationSumsToWhatWasCharged holds the invariant ECPay refuses a
+// document for, and that goen had no way to satisfy on a discounted order.
+//
+// The delivery line used to be the RESIDUAL, total − sum(lines), which is
+// shipping MINUS discount. Three outcomes, all wrong:
+//
+//   - discount > shipping: the residual is negative, no line is appended, the
+//     itemisation is short by the difference, and ECPay refuses the document
+//     (5000022 「與商品合計金額不符」). Every discounted order that also earned
+//     免運 is in this case, because shipping is then zero — so those orders
+//     could not be invoiced by ANY path in the application.
+//   - shipping > discount: a line IS appended, priced at shipping minus the
+//     discount. The totals reconcile and ECPay accepts, so a 統一發票 is filed
+//     with the 財政部 stating a carriage charge nobody paid, with the discount
+//     invisible. This half is silent.
+//   - the rounding: the header and the items were each converted to whole
+//     dollars independently, so a percentage coupon splits them. 15% off
+//     NT$999 leaves the header at 849 beside an item of 999.
+//
+// Every want below is hand-computed, never taken from the function.
+func TestTheItemisationSumsToWhatWasCharged(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		lines     []Line
+		discount  int64
+		shipping  int64
+		header    int64 // what the customer was charged, in cents
+		wantTotal int64 // the itemisation, in whole DOLLARS
+		wantLines int
+	}{
+		{
+			name:      "no discount and no delivery",
+			lines:     []Line{{Description: "A", Quantity: 1, UnitPriceCents: 100000, AmountCents: 100000}},
+			header:    100000,
+			wantTotal: 1000,
+			wantLines: 1,
+		},
+		{
+			name:      "delivery is its own line",
+			lines:     []Line{{Description: "A", Quantity: 1, UnitPriceCents: 100000, AmountCents: 100000}},
+			shipping:  8000,
+			header:    108000,
+			wantTotal: 1080,
+			wantLines: 2,
+		},
+		{
+			// The case that could not be invoiced at all: 免運 means shipping is
+			// zero, so the residual was negative and no line was written.
+			name:      "a discount with free delivery",
+			lines:     []Line{{Description: "A", Quantity: 1, UnitPriceCents: 100000, AmountCents: 100000}},
+			discount:  20000,
+			header:    80000,
+			wantTotal: 800,
+			wantLines: 1,
+		},
+		{
+			// The silent case: the old code wrote 運費 at 8000-2000 = 6000.
+			name:      "a discount smaller than the delivery fee",
+			lines:     []Line{{Description: "A", Quantity: 1, UnitPriceCents: 100000, AmountCents: 100000}},
+			discount:  2000,
+			shipping:  8000,
+			header:    106000,
+			wantTotal: 1060,
+			wantLines: 2,
+		},
+		{
+			// The reviewer's own worked example. 15% of NT$999 is NT$149.85, so
+			// the order owes 84915 cents and the document is filed at 849.
+			name:      "a percentage coupon leaving fractional cents",
+			lines:     []Line{{Description: "A", Quantity: 1, UnitPriceCents: 99900, AmountCents: 99900}},
+			discount:  14985,
+			header:    84915,
+			wantTotal: 849,
+			wantLines: 1,
+		},
+		{
+			// Two lines and a remainder that has to land somewhere.
+			name: "a discount split across lines",
+			lines: []Line{
+				{Description: "A", Quantity: 1, UnitPriceCents: 33300, AmountCents: 33300},
+				{Description: "B", Quantity: 2, UnitPriceCents: 33300, AmountCents: 66600},
+			},
+			discount:  10000,
+			shipping:  6000,
+			header:    95900,
+			wantTotal: 959,
+			wantLines: 3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := discountLines(slices.Clone(tt.lines), tt.discount)
+			if tt.shipping > 0 {
+				got = append(got, Line{
+					Description: "運費", Quantity: 1,
+					UnitPriceCents: tt.shipping, AmountCents: tt.shipping,
+				})
+			}
+			got = snapToDollars(got, tt.header)
+
+			if len(got) != tt.wantLines {
+				t.Fatalf("%d lines, want %d", len(got), tt.wantLines)
+			}
+			var dollars int64
+			for _, l := range got {
+				if l.AmountCents < 0 {
+					t.Errorf("line %q is negative (%d); ECPay item amounts are unsigned",
+						l.Description, l.AmountCents)
+				}
+				if l.AmountCents%100 != 0 {
+					t.Errorf("line %q is %d cents, which is not a whole dollar — the "+
+						"document is filed in dollars", l.Description, l.AmountCents)
+				}
+				dollars += l.AmountCents / 100
+			}
+			if dollars != tt.wantTotal {
+				t.Errorf("the itemisation sums to %d, want %d — ECPay refuses a "+
+					"document whose items do not add up to its SalesAmount",
+					dollars, tt.wantTotal)
+			}
+			if header := tt.header / 100; dollars != header {
+				t.Errorf("the itemisation is %d and the header is %d", dollars, header)
+			}
+		})
+	}
+}
+
+// TestTheDeliveryFeeIsNeverDiscounted holds a commercial rule the invoice must
+// not quietly break. A coupon is capped at the SUBTOTAL: one that could eat the
+// shipping fee would drive the order negative, which is why the discount is
+// allocated before the delivery line is appended and never across it.
+func TestTheDeliveryFeeIsNeverDiscounted(t *testing.T) {
+	t.Parallel()
+
+	items := []Line{{Description: "A", Quantity: 1, UnitPriceCents: 100000, AmountCents: 100000}}
+	got := discountLines(slices.Clone(items), 30000)
+	got = append(got, Line{Description: "運費", Quantity: 1, UnitPriceCents: 8000, AmountCents: 8000})
+	got = snapToDollars(got, 78000)
+
+	for _, l := range got {
+		if l.Description == "運費" && l.AmountCents != 8000 {
+			t.Errorf("the delivery line is %d, want 8000 — the discount reached the "+
+				"carriage the customer actually paid", l.AmountCents)
+		}
 	}
 }

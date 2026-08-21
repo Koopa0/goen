@@ -1,9 +1,11 @@
 package invoice
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -74,16 +76,35 @@ func (s *Store) Issue(ctx context.Context, orderNumber string) (Document, error)
 			UnitPriceCents: l.UnitPriceCents, AmountCents: l.AmountCents,
 		})
 	}
-	// Delivery is a line, or the itemisation and SalesAmount disagree by exactly
-	// the shipping fee and ECPay refuses the document.
-	if fee := subject.TotalCents - sumLines(lines); fee > 0 {
+	// Delivery is a line of its OWN figure, not the residual. It used to be
+	// total - sum(lines), which is shipping MINUS discount: on a discounted
+	// order that also qualified for 免運 the residual is negative, no line is
+	// appended, and ECPay refuses the document outright (5000022 「與商品合計
+	// 金額不符」) — so those orders could not be invoiced by any path. When the
+	// fee was the larger of the two it was worse, because it SUCCEEDED: a
+	// 統一發票 filed with the 財政部 stating a carriage charge nobody paid, with
+	// the discount invisible.
+	// The discount comes off the ITEMS and never the delivery: a coupon is capped
+	// at the subtotal, because one that could eat the shipping fee would drive
+	// the order negative. It rides on the items rather than as a negative line
+	// because ECPay's item amounts are unsigned, and because a 統一發票 records
+	// what each thing was actually sold for.
+	lines = discountLines(lines, subject.DiscountCents)
+	if subject.ShippingCents > 0 {
 		lines = append(lines, Line{
 			// i18n-exempt: an invoice品名 is filed with the 財政部 and read by a
 			// Taiwanese tax authority, not by the visitor. It follows the DOCUMENT's
 			// language, which is Chinese for every 統一發票 ever issued.
-			Description: "運費", Quantity: 1, UnitPriceCents: fee, AmountCents: fee,
+			Description: "運費", Quantity: 1,
+			UnitPriceCents: subject.ShippingCents, AmountCents: subject.ShippingCents,
 		})
 	}
+	// And snapped to whole dollars against the header, because the document is
+	// filed in dollars and each side used to be rounded independently: two lines
+	// of NT$1.50 truncate to 1 each while their 3.00 header truncates to 3, and
+	// a percentage coupon makes fractional cents ordinary — 15% of NT$999 leaves
+	// the header at 849 beside an item of 999.
+	lines = snapToDollars(lines, subject.TotalCents)
 
 	doc, err := s.gateway.Issue(ctx, IssueRequest{
 		OrderNumber:  relateNumber(subject.OrderNumber, subject.Attempt),
@@ -267,6 +288,100 @@ func relateNumber(orderNumber string, attempt int32) string {
 }
 
 // sumLines is what the itemisation comes to.
+// discountLines spreads a discount across the item lines so that the whole
+// itemisation still sums to what was charged.
+//
+// Largest-remainder: each line takes its proportional share rounded down, and
+// the cents left over go to the lines with the largest remainders, one each.
+// That keeps every amount unsigned, keeps the sum exact, and puts any rounding
+// error where it is smallest relative to the line.
+func discountLines(lines []Line, discountCents int64) []Line {
+	if discountCents <= 0 || len(lines) == 0 {
+		return lines
+	}
+	total := sumLines(lines)
+	if total <= 0 {
+		return lines
+	}
+	if discountCents >= total {
+		// Nothing was charged for the goods. The document still has to balance,
+		// so every line goes to zero rather than negative.
+		for i := range lines {
+			lines[i].AmountCents = 0
+			lines[i].UnitPriceCents = 0
+		}
+		return lines
+	}
+
+	type share struct {
+		at        int
+		remainder int64
+	}
+	shares := make([]share, 0, len(lines))
+	var given int64
+	for i := range lines {
+		exact := lines[i].AmountCents * discountCents
+		cut := exact / total
+		lines[i].AmountCents -= cut
+		given += cut
+		shares = append(shares, share{at: i, remainder: exact % total})
+	}
+	slices.SortFunc(shares, func(a, b share) int { return cmp.Compare(b.remainder, a.remainder) })
+	for i := 0; given < discountCents; i++ {
+		lines[shares[i%len(shares)].at].AmountCents--
+		given++
+	}
+
+	// The unit price follows the amount, or the document says a quantity times a
+	// price that is not the amount beside it.
+	for i := range lines {
+		if lines[i].Quantity > 0 {
+			lines[i].UnitPriceCents = lines[i].AmountCents / int64(lines[i].Quantity)
+		}
+	}
+	return lines
+}
+
+// snapToDollars rounds every line to a whole number of dollars so that the
+// itemisation sums to the header in the units the document is actually filed
+// in. Largest-remainder again, and the header itself is truncated because that
+// is what the customer's own total rounds to.
+//
+// The unit price is derived from the snapped amount rather than snapped on its
+// own: ECPay files ItemPrice beside ItemAmount, and a price times a count that
+// does not equal the amount next to it is a document that contradicts itself.
+func snapToDollars(lines []Line, headerCents int64) []Line {
+	if len(lines) == 0 {
+		return lines
+	}
+	wantDollars := headerCents / 100
+
+	type share struct {
+		at        int
+		remainder int64
+	}
+	shares := make([]share, 0, len(lines))
+	var given int64
+	for i := range lines {
+		// The remainder is taken BEFORE the truncation it is the remainder OF.
+		shares = append(shares, share{at: i, remainder: lines[i].AmountCents % 100})
+		d := lines[i].AmountCents / 100
+		lines[i].AmountCents = d * 100
+		given += d
+	}
+	slices.SortFunc(shares, func(a, b share) int { return cmp.Compare(b.remainder, a.remainder) })
+	for i := 0; given < wantDollars && len(shares) > 0; i++ {
+		lines[shares[i%len(shares)].at].AmountCents += 100
+		given++
+	}
+	for i := range lines {
+		if lines[i].Quantity > 0 {
+			lines[i].UnitPriceCents = lines[i].AmountCents / int64(lines[i].Quantity)
+		}
+	}
+	return lines
+}
+
 func sumLines(lines []Line) int64 {
 	var n int64
 	for _, l := range lines {
