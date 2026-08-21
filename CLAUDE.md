@@ -462,6 +462,23 @@ The dispatch notice was already keyed on the TRACKING number rather than the
 order, with a comment saying an order shipped in two parcels is two notices. That
 was written before anything could produce a second parcel; it is true now.
 
+### A rule a FUNCTION raises is asserted by name, not by its trigger
+
+`TestEveryRuleTriggerIsExercised` keys on `tgname`, and a trigger function raises
+as many distinct rules as it has branches: `orders_check_complete` raises three,
+`redeem_coupon` four. Deleting one branch removes no trigger, so the coverage
+guard stayed green while the rule stopped being enforced — and a case asserting
+only that a row was refused cannot tell the difference either (#8). Twelve rules
+were in that gap with no test naming any of them: the four coupon limits, both
+reservation-state rules, capture and settle on an id that does not exist, an
+audit row with no actor, a return closed over goods nobody counted, an order with
+no destination, and an order totalling below zero.
+
+`TestEveryRaisedRuleIsAssertedByName` derives its corpus from `pg_proc`, so a
+rule added to a function body is covered the moment it is written, and it asks
+for the name inside a Go STRING LITERAL — a name in a comment is how a guard
+comes to be satisfied by nothing.
+
 ### Three completeness guards, and what they found
 
 A feature can be finished from the schema's side and have no door on either face.
@@ -1863,6 +1880,16 @@ Card is what a 30-minute hold can survive, so card is what goen offers; Apple Pa
 and Google Pay ride on that type. Supporting a delayed method is a FEATURE and
 not a flag — see the follow-up, and the commercial question underneath it.
 
+**And the alarm has an off switch, or it stops meaning anything.**
+`payment_webhook_events.reconciled_at` is the operator saying they refunded that
+money by hand at the provider — the only thing anybody can do about it, and
+something goen cannot see land. Without it `/admin/health` was unhealthy for ever
+after the first arrival, which is the failure the flag was added to prevent
+arriving one step later. The question is asked in the UPDATE's own WHERE clause,
+so two staff members pressing it is one row and one audit entry, and `store`'s
+INSERT is narrowed to the five columns the webhook writes: `reconciled_at` is the
+shop's statement about money, not the storefront's.
+
 **Money that arrives for an order goen has already CANCELLED leaves a row, not a
 log line.** The capture is refused by `payments_refuse_cancelled_order`, and the
 event is still marked processed because retrying changes nothing — but the money
@@ -1973,8 +2000,33 @@ records what was charged — without it the itemisation and `SalesAmount` disagr
 by exactly the shipping fee, which is money on the document that nothing
 accounts for.
 
-The provider is called FIRST and the row written after, because the number is
-theirs to allocate. That leaves the window the refund path already documents, in
+**A 折讓 is CLAIMED before the provider is asked, and an invoice is not.** ECPay's
+allowance endpoint carries no idempotency field — `Issue` has `RelateNumber` and
+this has nothing — so filing first and recording after put two 折讓 in front of
+the 財政部 when an operator pressed twice. The claim is a row at `pending` with
+no number yet, holding `request_key`.
+
+Three rules make that safe, and the first two were missing:
+
+- **`invoice_documents_number_key` is PARTIAL.** A pending claim carries `''` to
+  say it has no number, and a whole-table unique on `number` puts every claim in
+  every other claim's way: two allowances on two different orders, with two
+  different request keys, collided on the empty string. At most ONE claim could
+  be in flight in the entire database, so the first provider refusal — an
+  ordinary outcome the handler has a branch for — refused every 折讓 the shop
+  would ever file.
+- **A claim the provider ANSWERED is released.** An answer proves nothing was
+  filed, so holding the key relieves that refund never: the row could not be
+  voided (a void needs a number), its key could not be cleared, and it could not
+  be deleted. `invoice_documents_only_void` admits the DELETE of a pending claim
+  and nothing else — a rule about the ROW, which is why it is in the trigger and
+  not in the grant. A call that was not answered keeps its claim, because whether
+  ECPay filed is not knowable from here.
+- **`request_key` is immutable once issued.** Clearing it took the row out of
+  `invoice_documents_request_key` and let the same refund be filed twice.
+
+For an INVOICE the provider is called FIRST and the row written after, because
+the number is theirs to allocate. That leaves the window the refund path already documents, in
 the recoverable direction: a document filed with the 加值中心 and absent here is
 visible from ECPay's console and re-issuing is refused by
 `invoice_documents_one_active_invoice_per_order`. A row claiming a filing that
@@ -2712,6 +2764,24 @@ Four rules that are easy to get backwards:
   on both tables. That is what double opt-in MEANS, and leaving it to a
   convention is how a back office grows an "add subscriber" form.
 
+**The outbox is reached by whole-payload match, not by key.** A Go field with no
+json tag marshals under its GO name and a jsonb key is case-sensitive, so of nine
+payload structs the ONE that was untagged — `PasswordReset` — was the one
+`payload->>'email'` could not find. An erased customer's address and a live
+single-use reset token survived for the 30 days `outbox.Retain` keeps a row, in
+the table the schema comment names as carrying exactly that. The tag is added and
+the predicate no longer depends on one: every row there is a letter, so an
+address anywhere in it means the letter is to that person, and a predicate that
+needs somebody to remember a struct tag eventually misses one.
+
+**`stock_notifications` was the second address-keyed table, and this file said
+there was none.** Anyone may ask for a restock notice signed OUT — the documented
+point of it — so a notice taken before the customer had an account carries no
+user_id, and `erase_user` deleted by user_id alone: the row survived and the
+worker would email that address the day the variant came back. Both keys now, and
+the fixture holds all three reachable shapes, because for a signed-in customer
+using their account address the two deletes sweep the same rows.
+
 `erase_user` deletes both rows, and the pending confirmation is the half easy to
 miss: a link already sitting in the mailbox would let an erased address rejoin
 after the erasure. The newsletter keys on the ADDRESS rather than the account, so
@@ -2821,6 +2891,16 @@ Spend counts COMMITTED orders only. A cancelled order counting as money the shop
 took is the defect `committed_orders` was split out of `settled_orders` to stop, and
 "what have you spent with us" is the figure it would be most embarrassing to
 overstate to somebody's face.
+
+**And "what has gone back to the customer" has one too: `order_refunds`.** A
+refund is paid to the card, to store credit, or split — `splitRefund` pays the
+card first and credit last — and it was computed in three places: two
+byte-identical card-only queries and one Go addition of the card figure to the
+credit position. The two that stopped at the card decided what the 折讓 form
+OFFERS; the one that added credit decided what an allowance is ALLOWED to
+relieve. So a split-refunded order defaulted the form to the card half and the
+統一發票 went on recording the part of the sale that was reversed, and an order
+refunded entirely from credit was offered no form at all.
 
 **A balance has ONE definition now: `store_credit_balances`.** Building that page
 found the fourth hand-written `sum(amount_cents)` over the ledger — the account
