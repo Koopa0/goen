@@ -5924,3 +5924,63 @@ func creditBalance(t *testing.T, accountID uuid.UUID) int64 {
 	}
 	return cents
 }
+
+// TestAnOrderCannotFinishWhileItStillOwesAParcel holds stock that used to be
+// stranded permanently and invisibly.
+//
+// An order ships in as many parcels as it takes, and only the first moves the
+// status. But the transition guard asked nothing about what was outstanding,
+// and the status dropdown offers 已送達 and 已完成 as peers — so shipping one
+// parcel of several and then finishing the order left the remaining
+// reservations `held` with no door out: release_reservation refuses them by
+// name because a completed order is committed, ExpiredReservations excludes
+// committed orders by predicate, and /admin/health counts expired holds with
+// that same predicate. The units were off the shelf forever, invisible on the
+// one page built to make stock backlogs visible, while the customer read 已完成
+// for goods that never left.
+//
+// It refuses rather than releasing: what has not gone out is either still going
+// out — CanShip already allows the second parcel — or it is an abandonment,
+// which is a decision a person makes rather than a side effect of a dropdown.
+func TestAnOrderCannotFinishWhileItStillOwesAParcel(t *testing.T) {
+	ctx, staff := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	actor := uuid.NullUUID{UUID: staff, Valid: true}
+	number, orderID, lines, variants := twoLineOrderWithStock(t, "unfinished")
+
+	// One parcel, carrying part of the first line only.
+	if err := s.Ship(ctx, number, admin.Dispatch{
+		Carrier: "黑貓宅急便", Tracking: "U1-" + number,
+		Lines: map[uuid.UUID]int32{lines[0]: 1},
+	}, actor); err != nil {
+		t.Fatalf("first parcel: %v", err)
+	}
+
+	for _, ending := range []string{"delivered", "completed"} {
+		_, err := s.Advance(ctx, number, ending, actor)
+		if err == nil {
+			t.Fatalf("an order still owing a parcel was moved to %q; whatever is "+
+				"still held is now stranded with no door out", ending)
+		}
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
+			pgErr.ConstraintName != "orders_finished_when_shipped" {
+			t.Errorf("refused by %q, want orders_finished_when_shipped — a statement "+
+				"meant to prove one rule often trips another first", pgErr.ConstraintName)
+		}
+	}
+
+	// And once everything has gone out, finishing works and nothing is held.
+	if err := s.Ship(ctx, number, admin.Dispatch{
+		Carrier: "黑貓宅急便", Tracking: "U2-" + number,
+	}, actor); err != nil {
+		t.Fatalf("second parcel: %v", err)
+	}
+	if _, err := s.Advance(ctx, number, "completed", actor); err != nil {
+		t.Fatalf("a fully shipped order could not be completed: %v", err)
+	}
+	for i, v := range variants {
+		if got := heldFor(t, orderID, v); got != 0 {
+			t.Errorf("line %d still holds %d on a completed order", i+1, got)
+		}
+	}
+}

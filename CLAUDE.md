@@ -399,6 +399,24 @@ misinforming it, in the shop's favour.** The dropdown offers 已送達 and 已�
 equal peers with no hint that one carries a side effect, which is why the rule
 belongs in `applyStatusEffects` and not in the operator's head.
 
+**And an order does not FINISH while it still owes a parcel.**
+`orders_finished_when_shipped` refuses 'delivered' and 'completed' — both end a
+delivery — while any line is short of what was bought. Without it, shipping one
+parcel of several and then finishing the order stranded the rest: the holds stay
+`held`, `release_reservation` refuses them by name because a completed order is
+committed, `ExpiredReservations` excludes committed orders, and `/admin/health`
+counts expired holds with that same predicate. The units were off the shelf
+permanently and invisible on the one page built to show stock backlogs, while
+the customer read 已完成 for goods that never left. The dropdown offers 已送達 and
+已完成 as peers with no hint that anything is outstanding, which is why the rule
+belongs in the trigger and not in the operator's head.
+
+It REFUSES rather than releasing. What has not gone out is either still going
+out — `CanShip` already allows the second parcel and follows from what is
+outstanding rather than from the status — or it is an abandonment, which is a
+decision a person makes and not a side effect of a dropdown. A short-ship door
+is the unbuilt half and is queued by name.
+
 **An order ships in as many parcels as it takes.** `order_shipments` has held
 several per order, `order_shipment_lines` their per-line quantities, and a
 composite key binding lines to their parcel since the schema was written — while
