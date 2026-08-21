@@ -561,8 +561,8 @@ func TestTheItemisationSumsToWhatWasCharged(t *testing.T) {
 			}
 			got = snapToDollars(got, tt.header)
 
-			if len(got) != tt.wantLines {
-				t.Fatalf("%d lines, want %d", len(got), tt.wantLines)
+			if len(got) < tt.wantLines {
+				t.Fatalf("%d lines, want at least %d", len(got), tt.wantLines)
 			}
 			var dollars int64
 			for _, l := range got {
@@ -573,6 +573,16 @@ func TestTheItemisationSumsToWhatWasCharged(t *testing.T) {
 				if l.AmountCents%100 != 0 {
 					t.Errorf("line %q is %d cents, which is not a whole dollar — the "+
 						"document is filed in dollars", l.Description, l.AmountCents)
+				}
+				// ECPay files ItemPrice beside ItemCount beside ItemAmount. A line
+				// whose price times its count is not its amount is a document
+				// contradicting itself, which is what deriving the price from a
+				// snapped amount produced: 299 x 3 = 897 against an amount of 899.
+				price, count := l.UnitPriceCents/100, int64(l.Quantity)
+				if count > 0 && price*count != l.AmountCents/100 {
+					t.Errorf("line %q files ItemPrice %d x ItemCount %d = %d against "+
+						"ItemAmount %d", l.Description, price, count, price*count,
+						l.AmountCents/100)
 				}
 				dollars += l.AmountCents / 100
 			}
@@ -605,5 +615,76 @@ func TestTheDeliveryFeeIsNeverDiscounted(t *testing.T) {
 			t.Errorf("the delivery line is %d, want 8000 — the discount reached the "+
 				"carriage the customer actually paid", l.AmountCents)
 		}
+	}
+}
+
+// TestEveryLineMultipliesOut holds the invariant a discounted multi-quantity
+// line broke, and the case the table above could not reach.
+//
+// Every fixture there uses quantity 1 or a discount that divides evenly, so
+// price × count = amount held by construction. A review found the real shape:
+// three of something at NT$333 with a discount produced ItemPrice 299,
+// ItemCount 3, ItemAmount 899 — 897 against 899, filed with the 財政部 as a
+// document that contradicts itself.
+func TestEveryLineMultipliesOut(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		lines    []Line
+		discount int64
+		header   int64
+	}{
+		{
+			name:     "three at NT$333 with a discount that does not divide",
+			lines:    []Line{{Description: "A", Quantity: 3, UnitPriceCents: 33300, AmountCents: 99900}},
+			discount: 10000,
+			header:   89900,
+		},
+		{
+			name: "two lines, both multi-quantity",
+			lines: []Line{
+				{Description: "A", Quantity: 3, UnitPriceCents: 33300, AmountCents: 99900},
+				{Description: "B", Quantity: 7, UnitPriceCents: 14300, AmountCents: 100100},
+			},
+			discount: 33333,
+			header:   166667,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := snapToDollars(discountLines(slices.Clone(tt.lines), tt.discount), tt.header)
+
+			var dollars int64
+			for _, l := range got {
+				price, count := l.UnitPriceCents/100, int64(l.Quantity)
+				if count < 1 {
+					t.Errorf("line %q has quantity %d", l.Description, l.Quantity)
+					continue
+				}
+				if price*count != l.AmountCents/100 {
+					t.Errorf("line %q: ItemPrice %d x ItemCount %d = %d, ItemAmount %d",
+						l.Description, price, count, price*count, l.AmountCents/100)
+				}
+				if l.AmountCents <= 0 {
+					t.Errorf("line %q is %d; ECPay item amounts are unsigned and non-zero",
+						l.Description, l.AmountCents)
+				}
+				dollars += l.AmountCents / 100
+			}
+			if want := tt.header / 100; dollars != want {
+				t.Errorf("the itemisation sums to %d, want %d", dollars, want)
+			}
+		})
+	}
+
+	// And nothing is appended when the arithmetic already comes out even: an
+	// adjustment line on a document that needs none is noise on a tax filing.
+	even := snapToDollars(
+		[]Line{{Description: "A", Quantity: 2, UnitPriceCents: 50000, AmountCents: 100000}}, 100000)
+	if len(even) != 1 {
+		t.Errorf("%d lines for an evenly-divided invoice, want 1", len(even))
 	}
 }

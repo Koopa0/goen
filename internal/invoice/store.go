@@ -441,42 +441,52 @@ func discountLines(lines []Line, discountCents int64) []Line {
 	return lines
 }
 
-// snapToDollars rounds every line to a whole number of dollars so that the
-// itemisation sums to the header in the units the document is actually filed
-// in. Largest-remainder again, and the header itself is truncated because that
-// is what the customer's own total rounds to.
+// snapToDollars rounds every line so that the itemisation sums to the header in
+// the units the document is actually filed in, AND so that each line's own
+// arithmetic holds.
 //
-// The unit price is derived from the snapped amount rather than snapped on its
-// own: ECPay files ItemPrice beside ItemAmount, and a price times a count that
-// does not equal the amount next to it is a document that contradicts itself.
+// Two things have to be true at once, and the first version of this held only
+// the first. ECPay files ItemPrice beside ItemCount beside ItemAmount, so a line
+// must satisfy price × count = amount; deriving the price from a snapped amount
+// gave 299 × 3 = 897 against an amount of 899 on any discounted line with a
+// quantity above one — a document contradicting itself, under a comment saying
+// this prevented exactly that.
+//
+// So each line is snapped to a multiple of its own QUANTITY in whole dollars,
+// which makes its price a whole number, and whatever that leaves short of the
+// header goes on one adjustment line of quantity 1. That line is honest about
+// what it is: a rounding remainder from allocating a discount across items,
+// which is where it comes from.
 func snapToDollars(lines []Line, headerCents int64) []Line {
 	if len(lines) == 0 {
 		return lines
 	}
 	wantDollars := headerCents / 100
 
-	type share struct {
-		at        int
-		remainder int64
-	}
-	shares := make([]share, 0, len(lines))
 	var given int64
 	for i := range lines {
-		// The remainder is taken BEFORE the truncation it is the remainder OF.
-		shares = append(shares, share{at: i, remainder: lines[i].AmountCents % 100})
-		d := lines[i].AmountCents / 100
-		lines[i].AmountCents = d * 100
-		given += d
-	}
-	slices.SortFunc(shares, func(a, b share) int { return cmp.Compare(b.remainder, a.remainder) })
-	for i := 0; given < wantDollars && len(shares) > 0; i++ {
-		lines[shares[i%len(shares)].at].AmountCents += 100
-		given++
-	}
-	for i := range lines {
-		if lines[i].Quantity > 0 {
-			lines[i].UnitPriceCents = lines[i].AmountCents / int64(lines[i].Quantity)
+		q := int64(lines[i].Quantity)
+		if q < 1 {
+			q = 1
 		}
+		// Down to a whole dollar PER UNIT, so price × count is the amount.
+		unit := lines[i].AmountCents / q / 100
+		lines[i].UnitPriceCents = unit * 100
+		lines[i].AmountCents = unit * 100 * q
+		given += unit * q
+	}
+
+	// Whatever the per-unit rounding left short. It cannot ride on an existing
+	// line without restating that line's unit price, and it cannot ride on the
+	// delivery line without misstating the carriage — which is the defect this
+	// function was written to fix.
+	if short := wantDollars - given; short > 0 {
+		lines = append(lines, Line{
+			// i18n-exempt: an invoice 品名 is filed with the 財政部, in Chinese,
+			// whoever bought the thing.
+			Description: "折扣尾數調整", Quantity: 1,
+			UnitPriceCents: short * 100, AmountCents: short * 100,
+		})
 	}
 	return lines
 }
