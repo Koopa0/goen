@@ -47,7 +47,7 @@ func (s *Store) HideQuestion(ctx context.Context, id string) error {
 		func(ctx context.Context, q *db.Queries) error {
 			n, hideErr := q.HideQuestion(ctx, qID)
 			if hideErr != nil {
-				return fmt.Errorf("%w: %s", ErrRefused, hideErr.Error())
+				return fmt.Errorf("%w: %w", ErrRefused, hideErr)
 			}
 			if n == 0 {
 				return ErrNotFound
@@ -83,7 +83,7 @@ func (s *Store) AnswerQuestion(ctx context.Context, id, userID, body string) err
 				Body:       body, IsStaff: true,
 			})
 			if answerErr != nil {
-				return fmt.Errorf("%w: %s", ErrRefused, answerErr.Error())
+				return fmt.Errorf("%w: %w", ErrRefused, answerErr)
 			}
 			if n == 0 {
 				return ErrNotFound

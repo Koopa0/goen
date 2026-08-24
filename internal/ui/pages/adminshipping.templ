@@ -133,12 +133,21 @@ templ AdminShipping(p layouts.Page, v AdminShippingView) {
 						</div>
 						<div class="ui-field">
 							<label class="ui-label" for="m-destination">{ i18n.T(ctx, i18n.KeyAdminShipDestination) }</label>
-							<select class="ui-select" id="m-destination" name="destination" required>
+							<select
+								class="ui-select"
+								id="m-destination"
+								name="destination"
+								required
+								if v.HasErr("destination") {
+									aria-invalid="true"
+									aria-describedby="m-destination-error"
+								}
+							>
 								<option value="address" selected?={ !v.PickupSelected() }>{ i18n.T(ctx, i18n.KeyAdminShipToAddress) }</option>
 								<option value="pickup_point" selected?={ v.PickupSelected() }>{ i18n.T(ctx, i18n.KeyAdminDestPickup) }</option>
 							</select>
 							if v.HasErr("destination") {
-								<p class="ui-error-text">{ v.Err("destination") }</p>
+								<p class="ui-error-text" id="m-destination-error">{ v.Err("destination") }</p>
 							}
 							<p class="goen-admin__hint">
 								{ i18n.T(ctx, i18n.KeyAdminShipDestinationHint) }

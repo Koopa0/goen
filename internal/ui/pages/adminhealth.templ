@@ -6,10 +6,13 @@ import (
 )
 
 // AdminHealth renders what the background workers have and have not done.
-templ AdminHealth(p layouts.Page, v WorkerHealthView) {
+templ AdminHealth(p layouts.Page, v *WorkerHealthView) {
 	@layouts.Base(p) {
 		<div class="goen-admin">
 			@adminNav("health")
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
 			<div class="ui-page-head">
 				<div>
 					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
@@ -102,6 +105,7 @@ templ AdminHealth(p layouts.Page, v WorkerHealthView) {
 								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColProviderRef) }</th>
 								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColReason) }</th>
 								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColStarted) }</th>
+								<th scope="col"><span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminHPReconcile) }</span></th>
 							</tr>
 						</thead>
 						<tbody>
@@ -112,6 +116,46 @@ templ AdminHealth(p layouts.Page, v WorkerHealthView) {
 									<td>{ u.Ref }</td>
 									<td>{ u.Reason }</td>
 									<td>{ u.Since }</td>
+									<td>
+										<form method="post" action="/admin/health/reconcile">
+											<input type="hidden" name="event" value={ u.EventID }/>
+											<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">
+												{ i18n.T(ctx, i18n.KeyAdminHPReconcile) }
+											</button>
+										</form>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+			if len(v.StrandedClaims) > 0 {
+				// A 折讓 claim taken before the provider was asked, on a call that
+				// never answered. Keeping it is right — whether ECPay filed is not
+				// knowable from here — and the order is what an operator needs to
+				// go and look, so the row links to it.
+				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminHPClaimsHeading) }</h2>
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHPClaimsHint) }</p>
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table goen-admin__table">
+						<thead>
+							<tr>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColOrder) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColKind) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColAmount) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColStarted) }</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, c := range v.StrandedClaims {
+								<tr>
+									<td>
+										<a href={ templ.SafeURL("/admin/orders/" + c.OrderNumber) }>{ c.OrderNumber }</a>
+									</td>
+									<td>{ c.Kind }</td>
+									<td>{ c.Amount() }</td>
+									<td>{ c.Since }</td>
 								</tr>
 							}
 						</tbody>

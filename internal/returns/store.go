@@ -159,7 +159,7 @@ func (s *Store) Open(ctx context.Context, number string, userID uuid.NullUUID, r
 			OrderID: o.ID, ReturnRequestID: requestID,
 			OrderLineID: lineID, Quantity: qty,
 		}); lineErr != nil {
-			return fmt.Errorf("%w: %s", ErrInvalid, lineErr.Error())
+			return fmt.Errorf("%w: %w", ErrInvalid, lineErr)
 		}
 	}
 	if err := tx.Commit(ctx); err != nil {

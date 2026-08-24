@@ -249,7 +249,7 @@ func (s *Store) Advance(ctx context.Context, number, status string, actor uuid.N
 
 	row, err := q.OrderIDByNumber(ctx, number)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
+		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	var held []uuid.UUID
 	if status == "cancelled" {
@@ -260,7 +260,7 @@ func (s *Store) Advance(ctx context.Context, number, status string, actor uuid.N
 	if err := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
 		OrderNumber: number, Status: status,
 	}); err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
+		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	if err := applyStatusEffects(ctx, q, statusEffect{
 		status: status, number: number, orderID: row.ID, held: held,
@@ -390,7 +390,18 @@ func (s *Store) fillInvoices(ctx context.Context, view *pages.AdminOrderView, nu
 func (s *Store) fillShippable(
 	ctx context.Context, view *pages.AdminOrderView, orderID uuid.UUID, status string,
 ) error {
-	if status != "picking" && status != "shipped" {
+	// DELIVERED is here, and leaving it out was a trap with no exit.
+	// orders_legal_transition permits shipped -> delivered while a line is still
+	// outstanding, deliberately: delivered is a fact about what WENT OUT, and the
+	// parcels that shipped have arrived whether or not more is to come. But the
+	// dropdown offers 已送達 beside 已完成 with no hint of that, so an operator
+	// moves an order there — and then completing it is refused by
+	// orders_finished_when_shipped while the dispatch form is absent. The order
+	// is wedged, and the remaining line's hold is stranded: release_reservation
+	// refuses a committed order, ExpiredReservations excludes it, and
+	// /admin/health counts neither. That is mistake #17's cost exactly, one
+	// status later.
+	if status != "picking" && status != "shipped" && status != "delivered" {
 		return nil
 	}
 	rows, err := s.q.ShippableLines(ctx, orderID)
@@ -439,7 +450,7 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 
 	row, err := q.OrderIDByNumber(ctx, number)
 	if err != nil {
-		return fmt.Errorf("%w: %s", ErrRefused, err.Error())
+		return fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 
 	shipmentID, shipErr := q.CreateShipment(ctx, db.CreateShipmentParams{
@@ -460,7 +471,7 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 		if advErr := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
 			OrderNumber: number, Status: "shipped",
 		}); advErr != nil {
-			return fmt.Errorf("%w: %s", ErrRefused, advErr.Error())
+			return fmt.Errorf("%w: %w", ErrRefused, advErr)
 		}
 	}
 
@@ -626,7 +637,7 @@ func (s *Store) AdjustStock(ctx context.Context, sku string, delta int32, actorI
 			if err := q.AdjustStock(ctx, db.AdjustStockParams{
 				VariantID: v.ID, Delta: delta, IdempotencyKey: key, ActorUserID: actor,
 			}); err != nil {
-				return fmt.Errorf("%w: %s", ErrRefused, err.Error())
+				return fmt.Errorf("%w: %w", ErrRefused, err)
 			}
 			// Called on EVERY adjustment: the claim's own EXISTS decides whether
 			// the variant is back above its threshold, so a movement that does
@@ -659,7 +670,7 @@ func (s *Store) ReceiveStock(ctx context.Context, sku string, quantity int32, ac
 			if err := q.ReceiveStock(ctx, db.ReceiveStockParams{
 				VariantID: v.ID, Delta: quantity, IdempotencyKey: key, ActorUserID: actor,
 			}); err != nil {
-				return fmt.Errorf("%w: %s", ErrRefused, err.Error())
+				return fmt.Errorf("%w: %w", ErrRefused, err)
 			}
 			// A receipt is the movement most likely to carry a variant back
 			// above its safety stock.
@@ -687,7 +698,7 @@ func (s *Store) SetVariantActive(ctx context.Context, sku string, active bool) e
 			if err := q.SetVariantActive(ctx, db.SetVariantActiveParams{
 				ID: v.ID, IsActive: active,
 			}); err != nil {
-				return fmt.Errorf("%w: %s", ErrRefused, err.Error())
+				return fmt.Errorf("%w: %w", ErrRefused, err)
 			}
 			return nil
 		})
@@ -716,7 +727,7 @@ func (s *Store) SetVariantPrice(ctx context.Context, sku string, price, compareA
 			if err := q.SetVariantPrice(ctx, db.SetVariantPriceParams{
 				ID: v.ID, PriceCents: price, CompareAtPriceCents: cmp,
 			}); err != nil {
-				return fmt.Errorf("%w: %s", ErrRefused, err.Error())
+				return fmt.Errorf("%w: %w", ErrRefused, err)
 			}
 			return nil
 		})
@@ -863,7 +874,7 @@ func (s *Store) returnUnderDecision(ctx context.Context, id, decision string) (
 	}
 	row, err := s.q.ReturnForDecision(ctx, requestID)
 	if err != nil {
-		return uuid.Nil, db.ReturnForDecisionRow{}, false, fmt.Errorf("%w: %s", ErrRefused, err.Error())
+		return uuid.Nil, db.ReturnForDecisionRow{}, false, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	retry := row.Status == "approved" && decision == "approved"
 	if row.Status != "requested" && !retry {
@@ -936,7 +947,12 @@ func (s *Store) splitRefund(ctx context.Context, row *db.ReturnForDecisionRow) (
 		capturedRemaining = row.CapturedAmountCents.Int64 - alreadyRefunded
 	}
 
-	credit, err := s.q.OrderCreditPosition(ctx, uuid.NullUUID{UUID: row.OrderID, Valid: true})
+	// THIS return's own compensation is excluded, exactly as its own refund row
+	// is above. Without it a retry reads the credit it already posted as credit
+	// already returned, and refuses its own resume.
+	credit, err := s.q.OrderCreditPositionExcluding(ctx, db.OrderCreditPositionExcludingParams{
+		OrderID: uuid.NullUUID{UUID: row.OrderID, Valid: true}, ReturnID: row.ID.String(),
+	})
 	if err != nil {
 		return refundSplit{}, fmt.Errorf("read credit position for return %s: %w", row.ID, err)
 	}
@@ -982,7 +998,7 @@ func (s *Store) payApprovedReturn(ctx context.Context, row *db.ReturnForDecision
 	if split.Card > 0 {
 		ref, state, err := s.refundCard(ctx, row, split.Card, resolution)
 		if err != nil {
-			return fmt.Errorf("%w: %s", ErrRefundIncomplete, err.Error())
+			return fmt.Errorf("%w: %w", ErrRefundIncomplete, err)
 		}
 		// order_events is rendered on the customer's own order page, so a
 		// refunded event is written only once the money has actually left.
@@ -1037,7 +1053,7 @@ func (s *Store) refundCard(ctx context.Context, row *db.ReturnForDecisionRow,
 		Reason:          resolution,
 		ReturnRequestID: row.ID,
 	}); openErr != nil {
-		return "", "", fmt.Errorf("%w: %s", ErrRefused, openErr.Error())
+		return "", "", fmt.Errorf("%w: %w", ErrRefused, openErr)
 	}
 
 	// Committed. Now the provider.
@@ -1108,7 +1124,7 @@ func (s *Store) closeReturn(
 		ID: requestID, Status: status, Resolution: text(resolution),
 	})
 	if decideErr != nil {
-		return fmt.Errorf("%w: %s", ErrRefused, decideErr.Error())
+		return fmt.Errorf("%w: %w", ErrRefused, decideErr)
 	}
 	if decided == 0 {
 		return fmt.Errorf("%w: return %s was decided by somebody else first",
@@ -1181,7 +1197,7 @@ func (s *Store) InspectReturn(
 			Received: l.Received, Restocked: l.Restocked, Note: l.Note,
 		})
 		if inspectErr != nil {
-			return fmt.Errorf("%w: %s", ErrRefused, inspectErr.Error())
+			return fmt.Errorf("%w: %w", ErrRefused, inspectErr)
 		}
 		// Zero rows is one of three refusals the caller has to hear: not
 		// approved, the line belongs elsewhere, or already inspected.
@@ -1244,7 +1260,7 @@ func (s *Store) CompleteReturn(ctx context.Context, id, resolution string, actor
 		ID: requestID, Resolution: resolution,
 	})
 	if err != nil {
-		return fmt.Errorf("%w: %s", ErrRefused, err.Error())
+		return fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	if closed == 0 {
 		return fmt.Errorf("%w: return %s is not open for completion", ErrRefused, requestID)
@@ -1301,7 +1317,7 @@ func (s *Store) GrantCredit(ctx context.Context, email string, amountCents int64
 				IdempotencyKey: key,
 				ActorUserID:    actor,
 			}); postErr != nil {
-				return fmt.Errorf("%w: %s", ErrRefused, postErr.Error())
+				return fmt.Errorf("%w: %w", ErrRefused, postErr)
 			}
 			// Read INSIDE the same transaction, so the number shown is the one
 			// this grant produced and not one a concurrent spend moved.
@@ -1397,6 +1413,33 @@ func (s *Store) IssueInvoice(ctx context.Context, number string) error {
 		Action: ActionIssueInvoice, Table: "invoice_documents", ID: uuid.NullUUID{},
 		After: map[string]any{"order": number, "invoice": doc.Number},
 	}, func(context.Context, *db.Queries) error { return nil })
+}
+
+// ReconcilePayment records that somebody dealt with an event goen accepted and
+// could not act on — refunded it by hand at the provider, which is the only
+// thing that can be done about money against a cancelled order.
+//
+// The row keeps its reason. Clearing the flag would delete what happened, and
+// what happened is the part worth reading afterwards.
+func (s *Store) ReconcilePayment(ctx context.Context, eventID string, actor uuid.NullUUID) error {
+	if strings.TrimSpace(eventID) == "" {
+		return ErrInvalid
+	}
+	return s.audited(ctx, Event{
+		Action: ActionReconcilePayment, Table: "payment_webhook_events", ID: uuid.NullUUID{},
+		After: map[string]any{"event": eventID},
+	}, func(ctx context.Context, q *db.Queries) error {
+		n, err := q.MarkPaymentReconciled(ctx, eventID)
+		if err != nil {
+			return fmt.Errorf("mark %s reconciled: %w", eventID, err)
+		}
+		if n == 0 {
+			// Nothing outstanding under that id: already dealt with, or never
+			// flagged. The row count is the answer, not a read beforehand.
+			return ErrNotFound
+		}
+		return nil
+	})
 }
 
 // AllowInvoice files a 折讓 against an order's live invoice, relieving the part

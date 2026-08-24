@@ -22,6 +22,15 @@ var (
 	ErrAlreadyIssued = errors.New("invoice: order already has an invoice")
 	// ErrNotFound is an order or a document that does not exist.
 	ErrNotFound = errors.New("invoice: not found")
+	// ErrTooMuch is a 折讓 relieving more than has gone back to the customer.
+	// Its own sentinel and not a shade of ErrRejected, because the two send a
+	// staff member to different places: this one to the figure they typed, and
+	// ErrRejected to the 統編 or carrier the provider named. Telling them apart
+	// by searching the error TEXT is mistake #32.
+	ErrTooMuch = errors.New("invoice: more than was refunded")
+	// ErrClaimed is a 折讓 for this refund already filed or in flight. The way
+	// out is ECPay's console, not a different figure.
+	ErrClaimed = errors.New("invoice: already claimed")
 )
 
 // TaxRate is Taiwan's business tax, 5%.

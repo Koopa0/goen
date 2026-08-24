@@ -3,8 +3,12 @@
 package db_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -268,6 +272,34 @@ var ruleCases = []ruleCase{
 		         WHERE id = '99990001-0000-4000-8000-000000000000';`,
 	},
 	{
+		// Clearing the key on an ISSUED allowance takes the row out of
+		// invoice_documents_request_key and lets the same refund be filed a
+		// second time at the 財政部, which is what that index exists to stop.
+		rule: "invoice_documents_only_void",
+		// The document must HOLD a key first: the fixture's invoice carries none,
+		// so clearing it is NULL to NULL and changes nothing — a statement that
+		// cannot violate the rule it is meant to prove.
+		reject: `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents, original_id, request_key)
+		         VALUES ('11110025-0000-4000-8000-000000000001',
+		                 '66666666-6666-4666-8666-666666666666', 'allowance', 'GD-ALLOW-01', 100,
+		                 '99990001-0000-4000-8000-000000000000', 'allowance:key');
+		         UPDATE invoice_documents SET request_key = NULL
+		         WHERE id = '11110025-0000-4000-8000-000000000001';`,
+		acceptNote: "the void above is the legal neighbour; an issued document's key never moves",
+	},
+	{
+		// A filed document is filed. A PENDING claim is a reservation with no
+		// number and nothing at the 加值中心, and releasing one is the only door
+		// out of a 折讓 the provider refused.
+		rule: "invoice_documents_only_void",
+		reject: `DELETE FROM invoice_documents
+		         WHERE id = '99990001-0000-4000-8000-000000000000';`,
+		accept: `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents, status, request_key)
+		         VALUES ('11110024-0000-4000-8000-000000000001',
+		                 '6666aaaa-6666-4666-8666-666666666666', 'invoice', '', 100, 'pending', 'released');
+		         DELETE FROM invoice_documents WHERE id = '11110024-0000-4000-8000-000000000001';`,
+	},
+	{
 		rule: "payments_no_regression",
 		reject: `UPDATE payments SET status = 'processing'
 		         WHERE id = '77770001-0000-4000-8000-000000000000';`,
@@ -473,7 +505,159 @@ var ruleCases = []ruleCase{
 		         WHERE id = '11110023-0000-4000-8000-000000000001';`,
 		acceptNote: "appending is the only permitted operation on a filed document's lines",
 	},
+
+	// Rules raised inside a function body rather than by a trigger of their own
+	// name. TestEveryRuleTriggerIsExercised cannot see these: deleting one branch
+	// removes no trigger, so the trigger that carries it still reads as covered.
+	{
+		rule: "coupon_exists",
+		reject: `SELECT redeem_coupon('cccc0009-0000-4000-8000-00000000dead',
+		         '6666aaaa-6666-4666-8666-666666666666', NULL, 20000);`,
+		accept: `SELECT redeem_coupon('cccc0009-0000-4000-8000-000000000009',
+		         '6666aaaa-6666-4666-8666-666666666666', NULL, 20000);`,
+	},
+	{
+		rule: "coupon_is_current",
+		reject: `UPDATE coupons SET is_active = false WHERE id = 'cccc0009-0000-4000-8000-000000000009';
+		         SELECT redeem_coupon('cccc0009-0000-4000-8000-000000000009',
+		         '6666aaaa-6666-4666-8666-666666666666', NULL, 20000);`,
+		// The same coupon inside its window, so the two runs differ only in the rule.
+		accept: `SELECT redeem_coupon('cccc0009-0000-4000-8000-000000000009',
+		         '6666aaaa-6666-4666-8666-666666666666', NULL, 20000);`,
+	},
+	{
+		rule: "coupon_within_total_limit",
+		// The fixture already holds one redemption against a live order, so a cap
+		// of one is spent. The limit counts rows, never a counter two checkouts read.
+		reject: `UPDATE coupons SET max_redemptions = 1 WHERE id = 'cccc0009-0000-4000-8000-000000000009';
+		         SELECT redeem_coupon('cccc0009-0000-4000-8000-000000000009',
+		         '6666aaaa-6666-4666-8666-666666666666', NULL, 20000);`,
+		accept: `UPDATE coupons SET max_redemptions = 2 WHERE id = 'cccc0009-0000-4000-8000-000000000009';
+		         SELECT redeem_coupon('cccc0009-0000-4000-8000-000000000009',
+		         '6666aaaa-6666-4666-8666-666666666666', NULL, 20000);`,
+	},
+	{
+		rule: "coupon_within_customer_limit",
+		// The fixture's redemption belongs to 王小明, and it is the SAME customer
+		// asking again: a guest would meet the total cap instead.
+		reject: `UPDATE coupons SET per_customer_limit = 1 WHERE id = 'cccc0009-0000-4000-8000-000000000009';
+		         INSERT INTO coupon_redemptions (coupon_id, order_id, user_id, amount_cents)
+		         VALUES ('cccc0009-0000-4000-8000-000000000009',
+		                 '6666bbbb-6666-4666-8666-666666666666',
+		                 '55555555-5555-4555-8555-555555555555', 100000);
+		         SELECT redeem_coupon('cccc0009-0000-4000-8000-000000000009',
+		         '6666aaaa-6666-4666-8666-666666666666',
+		         '55555555-5555-4555-8555-555555555555', 20000);`,
+		accept: `UPDATE coupons SET per_customer_limit = 2 WHERE id = 'cccc0009-0000-4000-8000-000000000009';
+		         INSERT INTO coupon_redemptions (coupon_id, order_id, user_id, amount_cents)
+		         VALUES ('cccc0009-0000-4000-8000-000000000009',
+		                 '6666bbbb-6666-4666-8666-666666666666',
+		                 '55555555-5555-4555-8555-555555555555', 100000);
+		         SELECT redeem_coupon('cccc0009-0000-4000-8000-000000000009',
+		         '6666aaaa-6666-4666-8666-666666666666',
+		         '55555555-5555-4555-8555-555555555555', 20000);`,
+	},
+	{
+		rule: "inventory_reservation_state",
+		reject: `SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
+		             '44444444-4444-4444-8444-444444444444', 2, now() + interval '1 hour', 'rule-hold');
+		         SELECT consume_reservation(id) FROM inventory_reservations
+		         WHERE order_id = '6666aaaa-6666-4666-8666-666666666666';
+		         SELECT consume_reservation(id) FROM inventory_reservations
+		         WHERE order_id = '6666aaaa-6666-4666-8666-666666666666' AND state = 'consumed';`,
+		accept: `SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
+		             '44444444-4444-4444-8444-444444444444', 2, now() + interval '1 hour', 'rule-hold');
+		         SELECT consume_reservation(id) FROM inventory_reservations
+		         WHERE order_id = '6666aaaa-6666-4666-8666-666666666666';`,
+	},
+	{
+		rule: "inventory_reservation_consume_within_hold",
+		reject: `SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
+		             '44444444-4444-4444-8444-444444444444', 2, now() + interval '1 hour', 'rule-hold');
+		         SELECT consume_reservation_partial(id, 3) FROM inventory_reservations
+		         WHERE order_id = '6666aaaa-6666-4666-8666-666666666666';`,
+		accept: `SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
+		             '44444444-4444-4444-8444-444444444444', 2, now() + interval '1 hour', 'rule-hold');
+		         SELECT consume_reservation_partial(id, 1) FROM inventory_reservations
+		         WHERE order_id = '6666aaaa-6666-4666-8666-666666666666';`,
+	},
+	{
+		rule:       "payments_provider_ref_known",
+		reject:     `SELECT capture_payment('pi_no_such_session', 6790000, 'visa', '4242');`,
+		acceptNote: "capture_payment's happy path is covered where the webhook is, in internal/payment",
+	},
+	{
+		rule:       "refunds_request_key_known",
+		reject:     `SELECT settle_refund('rk_no_such_refund', 're_x', 'succeeded');`,
+		acceptNote: "settle_refund's happy path needs a refund row a decision wrote, which internal/admin does",
+	},
+	{
+		rule: "audit_events_actor_required",
+		reject: `SELECT record_audit_event(NULL, 'product.published', 'products',
+		             '33333333-3333-4333-8333-333333333333');`,
+		accept: `SELECT record_audit_event('55555555-5555-4555-8555-555555555555', 'product.published',
+		             'products', '33333333-3333-4333-8333-333333333333');`,
+	},
+	{
+		rule: "return_requests_completed_is_inspected",
+		// The fixture's request has one line nobody has opened, which is what
+		// separates "not looked at yet" from "looked at, nothing arrived".
+		reject: shippedReturnLine + `
+		         UPDATE return_requests SET status = 'approved', decided_at = now()
+		         WHERE id = '88880001-0000-4000-8000-000000000000';
+		         UPDATE return_requests SET status = 'completed'
+		         WHERE id = '88880001-0000-4000-8000-000000000000';`,
+		accept: shippedReturnLine + `
+		         UPDATE return_requests SET status = 'approved', decided_at = now()
+		         WHERE id = '88880001-0000-4000-8000-000000000000';
+		         UPDATE return_request_lines SET received_quantity = 1, restocked_quantity = 1
+		         WHERE return_request_id = '88880001-0000-4000-8000-000000000000';
+		         UPDATE return_requests SET status = 'completed'
+		         WHERE id = '88880001-0000-4000-8000-000000000000';`,
+	},
+	{
+		rule: "orders_have_delivery",
+		// Deferred to commit, so the whole statement group is the case: an order
+		// with lines and no destination is one nobody can deliver.
+		reject: `INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name)
+		         VALUES ('6666cccc-6666-4666-8666-666666666666', 'GO-260721-000390',
+		                 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府');
+		         INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity, position)
+		         VALUES ('6666cccc-6666-4666-8666-666666666666', 'PXL-9P-256-BL', 'Pixelight 9 Pro 5G', 3390000, 1, 0);
+		         SET CONSTRAINTS orders_have_lines IMMEDIATE;`,
+		acceptNote: "the fixture's own orders are the legal neighbour, and every other case commits over them",
+	},
+	{
+		rule: "orders_total_non_negative",
+		// A discount larger than the lines: the coupon cap exists to stop this,
+		// and this is the rule underneath it that makes the cap more than advice.
+		reject: `INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code,
+		                 shipping_method_name, discount_cents)
+		         VALUES ('6666dddd-6666-4666-8666-666666666666', 'GO-260721-000391',
+		                 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府', 500000);
+		         INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity, position)
+		         VALUES ('6666dddd-6666-4666-8666-666666666666', 'PXL-9P-256-BL', 'Pixelight 9 Pro 5G', 100000, 1, 0);
+		         INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                 postal_code, city, district, street)
+		         VALUES ('6666dddd-6666-4666-8666-666666666666', 'neg@example.com', '負數', '0900000002',
+		                 '110', '台北市', '信義區', '松高路 1 號');
+		         SET CONSTRAINTS orders_have_lines IMMEDIATE;`,
+		acceptNote: "the fixture's orders all total above zero and every other case commits over them",
+	},
 }
+
+// shippedReturnLine puts the fixture's order line in a parcel and claims one of
+// it. return_within_shipment reads the shipment, so without this the statement
+// meant to prove the inspection rule is refused by a different one (#8).
+const shippedReturnLine = `
+	INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+	VALUES ('66666666-6666-4666-8666-666666666666',
+	        '66660002-0000-4000-8000-000000000000',
+	        '66660001-0000-4000-8000-000000000000', 1);
+	INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+	VALUES ('66666666-6666-4666-8666-666666666666',
+	        '88880001-0000-4000-8000-000000000000',
+	        '66660001-0000-4000-8000-000000000000', 1);`
 
 func creditEntry(amount int, key string) string {
 	return fmt.Sprintf(
@@ -959,6 +1143,27 @@ func TestEraseUserLeavesNoPersonalData(t *testing.T) {
 		        jsonb_build_object('email', 'Ming@Example.com', 'order_number', 'GO-260721-000387'))`); err != nil {
 		t.Fatalf("enqueue a letter to the customer being erased: %v", err)
 	}
+	// A payload whose address key is CAPITALISED. Go marshals a field with no
+	// json tag under its Go name, and payload->>'email' is case-sensitive, so a
+	// per-key delete reaches one of these and not the other. The sweep below
+	// reads the whole value as text and is blind to the difference, which is why
+	// it is the guard that has to have a subject.
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO outbox_messages (topic, dedupe_key, payload)
+		VALUES ('password.reset', 'erasure-probe-capitalised',
+		        jsonb_build_object('Email', 'Ming@Example.com', 'Token', 'abc'))`); err != nil {
+		t.Fatalf("enqueue a reset letter: %v", err)
+	}
+	// The OTHER jsonb store the sweep derives, and the one erase_user cannot
+	// reach at all: audit_events is append-only. A review found the store-credit
+	// grant writing a customer's address into it, so the guard exists — and it
+	// was passing over an empty table, which is a check over data with no data.
+	if _, err := tx.Exec(ctx, `
+		SELECT record_audit_event($1, 'credit.granted', 'store_credit_entries', NULL,
+		       NULL, jsonb_build_object('amount_cents', 10000, 'reason', '補償'))`,
+		"5555aaaa-5555-4555-8555-555555555555"); err != nil {
+		t.Fatalf("write an audit row: %v", err)
+	}
 
 	if _, err := tx.Exec(ctx, `SELECT erase_user($1)`, user); err != nil {
 		t.Fatalf("erase_user: %v", err)
@@ -975,7 +1180,13 @@ func TestEraseUserLeavesNoPersonalData(t *testing.T) {
 			WHERE o.order_number = 'GO-260721-000387' AND pd.email IS NOT NULL`},
 		{"the invoice carrier", `SELECT count(*) FROM invoice_preferences ip JOIN orders o ON o.id = ip.order_id
 			WHERE o.order_number = 'GO-260721-000387'`},
-		{"restock notifications", `SELECT count(*) FROM stock_notifications WHERE user_id = '` + user + `'`},
+		// By ADDRESS and never by user_id: stock_notifications.user_id is ON
+		// DELETE SET NULL, so a probe asking for the account reads zero whether
+		// or not a single row was deleted — the shape the comment four lines
+		// above warns about, committed on the line under it. Both addresses,
+		// because a signed-in customer may ask using any address they type.
+		{"restock notifications", `SELECT count(*) FROM stock_notifications
+			WHERE lower(email) IN ('ming@example.com', 'ming.work@example.com')`},
 	} {
 		var n int
 		if err := tx.QueryRow(ctx, probe.query).Scan(&n); err != nil {
@@ -1390,4 +1601,85 @@ func firstRelation(stmt string) string {
 		}
 	}
 	return "query"
+}
+
+// TestEveryRaisedRuleIsAssertedByName asks the question TestEveryRuleTriggerIsExercised
+// cannot. That one keys on the TRIGGER, and a trigger function raises as many
+// distinct rules as it has branches: store_credit_guard alone raises four.
+// Deleting one branch removes no trigger, so the coverage guard stays green while
+// the rule it names stops being enforced — and a case that asserts a row was
+// refused, without asking which rule refused it, cannot tell the difference (#8).
+//
+// The corpus is pg_proc, not a list: a rule added to a function body is covered
+// the moment it is written. What it asks for is the name inside a Go string
+// literal in a test, because a name in a comment is how a guard comes to be
+// satisfied by nothing.
+func TestEveryRaisedRuleIsAssertedByName(t *testing.T) {
+	rows, err := schemaPool(t).Query(t.Context(), `
+		SELECT DISTINCT m[1]
+		FROM pg_proc p
+		CROSS JOIN LATERAL regexp_matches(p.prosrc, $$CONSTRAINT\s*=\s*'([a-z_]+)'$$, 'g') AS m
+		WHERE p.pronamespace = 'public'::regnamespace
+		ORDER BY 1`)
+	if err != nil {
+		t.Fatalf("read the raised rules: %v", err)
+	}
+	defer rows.Close()
+
+	var raised []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		raised = append(raised, name)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate: %v", err)
+	}
+	if len(raised) == 0 {
+		t.Fatal("no raised rules found, so this test is asking nothing")
+	}
+
+	asserted := make(map[string]bool, len(raised))
+	root := filepath.Join("..", "..")
+	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if d.Name() == ".git" || d.Name() == "node_modules" {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		body, readErr := os.ReadFile(path) //nolint:gosec // G304: paths come from walking this repository
+		if readErr != nil {
+			return readErr
+		}
+		for _, name := range raised {
+			if bytes.Contains(body, []byte(`"`+name+`"`)) {
+				asserted[name] = true
+			}
+		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk the tests: %v", walkErr)
+	}
+
+	var missing []string
+	for _, name := range raised {
+		if !asserted[name] {
+			missing = append(missing, name)
+		}
+	}
+	if len(missing) > 0 {
+		t.Errorf("%d rules are raised by a function body and asserted by no test:\n  %s\n"+
+			"Each is a branch that can be deleted with every suite still green.",
+			len(missing), strings.Join(missing, "\n  "))
+	}
 }

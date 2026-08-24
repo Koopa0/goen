@@ -2351,7 +2351,15 @@ CREATE TABLE invoice_documents (
     -- credit note's original must be a real invoice, so it can never fire.
 );
 
-CREATE UNIQUE INDEX invoice_documents_number_key ON invoice_documents (number);
+-- Partial, because a PENDING claim has no number and carries '' to say so. A
+-- whole-table unique on `number` puts every claim in one another's way: two
+-- allowances on two different orders, with two different request keys, collide
+-- on the empty string, so at most ONE claim could be in flight in the entire
+-- database. One provider failure then refused every 折讓 the shop would ever
+-- file — and the refusal named the OTHER order's key, so nobody could see why.
+CREATE UNIQUE INDEX invoice_documents_number_key
+    ON invoice_documents (number)
+    WHERE status <> 'pending';
 CREATE INDEX invoice_documents_order_idx ON invoice_documents (order_id);
 CREATE INDEX invoice_documents_original_idx ON invoice_documents (original_id);
 -- At most one live invoice per order: a second while the first stands files two
@@ -2376,6 +2384,15 @@ CREATE FUNCTION invoice_documents_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
     IF TG_OP = 'DELETE' THEN
+        -- A PENDING claim is a reservation, not a document: nothing is at the
+        -- 加值中心 under it and it has no number. Releasing one is the only way
+        -- out for a claim whose provider call was REFUSED — an answer proving
+        -- nothing was filed — and without it a rejected 折讓 holds its key for
+        -- ever, with no door: it cannot be voided (a void needs a number), the
+        -- key cannot be cleared, and the row cannot be deleted.
+        IF OLD.status = 'pending' THEN
+            RETURN OLD;
+        END IF;
         RAISE EXCEPTION 'invoice documents are filed, not deleted'
             USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_documents_only_void';
     END IF;
@@ -2394,9 +2411,14 @@ BEGIN
         RETURN NEW;
     END IF;
 
+    -- request_key belongs in this list for the reason the others do: clearing it
+    -- on an issued allowance takes the row out of invoice_documents_request_key
+    -- and lets the SAME refund be filed a second time at the 財政部, which is
+    -- exactly what that index was added to stop.
     IF NEW.id <> OLD.id OR NEW.order_id <> OLD.order_id OR NEW.kind <> OLD.kind
        OR NEW.number <> OLD.number OR NEW.amount_cents <> OLD.amount_cents
        OR NEW.original_id IS DISTINCT FROM OLD.original_id
+       OR NEW.request_key IS DISTINCT FROM OLD.request_key
        OR NEW.issued_at <> OLD.issued_at THEN
         RAISE EXCEPTION 'an issued document may only be voided, not rewritten'
             USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_documents_only_void';
@@ -2831,10 +2853,20 @@ CREATE TABLE payment_webhook_events (
     -- there is nothing for /admin/health to name and nothing to reconcile
     -- against.
     unreconciled        text,
+    -- When somebody dealt with it. The alarm is monotone without this: once an
+    -- event lands unreconciled, /admin/health is unhealthy forever, which is
+    -- alarm fatigue on the page built to make failure visible — the objection
+    -- expired_holds already carries. The row KEEPS its reason, because what
+    -- happened is worth reading after it is handled; contact_messages.handled_at
+    -- is the same shape.
+    reconciled_at       timestamptz,
     PRIMARY KEY (provider, event_id),
     CONSTRAINT payment_webhook_events_type_present CHECK (type ~ '[^[:space:]]'),
     CONSTRAINT payment_webhook_events_unreconciled_present
-        CHECK (unreconciled IS NULL OR unreconciled ~ '[^[:space:]]')
+        CHECK (unreconciled IS NULL OR unreconciled ~ '[^[:space:]]'),
+    -- Nothing to reconcile means nothing to mark reconciled.
+    CONSTRAINT payment_webhook_events_reconciled_was_flagged
+        CHECK (reconciled_at IS NULL OR unreconciled IS NOT NULL)
 );
 
 COMMENT ON COLUMN payment_webhook_events.unreconciled IS
@@ -2842,7 +2874,7 @@ COMMENT ON COLUMN payment_webhook_events.unreconciled IS
 
 CREATE INDEX payment_webhook_events_unreconciled_idx
     ON payment_webhook_events (received_at)
-    WHERE unreconciled IS NOT NULL;
+    WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL;
 
 CREATE INDEX payment_webhook_events_unprocessed_idx
     ON payment_webhook_events (received_at)
@@ -3318,6 +3350,12 @@ BEGIN
     WHERE user_id = p_user_id AND customer_note IS NOT NULL;
 
     -- The restock email is NOT NULL and cannot be blanked, so the rows go.
+    -- By user_id AND by address, because anyone may ask for one signed OUT:
+    -- a notice taken before the customer had an account carries no user_id,
+    -- so a delete keyed on the account never reaches it — and the worker
+    -- would then email an address the shop has been told to forget, the day
+    -- the variant comes back. This is the contact_messages shape, and the
+    -- newsletter is not the only table that keys on the address.
     DELETE FROM stock_notifications WHERE user_id = p_user_id;
 
     -- The invoice PREFERENCE carries a personal carrier id and a business tax
@@ -3337,6 +3375,7 @@ BEGIN
         -- foreign key, and it holds a name, an address and whatever the customer
         -- typed.
         DELETE FROM contact_messages WHERE lower(email) = lower(addr);
+        DELETE FROM stock_notifications WHERE lower(email) = lower(addr);
 
         -- The OUTBOX holds the address inside its payload, and outbox.Retain
         -- keeps a delivered message for 30 days — so without this, an erased
@@ -3344,7 +3383,15 @@ BEGIN
         -- that also carries reset links and unsubscribe tokens. Undelivered
         -- messages go with it: a letter to an address the shop has been told to
         -- forget must not still be waiting to leave.
-        DELETE FROM outbox_messages WHERE lower(payload->>'email') = lower(addr);
+        -- The whole payload as text, not payload->>'email'. A Go struct field
+        -- with no json tag marshals under its GO name, and a jsonb key is
+        -- case-sensitive — so the ONE message that carries a live password
+        -- reset token was the one this could not reach, and it survived the
+        -- erasure for the 30 days outbox.Retain keeps a row. A predicate that
+        -- depends on somebody remembering a struct tag is a predicate that
+        -- eventually misses one; every row here is a letter, so an address
+        -- appearing anywhere in it means the letter is to that person.
+        DELETE FROM outbox_messages WHERE payload::text ILIKE '%' || addr || '%';
     END IF;
 
     -- Every browser's proof of access to this person's orders: a live bearer
@@ -3455,6 +3502,10 @@ REVOKE UPDATE, DELETE ON store_credit_accounts FROM store;
 REVOKE INSERT, UPDATE, DELETE ON coupons, coupon_redemptions FROM store;
 REVOKE UPDATE, DELETE ON payment_webhook_events FROM store;
 GRANT UPDATE (processed_at, unreconciled) ON payment_webhook_events TO store;
+-- reconciled_at is the SHOP saying it refunded money by hand, so it is admin's
+-- to write and not the storefront's. A whole-table INSERT would carry it.
+REVOKE INSERT ON payment_webhook_events FROM store;
+GRANT INSERT (provider, event_id, type, object_ref, payload) ON payment_webhook_events TO store;
 -- order_events and shipping_method_versions are append-only too, so the privilege
 -- layer backs forbid_change. INSERT stays: the app appends an event, and a new
 -- shipping version is an insert.
@@ -3681,7 +3732,13 @@ REVOKE UPDATE, DELETE ON store_credit_accounts FROM admin;
 -- is a fact about an order's money, posted by the same function the storefront
 -- uses.
 REVOKE INSERT, UPDATE, DELETE ON coupon_redemptions FROM admin;
+-- The back office may say it dealt with an event and nothing else: what an
+-- event SAID is the provider's statement and not the shop's to edit, while
+-- whether somebody acted on it is exactly the shop's to record. Without the
+-- column grant the alarm is monotone and /admin/health is unhealthy forever
+-- after the first one.
 REVOKE UPDATE, DELETE ON payment_webhook_events FROM admin;
+GRANT UPDATE (reconciled_at) ON payment_webhook_events TO admin;
 REVOKE UPDATE ON order_events, shipping_method_versions FROM admin;
 REVOKE DELETE ON users FROM admin;
 -- Verification is the customer answering a letter, and a staff member who could
@@ -4170,6 +4227,43 @@ COMMENT ON VIEW store_credit_balances IS
 -- view created after it is granted to nobody.
 GRANT SELECT ON store_credit_balances TO store, admin, reporting;
 
+-- What has gone back to the customer on one order, by source and in total.
+--
+-- A refund is paid to the card, to store credit, or split between them —
+-- splitRefund pays the card first and credit last — so "what has been refunded"
+-- has two halves and every caller needs the sum. It was computed in three
+-- places instead: two byte-identical card-only queries and one Go addition of
+-- the card figure to the credit position. The two that stopped at the card
+-- decided what the 折讓 form OFFERS, while the one that added credit decided
+-- what an allowance is ALLOWED to relieve — so a split-refunded order defaulted
+-- the form to the card half, and the 統一發票 went on recording a sale that was
+-- reversed. An order refunded ENTIRELY from credit offered no form at all.
+--
+-- A view for the reason committed_orders and store_credit_balances are: the
+-- rule would otherwise be copied into whichever caller was written next.
+CREATE VIEW order_refunds AS
+    SELECT o.id AS order_id,
+           o.order_number,
+           coalesce((SELECT sum(r.amount_cents)
+                     FROM refunds r
+                     JOIN payments p ON p.id = r.payment_id
+                     WHERE p.order_id = o.id AND r.status = 'succeeded'), 0)::bigint
+               AS card_cents,
+           -- POSITIVE entries only: a negative one is credit SPENT on this
+           -- order, which is the customer paying rather than being paid.
+           coalesce((SELECT sum(e.amount_cents)
+                     FROM store_credit_entries e
+                     WHERE e.order_id = o.id AND e.amount_cents > 0), 0)::bigint
+               AS credit_cents
+    FROM orders o;
+
+COMMENT ON VIEW order_refunds IS
+    'What has gone back to the customer on one order, card and store credit '
+    'separately and summed by the caller. The one definition: a 折讓 may not '
+    'relieve more than this, and the form that files one offers exactly this.';
+
+GRANT SELECT ON order_refunds TO store, admin, reporting;
+
 -- ---------------------------------------------------------------------------
 -- Co-purchase projection
 --
@@ -4517,10 +4611,14 @@ REVOKE INSERT, UPDATE, DELETE ON
     FROM admin;
 REVOKE INSERT ON payment_webhook_events FROM admin;
 
--- Filing a document with the tax authority is the back office's act. INSERT and
--- UPDATE, never DELETE: an issued invoice is filed history, and voiding is how it
--- stops being live.
-GRANT INSERT, UPDATE ON invoice_documents TO admin;
+-- Filing a document with the tax authority is the back office's act. DELETE is
+-- granted for ONE row shape and invoice_documents_only_void is what holds it
+-- there: a PENDING claim, which is a reservation with no number and nothing at
+-- the 加值中心 under it. Releasing one is the only door out of a 折讓 the
+-- provider refused, and the trigger refuses the delete of anything filed —
+-- which is where that rule belongs, since it is a rule about the ROW and not
+-- about who is asking.
+GRANT INSERT, UPDATE, DELETE ON invoice_documents TO admin;
 -- Lines are written with their document and never touched again.
 GRANT INSERT ON invoice_document_lines TO admin;
 

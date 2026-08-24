@@ -303,6 +303,7 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 	mux.HandleFunc("GET /admin/questions", back.RequireStaff(back.Questions))
 	mux.HandleFunc("POST /admin/questions/{id}", back.RequireStaff(back.AnswerQuestion))
 	mux.HandleFunc("GET /admin/health", back.RequireStaff(back.Health))
+	mux.HandleFunc("POST /admin/health/reconcile", back.RequireStaff(back.ReconcilePayment))
 	mux.HandleFunc("GET /admin/reports", back.RequireStaff(back.Reports))
 	mux.HandleFunc("GET /admin/taxonomy", back.RequireStaff(back.Taxonomy))
 	mux.HandleFunc("POST /admin/taxonomy/{kind}", back.RequireStaff(back.CreateTaxon))

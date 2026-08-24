@@ -78,9 +78,13 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 								required
 								inputmode="numeric"
 								value={ v.Draft.Days }
+								if v.HasErr("days") {
+									aria-invalid="true"
+									aria-describedby="k-days-error"
+								}
 							/>
 							if v.HasErr("days") {
-								<p class="ui-error-text">{ v.Err("days") }</p>
+								<p class="ui-error-text" id="k-days-error">{ v.Err("days") }</p>
 							}
 						</div>
 					</div>

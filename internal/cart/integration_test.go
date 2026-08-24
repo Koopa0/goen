@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"slices"
 	"strconv"
@@ -20,6 +21,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
@@ -3179,4 +3181,345 @@ func placeUnpaidOrderFor(t *testing.T, s *cart.Store, address string) string {
 		t.Fatalf("place: %v", err)
 	}
 	return number
+}
+
+// TestASpentCouponComesBackAsAFieldErrorNotA500 drives the checkout handler,
+// because the branch that maps ErrCouponUsedUp to a 422 lives there and nothing
+// else reaches it. FindCoupon deliberately reads no limit — they are counted
+// under redeem_coupon's lock — so a spent code passes the form validation EVERY
+// time and is refused inside the transaction EVERY time. That makes this an
+// ordinary outcome on the buying mainline, and the failure it replaced discarded
+// the whole address the customer had just typed.
+func TestASpentCouponComesBackAsAFieldErrorNotA500(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+
+	code := "SPENT" + strings.ToUpper(uuid.NewString()[:6])
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO coupons (code, description, kind, amount_cents, max_redemptions)
+		VALUES ($1, '已用完', 'amount', 10000, 1)`, code); err != nil {
+		t.Fatalf("create coupon: %v", err)
+	}
+
+	// Spend the only slot through the door a checkout uses, so the state under
+	// test is one the application can actually produce.
+	spender := newCart(t, s)
+	variant := variantOf(t, "pixelight-9-pro", true)
+	if err := s.Add(ctx, spender, variant, 1); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	var shipID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
+		t.Fatalf("shipping: %v", err)
+	}
+	spent, err := s.FindCoupon(ctx, code, 3390000, 8000)
+	if err != nil {
+		t.Fatalf("find the coupon: %v", err)
+	}
+	addr := &cart.Address{
+		Email: "spender@example.com", Name: "王小明", Phone: "0912345678",
+		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
+	}
+	if _, placeErr := s.PlaceOrder(ctx, spender, uuid.NullUUID{}, shipID, addr, nil, spent,
+		"coupon-spend-"+code); placeErr != nil {
+		t.Fatalf("spend the slot: %v", placeErr)
+	}
+
+	// A second customer types the same code.
+	token, err := cart.NewToken()
+	if err != nil {
+		t.Fatalf("token: %v", err)
+	}
+	second, err := s.Create(ctx, token, uuid.NullUUID{})
+	if err != nil {
+		t.Fatalf("create cart: %v", err)
+	}
+	if err := s.Add(ctx, second, variant, 1); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+
+	form := url.Values{
+		"email": {"late@example.com"}, "name": {"李大華"}, "phone": {"0987654321"},
+		"postal_code": {"110"}, "city": {"台北市"}, "district": {"信義區"},
+		"street":      {"松仁路 100 號"},
+		"shipping":    {shipID.String()},
+		"coupon":      {code},
+		"idempotency": {"late-" + uuid.NewString()[:8]},
+	}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
+		strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	//nolint:gosec // G124: the browser's own cart cookie, read back by this handler
+	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour}),
+		nil)
+	res := httptest.NewRecorder()
+	h.PlaceOrder(res, req)
+
+	if res.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("a spent coupon answered %d, want 422 — a 500 discards everything "+
+			"the customer typed at the moment of paying", res.Code)
+	}
+	body := res.Body.String()
+	if !strings.Contains(body, "松仁路 100 號") {
+		t.Error("the re-rendered form lost the street the customer had typed")
+	}
+	if !strings.Contains(body, "late@example.com") {
+		t.Error("the re-rendered form lost the email the customer had typed")
+	}
+	if !strings.Contains(body, i18n.T(ctx, i18n.KeyCouponUsedUp)) {
+		t.Error("the page does not say the coupon is spent, so the customer is " +
+			"left to guess which field was refused")
+	}
+}
+
+// TestPressingUpdateChangesTheChoiceAndPlacesNothing is the SERVER half of the
+// chooser. The template half is locked by a markup test, and with the branch in
+// handler.go deleted every one of those stayed green — while the 更新 button
+// carries formnovalidate, so a form the customer had already filled in fell
+// straight through and PLACED THE ORDER. Somebody changing their 發票 type
+// bought the basket.
+func TestPressingUpdateChangesTheChoiceAndPlacesNothing(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+
+	token, err := cart.NewToken()
+	if err != nil {
+		t.Fatalf("token: %v", err)
+	}
+	id, err := s.Create(ctx, token, uuid.NullUUID{})
+	if err != nil {
+		t.Fatalf("create cart: %v", err)
+	}
+	if err := s.Add(ctx, id, variantOf(t, "pixelight-9-pro", true), 1); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	var shipID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
+		t.Fatalf("shipping: %v", err)
+	}
+
+	// A COMPLETE form: every field the server would demand is present, so the
+	// only thing standing between this submission and an order is the branch.
+	form := url.Values{
+		"email": {"update@example.com"}, "name": {"王小明"}, "phone": {"0912345678"},
+		"postal_code": {"110"}, "city": {"台北市"}, "district": {"信義區"},
+		"street":      {"松高路 68 號"},
+		"shipping":    {shipID.String()},
+		"idempotency": {"upd-" + uuid.NewString()[:8]},
+		"update":      {"1"},
+	}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
+		strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	//nolint:gosec // G124: the browser's own cart cookie, read back by this handler
+	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour}),
+		nil)
+	res := httptest.NewRecorder()
+	h.PlaceOrder(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("changing a choice answered %d, want 200 — a 303 means it placed "+
+			"the order somebody was still filling in", res.Code)
+	}
+	if loc := res.Header().Get("Location"); loc != "" {
+		t.Errorf("changing a choice redirected to %q; nothing was written, so there "+
+			"is nowhere to go", loc)
+	}
+	// The values come back: the whole reason this is a submission and not a link.
+	if body := res.Body.String(); !strings.Contains(body, "松高路 68 號") {
+		t.Error("changing a choice discarded the address already typed, which is " +
+			"what the link this replaced did")
+	}
+
+	var orders int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM order_private_data WHERE email = 'update@example.com'`).
+		Scan(&orders); err != nil {
+		t.Fatalf("count orders: %v", err)
+	}
+	if orders != 0 {
+		t.Errorf("%d order(s) were placed by pressing 更新", orders)
+	}
+	// And the cart is still there to finish.
+	view, viewErr := s.View(ctx, id)
+	if viewErr != nil {
+		t.Fatalf("read the cart: %v", viewErr)
+	}
+	if len(view.Lines) == 0 {
+		t.Error("the cart was emptied by a chooser change")
+	}
+}
+
+// TestPickingASavedAddressFillsTheForm is the chooser nothing rendered.
+//
+// Every checkout fixture left SavedAddresses empty, so OffersTheAddressBook()
+// was false and the address radios appeared in no test — while on the live page
+// a hidden input carried the same NAME and came FIRST, so PostFormValue
+// returned it every time and the pick was discarded. A repeat customer with two
+// saved addresses could use only the default, for ever, on the buying mainline.
+func TestPickingASavedAddressFillsTheForm(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+
+	var userID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO users (email, full_name)
+		VALUES ('book-' || gen_random_uuid() || '@goen.invalid', '王小明')
+		RETURNING id`).Scan(&userID); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	// TWO addresses, and the one we pick is NOT the default: with one, or with
+	// the default picked, "fills from the book" and "keeps what was there" are
+	// the same outcome and the fixture tests neither.
+	var otherID uuid.UUID
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO addresses (user_id, recipient_name, phone, postal_code, city,
+		                       district, street, is_default)
+		VALUES ($1, '王小明', '0912345678', '110', '台北市', '信義區', '松高路 68 號', true)`,
+		userID); err != nil {
+		t.Fatalf("save the default address: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO addresses (user_id, recipient_name, phone, postal_code, city,
+		                       district, street, is_default)
+		VALUES ($1, '李大華', '0987654321', '407', '台中市', '西屯區', '文心路 200 號', false)
+		RETURNING id`, userID).Scan(&otherID); err != nil {
+		t.Fatalf("save the second address: %v", err)
+	}
+
+	token, err := cart.NewToken()
+	if err != nil {
+		t.Fatalf("token: %v", err)
+	}
+	id, err := s.Create(ctx, token, uuid.NullUUID{UUID: userID, Valid: true})
+	if err != nil {
+		t.Fatalf("create cart: %v", err)
+	}
+	if err := s.Add(ctx, id, variantOf(t, "pixelight-9-pro", true), 1); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	var shipID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
+		t.Fatalf("shipping: %v", err)
+	}
+
+	// The form as the browser posts it when the SECOND address is ticked and
+	// 更新 is pressed: the radio's value, and the fields still holding the
+	// default the page was rendered with.
+	form := url.Values{
+		"email": {"book@example.com"}, "name": {"王小明"}, "phone": {"0912345678"},
+		"postal_code": {"110"}, "city": {"台北市"}, "district": {"信義區"},
+		"street":   {"松高路 68 號"},
+		"shipping": {shipID.String()},
+		"address":  {otherID.String()},
+		"update":   {"address"},
+	}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
+		strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	//nolint:gosec // G124: the browser's own cart cookie, read back by this handler
+	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+	req = req.WithContext(account.WithUser(ctx, account.User{ID: userID.String(), Role: "customer"}))
+
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour}),
+		nil)
+	res := httptest.NewRecorder()
+	h.PlaceOrder(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("picking a saved address answered %d, want 200", res.Code)
+	}
+	// On the FIELD's value, not anywhere in the body: both addresses appear on
+	// the page, because the chooser lists them.
+	body := res.Body.String()
+	if !strings.Contains(body, `value="文心路 200 號"`) {
+		t.Error("picking the second saved address did not fill the street field " +
+			"with it, so a repeat customer retypes an address they have already " +
+			"given us")
+	}
+	if strings.Contains(body, `value="松高路 68 號"`) {
+		t.Error("the street field still holds the address that was NOT picked")
+	}
+	if !strings.Contains(body, `value="台中市"`) {
+		t.Error("the city field did not follow the chosen address")
+	}
+	if !strings.Contains(body, `value="407"`) {
+		t.Error("the postal code did not follow the chosen address, so the " +
+			"delivery fee would be priced for the wrong place")
+	}
+}
+
+// TestChangingAnotherChoiceKeepsATypedAddress is why 更新 names its chooser.
+// Filling from the book on every re-render would wipe an address somebody had
+// typed by hand the moment they changed their 發票 type.
+func TestChangingAnotherChoiceKeepsATypedAddress(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+
+	var userID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO users (email, full_name)
+		VALUES ('typed-' || gen_random_uuid() || '@goen.invalid', '王小明')
+		RETURNING id`).Scan(&userID); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO addresses (user_id, recipient_name, phone, postal_code, city,
+		                       district, street, is_default)
+		VALUES ($1, '王小明', '0912345678', '110', '台北市', '信義區', '松高路 68 號', true)`,
+		userID); err != nil {
+		t.Fatalf("save an address: %v", err)
+	}
+
+	token, err := cart.NewToken()
+	if err != nil {
+		t.Fatalf("token: %v", err)
+	}
+	id, err := s.Create(ctx, token, uuid.NullUUID{UUID: userID, Valid: true})
+	if err != nil {
+		t.Fatalf("create cart: %v", err)
+	}
+	if err := s.Add(ctx, id, variantOf(t, "pixelight-9-pro", true), 1); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	var shipID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
+		t.Fatalf("shipping: %v", err)
+	}
+
+	form := url.Values{
+		"email": {"typed@example.com"}, "name": {"李大華"}, "phone": {"0987654321"},
+		"postal_code": {"407"}, "city": {"台中市"}, "district": {"西屯區"},
+		"street":   {"手打的地址 1 號"},
+		"shipping": {shipID.String()},
+		"update":   {"invoice"},
+	}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
+		strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	//nolint:gosec // G124: the browser's own cart cookie, read back by this handler
+	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+	req = req.WithContext(account.WithUser(ctx, account.User{ID: userID.String(), Role: "customer"}))
+
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour}),
+		nil)
+	res := httptest.NewRecorder()
+	h.PlaceOrder(res, req)
+
+	if body := res.Body.String(); !strings.Contains(body, "手打的地址 1 號") {
+		t.Error("changing the 發票 type overwrote an address typed by hand with " +
+			"the saved one, which is the whole reason 更新 says which chooser it is")
+	}
 }

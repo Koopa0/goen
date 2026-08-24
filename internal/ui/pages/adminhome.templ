@@ -175,10 +175,25 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 					</div>
 					<div class="ui-field">
 						<label class="ui-label" for="h-days">{ i18n.T(ctx, i18n.KeyAdminHomeDays) }</label>
-						<input class="ui-input" id="h-days" name="days" type="number" min="0" max="365" step="1" inputmode="numeric" value={ v.Draft.Days } placeholder="0"/>
+						<input
+							class="ui-input"
+							id="h-days"
+							name="days"
+							type="number"
+							min="0"
+							max="365"
+							step="1"
+							inputmode="numeric"
+							value={ v.Draft.Days }
+							placeholder="0"
+							if v.HasErr("days") {
+								aria-invalid="true"
+								aria-describedby="h-days-error"
+							}
+						/>
 						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHomeDaysHint) }</p>
 						if v.HasErr("days") {
-							<p class="ui-error-text">{ v.Err("days") }</p>
+							<p class="ui-error-text" id="h-days-error">{ v.Err("days") }</p>
 						}
 					</div>
 					<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminHomeAdd) }</button>
@@ -289,7 +304,7 @@ templ AdminHome(p layouts.Page, v *AdminHeroView) {
 						<input class="ui-input" id="b-cta-label-en" name="cta_label_en" maxlength="20" value={ v.BannerDraft.CTALabelEn } placeholder="Shop"/>
 					</div>
 					if v.HasErr("cta") {
-						<p class="ui-error-text">{ v.Err("cta") }</p>
+						<p class="ui-error-text" role="alert">{ v.Err("cta") }</p>
 					}
 					<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminHomeBannerAdd) }</button>
 				</form>

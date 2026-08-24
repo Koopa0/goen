@@ -792,6 +792,11 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO payment_webhook_events (provider, event_id, type, payload, unreconciled) VALUES ('stripe', 'evt_blank_reason', 'checkout.session.completed', '{}'::jsonb, 'money arrived for a cancelled order');`,
 	},
 	{
+		constraint: "payment_webhook_events_reconciled_was_flagged",
+		reject:     `INSERT INTO payment_webhook_events (provider, event_id, type, payload, reconciled_at) VALUES ('stripe', 'evt_rec_unflagged', 'checkout.session.completed', '{}'::jsonb, now());`,
+		accept:     `INSERT INTO payment_webhook_events (provider, event_id, type, payload, unreconciled, reconciled_at) VALUES ('stripe', 'evt_rec_flagged', 'checkout.session.completed', '{}'::jsonb, 'money arrived for a cancelled order', now());`,
+	},
+	{
 		constraint: "payment_webhook_events_type_present",
 		reject:     `INSERT INTO payment_webhook_events (provider, event_id, type, payload) VALUES ('stripe','evt_rej_type',E'\t','{}'::jsonb);`,
 		accept:     `INSERT INTO payment_webhook_events (provider, event_id, type, payload) VALUES ('stripe','evt_acc_type','payment_intent.succeeded','{}'::jsonb);`,
@@ -1470,7 +1475,13 @@ VALUES ('66666666-6666-4666-8666-666666666666', '4444aaaa-4444-4444-8444-4444444
 	{
 		index:  "invoice_documents_number_key",
 		reject: `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents) VALUES ('11110001-0000-4000-8000-000000000010', '6666aaaa-6666-4666-8666-666666666666', 'invoice', 'GD-72031288', 100);`,
-		accept: `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents) VALUES ('11110001-0000-4000-8000-000000000010', '6666aaaa-6666-4666-8666-666666666666', 'invoice', 'GD-90000010', 100);`,
+		// A SECOND PENDING claim, not a second number. The old index was whole-table,
+		// and a pending claim carries '' to say it has no number yet — so the accept
+		// below passed under both versions of the rule while two claims on two
+		// different orders collided on the empty string, which is #28's paired
+		// lesson: a statement both versions admit proves nothing about either.
+		accept: `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents, status, request_key) VALUES ('11110001-0000-4000-8000-000000000011', '6666aaaa-6666-4666-8666-666666666666', 'invoice', '', 100, 'pending', 'claim-one');
+		         INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents, status, request_key) VALUES ('11110001-0000-4000-8000-000000000012', '6666bbbb-6666-4666-8666-666666666666', 'invoice', '', 100, 'pending', 'claim-two');`,
 	},
 	{
 		index: "invoice_documents_one_active_invoice_per_order",

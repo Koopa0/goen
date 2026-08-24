@@ -2601,24 +2601,6 @@ func (q *Queries) CapturePayment(ctx context.Context, arg CapturePaymentParams) 
 	return capture_payment, err
 }
 
-const cardRefundedForOrder = `-- name: CardRefundedForOrder :one
-SELECT coalesce(sum(r.amount_cents), 0)::bigint AS refunded_cents
-FROM refunds r
-JOIN payments p ON p.id = r.payment_id
-JOIN orders o ON o.id = p.order_id
-WHERE o.order_number = $1::text AND r.status = 'succeeded'
-`
-
-// What the CARD has sent back on this order. The credit half is
-// OrderCreditPosition's `returned`, which is the one definition of that figure
-// and the reason this query does not sum the ledger itself.
-func (q *Queries) CardRefundedForOrder(ctx context.Context, orderNumber string) (int64, error) {
-	row := q.db.QueryRow(ctx, cardRefundedForOrder, orderNumber)
-	var refunded_cents int64
-	err := row.Scan(&refunded_cents)
-	return refunded_cents, err
-}
-
 const carryZoneSurcharges = `-- name: CarryZoneSurcharges :exec
 INSERT INTO shipping_version_zones (version_id, zone_id, surcharge_cents)
 SELECT $1, vz.zone_id, vz.surcharge_cents
@@ -4981,8 +4963,20 @@ WHERE m.digest = $1::text
 // invisible to the second — the sweeper's own comment said a foreign key caught
 // that, and there is none: product_images.storage_key holds either an embedded
 // filename from the seed or a digest, so it cannot point at media_objects.
-// Asking again inside the DELETE makes the attach win, and :execrows is what
-// lets the caller tell "somebody attached it" from "deleted".
+// Asking again inside the DELETE makes a COMMITTED attach win, and :execrows is
+// what lets the caller tell "somebody attached it" from "deleted".
+//
+// COMMITTED is the word this comment was missing, and it is not a detail. Under
+// READ COMMITTED the DELETE cannot see an attach that is still in flight, so a
+// transaction that inserts the hero slide, is interrupted, and commits after the
+// sweeper has run leaves a slide pointing at a deleted object. Measured — it is
+// not a theory.
+//
+// Left open, and the reason is the shape of the column rather than the size of
+// the window: closing it properly is a foreign key, and storage_key deliberately
+// holds two kinds of key — an embedded filename from the seed or a digest — so
+// it cannot reference media_objects at all. The window itself is the
+// milliseconds of one DELETE against an orphan more than 24 hours old.
 func (q *Queries) DeleteMedia(ctx context.Context, digest string) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteMedia, digest)
 	if err != nil {
@@ -6151,6 +6145,23 @@ func (q *Queries) MarkOutboxDelivered(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const markPaymentReconciled = `-- name: MarkPaymentReconciled :execrows
+UPDATE payment_webhook_events SET reconciled_at = now()
+WHERE provider = 'stripe' AND event_id = $1::text
+  AND unreconciled IS NOT NULL AND reconciled_at IS NULL
+`
+
+// Somebody refunded it by hand at the provider and says so. The row keeps its
+// reason: what happened is worth reading after it is handled, and this is the
+// only thing that takes it off /admin/health.
+func (q *Queries) MarkPaymentReconciled(ctx context.Context, eventID string) (int64, error) {
+	result, err := q.db.Exec(ctx, markPaymentReconciled, eventID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const markSessionVerified = `-- name: MarkSessionVerified :exec
 UPDATE sessions SET totp_verified_at = now() WHERE token_hash = $1
 `
@@ -6681,15 +6692,21 @@ func (q *Queries) OrderByPaymentRef(ctx context.Context, providerRef string) (Or
 	return i, err
 }
 
-const orderCreditPosition = `-- name: OrderCreditPosition :one
+const orderCreditPositionExcluding = `-- name: OrderCreditPositionExcluding :one
 SELECT
     coalesce(-sum(amount_cents) FILTER (WHERE amount_cents < 0), 0)::bigint AS spent,
     coalesce(sum(amount_cents) FILTER (WHERE amount_cents > 0), 0)::bigint  AS returned
 FROM store_credit_entries
 WHERE order_id = $1
+  AND idempotency_key <> 'return-credit:' || $2::text
 `
 
-type OrderCreditPositionRow struct {
+type OrderCreditPositionExcludingParams struct {
+	OrderID  uuid.NullUUID
+	ReturnID string
+}
+
+type OrderCreditPositionExcludingRow struct {
 	Spent    int64
 	Returned int64
 }
@@ -6697,9 +6714,24 @@ type OrderCreditPositionRow struct {
 // Signs as the ledger stores them: a spend is negative, a compensation positive.
 // Two figures and not one net number, because a reader reconciling a return
 // needs both sides. ReverseOrderCredit lives in internal/cart/query.sql.
-func (q *Queries) OrderCreditPosition(ctx context.Context, orderID uuid.NullUUID) (OrderCreditPositionRow, error) {
-	row := q.db.QueryRow(ctx, orderCreditPosition, orderID)
-	var i OrderCreditPositionRow
+// Spent and returned on ONE order, split by sign — a position rather than a
+// balance, which is why it is allowed to sum the ledger itself.
+//
+// It takes the return whose own compensation to LEAVE OUT, because that is what
+// a RETRY has to ask, and passing a return that has posted nothing asks the
+// plain question. There is no second, unfiltered copy: the two would be one
+// fact in two places, and whichever gained a predicate first would be the one
+// that disagreed. The card side already excludes its own row — post_store_credit
+// and open_refund are both idempotent, so counting what a stalled attempt wrote
+// refuses its own retry — and the credit side did not: a split return whose CREDIT
+// half landed and whose CARD half stayed pending read its own compensation as
+// credit already returned, collapsed the remaining credit to zero, and refused
+// "does not fit across the two" before the resume logic was ever consulted. The
+// card half could then never be sent, and goen consumes no refund webhook, so
+// pressing 同意 again was the only door and it was shut.
+func (q *Queries) OrderCreditPositionExcluding(ctx context.Context, arg OrderCreditPositionExcludingParams) (OrderCreditPositionExcludingRow, error) {
+	row := q.db.QueryRow(ctx, orderCreditPositionExcluding, arg.OrderID, arg.ReturnID)
+	var i OrderCreditPositionExcludingRow
 	err := row.Scan(&i.Spent, &i.Returned)
 	return i, err
 }
@@ -8297,6 +8329,24 @@ func (q *Queries) RefreshCopurchases(ctx context.Context) (int32, error) {
 	return refresh_copurchases, err
 }
 
+const refundedForOrder = `-- name: RefundedForOrder :one
+SELECT (card_cents + credit_cents)::bigint AS refunded_cents
+FROM order_refunds
+WHERE order_number = $1::text
+`
+
+// What the CARD has sent back on this order. The credit half is
+// OrderCreditPosition's `returned`, which is the one definition of that figure
+// and the reason this query does not sum the ledger itself.
+// Both sources, from the one view: a refund is paid to the card, to store
+// credit, or split, and an allowance may not relieve more than the sum.
+func (q *Queries) RefundedForOrder(ctx context.Context, orderNumber string) (int64, error) {
+	row := q.db.QueryRow(ctx, refundedForOrder, orderNumber)
+	var refunded_cents int64
+	err := row.Scan(&refunded_cents)
+	return refunded_cents, err
+}
+
 const refundedSoFar = `-- name: RefundedSoFar :one
 SELECT coalesce(sum(amount_cents), 0)::bigint
 FROM refunds
@@ -8546,6 +8596,24 @@ func (q *Queries) RelatedProducts(ctx context.Context, arg RelatedProductsParams
 		return nil, err
 	}
 	return items, nil
+}
+
+const releaseInvoiceClaim = `-- name: ReleaseInvoiceClaim :execrows
+DELETE FROM invoice_documents
+WHERE id = $1 AND status = 'pending'
+`
+
+// A claim the provider REFUSED. ECPay answering with a business verdict proves
+// nothing was filed, so the reservation is the only thing left and holding it
+// would lock that refund out of ever being relieved. A transport failure is a
+// different case and keeps its claim: whether the 加值中心 has the document is
+// not knowable from here, and clearing it would let the next press file twice.
+func (q *Queries) ReleaseInvoiceClaim(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, releaseInvoiceClaim, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const releaseReservation = `-- name: ReleaseReservation :exec
@@ -10048,16 +10116,17 @@ func (q *Queries) SettleRefund(ctx context.Context, arg SettleRefundParams) erro
 }
 
 const settledRefundsForOrder = `-- name: SettledRefundsForOrder :one
-SELECT coalesce(sum(r.amount_cents), 0)::bigint AS refunded_cents
-FROM refunds r
-JOIN payments p ON p.id = r.payment_id
-JOIN orders o ON o.id = p.order_id
-WHERE o.order_number = $1::text AND r.status = 'succeeded'
+SELECT (card_cents + credit_cents)::bigint AS refunded_cents
+FROM order_refunds
+WHERE order_number = $1::text
 `
 
 // What has actually gone back to the customer on this order, so an allowance
 // form can default to it. A staff member typing a refund figure from memory is
 // how the wrong number reaches the 財政部.
+// What the 折讓 form offers, which must be what an allowance is allowed to
+// relieve: both sources, from the one view. Card-only defaulted the form to the
+// card half of a split refund, so the 統一發票 kept recording a reversed sale.
 func (q *Queries) SettledRefundsForOrder(ctx context.Context, orderNumber string) (int64, error) {
 	row := q.db.QueryRow(ctx, settledRefundsForOrder, orderNumber)
 	var refunded_cents int64
@@ -10696,6 +10765,67 @@ func (q *Queries) StoreCreditBalance(ctx context.Context, userID uuid.NullUUID) 
 	return balance_cents, err
 }
 
+const strandedInvoiceClaims = `-- name: StrandedInvoiceClaims :many
+SELECT d.id, o.order_number, d.kind, d.amount_cents, d.issued_at
+FROM invoice_documents d
+JOIN orders o ON o.id = d.order_id
+WHERE d.status = 'pending'
+  AND d.issued_at < now() - interval '15 minutes'
+ORDER BY d.issued_at
+LIMIT 50
+`
+
+type StrandedInvoiceClaimsRow struct {
+	ID          uuid.UUID
+	OrderNumber string
+	Kind        string
+	AmountCents int64
+	IssuedAt    time.Time
+}
+
+// The claims a person has to settle at the provider.
+//
+// A 折讓 claim is taken before ECPay is asked, because their allowance endpoint
+// carries no idempotency field, and a call that was not ANSWERED keeps it:
+// whether the document was filed is not knowable from here. That is right, and
+// it leaves a row only a person can settle — the payment_webhook_events shape
+// exactly, and the same reason it belongs on this page.
+//
+// NAMED and never counted, for the reason the unreconciled payments are: an
+// operator needs the order to go and look. A count beside the list would be a
+// second definition of the same figure, and whichever gained a predicate first
+// would be the one that disagreed.
+//
+// issued_at, because a PENDING row has no provider date yet: it defaults to
+// now() when the claim is taken and is overwritten with the provider's own date
+// when it settles. A claim in flight is legitimately pending for the seconds the
+// call takes, so the window is what tells one apart from one that is stuck.
+func (q *Queries) StrandedInvoiceClaims(ctx context.Context) ([]StrandedInvoiceClaimsRow, error) {
+	rows, err := q.db.Query(ctx, strandedInvoiceClaims)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []StrandedInvoiceClaimsRow{}
+	for rows.Next() {
+		var i StrandedInvoiceClaimsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrderNumber,
+			&i.Kind,
+			&i.AmountCents,
+			&i.IssuedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const stuckOutbox = `-- name: StuckOutbox :many
 SELECT id, topic, dedupe_key, attempts, coalesce(last_error, '') AS last_error, available_at
 FROM outbox_messages
@@ -10883,7 +11013,7 @@ const unreconciledPayments = `-- name: UnreconciledPayments :many
 SELECT event_id, type, coalesce(object_ref, '') AS object_ref,
        unreconciled::text AS reason, received_at
 FROM payment_webhook_events
-WHERE unreconciled IS NOT NULL
+WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL
 ORDER BY received_at
 LIMIT 50
 `
@@ -11737,7 +11867,7 @@ SELECT
     -- the money sits at Stripe against goods that are back on the shelf. It used
     -- to leave one log line, which nothing reads and nothing can count.
     (SELECT count(*) FROM payment_webhook_events
-     WHERE unreconciled IS NOT NULL)::bigint AS unreconciled_payments
+     WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL)::bigint AS unreconciled_payments
 `
 
 type WorkerHealthRow struct {

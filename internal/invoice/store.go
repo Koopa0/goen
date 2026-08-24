@@ -230,23 +230,9 @@ func (s *Store) Allowance(ctx context.Context, orderNumber string, amountCents i
 	// than was refunded understates what the shop owes the 財政部, and
 	// invoice_allowance_valid cannot see it: it holds the allowance total
 	// against the INVOICE, which says nothing about refunds.
-	card, err := s.q.CardRefundedForOrder(ctx, orderNumber)
+	refunded, err := s.refundableRoom(ctx, orderNumber, amountCents)
 	if err != nil {
-		return Document{}, fmt.Errorf("read what was refunded on %s: %w", orderNumber, err)
-	}
-	credit, err := s.q.OrderCreditPosition(ctx,
-		uuid.NullUUID{UUID: subject.ID, Valid: true})
-	if err != nil {
-		return Document{}, fmt.Errorf("read the credit position of %s: %w", orderNumber, err)
-	}
-	refunded := card + credit.Returned
-	if already, sumErr := s.q.AllowedTotalForOrder(ctx, orderNumber); sumErr != nil {
-		return Document{}, fmt.Errorf("read the allowances of %s: %w", orderNumber, sumErr)
-	} else if already+amountCents > refunded {
-		return Document{}, fmt.Errorf(
-			"%w: %d has gone back to the customer on order %s and %d is already relieved; "+
-				"an allowance of %d would relieve more than was refunded",
-			ErrRejected, refunded, orderNumber, already, amountCents)
+		return Document{}, err
 	}
 
 	// CLAIMED before the provider is asked. ECPay's allowance endpoint carries
@@ -263,11 +249,11 @@ func (s *Store) Allowance(ctx context.Context, orderNumber string, amountCents i
 		AmountCents: amountCents, RequestKey: key,
 	})
 	if err != nil {
-		if isUniqueViolation(err) {
+		if claimedAlready(err) {
 			return Document{}, fmt.Errorf(
 				"%w: an allowance of %d against order %s has already been filed or is in "+
 					"flight; check ECPay before filing another",
-				ErrRejected, amountCents, orderNumber)
+				ErrClaimed, amountCents, orderNumber)
 		}
 		return Document{}, fmt.Errorf("claim an allowance for %s: %w", orderNumber, err)
 	}
@@ -281,9 +267,21 @@ func (s *Store) Allowance(ctx context.Context, orderNumber string, amountCents i
 		Lines:         lines,
 	})
 	if err != nil {
-		// The claim STAYS, holding its key. Whether ECPay filed is not knowable
-		// from here, and a claim that cleared itself would let the next press
-		// file a second one against the same refund.
+		if errors.Is(err, ErrRejected) {
+			// ECPay ANSWERED, so nothing was filed and the claim is holding a key
+			// against a document that does not exist. Releasing it is what lets a
+			// staff member correct the figure and press again; without it, one
+			// refused 折讓 locks that refund out of being relieved for ever.
+			if _, releaseErr := s.q.ReleaseInvoiceClaim(ctx, claim); releaseErr != nil {
+				return Document{}, fmt.Errorf(
+					"release the claim for %s after the provider refused it: %w",
+					orderNumber, releaseErr)
+			}
+			return Document{}, err
+		}
+		// Anything else: the claim STAYS, holding its key. Whether ECPay filed is
+		// not knowable from a transport failure, and a claim that cleared itself
+		// would let the next press file a second one against the same refund.
 		return Document{}, err
 	}
 
@@ -291,6 +289,34 @@ func (s *Store) Allowance(ctx context.Context, orderNumber string, amountCents i
 		return Document{}, err
 	}
 	return doc, nil
+}
+
+// refundableRoom reports what has gone back to the customer, having checked that
+// one more allowance of amountCents would not relieve more than that.
+//
+// BOTH sources, because a refund can be paid to the card, to store credit, or
+// split. Relieving more than was refunded understates what the shop owes the
+// 財政部, and invoice_allowance_valid cannot see it: it holds the allowance
+// total against the INVOICE, which says nothing about refunds.
+func (s *Store) refundableRoom(
+	ctx context.Context, orderNumber string, amountCents int64,
+) (int64, error) {
+	refunded, err := s.q.RefundedForOrder(ctx, orderNumber)
+	if err != nil {
+		return 0, fmt.Errorf("read what was refunded on %s: %w", orderNumber, err)
+	}
+
+	already, err := s.q.AllowedTotalForOrder(ctx, orderNumber)
+	if err != nil {
+		return 0, fmt.Errorf("read the allowances of %s: %w", orderNumber, err)
+	}
+	if already+amountCents > refunded {
+		return 0, fmt.Errorf(
+			"%w: %d has gone back to the customer on order %s and %d is already relieved; "+
+				"an allowance of %d would relieve more than was refunded",
+			ErrTooMuch, refunded, orderNumber, already, amountCents)
+	}
+	return refunded, nil
 }
 
 // settle turns a claim into the document the provider allocated, with its lines.
@@ -326,12 +352,14 @@ func (s *Store) settle(ctx context.Context, claimID uuid.UUID, doc Document, lin
 	return nil
 }
 
-// isUniqueViolation reports whether err is a unique index refusing a duplicate.
-// Bound to the SQLSTATE rather than the message: pgconn renders a PgError as
-// prose, which lc_messages localises and releases reword.
-func isUniqueViolation(err error) bool {
+// claimedAlready reports whether err is THIS claim's key being refused, and not
+// some other unique index. Bound to the CONSTRAINT NAME rather than to the
+// SQLSTATE alone: a table carries several unique indexes, and reading any 23505
+// as "already filed" reports the wrong cause to the one person who has to act on
+// it — the mistake this repository records as #8.
+func claimedAlready(err error) bool {
 	pgErr, ok := errors.AsType[*pgconn.PgError](err)
-	return ok && pgErr.Code == "23505"
+	return ok && pgErr.ConstraintName == "invoice_documents_request_key"
 }
 
 // allowanceKey is what a REPEATED filing would be. Derived rather than

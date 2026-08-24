@@ -27,7 +27,15 @@ type WorkerHealthView struct {
 	Stuck                []StuckMessage
 	// Unreconciled is named rather than counted: each needs a refund by hand.
 	Unreconciled []UnreconciledPayment
-	OpenRefunds  []OpenRefund
+	// StrandedClaims is a 折讓 claim the provider never answered: nothing may be
+	// at the 加值中心 under it and only a person can find out. Named rather than
+	// counted, like its neighbours.
+	StrandedClaims []StrandedClaim
+	// Notice is the one-shot message a redirect carries. A page that writes
+	// something and answers 303 has to say what it did, or the operator is left
+	// reading a table to work out whether the button worked.
+	Notice      string
+	OpenRefunds []OpenRefund
 
 	OutboxStaleAfter     time.Duration
 	MaxExpiredHolds      int64
@@ -37,27 +45,27 @@ type WorkerHealthView struct {
 }
 
 // OutboxHealthy reports whether messages are moving; the signal is age.
-func (v WorkerHealthView) OutboxHealthy() bool {
+func (v *WorkerHealthView) OutboxHealthy() bool {
 	return v.OutboxStuck == 0 &&
 		(v.OutboxPending == 0 || v.OutboxOldest < v.OutboxStaleAfter)
 }
 
 // SweeperHealthy reports whether abandoned holds are being released.
-func (v WorkerHealthView) SweeperHealthy() bool { return v.ExpiredHolds <= v.MaxExpiredHolds }
+func (v *WorkerHealthView) SweeperHealthy() bool { return v.ExpiredHolds <= v.MaxExpiredHolds }
 
 // RecommendHealthy reports whether the projection is being rebuilt.
-func (v WorkerHealthView) RecommendHealthy() bool {
+func (v *WorkerHealthView) RecommendHealthy() bool {
 	return v.CopurchaseEverBuilt && v.CopurchaseAge < v.CopurchaseStaleAfter
 }
 
 // HousekeepingHealthy reports whether the two pruners are keeping up.
-func (v WorkerHealthView) HousekeepingHealthy() bool {
+func (v *WorkerHealthView) HousekeepingHealthy() bool {
 	return v.ExpiredSessions <= v.MaxExpiredSessions &&
 		v.UnreferencedMedia <= v.MaxUnreferencedMedia
 }
 
 // HousekeepingText is the pruners' state.
-func (v WorkerHealthView) HousekeepingText(ctx context.Context) string {
+func (v *WorkerHealthView) HousekeepingText(ctx context.Context) string {
 	if v.ExpiredSessions == 0 && v.UnreferencedMedia == 0 {
 		return i18n.T(ctx, i18n.KeyHealthSweeperClear)
 	}
@@ -66,22 +74,22 @@ func (v WorkerHealthView) HousekeepingText(ctx context.Context) string {
 }
 
 // RefundsHealthy reports whether every refund goen opened has landed.
-func (v WorkerHealthView) RefundsHealthy() bool { return len(v.OpenRefunds) == 0 }
+func (v *WorkerHealthView) RefundsHealthy() bool { return len(v.OpenRefunds) == 0 }
 
 // PaymentsReconciled reports whether every accepted event was acted on. Any at
 // all is unhealthy: each one is money at the provider against goods the shop has
 // already taken back, and only a person can move it.
-func (v WorkerHealthView) PaymentsReconciled() bool { return v.UnreconciledPayments == 0 }
+func (v *WorkerHealthView) PaymentsReconciled() bool { return v.UnreconciledPayments == 0 }
 
 // AllHealthy reports whether everything is doing its job.
-func (v WorkerHealthView) AllHealthy() bool {
+func (v *WorkerHealthView) AllHealthy() bool {
 	return v.OutboxHealthy() && v.SweeperHealthy() &&
 		v.RecommendHealthy() && v.HousekeepingHealthy() && v.RefundsHealthy() &&
-		v.PaymentsReconciled()
+		v.PaymentsReconciled() && v.ClaimsSettled()
 }
 
 // OutboxText is the outbox's state in a sentence a person can act on.
-func (v WorkerHealthView) OutboxText(ctx context.Context) string {
+func (v *WorkerHealthView) OutboxText(ctx context.Context) string {
 	switch {
 	case v.OutboxStuck > 0:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthOutboxStuck), v.OutboxStuck)
@@ -100,7 +108,7 @@ func (v WorkerHealthView) OutboxText(ctx context.Context) string {
 }
 
 // SweeperText is the sweeper's state.
-func (v WorkerHealthView) SweeperText(ctx context.Context) string {
+func (v *WorkerHealthView) SweeperText(ctx context.Context) string {
 	if v.ExpiredHolds == 0 {
 		return i18n.T(ctx, i18n.KeyHealthHoldsClear)
 	}
@@ -108,7 +116,7 @@ func (v WorkerHealthView) SweeperText(ctx context.Context) string {
 }
 
 // RefundsText is the refund ledger's state.
-func (v WorkerHealthView) RefundsText(ctx context.Context) string {
+func (v *WorkerHealthView) RefundsText(ctx context.Context) string {
 	if len(v.OpenRefunds) == 0 {
 		return i18n.T(ctx, i18n.KeyHealthRefundsClear)
 	}
@@ -116,7 +124,7 @@ func (v WorkerHealthView) RefundsText(ctx context.Context) string {
 }
 
 // RecommendText is the projection's state.
-func (v WorkerHealthView) RecommendText(ctx context.Context) string {
+func (v *WorkerHealthView) RecommendText(ctx context.Context) string {
 	if !v.CopurchaseEverBuilt {
 		return i18n.T(ctx, i18n.KeyHealthProjectionNever)
 	}
@@ -201,3 +209,19 @@ func (r OpenRefund) Reference(ctx context.Context) string {
 	}
 	return r.ProviderRef
 }
+
+// StrandedClaim is a 折讓 claim taken before the provider was asked, on a call
+// that never answered. The claim is right to survive — whether ECPay filed is
+// not knowable from here — so settling it is a person going to look.
+type StrandedClaim struct {
+	OrderNumber string
+	Kind        string
+	AmountCents int64
+	Since       string
+}
+
+// Amount is what the claim was for.
+func (c StrandedClaim) Amount() string { return twd(c.AmountCents) }
+
+// ClaimsSettled reports whether nothing is waiting on the provider.
+func (v *WorkerHealthView) ClaimsSettled() bool { return len(v.StrandedClaims) == 0 }

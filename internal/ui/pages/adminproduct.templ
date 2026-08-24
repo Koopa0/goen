@@ -118,26 +118,44 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 					<div class="goen-checkout__fields">
 						<div class="ui-field">
 							<label class="ui-label" for="p-brand">{ i18n.T(ctx, i18n.KeyAdminProdBrand) }</label>
-							<select class="ui-select" id="p-brand" name="brand" required>
+							<select
+								class="ui-select"
+								id="p-brand"
+								name="brand"
+								required
+								if v.HasErr("brand") {
+									aria-invalid="true"
+									aria-describedby="p-brand-error"
+								}
+							>
 								<option value="">{ i18n.T(ctx, i18n.KeyAdminProdChoose) }</option>
 								for _, c := range v.Brands {
 									<option value={ c.Value } selected?={ v.Selected("brand", c.Value) }>{ c.Label }</option>
 								}
 							</select>
 							if v.HasErr("brand") {
-								<p class="ui-error-text">{ v.Err("brand") }</p>
+								<p class="ui-error-text" id="p-brand-error">{ v.Err("brand") }</p>
 							}
 						</div>
 						<div class="ui-field">
 							<label class="ui-label" for="p-category">{ i18n.T(ctx, i18n.KeyAdminColCategory) }</label>
-							<select class="ui-select" id="p-category" name="category" required>
+							<select
+								class="ui-select"
+								id="p-category"
+								name="category"
+								required
+								if v.HasErr("category") {
+									aria-invalid="true"
+									aria-describedby="p-category-error"
+								}
+							>
 								<option value="">{ i18n.T(ctx, i18n.KeyAdminProdChoose) }</option>
 								for _, c := range v.Categories {
 									<option value={ c.Value } selected?={ v.Selected("category", c.Value) }>{ c.Label }</option>
 								}
 							</select>
 							if v.HasErr("category") {
-								<p class="ui-error-text">{ v.Err("category") }</p>
+								<p class="ui-error-text" id="p-category-error">{ v.Err("category") }</p>
 							}
 						</div>
 					</div>
@@ -190,9 +208,13 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 							id="p-description-en"
 							name="description_en"
 							rows="8"
+							if v.HasErr("description_en") {
+								aria-invalid="true"
+								aria-describedby="p-description-en-error"
+							}
 						>{ v.DescriptionEn }</textarea>
 						if v.HasErr("description_en") {
-							<p class="ui-error-text">{ v.Err("description_en") }</p>
+							<p class="ui-error-text" id="p-description-en-error">{ v.Err("description_en") }</p>
 						}
 					</div>
 					<div class="ui-field">
@@ -488,7 +510,7 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 										</div>
 									}
 									if v.HasErr("options") {
-										<p class="ui-error-text">{ v.Err("options") }</p>
+										<p class="ui-error-text" role="alert">{ v.Err("options") }</p>
 									}
 								}
 								<div class="ui-field">

@@ -482,6 +482,16 @@ var adminNotices = map[string]i18n.Key{
 	"hasinvoice":    i18n.KeyAdminNoticeHasInvoice,
 	"noinvoice":     i18n.KeyAdminNoticeNoInvoice,
 	"invoicefailed": i18n.KeyAdminNoticeInvoiceFailed,
+	"allowed":       i18n.KeyAdminNoticeAllowed,
+	"badamount":     i18n.KeyAdminNoticeBadAmount,
+	"allowtoomuch":  i18n.KeyAdminNoticeAllowTooMuch,
+	"allowclaimed":  i18n.KeyAdminNoticeAllowClaimed,
+	"reconciled":    i18n.KeyAdminNoticeReconciled,
+	"saved":         i18n.KeyAdminNoticeSaved,
+	"sent":          i18n.KeyAdminNoticeSent,
+	"already":       i18n.KeyAdminNoticeAlready,
+	"specfailed":    i18n.KeyAdminNoticeSpecFailed,
+	"notflagged":    i18n.KeyAdminNoticeNotFlagged,
 }
 
 // noticeFor turns a redirect's one-shot query parameter into a message.
@@ -1900,6 +1910,28 @@ func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ReconcilePayment serves POST /admin/health/reconcile.
+//
+// Money that arrived for a cancelled order can only be refunded by hand at the
+// provider; this is how the operator says they have. Without it the alarm is
+// monotone and /admin/health is unhealthy forever after the first one.
+func (h *Handler) ReconcilePayment(w http.ResponseWriter, r *http.Request) {
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
+		return
+	}
+	err := h.store.ReconcilePayment(r.Context(), r.PostFormValue("event"), staffID(r))
+	switch {
+	case err == nil:
+		http.Redirect(w, r, "/admin/health?reconciled=1", http.StatusSeeOther)
+	case errors.Is(err, ErrNotFound), errors.Is(err, ErrInvalid):
+		http.Redirect(w, r, "/admin/health?notflagged=1", http.StatusSeeOther)
+	default:
+		h.log.ErrorContext(r.Context(), "reconcile payment", "error", err)
+		h.serverError(w, r)
+	}
+}
+
 // Health serves GET /admin/health.
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.WorkerHealth(r.Context(), h.outbox)
@@ -1908,8 +1940,9 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
+	view.Notice = noticeFor(r)
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminHealth(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHealth)}, view))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageHealth)}, &view))
 }
 
 // Shipping serves GET /admin/shipping.
@@ -2390,8 +2423,17 @@ func (h *Handler) AllowInvoice(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, invoice.ErrNotFound):
 		//nolint:gosec // G710: validated by IsOrderNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?noinvoice=1", http.StatusSeeOther)
+	case errors.Is(err, invoice.ErrClaimed):
+		//nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?allowclaimed=1", http.StatusSeeOther)
+	case errors.Is(err, invoice.ErrTooMuch):
+		//nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?allowtoomuch=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrRejected), errors.Is(err, invoice.ErrDisabled),
 		errors.Is(err, ErrRefused):
+		// invoicefailed names 統編 and carrier codes, which is right for ISSUING.
+		// An allowance's own refusals are told apart above, because they send a
+		// staff member to different actions.
 		h.log.WarnContext(r.Context(), "invoice allowance refused", "order", number, "error", err)
 		//nolint:gosec // G710: validated by IsOrderNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?invoicefailed=1", http.StatusSeeOther)

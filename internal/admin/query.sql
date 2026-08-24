@@ -841,7 +841,7 @@ SELECT
     -- the money sits at Stripe against goods that are back on the shelf. It used
     -- to leave one log line, which nothing reads and nothing can count.
     (SELECT count(*) FROM payment_webhook_events
-     WHERE unreconciled IS NOT NULL)::bigint AS unreconciled_payments;
+     WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL)::bigint AS unreconciled_payments;
 
 -- The events a person has to act on, named rather than counted: a page saying
 -- "1 unreconciled" that cannot say WHICH tells an operator something is wrong
@@ -850,8 +850,34 @@ SELECT
 SELECT event_id, type, coalesce(object_ref, '') AS object_ref,
        unreconciled::text AS reason, received_at
 FROM payment_webhook_events
-WHERE unreconciled IS NOT NULL
+WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL
 ORDER BY received_at
+LIMIT 50;
+
+-- The claims a person has to settle at the provider.
+--
+-- A 折讓 claim is taken before ECPay is asked, because their allowance endpoint
+-- carries no idempotency field, and a call that was not ANSWERED keeps it:
+-- whether the document was filed is not knowable from here. That is right, and
+-- it leaves a row only a person can settle — the payment_webhook_events shape
+-- exactly, and the same reason it belongs on this page.
+--
+-- NAMED and never counted, for the reason the unreconciled payments are: an
+-- operator needs the order to go and look. A count beside the list would be a
+-- second definition of the same figure, and whichever gained a predicate first
+-- would be the one that disagreed.
+--
+-- issued_at, because a PENDING row has no provider date yet: it defaults to
+-- now() when the claim is taken and is overwritten with the provider's own date
+-- when it settles. A claim in flight is legitimately pending for the seconds the
+-- call takes, so the window is what tells one apart from one that is stuck.
+-- name: StrandedInvoiceClaims :many
+SELECT d.id, o.order_number, d.kind, d.amount_cents, d.issued_at
+FROM invoice_documents d
+JOIN orders o ON o.id = d.order_id
+WHERE d.status = 'pending'
+  AND d.issued_at < now() - interval '15 minutes'
+ORDER BY d.issued_at
 LIMIT 50;
 
 -- The locale comes off the ORDER and never off the staff member who pressed
@@ -1050,12 +1076,28 @@ WHERE id = $1 AND handled_at IS NOT NULL;
 -- Signs as the ledger stores them: a spend is negative, a compensation positive.
 -- Two figures and not one net number, because a reader reconciling a return
 -- needs both sides. ReverseOrderCredit lives in internal/cart/query.sql.
--- name: OrderCreditPosition :one
+-- Spent and returned on ONE order, split by sign — a position rather than a
+-- balance, which is why it is allowed to sum the ledger itself.
+--
+-- It takes the return whose own compensation to LEAVE OUT, because that is what
+-- a RETRY has to ask, and passing a return that has posted nothing asks the
+-- plain question. There is no second, unfiltered copy: the two would be one
+-- fact in two places, and whichever gained a predicate first would be the one
+-- that disagreed. The card side already excludes its own row — post_store_credit
+-- and open_refund are both idempotent, so counting what a stalled attempt wrote
+-- refuses its own retry — and the credit side did not: a split return whose CREDIT
+-- half landed and whose CARD half stayed pending read its own compensation as
+-- credit already returned, collapsed the remaining credit to zero, and refused
+-- "does not fit across the two" before the resume logic was ever consulted. The
+-- card half could then never be sent, and goen consumes no refund webhook, so
+-- pressing 同意 again was the only door and it was shut.
+-- name: OrderCreditPositionExcluding :one
 SELECT
     coalesce(-sum(amount_cents) FILTER (WHERE amount_cents < 0), 0)::bigint AS spent,
     coalesce(sum(amount_cents) FILTER (WHERE amount_cents > 0), 0)::bigint  AS returned
 FROM store_credit_entries
-WHERE order_id = $1;
+WHERE order_id = $1
+  AND idempotency_key <> 'return-credit:' || @return_id::text;
 
 -- A NEW POSITIVE entry and not a reversal of the spend, which the schema
 -- prescribes for an order that has shipped: a reversal un-funds the order, and
@@ -1376,12 +1418,13 @@ SELECT EXISTS (
 -- What has actually gone back to the customer on this order, so an allowance
 -- form can default to it. A staff member typing a refund figure from memory is
 -- how the wrong number reaches the 財政部.
+-- What the 折讓 form offers, which must be what an allowance is allowed to
+-- relieve: both sources, from the one view. Card-only defaulted the form to the
+-- card half of a split refund, so the 統一發票 kept recording a reversed sale.
 -- name: SettledRefundsForOrder :one
-SELECT coalesce(sum(r.amount_cents), 0)::bigint AS refunded_cents
-FROM refunds r
-JOIN payments p ON p.id = r.payment_id
-JOIN orders o ON o.id = p.order_id
-WHERE o.order_number = @order_number::text AND r.status = 'succeeded';
+SELECT (card_cents + credit_cents)::bigint AS refunded_cents
+FROM order_refunds
+WHERE order_number = @order_number::text;
 
 -- Whether the CREDIT half of a return has already been posted. post_store_credit
 -- keys the entry on 'return-credit:<id>', which is what makes the compensation
@@ -1392,3 +1435,11 @@ SELECT EXISTS (
     SELECT 1 FROM store_credit_entries
     WHERE idempotency_key = 'return-credit:' || @return_id::text
 )::boolean AS posted;
+
+-- Somebody refunded it by hand at the provider and says so. The row keeps its
+-- reason: what happened is worth reading after it is handled, and this is the
+-- only thing that takes it off /admin/health.
+-- name: MarkPaymentReconciled :execrows
+UPDATE payment_webhook_events SET reconciled_at = now()
+WHERE provider = 'stripe' AND event_id = @event_id::text
+  AND unreconciled IS NOT NULL AND reconciled_at IS NULL;

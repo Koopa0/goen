@@ -15,6 +15,9 @@ package invoice
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -196,12 +199,391 @@ func invoicedOrderWithRefund(t *testing.T, refundCents int64) string {
 		orderID); err != nil {
 		t.Fatalf("file the invoice: %v", err)
 	}
+	// Zero means no CARD refund, which is what a return compensated entirely
+	// from store credit looks like: refunds_amount_positive refuses a zero row,
+	// and inserting one anyway would make the fixture describe a state the
+	// application cannot produce.
+	if refundCents > 0 {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO refunds (payment_id, request_key, amount_cents, reason,
+			                     status, provider_ref, succeeded_at)
+			VALUES ($1, 'allow-fixture:' || $2, $3, '退貨', 'succeeded',
+			        're_allow_' || $2, now())`, paymentID, number, refundCents); err != nil {
+			t.Fatalf("settle a refund: %v", err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit the fixture: %v", err)
+	}
+	return number
+}
+
+// TestARefusedAllowanceLeavesEveryOtherOrderFilable is the failure a global
+// unique on `number` produced: a pending claim carries ” to say it has no
+// number yet, so every claim in the database collided with every other. One
+// provider refusal then left a stuck claim that refused EVERY 折讓 the shop
+// would ever file — naming the wrong order's key, so nobody could see why — and
+// the stuck row could be neither voided (a void needs a number), nor cleared,
+// nor deleted.
+//
+// Two orders, deliberately: with one, the claim and the retry collide on the
+// request key and the test proves nothing about the number index.
+func TestARefusedAllowanceLeavesEveryOtherOrderFilable(t *testing.T) {
+	ctx := t.Context()
+
+	var refuse bool
+	filed := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if refuse {
+			reply(t, w, result{RtnCode: 5000022, RtnMsg: "與商品合計金額不符"})
+			return
+		}
+		// A number per filing: the 加值中心 allocates them, and two documents
+		// sharing one is a collision the number index is right to refuse.
+		filed++
+		reply(t, w, result{RtnCode: 1,
+			AllowanceNo: fmt.Sprintf("20260807152272%02d", filed)})
+	}))
+	defer srv.Close()
+
+	g, err := NewGateway(testMerchantID, testHashKey, testHashIV, srv.URL)
+	if err != nil {
+		t.Fatalf("gateway: %v", err)
+	}
+	s := NewStore(pool, g)
+
+	first := invoicedOrderWithRefund(t, 100000)
+	second := invoicedOrderWithRefund(t, 100000)
+
+	refuse = true
+	if _, err := s.Allowance(ctx, first, 50000); !errors.Is(err, ErrRejected) {
+		t.Fatalf("the provider refused and Allowance returned %v, want ErrRejected", err)
+	}
+
+	// An UNRELATED order, whose provider call works.
+	refuse = false
+	if _, err := s.Allowance(ctx, second, 50000); err != nil {
+		t.Fatalf("a 折讓 on an unrelated order was refused after a different order's "+
+			"claim failed: %v\nOne provider failure has taken the feature away from "+
+			"the whole shop", err)
+	}
+
+	// And the refused one is filable again: ECPay ANSWERED, so nothing is at the
+	// 加值中心 under that claim and holding its key relieves nothing for ever.
+	if _, err := s.Allowance(ctx, first, 50000); err != nil {
+		t.Errorf("the order whose 折讓 the provider refused cannot be filed again: %v\n"+
+			"A claim for a document that was never filed has no door out", err)
+	}
+}
+
+// TestAnUnansweredAllowanceKeepsItsClaim is the other half, and the reason the
+// release above is bound to ErrRejected rather than to any error. A transport
+// failure says nothing about whether ECPay filed, so the claim must hold: a
+// second press against the same refund would otherwise put two 折讓 in front of
+// the 財政部 for one refund, which is what the request key exists to stop.
+func TestAnUnansweredAllowanceKeepsItsClaim(t *testing.T) {
+	ctx := t.Context()
+
+	var down bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if down {
+			// A gateway error page rather than a dropped connection: the point is
+			// an error that is NOT the provider answering, and a closed socket is
+			// retried by net/http on its own schedule, which made this flaky
+			// under load. What ECPay's own front door returns when the service
+			// behind it is unreachable says nothing about whether a 折讓 was
+			// filed, which is exactly the case under test.
+			w.WriteHeader(http.StatusBadGateway)
+			_, _ = w.Write([]byte("<html>502 Bad Gateway</html>"))
+			return
+		}
+		reply(t, w, result{RtnCode: 1, AllowanceNo: "2026080715227216"})
+	}))
+	defer srv.Close()
+
+	g, err := NewGateway(testMerchantID, testHashKey, testHashIV, srv.URL)
+	if err != nil {
+		t.Fatalf("gateway: %v", err)
+	}
+	s := NewStore(pool, g)
+	number := invoicedOrderWithRefund(t, 100000)
+
+	down = true
+	if _, err := s.Allowance(ctx, number, 50000); err == nil {
+		t.Fatal("a gateway error was reported as a filed 折讓")
+	} else if errors.Is(err, ErrRejected) {
+		t.Fatalf("an unanswered call was read as the provider refusing: %v\n"+
+			"Only an ANSWER proves nothing was filed", err)
+	}
+
+	down = false
+	// ErrClaimed and not ErrRejected: the two send a staff member to different
+	// places — this one to ECPay's console, the other to the figure they typed.
+	if _, err := s.Allowance(ctx, number, 50000); !errors.Is(err, ErrClaimed) {
+		t.Errorf("pressing again after an unanswered 折讓 = %v, want ErrClaimed: "+
+			"whether ECPay filed is not knowable from here, and two 折讓 for one "+
+			"refund is what reaches the 財政部", err)
+	}
+}
+
+// TestAnAllowanceRelievesACreditRefundToo is the half the card-only fixture
+// could not reach. A refund is paid to the card, to store credit, or split —
+// splitRefund pays the card first and credit last — and a customer refunded
+// wholly in store credit has a card figure of zero. Read card-only, that order
+// can have no 折讓 filed at all, so its 統一發票 goes on recording a sale the
+// shop reversed.
+//
+// The bound and the form's default figure now come from one view, and this is
+// the fixture that tells the two rules apart: with card-only, "card" and
+// "card + credit" agree on every other order in this file.
+func TestAnAllowanceRelievesACreditRefundToo(t *testing.T) {
+	ctx := t.Context()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reply(t, w, result{RtnCode: 1, AllowanceNo: "2026080715227299"})
+	}))
+	defer srv.Close()
+	g, err := NewGateway(testMerchantID, testHashKey, testHashIV, srv.URL)
+	if err != nil {
+		t.Fatalf("gateway: %v", err)
+	}
+	s := NewStore(pool, g)
+
+	// No card refund at all: everything went back as store credit.
+	number := invoicedOrderWithRefund(t, 0)
+	creditRefund(t, number, 40000)
+
+	doc, err := s.Allowance(ctx, number, 40000)
+	if err != nil {
+		t.Fatalf("a 折讓 for a refund paid entirely in store credit was refused: %v\n"+
+			"Read card-only, that order can never be relieved and its 統一發票 "+
+			"keeps recording a sale the shop reversed", err)
+	}
+	if doc.Number == "" {
+		t.Error("the allowance was filed with no number")
+	}
+
+	// And the bound still holds on the same figure: one dollar more than went
+	// back is refused, whichever source it came from.
+	if _, err := s.Allowance(ctx, number, 100); !errors.Is(err, ErrTooMuch) {
+		t.Errorf("relieving more than went back = %v, want ErrTooMuch", err)
+	}
+}
+
+// creditRefund posts a positive store-credit entry against the order, which is
+// what compensating a return out of credit writes.
+func creditRefund(t *testing.T, orderNumber string, cents int64) {
+	t.Helper()
+	ctx := t.Context()
+
+	var userID, orderID string
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO users (email, full_name)
+		VALUES ('credit-' || gen_random_uuid() || '@goen.invalid', '王小明')
+		RETURNING id::text`).Scan(&userID); err != nil {
+		t.Fatalf("create the customer: %v", err)
+	}
+	if err := pool.QueryRow(ctx,
+		`UPDATE orders SET user_id = $1 WHERE order_number = $2 RETURNING id::text`,
+		userID, orderNumber).Scan(&orderID); err != nil {
+		t.Fatalf("attach the order to a customer: %v", err)
+	}
+	var accountID string
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO store_credit_accounts (user_id) VALUES ($1) RETURNING id::text`,
+		userID).Scan(&accountID); err != nil {
+		t.Fatalf("open a credit account: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		SELECT post_store_credit($1, $2::bigint, $3::text, $4, $5::text, NULL)`,
+		userID, cents, "退貨補償", orderID, "return-credit:"+orderNumber); err != nil {
+		t.Fatalf("post the credit refund: %v", err)
+	}
+}
+
+// TestIssueFilesAnItemisationThatSumsToTheHeader drives Store.Issue and reads
+// what actually goes on the wire.
+//
+// The three unit tests for this call discountLines and then append the 運費 line
+// IN THE TEST BODY, so they lock the two helpers and not the order Issue puts
+// them in — which is the defect: the delivery line used to be the RESIDUAL,
+// total - sum(lines), which is shipping MINUS discount. Where the discount was
+// larger the residual is negative, no line is written, and ECPay refuses the
+// document (5000022 「與商品合計金額不符」), so every discounted order that also
+// earned 免運 could be invoiced by no path. Where the fee was larger it
+// SUCCEEDED, filing a 統一發票 stating a carriage charge nobody paid.
+//
+// Nothing else in the tree drives Store.Issue: the six g.Issue calls in
+// invoice_test.go are the GATEWAY.
+func TestIssueFilesAnItemisationThatSumsToTheHeader(t *testing.T) {
+	ctx := t.Context()
+
+	var filed issueRequest
+	issued := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		filed = openIssue(t, r)
+		// A number per document: the 加值中心 allocates them, and two invoices
+		// sharing one is a collision the number index is right to refuse.
+		issued++
+		reply(t, w, result{RtnCode: 1,
+			InvoiceNo:   fmt.Sprintf("AA123456%02d", issued),
+			InvoiceDate: "2026-08-21 10:00:00"})
+	}))
+	defer srv.Close()
+
+	g, err := NewGateway(testMerchantID, testHashKey, testHashIV, srv.URL)
+	if err != nil {
+		t.Fatalf("gateway: %v", err)
+	}
+	s := NewStore(pool, g)
+
+	tests := []struct {
+		name                               string
+		itemCents, shippingCents, discount int64
+		wantDeliveryLine                   bool
+	}{
+		{
+			// The case that could be invoiced by NO path: a discount larger than
+			// the delivery fee makes the residual negative.
+			name:      "discounted and 免運 together",
+			itemCents: 100000, shippingCents: 0, discount: 20000,
+			wantDeliveryLine: false,
+		},
+		{
+			// The case that SUCCEEDED and filed a wrong document: the residual
+			// was smaller than the fee, so the carriage charge on the 統一發票
+			// was not what the customer paid.
+			name:      "a delivery fee and a smaller discount",
+			itemCents: 100000, shippingCents: 8000, discount: 3000,
+			wantDeliveryLine: true,
+		},
+		{
+			name:      "no discount at all",
+			itemCents: 100000, shippingCents: 8000, discount: 0,
+			wantDeliveryLine: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			number := orderToInvoice(t, tt.itemCents, tt.shippingCents, tt.discount)
+			if _, err := s.Issue(ctx, number); err != nil {
+				t.Fatalf("Issue: %v", err)
+			}
+
+			var sum int64
+			delivery := false
+			for _, it := range filed.Items {
+				sum += it.ItemAmount
+				if it.ItemName == "運費" {
+					delivery = true
+					if it.ItemAmount != tt.shippingCents/100 {
+						t.Errorf("the delivery line is %d, want %d — a 統一發票 stating "+
+							"a carriage charge nobody paid is filed with the 財政部",
+							it.ItemAmount, tt.shippingCents/100)
+					}
+				}
+				if it.ItemAmount < 0 {
+					t.Errorf("item %q is %d; ECPay's amounts are unsigned",
+						it.ItemName, it.ItemAmount)
+				}
+			}
+			if delivery != tt.wantDeliveryLine {
+				t.Errorf("delivery line present = %v, want %v", delivery, tt.wantDeliveryLine)
+			}
+			if sum != filed.SalesAmount {
+				t.Errorf("the items total %d and the header says %d — ECPay refuses "+
+					"that outright (5000022 「與商品合計金額不符」), so this order can "+
+					"be invoiced by no path", sum, filed.SalesAmount)
+			}
+			want := (tt.itemCents - tt.discount + tt.shippingCents) / 100
+			if filed.SalesAmount != want {
+				t.Errorf("the header is %d, want %d — the document disagrees with "+
+					"what the customer was charged", filed.SalesAmount, want)
+			}
+		})
+	}
+}
+
+// openIssue unseals the request ECPay would receive. Reading it off the wire
+// rather than from the caller's own struct is the point: what the 財政部 records
+// is what was SENT.
+func openIssue(t *testing.T, r *http.Request) issueRequest {
+	t.Helper()
+	g, err := NewGateway(testMerchantID, testHashKey, testHashIV, "")
+	if err != nil {
+		t.Fatalf("gateway: %v", err)
+	}
+	var envelope struct {
+		Data string `json:"Data"`
+	}
+	if decodeErr := json.NewDecoder(r.Body).Decode(&envelope); decodeErr != nil {
+		t.Fatalf("decode the envelope: %v", decodeErr)
+	}
+	plain, openErr := g.open(envelope.Data)
+	if openErr != nil {
+		t.Fatalf("open the envelope: %v", openErr)
+	}
+	var out issueRequest
+	if unmarshalErr := json.Unmarshal(plain, &out); unmarshalErr != nil {
+		t.Fatalf("decode the request: %v", unmarshalErr)
+	}
+	return out
+}
+
+// orderToInvoice is a paid order with one item line, a delivery fee and a
+// discount, and NO invoice yet.
+func orderToInvoice(t *testing.T, itemCents, shippingCents, discountCents int64) string {
+	t.Helper()
+	ctx := t.Context()
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+
+	var orderID, number string
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
+		                    shipping_method_name, shipping_cents, discount_cents,
+		                    locale, fulfillment_status)
+		SELECT 'GO-991230-' || lpad((floor(random()*900000)+100000)::bigint::text, 6, '0'),
+		       smv.id, sm.code, smv.name, $1, $2, 'zh-Hant', 'pending'
+		FROM shipping_method_versions smv
+		JOIN shipping_methods sm ON sm.id = smv.method_id
+		LIMIT 1
+		RETURNING id::text, order_number`, shippingCents, discountCents).
+		Scan(&orderID, &number); err != nil {
+		t.Fatalf("create the order: %v", err)
+	}
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO refunds (payment_id, request_key, amount_cents, reason,
-		                     status, provider_ref, succeeded_at)
-		VALUES ($1, 'allow-fixture:' || $2, $3, '退貨', 'succeeded',
-		        're_allow_' || $2, now())`, paymentID, number, refundCents); err != nil {
-		t.Fatalf("settle a refund: %v", err)
+		INSERT INTO order_lines (order_id, variant_id, sku, product_name,
+		                         unit_price_cents, quantity, position)
+		SELECT $1, pv.id, 'ISSUE-SKU-1', '開立測試商品', $2, 1, 0
+		FROM product_variants pv JOIN products p ON p.id = pv.product_id
+		WHERE p.status = 'active' LIMIT 1`, orderID, itemCents); err != nil {
+		t.Fatalf("add a line: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'issue@goen.invalid', '王小明', '0912345678',
+		        '110', '台北市', '信義區', '松高路 1 號')`, orderID); err != nil {
+		t.Fatalf("add delivery details: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO invoice_preferences (order_id, invoice_type)
+		VALUES ($1, 'member_carrier')`, orderID); err != nil {
+		t.Fatalf("record the 發票 preference: %v", err)
+	}
+	owed := itemCents - discountCents + shippingCents
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO payments (order_id, provider, provider_ref, intended_amount_cents,
+		                      captured_amount_cents, status, paid_at)
+		VALUES ($1, 'stripe', 'cs_issue_' || $2, $3, $3, 'succeeded', now())`,
+		orderID, number, owed); err != nil {
+		t.Fatalf("capture: %v", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatalf("commit the fixture: %v", err)

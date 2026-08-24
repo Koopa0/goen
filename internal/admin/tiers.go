@@ -68,7 +68,7 @@ func (s *Store) CreateTier(
 				PointsMultiplierBp: multiplier,
 				Position:           position,
 			}); err != nil {
-				return fmt.Errorf("%w: %s", ErrRefused, err.Error())
+				return fmt.Errorf("%w: %w", ErrRefused, err)
 			}
 			return nil
 		})

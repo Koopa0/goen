@@ -371,12 +371,22 @@ func TestAnUploadAttachedMidSweepSurvivesIt(t *testing.T) {
 	candidate := up.Digest
 
 	// Attached AFTER that read, exactly as a staff member saving a product would.
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href,
-		                         image_key, image_alt, position)
-		VALUES ('搶在清掃前掛上', '看看', '/deals', $1, '測試圖片', 98)`,
-		candidate); err != nil {
-		t.Fatalf("attach: %v", err)
+	// A PRODUCT IMAGE, which is what the sentence above describes and what the
+	// commoner case is; the hero half is exercised below. With only the hero,
+	// deleting the product_images half of the re-check left this green.
+	tag, attachErr := pool.Exec(ctx, `
+		WITH b AS (INSERT INTO brands (slug, name) VALUES ('midsweep-brand', '測試品牌') RETURNING id),
+		     c AS (INSERT INTO categories (slug, name, position) SELECT 'midsweep-cat', '測試分類', coalesce(max(position) + 1, 0) FROM categories WHERE parent_id IS NULL RETURNING id),
+		     p AS (INSERT INTO products (brand_id, category_id, slug, name)
+		           SELECT b.id, c.id, 'midsweep-product', '測試商品' FROM b, c RETURNING id)
+		INSERT INTO product_images (product_id, storage_key, alt_text, position)
+		SELECT p.id, $1, '測試圖片', 0 FROM p`, candidate)
+	if attachErr != nil {
+		t.Fatalf("attach: %v", attachErr)
+	}
+	if tag.RowsAffected() != 1 {
+		t.Fatalf("attached %d images, want 1 — the fixture did not reach its precondition",
+			tag.RowsAffected())
 	}
 
 	// And now Sweep's SECOND statement, issued against that stale list — which
@@ -392,5 +402,35 @@ func TestAnUploadAttachedMidSweepSurvivesIt(t *testing.T) {
 	if !exists(t, candidate) {
 		t.Error("an upload attached between the sweeper's read and its delete was " +
 			"reclaimed; whatever it was attached to now points at a 404")
+	}
+
+	// The HERO half of the same window, as its own subject. The re-check names
+	// two tables and a fixture that attaches to one of them proves only that one.
+	hero, heroErr := s.Put(ctx, bytes.NewReader(samplePNG(t, 74, 54)))
+	if heroErr != nil {
+		t.Fatalf("upload: %v", heroErr)
+	}
+	ageUploads(t, hero.Digest)
+	heroCandidates, listErr := s.Candidates(ctx, 200)
+	if listErr != nil {
+		t.Fatalf("read the candidate list: %v", listErr)
+	}
+	if !slices.Contains(heroCandidates, hero.Digest) {
+		t.Fatalf("the hero upload is not a sweep candidate, so this proved nothing")
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href,
+		                         image_key, image_alt, position)
+		VALUES ('搶在清掃前掛上', '看看', '/deals', $1, '測試圖片', 98)`,
+		hero.Digest); err != nil {
+		t.Fatalf("attach a hero: %v", err)
+	}
+	heroGone, heroReclaimErr := s.Reclaim(ctx, hero.Digest)
+	if heroReclaimErr != nil {
+		t.Fatalf("reclaim: %v", heroReclaimErr)
+	}
+	if heroGone || !exists(t, hero.Digest) {
+		t.Error("a hero image attached between the sweeper's read and its delete " +
+			"was reclaimed; the home page's largest picture is now a 404")
 	}
 }

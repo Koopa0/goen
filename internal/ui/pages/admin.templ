@@ -446,6 +446,9 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 												if d.Voided() {
 													<strong>{ i18n.T(ctx, i18n.KeyAdminQueueVoided) }</strong>
 												}
+												if d.Pending() {
+													<strong>{ i18n.T(ctx, i18n.KeyAdminQueuePending) }</strong>
+												}
 											</span>
 											<span class="ui-cart-line__meta">{ d.IssuedAt }</span>
 											if d.ProviderRef != "" {

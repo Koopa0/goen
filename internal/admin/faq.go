@@ -97,7 +97,7 @@ func (s *Store) CreateFAQEntry(ctx context.Context, f *FAQForm) (map[string]stri
 			CategoryEn: f.CategoryEn, QuestionEn: f.QuestionEn, AnswerEn: f.AnswerEn,
 		})
 	}); err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrRefused, err.Error())
+		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	return nil, nil
 }
@@ -120,7 +120,7 @@ func (s *Store) UpdateFAQEntry(ctx context.Context, f *FAQForm) (map[string]stri
 			CategoryEn: f.CategoryEn, QuestionEn: f.QuestionEn, AnswerEn: f.AnswerEn,
 		})
 		if execErr != nil {
-			return fmt.Errorf("%w: %s", ErrRefused, execErr.Error())
+			return fmt.Errorf("%w: %w", ErrRefused, execErr)
 		}
 		if n == 0 {
 			return ErrNotFound
@@ -144,7 +144,7 @@ func (s *Store) DeleteFAQEntry(ctx context.Context, id string) error {
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, execErr := q.DeleteFAQEntry(ctx, entryID)
 		if execErr != nil {
-			return fmt.Errorf("%w: %s", ErrRefused, execErr.Error())
+			return fmt.Errorf("%w: %w", ErrRefused, execErr)
 		}
 		if n == 0 {
 			return ErrNotFound

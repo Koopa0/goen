@@ -630,7 +630,7 @@ func holdOrderStock(ctx context.Context, q *db.Queries, orderID uuid.UUID, lines
 			ExpiresAt:      expires,
 			IdempotencyKey: "hold:" + orderID.String() + ":" + l.VariantID.String(),
 		}); err != nil {
-			return fmt.Errorf("%w: %s", ErrUnavailable, err.Error())
+			return fmt.Errorf("%w: %w", ErrUnavailable, err)
 		}
 	}
 	return nil
@@ -712,7 +712,7 @@ func spendCredit(
 		OrderID:        orderID,
 		IdempotencyKey: "order:" + orderID.String(),
 	}); err != nil {
-		return fmt.Errorf("%w: %s", ErrUnavailable, err.Error())
+		return fmt.Errorf("%w: %w", ErrUnavailable, err)
 	}
 	return nil
 }

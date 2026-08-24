@@ -158,6 +158,55 @@ var (
 		ZhHant: "這筆訂單沒有可以作廢的發票。",
 		En:     "This order has no invoice to void.",
 	})
+	// A 折讓 the shop just filed with the 財政部. Confirmed in words rather than
+	// left to the documents list: a tax filing is the one thing a staff member
+	// should be told happened.
+	// The newsletter's three, and the product form's. Each was a redirect
+	// answering 303 with a parameter that rendered nothing.
+	KeyAdminNoticeSaved = key("admin.notice.saved", Message{
+		ZhHant: "草稿已儲存。",
+		En:     "The draft has been saved.",
+	})
+	KeyAdminNoticeSent = key("admin.notice.sent", Message{
+		ZhHant: "電子報已送出。",
+		En:     "The newsletter has been sent.",
+	})
+	KeyAdminNoticeAlready = key("admin.notice.already", Message{
+		ZhHant: "這期電子報已經寄出過了。",
+		En:     "That issue has already been sent.",
+	})
+	KeyAdminNoticeSpecFailed = key("admin.notice.specfailed", Message{
+		ZhHant: "規格表沒有存成功，請確認欄位長度。",
+		En:     "The specification was not saved; check the field lengths.",
+	})
+	KeyAdminNoticeAllowed = key("admin.notice.allowed", Message{
+		ZhHant: "折讓已開立。",
+		En:     "The credit note has been filed.",
+	})
+	KeyAdminNoticeBadAmount = key("admin.notice.badamount", Message{
+		ZhHant: "折讓金額必須是大於零的整數（元）。",
+		En:     "A credit note amount must be a whole number of dollars above zero.",
+	})
+	// The two refusals a 折讓 has of its own. invoicefailed talks about 統編 and
+	// carrier codes, which is right for issuing and sends a staff member to the
+	// wrong fields here.
+	KeyAdminNoticeAllowTooMuch = key("admin.notice.allowtoomuch", Message{
+		ZhHant: "折讓金額超過已退給客人的金額，或超過尚未折讓的部分。",
+		En:     "That is more than has gone back to the customer, or more than is left to relieve.",
+	})
+	KeyAdminNoticeAllowClaimed = key("admin.notice.allowclaimed", Message{
+		ZhHant: "這筆退款的折讓已經開立或正在處理中，請先到綠界確認。",
+		En:     "A credit note for this refund is already filed or in flight; check ECPay first.",
+	})
+	// /admin/health's own two.
+	KeyAdminNoticeReconciled = key("admin.notice.reconciled", Message{
+		ZhHant: "已記錄為手動退款。",
+		En:     "Recorded as refunded by hand.",
+	})
+	KeyAdminNoticeNotFlagged = key("admin.notice.notflagged", Message{
+		ZhHant: "這筆事件已經處理過了。",
+		En:     "That event has already been dealt with.",
+	})
 	KeyAdminNoticeInvoiceFailed = key("admin.notice.invoicefailed", Message{
 		ZhHant: "加值中心拒絕了這次操作,詳細原因在伺服器紀錄裡。常見的是統編格式或載具號碼不正確。",
 		En: "The e-invoice provider refused that operation; the reason is in the server log. " +

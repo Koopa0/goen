@@ -115,12 +115,12 @@ WHERE id = @id AND status = 'pending';
 -- What the CARD has sent back on this order. The credit half is
 -- OrderCreditPosition's `returned`, which is the one definition of that figure
 -- and the reason this query does not sum the ledger itself.
--- name: CardRefundedForOrder :one
-SELECT coalesce(sum(r.amount_cents), 0)::bigint AS refunded_cents
-FROM refunds r
-JOIN payments p ON p.id = r.payment_id
-JOIN orders o ON o.id = p.order_id
-WHERE o.order_number = @order_number::text AND r.status = 'succeeded';
+-- Both sources, from the one view: a refund is paid to the card, to store
+-- credit, or split, and an allowance may not relieve more than the sum.
+-- name: RefundedForOrder :one
+SELECT (card_cents + credit_cents)::bigint AS refunded_cents
+FROM order_refunds
+WHERE order_number = @order_number::text;
 
 -- What this order has already had relieved, live documents only.
 -- name: AllowedTotalForOrder :one
@@ -129,3 +129,12 @@ FROM invoice_documents d
 JOIN orders o ON o.id = d.order_id
 WHERE o.order_number = @order_number::text
   AND d.kind = 'allowance' AND d.status <> 'voided';
+
+-- name: ReleaseInvoiceClaim :execrows
+-- A claim the provider REFUSED. ECPay answering with a business verdict proves
+-- nothing was filed, so the reservation is the only thing left and holding it
+-- would lock that refund out of ever being relieved. A transport failure is a
+-- different case and keeps its claim: whether the 加值中心 has the document is
+-- not knowable from here, and clearing it would let the next press file twice.
+DELETE FROM invoice_documents
+WHERE id = $1 AND status = 'pending';

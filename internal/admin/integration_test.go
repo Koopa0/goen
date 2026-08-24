@@ -13,6 +13,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
@@ -508,6 +510,11 @@ type fakeRefunder struct {
 	failIntent bool
 	refundErr  error
 	state      admin.RefundState
+	// sent counts calls to Refund. The database cannot answer "was this sent
+	// twice": the request key makes a repeat hit the same row and settle_refund
+	// returns early on 'succeeded', so a sum over refunds reads the same either
+	// way. Only the provider knows, which is what this stands in for.
+	sent *atomic.Int64
 }
 
 func (f fakeRefunder) PaymentIntentFor(_ context.Context, sessionID string) (string, error) {
@@ -518,6 +525,9 @@ func (f fakeRefunder) PaymentIntentFor(_ context.Context, sessionID string) (str
 }
 
 func (f fakeRefunder) Refund(_ context.Context, intentID, requestKey string, _ int64) (string, admin.RefundState, error) {
+	if f.sent != nil {
+		f.sent.Add(1)
+	}
 	if f.refundErr != nil {
 		return "", "", f.refundErr
 	}
@@ -2114,6 +2124,68 @@ func TestHealthIsDerivedFromTheWorkNotFromAHeartbeat(t *testing.T) {
 	}
 	if stuck.OutboxStuck != 1 {
 		t.Errorf("%d stuck messages, want 1", stuck.OutboxStuck)
+	}
+}
+
+// TestAnAcknowledgedPaymentLeavesTheAlarm is the other half of flagging one.
+// The refund is at Stripe and nothing here can see it land, so the alarm has an
+// off switch or /admin/health is unhealthy forever after the first arrival —
+// and an alarm that is always on is one nobody reads.
+func TestAnAcknowledgedPaymentLeavesTheAlarm(t *testing.T) {
+	ctx, actor := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
+
+	eventID := "evt_ack_" + uuid.NewString()[:12]
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO payment_webhook_events (provider, event_id, type, payload, unreconciled)
+		VALUES ('stripe', $1, 'checkout.session.completed', '{}'::jsonb,
+		        'money arrived for an order that was already cancelled')`,
+		eventID); err != nil {
+		t.Fatalf("flag the event: %v", err)
+	}
+
+	flagged, err := s.WorkerHealth(ctx, worker)
+	if err != nil {
+		t.Fatalf("health: %v", err)
+	}
+	if flagged.PaymentsReconciled() {
+		t.Fatal("money arrived for a cancelled order and /admin/health says there " +
+			"is nothing to do, so this proves nothing about clearing it")
+	}
+
+	if err := s.ReconcilePayment(ctx, eventID, uuid.NullUUID{UUID: actor, Valid: true}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	settled, settledErr := s.WorkerHealth(ctx, worker)
+	if settledErr != nil {
+		t.Fatalf("health: %v", settledErr)
+	}
+	if !settled.PaymentsReconciled() {
+		t.Errorf("%d payments still read as unreconciled after the refund was "+
+			"acknowledged — the alarm is monotone and stops meaning anything",
+			settled.UnreconciledPayments)
+	}
+	if auditRows(t, admin.ActionReconcilePayment) == 0 {
+		t.Error("saying the money went back by hand is the shop's statement about " +
+			"money and it left no audit row")
+	}
+
+	// A second press changes nothing: the row count is where the question is
+	// asked, so there is no read-then-write for two staff members to both pass.
+	if err := s.ReconcilePayment(ctx, eventID, uuid.NullUUID{UUID: actor, Valid: true}); !errors.Is(err, admin.ErrNotFound) {
+		t.Errorf("acknowledging it twice = %v, want ErrNotFound", err)
+	}
+	// And an event nobody flagged is not acknowledgeable at all.
+	unflagged := "evt_plain_" + uuid.NewString()[:12]
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO payment_webhook_events (provider, event_id, type, payload)
+		VALUES ('stripe', $1, 'payment_intent.processing', '{}'::jsonb)`, unflagged); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	if err := s.ReconcilePayment(ctx, unflagged, uuid.NullUUID{UUID: actor, Valid: true}); !errors.Is(err, admin.ErrNotFound) {
+		t.Errorf("acknowledging an event that was never flagged = %v, want ErrNotFound", err)
 	}
 }
 
@@ -5987,8 +6059,18 @@ func TestAnOrderCannotFinishWhileItStillOwesAParcel(t *testing.T) {
 		t.Fatal("an order still owing a parcel was completed; whatever is still " +
 			"held is now stranded with no door out")
 	}
-	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
-		pgErr.ConstraintName != "orders_finished_when_shipped" {
+	// The `ok` is asserted, not used as a condition. Advance used to wrap with
+	// "%w: %s", which puts the message in the string and the PgError nowhere in
+	// the chain — so `ok` was always false, the whole clause was skipped, and the
+	// test asked only that SOMETHING was refused. Every other rule on that
+	// statement passed it, including the pre-database refusals that never reach
+	// PostgreSQL at all.
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	if !ok {
+		t.Fatalf("the refusal does not carry the rule that made it: %v\n"+
+			"Asserting only that an error happened cannot tell one rule from another", err)
+	}
+	if pgErr.ConstraintName != "orders_finished_when_shipped" {
 		t.Errorf("refused by %q, want orders_finished_when_shipped — a statement "+
 			"meant to prove one rule often trips another first", pgErr.ConstraintName)
 	}
@@ -6107,7 +6189,8 @@ func TestASplitReturnResumesTheHalfThatFailed(t *testing.T) {
 	before := creditBalance(t, accountID)
 
 	// The retry must RESUME the credit half rather than refuse the whole return.
-	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	sent := &atomic.Int64{}
+	s := admin.NewStore(pool, fakeRefunder{sent: sent}, nil)
 	if err := s.Decide(ctx, requestID.String(), "approved", "退貨完成", uuid.NullUUID{}); err != nil {
 		t.Fatalf("the retry was refused (%v), so the credit half can never be paid "+
 			"and the customer stays short", err)
@@ -6116,11 +6199,41 @@ func TestASplitReturnResumesTheHalfThatFailed(t *testing.T) {
 		t.Errorf("store credit went %d -> %d; the failed half was not resumed", before, after)
 	}
 
-	// And the card half is not sent twice: it was already settled, so the retry
-	// must have left it alone.
+	// And the card half is not sent TO STRIPE twice. The row count cannot say so
+	// — the request key makes a repeat hit the same row, and settle_refund
+	// returns early on 'succeeded', so the sum is 140000 whether or not the call
+	// went out. Only the provider knows, which is what the counter stands for.
+	if n := sent.Load(); n != 0 {
+		t.Errorf("the retry sent %d refund(s) to the provider; the card half had "+
+			"already landed and resuming means paying only what is MISSING", n)
+	}
 	if got := cardRefunded(t, orderNumber); got != 140000 {
 		t.Errorf("the card half is now %d, want 140000 — the retry re-sent a refund "+
 			"that had already landed", got)
+	}
+
+	// The order now holds a refund from BOTH sources, which is the only shape
+	// that can tell the two definitions of "what has gone back" apart. The 折讓
+	// form offers this figure and internal/invoice bounds an allowance by it,
+	// and they were computed separately: card-only here, card + credit there.
+	// So a split-refunded order defaulted the form to the card half and the
+	// 統一發票 went on recording a sale that was reversed.
+	// An invoicer, because the 折讓 figure is only filled when one is configured
+	// — no provider, no form, no number to get wrong.
+	withInvoices := admin.NewStore(pool, fakeRefunder{}, noDocuments{})
+	view, viewErr := withInvoices.Order(ctx, orderNumber)
+	if viewErr != nil {
+		t.Fatalf("read the order: %v", viewErr)
+	}
+	credited := creditBalance(t, accountID) - before
+	if credited <= 0 {
+		t.Fatal("no credit was returned, so this proves nothing about the sum")
+	}
+	if want := int64(140000) + credited; view.RefundedCents != want {
+		t.Errorf("the 折讓 form offers %d and %d has gone back (card %d + credit %d).\n"+
+			"The form's figure and the bound an allowance is held to are one fact, "+
+			"and a 折讓 short of what was refunded over-reports the sale to the 財政部",
+			view.RefundedCents, want, 140000, credited)
 	}
 }
 
@@ -6136,4 +6249,210 @@ func cardRefunded(t *testing.T, orderNumber string) int64 {
 		t.Fatalf("read refunds: %v", err)
 	}
 	return cents
+}
+
+// TestADeliveredOrderCanStillShipWhatItOwes is the exit from a trap that had
+// none. orders_legal_transition permits shipped -> delivered with a line still
+// outstanding, deliberately — delivered says the parcels that WENT OUT have
+// arrived, which is true whether or not more is to come — and
+// orders_finished_when_shipped then refuses 'completed'. With no dispatch form
+// at 'delivered' the order is wedged for ever, and the outstanding line's hold
+// is stranded: release_reservation refuses a committed order, ExpiredReservations
+// excludes it, and /admin/health counts neither.
+//
+// The dropdown offers 已送達 and 已完成 as peers with no hint that one is a
+// one-way door, which is why this belongs in the code and not the operator's head.
+func TestADeliveredOrderCanStillShipWhatItOwes(t *testing.T) {
+	ctx, staff := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	actor := uuid.NullUUID{UUID: staff, Valid: true}
+	number, _, lines, _ := twoLineOrderWithStock(t, "wedged")
+
+	// One parcel carrying part of the first line, then straight to delivered:
+	// what went out has arrived, and the rest is still to come.
+	if err := s.Ship(ctx, number, admin.Dispatch{
+		Carrier: "黑貓宅急便", Tracking: "D1-" + number,
+		Lines: map[uuid.UUID]int32{lines[0]: 1},
+	}, actor); err != nil {
+		t.Fatalf("first parcel: %v", err)
+	}
+	if _, err := s.Advance(ctx, number, "delivered", actor); err != nil {
+		t.Fatalf("deliver: %v", err)
+	}
+
+	view, err := s.Order(ctx, number)
+	if err != nil {
+		t.Fatalf("read the order: %v", err)
+	}
+	if !view.CanShip {
+		t.Fatal("a delivered order that still owes a parcel offers no dispatch form, " +
+			"and completing it is refused — the order is wedged and its remaining " +
+			"hold is stranded off the shelf where nothing counts it")
+	}
+
+	if err := s.Ship(ctx, number, admin.Dispatch{
+		Carrier: "黑貓宅急便", Tracking: "D2-" + number,
+	}, actor); err != nil {
+		t.Fatalf("the second parcel of a delivered order was refused: %v", err)
+	}
+	if _, err := s.Advance(ctx, number, "completed", actor); err != nil {
+		t.Errorf("finishing an order that owes nothing was refused: %v", err)
+	}
+
+	var held int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM inventory_reservations ir
+		JOIN orders o ON o.id = ir.order_id
+		WHERE o.order_number = $1 AND ir.state = 'held'`, number).Scan(&held); err != nil {
+		t.Fatalf("read the holds: %v", err)
+	}
+	if held != 0 {
+		t.Errorf("%d hold(s) still on the shelf after everything shipped", held)
+	}
+}
+
+// noDocuments is an Invoicer that has filed nothing. The figure under test is
+// what has been REFUNDED, which is a question about money and not about
+// documents, so the documents are the part that can be empty.
+type noDocuments struct{}
+
+func (noDocuments) Documents(context.Context, string) ([]invoice.Document, error) {
+	return nil, nil
+}
+
+func (noDocuments) Issue(context.Context, string) (invoice.Document, error) {
+	return invoice.Document{}, invoice.ErrDisabled
+}
+
+func (noDocuments) Void(context.Context, string, string) error { return invoice.ErrDisabled }
+
+func (noDocuments) Allowance(context.Context, string, int64) (invoice.Document, error) {
+	return invoice.Document{}, invoice.ErrDisabled
+}
+
+// TestASplitReturnResumesWhenTheCREDITHalfLanded is the mirror of its
+// neighbour, and the direction the card-side exclusion did not cover.
+//
+// refundCard answers (ref, RefundPending, nil) for a refund Stripe has accepted
+// and not settled — no error — so payApprovedReturn goes on to post the credit.
+// goen consumes no refund webhook, so that row stays pending for ever and
+// pressing 同意 again is the only door.
+//
+// It was shut. splitRefund excluded this return's own REFUND row from the card
+// side and did not exclude its own COMPENSATION from the credit side, so the
+// retry read the credit it had just posted as credit already returned,
+// collapsed the remaining credit to zero, and refused "does not fit across the
+// two" before stillOwedOnReturn was ever consulted.
+func TestASplitReturnResumesWhenTheCREDITHalfLanded(t *testing.T) {
+	ctx, _ := staffContext(t)
+	requestID, orderNumber, accountID := creditFundedReturn(t, 2, 60000)
+
+	// Approved, with the CREDIT half posted under the key the compensation uses
+	// and the card half left PENDING — which is what a Stripe refund that has
+	// been accepted and not settled looks like.
+	if _, err := pool.Exec(ctx, `
+		UPDATE return_requests SET status = 'approved', decided_at = now(),
+		       resolution = '退貨完成'
+		WHERE id = $1`, requestID); err != nil {
+		t.Fatalf("approve the return: %v", err)
+	}
+	var userID, orderID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT user_id, id FROM orders WHERE order_number = $1`, orderNumber).
+		Scan(&userID, &orderID); err != nil {
+		t.Fatalf("read the order: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		SELECT post_store_credit($1, $2::bigint, $3::text, $4, $5::text, NULL)`,
+		userID, int64(60000), "退貨補償", orderID,
+		"return-credit:"+requestID.String()); err != nil {
+		t.Fatalf("post the credit half: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO refunds (payment_id, request_key, amount_cents, reason,
+		                     return_request_id, status)
+		SELECT p.id, 'return:' || $1::text, 140000, '退貨完成', $1::uuid, 'pending'
+		FROM payments p JOIN orders o ON o.id = p.order_id
+		WHERE o.order_number = $2 AND p.status = 'succeeded'`,
+		requestID, orderNumber); err != nil {
+		t.Fatalf("open the card half: %v", err)
+	}
+	if got := cardRefunded(t, orderNumber); got != 0 {
+		t.Fatalf("the card half reads %d settled, want 0 — the fixture did not "+
+			"build the state under test", got)
+	}
+	before := creditBalance(t, accountID)
+
+	sent := &atomic.Int64{}
+	s := admin.NewStore(pool, fakeRefunder{sent: sent}, nil)
+	if err := s.Decide(ctx, requestID.String(), "approved", "退貨完成", uuid.NullUUID{}); err != nil {
+		t.Fatalf("the retry was refused (%v), so the CARD half can never be sent "+
+			"and the customer stays short — goen consumes no refund webhook, so "+
+			"pressing 同意 again is the only door", err)
+	}
+	if sent.Load() != 1 {
+		t.Errorf("the provider was called %d time(s); the card half was the one "+
+			"still owed", sent.Load())
+	}
+	if after := creditBalance(t, accountID); after != before {
+		t.Errorf("store credit went %d -> %d; the credit half had already landed "+
+			"and resuming means paying only what is MISSING", before, after)
+	}
+}
+
+// TestAStrandedInvoiceClaimIsOnTheHealthPage holds the alarm for a state only a
+// person can settle.
+//
+// A 折讓 claim is taken before ECPay is asked, because their allowance endpoint
+// carries no idempotency field. A call that was not ANSWERED keeps its claim —
+// right, because whether the document was filed is not knowable from here — and
+// that leaves a row nothing else can resolve. It is the shape
+// payment_webhook_events.unreconciled already has, and the only sign of it used
+// to be a 折讓 button that refused on one order.
+func TestAStrandedInvoiceClaimIsOnTheHealthPage(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
+
+	number, orderID, _, _ := twoLineOrderWithStock(t, "stranded")
+	var invoiceID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO invoice_documents (order_id, kind, number, amount_cents)
+		VALUES ($1, 'invoice', 'GD-' || substr(replace(gen_random_uuid()::text,'-',''),1,8), 100000)
+		RETURNING id`, orderID).Scan(&invoiceID); err != nil {
+		t.Fatalf("file an invoice: %v", err)
+	}
+
+	// A claim taken JUST NOW is a call in flight, not a stuck one: the window is
+	// the whole distinction, so the fixture has to sit on the far side of it.
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO invoice_documents (order_id, kind, number, amount_cents, status,
+		                               request_key, original_id, issued_at)
+		VALUES ($1, 'allowance', '', 50000, 'pending', $2, $3, now() - interval '1 hour')`,
+		orderID, "allowance:"+number+":stranded", invoiceID); err != nil {
+		t.Fatalf("strand a claim: %v", err)
+	}
+
+	view, err := s.WorkerHealth(ctx, worker)
+	if err != nil {
+		t.Fatalf("health: %v", err)
+	}
+	if view.ClaimsSettled() {
+		t.Fatal("a 折讓 claim the provider never answered is invisible on the one " +
+			"page built to show what needs doing — the only sign is a button that " +
+			"refuses, on one order, months later")
+	}
+	if view.AllHealthy() {
+		t.Error("the page reads healthy with a claim nobody can settle outstanding")
+	}
+	var named bool
+	for _, c := range view.StrandedClaims {
+		if c.OrderNumber == number {
+			named = true
+		}
+	}
+	if !named {
+		t.Errorf("the claim is counted and not named; an operator needs the order "+
+			"to go and look at ECPay. Got %d claim(s).", len(view.StrandedClaims))
+	}
 }
