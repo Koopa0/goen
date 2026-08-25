@@ -120,13 +120,11 @@ var (
 		En: "Nothing has moved for this variant yet. A new variant starts at zero, and every unit it " +
 			"ever holds arrives through this ledger.",
 	})
-	KeyAdminColWhen    = key("admin.col.when", Message{ZhHant: "時間", En: "When"})
-	KeyAdminColChange  = key("admin.col.change", Message{ZhHant: "異動", En: "Change"})
-	KeyAdminColReason  = key("admin.col.reason", Message{ZhHant: "原因", En: "Reason"})
-	KeyAdminColKind    = key("admin.col.kind", Message{ZhHant: "種類", En: "Kind"})
-	KeyAdminHPColEvent = key("admin.hp.col.event", Message{ZhHant: "事件編號", En: "Event"})
-	// The only thing that can be done about money against a cancelled order is a
-	// refund by hand at the provider; this records that somebody did it.
+	KeyAdminColWhen         = key("admin.col.when", Message{ZhHant: "時間", En: "When"})
+	KeyAdminColChange       = key("admin.col.change", Message{ZhHant: "異動", En: "Change"})
+	KeyAdminColReason       = key("admin.col.reason", Message{ZhHant: "原因", En: "Reason"})
+	KeyAdminColKind         = key("admin.col.kind", Message{ZhHant: "種類", En: "Kind"})
+	KeyAdminHPColEvent      = key("admin.hp.col.event", Message{ZhHant: "事件編號", En: "Event"})
 	KeyAdminHPClaimsHeading = key("admin.hp.claims.heading", Message{
 		ZhHant: "尚未確認的折讓",
 		En:     "Credit notes awaiting confirmation",
@@ -139,21 +137,17 @@ var (
 			"no further credit note can be filed against this order.",
 	})
 	KeyAdminHPReconcile = key("admin.hp.reconcile", Message{
-		ZhHant: "已手動退款",
-		En:     "Refunded by hand",
+		ZhHant: "標記為已處理",
+		En:     "Mark handled",
 	})
-	// Money at the provider against goods the shop has already taken back. The
-	// only case goen writes today is a capture that arrived after a cancel: the
-	// database refuses it, Stripe is told the event was handled because retrying
-	// changes nothing, and somebody has to refund it by hand.
 	KeyAdminHPUnreconciledHeading = key("admin.hp.unreconciled", Message{
-		ZhHant: "收到但無法處理的款項",
-		En:     "Payments accepted and not applied",
+		ZhHant: "需要處理的 Stripe 事件",
+		En:     "Stripe events needing action",
 	})
 	KeyAdminHPUnreconciledHint = key("admin.hp.unreconciled.hint", Message{
-		ZhHant: "錢在金流商那裡,商品已經回到架上 —— 每一筆都要到 Stripe 後台手動退款。",
-		En: "The money is at the payment provider and the goods are back on the shelf. " +
-			"Each of these has to be refunded by hand in the Stripe dashboard.",
+		ZhHant: "請依原因與事件編號檢查 Stripe。確認版本、款項歸屬或手動退款後,再標記為已處理。",
+		En: "Use the reason and event reference to investigate in Stripe. After checking the API version, " +
+			"attributing the payment, or refunding it by hand, mark the event handled.",
 	})
 	KeyAdminColActor   = key("admin.col.actor", Message{ZhHant: "操作者", En: "By"})
 	KeyAdminColBalance = key("admin.col.balance", Message{ZhHant: "結存", En: "Balance"})

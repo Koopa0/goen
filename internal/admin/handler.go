@@ -1917,9 +1917,9 @@ func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 
 // ReconcilePayment serves POST /admin/health/reconcile.
 //
-// Money that arrived for a cancelled order can only be refunded by hand at the
-// provider; this is how the operator says they have. Without it the alarm is
-// monotone and /admin/health is unhealthy forever after the first one.
+// This is how the operator says they investigated and resolved a Stripe event
+// goen could not apply. Without it the alarm is monotone and /admin/health is
+// unhealthy forever after the first one.
 func (h *Handler) ReconcilePayment(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)

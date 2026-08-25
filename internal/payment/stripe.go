@@ -203,7 +203,7 @@ var captureEvents = map[stripe.EventType]bool{
 // CaptureFrom reads a paid-checkout event into a [Capture]. Only payment_status
 // `paid` is a capture: the event type alone marks orders paid unfunded.
 func CaptureFrom(ev *stripe.Event) (Capture, bool) {
-	if !captureEvents[ev.Type] {
+	if ev == nil || ev.Data == nil || !captureEvents[ev.Type] {
 		return Capture{}, false
 	}
 	var sess stripe.CheckoutSession
@@ -232,10 +232,35 @@ var abandonedEvents = map[stripe.EventType]bool{
 	"checkout.session.async_payment_failed": true,
 }
 
+// Actionable reports whether goen has a branch for this event type. A type in
+// here that yields nothing from every reader is a payload this binary could not
+// read — not an event goen does not act on, and the two must not share an arm.
+func Actionable(ev *stripe.Event) bool {
+	return ev != nil && (captureEvents[ev.Type] || abandonedEvents[ev.Type])
+}
+
+type webhookReadState uint8
+
+const (
+	webhookReadIgnored webhookReadState = iota
+	webhookReadUnderstood
+	webhookReadUnreadable
+)
+
+func classifyWebhook(ev *stripe.Event, understood bool) webhookReadState {
+	if !Actionable(ev) {
+		return webhookReadIgnored
+	}
+	if understood {
+		return webhookReadUnderstood
+	}
+	return webhookReadUnreadable
+}
+
 // AbandonedSessionFrom reports the session id of a Checkout Session that ended
 // with no money.
 func AbandonedSessionFrom(ev *stripe.Event) (string, bool) {
-	if !abandonedEvents[ev.Type] {
+	if ev == nil || ev.Data == nil || !abandonedEvents[ev.Type] {
 		return "", false
 	}
 	var sess stripe.CheckoutSession
@@ -252,7 +277,7 @@ func AbandonedSessionFrom(ev *stripe.Event) (string, bool) {
 // finished while the money is still on its way: the one signal that a delayed
 // payment method is in play.
 func UnsettledSessionFrom(ev *stripe.Event) (string, bool) {
-	if ev.Type != "checkout.session.completed" {
+	if ev == nil || ev.Data == nil || ev.Type != "checkout.session.completed" {
 		return "", false
 	}
 	var sess stripe.CheckoutSession
@@ -267,6 +292,9 @@ func UnsettledSessionFrom(ev *stripe.Event) (string, bool) {
 
 // ObjectRef is the Stripe id an event is about, or "" when it cannot be read.
 func ObjectRef(ev *stripe.Event) string {
+	if ev == nil || ev.Data == nil {
+		return ""
+	}
 	if id, ok := ev.Data.Object["id"].(string); ok {
 		return id
 	}

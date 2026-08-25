@@ -21,11 +21,11 @@ type WorkerHealthView struct {
 
 	ExpiredSessions   int64
 	UnreferencedMedia int64
-	// UnreconciledPayments is money accepted that nothing could act on. Today
-	// that is one case: it arrived for an order already cancelled.
+	// UnreconciledPayments is a Stripe event accepted but not automatically
+	// applied: unreadable, unattributed, or money for a cancelled order.
 	UnreconciledPayments int64
 	Stuck                []StuckMessage
-	// Unreconciled is named rather than counted: each needs a refund by hand.
+	// Unreconciled is named rather than counted: each needs investigation.
 	Unreconciled []UnreconciledPayment
 	// StrandedClaims is a 折讓 claim the provider never answered: nothing may be
 	// at the 加值中心 under it and only a person can find out. Named rather than

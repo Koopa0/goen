@@ -6154,9 +6154,9 @@ WHERE provider = 'stripe' AND event_id = $1::text
   AND unreconciled IS NOT NULL AND reconciled_at IS NULL
 `
 
-// Somebody refunded it by hand at the provider and says so. The row keeps its
-// reason: what happened is worth reading after it is handled, and this is the
-// only thing that takes it off /admin/health.
+// Somebody investigated and resolved the provider event and says so. The row
+// keeps its reason: what happened is worth reading after it is handled, and
+// this is the only thing that takes it off /admin/health.
 func (q *Queries) MarkPaymentReconciled(ctx context.Context, eventID string) (int64, error) {
 	result, err := q.db.Exec(ctx, markPaymentReconciled, eventID)
 	if err != nil {
@@ -11992,12 +11992,11 @@ SELECT
      WHERE NOT EXISTS (SELECT 1 FROM product_images p WHERE p.storage_key = m.digest)
        AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
        AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media,
-    -- Events accepted and NOT acted on. The only one goen writes today is money
-    -- arriving for an order it had already cancelled: the capture is refused by
-    -- payments_refuse_cancelled_order, the event is still marked processed so
-    -- Stripe stops retrying — correct, because retrying changes nothing — and
-    -- the money sits at Stripe against goods that are back on the shelf. It used
-    -- to leave one log line, which nothing reads and nothing can count.
+    -- Events accepted and NOT acted on: a known Stripe object this binary could
+    -- not read, paid money with no local payment row, or paid money for an order
+    -- already cancelled. Each is still marked processed because retrying the
+    -- same event changes nothing; the durable reason makes the human action
+    -- countable instead of leaving only a log line nobody reads.
     (SELECT count(*) FROM payment_webhook_events
      WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL)::bigint AS unreconciled_payments
 `

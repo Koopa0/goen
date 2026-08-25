@@ -1953,14 +1953,15 @@ and Google Pay ride on that type. Supporting a delayed method is a FEATURE and
 not a flag — see the follow-up, and the commercial question underneath it.
 
 **And the alarm has an off switch, or it stops meaning anything.**
-`payment_webhook_events.reconciled_at` is the operator saying they refunded that
-money by hand at the provider — the only thing anybody can do about it, and
-something goen cannot see land. Without it `/admin/health` was unhealthy for ever
-after the first arrival, which is the failure the flag was added to prevent
-arriving one step later. The question is asked in the UPDATE's own WHERE clause,
-so two staff members pressing it is one row and one audit entry, and `store`'s
-INSERT is narrowed to the five columns the webhook writes: `reconciled_at` is the
-shop's statement about money, not the storefront's.
+`payment_webhook_events.reconciled_at` is the operator saying they investigated
+and resolved the event — checking the endpoint version or attribution, and
+refunding by hand when money cannot be applied. Those outcomes happen at Stripe
+and goen cannot see them land. Without the acknowledgement `/admin/health` is
+unhealthy for ever after the first arrival, which is the failure the flag was
+added to prevent arriving one step later. The question is asked in the UPDATE's
+own WHERE clause, so two staff members pressing it is one row and one audit entry,
+and `store`'s INSERT is narrowed to the five columns the webhook writes:
+`reconciled_at` is the shop's statement, not the storefront's.
 
 **Money that arrives for an order goen has already CANCELLED leaves a row, not a
 log line.** The capture is refused by `payments_refuse_cancelled_order`, and the
@@ -1973,6 +1974,19 @@ claim, which is `ProcessWebhook`'s own rule — an event may not be recorded as
 seen unless what it needs is recorded with it — applied to the OUTCOME rather
 than the effect. `/admin/health` names them, because a page saying "1
 unreconciled" that cannot say which tells an operator nothing about what to do.
+
+That outcome now has THREE canonical durable causes in the existing reason
+field: `unreadable_event` for one of goen's four subscribed event types whose
+`data.object` this binary cannot understand, `unattributed_capture` for a paid
+Checkout Session with no local payment row, and `cancelled_order_capture` for
+money against a cancelled order. The read side is a tri-state — ignored type,
+understood actionable type, unreadable actionable type — rather than three
+readers' `false` values collapsing the first and third. A completed-but-unpaid
+session is UNDERSTOOD by `UnsettledSessionFrom`; it keeps its configuration
+ERROR and is not also marked unreadable. All three unreconciled causes answer
+200: retrying replays the same bytes and cannot repair missing attribution,
+version skew, or a settled order, while the durable row gives a person the
+event and object references to act on.
 
 **And that path could not have worked at all, which is worse than the finding
 said.** A refused posting function ABORTS its transaction: PostgreSQL answers

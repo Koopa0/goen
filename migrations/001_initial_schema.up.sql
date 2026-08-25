@@ -2927,14 +2927,13 @@ CREATE TABLE payment_webhook_events (
     received_at         timestamptz NOT NULL DEFAULT now(),
     processed_at        timestamptz,
     -- Why this event could not be acted on, for the cases where "processed"
-    -- means "seen and refused" rather than "done". Money arriving for an order
-    -- goen had already cancelled is the one that matters: the capture is refused
-    -- by payments_refuse_cancelled_order, the event is still marked processed so
-    -- Stripe stops retrying — which is correct, retrying changes nothing — and
-    -- the only trace used to be a log line. The money is at Stripe and the goods
-    -- are back on the shelf, so somebody has to refund it by hand; without a row
-    -- there is nothing for /admin/health to name and nothing to reconcile
-    -- against.
+    -- means "seen and refused" rather than "done". Canonical reason prefixes
+    -- distinguish a known event whose object this binary could not read
+    -- (unreadable_event), paid money with no local payment row to attribute it
+    -- to (unattributed_capture), and paid money for an order already cancelled
+    -- (cancelled_order_capture). Each is still marked processed because Stripe
+    -- would retry the same unresolvable bytes; this durable reason is what makes
+    -- the required human action visible on /admin/health.
     unreconciled        text,
     -- When somebody dealt with it. The alarm is monotone without this: once an
     -- event lands unreconciled, /admin/health is unhealthy forever, which is
@@ -3585,8 +3584,9 @@ REVOKE UPDATE, DELETE ON store_credit_accounts FROM store;
 REVOKE INSERT, UPDATE, DELETE ON coupons, coupon_redemptions FROM store;
 REVOKE UPDATE, DELETE ON payment_webhook_events FROM store;
 GRANT UPDATE (processed_at, unreconciled) ON payment_webhook_events TO store;
--- reconciled_at is the SHOP saying it refunded money by hand, so it is admin's
--- to write and not the storefront's. A whole-table INSERT would carry it.
+-- reconciled_at is the SHOP saying it investigated and resolved the event, so
+-- it is admin's to write and not the storefront's. A whole-table INSERT would
+-- carry it.
 REVOKE INSERT ON payment_webhook_events FROM store;
 GRANT INSERT (provider, event_id, type, object_ref, payload) ON payment_webhook_events TO store;
 -- order_events and shipping_method_versions are append-only too, so the privilege

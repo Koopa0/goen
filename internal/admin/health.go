@@ -58,9 +58,10 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (pages
 		})
 	}
 
-	// Money that arrived for an order goen had already cancelled. NAMED rather
-	// than counted, for the reason the stuck list is: an operator has to refund
-	// each one by hand at Stripe, and a number tells them nothing about which.
+	// Stripe events that were accepted but need a person: an unreadable known
+	// object, paid money with no local attribution, or money for a cancelled
+	// order. NAMED rather than merely counted, because the event and object refs
+	// are what let an operator investigate or refund each one at Stripe.
 	unreconciled, err := s.q.UnreconciledPayments(ctx)
 	if err != nil {
 		return pages.WorkerHealthView{}, fmt.Errorf("read unreconciled payments: %w", err)

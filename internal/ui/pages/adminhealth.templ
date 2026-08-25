@@ -92,8 +92,8 @@ templ AdminHealth(p layouts.Page, v *WorkerHealthView) {
 				</div>
 			}
 			if len(v.Unreconciled) > 0 {
-				// Named, not counted: each is money at the provider against goods
-				// already back on the shelf, and only a person can move it.
+				// Named, not counted: the event and provider ref are what let a person
+				// investigate an unreadable object or find money goen could not apply.
 				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminHPUnreconciledHeading) }</h2>
 				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHPUnreconciledHint) }</p>
 				<div class="goen-admin__tablewrap">

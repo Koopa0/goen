@@ -1313,17 +1313,200 @@ func TestTheWebhookRoutesEachEventToItsEffect(t *testing.T) {
 					"this event to the wrong branch, or to none", tt.eventType, paid, tt.wantPaid)
 			}
 
-			// Recorded whatever branch it took: that row is the idempotency.
+			// Recorded whatever branch it took: that row is the idempotency. Every
+			// row in this table is either understood or deliberately ignored; none
+			// should be mistaken for an unreadable actionable event.
 			var seen int
+			var reason *string
 			if err := pool.QueryRow(ctx,
-				`SELECT count(*) FROM payment_webhook_events WHERE event_id = $1`,
-				eventID).Scan(&seen); err != nil {
+				`SELECT count(*), max(unreconciled) FROM payment_webhook_events WHERE event_id = $1`,
+				eventID).Scan(&seen, &reason); err != nil {
 				t.Fatalf("read event: %v", err)
 			}
 			if seen != 1 {
 				t.Errorf("the event was recorded %d times, want once", seen)
 			}
+			if reason != nil {
+				t.Errorf("the understood/ignored event was marked unreconciled as %q", *reason)
+			}
 		})
+	}
+}
+
+// TestAnUnreadableKnownEventIsRecordedForAPerson drives the signature verifier,
+// handler switch and durable alarm together. The payment row is real and open,
+// so this cannot pass by accidentally taking the unattributed-capture branch.
+func TestAnUnreadableKnownEventIsRecordedForAPerson(t *testing.T) {
+	ctx := t.Context()
+	s := payment.NewStore(pool)
+	var logs bytes.Buffer
+	h := payment.NewHandler(s, enabledGateway(t), alwaysPlacedHere{},
+		slog.New(slog.NewTextHandler(&logs, nil)), false)
+
+	number, _ := order(t, 67000)
+	session := "cs_unreadable_" + uuid.NewString()[:12]
+	if err := s.OpenPayment(ctx, number, session, 67000); err != nil {
+		t.Fatalf("open the known payment: %v", err)
+	}
+	eventID := "evt_" + uuid.NewString()[:12]
+	event := sessionField(sessionEvent(eventID, session, "paid", 67000),
+		"amount_total", "67000")
+	body, header := signed(t, event)
+
+	post := func() *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+			"/webhooks/stripe", bytes.NewReader(body))
+		req.Header.Set("Stripe-Signature", header)
+		w := httptest.NewRecorder()
+		h.Webhook(w, req)
+		return w
+	}
+	if w := post(); w.Code != http.StatusOK {
+		t.Fatalf("Webhook() status = %d, want 200 — retrying the same unreadable bytes cannot repair them", w.Code)
+	}
+
+	var processedAt *time.Time
+	var reason *string
+	var objectRef, storedPayload string
+	if err := pool.QueryRow(ctx, `
+		SELECT processed_at, unreconciled, coalesce(object_ref, ''), payload::text
+		FROM payment_webhook_events
+		WHERE provider = 'stripe' AND event_id = $1`, eventID).
+		Scan(&processedAt, &reason, &objectRef, &storedPayload); err != nil {
+		t.Fatalf("read unreadable event: %v", err)
+	}
+	if processedAt == nil {
+		t.Error("the unreadable event was not marked processed, so Stripe will retry identical bytes")
+	}
+	if reason == nil || !strings.HasPrefix(*reason, "unreadable_event: ") {
+		t.Fatalf("unreconciled = %v, want durable unreadable_event cause", reason)
+	}
+	if objectRef != session {
+		t.Errorf("object_ref = %q, want the known session %q", objectRef, session)
+	}
+
+	var actionableRows int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM payment_webhook_events
+		WHERE provider = 'stripe' AND event_id = $1
+		  AND unreconciled IS NOT NULL AND reconciled_at IS NULL`, eventID).
+		Scan(&actionableRows); err != nil {
+		t.Fatalf("read /admin/health predicate: %v", err)
+	}
+	if actionableRows != 1 {
+		t.Errorf("/admin/health predicate finds %d unreadable events, want 1", actionableRows)
+	}
+
+	var paymentStatus, orderStatus string
+	var captured *int64
+	if err := pool.QueryRow(ctx, `
+		SELECT p.status, p.captured_amount_cents, o.fulfillment_status
+		FROM payments p JOIN orders o ON o.id = p.order_id
+		WHERE p.provider_ref = $1`, session).
+		Scan(&paymentStatus, &captured, &orderStatus); err != nil {
+		t.Fatalf("read untouched payment: %v", err)
+	}
+	if paymentStatus != "requires_payment" || captured != nil || orderStatus != "pending" {
+		t.Errorf("unreadable event left payment=%q captured=%v order=%q, want requires_payment/NULL/pending",
+			paymentStatus, captured, orderStatus)
+	}
+	if output := logs.String(); !strings.Contains(output, "level=ERROR") ||
+		!strings.Contains(output, "could not be read") {
+		t.Errorf("unreadable event log = %q, want ERROR telling the operator it could not be read", output)
+	}
+
+	// A replay is still 200 and changes none of the evidence: the claim, reason
+	// and original payload are history after the first signed delivery.
+	if w := post(); w.Code != http.StatusOK {
+		t.Fatalf("replayed Webhook() status = %d, want 200", w.Code)
+	}
+	var replayProcessedAt *time.Time
+	var replayReason *string
+	var replayPayload string
+	if err := pool.QueryRow(ctx, `
+		SELECT processed_at, unreconciled, payload::text
+		FROM payment_webhook_events
+		WHERE provider = 'stripe' AND event_id = $1`, eventID).
+		Scan(&replayProcessedAt, &replayReason, &replayPayload); err != nil {
+		t.Fatalf("read replayed event: %v", err)
+	}
+	if processedAt == nil || replayProcessedAt == nil || !processedAt.Equal(*replayProcessedAt) {
+		t.Errorf("replay changed processed_at from %v to %v", processedAt, replayProcessedAt)
+	}
+	if reason == nil || replayReason == nil || *reason != *replayReason {
+		t.Errorf("replay changed unreconciled from %v to %v", reason, replayReason)
+	}
+	if replayPayload != storedPayload {
+		t.Error("replay replaced the original signed payload")
+	}
+}
+
+// TestTheWebhookFlagsMoneyItCannotAttribute proves that a paid Checkout Session
+// with no local payment row is countable, stays unguessed, and is acknowledged
+// with 200 because retrying cannot create the missing attribution.
+func TestTheWebhookFlagsMoneyItCannotAttribute(t *testing.T) {
+	ctx := t.Context()
+	s := payment.NewStore(pool)
+	var logs bytes.Buffer
+	h := payment.NewHandler(s, enabledGateway(t), alwaysPlacedHere{},
+		slog.New(slog.NewTextHandler(&logs, nil)), false)
+
+	session := "cs_unattributable_" + uuid.NewString()[:12]
+	eventID := "evt_" + uuid.NewString()[:12]
+	body, header := signed(t, typed(sessionEvent(eventID, session, "paid", 88800),
+		"checkout.session.completed"))
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		"/webhooks/stripe", bytes.NewReader(body))
+	req.Header.Set("Stripe-Signature", header)
+	w := httptest.NewRecorder()
+	h.Webhook(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Webhook() status = %d, want 200 — an unattributable capture can never succeed on retry", w.Code)
+	}
+	var processedAt *time.Time
+	var reason *string
+	var objectRef string
+	if err := pool.QueryRow(ctx, `
+		SELECT processed_at, unreconciled, coalesce(object_ref, '')
+		FROM payment_webhook_events
+		WHERE provider = 'stripe' AND event_id = $1`, eventID).
+		Scan(&processedAt, &reason, &objectRef); err != nil {
+		t.Fatalf("read unattributed capture: %v", err)
+	}
+	if processedAt == nil {
+		t.Error("the unattributed capture was not marked processed")
+	}
+	if reason == nil || !strings.HasPrefix(*reason, "unattributed_capture: ") {
+		t.Fatalf("unreconciled = %v, want durable unattributed_capture cause", reason)
+	}
+	if objectRef != session {
+		t.Errorf("object_ref = %q, want session %q for the Stripe search", objectRef, session)
+	}
+
+	var actionableRows int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM payment_webhook_events
+		WHERE provider = 'stripe' AND event_id = $1
+		  AND unreconciled IS NOT NULL AND reconciled_at IS NULL`, eventID).
+		Scan(&actionableRows); err != nil {
+		t.Fatalf("read /admin/health predicate: %v", err)
+	}
+	if actionableRows != 1 {
+		t.Errorf("/admin/health predicate finds %d unattributed captures, want 1", actionableRows)
+	}
+	var payments int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM payments WHERE provider_ref = $1`, session).Scan(&payments); err != nil {
+		t.Fatalf("count invented payments: %v", err)
+	}
+	if payments != 0 {
+		t.Errorf("the handler invented %d payment rows for an unattributable session, want 0", payments)
+	}
+	if output := logs.String(); !strings.Contains(output, "level=ERROR") ||
+		!strings.Contains(output, "cannot attribute") {
+		t.Errorf("unattributed capture log = %q, want an actionable ERROR", output)
 	}
 }
 
@@ -1335,8 +1518,9 @@ func TestTheWebhookRoutesEachEventToItsEffect(t *testing.T) {
 func TestTheWebhookItselfFlagsMoneyForACancelledOrder(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
+	var logs bytes.Buffer
 	h := payment.NewHandler(s, enabledGateway(t), alwaysPlacedHere{},
-		slog.New(slog.DiscardHandler), false)
+		slog.New(slog.NewTextHandler(&logs, nil)), false)
 
 	number, id := order(t, 88800)
 	session := "cs_handler_unrec_" + uuid.NewString()[:12]
@@ -1369,6 +1553,13 @@ func TestTheWebhookItselfFlagsMoneyForACancelledOrder(t *testing.T) {
 	if reason == nil {
 		t.Fatal("the webhook took money for a cancelled order and left nothing " +
 			"for /admin/health to count — the shop finds out when the customer asks")
+	}
+	if !strings.HasPrefix(*reason, "cancelled_order_capture: ") {
+		t.Errorf("unreconciled = %q, want durable cancelled_order_capture cause", *reason)
+	}
+	if output := logs.String(); !strings.Contains(output, "level=ERROR") ||
+		!strings.Contains(output, "cancelled order") {
+		t.Errorf("cancelled-order capture log = %q, want an actionable ERROR", output)
 	}
 }
 
@@ -1412,7 +1603,8 @@ func TestMoneyForACancelledOrderLeavesSomethingToActOn(t *testing.T) {
 		if !errors.Is(captureErr, payment.ErrOrderCancelled) {
 			return captureErr
 		}
-		return st.Unreconciled(ctx, eventID, "money arrived for an order that was already cancelled")
+		return st.Unreconciled(ctx, eventID,
+			"cancelled_order_capture: money arrived for an order that was already cancelled")
 	})
 	if err != nil {
 		t.Fatalf("process the webhook: %v", err)

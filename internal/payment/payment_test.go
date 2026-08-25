@@ -169,29 +169,40 @@ func typed(ev map[string]any, eventType string) map[string]any {
 	return ev
 }
 
+func sessionField(ev map[string]any, name string, value any) map[string]any {
+	data := ev["data"].(map[string]any)
+	object := data["object"].(map[string]any)
+	object[name] = value
+	return ev
+}
+
 // TestOnlyAPaidSessionIsACapture proves an unpaid session is not treated as
 // money received, and that the paid one of EACH event type is.
 func TestOnlyAPaidSessionIsACapture(t *testing.T) {
 	g := enabledGateway(t)
 
 	tests := []struct {
-		name      string
-		event     map[string]any
-		isCapture bool
+		name         string
+		event        map[string]any
+		isCapture    bool
+		isUnreadable bool
 	}{
-		{"paid", sessionEvent("e1", "cs_1", "paid", 199900), true},
-		{"unpaid", sessionEvent("e2", "cs_2", "unpaid", 199900), false},
-		{"still processing", sessionEvent("e3", "cs_3", "no_payment_required", 199900), false},
-		{"zero amount", sessionEvent("e4", "cs_4", "paid", 0), false},
+		{name: "paid", event: sessionEvent("e1", "cs_1", "paid", 199900), isCapture: true},
+		{name: "unpaid", event: sessionEvent("e2", "cs_2", "unpaid", 199900)},
+		{
+			name: "still processing", event: sessionEvent("e3", "cs_3", "no_payment_required", 199900),
+			isUnreadable: true,
+		},
+		{name: "zero amount", event: sessionEvent("e4", "cs_4", "paid", 0), isUnreadable: true},
 		{
 			name:      "asynchronous method that cleared",
 			event:     typed(sessionEvent("e5", "cs_5", "paid", 199900), "checkout.session.async_payment_succeeded"),
 			isCapture: true,
 		},
 		{
-			name:      "asynchronous method still unpaid",
-			event:     typed(sessionEvent("e6", "cs_6", "unpaid", 199900), "checkout.session.async_payment_succeeded"),
-			isCapture: false,
+			name:         "asynchronous method still unpaid",
+			event:        typed(sessionEvent("e6", "cs_6", "unpaid", 199900), "checkout.session.async_payment_succeeded"),
+			isUnreadable: true,
 		},
 	}
 	for _, tt := range tests {
@@ -204,6 +215,144 @@ func TestOnlyAPaidSessionIsACapture(t *testing.T) {
 			_, got := payment.CaptureFrom(&ev)
 			if got != tt.isCapture {
 				t.Errorf("CaptureFrom says %v, want %v", got, tt.isCapture)
+			}
+			_, isAbandoned := payment.AbandonedSessionFrom(&ev)
+			_, isUnsettled := payment.UnsettledSessionFrom(&ev)
+			unreadable := payment.Actionable(&ev) && !got && !isAbandoned && !isUnsettled
+			if unreadable != tt.isUnreadable {
+				t.Errorf("unreadable = %v, want %v", unreadable, tt.isUnreadable)
+			}
+		})
+	}
+}
+
+// TestAKnownEventGoenCannotReadIsNotAnEventItIgnores holds the three webhook
+// states apart: an unhandled type is ordinary, a known and understood event has
+// a branch, and a known event whose object no reader can decode needs a person.
+func TestAKnownEventGoenCannotReadIsNotAnEventItIgnores(t *testing.T) {
+	g := enabledGateway(t)
+
+	// ConstructEvent rejects a genuinely truncated signed JSON document before
+	// classification. These syntactically valid events are the reachable
+	// equivalents: one has a type-incompatible field in data.object and one has
+	// a null data.object that no Checkout Session reader can understand.
+	typeIncompatibleObject := sessionField(
+		sessionEvent("evt_bad_object", "cs_bad_object", "paid", 67000),
+		"id", map[string]any{"remaining": "cs_bad_object"})
+	nullObject := sessionEvent("evt_null_object", "cs_null_object", "paid", 67000)
+	nullObject["data"].(map[string]any)["object"] = nil
+	omittedData := sessionEvent("evt_omitted_data", "cs_omitted_data", "paid", 67000)
+	delete(omittedData, "data")
+	nullData := sessionEvent("evt_null_data", "cs_null_data", "paid", 67000)
+	nullData["data"] = nil
+
+	tests := []struct {
+		name           string
+		event          map[string]any
+		wantActionable bool
+		wantUnderstood bool
+		wantUnreadable bool
+	}{
+		{
+			name: "amount has the wrong type",
+			event: sessionField(sessionEvent("evt_bad_amount", "cs_bad_amount", "paid", 67000),
+				"amount_total", "67000"),
+			wantActionable: true, wantUnreadable: true,
+		},
+		{
+			name: "payment status has the wrong type",
+			event: sessionField(sessionEvent("evt_bad_status", "cs_bad_status", "paid", 67000),
+				"payment_status", map[string]any{"v": "paid"}),
+			wantActionable: true, wantUnreadable: true,
+		},
+		{
+			name: "known event with a type-incompatible object", event: typeIncompatibleObject,
+			wantActionable: true, wantUnreadable: true,
+		},
+		{
+			name: "known event with a null object", event: nullObject,
+			wantActionable: true, wantUnreadable: true,
+		},
+		{
+			name: "known event with omitted data", event: omittedData,
+			wantActionable: true, wantUnreadable: true,
+		},
+		{
+			name: "known event with null data", event: nullData,
+			wantActionable: true, wantUnreadable: true,
+		},
+		{
+			name:           "completed with an unknown payment status",
+			event:          sessionEvent("evt_new_status", "cs_new_status", "no_payment_required", 67000),
+			wantActionable: true, wantUnreadable: true,
+		},
+		{
+			name: "async success that is not paid",
+			event: typed(sessionEvent("evt_async_unpaid", "cs_async_unpaid", "unpaid", 67000),
+				"checkout.session.async_payment_succeeded"),
+			wantActionable: true, wantUnreadable: true,
+		},
+		{
+			name: "expired event with an unreadable session id",
+			event: typed(sessionField(sessionEvent("evt_expired_bad", "cs_expired_bad", "unpaid", 67000),
+				"id", []string{"cs_expired_bad"}), "checkout.session.expired"),
+			wantActionable: true, wantUnreadable: true,
+		},
+		{
+			name: "paid completed", event: sessionEvent("evt_paid", "cs_paid", "paid", 67000),
+			wantActionable: true, wantUnderstood: true,
+		},
+		{
+			name: "paid async success",
+			event: typed(sessionEvent("evt_async_paid", "cs_async_paid", "paid", 67000),
+				"checkout.session.async_payment_succeeded"),
+			wantActionable: true, wantUnderstood: true,
+		},
+		{
+			name: "good expired",
+			event: typed(sessionEvent("evt_expired", "cs_expired", "unpaid", 67000),
+				"checkout.session.expired"),
+			wantActionable: true, wantUnderstood: true,
+		},
+		{
+			name: "good async failure",
+			event: typed(sessionEvent("evt_async_failed", "cs_async_failed", "unpaid", 67000),
+				"checkout.session.async_payment_failed"),
+			wantActionable: true, wantUnderstood: true,
+		},
+		{
+			name:           "completed but unpaid is understood",
+			event:          sessionEvent("evt_unpaid", "cs_unpaid", "unpaid", 67000),
+			wantActionable: true, wantUnderstood: true,
+		},
+		{
+			name:  "unrelated event is ignored",
+			event: typed(sessionEvent("evt_customer", "cus_customer", "unpaid", 67000), "customer.created"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body, header := signed(t, tt.event)
+			ev, err := g.VerifyWebhook(body, header)
+			if err != nil {
+				t.Fatalf("verify: %v", err)
+			}
+			_, isCapture := payment.CaptureFrom(&ev)
+			_, isAbandoned := payment.AbandonedSessionFrom(&ev)
+			_, isUnsettled := payment.UnsettledSessionFrom(&ev)
+			actionable := payment.Actionable(&ev)
+			understood := isCapture || isAbandoned || isUnsettled
+			unreadable := actionable && !understood
+
+			if actionable != tt.wantActionable {
+				t.Errorf("actionable = %v, want %v", actionable, tt.wantActionable)
+			}
+			if understood != tt.wantUnderstood {
+				t.Errorf("understood = %v, want %v", understood, tt.wantUnderstood)
+			}
+			if unreadable != tt.wantUnreadable {
+				t.Errorf("unreadable = %v, want %v", unreadable, tt.wantUnreadable)
 			}
 		})
 	}

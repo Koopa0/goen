@@ -1553,8 +1553,8 @@ func (s *Store) IssueInvoice(ctx context.Context, number string) error {
 }
 
 // ReconcilePayment records that somebody dealt with an event goen accepted and
-// could not act on — refunded it by hand at the provider, which is the only
-// thing that can be done about money against a cancelled order.
+// could not act on — inspected the payload or dealt with the money at Stripe,
+// according to the durable cause on the row.
 //
 // The row keeps its reason. Clearing the flag would delete what happened, and
 // what happened is the part worth reading afterwards.

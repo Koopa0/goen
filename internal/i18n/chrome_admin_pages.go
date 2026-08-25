@@ -200,8 +200,8 @@ var (
 	})
 	// /admin/health's own two.
 	KeyAdminNoticeReconciled = key("admin.notice.reconciled", Message{
-		ZhHant: "已記錄為手動退款。",
-		En:     "Recorded as refunded by hand.",
+		ZhHant: "已記錄為處理完成。",
+		En:     "Recorded as handled.",
 	})
 	KeyAdminNoticeNotFlagged = key("admin.notice.notflagged", Message{
 		ZhHant: "這筆事件已經處理過了。",

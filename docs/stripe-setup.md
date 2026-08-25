@@ -65,7 +65,10 @@ checkout.session.expired
 
 goen 對這四個採取行動,而且**四個都必須訂閱**。訂閱其他事件也可以 —— 它們會被
 記錄進 `payment_webhook_events` 但不觸發任何動作,這是刻意的:歷史留完整,將來
-加處理邏輯時事件已經在了。
+加處理邏輯時事件已經在了。這和「四個已知事件之一,但 `data.object` 不是目前程式
+看得懂的形狀」不同:後者會以 `unreadable_event` 寫入 `unreconciled`,在
+`/admin/health` 要求人員檢查 endpoint API version,同時仍回 200。Stripe 重送的會是
+同一份讀不懂的 bytes,回 500 只會形成重試風暴,不會修好版本落差。
 
 `async_payment_*` 這一對是縱深防禦。session 現在把 `payment_method_types` 釘在
 `["card"]`(見下面第 3 點),所以延遲付款方式不該出現;真的出現時
@@ -80,10 +83,19 @@ goen 正確地不把它當成收款 —— 而真正的成功是隨後另一個�
 | 事件 | goen 做什麼 |
 |---|---|
 | `checkout.session.completed`(`paid`) | `capture_payment()` —— 訂單變成已付款 |
-| `checkout.session.completed`(`unpaid`) | 只記錄。延遲付款方式還在處理中 |
+| `checkout.session.completed`(`unpaid`) | 已理解但不入帳。ERROR 記錄設定漂移,不標成 unreadable |
 | `checkout.session.async_payment_succeeded` | 同 completed(paid):錢真的到了 |
 | `checkout.session.async_payment_failed` | `cancel_payment()` |
 | `checkout.session.expired` | `cancel_payment()` |
+
+已付款事件還有兩個不能自動完成、但一定要留下可處理記錄的終局:
+
+- `unattributed_capture`:Stripe 的 paid Checkout Session 在本機沒有 payment row;
+  不猜訂單、不補造 payment,用 event 的 `object_ref` 到 Stripe 查。
+- `cancelled_order_capture`:錢到時訂單已取消;本機拒絕入帳,由人員在 Stripe 退款。
+
+兩者都以 ERROR 記錄、出現在 `/admin/health`,並回 200。`reconciled_at` 是人員完成
+查核或手動退款後的確認開關;原因文字和原始 payload 仍保留作為歷史。
 
 ## 流程
 

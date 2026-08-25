@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"time"
 
+	stripe "github.com/stripe/stripe-go/v86"
+
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -17,6 +19,32 @@ import (
 )
 
 const maxWebhookBody = 1 << 20
+
+type webhookUnreconciledCause string
+
+const (
+	webhookUnreadableEvent       webhookUnreconciledCause = "unreadable_event"
+	webhookUnattributedCapture   webhookUnreconciledCause = "unattributed_capture"
+	webhookCancelledOrderCapture webhookUnreconciledCause = "cancelled_order_capture"
+)
+
+func webhookUnreconciled(cause webhookUnreconciledCause, detail string) string {
+	return string(cause) + ": " + detail
+}
+
+type webhookOutcome struct {
+	event               *stripe.Event
+	capture             Capture
+	readState           webhookReadState
+	abandonedSession    string
+	unsettledSession    string
+	number              string
+	isAbandoned         bool
+	isCapture           bool
+	isUnsettled         bool
+	cancelledOrder      bool
+	unattributedCapture bool
+}
 
 // OrderAccess reports whether this browser holds a token for the order.
 type OrderAccess interface {
@@ -199,7 +227,8 @@ func checkoutHost(raw string) bool {
 
 // Webhook is where an order becomes paid; nothing else in goen marks a payment
 // succeeded. Stripe retries anything that is not 2xx, so a forgery is 400, an
-// event goen does not act on is 200, and a database failure is 500.
+// ignored or unreadable event, or one a retry cannot apply, is 200 (the latter
+// two with a durable alarm), and a database failure is 500.
 func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 	if !h.gateway.Enabled() {
 		http.Error(w, "payments are not configured", http.StatusServiceUnavailable)
@@ -224,10 +253,20 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 	capture, isCapture := CaptureFrom(&ev)
 	abandonedSession, isAbandoned := AbandonedSessionFrom(&ev)
 	unsettledSession, isUnsettled := UnsettledSessionFrom(&ev)
+	readState := classifyWebhook(&ev, isCapture || isAbandoned || isUnsettled)
 	var apply func(context.Context, *Store) error
 	var number string
-	var unknownSession, cancelledOrder bool
+	var unattributedCapture, cancelledOrder bool
 	switch {
+	case readState == webhookReadUnreadable:
+		apply = func(ctx context.Context, st *Store) error {
+			// A retry delivers the same bytes and can never make this payload
+			// readable. Commit a durable alarm and answer 200 instead of turning
+			// version skew into a retry storm that disables the endpoint.
+			return st.Unreconciled(ctx, ev.ID, webhookUnreconciled(webhookUnreadableEvent,
+				"goen could not read a "+string(ev.Type)+
+					" it acts on: the payload is not the shape this binary expects"))
+		}
 	case isAbandoned:
 		apply = func(ctx context.Context, st *Store) error {
 			return st.CancelSession(ctx, abandonedSession)
@@ -245,12 +284,19 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 				// finds out when the customer asks.
 				cancelledOrder = true
 				number = n
-				return st.Unreconciled(ctx, ev.ID,
-					"money arrived for an order that was already cancelled")
+				return st.Unreconciled(ctx, ev.ID, webhookUnreconciled(
+					webhookCancelledOrderCapture,
+					"money arrived for an order that was already cancelled"))
 			}
 			if errors.Is(captureErr, ErrNotFound) {
-				unknownSession = true
-				return nil
+				// CaptureFrom already established that this is a paid, positive
+				// Checkout Session. There is no order to guess: keep the 200 so the
+				// same unresolvable bytes are not retried, and leave the session id
+				// in object_ref for the person who must find the money at Stripe.
+				unattributedCapture = true
+				return st.Unreconciled(ctx, ev.ID, webhookUnreconciled(
+					webhookUnattributedCapture,
+					"a paid Checkout Session has no payment row to attribute it to"))
 			}
 			number = n
 			return captureErr
@@ -274,30 +320,46 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	switch {
-	case isAbandoned:
-		h.log.InfoContext(r.Context(), "checkout session ended without payment",
-			"event", ev.ID, "type", ev.Type, "session", abandonedSession)
-	case cancelledOrder:
-		h.log.ErrorContext(r.Context(), "money arrived for a cancelled order — refund it by hand",
-			"event", ev.ID, "order", number, "session", capture.SessionID,
-			"amount_cents", capture.AmountRecv)
-	case unknownSession:
-		h.log.WarnContext(r.Context(), "capture for a session goen never opened",
-			"event", ev.ID, "session", capture.SessionID)
-	case isCapture:
-		h.log.InfoContext(r.Context(), "payment captured",
-			"order", number, "event", ev.ID, "amount_cents", capture.AmountRecv)
-	case isUnsettled:
-		// ERROR because the session pins card: this is a configuration change.
-		h.log.ErrorContext(r.Context(),
-			"a delayed payment method completed a checkout — goen's stock hold cannot outlive it",
-			"event", ev.ID, "session", unsettledSession)
-	default:
-		h.log.InfoContext(r.Context(), "stripe webhook recorded",
-			"event", ev.ID, "type", ev.Type, "age", EventAge(&ev))
-	}
+	h.logWebhookOutcome(r.Context(), webhookOutcome{
+		event: &ev, capture: capture, readState: readState,
+		abandonedSession: abandonedSession, unsettledSession: unsettledSession,
+		number: number, isAbandoned: isAbandoned, isCapture: isCapture,
+		isUnsettled: isUnsettled, cancelledOrder: cancelledOrder,
+		unattributedCapture: unattributedCapture,
+	})
 	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) logWebhookOutcome(ctx context.Context, outcome webhookOutcome) {
+	ev := outcome.event
+	switch {
+	case outcome.isAbandoned:
+		h.log.InfoContext(ctx, "checkout session ended without payment",
+			"event", ev.ID, "type", ev.Type, "session", outcome.abandonedSession)
+	case outcome.cancelledOrder:
+		h.log.ErrorContext(ctx, "money arrived for a cancelled order — refund it by hand",
+			"event", ev.ID, "order", outcome.number, "session", outcome.capture.SessionID,
+			"amount_cents", outcome.capture.AmountRecv)
+	case outcome.unattributedCapture:
+		h.log.ErrorContext(ctx,
+			"money arrived for a session goen cannot attribute — find it at Stripe",
+			"event", ev.ID, "session", outcome.capture.SessionID)
+	case outcome.isCapture:
+		h.log.InfoContext(ctx, "payment captured",
+			"order", outcome.number, "event", ev.ID, "amount_cents", outcome.capture.AmountRecv)
+	case outcome.isUnsettled:
+		// ERROR because the session pins card: this is a configuration change.
+		h.log.ErrorContext(ctx,
+			"a delayed payment method completed a checkout — goen's stock hold cannot outlive it",
+			"event", ev.ID, "session", outcome.unsettledSession)
+	case outcome.readState == webhookReadUnreadable:
+		h.log.ErrorContext(ctx,
+			"a stripe event goen acts on could not be read — check the endpoint's API version",
+			"event", ev.ID, "type", ev.Type, "object", ObjectRef(ev), "age", EventAge(ev))
+	default:
+		h.log.InfoContext(ctx, "stripe webhook recorded",
+			"event", ev.ID, "type", ev.Type, "age", EventAge(ev))
+	}
 }
 
 // payableOrder loads an order the requester may pay for, or writes the refusal
