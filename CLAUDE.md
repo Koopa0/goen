@@ -479,7 +479,7 @@ rule added to a function body is covered the moment it is written, and it asks
 for the name inside a Go STRING LITERAL — a name in a comment is how a guard
 comes to be satisfied by nothing.
 
-### Three completeness guards, and what they found
+### Completeness guards, and what they found
 
 A feature can be finished from the schema's side and have no door on either face.
 Three build failures ask that, derived from `information_schema` rather than from a
@@ -540,6 +540,30 @@ have been a head start. `payment_webhook_events.provider_created_at` went with i
 
 `schema_migrations` was refused from two of the three allowlists, because
 testcontainers applies `001` directly and the table is not in the schema being asked.
+
+**Code reachability needs two complementary instruments.** `make deadcode` runs
+the pinned x/tools analyser over `./...` with no tests or integration tag, so it
+catches a dead hand-written wrapper and even a wholly disconnected package. It
+cannot report generated `db.Queries` methods: reflection makes that type
+conservatively live to RTA on this tree. `TestEveryGeneratedQueryHasAProductionCaller`
+therefore parses sqlc's methods and requires an AST `CallExpr` selector in
+hand-written, non-test production Go. That guard deliberately does NOT prove the
+wrapper itself is reachable, and selector names are not receiver-type-resolved;
+the deadcode layer owns the wrapper. Each blind spot is the other instrument's
+subject. The former bare-name/source-text reachability tests were deleted because
+test files, comments, same-named receivers and a wrapper's own query call all made
+them green without a production path.
+
+The deadcode allowlist is bidirectional and every entry carries its reason: the
+test-only `i18n.Keys`, `i18n.MessageFor` and `loyalty.Days`; the storefront answer
+seam owned by `answer-staff-flag-is-caller-supplied.md` and its queued route; and
+`admin.Store.RemoveZonePrefix`, whose replacement belongs to
+`setzoneprefixes-appends.md`. If any becomes reachable, the stale entry fails the
+gate. The gate's first run found fourteen functions. Nine were deleted. In
+particular, `loyalty.PointsFor` and its duplicate rate disappeared because
+`award_loyalty_points` is the one tier-aware earning rule, and the unused
+`WaitingForRestock`/`HasStockNotice` read disappeared because it implemented the
+read-before-write race the restock design had already rejected.
 
 **Every shop-typed string on a customer-facing surface has an English twin**, each
 separately optional and each falling back to the Chinese. The ones with a reason of
@@ -1260,11 +1284,12 @@ does not run it (it needs Docker); run both before calling schema work done.
 | `make test` / `make test-race` | Tests |
 | `make sqlc` / `make sqlc-check` | Regenerate / verify `internal/db` |
 | `make lint` / `make fmt` / `make fmt-check` | golangci-lint v2 and formatting |
-| `make verify` | The gate, no Docker: fmt-check → templ-check → squawk → sqlc-check → vet → lint → integration-build-check → test-race |
+| `make deadcode` | Generate templ, then reject unreachable production code and stale reasoned exceptions |
+| `make verify` | The gate, no Docker: fmt-check → templ-check → squawk → sqlc-check → vet → deadcode → lint → integration-build-check → test-race |
 | `make verify-all` | `verify` plus `test-integration` and `vuln` |
 | `make test-integration` | The schema conformance suite (needs Docker) |
 | `make schema-drift` | Does the deployed schema still match `migrations/`? (needs Docker and a live `GOEN_DATABASE_URL`) |
-| `make restore-drill` | Dump, restore into a throwaway, and compare schema and row counts |
+| `make restore-drill` | Dump, restore into a throwaway, and compare catalog, dump-carried grants and exact row counts |
 | `make check-layout` | Layout conformance in a real browser (needs Chrome and `make run`) |
 | `make db-reset` | Drop and rebuild the dev database from `001` plus the seed |
 | `make vuln` | govulncheck over the paths the binary actually reaches |
@@ -1762,10 +1787,27 @@ test rather than left as the quiet default.
 **`make restore-drill` proves the backup comes back.** goen's images live IN
 PostgreSQL, so the database is the only copy of the catalogue's photography as well
 as its data, and a backup nobody has restored is a belief. It dumps, restores into a
-throwaway, and asks two questions: does the restored schema match `migrations/`, and
-did every table come back with the same number of rows. Schema alone passes on a
-dump that lost every row, which is why the row counts are there and why the mutation
-that proved it was `pg_dump -s`.
+throwaway, and asks THREE questions of the copy against the database it was dumped
+from: does the CATALOG agree — constraints, indexes, columns and triggers, through
+the same `CATALOG_SQL` `make schema-drift` reads — do the database-object GRANTs
+carried by `pg_dump` agree, and did every table come back with the same exact row
+count. Whether the live schema still matches `migrations/` is `schema-drift`'s
+question, and the two compose. Schema alone passes on a dump that lost every row,
+and the mutation that proved that half is `pg_dump -s`; ROW COUNTS ALONE pass on a
+restore that lost an index, a CHECK or a GRANT, which is what this drill did for as
+long as it existed — it compared `n_live_tup` and never once read the catalog, so a
+copy missing `addresses_user_id_idx` and `order_lines_quantity_in_range` printed
+PASS. The counts are exact `count(*)`, read inside the dump's own exported snapshot:
+`n_live_tup` is an estimate, and an estimate cannot answer "did every row come back",
+while counting the live database after the dump made the drill red for ordinary
+traffic. `pg_restore`'s exit status is a failure, never `|| true`. The GRANT question
+is trap #21 from the backup side: a restore that changes `store`'s privileges is a
+database every owner-connected suite passes while the storefront breaks or gains
+authority. This claim is deliberately scoped to privileges `pg_dump` carries —
+schema, table/view, column and function ACLs. Cluster-global roles and database-level
+GRANTs require `pg_dumpall --globals-only` and a separate restore drill; this target
+also fails closed if the referenced roles do not already exist in the destination
+cluster.
 
 Transactional email goes through an OUTBOX. `internal/cart` writes the intent
 in the order's own transaction; `internal/outbox` delivers it on a worker owned
@@ -2733,7 +2775,9 @@ Idempotency comes from `stock_notifications_pending_key`, the PARTIAL unique
 index on `(variant_id, lower(email)) WHERE notified_at IS NULL`, and the partial
 predicate is exactly right: somebody told about one restock may want to hear
 about the next. A read-then-write guard would have been a race two visitors
-both pass.
+both pass. The leftover `WaitingForRestock` method and `HasStockNotice` query
+implemented exactly that rejected preflight, so they were deleted rather than
+given a storefront door.
 
 The SEO surface is `/sitemap.xml`, `/robots.txt` and JSON-LD on the PDP —
 Product AND BreadcrumbList, in one block, because schema.org accepts an array

@@ -11,9 +11,6 @@ import (
 	"time"
 )
 
-// PointsPerHundred is what a committed order earns per NT$100 spent.
-const PointsPerHundred = 1
-
 // PointsPerCredit is the exchange rate, in points per NT$1 of store credit.
 const PointsPerCredit = 10
 
@@ -32,15 +29,6 @@ var (
 	// ErrNoAccount is a customer who has never held points or credit.
 	ErrNoAccount = errors.New("loyalty: no account")
 )
-
-// PointsFor is what an order total earns; the fraction is dropped, never
-// rounded, or a NT$50 order pays out.
-func PointsFor(totalCents int64) int64 {
-	if totalCents <= 0 {
-		return 0
-	}
-	return totalCents / 10000 * PointsPerHundred
-}
 
 // CreditFor is what a number of points is worth, in cents.
 func CreditFor(points int64) int64 {

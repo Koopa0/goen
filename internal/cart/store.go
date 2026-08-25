@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -630,7 +631,11 @@ func holdOrderStock(ctx context.Context, q *db.Queries, orderID uuid.UUID, lines
 			ExpiresAt:      expires,
 			IdempotencyKey: "hold:" + orderID.String() + ":" + l.VariantID.String(),
 		}); err != nil {
-			return fmt.Errorf("%w: %w", ErrUnavailable, err)
+			if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
+				pgErr.ConstraintName == "inventory_never_negative" {
+				return ErrUnavailable
+			}
+			return fmt.Errorf("hold %d of variant %s: %w", l.Quantity, l.VariantID, err)
 		}
 	}
 	return nil
@@ -712,7 +717,11 @@ func spendCredit(
 		OrderID:        orderID,
 		IdempotencyKey: "order:" + orderID.String(),
 	}); err != nil {
-		return fmt.Errorf("%w: %w", ErrUnavailable, err)
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
+			pgErr.ConstraintName == "store_credit_never_negative" {
+			return ErrCreditChanged
+		}
+		return fmt.Errorf("spend %d cents of credit on order %s: %w", spend, orderID, err)
 	}
 	return nil
 }

@@ -232,9 +232,6 @@ func (v *ProductView) HasImages() bool { return len(v.Images) > 0 }
 // HasSpecs reports whether the spec table has rows.
 func (v *ProductView) HasSpecs() bool { return len(v.Specs) > 0 }
 
-// HasReviews reports whether any review is listed.
-func (v *ProductView) HasReviews() bool { return len(v.Reviews) > 0 }
-
 // HasRelated reports whether the same-category row has products.
 func (v *ProductView) HasRelated() bool { return len(v.Related) > 0 }
 

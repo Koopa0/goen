@@ -376,6 +376,16 @@ func (h *Handler) answerPlacement(
 		// Something sold out between the cart page and this write; the cart page
 		// says which line and why.
 		http.Redirect(w, r, "/cart", http.StatusSeeOther)
+	case errors.Is(err, ErrCreditChanged):
+		balance, balanceErr := h.store.AvailableCredit(r.Context(), ownerOf(r))
+		if balanceErr != nil {
+			h.log.ErrorContext(r.Context(), "refresh store credit after checkout refusal", "error", balanceErr)
+			h.serverError(w, r)
+			return
+		}
+		view.CreditChanged = fmt.Sprintf(i18n.T(r.Context(), i18n.KeyCreditChanged), pages.TWD(balance))
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity,
+			pages.Checkout(pages.CheckoutMeta(r.Context()), view))
 	case errors.Is(err, ErrNotFound):
 		view.Errors = map[string]string{"shipping": i18n.T(r.Context(), i18n.KeyChooseShipping)}
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity,

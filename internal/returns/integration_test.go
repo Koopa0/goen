@@ -6,14 +6,19 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/returns"
 )
 
@@ -95,6 +100,51 @@ func shippedOrder(t *testing.T, ordered, shipped int32) (number string, lineID u
 	return number, lineID
 }
 
+func returnsApplicationPool(t *testing.T, name string) *pgxpool.Pool {
+	t.Helper()
+	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
+	if err != nil {
+		t.Fatalf("parse application pool config: %v", err)
+	}
+	cfg.MaxConns = 1
+	cfg.ConnConfig.RuntimeParams["application_name"] = name
+	p, err := pgxpool.NewWithConfig(t.Context(), cfg)
+	if err != nil {
+		t.Fatalf("open application pool: %v", err)
+	}
+	t.Cleanup(p.Close)
+	return p
+}
+
+func waitForReturnsLock(t *testing.T, pid int, done <-chan struct{}) {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		select {
+		case <-done:
+			t.Fatal("return submission finished before reaching the intended database lock")
+		default:
+		}
+		var waiting bool
+		err := pool.QueryRow(t.Context(), `
+			SELECT wait_event_type = 'Lock' FROM pg_stat_activity WHERE pid = $1`, pid).
+			Scan(&waiting)
+		if err == nil && waiting {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("return submission never blocked on the intended database lock: %v", err)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+type returnPlacedHere struct{}
+
+func (returnPlacedHere) PlacedHere(context.Context, *http.Request, string, bool) bool {
+	return true
+}
+
 // TestReturnableIsWhatShippedNotWhatWasOrdered proves a return cannot claim
 // goods still in the warehouse, which refunds would then pay out on.
 func TestReturnableIsWhatShippedNotWhatWasOrdered(t *testing.T) {
@@ -127,9 +177,8 @@ func TestReturnableIsWhatShippedNotWhatWasOrdered(t *testing.T) {
 	}
 }
 
-// TestOpenRefusesMoreThanShipped proves an over-claim writes nothing. It does
-// NOT prove the Go-side check: return_within_shipment refuses the same claim and
-// Open wraps it as ErrInvalid too, so deleting the Go check leaves this green.
+// TestOpenRefusesMoreThanShipped proves the Go-side ceiling uses the same
+// quantity-specific outcome as the database race below.
 func TestOpenRefusesMoreThanShipped(t *testing.T) {
 	ctx := t.Context()
 	s := returns.NewStore(pool)
@@ -138,8 +187,8 @@ func TestOpenRefusesMoreThanShipped(t *testing.T) {
 	err := s.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
 		Reason: "不合用", Lines: map[string]int32{lineID.String(): 2},
 	})
-	if !errors.Is(err, returns.ErrInvalid) {
-		t.Fatalf("returning 2 of a line that shipped 1 gave %v, want ErrInvalid", err)
+	if !errors.Is(err, returns.ErrTooMany) || errors.Is(err, returns.ErrInvalid) {
+		t.Fatalf("returning 2 of a line that shipped 1 gave %v, want only ErrTooMany", err)
 	}
 
 	var rows int
@@ -150,6 +199,97 @@ func TestOpenRefusesMoreThanShipped(t *testing.T) {
 	}
 	if rows != 0 {
 		t.Errorf("%d requests written for a refused claim, want 0", rows)
+	}
+}
+
+// TestAConcurrentReturnRendersTheFreshQuantity holds a production interleaving:
+// another approved request is invisible to the first form read but commits
+// before its write. return_within_shipment must become ErrTooMany, and the
+// rejection must reread the order rather than advertising the refused ceiling.
+func TestAConcurrentReturnRendersTheFreshQuantity(t *testing.T) {
+	ctx := t.Context()
+	number, lineID := shippedOrder(t, 3, 3)
+	var orderID uuid.UUID
+	if err := pool.QueryRow(ctx, `SELECT id FROM orders WHERE order_number = $1`, number).
+		Scan(&orderID); err != nil {
+		t.Fatalf("read order id: %v", err)
+	}
+
+	competitor, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin competing return: %v", err)
+	}
+	defer func() { _ = competitor.Rollback(ctx) }()
+	var requestID uuid.UUID
+	if err := competitor.QueryRow(ctx, `
+		INSERT INTO return_requests (order_id, reason)
+		VALUES ($1, 'competing return') RETURNING id`, orderID).
+		Scan(&requestID); err != nil {
+		t.Fatalf("create competing return: %v", err)
+	}
+	if _, err := competitor.Exec(ctx, `
+		INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+		VALUES ($1, $2, $3, 2)`, orderID, requestID, lineID); err != nil {
+		t.Fatalf("claim two units in competing return: %v", err)
+	}
+	if _, err := competitor.Exec(ctx, `
+		UPDATE return_requests
+		SET status = 'approved', decided_at = now(), resolution = 'approved in fixture'
+		WHERE id = $1`, requestID); err != nil {
+		t.Fatalf("approve competing return: %v", err)
+	}
+
+	app := "wave0-return-" + uuid.NewString()
+	appPool := returnsApplicationPool(t, app)
+	var pid int
+	if err := appPool.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&pid); err != nil {
+		t.Fatalf("read return backend pid: %v", err)
+	}
+	s := returns.NewStore(appPool)
+	h := returns.NewHandler(s, returnPlacedHere{}, slog.New(slog.DiscardHandler), false)
+	form := url.Values{
+		"qty_" + lineID.String(): {"2"},
+		"reason":                 {"尺寸不合"},
+	}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		"/orders/"+number+"/return", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("number", number)
+	res := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		h.Submit(res, req)
+		close(done)
+	}()
+	waitForReturnsLock(t, pid, done)
+	if err := competitor.Commit(ctx); err != nil {
+		t.Fatalf("commit competing return: %v", err)
+	}
+	<-done
+
+	if res.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("raced return answered %d, want 422; body=%s", res.Code, res.Body.String())
+	}
+	body := res.Body.String()
+	if !strings.Contains(body, i18n.T(ctx, i18n.KeyReturnTooMany)) {
+		t.Error("the refusal does not say the return quantity is too large")
+	}
+	if strings.Contains(body, i18n.T(ctx, i18n.KeyReturnNeedsReason)) {
+		t.Error("a quantity race was reported as a missing reason")
+	}
+	fieldAt := strings.Index(body, `name="qty_`+lineID.String()+`"`)
+	if fieldAt < 0 {
+		t.Fatal("the refused line is absent from the fresh form")
+	}
+	field := body[fieldAt:min(len(body), fieldAt+300)]
+	if !strings.Contains(field, `max="1"`) {
+		t.Errorf("the form kept the stale ceiling instead of the fresh 1: %s", field)
+	}
+	if !strings.Contains(field, `value="2"`) {
+		t.Errorf("the fresh form lost the submitted quantity 2: %s", field)
+	}
+	if !strings.Contains(body, "尺寸不合") {
+		t.Error("the fresh form lost the submitted reason")
 	}
 }
 

@@ -6,17 +6,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"sync"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/postgres"
-	"github.com/testcontainers/testcontainers-go/wait"
 
+	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/loyalty"
 )
 
@@ -24,32 +24,12 @@ var pool *pgxpool.Pool
 
 func TestMain(m *testing.M) {
 	ctx := context.Background()
-	container, err := postgres.Run(ctx, "postgres:18-alpine",
-		postgres.WithDatabase("goen"),
-		postgres.WithUsername("goen"),
-		postgres.WithPassword("goen"),
-		postgres.BasicWaitStrategies(),
-		testcontainers.WithWaitStrategy(
-			wait.ForLog("database system is ready to accept connections").WithOccurrence(2)),
-	)
+	p, stop, err := dbtest.Start(ctx)
 	if err != nil {
-		panic(err)
+		slog.Error("start database", "error", err)
+		os.Exit(1)
 	}
-	dsn, dsnErr := container.ConnectionString(ctx, "sslmode=disable")
-	if dsnErr != nil {
-		panic(dsnErr)
-	}
-	schema, err := os.ReadFile("../../migrations/001_initial_schema.up.sql")
-	if err != nil {
-		panic(err)
-	}
-	pool, err = pgxpool.New(ctx, dsn)
-	if err != nil {
-		panic(err)
-	}
-	if _, execErr := pool.Exec(ctx, string(schema)); execErr != nil {
-		panic(execErr)
-	}
+	pool = p
 	// The seed, for shipping_method_versions: an order needs a shipping version
 	// and the migration creates none.
 	seed, seedReadErr := os.ReadFile("../../seed/dev_catalog.sql")
@@ -60,8 +40,7 @@ func TestMain(m *testing.M) {
 		panic(seedErr)
 	}
 	code := m.Run()
-	pool.Close()
-	_ = testcontainers.TerminateContainer(container)
+	stop()
 	os.Exit(code)
 }
 
@@ -102,6 +81,52 @@ func balance(t *testing.T, accountID uuid.UUID) int64 {
 		t.Fatalf("read balance: %v", err)
 	}
 	return points
+}
+
+// TestAnInfrastructureFailureIsNotReportedAsAnEmptyBalance locks the category
+// boundary: a timeout while writing store credit says nothing about the points
+// the customer has. The fixture deliberately has more than the request, or the
+// preflight balance check would make this test pass without reaching the write.
+func TestAnInfrastructureFailureIsNotReportedAsAnEmptyBalance(t *testing.T) {
+	ctx := t.Context()
+	userID, _ := customer(t, 500)
+
+	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
+	if err != nil {
+		t.Fatalf("parse timeout pool config: %v", err)
+	}
+	cfg.ConnConfig.RuntimeParams["statement_timeout"] = "1500"
+	timeoutPool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatalf("open timeout pool: %v", err)
+	}
+	t.Cleanup(timeoutPool.Close)
+
+	blocker, err := pgx.Connect(ctx, pool.Config().ConnString())
+	if err != nil {
+		t.Fatalf("open blocker: %v", err)
+	}
+	t.Cleanup(func() { _ = blocker.Close(context.Background()) }) //nolint:usetesting // cleanup runs after t.Context is canceled
+	tx, err := blocker.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin blocker: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, lockErr := tx.Exec(ctx, `LOCK TABLE store_credit_entries IN ACCESS EXCLUSIVE MODE`); lockErr != nil {
+		t.Fatalf("lock store-credit ledger: %v", lockErr)
+	}
+
+	_, err = loyalty.NewStore(timeoutPool).Redeem(ctx, userID, 100)
+	if errors.Is(err, loyalty.ErrNotEnough) {
+		t.Fatalf("a statement timeout is not a statement about the customer's balance: %v", err)
+	}
+	if errors.Is(err, loyalty.ErrTooSmall) || errors.Is(err, loyalty.ErrNoAccount) {
+		t.Fatalf("the timeout acquired another loyalty category: %v", err)
+	}
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	if !ok || pgErr.Code != "57014" {
+		t.Fatalf("timeout cause = %v, want preserved PgError 57014", err)
+	}
 }
 
 // TestPointsCannotGoNegativeEvenConcurrently proves a balance cannot be spent

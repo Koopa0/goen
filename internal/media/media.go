@@ -45,6 +45,3 @@ type Object struct {
 	Height      int32
 	ByteSize    int32
 }
-
-// URL is where this image is served.
-func (o Object) URL() string { return "/media/" + o.Digest }

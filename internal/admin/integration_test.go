@@ -19,6 +19,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	stripe "github.com/stripe/stripe-go/v86"
@@ -76,6 +77,89 @@ func staffID(t *testing.T) string {
 		t.Fatalf("create staff: %v", err)
 	}
 	return id.String()
+}
+
+func adminHandlerOver(p *pgxpool.Pool, s *admin.Store) *admin.Handler {
+	log := slog.New(slog.DiscardHandler)
+	return admin.NewHandler(s,
+		media.NewHandler(media.NewStore(p), log),
+		outbox.NewStore(p, log), newsletter.NewStore(p), log, nil, nil)
+}
+
+func TestProductReadsDistinguishAbsenceFromInfrastructure(t *testing.T) {
+	ctx := t.Context()
+	missing := "no-such-product-" + uuid.NewString()
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	_, err := s.Product(ctx, missing)
+	if !errors.Is(err, admin.ErrNotFound) || errors.Is(err, admin.ErrRefused) {
+		t.Fatalf("missing product = %v, want only ErrNotFound", err)
+	}
+
+	missingReq := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/products/"+missing, nil)
+	missingReq.SetPathValue("slug", missing)
+	missingRes := httptest.NewRecorder()
+	adminHandlerOver(pool, s).EditProduct(missingRes, missingReq)
+	if missingRes.Code != http.StatusNotFound {
+		t.Fatalf("missing product page answered %d, want 404", missingRes.Code)
+	}
+
+	var existing string
+	if readErr := pool.QueryRow(ctx, `SELECT slug FROM products ORDER BY slug LIMIT 1`).Scan(&existing); readErr != nil {
+		t.Fatalf("read existing product: %v", readErr)
+	}
+	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
+	if err != nil {
+		t.Fatalf("parse timeout pool config: %v", err)
+	}
+	cfg.ConnConfig.RuntimeParams["statement_timeout"] = "500"
+	timeoutPool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatalf("open timeout pool: %v", err)
+	}
+	t.Cleanup(timeoutPool.Close)
+	timedStore := admin.NewStore(timeoutPool, fakeRefunder{}, nil)
+
+	blocker, err := pgx.Connect(ctx, pool.Config().ConnString())
+	if err != nil {
+		t.Fatalf("open blocker: %v", err)
+	}
+	t.Cleanup(func() { _ = blocker.Close(context.Background()) }) //nolint:usetesting // cleanup runs after t.Context is canceled
+	tx, err := blocker.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin blocker: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, lockErr := tx.Exec(ctx, `LOCK TABLE products IN ACCESS EXCLUSIVE MODE`); lockErr != nil {
+		t.Fatalf("lock products: %v", lockErr)
+	}
+
+	_, err = timedStore.Product(ctx, existing)
+	if errors.Is(err, admin.ErrNotFound) || errors.Is(err, admin.ErrRefused) {
+		t.Fatalf("product read timeout acquired a domain category: %v", err)
+	}
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	if !ok || pgErr.Code != "57014" {
+		t.Fatalf("product read failure = %v, want preserved PgError 57014", err)
+	}
+
+	timedHandler := adminHandlerOver(timeoutPool, timedStore)
+	readReq := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/products/"+existing, nil)
+	readReq.SetPathValue("slug", existing)
+	readRes := httptest.NewRecorder()
+	timedHandler.EditProduct(readRes, readReq)
+	if readRes.Code != http.StatusInternalServerError {
+		t.Fatalf("timed-out product page answered %d, want 500", readRes.Code)
+	}
+
+	badVariantReq := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		"/admin/products/"+existing+"/variants", strings.NewReader("sku=&price="))
+	badVariantReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	badVariantReq.SetPathValue("slug", existing)
+	badVariantRes := httptest.NewRecorder()
+	timedHandler.AddVariant(badVariantRes, badVariantReq)
+	if badVariantRes.Code != http.StatusInternalServerError {
+		t.Fatalf("timed-out rejected-form rebuild answered %d, want 500", badVariantRes.Code)
+	}
 }
 
 func TestStockMovesOnlyThroughTheLedger(t *testing.T) {
@@ -399,6 +483,9 @@ func TestShipDoesAllFourWritesOrNone(t *testing.T) {
 			t.Fatalf("scan: %v", scanErr)
 		}
 		kinds = append(kinds, k)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate events: %v", err)
 	}
 	if len(kinds) == 0 || kinds[len(kinds)-1] != "shipped" {
 		t.Errorf("history ends with %v, want a 'shipped' entry", kinds)
@@ -3044,6 +3131,9 @@ func TestHidingAReviewIsReversibleAndAudited(t *testing.T) {
 		}
 		actions = append(actions, a)
 	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate review audit trail: %v", err)
+	}
 	if diff := cmp.Diff([]string{"review.hide", "review.show"}, actions); diff != "" {
 		t.Errorf("the trail (-want +got):\n%s", diff)
 	}
@@ -3076,9 +3166,6 @@ func TestTheReviewQueueShowsHiddenOnes(t *testing.T) {
 	}
 	if !found {
 		t.Error("a hidden review is missing from the queue — it cannot be put back")
-	}
-	if view.HiddenCount() == 0 {
-		t.Error("the queue counts no hidden reviews")
 	}
 }
 
@@ -3189,6 +3276,9 @@ func TestHandlingAMessageIsReversibleAndAudited(t *testing.T) {
 			t.Fatalf("scan: %v", scanErr)
 		}
 		actions = append(actions, a)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate message audit trail: %v", err)
 	}
 	if diff := cmp.Diff([]string{"message.handle", "message.reopen"}, actions); diff != "" {
 		t.Errorf("the trail (-want +got):\n%s", diff)
@@ -4711,6 +4801,9 @@ func TestTwoFAQEntriesInOneCategoryDoNotCollide(t *testing.T) {
 		}
 		positions = append(positions, p)
 	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate FAQ positions: %v", err)
+	}
 	if diff := cmp.Diff([]int32{1, 2, 3}, positions); diff != "" {
 		t.Errorf("positions (-want +got):\n%s", diff)
 	}
@@ -4827,6 +4920,9 @@ func TestAShopCanSayWhichPostalCodesCostMore(t *testing.T) {
 			t.Fatalf("scan: %v", scanErr)
 		}
 		prefixes = append(prefixes, p)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate shipping-zone prefixes: %v", err)
 	}
 	if diff := cmp.Diff([]string{"546", "552", "553"}, prefixes); diff != "" {
 		t.Errorf("prefixes (-want +got):\n%s", diff)

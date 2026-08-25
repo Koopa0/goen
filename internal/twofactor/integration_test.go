@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"strings"
 	"sync"
@@ -14,10 +15,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/postgres"
-	"github.com/testcontainers/testcontainers-go/wait"
 
+	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/twofactor"
 )
 
@@ -26,36 +25,14 @@ var pool *pgxpool.Pool
 const testKey = "a-key-only-this-test-uses"
 
 func TestMain(m *testing.M) {
-	ctx := context.Background()
-	container, err := postgres.Run(ctx, "postgres:18-alpine",
-		postgres.WithDatabase("goen"),
-		postgres.WithUsername("goen"),
-		postgres.WithPassword("goen"),
-		postgres.BasicWaitStrategies(),
-		testcontainers.WithWaitStrategy(
-			wait.ForLog("database system is ready to accept connections").WithOccurrence(2)),
-	)
+	p, stop, err := dbtest.Start(context.Background())
 	if err != nil {
-		panic(err)
+		slog.Error("start database", "error", err)
+		os.Exit(1)
 	}
-	dsn, err := container.ConnectionString(ctx, "sslmode=disable")
-	if err != nil {
-		panic(err)
-	}
-	schema, err := os.ReadFile("../../migrations/001_initial_schema.up.sql")
-	if err != nil {
-		panic(err)
-	}
-	pool, err = pgxpool.New(ctx, dsn)
-	if err != nil {
-		panic(err)
-	}
-	if _, err := pool.Exec(ctx, string(schema)); err != nil {
-		panic(err)
-	}
+	pool = p
 	code := m.Run()
-	pool.Close()
-	_ = testcontainers.TerminateContainer(container)
+	stop()
 	os.Exit(code)
 }
 

@@ -5368,26 +5368,6 @@ func (q *Queries) HasReviewed(ctx context.Context, arg HasReviewedParams) (bool,
 	return exists, err
 }
 
-const hasStockNotice = `-- name: HasStockNotice :one
-SELECT EXISTS (
-    SELECT 1 FROM stock_notifications
-    WHERE variant_id = $1 AND lower(email) = lower($2::text)
-      AND notified_at IS NULL
-)
-`
-
-type HasStockNoticeParams struct {
-	VariantID uuid.UUID
-	Email     string
-}
-
-func (q *Queries) HasStockNotice(ctx context.Context, arg HasStockNoticeParams) (bool, error) {
-	row := q.db.QueryRow(ctx, hasStockNotice, arg.VariantID, arg.Email)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
-}
-
 const heldReservationsForOrder = `-- name: HeldReservationsForOrder :many
 SELECT r.id FROM inventory_reservations r
 JOIN orders o ON o.id = r.order_id

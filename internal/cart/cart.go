@@ -28,6 +28,10 @@ var (
 	ErrNotFound = errors.New("cart: not found")
 	// ErrUnavailable is a variant that cannot be added or ordered.
 	ErrUnavailable = errors.New("cart: variant unavailable")
+	// ErrCreditChanged means the customer's available store credit moved while
+	// checkout was being placed. The form must show the fresh figure before a
+	// second submission.
+	ErrCreditChanged = errors.New("cart: available store credit changed")
 	// ErrEmpty is a checkout with nothing in the cart.
 	ErrEmpty = errors.New("cart: empty")
 )

@@ -26,6 +26,8 @@ var (
 	ErrAlreadyOpen = errors.New("returns: this order already has an open request")
 	// ErrInvalid is a form goen refused before the database saw it.
 	ErrInvalid = errors.New("returns: invalid request")
+	// ErrTooMany is a requested quantity above what remains returnable.
+	ErrTooMany = errors.New("returns: quantity exceeds returnable amount")
 )
 
 // MaxReasonRunes bounds the reason field.

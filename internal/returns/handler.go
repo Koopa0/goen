@@ -89,6 +89,8 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 		h.reject(w, r, o, req, i18n.T(r.Context(), i18n.KeyReturnAlreadyOpen))
 	case errors.Is(err, ErrNotReturnable):
 		h.reject(w, r, o, req, i18n.T(r.Context(), i18n.KeyReturnNothingShort))
+	case errors.Is(err, ErrTooMany):
+		h.reject(w, r, o, req, i18n.T(r.Context(), i18n.KeyReturnTooMany))
 	case errors.Is(err, ErrInvalid):
 		h.reject(w, r, o, req, i18n.T(r.Context(), i18n.KeyReturnNeedsReason))
 	default:
@@ -102,8 +104,17 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 
 // reject re-renders the form at 422 with what the customer typed still in it.
 func (h *Handler) reject(w http.ResponseWriter, r *http.Request, o *Order, req *Request, msg string) {
+	fresh, err := h.store.Order(r.Context(), o.Number)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "refresh order after return refusal", "order", o.Number, "error", err)
+		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
+			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
+			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
+			i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))
+		return
+	}
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.Returns(
-		pages.ReturnsMeta(r.Context(), o.Number), viewOf(r.Context(), o, req, msg)))
+		pages.ReturnsMeta(r.Context(), fresh.Number), viewOf(r.Context(), fresh, req, msg)))
 }
 
 // ownOrder loads an order the requester may act on, or writes the refusal. An

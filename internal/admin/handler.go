@@ -758,7 +758,7 @@ func (h *Handler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) EditProduct(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Product(r.Context(), r.PathValue("slug"))
 	if err != nil {
-		if errors.Is(err, ErrRefused) {
+		if errors.Is(err, ErrNotFound) {
 			h.notFound(w, r)
 			return
 		}
@@ -1548,7 +1548,12 @@ func (h *Handler) editProductWithErrors(
 ) {
 	view, err := h.store.Product(r.Context(), slug)
 	if err != nil {
-		h.notFound(w, r)
+		if errors.Is(err, ErrNotFound) {
+			h.notFound(w, r)
+			return
+		}
+		h.log.ErrorContext(r.Context(), "rebuild product form", "slug", slug, "error", err)
+		h.serverError(w, r)
 		return
 	}
 	view.Errors = errs

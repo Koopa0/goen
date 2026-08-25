@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -159,13 +160,21 @@ func (s *Store) Open(ctx context.Context, number string, userID uuid.NullUUID, r
 			OrderID: o.ID, ReturnRequestID: requestID,
 			OrderLineID: lineID, Quantity: qty,
 		}); lineErr != nil {
-			return fmt.Errorf("%w: %w", ErrInvalid, lineErr)
+			return returnLineError(lineID, lineErr)
 		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit return request: %w", err)
 	}
 	return nil
+}
+
+func returnLineError(lineID uuid.UUID, err error) error {
+	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
+		pgErr.ConstraintName == "return_within_shipment" {
+		return ErrTooMany
+	}
+	return fmt.Errorf("add return line for order line %s: %w", lineID, err)
 }
 
 func nullableTime(t pgtype.Timestamptz) string {
@@ -179,8 +188,11 @@ func nullableTime(t pgtype.Timestamptz) string {
 // database makes the same check; here it becomes a message on the form.
 func parseWanted(id string, qty int32, allowed map[string]int32) (uuid.UUID, error) {
 	ceiling, ok := allowed[id]
-	if !ok || qty > ceiling {
+	if !ok {
 		return uuid.UUID{}, ErrInvalid
+	}
+	if qty > ceiling {
+		return uuid.UUID{}, ErrTooMany
 	}
 	lineID, err := uuid.Parse(id)
 	if err != nil {

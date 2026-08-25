@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 var pool *pgxpool.Pool
@@ -83,6 +85,261 @@ func newCart(t *testing.T, s *cart.Store) uuid.UUID {
 		t.Fatalf("create cart: %v", err)
 	}
 	return id
+}
+
+func applicationPool(t *testing.T, name string) *pgxpool.Pool {
+	t.Helper()
+	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
+	if err != nil {
+		t.Fatalf("parse application pool config: %v", err)
+	}
+	cfg.MaxConns = 2
+	cfg.ConnConfig.RuntimeParams["application_name"] = name
+	p, err := pgxpool.NewWithConfig(t.Context(), cfg)
+	if err != nil {
+		t.Fatalf("open application pool: %v", err)
+	}
+	var actual string
+	if err := p.QueryRow(t.Context(), `SHOW application_name`).Scan(&actual); err != nil {
+		p.Close()
+		t.Fatalf("read application name: %v", err)
+	}
+	if actual != name {
+		p.Close()
+		t.Fatalf("application name = %q, want %q", actual, name)
+	}
+	t.Cleanup(p.Close)
+	return p
+}
+
+func waitForApplicationLock(t *testing.T, name string, done <-chan error) {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		select {
+		case err := <-done:
+			t.Fatalf("%s returned before reaching the intended database lock: %v", name, err)
+		default:
+		}
+		var waiting bool
+		err := pool.QueryRow(t.Context(), `
+			SELECT EXISTS (
+				SELECT 1 FROM pg_stat_activity
+				WHERE application_name = $1 AND wait_event_type = 'Lock'
+			)`, name).Scan(&waiting)
+		if err == nil && waiting {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%s never blocked on the intended database lock: %v", name, err)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestAnInfrastructureFailureIsNotReportedAsSoldOut(t *testing.T) {
+	ctx := t.Context()
+	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
+	if err != nil {
+		t.Fatalf("parse timeout pool config: %v", err)
+	}
+	cfg.ConnConfig.RuntimeParams["statement_timeout"] = "1500"
+	timeoutPool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatalf("open timeout pool: %v", err)
+	}
+	t.Cleanup(timeoutPool.Close)
+	s := cart.NewStore(timeoutPool)
+	id := newCart(t, s)
+	vid := freshVariant(t, "infra-is-not-sold-out")
+	if addErr := s.Add(ctx, id, vid, 1); addErr != nil {
+		t.Fatalf("add: %v", addErr)
+	}
+
+	blocker, err := pgx.Connect(ctx, pool.Config().ConnString())
+	if err != nil {
+		t.Fatalf("open blocker: %v", err)
+	}
+	t.Cleanup(func() { _ = blocker.Close(context.Background()) }) //nolint:usetesting // cleanup runs after t.Context is canceled
+	tx, err := blocker.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin blocker: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, lockErr := tx.Exec(ctx, `LOCK TABLE inventory_movements IN ACCESS EXCLUSIVE MODE`); lockErr != nil {
+		t.Fatalf("lock inventory ledger: %v", lockErr)
+	}
+
+	addr := &cart.Address{
+		Email: "infra@example.com", Name: "王小明", Phone: "0912345678",
+		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
+	}
+	_, err = s.PlaceOrder(ctx, id, uuid.NullUUID{}, shipVersionFor(t, "home_delivery"),
+		addr, nil, nil, "infra-not-sold-out-"+uuid.NewString())
+	if errors.Is(err, cart.ErrUnavailable) {
+		t.Fatalf("a statement timeout was reported as sold-out inventory: %v", err)
+	}
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	if !ok || pgErr.Code != "57014" {
+		t.Fatalf("hold failure = %v, want preserved PgError 57014", err)
+	}
+	if !strings.Contains(err.Error(), "hold 1 of variant "+vid.String()) {
+		t.Fatalf("timeout landed outside the intended inventory hold: %v", err)
+	}
+}
+
+func TestInventoryConstraintIsReportedAsSoldOut(t *testing.T) {
+	ctx := t.Context()
+	app := "wave0-inventory-" + uuid.NewString()
+	appPool := applicationPool(t, app)
+	s := cart.NewStore(appPool)
+	vid := freshVariant(t, "named-inventory-refusal")
+	if _, err := pool.Exec(ctx, `
+		SELECT record_inventory_movement($1, -9, 'adjustment', $2, NULL, NULL, NULL)`,
+		vid, "leave-one:"+vid.String()); err != nil {
+		t.Fatalf("leave one unit: %v", err)
+	}
+	id := newCart(t, s)
+	if err := s.Add(ctx, id, vid, 1); err != nil {
+		t.Fatalf("add last unit: %v", err)
+	}
+
+	blockOrder := commitBareOrder(t)
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin blocker: %v", err)
+	}
+	defer func() { _ = blocker.Rollback(ctx) }()
+	if _, err := blocker.Exec(ctx,
+		`SELECT hold_inventory($1, $2, 1, now() + interval '30 minutes', $3)`,
+		blockOrder, vid, "take-last:"+vid.String()); err != nil {
+		t.Fatalf("hold the last unit: %v", err)
+	}
+
+	addr := &cart.Address{
+		Email: "soldout@example.com", Name: "王小明", Phone: "0912345678",
+		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
+	}
+	shipID := shipVersionFor(t, "home_delivery")
+	done := make(chan error, 1)
+	go func() {
+		_, placeErr := s.PlaceOrder(ctx, id, uuid.NullUUID{}, shipID,
+			addr, nil, nil, "named-inventory-"+uuid.NewString())
+		done <- placeErr
+	}()
+	waitForApplicationLock(t, app, done)
+	if err := blocker.Commit(ctx); err != nil {
+		t.Fatalf("commit competing hold: %v", err)
+	}
+	placeErr := <-done
+	if !errors.Is(placeErr, cart.ErrUnavailable) {
+		t.Fatalf("inventory_never_negative mapped to %v, want ErrUnavailable", placeErr)
+	}
+
+	// Bind the fixture's exhausted state to the database's typed answer. The
+	// store intentionally returns the bare domain sentinel after checking this
+	// name, so the PgError itself is verified through the same production door.
+	_, namedErr := pool.Exec(ctx,
+		`SELECT hold_inventory($1, $2, 1, now() + interval '30 minutes', $3)`,
+		commitBareOrder(t), vid, "prove-empty:"+vid.String())
+	pgErr, ok := errors.AsType[*pgconn.PgError](namedErr)
+	if !ok || pgErr.ConstraintName != "inventory_never_negative" {
+		t.Fatalf("exhausted fixture was refused by %v, want inventory_never_negative", namedErr)
+	}
+}
+
+// TestAChangedCreditBalanceReRendersCheckoutWithTheFreshFigure creates the
+// interleaving behind store_credit_never_negative using the production guard:
+// checkout reads the old committed balance, then waits behind a competing
+// debit. Once that debit commits, the customer must see the new figure at 422,
+// not a fictitious sold-out cart, and the same form can be submitted again.
+func TestAChangedCreditBalanceReRendersCheckoutWithTheFreshFigure(t *testing.T) {
+	ctx := t.Context()
+	userID := creditedCustomer(t, 5000)
+	app := "wave0-credit-" + uuid.NewString()
+	appPool := applicationPool(t, app)
+	s := cart.NewStore(appPool)
+	token, err := cart.NewToken()
+	if err != nil {
+		t.Fatalf("new cart token: %v", err)
+	}
+	id, err := s.Create(ctx, token, uuid.NullUUID{UUID: userID, Valid: true})
+	if err != nil {
+		t.Fatalf("create customer cart: %v", err)
+	}
+	if addErr := s.Add(ctx, id, freshVariant(t, "credit-balance-race"), 1); addErr != nil {
+		t.Fatalf("add: %v", addErr)
+	}
+	shipID := shipVersionFor(t, "home_delivery")
+	key := "credit-race-" + uuid.NewString()
+	form := url.Values{
+		"email": {"credit-race@example.com"}, "name": {"王小明"}, "phone": {"0912345678"},
+		"postal_code": {"110"}, "city": {"台北市"}, "district": {"信義區"},
+		"street":      {"松高路 88 號"},
+		"shipping":    {shipID.String()},
+		"idempotency": {key},
+	}
+	newRequest := func() *http.Request {
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
+			strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		//nolint:gosec // G124: the browser's own cart cookie, read by this handler
+		req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+		return req.WithContext(account.WithUser(req.Context(), account.User{
+			ID: userID.String(), Email: "credit-race@example.com", Role: "customer",
+		}))
+	}
+
+	competitor, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin competing debit: %v", err)
+	}
+	defer func() { _ = competitor.Rollback(ctx) }()
+	if _, err := competitor.Exec(ctx, `
+		SELECT post_store_credit($1, -4000, 'competing spend', NULL, $2, NULL)`,
+		userID, "competing:"+uuid.NewString()); err != nil {
+		t.Fatalf("post competing debit: %v", err)
+	}
+
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour}), nil)
+	res := httptest.NewRecorder()
+	done := make(chan error, 1)
+	go func() {
+		h.PlaceOrder(res, newRequest())
+		done <- nil
+	}()
+	waitForApplicationLock(t, app, done)
+	if err := competitor.Commit(ctx); err != nil {
+		t.Fatalf("commit competing debit: %v", err)
+	}
+	<-done
+
+	if res.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("changed credit answered %d, want 422; Location=%q body=%s",
+			res.Code, res.Header().Get("Location"), res.Body.String())
+	}
+	body := res.Body.String()
+	wantNotice := fmt.Sprintf(i18n.T(ctx, i18n.KeyCreditChanged), pages.TWD(1000))
+	if !strings.Contains(body, wantNotice) {
+		t.Errorf("checkout does not name the fresh NT$10 balance; want %q", wantNotice)
+	}
+	for _, preserved := range []string{"credit-race@example.com", "松高路 88 號", key} {
+		if !strings.Contains(body, preserved) {
+			t.Errorf("the 422 re-render lost submitted value %q", preserved)
+		}
+	}
+	if loc := res.Header().Get("Location"); loc != "" {
+		t.Errorf("changed credit redirected to %q instead of keeping checkout visible", loc)
+	}
+
+	second := httptest.NewRecorder()
+	h.PlaceOrder(second, newRequest())
+	if second.Code != http.StatusSeeOther || second.Header().Get("Location") == "/cart" ||
+		!strings.HasSuffix(second.Header().Get("Location"), "/pay") {
+		t.Fatalf("second submission = %d Location %q, want the order's payment page",
+			second.Code, second.Header().Get("Location"))
+	}
 }
 
 func TestCartIsFoundByTokenNotByID(t *testing.T) {
@@ -1476,8 +1733,14 @@ func waitUntilBlocked(t *testing.T, pid int, done <-chan error) {
 			return
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("the second writer neither finished nor blocked on a lock; " +
-				"the interleaving did not happen and this case proved nothing")
+			var state, waitType, waitEvent, query string
+			_ = pool.QueryRow(ctx, `
+				SELECT coalesce(state, ''), coalesce(wait_event_type, ''),
+				       coalesce(wait_event, ''), coalesce(query, '')
+				FROM pg_stat_activity WHERE pid = $1`, pid).
+				Scan(&state, &waitType, &waitEvent, &query)
+			t.Fatalf("the second writer neither finished nor blocked on a lock; "+
+				"pid=%d state=%q wait=%q/%q query=%q", pid, state, waitType, waitEvent, query)
 		}
 		time.Sleep(5 * time.Millisecond)
 	}

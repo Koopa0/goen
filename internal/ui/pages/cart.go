@@ -151,7 +151,11 @@ type CheckoutView struct {
 	// — the submission was not accepted, and nobody is charged a figure they
 	// have not been shown.
 	Repriced string
-	ZoneName string
+	// CreditChanged is the refreshed store-credit balance after it moved during
+	// placement. Like Repriced, it is a notice rather than a field error: the
+	// customer must see the new figure before submitting again.
+	CreditChanged string
+	ZoneName      string
 	// Destination is decided by the server; no field carries it back.
 	Destination         string
 	Address             CheckoutAddress

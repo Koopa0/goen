@@ -40,18 +40,3 @@ func (s *Store) RequestRestockNotice(ctx context.Context, variantID, addr, userI
 	}
 	return nil
 }
-
-// WaitingForRestock reports whether this address is already on the list.
-func (s *Store) WaitingForRestock(ctx context.Context, variantID, addr string) (bool, error) {
-	vid, err := uuid.Parse(variantID)
-	if err != nil {
-		return false, nil //nolint:nilerr // an unparseable variant has no list
-	}
-	waiting, err := s.q.HasStockNotice(ctx, db.HasStockNoticeParams{
-		VariantID: vid, Email: email.Clean(addr),
-	})
-	if err != nil {
-		return false, fmt.Errorf("check restock notice: %w", err)
-	}
-	return waiting, nil
-}

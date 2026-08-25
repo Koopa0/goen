@@ -44,13 +44,3 @@ func (q Question) Who(ctx context.Context) string {
 
 // Answered reports whether anybody has replied.
 func (q Question) Answered() bool { return len(q.Answers) > 0 }
-
-// AnsweredByShop reports whether the shop itself has replied.
-func (q Question) AnsweredByShop() bool {
-	for _, a := range q.Answers {
-		if a.IsStaff {
-			return true
-		}
-	}
-	return false
-}

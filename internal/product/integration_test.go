@@ -448,14 +448,6 @@ func TestRestockNoticeIsIdempotent(t *testing.T) {
 	if n != 1 {
 		t.Errorf("%d rows after the same address in a different case, want 1", n)
 	}
-
-	waiting, err := s.WaitingForRestock(ctx, vid.String(), addr)
-	if err != nil {
-		t.Fatalf("check: %v", err)
-	}
-	if !waiting {
-		t.Error("the address is on the list but WaitingForRestock says no")
-	}
 }
 
 func TestANotifiedRequestDoesNotBlockTheNextOne(t *testing.T) {

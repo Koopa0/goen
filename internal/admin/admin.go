@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	// ErrNotFound is an order or variant that does not exist.
+	// ErrNotFound is an order, product or variant that does not exist.
 	ErrNotFound = errors.New("admin: not found")
 	// ErrForbidden is a signed-in customer who is not staff.
 	ErrForbidden = errors.New("admin: forbidden")

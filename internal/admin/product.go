@@ -150,7 +150,7 @@ func (s *Store) Products(ctx context.Context) (pages.AdminProductsView, error) {
 func (s *Store) Product(ctx context.Context, slug string) (pages.AdminProductView, error) {
 	p, err := s.q.AdminProduct(ctx, slug)
 	if err != nil {
-		return pages.AdminProductView{}, fmt.Errorf("%w: %w", ErrRefused, err)
+		return pages.AdminProductView{}, productReadError(slug, err)
 	}
 	view := pages.AdminProductView{
 		Slug: p.Slug, Name: p.Name, Summary: p.Summary,
@@ -220,6 +220,13 @@ func (s *Store) Product(ctx context.Context, slug string) (pages.AdminProductVie
 		return pages.AdminProductView{}, err
 	}
 	return view, nil
+}
+
+func productReadError(slug string, err error) error {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	return fmt.Errorf("read product %s: %w", slug, err)
 }
 
 // NewProduct is an empty form with its choices filled in.

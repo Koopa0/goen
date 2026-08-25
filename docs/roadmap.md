@@ -11,8 +11,6 @@
 往下 160 行就寫著「已關閉」)。所以這裡只寫兩種東西:**沒蓋的**,和**決定不蓋
 的**。蓋好的功能寫在 CLAUDE.md,不在這裡重複一份會走鐘的清單。
 
-最後對帳:2026-08-21。
-
 ## 排序的原則
 
 1. **看得到但用不了的**,優先於還沒有的 —— 那是缺陷,不是缺功能。
@@ -115,6 +113,41 @@ roadmap.md 是「唯一一份沒蓋的清單」。上一輪把它記在 `docs/re
 那是處置紀錄,不是清單;一份第二清單就是有人會讀到的那一份。
 
 最後對帳:2026-08-21。
+
+### A9. 收窄後台 `ErrRefused` 的資料庫錯誤分類
+
+`internal/admin` 還有約 50 個 `%w: %w` 把同一呼叫點的所有資料庫錯誤都分類成
+`ErrRefused`:分布在 `product.go`、`shipping.go`、`store.go`、`campaign.go`、
+`taxonomy.go`、`coupon.go`、`image.go`、`tiers.go`、`banner.go`、`faq.go`、
+`hero.go`、`delivery.go` 和 `question.go`。目前這些路徑都會把完整原因寫進 WARN,
+所以本輪只修沒有紀錄就吞掉錯誤的商品讀取;後續要逐點只把具名 constraint 映射成
+業務拒絕,讓 timeout、斷線等基礎設施錯誤維持原類別。完成時也要改掉
+`ErrRefused`「資料庫拒絕的 write」這句過度寬鬆的註解。
+
+最後對帳:2026-08-24。
+
+### A10. 讓 migration 的靜態分析讀取完整歷史
+
+`internal/db/writers_test.go` 和 `internal/db/coverage_integration_test.go` 目前把
+`001_initial_schema.up.sql` 當文字解析,分別盤點 stored function body 與 role / grant
+順序。它們不是建立測試資料庫的入口,所以不應併進 `dbtest` 的修正;但 `002` 出現後,
+只讀 `001` 仍會漏掉後續 migration 裡的新 function、role 或 grant。兩個 parser 已有
+最小結果數的自我檢查,因此比靜默套用舊 schema 的 suite 低優先,但仍要改成依 migration
+順序讀完所有 `*.up.sql`。
+
+最後對帳:2026-08-24。
+
+### A11. 商品問答的顧客回覆入口
+
+補上 `POST /p/{slug}/questions/{id}/answers` 的 storefront route 和表單。這道門
+必須由登入顧客送出、成功回 `303`,驗證失敗回 `422` 並保留原值,同時帶完整的
+`aria-invalid` / `aria-describedby` 關聯。實作前先依
+`answer-staff-flag-is-caller-supplied.md` 收窄 `product.Store.Answer`:顧客端方法不能
+接收 `staff` 旗標,`is_staff=false` 必須由這道 endpoint 的身分決定。現在保留的方法
+供 integration fixtures 建立顧客回覆,其中包括後台 queue 的「顧客已回覆、店家尚未
+回覆」案例;雙向 deadcode allowlist 會在這道 route 接上時要求刪除例外。
+
+最後對帳:2026-08-25。
 
 ## B. 蓋了會更好,但要等一個數字
 

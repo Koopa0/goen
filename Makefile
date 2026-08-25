@@ -4,6 +4,7 @@ KO_VERSION := v0.19.1
 MIGRATE_VERSION := v4.19.0
 GOVULNCHECK_VERSION := v1.6.0
 SQUAWK_VERSION := 2.60.0
+DEADCODE_VERSION := v0.38.0
 
 # Tools that generate or inspect this module but are not part of it. `go run
 # pkg@version` pins each as firmly as a require line without joining the module
@@ -11,6 +12,7 @@ SQUAWK_VERSION := 2.60.0
 SQLC := go run github.com/sqlc-dev/sqlc/cmd/sqlc@$(SQLC_VERSION)
 MIGRATE := go run -tags='postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@$(MIGRATE_VERSION)
 GOVULNCHECK := go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
+DEADCODE := go run golang.org/x/tools/cmd/deadcode@$(DEADCODE_VERSION)
 
 # Local development reads .env when it exists; deployment sets the environment
 # itself. Nothing here invents a default database URL: a missing one must stop
@@ -21,7 +23,7 @@ export
 endif
 
 .PHONY: build run test test-race test-integration integration-build-check \
-        image image-push lint fmt fmt-check vet gen templ-check vuln \
+        image image-push lint fmt fmt-check vet deadcode gen templ-check vuln \
         sqlc sqlc-check squawk db-up db-down migrate-up migrate-down db-seed \
         verify verify-all check-layout db-reset clean
 
@@ -329,6 +331,35 @@ fmt-check:
 vet: gen
 	go vet ./...
 
+# Reachability over every production package, including packages disconnected
+# from cmd/goen. Tests and integration build tags are deliberately absent: a
+# test-only caller is the dead-code defect this gate must expose. The exact
+# x/tools version is pinned outside go.mod like the other inspection tools.
+deadcode: gen
+	@set -eu; \
+	tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/goen-deadcode.XXXXXX"); \
+	cleanup_deadcode() { \
+		status=$$?; \
+		trap - EXIT HUP INT TERM; \
+		rm -rf "$$tmp"; \
+		exit "$$status"; \
+	}; \
+	trap cleanup_deadcode EXIT; \
+	trap 'exit 129' HUP; \
+	trap 'exit 130' INT; \
+	trap 'exit 143' TERM; \
+	if $(DEADCODE) ./... > "$$tmp/report" 2> "$$tmp/tool.err"; then \
+		:; \
+	else \
+		status=$$?; \
+		echo "deadcode: FAIL — x/tools deadcode exited $$status" >&2; \
+		cat "$$tmp/tool.err" >&2; \
+		cat "$$tmp/report" >&2; \
+		exit "$$status"; \
+	fi; \
+	if test -s "$$tmp/tool.err"; then cat "$$tmp/tool.err" >&2; fi; \
+	sh scripts/deadcode-check.sh "$$tmp/report" .deadcode-allow
+
 lint: gen
 	@version=$$(golangci-lint version); case "$$version" in *"version $(GOLANGCI_LINT_VERSION) "*) ;; *) echo 'golangci-lint $(GOLANGCI_LINT_VERSION) is required' >&2; exit 1;; esac
 	golangci-lint run ./...
@@ -432,9 +463,19 @@ db-seed:
 # Constraints, indexes and columns, sorted and normalised. Not pg_dump: its
 # output carries ordering and formatting that differ between servers and say
 # nothing about whether the rules agree.
+#
+# pg_get_constraintdef's pretty form is the round-trip-stable representation
+# inside one PostgreSQL major version: meaning-bearing parentheses survive
+# (`(a OR b) AND c` keeps them), a real 8000 -> 9999 change still differs, and
+# it adds no newline noise (1 of 762 public constraints has a newline under
+# both representations). Pretty output is display-oriented and is NOT promised
+# stable across major versions. That is safe here only because schema-drift and
+# restore-drill create their comparison databases in the same cluster as the
+# database they inspect, so both sides are deparsed by the same server binary.
+# This catalog must not be used to compare databases across PostgreSQL versions.
 CATALOG_SQL := \
-  "SELECT 'constraint\t'||conrelid::regclass||'\t'||conname||'\t'||pg_get_constraintdef(oid) \
-     FROM pg_constraint WHERE connamespace='public'::regnamespace \
+  "SELECT 'constraint\t'||c.conrelid::regclass||'\t'||c.conname||'\t'||pg_get_constraintdef(c.oid, true) \
+     FROM pg_constraint c WHERE c.connamespace='public'::regnamespace \
    UNION ALL \
    SELECT 'index\t'||tablename||'\t'||indexname||'\t'||indexdef \
      FROM pg_indexes WHERE schemaname='public' \
@@ -444,6 +485,50 @@ CATALOG_SQL := \
    UNION ALL \
    SELECT 'trigger\t'||event_object_table||'\t'||trigger_name||'\t'||action_statement \
      FROM information_schema.triggers WHERE trigger_schema='public' \
+   ORDER BY 1"
+
+# Exact per-table row counts, as text a diff can read.
+#
+# NOT n_live_tup: that is an ESTIMATE derived from reltuples, and a backup
+# drill may not answer "did every row come back" with an estimate. It also
+# needed an ANALYZE, which made the instrument write to the database it audits.
+EXACT_COUNTS_SQL := \
+  "SELECT c.relname||' '||(xpath('/row/c/text()', \
+        query_to_xml(format('select count(*) as c from public.%I', c.relname), false, true, '')))[1]::text::bigint \
+     FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace \
+    WHERE n.nspname='public' AND c.relkind='r' \
+    ORDER BY 1"
+
+# Database-object privileges carried by pg_dump, normalised so an owner's
+# implicit ACL and an explicit one compare equal. Schema, table/view, column
+# and function ACLs live in four different catalogs, so all four are part of
+# the question. Cluster-global roles and database-level GRANTs are not: those
+# need a separate pg_dumpall --globals-only drill.
+ACL_SQL := \
+  "SELECT 'table'||chr(9)||c.relname||chr(9)||a::text \
+     FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace, \
+          LATERAL unnest(coalesce(c.relacl, acldefault('r', c.relowner))) a \
+    WHERE n.nspname='public' AND c.relkind IN ('r','v') \
+      AND split_part(a::text,'=',1) <> pg_get_userbyid(c.relowner) \
+   UNION ALL \
+   SELECT 'function'||chr(9)||p.proname||chr(9)||a::text \
+     FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace, \
+          LATERAL unnest(coalesce(p.proacl, acldefault('f', p.proowner))) a \
+    WHERE n.nspname='public' \
+      AND split_part(a::text,'=',1) <> pg_get_userbyid(p.proowner) \
+   UNION ALL \
+   SELECT 'column'||chr(9)||c.relname||'.'||attr.attname||chr(9)||a::text \
+     FROM pg_attribute attr \
+     JOIN pg_class c ON c.oid = attr.attrelid \
+     JOIN pg_namespace n ON n.oid = c.relnamespace, \
+          LATERAL unnest(attr.attacl) a \
+    WHERE n.nspname='public' AND attr.attacl IS NOT NULL \
+      AND split_part(a::text,'=',1) <> pg_get_userbyid(c.relowner) \
+   UNION ALL \
+   SELECT 'schema'||chr(9)||n.nspname||chr(9)||a::text \
+     FROM pg_namespace n, LATERAL unnest(n.nspacl) a \
+    WHERE n.nspname='public' AND n.nspacl IS NOT NULL \
+      AND split_part(a::text,'=',1) <> pg_get_userbyid(n.nspowner) \
    ORDER BY 1"
 
 # Does the deployed schema still match what migrations/ declares?
@@ -494,41 +579,122 @@ schema-drift:
 #
 # goen's images live IN PostgreSQL (the recorded internal/media decision), so
 # the database is the only copy of the catalogue's photography as well as its
-# data. A backup nobody has restored is a belief, and the first time anybody
-# finds out is the worst possible time.
+# data. A backup nobody has restored is a belief.
 #
-# It dumps, restores into a throwaway, and then asks two questions: does the
-# restored SCHEMA match migrations/, and did every table come back with the same
-# number of rows. Schema alone would pass on a dump that lost every row.
+# It dumps, restores into a throwaway, and asks THREE questions of the copy
+# against the database it was dumped from: does the CATALOG agree (the same
+# CATALOG_SQL schema-drift reads — constraints, indexes, columns, triggers), do
+# the database-object GRANTs carried by pg_dump agree, and did every table come
+# back with the same number of rows. Cluster-global roles and database-level
+# GRANTs need pg_dumpall --globals-only and are not this drill's subject.
+# Whether the live schema matches migrations/ is schema-drift's question; the
+# two compose.
+#
+# Rows alone passes on a restore that lost an index, a CHECK or a GRANT. Schema
+# alone passes on a dump that lost every row — the mutation is `pg_dump -s`.
+# Each half is recorded red in CLAUDE.md.
+#
+# The counts are EXACT and are read inside the DUMP'S OWN exported snapshot,
+# so a write landing during the drill cannot make it red. A drill that goes red
+# on ordinary traffic is a drill people re-run until it is green.
 .PHONY: restore-drill
 restore-drill:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required: the database to back up' >&2; exit 2; }
 	@set -eu; \
 	copy=goen_restore_drill_$$$$; \
-	trap 'docker compose exec -T db dropdb -U goen --if-exists --force "$$copy" >/dev/null 2>&1 || true' 0 HUP INT TERM; \
+	work=$$(mktemp -d); \
+	snapper=; \
+	cleanup_restore_drill() { \
+		status=$$?; \
+		trap - EXIT HUP INT TERM; \
+		exec 9>&- 2>/dev/null || true; \
+		if test -n "$$snapper"; then \
+			kill "$$snapper" 2>/dev/null || true; \
+			wait "$$snapper" 2>/dev/null || true; \
+		fi; \
+		docker compose exec -T db dropdb -U goen --if-exists --force "$$copy" >/dev/null 2>&1 || true; \
+		rm -rf "$$work"; \
+		exit "$$status"; \
+	}; \
+	trap cleanup_restore_drill EXIT; \
+	trap 'exit 129' HUP; \
+	trap 'exit 130' INT; \
+	trap 'exit 143' TERM; \
+	mkfifo "$$work/hold"; \
 	base=$${GOEN_DATABASE_URL%%\?*}; \
 	case "$$GOEN_DATABASE_URL" in *\?*) query="?$${GOEN_DATABASE_URL#*\?}";; *) query="";; esac; \
 	copyurl="$${base%/*}/$$copy$$query"; \
 	echo 'restore-drill: dumping...'; \
-	pg_dump "$$GOEN_DATABASE_URL" -Fc -f /tmp/goen-drill.dump; \
+	psql "$$GOEN_DATABASE_URL" -At -q -v ON_ERROR_STOP=1 -f "$$work/hold" > "$$work/held.txt" & \
+	snapper=$$!; \
+	exec 9>"$$work/hold"; \
+	printf "SET idle_in_transaction_session_timeout='10min';\nBEGIN ISOLATION LEVEL REPEATABLE READ;\nSELECT pg_export_snapshot();\n" >&9; \
+	snap=; \
+	for i in $$(seq 1 100); do \
+		snap=$$(head -n 1 "$$work/held.txt"); \
+		test -z "$$snap" || break; \
+		sleep 0.1; \
+	done; \
+	test -n "$$snap" || { echo 'restore-drill: could not open a snapshot on the live database' >&2; exit 3; }; \
+	pg_dump "$$GOEN_DATABASE_URL" --snapshot="$$snap" -Fc -f "$$work/goen.dump"; \
+	printf '%s;\nCOMMIT;\n' $(EXACT_COUNTS_SQL) >&9; \
+	exec 9>&-; \
+	wait "$$snapper"; \
+	snapper=; \
+	tail -n +2 "$$work/held.txt" > "$$work/rows-live.raw"; \
+	sort "$$work/rows-live.raw" > "$$work/rows-live.txt"; \
+	test -s "$$work/rows-live.txt" || { echo 'restore-drill: no live row counts were read' >&2; exit 3; }; \
 	docker compose exec -T db createdb -U goen "$$copy"; \
 	echo 'restore-drill: restoring into a throwaway...'; \
-	pg_restore -d "$$copyurl" --no-owner --no-privileges /tmp/goen-drill.dump >/dev/null 2>&1 || true; \
-	psql "$$copyurl" -At -c "SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace AND relkind='r'" \
-		| grep -qv '^0$$' || { echo 'restore-drill: the restored copy has no tables' >&2; exit 1; }; \
-	echo 'restore-drill: comparing row counts...'; \
-	counts="SELECT relname||' '||n_live_tup FROM pg_stat_user_tables ORDER BY relname"; \
-	psql "$$GOEN_DATABASE_URL" -At -c "ANALYZE" >/dev/null; psql "$$copyurl" -At -c "ANALYZE" >/dev/null; \
-	psql "$$GOEN_DATABASE_URL" -At -c "$$counts" | sort > /tmp/goen-drill-live.txt; \
-	psql "$$copyurl" -At -c "$$counts" | sort > /tmp/goen-drill-copy.txt; \
-	if diff -u /tmp/goen-drill-live.txt /tmp/goen-drill-copy.txt > /tmp/goen-drill-diff.txt; then \
-		echo 'restore-drill: PASS — the dump restores to the same schema and the same rows'; \
+	pg_restore -d "$$copyurl" --no-owner --exit-on-error "$$work/goen.dump" > "$$work/restore.log" 2>&1 \
+		|| { echo 'restore-drill: FAIL — pg_restore refused the dump.' >&2; cat "$$work/restore.log" >&2; exit 1; }; \
+	if test -s "$$work/restore.log"; then \
+		echo 'restore-drill: pg_restore said:'; \
+		cat "$$work/restore.log"; \
+	fi; \
+	actual_copy=$$(psql "$$copyurl" -v ON_ERROR_STOP=1 -At -c "SELECT current_database()"); \
+	test "$$actual_copy" = "$$copy" \
+		|| { echo 'restore-drill: the copy URL does not point at the throwaway, so this would compare the live database with itself' >&2; exit 3; }; \
+	fail=0; \
+	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -At -c $(CATALOG_SQL) > "$$work/schema-live.raw"; \
+	sort "$$work/schema-live.raw" > "$$work/schema-live.txt"; \
+	psql "$$copyurl" -v ON_ERROR_STOP=1 -At -c $(CATALOG_SQL) > "$$work/schema-copy.raw"; \
+	sort "$$work/schema-copy.raw" > "$$work/schema-copy.txt"; \
+	test -s "$$work/schema-live.txt" || { echo 'restore-drill: the live catalog came back EMPTY; nothing was compared' >&2; exit 3; }; \
+	if diff -u "$$work/schema-live.txt" "$$work/schema-copy.txt" > "$$work/schema.diff"; then \
+		echo 'restore-drill: SCHEMA: PASS'; \
 	else \
-		echo 'restore-drill: FAIL — the restored copy is not what was dumped.'; \
+		fail=1; \
+		echo 'restore-drill: FAIL — the restored SCHEMA is not the schema that was dumped.'; \
 		echo '  -  is the live database; +  is what came back.'; \
-		cat /tmp/goen-drill-diff.txt; \
-		exit 1; \
-	fi
+		cat "$$work/schema.diff"; \
+	fi; \
+	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -At -c $(ACL_SQL) > "$$work/acl-live.raw"; \
+	sort "$$work/acl-live.raw" > "$$work/acl-live.txt"; \
+	psql "$$copyurl" -v ON_ERROR_STOP=1 -At -c $(ACL_SQL) > "$$work/acl-copy.raw"; \
+	sort "$$work/acl-copy.raw" > "$$work/acl-copy.txt"; \
+	test -s "$$work/acl-live.txt" || { echo 'restore-drill: no live dump-carried GRANTs were read; nothing was compared' >&2; exit 3; }; \
+	if diff -u "$$work/acl-live.txt" "$$work/acl-copy.txt" > "$$work/acl.diff"; then \
+		echo 'restore-drill: dump-carried GRANTs: PASS'; \
+	else \
+		fail=1; \
+		echo 'restore-drill: FAIL — the restored copy does not carry the same database-object GRANTs.'; \
+		echo '  A restore that changes an application role'"'"'s privileges can break or widen the site,'; \
+		echo '  and no suite can see it because every suite connects as the OWNER.'; \
+		cat "$$work/acl.diff"; \
+	fi; \
+	psql "$$copyurl" -v ON_ERROR_STOP=1 -At -c $(EXACT_COUNTS_SQL) > "$$work/rows-copy.raw"; \
+	sort "$$work/rows-copy.raw" > "$$work/rows-copy.txt"; \
+	if diff -u "$$work/rows-live.txt" "$$work/rows-copy.txt" > "$$work/rows.diff"; then \
+		echo 'restore-drill: exact row counts: PASS'; \
+	else \
+		fail=1; \
+		echo 'restore-drill: FAIL — the restored copy does not hold the exact row counts that were dumped.'; \
+		echo '  -  is the live database at the dump'"'"'s snapshot; +  is what came back.'; \
+		cat "$$work/rows.diff"; \
+	fi; \
+	test "$$fail" -eq 0 || exit 1; \
+	echo 'restore-drill: PASS — same catalog, same dump-carried grants, same exact row counts'
 
 db-reset:
 	docker compose exec -T db dropdb -U goen --if-exists --force goen
@@ -539,7 +705,7 @@ db-reset:
 
 # The single gate. Stop at the first failure — a passing later stage must never
 # be able to bury an earlier red one.
-verify: fmt-check templ-check squawk sqlc-check vet lint integration-build-check test-race
+verify: fmt-check templ-check squawk sqlc-check vet deadcode lint integration-build-check test-race
 	@echo 'verify: PASS (unit tests only — make verify-all adds the database suite)'
 
 # Everything verify runs plus the parts that need Docker and the network.

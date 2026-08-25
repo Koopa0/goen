@@ -216,6 +216,9 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 					if v.Repriced != "" {
 						<p class="ui-alert ui-alert--info" role="status">{ v.Repriced }</p>
 					}
+					if v.CreditChanged != "" {
+						<p class="ui-alert ui-alert--info" role="status">{ v.CreditChanged }</p>
+					}
 					<h2 class="goen-checkout__section" id="recipient-heading">{ i18n.T(ctx, i18n.KeySectionRecipient) }</h2>
 					if v.OffersTheAddressBook() {
 						<div

@@ -192,13 +192,6 @@ INSERT INTO stock_notifications (variant_id, user_id, email, locale)
 VALUES (@variant_id, @user_id, @email::text, @locale)
 ON CONFLICT (variant_id, lower(email)) WHERE notified_at IS NULL DO NOTHING;
 
--- name: HasStockNotice :one
-SELECT EXISTS (
-    SELECT 1 FROM stock_notifications
-    WHERE variant_id = @variant_id AND lower(email) = lower(@email::text)
-      AND notified_at IS NULL
-);
-
 -- name: BoughtTogether :many
 SELECT
     p.slug,

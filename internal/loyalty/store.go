@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
@@ -70,7 +71,11 @@ func (s *Store) Redeem(ctx context.Context, userID string, points int64) (int64,
 		Key: "points:" + uuid.NewString(),
 	})
 	if err != nil {
-		return 0, fmt.Errorf("%w: %w", ErrNotEnough, err)
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
+			pgErr.ConstraintName == "loyalty_never_negative" {
+			return 0, ErrNotEnough
+		}
+		return 0, fmt.Errorf("redeem %d points: %w", points, err)
 	}
 	return cents, nil
 }

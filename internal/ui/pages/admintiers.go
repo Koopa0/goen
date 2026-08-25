@@ -22,9 +22,6 @@ type AdminTier struct {
 	Members      int64
 }
 
-// Translated reports whether this band reads in English.
-func (t AdminTier) Translated() bool { return t.NameEn != "" }
-
 // Threshold is what the band asks for.
 func (t AdminTier) Threshold() string { return twd(t.MinSpend) }
 

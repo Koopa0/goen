@@ -583,6 +583,39 @@ func TestAnOffshoreRequoteIsNotAnError(t *testing.T) {
 	}
 }
 
+func TestAChangedCreditBalanceHasItsOwnStatusNotice(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	//nolint:gosec // G101: a customer-facing balance-change notice, not a credential
+	view := CheckoutView{
+		Cart:          CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Shipping:      []ShippingChoice{{Code: "home", Name: "宅配到府"}},
+		CreditChanged: "可用購物金已變更為 NT$10。請確認後再送出一次。",
+	}
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
+
+	if !strings.Contains(html, view.CreditChanged) {
+		t.Fatal("the refreshed credit balance is not shown")
+	}
+	_, after, ok := strings.Cut(html, view.CreditChanged)
+	if !ok {
+		t.Fatal("could not locate the refreshed credit message")
+	}
+	before := html[:len(html)-len(after)-len(view.CreditChanged)]
+	i := strings.LastIndex(before, "<p ")
+	if i < 0 {
+		t.Fatal("the refreshed credit message is not in a paragraph")
+	}
+	tag := before[i:]
+	if !strings.Contains(tag, "ui-alert--info") || !strings.Contains(tag, `role="status"`) {
+		t.Errorf("the refreshed balance is not an informational status notice: %s", tag)
+	}
+	if view.Repriced != "" {
+		t.Error("the credit notice reused the shipping Repriced field")
+	}
+}
+
 // TestAShortLineSaysWhatItIsPricedFor holds arithmetic a customer can check.
 //
 // A line the shelf cannot meet is priced for what CAN be supplied — the store

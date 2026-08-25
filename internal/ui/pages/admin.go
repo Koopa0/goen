@@ -23,9 +23,6 @@ type AdminVariant struct {
 	ProductStatus string
 }
 
-// Price is the variant's price.
-func (v AdminVariant) Price() string { return twd(v.PriceCents) }
-
 // StockText is the stock on hand, as text.
 func (v AdminVariant) StockText() string { return strconv.FormatInt(int64(v.Stock), 10) }
 

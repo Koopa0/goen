@@ -30,17 +30,6 @@ type AdminReview struct {
 // Empty reports whether nobody has written one yet.
 func (v AdminReviewsView) Empty() bool { return len(v.Rows) == 0 }
 
-// HiddenCount is how many are currently out of the score.
-func (v AdminReviewsView) HiddenCount() int {
-	n := 0
-	for i := range v.Rows {
-		if v.Rows[i].Hidden {
-			n++
-		}
-	}
-	return n
-}
-
 // Stars is the rating as a reader scans it.
 func (r AdminReview) Stars() string { return starsOf(r.Rating) }
 

@@ -2,16 +2,25 @@ package db_test
 
 import (
 	"go/ast"
+	"go/build"
 	"go/parser"
 	"go/token"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
 
-// TestEveryGeneratedQueryHasACaller refuses a generated query with no caller outside internal/db.
-func TestEveryGeneratedQueryHasACaller(t *testing.T) {
+// TestEveryGeneratedQueryHasAProductionCaller covers the generated layer that
+// x/tools/deadcode treats as live through reflection. It asks the deliberately
+// narrower question: does each sqlc method have a direct selector CallExpr in
+// hand-written, non-test production Go?
+//
+// This is not type-aware: a same-named selector on another receiver can satisfy
+// it, and a call inside a dead wrapper still counts. make deadcode owns wrapper
+// reachability; this test owns generated methods with zero production calls.
+func TestEveryGeneratedQueryHasAProductionCaller(t *testing.T) {
 	t.Parallel()
 
 	methods := generatedMethods(t)
@@ -19,19 +28,18 @@ func TestEveryGeneratedQueryHasACaller(t *testing.T) {
 		t.Fatalf("found %d generated methods, want far more — the parser stopped matching",
 			len(methods))
 	}
-	callers := callerSources(t)
+	calls := productionCallNames(t)
 
 	var orphans []string
 	for _, name := range methods {
-		// ".Name(" rather than the bare name: a mention in a comment is not a caller.
-		if !strings.Contains(callers, "."+name+"(") {
+		if _, called := calls[name]; !called {
 			orphans = append(orphans, name)
 		}
 	}
+	slices.Sort(orphans)
 	if len(orphans) > 0 {
-		t.Errorf("%d generated queries have no caller outside internal/db:\n  %s\n\n"+
-			"Wire each one or delete it. A query nobody calls is a feature nobody "+
-			"finished, and it reads in review as one that shipped.",
+		t.Errorf("%d generated queries have no call expression in hand-written production Go:\n  %s\n\n"+
+			"Wire each one or delete it. A query nobody calls is a feature nobody finished.",
 			len(orphans), strings.Join(orphans, "\n  "))
 	}
 }
@@ -39,8 +47,7 @@ func TestEveryGeneratedQueryHasACaller(t *testing.T) {
 // generatedMethods is every method sqlc put on *Queries.
 func generatedMethods(t *testing.T) []string {
 	t.Helper()
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, "query.sql.go", nil, 0)
+	file, err := parser.ParseFile(token.NewFileSet(), "query.sql.go", nil, 0)
 	if err != nil {
 		t.Fatalf("parse query.sql.go: %v", err)
 	}
@@ -62,34 +69,62 @@ func generatedMethods(t *testing.T) []string {
 	return out
 }
 
-// callerSources is every Go file in the module outside internal/db, as one blob.
-func callerSources(t *testing.T) string {
+// productionCallNames returns selector names used as direct calls in files the
+// current production build includes. Tests, integration-tagged files and every
+// generated projection are excluded so none can make the guard greener.
+func productionCallNames(t *testing.T) map[string]struct{} {
 	t.Helper()
-	var b strings.Builder
+
 	root := filepath.Join("..", "..")
-	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
+	fset := token.NewFileSet()
+	calls := make(map[string]struct{})
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
 		}
-		if d.IsDir() {
-			if d.Name() == ".git" || d.Name() == "db" && strings.HasSuffix(path, filepath.Join("internal", "db")) {
+		if entry.IsDir() {
+			if path == root {
+				return nil
+			}
+			name := entry.Name()
+			if name == "vendor" || name == "testdata" || strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if !strings.HasSuffix(path, ".go") {
+		name := entry.Name()
+		if strings.HasSuffix(name, "_test.go") || !strings.HasSuffix(name, ".go") {
 			return nil
 		}
-		src, readErr := os.ReadFile(path) //nolint:gosec // G304: paths come from walking this repository
-		if readErr != nil {
-			return readErr
+		matched, matchErr := build.Default.MatchFile(filepath.Dir(path), name)
+		if matchErr != nil {
+			return matchErr
 		}
-		b.Write(src)
-		b.WriteByte('\n')
+		if !matched {
+			return nil
+		}
+		file, parseErr := parser.ParseFile(fset, path, nil, parser.ParseComments)
+		if parseErr != nil {
+			return parseErr
+		}
+		if ast.IsGenerated(file) {
+			return nil
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			selector, ok := call.Fun.(*ast.SelectorExpr)
+			if ok {
+				calls[selector.Sel.Name] = struct{}{}
+			}
+			return true
+		})
 		return nil
 	})
 	if err != nil {
-		t.Fatalf("walk the module: %v", err)
+		t.Fatalf("walk production Go: %v", err)
 	}
-	return b.String()
+	return calls
 }

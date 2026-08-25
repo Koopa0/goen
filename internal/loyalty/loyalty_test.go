@@ -2,28 +2,6 @@ package loyalty
 
 import "testing"
 
-// TestPointsAreEarnedOnWholeHundredsOnly proves the fraction is dropped, so a
-// split basket cannot earn more than one purchase.
-func TestPointsAreEarnedOnWholeHundredsOnly(t *testing.T) {
-	tests := []struct {
-		cents int64
-		want  int64
-	}{
-		{0, 0},
-		{-100, 0},
-		{9999, 0},      // NT$99.99
-		{10000, 1},     // NT$100
-		{19999, 1},     // NT$199.99 — one point, not two
-		{100000, 10},   // NT$1,000
-		{2590000, 259}, // NT$25,900
-	}
-	for _, tt := range tests {
-		if got := PointsFor(tt.cents); got != tt.want {
-			t.Errorf("PointsFor(%d) = %d, want %d", tt.cents, got, tt.want)
-		}
-	}
-}
-
 // TestARedemptionNeverKeepsTheRemainder proves no points disappear in the
 // exchange.
 func TestARedemptionNeverKeepsTheRemainder(t *testing.T) {
