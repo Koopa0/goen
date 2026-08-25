@@ -87,6 +87,14 @@ func VerifyPassword(encoded, password string) bool {
 	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &memory, &time, &threads); err != nil {
 		return false
 	}
+	// HashPassword is the only producer and uses the constants above. Keep some
+	// room for parameter upgrades, but do not let a corrupt row panic Argon2 or
+	// make one sign-in allocate or compute at an attacker-chosen scale.
+	if time < 1 || time > 8*argonTime ||
+		threads < 1 || threads > 8*argonThreads ||
+		memory > 8*argonMemory {
+		return false
+	}
 	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {
 		return false

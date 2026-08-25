@@ -113,6 +113,19 @@ INSERT INTO order_private_data (order_id, email, recipient_name, phone,
     ('66666666-6666-4666-8666-666666666666', 'ming@example.com', '王小明', '0912345678',
      '110', '台北市', '信義區', '松高路 68 號');
 
+-- Capture before entering fulfilment: the schema deliberately refuses a
+-- parcel on a pending order, even in a fixture.
+INSERT INTO payments (id, order_id, provider_ref, status, intended_amount_cents,
+                      captured_amount_cents, paid_at) VALUES
+    ('77770001-0000-4000-8000-000000000000', '66666666-6666-4666-8666-666666666666',
+     -- 3390000*2 + 1000*2 + 8000 shipping: payments_capture_matches_order compares to the cent.
+     'pi_fixture', 'succeeded', 6790000, 6790000, now());
+
+UPDATE orders SET fulfillment_status = 'picking'
+WHERE id = '66666666-6666-4666-8666-666666666666';
+UPDATE orders SET fulfillment_status = 'shipped'
+WHERE id = '66666666-6666-4666-8666-666666666666';
+
 INSERT INTO order_shipments (id, order_id, carrier, tracking_number) VALUES
     ('66660002-0000-4000-8000-000000000000', '66666666-6666-4666-8666-666666666666',
      '黑貓宅急便', '903-2214-8871');
@@ -122,13 +135,6 @@ INSERT INTO order_shipments (id, order_id, carrier, tracking_number) VALUES
 INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity) VALUES
     ('66666666-6666-4666-8666-666666666666', '66660002-0000-4000-8000-000000000000',
      '66660003-0000-4000-8000-000000000000', 1);
-
--- a captured payment, so refund cases have something to refund
-INSERT INTO payments (id, order_id, provider_ref, status, intended_amount_cents,
-                      captured_amount_cents, paid_at) VALUES
-    ('77770001-0000-4000-8000-000000000000', '66666666-6666-4666-8666-666666666666',
-     -- 3390000*2 + 1000*2 + 8000 shipping: payments_capture_matches_order compares to the cent.
-     'pi_fixture', 'succeeded', 6790000, 6790000, now());
 
 -- A second order still awaiting payment, for cases that must not run against a settled one.
 INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name) VALUES

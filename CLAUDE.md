@@ -699,6 +699,15 @@ breadcrumb walk, the home tiles and the compare table, and the one that forgot
 would be whichever was written next — a page whose header says Phones and whose
 crumb says 手機.
 
+**The shop's calendar has one definition too: `shop_day` / `shop_today`.** A
+statutory seven-day window, a warranty term, point validity and an order number
+all mean the Taipei shop's day; `current_date` and `at::date` instead mean the
+session's unstated TimeZone and are forbidden in application SQL. A legal
+deadline counted in a zone nobody stated was enough to close a customer's
+unwaivable window a day early. `TestEveryCalendarDayGoesThroughTheShopsCalendar`
+derives its corpus from sqlc.yaml and every up migration, and refuses either
+ambient form or a second `Asia/Taipei` literal outside `shop_day`.
+
 `name_en` is NULLABLE and NULL falls back to the Chinese name. A blank English
 column would give an English visitor an empty navigation item; a copy of `name`
 would make "has this been translated?" unanswerable. `/admin/taxonomy` collects it,
@@ -1103,6 +1112,14 @@ comments, because `splitQueries` hands each query the NEXT one's introduction.
     `From %s` — because 起 is a suffix and "From" is a prefix, and the first cut
     used 最低, which is the price FILTER's label two columns to the left.
 
+38. **A read-time rule whose two halves apply to different rows.** The loyalty
+    balance counted a spend forever but counted its award only while that award
+    was live. Both rows were legal when written and every write-time guard had
+    already fired, yet the arithmetic became negative solely through the
+    passage of time. A spend now names the award lot it consumes and carries
+    that lot's expiry, so both halves leave the balance together. A rule about
+    time cannot be made safe by adding another write-time guard.
+
 ## Build tools stay out of go.mod
 
 `templ` is a `tool` directive because it generates code this module compiles.
@@ -1240,8 +1257,8 @@ reviewer should see them named rather than discover them.
 
 ## The database enforces what it can
 
-goen's data rules live in the schema, not only in Go: 245 CHECKs, 80 foreign
-keys, 62 unique indexes and 39 rule triggers, measured from `pg_constraint`,
+goen's data rules live in the schema, not only in Go: 245 CHECKs, 82 foreign
+keys, 63 unique indexes and 40 rule triggers, measured from `pg_constraint`,
 `pg_index` and `pg_trigger` against the built schema rather than counted by hand
 — counted by hand they had drifted to roughly half.
 
@@ -1708,7 +1725,10 @@ covered by credit, an order is committed with no payment row at all.
 Returns are `internal/returns` — the customer's request, bounded by what SHIPPED
 and never by what was ordered — and the back office decides it and refunds through
 Stripe. A refund row is committed BEFORE the provider is called and settled after,
-so a crash between the two leaves something reconciliation can find.
+so a crash between the two leaves something reconciliation can find. Decided
+and settled are therefore two facts on `/admin/returns`: an approved row whose
+money has not gone offers the idempotent payout retry, while a provider-terminal
+refund says it must be handled by a person instead of offering a dead button.
 
 **A return has a TAIL, and it used to stop at 同意.** The money went back and the
 GOODS were in a state nothing recorded: `inventory_movements`' `return` reason had
@@ -2108,11 +2128,22 @@ customer asks why a benefit they were told they had has gone. The window is a
 ROLLING year: lifetime tiers only ever go up, which turns a benefit into a
 permanent liability the shop cannot price.
 
+Spend is net of refunds through `order_refunds`, with a floor on EACH order:
+an over-compensation cannot erase genuine spend on another purchase. A return
+requests the refunded proportion of the points the order ACTUALLY awarded,
+read from that durable lot rather than recomputing today's tier; the last
+partial return receives the rounding residue. The clawback is its own ledger
+kind and a pure INSERT paired to that lot. It removes only the unconsumed
+remainder, never drives the balance negative, and records requested versus
+actual points so a shortfall is visible in both customer locales. Money, its
+timeline event, and the clawback commit separately; an approved return remains
+retryable while the last posting is missing.
+
 The benefit is a POINTS MULTIPLIER and not a discount at checkout. A percentage
 off would stack with coupons and the free-shipping threshold, and every
 stacking order is a different total — an argument goen would then have to have
-in three places. Points already have a ledger, an expiry and a never-negative
-guard.
+in three places. Points already have a ledger, an expiry and a
+database-enforced lot invariant.
 
 **The order being paid for does not count towards its own tier.** The capture
 marks the payment succeeded and then awards points, both in one transaction, so
@@ -2123,18 +2154,25 @@ exclude. The first version of the test asserted the honest behaviour and
 FAILED, which is how the defect was found: the comment was right and the code
 was not.
 
-Expiry is applied ON READ, per entry. A job that writes expiry rows and has not
-run yet leaves expired points spendable, and a customer spending points the shop
-believes are gone is the failure this must not have.
+Expiry is applied ON READ, per award lot. Every spend names the award it
+consumes, is posted as a new row (never an UPDATE of the award), and carries the
+same `expires_on`; a redemption spanning lots is split across them FIFO by
+expiry, `created_at`, then id. That pairing matters because an unpaired spend
+counted forever while its award disappeared, making a valid balance turn
+negative merely as time passed. A job that writes expiry rows would have the
+opposite failure: until it ran, points the shop considers expired remain
+spendable.
 
-**The never-negative guard deadlocked instead of refusing.** An INSERT takes
+**The old never-negative guard deadlocked instead of refusing.** An INSERT takes
 `FOR KEY SHARE` on the account to enforce the foreign key and the AFTER trigger
 then wants `FOR UPDATE` on the same row — a lock upgrade, and several
 transactions each doing it is a deadlock. PostgreSQL resolves it by killing all
 but one, which LOOKS exactly like the guard working. `redeem_loyalty_points`
-takes the strongest lock FIRST now, so the second writer waits and then meets
-the rule. The test found it only once its assertion was bound to the constraint
-NAME — counting survivors could not tell a guard from a coin toss.
+takes the strongest lock FIRST now, allocates only each lot's unconsumed
+remainder, and the lot trigger refuses a forged overdraw. The second writer
+therefore waits and then meets `loyalty_entries_within_balance`. The test found
+the original defect only once its assertion was bound to the constraint NAME —
+counting survivors could not tell a guard from a coin toss.
 
 `/admin/health` says whether the three background workers are doing their work, and
 LISTS the messages that have given up rather than only counting them. A page saying
@@ -2972,6 +3010,15 @@ OFFERS; the one that added credit decided what an allowance is ALLOWED to
 relieve. So a split-refunded order defaulted the form to the card half and the
 統一發票 went on recording the part of the sale that was reversed, and an order
 refunded entirely from credit was offered no form at all.
+
+That definition also reaches the two surfaces that do not look like totals. A
+customer's `refunded` timeline event is written when THIS pass moves money by
+either source; an empty provider reference is therefore valid for a credit-only
+refund, while a card refund Stripe has merely accepted writes no event yet. The
+revenue report is the time-window exception a per-order view cannot express: it
+uses the view's exact card/positive-credit predicates, windowed at card settlement
+and credit posting. `TestEveryRefundTotalReadsTheOneView` names that exception and
+the per-payment retry calculation, and refuses the next hand-written total.
 
 **A balance has ONE definition now: `store_credit_balances`.** Building that page
 found the fourth hand-written `sum(amount_cents)` over the ledger — the account

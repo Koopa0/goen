@@ -115,10 +115,10 @@ var (
 	// is the payment, and saying "the refund failed" without saying the return
 	// is already approved would send somebody looking for a decision to retake.
 	KeyAdminNoticeRefundFailed = key("admin.notice.refundfailed", Message{
-		ZhHant: "這筆退貨已經核准,但退款沒有完成。退款紀錄已經留下,請確認 Stripe 後台再處理一次 —— " +
+		ZhHant: "這筆退貨已經核准,但退款沒有完成。退款紀錄已經留下,請確認 Stripe 後台後使用退貨列上的「重新退款」—— " +
 			"核准本身不需要、也無法重做。",
 		En: "This return is approved, but the refund did not complete. Its record has been written " +
-			"either way — check the Stripe dashboard before running it again. The approval itself " +
+			"either way — check the Stripe dashboard, then use Send the refund again on its row. The approval itself " +
 			"neither needs nor allows redoing.",
 	})
 	KeyAdminNoticeReceived = key("admin.notice.received", Message{

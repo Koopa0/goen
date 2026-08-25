@@ -7,10 +7,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +22,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/payment"
@@ -450,6 +453,218 @@ func TestASecondPaymentAttemptReusesTheOpenSession(t *testing.T) {
 	}
 }
 
+func TestOpeningAPaymentIsRefusedOnACancelledOrder(t *testing.T) {
+	ctx := t.Context()
+	s := payment.NewStore(pool)
+	number, id := order(t, 88800)
+	session := "cs_race_" + number
+
+	if _, err := pool.Exec(ctx, `
+		UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
+		WHERE id = $1`, id); err != nil {
+		t.Fatalf("cancel the order: %v", err)
+	}
+	if err := s.OpenPayment(ctx, number, session, 88800); !errors.Is(err, payment.ErrNotOpenable) {
+		t.Fatalf("OpenPayment returned %v, want ErrNotOpenable", err)
+	}
+
+	var rows int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM payments WHERE provider_ref = $1`, session).Scan(&rows); err != nil {
+		t.Fatalf("count refused payment rows: %v", err)
+	}
+	if rows != 0 {
+		t.Errorf("a cancelled order gained %d payment rows, want none", rows)
+	}
+
+	// Straight at the posting function: the schema's named refusal, rather
+	// than the store's sentinel mapping, is what this half measures.
+	_, err := pool.Exec(ctx, `SELECT open_payment($1, $2, $3::bigint)`,
+		id, "cs_race_raw_"+number, int64(88800))
+	if err == nil {
+		t.Fatal("the raw open_payment call accepted a cancelled order")
+	}
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	if !ok || pgErr.ConstraintName != "payments_open_refuses_settled_order" {
+		t.Fatalf("open_payment was refused by %v, want payments_open_refuses_settled_order", err)
+	}
+
+	// The missing-order branch is distinct from a settled real order, and its
+	// name is part of the schema contract too.
+	_, err = pool.Exec(ctx, `SELECT open_payment($1, $2, $3::bigint)`,
+		uuid.New(), "cs_race_missing_"+number, int64(88800))
+	if err == nil {
+		t.Fatal("the raw open_payment call accepted an absent order")
+	}
+	pgErr, ok = errors.AsType[*pgconn.PgError](err)
+	if !ok || pgErr.ConstraintName != "payments_open_needs_order" {
+		t.Fatalf("missing order was refused by %v, want payments_open_needs_order", err)
+	}
+}
+
+// waitForSQLLock makes the overlap in the two race tests observable at the
+// database, instead of treating "the goroutine started" as evidence that its
+// statement reached the row lock.
+func waitForSQLLock(t *testing.T, ctx context.Context, returned <-chan struct{}, queryPattern string) {
+	t.Helper()
+	deadline := time.NewTimer(2 * time.Second)
+	defer deadline.Stop()
+	tick := time.NewTicker(5 * time.Millisecond)
+	defer tick.Stop()
+
+	for {
+		select {
+		case <-returned:
+			t.Fatal("the concurrent operation returned before it waited on the order lock")
+		case <-tick.C:
+			var waiting bool
+			if err := pool.QueryRow(ctx, `
+				SELECT EXISTS (
+					SELECT 1 FROM pg_stat_activity
+					WHERE pid <> pg_backend_pid()
+					  AND datname = current_database()
+					  AND wait_event_type = 'Lock'
+					  AND query LIKE $1
+				)`, queryPattern).Scan(&waiting); err != nil {
+				t.Fatalf("observe the concurrent lock wait: %v", err)
+			}
+			if waiting {
+				return
+			}
+		case <-deadline.C:
+			t.Fatalf("the concurrent query %q never became a database lock wait", queryPattern)
+		}
+	}
+}
+
+func TestACancelledOrderLeavesNoSessionUnclosed(t *testing.T) {
+	ctx := t.Context()
+
+	t.Run("opening wins and cancellation returns its session", func(t *testing.T) {
+		number, id := order(t, 88800)
+		session := "cs_open_wins_" + number
+		tx1, beginErr := pool.Begin(ctx)
+		if beginErr != nil {
+			t.Fatalf("begin opening transaction: %v", beginErr)
+		}
+		defer func() { _ = tx1.Rollback(ctx) }()
+		if _, openErr := tx1.Exec(ctx, `SELECT open_payment($1, $2, $3::bigint)`,
+			id, session, int64(88800)); openErr != nil {
+			t.Fatalf("open payment while holding its order lock: %v", openErr)
+		}
+
+		type cancelResult struct {
+			sessions []string
+			err      error
+		}
+		returned := make(chan struct{})
+		done := make(chan cancelResult, 1)
+		go func() {
+			defer close(returned)
+			sessions, cancelErr := cart.NewStore(pool).Cancel(ctx, number)
+			done <- cancelResult{sessions: sessions, err: cancelErr}
+		}()
+		waitForSQLLock(t, ctx, returned,
+			"%UPDATE orders SET fulfillment_status = 'cancelled'%")
+
+		if commitErr := tx1.Commit(ctx); commitErr != nil {
+			t.Fatalf("commit opening transaction: %v", commitErr)
+		}
+		var result cancelResult
+		select {
+		case result = <-done:
+		case <-time.After(2 * time.Second):
+			t.Fatal("Cancel stayed blocked after open_payment committed")
+		}
+		if result.err != nil {
+			t.Fatalf("Cancel: %v", result.err)
+		}
+		containsSession := false
+		for _, returned := range result.sessions {
+			if returned == session {
+				containsSession = true
+				break
+			}
+		}
+		if !containsSession {
+			t.Errorf("Cancel returned sessions %v, want the concurrently opened %q", result.sessions, session)
+		}
+
+		rows, err := pool.Query(ctx, `
+			SELECT p.provider_ref
+			FROM payments p
+			WHERE p.order_id = $1 AND p.status = 'requires_payment'`, id)
+		if err != nil {
+			t.Fatalf("read sessions left open after cancellation: %v", err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var open string
+			if err := rows.Scan(&open); err != nil {
+				t.Fatalf("scan open session: %v", err)
+			}
+			returned := false
+			for _, candidate := range result.sessions {
+				if candidate == open {
+					returned = true
+					break
+				}
+			}
+			if !returned {
+				t.Errorf("requires_payment session %q was not in Cancel's expire-list %v", open, result.sessions)
+			}
+		}
+		if err := rows.Err(); err != nil {
+			t.Fatalf("walk open sessions: %v", err)
+		}
+	})
+
+	t.Run("cancellation wins and opening is refused", func(t *testing.T) {
+		number, id := order(t, 88800)
+		session := "cs_cancel_wins_" + number
+		tx1, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatalf("begin cancellation transaction: %v", err)
+		}
+		defer func() { _ = tx1.Rollback(ctx) }()
+		if _, err := tx1.Exec(ctx, `
+			UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
+			WHERE id = $1`, id); err != nil {
+			t.Fatalf("cancel while holding the order lock: %v", err)
+		}
+
+		returned := make(chan struct{})
+		done := make(chan error, 1)
+		go func() {
+			defer close(returned)
+			done <- payment.NewStore(pool).OpenPayment(ctx, number, session, 88800)
+		}()
+		waitForSQLLock(t, ctx, returned, "%SELECT open_payment(%")
+
+		if err := tx1.Commit(ctx); err != nil {
+			t.Fatalf("commit cancellation: %v", err)
+		}
+		var openErr error
+		select {
+		case openErr = <-done:
+		case <-time.After(2 * time.Second):
+			t.Fatal("OpenPayment stayed blocked after cancellation committed")
+		}
+		if !errors.Is(openErr, payment.ErrNotOpenable) {
+			t.Fatalf("OpenPayment returned %v, want ErrNotOpenable", openErr)
+		}
+
+		var rows int
+		if err := pool.QueryRow(ctx,
+			`SELECT count(*) FROM payments WHERE provider_ref = $1`, session).Scan(&rows); err != nil {
+			t.Fatalf("count payment rows after refused open: %v", err)
+		}
+		if rows != 0 {
+			t.Errorf("the cancellation-winning order gained %d payment rows, want none", rows)
+		}
+	})
+}
+
 // TestACaptureIsRefusedForACancelledOrder holds the guard that binds money to the
 // order's own state: start a payment, cancel in the other tab, pay at Stripe.
 func TestACaptureIsRefusedForACancelledOrder(t *testing.T) {
@@ -780,8 +995,8 @@ func TestPointsAreMultipliedByTheCustomersTier(t *testing.T) {
 	}
 }
 
-// payForOwnedOrder places and captures an order, and reports the points awarded.
-func payForOwnedOrder(t *testing.T, s *payment.Store, userID uuid.UUID, cents int64, session string) int64 {
+// ownedOrder places an order for a signed-in customer without opening payment.
+func ownedOrder(t *testing.T, userID uuid.UUID, cents int64) (number string, orderID uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
 
@@ -791,8 +1006,6 @@ func payForOwnedOrder(t *testing.T, s *payment.Store, userID uuid.UUID, cents in
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	var orderID uuid.UUID
-	var number string
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO orders (order_number, user_id, shipping_version_id,
 		                    shipping_method_code, shipping_method_name, shipping_cents)
@@ -817,6 +1030,14 @@ func payForOwnedOrder(t *testing.T, s *payment.Store, userID uuid.UUID, cents in
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatalf("commit: %v", err)
 	}
+	return number, orderID
+}
+
+// payForOwnedOrder places and captures an order, and reports the points awarded.
+func payForOwnedOrder(t *testing.T, s *payment.Store, userID uuid.UUID, cents int64, session string) int64 {
+	t.Helper()
+	ctx := t.Context()
+	number, orderID := ownedOrder(t, userID, cents)
 
 	if err := s.OpenPayment(ctx, number, session, cents); err != nil {
 		t.Fatalf("open: %v", err)
@@ -832,6 +1053,83 @@ func payForOwnedOrder(t *testing.T, s *payment.Store, userID uuid.UUID, cents in
 		t.Fatalf("read points: %v", err)
 	}
 	return points
+}
+
+// TestAnOrderThatEarnsNothingIsStillCaptured is the customer-order sibling of
+// loyalty's guest-order precedent: neither kind of zero award may abort money
+// that Stripe has already captured.
+func TestAnOrderThatEarnsNothingIsStillCaptured(t *testing.T) {
+	ctx := t.Context()
+	s := payment.NewStore(pool)
+	var userID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO users (email, role) VALUES ('zero-' || gen_random_uuid() || '@goen.invalid', 'customer')
+		RETURNING id`).Scan(&userID); err != nil {
+		t.Fatalf("create customer: %v", err)
+	}
+	number, orderID := ownedOrder(t, userID, 4900)
+	session := "cs_zero_" + number
+	if err := s.OpenPayment(ctx, number, session, 4900); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if _, err := s.Capture(ctx, &payment.Capture{SessionID: session, AmountRecv: 4900}); err != nil {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
+			if pgErr.ConstraintName != "loyalty_entries_points_nonzero" {
+				t.Fatalf("capture failed at constraint %q, want loyalty_entries_points_nonzero: %v",
+					pgErr.ConstraintName, err)
+			}
+			t.Fatalf("capture hit loyalty_entries_points_nonzero; a legitimate zero award aborted paid money: %v", err)
+		}
+		t.Fatalf("capture: %v", err)
+	}
+
+	var paid bool
+	if err := pool.QueryRow(ctx, `SELECT order_is_committed($1)`, orderID).Scan(&paid); err != nil {
+		t.Fatalf("read paid state: %v", err)
+	}
+	if !paid {
+		t.Error("the paid order is not committed")
+	}
+	for _, assertion := range []struct {
+		name string
+		sql  string
+		args []any
+		want int
+	}{
+		{"paid event", `SELECT count(*) FROM order_events WHERE order_id = $1 AND kind = 'paid'`, []any{orderID}, 1},
+		{"receipt", `SELECT count(*) FROM outbox_messages WHERE topic = 'order.paid' AND dedupe_key = $1`, []any{number}, 1},
+		{"loyalty award", `SELECT count(*) FROM loyalty_entries WHERE order_id = $1`, []any{orderID}, 0},
+	} {
+		var got int
+		if err := pool.QueryRow(ctx, assertion.sql, assertion.args...).Scan(&got); err != nil {
+			t.Fatalf("read %s: %v", assertion.name, err)
+		}
+		if got != assertion.want {
+			t.Errorf("%s rows = %d, want %d", assertion.name, got, assertion.want)
+		}
+	}
+}
+
+// TestTheAwardedPointsUseWholeHundreds binds every integer boundary to the
+// database's single production definition. Wave 0 deliberately removed the
+// second Go definition rather than retaining two implementations to compare.
+func TestTheAwardedPointsUseWholeHundreds(t *testing.T) {
+	for _, cents := range []int64{4999, 5000, 9999, 10000, 19999, 100000, 2590000} {
+		t.Run(strconv.FormatInt(cents, 10), func(t *testing.T) {
+			var userID uuid.UUID
+			if err := pool.QueryRow(t.Context(), `
+				INSERT INTO users (email, role)
+				VALUES ('boundary-' || gen_random_uuid() || '@goen.invalid', 'customer')
+				RETURNING id`).Scan(&userID); err != nil {
+				t.Fatalf("create customer: %v", err)
+			}
+			s := payment.NewStore(pool)
+			got := payForOwnedOrder(t, s, userID, cents, fmt.Sprintf("cs_boundary_%d_%s", cents, userID))
+			if want := cents / 10000; got != want {
+				t.Errorf("%d cents awarded %d points, want %d", cents, got, want)
+			}
+		})
+	}
 }
 
 // TestAPartCreditOrderIsChargedOnlyWhatItOwes binds the figure the payment page

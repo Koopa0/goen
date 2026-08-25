@@ -18,6 +18,8 @@ import (
 
 	"time"
 
+	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -724,8 +726,10 @@ func payFor(t *testing.T, orderID uuid.UUID) {
 func TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
+	back := admin.NewStore(pool, admin.NewRefunder(""), nil)
 	slug := anyActiveProduct(t)
 	customer := newCustomer(t)
+	staff := newShopAuthor(t)
 
 	if err := s.Ask(ctx, slug, customer, "這台支援 PD 3.1 嗎?"); err != nil {
 		t.Fatalf("ask: %v", err)
@@ -734,16 +738,17 @@ func TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole(t *testing.T) {
 
 	// The customer answers first, or insertion order matches the intended
 	// order by accident.
-	if err := s.Answer(ctx, qID, customer, "我實測過可以。", false); err != nil {
+	if err := s.Answer(ctx, qID, customer, "我實測過可以。"); err != nil {
 		t.Fatalf("customer answer: %v", err)
 	}
-	if err := s.Answer(ctx, qID, customer, "支援,最高 45W。", true); err != nil {
+	staffCtx := account.WithUser(ctx, account.User{ID: staff, Role: "admin"})
+	if err := back.AnswerQuestion(staffCtx, qID, staff, "支援,最高 45W。"); err != nil {
 		t.Fatalf("staff answer: %v", err)
 	}
 
 	// The author is demoted to a plain customer AFTER writing both.
 	if _, err := pool.Exec(ctx,
-		`UPDATE users SET role = 'customer' WHERE id = $1`, uuid.MustParse(customer)); err != nil {
+		`UPDATE users SET role = 'customer' WHERE id = $1`, uuid.MustParse(staff)); err != nil {
 		t.Fatalf("demote: %v", err)
 	}
 
@@ -767,6 +772,32 @@ func TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole(t *testing.T) {
 	}
 }
 
+func TestAStorefrontReplyIsNeverBadgedAsTheShop(t *testing.T) {
+	ctx := t.Context()
+	s := product.NewStore(pool)
+	slug := anyActiveProduct(t)
+	customer := newCustomer(t)
+
+	if err := s.Ask(ctx, slug, customer, "這台有支援 PD 嗎?"); err != nil {
+		t.Fatalf("ask: %v", err)
+	}
+	qID := latestQuestion(t)
+	if err := s.Answer(ctx, qID, customer, "我自己實測是可以的。"); err != nil {
+		t.Fatalf("answer: %v", err)
+	}
+
+	var isStaff bool
+	if err := pool.QueryRow(ctx, `
+		SELECT is_staff FROM product_answers
+		WHERE question_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1`,
+		uuid.MustParse(qID)).Scan(&isStaff); err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if isStaff {
+		t.Error("a storefront reply was stored as the shop's own answer")
+	}
+}
+
 func TestAHiddenQuestionDisappearsWithItsAnswers(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -777,7 +808,7 @@ func TestAHiddenQuestionDisappearsWithItsAnswers(t *testing.T) {
 		t.Fatalf("ask: %v", err)
 	}
 	qID := latestQuestion(t)
-	if err := s.Answer(ctx, qID, customer, "會一起消失的回答", true); err != nil {
+	if err := s.Answer(ctx, qID, customer, "會一起消失的回答"); err != nil {
 		t.Fatalf("answer: %v", err)
 	}
 
@@ -810,7 +841,7 @@ func TestAHiddenQuestionDisappearsWithItsAnswers(t *testing.T) {
 		}
 	}
 
-	if err := s.Answer(ctx, qID, customer, "太遲了", true); err == nil {
+	if err := s.Answer(ctx, qID, customer, "太遲了"); err == nil {
 		t.Error("a hidden question accepted a new answer")
 	}
 }
@@ -861,9 +892,21 @@ func newCustomer(t *testing.T) string {
 	var id uuid.UUID
 	if err := pool.QueryRow(t.Context(), `
 		INSERT INTO users (email, role, full_name)
-		VALUES ('q-' || gen_random_uuid() || '@goen.invalid', 'admin', '發問者')
+		VALUES ('q-' || gen_random_uuid() || '@goen.invalid', 'customer', '發問者')
 		RETURNING id`).Scan(&id); err != nil {
 		t.Fatalf("create customer: %v", err)
+	}
+	return id.String()
+}
+
+func newShopAuthor(t *testing.T) string {
+	t.Helper()
+	var id uuid.UUID
+	if err := pool.QueryRow(t.Context(), `
+		INSERT INTO users (email, role, full_name)
+		VALUES ('shop-answer-' || gen_random_uuid() || '@goen.invalid', 'admin', '店家')
+		RETURNING id`).Scan(&id); err != nil {
+		t.Fatalf("create shop author: %v", err)
 	}
 	return id.String()
 }
@@ -889,7 +932,7 @@ func TestASingleHiddenAnswerGoesWithoutTakingTheQuestion(t *testing.T) {
 	}
 	qID := latestQuestion(t)
 	for _, body := range []string{"留下來的回答", "會被隱藏的回答"} {
-		if err := s.Answer(ctx, qID, customer, body, false); err != nil {
+		if err := s.Answer(ctx, qID, customer, body); err != nil {
 			t.Fatalf("answer %q: %v", body, err)
 		}
 	}

@@ -229,7 +229,11 @@ VALUES (@order_id, @shipment_id, @order_line_id, @quantity::integer);
 -- rescission_window: Consumer Protection Act §19 I runs seven days from RECEIPT,
 -- Civil Code §120 II excludes the day of receipt, and §19 IV fixes the moment on
 -- the customer's side — so created_at against delivered_at, both database
--- clocks. Undelivered is neither answer, because the window has not started.
+-- clocks, and both on the SHOP's calendar through shop_day. `::date` answers
+-- in the session TimeZone, which is UTC here and stated nowhere: a parcel
+-- handed over at 07:00 Taipei is the previous day in UTC, which closes an
+-- unwaivable window a day early. Undelivered is neither answer, because the
+-- window has not started.
 -- name: ReturnQueue :many
 SELECT r.id, r.status, r.reason, r.created_at, r.decided_at,
        o.order_number,
@@ -238,7 +242,7 @@ SELECT r.id, r.status, r.reason, r.created_at, r.decided_at,
        return_refundable_amount(r.id)::bigint AS refundable_cents,
        (CASE
             WHEN d.delivered_at IS NULL THEN 'undelivered'
-            WHEN r.created_at::date <= d.delivered_at::date + 7 THEN 'within'
+            WHEN shop_day(r.created_at) <= shop_day(d.delivered_at) + 7 THEN 'within'
             ELSE 'after'
         END)::text AS rescission_window
 FROM return_requests r
@@ -714,12 +718,25 @@ SELECT
     -- What went back, as its own figure rather than subtracted from the one
     -- above. Consumer Protection Act §19 makes a seven-day rescission
     -- unrefusable, so returns are certain rather than hypothetical, and an owner
-    -- needs the return rate as much as the net. Counted by when the money moved,
-    -- not by when the order was placed: a refund lands in the window it is paid.
-    coalesce((SELECT sum(r.amount_cents) FROM refunds r
-              WHERE r.status = 'succeeded'
-                AND r.created_at >= now() - make_interval(days => @window_days::integer)), 0)::bigint
-        AS refunded_cents
+    -- needs the return rate as much as the net. Counted by when each source
+    -- moved: succeeded_at for a card refund (created_at can be days earlier
+    -- while Stripe still says pending), and created_at for the synchronous
+    -- credit post.
+    --
+    -- The positive-credit predicate deliberately matches order_refunds. That
+    -- includes reverse_order_credit on a CANCELLED order whose revenue was never
+    -- counted here; excluding cancellations in this caller would create another
+    -- definition. If the report should exclude them, change order_refunds so the
+    -- 折讓 form and invoice bound make the same decision. Neither time column has
+    -- an index yet; these are small ledgers, so a speculative index is not
+    -- warranted.
+    (coalesce((SELECT sum(r.amount_cents) FROM refunds r
+               WHERE r.status = 'succeeded'
+                 AND r.succeeded_at >= now() - make_interval(days => @window_days::integer)), 0)::bigint
+     + coalesce((SELECT sum(e.amount_cents) FROM store_credit_entries e
+                 WHERE e.order_id IS NOT NULL AND e.amount_cents > 0
+                   AND e.created_at >= now() - make_interval(days => @window_days::integer)), 0)::bigint
+    )::bigint AS refunded_cents
 FROM (
     SELECT (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
                       FROM order_lines ol WHERE ol.order_id = o.id), 0)
@@ -1108,6 +1125,46 @@ SELECT post_store_credit(
     'return-credit:' || @return_id::text, sqlc.narg(actor)::uuid
 )::uuid AS entry_id;
 
+-- name: ReverseReturnPoints :one
+-- The durable award lot, rather than today's tier, owns the earn arithmetic.
+-- Request the refunded proportion of that actual award, then let the posting
+-- function clamp it to the lot's unconsumed remainder.
+WITH args AS (
+    SELECT @order_id::uuid AS order_id,
+           @return_id::uuid AS return_id,
+           @refunded_cents::bigint AS refunded_cents
+)
+SELECT reverse_order_points(
+    args.order_id,
+    args.return_id,
+    return_loyalty_points_requested(
+        args.order_id, args.return_id, args.refunded_cents)
+)::bigint AS points_reversed
+FROM args;
+
+-- name: ReturnPointsOutstanding :one
+-- Money and points commit separately. A succeeded refund without the clawback
+-- must remain visible in the queue, while a guest order, a zero-point refund,
+-- or an order that never earned a lot has no points work to resume.
+WITH args AS (
+    SELECT @order_id::uuid AS order_id,
+           @return_id::uuid AS return_id,
+           @refunded_cents::bigint AS refunded_cents
+)
+SELECT (
+    return_loyalty_points_requested(
+        args.order_id, args.return_id, args.refunded_cents) > 0
+    AND EXISTS (
+        SELECT 1 FROM loyalty_entries e
+        WHERE e.order_id = args.order_id AND e.kind = 'award'
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM loyalty_entries e
+        WHERE e.return_request_id = args.return_id AND e.kind = 'clawback'
+    )
+)::boolean AS outstanding
+FROM args;
+
 -- Prefix on both, each index-backed, with a floor on the term enforced by the
 -- caller. Every role is searched, for AdminCustomer's reason. An erased
 -- customer's row is gone, so nothing extra is needed to exclude one.
@@ -1129,12 +1186,15 @@ SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
        coalesce(u.phone, '') AS phone, u.created_at,
        (u.email_verified_at IS NOT NULL)::boolean AS verified,
        (SELECT count(*) FROM orders o WHERE o.user_id = u.id)::bigint AS orders,
-       coalesce((SELECT sum(o.subtotal + o.shipping_cents + o.tax_cents - o.discount_cents)
-                 FROM (SELECT o.id, o.shipping_cents, o.tax_cents, o.discount_cents,
-                              coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
-                                        FROM order_lines ol WHERE ol.order_id = o.id), 0) AS subtotal
-                       FROM orders o WHERE o.user_id = u.id
-                         AND o.id IN (SELECT id FROM committed_orders)) o), 0)::bigint AS spent,
+       coalesce((SELECT sum(greatest(
+                            coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
+                                      FROM order_lines ol WHERE ol.order_id = o.id), 0)
+                            + o.shipping_cents + o.tax_cents - o.discount_cents
+                            - (rf.card_cents + rf.credit_cents), 0))
+                 FROM orders o
+                 JOIN committed_orders c ON c.id = o.id
+                 JOIN order_refunds rf ON rf.order_id = o.id
+                 WHERE o.user_id = u.id), 0)::bigint AS spent,
        coalesce((SELECT b.balance_cents FROM store_credit_balances b
                  WHERE b.user_id = u.id), 0)::bigint AS credit_cents,
        coalesce((SELECT lb.points FROM loyalty_balances lb
@@ -1393,7 +1453,7 @@ SELECT record_inventory_movement(
 -- name: AdminSearchWarranties :many
 SELECT w.id, w.unit_no, coalesce(w.serial_number, '') AS serial_number,
        w.registered_at, w.expires_on,
-       (w.expires_on >= current_date)::boolean AS in_force,
+       (w.expires_on >= shop_today())::boolean AS in_force,
        ol.product_name, coalesce(ol.variant_label, '') AS variant_label,
        o.order_number, o.fulfillment_status,
        coalesce(u.full_name, '') AS customer_name,
@@ -1414,6 +1474,14 @@ SELECT EXISTS (
     SELECT 1 FROM refunds
     WHERE return_request_id = $1 AND status = 'succeeded'
 )::boolean AS settled;
+
+-- A failed/cancelled refund is terminal because refunds_settled_is_history
+-- admits no move from either state back to succeeded.
+-- name: ReturnRefundTerminal :one
+SELECT EXISTS (
+    SELECT 1 FROM refunds
+    WHERE return_request_id = $1 AND status IN ('failed', 'cancelled')
+)::boolean AS terminal;
 
 -- What has actually gone back to the customer on this order, so an allowance
 -- form can default to it. A staff member typing a refund figure from memory is

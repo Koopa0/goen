@@ -20,6 +20,9 @@ func TestEveryCreditBalanceReadsTheOneView(t *testing.T) {
 			"halves. It leaves out one return's own compensation because that is what " +
 			"a RETRY has to ask: without it a split return reads the credit it just " +
 			"posted as credit already returned and refuses its own resume",
+		"RevenueSince": "positive credit returned within a report window, which is " +
+			"a flow rather than an account balance. Its predicate must match " +
+			"order_refunds.credit_cents; a balance view cannot express when money moved",
 	}
 
 	used := map[string]bool{}

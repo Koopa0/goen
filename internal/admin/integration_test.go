@@ -35,7 +35,9 @@ import (
 	"github.com/koopa0/goen/internal/media"
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/product"
+	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/twofactor"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -356,11 +358,10 @@ func TestRetiringTheLastDiscountedVariantIsRefused(t *testing.T) {
 	}
 }
 
-func pickingOrderHoldingStock(t *testing.T) (number string, orderID uuid.UUID) {
+func pendingOrderHoldingStock(t *testing.T) (number string, orderID, variantID uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
 
-	var variantID uuid.UUID
 	if err := pool.QueryRow(ctx, `
 		SELECT pv.id FROM product_variants pv JOIN products p ON p.id = pv.product_id
 		WHERE pv.is_active AND p.status = 'active' AND pv.stock_quantity - pv.safety_stock > 2
@@ -399,6 +400,22 @@ func pickingOrderHoldingStock(t *testing.T) (number string, orderID uuid.UUID) {
 		orderID, variantID, "ship-test:"+number); err != nil {
 		t.Fatalf("hold: %v", err)
 	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	return number, orderID, variantID
+}
+
+func pickingOrderHoldingStock(t *testing.T) (number string, orderID uuid.UUID) {
+	t.Helper()
+	ctx := t.Context()
+	number, orderID, _ = pendingOrderHoldingStock(t)
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin funding: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
 	if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, 100000)`, orderID, "cs_ship_"+number); err != nil {
 		t.Fatalf("open payment: %v", err)
 	}
@@ -410,7 +427,7 @@ func pickingOrderHoldingStock(t *testing.T) (number string, orderID uuid.UUID) {
 		t.Fatalf("to picking: %v", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
-		t.Fatalf("commit: %v", err)
+		t.Fatalf("commit funding: %v", err)
 	}
 	return number, orderID
 }
@@ -492,34 +509,84 @@ func TestShipDoesAllFourWritesOrNone(t *testing.T) {
 	}
 }
 
-func TestShipRollsEverythingBackWhenTheStatusMoveIsRefused(t *testing.T) {
-	ctx := t.Context()
+func TestShippingIsRefusedForAnOrderThatWasNeverPicked(t *testing.T) {
+	ctx, staff := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
-	number := placeUnpaidOrder(t)
+	actor := uuid.NullUUID{UUID: staff, Valid: true}
+	number, orderID, variantID := pendingOrderHoldingStock(t)
 
-	var orderID uuid.UUID
+	var stockBefore int32
 	if err := pool.QueryRow(ctx,
-		`SELECT id FROM orders WHERE order_number = $1`, number).Scan(&orderID); err != nil {
-		t.Fatalf("find order: %v", err)
+		`SELECT stock_quantity FROM product_variants WHERE id = $1`, variantID).
+		Scan(&stockBefore); err != nil {
+		t.Fatalf("read stock before dispatch: %v", err)
 	}
 
-	err := s.Ship(ctx, number, admin.Dispatch{Carrier: "黑貓宅急便", Tracking: "TW999"}, uuid.NullUUID{})
+	err := s.Ship(ctx, number, admin.Dispatch{Carrier: "黑貓宅急便", Tracking: "TW999"}, actor)
 	if !errors.Is(err, admin.ErrRefused) {
 		t.Fatalf("shipping a pending order gave %v, want ErrRefused", err)
 	}
 
-	var shipments, events int
+	var shipments, lines, held, consumed, events, notices int
+	var stockAfter int32
+	if queryErr := pool.QueryRow(ctx, `
+		SELECT (SELECT count(*) FROM order_shipments WHERE order_id = $1),
+		       (SELECT count(*) FROM order_shipment_lines WHERE order_id = $1),
+		       (SELECT count(*) FROM inventory_reservations WHERE order_id = $1 AND state = 'held'),
+		       (SELECT count(*) FROM inventory_reservations WHERE order_id = $1 AND state = 'consumed'),
+		       (SELECT count(*) FROM order_events WHERE order_id = $1 AND kind = 'shipped'),
+		       (SELECT count(*) FROM outbox_messages
+		        WHERE topic = 'order.shipped' AND payload->>'order_number' = $2),
+		       (SELECT stock_quantity FROM product_variants WHERE id = $3)`,
+		orderID, number, variantID).
+		Scan(&shipments, &lines, &held, &consumed, &events, &notices, &stockAfter); queryErr != nil {
+		t.Fatalf("read refused dispatch effects: %v", queryErr)
+	}
+	if shipments != 0 || lines != 0 {
+		t.Errorf("refused dispatch left %d shipments and %d shipment lines, want none", shipments, lines)
+	}
+	if held != 1 || consumed != 0 {
+		t.Errorf("refused dispatch left reservations held=%d consumed=%d, want 1/0", held, consumed)
+	}
+	if events != 0 || notices != 0 {
+		t.Errorf("refused dispatch left %d shipped events and %d notices, want none", events, notices)
+	}
+	if stockAfter != stockBefore {
+		t.Errorf("stock changed from %d to %d across a refused dispatch", stockBefore, stockAfter)
+	}
+
+	// Positive companion: the same order becomes shippable after it is funded
+	// and enters picking. A fixture that can never ship would prove no boundary.
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin funding: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	ref := "cs_ship_" + number
+	if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, 100000)`, orderID, ref); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT capture_payment($1, 100000, NULL, NULL)`, ref); err != nil {
+		t.Fatalf("capture payment: %v", err)
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE orders SET fulfillment_status = 'picking' WHERE id = $1`, orderID); err != nil {
+		t.Fatalf("move order to picking: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit funding: %v", err)
+	}
+	if err := s.Ship(ctx, number,
+		admin.Dispatch{Carrier: "黑貓宅急便", Tracking: "TW999"}, actor); err != nil {
+		t.Fatalf("ship the same order after picking: %v", err)
+	}
+	var status string
 	if err := pool.QueryRow(ctx,
-		`SELECT (SELECT count(*) FROM order_shipments WHERE order_id = $1),
-		        (SELECT count(*) FROM order_events WHERE order_id = $1 AND kind = 'shipped')`,
-		orderID).Scan(&shipments, &events); err != nil {
-		t.Fatalf("count: %v", err)
+		`SELECT fulfillment_status FROM orders WHERE id = $1`, orderID).Scan(&status); err != nil {
+		t.Fatalf("read shipped status: %v", err)
 	}
-	if shipments != 0 {
-		t.Errorf("%d shipment rows survived a refused dispatch", shipments)
-	}
-	if events != 0 {
-		t.Errorf("%d shipped events survived a refused dispatch", events)
+	if status != "shipped" {
+		t.Errorf("same order ended %q after its admitted dispatch, want shipped", status)
 	}
 }
 
@@ -604,6 +671,17 @@ type fakeRefunder struct {
 	sent *atomic.Int64
 }
 
+func moveOrderToShipped(t *testing.T, tx pgx.Tx, orderID uuid.UUID) {
+	t.Helper()
+	for _, status := range []string{"picking", "shipped"} {
+		if _, err := tx.Exec(t.Context(),
+			`UPDATE orders SET fulfillment_status = $2 WHERE id = $1`,
+			orderID, status); err != nil {
+			t.Fatalf("move the order to %s: %v", status, err)
+		}
+	}
+}
+
 func (f fakeRefunder) PaymentIntentFor(_ context.Context, sessionID string) (string, error) {
 	if f.failIntent {
 		return "", errors.New("stripe is unreachable")
@@ -666,6 +744,7 @@ func returnedOrder(t *testing.T, qty int32) (requestID uuid.UUID, orderNumber st
 		"cs_ret_"+orderNumber); err != nil {
 		t.Fatalf("capture: %v", err)
 	}
+	moveOrderToShipped(t, tx, orderID)
 	var shipmentID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id, carrier, tracking_number)
@@ -691,6 +770,386 @@ func returnedOrder(t *testing.T, qty int32) (requestID uuid.UUID, orderNumber st
 		t.Fatalf("commit: %v", err)
 	}
 	return requestID, orderNumber
+}
+
+// returnedOrderAt is the delivered sibling of returnedOrder: the rescission
+// window is a read of the two explicit database clocks, so neither may inherit
+// the test process's wall clock.
+func returnedOrderAt(t *testing.T, delivered, requested time.Time) (requestID uuid.UUID) {
+	t.Helper()
+	ctx := t.Context()
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var orderID, lineID uuid.UUID
+	var orderNumber string
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
+		                    shipping_method_name, shipping_cents)
+		SELECT next_order_number(), v.id, sm.code, v.name, 0
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1
+		RETURNING id, order_number`).Scan(&orderID, &orderNumber); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
+		VALUES ($1, 'REF-CALENDAR', '鑑賞期日曆測試', 100000, 2) RETURNING id`,
+		orderID).Scan(&lineID); err != nil {
+		t.Fatalf("create line: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'calendar-return@example.com', '收件', '0912345678',
+		        '110', '台北市', '信義區', '路 1 號')`, orderID); err != nil {
+		t.Fatalf("create private data: %v", err)
+	}
+	sessionID := "cs_ret_calendar_" + orderNumber
+	if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, 200000)`, orderID, sessionID); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT capture_payment($1, 200000, NULL, NULL)`, sessionID); err != nil {
+		t.Fatalf("capture: %v", err)
+	}
+	moveOrderToShipped(t, tx, orderID)
+
+	var shipmentID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO order_shipments (
+			order_id, carrier, tracking_number, shipped_at, delivered_at
+		) VALUES ($1, '黑貓', 'T-CALENDAR-' || $2, $3, $4)
+		RETURNING id`, orderID, orderNumber, delivered.Add(-48*time.Hour), delivered).Scan(&shipmentID); err != nil {
+		t.Fatalf("create delivered shipment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+		VALUES ($1, $2, $3, 2)`, orderID, shipmentID, lineID); err != nil {
+		t.Fatalf("create shipment line: %v", err)
+	}
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO return_requests (order_id, reason, created_at)
+		VALUES ($1, '不合用', $2) RETURNING id`, orderID, requested).Scan(&requestID); err != nil {
+		t.Fatalf("create return request: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+		VALUES ($1, $2, $3, 2)`, orderID, requestID, lineID); err != nil {
+		t.Fatalf("create return line: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	return requestID
+}
+
+// loyaltyReturn reaches the capture door that awards points, then constructs
+// the already-delivered parcel a return decision consumes. prices are separate
+// lines so returning one can distinguish proportional reversal from reversing
+// the whole order.
+func loyaltyReturn(t *testing.T, prices []int64, returnLine int) (
+	requestID, orderID, userID uuid.UUID,
+) {
+	t.Helper()
+	ctx := t.Context()
+	var orderNumber string
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO users (email, role, full_name)
+		VALUES ('return-points-' || gen_random_uuid() || '@goen.invalid', 'customer', '點數退貨')
+		RETURNING id`).Scan(&userID); err != nil {
+		t.Fatalf("create customer: %v", err)
+	}
+
+	tx, beginErr := pool.Begin(ctx)
+	if beginErr != nil {
+		t.Fatalf("begin order: %v", beginErr)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, user_id, shipping_version_id,
+		                    shipping_method_code, shipping_method_name, shipping_cents)
+		SELECT next_order_number(), $1, v.id, sm.code, v.name, 0
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1
+		RETURNING id, order_number`, userID).Scan(&orderID, &orderNumber); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	lineIDs := make([]uuid.UUID, len(prices))
+	var total int64
+	for i, cents := range prices {
+		total += cents
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity, position)
+			VALUES ($1, $2, '點數退貨商品', $3, 1, $4) RETURNING id`,
+			orderID, fmt.Sprintf("RET-POINTS-%d-%s", i, orderID), cents, i).Scan(&lineIDs[i]); err != nil {
+			t.Fatalf("create line %d: %v", i, err)
+		}
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'points-return@example.com', '收件', '0912345678',
+		        '110', '台北市', '信義區', '路 1 號')`, orderID); err != nil {
+		t.Fatalf("create private data: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit order: %v", err)
+	}
+
+	payments := payment.NewStore(pool)
+	session := "cs_return_points_" + orderID.String()
+	if err := payments.OpenPayment(ctx, orderNumber, session, total); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
+	if _, err := payments.Capture(ctx, &payment.Capture{SessionID: session, AmountRecv: total}); err != nil {
+		t.Fatalf("capture and award: %v", err)
+	}
+
+	tx, beginErr = pool.Begin(ctx)
+	if beginErr != nil {
+		t.Fatalf("begin delivery: %v", beginErr)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	moveOrderToShipped(t, tx, orderID)
+	var shipmentID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO order_shipments (order_id, carrier, tracking_number, delivered_at)
+		VALUES ($1, '黑貓', 'RP-' || $2, now()) RETURNING id`,
+		orderID, orderNumber).Scan(&shipmentID); err != nil {
+		t.Fatalf("create delivered shipment: %v", err)
+	}
+	for i, lineID := range lineIDs {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+			VALUES ($1, $2, $3, 1)`, orderID, shipmentID, lineID); err != nil {
+			t.Fatalf("ship line %d: %v", i, err)
+		}
+	}
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO return_requests (order_id, requested_by_user_id, reason)
+		VALUES ($1, $2, '不合用') RETURNING id`, orderID, userID).Scan(&requestID); err != nil {
+		t.Fatalf("create return: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+		VALUES ($1, $2, $3, 1)`, orderID, requestID, lineIDs[returnLine]); err != nil {
+		t.Fatalf("create return line: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit return: %v", err)
+	}
+	return requestID, orderID, userID
+}
+
+func TestAReturnTakesBackItsPointsAndSpend(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+
+	t.Run("full return", func(t *testing.T) {
+		requestID, orderID, userID := loyaltyReturn(t, []int64{1200000}, 0)
+		if err := s.Decide(ctx, requestID.String(), "approved", "全額退貨", uuid.NullUUID{}); err != nil {
+			t.Fatalf("settle return: %v", err)
+		}
+		assertReturnedLoyalty(t, requestID, orderID, userID, 0, -120)
+
+		// The already-paid retry is refused, but must not post a second clawback.
+		_ = s.Decide(ctx, requestID.String(), "approved", "重試", uuid.NullUUID{})
+		var rows int
+		if err := pool.QueryRow(ctx, `
+			SELECT count(*) FROM loyalty_entries
+			WHERE order_id = $1 AND kind = 'clawback'`, orderID).Scan(&rows); err != nil {
+			t.Fatalf("count retried clawbacks: %v", err)
+		}
+		if rows != 1 {
+			t.Errorf("retry left %d clawbacks, want 1", rows)
+		}
+		var tier uuid.NullUUID
+		if err := pool.QueryRow(ctx,
+			`SELECT member_tier($1, $2, NULL)`, userID, admin.MembershipWindowDays).Scan(&tier); err != nil {
+			t.Fatalf("read tier: %v", err)
+		}
+		if tier.Valid {
+			t.Errorf("fully returned only order still grants tier %s", tier.UUID)
+		}
+	})
+
+	t.Run("partial return", func(t *testing.T) {
+		requestID, orderID, userID := loyaltyReturn(t, []int64{700000, 500000}, 1)
+		// Change today's tier AFTER the award. A clawback derived from member_tier
+		// at return time takes 65 points; the durable 120-point award lot says this
+		// 5/12 return owns 50. This is the temporal mismatch the fixture locks.
+		addTierSpend(t, userID, 5000000)
+		var multiplier int32
+		if err := pool.QueryRow(ctx, `
+			SELECT t.points_multiplier_bp
+			FROM membership_tiers t
+			WHERE t.id = member_tier($1, $2, $3)`,
+			userID, admin.MembershipWindowDays, orderID).Scan(&multiplier); err != nil {
+			t.Fatalf("read changed return-time tier: %v", err)
+		}
+		if multiplier != 13000 {
+			t.Fatalf("return-time multiplier = %d, want 13000; the fixture cannot distinguish the old recomputation", multiplier)
+		}
+		var refunded int64
+		if err := pool.QueryRow(ctx, `SELECT return_refundable_amount($1)`, requestID).Scan(&refunded); err != nil {
+			t.Fatalf("read refundable amount: %v", err)
+		}
+		if err := s.Decide(ctx, requestID.String(), "approved", "部分退貨", uuid.NullUUID{}); err != nil {
+			t.Fatalf("settle return: %v", err)
+		}
+		assertReturnedLoyalty(t, requestID, orderID, userID,
+			5000000+1200000-refunded, -(refunded / 10000))
+	})
+}
+
+func addTierSpend(t *testing.T, userID uuid.UUID, cents int64) {
+	t.Helper()
+	ctx := t.Context()
+	var orderID uuid.UUID
+	var number string
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin tier order: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, user_id, shipping_version_id,
+		                    shipping_method_code, shipping_method_name, shipping_cents)
+		SELECT next_order_number(), $1, v.id, sm.code, v.name, 0
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1
+		RETURNING id, order_number`, userID).Scan(&orderID, &number); err != nil {
+		t.Fatalf("create tier order: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
+		VALUES ($1::uuid, 'RET-TIER-' || ($1::uuid)::text, '等級測試商品', $2, 1)`, orderID, cents); err != nil {
+		t.Fatalf("create tier line: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'tier-return@example.com', '收件', '0912345678',
+		        '110', '台北市', '信義區', '路 1 號')`, orderID); err != nil {
+		t.Fatalf("create tier private data: %v", err)
+	}
+	ref := "cs_return_tier_" + orderID.String()
+	if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, $3::bigint)`, orderID, ref, cents); err != nil {
+		t.Fatalf("open tier payment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT capture_payment($1, $2::bigint, NULL, NULL)`, ref, cents); err != nil {
+		t.Fatalf("capture tier payment: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit tier order %s: %v", number, err)
+	}
+}
+
+// TestAClawbackOnlyFailureRemainsRetryable models the narrow commit boundary
+// after the money and customer timeline have landed but before the separate
+// points posting. A queue derived only from money calls this return complete,
+// hides the retry control, and strands the missing clawback forever.
+func TestAClawbackOnlyFailureRemainsRetryable(t *testing.T) {
+	ctx, _ := staffContext(t)
+	requestID, orderID, _ := loyaltyReturn(t, []int64{1200000}, 0)
+	if _, err := pool.Exec(ctx, `
+		UPDATE return_requests
+		SET status = 'approved', decided_at = now(), resolution = '退款完成'
+		WHERE id = $1`, requestID); err != nil {
+		t.Fatalf("approve return: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO refunds (payment_id, request_key, amount_cents, reason,
+		                     return_request_id, status, provider_ref, succeeded_at)
+		SELECT p.id, 'return:' || ($1::uuid)::text, 1200000, '退款完成', $1::uuid,
+		       'succeeded', 're_points_gap_' || ($1::uuid)::text, now()
+		FROM payments p
+		WHERE p.order_id = $2 AND p.status = 'succeeded'`, requestID, orderID); err != nil {
+		t.Fatalf("settle money before clawback: %v", err)
+	}
+
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	view, err := s.Returns(ctx)
+	if err != nil {
+		t.Fatalf("read queue: %v", err)
+	}
+	for i := range view.Rows {
+		if view.Rows[i].ID == requestID.String() {
+			if !view.Rows[i].PayoutOutstanding || view.Rows[i].PayoutBlocked {
+				t.Fatalf("points-only gap renders outstanding=%v blocked=%v, want true/false",
+					view.Rows[i].PayoutOutstanding, view.Rows[i].PayoutBlocked)
+			}
+			goto retry
+		}
+	}
+	t.Fatalf("return %s is absent from queue", requestID)
+
+retry:
+	if decideErr := s.Decide(ctx, requestID.String(), "approved", "補登點數", uuid.NullUUID{}); decideErr != nil {
+		t.Fatalf("retry missing clawback: %v", decideErr)
+	}
+	var points, requested int64
+	if queryErr := pool.QueryRow(ctx, `
+		SELECT points, requested_points
+		FROM loyalty_entries
+		WHERE return_request_id = $1 AND kind = 'clawback'`, requestID).
+		Scan(&points, &requested); queryErr != nil {
+		t.Fatalf("read retried clawback: %v", queryErr)
+	}
+	if points != -120 || requested != 120 {
+		t.Errorf("retried clawback = %d requested %d, want -120/120", points, requested)
+	}
+	view, err = s.Returns(ctx)
+	if err != nil {
+		t.Fatalf("read repaired queue: %v", err)
+	}
+	for i := range view.Rows {
+		if view.Rows[i].ID == requestID.String() && view.Rows[i].PayoutOutstanding {
+			t.Error("completed clawback still offers a payout retry")
+		}
+	}
+}
+
+func assertReturnedLoyalty(t *testing.T, requestID, orderID, userID uuid.UUID, wantSpend, wantPoints int64) {
+	t.Helper()
+	ctx := t.Context()
+	var spend int64
+	if err := pool.QueryRow(ctx,
+		`SELECT member_spend($1, $2, NULL)`, userID, admin.MembershipWindowDays).Scan(&spend); err != nil {
+		t.Fatalf("read member spend: %v", err)
+	}
+	if spend != wantSpend {
+		t.Errorf("member spend = %d, want %d", spend, wantSpend)
+	}
+	var points, requested int64
+	var key string
+	if err := pool.QueryRow(ctx, `
+		SELECT points, requested_points, idempotency_key
+		FROM loyalty_entries
+		WHERE order_id = $1 AND kind = 'clawback'`, orderID).Scan(&points, &requested, &key); err != nil {
+		t.Fatalf("read clawback: %v", err)
+	}
+	if points != wantPoints || requested != -wantPoints {
+		t.Errorf("clawback points/requested = %d/%d, want %d/%d",
+			points, requested, wantPoints, -wantPoints)
+	}
+	if want := "return:" + requestID.String(); key != want {
+		t.Errorf("clawback key = %q, want %q", key, want)
+	}
+	var balance int64
+	if err := pool.QueryRow(ctx, `
+		SELECT b.points FROM loyalty_balances b
+		JOIN store_credit_accounts a ON a.id = b.account_id
+		WHERE a.user_id = $1`, userID).Scan(&balance); err != nil {
+		t.Fatalf("read balance: %v", err)
+	}
+	if balance != 120+wantPoints {
+		t.Errorf("points balance = %d, want %d", balance, 120+wantPoints)
+	}
 }
 
 func couponedShippedOrder(t *testing.T, lines int) (requestID uuid.UUID, orderNumber string) {
@@ -736,6 +1195,7 @@ func couponedShippedOrder(t *testing.T, lines int) (requestID uuid.UUID, orderNu
 	if _, err := tx.Exec(ctx, `SELECT capture_payment($1, 58000, NULL, NULL)`, ref); err != nil {
 		t.Fatalf("capture: %v", err)
 	}
+	moveOrderToShipped(t, tx, orderID)
 	var shipmentID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id, carrier, tracking_number)
@@ -765,6 +1225,69 @@ func couponedShippedOrder(t *testing.T, lines int) (requestID uuid.UUID, orderNu
 		t.Fatalf("commit: %v", err)
 	}
 	return requestID, orderNumber
+}
+
+func twoLineOrderForSequentialReturns(t *testing.T) (
+	orderID uuid.UUID, orderNumber string, lineIDs [2]uuid.UUID,
+) {
+	t.Helper()
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
+		                    shipping_method_name, shipping_cents)
+		SELECT next_order_number(), v.id, sm.code, v.name, 15000
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1
+		RETURNING id, order_number`).Scan(&orderID, &orderNumber); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	for i := range lineIDs {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity, position)
+			VALUES ($1, $2, '運費退貨商品', 100000, 1, $3) RETURNING id`,
+			orderID, fmt.Sprintf("RETURN-FEE-%d-%s", i, orderID), i).Scan(&lineIDs[i]); err != nil {
+			t.Fatalf("create line %d: %v", i, err)
+		}
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'return-fee@example.com', '收件', '0912345678',
+		        '110', '台北市', '信義區', '路 1 號')`, orderID); err != nil {
+		t.Fatalf("create private data: %v", err)
+	}
+	ref := "cs_return_fee_" + orderNumber
+	if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, 215000)`, orderID, ref); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT capture_payment($1, 215000, NULL, NULL)`, ref); err != nil {
+		t.Fatalf("capture payment: %v", err)
+	}
+	moveOrderToShipped(t, tx, orderID)
+	var shipmentID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO order_shipments (order_id, carrier, tracking_number)
+		VALUES ($1, '黑貓', 'RETURN-FEE-' || $2) RETURNING id`, orderID, orderNumber).
+		Scan(&shipmentID); err != nil {
+		t.Fatalf("create shipment: %v", err)
+	}
+	for i := range lineIDs {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+			VALUES ($1, $2, $3, 1)`, orderID, shipmentID, lineIDs[i]); err != nil {
+			t.Fatalf("ship line %d: %v", i, err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	return orderID, orderNumber, lineIDs
 }
 
 func TestARefundIsWhatTheCustomerPaid(t *testing.T) {
@@ -804,6 +1327,61 @@ func TestARefundIsWhatTheCustomerPaid(t *testing.T) {
 				t.Errorf("refunded %d, want %d — %s", amount, tt.want, tt.why)
 			}
 		})
+	}
+}
+
+func TestTheDeliveryFeeIsPaidBackOnce(t *testing.T) {
+	ctx, _ := staffContext(t)
+	orderID, number, lines := twoLineOrderForSequentialReturns(t)
+	customerReturns := returns.NewStore(pool)
+	shop := admin.NewStore(pool, fakeRefunder{}, nil)
+
+	openAndApprove := func(reason string, lineID uuid.UUID) int64 {
+		t.Helper()
+		if err := customerReturns.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
+			Reason: reason, Lines: map[string]int32{lineID.String(): 1},
+		}); err != nil {
+			t.Fatalf("open %s return: %v", reason, err)
+		}
+		var requestID uuid.UUID
+		if err := pool.QueryRow(ctx, `
+			SELECT id FROM return_requests
+			WHERE order_id = $1 AND status = 'requested'`, orderID).Scan(&requestID); err != nil {
+			t.Fatalf("find %s return: %v", reason, err)
+		}
+		if err := shop.Decide(ctx, requestID.String(), "approved", "已收到退貨", uuid.NullUUID{}); err != nil {
+			t.Fatalf("approve %s return: %v", reason, err)
+		}
+		var amount int64
+		if err := pool.QueryRow(ctx,
+			`SELECT amount_cents FROM refunds WHERE return_request_id = $1`, requestID).
+			Scan(&amount); err != nil {
+			t.Fatalf("read %s refund: %v", reason, err)
+		}
+		return amount
+	}
+
+	first := openAndApprove("first line", lines[0])
+	if first != 100000 {
+		t.Errorf("first line refunded %d, want 100000 without delivery", first)
+	}
+	second := openAndApprove("second line", lines[1])
+	if second != 115000 {
+		t.Errorf("second line refunded %d, want 115000 with delivery", second)
+	}
+
+	var captured, refunded int64
+	if err := pool.QueryRow(ctx, `
+		SELECT p.captured_amount_cents,
+		       (SELECT coalesce(sum(r.amount_cents), 0)
+		        FROM refunds r JOIN return_requests rr ON rr.id = r.return_request_id
+		        WHERE rr.order_id = $1)
+		FROM payments p WHERE p.order_id = $1 AND p.status = 'succeeded'`, orderID).
+		Scan(&captured, &refunded); err != nil {
+		t.Fatalf("read refund total: %v", err)
+	}
+	if captured != 215000 || refunded != captured {
+		t.Errorf("captured=%d refunded=%d, want both 215000", captured, refunded)
 	}
 }
 
@@ -965,6 +1543,97 @@ func TestAStalledRefundCanBeRetriedToCompletion(t *testing.T) {
 	if returnStatus != "approved" {
 		t.Errorf("return is %q after the refund finally went through, want approved", returnStatus)
 	}
+}
+
+func TestAStalledRefundOffersItsRetryInTheQueue(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		refunder        fakeRefunder
+		wantOutstanding bool
+		wantBlocked     bool
+	}{
+		{
+			name: "an ambiguous transport failure remains retryable",
+			refunder: fakeRefunder{
+				refundErr: errors.New("read tcp 1.2.3.4:443: i/o timeout"),
+			},
+			wantOutstanding: true,
+		},
+		{
+			name:            "a provider refusal is stranded",
+			refunder:        fakeRefunder{state: admin.RefundFailed},
+			wantOutstanding: true,
+			wantBlocked:     true,
+		},
+		{
+			name:     "a settled payout offers nothing twice",
+			refunder: fakeRefunder{},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, _ := staffContext(t)
+			requestID, _ := returnedOrder(t, 1)
+			s := admin.NewStore(pool, tc.refunder, nil)
+			_ = s.Decide(ctx, requestID.String(), "approved", "退款", uuid.NullUUID{})
+
+			view, err := s.Returns(ctx)
+			if err != nil {
+				t.Fatalf("read queue: %v", err)
+			}
+			var found *pages.AdminReturn
+			for i := range view.Rows {
+				if view.Rows[i].ID == requestID.String() {
+					found = &view.Rows[i]
+					break
+				}
+			}
+			if found == nil {
+				t.Fatalf("return %s is absent from queue", requestID)
+			}
+			if !found.Decided {
+				t.Error("the committed approval is rendered as undecided")
+			}
+			if found.PayoutOutstanding != tc.wantOutstanding || found.PayoutBlocked != tc.wantBlocked {
+				t.Errorf("payout flags = outstanding %v blocked %v, want %v/%v",
+					found.PayoutOutstanding, found.PayoutBlocked,
+					tc.wantOutstanding, tc.wantBlocked)
+			}
+		})
+	}
+
+	t.Run("a split payout offers the half that has not landed", func(t *testing.T) {
+		ctx, _ := staffContext(t)
+		requestID, orderNumber, _ := creditFundedReturn(t, 2, 60000)
+		if _, err := pool.Exec(ctx, `
+			UPDATE return_requests SET status = 'approved', decided_at = now(), resolution = '退款'
+			WHERE id = $1`, requestID); err != nil {
+			t.Fatalf("approve split return: %v", err)
+		}
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO refunds (payment_id, request_key, amount_cents, reason,
+			                     return_request_id, status, provider_ref, succeeded_at)
+			SELECT p.id, 'return:' || $1::text, 140000, '退款', $1::uuid,
+			       'succeeded', 're_queue_split', now()
+			FROM payments p JOIN orders o ON o.id = p.order_id
+			WHERE o.order_number = $2 AND p.status = 'succeeded'`, requestID, orderNumber); err != nil {
+			t.Fatalf("construct settled card half: %v", err)
+		}
+		s := admin.NewStore(pool, fakeRefunder{}, nil)
+		view, err := s.Returns(ctx)
+		if err != nil {
+			t.Fatalf("read split queue: %v", err)
+		}
+		for i := range view.Rows {
+			if view.Rows[i].ID == requestID.String() {
+				if !view.Rows[i].PayoutOutstanding || view.Rows[i].PayoutBlocked {
+					t.Errorf("split payout flags = outstanding %v blocked %v, want true/false",
+						view.Rows[i].PayoutOutstanding, view.Rows[i].PayoutBlocked)
+				}
+				return
+			}
+		}
+		t.Fatalf("split return %s is absent from queue", requestID)
+	})
 }
 
 func TestAPendingProviderRefundIsNotRecordedAsSucceeded(t *testing.T) {
@@ -2080,7 +2749,7 @@ func TestTheQueuePutsWhatTheShopOwesFirst(t *testing.T) {
 		t.Fatalf("answer: %v", err)
 	}
 	middling := ask(t, ps, slug, asker, "中間的,只有顧客回", -2)
-	if err := ps.Answer(ctx, middling, asker, "我覺得可以", false); err != nil {
+	if err := ps.Answer(ctx, middling, asker, "我覺得可以"); err != nil {
 		t.Fatalf("customer answer: %v", err)
 	}
 	newest := ask(t, ps, slug, asker, "最新的,沒人回", -1)
@@ -2761,6 +3430,73 @@ func TestTheReturnQueueShowsWhatIsComingBack(t *testing.T) {
 	}
 }
 
+func TestTheRescissionWindowIsCountedOnTheShopsCalendar(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+
+	cases := []struct {
+		name           string
+		delivered      string
+		requested      string
+		wantWindow     string
+		wantRescission bool
+	}{
+		{
+			name:           "a parcel handed over in the Taipei morning",
+			delivered:      "2026-08-25T07:00:00+08:00",
+			requested:      "2026-09-01T12:00:00+08:00",
+			wantWindow:     "within",
+			wantRescission: true,
+		},
+		{
+			name:           "a request made in the Taipei small hours one day late",
+			delivered:      "2026-08-25T12:00:00+08:00",
+			requested:      "2026-09-02T06:00:00+08:00",
+			wantWindow:     "after",
+			wantRescission: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// These hours are the lock: 07:00 Taipei is 23:00 UTC on the
+			// previous day, and 06:00 Taipei is 22:00 UTC on the previous
+			// day. Moving either into the middle of the day makes shop_day(x)
+			// equal x::date and silently makes this test agree with the defect.
+			delivered, err := time.Parse(time.RFC3339, tc.delivered)
+			if err != nil {
+				t.Fatalf("parse delivered_at: %v", err)
+			}
+			requested, err := time.Parse(time.RFC3339, tc.requested)
+			if err != nil {
+				t.Fatalf("parse requested_at: %v", err)
+			}
+			requestID := returnedOrderAt(t, delivered, requested)
+
+			view, err := s.Returns(ctx)
+			if err != nil {
+				t.Fatalf("read the queue: %v", err)
+			}
+			var found *pages.AdminReturn
+			for i := range view.Rows {
+				if view.Rows[i].ID == requestID.String() {
+					found = &view.Rows[i]
+					break
+				}
+			}
+			if found == nil {
+				t.Fatalf("the return %s is not in the queue", requestID)
+			}
+			if found.Window != tc.wantWindow {
+				t.Errorf("window is %q, want %q", found.Window, tc.wantWindow)
+			}
+			if got := found.Rescission(); got != tc.wantRescission {
+				t.Errorf("Rescission() is %t, want %t", got, tc.wantRescission)
+			}
+		})
+	}
+}
+
 func TestPublishingAVersionCarriesItsZoneSurcharges(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -3409,8 +4145,8 @@ func TestAWhollyCreditFundedReturnNeedsNoProvider(t *testing.T) {
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
 	requestID, orderNumber, accountID := creditFundedReturn(t, 2, 200000)
 
-	if err := s.Decide(ctx, requestID.String(), "approved", "全額購物金", uuid.NullUUID{}); err != nil {
-		t.Fatalf("Decide: %v", err)
+	if decideErr := s.Decide(ctx, requestID.String(), "approved", "全額購物金", uuid.NullUUID{}); decideErr != nil {
+		t.Fatalf("Decide: %v", decideErr)
 	}
 
 	var refunds int
@@ -3426,6 +4162,115 @@ func TestAWhollyCreditFundedReturnNeedsNoProvider(t *testing.T) {
 	}
 	if got := creditBalanceOf(t, accountID); got != 200000 {
 		t.Errorf("balance = %d, want 200000 — every cent came back as credit", got)
+	}
+}
+
+func TestACreditOnlyRefundIsOnTheCustomersTimeline(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	requestID, _, _ := creditFundedReturn(t, 2, 200000)
+
+	if err := s.Decide(ctx, requestID.String(), "approved", "全額購物金", uuid.NullUUID{}); err != nil {
+		t.Fatalf("Decide: %v", err)
+	}
+
+	var events int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM order_events e
+		JOIN return_requests r ON r.order_id = e.order_id
+		WHERE r.id = $1 AND e.kind = 'refunded'`, requestID).Scan(&events); err != nil {
+		t.Fatalf("count timeline events: %v", err)
+	}
+	if events != 1 {
+		t.Errorf("%d refunded events after a credit-only refund, want 1 — the customer "+
+			"has no per-entry credit history, so without this their timeline says no money moved", events)
+	}
+
+	var entries int
+	var credited int64
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*), coalesce(sum(amount_cents), 0)::bigint
+		FROM store_credit_entries
+		WHERE idempotency_key = 'return-credit:' || $1::text`, requestID).
+		Scan(&entries, &credited); err != nil {
+		t.Fatalf("read returned credit: %v", err)
+	}
+	if entries != 1 || credited != 200000 {
+		t.Errorf("returned credit is %d row(s) totalling %d, want one row of 200000", entries, credited)
+	}
+}
+
+func TestASplitRefundWhoseCardIsPendingStillRecordsTheCreditThatLanded(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{state: admin.RefundPending}, nil)
+	requestID, _, _ := creditFundedReturn(t, 2, 60000)
+
+	if err := s.Decide(ctx, requestID.String(), "approved", "分拆退款", uuid.NullUUID{}); err != nil {
+		t.Fatalf("Decide: %v", err)
+	}
+
+	var refundState string
+	if err := pool.QueryRow(ctx,
+		`SELECT status FROM refunds WHERE return_request_id = $1`, requestID).
+		Scan(&refundState); err != nil {
+		t.Fatalf("read card refund: %v", err)
+	}
+	if refundState != "pending" {
+		t.Fatalf("card refund is %q, want pending — the fixture does not distinguish accepted from moved", refundState)
+	}
+
+	var credited int64
+	if err := pool.QueryRow(ctx, `
+		SELECT coalesce(sum(amount_cents), 0)::bigint FROM store_credit_entries
+		WHERE idempotency_key = 'return-credit:' || $1::text`, requestID).
+		Scan(&credited); err != nil {
+		t.Fatalf("read returned credit: %v", err)
+	}
+	if credited != 60000 {
+		t.Fatalf("returned credit is %d, want 60000 — no money moved, so this proves nothing", credited)
+	}
+
+	var events int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM order_events e
+		JOIN return_requests r ON r.order_id = e.order_id
+		WHERE r.id = $1 AND e.kind = 'refunded'`, requestID).Scan(&events); err != nil {
+		t.Fatalf("count timeline events: %v", err)
+	}
+	if events != 1 {
+		t.Errorf("%d refunded events after credit landed while the card stayed pending, want 1", events)
+	}
+}
+
+func TestTheRefundFigureCountsCreditToo(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+
+	before, err := s.Report(ctx, 30)
+	if err != nil {
+		t.Fatalf("read report before refund: %v", err)
+	}
+	requestID, orderNumber, _ := creditFundedReturn(t, 2, 200000)
+	if decideErr := s.Decide(ctx, requestID.String(), "approved", "全額購物金", uuid.NullUUID{}); decideErr != nil {
+		t.Fatalf("Decide: %v", decideErr)
+	}
+	after, err := s.Report(ctx, 30)
+	if err != nil {
+		t.Fatalf("read report after refund: %v", err)
+	}
+
+	var card, credit int64
+	if err := pool.QueryRow(ctx, `
+		SELECT card_cents, credit_cents FROM order_refunds
+		WHERE order_number = $1`, orderNumber).Scan(&card, &credit); err != nil {
+		t.Fatalf("read the one refund definition: %v", err)
+	}
+	if card != 0 || credit != 200000 {
+		t.Fatalf("order_refunds reads card=%d credit=%d, want 0/200000 — the fixture must be credit-only", card, credit)
+	}
+	if delta, want := after.RefundedCents-before.RefundedCents, card+credit; delta != want {
+		t.Errorf("the report moved by %d while order_refunds says %d went back "+
+			"(card %d + credit %d); both surfaces must read one definition", delta, want, card, credit)
 	}
 }
 
@@ -3534,6 +4379,7 @@ func creditFundedReturn(t *testing.T, qty int32, creditCents int64) (
 		}
 	}
 
+	moveOrderToShipped(t, tx, orderID)
 	var shipmentID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id, carrier, tracking_number)
@@ -3545,13 +4391,6 @@ func creditFundedReturn(t *testing.T, qty int32, creditCents int64) (
 		INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
 		VALUES ($1, $2, $3, 2)`, orderID, shipmentID, lineID); err != nil {
 		t.Fatalf("create shipment line: %v", err)
-	}
-	for _, status := range []string{"picking", "shipped"} {
-		if _, err := tx.Exec(ctx,
-			`UPDATE orders SET fulfillment_status = $2 WHERE id = $1`,
-			orderID, status); err != nil {
-			t.Fatalf("move the order to %s: %v", status, err)
-		}
 	}
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO return_requests (order_id, reason) VALUES ($1, '不合用') RETURNING id`,
@@ -3845,7 +4684,12 @@ func TestACustomersSpendCountsOnlyCommittedOrders(t *testing.T) {
 	userID := creditedAccount(t, 0)
 	actor := uuid.NullUUID{UUID: staff, Valid: true}
 
-	orderForCustomer(t, userID, 120000, true)
+	paid := orderForCustomer(t, userID, 120000, true)
+	if _, err := pool.Exec(ctx,
+		`SELECT post_store_credit($1, 20000, '退貨', $2, $3, NULL)`,
+		userID, paid, "customer-refund:"+paid.String()); err != nil {
+		t.Fatalf("return part of the committed order: %v", err)
+	}
 	cancelled := orderForCustomer(t, userID, 990000, false)
 	if _, err := pool.Exec(ctx,
 		`UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
@@ -3858,8 +4702,8 @@ func TestACustomersSpendCountsOnlyCommittedOrders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Customer: %v", err)
 	}
-	if view.SpentCents != 120000 {
-		t.Errorf("spend is %d, want 120000 — the cancelled order is being counted",
+	if view.SpentCents != 100000 {
+		t.Errorf("spend is %d, want 100000 — the cancelled order or its refund is being counted",
 			view.SpentCents)
 	}
 	if view.Orders != 2 {
@@ -5254,6 +6098,7 @@ func returnedOrderWithStock(t *testing.T, name string, qty int32) (requestID, va
 		"cs_rets_"+orderNumber); err != nil {
 		t.Fatalf("capture: %v", err)
 	}
+	moveOrderToShipped(t, tx, orderID)
 	var shipmentID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id, carrier, tracking_number)
@@ -5970,6 +6815,14 @@ func registeredWarranty(t *testing.T, serial string) (registered, orderNumber st
 		orderID); err != nil {
 		t.Fatalf("create private data: %v", err)
 	}
+	ref := "cs_warranty_" + number
+	if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, 100000)`, orderID, ref); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT capture_payment($1, 100000, NULL, NULL)`, ref); err != nil {
+		t.Fatalf("capture payment: %v", err)
+	}
+	moveOrderToShipped(t, tx, orderID)
 	var shipmentID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_shipments (order_id, carrier, tracking_number, shipped_at, delivered_at)

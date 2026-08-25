@@ -122,6 +122,20 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 
 	// Before the redirect: a capture with no row to land on is unattributable.
 	if err := h.store.OpenPayment(r.Context(), number, sessionID, o.TotalCents); err != nil {
+		if errors.Is(err, ErrNotOpenable) {
+			// The order was cancelled while Stripe was being asked. Nothing
+			// recorded this session, so nothing else will ever close it.
+			if expErr := h.gateway.ExpireSession(r.Context(), sessionID); expErr != nil {
+				h.log.WarnContext(r.Context(),
+					"expire the session of an order cancelled mid-open",
+					"order", number, "session", sessionID, "error", expErr)
+			}
+			h.notice(w, r, http.StatusConflict,
+				i18n.T(r.Context(), i18n.KeyPayRefusedTitle),
+				i18n.T(r.Context(), i18n.KeyPayRefusedTitle),
+				i18n.T(r.Context(), i18n.KeyPayRefusedBody))
+			return
+		}
 		h.log.ErrorContext(r.Context(), "open payment", "order", number, "error", err)
 		h.serverError(w, r)
 		return

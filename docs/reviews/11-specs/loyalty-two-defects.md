@@ -15,6 +15,61 @@
 > this spec stands.
 
 
+> **DESIGN APPROVED — lot-linked ledger with `kind` column, with four
+> conditions.** The implementing agent's design of 1a was reviewed against the
+> live schema before any code. It is accepted, and in one respect it is better
+> than this spec: it supersedes the spec where they conflict.
+>
+> **The design is right and the spec is wrong on zero-point clawbacks.** This
+> spec says leave `loyalty_entries_points_nonzero` untouched. The design posts a
+> `points = 0` clawback row for a wholly-consumed lot, so the 100% shortfall is
+> a durable, readable fact rather than a silent omission, and the row's
+> presence keeps the clawback idempotent on its key. That is the better model —
+> a shortfall the shop cannot see is this repository's most-named failure. So:
+> **narrow** the CHECK to `(points <> 0 OR kind = 'clawback')`; zero stays
+> illegal for an award or a spend; the constraint keeps its name; a clawback
+> must additionally satisfy `requested_points > 0` so a zero row always says
+> what it is a shortfall OF.
+>
+> **Condition 1 — the append-only trigger admits ONE mutation and lot-linking
+> must not need a second.** `forbid_change` permits an UPDATE only when the row
+> is byte-identical except `actor_user_id` becoming NULL. A spend or clawback
+> must therefore be a pure INSERT that names the award's `id` — nothing writes
+> back to the award row, no `consumed` counter, no touched timestamp. If the
+> implementation finds itself wanting to UPDATE an award, the model is wrong,
+> not the trigger.
+>
+> **Condition 2 — every read that infers kind from the SIGN must move to
+> `kind`.** Two live sites and one CHECK do this today, and the clawback breaks
+> all three because `kind='clawback'` may carry `points = 0` or negative:
+> `internal/loyalty/query.sql:19` (`e.points > 0 ... AS expired`), `:37`
+> (`AND e.points > 0` in `PointsExpiringSoon`), and
+> `loyalty_entries_expiry_matches_sign`, which is replaced. A `kind` column
+> that exists beside sign-based reads is two definitions of one fact; the
+> column is only a definition if nothing else is. Grep for `points > 0` and
+> `points < 0` before declaring 1a done.
+>
+> **Condition 3 — `PointsHistory` must render a clawback as a clawback**, and
+> the design's own strength is what forces this: a `points = 0` row rendered
+> through the current query is a line reading "0 points" with no cause. It
+> must group by the design's own key (one redemption spanning three lots is
+> ONE line to the customer, per the spec's `split_part` grouping), and a
+> clawback must render its `requested_points` and its shortfall in the
+> customer's language. The i18n key pair is new; both locales.
+>
+> **Condition 4 — the FIFO tie-break is named.** "Earliest expiry first" is
+> right (it maximises what survives) but two lots can share an `expires_on`
+> whenever two orders are captured on one day. Break the tie on `created_at`,
+> then `id`; write it in `redeem_loyalty_points` and lock it with a fixture of
+> two same-day lots, because a nondeterministic split is a nondeterministic
+> `remaining` for the clawback that follows.
+>
+> The decided constraint stands unchanged: a clawback reverses the unconsumed
+> remainder and never more; `loyalty_never_negative` (or the lot guard that
+> replaces it) acquires no exemption; the balance cannot go negative because
+> every kind now carries its lot's `expires_on` and the `e.points < 0 OR`
+> escape clause is deleted from `loyalty_balances`.
+
 ## Root cause
 
 One root cause with two faces: the ledger records what happened to POINTS but not to which AWARD, so no read can pair a spend with the lot it consumed.

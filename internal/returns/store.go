@@ -123,23 +123,9 @@ func (s *Store) Open(ctx context.Context, number string, userID uuid.NullUUID, r
 		return ErrNotReturnable
 	}
 
-	allowed := make(map[string]int32, len(o.Lines))
-	for i := range o.Lines {
-		allowed[o.Lines[i].ID] = o.Lines[i].Returnable
-	}
-	wanted := make(map[uuid.UUID]int32, len(req.Lines))
-	for id, qty := range req.Lines {
-		if qty == 0 {
-			continue
-		}
-		lineID, wantErr := parseWanted(id, qty, allowed)
-		if wantErr != nil {
-			return wantErr
-		}
-		wanted[lineID] = qty
-	}
-	if len(wanted) == 0 {
-		return ErrInvalid
+	wanted, err := wantedLines(req.Lines, o.Lines)
+	if err != nil {
+		return err
 	}
 
 	tx, err := s.pool.Begin(ctx)
@@ -153,6 +139,10 @@ func (s *Store) Open(ctx context.Context, number string, userID uuid.NullUUID, r
 		OrderID: o.ID, RequestedByUserID: userID, Reason: req.Reason,
 	})
 	if err != nil {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
+			pgErr.ConstraintName == "return_requests_one_open" {
+			return ErrAlreadyOpen
+		}
 		return fmt.Errorf("create return request for %s: %w", number, err)
 	}
 	for lineID, qty := range wanted {
@@ -167,6 +157,28 @@ func (s *Store) Open(ctx context.Context, number string, userID uuid.NullUUID, r
 		return fmt.Errorf("commit return request: %w", err)
 	}
 	return nil
+}
+
+func wantedLines(submitted map[string]int32, lines []Line) (map[uuid.UUID]int32, error) {
+	allowed := make(map[string]int32, len(lines))
+	for i := range lines {
+		allowed[lines[i].ID] = lines[i].Returnable
+	}
+	wanted := make(map[uuid.UUID]int32, len(submitted))
+	for id, qty := range submitted {
+		if qty == 0 {
+			continue
+		}
+		lineID, err := parseWanted(id, qty, allowed)
+		if err != nil {
+			return nil, err
+		}
+		wanted[lineID] = qty
+	}
+	if len(wanted) == 0 {
+		return nil, ErrInvalid
+	}
+	return wanted, nil
 }
 
 func returnLineError(lineID uuid.UUID, err error) error {

@@ -128,6 +128,10 @@ func (s *Store) OpenPayment(ctx context.Context, number, sessionID string, amoun
 		ProviderRef:         sessionID,
 		IntendedAmountCents: amountCents,
 	}); err != nil {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
+			pgErr.ConstraintName == "payments_open_refuses_settled_order" {
+			return fmt.Errorf("%w: order %s", ErrNotOpenable, number)
+		}
 		return fmt.Errorf("open payment for order %s: %w", number, err)
 	}
 	return nil

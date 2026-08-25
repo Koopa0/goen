@@ -117,6 +117,8 @@ func TestEveryTableIsRead(t *testing.T) {
 	allowed := map[string]string{
 		"order_number_counters": "read by next_order_number(), which is the only " +
 			"thing that may touch it — a per-day counter under a row lock",
+		"stock_notifications": "ClaimRestockNotices reads each claimed row through " +
+			"UPDATE ... RETURNING; this guard recognizes FROM/JOIN reads, not a writer's RETURNING set",
 	}
 
 	ctx := t.Context()

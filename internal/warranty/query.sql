@@ -33,11 +33,11 @@ ORDER BY ol.position, ol.id;
 
 -- Register one unit. expires_on is computed here from the delivery date and the
 -- product's term, never passed in, and min() across the parcels runs a split
--- line from the day the first box arrived.
+-- line from the shop's calendar day on which the first box arrived.
 -- name: RegisterWarranty :execrows
 INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, serial_number, expires_on)
 SELECT ol.id, @unit_no::smallint, @user_id, nullif(@serial_number::text, ''),
-       (delivered.at + make_interval(months => p.warranty_months))::date
+       (shop_day(delivered.at) + make_interval(months => p.warranty_months))::date
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
 JOIN product_variants pv ON pv.id = ol.variant_id
@@ -57,7 +57,7 @@ WHERE ol.id = @order_line_id
 -- name: MyWarranties :many
 SELECT w.id, w.unit_no, coalesce(w.serial_number, '') AS serial_number,
        w.registered_at, w.expires_on,
-       (w.expires_on >= current_date)::boolean AS in_force,
+       (w.expires_on >= shop_today())::boolean AS in_force,
        ol.product_name, ol.variant_label, o.order_number,
        coalesce(p.slug, '') AS product_slug
 FROM warranty_registrations w

@@ -5,6 +5,7 @@ package returns_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -15,8 +16,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/returns"
@@ -82,22 +85,118 @@ func shippedOrder(t *testing.T, ordered, shipped int32) (number string, lineID u
 		t.Fatalf("create private data: %v", err)
 	}
 	if shipped > 0 {
-		var shipmentID uuid.UUID
-		if err := tx.QueryRow(ctx, `
-			INSERT INTO order_shipments (order_id, carrier, tracking_number)
-			VALUES ($1, '黑貓', 'TW-'||$2) RETURNING id`, orderID, number).Scan(&shipmentID); err != nil {
-			t.Fatalf("create shipment: %v", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
-			VALUES ($1, $2, $3, $4)`, orderID, shipmentID, lineID, shipped); err != nil {
-			t.Fatalf("create shipment line: %v", err)
-		}
+		shipReturnFixture(t, tx, orderID, lineID, number, ordered, shipped)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatalf("commit: %v", err)
 	}
 	return number, lineID
+}
+
+func shipReturnFixture(
+	t *testing.T,
+	tx pgx.Tx,
+	orderID, lineID uuid.UUID,
+	number string,
+	ordered, shipped int32,
+) {
+	t.Helper()
+	ctx := t.Context()
+	ref := "cs_returns_" + number
+	amount := int64(ordered) * 100000
+	if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, $3)`, orderID, ref, amount); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT capture_payment($1, $2, NULL, NULL)`, ref, amount); err != nil {
+		t.Fatalf("capture payment: %v", err)
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE orders SET fulfillment_status = 'picking' WHERE id = $1`, orderID); err != nil {
+		t.Fatalf("move order to picking: %v", err)
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE orders SET fulfillment_status = 'shipped' WHERE id = $1`, orderID); err != nil {
+		t.Fatalf("move order to shipped: %v", err)
+	}
+	var shipmentID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO order_shipments (order_id, carrier, tracking_number)
+		VALUES ($1, '黑貓', 'TW-'||$2) RETURNING id`, orderID, number).Scan(&shipmentID); err != nil {
+		t.Fatalf("create shipment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+		VALUES ($1, $2, $3, $4)`, orderID, shipmentID, lineID, shipped); err != nil {
+		t.Fatalf("create shipment line: %v", err)
+	}
+}
+
+func shippedTwoLineOrder(t *testing.T) (orderID uuid.UUID, number string, lines [2]uuid.UUID) {
+	t.Helper()
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
+		                    shipping_method_name, shipping_cents)
+		SELECT next_order_number(), v.id, sm.code, v.name, 0
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1
+		RETURNING id, order_number`).Scan(&orderID, &number); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	for i := range lines {
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity, position)
+			VALUES ($1, $2, '競態退貨商品', 100000, 1, $3) RETURNING id`,
+			orderID, fmt.Sprintf("RETURN-RACE-%d-%s", i, orderID), i).Scan(&lines[i]); err != nil {
+			t.Fatalf("create line %d: %v", i, err)
+		}
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'return-race@example.com', '收件', '0912345678',
+		        '110', '台北市', '信義區', '路 1 號')`, orderID); err != nil {
+		t.Fatalf("create private data: %v", err)
+	}
+	ref := "cs_return_race_" + number
+	if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, 200000)`, orderID, ref); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT capture_payment($1, 200000, NULL, NULL)`, ref); err != nil {
+		t.Fatalf("capture payment: %v", err)
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE orders SET fulfillment_status = 'picking' WHERE id = $1`, orderID); err != nil {
+		t.Fatalf("move order to picking: %v", err)
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE orders SET fulfillment_status = 'shipped' WHERE id = $1`, orderID); err != nil {
+		t.Fatalf("move order to shipped: %v", err)
+	}
+	var shipmentID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO order_shipments (order_id, carrier, tracking_number)
+		VALUES ($1, '黑貓', 'RETURN-RACE-' || $2) RETURNING id`, orderID, number).
+		Scan(&shipmentID); err != nil {
+		t.Fatalf("create shipment: %v", err)
+	}
+	for i := range lines {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+			VALUES ($1, $2, $3, 1)`, orderID, shipmentID, lines[i]); err != nil {
+			t.Fatalf("ship line %d: %v", i, err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	return orderID, number, lines
 }
 
 func returnsApplicationPool(t *testing.T, name string) *pgxpool.Pool {
@@ -350,6 +449,60 @@ func TestOnlyOneOpenRequestAtATime(t *testing.T) {
 	second := &returns.Request{Reason: "還是不合用", Lines: map[string]int32{lineID.String(): 1}}
 	if err := s.Open(ctx, number, uuid.NullUUID{}, second); !errors.Is(err, returns.ErrAlreadyOpen) {
 		t.Errorf("second request gave %v, want ErrAlreadyOpen", err)
+	}
+}
+
+// TestOneOpenReturnPerOrder proves the database serialises the two writers, not
+// merely that the ordinary pool-side pre-check notices a request already there.
+func TestOneOpenReturnPerOrder(t *testing.T) {
+	ctx := t.Context()
+	orderID, number, lines := shippedTwoLineOrder(t)
+
+	tx1, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin first return: %v", err)
+	}
+	defer func() { _ = tx1.Rollback(ctx) }()
+	q1 := db.New(pool).WithTx(tx1)
+	requestID, err := q1.CreateReturnRequest(ctx, db.CreateReturnRequestParams{
+		OrderID: orderID, Reason: "first line",
+	})
+	if err != nil {
+		t.Fatalf("create first return: %v", err)
+	}
+	if err := q1.CreateReturnRequestLine(ctx, db.CreateReturnRequestLineParams{
+		OrderID: orderID, ReturnRequestID: requestID, OrderLineID: lines[0], Quantity: 1,
+	}); err != nil {
+		t.Fatalf("claim first line: %v", err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- returns.NewStore(pool).Open(ctx, number, uuid.NullUUID{}, &returns.Request{
+			Reason: "second line", Lines: map[string]int32{lines[1].String(): 1},
+		})
+	}()
+	select {
+	case openErr := <-done:
+		t.Fatalf("second return finished before the first committed: %v", openErr)
+	case <-time.After(500 * time.Millisecond):
+	}
+
+	if err := tx1.Commit(ctx); err != nil {
+		t.Fatalf("commit first return: %v", err)
+	}
+	if err := <-done; !errors.Is(err, returns.ErrAlreadyOpen) {
+		t.Fatalf("competing return gave %v, want ErrAlreadyOpen", err)
+	}
+
+	var open int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM return_requests
+		WHERE order_id = $1 AND status = 'requested'`, orderID).Scan(&open); err != nil {
+		t.Fatalf("count open returns: %v", err)
+	}
+	if open != 1 {
+		t.Errorf("%d open returns survived, want 1", open)
 	}
 }
 

@@ -10,20 +10,23 @@ import (
 
 // PointsEntry is one line of the ledger.
 type PointsEntry struct {
-	Points    int64
-	Reason    string
-	Order     string
-	At        string
-	ExpiresOn string
-	Expired   bool
+	Points          int64
+	RequestedPoints int64
+	ShortfallPoints int64
+	Kind            string
+	Reason          string
+	Order           string
+	At              string
+	ExpiresOn       string
+	Expired         bool
 }
 
 // Earned reports whether this line added points.
-func (e PointsEntry) Earned() bool { return e.Points > 0 }
+func (e PointsEntry) Earned() bool { return e.Kind == "award" }
 
 // Amount is the change, signed so a ledger reads as one.
 func (e PointsEntry) Amount() string {
-	if e.Points > 0 {
+	if e.Kind == "award" {
 		return "+" + strconv.FormatInt(e.Points, 10)
 	}
 	return strconv.FormatInt(e.Points, 10)
@@ -31,17 +34,31 @@ func (e PointsEntry) Amount() string {
 
 // What describes the line in the chrome language.
 func (e PointsEntry) What(ctx context.Context) string {
-	switch e.Reason {
-	case "order":
+	switch e.Kind {
+	case "award":
 		if e.Order != "" {
 			return fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsFromOrder), e.Order)
 		}
 		return i18n.T(ctx, i18n.KeyPointsEarned)
-	case "redeem":
+	case "spend":
 		return i18n.T(ctx, i18n.KeyPointsSpent)
+	case "clawback":
+		return i18n.T(ctx, i18n.KeyPointsClawback)
 	default:
 		return e.Reason
 	}
+}
+
+// Detail makes a clawback's requested amount and any uncollected shortfall
+// visible. A zero-point row is otherwise indistinguishable from a blank event.
+func (e PointsEntry) Detail(ctx context.Context) string {
+	if e.Kind != "clawback" {
+		return ""
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsClawbackDetail),
+		strconv.FormatInt(e.RequestedPoints, 10),
+		strconv.FormatInt(-e.Points, 10),
+		strconv.FormatInt(e.ShortfallPoints, 10))
 }
 
 // PointsView is the customer's points page.

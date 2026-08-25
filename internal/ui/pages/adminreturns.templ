@@ -86,6 +86,20 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 										</button>
 									</div>
 								</form>
+							} else if r.CanRetryPayout() {
+								<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.Action()) }>
+									<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetPayoutOutstanding) }</p>
+									<input type="hidden" name="decision" value="approved"/>
+									<div class="ui-field">
+										<label class="ui-label" for={ "retry-" + r.ID }>{ i18n.T(ctx, i18n.KeyAdminRetResolution) }</label>
+										<input class="ui-input" id={ "retry-" + r.ID } name="resolution" maxlength="300" autocomplete="off"/>
+									</div>
+									<div class="goen-admin__decidebtns">
+										<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminRetRetryPayout) }</button>
+									</div>
+								</form>
+							} else if r.PayoutStranded() {
+								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetPayoutStranded) }</p>
 							}
 							if r.AwaitingGoods() {
 								<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.InspectAction()) }>

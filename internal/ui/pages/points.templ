@@ -76,12 +76,15 @@ templ Points(p layouts.Page, v PointsView) {
 							</span>
 							<span class="goen-points__what">{ e.What(ctx) }</span>
 							<span class="ui-cart-line__meta">
+								if e.Detail(ctx) != "" {
+									{ e.Detail(ctx) }
+								}
 								{ e.At }
 								if e.ExpiresOn != "" {
 									if e.Expired {
-										{ i18n.T(ctx, i18n.KeyPointsExpired) }
+										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsExpired), e.ExpiresOn) }
 									} else {
-										{ i18n.T(ctx, i18n.KeyPointsExpiresOn) }
+										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsExpiresOn), e.ExpiresOn) }
 									}
 								}
 							</span>

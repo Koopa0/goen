@@ -42,8 +42,10 @@ func (s *Store) Ask(ctx context.Context, slug, userID, body string) error {
 	return nil
 }
 
-// Answer records an answer, storing staff as the caller knows it now.
-func (s *Store) Answer(ctx context.Context, questionID, userID, body string, staff bool) error {
+// Answer records a CUSTOMER's reply. is_staff is false because of the PACKAGE,
+// never of who is signed in: the shop answers through admin.Store.AnswerQuestion,
+// which is the only endpoint behind RequireStaff.
+func (s *Store) Answer(ctx context.Context, questionID, userID, body string) error {
 	body = strings.TrimSpace(body)
 	if body == "" || utf8.RuneCountInString(body) > MaxAnswerRunes {
 		return ErrQuestionInvalid
@@ -56,9 +58,9 @@ func (s *Store) Answer(ctx context.Context, questionID, userID, body string, sta
 	if err != nil {
 		return ErrQuestionInvalid
 	}
-	n, err := s.q.AnswerQuestion(ctx, db.AnswerQuestionParams{
+	n, err := s.q.AnswerQuestionAsCustomer(ctx, db.AnswerQuestionAsCustomerParams{
 		QuestionID: qID, UserID: uuid.NullUUID{UUID: author, Valid: true},
-		Body: body, IsStaff: staff,
+		Body: body,
 	})
 	if err != nil {
 		return fmt.Errorf("answer question: %w", err)

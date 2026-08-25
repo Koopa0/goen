@@ -8,8 +8,10 @@ import (
 	"log/slog"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db/dbtest"
@@ -43,8 +45,9 @@ func TestMain(m *testing.M) {
 // parcel is what left the warehouse and whether it ARRIVED — the two states
 // this feature is bounded by.
 type parcel struct {
-	units   int
-	arrived bool
+	units       int
+	arrived     bool
+	deliveredAt time.Time
 }
 
 // fixture is one customer's order: `ordered` units bought, one parcel carrying
@@ -132,31 +135,69 @@ func newFixture(t *testing.T, ordered, months int, p parcel) fixture {
 	}
 
 	if p.units > 0 {
-		// Dispatched ten days ago, delivered eight. The dates differ so a fixture
-		// cannot go green whichever column the expiry is computed from.
-		var delivered any
-		if p.arrived {
-			delivered = "8 days"
-		}
-		var shipmentID uuid.UUID
-		if err := tx.QueryRow(ctx, `
-			INSERT INTO order_shipments (order_id, carrier, tracking_number, shipped_at, delivered_at)
-			VALUES ($1, '黑貓', 'TW-'||$2, now() - interval '10 days',
-			        CASE WHEN $3::text IS NULL THEN NULL ELSE now() - $3::interval END)
-			RETURNING id`,
-			orderID, number, delivered).Scan(&shipmentID); err != nil {
-			t.Fatalf("create shipment: %v", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
-			VALUES ($1, $2, $3, $4)`, orderID, shipmentID, lineID, p.units); err != nil {
-			t.Fatalf("create shipment line: %v", err)
-		}
+		addWarrantyShipment(t, tx, orderID, lineID, number, ordered, p)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatalf("commit: %v", err)
 	}
 	return fixture{userID: userID.String(), number: number, lineID: lineID}
+}
+
+func addWarrantyShipment(
+	t *testing.T,
+	tx pgx.Tx,
+	orderID, lineID uuid.UUID,
+	number string,
+	ordered int,
+	p parcel,
+) {
+	t.Helper()
+	ctx := t.Context()
+	ref := "cs_warranty_" + number
+	amount := int64(ordered) * 100000
+	if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, $3)`, orderID, ref, amount); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT capture_payment($1, $2, NULL, NULL)`, ref, amount); err != nil {
+		t.Fatalf("capture payment: %v", err)
+	}
+	for _, status := range []string{"picking", "shipped"} {
+		if _, err := tx.Exec(ctx,
+			`UPDATE orders SET fulfillment_status = $2 WHERE id = $1`, orderID, status); err != nil {
+			t.Fatalf("move order to %s: %v", status, err)
+		}
+	}
+
+	shippedAt, deliveredAt := warrantyParcelTimes(p)
+	var shipmentID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO order_shipments (order_id, carrier, tracking_number, shipped_at, delivered_at)
+		VALUES ($1, '黑貓', 'TW-'||$2, $3, $4)
+		RETURNING id`,
+		orderID, number, shippedAt, deliveredAt).Scan(&shipmentID); err != nil {
+		t.Fatalf("create shipment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+		VALUES ($1, $2, $3, $4)`, orderID, shipmentID, lineID, p.units); err != nil {
+		t.Fatalf("create shipment line: %v", err)
+	}
+}
+
+// warrantyParcelTimes keeps dispatch and delivery two days apart so the test
+// fixture cannot pass whichever source timestamp the expiry query happens to use.
+func warrantyParcelTimes(p parcel) (shippedAt time.Time, deliveredAt any) {
+	now := time.Now()
+	shippedAt = now.Add(-10 * 24 * time.Hour)
+	if !p.arrived {
+		return shippedAt, nil
+	}
+	delivery := now.Add(-8 * 24 * time.Hour)
+	if !p.deliveredAt.IsZero() {
+		delivery = p.deliveredAt
+		shippedAt = delivery.Add(-48 * time.Hour)
+	}
+	return shippedAt, delivery
 }
 
 // TestRegistrationIsBoundedByWhatArrived proves cover cannot start before the
@@ -247,28 +288,41 @@ func TestAProductWithNoTermCannotBeRegistered(t *testing.T) {
 func TestTheExpiryRunsFromDeliveryAndNotFromDispatch(t *testing.T) {
 	ctx := t.Context()
 	s := warranty.NewStore(pool)
-	f := newFixture(t, 1, 24, parcel{units: 1, arrived: true})
+	deliveredAt, err := time.Parse(time.RFC3339, "2026-08-25T07:00:00+08:00")
+	if err != nil {
+		t.Fatalf("parse delivered_at: %v", err)
+	}
+	f := newFixture(t, 1, 24, parcel{
+		units: 1, arrived: true, deliveredAt: deliveredAt,
+	})
 
 	if err := s.Register(ctx, f.lineID.String(), f.userID, "", 1); err != nil {
 		t.Fatalf("register: %v", err)
 	}
 
-	var fromDelivery, fromDispatch bool
+	var fromShopDelivery, fromShopDispatch, fromAmbientDelivery bool
 	if err := pool.QueryRow(ctx, `
-		SELECT w.expires_on = (s.delivered_at::date + interval '24 months')::date,
-		       w.expires_on = (s.shipped_at::date   + interval '24 months')::date
+		SELECT w.expires_on = (shop_day(s.delivered_at) + interval '24 months')::date,
+		       w.expires_on = (shop_day(s.shipped_at)   + interval '24 months')::date,
+		       w.expires_on = (s.delivered_at::date     + interval '24 months')::date
 		FROM warranty_registrations w
 		JOIN order_shipment_lines sl ON sl.order_line_id = w.order_line_id
 		JOIN order_shipments s ON s.id = sl.shipment_id
-		WHERE w.order_line_id = $1`, f.lineID).Scan(&fromDelivery, &fromDispatch); err != nil {
+		WHERE w.order_line_id = $1`, f.lineID).Scan(
+		&fromShopDelivery, &fromShopDispatch, &fromAmbientDelivery,
+	); err != nil {
 		t.Fatalf("read expiry: %v", err)
 	}
-	if !fromDelivery {
+	if !fromShopDelivery {
 		t.Error("the cover does not run 24 months from the day the parcel arrived")
 	}
-	if fromDispatch {
+	if fromShopDispatch {
 		t.Error("the cover runs from the DISPATCH date, which is short by the time " +
 			"in transit — and the days lost come off the customer")
+	}
+	if fromAmbientDelivery {
+		t.Error("the cover runs from delivered_at::date in the ambient session zone; " +
+			"07:00 Taipei is the previous day in UTC")
 	}
 }
 

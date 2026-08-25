@@ -111,14 +111,14 @@ never writes, fails the build.
 
 ### Integrity and safety
 
-The schema carries 245 `CHECK` constraints, 80 foreign keys, 62 unique indexes,
-and 39 rule triggers (beside 16 that only keep `updated_at` truthful), and it
+The schema carries 245 `CHECK` constraints, 82 foreign keys, 63 unique indexes,
+and 40 rule triggers (beside 16 that only keep `updated_at` truthful), and it
 holds several properties that application code alone cannot guarantee:
 
 - **A single writer for money and stock.** A customer-facing request runs as
   `store` and the back office as `admin`; both have their direct writes to
   payments, refunds, stock, ledgers, and the audit log revoked. Those writes
-  happen only through 20 `SECURITY DEFINER` functions, so there is no second path
+  happen only through 21 `SECURITY DEFINER` functions, so there is no second path
   that can corrupt them. What each role may write is derived from the catalogue
   by a test, never from a list somebody keeps up to date.
 - **Cross-row invariants are triggers that lock first.** A refund may not exceed

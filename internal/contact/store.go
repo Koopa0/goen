@@ -28,11 +28,6 @@ func NewStore(dbtx db.DBTX) *Store {
 	return &Store{q: db.New(dbtx)}
 }
 
-// WithTx returns a Store whose writes join tx.
-func (s *Store) WithTx(tx pgx.Tx) *Store {
-	return &Store{q: db.New(tx)}
-}
-
 // Create stores a validated message.
 func (s *Store) Create(ctx context.Context, m Message) error {
 	_, err := s.q.CreateContactMessage(ctx, db.CreateContactMessageParams{

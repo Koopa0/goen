@@ -533,12 +533,15 @@ SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name,
        coalesce(u.phone, '') AS phone, u.created_at,
        (u.email_verified_at IS NOT NULL)::boolean AS verified,
        (SELECT count(*) FROM orders o WHERE o.user_id = u.id)::bigint AS orders,
-       coalesce((SELECT sum(o.subtotal + o.shipping_cents + o.tax_cents - o.discount_cents)
-                 FROM (SELECT o.id, o.shipping_cents, o.tax_cents, o.discount_cents,
-                              coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
-                                        FROM order_lines ol WHERE ol.order_id = o.id), 0) AS subtotal
-                       FROM orders o WHERE o.user_id = u.id
-                         AND o.id IN (SELECT id FROM committed_orders)) o), 0)::bigint AS spent,
+       coalesce((SELECT sum(greatest(
+                            coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
+                                      FROM order_lines ol WHERE ol.order_id = o.id), 0)
+                            + o.shipping_cents + o.tax_cents - o.discount_cents
+                            - (rf.card_cents + rf.credit_cents), 0))
+                 FROM orders o
+                 JOIN committed_orders c ON c.id = o.id
+                 JOIN order_refunds rf ON rf.order_id = o.id
+                 WHERE o.user_id = u.id), 0)::bigint AS spent,
        coalesce((SELECT b.balance_cents FROM store_credit_balances b
                  WHERE b.user_id = u.id), 0)::bigint AS credit_cents,
        coalesce((SELECT lb.points FROM loyalty_balances lb
@@ -1549,7 +1552,7 @@ func (q *Queries) AdminSearchOrders(ctx context.Context, arg AdminSearchOrdersPa
 const adminSearchWarranties = `-- name: AdminSearchWarranties :many
 SELECT w.id, w.unit_no, coalesce(w.serial_number, '') AS serial_number,
        w.registered_at, w.expires_on,
-       (w.expires_on >= current_date)::boolean AS in_force,
+       (w.expires_on >= shop_today())::boolean AS in_force,
        ol.product_name, coalesce(ol.variant_label, '') AS variant_label,
        o.order_number, o.fulfillment_status,
        coalesce(u.full_name, '') AS customer_name,
@@ -2006,27 +2009,45 @@ func (q *Queries) AllowedTotalForOrder(ctx context.Context, orderNumber string) 
 	return allowed_cents, err
 }
 
-const answerQuestion = `-- name: AnswerQuestion :execrows
-INSERT INTO product_answers (question_id, user_id, body, is_staff)
-SELECT q.id, $1, $2::text, $3::boolean
+const answerQuestionAsCustomer = `-- name: AnswerQuestionAsCustomer :execrows
+INSERT INTO product_answers (question_id, user_id, body)
+SELECT q.id, $1, $2::text
 FROM product_questions q
-WHERE q.id = $4 AND q.hidden_at IS NULL
+WHERE q.id = $3 AND q.hidden_at IS NULL
 `
 
-type AnswerQuestionParams struct {
+type AnswerQuestionAsCustomerParams struct {
 	UserID     uuid.NullUUID
 	Body       string
-	IsStaff    bool
 	QuestionID uuid.UUID
 }
 
-func (q *Queries) AnswerQuestion(ctx context.Context, arg AnswerQuestionParams) (int64, error) {
-	result, err := q.db.Exec(ctx, answerQuestion,
-		arg.UserID,
-		arg.Body,
-		arg.IsStaff,
-		arg.QuestionID,
-	)
+// Omit is_staff so the database default is the storefront authority. The
+// customer role is not granted that column, so a caller cannot turn this into
+// an official shop answer by supplying another parameter.
+func (q *Queries) AnswerQuestionAsCustomer(ctx context.Context, arg AnswerQuestionAsCustomerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, answerQuestionAsCustomer, arg.UserID, arg.Body, arg.QuestionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const answerQuestionAsStaff = `-- name: AnswerQuestionAsStaff :execrows
+INSERT INTO product_answers (question_id, user_id, body, is_staff)
+SELECT q.id, $1, $2::text, true
+FROM product_questions q
+WHERE q.id = $3 AND q.hidden_at IS NULL
+`
+
+type AnswerQuestionAsStaffParams struct {
+	UserID     uuid.NullUUID
+	Body       string
+	QuestionID uuid.UUID
+}
+
+func (q *Queries) AnswerQuestionAsStaff(ctx context.Context, arg AnswerQuestionAsStaffParams) (int64, error) {
+	result, err := q.db.Exec(ctx, answerQuestionAsStaff, arg.UserID, arg.Body, arg.QuestionID)
 	if err != nil {
 		return 0, err
 	}
@@ -2211,16 +2232,18 @@ func (q *Queries) AvailableCredit(ctx context.Context, userID uuid.NullUUID) (in
 const awardOrderPoints = `-- name: AwardOrderPoints :one
 SELECT award_loyalty_points(
     o.id,
-    -- One point per NT$100 times the customer's tier, integer division so a
-    -- NT$50 order earns nothing. The multiplier is read from the spend the
-    -- customer had BEFORE this order, which this statement is committing.
-    ((coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
+    -- One point per whole NT$100 times the customer's tier. sum(bigint) is
+    -- numeric, so casting only the final expression rounded NT$50 to one point;
+    -- the cast on the sum makes both divisions integer and keeps the database
+    -- as the one production definition of this money rule. The multiplier is
+    -- read from the spend the customer had BEFORE this order.
+    ((coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)::bigint FROM order_lines ol
                 WHERE ol.order_id = o.id), 0)
       - o.discount_cents + o.shipping_cents + o.tax_cents) / 10000
      * coalesce((SELECT t.points_multiplier_bp FROM membership_tiers t
                  WHERE t.id = member_tier(o.user_id, $1::integer, o.id)), 10000)
      / 10000)::bigint,
-    (current_date + $2::integer)
+    (shop_today() + $2::integer)
 )
 FROM orders o WHERE o.id = $3
 `
@@ -6308,7 +6331,7 @@ func (q *Queries) MergeCartItems(ctx context.Context, arg MergeCartItemsParams) 
 const myWarranties = `-- name: MyWarranties :many
 SELECT w.id, w.unit_no, coalesce(w.serial_number, '') AS serial_number,
        w.registered_at, w.expires_on,
-       (w.expires_on >= current_date)::boolean AS in_force,
+       (w.expires_on >= shop_today())::boolean AS in_force,
        ol.product_name, ol.variant_label, o.order_number,
        coalesce(p.slug, '') AS product_slug
 FROM warranty_registrations w
@@ -7260,22 +7283,30 @@ func (q *Queries) PointsBalance(ctx context.Context, userID uuid.NullUUID) (Poin
 }
 
 const pointsExpiringSoon = `-- name: PointsExpiringSoon :one
-SELECT coalesce(sum(e.points), 0)::bigint AS points,
+WITH lots AS (
+    SELECT e.expires_on,
+           (e.points + coalesce(sum(child.points), 0))::bigint AS remaining
+    FROM loyalty_entries e
+    JOIN store_credit_accounts a ON a.id = e.account_id
+    LEFT JOIN loyalty_entries child ON child.lot_id = e.id
+    WHERE a.user_id = $2
+      AND e.kind = 'award'
+    GROUP BY e.id, e.expires_on, e.points
+)
+SELECT coalesce(sum(remaining), 0)::bigint AS points,
        -- Two columns, not one nullable date: min() over no rows is NULL and sqlc
        -- infers the column non-nullable however it is cast, so pgx cannot scan it.
-       coalesce(min(e.expires_on), current_date)::date AS soonest,
+       coalesce(min(expires_on), shop_today())::date AS soonest,
        (count(*) > 0) AS any_expiring
-FROM loyalty_entries e
-JOIN store_credit_accounts a ON a.id = e.account_id
-WHERE a.user_id = $1
-  AND e.points > 0
-  AND e.expires_on >= current_date
-  AND e.expires_on < current_date + $2::integer
+FROM lots
+WHERE remaining > 0
+  AND expires_on >= shop_today()
+  AND expires_on < shop_today() + $1::integer
 `
 
 type PointsExpiringSoonParams struct {
-	UserID     uuid.NullUUID
 	WithinDays int32
+	UserID     uuid.NullUUID
 }
 
 type PointsExpiringSoonRow struct {
@@ -7286,21 +7317,37 @@ type PointsExpiringSoonRow struct {
 
 // What is about to expire, so the page can say so before it happens.
 func (q *Queries) PointsExpiringSoon(ctx context.Context, arg PointsExpiringSoonParams) (PointsExpiringSoonRow, error) {
-	row := q.db.QueryRow(ctx, pointsExpiringSoon, arg.UserID, arg.WithinDays)
+	row := q.db.QueryRow(ctx, pointsExpiringSoon, arg.WithinDays, arg.UserID)
 	var i PointsExpiringSoonRow
 	err := row.Scan(&i.Points, &i.Soonest, &i.AnyExpiring)
 	return i, err
 }
 
 const pointsHistory = `-- name: PointsHistory :many
-SELECT e.points, e.reason, e.expires_on, e.created_at,
+WITH grouped AS (
+    SELECT
+        CASE WHEN e.kind = 'spend'
+             THEN split_part(e.idempotency_key, '#', 1)
+             ELSE e.idempotency_key
+        END AS entry_key,
+        e.kind,
+        e.reason,
+        e.order_id,
+        sum(e.points)::bigint AS points,
+        coalesce(max(e.requested_points), 0)::bigint AS requested_points,
+        max(e.expires_on)::date AS expires_on,
+        max(e.created_at)::timestamptz AS created_at
+    FROM loyalty_entries e
+    JOIN store_credit_accounts a ON a.id = e.account_id
+    WHERE a.user_id = $2
+    GROUP BY entry_key, e.kind, e.reason, e.order_id
+)
+SELECT g.points, g.kind, g.reason, g.requested_points, g.expires_on, g.created_at,
        coalesce(o.order_number, '') AS order_number,
-       (e.points > 0 AND e.expires_on < current_date) AS expired
-FROM loyalty_entries e
-JOIN store_credit_accounts a ON a.id = e.account_id
-LEFT JOIN orders o ON o.id = e.order_id
-WHERE a.user_id = $2
-ORDER BY e.created_at DESC
+       (g.kind = 'award' AND g.expires_on < shop_today()) AS expired
+FROM grouped g
+LEFT JOIN orders o ON o.id = g.order_id
+ORDER BY g.created_at DESC
 LIMIT $1
 `
 
@@ -7310,12 +7357,14 @@ type PointsHistoryParams struct {
 }
 
 type PointsHistoryRow struct {
-	Points      int64
-	Reason      string
-	ExpiresOn   pgtype.Date
-	CreatedAt   time.Time
-	OrderNumber string
-	Expired     pgtype.Bool
+	Points          int64
+	Kind            string
+	Reason          string
+	RequestedPoints int64
+	ExpiresOn       time.Time
+	CreatedAt       time.Time
+	OrderNumber     string
+	Expired         pgtype.Bool
 }
 
 // The ledger a customer sees, expired awards included and marked.
@@ -7330,7 +7379,9 @@ func (q *Queries) PointsHistory(ctx context.Context, arg PointsHistoryParams) ([
 		var i PointsHistoryRow
 		if err := rows.Scan(
 			&i.Points,
+			&i.Kind,
 			&i.Reason,
+			&i.RequestedPoints,
 			&i.ExpiresOn,
 			&i.CreatedAt,
 			&i.OrderNumber,
@@ -8353,7 +8404,7 @@ func (q *Queries) RefundedSoFar(ctx context.Context, arg RefundedSoFarParams) (i
 const registerWarranty = `-- name: RegisterWarranty :execrows
 INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, serial_number, expires_on)
 SELECT ol.id, $1::smallint, $2, nullif($3::text, ''),
-       (delivered.at + make_interval(months => p.warranty_months))::date
+       (shop_day(delivered.at) + make_interval(months => p.warranty_months))::date
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
 JOIN product_variants pv ON pv.id = ol.variant_id
@@ -8379,7 +8430,7 @@ type RegisterWarrantyParams struct {
 
 // Register one unit. expires_on is computed here from the delivery date and the
 // product's term, never passed in, and min() across the parcels runs a split
-// line from the day the first box arrived.
+// line from the shop's calendar day on which the first box arrived.
 func (q *Queries) RegisterWarranty(ctx context.Context, arg RegisterWarrantyParams) (int64, error) {
 	result, err := q.db.Exec(ctx, registerWarranty,
 		arg.UnitNo,
@@ -9102,6 +9153,43 @@ func (q *Queries) ReturnLines(ctx context.Context, requestIds []uuid.UUID) ([]Re
 	return items, nil
 }
 
+const returnPointsOutstanding = `-- name: ReturnPointsOutstanding :one
+WITH args AS (
+    SELECT $1::uuid AS order_id,
+           $2::uuid AS return_id,
+           $3::bigint AS refunded_cents
+)
+SELECT (
+    return_loyalty_points_requested(
+        args.order_id, args.return_id, args.refunded_cents) > 0
+    AND EXISTS (
+        SELECT 1 FROM loyalty_entries e
+        WHERE e.order_id = args.order_id AND e.kind = 'award'
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM loyalty_entries e
+        WHERE e.return_request_id = args.return_id AND e.kind = 'clawback'
+    )
+)::boolean AS outstanding
+FROM args
+`
+
+type ReturnPointsOutstandingParams struct {
+	OrderID       uuid.UUID
+	ReturnID      uuid.UUID
+	RefundedCents int64
+}
+
+// Money and points commit separately. A succeeded refund without the clawback
+// must remain visible in the queue, while a guest order, a zero-point refund,
+// or an order that never earned a lot has no points work to resume.
+func (q *Queries) ReturnPointsOutstanding(ctx context.Context, arg ReturnPointsOutstandingParams) (bool, error) {
+	row := q.db.QueryRow(ctx, returnPointsOutstanding, arg.OrderID, arg.ReturnID, arg.RefundedCents)
+	var outstanding bool
+	err := row.Scan(&outstanding)
+	return outstanding, err
+}
+
 const returnQueue = `-- name: ReturnQueue :many
 SELECT r.id, r.status, r.reason, r.created_at, r.decided_at,
        o.order_number,
@@ -9110,7 +9198,7 @@ SELECT r.id, r.status, r.reason, r.created_at, r.decided_at,
        return_refundable_amount(r.id)::bigint AS refundable_cents,
        (CASE
             WHEN d.delivered_at IS NULL THEN 'undelivered'
-            WHEN r.created_at::date <= d.delivered_at::date + 7 THEN 'within'
+            WHEN shop_day(r.created_at) <= shop_day(d.delivered_at) + 7 THEN 'within'
             ELSE 'after'
         END)::text AS rescission_window
 FROM return_requests r
@@ -9138,7 +9226,11 @@ type ReturnQueueRow struct {
 // rescission_window: Consumer Protection Act §19 I runs seven days from RECEIPT,
 // Civil Code §120 II excludes the day of receipt, and §19 IV fixes the moment on
 // the customer's side — so created_at against delivered_at, both database
-// clocks. Undelivered is neither answer, because the window has not started.
+// clocks, and both on the SHOP's calendar through shop_day. `::date` answers
+// in the session TimeZone, which is UTC here and stated nowhere: a parcel
+// handed over at 07:00 Taipei is the previous day in UTC, which closes an
+// unwaivable window a day early. Undelivered is neither answer, because the
+// window has not started.
 func (q *Queries) ReturnQueue(ctx context.Context, limit int32) ([]ReturnQueueRow, error) {
 	rows, err := q.db.Query(ctx, returnQueue, limit)
 	if err != nil {
@@ -9184,6 +9276,22 @@ func (q *Queries) ReturnRefundSettled(ctx context.Context, returnRequestID uuid.
 	var settled bool
 	err := row.Scan(&settled)
 	return settled, err
+}
+
+const returnRefundTerminal = `-- name: ReturnRefundTerminal :one
+SELECT EXISTS (
+    SELECT 1 FROM refunds
+    WHERE return_request_id = $1 AND status IN ('failed', 'cancelled')
+)::boolean AS terminal
+`
+
+// A failed/cancelled refund is terminal because refunds_settled_is_history
+// admits no move from either state back to succeeded.
+func (q *Queries) ReturnRefundTerminal(ctx context.Context, returnRequestID uuid.NullUUID) (bool, error) {
+	row := q.db.QueryRow(ctx, returnRefundTerminal, returnRequestID)
+	var terminal bool
+	err := row.Scan(&terminal)
+	return terminal, err
 }
 
 const returnRestockLines = `-- name: ReturnRestockLines :many
@@ -9333,12 +9441,25 @@ SELECT
     -- What went back, as its own figure rather than subtracted from the one
     -- above. Consumer Protection Act §19 makes a seven-day rescission
     -- unrefusable, so returns are certain rather than hypothetical, and an owner
-    -- needs the return rate as much as the net. Counted by when the money moved,
-    -- not by when the order was placed: a refund lands in the window it is paid.
-    coalesce((SELECT sum(r.amount_cents) FROM refunds r
-              WHERE r.status = 'succeeded'
-                AND r.created_at >= now() - make_interval(days => $1::integer)), 0)::bigint
-        AS refunded_cents
+    -- needs the return rate as much as the net. Counted by when each source
+    -- moved: succeeded_at for a card refund (created_at can be days earlier
+    -- while Stripe still says pending), and created_at for the synchronous
+    -- credit post.
+    --
+    -- The positive-credit predicate deliberately matches order_refunds. That
+    -- includes reverse_order_credit on a CANCELLED order whose revenue was never
+    -- counted here; excluding cancellations in this caller would create another
+    -- definition. If the report should exclude them, change order_refunds so the
+    -- 折讓 form and invoice bound make the same decision. Neither time column has
+    -- an index yet; these are small ledgers, so a speculative index is not
+    -- warranted.
+    (coalesce((SELECT sum(r.amount_cents) FROM refunds r
+               WHERE r.status = 'succeeded'
+                 AND r.succeeded_at >= now() - make_interval(days => $1::integer)), 0)::bigint
+     + coalesce((SELECT sum(e.amount_cents) FROM store_credit_entries e
+                 WHERE e.order_id IS NOT NULL AND e.amount_cents > 0
+                   AND e.created_at >= now() - make_interval(days => $1::integer)), 0)::bigint
+    )::bigint AS refunded_cents
 FROM (
     SELECT (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
                       FROM order_lines ol WHERE ol.order_id = o.id), 0)
@@ -9382,6 +9503,37 @@ func (q *Queries) ReverseOrderCredit(ctx context.Context, orderID uuid.UUID) (in
 	var returned_cents int64
 	err := row.Scan(&returned_cents)
 	return returned_cents, err
+}
+
+const reverseReturnPoints = `-- name: ReverseReturnPoints :one
+WITH args AS (
+    SELECT $1::uuid AS order_id,
+           $2::uuid AS return_id,
+           $3::bigint AS refunded_cents
+)
+SELECT reverse_order_points(
+    args.order_id,
+    args.return_id,
+    return_loyalty_points_requested(
+        args.order_id, args.return_id, args.refunded_cents)
+)::bigint AS points_reversed
+FROM args
+`
+
+type ReverseReturnPointsParams struct {
+	OrderID       uuid.UUID
+	ReturnID      uuid.UUID
+	RefundedCents int64
+}
+
+// The durable award lot, rather than today's tier, owns the earn arithmetic.
+// Request the refunded proportion of that actual award, then let the posting
+// function clamp it to the lot's unconsumed remainder.
+func (q *Queries) ReverseReturnPoints(ctx context.Context, arg ReverseReturnPointsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, reverseReturnPoints, arg.OrderID, arg.ReturnID, arg.RefundedCents)
+	var points_reversed int64
+	err := row.Scan(&points_reversed)
+	return points_reversed, err
 }
 
 const revokeStaff = `-- name: RevokeStaff :execrows

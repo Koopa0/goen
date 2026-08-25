@@ -265,8 +265,17 @@ INSERT INTO product_questions (product_id, user_id, body)
 SELECT p.id, @user_id, @body::text FROM products p
 WHERE p.slug = @slug::text AND p.status = 'active';
 
--- name: AnswerQuestion :execrows
+-- name: AnswerQuestionAsCustomer :execrows
+-- Omit is_staff so the database default is the storefront authority. The
+-- customer role is not granted that column, so a caller cannot turn this into
+-- an official shop answer by supplying another parameter.
+INSERT INTO product_answers (question_id, user_id, body)
+SELECT q.id, @user_id, @body::text
+FROM product_questions q
+WHERE q.id = @question_id AND q.hidden_at IS NULL;
+
+-- name: AnswerQuestionAsStaff :execrows
 INSERT INTO product_answers (question_id, user_id, body, is_staff)
-SELECT q.id, @user_id, @body::text, @is_staff::boolean
+SELECT q.id, @user_id, @body::text, true
 FROM product_questions q
 WHERE q.id = @question_id AND q.hidden_at IS NULL;

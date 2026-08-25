@@ -94,16 +94,18 @@ INSERT INTO order_events (order_id, kind, note) VALUES ($1, 'paid', @note);
 -- name: AwardOrderPoints :one
 SELECT award_loyalty_points(
     o.id,
-    -- One point per NT$100 times the customer's tier, integer division so a
-    -- NT$50 order earns nothing. The multiplier is read from the spend the
-    -- customer had BEFORE this order, which this statement is committing.
-    ((coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
+    -- One point per whole NT$100 times the customer's tier. sum(bigint) is
+    -- numeric, so casting only the final expression rounded NT$50 to one point;
+    -- the cast on the sum makes both divisions integer and keeps the database
+    -- as the one production definition of this money rule. The multiplier is
+    -- read from the spend the customer had BEFORE this order.
+    ((coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)::bigint FROM order_lines ol
                 WHERE ol.order_id = o.id), 0)
       - o.discount_cents + o.shipping_cents + o.tax_cents) / 10000
      * coalesce((SELECT t.points_multiplier_bp FROM membership_tiers t
                  WHERE t.id = member_tier(o.user_id, @window_days::integer, o.id)), 10000)
      / 10000)::bigint,
-    (current_date + @validity_days::integer)
+    (shop_today() + @validity_days::integer)
 )
 FROM orders o WHERE o.id = @order_id;
 

@@ -228,21 +228,25 @@ type InvoicePreference struct {
 	TaxID       pgtype.Text
 }
 
-// Spendable points per account: unexpired awards less everything spent. Expiry is applied on read, never by a job that might not have run.
+// Spendable points per account: each unexpired award lot net of the spends and clawbacks paired with it. Expiry is applied on read, never by a job that might not have run.
 type LoyaltyBalance struct {
 	AccountID uuid.UUID
 	Points    int64
 }
 
 type LoyaltyEntry struct {
-	ID             uuid.UUID
-	AccountID      uuid.UUID
-	Points         int64
-	Reason         string
-	IdempotencyKey string
-	OrderID        uuid.NullUUID
-	ExpiresOn      pgtype.Date
-	CreatedAt      time.Time
+	ID              uuid.UUID
+	AccountID       uuid.UUID
+	Kind            string
+	Points          int64
+	Reason          string
+	IdempotencyKey  string
+	OrderID         uuid.NullUUID
+	LotID           uuid.NullUUID
+	RequestedPoints pgtype.Int8
+	ReturnRequestID uuid.NullUUID
+	ExpiresOn       time.Time
+	CreatedAt       time.Time
 }
 
 // Uploaded images, content-addressed by the sha256 of the re-encoded bytes.

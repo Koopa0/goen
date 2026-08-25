@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 
@@ -452,7 +453,15 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrRefused, err)
 	}
-
+	// A parcel is only recorded for an order that has entered fulfilment. This is
+	// the same set fillShippable renders the form for; the trigger
+	// shipment_order_in_fulfilment is the authority, and this is the sentence.
+	switch row.FulfillmentStatus {
+	case "picking", "shipped", "delivered":
+	default:
+		return fmt.Errorf("%w: order %s is %s and has not been picked",
+			ErrRefused, number, row.FulfillmentStatus)
+	}
 	shipmentID, shipErr := q.CreateShipment(ctx, db.CreateShipmentParams{
 		OrderID: row.ID, Carrier: carrier, TrackingNumber: tracking,
 	})
@@ -464,9 +473,9 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 		return fillErr
 	}
 
-	// Skipped for a SECOND parcel, which leaves the order where it already is.
-	// Only picking may become shipped, and orders_legal_transition is what stops
-	// a shipment being recorded against an order nobody has picked.
+	// Only picking advances to shipped. A second parcel leaves the order where it
+	// already is; the status check above and shipment_order_in_fulfilment refuse
+	// an unpicked order, because this branch never reaches the transition trigger.
 	if row.FulfillmentStatus == "picking" {
 		if advErr := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
 			OrderNumber: number, Status: "shipped",
@@ -783,7 +792,7 @@ func (s *Store) Returns(ctx context.Context) (pages.AdminReturnsView, error) {
 	view := pages.AdminReturnsView{}
 	for i := range rows {
 		r := &rows[i]
-		view.Rows = append(view.Rows, pages.AdminReturn{
+		item := pages.AdminReturn{
 			ID:          r.ID.String(),
 			OrderNumber: r.OrderNumber,
 			Status:      r.Status,
@@ -795,9 +804,67 @@ func (s *Store) Returns(ctx context.Context) (pages.AdminReturnsView, error) {
 			Decided:     r.Status != "requested",
 			Lines:       byRequest[r.ID],
 			Window:      r.RescissionWindow,
-		})
+		}
+		if payoutErr := s.fillReturnPayoutState(ctx, r.Status, r.ID, &item); payoutErr != nil {
+			return pages.AdminReturnsView{}, payoutErr
+		}
+		view.Rows = append(view.Rows, item)
 	}
 	return view, nil
+}
+
+func (s *Store) fillReturnPayoutState(ctx context.Context, status string,
+	requestID uuid.UUID, item *pages.AdminReturn,
+) error {
+	if status != "approved" {
+		return nil
+	}
+	owed, done, outErr := s.outstandingOnReturn(ctx, requestID)
+	if errors.Is(outErr, ErrRefused) {
+		// A payout that no longer fits its sources is not a reason to hide
+		// the queue. It is exactly the row a person must investigate.
+		item.PayoutOutstanding = true
+		item.PayoutBlocked = true
+		slog.ErrorContext(ctx, "return payout no longer fits its sources",
+			"return_id", requestID, "error", outErr)
+		return nil
+	}
+	if outErr != nil {
+		return outErr
+	}
+	item.PayoutOutstanding = !done
+	terminal, termErr := s.q.ReturnRefundTerminal(ctx,
+		uuid.NullUUID{UUID: requestID, Valid: true})
+	if termErr != nil {
+		return fmt.Errorf("read terminal refund for return %s: %w", requestID, termErr)
+	}
+	item.PayoutBlocked = terminal && owed.Card > 0
+	return nil
+}
+
+// outstandingOnReturn asks the same two source-specific questions as Decide's
+// retry. Decided and settled are separate facts; this method is the one
+// projection of what the retry can still move.
+func (s *Store) outstandingOnReturn(ctx context.Context, requestID uuid.UUID) (
+	refundSplit, bool, error,
+) {
+	row, err := s.q.ReturnForDecision(ctx, requestID)
+	if err != nil {
+		return refundSplit{}, false, fmt.Errorf("read return %s payout: %w", requestID, err)
+	}
+	split, err := s.splitRefund(ctx, &row)
+	if err != nil {
+		return refundSplit{}, false, err
+	}
+	owed, done, err := s.stillOwedOnReturn(ctx, requestID, split)
+	if err != nil || !done {
+		return owed, done, err
+	}
+	pointsOutstanding, err := s.returnPointsOutstanding(ctx, &row)
+	if err != nil {
+		return refundSplit{}, false, err
+	}
+	return owed, !pointsOutstanding, nil
 }
 
 // Decide approves or rejects a return, and pays the money back when it
@@ -805,9 +872,9 @@ func (s *Store) Returns(ctx context.Context) (pages.AdminReturnsView, error) {
 // after, so a crash between the two leaves something reconciliation can find;
 // request_key is what makes the retry one refund at Stripe and one row here.
 func (s *Store) Decide(ctx context.Context, id, decision, resolution string, actor uuid.NullUUID) error {
-	requestID, row, retry, err := s.returnUnderDecision(ctx, id, decision)
-	if err != nil {
-		return err
+	requestID, row, retry, readErr := s.returnUnderDecision(ctx, id, decision)
+	if readErr != nil {
+		return readErr
 	}
 	if decision == "rejected" {
 		return s.closeReturn(ctx, requestID, "rejected", resolution)
@@ -815,42 +882,56 @@ func (s *Store) Decide(ctx context.Context, id, decision, resolution string, act
 
 	// Validated BEFORE the claim, and it only reads: a claim that cannot be paid
 	// should leave the return open for somebody to work out why.
-	split, err := s.splitRefund(ctx, &row)
-	if err != nil {
-		return err
+	split, splitErr := s.splitRefund(ctx, &row)
+	if splitErr != nil {
+		return splitErr
 	}
 
 	if retry {
-		outstanding, done, outErr := s.stillOwedOnReturn(ctx, requestID, split)
-		if outErr != nil {
-			return outErr
-		}
-		if done {
-			// Refused rather than reported as done: a return is decided once,
-			// and pressing 同意 on one that is already approved AND paid did
-			// nothing. Saying so is what tells the staff member the decision
-			// was somebody else's.
-			return fmt.Errorf("%w: return %s is already approved and its refund has landed",
-				ErrRefused, id)
-		}
-		// Only what is MISSING. Re-sending a card refund that already settled
-		// meets refunds_settled_is_history, and re-posting the credit meets the
-		// idempotency key — so a retry that resent both could never finish the
-		// half that had failed.
-		split = outstanding
-	} else if row.RefundableCents == 0 {
+		return s.retryApprovedReturn(ctx, id, requestID, &row, split, resolution, actor)
+	}
+	if row.RefundableCents == 0 {
 		return s.closeReturn(ctx, requestID, "approved", resolution)
 	}
 
 	// THE CLAIM, and it commits before a cent moves. Two staff members deciding
 	// one return at once both passed the pool read above; only one wins this,
 	// and the loser must not have paid anything on the way to finding out.
-	if !retry {
-		if err := s.closeReturn(ctx, requestID, "approved", resolution); err != nil {
-			return err
-		}
+	if closeErr := s.closeReturn(ctx, requestID, "approved", resolution); closeErr != nil {
+		return closeErr
 	}
 	return s.payApprovedReturn(ctx, &row, split, resolution, actor)
+}
+
+func (s *Store) retryApprovedReturn(ctx context.Context, id string, requestID uuid.UUID,
+	row *db.ReturnForDecisionRow, split refundSplit, resolution string, actor uuid.NullUUID,
+) error {
+	outstanding, done, outErr := s.stillOwedOnReturn(ctx, requestID, split)
+	if outErr != nil {
+		return outErr
+	}
+	if !done {
+		// Only what is MISSING. Re-sending a card refund that already settled
+		// meets refunds_settled_is_history, and re-posting the credit meets the
+		// idempotency key — so a retry that resent both could never finish the
+		// half that had failed.
+		return s.payApprovedReturn(ctx, row, outstanding, resolution, actor)
+	}
+
+	// Money and points are separately durable. If the money committed and the
+	// clawback failed, this is useful work rather than a duplicate decision:
+	// finish that last idempotent posting and report success.
+	pointsOutstanding, pointsErr := s.returnPointsOutstanding(ctx, row)
+	if pointsErr != nil {
+		return pointsErr
+	}
+	if pointsOutstanding {
+		return s.reverseReturnPoints(ctx, row)
+	}
+	// Refused rather than reported as done: a return is decided once, and
+	// pressing 同意 on one that is already approved AND paid did nothing. Saying
+	// so is what tells the staff member the decision was somebody else's.
+	return fmt.Errorf("%w: return %s is already approved and its refund has landed", ErrRefused, id)
 }
 
 // returnUnderDecision reads the return this decision is about and says whether
@@ -995,15 +1076,21 @@ func (s *Store) payApprovedReturn(ctx context.Context, row *db.ReturnForDecision
 	split refundSplit, resolution string, actor uuid.NullUUID,
 ) error {
 	providerRef := ""
+	moved := false
+	payoutDone := true
 	if split.Card > 0 {
 		ref, state, err := s.refundCard(ctx, row, split.Card, resolution)
 		if err != nil {
 			return fmt.Errorf("%w: %w", ErrRefundIncomplete, err)
 		}
-		// order_events is rendered on the customer's own order page, so a
-		// refunded event is written only once the money has actually left.
+		// order_events is rendered on the customer's own order page. Record this
+		// pass only when money has actually left by either source; Stripe merely
+		// accepting a card refund is not the same as settling it.
 		if state == RefundSucceeded {
 			providerRef = ref
+			moved = true
+		} else {
+			payoutDone = false
 		}
 	}
 	if split.Credit > 0 {
@@ -1020,16 +1107,66 @@ func (s *Store) payApprovedReturn(ctx context.Context, row *db.ReturnForDecision
 			return fmt.Errorf("%w: compensate return %s with credit: %s",
 				ErrRefundIncomplete, row.ID, err.Error())
 		}
+		// The ledger post is synchronous and committed: this money has left even
+		// though there is no provider reference to put in the event note.
+		moved = true
 	}
-	// Written once the money has actually left, which is why it cannot ride in
-	// the claiming transaction any more.
-	if providerRef != "" {
+	// Written once THIS pass moves money, which is why it cannot ride in the
+	// claiming transaction. Widening this to an already-settled half would
+	// duplicate this bare INSERT on every resume.
+	if moved {
 		if err := s.q.RecordOrderEvent(ctx, db.RecordOrderEventParams{
 			OrderID: row.OrderID, Kind: "refunded", ActorUserID: actor,
 			Note: text(providerRef),
 		}); err != nil {
 			return fmt.Errorf("record refunded event for return %s: %w", row.ID, err)
 		}
+	}
+	// The retry path passes only the outstanding half. Therefore zero here also
+	// means that source settled on an earlier attempt; if this attempt returned
+	// without error and no card is still pending, the whole payout has landed.
+	// Use the return's full refundable amount, not the retry remainder, or a
+	// split refund whose second half resumes would claw back only that last half.
+	// This follows the timeline insert: money already moved even if the separate
+	// points posting fails, and its customer-visible event must not disappear.
+	if payoutDone {
+		if err := s.reverseReturnPoints(ctx, row); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Store) returnPointsOutstanding(ctx context.Context, row *db.ReturnForDecisionRow) (bool, error) {
+	if !row.UserID.Valid || row.RefundableCents <= 0 {
+		return false, nil
+	}
+	outstanding, err := s.q.ReturnPointsOutstanding(ctx, db.ReturnPointsOutstandingParams{
+		OrderID:       row.OrderID,
+		ReturnID:      row.ID,
+		RefundedCents: row.RefundableCents,
+	})
+	if err != nil {
+		return false, fmt.Errorf("read points payout for return %s: %w", row.ID, err)
+	}
+	return outstanding, nil
+}
+
+// reverseReturnPoints finishes the third, idempotent half of a return payout.
+// It deliberately receives the return's full refundable amount: a resumed
+// split payout carries only the still-outstanding money in refundSplit, while
+// the points calculation describes the return as a whole.
+func (s *Store) reverseReturnPoints(ctx context.Context, row *db.ReturnForDecisionRow) error {
+	if !row.UserID.Valid || row.RefundableCents <= 0 {
+		return nil
+	}
+	if _, err := s.q.ReverseReturnPoints(ctx, db.ReverseReturnPointsParams{
+		OrderID:       row.OrderID,
+		ReturnID:      row.ID,
+		RefundedCents: row.RefundableCents,
+	}); err != nil {
+		return fmt.Errorf("%w: reverse points for return %s: %w",
+			ErrRefundIncomplete, row.ID, err)
 	}
 	return nil
 }

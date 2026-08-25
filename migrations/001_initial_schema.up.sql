@@ -1427,6 +1427,51 @@ COMMENT ON COLUMN shipping_version_zones.surcharge_cents IS
 -- assessed.
 -- ============================================================================
 
+-- ---------------------------------------------------------------------------
+-- The shop's calendar. Every deadline goen counts in DAYS is the same
+-- question — 消保法 §19's seven days, a warranty term, a point's validity,
+-- an order number's business date — and the session TimeZone is not an
+-- answer to it: it is set by whoever built the connection string, it can
+-- differ between the store pool, the admin pool, migrate, psql and
+-- testcontainers, and `at::date` reads identically whichever calendar is in
+-- force, so nobody reviewing a call site can tell. The zone is written HERE,
+-- once, for the reason committed_orders and store_credit_balances are views.
+--
+-- 台灣 has kept no DST since 1979 and timezone(text, timestamptz) is itself
+-- marked IMMUTABLE by PostgreSQL, so this is too.
+CREATE FUNCTION shop_day(at timestamptz)
+RETURNS date
+LANGUAGE sql
+IMMUTABLE
+PARALLEL SAFE
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+    SELECT (at AT TIME ZONE 'Asia/Taipei')::date;
+$$;
+
+COMMENT ON FUNCTION shop_day(timestamptz) IS
+    'The calendar day a moment falls on for this shop. One definition: a '
+    'statutory window counted in one zone and a warranty expiry written in '
+    'another is the failure this prevents.';
+
+CREATE FUNCTION shop_today()
+RETURNS date
+LANGUAGE sql
+STABLE
+PARALLEL SAFE
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+    SELECT shop_day(now());
+$$;
+
+COMMENT ON FUNCTION shop_today() IS
+    'Today, on the shop''s calendar. Replaces current_date wherever a '
+    'deadline is read or written; current_date answers in the session '
+    'TimeZone, which no deployment here states.';
+
+-- Their GRANTs are far below: admin and reporting do not exist yet here, and
+-- a GRANT naming a role the file has not created fails the migration.
+
 -- One row per business day, incremented atomically: a MAX()+1 in application
 -- code hands the same number to two concurrent checkouts.
 CREATE TABLE order_number_counters (
@@ -1442,7 +1487,7 @@ DECLARE
     today date;
     seq   integer;
 BEGIN
-    today := (now() AT TIME ZONE 'Asia/Taipei')::date;
+    today := shop_today();
 
     INSERT INTO order_number_counters (business_date, last_no)
     VALUES (today, 1)
@@ -1828,6 +1873,37 @@ CREATE TRIGGER shipment_within_purchase
     BEFORE INSERT OR UPDATE ON order_shipment_lines
     FOR EACH ROW EXECUTE FUNCTION shipment_lines_within_purchase();
 
+-- A parcel is recorded only for an order that has ENTERED fulfilment. Ship()
+-- moves picking -> shipped and orders_legal_transition guards that move -- but
+-- a second parcel skips the UPDATE entirely, so for every other status that
+-- trigger never fires and cannot be what refuses this. The admitted set is
+-- exactly fillShippable's: picking, shipped and delivered.
+CREATE FUNCTION order_shipments_order_in_fulfilment() RETURNS trigger
+LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
+DECLARE
+    o_status text;
+BEGIN
+    -- Lock the aggregate root before reading it: otherwise a concurrent cancel
+    -- and dispatch can each pass a test the other invalidates.
+    SELECT fulfillment_status INTO o_status
+    FROM orders WHERE id = NEW.order_id FOR UPDATE;
+
+    IF o_status IS DISTINCT FROM 'picking'
+       AND o_status IS DISTINCT FROM 'shipped'
+       AND o_status IS DISTINCT FROM 'delivered' THEN
+        RAISE EXCEPTION 'order % is % and has not entered fulfilment',
+            NEW.order_id, coalesce(o_status, 'missing')
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'shipment_order_in_fulfilment';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER shipment_order_in_fulfilment
+    BEFORE INSERT ON order_shipments
+    FOR EACH ROW EXECUTE FUNCTION order_shipments_order_in_fulfilment();
+
 -- The back office's order search. text_pattern_ops because the search is a
 -- PREFIX: that is what an index can serve without pg_trgm on a table holding
 -- PII, and it is what somebody reading their own name out loud gives you.
@@ -2095,6 +2171,13 @@ CREATE INDEX return_requests_order_id_idx ON return_requests (order_id);
 CREATE UNIQUE INDEX return_requests_order_key ON return_requests (order_id, id);
 CREATE INDEX return_requests_requester_idx ON return_requests (requested_by_user_id);
 CREATE INDEX return_requests_open_idx ON return_requests (created_at) WHERE status = 'requested';
+-- A second request while one is undecided is refused HERE, not in Go.
+-- returns.Open reads HasOpenReturn on the pool before its own transaction begins,
+-- so two submissions can both read "none open"; return_refundable_amount would
+-- then allocate the delivery fee to each because full rescission is an order-level
+-- question. The partial unique key also serialises the two competing inserts.
+CREATE UNIQUE INDEX return_requests_one_open
+    ON return_requests (order_id) WHERE status = 'requested';
 
 -- order_id is carried for the same reason as on shipment lines: the composite
 -- foreign key makes a cross-order return impossible.
@@ -3644,18 +3727,63 @@ LANGUAGE sql STABLE AS $$
     SELECT EXISTS (SELECT 1 FROM settled_orders WHERE id = p_order_id);
 $$;
 
--- What a customer has spent on committed orders in a rolling window.
+-- What has gone back to the customer on one order, by source and in total.
+--
+-- This object intentionally lives ABOVE member_spend while its GRANT remains
+-- with the role grants below. member_spend is LANGUAGE sql, so PostgreSQL
+-- resolves this name when that function is created; admin does not exist yet,
+-- so granting the view here would make the same migration fail for the opposite
+-- ordering reason.
+--
+-- A refund is paid to the card, to store credit, or split between them —
+-- splitRefund pays the card first and credit last — so "what has been refunded"
+-- has two halves and every caller needs the sum. It was computed in three
+-- places instead: two byte-identical card-only queries and one Go addition of
+-- the card figure to the credit position. The two that stopped at the card
+-- decided what the 折讓 form OFFERS, while the one that added credit decided
+-- what an allowance is ALLOWED to relieve — so a split-refunded order defaulted
+-- the form to the card half, and the 統一發票 went on recording a sale that was
+-- reversed. An order refunded ENTIRELY from credit offered no form at all.
+--
+-- A view for the reason committed_orders and store_credit_balances are: the
+-- rule would otherwise be copied into whichever caller was written next.
+CREATE VIEW order_refunds AS
+    SELECT o.id AS order_id,
+           o.order_number,
+           coalesce((SELECT sum(r.amount_cents)
+                     FROM refunds r
+                     JOIN payments p ON p.id = r.payment_id
+                     WHERE p.order_id = o.id AND r.status = 'succeeded'), 0)::bigint
+               AS card_cents,
+           -- POSITIVE entries only: a negative one is credit SPENT on this
+           -- order, which is the customer paying rather than being paid.
+           coalesce((SELECT sum(e.amount_cents)
+                     FROM store_credit_entries e
+                     WHERE e.order_id = o.id AND e.amount_cents > 0), 0)::bigint
+               AS credit_cents
+    FROM orders o;
+
+COMMENT ON VIEW order_refunds IS
+    'What has gone back to the customer on one order, card and store credit '
+    'separately and summed by the caller. The one definition: a 折讓 may not '
+    'relieve more than this, and the form that files one offers exactly this.';
+
+-- What a customer has spent on committed orders in a rolling window, net of
+-- refunds. The floor is PER ORDER: over-compensating one purchase must not
+-- erase the genuine spend on another.
 -- p_exclude_order is the order being paid for RIGHT NOW: the capture commits it
 -- before points are awarded, so it would otherwise raise its own tier.
 CREATE FUNCTION member_spend(p_user_id uuid, p_days integer,
                              p_exclude_order uuid DEFAULT NULL)
 RETURNS bigint LANGUAGE sql STABLE AS $$
-    SELECT coalesce(sum(
-        coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
-                  FROM order_lines ol WHERE ol.order_id = o.id), 0)
-        - o.discount_cents + o.shipping_cents + o.tax_cents), 0)::bigint
+    SELECT coalesce(sum(greatest(
+        (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
+                   FROM order_lines ol WHERE ol.order_id = o.id), 0)
+         - o.discount_cents + o.shipping_cents + o.tax_cents)
+        - (rf.card_cents + rf.credit_cents), 0)), 0)::bigint
     FROM orders o
     JOIN committed_orders c ON c.id = o.id
+    JOIN order_refunds rf ON rf.order_id = o.id
     WHERE o.user_id = p_user_id
       AND o.placed_at >= now() - make_interval(days => p_days)
       AND (p_exclude_order IS NULL OR o.id <> p_exclude_order);
@@ -3671,7 +3799,6 @@ RETURNS uuid LANGUAGE sql STABLE AS $$
     ORDER BY t.min_spend_cents DESC
     LIMIT 1;
 $$;
-
 
 GRANT EXECUTE ON FUNCTION record_inventory_movement(uuid, integer, text, text, text, uuid, uuid) TO store;
 GRANT EXECUTE ON FUNCTION hold_inventory(uuid, uuid, integer, timestamptz, text) TO store;
@@ -3838,7 +3965,24 @@ CREATE FUNCTION open_payment(
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
     payment_id uuid;
+    order_status text;
 BEGIN
+    -- The session is already payable at Stripe by the time this runs, and the
+    -- cancelling transaction reads its expire-list from payments — a row it
+    -- cannot see does not get closed. FOR UPDATE makes the two mutually
+    -- exclusive: either this refuses, or Cancel's UPDATE waits and then finds
+    -- this row in OpenSessionsForOrder.
+    SELECT fulfillment_status INTO order_status
+    FROM orders WHERE id = p_order_id FOR UPDATE;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'no order %', p_order_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'payments_open_needs_order';
+    END IF;
+    IF order_status <> 'pending' THEN
+        RAISE EXCEPTION 'order % is % and cannot open a checkout', p_order_id, order_status
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'payments_open_refuses_settled_order';
+    END IF;
+
     SELECT id INTO payment_id FROM payments
     WHERE order_id = p_order_id AND provider_ref = p_provider_ref;
     IF FOUND THEN
@@ -3989,6 +4133,8 @@ GRANT EXECUTE ON FUNCTION reverse_order_credit(uuid) TO admin;
 -- function is a 500 on every storefront page — and green in every test, because
 -- the tests connect as the owner.
 GRANT EXECUTE ON FUNCTION localized_name(text, text, text) TO store, admin, reporting;
+GRANT EXECUTE ON FUNCTION shop_day(timestamptz) TO store, admin, reporting;
+GRANT EXECUTE ON FUNCTION shop_today() TO store, admin, reporting;
 
 
 -- Refund posting. Two functions, not one, because the provider call sits between
@@ -4132,30 +4278,59 @@ GRANT EXECUTE ON FUNCTION redeem_coupon(uuid, uuid, uuid, bigint) TO admin;
 -- A ledger, exactly like store_credit_entries. Points are not a second currency:
 -- they convert to store credit at one published rate and are spendable nowhere
 -- else. Expiry is per ENTRY, not per account.
+--
+-- This file is still the disposable, never-deployed 001. A deployed ledger
+-- would require a 002 that first added lot_id nullable, allocated every old
+-- spend FIFO across that account's awards (splitting rows as needed), then
+-- filled expires_on and made both columns mandatory. Any account whose old
+-- spends exceeded its awards would require manual reconciliation: no automatic
+-- rule can truthfully invent the historical lot those points consumed.
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE loyalty_entries (
     id              uuid PRIMARY KEY DEFAULT uuidv7(),
     -- At the ACCOUNT, not the user, so erasure leaves the ledger balanced.
     account_id      uuid NOT NULL REFERENCES store_credit_accounts (id) ON DELETE RESTRICT,
+    -- Structural vocabulary, separate from the human/business reason. In
+    -- particular a return clawback is not a redemption merely because both
+    -- may carry a negative balance effect.
+    kind            text NOT NULL,
     points          bigint NOT NULL,
     reason          text NOT NULL,
     -- The caller's name for this posting: a retried award submits the same key
     -- and meets the unique index.
     idempotency_key text NOT NULL,
     order_id        uuid REFERENCES orders (id) ON DELETE RESTRICT,
-    -- NULL for a spend, which has already happened. An award with no expiry is
-    -- a liability that grows forever.
-    expires_on      date,
+    -- A spend or clawback names the award lot it settles. It is always a new
+    -- row: the award itself is never updated with a consumed counter.
+    lot_id          uuid REFERENCES loyalty_entries (id) ON DELETE RESTRICT,
+    -- Only a clawback carries these. requested_points records what the refund
+    -- called for even when the lot was wholly consumed and points is therefore
+    -- zero; the difference is a durable shortfall rather than a silent writeoff.
+    requested_points  bigint,
+    return_request_id uuid REFERENCES return_requests (id) ON DELETE RESTRICT,
+    -- Every child carries its award lot's expiry, so the award and every fact
+    -- settled against it leave the spendable balance together.
+    expires_on      date NOT NULL,
     created_at      timestamptz NOT NULL DEFAULT now(),
 
-    CONSTRAINT loyalty_entries_points_nonzero CHECK (points <> 0),
+    CONSTRAINT loyalty_entries_points_nonzero
+        CHECK (points <> 0 OR kind = 'clawback'),
     CONSTRAINT loyalty_entries_reason_present CHECK (reason ~ '[^[:space:]]'),
     CONSTRAINT loyalty_entries_key_present CHECK (idempotency_key ~ '[^[:space:]]'),
-    -- A spend cannot expire and an award must, or a spend silently disappears
-    -- from the balance.
-    CONSTRAINT loyalty_entries_expiry_matches_sign
-        CHECK ((points > 0) = (expires_on IS NOT NULL))
+    -- Kind, never sign, defines the row. A clawback may be zero so a wholly
+    -- consumed lot still records the requested reversal and its full shortfall.
+    CONSTRAINT loyalty_entries_kind_shape CHECK (
+        (kind = 'award' AND points >= 0 AND lot_id IS NULL
+            AND requested_points IS NULL AND return_request_id IS NULL)
+        OR
+        (kind = 'spend' AND points <= 0 AND lot_id IS NOT NULL
+            AND requested_points IS NULL AND return_request_id IS NULL)
+        OR
+        (kind = 'clawback' AND points <= 0 AND lot_id IS NOT NULL
+            AND requested_points > 0 AND -points <= requested_points
+            AND return_request_id IS NOT NULL)
+    )
 );
 
 CREATE UNIQUE INDEX loyalty_entries_idempotency_key
@@ -4163,49 +4338,85 @@ CREATE UNIQUE INDEX loyalty_entries_idempotency_key
 CREATE INDEX loyalty_entries_account_idx
     ON loyalty_entries (account_id, expires_on);
 CREATE INDEX loyalty_entries_order_id_idx ON loyalty_entries (order_id);
+CREATE INDEX loyalty_entries_lot_idx
+    ON loyalty_entries (lot_id) WHERE lot_id IS NOT NULL;
+CREATE INDEX loyalty_entries_return_request_idx
+    ON loyalty_entries (return_request_id) WHERE return_request_id IS NOT NULL;
 
 CREATE TRIGGER loyalty_entries_append_only
     BEFORE UPDATE OR DELETE ON loyalty_entries
     FOR EACH ROW EXECUTE FUNCTION forbid_change('loyalty_entries_append_only');
 
--- The spendable balance: awards that have not expired, less everything spent.
--- Expiry is applied HERE rather than by a job, which would leave expired points
--- spendable until it ran.
+-- The spendable balance: every live award plus the spends and clawbacks paired
+-- with it. The old escape clause counted a spend forever while its award
+-- lapsed, so an account drifted negative merely by the passage of time. Every
+-- child now carries the lot's expiry and all of them leave together. Expiry is
+-- applied HERE rather than by a job that might not have run.
 CREATE VIEW loyalty_balances AS
     SELECT a.id AS account_id,
+           -- The scalar subquery makes the stable shop_today() an InitPlan,
+           -- evaluated once rather than once for every row in the ledger.
            coalesce(sum(e.points) FILTER (
-               WHERE e.points < 0 OR e.expires_on >= current_date), 0)::bigint AS points
+               WHERE e.expires_on >= (SELECT shop_today())
+           ), 0)::bigint AS points
     FROM store_credit_accounts a
     LEFT JOIN loyalty_entries e ON e.account_id = a.id
     GROUP BY a.id;
 
 COMMENT ON VIEW loyalty_balances IS
-    'Spendable points per account: unexpired awards less everything spent. '
-    'Expiry is applied on read, never by a job that might not have run.';
+    'Spendable points per account: each unexpired award lot net of the spends '
+    'and clawbacks paired with it. Expiry is applied on read, never by a job '
+    'that might not have run.';
 
--- Points may not go negative. This lock is DEFENCE IN DEPTH: every posting path
--- goes through redeem_loyalty_points, which takes the same lock first, so
--- removing this one leaves every test green.
-CREATE FUNCTION loyalty_never_negative() RETURNS trigger
+-- A child entry may settle only the award lot it names, may not be dated away
+-- from that lot, and the lot may never be overdrawn. A spend also cannot take
+-- from an expired lot; a clawback may be recorded later for audit, but with the
+-- same expired date it cannot alter today's balance.
+CREATE FUNCTION loyalty_lot_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
-    balance bigint;
+    lot loyalty_entries%ROWTYPE;
+    taken bigint;
 BEGIN
+    IF NEW.kind = 'award' THEN
+        RETURN NEW;
+    END IF;
+
+    -- Every posting door takes this lock first. The trigger repeats it as the
+    -- database authority so a future writer cannot race the existing doors.
     PERFORM 1 FROM store_credit_accounts WHERE id = NEW.account_id FOR UPDATE;
 
-    SELECT points INTO balance FROM loyalty_balances WHERE account_id = NEW.account_id;
-    IF balance < 0 THEN
-        RAISE EXCEPTION 'account % would hold % points', NEW.account_id, balance
-            USING ERRCODE = 'check_violation', CONSTRAINT = 'loyalty_never_negative';
+    SELECT * INTO lot FROM loyalty_entries WHERE id = NEW.lot_id;
+    IF lot.kind IS DISTINCT FROM 'award' OR lot.account_id IS DISTINCT FROM NEW.account_id THEN
+        RAISE EXCEPTION 'entry % names % which is not an award on this account', NEW.id, NEW.lot_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'loyalty_entries_lot_is_an_award';
+    END IF;
+
+    IF NEW.expires_on IS DISTINCT FROM lot.expires_on THEN
+        RAISE EXCEPTION 'entry % expires % against a lot expiring %',
+            NEW.id, NEW.expires_on, lot.expires_on
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'loyalty_entries_lot_expiry_matches';
+    END IF;
+
+    IF NEW.kind = 'spend' AND lot.expires_on < shop_today() THEN
+        RAISE EXCEPTION 'lot % lapsed on %', lot.id, lot.expires_on
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'loyalty_entries_lot_not_expired';
+    END IF;
+
+    SELECT coalesce(sum(-points), 0)::bigint INTO taken
+    FROM loyalty_entries WHERE lot_id = NEW.lot_id;
+    IF taken > lot.points THEN
+        RAISE EXCEPTION 'lot % holds % and % has been settled against it', lot.id, lot.points, taken
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'loyalty_entries_lot_not_overdrawn';
     END IF;
     RETURN NEW;
 END;
 $$;
 
--- AFTER, so the balance it reads includes the row being checked.
-CREATE CONSTRAINT TRIGGER loyalty_never_negative
+-- AFTER, so the sum it reads includes the row being checked.
+CREATE CONSTRAINT TRIGGER loyalty_lot_guard
     AFTER INSERT ON loyalty_entries
-    FOR EACH ROW EXECUTE FUNCTION loyalty_never_negative();
+    FOR EACH ROW EXECUTE FUNCTION loyalty_lot_guard();
 
 GRANT SELECT ON loyalty_entries, loyalty_balances TO store, admin, reporting;
 -- Posting is through the function below and nowhere else.
@@ -4227,42 +4438,62 @@ COMMENT ON VIEW store_credit_balances IS
 -- view created after it is granted to nobody.
 GRANT SELECT ON store_credit_balances TO store, admin, reporting;
 
--- What has gone back to the customer on one order, by source and in total.
---
--- A refund is paid to the card, to store credit, or split between them —
--- splitRefund pays the card first and credit last — so "what has been refunded"
--- has two halves and every caller needs the sum. It was computed in three
--- places instead: two byte-identical card-only queries and one Go addition of
--- the card figure to the credit position. The two that stopped at the card
--- decided what the 折讓 form OFFERS, while the one that added credit decided
--- what an allowance is ALLOWED to relieve — so a split-refunded order defaulted
--- the form to the card half, and the 統一發票 went on recording a sale that was
--- reversed. An order refunded ENTIRELY from credit offered no form at all.
---
--- A view for the reason committed_orders and store_credit_balances are: the
--- rule would otherwise be copied into whichever caller was written next.
-CREATE VIEW order_refunds AS
-    SELECT o.id AS order_id,
-           o.order_number,
-           coalesce((SELECT sum(r.amount_cents)
-                     FROM refunds r
-                     JOIN payments p ON p.id = r.payment_id
-                     WHERE p.order_id = o.id AND r.status = 'succeeded'), 0)::bigint
-               AS card_cents,
-           -- POSITIVE entries only: a negative one is credit SPENT on this
-           -- order, which is the customer paying rather than being paid.
-           coalesce((SELECT sum(e.amount_cents)
-                     FROM store_credit_entries e
-                     WHERE e.order_id = o.id AND e.amount_cents > 0), 0)::bigint
-               AS credit_cents
-    FROM orders o;
-
-COMMENT ON VIEW order_refunds IS
-    'What has gone back to the customer on one order, card and store credit '
-    'separately and summed by the caller. The one definition: a 折讓 may not '
-    'relieve more than this, and the form that files one offers exactly this.';
-
+-- The view is created above member_spend so that LANGUAGE sql can resolve it;
+-- the grant stays here because the admin role is created between those points.
 GRANT SELECT ON order_refunds TO store, admin, reporting;
+
+-- The points a refund ASKS to reverse, before the award lot clamps it to what
+-- remains. It lives here because it reads both order_refunds (created above
+-- member_spend) and loyalty_entries (created below it). Both the posting door
+-- and retry projection call it, so a points-only failure cannot be invisible
+-- because the UI and writer disagree about whether a clawback ought to exist.
+CREATE FUNCTION return_loyalty_points_requested(
+    p_order_id uuid,
+    p_return_request_id uuid,
+    p_refunded_cents bigint
+) RETURNS bigint
+LANGUAGE sql STABLE AS $$
+    WITH award AS (
+        SELECT e.points
+        FROM loyalty_entries e
+        WHERE e.order_id = p_order_id AND e.kind = 'award'
+        ORDER BY e.created_at, e.id
+        LIMIT 1
+    ), amounts AS (
+        SELECT greatest(
+            coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
+                      FROM order_lines ol WHERE ol.order_id = o.id), 0)
+            - o.discount_cents + o.shipping_cents + o.tax_cents, 0)::bigint AS total,
+            least(rf.card_cents + rf.credit_cents,
+                  greatest(
+                      coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
+                                FROM order_lines ol WHERE ol.order_id = o.id), 0)
+                      - o.discount_cents + o.shipping_cents + o.tax_cents, 0))::bigint
+                AS refunded
+        FROM orders o
+        JOIN order_refunds rf ON rf.order_id = o.id
+        WHERE o.id = p_order_id
+    ), prior AS (
+        SELECT coalesce(sum(e.requested_points), 0)::bigint AS requested
+        FROM loyalty_entries e
+        WHERE e.order_id = p_order_id
+          AND e.kind = 'clawback'
+          AND e.return_request_id <> p_return_request_id
+    )
+    SELECT CASE
+        WHEN coalesce(amounts.total, 0) <= 0 THEN 0::bigint
+        -- The last partial return receives the integer-rounding residue so a
+        -- fully refunded order eventually requests its whole durable award.
+        WHEN amounts.refunded >= amounts.total
+            THEN greatest(award.points - prior.requested, 0)::bigint
+        ELSE floor(award.points::numeric
+                   * least(p_refunded_cents, amounts.total)::numeric
+                   / amounts.total::numeric)::bigint
+    END
+    FROM award CROSS JOIN amounts CROSS JOIN prior;
+$$;
+
+GRANT EXECUTE ON FUNCTION return_loyalty_points_requested(uuid, uuid, bigint) TO admin;
 
 -- ---------------------------------------------------------------------------
 -- Co-purchase projection
@@ -4464,7 +4695,13 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
     v_account uuid;
 BEGIN
-    IF p_points <= 0 THEN
+    -- An order that earns nothing is not an error, just as a guest order is not
+    -- one. Raising here aborts the capture transaction before its webhook can
+    -- be marked processed, so Stripe retries the same failure indefinitely.
+    IF p_points = 0 THEN
+        RETURN 0;
+    END IF;
+    IF p_points < 0 THEN
         RAISE EXCEPTION 'an award must be positive, got %', p_points
             USING ERRCODE = 'check_violation', CONSTRAINT = 'loyalty_entries_points_nonzero';
     END IF;
@@ -4485,9 +4722,9 @@ BEGIN
         RETURN 0;
     END IF;
 
-    INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key,
+    INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key,
                                  order_id, expires_on)
-    VALUES (v_account, p_points, 'order', 'earn:' || p_order_id::text,
+    VALUES (v_account, 'award', p_points, 'order', 'earn:' || p_order_id::text,
             p_order_id, p_expires_on)
     ON CONFLICT (idempotency_key) DO NOTHING;
 
@@ -4495,6 +4732,61 @@ BEGIN
         RETURN 0;
     END IF;
     RETURN p_points;
+END;
+$$;
+
+-- Reverse only what remains of the award lot created by this order. A return
+-- may ask for more than remains after redemption; requested_points preserves
+-- that difference while the zero/negative clawback never overdraws the lot.
+CREATE FUNCTION reverse_order_points(
+    p_order_id uuid,
+    p_return_request_id uuid,
+    p_points bigint
+) RETURNS bigint
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    lot record;
+    v_remaining bigint;
+    v_actual bigint;
+BEGIN
+    IF p_points <= 0 THEN
+        RETURN 0;
+    END IF;
+
+    SELECT e.id, e.account_id, e.points, e.expires_on INTO lot
+    FROM loyalty_entries e
+    WHERE e.order_id = p_order_id AND e.kind = 'award'
+    ORDER BY e.created_at, e.id
+    LIMIT 1;
+    IF NOT FOUND THEN
+        RETURN 0;
+    END IF;
+
+    -- The strongest lock is taken before the remaining amount is read. Every
+    -- posting door takes this lock, and the lot trigger repeats the authority
+    -- for a future direct writer.
+    PERFORM 1 FROM store_credit_accounts WHERE id = lot.account_id FOR UPDATE;
+
+    SELECT greatest(lot.points + coalesce(sum(e.points), 0), 0)::bigint
+    INTO v_remaining
+    FROM loyalty_entries e
+    WHERE e.lot_id = lot.id;
+    v_actual := least(p_points, v_remaining);
+
+    INSERT INTO loyalty_entries (
+        account_id, kind, points, reason, idempotency_key, order_id,
+        lot_id, requested_points, return_request_id, expires_on
+    ) VALUES (
+        lot.account_id, 'clawback', -v_actual, 'return',
+        'return:' || p_return_request_id::text, p_order_id,
+        lot.id, p_points, p_return_request_id, lot.expires_on
+    )
+    ON CONFLICT (idempotency_key) DO NOTHING;
+
+    IF NOT FOUND THEN
+        RETURN 0;
+    END IF;
+    RETURN v_actual;
 END;
 $$;
 
@@ -4507,6 +4799,11 @@ CREATE FUNCTION redeem_loyalty_points(
     p_key        text
 ) RETURNS bigint
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    lot record;
+    v_left bigint;
+    v_take bigint;
+    v_n integer := 0;
 BEGIN
     IF p_points <= 0 OR p_cents <= 0 THEN
         RAISE EXCEPTION 'a redemption must be positive, got % points for %',
@@ -4519,10 +4816,37 @@ BEGIN
     -- UPDATE — an upgrade, and a deadlock that LOOKS like the guard working.
     PERFORM 1 FROM store_credit_accounts WHERE id = p_account_id FOR UPDATE;
 
-    -- loyalty_never_negative locks the account and refuses an overdraw, so the
-    -- balance is never read here: that would be reading it without the lock.
-    INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key)
-    VALUES (p_account_id, -p_points, 'redeem', p_key);
+    -- FIFO by soonest expiry costs the customer least. Two awards can expire on
+    -- the same day, so created_at then id are the deterministic tie-break. One
+    -- redemption spanning lots is one INSERT per settled fact; no award row is
+    -- ever updated.
+    v_left := p_points;
+    FOR lot IN
+        SELECT e.id, e.expires_on,
+               (e.points + coalesce((SELECT sum(s.points)
+                                      FROM loyalty_entries s
+                                      WHERE s.lot_id = e.id), 0))::bigint AS remaining
+        FROM loyalty_entries e
+        WHERE e.account_id = p_account_id
+          AND e.kind = 'award'
+          AND e.expires_on >= shop_today()
+        ORDER BY e.expires_on, e.created_at, e.id
+    LOOP
+        EXIT WHEN v_left = 0;
+        CONTINUE WHEN lot.remaining <= 0;
+        v_take := least(v_left, lot.remaining);
+        v_n := v_n + 1;
+        INSERT INTO loyalty_entries (account_id, kind, points, reason,
+                                     idempotency_key, expires_on, lot_id)
+        VALUES (p_account_id, 'spend', -v_take, 'redeem',
+                p_key || '#' || v_n::text, lot.expires_on, lot.id);
+        v_left := v_left - v_take;
+    END LOOP;
+
+    IF v_left > 0 THEN
+        RAISE EXCEPTION 'account % is short % of % points', p_account_id, v_left, p_points
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'loyalty_entries_within_balance';
+    END IF;
 
     -- The credit, in the same transaction, with a prefixed key so a redemption
     -- and an award of the same id cannot collide.
@@ -4534,6 +4858,7 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION award_loyalty_points(uuid, bigint, date) TO store, admin;
+GRANT EXECUTE ON FUNCTION reverse_order_points(uuid, uuid, bigint) TO admin;
 GRANT EXECUTE ON FUNCTION redeem_loyalty_points(uuid, bigint, bigint, text) TO store, admin;
 
 -- The privilege sweep. THIS MUST BE THE LAST THING IN THE FILE: it pins
@@ -4644,8 +4969,8 @@ GRANT INSERT (id, product_id, user_id, body, created_at),
     ON product_questions TO store;
 
 REVOKE INSERT, UPDATE ON product_answers FROM store;
-GRANT INSERT (id, question_id, user_id, body, is_staff, created_at),
-      UPDATE (id, question_id, user_id, body, is_staff, created_at)
+GRANT INSERT (id, question_id, user_id, body, created_at),
+      UPDATE (id, question_id, user_id, body, created_at)
     ON product_answers TO store;
 
 REVOKE INSERT, UPDATE ON return_requests FROM store;

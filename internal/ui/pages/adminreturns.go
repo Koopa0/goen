@@ -22,6 +22,23 @@ type AdminReturn struct {
 	// Act §19 I's seven days from receipt.
 	Window  string
 	Decided bool
+	// Decided and settled are separate facts: approval is committed before the
+	// provider or credit ledger completes what the shop owes.
+	PayoutOutstanding bool
+	// PayoutBlocked says the outstanding card refund is terminal at the provider
+	// and the retry door cannot move it.
+	PayoutBlocked bool
+}
+
+// CanRetryPayout reports whether the approved decision has money left behind a
+// resume-safe door.
+func (r AdminReturn) CanRetryPayout() bool {
+	return r.Decided && r.PayoutOutstanding && !r.PayoutBlocked
+}
+
+// PayoutStranded reports whether a person must settle the refund outside goen.
+func (r AdminReturn) PayoutStranded() bool {
+	return r.Decided && r.PayoutOutstanding && r.PayoutBlocked
 }
 
 // AwaitingGoods reports whether an approved parcel is still unaccounted for.

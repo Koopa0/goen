@@ -77,10 +77,10 @@ func (s *Store) AnswerQuestion(ctx context.Context, id, userID, body string) err
 		After: map[string]any{"length": utf8.RuneCountInString(body)},
 	},
 		func(ctx context.Context, q *db.Queries) error {
-			n, answerErr := q.AnswerQuestion(ctx, db.AnswerQuestionParams{
+			n, answerErr := q.AnswerQuestionAsStaff(ctx, db.AnswerQuestionAsStaffParams{
 				QuestionID: qID,
 				UserID:     uuid.NullUUID{UUID: author, Valid: true},
-				Body:       body, IsStaff: true,
+				Body:       body,
 			})
 			if answerErr != nil {
 				return fmt.Errorf("%w: %w", ErrRefused, answerErr)

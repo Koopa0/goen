@@ -58,6 +58,14 @@ func (s *Store) Register(ctx context.Context, c *Credentials) (User, error) {
 
 // Authenticate checks an email and password.
 func (s *Store) Authenticate(ctx context.Context, email, password string) (User, error) {
+	// Refuse this before reading the account, or the outcomes are distinguishable:
+	// burnHashTime returns immediately at this length while VerifyPassword does
+	// not. Every password_hash writer in account goes through HashPassword, which
+	// refuses to produce a hash for an input over this same bound.
+	if len(password) > MaxPasswordBytes {
+		return User{}, ErrBadCredentials
+	}
+
 	row, err := s.q.UserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

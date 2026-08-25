@@ -141,11 +141,29 @@ roadmap.md 是「唯一一份沒蓋的清單」。上一輪把它記在 `docs/re
 
 補上 `POST /p/{slug}/questions/{id}/answers` 的 storefront route 和表單。這道門
 必須由登入顧客送出、成功回 `303`,驗證失敗回 `422` 並保留原值,同時帶完整的
-`aria-invalid` / `aria-describedby` 關聯。實作前先依
-`answer-staff-flag-is-caller-supplied.md` 收窄 `product.Store.Answer`:顧客端方法不能
-接收 `staff` 旗標,`is_staff=false` 必須由這道 endpoint 的身分決定。現在保留的方法
-供 integration fixtures 建立顧客回覆,其中包括後台 queue 的「顧客已回覆、店家尚未
-回覆」案例;雙向 deadcode allowlist 會在這道 route 接上時要求刪除例外。
+`aria-invalid` / `aria-describedby` 關聯。`product.Store.Answer` 已依
+`answer-staff-flag-is-caller-supplied.md` 收窄為顧客專用:簽章不再接收 `staff` 旗標,
+`is_staff=false` 由 package 決定。現在保留的方法供 integration fixtures 建立顧客
+回覆,其中包括後台 queue 的「顧客已回覆、店家尚未回覆」案例;雙向 deadcode
+allowlist 會在這道 route 接上時要求刪除例外。
+
+最後對帳:2026-08-25。
+
+### A12. 讓分拆退貨的可付款半邊不被卡片終態一起擋住
+
+`payApprovedReturn` 先退卡片、再補購物金。卡片端若被付款服務明確拒絕,目前整個
+流程立刻停止,連本來可以獨立補回的購物金也一起擱置。`/admin/returns` 現在會如實
+標成必須人工處理,但仍沒有一道門能先付可付的 credit half。實作時要把兩個來源各自
+結算並各自呈現,不能讓一邊的終態吞掉另一邊。
+
+最後對帳:2026-08-25。
+
+### A13. Back-office timestamps render in the process zone, not the shop's
+
+後台約 25 個 `time.Time.Format("2006-01-02 15:04")` 直接用 process 的
+local zone。Container 若跑 UTC，台北店家看到的時間會整體差八小時。這些目前
+只是顯示，沒有決策從它們衍生，所以不跟法定鑑賞期的 calendar fix 混成一批；
+要補的是一個共用的店舖時區顯示門，不是再對每個 call site 各自換算。
 
 最後對帳:2026-08-25。
 

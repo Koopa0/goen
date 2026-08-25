@@ -302,6 +302,14 @@ var (
 		ZhHant: "兌換商店額度",
 		En:     "Redeemed for store credit",
 	})
+	KeyPointsClawback = key("points.reason.clawback", Message{
+		ZhHant: "退貨扣回",
+		En:     "Reversed for a return",
+	})
+	KeyPointsClawbackDetail = key("points.reason.clawback.detail", Message{
+		ZhHant: "應扣回 %s 點；實際扣回 %s 點；未扣回 %s 點",
+		En:     "Requested %s points; reversed %s; shortfall %s",
+	})
 	KeyPointsRedeemed = key("points.notice.done", Message{
 		ZhHant: "已經兌換成商店額度,結帳時會自動折抵。",
 		En:     "Redeemed. The credit comes off your next order automatically.",

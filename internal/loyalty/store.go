@@ -49,8 +49,8 @@ func (s *Store) Balance(ctx context.Context, userID string) (uuid.UUID, int64, e
 }
 
 // Redeem turns points into store credit. The cents are derived here and never
-// taken from a form; the overdraw check is loyalty_never_negative's, under a
-// lock on the account, because a comparison in Go is one two racers both pass.
+// taken from a form; the database allocates the spend across award lots under
+// the account lock, because a comparison in Go is one two racers both pass.
 func (s *Store) Redeem(ctx context.Context, userID string, points int64) (int64, error) {
 	accountID, balance, err := s.Balance(ctx, userID)
 	if err != nil {
@@ -72,7 +72,7 @@ func (s *Store) Redeem(ctx context.Context, userID string, points int64) (int64,
 	})
 	if err != nil {
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
-			pgErr.ConstraintName == "loyalty_never_negative" {
+			pgErr.ConstraintName == "loyalty_entries_within_balance" {
 			return 0, ErrNotEnough
 		}
 		return 0, fmt.Errorf("redeem %d points: %w", points, err)
@@ -121,11 +121,15 @@ func (s *Store) History(ctx context.Context, userID string) (pages.PointsView, e
 	for i := range rows {
 		r := &rows[i]
 		entry := pages.PointsEntry{
-			Points: r.Points, Reason: r.Reason, Order: r.OrderNumber,
+			Points: r.Points, Kind: r.Kind, Reason: r.Reason, Order: r.OrderNumber,
 			At: r.CreatedAt.Format("2006-01-02"), Expired: r.Expired.Bool,
 		}
-		if r.ExpiresOn.Valid {
-			entry.ExpiresOn = r.ExpiresOn.Time.Format("2006-01-02")
+		if r.Kind == "clawback" {
+			entry.RequestedPoints = r.RequestedPoints
+			entry.ShortfallPoints = r.RequestedPoints + r.Points
+		}
+		if r.Kind == "award" {
+			entry.ExpiresOn = r.ExpiresOn.Format("2006-01-02")
 		}
 		view.Entries = append(view.Entries, entry)
 	}

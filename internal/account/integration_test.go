@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -90,6 +91,20 @@ func TestAuthenticateDoesNotDistinguishUnknownFromWrong(t *testing.T) {
 	}
 	if !errors.Is(unknownEmail, account.ErrBadCredentials) {
 		t.Errorf("an unknown email gave %v, want ErrBadCredentials", unknownEmail)
+	}
+}
+
+// This is behaviour preservation rather than the timing lock: both account
+// states already returned ErrBadCredentials, but now do so before any read.
+func TestAnOverLongPasswordIsAlwaysBadCredentials(t *testing.T) {
+	s := account.NewStore(pool)
+	register(t, s, "overlong-password@example.com")
+	password := strings.Repeat("a", account.MaxPasswordBytes+1)
+
+	for _, email := range []string{"overlong-password@example.com", "absent-overlong@example.com"} {
+		if _, err := s.Authenticate(t.Context(), email, password); !errors.Is(err, account.ErrBadCredentials) {
+			t.Errorf("Authenticate(%q, over-long password) = %v, want ErrBadCredentials", email, err)
+		}
 	}
 }
 

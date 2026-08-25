@@ -1,6 +1,7 @@
 package account
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 	"testing"
@@ -9,6 +10,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/i18n"
 )
@@ -81,6 +84,63 @@ func TestVerifyRejectsMalformedHashes(t *testing.T) {
 		if VerifyPassword(h, "anything") {
 			t.Errorf("a malformed hash verified: %q", h)
 		}
+	}
+}
+
+func TestVerifyRejectsUnsafeArgonParameters(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		phc  string
+	}{
+		{
+			name: "zero passes would panic",
+			phc:  "$argon2id$v=19$m=65536,t=0,p=4$c2FsdA$aGFzaA",
+		},
+		{
+			name: "zero lanes would panic",
+			phc:  "$argon2id$v=19$m=65536,t=3,p=0$c2FsdA$aGFzaA",
+		},
+		{
+			name: "unbounded memory",
+			phc:  "$argon2id$v=19$m=4294967295,t=3,p=4$c2FsdA$aGFzaA",
+		},
+		{
+			name: "unbounded passes",
+			phc:  "$argon2id$v=19$m=65536,t=25,p=4$c2FsdA$aGFzaA",
+		},
+		{
+			name: "unbounded lanes",
+			phc:  "$argon2id$v=19$m=65536,t=3,p=33$c2FsdA$aGFzaA",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if VerifyPassword(tt.phc, "anything") {
+				t.Error("a PHC string with unsafe Argon2 parameters verified")
+			}
+		})
+	}
+}
+
+// A password over MaxPasswordBytes is refused before the read, or a 513-byte
+// probe separates a password account from an unknown or identity-only account.
+// The dead pool makes the ordering deterministic without a timing assertion.
+func TestAnOverLongPasswordIsRefusedBeforeTheRead(t *testing.T) {
+	t.Parallel()
+
+	pool, err := pgxpool.New(t.Context(), "postgres://nobody@127.0.0.1:1/nothing")
+	if err != nil {
+		t.Fatalf("build a deliberately dead pool: %v", err)
+	}
+	t.Cleanup(pool.Close)
+
+	_, err = NewStore(pool).Authenticate(t.Context(), "anyone@example.com",
+		strings.Repeat("a", MaxPasswordBytes+1))
+	if !errors.Is(err, ErrBadCredentials) {
+		t.Fatalf("Authenticate reached the database for an over-long password: %v", err)
 	}
 }
 

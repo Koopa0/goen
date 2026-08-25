@@ -25,6 +25,7 @@ import (
 // coveredByNamedTest is the triggers whose cases do not fit the rule table's shape, mapped to
 // the test that does cover them. A trigger named in neither place still fails.
 var coveredByNamedTest = map[string]string{
+	"loyalty_lot_guard":                      "the loyalty_entries_lot_* rule cases below exercise each branch by its own constraint name",
 	"product_variants_keep_product_sellable": "TestDeactivatingTheLastVariantIsRefused, TestDeletingTheLastVariantIsRefused",
 	// Exercised where the send is: proving it needs an issue that has actually been sent.
 	"newsletter_issues_frozen_once_sent": "TestASentIssueCannotBeRewritten (internal/newsletter)",
@@ -114,18 +115,60 @@ type ruleCase struct {
 // ruleCases pairs each rule trigger with a violation and a legal neighbour.
 var ruleCases = []ruleCase{
 	{
-		rule: "loyalty_never_negative",
-		// The account is locked before the balance is read, or two concurrent spends both pass.
-		reject: `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 100, 'seed', 'rule-seed', current_date + 365);
-		         INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', -500, 'over', 'rule-over', NULL);`,
-		accept: `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 100, 'seed', 'rule-seed', current_date + 365);
-		         INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', -100, 'within', 'rule-within', NULL);`,
+		rule: "loyalty_entries_lot_is_an_award",
+		reject: `INSERT INTO loyalty_entries (id, account_id, kind, points, reason, idempotency_key, expires_on)
+		         VALUES ('a1000001-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 'award', 100, 'seed', 'rule-seed', current_date + 365);
+		         INSERT INTO loyalty_entries (id, account_id, kind, points, reason, idempotency_key, expires_on, lot_id)
+		         VALUES ('a1000001-0000-4000-8000-000000000002', 'a0000001-0000-4000-8000-000000000000', 'spend', -10, 'within', 'rule-within', current_date + 365, 'a1000001-0000-4000-8000-000000000001');
+		         INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on, lot_id)
+		         VALUES ('a0000001-0000-4000-8000-000000000000', 'spend', -1, 'wrong lot', 'rule-wrong-lot', current_date + 365, 'a1000001-0000-4000-8000-000000000002');`,
+		accept: `INSERT INTO loyalty_entries (id, account_id, kind, points, reason, idempotency_key, expires_on)
+		         VALUES ('a1000001-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 'award', 100, 'seed', 'rule-seed', current_date + 365);
+		         INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on, lot_id)
+		         VALUES ('a0000001-0000-4000-8000-000000000000', 'spend', -100, 'within', 'rule-within', current_date + 365, 'a1000001-0000-4000-8000-000000000001');`,
+	},
+	{
+		rule: "loyalty_entries_lot_expiry_matches",
+		reject: `INSERT INTO loyalty_entries (id, account_id, kind, points, reason, idempotency_key, expires_on)
+		         VALUES ('a1000002-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 'award', 100, 'seed', 'expiry-seed', current_date + 365);
+		         INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on, lot_id)
+		         VALUES ('a0000001-0000-4000-8000-000000000000', 'spend', -10, 'wrong expiry', 'expiry-wrong', current_date + 364, 'a1000002-0000-4000-8000-000000000001');`,
+		accept: `INSERT INTO loyalty_entries (id, account_id, kind, points, reason, idempotency_key, expires_on)
+		         VALUES ('a1000002-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 'award', 100, 'seed', 'expiry-seed', current_date + 365);
+		         INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on, lot_id)
+		         VALUES ('a0000001-0000-4000-8000-000000000000', 'spend', -10, 'same expiry', 'expiry-right', current_date + 365, 'a1000002-0000-4000-8000-000000000001');`,
+	},
+	{
+		rule: "loyalty_entries_lot_not_expired",
+		reject: `INSERT INTO loyalty_entries (id, account_id, kind, points, reason, idempotency_key, expires_on)
+		         VALUES ('a1000003-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 'award', 100, 'old', 'expired-seed', current_date - 1);
+		         INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on, lot_id)
+		         VALUES ('a0000001-0000-4000-8000-000000000000', 'spend', -10, 'late', 'expired-spend', current_date - 1, 'a1000003-0000-4000-8000-000000000001');`,
+		accept: `INSERT INTO loyalty_entries (id, account_id, kind, points, reason, idempotency_key, expires_on)
+		         VALUES ('a1000003-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 'award', 100, 'live', 'live-seed', current_date);
+		         INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on, lot_id)
+		         VALUES ('a0000001-0000-4000-8000-000000000000', 'spend', -10, 'today', 'live-spend', current_date, 'a1000003-0000-4000-8000-000000000001');`,
+	},
+	{
+		rule: "loyalty_entries_lot_not_overdrawn",
+		reject: `INSERT INTO loyalty_entries (id, account_id, kind, points, reason, idempotency_key, expires_on)
+		         VALUES ('a1000004-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 'award', 100, 'seed', 'overdraw-seed', current_date + 365);
+		         INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on, lot_id)
+		         VALUES ('a0000001-0000-4000-8000-000000000000', 'spend', -60, 'first', 'overdraw-first', current_date + 365, 'a1000004-0000-4000-8000-000000000001');
+		         INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on, lot_id)
+		         VALUES ('a0000001-0000-4000-8000-000000000000', 'spend', -41, 'second', 'overdraw-second', current_date + 365, 'a1000004-0000-4000-8000-000000000001');`,
+		accept: `INSERT INTO loyalty_entries (id, account_id, kind, points, reason, idempotency_key, expires_on)
+		         VALUES ('a1000004-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 'award', 100, 'seed', 'overdraw-seed', current_date + 365);
+		         INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on, lot_id)
+		         VALUES ('a0000001-0000-4000-8000-000000000000', 'spend', -60, 'first', 'overdraw-first', current_date + 365, 'a1000004-0000-4000-8000-000000000001');
+		         INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on, lot_id)
+		         VALUES ('a0000001-0000-4000-8000-000000000000', 'spend', -40, 'second', 'overdraw-second', current_date + 365, 'a1000004-0000-4000-8000-000000000001');`,
 	},
 	{
 		rule: "loyalty_entries_append_only",
-		reject: `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 100, 'seed', 'rule-seed', current_date + 365);
+		reject: `INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 'award', 100, 'seed', 'rule-seed', current_date + 365);
 		         UPDATE loyalty_entries SET points = 9999 WHERE idempotency_key = 'rule-seed';`,
-		accept: `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 100, 'seed', 'rule-seed', current_date + 365);`,
+		accept: `INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 'award', 100, 'seed', 'rule-seed', current_date + 365);`,
 	},
 	{
 		rule: "categories_acyclic",
@@ -167,12 +210,13 @@ var ruleCases = []ruleCase{
 	},
 	{
 		rule: "orders_legal_transition",
-		// The reject uses the unpaid order — the legal-transition check fires first, so it still names
-		// this rule — while the accept must use the PAID one or orders_funded_to_leave_pending refuses.
+		// The reject uses the unpaid order — the legal-transition check fires first,
+		// so it still names this rule. The paid parcel fixture is now already shipped;
+		// use the genuinely picking zero-owed order for a legal forward transition.
 		reject: `UPDATE orders SET fulfillment_status = 'shipped'
 		         WHERE order_number = 'GO-260721-000388';`,
-		accept: `UPDATE orders SET fulfillment_status = 'picking'
-		         WHERE order_number = 'GO-260721-000387';`,
+		accept: `UPDATE orders SET fulfillment_status = 'shipped'
+		         WHERE order_number = 'GO-260721-000389';`,
 	},
 	{
 		rule: "orders_have_lines",
@@ -417,6 +461,29 @@ var ruleCases = []ruleCase{
 		                 '66660001-0000-4000-8000-000000000000', 2);`,
 	},
 	{
+		rule: "shipment_order_in_fulfilment",
+		// The reject and accept build the same zero-owed order. Only the accept
+		// enters the exact picking/shipped/delivered set admitted by fillShippable.
+		reject: `INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name, discount_cents)
+		         VALUES ('11110023-0000-4000-8000-000000000001', 'GO-260721-000903', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府', 100000);
+		         INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
+		         VALUES ('11110023-0000-4000-8000-000000000001', 'SHIP-RULE', '商品', 100000, 1);
+		         INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
+		         VALUES ('11110023-0000-4000-8000-000000000001', 'ship-rule@example.com', '王', '09', '110', '台北市', '信義區', '路 1 號');
+		         INSERT INTO order_shipments (order_id, carrier, tracking_number)
+		         VALUES ('11110023-0000-4000-8000-000000000001', '黑貓', 'SHIP-RULE-REJECT');`,
+		accept: `INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name, discount_cents)
+		         VALUES ('11110023-0000-4000-8000-000000000001', 'GO-260721-000903', 'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府', 100000);
+		         INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
+		         VALUES ('11110023-0000-4000-8000-000000000001', 'SHIP-RULE', '商品', 100000, 1);
+		         INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
+		         VALUES ('11110023-0000-4000-8000-000000000001', 'ship-rule@example.com', '王', '09', '110', '台北市', '信義區', '路 1 號');
+		         UPDATE orders SET fulfillment_status = 'picking'
+		         WHERE id = '11110023-0000-4000-8000-000000000001';
+		         INSERT INTO order_shipments (order_id, carrier, tracking_number)
+		         VALUES ('11110023-0000-4000-8000-000000000001', '黑貓', 'SHIP-RULE-ACCEPT');`,
+	},
+	{
 		rule: "return_requests_legal_transition",
 		reject: `UPDATE return_requests SET status = 'completed', decided_at = now()
 		         WHERE id = '88880001-0000-4000-8000-000000000000';`,
@@ -435,9 +502,9 @@ var ruleCases = []ruleCase{
 	{
 		rule: "return_requests_start_requested",
 		reject: `INSERT INTO return_requests (order_id, status, reason, decided_at)
-		         VALUES ('66666666-6666-4666-8666-666666666666', 'approved', '退貨', now());`,
+		         VALUES ('6666aaaa-6666-4666-8666-666666666666', 'approved', '退貨', now());`,
 		accept: `INSERT INTO return_requests (order_id, reason)
-		         VALUES ('66666666-6666-4666-8666-666666666666', '退貨');`,
+		         VALUES ('6666aaaa-6666-4666-8666-666666666666', '退貨');`,
 	},
 	{
 		rule: "invoice_allowance_valid",
@@ -1453,8 +1520,13 @@ func TestOrderCannotLeavePendingUnfunded(t *testing.T) {
 		t.Fatalf("refused by %q, want orders_funded_to_leave_pending: %v", name, err)
 	}
 
-	if err := run(t, `UPDATE orders SET fulfillment_status = 'picking'
-	                  WHERE id = '66666666-6666-4666-8666-666666666666';`); err != nil {
+	if err := run(t, `INSERT INTO payments (id, order_id, provider_ref, status,
+	                                         intended_amount_cents, captured_amount_cents, paid_at)
+	                  VALUES ('11110058-0000-4000-8000-000000000001',
+	                          '6666aaaa-6666-4666-8666-666666666666', 'pi_funded_control',
+	                          'succeeded', 3690000, 3690000, now());
+	                  UPDATE orders SET fulfillment_status = 'picking'
+	                  WHERE id = '6666aaaa-6666-4666-8666-666666666666';`); err != nil {
 		t.Fatalf("a funded order was refused fulfilment: %v", err)
 	}
 

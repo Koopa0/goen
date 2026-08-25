@@ -231,26 +231,33 @@ var checkCases = []checkCase{
 	},
 	{
 		constraint: "loyalty_entries_points_nonzero",
-		// No expiry on the rejecting row: zero is not positive, so an expiry beside it trips
-		// loyalty_entries_expiry_matches_sign FIRST and the case would prove the wrong rule.
-		reject: `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 0, 'test', 'k-zero', NULL);`,
-		accept: `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 10, 'test', 'k-nonzero', current_date + 365);`,
+		// Zero is a durable fact only for a clawback carrying requested_points;
+		// an award or spend still has to move the balance.
+		reject: `INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 'award', 0, 'test', 'k-zero', current_date + 365);`,
+		accept: `INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 'award', 10, 'test', 'k-nonzero', current_date + 365);`,
 	},
 	{
 		constraint: "loyalty_entries_reason_present",
-		reject:     `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 10, E'\t', 'k-blank-reason', current_date + 365);`,
-		accept:     `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 10, 'test', 'k-reason', current_date + 365);`,
+		reject:     `INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 'award', 10, E'\t', 'k-blank-reason', current_date + 365);`,
+		accept:     `INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 'award', 10, 'test', 'k-reason', current_date + 365);`,
 	},
 	{
 		constraint: "loyalty_entries_key_present",
-		reject:     `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 10, 'test', E'\t', current_date + 365);`,
-		accept:     `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 10, 'test', 'k-present', current_date + 365);`,
+		reject:     `INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 'award', 10, 'test', E'\t', current_date + 365);`,
+		accept:     `INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 'award', 10, 'test', 'k-present', current_date + 365);`,
 	},
 	{
-		constraint: "loyalty_entries_expiry_matches_sign",
-		// A spend WITH an expiry disappears from the balance, which reads as points taken back.
-		reject: `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 10, 'test', 'k-noexpiry', NULL);`,
-		accept: `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 10, 'test', 'k-expiry', current_date + 365);`,
+		constraint: "loyalty_entries_kind_shape",
+		// A zero clawback is a durable shortfall only when it says what positive
+		// request it fell short of. Both rows otherwise have the same legal shape.
+		reject: `INSERT INTO loyalty_entries (id, account_id, kind, points, reason, idempotency_key, order_id, expires_on)
+		         VALUES ('a1000005-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 'award', 10, 'seed', 'shape-seed', '66666666-6666-4666-8666-666666666666', shop_today() + 365);
+		         INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, order_id, expires_on, lot_id, requested_points, return_request_id)
+		         VALUES ('a0000001-0000-4000-8000-000000000000', 'clawback', 0, 'return', 'shape-zero', '66666666-6666-4666-8666-666666666666', shop_today() + 365, 'a1000005-0000-4000-8000-000000000001', 0, '88880001-0000-4000-8000-000000000000');`,
+		accept: `INSERT INTO loyalty_entries (id, account_id, kind, points, reason, idempotency_key, order_id, expires_on)
+		         VALUES ('a1000005-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 'award', 10, 'seed', 'shape-seed', '66666666-6666-4666-8666-666666666666', shop_today() + 365);
+		         INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, order_id, expires_on, lot_id, requested_points, return_request_id)
+		         VALUES ('a0000001-0000-4000-8000-000000000000', 'clawback', 0, 'return', 'shape-zero', '66666666-6666-4666-8666-666666666666', shop_today() + 365, 'a1000005-0000-4000-8000-000000000001', 10, '88880001-0000-4000-8000-000000000000');`,
 	},
 	{
 		constraint: "product_questions_body_present",
@@ -694,12 +701,11 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "orders_completed_has_time",
-		// Walks the fixture's PAID order through fulfilment: the unpaid one cannot leave pending at
-		// all (orders_funded_to_leave_pending), so that rule would refuse it before this one. Every
-		// line is dispatched first for the same reason — orders_finished_when_shipped refuses an
-		// order that still owes a parcel, and would otherwise be the rule this case proves.
-		reject: `WITH s AS (INSERT INTO order_shipments (order_id, carrier, tracking_number) VALUES ('66666666-6666-4666-8666-666666666666', '黑貓', 'TRK-REJ') RETURNING id) INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity) SELECT ol.order_id, s.id, ol.id, ol.quantity - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl WHERE sl.order_line_id = ol.id), 0) FROM order_lines ol, s WHERE ol.order_id = '66666666-6666-4666-8666-666666666666' AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl WHERE sl.order_line_id = ol.id), 0); UPDATE orders SET fulfillment_status = 'picking' WHERE id = '66666666-6666-4666-8666-666666666666'; UPDATE orders SET fulfillment_status = 'shipped' WHERE id = '66666666-6666-4666-8666-666666666666'; UPDATE orders SET fulfillment_status = 'completed' WHERE id = '66666666-6666-4666-8666-666666666666';`,
-		accept: `WITH s AS (INSERT INTO order_shipments (order_id, carrier, tracking_number) VALUES ('66666666-6666-4666-8666-666666666666', '黑貓', 'TRK-ACC') RETURNING id) INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity) SELECT ol.order_id, s.id, ol.id, ol.quantity - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl WHERE sl.order_line_id = ol.id), 0) FROM order_lines ol, s WHERE ol.order_id = '66666666-6666-4666-8666-666666666666' AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl WHERE sl.order_line_id = ol.id), 0); UPDATE orders SET fulfillment_status = 'picking' WHERE id = '66666666-6666-4666-8666-666666666666'; UPDATE orders SET fulfillment_status = 'shipped' WHERE id = '66666666-6666-4666-8666-666666666666'; UPDATE orders SET fulfillment_status = 'completed', completed_at = now() WHERE id = '66666666-6666-4666-8666-666666666666';`,
+		// The fixture has already entered fulfilment. Every remaining line is
+		// dispatched first because orders_finished_when_shipped would otherwise
+		// refuse completion before this timestamp check gets a turn.
+		reject: `WITH s AS (INSERT INTO order_shipments (order_id, carrier, tracking_number) VALUES ('66666666-6666-4666-8666-666666666666', '黑貓', 'TRK-REJ') RETURNING id) INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity) SELECT ol.order_id, s.id, ol.id, ol.quantity - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl WHERE sl.order_line_id = ol.id), 0) FROM order_lines ol, s WHERE ol.order_id = '66666666-6666-4666-8666-666666666666' AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl WHERE sl.order_line_id = ol.id), 0); UPDATE orders SET fulfillment_status = 'completed' WHERE id = '66666666-6666-4666-8666-666666666666';`,
+		accept: `WITH s AS (INSERT INTO order_shipments (order_id, carrier, tracking_number) VALUES ('66666666-6666-4666-8666-666666666666', '黑貓', 'TRK-ACC') RETURNING id) INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity) SELECT ol.order_id, s.id, ol.id, ol.quantity - coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl WHERE sl.order_line_id = ol.id), 0) FROM order_lines ol, s WHERE ol.order_id = '66666666-6666-4666-8666-666666666666' AND ol.quantity > coalesce((SELECT sum(sl.quantity) FROM order_shipment_lines sl WHERE sl.order_line_id = ol.id), 0); UPDATE orders SET fulfillment_status = 'completed', completed_at = now() WHERE id = '66666666-6666-4666-8666-666666666666';`,
 	},
 	{
 		constraint: "orders_locale_known",
@@ -1107,23 +1113,23 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	{
 		constraint: "return_requests_decided_has_time",
 		// Tested from the 'requested' side so the start-requested INSERT trigger does not shadow it.
-		reject: `INSERT INTO return_requests (id, order_id, reason, decided_at) VALUES ('11110001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666', '退貨', now());`,
-		accept: `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666', '退貨');`,
+		reject: `INSERT INTO return_requests (id, order_id, reason, decided_at) VALUES ('11110001-0000-4000-8000-000000000001', '6666aaaa-6666-4666-8666-666666666666', '退貨', now());`,
+		accept: `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000001', '6666aaaa-6666-4666-8666-666666666666', '退貨');`,
 	},
 	{
 		// The ACCEPT is the EMPTY reason, deliberately: Consumer Protection Act §19 I gives a
 		// rescission inside seven days with no reason at all, so a non-blank accept would lock nothing.
 		constraint: "return_requests_reason_bounded",
-		reject:     `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000002', '66666666-6666-4666-8666-666666666666', repeat('x', 501));`,
-		accept:     `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000002', '66666666-6666-4666-8666-666666666666', '');`,
+		reject:     `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000002', '6666aaaa-6666-4666-8666-666666666666', repeat('x', 501));`,
+		accept:     `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000002', '6666aaaa-6666-4666-8666-666666666666', '');`,
 	},
 	{
 		constraint: "return_requests_status_known",
 		// An unknown status is not 'requested', so the start-requested INSERT trigger refuses it first;
 		// disable triggers to reach the CHECK.
 		reject: `SET LOCAL session_replication_role = replica;
-		         INSERT INTO return_requests (id, order_id, status, reason, decided_at) VALUES ('11110001-0000-4000-8000-000000000003', '66666666-6666-4666-8666-666666666666', 'shipped', '退貨', now());`,
-		accept: `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000003', '66666666-6666-4666-8666-666666666666', '退貨');`,
+		         INSERT INTO return_requests (id, order_id, status, reason, decided_at) VALUES ('11110001-0000-4000-8000-000000000003', '6666aaaa-6666-4666-8666-666666666666', 'shipped', '退貨', now());`,
+		accept: `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000003', '6666aaaa-6666-4666-8666-666666666666', '退貨');`,
 	},
 	{
 		constraint: "sale_campaigns_slug_format",
@@ -1363,9 +1369,21 @@ var uniqueCases = []uniqueCase{
 		index: "loyalty_entries_idempotency_key",
 		// TWICE. One insert cannot collide with itself, and a case that inserts once reports that the
 		// database accepted a duplicate it never wrote.
-		reject: `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 10, 'test', 'fixture-dup', current_date + 365);
-		         INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 10, 'test', 'fixture-dup', current_date + 365);`,
-		accept: `INSERT INTO loyalty_entries (account_id, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 10, 'test', 'fixture-other', current_date + 365);`,
+		reject: `INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 'award', 10, 'test', 'fixture-dup', current_date + 365);
+		         INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 'award', 10, 'test', 'fixture-dup', current_date + 365);`,
+		accept: `INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 'award', 10, 'test', 'fixture-other', current_date + 365);`,
+	},
+	{
+		index: "return_requests_one_open",
+		// The paid fixture order already has an open request. This deliberately
+		// uses the separate unpaid fixture, whose absence of an open request makes
+		// the first insert meaningful and the second one the collision.
+		reject: `INSERT INTO return_requests (id, order_id, reason)
+		         VALUES ('11110025-0000-4000-8000-000000000001', '6666aaaa-6666-4666-8666-666666666666', 'first');
+		         INSERT INTO return_requests (id, order_id, reason)
+		         VALUES ('11110025-0000-4000-8000-000000000002', '6666aaaa-6666-4666-8666-666666666666', 'second');`,
+		accept: `INSERT INTO return_requests (id, order_id, reason)
+		         VALUES ('11110025-0000-4000-8000-000000000001', '6666aaaa-6666-4666-8666-666666666666', 'only');`,
 	},
 	{
 		index: "coupons_code_key",

@@ -29,9 +29,21 @@ var (
 	KeyAdminRetShortfall = key("admin.ret.shortfall", Message{ZhHant: "(短少)", En: "(short)"})
 	KeyAdminRetScrapped  = key("admin.ret.scrapped", Message{ZhHant: "(未入庫)", En: "(not restocked)"})
 
-	KeyAdminRetResolution = key("admin.ret.resolution", Message{ZhHant: "處理說明", En: "Resolution note"})
-	KeyAdminRetApprove    = key("admin.ret.approve", Message{ZhHant: "同意並退款", En: "Approve and refund"})
-	KeyAdminRetReject     = key("admin.ret.reject", Message{ZhHant: "不同意", En: "Decline"})
+	KeyAdminRetResolution  = key("admin.ret.resolution", Message{ZhHant: "處理說明", En: "Resolution note"})
+	KeyAdminRetApprove     = key("admin.ret.approve", Message{ZhHant: "同意並退款", En: "Approve and refund"})
+	KeyAdminRetReject      = key("admin.ret.reject", Message{ZhHant: "不同意", En: "Decline"})
+	KeyAdminRetRetryPayout = key("admin.ret.retrypayout", Message{
+		ZhHant: "重新退款",
+		En:     "Send the refund again",
+	})
+	KeyAdminRetPayoutOutstanding = key("admin.ret.payoutoutstanding", Message{
+		ZhHant: "這筆退貨已核准,但款項尚未退回。重新送出會沿用同一個退款識別,不會重複付款。",
+		En:     "This return is approved, but its money has not gone back. Sending it again uses the same refund key, so it cannot pay twice.",
+	})
+	KeyAdminRetPayoutStranded = key("admin.ret.payoutstranded", Message{
+		ZhHant: "付款服務已明確拒絕這筆退款,無法從這裡重送。請在 Stripe 手動退款,並查看系統健康頁。",
+		En:     "The provider refused this refund outright, so it cannot be re-sent here. Refund it manually in Stripe and check the health page.",
+	})
 
 	KeyAdminRetInspectHint = key("admin.ret.inspecthint", Message{
 		ZhHant: "收到退回的商品後,逐項填寫實際收到與可再販售的數量。",

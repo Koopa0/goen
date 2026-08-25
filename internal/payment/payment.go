@@ -16,6 +16,9 @@ var (
 	ErrAlreadyPaid = errors.New("payment: order already paid")
 	// ErrNotPayable is an order that is no longer waiting for money.
 	ErrNotPayable = errors.New("payment: order is not awaiting payment")
+	// ErrNotOpenable is an order that stopped awaiting payment while Stripe was
+	// creating its Checkout Session.
+	ErrNotOpenable = errors.New("payment: the order is no longer awaiting payment")
 	// ErrDisabled is goen running without Stripe credentials.
 	ErrDisabled = errors.New("payment: stripe is not configured")
 	// ErrBadSignature is a webhook whose Stripe-Signature did not verify.
