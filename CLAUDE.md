@@ -2120,7 +2120,11 @@ the recoverable direction: a document filed with the 加值中心 and absent her
 visible from ECPay's console and re-issuing the same `RelateNumber` is refused by
 ECPay as `5070357`. With no local row, the partial
 `invoice_documents_one_active_invoice_per_order` index has nothing to refuse. A
-row claiming a filing that does not exist would be visible from nowhere.
+row claiming a filing that does not exist would be visible from nowhere. Once
+ECPay has answered, the short local filing transaction keeps the request's
+values but not its cancellation and has a 15-second deadline: closing the tab
+must not lose a provider-allocated number, while a hung database write is still
+bounded. A process crash remains the accepted reconciliation window.
 
 Every account feature is linked from `/account`. Four of them — orders, points,
 wishlist, warranty — existed as working routes with NO LINK from anywhere, which

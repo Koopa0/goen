@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db/dbtest"
@@ -105,6 +106,49 @@ func TestAnAllowanceIsFiledOncePerPress(t *testing.T) {
 	if filings != 1 {
 		t.Errorf("the provider was called %d times; the second press reached ECPay "+
 			"before anything refused it, which is where the damage is", filings)
+	}
+}
+
+// TestAnAcceptedInvoiceIsFiledAfterTheRequestLeaves holds the narrow side of
+// the provider-first decision: once ECPay allocated the number, an ordinary
+// browser disconnect must not discard the local record. A process crash can
+// still land in that accepted window, so the detached write remains bounded.
+func TestAnAcceptedInvoiceIsFiledAfterTheRequestLeaves(t *testing.T) {
+	number := orderToInvoice(t, 100000, 0, 0)
+	var orderID uuid.UUID
+	if err := pool.QueryRow(t.Context(),
+		`SELECT id FROM orders WHERE order_number = $1`, number).Scan(&orderID); err != nil {
+		t.Fatalf("read invoice order: %v", err)
+	}
+	gateway, err := NewGateway("", "", "", "")
+	if err != nil {
+		t.Fatalf("disabled gateway: %v", err)
+	}
+	store := NewStore(pool, gateway)
+
+	requestCtx, cancelRequest := context.WithCancel(t.Context())
+	cancelRequest()
+	doc := Document{
+		Kind: "invoice", Number: "detached-" + number, AmountCents: 100000,
+		Status: "issued", IssuedAt: time.Date(2026, 8, 27, 12, 0, 0, 0, time.UTC),
+		ProviderRef: "accepted-before-disconnect",
+	}
+	lines := []Line{{
+		Description: "斷線後仍須記錄", Quantity: 1,
+		UnitPriceCents: 100000, AmountCents: 100000,
+	}}
+	if err := store.file(requestCtx, orderID, uuid.NullUUID{}, doc, lines); err != nil {
+		t.Fatalf("file an accepted invoice after request cancellation: %v", err)
+	}
+
+	var filed bool
+	if err := pool.QueryRow(t.Context(),
+		`SELECT EXISTS (SELECT 1 FROM invoice_documents WHERE number = $1)`, doc.Number).
+		Scan(&filed); err != nil {
+		t.Fatalf("read detached filing: %v", err)
+	}
+	if !filed {
+		t.Error("the provider accepted an invoice whose local record disappeared with the request")
 	}
 }
 

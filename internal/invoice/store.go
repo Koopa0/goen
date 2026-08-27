@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -15,6 +16,11 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 )
+
+// filingTimeout bounds the local write after ECPay has accepted a document. The
+// write is detached from the request below because losing a browser connection
+// must not discard a provider-allocated invoice number.
+const filingTimeout = 15 * time.Second
 
 // Store files what the provider accepted. It runs on the ADMIN pool: `store`
 // holds no write on invoice_documents at all.
@@ -131,6 +137,9 @@ func (s *Store) Issue(ctx context.Context, orderNumber string) (Document, error)
 func (s *Store) file(
 	ctx context.Context, orderID uuid.UUID, original uuid.NullUUID, doc Document, lines []Line,
 ) error {
+	ctx, cancel := filingContext(ctx)
+	defer cancel()
+
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin invoice filing: %w", err)
@@ -159,6 +168,10 @@ func (s *Store) file(
 		return fmt.Errorf("commit invoice filing: %w", err)
 	}
 	return nil
+}
+
+func filingContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), filingTimeout)
 }
 
 // Void cancels an issued invoice, at the provider and then here.

@@ -1,6 +1,7 @@
 package invoice
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
@@ -19,6 +21,37 @@ const (
 	testHashKey    = "ejCk326UnaZWKisg"
 	testHashIV     = "q9jcZX8Ib9LM8wYk"
 )
+
+type filingContextKey struct{}
+
+func TestFilingContextKeepsValuesDropsCancellationAndAddsADeadline(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		parent := context.WithValue(t.Context(), filingContextKey{}, "request-value")
+		parent, cancelParent := context.WithCancel(parent)
+		cancelParent()
+
+		ctx, cancel := filingContext(parent)
+		defer cancel()
+		if err := ctx.Err(); err != nil {
+			t.Fatalf("filingContext() inherited request cancellation: %v", err)
+		}
+		if got := ctx.Value(filingContextKey{}); got != "request-value" {
+			t.Errorf("filingContext() value = %v, want request-value", got)
+		}
+		deadline, ok := ctx.Deadline()
+		if !ok || time.Until(deadline) != filingTimeout {
+			t.Fatalf("filingContext() deadline = %v, ok=%t; want %s from now",
+				deadline, ok, filingTimeout)
+		}
+
+		time.Sleep(filingTimeout)
+		synctest.Wait()
+		if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			t.Errorf("filingContext() after deadline = %v, want context deadline exceeded", ctx.Err())
+		}
+	})
+}
 
 // TestTheEnvelopeRoundTrips proves seal and open are inverses. Weak on its own —
 // a pair of no-ops round-trips too — so TestTheEnvelopeIsAESNotSomethingElse
