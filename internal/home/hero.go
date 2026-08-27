@@ -9,6 +9,7 @@ import (
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/web"
 )
 
 // Hero reads the slide the home page should show, or the built-in one. A missing
@@ -21,16 +22,34 @@ func (s *Store) Hero(ctx context.Context) (pages.Hero, error) {
 		}
 		return pages.Hero{}, fmt.Errorf("read hero slide: %w", err)
 	}
+
+	// Typed by a person and rendered into an href at the top of the home page.
+	primaryHref, primaryOK := web.SitePath(row.PrimaryCtaHref)
+	primary := pages.CTA{Label: row.PrimaryCtaLabel, Href: primaryHref}
+	secondary := pages.CTA{}
+	if !primaryOK {
+		// A primary CTA is required as a pair. Direct SQL can bypass the write
+		// gate, so keep the slide's copy but give it both built-in CTA pairs
+		// instead of rendering its headline with a dead primary button.
+		defaults := pages.DefaultHero(ctx)
+		primary, secondary = defaults.PrimaryCTA, defaults.SecondaryCTA
+	} else {
+		secondaryHref, secondaryOK := web.SitePath(row.SecondaryCtaHref.String)
+		if secondaryOK {
+			secondary = pages.CTA{Label: row.SecondaryCtaLabel, Href: secondaryHref}
+		}
+		// A refused optional href leaves both fields blank, which
+		// hero_slides_secondary_cta_present also says.
+	}
+
 	return pages.Hero{
-		Eyebrow:    row.Eyebrow,
-		Headline:   row.Headline,
-		Body:       row.Body,
-		PrimaryCTA: pages.CTA{Label: row.PrimaryCtaLabel, Href: row.PrimaryCtaHref},
-		SecondaryCTA: pages.CTA{
-			Label: row.SecondaryCtaLabel, Href: row.SecondaryCtaHref.String,
-		},
-		ImageKey:   row.ImageKey.String,
-		ImageAlt:   row.ImageAlt,
-		ImageWidth: int(row.ImageWidth),
+		Eyebrow:      row.Eyebrow,
+		Headline:     row.Headline,
+		Body:         row.Body,
+		PrimaryCTA:   primary,
+		SecondaryCTA: secondary,
+		ImageKey:     row.ImageKey.String,
+		ImageAlt:     row.ImageAlt,
+		ImageWidth:   int(row.ImageWidth),
 	}, nil
 }

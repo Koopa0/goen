@@ -260,21 +260,5 @@ func hasControl(s string) bool {
 	return false
 }
 
-// SafeNext bounds a post-sign-in redirect to a path within this site:
-// "//evil.example" and "/\evil" are other origins to a browser, not paths.
-func SafeNext(next string) string {
-	const fallback = "/account"
-	if next == "" || !strings.HasPrefix(next, "/") {
-		return fallback
-	}
-	if strings.HasPrefix(next, "//") || strings.HasPrefix(next, "/\\") {
-		return fallback
-	}
-	if strings.ContainsAny(next, "\r\n") || hasControl(next) {
-		return fallback
-	}
-	return next
-}
-
 // MembershipWindowDays mirrors loyalty.MembershipWindow; importing it would be a cycle.
 const MembershipWindowDays int32 = 365

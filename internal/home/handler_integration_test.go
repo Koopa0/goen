@@ -374,7 +374,8 @@ func TestAnOffSiteCTAIsDroppedNotRendered(t *testing.T) {
 	s := home.NewStore(pool)
 
 	for _, href := range []string{
-		"https://evil.example", "//evil.example/x", "javascript:alert(1)", `/\evil.example`,
+		"https://evil.example", "//evil.example/x", "///evil.example/x",
+		"javascript:alert(1)", `/\evil.example`,
 	} {
 		if _, err := pool.Exec(ctx, `DELETE FROM promo_banners`); err != nil {
 			t.Fatalf("clear: %v", err)
@@ -411,6 +412,61 @@ func TestAnOffSiteCTAIsDroppedNotRendered(t *testing.T) {
 	if !banner.HasCTA() || banner.CTAHref != "/deals" {
 		t.Errorf("a same-site CTA came back as %q", banner.CTAHref)
 	}
+}
+
+// TestAnOffSiteHeroCTAIsReplacedAtReadTime. The admin form validates these
+// paths too, but direct SQL and old rows still reach the storefront reader.
+func TestAnOffSiteHeroCTAIsReplacedAtReadTime(t *testing.T) {
+	ctx := t.Context()
+	s := home.NewStore(pool)
+
+	t.Run("primary uses the built-in CTA pair", func(t *testing.T) {
+		emptyHeroSlides(t)
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO hero_slides
+			    (headline, primary_cta_label, primary_cta_href,
+			     secondary_cta_label, secondary_cta_href, position)
+			VALUES ('仍是這張投影片', '假的按鈕', '///evil.example/x',
+			        '原本安全的次按鈕', '/custom-safe', -100)`); err != nil {
+			t.Fatalf("insert poisoned primary CTA: %v", err)
+		}
+
+		hero, err := s.Hero(ctx)
+		if err != nil {
+			t.Fatalf("hero: %v", err)
+		}
+		if hero.Headline != "仍是這張投影片" {
+			t.Errorf("a bad link discarded the slide copy: %q", hero.Headline)
+		}
+		defaults := pages.DefaultHero(ctx)
+		if hero.PrimaryCTA != defaults.PrimaryCTA || hero.SecondaryCTA != defaults.SecondaryCTA {
+			t.Errorf("poisoned primary CTA left pairs %+v / %+v, want built-ins %+v / %+v",
+				hero.PrimaryCTA, hero.SecondaryCTA, defaults.PrimaryCTA, defaults.SecondaryCTA)
+		}
+	})
+
+	t.Run("secondary is dropped while primary survives", func(t *testing.T) {
+		emptyHeroSlides(t)
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO hero_slides
+			    (headline, primary_cta_label, primary_cta_href,
+			     secondary_cta_label, secondary_cta_href, position)
+			VALUES ('安全的主按鈕', '看優惠', '/deals',
+			        '假的次按鈕', '///evil.example/x', -100)`); err != nil {
+			t.Fatalf("insert poisoned secondary CTA: %v", err)
+		}
+
+		hero, err := s.Hero(ctx)
+		if err != nil {
+			t.Fatalf("hero: %v", err)
+		}
+		if hero.PrimaryCTA != (pages.CTA{Label: "看優惠", Href: "/deals"}) {
+			t.Errorf("safe primary CTA changed: %+v", hero.PrimaryCTA)
+		}
+		if hero.SecondaryCTA != (pages.CTA{}) {
+			t.Errorf("poisoned secondary CTA survived: %+v", hero.SecondaryCTA)
+		}
+	})
 }
 
 func seedBanner(t *testing.T, message string) string {

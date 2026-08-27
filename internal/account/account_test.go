@@ -191,26 +191,22 @@ func TestNewTokenIsUnpredictable(t *testing.T) {
 	}
 }
 
-func TestSafeNext(t *testing.T) {
+// TestSignInKeepsItsAccountFallback locks the caller's choice. web.SitePath
+// owns what is safe; account owns where a refused post-sign-in redirect lands.
+func TestSignInKeepsItsAccountFallback(t *testing.T) {
 	t.Parallel()
 
-	for _, tt := range []struct{ in, want string }{
-		{"/account", "/account"},
-		{"/account/orders", "/account/orders"},
-		{"/cart?x=1", "/cart?x=1"},
-		{"", "/account"},
-		{"//evil.example", "/account"},        // protocol-relative
-		{"/\\evil.example", "/account"},       // backslash form some browsers accept
-		{"https://evil.example", "/account"},  // absolute
-		{"http://evil.example", "/account"},   // absolute
-		{"javascript:alert(1)", "/account"},   // scheme
-		{"account", "/account"},               // not rooted
-		{"/x\r\nSet-Cookie: a=b", "/account"}, // header injection
-		{"/x\nLocation: https://evil", "/account"},
-	} {
-		if got := SafeNext(tt.in); got != tt.want {
-			t.Errorf("SafeNext(%q) = %q, want %q", tt.in, got, tt.want)
-		}
+	h := &Handler{log: slog.New(slog.DiscardHandler), google: &Google{}}
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
+		"/signin?next=%2F%2F%2Fevil.example", http.NoBody)
+	w := httptest.NewRecorder()
+	h.SignInPage(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	if body := w.Body.String(); !strings.Contains(body, `name="next" value="/account"`) {
+		t.Errorf("a refused sign-in redirect did not carry the /account fallback: %s", body)
 	}
 }
 

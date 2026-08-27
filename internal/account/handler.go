@@ -114,7 +114,7 @@ func (h *Handler) SignInPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view := pages.AuthView{
-		Next:         SafeNext(r.URL.Query().Get("next")),
+		Next:         web.SitePathOr(r.URL.Query().Get("next"), "/account"),
 		GoogleSignIn: h.google.Enabled(),
 	}
 	switch {
@@ -136,7 +136,7 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 	}
 	email := r.PostFormValue("email")
 	password := r.PostFormValue("password")
-	next := SafeNext(r.PostFormValue("next"))
+	next := web.SitePathOr(r.PostFormValue("next"), "/account")
 
 	// Before Authenticate: argon2 at 64 MiB is the cost this limit protects.
 	if retryAfter, ok := h.signinLimit.Allow("account:" + strings.ToLower(strings.TrimSpace(email))); !ok {
@@ -161,7 +161,7 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.startSession(w, r, u)
-	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by SafeNext
+	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 }
 
 // RegisterPage serves GET /register.
@@ -171,7 +171,7 @@ func (h *Handler) RegisterPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Register(pages.RegisterMeta(r.Context()),
-		pages.AuthView{Next: SafeNext(r.URL.Query().Get("next"))}))
+		pages.AuthView{Next: web.SitePathOr(r.URL.Query().Get("next"), "/account")}))
 }
 
 // Register serves POST /register.
@@ -187,7 +187,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		Name:     r.PostFormValue("name"),
 	}
 	c.Trim()
-	next := SafeNext(r.PostFormValue("next"))
+	next := web.SitePathOr(r.PostFormValue("next"), "/account")
 
 	view := pages.AuthView{Email: c.Email, Name: c.Name, Next: next}
 	if errs := fieldMessages(r.Context(), c.ValidateRegistration()); len(errs) > 0 {
@@ -216,7 +216,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.startSession(w, r, u)
-	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by SafeNext
+	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 }
 
 // SignOut serves POST /signout.
@@ -697,7 +697,7 @@ func (h *Handler) GoogleSignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	target, state, err := h.google.AuthorizeURL(SafeNext(r.URL.Query().Get("next")))
+	target, state, err := h.google.AuthorizeURL(web.SitePathOr(r.URL.Query().Get("next"), "/account"))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "build the google authorisation url", "error", err)
 		h.serverError(w, r)
@@ -807,7 +807,9 @@ func readOAuthState(r *http.Request, secure bool) (OAuthState, bool) {
 	if len(parts) != 3 {
 		return OAuthState{}, false
 	}
-	return OAuthState{Value: parts[0], Verifier: parts[1], Next: SafeNext(parts[2])}, true
+	return OAuthState{
+		Value: parts[0], Verifier: parts[1], Next: web.SitePathOr(parts[2], "/account"),
+	}, true
 }
 
 // clearOAuthState removes it; a state left behind would match the next callback.

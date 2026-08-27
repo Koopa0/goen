@@ -106,7 +106,7 @@ func (r IssueRequest) validate() error {
 		}
 	case "mobile_carrier":
 		// A mobile barcode is a slash and seven of A-Z, 0-9, +, - and dot.
-		if len(r.CarrierCode) != 8 || !strings.HasPrefix(r.CarrierCode, "/") {
+		if len(r.CarrierCode) != 8 || r.CarrierCode[0] != '/' {
 			// i18n-exempt: back office only, as above.
 			return fmt.Errorf("%w: a 手機條碼載具 is a slash and seven characters, got %q",
 				ErrRejected, r.CarrierCode)
