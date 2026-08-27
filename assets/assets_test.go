@@ -3,7 +3,10 @@ package assets_test
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
+	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -12,6 +15,37 @@ import (
 
 	"github.com/koopa0/goen/assets"
 )
+
+var testLog = slog.New(slog.DiscardHandler)
+
+type requestMarkerKey struct{}
+
+type contextLogHandler struct {
+	contextValue string
+	record       slog.Record
+}
+
+func (*contextLogHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+//nolint:gocritic // slog.Handler fixes Record as a value parameter.
+func (h *contextLogHandler) Handle(ctx context.Context, record slog.Record) error {
+	h.contextValue, _ = ctx.Value(requestMarkerKey{}).(string)
+	h.record = record.Clone()
+	return nil
+}
+
+func (h *contextLogHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+func (h *contextLogHandler) WithGroup(string) slog.Handler      { return h }
+
+type failingResponseWriter struct {
+	header http.Header
+}
+
+func (w *failingResponseWriter) Header() http.Header { return w.header }
+func (*failingResponseWriter) Write([]byte) (int, error) {
+	return 0, errors.New("client stopped reading")
+}
+func (*failingResponseWriter) WriteHeader(int) {}
 
 // TestRequiredAssetsAreVersioned covers every asset the templates name. A
 // missing file already stops the binary during package initialization; this
@@ -122,7 +156,7 @@ func TestHandlerServesRequestedAsset(t *testing.T) {
 
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, assets.URL(assets.AppCSS), http.NoBody)
 	res := httptest.NewRecorder()
-	assets.Handler().ServeHTTP(res, req)
+	assets.Handler(testLog).ServeHTTP(res, req)
 
 	if res.Code != http.StatusOK {
 		t.Fatalf("status = %d; want 200", res.Code)
@@ -134,6 +168,28 @@ func TestHandlerServesRequestedAsset(t *testing.T) {
 	}
 	if got := res.Header().Get("Cache-Control"); got != "public, max-age=31536000, immutable" {
 		t.Errorf("Cache-Control = %q; want the immutable long cache", got)
+	}
+}
+
+// TestAWriteFailureUsesTheConfiguredRequestLogger catches both regressions in
+// the failure-only path: falling back to slog.Default and dropping the request
+// context before the record reaches its handler.
+func TestAWriteFailureUsesTheConfiguredRequestLogger(t *testing.T) {
+	logHandler := &contextLogHandler{}
+	log := slog.New(logHandler)
+	ctx := context.WithValue(t.Context(), requestMarkerKey{}, "asset-request")
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, assets.URL(assets.AppCSS), http.NoBody)
+	req.Header.Set("Accept-Encoding", "gzip")
+	res := &failingResponseWriter{header: make(http.Header)}
+
+	assets.Handler(log).ServeHTTP(res, req)
+
+	if logHandler.contextValue != "asset-request" {
+		t.Errorf("write warning context marker = %q, want %q", logHandler.contextValue, "asset-request")
+	}
+	if logHandler.record.Message != "assets: write gzip body" {
+		t.Errorf("write warning message = %q, want %q",
+			logHandler.record.Message, "assets: write gzip body")
 	}
 }
 
@@ -294,7 +350,7 @@ func TestAnAssetMatchesAValidatorOnALaterHeaderLine(t *testing.T) {
 	req.Header.Add("If-None-Match", `"unrelated"`)
 	req.Header.Add("If-None-Match", "W/"+etag)
 	res := httptest.NewRecorder()
-	assets.Handler().ServeHTTP(res, req)
+	assets.Handler(testLog).ServeHTTP(res, req)
 	if res.Code != http.StatusNotModified || res.Body.Len() != 0 {
 		t.Errorf("later weak validator got status %d, body %d; want 304 and empty", res.Code, res.Body.Len())
 	}
@@ -307,7 +363,7 @@ func TestAHeadRequestCarriesTheSelectedRepresentationHeaders(t *testing.T) {
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodHead, assets.URL(assets.AppCSS), http.NoBody)
 	req.Header.Set("Accept-Encoding", "gzip")
 	res := httptest.NewRecorder()
-	assets.Handler().ServeHTTP(res, req)
+	assets.Handler(testLog).ServeHTTP(res, req)
 	if res.Code != http.StatusOK || res.Body.Len() != 0 {
 		t.Errorf("HEAD status=%d body=%d, want 200 and empty", res.Code, res.Body.Len())
 	}
@@ -347,7 +403,7 @@ func TestHandlerRefusesLongCacheWithoutMatchingVersion(t *testing.T) {
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.path, http.NoBody)
 			res := httptest.NewRecorder()
-			assets.Handler().ServeHTTP(res, req)
+			assets.Handler(testLog).ServeHTTP(res, req)
 
 			if res.Code != http.StatusOK {
 				t.Fatalf("status = %d; want 200", res.Code)
@@ -369,7 +425,7 @@ func requestAsset(t *testing.T, name, acceptEncoding, ifNoneMatch string) *httpt
 		req.Header.Set("If-None-Match", ifNoneMatch)
 	}
 	res := httptest.NewRecorder()
-	assets.Handler().ServeHTTP(res, req)
+	assets.Handler(testLog).ServeHTTP(res, req)
 	return res
 }
 
@@ -418,7 +474,7 @@ func TestHandlerRefusesUnknownAndDirectories(t *testing.T) {
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.path, http.NoBody)
 			res := httptest.NewRecorder()
-			assets.Handler().ServeHTTP(res, req)
+			assets.Handler(testLog).ServeHTTP(res, req)
 
 			if res.Code != http.StatusNotFound {
 				t.Errorf("status = %d for %q; want 404", res.Code, tt.path)

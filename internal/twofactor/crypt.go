@@ -11,17 +11,17 @@ import (
 	"strings"
 )
 
-// KeyBytes is the AES-256 key length GOEN_TOTP_KEY must decode to.
-const KeyBytes = 32
+// keyBytes is the AES-256 key length GOEN_TOTP_KEY must decode to.
+const keyBytes = 32
 
 // ParseKey decodes a configured GOEN_TOTP_KEY into raw key material. An empty
-// value yields (nil, nil): a deployment with no key, which NewCipher turns into
-// a disabled Cipher.
+// value yields (nil, nil): a deployment with no key, which newCipher turns into
+// a disabled cipher.
 //
 // It is a key and not a passphrase. A single unsalted SHA-256 over a memorable
 // phrase is not a key derivation function: it costs an offline attacker one
 // hash per wordlist entry against every stored credential at once. Anything
-// that is not exactly KeyBytes bytes of hex or base64 is therefore refused at
+// that is not exactly keyBytes bytes of hex or base64 is therefore refused at
 // startup instead of being normalised into something that merely looks like a
 // key.
 func ParseKey(value string) ([]byte, error) {
@@ -46,7 +46,7 @@ func ParseKey(value string) ([]byte, error) {
 		if decodedLength == -1 {
 			decodedLength = len(key)
 		}
-		if len(key) != KeyBytes {
+		if len(key) != keyBytes {
 			continue
 		}
 		identical := true
@@ -65,29 +65,29 @@ func ParseKey(value string) ([]byte, error) {
 	if decodedLength >= 0 {
 		return nil, fmt.Errorf("twofactor: GOEN_TOTP_KEY must be %d random bytes as hex or base64 — "+
 			"generate one with `openssl rand -hex 32`; the configured value decoded to %d bytes",
-			KeyBytes, decodedLength)
+			keyBytes, decodedLength)
 	}
 	return nil, errors.New("twofactor: GOEN_TOTP_KEY is neither hex nor base64 — it is a key, " +
 		"not a passphrase; generate one with `openssl rand -hex 32`")
 }
 
-// Cipher encrypts TOTP secrets at rest. The zero value refuses everything,
+// secretCipher encrypts TOTP secrets at rest. The zero value refuses everything,
 // which is what a deployment with no key gets.
-type Cipher struct {
+type secretCipher struct {
 	aead cipher.AEAD
 }
 
-// NewCipher builds a Cipher from key material produced by ParseKey. A nil or
-// empty key yields a disabled Cipher rather than an error, which is what a
+// newCipher builds a secretCipher from key material produced by ParseKey. A nil
+// or empty key yields a disabled cipher rather than an error, which is what a
 // deployment with no key gets.
-func NewCipher(key []byte) *Cipher {
+func newCipher(key []byte) *secretCipher {
 	if len(key) == 0 {
-		return &Cipher{}
+		return &secretCipher{}
 	}
-	if len(key) != KeyBytes {
+	if len(key) != keyBytes {
 		// Unreachable in production: ParseKey is the only configuration door and
 		// is called before the server is built.
-		panic("twofactor: NewCipher needs a key from ParseKey")
+		panic("twofactor: newCipher needs a key from ParseKey")
 	}
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -98,17 +98,16 @@ func NewCipher(key []byte) *Cipher {
 	if err != nil {
 		panic("twofactor: gcm: " + err.Error())
 	}
-	return &Cipher{aead: aead}
+	return &secretCipher{aead: aead}
 }
 
-// Enabled reports whether secrets can be stored.
-func (c *Cipher) Enabled() bool { return c.aead != nil }
+func (c *secretCipher) enabled() bool { return c.aead != nil }
 
-// Seal encrypts a secret for storage. The nonce is random per call and never
+// seal encrypts a secret for storage. The nonce is random per call and never
 // derived from anything that could repeat: GCM under nonce reuse leaks the XOR
 // of the two plaintexts and the authentication key.
-func (c *Cipher) Seal(secret []byte) ([]byte, error) {
-	if !c.Enabled() {
+func (c *secretCipher) seal(secret []byte) ([]byte, error) {
+	if !c.enabled() {
 		return nil, ErrDisabled
 	}
 	nonce := make([]byte, c.aead.NonceSize())
@@ -118,10 +117,10 @@ func (c *Cipher) Seal(secret []byte) ([]byte, error) {
 	return c.aead.Seal(nonce, nonce, secret, nil), nil
 }
 
-// Open decrypts a stored secret. A failure is an operational problem — the key
+// open decrypts a stored secret. A failure is an operational problem — the key
 // changed, or the row was tampered with — never a wrong code.
-func (c *Cipher) Open(sealed []byte) ([]byte, error) {
-	if !c.Enabled() {
+func (c *secretCipher) open(sealed []byte) ([]byte, error) {
+	if !c.enabled() {
 		return nil, ErrDisabled
 	}
 	if len(sealed) < c.aead.NonceSize() {

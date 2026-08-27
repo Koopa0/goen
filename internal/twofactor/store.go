@@ -19,7 +19,7 @@ import (
 // Store is the database side of the second factor.
 type Store struct {
 	q      *db.Queries
-	cipher *Cipher
+	cipher *secretCipher
 }
 
 // NewStore returns a Store over pool, encrypting with parsed key material.
@@ -27,11 +27,11 @@ func NewStore(pool *pgxpool.Pool, key []byte) *Store {
 	if pool == nil {
 		panic("twofactor: NewStore requires a pool")
 	}
-	return &Store{q: db.New(pool), cipher: NewCipher(key)}
+	return &Store{q: db.New(pool), cipher: newCipher(key)}
 }
 
 // Enabled reports whether enrolment is possible in this deployment.
-func (s *Store) Enabled() bool { return s.cipher.Enabled() }
+func (s *Store) Enabled() bool { return s.cipher.enabled() }
 
 // Begin starts enrolment and returns the secret to show once. The credential is
 // not confirmed here, and an already-confirmed one is refused with
@@ -48,7 +48,7 @@ func (s *Store) Begin(ctx context.Context, userID, email string) (secret []byte,
 	if err != nil {
 		return nil, "", err
 	}
-	sealed, err := s.cipher.Seal(secret)
+	sealed, err := s.cipher.seal(secret)
 	if err != nil {
 		return nil, "", err
 	}
@@ -193,7 +193,7 @@ func (s *Store) load(ctx context.Context, userID string, requireConfirmed bool) 
 	if requireConfirmed && !row.ConfirmedAt.Valid {
 		return uuid.UUID{}, nil, 0, ErrNotEnrolled
 	}
-	secret, err = s.cipher.Open(row.SecretEncrypted)
+	secret, err = s.cipher.open(row.SecretEncrypted)
 	if err != nil {
 		return uuid.UUID{}, nil, 0, fmt.Errorf("%w: %w", ErrSecretUnreadable, err)
 	}

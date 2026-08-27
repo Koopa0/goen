@@ -112,7 +112,7 @@ func loadConfig() (config, error) {
 		GoogleClientID:      os.Getenv("GOEN_GOOGLE_CLIENT_ID"),
 		GoogleClientSecret:  os.Getenv("GOEN_GOOGLE_CLIENT_SECRET"),
 		StripeWebhookSecret: os.Getenv("GOEN_STRIPE_WEBHOOK_SECRET"),
-		// The guess is a development convenience; checkProductionPosture refuses
+		// The guess is a development convenience; prepareRuntimePosture refuses
 		// it wherever cookies are Secure.
 		BaseURL: envOr("GOEN_BASE_URL", "http://"+envOr("GOEN_ADDR", "127.0.0.1:9700")),
 
@@ -128,11 +128,12 @@ func loadConfig() (config, error) {
 	}, nil
 }
 
-// checkProductionPosture refuses a configuration that would serve the site
+// prepareRuntimePosture refuses a configuration that would serve the site
 // with a security feature silently off, or a subsystem that reports success
 // without doing its work. SecureCookies is the production signal: it is false
-// only under the development opt-out GOEN_INSECURE_COOKIES.
-func (cfg *config) checkProductionPosture(log *slog.Logger) error {
+// only under the development opt-out GOEN_INSECURE_COOKIES. It also prepares
+// the parsed TOTP key and canonical origin that downstream constructors use.
+func (cfg *config) prepareRuntimePosture(log *slog.Logger) error {
 	// Key shape is a fact, not a production-only preference: accepting a weak
 	// passphrase in development would create credentials production cannot
 	// safely read. Parse it here, where the empty-key posture rule already lives.
@@ -153,7 +154,7 @@ func (cfg *config) checkProductionPosture(log *slog.Logger) error {
 			"set", "GOEN_TOTP_KEY")
 	}
 
-	// An empty address leaves newSender on email.LogSender, which returns nil —
+	// An empty address leaves newNotifier on email.LogSender, which returns nil —
 	// and nil is what the outbox reads as delivered. Password resets, receipts
 	// and dispatch notices would therefore be stamped sent and go nowhere,
 	// invisible to /admin/health because it asks only about undelivered rows.
@@ -299,6 +300,10 @@ func openProviders(cfg *config, log *slog.Logger) (
 	if googleSignIn, err = openGoogleSignIn(cfg, log); err != nil {
 		return nil, nil, nil, err
 	}
+	if !payments.Enabled() {
+		log.Warn("stripe is not configured; the payment page will say so",
+			"set", "GOEN_STRIPE_SECRET_KEY and GOEN_STRIPE_WEBHOOK_SECRET")
+	}
 	return payments, invoices, googleSignIn, nil
 }
 
@@ -316,19 +321,35 @@ func openGoogleSignIn(cfg *config, log *slog.Logger) (*account.Google, error) {
 }
 
 func run() error {
-	cfg, err := loadConfig()
-	if err != nil {
-		return err
+	cfg, configErr := loadConfig()
+	if configErr != nil {
+		return configErr
 	}
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: cfg.LogLevel}))
+	if postureErr := cfg.prepareRuntimePosture(log); postureErr != nil {
+		return postureErr
+	}
+	notifier, notifierErr := newNotifier(&cfg, log)
+	if notifierErr != nil {
+		return notifierErr
+	}
+	proxies, proxyErr := cfg.trustedProxies(log)
+	if proxyErr != nil {
+		return proxyErr
+	}
+	gateway, invoices, googleSignIn, providerErr := openProviders(&cfg, log)
+	if providerErr != nil {
+		return providerErr
+	}
+	refunder := admin.NewRefunder(cfg.StripeSecretKey)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	pool, err := openPool(ctx, cfg.DatabaseURL)
-	if err != nil {
-		return fmt.Errorf("open database pool: %w", redactURL(err, cfg.DatabaseURL))
+	pool, poolErr := openPool(ctx, cfg.DatabaseURL)
+	if poolErr != nil {
+		return fmt.Errorf("open database pool: %w", redactURL(poolErr, cfg.DatabaseURL))
 	}
 	defer pool.Close()
 
@@ -342,27 +363,6 @@ func run() error {
 	}
 	defer adminPool.Close()
 
-	gateway, invoices, googleSignIn, err := openProviders(&cfg, log)
-	if err != nil {
-		return err
-	}
-	refunder := admin.NewRefunder(cfg.StripeSecretKey)
-
-	if !gateway.Enabled() {
-		log.Warn("stripe is not configured; the payment page will say so",
-			"set", "GOEN_STRIPE_SECRET_KEY and GOEN_STRIPE_WEBHOOK_SECRET")
-	}
-
-	sender, senderErr := checkedSender(&cfg, log)
-	if senderErr != nil {
-		return senderErr
-	}
-
-	proxies, proxyErr := cfg.trustedProxies(log)
-	if proxyErr != nil {
-		return proxyErr
-	}
-
 	srv := newServer(&cfg, log, proxies, pool, adminPool, gateway, refunder, invoices, googleSignIn)
 
 	var background sync.WaitGroup
@@ -373,15 +373,15 @@ func run() error {
 	// Opened here and not inside startWorkers: a pool closed by that function's
 	// own defer would be closed before the worker it belongs to has done
 	// anything.
-	maintenancePool, err := openMaintenancePool(ctx, cfg.MaintenanceDatabaseURL)
-	if err != nil {
-		return fmt.Errorf("open maintenance pool: %w", err)
+	maintenancePool, maintenanceErr := openMaintenancePool(ctx, cfg.MaintenanceDatabaseURL)
+	if maintenanceErr != nil {
+		return fmt.Errorf("open maintenance pool: %w", maintenanceErr)
 	}
 	defer maintenancePool.Close()
 
 	startWorkers(ctx, workerDeps{
 		pool: pool, admin: adminPool, maintenance: maintenancePool,
-		cfg: &cfg, log: log, sender: sender, run: background.Go,
+		log: log, notifier: notifier, run: background.Go,
 	})
 
 	defer background.Wait()
@@ -389,8 +389,8 @@ func run() error {
 	serveErr := make(chan error, 1)
 	go func() {
 		log.Info("goen serving", "addr", cfg.Addr)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			serveErr <- err
+		if listenErr := srv.ListenAndServe(); listenErr != nil && !errors.Is(listenErr, http.ErrServerClosed) {
+			serveErr <- listenErr
 		}
 	}()
 
@@ -407,20 +407,10 @@ func run() error {
 	log.Info("goen shutting down")
 	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancelShutdown()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("shut down server: %w", err)
+	if shutdownErr := srv.Shutdown(shutdownCtx); shutdownErr != nil {
+		return fmt.Errorf("shut down server: %w", shutdownErr)
 	}
 	return nil
-}
-
-// checkedSender admits the process posture before constructing the sender
-// whose development fallback that posture controls. Keeping the two calls
-// together prevents a later worker from selecting LogSender on its own.
-func checkedSender(cfg *config, log *slog.Logger) (email.Sender, error) {
-	if err := cfg.checkProductionPosture(log); err != nil {
-		return nil, err
-	}
-	return newSender(cfg, log)
 }
 
 // openPool builds the connection pool goen serves from.
@@ -504,22 +494,28 @@ func redactURL(err error, url string) error {
 	return errors.New(msg)
 }
 
-// newSender picks how mail leaves the process; no SMTP address means the log in
-// the development posture checkProductionPosture has already admitted.
-func newSender(cfg *config, log *slog.Logger) (email.Sender, error) {
+// newNotifier prepares mail delivery after prepareRuntimePosture has admitted
+// the development-only log sender. It returns the concrete mail policy rather
+// than hiding it behind the sender interface it consumes.
+func newNotifier(cfg *config, log *slog.Logger) (email.Notifier, error) {
+	notifier := email.Notifier{
+		BaseURL: cfg.BaseURL, Seller: cfg.Seller, SellerContact: cfg.SellerContact,
+	}
 	if cfg.SMTPAddr == "" {
-		return email.LogSender{Log: log}, nil
+		notifier.Sender = email.LogSender{Log: log}
+		return notifier, nil
 	}
 	s := email.SMTPSender{Addr: cfg.SMTPAddr, From: cfg.SMTPFrom}
 	if cfg.SMTPUser != "" {
 		host, _, err := net.SplitHostPort(cfg.SMTPAddr)
 		if err != nil {
-			return nil, fmt.Errorf("GOEN_SMTP_ADDR %q is not host:port: %w", cfg.SMTPAddr, err)
+			return email.Notifier{}, fmt.Errorf("GOEN_SMTP_ADDR %q is not host:port: %w", cfg.SMTPAddr, err)
 		}
 		s.Auth = smtp.PlainAuth("", cfg.SMTPUser, cfg.SMTPPassword, host)
 		s.TLSName = host
 	}
-	return s, nil
+	notifier.Sender = s
+	return notifier, nil
 }
 
 // workerDeps is what the background workers need.
@@ -527,9 +523,8 @@ type workerDeps struct {
 	pool        *pgxpool.Pool
 	admin       *pgxpool.Pool
 	maintenance *pgxpool.Pool
-	cfg         *config
 	log         *slog.Logger
-	sender      email.Sender
+	notifier    email.Notifier
 	// run starts one worker.
 	run func(func())
 }
@@ -537,67 +532,63 @@ type workerDeps struct {
 // startWorkers wires everything that runs on its own schedule.
 func startWorkers(ctx context.Context, d workerDeps) {
 	messages := outbox.NewStore(d.pool, d.log)
-	notifier := email.Notifier{
-		Sender: d.sender, BaseURL: d.cfg.BaseURL,
-		Seller: d.cfg.Seller, SellerContact: d.cfg.SellerContact,
-	}
 	messages.Handle(outbox.TopicOrderPlaced, func(ctx context.Context, payload []byte) error {
 		var p email.OrderPlaced
 		if decodeErr := outbox.Decode(payload, &p); decodeErr != nil {
 			return decodeErr
 		}
-		return notifier.SendOrderPlaced(ctx, &p)
+		return d.notifier.SendOrderPlaced(ctx, &p)
 	})
 	messages.Handle(outbox.TopicPasswordReset, func(ctx context.Context, payload []byte) error {
 		var p email.PasswordReset
 		if decodeErr := outbox.Decode(payload, &p); decodeErr != nil {
 			return decodeErr
 		}
-		return notifier.SendPasswordReset(ctx, &p)
+		return d.notifier.SendPasswordReset(ctx, &p)
 	})
 	messages.Handle(outbox.TopicOrderPaid, func(ctx context.Context, payload []byte) error {
 		var p email.OrderPaid
 		if decodeErr := outbox.Decode(payload, &p); decodeErr != nil {
 			return decodeErr
 		}
-		return notifier.SendOrderPaid(ctx, &p)
+		return d.notifier.SendOrderPaid(ctx, &p)
 	})
 	messages.Handle(outbox.TopicOrderShipped, func(ctx context.Context, payload []byte) error {
 		var p email.OrderShipped
 		if decodeErr := outbox.Decode(payload, &p); decodeErr != nil {
 			return decodeErr
 		}
-		return notifier.SendOrderShipped(ctx, &p)
+		return d.notifier.SendOrderShipped(ctx, &p)
 	})
 	messages.Handle(outbox.TopicNewsletterConfirm, func(ctx context.Context, payload []byte) error {
 		var p email.NewsletterConfirm
 		if decodeErr := outbox.Decode(payload, &p); decodeErr != nil {
 			return decodeErr
 		}
-		return notifier.SendNewsletterConfirm(ctx, &p)
+		return d.notifier.SendNewsletterConfirm(ctx, &p)
 	})
 	messages.Handle(outbox.TopicNewsletterWelcome, func(ctx context.Context, payload []byte) error {
 		var p email.NewsletterWelcome
 		if decodeErr := outbox.Decode(payload, &p); decodeErr != nil {
 			return decodeErr
 		}
-		return notifier.SendNewsletterWelcome(ctx, &p)
+		return d.notifier.SendNewsletterWelcome(ctx, &p)
 	})
 	messages.Handle(outbox.TopicEmailVerify, func(ctx context.Context, payload []byte) error {
 		var p email.EmailVerify
 		if decodeErr := outbox.Decode(payload, &p); decodeErr != nil {
 			return decodeErr
 		}
-		return notifier.SendEmailVerify(ctx, &p)
+		return d.notifier.SendEmailVerify(ctx, &p)
 	})
 	messages.Handle(outbox.TopicNewsletterIssue,
-		newsletterIssueHandler(newsletter.NewStore(d.pool), notifier))
+		newsletterIssueHandler(newsletter.NewStore(d.pool), d.notifier))
 	messages.Handle(outbox.TopicRestocked, func(ctx context.Context, payload []byte) error {
 		var p email.RestockNotice
 		if decodeErr := outbox.Decode(payload, &p); decodeErr != nil {
 			return decodeErr
 		}
-		return notifier.SendRestockNotice(ctx, &p)
+		return d.notifier.SendRestockNotice(ctx, &p)
 	})
 	d.run(func() { messages.Run(ctx) })
 	d.run(func() { messages.SweepForever(ctx, d.log) })

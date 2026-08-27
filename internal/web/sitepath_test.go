@@ -58,6 +58,7 @@ func TestSitePathRefusesAnythingButAPathOnThisSite(t *testing.T) {
 		{"relative", "deals", ""},
 		{"parent", "../etc", ""},
 		{"encoded slash is not raw rootedness", "%2Fdeals", ""},
+		{"canonical escaped slash cannot become an authority", "/%2f ", ""},
 		{"a control character", "/deals\n/evil", ""},
 		{"header injection", "/x\r\nSet-Cookie: a=b", ""},
 	}
@@ -194,4 +195,84 @@ func TestSiteOriginRefusesWhatIsNotAnOrigin(t *testing.T) {
 			}
 		})
 	}
+}
+
+// FuzzSitePath holds the same-site parser to properties that remain true for
+// every input, including malformed UTF-8: refusal has no residual output, and
+// every accepted canonical path is safe to feed back unchanged.
+func FuzzSitePath(f *testing.F) {
+	for _, seed := range []string{
+		"", "/", "/deals", "/search?q=abc#part", "//evil.example",
+		"///evil.example/x", `/\evil.example`, "/%2f%2fevil.example", "/%2f ",
+		"/\t/evil.example", "https://evil.example", string([]byte{'/', 0xff}),
+	} {
+		f.Add(seed)
+	}
+
+	f.Fuzz(func(t *testing.T, raw string) {
+		got, ok := SitePath(raw)
+		if !ok {
+			if got != "" {
+				t.Errorf("SitePath(%q) refused with output %q, want empty", raw, got)
+			}
+			return
+		}
+		if got == "" || got[0] != '/' {
+			t.Fatalf("SitePath(%q) accepted non-rooted output %q", raw, got)
+		}
+		if hasControl(got) || strings.ContainsRune(got, '\\') {
+			t.Errorf("SitePath(%q) returned unsafe path %q", raw, got)
+		}
+		if len(got) > 1 && (got[1] == '/' || got[1] == '\\') {
+			t.Errorf("SitePath(%q) returned authority-shaped path %q", raw, got)
+		}
+		if origin := whatwgOrigin(got); origin != "goen.example" {
+			t.Errorf("SitePath(%q) returned %q, which resolves at %q", raw, got, origin)
+		}
+		gotAgain, okAgain := SitePath(got)
+		if !okAgain || gotAgain != got {
+			t.Errorf("SitePath(%q) canonical output %q reparsed as %q, ok=%v",
+				raw, got, gotAgain, okAgain)
+		}
+	})
+}
+
+// FuzzSiteOrigin pins canonical origins as a closed grammar: successful output
+// reparses to the same value and scheme, while refusal never returns a partial
+// origin that a caller could accidentally use.
+func FuzzSiteOrigin(f *testing.F) {
+	for _, seed := range []string{
+		"", "https://shop.example", "https://shop.example/",
+		"http://127.0.0.1:9700", "httpx://evil.example",
+		"https://ok@evil.example", "https://shop.example/path?q=1#part",
+		"https://[::1]:9700", string([]byte("https://shop.example/\xff")),
+	} {
+		f.Add(seed)
+	}
+
+	f.Fuzz(func(t *testing.T, raw string) {
+		origin, scheme, ok := SiteOrigin(raw)
+		if !ok {
+			if origin != "" || scheme != "" {
+				t.Errorf("SiteOrigin(%q) refused with outputs %q, %q", raw, origin, scheme)
+			}
+			return
+		}
+		if scheme != "http" && scheme != "https" {
+			t.Fatalf("SiteOrigin(%q) returned unsupported scheme %q", raw, scheme)
+		}
+		u, err := url.Parse(origin)
+		if err != nil {
+			t.Fatalf("SiteOrigin(%q) returned unparsable origin %q: %v", raw, origin, err)
+		}
+		if u.Scheme != scheme || u.Host == "" || u.User != nil ||
+			u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
+			t.Errorf("SiteOrigin(%q) returned non-origin %q with scheme %q", raw, origin, scheme)
+		}
+		again, againScheme, againOK := SiteOrigin(origin)
+		if !againOK || again != origin || againScheme != scheme {
+			t.Errorf("SiteOrigin(%q) canonical output (%q, %q) reparsed as (%q, %q), ok=%v",
+				raw, origin, scheme, again, againScheme, againOK)
+		}
+	})
 }

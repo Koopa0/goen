@@ -121,7 +121,7 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 	sendbacks := returns.NewHandler(returns.NewStore(pool), basketStore, log, secureCookies)
 
 	mux := http.NewServeMux()
-	mux.Handle("GET "+assets.Prefix, staticAssetHandler(assets.Handler()))
+	mux.Handle("GET "+assets.Prefix, staticAssetHandler(assets.Handler(log)))
 
 	mux.HandleFunc("GET /healthz", probes.Live)
 	mux.HandleFunc("GET /readyz", probes.Ready)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -85,7 +86,7 @@ func TestNothingStatelessRendersChrome(t *testing.T) {
 }
 
 func TestAnAssetIsNotCompressedTwiceByTheChain(t *testing.T) {
-	h := web.Compress(securityHeaders(assets.Handler()))
+	h := web.Compress(securityHeaders(assets.Handler(slog.New(slog.DiscardHandler))))
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, assets.URL(assets.AppCSS), http.NoBody)
 	req.Header.Set("Accept-Encoding", "gzip")
 	res := httptest.NewRecorder()
@@ -194,7 +195,7 @@ func FuzzAssetAndDynamicGzipNegotiationAgree(f *testing.F) {
 			assets.URL(assets.AppCSS), http.NoBody)
 		setEncoding(assetReq)
 		assetOut := httptest.NewRecorder()
-		assets.Handler().ServeHTTP(assetOut, assetReq)
+		assets.Handler(slog.New(slog.DiscardHandler)).ServeHTTP(assetOut, assetReq)
 
 		dynamicReq := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
 		setEncoding(dynamicReq)

@@ -93,9 +93,55 @@ func TestOnlyThirtyTwoRandomBytesIsAKey(t *testing.T) {
 	if err != nil || key != nil {
 		t.Errorf("ParseKey(empty) = %x, %v; want nil, nil", key, err)
 	}
-	if NewCipher(nil).Enabled() {
+	if newCipher(nil).enabled() {
 		t.Error("a nil key enabled the cipher")
 	}
+}
+
+// FuzzParseKey keeps arbitrary configuration text on the parser boundary and
+// pins the useful success invariants: one exact AES-256 key, stable across both
+// supported encodings, or no key at all for whitespace-only input.
+func FuzzParseKey(f *testing.F) {
+	for _, seed := range []string{
+		"", " \t\n", testHexKey, strings.ToUpper(testHexKey),
+		base64.StdEncoding.EncodeToString(testCipherKey),
+		base64.RawURLEncoding.EncodeToString(testCipherKey),
+		"correct horse battery staple", strings.Repeat("0", 64), "%%%",
+	} {
+		f.Add(seed)
+	}
+
+	f.Fuzz(func(t *testing.T, value string) {
+		key, err := ParseKey(value)
+		if err != nil {
+			if key != nil {
+				t.Errorf("ParseKey(%q) returned key %x with error %v", value, key, err)
+			}
+			return
+		}
+		if strings.TrimSpace(value) == "" {
+			if key != nil {
+				t.Errorf("ParseKey(%q) = %x, want nil key", value, key)
+			}
+			return
+		}
+		if len(key) != 32 {
+			t.Fatalf("ParseKey(%q) returned %d bytes, want 32", value, len(key))
+		}
+
+		for _, encoded := range []string{
+			hex.EncodeToString(key),
+			base64.RawURLEncoding.EncodeToString(key),
+		} {
+			roundTrip, roundTripErr := ParseKey(encoded)
+			if roundTripErr != nil {
+				t.Fatalf("ParseKey(%q) round trip: %v", value, roundTripErr)
+			}
+			if !bytes.Equal(roundTrip, key) {
+				t.Errorf("ParseKey(%q) round trip = %x, want %x", value, roundTrip, key)
+			}
+		}
+	})
 }
 
 // TestTheKeyIsTheDecodedBytesAndNotAHashOfThem names the defect: the raw
@@ -103,12 +149,12 @@ func TestOnlyThirtyTwoRandomBytesIsAKey(t *testing.T) {
 // not.
 func TestTheKeyIsTheDecodedBytesAndNotAHashOfThem(t *testing.T) {
 	decoded := mustParseKey(t, testHexKey)
-	sealed, err := NewCipher(decoded).Seal([]byte("the stored totp secret"))
+	sealed, err := newCipher(decoded).seal([]byte("the stored totp secret"))
 	if err != nil {
 		t.Fatalf("seal: %v", err)
 	}
 
-	openWith := func(key []byte) *Cipher {
+	openWith := func(key []byte) *secretCipher {
 		block, blockErr := aes.NewCipher(key)
 		if blockErr != nil {
 			t.Fatalf("aes: %v", blockErr)
@@ -117,13 +163,13 @@ func TestTheKeyIsTheDecodedBytesAndNotAHashOfThem(t *testing.T) {
 		if gcmErr != nil {
 			t.Fatalf("gcm: %v", gcmErr)
 		}
-		return &Cipher{aead: aead}
+		return &secretCipher{aead: aead}
 	}
-	if _, err := openWith(decoded).Open(sealed); err != nil {
+	if _, err := openWith(decoded).open(sealed); err != nil {
 		t.Errorf("decoded bytes did not open their ciphertext: %v", err)
 	}
 	hashed := sha256.Sum256([]byte(testHexKey))
-	if _, err := openWith(hashed[:]).Open(sealed); err == nil {
+	if _, err := openWith(hashed[:]).open(sealed); err == nil {
 		t.Error("sha256(the configured text) still opens the ciphertext")
 	}
 }
@@ -253,13 +299,13 @@ func TestNothingButASixDigitCodeIsAccepted(t *testing.T) {
 // TestASealedSecretRoundTripsAndIsNotThePlaintext proves the stored form is
 // neither readable nor repeatable.
 func TestASealedSecretRoundTripsAndIsNotThePlaintext(t *testing.T) {
-	c := NewCipher(testCipherKey)
+	c := newCipher(testCipherKey)
 	secret, err := NewSecret()
 	if err != nil {
 		t.Fatalf("new secret: %v", err)
 	}
 
-	sealed, err := c.Seal(secret)
+	sealed, err := c.seal(secret)
 	if err != nil {
 		t.Fatalf("seal: %v", err)
 	}
@@ -267,7 +313,7 @@ func TestASealedSecretRoundTripsAndIsNotThePlaintext(t *testing.T) {
 		t.Fatal("the plaintext secret appears in the stored bytes")
 	}
 
-	opened, err := c.Open(sealed)
+	opened, err := c.open(sealed)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -277,7 +323,7 @@ func TestASealedSecretRoundTripsAndIsNotThePlaintext(t *testing.T) {
 
 	// Equal ciphertexts would mean a reused nonce, which in GCM leaks the XOR
 	// of the two plaintexts and the authentication key.
-	again, err := c.Seal(secret)
+	again, err := c.seal(secret)
 	if err != nil {
 		t.Fatalf("seal again: %v", err)
 	}
@@ -289,9 +335,9 @@ func TestASealedSecretRoundTripsAndIsNotThePlaintext(t *testing.T) {
 // TestATamperedSecretDoesNotOpen proves the encryption authenticates rather
 // than merely obscures.
 func TestATamperedSecretDoesNotOpen(t *testing.T) {
-	c := NewCipher(testCipherKey)
+	c := newCipher(testCipherKey)
 	secret, _ := NewSecret()
-	sealed, err := c.Seal(secret)
+	sealed, err := c.seal(secret)
 	if err != nil {
 		t.Fatalf("seal: %v", err)
 	}
@@ -299,16 +345,16 @@ func TestATamperedSecretDoesNotOpen(t *testing.T) {
 	for _, flip := range []int{0, len(sealed) / 2, len(sealed) - 1} {
 		tampered := bytes.Clone(sealed)
 		tampered[flip] ^= 0x01
-		if _, err := c.Open(tampered); err == nil {
+		if _, err := c.open(tampered); err == nil {
 			t.Errorf("a ciphertext with byte %d flipped still opened", flip)
 		}
 	}
 
-	if _, err := NewCipher(differentCipherKey).Open(sealed); err == nil {
+	if _, err := newCipher(differentCipherKey).open(sealed); err == nil {
 		t.Error("a secret opened under the wrong key")
 	}
 	// A truncated value is refused rather than panicking on a short slice.
-	if _, err := c.Open(sealed[:4]); err == nil {
+	if _, err := c.open(sealed[:4]); err == nil {
 		t.Error("a truncated ciphertext opened")
 	}
 }
@@ -316,14 +362,14 @@ func TestATamperedSecretDoesNotOpen(t *testing.T) {
 // TestNoKeyMeansNoStoredSecret proves an unconfigured deployment refuses
 // enrolment rather than storing the secret in the clear.
 func TestNoKeyMeansNoStoredSecret(t *testing.T) {
-	c := NewCipher(nil)
-	if c.Enabled() {
+	c := newCipher(nil)
+	if c.enabled() {
 		t.Fatal("a cipher with no key reported itself enabled")
 	}
-	if _, err := c.Seal([]byte("secret")); err == nil {
+	if _, err := c.seal([]byte("secret")); err == nil {
 		t.Error("a secret was sealed with no key configured")
 	}
-	if _, err := c.Open([]byte("anything")); err == nil {
+	if _, err := c.open([]byte("anything")); err == nil {
 		t.Error("a secret was opened with no key configured")
 	}
 }

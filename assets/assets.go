@@ -208,7 +208,10 @@ func productImageName(storageKey string) string {
 
 // Handler serves the embedded assets. It answers only files: a directory path
 // is a 404 rather than a listing.
-func Handler() http.Handler {
+func Handler(log *slog.Logger) http.Handler {
+	if log == nil {
+		panic("assets: Handler requires a logger")
+	}
 	fileServer := http.FileServerFS(files)
 	strip := strings.TrimSuffix(Prefix, "/")
 
@@ -243,7 +246,7 @@ func Handler() http.Handler {
 				return
 			}
 			if _, err := w.Write(body); err != nil {
-				slog.Warn("assets: write gzip body", "name", name, "error", err)
+				log.WarnContext(r.Context(), "assets: write gzip body", "name", name, "error", err)
 			}
 			return
 		}
