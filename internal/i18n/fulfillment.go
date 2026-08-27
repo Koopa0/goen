@@ -181,16 +181,28 @@ var (
 	KeyAdminDestAddress = key("admin.dest.address", Message{ZhHant: "宅配地址", En: "Home address"})
 
 	KeyAdminDestPickup = key("admin.dest.pickup", Message{ZhHant: "超商門市", En: "Convenience store"})
+)
 
-	KeyAdminCarrierMember = key("admin.carrier.member", Message{ZhHant: "會員載具", En: "Member carrier"})
-
-	KeyAdminCarrierMobile = key("admin.carrier.mobile", Message{
-		ZhHant: "手機條碼載具 %s",
-		En:     "Mobile barcode carrier %s",
+var (
+	KeyAdminNoticeShipped = key("admin.notice.shipped", Message{
+		ZhHant: "已出貨。配送資訊與庫存都已記錄。",
+		En:     "Dispatched. The delivery details and the stock movement are both recorded.",
 	})
 
-	KeyAdminCarrierTaxID = key("admin.carrier.taxid", Message{
-		ZhHant: "公司統編 %s",
-		En:     "Company tax number %s",
+	KeyAdminNoticeTooLate = key("admin.notice.toolate", Message{
+		ZhHant: "這筆訂單已經出貨,收件資訊改不了了。包裹已經寄出,改紀錄只會讓紀錄和事實對不上。",
+		En: "This order has shipped, so the delivery details can no longer be changed. " +
+			"The parcel is already on its way; editing the record would only make it disagree with where it went.",
+	})
+
+	KeyAdminNoticeNeeds = key("admin.notice.needs", Message{
+		ZhHant: "請填寫物流商與查詢編號。",
+		En:     "A carrier and a tracking number are both needed.",
+	})
+
+	KeyAdminNoticeBadParcel = key("admin.notice.badparcel", Message{
+		ZhHant: "出貨數量填寫有問題:每一項不能超過還沒出貨的數量,也不能超過這筆訂單保留的庫存。",
+		En: "Those quantities do not work: no line can exceed what is still outstanding, or what this " +
+			"order is holding in stock.",
 	})
 )

@@ -35,3 +35,30 @@ var (
 
 	KeyAdminProdReuse = key("admin.prod.reuse", Message{ZhHant: "使用", En: "Use"})
 )
+
+var (
+	KeyAdminNoticeTooBig = key("admin.notice.toobig", Message{
+		ZhHant: "圖片太大了,請用 8 MB 以內的檔案。",
+		En:     "That image is too large. Use a file under 8 MB.",
+	})
+
+	KeyAdminNoticeNotImage = key("admin.notice.notimage", Message{
+		ZhHant: "這個檔案不是可以辨識的圖片。支援 JPEG、PNG、GIF 與 WebP。",
+		En:     "That file is not an image goen can decode. JPEG, PNG, GIF and WebP are supported.",
+	})
+
+	KeyAdminNoticeUploadFailed = key("admin.notice.uploadfailed", Message{
+		ZhHant: "圖片上傳失敗,請再試一次。",
+		En:     "The upload did not finish. Please try again.",
+	})
+
+	KeyAdminNoticeAttachRefused = key("admin.notice.attachrefused", Message{
+		ZhHant: "這張圖片已經在這個商品上了。",
+		En:     "That image is already on this product.",
+	})
+
+	KeyAdminNoticeNoAlt = key("admin.notice.noalt", Message{
+		ZhHant: "請填寫圖片說明文字 —— 讀螢幕的人靠它知道圖裡是什麼。",
+		En:     "Alt text is required — it is how somebody using a screen reader knows what the picture shows.",
+	})
+)

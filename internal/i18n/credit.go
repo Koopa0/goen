@@ -26,3 +26,10 @@ var (
 		En:     "No credit postings yet.",
 	})
 )
+
+var (
+	KeyAdminNoticeCreditGranted = key("admin.notice.credit.granted", Message{
+		ZhHant: "已發放。這位顧客目前的餘額是 %s。",
+		En:     "Granted. This customer's balance is now %s.",
+	})
+)

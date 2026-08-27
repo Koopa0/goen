@@ -1,6 +1,24 @@
 package i18n
 
 var (
+	KeyAdminSearch = key("admin.search", Message{ZhHant: "搜尋", En: "Search"})
+
+	KeyAdminRemove = key("admin.remove", Message{ZhHant: "移除", En: "Remove"})
+
+	KeyAdminDelete = key("admin.delete", Message{ZhHant: "刪除", En: "Delete"})
+
+	KeyAdminToggleOff = key("admin.toggle.off", Message{ZhHant: "停用", En: "Switch off"})
+
+	KeyAdminToggleOn = key("admin.toggle.on", Message{ZhHant: "啟用", En: "Switch on"})
+)
+
+var (
+	KeyAdminUntranslated = key("admin.untranslated", Message{ZhHant: "未翻譯", En: "No English"})
+
+	KeyAdminAltText = key("admin.alttext", Message{ZhHant: "圖片說明文字", En: "Alt text"})
+)
+
+var (
 	KeyAdminColName = key("admin.col.name", Message{ZhHant: "名稱", En: "Name"})
 
 	KeyAdminColNameEn = key("admin.col.nameen", Message{ZhHant: "名稱(英文)", En: "Name (English)"})

@@ -112,3 +112,10 @@ var (
 		En:     "%s products",
 	})
 )
+
+var (
+	KeyAdminNoticeInUse = key("admin.notice.inuse", Message{
+		ZhHant: "還有商品或子分類在用它,先把那些移到別的地方再刪。",
+		En:     "Products or child categories still point at it. Move those elsewhere first.",
+	})
+)

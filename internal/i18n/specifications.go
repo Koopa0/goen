@@ -55,3 +55,10 @@ var (
 		En:     "Add spec row",
 	})
 )
+
+var (
+	KeyAdminNoticeSpecFailed = key("admin.notice.specfailed", Message{
+		ZhHant: "規格表沒有存成功，請確認欄位長度。",
+		En:     "The specification was not saved; check the field lengths.",
+	})
+)

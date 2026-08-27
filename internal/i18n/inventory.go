@@ -100,3 +100,16 @@ var (
 
 	KeyAdminMoveAdjustment = key("admin.move.adjustment", Message{ZhHant: "人工調整", En: "Manual correction"})
 )
+
+var (
+	KeyAdminNoticeReceived = key("admin.notice.received", Message{
+		ZhHant: "進貨已入庫,帳本上記的是「進貨」而不是「人工調整」。",
+		En:     "Received. The ledger records this as a goods receipt, not as a manual correction.",
+	})
+
+	KeyAdminNoticeBadQty = key("admin.notice.badqty", Message{
+		ZhHant: "進貨數量要是正整數。要往下修正數字請用「調整」—— 進貨是有東西進來,調整是數字算錯了,帳本分得出這兩件事。",
+		En: "A receipt quantity is a positive whole number. To correct a count downward use Adjust — " +
+			"a receipt is goods arriving and an adjustment is a number that was wrong, and the ledger keeps them apart.",
+	})
+)

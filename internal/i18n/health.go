@@ -3,12 +3,6 @@ package i18n
 var (
 	KeyAdminColKind = key("admin.col.kind", Message{ZhHant: "種類", En: "Kind"})
 
-	KeyAdminSeconds = key("admin.seconds", Message{ZhHant: "%d 秒", En: "%d seconds"})
-
-	KeyAdminMinutes = key("admin.minutes", Message{ZhHant: "%d 分鐘", En: "%d minutes"})
-
-	KeyAdminHours = key("admin.hours", Message{ZhHant: "%d 小時", En: "%d hours"})
-
 	KeyAdminHPLead = key("admin.hp.lead", Message{
 		ZhHant: "這些數字全部是從「工作有沒有被做完」算出來的,不是從 worker 自己回報的心跳 —— 一個空轉的 worker 心跳正常,但工作沒有前進。",
 		En: "Every figure here is derived from whether the WORK has been done, not from a heartbeat a " +
@@ -233,5 +227,18 @@ var (
 	KeyHealthRefundFailed = key("health.refund.failed", Message{
 		ZhHant: "金流端拒絕了,錢沒有退出去,退貨也還沒結案",
 		En:     "The provider refused it: no money moved, and the return is still open",
+	})
+)
+
+var (
+	// /admin/health's own two.
+	KeyAdminNoticeReconciled = key("admin.notice.reconciled", Message{
+		ZhHant: "已記錄為處理完成。",
+		En:     "Recorded as handled.",
+	})
+
+	KeyAdminNoticeNotFlagged = key("admin.notice.notflagged", Message{
+		ZhHant: "這筆事件已經處理過了。",
+		En:     "That event has already been dealt with.",
 	})
 )

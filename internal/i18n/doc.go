@@ -3,8 +3,11 @@
 // The chrome — navigation, buttons, labels, validation messages, empty states —
 // follows the visitor. Product copy and the policy documents do not.
 //
-// File names express ownership inside this one package. Unprefixed feature files
-// contain storefront, account, and shared copy. Files named admin_<feature>.go
-// own /admin back-office copy; the prefix groups that copy beside internal/admin
-// and its KeyAdmin symbols. It is a sorting convention, not a subpackage boundary.
+// Catalogue files follow business concepts, not routes or audiences. Customer-
+// and staff-facing copy for the same rule stays together; a separate file marks
+// a real subdomain such as fulfillment or product images.
+//
+// The catalogue remains one package so every key enters the same duplicate-
+// checked registry. Splitting declarations into side-effect packages would make
+// catalogue completeness depend on which packages a binary happened to import.
 package i18n
