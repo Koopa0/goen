@@ -164,11 +164,17 @@ func TestAnOverlongSignInAddressSkipsTheLimiterAndUsesTheOrdinaryFailure(t *test
 	if normal.Code != http.StatusUnprocessableEntity || overlong.Code != normal.Code {
 		t.Fatalf("normal/overlong statuses = %d/%d, want both 422", normal.Code, overlong.Code)
 	}
-	if normalHandler.signinLimit.Size() != 1 {
-		t.Fatal("the normal fixture did not reach the account limiter; the comparison proves nothing")
+	secondNormal := postAccountForm(t, "/signin", url.Values{
+		"email": {normalAddr}, "password": {password}, "next": {"/account"},
+	}, normalHandler.SignIn)
+	secondOverlong := postAccountForm(t, "/signin", url.Values{
+		"email": {longAddr}, "password": {password}, "next": {"/account"},
+	}, longHandler.SignIn)
+	if secondNormal.Code != http.StatusTooManyRequests {
+		t.Fatalf("the normal fixture's second request status = %d, want 429; the comparison never reached the limiter", secondNormal.Code)
 	}
-	if got := longHandler.signinLimit.Size(); got != 0 {
-		t.Errorf("overlong sign-in address created %d limiter keys, want 0", got)
+	if secondOverlong.Code != http.StatusUnprocessableEntity {
+		t.Errorf("the overlong fixture's second request status = %d, want the ordinary 422 without a retained limiter key", secondOverlong.Code)
 	}
 
 	normalBody := bodyWithSubmittedEmailHidden(t, normal.Body.String(), normalAddr)
@@ -195,11 +201,17 @@ func TestAnOverlongForgotAddressIsAnsweredIdenticallyBeforeTheLimiter(t *testing
 		"email": {longAddr},
 	}, longHandler.Forgot)
 
-	if normalHandler.resetLimit.Size() != 1 {
-		t.Fatal("the bounded fixture did not reach the reset limiter; the comparison proves nothing")
+	secondNormal := postAccountForm(t, "/forgot", url.Values{
+		"email": {"not-an-address"},
+	}, normalHandler.Forgot)
+	secondOverlong := postAccountForm(t, "/forgot", url.Values{
+		"email": {longAddr},
+	}, longHandler.Forgot)
+	if secondNormal.Code != http.StatusTooManyRequests {
+		t.Fatalf("the bounded fixture's second request status = %d, want 429; the comparison never reached the limiter", secondNormal.Code)
 	}
-	if got := longHandler.resetLimit.Size(); got != 0 {
-		t.Errorf("overlong forgot address created %d limiter keys, want 0", got)
+	if secondOverlong.Code != http.StatusSeeOther {
+		t.Errorf("the overlong fixture's second request status = %d, want the ordinary 303 without a retained limiter key", secondOverlong.Code)
 	}
 	if normal.Code != http.StatusSeeOther || overlong.Code != normal.Code {
 		t.Fatalf("normal/overlong statuses = %d/%d, want both 303", normal.Code, overlong.Code)
@@ -232,7 +244,7 @@ func rateLimitedAccountHandler(store *Store) *Handler {
 
 func accountTestLimiter() *ratelimit.Limiter {
 	return ratelimit.New(ratelimit.Config{
-		Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 10,
+		Every: time.Hour, Burst: 1, TTL: time.Hour, MaxKeys: 10,
 	})
 }
 

@@ -15,6 +15,12 @@ import (
 
 const testMaxKeys = 1000
 
+func bucketCount(l *Limiter) int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return len(l.buckets)
+}
+
 func TestNewRequiresMaxKeys(t *testing.T) {
 	defer func() {
 		if recover() == nil {
@@ -30,8 +36,8 @@ func TestALongKeyIsNotStoredWhole(t *testing.T) {
 	l.Allow("account:" + strings.Repeat("a", 64<<10))
 
 	for key := range l.buckets {
-		if len(key.value) > MaxKeyBytes {
-			t.Errorf("stored key is %d bytes, want at most %d", len(key.value), MaxKeyBytes)
+		if len(key.value) > maxKeyBytes {
+			t.Errorf("stored key is %d bytes, want at most %d", len(key.value), maxKeyBytes)
 		}
 	}
 }
@@ -42,7 +48,7 @@ func TestTwoLongKeysStayDistinct(t *testing.T) {
 	l.Allow(prefix + "x")
 	l.Allow(prefix + "y")
 
-	if got := l.Size(); got != 2 {
+	if got := bucketCount(l); got != 2 {
 		t.Errorf("%d buckets held, want 2; long keys sharing a prefix were merged", got)
 	}
 }
@@ -54,7 +60,7 @@ func TestALongKeyDoesNotCollideWithItsEncodedForm(t *testing.T) {
 	l.Allow(longKey)
 	l.Allow(encoded)
 
-	if got := l.Size(); got != 2 {
+	if got := bucketCount(l); got != 2 {
 		t.Errorf("%d buckets held, want 2; a long key collided with its raw encoded form", got)
 	}
 }
@@ -66,7 +72,7 @@ func TestTheKeyCountIsCapped(t *testing.T) {
 		l.Allow("key-" + strconv.Itoa(i))
 	}
 
-	if got := l.Size(); got != maxKeys {
+	if got := bucketCount(l); got != maxKeys {
 		t.Errorf("%d keys held after 1000 live inserts, want exactly the cap %d", got, maxKeys)
 	}
 }
@@ -210,14 +216,14 @@ func TestIdleKeysAreEvicted(t *testing.T) {
 	for i := range 100 {
 		l.Allow("old-" + strconv.Itoa(i))
 	}
-	if got := l.Size(); got != 100 {
+	if got := bucketCount(l); got != 100 {
 		t.Fatalf("%d keys held, want 100", got)
 	}
 
 	time.Sleep(40 * time.Millisecond)
 	// A new key triggers the sweep: the map can only grow here.
 	l.Allow("fresh")
-	if got := l.Size(); got != 1 {
+	if got := bucketCount(l); got != 1 {
 		t.Errorf("%d keys held after the TTL passed, want 1 — idle keys are not "+
 			"being evicted and the map grows without bound", got)
 	}
@@ -239,7 +245,7 @@ func TestTheLimiterIsSafeUnderConcurrency(t *testing.T) {
 	wg.Wait()
 	// The assertion is that -race saw nothing; Size stops this passing on
 	// absence alone.
-	if l.Size() == 0 {
+	if bucketCount(l) == 0 {
 		t.Error("no keys were recorded")
 	}
 }

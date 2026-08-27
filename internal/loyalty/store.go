@@ -121,7 +121,7 @@ func (s *Store) History(ctx context.Context, userID string) (pages.PointsView, e
 	for i := range rows {
 		r := &rows[i]
 		entry := pages.PointsEntry{
-			Points: r.Points, Kind: r.Kind, Reason: r.Reason, Order: r.OrderNumber,
+			Points: r.Points, Kind: r.Kind, Order: r.OrderNumber,
 			At: r.CreatedAt.Format("2006-01-02"), Expired: r.Expired.Bool,
 		}
 		if r.Kind == "clawback" {

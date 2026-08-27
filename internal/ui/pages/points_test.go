@@ -38,3 +38,58 @@ func TestAClawbackSaysWhatWasRequestedAndWhatWasShort(t *testing.T) {
 		t.Errorf("zero-point clawback detail = %q", got)
 	}
 }
+
+func TestEveryPointsEntryKindHasACompletePresentation(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+
+	for _, tt := range []struct {
+		kind   string
+		points int64
+		earned bool
+		amount string
+		what   string
+	}{
+		{kind: "award", points: 12, earned: true, amount: "+12", what: "Earned on a purchase"},
+		{kind: "spend", points: -10, amount: "-10", what: "Redeemed for store credit"},
+		{kind: "clawback", points: -7, amount: "-7", what: "Reversed for a return"},
+	} {
+		t.Run(tt.kind, func(t *testing.T) {
+			t.Parallel()
+			entry := PointsEntry{Kind: tt.kind, Points: tt.points}
+			if got := entry.Earned(); got != tt.earned {
+				t.Errorf("Earned() = %v, want %v", got, tt.earned)
+			}
+			if got := entry.Amount(); got != tt.amount {
+				t.Errorf("Amount() = %q, want %q", got, tt.amount)
+			}
+			if got := entry.What(ctx); got != tt.what {
+				t.Errorf("What() = %q, want %q", got, tt.what)
+			}
+			_ = entry.Detail(ctx)
+		})
+	}
+}
+
+func TestAnUnknownPointsEntryKindIsAProgrammingError(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	entry := PointsEntry{Kind: "future_kind"}
+
+	for name, present := range map[string]func(){
+		"Earned": func() { _ = entry.Earned() },
+		"Amount": func() { _ = entry.Amount() },
+		"What":   func() { _ = entry.What(ctx) },
+		"Detail": func() { _ = entry.Detail(ctx) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			defer func() {
+				if recover() == nil {
+					t.Error("unknown closed ledger kind did not panic")
+				}
+			}()
+			present()
+		})
+	}
+}

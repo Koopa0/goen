@@ -17,10 +17,10 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// MaxKeyBytes is the most of one key the limiter retains. Longer logical keys
+// maxKeyBytes is the most of one key the limiter retains. Longer logical keys
 // keep a readable prefix and a SHA-256 suffix, so their attacker-controlled
 // bytes are not pinned in the map for the whole TTL.
-const MaxKeyBytes = 128
+const maxKeyBytes = 128
 
 // Config is one limiter's shape.
 type Config struct {
@@ -115,13 +115,13 @@ func (l *Limiter) Allow(key string) (retryAfter time.Duration, ok bool) {
 // derived from the encoding rather than assuming padded base64:
 // RawURLEncoding encodes a SHA-256 digest to 43 bytes.
 func clampKey(key string) bucketKey {
-	if len(key) <= MaxKeyBytes {
+	if len(key) <= maxKeyBytes {
 		return bucketKey{value: key}
 	}
 	sum := sha256.Sum256([]byte(key))
 	suffix := base64.RawURLEncoding.EncodeToString(sum[:])
 	return bucketKey{
-		value:  key[:MaxKeyBytes-len(suffix)] + suffix,
+		value:  key[:maxKeyBytes-len(suffix)] + suffix,
 		hashed: true,
 	}
 }
@@ -148,13 +148,6 @@ func (l *Limiter) evictLocked(now time.Time) {
 	if len(l.buckets) >= l.cfg.MaxKeys && haveOldest {
 		delete(l.buckets, oldestKey)
 	}
-}
-
-// Size is how many keys are held, for a test to assert eviction happens.
-func (l *Limiter) Size() int {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return len(l.buckets)
 }
 
 // ClientIP is the address to key an HTTP request on: r.RemoteAddr, unless

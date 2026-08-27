@@ -14,7 +14,6 @@ type PointsEntry struct {
 	RequestedPoints int64
 	ShortfallPoints int64
 	Kind            string
-	Reason          string
 	Order           string
 	At              string
 	ExpiresOn       string
@@ -22,14 +21,27 @@ type PointsEntry struct {
 }
 
 // Earned reports whether this line added points.
-func (e PointsEntry) Earned() bool { return e.Kind == "award" }
+func (e PointsEntry) Earned() bool {
+	switch e.Kind {
+	case "award":
+		return true
+	case "spend", "clawback":
+		return false
+	default:
+		panic("pages: unknown points entry kind: " + e.Kind)
+	}
+}
 
 // Amount is the change, signed so a ledger reads as one.
 func (e PointsEntry) Amount() string {
-	if e.Kind == "award" {
+	switch e.Kind {
+	case "award":
 		return "+" + strconv.FormatInt(e.Points, 10)
+	case "spend", "clawback":
+		return strconv.FormatInt(e.Points, 10)
+	default:
+		panic("pages: unknown points entry kind: " + e.Kind)
 	}
-	return strconv.FormatInt(e.Points, 10)
 }
 
 // What describes the line in the chrome language.
@@ -45,20 +57,24 @@ func (e PointsEntry) What(ctx context.Context) string {
 	case "clawback":
 		return i18n.T(ctx, i18n.KeyPointsClawback)
 	default:
-		return e.Reason
+		panic("pages: unknown points entry kind: " + e.Kind)
 	}
 }
 
 // Detail makes a clawback's requested amount and any uncollected shortfall
 // visible. A zero-point row is otherwise indistinguishable from a blank event.
 func (e PointsEntry) Detail(ctx context.Context) string {
-	if e.Kind != "clawback" {
+	switch e.Kind {
+	case "award", "spend":
 		return ""
+	case "clawback":
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsClawbackDetail),
+			strconv.FormatInt(e.RequestedPoints, 10),
+			strconv.FormatInt(-e.Points, 10),
+			strconv.FormatInt(e.ShortfallPoints, 10))
+	default:
+		panic("pages: unknown points entry kind: " + e.Kind)
 	}
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsClawbackDetail),
-		strconv.FormatInt(e.RequestedPoints, 10),
-		strconv.FormatInt(-e.Points, 10),
-		strconv.FormatInt(e.ShortfallPoints, 10))
 }
 
 // PointsView is the customer's points page.

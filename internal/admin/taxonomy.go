@@ -99,7 +99,7 @@ func (s *Store) CreateBrand(ctx context.Context, f *TaxonomyForm) (map[string]st
 			return q.CreateBrand(ctx, db.CreateBrandParams{Slug: f.Slug, Name: f.Name})
 		})
 	if err != nil {
-		if takenBy(err, "brands_slug_key") {
+		if hasConstraint(err, "brands_slug_key") {
 			return map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenBrand)}, nil
 		}
 		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
@@ -133,13 +133,13 @@ func (s *Store) CreateCategory(ctx context.Context, f *TaxonomyForm) (map[string
 		})
 	if err != nil {
 		switch {
-		case takenBy(err, "categories_slug_key"):
+		case hasConstraint(err, "categories_slug_key"):
 			return map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenCategory)}, nil
 		case errors.Is(err, ErrNotFound),
-			takenBy(err, "categories_parent_id_fkey"),
-			takenBy(err, "categories_not_own_parent"):
+			hasConstraint(err, "categories_parent_id_fkey"),
+			hasConstraint(err, "categories_not_own_parent"):
 			return map[string]string{"parent": i18n.T(ctx, i18n.KeyFormParentMissing)}, nil
-		case takenBy(err, "categories_position_key"):
+		case hasConstraint(err, "categories_position_key"):
 			// Not a field: position is computed inside the INSERT and never
 			// typed, so there is nothing on the form to point at. The second
 			// attempt reads a fresh maximum and goes through.
@@ -219,9 +219,9 @@ func (s *Store) Delete(ctx context.Context, kind, slug string) error {
 		})
 }
 
-// takenBy reports whether err is this constraint. Bound to ConstraintName: a
+// hasConstraint reports whether err is this constraint. Bound to ConstraintName: a
 // PgError's message never contains it, so a substring search cannot match.
-func takenBy(err error, constraint string) bool {
+func hasConstraint(err error, constraint string) bool {
 	pgErr, ok := errors.AsType[*pgconn.PgError](err)
 	return ok && pgErr.ConstraintName == constraint
 }

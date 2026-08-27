@@ -218,7 +218,10 @@ func TestOnlyAPaidSessionIsACapture(t *testing.T) {
 			}
 			_, isAbandoned := payment.AbandonedSessionFrom(&ev)
 			_, isUnsettled := payment.UnsettledSessionFrom(&ev)
-			unreadable := payment.Actionable(&ev) && !got && !isAbandoned && !isUnsettled
+			// Every event in this table has a checkout type. The package-internal
+			// classifier test owns that closed type set; this test owns whether
+			// the payload readers can understand each shape.
+			unreadable := !got && !isAbandoned && !isUnsettled
 			if unreadable != tt.isUnreadable {
 				t.Errorf("unreadable = %v, want %v", unreadable, tt.isUnreadable)
 			}
@@ -341,13 +344,9 @@ func TestAKnownEventGoenCannotReadIsNotAnEventItIgnores(t *testing.T) {
 			_, isCapture := payment.CaptureFrom(&ev)
 			_, isAbandoned := payment.AbandonedSessionFrom(&ev)
 			_, isUnsettled := payment.UnsettledSessionFrom(&ev)
-			actionable := payment.Actionable(&ev)
 			understood := isCapture || isAbandoned || isUnsettled
-			unreadable := actionable && !understood
+			unreadable := tt.wantActionable && !understood
 
-			if actionable != tt.wantActionable {
-				t.Errorf("actionable = %v, want %v", actionable, tt.wantActionable)
-			}
 			if understood != tt.wantUnderstood {
 				t.Errorf("understood = %v, want %v", understood, tt.wantUnderstood)
 			}

@@ -252,10 +252,10 @@ func (s *Store) CreateProduct(ctx context.Context, f *ProductForm) (slug string,
 			return createErr
 		})
 	if err != nil {
-		if takenBy(err, "products_slug_key") {
+		if hasConstraint(err, "products_slug_key") {
 			return "", map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenProduct)}, nil
 		}
-		if takenBy(err, "products_warranty_months_sane") {
+		if hasConstraint(err, "products_warranty_months_sane") {
 			return "", map[string]string{"warranty_months": i18n.T(ctx, i18n.KeyFormWarrantyMonths)}, nil
 		}
 		return "", nil, fmt.Errorf("create product: %w", err)
@@ -276,7 +276,7 @@ func (s *Store) UpdateProduct(ctx context.Context, f *ProductForm) (map[string]s
 		NameEn: f.NameEn, SummaryEn: f.SummaryEn, DescriptionEn: f.DescriptionEn,
 		WarrantyMonths: f.WarrantyMonths,
 	}); err != nil {
-		if takenBy(err, "products_warranty_months_sane") {
+		if hasConstraint(err, "products_warranty_months_sane") {
 			return map[string]string{"warranty_months": i18n.T(ctx, i18n.KeyFormWarrantyMonths)}, nil
 		}
 		return nil, fmt.Errorf("update product %s: %w", f.Slug, err)
@@ -436,7 +436,7 @@ func (s *Store) AddOption(ctx context.Context, slug string, d OptionDraft) (map[
 		}
 		return nil
 	}); err != nil {
-		if takenBy(err, "product_options_name_key") {
+		if hasConstraint(err, "product_options_name_key") {
 			return map[string]string{"option": i18n.T(ctx, i18n.KeyFormOptionNameTaken)}, nil
 		}
 		if errors.Is(err, ErrNotFound) {
@@ -472,7 +472,7 @@ func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) 
 		}
 		return nil
 	}); err != nil {
-		if takenBy(err, "product_option_values_value_key") {
+		if hasConstraint(err, "product_option_values_value_key") {
 			return map[string]string{"value": i18n.T(ctx, i18n.KeyFormOptionValueTaken)}, nil
 		}
 		if errors.Is(err, ErrNotFound) {

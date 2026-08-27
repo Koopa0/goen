@@ -233,10 +233,10 @@ var abandonedEvents = map[stripe.EventType]bool{
 	"checkout.session.async_payment_failed": true,
 }
 
-// Actionable reports whether goen has a branch for this event type. A type in
+// actionable reports whether goen has a branch for this event type. A type in
 // here that yields nothing from every reader is a payload this binary could not
 // read — not an event goen does not act on, and the two must not share an arm.
-func Actionable(ev *stripe.Event) bool {
+func actionable(ev *stripe.Event) bool {
 	return ev != nil && (captureEvents[ev.Type] || abandonedEvents[ev.Type])
 }
 
@@ -249,7 +249,7 @@ const (
 )
 
 func classifyWebhook(ev *stripe.Event, understood bool) webhookReadState {
-	if !Actionable(ev) {
+	if !actionable(ev) {
 		return webhookReadIgnored
 	}
 	if understood {

@@ -15,8 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// MaxZonePrefixes bounds one submission of postal prefixes.
-const MaxZonePrefixes = 100
+// maxZonePrefixes bounds one submission of postal prefixes.
+const maxZonePrefixes = 100
 
 // NewZone is a delivery zone being created, with the postal prefixes that reach it.
 type NewZone struct {
@@ -68,7 +68,7 @@ func (s *Store) CreateZone(ctx context.Context, z *NewZone) (map[string]string, 
 		}
 		return nil
 	}); err != nil {
-		if takenBy(err, "shipping_zones_code_key") {
+		if hasConstraint(err, "shipping_zones_code_key") {
 			return map[string]string{"zone_code": i18n.T(ctx, i18n.KeyFormZoneCodeTaken)}, nil
 		}
 		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
@@ -151,7 +151,7 @@ func parsePrefixes(ctx context.Context, list string) (prefixes []string, message
 	if len(fields) == 0 {
 		return []string{}, ""
 	}
-	if len(fields) > MaxZonePrefixes {
+	if len(fields) > maxZonePrefixes {
 		return nil, i18n.T(ctx, i18n.KeyFormZonePrefixTooMany)
 	}
 	seen := make(map[string]bool, len(fields))
