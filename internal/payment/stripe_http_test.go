@@ -397,6 +397,20 @@ func TestADisabledGatewayMakesNoRequest(t *testing.T) {
 	}
 }
 
+func TestStripeReturnURLsUseTheSiteOriginGrammar(t *testing.T) {
+	if _, err := NewGateway("sk_test_notused", "whsec_notused", "httpx://evil.example"); err == nil {
+		t.Fatal("NewGateway accepted an http-looking non-origin")
+	}
+
+	g, err := NewGateway("sk_test_notused", "whsec_notused", "https://goen.example/")
+	if err != nil {
+		t.Fatalf("NewGateway refused a canonicalisable origin: %v", err)
+	}
+	if g.baseURL != "https://goen.example" {
+		t.Errorf("base URL = %q, want canonical origin", g.baseURL)
+	}
+}
+
 // TestTheRequestCarriesTheCallersDeadline proves the context reaches the wire.
 func TestTheRequestCarriesTheCallersDeadline(t *testing.T) {
 	g, log := stripeAt(t, func(*call) (int, string) {

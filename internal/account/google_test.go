@@ -99,6 +99,20 @@ func TestAnUnconfiguredClientOffersNothing(t *testing.T) {
 	}
 }
 
+func TestGoogleRedirectUsesTheSiteOriginGrammar(t *testing.T) {
+	if _, err := NewGoogle("client-id", "client-secret", "httpx://evil.example"); err == nil {
+		t.Fatal("NewGoogle accepted an http-looking non-origin")
+	}
+
+	g, err := NewGoogle("client-id", "client-secret", "https://goen.example/")
+	if err != nil {
+		t.Fatalf("NewGoogle refused a canonicalisable origin: %v", err)
+	}
+	if g.redirectURL != "https://goen.example/auth/google/callback" {
+		t.Errorf("redirect URL = %q, want callback built from the canonical origin", g.redirectURL)
+	}
+}
+
 func TestTheStateCookieSurvivesTheRedirectAndCarriesNoOpenRedirect(t *testing.T) {
 	w := httptest.NewRecorder()
 	writeOAuthState(w, OAuthState{

@@ -52,6 +52,21 @@ func SitePath(raw string) (string, bool) {
 	return u.String(), true
 }
 
+// SiteOrigin reports whether raw is an origin goen can build absolute links
+// from, and returns it canonicalised with no trailing slash. HasPrefix(raw,
+// "http") cannot do it: "httpx://" passes a five-character string test but
+// is not one of the web schemes goen supports, and "https://ok@evil.example"
+// carries userinfo a mail client renders as the destination.
+func SiteOrigin(raw string) (origin, scheme string, ok bool) {
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") ||
+		u.Host == "" || u.User != nil ||
+		(u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" {
+		return "", "", false
+	}
+	return strings.TrimRight(u.Scheme+"://"+u.Host, "/"), u.Scheme, true
+}
+
 func hasControl(s string) bool {
 	for _, r := range s {
 		if unicode.IsControl(r) {

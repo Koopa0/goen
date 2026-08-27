@@ -145,3 +145,53 @@ func TestSitePathOrFallsBackRatherThanErroring(t *testing.T) {
 		t.Errorf("empty gave %q", got)
 	}
 }
+
+func TestSiteOriginRefusesWhatIsNotAnOrigin(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		raw        string
+		wantOrigin string
+		wantScheme string
+	}{
+		{"an https origin", "https://shop.example", "https://shop.example", "https"},
+		{"a trailing slash is canonicalised", "https://shop.example/", "https://shop.example", "https"},
+		{"the development origin", "http://127.0.0.1:9700", "http://127.0.0.1:9700", "http"},
+
+		{"an http-looking scheme", "httpx://evil.example", "", ""},
+		{"an https-looking scheme", "httpsss://evil.example", "", ""},
+		{"no scheme", "shop.example", "", ""},
+		{"userinfo", "https://ok@evil.example", "", ""},
+		{"a path", "https://shop.example/deep/path", "", ""},
+		{"a query", "https://shop.example?q=1", "", ""},
+		{"a fragment", "https://shop.example#part", "", ""},
+		{"an empty host", "https://", "", ""},
+		{"empty", "", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			origin, scheme, ok := SiteOrigin(tt.raw)
+			if tt.wantOrigin == "" {
+				if ok {
+					t.Errorf("SiteOrigin(%q) accepted it as %q with scheme %q",
+						tt.raw, origin, scheme)
+				}
+				if origin != "" || scheme != "" {
+					t.Errorf("SiteOrigin(%q) refused with outputs %q, %q; want empty outputs",
+						tt.raw, origin, scheme)
+				}
+				return
+			}
+			if !ok {
+				t.Fatalf("SiteOrigin(%q) refused a legitimate origin", tt.raw)
+			}
+			if origin != tt.wantOrigin || scheme != tt.wantScheme {
+				t.Errorf("SiteOrigin(%q) = (%q, %q), want (%q, %q)",
+					tt.raw, origin, scheme, tt.wantOrigin, tt.wantScheme)
+			}
+		})
+	}
+}

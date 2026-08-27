@@ -13,6 +13,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/koopa0/goen/internal/web"
 )
 
 const (
@@ -56,13 +58,14 @@ func NewGoogle(clientID, clientSecret, baseURL string) (*Google, error) {
 		return nil, errors.New("account: google sign-in needs both a client id and a " +
 			"client secret; one without the other cannot exchange an authorisation code")
 	}
-	if !strings.HasPrefix(baseURL, "http") {
+	origin, _, ok := web.SiteOrigin(baseURL)
+	if !ok {
 		return nil, fmt.Errorf("account: base URL %q cannot build a redirect URI", baseURL)
 	}
 	return &Google{
 		clientID:     clientID,
 		clientSecret: clientSecret,
-		redirectURL:  strings.TrimSuffix(baseURL, "/") + "/auth/google/callback",
+		redirectURL:  origin + "/auth/google/callback",
 		http:         &http.Client{Timeout: 15 * time.Second},
 	}, nil
 }
