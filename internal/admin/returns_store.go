@@ -15,8 +15,7 @@ import (
 // Diagnostics stay out of the rendered page but cross the Store boundary so
 // the handler can record quantitative source inconsistencies.
 type ReturnQueue struct {
-	pages.AdminReturnsView
-
+	Rows         []pages.AdminReturn
 	payoutIssues []returnPayoutIssue
 }
 

@@ -17,19 +17,22 @@ import (
 
 // Returns serves GET /admin/returns.
 func (h *Handler) Returns(w http.ResponseWriter, r *http.Request) {
-	view, err := h.store.Returns(r.Context())
+	queue, err := h.store.Returns(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read return queue", "error", err)
 		h.serverError(w, r)
 		return
 	}
-	for _, issue := range view.payoutIssues {
+	for _, issue := range queue.payoutIssues {
 		h.log.ErrorContext(r.Context(), "return payout no longer fits its sources",
 			"return_id", issue.returnID, "error", issue.err)
 	}
-	view.Notice = noticeFor(r)
+	view := pages.AdminReturnsView{
+		Rows:   queue.Rows,
+		Notice: noticeFor(r),
+	}
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminReturns(
-		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReturns)}, view.AdminReturnsView))
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReturns)}, view))
 }
 
 // Decide serves POST /admin/returns/{id}/decide. Approving pays money back, so
