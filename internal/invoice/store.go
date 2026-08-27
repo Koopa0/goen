@@ -173,7 +173,7 @@ func (s *Store) Void(ctx context.Context, orderNumber, reason string) error {
 		}
 		return fmt.Errorf("read the invoice of %s: %w", orderNumber, err)
 	}
-	if voidErr := s.gateway.Void(ctx, live.Number, reason); voidErr != nil {
+	if voidErr := s.gateway.Void(ctx, live.Number, live.IssuedAt, reason); voidErr != nil {
 		return voidErr
 	}
 	voided, err := s.q.VoidInvoiceDocument(ctx, live.ID)

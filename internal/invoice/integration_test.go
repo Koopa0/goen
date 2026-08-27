@@ -23,6 +23,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -104,6 +105,43 @@ func TestAnAllowanceIsFiledOncePerPress(t *testing.T) {
 	if filings != 1 {
 		t.Errorf("the provider was called %d times; the second press reached ECPay "+
 			"before anything refused it, which is where the damage is", filings)
+	}
+}
+
+// TestStoreVoidSendsTheRecordedIssueDate holds the Store/Gateway seam: the
+// correct date is already on LiveInvoice and must not be replaced by the time
+// the operator presses void.
+func TestStoreVoidSendsTheRecordedIssueDate(t *testing.T) {
+	ctx := t.Context()
+	var seen invalidRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen = openInvalid(t, r)
+		reply(t, w, result{RtnCode: 1})
+	}))
+	defer srv.Close()
+
+	g, err := NewGateway(testMerchantID, testHashKey, testHashIV, srv.URL)
+	if err != nil {
+		t.Fatalf("gateway: %v", err)
+	}
+	s := NewStore(pool, g)
+	number := orderToInvoice(t, 100000, 0, 0)
+	issuedAt := time.Date(2026, time.August, 25, 4, 0, 0, 0,
+		time.FixedZone("Asia/Taipei", 8*60*60))
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO invoice_documents
+		    (order_id, kind, number, amount_cents, provider_ref, issued_at)
+		SELECT id, 'invoice', 'LA-' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 8),
+		       100000, '7295', $1
+		FROM orders WHERE order_number = $2`, issuedAt, number); err != nil {
+		t.Fatalf("record the dated invoice: %v", err)
+	}
+
+	if err := s.Void(ctx, number, "資料錯誤"); err != nil {
+		t.Fatalf("Void: %v", err)
+	}
+	if want := "2026-08-24"; seen.InvoiceDate != want {
+		t.Errorf("InvoiceDate = %q, want recorded issue date %q", seen.InvoiceDate, want)
 	}
 }
 

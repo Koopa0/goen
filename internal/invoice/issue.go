@@ -122,12 +122,15 @@ func (r IssueRequest) validate() error {
 // Void cancels an issued invoice. A uniform invoice cannot be edited, so a
 // wrong one is voided and a correct one issued in its place, and the reason is
 // filed with the tax authority rather than left blank.
-func (g *Gateway) Void(ctx context.Context, number, reason string) error {
+func (g *Gateway) Void(ctx context.Context, number string, issuedAt time.Time, reason string) error {
 	if !g.Enabled() {
 		return ErrDisabled
 	}
 	if number == "" {
 		return fmt.Errorf("%w: which invoice?", ErrRejected)
+	}
+	if issuedAt.IsZero() {
+		return fmt.Errorf("%w: which day was it issued?", ErrRejected)
 	}
 	if strings.TrimSpace(reason) == "" {
 		return fmt.Errorf("%w: voiding an invoice needs a reason; it is filed with it", ErrRejected)
@@ -135,9 +138,11 @@ func (g *Gateway) Void(ctx context.Context, number, reason string) error {
 	_, err := g.call(ctx, "/B2CInvoice/Invalid", invalidRequest{
 		MerchantID: g.merchantID,
 		InvoiceNo:  number,
-		// ECPay want the invoice's own date and accept today's for one issued
-		// today, which is the only case this reaches.
-		InvoiceDate: time.Now().Format("2006-01-02"),
+		// Invalid validates this against the invoice's own issue date. A mismatch
+		// is 1600003 無發票號碼資料 — indistinguishable from a wrong number. The
+		// provider's timestamp is stored as its wall clock labelled UTC, so UTC is
+		// load-bearing after a timestamptz round trip in a non-UTC process.
+		InvoiceDate: issuedAt.UTC().Format("2006-01-02"),
 		Reason:      truncate(reason, 20),
 	})
 	return err

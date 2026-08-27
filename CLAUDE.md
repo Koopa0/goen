@@ -2057,7 +2057,7 @@ The off-switch is Stripe's: no credentials issues nothing and the order page say
 so, and HALF a configuration does not start, because a merchant id cannot sign a
 request without its keys.
 
-Four things the live staging API taught that its field list does not say, each
+Five things the live staging API taught that its field list does not say, each
 now a test:
 
 - **A 統編 invoice STILL needs a carrier.** It looks like the opposite — the
@@ -2070,6 +2070,10 @@ now a test:
 - **`RelateNumber` is their idempotency key** and a repeat is `5070357`. A
   統一發票 cannot be edited, so the only correction is void-then-reissue — and the
   order number alone made that impossible. The reissue carries a suffix.
+- **Invalid checks `InvoiceDate` against the invoice's own issue date.** A
+  mismatch is `1600003`「無發票號碼資料」, whose message points at the correct
+  number rather than the wrong date. The void therefore carries the date ECPay
+  originally returned, including its UTC-labelled wall-clock convention.
 - **The envelope's URL-encode step comes BEFORE the cipher**, in .NET's casing.
   Getting it wrong is an envelope rejection with no indication of which character
   was at fault, so the wire format is pinned by a known-answer test computed with
@@ -2114,9 +2118,10 @@ Three rules make that safe, and the first two were missing:
 For an INVOICE the provider is called FIRST and the row written after, because
 the number is theirs to allocate. That leaves the window the refund path already documents, in
 the recoverable direction: a document filed with the 加值中心 and absent here is
-visible from ECPay's console and re-issuing is refused by
-`invoice_documents_one_active_invoice_per_order`. A row claiming a filing that
-does not exist would be visible from nowhere.
+visible from ECPay's console and re-issuing the same `RelateNumber` is refused by
+ECPay as `5070357`. With no local row, the partial
+`invoice_documents_one_active_invoice_per_order` index has nothing to refuse. A
+row claiming a filing that does not exist would be visible from nowhere.
 
 Every account feature is linked from `/account`. Four of them — orders, points,
 wishlist, warranty — existed as working routes with NO LINK from anywhere, which

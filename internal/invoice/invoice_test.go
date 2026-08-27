@@ -148,7 +148,7 @@ func TestAnUnconfiguredGatewayIssuesNothingAndSaysSo(t *testing.T) {
 	if _, err := g.Issue(t.Context(), IssueRequest{}); !errors.Is(err, ErrDisabled) {
 		t.Errorf("Issue on an unconfigured gateway = %v, want ErrDisabled", err)
 	}
-	if err := g.Void(t.Context(), "AB12345678", "測試"); !errors.Is(err, ErrDisabled) {
+	if err := g.Void(t.Context(), "AB12345678", time.Now(), "測試"); !errors.Is(err, ErrDisabled) {
 		t.Errorf("Void on an unconfigured gateway = %v, want ErrDisabled", err)
 	}
 	if _, err := g.Allowance(t.Context(), AllowanceRequest{}); !errors.Is(err, ErrDisabled) {
@@ -297,6 +297,64 @@ func TestTheRequestCarriesWhatTheInvoiceNeeds(t *testing.T) {
 	if doc.IssuedAt.IsZero() {
 		t.Error("the document has no issue time")
 	}
+}
+
+// TestAVoidSendsTheInvoicesOwnIssueDate fixes ECPay's strict Invalid wire
+// field. A mismatched date is reported as 1600003 ("no invoice number"), even
+// when the number itself is right.
+func TestAVoidSendsTheInvoicesOwnIssueDate(t *testing.T) {
+	var seen invalidRequest
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		seen = openInvalid(t, r)
+		reply(t, w, result{RtnCode: 1})
+	}))
+	defer srv.Close()
+
+	g, err := NewGateway(testMerchantID, testHashKey, testHashIV, srv.URL)
+	if err != nil {
+		t.Fatalf("NewGateway: %v", err)
+	}
+	if err := g.Void(t.Context(), "LA25024809", time.Time{}, "資料錯誤"); !errors.Is(err, ErrRejected) {
+		t.Fatalf("Void with no issue date = %v, want ErrRejected", err)
+	}
+	if calls != 0 {
+		t.Fatalf("a void with no issue date reached ECPay %d times", calls)
+	}
+	// This instant is 25 August in Taipei and 24 August in UTC. ECPay returned
+	// the latter calendar date, so a plain Format after the database round trip
+	// is one day late.
+	issuedAt := time.Date(2026, time.August, 25, 4, 0, 0, 0,
+		time.FixedZone("Asia/Taipei", 8*60*60))
+	if err := g.Void(t.Context(), "LA25024809", issuedAt, "資料錯誤"); err != nil {
+		t.Fatalf("Void: %v", err)
+	}
+	if want := "2026-08-24"; seen.InvoiceDate != want {
+		t.Errorf("InvoiceDate = %q, want the invoice's own date %q", seen.InvoiceDate, want)
+	}
+}
+
+// openInvalid unseals the Invalid request ECPay would receive.
+func openInvalid(t *testing.T, r *http.Request) invalidRequest {
+	t.Helper()
+	g, gatewayErr := NewGateway(testMerchantID, testHashKey, testHashIV, "")
+	if gatewayErr != nil {
+		t.Fatalf("gateway: %v", gatewayErr)
+	}
+	var env envelope
+	if decodeErr := json.NewDecoder(r.Body).Decode(&env); decodeErr != nil {
+		t.Fatalf("decode envelope: %v", decodeErr)
+	}
+	plain, openErr := g.open(env.Data)
+	if openErr != nil {
+		t.Fatalf("open envelope: %v", openErr)
+	}
+	var out invalidRequest
+	if decodeErr := json.Unmarshal(plain, &out); decodeErr != nil {
+		t.Fatalf("decode Invalid request: %v", decodeErr)
+	}
+	return out
 }
 
 // TestACompanyInvoiceCarriesTheTaxIDAndNoCarrier holds a rule ECPay enforces
