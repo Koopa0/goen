@@ -223,10 +223,7 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 							class="ui-input"
 							id="p-warranty-months"
 							name="warranty_months"
-							type="number"
-							min="0"
-							max="120"
-							step="1"
+							type="text"
 							inputmode="numeric"
 							value={ v.WarrantyMonthsText() }
 							if v.HasErr("warranty_months") {
@@ -481,16 +478,64 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 							<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/products/" + v.Slug + "/variants") }>
 								<div class="ui-field">
 									<label class="ui-label" for="v-sku">SKU</label>
-									<input class="ui-input" id="v-sku" name="sku" required maxlength="60" autocomplete="off"/>
+									<input
+										class="ui-input"
+										id="v-sku"
+										name="sku"
+										required
+										maxlength="60"
+										autocomplete="off"
+										value={ v.VariantDraft.SKU }
+										if v.HasErr("sku") {
+											aria-invalid="true"
+											aria-describedby="v-sku-error"
+										}
+									/>
+									if v.HasErr("sku") {
+										<p class="ui-error-text" id="v-sku-error">{ v.Err("sku") }</p>
+									}
 								</div>
 								<div class="goen-checkout__fields">
 									<div class="ui-field">
 										<label class="ui-label" for="v-price">{ i18n.T(ctx, i18n.KeyAdminProdPrice) }</label>
-										<input class="ui-input" id="v-price" name="price" type="number" min="1" step="1" required inputmode="numeric"/>
+										<input
+											class="ui-input"
+											id="v-price"
+											name="price"
+											type="number"
+											min="1"
+											step="1"
+											required
+											inputmode="numeric"
+											value={ v.VariantDraft.Price }
+											if v.HasErr("price") {
+												aria-invalid="true"
+												aria-describedby="v-price-error"
+											}
+										/>
+										if v.HasErr("price") {
+											<p class="ui-error-text" id="v-price-error">{ v.Err("price") }</p>
+										}
 									</div>
 									<div class="ui-field">
 										<label class="ui-label" for="v-compare">{ i18n.T(ctx, i18n.KeyAdminProdCompare) }</label>
-										<input class="ui-input" id="v-compare" name="compare" type="number" min="0" step="1" inputmode="numeric"/>
+										<input
+											class="ui-input"
+											id="v-compare"
+											name="compare"
+											type="number"
+											min="0"
+											step="1"
+											inputmode="numeric"
+											value={ v.VariantDraft.Compare }
+											if v.HasErr("compare") {
+												aria-invalid="true"
+												aria-describedby="v-compare-error"
+											}
+										/>
+										if v.HasErr("compare") {
+											<p class="ui-error-text" id="v-compare-error">{ v.Err("compare") }</p>
+										}
 									</div>
 								</div>
 								if v.HasOptions() {
@@ -515,20 +560,76 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 								}
 								<div class="ui-field">
 									<label class="ui-label" for="v-safety">{ i18n.T(ctx, i18n.KeyAdminProdSafety) }</label>
-									<input class="ui-input" id="v-safety" name="safety" type="number" min="0" step="1" value="0" inputmode="numeric"/>
+									<input
+										class="ui-input"
+										id="v-safety"
+										name="safety"
+										type="text"
+										inputmode="numeric"
+										value={ v.VariantDraft.Safety }
+										if v.HasErr("safety") {
+											aria-invalid="true"
+											aria-describedby="v-safety-error"
+										}
+									/>
+									if v.HasErr("safety") {
+										<p class="ui-error-text" id="v-safety-error">{ v.Err("safety") }</p>
+									}
 								</div>
 								<div class="ui-field">
 									<label class="ui-label" for="v-longest">{ i18n.T(ctx, i18n.KeyAdminProdLongest) }</label>
 									// The parcel, which decides which methods are offered; blank is unmeasured.
-									<input class="ui-input" id="v-longest" name="parcel_longest" type="number" min="0" step="1" inputmode="numeric"/>
+									<input
+										class="ui-input"
+										id="v-longest"
+										name="parcel_longest"
+										type="text"
+										inputmode="numeric"
+										value={ v.VariantDraft.ParcelLongest }
+										if v.HasErr("parcel_longest") {
+											aria-invalid="true"
+											aria-describedby="v-longest-error"
+										}
+									/>
+									if v.HasErr("parcel_longest") {
+										<p class="ui-error-text" id="v-longest-error">{ v.Err("parcel_longest") }</p>
+									}
 								</div>
 								<div class="ui-field">
 									<label class="ui-label" for="v-sum">{ i18n.T(ctx, i18n.KeyAdminProdParcelSum) }</label>
-									<input class="ui-input" id="v-sum" name="parcel_sum" type="number" min="0" step="1" inputmode="numeric"/>
+									<input
+										class="ui-input"
+										id="v-sum"
+										name="parcel_sum"
+										type="text"
+										inputmode="numeric"
+										value={ v.VariantDraft.ParcelSum }
+										if v.HasErr("parcel_sum") {
+											aria-invalid="true"
+											aria-describedby="v-sum-error"
+										}
+									/>
+									if v.HasErr("parcel_sum") {
+										<p class="ui-error-text" id="v-sum-error">{ v.Err("parcel_sum") }</p>
+									}
 								</div>
 								<div class="ui-field">
 									<label class="ui-label" for="v-weight">{ i18n.T(ctx, i18n.KeyAdminProdWeight) }</label>
-									<input class="ui-input" id="v-weight" name="parcel_weight" type="number" min="0" step="1" inputmode="numeric"/>
+									<input
+										class="ui-input"
+										id="v-weight"
+										name="parcel_weight"
+										type="text"
+										inputmode="numeric"
+										value={ v.VariantDraft.ParcelWeight }
+										if v.HasErr("parcel_weight") {
+											aria-invalid="true"
+											aria-describedby="v-weight-error"
+										}
+									/>
+									if v.HasErr("parcel_weight") {
+										<p class="ui-error-text" id="v-weight-error">{ v.Err("parcel_weight") }</p>
+									}
 								</div>
 								<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">
 									{ i18n.T(ctx, i18n.KeyAdminProdVariantAdd) }

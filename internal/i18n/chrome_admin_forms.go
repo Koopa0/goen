@@ -117,18 +117,21 @@ var (
 		En:     "The compare-at price has to be above the selling price, or it is not a discount.",
 	})
 	KeyFormSafetyStock = key("form.safety.stock", Message{
-		ZhHant: "安全庫存不能是負數。",
-		En:     "Safety stock cannot be negative.",
+		ZhHant: "安全庫存請填 0 到 1,000,000 的整數。",
+		En:     "Safety stock is a whole number from 0 to 1,000,000.",
+	})
+	KeyFormParcelMeasurement = key("form.parcel.measurement", Message{
+		ZhHant: "請填 1 到 %d 的整數,或留空或填 0 表示尚未量測。",
+		En:     "Type a whole number from 1 to %d, or leave it blank or type 0 for unmeasured.",
+	})
+	KeyFormParcelSumShort = key("form.parcel.sum.short", Message{
+		ZhHant: "三邊和不能小於最長邊。",
+		En:     "The sum of the three sides cannot be less than the longest side.",
 	})
 	KeyFormOptionsInvalid = key("form.options.invalid", Message{
 		ZhHant: "規格選項有誤,請重新選擇。",
 		En:     "Those option values do not work together. Choose again.",
 	})
-	KeyFormOptionsUnreadable = key("form.options.unreadable", Message{
-		ZhHant: "讀取規格項目失敗,請重試。",
-		En:     "The option list could not be read. Please try again.",
-	})
-
 	KeyFormSpecLabel       = key("form.spec.label", Message{ZhHant: "請填寫規格名稱", En: "A spec label is required"})
 	KeyFormSpecLabelLong   = key("form.spec.label.long", Message{ZhHant: "規格名稱太長", En: "That spec label is too long"})
 	KeyFormSpecValue       = key("form.spec.value", Message{ZhHant: "請填寫規格內容", En: "A spec value is required"})
@@ -221,6 +224,10 @@ var (
 	KeyFormMethodCodeTaken = key("form.method.code.taken", Message{
 		ZhHant: "這個代碼已經有配送方式用了。",
 		En:     "Another delivery method already uses that code.",
+	})
+	KeyFormMethodParcelLimit = key("form.method.parcel.limit", Message{
+		ZhHant: "上限請填 1 到 %d 的整數,或留空或填 0 表示不設限。",
+		En:     "A limit is a whole number from 1 to %d, or blank or 0 for no stated limit.",
 	})
 	KeyFormZoneCode = key("form.zone.code", Message{
 		ZhHant: "代碼只能用小寫英數與底線,例如 offshore。",

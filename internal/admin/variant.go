@@ -8,13 +8,20 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-const maxSKURunes = 60
+const (
+	maxSKURunes = 60
+	// The parcel ceilings mirror the product_variants parcel CHECKs.
+	parcelLongestCeilingMM = 5000
+	parcelSumCeilingMM     = 15000
+	parcelWeightCeilingG   = 200000
+	// safetyStockCeiling is an application anti-typo bound, not a schema mirror.
+	safetyStockCeiling = 1_000_000
+)
 
 // VariantForm is a new variant.
 type VariantForm struct {
@@ -43,10 +50,29 @@ func (f *VariantForm) Validate(ctx context.Context) map[string]string {
 	if f.CompareCents != 0 && f.CompareCents <= f.PriceCents {
 		errs["compare"] = i18n.T(ctx, i18n.KeyFormCompareHigher)
 	}
-	if f.SafetyStock < 0 {
+	f.validateFulfilment(ctx, errs)
+	return errs
+}
+
+func (f *VariantForm) validateFulfilment(ctx context.Context, errs map[string]string) {
+	if f.SafetyStock < 0 || f.SafetyStock > safetyStockCeiling {
 		errs["safety"] = i18n.T(ctx, i18n.KeyFormSafetyStock)
 	}
-	return errs
+	if f.ParcelLongestMM < 0 || f.ParcelLongestMM > parcelLongestCeilingMM {
+		errs["parcel_longest"] = fmt.Sprintf(
+			i18n.T(ctx, i18n.KeyFormParcelMeasurement), parcelLongestCeilingMM)
+	}
+	if f.ParcelSumMM < 0 || f.ParcelSumMM > parcelSumCeilingMM {
+		errs["parcel_sum"] = fmt.Sprintf(
+			i18n.T(ctx, i18n.KeyFormParcelMeasurement), parcelSumCeilingMM)
+	}
+	if f.ParcelWeightG < 0 || f.ParcelWeightG > parcelWeightCeilingG {
+		errs["parcel_weight"] = fmt.Sprintf(
+			i18n.T(ctx, i18n.KeyFormParcelMeasurement), parcelWeightCeilingG)
+	}
+	if f.ParcelLongestMM != 0 && f.ParcelSumMM != 0 && f.ParcelSumMM < f.ParcelLongestMM {
+		errs["parcel_sum"] = i18n.T(ctx, i18n.KeyFormParcelSumShort)
+	}
 }
 
 // AddVariant adds a variant at zero stock.
@@ -54,12 +80,24 @@ func (s *Store) AddVariant(ctx context.Context, slug string, f *VariantForm) (ma
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
-	chosen, errs := s.chosenOptionValues(ctx, slug, f.OptionValues)
+	chosen, errs, err := s.chosenOptionValues(ctx, slug, f.OptionValues)
+	if err != nil {
+		return nil, err
+	}
 	if len(errs) > 0 {
 		return errs, nil
 	}
 
-	if err := s.audited(ctx, Event{
+	if err := s.insertVariant(ctx, slug, f, chosen); err != nil {
+		return variantWriteError(ctx, slug, err)
+	}
+	return nil, nil
+}
+
+func (s *Store) insertVariant(
+	ctx context.Context, slug string, f *VariantForm, chosen []uuid.UUID,
+) error {
+	return s.audited(ctx, Event{
 		Action: ActionCreateVariant, Table: "product_variants", ID: uuid.NullUUID{},
 		Before: nil, After: map[string]any{"product": slug, "sku": f.SKU, "price_cents": f.PriceCents},
 	},
@@ -86,25 +124,43 @@ func (s *Store) AddVariant(ctx context.Context, slug string, f *VariantForm) (ma
 				}
 			}
 			return nil
-		}); err != nil {
-		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
-			pgErr.ConstraintName == "product_variants_sku_key" {
-			return map[string]string{"sku": i18n.T(ctx, i18n.KeyFormSKUTaken)}, nil
-		}
-		if errors.Is(err, ErrNotFound) {
-			return map[string]string{"options": i18n.T(ctx, i18n.KeyFormOptionsInvalid)}, nil
-		}
-		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
+		})
+}
+
+func variantWriteError(ctx context.Context, slug string, err error) (map[string]string, error) {
+	if takenBy(err, "product_variants_sku_key") {
+		return map[string]string{"sku": i18n.T(ctx, i18n.KeyFormSKUTaken)}, nil
 	}
-	return nil, nil
+	if takenBy(err, "product_variants_safety_stock_non_negative") {
+		return map[string]string{"safety": i18n.T(ctx, i18n.KeyFormSafetyStock)}, nil
+	}
+	if takenBy(err, "product_variants_parcel_longest_sane") {
+		return map[string]string{"parcel_longest": fmt.Sprintf(
+			i18n.T(ctx, i18n.KeyFormParcelMeasurement), parcelLongestCeilingMM)}, nil
+	}
+	if takenBy(err, "product_variants_parcel_sum_sane") {
+		return map[string]string{"parcel_sum": fmt.Sprintf(
+			i18n.T(ctx, i18n.KeyFormParcelMeasurement), parcelSumCeilingMM)}, nil
+	}
+	if takenBy(err, "product_variants_parcel_weight_sane") {
+		return map[string]string{"parcel_weight": fmt.Sprintf(
+			i18n.T(ctx, i18n.KeyFormParcelMeasurement), parcelWeightCeilingG)}, nil
+	}
+	if takenBy(err, "product_variants_parcel_sum_covers_longest") {
+		return map[string]string{"parcel_sum": i18n.T(ctx, i18n.KeyFormParcelSumShort)}, nil
+	}
+	if errors.Is(err, ErrNotFound) {
+		return map[string]string{"options": i18n.T(ctx, i18n.KeyFormOptionsInvalid)}, nil
+	}
+	return nil, fmt.Errorf("add variant to product %s: %w", slug, err)
 }
 
 func (s *Store) chosenOptionValues(ctx context.Context, slug string, raw []string) (
-	chosen []uuid.UUID, fieldErrs map[string]string,
+	chosen []uuid.UUID, fieldErrs map[string]string, err error,
 ) {
 	options, err := s.q.ProductOptionCount(ctx, slug)
 	if err != nil {
-		return nil, map[string]string{"options": i18n.T(ctx, i18n.KeyFormOptionsUnreadable)}
+		return nil, nil, fmt.Errorf("count options for product %s: %w", slug, err)
 	}
 	chosen = make([]uuid.UUID, 0, len(raw))
 	for _, value := range raw {
@@ -113,14 +169,14 @@ func (s *Store) chosenOptionValues(ctx context.Context, slug string, raw []strin
 		}
 		id, parseErr := uuid.Parse(value)
 		if parseErr != nil {
-			return nil, map[string]string{"options": i18n.T(ctx, i18n.KeyFormOptionsInvalid)}
+			return nil, map[string]string{"options": i18n.T(ctx, i18n.KeyFormOptionsInvalid)}, nil
 		}
 		chosen = append(chosen, id)
 	}
 	if int64(len(chosen)) != options {
 		return nil, map[string]string{
 			"options": i18n.T(ctx, i18n.KeyFormVariantNeedsEveryOption),
-		}
+		}, nil
 	}
-	return chosen, nil
+	return chosen, nil, nil
 }

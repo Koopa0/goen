@@ -2,6 +2,8 @@ package admin
 
 import (
 	"errors"
+	"fmt"
+	"maps"
 	"net/http"
 	"strconv"
 	"strings"
@@ -18,19 +20,11 @@ func (h *Handler) CreateShippingMethod(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	m := &NewMethod{
-		Code:        r.PostFormValue("code"),
-		Destination: r.PostFormValue("destination"),
-		// Zero is "no stated limit", the honest default for home delivery.
-		MaxParcelLongestMM: parseSafetyStock(r.PostFormValue("max_parcel_longest")),
-		MaxParcelSumMM:     parseSafetyStock(r.PostFormValue("max_parcel_sum")),
-		MaxParcelWeightG:   parseSafetyStock(r.PostFormValue("max_parcel_weight")),
-		Name:               r.PostFormValue("name"),
-		NameEn:             r.PostFormValue("name_en"),
-		Carrier:            r.PostFormValue("carrier"),
-		CarrierEn:          r.PostFormValue("carrier_en"),
-		FeeDollars:         dollars(r.PostFormValue("fee")),
-		FreeOverDollars:    dollars(r.PostFormValue("free_over")),
+	m, draft, errs := methodFormOf(r)
+	maps.Copy(errs, m.Validate(r.Context()))
+	if len(errs) > 0 {
+		h.rejectShippingForm(w, r, errs, &shippingDrafts{method: draft})
+		return
 	}
 	errs, err := h.store.CreateMethod(r.Context(), m)
 	switch {
@@ -38,15 +32,45 @@ func (h *Handler) CreateShippingMethod(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "create shipping method", "error", err)
 		h.serverError(w, r)
 	case len(errs) > 0:
-		h.rejectShippingForm(w, r, errs, pages.AdminMethodDraft{
-			Code: m.Code, Destination: m.Destination,
-			Name: m.Name, NameEn: m.NameEn,
-			Carrier: m.Carrier, CarrierEn: m.CarrierEn,
-			Fee: r.PostFormValue("fee"), FreeOver: r.PostFormValue("free_over"),
-		}, pages.AdminZoneDraft{}, pages.AdminZonePrefixesDraft{})
+		h.rejectShippingForm(w, r, errs, &shippingDrafts{method: draft})
 	default:
 		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
 	}
+}
+
+// methodFormOf parses reachability limits while retaining their exact text.
+func methodFormOf(r *http.Request) (*NewMethod, pages.AdminMethodDraft, map[string]string) {
+	draft := pages.AdminMethodDraft{
+		Code: r.PostFormValue("code"), Destination: r.PostFormValue("destination"),
+		Name: r.PostFormValue("name"), NameEn: r.PostFormValue("name_en"),
+		Carrier: r.PostFormValue("carrier"), CarrierEn: r.PostFormValue("carrier_en"),
+		Fee: r.PostFormValue("fee"), FreeOver: r.PostFormValue("free_over"),
+		MaxLongest: r.PostFormValue("max_parcel_longest"),
+		MaxSum:     r.PostFormValue("max_parcel_sum"),
+		MaxWeight:  r.PostFormValue("max_parcel_weight"),
+	}
+	errs := map[string]string{}
+	parse := func(raw string, max int32, field string) int32 {
+		value, ok := parseBoundedInt(raw, max)
+		if !ok {
+			errs[field] = fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormMethodParcelLimit), max)
+		}
+		return value
+	}
+	return &NewMethod{
+		Code:        r.PostFormValue("code"),
+		Destination: r.PostFormValue("destination"),
+		// Zero is "no stated limit", the honest default for home delivery.
+		MaxParcelLongestMM: parse(draft.MaxLongest, parcelLongestCeilingMM, "max_parcel_longest"),
+		MaxParcelSumMM:     parse(draft.MaxSum, parcelSumCeilingMM, "max_parcel_sum"),
+		MaxParcelWeightG:   parse(draft.MaxWeight, parcelWeightCeilingG, "max_parcel_weight"),
+		Name:               r.PostFormValue("name"),
+		NameEn:             r.PostFormValue("name_en"),
+		Carrier:            r.PostFormValue("carrier"),
+		CarrierEn:          r.PostFormValue("carrier_en"),
+		FeeDollars:         dollars(r.PostFormValue("fee")),
+		FreeOverDollars:    dollars(r.PostFormValue("free_over")),
+	}, draft, errs
 }
 
 // SetShippingMethodActive serves POST /admin/shipping/method/{id}/active. A
@@ -84,9 +108,9 @@ func (h *Handler) CreateShippingZone(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "create shipping zone", "error", err)
 		h.serverError(w, r)
 	case len(errs) > 0:
-		h.rejectShippingForm(w, r, errs, pages.AdminMethodDraft{}, pages.AdminZoneDraft{
+		h.rejectShippingForm(w, r, errs, &shippingDrafts{zone: pages.AdminZoneDraft{
 			Code: z.Code, Name: z.Name, NameEn: z.NameEn, Prefixes: z.Prefixes,
-		}, pages.AdminZonePrefixesDraft{})
+		}})
 	default:
 		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
 	}
@@ -108,8 +132,9 @@ func (h *Handler) SetZonePrefixes(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "set zone prefixes", "error", err)
 		h.serverError(w, r)
 	case len(errs) > 0:
-		h.rejectShippingForm(w, r, errs, pages.AdminMethodDraft{}, pages.AdminZoneDraft{},
-			pages.AdminZonePrefixesDraft{ZoneID: zoneID, Prefixes: prefixes})
+		h.rejectShippingForm(w, r, errs, &shippingDrafts{prefixes: pages.AdminZonePrefixesDraft{
+			ZoneID: zoneID, Prefixes: prefixes,
+		}})
 	default:
 		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
 	}
@@ -133,17 +158,23 @@ func (h *Handler) DeleteShippingZone(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+type shippingDrafts struct {
+	method   pages.AdminMethodDraft
+	zone     pages.AdminZoneDraft
+	prefixes pages.AdminZonePrefixesDraft
+}
+
 // rejectShippingForm re-renders /admin/shipping at 422 with what was typed in it.
 func (h *Handler) rejectShippingForm(
-	w http.ResponseWriter, r *http.Request, errs map[string]string,
-	method pages.AdminMethodDraft, zone pages.AdminZoneDraft, prefixes pages.AdminZonePrefixesDraft,
+	w http.ResponseWriter, r *http.Request, errs map[string]string, drafts *shippingDrafts,
 ) {
 	view, err := h.store.Shipping(r.Context())
 	if err != nil {
 		h.serverError(w, r)
 		return
 	}
-	view.Errors, view.MethodDraft, view.ZoneDraft, view.PrefixDraft = errs, method, zone, prefixes
+	view.Errors = errs
+	view.MethodDraft, view.ZoneDraft, view.PrefixDraft = drafts.method, drafts.zone, drafts.prefixes
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminShipping(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }

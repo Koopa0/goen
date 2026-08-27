@@ -2,6 +2,8 @@ package admin
 
 import (
 	"errors"
+	"fmt"
+	"maps"
 	"net/http"
 	"strconv"
 	"strings"
@@ -44,7 +46,12 @@ func (h *Handler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	f := productFormOf(r)
+	f, errs := productFormOf(r)
+	maps.Copy(errs, f.Validate(r.Context()))
+	if len(errs) > 0 {
+		h.rejectProduct(w, r, f, errs, true)
+		return
+	}
 	slug, errs, err := h.store.CreateProduct(r.Context(), f)
 	switch {
 	case err != nil:
@@ -96,8 +103,13 @@ func (h *Handler) UpdateProduct(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	f := productFormOf(r)
+	f, errs := productFormOf(r)
 	f.Slug = r.PathValue("slug") // the slug is the identity; the form cannot move it
+	maps.Copy(errs, f.Validate(r.Context()))
+	if len(errs) > 0 {
+		h.rejectProduct(w, r, f, errs, false)
+		return
+	}
 
 	errs, err := h.store.UpdateProduct(r.Context(), f)
 	switch {
@@ -137,19 +149,11 @@ func (h *Handler) AddVariant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	slug := r.PathValue("slug")
-	f := &VariantForm{
-		SKU:          r.PostFormValue("sku"),
-		PriceCents:   dollarsToCents(r.PostFormValue("price")),
-		CompareCents: dollarsToCents(r.PostFormValue("compare")),
-		SafetyStock:  parseSafetyStock(r.PostFormValue("safety")),
-		// Zero is UNMEASURED and stores NULL, so a blank field leaves the variant
-		// refused by no shipping method rather than blocked from all of them.
-		ParcelLongestMM: parseSafetyStock(r.PostFormValue("parcel_longest")),
-		ParcelSumMM:     parseSafetyStock(r.PostFormValue("parcel_sum")),
-		ParcelWeightG:   parseSafetyStock(r.PostFormValue("parcel_weight")),
-		// One select per option, all named option_value; PostForm holds them in
-		// the order the page rendered the axes.
-		OptionValues: r.PostForm["option_value"],
+	f, draft, errs := variantFormOf(r)
+	maps.Copy(errs, f.Validate(r.Context()))
+	if len(errs) > 0 {
+		h.editProductWithErrors(w, r, slug, errs, draft)
+		return
 	}
 	errs, err := h.store.AddVariant(r.Context(), slug, f)
 	switch {
@@ -157,28 +161,77 @@ func (h *Handler) AddVariant(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "add variant", "error", err)
 		h.serverError(w, r)
 	case len(errs) > 0:
-		h.editProductWithErrors(w, r, slug, errs)
+		h.editProductWithErrors(w, r, slug, errs, draft)
 	default:
 		//nolint:gosec // G710: validated by the route's own slug
 		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
 	}
 }
 
-// productFormOf reads the product form off a request.
-func productFormOf(r *http.Request) *ProductForm {
-	return &ProductForm{
-		Slug:           r.PostFormValue("slug"),
-		Name:           r.PostFormValue("name"),
-		Summary:        r.PostFormValue("summary"),
-		Description:    r.PostFormValue("description"),
-		NameEn:         r.PostFormValue("name_en"),
-		SummaryEn:      r.PostFormValue("summary_en"),
-		DescriptionEn:  r.PostFormValue("description_en"),
-		WarrantyNote:   r.PostFormValue("warranty"),
-		WarrantyMonths: parseSafetyStock(r.PostFormValue("warranty_months")),
-		BrandID:        r.PostFormValue("brand"),
-		CategoryID:     r.PostFormValue("category"),
+// variantFormOf parses the variant while retaining every submitted value.
+func variantFormOf(r *http.Request) (*VariantForm, pages.AdminVariantDraft, map[string]string) {
+	draft := pages.AdminVariantDraft{
+		SKU: r.PostFormValue("sku"), Price: r.PostFormValue("price"),
+		Compare: r.PostFormValue("compare"), Safety: r.PostFormValue("safety"),
+		ParcelLongest: r.PostFormValue("parcel_longest"),
+		ParcelSum:     r.PostFormValue("parcel_sum"),
+		ParcelWeight:  r.PostFormValue("parcel_weight"),
 	}
+	errs := map[string]string{}
+	safety := parseVariantCount(draft.Safety, safetyStockCeiling,
+		"safety", i18n.T(r.Context(), i18n.KeyFormSafetyStock), errs)
+	longest := parseVariantCount(draft.ParcelLongest, parcelLongestCeilingMM,
+		"parcel_longest", fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormParcelMeasurement), parcelLongestCeilingMM), errs)
+	sum := parseVariantCount(draft.ParcelSum, parcelSumCeilingMM,
+		"parcel_sum", fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormParcelMeasurement), parcelSumCeilingMM), errs)
+	weight := parseVariantCount(draft.ParcelWeight, parcelWeightCeilingG,
+		"parcel_weight", fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormParcelMeasurement), parcelWeightCeilingG), errs)
+	return &VariantForm{
+		SKU:          r.PostFormValue("sku"),
+		PriceCents:   dollarsToCents(r.PostFormValue("price")),
+		CompareCents: dollarsToCents(r.PostFormValue("compare")),
+		SafetyStock:  safety,
+		// Zero is UNMEASURED and stores NULL, so a blank field leaves the variant
+		// refused by no shipping method rather than blocked from all of them.
+		ParcelLongestMM: longest,
+		ParcelSumMM:     sum,
+		ParcelWeightG:   weight,
+		// One select per option, all named option_value; PostForm holds them in
+		// the order the page rendered the axes.
+		OptionValues: r.PostForm["option_value"],
+	}, draft, errs
+}
+
+func parseVariantCount(raw string, ceiling int32, field, message string, errs map[string]string) int32 {
+	value, ok := parseBoundedInt(raw, ceiling)
+	if !ok {
+		errs[field] = message
+	}
+	return value
+}
+
+// productFormOf reads the product form off a request without losing a bad term.
+func productFormOf(r *http.Request) (form *ProductForm, errs map[string]string) {
+	raw := r.PostFormValue("warranty_months")
+	warranty, ok := parseBoundedInt(raw, MaxWarrantyMonths)
+	errs = map[string]string{}
+	if !ok {
+		errs["warranty_months"] = i18n.T(r.Context(), i18n.KeyFormWarrantyMonths)
+	}
+	return &ProductForm{
+		Slug:              r.PostFormValue("slug"),
+		Name:              r.PostFormValue("name"),
+		Summary:           r.PostFormValue("summary"),
+		Description:       r.PostFormValue("description"),
+		NameEn:            r.PostFormValue("name_en"),
+		SummaryEn:         r.PostFormValue("summary_en"),
+		DescriptionEn:     r.PostFormValue("description_en"),
+		WarrantyNote:      r.PostFormValue("warranty"),
+		WarrantyMonthsRaw: raw,
+		WarrantyMonths:    warranty,
+		BrandID:           r.PostFormValue("brand"),
+		CategoryID:        r.PostFormValue("category"),
+	}, errs
 }
 
 // rejectProduct re-renders the form at 422 with what was typed still in it.
@@ -197,6 +250,7 @@ func (h *Handler) rejectProduct(w http.ResponseWriter, r *http.Request, f *Produ
 	}
 	view.Slug, view.Name, view.Summary = f.Slug, f.Name, f.Summary
 	view.Description, view.WarrantyNote = f.Description, f.WarrantyNote
+	view.WarrantyMonthsRaw = f.WarrantyMonthsRaw
 	view.WarrantyMonths = f.WarrantyMonths
 	view.NameEn, view.SummaryEn = f.NameEn, f.SummaryEn
 	view.DescriptionEn = f.DescriptionEn
@@ -213,16 +267,6 @@ func dollarsToCents(s string) int64 {
 		return 0
 	}
 	return n * 100
-}
-
-// parseSafetyStock reads the safety-stock field, returning int32 directly
-// because gosec cannot see that a caller-side ceiling makes the conversion safe.
-func parseSafetyStock(s string) int32 {
-	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 32)
-	if err != nil || n < 0 || n > 1_000_000 {
-		return 0
-	}
-	return int32(n)
 }
 
 // UploadImage serves POST /admin/products/{slug}/images. Store then attach,
@@ -330,7 +374,7 @@ func (h *Handler) optionWrite(
 		h.log.WarnContext(r.Context(), "write product option", "error", err, "slug", slug)
 		h.notFound(w, r)
 	case len(errs) > 0:
-		h.editProductWithErrors(w, r, slug, errs)
+		h.editProductWithErrors(w, r, slug, errs, pages.AdminVariantDraft{})
 	default:
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
@@ -356,7 +400,7 @@ func (h *Handler) AddSpec(w http.ResponseWriter, r *http.Request) {
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/products/"+slug+"?specfailed=1", http.StatusSeeOther)
 	case len(errs) > 0:
-		h.editProductWithErrors(w, r, slug, errs)
+		h.editProductWithErrors(w, r, slug, errs, pages.AdminVariantDraft{})
 	default:
 		//nolint:gosec // G710: slug is the route's own path value
 		http.Redirect(w, r, "/admin/products/"+slug+"?ok=1", http.StatusSeeOther)
@@ -379,7 +423,7 @@ func (h *Handler) RemoveSpec(w http.ResponseWriter, r *http.Request) {
 
 // editProductWithErrors re-renders the edit page at 422 with the refusals on it.
 func (h *Handler) editProductWithErrors(
-	w http.ResponseWriter, r *http.Request, slug string, errs map[string]string,
+	w http.ResponseWriter, r *http.Request, slug string, errs map[string]string, draft pages.AdminVariantDraft,
 ) {
 	view, err := h.store.Product(r.Context(), slug)
 	if err != nil {
@@ -392,6 +436,7 @@ func (h *Handler) editProductWithErrors(
 		return
 	}
 	view.Errors = errs
+	view.VariantDraft = draft
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminProductForm(
 		layouts.Page{Title: view.Title(r.Context())}, view))
 }

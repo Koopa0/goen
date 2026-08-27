@@ -20,10 +20,11 @@ type AdminShippingView struct {
 
 // AdminMethodDraft carries a refused method form's values back.
 type AdminMethodDraft struct {
-	Code, Destination  string
-	Name, NameEn       string
-	Carrier, CarrierEn string
-	Fee, FreeOver      string
+	Code, Destination             string
+	Name, NameEn                  string
+	Carrier, CarrierEn            string
+	Fee, FreeOver                 string
+	MaxLongest, MaxSum, MaxWeight string
 }
 
 // AdminZoneDraft carries a refused zone form's values back.

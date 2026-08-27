@@ -156,15 +156,57 @@ templ AdminShipping(p layouts.Page, v AdminShippingView) {
 						<div class="ui-field">
 							<label class="ui-label" for="m-max-longest">{ i18n.T(ctx, i18n.KeyAdminShipMaxLongest) }</label>
 							// Blank is no stated limit; store pickup is 450mm / 1050mm / 10000g (Hi-Life 5000g).
-							<input class="ui-input" id="m-max-longest" name="max_parcel_longest" type="number" min="0" step="1" inputmode="numeric"/>
+							<input
+								class="ui-input"
+								id="m-max-longest"
+								name="max_parcel_longest"
+								type="text"
+								inputmode="numeric"
+								value={ v.MethodDraft.MaxLongest }
+								if v.HasErr("max_parcel_longest") {
+									aria-invalid="true"
+									aria-describedby="m-max-longest-error"
+								}
+							/>
+							if v.HasErr("max_parcel_longest") {
+								<p class="ui-error-text" id="m-max-longest-error">{ v.Err("max_parcel_longest") }</p>
+							}
 						</div>
 						<div class="ui-field">
 							<label class="ui-label" for="m-max-sum">{ i18n.T(ctx, i18n.KeyAdminShipMaxSum) }</label>
-							<input class="ui-input" id="m-max-sum" name="max_parcel_sum" type="number" min="0" step="1" inputmode="numeric"/>
+							<input
+								class="ui-input"
+								id="m-max-sum"
+								name="max_parcel_sum"
+								type="text"
+								inputmode="numeric"
+								value={ v.MethodDraft.MaxSum }
+								if v.HasErr("max_parcel_sum") {
+									aria-invalid="true"
+									aria-describedby="m-max-sum-error"
+								}
+							/>
+							if v.HasErr("max_parcel_sum") {
+								<p class="ui-error-text" id="m-max-sum-error">{ v.Err("max_parcel_sum") }</p>
+							}
 						</div>
 						<div class="ui-field">
 							<label class="ui-label" for="m-max-weight">{ i18n.T(ctx, i18n.KeyAdminShipMaxWeight) }</label>
-							<input class="ui-input" id="m-max-weight" name="max_parcel_weight" type="number" min="0" step="1" inputmode="numeric"/>
+							<input
+								class="ui-input"
+								id="m-max-weight"
+								name="max_parcel_weight"
+								type="text"
+								inputmode="numeric"
+								value={ v.MethodDraft.MaxWeight }
+								if v.HasErr("max_parcel_weight") {
+									aria-invalid="true"
+									aria-describedby="m-max-weight-error"
+								}
+							/>
+							if v.HasErr("max_parcel_weight") {
+								<p class="ui-error-text" id="m-max-weight-error">{ v.Err("max_parcel_weight") }</p>
+							}
 							<p class="goen-admin__hint">
 								{ i18n.T(ctx, i18n.KeyAdminShipLimitsHint) }
 							</p>

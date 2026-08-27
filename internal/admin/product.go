@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
@@ -41,6 +40,8 @@ type ProductForm struct {
 	SummaryEn     string
 	DescriptionEn string
 	WarrantyNote  string
+	// WarrantyMonthsRaw survives a refused parse so the form can show the exact input.
+	WarrantyMonthsRaw string
 	// WarrantyMonths is 0 when no term is stated; the query stores that as NULL.
 	WarrantyMonths int32
 	BrandID        string
@@ -251,11 +252,13 @@ func (s *Store) CreateProduct(ctx context.Context, f *ProductForm) (slug string,
 			return createErr
 		})
 	if err != nil {
-		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
-			pgErr.ConstraintName == "products_slug_key" {
+		if takenBy(err, "products_slug_key") {
 			return "", map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenProduct)}, nil
 		}
-		return "", nil, fmt.Errorf("%w: %w", ErrRefused, err)
+		if takenBy(err, "products_warranty_months_sane") {
+			return "", map[string]string{"warranty_months": i18n.T(ctx, i18n.KeyFormWarrantyMonths)}, nil
+		}
+		return "", nil, fmt.Errorf("create product: %w", err)
 	}
 	return slug, nil, nil
 }
@@ -273,7 +276,10 @@ func (s *Store) UpdateProduct(ctx context.Context, f *ProductForm) (map[string]s
 		NameEn: f.NameEn, SummaryEn: f.SummaryEn, DescriptionEn: f.DescriptionEn,
 		WarrantyMonths: f.WarrantyMonths,
 	}); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
+		if takenBy(err, "products_warranty_months_sane") {
+			return map[string]string{"warranty_months": i18n.T(ctx, i18n.KeyFormWarrantyMonths)}, nil
+		}
+		return nil, fmt.Errorf("update product %s: %w", f.Slug, err)
 	}
 	return nil, nil
 }

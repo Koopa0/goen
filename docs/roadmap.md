@@ -167,6 +167,20 @@ local zone。Container 若跑 UTC，台北店家看到的時間會整體差八�
 
 最後對帳:2026-08-25。
 
+### A14. 別讓其他後台 parser 再把錯字當成「沒有」
+
+`parseBoundedInt` 已把保固月數、商品包裹測量、安全庫存和配送方式上限改成
+可以分清留空、填 0 和無法讀取的輸入。相同形狀還留在五個具名位置:
+`product_handler.go:dollarsToCents` 會把錯誤的 `compare` 當成沒有原價;
+`handler.go:whole` 會把 coupon `cap` / `min` 當成無上限或無門檻;
+`handler.go:small` 會把 coupon `max` / `days` 當成不限次數或永不過期;
+`shipping_handler.go:dollars` 會把錯誤運費當成 0;
+`internal/warranty/handler.go` 裡的 `unit` parse 會把無法讀取的單位數當成 0。
+修正時每一道 POST 都要在 Store 之前拒絕、保留原文、呈現 `422` 和完整 ARIA,
+不能只換 parser 的回傳型別。
+
+最後對帳:2026-08-27。
+
 ## B. 蓋了會更好,但要等一個數字
 
 這兩條**不是缺陷,是門檻沒到**。決策文件裡有量測,不是猜的。

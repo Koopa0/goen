@@ -209,6 +209,20 @@ func (m *NewMethod) Validate(ctx context.Context) map[string]string {
 	if m.FreeOverDollars < 0 {
 		errs["free_over"] = i18n.T(ctx, i18n.KeyFormMethodFreeOver)
 	}
+	// Method limits reuse the parcel reachability ceilings: larger figures can
+	// never match a valid measured parcel and are therefore input mistakes.
+	if m.MaxParcelLongestMM < 0 || m.MaxParcelLongestMM > parcelLongestCeilingMM {
+		errs["max_parcel_longest"] = fmt.Sprintf(
+			i18n.T(ctx, i18n.KeyFormMethodParcelLimit), parcelLongestCeilingMM)
+	}
+	if m.MaxParcelSumMM < 0 || m.MaxParcelSumMM > parcelSumCeilingMM {
+		errs["max_parcel_sum"] = fmt.Sprintf(
+			i18n.T(ctx, i18n.KeyFormMethodParcelLimit), parcelSumCeilingMM)
+	}
+	if m.MaxParcelWeightG < 0 || m.MaxParcelWeightG > parcelWeightCeilingG {
+		errs["max_parcel_weight"] = fmt.Sprintf(
+			i18n.T(ctx, i18n.KeyFormMethodParcelLimit), parcelWeightCeilingG)
+	}
 	return errs
 }
 
@@ -219,7 +233,14 @@ func (s *Store) CreateMethod(ctx context.Context, m *NewMethod) (map[string]stri
 	if errs := m.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
-	if err := s.audited(ctx, Event{
+	if err := s.insertMethod(ctx, m); err != nil {
+		return methodWriteError(ctx, err)
+	}
+	return nil, nil
+}
+
+func (s *Store) insertMethod(ctx context.Context, m *NewMethod) error {
+	return s.audited(ctx, Event{
 		Action: ActionCreateShippingMethod, Table: "shipping_methods",
 		After: map[string]any{
 			"code": m.Code, "destination_kind": m.Destination,
@@ -244,13 +265,26 @@ func (s *Store) CreateMethod(ctx context.Context, m *NewMethod) (map[string]stri
 			return verErr
 		}
 		return nil
-	}); err != nil {
-		if takenBy(err, "shipping_methods_code_key") {
-			return map[string]string{"code": i18n.T(ctx, i18n.KeyFormMethodCodeTaken)}, nil
-		}
-		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
+	})
+}
+
+func methodWriteError(ctx context.Context, err error) (map[string]string, error) {
+	if takenBy(err, "shipping_methods_code_key") {
+		return map[string]string{"code": i18n.T(ctx, i18n.KeyFormMethodCodeTaken)}, nil
 	}
-	return nil, nil
+	if takenBy(err, "shipping_methods_max_longest_positive") {
+		return map[string]string{"max_parcel_longest": fmt.Sprintf(
+			i18n.T(ctx, i18n.KeyFormMethodParcelLimit), parcelLongestCeilingMM)}, nil
+	}
+	if takenBy(err, "shipping_methods_max_sum_positive") {
+		return map[string]string{"max_parcel_sum": fmt.Sprintf(
+			i18n.T(ctx, i18n.KeyFormMethodParcelLimit), parcelSumCeilingMM)}, nil
+	}
+	if takenBy(err, "shipping_methods_max_weight_positive") {
+		return map[string]string{"max_parcel_weight": fmt.Sprintf(
+			i18n.T(ctx, i18n.KeyFormMethodParcelLimit), parcelWeightCeilingG)}, nil
+	}
+	return nil, fmt.Errorf("create shipping method: %w", err)
 }
 
 // SetMethodActive switches a method on or off.

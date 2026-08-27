@@ -155,6 +155,21 @@ func ParsePrice(s string) (int64, bool) {
 	return n * 100, true
 }
 
+// parseBoundedInt reads a non-negative whole number whose blank and zero forms
+// both mean zero. The boolean keeps unreadable and out-of-range input distinct
+// from that valid zero until the handler can render a field refusal.
+func parseBoundedInt(s string, ceiling int32) (int32, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, true
+	}
+	n, err := strconv.ParseInt(s, 10, 32)
+	if err != nil || n < 0 || n > int64(ceiling) {
+		return 0, false
+	}
+	return int32(n), true
+}
+
 // ReturnStatusLabel is a return request's state in the chrome language. The
 // states are return_requests_status_known's CHECK.
 func ReturnStatusLabel(ctx context.Context, s string) string {

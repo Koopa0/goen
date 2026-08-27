@@ -3,7 +3,6 @@ package pages
 import (
 	"context"
 	"fmt"
-
 	"strconv"
 	"strings"
 
@@ -88,29 +87,38 @@ func (v AdminProductVariant) StockText(ctx context.Context) string {
 
 // AdminProductView is the create-or-edit form.
 type AdminProductView struct {
-	IsNew          bool
-	Slug           string
-	Name           string
-	Summary        string
-	Description    string
-	NameEn         string
-	SummaryEn      string
-	DescriptionEn  string
-	WarrantyNote   string
-	WarrantyMonths int32
-	Status         string
-	StatusText     string
-	BrandID        string
-	CategoryID     string
-	Images         []AdminImage
-	Library        []AdminImage
-	Brands         []AdminChoice
-	Categories     []AdminChoice
-	Variants       []AdminProductVariant
-	Options        []AdminOption
-	Specs          []AdminSpec
-	Errors         map[string]string
-	Notice         string
+	IsNew             bool
+	Slug              string
+	Name              string
+	Summary           string
+	Description       string
+	NameEn            string
+	SummaryEn         string
+	DescriptionEn     string
+	WarrantyNote      string
+	WarrantyMonthsRaw string
+	WarrantyMonths    int32
+	Status            string
+	StatusText        string
+	BrandID           string
+	CategoryID        string
+	Images            []AdminImage
+	Library           []AdminImage
+	Brands            []AdminChoice
+	Categories        []AdminChoice
+	Variants          []AdminProductVariant
+	Options           []AdminOption
+	Specs             []AdminSpec
+	Errors            map[string]string
+	Notice            string
+	VariantDraft      AdminVariantDraft
+}
+
+// AdminVariantDraft carries a refused variant form's exact text back.
+type AdminVariantDraft struct {
+	SKU, Price, Compare              string
+	Safety, ParcelLongest, ParcelSum string
+	ParcelWeight                     string
 }
 
 // AdminOption is one axis of a product's variants.
@@ -149,8 +157,11 @@ type AdminSpec struct {
 // Translated reports whether this row reads in English, which the label decides.
 func (s AdminSpec) Translated() bool { return s.LabelEn != "" }
 
-// WarrantyMonthsText is the form's number field, empty when unstated — 0 claims no cover.
+// WarrantyMonthsText is the form's numeric text, empty when unstated — 0 claims no cover.
 func (v *AdminProductView) WarrantyMonthsText() string {
+	if v.WarrantyMonthsRaw != "" {
+		return v.WarrantyMonthsRaw
+	}
 	if v.WarrantyMonths <= 0 {
 		return ""
 	}

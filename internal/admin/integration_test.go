@@ -5796,6 +5796,77 @@ func TestTwoFAQEntriesInOneCategoryDoNotCollide(t *testing.T) {
 	}
 }
 
+func TestAMethodParcelLimitRefusalKeepsTheRawText(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	h := adminHandlerOver(pool, s)
+
+	tests := []struct {
+		name  string
+		field string
+		id    string
+		raw   string
+	}{
+		{name: "longest side", field: "max_parcel_longest", id: "m-max-longest", raw: "5001"},
+		{name: "three-side sum", field: "max_parcel_sum", id: "m-max-sum", raw: "15001"},
+		{name: "weight", field: "max_parcel_weight", id: "m-max-weight", raw: "200001"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			code := "limit_" + uuid.NewString()[:8]
+			form := url.Values{
+				"code":               {code},
+				"destination":        {"pickup_point"},
+				"max_parcel_longest": {"450"},
+				"max_parcel_sum":     {"1050"},
+				"max_parcel_weight":  {"10000"},
+				"name":               {"拒絕上限測試"},
+				"carrier":            {"測試承運人"},
+				"fee":                {"60"},
+				"free_over":          {"1000"},
+			}
+			form.Set(tt.field, tt.raw)
+			req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+				"/admin/shipping/method", strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			res := httptest.NewRecorder()
+			h.CreateShippingMethod(res, req)
+
+			if res.Code != http.StatusUnprocessableEntity {
+				t.Errorf("CreateShippingMethod(%s=%q) status = %d, want 422",
+					tt.field, tt.raw, res.Code)
+			} else {
+				body := res.Body.String()
+				assertRefusedInput(t, body, tt.id, tt.raw)
+				for id, field := range map[string]string{
+					"m-max-longest": "max_parcel_longest",
+					"m-max-sum":     "max_parcel_sum",
+					"m-max-weight":  "max_parcel_weight",
+				} {
+					assertTextNumberControl(t, body, id)
+					if got := inputAttribute(t, inputElementByID(t, body, id), "value"); got != form.Get(field) {
+						t.Errorf("input %q value = %q, want submitted %q", id, got, form.Get(field))
+					}
+				}
+			}
+
+			var methodID uuid.NullUUID
+			if err := pool.QueryRow(ctx,
+				`SELECT id FROM shipping_methods WHERE code = $1`, code).Scan(&methodID); err != nil &&
+				!errors.Is(err, pgx.ErrNoRows) {
+				t.Fatalf("read refused method: %v", err)
+			}
+			if methodID.Valid {
+				t.Errorf("CreateShippingMethod(%s=%q) inserted method %s",
+					tt.field, tt.raw, methodID.UUID)
+				if err := s.SetMethodActive(ctx, methodID.UUID.String(), false); err != nil {
+					t.Fatalf("deactivate unexpectedly inserted method: %v", err)
+				}
+			}
+		})
+	}
+}
+
 func TestAShopCanOfferAThirdDeliveryMethod(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -6358,6 +6429,54 @@ func inputAttribute(t *testing.T, input, name string) string {
 	return html.UnescapeString(match[1])
 }
 
+func assertRefusedInput(t *testing.T, body, id, raw string) {
+	t.Helper()
+	input := inputElementByID(t, body, id)
+	if got := inputAttribute(t, input, "value"); got != raw {
+		t.Errorf("input %q value = %q, want raw %q", id, got, raw)
+	}
+	if got := inputAttribute(t, input, "aria-invalid"); got != "true" {
+		t.Errorf("input %q aria-invalid = %q, want true", id, got)
+	}
+	errorID := id + "-error"
+	if got := inputAttribute(t, input, "aria-describedby"); got != errorID {
+		t.Errorf("input %q aria-describedby = %q, want %q", id, got, errorID)
+	}
+	if !regexp.MustCompile(`<p[^>]*id="` + regexp.QuoteMeta(errorID) + `"[^>]*>[^<]+</p>`).
+		MatchString(body) {
+		t.Errorf("input %q has no nonempty error element %q", id, errorID)
+	}
+}
+
+func assertTextNumberControl(t *testing.T, body, id string) {
+	t.Helper()
+	input := inputElementByID(t, body, id)
+	if got := inputAttribute(t, input, "type"); got != "text" {
+		t.Errorf("input %q type = %q, want text", id, got)
+	}
+	if got := inputAttribute(t, input, "inputmode"); got != "numeric" {
+		t.Errorf("input %q inputmode = %q, want numeric", id, got)
+	}
+	for _, attribute := range []string{"min", "max", "step"} {
+		if got := inputAttribute(t, input, attribute); got != "" {
+			t.Errorf("input %q retains ineffective %s=%q", id, attribute, got)
+		}
+	}
+}
+
+func postVariantForm(
+	t *testing.T, h *admin.Handler, ctx context.Context, slug string, form url.Values,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		"/admin/products/"+slug+"/variants", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("slug", slug)
+	res := httptest.NewRecorder()
+	h.AddVariant(res, req)
+	return res
+}
+
 func namedAdminPool(t *testing.T, applicationName string) *pgxpool.Pool {
 	t.Helper()
 	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
@@ -6588,6 +6707,300 @@ func TestTheOrderPageShowsTheInvoiceChoice(t *testing.T) {
 	}
 	if plain.HasInvoice() {
 		t.Error("an order with no preference reports one")
+	}
+}
+
+func TestAMistypedWarrantyTermIsRefusedNotDropped(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	slug := draftProduct(t, ctx, s)
+	view, err := s.Product(ctx, slug)
+	if err != nil {
+		t.Fatalf("Product: %v", err)
+	}
+	if errs, updateErr := s.UpdateProduct(ctx, &admin.ProductForm{
+		Slug: slug, Name: view.Name, Summary: view.Summary, Description: view.Description,
+		BrandID: view.BrandID, CategoryID: view.CategoryID, WarrantyMonths: 24,
+	}); updateErr != nil || len(errs) > 0 {
+		t.Fatalf("seed warranty term: %v %v", updateErr, errs)
+	}
+
+	form := url.Values{
+		"name":            {view.Name},
+		"summary":         {view.Summary},
+		"description":     {view.Description},
+		"brand":           {view.BrandID},
+		"category":        {view.CategoryID},
+		"warranty_months": {"12o"},
+	}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		"/admin/products/"+slug, strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("slug", slug)
+	res := httptest.NewRecorder()
+	adminHandlerOver(pool, s).UpdateProduct(res, req)
+	if res.Code != http.StatusUnprocessableEntity {
+		t.Errorf("UpdateProduct(warranty_months=%q) status = %d, want 422", "12o", res.Code)
+	} else {
+		body := res.Body.String()
+		assertRefusedInput(t, body, "p-warranty-months", "12o")
+		assertTextNumberControl(t, body, "p-warranty-months")
+	}
+
+	var months *int32
+	if err := pool.QueryRow(ctx,
+		`SELECT warranty_months FROM products WHERE slug = $1`, slug).Scan(&months); err != nil {
+		t.Fatalf("read warranty after refusal: %v", err)
+	}
+	if months == nil || *months != 24 {
+		got := "NULL"
+		if months != nil {
+			got = strconv.FormatInt(int64(*months), 10)
+		}
+		t.Errorf("warranty_months after mistyped edit = %s, want 24", got)
+	}
+}
+
+func TestParseProtectedWritesDoNotCallInfrastructureARefusal(t *testing.T) {
+	ctx, _ := staffContext(t)
+	p := namedAdminPool(t, "parse_closed_"+uuid.NewString()[:8])
+	p.Close()
+	s := admin.NewStore(p, fakeRefunder{}, nil)
+
+	writes := []struct {
+		name  string
+		write func() (map[string]string, error)
+	}{
+		{name: "create product", write: func() (map[string]string, error) {
+			_, errs, err := s.CreateProduct(ctx, &admin.ProductForm{
+				Slug: "closed-product", Name: "Closed", BrandID: uuid.NewString(), CategoryID: uuid.NewString(),
+			})
+			return errs, err
+		}},
+		{name: "update product", write: func() (map[string]string, error) {
+			return s.UpdateProduct(ctx, &admin.ProductForm{
+				Slug: "closed-product", Name: "Closed", BrandID: uuid.NewString(), CategoryID: uuid.NewString(),
+			})
+		}},
+		{name: "add variant", write: func() (map[string]string, error) {
+			return s.AddVariant(ctx, "closed-product", &admin.VariantForm{SKU: "CLOSED", PriceCents: 100})
+		}},
+		{name: "create method", write: func() (map[string]string, error) {
+			return s.CreateMethod(ctx, &admin.NewMethod{
+				Code: "closed_method", Destination: "address", Name: "Closed",
+			})
+		}},
+	}
+	for _, tt := range writes {
+		t.Run(tt.name, func(t *testing.T) {
+			errs, err := tt.write()
+			if err == nil || errors.Is(err, admin.ErrRefused) || errors.Is(err, admin.ErrNotFound) {
+				t.Errorf("write error category = %v, want infrastructure only", err)
+			}
+			if len(errs) != 0 {
+				t.Errorf("write field errors = %v, want none for infrastructure", errs)
+			}
+		})
+	}
+}
+
+func TestAMistypedParcelDimensionDoesNotBecomeUnmeasured(t *testing.T) {
+	ctx, actor := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	h := adminHandlerOver(pool, s)
+	slug := draftProduct(t, ctx, s)
+	defer func() {
+		if err := s.SetProductStatus(context.WithoutCancel(ctx), slug, "archived"); err != nil {
+			t.Errorf("archive parcel fixture: %v", err)
+		}
+	}()
+
+	tests := []struct {
+		name  string
+		field string
+		id    string
+		raw   string
+	}{
+		{name: "safety stock", field: "safety", id: "v-safety", raw: "1000001"},
+		{name: "longest side", field: "parcel_longest", id: "v-longest", raw: "5001"},
+		{name: "three-side sum", field: "parcel_sum", id: "v-sum", raw: "15001"},
+		{name: "weight typo", field: "parcel_weight", id: "v-weight", raw: "10,000"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sku := "PARSE-" + strings.ToUpper(uuid.NewString()[:8])
+			form := url.Values{
+				"sku":            {sku},
+				"price":          {"1000"},
+				"compare":        {""},
+				"safety":         {"0"},
+				"parcel_longest": {"450"},
+				"parcel_sum":     {"1050"},
+				"parcel_weight":  {"500"},
+			}
+			form.Set(tt.field, tt.raw)
+			res := postVariantForm(t, h, ctx, slug, form)
+			if res.Code != http.StatusUnprocessableEntity {
+				t.Errorf("AddVariant(%s=%q) status = %d, want 422", tt.field, tt.raw, res.Code)
+			} else {
+				body := res.Body.String()
+				assertRefusedInput(t, body, tt.id, tt.raw)
+				for id, field := range map[string]string{
+					"v-sku": "sku", "v-price": "price", "v-compare": "compare",
+					"v-safety": "safety", "v-longest": "parcel_longest",
+					"v-sum": "parcel_sum", "v-weight": "parcel_weight",
+				} {
+					if got := inputAttribute(t, inputElementByID(t, body, id), "value"); got != form.Get(field) {
+						t.Errorf("input %q value = %q, want submitted %q", id, got, form.Get(field))
+					}
+				}
+				for _, id := range []string{"v-safety", "v-longest", "v-sum", "v-weight"} {
+					assertTextNumberControl(t, body, id)
+				}
+			}
+			var count int
+			if err := pool.QueryRow(ctx,
+				`SELECT count(*) FROM product_variants WHERE sku = $1`, sku).Scan(&count); err != nil {
+				t.Fatalf("count refused variant: %v", err)
+			}
+			if count != 0 {
+				t.Errorf("AddVariant(%s=%q) inserted %d rows", tt.field, tt.raw, count)
+			}
+		})
+	}
+
+	measuredSKU := "MEASURED-" + strings.ToUpper(uuid.NewString()[:8])
+	measured := url.Values{
+		"sku": {measuredSKU}, "price": {"1000"}, "safety": {"0"},
+		"parcel_longest": {"450"}, "parcel_sum": {"1050"}, "parcel_weight": {"15000"},
+	}
+	if res := postVariantForm(t, h, ctx, slug, measured); res.Code != http.StatusSeeOther {
+		t.Fatalf("add measured variant status = %d, want 303", res.Code)
+	}
+	unmeasuredSKU := "UNMEASURED-" + strings.ToUpper(uuid.NewString()[:8])
+	unmeasured := url.Values{
+		"sku": {unmeasuredSKU}, "price": {"1000"}, "safety": {"0"},
+		"parcel_longest": {""}, "parcel_sum": {""}, "parcel_weight": {""},
+	}
+	if res := postVariantForm(t, h, ctx, slug, unmeasured); res.Code != http.StatusSeeOther {
+		t.Fatalf("add unmeasured variant status = %d, want 303", res.Code)
+	}
+
+	variantIDs := make(map[string]uuid.UUID, 2)
+	rows, err := pool.Query(ctx, `
+		SELECT sku, id FROM product_variants WHERE sku = ANY($1::text[])
+		ORDER BY sku`, []string{measuredSKU, unmeasuredSKU})
+	if err != nil {
+		t.Fatalf("read parcel variants: %v", err)
+	}
+	for rows.Next() {
+		var sku string
+		var id uuid.UUID
+		if err := rows.Scan(&sku, &id); err != nil {
+			t.Fatalf("scan parcel variant: %v", err)
+		}
+		variantIDs[sku] = id
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate parcel variants: %v", err)
+	}
+	rows.Close()
+	if len(variantIDs) != 2 {
+		t.Fatalf("read %d parcel variants, want 2", len(variantIDs))
+	}
+	for _, sku := range []string{measuredSKU, unmeasuredSKU} {
+		if err := s.ReceiveStock(ctx, sku, 2, actor.String(), "parse-stock-"+uuid.NewString()); err != nil {
+			t.Fatalf("stock %s: %v", sku, err)
+		}
+	}
+	if err := s.SetProductStatus(ctx, slug, "active"); err != nil {
+		t.Fatalf("publish parcel product: %v", err)
+	}
+
+	methodCode := "parse_pickup_" + uuid.NewString()[:8]
+	if errs, err := s.CreateMethod(ctx, &admin.NewMethod{
+		Code: methodCode, Destination: "pickup_point", Name: "量測超取",
+		Carrier: "測試承運人", MaxParcelWeightG: 10000,
+	}); err != nil || len(errs) > 0 {
+		t.Fatalf("CreateMethod: %v %v", err, errs)
+	}
+	var methodID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM shipping_methods WHERE code = $1`, methodCode).Scan(&methodID); err != nil {
+		t.Fatalf("read parcel method: %v", err)
+	}
+	defer func() {
+		if err := s.SetMethodActive(context.WithoutCancel(ctx), methodID.String(), false); err != nil {
+			t.Errorf("deactivate parcel method: %v", err)
+		}
+	}()
+
+	basket := cart.NewStore(pool)
+	for _, tt := range []struct {
+		name    string
+		sku     string
+		offered bool
+	}{
+		{name: "measured oversized parcel", sku: measuredSKU, offered: false},
+		{name: "unmeasured parcel", sku: unmeasuredSKU, offered: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cartID, err := basket.Create(ctx, uuid.NewString(), uuid.NullUUID{})
+			if err != nil {
+				t.Fatalf("create cart: %v", err)
+			}
+			if addErr := basket.Add(ctx, cartID, variantIDs[tt.sku], 1); addErr != nil {
+				t.Fatalf("add %s to cart: %v", tt.sku, addErr)
+			}
+			choices, err := basket.ShippingChoices(ctx, cartID, 100000)
+			if err != nil {
+				t.Fatalf("ShippingChoices: %v", err)
+			}
+			codes := make([]string, 0, len(choices))
+			for i := range choices {
+				codes = append(codes, choices[i].Code)
+			}
+			if got := slices.Contains(codes, methodCode); got != tt.offered {
+				t.Errorf("ShippingChoices(%s) offered %q = %v, want %v; choices=%v",
+					tt.sku, methodCode, got, tt.offered, codes)
+			}
+		})
+	}
+}
+
+func TestAParcelSumCannotBeShorterThanItsLongestSide(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	slug := draftProduct(t, ctx, s)
+	sku := "SHORT-SUM-" + strings.ToUpper(uuid.NewString()[:8])
+	form := url.Values{
+		"sku": {sku}, "price": {"1000"}, "safety": {"0"},
+		"parcel_longest": {"500"}, "parcel_sum": {"499"}, "parcel_weight": {"1000"},
+	}
+	res := postVariantForm(t, adminHandlerOver(pool, s), ctx, slug, form)
+	if res.Code != http.StatusUnprocessableEntity {
+		t.Errorf("AddVariant(parcel_sum < parcel_longest) status = %d, want 422", res.Code)
+	} else {
+		assertRefusedInput(t, res.Body.String(), "v-sum", "499")
+	}
+	var count int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM product_variants WHERE sku = $1`, sku).Scan(&count); err != nil {
+		t.Fatalf("count short-sum variant: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("AddVariant(parcel_sum < parcel_longest) inserted %d rows", count)
+	}
+
+	_, err := pool.Exec(ctx, `
+		INSERT INTO product_variants
+			(product_id, sku, price_cents, safety_stock, parcel_longest_mm, parcel_sum_mm)
+		SELECT id, $2, 100000, 0, 500, 499 FROM products WHERE slug = $1`,
+		slug, "DIRECT-SHORT-"+strings.ToUpper(uuid.NewString()[:8]))
+	if pgErr, ok := errors.AsType[*pgconn.PgError](err); !ok ||
+		pgErr.ConstraintName != "product_variants_parcel_sum_covers_longest" {
+		t.Errorf("direct short parcel sum error = %v, want constraint %q", err,
+			"product_variants_parcel_sum_covers_longest")
 	}
 }
 
