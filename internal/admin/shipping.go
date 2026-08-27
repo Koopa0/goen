@@ -41,6 +41,9 @@ func (s *Store) Shipping(ctx context.Context) (pages.AdminShippingView, error) {
 			MethodID: m.MethodID.String(), VersionID: m.VersionID.String(),
 			Code: m.Code, Destination: m.DestinationKind, Name: m.Name,
 			Carrier: m.Carrier.String, FeeCents: m.FeeCents,
+			// Publishing INSERTs a complete append-only version. Carry these
+			// values through the form or the next version loses them permanently.
+			NameEn: m.NameEn, CarrierEn: m.CarrierEn,
 			FreeOverCents: m.FreeOverCents.Int64,
 			EffectiveAt:   m.EffectiveAt.Format("2006-01-02"),
 			VersionCount:  m.VersionCount, Active: m.IsActive,
@@ -102,7 +105,7 @@ func (s *Store) PublishShippingVersion(ctx context.Context, v ShippingVersion) e
 		Before: nil,
 		After: map[string]any{
 			"method_id": v.MethodID, "name": name, "carrier": carrier,
-			"name_en":   nameEn,
+			"name_en": nameEn, "carrier_en": carrierEn,
 			"fee_cents": feeDollars * 100, "free_over_cents": freeOverDollars * 100,
 		},
 	},

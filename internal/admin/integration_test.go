@@ -3552,6 +3552,145 @@ func TestPublishingAVersionCarriesItsZoneSurcharges(t *testing.T) {
 	}
 }
 
+func TestPublishingAVersionKeepsItsEnglishName(t *testing.T) {
+	ctx, actor := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	code := "english_roundtrip_" + uuid.NewString()[:8]
+
+	// This test owns both rows. Deleting this fixture must make the view lookup
+	// below fail loudly rather than attach the assertion to a seed method.
+	var methodID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		WITH method AS (
+			INSERT INTO shipping_methods (code, destination_kind, is_active)
+			VALUES ($1, 'address', false) RETURNING id
+		)
+		INSERT INTO shipping_method_versions
+			(method_id, name, carrier, name_en, carrier_en, fee_cents,
+			 free_over_cents, effective_at)
+		SELECT id, '宅配到府', '黑貓宅急便', 'Home delivery', 'T-Cat', 8000,
+		       300000, now() - interval '1 day'
+		FROM method
+		RETURNING method_id`, code).Scan(&methodID); err != nil {
+		t.Fatalf("create the method and version fixture: %v", err)
+	}
+
+	view, err := s.Shipping(ctx)
+	if err != nil {
+		t.Fatalf("read shipping methods: %v", err)
+	}
+	var method *pages.AdminShippingMethod
+	for i := range view.Methods {
+		if view.Methods[i].Code == code {
+			method = &view.Methods[i]
+			break
+		}
+	}
+	if method == nil {
+		t.Fatalf("fixture method %q is absent from the shipping view", code)
+	}
+	type translations struct {
+		Name    string
+		Carrier string
+	}
+	if diff := cmp.Diff(translations{Name: "Home delivery", Carrier: "T-Cat"},
+		translations{Name: method.NameEn, Carrier: method.CarrierEn}); diff != "" {
+		t.Fatalf("shipping view translations (-want +got):\n%s", diff)
+	}
+
+	if err := s.PublishShippingVersion(ctx, admin.ShippingVersion{
+		MethodID: method.MethodID, Name: method.Name, Carrier: method.Carrier,
+		NameEn: method.NameEn, CarrierEn: method.CarrierEn,
+		FeeDollars: 100, FreeOverDollars: 3000,
+	}); err != nil {
+		t.Fatalf("publish the untouched form: %v", err)
+	}
+
+	var got struct {
+		Name      string
+		NameEn    *string
+		Carrier   string
+		CarrierEn *string
+		FeeCents  int64
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT name, name_en, coalesce(carrier, ''), carrier_en, fee_cents
+		FROM shipping_method_versions
+		WHERE method_id = $1
+		ORDER BY effective_at DESC, id DESC LIMIT 1`, methodID).
+		Scan(&got.Name, &got.NameEn, &got.Carrier, &got.CarrierEn, &got.FeeCents); err != nil {
+		t.Fatalf("read the published version: %v", err)
+	}
+	wantNameEn, wantCarrierEn := "Home delivery", "T-Cat"
+	want := struct {
+		Name      string
+		NameEn    *string
+		Carrier   string
+		CarrierEn *string
+		FeeCents  int64
+	}{
+		Name: "宅配到府", NameEn: &wantNameEn,
+		Carrier: "黑貓宅急便", CarrierEn: &wantCarrierEn, FeeCents: 10000,
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("raw published version (-want +got):\n%s", diff)
+	}
+
+	assertAuditTranslations := func(wantNameEn, wantCarrierEn string) {
+		t.Helper()
+		var payload []byte
+		if err := pool.QueryRow(ctx, `
+			SELECT after FROM audit_events
+			WHERE action = 'shipping.publish' AND entity_id = $1 AND actor_user_id = $2
+			ORDER BY occurred_at DESC, id DESC LIMIT 1`, methodID, actor).Scan(&payload); err != nil {
+			t.Fatalf("read the publish audit row: %v", err)
+		}
+		var after map[string]any
+		if err := json.Unmarshal(payload, &after); err != nil {
+			t.Fatalf("decode the publish audit row: %v", err)
+		}
+		for key, want := range map[string]string{
+			"name_en": wantNameEn, "carrier_en": wantCarrierEn,
+		} {
+			if got, ok := after[key]; !ok || got != want {
+				t.Errorf("audit after[%q] = %#v, present %t; want %q", key, got, ok, want)
+			}
+		}
+	}
+	assertAuditTranslations("Home delivery", "T-Cat")
+
+	if err := s.PublishShippingVersion(ctx, admin.ShippingVersion{
+		MethodID: method.MethodID, Name: method.Name, Carrier: method.Carrier,
+		NameEn: "", CarrierEn: "", FeeDollars: 101, FreeOverDollars: 3000,
+	}); err != nil {
+		t.Fatalf("publish the deliberately cleared form: %v", err)
+	}
+	var clearedNameEn, clearedCarrierEn *string
+	var clearedFee int64
+	if err := pool.QueryRow(ctx, `
+		SELECT name_en, carrier_en, fee_cents FROM shipping_method_versions
+		WHERE method_id = $1
+		ORDER BY effective_at DESC, id DESC LIMIT 1`, methodID).
+		Scan(&clearedNameEn, &clearedCarrierEn, &clearedFee); err != nil {
+		t.Fatalf("read the cleared version: %v", err)
+	}
+	if clearedNameEn != nil || clearedCarrierEn != nil {
+		var gotNameEn, gotCarrierEn any
+		if clearedNameEn != nil {
+			gotNameEn = *clearedNameEn
+		}
+		if clearedCarrierEn != nil {
+			gotCarrierEn = *clearedCarrierEn
+		}
+		t.Errorf("cleared translations = (%#v, %#v), want SQL NULLs",
+			gotNameEn, gotCarrierEn)
+	}
+	if clearedFee != 10100 {
+		t.Errorf("cleared version fee = %d, want 10100", clearedFee)
+	}
+	assertAuditTranslations("", "")
+}
+
 func TestAZeroSurchargeClearsTheRowRatherThanStoringZero(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)

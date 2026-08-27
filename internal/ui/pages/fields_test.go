@@ -24,9 +24,6 @@ func TestEveryViewModelFieldIsAssigned(t *testing.T) {
 		"AdminCreditView.Reason": "REPORTED: GrantCredit redirects instead of re-rendering, so a refused form comes back blank",
 		"AdminCreditView.Amount": "REPORTED: GrantCredit redirects instead of re-rendering, so a refused form comes back blank",
 
-		"AdminShippingMethod.NameEn":    "REPORTED: the store never fills it, so the edit form shows an empty English name",
-		"AdminShippingMethod.CarrierEn": "REPORTED: the store never fills it, so the edit form shows an empty English carrier",
-
 		"AdminCampaignView.Title":   "REPORTED: neither assigned nor rendered; the edit page heads itself with the slug",
 		"AdminCampaignView.EndsAt":  "REPORTED: neither assigned nor rendered; the edit page never states the window",
 		"AdminCampaignView.Running": "REPORTED: neither assigned nor rendered; the edit page never says whether it is live",
