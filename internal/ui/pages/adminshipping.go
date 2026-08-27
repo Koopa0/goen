@@ -15,6 +15,7 @@ type AdminShippingView struct {
 	Errors      map[string]string
 	MethodDraft AdminMethodDraft
 	ZoneDraft   AdminZoneDraft
+	PrefixDraft AdminZonePrefixesDraft
 }
 
 // AdminMethodDraft carries a refused method form's values back.
@@ -30,11 +31,25 @@ type AdminZoneDraft struct {
 	Code, Name, NameEn, Prefixes string
 }
 
+// AdminZonePrefixesDraft carries one refused replace form back to its own row.
+type AdminZonePrefixesDraft struct {
+	ZoneID   string
+	Prefixes string
+}
+
 // HasErr reports whether a field was refused.
 func (v *AdminShippingView) HasErr(f string) bool { _, ok := v.Errors[f]; return ok }
 
 // Err is why.
 func (v *AdminShippingView) Err(f string) string { return v.Errors[f] }
+
+// ZonePrefixesValue preserves the rejected text on the row that submitted it.
+func (v *AdminShippingView) ZonePrefixesValue(z AdminShippingZone) string {
+	if v.PrefixDraft.ZoneID == z.ID {
+		return v.PrefixDraft.Prefixes
+	}
+	return z.Prefixes
+}
 
 // PickupSelected reports whether the method form's draft chose a pickup point.
 func (v *AdminShippingView) PickupSelected() bool {

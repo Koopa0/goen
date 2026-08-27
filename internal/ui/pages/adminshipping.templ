@@ -262,8 +262,20 @@ templ AdminShipping(p layouts.Page, v AdminShippingView) {
 									<td class="goen-admin__prefixes">
 										<form class="goen-admin__inline" method="post" action={ templ.SafeURL("/admin/shipping/zone/" + z.ID + "/prefixes") }>
 											<label class="goen-sr-only" for={ "pre-" + z.ID }>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminShipZonePrefixes), z.Name) }</label>
-											<input class="ui-input ui-input--sm" id={ "pre-" + z.ID } name="prefixes" value={ z.Prefixes }/>
+											<input
+												class="ui-input ui-input--sm"
+												id={ "pre-" + z.ID }
+												name="prefixes"
+												value={ v.ZonePrefixesValue(z) }
+												if v.PrefixDraft.ZoneID == z.ID && v.HasErr("zone_prefixes") {
+													aria-invalid="true"
+													aria-describedby={ "pre-" + z.ID + "-error" }
+												}
+											/>
 											<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminShipSet) }</button>
+											if v.PrefixDraft.ZoneID == z.ID && v.HasErr("zone_prefixes") {
+												<p class="ui-error-text" id={ "pre-" + z.ID + "-error" }>{ v.Err("zone_prefixes") }</p>
+											}
 										</form>
 									</td>
 									<td>

@@ -43,7 +43,7 @@ func (h *Handler) CreateShippingMethod(w http.ResponseWriter, r *http.Request) {
 			Name: m.Name, NameEn: m.NameEn,
 			Carrier: m.Carrier, CarrierEn: m.CarrierEn,
 			Fee: r.PostFormValue("fee"), FreeOver: r.PostFormValue("free_over"),
-		}, pages.AdminZoneDraft{})
+		}, pages.AdminZoneDraft{}, pages.AdminZonePrefixesDraft{})
 	default:
 		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
 	}
@@ -86,7 +86,7 @@ func (h *Handler) CreateShippingZone(w http.ResponseWriter, r *http.Request) {
 	case len(errs) > 0:
 		h.rejectShippingForm(w, r, errs, pages.AdminMethodDraft{}, pages.AdminZoneDraft{
 			Code: z.Code, Name: z.Name, NameEn: z.NameEn, Prefixes: z.Prefixes,
-		})
+		}, pages.AdminZonePrefixesDraft{})
 	default:
 		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
 	}
@@ -98,14 +98,18 @@ func (h *Handler) SetZonePrefixes(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	errs, err := h.store.SetZonePrefixes(r.Context(), r.PathValue("id"),
-		r.PostFormValue("prefixes"))
+	zoneID, prefixes := r.PathValue("id"), r.PostFormValue("prefixes")
+	errs, err := h.store.SetZonePrefixes(r.Context(), zoneID, prefixes)
 	switch {
-	case err != nil:
+	case errors.Is(err, ErrNotFound):
 		h.log.WarnContext(r.Context(), "set zone prefixes", "error", err)
 		h.notFound(w, r)
+	case err != nil:
+		h.log.ErrorContext(r.Context(), "set zone prefixes", "error", err)
+		h.serverError(w, r)
 	case len(errs) > 0:
-		h.rejectShippingForm(w, r, errs, pages.AdminMethodDraft{}, pages.AdminZoneDraft{})
+		h.rejectShippingForm(w, r, errs, pages.AdminMethodDraft{}, pages.AdminZoneDraft{},
+			pages.AdminZonePrefixesDraft{ZoneID: zoneID, Prefixes: prefixes})
 	default:
 		http.Redirect(w, r, "/admin/shipping?ok=1", http.StatusSeeOther)
 	}
@@ -132,14 +136,14 @@ func (h *Handler) DeleteShippingZone(w http.ResponseWriter, r *http.Request) {
 // rejectShippingForm re-renders /admin/shipping at 422 with what was typed in it.
 func (h *Handler) rejectShippingForm(
 	w http.ResponseWriter, r *http.Request, errs map[string]string,
-	method pages.AdminMethodDraft, zone pages.AdminZoneDraft,
+	method pages.AdminMethodDraft, zone pages.AdminZoneDraft, prefixes pages.AdminZonePrefixesDraft,
 ) {
 	view, err := h.store.Shipping(r.Context())
 	if err != nil {
 		h.serverError(w, r)
 		return
 	}
-	view.Errors, view.MethodDraft, view.ZoneDraft = errs, method, zone
+	view.Errors, view.MethodDraft, view.ZoneDraft, view.PrefixDraft = errs, method, zone, prefixes
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminShipping(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }

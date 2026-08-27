@@ -5952,6 +5952,19 @@ func (q *Queries) LockCheckoutKey(ctx context.Context, idempotencyKey string) (i
 	return pg_advisory_xact_lock, err
 }
 
+const lockShippingZone = `-- name: LockShippingZone :one
+SELECT id FROM shipping_zones WHERE id = $1 FOR UPDATE
+`
+
+// Serializes whole-set edits for one zone. Without this, two forms can each
+// sweep against the other's partial work and commit a union neither submitted.
+func (q *Queries) LockShippingZone(ctx context.Context, zoneID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockShippingZone, zoneID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const managedBanners = `-- name: ManagedBanners :many
 SELECT id, message, coalesce(message_short, '') AS message_short,
        coalesce(code, '') AS code,
@@ -8734,19 +8747,21 @@ func (q *Queries) RemoveWishlistItem(ctx context.Context, arg RemoveWishlistItem
 	return err
 }
 
-const removeZonePrefix = `-- name: RemoveZonePrefix :execrows
-DELETE FROM shipping_zone_prefixes WHERE prefix = $1::text AND zone_id = $2
+const removeZonePrefixesExcept = `-- name: RemoveZonePrefixesExcept :execrows
+DELETE FROM shipping_zone_prefixes
+WHERE zone_id = $1
+  AND NOT (prefix = ANY(coalesce($2::text[], '{}'::text[])))
 `
 
-type RemoveZonePrefixParams struct {
-	Prefix string
+type RemoveZonePrefixesExceptParams struct {
 	ZoneID uuid.UUID
+	Keep   []string
 }
 
-// Scoped to the zone in the DELETE's own WHERE clause, so a stale form cannot
-// remove a prefix that has since moved elsewhere.
-func (q *Queries) RemoveZonePrefix(ctx context.Context, arg RemoveZonePrefixParams) (int64, error) {
-	result, err := q.db.Exec(ctx, removeZonePrefix, arg.Prefix, arg.ZoneID)
+// The field carries this zone's WHOLE set. Scoped by zone_id so one zone's
+// stale form cannot sweep a prefix that has since moved to another zone.
+func (q *Queries) RemoveZonePrefixesExcept(ctx context.Context, arg RemoveZonePrefixesExceptParams) (int64, error) {
+	result, err := q.db.Exec(ctx, removeZonePrefixesExcept, arg.ZoneID, arg.Keep)
 	if err != nil {
 		return 0, err
 	}

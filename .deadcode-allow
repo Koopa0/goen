@@ -1,4 +1,3 @@
-internal/admin.Store.RemoveZonePrefix # reason: setzoneprefixes-appends.md owns its wave-4 replacement with RemoveZonePrefixesExcept and the integration fixture rework
 internal/i18n.Keys # reason: called only by TestEveryKeyIsTranslatedInEveryLocale
 internal/i18n.MessageFor # reason: called only by TestEveryKeyIsTranslatedInEveryLocale and TestValidateSubjectsAreAccepted
 internal/loyalty.Days # reason: called only by four tests mirroring MembershipWindowDays and LoyaltyValidityDays across package boundaries

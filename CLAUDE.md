@@ -555,11 +555,10 @@ test files, comments, same-named receivers and a wrapper's own query call all ma
 them green without a production path.
 
 The deadcode allowlist is bidirectional and every entry carries its reason: the
-test-only `i18n.Keys`, `i18n.MessageFor` and `loyalty.Days`; the storefront answer
-seam owned by `answer-staff-flag-is-caller-supplied.md` and its queued route; and
-`admin.Store.RemoveZonePrefix`, whose replacement belongs to
-`setzoneprefixes-appends.md`. If any becomes reachable, the stale entry fails the
-gate. The gate's first run found fourteen functions. Nine were deleted. In
+test-only `i18n.Keys`, `i18n.MessageFor` and `loyalty.Days`, and the storefront
+answer seam owned by `answer-staff-flag-is-caller-supplied.md` and its queued
+route. If any becomes reachable, the stale entry fails the gate. The gate's first
+run found fourteen functions. Nine were deleted. In
 particular, `loyalty.PointsFor` and its duplicate rate disappeared because
 `award_loyalty_points` is the one tier-aware earning rule, and the unused
 `WaitingForRestock`/`HasStockNotice` read disappeared because it implemented the
@@ -1571,14 +1570,14 @@ version, so without that a shop raising 宅配 from NT$80 to NT$100 would silent
 start shipping to 金門 for NT$100 — under-charging exactly where it was already
 losing money, on a form that never mentions zones.
 
-A zone is created WITH its prefixes, because the surcharge lookup finds a zone BY
-prefix: an empty zone is a row nothing can reach and a surcharge nobody is charged.
-Assigning a prefix is an UPSERT, since `prefix` is the primary key of
-`shipping_zone_prefixes` — a postal code belongs to exactly one zone by
-construction, so moving one between zones is the ordinary edit, and
-delete-then-insert would leave a postal code in no zone for a moment in which a
-checkout would undercharge. Clearing a surcharge DELETES the row rather than
-storing a zero: absence is what "no surcharge" means to the lookup, and
+A zone is created WITH at least one prefix, because the surcharge lookup finds a
+zone BY prefix. The edit field is the zone's WHOLE set: omitting a prefix removes
+it, and submitting blank clears the set so the zone can then be deleted. The write
+locks the zone row, UPSERTs the submitted prefixes, then sweeps omitted rows scoped
+to that zone, all in one transaction. Concurrent forms therefore cannot commit a
+union neither submitted, moving a prefix between zones remains the ordinary edit,
+and no checkout sees a delete-to-insert gap. Clearing a surcharge DELETES the row
+rather than storing a zero: absence is what "no surcharge" means to the lookup, and
 `shipping_version_zones_surcharge_positive` refuses the second way to write one
 state.
 

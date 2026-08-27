@@ -1398,6 +1398,11 @@ VALUES (@code::text, @name::text, nullif(@name_en::text, ''),
         coalesce((SELECT max(position) FROM shipping_zones), 0) + 1)
 RETURNING id;
 
+-- Serializes whole-set edits for one zone. Without this, two forms can each
+-- sweep against the other's partial work and commit a union neither submitted.
+-- name: LockShippingZone :one
+SELECT id FROM shipping_zones WHERE id = @zone_id FOR UPDATE;
+
 -- prefix is the PRIMARY KEY, so a postal code belongs to exactly one zone by
 -- construction and moving one is an upsert rather than an insert.
 -- name: AssignZonePrefix :exec
@@ -1405,10 +1410,12 @@ INSERT INTO shipping_zone_prefixes (prefix, zone_id)
 VALUES (@prefix::text, @zone_id)
 ON CONFLICT (prefix) DO UPDATE SET zone_id = @zone_id;
 
--- Scoped to the zone in the DELETE's own WHERE clause, so a stale form cannot
--- remove a prefix that has since moved elsewhere.
--- name: RemoveZonePrefix :execrows
-DELETE FROM shipping_zone_prefixes WHERE prefix = @prefix::text AND zone_id = @zone_id;
+-- The field carries this zone's WHOLE set. Scoped by zone_id so one zone's
+-- stale form cannot sweep a prefix that has since moved to another zone.
+-- name: RemoveZonePrefixesExcept :execrows
+DELETE FROM shipping_zone_prefixes
+WHERE zone_id = @zone_id
+  AND NOT (prefix = ANY(coalesce(@keep::text[], '{}'::text[])));
 
 -- Decided by the DELETE's own WHERE clause, like DeleteBrand.
 -- name: DeleteShippingZone :execrows

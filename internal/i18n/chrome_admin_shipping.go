@@ -143,8 +143,8 @@ var (
 		En:     "/shipping and the surcharge sentence at checkout both read this name.",
 	})
 	KeyAdminShipPrefixesHint = key("admin.ship.prefixes.hint", Message{
-		ZhHant: "空白或逗號分隔。沒有前綴的分區永遠不會被任何郵遞區號命中,也就永遠不會加價。",
-		En: "Separated by spaces or commas. A zone with no prefixes is matched by no postal code, " +
-			"so it can never add a surcharge.",
+		ZhHant: "空白或逗號分隔。新增分區時至少填一個;之後可把上方欄位清空,讓分區不再命中任何郵遞區號。",
+		En: "Separated by spaces or commas. A new zone needs at least one; clear its field later " +
+			"to make it match no postal code.",
 	})
 )

@@ -7,10 +7,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
+	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -5928,6 +5932,475 @@ func TestAShopCanSayWhichPostalCodesCostMore(t *testing.T) {
 	}
 }
 
+func TestAZonesPostalCodesAreTheWholeSet(t *testing.T) {
+	ctx, actor := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	p := unusedZonePrefixes(t, 6)
+
+	blankCode := "blank_zone_" + uuid.NewString()[:8]
+	if errs, err := s.CreateZone(ctx, &admin.NewZone{
+		Code: blankCode, Name: "空白分區", Prefixes: " \t, ",
+	}); err != nil {
+		t.Fatalf("CreateZone(blank): %v", err)
+	} else if errs["prefixes"] == "" {
+		t.Fatalf("CreateZone accepted an empty prefix set: %v", errs)
+	}
+	var blankRows int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM shipping_zones WHERE code = $1`, blankCode).
+		Scan(&blankRows); err != nil {
+		t.Fatalf("count refused blank zone: %v", err)
+	}
+	if blankRows != 0 {
+		t.Fatalf("blank CreateZone inserted %d rows, want 0", blankRows)
+	}
+
+	zoneA := createZoneWithPrefixes(t, ctx, s, "甲區", p[0:3])
+	zoneB := createZoneWithPrefixes(t, ctx, s, "乙區", p[3:5])
+
+	// Keep p0/p2, omit p1, add p5, and repeat p5: the audit count is the
+	// resulting set, not the number of tokens typed.
+	first := []string{p[0], p[2], p[5], p[5]}
+	if errs, err := s.SetZonePrefixes(ctx, zoneA.String(), strings.Join(first, " ")); err != nil || len(errs) > 0 {
+		t.Fatalf("first replacement: %v %v", err, errs)
+	}
+	assertZonePrefixes(t, zoneA, []string{p[0], p[2], p[5]})
+	assertZonePrefixes(t, zoneB, []string{p[3], p[4]})
+	assertZonePrefixAudit(t, actor, zoneA, 3, 1)
+
+	// Moving p3 through the production door must keep the UPSERT behavior.
+	second := []string{p[0], p[2], p[3], p[5]}
+	if errs, err := s.SetZonePrefixes(ctx, zoneA.String(), strings.Join(second, " ")); err != nil || len(errs) > 0 {
+		t.Fatalf("replacement that moves a prefix: %v %v", err, errs)
+	}
+	assertZonePrefixes(t, zoneA, second)
+	assertZonePrefixes(t, zoneB, []string{p[4]})
+	assertZonePrefixAudit(t, actor, zoneA, 4, 2)
+
+	if errs, err := s.SetZonePrefixes(ctx, zoneA.String(), " \t, "); err != nil || len(errs) > 0 {
+		t.Fatalf("clear zone A: %v %v", err, errs)
+	}
+	assertZonePrefixes(t, zoneA, []string{})
+	assertZonePrefixAudit(t, actor, zoneA, 0, 3)
+	if err := s.DeleteZone(ctx, zoneA.String()); err != nil {
+		t.Fatalf("delete zone after clearing it: %v", err)
+	}
+
+	if errs, err := s.SetZonePrefixes(ctx, zoneB.String(), ""); err != nil || len(errs) > 0 {
+		t.Fatalf("clear zone B: %v %v", err, errs)
+	}
+	if err := s.DeleteZone(ctx, zoneB.String()); err != nil {
+		t.Fatalf("delete neighbour after clearing it: %v", err)
+	}
+}
+
+func TestAZonePrefixInfrastructureFailureIsNotADomainRefusal(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	p := unusedZonePrefixes(t, 1)
+	zoneID := createZoneWithPrefixes(t, ctx, s, "錯誤語法分區", p)
+
+	missing := uuid.New()
+	if _, err := s.SetZonePrefixes(ctx, missing.String(), p[0]); !errors.Is(err, admin.ErrNotFound) || errors.Is(err, admin.ErrRefused) {
+		t.Fatalf("missing zone error = %v, want only ErrNotFound", err)
+	}
+	missingForm := url.Values{"prefixes": {p[0]}}
+	missingReq := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		"/admin/shipping/zone/"+missing.String()+"/prefixes", strings.NewReader(missingForm.Encode()))
+	missingReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	missingReq.SetPathValue("id", missing.String())
+	missingRes := httptest.NewRecorder()
+	adminHandlerOver(pool, s).SetZonePrefixes(missingRes, missingReq)
+	if missingRes.Code != http.StatusNotFound {
+		t.Fatalf("missing zone handler answered %d, want 404", missingRes.Code)
+	}
+
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin zone blocker: %v", err)
+	}
+	released := false
+	defer func() {
+		if !released {
+			_ = blocker.Rollback(context.WithoutCancel(t.Context()))
+		}
+	}()
+	var blockerPID int32
+	if err := blocker.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&blockerPID); err != nil {
+		t.Fatalf("read zone-blocker pid: %v", err)
+	}
+	if _, err := blocker.Exec(ctx, `SELECT id FROM shipping_zones WHERE id = $1 FOR UPDATE`, zoneID); err != nil {
+		t.Fatalf("lock shipping zone: %v", err)
+	}
+
+	app := "zone_set_error_" + uuid.NewString()[:8]
+	blockedStore := admin.NewStore(namedAdminPool(t, app), fakeRefunder{}, nil)
+	writeCtx, cancelWrite := context.WithCancel(ctx)
+	done := make(chan struct {
+		errs map[string]string
+		err  error
+	}, 1)
+	go func() {
+		errs, setErr := blockedStore.SetZonePrefixes(writeCtx, zoneID.String(), p[0])
+		done <- struct {
+			errs map[string]string
+			err  error
+		}{errs: errs, err: setErr}
+	}()
+	traceCtx, cancelTrace := context.WithTimeout(ctx, 5*time.Second)
+	defer cancelTrace()
+	waitForBlockedApplication(t, traceCtx, app, blockerPID)
+	cancelWrite()
+	select {
+	case got := <-done:
+		if got.err == nil || errors.Is(got.err, admin.ErrNotFound) || errors.Is(got.err, admin.ErrRefused) {
+			t.Fatalf("cancelled lock error = %v/%v, want infrastructure error only", got.err, got.errs)
+		}
+	case <-traceCtx.Done():
+		t.Fatalf("cancelled prefix writer did not return: %v", traceCtx.Err())
+	}
+	if err := blocker.Rollback(ctx); err != nil {
+		t.Fatalf("release zone blocker: %v", err)
+	}
+	released = true
+
+	failedPool := namedAdminPool(t, "zone_set_closed_"+uuid.NewString()[:8])
+	failedPool.Close()
+	failedStore := admin.NewStore(failedPool, fakeRefunder{}, nil)
+	failedReq := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		"/admin/shipping/zone/"+zoneID.String()+"/prefixes", strings.NewReader(missingForm.Encode()))
+	failedReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	failedReq.SetPathValue("id", zoneID.String())
+	failedRes := httptest.NewRecorder()
+	adminHandlerOver(pool, failedStore).SetZonePrefixes(failedRes, failedReq)
+	if failedRes.Code != http.StatusInternalServerError {
+		t.Fatalf("infrastructure failure handler answered %d, want 500", failedRes.Code)
+	}
+
+	if errs, clearErr := s.SetZonePrefixes(ctx, zoneID.String(), ""); clearErr != nil || len(errs) > 0 {
+		t.Fatalf("clear infrastructure-error fixture: %v %v", clearErr, errs)
+	}
+	if err := s.DeleteZone(ctx, zoneID.String()); err != nil {
+		t.Fatalf("delete infrastructure-error fixture: %v", err)
+	}
+}
+
+func TestARefusedZonePrefixEditStaysOnItsOwnRow(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil)
+	p := unusedZonePrefixes(t, 2)
+	zoneA := createZoneWithPrefixes(t, ctx, s, "錯誤列", p[:1])
+	zoneB := createZoneWithPrefixes(t, ctx, s, "相鄰列", p[1:])
+
+	const raw = "12o & 原樣"
+	form := url.Values{"prefixes": {raw}}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		"/admin/shipping/zone/"+zoneA.String()+"/prefixes", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("id", zoneA.String())
+	res := httptest.NewRecorder()
+	adminHandlerOver(pool, s).SetZonePrefixes(res, req)
+	if res.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("refused prefix edit answered %d, want 422", res.Code)
+	}
+
+	body := res.Body.String()
+	targetID := "pre-" + zoneA.String()
+	target := inputElementByID(t, body, targetID)
+	if got := inputAttribute(t, target, "value"); got != raw {
+		t.Errorf("target row value = %q, want raw %q", got, raw)
+	}
+	if inputAttribute(t, target, "aria-invalid") != "true" {
+		t.Errorf("target row is not marked aria-invalid: %s", target)
+	}
+	errorID := targetID + "-error"
+	if got := inputAttribute(t, target, "aria-describedby"); got != errorID {
+		t.Errorf("target aria-describedby = %q, want %q", got, errorID)
+	}
+	if !regexp.MustCompile(`<p[^>]*id="` + regexp.QuoteMeta(errorID) + `"[^>]*>[^<]+</p>`).
+		MatchString(body) {
+		t.Errorf("no nonempty error element resolves %q", errorID)
+	}
+
+	neighbour := inputElementByID(t, body, "pre-"+zoneB.String())
+	if got := inputAttribute(t, neighbour, "value"); got != p[1] {
+		t.Errorf("neighbour value = %q, want database value %q", got, p[1])
+	}
+	if strings.Contains(neighbour, "aria-invalid") {
+		t.Errorf("neighbour row inherited the target error: %s", neighbour)
+	}
+	create := inputElementByID(t, body, "z-prefixes")
+	if strings.Contains(create, "aria-invalid") || inputAttribute(t, create, "value") == raw {
+		t.Errorf("create-zone field inherited an existing-row refusal: %s", create)
+	}
+	assertZonePrefixes(t, zoneA, p[:1])
+
+	for _, id := range []uuid.UUID{zoneA, zoneB} {
+		if errs, err := s.SetZonePrefixes(ctx, id.String(), ""); err != nil || len(errs) > 0 {
+			t.Fatalf("clear fixture zone %s: %v %v", id, err, errs)
+		}
+		if err := s.DeleteZone(ctx, id.String()); err != nil {
+			t.Fatalf("delete fixture zone %s: %v", id, err)
+		}
+	}
+}
+
+func TestConcurrentZonePrefixSetsCommitOneWholeKnownLastSet(t *testing.T) {
+	ctx, _ := staffContext(t)
+	seedStore := admin.NewStore(pool, fakeRefunder{}, nil)
+	p := unusedZonePrefixes(t, 4)
+	zoneID := createZoneWithPrefixes(t, ctx, seedStore, "併發分區", p[:1])
+
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin prefix blocker: %v", err)
+	}
+	released := false
+	defer func() {
+		if !released {
+			_ = blocker.Rollback(context.WithoutCancel(t.Context()))
+		}
+	}()
+	var blockerPID int32
+	if err := blocker.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&blockerPID); err != nil {
+		t.Fatalf("read blocker pid: %v", err)
+	}
+	var lockedPrefix string
+	if err := blocker.QueryRow(ctx,
+		`SELECT prefix FROM shipping_zone_prefixes WHERE prefix = $1 FOR UPDATE`, p[0]).
+		Scan(&lockedPrefix); err != nil {
+		t.Fatalf("lock existing prefix: %v", err)
+	}
+
+	appA := "zone_set_a_" + uuid.NewString()[:8]
+	appB := "zone_set_b_" + uuid.NewString()[:8]
+	poolA := namedAdminPool(t, appA)
+	poolB := namedAdminPool(t, appB)
+	storeA := admin.NewStore(poolA, fakeRefunder{}, nil)
+	storeB := admin.NewStore(poolB, fakeRefunder{}, nil)
+	requestA, requestB := "zone-set-a-"+uuid.NewString(), "zone-set-b-"+uuid.NewString()
+	writersCtx, cancelWriters := context.WithTimeout(ctx, 10*time.Second)
+	defer cancelWriters()
+	ctxA := web.WithRequestID(writersCtx, requestA)
+	ctxB := web.WithRequestID(writersCtx, requestB)
+
+	type result struct {
+		name string
+		errs map[string]string
+		err  error
+	}
+	done := make(chan result, 2)
+	go func() {
+		errs, setErr := storeA.SetZonePrefixes(ctxA, zoneID.String(), strings.Join(p[:2], " "))
+		done <- result{name: "A", errs: errs, err: setErr}
+	}()
+
+	traceCtx, cancel := context.WithTimeout(writersCtx, 5*time.Second)
+	defer cancel()
+	writerAPID := waitForBlockedApplication(t, traceCtx, appA, blockerPID)
+	select {
+	case got := <-done:
+		t.Fatalf("writer %s returned before its prefix blocker was released: %v %v", got.name, got.err, got.errs)
+	default:
+	}
+
+	go func() {
+		errs, setErr := storeB.SetZonePrefixes(ctxB, zoneID.String(), strings.Join(p[2:], " "))
+		done <- result{name: "B", errs: errs, err: setErr}
+	}()
+	waitForBlockedApplication(t, traceCtx, appB, writerAPID)
+	select {
+	case got := <-done:
+		t.Fatalf("writer %s returned while writer A held the zone lock: %v %v", got.name, got.err, got.errs)
+	default:
+	}
+
+	if err := blocker.Rollback(ctx); err != nil {
+		t.Fatalf("release prefix blocker: %v", err)
+	}
+	released = true
+	for range 2 {
+		select {
+		case got := <-done:
+			if got.err != nil || len(got.errs) > 0 {
+				t.Errorf("writer %s: %v %v", got.name, got.err, got.errs)
+			}
+		case <-writersCtx.Done():
+			t.Fatalf("concurrent prefix writers did not finish: %v", writersCtx.Err())
+		}
+	}
+	assertZonePrefixes(t, zoneID, p[2:])
+
+	var lastRequest string
+	var auditCount int
+	if err := pool.QueryRow(ctx, `
+		SELECT request_id, (after->>'prefixes')::int FROM audit_events
+		WHERE action = 'shipping.zone.prefixes' AND entity_id = $1
+		ORDER BY occurred_at DESC, id DESC LIMIT 1`, zoneID).
+		Scan(&lastRequest, &auditCount); err != nil {
+		t.Fatalf("read last concurrent audit row: %v", err)
+	}
+	if lastRequest != requestB || auditCount != len(p[2:]) {
+		t.Errorf("last audit = request %q/count %d, want %q/%d",
+			lastRequest, auditCount, requestB, len(p[2:]))
+	}
+
+	if errs, err := seedStore.SetZonePrefixes(ctx, zoneID.String(), ""); err != nil || len(errs) > 0 {
+		t.Fatalf("clear concurrent fixture: %v %v", err, errs)
+	}
+	if err := seedStore.DeleteZone(ctx, zoneID.String()); err != nil {
+		t.Fatalf("delete concurrent fixture: %v", err)
+	}
+}
+
+func unusedZonePrefixes(t *testing.T, count int) []string {
+	t.Helper()
+	rows, err := pool.Query(t.Context(), `
+		SELECT lpad(n::text, 3, '0')
+		FROM generate_series(0, 999) AS n
+		WHERE NOT EXISTS (
+			SELECT 1 FROM shipping_zone_prefixes p WHERE p.prefix = lpad(n::text, 3, '0')
+		)
+		ORDER BY n LIMIT $1`, count)
+	if err != nil {
+		t.Fatalf("find unused zone prefixes: %v", err)
+	}
+	prefixes, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		t.Fatalf("collect unused zone prefixes: %v", err)
+	}
+	if len(prefixes) != count {
+		t.Fatalf("found %d unused zone prefixes, want %d", len(prefixes), count)
+	}
+	return prefixes
+}
+
+func createZoneWithPrefixes(
+	t *testing.T, ctx context.Context, s *admin.Store, name string, prefixes []string,
+) uuid.UUID {
+	t.Helper()
+	code := "zone_" + uuid.NewString()[:8]
+	if errs, err := s.CreateZone(ctx, &admin.NewZone{
+		Code: code, Name: name, Prefixes: strings.Join(prefixes, " "),
+	}); err != nil || len(errs) > 0 {
+		t.Fatalf("CreateZone(%s): %v %v", code, err, errs)
+	}
+	var id uuid.UUID
+	if err := pool.QueryRow(ctx, `SELECT id FROM shipping_zones WHERE code = $1`, code).Scan(&id); err != nil {
+		t.Fatalf("read zone %s: %v", code, err)
+	}
+	return id
+}
+
+func assertZonePrefixes(t *testing.T, zoneID uuid.UUID, want []string) {
+	t.Helper()
+	rows, err := pool.Query(t.Context(), `
+		SELECT prefix FROM shipping_zone_prefixes WHERE zone_id = $1 ORDER BY prefix`, zoneID)
+	if err != nil {
+		t.Fatalf("read zone %s prefixes: %v", zoneID, err)
+	}
+	got, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		t.Fatalf("collect zone %s prefixes: %v", zoneID, err)
+	}
+	if got == nil {
+		got = []string{}
+	}
+	want = slices.Clone(want)
+	slices.Sort(want)
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("zone %s prefixes (-want +got):\n%s", zoneID, diff)
+	}
+}
+
+func assertZonePrefixAudit(
+	t *testing.T, actor, zoneID uuid.UUID, wantCount, wantRows int,
+) {
+	t.Helper()
+	ctx := t.Context()
+	var auditCount, actualCount, auditRows int
+	if err := pool.QueryRow(ctx, `
+		SELECT (after->>'prefixes')::int,
+		       (SELECT count(*)::int FROM shipping_zone_prefixes WHERE zone_id = $1)
+		FROM audit_events
+		WHERE action = 'shipping.zone.prefixes' AND entity_id = $1 AND actor_user_id = $2
+		ORDER BY occurred_at DESC, id DESC LIMIT 1`, zoneID, actor).
+		Scan(&auditCount, &actualCount); err != nil {
+		t.Fatalf("read zone-prefix audit: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*)::int FROM audit_events
+		WHERE action = 'shipping.zone.prefixes' AND entity_id = $1 AND actor_user_id = $2`,
+		zoneID, actor).Scan(&auditRows); err != nil {
+		t.Fatalf("count zone-prefix audits: %v", err)
+	}
+	if auditCount != wantCount || actualCount != wantCount || auditRows != wantRows {
+		t.Errorf("zone-prefix audit/result/rows = %d/%d/%d, want %d/%d/%d",
+			auditCount, actualCount, auditRows, wantCount, wantCount, wantRows)
+	}
+}
+
+func inputElementByID(t *testing.T, body, id string) string {
+	t.Helper()
+	match := regexp.MustCompile(`<input\b[^>]*\bid="` + regexp.QuoteMeta(id) + `"[^>]*>`).
+		FindString(body)
+	if match == "" {
+		t.Fatalf("no input with id %q in rendered page", id)
+	}
+	return match
+}
+
+func inputAttribute(t *testing.T, input, name string) string {
+	t.Helper()
+	match := regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `="([^"]*)"`).FindStringSubmatch(input)
+	if len(match) != 2 {
+		return ""
+	}
+	return html.UnescapeString(match[1])
+}
+
+func namedAdminPool(t *testing.T, applicationName string) *pgxpool.Pool {
+	t.Helper()
+	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
+	if err != nil {
+		t.Fatalf("parse admin pool config: %v", err)
+	}
+	cfg.MaxConns = 1
+	cfg.ConnConfig.RuntimeParams["application_name"] = applicationName
+	p, err := pgxpool.NewWithConfig(t.Context(), cfg)
+	if err != nil {
+		t.Fatalf("open traced admin pool: %v", err)
+	}
+	t.Cleanup(p.Close)
+	return p
+}
+
+func waitForBlockedApplication(
+	t *testing.T, ctx context.Context, applicationName string, blockerPID int32,
+) int32 {
+	t.Helper()
+	for {
+		var pid int32
+		var blockers []int32
+		err := pool.QueryRow(ctx, `
+			SELECT pid, pg_blocking_pids(pid) FROM pg_stat_activity
+			WHERE datname = current_database() AND application_name = $1
+			  AND state = 'active' AND wait_event_type = 'Lock'`, applicationName).
+			Scan(&pid, &blockers)
+		if err == nil {
+			for _, got := range blockers {
+				if got == blockerPID {
+					return pid
+				}
+			}
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			t.Fatalf("trace blocked writer %q: %v", applicationName, err)
+		}
+		if ctx.Err() != nil {
+			t.Fatalf("writer %q never blocked behind pid %d: %v", applicationName, blockerPID, ctx.Err())
+		}
+	}
+}
+
 func TestAZonePrefixMustBeThreeDigits(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil)
@@ -5958,8 +6431,8 @@ func TestAZonePrefixMustBeThreeDigits(t *testing.T) {
 	if err := s.DeleteZone(ctx, zoneID); !errors.Is(err, admin.ErrInUse) {
 		t.Errorf("deleting a zone with prefixes gave %v, want ErrInUse", err)
 	}
-	if err := s.RemoveZonePrefix(ctx, zoneID, "999"); err != nil {
-		t.Fatalf("RemoveZonePrefix: %v", err)
+	if errs, err := s.SetZonePrefixes(ctx, zoneID, ""); err != nil || len(errs) > 0 {
+		t.Fatalf("clear prefixes through SetZonePrefixes: %v %v", err, errs)
 	}
 	if err := s.DeleteZone(ctx, zoneID); err != nil {
 		t.Errorf("deleting an empty zone gave %v", err)
