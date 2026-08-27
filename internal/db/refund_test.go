@@ -23,9 +23,10 @@ func TestEveryRefundTotalReadsTheOneView(t *testing.T) {
 	t.Parallel()
 
 	allowed := map[string]string{
-		"RefundedSoFar": "a per-payment position used before opening a refund; it " +
+		"ReturnPayoutFacts": "a per-payment position used before opening or resuming a refund; it " +
 			"includes outstanding provider states and excludes this request_key so a " +
-			"retry does not refuse its own claim, which order_refunds cannot express",
+			"retry does not refuse its own claim, which order_refunds cannot express. " +
+			"The same batch projection serves every visible return and a single retry",
 		"RevenueSince": "a time window rather than a per-order total; its succeeded " +
 			"card and positive order-credit predicates must remain identical to " +
 			"order_refunds before the two sources are windowed",

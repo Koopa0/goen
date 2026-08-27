@@ -108,11 +108,14 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 	if factorStore.Enabled() {
 		stepUp = factors.StepUp
 	}
-	var invoices admin.Invoicer
+	var invoiceReader admin.InvoiceReader
+	var invoiceWriter admin.InvoiceWriter
 	if cfg.Invoices.Enabled() {
-		invoices = invoice.NewStore(adminPool, cfg.Invoices)
+		invoices := invoice.NewStore(adminPool, cfg.Invoices)
+		invoiceReader = invoices
+		invoiceWriter = invoices
 	}
-	back := admin.NewHandler(admin.NewStore(adminPool, refunder, invoices),
+	back := admin.NewHandler(admin.NewStore(adminPool, refunder, invoiceReader, invoiceWriter),
 		media.NewHandler(media.NewStore(adminPool), log),
 		outbox.NewStore(adminPool, log), newsletter.NewStore(adminPool), log, stepUp,
 		sessionCloser(gateway))

@@ -15,11 +15,12 @@ func TestEveryCreditBalanceReadsTheOneView(t *testing.T) {
 	t.Parallel()
 
 	allowed := map[string]string{
-		"OrderCreditPositionExcluding": "spent and returned on ONE order, split by " +
+		"ReturnPayoutFacts": "spent and returned on ONE order, split by " +
 			"sign — a position rather than a balance, and the refund split needs both " +
 			"halves. It leaves out one return's own compensation because that is what " +
 			"a RETRY has to ask: without it a split return reads the credit it just " +
-			"posted as credit already returned and refuses its own resume",
+			"posted as credit already returned and refuses its own resume. The batch " +
+			"projection serves both the visible queue and a single retry",
 		"RevenueSince": "positive credit returned within a report window, which is " +
 			"a flow rather than an account balance. Its predicate must match " +
 			"order_refunds.credit_cents; a balance view cannot express when money moved",

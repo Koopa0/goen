@@ -284,6 +284,81 @@ JOIN order_lines ol ON ol.id = rl.order_line_id
 WHERE rl.return_request_id = ANY(@request_ids::uuid[])
 ORDER BY rl.return_request_id, ol.position, ol.id;
 
+-- One row per return, carrying every durable fact needed to decide what its
+-- payout can still move. The queue asks for the whole visible set in one call;
+-- an approved retry asks for its one id through the same projection. Keeping
+-- the source split and completion probes here prevents the page and retry from
+-- acquiring two definitions as well as avoiding a query fan-out per row.
+--
+-- The refund total is deliberately per PAYMENT and excludes this return's own
+-- request key. The credit figures are deliberately an order position split by
+-- direction and exclude this return's own compensation. Neither question can
+-- be answered by the per-order order_refunds view without making a stalled
+-- retry count the very claim it is trying to resume.
+-- name: ReturnPayoutFacts :many
+WITH selected AS (
+    SELECT r.id, r.order_id, o.user_id,
+           return_refundable_amount(r.id)::bigint AS refundable_cents,
+           p.id AS payment_id,
+           coalesce(p.captured_amount_cents, 0)::bigint AS captured_cents
+    FROM return_requests r
+    JOIN orders o ON o.id = r.order_id
+    LEFT JOIN payments p ON p.order_id = o.id AND p.status = 'succeeded'
+    WHERE r.id = ANY(@request_ids::uuid[])
+)
+SELECT s.id AS return_request_id,
+       s.refundable_cents,
+       s.captured_cents,
+       (s.user_id IS NOT NULL)::boolean AS has_account,
+       coalesce((
+           SELECT sum(rf.amount_cents)
+           FROM refunds rf
+           WHERE rf.payment_id = s.payment_id
+             AND rf.status IN ('pending', 'requires_action', 'succeeded')
+             AND rf.request_key <> 'return:' || s.id::text
+       ), 0)::bigint AS refunded_cents,
+       coalesce((
+           SELECT -sum(sc.amount_cents) FILTER (WHERE sc.amount_cents < 0)
+           FROM store_credit_entries sc
+           WHERE sc.order_id = s.order_id
+             AND sc.idempotency_key <> 'return-credit:' || s.id::text
+       ), 0)::bigint AS credit_spent_cents,
+       coalesce((
+           SELECT sum(sc.amount_cents) FILTER (WHERE sc.amount_cents > 0)
+           FROM store_credit_entries sc
+           WHERE sc.order_id = s.order_id
+             AND sc.idempotency_key <> 'return-credit:' || s.id::text
+       ), 0)::bigint AS credit_returned_cents,
+       EXISTS (
+           SELECT 1 FROM refunds rf
+           WHERE rf.return_request_id = s.id AND rf.status = 'succeeded'
+       )::boolean AS card_settled,
+       EXISTS (
+           SELECT 1 FROM refunds rf
+           WHERE rf.return_request_id = s.id AND rf.status IN ('failed', 'cancelled')
+       )::boolean AS card_terminal,
+       EXISTS (
+           SELECT 1 FROM store_credit_entries sc
+           WHERE sc.idempotency_key = 'return-credit:' || s.id::text
+       )::boolean AS credit_posted,
+       CASE
+           WHEN s.user_id IS NULL OR s.refundable_cents <= 0 THEN false
+           ELSE (
+               return_loyalty_points_requested(
+                   s.order_id, s.id, s.refundable_cents) > 0
+               AND EXISTS (
+                   SELECT 1 FROM loyalty_entries e
+                   WHERE e.order_id = s.order_id AND e.kind = 'award'
+               )
+               AND NOT EXISTS (
+                   SELECT 1 FROM loyalty_entries e
+                   WHERE e.return_request_id = s.id AND e.kind = 'clawback'
+               )
+           )
+       END::boolean AS points_outstanding
+FROM selected s
+ORDER BY s.id;
+
 -- `received_quantity IS NULL` makes a line inspectable ONCE: the restock behind
 -- it posts a movement keyed on (request, line), so a second inspection would be
 -- swallowed by that index and show a corrected count over unmoved stock.
@@ -338,16 +413,6 @@ SELECT open_refund(@payment_id, @request_key::text, @amount_cents::bigint,
 -- coalesces NULL onto whatever is there rather than blanking it.
 -- name: SettleRefund :exec
 SELECT settle_refund(@request_key::text, nullif(@provider_ref::text, ''), @status::text);
-
--- This mirrors refunds_guard and has to. 'requires_action' belongs in the list
--- because the trigger counts it, and the row for THIS request_key is excluded
--- as the trigger excludes NEW.id: counting it would refuse its own retry.
--- name: RefundedSoFar :one
-SELECT coalesce(sum(amount_cents), 0)::bigint
-FROM refunds
-WHERE payment_id = @payment_id
-  AND status IN ('pending', 'requires_action', 'succeeded')
-  AND request_key <> @request_key::text;
 
 -- 'failed' is listed beside the two outstanding states on purpose: it is
 -- terminal at Stripe, the goods came back, the return did not close, and nobody
@@ -1089,32 +1154,6 @@ WHERE id = $1 AND handled_at IS NULL;
 UPDATE contact_messages SET handled_at = NULL
 WHERE id = $1 AND handled_at IS NOT NULL;
 
--- Signs as the ledger stores them: a spend is negative, a compensation positive.
--- Two figures and not one net number, because a reader reconciling a return
--- needs both sides. ReverseOrderCredit lives in internal/cart/query.sql.
--- Spent and returned on ONE order, split by sign — a position rather than a
--- balance, which is why it is allowed to sum the ledger itself.
---
--- It takes the return whose own compensation to LEAVE OUT, because that is what
--- a RETRY has to ask, and passing a return that has posted nothing asks the
--- plain question. There is no second, unfiltered copy: the two would be one
--- fact in two places, and whichever gained a predicate first would be the one
--- that disagreed. The card side already excludes its own row — post_store_credit
--- and open_refund are both idempotent, so counting what a stalled attempt wrote
--- refuses its own retry — and the credit side did not: a split return whose CREDIT
--- half landed and whose CARD half stayed pending read its own compensation as
--- credit already returned, collapsed the remaining credit to zero, and refused
--- "does not fit across the two" before the resume logic was ever consulted. The
--- card half could then never be sent, and goen consumes no refund webhook, so
--- pressing 同意 again was the only door and it was shut.
--- name: OrderCreditPositionExcluding :one
-SELECT
-    coalesce(-sum(amount_cents) FILTER (WHERE amount_cents < 0), 0)::bigint AS spent,
-    coalesce(sum(amount_cents) FILTER (WHERE amount_cents > 0), 0)::bigint  AS returned
-FROM store_credit_entries
-WHERE order_id = $1
-  AND idempotency_key <> 'return-credit:' || @return_id::text;
-
 -- A NEW POSITIVE entry and not a reversal of the spend, which the schema
 -- prescribes for an order that has shipped: a reversal un-funds the order, and
 -- this one was paid for and went out. Idempotent on the return.
@@ -1139,29 +1178,6 @@ SELECT reverse_order_points(
     return_loyalty_points_requested(
         args.order_id, args.return_id, args.refunded_cents)
 )::bigint AS points_reversed
-FROM args;
-
--- name: ReturnPointsOutstanding :one
--- Money and points commit separately. A succeeded refund without the clawback
--- must remain visible in the queue, while a guest order, a zero-point refund,
--- or an order that never earned a lot has no points work to resume.
-WITH args AS (
-    SELECT @order_id::uuid AS order_id,
-           @return_id::uuid AS return_id,
-           @refunded_cents::bigint AS refunded_cents
-)
-SELECT (
-    return_loyalty_points_requested(
-        args.order_id, args.return_id, args.refunded_cents) > 0
-    AND EXISTS (
-        SELECT 1 FROM loyalty_entries e
-        WHERE e.order_id = args.order_id AND e.kind = 'award'
-    )
-    AND NOT EXISTS (
-        SELECT 1 FROM loyalty_entries e
-        WHERE e.return_request_id = args.return_id AND e.kind = 'clawback'
-    )
-)::boolean AS outstanding
 FROM args;
 
 -- Prefix on both, each index-backed, with a floor on the term enforced by the
@@ -1472,23 +1488,6 @@ WHERE w.serial_number = @term::text OR o.order_number = @term::text
 ORDER BY w.expires_on DESC, w.id
 LIMIT @row_limit::integer;
 
--- Whether this return's money has actually gone. Read on a RETRY, so pressing
--- 同意 again on a return whose refund already succeeded does nothing rather than
--- asking the provider a second time.
--- name: ReturnRefundSettled :one
-SELECT EXISTS (
-    SELECT 1 FROM refunds
-    WHERE return_request_id = $1 AND status = 'succeeded'
-)::boolean AS settled;
-
--- A failed/cancelled refund is terminal because refunds_settled_is_history
--- admits no move from either state back to succeeded.
--- name: ReturnRefundTerminal :one
-SELECT EXISTS (
-    SELECT 1 FROM refunds
-    WHERE return_request_id = $1 AND status IN ('failed', 'cancelled')
-)::boolean AS terminal;
-
 -- What has actually gone back to the customer on this order, so an allowance
 -- form can default to it. A staff member typing a refund figure from memory is
 -- how the wrong number reaches the 財政部.
@@ -1499,16 +1498,6 @@ SELECT EXISTS (
 SELECT (card_cents + credit_cents)::bigint AS refunded_cents
 FROM order_refunds
 WHERE order_number = @order_number::text;
-
--- Whether the CREDIT half of a return has already been posted. post_store_credit
--- keys the entry on 'return-credit:<id>', which is what makes the compensation
--- idempotent — and what lets a retry tell a half that landed from one that did
--- not.
--- name: ReturnCreditPosted :one
-SELECT EXISTS (
-    SELECT 1 FROM store_credit_entries
-    WHERE idempotency_key = 'return-credit:' || @return_id::text
-)::boolean AS posted;
 
 -- Somebody investigated and resolved the provider event and says so. The row
 -- keeps its reason: what happened is worth reading after it is handled, and

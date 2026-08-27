@@ -726,7 +726,7 @@ func payFor(t *testing.T, orderID uuid.UUID) {
 func TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
-	back := admin.NewStore(pool, admin.NewRefunder(""), nil)
+	back := admin.NewStore(pool, admin.NewRefunder(""), nil, nil)
 	slug := anyActiveProduct(t)
 	customer := newCustomer(t)
 	staff := newShopAuthor(t)
