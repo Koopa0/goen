@@ -39,9 +39,10 @@ make run                   # 127.0.0.1:9700
 ```
 
 `GOEN_DATABASE_URL` is required and has no default. `.env` is read by the Makefile in
-development. Stripe, SMTP and TOTP keys may be empty — the features then say so rather
-than half-working, and **two of them now refuse to start** in a production posture (see
-below).
+development. Stripe may remain empty and says so on the payment page. SMTP and TOTP may
+be empty only in development, where they say so; **TOTP, SMTP and BASE_URL now refuse to
+start** in a production posture rather than silently dropping their work or protection
+(see below).
 
 ## Run the gates yourself. Do not read the transcripts.
 
@@ -152,8 +153,9 @@ and three pieces of it are concurrent.
   (`async_payment_succeeded`, `async_payment_failed`).
 - **`internal/twofactor`** — moved to the ADMIN pool, enrolment refuses to replace a
   confirmed credential, and `AddStaff` refuses the actor's own address.
-- **`cmd/goen`** — refuses to start without `GOEN_TOTP_KEY` or `GOEN_BASE_URL` when
-  cookies are secure; `run()` was split into four functions.
+- **`cmd/goen`** — refuses to start without `GOEN_TOTP_KEY`, `GOEN_SMTP_ADDR` or an
+  explicit HTTPS `GOEN_BASE_URL` when cookies are secure, and refuses malformed keys
+  and origins in every posture; `run()` was split into four functions.
 - **`migrations/001`** — the privilege sections, `erase_user`, a capture guard for
   cancelled orders, a `coupons` trigger, and a deleted `orders.created_at` column.
 

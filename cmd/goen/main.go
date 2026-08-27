@@ -30,6 +30,8 @@ import (
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/recommend"
+	"github.com/koopa0/goen/internal/twofactor"
+	"github.com/koopa0/goen/internal/web"
 )
 
 func main() {
@@ -72,6 +74,10 @@ type config struct {
 	Seller        string
 	SellerContact string
 	TOTPKey       string
+	// totpKey is parsed key material. Keeping it distinct from the raw
+	// environment string makes it impossible for the router to decide the key
+	// format a second time.
+	totpKey []byte
 	// TrustedProxies is the CIDR list whose X-Forwarded-For goen will believe.
 	// Empty is the default and must stay it: a header is set by the client, so
 	// believing one hands an attacker an unlimited supply of rate-limit keys.
@@ -122,13 +128,22 @@ func loadConfig() (config, error) {
 	}, nil
 }
 
-// checkProductionPosture refuses a configuration that would serve the site with
-// a security feature silently off. SecureCookies is the production signal:
-// it is false only under the development opt-out GOEN_INSECURE_COOKIES.
+// checkProductionPosture refuses a configuration that would serve the site
+// with a security feature silently off, or a subsystem that reports success
+// without doing its work. SecureCookies is the production signal: it is false
+// only under the development opt-out GOEN_INSECURE_COOKIES.
 func (cfg *config) checkProductionPosture(log *slog.Logger) error {
+	// Key shape is a fact, not a production-only preference: accepting a weak
+	// passphrase in development would create credentials production cannot
+	// safely read. Parse it here, where the empty-key posture rule already lives.
+	key, keyErr := twofactor.ParseKey(cfg.TOTPKey)
+	if keyErr != nil {
+		return fmt.Errorf("GOEN_TOTP_KEY: %w", keyErr)
+	}
+	cfg.totpKey = key
 	// An empty key leaves the step-up function nil and RequireStaff skips the
 	// check when it is nil, so the back office falls back to a password alone.
-	if cfg.TOTPKey == "" {
+	if len(key) == 0 {
 		if cfg.SecureCookies {
 			return errors.New("GOEN_TOTP_KEY is required: without it the back office " +
 				"is reachable with a password alone. Set it, or set " +
@@ -138,11 +153,39 @@ func (cfg *config) checkProductionPosture(log *slog.Logger) error {
 			"set", "GOEN_TOTP_KEY")
 	}
 
+	// An empty address leaves newSender on email.LogSender, which returns nil —
+	// and nil is what the outbox reads as delivered. Password resets, receipts
+	// and dispatch notices would therefore be stamped sent and go nowhere,
+	// invisible to /admin/health because it asks only about undelivered rows.
+	if cfg.SMTPAddr == "" {
+		if cfg.SecureCookies {
+			return errors.New("GOEN_SMTP_ADDR is required: without it mail is written " +
+				"to the log and marked delivered, so password resets and order mail are " +
+				"lost with nothing to show for it. Set it, or set " +
+				"GOEN_INSECURE_COOKIES=1 for local development")
+		}
+		log.Warn("GOEN_SMTP_ADDR is not set; mail is logged, NOT sent, and marked delivered",
+			"set", "GOEN_SMTP_ADDR")
+	}
+
 	if cfg.SecureCookies && os.Getenv("GOEN_BASE_URL") == "" {
 		return errors.New("GOEN_BASE_URL is required: it is the origin in every " +
 			"link goen mails and every URL it gives Stripe, and guessing it from " +
 			"the listen address produces URLs that only work on this machine")
 	}
+	origin, scheme, ok := web.SiteOrigin(cfg.BaseURL)
+	if !ok {
+		return fmt.Errorf("GOEN_BASE_URL %q is not an origin: it must be scheme://host "+
+			"with no path, query or credentials, because goen concatenates paths onto "+
+			"it to build every link it mails", cfg.BaseURL)
+	}
+	if cfg.SecureCookies && scheme != "https" {
+		return fmt.Errorf("GOEN_BASE_URL %q is plain HTTP while cookies are Secure: "+
+			"every password-reset and address-verification link goen mails would carry "+
+			"a single-use token in cleartext. Use https, or set "+
+			"GOEN_INSECURE_COOKIES=1 for local development", cfg.BaseURL)
+	}
+	cfg.BaseURL = origin
 	return nil
 }
 
@@ -174,7 +217,7 @@ func newServer(
 		// Resolve decides which address a request came from, so it sits outside
 		// every ratelimit.Guard that keys on the answer.
 		Handler: proxies.Resolve(newRouter(pool, adminPool, gateway, refunder, &RouterConfig{
-			BaseURL: cfg.BaseURL, SecureCookies: cfg.SecureCookies, TOTPKey: cfg.TOTPKey,
+			BaseURL: cfg.BaseURL, SecureCookies: cfg.SecureCookies, TOTPKey: cfg.totpKey,
 			Invoices: invoices, Google: googleSignIn,
 		}, log)),
 		ReadHeaderTimeout: 10 * time.Second,
@@ -310,8 +353,9 @@ func run() error {
 			"set", "GOEN_STRIPE_SECRET_KEY and GOEN_STRIPE_WEBHOOK_SECRET")
 	}
 
-	if postureErr := cfg.checkProductionPosture(log); postureErr != nil {
-		return postureErr
+	sender, senderErr := checkedSender(&cfg, log)
+	if senderErr != nil {
+		return senderErr
 	}
 
 	proxies, proxyErr := cfg.trustedProxies(log)
@@ -337,7 +381,7 @@ func run() error {
 
 	startWorkers(ctx, workerDeps{
 		pool: pool, admin: adminPool, maintenance: maintenancePool,
-		cfg: &cfg, log: log, run: background.Go,
+		cfg: &cfg, log: log, sender: sender, run: background.Go,
 	})
 
 	defer background.Wait()
@@ -367,6 +411,16 @@ func run() error {
 		return fmt.Errorf("shut down server: %w", err)
 	}
 	return nil
+}
+
+// checkedSender admits the process posture before constructing the sender
+// whose development fallback that posture controls. Keeping the two calls
+// together prevents a later worker from selecting LogSender on its own.
+func checkedSender(cfg *config, log *slog.Logger) (email.Sender, error) {
+	if err := cfg.checkProductionPosture(log); err != nil {
+		return nil, err
+	}
+	return newSender(cfg, log)
 }
 
 // openPool builds the connection pool goen serves from.
@@ -450,25 +504,22 @@ func redactURL(err error, url string) error {
 	return errors.New(msg)
 }
 
-// newSender picks how mail leaves the process; no SMTP address means the log.
-func newSender(cfg *config, log *slog.Logger) email.Sender {
+// newSender picks how mail leaves the process; no SMTP address means the log in
+// the development posture checkProductionPosture has already admitted.
+func newSender(cfg *config, log *slog.Logger) (email.Sender, error) {
 	if cfg.SMTPAddr == "" {
-		log.Warn("no SMTP configured; email will be written to the log",
-			"set", "GOEN_SMTP_ADDR")
-		return email.LogSender{Log: log}
+		return email.LogSender{Log: log}, nil
 	}
 	s := email.SMTPSender{Addr: cfg.SMTPAddr, From: cfg.SMTPFrom}
 	if cfg.SMTPUser != "" {
 		host, _, err := net.SplitHostPort(cfg.SMTPAddr)
 		if err != nil {
-			log.Error("GOEN_SMTP_ADDR is not host:port; falling back to the log",
-				"addr", cfg.SMTPAddr, "error", err)
-			return email.LogSender{Log: log}
+			return nil, fmt.Errorf("GOEN_SMTP_ADDR %q is not host:port: %w", cfg.SMTPAddr, err)
 		}
 		s.Auth = smtp.PlainAuth("", cfg.SMTPUser, cfg.SMTPPassword, host)
 		s.TLSName = host
 	}
-	return s
+	return s, nil
 }
 
 // workerDeps is what the background workers need.
@@ -478,6 +529,7 @@ type workerDeps struct {
 	maintenance *pgxpool.Pool
 	cfg         *config
 	log         *slog.Logger
+	sender      email.Sender
 	// run starts one worker.
 	run func(func())
 }
@@ -486,7 +538,7 @@ type workerDeps struct {
 func startWorkers(ctx context.Context, d workerDeps) {
 	messages := outbox.NewStore(d.pool, d.log)
 	notifier := email.Notifier{
-		Sender: newSender(d.cfg, d.log), BaseURL: d.cfg.BaseURL,
+		Sender: d.sender, BaseURL: d.cfg.BaseURL,
 		Seller: d.cfg.Seller, SellerContact: d.cfg.SellerContact,
 	}
 	messages.Handle(outbox.TopicOrderPlaced, func(ctx context.Context, payload []byte) error {

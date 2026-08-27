@@ -49,14 +49,27 @@ func (h *Handler) Challenge(w http.ResponseWriter, r *http.Request) {
 	}
 	enrolled, err := h.store.Enrolled(r.Context(), u.ID)
 	if err != nil {
-		h.log.ErrorContext(r.Context(), "read totp state", "error", err)
-		http.Error(w, "500", http.StatusInternalServerError)
-		return
+		if errors.Is(err, ErrSecretUnreadable) {
+			h.logUnreadable(r)
+			// A credential row exists; only its configured key is stale. Treat it
+			// as enrolled so this password-only page cannot replace the factor,
+			// and render the recovery instruction here rather than redirecting
+			// back into the same failing GET.
+			enrolled = true
+		} else {
+			h.log.ErrorContext(r.Context(), "read totp state", "error", err)
+			http.Error(w, "500", http.StatusInternalServerError)
+			return
+		}
+	}
+	notice := noticeFor(r)
+	if errors.Is(err, ErrSecretUnreadable) {
+		notice = i18n.T(r.Context(), i18n.KeyTOTPSecretUnreadable)
 	}
 	view := pages.TwoFactorView{
 		Enabled:  h.store.Enabled(),
 		Enrolled: enrolled,
-		Notice:   noticeFor(r),
+		Notice:   notice,
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.TwoFactor(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageTwoFactor)}, view))
@@ -80,6 +93,11 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.Verify(r.Context(), u.ID, r.PostFormValue("code")); err != nil {
+		if errors.Is(err, ErrSecretUnreadable) {
+			h.logUnreadable(r)
+			http.Redirect(w, r, "/admin/verify?stale=1", http.StatusSeeOther)
+			return
+		}
 		h.log.WarnContext(r.Context(), "totp verify", "error", err)
 		http.Redirect(w, r, "/admin/verify?bad=1", http.StatusSeeOther)
 		return
@@ -163,6 +181,8 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 // noticeFor turns a query flag into a sentence.
 func noticeFor(r *http.Request) string {
 	switch {
+	case r.URL.Query().Get("stale") == "1":
+		return i18n.T(r.Context(), i18n.KeyTOTPSecretUnreadable)
 	case r.URL.Query().Get("bad") == "1":
 		return i18n.T(r.Context(), i18n.KeyTOTPWrongCode)
 	case r.URL.Query().Get("badenrol") == "1":
@@ -174,6 +194,12 @@ func noticeFor(r *http.Request) string {
 	default:
 		return ""
 	}
+}
+
+func (h *Handler) logUnreadable(r *http.Request) {
+	h.log.ErrorContext(r.Context(),
+		"totp secret does not open; GOEN_TOTP_KEY does not match the key these rows were sealed under",
+		"set", "GOEN_TOTP_KEY")
 }
 
 // StepUp reports whether a request's session has proved a second factor

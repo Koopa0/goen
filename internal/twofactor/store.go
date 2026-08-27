@@ -22,8 +22,8 @@ type Store struct {
 	cipher *Cipher
 }
 
-// NewStore returns a Store over pool, encrypting with key.
-func NewStore(pool *pgxpool.Pool, key string) *Store {
+// NewStore returns a Store over pool, encrypting with parsed key material.
+func NewStore(pool *pgxpool.Pool, key []byte) *Store {
 	if pool == nil {
 		panic("twofactor: NewStore requires a pool")
 	}
@@ -195,7 +195,7 @@ func (s *Store) load(ctx context.Context, userID string, requireConfirmed bool) 
 	}
 	secret, err = s.cipher.Open(row.SecretEncrypted)
 	if err != nil {
-		return uuid.UUID{}, nil, 0, err
+		return uuid.UUID{}, nil, 0, fmt.Errorf("%w: %w", ErrSecretUnreadable, err)
 	}
 	return id, secret, row.LastStep.Int64, nil
 }

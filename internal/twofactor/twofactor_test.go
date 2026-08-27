@@ -2,15 +2,155 @@ package twofactor
 
 import (
 	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/sha256"
 	"encoding/base32"
+	"encoding/base64"
+	"encoding/hex"
+	"net/http"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 // rfcSecret is the shared secret from RFC 6238's test vectors.
 var rfcSecret = []byte("12345678901234567890")
+
+const testHexKey = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+
+var (
+	testCipherKey      = []byte("0123456789abcdef0123456789abcdef")
+	differentCipherKey = []byte("fedcba9876543210fedcba9876543210")
+)
+
+func mustParseKey(t *testing.T, value string) []byte {
+	t.Helper()
+	key, err := ParseKey(value)
+	if err != nil {
+		t.Fatalf("ParseKey: %v", err)
+	}
+	return key
+}
+
+// TestOnlyThirtyTwoRandomBytesIsAKey pins the configuration grammar and the
+// decoded material. An err-only assertion would admit the old SHA-256
+// normaliser, which accepted every passphrase and returned a plausible length.
+func TestOnlyThirtyTwoRandomBytesIsAKey(t *testing.T) {
+	hexBytes, err := hex.DecodeString(testHexKey)
+	if err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+	urlBytes := append([]byte{0xfb, 0xff}, hexBytes[:30]...)
+	tests := []struct {
+		name  string
+		input string
+		want  []byte
+	}{
+		{name: "hex", input: testHexKey, want: hexBytes},
+		{name: "upper hex", input: strings.ToUpper(testHexKey), want: hexBytes},
+		{name: "trimmed hex", input: "  " + testHexKey + "\n", want: hexBytes},
+		{name: "standard base64", input: base64.StdEncoding.EncodeToString(hexBytes), want: hexBytes},
+		{name: "raw standard base64", input: base64.RawStdEncoding.EncodeToString(hexBytes), want: hexBytes},
+		{name: "raw URL base64", input: base64.RawURLEncoding.EncodeToString(urlBytes), want: urlBytes},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, parseErr := ParseKey(tt.input)
+			if parseErr != nil {
+				t.Fatalf("ParseKey: %v", parseErr)
+			}
+			if !bytes.Equal(got, tt.want) {
+				t.Errorf("decoded key = %x, want %x", got, tt.want)
+			}
+		})
+	}
+
+	for _, input := range []string{
+		"a-key-from-the-environment",
+		"correct horse battery staple",
+		"replace_me",
+		strings.Repeat("01", 31),
+		strings.Repeat("01", 33),
+		strings.Repeat("0", 64),
+		strings.Repeat("*", 64),
+	} {
+		t.Run("refuse "+input[:min(12, len(input))], func(t *testing.T) {
+			got, parseErr := ParseKey(input)
+			if parseErr == nil {
+				t.Fatalf("ParseKey accepted %q as %x", input, got)
+			}
+			if strings.Contains(parseErr.Error(), input) {
+				t.Errorf("startup error leaked the configured key: %v", parseErr)
+			}
+		})
+	}
+
+	key, err := ParseKey("")
+	if err != nil || key != nil {
+		t.Errorf("ParseKey(empty) = %x, %v; want nil, nil", key, err)
+	}
+	if NewCipher(nil).Enabled() {
+		t.Error("a nil key enabled the cipher")
+	}
+}
+
+// TestTheKeyIsTheDecodedBytesAndNotAHashOfThem names the defect: the raw
+// decoded bytes open the ciphertext and sha256(the environment string) does
+// not.
+func TestTheKeyIsTheDecodedBytesAndNotAHashOfThem(t *testing.T) {
+	decoded := mustParseKey(t, testHexKey)
+	sealed, err := NewCipher(decoded).Seal([]byte("the stored totp secret"))
+	if err != nil {
+		t.Fatalf("seal: %v", err)
+	}
+
+	openWith := func(key []byte) *Cipher {
+		block, blockErr := aes.NewCipher(key)
+		if blockErr != nil {
+			t.Fatalf("aes: %v", blockErr)
+		}
+		aead, gcmErr := cipher.NewGCM(block)
+		if gcmErr != nil {
+			t.Fatalf("gcm: %v", gcmErr)
+		}
+		return &Cipher{aead: aead}
+	}
+	if _, err := openWith(decoded).Open(sealed); err != nil {
+		t.Errorf("decoded bytes did not open their ciphertext: %v", err)
+	}
+	hashed := sha256.Sum256([]byte(testHexKey))
+	if _, err := openWith(hashed[:]).Open(sealed); err == nil {
+		t.Error("sha256(the configured text) still opens the ciphertext")
+	}
+}
+
+// TestAnUnreadableCredentialNoticeSpeaksBothLocales pins the recovery message
+// used by the Verify redirect. Challenge's no-redirect path is exercised by
+// the integration test against a real unreadable row.
+func TestAnUnreadableCredentialNoticeSpeaksBothLocales(t *testing.T) {
+	tests := []struct {
+		locale i18n.Locale
+		want   string
+	}{
+		{i18n.ZhHant, "這組驗證器已無法讀取"},
+		{i18n.En, "This authenticator can no longer be read"},
+	}
+	for _, tt := range tests {
+		r, err := url.Parse("/admin/verify?stale=1")
+		if err != nil {
+			t.Fatalf("request URL: %v", err)
+		}
+		req := &http.Request{URL: r}
+		req = req.WithContext(i18n.WithLocale(t.Context(), tt.locale))
+		if got := noticeFor(req); !strings.Contains(got, tt.want) {
+			t.Errorf("notice in %s = %q, want %q", tt.locale, got, tt.want)
+		}
+	}
+}
 
 // TestCodeMatchesTheRFCTestVectors proves goen agrees with every authenticator
 // app. RFC 6238's table is 8-digit; goen uses the low six, per RFC 4226.
@@ -113,7 +253,7 @@ func TestNothingButASixDigitCodeIsAccepted(t *testing.T) {
 // TestASealedSecretRoundTripsAndIsNotThePlaintext proves the stored form is
 // neither readable nor repeatable.
 func TestASealedSecretRoundTripsAndIsNotThePlaintext(t *testing.T) {
-	c := NewCipher("a-key-from-the-environment")
+	c := NewCipher(testCipherKey)
 	secret, err := NewSecret()
 	if err != nil {
 		t.Fatalf("new secret: %v", err)
@@ -149,7 +289,7 @@ func TestASealedSecretRoundTripsAndIsNotThePlaintext(t *testing.T) {
 // TestATamperedSecretDoesNotOpen proves the encryption authenticates rather
 // than merely obscures.
 func TestATamperedSecretDoesNotOpen(t *testing.T) {
-	c := NewCipher("a-key-from-the-environment")
+	c := NewCipher(testCipherKey)
 	secret, _ := NewSecret()
 	sealed, err := c.Seal(secret)
 	if err != nil {
@@ -164,7 +304,7 @@ func TestATamperedSecretDoesNotOpen(t *testing.T) {
 		}
 	}
 
-	if _, err := NewCipher("a-different-key").Open(sealed); err == nil {
+	if _, err := NewCipher(differentCipherKey).Open(sealed); err == nil {
 		t.Error("a secret opened under the wrong key")
 	}
 	// A truncated value is refused rather than panicking on a short slice.
@@ -176,7 +316,7 @@ func TestATamperedSecretDoesNotOpen(t *testing.T) {
 // TestNoKeyMeansNoStoredSecret proves an unconfigured deployment refuses
 // enrolment rather than storing the secret in the clear.
 func TestNoKeyMeansNoStoredSecret(t *testing.T) {
-	c := NewCipher("")
+	c := NewCipher(nil)
 	if c.Enabled() {
 		t.Fatal("a cipher with no key reported itself enabled")
 	}

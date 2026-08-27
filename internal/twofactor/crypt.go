@@ -4,10 +4,72 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 )
+
+// KeyBytes is the AES-256 key length GOEN_TOTP_KEY must decode to.
+const KeyBytes = 32
+
+// ParseKey decodes a configured GOEN_TOTP_KEY into raw key material. An empty
+// value yields (nil, nil): a deployment with no key, which NewCipher turns into
+// a disabled Cipher.
+//
+// It is a key and not a passphrase. A single unsalted SHA-256 over a memorable
+// phrase is not a key derivation function: it costs an offline attacker one
+// hash per wordlist entry against every stored credential at once. Anything
+// that is not exactly KeyBytes bytes of hex or base64 is therefore refused at
+// startup instead of being normalised into something that merely looks like a
+// key.
+func ParseKey(value string) ([]byte, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil, nil
+	}
+
+	decoders := []func(string) ([]byte, error){
+		hex.DecodeString,
+		base64.StdEncoding.DecodeString,
+		base64.RawStdEncoding.DecodeString,
+		base64.URLEncoding.DecodeString,
+		base64.RawURLEncoding.DecodeString,
+	}
+	decodedLength := -1
+	for _, decode := range decoders {
+		key, err := decode(value)
+		if err != nil {
+			continue
+		}
+		if decodedLength == -1 {
+			decodedLength = len(key)
+		}
+		if len(key) != KeyBytes {
+			continue
+		}
+		identical := true
+		for _, b := range key[1:] {
+			if b != key[0] {
+				identical = false
+				break
+			}
+		}
+		if identical {
+			return nil, errors.New("twofactor: GOEN_TOTP_KEY decoded to 32 identical bytes, " +
+				"which is a placeholder rather than a key; generate one with `openssl rand -hex 32`")
+		}
+		return key, nil
+	}
+	if decodedLength >= 0 {
+		return nil, fmt.Errorf("twofactor: GOEN_TOTP_KEY must be %d random bytes as hex or base64 — "+
+			"generate one with `openssl rand -hex 32`; the configured value decoded to %d bytes",
+			KeyBytes, decodedLength)
+	}
+	return nil, errors.New("twofactor: GOEN_TOTP_KEY is neither hex nor base64 — it is a key, " +
+		"not a passphrase; generate one with `openssl rand -hex 32`")
+}
 
 // Cipher encrypts TOTP secrets at rest. The zero value refuses everything,
 // which is what a deployment with no key gets.
@@ -15,14 +77,19 @@ type Cipher struct {
 	aead cipher.AEAD
 }
 
-// NewCipher derives a Cipher from a configured key. An empty key yields a
-// disabled Cipher rather than an error.
-func NewCipher(key string) *Cipher {
-	if key == "" {
+// NewCipher builds a Cipher from key material produced by ParseKey. A nil or
+// empty key yields a disabled Cipher rather than an error, which is what a
+// deployment with no key gets.
+func NewCipher(key []byte) *Cipher {
+	if len(key) == 0 {
 		return &Cipher{}
 	}
-	sum := sha256.Sum256([]byte(key))
-	block, err := aes.NewCipher(sum[:])
+	if len(key) != KeyBytes {
+		// Unreachable in production: ParseKey is the only configuration door and
+		// is called before the server is built.
+		panic("twofactor: NewCipher needs a key from ParseKey")
+	}
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		// Unreachable: a 32-byte key is always a valid AES key size.
 		panic("twofactor: aes: " + err.Error())

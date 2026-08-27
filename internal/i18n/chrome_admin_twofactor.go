@@ -1,6 +1,12 @@
 package i18n
 
 var (
+	KeyTOTPSecretUnreadable = key("admin.totp.secret_unreadable", Message{
+		ZhHant: "這組驗證器已無法讀取(加密金鑰已更換)。請另一位管理員在 /admin/staff 移除後重新設定。",
+		En: "This authenticator can no longer be read (the encryption key changed). " +
+			"Ask another admin to remove it at /admin/staff, then enrol again.",
+	})
+
 	KeyTwoFALead = key("admin.2fa.lead", Message{
 		ZhHant: "後台可以退款、發放額度和調整庫存,所以進去之前要再確認一次是你本人。",
 		En: "The back office can refund money, grant store credit and adjust stock, so it checks once " +

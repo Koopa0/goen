@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"sync"
@@ -16,13 +18,18 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/db/dbtest"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/twofactor"
 )
 
 var pool *pgxpool.Pool
 
-const testKey = "a-key-only-this-test-uses"
+var (
+	testKey      = []byte("0123456789abcdef0123456789abcdef")
+	differentKey = []byte("fedcba9876543210fedcba9876543210")
+)
 
 func TestMain(m *testing.M) {
 	p, stop, err := dbtest.Start(context.Background())
@@ -241,9 +248,71 @@ func TestAStoredSecretIsNotReadableFromTheDatabase(t *testing.T) {
 		t.Fatal("the plaintext secret appears in the stored bytes")
 	}
 
-	other := twofactor.NewStore(pool, "a-different-key")
+	other := twofactor.NewStore(pool, differentKey)
 	if err := other.Verify(ctx, userID, twofactor.Code(secret, twofactor.StepAt(time.Now())+1)); err == nil {
 		t.Error("a credential verified under the wrong encryption key")
+	}
+}
+
+// TestACredentialSealedUnderAnotherKeyIsNotAWrongCode makes a key rotation
+// legible: no digits can fix a credential the configured key cannot open.
+func TestACredentialSealedUnderAnotherKeyIsNotAWrongCode(t *testing.T) {
+	s := twofactor.NewStore(pool, testKey)
+	userID, email := staff(t)
+	secret := enrol(t, s, userID, email)
+
+	other := twofactor.NewStore(pool, differentKey)
+	err := other.Verify(t.Context(), userID,
+		twofactor.Code(secret, twofactor.StepAt(time.Now())+1))
+	if !errors.Is(err, twofactor.ErrSecretUnreadable) {
+		t.Fatalf("Verify under another key = %v, want ErrSecretUnreadable", err)
+	}
+	if errors.Is(err, twofactor.ErrBadCode) {
+		t.Errorf("Verify under another key also reports ErrBadCode: %v", err)
+	}
+}
+
+// TestAStaleKeyIsExplainedInsteadOfBlamingTheCode covers both handler doors.
+// POST redirects to a stable recovery state, while GET must render that same
+// state directly because its Enrolled read decrypts before POST can run.
+func TestAStaleKeyIsExplainedInsteadOfBlamingTheCode(t *testing.T) {
+	s := twofactor.NewStore(pool, testKey)
+	userID, email := staff(t)
+	enrol(t, s, userID, email)
+	h := twofactor.NewHandler(twofactor.NewStore(pool, differentKey),
+		slog.New(slog.DiscardHandler), false)
+	user := account.User{ID: userID, Email: email}
+
+	post := httptest.NewRequestWithContext(account.WithUser(t.Context(), user),
+		http.MethodPost, "/admin/verify", strings.NewReader("code=123456"))
+	post.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	postOut := httptest.NewRecorder()
+	h.Verify(postOut, post)
+	if postOut.Code != http.StatusSeeOther || postOut.Header().Get("Location") != "/admin/verify?stale=1" {
+		t.Errorf("Verify = %d Location %q, want 303 stale recovery",
+			postOut.Code, postOut.Header().Get("Location"))
+	}
+
+	for _, tt := range []struct {
+		locale i18n.Locale
+		want   string
+	}{
+		{i18n.ZhHant, "這組驗證器已無法讀取"},
+		{i18n.En, "This authenticator can no longer be read"},
+	} {
+		t.Run(tt.locale.Tag(), func(t *testing.T) {
+			ctx := i18n.WithLocale(account.WithUser(t.Context(), user), tt.locale)
+			get := httptest.NewRequestWithContext(ctx, http.MethodGet,
+				"/admin/verify", http.NoBody)
+			out := httptest.NewRecorder()
+			h.Challenge(out, get)
+			if out.Code != http.StatusOK {
+				t.Fatalf("Challenge = %d, want 200; body=%s", out.Code, out.Body.String())
+			}
+			if !strings.Contains(out.Body.String(), tt.want) {
+				t.Errorf("Challenge in %s omitted %q; body=%s", tt.locale, tt.want, out.Body.String())
+			}
+		})
 	}
 }
 
@@ -306,7 +375,7 @@ func TestSessionVerificationExpires(t *testing.T) {
 
 // TestNoKeyMeansNoEnrolment proves an unconfigured deployment writes nothing.
 func TestNoKeyMeansNoEnrolment(t *testing.T) {
-	s := twofactor.NewStore(pool, "")
+	s := twofactor.NewStore(pool, nil)
 	userID, email := staff(t)
 
 	if s.Enabled() {

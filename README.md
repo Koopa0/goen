@@ -195,26 +195,39 @@ cp .env.example .env
 | `GOEN_DATABASE_URL`          | The storefront pool. Connects, then `SET ROLE store`                   | required                       |
 | `GOEN_ADMIN_DATABASE_URL`    | The back-office pool. Connects, then `SET ROLE admin`                  | `GOEN_DATABASE_URL`            |
 | `GOEN_ADDR`                  | Listen address                                                         | `127.0.0.1:9700`               |
-| `GOEN_BASE_URL`              | The origin Stripe returns to and email links point at                  | `http://` + `GOEN_ADDR`        |
+| `GOEN_BASE_URL`              | Root HTTP(S) origin Stripe returns to and email links point at          | `http://` + `GOEN_ADDR`        |
 | `GOEN_LOG_LEVEL`             | `debug`, `info`, `warn`, `error`                                       | `info`                         |
 | `GOEN_INSECURE_COOKIES`      | `1` drops `Secure` and the `__Host-` prefix. Development only          | unset — cookies are secure     |
 | `GOEN_STRIPE_SECRET_KEY`     | Empty still sells; the payment page says 金流尚未啟用                    | empty                          |
 | `GOEN_STRIPE_WEBHOOK_SECRET` | Required whenever a secret key is set                                  | empty                          |
-| `GOEN_TOTP_KEY`              | Encrypts staff second-factor secrets at rest. Empty disables enrolment | empty                          |
-| `GOEN_SMTP_ADDR`             | `host:port`. Empty writes mail to the log instead of sending it        | empty                          |
+| `GOEN_TOTP_KEY`              | 32 random bytes as hex/base64; encrypts staff second-factor secrets    | empty                          |
+| `GOEN_SMTP_ADDR`             | `host:port`; empty logs mail only in the development posture           | empty                          |
 | `GOEN_SMTP_FROM`             | Envelope sender                                                        | `goen <no-reply@goen.example>` |
 | `GOEN_SMTP_USER`             | SMTP username, when the relay wants one                                | empty                          |
 | `GOEN_SMTP_PASSWORD`         | SMTP password                                                          | empty                          |
 
-Three of these fail in ways worth naming:
+Five of these fail in ways worth naming:
 
 - `GOEN_DATABASE_URL` has no default on purpose — a missing one stops the binary
   rather than letting it reach some other database.
 - A Stripe secret key **without** a webhook secret refuses to start. That
   combination would take money over an endpoint nothing authenticates.
-- `GOEN_BASE_URL` falls back to `http://` plus the listen address, which is right
-  in development and wrong the moment anything is deployed: Stripe would send the
-  customer back to `127.0.0.1` and every emailed link would point there. Set it.
+- `GOEN_TOTP_KEY` refuses anything that does not decode to exactly 32 bytes. It
+  is a key, not a passphrase, and one unsalted hash of a passphrase is not a key
+  derivation function. Generate it with `openssl rand -hex 32`.
+- `GOEN_SMTP_ADDR` is required when cookies are Secure. Without it the
+  development LogSender returns success, so password resets and order mail
+  would be marked delivered without being sent. A malformed authenticated
+  relay address is fatal too; it never falls back to that sender.
+- `GOEN_BASE_URL` must be a root HTTP(S) origin with no credentials, path, query
+  or fragment. A production posture requires an explicit HTTPS value: a
+  cleartext reset link exposes its single-use token before any redirect can
+  help. The `http://` listen-address fallback remains development-only.
+
+Changing `GOEN_TOTP_KEY` makes every enrolled credential unreadable. Remove the
+factors at `/admin/staff` while the old binary is running, restart with the new
+key, then have staff re-enrol. If the back office is already unreachable, the
+owning role must `DELETE FROM staff_totp_credentials;` before restart.
 
 See `.env.example` for the connection-role guidance.
 

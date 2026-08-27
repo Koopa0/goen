@@ -2651,11 +2651,21 @@ them with `/admin`":
   it was left open. The only test covering a proved promotion asserted the
   password and nothing else, so the "always" was free to become an `if`.
 
-The secret is AES-256-GCM at rest, keyed by `GOEN_TOTP_KEY`. A
-`staff_totp_credentials` row is a password-equivalent, so the point is that a
+The secret is AES-256-GCM at rest, keyed by `GOEN_TOTP_KEY`. That key is 32 raw
+bytes supplied as hex or base64, and a passphrase is refused at startup. It used
+to be `sha256(whatever was configured)` under a `.env.example` line reading
+"any length will do" — a length-normaliser sold as a key derivation function,
+two lines above the sentence claiming a database dump alone does not defeat the
+factor. `ecpay.go` had refused a wrong-length key since it was written; the
+second secret in the same binary accepted anything.
+
+A `staff_totp_credentials` row is a password-equivalent, so the point is that a
 database dump alone does not defeat the factor. An empty key disables enrolment
 the way an empty Stripe key disables payment — off and saying so, never half on
-with secrets in the clear.
+with secrets in the clear. Changing the key makes every existing credential
+unreadable: remove factors at `/admin/staff` while the old binary still runs,
+then restart and re-enrol. An already-unreadable deployment needs the owning
+role to `DELETE FROM staff_totp_credentials;` first.
 
 Enrolment is TWO steps, and `confirmed_at` is why: somebody who mistypes the
 secret into their app would otherwise have working 2FA on paper and no way to

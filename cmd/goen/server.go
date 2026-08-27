@@ -53,8 +53,9 @@ type RouterConfig struct {
 	BaseURL string
 	// SecureCookies selects the __Host- cookie prefix.
 	SecureCookies bool
-	// TOTPKey encrypts stored second-factor secrets; empty disables enrolment.
-	TOTPKey string
+	// TOTPKey is parsed key material from twofactor.ParseKey; nil disables
+	// enrolment. The type keeps raw configuration out of the cipher.
+	TOTPKey []byte
 	// Invoices issues uniform invoices, or is disabled and renders no controls.
 	Invoices *invoice.Gateway
 	// Google signs customers in, or is disabled and 404s its two routes.
