@@ -422,14 +422,17 @@ func TestAnOffSiteHeroCTAIsReplacedAtReadTime(t *testing.T) {
 
 	t.Run("primary uses the built-in CTA pair", func(t *testing.T) {
 		emptyHeroSlides(t)
-		if _, err := pool.Exec(ctx, `
+		var id uuid.UUID
+		if err := pool.QueryRow(ctx, `
 			INSERT INTO hero_slides
 			    (headline, primary_cta_label, primary_cta_href,
 			     secondary_cta_label, secondary_cta_href, position)
 			VALUES ('仍是這張投影片', '假的按鈕', '///evil.example/x',
-			        '原本安全的次按鈕', '/custom-safe', -100)`); err != nil {
+			        '原本安全的次按鈕', '/custom-safe', -100)
+			RETURNING id`).Scan(&id); err != nil {
 			t.Fatalf("insert poisoned primary CTA: %v", err)
 		}
+		cleanupHeroSlide(t, ctx, id)
 
 		hero, err := s.Hero(ctx)
 		if err != nil {
@@ -447,14 +450,17 @@ func TestAnOffSiteHeroCTAIsReplacedAtReadTime(t *testing.T) {
 
 	t.Run("secondary is dropped while primary survives", func(t *testing.T) {
 		emptyHeroSlides(t)
-		if _, err := pool.Exec(ctx, `
+		var id uuid.UUID
+		if err := pool.QueryRow(ctx, `
 			INSERT INTO hero_slides
 			    (headline, primary_cta_label, primary_cta_href,
 			     secondary_cta_label, secondary_cta_href, position)
 			VALUES ('安全的主按鈕', '看優惠', '/deals',
-			        '假的次按鈕', '///evil.example/x', -100)`); err != nil {
+			        '假的次按鈕', '///evil.example/x', -100)
+			RETURNING id`).Scan(&id); err != nil {
 			t.Fatalf("insert poisoned secondary CTA: %v", err)
 		}
+		cleanupHeroSlide(t, ctx, id)
 
 		hero, err := s.Hero(ctx)
 		if err != nil {
@@ -485,6 +491,17 @@ func emptyHeroSlides(t *testing.T) {
 	if _, err := pool.Exec(t.Context(), `DELETE FROM hero_slides`); err != nil {
 		t.Fatalf("clear hero slides: %v", err)
 	}
+}
+
+func cleanupHeroSlide(t *testing.T, ctx context.Context, id uuid.UUID) {
+	t.Helper()
+	t.Cleanup(func() {
+		clean, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if _, err := pool.Exec(clean, `DELETE FROM hero_slides WHERE id = $1`, id); err != nil {
+			t.Errorf("clean up the slide: %v", err)
+		}
+	})
 }
 
 func TestTheHeroSpeaksTheVisitorsLanguage(t *testing.T) {
