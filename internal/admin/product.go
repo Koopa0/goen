@@ -24,7 +24,6 @@ const (
 	maxNameRunes        = 200
 	maxSummaryRunes     = 500
 	maxDescriptionRunes = 20000
-	maxSKURunes         = 60
 	// MaxWarrantyMonths mirrors products_warranty_months_sane.
 	MaxWarrantyMonths = 120
 
@@ -89,39 +88,6 @@ func (f *ProductForm) Validate(ctx context.Context) map[string]string {
 	}
 	if _, err := uuid.Parse(f.CategoryID); err != nil {
 		errs["category"] = i18n.T(ctx, i18n.KeyFormCategoryRequired)
-	}
-	return errs
-}
-
-// VariantForm is a new variant.
-type VariantForm struct {
-	SKU          string
-	PriceCents   int64
-	CompareCents int64
-	SafetyStock  int32
-	// Zero is UNMEASURED and stored as NULL, so it refuses no shipping method.
-	ParcelLongestMM int32
-	ParcelSumMM     int32
-	ParcelWeightG   int32
-	OptionValues    []string
-}
-
-// Validate refuses what the schema would.
-func (f *VariantForm) Validate(ctx context.Context) map[string]string {
-	f.SKU = strings.ToUpper(strings.TrimSpace(f.SKU))
-
-	errs := map[string]string{}
-	if f.SKU == "" || utf8.RuneCountInString(f.SKU) > maxSKURunes {
-		errs["sku"] = i18n.T(ctx, i18n.KeyFormSKURequired)
-	}
-	if f.PriceCents <= 0 || f.PriceCents > MaxPriceCents {
-		errs["price"] = i18n.T(ctx, i18n.KeyFormPricePositive)
-	}
-	if f.CompareCents != 0 && f.CompareCents <= f.PriceCents {
-		errs["compare"] = i18n.T(ctx, i18n.KeyFormCompareHigher)
-	}
-	if f.SafetyStock < 0 {
-		errs["safety"] = i18n.T(ctx, i18n.KeyFormSafetyStock)
 	}
 	return errs
 }
@@ -335,56 +301,6 @@ func (s *Store) SetProductStatus(ctx context.Context, slug, status string) error
 		})
 }
 
-// AddVariant adds a variant at zero stock.
-func (s *Store) AddVariant(ctx context.Context, slug string, f *VariantForm) (map[string]string, error) {
-	if errs := f.Validate(ctx); len(errs) > 0 {
-		return errs, nil
-	}
-	chosen, errs := s.chosenOptionValues(ctx, slug, f.OptionValues)
-	if len(errs) > 0 {
-		return errs, nil
-	}
-
-	if err := s.audited(ctx, Event{
-		Action: ActionCreateVariant, Table: "product_variants", ID: uuid.NullUUID{},
-		Before: nil, After: map[string]any{"product": slug, "sku": f.SKU, "price_cents": f.PriceCents},
-	},
-		func(ctx context.Context, q *db.Queries) error {
-			if createErr := q.CreateVariant(ctx, db.CreateVariantParams{
-				Slug: slug, SKU: f.SKU,
-				PriceCents: f.PriceCents, CompareAtPriceCents: f.CompareCents,
-				SafetyStock:     f.SafetyStock,
-				ParcelLongestMm: f.ParcelLongestMM,
-				ParcelSumMm:     f.ParcelSumMM,
-				ParcelWeightG:   f.ParcelWeightG,
-			}); createErr != nil {
-				return createErr
-			}
-			for _, valueID := range chosen {
-				n, linkErr := q.SetVariantOptionValue(ctx, db.SetVariantOptionValueParams{
-					SKU: f.SKU, OptionValueID: valueID,
-				})
-				if linkErr != nil {
-					return linkErr
-				}
-				if n == 0 {
-					return ErrNotFound
-				}
-			}
-			return nil
-		}); err != nil {
-		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
-			pgErr.ConstraintName == "product_variants_sku_key" {
-			return map[string]string{"sku": i18n.T(ctx, i18n.KeyFormSKUTaken)}, nil
-		}
-		if errors.Is(err, ErrNotFound) {
-			return map[string]string{"options": i18n.T(ctx, i18n.KeyFormOptionsInvalid)}, nil
-		}
-		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
-	}
-	return nil, nil
-}
-
 // ProductStatusLabel is a product's state in the reader's language.
 func ProductStatusLabel(ctx context.Context, s string) string {
 	switch s {
@@ -481,32 +397,6 @@ func (s *Store) RemoveSpec(ctx context.Context, slug, id string) error {
 		}
 		return nil
 	})
-}
-
-func (s *Store) chosenOptionValues(ctx context.Context, slug string, raw []string) (
-	chosen []uuid.UUID, fieldErrs map[string]string,
-) {
-	options, err := s.q.ProductOptionCount(ctx, slug)
-	if err != nil {
-		return nil, map[string]string{"options": i18n.T(ctx, i18n.KeyFormOptionsUnreadable)}
-	}
-	chosen = make([]uuid.UUID, 0, len(raw))
-	for _, value := range raw {
-		if value == "" {
-			continue
-		}
-		id, parseErr := uuid.Parse(value)
-		if parseErr != nil {
-			return nil, map[string]string{"options": i18n.T(ctx, i18n.KeyFormOptionsInvalid)}
-		}
-		chosen = append(chosen, id)
-	}
-	if int64(len(chosen)) != options {
-		return nil, map[string]string{
-			"options": i18n.T(ctx, i18n.KeyFormVariantNeedsEveryOption),
-		}
-	}
-	return chosen, nil
 }
 
 // MaxOptionNameRunes bounds an option name or one of its values.
