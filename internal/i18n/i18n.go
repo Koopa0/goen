@@ -1,7 +1,3 @@
-// Package i18n decides what language a page speaks.
-//
-// The chrome — navigation, buttons, labels, validation messages, empty states —
-// follows the visitor. Product copy and the policy documents do not.
 package i18n
 
 import (
