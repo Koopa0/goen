@@ -121,7 +121,7 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 	sendbacks := returns.NewHandler(returns.NewStore(pool), basketStore, log, secureCookies)
 
 	mux := http.NewServeMux()
-	mux.Handle("GET "+assets.Prefix, assets.Handler())
+	mux.Handle("GET "+assets.Prefix, staticAssetHandler(assets.Handler()))
 
 	mux.HandleFunc("GET /healthz", probes.Live)
 	mux.HandleFunc("GET /readyz", probes.Ready)
@@ -335,14 +335,27 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 	var handler http.Handler = mux
 	handler = withBanner(handler, home.NewStore(pool), log, secureCookies)
 	handler = withTopNav(handler, home.NewStore(pool), log)
-	handler = withLocale(handler, secureCookies)
-	handler = basket.WithCount(handler)
-	handler = customers.Authenticate(handler)
+	handler = onlyVisitorPaths(func(next http.Handler) http.Handler {
+		return withLocale(next, secureCookies)
+	}, handler)
+	handler = onlyVisitorPaths(basket.WithCount, handler)
+	handler = onlyVisitorPaths(customers.Authenticate, handler)
 	handler = crossOriginProtection(handler)
 	handler = securityHeaders(handler)
+	handler = web.Compress(handler)
 	handler = requestLog(handler, log)
 	handler = withRequestID(handler)
 	return recoverPanic(handler, log)
+}
+
+// staticAssetHandler leaves identity-versus-gzip selection with assets.Handler.
+// The outer dynamic compressor must not invent a representation the immutable
+// asset catalogue deliberately omitted because it did not shrink.
+func staticAssetHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		web.NoCompress(w)
+		next.ServeHTTP(w, r)
+	})
 }
 
 // crossOriginProtection rejects cross-site form posts using the browser's own
@@ -449,9 +462,14 @@ type statusRecorder struct {
 }
 
 func (s *statusRecorder) WriteHeader(code int) {
-	if s.status == 0 {
-		s.status = code
+	if s.status != 0 {
+		return
 	}
+	if code >= 100 && code < 200 && code != http.StatusSwitchingProtocols {
+		s.ResponseWriter.WriteHeader(code)
+		return
+	}
+	s.status = code
 	s.ResponseWriter.WriteHeader(code)
 }
 
@@ -524,6 +542,48 @@ func withBanner(next http.Handler, store *home.Store, log *slog.Logger, secure b
 // category row, on the chrome CLAUDE.md calls the most-read on the site.
 var navFreePrefixes = []string{
 	"/admin", "/webhooks", "/media", "/static", "/healthz", "/readyz",
+}
+
+// statelessPrefixes belong to no visitor: goen's own bytes, probes and the
+// provider callback. The locale, signed-in user and cart badge are unused on
+// these routes, so running their middleware would spend database round trips
+// and put Vary: Cookie on immutable assets only to discard every result.
+//
+// This routing filter stays inside the ordinary middleware chain. In
+// particular, /media serves attacker-supplied bytes and must retain nosniff,
+// the CSP, request IDs, logging and panic recovery rather than being mounted on
+// a second mux where one of those protections can drift.
+//
+// Every entry is also in navFreePrefixes and bannerFreePrefixes;
+// TestNothingStatelessRendersChrome holds that containment. /admin is
+// deliberately absent because RequireStaff reads the user Authenticate puts
+// on the context.
+var statelessPrefixes = []string{
+	"/static", "/media", "/healthz", "/readyz", "/webhooks",
+}
+
+// statelessPath reports whether a path carries no per-visitor state.
+func statelessPath(path string) bool {
+	for _, prefix := range statelessPrefixes {
+		if path == prefix || strings.HasPrefix(path, prefix+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+// onlyVisitorPaths applies mw where the route has a visitor and bypasses it on
+// stateless routes. URL ownership belongs here rather than in account or cart:
+// those feature packages should not know the application's route table.
+func onlyVisitorPaths(mw func(http.Handler) http.Handler, next http.Handler) http.Handler {
+	wrapped := mw(next)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if statelessPath(r.URL.Path) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		wrapped.ServeHTTP(w, r)
+	})
 }
 
 // withTopNav loads the header's category row. It runs inside withLocale,

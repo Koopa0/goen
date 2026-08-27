@@ -22,6 +22,7 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/twofactor"
+	"github.com/koopa0/goen/internal/web"
 )
 
 var pool *pgxpool.Pool
@@ -68,6 +69,34 @@ func enrol(t *testing.T, s *twofactor.Store, userID, email string) []byte {
 		t.Fatalf("confirm: %v", err)
 	}
 	return secret
+}
+
+func TestTheEnrolmentSecretPageIsNotCompressed(t *testing.T) {
+	s := twofactor.NewStore(pool, testKey)
+	userID, email := staff(t)
+	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler), false)
+	ctx := account.WithUser(t.Context(), account.User{ID: userID, Email: email, Role: "admin"})
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/verify/enrol", strings.NewReader(""))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept-Encoding", "gzip")
+	res := httptest.NewRecorder()
+	web.Compress(http.HandlerFunc(h.Enrol)).ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("Enrol status = %d, want 200; body=%s", res.Code, res.Body.String())
+	}
+	if got := res.Header().Get("Content-Encoding"); got != "" {
+		t.Errorf("Content-Encoding = %q, want identity", got)
+	}
+	if got := res.Header().Get("X-Goen-No-Compress"); got != "" {
+		t.Errorf("private no-compress marker leaked as %q", got)
+	}
+	if res.Body.Len() < 1024 {
+		t.Fatalf("response is only %d bytes; it would not prove the opt-out", res.Body.Len())
+	}
+	if !strings.Contains(res.Body.String(), "otpauth://") {
+		t.Error("response does not carry the TOTP URI the test is meant to protect")
+	}
 }
 
 // TestACodeIsAcceptedExactlyOnceEvenConcurrently proves the replay guard is in

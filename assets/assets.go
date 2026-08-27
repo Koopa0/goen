@@ -12,7 +12,6 @@ import (
 	"embed"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"io/fs"
 	"log/slog"
 	"net/http"
@@ -55,58 +54,64 @@ var required = []string{
 	HomeHeroImage720,
 }
 
-var digests = map[string]string{}
-
-func init() {
-	if err := index(); err != nil {
-		panic("assets: " + err.Error())
-	}
+type assetIndex struct {
+	digests map[string]string
+	gzipped map[string][]byte
 }
 
-func index() error {
+var catalogue = mustIndex()
+
+func mustIndex() assetIndex {
+	indexed, err := index()
+	if err != nil {
+		// The embedded corpus cannot be repaired after the process starts. This
+		// preserves the existing fail-at-startup contract without an init hook.
+		panic("assets: " + err.Error())
+	}
+	return indexed
+}
+
+func index() (assetIndex, error) {
+	indexed := assetIndex{
+		digests: make(map[string]string),
+		gzipped: make(map[string][]byte),
+	}
 	err := fs.WalkDir(files, ".", func(name string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return err
 		}
-		f, err := files.Open(name)
+		raw, err := fs.ReadFile(files, name)
+		if err != nil {
+			return fmt.Errorf("read %s: %w", name, err)
+		}
+		sum := sha256.Sum256(raw)
+		indexed.digests[name] = hex.EncodeToString(sum[:])[:12]
+		encoded, err := precompress(name, raw)
 		if err != nil {
 			return err
 		}
-		defer closeQuietly(f)
-
-		sum := sha256.New()
-		if _, err := io.Copy(sum, f); err != nil {
-			return fmt.Errorf("hash %s: %w", name, err)
+		if encoded != nil {
+			indexed.gzipped[name] = encoded
 		}
-		digests[name] = hex.EncodeToString(sum.Sum(nil))[:12]
 		return nil
 	})
 	if err != nil {
-		return err
+		return assetIndex{}, err
 	}
 
 	for _, name := range required {
-		if _, ok := digests[name]; !ok {
-			return fmt.Errorf("required asset %s is not embedded", name)
+		if _, ok := indexed.digests[name]; !ok {
+			return assetIndex{}, fmt.Errorf("required asset %s is not embedded", name)
 		}
 	}
-	return nil
-}
-
-// closeQuietly closes a file opened only for reading. A failure there cannot
-// affect the digest already computed, but swallowing it silently would hide a
-// filesystem going wrong, so it is reported and the walk continues.
-func closeQuietly(f fs.File) {
-	if err := f.Close(); err != nil {
-		slog.Warn("assets: close embedded file", "error", err)
-	}
+	return indexed, nil
 }
 
 // URL returns the versioned public URL for an embedded asset. An unknown name
 // yields an unversioned URL, which the handler answers with 404 rather than a
 // silently stale response.
 func URL(name string) string {
-	if d, ok := digests[name]; ok {
+	if d, ok := catalogue.digests[name]; ok {
 		return Prefix + name + "?v=" + d
 	}
 	return Prefix + name
@@ -116,7 +121,7 @@ func URL(name string) string {
 // something else — a placeholder, a skipped element — use this rather than
 // emitting a URL the handler will 404.
 func Has(name string) bool {
-	_, ok := digests[name]
+	_, ok := catalogue.digests[name]
 	return ok
 }
 
@@ -209,7 +214,7 @@ func Handler() http.Handler {
 
 	return http.StripPrefix(strip, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		name := strings.TrimPrefix(r.URL.Path, "/")
-		digest, known := digests[name]
+		digest, known := catalogue.digests[name]
 		if !known {
 			http.NotFound(w, r)
 			return
@@ -219,8 +224,44 @@ func Handler() http.Handler {
 		} else {
 			w.Header().Set("Cache-Control", "no-cache")
 		}
+		body, hasGzip := catalogue.gzipped[name]
+		if hasGzip {
+			w.Header().Add("Vary", "Accept-Encoding")
+		}
+		if hasGzip && acceptsGzip(r) {
+			etag := `"` + digest + `-gz"`
+			w.Header().Set("ETag", etag)
+			w.Header().Set("Content-Type", contentType(name))
+			w.Header().Set("Content-Encoding", "gzip")
+			if ifNoneMatch(r, etag) {
+				w.WriteHeader(http.StatusNotModified)
+				return
+			}
+			w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+			if r.Method == http.MethodHead {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			if _, err := w.Write(body); err != nil {
+				slog.Warn("assets: write gzip body", "name", name, "error", err)
+			}
+			return
+		}
+		w.Header().Set("ETag", `"`+digest+`"`)
 		fileServer.ServeHTTP(w, r)
 	}))
+}
+
+func ifNoneMatch(r *http.Request, etag string) bool {
+	for _, line := range r.Header.Values("If-None-Match") {
+		for candidate := range strings.SplitSeq(line, ",") {
+			candidate = strings.TrimSpace(candidate)
+			if candidate == "*" || candidate == etag || strings.TrimPrefix(candidate, "W/") == etag {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ---------------------------------------------------------------------------

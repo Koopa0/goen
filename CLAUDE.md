@@ -861,9 +861,9 @@ comments, because `splitQueries` hands each query the NEXT one's introduction.
 24. **A gate with most of its subject missing.** `check-layout` measured ten
     of the site's fifty-three page routes, and the PDP — the most important page
     on the site — scrolled sideways at 375px the whole time. Every page has a row
-    now, 85 viewports in all.
+    now, 113 viewports in all.
 25. **A check that measures LAYOUT and calls the page checked.** `check-layout`
-    drove a real browser over 85 viewports and asked only about geometry:
+    drove a real browser over 113 viewports and asked only about geometry:
     overflow, grid columns, tap targets, whether images loaded. The invariants a
     browser can also decide — and only a browser can — went unasked, and each is a
     defect that makes a page unusable for somebody and invisible to everybody

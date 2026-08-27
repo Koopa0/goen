@@ -90,6 +90,8 @@ func (h *Handler) Thanks(w http.ResponseWriter, r *http.Request) {
 // rather than acted on: a confirmation a link scanner can complete confirms
 // nothing.
 func (h *Handler) ConfirmPage(w http.ResponseWriter, r *http.Request) {
+	// The one-time consent token is echoed into the form; never compress it.
+	web.NoCompress(w)
 	ctx := r.Context()
 	web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
 		pages.NewsletterMeta(i18n.T(ctx, i18n.KeyNewsletterConfirmTitle)),
@@ -133,6 +135,8 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 // UnsubscribePage serves GET /newsletter/unsubscribe, for the same reason
 // ConfirmPage exists.
 func (h *Handler) UnsubscribePage(w http.ResponseWriter, r *http.Request) {
+	// The unsubscribe token never expires; keep its page out of BREACH's reach.
+	web.NoCompress(w)
 	ctx := r.Context()
 	web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
 		pages.NewsletterMeta(i18n.T(ctx, i18n.KeyNewsletterLeaveTitle)),

@@ -1,8 +1,12 @@
 package assets_test
 
 import (
+	"bytes"
+	"compress/gzip"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -10,9 +14,9 @@ import (
 )
 
 // TestRequiredAssetsAreVersioned covers every asset the templates name. A
-// missing file already stops the binary in init; this proves the URL each
-// constant produces is the versioned one that the year-long cache header
-// depends on.
+// missing file already stops the binary during package initialization; this
+// proves the URL each constant produces is the versioned one that the year-long
+// cache header depends on.
 func TestRequiredAssetsAreVersioned(t *testing.T) {
 	t.Parallel()
 
@@ -133,6 +137,199 @@ func TestHandlerServesRequestedAsset(t *testing.T) {
 	}
 }
 
+func TestAnAssetIsServedPrecompressed(t *testing.T) {
+	t.Parallel()
+
+	res := requestAsset(t, assets.AppCSS, "gzip", "")
+	if got := res.Header().Get("Content-Encoding"); got != "gzip" {
+		t.Errorf("Content-Encoding = %q, want gzip", got)
+	}
+	if got := res.Header().Get("Content-Type"); !strings.HasPrefix(got, "text/css") {
+		t.Errorf("Content-Type = %q, want text/css", got)
+	}
+	if !variesOnAcceptEncoding(res.Header()) {
+		t.Errorf("Vary = %q, want Accept-Encoding", res.Header().Values("Vary"))
+	}
+	if got := res.Header().Get("Content-Length"); got != strconv.Itoa(res.Body.Len()) {
+		t.Errorf("Content-Length = %q, want %d", got, res.Body.Len())
+	}
+	if got := res.Header().Get("Accept-Ranges"); got != "" {
+		t.Errorf("Accept-Ranges = %q, want absent on the gzip representation", got)
+	}
+	if body := gunzipAsset(t, res.Body.Bytes()); !bytes.Contains(body, []byte(".goen-header__bar")) {
+		t.Error("gunzipped response is not the application stylesheet")
+	}
+}
+
+func TestASmallTextAssetHasOnlyItsIdentityRepresentation(t *testing.T) {
+	t.Parallel()
+
+	res := requestAsset(t, assets.DesignSystemCSS, "gzip", "")
+	if got := res.Header().Get("Content-Encoding"); got != "" {
+		t.Errorf("Content-Encoding = %q, want identity below the precompression threshold", got)
+	}
+	if variesOnAcceptEncoding(res.Header()) {
+		t.Errorf("Vary = %q; a small asset has no gzip representation", res.Header().Values("Vary"))
+	}
+	if res.Body.Len() >= 1024 {
+		t.Fatalf("fixture grew to %d bytes; it no longer proves the small-asset branch", res.Body.Len())
+	}
+}
+
+func TestAnAssetWithoutAcceptEncodingIsIdentity(t *testing.T) {
+	t.Parallel()
+
+	res := requestAsset(t, assets.AppCSS, "", "")
+	if got := res.Header().Get("Content-Encoding"); got != "" {
+		t.Errorf("Content-Encoding = %q, want identity", got)
+	}
+	if got := res.Header().Get("Content-Length"); got != strconv.Itoa(res.Body.Len()) {
+		t.Errorf("Content-Length = %q, want %d", got, res.Body.Len())
+	}
+	if !strings.Contains(res.Body.String(), ".goen-header__bar") {
+		t.Error("identity response is not the application stylesheet")
+	}
+	if !variesOnAcceptEncoding(res.Header()) {
+		t.Errorf("Vary = %q, want Accept-Encoding on the identity representation", res.Header().Values("Vary"))
+	}
+}
+
+func TestAssetGzipNegotiationHonoursQualityAndWildcard(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		header string
+		want   bool
+	}{
+		{name: "q zero", header: "gzip;q=0", want: false},
+		{name: "explicit zero beats wildcard", header: "*;q=1, gzip;q=0", want: false},
+		{name: "wildcard", header: "br, *;q=0.4", want: true},
+		{name: "case insensitive", header: "GZip; Q=.5", want: true},
+		{name: "invalid quality", header: "gzip;q=wat", want: false},
+		{name: "missing quality value", header: "gzip;q", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			res := requestAsset(t, assets.AppCSS, tt.header, "")
+			if got := res.Header().Get("Content-Encoding") == "gzip"; got != tt.want {
+				t.Errorf("gzip selected = %v, want %v (Content-Encoding %q)",
+					got, tt.want, res.Header().Get("Content-Encoding"))
+			}
+		})
+	}
+}
+
+func TestAnImageIsNotPrecompressed(t *testing.T) {
+	t.Parallel()
+
+	identity := requestAsset(t, assets.HomeHeroImage, "", "")
+	negotiated := requestAsset(t, assets.HomeHeroImage, "gzip", "")
+	if got := negotiated.Header().Get("Content-Encoding"); got != "" {
+		t.Errorf("Content-Encoding = %q, want identity for webp", got)
+	}
+	if variesOnAcceptEncoding(negotiated.Header()) {
+		t.Errorf("Vary = %q; an image with one representation must not fragment the cache",
+			negotiated.Header().Values("Vary"))
+	}
+	if !bytes.Equal(negotiated.Body.Bytes(), identity.Body.Bytes()) {
+		t.Error("image bytes changed when the client advertised gzip")
+	}
+}
+
+func TestAnAssetETagDistinguishesEncodings(t *testing.T) {
+	t.Parallel()
+
+	identity := requestAsset(t, assets.AppCSS, "", "")
+	compressed := requestAsset(t, assets.AppCSS, "gzip", "")
+	identityTag := identity.Header().Get("ETag")
+	gzipTag := compressed.Header().Get("ETag")
+	if identityTag == "" || gzipTag == "" || identityTag == gzipTag {
+		t.Fatalf("identity ETag = %q, gzip ETag = %q; want two validators", identityTag, gzipTag)
+	}
+	identity304 := requestAsset(t, assets.AppCSS, "", identityTag)
+	if identity304.Code != http.StatusNotModified || identity304.Body.Len() != 0 {
+		t.Errorf("identity validator got status %d, body %d; want 304 and empty", identity304.Code, identity304.Body.Len())
+	}
+	if got := identity304.Header().Get("ETag"); got != identityTag {
+		t.Errorf("identity 304 ETag = %q, want %q", got, identityTag)
+	}
+	if got := identity304.Header().Get("Content-Encoding"); got != "" {
+		t.Errorf("identity 304 Content-Encoding = %q, want identity", got)
+	}
+	if !variesOnAcceptEncoding(identity304.Header()) {
+		t.Errorf("identity 304 Vary = %q, want Accept-Encoding", identity304.Header().Values("Vary"))
+	}
+	if got := identity304.Header().Get("Cache-Control"); got != "public, max-age=31536000, immutable" {
+		t.Errorf("identity 304 Cache-Control = %q, want immutable", got)
+	}
+
+	gzip304 := requestAsset(t, assets.AppCSS, "gzip", gzipTag)
+	if gzip304.Code != http.StatusNotModified || gzip304.Body.Len() != 0 {
+		t.Errorf("gzip validator got status %d, body %d; want 304 and empty", gzip304.Code, gzip304.Body.Len())
+	}
+	if got := gzip304.Header().Get("ETag"); got != gzipTag {
+		t.Errorf("gzip 304 ETag = %q, want %q", got, gzipTag)
+	}
+	if got := gzip304.Header().Get("Content-Encoding"); got != "gzip" {
+		t.Errorf("gzip 304 Content-Encoding = %q, want gzip", got)
+	}
+	if !variesOnAcceptEncoding(gzip304.Header()) {
+		t.Errorf("gzip 304 Vary = %q, want Accept-Encoding", gzip304.Header().Values("Vary"))
+	}
+	if got := gzip304.Header().Get("Cache-Control"); got != "public, max-age=31536000, immutable" {
+		t.Errorf("gzip 304 Cache-Control = %q, want immutable", got)
+	}
+	if got := requestAsset(t, assets.AppCSS, "", gzipTag); got.Code != http.StatusOK {
+		t.Errorf("gzip validator on identity got status %d, want 200", got.Code)
+	}
+}
+
+func TestAnAssetMatchesAValidatorOnALaterHeaderLine(t *testing.T) {
+	compressed := requestAsset(t, assets.AppCSS, "gzip", "")
+	etag := compressed.Header().Get("ETag")
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, assets.URL(assets.AppCSS), http.NoBody)
+	req.Header.Set("Accept-Encoding", "gzip")
+	req.Header.Add("If-None-Match", `"unrelated"`)
+	req.Header.Add("If-None-Match", "W/"+etag)
+	res := httptest.NewRecorder()
+	assets.Handler().ServeHTTP(res, req)
+	if res.Code != http.StatusNotModified || res.Body.Len() != 0 {
+		t.Errorf("later weak validator got status %d, body %d; want 304 and empty", res.Code, res.Body.Len())
+	}
+}
+
+func TestAHeadRequestCarriesTheSelectedRepresentationHeaders(t *testing.T) {
+	t.Parallel()
+
+	get := requestAsset(t, assets.AppCSS, "gzip", "")
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodHead, assets.URL(assets.AppCSS), http.NoBody)
+	req.Header.Set("Accept-Encoding", "gzip")
+	res := httptest.NewRecorder()
+	assets.Handler().ServeHTTP(res, req)
+	if res.Code != http.StatusOK || res.Body.Len() != 0 {
+		t.Errorf("HEAD status=%d body=%d, want 200 and empty", res.Code, res.Body.Len())
+	}
+	if got := res.Header().Get("Content-Encoding"); got != "gzip" {
+		t.Errorf("Content-Encoding = %q, want gzip", got)
+	}
+	if got := res.Header().Get("Content-Length"); got != strconv.Itoa(get.Body.Len()) {
+		t.Errorf("HEAD Content-Length = %q, want gzip GET length %d", got, get.Body.Len())
+	}
+	for _, name := range []string{"Content-Type", "ETag", "Cache-Control"} {
+		if got, want := res.Header().Get(name), get.Header().Get(name); got != want {
+			t.Errorf("HEAD %s = %q, want gzip GET value %q", name, got, want)
+		}
+	}
+	if !variesOnAcceptEncoding(res.Header()) {
+		t.Errorf("HEAD Vary = %q, want Accept-Encoding", res.Header().Values("Vary"))
+	}
+	if got := res.Header().Get("Accept-Ranges"); got != "" {
+		t.Errorf("HEAD Accept-Ranges = %q, want absent", got)
+	}
+}
+
 func TestHandlerRefusesLongCacheWithoutMatchingVersion(t *testing.T) {
 	t.Parallel()
 
@@ -160,6 +357,47 @@ func TestHandlerRefusesLongCacheWithoutMatchingVersion(t *testing.T) {
 			}
 		})
 	}
+}
+
+func requestAsset(t *testing.T, name, acceptEncoding, ifNoneMatch string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, assets.URL(name), http.NoBody)
+	if acceptEncoding != "" {
+		req.Header.Set("Accept-Encoding", acceptEncoding)
+	}
+	if ifNoneMatch != "" {
+		req.Header.Set("If-None-Match", ifNoneMatch)
+	}
+	res := httptest.NewRecorder()
+	assets.Handler().ServeHTTP(res, req)
+	return res
+}
+
+func gunzipAsset(t *testing.T, body []byte) []byte {
+	t.Helper()
+	r, err := gzip.NewReader(bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("open gzip response: %v", err)
+	}
+	got, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("read gzip response: %v", err)
+	}
+	if err := r.Close(); err != nil {
+		t.Fatalf("close gzip response: %v", err)
+	}
+	return got
+}
+
+func variesOnAcceptEncoding(h http.Header) bool {
+	for _, line := range h.Values("Vary") {
+		for token := range strings.SplitSeq(line, ",") {
+			if strings.EqualFold(strings.TrimSpace(token), "Accept-Encoding") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func TestHandlerRefusesUnknownAndDirectories(t *testing.T) {

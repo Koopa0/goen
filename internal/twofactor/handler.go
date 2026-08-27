@@ -117,6 +117,8 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 
 // Enrol serves POST /admin/verify/enrol.
 func (h *Handler) Enrol(w http.ResponseWriter, r *http.Request) {
+	// The one-time TOTP seed is password-equivalent; keep its page out of BREACH's reach.
+	web.NoCompress(w)
 	u, ok := account.FromContext(r.Context())
 	if !ok {
 		http.NotFound(w, r)

@@ -641,6 +641,8 @@ func (h *Handler) ResendVerification(w http.ResponseWriter, r *http.Request) {
 
 // VerifyPage serves GET /verify.
 func (h *Handler) VerifyPage(w http.ResponseWriter, r *http.Request) {
+	// The live address-verification token changes identity data; never compress it.
+	web.NoCompress(w)
 	ctx := r.Context()
 	web.Render(w, r, h.log, http.StatusOK, pages.NewsletterAction(
 		pages.NewsletterMeta(i18n.T(ctx, i18n.KeyVerifyTitle)),

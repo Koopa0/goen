@@ -62,6 +62,8 @@ func (h *Handler) Forgot(w http.ResponseWriter, r *http.Request) {
 
 // ResetPage serves GET /reset; checking the token here would tell a guesser it is real.
 func (h *Handler) ResetPage(w http.ResponseWriter, r *http.Request) {
+	// The live reset token is password-equivalent; keep its page out of BREACH's reach.
+	web.NoCompress(w)
 	web.Render(w, r, h.log, http.StatusOK, pages.Reset(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyResetTitle)},
 		pages.ResetView{Token: r.URL.Query().Get("token")}))
@@ -69,6 +71,8 @@ func (h *Handler) ResetPage(w http.ResponseWriter, r *http.Request) {
 
 // Reset serves POST /reset.
 func (h *Handler) Reset(w http.ResponseWriter, r *http.Request) {
+	// A rejected password can re-render the still-live reset token; never compress it.
+	web.NoCompress(w)
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
