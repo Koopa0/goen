@@ -302,7 +302,7 @@ func TestAChangedCreditBalanceReRendersCheckoutWithTheFreshFigure(t *testing.T) 
 	}
 
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour}), nil)
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil)
 	res := httptest.NewRecorder()
 	done := make(chan error, 1)
 	go func() {
@@ -636,7 +636,7 @@ func TestOrderConfirmationIsNotEnumerable(t *testing.T) {
 	}
 
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour}),
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
 		nil)
 
 	stranger := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number, http.NoBody)
@@ -2132,7 +2132,7 @@ func TestAStrangerCannotCancelSomebodyElsesOrder(t *testing.T) {
 	before := stockOf(t, vid)
 
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour}),
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
 		nil)
 
 	stranger := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/cancel", http.NoBody)
@@ -2567,7 +2567,7 @@ func TestAStrangerCannotFillTheirCartFromSomebodyElsesOrder(t *testing.T) {
 	number := orderOfVariants(t, map[uuid.UUID]int32{own: 1})
 
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour}),
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
 		nil)
 
 	stranger := httptest.NewRequestWithContext(ctx, http.MethodPost,
@@ -3415,7 +3415,7 @@ func nextOrderNumber(number string) string {
 // testLimiter is generous on purpose: these cases are about an ANSWER, and a
 // limiter that refused mid-suite would be testing the limiter.
 func testLimiter() *ratelimit.Limiter {
-	return ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour})
+	return ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000})
 }
 
 // placeUnpaidOrderFor places one order for an address, through the store's own
@@ -3517,7 +3517,7 @@ func TestASpentCouponComesBackAsAFieldErrorNotA500(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
 
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour}),
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
 		nil)
 	res := httptest.NewRecorder()
 	h.PlaceOrder(res, req)
@@ -3583,7 +3583,7 @@ func TestPressingUpdateChangesTheChoiceAndPlacesNothing(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
 
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour}),
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
 		nil)
 	res := httptest.NewRecorder()
 	h.PlaceOrder(res, req)
@@ -3694,7 +3694,7 @@ func TestPickingASavedAddressFillsTheForm(t *testing.T) {
 	req = req.WithContext(account.WithUser(ctx, account.User{ID: userID.String(), Role: "customer"}))
 
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour}),
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
 		nil)
 	res := httptest.NewRecorder()
 	h.PlaceOrder(res, req)
@@ -3776,7 +3776,7 @@ func TestChangingAnotherChoiceKeepsATypedAddress(t *testing.T) {
 	req = req.WithContext(account.WithUser(ctx, account.User{ID: userID.String(), Role: "customer"}))
 
 	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour}),
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
 		nil)
 	res := httptest.NewRecorder()
 	h.PlaceOrder(res, req)

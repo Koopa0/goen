@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -30,14 +30,21 @@ func (h *Handler) Forgot(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
-	email := r.PostFormValue("email")
+	addr := r.PostFormValue("email")
+	normalised := email.Clean(addr)
+	// The success redirect is also the refusal: an address outside the
+	// application's policy cannot name an account, and must not become a key.
+	if len(normalised) > email.Max {
+		http.Redirect(w, r, "/forgot?sent=1", http.StatusSeeOther)
+		return
+	}
 
-	if retryAfter, ok := h.resetLimit.Allow("forgot:" + normaliseForLimit(email)); !ok {
+	if retryAfter, ok := h.resetLimit.Allow("forgot:" + normalised); !ok {
 		ratelimit.Refuse(r.Context(), w, retryAfter)
 		return
 	}
 
-	token, sendTo, found, err := h.store.BeginReset(r.Context(), email)
+	token, sendTo, found, err := h.store.BeginReset(r.Context(), addr)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "begin password reset", "error", err)
 		h.serverError(w, r)
@@ -93,9 +100,4 @@ func (h *Handler) Reset(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "complete password reset", "error", err)
 		h.serverError(w, r)
 	}
-}
-
-// normaliseForLimit lowercases, so varying the case does not buy a fresh allowance.
-func normaliseForLimit(email string) string {
-	return strings.ToLower(strings.TrimSpace(email))
 }

@@ -35,7 +35,7 @@ func NewHandler(store *Store, log *slog.Logger, baseURL string) *Handler {
 	return &Handler{
 		store: store, log: log, baseURL: baseURL,
 		askLimit: ratelimit.New(ratelimit.Config{
-			Every: 6 * time.Second, Burst: 10, TTL: time.Hour,
+			Every: 6 * time.Second, Burst: 10, TTL: time.Hour, MaxKeys: 8_192,
 		}),
 	}
 }

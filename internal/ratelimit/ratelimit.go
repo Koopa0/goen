@@ -6,13 +6,21 @@
 package ratelimit
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"golang.org/x/time/rate"
 )
+
+// MaxKeyBytes is the most of one key the limiter retains. Longer logical keys
+// keep a readable prefix and a SHA-256 suffix, so their attacker-controlled
+// bytes are not pinned in the map for the whole TTL.
+const MaxKeyBytes = 128
 
 // Config is one limiter's shape.
 type Config struct {
@@ -20,10 +28,11 @@ type Config struct {
 	Every time.Duration
 	// Burst is how many may be spent at once.
 	Burst int
-	// TTL is how long an idle key is kept. It bounds memory: without it the map
-	// grows with every distinct IP, which is a slower version of the attack
-	// this package exists to stop.
+	// TTL is how long an idle key is kept.
 	TTL time.Duration
+	// MaxKeys is the hard bound on tracked keys. At capacity the least recently
+	// seen live key is forgotten to make room for one new key.
+	MaxKeys int
 }
 
 // Limiter allows a bounded rate per key. The zero value is not usable; [New] is
@@ -31,8 +40,18 @@ type Config struct {
 type Limiter struct {
 	cfg Config
 
-	mu      sync.Mutex
-	buckets map[string]*bucket
+	mu        sync.Mutex
+	buckets   map[bucketKey]*bucket
+	lastSweep time.Time
+	sweeps    int // counted so a test can lock the amortisation guarantee
+}
+
+// bucketKey keeps bounded digests in a namespace separate from raw keys. The
+// distinction matters because a caller can submit the digest representation of
+// a long key as a logical key in its own right.
+type bucketKey struct {
+	value  string
+	hashed bool
 }
 
 // bucket is one key's allowance and when it was last used.
@@ -43,28 +62,40 @@ type bucket struct {
 
 // New returns a Limiter.
 func New(cfg Config) *Limiter {
-	if cfg.Every <= 0 || cfg.Burst < 1 || cfg.TTL <= 0 {
-		panic("ratelimit: New requires a positive Every, Burst and TTL")
+	if cfg.Every <= 0 || cfg.Burst < 1 || cfg.TTL <= 0 || cfg.MaxKeys < 1 {
+		panic("ratelimit: New requires a positive Every, Burst, TTL and MaxKeys")
 	}
-	return &Limiter{cfg: cfg, buckets: make(map[string]*bucket)}
+	return &Limiter{cfg: cfg, buckets: make(map[bucketKey]*bucket)}
 }
 
 // Allow reports whether this key may proceed, and how long to wait if not. A
 // sign-in checks two keys — the client's IP and the submitted email — because
 // per-IP limiting cannot see a distributed attack on one account.
 func (l *Limiter) Allow(key string) (retryAfter time.Duration, ok bool) {
+	mapKey := clampKey(key)
 	now := time.Now()
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	b, found := l.buckets[key]
+	b, found := l.buckets[mapKey]
 	if !found {
-		// Swept here rather than on a ticker: this is the only moment the map
-		// can grow.
-		l.evictLocked(now)
+		// Work proportional to N once per new key is O(N^2), and during a
+		// sustained arrival no key is old enough to free. Sweep idle keys on an
+		// interval instead. At full capacity an exact oldest-key choice still
+		// costs O(MaxKeys) per distinct miss, but that cost and the map are bound.
+		if now.Sub(l.lastSweep) >= l.cfg.TTL/8 || len(l.buckets) >= l.cfg.MaxKeys {
+			l.evictLocked(now)
+			l.lastSweep = now
+		}
+		// A short key may be a small substring of a large allocation. Clone it
+		// only on insertion so the map does not pin the caller's whole backing
+		// allocation, without allocating on a hit.
+		if !mapKey.hashed {
+			mapKey.value = strings.Clone(mapKey.value)
+		}
 		b = &bucket{limiter: rate.NewLimiter(rate.Every(l.cfg.Every), l.cfg.Burst)}
-		l.buckets[key] = b
+		l.buckets[mapKey] = b
 	}
 	b.seen = now
 
@@ -78,12 +109,44 @@ func (l *Limiter) Allow(key string) (retryAfter time.Duration, ok bool) {
 	return 0, true
 }
 
-// evictLocked drops keys nobody has used inside the TTL. Called with mu held.
+// clampKey bounds one stored representation without merging long keys that
+// share a prefix. Hashed keys occupy a separate map-key namespace, so a raw key
+// equal to this representation remains independent. The suffix length is
+// derived from the encoding rather than assuming padded base64:
+// RawURLEncoding encodes a SHA-256 digest to 43 bytes.
+func clampKey(key string) bucketKey {
+	if len(key) <= MaxKeyBytes {
+		return bucketKey{value: key}
+	}
+	sum := sha256.Sum256([]byte(key))
+	suffix := base64.RawURLEncoding.EncodeToString(sum[:])
+	return bucketKey{
+		value:  key[:MaxKeyBytes-len(suffix)] + suffix,
+		hashed: true,
+	}
+}
+
+// evictLocked drops expired keys and, if the incoming miss still needs room,
+// the one least recently seen live key. Called with mu held. One deletion is
+// sufficient: every previous insertion left len(buckets) <= MaxKeys.
 func (l *Limiter) evictLocked(now time.Time) {
+	l.sweeps++
+	var oldestKey bucketKey
+	var oldestSeen time.Time
+	haveOldest := false
 	for key, b := range l.buckets {
 		if now.Sub(b.seen) > l.cfg.TTL {
 			delete(l.buckets, key)
+			continue
 		}
+		if !haveOldest || b.seen.Before(oldestSeen) {
+			oldestKey = key
+			oldestSeen = b.seen
+			haveOldest = true
+		}
+	}
+	if len(l.buckets) >= l.cfg.MaxKeys && haveOldest {
+		delete(l.buckets, oldestKey)
 	}
 }
 

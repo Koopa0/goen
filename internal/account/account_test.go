@@ -2,18 +2,20 @@ package account
 
 import (
 	"errors"
-	"strconv"
-	"strings"
-	"testing"
-
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ratelimit"
 )
 
 func TestPasswordHashingRoundTrips(t *testing.T) {
@@ -142,6 +144,115 @@ func TestAnOverLongPasswordIsRefusedBeforeTheRead(t *testing.T) {
 	if !errors.Is(err, ErrBadCredentials) {
 		t.Fatalf("Authenticate reached the database for an over-long password: %v", err)
 	}
+}
+
+func TestAnOverlongSignInAddressSkipsTheLimiterAndUsesTheOrdinaryFailure(t *testing.T) {
+	store := deadAccountStore(t)
+	normalHandler := rateLimitedAccountHandler(store)
+	longHandler := rateLimitedAccountHandler(store)
+	password := strings.Repeat("x", MaxPasswordBytes+1)
+	normalAddr := "nobody@example.com"
+	longAddr := strings.Repeat("a", 60<<10) + "@example.com"
+
+	normal := postAccountForm(t, "/signin", url.Values{
+		"email": {normalAddr}, "password": {password}, "next": {"/account"},
+	}, normalHandler.SignIn)
+	overlong := postAccountForm(t, "/signin", url.Values{
+		"email": {longAddr}, "password": {password}, "next": {"/account"},
+	}, longHandler.SignIn)
+
+	if normal.Code != http.StatusUnprocessableEntity || overlong.Code != normal.Code {
+		t.Fatalf("normal/overlong statuses = %d/%d, want both 422", normal.Code, overlong.Code)
+	}
+	if normalHandler.signinLimit.Size() != 1 {
+		t.Fatal("the normal fixture did not reach the account limiter; the comparison proves nothing")
+	}
+	if got := longHandler.signinLimit.Size(); got != 0 {
+		t.Errorf("overlong sign-in address created %d limiter keys, want 0", got)
+	}
+
+	normalBody := bodyWithSubmittedEmailHidden(t, normal.Body.String(), normalAddr)
+	longBody := bodyWithSubmittedEmailHidden(t, overlong.Body.String(), longAddr)
+	if normalBody != longBody {
+		t.Errorf("overlong and ordinary bad-credential pages differ beyond the echoed email "+
+			"(normal %d bytes, overlong %d bytes after normalisation)", len(normalBody), len(longBody))
+	}
+	if diff := cmp.Diff(normal.Header(), overlong.Header()); diff != "" {
+		t.Errorf("overlong and ordinary bad-credential headers differ (-normal +overlong):\n%s", diff)
+	}
+}
+
+func TestAnOverlongForgotAddressIsAnsweredIdenticallyBeforeTheLimiter(t *testing.T) {
+	store := deadAccountStore(t)
+	normalHandler := rateLimitedAccountHandler(store)
+	longHandler := rateLimitedAccountHandler(store)
+	longAddr := strings.Repeat("a", 60<<10) + "@example.com"
+
+	normal := postAccountForm(t, "/forgot", url.Values{
+		"email": {"not-an-address"},
+	}, normalHandler.Forgot)
+	overlong := postAccountForm(t, "/forgot", url.Values{
+		"email": {longAddr},
+	}, longHandler.Forgot)
+
+	if normalHandler.resetLimit.Size() != 1 {
+		t.Fatal("the bounded fixture did not reach the reset limiter; the comparison proves nothing")
+	}
+	if got := longHandler.resetLimit.Size(); got != 0 {
+		t.Errorf("overlong forgot address created %d limiter keys, want 0", got)
+	}
+	if normal.Code != http.StatusSeeOther || overlong.Code != normal.Code {
+		t.Fatalf("normal/overlong statuses = %d/%d, want both 303", normal.Code, overlong.Code)
+	}
+	if diff := cmp.Diff(normal.Header(), overlong.Header()); diff != "" {
+		t.Errorf("overlong and ordinary forgot headers differ (-normal +overlong):\n%s", diff)
+	}
+	if normal.Body.String() != overlong.Body.String() {
+		t.Errorf("forgot response bodies are not byte-identical: normal=%q overlong=%q",
+			normal.Body.String(), overlong.Body.String())
+	}
+}
+
+func deadAccountStore(t *testing.T) *Store {
+	t.Helper()
+	pool, err := pgxpool.New(t.Context(), "postgres://nobody@127.0.0.1:1/nothing")
+	if err != nil {
+		t.Fatalf("build a deliberately dead pool: %v", err)
+	}
+	t.Cleanup(pool.Close)
+	return NewStore(pool)
+}
+
+func rateLimitedAccountHandler(store *Store) *Handler {
+	return &Handler{
+		store: store, log: slog.New(slog.DiscardHandler), google: &Google{},
+		signinLimit: accountTestLimiter(), resetLimit: accountTestLimiter(),
+	}
+}
+
+func accountTestLimiter() *ratelimit.Limiter {
+	return ratelimit.New(ratelimit.Config{
+		Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 10,
+	})
+}
+
+func postAccountForm(t *testing.T, path string, form url.Values, serve http.HandlerFunc) *httptest.ResponseRecorder {
+	t.Helper()
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, path,
+		strings.NewReader(form.Encode()))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := httptest.NewRecorder()
+	serve(w, r)
+	return w
+}
+
+func bodyWithSubmittedEmailHidden(t *testing.T, body, addr string) string {
+	t.Helper()
+	needle := `value="` + addr + `"`
+	if count := strings.Count(body, needle); count != 1 {
+		t.Fatalf("submitted address occurs in %d value attributes, want exactly 1", count)
+	}
+	return strings.Replace(body, needle, `value="<submitted-email>"`, 1)
 }
 
 func TestHashTokenIsNotTheToken(t *testing.T) {

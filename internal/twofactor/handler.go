@@ -35,7 +35,7 @@ func NewHandler(store *Store, log *slog.Logger, secure bool) *Handler {
 		// Ten attempts, one back a minute: 60 guesses an hour against a million
 		// possibilities is 1,900 years.
 		limit: ratelimit.New(ratelimit.Config{
-			Every: time.Minute, Burst: 10, TTL: time.Hour,
+			Every: time.Minute, Burst: 10, TTL: time.Hour, MaxKeys: 8_192,
 		}),
 	}
 }

@@ -200,7 +200,7 @@ func TestASpoofedHeaderBuysNoFreshAllowance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseProxies: %v", err)
 	}
-	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour})
+	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: 1000})
 
 	// One client behind the proxy, changing the half of the header it controls.
 	spend := func(spoof string) bool {

@@ -13,10 +13,138 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
+const testMaxKeys = 1000
+
+func TestNewRequiresMaxKeys(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("New accepted MaxKeys=0; an omitted count bound silently unbounds the map")
+		}
+	}()
+
+	New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: 0})
+}
+
+func TestALongKeyIsNotStoredWhole(t *testing.T) {
+	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
+	l.Allow("account:" + strings.Repeat("a", 64<<10))
+
+	for key := range l.buckets {
+		if len(key.value) > MaxKeyBytes {
+			t.Errorf("stored key is %d bytes, want at most %d", len(key.value), MaxKeyBytes)
+		}
+	}
+}
+
+func TestTwoLongKeysStayDistinct(t *testing.T) {
+	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
+	prefix := "account:" + strings.Repeat("a", 64<<10)
+	l.Allow(prefix + "x")
+	l.Allow(prefix + "y")
+
+	if got := l.Size(); got != 2 {
+		t.Errorf("%d buckets held, want 2; long keys sharing a prefix were merged", got)
+	}
+}
+
+func TestALongKeyDoesNotCollideWithItsEncodedForm(t *testing.T) {
+	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
+	longKey := "account:" + strings.Repeat("a", 64<<10)
+	encoded := clampKey(longKey).value
+	l.Allow(longKey)
+	l.Allow(encoded)
+
+	if got := l.Size(); got != 2 {
+		t.Errorf("%d buckets held, want 2; a long key collided with its raw encoded form", got)
+	}
+}
+
+func TestTheKeyCountIsCapped(t *testing.T) {
+	const maxKeys = 100
+	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: maxKeys})
+	for i := range 1000 {
+		l.Allow("key-" + strconv.Itoa(i))
+	}
+
+	if got := l.Size(); got != maxKeys {
+		t.Errorf("%d keys held after 1000 live inserts, want exactly the cap %d", got, maxKeys)
+	}
+}
+
+func TestTheOldestKeyMakesRoomAtTheCap(t *testing.T) {
+	// Use independent map seeds so a valid empty key is exercised in different
+	// traversal positions; it must never be mistaken for "no oldest key yet".
+	for attempt := range 100 {
+		l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: 2})
+		l.Allow("")
+		l.Allow("newer")
+
+		// Explicit live timestamps avoid making this a clock-resolution test.
+		now := time.Now()
+		l.mu.Lock()
+		l.buckets[clampKey("")].seen = now.Add(-2 * time.Minute)
+		l.buckets[clampKey("newer")].seen = now.Add(-time.Minute)
+		l.mu.Unlock()
+
+		l.Allow("fresh")
+		l.mu.Lock()
+		_, keptEmpty := l.buckets[clampKey("")]
+		_, keptNewer := l.buckets[clampKey("newer")]
+		_, keptFresh := l.buckets[clampKey("fresh")]
+		gotSize := len(l.buckets)
+		l.mu.Unlock()
+
+		if keptEmpty || !keptNewer || !keptFresh || gotSize != 2 {
+			t.Fatalf("attempt %d after capacity eviction: empty=%v newer=%v "+
+				"fresh=%v size=%d; want the empty-string oldest key gone",
+				attempt, keptEmpty, keptNewer, keptFresh, gotSize)
+		}
+	}
+}
+
+func TestAHitRefreshesTheOldestKey(t *testing.T) {
+	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: 2})
+	l.Allow("")
+	l.Allow("untouched")
+
+	now := time.Now()
+	l.mu.Lock()
+	l.buckets[clampKey("")].seen = now.Add(-2 * time.Minute)
+	l.buckets[clampKey("untouched")].seen = now.Add(-time.Minute)
+	l.mu.Unlock()
+
+	l.Allow("") // A hit makes the logical empty key the newest.
+	l.Allow("fresh")
+	l.mu.Lock()
+	_, keptEmpty := l.buckets[clampKey("")]
+	_, keptUntouched := l.buckets[clampKey("untouched")]
+	_, keptFresh := l.buckets[clampKey("fresh")]
+	l.mu.Unlock()
+
+	if !keptEmpty || keptUntouched || !keptFresh {
+		t.Errorf("after refreshing empty: empty=%v untouched=%v fresh=%v; "+
+			"want the untouched key evicted", keptEmpty, keptUntouched, keptFresh)
+	}
+}
+
+func TestTheSweepIsAmortised(t *testing.T) {
+	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: 1 << 20})
+	for i := range 10_000 {
+		l.Allow("key-" + strconv.Itoa(i))
+	}
+
+	l.mu.Lock()
+	sweeps := l.sweeps
+	l.mu.Unlock()
+	if sweeps > 1 {
+		t.Errorf("%d sweeps for 10000 inserts, want at most the initial sweep", sweeps)
+	}
+}
+
 // TestTheBurstIsSpentThenRefused proves the allowance is real and the numbers
 // are the ones intended.
 func TestTheBurstIsSpentThenRefused(t *testing.T) {
-	l := New(Config{Every: time.Minute, Burst: 3, TTL: time.Hour})
+	l := New(Config{Every: time.Minute, Burst: 3, TTL: time.Hour, MaxKeys: testMaxKeys})
 
 	for i := range 3 {
 		if _, ok := l.Allow("k"); !ok {
@@ -35,7 +163,7 @@ func TestTheBurstIsSpentThenRefused(t *testing.T) {
 // TestARefusedAttemptDoesNotSpendTheAllowance proves a throttle never becomes
 // a lockout.
 func TestARefusedAttemptDoesNotSpendTheAllowance(t *testing.T) {
-	l := New(Config{Every: 10 * time.Millisecond, Burst: 1, TTL: time.Hour})
+	l := New(Config{Every: 10 * time.Millisecond, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
 
 	if _, ok := l.Allow("k"); !ok {
 		t.Fatal("the first attempt was refused")
@@ -58,7 +186,7 @@ func TestARefusedAttemptDoesNotSpendTheAllowance(t *testing.T) {
 // TestKeysAreIndependent proves one client at its limit does not affect
 // another, and that per-IP and per-account keys do not collide.
 func TestKeysAreIndependent(t *testing.T) {
-	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour})
+	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
 
 	if _, ok := l.Allow("ip:203.0.113.1"); !ok {
 		t.Fatal("the first key was refused")
@@ -77,7 +205,7 @@ func TestKeysAreIndependent(t *testing.T) {
 // TestIdleKeysAreEvicted proves the limiter does not leak the memory it
 // exists to protect.
 func TestIdleKeysAreEvicted(t *testing.T) {
-	l := New(Config{Every: time.Minute, Burst: 1, TTL: 20 * time.Millisecond})
+	l := New(Config{Every: time.Minute, Burst: 1, TTL: 20 * time.Millisecond, MaxKeys: testMaxKeys})
 
 	for i := range 100 {
 		l.Allow("old-" + strconv.Itoa(i))
@@ -97,7 +225,7 @@ func TestIdleKeysAreEvicted(t *testing.T) {
 
 // TestTheLimiterIsSafeUnderConcurrency proves the shared state is guarded.
 func TestTheLimiterIsSafeUnderConcurrency(t *testing.T) {
-	l := New(Config{Every: time.Millisecond, Burst: 5, TTL: time.Hour})
+	l := New(Config{Every: time.Millisecond, Burst: 5, TTL: time.Hour, MaxKeys: testMaxKeys})
 
 	var wg sync.WaitGroup
 	for i := range 50 {
@@ -119,7 +247,7 @@ func TestTheLimiterIsSafeUnderConcurrency(t *testing.T) {
 // TestGuardAnswers429WithARetryAfter proves a refused request never reaches
 // the handler.
 func TestGuardAnswers429WithARetryAfter(t *testing.T) {
-	l := New(Config{Every: 30 * time.Second, Burst: 1, TTL: time.Hour})
+	l := New(Config{Every: 30 * time.Second, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
 	reached := 0
 	h := Guard(l, discardLogger(), func(http.ResponseWriter, *http.Request) { reached++ })
 
@@ -157,7 +285,7 @@ func TestGuardAnswers429WithARetryAfter(t *testing.T) {
 // wait. The 30-second case above stayed green with the rounding deleted.
 func TestRetryAfterIsNeverZero(t *testing.T) {
 	// 100ms refill: every refusal's true delay is well under one second.
-	l := New(Config{Every: 100 * time.Millisecond, Burst: 1, TTL: time.Hour})
+	l := New(Config{Every: 100 * time.Millisecond, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
 	h := Guard(l, discardLogger(), func(http.ResponseWriter, *http.Request) {})
 
 	call := func() *httptest.ResponseRecorder {
@@ -198,7 +326,7 @@ func TestTheKeyIsTheAddressAndNeverAHeader(t *testing.T) {
 	}
 
 	// Two requests claiming different forwarded addresses share one bucket.
-	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour})
+	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
 	if _, ok := l.Allow(ClientIP(r)); !ok {
 		t.Fatal("the first was refused")
 	}

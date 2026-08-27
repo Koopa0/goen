@@ -65,7 +65,7 @@ type RouterConfig struct {
 func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder admin.Refunder, cfg *RouterConfig, log *slog.Logger) http.Handler {
 	baseURL, secureCookies, totpKey := cfg.BaseURL, cfg.SecureCookies, cfg.TOTPKey
 	authLimit := ratelimit.New(ratelimit.Config{
-		Every: 3 * time.Second, Burst: 20, TTL: time.Hour,
+		Every: 3 * time.Second, Burst: 20, TTL: time.Hour, MaxKeys: 65_536,
 	})
 	catalogue := catalog.NewStore(pool)
 	browse := catalog.NewHandler(catalogue, log)
@@ -77,12 +77,12 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 	)
 	images := media.NewHandler(media.NewStore(pool), log)
 	contactLimit := ratelimit.New(ratelimit.Config{
-		Every: 5 * time.Minute, Burst: 5, TTL: time.Hour,
+		Every: 5 * time.Minute, Burst: 5, TTL: time.Hour, MaxKeys: 65_536,
 	})
 	messages := contact.NewHandler(contact.NewStore(pool), contactLimit, log)
 	// Tighter than authLimit: this one defends somebody else's mailbox.
 	signupLimit := ratelimit.New(ratelimit.Config{
-		Every: 10 * time.Minute, Burst: 2, TTL: time.Hour,
+		Every: 10 * time.Minute, Burst: 2, TTL: time.Hour, MaxKeys: 65_536,
 	})
 	// The customer side writes newsletter_subscribers as `store`; composing and
 	// sending write newsletter_issues and an audit row, which `store` may not,
@@ -94,7 +94,7 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 	// Half of the order-lookup credential is a guessable order number, so
 	// unlimited asking makes the endpoint an oracle for the other half.
 	findLimit := ratelimit.New(ratelimit.Config{
-		Every: 6 * time.Minute, Burst: 10, TTL: time.Hour,
+		Every: 6 * time.Minute, Burst: 10, TTL: time.Hour, MaxKeys: 65_536,
 	})
 	basketStore := cart.NewStore(pool)
 	basket := cart.NewHandler(basketStore, log, secureCookies, findLimit, sessionCloser(gateway))

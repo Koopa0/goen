@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -46,10 +47,10 @@ func NewHandler(store *Store, carts CartFinder, log *slog.Logger, secure bool, g
 	return &Handler{
 		store: store, carts: carts, log: log, secure: secure, google: google,
 		signinLimit: ratelimit.New(ratelimit.Config{
-			Every: 15 * time.Second, Burst: 6, TTL: time.Hour,
+			Every: 15 * time.Second, Burst: 6, TTL: time.Hour, MaxKeys: 65_536,
 		}),
 		resetLimit: ratelimit.New(ratelimit.Config{
-			Every: time.Minute, Burst: 3, TTL: time.Hour,
+			Every: time.Minute, Burst: 3, TTL: time.Hour, MaxKeys: 65_536,
 		}),
 	}
 }
@@ -134,34 +135,50 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
-	email := r.PostFormValue("email")
+	addr := r.PostFormValue("email")
 	password := r.PostFormValue("password")
 	next := web.SitePathOr(r.PostFormValue("next"), "/account")
+	normalised := email.Clean(addr)
+	// email.Max is the application's address policy. The database column is
+	// text, so the handler must enforce the bound before an attacker-controlled
+	// form value becomes a long-lived limiter key.
+	if len(normalised) > email.Max {
+		h.signInFailed(w, r, addr, next)
+		return
+	}
 
 	// Before Authenticate: argon2 at 64 MiB is the cost this limit protects.
-	if retryAfter, ok := h.signinLimit.Allow("account:" + strings.ToLower(strings.TrimSpace(email))); !ok {
+	if retryAfter, ok := h.signinLimit.Allow("account:" + normalised); !ok {
 		h.log.WarnContext(r.Context(), "sign-in throttled by account")
 		ratelimit.Refuse(r.Context(), w, retryAfter)
 		return
 	}
 
-	u, err := h.store.Authenticate(r.Context(), email, password)
+	u, err := h.store.Authenticate(r.Context(), addr, password)
 	if err != nil {
 		if !errors.Is(err, ErrBadCredentials) {
 			h.log.ErrorContext(r.Context(), "authenticate", "error", err)
 			h.serverError(w, r)
 			return
 		}
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.SignIn(pages.SignInMeta(r.Context()),
-			pages.AuthView{
-				Email: email, Next: next,
-				Errors: map[string]string{"form": i18n.T(r.Context(), i18n.KeyBadCredentials)},
-			}))
+		h.signInFailed(w, r, addr, next)
 		return
 	}
 
 	h.startSession(w, r, u)
 	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
+}
+
+// signInFailed is one response for an unusable address, an unknown account and
+// a wrong password. It keeps the submitted address as every rejected form does;
+// two different submissions therefore differ only in the value they already
+// gave goen, never in information about an account.
+func (h *Handler) signInFailed(w http.ResponseWriter, r *http.Request, addr, next string) {
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
+		pages.SignIn(pages.SignInMeta(r.Context()), pages.AuthView{
+			Email: addr, Next: next,
+			Errors: map[string]string{"form": i18n.T(r.Context(), i18n.KeyBadCredentials)},
+		}))
 }
 
 // RegisterPage serves GET /register.

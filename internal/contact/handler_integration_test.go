@@ -49,7 +49,7 @@ func handler(t *testing.T) *contact.Handler {
 	// Generous: these cases are about what the handler WRITES, and the bound
 	// itself is held by internal/ratelimit's own suite.
 	limit := ratelimit.New(ratelimit.Config{
-		Every: time.Millisecond, Burst: 1000, TTL: time.Hour,
+		Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000,
 	})
 	return contact.NewHandler(contact.NewStore(pool), limit, slog.New(slog.DiscardHandler))
 }
