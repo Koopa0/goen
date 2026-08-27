@@ -312,7 +312,7 @@ templ Account(p layouts.Page, v *AccountView) {
 							<form class="goen-account__form" method="post" action="/account/addresses">
 								<div class="ui-field">
 									<label class="ui-label" for="addr-label">{ i18n.T(ctx, i18n.KeyFieldLabelOpt) }</label>
-									<input class="ui-input" id="addr-label" type="text" name="label" maxlength="30" placeholder={ i18n.T(ctx, i18n.KeyLabelPlaceholder) }/>
+									<input class="ui-input" id="addr-label" type="text" name="label" maxlength="30" autocomplete="off" placeholder={ i18n.T(ctx, i18n.KeyLabelPlaceholder) }/>
 								</div>
 								<div class="ui-field">
 									<label class="ui-label" for="addr-name">{ i18n.T(ctx, i18n.KeyFieldRecipient) }</label>
@@ -328,11 +328,11 @@ templ Account(p layouts.Page, v *AccountView) {
 								</div>
 								<div class="ui-field">
 									<label class="ui-label" for="addr-city">{ i18n.T(ctx, i18n.KeyFieldCity) }</label>
-									<input class="ui-input" id="addr-city" type="text" name="city" required maxlength="20"/>
+									<input class="ui-input" id="addr-city" type="text" name="city" required maxlength="20" autocomplete="address-level1"/>
 								</div>
 								<div class="ui-field">
 									<label class="ui-label" for="addr-district">{ i18n.T(ctx, i18n.KeyFieldDistrict) }</label>
-									<input class="ui-input" id="addr-district" type="text" name="district" required maxlength="20"/>
+									<input class="ui-input" id="addr-district" type="text" name="district" required maxlength="20" autocomplete="address-level2"/>
 								</div>
 								<div class="ui-field">
 									<label class="ui-label" for="addr-street">{ i18n.T(ctx, i18n.KeyFieldStreet) }</label>

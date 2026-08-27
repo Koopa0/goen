@@ -1480,14 +1480,14 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 137, "</label> <input class=\"ui-input\" id=\"addr-label\" type=\"text\" name=\"label\" maxlength=\"30\" placeholder=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 137, "</label> <input class=\"ui-input\" id=\"addr-label\" type=\"text\" name=\"label\" maxlength=\"30\" autocomplete=\"off\" placeholder=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var90 string
 			templ_7745c5c3_Var90, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, i18n.KeyLabelPlaceholder))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 315, Col: 140}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/account.templ`, Line: 315, Col: 159}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var90)
 			if templ_7745c5c3_Err != nil {
@@ -1545,7 +1545,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 142, "</label> <input class=\"ui-input\" id=\"addr-city\" type=\"text\" name=\"city\" required maxlength=\"20\"></div><div class=\"ui-field\"><label class=\"ui-label\" for=\"addr-district\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 142, "</label> <input class=\"ui-input\" id=\"addr-city\" type=\"text\" name=\"city\" required maxlength=\"20\" autocomplete=\"address-level1\"></div><div class=\"ui-field\"><label class=\"ui-label\" for=\"addr-district\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1558,7 +1558,7 @@ func Account(p layouts.Page, v *AccountView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 143, "</label> <input class=\"ui-input\" id=\"addr-district\" type=\"text\" name=\"district\" required maxlength=\"20\"></div><div class=\"ui-field\"><label class=\"ui-label\" for=\"addr-street\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 143, "</label> <input class=\"ui-input\" id=\"addr-district\" type=\"text\" name=\"district\" required maxlength=\"20\" autocomplete=\"address-level2\"></div><div class=\"ui-field\"><label class=\"ui-label\" for=\"addr-street\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

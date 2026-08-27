@@ -172,6 +172,38 @@ type CheckoutView struct {
 	Idempoten           string
 }
 
+// checkoutFieldHint tells a browser what one helper-rendered checkout control
+// contains and, where its type is not enough, which keyboard to open.
+type checkoutFieldHint struct {
+	Autocomplete   string
+	InputMode      string
+	AutoCapitalize string
+	SpellCheck     string
+}
+
+// checkoutFieldHints is deliberately keyed by the field's own form name. Every
+// helper-rendered control must make an explicit autofill decision; the rendered
+// form test refuses both missing and stale entries.
+//
+// Do not add enterkeyhint here. TestEnterInTheCheckoutPlacesTheOrder locks the
+// browser's real behaviour: Enter in any checkout field places the order, so a
+// "next" hint would label a key that charges the customer.
+var checkoutFieldHints = map[string]checkoutFieldHint{
+	"email":       {Autocomplete: "email"},
+	"name":        {Autocomplete: "name"},
+	"phone":       {Autocomplete: "tel"},
+	"postal_code": {Autocomplete: "postal-code", InputMode: "numeric"},
+	"city":        {Autocomplete: "address-level1"},
+	"district":    {Autocomplete: "address-level2"},
+	// A convenience-store code is not an address. It may begin with a letter,
+	// so a numeric keyboard would make valid stores unreachable.
+	"pickup_store_code": {
+		Autocomplete: "off", AutoCapitalize: "characters", SpellCheck: "false",
+	},
+}
+
+func checkoutHintsFor(name string) checkoutFieldHint { return checkoutFieldHints[name] }
+
 // InvoiceChoice is one option in the invoice-type radio group.
 type InvoiceChoice struct {
 	Value string

@@ -255,9 +255,9 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 						}
 					}
 					<div class="goen-checkout__fields">
-						@field("email", i18n.T(ctx, i18n.KeyFieldEmail), "email", v.Address.Email, v, true)
-						@field("name", i18n.T(ctx, i18n.KeyFieldName), "text", v.Address.Name, v, true)
-						@field("phone", i18n.T(ctx, i18n.KeyFieldPhone), "tel", v.Address.Phone, v, true)
+						@field("email", i18n.T(ctx, i18n.KeyFieldEmail), "email", v.Address.Email, v)
+						@field("name", i18n.T(ctx, i18n.KeyFieldName), "text", v.Address.Name, v)
+						@field("phone", i18n.T(ctx, i18n.KeyFieldPhone), "tel", v.Address.Phone, v)
 						if v.ToPickupPoint() {
 							<div class="ui-field">
 								<label class="ui-label" for="pickup_brand">{ i18n.T(ctx, i18n.KeyFieldPickupBrand) }</label>
@@ -265,6 +265,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 									class="ui-select"
 									id="pickup_brand"
 									name="pickup_brand"
+									autocomplete="off"
 									required
 									aria-invalid={ v.Invalid("pickup_brand") }
 									if v.HasErr("pickup_brand") {
@@ -282,7 +283,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 									<p class="ui-error-text" id="pickup_brand-error">{ v.Err("pickup_brand") }</p>
 								}
 							</div>
-							@field("pickup_store_code", i18n.T(ctx, i18n.KeyFieldStoreCode), "text", v.Address.PickupStoreCode, v, true)
+							@field("pickup_store_code", i18n.T(ctx, i18n.KeyFieldStoreCode), "text", v.Address.PickupStoreCode, v)
 							<div class="ui-field goen-checkout__wide">
 								<label class="ui-label" for="pickup_store_name">{ i18n.T(ctx, i18n.KeyFieldStoreName) }</label>
 								<input
@@ -291,6 +292,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 									type="text"
 									name="pickup_store_name"
 									value={ v.Address.PickupStoreName }
+									autocomplete="off"
 									required
 									maxlength="40"
 									aria-invalid={ v.Invalid("pickup_store_name") }
@@ -306,9 +308,9 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 								</p>
 							</div>
 						} else {
-							@field("postal_code", i18n.T(ctx, i18n.KeyFieldPostalCode), "text", v.Address.PostalCode, v, true)
-							@field("city", i18n.T(ctx, i18n.KeyFieldCity), "text", v.Address.City, v, true)
-							@field("district", i18n.T(ctx, i18n.KeyFieldDistrict), "text", v.Address.District, v, true)
+							@field("postal_code", i18n.T(ctx, i18n.KeyFieldPostalCode), "text", v.Address.PostalCode, v)
+							@field("city", i18n.T(ctx, i18n.KeyFieldCity), "text", v.Address.City, v)
+							@field("district", i18n.T(ctx, i18n.KeyFieldDistrict), "text", v.Address.District, v)
 							<div class="ui-field goen-checkout__wide">
 								<label class="ui-label" for="street">{ i18n.T(ctx, i18n.KeyFieldStreet) }</label>
 								<input
@@ -336,6 +338,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 								class="ui-textarea"
 								id="note"
 								name="note"
+								autocomplete="off"
 								maxlength="500"
 								rows="2"
 								aria-invalid={ v.Invalid("note") }
@@ -522,7 +525,8 @@ templ applyChoice(which string) {
 	</button>
 }
 
-templ field(name, label, kind, value string, v *CheckoutView, required bool) {
+templ field(name, label, kind, value string, v *CheckoutView) {
+	{{ hints := checkoutHintsFor(name) }}
 	<div class="ui-field">
 		<label class="ui-label" for={ name }>{ label }</label>
 		<input
@@ -531,7 +535,17 @@ templ field(name, label, kind, value string, v *CheckoutView, required bool) {
 			type={ kind }
 			name={ name }
 			value={ value }
-			required?={ required }
+			required
+			autocomplete={ hints.Autocomplete }
+			if hints.InputMode != "" {
+				inputmode={ hints.InputMode }
+			}
+			if hints.AutoCapitalize != "" {
+				autocapitalize={ hints.AutoCapitalize }
+			}
+			if hints.SpellCheck != "" {
+				spellcheck={ hints.SpellCheck }
+			}
 			aria-invalid={ v.Invalid(name) }
 			if v.HasErr(name) {
 				aria-describedby={ name + "-error" }
