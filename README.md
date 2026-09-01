@@ -43,9 +43,15 @@ The running server provides:
   the till prices from; a page that restates a fee eventually contradicts it.
 - **Cart and checkout** — a cookie cart that works for guests, coupons, store
   credit, delivery by address or 超商取貨 with 離島 surcharges, and an order
-  placed in one transaction that also holds the stock.
-- **Payment** — Stripe hosted Checkout. Only the signature-verified webhook marks
-  an order paid; the customer's return to the success URL is a page, not a fact.
+  placed in one transaction that also holds the stock. A fixed-size confirmed
+  quote identity binds the exact lines, prices, delivery, discount and credit;
+  the transaction rebuilds it under locks before writing anything.
+- **Payment** — Stripe hosted Checkout. A signature-verified webhook is the
+  automatic paid fact. Recovery is deliberately split: an unapplied event is
+  released only after full refund/already-succeeded accounting, while a
+  provider-complete Session with no flagged event has audited paid versus
+  unpaid/refunded outcomes through the same capture guards.
+  The customer's return to the success URL is a page, not a fact.
 - **Account** — sign-in, registration, password reset, a proved email address, an
   address book, orders, returns, warranty registration, wishlist, points and
   membership tier. A guest who lost the cookie finds their order at
@@ -111,15 +117,15 @@ never writes, fails the build.
 
 ### Integrity and safety
 
-The schema carries 245 `CHECK` constraints, 82 foreign keys, 63 unique indexes,
-and 40 rule triggers (beside 16 that only keep `updated_at` truthful), and it
+The schema carries 247 `CHECK` constraints, 82 foreign keys, 64 unique indexes,
+and 42 rule triggers (beside 16 that only keep `updated_at` truthful), and it
 holds several properties that application code alone cannot guarantee:
 
 - **A single writer for money and stock.** A customer-facing request runs as
   `store` and the back office as `admin`; both have their direct writes to
   payments, refunds, stock, ledgers, and the audit log revoked. Those writes
-  happen only through 21 `SECURITY DEFINER` functions, so there is no second path
-  that can corrupt them. What each role may write is derived from the catalogue
+  and their prerequisite locks are exposed only through 34 `SECURITY DEFINER`
+  functions, so there is no second path that can corrupt them. What each role may write is derived from the catalogue
   by a test, never from a list somebody keeps up to date.
 - **Cross-row invariants are triggers that lock first.** A refund may not exceed
   its capture, stock may not oversell, an allowance may not exceed its invoice —
@@ -135,7 +141,7 @@ holds several properties that application code alone cannot guarantee:
 
 | Concern     | Choice                                                            |
 | ----------- | ----------------------------------------------------------------- |
-| Language    | Go 1.26                                                           |
+| Language    | Go 1.27                                                           |
 | HTTP        | `net/http` with method-based routing; no web framework            |
 | Templates   | templ (compiled, server-rendered)                                 |
 | Enhancement | htmx, vendored; the only admitted client dependency               |
@@ -170,7 +176,7 @@ The project is organised by feature, not by technical layer. There is no
 
 ### Prerequisites
 
-- Go 1.26.6 or later
+- Go 1.27.0 or later
 - Docker, for PostgreSQL and the integration tests
 - `psql`, for the seed and the layout check's fixtures
 
@@ -194,12 +200,13 @@ cp .env.example .env
 | ---------------------------- | ---------------------------------------------------------------------- | ------------------------------ |
 | `GOEN_DATABASE_URL`          | The storefront pool. Connects, then `SET ROLE store`                   | required                       |
 | `GOEN_ADMIN_DATABASE_URL`    | The back-office pool. Connects, then `SET ROLE admin`                  | `GOEN_DATABASE_URL`            |
+| `GOEN_MAINTENANCE_DATABASE_URL` | Background projection pool. Connects, then `SET ROLE maintenance`  | `GOEN_DATABASE_URL`            |
 | `GOEN_ADDR`                  | Listen address                                                         | `127.0.0.1:9700`               |
 | `GOEN_BASE_URL`              | Root HTTP(S) origin Stripe returns to and email links point at          | `http://` + `GOEN_ADDR`        |
 | `GOEN_LOG_LEVEL`             | `debug`, `info`, `warn`, `error`                                       | `info`                         |
 | `GOEN_INSECURE_COOKIES`      | `1` drops `Secure` and the `__Host-` prefix. Development only          | unset — cookies are secure     |
-| `GOEN_STRIPE_SECRET_KEY`     | Empty still sells; the payment page says 金流尚未啟用                    | empty                          |
-| `GOEN_STRIPE_WEBHOOK_SECRET` | Required whenever a secret key is set                                  | empty                          |
+| `GOEN_STRIPE_API_KEY`        | Prefer a least-privilege `rk_`; legacy `GOEN_STRIPE_SECRET_KEY` works  | empty                          |
+| `GOEN_STRIPE_WEBHOOK_SECRET` | Required whenever a Stripe API key is set                              | empty                          |
 | `GOEN_TOTP_KEY`              | 32 random bytes as hex/base64; encrypts staff second-factor secrets    | empty                          |
 | `GOEN_SMTP_ADDR`             | `host:port`; empty logs mail only in the development posture           | empty                          |
 | `GOEN_SMTP_FROM`             | Envelope sender                                                        | `goen <no-reply@goen.example>` |
@@ -209,8 +216,10 @@ cp .env.example .env
 Five of these fail in ways worth naming:
 
 - `GOEN_DATABASE_URL` has no default on purpose — a missing one stops the binary
-  rather than letting it reach some other database.
-- A Stripe secret key **without** a webhook secret refuses to start. That
+  rather than letting it reach some other database. Storefront, admin and
+  maintenance pools all establish a connection and assume their configured role
+  before the server listens; a lazy pool cannot hide a broken worker login.
+- A Stripe API key **without** a webhook secret refuses to start. That
   combination would take money over an endpoint nothing authenticates.
 - `GOEN_TOTP_KEY` refuses anything that does not decode to exactly 32 bytes. It
   is a key, not a passphrase, and one unsalted hash of a passphrase is not a key

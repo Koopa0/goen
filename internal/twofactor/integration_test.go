@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/account"
@@ -55,6 +57,63 @@ func staff(t *testing.T) (userID, email string) {
 		t.Fatalf("create staff: %v", err)
 	}
 	return id.String(), email
+}
+
+func twofactorRolePool(t *testing.T, applicationName, role string) *pgxpool.Pool {
+	t.Helper()
+	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
+	if err != nil {
+		t.Fatalf("parse twofactor application pool config: %v", err)
+	}
+	cfg.MaxConns = 1
+	cfg.ConnConfig.RuntimeParams["application_name"] = applicationName
+	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		_, execErr := conn.Exec(ctx, "SET ROLE "+pgx.Identifier{role}.Sanitize())
+		return execErr
+	}
+	p, err := pgxpool.NewWithConfig(t.Context(), cfg)
+	if err != nil {
+		t.Fatalf("open twofactor application pool: %v", err)
+	}
+	t.Cleanup(p.Close)
+	return p
+}
+
+func waitForTwofactorLock(t *testing.T, applicationName string, done <-chan error) {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		select {
+		case err := <-done:
+			t.Fatalf("%s returned before reaching the intended database lock: %v",
+				applicationName, err)
+		default:
+		}
+		var waiting bool
+		err := pool.QueryRow(t.Context(), `
+			SELECT EXISTS (
+				SELECT 1 FROM pg_stat_activity
+				WHERE application_name = $1 AND wait_event_type = 'Lock'
+			)`, applicationName).Scan(&waiting)
+		if err == nil && waiting {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%s never blocked on the intended database lock: %v", applicationName, err)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func twofactorOperationResult(t *testing.T, done <-chan error) error {
+	t.Helper()
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(15 * time.Second):
+		t.Fatal("operation did not finish after its database lock was released")
+		return nil
+	}
 }
 
 // enrol takes a user all the way to a confirmed credential.
@@ -475,11 +534,13 @@ func TestTheLastAdminCannotBeRevoked(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey)
 
-	// This suite's other tests create admins, so the state is made not assumed.
-	if _, err := pool.Exec(ctx, `UPDATE users SET role = 'customer' WHERE role = 'admin'`); err != nil {
-		t.Fatalf("clear admins: %v", err)
-	}
 	only, _ := staff(t)
+	// This suite's other tests create admins, so leave exactly the intended one.
+	// The database invariant correctly refuses a transition all the way to zero.
+	if _, err := pool.Exec(ctx,
+		`UPDATE users SET role = 'customer' WHERE role = 'admin' AND id <> $1`, only); err != nil {
+		t.Fatalf("leave one admin: %v", err)
+	}
 	other, _ := staff(t)
 	if _, err := pool.Exec(ctx,
 		`UPDATE users SET role = 'staff' WHERE id = $1`, other); err != nil {
@@ -883,5 +944,68 @@ func TestTwoAdminsRevokingEachOtherLeaveOne(t *testing.T) {
 	if admins == 0 {
 		t.Error("both revokes went through and the shop is locked out of its own " +
 			"back office, with no path back")
+	}
+}
+
+// TestErasureAndDemotionShareTheRosterGuard covers the cross-feature race:
+// erasing A and changing B from admin to staff must not each observe the other
+// as the remaining administrator. Both application roles enter through their
+// real database doors and are held at the shared guard before either can write.
+func TestErasureAndDemotionShareTheRosterGuard(t *testing.T) {
+	ctx := t.Context()
+	a, _ := staff(t)
+	b, bEmail := staff(t)
+	if _, err := pool.Exec(ctx, `
+		UPDATE users SET role = 'customer'
+		WHERE role = 'admin' AND id <> $1 AND id <> $2`, a, b); err != nil {
+		t.Fatalf("leave exactly the race admins: %v", err)
+	}
+
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin roster blocker: %v", err)
+	}
+	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := blocker.Exec(ctx, `SELECT lock_admin_roster()`); err != nil {
+		t.Fatalf("lock admin roster: %v", err)
+	}
+
+	suffix := uuid.NewString()[:8]
+	eraseName, demoteName := "erase-demote-erase-"+suffix, "erase-demote-role-"+suffix
+	eraser := account.NewStore(twofactorRolePool(t, eraseName, "store"))
+	staffStore := twofactor.NewStore(twofactorRolePool(t, demoteName, "admin"), testKey)
+	eraseDone, demoteDone := make(chan error, 1), make(chan error, 1)
+	go func() { eraseDone <- eraser.Erase(context.WithoutCancel(ctx), a) }()
+	go func() {
+		_, demoteErr := staffStore.AddStaff(
+			context.WithoutCancel(ctx), bEmail, "測試", "staff", a)
+		demoteDone <- demoteErr
+	}()
+	waitForTwofactorLock(t, eraseName, eraseDone)
+	waitForTwofactorLock(t, demoteName, demoteDone)
+
+	if err := blocker.Commit(ctx); err != nil {
+		t.Fatalf("release roster blocker: %v", err)
+	}
+	eraseErr := twofactorOperationResult(t, eraseDone)
+	demoteErr := twofactorOperationResult(t, demoteDone)
+	eraseRefused := func(err error) bool {
+		pgErr, ok := errors.AsType[*pgconn.PgError](err)
+		return ok && pgErr.ConstraintName == "erase_user_keeps_one_admin"
+	}
+	eraseWon := eraseErr == nil && errors.Is(demoteErr, twofactor.ErrLastAdmin)
+	demoteWon := demoteErr == nil && eraseRefused(eraseErr)
+	if !eraseWon && !demoteWon {
+		t.Fatalf("erase/demote = %v / %v, want one success and one last-admin refusal",
+			eraseErr, demoteErr)
+	}
+
+	var admins int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM users WHERE role = 'admin'`).Scan(&admins); err != nil {
+		t.Fatalf("count admins: %v", err)
+	}
+	if admins != 1 {
+		t.Errorf("erase/demote left %d admins, want 1", admins)
 	}
 }

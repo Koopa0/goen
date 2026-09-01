@@ -4,6 +4,27 @@ SELECT id, user_id FROM carts WHERE token_hash = $1;
 -- name: CreateCart :one
 INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id;
 
+-- Serialize every writer of a cart aggregate before it touches cart_items.
+-- Sorting makes two-cart operations such as account adoption use one lock order.
+-- name: LockCarts :many
+SELECT id FROM carts
+WHERE id = ANY(@cart_ids::uuid[])
+ORDER BY id
+FOR UPDATE;
+
+-- Logged-in checkout writes several user foreign keys after it owns the cart.
+-- Acquire their natural KEY SHARE first so account erasure and cart adoption use
+-- the same user -> cart order. Guest checkout has no user and skips this query.
+-- name: LockUserForCheckout :one
+SELECT lock_user_for_checkout(@user_id::uuid);
+
+-- Checkout locks catalogue roots in one canonical order before it snapshots
+-- publication, prices and availability. SECURITY DEFINER keeps store's direct
+-- product/variant UPDATE revoked while satisfying PostgreSQL's FOR UPDATE
+-- privilege requirement.
+-- name: LockCartCatalogue :exec
+SELECT lock_cart_catalogue(@cart_id::uuid);
+
 -- least() caps a repeat add at the CHECK's own ceiling rather than raising a
 -- constraint violation the visitor did nothing to deserve.
 -- name: AddCartItem :exec
@@ -33,6 +54,7 @@ SELECT
     ci.quantity,
     (pv.stock_quantity - pv.safety_stock)::integer AS sellable_quantity,
     pv.is_active,
+    p.status AS product_status,
     p.slug,
     localized_name(p.name, p.name_en, @locale::text) AS name,
     b.name AS brand,
@@ -236,11 +258,10 @@ FROM order_lines WHERE order_id = $1 ORDER BY position, id;
 
 -- name: RecordCheckoutAttempt :exec
 INSERT INTO checkout_attempts (idempotency_key, cart_id, order_id)
-VALUES ($1, $2, $3)
-ON CONFLICT (idempotency_key) DO NOTHING;
+VALUES ($1, $2, $3);
 
 -- name: CheckoutAttempt :one
-SELECT order_id FROM checkout_attempts WHERE idempotency_key = $1;
+SELECT cart_id, order_id FROM checkout_attempts WHERE idempotency_key = $1;
 
 -- name: HoldForOrder :one
 SELECT hold_inventory(
@@ -271,6 +292,24 @@ WHERE ir.state = 'held'
   -- Committed is not the whole question: a zero-owed order has no payment row and
   -- sits at 'pending' while the customer has already paid in full.
   AND (o.fulfillment_status = 'cancelled' OR order_amount_owed(ir.order_id) <> 0)
+  -- A complete Session / verified capture awaiting a human outcome may already
+  -- hold money. Keep its goods pinned until paid attribution commits the order,
+  -- or an explicit refund/unpaid resolution releases the payment gate.
+  AND (o.fulfillment_status = 'cancelled' OR (
+      NOT EXISTS (
+          SELECT 1 FROM payments p
+          WHERE p.order_id = ir.order_id
+            AND p.status = 'requires_reconciliation'
+      )
+      AND NOT EXISTS (
+          SELECT 1
+          FROM payment_webhook_events e
+          JOIN payments p
+            ON p.provider = e.provider AND p.provider_ref = e.object_ref
+          WHERE p.order_id = ir.order_id
+            AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+      )
+  ))
 ORDER BY ir.expires_at
 LIMIT $1;
 
@@ -284,13 +323,13 @@ SELECT release_reservation($1);
 INSERT INTO order_events (order_id, kind)
 SELECT id, 'cancelled' FROM orders WHERE order_number = $1;
 
--- Ordered by id so two cancellations of one order take the variant locks in the
--- same sequence; release_reservation locks the variant and then the order.
+-- Ordered by variant first so cancellation shares the global stock-root lock
+-- order with checkout and returns; id is the stable tie-breaker.
 -- name: HeldReservationsForOrder :many
 SELECT r.id FROM inventory_reservations r
 JOIN orders o ON o.id = r.order_id
 WHERE o.order_number = $1 AND r.state = 'held'
-ORDER BY r.id;
+ORDER BY r.variant_id, r.id;
 
 -- Both predicates are load-bearing: `pending` refuses a second cancellation,
 -- `not committed` refuses one somebody has paid for. In the WHERE clause, so two
@@ -306,6 +345,12 @@ WHERE order_number = $1
 SELECT coalesce((SELECT b.balance_cents FROM store_credit_balances b
                  WHERE b.user_id = $1), 0)::bigint;
 
+-- Checkout holds the account row while it compares and spends the exact credit
+-- in its quote. The narrow SECURITY DEFINER function supplies the row-lock
+-- privilege without restoring UPDATE on the account table to store.
+-- name: LockAvailableCredit :one
+SELECT lock_store_credit_for_checkout(@user_id)::bigint;
+
 -- A NEGATIVE amount, keyed on the order so a retried checkout debits once.
 -- name: SpendCredit :one
 SELECT post_store_credit(@user_id, @amount_cents::bigint, @reason::text,
@@ -316,14 +361,18 @@ INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code, tax_id)
 VALUES (@order_id, @invoice_type::text, nullif(@carrier_code::text, ''), nullif(@tax_id::text, ''));
 
 -- The window is decided HERE against the DATABASE's clock: starts_at defaults to
--- its now(), and comparing that to Go's is comparing two clocks. The LIMITS are
--- not: redeem_coupon counts them under a lock on the coupon row.
+-- its now(), and comparing that to Go's is comparing two clocks. Checkout first
+-- calls LockCouponForCheckout through a narrow privilege door; ordinary reads
+-- need no row lock.
 -- name: CouponByCode :one
 SELECT id, code, description, kind, amount_cents, percent_bp,
        min_subtotal_cents, max_discount_cents,
        max_redemptions, per_customer_limit, is_active,
        (starts_at <= now() AND (ends_at IS NULL OR ends_at > now()))::boolean AS is_current
 FROM coupons WHERE upper(code) = upper(@code::text);
+
+-- name: LockCouponForCheckout :exec
+SELECT lock_coupon_for_checkout(@code::text);
 
 -- sqlc.narg on the user: redeem_coupon reads NULL as "no per-customer limit"
 -- rather than as a customer whose id happens to be zero.
@@ -385,7 +434,7 @@ WHERE digest = ANY(@digests::bytea[]);
 -- Hold the checkout's idempotency key for the length of this transaction. An
 -- advisory lock rather than an early INSERT, whose row would hold the key with
 -- order_id still NULL; xact, so it releases on commit or rollback.
--- name: LockCheckoutKey :one
+-- name: LockCheckoutKey :exec
 SELECT pg_advisory_xact_lock(hashtextextended(@idempotency_key::text, 0));
 
 -- The order a completed attempt produced.

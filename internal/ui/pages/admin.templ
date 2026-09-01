@@ -124,7 +124,7 @@ templ AdminOrders(p layouts.Page, v AdminOrdersView) {
 				</p>
 			}
 			<div class="ui-filterbar goen-admin__tabs">
-				for _, t := range v.Tabs(ctx) {
+				for _, t := range v.Tabs {
 					<a
 						class={ "ui-filter", templ.KV("is-active", t.Selected) }
 						href={ templ.URL("/admin/orders?status=" + t.Value) }
@@ -268,7 +268,7 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 										<label class="ui-label" for="d-brand">{ i18n.T(ctx, i18n.KeyFieldPickupBrand) }</label>
 										<select class="ui-select" id="d-brand" name="pickup_brand" required>
 											for _, b := range v.PickupBrands {
-												<option value={ b.Value } selected?={ b.Value == v.Delivery.PickupBrand }>{ b.Label }</option>
+												<option value={ string(b.Value) } selected?={ b.Value == v.Delivery.PickupBrand }>{ b.Label }</option>
 											}
 										</select>
 									</div>

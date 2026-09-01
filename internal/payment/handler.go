@@ -3,6 +3,7 @@ package payment
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -20,12 +21,15 @@ import (
 
 const maxWebhookBody = 1 << 20
 
+var errObsoleteSessionUncertain = errors.New("payment: obsolete checkout may still take money")
+
 type webhookUnreconciledCause string
 
 const (
 	webhookUnreadableEvent       webhookUnreconciledCause = "unreadable_event"
 	webhookUnattributedCapture   webhookUnreconciledCause = "unattributed_capture"
 	webhookCancelledOrderCapture webhookUnreconciledCause = "cancelled_order_capture"
+	webhookRefusedCapture        webhookUnreconciledCause = "refused_capture"
 )
 
 func webhookUnreconciled(cause webhookUnreconciledCause, detail string) string {
@@ -44,6 +48,7 @@ type webhookOutcome struct {
 	isUnsettled         bool
 	cancelledOrder      bool
 	unattributedCapture bool
+	refusedCapture      bool
 }
 
 // OrderAccess reports whether this browser holds a token for the order.
@@ -104,11 +109,7 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if o.Paid {
-		http.Redirect(w, r, "/orders/"+o.Number, http.StatusSeeOther)
-		return
-	}
-	if o.FullyFunded() {
+	if o.Paid || o.FullyFunded() {
 		http.Redirect(w, r, "/orders/"+o.Number, http.StatusSeeOther)
 		return
 	}
@@ -126,22 +127,18 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	if attempt.SessionID != "" {
-		h.resume(w, r, o, attempt.SessionID)
+	if h.handleExistingAttempt(w, r, o, attempt) {
 		return
 	}
 
 	if !o.HoldCoversASession(time.Now()) {
 		h.log.InfoContext(r.Context(), "refusing to open a checkout on a lapsed stock hold",
 			"order", number, "hold_expires_at", o.HoldExpiresAt)
-		h.notice(w, r, http.StatusConflict,
-			i18n.T(r.Context(), i18n.KeyPayRefusedTitle),
-			i18n.T(r.Context(), i18n.KeyPayRefusedTitle),
-			i18n.T(r.Context(), i18n.KeyPayRefusedBody))
+		h.paymentConflict(w, r)
 		return
 	}
 
-	sessionID, redirectURL, err := h.gateway.StartSession(r.Context(), o, attempt.Prior)
+	sessionID, _, err := h.gateway.StartSession(r.Context(), o, attempt.Prior)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "start checkout session", "order", number, "error", err)
 		h.serverError(w, r)
@@ -150,18 +147,19 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 
 	// Before the redirect: a capture with no row to land on is unattributable.
 	if err := h.store.OpenPayment(r.Context(), number, sessionID, o.TotalCents); err != nil {
+		// Stripe has created a payable remote object, whether this is a stable
+		// business refusal, a deadlock victim or an uncertain transport result.
+		// Close every session whose local admission was not confirmed, and make
+		// that expired idempotency generation durable before allowing a retry.
+		if cleanupErr := h.expireRejectedSession(r, o, sessionID); cleanupErr != nil {
+			h.log.ErrorContext(r.Context(), "clean up checkout rejected after creation",
+				"order", number, "session", sessionID, "open_error", err,
+				"cleanup_error", cleanupErr)
+			h.serverError(w, r)
+			return
+		}
 		if errors.Is(err, ErrNotOpenable) {
-			// The order was cancelled while Stripe was being asked. Nothing
-			// recorded this session, so nothing else will ever close it.
-			if expErr := h.gateway.ExpireSession(r.Context(), sessionID); expErr != nil {
-				h.log.WarnContext(r.Context(),
-					"expire the session of an order cancelled mid-open",
-					"order", number, "session", sessionID, "error", expErr)
-			}
-			h.notice(w, r, http.StatusConflict,
-				i18n.T(r.Context(), i18n.KeyPayRefusedTitle),
-				i18n.T(r.Context(), i18n.KeyPayRefusedTitle),
-				i18n.T(r.Context(), i18n.KeyPayRefusedBody))
+			h.paymentConflict(w, r)
 			return
 		}
 		h.log.ErrorContext(r.Context(), "open payment", "order", number, "error", err)
@@ -169,30 +167,172 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.toCheckout(w, r, number, redirectURL)
+	// Do not trust Create's response here. Stripe replays the original body for
+	// an idempotency key even if that Session has since expired; a fresh retrieve
+	// is what prevents recording and redirecting to a dead session.
+	h.resume(w, r, o, sessionID, o.TotalCents)
 }
 
-// resume sends a customer back to the Checkout Session they already have. One
-// Stripe has finished with, or one goen cannot read, is never replaced.
-func (h *Handler) resume(w http.ResponseWriter, r *http.Request, o *Order, sessionID string) {
-	redirectURL, open, err := h.gateway.ResumeSession(r.Context(), sessionID)
+// handleExistingAttempt either responds for a live/uncertain attempt or safely
+// retires an explicitly expired obsolete one so Start may create a replacement.
+// The boolean reports whether an HTTP response has already been written.
+func (h *Handler) handleExistingAttempt(
+	w http.ResponseWriter,
+	r *http.Request,
+	o *Order,
+	attempt *Attempt,
+) bool {
+	if attempt.NeedsReconciliation {
+		h.log.WarnContext(r.Context(), "refusing a second checkout while captured money needs reconciliation",
+			"order", o.Number)
+		h.paymentConflict(w, r)
+		return true
+	}
+	if attempt.SessionID == "" {
+		return false
+	}
+	if attempt.MatchesOwed {
+		h.resume(w, r, o, attempt.SessionID, attempt.IntendedAmountCents)
+		return true
+	}
+
+	retireErr := h.retireObsoleteSession(
+		r.Context(), o.Number, attempt.SessionID, attempt.IntendedAmountCents,
+	)
+	if retireErr == nil {
+		return false
+	}
+	if errors.Is(retireErr, errObsoleteSessionUncertain) {
+		h.log.WarnContext(r.Context(), "refusing to replace an uncertain obsolete checkout",
+			"order", o.Number, "session", attempt.SessionID, "error", retireErr)
+		h.paymentConflict(w, r)
+		return true
+	}
+	h.log.ErrorContext(r.Context(), "record expired checkout at an obsolete amount",
+		"order", o.Number, "session", attempt.SessionID, "error", retireErr)
+	h.serverError(w, r)
+	return true
+}
+
+// retireObsoleteSession closes a session whose amount no longer matches the
+// order. Only Stripe's explicit open/expired states make replacement safe. A
+// complete, unknown or unreadable state remains a possible capture and is
+// classified separately from a local persistence failure.
+func (h *Handler) retireObsoleteSession(
+	ctx context.Context, number, sessionID string, intendedAmountCents int64,
+) error {
+	_, status, err := h.gateway.ResumeSession(ctx, sessionID)
+	if err != nil {
+		return fmt.Errorf("%w: retrieve session %s: %w", errObsoleteSessionUncertain, sessionID, err)
+	}
+
+	switch status {
+	case stripe.CheckoutSessionStatusOpen:
+		if err := h.gateway.ExpireSession(ctx, sessionID); err != nil {
+			return fmt.Errorf("%w: expire session %s: %w", errObsoleteSessionUncertain, sessionID, err)
+		}
+	case stripe.CheckoutSessionStatusExpired:
+		// A previous request already established the provider fact.
+	case stripe.CheckoutSessionStatusComplete:
+		if err := h.store.recordCompletePayment(
+			ctx, number, sessionID, intendedAmountCents,
+		); err != nil {
+			return fmt.Errorf("record complete obsolete session %s: %w", sessionID, err)
+		}
+		return fmt.Errorf("%w: session %s is complete", errObsoleteSessionUncertain, sessionID)
+	default:
+		return fmt.Errorf("%w: session %s has status %q", errObsoleteSessionUncertain, sessionID, status)
+	}
+
+	return h.store.cancelExpiredPayment(ctx, sessionID)
+}
+
+// expireRejectedSession closes a remote session that never gained a confirmed
+// local admission and persists its terminal generation. Cleanup survives a
+// client disconnect but has one short, shared budget.
+func (h *Handler) expireRejectedSession(r *http.Request, o *Order, sessionID string) error {
+	const timeout = 5 * time.Second
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), timeout)
+	defer cancel()
+
+	expireErr := h.gateway.ExpireSession(ctx, sessionID)
+	if expireErr == nil {
+		return h.store.recordExpiredPayment(ctx, o.Number, sessionID, o.TotalCents)
+	}
+
+	// The Session may have crossed a terminal boundary before the expire call.
+	// Read that provider fact instead of treating every refusal as uncertainty.
+	// Expired is the only state recorded as cancelled. Complete does not say
+	// whether money moved, so it consumes the generation in a reconciliation
+	// state that a later capture or operator resolution can converge.
+	_, status, retrieveErr := h.gateway.ResumeSession(ctx, sessionID)
+	if retrieveErr != nil {
+		return errors.Join(expireErr, retrieveErr)
+	}
+	switch status {
+	case stripe.CheckoutSessionStatusExpired:
+		return h.store.recordExpiredPayment(ctx, o.Number, sessionID, o.TotalCents)
+	case stripe.CheckoutSessionStatusComplete:
+		return h.store.recordCompletePayment(ctx, o.Number, sessionID, o.TotalCents)
+	case stripe.CheckoutSessionStatusOpen:
+		return expireErr
+	default:
+		return fmt.Errorf("expire rejected session %s: %w (retrieve returned status %q)",
+			sessionID, expireErr, status)
+	}
+}
+
+// resume sends a customer back to an open Checkout Session. An explicitly
+// expired one closes locally; a complete or unreadable one is never replaced
+// while captured money may still be in flight.
+func (h *Handler) resume(
+	w http.ResponseWriter, r *http.Request, o *Order, sessionID string, intendedAmountCents int64,
+) {
+	redirectURL, status, err := h.gateway.ResumeSession(r.Context(), sessionID)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read the open checkout session",
 			"order", o.Number, "session", sessionID, "error", err)
 		h.serverError(w, r)
 		return
 	}
-	if !open {
+	switch status {
+	case stripe.CheckoutSessionStatusOpen:
+		h.toCheckout(w, r, o.Number, redirectURL)
+		return
+	case stripe.CheckoutSessionStatusExpired:
+		// Only an explicit provider expiry is safe to make cancelled locally.
+		// A complete Session may have paid money whose webhook is still in flight.
+		if err := h.store.cancelExpiredPayment(r.Context(), sessionID); err != nil {
+			h.log.ErrorContext(r.Context(), "record checkout expired at Stripe",
+				"order", o.Number, "session", sessionID, "error", err)
+			h.serverError(w, r)
+			return
+		}
 		h.log.InfoContext(r.Context(), "the open checkout session is finished at Stripe",
+			"order", o.Number, "session", sessionID, "status", status)
+	case stripe.CheckoutSessionStatusComplete:
+		if err := h.store.recordCompletePayment(
+			r.Context(), o.Number, sessionID, intendedAmountCents,
+		); err != nil {
+			h.log.ErrorContext(r.Context(), "record checkout complete at Stripe",
+				"order", o.Number, "session", sessionID, "error", err)
+			h.serverError(w, r)
+			return
+		}
+		h.log.InfoContext(r.Context(), "the checkout session completed at Stripe; waiting for its webhook",
 			"order", o.Number, "session", sessionID)
-		//nolint:gosec // G710: o.Number came back from the database and not from
-		// the request, so it provably matches orders_number_format and cannot
-		// steer the redirect anywhere. The taint analyser cannot see that it
-		// crossed a query on the way in.
-		http.Redirect(w, r, "/orders/"+o.Number, http.StatusSeeOther)
+	default:
+		h.log.ErrorContext(r.Context(), "Stripe returned an unknown checkout session state",
+			"order", o.Number, "session", sessionID, "status", status)
+		h.serverError(w, r)
 		return
 	}
-	h.toCheckout(w, r, o.Number, redirectURL)
+
+	//nolint:gosec // G710: o.Number came back from the database and not from
+	// the request, so it provably matches orders_number_format and cannot
+	// steer the redirect anywhere. The taint analyser cannot see that it
+	// crossed a query on the way in.
+	http.Redirect(w, r, "/orders/"+o.Number, http.StatusSeeOther)
 }
 
 // toCheckout sends the customer to Stripe, having checked that is where the URL
@@ -225,10 +365,12 @@ func checkoutHost(raw string) bool {
 	return stripeCheckoutHosts[u.Hostname()]
 }
 
-// Webhook is where an order becomes paid; nothing else in goen marks a payment
-// succeeded. Stripe retries anything that is not 2xx, so a forgery is 400, an
-// ignored or unreadable event, or one a retry cannot apply, is 200 (the latter
-// two with a durable alarm), and a database failure is 500.
+// Webhook is the automatic door where an order becomes paid. The only other
+// door is an audited admin attribution of a complete Session awaiting a money
+// outcome; a browser return remains no evidence. Stripe retries anything that
+// is not 2xx, so a forgery is 400, an ignored or unreadable event, or one a
+// retry cannot apply, is 200 (the latter two with a durable alarm), and a
+// database failure is 500.
 func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 	if !h.gateway.Enabled() {
 		http.Error(w, "payments are not configured", http.StatusServiceUnavailable)
@@ -254,26 +396,26 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 	abandonedSession, isAbandoned := AbandonedSessionFrom(&ev)
 	unsettledSession, isUnsettled := UnsettledSessionFrom(&ev)
 	readState := classifyWebhook(&ev, isCapture || isAbandoned || isUnsettled)
-	var apply func(context.Context, *Store) error
+	var apply func(context.Context, *webhookTx) error
 	var number string
-	var unattributedCapture, cancelledOrder bool
+	var unattributedCapture, cancelledOrder, refusedCapture bool
 	switch {
 	case readState == webhookReadUnreadable:
-		apply = func(ctx context.Context, st *Store) error {
+		apply = func(ctx context.Context, tx *webhookTx) error {
 			// A retry delivers the same bytes and can never make this payload
 			// readable. Commit a durable alarm and answer 200 instead of turning
 			// version skew into a retry storm that disables the endpoint.
-			return st.Unreconciled(ctx, ev.ID, webhookUnreconciled(webhookUnreadableEvent,
+			return tx.Unreconciled(ctx, webhookUnreconciled(webhookUnreadableEvent,
 				"goen could not read a "+string(ev.Type)+
 					" it acts on: the payload is not the shape this binary expects"))
 		}
 	case isAbandoned:
-		apply = func(ctx context.Context, st *Store) error {
-			return st.CancelSession(ctx, abandonedSession)
+		apply = func(ctx context.Context, tx *webhookTx) error {
+			return tx.CancelSession(ctx)
 		}
 	case isCapture:
-		apply = func(ctx context.Context, st *Store) error {
-			n, captureErr := st.Capture(ctx, &capture)
+		apply = func(ctx context.Context, tx *webhookTx) error {
+			n, captureErr := tx.Capture(ctx, capture)
 			if errors.Is(captureErr, ErrOrderCancelled) {
 				// Swallowed inside the transaction: returning would roll the
 				// claim back and lose the only record that money arrived. But
@@ -284,7 +426,7 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 				// finds out when the customer asks.
 				cancelledOrder = true
 				number = n
-				return st.Unreconciled(ctx, ev.ID, webhookUnreconciled(
+				return tx.Unreconciled(ctx, webhookUnreconciled(
 					webhookCancelledOrderCapture,
 					"money arrived for an order that was already cancelled"))
 			}
@@ -294,16 +436,26 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 				// same unresolvable bytes are not retried, and leave the session id
 				// in object_ref for the person who must find the money at Stripe.
 				unattributedCapture = true
-				return st.Unreconciled(ctx, ev.ID, webhookUnreconciled(
+				return tx.Unreconciled(ctx, webhookUnreconciled(
 					webhookUnattributedCapture,
 					"a paid Checkout Session has no payment row to attribute it to"))
+			}
+			if errors.Is(captureErr, errCaptureRefused) {
+				// Stripe has already reported this session paid. A stable amount,
+				// state, or schema invariant rejected it locally; retries carry the
+				// same facts and cannot heal it. Preserve the reason in the event
+				// transaction so admin health has something durable to act on.
+				refusedCapture = true
+				number = n
+				return tx.Unreconciled(ctx, webhookUnreconciled(
+					webhookRefusedCapture, captureErr.Error()))
 			}
 			number = n
 			return captureErr
 		}
 	}
 
-	claimed, err := h.store.ProcessWebhook(r.Context(), &WebhookEvent{
+	claimed, err := h.store.processWebhook(r.Context(), &webhookEvent{
 		ID: ev.ID, Type: string(ev.Type), ObjectRef: ObjectRef(&ev), Payload: body,
 	}, apply)
 	switch {
@@ -325,7 +477,7 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 		abandonedSession: abandonedSession, unsettledSession: unsettledSession,
 		number: number, isAbandoned: isAbandoned, isCapture: isCapture,
 		isUnsettled: isUnsettled, cancelledOrder: cancelledOrder,
-		unattributedCapture: unattributedCapture,
+		unattributedCapture: unattributedCapture, refusedCapture: refusedCapture,
 	})
 	w.WriteHeader(http.StatusOK)
 }
@@ -344,6 +496,11 @@ func (h *Handler) logWebhookOutcome(ctx context.Context, outcome webhookOutcome)
 		h.log.ErrorContext(ctx,
 			"money arrived for a session goen cannot attribute — find it at Stripe",
 			"event", ev.ID, "session", outcome.capture.SessionID)
+	case outcome.refusedCapture:
+		h.log.ErrorContext(ctx,
+			"money arrived but local payment invariants refused it — reconcile or refund it",
+			"event", ev.ID, "order", outcome.number, "session", outcome.capture.SessionID,
+			"amount_cents", outcome.capture.AmountRecv)
 	case outcome.isCapture:
 		h.log.InfoContext(ctx, "payment captured",
 			"order", outcome.number, "event", ev.ID, "amount_cents", outcome.capture.AmountRecv)
@@ -414,6 +571,13 @@ func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) notice(w http.ResponseWriter, r *http.Request, status int, title, heading, body string) {
 	web.Render(w, r, h.log, status, pages.Notice(
 		layouts.Page{Title: title}, "", heading, body))
+}
+
+func (h *Handler) paymentConflict(w http.ResponseWriter, r *http.Request) {
+	h.notice(w, r, http.StatusConflict,
+		i18n.T(r.Context(), i18n.KeyPayRefusedTitle),
+		i18n.T(r.Context(), i18n.KeyPayRefusedTitle),
+		i18n.T(r.Context(), i18n.KeyPayRefusedBody))
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {

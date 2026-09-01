@@ -21,12 +21,14 @@ type WorkerHealthView struct {
 
 	ExpiredSessions   int64
 	UnreferencedMedia int64
-	// UnreconciledPayments is a Stripe event accepted but not automatically
-	// applied: unreadable, unattributed, or money for a cancelled order.
+	// UnreconciledPayments is a Stripe event not automatically applied or a
+	// provider-complete payment whose event outcome has not arrived.
 	UnreconciledPayments int64
 	Stuck                []StuckMessage
-	// Unreconciled is named rather than counted: each needs investigation.
-	Unreconciled []UnreconciledPayment
+	// The two resolution subjects stay concrete: an event id and a provider ref
+	// are different evidence and route to different database functions.
+	UnreconciledEvents           []UnreconciledEvent
+	UnreconciledCompletePayments []UnreconciledCompletePayment
 	// StrandedClaims is a 折讓 claim the provider never answered: nothing may be
 	// at the 加值中心 under it and only a person can find out. Named rather than
 	// counted, like its neighbours.
@@ -145,14 +147,31 @@ func humanDuration(ctx context.Context, d time.Duration) string {
 	}
 }
 
-// UnreconciledPayment is a webhook goen accepted and could not act on: the
-// money is at the provider and a person has to move it.
-type UnreconciledPayment struct {
+// UnreconciledEvent is a webhook goen accepted and could not act on.
+type UnreconciledEvent struct {
 	EventID string
 	Type    string
 	Ref     string
 	Reason  string
 	Since   string
+}
+
+// UnreconciledCompletePayment is a provider-complete payment identity with no
+// outstanding event alarm to resolve it.
+type UnreconciledCompletePayment struct {
+	OrderNumber            string
+	ProviderRef            string
+	PaidAttributionAllowed bool
+	Since                  string
+}
+
+// Reason explains the concrete recovery choice for this payment. Once any
+// hold was released, capture is no longer one of those choices.
+func (p UnreconciledCompletePayment) Reason(ctx context.Context) string {
+	if !p.PaidAttributionAllowed {
+		return i18n.T(ctx, i18n.KeyAdminHPCompleteStockReleased)
+	}
+	return i18n.T(ctx, i18n.KeyAdminHPCompleteOutcomeUnknown)
 }
 
 // StuckMessage is one delivery that has exhausted its attempts.

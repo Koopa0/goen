@@ -326,7 +326,7 @@ func TestResizeNeverUpscalesAndOnlyServesKnownWidths(t *testing.T) {
 
 	for _, w := range []int{0, -1, 1, 399, 401, 1600, 100000} {
 		if _, err := Resize(stored, "image/png", w); err == nil {
-			t.Errorf("width %d was rendered; only %v are allowed", w, assets.MediaWidths)
+			t.Errorf("width %d was rendered; want only the fixed 400px and 800px renditions", w)
 		}
 	}
 }

@@ -254,6 +254,75 @@ func TestIssueRefusesWhatTheProviderWould(t *testing.T) {
 	}
 }
 
+// TestEveryOfferedPreferenceCanBecomeAValidIssueRequest binds the closed set
+// shown at checkout to the issuer's validation rules. Adding a preference is
+// therefore not complete until this test supplies everything that preference
+// semantically requires.
+func TestEveryOfferedPreferenceCanBecomeAValidIssueRequest(t *testing.T) {
+	want := []Preference{
+		PreferenceMember,
+		PreferenceMobile,
+		PreferenceCompany,
+	}
+	got := OfferedPreferences()
+	if !slices.Equal(got, want) {
+		t.Fatalf("OfferedPreferences() = %v, want the canonical display order %v", got, want)
+	}
+	got[0] = Preference("mutated")
+	if !slices.Equal(OfferedPreferences(), want) {
+		t.Fatal("mutating OfferedPreferences() changed the canonical set")
+	}
+
+	seen := make(map[Preference]bool, len(want))
+	for _, preference := range OfferedPreferences() {
+		t.Run(string(preference), func(t *testing.T) {
+			if seen[preference] {
+				t.Fatalf("OfferedPreferences contains %q more than once", preference)
+			}
+			seen[preference] = true
+			if !preference.Known() {
+				t.Fatalf("offered preference %q is not Known", preference)
+			}
+
+			req := IssueRequest{
+				OrderNumber: "GO-260101-000001",
+				Email:       "buyer@example.com",
+				Preference:  preference,
+				AmountCents: 10000,
+				Lines: []Line{{
+					Description:    "契約測試商品",
+					Quantity:       1,
+					UnitPriceCents: 10000,
+					AmountCents:    10000,
+				}},
+			}
+			if preference.NeedsCarrier() {
+				req.CarrierCode = "/AB12345"
+			}
+			if preference.NeedsTaxID() {
+				req.TaxID = "12345678"
+			}
+			if err := req.validate(); err != nil {
+				t.Errorf("valid request for offered preference %q: %v", preference, err)
+			}
+		})
+	}
+
+	unknown := Preference("paper")
+	if unknown.Known() {
+		t.Fatalf("unknown preference %q is Known", unknown)
+	}
+	if err := (IssueRequest{
+		OrderNumber: "GO-260101-000002",
+		Email:       "buyer@example.com",
+		Preference:  unknown,
+		AmountCents: 10000,
+		Lines:       []Line{{Description: "契約測試商品", Quantity: 1, UnitPriceCents: 10000, AmountCents: 10000}},
+	}).validate(); !errors.Is(err, ErrRejected) {
+		t.Errorf("unknown preference validation = %v, want ErrRejected", err)
+	}
+}
+
 // TestTheRequestCarriesWhatTheInvoiceNeeds reads the actual wire bytes, against
 // an httptest.Server rather than a fake that would agree with whatever goen
 // believes.

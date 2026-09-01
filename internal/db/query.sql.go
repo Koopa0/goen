@@ -1958,18 +1958,24 @@ func (q *Queries) AdminVersionZones(ctx context.Context, versionIds []uuid.UUID)
 	return items, nil
 }
 
-const adoptCart = `-- name: AdoptCart :exec
-UPDATE carts SET user_id = $2 WHERE id = $1
+const adoptCart = `-- name: AdoptCart :execrows
+UPDATE carts SET user_id = $1::uuid
+WHERE id = $2::uuid AND user_id IS NULL
 `
 
 type AdoptCartParams struct {
-	ID     uuid.UUID
-	UserID uuid.NullUUID
+	UserID uuid.UUID
+	CartID uuid.UUID
 }
 
-func (q *Queries) AdoptCart(ctx context.Context, arg AdoptCartParams) error {
-	_, err := q.db.Exec(ctx, adoptCart, arg.ID, arg.UserID)
-	return err
+// The predicate is a final ownership fence in addition to CartOwner. :execrows
+// makes a lost race distinguishable from a successful adoption.
+func (q *Queries) AdoptCart(ctx context.Context, arg AdoptCartParams) (int64, error) {
+	result, err := q.db.Exec(ctx, adoptCart, arg.UserID, arg.CartID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const advanceOrder = `-- name: AdvanceOrder :exec
@@ -2164,6 +2170,33 @@ func (q *Queries) AttachProductImage(ctx context.Context, arg AttachProductImage
 		arg.Slug,
 	)
 	return err
+}
+
+const attributeCompletePaymentPaid = `-- name: AttributeCompletePaymentPaid :one
+WITH attributed AS MATERIALIZED (
+    SELECT attribute_complete_payment_paid($1::text) AS payment_id
+)
+SELECT p.order_id, o.order_number, p.intended_amount_cents AS amount_cents
+FROM attributed a
+JOIN payments p ON p.id = a.payment_id
+JOIN orders o ON o.id = p.order_id
+`
+
+type AttributeCompletePaymentPaidRow struct {
+	OrderID     uuid.UUID
+	OrderNumber string
+	AmountCents int64
+}
+
+// Staff have verified at Stripe that this provider-complete Session was paid.
+// The SECURITY DEFINER function accepts no amount from the operator: it posts
+// the payment row's immutable intent through capture_payment and returns the
+// order facts needed for payment-owned side effects in this admin tx.
+func (q *Queries) AttributeCompletePaymentPaid(ctx context.Context, providerRef string) (AttributeCompletePaymentPaidRow, error) {
+	row := q.db.QueryRow(ctx, attributeCompletePaymentPaid, providerRef)
+	var i AttributeCompletePaymentPaidRow
+	err := row.Scan(&i.OrderID, &i.OrderNumber, &i.AmountCents)
+	return i, err
 }
 
 const auditEvents = `-- name: AuditEvents :many
@@ -2699,6 +2732,7 @@ SELECT
     ci.quantity,
     (pv.stock_quantity - pv.safety_stock)::integer AS sellable_quantity,
     pv.is_active,
+    p.status AS product_status,
     p.slug,
     localized_name(p.name, p.name_en, $2::text) AS name,
     b.name AS brand,
@@ -2748,6 +2782,7 @@ type CartLinesRow struct {
 	Quantity            int32
 	SellableQuantity    int32
 	IsActive            bool
+	ProductStatus       string
 	Slug                string
 	Name                string
 	Brand               string
@@ -2776,6 +2811,7 @@ func (q *Queries) CartLines(ctx context.Context, arg CartLinesParams) ([]CartLin
 			&i.Quantity,
 			&i.SellableQuantity,
 			&i.IsActive,
+			&i.ProductStatus,
 			&i.Slug,
 			&i.Name,
 			&i.Brand,
@@ -2792,6 +2828,20 @@ func (q *Queries) CartLines(ctx context.Context, arg CartLinesParams) ([]CartLin
 		return nil, err
 	}
 	return items, nil
+}
+
+const cartOwner = `-- name: CartOwner :one
+SELECT user_id FROM carts WHERE id = $1::uuid
+`
+
+// Read only after LockCarts has returned. The recheck keeps a second account
+// carrying the same guest cookie from taking over a cart the first account just
+// adopted.
+func (q *Queries) CartOwner(ctx context.Context, cartID uuid.UUID) (uuid.NullUUID, error) {
+	row := q.db.QueryRow(ctx, cartOwner, cartID)
+	var user_id uuid.NullUUID
+	err := row.Scan(&user_id)
+	return user_id, err
 }
 
 const categoryAncestors = `-- name: CategoryAncestors :many
@@ -3152,14 +3202,19 @@ func (q *Queries) CategoryListingCount(ctx context.Context, arg CategoryListingC
 }
 
 const checkoutAttempt = `-- name: CheckoutAttempt :one
-SELECT order_id FROM checkout_attempts WHERE idempotency_key = $1
+SELECT cart_id, order_id FROM checkout_attempts WHERE idempotency_key = $1
 `
 
-func (q *Queries) CheckoutAttempt(ctx context.Context, idempotencyKey string) (uuid.NullUUID, error) {
+type CheckoutAttemptRow struct {
+	CartID  uuid.NullUUID
+	OrderID uuid.NullUUID
+}
+
+func (q *Queries) CheckoutAttempt(ctx context.Context, idempotencyKey string) (CheckoutAttemptRow, error) {
 	row := q.db.QueryRow(ctx, checkoutAttempt, idempotencyKey)
-	var order_id uuid.NullUUID
-	err := row.Scan(&order_id)
-	return order_id, err
+	var i CheckoutAttemptRow
+	err := row.Scan(&i.CartID, &i.OrderID)
+	return i, err
 }
 
 const checkoutCompletionSince = `-- name: CheckoutCompletionSince :one
@@ -3649,8 +3704,9 @@ type CouponByCodeRow struct {
 }
 
 // The window is decided HERE against the DATABASE's clock: starts_at defaults to
-// its now(), and comparing that to Go's is comparing two clocks. The LIMITS are
-// not: redeem_coupon counts them under a lock on the coupon row.
+// its now(), and comparing that to Go's is comparing two clocks. Checkout first
+// calls LockCouponForCheckout through a narrow privilege door; ordinary reads
+// need no row lock.
 func (q *Queries) CouponByCode(ctx context.Context, code string) (CouponByCodeRow, error) {
 	row := q.db.QueryRow(ctx, couponByCode, code)
 	var i CouponByCodeRow
@@ -5045,6 +5101,37 @@ func (q *Queries) DeleteOldOrderAccessGrants(ctx context.Context, retain pgtype.
 	return err
 }
 
+const deleteOutstandingEmailVerificationMessage = `-- name: DeleteOutstandingEmailVerificationMessage :exec
+DELETE FROM outbox_messages m
+USING email_verifications v
+WHERE v.user_id = $1::uuid
+  AND m.topic = 'account.email_verify'
+  AND m.dedupe_key = 'verify:' || encode(v.digest, 'hex')
+`
+
+// Delete the queued copy before replacing its verification row. Both statements
+// run after the user lock in the same transaction, so every surviving message
+// has a surviving digest that erasure can identify without claiming the mailbox.
+func (q *Queries) DeleteOutstandingEmailVerificationMessage(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteOutstandingEmailVerificationMessage, userID)
+	return err
+}
+
+const deletePasswordResetMessagesForEmail = `-- name: DeletePasswordResetMessagesForEmail :exec
+DELETE FROM outbox_messages
+WHERE topic = 'account.password_reset'
+  AND lower(coalesce(payload ->> 'email', payload ->> 'Email', '')) =
+      lower($1::text)
+`
+
+// Once an account moves to a new mailbox, a queued reset for its old address is
+// both dead authority and retained PII. Keep this query operation-specific: an
+// address change has no authority to remove other outbox topics.
+func (q *Queries) DeletePasswordResetMessagesForEmail(ctx context.Context, email string) error {
+	_, err := q.db.Exec(ctx, deletePasswordResetMessagesForEmail, email)
+	return err
+}
+
 const deleteSession = `-- name: DeleteSession :exec
 DELETE FROM sessions WHERE token_hash = $1
 `
@@ -5137,6 +5224,25 @@ func (q *Queries) EmailVerification(ctx context.Context, id uuid.UUID) (EmailVer
 	return i, err
 }
 
+const emailVerificationToken = `-- name: EmailVerificationToken :one
+SELECT user_id, email FROM email_verifications
+WHERE digest = $1 AND expires_at > now()
+`
+
+type EmailVerificationTokenRow struct {
+	UserID uuid.UUID
+	Email  string
+}
+
+// A plain lookup names the account to lock before SpendEmailVerification takes
+// the token row. erase_user uses the same user-before-token order.
+func (q *Queries) EmailVerificationToken(ctx context.Context, digest []byte) (EmailVerificationTokenRow, error) {
+	row := q.db.QueryRow(ctx, emailVerificationToken, digest)
+	var i EmailVerificationTokenRow
+	err := row.Scan(&i.UserID, &i.Email)
+	return i, err
+}
+
 const endStaffSessions = `-- name: EndStaffSessions :exec
 DELETE FROM sessions WHERE user_id = $1
 `
@@ -5209,6 +5315,24 @@ WHERE ir.state = 'held'
   -- Committed is not the whole question: a zero-owed order has no payment row and
   -- sits at 'pending' while the customer has already paid in full.
   AND (o.fulfillment_status = 'cancelled' OR order_amount_owed(ir.order_id) <> 0)
+  -- A complete Session / verified capture awaiting a human outcome may already
+  -- hold money. Keep its goods pinned until paid attribution commits the order,
+  -- or an explicit refund/unpaid resolution releases the payment gate.
+  AND (o.fulfillment_status = 'cancelled' OR (
+      NOT EXISTS (
+          SELECT 1 FROM payments p
+          WHERE p.order_id = ir.order_id
+            AND p.status = 'requires_reconciliation'
+      )
+      AND NOT EXISTS (
+          SELECT 1
+          FROM payment_webhook_events e
+          JOIN payments p
+            ON p.provider = e.provider AND p.provider_ref = e.object_ref
+          WHERE p.order_id = ir.order_id
+            AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+      )
+  ))
 ORDER BY ir.expires_at
 LIMIT $1
 `
@@ -5395,11 +5519,11 @@ const heldReservationsForOrder = `-- name: HeldReservationsForOrder :many
 SELECT r.id FROM inventory_reservations r
 JOIN orders o ON o.id = r.order_id
 WHERE o.order_number = $1 AND r.state = 'held'
-ORDER BY r.id
+ORDER BY r.variant_id, r.id
 `
 
-// Ordered by id so two cancellations of one order take the variant locks in the
-// same sequence; release_reservation locks the variant and then the order.
+// Ordered by variant first so cancellation shares the global stock-root lock
+// order with checkout and returns; id is the stable tie-breaker.
 func (q *Queries) HeldReservationsForOrder(ctx context.Context, orderNumber string) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, heldReservationsForOrder, orderNumber)
 	if err != nil {
@@ -5938,18 +6062,92 @@ func (q *Queries) LiveInvoice(ctx context.Context, orderNumber string) (LiveInvo
 	return i, err
 }
 
-const lockCheckoutKey = `-- name: LockCheckoutKey :one
+const lockAvailableCredit = `-- name: LockAvailableCredit :one
+SELECT lock_store_credit_for_checkout($1)::bigint
+`
+
+// Checkout holds the account row while it compares and spends the exact credit
+// in its quote. The narrow SECURITY DEFINER function supplies the row-lock
+// privilege without restoring UPDATE on the account table to store.
+func (q *Queries) LockAvailableCredit(ctx context.Context, userID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, lockAvailableCredit, userID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const lockCartCatalogue = `-- name: LockCartCatalogue :exec
+SELECT lock_cart_catalogue($1::uuid)
+`
+
+// Checkout locks catalogue roots in one canonical order before it snapshots
+// publication, prices and availability. SECURITY DEFINER keeps store's direct
+// product/variant UPDATE revoked while satisfying PostgreSQL's FOR UPDATE
+// privilege requirement.
+func (q *Queries) LockCartCatalogue(ctx context.Context, cartID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, lockCartCatalogue, cartID)
+	return err
+}
+
+const lockCarts = `-- name: LockCarts :many
+SELECT id FROM carts
+WHERE id = ANY($1::uuid[])
+ORDER BY id
+FOR UPDATE
+`
+
+// Serialize every writer of a cart aggregate before it touches cart_items.
+// Sorting makes two-cart operations such as account adoption use one lock order.
+func (q *Queries) LockCarts(ctx context.Context, cartIds []uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, lockCarts, cartIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockCheckoutKey = `-- name: LockCheckoutKey :exec
 SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))
 `
 
 // Hold the checkout's idempotency key for the length of this transaction. An
 // advisory lock rather than an early INSERT, whose row would hold the key with
 // order_id still NULL; xact, so it releases on commit or rollback.
-func (q *Queries) LockCheckoutKey(ctx context.Context, idempotencyKey string) (interface{}, error) {
-	row := q.db.QueryRow(ctx, lockCheckoutKey, idempotencyKey)
-	var pg_advisory_xact_lock interface{}
-	err := row.Scan(&pg_advisory_xact_lock)
-	return pg_advisory_xact_lock, err
+func (q *Queries) LockCheckoutKey(ctx context.Context, idempotencyKey string) error {
+	_, err := q.db.Exec(ctx, lockCheckoutKey, idempotencyKey)
+	return err
+}
+
+const lockCouponForCheckout = `-- name: LockCouponForCheckout :exec
+SELECT lock_coupon_for_checkout($1::text)
+`
+
+func (q *Queries) LockCouponForCheckout(ctx context.Context, code string) error {
+	_, err := q.db.Exec(ctx, lockCouponForCheckout, code)
+	return err
+}
+
+const lockPaymentProviderRef = `-- name: LockPaymentProviderRef :exec
+SELECT lock_payment_provider_ref('stripe', $1::text)
+`
+
+// Serialize creation of a local payment identity with every webhook carrying
+// that same provider reference. This must run inside ProcessWebhook's tx.
+func (q *Queries) LockPaymentProviderRef(ctx context.Context, providerRef string) error {
+	_, err := q.db.Exec(ctx, lockPaymentProviderRef, providerRef)
+	return err
 }
 
 const lockShippingZone = `-- name: LockShippingZone :one
@@ -5960,6 +6158,67 @@ SELECT id FROM shipping_zones WHERE id = $1 FOR UPDATE
 // sweep against the other's partial work and commit a union neither submitted.
 func (q *Queries) LockShippingZone(ctx context.Context, zoneID uuid.UUID) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, lockShippingZone, zoneID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const lockUserForCartAdoption = `-- name: LockUserForCartAdoption :one
+SELECT lock_user_for_cart_adoption($1::uuid)
+`
+
+// The account row is the stable lock for deciding which of two guest carts is
+// the first one this user adopts. A SECURITY DEFINER function is required
+// because store has only narrow authentication-column UPDATE grants, not
+// authority for a general users row lock.
+func (q *Queries) LockUserForCartAdoption(ctx context.Context, userID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, lockUserForCartAdoption, userID)
+	var lock_user_for_cart_adoption bool
+	err := row.Scan(&lock_user_for_cart_adoption)
+	return lock_user_for_cart_adoption, err
+}
+
+const lockUserForCheckout = `-- name: LockUserForCheckout :one
+SELECT lock_user_for_checkout($1::uuid)
+`
+
+// Logged-in checkout writes several user foreign keys after it owns the cart.
+// Acquire their natural KEY SHARE first so account erasure and cart adoption use
+// the same user -> cart order. Guest checkout has no user and skips this query.
+func (q *Queries) LockUserForCheckout(ctx context.Context, userID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, lockUserForCheckout, userID)
+	var lock_user_for_checkout bool
+	err := row.Scan(&lock_user_for_checkout)
+	return lock_user_for_checkout, err
+}
+
+const lockUserForEmailVerification = `-- name: LockUserForEmailVerification :one
+SELECT id, email FROM users WHERE id = $1::uuid FOR UPDATE
+`
+
+type LockUserForEmailVerificationRow struct {
+	ID    uuid.UUID
+	Email string
+}
+
+func (q *Queries) LockUserForEmailVerification(ctx context.Context, userID uuid.UUID) (LockUserForEmailVerificationRow, error) {
+	row := q.db.QueryRow(ctx, lockUserForEmailVerification, userID)
+	var i LockUserForEmailVerificationRow
+	err := row.Scan(&i.ID, &i.Email)
+	return i, err
+}
+
+const lockUserForPasswordReset = `-- name: LockUserForPasswordReset :one
+SELECT id FROM users WHERE id = $1::uuid FOR UPDATE
+`
+
+// Completion takes the account row before it spends the token. erase_user uses
+// the same user-before-token order, so the two operations cannot deadlock. The
+// exclusive row lock also serializes different live tokens for one account;
+// otherwise two KEY SHARE holders can deadlock while both upgrade to write the
+// password, or let the later writer silently replace the earlier reset.
+func (q *Queries) LockUserForPasswordReset(ctx context.Context, userID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockUserForPasswordReset, userID)
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
@@ -6161,23 +6420,6 @@ func (q *Queries) MarkOutboxDelivered(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
-const markPaymentReconciled = `-- name: MarkPaymentReconciled :execrows
-UPDATE payment_webhook_events SET reconciled_at = now()
-WHERE provider = 'stripe' AND event_id = $1::text
-  AND unreconciled IS NOT NULL AND reconciled_at IS NULL
-`
-
-// Somebody investigated and resolved the provider event and says so. The row
-// keeps its reason: what happened is worth reading after it is handled, and
-// this is the only thing that takes it off /admin/health.
-func (q *Queries) MarkPaymentReconciled(ctx context.Context, eventID string) (int64, error) {
-	result, err := q.db.Exec(ctx, markPaymentReconciled, eventID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const markSessionVerified = `-- name: MarkSessionVerified :exec
 UPDATE sessions SET totp_verified_at = now() WHERE token_hash = $1
 `
@@ -6209,23 +6451,24 @@ func (q *Queries) MarkWebhookProcessed(ctx context.Context, eventID string) erro
 	return err
 }
 
-const markWebhookUnreconciled = `-- name: MarkWebhookUnreconciled :exec
-UPDATE payment_webhook_events SET processed_at = now(), unreconciled = $1::text
-WHERE provider = 'stripe' AND event_id = $2::text
+const markWebhookUnreconciled = `-- name: MarkWebhookUnreconciled :one
+SELECT mark_payment_event_unreconciled($1::text, $2::text)
 `
 
 type MarkWebhookUnreconciledParams struct {
-	Reason  string
 	EventID string
+	Reason  string
 }
 
 // Processed, and NOT acted on. Marked in the same transaction as the claim, so
 // an event that could not be applied cannot be recorded as seen without also
 // being recorded as needing a person — which is ProcessWebhook's whole rule,
 // applied to the outcome rather than to the effect.
-func (q *Queries) MarkWebhookUnreconciled(ctx context.Context, arg MarkWebhookUnreconciledParams) error {
-	_, err := q.db.Exec(ctx, markWebhookUnreconciled, arg.Reason, arg.EventID)
-	return err
+func (q *Queries) MarkWebhookUnreconciled(ctx context.Context, arg MarkWebhookUnreconciledParams) (bool, error) {
+	row := q.db.QueryRow(ctx, markWebhookUnreconciled, arg.EventID, arg.Reason)
+	var mark_payment_event_unreconciled bool
+	err := row.Scan(&mark_payment_event_unreconciled)
+	return mark_payment_event_unreconciled, err
 }
 
 const mediaBytes = `-- name: MediaBytes :one
@@ -6683,7 +6926,8 @@ func (q *Queries) OrderBelongsToEmail(ctx context.Context, arg OrderBelongsToEma
 }
 
 const orderByPaymentRef = `-- name: OrderByPaymentRef :one
-SELECT o.id, o.order_number, o.fulfillment_status, p.intended_amount_cents
+SELECT o.id, o.order_number, o.fulfillment_status,
+       p.intended_amount_cents, p.status
 FROM orders o JOIN payments p ON p.order_id = o.id
 WHERE p.provider_ref = $1
 `
@@ -6693,6 +6937,7 @@ type OrderByPaymentRefRow struct {
 	OrderNumber         string
 	FulfillmentStatus   string
 	IntendedAmountCents int64
+	Status              string
 }
 
 // The webhook is trusted for what happened, never for which order.
@@ -6704,6 +6949,7 @@ func (q *Queries) OrderByPaymentRef(ctx context.Context, providerRef string) (Or
 		&i.OrderNumber,
 		&i.FulfillmentStatus,
 		&i.IntendedAmountCents,
+		&i.Status,
 	)
 	return i, err
 }
@@ -7199,16 +7445,34 @@ func (q *Queries) PasswordResetToken(ctx context.Context, tokenHash []byte) (uui
 
 const paymentAttemptForOrder = `-- name: PaymentAttemptForOrder :one
 SELECT
-    coalesce((SELECT p.provider_ref FROM payments p
-              WHERE p.order_id = o.id
-                AND p.status = 'requires_payment'
-                AND p.intended_amount_cents = $2::bigint
-              ORDER BY p.created_at DESC
-              LIMIT 1), '')::text AS live_session,
+    coalesce(active.provider_ref, '')::text AS live_session,
+    coalesce(active.intended_amount_cents, 0)::bigint AS live_session_amount_cents,
+    coalesce(active.intended_amount_cents = $2::bigint, false)::boolean
+        AS live_session_matches_owed,
+    (EXISTS (
+         SELECT 1 FROM payments blocked
+         WHERE blocked.order_id = o.id
+           AND blocked.status = 'requires_reconciliation'
+     ) OR EXISTS (
+         SELECT 1
+         FROM payment_webhook_events e
+         JOIN payments p
+           ON p.provider = e.provider AND p.provider_ref = e.object_ref
+         WHERE p.order_id = o.id
+           AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+     ))::boolean AS needs_reconciliation,
     -- Every attempt, not only the live ones: it goes into the Stripe idempotency
     -- key, which Stripe honours for 24 hours.
     (SELECT count(*) FROM payments p WHERE p.order_id = o.id)::integer AS prior_attempts
 FROM orders o
+LEFT JOIN LATERAL (
+    SELECT p.provider_ref, p.intended_amount_cents
+    FROM payments p
+    WHERE p.order_id = o.id
+      AND p.status IN ('requires_payment', 'requires_action', 'processing')
+    ORDER BY p.created_at DESC, p.id DESC
+    LIMIT 1
+) active ON true
 WHERE o.order_number = $1
 `
 
@@ -7218,16 +7482,26 @@ type PaymentAttemptForOrderParams struct {
 }
 
 type PaymentAttemptForOrderRow struct {
-	LiveSession   string
-	PriorAttempts int32
+	LiveSession            string
+	LiveSessionAmountCents int64
+	LiveSessionMatchesOwed bool
+	NeedsReconciliation    bool
+	PriorAttempts          int32
 }
 
-// Whether a session is open for this order AT THIS FIGURE, since what an order
-// owes can move; 'requires_payment' because a cancelled row cannot take money.
+// The one non-terminal session for this order. A session for an old figure is
+// still a place the customer can pay, so the caller must expire it before
+// opening a replacement rather than filtering it out.
 func (q *Queries) PaymentAttemptForOrder(ctx context.Context, arg PaymentAttemptForOrderParams) (PaymentAttemptForOrderRow, error) {
 	row := q.db.QueryRow(ctx, paymentAttemptForOrder, arg.OrderNumber, arg.OwedCents)
 	var i PaymentAttemptForOrderRow
-	err := row.Scan(&i.LiveSession, &i.PriorAttempts)
+	err := row.Scan(
+		&i.LiveSession,
+		&i.LiveSessionAmountCents,
+		&i.LiveSessionMatchesOwed,
+		&i.NeedsReconciliation,
+		&i.PriorAttempts,
+	)
 	return i, err
 }
 
@@ -8062,7 +8336,6 @@ func (q *Queries) RecordCancellation(ctx context.Context, orderNumber string) er
 const recordCheckoutAttempt = `-- name: RecordCheckoutAttempt :exec
 INSERT INTO checkout_attempts (idempotency_key, cart_id, order_id)
 VALUES ($1, $2, $3)
-ON CONFLICT (idempotency_key) DO NOTHING
 `
 
 type RecordCheckoutAttemptParams struct {
@@ -8074,6 +8347,52 @@ type RecordCheckoutAttemptParams struct {
 func (q *Queries) RecordCheckoutAttempt(ctx context.Context, arg RecordCheckoutAttemptParams) error {
 	_, err := q.db.Exec(ctx, recordCheckoutAttempt, arg.IdempotencyKey, arg.CartID, arg.OrderID)
 	return err
+}
+
+const recordCompletePayment = `-- name: RecordCompletePayment :one
+SELECT record_complete_payment(
+    $1::uuid,
+    $2::text,
+    $3::bigint
+)
+`
+
+type RecordCompletePaymentParams struct {
+	OrderID             uuid.UUID
+	ProviderRef         string
+	IntendedAmountCents int64
+}
+
+// Stripe reports this unadmitted Session complete, which is terminal at the
+// provider but does not by itself say whether money moved.
+func (q *Queries) RecordCompletePayment(ctx context.Context, arg RecordCompletePaymentParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, recordCompletePayment, arg.OrderID, arg.ProviderRef, arg.IntendedAmountCents)
+	var record_complete_payment uuid.UUID
+	err := row.Scan(&record_complete_payment)
+	return record_complete_payment, err
+}
+
+const recordExpiredPayment = `-- name: RecordExpiredPayment :one
+SELECT record_expired_payment(
+    $1::uuid,
+    $2::text,
+    $3::bigint
+)
+`
+
+type RecordExpiredPaymentParams struct {
+	OrderID             uuid.UUID
+	ProviderRef         string
+	IntendedAmountCents int64
+}
+
+// Stripe has confirmed this rejected/uncertain session expired. Persist that
+// terminal provider fact so its idempotency generation cannot be reused.
+func (q *Queries) RecordExpiredPayment(ctx context.Context, arg RecordExpiredPaymentParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, recordExpiredPayment, arg.OrderID, arg.ProviderRef, arg.IntendedAmountCents)
+	var record_expired_payment uuid.UUID
+	err := row.Scan(&record_expired_payment)
+	return record_expired_payment, err
 }
 
 const recordInvoiceDocument = `-- name: RecordInvoiceDocument :one
@@ -8575,6 +8894,20 @@ func (q *Queries) RelatedProducts(ctx context.Context, arg RelatedProductsParams
 	return items, nil
 }
 
+const releaseCompletePayment = `-- name: ReleaseCompletePayment :one
+SELECT release_complete_payment($1::text)
+`
+
+// Staff have confirmed that this complete Session took no money, or that all
+// of it was refunded at Stripe. This is the only outcome that permits a later
+// Checkout generation; paid attribution has a separate capture path.
+func (q *Queries) ReleaseCompletePayment(ctx context.Context, providerRef string) (bool, error) {
+	row := q.db.QueryRow(ctx, releaseCompletePayment, providerRef)
+	var release_complete_payment bool
+	err := row.Scan(&release_complete_payment)
+	return release_complete_payment, err
+}
+
 const releaseInvoiceClaim = `-- name: ReleaseInvoiceClaim :execrows
 DELETE FROM invoice_documents
 WHERE id = $1 AND status = 'pending'
@@ -8591,6 +8924,20 @@ func (q *Queries) ReleaseInvoiceClaim(ctx context.Context, id uuid.UUID) (int64,
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const releasePaymentEvent = `-- name: ReleasePaymentEvent :one
+SELECT release_payment_event($1::text)
+`
+
+// Staff explicitly confirmed every provider-side cent was refunded or already
+// represented by a succeeded payment. The function also terminates a linked
+// active payment, so safe release cannot leave a completed Session resumable.
+func (q *Queries) ReleasePaymentEvent(ctx context.Context, eventID string) (bool, error) {
+	row := q.db.QueryRow(ctx, releasePaymentEvent, eventID)
+	var release_payment_event bool
+	err := row.Scan(&release_payment_event)
+	return release_payment_event, err
 }
 
 const releaseReservation = `-- name: ReleaseReservation :exec
@@ -9284,7 +9631,7 @@ JOIN order_lines ol ON ol.id = rl.order_line_id
 WHERE rl.return_request_id = $1
   AND rl.restocked_quantity > 0
   AND ol.variant_id IS NOT NULL
-ORDER BY rl.order_line_id
+ORDER BY ol.variant_id, rl.order_line_id
 `
 
 type ReturnRestockLinesRow struct {
@@ -9296,6 +9643,8 @@ type ReturnRestockLinesRow struct {
 // The cast on variant_id is load-bearing: the column is nullable and the WHERE
 // clause excludes the NULLs, but sqlc reads the declaration and not the
 // predicate, so without it every caller unwraps a NullUUID that cannot be null.
+// record_inventory_movement locks the variant; use the same global order as
+// checkout and reservation release, with line id only as a stable tie-breaker.
 func (q *Queries) ReturnRestockLines(ctx context.Context, requestID uuid.UUID) ([]ReturnRestockLinesRow, error) {
 	rows, err := q.db.Query(ctx, returnRestockLines, requestID)
 	if err != nil {
@@ -9518,14 +9867,8 @@ func (q *Queries) ReverseReturnPoints(ctx context.Context, arg ReverseReturnPoin
 	return points_reversed, err
 }
 
-const revokeStaff = `-- name: RevokeStaff :execrows
-WITH admins AS (
-    SELECT u.id AS admin_id FROM users u WHERE u.role = 'admin' FOR UPDATE
-)
-UPDATE users SET role = 'customer'
-WHERE users.id = $1
-  AND users.role IN ('staff', 'admin')
-  AND (users.role <> 'admin' OR (SELECT count(*) FROM admins) > 1)
+const revokeStaff = `-- name: RevokeStaff :one
+SELECT revoke_staff($1)::boolean
 `
 
 // Take somebody's back-office access away. The role goes back to 'customer'
@@ -9537,15 +9880,14 @@ WHERE users.id = $1
 // /admin/staff exists to make impossible. Reproduced against a scratch database
 // before this was one statement.
 //
-// FOR UPDATE on the admin rows, so the second statement waits for the first to
-// commit and then counts what is actually left rather than what was there when
-// it started.
-func (q *Queries) RevokeStaff(ctx context.Context, id uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, revokeStaff, id)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+// The function returns false for a missing/non-staff target and for the last
+// admin. On success it changes the role and ends every existing session in the
+// same transaction.
+func (q *Queries) RevokeStaff(ctx context.Context, pUserID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, revokeStaff, pUserID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const rootCategories = `-- name: RootCategories :many
@@ -11123,6 +11465,60 @@ func (q *Queries) UnlinkIdentity(ctx context.Context, arg UnlinkIdentityParams) 
 	return result.RowsAffected(), nil
 }
 
+const unreconciledCompletePayments = `-- name: UnreconciledCompletePayments :many
+SELECT o.order_number, p.provider_ref, p.created_at,
+       coalesce(NOT EXISTS (
+           SELECT 1 FROM inventory_reservations ir
+           WHERE ir.order_id = p.order_id AND ir.state = 'released'
+       ), false)::boolean AS paid_attribution_allowed
+FROM payments p
+JOIN orders o ON o.id = p.order_id
+WHERE p.status = 'requires_reconciliation'
+  AND NOT EXISTS (
+      SELECT 1 FROM payment_webhook_events e
+      WHERE e.provider = p.provider AND e.object_ref = p.provider_ref
+        AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+  )
+ORDER BY p.created_at
+LIMIT 50
+`
+
+type UnreconciledCompletePaymentsRow struct {
+	OrderNumber            string
+	ProviderRef            string
+	CreatedAt              time.Time
+	PaidAttributionAllowed bool
+}
+
+// Provider-complete payment identities without an outstanding event alarm.
+// These cover the window before a webhook arrives and understood-but-unpaid
+// completion events. They are excluded when an event alarm already names the
+// same work, so health shows one resolution door rather than two competing ones.
+func (q *Queries) UnreconciledCompletePayments(ctx context.Context) ([]UnreconciledCompletePaymentsRow, error) {
+	rows, err := q.db.Query(ctx, unreconciledCompletePayments)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []UnreconciledCompletePaymentsRow{}
+	for rows.Next() {
+		var i UnreconciledCompletePaymentsRow
+		if err := rows.Scan(
+			&i.OrderNumber,
+			&i.ProviderRef,
+			&i.CreatedAt,
+			&i.PaidAttributionAllowed,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const unreconciledPayments = `-- name: UnreconciledPayments :many
 SELECT event_id, type, coalesce(object_ref, '') AS object_ref,
        unreconciled::text AS reason, received_at
@@ -11372,16 +11768,7 @@ func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) er
 }
 
 const upsertStaff = `-- name: UpsertStaff :one
-WITH promoted AS (
-    INSERT INTO users (email, full_name, role)
-    VALUES ($1, nullif($2::text, ''), $3)
-    ON CONFLICT (lower(email)) DO UPDATE
-    SET role = EXCLUDED.role,
-        full_name = coalesce(nullif(EXCLUDED.full_name, ''), users.full_name)
-    RETURNING id
-)
-SELECT p.id, secure_promoted_account(p.id)::boolean AS credential_cleared
-FROM promoted p
+SELECT upsert_staff($1, $2, $3)::boolean AS credential_cleared
 `
 
 type UpsertStaffParams struct {
@@ -11390,25 +11777,15 @@ type UpsertStaffParams struct {
 	Role     string
 }
 
-type UpsertStaffRow struct {
-	ID                uuid.UUID
-	CredentialCleared bool
-}
-
 // Create a staff account with NO password; they set their own through /forgot,
-// which is the one path that proves they own the mailbox. ON CONFLICT so an
-// existing customer is promoted rather than refused — and SecurePromotedAccount
-// is what applies the same rule to the account it just promoted, because this
-// statement leaves an existing password_hash and existing sessions exactly
-// where they were.
-// ONE statement, so a promotion cannot commit without the account being
-// secured. Two statements would need a transaction, and a transaction is a
-// thing a caller can forget to open.
-func (q *Queries) UpsertStaff(ctx context.Context, arg UpsertStaffParams) (UpsertStaffRow, error) {
+// which is the one path that proves they own the mailbox. The function owns the
+// upsert, roster lock, credential neutralisation and session cleanup; admin has
+// no direct users write grant with which to split or bypass those steps.
+func (q *Queries) UpsertStaff(ctx context.Context, arg UpsertStaffParams) (bool, error) {
 	row := q.db.QueryRow(ctx, upsertStaff, arg.Email, arg.FullName, arg.Role)
-	var i UpsertStaffRow
-	err := row.Scan(&i.ID, &i.CredentialCleared)
-	return i, err
+	var credential_cleared bool
+	err := row.Scan(&credential_cleared)
+	return credential_cleared, err
 }
 
 const userByEmail = `-- name: UserByEmail :one
@@ -11526,6 +11903,28 @@ func (q *Queries) UserForOAuthLink(ctx context.Context, email string) (UserForOA
 		&i.Verified,
 		&i.HasPassword,
 	)
+	return i, err
+}
+
+const userForPasswordReset = `-- name: UserForPasswordReset :one
+SELECT id, email
+FROM users
+WHERE lower(email) = lower($1)
+FOR KEY SHARE
+`
+
+type UserForPasswordResetRow struct {
+	ID    uuid.UUID
+	Email string
+}
+
+// A reset token and its outbox message are created while this lock is held.
+// erase_user takes FOR UPDATE on the same row, so either both reset records
+// commit first and erasure purges them, or erasure wins and this returns no row.
+func (q *Queries) UserForPasswordReset(ctx context.Context, lower string) (UserForPasswordResetRow, error) {
+	row := q.db.QueryRow(ctx, userForPasswordReset, lower)
+	var i UserForPasswordResetRow
+	err := row.Scan(&i.ID, &i.Email)
 	return i, err
 }
 
@@ -11965,7 +12364,24 @@ SELECT
      WHERE ir.state = 'held' AND ir.expires_at < now()
        AND NOT order_is_committed(ir.order_id)
        AND (o.fulfillment_status = 'cancelled'
-            OR order_amount_owed(ir.order_id) <> 0))::bigint AS expired_holds,
+            OR order_amount_owed(ir.order_id) <> 0)
+       -- Match ExpiredReservations: reconciliation deliberately pins stock
+       -- while provider money may exist, so it is not a sweeper backlog.
+       AND (o.fulfillment_status = 'cancelled' OR (
+           NOT EXISTS (
+               SELECT 1 FROM payments p
+               WHERE p.order_id = ir.order_id
+                 AND p.status = 'requires_reconciliation'
+           )
+           AND NOT EXISTS (
+               SELECT 1
+               FROM payment_webhook_events e
+               JOIN payments p
+                 ON p.provider = e.provider AND p.provider_ref = e.object_ref
+               WHERE p.order_id = ir.order_id
+                 AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+           )
+       )))::bigint AS expired_holds,
     (SELECT coalesce(extract(epoch FROM now() - max(computed_at)), 0)
      FROM product_copurchases)::bigint AS copurchase_age_seconds,
     EXISTS (SELECT 1 FROM product_copurchases) AS copurchase_ever_built,
@@ -11979,8 +12395,16 @@ SELECT
     -- already cancelled. Each is still marked processed because retrying the
     -- same event changes nothing; the durable reason makes the human action
     -- countable instead of leaving only a log line nobody reads.
-    (SELECT count(*) FROM payment_webhook_events
-     WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL)::bigint AS unreconciled_payments
+    ((SELECT count(*) FROM payment_webhook_events
+      WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL)
+     +
+     (SELECT count(*) FROM payments p
+      WHERE p.status = 'requires_reconciliation'
+        AND NOT EXISTS (
+            SELECT 1 FROM payment_webhook_events e
+            WHERE e.provider = p.provider AND e.object_ref = p.provider_ref
+              AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+        )))::bigint AS unreconciled_payments
 `
 
 type WorkerHealthRow struct {

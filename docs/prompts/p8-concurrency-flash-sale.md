@@ -20,10 +20,29 @@ documented departures from the imported rules.
   `consume_reservation`, `release_reservation`, `record_inventory_movement`,
   `capture_payment`, `post_store_credit`, `redeem_coupon` — and the application role
   cannot write those tables directly.
-- **Stock is held at checkout** for 30 minutes (`hold_inventory` inside the order's
-  transaction), swept by a worker, and the Stripe session now expires with the hold.
+- **Stock is held at checkout** for 60 minutes (`hold_inventory` inside the order's
+  transaction) and swept by a worker. A customer may start a Stripe session for the
+  first 29 minutes; its absolute expiry is the hold deadline. Thus an immediately
+  started session can live for about 60 minutes, while one started at the end of the
+  window still clears Stripe's 30-minute `expires_at` floor by one minute.
 - **Checkout takes `pg_advisory_xact_lock`** on its idempotency key as the first
-  statement of the transaction, so a double-click serialises.
+  statement of the transaction, so a double-click serialises. A completed retry
+  is bound to the same cart; a globally colliding key from another cart is refused.
+- **Every cart writer locks the cart aggregate row first**; checkout then locks
+  product variants and then products in UUID order before its publication/price/
+  availability snapshot, matching the variant-to-product order of catalogue
+  integrity triggers. This keeps product retirement and
+  add/edit/reorder/adoption linearizable with checkout and prevents inverse
+  multi-item stock lock cycles. Cancellation and return restocking use the same
+  variant order; hold and release both lock order before variant, and release locks
+  order before reservation, so re-hold, expiry and cancellation cannot invert one
+  another's lock order.
+- **Checkout confirms a canonical fixed-size quote identity under those locks**. It binds
+  cart and line identity/quantity/unit price, shipping identity/charge, coupon and
+  discount, and exact store-credit spend. Checkout then locks the credit account
+  and coupon definition, rebuilds that quote through transaction-bound queries,
+  and compares it before any order, hold, debit or redemption write. Same total
+  with different components is stale too.
 - **Coupon limits are counted from `coupon_redemptions` under a lock** the posting
   function takes, never from a counter.
 - A **deadlock was found and fixed** in `redeem_loyalty_points`: an INSERT took

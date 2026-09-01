@@ -59,19 +59,38 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (pages
 	}
 
 	// Stripe events that were accepted but need a person: an unreadable known
-	// object, paid money with no local attribution, or money for a cancelled
-	// order. NAMED rather than merely counted, because the event and object refs
-	// are what let an operator investigate or refund each one at Stripe.
+	// object, paid money with no local attribution, money for a cancelled order,
+	// or a verified capture a stable local invariant refused. NAMED rather than
+	// merely counted, because the event and object refs are what let an operator
+	// investigate or refund each one at Stripe.
 	unreconciled, err := s.q.UnreconciledPayments(ctx)
 	if err != nil {
 		return pages.WorkerHealthView{}, fmt.Errorf("read unreconciled payments: %w", err)
 	}
 	for i := range unreconciled {
 		u := &unreconciled[i]
-		view.Unreconciled = append(view.Unreconciled, pages.UnreconciledPayment{
+		view.UnreconciledEvents = append(view.UnreconciledEvents, pages.UnreconciledEvent{
 			EventID: u.EventID, Type: u.Type, Ref: u.ObjectRef,
 			Reason: u.Reason, Since: u.ReceivedAt.Format("2006-01-02 15:04"),
 		})
+	}
+
+	// A provider-complete Session can be known before any webhook arrives, and
+	// a completed-but-unpaid event is understood without being a capture. The
+	// payment identity itself is then the durable alarm and has its own typed
+	// resolution door; do not hide it merely because no event row is flaggable.
+	complete, err := s.q.UnreconciledCompletePayments(ctx)
+	if err != nil {
+		return pages.WorkerHealthView{}, fmt.Errorf("read complete payments awaiting reconciliation: %w", err)
+	}
+	for i := range complete {
+		p := &complete[i]
+		view.UnreconciledCompletePayments = append(
+			view.UnreconciledCompletePayments, pages.UnreconciledCompletePayment{
+				OrderNumber: p.OrderNumber, ProviderRef: p.ProviderRef,
+				PaidAttributionAllowed: p.PaidAttributionAllowed,
+				Since:                  p.CreatedAt.Format("2006-01-02 15:04"),
+			})
 	}
 
 	// 折讓 claims the provider never answered. The claim is right to survive —

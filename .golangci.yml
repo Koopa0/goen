@@ -1,8 +1,8 @@
 version: "2"
 
 run:
-  # Without this the seven //go:build integration files — the entire schema
-  # conformance suite — are never type-checked by lint. `make lint` reporting
+  # Without this the integration-tagged suites — including the entire schema
+  # conformance surface — are never type-checked by lint. `make lint` reporting
   # zero findings across a tree it cannot see is the same kind of green as a
   # test that asserts nothing.
   build-tags:
@@ -20,7 +20,7 @@ run:
 #   dupword       — prose linting, false positives in doc comments
 #   mnd           — magic-number nagging fights table-driven tests
 #   err113        — demands static errors everywhere; fights sentinel doctrine
-#   exhaustruct   — as a GLOBAL rule: forces zero-value fields to be spelled
+#   exhaustruct_v5 — as a GLOBAL rule: forces zero-value fields to be spelled
 #                   out. Enabled below for exactly one type, i18n.Message,
 #                   where a field left out IS the defect.
 #   funcorder     — declaration-order style nagging
@@ -55,8 +55,8 @@ linters:
     - wastedassign
 
     # A translation somebody forgot to write, refused at the line that forgot
-    # it. Scoped to one type — see linters.settings.exhaustruct.
-    - exhaustruct
+    # it. Scoped to one type — see linters.settings.exhaustruct_v5.
+    - exhaustruct_v5
 
     # Style
     - misspell
@@ -112,8 +112,8 @@ linters:
     - nolintlint
 
   settings:
-    exhaustruct:
-      # ONE type, and the include list is exact for that reason.
+    exhaustruct_v5:
+      # ONE type, and the explicit enforcement list is exact for that reason.
       #
       # i18n.Message holds one string per locale. A literal that omits one is a
       # key that renders Chinese on an English page — which is the failure the
@@ -125,7 +125,8 @@ linters:
       # Everywhere else this linter is noise: goen's structs are full of fields
       # whose zero value is the answer (a nil error, an absent filter, "no
       # surcharge"), and spelling those out would make a wall of `X: nil`.
-      include:
+      explicit-mode: true
+      enforce-patterns:
         - 'github\.com/koopa0/goen/internal/i18n\.Message'
 
     errcheck:

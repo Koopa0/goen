@@ -6,11 +6,12 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"sync/atomic"
@@ -40,6 +41,60 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 	stop()
 	os.Exit(code)
+}
+
+// TestMaintenancePoolIsReachedAndRoleCheckedAtStartup binds both halves of the
+// independent worker DSN contract. A successful return already owns a live
+// connection running as maintenance; a login that cannot assume that role is
+// rejected by openMaintenancePool itself, not by the first projection refresh.
+func TestMaintenancePoolIsReachedAndRoleCheckedAtStartup(t *testing.T) {
+	ctx := t.Context()
+	maintenancePool, err := openMaintenancePool(ctx, pool.Config().ConnString())
+	if err != nil {
+		t.Fatalf("open reachable maintenance pool: %v", err)
+	}
+	defer maintenancePool.Close()
+	if maintenancePool.Stat().TotalConns() == 0 {
+		t.Fatal("openMaintenancePool returned without establishing a connection")
+	}
+	var currentRole string
+	if queryErr := maintenancePool.QueryRow(ctx, `SELECT current_user`).Scan(&currentRole); queryErr != nil {
+		t.Fatalf("read maintenance role: %v", queryErr)
+	}
+	if currentRole != "maintenance" {
+		t.Fatalf("maintenance pool runs as %q, want maintenance", currentRole)
+	}
+
+	role := "maintenance_probe_" + strings.ReplaceAll(uuid.NewString(), "-", "")[:12]
+	password := "probe_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	createRole := fmt.Sprintf(
+		"CREATE ROLE %s LOGIN NOSUPERUSER PASSWORD '%s'",
+		pgx.Identifier{role}.Sanitize(), password,
+	)
+	if _, createErr := pool.Exec(ctx, createRole); createErr != nil {
+		t.Fatalf("create unprivileged maintenance probe: %v", createErr)
+	}
+	t.Cleanup(func() {
+		//nolint:usetesting // t.Context is cancelled before Cleanup runs.
+		_, _ = pool.Exec(context.Background(), "DROP ROLE "+pgx.Identifier{role}.Sanitize())
+	})
+
+	probeDSN, err := url.Parse(pool.Config().ConnString())
+	if err != nil {
+		t.Fatalf("parse test database URL: %v", err)
+	}
+	probeDSN.User = url.UserPassword(role, password)
+	probeURL := probeDSN.String()
+	rejected, err := openMaintenancePool(ctx, probeURL)
+	if rejected != nil {
+		rejected.Close()
+	}
+	if err == nil || !strings.Contains(err.Error(), "maintenance") {
+		t.Fatalf("openMaintenancePool with a login outside maintenance = %v, want startup refusal", err)
+	}
+	if strings.Contains(err.Error(), password) || strings.Contains(err.Error(), probeURL) {
+		t.Errorf("maintenance startup error leaked its DSN credential: %v", err)
+	}
 }
 
 type countingTracer struct{ queries *atomic.Int64 }
@@ -188,12 +243,9 @@ func TestAnUnsubscribeDuringTheDrainStopsTheCopy(t *testing.T) {
 		t.Fatalf("subscribe: %v", err)
 	}
 
-	payload, err := json.Marshal(email.NewsletterIssue{
+	payload := &email.NewsletterIssue{
 		Email: address, UnsubscribeToken: token,
 		Subject: "本週選品", Body: "內容", Locale: "zh-Hant",
-	})
-	if err != nil {
-		t.Fatalf("marshal: %v", err)
 	}
 
 	if deliverErr := deliver(ctx, payload); deliverErr != nil {

@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
+
+	"github.com/koopa0/goen/internal/pickup"
 )
 
 // Every test below derives what must be covered from the LIVE CATALOG, so a constraint added
@@ -130,6 +132,66 @@ func TestCheckConstraintsAccept(t *testing.T) {
 				t.Fatalf("the database refused a legal row: %v", err)
 			}
 		})
+	}
+}
+
+// TestPickupBrandChoicesMatchDatabaseContract binds the customer-facing closed
+// set to the schema allowlist. A new form choice is not usable unless the
+// database admits it, and widening the CHECK must not make arbitrary carrier
+// routing codes valid at the write boundary.
+func TestPickupBrandChoicesMatchDatabaseContract(t *testing.T) {
+	brands := pickup.Offered()
+	if len(brands) == 0 {
+		t.Fatal("pickup.Offered() is empty; this test would prove nothing")
+	}
+
+	for _, brand := range brands {
+		t.Run(string(brand), func(t *testing.T) {
+			ctx := t.Context()
+			tx, err := schemaPool(t).Begin(ctx)
+			if err != nil {
+				t.Fatalf("begin: %v", err)
+			}
+			defer func() { _ = tx.Rollback(ctx) }()
+
+			if _, err := tx.Exec(ctx, fixtures); err != nil {
+				t.Fatalf("load fixtures: %v", err)
+			}
+			if _, err := tx.Exec(ctx, `
+				UPDATE order_private_data
+				SET postal_code = NULL, city = NULL, district = NULL, street = NULL,
+				    pickup_brand = $1, pickup_store_code = 'TEST01',
+				    pickup_store_name = '契約測試門市'
+				WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'`, string(brand)); err != nil {
+				t.Fatalf("schema refused offered pickup brand %q: %v", brand, err)
+			}
+
+			var stored string
+			if err := tx.QueryRow(ctx, `
+				SELECT pickup_brand
+				FROM order_private_data
+				WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'`).Scan(&stored); err != nil {
+				t.Fatalf("read stored pickup brand: %v", err)
+			}
+			if stored != string(brand) {
+				t.Fatalf("stored pickup brand = %q, want offered value %q", stored, brand)
+			}
+		})
+	}
+
+	err := run(t, `
+		UPDATE order_private_data
+		SET postal_code = NULL, city = NULL, district = NULL, street = NULL,
+		    pickup_brand = 'other_chain', pickup_store_code = 'TEST01',
+		    pickup_store_name = '契約測試門市'
+		WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'`)
+	if err == nil {
+		t.Fatal("database accepted an unknown pickup brand")
+	}
+	code, name := constraintViolation(err)
+	if code != "23514" || name != "order_private_data_pickup_brand_known" {
+		t.Fatalf("unknown pickup brand refused by SQLSTATE %s constraint %q, want 23514/order_private_data_pickup_brand_known: %v",
+			code, name, err)
 	}
 }
 
@@ -686,6 +748,41 @@ func TestStoreCannotDeleteUsers(t *testing.T) {
 	}
 }
 
+// TestAdminStaffWritesUseNarrowFunctions keeps roster mutation behind the two
+// SECURITY DEFINER doors that own lock order, credential neutralisation and
+// session cleanup. A column grant would let a future query split those acts.
+func TestAdminStaffWritesUseNarrowFunctions(t *testing.T) {
+	for _, column := range []string{"email", "full_name", "role"} {
+		for _, privilege := range []string{"INSERT", "UPDATE"} {
+			if roleHasColumnPriv(t, "admin", "users", column, privilege) {
+				t.Errorf("admin can %s users.%s directly; staff changes must use their narrow functions",
+					privilege, column)
+			}
+		}
+	}
+
+	for _, function := range []string{"upsert_staff(text,text,text)", "revoke_staff(uuid)"} {
+		var allowed bool
+		if err := schemaPool(t).QueryRow(t.Context(),
+			`SELECT has_function_privilege('admin', $1, 'EXECUTE')`, function).Scan(&allowed); err != nil {
+			t.Fatalf("read admin EXECUTE on %s: %v", function, err)
+		}
+		if !allowed {
+			t.Errorf("admin cannot execute %s", function)
+		}
+	}
+	for _, internalFunction := range []string{"lock_admin_roster()", "secure_promoted_account(uuid)"} {
+		var allowed bool
+		if err := schemaPool(t).QueryRow(t.Context(),
+			`SELECT has_function_privilege('admin', $1, 'EXECUTE')`, internalFunction).Scan(&allowed); err != nil {
+			t.Fatalf("read admin EXECUTE on %s: %v", internalFunction, err)
+		}
+		if allowed {
+			t.Errorf("admin can execute internal roster primitive %s directly", internalFunction)
+		}
+	}
+}
+
 // goenAppHasColumnPriv asks whether store holds priv on one COLUMN.
 func goenAppHasColumnPriv(t *testing.T, table, column, priv string) bool {
 	t.Helper()
@@ -704,15 +801,16 @@ func TestNoStoredFunctionIsPublicExecute(t *testing.T) {
 	rows, err := schemaPool(t).Query(t.Context(), `
 		SELECT p.proname
 		FROM pg_proc p
-		JOIN pg_language l ON l.oid = p.prolang
 		WHERE p.pronamespace = 'public'::regnamespace
-		  AND l.lanname = 'plpgsql'
+		  AND p.prokind IN ('f', 'p')
 		  AND NOT EXISTS (
 		      SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e'
 		  )
-		  AND p.proacl IS NOT NULL
 		  AND EXISTS (
-		      SELECT 1 FROM aclexplode(p.proacl) a
+		      -- NULL is not "no privileges": for a new function it means the
+		      -- default ACL, which grants EXECUTE to PUBLIC. Include that default
+		      -- so a function appended below the migration's final sweep is seen.
+		      SELECT 1 FROM aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a
 		      WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE'
 		  )
 		ORDER BY 1`)

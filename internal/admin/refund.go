@@ -37,11 +37,11 @@ type StripeRefunder struct {
 }
 
 // NewRefunder wraps a Stripe client; a blank key yields one that refuses.
-func NewRefunder(secretKey string) StripeRefunder {
-	if secretKey == "" {
+func NewRefunder(apiKey string) StripeRefunder {
+	if apiKey == "" {
 		return StripeRefunder{}
 	}
-	return StripeRefunder{client: stripe.NewClient(secretKey)}
+	return StripeRefunder{client: stripe.NewClient(apiKey)}
 }
 
 func (s StripeRefunder) PaymentIntentFor(ctx context.Context, sessionID string) (string, error) {
@@ -50,7 +50,7 @@ func (s StripeRefunder) PaymentIntentFor(ctx context.Context, sessionID string) 
 	}
 	sess, err := s.client.V1CheckoutSessions.Retrieve(ctx, sessionID,
 		&stripe.CheckoutSessionRetrieveParams{
-			Params: stripe.Params{Expand: []*string{stripe.String("payment_intent")}},
+			Expand: []*string{stripe.String("payment_intent")},
 		})
 	if err != nil {
 		return "", fmt.Errorf("read checkout session %s: %w", sessionID, err)
@@ -97,14 +97,13 @@ func (s StripeRefunder) Refund(ctx context.Context, paymentIntentID, requestKey 
 		return existing, state, nil
 	}
 
-	ref, err := s.client.V1Refunds.Create(ctx, &stripe.RefundCreateParams{
+	params := &stripe.RefundCreateParams{
 		PaymentIntent: stripe.String(paymentIntentID),
 		Amount:        new(amountCents),
-		Params: stripe.Params{
-			IdempotencyKey: stripe.String(requestKey),
-			Metadata:       map[string]string{refundKeyTag: requestKey},
-		},
-	})
+		Metadata:      map[string]string{refundKeyTag: requestKey},
+	}
+	params.SetIdempotencyKey(requestKey)
+	ref, err := s.client.V1Refunds.Create(ctx, params)
 	if err != nil {
 		return "", "", fmt.Errorf("create refund for %s: %w", paymentIntentID, err)
 	}

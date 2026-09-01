@@ -45,6 +45,7 @@ import (
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/site"
 	"github.com/koopa0/goen/internal/twofactor"
+	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/warranty"
 	"github.com/koopa0/goen/internal/web"
@@ -940,8 +941,19 @@ func loyaltyReturn(t *testing.T, prices []int64, returnLine int) (
 	if err := payments.OpenPayment(ctx, orderNumber, session, total); err != nil {
 		t.Fatalf("open payment: %v", err)
 	}
-	if _, err := payments.Capture(ctx, &payment.Capture{SessionID: session, AmountRecv: total}); err != nil {
+	claimed, err := payments.ProcessWebhook(ctx, &payment.WebhookEvent{
+		ID:   "evt_admin_return_points_" + uuid.NewString(),
+		Type: "checkout.session.completed", ObjectRef: session,
+		Payload: []byte(`{"object":"event"}`),
+	}, func(ctx context.Context, tx *payment.WebhookTx) error {
+		_, captureErr := tx.Capture(ctx, payment.Capture{SessionID: session, AmountRecv: total})
+		return captureErr
+	})
+	if err != nil {
 		t.Fatalf("capture and award: %v", err)
+	}
+	if !claimed {
+		t.Fatal("the unique capture webhook was not claimed")
 	}
 
 	tx, beginErr = pool.Begin(ctx)
@@ -2184,7 +2196,12 @@ func TestTheBackOfficeIsInvisibleToEveryoneButStaff(t *testing.T) {
 	// "create staff", so the role /admin/staff actually offers was never tested.
 	// RequireStaff asked IsAdmin, and every colleague hired as staff met a 404 on
 	// the whole back office.
-	for _, role := range twofactor.Roles {
+	staffView, err := twofactor.NewStore(pool, nil).Staff(ctx)
+	if err != nil {
+		t.Fatalf("read roles offered by /admin/staff: %v", err)
+	}
+	for _, offered := range staffView.Roles {
+		role := offered.Value
 		t.Run(role+" reaches the back office", func(t *testing.T) {
 			var id uuid.UUID
 			if err := pool.QueryRow(ctx, `
@@ -2685,6 +2702,28 @@ func TestTheWindowIsAnAllowlist(t *testing.T) {
 				days, view.Days, admin.DefaultWindow)
 		}
 	}
+
+	view, err := s.Report(ctx, admin.DefaultWindow)
+	if err != nil {
+		t.Fatalf("report for window snapshot: %v", err)
+	}
+	wantWindows := []int32{7, 30, 90}
+	if !slices.Equal(view.Windows, wantWindows) {
+		t.Fatalf("report windows = %v, want %v", view.Windows, wantWindows)
+	}
+	view.Windows[0] = 3650
+
+	fresh, err := s.Report(ctx, 7)
+	if err != nil {
+		t.Fatalf("report after mutating prior view: %v", err)
+	}
+	if fresh.Days != 7 {
+		t.Errorf("mutating a report view changed validation: report(7) used %d days", fresh.Days)
+	}
+	if !slices.Equal(fresh.Windows, wantWindows) {
+		t.Errorf("mutating a report view changed the next windows to %v, want %v",
+			fresh.Windows, wantWindows)
+	}
 }
 
 func reportOrder(t *testing.T, cents int64, paid bool) uuid.UUID {
@@ -2925,16 +2964,34 @@ func TestHealthIsDerivedFromTheWorkNotFromAHeartbeat(t *testing.T) {
 // off switch or /admin/health is unhealthy forever after the first arrival —
 // and an alarm that is always on is one nobody reads.
 func TestAnAcknowledgedPaymentLeavesTheAlarm(t *testing.T) {
-	ctx, actor := staffContext(t)
+	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
+	baseline, healthErr := s.WorkerHealth(ctx, worker)
+	if healthErr != nil {
+		t.Fatalf("health before fixture: %v", healthErr)
+	}
+
+	number := placeUnpaidOrder(t)
+	var orderID uuid.UUID
+	if err := pool.QueryRow(ctx, `SELECT id FROM orders WHERE order_number = $1`, number).
+		Scan(&orderID); err != nil {
+		t.Fatalf("read order: %v", err)
+	}
+	sessionID := "cs_ack_" + uuid.NewString()[:12]
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO payments (order_id, provider_ref, status, intended_amount_cents)
+		VALUES ($1, $2, 'requires_payment', 500000)`, orderID, sessionID); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
 
 	eventID := "evt_ack_" + uuid.NewString()[:12]
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO payment_webhook_events (provider, event_id, type, payload, unreconciled)
-		VALUES ('stripe', $1, 'checkout.session.completed', '{}'::jsonb,
-		        'money arrived for an order that was already cancelled')`,
-		eventID); err != nil {
+		INSERT INTO payment_webhook_events
+			(provider, event_id, type, object_ref, payload, unreconciled)
+		VALUES ('stripe', $1, 'checkout.session.completed', $2, '{}'::jsonb,
+		        'refused_capture: operator must refund or post the verified money')`,
+		eventID, sessionID); err != nil {
 		t.Fatalf("flag the event: %v", err)
 	}
 
@@ -2942,32 +2999,85 @@ func TestAnAcknowledgedPaymentLeavesTheAlarm(t *testing.T) {
 	if err != nil {
 		t.Fatalf("health: %v", err)
 	}
-	if flagged.PaymentsReconciled() {
-		t.Fatal("money arrived for a cancelled order and /admin/health says there " +
-			"is nothing to do, so this proves nothing about clearing it")
+	if flagged.UnreconciledPayments != baseline.UnreconciledPayments+1 {
+		t.Fatalf("flagging this event changed the alarm count from %d to %d, want one more",
+			baseline.UnreconciledPayments, flagged.UnreconciledPayments)
+	}
+	var eventFlagged bool
+	for _, event := range flagged.UnreconciledEvents {
+		if event.EventID == eventID {
+			eventFlagged = true
+			break
+		}
+	}
+	if !eventFlagged {
+		t.Fatalf("payment alarm does not name flagged event %q", eventID)
 	}
 
-	if err := s.ReconcilePayment(ctx, eventID, uuid.NullUUID{UUID: actor, Valid: true}); err != nil {
+	// Merely naming the event is the old unsafe door: it cancelled the linked
+	// attempt and allowed another checkout without saying what happened to the
+	// provider money. There is no generic store operation, and the HTTP boundary
+	// must refuse a form that omits the one precise safe-release conclusion.
+	form := url.Values{"event": {eventID}}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		"/admin/health/reconcile", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	res := httptest.NewRecorder()
+	adminHandlerOver(pool, s).ReconcilePayment(res, req)
+	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/health?notflagged=1" {
+		t.Fatalf("event-only HTTP resolution = %d %q, want refusal redirect",
+			res.Code, res.Header().Get("Location"))
+	}
+	var stillOpen, stillFlagged bool
+	if err := pool.QueryRow(ctx, `
+		SELECT p.status = 'requires_payment', e.reconciled_at IS NULL
+		FROM payments p JOIN payment_webhook_events e
+		  ON e.provider = p.provider AND e.object_ref = p.provider_ref
+		WHERE e.event_id = $1`, eventID).Scan(&stillOpen, &stillFlagged); err != nil {
+		t.Fatalf("read refused event-only resolution: %v", err)
+	}
+	if !stillOpen || !stillFlagged {
+		t.Fatalf("event-only resolution changed payment/event = open %v, flagged %v",
+			stillOpen, stillFlagged)
+	}
+
+	beforeAudit := auditRows(t, admin.ActionReconcilePayment)
+	if err := s.ReleasePaymentEventAfterRefundOrAccounting(ctx, eventID); err != nil {
 		t.Fatalf("reconcile: %v", err)
+	}
+	var paymentStatus string
+	if err := pool.QueryRow(ctx, `SELECT status FROM payments WHERE provider_ref = $1`, sessionID).
+		Scan(&paymentStatus); err != nil {
+		t.Fatalf("read reconciled payment: %v", err)
+	}
+	if paymentStatus != "cancelled" {
+		t.Errorf("linked payment status = %q, want cancelled so a completed session cannot be resumed",
+			paymentStatus)
 	}
 
 	settled, settledErr := s.WorkerHealth(ctx, worker)
 	if settledErr != nil {
 		t.Fatalf("health: %v", settledErr)
 	}
-	if !settled.PaymentsReconciled() {
-		t.Errorf("%d payments still read as unreconciled after the refund was "+
-			"acknowledged — the alarm is monotone and stops meaning anything",
-			settled.UnreconciledPayments)
+	if settled.UnreconciledPayments != baseline.UnreconciledPayments {
+		t.Errorf("reconciling this event left the alarm count at %d, want baseline %d",
+			settled.UnreconciledPayments, baseline.UnreconciledPayments)
 	}
-	if auditRows(t, admin.ActionReconcilePayment) == 0 {
-		t.Error("saying the money went back by hand is the shop's statement about " +
-			"money and it left no audit row")
+	for _, event := range settled.UnreconciledEvents {
+		if event.EventID == eventID {
+			t.Errorf("acknowledged event %q remains on the payment alarm", eventID)
+		}
+	}
+	if afterAudit := auditRows(t, admin.ActionReconcilePayment); afterAudit != beforeAudit+1 {
+		t.Errorf("saying the money went back by hand added %d audit rows, want 1",
+			afterAudit-beforeAudit)
 	}
 
 	// A second press changes nothing: the row count is where the question is
 	// asked, so there is no read-then-write for two staff members to both pass.
-	if err := s.ReconcilePayment(ctx, eventID, uuid.NullUUID{UUID: actor, Valid: true}); !errors.Is(err, admin.ErrNotFound) {
+	if err := s.ReleasePaymentEventAfterRefundOrAccounting(
+		ctx, eventID,
+	); !errors.Is(err, admin.ErrNotFound) {
 		t.Errorf("acknowledging it twice = %v, want ErrNotFound", err)
 	}
 	// And an event nobody flagged is not acknowledgeable at all.
@@ -2977,8 +3087,160 @@ func TestAnAcknowledgedPaymentLeavesTheAlarm(t *testing.T) {
 		VALUES ('stripe', $1, 'payment_intent.processing', '{}'::jsonb)`, unflagged); err != nil {
 		t.Fatalf("insert: %v", err)
 	}
-	if err := s.ReconcilePayment(ctx, unflagged, uuid.NullUUID{UUID: actor, Valid: true}); !errors.Is(err, admin.ErrNotFound) {
+	if err := s.ReleasePaymentEventAfterRefundOrAccounting(
+		ctx, unflagged,
+	); !errors.Is(err, admin.ErrNotFound) {
 		t.Errorf("acknowledging an event that was never flagged = %v, want ErrNotFound", err)
+	}
+}
+
+// TestACompletePaymentWithoutAFlaggedEventHasAResolutionDoor covers provider
+// completion before a capture webhook and the understood complete/unpaid event:
+// neither has an unreconciled event row, so the payment state itself must make
+// health unhealthy and give staff an audited, typed way to resolve it.
+func TestACompletePaymentWithoutAFlaggedEventHasAResolutionDoor(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
+
+	number := placeUnpaidOrder(t)
+	var orderID uuid.UUID
+	if err := pool.QueryRow(ctx, `SELECT id FROM orders WHERE order_number = $1`, number).
+		Scan(&orderID); err != nil {
+		t.Fatalf("read order: %v", err)
+	}
+	providerRef := "cs_complete_health_" + uuid.NewString()[:12]
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO payments (order_id, provider_ref, status, intended_amount_cents)
+		VALUES ($1, $2, 'requires_reconciliation', 500000)`, orderID, providerRef); err != nil {
+		t.Fatalf("record complete payment: %v", err)
+	}
+	// This is the complete+unpaid shape: the webhook was understood and clean,
+	// so it cannot be resolved through release_payment_event.
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO payment_webhook_events
+			(provider, event_id, type, object_ref, payload, processed_at)
+		VALUES ('stripe', $1, 'checkout.session.completed', $2, '{}'::jsonb, now())`,
+		"evt_complete_unpaid_"+uuid.NewString()[:12], providerRef); err != nil {
+		t.Fatalf("record understood complete event: %v", err)
+	}
+
+	flagged, err := s.WorkerHealth(ctx, worker)
+	if err != nil {
+		t.Fatalf("health before resolution: %v", err)
+	}
+	if flagged.PaymentsReconciled() {
+		t.Fatal("requires_reconciliation payment with no flagged event reads healthy")
+	}
+	found := false
+	for _, issue := range flagged.UnreconciledCompletePayments {
+		if issue.ProviderRef == providerRef {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("health did not name complete provider reference %q", providerRef)
+	}
+
+	beforeAudit := auditRows(t, admin.ActionReconcilePayment)
+	if reconcileErr := s.ReconcileCompletePayment(ctx, providerRef,
+		admin.CompletePaymentUnpaidOrRefunded); reconcileErr != nil {
+		t.Fatalf("reconcile complete payment: %v", reconcileErr)
+	}
+	var status string
+	if queryErr := pool.QueryRow(ctx,
+		`SELECT status FROM payments WHERE provider_ref = $1`, providerRef).Scan(&status); queryErr != nil {
+		t.Fatalf("read resolved payment: %v", queryErr)
+	}
+	if status != "reconciled" {
+		t.Errorf("resolved complete payment status = %q, want reconciled", status)
+	}
+
+	settled, err := s.WorkerHealth(ctx, worker)
+	if err != nil {
+		t.Fatalf("health after resolution: %v", err)
+	}
+	for _, issue := range settled.UnreconciledCompletePayments {
+		if issue.ProviderRef == providerRef {
+			t.Errorf("resolved provider reference %q remains on health", providerRef)
+		}
+	}
+	if got := auditRows(t, admin.ActionReconcilePayment); got != beforeAudit+1 {
+		t.Errorf("reconciling complete payment added %d audit rows, want 1", got-beforeAudit)
+	}
+	if err := s.ReconcileCompletePayment(ctx, providerRef,
+		admin.CompletePaymentUnpaidOrRefunded); !errors.Is(err, admin.ErrNotFound) {
+		t.Errorf("reconciling complete payment twice = %v, want ErrNotFound", err)
+	}
+}
+
+// TestReleasedStockPaidAttributionReturnsARefundInstruction proves the admin
+// boundary does not turn the capture fence into a generic 500. Health removes
+// the impossible paid action, and a stale form submitted across a concurrent
+// sweep returns an actionable refund notice while leaving reconciliation open.
+func TestReleasedStockPaidAttributionReturnsARefundInstruction(t *testing.T) {
+	ctx, _ := staffContext(t)
+	number, orderID, _ := pendingOrderHoldingStock(t)
+	providerRef := "cs_admin_released_stock_" + uuid.NewString()[:12]
+	if _, err := pool.Exec(ctx,
+		`SELECT open_payment($1, $2, 100000)`, orderID, providerRef); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
+	var reservationID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		UPDATE inventory_reservations
+		SET created_at = now() - interval '2 hours',
+		    expires_at = now() - interval '1 hour'
+		WHERE order_id = $1 AND state = 'held'
+		RETURNING id`, orderID).Scan(&reservationID); err != nil {
+		t.Fatalf("expire hold: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `SELECT release_reservation($1)`, reservationID); err != nil {
+		t.Fatalf("release hold before recovery: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`SELECT record_complete_payment($1, $2, 100000)`, orderID, providerRef); err != nil {
+		t.Fatalf("record delayed complete session: %v", err)
+	}
+
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	view, err := s.WorkerHealth(ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)))
+	if err != nil {
+		t.Fatalf("health: %v", err)
+	}
+	refundOnly := false
+	for _, issue := range view.UnreconciledCompletePayments {
+		if issue.ProviderRef == providerRef && issue.OrderNumber == number &&
+			!issue.PaidAttributionAllowed {
+			refundOnly = true
+		}
+	}
+	if !refundOnly {
+		t.Fatal("released-stock complete payment still offered paid attribution")
+	}
+
+	form := url.Values{
+		"payment":    {providerRef},
+		"resolution": {"paid"},
+	}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		"/admin/health/reconcile", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	res := httptest.NewRecorder()
+	adminHandlerOver(pool, s).ReconcilePayment(res, req)
+	if res.Code != http.StatusSeeOther ||
+		res.Header().Get("Location") != "/admin/health?mustrefund=1" {
+		t.Fatalf("stale paid form = %d %q, want actionable refund redirect",
+			res.Code, res.Header().Get("Location"))
+	}
+	var status string
+	if err := pool.QueryRow(ctx,
+		`SELECT status FROM payments WHERE provider_ref = $1`, providerRef).Scan(&status); err != nil {
+		t.Fatalf("read refused payment: %v", err)
+	}
+	if status != "requires_reconciliation" {
+		t.Fatalf("refused paid form changed payment to %q, want requires_reconciliation", status)
 	}
 }
 
@@ -3090,6 +3352,103 @@ func TestCancellingAnOrderInTheBackOfficeReturnsItsStock(t *testing.T) {
 	}
 	if state != "released" {
 		t.Errorf("the hold is %s, want released", state)
+	}
+}
+
+// TestBackOfficeCancellationReadsHoldsAfterWinningTheOrderLock is the admin
+// counterpart of the customer cancellation race. The expiry release queues
+// first, changes the reservation while retaining the order lock, then commits;
+// Advance must take its held snapshot only after that commit and still finish.
+func TestBackOfficeCancellationReadsHoldsAfterWinningTheOrderLock(t *testing.T) {
+	ctx := t.Context()
+	var variantID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		SELECT pv.id FROM product_variants pv JOIN products p ON p.id = pv.product_id
+		WHERE p.status = 'active' AND pv.is_active
+		  AND pv.stock_quantity > pv.safety_stock + 1
+		ORDER BY pv.id LIMIT 1`).Scan(&variantID); err != nil {
+		t.Fatalf("find a sellable variant: %v", err)
+	}
+	number := placeHeldOrder(t, variantID)
+	var orderID, reservationID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		SELECT o.id, r.id FROM orders o
+		JOIN inventory_reservations r ON r.order_id = o.id
+		WHERE o.order_number = $1 AND r.state = 'held'`, number).
+		Scan(&orderID, &reservationID); err != nil {
+		t.Fatalf("read order and held reservation: %v", err)
+	}
+
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin order blocker: %v", err)
+	}
+	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
+	var blockerPID int32
+	if lockErr := blocker.QueryRow(ctx, `
+		SELECT pg_backend_pid() FROM orders WHERE id = $1 FOR UPDATE`, orderID).
+		Scan(&blockerPID); lockErr != nil {
+		t.Fatalf("lock order: %v", lockErr)
+	}
+
+	sweepPool := namedAdminPool(t, "admin-sweep-before-cancel")
+	sweepTx, err := sweepPool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin sweep release: %v", err)
+	}
+	defer func() { _ = sweepTx.Rollback(context.WithoutCancel(ctx)) }()
+	sweepDone := make(chan error, 1)
+	go func() {
+		_, releaseErr := sweepTx.Exec(ctx, `SELECT release_reservation($1)`, reservationID)
+		sweepDone <- releaseErr
+	}()
+	sweepPID := waitForBlockedApplication(t, ctx, "admin-sweep-before-cancel", blockerPID)
+
+	var staff uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO users (email, role, full_name) VALUES ($1, 'admin', '併發取消人員')
+		RETURNING id`, "cancel-race-"+uuid.NewString()+"@goen.invalid").Scan(&staff); err != nil {
+		t.Fatalf("create staff: %v", err)
+	}
+	staffCtx := account.WithUser(ctx, account.User{ID: staff.String(), Role: "admin"})
+	cancelPool := namedAdminPool(t, "admin-cancel-behind-sweep")
+	cancelDone := make(chan error, 1)
+	go func() {
+		_, advanceErr := admin.NewStore(cancelPool, fakeRefunder{}, nil, nil).Advance(
+			staffCtx, number, "cancelled", uuid.NullUUID{UUID: staff, Valid: true})
+		cancelDone <- advanceErr
+	}()
+	// PostgreSQL reports the earlier queued waiter as a soft blocker. Waiting
+	// behind that PID also pins which operation will win when blocker commits.
+	waitForBlockedApplication(t, ctx, "admin-cancel-behind-sweep", sweepPID)
+
+	if err := blocker.Commit(ctx); err != nil {
+		t.Fatalf("release order blocker: %v", err)
+	}
+	if err := <-sweepDone; err != nil {
+		t.Fatalf("sweeper release after order unlock: %v", err)
+	}
+	select {
+	case err := <-cancelDone:
+		t.Fatalf("admin cancellation passed an uncommitted sweep release: %v", err)
+	default:
+	}
+	if err := sweepTx.Commit(ctx); err != nil {
+		t.Fatalf("commit sweep release: %v", err)
+	}
+	if err := <-cancelDone; err != nil {
+		t.Fatalf("admin cancel after sweep won the lock: %v", err)
+	}
+
+	var status, state string
+	if err := pool.QueryRow(ctx, `
+		SELECT o.fulfillment_status, r.state
+		FROM orders o JOIN inventory_reservations r ON r.order_id = o.id
+		WHERE o.id = $1`, orderID).Scan(&status, &state); err != nil {
+		t.Fatalf("read final state: %v", err)
+	}
+	if status != "cancelled" || state != "released" {
+		t.Errorf("final state is order=%s reservation=%s, want cancelled/released", status, state)
 	}
 }
 
@@ -4296,14 +4655,14 @@ func TestTheInboxDoesNotCopyTheMessageIntoTheAuditTrail(t *testing.T) {
 	}
 }
 
-func messageAgedDays(t *testing.T, subject string, days int) string {
+func messageAgedDays(t *testing.T, message string, days int) string {
 	t.Helper()
 	var id string
 	if err := pool.QueryRow(t.Context(), `
 		INSERT INTO contact_messages (name, email, subject, message, created_at)
-		VALUES ('王小明', 'inbox@example.com', $1, '測試訊息',
+		VALUES ('王小明', 'inbox@example.com', '訂單問題', $1,
 		        now() - make_interval(days => $2, hours => 1))
-		RETURNING id::text`, subject, days).Scan(&id); err != nil {
+		RETURNING id::text`, message, days).Scan(&id); err != nil {
 		t.Fatalf("create message: %v", err)
 	}
 	return id
@@ -7997,6 +8356,19 @@ func TestACategoryCreatedInTheBackOfficeCanCarryAnIcon(t *testing.T) {
 			"whatever is here, and an empty one draws nothing", icon, "laptop")
 	}
 
+	var auditedIcon string
+	if readErr := pool.QueryRow(ctx, `
+		SELECT after->>'icon_key'
+		FROM audit_events
+		WHERE action = 'category.create' AND after->>'slug' = $1
+		ORDER BY occurred_at DESC, id DESC
+		LIMIT 1`, slug).Scan(&auditedIcon); readErr != nil {
+		t.Fatalf("read category creation audit: %v", readErr)
+	}
+	if auditedIcon != "laptop" {
+		t.Errorf("category creation audit icon_key = %q, want laptop", auditedIcon)
+	}
+
 	if renameErr := s.Rename(ctx, "category", slug, "改名分類", "", "laptop"); renameErr != nil {
 		t.Fatalf("rename: %v", renameErr)
 	}
@@ -8017,6 +8389,40 @@ func TestACategoryCreatedInTheBackOfficeCanCarryAnIcon(t *testing.T) {
 	if _, refused := bad["icon_key"]; !refused {
 		t.Error("an icon outside the set icons.Category can draw was accepted, " +
 			"which stores a value the home page renders as nothing")
+	}
+}
+
+func TestCategoryIconVocabularyMatchesTheDatabaseConstraint(t *testing.T) {
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+
+	var parentID uuid.UUID
+	if queryErr := tx.QueryRow(ctx, `
+		INSERT INTO categories (slug, name, position)
+		VALUES ($1, '圖示字彙測試',
+		        (SELECT coalesce(max(position), -1) + 1 FROM categories WHERE parent_id IS NULL))
+		RETURNING id`, "icon-vocabulary-"+uuid.NewString()[:8]).Scan(&parentID); queryErr != nil {
+		t.Fatalf("create parent: %v", queryErr)
+	}
+	for position, key := range icons.CategoryKeys() {
+		if _, execErr := tx.Exec(ctx, `
+			INSERT INTO categories (parent_id, slug, name, icon_key, position)
+			VALUES ($1, $2, $3, $3, $4)`,
+			parentID, "icon-"+key+"-"+uuid.NewString()[:8], key, position); execErr != nil {
+			t.Fatalf("database rejects renderer-owned icon %q: %v", key, execErr)
+		}
+	}
+	_, err = tx.Exec(ctx, `
+		INSERT INTO categories (parent_id, slug, name, icon_key, position)
+		VALUES ($1, $2, '未知圖示', 'rocket', $3)`,
+		parentID, "icon-unknown-"+uuid.NewString()[:8], len(icons.CategoryKeys()))
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	if !ok || pgErr.ConstraintName != "categories_icon_key_known" {
+		t.Fatalf("unknown persisted icon was refused by %v, want categories_icon_key_known", err)
 	}
 }
 

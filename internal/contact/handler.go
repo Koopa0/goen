@@ -104,8 +104,8 @@ func (h *Handler) respond(w http.ResponseWriter, r *http.Request, status int, fo
 // subjectChoices renders the topic list for this request's locale. The VALUE is
 // what will be stored; only the label follows the reader.
 func subjectChoices(ctx context.Context) []pages.ContactSubject {
-	out := make([]pages.ContactSubject, 0, len(Subjects))
-	for _, s := range Subjects {
+	out := make([]pages.ContactSubject, 0, len(subjects))
+	for _, s := range subjects {
 		out = append(out, pages.ContactSubject{Value: s.Value, Label: i18n.T(ctx, s.LabelKey)})
 	}
 	return out

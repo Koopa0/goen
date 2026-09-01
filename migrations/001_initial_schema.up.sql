@@ -109,6 +109,11 @@ CREATE TABLE categories (
     CONSTRAINT categories_name_present CHECK (name ~ '[^[:space:]]'),
     CONSTRAINT categories_name_en_present
         CHECK (name_en IS NULL OR name_en ~ '[^[:space:]]'),
+    CONSTRAINT categories_icon_key_known CHECK (
+        icon_key IS NULL OR icon_key IN (
+            'phone', 'laptop', 'tablet', 'headphones', 'watch', 'plug', 'shield'
+        )
+    ),
     CONSTRAINT categories_not_own_parent CHECK (parent_id IS DISTINCT FROM id)
 );
 
@@ -915,6 +920,13 @@ BEGIN
             USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_reservations_quantity_positive';
     END IF;
 
+    -- Every path that needs both roots takes the order before stock. In
+    -- particular, a concurrent re-hold must not own the variant while a
+    -- cancellation/expiry release owns the order and waits for that variant.
+    -- The later reservation INSERT would acquire only a foreign-key key-share
+    -- lock, which is too late to establish this order.
+    PERFORM 1 FROM orders WHERE id = p_order_id FOR UPDATE;
+
     -- The idempotency key is the CALLER's: a retry of the same attempt is a
     -- no-op through the movement's unique key, while a genuinely new hold after
     -- a release passes a fresh one.
@@ -995,20 +1007,55 @@ CREATE FUNCTION release_reservation(p_reservation_id uuid) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
     r inventory_reservations%ROWTYPE;
+    reservation_order_id uuid;
     o_status text;
 BEGIN
+    -- Read only the immutable parent first, then take the order lock before the
+    -- reservation row. Customer/admin cancellation already holds the order;
+    -- the expiry sweeper must use the same order -> reservation sequence or
+    -- the two paths form an O/R deadlock that neither caller retries.
+    SELECT order_id INTO reservation_order_id
+    FROM inventory_reservations WHERE id = p_reservation_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'reservation % is not held', p_reservation_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_reservation_state';
+    END IF;
+
+    SELECT o.fulfillment_status INTO o_status
+    FROM orders o WHERE o.id = reservation_order_id FOR UPDATE;
+
     SELECT * INTO r FROM inventory_reservations WHERE id = p_reservation_id FOR UPDATE;
     IF NOT FOUND OR r.state <> 'held' THEN
         RAISE EXCEPTION 'reservation % is not held', p_reservation_id
             USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_reservation_state';
     END IF;
 
-    -- Variant first, then order — the order hold_inventory takes them in.
-    -- Reversed, a concurrent re-hold and release of the same pair close a cycle
-    -- and PostgreSQL aborts one with 40P01, which no caller retries.
+    -- A provider-complete Session or verified money awaiting operator action is
+    -- neither abandoned nor safe to sell again. Keep the stock pinned until the
+    -- same order lock observes one explicit outcome: succeeded (then committed)
+    -- or reconciled/cancelled after refund. Cancelled orders are excluded: their
+    -- stock must return while the separate money alarm remains visible.
+    IF o_status <> 'cancelled' AND (
+        EXISTS (
+            SELECT 1 FROM payments p
+            WHERE p.order_id = reservation_order_id
+              AND p.status = 'requires_reconciliation'
+        ) OR EXISTS (
+            SELECT 1
+            FROM payment_webhook_events e
+            JOIN payments p
+              ON p.provider = e.provider AND p.provider_ref = e.object_ref
+            WHERE p.order_id = reservation_order_id
+              AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+        )
+    ) THEN
+        RAISE EXCEPTION 'reservation % is awaiting a payment reconciliation', p_reservation_id
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'inventory_reservation_payment_reconciliation_no_release';
+    END IF;
+
+    -- Multi-reservation callers enumerate variant UUIDs in ascending order.
     PERFORM 1 FROM product_variants WHERE id = r.variant_id FOR UPDATE;
-    SELECT o.fulfillment_status INTO o_status
-    FROM orders o WHERE o.id = r.order_id FOR UPDATE;
     -- COMMITTED, not settled: a cancelled order's stock must come back.
     IF order_is_committed(r.order_id) THEN
         RAISE EXCEPTION 'reservation % is on a committed order; consume it, do not release', p_reservation_id
@@ -1074,7 +1121,15 @@ CREATE TABLE checkout_attempts (
     -- added after `orders` exists, further down.
     order_id        uuid,
     created_at      timestamptz NOT NULL DEFAULT now(),
-    CONSTRAINT checkout_attempts_key_present CHECK (idempotency_key ~ '[^[:space:]]')
+    -- Exactly the canonical RawURL encoding of 16 bytes. The final alphabet is
+    -- restricted because the last Base64 character carries only two data bits;
+    -- every other value has non-zero padding bits and is a second spelling.
+    CONSTRAINT checkout_attempts_key_format CHECK (
+        idempotency_key ~ '^[A-Za-z0-9_-]{21}[AQgw]$'
+    ),
+    CONSTRAINT checkout_attempts_key_nonzero CHECK (
+        idempotency_key <> 'AAAAAAAAAAAAAAAAAAAAAA'
+    )
 );
 
 -- The retention sweep's range; without it the daily delete is a sequential scan
@@ -2609,10 +2664,14 @@ CREATE TABLE payments (
     CONSTRAINT payments_provider_known CHECK (provider IN ('stripe')),
     -- There is deliberately no 'failed': Stripe returns a declined intent to
     -- requires_payment_method, and a terminal 'failed' would make a recoverable
-    -- decline unrecoverable.
+    -- decline unrecoverable. requires_reconciliation is different: Stripe has
+    -- already closed the Session, but a webhook/operator fact must converge
+    -- before another payable identity may be opened. reconciled is that
+    -- attempt's terminal, non-capture resolution; it is not provider expiry.
     CONSTRAINT payments_status_known
         CHECK (status IN ('requires_payment', 'requires_action', 'processing',
-                          'succeeded', 'cancelled')),
+                          'requires_reconciliation', 'succeeded', 'cancelled',
+                          'reconciled')),
     CONSTRAINT payments_intended_positive CHECK (intended_amount_cents > 0),
     -- Bounded, or a capture can approach 2^63 and overflow the running sums the
     -- refund and store-credit guards compute.
@@ -2644,6 +2703,12 @@ CREATE INDEX payments_order_id_idx ON payments (order_id);
 -- was charged twice.
 CREATE UNIQUE INDEX payments_one_capture_per_order
     ON payments (order_id) WHERE status = 'succeeded';
+-- A second provider session is a second place the customer can pay. Keep one
+-- non-terminal attempt per order; replacement begins only after Stripe has
+-- confirmed the old session expired and goen has cancelled its row.
+CREATE UNIQUE INDEX payments_one_active_per_order
+    ON payments (order_id)
+    WHERE status IN ('requires_payment', 'requires_action', 'processing');
 
 CREATE TRIGGER payments_set_updated_at
     BEFORE UPDATE ON payments
@@ -2659,7 +2724,7 @@ BEGIN
     END IF;
     -- 'failed' is absent because payments_status_known has no such value;
     -- refunds keep it because their own CHECK includes it.
-    IF OLD.status IN ('succeeded', 'cancelled') THEN
+    IF OLD.status IN ('succeeded', 'cancelled', 'reconciled') THEN
         RAISE EXCEPTION 'payment % is settled as %, cannot become %',
             OLD.provider_ref, OLD.status, NEW.status
             USING ERRCODE = 'check_violation', CONSTRAINT = 'payments_no_regression';
@@ -2672,9 +2737,11 @@ CREATE TRIGGER payments_no_regression
     BEFORE UPDATE OF status ON payments
     FOR EACH ROW EXECUTE FUNCTION payments_check_transition();
 
--- A payment may only succeed against an order that is still complete. A draft
--- order can lose its lines between orders_have_lines and payment, so this closes
--- that window at the moment money is taken, holding the order locked.
+-- A payment may only succeed against an order that is still complete and whose
+-- stock was not returned to sale. A draft order can lose its lines between
+-- orders_have_lines and payment, while a provider webhook can lag the hold
+-- sweeper; this closes both windows at the moment money is taken, holding the
+-- order locked.
 CREATE FUNCTION payments_require_complete_order() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
@@ -2720,6 +2787,24 @@ BEGIN
     IF o.fulfillment_status = 'cancelled' THEN
         RAISE EXCEPTION 'order % was cancelled and cannot be paid', o.order_number
             USING ERRCODE = 'check_violation', CONSTRAINT = 'payments_refuse_cancelled_order';
+    END IF;
+
+    -- release_reservation and capture_payment both hold this order row, so this
+    -- is the linearization point for a Session that completed near its stock
+    -- deadline. If capture wins, the order becomes committed and release is
+    -- refused. If the sweeper wins, its released row is durable evidence that
+    -- some of the order's goods went back on sale; accepting late money would
+    -- create a paid order the shop may no longer be able to fulfil. Do not pin
+    -- every requires_payment row forever waiting for a possibly-lost expiry
+    -- webhook. Refuse the late capture instead, keep it as an unreconciled
+    -- provider event, and require a refund.
+    IF EXISTS (
+        SELECT 1 FROM inventory_reservations
+        WHERE order_id = o.id AND state = 'released'
+    ) THEN
+        RAISE EXCEPTION 'order % has released stock and cannot be paid', o.order_number
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'payments_capture_refuses_released_stock';
     END IF;
 
     -- The capture must equal what the order is OWED — its total, less the store
@@ -2930,10 +3015,11 @@ CREATE TABLE payment_webhook_events (
     -- means "seen and refused" rather than "done". Canonical reason prefixes
     -- distinguish a known event whose object this binary could not read
     -- (unreadable_event), paid money with no local payment row to attribute it
-    -- to (unattributed_capture), and paid money for an order already cancelled
-    -- (cancelled_order_capture). Each is still marked processed because Stripe
-    -- would retry the same unresolvable bytes; this durable reason is what makes
-    -- the required human action visible on /admin/health.
+    -- to (unattributed_capture), paid money for an order already cancelled
+    -- (cancelled_order_capture), and verified money a stable local invariant
+    -- refused to post (refused_capture). Each is still marked processed because
+    -- Stripe would retry the same unresolvable facts; this durable reason is
+    -- what makes the required human action visible on /admin/health.
     unreconciled        text,
     -- When somebody dealt with it. The alarm is monotone without this: once an
     -- event lands unreconciled, /admin/health is unhealthy forever, which is
@@ -3272,7 +3358,12 @@ CREATE TABLE contact_messages (
     created_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT contact_messages_name_present CHECK (name ~ '[^[:space:]]'),
     CONSTRAINT contact_messages_email_present CHECK (email ~ '[^[:space:]]'),
-    CONSTRAINT contact_messages_subject_present CHECK (subject ~ '[^[:space:]]'),
+    -- The stored value is a durable category, not free text. Keep this aligned
+    -- with contact.subjects: every writer, including the store DB role, must be
+    -- unable to persist a value the application cannot render or validate.
+    CONSTRAINT contact_messages_subject_known CHECK (subject IN (
+        '訂單問題', '退換貨', '保固維修', '商品諮詢', '合作提案'
+    )),
     CONSTRAINT contact_messages_message_present CHECK (message ~ '[^[:space:]]')
 );
 
@@ -3394,6 +3485,46 @@ CREATE TRIGGER newsletter_issues_frozen_once_sent
     BEFORE UPDATE OF subject, body ON newsletter_issues
     FOR EACH ROW EXECUTE FUNCTION newsletter_issues_check_frozen();
 
+-- Every path that can remove an administrator takes this transaction lock
+-- before it locks a users row. The one stable key gives erase_user, the staff
+-- upsert/revoke statements, and the users trigger one serialization domain.
+CREATE FUNCTION lock_admin_roster() RETURNS void
+LANGUAGE sql SET search_path = pg_catalog, public, pg_temp AS $$
+    SELECT pg_advisory_xact_lock(hashtextextended(
+        'users_admin_roster_guard', 700240291774116301::bigint));
+$$;
+
+-- This is the database invariant behind the staff page's "last admin" rule,
+-- not merely a convention of its Store methods. INSERT is deliberately absent:
+-- a new installation may go from zero administrators to its first one. The
+-- count is made before the row changes, under the shared transaction lock.
+CREATE FUNCTION users_keep_one_admin() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+    PERFORM lock_admin_roster();
+    IF (SELECT count(*) FROM users WHERE role = 'admin') <= 1 THEN
+        RAISE EXCEPTION 'the last admin cannot lose that role'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'users_keep_one_admin';
+    END IF;
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER users_keep_one_admin_on_role
+    BEFORE UPDATE OF role ON users
+    FOR EACH ROW
+    WHEN (OLD.role = 'admin' AND NEW.role <> 'admin')
+    EXECUTE FUNCTION users_keep_one_admin();
+
+CREATE TRIGGER users_keep_one_admin_on_delete
+    BEFORE DELETE ON users
+    FOR EACH ROW
+    WHEN (OLD.role = 'admin')
+    EXECUTE FUNCTION users_keep_one_admin();
+
 -- Erasing an account. order_private_data keys on the ORDER and
 -- stock_notifications carries a plaintext email, so a plain DELETE of a user
 -- reaches neither.
@@ -3401,15 +3532,27 @@ CREATE FUNCTION erase_user(p_user_id uuid) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     addr text;
+    account_role text;
+    address_verified boolean;
 BEGIN
-    -- Read the address before the account goes: the newsletter keys on the
-    -- ADDRESS, so nothing below could find it afterwards.
-    SELECT email INTO addr FROM users WHERE id = p_user_id;
+    -- Take the roster guard before the target row, matching staff role changes.
+    -- This order avoids a user-row/advisory-lock cycle with a concurrent demotion.
+    PERFORM lock_admin_roster();
+
+    -- Lock and snapshot the account before reading any dependent rows. A logged-
+    -- in checkout holds KEY SHARE on this same row from before it locks its cart:
+    -- either its new order commits first and is included below, or this deletion
+    -- wins and checkout can no longer create an order carrying fresh PII.
+    -- Read the address here too: the newsletter keys on the ADDRESS, so nothing
+    -- below could find it after the account goes.
+    SELECT email, role, email_verified_at IS NOT NULL
+    INTO addr, account_role, address_verified
+    FROM users WHERE id = p_user_id FOR UPDATE;
 
     -- The LAST ADMIN cannot erase themselves, and this is the only place the
     -- question can be asked: /account/erase never consults the staff feature's
     -- guard, and there is no SQL recovery short of promoting somebody by hand.
-    IF (SELECT role FROM users WHERE id = p_user_id) = 'admin'
+    IF account_role = 'admin'
        AND (SELECT count(*) FROM users WHERE role = 'admin') <= 1 THEN
         RAISE EXCEPTION 'the last admin cannot be erased'
             USING CONSTRAINT = 'erase_user_keeps_one_admin';
@@ -3431,13 +3574,39 @@ BEGIN
     UPDATE orders SET customer_note = NULL
     WHERE user_id = p_user_id AND customer_note IS NOT NULL;
 
-    -- The restock email is NOT NULL and cannot be blanked, so the rows go.
-    -- By user_id AND by address, because anyone may ask for one signed OUT:
-    -- a notice taken before the customer had an account carries no user_id,
-    -- so a delete keyed on the account never reaches it — and the worker
-    -- would then email an address the shop has been told to forget, the day
-    -- the variant comes back. This is the contact_messages shape, and the
-    -- newsletter is not the only table that keys on the address.
+    -- Remove messages whose ownership is derived from a user-bound row before
+    -- those rows cascade or lose their user_id. This remains safe even when the
+    -- account never proved users.email: the reset digest, verification digest,
+    -- order number and notification id are the identities of THIS account's
+    -- intents, rather than claims over every message sent to that address.
+    DELETE FROM outbox_messages m
+    USING password_reset_tokens r
+    WHERE r.user_id = p_user_id
+      AND m.topic = 'account.password_reset'
+      AND m.dedupe_key = 'reset:' || encode(r.token_hash, 'hex');
+
+    DELETE FROM outbox_messages m
+    USING email_verifications v
+    WHERE v.user_id = p_user_id
+      AND m.topic = 'account.email_verify'
+      AND m.dedupe_key = 'verify:' || encode(v.digest, 'hex');
+
+    DELETE FROM outbox_messages m
+    USING orders o
+    WHERE o.user_id = p_user_id
+      AND m.topic IN ('order.placed', 'order.paid', 'order.shipped')
+      AND coalesce(m.payload ->> 'order_number', m.payload ->> 'OrderNumber', '') =
+          o.order_number;
+
+    DELETE FROM outbox_messages m
+    USING stock_notifications n
+    WHERE n.user_id = p_user_id
+      AND m.topic = 'catalogue.restocked'
+      AND m.dedupe_key = n.id::text;
+
+    -- The restock email is NOT NULL and cannot be blanked, so user-bound rows go
+    -- after their queued messages. Address-only guest rows require verified
+    -- mailbox ownership and are handled in the conditional block below.
     DELETE FROM stock_notifications WHERE user_id = p_user_id;
 
     -- The invoice PREFERENCE carries a personal carrier id and a business tax
@@ -3447,10 +3616,13 @@ BEGIN
     USING orders o
     WHERE ip.order_id = o.id AND o.user_id = p_user_id;
 
-    -- The newsletter keys on the ADDRESS rather than the account. The pending
-    -- confirmation goes too: a link already in the mailbox would let the erased
-    -- address rejoin the list.
-    IF addr IS NOT NULL THEN
+    -- Cross-table address ownership begins only after the mailbox is proved.
+    -- Registration and a pending address change accept an arbitrary address;
+    -- treating either as authority would let an attacker erase a victim's guest
+    -- orders, newsletter, contact message, restock request and queued mail.
+    -- For a proved current address, the newsletter confirmation goes too: a link
+    -- already in the mailbox would let the erased address rejoin the list.
+    IF addr IS NOT NULL AND address_verified THEN
         DELETE FROM newsletter_subscribers WHERE lower(email) = lower(addr);
         DELETE FROM newsletter_confirmations WHERE lower(email) = lower(addr);
         -- contact_messages is the SECOND address-keyed table: no user_id, no
@@ -3465,15 +3637,14 @@ BEGIN
         -- that also carries reset links and unsubscribe tokens. Undelivered
         -- messages go with it: a letter to an address the shop has been told to
         -- forget must not still be waiting to leave.
-        -- The whole payload as text, not payload->>'email'. A Go struct field
-        -- with no json tag marshals under its GO name, and a jsonb key is
-        -- case-sensitive — so the ONE message that carries a live password
-        -- reset token was the one this could not reach, and it survived the
-        -- erasure for the 30 days outbox.Retain keeps a row. A predicate that
-        -- depends on somebody remembering a struct tag is a predicate that
-        -- eventually misses one; every row here is a letter, so an address
-        -- appearing anywhere in it means the letter is to that person.
-        DELETE FROM outbox_messages WHERE payload::text ILIKE '%' || addr || '%';
+        -- Match the RECIPIENT value exactly, not payload text: '%' and '_' are
+        -- legal in an address but are wildcards in ILIKE, and another field
+        -- (for example a customer's name) may happen to contain an address.
+        -- Every current producer writes the explicit lower-case JSON tag; the
+        -- legacy Go field name remains readable for rows queued by older code.
+        DELETE FROM outbox_messages m
+        WHERE lower(coalesce(m.payload ->> 'email', m.payload ->> 'Email', '')) =
+              lower(addr);
     END IF;
 
     -- Every browser's proof of access to this person's orders: a live bearer
@@ -3504,7 +3675,8 @@ $$;
 -- that has not proved its address is in exactly that position, whoever created
 -- it, so its credential is cleared and its sessions end. A VERIFIED account
 -- provably belongs to whoever reads that mailbox, which is the person being
--- hired, and keeps both.
+-- hired, and keeps its credential; every existing session still ends, so the
+-- newly promoted colleague must sign in again under the new authority.
 --
 -- SECURITY DEFINER because `admin` deliberately holds no UPDATE on
 -- users.password_hash: with it, a staff member could impersonate a customer
@@ -3532,6 +3704,49 @@ END $$;
 
 COMMENT ON FUNCTION secure_promoted_account(uuid) IS
     'Neutralises an unproved credential on an account being given back-office access, and ends its sessions.';
+
+-- The admin role has no direct INSERT/UPDATE privilege on users. These two
+-- doors keep roster serialization, last-admin enforcement and session cleanup
+-- inside the same database transaction as the role change.
+CREATE FUNCTION upsert_staff(p_email text, p_full_name text, p_role text) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+    promoted_id uuid;
+    credential_cleared boolean;
+BEGIN
+    PERFORM lock_admin_roster();
+    INSERT INTO users (email, full_name, role)
+    VALUES (p_email, nullif(p_full_name, ''), p_role)
+    ON CONFLICT (lower(email)) DO UPDATE
+    SET role = EXCLUDED.role,
+        full_name = coalesce(nullif(EXCLUDED.full_name, ''), users.full_name)
+    RETURNING id INTO promoted_id;
+
+    credential_cleared := secure_promoted_account(promoted_id);
+    RETURN credential_cleared;
+END;
+$$;
+
+CREATE FUNCTION revoke_staff(p_user_id uuid) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+    target_role text;
+BEGIN
+    PERFORM lock_admin_roster();
+    SELECT role INTO target_role FROM users WHERE id = p_user_id FOR UPDATE;
+    IF NOT FOUND OR target_role NOT IN ('staff', 'admin') THEN
+        RETURN false;
+    END IF;
+    IF target_role = 'admin'
+       AND (SELECT count(*) FROM users WHERE role = 'admin') <= 1 THEN
+        RETURN false;
+    END IF;
+
+    UPDATE users SET role = 'customer' WHERE id = p_user_id;
+    DELETE FROM sessions WHERE user_id = p_user_id;
+    RETURN true;
+END;
+$$;
 
 
 -- ============================================================================
@@ -3583,7 +3798,10 @@ REVOKE UPDATE, DELETE ON store_credit_accounts FROM store;
 -- else, and coupon_redemptions is a ledger that goes through a function.
 REVOKE INSERT, UPDATE, DELETE ON coupons, coupon_redemptions FROM store;
 REVOKE UPDATE, DELETE ON payment_webhook_events FROM store;
-GRANT UPDATE (processed_at, unreconciled) ON payment_webhook_events TO store;
+-- processed_at is bookkeeping. unreconciled is now a payment-admission gate,
+-- so it is written only through mark_payment_event_unreconciled() below and
+-- cannot be cleared or rewritten with the storefront role.
+GRANT UPDATE (processed_at) ON payment_webhook_events TO store;
 -- reconciled_at is the SHOP saying it investigated and resolved the event, so
 -- it is admin's to write and not the storefront's. A whole-table INSERT would
 -- carry it.
@@ -3859,13 +4077,11 @@ REVOKE UPDATE, DELETE ON store_credit_accounts FROM admin;
 -- is a fact about an order's money, posted by the same function the storefront
 -- uses.
 REVOKE INSERT, UPDATE, DELETE ON coupon_redemptions FROM admin;
--- The back office may say it dealt with an event and nothing else: what an
--- event SAID is the provider's statement and not the shop's to edit, while
--- whether somebody acted on it is exactly the shop's to record. Without the
--- column grant the alarm is monotone and /admin/health is unhealthy forever
--- after the first one.
+-- The back office releases an event only through release_payment_event(), after
+-- explicitly confirming full refund or an existing succeeded accounting. That
+-- function lifts the alarm and terminates a linked live checkout in one
+-- transaction; a reconciled_at column grant would create a second, unsafe door.
 REVOKE UPDATE, DELETE ON payment_webhook_events FROM admin;
-GRANT UPDATE (reconciled_at) ON payment_webhook_events TO admin;
 REVOKE UPDATE ON order_events, shipping_method_versions FROM admin;
 REVOKE DELETE ON users FROM admin;
 -- Verification is the customer answering a letter, and a staff member who could
@@ -3876,12 +4092,11 @@ REVOKE INSERT, UPDATE, DELETE ON email_verifications FROM admin;
 -- The back office may not become a customer.
 --
 -- With INSERT on sessions and UPDATE on users.password_hash, a staff member could
--- impersonate one silently, and admin holds no INSERT on audit_events. What it
--- genuinely writes is a role and a name, and BOTH verbs take the column list.
+-- impersonate one silently, and admin holds no INSERT on audit_events. Roster
+-- writes go only through upsert_staff/revoke_staff: direct column grants could
+-- bypass credential neutralisation and would invert the roster/user lock order.
 -- ============================================================================
 REVOKE INSERT, UPDATE ON users FROM admin;
-GRANT INSERT (email, full_name, role) ON users TO admin;
-GRANT UPDATE (role, full_name) ON users TO admin;
 
 -- sessions: the back office ENDS them and stamps totp_verified_at. Creating one
 -- is signing somebody in, which only the sign-in form does.
@@ -3931,10 +4146,8 @@ GRANT EXECUTE ON FUNCTION order_is_settled(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION member_spend(uuid, integer, uuid) TO admin;
 GRANT EXECUTE ON FUNCTION member_tier(uuid, integer, uuid) TO admin;
 GRANT EXECUTE ON FUNCTION erase_user(uuid) TO admin;
--- The back office promotes; the function is how it neutralises whatever
--- credential an unproved account was carrying, which admin's own column
--- grants deliberately cannot reach.
-GRANT EXECUTE ON FUNCTION secure_promoted_account(uuid) TO admin;
+GRANT EXECUTE ON FUNCTION upsert_staff(text, text, text) TO admin;
+GRANT EXECUTE ON FUNCTION revoke_staff(uuid) TO admin;
 
 DO $$
 BEGIN
@@ -3953,6 +4166,22 @@ $$;
 -- if that disagrees with what the order is owed.
 -- ============================================================================
 
+-- Stripe can deliver a lifecycle event before the request that persists the
+-- Checkout Session returns. Both paths take this transaction-scoped lock before
+-- they inspect or write the local identity, so either the payment is visible to
+-- the webhook or the event history is visible to open_payment. Hash collisions
+-- only serialize unrelated references; they cannot weaken the fence.
+CREATE FUNCTION lock_payment_provider_ref(p_provider text, p_provider_ref text)
+RETURNS void
+LANGUAGE sql VOLATILE STRICT AS $$
+    SELECT pg_advisory_xact_lock(hashtextextended(
+        length(p_provider)::text || ':' || p_provider || ':' || p_provider_ref,
+        419583820019120301::bigint
+    ));
+$$;
+
+COMMENT ON FUNCTION lock_payment_provider_ref(text, text) IS
+    'Transaction lock shared by provider webhook claims and payment identity creation.';
 
 -- Open a payment intent against an order, or return the one already open:
 -- Stripe's own idempotency means a retried create returns the same intent, and
@@ -3967,6 +4196,10 @@ DECLARE
     payment_id uuid;
     order_status text;
 BEGIN
+    -- Canonical payment lock order is provider reference -> order -> payment.
+    -- ProcessWebhook takes this same first lock before it records an event.
+    PERFORM lock_payment_provider_ref('stripe', p_provider_ref);
+
     -- The session is already payable at Stripe by the time this runs, and the
     -- cancelling transaction reads its expire-list from payments — a row it
     -- cannot see does not get closed. FOR UPDATE makes the two mutually
@@ -3982,11 +4215,60 @@ BEGIN
         RAISE EXCEPTION 'order % is % and cannot open a checkout', p_order_id, order_status
             USING ERRCODE = 'check_violation', CONSTRAINT = 'payments_open_refuses_settled_order';
     END IF;
+    IF EXISTS (
+        SELECT 1 FROM payments
+        WHERE order_id = p_order_id AND status = 'succeeded'
+    ) THEN
+        RAISE EXCEPTION 'order % already has captured money', p_order_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'payments_open_refuses_funded_order';
+    END IF;
 
     SELECT id INTO payment_id FROM payments
     WHERE order_id = p_order_id AND provider_ref = p_provider_ref;
     IF FOUND THEN
         RETURN payment_id;
+    END IF;
+
+    -- An event that arrived before this row could not be attributed to a local
+    -- payment. Reconciliation resolves the money/operator alarm and permits a
+    -- NEW Stripe Session, but it must never make the already-observed provider
+    -- identity eligible to become an active payment after the fact.
+    IF EXISTS (
+        SELECT 1
+        FROM payment_webhook_events
+        WHERE provider = 'stripe' AND object_ref = p_provider_ref
+    ) THEN
+        RAISE EXCEPTION 'provider reference % already has webhook history', p_provider_ref
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'payments_open_refuses_seen_provider_ref';
+    END IF;
+
+    -- The amount can move while the network call creating the Stripe session is
+    -- in flight. Recheck under the order lock; the caller will expire the new
+    -- remote session when this named refusal is returned.
+    IF order_amount_owed(p_order_id) <> p_intended_amount_cents THEN
+        RAISE EXCEPTION 'order % no longer owes %', p_order_id, p_intended_amount_cents
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'payments_open_matches_order';
+    END IF;
+
+    -- A provider event linked through its immutable session reference says
+    -- this order needs a person. An alarm without this gate allows the customer
+    -- to pay a replacement session while the first capture awaits a refund or
+    -- manual posting.
+    IF EXISTS (
+        SELECT 1 FROM payments
+        WHERE order_id = p_order_id AND status = 'requires_reconciliation'
+    ) OR EXISTS (
+        SELECT 1
+        FROM payment_webhook_events e
+        JOIN payments p
+          ON p.provider = e.provider AND p.provider_ref = e.object_ref
+        WHERE p.order_id = p_order_id
+          AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+    ) THEN
+        RAISE EXCEPTION 'order % has an unresolved provider event', p_order_id
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'payments_open_needs_reconciliation';
     END IF;
 
     INSERT INTO payments (order_id, provider_ref, status, intended_amount_cents)
@@ -4008,14 +4290,27 @@ CREATE FUNCTION capture_payment(
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
     payment_id uuid;
+    payment_order_id uuid;
     current_status text;
 BEGIN
-    SELECT id, status INTO payment_id, current_status
-    FROM payments WHERE provider_ref = p_provider_ref
-    FOR UPDATE;
+    -- Match open_payment's order -> payment lock order. Reading the immutable
+    -- order_id first is safe: the store role can move no payment between
+    -- orders, and settled rows are additionally frozen by trigger.
+    SELECT order_id INTO payment_order_id
+    FROM payments WHERE provider_ref = p_provider_ref;
 
     IF NOT FOUND THEN
         RAISE EXCEPTION 'no payment for provider reference %', p_provider_ref
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'payments_provider_ref_known';
+    END IF;
+
+    PERFORM 1 FROM orders WHERE id = payment_order_id FOR UPDATE;
+
+    SELECT id, status INTO payment_id, current_status
+    FROM payments WHERE provider_ref = p_provider_ref
+    FOR UPDATE;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'payment for provider reference % disappeared', p_provider_ref
             USING ERRCODE = 'check_violation', CONSTRAINT = 'payments_provider_ref_known';
     END IF;
     IF current_status = 'succeeded' THEN
@@ -4034,12 +4329,365 @@ BEGIN
 END;
 $$;
 
+-- Record a Checkout Session that Stripe has explicitly expired after local
+-- admission failed. This is a tombstone, not another admission attempt: the
+-- order may now be cancelled, funded, repriced or awaiting reconciliation.
+-- Keeping the provider reference makes the idempotency generation durable and
+-- makes an uncertain prior open idempotently converge to cancelled.
+CREATE FUNCTION record_expired_payment(
+    p_order_id uuid,
+    p_provider_ref text,
+    p_intended_amount_cents bigint
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    payment_id uuid;
+    recorded_order_id uuid;
+    recorded_amount bigint;
+    recorded_status text;
+BEGIN
+    -- This is another creator of a local provider identity. It follows the
+    -- same provider-ref-first order as open_payment and webhook processing,
+    -- even though the row it creates is terminal rather than payable.
+    PERFORM lock_payment_provider_ref('stripe', p_provider_ref);
+    PERFORM 1 FROM orders WHERE id = p_order_id FOR UPDATE;
+
+    INSERT INTO payments (order_id, provider_ref, status, intended_amount_cents)
+    VALUES (p_order_id, p_provider_ref, 'cancelled', p_intended_amount_cents)
+    ON CONFLICT (provider, provider_ref) DO NOTHING;
+
+    SELECT id, order_id, intended_amount_cents, status
+    INTO payment_id, recorded_order_id, recorded_amount, recorded_status
+    FROM payments
+    WHERE provider = 'stripe' AND provider_ref = p_provider_ref
+    FOR UPDATE;
+
+    IF recorded_order_id <> p_order_id OR recorded_amount <> p_intended_amount_cents THEN
+        RAISE EXCEPTION 'expired provider reference % disagrees with its recorded payment',
+            p_provider_ref
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'payments_expired_identity_matches';
+    END IF;
+
+    -- A transport error can hide a successful open_payment commit. Stripe has
+    -- now confirmed expiry, so that existing non-captured row must converge to
+    -- the same terminal fact. Never regress captured money.
+    IF recorded_status NOT IN ('succeeded', 'cancelled', 'reconciled') THEN
+        UPDATE payments SET status = 'cancelled' WHERE id = payment_id;
+    END IF;
+    RETURN payment_id;
+END;
+$$;
+
+-- A provider-complete Session cannot be expired and must not be described as
+-- cancelled: `complete` does not itself prove either paid or unpaid. Consume
+-- the idempotency generation in a non-payable reconciliation state. A capture
+-- webhook that follows can still advance it to succeeded; an operator resolving
+-- an already-durable event advances it to the distinct reconciled terminal.
+CREATE FUNCTION record_complete_payment(
+    p_order_id uuid,
+    p_provider_ref text,
+    p_intended_amount_cents bigint
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    payment_id uuid;
+    recorded_order_id uuid;
+    recorded_amount bigint;
+    recorded_status text;
+    target_status text;
+BEGIN
+    PERFORM lock_payment_provider_ref('stripe', p_provider_ref);
+    PERFORM 1 FROM orders WHERE id = p_order_id FOR UPDATE;
+
+    IF EXISTS (
+        SELECT 1 FROM payment_webhook_events
+        WHERE provider = 'stripe' AND object_ref = p_provider_ref
+          AND unreconciled IS NOT NULL AND reconciled_at IS NULL
+    ) THEN
+        target_status := 'requires_reconciliation';
+    ELSIF EXISTS (
+        SELECT 1 FROM payment_webhook_events
+        WHERE provider = 'stripe' AND object_ref = p_provider_ref
+          AND unreconciled IS NOT NULL AND reconciled_at IS NOT NULL
+    ) THEN
+        -- Reconciliation is an authoritative safe-release resolution. The
+        -- shared provider lock makes this exhaustive with release_payment_event:
+        -- resolution either sees and closes this row, or this insert sees the
+        -- already-resolved event and is born terminal.
+        target_status := 'reconciled';
+    ELSE
+        -- The provider is complete but its webhook may still be in flight.
+        -- Waiting is safer than opening another place to pay.
+        target_status := 'requires_reconciliation';
+    END IF;
+
+    INSERT INTO payments (order_id, provider_ref, status, intended_amount_cents)
+    VALUES (p_order_id, p_provider_ref, target_status, p_intended_amount_cents)
+    ON CONFLICT (provider, provider_ref) DO NOTHING;
+
+    SELECT id, order_id, intended_amount_cents, status
+    INTO payment_id, recorded_order_id, recorded_amount, recorded_status
+    FROM payments
+    WHERE provider = 'stripe' AND provider_ref = p_provider_ref
+    FOR UPDATE;
+
+    IF recorded_order_id <> p_order_id OR recorded_amount <> p_intended_amount_cents THEN
+        RAISE EXCEPTION 'complete provider reference % disagrees with its recorded payment',
+            p_provider_ref
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'payments_complete_identity_matches';
+    END IF;
+
+    IF recorded_status NOT IN ('succeeded', 'cancelled', 'reconciled')
+       AND recorded_status <> target_status THEN
+        UPDATE payments SET status = target_status WHERE id = payment_id;
+    END IF;
+    RETURN payment_id;
+END;
+$$;
+
 -- 'cancelled', not 'failed': payments_status_known does not admit the latter.
 CREATE FUNCTION cancel_payment(p_provider_ref text) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 BEGIN
     UPDATE payments SET status = 'cancelled'
-    WHERE provider_ref = p_provider_ref AND status <> 'succeeded';
+    WHERE provider_ref = p_provider_ref
+      AND status NOT IN ('succeeded', 'reconciled');
+END;
+$$;
+
+-- Mark a claimed Stripe event as requiring a person. Once set, the reason is
+-- immutable to the store role: it is evidence and, more importantly, blocks a
+-- replacement Checkout Session until the admin reconciliation door below also
+-- terminates the linked active payment.
+CREATE FUNCTION mark_payment_event_unreconciled(
+    p_event_id text,
+    p_reason text
+) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+    UPDATE payment_webhook_events
+    SET processed_at = now(), unreconciled = p_reason
+    WHERE provider = 'stripe' AND event_id = p_event_id
+      AND processed_at IS NULL
+      AND unreconciled IS NULL AND reconciled_at IS NULL;
+    RETURN FOUND;
+END;
+$$;
+
+-- Lock the catalogue roots a checkout will use without granting the storefront
+-- UPDATE merely to satisfy PostgreSQL's FOR UPDATE privilege rule. Variants
+-- come first in UUID order for cross-cart stock safety; products follow in UUID
+-- order. That matches the existing variant -> product order of catalogue
+-- integrity triggers while still making publication/retirement linearizable
+-- with checkout. The cart row is already locked, so both sets are stable.
+CREATE FUNCTION lock_cart_catalogue(p_cart_id uuid) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+    PERFORM 1
+    FROM product_variants pv
+    JOIN cart_items ci ON ci.variant_id = pv.id
+    WHERE ci.cart_id = p_cart_id
+    ORDER BY pv.id
+    FOR UPDATE OF pv;
+
+    PERFORM 1
+    FROM products p
+    WHERE p.id IN (
+        SELECT pv.product_id
+        FROM cart_items ci
+        JOIN product_variants pv ON pv.id = ci.variant_id
+        WHERE ci.cart_id = p_cart_id
+    )
+    ORDER BY p.id
+    FOR UPDATE;
+END;
+$$;
+
+-- An account can sign in concurrently from two browser tabs, each carrying a
+-- different guest cart. The partial unique index on carts.user_id detects two
+-- first adopters only after both have already decided that no account cart
+-- exists; serialize that decision on the stable account row instead. store has
+-- only narrow authentication-column UPDATE grants, not authority for a general
+-- users row lock, so the lock lives behind this narrow door.
+CREATE FUNCTION lock_user_for_cart_adoption(p_user_id uuid) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+    -- NO KEY UPDATE conflicts with another adoption's identical row lock but is
+    -- compatible with the KEY SHARE that a checkout's user_id foreign keys take.
+    -- Checkout owns the cart before it writes its order; UPDATE here would make
+    -- adoption own user -> wait cart while checkout owns cart -> wait user.
+    PERFORM 1 FROM users WHERE id = p_user_id FOR NO KEY UPDATE;
+    RETURN FOUND;
+END;
+$$;
+
+COMMENT ON FUNCTION lock_user_for_cart_adoption(uuid) IS
+    'Serialize the choice and merge of the one cart an account may own.';
+
+-- A logged-in checkout will later write orders.user_id and related foreign
+-- keys. Take their natural KEY SHARE lock before the cart, not halfway through
+-- the order write, so erasure/adoption and checkout all use user -> cart order.
+-- KEY SHARE is compatible with adoption's NO KEY UPDATE but conflicts with the
+-- UPDATE/DELETE that erasure holds across its complete PII snapshot.
+CREATE FUNCTION lock_user_for_checkout(p_user_id uuid) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+    PERFORM 1 FROM users WHERE id = p_user_id FOR KEY SHARE;
+    RETURN FOUND;
+END;
+$$;
+
+COMMENT ON FUNCTION lock_user_for_checkout(uuid) IS
+    'Keep a checkout account alive before locking its cart and writing user foreign keys.';
+
+-- Releasing a provider event is the operator's explicit statement that every
+-- provider-side cent was fully refunded, or that a succeeded local payment
+-- already accounts for it. End a still-active linked attempt in the same
+-- transaction, so cleared money cannot leave a resumable Session after the
+-- alarm leaves /admin/health. A succeeded payment is terminal and untouched.
+CREATE FUNCTION release_payment_event(p_event_id text) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    ref text;
+    payment_order_id uuid;
+BEGIN
+    -- Read the immutable provider identity without taking the event row first:
+    -- webhook processing locks provider-ref before its INSERT, so reversing
+    -- those locks here would create an event-row/provider-ref ABBA cycle.
+    SELECT object_ref INTO ref
+    FROM payment_webhook_events
+    WHERE provider = 'stripe' AND event_id = p_event_id
+      AND unreconciled IS NOT NULL AND reconciled_at IS NULL;
+    IF NOT FOUND THEN
+        RETURN false;
+    END IF;
+
+    IF ref IS NOT NULL THEN
+        PERFORM lock_payment_provider_ref('stripe', ref);
+
+        -- If recovery has linked the complete Session since the event arrived,
+        -- serialize lifting its order-level gate with open_payment.
+        SELECT order_id INTO payment_order_id
+        FROM payments WHERE provider = 'stripe' AND provider_ref = ref;
+        IF FOUND THEN
+            PERFORM 1 FROM orders WHERE id = payment_order_id FOR UPDATE;
+        END IF;
+    END IF;
+
+    UPDATE payment_webhook_events
+    SET reconciled_at = now()
+    WHERE provider = 'stripe' AND event_id = p_event_id
+      AND unreconciled IS NOT NULL AND reconciled_at IS NULL
+    RETURNING object_ref INTO ref;
+
+    IF NOT FOUND THEN
+        RETURN false;
+    END IF;
+
+    UPDATE payments
+    SET status = CASE
+        WHEN status = 'requires_reconciliation' THEN 'reconciled'
+        ELSE 'cancelled'
+    END
+    WHERE provider = 'stripe' AND provider_ref = ref
+      AND status IN ('requires_payment', 'requires_action', 'processing',
+                     'requires_reconciliation');
+    RETURN true;
+END;
+$$;
+
+-- A complete Session can precede its capture webhook. When an operator confirms
+-- at Stripe that it was PAID, post the immutable intended amount through the
+-- same capture_payment invariants as a signed webhook. The function returns the
+-- payment identity so its query can derive the order facts Go needs to append
+-- the paid timeline event, loyalty award and receipt in this same caller
+-- transaction. It never accepts an amount from the form: the payment row is the
+-- only amount Stripe was asked to take.
+CREATE FUNCTION attribute_complete_payment_paid(p_provider_ref text) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    target_payment_id uuid;
+    target_order_id uuid;
+    target_amount bigint;
+BEGIN
+    PERFORM lock_payment_provider_ref('stripe', p_provider_ref);
+
+    -- Read the immutable parent before taking locks, then follow the canonical
+    -- provider-ref -> order -> payment order used by webhook/open/recovery.
+    SELECT p.order_id INTO target_order_id
+    FROM payments p
+    WHERE p.provider = 'stripe' AND p.provider_ref = p_provider_ref
+      AND p.status = 'requires_reconciliation'
+      AND NOT EXISTS (
+          SELECT 1 FROM payment_webhook_events e
+          WHERE e.provider = p.provider AND e.object_ref = p.provider_ref
+            AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+      );
+    IF NOT FOUND THEN
+        RETURN NULL;
+    END IF;
+
+    PERFORM 1 FROM orders WHERE id = target_order_id FOR UPDATE;
+
+    SELECT p.id, p.order_id, p.intended_amount_cents
+    INTO target_payment_id, target_order_id, target_amount
+    FROM payments p
+    WHERE p.provider = 'stripe' AND p.provider_ref = p_provider_ref
+      AND p.status = 'requires_reconciliation'
+      AND NOT EXISTS (
+          SELECT 1 FROM payment_webhook_events e
+            WHERE e.provider = p.provider AND e.object_ref = p.provider_ref
+              AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+      )
+    FOR UPDATE;
+    IF NOT FOUND THEN
+        RETURN NULL;
+    END IF;
+
+    PERFORM capture_payment(p_provider_ref, target_amount, NULL, NULL);
+    RETURN target_payment_id;
+END;
+$$;
+
+-- The other complete-Session outcome is explicitly non-capture: staff have
+-- confirmed at Stripe that no money was taken, or that it was fully refunded.
+-- Only that fact may lift the admission gate and permit a later generation.
+-- Keeping it separate from the paid function makes it impossible for one vague
+-- "handled" button to silently choose the money outcome.
+CREATE FUNCTION release_complete_payment(p_provider_ref text) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    payment_order_id uuid;
+BEGIN
+    PERFORM lock_payment_provider_ref('stripe', p_provider_ref);
+
+    SELECT order_id INTO payment_order_id
+    FROM payments p
+    WHERE p.provider = 'stripe' AND p.provider_ref = p_provider_ref
+      AND p.status = 'requires_reconciliation'
+      AND NOT EXISTS (
+          SELECT 1 FROM payment_webhook_events e
+          WHERE e.provider = p.provider AND e.object_ref = p.provider_ref
+            AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+      );
+    IF NOT FOUND THEN
+        RETURN false;
+    END IF;
+
+    PERFORM 1 FROM orders WHERE id = payment_order_id FOR UPDATE;
+
+    UPDATE payments p
+    SET status = 'reconciled'
+    WHERE p.provider = 'stripe' AND p.provider_ref = p_provider_ref
+      AND p.status = 'requires_reconciliation'
+      AND NOT EXISTS (
+          SELECT 1 FROM payment_webhook_events e
+          WHERE e.provider = p.provider AND e.object_ref = p.provider_ref
+            AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+      );
+    RETURN FOUND;
 END;
 $$;
 
@@ -4077,6 +4725,30 @@ BEGIN
     VALUES (account_id, p_amount_cents, p_reason, p_order_id, p_idempotency_key, p_actor_user_id)
     RETURNING id INTO entry_id;
     RETURN entry_id;
+END;
+$$;
+
+-- Read and hold checkout's one credit account at the same linearization point.
+-- Store can call this narrow door but retains no UPDATE privilege on accounts
+-- and no INSERT privilege on the append-only ledger.
+CREATE FUNCTION lock_store_credit_for_checkout(p_user_id uuid) RETURNS bigint
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    locked_account_id uuid;
+    balance bigint;
+BEGIN
+    SELECT id INTO locked_account_id
+    FROM store_credit_accounts
+    WHERE user_id = p_user_id
+    FOR UPDATE;
+    IF NOT FOUND THEN
+        RETURN 0;
+    END IF;
+
+    SELECT coalesce(sum(amount_cents), 0) INTO balance
+    FROM store_credit_entries
+    WHERE account_id = locked_account_id;
+    RETURN greatest(balance, 0);
 END;
 $$;
 
@@ -4120,8 +4792,19 @@ COMMENT ON FUNCTION reverse_order_credit(uuid) IS
 
 GRANT EXECUTE ON FUNCTION open_payment(uuid, text, bigint) TO store;
 GRANT EXECUTE ON FUNCTION capture_payment(text, bigint, text, text) TO store;
+GRANT EXECUTE ON FUNCTION record_expired_payment(uuid, text, bigint) TO store;
+GRANT EXECUTE ON FUNCTION record_complete_payment(uuid, text, bigint) TO store;
 GRANT EXECUTE ON FUNCTION cancel_payment(text) TO store;
+GRANT EXECUTE ON FUNCTION mark_payment_event_unreconciled(text, text) TO store;
+GRANT EXECUTE ON FUNCTION lock_payment_provider_ref(text, text) TO store;
+GRANT EXECUTE ON FUNCTION lock_cart_catalogue(uuid) TO store;
+GRANT EXECUTE ON FUNCTION lock_user_for_cart_adoption(uuid) TO store;
+GRANT EXECUTE ON FUNCTION lock_user_for_checkout(uuid) TO store;
+GRANT EXECUTE ON FUNCTION release_payment_event(text) TO admin;
+GRANT EXECUTE ON FUNCTION attribute_complete_payment_paid(text) TO admin;
+GRANT EXECUTE ON FUNCTION release_complete_payment(text) TO admin;
 GRANT EXECUTE ON FUNCTION post_store_credit(uuid, bigint, text, uuid, text, uuid) TO store;
+GRANT EXECUTE ON FUNCTION lock_store_credit_for_checkout(uuid) TO store;
 -- A customer cancels their own unpaid order, so the storefront role needs this.
 GRANT EXECUTE ON FUNCTION reverse_order_credit(uuid) TO store;
 GRANT EXECUTE ON FUNCTION hold_inventory(uuid, uuid, integer, timestamptz, text) TO admin;
@@ -4203,6 +4886,18 @@ GRANT EXECUTE ON FUNCTION settle_refund(text, text, text) TO admin;
 -- path around store's revoke on refunds, and 'failed' or 'cancelled' drops a
 -- refund out of refunds_guard's sum, freeing the allowance to be claimed again.
 
+
+-- Hold exactly the coupon definition checkout is about to quote and redeem.
+-- Store may already SELECT coupon definitions, but receives no table UPDATE
+-- privilege merely because PostgreSQL requires it for FOR UPDATE.
+CREATE FUNCTION lock_coupon_for_checkout(p_code text) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+    PERFORM 1 FROM coupons WHERE upper(code) = upper(p_code) FOR UPDATE;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION lock_coupon_for_checkout(text) TO store;
 
 -- Redeem a coupon against an order. The amount is passed in rather than
 -- recomputed, because pricing it twice is how the two come to disagree. The

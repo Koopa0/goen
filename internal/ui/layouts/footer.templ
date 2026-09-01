@@ -23,13 +23,13 @@ templ Footer() {
 			</div>
 			<nav class="goen-footer__links" aria-label={ i18n.T(ctx, i18n.KeyFooterHelp) }>
 				<span class="micro">{ i18n.T(ctx, i18n.KeyFooterHelp) }</span>
-				for _, l := range FooterShopping {
+				for _, l := range footerShopping {
 					<a class="ui-sm" href={ templ.URL(l.Href) }>{ l.Label(ctx) }</a>
 				}
 			</nav>
 			<nav class="goen-footer__links" aria-label={ i18n.T(ctx, i18n.KeyFooterPolicies) }>
 				<span class="micro">{ i18n.T(ctx, i18n.KeyFooterPolicies) }</span>
-				for _, l := range FooterAbout {
+				for _, l := range footerAbout {
 					<a class="ui-sm" href={ templ.URL(l.Href) }>{ l.Label(ctx) }</a>
 				}
 			</nav>

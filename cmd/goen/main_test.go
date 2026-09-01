@@ -20,6 +20,34 @@ func validPosture() config {
 	}
 }
 
+func TestLoadConfigPrefersStripeAPIKeyAndAcceptsTheLegacyName(t *testing.T) {
+	t.Setenv("GOEN_DATABASE_URL", "postgres://store.example/goen")
+	t.Setenv("GOEN_LOG_LEVEL", "info")
+
+	for _, tt := range []struct {
+		name, current, legacy, want string
+	}{
+		{name: "current name", current: "rk_test_current", want: "rk_test_current"},
+		{name: "legacy fallback", legacy: "sk_test_legacy", want: "sk_test_legacy"},
+		{
+			name: "current wins", current: "rk_test_current", legacy: "sk_test_legacy",
+			want: "rk_test_current",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("GOEN_STRIPE_API_KEY", tt.current)
+			t.Setenv("GOEN_STRIPE_SECRET_KEY", tt.legacy)
+			cfg, err := loadConfig()
+			if err != nil {
+				t.Fatalf("loadConfig: %v", err)
+			}
+			if cfg.StripeAPIKey != tt.want {
+				t.Errorf("StripeAPIKey = %q, want %q", cfg.StripeAPIKey, tt.want)
+			}
+		})
+	}
+}
+
 // TestLocalConfigurationIsPreparedBeforeExternalDependencies keeps a bad
 // deployment from touching its database before all local posture and provider
 // configuration is known to be usable. The malformed database URL would be
@@ -60,6 +88,7 @@ func TestLocalConfigurationIsPreparedBeforeExternalDependencies(t *testing.T) {
 			t.Setenv("GOEN_SMTP_USER", tt.smtpUser)
 			t.Setenv("GOEN_BASE_URL", "https://shop.example")
 			t.Setenv("GOEN_TRUSTED_PROXIES", tt.trustedProxy)
+			t.Setenv("GOEN_STRIPE_API_KEY", "")
 			t.Setenv("GOEN_STRIPE_SECRET_KEY", tt.stripeKey)
 			t.Setenv("GOEN_STRIPE_WEBHOOK_SECRET", tt.stripeWebhook)
 			t.Setenv("GOEN_ECPAY_MERCHANT_ID", "")

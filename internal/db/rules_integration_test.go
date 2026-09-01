@@ -27,6 +27,8 @@ import (
 var coveredByNamedTest = map[string]string{
 	"loyalty_lot_guard":                      "the loyalty_entries_lot_* rule cases below exercise each branch by its own constraint name",
 	"product_variants_keep_product_sellable": "TestDeactivatingTheLastVariantIsRefused, TestDeletingTheLastVariantIsRefused",
+	"users_keep_one_admin_on_role":           "TestUsersTriggerKeepsOneAdmin (internal/db)",
+	"users_keep_one_admin_on_delete":         "TestUsersTriggerKeepsOneAdmin (internal/db)",
 	// Exercised where the send is: proving it needs an issue that has actually been sent.
 	"newsletter_issues_frozen_once_sent": "TestASentIssueCannotBeRewritten (internal/newsletter)",
 }
@@ -1160,26 +1162,36 @@ func TestCampaignDiscountSurvivesBulkEdits(t *testing.T) {
 	}
 }
 
-// TestReleaseReservationLocksVariantBeforeOrder pins the lock ORDER: hold_inventory takes the
-// variant then the order, and a release taking them the other way round closes a cycle that
-// deadlocks at 40P01. Read from the source, because a deadlock race passes by luck.
-func TestReleaseReservationLocksVariantBeforeOrder(t *testing.T) {
-	var src string
-	if err := schemaPool(t).QueryRow(t.Context(),
-		`SELECT prosrc FROM pg_proc WHERE proname = 'release_reservation'`).Scan(&src); err != nil {
-		t.Fatalf("read release_reservation source: %v", err)
-	}
+// TestReservationFunctionsShareOrderBeforeVariant pins the cross-function lock
+// contract. A behavioural test proves the blocking point too, but source order
+// makes an accidental ABBA regression deterministic rather than timing-dependent.
+func TestReservationFunctionsShareOrderBeforeVariant(t *testing.T) {
+	for _, tc := range []struct {
+		function      string
+		variantMarker string
+	}{
+		// hold_inventory reaches the variant through the only stock writer.
+		{"hold_inventory", "record_inventory_movement"},
+		{"release_reservation", "product_variants"},
+	} {
+		t.Run(tc.function, func(t *testing.T) {
+			var src string
+			if err := schemaPool(t).QueryRow(t.Context(),
+				`SELECT prosrc FROM pg_proc WHERE proname = $1`, tc.function).Scan(&src); err != nil {
+				t.Fatalf("read %s source: %v", tc.function, err)
+			}
 
-	variant := strings.Index(src, "product_variants")
-	order := strings.Index(src, "FROM orders")
-	switch {
-	case variant < 0:
-		t.Fatal("release_reservation does not lock the variant at all; hold_inventory does, so the two disagree")
-	case order < 0:
-		t.Fatal("release_reservation no longer locks the order")
-	case variant > order:
-		t.Error("release_reservation locks the order before the variant; hold_inventory takes them " +
-			"the other way round, which closes an ABBA cycle (40P01) on a concurrent re-hold and release")
+			order := strings.Index(src, "FROM orders")
+			variant := strings.Index(src, tc.variantMarker)
+			switch {
+			case order < 0:
+				t.Fatalf("%s no longer locks the order", tc.function)
+			case variant < 0:
+				t.Fatalf("%s no longer reaches the variant through %s", tc.function, tc.variantMarker)
+			case order > variant:
+				t.Errorf("%s locks a variant before its order; concurrent hold/release paths can close an ABBA cycle (40P01)", tc.function)
+			}
+		})
 	}
 }
 
@@ -1197,6 +1209,13 @@ func TestEraseUserLeavesNoPersonalData(t *testing.T) {
 	}
 
 	const user = "55555555-5555-4555-8555-555555555555"
+	// Address-wide deletion is authority reserved for a proved mailbox. This
+	// fixture exercises that legal path; a separate account test protects the
+	// neighbouring unverified address from cross-owner deletion.
+	if _, err := tx.Exec(ctx,
+		`UPDATE users SET email_verified_at = now() WHERE id = $1`, user); err != nil {
+		t.Fatalf("prove erasure fixture mailbox: %v", err)
+	}
 
 	// A letter to this customer, waiting to go out. Without it the JSON half of
 	// the sweep below has no subject: it would report a clean outbox because

@@ -1,6 +1,7 @@
 package product
 
 import (
+	"fmt"
 	"net/url"
 	"strings"
 	"testing"
@@ -104,6 +105,23 @@ func TestResolveRejectsUnknownValues(t *testing.T) {
 	}
 }
 
+func TestResolveDoesNotReportDuplicateOptionCombinationsAsExact(t *testing.T) {
+	variants := []Variant{
+		{ID: "1", SKU: "DUPLICATE-1", PriceCents: 200, Sellable: true,
+			Options: map[string]string{"colour": "black", "size": "large"}},
+		{ID: "2", SKU: "DUPLICATE-2", PriceCents: 100, Sellable: true,
+			Options: map[string]string{"colour": "black", "size": "large"}},
+	}
+
+	got, exact := Resolve(variants, Selection{"colour": "black", "size": "large"})
+	if got.SKU == "" {
+		t.Fatal("Resolve() returned no variant for a matching combination")
+	}
+	if exact {
+		t.Error("Resolve() exact = true for two variants with the same option combination")
+	}
+}
+
 func TestBuildOptionsMarksAvailabilityAgainstOtherChoices(t *testing.T) {
 	groups := choices(map[string][]string{
 		"顏色": {"星霧藍", "曜石黑"},
@@ -196,6 +214,119 @@ func TestParseSelectionBoundsInput(t *testing.T) {
 	if _, ok := got[string(long)]; ok {
 		t.Error("an over-long option name was kept as a key")
 	}
+}
+
+func TestParseSelectionKeepsAllCandidateOptions(t *testing.T) {
+	q := url.Values{
+		"option-11": {"value-11"},
+		"option-10": {"value-10"},
+		"option-09": {"value-09"},
+		"option-08": {"value-08"},
+		"option-07": {"value-07"},
+		"option-06": {"value-06"},
+		"option-05": {"value-05"},
+		"option-04": {"value-04"},
+		"option-03": {"value-03"},
+		"option-02": {"value-02"},
+		"option-01": {"first", "ignored"},
+		"option-00": {"value-00"},
+		"a-empty":   {"   ", "not-used"},
+		"page":      {"2"},
+	}
+	want := Selection{
+		"option-00": "value-00",
+		"option-01": "first",
+		"option-02": "value-02",
+		"option-03": "value-03",
+		"option-04": "value-04",
+		"option-05": "value-05",
+		"option-06": "value-06",
+		"option-07": "value-07",
+		"option-08": "value-08",
+		"option-09": "value-09",
+		"option-10": "value-10",
+		"option-11": "value-11",
+	}
+
+	if diff := cmp.Diff(want, ParseSelection(q)); diff != "" {
+		t.Fatalf("ParseSelection() mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestUnknownQueryKeysDoNotDisplaceKnownOptions(t *testing.T) {
+	q := url.Values{
+		"a-unknown-0": {"x"}, "a-unknown-1": {"x"},
+		"a-unknown-2": {"x"}, "a-unknown-3": {"x"},
+		"a-unknown-4": {"x"}, "a-unknown-5": {"x"},
+		"a-unknown-6": {"x"}, "a-unknown-7": {"x"},
+		"顏色": {"曜石黑"},
+		"容量": {"512GB"},
+	}
+
+	got := ParseSelection(q).OnlyOptionsOf(matrix())
+	want := Selection{"顏色": "曜石黑", "容量": "512GB"}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("known options after filtering (-want +got):\n%s", diff)
+	}
+	if chosen, exact := Resolve(matrix(), got); chosen.SKU != "A-2-2" || !exact {
+		t.Errorf("Resolve() = %q/%v, want A-2-2/exact", chosen.SKU, exact)
+	}
+}
+
+func TestOnlyOptionsOfKeepsEveryCatalogueAxis(t *testing.T) {
+	const count = 12
+	options := make(map[string]string, count)
+	sel := make(Selection, count)
+	for i := range count {
+		name := fmt.Sprintf("option-%02d", i)
+		value := fmt.Sprintf("value-%02d", i)
+		options[name] = value
+		sel[name] = value
+	}
+
+	got := sel.OnlyOptionsOf([]Variant{{Options: options}})
+	if diff := cmp.Diff(sel, got); diff != "" {
+		t.Errorf("OnlyOptionsOf() dropped a catalogue axis (-want +got):\n%s", diff)
+	}
+}
+
+func TestOnlyOptionsOfReturnsIndependentSelection(t *testing.T) {
+	t.Run("nil stays nil", func(t *testing.T) {
+		var sel Selection
+		if got := sel.OnlyOptionsOf(matrix()); got != nil {
+			t.Errorf("OnlyOptionsOf() = %v, want nil", got)
+		}
+	})
+
+	t.Run("empty stays non-nil without aliasing", func(t *testing.T) {
+		sel := Selection{}
+		got := sel.OnlyOptionsOf(matrix())
+		if got == nil {
+			t.Fatal("OnlyOptionsOf() returned nil for a non-nil empty selection")
+		}
+		got["顏色"] = "星霧藍"
+		if len(sel) != 0 {
+			t.Errorf("mutating result changed receiver to %v", sel)
+		}
+	})
+
+	t.Run("filter neither mutates nor aliases receiver", func(t *testing.T) {
+		sel := Selection{"顏色": "星霧藍", "notify": "1"}
+		wantInput := Selection{"顏色": "星霧藍", "notify": "1"}
+		got := sel.OnlyOptionsOf(matrix())
+		if diff := cmp.Diff(Selection{"顏色": "星霧藍"}, got); diff != "" {
+			t.Fatalf("OnlyOptionsOf() mismatch (-want +got):\n%s", diff)
+		}
+		if diff := cmp.Diff(wantInput, sel); diff != "" {
+			t.Fatalf("OnlyOptionsOf() mutated receiver (-want +got):\n%s", diff)
+		}
+
+		got["顏色"] = "曜石黑"
+		got["容量"] = "512GB"
+		if diff := cmp.Diff(wantInput, sel); diff != "" {
+			t.Errorf("mutating result changed receiver (-want +got):\n%s", diff)
+		}
+	})
 }
 
 func choices(in map[string][]string) map[string][]OptionChoice {

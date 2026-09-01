@@ -152,9 +152,11 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 					tabindex="-1"
 					aria-hidden="true"
 				>{ i18n.T(ctx, i18n.KeyPlaceOrder) }</button>
-				<input type="hidden" name="idempotency" value={ v.Idempoten }/>
-				// The server refuses the first submission whose address prices differently.
-				<input type="hidden" name="quoted_shipping" value={ v.QuotedShipping() }/>
+				<input type="hidden" name="idempotency" value={ v.IdempotencyKey }/>
+				// One fixed-size identity covers the cart lines and prices, delivery,
+				// coupon and exact credit spend. The server rebuilds it while holding
+				// the corresponding database locks; it is a witness, not pricing input.
+				<input type="hidden" name="checkout_quote" value={ v.QuoteID }/>
 				// No hidden `address` here. It carried the same NAME as the radios
 				// below and came FIRST, so PostFormValue returned it every time and
 				// the customer's pick was discarded — the whole chooser was inert.
@@ -274,7 +276,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 								>
 									<option value="">{ i18n.T(ctx, i18n.KeySelectPlaceholder) }</option>
 									for _, b := range v.PickupBrands {
-										<option value={ b.Value } selected?={ b.Value == v.Address.PickupBrand }>
+										<option value={ string(b.Value) } selected?={ b.Value == v.Address.PickupBrand }>
 											{ b.Label }
 										</option>
 									}
@@ -373,7 +375,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 									class="ui-radio"
 									type="radio"
 									name="invoice_type"
-									value={ c.Value }
+									value={ string(c.Value) }
 									checked?={ v.Invoice.Is(c.Value) }
 								/>
 								<span class="goen-checkout__shipname">{ c.Label }</span>
@@ -469,6 +471,12 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 							<div class="ui-summary__row">
 								<span>{ i18n.T(ctx, i18n.KeyDiscount) }({ v.CouponApplied })</span>
 								<span class="ui-summary__val">{ v.CouponDiscount() }</span>
+							</div>
+						}
+						if v.UsesCredit() {
+							<div class="ui-summary__row">
+								<span>{ i18n.T(ctx, i18n.KeyStoreCredit) }</span>
+								<span class="ui-summary__val">{ v.Credit() }</span>
 							</div>
 						}
 						<div class="ui-summary__row ui-summary__row--total">

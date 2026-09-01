@@ -4,7 +4,7 @@
 > **For:** Codex · **Run early:** this and P1 are the only two that can find defects in
 > what already exists.
 
-You are reviewing `goen`, a Traditional-Chinese 3C storefront. One Go binary, Go 1.26,
+You are reviewing `goen`, a Traditional-Chinese 3C storefront. One Go binary, Go 1.27,
 `net/http` (no framework), `templ` server-rendered HTML, PostgreSQL 18 via pgx + sqlc,
 Stripe hosted Checkout, htmx only as progressive enhancement. Read `CLAUDE.md` at the
 repository root first — it is the design record.

@@ -65,7 +65,7 @@ INSERT INTO users (id, email, full_name) VALUES
 -- The two tables that key on the ADDRESS and not on the account, so a DELETE of a user
 -- cannot reach them. Without both the erasure guard probes an empty schema and cannot fail.
 INSERT INTO contact_messages (name, email, subject, message) VALUES
-    ('王小明', 'Ming@Example.com', '出貨進度',
+    ('王小明', 'Ming@Example.com', '訂單問題',
      '我的地址是台北市信義區松高路 1 號,電話 0912345678,想問訂單什麼時候出貨');
 
 INSERT INTO newsletter_subscribers (email, unsubscribe_token) VALUES

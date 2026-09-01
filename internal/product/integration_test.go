@@ -729,6 +729,9 @@ func TestAStaffAnswerStaysStaffWhenTheAuthorChangesRole(t *testing.T) {
 	back := admin.NewStore(pool, admin.NewRefunder(""), nil, nil)
 	slug := anyActiveProduct(t)
 	customer := newCustomer(t)
+	// Keep another administrator on the roster so changing the answer author's
+	// current role exercises attribution without violating the last-admin rule.
+	_ = newShopAuthor(t)
 	staff := newShopAuthor(t)
 
 	if err := s.Ask(ctx, slug, customer, "這台支援 PD 3.1 嗎?"); err != nil {

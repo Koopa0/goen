@@ -58,7 +58,10 @@ func BenignSweepFailure(err error) bool {
 		"inventory_reservation_committed_no_release",
 		// A zero-owed order is paid for and still pending, so committed_orders
 		// reports it false while release_reservation refuses it by name.
-		"inventory_reservation_funded_no_release":
+		"inventory_reservation_funded_no_release",
+		// ExpiredReservations normally filters this state. The named refusal is
+		// the order-lock recheck when reconciliation begins after that snapshot.
+		"inventory_reservation_payment_reconciliation_no_release":
 		return true
 	default:
 		return false

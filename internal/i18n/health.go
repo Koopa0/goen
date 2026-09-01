@@ -129,9 +129,41 @@ var (
 			"no further credit note can be filed against this order.",
 	})
 
-	KeyAdminHPReconcile = key("admin.hp.reconcile", Message{
-		ZhHant: "標記為已處理",
-		En:     "Mark handled",
+	KeyAdminHPEventSafeRelease = key("admin.hp.event.safe", Message{
+		ZhHant: "確認已全額退款或已有成功入帳",
+		En:     "Confirmed fully refunded/already accounted",
+	})
+
+	KeyAdminHPCompletePaymentsHeading = key("admin.hp.completepayments", Message{
+		ZhHant: "待確認款項的 Stripe Session",
+		En:     "Stripe Sessions awaiting a money outcome",
+	})
+
+	KeyAdminHPCompletePaymentsHint = key("admin.hp.completepayments.hint", Message{
+		ZhHant: "Stripe 已將 Session 標為 complete，但系統沒有可套用的收款結果。請先到 Stripe 查清楚：若已收款，請入帳；只有確認未收款或已全額退款，才可允許顧客重新付款。這兩個結果不可混用。",
+		En: "Stripe marked the Session complete, but goen has no applicable capture outcome. " +
+			"Check Stripe first: post it as paid when money was taken; allow another attempt only " +
+			"after confirming it was unpaid or fully refunded. These outcomes are not interchangeable.",
+	})
+
+	KeyAdminHPCompleteOutcomeUnknown = key("admin.hp.completepayments.unknown", Message{
+		ZhHant: "Stripe 回報 Session complete，但尚無可套用的收款結果；請先在 Stripe 核對款項。",
+		En:     "Stripe reports the Session complete, but no applicable capture outcome is posted; verify the money in Stripe first.",
+	})
+
+	KeyAdminHPCompleteStockReleased = key("admin.hp.completepayments.stockreleased", Message{
+		ZhHant: "此訂單的庫存已退回可售；不可再入帳。請先在 Stripe 全額退款，再使用未收款／已退款結論解除閘門。",
+		En:     "This order's stock was returned to sale, so capture cannot be posted. Fully refund it in Stripe, then use the unpaid/refunded outcome to release the gate.",
+	})
+
+	KeyAdminHPCompletePaid = key("admin.hp.completepayments.paid", Message{
+		ZhHant: "確認已收款並入帳",
+		En:     "Confirmed paid — post capture",
+	})
+
+	KeyAdminHPCompleteSafeToRetry = key("admin.hp.completepayments.retry", Message{
+		ZhHant: "確認未收款或已全額退款，允許重新付款",
+		En:     "Confirmed unpaid/refunded — allow retry",
 	})
 
 	KeyAdminHPUnreconciledHeading = key("admin.hp.unreconciled", Message{
@@ -140,9 +172,10 @@ var (
 	})
 
 	KeyAdminHPUnreconciledHint = key("admin.hp.unreconciled.hint", Message{
-		ZhHant: "請依原因與事件編號檢查 Stripe。確認版本、款項歸屬或手動退款後,再標記為已處理。",
-		En: "Use the reason and event reference to investigate in Stripe. After checking the API version, " +
-			"attributing the payment, or refunding it by hand, mark the event handled.",
+		ZhHant: "請依原因與事件編號檢查 Stripe。只有確認款項已全額退款，或已有 succeeded 付款完整入帳，才可解除付款閘門；單純看過事件不算處理完成。",
+		En: "Use the reason and event reference to investigate in Stripe. Release the payment gate only " +
+			"after every cent was refunded or a succeeded payment already accounts for it; merely reading " +
+			"the event is not a resolution.",
 	})
 
 	KeyHealthSweeperClear = key("health.sweeper.clear", Message{
@@ -240,5 +273,10 @@ var (
 	KeyAdminNoticeNotFlagged = key("admin.notice.notflagged", Message{
 		ZhHant: "這筆事件已經處理過了。",
 		En:     "That event has already been dealt with.",
+	})
+
+	KeyAdminNoticePaymentMustRefund = key("admin.notice.paymentmustrefund", Message{
+		ZhHant: "庫存已退回可售，這筆款項不可入帳。請先在 Stripe 全額退款，再選擇「未收款或已全額退款」。",
+		En:     "Stock was already returned to sale, so this payment cannot be posted. Fully refund it in Stripe, then choose the unpaid/refunded outcome.",
 	})
 )

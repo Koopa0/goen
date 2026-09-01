@@ -56,7 +56,7 @@ const MembershipWindow = 365 * 24 * time.Hour
 // daylight-saving boundaries.
 func Days(d time.Duration) int32 {
 	days := int64(d / (24 * time.Hour))
-	//nolint:gosec // G115: clamped to [0, MaxInt32] on the line above, and a
-	// time.Duration caps at ~292 years so the upper bound is unreachable.
+	// A time.Duration caps at about 292 years, so the upper bound is defensive;
+	// the clamp makes the int32 conversion explicit in either direction.
 	return int32(min(max(days, 0), math.MaxInt32))
 }

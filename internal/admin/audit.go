@@ -99,7 +99,8 @@ type Event struct {
 	Table string
 	// ID is the affected row, when there is one.
 	ID uuid.NullUUID
-	// Before and After are state snapshots, either of which may be nil.
+	// Before and After are operation-local, JSON-marshalable state snapshots;
+	// auditIn encodes them before the transaction may commit. Either may be nil.
 	Before any
 	After  any
 }
@@ -134,13 +135,21 @@ func auditIn(ctx context.Context, q *db.Queries, e Event) error {
 	if !ok {
 		return fmt.Errorf("%w: %s", ErrNoActor, e.Action)
 	}
+	before, err := encodeState(e.Before)
+	if err != nil {
+		return fmt.Errorf("encode before state for %s: %w", e.Action, err)
+	}
+	after, err := encodeState(e.After)
+	if err != nil {
+		return fmt.Errorf("encode after state for %s: %w", e.Action, err)
+	}
 	if _, err := q.RecordAuditEvent(ctx, db.RecordAuditEventParams{
 		Actor:       actor,
 		Action:      string(e.Action),
 		EntityTable: e.Table,
 		EntityID:    e.ID,
-		Before:      encodeState(e.Before),
-		After:       encodeState(e.After),
+		Before:      before,
+		After:       after,
 		RequestID:   text(web.RequestID(ctx)),
 	}); err != nil {
 		return fmt.Errorf("record audit event for %s: %w", e.Action, err)
@@ -161,17 +170,18 @@ func actorFrom(ctx context.Context) (uuid.UUID, bool) {
 	return id, true
 }
 
-// encodeState turns a before/after value into jsonb, or NULL. A value that will
-// not marshal becomes NULL rather than failing the write it belongs to.
-func encodeState(v any) []byte {
+// encodeState turns a before/after value into jsonb, or NULL. Invalid state is
+// an audit failure: silently storing NULL would let the write commit with a
+// materially incomplete trail.
+func encodeState(v any) ([]byte, error) {
 	if v == nil {
-		return nil
+		return nil, nil
 	}
 	b, err := json.Marshal(v)
 	if err != nil {
-		return nil
+		return nil, err
 	}
-	return b
+	return b, nil
 }
 
 // Audit reads the trail.

@@ -108,11 +108,8 @@ func twd(cents int64) string {
 type PasswordReset struct {
 	// Locale is the language to send in, recorded by the producer.
 	Locale string `json:"locale"`
-	// Tagged, like every other payload here: erase_user reaches into the outbox
-	// by key, and an untagged field marshals under its GO name — so the one
-	// message carrying a live reset token was the one an erasure could not
-	// find. The delete is key-agnostic now as well, because a tag is a thing
-	// somebody has to remember.
+	// Tagged, like every other payload here: erase_user matches the exact
+	// recipient field and keeps the old "Email" key only for already-queued rows.
 	Email string `json:"email"`
 	Token string `json:"token"`
 }

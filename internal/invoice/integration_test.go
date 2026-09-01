@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db/dbtest"
@@ -149,6 +150,56 @@ func TestAnAcceptedInvoiceIsFiledAfterTheRequestLeaves(t *testing.T) {
 	}
 	if !filed {
 		t.Error("the provider accepted an invoice whose local record disappeared with the request")
+	}
+}
+
+// TestOfferedPreferencesMatchTheDatabaseClosedSet keeps the Go domain type and
+// invoice_preferences CHECK constraints as one contract. A new checkout choice
+// must be admitted here with the fields its semantics require; an arbitrary
+// string must still be refused by the named closed-set constraint.
+func TestOfferedPreferencesMatchTheDatabaseClosedSet(t *testing.T) {
+	ctx := t.Context()
+
+	for _, preference := range OfferedPreferences() {
+		t.Run(string(preference), func(t *testing.T) {
+			number := orderToInvoice(t, 10000, 0, 0)
+
+			var carrierCode, taxID *string
+			if preference.NeedsCarrier() {
+				value := "/AB12345"
+				carrierCode = &value
+			}
+			if preference.NeedsTaxID() {
+				value := "12345678"
+				taxID = &value
+			}
+
+			result, err := pool.Exec(ctx, `
+				UPDATE invoice_preferences ip
+				SET invoice_type = $2, carrier_code = $3, tax_id = $4
+				FROM orders o
+				WHERE ip.order_id = o.id AND o.order_number = $1`,
+				number, string(preference), carrierCode, taxID)
+			if err != nil {
+				t.Fatalf("database refused offered preference %q: %v", preference, err)
+			}
+			if result.RowsAffected() != 1 {
+				t.Fatalf("stored offered preference %q in %d rows, want 1",
+					preference, result.RowsAffected())
+			}
+		})
+	}
+
+	number := orderToInvoice(t, 10000, 0, 0)
+	_, err := pool.Exec(ctx, `
+		UPDATE invoice_preferences ip
+		SET invoice_type = 'paper', carrier_code = NULL, tax_id = NULL
+		FROM orders o
+		WHERE ip.order_id = o.id AND o.order_number = $1`, number)
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	if !ok || pgErr.ConstraintName != "invoice_preferences_type_known" {
+		t.Fatalf("unknown preference error = %v, want constraint %q",
+			err, "invoice_preferences_type_known")
 	}
 }
 

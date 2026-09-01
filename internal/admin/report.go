@@ -9,8 +9,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// ReportWindows are the periods the report offers.
-var ReportWindows = []int32{7, 30, 90}
+// reportWindows are the periods the report offers.
+var reportWindows = [...]int32{7, 30, 90}
 
 // DefaultWindow is what the page opens on.
 const DefaultWindow int32 = 30
@@ -45,6 +45,8 @@ func (s *Store) Report(ctx context.Context, days int32) (pages.AdminReportView, 
 		return pages.AdminReportView{}, fmt.Errorf("read stock at risk: %w", err)
 	}
 
+	windows := make([]int32, len(reportWindows))
+	copy(windows, reportWindows[:])
 	view := pages.AdminReportView{
 		Days:         int(days),
 		Orders:       revenue.Orders,
@@ -52,7 +54,7 @@ func (s *Store) Report(ctx context.Context, days int32) (pages.AdminReportView, 
 		AverageCents: revenue.AverageCents,
 		Placed:       completion.Placed,
 		Committed:    completion.Committed,
-		Windows:      ReportWindows,
+		Windows:      windows,
 	}
 	for i := range sellers {
 		r := &sellers[i]
@@ -74,5 +76,5 @@ func (s *Store) Report(ctx context.Context, days int32) (pages.AdminReportView, 
 
 // validWindow is an allowlist, never a range: it reaches a scanning query.
 func validWindow(days int32) bool {
-	return slices.Contains(ReportWindows, days)
+	return slices.Contains(reportWindows[:], days)
 }

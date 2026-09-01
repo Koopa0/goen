@@ -91,9 +91,9 @@ templ AdminHealth(p layouts.Page, v *WorkerHealthView) {
 					</table>
 				</div>
 			}
-			if len(v.Unreconciled) > 0 {
-				// Named, not counted: the event and provider ref are what let a person
-				// investigate an unreadable object or find money goen could not apply.
+			if len(v.UnreconciledEvents) > 0 {
+				// A webhook event is resolved by its event id. Keep that identity
+				// concrete rather than overloading a payment-provider reference.
 				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminHPUnreconciledHeading) }</h2>
 				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHPUnreconciledHint) }</p>
 				<div class="goen-admin__tablewrap">
@@ -105,11 +105,11 @@ templ AdminHealth(p layouts.Page, v *WorkerHealthView) {
 								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColProviderRef) }</th>
 								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColReason) }</th>
 								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColStarted) }</th>
-								<th scope="col"><span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminHPReconcile) }</span></th>
+								<th scope="col"><span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminHPEventSafeRelease) }</span></th>
 							</tr>
 						</thead>
 						<tbody>
-							for _, u := range v.Unreconciled {
+							for _, u := range v.UnreconciledEvents {
 								<tr>
 									<td>{ u.EventID }</td>
 									<td>{ u.Type }</td>
@@ -119,8 +119,58 @@ templ AdminHealth(p layouts.Page, v *WorkerHealthView) {
 									<td>
 										<form method="post" action="/admin/health/reconcile">
 											<input type="hidden" name="event" value={ u.EventID }/>
+											<input type="hidden" name="event_resolution" value="fully_refunded_or_accounted"/>
 											<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">
-												{ i18n.T(ctx, i18n.KeyAdminHPReconcile) }
+												{ i18n.T(ctx, i18n.KeyAdminHPEventSafeRelease) }
+											</button>
+										</form>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+			if len(v.UnreconciledCompletePayments) > 0 {
+				// A provider-complete payment is resolved by its provider reference;
+				// it is not a synthetic webhook event.
+				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminHPCompletePaymentsHeading) }</h2>
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHPCompletePaymentsHint) }</p>
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table goen-admin__table">
+						<thead>
+							<tr>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColOrder) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColProviderRef) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColReason) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColStarted) }</th>
+								<th scope="col"><span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminHPCompletePaymentsHeading) }</span></th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, p := range v.UnreconciledCompletePayments {
+								<tr>
+									<td>
+										<a href={ templ.SafeURL("/admin/orders/" + p.OrderNumber) }>{ p.OrderNumber }</a>
+									</td>
+									<td>{ p.ProviderRef }</td>
+									<td>{ p.Reason(ctx) }</td>
+									<td>{ p.Since }</td>
+									<td>
+										if p.PaidAttributionAllowed {
+											<form method="post" action="/admin/health/reconcile">
+												<input type="hidden" name="payment" value={ p.ProviderRef }/>
+												<input type="hidden" name="resolution" value="paid"/>
+												<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">
+													{ i18n.T(ctx, i18n.KeyAdminHPCompletePaid) }
+												</button>
+											</form>
+										}
+										<form method="post" action="/admin/health/reconcile">
+											<input type="hidden" name="payment" value={ p.ProviderRef }/>
+											<input type="hidden" name="resolution" value="unpaid_or_refunded"/>
+											<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">
+												{ i18n.T(ctx, i18n.KeyAdminHPCompleteSafeToRetry) }
 											</button>
 										</form>
 									</td>

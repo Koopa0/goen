@@ -137,6 +137,11 @@ var checkCases = []checkCase{
 		accept:     `INSERT INTO categories (id, slug, name, name_en, position) VALUES ('00000091-0000-4000-8000-000000000091', 'blank-en', '空白英文', 'Blank English', 12);`,
 	},
 	{
+		constraint: "categories_icon_key_known",
+		reject:     `INSERT INTO categories (id, slug, name, icon_key, position) VALUES ('00000092-0000-4000-8000-000000000092', 'unknown-icon', '未知圖示', 'rocket', 15);`,
+		accept:     `INSERT INTO categories (id, slug, name, icon_key, position) VALUES ('00000092-0000-4000-8000-000000000092', 'known-icon', '已知圖示', 'laptop', 15);`,
+	},
+	{
 		constraint: "categories_not_own_parent",
 		reject:     `SET LOCAL session_replication_role = replica; INSERT INTO categories (id, parent_id, slug, name, position) VALUES ('11110002-0000-4000-8000-000000000001', '11110002-0000-4000-8000-000000000001', 'tablets', '平板', 13);`,
 		accept:     `SET LOCAL session_replication_role = replica; INSERT INTO categories (id, parent_id, slug, name, position) VALUES ('11110002-0000-4000-8000-000000000001', '22222222-2222-4222-8222-222222222222', 'tablets', '平板', 13);`,
@@ -147,9 +152,14 @@ var checkCases = []checkCase{
 		accept:     `INSERT INTO categories (id, slug, name, position) VALUES ('11110002-0000-4000-8000-000000000001', 'tablets', '平板', 11);`,
 	},
 	{
-		constraint: "checkout_attempts_key_present",
-		reject:     `INSERT INTO checkout_attempts (idempotency_key) VALUES (E'\t');`,
-		accept:     `INSERT INTO checkout_attempts (idempotency_key) VALUES ('co_11110001-0000');`,
+		constraint: "checkout_attempts_key_format",
+		reject:     `INSERT INTO checkout_attempts (idempotency_key) VALUES ('MDAwMDAwMDAwMDAwMDAwM');`,
+		accept:     `INSERT INTO checkout_attempts (idempotency_key) VALUES ('MDAwMDAwMDAwMDAwMDAwMQ');`,
+	},
+	{
+		constraint: "checkout_attempts_key_nonzero",
+		reject:     `INSERT INTO checkout_attempts (idempotency_key) VALUES ('AAAAAAAAAAAAAAAAAAAAAA');`,
+		accept:     `INSERT INTO checkout_attempts (idempotency_key) VALUES ('MDAwMDAwMDAwMDAwMDAwMg');`,
 	},
 	{
 		constraint: "contact_messages_email_present",
@@ -167,8 +177,8 @@ var checkCases = []checkCase{
 		accept:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', 'ming@example.com', '訂單問題', '請問出貨時間');`,
 	},
 	{
-		constraint: "contact_messages_subject_present",
-		reject:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', 'ming@example.com', E'\t', '請問出貨時間');`,
+		constraint: "contact_messages_subject_known",
+		reject:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', 'ming@example.com', '其他', '請問出貨時間');`,
 		accept:     `INSERT INTO contact_messages (name, email, subject, message) VALUES ('王小明', 'ming@example.com', '訂單問題', '請問出貨時間');`,
 	},
 	{
@@ -1450,8 +1460,8 @@ var uniqueCases = []uniqueCase{
 	},
 	{
 		index:  "checkout_attempts_order_key",
-		reject: `INSERT INTO checkout_attempts (idempotency_key, order_id) VALUES ('co_key_a', '66666666-6666-4666-8666-666666666666'); INSERT INTO checkout_attempts (idempotency_key, order_id) VALUES ('co_key_b', '66666666-6666-4666-8666-666666666666');`,
-		accept: `INSERT INTO checkout_attempts (idempotency_key, order_id) VALUES ('co_key_a', NULL); INSERT INTO checkout_attempts (idempotency_key, order_id) VALUES ('co_key_b', NULL);`,
+		reject: `INSERT INTO checkout_attempts (idempotency_key, order_id) VALUES ('MDAwMDAwMDAwMDAwMDAwMQ', '66666666-6666-4666-8666-666666666666'); INSERT INTO checkout_attempts (idempotency_key, order_id) VALUES ('MDAwMDAwMDAwMDAwMDAwMg', '66666666-6666-4666-8666-666666666666');`,
+		accept: `INSERT INTO checkout_attempts (idempotency_key, order_id) VALUES ('MTExMTExMTExMTExMTExMQ', NULL); INSERT INTO checkout_attempts (idempotency_key, order_id) VALUES ('YWJjZGVmZ2hpamtsbW5vcA', NULL);`,
 	},
 	{
 		index:  "faq_entries_position_key",
@@ -1560,6 +1570,17 @@ VALUES ('66666666-6666-4666-8666-666666666666', '4444aaaa-4444-4444-8444-4444444
 		index:  "outbox_messages_dedupe_key",
 		reject: `INSERT INTO outbox_messages (topic, dedupe_key, payload) VALUES ('order.shipped', 'order-66666666-shipped', '{}'::jsonb); INSERT INTO outbox_messages (topic, dedupe_key, payload) VALUES ('order.shipped', 'order-66666666-shipped', '{}'::jsonb);`,
 		accept: `INSERT INTO outbox_messages (topic, dedupe_key, payload) VALUES ('order.shipped', 'order-66666666-shipped', '{}'::jsonb); INSERT INTO outbox_messages (topic, dedupe_key, payload) VALUES ('order.shipped', 'order-77777777-shipped', '{}'::jsonb);`,
+	},
+	{
+		index: "payments_one_active_per_order",
+		reject: `INSERT INTO payments (id, order_id, provider_ref, status, intended_amount_cents)
+		         VALUES ('11110004-0000-4000-8000-000000000003','6666aaaa-6666-4666-8666-666666666666','pi_active_first','requires_payment',3690000);
+		         INSERT INTO payments (id, order_id, provider_ref, status, intended_amount_cents)
+		         VALUES ('11110004-0000-4000-8000-000000000004','6666aaaa-6666-4666-8666-666666666666','pi_active_second','processing',3690000);`,
+		accept: `INSERT INTO payments (id, order_id, provider_ref, status, intended_amount_cents)
+		         VALUES ('11110004-0000-4000-8000-000000000003','6666aaaa-6666-4666-8666-666666666666','pi_active_first','requires_payment',3690000);
+		         INSERT INTO payments (id, order_id, provider_ref, status, intended_amount_cents)
+		         VALUES ('11110004-0000-4000-8000-000000000004','6666aaaa-6666-4666-8666-666666666666','pi_terminal_neighbour','cancelled',3690000);`,
 	},
 	{
 		index:  "payments_one_capture_per_order",

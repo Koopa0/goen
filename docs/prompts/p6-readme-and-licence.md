@@ -4,7 +4,7 @@
 > **For:** Codex · **Order:** any time.
 
 `goen` is a Traditional-Chinese 3C storefront and a Go full-stack showcase project: one
-Go binary, Go 1.26, `net/http` (no framework), `templ` server-rendered HTML,
+Go binary, Go 1.27, `net/http` (no framework), `templ` server-rendered HTML,
 PostgreSQL 18 via pgx + sqlc, Stripe hosted Checkout, htmx only as progressive
 enhancement.
 

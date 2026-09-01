@@ -3,6 +3,15 @@
 SELECT id, email, password_hash, full_name, role
 FROM users WHERE lower(email) = lower($1);
 
+-- A reset token and its outbox message are created while this lock is held.
+-- erase_user takes FOR UPDATE on the same row, so either both reset records
+-- commit first and erasure purges them, or erasure wins and this returns no row.
+-- name: UserForPasswordReset :one
+SELECT id, email
+FROM users
+WHERE lower(email) = lower($1)
+FOR KEY SHARE;
+
 -- name: UserByID :one
 SELECT id, email, full_name, phone, role, created_at,
        (password_hash IS NOT NULL)::boolean AS has_password
@@ -58,6 +67,14 @@ VALUES (@token_hash, @user_id, now() + @ttl::interval);
 SELECT user_id FROM password_reset_tokens
 WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now();
 
+-- Completion takes the account row before it spends the token. erase_user uses
+-- the same user-before-token order, so the two operations cannot deadlock. The
+-- exclusive row lock also serializes different live tokens for one account;
+-- otherwise two KEY SHARE holders can deadlock while both upgrade to write the
+-- password, or let the later writer silently replace the earlier reset.
+-- name: LockUserForPasswordReset :one
+SELECT id FROM users WHERE id = @user_id::uuid FOR UPDATE;
+
 -- used_at IS NULL is in the WHERE, so two requests carrying one token cannot both
 -- win, and the caller runs this in the SAME transaction as the password change.
 -- name: SpendPasswordResetToken :one
@@ -70,6 +87,15 @@ RETURNING user_id;
 UPDATE password_reset_tokens SET used_at = now()
 WHERE user_id = $1 AND used_at IS NULL;
 
+-- Once an account moves to a new mailbox, a queued reset for its old address is
+-- both dead authority and retained PII. Keep this query operation-specific: an
+-- address change has no authority to remove other outbox topics.
+-- name: DeletePasswordResetMessagesForEmail :exec
+DELETE FROM outbox_messages
+WHERE topic = 'account.password_reset'
+  AND lower(coalesce(payload ->> 'email', payload ->> 'Email', '')) =
+      lower(@email::text);
+
 -- Quantities add rather than replace, capped at the line ceiling.
 -- name: MergeCartItems :exec
 INSERT INTO cart_items (cart_id, variant_id, quantity)
@@ -77,11 +103,27 @@ SELECT $2, src.variant_id, src.quantity FROM cart_items src WHERE src.cart_id = 
 ON CONFLICT (cart_id, variant_id) DO UPDATE
 SET quantity = least(cart_items.quantity + EXCLUDED.quantity, 999);
 
+-- The account row is the stable lock for deciding which of two guest carts is
+-- the first one this user adopts. A SECURITY DEFINER function is required
+-- because store has only narrow authentication-column UPDATE grants, not
+-- authority for a general users row lock.
+-- name: LockUserForCartAdoption :one
+SELECT lock_user_for_cart_adoption(@user_id::uuid);
+
 -- name: CartForUser :one
 SELECT id FROM carts WHERE user_id = $1;
 
--- name: AdoptCart :exec
-UPDATE carts SET user_id = $2 WHERE id = $1;
+-- Read only after LockCarts has returned. The recheck keeps a second account
+-- carrying the same guest cookie from taking over a cart the first account just
+-- adopted.
+-- name: CartOwner :one
+SELECT user_id FROM carts WHERE id = @cart_id::uuid;
+
+-- The predicate is a final ownership fence in addition to CartOwner. :execrows
+-- makes a lost race distinguishable from a successful adoption.
+-- name: AdoptCart :execrows
+UPDATE carts SET user_id = @user_id::uuid
+WHERE id = @cart_id::uuid AND user_id IS NULL;
 
 -- name: DeleteCart :exec
 DELETE FROM carts WHERE id = $1;
@@ -251,6 +293,16 @@ SELECT
               WHERE n.min_spend_cents > member_spend(@user_id, @window_days::integer, NULL)
               ORDER BY n.min_spend_cents LIMIT 1), 0)::bigint AS next_needs_cents;
 
+-- Delete the queued copy before replacing its verification row. Both statements
+-- run after the user lock in the same transaction, so every surviving message
+-- has a surviving digest that erasure can identify without claiming the mailbox.
+-- name: DeleteOutstandingEmailVerificationMessage :exec
+DELETE FROM outbox_messages m
+USING email_verifications v
+WHERE v.user_id = @user_id::uuid
+  AND m.topic = 'account.email_verify'
+  AND m.dedupe_key = 'verify:' || encode(v.digest, 'hex');
+
 -- Replaces any earlier request, so a mailbox holds one live link.
 -- name: RequestEmailVerification :exec
 INSERT INTO email_verifications (user_id, email, digest, expires_at)
@@ -266,6 +318,15 @@ ON CONFLICT (user_id) DO UPDATE
 DELETE FROM email_verifications
 WHERE digest = $1 AND expires_at > now()
 RETURNING user_id, email;
+
+-- A plain lookup names the account to lock before SpendEmailVerification takes
+-- the token row. erase_user uses the same user-before-token order.
+-- name: EmailVerificationToken :one
+SELECT user_id, email FROM email_verifications
+WHERE digest = $1 AND expires_at > now();
+
+-- name: LockUserForEmailVerification :one
+SELECT id, email FROM users WHERE id = @user_id::uuid FOR UPDATE;
 
 -- One statement, because an address goen has proved and one goen is using must
 -- not be able to disagree. users_email_key catches an address taken in between.

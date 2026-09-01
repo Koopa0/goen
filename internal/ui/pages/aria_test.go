@@ -75,7 +75,7 @@ func TestEveryRefusedFieldNamesItsError(t *testing.T) {
 			}
 		}
 		for _, m := range describedBy.FindAllStringSubmatch(src, -1) {
-			for _, ref := range strings.Fields(m[1] + " " + m[2]) {
+			for ref := range strings.FieldsSeq(m[1] + " " + m[2]) {
 				if !strings.HasSuffix(ref, "-error") {
 					continue // a hint is a legitimate second reference
 				}

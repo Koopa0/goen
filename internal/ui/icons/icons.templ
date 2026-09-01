@@ -93,19 +93,19 @@ templ Star() {
 // Category renders the tile glyph, and nothing for a key it does not know.
 templ Category(key string) {
 	switch key {
-		case "phone":
+		case categoryPhone:
 			@Smartphone()
-		case "laptop":
+		case categoryLaptop:
 			@Laptop()
-		case "tablet":
+		case categoryTablet:
 			@Tablet()
-		case "headphones":
+		case categoryHeadphones:
 			@Headphones()
-		case "watch":
+		case categoryWatch:
 			@Watch()
-		case "plug":
+		case categoryPlug:
 			@Plug()
-		case "shield":
+		case categoryShield:
 			@Shield()
 	}
 }

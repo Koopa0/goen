@@ -9,19 +9,21 @@ import (
 
 	stripe "github.com/stripe/stripe-go/v86"
 
-	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/payment"
 )
 
 // TestAPlacedOrderCanActuallyBePaidFor holds that an order placed through
 // checkout can still open a Checkout Session when the customer presses Pay.
-// Time has to PASS here and the hold has to come from cart.HoldTTL.
+// Time has to PASS here: checkout's one-hour hold must leave Stripe's
+// 30-minute floor plus its one-minute start margin after a 29-minute pay window.
 func TestAPlacedOrderCanActuallyBePaidFor(t *testing.T) {
 	t.Parallel()
+	const expectedPayWindow = 29 * time.Minute
+	const checkoutHold = time.Hour
 
 	placedAt := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
-	o := payment.Order{Number: "GO-1", TotalCents: 199900, HoldExpiresAt: placedAt.Add(cart.HoldTTL)}
+	o := payment.Order{Number: "GO-1", TotalCents: 199900, HoldExpiresAt: placedAt.Add(checkoutHold)}
 
 	tests := []struct {
 		name    string
@@ -29,46 +31,32 @@ func TestAPlacedOrderCanActuallyBePaidFor(t *testing.T) {
 		want    bool
 	}{
 		{name: "one second after placing", elapsed: time.Second, want: true},
-		{name: "halfway through the pay window", elapsed: cart.PayWindow / 2, want: true},
-		{name: "at the last moment of the pay window", elapsed: cart.PayWindow, want: true},
+		{name: "halfway through the pay window", elapsed: expectedPayWindow / 2, want: true},
+		{name: "at the last moment of the pay window", elapsed: expectedPayWindow, want: true},
 		// Past the window the remaining hold is under Stripe's floor.
-		{name: "one second past the pay window", elapsed: cart.PayWindow + time.Second, want: false},
-		{name: "long past it", elapsed: cart.HoldTTL, want: false},
+		{name: "one second past the pay window", elapsed: expectedPayWindow + time.Second, want: false},
+		{name: "long past it", elapsed: checkoutHold, want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			if got := o.HoldCoversASession(placedAt.Add(tt.elapsed)); got != tt.want {
 				t.Errorf("HoldCoversASession(%s after placing) = %v, want %v — "+
-					"cart.HoldTTL=%s, cart.PayWindow=%s, payment.MinSessionLifetime=%s",
+					"checkout hold=%s, expected pay window=%s",
 					tt.elapsed, got, tt.want,
-					cart.HoldTTL, cart.PayWindow, payment.MinSessionLifetime)
+					checkoutHold, expectedPayWindow)
 			}
 		})
 	}
 }
 
-// TestTheMirroredStripeFloorMatchesTheRealOne binds the copy cart keeps against
-// the constant payment owns; a drift is invisible until no session opens.
-func TestTheMirroredStripeFloorMatchesTheRealOne(t *testing.T) {
-	t.Parallel()
-
-	if cart.StripeSessionFloor != payment.MinSessionLifetime {
-		t.Errorf("cart.StripeSessionFloor = %s, payment.MinSessionLifetime = %s — "+
-			"cart sizes its stock hold from its copy, so a drift here silently "+
-			"changes whether a session can be opened at all",
-			cart.StripeSessionFloor, payment.MinSessionLifetime)
-	}
-	if cart.HoldTTL <= payment.MinSessionLifetime {
-		t.Errorf("cart.HoldTTL = %s is not longer than payment.MinSessionLifetime = %s, "+
-			"so no session can ever be created: the hold is stamped at placement and "+
-			"read at pay time, so the gate reduces to placed_at >= pay_at",
-			cart.HoldTTL, payment.MinSessionLifetime)
-	}
-}
-
 // A signing secret for the tests only; it authenticates nothing that exists.
 const testWebhookSecret = "whsec_thisisatestsecretforgoenonly" //nolint:gosec // G101: test fixture
+
+// legacyWebhookAPIVersion is deliberately different from stripe.APIVersion.
+// Event payloads keep the version they were created with, even after the
+// account and this binary move to a newer version.
+const legacyWebhookAPIVersion = "2022-11-15"
 
 // signed produces a webhook body and header exactly as Stripe would sign them.
 func signed(t *testing.T, body any) (payload []byte, header string) {
@@ -160,6 +148,34 @@ func TestWebhookAcceptsAGenuineSignature(t *testing.T) {
 	}
 	if ev.ID != "evt_ok" {
 		t.Errorf("event id is %q, want evt_ok", ev.ID)
+	}
+}
+
+// TestWebhookReadsASignedOlderVersionByShape locks the deliberate webhook
+// version policy: api_version is metadata about the immutable event payload,
+// not a reason to reject an otherwise authentic shape this binary understands.
+// Removing IgnoreAPIVersionMismatch makes verification fail before CaptureFrom
+// gets the opportunity to classify the payload.
+func TestWebhookReadsASignedOlderVersionByShape(t *testing.T) {
+	g := enabledGateway(t)
+	event := sessionEvent("evt_old_version", "cs_old_version", "paid", 199900)
+	event["api_version"] = legacyWebhookAPIVersion
+	body, header := signed(t, event)
+
+	ev, err := g.VerifyWebhook(body, header)
+	if err != nil {
+		t.Fatalf("rejected a genuine %s event: %v", legacyWebhookAPIVersion, err)
+	}
+	if ev.APIVersion != legacyWebhookAPIVersion {
+		t.Errorf("event api_version = %q, want the signed value %q",
+			ev.APIVersion, legacyWebhookAPIVersion)
+	}
+	capture, ok := payment.CaptureFrom(&ev)
+	if !ok {
+		t.Fatal("the older api_version overrode a paid Checkout Session shape")
+	}
+	if capture.SessionID != "cs_old_version" || capture.AmountRecv != 199900 {
+		t.Errorf("capture = %+v, want session cs_old_version and amount 199900", capture)
 	}
 }
 
@@ -504,7 +520,9 @@ func TestASessionIsNeverOpenedOnALapsedHold(t *testing.T) {
 	}{
 		// `now` is both the base and the instant the gate is asked at, so this
 		// is the zero-elapsed case and nothing else.
-		{"exactly at Stripe's floor", now.Add(30 * time.Minute), true},
+		{"exactly at Stripe's floor", now.Add(30 * time.Minute), false},
+		{"one nanosecond below the safe boundary", now.Add(31*time.Minute - time.Nanosecond), false},
+		{"exactly at the safe boundary", now.Add(31 * time.Minute), true},
 		{"an hour of hold left", now.Add(time.Hour), true},
 		{"a second under Stripe's floor", now.Add(30*time.Minute - time.Second), false},
 		{"five minutes left", now.Add(5 * time.Minute), false},

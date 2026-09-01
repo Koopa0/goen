@@ -117,7 +117,7 @@ func (s *Store) Issue(ctx context.Context, orderNumber string) (Document, error)
 		OrderNumber:  relateNumber(subject.OrderNumber, subject.Attempt),
 		CustomerName: subject.CustomerName,
 		Email:        subject.Email,
-		Preference:   subject.InvoiceType,
+		Preference:   Preference(subject.InvoiceType),
 		CarrierCode:  subject.CarrierCode,
 		TaxID:        subject.TaxID,
 		AmountCents:  subject.TotalCents,
@@ -506,10 +506,7 @@ func snapToDollars(lines []Line, headerCents int64) []Line {
 
 	var given int64
 	for i := range lines {
-		q := int64(lines[i].Quantity)
-		if q < 1 {
-			q = 1
-		}
+		q := max(int64(lines[i].Quantity), 1)
 		// Down to a whole dollar PER UNIT, so price × count is the amount.
 		unit := lines[i].AmountCents / q / 100
 		lines[i].UnitPriceCents = unit * 100

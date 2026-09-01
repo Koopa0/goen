@@ -27,6 +27,16 @@ var (
 	differentCipherKey = []byte("fedcba9876543210fedcba9876543210")
 )
 
+func TestEveryAcceptedStaffRoleHasALabel(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	for _, role := range roles {
+		if label := roleLabel(ctx, role); label == "" || label == role {
+			t.Errorf("roleLabel(%q) = %q, want a catalogue label", role, label)
+		}
+	}
+}
+
 func mustParseKey(t *testing.T, value string) []byte {
 	t.Helper()
 	key, err := ParseKey(value)

@@ -4,7 +4,7 @@
 > **For:** Codex · **Order:** any time.
 
 `goen` is a Traditional-Chinese 3C 選品店 — a curated shop whose stated promise is
-規格看得懂. One Go binary, Go 1.26, `net/http` (no framework), `templ` server-rendered
+規格看得懂. One Go binary, Go 1.27, `net/http` (no framework), `templ` server-rendered
 HTML, PostgreSQL 18 via pgx + sqlc, Stripe hosted Checkout, htmx only as progressive
 enhancement.
 

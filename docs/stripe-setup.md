@@ -3,7 +3,8 @@
 沙盒商家 **Goen**(US 帳號)。本文記錄 goen 怎麼接 Stripe、目前確認可用的部分,
 以及還需要你動手的一件事。
 
-所有數字都是 **2026-07-27 對真的 Stripe test API 實測**的結果,不是推論。
+Stripe 帳號能力的觀察來自 **2026-07-27 的 test API 實測**;SDK 與 wire contract
+則在 **2026-08-28** 依目前程式重新驗證。
 
 ## 為什麼是 hosted Checkout,不是 Elements
 
@@ -21,7 +22,7 @@ hosted Checkout 是伺服器端建 session + `303 See Other`,正好是規則要�
 | API key | 可用 | `GET /v1/account` 回 `Goen` |
 | TWD 收款 | 可用 | 用 US 沙盒建了一張 2,590,000 TWD 的 session,成功 |
 | card 付款方式 | 已啟用 | `GET /v1/payment_method_configurations` |
-| SDK | `stripe-go/v86` (API `2026-06-24.dahlia`) | `make verify-all` 綠 |
+| SDK | `stripe-go/v86.4.0` (API `2026-08-26.dahlia`) | HTTP contract tests 與 `make verify-all` 綠 |
 | goen 建立 session | 可用 | `POST /orders/{number}/pay` → 303 到 `checkout.stripe.com` |
 | **webhook 簽章密鑰** | **缺** | `GET /v1/webhook_endpoints` 回 0 筆 |
 
@@ -30,8 +31,10 @@ hosted Checkout 是伺服器端建 session + `303 See Other`,正好是規則要�
 
 ## 你需要做的一件事:webhook
 
-**這是唯一還缺的東西,也是整個金流最要緊的一環** —— goen 只認簽章驗證過的
-webhook,顧客回到 `success_url` 不會讓任何訂單變成已付款(那個網址誰都能開)。
+**這是唯一還缺的東西,也是整個金流最要緊的一環** —— 正常、自動入帳只認簽章
+驗證過的 webhook；顧客回到 `success_url` 永遠不會讓訂單變成已付款(那個網址誰都
+能開)。唯一人工例外是後台查證 provider-complete、且沒有 flagged event 的 Session
+後，透過留有 audit、仍受同一組 capture guards 約束的 recovery outcome 入帳。
 
 開發環境不能用 Dashboard 建 endpoint,因為 Stripe 連不到 `127.0.0.1`。要用 CLI:
 
@@ -88,14 +91,21 @@ goen 正確地不把它當成收款 —— 而真正的成功是隨後另一個�
 | `checkout.session.async_payment_failed` | `cancel_payment()` |
 | `checkout.session.expired` | `cancel_payment()` |
 
-已付款事件還有兩個不能自動完成、但一定要留下可處理記錄的終局:
+事件還有四個不能自動完成、但一定要留下可處理記錄的終局:
+
+- `unreadable_event`:已訂閱、會採取動作的事件,但 `data.object` 不是目前 binary
+  能理解的形狀;先查 endpoint API version 與原始 payload。
 
 - `unattributed_capture`:Stripe 的 paid Checkout Session 在本機沒有 payment row;
   不猜訂單、不補造 payment,用 event 的 `object_ref` 到 Stripe 查。
 - `cancelled_order_capture`:錢到時訂單已取消;本機拒絕入帳,由人員在 Stripe 退款。
+- `refused_capture`:session 在本機有 payment row,但實收金額、訂單應付金額或另一個
+  穩定資料庫不變量拒絕入帳。這代表 Stripe 已收款,不能靠重送修復;在人工確認／退款
+  並把事件標為 reconciled 前,同一張訂單不得再建立新的 Checkout Session。
 
-兩者都以 ERROR 記錄、出現在 `/admin/health`,並回 200。`reconciled_at` 是人員完成
-查核或手動退款後的確認開關;原因文字和原始 payload 仍保留作為歷史。
+四者都以 ERROR 記錄、出現在 `/admin/health`,並回 200。事件的 `reconciled_at`
+只能由一個明確結論設定:Stripe 端每一分錢都已全額退款,或已有 succeeded payment
+完整入帳;單純「看過／查過」不能解除付款閘門。原因文字和原始 payload 仍保留作為歷史。
 
 ## 流程
 
@@ -112,19 +122,35 @@ GET /orders/{number}/pay
      其他人拿到的是 404(不是 403 —— 403 等於確認這個編號是真的)
 
 POST /orders/{number}/pay
-  └─ 金額從訂單明細「重新計算」,不看表單任何欄位
-  └─ 先問資料庫:這筆訂單「就這個金額」還有沒有開著的 session?
-       有 → 向 Stripe 讀回那一個,還開著就直接轉址過去(不再建第二個)
-             已經結束(付掉/處理中/過期)→ 送回訂單頁,不建第二個
-             讀不到(網路錯) → 500,一樣不建第二個
-       沒有 → 往下
-  └─ 檢查庫存保留還剩多久。不足 30 分鐘(Stripe 的下限)就告訴顧客保留已經失效,
+  └─ 先問資料庫:這筆訂單有沒有任何非終局 session,或仍待人工處理的 provider event?
+       待對帳 → 409,不呼叫 Stripe,直到人員完成查核／退款並 reconcile
+       同金額 session → 向 Stripe 做一次新的 Retrieve:
+         open → 直接轉址過去(不再建第二個)
+         expired → 本機改成 cancelled;下次使用新的 attempt generation
+         complete → 寫 `requires_reconciliation`,不取消、不替代;等可能仍在路上的
+                    paid webhook,同時讓 `/admin/health` 有可操作的 durable alarm
+         讀不到或未知狀態 → 保守回 500,不建第二個
+       舊金額 session → 也是先 Retrieve:
+         open → Stripe 明確 expire 成功後,本機才改 cancelled
+         expired → 直接收斂本機 cancelled(涵蓋上次 DB 寫入失敗)
+         complete → 以原 session 的 intended amount 寫 `requires_reconciliation`,拒絕替代
+         讀不到／未知狀態 → 拒絕替代,避免第二次扣款
+       沒有非終局 session → 往下
+  └─ 檢查庫存保留還剩多久。不足 31 分鐘(Stripe 的 30 分鐘下限 + 1 分鐘
+     建立裕量)就告訴顧客保留已經失效,
      不送他們去一個可能付到別人已經買走的貨的結帳頁
   └─ 建 Stripe Checkout Session
        expires_at = 這筆訂單「庫存保留」的到期時間,不是 now()+30 分鐘
        Idempotency-Key = 訂單編號 + 應付金額 + 第幾次嘗試
-  └─ open_payment() 寫下 payment row(狀態 requires_payment)—— 在轉址之前
-  └─ 303 → checkout.stripe.com
+  └─ open_payment() 在 order row lock 內重新檢查:
+       訂單仍 pending、尚未 funded、應付金額未變、沒有待對帳事件、
+       且每張訂單仍只有一個 active payment;通過才寫 requires_payment row
+       任何失敗 → 用不繼承瀏覽器取消的短 timeout 關閉剛建立的 Stripe Session;
+                   Stripe 明確確認 expired 後寫 cancelled tombstone,讓 attempt/key 前進
+  └─ 寫入成功後再向 Stripe 做新的 Retrieve(不能相信 idempotent Create 的舊回應)
+       open → 303 → checkout.stripe.com
+       expired → 本機 cancelled,不轉址
+       complete → 本機 `requires_reconciliation`,不轉址、不開下一個 generation
 
 顧客在 Stripe 頁面付款
 
@@ -132,19 +158,30 @@ success_url → /orders/{number}?paid=1
   └─ 這只是一個頁面。它不會把任何東西標記為已付款。
 ```
 
-### 錢真正入帳的唯一路徑
+### 自動入帳與稽核復原
 
 ```
 POST /webhooks/stripe
   └─ 驗簽章 —— 失敗回 400(重試也不會變對)
   └─ 一個交易裡:
        claim 事件(provider, event_id 主鍵 → 重送會拿到 0 筆)
-       capture_payment()
-       寫 'paid' 事件
-     └─ 任何一步失敗 → 整個 rollback,連 claim 也退掉
+       capture_payment() 在 SAVEPOINT 內
+       成功 → 寫 'paid' 事件
+       穩定的不變量拒絕 → rollback 到 SAVEPOINT、寫 `refused_capture`,保留 claim
+     └─ 暫時性資料庫錯誤或其他未知失敗 → 整個 rollback,連 claim 也退掉
         (否則 Stripe 重送會被告知「已處理」然後停止 —— 錢在 Stripe、
          訂單永遠未付款)
   └─ 回 200
+
+POST /admin/health/reconcile
+  ├─ unapplied event:
+  │    只有「已全額退款／已有 succeeded 完整入帳」可以 release event 與付款閘門
+  └─ complete payment（沒有 outstanding event）:
+       confirmed paid → 以 payment row 的 immutable intent 走 capture_payment，
+                        paid timeline、loyalty、outbox、audit 同一交易
+       confirmed unpaid/refunded → payment 進 terminal reconciled，才解除付款閘門
+       若 stock hold 已 released → paid 動作不顯示；舊頁 POST 也由 DB 拒絕，
+                                  必須先在 Stripe 全額退款再 safe-release
 ```
 
 狀態碼是協定,不是裝飾:
@@ -155,7 +192,8 @@ POST /webhooks/stripe
 | 重送已處理過的事件 | 200 | 停止重試 |
 | goen 沒開過的 session | 200 | 記錄下來但不動作;重試永遠找不到 |
 | goen 不處理的事件類型 | 200 | 記錄下來,歷史留完整 |
-| 資料庫失敗 / 金額不符 | 500 | Stripe **應該**再試,或需要人介入 |
+| 已收款,但穩定金額／狀態不變量拒絕入帳 | 200 | 寫 `refused_capture`,擋住同訂單再付款,由人員對帳或退款;相同事件重送不會改變事實 |
+| 暫時性或未知資料庫失敗 | 500 | 整個交易 rollback,讓 Stripe 再試 |
 
 ### 出貨
 
@@ -200,12 +238,14 @@ POST /admin/orders/{number}/ship  (carrier + tracking)
    **延遲付款方式**會摧毀它:它的 `checkout.session.completed` 帶
    `payment_status = unpaid`,真正的錢在幾天後才以 `async_payment_succeeded`
    到達——那時 session 早就結束,所以 `ExpiresAt` 管不到;而已完成的 session
-   不會觸發 `checkout.session.expired`,所以補救路徑也不通。庫存在下單 30 分鐘
-   後被 sweeper 放回架上、可能已經賣掉,而 capture 仍然會成功:
-   `capture_payment` 不讀 reservation,`admin.Ship` 對空的 held-reservation
-   slice 跑零次迴圈、不報錯。錢收了、貨沒了、沒有一個 guard 出聲。
+   不會觸發 `checkout.session.expired`,所以補救路徑也不通。庫存在下單 60 分鐘
+   後被 sweeper 放回架上、可能已經賣掉。`capture_payment` 現在會在同一把 order
+   lock 下讀到 released reservation，拒絕把這筆錢記成可履約的 succeeded；簽章
+   webhook 會留下 durable `refused_capture`，後台只能先在 Stripe 全額退款再解除
+   閘門。這避免「錢收了、貨沒了」被當成正常訂單，但仍代表店家收款後必須人工
+   退款，所以不是對延遲付款方式的支援。
 
-   卡片是 30 分鐘 hold 撐得住的付款方式,所以 goen 只提供卡片(Apple Pay 和
+   卡片是這個有界 session／60 分鐘 hold 撐得住的付款方式,所以 goen 只提供卡片(Apple Pay 和
    Google Pay 走的就是這個 type)。支援延遲付款是一個**功能**而不是一個開關:
    它需要一個寫得出來的 `processing` 狀態、一個以付款截止日為壽命的 hold、
    一個會避開「錢在飛」訂單的 sweeper,以及店家對「未付款的轉帳可以押幾天庫存」
@@ -219,29 +259,34 @@ POST /admin/orders/{number}/ship  (carrier + tracking)
    所以一般事件沒有卡別和末四碼。空字串是一個「值」,會撞上
    `payments_last4_format`(要求四位數字)—— 未知要寫 NULL。
 
-5. **`success_url` 不是事實。** 任何人都能請求那個網址。只有簽章驗證過的
-   webhook 能讓訂單變成已付款。
+5. **`success_url` 不是事實。** 任何人都能請求那個網址。簽章驗證過的 webhook
+   是自動入帳的門。若 provider-complete Session 沒有 flagged/unreconciled event，
+   店員在 Stripe 核對後可走留有 audit 的兩種明確結論：以 immutable intent 入帳，
+   或確認未收款／已全額退款。若已有待處理 event，paid attribution 會被拒絕；該門
+   只能在每一分錢已退回、或已有 succeeded payment 完整入帳時安全解除。
 
-6. **一筆訂單只能有一個開著的 session。** 每次 POST 都建一個新的 session,就會
-   有一個新的 `requires_payment` row —— `open_payment` 只在
-   `(order_id, provider_ref)` 上去重,而每個 session 都有自己的 id。兩個分頁就是
+6. **一筆訂單只能有一個開著的 session。** 舊實作每次 POST 都建一個新的 session,
+   而 `open_payment` 當時只在 provider reference 上去重;每個 session 有自己的 id。兩個分頁就是
    兩筆真的扣款,而 `payments_one_capture_per_order` 是 `status = 'succeeded'` 的
    partial unique index,所以第二筆 capture 是在**錢已經到 Stripe 之後**才被擋:
    webhook 回 500、Stripe 無限重送、沒有任何東西會退款。
-   第一道防線是先查資料庫有沒有開著的 session;`Idempotency-Key` 是第二道,不是
-   第一道 —— 金額變了(退回store credit、套用折扣碼)key 就會變,單靠 key 擋不住。
+   現在有三層防線:handler 先處理「任何金額」的 active session／待對帳事件;
+   Stripe `Idempotency-Key` 合併同一 generation 的併發 create;`open_payment` 再以
+   order lock、`payments_one_active_per_order`、funded／amount／reconciliation gate
+   做最後 admission。金額變了 key 也會變,所以 key 從來不能取代另外兩層。
 
-7. **session 的 `expires_at` 綁在庫存保留上,不是 `now() + 30 分鐘`。** 保留是從
-   `PlaceOrder` 起算、session 是從按下付款起算,兩段一樣長但起點不同,所以 session
-   永遠比它背後的貨活得久 —— 顧客可以付一筆已經被 sweeper 放回架上、賣給別人的
-   庫存。剩下的保留不足 Stripe 的 30 分鐘下限時,goen 拒絕開 session。
+7. **session 的 `expires_at` 綁在庫存保留上,不是 `now() + 30 分鐘`。** 庫存從
+   `PlaceOrder` 起保留 60 分鐘;顧客可在前 29 分鐘開始新 session,另外留下 Stripe
+   最短 30 分鐘壽命與 1 分鐘的 Unix 秒截斷／時鐘偏差裕量。session 直接使用 hold
+   的 deadline,所以 Stripe 停止收款與 sweeper 可釋放庫存是同一個時刻。
 
 ## 上線前要換的東西
 
 依照 Stripe 官方安全指引,以下三項在正式環境是必要的,現在刻意先不做:
 
 1. **改用受限金鑰(Restricted API Key,`rk_` 開頭)而不是 `sk_`。**
-   goen 只需要兩種權限:建立 Checkout Session、讀取 PaymentIntent(退款時)。
+   權限只開給程式實際呼叫的資源與動作:Checkout Session 的建立、讀取與到期;
+   PaymentIntent 的讀取;Refund 的建立與列舉。不要為方便給整個帳號寫入權。
    `sk_` 是整個帳號的全權金鑰,外洩的破壞半徑差了一個數量級。做法:先在
    Workbench 看 `sk_` 的請求記錄,照著開一把 test 模式的 `rk_`,用
    `stripe logs tail` 盯 403 補權限,確認後再開 live 模式那把。

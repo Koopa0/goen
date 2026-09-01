@@ -17,6 +17,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/pages"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -160,19 +161,59 @@ func (s *Store) AdoptCart(ctx context.Context, userID string, guestCartID uuid.U
 	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
-	existing, err := q.CartForUser(ctx, uuid.NullUUID{UUID: id, Valid: true})
+	// The account is the stable aggregate root for the one-cart decision. Take it
+	// before reading CartForUser: two first adopters otherwise both observe no row
+	// and meet only at the partial unique index. Every cart lock comes afterwards
+	// and LockCarts sorts UUIDs, which keeps the cross-aggregate order canonical.
+	lockedUser, err := q.LockUserForCartAdoption(ctx, id)
+	if err != nil {
+		return fmt.Errorf("lock account for cart adoption: %w", err)
+	}
+	if !lockedUser {
+		return ErrNotFound
+	}
+
+	if err := adoptGuestCart(ctx, q, id, guestCartID); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit adopt: %w", err)
+	}
+	return nil
+}
+
+// adoptGuestCart performs the cart-row portion after the caller has serialized
+// the account's one-cart decision. Cart locks are always acquired in UUID order.
+func adoptGuestCart(ctx context.Context, q *db.Queries, userID, guestCartID uuid.UUID) error {
+	existing, err := q.CartForUser(ctx, uuid.NullUUID{UUID: userID, Valid: true})
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
-		if adoptErr := q.AdoptCart(ctx, db.AdoptCartParams{
-			ID: guestCartID, UserID: uuid.NullUUID{UUID: id, Valid: true},
-		}); adoptErr != nil {
+		if lockErr := lockCarts(ctx, q, guestCartID); lockErr != nil {
+			return lockErr
+		}
+		if ownerErr := requireUnownedCart(ctx, q, guestCartID); ownerErr != nil {
+			return ownerErr
+		}
+		n, adoptErr := q.AdoptCart(ctx, db.AdoptCartParams{
+			CartID: guestCartID, UserID: userID,
+		})
+		if adoptErr != nil {
 			return fmt.Errorf("adopt cart: %w", adoptErr)
+		}
+		if n == 0 {
+			return ErrNotFound
 		}
 	case err != nil:
 		return fmt.Errorf("read account cart: %w", err)
 	case existing == guestCartID:
 		// Already this account's cart. Nothing to do.
 	default:
+		if lockErr := lockCarts(ctx, q, guestCartID, existing); lockErr != nil {
+			return lockErr
+		}
+		if ownerErr := requireUnownedCart(ctx, q, guestCartID); ownerErr != nil {
+			return ownerErr
+		}
 		if mergeErr := q.MergeCartItems(ctx, db.MergeCartItemsParams{
 			CartID: guestCartID, CartID_2: existing,
 		}); mergeErr != nil {
@@ -182,8 +223,33 @@ func (s *Store) AdoptCart(ctx context.Context, userID string, guestCartID uuid.U
 			return fmt.Errorf("delete guest cart: %w", delErr)
 		}
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit adopt: %w", err)
+	return nil
+}
+
+// requireUnownedCart revalidates the guest identity after its cart-row lock is
+// held. A browser token can race another account's sign-in; ownership that won
+// that race is not permission for this transaction to move or delete its cart.
+func requireUnownedCart(ctx context.Context, q *db.Queries, cartID uuid.UUID) error {
+	owner, err := q.CartOwner(ctx, cartID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("read cart owner for adoption: %w", err)
+	}
+	if owner.Valid {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func lockCarts(ctx context.Context, q *db.Queries, ids ...uuid.UUID) error {
+	locked, err := q.LockCarts(ctx, ids)
+	if err != nil {
+		return fmt.Errorf("lock carts for adoption: %w", err)
+	}
+	if len(locked) != len(ids) {
+		return ErrNotFound
 	}
 	return nil
 }
@@ -322,7 +388,7 @@ func (s *Store) Order(ctx context.Context, u User, number string) (pages.Account
 		Recipient: o.RecipientName, Phone: o.Phone, Email: o.Email,
 		Address: pages.Delivery{
 			PostalCode: o.PostalCode, City: o.City, District: o.District, Street: o.Street,
-			PickupBrand: o.PickupBrand, PickupStoreCode: o.PickupStoreCode,
+			PickupBrand: pickup.Brand(o.PickupBrand), PickupStoreCode: o.PickupStoreCode,
 			PickupStoreName: o.PickupStoreName,
 		}.Line(),
 		Committed: o.Committed,

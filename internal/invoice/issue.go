@@ -38,18 +38,20 @@ func (g *Gateway) Issue(ctx context.Context, in IssueRequest) (Document, error) 
 	}
 
 	switch in.Preference {
-	case "company":
+	case PreferenceCompany:
 		// A business-tax-number invoice STILL needs a carrier or a printed copy
 		// (ECPay RtnCode 5000028). The number says who it is FOR; the carrier
 		// says where it is held.
 		req.CustomerIdentifier = in.TaxID
 		req.CarrierT = CarrierMember
-	case "mobile_carrier":
+	case PreferenceMobile:
 		req.CarrierT = CarrierMobile
 		req.CarrierNum = in.CarrierCode
-	default:
+	case PreferenceMember:
 		// Member carrier: ECPay holds it against the customer's email.
 		req.CarrierT = CarrierMember
+	default:
+		panic("invoice: validated unknown preference " + in.Preference)
 	}
 
 	res, err := g.call(ctx, "/B2CInvoice/Issue", req)
@@ -72,7 +74,7 @@ type IssueRequest struct {
 	CustomerName string
 	Email        string
 	// Preference is invoice_preferences.invoice_type.
-	Preference  string
+	Preference  Preference
 	CarrierCode string
 	TaxID       string
 	// AmountCents is the order's total, tax included: what the customer was
@@ -95,8 +97,12 @@ func (r IssueRequest) validate() error {
 	if r.Email == "" {
 		return fmt.Errorf("%w: a carrier invoice is held against an email address", ErrRejected)
 	}
+	if !r.Preference.Known() {
+		return fmt.Errorf("%w: %q is not an invoice type this shop offers",
+			ErrRejected, r.Preference)
+	}
 	switch r.Preference {
-	case "company":
+	case PreferenceCompany:
 		if len(r.TaxID) != 8 {
 			// i18n-exempt: reached from /admin only, and the back office is the
 			// staff of one Taiwanese shop — the category exemption the chrome
@@ -104,17 +110,14 @@ func (r IssueRequest) validate() error {
 			return fmt.Errorf("%w: a 公司戶 invoice needs an eight-digit 統編, got %q",
 				ErrRejected, r.TaxID)
 		}
-	case "mobile_carrier":
+	case PreferenceMobile:
 		// A mobile barcode is a slash and seven of A-Z, 0-9, +, - and dot.
 		if len(r.CarrierCode) != 8 || r.CarrierCode[0] != '/' {
 			// i18n-exempt: back office only, as above.
 			return fmt.Errorf("%w: a 手機條碼載具 is a slash and seven characters, got %q",
 				ErrRejected, r.CarrierCode)
 		}
-	case "member_carrier":
-	default:
-		return fmt.Errorf("%w: %q is not an invoice type this shop offers",
-			ErrRejected, r.Preference)
+	case PreferenceMember:
 	}
 	return nil
 }

@@ -219,10 +219,7 @@ func (v *ProductView) AvailableText() string { return strconv.FormatInt(int64(v.
 
 // MaxQuantity bounds the quantity input to what can actually be sold.
 func (v *ProductView) MaxQuantity() string {
-	n := min(v.Available, 99)
-	if n < 1 {
-		n = 1
-	}
+	n := max(min(v.Available, 99), 1)
 	return strconv.FormatInt(int64(n), 10)
 }
 

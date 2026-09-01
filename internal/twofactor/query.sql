@@ -53,25 +53,11 @@ WHERE u.role IN ('admin', 'staff')
 ORDER BY u.email;
 
 -- Create a staff account with NO password; they set their own through /forgot,
--- which is the one path that proves they own the mailbox. ON CONFLICT so an
--- existing customer is promoted rather than refused — and SecurePromotedAccount
--- is what applies the same rule to the account it just promoted, because this
--- statement leaves an existing password_hash and existing sessions exactly
--- where they were.
+-- which is the one path that proves they own the mailbox. The function owns the
+-- upsert, roster lock, credential neutralisation and session cleanup; admin has
+-- no direct users write grant with which to split or bypass those steps.
 -- name: UpsertStaff :one
-WITH promoted AS (
-    INSERT INTO users (email, full_name, role)
-    VALUES (@email, nullif(@full_name::text, ''), @role)
-    ON CONFLICT (lower(email)) DO UPDATE
-    SET role = EXCLUDED.role,
-        full_name = coalesce(nullif(EXCLUDED.full_name, ''), users.full_name)
-    RETURNING id
-)
--- ONE statement, so a promotion cannot commit without the account being
--- secured. Two statements would need a transaction, and a transaction is a
--- thing a caller can forget to open.
-SELECT p.id, secure_promoted_account(p.id)::boolean AS credential_cleared
-FROM promoted p;
+SELECT upsert_staff(@email, @full_name, @role)::boolean AS credential_cleared;
 
 -- Take somebody's back-office access away. The role goes back to 'customer'
 -- rather than the row being deleted: erase_user is the only door that removes
@@ -82,17 +68,11 @@ FROM promoted p;
 -- /admin/staff exists to make impossible. Reproduced against a scratch database
 -- before this was one statement.
 --
--- FOR UPDATE on the admin rows, so the second statement waits for the first to
--- commit and then counts what is actually left rather than what was there when
--- it started.
--- name: RevokeStaff :execrows
-WITH admins AS (
-    SELECT u.id AS admin_id FROM users u WHERE u.role = 'admin' FOR UPDATE
-)
-UPDATE users SET role = 'customer'
-WHERE users.id = $1
-  AND users.role IN ('staff', 'admin')
-  AND (users.role <> 'admin' OR (SELECT count(*) FROM admins) > 1);
+-- The function returns false for a missing/non-staff target and for the last
+-- admin. On success it changes the role and ends every existing session in the
+-- same transaction.
+-- name: RevokeStaff :one
+SELECT revoke_staff($1)::boolean;
 
 -- Whether an address belongs to the account asking. Folded, because
 -- users_email_key is unique on lower(email): two addresses differing only in

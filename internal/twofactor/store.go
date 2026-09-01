@@ -207,9 +207,9 @@ func (s *Store) Staff(ctx context.Context) (pages.AdminStaffView, error) {
 		return pages.AdminStaffView{}, fmt.Errorf("read staff 2FA status: %w", err)
 	}
 	view := pages.AdminStaffView{Rows: make([]pages.AdminStaffRow, 0, len(rows))}
-	for _, role := range Roles {
+	for _, role := range roles {
 		view.Roles = append(view.Roles, pages.StaffRoleChoice{
-			Value: role, Label: RoleLabel(ctx, role),
+			Value: role, Label: roleLabel(ctx, role),
 		})
 	}
 	for i := range rows {

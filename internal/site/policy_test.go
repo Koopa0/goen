@@ -17,28 +17,23 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// TestTheStatedHoldMatchesTheEnforcedOne proves the page states the window the
-// code enforces. They are two constants because internal/ui must not import a
-// feature package.
+// TestTheStatedHoldMatchesTheEnforcedOne proves every customer-facing policy
+// states the one presentation-layer hold duration. The cart package separately
+// binds that duration to its private enforcement constant.
 func TestTheStatedHoldMatchesTheEnforcedOne(t *testing.T) {
-	enforced := int(cart.HoldTTL.Minutes())
-	if stated := pages.HoldMinutes; stated != enforced {
-		t.Errorf("the shipping page says stock is held for %d minutes and "+
-			"cart.HoldTTL holds it for %d — the page is telling customers "+
-			"something the till does not do", stated, enforced)
-	}
+	enforced := pages.HoldMinutesText()
 
 	// The FAQ makes the same promise and was not covered: it said 30 minutes
 	// against an enforced 60, under a seed comment claiming the row states
-	// cart.HoldTTL. A guard over one of the two pages that make a claim reads as
+	// the cart's hold. A guard over one of the two pages that make a claim reads as
 	// covering the claim.
 	seed, err := os.ReadFile(filepath.Join("..", "..", "seed", "dev_catalog.sql"))
 	if err != nil {
 		t.Fatalf("read the seed: %v", err)
 	}
 	for _, want := range []string{
-		fmt.Sprintf("保留庫存 %d 分鐘", enforced),
-		fmt.Sprintf("holds the stock for %d minutes", enforced),
+		fmt.Sprintf("保留庫存 %s 分鐘", enforced),
+		fmt.Sprintf("holds the stock for %s minutes", enforced),
 	} {
 		if !strings.Contains(string(seed), want) {
 			t.Errorf("no FAQ row states %q, so the answer a customer reads and the "+

@@ -4,7 +4,7 @@
 > **For:** Codex · **Order:** any time.
 
 `goen` is a Traditional-Chinese 3C storefront: one Go binary plus one PostgreSQL.
-Go 1.26.5, 103 modules in the graph, `net/http` (no framework), `templ` server-rendered
+Go 1.27.0, 103 modules in the graph, `net/http` (no framework), `templ` server-rendered
 HTML, pgx + sqlc, embedded assets via `go:embed`, no cgo.
 
 Read `CLAUDE.md`, especially **"Build tools stay out of go.mod"** — the project measured
@@ -31,7 +31,7 @@ Everything below must respect that rule or argue explicitly against it with numb
    `make check-layout` which needs Chrome). Add `govulncheck` and container scanning.
    Say where it runs, how long it takes, and what it costs. Include the release path:
    tagging, image publishing, provenance/SBOM, and whether that is over-engineering here.
-3. **Linting.** `.golangci.yml` v2.12.2, zero tolerated findings, with `exhaustruct`
+3. **Linting.** `.golangci.yml` v2.13.2, zero tolerated findings, with `exhaustruct_v5`
    enabled for exactly one type. Read it and say whether the configuration is
    well-chosen or accumulated. Which enabled linters earn their place, which are noise,
    and what is missing? Also `squawk` for SQL migrations — is it configured to catch

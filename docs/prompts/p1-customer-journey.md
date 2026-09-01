@@ -4,7 +4,7 @@
 > **For:** Codex · **Run before:** everything except P2 — this and P2 are the only two
 > that can find defects in what already exists.
 
-You are reviewing `goen`, a Traditional-Chinese 3C storefront. One Go binary, Go 1.26,
+You are reviewing `goen`, a Traditional-Chinese 3C storefront. One Go binary, Go 1.27,
 `net/http` (no framework), `templ` server-rendered HTML, PostgreSQL 18 via pgx + sqlc,
 Stripe hosted Checkout, htmx only as progressive enhancement. Read `CLAUDE.md` at the
 repository root first — it is the design record.
@@ -24,7 +24,7 @@ Do it twice, in a real browser, at 375px and at 1440px:
 
 - **As a guest**: land on `/`, browse a category, use search, open a product, choose a
   variant, add to cart, check out, choose 宅配到府 and then 超商取貨, pay (Stripe test
-  mode — set `GOEN_STRIPE_SECRET_KEY`/`GOEN_STRIPE_WEBHOOK_SECRET` and run
+  mode — set `GOEN_STRIPE_API_KEY`/`GOEN_STRIPE_WEBHOOK_SECRET` and run
   `stripe listen`), reach the confirmation, then find the order again at
   `/orders/find`, and open a return.
 - **As a registered customer**: register, verify the email (`/verify`), do the same

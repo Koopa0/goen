@@ -99,12 +99,37 @@ func NewStore(pool *pgxpool.Pool, log *slog.Logger) *Store {
 	}
 }
 
-// Handle registers what a topic does.
+// Handle registers what a topic does. Registration is startup-only and must
+// finish before Run, Drain or DrainAll starts. An empty or duplicate topic is a
+// wiring error and panics rather than silently replacing a handler.
 func (s *Store) Handle(topic string, h Handler) {
+	if topic == "" {
+		panic("outbox: a handler needs a topic")
+	}
 	if h == nil {
 		panic("outbox: nil handler for " + topic)
 	}
+	if _, exists := s.handlers[topic]; exists {
+		panic("outbox: duplicate handler for " + topic)
+	}
 	s.handlers[topic] = h
+}
+
+// HandleJSON registers a typed JSON handler. T belongs to this registration,
+// not to Store: each delivery decodes a fresh T and the registry retains only
+// the non-generic Handler adapter. Unknown object fields remain accepted so an
+// older consumer can read a payload written by a newer producer.
+func (s *Store) HandleJSON[T any](topic string, h func(context.Context, *T) error) {
+	if h == nil {
+		panic("outbox: nil JSON handler for " + topic)
+	}
+	s.Handle(topic, func(ctx context.Context, payload []byte) error {
+		var message T
+		if err := json.Unmarshal(payload, &message); err != nil {
+			return fmt.Errorf("decode outbox payload for %s: %w", topic, err)
+		}
+		return h(ctx, &message)
+	})
 }
 
 // DrainAll delivers until the queue has nothing due left. A full pass of
@@ -252,14 +277,6 @@ func (s *Store) Stuck(ctx context.Context, limit int32) ([]StuckMessage, error) 
 		})
 	}
 	return out, nil
-}
-
-// Decode unmarshals a payload into v.
-func Decode(payload []byte, v any) error {
-	if err := json.Unmarshal(payload, v); err != nil {
-		return fmt.Errorf("decode outbox payload: %w", err)
-	}
-	return nil
 }
 
 // truncate bounds what goes in last_error.

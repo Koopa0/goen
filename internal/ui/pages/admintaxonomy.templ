@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -107,7 +108,7 @@ templ taxonForm(kind string, title i18n.Key, v *AdminTaxonomyView) {
 				<label class="ui-label" for="categories-icon">{ i18n.T(ctx, i18n.KeyAdminColIcon) }</label>
 				<select class="ui-input" id="categories-icon" name="icon_key">
 					<option value="">{ i18n.T(ctx, i18n.KeyAdminIconNone) }</option>
-					for _, k := range CategoryIcons {
+					for _, k := range icons.CategoryKeys() {
 						<option value={ k } selected?={ v.DraftFor(kind, "icon_key") == k }>{ k }</option>
 					}
 				</select>
@@ -179,7 +180,7 @@ templ taxonList(kind string, title, empty i18n.Key, rows []AdminTaxon, v *AdminT
 									aria-label={ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxIconOf), t.Name) }
 								>
 									<option value="">{ i18n.T(ctx, i18n.KeyAdminIconNone) }</option>
-									for _, k := range CategoryIcons {
+									for _, k := range icons.CategoryKeys() {
 										<option value={ k } selected?={ t.IconKey == k }>{ k }</option>
 									}
 								</select>

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
@@ -26,11 +27,11 @@ var (
 	ErrInvalidStaff = errors.New("twofactor: that is not a usable staff account")
 )
 
-// Roles a staff account may hold, in the order the form offers them.
-var Roles = []string{"staff", "admin"}
+// roles is the closed set of roles a staff account may hold, in form order.
+var roles = [...]string{"staff", "admin"}
 
-// RoleLabel is what a role is called.
-func RoleLabel(ctx context.Context, role string) string {
+// roleLabel is what a role is called.
+func roleLabel(ctx context.Context, role string) string {
 	switch role {
 	case "staff":
 		return i18n.T(ctx, i18n.KeyAdminRoleStaff)
@@ -51,7 +52,7 @@ func RoleLabel(ctx context.Context, role string) string {
 // success as a failure.
 func (s *Store) AddStaff(ctx context.Context, address, name, role, actorID string) (bool, error) {
 	address, name = strings.TrimSpace(address), strings.TrimSpace(name)
-	if !email.Valid(address) || !contains(Roles, role) {
+	if !email.Valid(address) || !slices.Contains(roles[:], role) {
 		return false, ErrInvalidStaff
 	}
 	actor, err := uuid.Parse(actorID)
@@ -67,16 +68,20 @@ func (s *Store) AddStaff(ctx context.Context, address, name, role, actorID strin
 	if self {
 		return false, ErrSelf
 	}
-	row, err := s.q.UpsertStaff(ctx, db.UpsertStaffParams{
+	credentialCleared, err := s.q.UpsertStaff(ctx, db.UpsertStaffParams{
 		Email: address, FullName: name, Role: role,
 	})
 	if err != nil {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
+			pgErr.ConstraintName == "users_keep_one_admin" {
+			return false, ErrLastAdmin
+		}
 		return false, fmt.Errorf("add staff %s: %w", address, err)
 	}
 	// Said rather than swallowed: the person being hired now has no way in until
 	// they set a password through /forgot, and the admin is the one who has to
 	// tell them.
-	return row.CredentialCleared, nil
+	return credentialCleared, nil
 }
 
 // RevokeStaff takes back-office access away, and ends every session that had it.
@@ -89,21 +94,18 @@ func (s *Store) RevokeStaff(ctx context.Context, userID, actorID string) error {
 		return ErrSelf
 	}
 
-	n, err := s.q.RevokeStaff(ctx, target)
+	revoked, err := s.q.RevokeStaff(ctx, target)
 	if err != nil {
 		return fmt.Errorf("revoke staff: %w", err)
 	}
-	if n == 0 {
-		// The statement asks the last-admin question under FOR UPDATE, so this
+	if !revoked {
+		// The database function asks the last-admin question under the shared
+		// roster lock, so this
 		// is where it is answered — and it answers two questions at once.
 		// A Go pre-check would give a nicer message and would make the real
 		// guard almost unreachable, which is how a redundant check comes to be
 		// the only one anybody has watched work.
 		return s.whyRevokeMatchedNothing(ctx, target)
-	}
-	// Without this they keep the back office for the rest of a session's life.
-	if err := s.q.EndStaffSessions(ctx, target); err != nil {
-		return fmt.Errorf("end staff sessions: %w", err)
 	}
 	return nil
 }
@@ -131,5 +133,3 @@ func (s *Store) whyRevokeMatchedNothing(ctx context.Context, target uuid.UUID) e
 	}
 	return ErrInvalidStaff
 }
-
-func contains(all []string, want string) bool { return slices.Contains(all, want) }

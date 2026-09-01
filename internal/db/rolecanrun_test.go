@@ -78,15 +78,16 @@ func TestEveryRoleCanRunItsOwnQueries(t *testing.T) {
 
 // runExemptions is a query a package calls that one of its roles cannot run, keyed role.Query.
 var runExemptions = map[string]string{
-	"store.DeleteMedia":                 "the sweeper runs on the admin pool; store serves images and never deletes one",
-	"store.PutMedia":                    "only the back office uploads; store serves what is already stored",
-	"store.RecordNewsletterSend":        "the back office sends and audits; store only subscribes",
-	"store.CreateNewsletterIssue":       "the back office composes; store only subscribes",
-	"store.MarkNewsletterIssueSent":     "the back office sends; store only subscribes",
-	"admin.RequestNewsletterConfirm":    "only a visitor asks to join; admin holds no write on newsletter_confirmations by design",
-	"admin.SpendNewsletterConfirmation": "only the mailbox owner confirms",
-	"admin.AddNewsletterSubscriber":     "the shop cannot put an address on its own list",
-	"admin.UnsubscribeNewsletter":       "only the address owner leaves",
+	"store.DeleteMedia":                  "the sweeper runs on the admin pool; store serves images and never deletes one",
+	"store.AttributeCompletePaymentPaid": "payment owns the capture invariants and side effects, but manual paid attribution is called only with an audited admin transaction; store must not hold that privilege",
+	"store.PutMedia":                     "only the back office uploads; store serves what is already stored",
+	"store.RecordNewsletterSend":         "the back office sends and audits; store only subscribes",
+	"store.CreateNewsletterIssue":        "the back office composes; store only subscribes",
+	"store.MarkNewsletterIssueSent":      "the back office sends; store only subscribes",
+	"admin.RequestNewsletterConfirm":     "only a visitor asks to join; admin holds no write on newsletter_confirmations by design",
+	"admin.SpendNewsletterConfirmation":  "only the mailbox owner confirms",
+	"admin.AddNewsletterSubscriber":      "the shop cannot put an address on its own list",
+	"admin.UnsubscribeNewsletter":        "only the address owner leaves",
 }
 
 // TestNoStaleRunExemption refuses a runExemptions entry the schema has outgrown, by identity.

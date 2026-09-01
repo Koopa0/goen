@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -12,6 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -29,9 +29,6 @@ type TaxonomyForm struct {
 	Parent  string
 	IconKey string
 }
-
-// CategoryIcons is the closed set icons.Category draws; anything else renders NOTHING.
-var CategoryIcons = []string{"phone", "laptop", "tablet", "headphones", "watch", "plug", "shield"}
 
 // Validate refuses what the schema would, with a message naming the field.
 func (f *TaxonomyForm) Validate(ctx context.Context) map[string]string {
@@ -51,7 +48,7 @@ func (f *TaxonomyForm) Validate(ctx context.Context) map[string]string {
 		errs["name_en"] = i18n.T(ctx, i18n.KeyFormNameEnTooLong)
 	}
 	f.IconKey = strings.TrimSpace(f.IconKey)
-	if f.IconKey != "" && !slices.Contains(CategoryIcons, f.IconKey) {
+	if f.IconKey != "" && !icons.KnownCategory(f.IconKey) {
 		errs["icon_key"] = i18n.T(ctx, i18n.KeyFormIconUnknown)
 	}
 	return errs
@@ -115,7 +112,8 @@ func (s *Store) CreateCategory(ctx context.Context, f *TaxonomyForm) (map[string
 	err := s.audited(ctx, Event{
 		Action: ActionCreateCategory, Table: "categories",
 		After: map[string]any{
-			"slug": f.Slug, "name": f.Name, "name_en": f.NameEn, "parent": f.Parent,
+			"slug": f.Slug, "name": f.Name, "name_en": f.NameEn,
+			"icon_key": f.IconKey, "parent": f.Parent,
 		},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -160,17 +158,20 @@ func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn, iconKey st
 	if utf8.RuneCountInString(nameEn) > MaxTaxonomyNameRunes {
 		return ErrInvalid
 	}
-	if iconKey != "" && !slices.Contains(CategoryIcons, iconKey) {
+	if iconKey != "" && !icons.KnownCategory(iconKey) {
 		return ErrInvalid
 	}
 	action, table := ActionRenameBrand, "brands"
+	after := map[string]any{"name": name}
 	if kind == "category" {
 		action, table = ActionRenameCategory, "categories"
+		after["name_en"] = nameEn
+		after["icon_key"] = iconKey
 	}
 	return s.audited(ctx, Event{
 		Action: action, Table: table,
 		Before: map[string]any{"slug": slug},
-		After:  map[string]any{"name": name, "name_en": nameEn, "icon_key": iconKey},
+		After:  after,
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			var n int64

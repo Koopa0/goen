@@ -277,21 +277,22 @@ func ifNoneMatch(r *http.Request, etag string) bool {
 // never has to know which kind of key it holds.
 // ---------------------------------------------------------------------------
 
-// MediaWidths are the renditions an uploaded image may be requested at.
+// mediaWidths is the fixed allowlist of renditions an uploaded image may be
+// requested at, in ascending order.
 //
 // An ALLOWLIST, not a range, and that is the security property: rendering costs
 // CPU proportional to the output, so an open width parameter is a denial of
 // service that costs the attacker one request. Two fixed widths bound the work
 // for any image at two renders, and immutable caching makes it two per client.
-var MediaWidths = []int{400, 800}
+var mediaWidths = [...]int{400, 800}
 
 // KnownWidth reports whether w is a rendition goen will produce.
-func KnownWidth(w int) bool { return slices.Contains(MediaWidths, w) }
+func KnownWidth(w int) bool { return slices.Contains(mediaWidths[:], w) }
 
 // MediaURL is where an uploaded image is served at full size.
 func MediaURL(digest string) string { return "/media/" + digest }
 
-// MediaRenditionURL is where it is served at one of MediaWidths.
+// MediaRenditionURL is where it is served at one of the allowed media widths.
 func MediaRenditionURL(digest string, width int) string {
 	return "/media/" + digest + "/" + strconv.Itoa(width)
 }
@@ -317,7 +318,7 @@ func mediaSrcset(digest string, originalWidth int) string {
 		return ""
 	}
 	var b strings.Builder
-	for _, w := range MediaWidths {
+	for _, w := range mediaWidths {
 		if w >= originalWidth {
 			continue
 		}

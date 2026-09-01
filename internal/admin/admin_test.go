@@ -12,6 +12,34 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
+func TestParseStatusAcceptsOnlyTheFulfilmentLifecycle(t *testing.T) {
+	t.Parallel()
+	for _, status := range statuses {
+		if got := ParseStatus(status.value); got != status.value {
+			t.Errorf("ParseStatus(%q) = %q, want the same status", status.value, got)
+		}
+		if got := StatusLabel(t.Context(), status.value); got == "" || got == status.value {
+			t.Errorf("StatusLabel(%q) = %q, want a catalogue label", status.value, got)
+		}
+	}
+	for _, status := range []string{"", "all", "paid", "refunded", "PENDING", " pending "} {
+		if got := ParseStatus(status); got != "" {
+			t.Errorf("ParseStatus(%q) = %q, want all-status fallback", status, got)
+		}
+	}
+}
+
+func TestEveryTransitionStaysInsideTheFulfilmentLifecycle(t *testing.T) {
+	t.Parallel()
+	for _, current := range statuses {
+		for _, next := range NextStatuses(current.value) {
+			if ParseStatus(next) == "" {
+				t.Errorf("NextStatuses(%q) contains unknown state %q", current.value, next)
+			}
+		}
+	}
+}
+
 func TestAFormNumberKeepsInvalidDistinctFromZero(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {

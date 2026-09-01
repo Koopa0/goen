@@ -6,7 +6,6 @@ package admin
 import (
 	"context"
 	"errors"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -34,7 +33,57 @@ var (
 	// ErrQuantity is a per-line count the order cannot honour: more than remains
 	// to ship, or more than it still holds.
 	ErrQuantity = errors.New("admin: quantity out of range")
+	// ErrPaymentRequiresRefund means provider money cannot be attributed because
+	// the order's stock was already returned to sale. The reconciliation alarm
+	// stays open until staff refund at Stripe and choose the safe-release outcome.
+	ErrPaymentRequiresRefund = errors.New("admin: payment must be refunded before reconciliation")
 )
+
+// completePaymentResolution is the operator's explicit conclusion after a
+// provider-complete Checkout Session had no capture outcome goen could apply.
+// Paid and safe-to-retry are financially opposite facts, so the internal type
+// is closed rather than carrying the form's raw string through the store.
+type completePaymentResolution uint8
+
+const (
+	completePaymentResolutionUnknown completePaymentResolution = iota
+	// completePaymentPaid attributes the immutable payment intent as captured.
+	completePaymentPaid
+	// completePaymentUnpaidOrRefunded releases the gate only after staff confirm
+	// that Stripe took no money or that every cent was returned.
+	completePaymentUnpaidOrRefunded
+)
+
+// parseCompletePaymentResolution converts the two form boundary values to the
+// closed money outcome used by the store.
+func parseCompletePaymentResolution(s string) (completePaymentResolution, bool) {
+	switch strings.TrimSpace(s) {
+	case "paid":
+		return completePaymentPaid, true
+	case "unpaid_or_refunded":
+		return completePaymentUnpaidOrRefunded, true
+	default:
+		return completePaymentResolutionUnknown, false
+	}
+}
+
+func (r completePaymentResolution) auditValue() string {
+	switch r {
+	case completePaymentPaid:
+		return "paid_attributed"
+	case completePaymentUnpaidOrRefunded:
+		return "unpaid_or_fully_refunded"
+	default:
+		return "invalid"
+	}
+}
+
+// paymentEventSafeReleaseSubmitted recognizes the one conclusion that can
+// release an unapplied provider event. A one-value enum would add only an
+// invalid state; the store operation itself carries the conclusion in its name.
+func paymentEventSafeReleaseSubmitted(s string) bool {
+	return strings.TrimSpace(s) == "fully_refunded_or_accounted"
+}
 
 // PageSize bounds every admin list.
 const PageSize = 50
@@ -44,14 +93,28 @@ const PageSize = 50
 // are half of one.
 const MinSearchRunes = 2
 
-// Statuses is the fulfilment lifecycle, in the order the queue shows it.
-// orders_check_transition decides what is legal; this only renders tabs.
-var Statuses = []string{"pending", "picking", "shipped", "delivered", "completed", "cancelled"}
+// statuses is the fulfilment lifecycle, in the order the queue shows it.
+// The value and its label stay together here; orders_check_transition decides
+// which moves are legal, while parsing and the queue tabs both consume this
+// closed set.
+var statuses = [...]struct {
+	value string
+	label i18n.Key
+}{
+	{"pending", i18n.KeyAdminStatusPending},
+	{"picking", i18n.KeyAdminStatusPicking},
+	{"shipped", i18n.KeyAdminStatusShipped},
+	{"delivered", i18n.KeyAdminStatusDelivered},
+	{"completed", i18n.KeyAdminStatusCompleted},
+	{"cancelled", i18n.KeyAdminStatusCancelled},
+}
 
 // ParseStatus maps a query value to a fulfilment state, or "" for all.
 func ParseStatus(s string) string {
-	if slices.Contains(Statuses, s) {
-		return s
+	for _, status := range statuses {
+		if status.value == s {
+			return s
+		}
 	}
 	return ""
 }
@@ -79,24 +142,14 @@ func NextStatuses(current string) []string {
 // It answers from the status alone, which is right everywhere but 'pending' —
 // see FundedStatusLabel, which the order surfaces use.
 func StatusLabel(ctx context.Context, s string) string {
-	switch s {
-	case "pending":
-		return i18n.T(ctx, i18n.KeyAdminStatusPending)
-	case "picking":
-		return i18n.T(ctx, i18n.KeyAdminStatusPicking)
-	case "shipped":
-		return i18n.T(ctx, i18n.KeyAdminStatusShipped)
-	case "delivered":
-		return i18n.T(ctx, i18n.KeyAdminStatusDelivered)
-	case "completed":
-		return i18n.T(ctx, i18n.KeyAdminStatusCompleted)
-	case "cancelled":
-		return i18n.T(ctx, i18n.KeyAdminStatusCancelled)
-	default:
-		// A queue that opens with one untranslated word beats one that will not
-		// load, which is why this does not panic as its two neighbours do.
-		return s
+	for _, status := range statuses {
+		if status.value == s {
+			return i18n.T(ctx, status.label)
+		}
 	}
+	// A queue that opens with one untranslated word beats one that will not
+	// load, which is why this does not panic as its two neighbours do.
+	return s
 }
 
 // IsOrderNumber reports whether s has the shape next_order_number() produces:

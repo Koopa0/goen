@@ -1,16 +1,45 @@
 package pages
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/a-h/templ"
-
-	"fmt"
+	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
+
+func TestPickupBrandChoicesMatchValidationAndReturnFreshStorage(t *testing.T) {
+	want := []PickupBrandChoice{
+		{Value: "seven_eleven", Label: "7-ELEVEN"},
+		{Value: "family_mart", Label: "全家 FamilyMart"},
+		{Value: "hi_life", Label: "萊爾富 Hi-Life"},
+		{Value: "ok_mart", Label: "OK mart"},
+	}
+	got := PickupBrandChoices()
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("PickupBrandChoices() mismatch (-want +got):\n%s", diff)
+	}
+	for _, choice := range got {
+		if !choice.Value.Known() {
+			t.Errorf("PickupBrandChoices() offers %q, but KnownPickupBrand rejects it", choice.Value)
+		}
+	}
+
+	got[0].Value = "other_chain"
+	got[0].Label = "Other"
+	if diff := cmp.Diff(want, PickupBrandChoices()); diff != "" {
+		t.Errorf("mutating PickupBrandChoices() changed the next result (-want +got):\n%s", diff)
+	}
+	if pickup.Brand("other_chain").Known() {
+		t.Error("mutating PickupBrandChoices() changed KnownPickupBrand")
+	}
+}
 
 // TestEveryCheckoutChoiceSurvivesChangingAnother holds what the chooser links
 // used to buy, and what they cost.
@@ -479,7 +508,7 @@ func TestTheInvoiceFormAsksForOneThing(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		kind        string
+		kind        invoice.Preference
 		wantCarrier bool
 		wantTaxID   bool
 	}{

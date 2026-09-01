@@ -20,17 +20,20 @@ func (s *Store) Cancel(ctx context.Context, number string) ([]string, error) {
 	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
-	held, err := q.HeldReservationsForOrder(ctx, number)
-	if err != nil {
-		return nil, fmt.Errorf("read holds of %s: %w", number, err)
-	}
-
+	// The status UPDATE is the aggregate gate: it locks the order before either
+	// cancellation or the expiry sweeper can inspect/release its live holds.
+	// Reading first leaves a stale list if a sweeper releases one while this
+	// transaction is waiting for the order row.
 	cancelled, err := q.CancelOrderByCustomer(ctx, number)
 	if err != nil {
 		return nil, fmt.Errorf("cancel %s: %w", number, err)
 	}
 	if cancelled == 0 {
 		return nil, ErrNotCancellable
+	}
+	held, err := q.HeldReservationsForOrder(ctx, number)
+	if err != nil {
+		return nil, fmt.Errorf("read holds of %s: %w", number, err)
 	}
 
 	// Stock and credit come back AFTER the status change: release_reservation and

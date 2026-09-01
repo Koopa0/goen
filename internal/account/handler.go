@@ -228,7 +228,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Swallowed: a mail problem must not become a lost registration.
-	if _, err := h.store.RequestVerification(r.Context(), u.ID, u.Email); err != nil {
+	if err := h.store.requestVerification(r.Context(), u.ID, u.Email); err != nil {
 		h.log.WarnContext(r.Context(), "request verification at registration", "error", err)
 	}
 
@@ -613,7 +613,7 @@ func (h *Handler) ChangeEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	switch _, err := h.store.RequestVerification(r.Context(), u.ID, addr); {
+	switch err := h.store.requestVerification(r.Context(), u.ID, addr); {
 	case err == nil:
 		http.Redirect(w, r, "/account?email=sent", http.StatusSeeOther)
 	case errors.Is(err, ErrEmailTaken):
@@ -631,7 +631,7 @@ func (h *Handler) ResendVerification(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
 	}
-	if _, err := h.store.RequestVerification(r.Context(), u.ID, u.Email); err != nil {
+	if err := h.store.requestVerification(r.Context(), u.ID, u.Email); err != nil {
 		h.log.ErrorContext(r.Context(), "resend email verification", "error", err)
 		h.serverError(w, r)
 		return

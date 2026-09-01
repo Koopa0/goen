@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -62,10 +64,7 @@ func (l CartLine) AvailableText() string { return strconv.FormatInt(int64(l.Avai
 
 // MaxQuantity bounds the line's quantity input to what can be supplied.
 func (l CartLine) MaxQuantity() string {
-	n := min(l.Available, 999)
-	if n < 1 {
-		n = 1
-	}
+	n := max(min(l.Available, 999), 1)
 	return strconv.FormatInt(int64(n), 10)
 }
 
@@ -145,11 +144,9 @@ type CheckoutView struct {
 	Chosen              string
 	QuotedShippingCents int64
 	SurchargeCents      int64
-	// Repriced is the offshore surcharge the customer has not seen yet. Not an
-	// Errors entry: nothing they typed was wrong, and the fee could not be
-	// priced until a postal code existed. Rendered as a notice, and still a 422
-	// — the submission was not accepted, and nobody is charged a figure they
-	// have not been shown.
+	// Repriced is a cart/price/credit quote the customer has not seen yet. Not an
+	// Errors entry: nothing they typed was wrong. Rendered as a notice and still
+	// a 422 — nobody is charged for a quote they did not confirm.
 	Repriced string
 	// CreditChanged is the refreshed store-credit balance after it moved during
 	// placement. Like Repriced, it is a notice rather than a field error: the
@@ -157,19 +154,23 @@ type CheckoutView struct {
 	CreditChanged string
 	ZoneName      string
 	// Destination is decided by the server; no field carries it back.
-	Destination         string
-	Address             CheckoutAddress
-	Errors              map[string]string
-	Invoice             CheckoutInvoice
-	InvoiceChoices      []InvoiceChoice
-	PickupBrands        []PickupBrandChoice
-	SavedAddresses      []SavedAddress
-	ChosenAddress       string
-	CouponCode          string
-	CouponApplied       string
-	CouponDiscountCents int64
-	CouponFreeShipping  bool
-	Idempoten           string
+	Destination          string
+	Address              CheckoutAddress
+	Errors               map[string]string
+	Invoice              CheckoutInvoice
+	InvoiceChoices       []InvoiceChoice
+	PickupBrands         []PickupBrandChoice
+	SavedAddresses       []SavedAddress
+	ChosenAddress        string
+	CouponCode           string
+	CouponApplied        string
+	CouponDiscountCents  int64
+	CouponFreeShipping   bool
+	AvailableCreditCents int64
+	// QuoteID is the opaque identity of every commercial fact rendered below.
+	// The cart package creates it; the page only carries it back unchanged.
+	QuoteID        string
+	IdempotencyKey string
 }
 
 // checkoutFieldHint tells a browser what one helper-rendered checkout control
@@ -206,7 +207,7 @@ func checkoutHintsFor(name string) checkoutFieldHint { return checkoutFieldHints
 
 // InvoiceChoice is one option in the invoice-type radio group.
 type InvoiceChoice struct {
-	Value string
+	Value invoice.Preference
 	Label string
 }
 
@@ -220,7 +221,7 @@ type CheckoutAddress struct {
 	District   string
 	Street     string
 
-	PickupBrand     string
+	PickupBrand     pickup.Brand
 	PickupStoreCode string
 	PickupStoreName string
 
@@ -232,37 +233,35 @@ func (v *CheckoutView) ToPickupPoint() bool { return v.Destination == "pickup_po
 
 // PickupBrandChoice is one convenience-store chain the form offers.
 type PickupBrandChoice struct {
-	Value string
+	Value pickup.Brand
 	Label string
 }
 
 // PickupBrandChoices is what any form collecting a pickup store offers.
 func PickupBrandChoices() []PickupBrandChoice {
-	out := make([]PickupBrandChoice, 0, len(PickupBrands))
-	for _, b := range PickupBrands {
-		out = append(out, PickupBrandChoice{Value: b, Label: PickupBrandLabel(b)})
+	brands := pickup.Offered()
+	out := make([]PickupBrandChoice, 0, len(brands))
+	for _, b := range brands {
+		out = append(out, PickupBrandChoice{Value: b, Label: pickupBrandLabel(b)})
 	}
 	return out
 }
 
-// PickupBrands are the convenience-store chains a parcel may be sent to.
-var PickupBrands = []string{"seven_eleven", "family_mart", "hi_life", "ok_mart"}
-
-// PickupBrandLabel is what a customer reads.
-func PickupBrandLabel(code string) string {
+// pickupBrandLabel is what a customer reads.
+func pickupBrandLabel(code pickup.Brand) string {
 	switch code {
 	case "":
 		return ""
-	case "seven_eleven":
+	case pickup.SevenEleven:
 		return "7-ELEVEN"
-	case "family_mart":
+	case pickup.FamilyMart:
 		return "全家 FamilyMart" // i18n-exempt: a brand's own name, already bilingual
-	case "hi_life":
+	case pickup.HiLife:
 		return "萊爾富 Hi-Life" // i18n-exempt: a brand's own name, already bilingual
-	case "ok_mart":
+	case pickup.OKMart:
 		return "OK mart"
 	default:
-		panic("cart: unknown pickup brand: " + code)
+		panic("pages: unknown pickup brand: " + string(code))
 	}
 }
 
@@ -273,7 +272,7 @@ type Delivery struct {
 	District   string
 	Street     string
 
-	PickupBrand     string
+	PickupBrand     pickup.Brand
 	PickupStoreCode string
 	PickupStoreName string
 }
@@ -284,7 +283,7 @@ func (d Delivery) IsPickup() bool { return d.PickupStoreCode != "" }
 // Line is the destination as one line a person can read.
 func (d Delivery) Line() string {
 	if d.IsPickup() {
-		return PickupBrandLabel(d.PickupBrand) + " " + d.PickupStoreName +
+		return pickupBrandLabel(d.PickupBrand) + " " + d.PickupStoreName +
 			"(" + d.PickupStoreCode + ")"
 	}
 	return strings.TrimSpace(d.PostalCode + " " + d.City + d.District + d.Street)
@@ -343,11 +342,6 @@ func (v *CheckoutView) Invalid(field string) string {
 // AnyErrors reports whether the form was rejected at all.
 func (v *CheckoutView) AnyErrors() bool { return len(v.Errors) > 0 }
 
-// QuotedShipping is the figure the form carries back, as a string.
-func (v *CheckoutView) QuotedShipping() string {
-	return strconv.FormatInt(v.QuotedShippingCents, 10)
-}
-
 // HasSurcharge reports whether this address costs extra to reach.
 func (v *CheckoutView) HasSurcharge() bool { return v.SurchargeCents > 0 }
 
@@ -383,19 +377,41 @@ func (v *CheckoutView) ShipsFree() bool {
 	return v.CouponFreeShipping || v.BaseShippingCents() == 0
 }
 
+// ChargedShippingCents is the delivery amount PlaceOrder will store. A
+// free-shipping coupon removes the base rate but deliberately not a remote-zone
+// surcharge.
+func (v *CheckoutView) ChargedShippingCents() int64 {
+	if v.CouponFreeShipping {
+		return v.SurchargeCents
+	}
+	return v.ShippingFeeCents()
+}
+
 // Total is what the visitor will owe.
 func (v *CheckoutView) Total() string {
 	return twd(v.TotalCents())
 }
 
-// TotalCents is what the customer will be charged; it must match PlaceOrder's arithmetic.
-func (v *CheckoutView) TotalCents() int64 {
-	shipping := v.BaseShippingCents()
-	if v.CouponFreeShipping {
-		shipping = 0
-	}
-	return v.Cart.SubtotalCents + shipping + v.SurchargeCents - v.CouponDiscountCents
+// GrossCents is the order total before store credit.
+func (v *CheckoutView) GrossCents() int64 {
+	return v.Cart.SubtotalCents + v.ChargedShippingCents() - v.CouponDiscountCents
 }
+
+// CreditCents is the store credit the displayed quote applies. An increase in
+// balance after rendering does not silently spend more; a decrease that cannot
+// fund this amount makes placement refresh the quote.
+func (v *CheckoutView) CreditCents() int64 {
+	return min(v.AvailableCreditCents, v.GrossCents())
+}
+
+// UsesCredit reports whether the checkout summary needs a credit line.
+func (v *CheckoutView) UsesCredit() bool { return v.CreditCents() > 0 }
+
+// Credit is the applied store credit as a negative money figure.
+func (v *CheckoutView) Credit() string { return "-" + twd(v.CreditCents()) }
+
+// TotalCents is what remains payable after the exact displayed credit spend.
+func (v *CheckoutView) TotalCents() int64 { return v.GrossCents() - v.CreditCents() }
 
 // OrderLine is one line on the confirmation page.
 type OrderLine struct {
@@ -462,18 +478,18 @@ func (s OrderShipment) Delivered() bool { return s.DeliveredAt != "" }
 
 // CheckoutInvoice carries the invoice choice back into a refused form.
 type CheckoutInvoice struct {
-	Type    string
+	Type    invoice.Preference
 	Carrier string
 	TaxID   string
 }
 
 // Is reports whether this is the chosen type.
-func (i CheckoutInvoice) Is(t string) bool { return i.Chosen() == t }
+func (i CheckoutInvoice) Is(t invoice.Preference) bool { return i.Chosen() == t }
 
 // Chosen is the type in force, which is the default until somebody picks one.
-func (i CheckoutInvoice) Chosen() string {
+func (i CheckoutInvoice) Chosen() invoice.Preference {
 	if i.Type == "" {
-		return "member_carrier"
+		return invoice.PreferenceMember
 	}
 	return i.Type
 }
@@ -482,10 +498,10 @@ func (i CheckoutInvoice) Chosen() string {
 // both asks a customer to read two fields to find the one that applies, and
 // leaves required promising something the server will not demand — the reason
 // the delivery destination is chosen by a link rather than shown as both.
-func (i CheckoutInvoice) NeedsCarrier() bool { return i.Chosen() == "mobile_carrier" }
+func (i CheckoutInvoice) NeedsCarrier() bool { return i.Chosen().NeedsCarrier() }
 
 // NeedsTaxID reports whether the 統編 field applies.
-func (i CheckoutInvoice) NeedsTaxID() bool { return i.Chosen() == "company" }
+func (i CheckoutInvoice) NeedsTaxID() bool { return i.Chosen().NeedsTaxID() }
 
 // OrderView is the confirmation page.
 type OrderView struct {

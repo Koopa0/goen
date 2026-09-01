@@ -430,37 +430,37 @@ func Category(key string) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		switch key {
-		case "phone":
+		case categoryPhone:
 			templ_7745c5c3_Err = Smartphone().Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-		case "laptop":
+		case categoryLaptop:
 			templ_7745c5c3_Err = Laptop().Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-		case "tablet":
+		case categoryTablet:
 			templ_7745c5c3_Err = Tablet().Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-		case "headphones":
+		case categoryHeadphones:
 			templ_7745c5c3_Err = Headphones().Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-		case "watch":
+		case categoryWatch:
 			templ_7745c5c3_Err = Watch().Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-		case "plug":
+		case categoryPlug:
 			templ_7745c5c3_Err = Plug().Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-		case "shield":
+		case categoryShield:
 			templ_7745c5c3_Err = Shield().Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

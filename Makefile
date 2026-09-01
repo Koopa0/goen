@@ -1,10 +1,10 @@
-GOLANGCI_LINT_VERSION := 2.12.2
+GOLANGCI_LINT_VERSION := 2.13.2
 SQLC_VERSION := v1.31.1
 KO_VERSION := v0.19.1
-MIGRATE_VERSION := v4.19.0
-GOVULNCHECK_VERSION := v1.6.0
-SQUAWK_VERSION := 2.60.0
-DEADCODE_VERSION := v0.38.0
+MIGRATE_VERSION := v4.19.1
+GOVULNCHECK_VERSION := v1.7.0
+SQUAWK_VERSION := 2.63.0
+DEADCODE_VERSION := v0.49.0
 
 # Tools that generate or inspect this module but are not part of it. `go run
 # pkg@version` pins each as firmly as a require line without joining the module
@@ -22,7 +22,7 @@ include .env
 export
 endif
 
-.PHONY: build run test test-race test-integration integration-build-check \
+.PHONY: build run test test-race test-integration production-build-check integration-build-check \
         image image-push lint fmt fmt-check vet deadcode gen templ-check vuln \
         sqlc sqlc-check squawk db-up db-down migrate-up migrate-down db-seed \
         verify verify-all check-layout db-reset clean
@@ -43,6 +43,16 @@ test: gen
 
 test-race: gen
 	go test -race -count=1 -shuffle=on ./...
+
+# Build the deployable program without test files. `go test` is not equivalent:
+# files in package main's test compilation can accidentally provide a symbol
+# that the production-only package does not have. Cross-building with cgo off
+# also matches the static Linux container used in deployment.
+production-build-check: gen
+	@set -eu; \
+	tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/goen-build.XXXXXX"); \
+	trap 'rm -rf "$$tmp"' 0 HUP INT TERM; \
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "$$tmp/goen" ./cmd/goen
 
 # Requires Docker: these start a real PostgreSQL 18 through testcontainers.
 # The database is never mocked — most of goen's data rules live in CHECK
@@ -110,15 +120,22 @@ check-layout:
 	@# An order to measure the payment page against. Placed through the site's
 	@# own checkout for the same reason the cart is: if placing an order is
 	@# broken, this check should fail too.
-	@SHIP=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT v.id FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id WHERE sm.is_active AND v.effective_at <= now() ORDER BY v.effective_at DESC LIMIT 1"); \
-		curl -s -o /dev/null -b .layout-chrome/cookies -c .layout-chrome/cookies \
+	@U=$${GOEN_URL:-http://127.0.0.1:9700}; \
+		PAGE=$$(curl -fsS -b .layout-chrome/cookies $$U/checkout); \
+		QUOTE=$$(printf '%s' "$$PAGE" | grep -o 'name="checkout_quote" value="[^"]*"' | head -1 | cut -d'"' -f4); \
+		ATTEMPT=$$(printf '%s' "$$PAGE" | grep -o 'name="idempotency" value="[^"]*"' | head -1 | cut -d'"' -f4); \
+		SHIP=$$(printf '%s' "$$PAGE" | grep -o 'name="shipping" value="[^"]*" checked' | head -1 | cut -d'"' -f4); \
+		test -n "$$QUOTE" -a -n "$$ATTEMPT" -a -n "$$SHIP" || { echo 'checkout fixture did not render its quote, attempt ID and selected shipping method' >&2; exit 2; }; \
+		STATUS=$$(curl -sS -o /dev/null -w '%{http_code}' -b .layout-chrome/cookies -c .layout-chrome/cookies \
 			-H 'Sec-Fetch-Site: same-origin' \
 			--data-urlencode 'email=layout@goen.invalid' --data-urlencode 'name=版面檢查' \
 			--data-urlencode 'phone=0912345678' --data-urlencode 'postal_code=110' \
 			--data-urlencode 'city=台北市' --data-urlencode 'district=信義區' \
 			--data-urlencode 'street=松高路 1 號' --data-urlencode "shipping=$$SHIP" \
-			--data-urlencode "idempotency=layout-$$$$" \
-			$${GOEN_URL:-http://127.0.0.1:9700}/checkout
+			--data-urlencode "checkout_quote=$$QUOTE" \
+			--data-urlencode "idempotency=$$ATTEMPT" \
+			$$U/checkout); \
+		test "$$STATUS" = 303 || { echo "layout payment checkout answered $$STATUS, want 303" >&2; exit 2; }
 	@# Placing the order EMPTIES the cart, so the cart and checkout pages need
 	@# it filled again. Without this they measure an empty cart and their own
 	@# "no controls" guard fires — which is the guard working, and a check that
@@ -222,15 +239,22 @@ check-layout:
 		rm -f .layout-chrome/cust-cookies; \
 		curl -s -o /dev/null -c .layout-chrome/cust-cookies -b "goen_session=$$CT" \
 			-d "variant=$$VARIANT&quantity=1" $$U/cart/items; \
-		SHIP=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT v.id FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id WHERE sm.is_active AND v.effective_at <= now() ORDER BY v.effective_at DESC LIMIT 1"); \
-		curl -s -o /dev/null -b .layout-chrome/cust-cookies -c .layout-chrome/cust-cookies \
+		PAGE=$$(curl -fsS -b .layout-chrome/cust-cookies -b "goen_session=$$CT" $$U/checkout); \
+		QUOTE=$$(printf '%s' "$$PAGE" | grep -o 'name="checkout_quote" value="[^"]*"' | head -1 | cut -d'"' -f4); \
+		ATTEMPT=$$(printf '%s' "$$PAGE" | grep -o 'name="idempotency" value="[^"]*"' | head -1 | cut -d'"' -f4); \
+		SHIP=$$(printf '%s' "$$PAGE" | grep -o 'name="shipping" value="[^"]*" checked' | head -1 | cut -d'"' -f4); \
+		test -n "$$QUOTE" -a -n "$$ATTEMPT" -a -n "$$SHIP" || { echo 'return fixture did not render its quote, attempt ID and selected shipping method' >&2; exit 2; }; \
+		STATUS=$$(curl -sS -o /dev/null -w '%{http_code}' -b .layout-chrome/cust-cookies -c .layout-chrome/cust-cookies \
 			-b "goen_session=$$CT" -H 'Sec-Fetch-Site: same-origin' \
 			--data-urlencode 'email=layout-cust@goen.invalid' --data-urlencode 'name=版面顧客' \
 			--data-urlencode 'phone=0912345678' --data-urlencode 'postal_code=110' \
 			--data-urlencode 'city=台北市' --data-urlencode 'district=信義區' \
 			--data-urlencode 'street=松高路 1 號' --data-urlencode "shipping=$$SHIP" \
-			--data-urlencode "idempotency=layout-return-$$$$" $$U/checkout; \
+			--data-urlencode "checkout_quote=$$QUOTE" \
+			--data-urlencode "idempotency=$$ATTEMPT" $$U/checkout); \
+		test "$$STATUS" = 303 || { echo "return fixture checkout answered $$STATUS, want 303" >&2; exit 2; }; \
 		RN=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT o.order_number FROM orders o JOIN users u ON u.id = o.user_id WHERE u.email = 'layout-cust@goen.invalid' ORDER BY o.placed_at DESC LIMIT 1"); \
+		test -n "$$RN" || { echo 'return fixture checkout created no customer order' >&2; exit 2; }; \
 		curl -s -o /dev/null -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
 			-d 'status=picking' $$U/admin/orders/$$RN/status; \
 		curl -s -o /dev/null -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
@@ -705,7 +729,7 @@ db-reset:
 
 # The single gate. Stop at the first failure — a passing later stage must never
 # be able to bury an earlier red one.
-verify: fmt-check templ-check squawk sqlc-check vet deadcode lint integration-build-check test-race
+verify: fmt-check templ-check squawk sqlc-check vet deadcode lint production-build-check integration-build-check test-race
 	@echo 'verify: PASS (unit tests only — make verify-all adds the database suite)'
 
 # Everything verify runs plus the parts that need Docker and the network.

@@ -110,11 +110,13 @@ type ShippingView struct {
 // Empty reports whether no method is configured.
 func (v ShippingView) Empty() bool { return len(v.Methods) == 0 }
 
-// HoldMinutes mirrors cart.HoldTTL, which internal/ui may not import.
-const HoldMinutes = 60
+// holdMinutes is the customer-facing stock-hold duration. A cart-package test
+// binds HoldMinutesText to the private enforcement constant without widening
+// either package's API with a test-only number.
+const holdMinutes = 60
 
 // HoldMinutesText is that number, for the template.
-func HoldMinutesText() string { return strconv.Itoa(HoldMinutes) }
+func HoldMinutesText() string { return strconv.Itoa(holdMinutes) }
 
 // AdminFAQEntry is one FAQ row as the back office lists it.
 type AdminFAQEntry struct {

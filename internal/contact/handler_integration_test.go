@@ -229,11 +229,11 @@ func TestPageShowsFormAndOfferedSubjects(t *testing.T) {
 	if !strings.Contains(body, `action="/contact"`) {
 		t.Error("no form posting to /contact; the page has no no-JS write path")
 	}
-	for _, subject := range contact.Subjects {
+	for _, subject := range []string{"訂單問題", "退換貨", "保固維修", "商品諮詢", "合作提案"} {
 		// The VALUE, which is what the option posts back and what the row holds;
 		// the label follows the locale and is checked in contact_test.go.
-		if !strings.Contains(body, `value="`+subject.Value+`"`) {
-			t.Errorf("subject %q is missing from the form", subject.Value)
+		if !strings.Contains(body, `value="`+subject+`"`) {
+			t.Errorf("subject %q is missing from the form", subject)
 		}
 	}
 }

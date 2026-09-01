@@ -44,18 +44,10 @@ func (h *Handler) Forgot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, sendTo, found, err := h.store.BeginReset(r.Context(), addr)
-	if err != nil {
+	if err := h.store.beginReset(r.Context(), addr); err != nil {
 		h.log.ErrorContext(r.Context(), "begin password reset", "error", err)
 		h.serverError(w, r)
 		return
-	}
-	if found {
-		if err := h.store.EnqueueReset(r.Context(), sendTo, token); err != nil {
-			h.log.ErrorContext(r.Context(), "enqueue password reset", "error", err)
-			h.serverError(w, r)
-			return
-		}
 	}
 	http.Redirect(w, r, "/forgot?sent=1", http.StatusSeeOther)
 }

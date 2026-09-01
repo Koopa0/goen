@@ -2,8 +2,6 @@ package cart
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,12 +10,15 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/account"
 
 	"github.com/koopa0/goen/internal/i18n"
+	invoicepkg "github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -64,6 +65,14 @@ func (h *Handler) closeSessions(ctx context.Context, number string, sessions []s
 	if h.sessions == nil {
 		return
 	}
+
+	// The database cancellation has already committed. Keep request values for
+	// tracing, but do not let a client disconnect turn provider cleanup into a
+	// no-op. One short budget bounds the whole best-effort batch.
+	const timeout = 5 * time.Second
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	defer cancel()
+
 	for _, id := range sessions {
 		if err := h.sessions.ExpireSession(ctx, id); err != nil {
 			// Warn, not Error: Stripe refuses to expire a session that is not
@@ -205,7 +214,7 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 	// The 發票 choice travels the same way, and for the same reason: it decides
 	// which field the form asks for, so a chooser that only a script could act
 	// on would leave the two disagreeing.
-	if kind := r.URL.Query().Get("invoice"); slices.Contains(InvoiceTypes, kind) {
+	if kind := invoicepkg.Preference(r.URL.Query().Get("invoice")); kind.Known() {
 		view.Invoice.Type = kind
 	}
 
@@ -215,6 +224,22 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 		Email: emailOf(r), Name: prefill.Name, Phone: prefill.Phone,
 		PostalCode: prefill.PostalCode, City: prefill.City,
 		District: prefill.District, Street: prefill.Street,
+	}
+	shippingID, err := uuid.Parse(view.Chosen)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "checkout has no valid shipping choice", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	if err := h.quoteCheckoutShipping(r.Context(), &view, shippingID, prefill.PostalCode); err != nil {
+		h.log.ErrorContext(r.Context(), "quote checkout shipping", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	if err := setCheckoutQuoteID(cartID, &view); err != nil {
+		h.log.ErrorContext(r.Context(), "build checkout quote", "error", err)
+		h.serverError(w, r)
+		return
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Checkout(pages.CheckoutMeta(r.Context()), &view))
 }
@@ -247,70 +272,16 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 		return
 	}
-
-	addr := &Address{
-		Email:      r.PostFormValue("email"),
-		Name:       r.PostFormValue("name"),
-		Phone:      r.PostFormValue("phone"),
-		PostalCode: r.PostFormValue("postal_code"),
-		City:       r.PostFormValue("city"),
-		District:   r.PostFormValue("district"),
-		Street:     r.PostFormValue("street"),
-
-		PickupBrand:     r.PostFormValue("pickup_brand"),
-		PickupStoreCode: r.PostFormValue("pickup_store_code"),
-		PickupStoreName: r.PostFormValue("pickup_store_name"),
-
-		Note: r.PostFormValue("note"),
-	}
-	addr.Trim()
-
-	owner := ownerOf(r)
-	view, err := h.checkoutView(r.Context(), cartID, owner)
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "read checkout", "error", err)
-		h.serverError(w, r)
+	attemptID, attemptErr := parseCheckoutAttemptID(r.PostFormValue("idempotency"))
+	if attemptErr == nil && h.answerPriorCheckout(w, r, cartID, attemptID) {
 		return
 	}
-	// What was SUBMITTED, echoed back — never re-filled from the book, which
-	// would overwrite the correction the customer just made.
-	//
-	// EXCEPT when the address chooser itself is what was pressed. That is the
-	// one submission where the customer is asking for the saved address to be
-	// put in the fields, and it is why 更新 says WHICH chooser it applies:
-	// filling on every re-render would wipe a typed address the moment somebody
-	// changed their 發票 type. The chooser did nothing at all before — a hidden
-	// input carried the same name and came first, so PostFormValue never saw
-	// the pick — and a repeat customer with two saved addresses could use only
-	// the default, for ever.
-	view.ChosenAddress = r.PostFormValue("address")
-	if r.PostFormValue("update") == "address" {
-		fillFromBook(&view, addr, view.ChosenAddress)
-	}
-	view.Address = pages.CheckoutAddress{
-		Email: addr.Email, Name: addr.Name, Phone: addr.Phone,
-		PostalCode: addr.PostalCode, City: addr.City,
-		District: addr.District, Street: addr.Street,
-		PickupBrand: addr.PickupBrand, PickupStoreCode: addr.PickupStoreCode,
-		PickupStoreName: addr.PickupStoreName, Note: addr.Note,
-	}
-	view.Chosen = r.PostFormValue("shipping")
-	// WHERE this order goes is decided by the method the server offered, never
-	// by the form.
-	view.Destination = string(destinationOf(view.Shipping, view.Chosen))
-	addr.To = Destination(view.Destination)
-	view.Idempoten = r.PostFormValue("idempotency")
 
-	inv := &Invoice{
-		Type:    r.PostFormValue("invoice_type"),
-		Carrier: r.PostFormValue("invoice_carrier"),
-		TaxID:   r.PostFormValue("invoice_tax_id"),
+	owner := ownerOf(r)
+	submission, ok := h.checkoutSubmission(w, r, cartID, owner, attemptID, attemptErr == nil)
+	if !ok {
+		return
 	}
-	view.Invoice = pages.CheckoutInvoice{
-		Type: inv.Type, Carrier: inv.Carrier, TaxID: inv.TaxID,
-	}
-
-	coupon, couponErr := h.resolveCoupon(r, &view)
 
 	// A CHOOSER CHANGE, not an order. The delivery method, the saved address and
 	// the 發票 type each decide which fields the form asks for, so changing one
@@ -320,49 +291,197 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 	// submission; nothing is validated, because nobody has finished.
 	if r.PostFormValue("update") != "" {
 		web.Render(w, r, h.log, http.StatusOK,
-			pages.Checkout(pages.CheckoutMeta(r.Context()), &view))
+			pages.Checkout(pages.CheckoutMeta(r.Context()), &submission.view))
 		return
 	}
 
+	shown, ok := h.validateCheckoutSubmission(w, r, cartID, submission)
+	if !ok {
+		return
+	}
+
+	if attemptErr != nil {
+		// Only a canonical server identity can name a retry. checkoutSubmission
+		// retained checkoutView's fresh identity instead of echoing malformed form
+		// text; require confirmation before that new identity can write anything.
+		submission.view.Repriced = i18n.T(r.Context(), i18n.KeyCheckoutChanged)
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity,
+			pages.Checkout(pages.CheckoutMeta(r.Context()), &submission.view))
+		return
+	}
+
+	number, err := h.store.placeOrder(
+		r.Context(), cartID, owner, submission.shippingID, &submission.address,
+		&submission.invoice, submission.view.CouponCode,
+		shown, attemptID,
+	)
+	h.answerPlacement(w, r, cartID, &submission.address, &submission.view, number, err)
+}
+
+// answerPriorCheckout handles the lost-response retry before examining the
+// cart that a successful checkout deliberately emptied.
+func (h *Handler) answerPriorCheckout(
+	w http.ResponseWriter, r *http.Request, cartID uuid.UUID, attemptID checkoutAttemptID,
+) bool {
+	prior, found, err := h.store.priorOrder(
+		r.Context(), cartID, attemptID,
+	)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read prior checkout attempt", "error", err)
+		h.serverError(w, r)
+		return true
+	}
+	if !found {
+		return false
+	}
+	h.rememberOrder(w, r, prior)
+	http.Redirect(w, r, "/orders/"+prior+"/pay", http.StatusSeeOther) //nolint:gosec // server-generated order number
+	return true
+}
+
+// checkoutSubmission rebuilds server-owned checkout state while preserving the
+// customer's submitted fields. ok is false only after this method has answered
+// the request.
+type checkoutSubmission struct {
+	view        pages.CheckoutView
+	address     Address
+	invoice     Invoice
+	shippingID  uuid.UUID
+	shippingErr error
+	couponErr   string
+}
+
+func (h *Handler) checkoutSubmission(
+	w http.ResponseWriter,
+	r *http.Request,
+	cartID uuid.UUID,
+	owner uuid.NullUUID,
+	attemptID checkoutAttemptID,
+	attemptOK bool,
+) (*checkoutSubmission, bool) {
+	addr := Address{
+		Email:           r.PostFormValue("email"),
+		Name:            r.PostFormValue("name"),
+		Phone:           r.PostFormValue("phone"),
+		PostalCode:      r.PostFormValue("postal_code"),
+		City:            r.PostFormValue("city"),
+		District:        r.PostFormValue("district"),
+		Street:          r.PostFormValue("street"),
+		PickupBrand:     pickup.Brand(r.PostFormValue("pickup_brand")),
+		PickupStoreCode: r.PostFormValue("pickup_store_code"),
+		PickupStoreName: r.PostFormValue("pickup_store_name"),
+		Note:            r.PostFormValue("note"),
+	}
+	addr.Trim()
+
+	view, err := h.checkoutView(r.Context(), cartID, owner)
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read checkout", "error", err)
+		h.serverError(w, r)
+		return nil, false
+	}
+	// Another tab may already have emptied or invalidated this cart. The cart
+	// page explains the current state; Store keeps the same rule transactionally.
+	if !view.Cart.CanCheckout() {
+		http.Redirect(w, r, "/cart", http.StatusSeeOther)
+		return nil, false
+	}
+
+	// Echo what was submitted, except when the address chooser itself asks to
+	// replace those fields with one saved address.
+	view.ChosenAddress = r.PostFormValue("address")
+	if r.PostFormValue("update") == "address" {
+		fillFromBook(&view, &addr, view.ChosenAddress)
+	}
+	view.Address = pages.CheckoutAddress{
+		Email: addr.Email, Name: addr.Name, Phone: addr.Phone,
+		PostalCode: addr.PostalCode, City: addr.City,
+		District: addr.District, Street: addr.Street,
+		PickupBrand: addr.PickupBrand, PickupStoreCode: addr.PickupStoreCode,
+		PickupStoreName: addr.PickupStoreName, Note: addr.Note,
+	}
+	view.Chosen = r.PostFormValue("shipping")
+	view.Destination = string(destinationOf(view.Shipping, view.Chosen))
+	addr.To = Destination(view.Destination)
+	// Invalid form text never survives as internal state. checkoutView already
+	// owns a fresh identity for that case; a valid retry keeps its exact identity.
+	if attemptOK {
+		view.IdempotencyKey = attemptID.String()
+	}
+
+	inv := Invoice{
+		Type:    invoicepkg.Preference(r.PostFormValue("invoice_type")),
+		Carrier: r.PostFormValue("invoice_carrier"),
+		TaxID:   r.PostFormValue("invoice_tax_id"),
+	}
+	view.Invoice = pages.CheckoutInvoice{Type: inv.Type, Carrier: inv.Carrier, TaxID: inv.TaxID}
+
+	couponErr := h.resolveCoupon(r, &view)
 	shippingID, shipErr := uuid.Parse(view.Chosen)
-	errs := checkoutErrors(r.Context(), addr, shipErr, inv)
-	if shipErr == nil && errs == nil {
-		// The address is valid, so the fee can be priced for real: earlier and
-		// the postal code is not trustworthy, later and the customer has
-		// already committed to a figure.
-		if quoteErr := h.requote(r, &view, shippingID, addr); quoteErr != "" {
-			view.Repriced = quoteErr
+	if shipErr == nil {
+		if quoteErr := h.quoteCheckoutShipping(
+			r.Context(), &view, shippingID, addr.PostalCode,
+		); quoteErr != nil {
+			h.log.ErrorContext(r.Context(), "quote shipping", "error", quoteErr)
+			view.Repriced = i18n.T(r.Context(), i18n.KeyShippingUnpriceable)
 		}
 	}
 	if couponErr != "" {
-		// checkoutErrors returns a nil map when nothing was wrong, and writing
-		// to a nil map panics.
+		view.Errors = map[string]string{"coupon": couponErr}
+	}
+	if shipErr == nil && view.Repriced == "" && couponErr == "" {
+		if quoteErr := setCheckoutQuoteID(cartID, &view); quoteErr != nil {
+			h.log.ErrorContext(r.Context(), "build refreshed checkout quote", "error", quoteErr)
+			h.serverError(w, r)
+			return nil, false
+		}
+	}
+	return &checkoutSubmission{
+		view: view, address: addr, invoice: inv,
+		shippingID: shippingID, shippingErr: shipErr, couponErr: couponErr,
+	}, true
+}
+
+func (h *Handler) validateCheckoutSubmission(
+	w http.ResponseWriter,
+	r *http.Request,
+	cartID uuid.UUID,
+	submission *checkoutSubmission,
+) (checkoutQuoteID, bool) {
+	errs := checkoutErrors(
+		r.Context(), &submission.address, submission.shippingErr, &submission.invoice,
+	)
+	if submission.couponErr != "" {
 		if errs == nil {
 			errs = map[string]string{}
 		}
-		errs["coupon"] = couponErr
+		errs["coupon"] = submission.couponErr
 	}
-	if len(errs) > 0 || view.Repriced != "" {
-		view.Errors = errs
+
+	shown, shownErr := parseCheckoutQuoteID(r.PostFormValue("checkout_quote"))
+	current, currentErr := checkoutQuoteIDForView(cartID, &submission.view)
+	if submission.shippingErr == nil && submission.couponErr == "" &&
+		submission.view.Repriced == "" && currentErr != nil {
+		h.log.ErrorContext(r.Context(), "build submitted checkout quote", "error", currentErr)
+		h.serverError(w, r)
+		return checkoutQuoteID{}, false
+	}
+	if shownErr != nil || currentErr != nil || shown != current {
+		submission.view.Repriced = i18n.T(r.Context(), i18n.KeyCheckoutChanged)
+	}
+	if len(errs) > 0 || submission.view.Repriced != "" {
+		submission.view.Errors = errs
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-			pages.Checkout(pages.CheckoutMeta(r.Context()), &view))
-		return
+			pages.Checkout(pages.CheckoutMeta(r.Context()), &submission.view))
+		return checkoutQuoteID{}, false
 	}
-
-	key := view.Idempoten
-	if key == "" {
-		// A form that lost its key still gets one.
-		key = newIdempotencyKey()
-	}
-
-	number, err := h.store.PlaceOrder(r.Context(), cartID, owner, shippingID, addr, inv, coupon, key)
-	h.answerPlacement(w, r, &view, number, err)
+	return shown, true
 }
 
 // answerPlacement turns the outcome of a checkout write into a response.
 func (h *Handler) answerPlacement(
 	w http.ResponseWriter, r *http.Request,
-	view *pages.CheckoutView, number string, err error,
+	cartID uuid.UUID, addr *Address, view *pages.CheckoutView, number string, err error,
 ) {
 	switch {
 	case err == nil:
@@ -377,63 +496,238 @@ func (h *Handler) answerPlacement(
 		// says which line and why.
 		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 	case errors.Is(err, ErrCreditChanged):
-		balance, balanceErr := h.store.AvailableCredit(r.Context(), ownerOf(r))
-		if balanceErr != nil {
-			h.log.ErrorContext(r.Context(), "refresh store credit after checkout refusal", "error", balanceErr)
-			h.serverError(w, r)
-			return
-		}
-		view.CreditChanged = fmt.Sprintf(i18n.T(r.Context(), i18n.KeyCreditChanged), pages.TWD(balance))
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-			pages.Checkout(pages.CheckoutMeta(r.Context()), view))
+		h.answerCreditChanged(w, r, cartID, view)
+	case errors.Is(err, errCheckoutChanged):
+		h.answerCheckoutChanged(w, r, cartID, addr, view)
+	case errors.Is(err, errCheckoutKeyConflict):
+		h.answerCheckoutKeyConflict(w, r, cartID, view)
 	case errors.Is(err, ErrNotFound):
-		view.Errors = map[string]string{"shipping": i18n.T(r.Context(), i18n.KeyChooseShipping)}
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-			pages.Checkout(pages.CheckoutMeta(r.Context()), view))
-	case errors.Is(err, ErrCouponUsedUp), errors.Is(err, ErrCouponExpired):
-		// The coupon was fine when the form was validated and is refused inside
-		// the transaction, where redeem_coupon counts the limits under its lock.
-		// Not a rare race: the pre-check reads no limit at all.
-		reason := i18n.KeyCouponUsedUp
-		if errors.Is(err, ErrCouponExpired) {
-			reason = i18n.KeyCouponExpired
-		}
-		view.Errors = map[string]string{"coupon": i18n.T(r.Context(), reason)}
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-			pages.Checkout(pages.CheckoutMeta(r.Context()), view))
+		h.answerMissingShipping(w, r, cartID, addr, view)
+	case errors.Is(err, ErrCouponUsedUp), errors.Is(err, ErrCouponExpired),
+		errors.Is(err, ErrCouponMinimum), errors.Is(err, ErrNoSuchCoupon):
+		h.answerCouponRefusal(w, r, cartID, addr, view, err)
 	default:
 		h.log.ErrorContext(r.Context(), "place order", "error", err)
 		h.serverError(w, r)
 	}
 }
 
-// resolveCoupon looks up the typed code and prices it, or reports why not. An
-// empty field is not an error.
-func (h *Handler) resolveCoupon(r *http.Request, view *pages.CheckoutView) (coupon *Coupon, formError string) {
+func (h *Handler) answerCreditChanged(
+	w http.ResponseWriter, r *http.Request, cartID uuid.UUID, view *pages.CheckoutView,
+) {
+	balance, err := h.store.AvailableCredit(r.Context(), ownerOf(r))
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "refresh store credit after checkout refusal", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	view.AvailableCreditCents = balance
+	view.CreditChanged = fmt.Sprintf(i18n.T(r.Context(), i18n.KeyCreditChanged), pages.TWD(balance))
+	if err := setCheckoutQuoteID(cartID, view); err != nil {
+		h.log.ErrorContext(r.Context(), "build refreshed credit quote", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
+		pages.Checkout(pages.CheckoutMeta(r.Context()), view))
+}
+
+func (h *Handler) answerCheckoutChanged(
+	w http.ResponseWriter,
+	r *http.Request,
+	cartID uuid.UUID,
+	addr *Address,
+	view *pages.CheckoutView,
+) {
+	if err := h.refreshCheckoutState(r.Context(), cartID, ownerOf(r), addr, view); err != nil {
+		h.log.ErrorContext(r.Context(), "refresh changed checkout quote", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	if couponErr := h.resolveCoupon(r, view); couponErr != "" {
+		view.Errors = map[string]string{"coupon": couponErr}
+	}
+	view.Repriced = i18n.T(r.Context(), i18n.KeyCheckoutChanged)
+	if err := setCheckoutQuoteID(cartID, view); err != nil {
+		h.log.ErrorContext(r.Context(), "build changed checkout quote", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
+		pages.Checkout(pages.CheckoutMeta(r.Context()), view))
+}
+
+func (h *Handler) answerCheckoutKeyConflict(
+	w http.ResponseWriter, r *http.Request, cartID uuid.UUID, view *pages.CheckoutView,
+) {
+	// The key is a retry identity, not order access. Do not reveal which cart
+	// owns a collision; replace it and require confirmation.
+	attemptID, err := newCheckoutAttemptID()
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "replace conflicting checkout identity", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	view.IdempotencyKey = attemptID.String()
+	view.Repriced = i18n.T(r.Context(), i18n.KeyCheckoutChanged)
+	if err := setCheckoutQuoteID(cartID, view); err != nil {
+		h.log.ErrorContext(r.Context(), "build checkout quote after key collision", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
+		pages.Checkout(pages.CheckoutMeta(r.Context()), view))
+}
+
+func (h *Handler) answerMissingShipping(
+	w http.ResponseWriter,
+	r *http.Request,
+	cartID uuid.UUID,
+	addr *Address,
+	view *pages.CheckoutView,
+) {
+	if err := h.refreshCheckoutState(r.Context(), cartID, ownerOf(r), addr, view); err != nil {
+		h.log.ErrorContext(r.Context(), "refresh checkout after missing shipping", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	view.Errors = map[string]string{"shipping": i18n.T(r.Context(), i18n.KeyChooseShipping)}
+	if err := setCheckoutQuoteID(cartID, view); err != nil {
+		h.log.ErrorContext(r.Context(), "build replacement shipping quote", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
+		pages.Checkout(pages.CheckoutMeta(r.Context()), view))
+}
+
+func (h *Handler) answerCouponRefusal(
+	w http.ResponseWriter,
+	r *http.Request,
+	cartID uuid.UUID,
+	addr *Address,
+	view *pages.CheckoutView,
+	refusal error,
+) {
+	// Coupon eligibility is authoritative inside the transaction. Reload the
+	// current cart/quote and remove the rejected coupon's old effect.
+	if err := h.refreshCheckoutState(r.Context(), cartID, ownerOf(r), addr, view); err != nil {
+		h.log.ErrorContext(r.Context(), "refresh checkout after coupon refusal", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	reason := i18n.KeyCouponUsedUp
+	switch {
+	case errors.Is(refusal, ErrCouponExpired):
+		reason = i18n.KeyCouponExpired
+	case errors.Is(refusal, ErrCouponMinimum):
+		reason = i18n.KeyCouponBelowMinimum
+	case errors.Is(refusal, ErrNoSuchCoupon):
+		reason = i18n.KeyCouponUnknown
+	}
+	view.Errors = map[string]string{"coupon": i18n.T(r.Context(), reason)}
+	if err := setCheckoutQuoteID(cartID, view); err != nil {
+		h.log.ErrorContext(r.Context(), "build coupon-refusal quote", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
+		pages.Checkout(pages.CheckoutMeta(r.Context()), view))
+}
+
+// refreshCheckoutState re-prices the server-owned parts of a submitted
+// checkout after a transactional refusal. Typed address, invoice, coupon code
+// and idempotency key remain; catalogue, shipping and credit are replaced.
+func (h *Handler) refreshCheckoutState(
+	ctx context.Context,
+	cartID uuid.UUID,
+	owner uuid.NullUUID,
+	addr *Address,
+	view *pages.CheckoutView,
+) error {
+	cartView, err := h.store.View(ctx, cartID)
+	if err != nil {
+		return fmt.Errorf("read current cart: %w", err)
+	}
+	choices, err := h.store.ShippingChoices(ctx, cartID, cartView.SubtotalCents)
+	if err != nil {
+		return err
+	}
+	if len(choices) == 0 {
+		return errors.New("cart: checkout has no current shipping choice")
+	}
+
+	view.Cart = cartView
+	view.Shipping = choices
+	view.CouponApplied = ""
+	view.CouponDiscountCents = 0
+	view.CouponFreeShipping = false
+	view.QuotedShippingCents = 0
+	view.SurchargeCents = 0
+	view.ZoneName = ""
+	view.Repriced = ""
+	balance, err := h.store.AvailableCredit(ctx, owner)
+	if err != nil {
+		return fmt.Errorf("read current store credit: %w", err)
+	}
+	view.AvailableCreditCents = balance
+
+	if !slices.ContainsFunc(choices, func(choice pages.ShippingChoice) bool {
+		return choice.VersionID == view.Chosen
+	}) {
+		view.Chosen = choices[0].VersionID
+	}
+	view.Destination = string(destinationOf(choices, view.Chosen))
+	addr.To = Destination(view.Destination)
+	shippingID, err := uuid.Parse(view.Chosen)
+	if err != nil {
+		return fmt.Errorf("parse current shipping choice: %w", err)
+	}
+	quote, err := h.store.QuoteShipping(ctx, shippingID, cartView.SubtotalCents, addr.PostalCode)
+	if err != nil {
+		return err
+	}
+	shippingCents, err := quote.Total()
+	if err != nil {
+		return fmt.Errorf("total refreshed shipping quote: %w", err)
+	}
+	view.QuotedShippingCents = shippingCents
+	view.SurchargeCents = quote.Surcharge
+	view.ZoneName = quote.ZoneName
+	return nil
+}
+
+// resolveCoupon looks up the typed code and applies it to this view, or reports
+// why not. An empty field is not an error.
+func (h *Handler) resolveCoupon(r *http.Request, view *pages.CheckoutView) string {
 	raw := r.PostFormValue("coupon")
 	view.CouponCode = NormaliseCode(raw)
 	if view.CouponCode == "" {
-		return nil, ""
+		return ""
 	}
 
 	subtotal := view.Cart.SubtotalCents
-	shipping := view.ShippingFeeCents()
-	c, err := h.store.FindCoupon(r.Context(), view.CouponCode, subtotal, shipping)
+	c, err := h.store.FindCoupon(r.Context(), view.CouponCode)
+	if err == nil {
+		discountCents, freeShipping, applyErr := c.Apply(subtotal)
+		if applyErr == nil {
+			view.CouponApplied = c.description
+			view.CouponDiscountCents = discountCents
+			view.CouponFreeShipping = freeShipping
+			return ""
+		}
+		err = applyErr
+	}
 	switch {
-	case err == nil:
-		view.CouponApplied = c.Description
-		view.CouponDiscountCents = c.DiscountCents
-		view.CouponFreeShipping = c.FreeShipping
-		return c, ""
 	case errors.Is(err, ErrCouponExpired):
-		return nil, i18n.T(r.Context(), i18n.KeyCouponExpired)
+		return i18n.T(r.Context(), i18n.KeyCouponExpired)
 	case errors.Is(err, ErrCouponMinimum):
-		return nil, i18n.T(r.Context(), i18n.KeyCouponBelowMinimum)
+		return i18n.T(r.Context(), i18n.KeyCouponBelowMinimum)
 	case errors.Is(err, ErrNoSuchCoupon):
-		return nil, i18n.T(r.Context(), i18n.KeyCouponUnknown)
+		return i18n.T(r.Context(), i18n.KeyCouponUnknown)
 	default:
 		h.log.ErrorContext(r.Context(), "resolve coupon", "error", err)
-		return nil, i18n.T(r.Context(), i18n.KeyCouponUnavailable)
+		return i18n.T(r.Context(), i18n.KeyCouponUnavailable)
 	}
 }
 
@@ -457,29 +751,26 @@ func checkoutErrors(ctx context.Context, addr *Address, shipErr error, inv *Invo
 	return out
 }
 
-// requote prices the chosen method against the address that was actually typed,
-// and refuses the order when the figure has moved. The fee shown when the method
-// was chosen is a mainland fee, because no postal code had been typed yet.
-func (h *Handler) requote(r *http.Request, view *pages.CheckoutView, versionID uuid.UUID, addr *Address) string {
-	quote, err := h.store.QuoteShipping(r.Context(), versionID, view.Cart.SubtotalCents, addr.PostalCode)
+// quoteCheckoutShipping prices the chosen method against the current postal
+// code and puts that exact server-owned result into the rendered view.
+func (h *Handler) quoteCheckoutShipping(
+	ctx context.Context,
+	view *pages.CheckoutView,
+	versionID uuid.UUID,
+	postalCode string,
+) error {
+	quote, err := h.store.QuoteShipping(ctx, versionID, view.Cart.SubtotalCents, postalCode)
 	if err != nil {
-		h.log.ErrorContext(r.Context(), "quote shipping", "error", err)
-		return i18n.T(r.Context(), i18n.KeyShippingUnpriceable)
+		return err
 	}
-	view.QuotedShippingCents = quote.Total()
+	shippingCents, err := quote.Total()
+	if err != nil {
+		return fmt.Errorf("total checkout shipping quote: %w", err)
+	}
+	view.QuotedShippingCents = shippingCents
 	view.SurchargeCents = quote.Surcharge
 	view.ZoneName = quote.ZoneName
-	if quote.Surcharge == 0 {
-		return ""
-	}
-
-	// The form carries what the customer was last shown.
-	shown, err := strconv.ParseInt(r.PostFormValue("quoted_shipping"), 10, 64)
-	if err == nil && shown == quote.Total() {
-		return ""
-	}
-	return fmt.Sprintf(i18n.T(r.Context(), i18n.KeyShippingRepriced),
-		quote.ZoneName, pages.TWD(quote.Total()))
+	return nil
 }
 
 // ownerOf is the signed-in customer, or a null id for a guest.
@@ -646,13 +937,22 @@ func (h *Handler) checkoutView(ctx context.Context, cartID uuid.UUID, owner uuid
 	if err != nil {
 		return pages.CheckoutView{}, err
 	}
+	attemptID, err := newCheckoutAttemptID()
+	if err != nil {
+		return pages.CheckoutView{}, err
+	}
 	view := pages.CheckoutView{
 		Cart: cartView, Shipping: choices,
 		InvoiceChoices: invoiceChoices(ctx),
 		PickupBrands:   pages.PickupBrandChoices(),
 		SavedAddresses: saved,
-		Idempoten:      newIdempotencyKey(),
+		IdempotencyKey: attemptID.String(),
 	}
+	balance, err := h.store.AvailableCredit(ctx, owner)
+	if err != nil {
+		return pages.CheckoutView{}, err
+	}
+	view.AvailableCreditCents = balance
 	if len(choices) > 0 {
 		view.Chosen = choices[0].VersionID
 		view.Destination = string(destinationOf(choices, view.Chosen))
@@ -660,12 +960,63 @@ func (h *Handler) checkoutView(ctx context.Context, cartID uuid.UUID, owner uuid
 	return view, nil
 }
 
-// invoiceChoices is what the form offers, built from InvoiceTypes so the page
-// and the validator cannot list different things.
+// checkoutQuoteIDForView builds the identity of exactly what CheckoutView renders. A
+// second concrete loop is intentional: page rows and database rows are distinct
+// boundaries and do not justify a generic priced-line interface.
+func checkoutQuoteIDForView(cartID uuid.UUID, view *pages.CheckoutView) (checkoutQuoteID, error) {
+	shippingID, err := uuid.Parse(view.Chosen)
+	if err != nil {
+		return checkoutQuoteID{}, fmt.Errorf("parse quoted shipping version: %w", err)
+	}
+	lines := make([]checkoutQuoteLine, 0, len(view.Cart.Lines))
+	for i := range view.Cart.Lines {
+		line := &view.Cart.Lines[i]
+		variantID, parseErr := uuid.Parse(line.VariantID)
+		if parseErr != nil {
+			return checkoutQuoteID{}, fmt.Errorf("parse quoted variant: %w", parseErr)
+		}
+		lines = append(lines, checkoutQuoteLine{
+			VariantID: variantID,
+			Quantity:  line.Quantity,
+			UnitCents: line.UnitCents,
+		})
+	}
+	shippingCents := view.ChargedShippingCents()
+	gross, err := checkoutGross(
+		view.Cart.SubtotalCents, shippingCents, view.CouponDiscountCents,
+	)
+	if err != nil {
+		return checkoutQuoteID{}, fmt.Errorf("total rendered checkout quote: %w", err)
+	}
+	creditCents := min(max(view.AvailableCreditCents, 0), gross)
+	return (checkoutQuote{
+		CartID:            cartID,
+		Lines:             lines,
+		ShippingVersionID: shippingID,
+		ShippingCents:     shippingCents,
+		CouponCode:        NormaliseCode(view.CouponCode),
+		DiscountCents:     view.CouponDiscountCents,
+		CreditCents:       creditCents,
+	}).ID()
+}
+
+func setCheckoutQuoteID(cartID uuid.UUID, view *pages.CheckoutView) error {
+	id, err := checkoutQuoteIDForView(cartID, view)
+	if err != nil {
+		view.QuoteID = ""
+		return err
+	}
+	view.QuoteID = id.String()
+	return nil
+}
+
+// invoiceChoices is what the form offers, built from the issuer-owned closed
+// set so rendering, checkout validation, storage and ECPay cannot drift.
 func invoiceChoices(ctx context.Context) []pages.InvoiceChoice {
-	out := make([]pages.InvoiceChoice, 0, len(InvoiceTypes))
-	for _, t := range InvoiceTypes {
-		out = append(out, pages.InvoiceChoice{Value: t, Label: i18n.T(ctx, InvoiceTypeLabelKey(t))})
+	types := invoicepkg.OfferedPreferences()
+	out := make([]pages.InvoiceChoice, 0, len(types))
+	for _, t := range types {
+		out = append(out, pages.InvoiceChoice{Value: t, Label: i18n.T(ctx, invoiceTypeLabelKey(t))})
 	}
 	return out
 }
@@ -728,17 +1079,6 @@ func isSlug(s string) bool {
 		}
 	}
 	return true
-}
-
-// newIdempotencyKey returns a fresh checkout key.
-func newIdempotencyKey() string {
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		// A key that cannot be generated must not become a constant, which would
-		// make every checkout look like a repeat of the first.
-		return ""
-	}
-	return base64.RawURLEncoding.EncodeToString(b)
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {

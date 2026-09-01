@@ -13,31 +13,33 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// Subject is one topic the form offers: the value STORED and the label read.
+// subject is one topic the form offers: the value STORED and the label read.
 // Translating the value at write time would put the visitor's language in a row.
-type Subject struct {
+type subject struct {
 	Value    string
 	LabelKey i18n.Key
 }
 
-// Subjects is the closed set of topics the form offers, and the only definition
-// of that set: the template renders it and [Validate] checks against it.
-var Subjects = []Subject{
-	// i18n-exempt: the STORED value, per the note on Subject.
+// subjects is the application definition of the closed set of topics the form
+// offers: the template renders it and [Validate] checks against it. The database
+// repeats these durable stored values in contact_messages_subject_known so a
+// lower-level writer cannot widen the set.
+var subjects = [...]subject{
+	// i18n-exempt: the STORED value, per the note on subject.
 	{Value: "訂單問題", LabelKey: i18n.KeySubjectOrder},
-	// i18n-exempt: the STORED value, per the note on Subject.
+	// i18n-exempt: the STORED value, per the note on subject.
 	{Value: "退換貨", LabelKey: i18n.KeySubjectReturns},
-	// i18n-exempt: the STORED value, per the note on Subject.
+	// i18n-exempt: the STORED value, per the note on subject.
 	{Value: "保固維修", LabelKey: i18n.KeySubjectWarranty},
-	// i18n-exempt: the STORED value, per the note on Subject.
+	// i18n-exempt: the STORED value, per the note on subject.
 	{Value: "商品諮詢", LabelKey: i18n.KeySubjectProduct},
-	// i18n-exempt: the STORED value, per the note on Subject.
+	// i18n-exempt: the STORED value, per the note on subject.
 	{Value: "合作提案", LabelKey: i18n.KeySubjectPartnership},
 }
 
 // offersSubject reports whether v is one of the topics on the form.
 func offersSubject(v string) bool {
-	for _, s := range Subjects {
+	for _, s := range subjects {
 		if s.Value == v {
 			return true
 		}

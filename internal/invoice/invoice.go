@@ -7,6 +7,7 @@ package invoice
 
 import (
 	"errors"
+	"slices"
 	"time"
 )
 
@@ -35,6 +36,42 @@ var (
 
 // TaxRate is Taiwan's business tax, 5%.
 const TaxRate = 5
+
+// Preference is the stable wire value shared by checkout, storage, back-office
+// display, and the ECPay issuer. It is not a translated label.
+type Preference string
+
+const (
+	PreferenceMember  Preference = "member_carrier"
+	PreferenceMobile  Preference = "mobile_carrier"
+	PreferenceCompany Preference = "company"
+)
+
+var offeredPreferences = [...]Preference{
+	PreferenceMember,
+	PreferenceMobile,
+	PreferenceCompany,
+}
+
+// OfferedPreferences returns the checkout choices in display order. The result
+// owns its storage, so callers cannot mutate the canonical closed set.
+func OfferedPreferences() []Preference { return slices.Clone(offeredPreferences[:]) }
+
+// Known reports whether p is one of the preferences this shop can issue.
+func (p Preference) Known() bool {
+	for _, offered := range offeredPreferences {
+		if p == offered {
+			return true
+		}
+	}
+	return false
+}
+
+// NeedsCarrier reports whether checkout must collect a mobile barcode.
+func (p Preference) NeedsCarrier() bool { return p == PreferenceMobile }
+
+// NeedsTaxID reports whether checkout must collect a business tax number.
+func (p Preference) NeedsTaxID() bool { return p == PreferenceCompany }
 
 // Carrier types, as ECPay names them.
 const (

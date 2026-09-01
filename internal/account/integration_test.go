@@ -5,7 +5,9 @@ package account_test
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"strconv"
@@ -15,14 +17,23 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 var pool *pgxpool.Pool
+
+func checkoutAttemptKey(label string) string {
+	digest := sha256.Sum256([]byte(label))
+	return base64.RawURLEncoding.EncodeToString(digest[:16])
+}
 
 func TestMain(m *testing.M) {
 	p, stop, err := dbtest.Start(context.Background())
@@ -56,6 +67,151 @@ func register(t *testing.T, s *account.Store, email string) account.User {
 		t.Fatalf("register %s: %v", email, err)
 	}
 	return u
+}
+
+func beginReset(t *testing.T, s *account.Store, email string) string {
+	t.Helper()
+	if err := account.BeginReset(t.Context(), s, email); err != nil {
+		t.Fatalf("begin reset for %s: %v", email, err)
+	}
+	var token string
+	if err := pool.QueryRow(t.Context(), `
+		SELECT payload->>'token'
+		FROM outbox_messages
+		WHERE topic = $1 AND lower(payload->>'email') = lower($2)
+		ORDER BY id DESC
+		LIMIT 1`, outbox.TopicPasswordReset, email).Scan(&token); err != nil {
+		t.Fatalf("read reset token from its queued message: %v", err)
+	}
+	if token == "" {
+		t.Fatal("queued reset message has no token")
+	}
+	return token
+}
+
+func requestVerification(t *testing.T, s *account.Store, userID, email string) string {
+	t.Helper()
+	if err := account.RequestVerification(t.Context(), s, userID, email); err != nil {
+		t.Fatalf("request verification for %s: %v", email, err)
+	}
+	var token string
+	if err := pool.QueryRow(t.Context(), `
+		SELECT payload->>'token'
+		FROM outbox_messages
+		WHERE topic = $1 AND lower(payload->>'email') = lower($2)
+		ORDER BY id DESC
+		LIMIT 1`, outbox.TopicEmailVerify, email).Scan(&token); err != nil {
+		t.Fatalf("read verification token from its queued message: %v", err)
+	}
+	if token == "" {
+		t.Fatal("queued verification message has no token")
+	}
+	return token
+}
+
+func accountStorePool(t *testing.T, applicationName string) *pgxpool.Pool {
+	t.Helper()
+	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
+	if err != nil {
+		t.Fatalf("parse account application pool config: %v", err)
+	}
+	cfg.MaxConns = 1
+	cfg.ConnConfig.RuntimeParams["application_name"] = applicationName
+	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		_, setRoleErr := conn.Exec(ctx, `SET ROLE store`)
+		return setRoleErr
+	}
+	p, err := pgxpool.NewWithConfig(t.Context(), cfg)
+	if err != nil {
+		t.Fatalf("open account application pool: %v", err)
+	}
+	t.Cleanup(p.Close)
+	return p
+}
+
+func waitForAccountLock(t *testing.T, applicationName string, done <-chan error) {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		select {
+		case err := <-done:
+			t.Fatalf("%s returned before reaching the intended database lock: %v",
+				applicationName, err)
+		default:
+		}
+
+		var waiting bool
+		err := pool.QueryRow(t.Context(), `
+			SELECT EXISTS (
+				SELECT 1 FROM pg_stat_activity
+				WHERE application_name = $1 AND wait_event_type = 'Lock'
+			)`, applicationName).Scan(&waiting)
+		if err == nil && waiting {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%s never blocked on the intended database lock: %v", applicationName, err)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func operationResult(t *testing.T, done <-chan error) error {
+	t.Helper()
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(15 * time.Second):
+		t.Fatal("operation did not finish after its database lock was released")
+		return nil
+	}
+}
+
+func accountCheckoutQuote(
+	t *testing.T,
+	s *cart.Store,
+	cartID uuid.UUID,
+	owner uuid.NullUUID,
+	shippingID uuid.UUID,
+	postalCode string,
+) cart.CheckoutQuoteID {
+	t.Helper()
+	view, err := s.View(t.Context(), cartID)
+	if err != nil {
+		t.Fatalf("read account checkout cart: %v", err)
+	}
+	delivery, err := s.QuoteShipping(t.Context(), shippingID, view.SubtotalCents, postalCode)
+	if err != nil {
+		t.Fatalf("quote account checkout delivery: %v", err)
+	}
+	balance, err := s.AvailableCredit(t.Context(), owner)
+	if err != nil {
+		t.Fatalf("read account checkout credit: %v", err)
+	}
+	lines := make([]cart.CheckoutQuoteLine, 0, len(view.Lines))
+	for i := range view.Lines {
+		line := &view.Lines[i]
+		variantID, parseErr := uuid.Parse(line.VariantID)
+		if parseErr != nil {
+			t.Fatalf("parse account checkout variant: %v", parseErr)
+		}
+		lines = append(lines, cart.CheckoutQuoteLine{
+			VariantID: variantID, Quantity: line.Quantity, UnitCents: line.UnitCents,
+		})
+	}
+	shipping, err := delivery.Total()
+	if err != nil {
+		t.Fatalf("total account checkout shipping: %v", err)
+	}
+	id, err := (cart.CheckoutQuote{
+		CartID: cartID, Lines: lines,
+		ShippingVersionID: shippingID, ShippingCents: shipping,
+		CreditCents: min(balance, view.SubtotalCents+shipping),
+	}).ID()
+	if err != nil {
+		t.Fatalf("build account checkout quote: %v", err)
+	}
+	return id
 }
 
 func TestPasswordIsNeverStoredInTheClear(t *testing.T) {
@@ -350,6 +506,9 @@ func TestAdoptCartMergesRatherThanReplaces(t *testing.T) {
 		}
 		got[v] = q
 	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		t.Fatalf("iterate merged cart lines: %v", rowsErr)
+	}
 	if got[a] != 3 {
 		t.Errorf("variant in both carts has quantity %d, want 3 (1 + 2 summed, not replaced)", got[a])
 	}
@@ -364,6 +523,315 @@ func TestAdoptCartMergesRatherThanReplaces(t *testing.T) {
 	}
 	if guestStillThere != 0 {
 		t.Error("the guest cart survived the merge and would be adopted again on the next sign-in")
+	}
+}
+
+// TestConcurrentFirstAdoptersKeepBothGuestCarts holds the account row before
+// either sign-in starts. Both calls must wait there: that makes the formerly
+// racy "no account cart exists" observation deterministic rather than relying
+// on scheduler luck. Once released, one cart is adopted and the other is merged
+// into it, with both calls succeeding through the production store role.
+func TestConcurrentFirstAdoptersKeepBothGuestCarts(t *testing.T) {
+	ctx := t.Context()
+	u := register(t, account.NewStore(pool), "first-adopters-"+uuid.NewString()+"@example.com")
+	userID := uuid.MustParse(u.ID)
+
+	var firstVariant, secondVariant uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM product_variants WHERE is_active ORDER BY position, id LIMIT 1`).
+		Scan(&firstVariant); err != nil {
+		t.Fatalf("first variant: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT id FROM product_variants
+		WHERE is_active AND id <> $1 ORDER BY position, id LIMIT 1`, firstVariant).
+		Scan(&secondVariant); err != nil {
+		t.Fatalf("second variant: %v", err)
+	}
+
+	guest := func(label string, variantID uuid.UUID, quantity int32) uuid.UUID {
+		t.Helper()
+		var cartID uuid.UUID
+		if err := pool.QueryRow(ctx,
+			`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
+			account.HashToken(label+u.ID)).Scan(&cartID); err != nil {
+			t.Fatalf("create %s: %v", label, err)
+		}
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, $3)`,
+			cartID, variantID, quantity); err != nil {
+			t.Fatalf("fill %s: %v", label, err)
+		}
+		return cartID
+	}
+	firstCart := guest("first-adopter-a-", firstVariant, 2)
+	secondCart := guest("first-adopter-b-", secondVariant, 3)
+
+	blocker, beginErr := pool.Begin(ctx)
+	if beginErr != nil {
+		t.Fatalf("begin account blocker: %v", beginErr)
+	}
+	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
+	if _, lockErr := blocker.Exec(ctx, `SELECT 1 FROM users WHERE id = $1 FOR UPDATE`, userID); lockErr != nil {
+		t.Fatalf("lock account: %v", lockErr)
+	}
+
+	suffix := uuid.NewString()[:8]
+	firstName, secondName := "adopt-first-a-"+suffix, "adopt-first-b-"+suffix
+	firstStore := account.NewStore(accountStorePool(t, firstName))
+	secondStore := account.NewStore(accountStorePool(t, secondName))
+	firstDone, secondDone := make(chan error, 1), make(chan error, 1)
+	go func() { firstDone <- firstStore.AdoptCart(ctx, u.ID, firstCart) }()
+	go func() { secondDone <- secondStore.AdoptCart(ctx, u.ID, secondCart) }()
+	waitForAccountLock(t, firstName, firstDone)
+	waitForAccountLock(t, secondName, secondDone)
+
+	if commitErr := blocker.Commit(ctx); commitErr != nil {
+		t.Fatalf("release account: %v", commitErr)
+	}
+	if firstErr := operationResult(t, firstDone); firstErr != nil {
+		t.Errorf("first adoption: %v", firstErr)
+	}
+	if secondErr := operationResult(t, secondDone); secondErr != nil {
+		t.Errorf("second adoption: %v", secondErr)
+	}
+
+	var accountCart uuid.UUID
+	if err := pool.QueryRow(ctx, `SELECT id FROM carts WHERE user_id = $1`, userID).
+		Scan(&accountCart); err != nil {
+		t.Fatalf("read adopted account cart: %v", err)
+	}
+	if accountCart != firstCart && accountCart != secondCart {
+		t.Fatalf("account cart = %s, want one of the two guest carts", accountCart)
+	}
+	var accountCarts, originalCarts int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM carts WHERE user_id = $1`, userID).
+		Scan(&accountCarts); err != nil {
+		t.Fatalf("count account carts: %v", err)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM carts WHERE id = ANY($1::uuid[])`, []uuid.UUID{firstCart, secondCart}).
+		Scan(&originalCarts); err != nil {
+		t.Fatalf("count original carts: %v", err)
+	}
+	if accountCarts != 1 || originalCarts != 1 {
+		t.Fatalf("after concurrent adoption account/original carts = %d/%d, want 1/1",
+			accountCarts, originalCarts)
+	}
+
+	rows, err := pool.Query(ctx,
+		`SELECT variant_id, quantity FROM cart_items WHERE cart_id = $1`, accountCart)
+	if err != nil {
+		t.Fatalf("read adopted cart lines: %v", err)
+	}
+	defer rows.Close()
+	got := map[uuid.UUID]int32{}
+	for rows.Next() {
+		var variantID uuid.UUID
+		var quantity int32
+		if err := rows.Scan(&variantID, &quantity); err != nil {
+			t.Fatalf("scan adopted cart line: %v", err)
+		}
+		got[variantID] = quantity
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate adopted cart lines: %v", err)
+	}
+	if got[firstVariant] != 2 || got[secondVariant] != 3 || len(got) != 2 {
+		t.Errorf("adopted cart lines = %v, want both guest facts", got)
+	}
+}
+
+// TestTwoAccountsCannotAdoptTheSameGuestCart holds the shared cart after each
+// transaction has locked its own user. Both therefore make the old first-adopter
+// decision before either can update the cart. The winner keeps the cart; the
+// loser must observe its new owner under the cart lock and leave it untouched.
+func TestTwoAccountsCannotAdoptTheSameGuestCart(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	firstUser := register(t, s, "shared-guest-a-"+uuid.NewString()+"@example.com")
+	secondUser := register(t, s, "shared-guest-b-"+uuid.NewString()+"@example.com")
+	firstUserID, secondUserID := uuid.MustParse(firstUser.ID), uuid.MustParse(secondUser.ID)
+
+	var variantID, guestCart uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM product_variants WHERE is_active ORDER BY position, id LIMIT 1`).
+		Scan(&variantID); err != nil {
+		t.Fatalf("variant: %v", err)
+	}
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
+		account.HashToken("shared-guest-"+uuid.NewString())).Scan(&guestCart); err != nil {
+		t.Fatalf("create shared guest cart: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 4)`,
+		guestCart, variantID); err != nil {
+		t.Fatalf("fill shared guest cart: %v", err)
+	}
+
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin cart blocker: %v", err)
+	}
+	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := blocker.Exec(ctx, `SELECT 1 FROM carts WHERE id = $1 FOR UPDATE`, guestCart); err != nil {
+		t.Fatalf("lock shared guest cart: %v", err)
+	}
+
+	suffix := uuid.NewString()[:8]
+	firstName, secondName := "adopt-shared-a-"+suffix, "adopt-shared-b-"+suffix
+	firstStore := account.NewStore(accountStorePool(t, firstName))
+	secondStore := account.NewStore(accountStorePool(t, secondName))
+	firstDone, secondDone := make(chan error, 1), make(chan error, 1)
+	go func() { firstDone <- firstStore.AdoptCart(ctx, firstUser.ID, guestCart) }()
+	go func() { secondDone <- secondStore.AdoptCart(ctx, secondUser.ID, guestCart) }()
+	waitForAccountLock(t, firstName, firstDone)
+	waitForAccountLock(t, secondName, secondDone)
+
+	if err := blocker.Commit(ctx); err != nil {
+		t.Fatalf("release shared guest cart: %v", err)
+	}
+	firstErr, secondErr := operationResult(t, firstDone), operationResult(t, secondDone)
+	firstWon := firstErr == nil && errors.Is(secondErr, account.ErrNotFound)
+	secondWon := secondErr == nil && errors.Is(firstErr, account.ErrNotFound)
+	if !firstWon && !secondWon {
+		t.Fatalf("shared guest adoption results = %v / %v, want one success and one ErrNotFound",
+			firstErr, secondErr)
+	}
+
+	wantOwner, loser := firstUserID, secondUserID
+	if secondWon {
+		wantOwner, loser = secondUserID, firstUserID
+	}
+	var owner uuid.UUID
+	if err := pool.QueryRow(ctx, `SELECT user_id FROM carts WHERE id = $1`, guestCart).
+		Scan(&owner); err != nil {
+		t.Fatalf("read shared cart owner: %v", err)
+	}
+	if owner != wantOwner {
+		t.Errorf("shared cart owner = %s, want winning account %s", owner, wantOwner)
+	}
+	var loserCarts, quantity int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM carts WHERE user_id = $1`, loser).
+		Scan(&loserCarts); err != nil {
+		t.Fatalf("count losing account carts: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT quantity FROM cart_items WHERE cart_id = $1 AND variant_id = $2`,
+		guestCart, variantID).Scan(&quantity); err != nil {
+		t.Fatalf("read preserved shared cart line: %v", err)
+	}
+	if loserCarts != 0 || quantity != 4 {
+		t.Errorf("loser carts / preserved quantity = %d/%d, want 0/4", loserCarts, quantity)
+	}
+}
+
+// TestCheckoutAndAdoptionShareUserBeforeCartLockOrder pauses checkout after it
+// owns the account cart. Adoption then holds NO KEY UPDATE on the user and waits
+// for that cart. Releasing checkout is safe only because its user KEY SHARE is
+// already held (and compatible); the former cart -> user acquisition deadlocked.
+func TestCheckoutAndAdoptionShareUserBeforeCartLockOrder(t *testing.T) {
+	ctx := t.Context()
+	u := register(t, account.NewStore(pool), "checkout-adopt-"+uuid.NewString()+"@example.com")
+	userID := uuid.MustParse(u.ID)
+	owner := uuid.NullUUID{UUID: userID, Valid: true}
+
+	var checkoutVariant, guestVariant uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM product_variants WHERE is_active ORDER BY position, id LIMIT 1`).
+		Scan(&checkoutVariant); err != nil {
+		t.Fatalf("checkout variant: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT id FROM product_variants
+		WHERE is_active AND id <> $1 ORDER BY position, id LIMIT 1`, checkoutVariant).
+		Scan(&guestVariant); err != nil {
+		t.Fatalf("guest variant: %v", err)
+	}
+
+	var accountCart, guestCart uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+		account.HashToken("checkout-adopt-account-"+u.ID), userID).Scan(&accountCart); err != nil {
+		t.Fatalf("create account cart: %v", err)
+	}
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
+		account.HashToken("checkout-adopt-guest-"+u.ID)).Scan(&guestCart); err != nil {
+		t.Fatalf("create guest cart: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO cart_items (cart_id, variant_id, quantity)
+		VALUES ($1, $2, 1), ($3, $4, 2)`,
+		accountCart, checkoutVariant, guestCart, guestVariant); err != nil {
+		t.Fatalf("fill checkout/adoption carts: %v", err)
+	}
+
+	var shippingID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		SELECT v.id
+		FROM shipping_method_versions v
+		JOIN shipping_methods m ON m.id = v.method_id
+		WHERE m.code = 'home_delivery'
+		ORDER BY v.effective_at DESC, v.id DESC LIMIT 1`).Scan(&shippingID); err != nil {
+		t.Fatalf("read home-delivery version: %v", err)
+	}
+	addr := &cart.Address{
+		Email: u.Email, Name: "王小明", Phone: "0912345678",
+		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
+	}
+	shown := accountCheckoutQuote(t, cart.NewStore(pool), accountCart, owner, shippingID, addr.PostalCode)
+
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin catalogue blocker: %v", err)
+	}
+	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := blocker.Exec(ctx,
+		`SELECT 1 FROM product_variants WHERE id = $1 FOR UPDATE`, checkoutVariant); err != nil {
+		t.Fatalf("lock checkout variant: %v", err)
+	}
+
+	suffix := uuid.NewString()[:8]
+	checkoutName, adoptionName := "checkout-before-adopt-"+suffix, "adopt-behind-checkout-"+suffix
+	checkoutStore := cart.NewStore(accountStorePool(t, checkoutName))
+	adoptionStore := account.NewStore(accountStorePool(t, adoptionName))
+	checkoutDone, adoptionDone := make(chan error, 1), make(chan error, 1)
+	var orderNumber string
+	go func() {
+		var placeErr error
+		orderNumber, placeErr = checkoutStore.PlaceOrder(
+			ctx, accountCart, owner, shippingID, addr, nil, "", shown,
+			checkoutAttemptKey("checkout-adopt-"+suffix),
+		)
+		checkoutDone <- placeErr
+	}()
+	waitForAccountLock(t, checkoutName, checkoutDone)
+	go func() { adoptionDone <- adoptionStore.AdoptCart(ctx, u.ID, guestCart) }()
+	waitForAccountLock(t, adoptionName, adoptionDone)
+
+	if err := blocker.Commit(ctx); err != nil {
+		t.Fatalf("release checkout catalogue: %v", err)
+	}
+	if err := operationResult(t, checkoutDone); err != nil {
+		t.Errorf("checkout in user/cart lock interleaving: %v", err)
+	}
+	if err := operationResult(t, adoptionDone); err != nil {
+		t.Errorf("adoption in user/cart lock interleaving: %v", err)
+	}
+	if orderNumber == "" {
+		t.Error("checkout produced no order number")
+	}
+
+	var adoptedQuantity int32
+	if err := pool.QueryRow(ctx, `
+		SELECT quantity FROM cart_items WHERE cart_id = $1 AND variant_id = $2`,
+		accountCart, guestVariant).Scan(&adoptedQuantity); err != nil {
+		t.Fatalf("read cart merged after checkout: %v", err)
+	}
+	if adoptedQuantity != 2 {
+		t.Errorf("cart merged after checkout with quantity %d, want 2", adoptedQuantity)
 	}
 }
 
@@ -446,15 +914,460 @@ func TestEraseRemovesPersonalDataAndKeepsTheRecord(t *testing.T) {
 	}
 }
 
+// TestUnverifiedAccountErasureDoesNotClaimTheMailbox keeps account deletion
+// from becoming an address-wide eraser. Registration accepts an unproved email;
+// the account therefore has no authority over guest or independently confirmed
+// records that happen to use the same address.
+func TestUnverifiedAccountErasureDoesNotClaimTheMailbox(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
+	victim := "unproved-victim-" + suffix + "@goen.invalid"
+	u := register(t, s, victim)
+
+	var variantID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM product_variants WHERE is_active ORDER BY position, id LIMIT 1`).
+		Scan(&variantID); err != nil {
+		t.Fatalf("read victim restock variant: %v", err)
+	}
+	mailKey := "unproved-victim-mail:" + suffix
+	for name, seed := range map[string]struct {
+		query string
+		args  []any
+	}{
+		"newsletter subscription": {
+			`INSERT INTO newsletter_subscribers (email, unsubscribe_token) VALUES ($1, $2)`,
+			[]any{victim, "unproved-victim-unsubscribe-" + suffix},
+		},
+		"contact message": {
+			`INSERT INTO contact_messages (name, email, subject, message)
+			 VALUES ('Guest owner', $1, '訂單問題', 'This belongs to the guest mailbox owner.')`,
+			[]any{victim},
+		},
+		"guest restock request": {
+			`INSERT INTO stock_notifications (variant_id, email) VALUES ($1, $2)`,
+			[]any{variantID, victim},
+		},
+		"transactional mail": {
+			`INSERT INTO outbox_messages (topic, dedupe_key, payload)
+			 VALUES ($1, $2, jsonb_build_object('email', $3::text, 'order_number', 'G-VICTIM'))`,
+			[]any{outbox.TopicOrderPlaced, mailKey, victim},
+		},
+	} {
+		if _, err := pool.Exec(ctx, seed.query, seed.args...); err != nil {
+			t.Fatalf("seed %s: %v", name, err)
+		}
+	}
+	t.Cleanup(func() {
+		cleanupCtx := context.WithoutCancel(ctx)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM outbox_messages WHERE dedupe_key = $1`, mailKey)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM stock_notifications WHERE lower(email) = lower($1)`, victim)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM contact_messages WHERE lower(email) = lower($1)`, victim)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM newsletter_subscribers WHERE lower(email) = lower($1)`, victim)
+	})
+
+	if err := s.Erase(ctx, u.ID); err != nil {
+		t.Fatalf("erase unverified account: %v", err)
+	}
+
+	for name, probe := range map[string]struct {
+		query string
+		args  []any
+	}{
+		"newsletter subscription": {
+			`SELECT count(*) FROM newsletter_subscribers WHERE lower(email) = lower($1)`,
+			[]any{victim},
+		},
+		"contact message": {
+			`SELECT count(*) FROM contact_messages WHERE lower(email) = lower($1)`,
+			[]any{victim},
+		},
+		"guest restock request": {
+			`SELECT count(*) FROM stock_notifications WHERE lower(email) = lower($1)`,
+			[]any{victim},
+		},
+		"transactional mail": {
+			`SELECT count(*) FROM outbox_messages WHERE dedupe_key = $1`,
+			[]any{mailKey},
+		},
+	} {
+		var rows int
+		if err := pool.QueryRow(ctx, probe.query, probe.args...).Scan(&rows); err != nil {
+			t.Fatalf("count surviving %s: %v", name, err)
+		}
+		if rows != 1 {
+			t.Errorf("unverified erasure left %d %s rows, want 1", rows, name)
+		}
+	}
+}
+
+// TestErasureSnapshotsBeforeConcurrentCheckout pauses erase_user after it has
+// cleared every order it can currently see. A signed-in checkout starts in that
+// window. Its user KEY SHARE must wait before taking the cart; erasure can then
+// delete the account and cart, and checkout returns without creating fresh PII.
+func TestErasureSnapshotsBeforeConcurrentCheckout(t *testing.T) {
+	ctx := t.Context()
+	u := register(t, account.NewStore(pool), "erase-checkout-"+uuid.NewString()+"@example.com")
+	userID := uuid.MustParse(u.ID)
+	owner := uuid.NullUUID{UUID: userID, Valid: true}
+
+	var variantID, cartID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM product_variants WHERE is_active ORDER BY position, id LIMIT 1`).
+		Scan(&variantID); err != nil {
+		t.Fatalf("checkout variant: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+		account.HashToken("erase-checkout-cart-"+u.ID), userID).Scan(&cartID); err != nil {
+		t.Fatalf("create erase-race cart: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 1)`,
+		cartID, variantID); err != nil {
+		t.Fatalf("fill erase-race cart: %v", err)
+	}
+
+	var shippingID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		SELECT v.id
+		FROM shipping_method_versions v
+		JOIN shipping_methods m ON m.id = v.method_id
+		WHERE m.code = 'home_delivery'
+		ORDER BY v.effective_at DESC, v.id DESC LIMIT 1`).Scan(&shippingID); err != nil {
+		t.Fatalf("read home-delivery version: %v", err)
+	}
+	addr := &cart.Address{
+		Email: u.Email, Name: "王小明", Phone: "0912345678",
+		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
+	}
+	shown := accountCheckoutQuote(t, cart.NewStore(pool), cartID, owner, shippingID, addr.PostalCode)
+
+	var notificationID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO stock_notifications (variant_id, user_id, email)
+		VALUES ($1, $2, $3) RETURNING id`, variantID, userID, u.Email).
+		Scan(&notificationID); err != nil {
+		t.Fatalf("create erasure blocker row: %v", err)
+	}
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin erasure blocker: %v", err)
+	}
+	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := blocker.Exec(ctx,
+		`SELECT 1 FROM stock_notifications WHERE id = $1 FOR UPDATE`, notificationID); err != nil {
+		t.Fatalf("lock erasure blocker row: %v", err)
+	}
+
+	suffix := uuid.NewString()[:8]
+	eraseName, checkoutName := "erase-before-checkout-"+suffix, "checkout-behind-erase-"+suffix
+	eraseStore := account.NewStore(accountStorePool(t, eraseName))
+	checkoutStore := cart.NewStore(accountStorePool(t, checkoutName))
+	eraseDone, checkoutDone := make(chan error, 1), make(chan error, 1)
+	go func() { eraseDone <- eraseStore.Erase(ctx, u.ID) }()
+	waitForAccountLock(t, eraseName, eraseDone)
+	go func() {
+		_, placeErr := checkoutStore.PlaceOrder(
+			ctx, cartID, owner, shippingID, addr, nil, "", shown,
+			checkoutAttemptKey("erase-checkout-"+suffix),
+		)
+		checkoutDone <- placeErr
+	}()
+	waitForAccountLock(t, checkoutName, checkoutDone)
+
+	if err := blocker.Commit(ctx); err != nil {
+		t.Fatalf("release erasure: %v", err)
+	}
+	if err := operationResult(t, eraseDone); err != nil {
+		t.Fatalf("erase in checkout interleaving: %v", err)
+	}
+	if err := operationResult(t, checkoutDone); !errors.Is(err, cart.ErrNotFound) {
+		t.Fatalf("checkout after erasure = %v, want cart.ErrNotFound", err)
+	}
+
+	var users, orders, privateRows int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM users WHERE id = $1`, userID).
+		Scan(&users); err != nil {
+		t.Fatalf("count erased user: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM orders WHERE user_id = $1`, userID).
+		Scan(&orders); err != nil {
+		t.Fatalf("count concurrent checkout orders: %v", err)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM order_private_data WHERE lower(email) = lower($1)`, u.Email).
+		Scan(&privateRows); err != nil {
+		t.Fatalf("count PII written after erasure: %v", err)
+	}
+	if users != 0 || orders != 0 || privateRows != 0 {
+		t.Errorf("erasure survivors user/order/private = %d/%d/%d, want 0/0/0",
+			users, orders, privateRows)
+	}
+}
+
+// TestConcurrentAdminErasureKeepsOneAdmin holds erase_user's global decision
+// lock so both requests are known to have started. After release, one may erase
+// itself; the other must count the committed survivor state and receive the
+// named last-admin refusal rather than letting both snapshots observe two.
+func TestConcurrentAdminErasureKeepsOneAdmin(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	first := register(t, s, "erase-admin-a-"+uuid.NewString()+"@example.com")
+	second := register(t, s, "erase-admin-b-"+uuid.NewString()+"@example.com")
+	adminIDs := []uuid.UUID{uuid.MustParse(first.ID), uuid.MustParse(second.ID)}
+	t.Cleanup(func() {
+		// Keep a suite sentinel before removing the surviving fixture: the schema
+		// invariant deliberately gives even the owner no transition back to zero.
+		cleanupCtx := context.WithoutCancel(ctx)
+		_, _ = pool.Exec(cleanupCtx, `
+			INSERT INTO users (email, role, full_name)
+			VALUES ('account-suite-admin@goen.invalid', 'admin', 'Account suite sentinel')
+			ON CONFLICT (lower(email)) DO UPDATE SET role = 'admin'`)
+		_, _ = pool.Exec(cleanupCtx,
+			`UPDATE users SET role = 'customer' WHERE id = ANY($1::uuid[])`, adminIDs)
+		_, _ = pool.Exec(cleanupCtx,
+			`DELETE FROM users WHERE id = ANY($1::uuid[])`, adminIDs)
+	})
+	if _, err := pool.Exec(ctx,
+		`UPDATE users SET role = 'admin' WHERE id = ANY($1::uuid[])`,
+		adminIDs); err != nil {
+		t.Fatalf("promote erasure-race admins: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE users SET role = 'customer'
+		WHERE role = 'admin' AND id <> ALL($1::uuid[])`, adminIDs); err != nil {
+		t.Fatalf("leave exactly the erasure-race admins: %v", err)
+	}
+	var before int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM users WHERE role = 'admin'`).Scan(&before); err != nil {
+		t.Fatalf("count admins before erasure race: %v", err)
+	}
+	if before != 2 {
+		t.Fatalf("erasure-race fixture has %d admins, want exactly 2", before)
+	}
+
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin admin-erasure blocker: %v", err)
+	}
+	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := blocker.Exec(ctx, `SELECT lock_admin_roster()`); err != nil {
+		t.Fatalf("lock admin-erasure decision: %v", err)
+	}
+
+	suffix := uuid.NewString()[:8]
+	firstName, secondName := "erase-admin-a-"+suffix, "erase-admin-b-"+suffix
+	firstStore := account.NewStore(accountStorePool(t, firstName))
+	secondStore := account.NewStore(accountStorePool(t, secondName))
+	firstDone, secondDone := make(chan error, 1), make(chan error, 1)
+	go func() { firstDone <- firstStore.Erase(ctx, first.ID) }()
+	go func() { secondDone <- secondStore.Erase(ctx, second.ID) }()
+	waitForAccountLock(t, firstName, firstDone)
+	waitForAccountLock(t, secondName, secondDone)
+
+	if err := blocker.Commit(ctx); err != nil {
+		t.Fatalf("release admin-erasure decision: %v", err)
+	}
+	firstErr, secondErr := operationResult(t, firstDone), operationResult(t, secondDone)
+	refused := func(err error) bool {
+		pgErr, ok := errors.AsType[*pgconn.PgError](err)
+		return ok && pgErr.ConstraintName == "erase_user_keeps_one_admin"
+	}
+	oneSucceededAndOneWasRefused := firstErr == nil && refused(secondErr) ||
+		secondErr == nil && refused(firstErr)
+	if !oneSucceededAndOneWasRefused {
+		t.Fatalf("concurrent admin erasures = %v / %v, want one success and one named refusal",
+			firstErr, secondErr)
+	}
+
+	var admins int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM users WHERE role = 'admin'`).Scan(&admins); err != nil {
+		t.Fatalf("count admins after erasure race: %v", err)
+	}
+	if admins != 1 {
+		t.Errorf("concurrent erasure left %d admins, want 1", admins)
+	}
+}
+
+// TestResetIssueAndErasureCannotSplitTokenFromMessage pauses reset issuance at
+// its outbox insert, after it has locked the account and inserted the token in
+// the same transaction. Erasure must wait, then purge both committed records;
+// if erasure wins before the account lock, reset instead becomes a quiet no-op.
+func TestResetIssueAndErasureCannotSplitTokenFromMessage(t *testing.T) {
+	ctx := t.Context()
+	email := "reset-erase-" + uuid.NewString() + "@example.com"
+	u := register(t, account.NewStore(pool), email)
+
+	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
+	functionName := pgx.Identifier{"test_reset_outbox_barrier_" + suffix}.Sanitize()
+	triggerName := pgx.Identifier{"test_reset_outbox_trigger_" + suffix}.Sanitize()
+	const barrierKey int64 = 8_112_233_445_566_778
+	if _, err := pool.Exec(ctx, fmt.Sprintf(`
+		CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $body$
+		BEGIN
+			IF NEW.topic = 'account.password_reset' THEN
+				PERFORM pg_advisory_xact_lock(%d);
+			END IF;
+			RETURN NEW;
+		END
+		$body$`, functionName, barrierKey)); err != nil {
+		t.Fatalf("create reset outbox barrier: %v", err)
+	}
+	if _, err := pool.Exec(ctx, fmt.Sprintf(`
+		CREATE TRIGGER %s BEFORE INSERT ON outbox_messages
+		FOR EACH ROW EXECUTE FUNCTION %s()`, triggerName, functionName)); err != nil {
+		t.Fatalf("create reset outbox trigger: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx := context.WithoutCancel(ctx)
+		_, _ = pool.Exec(cleanupCtx, fmt.Sprintf(
+			`DROP TRIGGER IF EXISTS %s ON outbox_messages`, triggerName))
+		_, _ = pool.Exec(cleanupCtx, fmt.Sprintf(
+			`DROP FUNCTION IF EXISTS %s()`, functionName))
+	})
+
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin reset outbox blocker: %v", err)
+	}
+	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := blocker.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, barrierKey); err != nil {
+		t.Fatalf("lock reset outbox barrier: %v", err)
+	}
+
+	resetName, eraseName := "reset-issue-"+suffix[:8], "reset-erase-"+suffix[:8]
+	resetStore := account.NewStore(accountStorePool(t, resetName))
+	eraseStore := account.NewStore(accountStorePool(t, eraseName))
+	resetDone, eraseDone := make(chan error, 1), make(chan error, 1)
+	go func() { resetDone <- account.BeginReset(context.WithoutCancel(ctx), resetStore, email) }()
+	waitForAccountLock(t, resetName, resetDone)
+	go func() { eraseDone <- eraseStore.Erase(context.WithoutCancel(ctx), u.ID) }()
+	waitForAccountLock(t, eraseName, eraseDone)
+
+	if err := blocker.Commit(ctx); err != nil {
+		t.Fatalf("release reset outbox barrier: %v", err)
+	}
+	if err := operationResult(t, resetDone); err != nil {
+		t.Fatalf("issue reset: %v", err)
+	}
+	if err := operationResult(t, eraseDone); err != nil {
+		t.Fatalf("erase reset account: %v", err)
+	}
+
+	var users, tokens, messages int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM users WHERE id = $1`,
+		uuid.MustParse(u.ID)).Scan(&users); err != nil {
+		t.Fatalf("count reset user: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM password_reset_tokens WHERE user_id = $1`,
+		uuid.MustParse(u.ID)).Scan(&tokens); err != nil {
+		t.Fatalf("count reset tokens: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM outbox_messages
+		WHERE topic = $1 AND lower(payload->>'email') = lower($2)`,
+		outbox.TopicPasswordReset, email).Scan(&messages); err != nil {
+		t.Fatalf("count reset messages: %v", err)
+	}
+	if users != 0 || tokens != 0 || messages != 0 {
+		t.Errorf("reset/erase survivors user/token/message = %d/%d/%d, want 0/0/0",
+			users, tokens, messages)
+	}
+}
+
+// TestResetCompletionAndErasureUseUserBeforeToken pauses the token spend after
+// completion has locked the account. Erasure must wait on that account instead
+// of holding it while completion holds the token, the former ABBA cycle.
+func TestResetCompletionAndErasureUseUserBeforeToken(t *testing.T) {
+	ctx := t.Context()
+	email := "complete-erase-" + uuid.NewString() + "@example.com"
+	u := register(t, account.NewStore(pool), email)
+	token := beginReset(t, account.NewStore(pool), email)
+	digest := sha256.Sum256([]byte(token))
+
+	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
+	functionName := pgx.Identifier{"test_reset_spend_barrier_" + suffix}.Sanitize()
+	triggerName := pgx.Identifier{"test_reset_spend_trigger_" + suffix}.Sanitize()
+	const barrierKey int64 = 8_112_233_445_566_779
+	if _, err := pool.Exec(ctx, fmt.Sprintf(`
+		CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $body$
+		BEGIN
+			IF OLD.token_hash = decode('%x', 'hex') THEN
+				PERFORM pg_advisory_xact_lock(%d);
+			END IF;
+			RETURN NEW;
+		END
+		$body$`, functionName, digest, barrierKey)); err != nil {
+		t.Fatalf("create reset spend barrier: %v", err)
+	}
+	if _, err := pool.Exec(ctx, fmt.Sprintf(`
+		CREATE TRIGGER %s BEFORE UPDATE OF used_at ON password_reset_tokens
+		FOR EACH ROW EXECUTE FUNCTION %s()`, triggerName, functionName)); err != nil {
+		t.Fatalf("create reset spend trigger: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx := context.WithoutCancel(ctx)
+		_, _ = pool.Exec(cleanupCtx, fmt.Sprintf(
+			`DROP TRIGGER IF EXISTS %s ON password_reset_tokens`, triggerName))
+		_, _ = pool.Exec(cleanupCtx, fmt.Sprintf(
+			`DROP FUNCTION IF EXISTS %s()`, functionName))
+	})
+
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin reset spend blocker: %v", err)
+	}
+	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := blocker.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, barrierKey); err != nil {
+		t.Fatalf("lock reset spend barrier: %v", err)
+	}
+
+	completeName, eraseName := "reset-complete-"+suffix[:8], "complete-erase-"+suffix[:8]
+	completeStore := account.NewStore(accountStorePool(t, completeName))
+	eraseStore := account.NewStore(accountStorePool(t, eraseName))
+	completeDone, eraseDone := make(chan error, 1), make(chan error, 1)
+	go func() {
+		completeDone <- completeStore.CompleteReset(
+			context.WithoutCancel(ctx), token, "completed before erasure")
+	}()
+	waitForAccountLock(t, completeName, completeDone)
+	go func() { eraseDone <- eraseStore.Erase(context.WithoutCancel(ctx), u.ID) }()
+	waitForAccountLock(t, eraseName, eraseDone)
+
+	if err := blocker.Commit(ctx); err != nil {
+		t.Fatalf("release reset spend barrier: %v", err)
+	}
+	if err := operationResult(t, completeDone); err != nil {
+		t.Fatalf("complete reset: %v", err)
+	}
+	if err := operationResult(t, eraseDone); err != nil {
+		t.Fatalf("erase reset account: %v", err)
+	}
+
+	var users, tokens int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM users WHERE id = $1`,
+		uuid.MustParse(u.ID)).Scan(&users); err != nil {
+		t.Fatalf("count reset user: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM password_reset_tokens WHERE user_id = $1`,
+		uuid.MustParse(u.ID)).Scan(&tokens); err != nil {
+		t.Fatalf("count reset tokens: %v", err)
+	}
+	if users != 0 || tokens != 0 {
+		t.Errorf("complete/erase survivors user/token = %d/%d, want 0/0", users, tokens)
+	}
+}
+
 func TestAResetTokenIsSpentExactlyOnce(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
 	register(t, s, "spendonce@example.com")
 
-	token, _, found, err := s.BeginReset(ctx, "spendonce@example.com")
-	if err != nil || !found {
-		t.Fatalf("begin reset: %v (found=%v)", err, found)
-	}
+	token := beginReset(t, s, "spendonce@example.com")
 
 	const racers = 8
 	start := make(chan struct{})
@@ -491,10 +1404,7 @@ func TestAnExpiredResetTokenIsRefused(t *testing.T) {
 	s := account.NewStore(pool)
 	register(t, s, "expiredreset@example.com")
 
-	token, _, _, err := s.BeginReset(ctx, "expiredreset@example.com")
-	if err != nil {
-		t.Fatalf("begin reset: %v", err)
-	}
+	token := beginReset(t, s, "expiredreset@example.com")
 	// created_at moves with it: password_reset_tokens_expiry_after_creation
 	// refuses a row whose window closed before it opened.
 	digest := sha256.Sum256([]byte(token))
@@ -531,14 +1441,8 @@ func TestAResetInvalidatesSiblingTokensAndSessions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start session: %v", err)
 	}
-	first, _, _, err := s.BeginReset(ctx, "siblings@example.com")
-	if err != nil {
-		t.Fatalf("begin first reset: %v", err)
-	}
-	second, _, _, err := s.BeginReset(ctx, "siblings@example.com")
-	if err != nil {
-		t.Fatalf("begin second reset: %v", err)
-	}
+	first := beginReset(t, s, "siblings@example.com")
+	second := beginReset(t, s, "siblings@example.com")
 	if first == second {
 		t.Fatal("two requests produced the same token")
 	}
@@ -558,26 +1462,80 @@ func TestAResetInvalidatesSiblingTokensAndSessions(t *testing.T) {
 	}
 }
 
+// TestConcurrentSiblingResetsSerializeOnTheAccount holds the user row until
+// both reset requests have reached it. Only one token may change the password;
+// that winner invalidates the sibling before the second request can spend it.
+func TestConcurrentSiblingResetsSerializeOnTheAccount(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	u := register(t, s, "sibling-race-"+uuid.NewString()+"@example.com")
+	first := beginReset(t, s, u.Email)
+	second := beginReset(t, s, u.Email)
+
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin reset blocker: %v", err)
+	}
+	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := blocker.Exec(ctx,
+		`SELECT id FROM users WHERE id = $1 FOR UPDATE`, uuid.MustParse(u.ID)); err != nil {
+		t.Fatalf("lock reset account: %v", err)
+	}
+
+	suffix := uuid.NewString()[:8]
+	firstName, secondName := "sibling-reset-a-"+suffix, "sibling-reset-b-"+suffix
+	firstStore := account.NewStore(accountStorePool(t, firstName))
+	secondStore := account.NewStore(accountStorePool(t, secondName))
+	firstDone, secondDone := make(chan error, 1), make(chan error, 1)
+	const firstPassword = "first sibling reset password"
+	const secondPassword = "second sibling reset password"
+	go func() { firstDone <- firstStore.CompleteReset(context.WithoutCancel(ctx), first, firstPassword) }()
+	go func() { secondDone <- secondStore.CompleteReset(context.WithoutCancel(ctx), second, secondPassword) }()
+	waitForAccountLock(t, firstName, firstDone)
+	waitForAccountLock(t, secondName, secondDone)
+
+	if err := blocker.Commit(ctx); err != nil {
+		t.Fatalf("release reset account: %v", err)
+	}
+	firstErr, secondErr := operationResult(t, firstDone), operationResult(t, secondDone)
+	oneSucceededAndOneWasInvalid := firstErr == nil && errors.Is(secondErr, account.ErrResetInvalid) ||
+		secondErr == nil && errors.Is(firstErr, account.ErrResetInvalid)
+	if !oneSucceededAndOneWasInvalid {
+		t.Fatalf("sibling resets = %v / %v, want one success and one invalid token",
+			firstErr, secondErr)
+	}
+	winnerPassword := firstPassword
+	if secondErr == nil {
+		winnerPassword = secondPassword
+	}
+	if _, err := s.Authenticate(ctx, u.Email, winnerPassword); err != nil {
+		t.Errorf("winning reset password does not authenticate: %v", err)
+	}
+}
+
 func TestBeginResetSaysNothingAboutWhoHasAnAccount(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
 	register(t, s, "real@example.com")
 
-	realToken, sendTo, found, err := s.BeginReset(ctx, "real@example.com")
-	if err != nil {
-		t.Fatalf("begin reset for a real address: %v", err)
-	}
-	if !found || realToken == "" || sendTo != "real@example.com" {
-		t.Fatalf("a real address produced found=%v tokenIssued=%v sendTo=%q", found, realToken != "", sendTo)
+	realToken := beginReset(t, s, "real@example.com")
+	if realToken == "" {
+		t.Fatal("a real address did not queue a reset token")
 	}
 
 	for _, address := range []string{"nobody@example.com", "not an address", ""} {
-		token, to, found, err := s.BeginReset(ctx, address)
-		if err != nil {
+		if err := account.BeginReset(ctx, s, address); err != nil {
 			t.Errorf("BeginReset(%q) errored where it must stay quiet: %v", address, err)
 		}
-		if found || token != "" || to != "" {
-			t.Errorf("BeginReset(%q) leaked found=%v token=%q sendTo=%q", address, found, token, to)
+		var queued int
+		if err := pool.QueryRow(ctx, `
+			SELECT count(*) FROM outbox_messages
+			WHERE topic = $1 AND lower(payload->>'email') = lower($2)`,
+			outbox.TopicPasswordReset, address).Scan(&queued); err != nil {
+			t.Fatalf("count reset messages for %q: %v", address, err)
+		}
+		if queued != 0 {
+			t.Errorf("BeginReset(%q) queued %d messages for an unknown address", address, queued)
 		}
 	}
 }
@@ -587,10 +1545,7 @@ func TestAResetTokenIsStoredHashed(t *testing.T) {
 	s := account.NewStore(pool)
 	register(t, s, "hashedreset@example.com")
 
-	token, _, _, err := s.BeginReset(ctx, "hashedreset@example.com")
-	if err != nil {
-		t.Fatalf("begin reset: %v", err)
-	}
+	token := beginReset(t, s, "hashedreset@example.com")
 	var stored []byte
 	digest := sha256.Sum256([]byte(token))
 	if err := pool.QueryRow(ctx,
@@ -614,10 +1569,7 @@ func TestAWeakNewPasswordIsRefusedWithoutSpendingTheToken(t *testing.T) {
 	s := account.NewStore(pool)
 	register(t, s, "weakreset@example.com")
 
-	token, _, _, err := s.BeginReset(ctx, "weakreset@example.com")
-	if err != nil {
-		t.Fatalf("begin reset: %v", err)
-	}
+	token := beginReset(t, s, "weakreset@example.com")
 	if err := s.CompleteReset(ctx, token, "short"); !errors.Is(err, account.ErrInvalidPassword) {
 		t.Fatalf("a short password was not refused as such: %v", err)
 	}
@@ -917,10 +1869,7 @@ func TestAnAddressIsProvedByFollowingTheLink(t *testing.T) {
 		t.Error("a freshly registered address reads as proved; nothing has proved it")
 	}
 
-	token, err := s.RequestVerification(ctx, u.ID, u.Email)
-	if err != nil {
-		t.Fatalf("RequestVerification: %v", err)
-	}
+	token := requestVerification(t, s, u.ID, u.Email)
 	if _, confirmErr := s.ConfirmVerification(ctx, token); confirmErr != nil {
 		t.Fatalf("ConfirmVerification: %v", confirmErr)
 	}
@@ -944,10 +1893,7 @@ func TestAChangeTakesEffectOnlyWhenConfirmed(t *testing.T) {
 	u := register(t, s, old)
 	next := "after-" + uuid.NewString() + "@goen.invalid"
 
-	token, err := s.RequestVerification(ctx, u.ID, next)
-	if err != nil {
-		t.Fatalf("RequestVerification: %v", err)
-	}
+	token := requestVerification(t, s, u.ID, next)
 
 	if got := emailOf(t, u.ID); got != old {
 		t.Errorf("the account moved to %q before the link was followed", got)
@@ -968,6 +1914,254 @@ func TestAChangeTakesEffectOnlyWhenConfirmed(t *testing.T) {
 	}
 }
 
+// TestChangingEmailInvalidatesResetLinksSentToTheOldMailbox protects the
+// account after mailbox ownership moves: a link already delivered to the old
+// address must not remain password authority for the new identity.
+func TestChangingEmailInvalidatesResetLinksSentToTheOldMailbox(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	old := "old-reset-" + uuid.NewString() + "@goen.invalid"
+	u := register(t, s, old)
+	oldMailboxToken := beginReset(t, s, old)
+	newAddress := "new-reset-" + uuid.NewString() + "@goen.invalid"
+
+	verification := requestVerification(t, s, u.ID, newAddress)
+	if _, err := s.ConfirmVerification(ctx, verification); err != nil {
+		t.Fatalf("confirm address change: %v", err)
+	}
+	if err := s.CompleteReset(ctx, oldMailboxToken, "password chosen by old mailbox"); !errors.Is(err, account.ErrResetInvalid) {
+		t.Fatalf("old-mailbox reset after address change = %v, want ErrResetInvalid", err)
+	}
+	var oldMailboxMessages int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM outbox_messages
+		WHERE topic = $1
+		  AND lower(coalesce(payload ->> 'email', payload ->> 'Email', '')) = lower($2)`,
+		outbox.TopicPasswordReset, old).Scan(&oldMailboxMessages); err != nil {
+		t.Fatalf("count old-mailbox reset messages: %v", err)
+	}
+	if oldMailboxMessages != 0 {
+		t.Errorf("%d reset messages still retain or target the old mailbox", oldMailboxMessages)
+	}
+	if _, err := s.Authenticate(ctx, newAddress, "a sufficiently long password"); err != nil {
+		t.Errorf("address change disturbed the account's existing password: %v", err)
+	}
+}
+
+func TestErasurePurgesOnlyItsPendingVerificationMessage(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	u := register(t, s, "verification-erase-old-"+uuid.NewString()+"@goen.invalid")
+	pending := "verification-erase-new-" + uuid.NewString() + "@goen.invalid"
+	if err := account.RequestVerification(ctx, s, u.ID, pending); err != nil {
+		t.Fatalf("request address change: %v", err)
+	}
+	verificationDedupe := func(userID string) string {
+		t.Helper()
+		var key string
+		if err := pool.QueryRow(ctx, `
+			SELECT 'verify:' || encode(digest, 'hex')
+			FROM email_verifications WHERE user_id = $1`, userID).Scan(&key); err != nil {
+			t.Fatalf("read verification message identity: %v", err)
+		}
+		return key
+	}
+	erasedDedupe := verificationDedupe(u.ID)
+
+	// A pending address has not been proved. Another account may have asked to
+	// prove the same mailbox, and unrelated transactional mail may already target
+	// it; neither belongs to the account being erased.
+	other := register(t, s, "verification-erase-other-"+uuid.NewString()+"@goen.invalid")
+	if err := account.RequestVerification(ctx, s, other.ID, pending); err != nil {
+		t.Fatalf("request the same pending address for another account: %v", err)
+	}
+	otherDedupe := verificationDedupe(other.ID)
+	transactionalDedupe := "verification-erase-victim-mail:" + uuid.NewString()
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO outbox_messages (topic, dedupe_key, payload)
+		VALUES ($1, $2, jsonb_build_object('email', $3::text, 'order_number', 'G-VICTIM'))`,
+		outbox.TopicOrderPlaced, transactionalDedupe, pending); err != nil {
+		t.Fatalf("seed victim transactional mail: %v", err)
+	}
+	if err := s.Erase(ctx, u.ID); err != nil {
+		t.Fatalf("erase account: %v", err)
+	}
+
+	var erasedMessages int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM outbox_messages
+		WHERE dedupe_key = $1`, erasedDedupe).Scan(&erasedMessages); err != nil {
+		t.Fatalf("count erased account's verification messages: %v", err)
+	}
+	if erasedMessages != 0 {
+		t.Errorf("%d messages still carry the erased account's verification identity", erasedMessages)
+	}
+
+	var victimMessages int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM outbox_messages
+		WHERE dedupe_key IN ($1, $2)`, otherDedupe, transactionalDedupe).Scan(&victimMessages); err != nil {
+		t.Fatalf("count other owner's pending-address messages: %v", err)
+	}
+	if victimMessages != 2 {
+		t.Errorf("erasure retained %d/2 messages that target an unproved victim mailbox", victimMessages)
+	}
+}
+
+// TestErasureMatchesOutboxRecipientsExactly protects both halves of the
+// recipient predicate. Percent and underscore are legal mailbox characters but
+// SQL pattern wildcards, and an address in a non-recipient field does not make
+// that message the erased customer's mail.
+func TestErasureMatchesOutboxRecipientsExactly(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
+	current := "erase_%" + suffix + "@goen.invalid"
+	currentLookalike := "erase-looks-like-" + suffix + "@goen.invalid"
+	pending := "pending_%" + suffix + "@goen.invalid"
+	pendingLookalike := "pending-looks-like-" + suffix + "@goen.invalid"
+	u := register(t, s, current)
+	currentToken := requestVerification(t, s, u.ID, current)
+	if _, err := s.ConfirmVerification(ctx, currentToken); err != nil {
+		t.Fatalf("prove patterned current address: %v", err)
+	}
+	if err := account.RequestVerification(ctx, s, u.ID, pending); err != nil {
+		t.Fatalf("request patterned pending address: %v", err)
+	}
+
+	dedupePrefix := "erase-recipient-exact:" + suffix + ":"
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.WithoutCancel(ctx),
+			`DELETE FROM outbox_messages WHERE dedupe_key LIKE $1`, dedupePrefix+"%")
+	})
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO outbox_messages (topic, dedupe_key, payload) VALUES
+			('test.erase-current-legacy', $1,
+			 jsonb_build_object('Email', $2::text, 'token', 'legacy')),
+			('test.erase-current-lookalike', $3,
+			 jsonb_build_object('email', $4::text, 'name', $2::text)),
+			('test.erase-pending-lookalike', $5,
+			 jsonb_build_object('email', $6::text))`,
+		dedupePrefix+"current", current,
+		dedupePrefix+"current-lookalike", currentLookalike,
+		dedupePrefix+"pending-lookalike", pendingLookalike,
+	); err != nil {
+		t.Fatalf("seed exact-recipient messages: %v", err)
+	}
+
+	if err := s.Erase(ctx, u.ID); err != nil {
+		t.Fatalf("erase patterned address: %v", err)
+	}
+
+	var erasedRecipients int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM outbox_messages
+		WHERE lower(coalesce(payload ->> 'email', payload ->> 'Email', '')) =
+		      ANY(ARRAY[lower($1), lower($2)])`, current, pending).Scan(&erasedRecipients); err != nil {
+		t.Fatalf("count erased recipients: %v", err)
+	}
+	if erasedRecipients != 0 {
+		t.Errorf("%d outbox messages still name an erased current or pending recipient", erasedRecipients)
+	}
+
+	var lookalikes int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM outbox_messages
+		WHERE dedupe_key IN ($1, $2)`,
+		dedupePrefix+"current-lookalike", dedupePrefix+"pending-lookalike").Scan(&lookalikes); err != nil {
+		t.Fatalf("count lookalike recipients: %v", err)
+	}
+	if lookalikes != 2 {
+		t.Errorf("erasure retained %d/2 lookalike-recipient messages; %% and _ must be literal", lookalikes)
+	}
+}
+
+// TestVerificationAndErasureUseUserBeforeToken pauses token deletion after
+// confirmation has locked the user. Erasure must wait on the user instead of
+// holding it while confirmation holds the verification row.
+func TestVerificationAndErasureUseUserBeforeToken(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	u := register(t, s, "verify-race-old-"+uuid.NewString()+"@goen.invalid")
+	next := "verify-race-new-" + uuid.NewString() + "@goen.invalid"
+	token := requestVerification(t, s, u.ID, next)
+	digest := account.HashToken(token)
+
+	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
+	functionName := pgx.Identifier{"test_verification_spend_barrier_" + suffix}.Sanitize()
+	triggerName := pgx.Identifier{"test_verification_spend_trigger_" + suffix}.Sanitize()
+	const barrierKey int64 = 8_112_233_445_566_780
+	if _, err := pool.Exec(ctx, fmt.Sprintf(`
+		CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $body$
+		BEGIN
+			IF OLD.digest = decode('%x', 'hex') THEN
+				PERFORM pg_advisory_xact_lock(%d);
+			END IF;
+			RETURN OLD;
+		END
+		$body$`, functionName, digest, barrierKey)); err != nil {
+		t.Fatalf("create verification spend barrier: %v", err)
+	}
+	if _, err := pool.Exec(ctx, fmt.Sprintf(`
+		CREATE TRIGGER %s BEFORE DELETE ON email_verifications
+		FOR EACH ROW EXECUTE FUNCTION %s()`, triggerName, functionName)); err != nil {
+		t.Fatalf("create verification spend trigger: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx := context.WithoutCancel(ctx)
+		_, _ = pool.Exec(cleanupCtx, fmt.Sprintf(
+			`DROP TRIGGER IF EXISTS %s ON email_verifications`, triggerName))
+		_, _ = pool.Exec(cleanupCtx, fmt.Sprintf(
+			`DROP FUNCTION IF EXISTS %s()`, functionName))
+	})
+
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin verification spend blocker: %v", err)
+	}
+	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := blocker.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, barrierKey); err != nil {
+		t.Fatalf("lock verification spend barrier: %v", err)
+	}
+
+	confirmName, eraseName := "verify-confirm-"+suffix[:8], "verify-erase-"+suffix[:8]
+	confirmStore := account.NewStore(accountStorePool(t, confirmName))
+	eraseStore := account.NewStore(accountStorePool(t, eraseName))
+	confirmDone, eraseDone := make(chan error, 1), make(chan error, 1)
+	go func() {
+		_, confirmErr := confirmStore.ConfirmVerification(context.WithoutCancel(ctx), token)
+		confirmDone <- confirmErr
+	}()
+	waitForAccountLock(t, confirmName, confirmDone)
+	go func() { eraseDone <- eraseStore.Erase(context.WithoutCancel(ctx), u.ID) }()
+	waitForAccountLock(t, eraseName, eraseDone)
+
+	if err := blocker.Commit(ctx); err != nil {
+		t.Fatalf("release verification spend barrier: %v", err)
+	}
+	if err := operationResult(t, confirmDone); err != nil {
+		t.Fatalf("confirm verification: %v", err)
+	}
+	if err := operationResult(t, eraseDone); err != nil {
+		t.Fatalf("erase verified account: %v", err)
+	}
+
+	var users, verifications int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM users WHERE id = $1`,
+		uuid.MustParse(u.ID)).Scan(&users); err != nil {
+		t.Fatalf("count verification user: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM email_verifications WHERE user_id = $1`,
+		uuid.MustParse(u.ID)).Scan(&verifications); err != nil {
+		t.Fatalf("count verification rows: %v", err)
+	}
+	if users != 0 || verifications != 0 {
+		t.Errorf("verification/erase survivors user/token = %d/%d, want 0/0",
+			users, verifications)
+	}
+}
+
 // users_email_key is the real guard: this requests first, then lets somebody
 // else take the address before the confirmation.
 func TestAChangeToATakenAddressIsRefused(t *testing.T) {
@@ -976,10 +2170,7 @@ func TestAChangeToATakenAddressIsRefused(t *testing.T) {
 	mine := register(t, s, "mine-"+uuid.NewString()+"@goen.invalid")
 	wanted := "contested-" + uuid.NewString() + "@goen.invalid"
 
-	token, err := s.RequestVerification(ctx, mine.ID, wanted)
-	if err != nil {
-		t.Fatalf("RequestVerification: %v", err)
-	}
+	token := requestVerification(t, s, mine.ID, wanted)
 	register(t, s, wanted)
 
 	if _, err := s.ConfirmVerification(ctx, token); !errors.Is(err, account.ErrEmailTaken) {
@@ -995,14 +2186,8 @@ func TestAskingAgainLeavesOneLiveLink(t *testing.T) {
 	s := account.NewStore(pool)
 	u := register(t, s, "again-"+uuid.NewString()+"@goen.invalid")
 
-	first, err := s.RequestVerification(ctx, u.ID, u.Email)
-	if err != nil {
-		t.Fatalf("first request: %v", err)
-	}
-	second, err := s.RequestVerification(ctx, u.ID, u.Email)
-	if err != nil {
-		t.Fatalf("second request: %v", err)
-	}
+	first := requestVerification(t, s, u.ID, u.Email)
+	second := requestVerification(t, s, u.ID, u.Email)
 
 	var rows int
 	if err := pool.QueryRow(ctx,
@@ -1011,6 +2196,16 @@ func TestAskingAgainLeavesOneLiveLink(t *testing.T) {
 	}
 	if rows != 1 {
 		t.Errorf("%d outstanding requests after asking twice, want 1", rows)
+	}
+	var messages int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM outbox_messages
+		WHERE topic = $1 AND lower(payload->>'email') = lower($2)`,
+		outbox.TopicEmailVerify, u.Email).Scan(&messages); err != nil {
+		t.Fatalf("count queued verification links: %v", err)
+	}
+	if messages != 1 {
+		t.Errorf("%d verification messages after asking twice, want only the newest", messages)
 	}
 	if _, err := s.ConfirmVerification(ctx, first); !errors.Is(err, account.ErrVerifyInvalid) {
 		t.Errorf("the earlier link still works: %v", err)
@@ -1025,10 +2220,7 @@ func TestAnExpiredVerificationIsRefused(t *testing.T) {
 	s := account.NewStore(pool)
 	u := register(t, s, "expired-"+uuid.NewString()+"@goen.invalid")
 
-	token, err := s.RequestVerification(ctx, u.ID, u.Email)
-	if err != nil {
-		t.Fatalf("RequestVerification: %v", err)
-	}
+	token := requestVerification(t, s, u.ID, u.Email)
 	if _, err := pool.Exec(ctx, `
 		UPDATE email_verifications
 		SET created_at = now() - interval '50 hours', expires_at = now() - interval '2 hours'
@@ -1059,7 +2251,7 @@ func TestRegisteringAsksForTheAddressToBeProved(t *testing.T) {
 	u := register(t, s, addr)
 
 	// register() goes through the store, so ask the way the handler does.
-	if _, err := s.RequestVerification(ctx, u.ID, u.Email); err != nil {
+	if err := account.RequestVerification(ctx, s, u.ID, u.Email); err != nil {
 		t.Fatalf("RequestVerification: %v", err)
 	}
 	var messages int

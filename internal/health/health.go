@@ -7,6 +7,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"slices"
 	"time"
 )
 
@@ -40,7 +41,7 @@ func NewHandler(log *slog.Logger, deps ...Dependency) *Handler {
 			panic("health: every readiness dependency needs a name and a pool")
 		}
 	}
-	return &Handler{deps: deps, log: log}
+	return &Handler{deps: slices.Clone(deps), log: log}
 }
 
 // Live serves GET /healthz. It checks nothing: a liveness probe that tested the

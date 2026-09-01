@@ -57,6 +57,57 @@ func TestTheLastAdminCannotBeErased(t *testing.T) {
 	}
 }
 
+// TestUsersTriggerKeepsOneAdmin proves the database-wide fallback, independent
+// of the application functions: even an owner-issued raw role update or delete
+// cannot remove the only administrator.
+func TestUsersTriggerKeepsOneAdmin(t *testing.T) {
+	ctx := t.Context()
+	tx, err := schemaPool(t).Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := tx.Exec(ctx, fixtures); err != nil {
+		t.Fatalf("fixtures: %v", err)
+	}
+	const only = "55555555-5555-4555-8555-555555555555"
+	const second = "5555aaaa-5555-4555-8555-555555555555"
+	if _, err := tx.Exec(ctx,
+		`UPDATE users SET role = 'admin' WHERE id = $1`, only); err != nil {
+		t.Fatalf("make an admin: %v", err)
+	}
+
+	for name, statement := range map[string]string{
+		"role":   `UPDATE users SET role = 'staff' WHERE id = '` + only + `'`,
+		"delete": `DELETE FROM users WHERE id = '` + only + `'`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := tx.Exec(ctx, `SAVEPOINT trigger_guard`); err != nil {
+				t.Fatalf("savepoint: %v", err)
+			}
+			_, transitionErr := tx.Exec(ctx, statement)
+			if pgErr, ok := errors.AsType[*pgconn.PgError](transitionErr); !ok ||
+				pgErr.ConstraintName != "users_keep_one_admin" {
+				t.Fatalf("last-admin %s = %v, want users_keep_one_admin", name, transitionErr)
+			}
+			if _, err := tx.Exec(ctx, `ROLLBACK TO SAVEPOINT trigger_guard`); err != nil {
+				t.Fatalf("rollback refusal: %v", err)
+			}
+		})
+	}
+
+	// A second admin is the neighbouring legal state; the trigger is not a ban
+	// on every roster change.
+	if _, err := tx.Exec(ctx,
+		`UPDATE users SET role = 'admin' WHERE id = $1`, second); err != nil {
+		t.Fatalf("make a second admin: %v", err)
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE users SET role = 'staff' WHERE id = $1`, only); err != nil {
+		t.Fatalf("demote with a surviving admin: %v", err)
+	}
+}
+
 // assertNoTableHoldsTheAddress asks every table with a text email column, derived from
 // information_schema, whether it still holds the address after erasure.
 func assertNoTableHoldsTheAddress(ctx context.Context, t *testing.T, tx pgx.Tx, addr string) {

@@ -112,9 +112,9 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 		CategoryName: p.CategoryName,
 		SelectionOK:  chosen.SKU != "",
 		Exact:        exact,
+		PriceVaries:  dearerThan(chosen.PriceCents, variants),
+		AnySellable:  slices.ContainsFunc(variants, func(v Variant) bool { return v.Sellable }),
 	}
-	view.PriceVaries = dearerThan(chosen.PriceCents, variants)
-	view.AnySellable = slices.ContainsFunc(variants, func(v Variant) bool { return v.Sellable })
 	if view.SelectionOK {
 		view.VariantID = chosen.ID
 		view.SKU = chosen.SKU

@@ -61,6 +61,21 @@ func TestReadinessFailsWhenAnyPoolIsUnreachable(t *testing.T) {
 	}
 }
 
+// TestNewHandlerOwnsItsValidatedDependencies proves a caller cannot mutate the
+// variadic backing slice after construction and invalidate Handler's state.
+func TestNewHandlerOwnsItsValidatedDependencies(t *testing.T) {
+	deps := []Dependency{{Name: "storefront", DB: stubPinger{}}}
+	h := NewHandler(slog.New(slog.DiscardHandler), deps...)
+
+	deps[0] = Dependency{DB: stubPinger{err: errors.New("caller mutation")}}
+
+	w := httptest.NewRecorder()
+	h.Ready(w, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/readyz", http.NoBody))
+	if w.Code != http.StatusOK {
+		t.Errorf("Ready() status after caller mutated its input = %d, want %d", w.Code, http.StatusOK)
+	}
+}
+
 // TestLivenessIgnoresTheDatabase keeps the two probes different questions:
 // answering a brief outage as liveness turns a blip into a restart loop.
 func TestLivenessIgnoresTheDatabase(t *testing.T) {

@@ -143,7 +143,7 @@ var policies = map[string]pages.PolicyDoc{
 				HeadingEn: "We hold the stock while you pay",
 				Body: []string{
 					// Interpolated, never typed: a literal here is a second copy
-					// of cart.HoldTTL that no test binds.
+					// of the cart's private holdTTL that no test binds.
 					fmt.Sprintf("送出訂單時系統會保留庫存 %s 分鐘。超過時間未完成付款,商品會回到架上,"+
 						"但訂單仍然存在,可以重新付款(若庫存還在)。", pages.HoldMinutesText()),
 				},

@@ -28,35 +28,60 @@ var ErrResetInvalid = errors.New("account: that reset link is not usable")
 // ErrInvalidPassword is a new password the rules refuse.
 var ErrInvalidPassword = errors.New("account: password refused")
 
-// BeginReset issues a reset token if the address belongs to anybody. The caller
-// must answer identically whether or not found is true, or it is an oracle.
-func (s *Store) BeginReset(ctx context.Context, email string) (token, sendTo string, found bool, err error) {
+// beginReset atomically issues a reset token and queues its message when the
+// address belongs to an account. An unknown address is the same nil result: the
+// caller must not become an account-existence oracle.
+func (s *Store) beginReset(ctx context.Context, email string) error {
 	email = email2.Clean(email)
 	if EmailError(email) != "" {
-		return "", "", false, nil
+		return nil
 	}
 
-	row, err := s.q.UserByEmail(ctx, email)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin password reset: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	q := s.q.WithTx(tx)
+
+	row, err := q.UserForPasswordReset(ctx, email)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return "", "", false, nil
+			return nil
 		}
-		return "", "", false, fmt.Errorf("read user: %w", err)
+		return fmt.Errorf("lock reset account: %w", err)
 	}
 
-	token, err = NewToken()
+	token, err := NewToken()
 	if err != nil {
-		return "", "", false, err
+		return err
 	}
 	digest := sha256.Sum256([]byte(token))
-	if err := s.q.CreatePasswordResetToken(ctx, db.CreatePasswordResetTokenParams{
+	payload, err := json.Marshal(email2.PasswordReset{
+		Email: row.Email, Token: token, Locale: i18n.FromContext(ctx).Tag(),
+	})
+	if err != nil {
+		return fmt.Errorf("encode reset message: %w", err)
+	}
+
+	if err := q.CreatePasswordResetToken(ctx, db.CreatePasswordResetTokenParams{
 		TokenHash: digest[:],
 		UserID:    row.ID,
 		Ttl:       pgtype.Interval{Microseconds: ResetTokenTTL.Microseconds(), Valid: true},
 	}); err != nil {
-		return "", "", false, fmt.Errorf("create reset token: %w", err)
+		return fmt.Errorf("create reset token: %w", err)
 	}
-	return token, row.Email, true, nil
+	if err := q.EnqueueMessage(ctx, db.EnqueueMessageParams{
+		Topic:     outbox.TopicPasswordReset,
+		DedupeKey: "reset:" + hex.EncodeToString(digest[:]),
+		Payload:   payload,
+	}); err != nil {
+		return fmt.Errorf("enqueue reset message: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit password reset: %w", err)
+	}
+	return nil
 }
 
 // CompleteReset spends a token and sets the password, in one transaction.
@@ -67,7 +92,8 @@ func (s *Store) CompleteReset(ctx context.Context, token, password string) error
 	digest := sha256.Sum256([]byte(token))
 
 	// A cheap gate before argon2, which costs 64 MiB a call; the UPDATE decides.
-	if _, err := s.q.PasswordResetToken(ctx, digest[:]); err != nil {
+	userID, err := s.q.PasswordResetToken(ctx, digest[:])
+	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrResetInvalid
 		}
@@ -83,15 +109,24 @@ func (s *Store) CompleteReset(ctx context.Context, token, password string) error
 	if err != nil {
 		return fmt.Errorf("begin reset: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
-	userID, err := q.SpendPasswordResetToken(ctx, digest[:])
+	if _, lockErr := q.LockUserForPasswordReset(ctx, userID); lockErr != nil {
+		if errors.Is(lockErr, pgx.ErrNoRows) {
+			return ErrResetInvalid
+		}
+		return fmt.Errorf("lock reset account: %w", lockErr)
+	}
+	spentUserID, err := q.SpendPasswordResetToken(ctx, digest[:])
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrResetInvalid
 		}
 		return fmt.Errorf("spend reset token: %w", err)
+	}
+	if spentUserID != userID {
+		return errors.New("account: reset token changed owner")
 	}
 
 	if err := q.SetPasswordHash(ctx, db.SetPasswordHashParams{
@@ -107,25 +142,6 @@ func (s *Store) CompleteReset(ctx context.Context, token, password string) error
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit reset: %w", err)
-	}
-	return nil
-}
-
-// EnqueueReset writes the reset message to the outbox.
-func (s *Store) EnqueueReset(ctx context.Context, email, token string) error {
-	digest := sha256.Sum256([]byte(token))
-	payload, err := json.Marshal(email2.PasswordReset{
-		Email: email, Token: token, Locale: i18n.FromContext(ctx).Tag(),
-	})
-	if err != nil {
-		return fmt.Errorf("encode reset message: %w", err)
-	}
-	if err := s.q.EnqueueMessage(ctx, db.EnqueueMessageParams{
-		Topic:     outbox.TopicPasswordReset,
-		DedupeKey: "reset:" + hex.EncodeToString(digest[:]),
-		Payload:   payload,
-	}); err != nil {
-		return fmt.Errorf("enqueue reset message: %w", err)
 	}
 	return nil
 }

@@ -7,7 +7,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/goen/internal/contact"
-	"github.com/koopa0/goen/internal/i18n"
 )
 
 func TestClean(t *testing.T) {
@@ -210,34 +209,6 @@ func TestValidate(t *testing.T) {
 			}
 			if len(got) != len(tt.wantFields) {
 				t.Errorf("Validate() = %v; want errors on exactly %v", got, tt.wantFields)
-			}
-		})
-	}
-}
-
-// TestValidateSubjectsAreAccepted keeps the offered set and the accepted set
-// from drifting: every option the form renders must survive validation.
-func TestValidateSubjectsAreAccepted(t *testing.T) {
-	t.Parallel()
-
-	if len(contact.Subjects) == 0 {
-		t.Fatal("contact.Subjects is empty; the form would offer no topic")
-	}
-
-	for _, subject := range contact.Subjects {
-		t.Run(subject.Value, func(t *testing.T) {
-			t.Parallel()
-
-			msg := valid()
-			msg.Subject = subject.Value
-			if got := contact.Validate(t.Context(), msg); len(got) != 0 {
-				t.Errorf("Validate() rejected offered subject %q: %v", subject.Value, got)
-			}
-			// A topic whose key nothing translates renders the key name into
-			// the form's dropdown.
-			if _, ok := i18n.MessageFor(subject.LabelKey); !ok {
-				t.Errorf("subject %q names %q, which the catalogue does not define",
-					subject.Value, subject.LabelKey)
 			}
 		})
 	}

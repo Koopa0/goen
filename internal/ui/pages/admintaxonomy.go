@@ -65,9 +65,6 @@ type AdminTaxonDraft struct {
 	IconKey string
 }
 
-// CategoryIcons is the closed set the home page can draw.
-var CategoryIcons = []string{"phone", "laptop", "tablet", "headphones", "watch", "plug", "shield"}
-
 // HasErr reports whether this form's field was refused.
 func (v AdminTaxonomyView) HasErr(which, field string) bool {
 	if v.Which != which {

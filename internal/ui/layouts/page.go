@@ -42,24 +42,24 @@ func TopNavFrom(ctx context.Context) []NavItem {
 	return items
 }
 
-// FooterLink is one entry in a footer link column.
-type FooterLink struct {
+// footerLink is one entry in a footer link column.
+type footerLink struct {
 	Key  i18n.Key
 	Href string
 }
 
 // Label is the link's text in the request's language.
-func (l FooterLink) Label(ctx context.Context) string { return i18n.T(ctx, l.Key) }
+func (l footerLink) Label(ctx context.Context) string { return i18n.T(ctx, l.Key) }
 
-// FooterShopping and FooterAbout are the footer's two link columns.
+// footerShopping and footerAbout are the footer's two fixed link columns.
 var (
-	FooterShopping = []FooterLink{
+	footerShopping = [...]footerLink{
 		{Key: i18n.KeyShippingPolicy, Href: "/shipping"},
 		{Key: i18n.KeyPaymentPolicy, Href: "/payment"},
 		{Key: i18n.KeyReturnsPolicy, Href: "/returns"},
 		{Key: i18n.KeyWarrantyPolicy, Href: "/warranty"},
 	}
-	FooterAbout = []FooterLink{
+	footerAbout = [...]footerLink{
 		{Key: i18n.KeyFooterAbout, Href: "/about"},
 		{Key: i18n.KeyContact, Href: "/contact"},
 		{Key: i18n.KeyFAQ, Href: "/faq"},

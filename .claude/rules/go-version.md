@@ -5,9 +5,9 @@ paths:
 
 # Go Version Idiom Rules
 
-## Project Version: Go 1.26+
+## Project Version: Go 1.27+
 
-This project targets Go 1.26+. MUST use the latest idioms **the `go.mod` `go`
+This project targets Go 1.27+. MUST use the latest idioms **the `go.mod` `go`
 directive supports** — check it for the exact version. This harness is portable:
 in a consumer repo on an older toolchain the "mandatory" rows below are gated by
 the `Since` column — never emit an idiom newer than the target can compile (the
@@ -52,6 +52,7 @@ SessionStart hook surfaces the ceiling). A 1.26-only form (`new(expr)`,
 | testing.T.ArtifactDir()             | 1.26    | test output directory                                         |
 | Green Tea GC (default)              | 1.26    | 10-40% less GC overhead                                       |
 | go fix modernizers                  | 1.26    | `go fix ./...` updates idioms                                 |
+| method-specific type parameters     | 1.27    | `store.HandleJSON[Message](topic, handler)`                   |
 
 ## Rules
 

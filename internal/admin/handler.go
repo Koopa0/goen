@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -69,6 +70,14 @@ func (h *Handler) closeSessions(ctx context.Context, number string, sessions []s
 	if h.sessions == nil {
 		return
 	}
+
+	// The database cancellation has already committed. Keep request values for
+	// tracing, but do not let a client disconnect turn the provider cleanup into
+	// a no-op. One short budget bounds the whole best-effort batch.
+	const timeout = 5 * time.Second
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	defer cancel()
+
 	for _, id := range sessions {
 		if err := h.sessions.ExpireSession(ctx, id); err != nil {
 			// Warn, not Error: Stripe refuses to expire anything but an OPEN
@@ -492,6 +501,7 @@ var adminNotices = map[string]i18n.Key{
 	"already":       i18n.KeyAdminNoticeAlready,
 	"specfailed":    i18n.KeyAdminNoticeSpecFailed,
 	"notflagged":    i18n.KeyAdminNoticeNotFlagged,
+	"mustrefund":    i18n.KeyAdminNoticePaymentMustRefund,
 }
 
 // noticeFor turns a redirect's one-shot query parameter into a message.
@@ -1237,18 +1247,37 @@ func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 
 // ReconcilePayment serves POST /admin/health/reconcile.
 //
-// This is how the operator says they investigated and resolved a Stripe event
-// goen could not apply. Without it the alarm is monotone and /admin/health is
-// unhealthy forever after the first one.
+// This records an explicit money outcome: an event is released only after full
+// refund/already-succeeded accounting, while a provider-complete payment chooses
+// paid attribution or confirmed-unpaid/refunded. The subjects and outcomes use
+// distinct form fields and database doors.
 func (h *Handler) ReconcilePayment(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	err := h.store.ReconcilePayment(r.Context(), r.PostFormValue("event"), staffID(r))
+	eventID := strings.TrimSpace(r.PostFormValue("event"))
+	providerRef := strings.TrimSpace(r.PostFormValue("payment"))
+	eventResolutionOK := paymentEventSafeReleaseSubmitted(r.PostFormValue("event_resolution"))
+	completeResolution, completeResolutionOK := parseCompletePaymentResolution(
+		r.PostFormValue("resolution"),
+	)
+	var err error
+	switch {
+	case eventID != "" && providerRef == "" && eventResolutionOK && !completeResolutionOK:
+		err = h.store.ReleasePaymentEventAfterRefundOrAccounting(r.Context(), eventID)
+	case providerRef != "" && eventID == "" && completeResolutionOK && !eventResolutionOK:
+		err = h.store.reconcileCompletePayment(
+			r.Context(), providerRef, completeResolution,
+		)
+	default:
+		err = ErrInvalid
+	}
 	switch {
 	case err == nil:
 		http.Redirect(w, r, "/admin/health?reconciled=1", http.StatusSeeOther)
+	case errors.Is(err, ErrPaymentRequiresRefund):
+		http.Redirect(w, r, "/admin/health?mustrefund=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound), errors.Is(err, ErrInvalid):
 		http.Redirect(w, r, "/admin/health?notflagged=1", http.StatusSeeOther)
 	default:

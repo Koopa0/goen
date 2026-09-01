@@ -6,6 +6,8 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -107,7 +109,7 @@ type AdminOrdersView struct {
 	Searched bool
 	Status   string
 	Orders   []AdminOrderRow
-	Counts   map[string]int64
+	Tabs     []AdminStatusTab
 	Notice   string
 }
 
@@ -116,37 +118,6 @@ func (v AdminOrdersView) Searching() bool { return v.Searched }
 
 // TermTooShort reports that something was typed and it was not enough to search with.
 func (v AdminOrdersView) TermTooShort() bool { return v.Term != "" && !v.Searched }
-
-// Tabs is the status filter, with counts.
-func (v AdminOrdersView) Tabs(ctx context.Context) []AdminStatusTab {
-	labels := []struct {
-		value string
-		label i18n.Key
-	}{
-		{"", i18n.KeyAdminTabAll},
-		{"pending", i18n.KeyAdminStatusPending},
-		{"picking", i18n.KeyAdminStatusPicking},
-		{"shipped", i18n.KeyAdminStatusShipped},
-		{"delivered", i18n.KeyAdminStatusDelivered},
-		{"completed", i18n.KeyAdminStatusCompleted},
-		{"cancelled", i18n.KeyAdminStatusCancelled},
-	}
-	tabs := make([]AdminStatusTab, 0, len(labels))
-	for _, l := range labels {
-		var n int64
-		if l.value == "" {
-			for _, c := range v.Counts {
-				n += c
-			}
-		} else {
-			n = v.Counts[l.value]
-		}
-		tabs = append(tabs, AdminStatusTab{
-			Value: l.value, Label: i18n.T(ctx, l.label), Count: n, Selected: l.value == v.Status,
-		})
-	}
-	return tabs
-}
 
 // Empty reports whether the queue has nothing in this state.
 func (v AdminOrdersView) Empty() bool { return len(v.Orders) == 0 }
@@ -181,7 +152,7 @@ type AdminOrderView struct {
 	Address          string
 	CustomerNote     string
 	StaffNote        string
-	InvoiceType      string
+	InvoiceType      invoice.Preference
 	InvoiceCarrier   string
 	InvoiceTaxID     string
 	InvoiceDocuments []AdminInvoiceDocument
@@ -212,7 +183,7 @@ type AdminDelivery struct {
 	District   string
 	Street     string
 
-	PickupBrand     string
+	PickupBrand     pickup.Brand
 	PickupStoreCode string
 	PickupStoreName string
 }
@@ -322,14 +293,14 @@ func (v *AdminOrderView) HasInvoice() bool { return v.InvoiceType != "" }
 // InvoiceText is the preference in words, with the detail that goes with it.
 func (v *AdminOrderView) InvoiceText(ctx context.Context) string {
 	switch v.InvoiceType {
-	case "member_carrier":
+	case invoice.PreferenceMember:
 		return i18n.T(ctx, i18n.KeyAdminCarrierMember)
-	case "mobile_carrier":
+	case invoice.PreferenceMobile:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCarrierMobile), v.InvoiceCarrier)
-	case "company":
+	case invoice.PreferenceCompany:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCarrierTaxID), v.InvoiceTaxID)
 	default:
-		panic("pages: no label for invoice type " + v.InvoiceType)
+		panic("pages: no label for invoice type " + string(v.InvoiceType))
 	}
 }
 

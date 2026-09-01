@@ -28,6 +28,7 @@ type call struct {
 	path        string
 	form        url.Values
 	idempotency string
+	apiVersion  string
 }
 
 // stripeAt returns a Gateway talking to h instead of api.stripe.com, and the log
@@ -49,6 +50,7 @@ func stripeAt(t *testing.T, h func(*call) (int, string)) (*Gateway, *[]call) {
 		c := call{
 			method: r.Method, path: r.URL.Path, form: form,
 			idempotency: r.Header.Get("Idempotency-Key"),
+			apiVersion:  r.Header.Get("Stripe-Version"),
 		}
 		log = append(log, c)
 		status, reply := h(&c)
@@ -114,9 +116,14 @@ func TestTheSessionRequestCarriesWhatStripeCharges(t *testing.T) {
 	if sent.method != http.MethodPost || sent.path != "/v1/checkout/sessions" {
 		t.Errorf("sent %s %s, want POST /v1/checkout/sessions", sent.method, sent.path)
 	}
+	if sent.apiVersion != "2026-08-26.dahlia" {
+		t.Errorf("Stripe-Version = %q, want the API reviewed with stripe-go v86.4",
+			sent.apiVersion)
+	}
 
 	want := map[string]string{
 		"mode":                                          "payment",
+		"integration_identifier":                        "goen-hosted-checkout-qkfmwzvt",
 		"client_reference_id":                           "GO-260806-000007",
 		"metadata[order_number]":                        "GO-260806-000007",
 		"customer_email":                                "someone@example.test",
@@ -146,7 +153,7 @@ func TestTheSessionRequestCarriesWhatStripeCharges(t *testing.T) {
 	}
 	if got := sent.form["payment_method_types[1]"]; len(got) != 0 {
 		t.Errorf("form carries a second payment_method_type = %v; card is what a "+
-			"30-minute hold can survive, and anything else is a feature rather "+
+			"bounded Checkout Session and 60-minute stock hold can survive, and anything else is a feature rather "+
 			"than a flag", got)
 	}
 	if sent.idempotency == "" {
@@ -282,32 +289,33 @@ func TestTheHostedPageFollowsTheVisitorsLanguage(t *testing.T) {
 	}
 }
 
-// TestOnlyAnOpenSessionIsResumable is the rule ResumeSession exists for: never
-// `open` for a session with money in flight, and never an error read as "not
-// open".
+// TestOnlyAnOpenSessionIsResumable is the rule ResumeSession exists for: retain
+// the distinction between complete and expired, and never read an error as a
+// terminal provider state.
 func TestOnlyAnOpenSessionIsResumable(t *testing.T) {
 	for _, tt := range []struct {
-		name     string
-		status   int
-		body     string
-		wantOpen bool
-		wantURL  string
-		wantErr  bool
+		name       string
+		status     int
+		body       string
+		wantStatus stripe.CheckoutSessionStatus
+		wantURL    string
+		wantErr    bool
 	}{
 		{
 			name: "still open", status: http.StatusOK,
-			body:     `{"id":"cs_1","object":"checkout.session","status":"open","url":"https://checkout.stripe.test/c/pay/cs_1"}`,
-			wantOpen: true, wantURL: "https://checkout.stripe.test/c/pay/cs_1",
+			body:       `{"id":"cs_1","object":"checkout.session","status":"open","url":"https://checkout.stripe.test/c/pay/cs_1"}`,
+			wantStatus: stripe.CheckoutSessionStatusOpen,
+			wantURL:    "https://checkout.stripe.test/c/pay/cs_1",
 		},
 		{
 			name: "complete — the money may already be in flight", status: http.StatusOK,
-			body:     `{"id":"cs_1","object":"checkout.session","status":"complete","url":"https://checkout.stripe.test/c/pay/cs_1"}`,
-			wantOpen: false,
+			body:       `{"id":"cs_1","object":"checkout.session","status":"complete","url":"https://checkout.stripe.test/c/pay/cs_1"}`,
+			wantStatus: stripe.CheckoutSessionStatusComplete,
 		},
 		{
 			name: "expired with the stock hold", status: http.StatusOK,
-			body:     `{"id":"cs_1","object":"checkout.session","status":"expired"}`,
-			wantOpen: false,
+			body:       `{"id":"cs_1","object":"checkout.session","status":"expired"}`,
+			wantStatus: stripe.CheckoutSessionStatusExpired,
 		},
 		{
 			name: "Stripe could not answer", status: http.StatusInternalServerError,
@@ -318,7 +326,7 @@ func TestOnlyAnOpenSessionIsResumable(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			g, _ := stripeAt(t, func(*call) (int, string) { return tt.status, tt.body })
 
-			redirect, open, err := g.ResumeSession(t.Context(), "cs_1")
+			redirect, status, err := g.ResumeSession(t.Context(), "cs_1")
 			switch {
 			case tt.wantErr && err == nil:
 				t.Fatal("ResumeSession() returned no error for a Stripe failure — " +
@@ -326,8 +334,8 @@ func TestOnlyAnOpenSessionIsResumable(t *testing.T) {
 			case !tt.wantErr && err != nil:
 				t.Fatalf("ResumeSession() error = %v", err)
 			}
-			if open != tt.wantOpen {
-				t.Errorf("ResumeSession() open = %v, want %v", open, tt.wantOpen)
+			if status != tt.wantStatus {
+				t.Errorf("ResumeSession() status = %q, want %q", status, tt.wantStatus)
 			}
 			if redirect != tt.wantURL {
 				t.Errorf("ResumeSession() url = %q, want %q", redirect, tt.wantURL)

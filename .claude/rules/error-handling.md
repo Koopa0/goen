@@ -32,7 +32,7 @@ Prefer over `errors.As` — type-safe, no pointer-to-pointer pattern.
 
 ## Enum Switch Defaults — Must Panic
 
-Go has no exhaustiveness check for `switch` over a closed set of constants (Go 1.26 still does not provide one). A missing case silently falls through to `default`, which is a **programming error** — not a runtime condition the caller can handle.
+Go has no exhaustiveness check for `switch` over a closed set of constants (Go 1.27 still does not provide one). A missing case silently falls through to `default`, which is a **programming error** — not a runtime condition the caller can handle.
 
 For mapping-style switches where adding a new enum value REQUIRES updating the switch (e.g., `OrderStatus` → HTTP code, `PaymentMethod` → processor, `Role` → permission set), the `default` branch MUST `panic` with the offending value:
 

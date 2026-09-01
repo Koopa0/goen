@@ -23,14 +23,14 @@ type Gateway struct {
 	baseURL       string
 }
 
-// NewGateway wires Stripe. A blank secret key is not an error; a key with no
+// NewGateway wires Stripe. A blank API key is not an error; a key with no
 // webhook secret is, and leaves the endpoint that takes money open.
-func NewGateway(secretKey, webhookSecret, baseURL string) (*Gateway, error) {
-	if secretKey == "" {
+func NewGateway(apiKey, webhookSecret, baseURL string) (*Gateway, error) {
+	if apiKey == "" {
 		return &Gateway{baseURL: baseURL}, nil
 	}
 	if webhookSecret == "" {
-		return nil, errors.New("payment: a Stripe secret key without a webhook secret " +
+		return nil, errors.New("payment: a Stripe API key without a webhook secret " +
 			"would leave /webhooks/stripe unauthenticated")
 	}
 	origin, _, ok := web.SiteOrigin(baseURL)
@@ -38,7 +38,7 @@ func NewGateway(secretKey, webhookSecret, baseURL string) (*Gateway, error) {
 		return nil, fmt.Errorf("payment: base URL %q is not usable for Stripe return URLs", baseURL)
 	}
 	return &Gateway{
-		client:        stripe.NewClient(secretKey),
+		client:        stripe.NewClient(apiKey),
 		webhookSecret: webhookSecret,
 		baseURL:       origin,
 	}, nil
@@ -50,10 +50,10 @@ func (g *Gateway) Enabled() bool { return g.client != nil }
 // lineItem is one row on Stripe's page.
 func lineItem(name string, unitCents, quantity int64) *stripe.CheckoutSessionCreateLineItemParams {
 	return &stripe.CheckoutSessionCreateLineItemParams{
-		Quantity: stripe.Int64(quantity),
+		Quantity: new(quantity),
 		PriceData: &stripe.CheckoutSessionCreateLineItemPriceDataParams{
 			Currency:   stripe.String(Currency),
-			UnitAmount: stripe.Int64(unitCents),
+			UnitAmount: new(unitCents),
 			ProductData: &stripe.CheckoutSessionCreateLineItemPriceDataProductDataParams{
 				Name: stripe.String(name),
 			},
@@ -117,14 +117,16 @@ func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (id
 		CancelURL:  stripe.String(g.baseURL + "/orders/" + url.PathEscape(o.Number) + "/pay?cancelled=1"),
 		// The session dies with the stock hold: a window measured from here
 		// outlives the goods.
-		ExpiresAt:             stripe.Int64(o.SessionExpiry().Unix()),
+		ExpiresAt:             new(o.SessionExpiry().Unix()),
 		ClientReferenceID:     stripe.String(o.Number),
 		Metadata:              map[string]string{"order_number": o.Number},
 		IntegrationIdentifier: stripe.String(integrationIdentifier),
 	}
 
-	// Pinned, never omitted: a delayed method settles days after ExpiresAt, so
-	// the units are released and re-sold before the capture lands.
+	// Deliberate exception to Stripe's dynamic-payment-method default: a delayed
+	// method settles days after ExpiresAt, so the units are released and can be
+	// re-sold before the capture lands. Supporting one requires a different stock
+	// reservation model, not removing this field.
 	params.PaymentMethodTypes = stripe.StringSlice([]string{"card"})
 
 	if o.Email != "" {
@@ -140,20 +142,24 @@ func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (id
 	return sess.ID, sess.URL, nil
 }
 
-// ResumeSession reports where to send a customer who already has a session open,
-// and whether it still is. An error is never read as "not open".
-func (g *Gateway) ResumeSession(ctx context.Context, sessionID string) (redirectURL string, open bool, err error) {
+// ResumeSession reports the provider's current state and, for an open session,
+// where to send the customer. A fresh retrieve is intentional: replaying a
+// Stripe idempotency key can return the original create response after the
+// underlying Session has expired.
+func (g *Gateway) ResumeSession(
+	ctx context.Context, sessionID string,
+) (redirectURL string, status stripe.CheckoutSessionStatus, err error) {
 	if !g.Enabled() {
-		return "", false, ErrDisabled
+		return "", "", ErrDisabled
 	}
 	sess, err := g.client.V1CheckoutSessions.Retrieve(ctx, sessionID, nil)
 	if err != nil {
-		return "", false, fmt.Errorf("read checkout session %s: %w", sessionID, err)
+		return "", "", fmt.Errorf("read checkout session %s: %w", sessionID, err)
 	}
 	if sess.Status != stripe.CheckoutSessionStatusOpen {
-		return "", false, nil
+		return "", sess.Status, nil
 	}
-	return sess.URL, true, nil
+	return sess.URL, sess.Status, nil
 }
 
 // ExpireSession closes a Checkout Session so nobody can pay a cancelled order on

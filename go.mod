@@ -1,16 +1,16 @@
 module github.com/koopa0/goen
 
-go 1.26.6
+go 1.27.0
 
 require (
 	github.com/a-h/templ v0.3.1020
 	github.com/google/go-cmp v0.7.0
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/stripe/stripe-go/v86 v86.2.0
-	github.com/testcontainers/testcontainers-go v0.43.0
-	github.com/testcontainers/testcontainers-go/modules/postgres v0.43.0
-	golang.org/x/crypto v0.54.0
+	github.com/stripe/stripe-go/v86 v86.4.0
+	github.com/testcontainers/testcontainers-go v0.44.0
+	github.com/testcontainers/testcontainers-go/modules/postgres v0.44.0
+	golang.org/x/crypto v0.55.0
 	golang.org/x/image v0.45.0
 	golang.org/x/sync v0.22.0
 	golang.org/x/time v0.15.0

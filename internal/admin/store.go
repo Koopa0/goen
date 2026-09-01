@@ -13,7 +13,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
+	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -128,11 +131,22 @@ func (s *Store) Orders(ctx context.Context, status, term string) (pages.AdminOrd
 		return pages.AdminOrdersView{}, fmt.Errorf("read order counts: %w", err)
 	}
 
-	view := pages.AdminOrdersView{
-		Status: status, Term: term, Searched: searched, Counts: map[string]int64{},
-	}
+	view := pages.AdminOrdersView{Status: status, Term: term, Searched: searched}
+	countsByStatus := make(map[string]int64, len(counts))
+	var total int64
 	for _, c := range counts {
-		view.Counts[c.FulfillmentStatus] = c.N
+		countsByStatus[c.FulfillmentStatus] = c.N
+		total += c.N
+	}
+	view.Tabs = make([]pages.AdminStatusTab, 0, len(statuses)+1)
+	view.Tabs = append(view.Tabs, pages.AdminStatusTab{
+		Label: i18n.T(ctx, i18n.KeyAdminTabAll), Count: total, Selected: status == "",
+	})
+	for _, definition := range statuses {
+		view.Tabs = append(view.Tabs, pages.AdminStatusTab{
+			Value: definition.value, Label: i18n.T(ctx, definition.label),
+			Count: countsByStatus[definition.value], Selected: definition.value == status,
+		})
 	}
 	for i := range rows {
 		o := &rows[i]
@@ -174,14 +188,14 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 		Email: o.Email, Recipient: o.RecipientName, Phone: o.Phone,
 		Address: pages.Delivery{
 			PostalCode: o.PostalCode, City: o.City, District: o.District, Street: o.Street,
-			PickupBrand: o.PickupBrand, PickupStoreCode: o.PickupStoreCode,
+			PickupBrand: pickup.Brand(o.PickupBrand), PickupStoreCode: o.PickupStoreCode,
 			PickupStoreName: o.PickupStoreName,
 		}.Line(),
 		Delivery: pages.AdminDelivery{
 			Email: o.Email, Recipient: o.RecipientName, Phone: o.Phone,
 			PostalCode: o.PostalCode, City: o.City,
 			District: o.District, Street: o.Street,
-			PickupBrand: o.PickupBrand, PickupStoreCode: o.PickupStoreCode,
+			PickupBrand: pickup.Brand(o.PickupBrand), PickupStoreCode: o.PickupStoreCode,
 			PickupStoreName: o.PickupStoreName,
 		},
 		// UpdateOrderDelivery's WHERE clause is the authority; this only decides
@@ -192,7 +206,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 		PickupBrands:      pages.PickupBrandChoices(),
 		CustomerNote:      o.CustomerNote.String,
 		StaffNote:         o.StaffNote.String,
-		InvoiceType:       o.InvoiceType,
+		InvoiceType:       invoice.Preference(o.InvoiceType),
 		InvoiceCarrier:    o.InvoiceCarrier,
 		InvoiceTaxID:      o.InvoiceTaxID,
 		Committed:         o.Committed,
@@ -268,16 +282,20 @@ func (s *Store) Advance(ctx context.Context, number, status string, actor uuid.N
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
+	if advanceErr := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
+		OrderNumber: number, Status: status,
+	}); advanceErr != nil {
+		return nil, fmt.Errorf("%w: %w", ErrRefused, advanceErr)
+	}
+	// AdvanceOrder's UPDATE owns the aggregate row before this snapshot. If an
+	// expiry release won the order lock first, we now see no held row; if this
+	// transition won, that release waits behind us. A pre-lock snapshot can go
+	// stale and make an otherwise valid cancellation roll back.
 	var held []uuid.UUID
 	if status == "cancelled" {
 		if held, err = q.HeldReservationsForOrder(ctx, number); err != nil {
 			return nil, fmt.Errorf("read holds of %s: %w", number, err)
 		}
-	}
-	if err := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
-		OrderNumber: number, Status: status,
-	}); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	if err := applyStatusEffects(ctx, q, statusEffect{
 		status: status, number: number, orderID: row.ID, held: held,
@@ -316,7 +334,8 @@ type statusEffect struct {
 	status  string
 	number  string
 	orderID uuid.UUID
-	// held is the order's live reservations, read before the status moved.
+	// held is the order's live reservations, read after the status UPDATE took
+	// the aggregate lock.
 	held []uuid.UUID
 }
 
@@ -911,31 +930,102 @@ func (s *Store) IssueInvoice(ctx context.Context, number string) error {
 	}, func(context.Context, *db.Queries) error { return nil })
 }
 
-// ReconcilePayment records that somebody dealt with an event goen accepted and
-// could not act on — inspected the payload or dealt with the money at Stripe,
-// according to the durable cause on the row.
+// ReleasePaymentEventAfterRefundOrAccounting records the only safe release
+// conclusion for an event goen accepted and could not apply: provider money was
+// fully refunded, or a succeeded local payment already accounts for it. Merely
+// inspecting an event must not terminate its linked attempt and open another
+// place to charge.
 //
 // The row keeps its reason. Clearing the flag would delete what happened, and
 // what happened is the part worth reading afterwards.
-func (s *Store) ReconcilePayment(ctx context.Context, eventID string, actor uuid.NullUUID) error {
+func (s *Store) ReleasePaymentEventAfterRefundOrAccounting(
+	ctx context.Context, eventID string,
+) error {
 	if strings.TrimSpace(eventID) == "" {
 		return ErrInvalid
 	}
 	return s.audited(ctx, Event{
 		Action: ActionReconcilePayment, Table: "payment_webhook_events", ID: uuid.NullUUID{},
-		After: map[string]any{"event": eventID},
+		After: map[string]any{
+			"event":      eventID,
+			"resolution": "fully_refunded_or_already_accounted",
+		},
 	}, func(ctx context.Context, q *db.Queries) error {
-		n, err := q.MarkPaymentReconciled(ctx, eventID)
+		reconciled, err := q.ReleasePaymentEvent(ctx, eventID)
 		if err != nil {
 			return fmt.Errorf("mark %s reconciled: %w", eventID, err)
 		}
-		if n == 0 {
+		if !reconciled {
 			// Nothing outstanding under that id: already dealt with, or never
 			// flagged. The row count is the answer, not a read beforehand.
 			return ErrNotFound
 		}
 		return nil
 	})
+}
+
+// reconcileCompletePayment records one explicit money outcome for a provider-
+// complete Session whose capture outcome was not represented by a flaggable
+// webhook event. Paid attribution runs through capture_payment and all of its
+// side effects; only confirmed-unpaid/fully-refunded releases a later attempt.
+// The provider ref remains distinct from ReconcilePayment's event-id identity.
+func (s *Store) reconcileCompletePayment(
+	ctx context.Context, providerRef string, resolution completePaymentResolution,
+) error {
+	if strings.TrimSpace(providerRef) == "" ||
+		resolution == completePaymentResolutionUnknown {
+		return ErrInvalid
+	}
+
+	event := Event{
+		Action: ActionReconcilePayment, Table: "payments", ID: uuid.NullUUID{},
+		After: map[string]any{
+			"provider_ref": providerRef,
+			"resolution":   resolution.auditValue(),
+		},
+	}
+
+	// Paid attribution has capture side effects supplied by internal/payment,
+	// and the audit must share their transaction. Keep this explicit rather than
+	// weakening audited() to expose pgx.Tx to every unrelated admin write.
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin %s: %w", event.Action, err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	q := s.q.WithTx(tx)
+
+	switch resolution {
+	case completePaymentPaid:
+		attributed, captureErr := payment.AttributeCompleteCapture(ctx, tx, providerRef)
+		if captureErr != nil {
+			if errors.Is(captureErr, payment.ErrReleasedStockRequiresRefund) {
+				return fmt.Errorf("%w: %w", ErrPaymentRequiresRefund, captureErr)
+			}
+			return captureErr
+		}
+		if !attributed {
+			return ErrNotFound
+		}
+	case completePaymentUnpaidOrRefunded:
+		released, releaseErr := q.ReleaseCompletePayment(ctx, providerRef)
+		if releaseErr != nil {
+			return fmt.Errorf("release complete payment %s: %w", providerRef, releaseErr)
+		}
+		if !released {
+			return ErrNotFound
+		}
+	default:
+		return ErrInvalid
+	}
+
+	if err := auditIn(ctx, q, event); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit %s: %w", event.Action, err)
+	}
+	return nil
 }
 
 // AllowInvoice files a 折讓 against an order's live invoice, relieving the part

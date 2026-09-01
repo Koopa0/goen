@@ -382,8 +382,8 @@ func TestErasureTakesTheAddressOffTheList(t *testing.T) {
 
 	var userID uuid.UUID
 	if err := pool.QueryRow(t.Context(), `
-		INSERT INTO users (email, role, full_name)
-		VALUES ($1, 'customer', '退訂測試') RETURNING id`, email).Scan(&userID); err != nil {
+		INSERT INTO users (email, role, full_name, email_verified_at)
+		VALUES ($1, 'customer', '退訂測試', now()) RETURNING id`, email).Scan(&userID); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
 	if _, err := s.Request(t.Context(), email); err != nil {

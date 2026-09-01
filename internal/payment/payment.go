@@ -1,5 +1,7 @@
 // Package payment takes money for an order, through Stripe hosted Checkout.
-// Only a signature-verified webhook marks an order paid; the return to
+// A signature-verified webhook is the automatic paid fact. The only other door
+// is an explicit audited admin attribution of a provider-complete Session,
+// posted through the same capture invariants and side effects. The return to
 // success_url marks nothing, because anyone can request that URL.
 package payment
 
@@ -12,20 +14,27 @@ import (
 var (
 	// ErrNotFound is an order number that names nothing.
 	ErrNotFound = errors.New("payment: order not found")
-	// ErrAlreadyPaid is an order that has money against it already.
-	ErrAlreadyPaid = errors.New("payment: order already paid")
-	// ErrNotPayable is an order that is no longer waiting for money.
-	ErrNotPayable = errors.New("payment: order is not awaiting payment")
-	// ErrNotOpenable is an order that stopped awaiting payment while Stripe was
-	// creating its Checkout Session.
-	ErrNotOpenable = errors.New("payment: the order is no longer awaiting payment")
+	// ErrNotOpenable means a new Checkout Session cannot be safely admitted:
+	// the order changed, is funded, has an active attempt, or needs reconciliation.
+	ErrNotOpenable = errors.New("payment: a new checkout session cannot be safely opened")
 	// ErrDisabled is goen running without Stripe credentials.
 	ErrDisabled = errors.New("payment: stripe is not configured")
 	// ErrBadSignature is a webhook whose Stripe-Signature did not verify.
 	ErrBadSignature = errors.New("payment: webhook signature did not verify")
+	// ErrNoTransaction is a paid-attribution call without the transaction that
+	// must also carry its side effects and admin audit.
+	ErrNoTransaction = errors.New("payment: paid attribution requires a transaction")
+	// ErrReleasedStockRequiresRefund is provider money arriving after this
+	// order's stock was returned to sale. It cannot become a fulfilled local
+	// capture; staff must refund it at Stripe and then release reconciliation.
+	ErrReleasedStockRequiresRefund = errors.New("payment: released stock requires a provider refund")
 	// ErrOrderCancelled is money arriving for an order somebody called off while
 	// the Checkout Session was still open at Stripe. It is terminal.
 	ErrOrderCancelled = errors.New("payment: the order was cancelled before the money arrived")
+	// errCaptureRefused is verified money that a stable local invariant will not
+	// post. Retrying the same provider event cannot repair it; the webhook must
+	// persist an unreconciled outcome for an operator instead.
+	errCaptureRefused = errors.New("payment: the verified capture needs reconciliation")
 )
 
 // Currency is the only currency goen prices in. TWD is not a zero-decimal
@@ -34,10 +43,15 @@ const Currency = "twd"
 
 const integrationIdentifier = "goen-hosted-checkout-qkfmwzvt"
 
-// MinSessionLifetime is Stripe's floor for a Checkout Session: expires_at must
+// minSessionLifetime is Stripe's floor for a Checkout Session: expires_at must
 // be thirty minutes out or the create is refused. It is a floor to check a hold
 // against, never a duration to size a session from.
-const MinSessionLifetime = 30 * time.Minute
+const minSessionLifetime = 30 * time.Minute
+
+// sessionStartMargin is reserved for Unix-second truncation, clock skew and the
+// trip to Stripe between checking the hold and Stripe validating expires_at.
+// The session still expires at the stock hold; this margin never extends it.
+const sessionStartMargin = time.Minute
 
 // Order is what the payment page needs to know about what is being paid.
 type Order struct {
@@ -69,8 +83,8 @@ type Capture struct {
 	CardLast4  string
 }
 
-// WebhookEvent is a verified Stripe event, ready to be recorded.
-type WebhookEvent struct {
+// webhookEvent is a verified Stripe event, ready to be recorded.
+type webhookEvent struct {
 	ID        string
 	Type      string
 	ObjectRef string
@@ -91,7 +105,7 @@ func (o *Order) HoldCoversASession(now time.Time) bool {
 	if o.HoldExpiresAt.IsZero() {
 		return false
 	}
-	return !o.HoldExpiresAt.Before(now.Add(MinSessionLifetime))
+	return !o.HoldExpiresAt.Before(now.Add(minSessionLifetime + sessionStartMargin))
 }
 
 // SessionKey is the Idempotency-Key goen sends when it creates a Checkout

@@ -8,6 +8,7 @@ import (
 
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/pickup"
 )
 
 // ErrTooLateToCorrect is a delivery address that can no longer be changed.
@@ -25,7 +26,7 @@ type Delivery struct {
 	District   string
 	Street     string
 
-	PickupBrand     string
+	PickupBrand     pickup.Brand
 	PickupStoreCode string
 	PickupStoreName string
 }
@@ -66,7 +67,7 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *Delivery)
 				Phone:      text(addr.Phone),
 				PostalCode: addr.PostalCode, City: addr.City,
 				District: addr.District, Street: addr.Street,
-				PickupBrand: addr.PickupBrand, PickupStoreCode: addr.PickupStoreCode,
+				PickupBrand: string(addr.PickupBrand), PickupStoreCode: addr.PickupStoreCode,
 				PickupStoreName: addr.PickupStoreName,
 			})
 			if updErr != nil {
@@ -85,7 +86,7 @@ func deliveryFormOf(values func(string) string) *Delivery {
 		Email: get("email"), Recipient: get("recipient"), Phone: get("phone"),
 		PostalCode: get("postal_code"), City: get("city"),
 		District: get("district"), Street: get("street"),
-		PickupBrand: get("pickup_brand"), PickupStoreCode: get("pickup_store_code"),
+		PickupBrand: pickup.Brand(get("pickup_brand")), PickupStoreCode: get("pickup_store_code"),
 		PickupStoreName: get("pickup_store_name"),
 	}
 }

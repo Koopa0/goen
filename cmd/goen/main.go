@@ -53,9 +53,10 @@ type config struct {
 	AdminDatabaseURL string
 	// MaintenanceDatabaseURL is its own knob because a pool opened from
 	// DatabaseURL does SET ROLE maintenance as store_svc, which is not a member
-	// of that role — and pgxpool connects lazily, so it fails only in the worker.
+	// of that role. openMaintenancePool explicitly defeats pgxpool's lazy connect
+	// so a wrong login or role membership fails startup, before any worker runs.
 	MaintenanceDatabaseURL string
-	StripeSecretKey        string
+	StripeAPIKey           string
 	StripeWebhookSecret    string
 	ECPayMerchantID        string
 	ECPayHashKey           string
@@ -104,7 +105,7 @@ func loadConfig() (config, error) {
 
 		MaintenanceDatabaseURL: envOr("GOEN_MAINTENANCE_DATABASE_URL", url),
 
-		StripeSecretKey:     os.Getenv("GOEN_STRIPE_SECRET_KEY"),
+		StripeAPIKey:        envOr("GOEN_STRIPE_API_KEY", os.Getenv("GOEN_STRIPE_SECRET_KEY")),
 		ECPayMerchantID:     os.Getenv("GOEN_ECPAY_MERCHANT_ID"),
 		ECPayHashKey:        os.Getenv("GOEN_ECPAY_HASH_KEY"),
 		ECPayHashIV:         os.Getenv("GOEN_ECPAY_HASH_IV"),
@@ -291,7 +292,7 @@ func openProviders(cfg *config, log *slog.Logger) (
 	payments *payment.Gateway, invoices *invoice.Gateway,
 	googleSignIn *account.Google, err error,
 ) {
-	if payments, err = payment.NewGateway(cfg.StripeSecretKey, cfg.StripeWebhookSecret, cfg.BaseURL); err != nil {
+	if payments, err = payment.NewGateway(cfg.StripeAPIKey, cfg.StripeWebhookSecret, cfg.BaseURL); err != nil {
 		return nil, nil, nil, err
 	}
 	if invoices, err = openInvoicing(cfg, log); err != nil {
@@ -302,7 +303,7 @@ func openProviders(cfg *config, log *slog.Logger) (
 	}
 	if !payments.Enabled() {
 		log.Warn("stripe is not configured; the payment page will say so",
-			"set", "GOEN_STRIPE_SECRET_KEY and GOEN_STRIPE_WEBHOOK_SECRET")
+			"set", "GOEN_STRIPE_API_KEY and GOEN_STRIPE_WEBHOOK_SECRET")
 	}
 	return payments, invoices, googleSignIn, nil
 }
@@ -342,7 +343,7 @@ func run() error {
 	if providerErr != nil {
 		return providerErr
 	}
-	refunder := admin.NewRefunder(cfg.StripeSecretKey)
+	refunder := admin.NewRefunder(cfg.StripeAPIKey)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -425,10 +426,23 @@ func openAdminPool(ctx context.Context, url string) (*pgxpool.Pool, error) {
 	return openPoolAs(ctx, url, "admin", 0)
 }
 
-// openMaintenancePool builds the pool background jobs run on, as a role no
-// request ever holds.
+// openMaintenancePool builds and reaches the pool background jobs run on, as a
+// role no request ever holds. pgxpool.NewWithConfig is lazy: Ping belongs here
+// so a wrong independent DSN or a login that cannot SET ROLE maintenance stops
+// startup rather than failing only inside an unattended worker.
 func openMaintenancePool(ctx context.Context, url string) (*pgxpool.Pool, error) {
-	return openPoolAs(ctx, url, "maintenance", 2)
+	pool, err := openPoolAs(ctx, url, "maintenance", 2)
+	if err != nil {
+		return nil, redactURL(err, url)
+	}
+
+	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if pingErr := pool.Ping(pingCtx); pingErr != nil {
+		pool.Close()
+		return nil, fmt.Errorf("reach maintenance database: %w", redactURL(pingErr, url))
+	}
+	return pool, nil
 }
 
 // openPoolAs builds a pool whose every connection assumes role. maxConns of 0
@@ -437,7 +451,7 @@ func openMaintenancePool(ctx context.Context, url string) (*pgxpool.Pool, error)
 func openPoolAs(ctx context.Context, url, role string, maxConns int32) (*pgxpool.Pool, error) {
 	cfg, err := pgxpool.ParseConfig(url)
 	if err != nil {
-		return nil, fmt.Errorf("parse database url: %w", err)
+		return nil, fmt.Errorf("parse database url: %w", redactURL(err, url))
 	}
 	if maxConns > 0 {
 		cfg.MaxConns = maxConns
@@ -446,16 +460,16 @@ func openPoolAs(ctx context.Context, url, role string, maxConns int32) (*pgxpool
 	cfg.MaxConnIdleTime = 30 * time.Minute
 	cfg.MaxConnLifetime = time.Hour
 	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
-		if _, err := conn.Exec(ctx, "SET ROLE "+pgx.Identifier{role}.Sanitize()); err != nil {
-			return fmt.Errorf("assume %s role: %w", role, err)
+		if _, roleErr := conn.Exec(ctx, "SET ROLE "+pgx.Identifier{role}.Sanitize()); roleErr != nil {
+			return fmt.Errorf("assume %s role: %w", role, roleErr)
 		}
 		// A superuser bypasses every REVOKE, so a session still superuser after
 		// SET ROLE is not bound by the schema's privilege model at all.
 		var superAsApp bool
-		if err := conn.QueryRow(ctx,
+		if queryErr := conn.QueryRow(ctx,
 			"SELECT current_setting('is_superuser')::boolean",
-		).Scan(&superAsApp); err != nil {
-			return fmt.Errorf("check privilege boundary: %w", err)
+		).Scan(&superAsApp); queryErr != nil {
+			return fmt.Errorf("check privilege boundary: %w", queryErr)
 		}
 		if superAsApp {
 			return fmt.Errorf("refusing to serve: the session is a superuser after "+
@@ -463,7 +477,11 @@ func openPoolAs(ctx context.Context, url, role string, maxConns int32) (*pgxpool
 		}
 		return nil
 	}
-	return pgxpool.NewWithConfig(ctx, cfg)
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		return nil, redactURL(err, url)
+	}
+	return pool, nil
 }
 
 func envOr(key, fallback string) string {
@@ -532,64 +550,16 @@ type workerDeps struct {
 // startWorkers wires everything that runs on its own schedule.
 func startWorkers(ctx context.Context, d workerDeps) {
 	messages := outbox.NewStore(d.pool, d.log)
-	messages.Handle(outbox.TopicOrderPlaced, func(ctx context.Context, payload []byte) error {
-		var p email.OrderPlaced
-		if decodeErr := outbox.Decode(payload, &p); decodeErr != nil {
-			return decodeErr
-		}
-		return d.notifier.SendOrderPlaced(ctx, &p)
-	})
-	messages.Handle(outbox.TopicPasswordReset, func(ctx context.Context, payload []byte) error {
-		var p email.PasswordReset
-		if decodeErr := outbox.Decode(payload, &p); decodeErr != nil {
-			return decodeErr
-		}
-		return d.notifier.SendPasswordReset(ctx, &p)
-	})
-	messages.Handle(outbox.TopicOrderPaid, func(ctx context.Context, payload []byte) error {
-		var p email.OrderPaid
-		if decodeErr := outbox.Decode(payload, &p); decodeErr != nil {
-			return decodeErr
-		}
-		return d.notifier.SendOrderPaid(ctx, &p)
-	})
-	messages.Handle(outbox.TopicOrderShipped, func(ctx context.Context, payload []byte) error {
-		var p email.OrderShipped
-		if decodeErr := outbox.Decode(payload, &p); decodeErr != nil {
-			return decodeErr
-		}
-		return d.notifier.SendOrderShipped(ctx, &p)
-	})
-	messages.Handle(outbox.TopicNewsletterConfirm, func(ctx context.Context, payload []byte) error {
-		var p email.NewsletterConfirm
-		if decodeErr := outbox.Decode(payload, &p); decodeErr != nil {
-			return decodeErr
-		}
-		return d.notifier.SendNewsletterConfirm(ctx, &p)
-	})
-	messages.Handle(outbox.TopicNewsletterWelcome, func(ctx context.Context, payload []byte) error {
-		var p email.NewsletterWelcome
-		if decodeErr := outbox.Decode(payload, &p); decodeErr != nil {
-			return decodeErr
-		}
-		return d.notifier.SendNewsletterWelcome(ctx, &p)
-	})
-	messages.Handle(outbox.TopicEmailVerify, func(ctx context.Context, payload []byte) error {
-		var p email.EmailVerify
-		if decodeErr := outbox.Decode(payload, &p); decodeErr != nil {
-			return decodeErr
-		}
-		return d.notifier.SendEmailVerify(ctx, &p)
-	})
-	messages.Handle(outbox.TopicNewsletterIssue,
+	messages.HandleJSON[email.OrderPlaced](outbox.TopicOrderPlaced, d.notifier.SendOrderPlaced)
+	messages.HandleJSON[email.PasswordReset](outbox.TopicPasswordReset, d.notifier.SendPasswordReset)
+	messages.HandleJSON[email.OrderPaid](outbox.TopicOrderPaid, d.notifier.SendOrderPaid)
+	messages.HandleJSON[email.OrderShipped](outbox.TopicOrderShipped, d.notifier.SendOrderShipped)
+	messages.HandleJSON[email.NewsletterConfirm](outbox.TopicNewsletterConfirm, d.notifier.SendNewsletterConfirm)
+	messages.HandleJSON[email.NewsletterWelcome](outbox.TopicNewsletterWelcome, d.notifier.SendNewsletterWelcome)
+	messages.HandleJSON[email.EmailVerify](outbox.TopicEmailVerify, d.notifier.SendEmailVerify)
+	messages.HandleJSON[email.NewsletterIssue](outbox.TopicNewsletterIssue,
 		newsletterIssueHandler(newsletter.NewStore(d.pool), d.notifier))
-	messages.Handle(outbox.TopicRestocked, func(ctx context.Context, payload []byte) error {
-		var p email.RestockNotice
-		if decodeErr := outbox.Decode(payload, &p); decodeErr != nil {
-			return decodeErr
-		}
-		return d.notifier.SendRestockNotice(ctx, &p)
-	})
+	messages.HandleJSON[email.RestockNotice](outbox.TopicRestocked, d.notifier.SendRestockNotice)
 	d.run(func() { messages.Run(ctx) })
 	d.run(func() { messages.SweepForever(ctx, d.log) })
 
@@ -611,12 +581,11 @@ func startWorkers(ctx context.Context, d workerDeps) {
 // copy delivered anyway. The producer and the handler were each individually
 // correct and disagreed about WHEN consent is true, which is the shape every
 // guard here is blind to.
-func newsletterIssueHandler(subscribers *newsletter.Store, notifier email.Notifier) func(context.Context, []byte) error {
-	return func(ctx context.Context, payload []byte) error {
-		var p email.NewsletterIssue
-		if decodeErr := outbox.Decode(payload, &p); decodeErr != nil {
-			return decodeErr
-		}
+func newsletterIssueHandler(
+	subscribers *newsletter.Store,
+	notifier email.Notifier,
+) func(context.Context, *email.NewsletterIssue) error {
+	return func(ctx context.Context, p *email.NewsletterIssue) error {
 		wanted, err := subscribers.StillSubscribed(ctx, p.Email)
 		if err != nil {
 			return err
@@ -626,6 +595,6 @@ func newsletterIssueHandler(subscribers *newsletter.Store, notifier email.Notifi
 			// happen, and rescheduling would retry exactly that.
 			return nil
 		}
-		return notifier.SendNewsletterIssue(ctx, &p)
+		return notifier.SendNewsletterIssue(ctx, p)
 	}
 }

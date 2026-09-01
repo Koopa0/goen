@@ -385,7 +385,9 @@ JOIN order_lines ol ON ol.id = rl.order_line_id
 WHERE rl.return_request_id = @request_id
   AND rl.restocked_quantity > 0
   AND ol.variant_id IS NOT NULL
-ORDER BY rl.order_line_id;
+-- record_inventory_movement locks the variant; use the same global order as
+-- checkout and reservation release, with line id only as a stable tie-breaker.
+ORDER BY ol.variant_id, rl.order_line_id;
 
 -- return_requests_completed_is_inspected refuses this while any line is
 -- un-inspected. `status = 'approved'` is restated for DecideReturn's reason: it
@@ -907,7 +909,24 @@ SELECT
      WHERE ir.state = 'held' AND ir.expires_at < now()
        AND NOT order_is_committed(ir.order_id)
        AND (o.fulfillment_status = 'cancelled'
-            OR order_amount_owed(ir.order_id) <> 0))::bigint AS expired_holds,
+            OR order_amount_owed(ir.order_id) <> 0)
+       -- Match ExpiredReservations: reconciliation deliberately pins stock
+       -- while provider money may exist, so it is not a sweeper backlog.
+       AND (o.fulfillment_status = 'cancelled' OR (
+           NOT EXISTS (
+               SELECT 1 FROM payments p
+               WHERE p.order_id = ir.order_id
+                 AND p.status = 'requires_reconciliation'
+           )
+           AND NOT EXISTS (
+               SELECT 1
+               FROM payment_webhook_events e
+               JOIN payments p
+                 ON p.provider = e.provider AND p.provider_ref = e.object_ref
+               WHERE p.order_id = ir.order_id
+                 AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+           )
+       )))::bigint AS expired_holds,
     (SELECT coalesce(extract(epoch FROM now() - max(computed_at)), 0)
      FROM product_copurchases)::bigint AS copurchase_age_seconds,
     EXISTS (SELECT 1 FROM product_copurchases) AS copurchase_ever_built,
@@ -921,8 +940,16 @@ SELECT
     -- already cancelled. Each is still marked processed because retrying the
     -- same event changes nothing; the durable reason makes the human action
     -- countable instead of leaving only a log line nobody reads.
-    (SELECT count(*) FROM payment_webhook_events
-     WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL)::bigint AS unreconciled_payments;
+    ((SELECT count(*) FROM payment_webhook_events
+      WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL)
+     +
+     (SELECT count(*) FROM payments p
+      WHERE p.status = 'requires_reconciliation'
+        AND NOT EXISTS (
+            SELECT 1 FROM payment_webhook_events e
+            WHERE e.provider = p.provider AND e.object_ref = p.provider_ref
+              AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+        )))::bigint AS unreconciled_payments;
 
 -- The events a person has to act on, named rather than counted: a page saying
 -- "1 unreconciled" that cannot say WHICH tells an operator something is wrong
@@ -933,6 +960,27 @@ SELECT event_id, type, coalesce(object_ref, '') AS object_ref,
 FROM payment_webhook_events
 WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL
 ORDER BY received_at
+LIMIT 50;
+
+-- Provider-complete payment identities without an outstanding event alarm.
+-- These cover the window before a webhook arrives and understood-but-unpaid
+-- completion events. They are excluded when an event alarm already names the
+-- same work, so health shows one resolution door rather than two competing ones.
+-- name: UnreconciledCompletePayments :many
+SELECT o.order_number, p.provider_ref, p.created_at,
+       coalesce(NOT EXISTS (
+           SELECT 1 FROM inventory_reservations ir
+           WHERE ir.order_id = p.order_id AND ir.state = 'released'
+       ), false)::boolean AS paid_attribution_allowed
+FROM payments p
+JOIN orders o ON o.id = p.order_id
+WHERE p.status = 'requires_reconciliation'
+  AND NOT EXISTS (
+      SELECT 1 FROM payment_webhook_events e
+      WHERE e.provider = p.provider AND e.object_ref = p.provider_ref
+        AND e.unreconciled IS NOT NULL AND e.reconciled_at IS NULL
+  )
+ORDER BY p.created_at
 LIMIT 50;
 
 -- The claims a person has to settle at the provider.
@@ -1499,10 +1547,27 @@ SELECT (card_cents + credit_cents)::bigint AS refunded_cents
 FROM order_refunds
 WHERE order_number = @order_number::text;
 
--- Somebody investigated and resolved the provider event and says so. The row
--- keeps its reason: what happened is worth reading after it is handled, and
--- this is the only thing that takes it off /admin/health.
--- name: MarkPaymentReconciled :execrows
-UPDATE payment_webhook_events SET reconciled_at = now()
-WHERE provider = 'stripe' AND event_id = @event_id::text
-  AND unreconciled IS NOT NULL AND reconciled_at IS NULL;
+-- Staff explicitly confirmed every provider-side cent was refunded or already
+-- represented by a succeeded payment. The function also terminates a linked
+-- active payment, so safe release cannot leave a completed Session resumable.
+-- name: ReleasePaymentEvent :one
+SELECT release_payment_event(@event_id::text);
+
+-- Staff have verified at Stripe that this provider-complete Session was paid.
+-- The SECURITY DEFINER function accepts no amount from the operator: it posts
+-- the payment row's immutable intent through capture_payment and returns the
+-- order facts needed for payment-owned side effects in this admin tx.
+-- name: AttributeCompletePaymentPaid :one
+WITH attributed AS MATERIALIZED (
+    SELECT attribute_complete_payment_paid(@provider_ref::text) AS payment_id
+)
+SELECT p.order_id, o.order_number, p.intended_amount_cents AS amount_cents
+FROM attributed a
+JOIN payments p ON p.id = a.payment_id
+JOIN orders o ON o.id = p.order_id;
+
+-- Staff have confirmed that this complete Session took no money, or that all
+-- of it was refunded at Stripe. This is the only outcome that permits a later
+-- Checkout generation; paid attribution has a separate capture path.
+-- name: ReleaseCompletePayment :one
+SELECT release_complete_payment(@provider_ref::text);

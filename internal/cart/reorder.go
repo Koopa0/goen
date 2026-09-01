@@ -34,7 +34,17 @@ const (
 // Reorder puts every still-sellable line of a past order back in the cart, at
 // today's prices rather than the order's.
 func (s *Store) Reorder(ctx context.Context, cartID uuid.UUID, number string) (Reorder, error) {
-	lines, err := s.q.ReorderLines(ctx, number)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Reorder{}, fmt.Errorf("begin reorder: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	q := s.q.WithTx(tx)
+	if lockErr := lockCart(ctx, q, cartID); lockErr != nil {
+		return Reorder{}, lockErr
+	}
+
+	lines, err := q.ReorderLines(ctx, number)
 	if err != nil {
 		return Reorder{}, fmt.Errorf("read order %s for reorder: %w", number, err)
 	}
@@ -55,12 +65,15 @@ func (s *Store) Reorder(ctx context.Context, cartID uuid.UUID, number string) (R
 			continue
 		}
 
-		if err := s.Add(ctx, cartID, l.VariantID.UUID, l.Quantity); err != nil {
-			// Add clamps what is short, so an error here is the write failing
-			// rather than "out of stock", and must not be skipped.
+		if err := addCartItem(ctx, q, cartID, l.VariantID.UUID, l.Quantity); err != nil {
+			// The known skip cases continued above. Any revalidation or write
+			// failure for a selected line aborts the whole reorder.
 			return Reorder{}, fmt.Errorf("add %s to cart: %w", l.ProductName, err)
 		}
 		out.Added++
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Reorder{}, fmt.Errorf("commit reorder: %w", err)
 	}
 	return out, nil
 }

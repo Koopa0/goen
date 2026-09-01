@@ -18,21 +18,18 @@ const ReviewCount = 6
 
 const maxOptionRunes = 64
 
-const maxOptions = 8
-
 // Selection is the option values a URL picks, keyed by option name.
 type Selection map[string]string
 
 // ParseSelection reads a selection from a query string, ignoring the keys the
-// page uses for other purposes.
+// page uses for other purposes. For repeated keys it uses only the first value.
+// Only the product's variants know which keys are option names, so filtering
+// happens later in [Selection.OnlyOptionsOf].
 func ParseSelection(q url.Values) Selection {
 	sel := make(Selection, len(q))
 	for k, vs := range q {
 		if k == "" || len(vs) == 0 || reservedParam(k) {
 			continue
-		}
-		if len(sel) >= maxOptions {
-			break
 		}
 		v := strings.TrimSpace(vs[0])
 		if v == "" {
@@ -49,7 +46,11 @@ func ParseSelection(q url.Values) Selection {
 	return sel
 }
 
-// OnlyOptionsOf drops every key no variant carries as an option name.
+// OnlyOptionsOf returns the keys carried by a variant. It does not impose an
+// arbitrary option-count limit: the catalogue is the authority on how many
+// axes a real product has, while the HTTP server already bounds request size.
+// It never mutates or aliases s: a non-nil s produces a distinct, non-nil map,
+// including when s is empty or no key survives. A nil s produces nil.
 //
 // ParseSelection cannot tell a variant option from any other query parameter —
 // it sees a bare query string — so the filtering happens where the product's
@@ -57,8 +58,8 @@ func ParseSelection(q url.Values) Selection {
 // no variant at all, which the page renders as "that combination does not
 // exist" on a product that is in stock.
 func (s Selection) OnlyOptionsOf(variants []Variant) Selection {
-	if len(s) == 0 {
-		return s
+	if s == nil {
+		return nil
 	}
 	known := make(map[string]struct{})
 	for i := range variants {
@@ -107,7 +108,8 @@ func (v Variant) Matches(sel Selection) bool {
 }
 
 // Resolve picks the variant a selection names, preferring one that can be
-// bought. exact reports whether the selection pinned a single combination.
+// bought. exact is true only when the selection supplies every option on the
+// sole matching variant.
 func Resolve(variants []Variant, sel Selection) (chosen Variant, exact bool) {
 	var first Variant
 	var found, pinned bool
@@ -131,7 +133,7 @@ func Resolve(variants []Variant, sel Selection) (chosen Variant, exact bool) {
 	if !found {
 		return Variant{}, false
 	}
-	return first, matches >= 1 && len(sel) >= len(first.Options)
+	return first, matches == 1 && len(sel) == len(first.Options)
 }
 
 // OptionValue is one entry in a picker.

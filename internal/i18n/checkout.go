@@ -134,14 +134,14 @@ var (
 		En:     "Update",
 	})
 
-	KeyShippingRepriced = key("checkout.shipping.repriced", Message{
-		ZhHant: "%s運費另計,已更新為 %s。確認後再送出一次。",
-		En:     "%s carries a delivery surcharge. The total is now %s — check it and submit again.",
-	})
-
 	KeyCreditChanged = key("checkout.credit.changed", Message{
 		ZhHant: "可用購物金已變更為 %s。請確認後再送出一次。",
 		En:     "Your available store credit changed to %s. Check it and submit again.",
+	})
+
+	KeyCheckoutChanged = key("checkout.quote.changed", Message{
+		ZhHant: "商品、配送、優惠或折抵內容已更新。請確認新的明細後再送出一次。",
+		En:     "Your items, delivery, discount, or store credit changed. Check the new details and submit again.",
 	})
 
 	KeyNameRequired = key("valid.name.required", Message{ZhHant: "請填寫收件人姓名", En: "Enter the recipient's name"})
