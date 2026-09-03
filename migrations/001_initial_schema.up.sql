@@ -5123,8 +5123,12 @@ $$;
 
 -- Checkout's payment trigger evaluates the canonical count as store, while the
 -- company snapshot CHECK evaluates the current MOF checksum as store.
-GRANT EXECUTE ON FUNCTION canonical_invoice_lines(uuid) TO store;
-GRANT EXECUTE ON FUNCTION valid_business_tax_id(text) TO store;
+-- orders_check_transition is SECURITY INVOKER and counts the same lines on every
+-- pending-to-picking move, which the back office performs, so admin needs it
+-- too: without this no paid order can be picked and nothing that connects as the
+-- owner can see that.
+GRANT EXECUTE ON FUNCTION canonical_invoice_lines(uuid) TO store, admin;
+GRANT EXECUTE ON FUNCTION valid_business_tax_id(text) TO store, admin;
 
 -- The arrays supplied at settlement are provider evidence.  They must match the
 -- DB-derived snapshot one field at a time: matching only their sum lets a shared
