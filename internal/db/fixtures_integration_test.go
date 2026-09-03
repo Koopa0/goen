@@ -170,10 +170,12 @@ INSERT INTO order_private_data (order_id, email, recipient_name, phone,
 UPDATE orders SET fulfillment_status = 'picking'
 WHERE id = '6666bbbb-6666-4666-8666-666666666666';
 
--- An invoice carrier is a personal identifier, and it outlived erasure until erase_user
--- learned to drop it.
-INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code) VALUES
-    ('66666666-6666-4666-8666-666666666666', 'mobile_carrier', '/ABC+123');
+-- The carrier and minimum filing identity are retained as the tax snapshot;
+-- delivery details are independently erasable.
+INSERT INTO invoice_preferences
+    (order_id, invoice_type, carrier_code, customer_name, customer_email) VALUES
+    ('66666666-6666-4666-8666-666666666666', 'mobile_carrier', '/ABC+123',
+     '王小明', 'buyer@example.com');
 
 INSERT INTO return_requests (id, order_id, reason) VALUES
     ('88880001-0000-4000-8000-000000000000', '66666666-6666-4666-8666-666666666666', '不合用');

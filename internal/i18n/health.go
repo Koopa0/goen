@@ -87,12 +87,9 @@ var (
 		En:     "Last error",
 	})
 
-	// available_at, which is when the message becomes DUE — pushed forward by
-	// every claim and every backoff, so it reads as a future timestamp and is not
-	// how long anything has been broken. outbox_messages has no created_at, so
-	// "since" is not computable; naming the column for what it holds is the
-	// honest option. Meaningless once the attempts are exhausted, which is
-	// exactly when this table is read.
+	// This column is available_at: when the message next becomes DUE, pushed
+	// forward by every claim and backoff. outbox_messages has no created_at, so
+	// "how long has this been broken" is not computable and must not be claimed.
 	KeyAdminHPColSince = key("admin.hp.col.since", Message{ZhHant: "下次重試", En: "Next retry"})
 
 	KeyAdminHPOpenRefundsHeading = key("admin.hp.openrefunds.heading", Message{
@@ -117,16 +114,28 @@ var (
 	KeyAdminHPColEvent = key("admin.hp.col.event", Message{ZhHant: "事件編號", En: "Event"})
 
 	KeyAdminHPClaimsHeading = key("admin.hp.claims.heading", Message{
-		ZhHant: "尚未確認的折讓",
-		En:     "Credit notes awaiting confirmation",
+		ZhHant: "待確認的電子發票操作",
+		En:     "E-invoice operations awaiting confirmation",
 	})
 
 	KeyAdminHPClaimsHint = key("admin.hp.claims.hint", Message{
-		ZhHant: "呼叫加值中心時沒有收到回應，無法確定發票是否已經開出。請到綠界後台查看，" +
-			"再決定要作廢或重新開立。在確認之前，這張訂單無法再開折讓。",
-		En: "The e-invoice provider did not answer, so whether the document was filed is unknown. " +
-			"Check the ECPay console before voiding or re-filing. Until it is settled, " +
-			"no further credit note can be filed against this order.",
+		ZhHant: "系統會自動查詢綠界並收斂一般的逾時。這裡只列出過久仍未完成，或查到不一致、" +
+			"多筆候選而已安全停住的操作。折讓只有在最後一次送出至少 15 分鐘後，才可能顯示重送授權；" +
+			"授權前仍必須先到綠界依發票號碼確認折讓確實不存在。其他操作請勿手動重送。",
+		En: "The worker automatically reconciles ordinary timeouts with ECPay. These operations are " +
+			"aged or stopped on a mismatch/multiple candidates. An Allowance resend can be authorized only " +
+			"after 15 minutes, and only after checking its invoice number in ECPay and confirming the allowance " +
+			"is absent. Do not manually resend any other operation.",
+	})
+
+	KeyAdminHPAllowanceAbsentConfirm = key("admin.hp.allowance.absent", Message{
+		ZhHant: "我已在綠界依發票號碼確認：這筆折讓不存在",
+		En:     "I checked the invoice number in ECPay and confirmed this allowance is absent",
+	})
+
+	KeyAdminHPAllowanceResendAuthorize = key("admin.hp.allowance.authorize", Message{
+		ZhHant: "授權一次重送",
+		En:     "Authorize one resend",
 	})
 
 	KeyAdminHPEventSafeRelease = key("admin.hp.event.safe", Message{
@@ -261,10 +270,14 @@ var (
 		ZhHant: "金流端拒絕了,錢沒有退出去,退貨也還沒結案",
 		En:     "The provider refused it: no money moved, and the return is still open",
 	})
+
+	KeyHealthRefundCancelled = key("health.refund.cancelled", Message{
+		ZhHant: "金流端取消了這筆退款,錢沒有退出去,請從退貨清單重新退款",
+		En:     "The provider cancelled it: no money moved; retry it from the returns queue",
+	})
 )
 
 var (
-	// /admin/health's own two.
 	KeyAdminNoticeReconciled = key("admin.notice.reconciled", Message{
 		ZhHant: "已記錄為處理完成。",
 		En:     "Recorded as handled.",
@@ -278,5 +291,10 @@ var (
 	KeyAdminNoticePaymentMustRefund = key("admin.notice.paymentmustrefund", Message{
 		ZhHant: "庫存已退回可售，這筆款項不可入帳。請先在 Stripe 全額退款，再選擇「未收款或已全額退款」。",
 		En:     "Stock was already returned to sale, so this payment cannot be posted. Fully refund it in Stripe, then choose the unpaid/refunded outcome.",
+	})
+
+	KeyAdminNoticeInvoiceQueued = key("admin.notice.invoicequeued", Message{
+		ZhHant: "已留下操作人與請求紀錄，並只授權一次折讓重送。",
+		En:     "The actor and request were recorded, and exactly one Allowance resend was authorized.",
 	})
 )

@@ -18,7 +18,7 @@ type Pinger interface {
 }
 
 // Dependency is one named thing readiness depends on. The name is what the log
-// line and the response body say, so an operator learns WHICH pool is down.
+// line and the response body report, so an operator learns which pool is down.
 type Dependency struct {
 	Name string
 	DB   Pinger
@@ -30,8 +30,7 @@ type Handler struct {
 	log  *slog.Logger
 }
 
-// NewHandler returns a Handler that checks every dependency for readiness —
-// every pool the request path uses, not just the storefront's.
+// NewHandler returns a Handler that checks every dependency for readiness.
 func NewHandler(log *slog.Logger, deps ...Dependency) *Handler {
 	if log == nil || len(deps) == 0 {
 		panic("health: NewHandler requires a logger and at least one dependency")
@@ -53,8 +52,8 @@ func (h *Handler) Live(w http.ResponseWriter, _ *http.Request) {
 // Ready serves GET /readyz. goen cannot serve a page without PostgreSQL, so
 // readiness is exactly whether every pool it serves from can answer.
 func (h *Handler) Ready(w http.ResponseWriter, r *http.Request) {
-	// The budget covers the whole check rather than each pool: a probe that
-	// hangs is a probe that has already failed.
+	// One budget for the whole check, not one per pool: a probe that hangs has
+	// already failed.
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
 

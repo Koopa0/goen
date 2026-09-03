@@ -12,19 +12,12 @@ import (
 	"testing"
 )
 
-// TestEveryKeyIsTranslatedInEveryLocale proves no locale ships a fallback.
 func TestEveryKeyIsTranslatedInEveryLocale(t *testing.T) {
-	keys := Keys()
-	if len(keys) == 0 {
+	if len(messages) == 0 {
 		t.Fatal("the catalogue is empty; this test would pass on nothing")
 	}
 
-	for _, k := range keys {
-		m, ok := MessageFor(k)
-		if !ok {
-			t.Errorf("%q is in Keys() and not in the catalogue", k)
-			continue
-		}
+	for k, m := range messages {
 		for _, l := range Locales() {
 			if strings.TrimSpace(m.in(l)) == "" {
 				t.Errorf("%s has no translation for %q", l, k)
@@ -33,7 +26,6 @@ func TestEveryKeyIsTranslatedInEveryLocale(t *testing.T) {
 	}
 }
 
-// TestADuplicateKeyIsRefused proves two areas cannot claim one id.
 func TestADuplicateKeyIsRefused(t *testing.T) {
 	defer func() {
 		if recover() == nil {
@@ -44,7 +36,6 @@ func TestADuplicateKeyIsRefused(t *testing.T) {
 	key("nav.cart", Message{ZhHant: "第二個", En: "the second one"})
 }
 
-// TestAMissingTranslationIsRefused proves a blank translation is refused.
 // exhaustruct catches the literal that omits a field; this catches "".
 func TestAMissingTranslationIsRefused(t *testing.T) {
 	defer func() {
@@ -60,7 +51,6 @@ var englishQuotesCJK = map[Key]string{
 	"about.name": "explains ご縁 and 五円, so it has to print them",
 }
 
-// TestEnglishIsActuallyEnglish proves no Chinese was left in the English catalogue.
 func TestEnglishIsActuallyEnglish(t *testing.T) {
 	for k, m := range messages {
 		if why, allowed := englishQuotesCJK[k]; allowed {
@@ -77,7 +67,6 @@ func TestEnglishIsActuallyEnglish(t *testing.T) {
 	}
 }
 
-// TestDetectPrefersAnExplicitChoice proves a chosen language beats a guessed one.
 func TestDetectPrefersAnExplicitChoice(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -98,6 +87,14 @@ func TestDetectPrefersAnExplicitChoice(t *testing.T) {
 		{"simplified Chinese alone", "", "zh-CN", ZhHant},
 		{"English then Chinese", "", "en-US,en;q=0.9,zh;q=0.8", En},
 		{"Chinese then English", "", "zh-TW;q=0.9,en;q=0.8", ZhHant},
+		{"quality outweighs order", "", "zh-TW;q=0.2,en;q=0.9", En},
+		{"zero quality is excluded", "", "en;q=0,zh-TW;q=0.5", ZhHant},
+		{"wildcard cannot revive an explicit exclusion", "", "zh;q=0,*;q=1", En},
+		{"equal quality keeps header order", "", "en;q=0.8,zh-TW;q=0.8", En},
+		{"wildcard uses the default", "", "*;q=0.9,en;q=0.8", Default},
+		{"language name is not a range", "", "english,zh-TW;q=0.8", ZhHant},
+		{"invalid quality is ignored", "", "en;q=wat,zh-TW;q=0.8", ZhHant},
+		{"non-finite quality is ignored", "", "en;q=NaN,zh-TW;q=0.8", ZhHant},
 		{"a language goen does not speak", "", "fr-FR,fr;q=0.9", Default},
 		{"a header that does not parse", "", ";;;q=", Default},
 	}
@@ -119,7 +116,6 @@ func TestDetectPrefersAnExplicitChoice(t *testing.T) {
 	}
 }
 
-// TestAMissingKeyIsVisible proves a gap in the catalogue shows on the page.
 func TestAMissingKeyIsVisible(t *testing.T) {
 	ctx := WithLocale(t.Context(), En)
 	if got := T(ctx, Key("does.not.exist")); got != "does.not.exist" {
@@ -127,7 +123,6 @@ func TestAMissingKeyIsVisible(t *testing.T) {
 	}
 }
 
-// TestTheCookieIsHostScopedWhenSecure proves the cookie carries the __Host- prefix.
 func TestTheCookieIsHostScopedWhenSecure(t *testing.T) {
 	w := httptest.NewRecorder()
 	SetCookie(w, En, true)
@@ -157,7 +152,6 @@ func TestTheCookieIsHostScopedWhenSecure(t *testing.T) {
 	}
 }
 
-// TestEveryKeyIsRendered proves the catalogue holds nothing no page uses.
 func TestEveryKeyIsRendered(t *testing.T) {
 	t.Parallel()
 

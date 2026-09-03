@@ -8,12 +8,25 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
+// PointsEntryKind is what one ledger line did, closed by
+// loyalty_entries_kind_shape. Declared here rather than in internal/loyalty
+// because loyalty builds these view models, so a type it owned could not be
+// named below without closing a cycle.
+type PointsEntryKind string
+
+// The three kinds a loyalty ledger line can be.
+const (
+	PointsAwarded    PointsEntryKind = "award"
+	PointsSpent      PointsEntryKind = "spend"
+	PointsClawedBack PointsEntryKind = "clawback"
+)
+
 // PointsEntry is one line of the ledger.
 type PointsEntry struct {
 	Points          int64
 	RequestedPoints int64
 	ShortfallPoints int64
-	Kind            string
+	Kind            PointsEntryKind
 	Order           string
 	At              string
 	ExpiresOn       string
@@ -23,41 +36,41 @@ type PointsEntry struct {
 // Earned reports whether this line added points.
 func (e PointsEntry) Earned() bool {
 	switch e.Kind {
-	case "award":
+	case PointsAwarded:
 		return true
-	case "spend", "clawback":
+	case PointsSpent, PointsClawedBack:
 		return false
 	default:
-		panic("pages: unknown points entry kind: " + e.Kind)
+		panic("pages: unknown points entry kind: " + string(e.Kind))
 	}
 }
 
 // Amount is the change, signed so a ledger reads as one.
 func (e PointsEntry) Amount() string {
 	switch e.Kind {
-	case "award":
+	case PointsAwarded:
 		return "+" + strconv.FormatInt(e.Points, 10)
-	case "spend", "clawback":
+	case PointsSpent, PointsClawedBack:
 		return strconv.FormatInt(e.Points, 10)
 	default:
-		panic("pages: unknown points entry kind: " + e.Kind)
+		panic("pages: unknown points entry kind: " + string(e.Kind))
 	}
 }
 
 // What describes the line in the chrome language.
 func (e PointsEntry) What(ctx context.Context) string {
 	switch e.Kind {
-	case "award":
+	case PointsAwarded:
 		if e.Order != "" {
 			return fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsFromOrder), e.Order)
 		}
 		return i18n.T(ctx, i18n.KeyPointsEarned)
-	case "spend":
+	case PointsSpent:
 		return i18n.T(ctx, i18n.KeyPointsSpent)
-	case "clawback":
+	case PointsClawedBack:
 		return i18n.T(ctx, i18n.KeyPointsClawback)
 	default:
-		panic("pages: unknown points entry kind: " + e.Kind)
+		panic("pages: unknown points entry kind: " + string(e.Kind))
 	}
 }
 
@@ -65,15 +78,15 @@ func (e PointsEntry) What(ctx context.Context) string {
 // visible. A zero-point row is otherwise indistinguishable from a blank event.
 func (e PointsEntry) Detail(ctx context.Context) string {
 	switch e.Kind {
-	case "award", "spend":
+	case PointsAwarded, PointsSpent:
 		return ""
-	case "clawback":
+	case PointsClawedBack:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsClawbackDetail),
 			strconv.FormatInt(e.RequestedPoints, 10),
 			strconv.FormatInt(-e.Points, 10),
 			strconv.FormatInt(e.ShortfallPoints, 10))
 	default:
-		panic("pages: unknown points entry kind: " + e.Kind)
+		panic("pages: unknown points entry kind: " + string(e.Kind))
 	}
 }
 
@@ -92,6 +105,8 @@ type PointsView struct {
 
 	Entries []PointsEntry
 	Notice  string
+	// OperationID identifies one rendered redemption form across HTTP retries.
+	OperationID string
 }
 
 // BalanceText is the spendable balance.

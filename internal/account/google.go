@@ -34,6 +34,7 @@ var (
 	ErrOAuthUnverified = errors.New("account: google has not verified that address")
 	// ErrOAuthCollision is an address that already has an unproved goen account.
 	ErrOAuthCollision = errors.New("account: that address already has an unverified account here")
+	errOAuthIdentity  = errors.New("account: google returned an invalid subject")
 )
 
 // oauthStateCookie carries the CSRF state and the PKCE verifier to the callback.

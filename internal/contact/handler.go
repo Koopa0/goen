@@ -28,9 +28,8 @@ func NewHandler(store *Store, limit *ratelimit.Limiter, log *slog.Logger) *Handl
 	return &Handler{store: store, limit: limit, log: log}
 }
 
-// Page serves GET /contact. The sent flag is the one-shot signal the plain
-// form's redirect carries, so a reload shows the acknowledgement instead of
-// re-submitting.
+// Page serves GET /contact. The sent flag is what the plain form's redirect
+// carries, so a reload shows the acknowledgement instead of re-submitting.
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	form := pages.ContactForm{
 		Subjects: subjectChoices(r.Context()),
@@ -92,7 +91,6 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/contact?sent=1", http.StatusSeeOther)
 }
 
-// respond writes the panel back to htmx and the whole page to a plain browser.
 func (h *Handler) respond(w http.ResponseWriter, r *http.Request, status int, form pages.ContactForm) {
 	if web.IsHTMX(r) {
 		web.Render(w, r, h.log, status, pages.ContactPanel(form))
@@ -101,8 +99,7 @@ func (h *Handler) respond(w http.ResponseWriter, r *http.Request, status int, fo
 	web.Render(w, r, h.log, status, pages.Contact(pages.ContactMeta(r.Context()), form))
 }
 
-// subjectChoices renders the topic list for this request's locale. The VALUE is
-// what will be stored; only the label follows the reader.
+// subjectChoices renders the topic list for this request's locale.
 func subjectChoices(ctx context.Context) []pages.ContactSubject {
 	out := make([]pages.ContactSubject, 0, len(subjects))
 	for _, s := range subjects {

@@ -182,13 +182,11 @@ type checkoutFieldHint struct {
 	SpellCheck     string
 }
 
-// checkoutFieldHints is deliberately keyed by the field's own form name. Every
-// helper-rendered control must make an explicit autofill decision; the rendered
-// form test refuses both missing and stale entries.
+// checkoutFieldHints is keyed by the field's own form name. Every
+// helper-rendered control must make an explicit autofill decision.
 //
-// Do not add enterkeyhint here. TestEnterInTheCheckoutPlacesTheOrder locks the
-// browser's real behaviour: Enter in any checkout field places the order, so a
-// "next" hint would label a key that charges the customer.
+// Do not add enterkeyhint here: Enter in any checkout field places the order,
+// so a "next" hint would label a key that charges the customer.
 var checkoutFieldHints = map[string]checkoutFieldHint{
 	"email":       {Autocomplete: "email"},
 	"name":        {Autocomplete: "name"},
@@ -478,9 +476,10 @@ func (s OrderShipment) Delivered() bool { return s.DeliveredAt != "" }
 
 // CheckoutInvoice carries the invoice choice back into a refused form.
 type CheckoutInvoice struct {
-	Type    invoice.Preference
-	Carrier string
-	TaxID   string
+	Type        invoice.Preference
+	Carrier     string
+	CompanyName string
+	TaxID       string
 }
 
 // Is reports whether this is the chosen type.
@@ -494,10 +493,9 @@ func (i CheckoutInvoice) Chosen() invoice.Preference {
 	return i.Type
 }
 
-// NeedsCarrier and NeedsTaxID decide which half of the form exists. Rendering
-// both asks a customer to read two fields to find the one that applies, and
-// leaves required promising something the server will not demand — the reason
-// the delivery destination is chosen by a link rather than shown as both.
+// NeedsCarrier reports whether the 載具 field applies. It and NeedsTaxID decide
+// which half of the form exists: rendering both would leave required promising
+// something the server will not demand.
 func (i CheckoutInvoice) NeedsCarrier() bool { return i.Chosen().NeedsCarrier() }
 
 // NeedsTaxID reports whether the 統編 field applies.
@@ -558,12 +556,9 @@ func (v *OrderView) Total() string {
 	return twd(v.SubtotalCents - v.DiscountCents + v.ShippingCents + v.TaxCents)
 }
 
-// UsedCredit reports whether to show the store-credit row.
-//
-// Shown because it was not: the credit is debited in the order's own
-// transaction and appeared on no page, so the summary said one figure while the
-// payment page asked for another and nothing on the receipt accounted for the
-// difference — the discount row's defect, one term over.
+// UsedCredit reports whether to show the store-credit row. Without it the
+// summary and the payment page state different figures, since the credit is
+// debited in the order's own transaction.
 func (v *OrderView) UsedCredit() bool { return v.CreditCents > 0 }
 
 // Credit is what the store credit took off, as a negative figure.
@@ -579,9 +574,9 @@ func (v *OrderView) CanRequestReturn() bool {
 	}
 }
 
-// AwaitingPayment reports whether the order is waiting to be paid; 'pending' alone cannot say.
+// AwaitingPayment reports whether the order is waiting to be paid.
 func (v *OrderView) AwaitingPayment() bool {
-	return v.Status == "pending" && !v.Committed && v.OwedCents > 0
+	return awaitingPayment(v.Status, v.Committed, v.OwedCents)
 }
 
 // HasCoupon reports whether a coupon is applied to this checkout.

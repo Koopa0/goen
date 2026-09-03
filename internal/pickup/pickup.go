@@ -1,6 +1,5 @@
 // Package pickup owns the stable wire identities of convenience-store chains
-// that can receive an order. Human labels belong to the presentation layer;
-// provider/store details belong to the order that selected one.
+// that can receive an order, never their display names.
 package pickup
 
 import "slices"

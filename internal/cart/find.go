@@ -9,9 +9,9 @@ import (
 	"github.com/koopa0/goen/internal/email"
 )
 
-// FindOrder reports whether an order number and an email address name the same
-// order, in ONE statement whose answer cannot say which half was wrong.
-func (s *Store) FindOrder(ctx context.Context, number, addr string) (bool, error) {
+// OrderBelongsToEmail reports whether an order number and an email address name
+// the same order, in ONE statement whose answer cannot say which half was wrong.
+func (s *Store) OrderBelongsToEmail(ctx context.Context, number, addr string) (bool, error) {
 	number = strings.ToUpper(strings.TrimSpace(number))
 	addr = email.Clean(addr)
 	if number == "" || addr == "" {

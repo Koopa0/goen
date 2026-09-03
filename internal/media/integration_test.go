@@ -35,7 +35,6 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// samplePNG is a real PNG of the given size.
 func samplePNG(t *testing.T, w, h int) []byte {
 	t.Helper()
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
@@ -51,7 +50,6 @@ func samplePNG(t *testing.T, w, h int) []byte {
 	return buf.Bytes()
 }
 
-// TestTheSamePictureIsOneRow proves two uploads of one picture deduplicate.
 func TestTheSamePictureIsOneRow(t *testing.T) {
 	ctx := t.Context()
 	s := media.NewStore(pool)
@@ -80,7 +78,6 @@ func TestTheSamePictureIsOneRow(t *testing.T) {
 	}
 }
 
-// TestTheStoredBytesAreServedBackUnchanged proves bytea round-trips exactly.
 // The digest is never re-derived on read, so corruption would be silent.
 func TestTheStoredBytesAreServedBackUnchanged(t *testing.T) {
 	ctx := t.Context()
@@ -109,8 +106,7 @@ func TestTheStoredBytesAreServedBackUnchanged(t *testing.T) {
 	}
 }
 
-// TestAStoredImageCannotBeRewritten proves media_objects_immutable holds: a
-// year-long immutable Cache-Control makes a rewritten digest unfixable.
+// A year-long immutable Cache-Control makes a rewritten digest unfixable.
 func TestAStoredImageCannotBeRewritten(t *testing.T) {
 	ctx := t.Context()
 	obj, err := media.NewStore(pool).Put(ctx, bytes.NewReader(samplePNG(t, 60, 60)))
@@ -134,8 +130,7 @@ func TestAStoredImageCannotBeRewritten(t *testing.T) {
 	}
 }
 
-// TestTheSchemaRefusesAnInconsistentRow proves each rule fires where it cannot
-// be bypassed. The Go side checks these too.
+// Each rule fires where it cannot be bypassed; the Go side checks these too.
 func TestTheSchemaRefusesAnInconsistentRow(t *testing.T) {
 	ctx := t.Context()
 	tests := []struct {
@@ -198,8 +193,7 @@ func constraintOf(err error) string {
 	return err.Error()
 }
 
-// TestAbandonedUploadsAreReclaimed holds that an upload nothing points at goes
-// away, and that one something points at does not.
+// An upload nothing points at goes away; one something points at does not.
 func TestAbandonedUploadsAreReclaimed(t *testing.T) {
 	ctx := t.Context()
 	s := media.NewStore(pool)
@@ -312,19 +306,11 @@ func ageUploads(t *testing.T, digests ...string) {
 // TestAnUploadAttachedMidSweepSurvivesIt holds the window between the two
 // statements the sweep is made of.
 //
-// Sweep selects candidates in one statement and deletes them one at a time in
-// later ones. Its own comment said an upload attached in between was caught by
-// "the foreign key working" — and there is no foreign key:
-// product_images.storage_key holds either an embedded filename from the seed or
-// a digest, so it cannot point at media_objects, which is exactly why one was
-// never added. A comment naming a mechanism that does not exist is the shape
-// this repository keeps finding, and here it meant a photograph attached to a
-// product one second before the sweeper reached it was deleted, leaving the
-// listing pointing at a 404.
-//
-// The reference predicate is repeated inside the DELETE now, so the attach wins.
-// The interleaving is DRIVEN rather than hoped for: the candidate list is taken
-// first, the attach commits, and only then is the delete asked for.
+// There is no foreign key to lean on: product_images.storage_key holds either an
+// embedded filename from the seed or a digest, so it cannot point at
+// media_objects. The reference predicate is repeated inside the DELETE instead,
+// and the interleaving is DRIVEN rather than hoped for: the candidate list is
+// taken first, the attach commits, and only then is the delete asked for.
 func TestAnUploadAttachedMidSweepSurvivesIt(t *testing.T) {
 	ctx := t.Context()
 	s := media.NewStore(pool)
@@ -346,9 +332,7 @@ func TestAnUploadAttachedMidSweepSurvivesIt(t *testing.T) {
 	candidate := up.Digest
 
 	// Attached AFTER that read, exactly as a staff member saving a product would.
-	// A PRODUCT IMAGE, which is what the sentence above describes and what the
-	// commoner case is; the hero half is exercised below. With only the hero,
-	// deleting the product_images half of the re-check left this green.
+	// A product image; the hero half is exercised below.
 	tag, attachErr := pool.Exec(ctx, `
 		WITH b AS (INSERT INTO brands (slug, name) VALUES ('midsweep-brand', '測試品牌') RETURNING id),
 		     c AS (INSERT INTO categories (slug, name, position) SELECT 'midsweep-cat', '測試分類', coalesce(max(position) + 1, 0) FROM categories WHERE parent_id IS NULL RETURNING id),
@@ -364,9 +348,8 @@ func TestAnUploadAttachedMidSweepSurvivesIt(t *testing.T) {
 			tag.RowsAffected())
 	}
 
-	// And now Sweep's SECOND statement, issued against that stale list — which
-	// is the whole window. Calling Sweep here instead would re-read the list,
-	// never offer the digest, and pass without the fix.
+	// And now Sweep's SECOND statement, issued against that stale list — which is
+	// the whole window: calling Sweep here would re-read the list instead.
 	gone, reclaimErr := s.Reclaim(ctx, candidate)
 	if reclaimErr != nil {
 		t.Fatalf("reclaim: %v", reclaimErr)

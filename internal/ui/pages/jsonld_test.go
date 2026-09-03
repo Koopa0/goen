@@ -7,13 +7,8 @@ import (
 )
 
 // TestProductJSONLDIsValidAndSaysWhatMatters proves the block parses and carries
-// price, currency and availability.
-//
-// A search result showing a title is a link; one showing a price, a currency
-// and "in stock" is a decision somebody can make before clicking. This asserts
-// the fields that make that difference, and that the document parses at all —
-// a malformed block is worse than none, because a crawler that chokes on it may
-// discard the page's other signals too.
+// price, currency and availability. A malformed block is worse than none: a
+// crawler that chokes on it may discard the page's other signals too.
 func TestProductJSONLDIsValidAndSaysWhatMatters(t *testing.T) {
 	v := &ProductView{
 		Slug: "pixelight-9", Name: "Pixelight 9 5G", Summary: "旗艦手機",
@@ -67,13 +62,10 @@ func TestProductJSONLDIsValidAndSaysWhatMatters(t *testing.T) {
 }
 
 // TestJSONLDCannotEscapeItsScriptTag proves a product name cannot close the tag
-// it is written into.
-//
-// The block is written into a <script> with templ.Raw, so anything that could
-// close the tag early would put attacker-controlled markup in the document.
-// encoding/json is what prevents it — this holds that to be true rather than
-// assuming it, because the day somebody swaps json.Marshal for fmt.Sprintf is
-// the day it stops being.
+// it is written into. The block goes into a <script> with templ.Raw, so
+// anything closing the tag early would put attacker-controlled markup in the
+// document; encoding/json is what prevents it, and swapping it for fmt.Sprintf
+// would stop it being true.
 func TestJSONLDCannotEscapeItsScriptTag(t *testing.T) {
 	v := &ProductView{
 		Slug: "x", Brand: "b", SKU: "s", PriceCents: 100,

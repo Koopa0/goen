@@ -2,6 +2,7 @@
 package account
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
@@ -11,6 +12,7 @@ import (
 	"net/http"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"golang.org/x/crypto/argon2"
 
@@ -27,6 +29,10 @@ var (
 	ErrBadCredentials = errors.New("account: bad credentials")
 	// ErrEmailTaken is a registration for an address that already has an account.
 	ErrEmailTaken = errors.New("account: email taken")
+	// ErrInvalidInput is profile or saved-address text outside the server bounds.
+	ErrInvalidInput = errors.New("account: invalid input")
+	// ErrOpenReturn means erasure would orphan an unresolved store-credit payout.
+	ErrOpenReturn = errors.New("account: finish the open return before erasure")
 )
 
 // SessionCookieName is the session cookie; __Host- refuses a subdomain's forgery.
@@ -42,6 +48,20 @@ const ResetTTL = 60 * 60
 const (
 	MinPasswordRunes = 10
 	MaxPasswordBytes = 512
+)
+
+// These mirror the account form's maxlength attributes. The server owns the
+// invariant because a raw HTTP client never sees those browser hints.
+const (
+	maxNameRunes         = 60
+	maxPhoneRunes        = 30
+	maxAddressLabelRunes = 30
+	maxPostalCodeRunes   = 6
+	maxCityRunes         = 20
+	maxDistrictRunes     = 20
+	maxStreetRunes       = 200
+	maxOAuthSubjectRunes = 255
+	maxUserAgentRunes    = 512
 )
 
 // argon2id parameters: OWASP's recommended second option (64 MiB, 3 passes, 4 lanes).
@@ -82,15 +102,15 @@ func VerifyPassword(encoded, password string) bool {
 		return false
 	}
 	var memory uint32
-	var time uint32
+	var timeCost uint32
 	var threads uint8
-	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &memory, &time, &threads); err != nil {
+	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &memory, &timeCost, &threads); err != nil {
 		return false
 	}
 	// HashPassword is the only producer and uses the constants above. Keep some
 	// room for parameter upgrades, but do not let a corrupt row panic Argon2 or
 	// make one sign-in allocate or compute at an attacker-chosen scale.
-	if time < 1 || time > 8*argonTime ||
+	if timeCost < 1 || timeCost > 8*argonTime ||
 		threads < 1 || threads > 8*argonThreads ||
 		memory > 8*argonMemory {
 		return false
@@ -107,7 +127,7 @@ func VerifyPassword(encoded, password string) bool {
 		return false
 	}
 	keyLen := uint32(len(want)) //nolint:gosec // G115: bounded to [1, 1024] just above
-	got := argon2.IDKey([]byte(password), salt, time, memory, threads, keyLen)
+	got := argon2.IDKey([]byte(password), salt, timeCost, memory, threads, keyLen)
 	return subtle.ConstantTimeCompare(got, want) == 1
 }
 
@@ -190,6 +210,28 @@ type FieldError struct {
 	MessageKey i18n.Key
 }
 
+// FieldMessages translates rejected fields for a form, keeping the first
+// message per field so a control shows one reason rather than a pile.
+func FieldMessages(ctx context.Context, errs []FieldError) map[string]string {
+	if len(errs) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(errs))
+	for _, e := range errs {
+		if _, seen := out[e.Field]; seen {
+			continue
+		}
+		msg := i18n.T(ctx, e.MessageKey)
+		// Only the too-short message carries a verb; formatting the others
+		// appends %!(EXTRA int=10) beside the field.
+		if e.MessageKey == i18n.KeyPasswordTooShort {
+			msg = fmt.Sprintf(msg, MinPasswordRunes)
+		}
+		out[e.Field] = msg
+	}
+	return out
+}
+
 // Credentials is a sign-in or registration submission.
 type Credentials struct {
 	Email    string
@@ -216,11 +258,14 @@ func (c *Credentials) ValidateRegistration() []FieldError {
 	} else if c.Confirm != c.Password {
 		errs = append(errs, FieldError{Field: "confirm", MessageKey: i18n.KeyPasswordsDiffer})
 	}
-	if n := len([]rune(c.Name)); n > 60 {
+	if utf8.RuneCountInString(c.Name) > maxNameRunes {
 		errs = append(errs, FieldError{Field: "name", MessageKey: i18n.KeyNameTooLong})
 	}
-	if hasControl(c.Name) || hasControl(c.Email) {
+	if hasControl(c.Name) {
 		errs = append(errs, FieldError{Field: "name", MessageKey: i18n.KeyFieldHasControlChars})
+	}
+	if hasControl(c.Email) {
+		errs = append(errs, FieldError{Field: "email", MessageKey: i18n.KeyFieldHasControlChars})
 	}
 	return errs
 }
@@ -230,7 +275,7 @@ func EmailError(s string) i18n.Key {
 	switch {
 	case strings.TrimSpace(s) == "":
 		return i18n.KeyCheckoutEmailRequired
-	case len([]rune(s)) > 254:
+	case utf8.RuneCountInString(s) > 254:
 		return i18n.KeyCheckoutEmailTooLong
 	case !email.Valid(s):
 		return i18n.KeyCheckoutEmailMalformed
@@ -243,7 +288,7 @@ func PasswordError(s string) i18n.Key {
 	switch {
 	case s == "":
 		return i18n.KeyPasswordRequired
-	case len([]rune(s)) < MinPasswordRunes:
+	case utf8.RuneCountInString(s) < MinPasswordRunes:
 		return i18n.KeyPasswordTooShort
 	case len(s) > MaxPasswordBytes:
 		return i18n.KeyPasswordTooLong
@@ -252,12 +297,23 @@ func PasswordError(s string) i18n.Key {
 }
 
 func hasControl(s string) bool {
-	for _, r := range s {
-		if unicode.IsControl(r) {
-			return true
-		}
+	return strings.ContainsFunc(s, unicode.IsControl)
+}
+
+func profileInputValid(name, phone string) bool {
+	return utf8.RuneCountInString(name) <= maxNameRunes &&
+		utf8.RuneCountInString(phone) <= maxPhoneRunes &&
+		!hasControl(name) && !hasControl(phone)
+}
+
+// A user agent is optional session decoration. Refuse to persist an unbounded
+// or control-bearing value, but never refuse the sign-in it describes.
+func normaliseUserAgent(s string) string {
+	s = strings.TrimSpace(s)
+	if utf8.RuneCountInString(s) > maxUserAgentRunes || hasControl(s) {
+		return ""
 	}
-	return false
+	return s
 }
 
 // MembershipWindowDays mirrors loyalty.MembershipWindow; importing it would be a cycle.

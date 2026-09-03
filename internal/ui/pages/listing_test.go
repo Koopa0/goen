@@ -2,6 +2,7 @@ package pages
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -9,18 +10,10 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// TestThePageMarksTheCategoryYouAreIn holds a field that was read and never written.
-//
-// layouts.Page.Nav decides which top-level category the header marks as current —
-// the is-active class and, more importantly, aria-current="page". It was declared
-// with the header, read on every render, and assigned by NOTHING: no navigation item
-// had ever been highlighted, and a screen reader was never told where the visitor
-// was.
-//
-// That is layouts.Page.CartCount exactly, in the same struct, three fields down. The
-// fix follows the same rule: it is set where the page's chrome is BUILT, not by each
-// handler, because a field every caller must remember to fill is a field that goes
-// unfilled.
+// TestThePageMarksTheCategoryYouAreIn holds layouts.Page.Nav, which drives the
+// header's is-active class and aria-current="page". It is set where the page's
+// chrome is BUILT, not by each handler: a field every caller must remember to
+// fill is a field that goes unfilled.
 func TestThePageMarksTheCategoryYouAreIn(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -71,19 +64,11 @@ func TestThePageMarksTheCategoryYouAreIn(t *testing.T) {
 	}
 }
 
-// TestAComparisonCanBeBuiltFromAListing holds the one path into /compare.
-//
-// The comparison lives in the URL and nowhere else, which is what makes it
-// shareable and correct under the back button. That also means every link into
-// it has to carry the set — and none did. The PDP's button appended the product
-// it was on to whatever the PDP's own URL already held, /compare's table linked
-// each column back to a bare /p/{slug}, and the too-few empty state pointed at
-// the home page. So a shopper could reach /compare with exactly ONE product,
-// forever: a feature with a decision record, a localized spec table and a lock
-// of its own, that nothing on the site could produce a second column for.
-//
-// The listing is where somebody chooses between candidates, so the listing is
-// where the set is built. A GET form, because a comparison writes nothing.
+// TestAComparisonCanBeBuiltFromAListing holds the one path into /compare. The
+// comparison lives in the URL and nowhere else, so every link into it has to
+// carry the set. The listing is where somebody chooses between candidates, so
+// the listing is where the set is built — a GET form, because a comparison
+// writes nothing.
 func TestAComparisonCanBeBuiltFromAListing(t *testing.T) {
 	t.Parallel()
 
@@ -108,8 +93,7 @@ func TestAComparisonCanBeBuiltFromAListing(t *testing.T) {
 	}
 
 	// Every control needs a name, and two dozen controls called 比較 are two
-	// dozen identical announcements. check-layout asserts the name exists; only
-	// this can assert it says which product.
+	// dozen identical announcements.
 	if !strings.Contains(html, `aria-label="把 Pixelight 9 Pro 加入比較"`) {
 		t.Error("the checkbox does not name its product")
 	}
@@ -122,23 +106,14 @@ func TestAComparisonCanBeBuiltFromAListing(t *testing.T) {
 	}
 }
 
-// TestACheapestPriceSaysItIsTheCheapest holds a number that read as a promise.
-//
-// A tile and an unchosen product page both render the cheapest BUYABLE
-// variant's price — the query's own column is called min_price_cents — with
-// nothing marking it as the bottom of a range. Seven of the seed's seventeen
-// active products span more than one price, so for 41% of the catalogue the
-// figure beside the name was not the price of the thing the shopper had in
-// mind, on the page where they decide whether to open it.
-//
-// The PDP is the sharper half: there the number sits beside a buy button with
-// the option picker still unselected, and choosing the 512GB changes it.
+// TestACheapestPriceSaysItIsTheCheapest holds a number that reads as a promise:
+// a tile and an unchosen product page both render the cheapest BUYABLE
+// variant's price, so it has to be marked as the bottom of a range.
 func TestACheapestPriceSaysItIsTheCheapest(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	// The whole rendered figure, not a loose word: 最低 beside a price is also
-	// the price FILTER's label two columns to the left, so asserting the word
-	// alone passes on a page that never marked anything.
+	// the price FILTER's label two columns to the left.
 	marked := fmt.Sprintf(i18n.T(ctx, i18n.KeyFromPrice), "NT$25,900")
 
 	// One price for the product: the figure IS the price, and saying "from"
@@ -181,17 +156,9 @@ func TestACheapestPriceSaysItIsTheCheapest(t *testing.T) {
 }
 
 // TestAProductWithNothingLeftSaysSo holds the state between "this combination
-// is gone" and "choose one".
-//
-// SoldOut() asks about the RESOLVED variant, so it is false until somebody has
-// picked every option — and on a product where every option is gone, the page
-// said nothing about stock, offered a button reading 請選擇規格, and left the
-// customer to work through the picker to discover that each combination it
-// could build was unavailable. The information was there, spread across four
-// values in the picker and absent from the two places anybody reads first.
-//
-// "Has this visitor chosen one" and "can anything here be bought" are different
-// questions; the view knew only the first.
+// is gone" and "choose one". SoldOut() asks about the RESOLVED variant, so it
+// is false until every option is picked: "has this visitor chosen one" and "can
+// anything here be bought" are different questions.
 func TestAProductWithNothingLeftSaysSo(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -228,17 +195,9 @@ func TestAProductWithNothingLeftSaysSo(t *testing.T) {
 	}
 }
 
-// TestAProductWithNoReviewsCanReceiveItsFirst holds a bootstrap deadlock.
-//
-// The reviews SECTION was rendered only when RatingCount > 0, and the form that
-// writes a review lives inside it. So a product with no reviews offered no way
-// to leave one, and no product could ever receive its first through the UI. The
-// back office can create a product; every product it creates was born unable to
-// be reviewed.
-//
-// Nothing caught it because the dev seed gives all 15 active products reviews,
-// so the state exists in no fixture and on no page check-layout visits — the
-// same reason /compare's unreachable state survived.
+// TestAProductWithNoReviewsCanReceiveItsFirst holds a bootstrap deadlock: the
+// form that writes a review lives inside the reviews section, so gating that
+// section on RatingCount > 0 leaves a new product unable to receive its first.
 func TestAProductWithNoReviewsCanReceiveItsFirst(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -272,21 +231,8 @@ func TestAProductWithNoReviewsCanReceiveItsFirst(t *testing.T) {
 	}
 }
 
-// TestARefundedOrderCanFileAnAllowance holds a capability that was claimed
-// delivered and had no door.
-//
-// internal/invoice has filed 折讓 since the feature shipped — real ECPay call,
-// real error codes, a test for the IA_Allow_No field that a review of the live
-// API taught. But admin.Invoicer, the interface the back office is built
-// against, declared only Documents/Issue/Void: Allowance was not in it, so no
-// handler could call it even if a route had existed, and none did. README.md
-// stated the 折讓 document as issued through 綠界's API.
-//
-// A customer was refunded while the 統一發票 still recorded the whole sale.
-// That is mistake #35's shape — a feature every guard reports as wired that no
-// path can reach — and the guard blind to it is the same one:
-// TestEveryHardCodedLinkResolvesToARoute asks whether a link RESOLVES, never
-// whether a capability has a door.
+// TestARefundedOrderCanFileAnAllowance holds the 折讓 form's door. Without it a
+// customer is refunded while the 統一發票 still records the whole sale.
 func TestARefundedOrderCanFileAnAllowance(t *testing.T) {
 	t.Parallel()
 
@@ -303,10 +249,14 @@ func TestARefundedOrderCanFileAnAllowance(t *testing.T) {
 		t.Error("a refunded order offers no way to file a 折讓, so the tax document " +
 			"keeps recording a sale that partly did not happen")
 	}
-	// Defaulted to what actually went back: a figure typed from memory is how
-	// the wrong number reaches the 財政部.
-	if !strings.Contains(html, `value="849"`) {
-		t.Error("the allowance amount does not default to the refunded total")
+	// Displayed from what actually went back, but never posted: the database
+	// derives it again under lock, so neither an operator nor a forged form owns
+	// the tax amount.
+	if !strings.Contains(html, `NT$849`) {
+		t.Error("the allowance form does not show the authoritative refunded delta")
+	}
+	if strings.Contains(html, `name="amount"`) {
+		t.Error("the allowance form posts an operator-controlled money field")
 	}
 
 	// And it is not offered when nothing has been refunded — an allowance
@@ -317,5 +267,16 @@ func TestARefundedOrderCanFileAnAllowance(t *testing.T) {
 	if strings.Contains(renderToString(t, AdminOrder(layouts.Page{Title: "x"}, &nothingBack)),
 		"/invoice/allowance") {
 		t.Error("an order with no refund is offered a 折讓 form")
+	}
+
+	partlyRelieved := refunded
+	partlyRelieved.InvoiceDocuments = append(
+		slices.Clone(refunded.InvoiceDocuments),
+		AdminInvoiceDocument{Kind: "allowance", Number: "2026080715227214",
+			Status: "issued", AmountCents: 30000},
+	)
+	partialHTML := renderToString(t, AdminOrder(layouts.Page{Title: "x"}, &partlyRelieved))
+	if !strings.Contains(partialHTML, `NT$549`) {
+		t.Error("the allowance form did not subtract the credit note already filed")
 	}
 }

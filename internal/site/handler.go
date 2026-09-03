@@ -18,24 +18,18 @@ type Handler struct {
 	log       *slog.Logger
 	baseURL   string
 	catalogue Catalogue
-	content   Content
+	content   *Store
 	secure    bool
-}
-
-// Content is what the policy pages read, defined here by the consumer.
-type Content interface {
-	FAQEntries(ctx context.Context) ([]db.FAQEntriesRow, error)
-	ShippingPolicy(ctx context.Context) ([]pages.ShippingMethod, error)
 }
 
 // Catalogue is the subset of the catalogue this package needs.
 type Catalogue interface {
 	SitemapProducts(ctx context.Context, limit int32) ([]db.SitemapProductsRow, error)
-	SitemapCategories(ctx context.Context) ([]db.SitemapCategoriesRow, error)
+	SitemapCategories(ctx context.Context, limit int32) ([]db.SitemapCategoriesRow, error)
 }
 
 // NewHandler returns a Handler logging to log.
-func NewHandler(log *slog.Logger, baseURL string, catalogue Catalogue, content Content, secure bool) *Handler {
+func NewHandler(log *slog.Logger, baseURL string, catalogue Catalogue, content *Store, secure bool) *Handler {
 	if log == nil || catalogue == nil || content == nil {
 		panic("site: NewHandler requires a logger, a catalogue and content")
 	}

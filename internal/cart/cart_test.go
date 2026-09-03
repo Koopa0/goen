@@ -14,6 +14,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 
+	accountpkg "github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/pickup"
@@ -384,14 +385,23 @@ func TestAddressValidateRejects(t *testing.T) {
 		{"email with no domain dot", func(a *Address) { a.Email = "a@example" }, "email"},
 		{"email with a space", func(a *Address) { a.Email = "a b@example.com" }, "email"},
 		{"no name", func(a *Address) { a.Name = "  " }, "name"},
+		{"name too long", func(a *Address) { a.Name = strings.Repeat("名", maxNameRunes+1) }, "name"},
 		{"no phone", func(a *Address) { a.Phone = "" }, "phone"},
 		{"phone with letters", func(a *Address) { a.Phone = "09abc12345" }, "phone"},
 		{"phone too short", func(a *Address) { a.Phone = "12345" }, "phone"},
+		{"phone too many digits", func(a *Address) { a.Phone = "1234567890123456" }, "phone"},
+		{"phone representation too long", func(a *Address) {
+			a.Phone = "0912345678" + strings.Repeat("-", maxPhoneRunes)
+		}, "phone"},
 		{"postal code not digits", func(a *Address) { a.PostalCode = "11A" }, "postal_code"},
 		{"postal code too short", func(a *Address) { a.PostalCode = "11" }, "postal_code"},
+		{"postal code too long", func(a *Address) { a.PostalCode = "1234567" }, "postal_code"},
 		{"no city", func(a *Address) { a.City = "" }, "city"},
+		{"city too long", func(a *Address) { a.City = strings.Repeat("市", maxCityRunes+1) }, "city"},
 		{"no district", func(a *Address) { a.District = "" }, "district"},
+		{"district too long", func(a *Address) { a.District = strings.Repeat("區", maxDistrictRunes+1) }, "district"},
 		{"no street", func(a *Address) { a.Street = "" }, "street"},
+		{"street too long", func(a *Address) { a.Street = strings.Repeat("路", maxStreetRunes+1) }, "street"},
 		{"newline in the name", func(a *Address) { a.Name = "王小明\nX" }, "name"},
 		{"C1 control in the street", func(a *Address) { a.Street = "松高路\u0085 1 號" }, "street"},
 	} {
@@ -417,6 +427,87 @@ func TestAddressValidateRejects(t *testing.T) {
 	}
 }
 
+// TestSavedHomeAddressContractMatchesCheckout is the cross-package guard for
+// the address-book handoff. A signed-in shopper must never choose an address
+// the account package accepted only to have checkout refuse the same fields.
+func TestSavedHomeAddressContractMatchesCheckout(t *testing.T) {
+	t.Parallel()
+
+	base := accountpkg.Address{
+		Label: "家", Name: "王小明", Phone: "0912345678", PostalCode: "110",
+		City: "台北市", District: "信義區", Street: "松高路 1 號",
+	}
+	tests := []struct {
+		name string
+		want bool
+		mut  func(*accountpkg.Address)
+	}{
+		{name: "ordinary Taiwan address", want: true},
+		{name: "current six-digit postal code", want: true, mut: func(a *accountpkg.Address) {
+			a.PostalCode = "110204"
+		}},
+		{name: "internationally formatted Taiwan phone", want: true, mut: func(a *accountpkg.Address) {
+			a.Phone = "+886 (2) 2700-1234"
+		}},
+		{name: "surrounding form whitespace", want: true, mut: func(a *accountpkg.Address) {
+			a.Name, a.Phone, a.PostalCode = " 王小明 ", " 0912345678 ", " 110 "
+			a.City, a.District, a.Street = " 台北市 ", " 信義區 ", " 松高路 1 號 "
+		}},
+		{name: "short phone", mut: func(a *accountpkg.Address) { a.Phone = "02-12345" }},
+		{name: "phone letters", mut: func(a *accountpkg.Address) { a.Phone = "09AB123456" }},
+		{name: "too many phone digits", mut: func(a *accountpkg.Address) {
+			a.Phone = "1234567890123456"
+		}},
+		{name: "unbounded phone punctuation", mut: func(a *accountpkg.Address) {
+			a.Phone = "0912345678" + strings.Repeat("-", maxPhoneRunes)
+		}},
+		{name: "short postal code", mut: func(a *accountpkg.Address) { a.PostalCode = "11" }},
+		{name: "postal code letters", mut: func(a *accountpkg.Address) { a.PostalCode = "11A" }},
+		{name: "long postal code", mut: func(a *accountpkg.Address) { a.PostalCode = "1234567" }},
+		{name: "long city", mut: func(a *accountpkg.Address) {
+			a.City = strings.Repeat("市", maxCityRunes+1)
+		}},
+		{name: "long district", mut: func(a *accountpkg.Address) {
+			a.District = strings.Repeat("區", maxDistrictRunes+1)
+		}},
+		{name: "long street", mut: func(a *accountpkg.Address) {
+			a.Street = strings.Repeat("路", maxStreetRunes+1)
+		}},
+		{name: "control in street", mut: func(a *accountpkg.Address) {
+			a.Street = "松高路\u0085 1 號"
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			saved := base
+			if tt.mut != nil {
+				tt.mut(&saved)
+			}
+			saved.Trim()
+			checkout := Address{
+				To: ToAddress, Email: "buyer@example.com",
+				Name: saved.Name, Phone: saved.Phone, PostalCode: saved.PostalCode,
+				City: saved.City, District: saved.District, Street: saved.Street,
+			}
+			checkout.Trim()
+
+			savedOK := len(saved.Validate()) == 0
+			checkoutOK := len(checkout.Validate()) == 0
+			if savedOK != tt.want {
+				t.Errorf("account acceptance = %t, want %t", savedOK, tt.want)
+			}
+			if checkoutOK != tt.want {
+				t.Errorf("checkout acceptance = %t, want %t", checkoutOK, tt.want)
+			}
+			if savedOK && !checkoutOK {
+				t.Error("account accepted a HOME address checkout refused")
+			}
+		})
+	}
+}
+
 // TestAddressValidateAccepts is the control: a Validate that rejected everything
 // would pass every case above.
 func TestAddressValidateAccepts(t *testing.T) {
@@ -435,6 +526,30 @@ func TestAddressValidateAccepts(t *testing.T) {
 		if errs := a.Validate(); len(errs) != 0 {
 			t.Errorf("a valid address was rejected: %+v", errs)
 		}
+	}
+}
+
+// TestCheckoutShowsOneMessagePerField locks the reduction a refused checkout
+// renders: a control that broke two rules names the first of them, so the form
+// shows one reason per field rather than a pile.
+func TestCheckoutShowsOneMessagePerField(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	// The phone is malformed AND carries a control character, in that order.
+	addr := &Address{
+		To: ToAddress, Email: "a@example.com", Name: "王小明",
+		Phone: "09\x0712345678", PostalCode: "110", City: "台北市",
+		District: "信義區", Street: "松高路 1 號",
+	}
+	want := map[string]string{
+		"phone":    i18n.T(ctx, i18n.KeyPhoneMalformed),
+		"shipping": i18n.T(ctx, i18n.KeyChooseShipping),
+	}
+
+	got := checkoutErrors(ctx, addr, errors.New("no shipping method chosen"), &Invoice{})
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("checkoutErrors (-want +got):\n%s", diff)
 	}
 }
 
@@ -487,7 +602,8 @@ func TestInvoiceChoicesMatchCheckoutValidation(t *testing.T) {
 			candidate.Carrier = "/AB12345"
 		}
 		if preference.NeedsTaxID() {
-			candidate.TaxID = "12345678"
+			candidate.CompanyName = "測試股份有限公司"
+			candidate.TaxID = "04595252"
 		}
 		if errs := candidate.Validate(); len(errs) != 0 {
 			t.Errorf("offered invoice preference %q is invalid: %+v", preference, errs)
@@ -497,6 +613,36 @@ func TestInvoiceChoicesMatchCheckoutValidation(t *testing.T) {
 	unknown := Invoice{Type: "paper"}
 	if errs := unknown.Validate(); len(errs) != 1 || errs[0].Field != "invoice_type" {
 		t.Errorf("unknown invoice preference errors = %+v, want invoice_type", errs)
+	}
+
+	company := Invoice{Type: invoice.PreferenceCompany, TaxID: "12345678"}
+	errs := company.Validate()
+	if len(errs) != 2 || errs[0].Field != "invoice_company_name" ||
+		errs[1].Field != "invoice_tax_id" {
+		t.Errorf("invalid company invoice errors = %+v, want company name then checksum", errs)
+	}
+
+	special := Invoice{
+		Type: invoice.PreferenceCompany, CompanyName: " 第七碼公司 ", TaxID: "10458570",
+	}
+	if errs := special.Validate(); len(errs) != 0 || special.CompanyName != "第七碼公司" {
+		t.Errorf("current-MOF company invoice = %+v / %+v, want valid and trimmed", special, errs)
+	}
+
+	controlled := Invoice{
+		Type: invoice.PreferenceCompany, CompanyName: "買受\n公司", TaxID: "04595252",
+	}
+	if errs := controlled.Validate(); len(errs) != 1 || errs[0].Field != "invoice_company_name" {
+		t.Errorf("controlled company name errors = %+v, want invoice_company_name", errs)
+	}
+
+	member := Invoice{
+		Type: invoice.PreferenceMember, Carrier: "/AB12345",
+		CompanyName: "不適用公司", TaxID: "04595252",
+	}
+	if errs := member.Validate(); len(errs) != 0 || member.Carrier != "" ||
+		member.CompanyName != "" || member.TaxID != "" {
+		t.Errorf("member invoice retained inapplicable company fields: %+v / %+v", member, errs)
 	}
 }
 

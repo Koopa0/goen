@@ -2,16 +2,15 @@ package admin
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -58,8 +57,8 @@ func (s *Store) Campaigns(ctx context.Context) (pages.AdminCampaignsView, error)
 		view.Rows = append(view.Rows, pages.AdminCampaign{
 			Slug: c.Slug, Title: c.Title, Products: c.Products,
 			Active: c.IsActive, Running: c.IsRunning,
-			StartsAt: c.StartsAt.Format("2006-01-02"),
-			EndsAt:   c.EndsAt.Format("2006-01-02 15:04"),
+			StartsAt: shoptime.Day(c.StartsAt),
+			EndsAt:   shoptime.Minute(c.EndsAt),
 		})
 	}
 	return view, nil
@@ -71,7 +70,7 @@ func (s *Store) CreateCampaign(ctx context.Context, f *CampaignForm) (map[string
 		return errs, nil
 	}
 	err := s.audited(ctx, Event{
-		Action: ActionCreateCampaign, Table: "sale_campaigns", ID: uuid.NullUUID{},
+		Action: actionCreateCampaign, Table: "sale_campaigns", ID: uuid.NullUUID{},
 		Before: nil, After: map[string]any{"slug": f.Slug, "title": f.Title, "days": f.Days},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -80,8 +79,7 @@ func (s *Store) CreateCampaign(ctx context.Context, f *CampaignForm) (map[string
 			})
 		})
 	if err != nil {
-		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
-			pgErr.ConstraintName == "sale_campaigns_slug_key" {
+		if hasConstraint(err, "sale_campaigns_slug_key") {
 			return map[string]string{"slug": i18n.T(ctx, i18n.KeyFormSlugTakenCampaign)}, nil
 		}
 		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
@@ -92,7 +90,7 @@ func (s *Store) CreateCampaign(ctx context.Context, f *CampaignForm) (map[string
 // SetCampaignActive switches a promotion on or off.
 func (s *Store) SetCampaignActive(ctx context.Context, slug string, active bool) error {
 	return s.audited(ctx, Event{
-		Action: ActionToggleCampaign, Table: "sale_campaigns", ID: uuid.NullUUID{},
+		Action: actionToggleCampaign, Table: "sale_campaigns", ID: uuid.NullUUID{},
 		Before: map[string]any{"slug": slug}, After: map[string]any{"active": active},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -112,7 +110,7 @@ func (s *Store) SetCampaignActive(ctx context.Context, slug string, active bool)
 // FeatureProduct adds a product; sale_campaign_needs_discount decides eligibility.
 func (s *Store) FeatureProduct(ctx context.Context, campaign, product string) error {
 	return s.audited(ctx, Event{
-		Action: ActionFeatureProduct, Table: "sale_campaign_products", ID: uuid.NullUUID{},
+		Action: actionFeatureProduct, Table: "sale_campaign_products", ID: uuid.NullUUID{},
 		Before: nil, After: map[string]any{"campaign": campaign, "product": product},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -128,7 +126,7 @@ func (s *Store) FeatureProduct(ctx context.Context, campaign, product string) er
 // UnfeatureProduct removes one.
 func (s *Store) UnfeatureProduct(ctx context.Context, campaign, product string) error {
 	return s.audited(ctx, Event{
-		Action: ActionUnfeatureProduct, Table: "sale_campaign_products",
+		Action: actionUnfeatureProduct, Table: "sale_campaign_products",
 		Before: map[string]any{"campaign": campaign, "product": product},
 	},
 		func(ctx context.Context, q *db.Queries) error {

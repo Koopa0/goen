@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -12,6 +11,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -40,7 +40,7 @@ func (s *Store) Campaign(ctx context.Context, slug string) (pages.CampaignView, 
 	return pages.CampaignView{
 		Slug:     c.Slug,
 		Title:    c.Title,
-		EndsAt:   c.EndsAt.Format("2006-01-02 15:04"),
+		EndsAt:   shoptime.Minute(c.EndsAt),
 		Products: campaignTiles(rows),
 	}, nil
 }
@@ -58,24 +58,25 @@ func (s *Store) RunningCampaigns(ctx context.Context) ([]pages.CampaignSummary, 
 		c := &rows[i]
 		out = append(out, pages.CampaignSummary{
 			Slug: c.Slug, Title: c.Title, Products: c.Products,
-			EndsAt: c.EndsAt.Format("2006-01-02 15:04"),
-			EndsIn: humanRemaining(ctx, time.Until(c.EndsAt)),
+			EndsAt: shoptime.Minute(c.EndsAt),
+			EndsIn: humanRemaining(ctx, c.RemainingSeconds),
 		})
 	}
 	return out, nil
 }
 
-// humanRemaining says how long a promotion has left, roughly.
-func humanRemaining(ctx context.Context, d time.Duration) string {
+// humanRemaining keeps the database result as an integer: a schema-valid
+// campaign ending centuries away overflows time.Duration.
+func humanRemaining(ctx context.Context, seconds int64) string {
 	switch {
-	case d <= 0:
+	case seconds <= 0:
 		return ""
-	case d < time.Hour:
+	case seconds < 60*60:
 		return i18n.T(ctx, i18n.KeyEndsWithinHour)
-	case d < 24*time.Hour:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyEndsInHours), int(d.Hours()))
+	case seconds < 24*60*60:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyEndsInHours), seconds/(60*60))
 	default:
-		return fmt.Sprintf(i18n.T(ctx, i18n.KeyEndsInDays), int(d.Hours()/24))
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyEndsInDays), seconds/(24*60*60))
 	}
 }
 
@@ -89,7 +90,7 @@ func campaignTiles(rows []db.CampaignProductsRow) []pages.ProductTile {
 			Summary:      r.Summary,
 			Brand:        r.Brand,
 			PriceCents:   r.MinPriceCents,
-			PriceVaries:  r.PriceVaries,
+			PriceVaries:  r.PriceVaries.Bool,
 			CompareCents: r.CompareAtPriceCents.Int64,
 			Rating:       r.Rating,
 			RatingCount:  r.RatingCount,

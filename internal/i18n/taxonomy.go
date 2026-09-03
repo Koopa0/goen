@@ -38,11 +38,10 @@ var (
 
 	KeyAdminPageTaxonomy = key("admin.page.taxonomy", Message{ZhHant: "品牌與分類", En: "Brands and categories"})
 
-	// KeyFormPositionTaken is a collision, not a mistake. CreateCategory computes
-	// position as max(position) + 1, so two staff members adding a category at
-	// the same moment both read the same maximum and categories_position_key
-	// refuses the loser. Nothing they typed is wrong and the second attempt
-	// computes a fresh maximum, so the message says exactly that.
+	// KeyFormPositionTaken is a collision, not a mistake: CreateCategory computes
+	// position as max(position) + 1, so two staff members adding at the same
+	// moment read the same maximum and categories_position_key refuses the
+	// loser. A second attempt computes a fresh maximum.
 	KeyFormPositionTaken = key("admin.taxonomy.positiontaken", Message{
 		ZhHant: "剛剛有人同時新增了分類,請再送出一次。",
 		En:     "Someone added a category at the same moment. Please submit again.",

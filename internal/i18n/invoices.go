@@ -6,19 +6,14 @@ var (
 		En:     "File a credit note",
 	})
 
-	KeyAdminQueueAllowanceAmount = key("admin.queue.allowance.amount", Message{
-		ZhHant: "折讓金額(元)",
-		En:     "Allowance amount (NT$)",
-	})
-
-	// A void is for an invoice that should not exist; an allowance is for one
-	// that should exist for less. Saying which is which is the whole hint.
+	// A void is for an invoice that should not exist; a 折讓 is for one that
+	// should exist for less.
 	KeyAdminQueueAllowanceHint = key("admin.queue.allowance.hint", Message{
-		ZhHant: "退款之後,發票上仍記著原本的銷售額。折讓單是向財政部沖銷退掉的那一部分 —— " +
-			"預設帶入已經退回的金額。整張都不該存在時請用作廢。",
+		ZhHant: "系統會依已實際退回且尚未折讓的金額開立 %s；金額不能由表單更改。" +
+			"整張發票都不該存在時請用作廢。",
 		En: "After a refund the invoice still records the whole sale. A credit note relieves " +
-			"the refunded part with the tax authority; the amount defaults to what has gone " +
-			"back. Use a void instead when the invoice should not exist at all.",
+			"the authoritative unrelieved amount, %s; the form cannot override it. Use a void " +
+			"instead when the invoice should not exist at all.",
 	})
 
 	KeyAdminQueueNoInvoicing = key("admin.queue.noinvoicing", Message{
@@ -95,25 +90,17 @@ var (
 		En:     "This order has no invoice to void.",
 	})
 
-	// A 折讓 the shop just filed with the 財政部. Confirmed in words rather than
-	// left to the documents list: a tax filing is the one thing a staff member
-	// should be told happened.
+	// A 折讓 the shop has just filed with the 財政部.
 	KeyAdminNoticeAllowed = key("admin.notice.allowed", Message{
 		ZhHant: "折讓已開立。",
 		En:     "The credit note has been filed.",
 	})
 
-	KeyAdminNoticeBadAmount = key("admin.notice.badamount", Message{
-		ZhHant: "折讓金額必須是大於零的整數（元）。",
-		En:     "A credit note amount must be a whole number of dollars above zero.",
-	})
-
 	// The two refusals a 折讓 has of its own. invoicefailed talks about 統編 and
-	// carrier codes, which is right for issuing and sends a staff member to the
-	// wrong fields here.
+	// carrier codes, which are the wrong fields here.
 	KeyAdminNoticeAllowTooMuch = key("admin.notice.allowtoomuch", Message{
-		ZhHant: "折讓金額超過已退給客人的金額，或超過尚未折讓的部分。",
-		En:     "That is more than has gone back to the customer, or more than is left to relieve.",
+		ZhHant: "目前沒有尚未折讓的整數元退款；可能已由另一個請求完成。",
+		En:     "No whole-dollar refunded amount remains unrelieved; another request may have completed it.",
 	})
 
 	KeyAdminNoticeAllowClaimed = key("admin.notice.allowclaimed", Message{
@@ -125,6 +112,12 @@ var (
 		ZhHant: "加值中心拒絕了這次操作,詳細原因在伺服器紀錄裡。常見的是統編格式或載具號碼不正確。",
 		En: "The e-invoice provider refused that operation; the reason is in the server log. " +
 			"Usually it is a malformed business tax number or carrier code.",
+	})
+
+	KeyAdminNoticeInvoicePending = key("admin.notice.invoicepending", Message{
+		ZhHant: "操作已安全記錄，正在與加值中心核對；若未自動完成，健康頁會顯示原因。",
+		En: "The operation was recorded safely and is being reconciled with ECPay. " +
+			"The health page will show it if automatic recovery cannot finish.",
 	})
 )
 

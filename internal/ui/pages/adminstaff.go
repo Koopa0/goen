@@ -7,18 +7,39 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
+// StaffRole is the back-office access one account holds, closed by
+// users_role_known. Declared here rather than in internal/twofactor because
+// twofactor builds these view models, so a type it owned could not be named
+// below without closing a cycle.
+type StaffRole string
+
+// The two roles a back-office account may hold.
+const (
+	StaffMember StaffRole = "staff"
+	StaffAdmin  StaffRole = "admin"
+)
+
+// StaffRoles is that closed set, in the order the form offers it.
+var StaffRoles = [...]StaffRole{StaffMember, StaffAdmin}
+
+// Label is the role in the chrome language.
+func (r StaffRole) Label(ctx context.Context) string {
+	switch r {
+	case StaffMember:
+		return i18n.T(ctx, i18n.KeyAdminRoleStaff)
+	case StaffAdmin:
+		return i18n.T(ctx, i18n.KeyAdminRoleAdmin)
+	default:
+		panic("pages: no label for staff role " + string(r))
+	}
+}
+
 // AdminStaffView is who can reach the back office, and who has a second factor.
 type AdminStaffView struct {
 	Rows   []AdminStaffRow
-	Roles  []StaffRoleChoice
+	Roles  []StaffRole
 	Notice string
 	Actor  string
-}
-
-// StaffRoleChoice is one role the form offers.
-type StaffRoleChoice struct {
-	Value string
-	Label string
 }
 
 // AdminStaffRow is one staff account.
@@ -26,7 +47,7 @@ type AdminStaffRow struct {
 	ID       string
 	Email    string
 	Name     string
-	Role     string
+	Role     StaffRole
 	Enrolled bool
 }
 
@@ -44,18 +65,6 @@ func (r AdminStaffRow) State(ctx context.Context) string {
 		return i18n.T(ctx, i18n.KeyAdminTOTPOn)
 	}
 	return i18n.T(ctx, i18n.KeyAdminTOTPOff)
-}
-
-// RoleText is the role in words.
-func (r AdminStaffRow) RoleText(ctx context.Context) string {
-	switch r.Role {
-	case "admin":
-		return i18n.T(ctx, i18n.KeyAdminRoleAdmin)
-	case "staff":
-		return i18n.T(ctx, i18n.KeyAdminRoleStaff)
-	default:
-		panic("pages: no label for staff role " + r.Role)
-	}
 }
 
 // IsActor reports whether this row is the admin reading the page.

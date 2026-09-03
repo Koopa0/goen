@@ -10,6 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -77,7 +78,7 @@ func (s *Store) FAQ(ctx context.Context) (pages.AdminFAQView, error) {
 		view.Rows = append(view.Rows, pages.AdminFAQEntry{
 			ID: r.ID.String(), Category: r.Category, Question: r.Question,
 			Answer: r.Answer, CategoryEn: r.CategoryEn, QuestionEn: r.QuestionEn,
-			AnswerEn: r.AnswerEn, UpdatedAt: r.UpdatedAt.Format("2006-01-02"),
+			AnswerEn: r.AnswerEn, UpdatedAt: shoptime.Day(r.UpdatedAt),
 		})
 	}
 	return view, nil
@@ -89,7 +90,7 @@ func (s *Store) CreateFAQEntry(ctx context.Context, f *FAQForm) (map[string]stri
 		return errs, nil
 	}
 	if err := s.audited(ctx, Event{
-		Action: ActionCreateFAQ, Table: "faq_entries",
+		Action: actionCreateFAQ, Table: "faq_entries",
 		After: map[string]any{"category": f.Category, "question": f.Question},
 	}, func(ctx context.Context, q *db.Queries) error {
 		return q.CreateFAQEntry(ctx, db.CreateFAQEntryParams{
@@ -112,7 +113,7 @@ func (s *Store) UpdateFAQEntry(ctx context.Context, f *FAQForm) (map[string]stri
 		return errs, nil
 	}
 	if err := s.audited(ctx, Event{
-		Action: ActionUpdateFAQ, Table: "faq_entries", ID: nullableID(entryID),
+		Action: actionUpdateFAQ, Table: "faq_entries", ID: nullableID(entryID),
 		After: map[string]any{"category": f.Category},
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, execErr := q.UpdateFAQEntry(ctx, db.UpdateFAQEntryParams{
@@ -139,7 +140,7 @@ func (s *Store) DeleteFAQEntry(ctx context.Context, id string) error {
 		return ErrNotFound
 	}
 	return s.audited(ctx, Event{
-		Action: ActionDeleteFAQ, Table: "faq_entries", ID: nullableID(entryID),
+		Action: actionDeleteFAQ, Table: "faq_entries", ID: nullableID(entryID),
 		Before: map[string]any{"id": id},
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, execErr := q.DeleteFAQEntry(ctx, entryID)

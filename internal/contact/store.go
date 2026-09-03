@@ -5,15 +5,14 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/koopa0/goen/internal/db"
 )
 
-// ErrDuplicate reports that an equivalent message is already stored.
-var ErrDuplicate = errors.New("contact: message already recorded")
+// errDuplicate stays package-private: no caller has a distinct duplicate branch.
+var errDuplicate = errors.New("contact: message already recorded")
 
 // Store records contact messages in PostgreSQL.
 type Store struct {
@@ -45,13 +44,10 @@ func (s *Store) Create(ctx context.Context, m Message) error {
 
 // wrap turns a driver error into something this package's callers can act on.
 func wrap(op string, err error) error {
-	if errors.Is(err, pgx.ErrNoRows) {
-		return fmt.Errorf("%s: %w", op, pgx.ErrNoRows)
-	}
 	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
 		switch pgErr.Code {
 		case "23505": // unique_violation
-			return fmt.Errorf("%s: %w", op, ErrDuplicate)
+			return fmt.Errorf("%s: %w", op, errDuplicate)
 		case "23514", "23503": // check_violation, foreign_key_violation
 			return fmt.Errorf("%s: rejected by %s: %w", op, pgErr.ConstraintName, err)
 		}

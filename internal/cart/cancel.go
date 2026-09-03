@@ -17,7 +17,7 @@ func (s *Store) Cancel(ctx context.Context, number string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("begin cancel: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
 	// The status UPDATE is the aggregate gate: it locks the order before either

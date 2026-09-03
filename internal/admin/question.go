@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -27,7 +28,7 @@ func (s *Store) Questions(ctx context.Context) (pages.AdminQuestionsView, error)
 		view.Rows = append(view.Rows, pages.AdminQuestion{
 			ID: r.ID.String(), Body: r.Body, Asker: r.Asker,
 			ProductSlug: r.ProductSlug, ProductName: r.ProductName,
-			Asked:   r.CreatedAt.Format("2006-01-02 15:04"),
+			Asked:   shoptime.Minute(r.CreatedAt),
 			Answers: r.Answers, AnsweredByShop: r.AnsweredByShop,
 		})
 	}
@@ -41,7 +42,7 @@ func (s *Store) HideQuestion(ctx context.Context, id string) error {
 		return ErrNotFound
 	}
 	return s.audited(ctx, Event{
-		Action: ActionHideQuestion, Table: "product_questions",
+		Action: actionHideQuestion, Table: "product_questions",
 		ID: uuid.NullUUID{UUID: qID, Valid: true},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -72,7 +73,7 @@ func (s *Store) AnswerQuestion(ctx context.Context, id, userID, body string) err
 		return ErrInvalid
 	}
 	return s.audited(ctx, Event{
-		Action: ActionAnswerQuestion, Table: "product_answers",
+		Action: actionAnswerQuestion, Table: "product_answers",
 		ID:    uuid.NullUUID{UUID: qID, Valid: true},
 		After: map[string]any{"length": utf8.RuneCountInString(body)},
 	},

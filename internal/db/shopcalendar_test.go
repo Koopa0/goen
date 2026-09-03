@@ -27,8 +27,8 @@ func TestEveryCalendarDayGoesThroughTheShopsCalendar(t *testing.T) {
 
 	root := filepath.Join("..", "..")
 	paths := calendarSQLFiles(t, root)
-	// There are no exemptions when this guard lands. If one is ever necessary,
-	// it is an exact file:line:rule identity with a reason, never a count.
+	// No exemptions. If one is ever necessary it is an exact file:line:rule
+	// identity with a reason, never a count.
 	allowed := map[string]string{}
 	used := map[string]bool{}
 

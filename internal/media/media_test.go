@@ -14,7 +14,6 @@ import (
 	"github.com/koopa0/goen/assets"
 )
 
-// pngBytes is a real PNG of the given size.
 func pngBytes(t *testing.T, w, h int) []byte {
 	t.Helper()
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
@@ -26,7 +25,6 @@ func pngBytes(t *testing.T, w, h int) []byte {
 	return buf.Bytes()
 }
 
-// jpegBytes is a real JPEG.
 func jpegBytes(t *testing.T, w, h int) []byte {
 	t.Helper()
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
@@ -37,7 +35,6 @@ func jpegBytes(t *testing.T, w, h int) []byte {
 	return buf.Bytes()
 }
 
-// TestAnUploadIsReEncodedNotStored proves goen stores its own bytes.
 func TestAnUploadIsReEncodedNotStored(t *testing.T) {
 	clean := pngBytes(t, 40, 30)
 
@@ -65,8 +62,6 @@ func TestAnUploadIsReEncodedNotStored(t *testing.T) {
 	}
 }
 
-// TestTheDigestIsOfWhatIsServed proves the digest names the output, not the
-// upload.
 func TestTheDigestIsOfWhatIsServed(t *testing.T) {
 	clean := pngBytes(t, 20, 20)
 	withTrailer := append(append([]byte{}, clean...), []byte("junk")...)
@@ -92,8 +87,7 @@ func TestTheDigestIsOfWhatIsServed(t *testing.T) {
 	}
 }
 
-// TestNothingButAnImageIsAccepted proves the decoder decides, not the client:
-// every case here could be posted as image/png with a .png name.
+// Every case here could be posted as image/png with a .png name.
 func TestNothingButAnImageIsAccepted(t *testing.T) {
 	tests := []struct {
 		name string
@@ -118,8 +112,7 @@ func TestNothingButAnImageIsAccepted(t *testing.T) {
 	}
 }
 
-// TestADecompressionBombIsRefusedBeforeItIsAllocated proves the header bound
-// runs before any pixel buffer.
+// The header bound must run before any pixel buffer is allocated.
 func TestADecompressionBombIsRefusedBeforeItIsAllocated(t *testing.T) {
 	// Built by hand rather than encoded, because encoding one would itself
 	// allocate the buffer this test is about.
@@ -136,7 +129,6 @@ func TestADecompressionBombIsRefusedBeforeItIsAllocated(t *testing.T) {
 			"check, and a real bomb would have been allocated first", err)
 	}
 
-	// The boundary, both sides.
 	if err := boundsOK(MaxDimension, 1); err != nil {
 		t.Errorf("a %dx1 image was refused: %v", MaxDimension, err)
 	}
@@ -149,6 +141,50 @@ func TestADecompressionBombIsRefusedBeforeItIsAllocated(t *testing.T) {
 	if err := boundsOK(0, 10); err == nil {
 		t.Error("a zero-width image was accepted")
 	}
+}
+
+func TestNormalizedOutputHasItsOwnByteCap(t *testing.T) {
+	t.Parallel()
+	if err := storedSizeOK(MaxStoredBytes); err != nil {
+		t.Fatalf("the exact normalized-output ceiling was refused: %v", err)
+	}
+	if err := storedSizeOK(MaxStoredBytes + 1); !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("one byte beyond normalized-output ceiling = %v, want ErrTooLarge", err)
+	}
+	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	_, _, err := normaliseDecoded(img, "png", func(image.Image, string) ([]byte, string, error) {
+		return make([]byte, MaxStoredBytes+1), "image/png", nil
+	})
+	if !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("post-encode normalization branch = %v, want ErrTooLarge", err)
+	}
+}
+
+func TestDecodedBoundsAreRefusedBeforeEncoding(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	img := boundsOnlyImage{bounds: image.Rect(0, 0, MaxDimension+1, 1)}
+	_, _, err := normaliseDecoded(img, "png", func(image.Image, string) ([]byte, string, error) {
+		called = true
+		return []byte("must not be produced"), "image/png", nil
+	})
+	if !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("oversized decoded bounds = %v, want ErrTooLarge", err)
+	}
+	if called {
+		t.Fatal("encoder ran before decoded bounds were checked")
+	}
+}
+
+// boundsOnlyImage exposes dimensions without allocating their pixel storage.
+// At must remain unreachable: normaliseDecoded has to reject its bounds first.
+type boundsOnlyImage struct{ bounds image.Rectangle }
+
+func (i boundsOnlyImage) ColorModel() color.Model { return color.RGBAModel }
+func (i boundsOnlyImage) Bounds() image.Rectangle { return i.bounds }
+func (boundsOnlyImage) At(int, int) color.Color {
+	panic("oversized image pixels must not be read")
 }
 
 // forgedPNGHeader is a PNG signature plus an IHDR declaring w by h, with no
@@ -189,8 +225,7 @@ func crcOf(b []byte) []byte {
 	return be32(crc)
 }
 
-// TestTheOutputFormatIsGoensChoice proves the stored format comes from the
-// decode, never from a header.
+// The stored format comes from the decode, never from a client header.
 func TestTheOutputFormatIsGoensChoice(t *testing.T) {
 	tests := []struct {
 		name string
@@ -214,7 +249,6 @@ func TestTheOutputFormatIsGoensChoice(t *testing.T) {
 	}
 }
 
-// gifBytes is a real GIF.
 func gifBytes(t *testing.T, w, h int) []byte {
 	t.Helper()
 	img := image.NewPaletted(image.Rect(0, 0, w, h), color.Palette{color.Black, color.White})
@@ -225,8 +259,7 @@ func gifBytes(t *testing.T, w, h int) []byte {
 	return buf.Bytes()
 }
 
-// TestByteSizeDescribesTheStoredBytes proves the recorded size is the real one,
-// which media_objects_size_matches also enforces in the schema.
+// media_objects_size_matches enforces the same thing in the schema.
 func TestByteSizeDescribesTheStoredBytes(t *testing.T) {
 	obj, data, err := Normalise(bytes.NewReader(pngBytes(t, 64, 48)))
 	if err != nil {
@@ -237,9 +270,8 @@ func TestByteSizeDescribesTheStoredBytes(t *testing.T) {
 	}
 }
 
-// TestSrcsetNeverMisleadsTheBrowser proves every candidate states a width the
-// image really has, and that no bare candidate is mixed with w-descriptors —
-// HTML makes that a parse error, and the full-size image drops out silently.
+// A bare candidate mixed with w-descriptors is an HTML parse error, and the
+// full-size image then drops out silently.
 func TestSrcsetNeverMisleadsTheBrowser(t *testing.T) {
 	const d = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
 
@@ -285,8 +317,7 @@ func TestSrcsetNeverMisleadsTheBrowser(t *testing.T) {
 	}
 }
 
-// TestResizeNeverUpscalesAndOnlyServesKnownWidths proves the width allowlist
-// bounds the work an anonymous request can ask for.
+// The width allowlist bounds the work an anonymous request can ask for.
 func TestResizeNeverUpscalesAndOnlyServesKnownWidths(t *testing.T) {
 	original := pngBytes(t, 1200, 900)
 	_, stored, err := Normalise(bytes.NewReader(original))
@@ -310,7 +341,6 @@ func TestResizeNeverUpscalesAndOnlyServesKnownWidths(t *testing.T) {
 		t.Errorf("the 400 rendition is %d tall, want 300 — the aspect ratio moved", cfg.Height)
 	}
 
-	// Upscaling returns the original bytes.
 	narrow := pngBytes(t, 200, 100)
 	_, storedNarrow, err := Normalise(bytes.NewReader(narrow))
 	if err != nil {

@@ -14,6 +14,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const activeProductForReview = `-- name: ActiveProductForReview :one
+SELECT id FROM products
+WHERE slug = $1::text AND status = 'active'
+`
+
+// Resolve current eligibility first so a missing/draft product wins over an old
+// review. AddReview still relies on CreateReview's active predicate if status
+// changes between these reads and the insert.
+func (q *Queries) ActiveProductForReview(ctx context.Context, slug string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, activeProductForReview, slug)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const activeSubscribers = `-- name: ActiveSubscribers :many
 SELECT email, locale, unsubscribe_token
 FROM newsletter_subscribers
@@ -1999,20 +2014,23 @@ func (q *Queries) AdvanceOrder(ctx context.Context, arg AdvanceOrderParams) erro
 	return err
 }
 
-const allowedTotalForOrder = `-- name: AllowedTotalForOrder :one
-SELECT coalesce(sum(d.amount_cents), 0)::bigint AS allowed_cents
-FROM invoice_documents d
-JOIN orders o ON o.id = d.order_id
-WHERE o.order_number = $1::text
-  AND d.kind = 'allowance' AND d.status <> 'voided'
+const alarmInvoiceOperation = `-- name: AlarmInvoiceOperation :one
+SELECT alarm_invoice_operation(
+    $1::uuid, $2::uuid, $3::text
+)::boolean AS alarmed
 `
 
-// What this order has already had relieved, live documents only.
-func (q *Queries) AllowedTotalForOrder(ctx context.Context, orderNumber string) (int64, error) {
-	row := q.db.QueryRow(ctx, allowedTotalForOrder, orderNumber)
-	var allowed_cents int64
-	err := row.Scan(&allowed_cents)
-	return allowed_cents, err
+type AlarmInvoiceOperationParams struct {
+	OperationID uuid.UUID
+	LeaseOwner  uuid.UUID
+	LastError   string
+}
+
+func (q *Queries) AlarmInvoiceOperation(ctx context.Context, arg AlarmInvoiceOperationParams) (bool, error) {
+	row := q.db.QueryRow(ctx, alarmInvoiceOperation, arg.OperationID, arg.LeaseOwner, arg.LastError)
+	var alarmed bool
+	err := row.Scan(&alarmed)
+	return alarmed, err
 }
 
 const answerQuestionAsCustomer = `-- name: AnswerQuestionAsCustomer :execrows
@@ -2103,7 +2121,7 @@ func (q *Queries) AnswersForQuestions(ctx context.Context, questionIds []uuid.UU
 	return items, nil
 }
 
-const askQuestion = `-- name: AskQuestion :exec
+const askQuestion = `-- name: AskQuestion :execrows
 INSERT INTO product_questions (product_id, user_id, body)
 SELECT p.id, $1, $2::text FROM products p
 WHERE p.slug = $3::text AND p.status = 'active'
@@ -2115,9 +2133,12 @@ type AskQuestionParams struct {
 	Slug   string
 }
 
-func (q *Queries) AskQuestion(ctx context.Context, arg AskQuestionParams) error {
-	_, err := q.db.Exec(ctx, askQuestion, arg.UserID, arg.Body, arg.Slug)
-	return err
+func (q *Queries) AskQuestion(ctx context.Context, arg AskQuestionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, askQuestion, arg.UserID, arg.Body, arg.Slug)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const assignZonePrefix = `-- name: AssignZonePrefix :exec
@@ -2202,7 +2223,7 @@ func (q *Queries) AttributeCompletePaymentPaid(ctx context.Context, providerRef 
 const auditEvents = `-- name: AuditEvents :many
 SELECT a.action, a.entity_table, a.entity_id, a.before, a.after,
        a.request_id, a.occurred_at,
-       coalesce(u.full_name, u.email, '') AS actor
+       coalesce(u.full_name, u.email, a.actor_id_snapshot::text) AS actor
 FROM audit_events a
 LEFT JOIN users u ON u.id = a.actor_user_id
 ORDER BY a.occurred_at DESC, a.id DESC
@@ -2249,6 +2270,27 @@ func (q *Queries) AuditEvents(ctx context.Context, limit int32) ([]AuditEventsRo
 	return items, nil
 }
 
+const authorizeInvoiceAllowanceResend = `-- name: AuthorizeInvoiceAllowanceResend :one
+SELECT authorize_invoice_allowance_resend(
+    $1::uuid, $2::uuid, $3::text
+)::boolean AS authorized
+`
+
+type AuthorizeInvoiceAllowanceResendParams struct {
+	OperationID uuid.UUID
+	ActorUserID uuid.UUID
+	RequestID   string
+}
+
+// A human has independently checked ECPay and confirmed the missing Allowance.
+// The database rechecks age/state/lease and records actor + request atomically.
+func (q *Queries) AuthorizeInvoiceAllowanceResend(ctx context.Context, arg AuthorizeInvoiceAllowanceResendParams) (bool, error) {
+	row := q.db.QueryRow(ctx, authorizeInvoiceAllowanceResend, arg.OperationID, arg.ActorUserID, arg.RequestID)
+	var authorized bool
+	err := row.Scan(&authorized)
+	return authorized, err
+}
+
 const availableCredit = `-- name: AvailableCredit :one
 SELECT coalesce((SELECT b.balance_cents FROM store_credit_balances b
                  WHERE b.user_id = $1), 0)::bigint
@@ -2263,34 +2305,13 @@ func (q *Queries) AvailableCredit(ctx context.Context, userID uuid.NullUUID) (in
 }
 
 const awardOrderPoints = `-- name: AwardOrderPoints :one
-SELECT award_loyalty_points(
-    o.id,
-    -- One point per whole NT$100 times the customer's tier. sum(bigint) is
-    -- numeric, so casting only the final expression rounded NT$50 to one point;
-    -- the cast on the sum makes both divisions integer and keeps the database
-    -- as the one production definition of this money rule. The multiplier is
-    -- read from the spend the customer had BEFORE this order.
-    ((coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)::bigint FROM order_lines ol
-                WHERE ol.order_id = o.id), 0)
-      - o.discount_cents + o.shipping_cents + o.tax_cents) / 10000
-     * coalesce((SELECT t.points_multiplier_bp FROM membership_tiers t
-                 WHERE t.id = member_tier(o.user_id, $1::integer, o.id)), 10000)
-     / 10000)::bigint,
-    (shop_today() + $2::integer)
-)
-FROM orders o WHERE o.id = $3
+SELECT award_loyalty_points($1)
 `
-
-type AwardOrderPointsParams struct {
-	WindowDays   int32
-	ValidityDays int32
-	OrderID      uuid.UUID
-}
 
 // Idempotent on the order, which is why the amount is recomputed here rather
 // than passed: a caller could supply a different one on the retry.
-func (q *Queries) AwardOrderPoints(ctx context.Context, arg AwardOrderPointsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, awardOrderPoints, arg.WindowDays, arg.ValidityDays, arg.OrderID)
+func (q *Queries) AwardOrderPoints(ctx context.Context, orderID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, awardOrderPoints, orderID)
 	var award_loyalty_points int64
 	err := row.Scan(&award_loyalty_points)
 	return award_loyalty_points, err
@@ -2332,8 +2353,7 @@ SELECT
     sum(ol.unit_price_cents * ol.quantity)::bigint AS revenue_cents
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
-JOIN product_variants pv ON pv.id = ol.variant_id
-JOIN products p ON p.id = pv.product_id
+JOIN products p ON p.id = ol.product_id
 JOIN committed_orders c ON c.id = o.id
 LEFT JOIN brands b ON b.id = p.brand_id
 WHERE o.placed_at >= now() - make_interval(days => $1::integer)
@@ -2508,7 +2528,10 @@ SELECT
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
-    EXISTS (
+    NOT EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents < mv.price_cents
+    ) AND EXISTS (
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
@@ -2531,7 +2554,13 @@ JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
     WHERE product_id = p.id AND is_active
-    ORDER BY (stock_quantity > safety_stock) DESC, price_cents
+    -- A campaign may feature a product only while an active discounted variant
+    -- exists. Price the fact that admitted it, as /deals does, rather than a
+    -- cheaper regular variant that would erase the markdown from the campaign.
+    ORDER BY (compare_at_price_cents IS NOT NULL
+              AND compare_at_price_cents > price_cents) DESC,
+             (stock_quantity > safety_stock) DESC,
+             price_cents
     LIMIT 1
 ) mv ON true
 LEFT JOIN LATERAL (
@@ -2557,7 +2586,7 @@ type CampaignProductsRow struct {
 	Summary             string
 	Brand               string
 	MinPriceCents       int64
-	PriceVaries         bool
+	PriceVaries         pgtype.Bool
 	CompareAtPriceCents pgtype.Int8
 	Rating              float64
 	RatingCount         int64
@@ -2723,9 +2752,37 @@ func (q *Queries) CartItemCount(ctx context.Context, cartID uuid.UUID) (int64, e
 	return column_1, err
 }
 
+const cartLineCapacity = `-- name: CartLineCapacity :one
+SELECT count(*)::integer AS line_count,
+       (count(*) FILTER (WHERE variant_id = $1::uuid) > 0)::boolean
+           AS already_present
+FROM cart_items
+WHERE cart_id = $2::uuid
+`
+
+type CartLineCapacityParams struct {
+	VariantID uuid.UUID
+	CartID    uuid.UUID
+}
+
+type CartLineCapacityRow struct {
+	LineCount      int32
+	AlreadyPresent bool
+}
+
+// The cart row is already locked by every caller. Updating an existing variant
+// does not consume another ECPay ItemSeq; inserting a distinct one does.
+func (q *Queries) CartLineCapacity(ctx context.Context, arg CartLineCapacityParams) (CartLineCapacityRow, error) {
+	row := q.db.QueryRow(ctx, cartLineCapacity, arg.VariantID, arg.CartID)
+	var i CartLineCapacityRow
+	err := row.Scan(&i.LineCount, &i.AlreadyPresent)
+	return i, err
+}
+
 const cartLines = `-- name: CartLines :many
 SELECT
     pv.id AS variant_id,
+    pv.product_id,
     pv.sku,
     pv.price_cents,
     pv.compare_at_price_cents,
@@ -2735,6 +2792,8 @@ SELECT
     p.status AS product_status,
     p.slug,
     localized_name(p.name, p.name_en, $2::text) AS name,
+    p.warranty_note,
+    p.warranty_months,
     b.name AS brand,
     -- Localized because the cart line SHOWS the selection; the PDP's variant
     -- query matches on it and is exempt for exactly that reason.
@@ -2776,6 +2835,7 @@ type CartLinesParams struct {
 
 type CartLinesRow struct {
 	VariantID           uuid.UUID
+	ProductID           uuid.UUID
 	SKU                 string
 	PriceCents          int64
 	CompareAtPriceCents pgtype.Int8
@@ -2785,6 +2845,8 @@ type CartLinesRow struct {
 	ProductStatus       string
 	Slug                string
 	Name                string
+	WarrantyNote        pgtype.Text
+	WarrantyMonths      pgtype.Int4
 	Brand               string
 	OptionNames         []string
 	OptionValues        []string
@@ -2805,6 +2867,7 @@ func (q *Queries) CartLines(ctx context.Context, arg CartLinesParams) ([]CartLin
 		var i CartLinesRow
 		if err := rows.Scan(
 			&i.VariantID,
+			&i.ProductID,
 			&i.SKU,
 			&i.PriceCents,
 			&i.CompareAtPriceCents,
@@ -2814,6 +2877,8 @@ func (q *Queries) CartLines(ctx context.Context, arg CartLinesParams) ([]CartLin
 			&i.ProductStatus,
 			&i.Slug,
 			&i.Name,
+			&i.WarrantyNote,
+			&i.WarrantyMonths,
 			&i.Brand,
 			&i.OptionNames,
 			&i.OptionValues,
@@ -3241,37 +3306,78 @@ func (q *Queries) CheckoutCompletionSince(ctx context.Context, windowDays int32)
 	return i, err
 }
 
-const claimInvoiceDocument = `-- name: ClaimInvoiceDocument :one
-INSERT INTO invoice_documents
-    (order_id, kind, original_id, number, amount_cents, request_key, status)
-VALUES ($1, $2::text, $3::uuid, '',
-        $4::bigint, $5::text, 'pending')
-RETURNING id
+const claimInvoiceAllowance = `-- name: ClaimInvoiceAllowance :one
+SELECT claim_invoice_allowance(
+    $1::uuid,
+    $2::uuid,
+    $3::uuid,
+    $4::text
+)::uuid AS operation_id
 `
 
-type ClaimInvoiceDocumentParams struct {
-	OrderID     uuid.UUID
-	Kind        string
-	OriginalID  uuid.NullUUID
-	AmountCents int64
-	RequestKey  string
+type ClaimInvoiceAllowanceParams struct {
+	OriginalID  uuid.UUID
+	OperationID uuid.UUID
+	ActorUserID uuid.UUID
+	RequestID   string
 }
 
-// Claim a filing BEFORE the provider is asked. The unique index on request_key
-// is what makes a second press — or a retry after a timeout — refusable here
-// rather than at the 財政部, where the damage is a second 折讓 against one
-// refund. The number is blank because allocating one is the provider's job.
-func (q *Queries) ClaimInvoiceDocument(ctx context.Context, arg ClaimInvoiceDocumentParams) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, claimInvoiceDocument,
-		arg.OrderID,
-		arg.Kind,
+func (q *Queries) ClaimInvoiceAllowance(ctx context.Context, arg ClaimInvoiceAllowanceParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, claimInvoiceAllowance,
 		arg.OriginalID,
-		arg.AmountCents,
-		arg.RequestKey,
+		arg.OperationID,
+		arg.ActorUserID,
+		arg.RequestID,
 	)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
+	var operation_id uuid.UUID
+	err := row.Scan(&operation_id)
+	return operation_id, err
+}
+
+const claimInvoiceIssue = `-- name: ClaimInvoiceIssue :one
+SELECT claim_invoice_issue(
+    $1::text, $2::uuid, $3::text
+)::uuid AS operation_id
+`
+
+type ClaimInvoiceIssueParams struct {
+	OrderNumber string
+	ActorUserID uuid.UUID
+	RequestID   string
+}
+
+// Claim and freeze a request before any ECPay call. Replaying a still-active
+// operation returns the same id and never rebuilds the request from mutable PII.
+func (q *Queries) ClaimInvoiceIssue(ctx context.Context, arg ClaimInvoiceIssueParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, claimInvoiceIssue, arg.OrderNumber, arg.ActorUserID, arg.RequestID)
+	var operation_id uuid.UUID
+	err := row.Scan(&operation_id)
+	return operation_id, err
+}
+
+const claimInvoiceVoid = `-- name: ClaimInvoiceVoid :one
+SELECT claim_invoice_void(
+    $1::uuid, $2::text, $3::uuid, $4::text
+)::uuid AS operation_id
+`
+
+type ClaimInvoiceVoidParams struct {
+	DocumentID  uuid.UUID
+	Reason      string
+	ActorUserID uuid.UUID
+	RequestID   string
+}
+
+func (q *Queries) ClaimInvoiceVoid(ctx context.Context, arg ClaimInvoiceVoidParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, claimInvoiceVoid,
+		arg.DocumentID,
+		arg.Reason,
+		arg.ActorUserID,
+		arg.RequestID,
+	)
+	var operation_id uuid.UUID
+	err := row.Scan(&operation_id)
+	return operation_id, err
 }
 
 const claimOutbox = `-- name: ClaimOutbox :many
@@ -3370,6 +3476,28 @@ func (q *Queries) ClaimRestockNotices(ctx context.Context, variantID uuid.UUID) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const claimReturnRefundExecution = `-- name: ClaimReturnRefundExecution :one
+SELECT claim_return_refund_execution(
+    $1::uuid, $2::uuid, $3::text
+)
+`
+
+type ClaimReturnRefundExecutionParams struct {
+	ReturnRequestID uuid.UUID
+	ActorUserID     uuid.UUID
+	RequestID       string
+}
+
+// The database derives the payment, request key, amount and reason from the
+// approved return. It also records this request's actor before any provider
+// operation begins, so a retry by another staff member remains attributable.
+func (q *Queries) ClaimReturnRefundExecution(ctx context.Context, arg ClaimReturnRefundExecutionParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, claimReturnRefundExecution, arg.ReturnRequestID, arg.ActorUserID, arg.RequestID)
+	var claim_return_refund_execution uuid.UUID
+	err := row.Scan(&claim_return_refund_execution)
+	return claim_return_refund_execution, err
 }
 
 const clearCart = `-- name: ClearCart :exec
@@ -3589,18 +3717,14 @@ func (q *Queries) CompareSpecs(ctx context.Context, arg CompareSpecsParams) ([]C
 }
 
 const compensateReturnWithCredit = `-- name: CompensateReturnWithCredit :one
-SELECT post_store_credit(
-    $1, $2::bigint, $3::text, $4,
-    'return-credit:' || $5::text, $6::uuid
+SELECT compensate_return_with_credit(
+    $1::uuid, $2::bigint, $3::uuid
 )::uuid AS entry_id
 `
 
 type CompensateReturnWithCreditParams struct {
-	UserID      uuid.UUID
+	ReturnID    uuid.UUID
 	AmountCents int64
-	Reason      string
-	OrderID     uuid.UUID
-	ReturnID    string
 	Actor       uuid.NullUUID
 }
 
@@ -3608,14 +3732,7 @@ type CompensateReturnWithCreditParams struct {
 // prescribes for an order that has shipped: a reversal un-funds the order, and
 // this one was paid for and went out. Idempotent on the return.
 func (q *Queries) CompensateReturnWithCredit(ctx context.Context, arg CompensateReturnWithCreditParams) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, compensateReturnWithCredit,
-		arg.UserID,
-		arg.AmountCents,
-		arg.Reason,
-		arg.OrderID,
-		arg.ReturnID,
-		arg.Actor,
-	)
+	row := q.db.QueryRow(ctx, compensateReturnWithCredit, arg.ReturnID, arg.AmountCents, arg.Actor)
 	var entry_id uuid.UUID
 	err := row.Scan(&entry_id)
 	return entry_id, err
@@ -3632,9 +3749,6 @@ type CompleteReturnParams struct {
 	ID         uuid.UUID
 }
 
-// return_requests_completed_is_inspected refuses this while any line is
-// un-inspected. `status = 'approved'` is restated for DecideReturn's reason: it
-// is what makes two staff members closing one return resolve to one winner.
 func (q *Queries) CompleteReturn(ctx context.Context, arg CompleteReturnParams) (int64, error) {
 	result, err := q.db.Exec(ctx, completeReturn, arg.Resolution, arg.ID)
 	if err != nil {
@@ -3932,7 +4046,9 @@ VALUES ($1::text, $2::text, $3::text,
         $4::bigint, $5::integer,
         $6::bigint, $7::bigint,
         $8::integer, $9::integer,
-        $10::timestamptz)
+        CASE WHEN $10::integer > 0
+             THEN now() + make_interval(days => $10::integer)
+             ELSE NULL END)
 `
 
 type CreateCouponParams struct {
@@ -3945,7 +4061,7 @@ type CreateCouponParams struct {
 	MinSubtotalCents int64
 	MaxRedemptions   pgtype.Int4
 	PerCustomerLimit int32
-	EndsAt           pgtype.Timestamptz
+	Days             int32
 }
 
 func (q *Queries) CreateCoupon(ctx context.Context, arg CreateCouponParams) error {
@@ -3959,7 +4075,7 @@ func (q *Queries) CreateCoupon(ctx context.Context, arg CreateCouponParams) erro
 		arg.MinSubtotalCents,
 		arg.MaxRedemptions,
 		arg.PerCustomerLimit,
-		arg.EndsAt,
+		arg.Days,
 	)
 	return err
 }
@@ -4059,15 +4175,20 @@ func (q *Queries) CreateHeroSlide(ctx context.Context, arg CreateHeroSlideParams
 }
 
 const createInvoicePreference = `-- name: CreateInvoicePreference :exec
-INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code, tax_id)
-VALUES ($1, $2::text, nullif($3::text, ''), nullif($4::text, ''))
+INSERT INTO invoice_preferences
+    (order_id, invoice_type, carrier_code, tax_id, customer_name, customer_email)
+VALUES
+    ($1, $2::text, nullif($3::text, ''),
+     nullif($4::text, ''), $5::text, $6::text)
 `
 
 type CreateInvoicePreferenceParams struct {
-	OrderID     uuid.UUID
-	InvoiceType string
-	CarrierCode string
-	TaxID       string
+	OrderID       uuid.UUID
+	InvoiceType   string
+	CarrierCode   string
+	TaxID         string
+	CustomerName  string
+	CustomerEmail string
 }
 
 func (q *Queries) CreateInvoicePreference(ctx context.Context, arg CreateInvoicePreferenceParams) error {
@@ -4076,6 +4197,8 @@ func (q *Queries) CreateInvoicePreference(ctx context.Context, arg CreateInvoice
 		arg.InvoiceType,
 		arg.CarrierCode,
 		arg.TaxID,
+		arg.CustomerName,
+		arg.CustomerEmail,
 	)
 	return err
 }
@@ -4175,31 +4298,40 @@ func (q *Queries) CreateOrder(ctx context.Context, arg CreateOrderParams) (Creat
 
 const createOrderLine = `-- name: CreateOrderLine :exec
 INSERT INTO order_lines (
-    order_id, variant_id, sku, product_name, variant_label,
-    unit_price_cents, quantity, position
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    order_id, product_id, variant_id, sku, product_name, variant_label,
+    warranty_note, warranty_months, unit_price_cents, quantity, position
+) VALUES (
+    $1, $2, $3, $4, $5, $6,
+    $7, $8, $9, $10, $11
+)
 `
 
 type CreateOrderLineParams struct {
 	OrderID        uuid.UUID
+	ProductID      uuid.NullUUID
 	VariantID      uuid.NullUUID
 	SKU            string
 	ProductName    string
 	VariantLabel   pgtype.Text
+	WarrantyNote   pgtype.Text
+	WarrantyMonths pgtype.Int4
 	UnitPriceCents int64
 	Quantity       int32
 	Position       int32
 }
 
-// The price is COPIED rather than referenced: a later price change must not
-// rewrite a placed order.
+// The price and warranty promise are COPIED rather than referenced: a later
+// catalogue change must not rewrite a placed order or shorten its cover.
 func (q *Queries) CreateOrderLine(ctx context.Context, arg CreateOrderLineParams) error {
 	_, err := q.db.Exec(ctx, createOrderLine,
 		arg.OrderID,
+		arg.ProductID,
 		arg.VariantID,
 		arg.SKU,
 		arg.ProductName,
 		arg.VariantLabel,
+		arg.WarrantyNote,
+		arg.WarrantyMonths,
 		arg.UnitPriceCents,
 		arg.Quantity,
 		arg.Position,
@@ -4358,7 +4490,7 @@ func (q *Queries) CreateReturnRequestLine(ctx context.Context, arg CreateReturnR
 	return err
 }
 
-const createReview = `-- name: CreateReview :exec
+const createReview = `-- name: CreateReview :execrows
 INSERT INTO product_reviews (product_id, user_id, rating, title, body, is_verified_purchase)
 SELECT p.id, $1, $2::smallint, nullif($3::text, ''), $4::text, $5::boolean
 FROM products p WHERE p.slug = $6::text AND p.status = 'active'
@@ -4374,8 +4506,8 @@ type CreateReviewParams struct {
 }
 
 // product_reviews_verified_is_real refuses a false is_verified_purchase.
-func (q *Queries) CreateReview(ctx context.Context, arg CreateReviewParams) error {
-	_, err := q.db.Exec(ctx, createReview,
+func (q *Queries) CreateReview(ctx context.Context, arg CreateReviewParams) (int64, error) {
+	result, err := q.db.Exec(ctx, createReview,
 		arg.UserID,
 		arg.Rating,
 		arg.Title,
@@ -4383,12 +4515,15 @@ func (q *Queries) CreateReview(ctx context.Context, arg CreateReviewParams) erro
 		arg.Verified,
 		arg.Slug,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const createSession = `-- name: CreateSession :exec
 INSERT INTO sessions (token_hash, user_id, user_agent, ip, expires_at)
-VALUES ($1, $2, $3, $4, $5)
+VALUES ($1, $2, $3, $4, now() + $5::interval)
 `
 
 type CreateSessionParams struct {
@@ -4396,16 +4531,18 @@ type CreateSessionParams struct {
 	UserID    uuid.UUID
 	UserAgent pgtype.Text
 	IP        *netip.Addr
-	ExpiresAt time.Time
+	Ttl       pgtype.Interval
 }
 
+// The expiry is computed from the DATABASE's clock, which is what every read
+// and retention sweep compares it with.
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) error {
 	_, err := q.db.Exec(ctx, createSession,
 		arg.TokenHash,
 		arg.UserID,
 		arg.UserAgent,
 		arg.IP,
-		arg.ExpiresAt,
+		arg.Ttl,
 	)
 	return err
 }
@@ -5243,15 +5380,6 @@ func (q *Queries) EmailVerificationToken(ctx context.Context, digest []byte) (Em
 	return i, err
 }
 
-const endStaffSessions = `-- name: EndStaffSessions :exec
-DELETE FROM sessions WHERE user_id = $1
-`
-
-func (q *Queries) EndStaffSessions(ctx context.Context, userID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, endStaffSessions, userID)
-	return err
-}
-
 const enqueueBulkMessage = `-- name: EnqueueBulkMessage :exec
 INSERT INTO outbox_messages (topic, dedupe_key, payload, priority)
 VALUES ($1::text, $2::text, $3, $4)
@@ -5458,22 +5586,21 @@ SELECT EXISTS (
     SELECT 1
     FROM orders o
     JOIN order_lines ol ON ol.order_id = o.id
-    JOIN product_variants pv ON pv.id = ol.variant_id
-    JOIN products p ON p.id = pv.product_id
-    WHERE o.user_id = $1 AND p.slug = $2::text
+    WHERE o.user_id = $1 AND ol.product_id = $2
       AND order_is_committed(o.id)
 )
 `
 
 type HasBoughtProductParams struct {
-	UserID uuid.NullUUID
-	Slug   string
+	UserID    uuid.NullUUID
+	ProductID uuid.NullUUID
 }
 
 // order_is_committed, never "EXISTS a succeeded payment": a store-credit-funded
-// order is committed with no payment row at all.
+// order is committed with no payment row at all. product_id is the durable line
+// identity and survives deletion of the purchased variant.
 func (q *Queries) HasBoughtProduct(ctx context.Context, arg HasBoughtProductParams) (bool, error) {
-	row := q.db.QueryRow(ctx, hasBoughtProduct, arg.UserID, arg.Slug)
+	row := q.db.QueryRow(ctx, hasBoughtProduct, arg.UserID, arg.ProductID)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
@@ -5496,20 +5623,19 @@ func (q *Queries) HasOpenReturn(ctx context.Context, orderID uuid.UUID) (bool, e
 const hasReviewed = `-- name: HasReviewed :one
 SELECT EXISTS (
     SELECT 1 FROM product_reviews r
-    JOIN products p ON p.id = r.product_id
-    WHERE r.user_id = $1 AND p.slug = $2::text
+    WHERE r.user_id = $1 AND r.product_id = $2
 )
 `
 
 type HasReviewedParams struct {
-	UserID uuid.NullUUID
-	Slug   string
+	UserID    uuid.NullUUID
+	ProductID uuid.UUID
 }
 
 // The base table, not visible_reviews: the unique index is on the base table, so
 // a hidden review must still block a second one.
 func (q *Queries) HasReviewed(ctx context.Context, arg HasReviewedParams) (bool, error) {
-	row := q.db.QueryRow(ctx, hasReviewed, arg.UserID, arg.Slug)
+	row := q.db.QueryRow(ctx, hasReviewed, arg.UserID, arg.ProductID)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
@@ -5572,7 +5698,7 @@ func (q *Queries) HideReview(ctx context.Context, id uuid.UUID) (int64, error) {
 
 const holdForOrder = `-- name: HoldForOrder :one
 SELECT hold_inventory(
-    $1, $2, $3::integer, $4, $5::text
+    $1, $2, $3::integer, $4::interval, $5::text
 )
 `
 
@@ -5580,7 +5706,7 @@ type HoldForOrderParams struct {
 	OrderID        uuid.UUID
 	VariantID      uuid.UUID
 	Quantity       int32
-	ExpiresAt      time.Time
+	HoldFor        pgtype.Interval
 	IdempotencyKey string
 }
 
@@ -5589,7 +5715,7 @@ func (q *Queries) HoldForOrder(ctx context.Context, arg HoldForOrderParams) (uui
 		arg.OrderID,
 		arg.VariantID,
 		arg.Quantity,
-		arg.ExpiresAt,
+		arg.HoldFor,
 		arg.IdempotencyKey,
 	)
 	var hold_inventory uuid.UUID
@@ -5898,110 +6024,156 @@ func (q *Queries) InvoiceDocuments(ctx context.Context, orderNumber string) ([]I
 	return items, nil
 }
 
-const invoiceSubject = `-- name: InvoiceSubject :one
-SELECT o.id,
-       o.order_number,
-       coalesce(pd.recipient_name, '')::text AS customer_name,
-       coalesce(pd.email, '')::text AS email,
-       coalesce(ip.invoice_type, 'member_carrier')::text AS invoice_type,
-       coalesce(ip.carrier_code, '')::text AS carrier_code,
-       coalesce(ip.tax_id, '')::text AS tax_id,
-       (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
-                  WHERE ol.order_id = o.id), 0)
-        - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents,
-       -- Both halves separately, because the itemisation has to reconstruct the
-       -- header rather than infer it. Deriving the delivery line as
-       -- total - sum(lines) makes it shipping MINUS discount: a document that
-       -- states a carriage charge nobody paid when the discount is smaller, and
-       -- one ECPay refuses outright (5000022) when it is larger — which is every
-       -- discounted order that also qualified for 免運.
-       o.shipping_cents,
-       o.discount_cents,
-       -- Only a COMMITTED order gets an invoice: a checkout nobody paid for is
-       -- not a sale, and undoing a filed document is a tax correction.
-       (o.id IN (SELECT id FROM committed_orders))::boolean AS committed,
-       -- How many invoices this order has already had, live or voided. ECPay
-       -- refuse a repeated RelateNumber (RtnCode 5070357), so a reissue after a
-       -- void has to be distinguishable from the first attempt.
-       (SELECT count(*) FROM invoice_documents d
-        WHERE d.order_id = o.id AND d.kind = 'invoice')::integer AS attempt
-FROM orders o
-LEFT JOIN order_private_data pd ON pd.order_id = o.id
-LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
-WHERE o.order_number = $1::text
+const invoiceOperation = `-- name: InvoiceOperation :one
+SELECT op.id, op.order_id, op.kind,
+       coalesce(op.target_document_id,
+                '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS target_document_id,
+       coalesce(op.result_document_id,
+                '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS result_document_id,
+       op.provider_key, op.amount_cents, op.request_payload,
+       op.actor_id_snapshot, op.request_id, op.status,
+       op.reconcile_attempts, op.send_attempts, op.resend_authorizations,
+       coalesce(op.last_error, '')::text AS last_error,
+       op.created_at, op.updated_at
+FROM invoice_operations op
+WHERE op.id = $1::uuid
 `
 
-type InvoiceSubjectRow struct {
-	ID            uuid.UUID
-	OrderNumber   string
-	CustomerName  string
-	Email         string
-	InvoiceType   string
-	CarrierCode   string
-	TaxID         string
-	TotalCents    int64
-	ShippingCents int64
-	DiscountCents int64
-	Committed     bool
-	Attempt       int32
+type InvoiceOperationRow struct {
+	ID                   uuid.UUID
+	OrderID              uuid.UUID
+	Kind                 string
+	TargetDocumentID     uuid.UUID
+	ResultDocumentID     uuid.UUID
+	ProviderKey          string
+	AmountCents          int64
+	RequestPayload       []byte
+	ActorIDSnapshot      uuid.UUID
+	RequestID            string
+	Status               string
+	ReconcileAttempts    int32
+	SendAttempts         int32
+	ResendAuthorizations int32
+	LastError            string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
-// What an order needs to become an invoice. The amount is order_amount_owed's
-// numerator rather than the net: an invoice records the SALE, and store credit
-// is how the customer paid rather than a reduction in what was sold.
-func (q *Queries) InvoiceSubject(ctx context.Context, orderNumber string) (InvoiceSubjectRow, error) {
-	row := q.db.QueryRow(ctx, invoiceSubject, orderNumber)
-	var i InvoiceSubjectRow
+// One durable operation and its frozen request. Nil target/result UUIDs avoid a
+// nullable UUID at the Go state-machine boundary; kind/status say which applies.
+func (q *Queries) InvoiceOperation(ctx context.Context, operationID uuid.UUID) (InvoiceOperationRow, error) {
+	row := q.db.QueryRow(ctx, invoiceOperation, operationID)
+	var i InvoiceOperationRow
 	err := row.Scan(
 		&i.ID,
-		&i.OrderNumber,
-		&i.CustomerName,
-		&i.Email,
-		&i.InvoiceType,
-		&i.CarrierCode,
-		&i.TaxID,
-		&i.TotalCents,
-		&i.ShippingCents,
-		&i.DiscountCents,
-		&i.Committed,
-		&i.Attempt,
+		&i.OrderID,
+		&i.Kind,
+		&i.TargetDocumentID,
+		&i.ResultDocumentID,
+		&i.ProviderKey,
+		&i.AmountCents,
+		&i.RequestPayload,
+		&i.ActorIDSnapshot,
+		&i.RequestID,
+		&i.Status,
+		&i.ReconcileAttempts,
+		&i.SendAttempts,
+		&i.ResendAuthorizations,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const invoiceSubjectLines = `-- name: InvoiceSubjectLines :many
-SELECT ol.product_name, ol.variant_label, ol.quantity, ol.unit_price_cents,
-       (ol.unit_price_cents * ol.quantity)::bigint AS amount_cents
-FROM order_lines ol
-WHERE ol.order_id = $1
-ORDER BY ol.position, ol.id
+const invoiceOperationDocument = `-- name: InvoiceOperationDocument :one
+SELECT d.id, d.kind, d.number, d.amount_cents, d.status,
+       coalesce(d.provider_ref, '')::text AS provider_ref, d.issued_at
+FROM invoice_operations op
+JOIN invoice_documents d ON d.id = op.result_document_id
+WHERE op.id = $1::uuid AND op.status = 'succeeded'
 `
 
-type InvoiceSubjectLinesRow struct {
-	ProductName    string
-	VariantLabel   pgtype.Text
-	Quantity       int32
-	UnitPriceCents int64
-	AmountCents    int64
+type InvoiceOperationDocumentRow struct {
+	ID          uuid.UUID
+	Kind        string
+	Number      string
+	AmountCents int64
+	Status      string
+	ProviderRef string
+	IssuedAt    time.Time
 }
 
-// The lines that go on it, as the ORDER recorded them rather than as the
-// catalogue reads today.
-func (q *Queries) InvoiceSubjectLines(ctx context.Context, orderID uuid.UUID) ([]InvoiceSubjectLinesRow, error) {
-	rows, err := q.db.Query(ctx, invoiceSubjectLines, orderID)
+func (q *Queries) InvoiceOperationDocument(ctx context.Context, operationID uuid.UUID) (InvoiceOperationDocumentRow, error) {
+	row := q.db.QueryRow(ctx, invoiceOperationDocument, operationID)
+	var i InvoiceOperationDocumentRow
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.Number,
+		&i.AmountCents,
+		&i.Status,
+		&i.ProviderRef,
+		&i.IssuedAt,
+	)
+	return i, err
+}
+
+const knownAllowances = `-- name: KnownAllowances :many
+SELECT d.id, d.number, d.amount_cents, d.status, d.issued_at,
+       ARRAY(SELECT l.description FROM invoice_document_lines l
+             WHERE l.document_id = d.id ORDER BY l.position)::text[] AS descriptions,
+       ARRAY(SELECT l.quantity FROM invoice_document_lines l
+             WHERE l.document_id = d.id ORDER BY l.position)::integer[] AS quantities,
+       ARRAY(SELECT l.unit_price_cents FROM invoice_document_lines l
+             WHERE l.document_id = d.id ORDER BY l.position)::bigint[] AS unit_price_cents,
+       ARRAY(SELECT l.amount_cents FROM invoice_document_lines l
+             WHERE l.document_id = d.id ORDER BY l.position)::bigint[] AS line_amount_cents,
+       ARRAY(SELECT l.tax_type FROM invoice_document_lines l
+             WHERE l.document_id = d.id ORDER BY l.position)::text[] AS tax_types
+FROM invoice_documents d
+WHERE d.original_id = $1::uuid AND d.kind = 'allowance'
+ORDER BY d.issued_at, d.id
+`
+
+type KnownAllowancesRow struct {
+	ID              uuid.UUID
+	Number          string
+	AmountCents     int64
+	Status          string
+	IssuedAt        time.Time
+	Descriptions    []string
+	Quantities      []int32
+	UnitPriceCents  []int64
+	LineAmountCents []int64
+	TaxTypes        []string
+}
+
+// Complete immutable local facts for every allowance represented against the
+// original invoice. A provider row is "known" only when its invoice/allowance
+// identity, timestamp, money and every line agree with these facts; comparing
+// the number alone can hide a provider-side invalidation or misattribute a
+// different document to the current operation.
+func (q *Queries) KnownAllowances(ctx context.Context, originalID uuid.UUID) ([]KnownAllowancesRow, error) {
+	rows, err := q.db.Query(ctx, knownAllowances, originalID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []InvoiceSubjectLinesRow{}
+	items := []KnownAllowancesRow{}
 	for rows.Next() {
-		var i InvoiceSubjectLinesRow
+		var i KnownAllowancesRow
 		if err := rows.Scan(
-			&i.ProductName,
-			&i.VariantLabel,
-			&i.Quantity,
-			&i.UnitPriceCents,
+			&i.ID,
+			&i.Number,
 			&i.AmountCents,
+			&i.Status,
+			&i.IssuedAt,
+			&i.Descriptions,
+			&i.Quantities,
+			&i.UnitPriceCents,
+			&i.LineAmountCents,
+			&i.TaxTypes,
 		); err != nil {
 			return nil, err
 		}
@@ -6013,7 +6185,28 @@ func (q *Queries) InvoiceSubjectLines(ctx context.Context, orderID uuid.UUID) ([
 	return items, nil
 }
 
-const linkIdentity = `-- name: LinkIdentity :exec
+const leaseInvoiceOperation = `-- name: LeaseInvoiceOperation :one
+SELECT lease_invoice_operation(
+    $1::uuid, $2::uuid, $3::interval
+)::uuid AS operation_id
+`
+
+type LeaseInvoiceOperationParams struct {
+	OperationID uuid.UUID
+	LeaseOwner  uuid.UUID
+	LeaseFor    pgtype.Interval
+}
+
+// The exact-id form is used by a request handler; uuid.Nil atomically picks the
+// oldest due operation for a background replica.
+func (q *Queries) LeaseInvoiceOperation(ctx context.Context, arg LeaseInvoiceOperationParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, leaseInvoiceOperation, arg.OperationID, arg.LeaseOwner, arg.LeaseFor)
+	var operation_id uuid.UUID
+	err := row.Scan(&operation_id)
+	return operation_id, err
+}
+
+const linkIdentity = `-- name: LinkIdentity :execrows
 INSERT INTO user_identities (user_id, provider, provider_subject)
 VALUES ($1, 'google', $2::text)
 ON CONFLICT (provider, provider_subject) DO NOTHING
@@ -6025,9 +6218,12 @@ type LinkIdentityParams struct {
 }
 
 // ON CONFLICT DO NOTHING: two tabs finishing one sign-in are one link.
-func (q *Queries) LinkIdentity(ctx context.Context, arg LinkIdentityParams) error {
-	_, err := q.db.Exec(ctx, linkIdentity, arg.UserID, arg.Subject)
-	return err
+func (q *Queries) LinkIdentity(ctx context.Context, arg LinkIdentityParams) (int64, error) {
+	result, err := q.db.Exec(ctx, linkIdentity, arg.UserID, arg.Subject)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const liveInvoice = `-- name: LiveInvoice :one
@@ -6139,6 +6335,17 @@ func (q *Queries) LockCouponForCheckout(ctx context.Context, code string) error 
 	return err
 }
 
+const lockGoogleSubject = `-- name: LockGoogleSubject :exec
+SELECT pg_advisory_xact_lock(hashtextextended('google:' || $1::text, 0))
+`
+
+// Keyed on the SUBJECT: a Google account can change address, and a released
+// Workspace address can be reassigned to somebody else.
+func (q *Queries) LockGoogleSubject(ctx context.Context, subject string) error {
+	_, err := q.db.Exec(ctx, lockGoogleSubject, subject)
+	return err
+}
+
 const lockPaymentProviderRef = `-- name: LockPaymentProviderRef :exec
 SELECT lock_payment_provider_ref('stripe', $1::text)
 `
@@ -6148,6 +6355,23 @@ SELECT lock_payment_provider_ref('stripe', $1::text)
 func (q *Queries) LockPaymentProviderRef(ctx context.Context, providerRef string) error {
 	_, err := q.db.Exec(ctx, lockPaymentProviderRef, providerRef)
 	return err
+}
+
+const lockReturnOrder = `-- name: LockReturnOrder :one
+SELECT o.id
+FROM orders o JOIN return_requests r ON r.order_id = o.id
+WHERE r.id = $1
+FOR UPDATE OF o
+`
+
+// return_requests_completed_is_inspected refuses this while any line is
+// un-inspected. `status = 'approved'` is restated for DecideReturn's reason: it
+// is what makes two staff members closing one return resolve to one winner.
+func (q *Queries) LockReturnOrder(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockReturnOrder, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
 }
 
 const lockShippingZone = `-- name: LockShippingZone :one
@@ -6389,6 +6613,24 @@ func (q *Queries) ManagedCategories(ctx context.Context) ([]ManagedCategoriesRow
 	return items, nil
 }
 
+const markInvoiceOperationSent = `-- name: MarkInvoiceOperationSent :one
+SELECT mark_invoice_operation_sent(
+    $1::uuid, $2::uuid
+)::boolean AS marked
+`
+
+type MarkInvoiceOperationSentParams struct {
+	OperationID uuid.UUID
+	LeaseOwner  uuid.UUID
+}
+
+func (q *Queries) MarkInvoiceOperationSent(ctx context.Context, arg MarkInvoiceOperationSentParams) (bool, error) {
+	row := q.db.QueryRow(ctx, markInvoiceOperationSent, arg.OperationID, arg.LeaseOwner)
+	var marked bool
+	err := row.Scan(&marked)
+	return marked, err
+}
+
 const markNewsletterIssueSent = `-- name: MarkNewsletterIssueSent :execrows
 UPDATE newsletter_issues
 SET sent_at = now(), recipients = $1, sent_by = $2
@@ -6593,8 +6835,7 @@ SELECT w.id, w.unit_no, coalesce(w.serial_number, '') AS serial_number,
 FROM warranty_registrations w
 JOIN order_lines ol ON ol.id = w.order_line_id
 JOIN orders o ON o.id = ol.order_id
-LEFT JOIN product_variants pv ON pv.id = ol.variant_id
-LEFT JOIN products p ON p.id = pv.product_id
+LEFT JOIN products p ON p.id = ol.product_id
 WHERE w.user_id = $1
 ORDER BY w.expires_on DESC, w.id
 `
@@ -6751,31 +6992,28 @@ func (q *Queries) OpenPayment(ctx context.Context, arg OpenPaymentParams) (uuid.
 	return open_payment, err
 }
 
-const openRefund = `-- name: OpenRefund :one
-SELECT open_refund($1, $2::text, $3::bigint,
-                   nullif($4::text, ''), $5)
+const openRefundCount = `-- name: OpenRefundCount :one
+SELECT count(*)::bigint
+FROM refunds r
+WHERE r.status IN ('pending', 'requires_action', 'failed', 'cancelled')
+  AND (
+      r.return_request_id IS NULL
+      OR NOT EXISTS (
+          SELECT 1 FROM refunds newer
+          WHERE newer.return_request_id = r.return_request_id
+            AND newer.attempt_no > r.attempt_no
+      )
+  )
 `
 
-type OpenRefundParams struct {
-	PaymentID       uuid.UUID
-	RequestKey      string
-	AmountCents     int64
-	Reason          string
-	ReturnRequestID uuid.UUID
-}
-
-// nullif on the reason: "no note" is NULL, not an empty string.
-func (q *Queries) OpenRefund(ctx context.Context, arg OpenRefundParams) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, openRefund,
-		arg.PaymentID,
-		arg.RequestKey,
-		arg.AmountCents,
-		arg.Reason,
-		arg.ReturnRequestID,
-	)
-	var open_refund uuid.UUID
-	err := row.Scan(&open_refund)
-	return open_refund, err
+// Show only the latest generation of a return refund. A failed predecessor is
+// evidence, not current work; once its successor succeeds it must not keep the
+// health page red forever. Non-return refunds have no generation lineage.
+func (q *Queries) OpenRefundCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, openRefundCount)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const openRefunds = `-- name: OpenRefunds :many
@@ -6785,7 +7023,15 @@ SELECT r.request_key, r.status, r.amount_cents, r.created_at,
 FROM refunds r
 JOIN payments p ON p.id = r.payment_id
 JOIN orders o ON o.id = p.order_id
-WHERE r.status IN ('pending', 'requires_action', 'failed')
+WHERE r.status IN ('pending', 'requires_action', 'failed', 'cancelled')
+  AND (
+      r.return_request_id IS NULL
+      OR NOT EXISTS (
+          SELECT 1 FROM refunds newer
+          WHERE newer.return_request_id = r.return_request_id
+            AND newer.attempt_no > r.attempt_no
+      )
+  )
 ORDER BY r.created_at
 LIMIT $1
 `
@@ -6799,9 +7045,8 @@ type OpenRefundsRow struct {
 	OrderNumber string
 }
 
-// 'failed' is listed beside the two outstanding states on purpose: it is
-// terminal at Stripe, the goods came back, the return did not close, and nobody
-// has been paid.
+// This is a bounded diagnostic sample. OpenRefundCount, not the length of this
+// sample, is the health figure rendered above it.
 func (q *Queries) OpenRefunds(ctx context.Context, limit int32) ([]OpenRefundsRow, error) {
 	rows, err := q.db.Query(ctx, openRefunds, limit)
 	if err != nil {
@@ -7036,20 +7281,31 @@ func (q *Queries) OrderForReturn(ctx context.Context, orderNumber string) (Order
 }
 
 const orderHoldExpiry = `-- name: OrderHoldExpiry :one
-SELECT ir.expires_at
+SELECT ir.expires_at,
+       (ir.expires_at >= now() + $2::interval)::boolean AS covers_session
 FROM inventory_reservations ir
 WHERE ir.order_id = $1 AND ir.state = 'held'
 ORDER BY ir.expires_at
 LIMIT 1
 `
 
+type OrderHoldExpiryParams struct {
+	OrderID          uuid.UUID
+	RequiredLifetime pgtype.Interval
+}
+
+type OrderHoldExpiryRow struct {
+	ExpiresAt     time.Time
+	CoversSession bool
+}
+
 // The earliest expiry among an order's live holds; a session's expires_at is set
 // from it, so Stripe stops taking money when the sweeper may release the goods.
-func (q *Queries) OrderHoldExpiry(ctx context.Context, orderID uuid.UUID) (time.Time, error) {
-	row := q.db.QueryRow(ctx, orderHoldExpiry, orderID)
-	var expires_at time.Time
-	err := row.Scan(&expires_at)
-	return expires_at, err
+func (q *Queries) OrderHoldExpiry(ctx context.Context, arg OrderHoldExpiryParams) (OrderHoldExpiryRow, error) {
+	row := q.db.QueryRow(ctx, orderHoldExpiry, arg.OrderID, arg.RequiredLifetime)
+	var i OrderHoldExpiryRow
+	err := row.Scan(&i.ExpiresAt, &i.CoversSession)
+	return i, err
 }
 
 const orderIDByNumber = `-- name: OrderIDByNumber :one
@@ -7641,17 +7897,18 @@ func (q *Queries) PointsHistory(ctx context.Context, arg PointsHistoryParams) ([
 }
 
 const postStoreCredit = `-- name: PostStoreCredit :one
-SELECT post_store_credit($1, $2::bigint, $3::text,
-                         NULL::uuid, $4::text,
-                         $5::uuid)
+SELECT grant_store_credit(
+    $1, $2::bigint, $3::text,
+    $4::uuid, $5::uuid
+)::uuid AS entry_id
 `
 
 type PostStoreCreditParams struct {
-	UserID         uuid.UUID
-	AmountCents    int64
-	Reason         string
-	IdempotencyKey string
-	ActorUserID    uuid.NullUUID
+	UserID      uuid.UUID
+	AmountCents int64
+	Reason      string
+	ActorUserID uuid.UUID
+	OperationID uuid.UUID
 }
 
 // The casts are what make the nullability explicit: sqlc reads a bare parameter
@@ -7661,12 +7918,12 @@ func (q *Queries) PostStoreCredit(ctx context.Context, arg PostStoreCreditParams
 		arg.UserID,
 		arg.AmountCents,
 		arg.Reason,
-		arg.IdempotencyKey,
 		arg.ActorUserID,
+		arg.OperationID,
 	)
-	var post_store_credit uuid.UUID
-	err := row.Scan(&post_store_credit)
-	return post_store_credit, err
+	var entry_id uuid.UUID
+	err := row.Scan(&entry_id)
+	return entry_id, err
 }
 
 const productBySlug = `-- name: ProductBySlug :one
@@ -8114,7 +8371,7 @@ INSERT INTO shipping_method_versions (method_id, name, carrier, name_en, carrier
                                       fee_cents, free_over_cents)
 VALUES ($1, $2, nullif($3::text, ''),
         nullif($4::text, ''), nullif($5::text, ''),
-        $6, nullif($7, 0))
+        $6, nullif($7::bigint, 0))
 RETURNING id
 `
 
@@ -8125,7 +8382,7 @@ type PublishShippingVersionParams struct {
 	NameEn        string
 	CarrierEn     string
 	FeeCents      int64
-	FreeOverCents interface{}
+	FreeOverCents int64
 }
 
 // An INSERT and never an UPDATE: shipping_method_versions_append_only refuses
@@ -8289,6 +8546,58 @@ func (q *Queries) RecentMedia(ctx context.Context, limit int32) ([]RecentMediaRo
 	return items, nil
 }
 
+const reconcileInvalidInvoiceAllowance = `-- name: ReconcileInvalidInvoiceAllowance :one
+SELECT reconcile_invalid_invoice_allowance(
+    $1::uuid,
+    $2::uuid,
+    $3::uuid,
+    $4::text,
+    $5::text,
+    $6,
+    $7::bigint,
+    $8::text[],
+    $9::integer[],
+    $10::bigint[],
+    $11::bigint[]
+)::bigint AS refrozen_amount_cents
+`
+
+type ReconcileInvalidInvoiceAllowanceParams struct {
+	OperationID     uuid.UUID
+	LeaseOwner      uuid.UUID
+	DocumentID      uuid.UUID
+	InvoiceNumber   string
+	AllowanceNumber string
+	IssuedAt        time.Time
+	AmountCents     int64
+	Descriptions    []string
+	Quantities      []int32
+	UnitPriceCents  []int64
+	LineAmountCents []int64
+}
+
+// Atomically accept an exact authoritative provider invalidation, void the old
+// local allowance, and refreeze the still-unsent replacement operation from
+// current settled refunds. The operation id and its audit identity are kept.
+func (q *Queries) ReconcileInvalidInvoiceAllowance(ctx context.Context, arg ReconcileInvalidInvoiceAllowanceParams) (int64, error) {
+	row := q.db.QueryRow(ctx, reconcileInvalidInvoiceAllowance,
+		arg.OperationID,
+		arg.LeaseOwner,
+		arg.DocumentID,
+		arg.InvoiceNumber,
+		arg.AllowanceNumber,
+		arg.IssuedAt,
+		arg.AmountCents,
+		arg.Descriptions,
+		arg.Quantities,
+		arg.UnitPriceCents,
+		arg.LineAmountCents,
+	)
+	var refrozen_amount_cents int64
+	err := row.Scan(&refrozen_amount_cents)
+	return refrozen_amount_cents, err
+}
+
 const recordAuditEvent = `-- name: RecordAuditEvent :one
 SELECT record_audit_event($1, $2::text, $3::text,
                           $4::uuid,
@@ -8395,68 +8704,54 @@ func (q *Queries) RecordExpiredPayment(ctx context.Context, arg RecordExpiredPay
 	return record_expired_payment, err
 }
 
-const recordInvoiceDocument = `-- name: RecordInvoiceDocument :one
-INSERT INTO invoice_documents (order_id, kind, original_id, number, amount_cents, provider_ref, issued_at)
-VALUES ($1, $2::text, $3::uuid, $4::text,
-        $5::bigint, nullif($6::text, ''), $7)
-RETURNING id
+const recordInvalidInvoiceAllowance = `-- name: RecordInvalidInvoiceAllowance :one
+SELECT record_invalid_invoice_allowance(
+    $1::uuid,
+    $2::uuid,
+    $3::text,
+    $4::text,
+    $5,
+    $6::bigint,
+    $7::text[],
+    $8::integer[],
+    $9::bigint[],
+    $10::bigint[]
+)::uuid AS document_id
 `
 
-type RecordInvoiceDocumentParams struct {
-	OrderID     uuid.UUID
-	Kind        string
-	OriginalID  uuid.NullUUID
-	Number      string
-	AmountCents int64
-	ProviderRef string
-	IssuedAt    time.Time
+type RecordInvalidInvoiceAllowanceParams struct {
+	OperationID     uuid.UUID
+	LeaseOwner      uuid.UUID
+	InvoiceNumber   string
+	AllowanceNumber string
+	IssuedAt        time.Time
+	AmountCents     int64
+	Descriptions    []string
+	Quantities      []int32
+	UnitPriceCents  []int64
+	LineAmountCents []int64
 }
 
-// File an issued document, AFTER the provider accepted it: the number is theirs
-// to allocate, and invoice_documents_number_present cannot tell an invented one
-// from a real one.
-func (q *Queries) RecordInvoiceDocument(ctx context.Context, arg RecordInvoiceDocumentParams) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, recordInvoiceDocument,
-		arg.OrderID,
-		arg.Kind,
-		arg.OriginalID,
-		arg.Number,
-		arg.AmountCents,
-		arg.ProviderRef,
+// A sent operation can be recovered after ECPay issued and then invalidated its
+// document before local settlement. Persist that exact provider history as a
+// voided document, then reject/release the operation so a new claim can derive
+// the still-unrelieved amount.
+func (q *Queries) RecordInvalidInvoiceAllowance(ctx context.Context, arg RecordInvalidInvoiceAllowanceParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, recordInvalidInvoiceAllowance,
+		arg.OperationID,
+		arg.LeaseOwner,
+		arg.InvoiceNumber,
+		arg.AllowanceNumber,
 		arg.IssuedAt,
-	)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
-}
-
-const recordInvoiceLine = `-- name: RecordInvoiceLine :exec
-INSERT INTO invoice_document_lines
-    (document_id, description, quantity, unit_price_cents, amount_cents, tax_type, position)
-VALUES ($1, $2::text, $3::integer,
-        $4::bigint, $5::bigint, 'taxable', $6::integer)
-`
-
-type RecordInvoiceLineParams struct {
-	DocumentID     uuid.UUID
-	Description    string
-	Quantity       int32
-	UnitPriceCents int64
-	AmountCents    int64
-	Position       int32
-}
-
-// The lines of an issued document, filed with it.
-func (q *Queries) RecordInvoiceLine(ctx context.Context, arg RecordInvoiceLineParams) error {
-	_, err := q.db.Exec(ctx, recordInvoiceLine,
-		arg.DocumentID,
-		arg.Description,
-		arg.Quantity,
-		arg.UnitPriceCents,
 		arg.AmountCents,
-		arg.Position,
+		arg.Descriptions,
+		arg.Quantities,
+		arg.UnitPriceCents,
+		arg.LineAmountCents,
 	)
-	return err
+	var document_id uuid.UUID
+	err := row.Scan(&document_id)
+	return document_id, err
 }
 
 const recordNewsletterSend = `-- name: RecordNewsletterSend :exec
@@ -8530,6 +8825,196 @@ INSERT INTO order_events (order_id, kind) VALUES ($1, 'placed')
 
 func (q *Queries) RecordPlacedEvent(ctx context.Context, orderID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, recordPlacedEvent, orderID)
+	return err
+}
+
+const recordRefundAPIRejection = `-- name: RecordRefundAPIRejection :one
+SELECT record_refund_api_rejection(
+    $1::uuid, $2::uuid, $3::text
+)
+`
+
+type RecordRefundAPIRejectionParams struct {
+	RefundID    uuid.UUID
+	ActorUserID uuid.UUID
+	RequestID   string
+}
+
+// Only a rejection specifically returned by Stripe's CREATE endpoint takes the
+// no-provider-object door. Lookup, transport and decode errors stay pending.
+func (q *Queries) RecordRefundAPIRejection(ctx context.Context, arg RecordRefundAPIRejectionParams) (bool, error) {
+	row := q.db.QueryRow(ctx, recordRefundAPIRejection, arg.RefundID, arg.ActorUserID, arg.RequestID)
+	var record_refund_api_rejection bool
+	err := row.Scan(&record_refund_api_rejection)
+	return record_refund_api_rejection, err
+}
+
+const recordRefundCancelled = `-- name: RecordRefundCancelled :one
+SELECT record_refund_cancelled(
+    $1::uuid, $2::text, $3::uuid, $4::text
+)
+`
+
+type RecordRefundCancelledParams struct {
+	RefundID    uuid.UUID
+	ProviderRef string
+	ActorUserID uuid.UUID
+	RequestID   string
+}
+
+func (q *Queries) RecordRefundCancelled(ctx context.Context, arg RecordRefundCancelledParams) (bool, error) {
+	row := q.db.QueryRow(ctx, recordRefundCancelled,
+		arg.RefundID,
+		arg.ProviderRef,
+		arg.ActorUserID,
+		arg.RequestID,
+	)
+	var record_refund_cancelled bool
+	err := row.Scan(&record_refund_cancelled)
+	return record_refund_cancelled, err
+}
+
+const recordRefundFailed = `-- name: RecordRefundFailed :one
+SELECT record_refund_failed(
+    $1::uuid, $2::text, $3::uuid, $4::text
+)
+`
+
+type RecordRefundFailedParams struct {
+	RefundID    uuid.UUID
+	ProviderRef string
+	ActorUserID uuid.UUID
+	RequestID   string
+}
+
+func (q *Queries) RecordRefundFailed(ctx context.Context, arg RecordRefundFailedParams) (bool, error) {
+	row := q.db.QueryRow(ctx, recordRefundFailed,
+		arg.RefundID,
+		arg.ProviderRef,
+		arg.ActorUserID,
+		arg.RequestID,
+	)
+	var record_refund_failed bool
+	err := row.Scan(&record_refund_failed)
+	return record_refund_failed, err
+}
+
+const recordRefundPending = `-- name: RecordRefundPending :one
+SELECT record_refund_pending(
+    $1::uuid, $2::text, $3::uuid, $4::text
+)
+`
+
+type RecordRefundPendingParams struct {
+	RefundID    uuid.UUID
+	ProviderRef string
+	ActorUserID uuid.UUID
+	RequestID   string
+}
+
+// Each provider state has its own door. A caller cannot pair a status with the
+// wrong identity/timestamp shape through one stringly settle function.
+func (q *Queries) RecordRefundPending(ctx context.Context, arg RecordRefundPendingParams) (bool, error) {
+	row := q.db.QueryRow(ctx, recordRefundPending,
+		arg.RefundID,
+		arg.ProviderRef,
+		arg.ActorUserID,
+		arg.RequestID,
+	)
+	var record_refund_pending bool
+	err := row.Scan(&record_refund_pending)
+	return record_refund_pending, err
+}
+
+const recordRefundRequiresAction = `-- name: RecordRefundRequiresAction :one
+SELECT record_refund_requires_action(
+    $1::uuid, $2::text, $3::uuid, $4::text
+)
+`
+
+type RecordRefundRequiresActionParams struct {
+	RefundID    uuid.UUID
+	ProviderRef string
+	ActorUserID uuid.UUID
+	RequestID   string
+}
+
+func (q *Queries) RecordRefundRequiresAction(ctx context.Context, arg RecordRefundRequiresActionParams) (bool, error) {
+	row := q.db.QueryRow(ctx, recordRefundRequiresAction,
+		arg.RefundID,
+		arg.ProviderRef,
+		arg.ActorUserID,
+		arg.RequestID,
+	)
+	var record_refund_requires_action bool
+	err := row.Scan(&record_refund_requires_action)
+	return record_refund_requires_action, err
+}
+
+const recordRefundSucceeded = `-- name: RecordRefundSucceeded :one
+SELECT record_refund_succeeded(
+    $1::uuid, $2::text, $3::uuid, $4::text
+)
+`
+
+type RecordRefundSucceededParams struct {
+	RefundID    uuid.UUID
+	ProviderRef string
+	ActorUserID uuid.UUID
+	RequestID   string
+}
+
+func (q *Queries) RecordRefundSucceeded(ctx context.Context, arg RecordRefundSucceededParams) (bool, error) {
+	row := q.db.QueryRow(ctx, recordRefundSucceeded,
+		arg.RefundID,
+		arg.ProviderRef,
+		arg.ActorUserID,
+		arg.RequestID,
+	)
+	var record_refund_succeeded bool
+	err := row.Scan(&record_refund_succeeded)
+	return record_refund_succeeded, err
+}
+
+const recordReturnRefundedEvent = `-- name: RecordReturnRefundedEvent :exec
+INSERT INTO order_events (
+    order_id, kind, note, actor_user_id, return_request_id
+)
+SELECT r.order_id, 'refunded', (
+           SELECT rf.provider_ref
+           FROM refunds rf
+           WHERE rf.return_request_id = r.id AND rf.status = 'succeeded'
+           ORDER BY rf.attempt_no DESC
+           LIMIT 1
+       ), $1, r.id
+FROM return_requests r
+WHERE r.id = $2
+  AND r.status IN ('approved', 'completed')
+  AND (
+      EXISTS (
+          SELECT 1 FROM refunds rf
+          WHERE rf.return_request_id = r.id AND rf.status = 'succeeded'
+      )
+      OR EXISTS (
+          SELECT 1 FROM store_credit_entries e
+          WHERE e.idempotency_key = 'return-credit:' || r.id::text
+            AND e.amount_cents > 0
+      )
+  )
+ON CONFLICT (return_request_id) WHERE return_request_id IS NOT NULL DO NOTHING
+`
+
+type RecordReturnRefundedEventParams struct {
+	ActorUserID     uuid.NullUUID
+	ReturnRequestID uuid.UUID
+}
+
+// A payout source commits before this customer-visible append. Keying the row
+// on the return makes a retry safe after a transient database/context failure.
+// The WHERE is a second authority: no caller can announce money which neither
+// the provider ledger nor the store-credit ledger says has moved.
+func (q *Queries) RecordReturnRefundedEvent(ctx context.Context, arg RecordReturnRefundedEventParams) error {
+	_, err := q.db.Exec(ctx, recordReturnRefundedEvent, arg.ActorUserID, arg.ReturnRequestID)
 	return err
 }
 
@@ -8611,26 +9096,22 @@ func (q *Queries) RedeemCoupon(ctx context.Context, arg RedeemCouponParams) (uui
 
 const redeemPoints = `-- name: RedeemPoints :one
 
-SELECT redeem_loyalty_points($1, $2::bigint, $3::bigint, $4::text)
+SELECT redeem_loyalty_points(
+    $1::uuid, $2::bigint, $3::uuid
+)
 `
 
 type RedeemPointsParams struct {
-	AccountID uuid.UUID
-	Points    int64
-	Cents     int64
-	Key       string
+	UserID      uuid.UUID
+	Points      int64
+	OperationID uuid.UUID
 }
 
 // No award query here: the award runs inside the capture's own transaction,
 // from internal/payment.
 // Spend points and post the credit they bought, in one transaction.
 func (q *Queries) RedeemPoints(ctx context.Context, arg RedeemPointsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, redeemPoints,
-		arg.AccountID,
-		arg.Points,
-		arg.Cents,
-		arg.Key,
-	)
+	row := q.db.QueryRow(ctx, redeemPoints, arg.UserID, arg.Points, arg.OperationID)
 	var redeem_loyalty_points int64
 	err := row.Scan(&redeem_loyalty_points)
 	return redeem_loyalty_points, err
@@ -8648,32 +9129,46 @@ func (q *Queries) RefreshCopurchases(ctx context.Context) (int32, error) {
 	return refresh_copurchases, err
 }
 
-const refundedForOrder = `-- name: RefundedForOrder :one
-SELECT (card_cents + credit_cents)::bigint AS refunded_cents
-FROM order_refunds
-WHERE order_number = $1::text
+const refundExecution = `-- name: RefundExecution :one
+SELECT r.id AS refund_id, r.request_key,
+       p.provider_ref AS payment_provider_ref,
+       r.amount_cents, r.status
+FROM refunds r
+JOIN payments p ON p.id = r.payment_id
+WHERE r.id = $1
+  AND r.status IN ('pending', 'requires_action')
 `
 
-// What the CARD has sent back on this order. The credit half is
-// OrderCreditPosition's `returned`, which is the one definition of that figure
-// and the reason this query does not sum the ledger itself.
-// Both sources, from the one view: a refund is paid to the card, to store
-// credit, or split, and an allowance may not relieve more than the sum.
-func (q *Queries) RefundedForOrder(ctx context.Context, orderNumber string) (int64, error) {
-	row := q.db.QueryRow(ctx, refundedForOrder, orderNumber)
-	var refunded_cents int64
-	err := row.Scan(&refunded_cents)
-	return refunded_cents, err
+type RefundExecutionRow struct {
+	RefundID           uuid.UUID
+	RequestKey         string
+	PaymentProviderRef string
+	AmountCents        int64
+	Status             string
+}
+
+// A separate statement deliberately reads after the claim committed. A SELECT
+// invoking a mutating function keeps its outer snapshot and cannot see the row
+// that function just inserted.
+func (q *Queries) RefundExecution(ctx context.Context, refundID uuid.UUID) (RefundExecutionRow, error) {
+	row := q.db.QueryRow(ctx, refundExecution, refundID)
+	var i RefundExecutionRow
+	err := row.Scan(
+		&i.RefundID,
+		&i.RequestKey,
+		&i.PaymentProviderRef,
+		&i.AmountCents,
+		&i.Status,
+	)
+	return i, err
 }
 
 const registerWarranty = `-- name: RegisterWarranty :execrows
 INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, serial_number, expires_on)
 SELECT ol.id, $1::smallint, $2, nullif($3::text, ''),
-       (shop_day(delivered.at) + make_interval(months => p.warranty_months))::date
+       (shop_day(delivered.at) + make_interval(months => ol.warranty_months))::date
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
-JOIN product_variants pv ON pv.id = ol.variant_id
-JOIN products p ON p.id = pv.product_id
 JOIN LATERAL (
     SELECT min(s.delivered_at) AS at, sum(sl.quantity) AS units
     FROM order_shipment_lines sl
@@ -8682,7 +9177,7 @@ JOIN LATERAL (
 ) delivered ON delivered.at IS NOT NULL
 WHERE ol.id = $4
   AND o.user_id = $2
-  AND p.warranty_months IS NOT NULL
+  AND ol.warranty_months IS NOT NULL
   AND $1::smallint <= delivered.units
 `
 
@@ -8694,8 +9189,9 @@ type RegisterWarrantyParams struct {
 }
 
 // Register one unit. expires_on is computed here from the delivery date and the
-// product's term, never passed in, and min() across the parcels runs a split
-// line from the shop's calendar day on which the first box arrived.
+// promise copied onto the order, never from today's mutable catalogue. min()
+// across the parcels runs a split line from the shop's calendar day on which
+// the first box arrived.
 func (q *Queries) RegisterWarranty(ctx context.Context, arg RegisterWarrantyParams) (int64, error) {
 	result, err := q.db.Exec(ctx, registerWarranty,
 		arg.UnitNo,
@@ -8715,14 +9211,13 @@ SELECT
     ol.product_name,
     ol.variant_label,
     p.slug AS product_slug,
-    p.warranty_months,
-    coalesce(p.warranty_note, '') AS warranty_note,
+    ol.warranty_months,
+    coalesce(ol.warranty_note, '') AS warranty_note,
     coalesce(delivered.units, 0)::integer AS delivered_units,
     coalesce(registered.units, 0)::integer AS registered_units
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
-LEFT JOIN product_variants pv ON pv.id = ol.variant_id
-LEFT JOIN products p ON p.id = pv.product_id
+LEFT JOIN products p ON p.id = ol.product_id
 LEFT JOIN LATERAL (
     -- Only the parcels that ARRIVED: an order shipped in two boxes of which one
     -- has landed can register what landed and no more.
@@ -8786,6 +9281,25 @@ func (q *Queries) RegistrableLines(ctx context.Context, arg RegistrableLinesPara
 		return nil, err
 	}
 	return items, nil
+}
+
+const rejectInvoiceOperation = `-- name: RejectInvoiceOperation :one
+SELECT reject_invoice_operation(
+    $1::uuid, $2::uuid, $3::text
+)::boolean AS rejected
+`
+
+type RejectInvoiceOperationParams struct {
+	OperationID uuid.UUID
+	LeaseOwner  uuid.UUID
+	LastError   string
+}
+
+func (q *Queries) RejectInvoiceOperation(ctx context.Context, arg RejectInvoiceOperationParams) (bool, error) {
+	row := q.db.QueryRow(ctx, rejectInvoiceOperation, arg.OperationID, arg.LeaseOwner, arg.LastError)
+	var rejected bool
+	err := row.Scan(&rejected)
+	return rejected, err
 }
 
 const relatedProducts = `-- name: RelatedProducts :many
@@ -8908,24 +9422,6 @@ func (q *Queries) ReleaseCompletePayment(ctx context.Context, providerRef string
 	return release_complete_payment, err
 }
 
-const releaseInvoiceClaim = `-- name: ReleaseInvoiceClaim :execrows
-DELETE FROM invoice_documents
-WHERE id = $1 AND status = 'pending'
-`
-
-// A claim the provider REFUSED. ECPay answering with a business verdict proves
-// nothing was filed, so the reservation is the only thing left and holding it
-// would lock that refund out of ever being relieved. A transport failure is a
-// different case and keeps its claim: whether the 加值中心 has the document is
-// not knowable from here, and clearing it would let the next press file twice.
-func (q *Queries) ReleaseInvoiceClaim(ctx context.Context, id uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, releaseInvoiceClaim, id)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const releasePaymentEvent = `-- name: ReleasePaymentEvent :one
 SELECT release_payment_event($1::text)
 `
@@ -8999,16 +9495,28 @@ func (q *Queries) RemoveProductSpec(ctx context.Context, arg RemoveProductSpecPa
 	return result.RowsAffected(), nil
 }
 
-const removeTOTP = `-- name: RemoveTOTP :execrows
-DELETE FROM staff_totp_credentials WHERE user_id = $1
+const removeTOTPAndSessions = `-- name: RemoveTOTPAndSessions :one
+WITH removed AS (
+    DELETE FROM staff_totp_credentials AS credential
+    WHERE credential.user_id = $1
+    RETURNING credential.user_id
+), ended AS (
+    DELETE FROM sessions AS session
+    USING removed r
+    WHERE session.user_id = r.user_id
+    RETURNING session.token_hash
+)
+SELECT EXISTS (SELECT 1 FROM removed)::boolean AS removed
+FROM (SELECT count(*) FROM ended) AS ended_once
 `
 
-func (q *Queries) RemoveTOTP(ctx context.Context, userID uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, removeTOTP, userID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+// Removing a factor and ending every session it admitted are one security
+// change. If either DELETE fails, PostgreSQL rolls the whole statement back.
+func (q *Queries) RemoveTOTPAndSessions(ctx context.Context, userID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, removeTOTPAndSessions, userID)
+	var removed bool
+	err := row.Scan(&removed)
+	return removed, err
 }
 
 const removeWishlistItem = `-- name: RemoveWishlistItem :exec
@@ -9218,14 +9726,21 @@ func (q *Queries) RequestNewsletterConfirm(ctx context.Context, arg RequestNewsl
 	return id, err
 }
 
-const requestStockNotice = `-- name: RequestStockNotice :exec
-INSERT INTO stock_notifications (variant_id, user_id, email, locale)
-VALUES ($1, $2, $3::text, $4)
-ON CONFLICT (variant_id, lower(email)) WHERE notified_at IS NULL DO NOTHING
+const requestStockNotice = `-- name: RequestStockNotice :one
+WITH eligible AS MATERIALIZED (
+    SELECT lock_stock_notice_variant($1, $2::text) AS id
+), inserted AS (
+    INSERT INTO stock_notifications (variant_id, user_id, email, locale)
+    SELECT id, $3, $4::text, $5 FROM eligible WHERE id IS NOT NULL
+    ON CONFLICT (variant_id, lower(email)) WHERE notified_at IS NULL DO NOTHING
+    RETURNING 1
+)
+SELECT EXISTS (SELECT 1 FROM eligible WHERE id IS NOT NULL)::boolean AS eligible
 `
 
 type RequestStockNoticeParams struct {
 	VariantID uuid.UUID
+	Slug      string
 	UserID    uuid.NullUUID
 	Email     string
 	Locale    string
@@ -9233,31 +9748,62 @@ type RequestStockNoticeParams struct {
 
 // Idempotent through the partial unique index stock_notifications_pending_key, so
 // somebody notified about one restock may ask again for the next.
-func (q *Queries) RequestStockNotice(ctx context.Context, arg RequestStockNoticeParams) error {
-	_, err := q.db.Exec(ctx, requestStockNotice,
+// Lock the variant while deciding it is out of stock. A concurrent restock then
+// either waits and claims this row, or commits first and makes PostgreSQL recheck
+// the predicate so no permanently-late pending notice is inserted.
+func (q *Queries) RequestStockNotice(ctx context.Context, arg RequestStockNoticeParams) (bool, error) {
+	row := q.db.QueryRow(ctx, requestStockNotice,
 		arg.VariantID,
+		arg.Slug,
 		arg.UserID,
 		arg.Email,
 		arg.Locale,
 	)
-	return err
+	var eligible bool
+	err := row.Scan(&eligible)
+	return eligible, err
+}
+
+const rescheduleInvoiceOperation = `-- name: RescheduleInvoiceOperation :one
+SELECT reschedule_invoice_operation(
+    $1::uuid, $2::uuid, $3::text, $4::interval
+)::boolean AS rescheduled
+`
+
+type RescheduleInvoiceOperationParams struct {
+	OperationID uuid.UUID
+	LeaseOwner  uuid.UUID
+	LastError   string
+	Backoff     pgtype.Interval
+}
+
+func (q *Queries) RescheduleInvoiceOperation(ctx context.Context, arg RescheduleInvoiceOperationParams) (bool, error) {
+	row := q.db.QueryRow(ctx, rescheduleInvoiceOperation,
+		arg.OperationID,
+		arg.LeaseOwner,
+		arg.LastError,
+		arg.Backoff,
+	)
+	var rescheduled bool
+	err := row.Scan(&rescheduled)
+	return rescheduled, err
 }
 
 const rescheduleOutbox = `-- name: RescheduleOutbox :exec
 UPDATE outbox_messages
-SET available_at = $2, last_error = $3::text
+SET available_at = now() + $2::interval, last_error = $3::text
 WHERE id = $1
 `
 
 type RescheduleOutboxParams struct {
-	ID          uuid.UUID
-	AvailableAt time.Time
-	LastError   string
+	ID        uuid.UUID
+	Backoff   pgtype.Interval
+	LastError string
 }
 
-// Push a failed message into the future. The backoff is computed by the caller.
+// Push a failed message relative to the same database clock ClaimOutbox uses.
 func (q *Queries) RescheduleOutbox(ctx context.Context, arg RescheduleOutboxParams) error {
-	_, err := q.db.Exec(ctx, rescheduleOutbox, arg.ID, arg.AvailableAt, arg.LastError)
+	_, err := q.db.Exec(ctx, rescheduleOutbox, arg.ID, arg.Backoff, arg.LastError)
 	return err
 }
 
@@ -9432,55 +9978,40 @@ func (q *Queries) ReturnLines(ctx context.Context, requestIds []uuid.UUID) ([]Re
 
 const returnPayoutFacts = `-- name: ReturnPayoutFacts :many
 WITH selected AS (
-    SELECT r.id, r.order_id, o.user_id,
+    SELECT r.id, r.order_id, o.user_id, r.status,
            return_refundable_amount(r.id)::bigint AS refundable_cents,
-           p.id AS payment_id,
-           coalesce(p.captured_amount_cents, 0)::bigint AS captured_cents
+           coalesce(r.card_refund_cents, 0)::bigint AS card_refund_cents,
+           coalesce(r.credit_refund_cents, 0)::bigint AS credit_refund_cents
     FROM return_requests r
     JOIN orders o ON o.id = r.order_id
-    LEFT JOIN payments p ON p.order_id = o.id AND p.status = 'succeeded'
     WHERE r.id = ANY($1::uuid[])
 )
 SELECT s.id AS return_request_id,
        s.refundable_cents,
-       s.captured_cents,
+       s.card_refund_cents,
+       s.credit_refund_cents,
        (s.user_id IS NOT NULL)::boolean AS has_account,
        coalesce((
            SELECT sum(rf.amount_cents)
            FROM refunds rf
-           WHERE rf.payment_id = s.payment_id
-             AND rf.status IN ('pending', 'requires_action', 'succeeded')
-             AND rf.request_key <> 'return:' || s.id::text
-       ), 0)::bigint AS refunded_cents,
-       coalesce((
-           SELECT -sum(sc.amount_cents) FILTER (WHERE sc.amount_cents < 0)
-           FROM store_credit_entries sc
-           WHERE sc.order_id = s.order_id
-             AND sc.idempotency_key <> 'return-credit:' || s.id::text
-       ), 0)::bigint AS credit_spent_cents,
-       coalesce((
-           SELECT sum(sc.amount_cents) FILTER (WHERE sc.amount_cents > 0)
-           FROM store_credit_entries sc
-           WHERE sc.order_id = s.order_id
-             AND sc.idempotency_key <> 'return-credit:' || s.id::text
-       ), 0)::bigint AS credit_returned_cents,
-       EXISTS (
-           SELECT 1 FROM refunds rf
            WHERE rf.return_request_id = s.id AND rf.status = 'succeeded'
-       )::boolean AS card_settled,
-       EXISTS (
-           SELECT 1 FROM refunds rf
-           WHERE rf.return_request_id = s.id AND rf.status IN ('failed', 'cancelled')
-       )::boolean AS card_terminal,
-       EXISTS (
-           SELECT 1 FROM store_credit_entries sc
+       ), 0)::bigint AS card_paid_cents,
+       coalesce((
+           SELECT sum(sc.amount_cents)
+           FROM store_credit_entries sc
            WHERE sc.idempotency_key = 'return-credit:' || s.id::text
-       )::boolean AS credit_posted,
+       ), 0)::bigint AS credit_paid_cents,
+       EXISTS (
+           SELECT 1 FROM order_events e
+           WHERE e.return_request_id = s.id AND e.kind = 'refunded'
+       )::boolean AS refund_event_recorded,
        CASE
-           WHEN s.user_id IS NULL OR s.refundable_cents <= 0 THEN false
+           -- Erasure detaches the order owner, but deliberately retains the
+           -- order's award lot and loyalty account. A money-settled return may
+           -- therefore still owe its idempotent clawback after user deletion.
+           WHEN s.refundable_cents <= 0 THEN false
            ELSE (
-               return_loyalty_points_requested(
-                   s.order_id, s.id, s.refundable_cents) > 0
+			   return_loyalty_points_allocation(s.id) > 0
                AND EXISTS (
                    SELECT 1 FROM loyalty_entries e
                    WHERE e.order_id = s.order_id AND e.kind = 'award'
@@ -9498,28 +10029,20 @@ ORDER BY s.id
 type ReturnPayoutFactsRow struct {
 	ReturnRequestID     uuid.UUID
 	RefundableCents     int64
-	CapturedCents       int64
+	CardRefundCents     int64
+	CreditRefundCents   int64
 	HasAccount          bool
-	RefundedCents       int64
-	CreditSpentCents    int64
-	CreditReturnedCents int64
-	CardSettled         bool
-	CardTerminal        bool
-	CreditPosted        bool
+	CardPaidCents       int64
+	CreditPaidCents     int64
+	RefundEventRecorded bool
 	PointsOutstanding   bool
 }
 
-// One row per return, carrying every durable fact needed to decide what its
-// payout can still move. The queue asks for the whole visible set in one call;
-// an approved retry asks for its one id through the same projection. Keeping
-// the source split and completion probes here prevents the page and retry from
-// acquiring two definitions as well as avoiding a query fan-out per row.
-//
-// The refund total is deliberately per PAYMENT and excludes this return's own
-// request key. The credit figures are deliberately an order position split by
-// direction and exclude this return's own compensation. Neither question can
-// be answered by the per-order order_refunds view without making a stalled
-// retry count the very claim it is trying to resume.
+// One row per return, carrying its frozen source allocation and exact durable
+// settlement. The queue asks for the whole visible set in one call; an approved
+// retry asks for its one id through the same projection. Provider attempt state
+// is deliberately absent: pending work reuses its key and a known terminal
+// generation appends a successor, so neither makes the recovery button unsafe.
 func (q *Queries) ReturnPayoutFacts(ctx context.Context, requestIds []uuid.UUID) ([]ReturnPayoutFactsRow, error) {
 	rows, err := q.db.Query(ctx, returnPayoutFacts, requestIds)
 	if err != nil {
@@ -9532,14 +10055,12 @@ func (q *Queries) ReturnPayoutFacts(ctx context.Context, requestIds []uuid.UUID)
 		if err := rows.Scan(
 			&i.ReturnRequestID,
 			&i.RefundableCents,
-			&i.CapturedCents,
+			&i.CardRefundCents,
+			&i.CreditRefundCents,
 			&i.HasAccount,
-			&i.RefundedCents,
-			&i.CreditSpentCents,
-			&i.CreditReturnedCents,
-			&i.CardSettled,
-			&i.CardTerminal,
-			&i.CreditPosted,
+			&i.CardPaidCents,
+			&i.CreditPaidCents,
+			&i.RefundEventRecorded,
 			&i.PointsOutstanding,
 		); err != nil {
 			return nil, err
@@ -9569,7 +10090,9 @@ LEFT JOIN LATERAL (
     SELECT max(s.delivered_at) AS delivered_at
     FROM order_shipments s WHERE s.order_id = o.id
 ) d ON true
-ORDER BY (r.status = 'requested') DESC, r.created_at DESC
+ORDER BY return_payout_outstanding(r.id) DESC,
+         (r.status = 'requested') DESC,
+         r.created_at DESC
 LIMIT $1
 `
 
@@ -9593,6 +10116,9 @@ type ReturnQueueRow struct {
 // handed over at 07:00 Taipei is the previous day in UTC, which closes an
 // unwaivable window a day early. Undelivered is neither answer, because the
 // window has not started.
+// Recovery is the only retry door. Rank it before the intake queue and before
+// LIMIT, or fifty newer requests can make an older approved-but-unpaid customer
+// disappear from every actionable screen.
 func (q *Queries) ReturnQueue(ctx context.Context, limit int32) ([]ReturnQueueRow, error) {
 	rows, err := q.db.Query(ctx, returnQueue, limit)
 	if err != nil {
@@ -9837,31 +10363,13 @@ func (q *Queries) ReverseOrderCredit(ctx context.Context, orderID uuid.UUID) (in
 }
 
 const reverseReturnPoints = `-- name: ReverseReturnPoints :one
-WITH args AS (
-    SELECT $1::uuid AS order_id,
-           $2::uuid AS return_id,
-           $3::bigint AS refunded_cents
-)
-SELECT reverse_order_points(
-    args.order_id,
-    args.return_id,
-    return_loyalty_points_requested(
-        args.order_id, args.return_id, args.refunded_cents)
-)::bigint AS points_reversed
-FROM args
+SELECT reverse_return_points($1::uuid)::bigint AS points_reversed
 `
 
-type ReverseReturnPointsParams struct {
-	OrderID       uuid.UUID
-	ReturnID      uuid.UUID
-	RefundedCents int64
-}
-
-// The durable award lot, rather than today's tier, owns the earn arithmetic.
-// Request the refunded proportion of that actual award, then let the posting
-// function clamp it to the lot's unconsumed remainder.
-func (q *Queries) ReverseReturnPoints(ctx context.Context, arg ReverseReturnPointsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, reverseReturnPoints, arg.OrderID, arg.ReturnID, arg.RefundedCents)
+// The return is the sole capability. The database derives its order, durable
+// refund amount and award proportion after verifying that the payout landed.
+func (q *Queries) ReverseReturnPoints(ctx context.Context, returnID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, reverseReturnPoints, returnID)
 	var points_reversed int64
 	err := row.Scan(&points_reversed)
 	return points_reversed, err
@@ -9971,6 +10479,7 @@ func (q *Queries) RunningCampaign(ctx context.Context, arg RunningCampaignParams
 const runningCampaigns = `-- name: RunningCampaigns :many
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, $2::text) AS title,
        c.ends_at,
+       extract(epoch FROM (c.ends_at - now()))::bigint AS remaining_seconds,
        (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products
 FROM sale_campaigns c
 WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
@@ -9984,11 +10493,12 @@ type RunningCampaignsParams struct {
 }
 
 type RunningCampaignsRow struct {
-	ID       uuid.UUID
-	Slug     string
-	Title    string
-	EndsAt   time.Time
-	Products int64
+	ID               uuid.UUID
+	Slug             string
+	Title            string
+	EndsAt           time.Time
+	RemainingSeconds int64
+	Products         int64
 }
 
 func (q *Queries) RunningCampaigns(ctx context.Context, arg RunningCampaignsParams) ([]RunningCampaignsRow, error) {
@@ -10005,6 +10515,7 @@ func (q *Queries) RunningCampaigns(ctx context.Context, arg RunningCampaignsPara
 			&i.Slug,
 			&i.Title,
 			&i.EndsAt,
+			&i.RemainingSeconds,
 			&i.Products,
 		); err != nil {
 			return nil, err
@@ -10526,49 +11037,105 @@ func (q *Queries) SetZoneSurcharge(ctx context.Context, arg SetZoneSurchargePara
 	return err
 }
 
-const settleInvoiceDocument = `-- name: SettleInvoiceDocument :execrows
-UPDATE invoice_documents
-SET number = $1::text, provider_ref = nullif($2::text, ''),
-    issued_at = $3, status = 'issued'
-WHERE id = $4 AND status = 'pending'
+const settleInvoiceAllowance = `-- name: SettleInvoiceAllowance :one
+SELECT settle_invoice_allowance(
+    $1::uuid,
+    $2::uuid,
+    $3::text,
+    $4,
+    $5::text[],
+    $6::integer[],
+    $7::bigint[],
+    $8::bigint[]
+)::uuid AS document_id
 `
 
-type SettleInvoiceDocumentParams struct {
-	Number      string
-	ProviderRef string
-	IssuedAt    time.Time
-	ID          uuid.UUID
+type SettleInvoiceAllowanceParams struct {
+	OperationID    uuid.UUID
+	LeaseOwner     uuid.UUID
+	Number         string
+	IssuedAt       time.Time
+	Descriptions   []string
+	Quantities     []int32
+	UnitPriceCents []int64
+	AmountCents    []int64
 }
 
-// Settle a claim with what the provider allocated.
-func (q *Queries) SettleInvoiceDocument(ctx context.Context, arg SettleInvoiceDocumentParams) (int64, error) {
-	result, err := q.db.Exec(ctx, settleInvoiceDocument,
+func (q *Queries) SettleInvoiceAllowance(ctx context.Context, arg SettleInvoiceAllowanceParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, settleInvoiceAllowance,
+		arg.OperationID,
+		arg.LeaseOwner,
 		arg.Number,
-		arg.ProviderRef,
 		arg.IssuedAt,
-		arg.ID,
+		arg.Descriptions,
+		arg.Quantities,
+		arg.UnitPriceCents,
+		arg.AmountCents,
 	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
+	var document_id uuid.UUID
+	err := row.Scan(&document_id)
+	return document_id, err
 }
 
-const settleRefund = `-- name: SettleRefund :exec
-SELECT settle_refund($1::text, nullif($2::text, ''), $3::text)
+const settleInvoiceIssue = `-- name: SettleInvoiceIssue :one
+SELECT settle_invoice_issue(
+    $1::uuid,
+    $2::uuid,
+    $3::text,
+    $4::text,
+    $5,
+    $6::text[],
+    $7::integer[],
+    $8::bigint[],
+    $9::bigint[]
+)::uuid AS document_id
 `
 
-type SettleRefundParams struct {
-	RequestKey  string
-	ProviderRef string
-	Status      string
+type SettleInvoiceIssueParams struct {
+	OperationID    uuid.UUID
+	LeaseOwner     uuid.UUID
+	Number         string
+	RandomNumber   string
+	IssuedAt       time.Time
+	Descriptions   []string
+	Quantities     []int32
+	UnitPriceCents []int64
+	AmountCents    []int64
 }
 
-// nullif again: a failed refund has no provider reference, and settle_refund
-// coalesces NULL onto whatever is there rather than blanking it.
-func (q *Queries) SettleRefund(ctx context.Context, arg SettleRefundParams) error {
-	_, err := q.db.Exec(ctx, settleRefund, arg.RequestKey, arg.ProviderRef, arg.Status)
-	return err
+func (q *Queries) SettleInvoiceIssue(ctx context.Context, arg SettleInvoiceIssueParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, settleInvoiceIssue,
+		arg.OperationID,
+		arg.LeaseOwner,
+		arg.Number,
+		arg.RandomNumber,
+		arg.IssuedAt,
+		arg.Descriptions,
+		arg.Quantities,
+		arg.UnitPriceCents,
+		arg.AmountCents,
+	)
+	var document_id uuid.UUID
+	err := row.Scan(&document_id)
+	return document_id, err
+}
+
+const settleInvoiceVoid = `-- name: SettleInvoiceVoid :one
+SELECT settle_invoice_void(
+    $1::uuid, $2::uuid
+)::uuid AS document_id
+`
+
+type SettleInvoiceVoidParams struct {
+	OperationID uuid.UUID
+	LeaseOwner  uuid.UUID
+}
+
+func (q *Queries) SettleInvoiceVoid(ctx context.Context, arg SettleInvoiceVoidParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, settleInvoiceVoid, arg.OperationID, arg.LeaseOwner)
+	var document_id uuid.UUID
+	err := row.Scan(&document_id)
+	return document_id, err
 }
 
 const settledRefundsForOrder = `-- name: SettledRefundsForOrder :one
@@ -10935,6 +11502,7 @@ WHERE EXISTS (
     WHERE p.category_id = c.id AND p.status = 'active'
 )
 ORDER BY c.updated_at DESC
+LIMIT $1
 `
 
 type SitemapCategoriesRow struct {
@@ -10942,8 +11510,8 @@ type SitemapCategoriesRow struct {
 	UpdatedAt time.Time
 }
 
-func (q *Queries) SitemapCategories(ctx context.Context) ([]SitemapCategoriesRow, error) {
-	rows, err := q.db.Query(ctx, sitemapCategories)
+func (q *Queries) SitemapCategories(ctx context.Context, limit int32) ([]SitemapCategoriesRow, error) {
+	rows, err := q.db.Query(ctx, sitemapCategories, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -10997,30 +11565,20 @@ func (q *Queries) SitemapProducts(ctx context.Context, limit int32) ([]SitemapPr
 }
 
 const spendCredit = `-- name: SpendCredit :one
-SELECT post_store_credit($1, $2::bigint, $3::text,
-                         $4, $5::text, NULL)
+SELECT spend_store_credit($1, $2::bigint)
 `
 
 type SpendCreditParams struct {
-	UserID         uuid.UUID
-	AmountCents    int64
-	Reason         string
-	OrderID        uuid.UUID
-	IdempotencyKey string
+	OrderID     uuid.UUID
+	AmountCents int64
 }
 
 // A NEGATIVE amount, keyed on the order so a retried checkout debits once.
 func (q *Queries) SpendCredit(ctx context.Context, arg SpendCreditParams) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, spendCredit,
-		arg.UserID,
-		arg.AmountCents,
-		arg.Reason,
-		arg.OrderID,
-		arg.IdempotencyKey,
-	)
-	var post_store_credit uuid.UUID
-	err := row.Scan(&post_store_credit)
-	return post_store_credit, err
+	row := q.db.QueryRow(ctx, spendCredit, arg.OrderID, arg.AmountCents)
+	var spend_store_credit uuid.UUID
+	err := row.Scan(&spend_store_credit)
+	return spend_store_credit, err
 }
 
 const spendEmailVerification = `-- name: SpendEmailVerification :one
@@ -11222,40 +11780,41 @@ func (q *Queries) StoreCreditBalance(ctx context.Context, userID uuid.NullUUID) 
 }
 
 const strandedInvoiceClaims = `-- name: StrandedInvoiceClaims :many
-SELECT d.id, o.order_number, d.kind, d.amount_cents, d.issued_at
-FROM invoice_documents d
-JOIN orders o ON o.id = d.order_id
-WHERE d.status = 'pending'
-  AND d.issued_at < now() - interval '15 minutes'
-ORDER BY d.issued_at
+SELECT op.id AS operation_id, o.order_number, op.kind, op.status,
+       op.amount_cents, op.reconcile_attempts, op.send_attempts,
+       coalesce(op.last_error, '')::text AS last_error, op.created_at,
+       (op.kind = 'allowance'
+        AND op.status = 'pending'
+        AND op.send_attempts > op.resend_authorizations
+        AND op.last_error = 'allowance_not_yet_visible'
+        AND op.last_send_at IS NOT NULL
+        AND op.last_send_at <= now() - interval '15 minutes'
+        AND (op.lease_until IS NULL OR op.lease_until <= now()))::boolean
+           AS can_authorize_resend
+FROM invoice_operations op
+JOIN orders o ON o.id = op.order_id
+WHERE op.status = 'attention'
+   OR (op.status = 'pending' AND op.created_at < now() - interval '15 minutes')
+ORDER BY op.created_at
 LIMIT 50
 `
 
 type StrandedInvoiceClaimsRow struct {
-	ID          uuid.UUID
-	OrderNumber string
-	Kind        string
-	AmountCents int64
-	IssuedAt    time.Time
+	OperationID        uuid.UUID
+	OrderNumber        string
+	Kind               string
+	Status             string
+	AmountCents        int64
+	ReconcileAttempts  int32
+	SendAttempts       int32
+	LastError          string
+	CreatedAt          time.Time
+	CanAuthorizeResend bool
 }
 
-// The claims a person has to settle at the provider.
-//
-// A 折讓 claim is taken before ECPay is asked, because their allowance endpoint
-// carries no idempotency field, and a call that was not ANSWERED keeps it:
-// whether the document was filed is not knowable from here. That is right, and
-// it leaves a row only a person can settle — the payment_webhook_events shape
-// exactly, and the same reason it belongs on this page.
-//
-// NAMED and never counted, for the reason the unreconciled payments are: an
-// operator needs the order to go and look. A count beside the list would be a
-// second definition of the same figure, and whichever gained a predicate first
-// would be the one that disagreed.
-//
-// issued_at, because a PENDING row has no provider date yet: it defaults to
-// now() when the claim is taken and is overwritten with the provider's own date
-// when it settles. A claim in flight is legitimately pending for the seconds the
-// call takes, so the window is what tells one apart from one that is stuck.
+// Durable e-invoice operations which either explicitly alarmed or have remained
+// pending beyond several worker polls. Rejected and succeeded evidence remains
+// durable but is not an active health alarm.
 func (q *Queries) StrandedInvoiceClaims(ctx context.Context) ([]StrandedInvoiceClaimsRow, error) {
 	rows, err := q.db.Query(ctx, strandedInvoiceClaims)
 	if err != nil {
@@ -11266,11 +11825,16 @@ func (q *Queries) StrandedInvoiceClaims(ctx context.Context) ([]StrandedInvoiceC
 	for rows.Next() {
 		var i StrandedInvoiceClaimsRow
 		if err := rows.Scan(
-			&i.ID,
+			&i.OperationID,
 			&i.OrderNumber,
 			&i.Kind,
+			&i.Status,
 			&i.AmountCents,
-			&i.IssuedAt,
+			&i.ReconcileAttempts,
+			&i.SendAttempts,
+			&i.LastError,
+			&i.CreatedAt,
+			&i.CanAuthorizeResend,
 		); err != nil {
 			return nil, err
 		}
@@ -11706,7 +12270,7 @@ func (q *Queries) UpdateOrderDelivery(ctx context.Context, arg UpdateOrderDelive
 	return result.RowsAffected(), nil
 }
 
-const updateProduct = `-- name: UpdateProduct :exec
+const updateProduct = `-- name: UpdateProduct :execrows
 UPDATE products
 SET brand_id = $1, category_id = $2, name = $3::text,
     summary = nullif($4::text, ''), description = $5::text,
@@ -11734,9 +12298,11 @@ type UpdateProductParams struct {
 
 // Every nullif(”) is what lets a translation be CLEARED; absence is the state
 // the column expresses. warranty_months zero means the shop has stated no term,
-// and registration is then refused rather than given a default.
-func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) error {
-	_, err := q.db.Exec(ctx, updateProduct,
+// and registration is then refused rather than given a default. :execrows is
+// part of the write contract: an absent immutable slug must not look like a
+// successful customer-visible edit or acquire an audit row.
+func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateProduct,
 		arg.BrandID,
 		arg.CategoryID,
 		arg.Name,
@@ -11749,7 +12315,10 @@ func (q *Queries) UpdateProduct(ctx context.Context, arg UpdateProductParams) er
 		arg.WarrantyMonths,
 		arg.Slug,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateProfile = `-- name: UpdateProfile :exec
@@ -11829,8 +12398,6 @@ type UserByGoogleSubjectRow struct {
 	Role     string
 }
 
-// Keyed on the SUBJECT: a Google account can change address, and a released
-// Workspace address can be reassigned to somebody else.
 func (q *Queries) UserByGoogleSubject(ctx context.Context, subject string) (UserByGoogleSubjectRow, error) {
 	row := q.db.QueryRow(ctx, userByGoogleSubject, subject)
 	var i UserByGoogleSubjectRow
@@ -12202,23 +12769,6 @@ func (q *Queries) VariantMovements(ctx context.Context, arg VariantMovementsPara
 		return nil, err
 	}
 	return items, nil
-}
-
-const voidInvoiceDocument = `-- name: VoidInvoiceDocument :execrows
-UPDATE invoice_documents
-SET status = 'voided', voided_at = now()
-WHERE id = $1 AND status <> 'voided'
-`
-
-// Void a filed invoice. :execrows, because `status <> 'voided'` here is the only
-// place the question is asked under a lock: two staff members voiding one
-// invoice both pass a read taken before the transaction.
-func (q *Queries) VoidInvoiceDocument(ctx context.Context, id uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, voidInvoiceDocument, id)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
 }
 
 const wishlistHas = `-- name: WishlistHas :one

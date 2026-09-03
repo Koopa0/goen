@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/shoptime"
 )
 
 // Store is the database side of a customer's return request.
@@ -97,7 +98,7 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 		e := &existing[i]
 		o.Existing = append(o.Existing, Existing{
 			Status: e.Status, Reason: e.Reason, Resolution: e.Resolution.String,
-			CreatedAt: e.CreatedAt.Format("2006-01-02 15:04"),
+			CreatedAt: shoptime.Minute(e.CreatedAt),
 			DecidedAt: nullableTime(e.DecidedAt),
 		})
 	}
@@ -132,7 +133,7 @@ func (s *Store) Open(ctx context.Context, number string, userID uuid.NullUUID, r
 	if err != nil {
 		return fmt.Errorf("begin return request: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
 	requestID, err := q.CreateReturnRequest(ctx, db.CreateReturnRequestParams{
@@ -154,6 +155,10 @@ func (s *Store) Open(ctx context.Context, number string, userID uuid.NullUUID, r
 		}
 	}
 	if err := tx.Commit(ctx); err != nil {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
+			pgErr.ConstraintName == "return_credit_requires_live_account" {
+			return ErrAccountErased
+		}
 		return fmt.Errorf("commit return request: %w", err)
 	}
 	return nil
@@ -193,7 +198,7 @@ func nullableTime(t pgtype.Timestamptz) string {
 	if !t.Valid {
 		return ""
 	}
-	return t.Time.Format("2006-01-02 15:04")
+	return shoptime.Minute(t.Time)
 }
 
 // parseWanted turns one submitted line into a validated id, or refuses it. The

@@ -264,36 +264,41 @@ func TestAMalformedSMTPAddressIsFatalAndNeverTheLogSender(t *testing.T) {
 	logBuffer := &bytes.Buffer{}
 	log := slog.New(slog.NewTextHandler(logBuffer, nil))
 
-	bad, err := newNotifier(&config{SMTPAddr: "not-a-host-port", SMTPUser: "u"}, log)
+	bad, err := newSender(&config{SMTPAddr: "not-a-host-port", SMTPUser: "u"}, log)
 	if err == nil || !strings.Contains(err.Error(), "GOEN_SMTP_ADDR") {
-		t.Errorf("newNotifier malformed error = %v, want GOEN_SMTP_ADDR", err)
+		t.Errorf("newSender malformed error = %v, want GOEN_SMTP_ADDR", err)
 	}
-	if _, silent := bad.Sender.(email.LogSender); silent {
+	if _, silent := bad.(email.LogSender); silent {
 		t.Error("a configured malformed relay degraded to email.LogSender")
 	}
-	if bad.Sender != nil {
-		t.Errorf("newNotifier malformed returned %T, want nil sender", bad.Sender)
+	if bad != nil {
+		t.Errorf("newSender malformed returned %T, want nil sender", bad)
+	}
+	if _, err = newNotifier(&config{
+		SMTPAddr: "not-a-host-port", SMTPUser: "u", BaseURL: "https://goen.test",
+	}, log); err == nil || !strings.Contains(err.Error(), "GOEN_SMTP_ADDR") {
+		t.Errorf("newNotifier malformed error = %v, want GOEN_SMTP_ADDR", err)
 	}
 
-	configured, err := newNotifier(&config{
+	configured, err := newSender(&config{
 		SMTPAddr: "smtp.example:587", SMTPFrom: "goen@example.com",
 		SMTPUser: "u", SMTPPassword: "p",
 	}, log)
 	if err != nil {
-		t.Fatalf("newNotifier configured: %v", err)
+		t.Fatalf("newSender configured: %v", err)
 	}
-	smtpSender, ok := configured.Sender.(email.SMTPSender)
+	smtpSender, ok := configured.(email.SMTPSender)
 	if !ok || smtpSender.TLSName != "smtp.example" {
-		t.Errorf("configured sender = %#v, want SMTPSender with TLSName smtp.example", configured.Sender)
+		t.Errorf("configured sender = %#v, want SMTPSender with TLSName smtp.example", configured)
 	}
 
-	development, err := newNotifier(&config{}, log)
+	development, err := newSender(&config{}, log)
 	if err != nil {
-		t.Fatalf("newNotifier development: %v", err)
+		t.Fatalf("newSender development: %v", err)
 	}
-	logSender, ok := development.Sender.(email.LogSender)
+	logSender, ok := development.(email.LogSender)
 	if !ok || logSender.ShowBody {
-		t.Errorf("development sender = %#v, want body-hiding LogSender", development.Sender)
+		t.Errorf("development sender = %#v, want body-hiding LogSender", development)
 	}
 	if logBuffer.Len() != 0 {
 		t.Errorf("newNotifier duplicated the posture warning: %s", logBuffer.String())
@@ -302,11 +307,11 @@ func TestAMalformedSMTPAddressIsFatalAndNeverTheLogSender(t *testing.T) {
 	// Without authentication there is no host extracted for PlainAuth. The
 	// dialer will report a malformed address to the outbox, which reschedules it
 	// instead of falsely stamping delivery.
-	unauthenticated, err := newNotifier(&config{SMTPAddr: "not-a-host-port"}, log)
+	unauthenticated, err := newSender(&config{SMTPAddr: "not-a-host-port"}, log)
 	if err != nil {
 		t.Fatalf("unauthenticated sender was rejected early: %v", err)
 	}
-	if _, ok := unauthenticated.Sender.(email.SMTPSender); !ok {
-		t.Errorf("unauthenticated sender = %T, want SMTPSender", unauthenticated.Sender)
+	if _, ok := unauthenticated.(email.SMTPSender); !ok {
+		t.Errorf("unauthenticated sender = %T, want SMTPSender", unauthenticated)
 	}
 }

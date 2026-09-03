@@ -16,7 +16,9 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	invoicepkg "github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/pickup"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -35,8 +37,8 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool, q: db.New(pool)}
 }
 
-// Find returns the cart a token names, or ErrNotFound.
-func (s *Store) Find(ctx context.Context, token string) (uuid.UUID, error) {
+// CartByToken returns the cart a token names, or ErrNotFound.
+func (s *Store) CartByToken(ctx context.Context, token string) (uuid.UUID, error) {
 	if token == "" {
 		return uuid.Nil, ErrNotFound
 	}
@@ -88,6 +90,15 @@ func addCartItem(
 	if quantity > v.SellableQuantity {
 		quantity = v.SellableQuantity
 	}
+	capacity, err := q.CartLineCapacity(ctx, db.CartLineCapacityParams{
+		CartID: cartID, VariantID: variantID,
+	})
+	if err != nil {
+		return fmt.Errorf("count cart lines: %w", err)
+	}
+	if !capacity.AlreadyPresent && capacity.LineCount >= invoicepkg.MaxIssueProductLines {
+		return ErrTooManyItems
+	}
 	if err := q.AddCartItem(ctx, db.AddCartItemParams{
 		CartID: cartID, VariantID: variantID, Quantity: quantity,
 	}); err != nil {
@@ -136,7 +147,7 @@ func (s *Store) mutateCart(
 	if err != nil {
 		return fmt.Errorf("begin cart mutation: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 	if err := lockCart(ctx, q, cartID); err != nil {
 		return err
@@ -226,9 +237,8 @@ func optionLabel(names, values []string) string {
 	return strings.Join(parts, " · ")
 }
 
-// SavedAddresses is the delivery addresses an account has. A guest gets none and
-// the QUERY is what says so: an `if !owner.Valid` short-circuit here would leave
-// TestAGuestHasNoAddressBook green with the owner predicate deleted from the SQL.
+// SavedAddresses is the delivery addresses an account has. A guest gets none
+// because the QUERY scopes to the owner, never a short-circuit here.
 func (s *Store) SavedAddresses(ctx context.Context, owner uuid.NullUUID) ([]pages.SavedAddress, error) {
 	rows, err := s.q.SavedAddresses(ctx, owner.UUID)
 	if err != nil {
@@ -332,7 +342,7 @@ func (s *Store) placeOrder(
 	if err != nil {
 		return "", fmt.Errorf("begin checkout: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
 	prior, taken, err := claimCheckoutKey(ctx, q, cartID, attemptID)
@@ -430,6 +440,9 @@ func lockCheckoutTerms(
 	if err != nil {
 		return nil, err
 	}
+	if len(lines) > invoicepkg.MaxIssueProductLines {
+		return nil, ErrTooManyItems
+	}
 
 	ship, err := q.ShippingVersion(ctx, db.ShippingVersionParams{
 		ID: shippingVersionID, Locale: string(i18n.FromContext(ctx)),
@@ -466,7 +479,7 @@ func lockCheckoutTerms(
 		if lockErr := q.LockCouponForCheckout(ctx, canonicalCouponCode); lockErr != nil {
 			return nil, fmt.Errorf("lock coupon %q: %w", canonicalCouponCode, lockErr)
 		}
-		coupon, err = findCoupon(ctx, q, canonicalCouponCode)
+		coupon, err = couponByCode(ctx, q, canonicalCouponCode)
 		if err != nil {
 			return nil, err
 		}
@@ -605,7 +618,9 @@ func writeOrderParts(ctx context.Context, q *db.Queries, p *orderParts) error {
 		return err
 	}
 
-	if invErr := writeInvoicePreference(ctx, q, p.orderID, p.invoice); invErr != nil {
+	if invErr := writeInvoicePreference(
+		ctx, q, p.orderID, p.invoice, p.address,
+	); invErr != nil {
 		return invErr
 	}
 
@@ -625,16 +640,30 @@ func writeOrderParts(ctx context.Context, q *db.Queries, p *orderParts) error {
 	return nil
 }
 
-// writeInvoicePreference records the invoice choice, when there is one.
-func writeInvoicePreference(ctx context.Context, q *db.Queries, orderID uuid.UUID, inv *Invoice) error {
+// writeInvoicePreference records the immutable filing identity alongside the
+// customer's carrier choice. Delivery details can later be erased, while a
+// committed sale and any refund against it still have a tax lifecycle.
+func writeInvoicePreference(
+	ctx context.Context,
+	q *db.Queries,
+	orderID uuid.UUID,
+	inv *Invoice,
+	addr *Address,
+) error {
 	if inv == nil {
-		return nil
+		inv = &Invoice{Type: invoicepkg.PreferenceMember}
+	}
+	buyerName := addr.Name
+	if inv.Type == invoicepkg.PreferenceCompany {
+		buyerName = inv.CompanyName
 	}
 	if err := q.CreateInvoicePreference(ctx, db.CreateInvoicePreferenceParams{
-		OrderID:     orderID,
-		InvoiceType: string(inv.Type),
-		CarrierCode: inv.Carrier,
-		TaxID:       inv.TaxID,
+		OrderID:       orderID,
+		InvoiceType:   string(inv.Type),
+		CarrierCode:   inv.Carrier,
+		TaxID:         inv.TaxID,
+		CustomerName:  buyerName,
+		CustomerEmail: addr.Email,
 	}); err != nil {
 		return fmt.Errorf("record invoice preference: %w", err)
 	}
@@ -841,7 +870,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 		DiscountCents: o.DiscountCents, DiscountReason: o.DiscountReason,
 		CreditCents: o.CreditCents,
 		TaxCents:    o.TaxCents,
-		PlacedAt:    o.PlacedAt.Format("2006-01-02 15:04"),
+		PlacedAt:    shoptime.Minute(o.PlacedAt),
 	}
 	for _, l := range lines {
 		view.Lines = append(view.Lines, pages.OrderLine{
@@ -857,7 +886,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 	for _, e := range events {
 		view.Timeline = append(view.Timeline, pages.OrderEvent{
 			Kind: e.Kind, Note: e.Note.String,
-			At: e.OccurredAt.Format("2006-01-02 15:04"),
+			At: shoptime.Minute(e.OccurredAt),
 		})
 	}
 
@@ -868,7 +897,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 	for _, sh := range shipments {
 		view.Shipments = append(view.Shipments, pages.OrderShipment{
 			Carrier: sh.Carrier, Tracking: sh.TrackingNumber,
-			ShippedAt:   sh.ShippedAt.Format("2006-01-02 15:04"),
+			ShippedAt:   shoptime.Minute(sh.ShippedAt),
 			DeliveredAt: nullableTime(sh.DeliveredAt),
 		})
 	}
@@ -887,14 +916,17 @@ func text(s string) pgtype.Text {
 // key is derived from the order and the variant, so a retried checkout under the
 // same order cannot double-hold.
 func holdOrderStock(ctx context.Context, q *db.Queries, orderID uuid.UUID, lines []db.CartLinesRow) error {
-	expires := time.Now().Add(holdTTL)
+	holdFor := pgtype.Interval{
+		Microseconds: int64(holdTTL / time.Microsecond),
+		Valid:        true,
+	}
 	for i := range lines {
 		l := &lines[i]
 		if _, err := q.HoldForOrder(ctx, db.HoldForOrderParams{
 			OrderID:        orderID,
 			VariantID:      l.VariantID,
 			Quantity:       l.Quantity,
-			ExpiresAt:      expires,
+			HoldFor:        holdFor,
 			IdempotencyKey: "hold:" + orderID.String() + ":" + l.VariantID.String(),
 		}); err != nil {
 			if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
@@ -926,17 +958,20 @@ func subtotalOf(lines []db.CartLinesRow) (int64, error) {
 	return subtotal, nil
 }
 
-// writeOrderLines copies each cart line onto the order. The price is COPIED
-// rather than referenced: a later catalogue change must not rewrite it.
+// writeOrderLines copies each cart line onto the order. The price and warranty
+// promise are COPIED: a later catalogue change must not rewrite either one.
 func writeOrderLines(ctx context.Context, q *db.Queries, orderID uuid.UUID, lines []db.CartLinesRow) error {
 	for i := range lines {
 		l := &lines[i]
 		if err := q.CreateOrderLine(ctx, db.CreateOrderLineParams{
 			OrderID:        orderID,
+			ProductID:      uuid.NullUUID{UUID: l.ProductID, Valid: true},
 			VariantID:      uuid.NullUUID{UUID: l.VariantID, Valid: true},
 			SKU:            l.SKU,
 			ProductName:    l.Name,
 			VariantLabel:   text(optionLabel(l.OptionNames, l.OptionValues)),
+			WarrantyNote:   l.WarrantyNote,
+			WarrantyMonths: l.WarrantyMonths,
 			UnitPriceCents: l.PriceCents,
 			Quantity:       l.Quantity,
 			Position:       int32(i),
@@ -947,12 +982,11 @@ func writeOrderLines(ctx context.Context, q *db.Queries, orderID uuid.UUID, line
 	return nil
 }
 
-// nullableTime formats a timestamp that may be absent.
 func nullableTime(t pgtype.Timestamptz) string {
 	if !t.Valid {
 		return ""
 	}
-	return t.Time.Format("2006-01-02 15:04")
+	return shoptime.Minute(t.Time)
 }
 
 // spendCredit applies exactly the amount in the customer-confirmed quote. It is
@@ -973,12 +1007,8 @@ func spendCredit(
 		return errCheckoutChanged
 	}
 	if _, err := q.SpendCredit(ctx, db.SpendCreditParams{
-		UserID:      userID.UUID,
 		AmountCents: -spend,
-		// i18n-exempt: a persisted label whose only reader is /admin/credit.
-		Reason:         "訂單折抵",
-		OrderID:        orderID,
-		IdempotencyKey: "order:" + orderID.String(),
+		OrderID:     orderID,
 	}); err != nil {
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
 			pgErr.ConstraintName == "store_credit_never_negative" {

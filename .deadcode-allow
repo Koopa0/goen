@@ -1,4 +1,1 @@
-internal/i18n.Keys # reason: called only by TestEveryKeyIsTranslatedInEveryLocale
-internal/i18n.MessageFor # reason: called only by TestEveryKeyIsTranslatedInEveryLocale and TestValidateSubjectsAreAccepted
-internal/loyalty.Days # reason: called only by four tests mirroring MembershipWindowDays and LoyaltyValidityDays across package boundaries
-internal/product.Store.Answer # reason: answer-staff-flag-is-caller-supplied.md preserves this fixture seam for the queued POST /p/{slug}/questions/{id}/answers storefront route
+internal/product.Store.answer # reason: the integration-tag facade preserves the customer-answer invariants for the documented storefront reply route that is not wired yet

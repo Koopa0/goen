@@ -69,7 +69,7 @@ func TestCouponPricing(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, err := s.FindCoupon(ctx, tt.code)
+			c, err := s.CouponByCode(ctx, tt.code)
 			if err != nil {
 				t.Fatalf("find %s: %v", tt.code, err)
 			}
@@ -93,7 +93,7 @@ func TestCouponMinimumSpend(t *testing.T) {
 	s := cart.NewStore(pool)
 	coupon(t, "MIN1000", "amount", 20000, 0, 0, 100000, 0)
 
-	c, err := s.FindCoupon(ctx, "MIN1000")
+	c, err := s.CouponByCode(ctx, "MIN1000")
 	if err != nil {
 		t.Fatalf("find below-minimum coupon definition: %v", err)
 	}
@@ -116,8 +116,8 @@ func TestUnknownAndDisabledCouponsLookTheSame(t *testing.T) {
 		t.Fatalf("disable: %v", err)
 	}
 
-	_, offErr := s.FindCoupon(ctx, "SWITCHEDOFF")
-	_, unknownErr := s.FindCoupon(ctx, "NEVEREXISTED")
+	_, offErr := s.CouponByCode(ctx, "SWITCHEDOFF")
+	_, unknownErr := s.CouponByCode(ctx, "NEVEREXISTED")
 	if !errors.Is(offErr, cart.ErrNoSuchCoupon) || !errors.Is(unknownErr, cart.ErrNoSuchCoupon) {
 		t.Errorf("disabled gave %v and unknown gave %v; both must be ErrNoSuchCoupon",
 			offErr, unknownErr)
@@ -131,7 +131,7 @@ func TestCouponCodeIsCaseInsensitive(t *testing.T) {
 	coupon(t, "MixedCase", "amount", 20000, 0, 0, 0, 0)
 
 	for _, typed := range []string{"MixedCase", "mixedcase", "MIXEDCASE", "  MixedCase  "} {
-		if _, err := s.FindCoupon(ctx, typed); err != nil {
+		if _, err := s.CouponByCode(ctx, typed); err != nil {
 			t.Errorf("%q was not found: %v", typed, err)
 		}
 	}
@@ -147,7 +147,7 @@ func TestTotalRedemptionLimitIsEnforced(t *testing.T) {
 	placed := 0
 	var lastErr error
 	for i := range 4 {
-		_, err := s.FindCoupon(ctx, code)
+		_, err := s.CouponByCode(ctx, code)
 		if err != nil {
 			lastErr = err
 			continue
@@ -179,7 +179,7 @@ func TestTheRedemptionMatchesTheOrdersDiscount(t *testing.T) {
 	s := cart.NewStore(pool)
 	code := coupon(t, "MATCHES", "amount", 20000, 0, 0, 0, 0)
 
-	_, err := s.FindCoupon(ctx, code)
+	_, err := s.CouponByCode(ctx, code)
 	if err != nil {
 		t.Fatalf("find: %v", err)
 	}
@@ -205,12 +205,12 @@ func TestTheRedemptionMatchesTheOrdersDiscount(t *testing.T) {
 
 // TestASpentCouponIsRefusedAsItselfRatherThanAsAnUnknownFailure holds the
 // sentinel the checkout handler branches on; anything else is a 500 with the
-// checkout form discarded. FindCoupon reads no limit, so this is not a race.
+// checkout form discarded. CouponByCode reads no limit, so this is not a race.
 func TestASpentCouponIsRefusedAsItselfRatherThanAsAnUnknownFailure(t *testing.T) {
 	s := cart.NewStore(pool)
 	code := coupon(t, "SPENTONCE", "amount", 10000, 0, 0, 0, 1)
 
-	_, err := s.FindCoupon(t.Context(), code)
+	_, err := s.CouponByCode(t.Context(), code)
 	if err != nil {
 		t.Fatalf("find: %v", err)
 	}
@@ -219,7 +219,7 @@ func TestASpentCouponIsRefusedAsItselfRatherThanAsAnUnknownFailure(t *testing.T)
 	}
 
 	// The pre-check passes again — that is the point.
-	_, err = s.FindCoupon(t.Context(), code)
+	_, err = s.CouponByCode(t.Context(), code)
 	if err != nil {
 		t.Fatalf("a spent coupon must still pass the field validation, "+
 			"or this test is not exercising the transactional refusal: %v", err)
@@ -378,7 +378,7 @@ func TestTheCouponWindowUsesOneClock(t *testing.T) {
 		VALUES ('JUSTNOW', '剛剛建立', 'amount', 20000)`); err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if _, err := s.FindCoupon(ctx, "JUSTNOW"); err != nil {
+	if _, err := s.CouponByCode(ctx, "JUSTNOW"); err != nil {
 		t.Errorf("a coupon created this instant is not usable: %v — the window is "+
 			"being judged against a different clock from the one that set it", err)
 	}
@@ -390,7 +390,7 @@ func TestTheCouponWindowUsesOneClock(t *testing.T) {
 		        now() + interval '1 day', now() + interval '2 days')`); err != nil {
 		t.Fatalf("create future: %v", err)
 	}
-	if _, err := s.FindCoupon(ctx, "FUTURE"); !errors.Is(err, cart.ErrCouponExpired) {
+	if _, err := s.CouponByCode(ctx, "FUTURE"); !errors.Is(err, cart.ErrCouponExpired) {
 		t.Errorf("a coupon that has not started gave %v, want ErrCouponExpired", err)
 	}
 
@@ -400,7 +400,7 @@ func TestTheCouponWindowUsesOneClock(t *testing.T) {
 		        now() - interval '2 days', now() - interval '1 day')`); err != nil {
 		t.Fatalf("create lapsed: %v", err)
 	}
-	if _, err := s.FindCoupon(ctx, "LAPSED"); !errors.Is(err, cart.ErrCouponExpired) {
+	if _, err := s.CouponByCode(ctx, "LAPSED"); !errors.Is(err, cart.ErrCouponExpired) {
 		t.Errorf("a lapsed coupon gave %v, want ErrCouponExpired", err)
 	}
 }

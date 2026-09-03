@@ -22,11 +22,8 @@ var (
 	ErrRefused = errors.New("admin: refused")
 
 	// ErrRefundIncomplete is a return that WAS approved and whose money did not
-	// go. It is its own sentinel because it sends a staff member somewhere
-	// different from every other refusal: the decision stands and cannot be
-	// retaken, and what is outstanding is a payment. open_refund has already
-	// committed a `pending` row keyed on the return, so the attempt is on
-	// record rather than lost.
+	// go: the decision stands and cannot be retaken, and the refund claim has
+	// already committed a `pending` row keyed on the return.
 	ErrRefundIncomplete = errors.New("admin: the return is approved and the refund did not complete")
 	// ErrInvalid is a form goen itself rejected before the database saw it.
 	ErrInvalid = errors.New("admin: invalid input")
@@ -41,8 +38,7 @@ var (
 
 // completePaymentResolution is the operator's explicit conclusion after a
 // provider-complete Checkout Session had no capture outcome goen could apply.
-// Paid and safe-to-retry are financially opposite facts, so the internal type
-// is closed rather than carrying the form's raw string through the store.
+// Paid and safe-to-retry are financially opposite facts.
 type completePaymentResolution uint8
 
 const (
@@ -54,8 +50,6 @@ const (
 	completePaymentUnpaidOrRefunded
 )
 
-// parseCompletePaymentResolution converts the two form boundary values to the
-// closed money outcome used by the store.
 func parseCompletePaymentResolution(s string) (completePaymentResolution, bool) {
 	switch strings.TrimSpace(s) {
 	case "paid":
@@ -79,8 +73,7 @@ func (r completePaymentResolution) auditValue() string {
 }
 
 // paymentEventSafeReleaseSubmitted recognizes the one conclusion that can
-// release an unapplied provider event. A one-value enum would add only an
-// invalid state; the store operation itself carries the conclusion in its name.
+// release an unapplied provider event.
 func paymentEventSafeReleaseSubmitted(s string) bool {
 	return strings.TrimSpace(s) == "fully_refunded_or_accounted"
 }
@@ -94,9 +87,8 @@ const PageSize = 50
 const MinSearchRunes = 2
 
 // statuses is the fulfilment lifecycle, in the order the queue shows it.
-// The value and its label stay together here; orders_check_transition decides
-// which moves are legal, while parsing and the queue tabs both consume this
-// closed set.
+// orders_check_transition decides which moves are legal; parsing and the queue
+// tabs consume this closed set.
 var statuses = [...]struct {
 	value string
 	label i18n.Key
@@ -147,8 +139,8 @@ func StatusLabel(ctx context.Context, s string) string {
 			return i18n.T(ctx, status.label)
 		}
 	}
-	// A queue that opens with one untranslated word beats one that will not
-	// load, which is why this does not panic as its two neighbours do.
+	// Not a panic, unlike ReturnStatusLabel: a queue opening with one
+	// untranslated word beats one that will not load.
 	return s
 }
 
@@ -244,14 +236,13 @@ func ReturnStatusLabel(ctx context.Context, s string) string {
 // a fat-finger guard on a form that gives money away.
 const MaxCreditGrant = 10000000
 
+// MaxCreditReasonRunes matches the back-office form and the durable ledger.
+const MaxCreditReasonRunes = 200
+
 // FundedStatusLabel is a fulfilment state read together with what the order
-// owes, which is the only way to tell the two halves of 'pending' apart.
-//
-// An order stays pending from the moment the money arrives until a human picks
-// it, and one paid entirely from store credit has no payment row at all and sits
-// there for good — so the status alone badged a paid order 待付款, on the queue
-// somebody works and beside the customer's own page saying 付款完成. Nothing will
-// ever move it, because no payment is coming.
+// owes, which is the only way to tell the two halves of 'pending' apart: an
+// order stays pending from the moment the money arrives until a human picks it,
+// and one paid entirely from store credit has no payment row at all.
 //
 // committed means the shop has taken the order on; owed == 0 means nothing is
 // due. Either is enough here: a card capture sets the first, and store credit or

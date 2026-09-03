@@ -3,7 +3,9 @@
 
 -- Spend points and post the credit they bought, in one transaction.
 -- name: RedeemPoints :one
-SELECT redeem_loyalty_points(@account_id, @points::bigint, @cents::bigint, @key::text);
+SELECT redeem_loyalty_points(
+    @user_id::uuid, @points::bigint, @operation_id::uuid
+);
 
 -- A customer's spendable balance and their account, which may not exist.
 -- name: PointsBalance :one

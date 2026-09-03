@@ -51,20 +51,5 @@ func T(ctx context.Context, k Key) string {
 	return string(k)
 }
 
-// Keys is every key the catalogue defines.
-func Keys() []Key {
-	out := make([]Key, 0, len(messages))
-	for k := range messages {
-		out = append(out, k)
-	}
-	return out
-}
-
-// MessageFor returns the registered strings for k, and whether it exists.
-func MessageFor(k Key) (Message, bool) {
-	m, ok := messages[k]
-	return m, ok
-}
-
 // Locales is every locale goen speaks.
 func Locales() []Locale { return []Locale{ZhHant, En} }

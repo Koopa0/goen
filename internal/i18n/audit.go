@@ -25,6 +25,8 @@ var (
 
 	KeyAuditProductCreate = key("audit.product.create", Message{ZhHant: "新增商品", En: "Add product"})
 
+	KeyAuditProductUpdate = key("audit.product.update", Message{ZhHant: "修改商品", En: "Edit product"})
+
 	KeyAuditProductStatus = key("audit.product.status", Message{ZhHant: "商品上下架", En: "Product status"})
 
 	KeyAuditCouponCreate = key("audit.coupon.create", Message{ZhHant: "建立折扣碼", En: "Create coupon"})
@@ -126,5 +128,44 @@ var (
 
 	KeyAdminActorCustomer = key("admin.actor.customer", Message{ZhHant: "顧客", En: "Customer"})
 
-	KeyAdminActorSystem = key("admin.actor.system", Message{ZhHant: "系統", En: "System"})
+	KeyAdminActorSystem   = key("admin.actor.system", Message{ZhHant: "系統", En: "System"})
+	KeyAuditReturnInspect = key("audit.return.inspect", Message{ZhHant: "退貨驗收", En: "Inspect return"})
+
+	KeyAuditReturnComplete = key("audit.return.complete", Message{ZhHant: "退貨結案", En: "Close return"})
+
+	KeyAuditOrderDelivery = key("audit.order.delivery", Message{ZhHant: "更正配送資料", En: "Correct delivery details"})
+
+	KeyAuditPaymentReconciled = key("audit.payment.reconciled", Message{ZhHant: "款項對帳", En: "Reconcile payment"})
+
+	KeyAuditInvoiceIssue = key("audit.invoice.issue", Message{ZhHant: "開立發票", En: "Issue invoice"})
+
+	KeyAuditInvoiceVoid = key("audit.invoice.void", Message{ZhHant: "作廢發票", En: "Void invoice"})
+
+	KeyAuditInvoiceAllowance = key("audit.invoice.allowance", Message{ZhHant: "開立折讓", En: "Issue allowance"})
+
+	KeyAuditInvoiceAllowanceResend = key("audit.invoice.allowance.resend", Message{
+		ZhHant: "授權重送折讓",
+		En:     "Authorise an allowance resend",
+	})
+
+	KeyAuditInvoiceAllowanceInvalid = key("audit.invoice.allowance.invalid", Message{
+		ZhHant: "折讓於加值中心已作廢",
+		En:     "Allowance voided at the provider",
+	})
+
+	KeyAuditMessageHandle = key("audit.message.handle", Message{ZhHant: "標記已處理", En: "Mark handled"})
+
+	KeyAuditMessageReopen = key("audit.message.reopen", Message{ZhHant: "重新開啟訊息", En: "Reopen message"})
+
+	KeyAuditReviewHide = key("audit.review.hide", Message{ZhHant: "隱藏評價", En: "Hide review"})
+
+	KeyAuditReviewShow = key("audit.review.show", Message{ZhHant: "取消隱藏評價", En: "Unhide review"})
+
+	KeyAuditShippingPublish = key("audit.shipping.publish", Message{ZhHant: "發布運費版本", En: "Publish shipping version"})
+
+	KeyAuditShippingSurcharge = key("audit.shipping.surcharge", Message{ZhHant: "設定離島加價", En: "Set zone surcharge"})
+
+	KeyAuditTierCreate = key("audit.tier.create", Message{ZhHant: "新增會員等級", En: "Add membership tier"})
+
+	KeyAuditTierDelete = key("audit.tier.delete", Message{ZhHant: "刪除會員等級", En: "Delete membership tier"})
 )

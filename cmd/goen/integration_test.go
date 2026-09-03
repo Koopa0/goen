@@ -97,6 +97,45 @@ func TestMaintenancePoolIsReachedAndRoleCheckedAtStartup(t *testing.T) {
 	}
 }
 
+// TestEachPoolCarriesItsRoleStatementTimeout is the only bound a request has.
+// http.Server's WriteTimeout does not cancel r.Context(), so nothing in Go ends
+// a handler blocked in the database and enough of them starve the pool. The
+// three figures are independent literals rather than the constants, because a
+// timeout that reaches no session and one nobody chose look the same from here.
+func TestEachPoolCarriesItsRoleStatementTimeout(t *testing.T) {
+	dsn := pool.Config().ConnString()
+	tests := []struct {
+		role   string
+		open   func(context.Context, string) (*pgxpool.Pool, error)
+		wantMS int64
+	}{
+		{role: "store", open: openPool, wantMS: 15_000},
+		{role: "admin", open: openAdminPool, wantMS: 30_000},
+		// The co-purchase rebuild is measured in hundreds of milliseconds over
+		// the whole order history and must outlive the storefront's bound.
+		{role: "maintenance", open: openMaintenancePool, wantMS: 300_000},
+	}
+	for _, tt := range tests {
+		t.Run(tt.role, func(t *testing.T) {
+			p, err := tt.open(t.Context(), dsn)
+			if err != nil {
+				t.Fatalf("open %s pool: %v", tt.role, err)
+			}
+			defer p.Close()
+
+			var timeoutMS int64
+			if scanErr := p.QueryRow(t.Context(),
+				`SELECT setting::bigint FROM pg_settings WHERE name = 'statement_timeout'`,
+			).Scan(&timeoutMS); scanErr != nil {
+				t.Fatalf("read %s statement_timeout: %v", tt.role, scanErr)
+			}
+			if timeoutMS != tt.wantMS {
+				t.Errorf("%s session statement_timeout = %d ms, want %d", tt.role, timeoutMS, tt.wantMS)
+			}
+		})
+	}
+}
+
 type countingTracer struct{ queries *atomic.Int64 }
 
 func (t countingTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, _ pgx.TraceQueryStartData) context.Context {
@@ -120,8 +159,9 @@ func TestTheRouterKeepsAssetsStatelessAndCompressesPages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build disabled payment gateway: %v", err)
 	}
-	router := newRouter(counted, counted, gateway, admin.NewRefunder(""), &RouterConfig{
-		BaseURL: "http://127.0.0.1",
+	router := newRouter(&RouterConfig{
+		Pool: counted, AdminPool: counted, Payments: gateway,
+		Refunder: admin.NewRefunder(""), BaseURL: "http://127.0.0.1",
 	}, slog.New(slog.DiscardHandler))
 
 	serve := func(path string) *httptest.ResponseRecorder {
@@ -213,8 +253,7 @@ func integrationHeaderToken(h http.Header, name, want string) bool {
 	return false
 }
 
-// countingSender records what would have gone out. The whole question here is
-// whether a letter is sent at all, so a sender that counts is the instrument.
+// countingSender records what would have gone out.
 type countingSender struct{ sent int }
 
 func (s *countingSender) Send(context.Context, *email.Message) error {
@@ -225,15 +264,13 @@ func (s *countingSender) Send(context.Context, *email.Message) error {
 // TestAnUnsubscribeDuringTheDrainStopsTheCopy is the lock on main's own consent
 // gate. The send freezes one outbox row per subscriber and the queue drains at
 // bulk priority behind every transactional message, so an unsubscribe committing
-// anywhere in that window has to be read at DELIVERY. Nothing else in the tree
-// exercises this handler: it is wiring, and wiring is where a rule goes to be
-// deleted without a suite noticing.
+// anywhere in that window has to be read at DELIVERY.
 func TestAnUnsubscribeDuringTheDrainStopsTheCopy(t *testing.T) {
 	ctx := t.Context()
 	subscribers := newsletter.NewStore(pool)
 	sender := &countingSender{}
 	deliver := newsletterIssueHandler(subscribers,
-		email.Notifier{Sender: sender, BaseURL: "https://goen.test"})
+		email.New(sender, "https://goen.test", "", ""))
 
 	address := "drain-" + uuid.NewString()[:12] + "@goen.invalid"
 	token := uuid.NewString()

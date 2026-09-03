@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -350,7 +351,6 @@ func TestDealsAreOrderedByHowDeepTheCutIs(t *testing.T) {
 	}
 }
 
-// campaign creates one running for a week and returns its slug.
 func campaign(t *testing.T, slug string) string {
 	t.Helper()
 	if _, err := pool.Exec(t.Context(), `
@@ -435,6 +435,42 @@ func TestACampaignOutsideItsWindowIsNotFound(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRunningCampaignCountdownUsesTheDatabaseClock(t *testing.T) {
+	ctx := t.Context()
+	slug := campaign(t, "db-clock-"+uuid.NewString()[:8])
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	cleanupCtx := context.WithoutCancel(t.Context())
+	t.Cleanup(func() { _ = tx.Rollback(cleanupCtx) })
+	if _, execErr := tx.Exec(ctx, `
+		UPDATE sale_campaigns
+		SET starts_at = now() - interval '1 day', ends_at = now() + interval '1 second'
+		WHERE slug = $1`, slug); execErr != nil {
+		t.Fatalf("shorten campaign: %v", execErr)
+	}
+
+	// PostgreSQL's now() is stable for the transaction. Once the process clock
+	// passes ends_at, only a countdown derived by the same database clock that
+	// admitted the row remains positive.
+	time.Sleep(1100 * time.Millisecond)
+	campaigns, err := catalog.NewStore(tx).RunningCampaigns(ctx)
+	if err != nil {
+		t.Fatalf("running campaigns: %v", err)
+	}
+	for _, got := range campaigns {
+		if got.Slug == slug {
+			if got.EndsIn == "" {
+				t.Fatal("database still considers the campaign running, but its countdown is empty")
+			}
+			return
+		}
+	}
+	t.Fatalf("running campaigns omitted %q", slug)
 }
 
 // sale_campaign_needs_discount takes a lock on the product before it reads the
@@ -536,8 +572,7 @@ func TestComparisonIsBoundedDeduplicatedAndForgiving(t *testing.T) {
 	}
 }
 
-// Both locales: the Chinese page was always correct, so a fix that only moved
-// the collision would pass a one-locale test.
+// Both locales: only the English labels collide, so Chinese is the control.
 func TestTwoSpecsThatShareATranslationStayTwoRows(t *testing.T) {
 	ctx := t.Context()
 	tx, err := pool.Begin(ctx)
@@ -736,7 +771,7 @@ func twoProductsWithSpecs(t *testing.T) (first, second string) {
 }
 
 // Matching only the localized column would make the catalogue searchable in one
-// language at a time, which the shop cannot see because its language works.
+// language at a time.
 func TestSearchFindsAProductByItsEnglishName(t *testing.T) {
 	s := catalog.NewStore(pool)
 	ctx := t.Context()
@@ -767,20 +802,12 @@ func TestSearchFindsAProductByItsEnglishName(t *testing.T) {
 	}
 }
 
-// TestADealsTileIsPricedOnTheDiscountedVariant holds two rules that agree on
-// every product in the seed and are not the same rule.
-//
-// A product is on /deals when ANY active variant carries a discount. The tile's
-// price came from the listing's LATERAL, which takes the cheapest BUYABLE
-// variant — a different variant whenever the discounted one is dearer or out of
-// stock. The sale page could then quote a price with no discount on it, and no
-// badge beside it, because OnSale() compares the figures it was given.
-//
-// Measured against the dev seed, both orderings pick the same variant for all
-// eight qualifying products: the defect is latent there, which is exactly what
-// mistake #37 says a fixture where two rules agree is worth. This one is built
-// so they disagree — the discounted variant is the DEARER one.
-func TestADealsTileIsPricedOnTheDiscountedVariant(t *testing.T) {
+// A product is on /deals when ANY active variant carries a discount, while a
+// tile is priced on the cheapest BUYABLE variant — a different variant whenever
+// the discounted one is dearer or sold out. Every product in the seed satisfies
+// both rules with one variant, so this fixture puts the discount on the DEARER
+// one.
+func TestPromotionalTilesArePricedOnTheDiscountedVariant(t *testing.T) {
 	ctx := t.Context()
 	s := catalog.NewStore(pool)
 
@@ -803,10 +830,8 @@ func TestADealsTileIsPricedOnTheDiscountedVariant(t *testing.T) {
 		             (product_id, sku, price_cents, compare_at_price_cents, stock_quantity, safety_stock, position)
 		         SELECT p.id, 'SPLIT-DEAR-' || upper(replace(gen_random_uuid()::text, '-', '')), 150000, 300000, 10, 0, 1 FROM p
 		     ),
-		     -- A THIRD, dearer still and undiscounted. Without it the tile's price
-		     -- is the highest, so "is anything dearer" is false either way and the
-		     -- range claim cannot be exercised at all — a fixture that cannot
-		     -- reach the state under test.
+		     -- A THIRD, dearer still and undiscounted: without it nothing is dearer
+		     -- than the tile's price and the range claim is never exercised.
 		     dearest AS (
 		         INSERT INTO product_variants
 		             (product_id, sku, price_cents, stock_quantity, safety_stock, position)
@@ -831,9 +856,6 @@ func TestADealsTileIsPricedOnTheDiscountedVariant(t *testing.T) {
 		t.Fatalf("the product is not on /deals at all, so this proved nothing")
 	}
 
-	// The DEARER variant, because it is the one carrying the discount that put
-	// the product here. Pricing the cheaper one quotes NT$1,000 with no
-	// markdown on a page that exists to show markdowns.
 	if tile.PriceCents != 150000 {
 		t.Errorf("the deals tile is priced at %d, want 150000 — the cheapest buyable "+
 			"variant carries no discount, and this page is about discounts",
@@ -844,13 +866,44 @@ func TestADealsTileIsPricedOnTheDiscountedVariant(t *testing.T) {
 			"it was priced on is not the one that is marked down")
 	}
 
-	// And it must NOT say 起. "From X" claims X is the bottom of the range, and
-	// the discounted variant here is the DEARER one — there is a cheaper variant
-	// sitting under the price the tile shows. Asking only "is anything dearer"
-	// put that claim on every deals tile whose discount is not on its cheapest
-	// variant.
+	// And it must NOT say 起: the discounted variant is the dearer one, so a
+	// cheaper variant sits under the price the tile shows.
 	if tile.PriceVaries {
 		t.Error("the deals tile is marked as a range starting at this price, and a " +
 			"cheaper variant exists — 起 on a price that is not the lowest")
+	}
+
+	// A campaign has the same admission rule as /deals: the product is present
+	// because one active variant is discounted. It must not fall back to the
+	// cheaper regular variant and erase the campaign's own markdown.
+	var productID uuid.UUID
+	if queryErr := pool.QueryRow(ctx, `SELECT id FROM products WHERE slug = $1`, slug).Scan(&productID); queryErr != nil {
+		t.Fatalf("read campaign product: %v", queryErr)
+	}
+	campaignSlug := "discounted-tile-" + uuid.NewString()[:8]
+	if _, execErr := pool.Exec(ctx, `
+		WITH campaign AS (
+			INSERT INTO sale_campaigns (slug, title, ends_at)
+			VALUES ($1, '折扣變體活動', now() + interval '1 day')
+			RETURNING id
+		)
+		INSERT INTO sale_campaign_products (campaign_id, product_id)
+		SELECT id, $2 FROM campaign`, campaignSlug, productID); execErr != nil {
+		t.Fatalf("feature split-price product: %v", execErr)
+	}
+	campaign, err := s.Campaign(ctx, campaignSlug)
+	if err != nil {
+		t.Fatalf("campaign: %v", err)
+	}
+	if len(campaign.Products) != 1 {
+		t.Fatalf("campaign has %d products, want 1", len(campaign.Products))
+	}
+	campaignTile := campaign.Products[0]
+	if campaignTile.PriceCents != 150000 || !campaignTile.OnSale() {
+		t.Errorf("campaign tile = price %d/on-sale %t, want 150000/true; the regular "+
+			"variant must not hide the discount", campaignTile.PriceCents, campaignTile.OnSale())
+	}
+	if campaignTile.PriceVaries {
+		t.Error("campaign tile says its discounted price is the bottom of a range, but a cheaper variant exists")
 	}
 }

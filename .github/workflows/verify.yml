@@ -80,7 +80,7 @@ jobs:
           make db-up
           export GOEN_DATABASE_URL='postgres://goen:goen@127.0.0.1:5433/goen?sslmode=disable'
           make migrate-up
-          go run -tags=postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.0 \
+          go run -tags=postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1 \
             -path migrations -database "$GOEN_DATABASE_URL" down -all
           make migrate-up
 

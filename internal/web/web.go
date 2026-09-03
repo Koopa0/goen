@@ -40,9 +40,8 @@ func Render(w http.ResponseWriter, r *http.Request, log *slog.Logger, status int
 	var buf bytes.Buffer
 	if err := c.Render(r.Context(), &buf); err != nil {
 		log.ErrorContext(r.Context(), "render component", "error", err, "path", r.URL.Path)
-		// i18n-exempt: the render itself failed, so there is no page to put a
-		// translated message on and no guarantee the locale middleware ran.
-		// Both languages in the literal, so neither reader is left out.
+		// i18n-exempt: the render failed, so there is no page to translate onto
+		// and no guaranteed locale. Both languages, so neither reader is left out.
 		http.Error(w, "500 內部錯誤 / Internal error", http.StatusInternalServerError)
 		return
 	}
@@ -54,7 +53,6 @@ func Render(w http.ResponseWriter, r *http.Request, log *slog.Logger, status int
 	}
 }
 
-// cartCountKey is unexported so nothing outside this package can write it.
 type cartCountKey struct{}
 
 // WithCartCount carries the visitor's cart size down to the page chrome, from
@@ -73,7 +71,6 @@ func CartCount(ctx context.Context) int {
 	return n
 }
 
-// pathKey carries the request's own path to the templates.
 type pathKey struct{}
 
 // WithRequestPath records where a request was for, so a form rendered on the
@@ -91,7 +88,6 @@ func RequestPath(ctx context.Context) string {
 	return p
 }
 
-// requestIDKey carries the request's identifier to a feature.
 type requestIDKey struct{}
 
 // WithRequestID records the identifier the log lines for this request carry.

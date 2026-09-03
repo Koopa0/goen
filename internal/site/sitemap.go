@@ -5,10 +5,12 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/koopa0/goen/internal/shoptime"
 )
 
-// MaxSitemapURLs bounds one sitemap document. The protocol's own limit is
-// 50,000; past 5,000 the answer is a sitemap index, not a bigger file.
+// MaxSitemapURLs bounds the single sitemap document this service emits. The
+// protocol permits more, but this endpoint intentionally caps database work.
 const MaxSitemapURLs = 5000
 
 type urlEntry struct {
@@ -40,30 +42,44 @@ func (h *Handler) Sitemap(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	cats, err := h.catalogue.SitemapCategories(r.Context())
+	remaining := int32(MaxSitemapURLs)
+	for range set.URLs {
+		remaining--
+	}
+	cats, err := h.catalogue.SitemapCategories(r.Context(), remaining)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "sitemap categories", "error", err)
 		http.Error(w, "500", http.StatusInternalServerError)
 		return
 	}
 	for i := range cats {
+		if remaining == 0 {
+			break
+		}
 		set.URLs = append(set.URLs, urlEntry{
 			Loc: base + "/c/" + cats[i].Slug, LastMod: day(cats[i].UpdatedAt),
 			ChangeFreq: "daily", Priority: "0.7",
 		})
+		remaining--
 	}
 
-	products, err := h.catalogue.SitemapProducts(r.Context(), MaxSitemapURLs)
-	if err != nil {
-		h.log.ErrorContext(r.Context(), "sitemap products", "error", err)
-		http.Error(w, "500", http.StatusInternalServerError)
-		return
-	}
-	for i := range products {
-		set.URLs = append(set.URLs, urlEntry{
-			Loc: base + "/p/" + products[i].Slug, LastMod: day(products[i].UpdatedAt),
-			ChangeFreq: "weekly", Priority: "0.6",
-		})
+	if remaining > 0 {
+		products, err := h.catalogue.SitemapProducts(r.Context(), remaining)
+		if err != nil {
+			h.log.ErrorContext(r.Context(), "sitemap products", "error", err)
+			http.Error(w, "500", http.StatusInternalServerError)
+			return
+		}
+		for i := range products {
+			if remaining == 0 {
+				break
+			}
+			set.URLs = append(set.URLs, urlEntry{
+				Loc: base + "/p/" + products[i].Slug, LastMod: day(products[i].UpdatedAt),
+				ChangeFreq: "weekly", Priority: "0.6",
+			})
+			remaining--
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
@@ -108,4 +124,4 @@ func (h *Handler) Robots(w http.ResponseWriter, r *http.Request) {
 }
 
 // day formats a timestamp as the date part only, which is all lastmod means.
-func day(t time.Time) string { return t.Format("2006-01-02") }
+func day(t time.Time) string { return shoptime.Day(t) }

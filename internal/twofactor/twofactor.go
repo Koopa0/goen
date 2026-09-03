@@ -37,10 +37,10 @@ var (
 	// error, because distinguishing them tells an attacker whether a code was
 	// ever valid.
 	ErrBadCode = errors.New("twofactor: the code is not valid")
-	// ErrSecretUnreadable is a stored credential that does not decrypt: the
-	// key changed, or the row was tampered with. It is never a wrong code —
-	// nothing the staff member types can fix it, so telling them it is one sends
-	// them to the wrong place. Another admin must remove the factor.
+	// ErrSecretUnreadable is a stored credential that does not decrypt: the key
+	// changed, or the row was tampered with. It is never a wrong code — nothing
+	// the staff member types can fix it, so it must not be reported as one.
+	// Another admin must remove the factor.
 	ErrSecretUnreadable = errors.New("twofactor: the stored secret does not open under the configured key")
 	// ErrNotEnrolled is a user with no confirmed credential.
 	ErrNotEnrolled = errors.New("twofactor: not enrolled")

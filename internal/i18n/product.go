@@ -34,9 +34,8 @@ var (
 		En:     "That combination does not exist. Please choose again.",
 	})
 
-	// KeyAllSoldOut is the product with nothing left in any spec. Distinct from
-	// KeySoldOut, which is one combination: telling somebody to choose a spec
-	// when every spec is gone sends them through the picker to find out.
+	// KeyAllSoldOut is the product with nothing left in any spec, distinct from
+	// KeySoldOut, which is one combination.
 	KeyAllSoldOut = key("pdp.allsoldout", Message{
 		ZhHant: "目前全部規格都已售完",
 		En:     "Every option is sold out",

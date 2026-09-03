@@ -43,7 +43,9 @@ func (s *Store) CreateTier(
 ) error {
 	code, name = strings.TrimSpace(code), strings.TrimSpace(name)
 	nameEn = strings.TrimSpace(nameEn)
-	if code == "" || name == "" || thresholdDollars < 0 {
+	if code == "" || name == "" || thresholdDollars < 0 ||
+		thresholdDollars > MaxPriceCents/100 || percent < 100 ||
+		percent > MaxTierMultiplierBP/100 {
 		return ErrInvalid
 	}
 	multiplierBP := percent * 100
@@ -54,7 +56,7 @@ func (s *Store) CreateTier(
 	position := int32(min(thresholdDollars/10000, math.MaxInt32))
 
 	return s.audited(ctx, Event{
-		Action: ActionCreateTier, Table: "membership_tiers",
+		Action: actionCreateTier, Table: "membership_tiers",
 		Before: nil,
 		After: map[string]any{
 			"code": code, "name": name, "name_en": nameEn,
@@ -81,7 +83,7 @@ func (s *Store) DeleteTier(ctx context.Context, id string) error {
 		return ErrNotFound
 	}
 	return s.audited(ctx, Event{
-		Action: ActionDeleteTier, Table: "membership_tiers", ID: nullableID(tierID),
+		Action: actionDeleteTier, Table: "membership_tiers", ID: nullableID(tierID),
 		Before: map[string]any{"id": id}, After: nil,
 	},
 		func(ctx context.Context, q *db.Queries) error {

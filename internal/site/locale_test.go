@@ -6,8 +6,6 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
-// TestTheReturnTargetFallsBackToThisFeaturesOwnPage proves a refused target
-// lands somewhere useful.
 func TestTheReturnTargetFallsBackToThisFeaturesOwnPage(t *testing.T) {
 	const fallback = "/"
 	if got := web.SitePathOr("//evil.example", fallback); got != fallback {

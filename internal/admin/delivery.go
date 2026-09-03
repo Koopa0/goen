@@ -56,7 +56,7 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *Delivery)
 	addr.ForDestination()
 
 	return s.audited(ctx, Event{
-		Action: ActionCorrectDelivery, Table: "order_private_data",
+		Action: actionCorrectDelivery, Table: "order_private_data",
 		Before: nil,
 		After:  map[string]any{"order_number": number, "destination": string(to)},
 	},

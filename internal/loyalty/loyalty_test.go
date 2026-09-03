@@ -2,8 +2,6 @@ package loyalty
 
 import "testing"
 
-// TestARedemptionNeverKeepsTheRemainder proves no points disappear in the
-// exchange.
 func TestARedemptionNeverKeepsTheRemainder(t *testing.T) {
 	tests := []struct {
 		balance    int64
@@ -28,8 +26,6 @@ func TestARedemptionNeverKeepsTheRemainder(t *testing.T) {
 	}
 }
 
-// TestTheExchangeIsExactInBothDirections proves the rate creates and destroys
-// nothing.
 func TestTheExchangeIsExactInBothDirections(t *testing.T) {
 	for points := int64(0); points <= 10_000; points += PointsPerCredit {
 		cents := CreditFor(points)

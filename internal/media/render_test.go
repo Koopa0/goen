@@ -27,7 +27,6 @@ func storedPNG(t *testing.T, w, h int) []byte {
 	return data
 }
 
-// serveRendition asks h for one rendition over HTTP.
 func serveRendition(t *testing.T, h *Handler, digest, width string) *httptest.ResponseRecorder {
 	t.Helper()
 
@@ -39,9 +38,7 @@ func serveRendition(t *testing.T, h *Handler, digest, width string) *httptest.Re
 	return w
 }
 
-// TestARenditionIsRenderedOnceAndThenServedFromMemory proves the expensive path
-// is paid once per URL rather than once per request. Asserted through Serve,
-// because a cache the handler does not call is a cache that does nothing.
+// Asserted through Serve: a cache the handler does not call does nothing.
 func TestARenditionIsRenderedOnceAndThenServedFromMemory(t *testing.T) {
 	t.Parallel()
 
@@ -84,9 +81,8 @@ func TestARenditionIsRenderedOnceAndThenServedFromMemory(t *testing.T) {
 	}
 }
 
-// TestConcurrentRequestsForOneRenditionRenderItOnce proves the cache is not the
-// whole answer: a cold URL is where the stampede is. synctest, because a sleep
-// would pass on a fast machine and lie on a slow one.
+// A cold URL is where the stampede is. synctest, because a sleep would pass on
+// a fast machine and lie on a slow one.
 func TestConcurrentRequestsForOneRenditionRenderItOnce(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const callers = 20
@@ -135,9 +131,8 @@ func TestConcurrentRequestsForOneRenditionRenderItOnce(t *testing.T) {
 	})
 }
 
-// TestRendersAreBoundedInFlight proves requests for DIFFERENT images, which
-// singleflight cannot collapse, do not all decode at once — each holds a pixel
-// buffer of up to forty million pixels.
+// Requests for DIFFERENT images, which singleflight cannot collapse, must not
+// all decode at once: each holds a pixel buffer of up to forty million pixels.
 func TestRendersAreBoundedInFlight(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const slots = 2
@@ -185,9 +180,7 @@ func TestRendersAreBoundedInFlight(t *testing.T) {
 	})
 }
 
-// TestTheCacheIsBoundedAndEvictsTheLeastRecentlyUsed proves the fix is not a
-// second memory leak: an unbounded map of rendered images is the same denial of
-// service from the other side.
+// An unbounded map of rendered images is a denial of service from the other side.
 func TestTheCacheIsBoundedAndEvictsTheLeastRecentlyUsed(t *testing.T) {
 	t.Parallel()
 

@@ -5,6 +5,7 @@ package product_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -12,11 +13,12 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"time"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin"
@@ -274,6 +276,146 @@ func TestOnlyACommittedPurchaseEarnsTheBadge(t *testing.T) {
 	}
 }
 
+func TestRetiringAPurchasedVariantDoesNotEraseVerifiedPurchase(t *testing.T) {
+	ctx := t.Context()
+	who := reviewer(t, "retired-variant")
+	tx, beginErr := pool.Begin(ctx)
+	if beginErr != nil {
+		t.Fatalf("begin: %v", beginErr)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	slug := "retired-variant-" + uuid.NewString()
+	var productID uuid.UUID
+	if queryErr := tx.QueryRow(ctx, `
+		INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+		SELECT b.id, c.id, $1, '規格退役測試商品', 'draft', now()
+		FROM brands b CROSS JOIN categories c
+		WHERE c.parent_id IS NULL
+		ORDER BY b.id, c.id LIMIT 1
+		RETURNING id`, slug).Scan(&productID); queryErr != nil {
+		t.Fatalf("create product: %v", queryErr)
+	}
+	var boughtVariant uuid.UUID
+	for pos := range 2 {
+		var id uuid.UUID
+		if queryErr := tx.QueryRow(ctx, `
+			INSERT INTO product_variants
+				(product_id, sku, price_cents, stock_quantity, position)
+			VALUES ($1, $2, 100000, 1, $3)
+			RETURNING id`, productID,
+			"RETIRED-"+strings.ToUpper(strings.ReplaceAll(uuid.NewString(), "-", "")), pos).Scan(&id); queryErr != nil {
+			t.Fatalf("create variant %d: %v", pos, queryErr)
+		}
+		if pos == 0 {
+			boughtVariant = id
+		}
+	}
+	if _, execErr := tx.Exec(ctx,
+		`UPDATE products SET status = 'active' WHERE id = $1`, productID); execErr != nil {
+		t.Fatalf("publish product: %v", execErr)
+	}
+
+	var orderID, lineID uuid.UUID
+	if queryErr := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, user_id, shipping_version_id,
+		                    shipping_method_code, shipping_method_name, shipping_cents)
+		SELECT next_order_number(), $1, v.id, sm.code, v.name, 0
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1
+		RETURNING id`, who).Scan(&orderID); queryErr != nil {
+		t.Fatalf("create order: %v", queryErr)
+	}
+	// Supply only variant_id, as older/import callers do. The schema must bind
+	// and retain the durable product identity when the variant is retired.
+	if queryErr := tx.QueryRow(ctx, `
+		INSERT INTO order_lines
+			(order_id, variant_id, sku, product_name, unit_price_cents, quantity)
+		VALUES ($1, $2, 'RETIRED-BOUGHT', '規格退役測試商品', 100000, 1)
+		RETURNING id`, orderID, boughtVariant).Scan(&lineID); queryErr != nil {
+		t.Fatalf("create line: %v", queryErr)
+	}
+	if _, savepointErr := tx.Exec(ctx, `SAVEPOINT mismatched_order_line_product`); savepointErr != nil {
+		t.Fatalf("savepoint: %v", savepointErr)
+	}
+	_, mismatchErr := tx.Exec(ctx, `
+		INSERT INTO order_lines
+			(order_id, product_id, variant_id, sku, product_name,
+			 unit_price_cents, quantity, position)
+		SELECT $1, p.id, $2, 'RETIRED-MISMATCH', '不相干商品', 1, 1, 1
+		FROM products p WHERE p.id <> $3 ORDER BY p.id LIMIT 1`,
+		orderID, boughtVariant, productID)
+	pgErr, isPG := errors.AsType[*pgconn.PgError](mismatchErr)
+	if mismatchErr == nil || !isPG || pgErr.ConstraintName != "order_lines_variant_product_fk" {
+		t.Errorf("mismatched product/variant gave %v, want order_lines_variant_product_fk", mismatchErr)
+	}
+	if _, rollbackErr := tx.Exec(ctx, `ROLLBACK TO SAVEPOINT mismatched_order_line_product`); rollbackErr != nil {
+		t.Fatalf("rollback mismatch: %v", rollbackErr)
+	}
+	if _, privateErr := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'retired@example.com', '收件', '0912345678',
+		        '110', '台北市', '信義區', '路 1 號')`, orderID); privateErr != nil {
+		t.Fatalf("create private data: %v", privateErr)
+	}
+	ref := "cs_retired_" + orderID.String()
+	if _, openErr := tx.Exec(ctx, `SELECT open_payment($1, $2, 100000)`, orderID, ref); openErr != nil {
+		t.Fatalf("open payment: %v", openErr)
+	}
+	if _, captureErr := tx.Exec(ctx, `SELECT capture_payment($1, 100000, NULL, NULL)`, ref); captureErr != nil {
+		t.Fatalf("capture: %v", captureErr)
+	}
+
+	if _, retireErr := tx.Exec(ctx,
+		`UPDATE product_variants SET is_active = false WHERE id = $1`, boughtVariant); retireErr != nil {
+		t.Fatalf("retire purchased variant: %v", retireErr)
+	}
+	if _, savepointErr := tx.Exec(ctx, `SAVEPOINT hard_delete_retired_variant`); savepointErr != nil {
+		t.Fatalf("savepoint hard delete: %v", savepointErr)
+	}
+	_, deleteErr := tx.Exec(ctx, `DELETE FROM product_variants WHERE id = $1`, boughtVariant)
+	pgErr, isPG = errors.AsType[*pgconn.PgError](deleteErr)
+	if deleteErr == nil || !isPG || pgErr.ConstraintName != "order_lines_variant_product_fk" {
+		t.Errorf("hard delete of purchased variant gave %v, want order_lines_variant_product_fk", deleteErr)
+	}
+	if _, rollbackErr := tx.Exec(ctx, `ROLLBACK TO SAVEPOINT hard_delete_retired_variant`); rollbackErr != nil {
+		t.Fatalf("rollback hard delete: %v", rollbackErr)
+	}
+	var keptProduct uuid.UUID
+	var keptVariant uuid.UUID
+	if queryErr := tx.QueryRow(ctx, `
+		SELECT product_id, variant_id FROM order_lines WHERE id = $1`, lineID).
+		Scan(&keptProduct, &keptVariant); queryErr != nil {
+		t.Fatalf("read retired order line: %v", queryErr)
+	}
+	if keptProduct != productID || keptVariant != boughtVariant {
+		t.Fatalf("retired line kept product/variant %s/%s; want %s/%s",
+			keptProduct, keptVariant, productID, boughtVariant)
+	}
+
+	s := product.NewStore(tx)
+	allowed, verified, err := s.CanReview(ctx, slug, who.String())
+	if err != nil || !allowed || !verified {
+		t.Fatalf("CanReview after variant retirement = %t, %t, %v; want true, true, nil",
+			allowed, verified, err)
+	}
+	if errs, addErr := s.AddReview(ctx, slug, who.String(), &product.Review{
+		Rating: 5, Body: "買過的規格退役後仍然保留已購買證明。",
+	}); addErr != nil || len(errs) != 0 {
+		t.Fatalf("AddReview after variant retirement = %v, %v", errs, addErr)
+	}
+	var badge bool
+	if queryErr := tx.QueryRow(ctx, `
+		SELECT is_verified_purchase FROM product_reviews
+		WHERE product_id = $1 AND user_id = $2`, productID, who).Scan(&badge); queryErr != nil {
+		t.Fatalf("read badge: %v", queryErr)
+	}
+	if !badge {
+		t.Error("the historical purchase lost its verified badge with the variant")
+	}
+}
+
 func TestOneReviewPerPersonPerProduct(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
@@ -342,6 +484,68 @@ func TestReviewValidation(t *testing.T) {
 	}); err != nil || len(errs) > 0 {
 		t.Errorf("a %d-rune review was refused: %v %v", product.MaxReviewBodyRunes, errs, err)
 	}
+}
+
+func TestFeedbackCannotTargetAMissingOrInactiveProduct(t *testing.T) {
+	ctx := t.Context()
+	who := reviewer(t, "missing-feedback")
+	missing := "missing-" + uuid.NewString()
+
+	assertRefused := func(t *testing.T, s *product.Store, slug string) {
+		t.Helper()
+		if errs, err := s.AddReview(ctx, slug, who.String(), &product.Review{
+			Rating: 5, Body: "這則評價不可以憑空消失。",
+		}); !errors.Is(err, product.ErrNotFound) || len(errs) != 0 {
+			t.Errorf("AddReview(%q) = %v, %v; want ErrNotFound", slug, errs, err)
+		}
+		if err := s.Ask(ctx, slug, who.String(), "這個商品還存在嗎？"); !errors.Is(err, product.ErrNotFound) {
+			t.Errorf("Ask(%q) = %v; want ErrNotFound", slug, err)
+		}
+	}
+
+	t.Run("missing", func(t *testing.T) {
+		assertRefused(t, product.NewStore(pool), missing)
+	})
+	t.Run("inactive", func(t *testing.T) {
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatalf("begin: %v", err)
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+
+		slug := activeSlug(t)
+		store := product.NewStore(tx)
+		if errs, err := store.AddReview(ctx, slug, who.String(), &product.Review{
+			Rating: 4, Body: "商品下架之前已經留下這則評價。",
+		}); err != nil || len(errs) != 0 {
+			t.Fatalf("create prior review: %v, %v", errs, err)
+		}
+		if _, err := tx.Exec(ctx, `UPDATE products SET status = 'draft' WHERE slug = $1`, slug); err != nil {
+			t.Fatalf("make product inactive: %v", err)
+		}
+		assertRefused(t, store, slug)
+
+		form := url.Values{"rating": {"5"}, "body": {"第二次送出不該把 404 變成 500。"}}
+		req := httptest.NewRequestWithContext(
+			account.WithUser(ctx, account.User{ID: who.String()}),
+			http.MethodPost, "/p/"+slug+"/reviews", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.SetPathValue("slug", slug)
+		res := httptest.NewRecorder()
+		product.NewHandler(store, slog.New(slog.DiscardHandler), "https://goen.example").Review(res, req)
+		if res.Code != http.StatusNotFound {
+			t.Errorf("reviewing an inactive product after a prior review returned %d, want 404", res.Code)
+		}
+		var reviews int
+		if err := tx.QueryRow(ctx, `
+			SELECT count(*) FROM product_reviews r JOIN products p ON p.id = r.product_id
+			WHERE p.slug = $1 AND r.user_id = $2`, slug, who).Scan(&reviews); err != nil {
+			t.Fatalf("count reviews: %v", err)
+		}
+		if reviews != 1 {
+			t.Errorf("inactive repeat wrote %d reviews, want the original one", reviews)
+		}
+	})
 }
 
 func reviewer(t *testing.T, tag string) uuid.UUID {
@@ -418,11 +622,11 @@ func buy(t *testing.T, userID uuid.UUID, slug string) {
 func TestRestockNoticeIsIdempotent(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
-	vid := soldOutVariant(t)
+	vid, slug := soldOutVariant(t)
 	addr := waitingAddr(t)
 
 	for range 3 {
-		if err := s.RequestRestockNotice(ctx, vid.String(), addr, ""); err != nil {
+		if err := s.RequestRestockNotice(ctx, slug, vid.String(), addr, ""); err != nil {
 			t.Fatalf("request: %v", err)
 		}
 	}
@@ -438,7 +642,7 @@ func TestRestockNoticeIsIdempotent(t *testing.T) {
 	}
 
 	// Case does not make it a different person.
-	if err := s.RequestRestockNotice(ctx, vid.String(), strings.ToUpper(waitingAddr(t)), ""); err != nil {
+	if err := s.RequestRestockNotice(ctx, slug, vid.String(), strings.ToUpper(waitingAddr(t)), ""); err != nil {
 		t.Fatalf("uppercase: %v", err)
 	}
 	// Scoped to the address too: every restock test shares one variant.
@@ -455,10 +659,10 @@ func TestRestockNoticeIsIdempotent(t *testing.T) {
 func TestANotifiedRequestDoesNotBlockTheNextOne(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
-	vid := soldOutVariant(t)
+	vid, slug := soldOutVariant(t)
 	const addr = "again@example.com"
 
-	if err := s.RequestRestockNotice(ctx, vid.String(), addr, ""); err != nil {
+	if err := s.RequestRestockNotice(ctx, slug, vid.String(), addr, ""); err != nil {
 		t.Fatalf("first: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
@@ -467,7 +671,7 @@ func TestANotifiedRequestDoesNotBlockTheNextOne(t *testing.T) {
 		t.Fatalf("mark notified: %v", err)
 	}
 
-	if err := s.RequestRestockNotice(ctx, vid.String(), addr, ""); err != nil {
+	if err := s.RequestRestockNotice(ctx, slug, vid.String(), addr, ""); err != nil {
 		t.Fatalf("second: %v", err)
 	}
 	var pending int
@@ -486,30 +690,351 @@ func TestANotifiedRequestDoesNotBlockTheNextOne(t *testing.T) {
 func TestRestockNoticeRefusesAnUnusableAddress(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
-	vid := soldOutVariant(t)
+	vid, slug := soldOutVariant(t)
 
 	for _, addr := range []string{"", "  ", "nope", "a@", "@b.com", "a b@c.com"} {
-		if err := s.RequestRestockNotice(ctx, vid.String(), addr, ""); !errors.Is(err, product.ErrNotifyInvalid) {
+		if err := s.RequestRestockNotice(ctx, slug, vid.String(), addr, ""); !errors.Is(err, product.ErrNotifyInvalid) {
 			t.Errorf("%q gave %v, want ErrNotifyInvalid", addr, err)
 		}
 	}
 	// The control: a real address IS accepted.
-	if err := s.RequestRestockNotice(ctx, vid.String(), "real@example.com", ""); err != nil {
+	if err := s.RequestRestockNotice(ctx, slug, vid.String(), "real@example.com", ""); err != nil {
 		t.Errorf("a valid address was refused: %v", err)
 	}
 }
 
-func soldOutVariant(t *testing.T) uuid.UUID {
-	t.Helper()
-	var id uuid.UUID
-	if err := pool.QueryRow(t.Context(), `
-		SELECT pv.id FROM product_variants pv JOIN products p ON p.id = pv.product_id
+func TestRestockNoticeIsBoundToTheRouteAndASoldOutActiveVariant(t *testing.T) {
+	ctx := t.Context()
+	s := product.NewStore(pool)
+	vid, slug := soldOutVariant(t)
+
+	if err := s.RequestRestockNotice(ctx, slug+"-wrong", vid.String(),
+		"wrong-route@example.com", ""); !errors.Is(err, product.ErrNotifyInvalid) {
+		t.Errorf("wrong route product gave %v, want ErrNotifyInvalid", err)
+	}
+
+	var inStockID uuid.UUID
+	var inStockSlug string
+	if err := pool.QueryRow(ctx, `
+		SELECT pv.id, p.slug
+		FROM product_variants pv JOIN products p ON p.id = pv.product_id
 		WHERE p.status = 'active' AND pv.is_active
+		  AND pv.stock_quantity > pv.safety_stock
+		LIMIT 1`).Scan(&inStockID, &inStockSlug); err != nil {
+		t.Fatalf("find in-stock variant: %v", err)
+	}
+	if err := s.RequestRestockNotice(ctx, inStockSlug, inStockID.String(),
+		"already-stocked@example.com", ""); !errors.Is(err, product.ErrNotifyInvalid) {
+		t.Errorf("in-stock variant gave %v, want ErrNotifyInvalid", err)
+	}
+
+	for _, tc := range []struct {
+		name   string
+		update string
+	}{
+		{"inactive variant", `UPDATE product_variants SET is_active = false WHERE id = $1`},
+		{"inactive product", `UPDATE products p SET status = 'draft'
+			FROM product_variants pv WHERE pv.id = $1 AND p.id = pv.product_id`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tx, err := pool.Begin(ctx)
+			if err != nil {
+				t.Fatalf("begin: %v", err)
+			}
+			defer func() { _ = tx.Rollback(ctx) }()
+			if _, err := tx.Exec(ctx, tc.update, vid); err != nil {
+				t.Fatalf("make fixture ineligible: %v", err)
+			}
+			if err := product.NewStore(tx).RequestRestockNotice(ctx, slug, vid.String(),
+				"inactive-"+strings.ReplaceAll(tc.name, " ", "-")+"@example.com", ""); !errors.Is(err, product.ErrNotifyInvalid) {
+				t.Errorf("request gave %v, want ErrNotifyInvalid", err)
+			}
+		})
+	}
+
+	var inserted int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM stock_notifications
+		WHERE email IN ('wrong-route@example.com', 'already-stocked@example.com')`).Scan(&inserted); err != nil {
+		t.Fatalf("count refused notices: %v", err)
+	}
+	if inserted != 0 {
+		t.Errorf("%d notifications were inserted for ineligible route/stock", inserted)
+	}
+}
+
+// TestRestockNoticeAndRestockLinearizeOnVariant covers both serial orders of the
+// stock-notice decision and the movement that makes stock sellable. The notice
+// query must own the variant row while it decides and inserts: otherwise a restock
+// claims before the request commits, and a request queued behind a restock inserts
+// from its stale statement snapshot instead of rechecking the committed stock.
+func TestRestockNoticeAndRestockLinearizeOnVariant(t *testing.T) {
+	t.Run("request wins and restock claims it", func(t *testing.T) {
+		ctx := t.Context()
+		variantID, slug, sku, actorID := stockRaceFixture(t)
+		address := "request-first-" + uuid.NewString() + "@example.com"
+
+		requestTx, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatalf("begin notice request: %v", err)
+		}
+		defer func() { _ = requestTx.Rollback(context.WithoutCancel(ctx)) }()
+		if err := product.NewStore(requestTx).RequestRestockNotice(
+			ctx, slug, variantID.String(), address, "",
+		); err != nil {
+			t.Fatalf("hold notice request open: %v", err)
+		}
+
+		applicationName := "stock-race-request-first-" + uuid.NewString()[:8]
+		restockPool := stockRacePool(t, applicationName)
+		restockStore := admin.NewStore(restockPool, admin.NewRefunder(""), nil, nil)
+		staffCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: "admin"})
+		restocked := make(chan error, 1)
+		go func() {
+			restocked <- restockStore.AdjustStock(
+				staffCtx, sku, 1, actorID.String(), "stock-race-"+uuid.NewString(),
+			)
+		}()
+		waitForStockRaceLock(t, applicationName, restocked)
+
+		if err := requestTx.Commit(ctx); err != nil {
+			t.Fatalf("commit notice request: %v", err)
+		}
+		if err := stockRaceResult(t, restocked); err != nil {
+			t.Fatalf("restock after committed request: %v", err)
+		}
+
+		var notified, enqueued bool
+		if err := pool.QueryRow(ctx, `
+			SELECT sn.notified_at IS NOT NULL,
+			       EXISTS (
+			           SELECT 1 FROM outbox_messages m
+			           WHERE m.topic = 'catalogue.restocked'
+			             AND m.dedupe_key = sn.id::text
+			       )
+			FROM stock_notifications sn
+			WHERE sn.variant_id = $1 AND lower(sn.email) = lower($2)`,
+			variantID, address).Scan(&notified, &enqueued); err != nil {
+			t.Fatalf("read claimed notice: %v", err)
+		}
+		if !notified || !enqueued {
+			t.Errorf("request-first notice notified/enqueued = %t/%t, want true/true",
+				notified, enqueued)
+		}
+	})
+
+	t.Run("restock wins and late request rechecks", func(t *testing.T) {
+		ctx := t.Context()
+		variantID, slug, sku, actorID := stockRaceFixture(t)
+		address := "restock-first-" + uuid.NewString() + "@example.com"
+		applicationName := "stock-race-restock-first-" + uuid.NewString()[:8]
+
+		// Pause the real admin transaction at its audit INSERT. At that point its
+		// inventory movement and empty notice claim have both run, while the
+		// variant update is still invisible and its row lock remains held.
+		suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
+		functionName := pgx.Identifier{"test_stock_notice_restock_barrier_" + suffix}.Sanitize()
+		triggerName := pgx.Identifier{"test_stock_notice_restock_trigger_" + suffix}.Sanitize()
+		const barrierKey int64 = 8_112_233_445_566_781
+		if _, err := pool.Exec(ctx, fmt.Sprintf(`
+			CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $body$
+			BEGIN
+				IF NEW.action = 'stock.adjust'
+				   AND NEW.entity_table = 'product_variants'
+				   AND NEW.entity_id = '%s'::uuid THEN
+					PERFORM pg_advisory_xact_lock(%d);
+				END IF;
+				RETURN NEW;
+			END
+			$body$`, functionName, variantID, barrierKey)); err != nil {
+			t.Fatalf("create restock barrier: %v", err)
+		}
+		if _, err := pool.Exec(ctx, fmt.Sprintf(`
+			CREATE TRIGGER %s BEFORE INSERT ON audit_events
+			FOR EACH ROW EXECUTE FUNCTION %s()`, triggerName, functionName)); err != nil {
+			t.Fatalf("install restock barrier: %v", err)
+		}
+		t.Cleanup(func() {
+			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
+			_, _ = pool.Exec(cleanupCtx, fmt.Sprintf(
+				`DROP TRIGGER IF EXISTS %s ON audit_events`, triggerName))
+			_, _ = pool.Exec(cleanupCtx, fmt.Sprintf(
+				`DROP FUNCTION IF EXISTS %s()`, functionName))
+		})
+
+		barrier, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatalf("begin restock barrier: %v", err)
+		}
+		defer func() { _ = barrier.Rollback(context.WithoutCancel(ctx)) }()
+		if _, err := barrier.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, barrierKey); err != nil {
+			t.Fatalf("lock restock barrier: %v", err)
+		}
+
+		restockPool := stockRacePool(t, applicationName)
+		restockStore := admin.NewStore(restockPool, admin.NewRefunder(""), nil, nil)
+		staffCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: "admin"})
+		restocked := make(chan error, 1)
+		go func() {
+			restocked <- restockStore.AdjustStock(
+				staffCtx, sku, 1, actorID.String(), "stock-race-"+uuid.NewString(),
+			)
+		}()
+		waitForStockRaceLock(t, applicationName, restocked)
+
+		requestApplication := "stock-race-request-late-" + uuid.NewString()[:8]
+		requestPool := stockRacePool(t, requestApplication)
+		requested := make(chan error, 1)
+		go func() {
+			requested <- product.NewStore(requestPool).RequestRestockNotice(
+				ctx, slug, variantID.String(), address, "",
+			)
+		}()
+		waitForStockRaceLock(t, requestApplication, requested)
+
+		if err := barrier.Commit(ctx); err != nil {
+			t.Fatalf("release restock transaction: %v", err)
+		}
+		if err := stockRaceResult(t, restocked); err != nil {
+			t.Fatalf("restock: %v", err)
+		}
+		if err := stockRaceResult(t, requested); !errors.Is(err, product.ErrNotifyInvalid) {
+			t.Fatalf("request queued behind restock = %v, want ErrNotifyInvalid", err)
+		}
+
+		var notices, messages int
+		if err := pool.QueryRow(ctx, `
+			SELECT count(*) FROM stock_notifications
+			WHERE variant_id = $1 AND lower(email) = lower($2)`,
+			variantID, address).Scan(&notices); err != nil {
+			t.Fatalf("count late notices: %v", err)
+		}
+		if err := pool.QueryRow(ctx, `
+			SELECT count(*) FROM outbox_messages
+			WHERE topic = 'catalogue.restocked' AND payload->>'email' = $1`,
+			address).Scan(&messages); err != nil {
+			t.Fatalf("count late messages: %v", err)
+		}
+		if notices != 0 || messages != 0 {
+			t.Errorf("restock-first race left %d notices and %d messages, want 0/0",
+				notices, messages)
+		}
+	})
+}
+
+func stockRaceFixture(t *testing.T) (variantID uuid.UUID, slug, sku string, actorID uuid.UUID) {
+	t.Helper()
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin stock-race fixture: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+
+	slug = "stock-race-" + uuid.NewString()
+	sku = "STOCK-RACE-" + strings.ToUpper(strings.ReplaceAll(uuid.NewString(), "-", ""))
+	var productID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+		SELECT b.id, c.id, $1, '補貨競態測試商品', 'draft', now()
+		FROM brands b CROSS JOIN categories c
+		WHERE c.parent_id IS NULL
+		ORDER BY b.id, c.id LIMIT 1
+		RETURNING id`, slug).Scan(&productID); err != nil {
+		t.Fatalf("create stock-race product: %v", err)
+	}
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO product_variants
+			(product_id, sku, price_cents, stock_quantity, safety_stock)
+		VALUES ($1, $2, 100000, 0, 0)
+		RETURNING id`, productID, sku).Scan(&variantID); err != nil {
+		t.Fatalf("create stock-race variant: %v", err)
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE products SET status = 'active' WHERE id = $1`, productID); err != nil {
+		t.Fatalf("publish stock-race product: %v", err)
+	}
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO users (email, role, full_name)
+		VALUES ('stock-race-' || gen_random_uuid() || '@goen.invalid', 'admin', '補貨競態測試')
+		RETURNING id`).Scan(&actorID); err != nil {
+		t.Fatalf("create stock-race actor: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit stock-race fixture: %v", err)
+	}
+	return variantID, slug, sku, actorID
+}
+
+func stockRacePool(t *testing.T, applicationName string) *pgxpool.Pool {
+	t.Helper()
+	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
+	if err != nil {
+		t.Fatalf("parse stock-race pool config: %v", err)
+	}
+	cfg.MaxConns = 1
+	cfg.ConnConfig.RuntimeParams["application_name"] = applicationName
+	p, err := pgxpool.NewWithConfig(t.Context(), cfg)
+	if err != nil {
+		t.Fatalf("open stock-race pool: %v", err)
+	}
+	t.Cleanup(p.Close)
+	return p
+}
+
+func waitForStockRaceLock(t *testing.T, applicationName string, done <-chan error) {
+	t.Helper()
+	ticker := time.NewTicker(5 * time.Millisecond)
+	defer ticker.Stop()
+	timer := time.NewTimer(15 * time.Second)
+	defer timer.Stop()
+
+	for {
+		select {
+		case err := <-done:
+			t.Fatalf("%s returned before reaching the intended database lock: %v",
+				applicationName, err)
+		case <-ticker.C:
+			var waiting bool
+			err := pool.QueryRow(t.Context(), `
+				SELECT EXISTS (
+					SELECT 1 FROM pg_stat_activity
+					WHERE application_name = $1 AND wait_event_type = 'Lock'
+				)`, applicationName).Scan(&waiting)
+			if err == nil && waiting {
+				return
+			}
+		case <-timer.C:
+			t.Fatalf("%s never blocked on the intended database lock", applicationName)
+		}
+	}
+}
+
+func stockRaceResult(t *testing.T, done <-chan error) error {
+	t.Helper()
+	timer := time.NewTimer(15 * time.Second)
+	defer timer.Stop()
+	select {
+	case err := <-done:
+		return err
+	case <-timer.C:
+		t.Fatal("stock race operation did not finish after its database lock was released")
+		return nil
+	}
+}
+
+func soldOutVariant(t *testing.T) (id uuid.UUID, slug string) {
+	t.Helper()
+	if err := pool.QueryRow(t.Context(), `
+		SELECT pv.id, p.slug FROM product_variants pv JOIN products p ON p.id = pv.product_id
+		WHERE p.status = 'active' AND pv.is_active
+		  AND pv.stock_quantity <= pv.safety_stock
 		ORDER BY pv.stock_quantity - pv.safety_stock
-		LIMIT 1`).Scan(&id); err != nil {
+		LIMIT 1`).Scan(&id, &slug); err != nil {
 		t.Fatalf("find variant: %v", err)
 	}
-	return id
+	return id, slug
 }
 
 func TestRecommendationsComeFromTheProjection(t *testing.T) {
@@ -541,6 +1066,53 @@ func TestRecommendationsComeFromTheProjection(t *testing.T) {
 	}
 	if after.AlsoBought[0].Slug != b {
 		t.Errorf("recommended %q, want %q", after.AlsoBought[0].Slug, b)
+	}
+}
+
+func TestRecommendationsSurviveRetirementOfAPurchasedVariant(t *testing.T) {
+	ctx := t.Context()
+	s := product.NewStore(pool)
+	a, b := twoProductsBoughtTogether(t, 2)
+
+	var productID, retiredVariant uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		SELECT p.id, pv.id
+		FROM products p JOIN product_variants pv ON pv.product_id = p.id
+		WHERE p.slug = $1
+		ORDER BY pv.position, pv.id LIMIT 1`, a).Scan(&productID, &retiredVariant); err != nil {
+		t.Fatalf("find purchased variant: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO product_variants (product_id, sku, price_cents, position)
+		VALUES ($1, 'REC-' || upper(replace(gen_random_uuid()::text, '-', '')), 100000, 1)`,
+		productID); err != nil {
+		t.Fatalf("create surviving variant: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`UPDATE product_variants SET is_active = false WHERE id = $1`, retiredVariant); err != nil {
+		t.Fatalf("retire purchased variant: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `SELECT refresh_copurchases()`); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+
+	view, err := s.Load(ctx, a, product.Selection{})
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(view.AlsoBought) != 1 || view.AlsoBought[0].Slug != b {
+		t.Fatalf("recommendations after variant retirement = %+v, want %q",
+			view.AlsoBought, b)
+	}
+	var historicalLines int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM order_lines
+		WHERE product_id = $1 AND variant_id = $2`, productID, retiredVariant).
+		Scan(&historicalLines); err != nil {
+		t.Fatalf("read historical lines: %v", err)
+	}
+	if historicalLines != 2 {
+		t.Errorf("%d purchased lines retained product identity, want 2", historicalLines)
 	}
 }
 
@@ -993,7 +1565,6 @@ func TestTheProductPageKnowsWhatIsAlreadySaved(t *testing.T) {
 		t.Error("a saved product reported as not saved")
 	}
 
-	// Without this a function returning true for anything would pass.
 	if s.SavedByUser(ctx, userID.String(), "pixelight-9") {
 		t.Error("an unsaved product reported as saved")
 	}
@@ -1116,17 +1687,9 @@ func reviewBy(t *testing.T, productID uuid.UUID, address string, rating int) (id
 	return id, body
 }
 
-// TestASimultaneousSecondReviewIsRefusedByName reaches the branch the ordinary
-// path never touches.
-//
-// AddReview asks CanReview first, and in every ordinary case that is what
-// answers: TestOneReviewPerPersonPerProduct drives the pre-check twice and
-// never reaches the INSERT's own refusal. So the error mapping below it — the
-// one that turns product_reviews_author_key into ErrAlreadyReviewed — is
-// reached ONLY when two submissions race, which is the path least exercised
-// and least able to announce that it had stopped matching. That is the coupon
-// lesson exactly: a count proves the database held the line; only the ERROR
-// says what the customer is about to be shown.
+// TestASimultaneousSecondReviewIsRefusedByName reaches the INSERT's own refusal,
+// the mapping of product_reviews_author_key to ErrAlreadyReviewed: CanReview
+// answers first in every ordinary case, so only two racing submissions get there.
 //
 // The race is made deterministic rather than hoped for. T1 inserts the row and
 // holds its transaction OPEN: under read committed the row is invisible, so
@@ -1179,12 +1742,10 @@ func TestASimultaneousSecondReviewIsRefusedByName(t *testing.T) {
 	}
 }
 
-// TestLoadIgnoresThePagesOwnParameters holds the WIRING, not the filter.
-//
-// OnlyOptionsOf has its own unit test, and deleting the call to it from Load
-// left that test green — the method was proven and its use was not. This drives
-// the whole path: the query the restock form's own redirect produces, against a
-// product that is in stock.
+// TestLoadIgnoresThePagesOwnParameters holds the WIRING rather than the filter:
+// OnlyOptionsOf has a unit test of its own, and Load's call to it needs one too.
+// It drives the query the restock form's redirect produces, against a product
+// that is in stock.
 func TestLoadIgnoresThePagesOwnParameters(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)

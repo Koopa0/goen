@@ -4,8 +4,9 @@ package db_test
 
 import (
 	"errors"
+	"maps"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -101,7 +102,7 @@ func TestNoStaleRunExemption(t *testing.T) {
 	}
 	defer conn.Release()
 
-	for _, key := range sortedStrings(runExemptions) {
+	for _, key := range slices.Sorted(maps.Keys(runExemptions)) {
 		role, method, ok := strings.Cut(key, ".")
 		if !ok {
 			t.Errorf("runExemptions key %q is not role.Query", key)
@@ -159,14 +160,4 @@ func packagesOn(role string) []string {
 	default:
 		panic("db: unknown role in the pool map: " + role)
 	}
-}
-
-// sortedStrings is a map's keys in a stable order.
-func sortedStrings[V any](m map[string]V) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
 }

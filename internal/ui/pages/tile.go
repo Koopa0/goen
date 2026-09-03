@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/money"
 )
 
 // ProductTile is one product card and the cheapest buyable variant's price.
@@ -80,25 +80,9 @@ func (t ProductTile) RatingLabel(ctx context.Context) string {
 // TWD is twd for callers outside this package.
 func TWD(cents int64) string { return twd(cents) }
 
-// TWD is quoted as a whole number, so the cents fold into the dollars.
-func twd(cents int64) string {
-	neg := cents < 0
-	if neg {
-		cents = -cents
-	}
-	whole := strconv.FormatInt(cents/100, 10)
-	var b strings.Builder
-	for i, r := range whole {
-		if i > 0 && (len(whole)-i)%3 == 0 {
-			b.WriteByte(',')
-		}
-		b.WriteRune(r)
-	}
-	if neg {
-		return "-NT$" + b.String()
-	}
-	return "NT$" + b.String()
-}
+// twd is the templates' short name for the one renderer, which lives in
+// internal/money so internal/email can print the same figures.
+func twd(cents int64) string { return money.TWD(cents) }
 
 // FreeDeliveryText is the threshold a guarantee strip states, empty for none.
 func FreeDeliveryText(cents int64) string {

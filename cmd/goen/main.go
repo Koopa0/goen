@@ -11,6 +11,7 @@ import (
 	"net/smtp"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -53,8 +54,7 @@ type config struct {
 	AdminDatabaseURL string
 	// MaintenanceDatabaseURL is its own knob because a pool opened from
 	// DatabaseURL does SET ROLE maintenance as store_svc, which is not a member
-	// of that role. openMaintenancePool explicitly defeats pgxpool's lazy connect
-	// so a wrong login or role membership fails startup, before any worker runs.
+	// of that role.
 	MaintenanceDatabaseURL string
 	StripeAPIKey           string
 	StripeWebhookSecret    string
@@ -75,9 +75,8 @@ type config struct {
 	Seller        string
 	SellerContact string
 	TOTPKey       string
-	// totpKey is parsed key material. Keeping it distinct from the raw
-	// environment string makes it impossible for the router to decide the key
-	// format a second time.
+	// totpKey is parsed key material, kept distinct from the raw environment
+	// string so nothing downstream decides the key format a second time.
 	totpKey []byte
 	// TrustedProxies is the CIDR list whose X-Forwarded-For goen will believe.
 	// Empty is the default and must stay it: a header is set by the client, so
@@ -129,15 +128,15 @@ func loadConfig() (config, error) {
 	}, nil
 }
 
-// prepareRuntimePosture refuses a configuration that would serve the site
-// with a security feature silently off, or a subsystem that reports success
-// without doing its work. SecureCookies is the production signal: it is false
-// only under the development opt-out GOEN_INSECURE_COOKIES. It also prepares
-// the parsed TOTP key and canonical origin that downstream constructors use.
+// prepareRuntimePosture refuses a configuration that would serve the site with
+// a security feature silently off, or a subsystem that reports success without
+// doing its work, and prepares the parsed TOTP key and canonical origin.
+// SecureCookies is the production signal: it is false only under the
+// development opt-out GOEN_INSECURE_COOKIES.
 func (cfg *config) prepareRuntimePosture(log *slog.Logger) error {
 	// Key shape is a fact, not a production-only preference: accepting a weak
 	// passphrase in development would create credentials production cannot
-	// safely read. Parse it here, where the empty-key posture rule already lives.
+	// safely read.
 	key, keyErr := twofactor.ParseKey(cfg.TOTPKey)
 	if keyErr != nil {
 		return fmt.Errorf("GOEN_TOTP_KEY: %w", keyErr)
@@ -209,19 +208,12 @@ func (cfg *config) trustedProxies(log *slog.Logger) (*ratelimit.Proxies, error) 
 
 // newServer builds the HTTP server, with its timeouts and its outermost
 // middleware.
-func newServer(
-	cfg *config, log *slog.Logger, proxies *ratelimit.Proxies,
-	pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder admin.Refunder,
-	invoices *invoice.Gateway, googleSignIn *account.Google,
-) *http.Server {
+func newServer(cfg *config, routes *RouterConfig, proxies *ratelimit.Proxies, log *slog.Logger) *http.Server {
 	return &http.Server{
 		Addr: cfg.Addr,
 		// Resolve decides which address a request came from, so it sits outside
 		// every ratelimit.Guard that keys on the answer.
-		Handler: proxies.Resolve(newRouter(pool, adminPool, gateway, refunder, &RouterConfig{
-			BaseURL: cfg.BaseURL, SecureCookies: cfg.SecureCookies, TOTPKey: cfg.totpKey,
-			Invoices: invoices, Google: googleSignIn,
-		}, log)),
+		Handler:           proxies.Resolve(newRouter(routes, log)),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -364,12 +356,11 @@ func run() error {
 	}
 	defer adminPool.Close()
 
-	srv := newServer(&cfg, log, proxies, pool, adminPool, gateway, refunder, invoices, googleSignIn)
-
-	var background sync.WaitGroup
-	sweeper := cart.NewStore(pool)
-	background.Go(func() { sweeper.SweepForever(ctx, log) })
-	background.Go(func() { sweeper.SweepAttemptsForever(ctx, log) })
+	srv := newServer(&cfg, &RouterConfig{
+		Pool: pool, AdminPool: adminPool, Payments: gateway, Refunder: refunder,
+		BaseURL: cfg.BaseURL, SecureCookies: cfg.SecureCookies, TOTPKey: cfg.totpKey,
+		Invoices: invoices, Google: googleSignIn,
+	}, proxies, log)
 
 	// Opened here and not inside startWorkers: a pool closed by that function's
 	// own defer would be closed before the worker it belongs to has done
@@ -380,11 +371,14 @@ func run() error {
 	}
 	defer maintenancePool.Close()
 
+	// Nothing above starts a goroutine: a return between a worker and the Wait
+	// that owns it would leave it running on a pool that is closing. Registered
+	// after every Close so LIFO drains the workers first.
+	var background sync.WaitGroup
 	startWorkers(ctx, workerDeps{
 		pool: pool, admin: adminPool, maintenance: maintenancePool,
-		log: log, notifier: notifier, run: background.Go,
+		log: log, notifier: notifier, invoices: invoices, run: background.Go,
 	})
-
 	defer background.Wait()
 
 	serveErr := make(chan error, 1)
@@ -414,16 +408,45 @@ func run() error {
 	return nil
 }
 
+// Pool size and statement bound per role. A statement_timeout is the only
+// thing that ends a slow query: http.Server's WriteTimeout does not cancel
+// r.Context(), so a handler blocked in the database holds its connection until
+// PostgreSQL ends the statement, and enough of them starve the pool.
+const (
+	// pgx would otherwise take max(4, NumCPU), which is four on a small
+	// container serving every visitor plus the background workers that share
+	// this pool. 25 + 10 + 2 stays well inside PostgreSQL's default
+	// max_connections of 100.
+	storeMaxConns = 25
+	// Hundreds of times the slowest measured storefront read, and under
+	// WriteTimeout so a wedged query ends while the client is still there. The
+	// retention sweeps that share this pool are logged and retried on the next
+	// tick if their DELETE ever exceeds it.
+	storeStatementTimeout = 15 * time.Second
+
+	adminMaxConns = 10
+	// /admin/reports scans order history over a 90-day window and grows with
+	// the shop; a back office has one reader who can wait.
+	adminStatementTimeout = 30 * time.Second
+
+	maintenanceMaxConns = 2
+	// refresh_copurchases is measured at 584 ms over the whole order history
+	// and is meant to be slow — that is what its own role and pool are for.
+	// This ends only a rebuild that has wedged, well inside its refresh
+	// interval.
+	maintenanceStatementTimeout = 5 * time.Minute
+)
+
 // openPool builds the connection pool goen serves from.
 func openPool(ctx context.Context, url string) (*pgxpool.Pool, error) {
-	return openPoolAs(ctx, url, "store", 0)
+	return openPoolAs(ctx, url, "store", storeMaxConns, storeStatementTimeout)
 }
 
 // openAdminPool builds the pool the back office serves from. A second pool
 // rather than SET ROLE per request, which would leave the role set on a pooled
 // connection and run the next storefront request as admin.
 func openAdminPool(ctx context.Context, url string) (*pgxpool.Pool, error) {
-	return openPoolAs(ctx, url, "admin", 0)
+	return openPoolAs(ctx, url, "admin", adminMaxConns, adminStatementTimeout)
 }
 
 // openMaintenancePool builds and reaches the pool background jobs run on, as a
@@ -431,7 +454,7 @@ func openAdminPool(ctx context.Context, url string) (*pgxpool.Pool, error) {
 // so a wrong independent DSN or a login that cannot SET ROLE maintenance stops
 // startup rather than failing only inside an unattended worker.
 func openMaintenancePool(ctx context.Context, url string) (*pgxpool.Pool, error) {
-	pool, err := openPoolAs(ctx, url, "maintenance", 2)
+	pool, err := openPoolAs(ctx, url, "maintenance", maintenanceMaxConns, maintenanceStatementTimeout)
 	if err != nil {
 		return nil, redactURL(err, url)
 	}
@@ -445,17 +468,22 @@ func openMaintenancePool(ctx context.Context, url string) (*pgxpool.Pool, error)
 	return pool, nil
 }
 
-// openPoolAs builds a pool whose every connection assumes role. maxConns of 0
-// keeps pgx's default, and a caller wanting fewer has to ask here because
-// Config() on a built pool hands back a copy.
-func openPoolAs(ctx context.Context, url, role string, maxConns int32) (*pgxpool.Pool, error) {
+// openPoolAs builds a pool whose every connection assumes role, holds at most
+// maxConns of them, and runs no statement longer than statementTimeout. The
+// limits are set here because Config() on a built pool hands back a copy.
+func openPoolAs(
+	ctx context.Context, url, role string,
+	maxConns int32, statementTimeout time.Duration,
+) (*pgxpool.Pool, error) {
 	cfg, err := pgxpool.ParseConfig(url)
 	if err != nil {
 		return nil, fmt.Errorf("parse database url: %w", redactURL(err, url))
 	}
-	if maxConns > 0 {
-		cfg.MaxConns = maxConns
-	}
+	cfg.MaxConns = maxConns
+	// A bare number is milliseconds to PostgreSQL, and the startup packet is
+	// what makes it a property of the connection rather than of a caller.
+	cfg.ConnConfig.RuntimeParams["statement_timeout"] =
+		strconv.FormatInt(statementTimeout.Milliseconds(), 10)
 	cfg.ConnConfig.ConnectTimeout = 5 * time.Second
 	cfg.MaxConnIdleTime = 30 * time.Minute
 	cfg.MaxConnLifetime = time.Hour
@@ -512,28 +540,32 @@ func redactURL(err error, url string) error {
 	return errors.New(msg)
 }
 
-// newNotifier prepares mail delivery after prepareRuntimePosture has admitted
-// the development-only log sender. It returns the concrete mail policy rather
-// than hiding it behind the sender interface it consumes.
-func newNotifier(cfg *config, log *slog.Logger) (email.Notifier, error) {
-	notifier := email.Notifier{
-		BaseURL: cfg.BaseURL, Seller: cfg.Seller, SellerContact: cfg.SellerContact,
-	}
+// newSender chooses how mail leaves the process. A configured relay must never
+// fall back to the log sender, whose nil return means "delivered".
+func newSender(cfg *config, log *slog.Logger) (email.Sender, error) {
 	if cfg.SMTPAddr == "" {
-		notifier.Sender = email.LogSender{Log: log}
-		return notifier, nil
+		return email.LogSender{Log: log}, nil
 	}
 	s := email.SMTPSender{Addr: cfg.SMTPAddr, From: cfg.SMTPFrom}
 	if cfg.SMTPUser != "" {
 		host, _, err := net.SplitHostPort(cfg.SMTPAddr)
 		if err != nil {
-			return email.Notifier{}, fmt.Errorf("GOEN_SMTP_ADDR %q is not host:port: %w", cfg.SMTPAddr, err)
+			return nil, fmt.Errorf("GOEN_SMTP_ADDR %q is not host:port: %w", cfg.SMTPAddr, err)
 		}
 		s.Auth = smtp.PlainAuth("", cfg.SMTPUser, cfg.SMTPPassword, host)
 		s.TLSName = host
 	}
-	notifier.Sender = s
-	return notifier, nil
+	return s, nil
+}
+
+// newNotifier prepares mail delivery after prepareRuntimePosture has admitted
+// the development-only log sender.
+func newNotifier(cfg *config, log *slog.Logger) (email.Notifier, error) {
+	sender, err := newSender(cfg, log)
+	if err != nil {
+		return email.Notifier{}, err
+	}
+	return email.New(sender, cfg.BaseURL, cfg.Seller, cfg.SellerContact), nil
 }
 
 // workerDeps is what the background workers need.
@@ -543,8 +575,8 @@ type workerDeps struct {
 	maintenance *pgxpool.Pool
 	log         *slog.Logger
 	notifier    email.Notifier
-	// run starts one worker.
-	run func(func())
+	invoices    *invoice.Gateway
+	run         func(func())
 }
 
 // startWorkers wires everything that runs on its own schedule.
@@ -556,31 +588,34 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	messages.HandleJSON[email.OrderShipped](outbox.TopicOrderShipped, d.notifier.SendOrderShipped)
 	messages.HandleJSON[email.NewsletterConfirm](outbox.TopicNewsletterConfirm, d.notifier.SendNewsletterConfirm)
 	messages.HandleJSON[email.NewsletterWelcome](outbox.TopicNewsletterWelcome, d.notifier.SendNewsletterWelcome)
-	messages.HandleJSON[email.EmailVerify](outbox.TopicEmailVerify, d.notifier.SendEmailVerify)
+	messages.HandleJSON[email.AddressVerify](outbox.TopicEmailVerify, d.notifier.SendAddressVerify)
 	messages.HandleJSON[email.NewsletterIssue](outbox.TopicNewsletterIssue,
 		newsletterIssueHandler(newsletter.NewStore(d.pool), d.notifier))
 	messages.HandleJSON[email.RestockNotice](outbox.TopicRestocked, d.notifier.SendRestockNotice)
 	d.run(func() { messages.Run(ctx) })
 	d.run(func() { messages.SweepForever(ctx, d.log) })
 
+	holds := cart.NewStore(d.pool)
+	d.run(func() { holds.SweepForever(ctx, d.log) })
+	d.run(func() { holds.SweepAttemptsForever(ctx, d.log) })
+
 	d.run(func() { account.NewStore(d.pool).SweepSessionsForever(ctx, d.log) })
 	// The media sweeper runs on the ADMIN pool: `store` holds SELECT on
 	// media_objects and nothing else, so from there the DELETE is refused every
 	// hour, quietly, and nothing is ever reclaimed.
 	d.run(func() { media.NewStore(d.admin).SweepForever(ctx, d.log) })
+	if d.invoices != nil && d.invoices.Enabled() {
+		d.run(func() { invoice.NewStore(d.admin, d.invoices).ReconcileForever(ctx, d.log) })
+	}
 
 	d.run(func() { recommend.NewStore(d.maintenance, d.log).RefreshForever(ctx) })
 }
 
 // newsletterIssueHandler delivers one copy of an issue, and asks at DELIVERY
-// whether the address still wants it.
-//
-// The send freezes one outbox row per subscriber and the queue drains at bulk
-// priority behind every transactional message — minutes to hours for a real
-// list — so an unsubscribe committing anywhere in that window used to have its
-// copy delivered anyway. The producer and the handler were each individually
-// correct and disagreed about WHEN consent is true, which is the shape every
-// guard here is blind to.
+// whether the address still wants it. The send freezes one outbox row per
+// subscriber and the queue drains at bulk priority behind every transactional
+// message — minutes to hours for a real list — so an unsubscribe committing
+// anywhere in that window has to be read here rather than at the send.
 func newsletterIssueHandler(
 	subscribers *newsletter.Store,
 	notifier email.Notifier,

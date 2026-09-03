@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/google/uuid"
+
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -41,6 +43,9 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = noticeFor(r)
+	if view.CanRedeem() {
+		view.OperationID = uuid.NewString()
+	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Points(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPointsTitle)}, view))
 }
@@ -61,8 +66,14 @@ func (h *Handler) Redeem(w http.ResponseWriter, r *http.Request) {
 	if parseErr != nil {
 		points = 0
 	}
+	operationID, operationErr := uuid.Parse(r.PostFormValue("operation_id"))
+	if operationErr != nil || operationID == uuid.Nil {
+		operationID = uuid.Nil
+	}
 
-	switch _, err := h.store.Redeem(r.Context(), u.ID, points); {
+	switch _, err := h.store.Redeem(
+		r.Context(), u.ID, points, operationID,
+	); {
 	case err == nil:
 		http.Redirect(w, r, "/account/points?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrTooSmall):

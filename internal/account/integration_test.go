@@ -8,7 +8,11 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -250,8 +254,6 @@ func TestAuthenticateDoesNotDistinguishUnknownFromWrong(t *testing.T) {
 	}
 }
 
-// This is behaviour preservation rather than the timing lock: both account
-// states already returned ErrBadCredentials, but now do so before any read.
 func TestAnOverLongPasswordIsAlwaysBadCredentials(t *testing.T) {
 	s := account.NewStore(pool)
 	register(t, s, "overlong-password@example.com")
@@ -303,6 +305,57 @@ func TestSessionsAreStoredHashed(t *testing.T) {
 	}
 	if _, err := s.SessionUser(t.Context(), token+"x"); !errors.Is(err, account.ErrNotFound) {
 		t.Error("a near-miss token found a session")
+	}
+}
+
+func TestUnsafeUserAgentDoesNotRefuseOrDecorateASession(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	u := register(t, s, "session-user-agent-"+uuid.NewString()+"@example.com")
+
+	for _, tt := range []struct {
+		name      string
+		userAgent string
+	}{
+		{name: "overlong", userAgent: strings.Repeat("a", 513)},
+		{name: "control character", userAgent: "browser\nforged"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			token, err := s.StartSession(ctx, u.ID, tt.userAgent, "192.0.2.1")
+			if err != nil {
+				t.Fatalf("unsafe optional user-agent refused the session: %v", err)
+			}
+			if got, sessionErr := s.SessionUser(ctx, token); sessionErr != nil || got.ID != u.ID {
+				t.Fatalf("session created without unsafe decoration resolved to %q/%v, want %s/nil",
+					got.ID, sessionErr, u.ID)
+			}
+
+			var stored *string
+			if err := pool.QueryRow(ctx,
+				`SELECT user_agent FROM sessions WHERE token_hash = $1`, account.HashToken(token)).
+				Scan(&stored); err != nil {
+				t.Fatalf("read persisted user-agent: %v", err)
+			}
+			if stored != nil {
+				t.Errorf("unsafe user-agent persisted as %q, want NULL decoration", *stored)
+			}
+		})
+	}
+
+	safe := strings.Repeat("a", 512)
+	token, err := s.StartSession(ctx, u.ID, safe, "192.0.2.1")
+	if err != nil {
+		t.Fatalf("exact safe user-agent ceiling refused the session: %v", err)
+	}
+	var stored string
+	if err := pool.QueryRow(ctx,
+		`SELECT user_agent FROM sessions WHERE token_hash = $1`, account.HashToken(token)).
+		Scan(&stored); err != nil {
+		t.Fatalf("read exact-ceiling user-agent: %v", err)
+	}
+	if stored != safe {
+		t.Errorf("exact-ceiling user-agent persisted as %d runes, want %d",
+			len([]rune(stored)), len([]rune(safe)))
 	}
 }
 
@@ -527,10 +580,9 @@ func TestAdoptCartMergesRatherThanReplaces(t *testing.T) {
 }
 
 // TestConcurrentFirstAdoptersKeepBothGuestCarts holds the account row before
-// either sign-in starts. Both calls must wait there: that makes the formerly
-// racy "no account cart exists" observation deterministic rather than relying
-// on scheduler luck. Once released, one cart is adopted and the other is merged
-// into it, with both calls succeeding through the production store role.
+// either sign-in starts. Both calls must wait there, which makes the "no account
+// cart exists" observation deterministic rather than scheduler luck. One cart is
+// then adopted and the other merged into it, both through the store role.
 func TestConcurrentFirstAdoptersKeepBothGuestCarts(t *testing.T) {
 	ctx := t.Context()
 	u := register(t, account.NewStore(pool), "first-adopters-"+uuid.NewString()+"@example.com")
@@ -643,9 +695,9 @@ func TestConcurrentFirstAdoptersKeepBothGuestCarts(t *testing.T) {
 }
 
 // TestTwoAccountsCannotAdoptTheSameGuestCart holds the shared cart after each
-// transaction has locked its own user. Both therefore make the old first-adopter
-// decision before either can update the cart. The winner keeps the cart; the
-// loser must observe its new owner under the cart lock and leave it untouched.
+// transaction has locked its own user, so both make the first-adopter decision
+// before either can update the cart. The winner keeps the cart; the loser must
+// observe its new owner under the cart lock and leave it untouched.
 func TestTwoAccountsCannotAdoptTheSameGuestCart(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -835,7 +887,7 @@ func TestCheckoutAndAdoptionShareUserBeforeCartLockOrder(t *testing.T) {
 	}
 }
 
-func TestSessionExpiryIsInTheFuture(t *testing.T) {
+func TestSessionExpiryUsesTheDatabaseClockAndTTL(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
 	u := register(t, s, "ttl@example.com")
@@ -845,17 +897,273 @@ func TestSessionExpiryIsInTheFuture(t *testing.T) {
 		t.Fatalf("start session: %v", err)
 	}
 	var expires time.Time
-	if err := pool.QueryRow(ctx, `SELECT expires_at FROM sessions WHERE token_hash = $1`,
-		account.HashToken(token)).Scan(&expires); err != nil {
+	var exactTTL bool
+	if err := pool.QueryRow(ctx, `
+		SELECT expires_at,
+		       expires_at = created_at + ($2 * interval '1 second')
+		FROM sessions WHERE token_hash = $1`,
+		account.HashToken(token), account.SessionTTL).Scan(&expires, &exactTTL); err != nil {
 		t.Fatalf("read expiry: %v", err)
+	}
+	if !exactTTL {
+		t.Error("session expiry was not derived from the row's database creation clock and TTL")
 	}
 	if !expires.After(time.Now().Add(24 * time.Hour)) {
 		t.Errorf("session expires at %v, which is less than a day away", expires)
 	}
 }
 
-// invoice_preferences is keyed by ORDER rather than by user, so nulling the
-// account does not reach the invoice carrier that identifies a person.
+type statusRecorder struct {
+	*httptest.ResponseRecorder
+
+	statuses []int
+}
+
+func (w *statusRecorder) WriteHeader(status int) {
+	w.statuses = append(w.statuses, status)
+	w.ResponseRecorder.WriteHeader(status)
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {
+	return f(r)
+}
+
+// TestSessionWriteFailureDoesNotFallThroughToRedirect proves all three entry
+// paths stop after startSession writes its 500. net/http keeps the first status
+// code, so a second WriteHeader is what this observes.
+func TestSessionWriteFailureDoesNotFallThroughToRedirect(t *testing.T) {
+	s := account.NewStore(pool)
+	h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
+	existing := register(t, s, "session-failure-signin-"+uuid.NewString()+"@example.com")
+
+	for _, tt := range []struct {
+		name   string
+		target string
+		form   func() url.Values
+		handle http.HandlerFunc
+	}{
+		{
+			name: "sign in", target: "/signin", handle: h.SignIn,
+			form: func() url.Values {
+				return url.Values{
+					"email": {existing.Email}, "password": {"a sufficiently long password"},
+					"next": {"/account"},
+				}
+			},
+		},
+		{
+			name: "registration", target: "/register", handle: h.Register,
+			form: func() url.Values {
+				return url.Values{
+					"email":    {"session-failure-register-" + uuid.NewString() + "@example.com"},
+					"password": {"another sufficiently long password"},
+					"confirm":  {"another sufficiently long password"}, "name": {"測試"},
+					"next": {"/account"},
+				}
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			forceSessionInsertFailure(t)
+			body := tt.form().Encode()
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
+				tt.target, strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			out := &statusRecorder{ResponseRecorder: httptest.NewRecorder()}
+			tt.handle(out, req)
+			if out.Code != http.StatusInternalServerError {
+				t.Fatalf("status = %d, want 500", out.Code)
+			}
+			if len(out.statuses) != 1 || out.statuses[0] != http.StatusInternalServerError {
+				t.Errorf("WriteHeader calls = %v, want one 500 and no redirect", out.statuses)
+			}
+			if location := out.Header().Get("Location"); location != "" {
+				t.Errorf("session failure also wrote redirect Location %q", location)
+			}
+		})
+	}
+
+	google, err := account.NewGoogle("client-id", "client-secret", "https://goen.example")
+	if err != nil {
+		t.Fatalf("new google client: %v", err)
+	}
+	account.SetGoogleHTTPClient(google, &http.Client{Transport: roundTripFunc(
+		func(r *http.Request) (*http.Response, error) {
+			var body string
+			switch r.URL.String() {
+			case "https://oauth2.googleapis.com/token":
+				body = `{"access_token":"test-access-token"}`
+			case "https://openidconnect.googleapis.com/v1/userinfo":
+				body = fmt.Sprintf(
+					`{"sub":%q,"email":%q,"email_verified":true,"name":"Google Test"}`,
+					"session-failure-google-"+uuid.NewString(),
+					"session-failure-google-"+uuid.NewString()+"@example.com",
+				)
+			default:
+				return nil, fmt.Errorf("unexpected google endpoint %s", r.URL)
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(body)),
+				Request:    r,
+			}, nil
+		},
+	)})
+	googleHandler := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, google)
+
+	start := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
+		"/auth/google?next=/account", http.NoBody)
+	startOut := httptest.NewRecorder()
+	googleHandler.GoogleSignIn(startOut, start)
+	if startOut.Code != http.StatusSeeOther {
+		t.Fatalf("start google sign-in status = %d, want 303", startOut.Code)
+	}
+	target, err := url.Parse(startOut.Header().Get("Location"))
+	if err != nil {
+		t.Fatalf("parse google redirect: %v", err)
+	}
+	state := target.Query().Get("state")
+	if state == "" {
+		t.Fatal("google redirect has no state")
+	}
+	cookies := startOut.Result().Cookies()
+	if len(cookies) != 1 {
+		t.Fatalf("google start cookies = %d, want OAuth state cookie", len(cookies))
+	}
+
+	forceSessionInsertFailure(t)
+	callback := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
+		"/auth/google/callback?state="+url.QueryEscape(state)+"&code=test-code", http.NoBody)
+	callback.AddCookie(cookies[0])
+	callbackOut := &statusRecorder{ResponseRecorder: httptest.NewRecorder()}
+	googleHandler.GoogleCallback(callbackOut, callback)
+	if callbackOut.Code != http.StatusInternalServerError {
+		t.Fatalf("google callback status = %d, want 500", callbackOut.Code)
+	}
+	if len(callbackOut.statuses) != 1 || callbackOut.statuses[0] != http.StatusInternalServerError {
+		t.Errorf("google callback WriteHeader calls = %v, want one 500 and no redirect",
+			callbackOut.statuses)
+	}
+	if location := callbackOut.Header().Get("Location"); location != "" {
+		t.Errorf("google session failure also wrote redirect Location %q", location)
+	}
+}
+
+func forceSessionInsertFailure(t *testing.T) {
+	t.Helper()
+	ctx := t.Context()
+	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
+	functionName := pgx.Identifier{"test_fail_session_insert_" + suffix}.Sanitize()
+	triggerName := pgx.Identifier{"test_fail_session_insert_" + suffix}.Sanitize()
+	if _, err := pool.Exec(ctx, fmt.Sprintf(`
+		CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $body$
+		BEGIN
+			RAISE EXCEPTION USING MESSAGE = 'forced session insert failure',
+			                      ERRCODE = 'check_violation';
+		END
+		$body$;
+		CREATE TRIGGER %s BEFORE INSERT ON sessions
+		FOR EACH ROW EXECUTE FUNCTION %s()`, functionName, triggerName, functionName)); err != nil {
+		t.Fatalf("install session insert failure: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.WithoutCancel(ctx), fmt.Sprintf(
+			"DROP TRIGGER IF EXISTS %s ON sessions; DROP FUNCTION IF EXISTS %s()",
+			triggerName, functionName))
+	})
+}
+
+// TestRawAndDirectAccountWritesRespectRenderedBounds covers both HTTP bypasses
+// of maxlength and callers that enter through Store without a browser.
+func TestRawAndDirectAccountWritesRespectRenderedBounds(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
+	u := register(t, s, "bounded-account-"+uuid.NewString()+"@example.com")
+
+	post := func(target string, values url.Values, handle http.HandlerFunc) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequestWithContext(account.WithUser(ctx, u), http.MethodPost,
+			target, strings.NewReader(values.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		out := httptest.NewRecorder()
+		handle(out, req)
+		return out
+	}
+
+	profile := post("/account/profile", url.Values{
+		"name": {strings.Repeat("名", 61)}, "phone": {"0912345678"},
+	}, h.UpdateProfile)
+	if profile.Code != http.StatusSeeOther || profile.Header().Get("Location") != "/account?profile=invalid" {
+		t.Errorf("overlong raw profile = %d Location %q, want 303 invalid",
+			profile.Code, profile.Header().Get("Location"))
+	}
+	if err := s.UpdateProfile(ctx, u.ID, "測試", strings.Repeat("1", 31)); !errors.Is(err, account.ErrInvalidInput) {
+		t.Errorf("direct overlong profile = %v, want ErrInvalidInput", err)
+	}
+	var storedName string
+	var storedPhone *string
+	if err := pool.QueryRow(ctx, `SELECT full_name, phone FROM users WHERE id = $1`, u.ID).
+		Scan(&storedName, &storedPhone); err != nil {
+		t.Fatalf("read profile after refusals: %v", err)
+	}
+	if storedName != "測試" || storedPhone != nil {
+		t.Errorf("refused profile was written as name=%v phone=%v", storedName, storedPhone)
+	}
+
+	validAddress := url.Values{
+		"label": {strings.Repeat("標", 31)}, "name": {"王小明"}, "phone": {"0912345678"},
+		"postal_code": {"110"}, "city": {"台北市"}, "district": {"信義區"},
+		"street": {"松高路 1 號"},
+	}
+	address := post("/account/addresses", validAddress, h.AddAddress)
+	if address.Code != http.StatusSeeOther || address.Header().Get("Location") != "/account?address=invalid" {
+		t.Errorf("overlong raw address = %d Location %q, want 303 invalid",
+			address.Code, address.Header().Get("Location"))
+	}
+	directAddress := &account.Address{
+		Label: "家", Name: "王小明", Phone: "0912345678", PostalCode: "110",
+		City: "台北市", District: "信義區", Street: strings.Repeat("路", 201),
+	}
+	if err := s.AddAddress(ctx, u.ID, directAddress); !errors.Is(err, account.ErrInvalidInput) {
+		t.Errorf("direct overlong address = %v, want ErrInvalidInput", err)
+	}
+	baseAddress := account.Address{
+		Label: "家", Name: "王小明", Phone: "0912345678", PostalCode: "110",
+		City: "台北市", District: "信義區", Street: "松高路 1 號",
+	}
+	for _, tt := range []struct {
+		name string
+		mut  func(*account.Address)
+	}{
+		{name: "phone letters", mut: func(a *account.Address) { a.Phone = "09AB123456" }},
+		{name: "short phone", mut: func(a *account.Address) { a.Phone = "02-12345" }},
+		{name: "postal letters", mut: func(a *account.Address) { a.PostalCode = "11A" }},
+		{name: "short postal", mut: func(a *account.Address) { a.PostalCode = "11" }},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			candidate := baseAddress
+			tt.mut(&candidate)
+			if err := s.AddAddress(ctx, u.ID, &candidate); !errors.Is(err, account.ErrInvalidInput) {
+				t.Errorf("direct malformed address = %v, want ErrInvalidInput", err)
+			}
+		})
+	}
+	var addresses int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM addresses WHERE user_id = $1`, u.ID).
+		Scan(&addresses); err != nil {
+		t.Fatalf("count saved addresses: %v", err)
+	}
+	if addresses != 0 {
+		t.Errorf("%d refused addresses were written, want 0", addresses)
+	}
+}
+
+// Delivery PII is erased, while the minimum immutable filing snapshot remains
+// with the sale so its statutory invoice/allowance lifecycle is not destroyed.
 func TestEraseRemovesPersonalDataAndKeepsTheRecord(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -868,8 +1176,9 @@ func TestEraseRemovesPersonalDataAndKeepsTheRecord(t *testing.T) {
 		t.Fatalf("read order: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code)
-		VALUES ($1, 'mobile_carrier', '/ABC+123')`, orderID); err != nil {
+		INSERT INTO invoice_preferences
+		    (order_id, invoice_type, carrier_code, customer_name, customer_email)
+		VALUES ($1, 'mobile_carrier', '/ABC+123', '收件人', 'x@example.com')`, orderID); err != nil {
 		t.Fatalf("invoice preference: %v", err)
 	}
 
@@ -885,7 +1194,6 @@ func TestEraseRemovesPersonalDataAndKeepsTheRecord(t *testing.T) {
 		{"the account", `SELECT count(*) FROM users WHERE email = 'gdpr@example.com'`, nil},
 		{"delivery details", `SELECT count(*) FROM order_private_data
 			WHERE order_id = $1 AND email IS NOT NULL`, orderID},
-		{"the invoice carrier", `SELECT count(*) FROM invoice_preferences WHERE order_id = $1`, orderID},
 	} {
 		var n int
 		var err error
@@ -902,6 +1210,19 @@ func TestEraseRemovesPersonalDataAndKeepsTheRecord(t *testing.T) {
 		}
 	}
 
+	var invoiceType, carrier, filingName, filingEmail string
+	if err := pool.QueryRow(ctx, `
+		SELECT invoice_type, carrier_code, customer_name, customer_email
+		FROM invoice_preferences WHERE order_id = $1`, orderID).
+		Scan(&invoiceType, &carrier, &filingName, &filingEmail); err != nil {
+		t.Fatalf("read retained tax snapshot: %v", err)
+	}
+	if invoiceType != "mobile_carrier" || carrier != "/ABC+123" ||
+		filingName != "收件人" || filingEmail != "x@example.com" {
+		t.Errorf("retained tax snapshot = %q/%q/%q/%q",
+			invoiceType, carrier, filingName, filingEmail)
+	}
+
 	var subtotal int64
 	if err := pool.QueryRow(ctx, `
 		SELECT coalesce(sum(unit_price_cents * quantity), 0) FROM order_lines WHERE order_id = $1`,
@@ -911,6 +1232,192 @@ func TestEraseRemovesPersonalDataAndKeepsTheRecord(t *testing.T) {
 	if subtotal != 100000 {
 		t.Errorf("the erased customer's order is worth %d, want 100000 — erasure altered "+
 			"the financial record", subtotal)
+	}
+}
+
+// TestErasureWaitsForAStoreCreditFundedReturn keeps the customer attached to an
+// open claim until the shop has returned the money needed to settle it. The
+// account relation is what lets compensate_return_with_credit identify the
+// owner; erasing it while a requested or approved return is still owed credit
+// would turn a valid return into an orphan the payout door must refuse.
+func TestErasureWaitsForAStoreCreditFundedReturn(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	u := register(t, s, "erase-open-return-"+uuid.NewString()+"@example.com")
+	userID := uuid.MustParse(u.ID)
+	requestID, orderID, creditAccountID := creditFundedOpenReturnForErasure(t, u)
+
+	if err := s.Erase(ctx, u.ID); !errors.Is(err, account.ErrOpenReturn) {
+		t.Fatalf("erase with requested return = %v, want ErrOpenReturn", err)
+	}
+	assertOpenReturnErasureRolledBack(t, userID, orderID, creditAccountID)
+
+	// The browser gets a recoverable account-page outcome and keeps its session;
+	// an ordinary server error would hide the action the customer must wait for.
+	h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
+	form := url.Values{"confirm": {u.Email}}
+	req := httptest.NewRequestWithContext(account.WithUser(ctx, u), http.MethodPost,
+		"/account/erase", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	out := httptest.NewRecorder()
+	h.Erase(out, req)
+	if out.Code != http.StatusSeeOther || out.Header().Get("Location") != "/account?erase=return" {
+		t.Fatalf("erase handler = %d Location %q, want 303 /account?erase=return",
+			out.Code, out.Header().Get("Location"))
+	}
+	if cookies := out.Result().Cookies(); len(cookies) != 0 {
+		t.Errorf("refused erasure changed %d cookie(s); the signed-in account must remain usable", len(cookies))
+	}
+	assertOpenReturnErasureRolledBack(t, userID, orderID, creditAccountID)
+
+	// A decision does not settle the customer's money. Approval therefore stays
+	// protected until the exact credit-funded amount has landed in the ledger.
+	if _, err := pool.Exec(ctx, `
+		UPDATE return_requests
+		SET status = 'approved', resolution = '同意退貨', decided_at = now()
+		WHERE id = $1`, requestID); err != nil {
+		t.Fatalf("approve return: %v", err)
+	}
+	if err := s.Erase(ctx, u.ID); !errors.Is(err, account.ErrOpenReturn) {
+		t.Fatalf("erase with approved unpaid return = %v, want ErrOpenReturn", err)
+	}
+	assertOpenReturnErasureRolledBack(t, userID, orderID, creditAccountID)
+
+	var actorID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO users (email, role, full_name)
+		VALUES ('erase-return-staff-' || gen_random_uuid() || '@goen.invalid',
+		        'staff', '退貨處理員')
+		RETURNING id`).Scan(&actorID); err != nil {
+		t.Fatalf("create return actor: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`SELECT compensate_return_with_credit($1, 100000, $2)`, requestID, actorID); err != nil {
+		t.Fatalf("settle return credit: %v", err)
+	}
+	if err := s.Erase(ctx, u.ID); err != nil {
+		t.Fatalf("erase after return credit settled: %v", err)
+	}
+
+	var userGone, creditDetached, orderDetached, deliveryErased, returnPreserved bool
+	if err := pool.QueryRow(ctx, `
+		SELECT
+			NOT EXISTS (SELECT 1 FROM users WHERE id = $1),
+			EXISTS (SELECT 1 FROM store_credit_accounts
+			        WHERE id = $2 AND user_id IS NULL),
+			EXISTS (SELECT 1 FROM orders WHERE id = $3 AND user_id IS NULL),
+			EXISTS (SELECT 1 FROM order_private_data
+			        WHERE order_id = $3 AND erased_at IS NOT NULL AND email IS NULL),
+			EXISTS (SELECT 1 FROM return_requests
+			        WHERE id = $4 AND status = 'approved')`,
+		userID, creditAccountID, orderID, requestID).Scan(
+		&userGone, &creditDetached, &orderDetached, &deliveryErased, &returnPreserved,
+	); err != nil {
+		t.Fatalf("read settled erasure state: %v", err)
+	}
+	if !userGone || !creditDetached || !orderDetached || !deliveryErased || !returnPreserved {
+		t.Errorf("settled erasure state userGone/creditDetached/orderDetached/"+
+			"deliveryErased/returnPreserved = %t/%t/%t/%t/%t, want all true",
+			userGone, creditDetached, orderDetached, deliveryErased, returnPreserved)
+	}
+}
+
+func creditFundedOpenReturnForErasure(
+	t *testing.T,
+	u account.User,
+) (requestID, orderID, creditAccountID uuid.UUID) {
+	t.Helper()
+	ctx := t.Context()
+	userID := uuid.MustParse(u.ID)
+	number := placeOrderFor(t, u.ID)
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin credit-funded return: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+
+	var lineID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		SELECT o.id, ol.id
+		FROM orders o JOIN order_lines ol ON ol.order_id = o.id
+		WHERE o.order_number = $1`, number).Scan(&orderID, &lineID); err != nil {
+		t.Fatalf("read return order: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		SELECT post_store_credit($1, 100000, '測試退貨額度', NULL, $2, NULL)`,
+		userID, "erase-return-grant:"+orderID.String()); err != nil {
+		t.Fatalf("grant return fixture credit: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT spend_store_credit($1, -100000)`, orderID); err != nil {
+		t.Fatalf("fund return fixture order with credit: %v", err)
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE orders SET fulfillment_status = 'picking' WHERE id = $1`, orderID); err != nil {
+		t.Fatalf("move credit-funded order to picking: %v", err)
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE orders SET fulfillment_status = 'shipped' WHERE id = $1`, orderID); err != nil {
+		t.Fatalf("move credit-funded order to shipped: %v", err)
+	}
+	var shipmentID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO order_shipments (order_id, carrier, tracking_number)
+		VALUES ($1, '黑貓', 'ERASE-RETURN-' || $2)
+		RETURNING id`, orderID, number).Scan(&shipmentID); err != nil {
+		t.Fatalf("create return fixture shipment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_shipment_lines
+			(order_id, shipment_id, order_line_id, quantity)
+		VALUES ($1, $2, $3, 1)`, orderID, shipmentID, lineID); err != nil {
+		t.Fatalf("ship return fixture line: %v", err)
+	}
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO return_requests (order_id, requested_by_user_id, reason)
+		VALUES ($1, $2, '不合用')
+		RETURNING id`, orderID, userID).Scan(&requestID); err != nil {
+		t.Fatalf("open return fixture: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO return_request_lines
+			(order_id, return_request_id, order_line_id, quantity)
+		VALUES ($1, $2, $3, 1)`, orderID, requestID, lineID); err != nil {
+		t.Fatalf("add return fixture line: %v", err)
+	}
+	if err := tx.QueryRow(ctx,
+		`SELECT id FROM store_credit_accounts WHERE user_id = $1`, userID).
+		Scan(&creditAccountID); err != nil {
+		t.Fatalf("read return fixture credit account: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit credit-funded return: %v", err)
+	}
+	return requestID, orderID, creditAccountID
+}
+
+func assertOpenReturnErasureRolledBack(
+	t *testing.T,
+	userID, orderID, creditAccountID uuid.UUID,
+) {
+	t.Helper()
+	var userPresent, creditAttached, orderAttached, deliveryPresent bool
+	if err := pool.QueryRow(t.Context(), `
+		SELECT
+			EXISTS (SELECT 1 FROM users WHERE id = $1),
+			EXISTS (SELECT 1 FROM store_credit_accounts
+			        WHERE id = $2 AND user_id = $1),
+			EXISTS (SELECT 1 FROM orders WHERE id = $3 AND user_id = $1),
+			EXISTS (SELECT 1 FROM order_private_data
+			        WHERE order_id = $3 AND erased_at IS NULL AND email IS NOT NULL)`,
+		userID, creditAccountID, orderID).Scan(
+		&userPresent, &creditAttached, &orderAttached, &deliveryPresent,
+	); err != nil {
+		t.Fatalf("read refused erasure state: %v", err)
+	}
+	if !userPresent || !creditAttached || !orderAttached || !deliveryPresent {
+		t.Errorf("refused erasure state user/credit/order/delivery = %t/%t/%t/%t, want all true",
+			userPresent, creditAttached, orderAttached, deliveryPresent)
 	}
 }
 
@@ -1421,8 +1928,7 @@ func TestAnExpiredResetTokenIsRefused(t *testing.T) {
 			tag.RowsAffected())
 	}
 
-	// Distinct from the password register() sets, or the second assertion passes
-	// for a reason that has nothing to do with the fix.
+	// Distinct from the password register() sets, or the second assertion proves nothing.
 	const attempted = "the password an expired link tried to set"
 	if err := s.CompleteReset(ctx, token, attempted); !errors.Is(err, account.ErrResetInvalid) {
 		t.Errorf("an expired token was accepted: %v", err)
@@ -2266,8 +2772,7 @@ func TestRegisteringAsksForTheAddressToBeProved(t *testing.T) {
 	}
 }
 
-// Driven through Overview: asserting against localized_name directly stays green
-// with the locale mutated out of the query the account page actually reads.
+// Driven through Overview, which is the query the account page actually reads.
 func TestTheMembershipBandReadsInTheVisitorsLanguage(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -2343,7 +2848,6 @@ func TestGoogleSignInCreatesAnAccountWithNoPassword(t *testing.T) {
 	}
 }
 
-// Keyed on the SUBJECT, and the test changes the EMAIL to prove it.
 func TestGoogleSignInIsIdempotentOnTheSubject(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -2368,6 +2872,163 @@ func TestGoogleSignInIsIdempotentOnTheSubject(t *testing.T) {
 		t.Errorf("the same Google account signed into %s and then %s — a changed "+
 			"address stranded the customer with their orders behind them",
 			first.ID, second.ID)
+	}
+}
+
+// TestConcurrentGoogleLinkingReturnsTheDurableExistingOwner makes both
+// callbacks reach the subject lock before either can choose an email account.
+// Whichever verified account wins is acceptable; returning both is not.
+func TestConcurrentGoogleLinkingReturnsTheDurableExistingOwner(t *testing.T) {
+	ctx := t.Context()
+	suffix := uuid.NewString()[:8]
+	subject := "google-race-existing-" + suffix
+	emailA := "google-race-a-" + suffix + "@example.com"
+	emailB := "google-race-b-" + suffix + "@example.com"
+	var idA, idB string
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO users (email, email_verified_at) VALUES ($1, now()) RETURNING id`, emailA).
+		Scan(&idA); err != nil {
+		t.Fatalf("create first verified account: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO users (email, email_verified_at) VALUES ($1, now()) RETURNING id`, emailB).
+		Scan(&idB); err != nil {
+		t.Fatalf("create second verified account: %v", err)
+	}
+
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin subject blocker: %v", err)
+	}
+	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := blocker.Exec(ctx,
+		`SELECT pg_advisory_xact_lock(hashtextextended('google:' || $1::text, 0))`, subject); err != nil {
+		t.Fatalf("lock subject: %v", err)
+	}
+
+	firstName, secondName := "google-existing-a-"+suffix, "google-existing-b-"+suffix
+	firstStore := account.NewStore(accountStorePool(t, firstName))
+	secondStore := account.NewStore(accountStorePool(t, secondName))
+	var first, second account.User
+	firstDone, secondDone := make(chan error, 1), make(chan error, 1)
+	go func() {
+		var signInErr error
+		first, signInErr = firstStore.SignInWithGoogle(context.WithoutCancel(ctx), account.Identity{
+			Subject: subject, Email: emailA, EmailVerified: true,
+		})
+		firstDone <- signInErr
+	}()
+	go func() {
+		var signInErr error
+		second, signInErr = secondStore.SignInWithGoogle(context.WithoutCancel(ctx), account.Identity{
+			Subject: subject, Email: emailB, EmailVerified: true,
+		})
+		secondDone <- signInErr
+	}()
+	waitForAccountLock(t, firstName, firstDone)
+	waitForAccountLock(t, secondName, secondDone)
+
+	if err := blocker.Commit(ctx); err != nil {
+		t.Fatalf("release subject: %v", err)
+	}
+	if err := operationResult(t, firstDone); err != nil {
+		t.Fatalf("first sign-in: %v", err)
+	}
+	if err := operationResult(t, secondDone); err != nil {
+		t.Fatalf("second sign-in: %v", err)
+	}
+	if first.ID != second.ID {
+		t.Fatalf("one Google subject returned accounts %s and %s", first.ID, second.ID)
+	}
+	if first.ID != idA && first.ID != idB {
+		t.Fatalf("subject owner %s is neither candidate account", first.ID)
+	}
+	var durable string
+	if err := pool.QueryRow(ctx, `
+		SELECT user_id::text FROM user_identities
+		WHERE provider = 'google' AND provider_subject = $1`, subject).Scan(&durable); err != nil {
+		t.Fatalf("read durable subject owner: %v", err)
+	}
+	if first.ID != durable {
+		t.Errorf("both callbacks returned %s, durable subject owner is %s", first.ID, durable)
+	}
+}
+
+// TestConcurrentGoogleSignUpCreatesOnlyTheSubjectOwner covers the create path:
+// the losing callback must not commit and return a second, unlinked account.
+func TestConcurrentGoogleSignUpCreatesOnlyTheSubjectOwner(t *testing.T) {
+	ctx := t.Context()
+	suffix := uuid.NewString()[:8]
+	subject := "google-race-new-" + suffix
+	emailA := "google-new-a-" + suffix + "@example.com"
+	emailB := "google-new-b-" + suffix + "@example.com"
+
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin subject blocker: %v", err)
+	}
+	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := blocker.Exec(ctx,
+		`SELECT pg_advisory_xact_lock(hashtextextended('google:' || $1::text, 0))`, subject); err != nil {
+		t.Fatalf("lock subject: %v", err)
+	}
+
+	firstName, secondName := "google-new-a-"+suffix, "google-new-b-"+suffix
+	firstStore := account.NewStore(accountStorePool(t, firstName))
+	secondStore := account.NewStore(accountStorePool(t, secondName))
+	var first, second account.User
+	firstDone, secondDone := make(chan error, 1), make(chan error, 1)
+	go func() {
+		var signInErr error
+		first, signInErr = firstStore.SignInWithGoogle(context.WithoutCancel(ctx), account.Identity{
+			Subject: subject, Email: emailA, EmailVerified: true,
+		})
+		firstDone <- signInErr
+	}()
+	go func() {
+		var signInErr error
+		second, signInErr = secondStore.SignInWithGoogle(context.WithoutCancel(ctx), account.Identity{
+			Subject: subject, Email: emailB, EmailVerified: true,
+		})
+		secondDone <- signInErr
+	}()
+	waitForAccountLock(t, firstName, firstDone)
+	waitForAccountLock(t, secondName, secondDone)
+
+	if err := blocker.Commit(ctx); err != nil {
+		t.Fatalf("release subject: %v", err)
+	}
+	if err := operationResult(t, firstDone); err != nil {
+		t.Fatalf("first sign-up: %v", err)
+	}
+	if err := operationResult(t, secondDone); err != nil {
+		t.Fatalf("second sign-up: %v", err)
+	}
+	if first.ID != second.ID {
+		t.Fatalf("one new Google subject returned accounts %s and %s", first.ID, second.ID)
+	}
+	var accounts, identities int
+	var durable string
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM users WHERE email IN ($1, $2)`, emailA, emailB).Scan(&accounts); err != nil {
+		t.Fatalf("count candidate accounts: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM user_identities
+		WHERE provider = 'google' AND provider_subject = $1`, subject).Scan(&identities); err != nil {
+		t.Fatalf("count durable identity: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT user_id::text FROM user_identities
+		WHERE provider = 'google' AND provider_subject = $1`, subject).Scan(&durable); err != nil {
+		t.Fatalf("read durable identity owner: %v", err)
+	}
+	if accounts != 1 || identities != 1 {
+		t.Errorf("concurrent sign-up left %d accounts and %d identity rows, want 1 and 1",
+			accounts, identities)
+	}
+	if first.ID != durable {
+		t.Errorf("callbacks returned %s, durable subject owner is %s", first.ID, durable)
 	}
 }
 
@@ -2403,8 +3064,6 @@ func TestGoogleWillNotLinkToAnUnverifiedAccount(t *testing.T) {
 	}
 }
 
-// The control that proves the refusal above is about verification rather than
-// about refusing every existing account.
 func TestGoogleLinksToAVerifiedAccount(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)

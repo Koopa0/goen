@@ -1,62 +1,9 @@
--- What an order needs to become an invoice. The amount is order_amount_owed's
--- numerator rather than the net: an invoice records the SALE, and store credit
--- is how the customer paid rather than a reduction in what was sold.
--- name: InvoiceSubject :one
-SELECT o.id,
-       o.order_number,
-       coalesce(pd.recipient_name, '')::text AS customer_name,
-       coalesce(pd.email, '')::text AS email,
-       coalesce(ip.invoice_type, 'member_carrier')::text AS invoice_type,
-       coalesce(ip.carrier_code, '')::text AS carrier_code,
-       coalesce(ip.tax_id, '')::text AS tax_id,
-       (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
-                  WHERE ol.order_id = o.id), 0)
-        - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint AS total_cents,
-       -- Both halves separately, because the itemisation has to reconstruct the
-       -- header rather than infer it. Deriving the delivery line as
-       -- total - sum(lines) makes it shipping MINUS discount: a document that
-       -- states a carriage charge nobody paid when the discount is smaller, and
-       -- one ECPay refuses outright (5000022) when it is larger — which is every
-       -- discounted order that also qualified for 免運.
-       o.shipping_cents,
-       o.discount_cents,
-       -- Only a COMMITTED order gets an invoice: a checkout nobody paid for is
-       -- not a sale, and undoing a filed document is a tax correction.
-       (o.id IN (SELECT id FROM committed_orders))::boolean AS committed,
-       -- How many invoices this order has already had, live or voided. ECPay
-       -- refuse a repeated RelateNumber (RtnCode 5070357), so a reissue after a
-       -- void has to be distinguishable from the first attempt.
-       (SELECT count(*) FROM invoice_documents d
-        WHERE d.order_id = o.id AND d.kind = 'invoice')::integer AS attempt
-FROM orders o
-LEFT JOIN order_private_data pd ON pd.order_id = o.id
-LEFT JOIN invoice_preferences ip ON ip.order_id = o.id
-WHERE o.order_number = @order_number::text;
-
--- The lines that go on it, as the ORDER recorded them rather than as the
--- catalogue reads today.
--- name: InvoiceSubjectLines :many
-SELECT ol.product_name, ol.variant_label, ol.quantity, ol.unit_price_cents,
-       (ol.unit_price_cents * ol.quantity)::bigint AS amount_cents
-FROM order_lines ol
-WHERE ol.order_id = @order_id
-ORDER BY ol.position, ol.id;
-
--- File an issued document, AFTER the provider accepted it: the number is theirs
--- to allocate, and invoice_documents_number_present cannot tell an invented one
--- from a real one.
--- name: RecordInvoiceDocument :one
-INSERT INTO invoice_documents (order_id, kind, original_id, number, amount_cents, provider_ref, issued_at)
-VALUES (@order_id, @kind::text, sqlc.narg(original_id)::uuid, @number::text,
-        @amount_cents::bigint, nullif(@provider_ref::text, ''), @issued_at)
-RETURNING id;
-
--- The lines of an issued document, filed with it.
--- name: RecordInvoiceLine :exec
-INSERT INTO invoice_document_lines
-    (document_id, description, quantity, unit_price_cents, amount_cents, tax_type, position)
-VALUES (@document_id, @description::text, @quantity::integer,
-        @unit_price_cents::bigint, @amount_cents::bigint, 'taxable', @position::integer);
+-- Claim and freeze a request before any ECPay call. Replaying a still-active
+-- operation returns the same id and never rebuilds the request from mutable PII.
+-- name: ClaimInvoiceIssue :one
+SELECT claim_invoice_issue(
+    @order_number::text, @actor_user_id::uuid, @request_id::text
+)::uuid AS operation_id;
 
 -- Every document filed against one order, newest first.
 -- name: InvoiceDocuments :many
@@ -86,55 +33,152 @@ JOIN orders o ON o.id = d.order_id
 WHERE o.order_number = @order_number::text
   AND d.kind = 'invoice' AND d.status <> 'voided';
 
--- Void a filed invoice. :execrows, because `status <> 'voided'` here is the only
--- place the question is asked under a lock: two staff members voiding one
--- invoice both pass a read taken before the transaction.
--- name: VoidInvoiceDocument :execrows
-UPDATE invoice_documents
-SET status = 'voided', voided_at = now()
-WHERE id = @id AND status <> 'voided';
+-- name: ClaimInvoiceAllowance :one
+SELECT claim_invoice_allowance(
+    @original_id::uuid,
+    @operation_id::uuid,
+    @actor_user_id::uuid,
+    @request_id::text
+)::uuid AS operation_id;
 
--- Claim a filing BEFORE the provider is asked. The unique index on request_key
--- is what makes a second press — or a retry after a timeout — refusable here
--- rather than at the 財政部, where the damage is a second 折讓 against one
--- refund. The number is blank because allocating one is the provider's job.
--- name: ClaimInvoiceDocument :one
-INSERT INTO invoice_documents
-    (order_id, kind, original_id, number, amount_cents, request_key, status)
-VALUES (@order_id, @kind::text, sqlc.narg(original_id)::uuid, '',
-        @amount_cents::bigint, @request_key::text, 'pending')
-RETURNING id;
+-- name: ClaimInvoiceVoid :one
+SELECT claim_invoice_void(
+    @document_id::uuid, @reason::text, @actor_user_id::uuid, @request_id::text
+)::uuid AS operation_id;
 
--- Settle a claim with what the provider allocated.
--- name: SettleInvoiceDocument :execrows
-UPDATE invoice_documents
-SET number = @number::text, provider_ref = nullif(@provider_ref::text, ''),
-    issued_at = @issued_at, status = 'issued'
-WHERE id = @id AND status = 'pending';
+-- One durable operation and its frozen request. Nil target/result UUIDs avoid a
+-- nullable UUID at the Go state-machine boundary; kind/status say which applies.
+-- name: InvoiceOperation :one
+SELECT op.id, op.order_id, op.kind,
+       coalesce(op.target_document_id,
+                '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS target_document_id,
+       coalesce(op.result_document_id,
+                '00000000-0000-0000-0000-000000000000'::uuid)::uuid AS result_document_id,
+       op.provider_key, op.amount_cents, op.request_payload,
+       op.actor_id_snapshot, op.request_id, op.status,
+       op.reconcile_attempts, op.send_attempts, op.resend_authorizations,
+       coalesce(op.last_error, '')::text AS last_error,
+       op.created_at, op.updated_at
+FROM invoice_operations op
+WHERE op.id = @operation_id::uuid;
 
--- What the CARD has sent back on this order. The credit half is
--- OrderCreditPosition's `returned`, which is the one definition of that figure
--- and the reason this query does not sum the ledger itself.
--- Both sources, from the one view: a refund is paid to the card, to store
--- credit, or split, and an allowance may not relieve more than the sum.
--- name: RefundedForOrder :one
-SELECT (card_cents + credit_cents)::bigint AS refunded_cents
-FROM order_refunds
-WHERE order_number = @order_number::text;
+-- name: InvoiceOperationDocument :one
+SELECT d.id, d.kind, d.number, d.amount_cents, d.status,
+       coalesce(d.provider_ref, '')::text AS provider_ref, d.issued_at
+FROM invoice_operations op
+JOIN invoice_documents d ON d.id = op.result_document_id
+WHERE op.id = @operation_id::uuid AND op.status = 'succeeded';
 
--- What this order has already had relieved, live documents only.
--- name: AllowedTotalForOrder :one
-SELECT coalesce(sum(d.amount_cents), 0)::bigint AS allowed_cents
+-- The exact-id form is used by a request handler; uuid.Nil atomically picks the
+-- oldest due operation for a background replica.
+-- name: LeaseInvoiceOperation :one
+SELECT lease_invoice_operation(
+    @operation_id::uuid, @lease_owner::uuid, @lease_for::interval
+)::uuid AS operation_id;
+
+-- name: MarkInvoiceOperationSent :one
+SELECT mark_invoice_operation_sent(
+    @operation_id::uuid, @lease_owner::uuid
+)::boolean AS marked;
+
+-- name: RescheduleInvoiceOperation :one
+SELECT reschedule_invoice_operation(
+    @operation_id::uuid, @lease_owner::uuid, @last_error::text, @backoff::interval
+)::boolean AS rescheduled;
+
+-- name: AlarmInvoiceOperation :one
+SELECT alarm_invoice_operation(
+    @operation_id::uuid, @lease_owner::uuid, @last_error::text
+)::boolean AS alarmed;
+
+-- name: RejectInvoiceOperation :one
+SELECT reject_invoice_operation(
+    @operation_id::uuid, @lease_owner::uuid, @last_error::text
+)::boolean AS rejected;
+
+-- name: SettleInvoiceIssue :one
+SELECT settle_invoice_issue(
+    @operation_id::uuid,
+    @lease_owner::uuid,
+    @number::text,
+    @random_number::text,
+    @issued_at,
+    @descriptions::text[],
+    @quantities::integer[],
+    @unit_price_cents::bigint[],
+    @amount_cents::bigint[]
+)::uuid AS document_id;
+
+-- name: SettleInvoiceAllowance :one
+SELECT settle_invoice_allowance(
+    @operation_id::uuid,
+    @lease_owner::uuid,
+    @number::text,
+    @issued_at,
+    @descriptions::text[],
+    @quantities::integer[],
+    @unit_price_cents::bigint[],
+    @amount_cents::bigint[]
+)::uuid AS document_id;
+
+-- name: SettleInvoiceVoid :one
+SELECT settle_invoice_void(
+    @operation_id::uuid, @lease_owner::uuid
+)::uuid AS document_id;
+
+-- Complete immutable local facts for every allowance represented against the
+-- original invoice. A provider row is "known" only when its invoice/allowance
+-- identity, timestamp, money and every line agree with these facts; comparing
+-- the number alone can hide a provider-side invalidation or misattribute a
+-- different document to the current operation.
+-- name: KnownAllowances :many
+SELECT d.id, d.number, d.amount_cents, d.status, d.issued_at,
+       ARRAY(SELECT l.description FROM invoice_document_lines l
+             WHERE l.document_id = d.id ORDER BY l.position)::text[] AS descriptions,
+       ARRAY(SELECT l.quantity FROM invoice_document_lines l
+             WHERE l.document_id = d.id ORDER BY l.position)::integer[] AS quantities,
+       ARRAY(SELECT l.unit_price_cents FROM invoice_document_lines l
+             WHERE l.document_id = d.id ORDER BY l.position)::bigint[] AS unit_price_cents,
+       ARRAY(SELECT l.amount_cents FROM invoice_document_lines l
+             WHERE l.document_id = d.id ORDER BY l.position)::bigint[] AS line_amount_cents,
+       ARRAY(SELECT l.tax_type FROM invoice_document_lines l
+             WHERE l.document_id = d.id ORDER BY l.position)::text[] AS tax_types
 FROM invoice_documents d
-JOIN orders o ON o.id = d.order_id
-WHERE o.order_number = @order_number::text
-  AND d.kind = 'allowance' AND d.status <> 'voided';
+WHERE d.original_id = @original_id::uuid AND d.kind = 'allowance'
+ORDER BY d.issued_at, d.id;
 
--- name: ReleaseInvoiceClaim :execrows
--- A claim the provider REFUSED. ECPay answering with a business verdict proves
--- nothing was filed, so the reservation is the only thing left and holding it
--- would lock that refund out of ever being relieved. A transport failure is a
--- different case and keeps its claim: whether the 加值中心 has the document is
--- not knowable from here, and clearing it would let the next press file twice.
-DELETE FROM invoice_documents
-WHERE id = $1 AND status = 'pending';
+-- Atomically accept an exact authoritative provider invalidation, void the old
+-- local allowance, and refreeze the still-unsent replacement operation from
+-- current settled refunds. The operation id and its audit identity are kept.
+-- name: ReconcileInvalidInvoiceAllowance :one
+SELECT reconcile_invalid_invoice_allowance(
+    @operation_id::uuid,
+    @lease_owner::uuid,
+    @document_id::uuid,
+    @invoice_number::text,
+    @allowance_number::text,
+    @issued_at,
+    @amount_cents::bigint,
+    @descriptions::text[],
+    @quantities::integer[],
+    @unit_price_cents::bigint[],
+    @line_amount_cents::bigint[]
+)::bigint AS refrozen_amount_cents;
+
+-- A sent operation can be recovered after ECPay issued and then invalidated its
+-- document before local settlement. Persist that exact provider history as a
+-- voided document, then reject/release the operation so a new claim can derive
+-- the still-unrelieved amount.
+-- name: RecordInvalidInvoiceAllowance :one
+SELECT record_invalid_invoice_allowance(
+    @operation_id::uuid,
+    @lease_owner::uuid,
+    @invoice_number::text,
+    @allowance_number::text,
+    @issued_at,
+    @amount_cents::bigint,
+    @descriptions::text[],
+    @quantities::integer[],
+    @unit_price_cents::bigint[],
+    @line_amount_cents::bigint[]
+)::uuid AS document_id;

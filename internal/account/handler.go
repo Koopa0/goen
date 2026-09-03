@@ -165,14 +165,15 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.startSession(w, r, u)
+	if !h.startSession(w, r, u) {
+		return
+	}
 	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 }
 
 // signInFailed is one response for an unusable address, an unknown account and
-// a wrong password. It keeps the submitted address as every rejected form does;
-// two different submissions therefore differ only in the value they already
-// gave goen, never in information about an account.
+// a wrong password: two submissions differ only in the address the visitor
+// already gave goen, never in information about an account.
 func (h *Handler) signInFailed(w http.ResponseWriter, r *http.Request, addr, next string) {
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
 		pages.SignIn(pages.SignInMeta(r.Context()), pages.AuthView{
@@ -207,7 +208,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	next := web.SitePathOr(r.PostFormValue("next"), "/account")
 
 	view := pages.AuthView{Email: c.Email, Name: c.Name, Next: next}
-	if errs := fieldMessages(r.Context(), c.ValidateRegistration()); len(errs) > 0 {
+	if errs := FieldMessages(r.Context(), c.ValidateRegistration()); len(errs) > 0 {
 		view.Errors = errs
 		web.Render(w, r, h.log, http.StatusUnprocessableEntity,
 			pages.Register(pages.RegisterMeta(r.Context()), view))
@@ -232,7 +233,9 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		h.log.WarnContext(r.Context(), "request verification at registration", "error", err)
 	}
 
-	h.startSession(w, r, u)
+	if !h.startSession(w, r, u) {
+		return
+	}
 	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 }
 
@@ -274,6 +277,8 @@ func accountNotice(r *http.Request) string {
 	switch {
 	case q.Get("saved") == "1":
 		return i18n.T(ctx, i18n.KeyProfileSaved)
+	case q.Get("profile") == "invalid":
+		return i18n.T(ctx, i18n.KeyProfileInvalid)
 	case q.Get("address") == "invalid":
 		return i18n.T(ctx, i18n.KeyAddressIncomplete)
 	case q.Get("password") == "wrong":
@@ -282,6 +287,8 @@ func accountNotice(r *http.Request) string {
 		return i18n.T(ctx, i18n.KeyNewPasswordRefused)
 	case q.Get("erase") == "confirm":
 		return i18n.T(ctx, i18n.KeyEraseNeedsEmail)
+	case q.Get("erase") == "return":
+		return i18n.T(ctx, i18n.KeyEraseOpenReturn)
 	case q.Get("email") == "sent":
 		return i18n.T(ctx, i18n.KeyEmailSent)
 	case q.Get("email") == "taken":
@@ -333,6 +340,10 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.store.UpdateProfile(r.Context(), u.ID,
 		r.PostFormValue("name"), r.PostFormValue("phone")); err != nil {
+		if errors.Is(err, ErrInvalidInput) {
+			http.Redirect(w, r, "/account?profile=invalid", http.StatusSeeOther)
+			return
+		}
 		h.log.ErrorContext(r.Context(), "update profile", "error", err)
 		h.serverError(w, r)
 		return
@@ -340,12 +351,12 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/account?saved=1", http.StatusSeeOther)
 }
 
-func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u User) {
+func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u User) bool {
 	token, err := h.store.StartSession(r.Context(), u.ID, r.UserAgent(), clientIP(r))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "start session", "error", err)
 		h.serverError(w, r)
-		return
+		return false
 	}
 	SetSessionCookie(w, token, h.secure)
 
@@ -357,32 +368,11 @@ func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u User) {
 			}
 		}
 	}
+	return true
 }
 
 func clientIP(r *http.Request) string {
 	return ratelimit.ClientIP(r)
-}
-
-func fieldMessages(ctx context.Context, errs []FieldError) map[string]string {
-	if len(errs) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(errs))
-	for _, e := range errs {
-		if _, seen := out[e.Field]; seen {
-			continue
-		}
-		msg := i18n.T(ctx, e.MessageKey)
-		// Only the too-short message carries a verb. Formatting every message
-		// with the length appended %!(EXTRA int=10) to the six that do not — on
-		// the registration form, which is where somebody decides whether to
-		// trust this site with a password.
-		if e.MessageKey == i18n.KeyPasswordTooShort {
-			msg = fmt.Sprintf(msg, MinPasswordRunes)
-		}
-		out[e.Field] = msg
-	}
-	return out
 }
 
 func urlQueryEscape(s string) string {
@@ -431,6 +421,10 @@ func (h *Handler) AddAddress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.store.AddAddress(r.Context(), u.ID, a); err != nil {
+		if errors.Is(err, ErrInvalidInput) {
+			http.Redirect(w, r, "/account?address=invalid", http.StatusSeeOther)
+			return
+		}
 		h.log.ErrorContext(r.Context(), "add address", "error", err)
 		h.serverError(w, r)
 		return
@@ -529,7 +523,10 @@ func (h *Handler) Erase(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/account?erase=confirm", http.StatusSeeOther)
 		return
 	}
-	if err := h.store.Erase(r.Context(), u.ID); err != nil {
+	if err := h.store.Erase(r.Context(), u.ID); errors.Is(err, ErrOpenReturn) {
+		http.Redirect(w, r, "/account?erase=return", http.StatusSeeOther)
+		return
+	} else if err != nil {
 		h.log.ErrorContext(r.Context(), "erase account", "error", err)
 		h.serverError(w, r)
 		return
@@ -567,10 +564,8 @@ func (h *Handler) SaveWishlist(w http.ResponseWriter, r *http.Request) {
 
 	u, ok := FromContext(r.Context())
 	if !ok {
-		// Back to the product, not to an empty wishlist: somebody who pressed
-		// save was looking at something, and sending them to a list of nothing
-		// after signing in loses both the item and the page they were on. The
-		// form is read BEFORE the check for exactly this.
+		// Back to the product, not to an empty wishlist. The form is read BEFORE
+		// this check so a guest keeps both the item and the page they were on.
 		http.Redirect(w, r, "/signin?next="+urlQueryEscape(back), http.StatusSeeOther)
 		return
 	}
@@ -775,7 +770,9 @@ func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.startSession(w, r, u)
+	if !h.startSession(w, r, u) {
+		return
+	}
 	http.Redirect(w, r, state.Next, http.StatusSeeOther)
 }
 

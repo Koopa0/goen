@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -14,7 +16,7 @@ func (s *Store) Warranties(ctx context.Context, term string) (pages.AdminWarrant
 	// Uppercased: a serial is typed off a label and a shift key is not a failed lookup.
 	term = strings.ToUpper(strings.TrimSpace(term))
 	view := pages.AdminWarrantiesView{Term: term}
-	if len([]rune(term)) < MinSearchRunes {
+	if utf8.RuneCountInString(term) < MinSearchRunes {
 		return view, nil
 	}
 	view.Searched = true
@@ -33,8 +35,8 @@ func (s *Store) Warranties(ctx context.Context, term string) (pages.AdminWarrant
 			OrderStatus:   StatusLabel(ctx, r.FulfillmentStatus),
 			CustomerName:  r.CustomerName,
 			CustomerEmail: r.CustomerEmail,
-			RegisteredAt:  r.RegisteredAt.Format("2006-01-02"),
-			ExpiresOn:     r.ExpiresOn.Format("2006-01-02"),
+			RegisteredAt:  shoptime.Day(r.RegisteredAt),
+			ExpiresOn:     shoptime.Day(r.ExpiresOn),
 			InForce:       r.InForce,
 		})
 	}

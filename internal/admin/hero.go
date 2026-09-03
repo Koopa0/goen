@@ -111,7 +111,7 @@ func (s *Store) CreateHeroSlide(ctx context.Context, f *HeroForm) (map[string]st
 		return errs, nil
 	}
 	err := s.audited(ctx, Event{
-		Action: ActionCreateHeroSlide, Table: "hero_slides",
+		Action: actionCreateHeroSlide, Table: "hero_slides",
 		After: map[string]any{"headline": f.Headline, "cta": f.PrimaryHref},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -139,7 +139,7 @@ func (s *Store) SetHeroSlideActive(ctx context.Context, id string, active bool) 
 		return ErrNotFound
 	}
 	return s.audited(ctx, Event{
-		Action: ActionToggleHeroSlide, Table: "hero_slides",
+		Action: actionToggleHeroSlide, Table: "hero_slides",
 		ID:    uuid.NullUUID{UUID: slideID, Valid: true},
 		After: map[string]any{"active": active},
 	},
@@ -164,7 +164,7 @@ func (s *Store) PromoteHeroSlide(ctx context.Context, id string) error {
 		return ErrNotFound
 	}
 	return s.audited(ctx, Event{
-		Action: ActionPromoteHeroSlide, Table: "hero_slides",
+		Action: actionPromoteHeroSlide, Table: "hero_slides",
 		ID: uuid.NullUUID{UUID: slideID, Valid: true},
 	},
 		func(ctx context.Context, q *db.Queries) error {

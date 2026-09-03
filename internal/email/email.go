@@ -1,6 +1,10 @@
-// Package email holds goen's policy for an email address: how one is normalised
-// before it is stored, the length goen accepts, and the rule that a field
-// collecting an address rejects a display name. The parsing is net/mail's.
+// Package email composes goen's transactional letters and delivers them over
+// SMTP.
+//
+// It also holds the shop's policy for an address — how one is normalised before
+// it is stored, the length goen accepts, and the rule that a field collecting an
+// address rejects a display name — because every send checks it and seven
+// features collect one. The parsing is net/mail's.
 package email
 
 import (
@@ -23,9 +27,8 @@ func Clean(s string) string {
 // already refuses control characters, quoted local part included.
 //
 // The domain must carry a dot, which RFC 5322 does not require — user@localhost
-// is a legal address and this refuses it. A shop that posts to the public
-// internet cannot reach a dotless domain, so accepting one only delays the
-// refusal until the customer is waiting for mail that cannot arrive.
+// is legal and this refuses it, because a shop posting to the public internet
+// cannot reach a dotless domain.
 func Valid(s string) bool {
 	if s == "" || len(s) > Max {
 		return false

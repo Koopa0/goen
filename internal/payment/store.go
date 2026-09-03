@@ -64,22 +64,28 @@ func (s *Store) Order(ctx context.Context, number string) (*Order, error) {
 	}
 
 	// No live hold is not an error: the caller then opens no session at all.
-	holdUntil, err := s.q.OrderHoldExpiry(ctx, row.ID)
+	hold, err := s.q.OrderHoldExpiry(ctx, db.OrderHoldExpiryParams{
+		OrderID: row.ID,
+		RequiredLifetime: pgtype.Interval{
+			Microseconds: (minSessionLifetime + sessionStartMargin).Microseconds(), Valid: true,
+		},
+	})
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("read stock hold of order %s: %w", number, err)
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		holdUntil = time.Time{}
+		hold.ExpiresAt = time.Time{}
 	}
 
 	o := &Order{
-		Number:        row.OrderNumber,
-		TotalCents:    row.TotalCents,
-		Email:         row.Email,
-		Paid:          paid,
-		Fulfillment:   row.FulfillmentStatus,
-		HoldExpiresAt: holdUntil,
-		Lines:         make([]Line, 0, len(lines)),
+		Number:            row.OrderNumber,
+		TotalCents:        row.TotalCents,
+		Email:             row.Email,
+		Paid:              paid,
+		Fulfillment:       row.FulfillmentStatus,
+		HoldExpiresAt:     hold.ExpiresAt,
+		holdCoversSession: hold.CoversSession,
+		Lines:             make([]Line, 0, len(lines)),
 	}
 	for i := range lines {
 		l := &lines[i]
@@ -260,7 +266,7 @@ func (s *Store) processWebhook(
 	if err != nil {
 		return false, fmt.Errorf("begin webhook transaction: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 
 	webhook := &webhookTx{
 		q: s.q.WithTx(tx), tx: tx, eventID: ev.ID, objectRef: ev.ObjectRef,
@@ -312,8 +318,7 @@ func (s *Store) processWebhook(
 // capture_payment can be refused — payments_refuse_cancelled_order is the whole
 // reason ErrOrderCancelled exists — and a refusal ABORTS the transaction, so
 // every later command fails with 25P02. Without the savepoint the caller cannot
-// record what happened, mark the event processed, or commit: the webhook
-// answered 500 and Stripe retried a capture that can never succeed, forever.
+// record what happened, mark the event processed, or commit.
 func (w *webhookTx) postCapture(ctx context.Context, c Capture) error {
 	post := func(q *db.Queries) error {
 		_, err := q.CapturePayment(ctx, db.CapturePaymentParams{
@@ -344,10 +349,8 @@ func (w *webhookTx) postCapture(ctx context.Context, c Capture) error {
 // person has to. The event identity belongs to the transaction capability;
 // callers cannot redirect the outcome to a different event.
 //
-// Called from inside processWebhook's transaction, which is what makes it
-// impossible to mark an event seen without also marking that it needs somebody
-// — the rule processWebhook already holds for the effect, applied to the
-// outcome.
+// It runs inside processWebhook's transaction, so an event cannot be recorded
+// as seen without also being recorded as needing somebody.
 func (w *webhookTx) Unreconciled(ctx context.Context, reason string) error {
 	marked, err := w.q.MarkWebhookUnreconciled(ctx, db.MarkWebhookUnreconciledParams{
 		EventID: w.eventID, Reason: reason,
@@ -405,10 +408,7 @@ func recordCaptureEffects(
 		return fmt.Errorf("record paid event for order %s: %w", orderNumber, err)
 	}
 
-	if _, err := q.AwardOrderPoints(ctx, db.AwardOrderPointsParams{
-		OrderID: orderID, ValidityDays: LoyaltyValidityDays,
-		WindowDays: MembershipWindowDays,
-	}); err != nil {
+	if _, err := q.AwardOrderPoints(ctx, orderID); err != nil {
 		return fmt.Errorf("award points for order %s: %w", orderNumber, err)
 	}
 
@@ -440,8 +440,7 @@ func capturePostingError(orderNumber, sessionID string, cause error) (string, er
 }
 
 // durableCaptureRefusals is the complete set of stable database refusals a
-// verified capture can reach. Keep it as data so the exactness test compares
-// against production's list instead of duplicating a switch implementation.
+// verified capture can reach.
 var durableCaptureRefusals = [...]string{
 	"payments_capture_matches_order",
 	"payments_capture_refuses_released_stock",
@@ -504,11 +503,3 @@ func cardLabel(c Capture) string {
 func text(s string) pgtype.Text {
 	return pgtype.Text{String: s, Valid: s != ""}
 }
-
-// LoyaltyValidityDays mirrors loyalty.Validity, kept equal by TestTheLoyaltyConstantsMatchTheProgramme.
-// This comment used to name TestTheAwardWindowMatchesTheProgramme, which does // named-test-exempt: this line RECORDS the name that was wrong
-// not exist.
-const LoyaltyValidityDays int32 = 365
-
-// MembershipWindowDays mirrors loyalty.MembershipWindow.
-const MembershipWindowDays int32 = 365

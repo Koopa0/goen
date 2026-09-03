@@ -32,6 +32,9 @@ type AdminCreditView struct {
 	Email  string
 	Reason string
 	Amount string
+	// OperationID identifies one rendered grant form across HTTP retries. It is
+	// deliberately separate from the per-request log correlation id.
+	OperationID string
 }
 
 // Empty reports whether the ledger has nothing in it yet.

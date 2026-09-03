@@ -42,8 +42,7 @@ func (s *Store) Load(ctx context.Context, recommended int32) (pages.HomeView, er
 		return pages.HomeView{}, fmt.Errorf("read home tiles: %w", err)
 	}
 
-	// Read rather than typed: the trust strip states a threshold the shop edits
-	// at /admin/shipping, and a page restating it drifts from the till.
+	// The shop edits this at /admin/shipping; a page restating it drifts from the till.
 	freeOver, err := s.q.FreeDeliveryThreshold(ctx)
 	if err != nil {
 		return pages.HomeView{}, fmt.Errorf("read free delivery threshold: %w", err)

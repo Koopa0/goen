@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -17,7 +19,7 @@ import (
 func (s *Store) Customers(ctx context.Context, term string) (pages.AdminCustomersView, error) {
 	term = strings.TrimSpace(term)
 	view := pages.AdminCustomersView{Term: term}
-	if len([]rune(term)) < MinSearchRunes {
+	if utf8.RuneCountInString(term) < MinSearchRunes {
 		return view, nil
 	}
 	view.Searched = true
@@ -32,7 +34,7 @@ func (s *Store) Customers(ctx context.Context, term string) (pages.AdminCustomer
 		r := &rows[i]
 		view.Rows = append(view.Rows, pages.AdminCustomerRow{
 			ID: r.ID.String(), Email: r.Email, Name: r.FullName,
-			Since:    r.CreatedAt.Format("2006-01-02"),
+			Since:    shoptime.Day(r.CreatedAt),
 			Verified: r.Verified, Orders: r.Orders,
 		})
 	}
@@ -52,7 +54,7 @@ func (s *Store) Customer(ctx context.Context, id string, actor uuid.NullUUID) (
 	if err != nil {
 		return pages.AdminCustomerView{}, fmt.Errorf("begin customer read: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
 	row, err := q.AdminCustomer(ctx, uid)
@@ -72,7 +74,7 @@ func (s *Store) Customer(ctx context.Context, id string, actor uuid.NullUUID) (
 
 	// WHO was looked at, never what was read: audit_events outlives an erasure.
 	if auditErr := auditIn(ctx, q, Event{
-		Action: ActionViewCustomer, Table: "users", ID: nullableID(uid),
+		Action: actionViewCustomer, Table: "users", ID: nullableID(uid),
 		Before: nil, After: map[string]any{"user_id": id},
 	}); auditErr != nil {
 		return pages.AdminCustomerView{}, auditErr
@@ -83,7 +85,7 @@ func (s *Store) Customer(ctx context.Context, id string, actor uuid.NullUUID) (
 
 	view := pages.AdminCustomerView{
 		ID: row.ID.String(), Email: row.Email, Name: row.FullName, Phone: row.Phone,
-		Since: row.CreatedAt.Format("2006-01-02"), Verified: row.Verified,
+		Since: shoptime.Day(row.CreatedAt), Verified: row.Verified,
 		Orders: row.Orders, SpentCents: row.Spent,
 		CreditCents: row.CreditCents, Points: row.Points,
 	}
@@ -92,7 +94,7 @@ func (s *Store) Customer(ctx context.Context, id string, actor uuid.NullUUID) (
 		view.Recent = append(view.Recent, pages.AdminOrderRow{
 			Number: o.OrderNumber, Status: o.FulfillmentStatus,
 			StatusText: FundedStatusLabel(ctx, o.FulfillmentStatus, o.Committed, o.OwedCents),
-			PlacedAt:   o.PlacedAt.Format("2006-01-02 15:04"),
+			PlacedAt:   shoptime.Minute(o.PlacedAt),
 			TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
 		})
 	}

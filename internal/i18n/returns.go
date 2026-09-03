@@ -60,9 +60,14 @@ var (
 		En:     "Nothing on this order can be returned.",
 	})
 
-	KeyReturnNeedsReason = key("returns.needsreason", Message{
-		ZhHant: "請填寫退貨原因,並至少選擇一件商品。",
-		En:     "Give a reason and choose at least one item.",
+	KeyReturnInvalid = key("returns.invalid", Message{
+		ZhHant: "請至少選擇一件商品,並確認填寫的資料。",
+		En:     "Choose at least one item and check the entered details.",
+	})
+
+	KeyReturnAccountErased = key("returns.account.erased", Message{
+		ZhHant: "帳號已在送出期間刪除,無法接收這筆退貨的購物金。請聯絡客服協助處理。",
+		En:     "The account was deleted while this request was being sent, so it cannot receive the store-credit refund. Contact support for help.",
 	})
 
 	KeyReturnMeta = key("returns.meta", Message{ZhHant: "退貨申請 %s", En: "Return request — %s"})
@@ -200,8 +205,7 @@ var (
 var (
 	// The DECISION stands: it is committed before any money moves, so that two
 	// staff members deciding at once cannot both pay. What is outstanding here
-	// is the payment, and saying "the refund failed" without saying the return
-	// is already approved would send somebody looking for a decision to retake.
+	// is the payment alone.
 	KeyAdminNoticeRefundFailed = key("admin.notice.refundfailed", Message{
 		ZhHant: "這筆退貨已經核准,但退款沒有完成。退款紀錄已經留下,請確認 Stripe 後台後使用退貨列上的「重新退款」—— " +
 			"核准本身不需要、也無法重做。",

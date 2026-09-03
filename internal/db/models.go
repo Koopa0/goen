@@ -28,15 +28,16 @@ type Address struct {
 }
 
 type AuditEvent struct {
-	ID          uuid.UUID
-	ActorUserID uuid.NullUUID
-	Action      string
-	EntityTable string
-	EntityID    uuid.NullUUID
-	Before      []byte
-	After       []byte
-	RequestID   pgtype.Text
-	OccurredAt  time.Time
+	ID              uuid.UUID
+	ActorUserID     uuid.NullUUID
+	ActorIDSnapshot uuid.UUID
+	Action          string
+	EntityTable     string
+	EntityID        uuid.NullUUID
+	Before          []byte
+	After           []byte
+	RequestID       pgtype.Text
+	OccurredAt      time.Time
 }
 
 type Brand struct {
@@ -221,11 +222,39 @@ type InvoiceDocumentLine struct {
 	Position       int32
 }
 
+type InvoiceOperation struct {
+	ID                   uuid.UUID
+	OrderID              uuid.UUID
+	Kind                 string
+	TargetDocumentID     uuid.NullUUID
+	ResultDocumentID     uuid.NullUUID
+	ProviderKey          string
+	AmountCents          int64
+	RequestPayload       []byte
+	ActorUserID          uuid.NullUUID
+	ActorIDSnapshot      uuid.UUID
+	RequestID            string
+	Status               string
+	ReconcileAttempts    int32
+	SendAttempts         int32
+	ResendAuthorizations int32
+	LastSendAt           pgtype.Timestamptz
+	LastError            pgtype.Text
+	AvailableAt          time.Time
+	LeaseOwner           uuid.NullUUID
+	LeaseUntil           pgtype.Timestamptz
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	CompletedAt          pgtype.Timestamptz
+}
+
 type InvoicePreference struct {
-	OrderID     uuid.UUID
-	InvoiceType string
-	CarrierCode pgtype.Text
-	TaxID       pgtype.Text
+	OrderID       uuid.UUID
+	InvoiceType   string
+	CarrierCode   pgtype.Text
+	TaxID         pgtype.Text
+	CustomerName  string
+	CustomerEmail string
 }
 
 // Spendable points per account: each unexpired award lot net of the spends and clawbacks paired with it. Expiry is applied on read, never by a job that might not have run.
@@ -247,6 +276,15 @@ type LoyaltyEntry struct {
 	ReturnRequestID uuid.NullUUID
 	ExpiresOn       time.Time
 	CreatedAt       time.Time
+}
+
+type LoyaltyRedemptionOperation struct {
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	Points      pgtype.Int8
+	CreditCents pgtype.Int8
+	CreatedAt   time.Time
+	CompletedAt pgtype.Timestamptz
 }
 
 // Uploaded images, content-addressed by the sha256 of the re-encoded bytes.
@@ -330,21 +368,25 @@ type OrderAccessGrant struct {
 }
 
 type OrderEvent struct {
-	ID          uuid.UUID
-	OrderID     uuid.UUID
-	Kind        string
-	Note        pgtype.Text
-	ActorUserID uuid.NullUUID
-	OccurredAt  time.Time
+	ID              uuid.UUID
+	OrderID         uuid.UUID
+	Kind            string
+	Note            pgtype.Text
+	ActorUserID     uuid.NullUUID
+	OccurredAt      time.Time
+	ReturnRequestID uuid.NullUUID
 }
 
 type OrderLine struct {
 	ID             uuid.UUID
 	OrderID        uuid.UUID
+	ProductID      uuid.NullUUID
 	VariantID      uuid.NullUUID
 	SKU            string
 	ProductName    string
 	VariantLabel   pgtype.Text
+	WarrantyNote   pgtype.Text
+	WarrantyMonths pgtype.Int4
 	UnitPriceCents int64
 	Quantity       int32
 	Position       int32
@@ -577,28 +619,34 @@ type PromoBanner struct {
 }
 
 type Refund struct {
-	ID              uuid.UUID
-	PaymentID       uuid.UUID
-	ReturnRequestID uuid.NullUUID
-	RequestKey      string
-	ProviderRef     pgtype.Text
-	Status          string
-	AmountCents     int64
-	Reason          pgtype.Text
-	CreatedAt       time.Time
-	SucceededAt     pgtype.Timestamptz
-	FailedAt        pgtype.Timestamptz
+	ID               uuid.UUID
+	PaymentID        uuid.UUID
+	ReturnRequestID  uuid.NullUUID
+	AttemptNo        int32
+	PreviousRefundID uuid.NullUUID
+	RequestKey       string
+	ProviderRef      pgtype.Text
+	Status           string
+	AmountCents      int64
+	Reason           pgtype.Text
+	CreatedAt        time.Time
+	SucceededAt      pgtype.Timestamptz
+	FailedAt         pgtype.Timestamptz
 }
 
 type ReturnRequest struct {
-	ID                uuid.UUID
-	OrderID           uuid.UUID
-	RequestedByUserID uuid.NullUUID
-	Status            string
-	Reason            string
-	Resolution        pgtype.Text
-	CreatedAt         time.Time
-	DecidedAt         pgtype.Timestamptz
+	ID                  uuid.UUID
+	OrderID             uuid.UUID
+	RequestedByUserID   uuid.NullUUID
+	Status              string
+	Reason              string
+	Resolution          pgtype.Text
+	GoodsRefundCents    pgtype.Int8
+	ShippingRefundCents int64
+	CardRefundCents     pgtype.Int8
+	CreditRefundCents   pgtype.Int8
+	CreatedAt           time.Time
+	DecidedAt           pgtype.Timestamptz
 }
 
 type ReturnRequestLine struct {

@@ -2,7 +2,9 @@ package i18n
 
 import (
 	"context"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -97,19 +99,91 @@ func Detect(r *http.Request, secure bool) Locale {
 	return fromAcceptLanguage(r.Header.Get("Accept-Language"))
 }
 
+type languagePreference struct {
+	q       float64
+	order   int
+	present bool
+}
+
+func (p languagePreference) betterThan(current languagePreference) bool {
+	return !current.present || p.q > current.q ||
+		(p.q == current.q && p.order < current.order)
+}
+
 func fromAcceptLanguage(header string) Locale {
+	explicit := make(map[Locale]languagePreference, len(Locales()))
+	wildcard := languagePreference{}
+	order := 0
 	for part := range strings.SplitSeq(header, ",") {
-		tag := strings.ToLower(strings.TrimSpace(strings.SplitN(part, ";", 2)[0]))
-		switch {
-		case tag == "":
+		pieces := strings.Split(part, ";")
+		tag := strings.ToLower(strings.TrimSpace(pieces[0]))
+		q, valid := languageQuality(pieces[1:])
+		if !valid {
+			order++
 			continue
-		case strings.HasPrefix(tag, "zh"):
-			return ZhHant
-		case strings.HasPrefix(tag, "en"):
-			return En
+		}
+		candidate := languagePreference{q: q, order: order, present: true}
+		order++
+		if tag == "*" {
+			if candidate.betterThan(wildcard) {
+				wildcard = candidate
+			}
+			continue
+		}
+		locale, supported := localeForLanguageRange(tag)
+		if supported && candidate.betterThan(explicit[locale]) {
+			explicit[locale] = candidate
 		}
 	}
-	return Default
+	return selectPreferredLocale(explicit, wildcard)
+}
+
+func selectPreferredLocale(
+	explicit map[Locale]languagePreference,
+	wildcard languagePreference,
+) Locale {
+	best := Default
+	bestPreference := languagePreference{}
+	for _, locale := range Locales() {
+		candidate, named := explicit[locale]
+		if !named {
+			candidate = wildcard
+		}
+		if !candidate.present || candidate.q == 0 {
+			continue
+		}
+		if candidate.betterThan(bestPreference) {
+			best, bestPreference = locale, candidate
+		}
+	}
+	return best
+}
+
+func localeForLanguageRange(tag string) (Locale, bool) {
+	switch {
+	case tag == "zh", strings.HasPrefix(tag, "zh-"):
+		return ZhHant, true
+	case tag == "en", strings.HasPrefix(tag, "en-"):
+		return En, true
+	default:
+		return Default, false
+	}
+}
+
+func languageQuality(params []string) (float64, bool) {
+	q := 1.0
+	for _, param := range params {
+		name, value, found := strings.Cut(strings.TrimSpace(param), "=")
+		if !found || !strings.EqualFold(strings.TrimSpace(name), "q") {
+			continue
+		}
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+		if err != nil || math.IsNaN(parsed) || parsed < 0 || parsed > 1 {
+			return 0, false
+		}
+		q = parsed
+	}
+	return q, true
 }
 
 // SetCookie records a visitor's choice.

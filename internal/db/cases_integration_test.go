@@ -102,14 +102,49 @@ var checkCases = []checkCase{
 		accept:     `INSERT INTO addresses (id, user_id, recipient_name, phone, postal_code, city, district, street, is_default) VALUES ('11110001-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', '王小明', '0912345678', '110', '台北市', '信義區', '松高路 68 號', false);`,
 	},
 	{
+		constraint: "addresses_recipient_shape",
+		reject:     `INSERT INTO addresses (id, user_id, recipient_name, phone, postal_code, city, district, street, is_default) VALUES ('11110001-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', repeat('名', 61), '0912345678', '110', '台北市', '信義區', '松高路 68 號', false);`,
+		accept:     `INSERT INTO addresses (id, user_id, recipient_name, phone, postal_code, city, district, street, is_default) VALUES ('11110001-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', repeat('名', 60), '0912345678', '110', '台北市', '信義區', '松高路 68 號', false);`,
+	},
+	{
+		constraint: "addresses_phone_format",
+		reject:     `INSERT INTO addresses (id, user_id, recipient_name, phone, postal_code, city, district, street, is_default) VALUES ('11110001-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', '王小明', '09AB123456', '110', '台北市', '信義區', '松高路 68 號', false);`,
+		accept:     `INSERT INTO addresses (id, user_id, recipient_name, phone, postal_code, city, district, street, is_default) VALUES ('11110001-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', '王小明', '+886 (2) 2700-1234', '110', '台北市', '信義區', '松高路 68 號', false);`,
+	},
+	{
+		constraint: "addresses_postal_code_format",
+		reject:     `INSERT INTO addresses (id, user_id, recipient_name, phone, postal_code, city, district, street, is_default) VALUES ('11110001-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', '王小明', '0912345678', '11A', '台北市', '信義區', '松高路 68 號', false);`,
+		accept:     `INSERT INTO addresses (id, user_id, recipient_name, phone, postal_code, city, district, street, is_default) VALUES ('11110001-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', '王小明', '0912345678', '110204', '台北市', '信義區', '松高路 68 號', false);`,
+	},
+	{
+		constraint: "addresses_city_shape",
+		reject:     `INSERT INTO addresses (id, user_id, recipient_name, phone, postal_code, city, district, street, is_default) VALUES ('11110001-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', '王小明', '0912345678', '110', repeat('市', 21), '信義區', '松高路 68 號', false);`,
+		accept:     `INSERT INTO addresses (id, user_id, recipient_name, phone, postal_code, city, district, street, is_default) VALUES ('11110001-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', '王小明', '0912345678', '110', repeat('市', 20), '信義區', '松高路 68 號', false);`,
+	},
+	{
+		constraint: "addresses_district_shape",
+		reject:     `INSERT INTO addresses (id, user_id, recipient_name, phone, postal_code, city, district, street, is_default) VALUES ('11110001-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', '王小明', '0912345678', '110', '台北市', repeat('區', 21), '松高路 68 號', false);`,
+		accept:     `INSERT INTO addresses (id, user_id, recipient_name, phone, postal_code, city, district, street, is_default) VALUES ('11110001-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', '王小明', '0912345678', '110', '台北市', repeat('區', 20), '松高路 68 號', false);`,
+	},
+	{
+		constraint: "addresses_street_shape",
+		reject:     `INSERT INTO addresses (id, user_id, recipient_name, phone, postal_code, city, district, street, is_default) VALUES ('11110001-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', '王小明', '0912345678', '110', '台北市', '信義區', repeat('路', 201), false);`,
+		accept:     `INSERT INTO addresses (id, user_id, recipient_name, phone, postal_code, city, district, street, is_default) VALUES ('11110001-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', '王小明', '0912345678', '110', '台北市', '信義區', repeat('路', 200), false);`,
+	},
+	{
 		constraint: "audit_events_action_present",
-		reject:     `INSERT INTO audit_events (action, entity_table) VALUES (E'\t', 'orders');`,
-		accept:     `INSERT INTO audit_events (action, entity_table) VALUES ('order.cancel', 'orders');`,
+		reject:     `INSERT INTO audit_events (actor_id_snapshot, action, entity_table) VALUES ('55555555-5555-4555-8555-555555555555', E'\t', 'orders');`,
+		accept:     `INSERT INTO audit_events (actor_id_snapshot, action, entity_table) VALUES ('55555555-5555-4555-8555-555555555555', 'order.cancel', 'orders');`,
 	},
 	{
 		constraint: "audit_events_entity_present",
-		reject:     `INSERT INTO audit_events (action, entity_table) VALUES ('order.cancel', E'\t');`,
-		accept:     `INSERT INTO audit_events (action, entity_table) VALUES ('order.cancel', 'orders');`,
+		reject:     `INSERT INTO audit_events (actor_id_snapshot, action, entity_table) VALUES ('55555555-5555-4555-8555-555555555555', 'order.cancel', E'\t');`,
+		accept:     `INSERT INTO audit_events (actor_id_snapshot, action, entity_table) VALUES ('55555555-5555-4555-8555-555555555555', 'order.cancel', 'orders');`,
+	},
+	{
+		constraint: "audit_events_actor_snapshot_matches",
+		reject:     `INSERT INTO audit_events (actor_user_id, actor_id_snapshot, action, entity_table) VALUES ('55555555-5555-4555-8555-555555555555', '5555aaaa-5555-4555-8555-555555555555', 'order.cancel', 'orders');`,
+		accept:     `INSERT INTO audit_events (actor_user_id, actor_id_snapshot, action, entity_table) VALUES ('55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'order.cancel', 'orders');`,
 	},
 	{
 		constraint: "brands_name_present",
@@ -268,6 +303,11 @@ var checkCases = []checkCase{
 		         VALUES ('a1000005-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 'award', 10, 'seed', 'shape-seed', '66666666-6666-4666-8666-666666666666', shop_today() + 365);
 		         INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, order_id, expires_on, lot_id, requested_points, return_request_id)
 		         VALUES ('a0000001-0000-4000-8000-000000000000', 'clawback', 0, 'return', 'shape-zero', '66666666-6666-4666-8666-666666666666', shop_today() + 365, 'a1000005-0000-4000-8000-000000000001', 10, '88880001-0000-4000-8000-000000000000');`,
+	},
+	{
+		constraint: "loyalty_redemption_operation_completed_together",
+		reject:     `INSERT INTO loyalty_redemption_operations (id, user_id, points) VALUES ('a2000001-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', 100);`,
+		accept:     `INSERT INTO loyalty_redemption_operations (id, user_id) VALUES ('a2000001-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555');`,
 	},
 	{
 		constraint: "product_questions_body_present",
@@ -464,12 +504,6 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents) VALUES ('11110001-0000-4000-8000-000000000001', '6666aaaa-6666-4666-8666-666666666666', 'invoice', 'GD-90000001', 100);`,
 	},
 	{
-		// A claim carries the key it claims, or it claims nothing.
-		constraint: "invoice_documents_pending_is_claimed",
-		reject:     `INSERT INTO invoice_documents (id, order_id, kind, original_id, number, amount_cents, status) VALUES ('11110001-0000-4000-8000-000000000031', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', '', 100, 'pending');`,
-		accept:     `INSERT INTO invoice_documents (id, order_id, kind, original_id, number, amount_cents, status, request_key) VALUES ('11110001-0000-4000-8000-000000000031', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', '', 100, 'pending', 'allowance:probe:0:100');`,
-	},
-	{
 		constraint: "invoice_documents_request_key_present",
 		reject:     `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents, request_key) VALUES ('11110001-0000-4000-8000-000000000032', '6666aaaa-6666-4666-8666-666666666666', 'invoice', 'GD-90000032', 100, '   ');`,
 		accept:     `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents, request_key) VALUES ('11110001-0000-4000-8000-000000000032', '6666aaaa-6666-4666-8666-666666666666', 'invoice', 'GD-90000032', 100, 'allowance:probe:0:100');`,
@@ -490,19 +524,59 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents, status, voided_at) VALUES ('11110001-0000-4000-8000-000000000005', '66666666-6666-4666-8666-666666666666', 'invoice', 'GD-90000005', 100, 'voided', now());`,
 	},
 	{
+		constraint: "invoice_preferences_company_tax_id_shape",
+		reject:     `INSERT INTO invoice_preferences (order_id, invoice_type, tax_id, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'member_carrier', '04595252', '測試', 'test@example.com');`,
+		accept:     `INSERT INTO invoice_preferences (order_id, invoice_type, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'member_carrier', '測試', 'test@example.com');`,
+	},
+	{
 		constraint: "invoice_preferences_company_has_tax_id",
-		reject:     `INSERT INTO invoice_preferences (order_id, invoice_type, tax_id) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'company', NULL);`,
-		accept:     `INSERT INTO invoice_preferences (order_id, invoice_type, tax_id) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'company', '12345678');`,
+		reject:     `INSERT INTO invoice_preferences (order_id, invoice_type, tax_id, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'company', '12345678', '測試', 'test@example.com');`,
+		accept:     `INSERT INTO invoice_preferences (order_id, invoice_type, tax_id, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'company', '04595252', '測試', 'test@example.com');`,
+	},
+	{
+		constraint: "invoice_preferences_mobile_carrier_shape",
+		reject:     `INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code, tax_id, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'company', '/ABC+123', '04595252', '測試', 'test@example.com');`,
+		accept:     `INSERT INTO invoice_preferences (order_id, invoice_type, tax_id, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'company', '04595252', '測試', 'test@example.com');`,
 	},
 	{
 		constraint: "invoice_preferences_mobile_has_carrier",
-		reject:     `INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'mobile_carrier', E'	');`,
-		accept:     `INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'mobile_carrier', '/AB12345');`,
+		reject:     `INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'mobile_carrier', '/ABC_123', '測試', 'test@example.com');`,
+		accept:     `INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'mobile_carrier', '/ABC+123', '測試', 'test@example.com');`,
 	},
 	{
 		constraint: "invoice_preferences_type_known",
-		reject:     `INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code, tax_id) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'paper', NULL, NULL);`,
-		accept:     `INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code, tax_id) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'member_carrier', NULL, NULL);`,
+		reject:     `INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code, tax_id, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'paper', NULL, NULL, '測試', 'test@example.com');`,
+		accept:     `INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code, tax_id, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'member_carrier', NULL, NULL, '測試', 'test@example.com');`,
+	},
+	{
+		constraint: "invoice_preferences_customer_name_present",
+		reject:     `INSERT INTO invoice_preferences (order_id, invoice_type, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'member_carrier', ' ', 'test@example.com');`,
+		accept:     `INSERT INTO invoice_preferences (order_id, invoice_type, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'member_carrier', '測試', 'test@example.com');`,
+	},
+	{
+		constraint: "invoice_preferences_customer_name_bounded",
+		reject:     `INSERT INTO invoice_preferences (order_id, invoice_type, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'member_carrier', repeat('名', 61), 'test@example.com');`,
+		accept:     `INSERT INTO invoice_preferences (order_id, invoice_type, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'member_carrier', repeat('名', 60), 'test@example.com');`,
+	},
+	{
+		constraint: "invoice_preferences_customer_name_no_controls",
+		reject:     `INSERT INTO invoice_preferences (order_id, invoice_type, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'member_carrier', E'買受\n公司', 'test@example.com');`,
+		accept:     `INSERT INTO invoice_preferences (order_id, invoice_type, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'member_carrier', '買受公司', 'test@example.com');`,
+	},
+	{
+		constraint: "invoice_preferences_customer_email_present",
+		reject:     `INSERT INTO invoice_preferences (order_id, invoice_type, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'member_carrier', '測試', ' ');`,
+		accept:     `INSERT INTO invoice_preferences (order_id, invoice_type, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'member_carrier', '測試', 'test@example.com');`,
+	},
+	{
+		constraint: "invoice_preferences_customer_email_trimmed",
+		reject:     `INSERT INTO invoice_preferences (order_id, invoice_type, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'member_carrier', '測試', ' test@example.com');`,
+		accept:     `INSERT INTO invoice_preferences (order_id, invoice_type, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'member_carrier', '測試', 'test@example.com');`,
+	},
+	{
+		constraint: "invoice_preferences_customer_email_bounded",
+		reject:     `INSERT INTO invoice_preferences (order_id, invoice_type, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'member_carrier', '測試', repeat('a', 70) || '@example.com');`,
+		accept:     `INSERT INTO invoice_preferences (order_id, invoice_type, customer_name, customer_email) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'member_carrier', '測試', repeat('a', 60) || '@example.com');`,
 	},
 	{
 		constraint: "newsletter_subscribers_email_present",
@@ -604,6 +678,23 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO order_events (id, order_id, kind) VALUES ('11110001-0000-4000-8000-000000000020', '66666666-6666-4666-8666-666666666666', 'placed');`,
 	},
 	{
+		constraint: "order_events_return_shape",
+		reject: `INSERT INTO order_events (
+		             id, order_id, kind, return_request_id
+		         ) VALUES (
+		             '11110001-0000-4000-8000-000000000021',
+		             '66666666-6666-4666-8666-666666666666', 'placed',
+		             '88880001-0000-4000-8000-000000000000'
+		         );`,
+		accept: `INSERT INTO order_events (
+		             id, order_id, kind, return_request_id
+		         ) VALUES (
+		             '11110001-0000-4000-8000-000000000021',
+		             '66666666-6666-4666-8666-666666666666', 'refunded',
+		             '88880001-0000-4000-8000-000000000000'
+		         );`,
+	},
+	{
 		constraint: "order_lines_product_name_present",
 		reject:     `INSERT INTO order_lines (id, order_id, sku, product_name, unit_price_cents, quantity, position) VALUES ('11110001-0000-4000-8000-000000000002', '6666aaaa-6666-4666-8666-666666666666', 'PXL-TEST-BL', E'\t', 3690000, 1, 5);`,
 		accept:     `INSERT INTO order_lines (id, order_id, sku, product_name, unit_price_cents, quantity, position) VALUES ('11110001-0000-4000-8000-000000000002', '6666aaaa-6666-4666-8666-666666666666', 'PXL-TEST-BL', '測試手機', 3690000, 1, 5);`,
@@ -612,6 +703,24 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		constraint: "order_lines_quantity_in_range",
 		reject:     `INSERT INTO order_lines (id, order_id, sku, product_name, unit_price_cents, quantity, position) VALUES ('11110001-0000-4000-8000-000000000003', '6666aaaa-6666-4666-8666-666666666666', 'PXL-TEST-BL', 'Pixelight 9 Pro 5G', 3690000, 0, 5);`,
 		accept:     `INSERT INTO order_lines (id, order_id, sku, product_name, unit_price_cents, quantity, position) VALUES ('11110001-0000-4000-8000-000000000003', '6666aaaa-6666-4666-8666-666666666666', 'PXL-TEST-BL', 'Pixelight 9 Pro 5G', 3690000, 1, 5);`,
+	},
+	{
+		constraint: "order_lines_warranty_months_sane",
+		// The order owns the product's promise, but it may never record a term
+		// that the live products table itself could not have promised.
+		reject: `INSERT INTO order_lines (id, order_id, sku, product_name, warranty_months, unit_price_cents, quantity, position)
+		         VALUES ('11110001-0000-4000-8000-000000000005', '6666aaaa-6666-4666-8666-666666666666', 'PXL-TEST-BL', 'Pixelight 9 Pro 5G', 0, 3690000, 1, 5);`,
+		accept: `INSERT INTO order_lines (id, order_id, sku, product_name, warranty_months, unit_price_cents, quantity, position)
+		         VALUES ('11110001-0000-4000-8000-000000000005', '6666aaaa-6666-4666-8666-666666666666', 'PXL-TEST-BL', 'Pixelight 9 Pro 5G', 120, 3690000, 1, 5);`,
+	},
+	{
+		constraint: "order_lines_variant_has_product",
+		// A real variant is bound to its product by the BEFORE INSERT trigger;
+		// an unknown id cannot exploit the nullable composite FK to skip checking.
+		reject: `INSERT INTO order_lines (id, order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+		         VALUES ('11110001-0000-4000-8000-000000000006', '6666aaaa-6666-4666-8666-666666666666', '44440000-0000-4000-8000-000000000000', 'UNKNOWN-VARIANT', '不存在規格', 1, 1, 5);`,
+		accept: `INSERT INTO order_lines (id, order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+		         VALUES ('11110001-0000-4000-8000-000000000006', '6666aaaa-6666-4666-8666-666666666666', '44444444-4444-4444-8444-444444444444', 'PXL-TEST-BL', 'Pixelight 9 Pro 5G', 3690000, 1, 5);`,
 	},
 	{
 		constraint: "order_lines_sku_present",
@@ -668,6 +777,36 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		constraint: "order_private_data_pickup_store_code_format",
 		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, 'hi_life', '後庄門市', '後庄門市');`,
 		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, 'hi_life', 'S884', '後庄門市');`,
+	},
+	{
+		constraint: "order_private_data_recipient_shape",
+		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', repeat('名', 61), '0912000000', '110', '台北市', '信義區', '松高路 100 號');`,
+		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', repeat('名', 60), '0912000000', '110', '台北市', '信義區', '松高路 100 號');`,
+	},
+	{
+		constraint: "order_private_data_phone_format",
+		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '09AB123456', '110', '台北市', '信義區', '松高路 100 號');`,
+		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '+886 (2) 2700-1234', '110', '台北市', '信義區', '松高路 100 號');`,
+	},
+	{
+		constraint: "order_private_data_postal_code_format",
+		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', '11A', '台北市', '信義區', '松高路 100 號');`,
+		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', '110204', '台北市', '信義區', '松高路 100 號');`,
+	},
+	{
+		constraint: "order_private_data_city_shape",
+		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', '110', repeat('市', 21), '信義區', '松高路 100 號');`,
+		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', '110', repeat('市', 20), '信義區', '松高路 100 號');`,
+	},
+	{
+		constraint: "order_private_data_district_shape",
+		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', '110', '台北市', repeat('區', 21), '松高路 100 號');`,
+		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', '110', '台北市', repeat('區', 20), '松高路 100 號');`,
+	},
+	{
+		constraint: "order_private_data_street_shape",
+		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', '110', '台北市', '信義區', repeat('路', 201));`,
+		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', '110', '台北市', '信義區', repeat('路', 200));`,
 	},
 	{
 		constraint: "shipping_methods_destination_kind",
@@ -803,6 +942,21 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO password_reset_tokens (token_hash, user_id, created_at, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00.000001+00');`,
 	},
 	{
+		constraint: "payment_webhook_events_event_id_valid",
+		reject:     `INSERT INTO payment_webhook_events (provider, event_id, type, payload) VALUES ('stripe', E'evt_good\nforged', 'checkout.session.completed', '{}'::jsonb);`,
+		accept:     `INSERT INTO payment_webhook_events (provider, event_id, type, payload) VALUES ('stripe', repeat('e', 255), 'checkout.session.completed', '{}'::jsonb);`,
+	},
+	{
+		constraint: "payment_webhook_events_object_ref_valid",
+		reject:     `INSERT INTO payment_webhook_events (provider, event_id, type, object_ref, payload) VALUES ('stripe', 'evt_bad_object_ref', 'checkout.session.completed', repeat('o', 256), '{}'::jsonb);`,
+		accept:     `INSERT INTO payment_webhook_events (provider, event_id, type, object_ref, payload) VALUES ('stripe', 'evt_null_object_ref', 'checkout.session.completed', NULL, '{}'::jsonb);`,
+	},
+	{
+		constraint: "payment_webhook_events_provider_known",
+		reject:     `INSERT INTO payment_webhook_events (provider, event_id, type, payload) VALUES ('paypal', 'evt_wrong_provider', 'checkout.session.completed', '{}'::jsonb);`,
+		accept:     `INSERT INTO payment_webhook_events (provider, event_id, type, payload) VALUES ('stripe', 'evt_stripe_provider', 'checkout.session.completed', '{}'::jsonb);`,
+	},
+	{
 		constraint: "payment_webhook_events_unreconciled_present",
 		reject:     `INSERT INTO payment_webhook_events (provider, event_id, type, payload, unreconciled) VALUES ('stripe', 'evt_blank_reason', 'checkout.session.completed', '{}'::jsonb, '   ');`,
 		accept:     `INSERT INTO payment_webhook_events (provider, event_id, type, payload, unreconciled) VALUES ('stripe', 'evt_blank_reason', 'checkout.session.completed', '{}'::jsonb, 'money arrived for a cancelled order');`,
@@ -855,6 +1009,11 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		constraint: "payments_provider_known",
 		reject:     `INSERT INTO payments (id, order_id, provider, provider_ref, status, intended_amount_cents) VALUES ('11110001-0000-4000-8000-000000000001','6666aaaa-6666-4666-8666-666666666666','paypal','pi_rej_provider','requires_payment',6788000);`,
 		accept:     `INSERT INTO payments (id, order_id, provider, provider_ref, status, intended_amount_cents) VALUES ('11110001-0000-4000-8000-000000000001','6666aaaa-6666-4666-8666-666666666666','stripe','pi_acc_provider','requires_payment',6788000);`,
+	},
+	{
+		constraint: "payments_provider_ref_valid",
+		reject:     `INSERT INTO payments (id, order_id, provider_ref, status, intended_amount_cents) VALUES ('11110001-0000-4000-8000-000000000010','6666aaaa-6666-4666-8666-666666666666',repeat('p', 256),'requires_payment',6788000);`,
+		accept:     `INSERT INTO payments (id, order_id, provider_ref, status, intended_amount_cents) VALUES ('11110001-0000-4000-8000-000000000010','6666aaaa-6666-4666-8666-666666666666',repeat('p', 255),'requires_payment',6788000);`,
 	},
 	{
 		constraint: "payments_status_known",
@@ -928,23 +1087,23 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "product_specs_label_en_present",
-		reject:     `INSERT INTO product_specs (id, product_id, label, value, label_en, position) VALUES ('11110004-0000-4000-8000-000000000093', '33333333-3333-4333-8333-333333333333', '螢幕', '有效值', E'\t', 93);`,
-		accept:     `INSERT INTO product_specs (id, product_id, label, value, label_en, position) VALUES ('11110004-0000-4000-8000-000000000093', '33333333-3333-4333-8333-333333333333', '螢幕', '有效值', 'Screen', 93);`,
+		reject:     `INSERT INTO product_specs (id, product_id, label, value, label_en, position) VALUES ('11110004-0000-4000-8000-000000000093', '33333333-3333-4333-8333-333333333333', '規格93', '有效值', E'\t', 93);`,
+		accept:     `INSERT INTO product_specs (id, product_id, label, value, label_en, position) VALUES ('11110004-0000-4000-8000-000000000093', '33333333-3333-4333-8333-333333333333', '規格93', '有效值', 'Screen', 93);`,
 	},
 	{
 		constraint: "product_specs_value_en_present",
-		reject:     `INSERT INTO product_specs (id, product_id, label, value, value_en, position) VALUES ('11110004-0000-4000-8000-000000000094', '33333333-3333-4333-8333-333333333333', '螢幕', '有效值', E'\t', 94);`,
-		accept:     `INSERT INTO product_specs (id, product_id, label, value, value_en, position) VALUES ('11110004-0000-4000-8000-000000000094', '33333333-3333-4333-8333-333333333333', '螢幕', '有效值', 'A valid value', 94);`,
+		reject:     `INSERT INTO product_specs (id, product_id, label, value, value_en, position) VALUES ('11110004-0000-4000-8000-000000000094', '33333333-3333-4333-8333-333333333333', '規格94', '有效值', E'\t', 94);`,
+		accept:     `INSERT INTO product_specs (id, product_id, label, value, value_en, position) VALUES ('11110004-0000-4000-8000-000000000094', '33333333-3333-4333-8333-333333333333', '規格94', '有效值', 'A valid value', 94);`,
 	},
 	{
 		constraint: "product_specs_label_en_bounded",
-		reject:     `INSERT INTO product_specs (id, product_id, label, value, label_en, position) VALUES ('11110004-0000-4000-8000-000000000095', '33333333-3333-4333-8333-333333333333', '螢幕', '有效值', repeat('S', 41), 95);`,
-		accept:     `INSERT INTO product_specs (id, product_id, label, value, label_en, position) VALUES ('11110004-0000-4000-8000-000000000095', '33333333-3333-4333-8333-333333333333', '螢幕', '有效值', repeat('S', 40), 95);`,
+		reject:     `INSERT INTO product_specs (id, product_id, label, value, label_en, position) VALUES ('11110004-0000-4000-8000-000000000095', '33333333-3333-4333-8333-333333333333', '規格95', '有效值', repeat('S', 41), 95);`,
+		accept:     `INSERT INTO product_specs (id, product_id, label, value, label_en, position) VALUES ('11110004-0000-4000-8000-000000000095', '33333333-3333-4333-8333-333333333333', '規格95', '有效值', repeat('S', 40), 95);`,
 	},
 	{
 		constraint: "product_specs_value_en_bounded",
-		reject:     `INSERT INTO product_specs (id, product_id, label, value, value_en, position) VALUES ('11110004-0000-4000-8000-000000000096', '33333333-3333-4333-8333-333333333333', '螢幕', '有效值', repeat('V', 201), 96);`,
-		accept:     `INSERT INTO product_specs (id, product_id, label, value, value_en, position) VALUES ('11110004-0000-4000-8000-000000000096', '33333333-3333-4333-8333-333333333333', '螢幕', '有效值', repeat('V', 200), 96);`,
+		reject:     `INSERT INTO product_specs (id, product_id, label, value, value_en, position) VALUES ('11110004-0000-4000-8000-000000000096', '33333333-3333-4333-8333-333333333333', '規格96', '有效值', repeat('V', 201), 96);`,
+		accept:     `INSERT INTO product_specs (id, product_id, label, value, value_en, position) VALUES ('11110004-0000-4000-8000-000000000096', '33333333-3333-4333-8333-333333333333', '規格96', '有效值', repeat('V', 200), 96);`,
 	},
 	{
 		constraint: "product_specs_label_bounded",
@@ -953,8 +1112,8 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "product_specs_value_bounded",
-		reject:     `INSERT INTO product_specs (id, product_id, label, value, position) VALUES ('11110004-0000-4000-8000-000000000092', '33333333-3333-4333-8333-333333333333', '螢幕', repeat('吋', 201), 92);`,
-		accept:     `INSERT INTO product_specs (id, product_id, label, value, position) VALUES ('11110004-0000-4000-8000-000000000092', '33333333-3333-4333-8333-333333333333', '螢幕', repeat('吋', 200), 92);`,
+		reject:     `INSERT INTO product_specs (id, product_id, label, value, position) VALUES ('11110004-0000-4000-8000-000000000092', '33333333-3333-4333-8333-333333333333', '規格92', repeat('吋', 201), 92);`,
+		accept:     `INSERT INTO product_specs (id, product_id, label, value, position) VALUES ('11110004-0000-4000-8000-000000000092', '33333333-3333-4333-8333-333333333333', '規格92', repeat('吋', 200), 92);`,
 	},
 	{
 		constraint: "product_specs_label_present",
@@ -1071,9 +1230,79 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO refunds (id, payment_id, request_key, status, amount_cents) VALUES ('11110003-0000-4000-8000-000000000009','77770001-0000-4000-8000-000000000000','rk-acc-amt','pending',1);`,
 	},
 	{
+		constraint: "refunds_attempt_in_range",
+		reject: `SET LOCAL session_replication_role = replica;
+		         INSERT INTO refunds (
+		             id, payment_id, return_request_id, request_key, status,
+		             amount_cents, failed_at
+		         ) VALUES (
+		             '11110035-0000-4000-8000-000000000001',
+		             '77770001-0000-4000-8000-000000000000',
+		             '88880001-0000-4000-8000-000000000000',
+		             'range-attempt-1', 'failed', 1, now()
+		         );
+		         INSERT INTO refunds (
+		             id, payment_id, return_request_id, attempt_no,
+		             previous_refund_id, request_key, amount_cents
+		         ) VALUES (
+		             '11110035-0000-4000-8000-000000000002',
+		             '77770001-0000-4000-8000-000000000000',
+		             '88880001-0000-4000-8000-000000000000', 1000001,
+		             '11110035-0000-4000-8000-000000000001',
+		             'range-attempt-over', 1
+		         );`,
+		accept: `SET LOCAL session_replication_role = replica;
+		         INSERT INTO refunds (
+		             id, payment_id, return_request_id, request_key, status,
+		             amount_cents, failed_at
+		         ) VALUES (
+		             '11110035-0000-4000-8000-000000000001',
+		             '77770001-0000-4000-8000-000000000000',
+		             '88880001-0000-4000-8000-000000000000',
+		             'range-attempt-1-ok', 'failed', 1, now()
+		         );
+		         INSERT INTO refunds (
+		             id, payment_id, return_request_id, attempt_no,
+		             previous_refund_id, request_key, amount_cents
+		         ) VALUES (
+		             '11110035-0000-4000-8000-000000000002',
+		             '77770001-0000-4000-8000-000000000000',
+		             '88880001-0000-4000-8000-000000000000', 2,
+		             '11110035-0000-4000-8000-000000000001',
+		             'range-attempt-2-ok', 1
+		         );`,
+	},
+	{
+		constraint: "refunds_attempt_lineage_shape",
+		reject: `INSERT INTO refunds (
+		             id, payment_id, attempt_no, request_key, amount_cents
+		         ) VALUES (
+		             '11110036-0000-4000-8000-000000000001',
+		             '77770001-0000-4000-8000-000000000000', 2,
+		             'lineage-shape-bad', 1
+		         );`,
+		accept: `INSERT INTO refunds (
+		             id, payment_id, attempt_no, request_key, amount_cents
+		         ) VALUES (
+		             '11110036-0000-4000-8000-000000000001',
+		             '77770001-0000-4000-8000-000000000000', 1,
+		             'lineage-shape-ok', 1
+		         );`,
+	},
+	{
 		constraint: "refunds_failed_has_time",
 		reject:     `INSERT INTO refunds (id, payment_id, request_key, status, amount_cents, failed_at) VALUES ('11110003-0000-4000-8000-00000000000d','77770001-0000-4000-8000-000000000000','rk-rej-fht','failed',100000,NULL);`,
 		accept:     `INSERT INTO refunds (id, payment_id, request_key, status, amount_cents, failed_at) VALUES ('11110003-0000-4000-8000-00000000000d','77770001-0000-4000-8000-000000000000','rk-acc-fht','failed',100000,now());`,
+	},
+	{
+		constraint: "refunds_provider_identity_required",
+		reject:     `INSERT INTO refunds (id, payment_id, request_key, provider_ref, status, amount_cents, succeeded_at) VALUES ('11110003-0000-4000-8000-00000000000e','77770001-0000-4000-8000-000000000000','rk-rej-provider-required',NULL,'succeeded',100000,now());`,
+		accept:     `INSERT INTO refunds (id, payment_id, request_key, provider_ref, status, amount_cents) VALUES ('11110003-0000-4000-8000-00000000000e','77770001-0000-4000-8000-000000000000','rk-acc-provider-optional',NULL,'pending',100000);`,
+	},
+	{
+		constraint: "refunds_provider_ref_valid",
+		reject:     `INSERT INTO refunds (id, payment_id, request_key, provider_ref, status, amount_cents) VALUES ('11110003-0000-4000-8000-00000000000f','77770001-0000-4000-8000-000000000000','rk-rej-provider-ref',E're_good\nforged','pending',100000);`,
+		accept:     `INSERT INTO refunds (id, payment_id, request_key, provider_ref, status, amount_cents) VALUES ('11110003-0000-4000-8000-00000000000f','77770001-0000-4000-8000-000000000000','rk-acc-provider-ref',NULL,'pending',100000);`,
 	},
 	{
 		constraint: "refunds_request_key_present",
@@ -1087,8 +1316,8 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 	},
 	{
 		constraint: "refunds_succeeded_has_time",
-		reject:     `INSERT INTO refunds (id, payment_id, request_key, status, amount_cents, succeeded_at) VALUES ('11110003-0000-4000-8000-00000000000c','77770001-0000-4000-8000-000000000000','rk-rej-sht','succeeded',100000,NULL);`,
-		accept:     `INSERT INTO refunds (id, payment_id, request_key, status, amount_cents, succeeded_at) VALUES ('11110003-0000-4000-8000-00000000000c','77770001-0000-4000-8000-000000000000','rk-acc-sht','succeeded',100000,now());`,
+		reject:     `INSERT INTO refunds (id, payment_id, request_key, provider_ref, status, amount_cents, succeeded_at) VALUES ('11110003-0000-4000-8000-00000000000c','77770001-0000-4000-8000-000000000000','rk-rej-sht','re_sht_reject','succeeded',100000,NULL);`,
+		accept:     `INSERT INTO refunds (id, payment_id, request_key, provider_ref, status, amount_cents, succeeded_at) VALUES ('11110003-0000-4000-8000-00000000000c','77770001-0000-4000-8000-000000000000','rk-acc-sht','re_sht_accept','succeeded',100000,now());`,
 	},
 	{
 		constraint: "return_request_lines_quantity_positive",
@@ -1127,11 +1356,77 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept: `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000001', '6666aaaa-6666-4666-8666-666666666666', '退貨');`,
 	},
 	{
+		constraint: "return_requests_refund_snapshot_shape",
+		reject: `SET LOCAL session_replication_role = replica;
+		         INSERT INTO return_requests (
+		             id, order_id, reason, goods_refund_cents
+		         ) VALUES (
+		             '11110037-0000-4000-8000-000000000001',
+		             '6666aaaa-6666-4666-8666-666666666666', 'shape', 1
+		         );`,
+		accept: `INSERT INTO return_requests (id, order_id, reason)
+		         VALUES (
+		             '11110037-0000-4000-8000-000000000001',
+		             '6666aaaa-6666-4666-8666-666666666666', 'shape'
+		         );`,
+	},
+	{
+		constraint: "return_requests_refund_snapshot_in_range",
+		reject: `SET LOCAL session_replication_role = replica;
+		         INSERT INTO return_requests (
+		             id, order_id, status, reason, goods_refund_cents,
+		             card_refund_cents, credit_refund_cents, decided_at
+		         ) VALUES (
+		             '11110038-0000-4000-8000-000000000001',
+		             '6666aaaa-6666-4666-8666-666666666666', 'approved', 'range',
+		             -1, 0, -1, now()
+		         );`,
+		accept: `SET LOCAL session_replication_role = replica;
+		         INSERT INTO return_requests (
+		             id, order_id, status, reason, goods_refund_cents,
+		             card_refund_cents, credit_refund_cents, decided_at
+		         ) VALUES (
+		             '11110038-0000-4000-8000-000000000001',
+		             '6666aaaa-6666-4666-8666-666666666666', 'approved', 'range',
+		             1, 1, 0, now()
+		         );`,
+	},
+	{
+		constraint: "return_requests_sources_equal_refund",
+		reject: `SET LOCAL session_replication_role = replica;
+		         INSERT INTO return_requests (
+		             id, order_id, status, reason, goods_refund_cents,
+		             card_refund_cents, credit_refund_cents, decided_at
+		         ) VALUES (
+		             '11110039-0000-4000-8000-000000000001',
+		             '6666aaaa-6666-4666-8666-666666666666', 'approved', 'sum',
+		             2, 1, 0, now()
+		         );`,
+		accept: `SET LOCAL session_replication_role = replica;
+		         INSERT INTO return_requests (
+		             id, order_id, status, reason, goods_refund_cents,
+		             card_refund_cents, credit_refund_cents, decided_at
+		         ) VALUES (
+		             '11110039-0000-4000-8000-000000000001',
+		             '6666aaaa-6666-4666-8666-666666666666', 'approved', 'sum',
+		             2, 2, 0, now()
+		         );`,
+	},
+	{
 		// The ACCEPT is the EMPTY reason, deliberately: Consumer Protection Act §19 I gives a
 		// rescission inside seven days with no reason at all, so a non-blank accept would lock nothing.
 		constraint: "return_requests_reason_bounded",
 		reject:     `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000002', '6666aaaa-6666-4666-8666-666666666666', repeat('x', 501));`,
 		accept:     `INSERT INTO return_requests (id, order_id, reason) VALUES ('11110001-0000-4000-8000-000000000002', '6666aaaa-6666-4666-8666-666666666666', '');`,
+	},
+	{
+		constraint: "return_requests_resolution_bounded",
+		reject: `INSERT INTO return_requests (id, order_id, reason, resolution)
+		         VALUES ('11110040-0000-4000-8000-000000000001',
+		                 '6666aaaa-6666-4666-8666-666666666666', '退貨', repeat('界', 301));`,
+		accept: `INSERT INTO return_requests (id, order_id, reason, resolution)
+		         VALUES ('11110040-0000-4000-8000-000000000001',
+		                 '6666aaaa-6666-4666-8666-666666666666', '退貨', repeat('界', 300));`,
 	},
 	{
 		constraint: "return_requests_status_known",
@@ -1165,6 +1460,16 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		constraint: "sessions_expiry_after_creation",
 		reject:     `INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00+00');`,
 		accept:     `INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', '2026-01-01 00:00:00+00', '2026-01-01 00:00:00.000001+00');`,
+	},
+	{
+		constraint: "sessions_user_agent_bounded",
+		reject:     `INSERT INTO sessions (token_hash, user_id, user_agent, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', repeat('瀏', 513), now() + interval '1 day');`,
+		accept:     `INSERT INTO sessions (token_hash, user_id, user_agent, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', repeat('瀏', 512), now() + interval '1 day');`,
+	},
+	{
+		constraint: "sessions_user_agent_no_controls",
+		reject:     `INSERT INTO sessions (token_hash, user_id, user_agent, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', E'browser\nforged', now() + interval '1 day');`,
+		accept:     `INSERT INTO sessions (token_hash, user_id, user_agent, expires_at) VALUES ('\x01', '55555555-5555-4555-8555-555555555555', 'browser/1', now() + interval '1 day');`,
 	},
 	{
 		constraint: "membership_tiers_code_format",
@@ -1327,14 +1632,36 @@ VALUES ('a0000001-0000-4000-8000-000000000000', 1, E'\t', 'sc-reason-1');`,
 VALUES ('a0000001-0000-4000-8000-000000000000', 1, E'\t購物金', 'sc-reason-1');`,
 	},
 	{
+		constraint: "store_credit_entries_reason_bounded",
+		reject: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 201), 'sc-reason-bound');`,
+		accept: `INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
+VALUES ('a0000001-0000-4000-8000-000000000000', 1, repeat('購', 200), 'sc-reason-bound');`,
+	},
+	{
 		constraint: "user_identities_provider_known",
 		reject:     `INSERT INTO user_identities (id, user_id, provider, provider_subject) VALUES ('11110002-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', 'facebook', 'google-sub-123');`,
 		accept:     `INSERT INTO user_identities (id, user_id, provider, provider_subject) VALUES ('11110002-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', 'google', 'google-sub-123');`,
 	},
 	{
 		constraint: "user_identities_subject_present",
-		reject:     `INSERT INTO user_identities (id, user_id, provider, provider_subject) VALUES ('11110002-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', 'google', E'\t');`,
+		reject:     `INSERT INTO user_identities (id, user_id, provider, provider_subject) VALUES ('11110002-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', 'google', '');`,
 		accept:     `INSERT INTO user_identities (id, user_id, provider, provider_subject) VALUES ('11110002-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', 'google', 'google-sub-123');`,
+	},
+	{
+		constraint: "user_identities_subject_bounded",
+		reject:     `INSERT INTO user_identities (id, user_id, provider, provider_subject) VALUES ('11110002-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', 'google', repeat('身', 256));`,
+		accept:     `INSERT INTO user_identities (id, user_id, provider, provider_subject) VALUES ('11110002-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', 'google', repeat('身', 255));`,
+	},
+	{
+		constraint: "user_identities_subject_no_controls",
+		reject:     `INSERT INTO user_identities (id, user_id, provider, provider_subject) VALUES ('11110002-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', 'google', E'google\nsubject');`,
+		accept:     `INSERT INTO user_identities (id, user_id, provider, provider_subject) VALUES ('11110002-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', 'google', 'google-subject');`,
+	},
+	{
+		constraint: "user_identities_subject_trimmed",
+		reject:     `INSERT INTO user_identities (id, user_id, provider, provider_subject) VALUES ('11110002-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', 'google', ' padded-subject');`,
+		accept:     `INSERT INTO user_identities (id, user_id, provider, provider_subject) VALUES ('11110002-0000-4000-8000-000000000001', '55555555-5555-4555-8555-555555555555', 'google', 'trimmed-subject');`,
 	},
 	{
 		constraint: "users_email_present",
@@ -1347,6 +1674,31 @@ VALUES ('a0000001-0000-4000-8000-000000000000', 1, E'\t購物金', 'sc-reason-1'
 		accept:     `INSERT INTO users (id, email) VALUES ('11110003-0000-4000-8000-000000000001', 'fresh@example.com');`,
 	},
 	{
+		constraint: "users_email_bounded",
+		reject:     `INSERT INTO users (id, email) VALUES ('11110003-0000-4000-8000-000000000001', repeat('名', 84) || '@x.co');`,
+		accept:     `INSERT INTO users (id, email) VALUES ('11110003-0000-4000-8000-000000000001', repeat('名', 83) || '@x.co');`,
+	},
+	{
+		constraint: "users_full_name_bounded",
+		reject:     `INSERT INTO users (id, email, full_name) VALUES ('11110003-0000-4000-8000-000000000001', 'full-name-bound@example.com', repeat('名', 61));`,
+		accept:     `INSERT INTO users (id, email, full_name) VALUES ('11110003-0000-4000-8000-000000000001', 'full-name-bound@example.com', repeat('名', 60));`,
+	},
+	{
+		constraint: "users_full_name_no_controls",
+		reject:     `INSERT INTO users (id, email, full_name) VALUES ('11110003-0000-4000-8000-000000000001', 'full-name-control@example.com', E'Good\nBad');`,
+		accept:     `INSERT INTO users (id, email, full_name) VALUES ('11110003-0000-4000-8000-000000000001', 'full-name-control@example.com', 'Good Name');`,
+	},
+	{
+		constraint: "users_phone_bounded",
+		reject:     `INSERT INTO users (id, email, phone) VALUES ('11110003-0000-4000-8000-000000000001', 'phone-bound@example.com', repeat('號', 31));`,
+		accept:     `INSERT INTO users (id, email, phone) VALUES ('11110003-0000-4000-8000-000000000001', 'phone-bound@example.com', repeat('號', 30));`,
+	},
+	{
+		constraint: "users_phone_no_controls",
+		reject:     `INSERT INTO users (id, email, phone) VALUES ('11110003-0000-4000-8000-000000000001', 'phone-control@example.com', E'0912\n345678');`,
+		accept:     `INSERT INTO users (id, email, phone) VALUES ('11110003-0000-4000-8000-000000000001', 'phone-control@example.com', '0912345678');`,
+	},
+	{
 		constraint: "users_role_known",
 		reject:     `INSERT INTO users (id, email, role) VALUES ('11110003-0000-4000-8000-000000000001', 'fresh@example.com', 'superadmin');`,
 		accept:     `INSERT INTO users (id, email, role) VALUES ('11110003-0000-4000-8000-000000000001', 'fresh@example.com', 'staff');`,
@@ -1355,6 +1707,116 @@ VALUES ('a0000001-0000-4000-8000-000000000000', 1, E'\t購物金', 'sc-reason-1'
 		constraint: "warranty_registrations_unit_positive",
 		reject:     `INSERT INTO warranty_registrations (id, order_line_id, unit_no, expires_on) VALUES ('11110001-0000-4000-8000-000000000004', '66660001-0000-4000-8000-000000000000', 0, '2027-01-01');`,
 		accept:     `INSERT INTO warranty_registrations (id, order_line_id, unit_no, expires_on) VALUES ('11110001-0000-4000-8000-000000000004', '66660001-0000-4000-8000-000000000000', 1, '2027-01-01');`,
+	},
+	{
+		constraint: "invoice_document_lines_description_bounded",
+		reject:     `INSERT INTO invoice_document_lines (id, document_id, description, quantity, unit_price_cents, amount_cents, tax_type, position) VALUES ('11110006-0000-4000-8000-000000000001', '99990001-0000-4000-8000-000000000000', repeat('品', 101), 1, 100, 100, 'taxable', 1);`,
+		accept:     `INSERT INTO invoice_document_lines (id, document_id, description, quantity, unit_price_cents, amount_cents, tax_type, position) VALUES ('11110006-0000-4000-8000-000000000001', '99990001-0000-4000-8000-000000000000', repeat('品', 100), 1, 100, 100, 'taxable', 1);`,
+	},
+	{
+		constraint: "invoice_document_lines_position_in_range",
+		reject:     `INSERT INTO invoice_document_lines (id, document_id, description, quantity, unit_price_cents, amount_cents, tax_type, position) VALUES ('11110006-0000-4000-8000-000000000015', '99990001-0000-4000-8000-000000000000', '品項', 1, 100, 100, 'taxable', 999);`,
+		accept:     `INSERT INTO invoice_document_lines (id, document_id, description, quantity, unit_price_cents, amount_cents, tax_type, position) VALUES ('11110006-0000-4000-8000-000000000015', '99990001-0000-4000-8000-000000000000', '品項', 1, 100, 100, 'taxable', 998);`,
+	},
+	{
+		constraint: "invoice_documents_number_bounded",
+		reject:     `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents) VALUES ('11110006-0000-4000-8000-000000000002', '6666aaaa-6666-4666-8666-666666666666', 'invoice', repeat('N', 33), 100);`,
+		accept:     `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents) VALUES ('11110006-0000-4000-8000-000000000002', '6666aaaa-6666-4666-8666-666666666666', 'invoice', repeat('N', 32), 100);`,
+	},
+	{
+		constraint: "invoice_documents_provider_ref_bounded",
+		reject:     `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents, provider_ref) VALUES ('11110006-0000-4000-8000-000000000003', '6666aaaa-6666-4666-8666-666666666666', 'invoice', 'GD-BOUND-03', 100, repeat('R', 101));`,
+		accept:     `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents, provider_ref) VALUES ('11110006-0000-4000-8000-000000000003', '6666aaaa-6666-4666-8666-666666666666', 'invoice', 'GD-BOUND-03', 100, repeat('R', 100));`,
+	},
+	{
+		constraint: "invoice_documents_request_key_bounded",
+		reject:     `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents, request_key) VALUES ('11110006-0000-4000-8000-000000000004', '6666aaaa-6666-4666-8666-666666666666', 'invoice', 'GD-BOUND-04', 100, repeat('K', 101));`,
+		accept:     `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents, request_key) VALUES ('11110006-0000-4000-8000-000000000004', '6666aaaa-6666-4666-8666-666666666666', 'invoice', 'GD-BOUND-04', 100, repeat('K', 100));`,
+	},
+	{
+		constraint: "invoice_operations_kind_known",
+		reject:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES ('11110006-0000-4000-8000-000000000005', '6666aaaa-6666-4666-8666-666666666666', 'refund', 'opkind', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'opkind');`,
+		accept:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES ('11110006-0000-4000-8000-000000000005', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'opkind', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'opkind');`,
+	},
+	{
+		constraint: "invoice_operations_status_known",
+		reject:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, status) VALUES ('11110006-0000-4000-8000-000000000006', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'opstatus', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'opstatus', 'lost');`,
+		accept:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, status) VALUES ('11110006-0000-4000-8000-000000000006', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'opstatus', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'opstatus', 'attention');`,
+	},
+	{
+		constraint: "invoice_operations_provider_key_present",
+		reject:     `INSERT INTO invoice_operations (id, order_id, kind, target_document_id, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES ('11110006-0000-4000-8000-000000000007', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', '', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'opprovider');`,
+		accept:     `INSERT INTO invoice_operations (id, order_id, kind, target_document_id, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES ('11110006-0000-4000-8000-000000000007', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', 'opprovider', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'opprovider');`,
+	},
+	{
+		constraint: "invoice_operations_issue_provider_key_safe",
+		reject:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES ('11110006-0000-4000-8000-000000000016', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'GO-260101-000001', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'provider-safe');`,
+		accept:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES ('11110006-0000-4000-8000-000000000016', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'GO260101000001R1', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'provider-safe');`,
+	},
+	{
+		constraint: "invoice_operations_amount_positive",
+		reject:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES ('11110006-0000-4000-8000-000000000008', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'opamount', 0, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'opamount');`,
+		accept:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES ('11110006-0000-4000-8000-000000000008', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'opamount', 1, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'opamount');`,
+	},
+	{
+		constraint: "invoice_operations_payload_object",
+		reject:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES ('11110006-0000-4000-8000-000000000009', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'oppayload', 100, '[]', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'oppayload');`,
+		accept:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES ('11110006-0000-4000-8000-000000000009', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'oppayload', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'oppayload');`,
+	},
+	{
+		constraint: "invoice_operations_request_present",
+		reject:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES ('11110006-0000-4000-8000-00000000000a', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'oprequest', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', '');`,
+		accept:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES ('11110006-0000-4000-8000-00000000000a', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'oprequest', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'oprequest');`,
+	},
+	{
+		constraint: "invoice_operations_actor_snapshot_matches",
+		reject:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES ('11110006-0000-4000-8000-00000000000b', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'opactor', 100, '{}', '55555555-5555-4555-8555-555555555555', '5555aaaa-5555-4555-8555-555555555555', 'opactor');`,
+		accept:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES ('11110006-0000-4000-8000-00000000000b', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'opactor', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'opactor');`,
+	},
+	{
+		constraint: "invoice_operations_attempts_non_negative",
+		reject:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, send_attempts) VALUES ('11110006-0000-4000-8000-00000000000c', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'opattempt', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'opattempt', -1);`,
+		accept:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, send_attempts) VALUES ('11110006-0000-4000-8000-00000000000c', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'opattempt', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'opattempt', 0);`,
+	},
+	{
+		constraint: "invoice_operations_resend_authority_bounded",
+		reject:     `INSERT INTO invoice_operations (id, order_id, kind, target_document_id, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, send_attempts, resend_authorizations) VALUES ('11110006-0000-4000-8000-000000000012', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', 'opresendauthority', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'opresendauthority', 0, 1);`,
+		accept:     `INSERT INTO invoice_operations (id, order_id, kind, target_document_id, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, send_attempts, resend_authorizations, last_send_at) VALUES ('11110006-0000-4000-8000-000000000012', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', 'opresendauthority', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'opresendauthority', 1, 1, now());`,
+	},
+	{
+		constraint: "invoice_operations_resend_authority_shape",
+		reject:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, send_attempts, resend_authorizations, last_send_at) VALUES ('11110006-0000-4000-8000-000000000014', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'opresendshape', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'opresendshape', 1, 1, now());`,
+		accept:     `INSERT INTO invoice_operations (id, order_id, kind, target_document_id, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, send_attempts, resend_authorizations, last_send_at) VALUES ('11110006-0000-4000-8000-000000000014', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', 'opresendshape', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'opresendshape', 1, 1, now());`,
+	},
+	{
+		constraint: "invoice_operations_last_send_matches_attempts",
+		reject:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, last_send_at) VALUES ('11110006-0000-4000-8000-000000000013', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'oplastsend', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'oplastsend', now());`,
+		accept:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, send_attempts, last_send_at) VALUES ('11110006-0000-4000-8000-000000000013', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'oplastsend', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'oplastsend', 1, now());`,
+	},
+	{
+		constraint: "invoice_operations_error_bounded",
+		reject:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, last_error) VALUES ('11110006-0000-4000-8000-00000000000d', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'operror', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'operror', repeat('e', 2001));`,
+		accept:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, last_error) VALUES ('11110006-0000-4000-8000-00000000000d', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'operror', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'operror', repeat('e', 2000));`,
+	},
+	{
+		constraint: "invoice_operations_lease_complete",
+		reject:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, lease_owner) VALUES ('11110006-0000-4000-8000-00000000000e', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'oplease', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'oplease', '11111111-1111-4111-8111-111111111111');`,
+		accept:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, lease_owner, lease_until) VALUES ('11110006-0000-4000-8000-00000000000e', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'oplease', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'oplease', '11111111-1111-4111-8111-111111111111', now() + interval '1 minute');`,
+	},
+	{
+		constraint: "invoice_operations_completion_matches_status",
+		reject:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, completed_at) VALUES ('11110006-0000-4000-8000-00000000000f', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'opcomplete', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'opcomplete', now());`,
+		accept:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, status, completed_at) VALUES ('11110006-0000-4000-8000-00000000000f', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'opcomplete', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'opcomplete', 'succeeded', now());`,
+	},
+	{
+		constraint: "invoice_operations_result_only_on_success",
+		reject:     `INSERT INTO invoice_operations (id, order_id, kind, result_document_id, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES ('11110006-0000-4000-8000-000000000010', '66666666-6666-4666-8666-666666666666', 'issue', '99990001-0000-4000-8000-000000000000', 'opresult', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'opresult');`,
+		accept:     `INSERT INTO invoice_operations (id, order_id, kind, result_document_id, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, status, completed_at) VALUES ('11110006-0000-4000-8000-000000000010', '66666666-6666-4666-8666-666666666666', 'issue', '99990001-0000-4000-8000-000000000000', 'opresult', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'opresult', 'succeeded', now());`,
+	},
+	{
+		constraint: "invoice_operations_target_shape",
+		reject:     `INSERT INTO invoice_operations (id, order_id, kind, target_document_id, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES ('11110006-0000-4000-8000-000000000011', '66666666-6666-4666-8666-666666666666', 'issue', '99990001-0000-4000-8000-000000000000', 'optarget', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'optarget');`,
+		accept:     `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES ('11110006-0000-4000-8000-000000000011', '66666666-6666-4666-8666-666666666666', 'issue', 'optarget', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'optarget');`,
 	},
 }
 
@@ -1394,6 +1856,45 @@ var uniqueCases = []uniqueCase{
 		         VALUES ('11110025-0000-4000-8000-000000000002', '6666aaaa-6666-4666-8666-666666666666', 'second');`,
 		accept: `INSERT INTO return_requests (id, order_id, reason)
 		         VALUES ('11110025-0000-4000-8000-000000000001', '6666aaaa-6666-4666-8666-666666666666', 'only');`,
+	},
+	{
+		index: "return_requests_shipping_refund_key",
+		// The transition trigger is the allocator and normally makes this collision
+		// unreachable. Disable user triggers only to prove the index is its final
+		// independent authority; indexes remain live in replica mode.
+		reject: `SET LOCAL session_replication_role = replica;
+		         INSERT INTO return_requests
+		             (id, order_id, status, reason, goods_refund_cents, shipping_refund_cents,
+		              card_refund_cents, credit_refund_cents, decided_at)
+		         VALUES
+		             ('11110026-0000-4000-8000-000000000001', '6666aaaa-6666-4666-8666-666666666666', 'approved', 'first', 1, 1, 2, 0, now()),
+		             ('11110026-0000-4000-8000-000000000002', '6666aaaa-6666-4666-8666-666666666666', 'approved', 'second', 1, 1, 2, 0, now());`,
+		accept: `SET LOCAL session_replication_role = replica;
+		         INSERT INTO return_requests
+		             (id, order_id, status, reason, goods_refund_cents, shipping_refund_cents,
+		              card_refund_cents, credit_refund_cents, decided_at)
+		         VALUES
+		             ('11110026-0000-4000-8000-000000000001', '6666aaaa-6666-4666-8666-666666666666', 'approved', 'shipping owner', 1, 1, 2, 0, now()),
+		             ('11110026-0000-4000-8000-000000000002', '6666aaaa-6666-4666-8666-666666666666', 'approved', 'goods only', 1, 0, 1, 0, now());`,
+	},
+	{
+		index: "order_events_return_request_key",
+		reject: `INSERT INTO order_events (
+		             id, order_id, kind, return_request_id
+		         ) VALUES
+		             ('11110040-0000-4000-8000-000000000001',
+		              '66666666-6666-4666-8666-666666666666', 'refunded',
+		              '88880001-0000-4000-8000-000000000000'),
+		             ('11110040-0000-4000-8000-000000000002',
+		              '66666666-6666-4666-8666-666666666666', 'refunded',
+		              '88880001-0000-4000-8000-000000000000');`,
+		accept: `INSERT INTO order_events (
+		             id, order_id, kind, return_request_id
+		         ) VALUES (
+		             '11110040-0000-4000-8000-000000000001',
+		             '66666666-6666-4666-8666-666666666666', 'refunded',
+		             '88880001-0000-4000-8000-000000000000'
+		         );`,
 	},
 	{
 		index: "coupons_code_key",
@@ -1441,8 +1942,8 @@ var uniqueCases = []uniqueCase{
 		// idempotency field, so a second press must be refused here or it
 		// becomes a second 折讓 at the 財政部.
 		index:  "invoice_documents_request_key",
-		reject: `INSERT INTO invoice_documents (id, order_id, kind, original_id, number, amount_cents, request_key) VALUES ('11110001-0000-4000-8000-000000000033', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', 'GD-90000033', 100, 'dup-key'); INSERT INTO invoice_documents (id, order_id, kind, original_id, number, amount_cents, request_key) VALUES ('11110001-0000-4000-8000-000000000034', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', 'GD-90000034', 100, 'dup-key');`,
-		accept: `INSERT INTO invoice_documents (id, order_id, kind, original_id, number, amount_cents, request_key) VALUES ('11110001-0000-4000-8000-000000000033', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', 'GD-90000033', 100, 'dup-key-a'); INSERT INTO invoice_documents (id, order_id, kind, original_id, number, amount_cents, request_key) VALUES ('11110001-0000-4000-8000-000000000034', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', 'GD-90000034', 100, 'dup-key-b');`,
+		reject: `INSERT INTO refunds (payment_id, request_key, provider_ref, status, amount_cents, succeeded_at) VALUES ('77770001-0000-4000-8000-000000000000', 'invoice-unique-reject', 're_invoice_unique_reject', 'succeeded', 200, now()); INSERT INTO invoice_documents (id, order_id, kind, original_id, number, amount_cents, request_key) VALUES ('11110001-0000-4000-8000-000000000033', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', 'GD-90000033', 100, 'dup-key'); INSERT INTO invoice_documents (id, order_id, kind, original_id, number, amount_cents, request_key) VALUES ('11110001-0000-4000-8000-000000000034', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', 'GD-90000034', 100, 'dup-key');`,
+		accept: `INSERT INTO refunds (payment_id, request_key, provider_ref, status, amount_cents, succeeded_at) VALUES ('77770001-0000-4000-8000-000000000000', 'invoice-unique-accept', 're_invoice_unique_accept', 'succeeded', 200, now()); INSERT INTO invoice_documents (id, order_id, kind, original_id, number, amount_cents, request_key) VALUES ('11110001-0000-4000-8000-000000000033', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', 'GD-90000033', 100, 'dup-key-a'); INSERT INTO invoice_documents (id, order_id, kind, original_id, number, amount_cents, request_key) VALUES ('11110001-0000-4000-8000-000000000034', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', 'GD-90000034', 100, 'dup-key-b');`,
 	},
 	{
 		// NULLS NOT DISTINCT is the half worth exercising: both rows here are
@@ -1501,15 +2002,46 @@ VALUES ('66666666-6666-4666-8666-666666666666', '4444aaaa-4444-4444-8444-4444444
 		accept: `INSERT INTO invoice_document_lines (id, document_id, description, quantity, unit_price_cents, amount_cents, tax_type, position) VALUES ('11110002-0000-4000-8000-000000000005', '99990001-0000-4000-8000-000000000000', 'Pixelight 9 Pro 5G', 1, 100, 100, 'taxable', 0); INSERT INTO invoice_document_lines (id, document_id, description, quantity, unit_price_cents, amount_cents, tax_type, position) VALUES ('11110002-0000-4000-8000-000000000006', '99990001-0000-4000-8000-000000000000', '折讓明細', 1, 100, 100, 'taxable', 1);`,
 	},
 	{
+		index: "invoice_operations_issue_provider_key_key",
+		reject: `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, status) VALUES
+		         ('11110007-0000-4000-8000-000000000015', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'CaseKey1', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'case-key-a', 'rejected'),
+		         ('11110007-0000-4000-8000-000000000016', '6666bbbb-6666-4666-8666-666666666666', 'issue', 'casekey1', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'case-key-b', 'rejected');`,
+		accept: `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, status) VALUES
+		         ('11110007-0000-4000-8000-000000000015', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'CaseKey1', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'case-key-a', 'rejected'),
+		         ('11110007-0000-4000-8000-000000000016', '6666bbbb-6666-4666-8666-666666666666', 'issue', 'CaseKey2', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'case-key-b', 'rejected');`,
+	},
+	{
 		index:  "invoice_documents_number_key",
 		reject: `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents) VALUES ('11110001-0000-4000-8000-000000000010', '6666aaaa-6666-4666-8666-666666666666', 'invoice', 'GD-72031288', 100);`,
-		// A SECOND PENDING claim, not a second number. The old index was whole-table,
-		// and a pending claim carries '' to say it has no number yet — so the accept
-		// below passed under both versions of the rule while two claims on two
-		// different orders collided on the empty string, which is #28's paired
-		// lesson: a statement both versions admit proves nothing about either.
-		accept: `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents, status, request_key) VALUES ('11110001-0000-4000-8000-000000000011', '6666aaaa-6666-4666-8666-666666666666', 'invoice', '', 100, 'pending', 'claim-one');
-		         INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents, status, request_key) VALUES ('11110001-0000-4000-8000-000000000012', '6666bbbb-6666-4666-8666-666666666666', 'invoice', '', 100, 'pending', 'claim-two');`,
+		accept: `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents) VALUES ('11110001-0000-4000-8000-000000000011', '6666aaaa-6666-4666-8666-666666666666', 'invoice', 'GD-UNIQUE-11', 100);
+		         INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents) VALUES ('11110001-0000-4000-8000-000000000012', '6666bbbb-6666-4666-8666-666666666666', 'invoice', 'GD-UNIQUE-12', 100);`,
+	},
+	{
+		index: "invoice_operations_one_active_issue",
+		reject: `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES
+		         ('11110007-0000-4000-8000-000000000001', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'activeissuea', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'activeissuea'),
+		         ('11110007-0000-4000-8000-000000000002', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'activeissueb', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'activeissueb');`,
+		accept: `INSERT INTO invoice_operations (id, order_id, kind, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, status) VALUES
+		         ('11110007-0000-4000-8000-000000000001', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'activeissuea', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'activeissuea', 'rejected'),
+		         ('11110007-0000-4000-8000-000000000002', '6666aaaa-6666-4666-8666-666666666666', 'issue', 'activeissueb', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'activeissueb', 'pending');`,
+	},
+	{
+		index: "invoice_operations_one_active_allowance",
+		reject: `INSERT INTO invoice_operations (id, order_id, kind, target_document_id, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES
+		         ('11110007-0000-4000-8000-000000000003', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', 'GD-72031288', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'active-allow-a'),
+		         ('11110007-0000-4000-8000-000000000004', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', 'GD-72031288', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'active-allow-b');`,
+		accept: `INSERT INTO invoice_operations (id, order_id, kind, target_document_id, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, status) VALUES
+		         ('11110007-0000-4000-8000-000000000003', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', 'GD-72031288', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'active-allow-a', 'rejected'),
+		         ('11110007-0000-4000-8000-000000000004', '66666666-6666-4666-8666-666666666666', 'allowance', '99990001-0000-4000-8000-000000000000', 'GD-72031288', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'active-allow-b', 'pending');`,
+	},
+	{
+		index: "invoice_operations_one_active_void",
+		reject: `INSERT INTO invoice_operations (id, order_id, kind, target_document_id, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id) VALUES
+		         ('11110007-0000-4000-8000-000000000005', '66666666-6666-4666-8666-666666666666', 'void', '99990001-0000-4000-8000-000000000000', 'GD-72031288', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'active-void-a'),
+		         ('11110007-0000-4000-8000-000000000006', '66666666-6666-4666-8666-666666666666', 'void', '99990001-0000-4000-8000-000000000000', 'GD-72031288', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'active-void-b');`,
+		accept: `INSERT INTO invoice_operations (id, order_id, kind, target_document_id, provider_key, amount_cents, request_payload, actor_user_id, actor_id_snapshot, request_id, status) VALUES
+		         ('11110007-0000-4000-8000-000000000005', '66666666-6666-4666-8666-666666666666', 'void', '99990001-0000-4000-8000-000000000000', 'GD-72031288', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'active-void-a', 'rejected'),
+		         ('11110007-0000-4000-8000-000000000006', '66666666-6666-4666-8666-666666666666', 'void', '99990001-0000-4000-8000-000000000000', 'GD-72031288', 100, '{}', '55555555-5555-4555-8555-555555555555', '55555555-5555-4555-8555-555555555555', 'active-void-b', 'pending');`,
 	},
 	{
 		index: "invoice_documents_one_active_invoice_per_order",
@@ -1623,6 +2155,11 @@ VALUES ('66666666-6666-4666-8666-666666666666', '4444aaaa-4444-4444-8444-4444444
 		accept: `INSERT INTO product_specs (id, product_id, label, value, position) VALUES ('11110015-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', '處理器', 'A18 Pro', 1);`,
 	},
 	{
+		index:  "product_specs_label_key",
+		reject: `INSERT INTO product_specs (id, product_id, label, value, position) VALUES ('11110015-0000-4000-8000-000000000002', '33333333-3333-4333-8333-333333333333', '螢幕', '另一個值', 99);`,
+		accept: `INSERT INTO product_specs (id, product_id, label, value, position) VALUES ('11110015-0000-4000-8000-000000000002', '33333333-3333-4333-8333-333333333333', '保固', '兩年', 99);`,
+	},
+	{
 		index:  "product_variants_position_key",
 		reject: `INSERT INTO product_variants (id, product_id, sku, price_cents, position) VALUES ('11110016-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'PXL-9P-POS', 3390000, 0);`,
 		accept: `INSERT INTO product_variants (id, product_id, sku, price_cents, position) VALUES ('11110016-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'PXL-9P-POS', 3390000, 2);`,
@@ -1646,6 +2183,128 @@ VALUES ('66666666-6666-4666-8666-666666666666', '4444aaaa-4444-4444-8444-4444444
 		index:  "refunds_request_key_key",
 		reject: `INSERT INTO refunds (id, payment_id, request_key, status, amount_cents) VALUES ('11110005-0000-4000-8000-000000000001','77770001-0000-4000-8000-000000000000','rk-dup','pending',100000); INSERT INTO refunds (id, payment_id, request_key, status, amount_cents) VALUES ('11110005-0000-4000-8000-000000000002','77770001-0000-4000-8000-000000000000','rk-dup','pending',100000);`,
 		accept: `INSERT INTO refunds (id, payment_id, request_key, status, amount_cents) VALUES ('11110005-0000-4000-8000-000000000001','77770001-0000-4000-8000-000000000000','rk-dup-a','pending',100000); INSERT INTO refunds (id, payment_id, request_key, status, amount_cents) VALUES ('11110005-0000-4000-8000-000000000002','77770001-0000-4000-8000-000000000000','rk-dup-b','pending',100000);`,
+	},
+	{
+		index: "refunds_return_attempt_key",
+		reject: `SET LOCAL session_replication_role = replica;
+		         INSERT INTO refunds (
+		             id, payment_id, return_request_id, request_key, status,
+		             amount_cents, failed_at
+		         ) VALUES
+		             ('11110041-0000-4000-8000-000000000001',
+		              '77770001-0000-4000-8000-000000000000',
+		              '88880001-0000-4000-8000-000000000000',
+		              'attempt-key-a', 'failed', 1, now()),
+		             ('11110041-0000-4000-8000-000000000002',
+		              '77770001-0000-4000-8000-000000000000',
+		              '88880001-0000-4000-8000-000000000000',
+		              'attempt-key-b', 'failed', 1, now());`,
+		accept: `SET LOCAL session_replication_role = replica;
+		         INSERT INTO refunds (
+		             id, payment_id, return_request_id, request_key, status,
+		             amount_cents, failed_at
+		         ) VALUES (
+		             '11110041-0000-4000-8000-000000000001',
+		             '77770001-0000-4000-8000-000000000000',
+		             '88880001-0000-4000-8000-000000000000',
+		             'attempt-key-ok-1', 'failed', 1, now()
+		         );
+		         INSERT INTO refunds (
+		             id, payment_id, return_request_id, attempt_no,
+		             previous_refund_id, request_key, status, amount_cents, failed_at
+		         ) VALUES (
+		             '11110041-0000-4000-8000-000000000002',
+		             '77770001-0000-4000-8000-000000000000',
+		             '88880001-0000-4000-8000-000000000000', 2,
+		             '11110041-0000-4000-8000-000000000001',
+		             'attempt-key-ok-2', 'failed', 1, now()
+		         );`,
+	},
+	{
+		index: "refunds_previous_attempt_key",
+		reject: `SET LOCAL session_replication_role = replica;
+		         INSERT INTO refunds (
+		             id, payment_id, return_request_id, request_key, status,
+		             amount_cents, failed_at
+		         ) VALUES (
+		             '11110042-0000-4000-8000-000000000001',
+		             '77770001-0000-4000-8000-000000000000',
+		             '88880001-0000-4000-8000-000000000000',
+		             'previous-key-1', 'failed', 1, now()
+		         );
+		         INSERT INTO refunds (
+		             id, payment_id, return_request_id, attempt_no,
+		             previous_refund_id, request_key, status, amount_cents, failed_at
+		         ) VALUES
+		             ('11110042-0000-4000-8000-000000000002',
+		              '77770001-0000-4000-8000-000000000000',
+		              '88880001-0000-4000-8000-000000000000', 2,
+		              '11110042-0000-4000-8000-000000000001',
+		              'previous-key-2', 'failed', 1, now()),
+		             ('11110042-0000-4000-8000-000000000003',
+		              '77770001-0000-4000-8000-000000000000',
+		              '88880001-0000-4000-8000-000000000000', 3,
+		              '11110042-0000-4000-8000-000000000001',
+		              'previous-key-3', 'failed', 1, now());`,
+		accept: `SET LOCAL session_replication_role = replica;
+		         INSERT INTO refunds (
+		             id, payment_id, return_request_id, request_key, status,
+		             amount_cents, failed_at
+		         ) VALUES (
+		             '11110042-0000-4000-8000-000000000001',
+		             '77770001-0000-4000-8000-000000000000',
+		             '88880001-0000-4000-8000-000000000000',
+		             'previous-key-ok-1', 'failed', 1, now()
+		         );
+		         INSERT INTO refunds (
+		             id, payment_id, return_request_id, attempt_no,
+		             previous_refund_id, request_key, status, amount_cents, failed_at
+		         ) VALUES (
+		             '11110042-0000-4000-8000-000000000002',
+		             '77770001-0000-4000-8000-000000000000',
+		             '88880001-0000-4000-8000-000000000000', 2,
+		             '11110042-0000-4000-8000-000000000001',
+		             'previous-key-ok-2', 'failed', 1, now()
+		         );`,
+	},
+	{
+		index: "refunds_one_open_return_attempt",
+		reject: `SET LOCAL session_replication_role = replica;
+		         INSERT INTO refunds (
+		             id, payment_id, return_request_id, request_key, amount_cents
+		         ) VALUES (
+		             '11110043-0000-4000-8000-000000000001',
+		             '77770001-0000-4000-8000-000000000000',
+		             '88880001-0000-4000-8000-000000000000', 'open-key-1', 1
+		         );
+		         INSERT INTO refunds (
+		             id, payment_id, return_request_id, attempt_no,
+		             previous_refund_id, request_key, amount_cents
+		         ) VALUES (
+		             '11110043-0000-4000-8000-000000000002',
+		             '77770001-0000-4000-8000-000000000000',
+		             '88880001-0000-4000-8000-000000000000', 2,
+		             '11110043-0000-4000-8000-000000000001', 'open-key-2', 1
+		         );`,
+		accept: `SET LOCAL session_replication_role = replica;
+		         INSERT INTO refunds (
+		             id, payment_id, return_request_id, request_key, status,
+		             amount_cents, failed_at
+		         ) VALUES (
+		             '11110043-0000-4000-8000-000000000001',
+		             '77770001-0000-4000-8000-000000000000',
+		             '88880001-0000-4000-8000-000000000000',
+		             'open-key-ok-1', 'failed', 1, now()
+		         );
+		         INSERT INTO refunds (
+		             id, payment_id, return_request_id, attempt_no,
+		             previous_refund_id, request_key, amount_cents
+		         ) VALUES (
+		             '11110043-0000-4000-8000-000000000002',
+		             '77770001-0000-4000-8000-000000000000',
+		             '88880001-0000-4000-8000-000000000000', 2,
+		             '11110043-0000-4000-8000-000000000001', 'open-key-ok-2', 1
+		         );`,
 	},
 	{
 		index:  "sale_campaigns_slug_key",

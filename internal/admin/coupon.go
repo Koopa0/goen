@@ -2,20 +2,18 @@ package admin
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"regexp"
 	"strings"
-	"time"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -36,6 +34,7 @@ type CouponForm struct {
 	MaxRedemptions  int32
 	PerCustomer     int32
 	Days            int32
+	parseInvalid    map[string]bool
 }
 
 // Validate refuses what the schema would.
@@ -44,6 +43,20 @@ func (f *CouponForm) Validate(ctx context.Context) map[string]string {
 	f.Description = strings.TrimSpace(f.Description)
 
 	errs := map[string]string{}
+	for field := range f.parseInvalid {
+		switch field {
+		case "cap":
+			errs[field] = i18n.T(ctx, i18n.KeyFormCouponCapNegative)
+		case "min":
+			errs[field] = i18n.T(ctx, i18n.KeyFormCouponMinSpend)
+		case "max":
+			errs[field] = i18n.T(ctx, i18n.KeyFormCouponMaxUses)
+		case "percustomer":
+			errs[field] = i18n.T(ctx, i18n.KeyFormCouponPerCustomer)
+		case "days":
+			errs[field] = i18n.T(ctx, i18n.KeyFormCouponDays)
+		}
+	}
 	if !couponCode.MatchString(f.Code) {
 		errs["code"] = i18n.T(ctx, i18n.KeyFormCouponCode)
 	}
@@ -53,7 +66,7 @@ func (f *CouponForm) Validate(ctx context.Context) map[string]string {
 
 	f.validateKind(ctx, errs)
 
-	if f.MinSpendDollars < 0 {
+	if f.MinSpendDollars < 0 || f.MinSpendDollars > MaxPriceCents/100 {
 		errs["min"] = i18n.T(ctx, i18n.KeyFormCouponMinSpend)
 	}
 	if f.MaxRedemptions < 0 {
@@ -93,7 +106,7 @@ func (f *CouponForm) validateKind(ctx context.Context, errs map[string]string) {
 		if f.Value <= 0 || f.Value > 100 {
 			errs["value"] = i18n.T(ctx, i18n.KeyFormCouponPercent)
 		}
-		if f.CapDollars < 0 {
+		if f.CapDollars < 0 || f.CapDollars > MaxPriceCents/100 {
 			errs["cap"] = i18n.T(ctx, i18n.KeyFormCouponCapNegative)
 		}
 	case "free_shipping":
@@ -143,6 +156,7 @@ func (s *Store) CreateCoupon(ctx context.Context, f *CouponForm) (map[string]str
 		Code: f.Code, Description: f.Description, Kind: f.Kind,
 		MinSubtotalCents: f.MinSpendDollars * 100,
 		PerCustomerLimit: f.PerCustomer,
+		Days:             f.Days,
 	}
 	switch f.Kind {
 	case "amount":
@@ -156,22 +170,14 @@ func (s *Store) CreateCoupon(ctx context.Context, f *CouponForm) (map[string]str
 	if f.MaxRedemptions > 0 {
 		params.MaxRedemptions = pgtype.Int4{Int32: f.MaxRedemptions, Valid: true}
 	}
-	if f.Days > 0 {
-		// The window is judged by the DATABASE's clock, not the one setting this.
-		params.EndsAt = pgtype.Timestamptz{
-			Time: time.Now().AddDate(0, 0, int(f.Days)), Valid: true,
-		}
-	}
-
 	if err := s.audited(ctx, Event{
-		Action: ActionCreateCoupon, Table: "coupons", ID: uuid.NullUUID{},
+		Action: actionCreateCoupon, Table: "coupons", ID: uuid.NullUUID{},
 		Before: nil, After: map[string]any{"code": f.Code, "kind": f.Kind, "value": f.Value},
 	},
 		func(ctx context.Context, q *db.Queries) error {
 			return q.CreateCoupon(ctx, params)
 		}); err != nil {
-		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
-			pgErr.ConstraintName == "coupons_code_key" {
+		if hasConstraint(err, "coupons_code_key") {
 			return map[string]string{"code": i18n.T(ctx, i18n.KeyFormCouponTaken)}, nil
 		}
 		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
@@ -182,7 +188,7 @@ func (s *Store) CreateCoupon(ctx context.Context, f *CouponForm) (map[string]str
 // SetCouponActive switches a promotion on or off.
 func (s *Store) SetCouponActive(ctx context.Context, code string, active bool) error {
 	if err := s.audited(ctx, Event{
-		Action: ActionToggleCoupon, Table: "coupons", ID: uuid.NullUUID{},
+		Action: actionToggleCoupon, Table: "coupons", ID: uuid.NullUUID{},
 		Before: map[string]any{"code": code}, After: map[string]any{"active": active},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -220,5 +226,5 @@ func nullableDate(t pgtype.Timestamptz) string {
 	if !t.Valid {
 		return ""
 	}
-	return t.Time.Format("2006-01-02")
+	return shoptime.Day(t.Time)
 }

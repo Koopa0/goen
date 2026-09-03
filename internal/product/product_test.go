@@ -22,6 +22,40 @@ func matrix() []Variant {
 	}
 }
 
+func TestReviewControlCharactersAreAttributedToTheirField(t *testing.T) {
+	tests := []struct {
+		name      string
+		review    Review
+		wantField string
+		other     string
+	}{
+		{
+			name:      "title",
+			review:    Review{Rating: 5, Title: "clear\x00title", Body: "useful review"},
+			wantField: "title",
+			other:     "body",
+		},
+		{
+			name:      "body",
+			review:    Review{Rating: 5, Title: "clear title", Body: "useful\x00review"},
+			wantField: "body",
+			other:     "title",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errs := tt.review.Validate()
+			if _, ok := errs[tt.wantField]; !ok {
+				t.Errorf("Validate() errors = %v, want %q", errs, tt.wantField)
+			}
+			if _, ok := errs[tt.other]; ok {
+				t.Errorf("Validate() errors = %v, did not want unrelated %q", errs, tt.other)
+			}
+		})
+	}
+}
+
 func TestResolve(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -62,11 +96,8 @@ func TestResolve(t *testing.T) {
 	}
 
 	// The matrix above cannot tell "first buyable" from "cheapest buyable"
-	// apart, because its first variant is both. The seed's own catalogue can:
-	// aurora-slate-11's cheapest is out of stock, so position order pinned the
-	// DEARER one — the tile advertised NT$14,900 起 and the page it linked to
-	// opened at NT$17,900. A listing quotes the cheapest buyable variant, so
-	// this has to agree with it or the price is a different number one click on.
+	// apart, because its first variant is both. This one can: a listing quotes
+	// the cheapest buyable variant, so the page it links to has to agree.
 	skewed := []Variant{
 		{ID: "1", SKU: "S-1-1", PriceCents: 1490000, Sellable: false,
 			Options: map[string]string{"顏色": "銀", "容量": "128GB"}},
@@ -78,6 +109,16 @@ func TestResolve(t *testing.T) {
 	if got, _ := Resolve(skewed, Selection{}); got.SKU != "S-2-1" {
 		t.Errorf("Resolve(nothing chosen) SKU = %q, want S-2-1 — the cheapest buyable, "+
 			"which is what the listing tile quoted", got.SKU)
+	}
+
+	allSoldOut := []Variant{
+		{ID: "1", SKU: "SOLD-EXPENSIVE", PriceCents: 200, Sellable: false,
+			Options: map[string]string{"colour": "black"}},
+		{ID: "2", SKU: "SOLD-CHEAP", PriceCents: 100, Sellable: false,
+			Options: map[string]string{"colour": "white"}},
+	}
+	if got, _ := Resolve(allSoldOut, Selection{}); got.SKU != "SOLD-CHEAP" {
+		t.Errorf("Resolve(all sold out) SKU = %q, want SOLD-CHEAP — the cheapest fallback", got.SKU)
 	}
 
 	for _, tt := range tests {
@@ -386,23 +427,10 @@ func TestThePickerShowsLabelsAndSelectsOnIdentity(t *testing.T) {
 	}
 }
 
-// TestThePagesOwnParametersAreNotVariantOptions holds a denylist that the page
-// outran.
-//
-// ParseSelection treats every query key it does not RESERVE as a variant option,
-// and reservedParam listed four: page, sort, q, added. The same handler reads
-// three more off the same query — ?ask= and ?notify= are its own redirect
-// outcomes, and ?p= is the comparison set /compare links back with. Each became
-// a selection no variant could satisfy, so Resolve matched nothing and an
-// in-stock product answered 找不到這個組合, lost its price box entirely, and
-// emitted OutOfStock with a price of 0.00 in its JSON-LD.
-//
-// The restock form's own 303 lands on ?&notify=1, so asking to be told about a
-// restock took the customer to a page saying the thing does not exist — and
-// offered no confirmation, because the form is inside the block that vanished.
-//
-// Derived from the variants rather than listed: the next parameter somebody
-// adds will not be added to a list either.
+// TestThePagesOwnParametersAreNotVariantOptions covers the keys reservedParam
+// does not list: the handler reads ?ask=, ?notify= and the /compare set's ?p=
+// off the same query ParseSelection does. Options are derived from the variants
+// rather than from that denylist.
 func TestThePagesOwnParametersAreNotVariantOptions(t *testing.T) {
 	variants := matrix()
 
@@ -429,8 +457,8 @@ func TestThePagesOwnParametersAreNotVariantOptions(t *testing.T) {
 		})
 	}
 
-	// And the consequence, not just the filter: a page parameter must leave the
-	// product resolvable. Unfiltered, Resolve finds nothing at all.
+	// The consequence, not just the filter: a page parameter must leave the
+	// product resolvable.
 	polluted := Selection{"notify": "1"}
 	if _, exact := Resolve(variants, polluted.OnlyOptionsOf(variants)); exact {
 		t.Error("a bare page parameter resolved an EXACT variant; it should leave the " +

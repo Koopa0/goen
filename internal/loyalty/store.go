@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -48,27 +49,29 @@ func (s *Store) Balance(ctx context.Context, userID string) (uuid.UUID, int64, e
 	return row.AccountID, row.Points, nil
 }
 
-// Redeem turns points into store credit. The cents are derived here and never
-// taken from a form; the database allocates the spend across award lots under
-// the account lock, because a comparison in Go is one two racers both pass.
-func (s *Store) Redeem(ctx context.Context, userID string, points int64) (int64, error) {
-	accountID, balance, err := s.Balance(ctx, userID)
-	if err != nil {
-		return 0, err
-	}
-	if points < MinRedemption {
+// Redeem turns points into store credit. The database owns the exchange rate
+// and allocates the spend across award lots under the account lock, because a
+// comparison in Go is one two racers both pass.
+func (s *Store) Redeem(
+	ctx context.Context, userID string, points int64, operationID uuid.UUID,
+) (int64, error) {
+	if points < MinRedemption || points > MaxRedemptionPoints {
 		return 0, ErrTooSmall
 	}
 	if points%PointsPerCredit != 0 {
 		return 0, ErrTooSmall
 	}
-	if points > balance {
-		return 0, ErrNotEnough
+	owner, err := uuid.Parse(userID)
+	if err != nil {
+		return 0, ErrNoAccount
+	}
+	if operationID == uuid.Nil {
+		return 0, ErrNoAccount
 	}
 
 	cents, err := s.q.RedeemPoints(ctx, db.RedeemPointsParams{
-		AccountID: accountID, Points: points, Cents: CreditFor(points),
-		Key: "points:" + uuid.NewString(),
+		UserID: owner, Points: points,
+		OperationID: operationID,
 	})
 	if err != nil {
 		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
@@ -116,20 +119,23 @@ func (s *Store) History(ctx context.Context, userID string) (pages.PointsView, e
 		Minimum:        MinRedemption,
 	}
 	if soon.AnyExpiring {
-		view.ExpiringOn = soon.Soonest.Format("2006-01-02")
+		view.ExpiringOn = shoptime.Day(soon.Soonest)
 	}
 	for i := range rows {
 		r := &rows[i]
+		kind := pages.PointsEntryKind(r.Kind)
 		entry := pages.PointsEntry{
-			Points: r.Points, Kind: r.Kind, Order: r.OrderNumber,
-			At: r.CreatedAt.Format("2006-01-02"), Expired: r.Expired.Bool,
+			Points: r.Points, Kind: kind, Order: r.OrderNumber,
+			At: shoptime.Day(r.CreatedAt), Expired: r.Expired.Bool,
 		}
-		if r.Kind == "clawback" {
+		switch kind {
+		case pages.PointsClawedBack:
 			entry.RequestedPoints = r.RequestedPoints
 			entry.ShortfallPoints = r.RequestedPoints + r.Points
-		}
-		if r.Kind == "award" {
-			entry.ExpiresOn = r.ExpiresOn.Format("2006-01-02")
+		case pages.PointsAwarded:
+			entry.ExpiresOn = shoptime.Day(r.ExpiresOn)
+		case pages.PointsSpent:
+			// Neither: the expiry lives on the award lot the spend consumed.
 		}
 		view.Entries = append(view.Entries, entry)
 	}

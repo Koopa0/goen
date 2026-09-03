@@ -25,8 +25,9 @@ type AdminReturn struct {
 	// Decided and settled are separate facts: approval is committed before the
 	// provider or credit ledger completes what the shop owes.
 	PayoutOutstanding bool
-	// PayoutBlocked says the outstanding card refund is terminal at the provider
-	// and the retry door cannot move it.
+	// PayoutBlocked says the durable payout facts do not fit their frozen source
+	// allocation. Known terminal provider attempts are not blocked: retry appends
+	// a new generation with a fresh idempotency key.
 	PayoutBlocked bool
 }
 
@@ -36,7 +37,8 @@ func (r AdminReturn) CanRetryPayout() bool {
 	return r.Decided && r.PayoutOutstanding && !r.PayoutBlocked
 }
 
-// PayoutStranded reports whether a person must settle the refund outside goen.
+// PayoutStranded reports whether a person must repair inconsistent durable
+// payout facts before goen can safely retry.
 func (r AdminReturn) PayoutStranded() bool {
 	return r.Decided && r.PayoutOutstanding && r.PayoutBlocked
 }

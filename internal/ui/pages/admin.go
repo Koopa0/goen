@@ -158,18 +158,21 @@ type AdminOrderView struct {
 	InvoiceDocuments []AdminInvoiceDocument
 	InvoicingEnabled bool
 	// RefundedCents is what has actually gone back, and what a 折讓 relieves.
-	RefundedCents     int64
-	Committed         bool
-	Next              []AdminTransition
-	CanShip           bool
-	Shippable         []AdminShippableLine
-	Notice            string
-	Timeline          []AdminOrderEvent
-	Shipments         []AdminShipment
-	Delivery          AdminDelivery
-	Correctable       bool
-	PickupDestination bool
-	PickupBrands      []PickupBrandChoice
+	RefundedCents int64
+	// AllowanceOperationID identifies one rendered allowance form across HTTP
+	// retries without collapsing a later, legitimate equal partial allowance.
+	AllowanceOperationID string
+	Committed            bool
+	Next                 []AdminTransition
+	CanShip              bool
+	Shippable            []AdminShippableLine
+	Notice               string
+	Timeline             []AdminOrderEvent
+	Shipments            []AdminShipment
+	Delivery             AdminDelivery
+	Correctable          bool
+	PickupDestination    bool
+	PickupBrands         []PickupBrandChoice
 }
 
 // AdminDelivery is the editable delivery detail of one order.
@@ -343,12 +346,9 @@ func (d AdminInvoiceDocument) Amount() string { return twd(d.AmountCents) }
 func (d AdminInvoiceDocument) Voided() bool { return d.Status == "voided" }
 
 // Pending reports a CLAIM: a row holding its request key while the provider is
-// asked, with no number yet because allocating one is the 加值中心's job.
-//
-// It renders as a claim and not as a document. The row was shown as
-// 「折讓  · NT$1,000」 — a filed allowance with a blank number — and an operator
-// reads that as done, which is the opposite of what it means: nothing is at the
-// 加值中心 under it and somebody has to find out whether anything was filed.
+// asked, with no number yet because allocating one is the 加值中心's job. It
+// must render as a claim and not as a filed document — nothing is at the
+// 加值中心 under it yet.
 func (d AdminInvoiceDocument) Pending() bool { return d.Status == "pending" }
 
 // CanIssueInvoice reports whether to offer the issue button.
@@ -380,19 +380,31 @@ func (v *AdminOrderView) CanVoidInvoice() bool {
 	return ok && v.InvoicingEnabled
 }
 
-// CanAllowInvoice reports whether a 折讓 can be filed: there is a live invoice
-// and money has actually gone back. An allowance relieving nothing is refused
-// downstream anyway, and offering the form with no refund invites a figure
-// somebody made up.
-func (v *AdminOrderView) CanAllowInvoice() bool {
-	return v.CanVoidInvoice() && v.RefundedCents > 0
+// allowanceOutstandingCents derives the presentation estimate from the same
+// cumulative facts the database locks and re-derives authoritatively. Filing is
+// whole-dollar, capped by the rounded original invoice.
+func (v *AdminOrderView) allowanceOutstandingCents() int64 {
+	live, ok := v.LiveInvoice()
+	if !ok {
+		return 0
+	}
+	outstanding := min((v.RefundedCents/100)*100, live.AmountCents)
+	for _, d := range v.InvoiceDocuments {
+		if d.Kind == "allowance" && !d.Voided() {
+			outstanding -= d.AmountCents
+		}
+	}
+	return max(outstanding, 0)
 }
 
-// AllowanceDefault is the refunded total in whole dollars, which is the unit a
-// 統一發票 is filed in and the figure the allowance should almost always be.
-func (v *AdminOrderView) AllowanceDefault() string {
-	return strconv.FormatInt(v.RefundedCents/100, 10)
+// CanAllowInvoice reports whether the current read model has a whole-dollar
+// refunded delta not already relieved. The database rechecks under lock.
+func (v *AdminOrderView) CanAllowInvoice() bool {
+	return v.CanVoidInvoice() && v.allowanceOutstandingCents() > 0
 }
+
+// AllowanceAmount is display only; no amount is posted back to the server.
+func (v *AdminOrderView) AllowanceAmount() string { return twd(v.allowanceOutstandingCents()) }
 
 // HasCustomerNote reports whether the customer left one.
 func (v *AdminOrderView) HasCustomerNote() bool { return v.CustomerNote != "" }

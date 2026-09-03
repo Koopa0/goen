@@ -13,15 +13,16 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
@@ -40,6 +41,9 @@ var (
 	ErrCreditChanged = errors.New("cart: available store credit changed")
 	// ErrEmpty is a checkout with nothing in the cart.
 	ErrEmpty = errors.New("cart: empty")
+	// ErrTooManyItems means the cart has no room for another distinct product
+	// while keeping every resulting invoice within ECPay's Items limit.
+	ErrTooManyItems = errors.New("cart: too many invoice items")
 	// errCheckoutChanged means the commercial facts no longer match the quote the
 	// customer confirmed. The refreshed quote must be shown before retrying.
 	errCheckoutChanged = errors.New("cart: checkout quote changed")
@@ -395,9 +399,8 @@ const tokenBytes = 32
 const MaxLineQuantity = 999
 
 // payWindow is how long after placing an order a customer may still start a new
-// Checkout Session. It is one minute shorter than the old nominal half-hour so
-// the public 60-minute stock hold still has room for Stripe's 30-minute floor
-// plus the creation margin below.
+// Checkout Session. It leaves the public 60-minute stock hold room for Stripe's
+// 30-minute floor plus the creation margin below.
 const payWindow = 29 * time.Minute
 
 // stripeSessionFloor is Stripe's minimum for a Checkout Session's expires_at.
@@ -529,27 +532,28 @@ type Address struct {
 	Note string
 }
 
-// FieldError names one rejected field and the message key saying why.
-type FieldError struct {
-	Field      string
-	MessageKey i18n.Key
-}
-
 const (
-	maxNameRunes      = 60
-	maxStreetRunes    = 200
-	maxStoreNameRunes = 40
-	maxNoteRunes      = 500
-	maxEmailRunes     = 254
+	maxNameRunes       = 60
+	maxPhoneRunes      = 30
+	maxPostalCodeRunes = 6
+	maxCityRunes       = 20
+	maxDistrictRunes   = 20
+	maxStreetRunes     = 200
+	maxStoreNameRunes  = 40
+	maxNoteRunes       = 500
+	// Every checkout produces a carrier invoice. ECPay's Issue contract accepts
+	// at most 80 bytes for CustomerEmail; accepting a longer delivery address and
+	// truncating it later can turn a valid address into an invalid provider value.
+	maxInvoiceEmailBytes = 80
 	// The length ECPay publishes for a pickup-point store code, rather than any
 	// one chain's own width.
 	maxStoreCodeLen = 10
 )
 
 // Validate checks an address completely, and before anything is written.
-func (a *Address) Validate() []FieldError {
-	var errs []FieldError
-	add := func(f string, k i18n.Key) { errs = append(errs, FieldError{Field: f, MessageKey: k}) }
+func (a *Address) Validate() []account.FieldError {
+	var errs []account.FieldError
+	add := func(f string, k i18n.Key) { errs = append(errs, account.FieldError{Field: f, MessageKey: k}) }
 
 	if k := emailError(a.Email); k != "" {
 		add("email", k)
@@ -557,7 +561,7 @@ func (a *Address) Validate() []FieldError {
 
 	if strings.TrimSpace(a.Name) == "" {
 		add("name", i18n.KeyNameRequired)
-	} else if len([]rune(a.Name)) > maxNameRunes {
+	} else if utf8.RuneCountInString(a.Name) > maxNameRunes {
 		add("name", i18n.KeyNameTooLong)
 	}
 
@@ -570,7 +574,7 @@ func (a *Address) Validate() []FieldError {
 
 	errs = append(errs, a.destinationErrors()...)
 
-	if len([]rune(a.Note)) > maxNoteRunes {
+	if utf8.RuneCountInString(a.Note) > maxNoteRunes {
 		add("note", i18n.KeyNoteTooLong)
 	}
 
@@ -578,25 +582,31 @@ func (a *Address) Validate() []FieldError {
 }
 
 // destinationErrors validates the half of the struct that applies.
-func (a *Address) destinationErrors() []FieldError {
-	var errs []FieldError
-	add := func(f string, k i18n.Key) { errs = append(errs, FieldError{Field: f, MessageKey: k}) }
+func (a *Address) destinationErrors() []account.FieldError {
+	var errs []account.FieldError
+	add := func(f string, k i18n.Key) { errs = append(errs, account.FieldError{Field: f, MessageKey: k}) }
 
 	switch a.To {
 	case ToAddress:
 		if !isPostalCode(a.PostalCode) {
 			add("postal_code", i18n.KeyPostalCodeMalformed)
 		}
-		if strings.TrimSpace(a.City) == "" {
+		switch {
+		case strings.TrimSpace(a.City) == "":
 			add("city", i18n.KeyCityRequired)
+		case utf8.RuneCountInString(a.City) > maxCityRunes:
+			add("city", i18n.KeyAddressIncomplete)
 		}
-		if strings.TrimSpace(a.District) == "" {
+		switch {
+		case strings.TrimSpace(a.District) == "":
 			add("district", i18n.KeyDistrictRequired)
+		case utf8.RuneCountInString(a.District) > maxDistrictRunes:
+			add("district", i18n.KeyAddressIncomplete)
 		}
 		switch {
 		case strings.TrimSpace(a.Street) == "":
 			add("street", i18n.KeyStreetRequired)
-		case len([]rune(a.Street)) > maxStreetRunes:
+		case utf8.RuneCountInString(a.Street) > maxStreetRunes:
 			add("street", i18n.KeyStreetTooLong)
 		}
 	case ToPickupPoint:
@@ -609,7 +619,7 @@ func (a *Address) destinationErrors() []FieldError {
 		switch {
 		case strings.TrimSpace(a.PickupStoreName) == "":
 			add("pickup_store_name", i18n.KeyStoreNameRequired)
-		case len([]rune(a.PickupStoreName)) > maxStoreNameRunes:
+		case utf8.RuneCountInString(a.PickupStoreName) > maxStoreNameRunes:
 			add("pickup_store_name", i18n.KeyStoreNameTooLong)
 		}
 	default:
@@ -646,8 +656,8 @@ func isStoreCode(s string) bool {
 
 // controlCharErrors reports any field carrying a control character: a newline in
 // a name is how a shipping label gets a line it was never given.
-func (a *Address) controlCharErrors() []FieldError {
-	var errs []FieldError
+func (a *Address) controlCharErrors() []account.FieldError {
+	var errs []account.FieldError
 	for _, f := range []struct{ name, value string }{
 		{"email", a.Email}, {"name", a.Name}, {"phone", a.Phone},
 		{"postal_code", a.PostalCode}, {"city", a.City},
@@ -656,7 +666,7 @@ func (a *Address) controlCharErrors() []FieldError {
 		{"pickup_store_name", a.PickupStoreName}, {"note", a.Note},
 	} {
 		if hasControl(f.value) {
-			errs = append(errs, FieldError{Field: f.name, MessageKey: i18n.KeyFieldHasControlChars})
+			errs = append(errs, account.FieldError{Field: f.name, MessageKey: i18n.KeyFieldHasControlChars})
 		}
 	}
 	return errs
@@ -667,7 +677,7 @@ func emailError(s string) i18n.Key {
 	switch {
 	case strings.TrimSpace(s) == "":
 		return i18n.KeyCheckoutEmailRequired
-	case len([]rune(s)) > maxEmailRunes:
+	case len(s) > maxInvoiceEmailBytes:
 		return i18n.KeyCheckoutEmailTooLong
 	case !email.Valid(s):
 		return i18n.KeyCheckoutEmailMalformed
@@ -676,6 +686,9 @@ func emailError(s string) i18n.Key {
 }
 
 func looksLikePhone(s string) bool {
+	if utf8.RuneCountInString(s) > maxPhoneRunes {
+		return false
+	}
 	digits := 0
 	for _, r := range s {
 		switch {
@@ -691,7 +704,7 @@ func looksLikePhone(s string) bool {
 
 func isPostalCode(s string) bool {
 	s = strings.TrimSpace(s)
-	if len(s) < 3 || len(s) > 6 {
+	if len(s) < 3 || len(s) > maxPostalCodeRunes {
 		return false
 	}
 	for _, r := range s {
@@ -705,12 +718,7 @@ func isPostalCode(s string) bool {
 // hasControl reports whether s carries a control character. unicode.IsControl
 // covers C1 (0x80–0x9F) as well as C0, which an ASCII-only check lets through.
 func hasControl(s string) bool {
-	for _, r := range s {
-		if unicode.IsControl(r) {
-			return true
-		}
-	}
-	return false
+	return strings.ContainsFunc(s, unicode.IsControl)
 }
 
 // Trim strips the whitespace around every field and uppercases the store code,
@@ -762,52 +770,53 @@ type Invoice struct {
 	Type invoicepkg.Preference
 	// Carrier is the mobile-barcode invoice carrier, for mobile_carrier only.
 	Carrier string
+	// CompanyName is the registered buyer name corresponding to TaxID. It is
+	// deliberately separate from the delivery recipient.
+	CompanyName string
 	// TaxID is the eight-digit business tax number, for company only.
 	TaxID string
 }
 
-// mobileCarrier is the barcode format the Ministry of Finance issues: a slash
-// followed by seven characters drawn from digits, capitals, and + - . only.
-var mobileCarrier = regexp.MustCompile(`^/[0-9A-Z+\-.]{7}$`)
-
-// taxID is the eight-digit business tax number.
-//
-//nolint:gocritic // regexpSimplify: kept character-for-character identical to
-var taxID = regexp.MustCompile(`^[0-9]{8}$`)
-
 // Validate refuses what the schema would refuse, in the customer's language.
-func (i *Invoice) Validate() []FieldError {
+func (i *Invoice) Validate() []account.FieldError {
 	i.Type = invoicepkg.Preference(strings.TrimSpace(string(i.Type)))
 	i.Carrier = strings.ToUpper(strings.TrimSpace(i.Carrier))
+	i.CompanyName = strings.TrimSpace(i.CompanyName)
 	i.TaxID = strings.TrimSpace(i.TaxID)
 
 	if i.Type == "" {
 		i.Type = invoicepkg.PreferenceMember
 	}
 	if !i.Type.Known() {
-		return []FieldError{{Field: "invoice_type", MessageKey: i18n.KeyInvoiceTypeRequired}}
+		return []account.FieldError{{Field: "invoice_type", MessageKey: i18n.KeyInvoiceTypeRequired}}
 	}
 
-	var errs []FieldError
+	var errs []account.FieldError
 	switch i.Type {
 	case invoicepkg.PreferenceMobile:
-		if !mobileCarrier.MatchString(i.Carrier) {
-			errs = append(errs, FieldError{
+		if !invoicepkg.ValidMobileCarrier(i.Carrier) {
+			errs = append(errs, account.FieldError{
 				Field:      "invoice_carrier",
 				MessageKey: i18n.KeyCarrierMalformed,
 			})
 		}
-		i.TaxID = ""
+		i.CompanyName, i.TaxID = "", ""
 	case invoicepkg.PreferenceCompany:
-		if !taxID.MatchString(i.TaxID) {
-			errs = append(errs, FieldError{
+		if !invoicepkg.ValidBuyerName(i.CompanyName) {
+			errs = append(errs, account.FieldError{
+				Field:      "invoice_company_name",
+				MessageKey: i18n.KeyCompanyNameMalformed,
+			})
+		}
+		if !invoicepkg.ValidTaxID(i.TaxID) {
+			errs = append(errs, account.FieldError{
 				Field:      "invoice_tax_id",
 				MessageKey: i18n.KeyTaxIDMalformed,
 			})
 		}
 		i.Carrier = ""
 	case invoicepkg.PreferenceMember:
-		i.Carrier, i.TaxID = "", ""
+		i.Carrier, i.CompanyName, i.TaxID = "", "", ""
 	}
 	return errs
 }

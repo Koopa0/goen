@@ -1,6 +1,13 @@
 package admin
 
 import (
+	"cmp"
+	"errors"
+	"maps"
+	"math"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -8,9 +15,68 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
+
+func TestDollarInputsAreBoundedBeforeMultiplication(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+
+	method := (&NewMethod{
+		Code: "overflow", Destination: "address", Name: "Overflow",
+		FeeDollars: math.MaxInt64, FreeOverDollars: math.MaxInt64,
+	}).Validate(ctx)
+	if method["fee"] == "" || method["free_over"] == "" {
+		t.Fatalf("shipping overflow fields were accepted: %v", method)
+	}
+
+	coupon := (&CouponForm{
+		Code: "OVERFLOW", Description: "overflow", Kind: "percent", Value: 10,
+		CapDollars: math.MaxInt64, MinSpendDollars: math.MaxInt64, PerCustomer: 1,
+	}).Validate(ctx)
+	if coupon["cap"] == "" || coupon["min"] == "" {
+		t.Fatalf("coupon overflow fields were accepted: %v", coupon)
+	}
+
+	if err := (&Store{}).CreateTier(ctx, "overflow", "Overflow", "",
+		math.MaxInt64, math.MaxInt64); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("tier dollar/percent overflow = %v, want ErrInvalid", err)
+	}
+	if _, ok := positiveDollarsToCents("9223372036854775807", MaxPriceCents); ok {
+		t.Fatal("MaxInt64 dollars was multiplied into an apparently valid allowance")
+	}
+	if got, ok := positiveDollarsToCents("100000000", MaxPriceCents); !ok || got != MaxPriceCents {
+		t.Fatalf("exact money ceiling = %d/%t, want %d/true", got, ok, MaxPriceCents)
+	}
+}
+
+func TestWorkerAgeSecondsSaturateInsteadOfWrappingHealthy(t *testing.T) {
+	t.Parallel()
+	got := durationFromSeconds(math.MaxInt64)
+	if got != time.Duration(math.MaxInt64) {
+		t.Fatalf("durationFromSeconds(MaxInt64) = %v, want saturation at %v",
+			got, time.Duration(math.MaxInt64))
+	}
+	view := pages.WorkerHealthView{
+		OutboxPending:        1,
+		OutboxOldest:         got,
+		OutboxStaleAfter:     OutboxStaleAfter,
+		CopurchaseEverBuilt:  true,
+		CopurchaseAge:        got,
+		CopurchaseStaleAfter: CopurchaseStaleAfter,
+	}
+	if view.OutboxHealthy() || view.RecommendHealthy() {
+		t.Fatal("a timestamp beyond Go's duration range wrapped into a healthy worker")
+	}
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	if strings.Contains(view.OutboxText(ctx), "-") || strings.Contains(view.RecommendText(ctx), "-") {
+		t.Fatalf("saturated ages rendered negative: %q / %q",
+			view.OutboxText(ctx), view.RecommendText(ctx))
+	}
+}
 
 func TestParseStatusAcceptsOnlyTheFulfilmentLifecycle(t *testing.T) {
 	t.Parallel()
@@ -104,6 +170,28 @@ func FuzzParseBoundedInt(f *testing.F) {
 				raw, ceiling, got, ok, n, err)
 		}
 	})
+}
+
+func TestOptionalRunDaysDoNotTurnMalformedInputIntoNoExpiry(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	for _, raw := range []string{"forever", "1.5", "-1", "1000001"} {
+		days := small(raw)
+		if days >= 0 {
+			t.Fatalf("small(%q) = %d, want an invalid sentinel", raw, days)
+		}
+		if errs := (&BannerForm{Message: "Sale", Days: days}).Validate(ctx); errs["days"] == "" {
+			t.Errorf("BannerForm accepted malformed days %q as an unbounded banner", raw)
+		}
+		if errs := (&HeroForm{
+			Headline: "Sale", PrimaryLabel: "Shop", PrimaryHref: "/deals", Days: days,
+		}).Validate(ctx); errs["days"] == "" {
+			t.Errorf("HeroForm accepted malformed days %q as an unbounded slide", raw)
+		}
+	}
+	if got := small(""); got != 0 {
+		t.Errorf("small(blank) = %d, want the documented no-expiry value 0", got)
+	}
 }
 
 func TestAParcelSumCoversItsLongestSideBeforeWriting(t *testing.T) {
@@ -234,17 +322,11 @@ func TestAReceiptIsAlwaysPositive(t *testing.T) {
 	}
 }
 
-// TestAFundedOrderIsNotBadgedUnpaid holds the two halves of 'pending' apart.
-//
-// An order stays pending from the moment money arrives until a human picks it,
-// and one paid entirely from store credit has no payment row at all — so it sits
-// there for good. Reading the status alone badged it 待付款 on the queue somebody
-// works, beside the customer's own page saying 付款完成, and nothing would ever
-// move it because no payment is coming.
-//
-// CLAUDE.md states the rule for exactly this caller: Committed alone means the
-// shop has taken it on, owed == 0 alone means nothing is due, and either is
-// enough to say it is not awaiting payment.
+// TestAFundedOrderIsNotBadgedUnpaid holds the two halves of 'pending' apart: an
+// order stays pending from the moment money arrives until a human picks it, and
+// one paid entirely from store credit has no payment row at all. Committed alone
+// means the shop has taken it on, owed == 0 alone means nothing is due, and
+// either is enough to say it is not awaiting payment.
 func TestAFundedOrderIsNotBadgedUnpaid(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 	unpaid := i18n.T(ctx, i18n.KeyAdminStatusPending)
@@ -276,26 +358,19 @@ func TestAFundedOrderIsNotBadgedUnpaid(t *testing.T) {
 
 // TestEveryRedirectNoticeHasAMessage asks the question the notice map cannot ask
 // of itself: a handler answering 303 with "?done=1" and no entry here renders a
-// blank page and tells the operator nothing.
-//
-// Three of the parameters this branch added were in exactly that state — a 折讓
-// filed with the 財政部 confirmed nothing, a refused amount said nothing, and
-// /admin/health answered two parameters its own handler never read. The map is
-// hand-written; the corpus is the SOURCE, so a new redirect is covered the
-// moment it is written.
+// blank page and tells the operator nothing. The map is hand-written; the corpus
+// is the SOURCE, so a new redirect is covered the moment it is written.
 func TestEveryRedirectNoticeHasAMessage(t *testing.T) {
 	t.Parallel()
 
 	// Every file in the package, not handler.go alone: the image and hero
-	// handlers redirect too, and a corpus one file narrower reported five real
-	// notices as orphans.
+	// handlers redirect too.
 	names, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatalf("list the package: %v", err)
 	}
-	// "?name=1", "&name=1", and a bare "name=1" returned by a helper — which is
-	// how the image handlers write theirs, and matching only inside the
-	// Redirect call reported five real notices as orphans.
+	// "?name=1", "&name=1", and a bare "name=1" returned by a helper, which is
+	// how the image handlers write theirs.
 	param := regexp.MustCompile(`[?&"]([a-z]+)=1`)
 	found := map[string]bool{}
 	for _, name := range names {
@@ -339,5 +414,41 @@ func TestEveryRedirectNoticeHasAMessage(t *testing.T) {
 		sort.Strings(orphaned)
 		t.Errorf("%d notice(s) name a parameter no redirect writes:\n  %s",
 			len(orphaned), strings.Join(orphaned, "\n  "))
+	}
+}
+
+// TestAMistypedPriceIsRefusedByEveryFormThatWritesOne. Two back-office forms
+// write products.price_cents and compare_at_price_cents: the reprice box on
+// /admin/stock and the variant form on /admin/products/{slug}. Both must tell a
+// blank field from an unreadable one, because zero on a compare-at price is not
+// an error — it is the stored value for "not on sale", so a collapsed figure
+// publishes the product at full price with the discount silently dropped.
+func TestAMistypedPriceIsRefusedByEveryFormThatWritesOne(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name, price, compare, wantField string
+	}{
+		{name: "unreadable compare-at", price: "1000", compare: "1o000", wantField: "compare"},
+		{name: "unreadable price", price: "12o", compare: "", wantField: "price"},
+		{name: "negative compare-at", price: "1000", compare: "-1", wantField: "compare"},
+		{name: "compare-at above the money ceiling", price: "1000",
+			compare: strconv.FormatInt(MaxPriceCents/100+1, 10), wantField: "compare"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			form := url.Values{"sku": {"SKU-1"}, "price": {tt.price}, "compare": {tt.compare}}
+			r := httptest.NewRequestWithContext(i18n.WithLocale(t.Context(), i18n.En),
+				http.MethodPost, "/admin/products/x/variants",
+				strings.NewReader(form.Encode()))
+			r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+			f, _, errs := variantFormOf(r)
+			maps.Copy(errs, f.Validate(r.Context()))
+			if errs[tt.wantField] == "" {
+				t.Errorf("%s=%q was accepted; errs = %v", tt.wantField,
+					cmp.Or(tt.compare, tt.price), errs)
+			}
+		})
 	}
 }

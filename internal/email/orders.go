@@ -11,7 +11,6 @@ import (
 
 // OrderPaid is what an order.paid message carries.
 type OrderPaid struct {
-	// Locale is the language to send in, recorded by the producer.
 	Locale      string `json:"locale"`
 	OrderNumber string `json:"order_number"`
 	Email       string `json:"email"`
@@ -33,11 +32,10 @@ func (n Notifier) SendOrderPaid(ctx context.Context, p *OrderPaid) error {
 	body := n.letter(ctx, p.Name, fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPaidBody),
 		p.OrderNumber, twd(p.AmountCents), n.orderURL(p.OrderNumber)))
 	if p.Card != "" {
-		// Appended rather than woven in, because the card is often absent.
 		body += "\n" + fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPaidCard), p.Card)
 	}
 
-	return n.Sender.Send(ctx, &Message{
+	return n.sender.Send(ctx, &Message{
 		To:      p.Email,
 		Subject: fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPaidSubject), p.OrderNumber),
 		Body:    body,
@@ -46,7 +44,6 @@ func (n Notifier) SendOrderPaid(ctx context.Context, p *OrderPaid) error {
 
 // OrderShipped is what an order.shipped message carries.
 type OrderShipped struct {
-	// Locale is the language to send in, recorded by the producer.
 	Locale      string `json:"locale"`
 	OrderNumber string `json:"order_number"`
 	Email       string `json:"email"`
@@ -55,15 +52,14 @@ type OrderShipped struct {
 	Tracking    string `json:"tracking"`
 }
 
-// SendOrderShipped tells somebody their parcel is on its way, with the tracking
-// number in the mail rather than only on the order page.
+// SendOrderShipped tells somebody their parcel is on its way.
 func (n Notifier) SendOrderShipped(ctx context.Context, p *OrderShipped) error {
 	if !Valid(p.Email) {
 		return errors.New("an order.shipped message has no usable email address")
 	}
 
 	ctx = n.locale(ctx, p.Locale)
-	return n.Sender.Send(ctx, &Message{
+	return n.sender.Send(ctx, &Message{
 		To:      p.Email,
 		Subject: fmt.Sprintf(i18n.T(ctx, i18n.KeyMailShippedSubject), p.OrderNumber),
 		Body: n.letter(ctx, p.Name, fmt.Sprintf(i18n.T(ctx, i18n.KeyMailShippedBody),
@@ -73,7 +69,6 @@ func (n Notifier) SendOrderShipped(ctx context.Context, p *OrderShipped) error {
 
 // RestockNotice is what a catalogue.restocked message carries.
 type RestockNotice struct {
-	// Locale is the language to send in, recorded by the producer.
 	Locale      string `json:"locale"`
 	Email       string `json:"email"`
 	ProductName string `json:"product_name"`
@@ -90,9 +85,9 @@ func (n Notifier) SendRestockNotice(ctx context.Context, p *RestockNotice) error
 
 	ctx = n.locale(ctx, p.Locale)
 	body := n.letter(ctx, "", fmt.Sprintf(i18n.T(ctx, i18n.KeyMailRestockBody),
-		p.ProductName, strings.TrimRight(n.BaseURL, "/")+"/p/"+p.Slug))
+		p.ProductName, strings.TrimRight(n.baseURL, "/")+"/p/"+p.Slug))
 
-	return n.Sender.Send(ctx, &Message{
+	return n.sender.Send(ctx, &Message{
 		To:      p.Email,
 		Subject: fmt.Sprintf(i18n.T(ctx, i18n.KeyMailRestockSubject), p.ProductName),
 		Body:    body,

@@ -57,6 +57,14 @@ func methodFormOf(r *http.Request) (*NewMethod, pages.AdminMethodDraft, map[stri
 		}
 		return value
 	}
+	fee, feeOK := dollars(draft.Fee, false)
+	if !feeOK {
+		errs["fee"] = i18n.T(r.Context(), i18n.KeyFormMethodFee)
+	}
+	freeOver, freeOverOK := dollars(draft.FreeOver, true)
+	if !freeOverOK {
+		errs["free_over"] = i18n.T(r.Context(), i18n.KeyFormMethodFreeOver)
+	}
 	return &NewMethod{
 		Code:        r.PostFormValue("code"),
 		Destination: r.PostFormValue("destination"),
@@ -68,8 +76,8 @@ func methodFormOf(r *http.Request) (*NewMethod, pages.AdminMethodDraft, map[stri
 		NameEn:             r.PostFormValue("name_en"),
 		Carrier:            r.PostFormValue("carrier"),
 		CarrierEn:          r.PostFormValue("carrier_en"),
-		FeeDollars:         dollars(r.PostFormValue("fee")),
-		FreeOverDollars:    dollars(r.PostFormValue("free_over")),
+		FeeDollars:         fee,
+		FreeOverDollars:    freeOver,
 	}, draft, errs
 }
 
@@ -179,14 +187,15 @@ func (h *Handler) rejectShippingForm(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageShipping)}, view))
 }
 
-// dollars reads a whole-dollar amount; a blank or unparseable box is zero,
-// which NewMethod.Validate reads per field.
-func dollars(v string) int64 {
-	n, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
-	if err != nil || n < 0 {
-		return 0
+// dollars reads a non-negative whole-dollar amount. Optional blanks mean zero;
+// malformed, negative and overflowing input remain distinguishable from zero.
+func dollars(v string, blankOK bool) (int64, bool) {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return 0, blankOK
 	}
-	return n
+	n, err := strconv.ParseInt(v, 10, 64)
+	return n, err == nil && n >= 0
 }
 
 // Shipping serves GET /admin/shipping.

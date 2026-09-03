@@ -41,18 +41,9 @@ func TestPickupBrandChoicesMatchValidationAndReturnFreshStorage(t *testing.T) {
 	}
 }
 
-// TestEveryCheckoutChoiceSurvivesChangingAnother holds what the chooser links
-// used to buy, and what they cost.
-//
-// Each was an <a> carrying only the chooser parameters, so pressing one
-// discarded the name, phone, address, note, coupon and carrier already typed.
-// The 發票 chooser sits BELOW the address fields, which makes it the sharpest
-// case: choosing how to be invoiced threw away a whole recipient.
-//
-// They are radio groups in the checkout form now, with a submit button that
-// re-renders. The form carries everything, so composition is structural rather
-// than something each link has to remember to rebuild — and it still works with
-// scripting off, which is what the link shape was protecting.
+// TestEveryCheckoutChoiceSurvivesChangingAnother holds that the choosers are
+// radio groups inside the checkout form, so changing one keeps what was typed
+// into the others and still works with scripting off.
 func TestEveryCheckoutChoiceSurvivesChangingAnother(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -81,10 +72,8 @@ func TestEveryCheckoutChoiceSurvivesChangingAnother(t *testing.T) {
 	for _, want := range []string{
 		`type="radio" name="shipping"`,
 		`type="radio" name="invoice_type"`,
-		// Each 更新 names the chooser it applies. A single value="1" left the
-		// handler unable to tell which one was pressed, so the address chooser
-		// could not fill the fields from the book without wiping a typed
-		// address whenever somebody changed their 發票 type instead.
+		// Each 更新 names the chooser it applies, so the handler can tell which
+		// one was pressed.
 		`name="update" value="shipping"`,
 		`name="update" value="invoice"`,
 	} {
@@ -374,7 +363,6 @@ func TestADeliveredOrderLinksToItsWarrantyForm(t *testing.T) {
 	}
 }
 
-// renderToString runs a component and returns its HTML.
 func renderToString(t *testing.T, c templ.Component) string {
 	t.Helper()
 	var b strings.Builder
@@ -384,15 +372,11 @@ func renderToString(t *testing.T, c templ.Component) string {
 	return b.String()
 }
 
-// TestANamelessReviewerIsNotBadgedAsABuyer holds the byline apart from the badge.
-//
-// A name is optional at registration and erase_user blanks it, so the fallback
-// is the common case rather than the rare one: 23 of 24 seeded reviews had no
-// name, and every one of them was unverified. The byline said 已購買的顧客 —
-// borrowing the heading over the verified section — while the badge that carries
-// the real claim sat two lines below, guarded by
-// product_reviews_verified_is_real. The constraint cannot see a claim made in
-// the author slot.
+// TestANamelessReviewerIsNotBadgedAsABuyer holds the byline apart from the
+// badge. A name is optional at registration and erase_user blanks it, so the
+// fallback byline must not borrow the verified-buyer wording:
+// product_reviews_verified_is_real guards the badge and cannot see a claim
+// made in the author slot.
 func TestANamelessReviewerIsNotBadgedAsABuyer(t *testing.T) {
 	t.Parallel()
 
@@ -412,13 +396,7 @@ func TestANamelessReviewerIsNotBadgedAsABuyer(t *testing.T) {
 
 // TestTheProductPageSaysWhetherItAddedAnything asserts the HTML, because the
 // view model can carry the outcome correctly while the template renders it
-// nowhere — which is exactly what happened.
-//
-// backToProduct has carried added/unavailable/unknown since it was written, and
-// reservedParam listed "added" only to ignore it. So pressing 加入購物車
-// re-rendered a page identical to the one before, and identical again when the
-// variant had just sold out and nothing was added. The same template already
-// shows an outcome for its other three writes.
+// nowhere.
 func TestTheProductPageSaysWhetherItAddedAnything(t *testing.T) {
 	base := func(outcome string) *ProductView {
 		return &ProductView{
@@ -433,7 +411,7 @@ func TestTheProductPageSaysWhetherItAddedAnything(t *testing.T) {
 	refusal := i18n.T(ctx, i18n.KeyAddRefused)
 
 	// The exact words, not just role="status": the page carries other live
-	// regions, so asserting the role alone stays green with this one deleted.
+	// regions.
 	added := renderToString(t, Product(layouts.Page{Title: "x"}, base("added")))
 	if !strings.Contains(added, confirm) {
 		t.Errorf("a successful add renders no confirmation; wanted %q", confirm)
@@ -455,14 +433,8 @@ func TestTheProductPageSaysWhetherItAddedAnything(t *testing.T) {
 	}
 }
 
-// TestTheCheckoutSummaryNamesTheVariant holds the one page that dropped it.
-//
-// The cart names the variant beside each line, and so does the order page after
-// the fact. Between them sits checkout, whose summary rendered "Name × qty" and
-// nothing else — so at the moment of committing money, a customer buying the
-// 星霧藍 512GB read the same line as one buying the 曜石黑 128GB, on the one
-// screen built to confirm what they are about to pay for. The label was on the
-// same struct the template was already ranging over.
+// TestTheCheckoutSummaryNamesTheVariant holds that the summary names the
+// variant, on the one screen built to confirm what is about to be paid for.
 func TestTheCheckoutSummaryNamesTheVariant(t *testing.T) {
 	t.Parallel()
 
@@ -478,8 +450,7 @@ func TestTheCheckoutSummaryNamesTheVariant(t *testing.T) {
 	html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
 
 	// The summary specifically, not the page: the line above the fold carries
-	// the label too, so asserting the string against the whole document stays
-	// green with the summary still saying nothing.
+	// the label too.
 	_, summary, ok := strings.Cut(html, "goen-checkout__lines")
 	if !ok {
 		t.Fatal("the checkout rendered no summary list")
@@ -491,30 +462,23 @@ func TestTheCheckoutSummaryNamesTheVariant(t *testing.T) {
 }
 
 // TestTheInvoiceFormAsksForOneThing holds which half of the form exists.
-//
-// 會員載具, 手機條碼載具 and 公司統編 need different information, and the page
-// rendered BOTH the carrier field and the 統編 field whatever was chosen. So a
-// customer taking the default read two fields neither of which applied to them,
-// and one entering a 統編 was shown a carrier box the validator blanks — the
-// server demanding one thing while the form offered two.
-//
-// The choice is a link for the reason the delivery method is: it decides which
-// field the form asks for, so a chooser only a script could act on would leave
-// the two disagreeing. Validate() already blanks the field that does not apply;
-// this is the page catching up with it.
+// 會員載具, 手機條碼載具 and 公司統編 need different information, and Validate()
+// blanks the field that does not apply, so rendering both would leave the form
+// promising something the server will not demand.
 func TestTheInvoiceFormAsksForOneThing(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	tests := []struct {
-		name        string
-		kind        invoice.Preference
-		wantCarrier bool
-		wantTaxID   bool
+		name            string
+		kind            invoice.Preference
+		wantCarrier     bool
+		wantCompanyName bool
+		wantTaxID       bool
 	}{
 		{name: "the default keeps neither", kind: "", wantCarrier: false, wantTaxID: false},
 		{name: "a mobile barcode needs the carrier", kind: "mobile_carrier", wantCarrier: true},
-		{name: "a company invoice needs the 統編", kind: "company", wantTaxID: true},
+		{name: "a company invoice needs its registered buyer", kind: "company", wantCompanyName: true, wantTaxID: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -532,13 +496,15 @@ func TestTheInvoiceFormAsksForOneThing(t *testing.T) {
 			if got := strings.Contains(html, `id="invoice_tax_id"`); got != tt.wantTaxID {
 				t.Errorf("invoice=%q renders the 統編 field = %v, want %v", tt.kind, got, tt.wantTaxID)
 			}
+			if got := strings.Contains(html, `id="invoice_company_name"`); got != tt.wantCompanyName {
+				t.Errorf("invoice=%q renders the company-name field = %v, want %v",
+					tt.kind, got, tt.wantCompanyName)
+			}
 		})
 	}
 
 	// The three choosers compose because they are three radio groups in ONE
-	// form, so a submission carries all of them. They used to be links, and
-	// composing meant every link rebuilding the other two parameters — which
-	// worked, and discarded everything the customer had typed.
+	// form, so a submission carries all of them.
 	full := CheckoutView{
 		Cart:           CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
 		Shipping:       []ShippingChoice{{VersionID: "ship-1", Code: "home", Name: "宅配到府"}},
@@ -550,10 +516,8 @@ func TestTheInvoiceFormAsksForOneThing(t *testing.T) {
 	for _, want := range []string{
 		`type="radio" name="shipping"`,
 		`type="radio" name="invoice_type"`,
-		// Each 更新 names the chooser it applies. A single value="1" left the
-		// handler unable to tell which one was pressed, so the address chooser
-		// could not fill the fields from the book without wiping a typed
-		// address whenever somebody changed their 發票 type instead.
+		// Each 更新 names the chooser it applies, so the handler can tell which
+		// one was pressed.
 		`name="update" value="shipping"`,
 		`name="update" value="invoice"`,
 	} {
@@ -564,20 +528,10 @@ func TestTheInvoiceFormAsksForOneThing(t *testing.T) {
 	}
 }
 
-// TestAnOffshoreRequoteIsNotAnError holds a legitimate outcome that was dressed
-// as a mistake.
-//
-// The delivery method is chosen above the address, so the fee on screen is a
-// mainland estimate — there is no postal code yet. A parcel to 金門 is priced
-// on the first submission that carries one, and the customer is shown the real
-// figure before being charged it. That is the design, and nothing they typed
-// was wrong.
-//
-// It rendered as ui-error-text under the shipping section, beside "enter the
-// recipient's name" — so somebody who had filled the form correctly was told
-// they had made a mistake and left looking for it. It is a notice now, and
-// still a 422: the submission was not accepted, which is the half that must
-// not change.
+// TestAnOffshoreRequoteIsNotAnError holds a re-quote as a notice rather than a
+// field error — the method is chosen above the address, so the fee on screen is
+// a mainland estimate and nothing the customer typed was wrong — while still
+// answering 422, because the submission was not accepted.
 func TestAnOffshoreRequoteIsNotAnError(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -592,8 +546,8 @@ func TestAnOffshoreRequoteIsNotAnError(t *testing.T) {
 	if !strings.Contains(html, view.Repriced) {
 		t.Fatal("the re-quote is not shown at all")
 	}
-	// The element carrying it, not merely the words: the whole point is which
-	// one, and the string appears the same either way.
+	// The element carrying it, not merely the words: the string appears the
+	// same either way.
 	_, after, ok := strings.Cut(html, view.Repriced)
 	if !ok {
 		t.Fatal("could not locate the message")
@@ -645,13 +599,9 @@ func TestAChangedCreditBalanceHasItsOwnStatusNotice(t *testing.T) {
 	}
 }
 
-// TestAShortLineSaysWhatItIsPricedFor holds arithmetic a customer can check.
-//
-// A line the shelf cannot meet is priced for what CAN be supplied — the store
-// and the view agree on that, and the subtotal is right. What the page showed
-// was the quantity box holding 5 beside a figure for 2, so the multiplication
-// anybody does in their head disagreed with the total next to it, on the page
-// where they are deciding whether the number is correct.
+// TestAShortLineSaysWhatItIsPricedFor holds arithmetic a customer can check: a
+// line the shelf cannot meet is priced for what CAN be supplied, and the page
+// says so rather than leaving a quantity box that disagrees with the total.
 func TestAShortLineSaysWhatItIsPricedFor(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -680,17 +630,10 @@ func TestAShortLineSaysWhatItIsPricedFor(t *testing.T) {
 }
 
 // TestEnterInTheCheckoutPlacesTheOrder holds a rule the browser applies and no
-// linter can see.
-//
-// HTML makes the FIRST submit button in tree order the one Enter activates in
-// any text field. Turning the checkout choosers into radio groups put their
-// 更新 buttons above the real one, so pressing Enter re-rendered the form
-// instead of placing the order — nothing lost, and the primary action of the
-// page unreachable from the keyboard.
-//
-// The fix is a leading submit carrying the same words, inert to the keyboard
-// and to a screen reader. Asserting ORDER is the whole point: both buttons
-// exist either way.
+// linter can see: HTML makes the FIRST submit button in tree order the one
+// Enter activates in any text field, so a leading submit must place the order
+// rather than a chooser's 更新 re-rendering the form. Asserting ORDER is the
+// whole point: both buttons exist either way.
 func TestEnterInTheCheckoutPlacesTheOrder(t *testing.T) {
 	t.Parallel()
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
@@ -724,5 +667,39 @@ func TestEnterInTheCheckoutPlacesTheOrder(t *testing.T) {
 	if !strings.Contains(lead, `tabindex="-1"`) || !strings.Contains(lead, `aria-hidden="true"`) {
 		t.Error("the leading submit is reachable by keyboard or announced, so it is a " +
 			"duplicate control rather than a default")
+	}
+}
+
+// TestAFullyFundedOrderIsNotAskedToPay covers the funding term of
+// AwaitingPayment. An order paid entirely from store credit, or zeroed by a
+// 100% coupon, is legitimately 'pending' with NO payment row, so status and
+// Committed together still read "unpaid" and only OwedCents tells them apart.
+func TestAFullyFundedOrderIsNotAskedToPay(t *testing.T) {
+	t.Parallel()
+
+	funded := &AccountOrderView{
+		Number: "GO-260101-000012", Status: "pending",
+		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
+		// Not committed and nothing owed: paid in full from store credit.
+		Committed: false, OwedCents: 0,
+	}
+	if funded.AwaitingPayment() {
+		t.Error("an order that owes nothing is asked to pay; the pay link it " +
+			"renders goes to a Stripe session that cannot be created")
+	}
+
+	html := renderToString(t, AccountOrderPage(layouts.Page{Title: "訂單"}, funded))
+	if strings.Contains(html, "/orders/"+funded.Number+"/pay") {
+		t.Error("the order page offers a payment link for an order that owes nothing")
+	}
+
+	// The control: same order, same status, same Committed, money still owed.
+	owing := &AccountOrderView{
+		Number: "GO-260101-000013", Status: "pending",
+		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
+		Committed: false, OwedCents: 106000,
+	}
+	if !owing.AwaitingPayment() {
+		t.Error("an order that still owes money is not offered a way to pay it")
 	}
 }

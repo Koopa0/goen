@@ -34,8 +34,7 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// handler returns a Handler on a store that writes to the real database, and
-// removes whatever the test stored afterwards.
+// handler writes to the real database and removes what the test stored.
 func handler(t *testing.T) *contact.Handler {
 	t.Helper()
 	// t.Context() is cancelled just before cleanups run, so the delete would
@@ -46,15 +45,13 @@ func handler(t *testing.T) *contact.Handler {
 			t.Logf("clean contact_messages: %v", err)
 		}
 	})
-	// Generous: these cases are about what the handler WRITES, and the bound
-	// itself is held by internal/ratelimit's own suite.
+	// Generous on purpose: these cases are about what the handler WRITES.
 	limit := ratelimit.New(ratelimit.Config{
 		Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000,
 	})
 	return contact.NewHandler(contact.NewStore(pool), limit, slog.New(slog.DiscardHandler))
 }
 
-// stored reports how many messages are in the table.
 func stored(t *testing.T) int {
 	t.Helper()
 	var n int
@@ -135,7 +132,6 @@ func TestSubmitNormalisesBeforeStoring(t *testing.T) {
 	}
 }
 
-// TestSubmitOmittedOrderRefIsNull covers the distinction optionalText exists for.
 func TestSubmitOmittedOrderRefIsNull(t *testing.T) {
 	h := handler(t)
 	form := validForm()
@@ -230,8 +226,7 @@ func TestPageShowsFormAndOfferedSubjects(t *testing.T) {
 		t.Error("no form posting to /contact; the page has no no-JS write path")
 	}
 	for _, subject := range []string{"訂單問題", "退換貨", "保固維修", "商品諮詢", "合作提案"} {
-		// The VALUE, which is what the option posts back and what the row holds;
-		// the label follows the locale and is checked in contact_test.go.
+		// The VALUE, which is what the option posts back and what the row holds.
 		if !strings.Contains(body, `value="`+subject+`"`) {
 			t.Errorf("subject %q is missing from the form", subject)
 		}

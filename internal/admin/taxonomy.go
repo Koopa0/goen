@@ -89,7 +89,7 @@ func (s *Store) CreateBrand(ctx context.Context, f *TaxonomyForm) (map[string]st
 		return errs, nil
 	}
 	err := s.audited(ctx, Event{
-		Action: ActionCreateBrand, Table: "brands",
+		Action: actionCreateBrand, Table: "brands",
 		After: map[string]any{"slug": f.Slug, "name": f.Name},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -110,7 +110,7 @@ func (s *Store) CreateCategory(ctx context.Context, f *TaxonomyForm) (map[string
 		return errs, nil
 	}
 	err := s.audited(ctx, Event{
-		Action: ActionCreateCategory, Table: "categories",
+		Action: actionCreateCategory, Table: "categories",
 		After: map[string]any{
 			"slug": f.Slug, "name": f.Name, "name_en": f.NameEn,
 			"icon_key": f.IconKey, "parent": f.Parent,
@@ -161,10 +161,10 @@ func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn, iconKey st
 	if iconKey != "" && !icons.KnownCategory(iconKey) {
 		return ErrInvalid
 	}
-	action, table := ActionRenameBrand, "brands"
+	action, table := actionRenameBrand, "brands"
 	after := map[string]any{"name": name}
 	if kind == "category" {
-		action, table = ActionRenameCategory, "categories"
+		action, table = actionRenameCategory, "categories"
 		after["name_en"] = nameEn
 		after["icon_key"] = iconKey
 	}
@@ -195,9 +195,9 @@ func (s *Store) Rename(ctx context.Context, kind, slug, name, nameEn, iconKey st
 
 // Delete removes a brand or category, decided by the DELETE's own WHERE clause.
 func (s *Store) Delete(ctx context.Context, kind, slug string) error {
-	action, table := ActionDeleteBrand, "brands"
+	action, table := actionDeleteBrand, "brands"
 	if kind == "category" {
-		action, table = ActionDeleteCategory, "categories"
+		action, table = actionDeleteCategory, "categories"
 	}
 	return s.audited(ctx, Event{
 		Action: action, Table: table, Before: map[string]any{"slug": slug},

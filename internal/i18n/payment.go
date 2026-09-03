@@ -60,8 +60,7 @@ var (
 		En:     "Delivery and tax",
 	})
 
-	// A reduced order reaches Stripe as one line naming itself: the itemisation
-	// lives on goen's own order page, which states the discount and the credit
-	// separately and which the confirmation links to.
+	// A reduced order reaches Stripe as one line naming itself; the itemisation
+	// lives on goen's own order page, which the confirmation links to.
 	KeyPayOrderLine = key("pay.orderline", Message{ZhHant: "訂單 %s", En: "Order %s"})
 )

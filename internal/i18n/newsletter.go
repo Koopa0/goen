@@ -174,8 +174,6 @@ var (
 )
 
 var (
-	// The newsletter's three, and the product form's. Each was a redirect
-	// answering 303 with a parameter that rendered nothing.
 	KeyAdminNoticeSaved = key("admin.notice.saved", Message{
 		ZhHant: "草稿已儲存。",
 		En:     "The draft has been saved.",

@@ -39,7 +39,7 @@ func (s *Store) Refresh(ctx context.Context) (int32, error) {
 }
 
 // RefreshForever rebuilds on a ticker until ctx is cancelled, once at startup
-// before the first tick. A failure is logged and the ticker continues.
+// before the first tick.
 func (s *Store) RefreshForever(ctx context.Context) {
 	if _, err := s.Refresh(ctx); err != nil && ctx.Err() == nil {
 		s.log.ErrorContext(ctx, "initial co-purchase refresh", "error", err)

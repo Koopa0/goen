@@ -28,14 +28,11 @@ import (
 
 // Handler serves the back office.
 type Handler struct {
-	// outbox is the queue, for the health page's list of what has given up.
 	outbox *outbox.Store
-	// images is the media pipeline.
 	images *media.Handler
 	// stepUp reports whether this session proved a second factor; nil is a
 	// deployment with no encryption key, where 2FA is off.
-	stepUp func(*http.Request) (bool, error)
-	// letters is the mailing list.
+	stepUp  func(*http.Request) (bool, error)
 	letters *newsletter.Store
 	// sessions closes a cancelled order's checkout at the payment provider. Nil
 	// on a deployment with no Stripe key, where no session was ever opened.
@@ -49,18 +46,27 @@ type SessionCloser interface {
 	ExpireSession(ctx context.Context, sessionID string) error
 }
 
+// HandlerDeps is what the back office is served from. StepUp and Sessions are
+// the two a deployment may leave nil; the rest are required.
+type HandlerDeps struct {
+	Store    *Store
+	Images   *media.Handler
+	Outbox   *outbox.Store
+	Letters  *newsletter.Store
+	Log      *slog.Logger
+	StepUp   func(*http.Request) (bool, error)
+	Sessions SessionCloser
+}
+
 // NewHandler returns a Handler over the admin store.
-func NewHandler(store *Store, images *media.Handler, messages *outbox.Store,
-	letters *newsletter.Store, log *slog.Logger, stepUp func(*http.Request) (bool, error),
-	sessions SessionCloser,
-) *Handler {
-	if store == nil || images == nil || messages == nil || letters == nil || log == nil {
+func NewHandler(d HandlerDeps) *Handler {
+	if d.Store == nil || d.Images == nil || d.Outbox == nil || d.Letters == nil || d.Log == nil {
 		panic("admin: NewHandler requires a store, a media handler, an outbox, " +
 			"a newsletter store and a logger")
 	}
 	return &Handler{
-		store: store, images: images, outbox: messages, letters: letters,
-		log: log, stepUp: stepUp, sessions: sessions,
+		store: d.Store, images: d.Images, outbox: d.Outbox, letters: d.Letters,
+		log: d.Log, stepUp: d.StepUp, sessions: d.Sessions,
 	}
 }
 
@@ -124,10 +130,9 @@ func (h *Handler) RequireStaff(next http.HandlerFunc) http.HandlerFunc {
 // StaffOnly answers 404 to anyone who does not work here, and runs no step-up.
 //
 // It is what the second-factor routes need: RequireStaff redirects an unverified
-// staff member TO /admin/verify, so guarding that page with it is a loop. Those
-// four routes were on RequireUser, which asks only that somebody is signed in —
-// so any customer could render the enrolment page, learning that /admin exists,
-// and POST an insert into staff_totp_credentials over the ADMIN pool.
+// staff member TO /admin/verify, so guarding that page with it is a loop. Nothing
+// weaker will do — the enrolment page inserts into staff_totp_credentials over
+// the ADMIN pool.
 func (h *Handler) StaffOnly(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, ok := account.FromContext(r.Context())
@@ -198,6 +203,7 @@ func (h *Handler) Order(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Notice = noticeFor(r)
+	view.AllowanceOperationID = uuid.NewString()
 	web.Render(w, r, h.log, http.StatusOK,
 		pages.AdminOrder(layouts.Page{Title: fmt.Sprintf(i18n.T(r.Context(), i18n.KeyAdminPageOrder), view.Number)}, &view))
 }
@@ -467,41 +473,42 @@ func (h *Handler) SetVariantPrice(w http.ResponseWriter, r *http.Request) {
 
 // adminNotices is the one-shot message each redirect parameter carries.
 var adminNotices = map[string]i18n.Key{
-	"ok":            i18n.KeyAdminNoticeOK,
-	"refused":       i18n.KeyAdminNoticeRefused,
-	"shipped":       i18n.KeyAdminNoticeShipped,
-	"toolate":       i18n.KeyAdminNoticeTooLate,
-	"needs":         i18n.KeyAdminNoticeNeeds,
-	"toobig":        i18n.KeyAdminNoticeTooBig,
-	"notimage":      i18n.KeyAdminNoticeNotImage,
-	"uploadfailed":  i18n.KeyAdminNoticeUploadFailed,
-	"inuse":         i18n.KeyAdminNoticeInUse,
-	"attachrefused": i18n.KeyAdminNoticeAttachRefused,
-	"noalt":         i18n.KeyAdminNoticeNoAlt,
-	"nodiscount":    i18n.KeyAdminNoticeNoDiscount,
-	"refundfailed":  i18n.KeyAdminNoticeRefundFailed,
-	"received":      i18n.KeyAdminNoticeReceived,
-	"badqty":        i18n.KeyAdminNoticeBadQty,
-	"inspected":     i18n.KeyAdminNoticeInspected,
-	"closed":        i18n.KeyAdminNoticeClosed,
-	"badcount":      i18n.KeyAdminNoticeBadCount,
-	"badparcel":     i18n.KeyAdminNoticeBadParcel,
-	"invoiced":      i18n.KeyAdminNoticeInvoiced,
-	"voided":        i18n.KeyAdminNoticeVoided,
-	"hasinvoice":    i18n.KeyAdminNoticeHasInvoice,
-	"noinvoice":     i18n.KeyAdminNoticeNoInvoice,
-	"invoicefailed": i18n.KeyAdminNoticeInvoiceFailed,
-	"allowed":       i18n.KeyAdminNoticeAllowed,
-	"badamount":     i18n.KeyAdminNoticeBadAmount,
-	"allowtoomuch":  i18n.KeyAdminNoticeAllowTooMuch,
-	"allowclaimed":  i18n.KeyAdminNoticeAllowClaimed,
-	"reconciled":    i18n.KeyAdminNoticeReconciled,
-	"saved":         i18n.KeyAdminNoticeSaved,
-	"sent":          i18n.KeyAdminNoticeSent,
-	"already":       i18n.KeyAdminNoticeAlready,
-	"specfailed":    i18n.KeyAdminNoticeSpecFailed,
-	"notflagged":    i18n.KeyAdminNoticeNotFlagged,
-	"mustrefund":    i18n.KeyAdminNoticePaymentMustRefund,
+	"ok":             i18n.KeyAdminNoticeOK,
+	"refused":        i18n.KeyAdminNoticeRefused,
+	"shipped":        i18n.KeyAdminNoticeShipped,
+	"toolate":        i18n.KeyAdminNoticeTooLate,
+	"needs":          i18n.KeyAdminNoticeNeeds,
+	"toobig":         i18n.KeyAdminNoticeTooBig,
+	"notimage":       i18n.KeyAdminNoticeNotImage,
+	"uploadfailed":   i18n.KeyAdminNoticeUploadFailed,
+	"inuse":          i18n.KeyAdminNoticeInUse,
+	"attachrefused":  i18n.KeyAdminNoticeAttachRefused,
+	"noalt":          i18n.KeyAdminNoticeNoAlt,
+	"nodiscount":     i18n.KeyAdminNoticeNoDiscount,
+	"refundfailed":   i18n.KeyAdminNoticeRefundFailed,
+	"received":       i18n.KeyAdminNoticeReceived,
+	"badqty":         i18n.KeyAdminNoticeBadQty,
+	"inspected":      i18n.KeyAdminNoticeInspected,
+	"closed":         i18n.KeyAdminNoticeClosed,
+	"badcount":       i18n.KeyAdminNoticeBadCount,
+	"badparcel":      i18n.KeyAdminNoticeBadParcel,
+	"invoiced":       i18n.KeyAdminNoticeInvoiced,
+	"voided":         i18n.KeyAdminNoticeVoided,
+	"hasinvoice":     i18n.KeyAdminNoticeHasInvoice,
+	"noinvoice":      i18n.KeyAdminNoticeNoInvoice,
+	"invoicefailed":  i18n.KeyAdminNoticeInvoiceFailed,
+	"invoicepending": i18n.KeyAdminNoticeInvoicePending,
+	"allowed":        i18n.KeyAdminNoticeAllowed,
+	"allowtoomuch":   i18n.KeyAdminNoticeAllowTooMuch,
+	"allowclaimed":   i18n.KeyAdminNoticeAllowClaimed,
+	"reconciled":     i18n.KeyAdminNoticeReconciled,
+	"invoicequeued":  i18n.KeyAdminNoticeInvoiceQueued,
+	"saved":          i18n.KeyAdminNoticeSaved,
+	"sent":           i18n.KeyAdminNoticeSent,
+	"already":        i18n.KeyAdminNoticeAlready,
+	"specfailed":     i18n.KeyAdminNoticeSpecFailed,
+	"notflagged":     i18n.KeyAdminNoticeNotFlagged,
+	"mustrefund":     i18n.KeyAdminNoticePaymentMustRefund,
 }
 
 // noticeFor turns a redirect's one-shot query parameter into a message.
@@ -539,6 +546,7 @@ func (h *Handler) Credit(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
+	view.OperationID = uuid.NewString()
 	view.Notice = creditNotice(r)
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminCredit(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, view))
@@ -564,14 +572,20 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	dollars, parseErr := strconv.ParseInt(strings.TrimSpace(r.PostFormValue("amount")), 10, 32)
-	if parseErr != nil || dollars <= 0 {
+	cents, ok := positiveDollarsToCents(r.PostFormValue("amount"), MaxCreditGrant)
+	if !ok {
+		http.Redirect(w, r, "/admin/credit?needs=1", http.StatusSeeOther)
+		return
+	}
+
+	operationID, operationErr := uuid.Parse(r.PostFormValue("operation_id"))
+	if operationErr != nil || operationID == uuid.Nil {
 		http.Redirect(w, r, "/admin/credit?needs=1", http.StatusSeeOther)
 		return
 	}
 
 	balance, err := h.store.GrantCredit(r.Context(), r.PostFormValue("email"),
-		dollars*100, r.PostFormValue("reason"), staffID(r))
+		cents, r.PostFormValue("reason"), operationID)
 	switch {
 	case err == nil:
 		// The balance travels as a number and never the address it belongs to,
@@ -615,21 +629,7 @@ func (h *Handler) CreateCoupon(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	f := &CouponForm{
-		Code:            r.PostFormValue("code"),
-		Description:     r.PostFormValue("description"),
-		Kind:            r.PostFormValue("kind"),
-		Value:           whole(r.PostFormValue("value")),
-		CapDollars:      whole(r.PostFormValue("cap")),
-		MinSpendDollars: whole(r.PostFormValue("min")),
-		MaxRedemptions:  small(r.PostFormValue("max")),
-		PerCustomer:     small(r.PostFormValue("percustomer")),
-		Days:            small(r.PostFormValue("days")),
-	}
-	// An unfilled per-customer box means the schema's own default, not zero.
-	if f.PerCustomer == 0 && strings.TrimSpace(r.PostFormValue("percustomer")) == "" {
-		f.PerCustomer = 1
-	}
+	f := couponFormOf(r)
 
 	errs, err := h.store.CreateCoupon(r.Context(), f)
 	switch {
@@ -659,6 +659,42 @@ func (h *Handler) CreateCoupon(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func couponFormOf(r *http.Request) *CouponForm {
+	f := &CouponForm{
+		Code:         r.PostFormValue("code"),
+		Description:  r.PostFormValue("description"),
+		Kind:         r.PostFormValue("kind"),
+		parseInvalid: map[string]bool{},
+	}
+	wholeFields := []struct {
+		name string
+		dst  *int64
+	}{{"value", &f.Value}, {"cap", &f.CapDollars}, {"min", &f.MinSpendDollars}}
+	for _, field := range wholeFields {
+		value, ok := whole(r.PostFormValue(field.name))
+		*field.dst = value
+		if !ok {
+			f.parseInvalid[field.name] = true
+		}
+	}
+	smallFields := []struct {
+		name string
+		dst  *int32
+	}{{"max", &f.MaxRedemptions}, {"percustomer", &f.PerCustomer}, {"days", &f.Days}}
+	for _, field := range smallFields {
+		value, ok := smallChecked(r.PostFormValue(field.name))
+		*field.dst = value
+		if !ok {
+			f.parseInvalid[field.name] = true
+		}
+	}
+	// An unfilled per-customer box means the schema's own default, not zero.
+	if strings.TrimSpace(r.PostFormValue("percustomer")) == "" {
+		f.PerCustomer = 1
+	}
+	return f
+}
+
 // SetCouponActive serves POST /admin/coupons/{code}/active.
 func (h *Handler) SetCouponActive(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
@@ -675,21 +711,35 @@ func (h *Handler) SetCouponActive(w http.ResponseWriter, r *http.Request) {
 }
 
 // whole reads a figure typed in whole units — dollars, or percent.
-func whole(s string) int64 {
-	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 64)
-	if err != nil || n < 0 || n > MaxPriceCents/100 {
-		return 0
+func whole(s string) (int64, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, true
 	}
-	return n
+	n, err := strconv.ParseInt(s, 10, 64)
+	return n, err == nil && n >= 0 && n <= MaxPriceCents/100
 }
 
 // small reads a count bounded well below int32, so no conversion overflows.
-func small(s string) int32 {
-	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 32)
-	if err != nil || n < 0 || n > 1_000_000 {
-		return 0
+func smallChecked(s string) (int32, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0, true
 	}
-	return int32(n)
+	n, err := strconv.ParseInt(s, 10, 32)
+	return int32(n), err == nil && n >= 0 && n <= 1_000_000
+}
+
+// small preserves malformed input as an invalid negative sentinel until the
+// form's Validate method can attribute the refusal. Banner and hero use zero to
+// mean "no end date", so silently collapsing unreadable input to zero would
+// turn a typo into an unbounded promotion.
+func small(s string) int32 {
+	n, ok := smallChecked(s)
+	if !ok {
+		return -1
+	}
+	return n
 }
 
 // Campaigns serves GET /admin/campaigns.
@@ -943,12 +993,11 @@ func (h *Handler) CreateBanner(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f := &BannerForm{
-		Message:  r.PostFormValue("message"),
-		Short:    r.PostFormValue("short"),
-		Code:     r.PostFormValue("code"),
-		CTALabel: r.PostFormValue("cta_label"),
-		CTAHref:  r.PostFormValue("cta_href"),
-		// The English strip, all optional.
+		Message:    r.PostFormValue("message"),
+		Short:      r.PostFormValue("short"),
+		Code:       r.PostFormValue("code"),
+		CTALabel:   r.PostFormValue("cta_label"),
+		CTAHref:    r.PostFormValue("cta_href"),
 		MessageEn:  r.PostFormValue("message_en"),
 		ShortEn:    r.PostFormValue("short_en"),
 		CTALabelEn: r.PostFormValue("cta_label_en"),
@@ -1016,16 +1065,15 @@ func (h *Handler) CreateHeroSlide(w http.ResponseWriter, r *http.Request) {
 	}
 
 	f := &HeroForm{
-		Eyebrow:      r.PostFormValue("eyebrow"),
-		Headline:     r.PostFormValue("headline"),
-		Body:         r.PostFormValue("body"),
-		PrimaryLabel: r.PostFormValue("primary_label"),
-		PrimaryHref:  r.PostFormValue("primary_href"),
-		SecondLabel:  r.PostFormValue("second_label"),
-		SecondHref:   r.PostFormValue("second_href"),
-		ImageKey:     obj.Digest,
-		ImageAlt:     r.PostFormValue("alt"),
-		// The English hero, all optional.
+		Eyebrow:        r.PostFormValue("eyebrow"),
+		Headline:       r.PostFormValue("headline"),
+		Body:           r.PostFormValue("body"),
+		PrimaryLabel:   r.PostFormValue("primary_label"),
+		PrimaryHref:    r.PostFormValue("primary_href"),
+		SecondLabel:    r.PostFormValue("second_label"),
+		SecondHref:     r.PostFormValue("second_href"),
+		ImageKey:       obj.Digest,
+		ImageAlt:       r.PostFormValue("alt"),
 		EyebrowEn:      r.PostFormValue("eyebrow_en"),
 		HeadlineEn:     r.PostFormValue("headline_en"),
 		BodyEn:         r.PostFormValue("body_en"),
@@ -1249,32 +1297,23 @@ func (h *Handler) AnswerQuestion(w http.ResponseWriter, r *http.Request) {
 //
 // This records an explicit money outcome: an event is released only after full
 // refund/already-succeeded accounting, while a provider-complete payment chooses
-// paid attribution or confirmed-unpaid/refunded. The subjects and outcomes use
-// distinct form fields and database doors.
+// paid attribution or confirmed-unpaid/refunded. It also grants one Allowance
+// resend after a human confirms provider absence. The three subjects and their
+// outcomes use distinct form fields and database doors.
 func (h *Handler) ReconcilePayment(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	eventID := strings.TrimSpace(r.PostFormValue("event"))
-	providerRef := strings.TrimSpace(r.PostFormValue("payment"))
-	eventResolutionOK := paymentEventSafeReleaseSubmitted(r.PostFormValue("event_resolution"))
-	completeResolution, completeResolutionOK := parseCompletePaymentResolution(
-		r.PostFormValue("resolution"),
+	invoiceQueued, err := h.applyHealthReconciliation(
+		r.Context(), healthReconcileSubmissionOf(r),
 	)
-	var err error
-	switch {
-	case eventID != "" && providerRef == "" && eventResolutionOK && !completeResolutionOK:
-		err = h.store.ReleasePaymentEventAfterRefundOrAccounting(r.Context(), eventID)
-	case providerRef != "" && eventID == "" && completeResolutionOK && !eventResolutionOK:
-		err = h.store.reconcileCompletePayment(
-			r.Context(), providerRef, completeResolution,
-		)
-	default:
-		err = ErrInvalid
-	}
 	switch {
 	case err == nil:
+		if invoiceQueued {
+			http.Redirect(w, r, "/admin/health?invoicequeued=1", http.StatusSeeOther)
+			return
+		}
 		http.Redirect(w, r, "/admin/health?reconciled=1", http.StatusSeeOther)
 	case errors.Is(err, ErrPaymentRequiresRefund):
 		http.Redirect(w, r, "/admin/health?mustrefund=1", http.StatusSeeOther)
@@ -1283,6 +1322,86 @@ func (h *Handler) ReconcilePayment(w http.ResponseWriter, r *http.Request) {
 	default:
 		h.log.ErrorContext(r.Context(), "reconcile payment", "error", err)
 		h.serverError(w, r)
+	}
+}
+
+type healthReconcileSubmission struct {
+	eventID              string
+	providerRef          string
+	invoiceOperation     string
+	eventResolutionOK    bool
+	completeResolution   completePaymentResolution
+	completeResolutionOK bool
+	invoiceResolutionOK  bool
+}
+
+func healthReconcileSubmissionOf(r *http.Request) healthReconcileSubmission {
+	completeResolution, completeResolutionOK := parseCompletePaymentResolution(
+		r.PostFormValue("resolution"),
+	)
+	return healthReconcileSubmission{
+		eventID:              strings.TrimSpace(r.PostFormValue("event")),
+		providerRef:          strings.TrimSpace(r.PostFormValue("payment")),
+		invoiceOperation:     strings.TrimSpace(r.PostFormValue("invoice_operation")),
+		eventResolutionOK:    paymentEventSafeReleaseSubmitted(r.PostFormValue("event_resolution")),
+		completeResolution:   completeResolution,
+		completeResolutionOK: completeResolutionOK,
+		invoiceResolutionOK:  r.PostFormValue("invoice_resolution") == "confirmed_absent",
+	}
+}
+
+func (f healthReconcileSubmission) subject() string {
+	subject := ""
+	for name, value := range map[string]string{
+		"event": f.eventID, "payment": f.providerRef, "invoice": f.invoiceOperation,
+	} {
+		if value == "" {
+			continue
+		}
+		if subject != "" {
+			return ""
+		}
+		subject = name
+	}
+	return subject
+}
+
+func (f healthReconcileSubmission) resolutionMatches(subject string) bool {
+	switch subject {
+	case "event":
+		return f.eventResolutionOK && !f.completeResolutionOK && !f.invoiceResolutionOK
+	case "payment":
+		return f.completeResolutionOK && !f.eventResolutionOK && !f.invoiceResolutionOK
+	case "invoice":
+		return f.invoiceResolutionOK && !f.eventResolutionOK && !f.completeResolutionOK
+	default:
+		return false
+	}
+}
+
+func (h *Handler) applyHealthReconciliation(
+	ctx context.Context, form healthReconcileSubmission,
+) (invoiceQueued bool, err error) {
+	subject := form.subject()
+	if !form.resolutionMatches(subject) {
+		return false, ErrInvalid
+	}
+	switch subject {
+	case "event":
+		return false,
+			h.store.ReleasePaymentEventAfterRefundOrAccounting(ctx, form.eventID)
+	case "payment":
+		return false,
+			h.store.reconcileCompletePayment(ctx, form.providerRef, form.completeResolution)
+	case "invoice":
+		operationID, err := uuid.Parse(form.invoiceOperation)
+		if err != nil {
+			return true, ErrInvalid
+		}
+		return true,
+			h.store.AuthorizeInvoiceAllowanceResend(ctx, operationID)
+	default:
+		panic("admin: validated unknown health reconciliation subject")
 	}
 }
 
@@ -1619,6 +1738,9 @@ func (h *Handler) IssueInvoice(w http.ResponseWriter, r *http.Request) {
 			"order", number, "error", err)
 		//nolint:gosec // G710: validated by IsOrderNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?invoicefailed=1", http.StatusSeeOther)
+	case errors.Is(err, invoice.ErrPending):
+		//nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?invoicepending=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "issue invoice", "order", number, "error", err)
 		h.serverError(w, r)
@@ -1646,6 +1768,9 @@ func (h *Handler) VoidInvoice(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, invoice.ErrNotFound):
 		//nolint:gosec // G710: validated by IsOrderNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?noinvoice=1", http.StatusSeeOther)
+	case errors.Is(err, invoice.ErrPending):
+		//nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?invoicepending=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrRejected), errors.Is(err, invoice.ErrDisabled),
 		errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "invoice void refused", "order", number, "error", err)
@@ -1662,8 +1787,8 @@ func (h *Handler) VoidInvoice(w http.ResponseWriter, r *http.Request) {
 // A refund leaves the 統一發票 recording a sale that partly did not happen, and
 // a 折讓 is the correction the 財政部 accepts for it — a void is for an invoice
 // that should not exist, an allowance for one that should exist for less. The
-// amount is typed in DOLLARS, which is the unit the document is filed in and
-// the unit a person reading a refund says out loud.
+// amount is derived from settled refunds and prior filed allowances inside the
+// database claim. The form carries no money for an operator to override.
 func (h *Handler) AllowInvoice(w http.ResponseWriter, r *http.Request) {
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
@@ -1674,14 +1799,13 @@ func (h *Handler) AllowInvoice(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	dollars, convErr := strconv.ParseInt(strings.TrimSpace(r.PostFormValue("amount")), 10, 64)
-	if convErr != nil || dollars <= 0 {
-		//nolint:gosec // G710: validated by IsOrderNumber
-		http.Redirect(w, r, "/admin/orders/"+number+"?badamount=1", http.StatusSeeOther)
+	operationID, operationErr := uuid.Parse(r.PostFormValue("operation_id"))
+	if operationErr != nil || operationID == uuid.Nil {
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
 
-	err := h.store.AllowInvoice(r.Context(), number, dollars*100)
+	err := h.store.AllowInvoice(r.Context(), number, operationID)
 	switch {
 	case err == nil:
 		//nolint:gosec // G710: validated by IsOrderNumber
@@ -1692,6 +1816,9 @@ func (h *Handler) AllowInvoice(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, invoice.ErrClaimed):
 		//nolint:gosec // G710: validated by IsOrderNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?allowclaimed=1", http.StatusSeeOther)
+	case errors.Is(err, invoice.ErrPending):
+		//nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?invoicepending=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrTooMuch):
 		//nolint:gosec // G710: validated by IsOrderNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?allowtoomuch=1", http.StatusSeeOther)
@@ -1707,4 +1834,12 @@ func (h *Handler) AllowInvoice(w http.ResponseWriter, r *http.Request) {
 		h.log.ErrorContext(r.Context(), "file invoice allowance", "order", number, "error", err)
 		h.serverError(w, r)
 	}
+}
+
+func positiveDollarsToCents(raw string, maxCents int64) (int64, bool) {
+	dollars, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+	if err != nil || dollars <= 0 || dollars > maxCents/100 {
+		return 0, false
+	}
+	return dollars * 100, true
 }

@@ -134,6 +134,8 @@ func (h *Handler) AddItem(w http.ResponseWriter, r *http.Request) {
 	switch err := h.store.Add(r.Context(), cartID, variantID, quantity); {
 	case err == nil:
 		h.backToProduct(w, r, "added")
+	case errors.Is(err, ErrTooManyItems):
+		h.backToProduct(w, r, "full")
 	case errors.Is(err, ErrUnavailable), errors.Is(err, ErrNotFound):
 		h.backToProduct(w, r, "unavailable")
 	default:
@@ -285,10 +287,8 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 
 	// A CHOOSER CHANGE, not an order. The delivery method, the saved address and
 	// the 發票 type each decide which fields the form asks for, so changing one
-	// has to re-render — and it used to do that through a link carrying only the
-	// choice, which discarded everything already typed. The values come back
-	// because this handler has already rebuilt the whole view from the
-	// submission; nothing is validated, because nobody has finished.
+	// re-renders with the submitted values intact; nothing is validated, because
+	// nobody has finished.
 	if r.PostFormValue("update") != "" {
 		web.Render(w, r, h.log, http.StatusOK,
 			pages.Checkout(pages.CheckoutMeta(r.Context()), &submission.view))
@@ -401,8 +401,11 @@ func (h *Handler) checkoutSubmission(
 		PickupStoreName: addr.PickupStoreName, Note: addr.Note,
 	}
 	view.Chosen = r.PostFormValue("shipping")
-	view.Destination = string(destinationOf(view.Shipping, view.Chosen))
-	addr.To = Destination(view.Destination)
+	// Resolved once: a round trip through string would be an unchecked
+	// conversion of a value DestinationFor has already vouched for.
+	destination := destinationOf(view.Shipping, view.Chosen)
+	view.Destination = string(destination)
+	addr.To = destination
 	// Invalid form text never survives as internal state. checkoutView already
 	// owns a fresh identity for that case; a valid retry keeps its exact identity.
 	if attemptOK {
@@ -410,11 +413,15 @@ func (h *Handler) checkoutSubmission(
 	}
 
 	inv := Invoice{
-		Type:    invoicepkg.Preference(r.PostFormValue("invoice_type")),
-		Carrier: r.PostFormValue("invoice_carrier"),
-		TaxID:   r.PostFormValue("invoice_tax_id"),
+		Type:        invoicepkg.Preference(r.PostFormValue("invoice_type")),
+		Carrier:     r.PostFormValue("invoice_carrier"),
+		CompanyName: r.PostFormValue("invoice_company_name"),
+		TaxID:       r.PostFormValue("invoice_tax_id"),
 	}
-	view.Invoice = pages.CheckoutInvoice{Type: inv.Type, Carrier: inv.Carrier, TaxID: inv.TaxID}
+	view.Invoice = pages.CheckoutInvoice{
+		Type: inv.Type, Carrier: inv.Carrier,
+		CompanyName: inv.CompanyName, TaxID: inv.TaxID,
+	}
 
 	couponErr := h.resolveCoupon(r, &view)
 	shippingID, shipErr := uuid.Parse(view.Chosen)
@@ -495,6 +502,10 @@ func (h *Handler) answerPlacement(
 		// Something sold out between the cart page and this write; the cart page
 		// says which line and why.
 		http.Redirect(w, r, "/cart", http.StatusSeeOther)
+	case errors.Is(err, ErrTooManyItems):
+		view.Repriced = i18n.T(r.Context(), i18n.KeyCartLineLimit)
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity,
+			pages.Checkout(pages.CheckoutMeta(r.Context()), view))
 	case errors.Is(err, ErrCreditChanged):
 		h.answerCreditChanged(w, r, cartID, view)
 	case errors.Is(err, errCheckoutChanged):
@@ -707,7 +718,7 @@ func (h *Handler) resolveCoupon(r *http.Request, view *pages.CheckoutView) strin
 	}
 
 	subtotal := view.Cart.SubtotalCents
-	c, err := h.store.FindCoupon(r.Context(), view.CouponCode)
+	c, err := h.store.CouponByCode(r.Context(), view.CouponCode)
 	if err == nil {
 		discountCents, freeShipping, applyErr := c.Apply(subtotal)
 		if applyErr == nil {
@@ -731,24 +742,15 @@ func (h *Handler) resolveCoupon(r *http.Request, view *pages.CheckoutView) strin
 	}
 }
 
-// checkoutErrors collects everything wrong with a submission, keeping the first
-// message per field so a control shows one reason rather than a pile.
+// checkoutErrors collects everything wrong with a submission.
 func checkoutErrors(ctx context.Context, addr *Address, shipErr error, inv *Invoice) map[string]string {
 	fieldErrs := addr.Validate()
 	if shipErr != nil {
-		fieldErrs = append(fieldErrs, FieldError{Field: "shipping", MessageKey: i18n.KeyChooseShipping})
+		fieldErrs = append(fieldErrs,
+			account.FieldError{Field: "shipping", MessageKey: i18n.KeyChooseShipping})
 	}
 	fieldErrs = append(fieldErrs, inv.Validate()...)
-	if len(fieldErrs) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(fieldErrs))
-	for _, e := range fieldErrs {
-		if _, seen := out[e.Field]; !seen {
-			out[e.Field] = i18n.T(ctx, e.MessageKey)
-		}
-	}
-	return out
+	return account.FieldMessages(ctx, fieldErrs)
 }
 
 // quoteCheckoutShipping prices the chosen method against the current postal
@@ -960,9 +962,7 @@ func (h *Handler) checkoutView(ctx context.Context, cartID uuid.UUID, owner uuid
 	return view, nil
 }
 
-// checkoutQuoteIDForView builds the identity of exactly what CheckoutView renders. A
-// second concrete loop is intentional: page rows and database rows are distinct
-// boundaries and do not justify a generic priced-line interface.
+// checkoutQuoteIDForView builds the identity of exactly what CheckoutView renders.
 func checkoutQuoteIDForView(cartID uuid.UUID, view *pages.CheckoutView) (checkoutQuoteID, error) {
 	shippingID, err := uuid.Parse(view.Chosen)
 	if err != nil {
@@ -1028,7 +1028,7 @@ func (h *Handler) existingCart(r *http.Request) (uuid.UUID, bool) {
 	if token == "" {
 		return uuid.Nil, false
 	}
-	id, err := h.store.Find(r.Context(), token)
+	id, err := h.store.CartByToken(r.Context(), token)
 	if err != nil {
 		return uuid.Nil, false
 	}
@@ -1100,16 +1100,15 @@ func (h *Handler) CartIDForRequest(ctx context.Context, r *http.Request) (uuid.U
 	if token == "" {
 		return uuid.Nil, false
 	}
-	id, err := h.store.Find(ctx, token)
+	id, err := h.store.CartByToken(ctx, token)
 	if err != nil {
 		return uuid.Nil, false
 	}
 	return id, true
 }
 
-// WithCount puts the visitor's cart size into the request context, for the
-// header badge. Middleware rather than a line in every handler, because a field
-// each handler must remember to fill is a field that goes unfilled.
+// WithCount puts the visitor's cart size into the request context for the
+// header badge, rather than a line each handler must remember to write.
 func (h *Handler) WithCount(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id, ok := h.CartIDForRequest(r.Context(), r)
@@ -1152,7 +1151,7 @@ func (h *Handler) FindOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	found, err := h.store.FindOrder(r.Context(), number, addr)
+	found, err := h.store.OrderBelongsToEmail(r.Context(), number, addr)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "find order", "error", err)
 		h.serverError(w, r)

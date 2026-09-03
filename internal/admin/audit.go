@@ -10,6 +10,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 )
@@ -19,68 +20,70 @@ type Action string
 
 // The actions goen records. Money, stock, and anything a customer can see.
 const (
-	// ActionViewCustomer is a READ, and the only one recorded here: that page's
+	// actionViewCustomer is a READ, and the only one recorded here: that page's
 	// entire content is somebody else's personal data.
-	ActionViewCustomer         Action = "customer.view"
-	ActionShipOrder            Action = "order.ship"
-	ActionAdvanceOrder         Action = "order.advance"
-	ActionDecideReturn         Action = "return.decide"
-	ActionInspectReturn        Action = "return.inspect"
-	ActionCompleteReturn       Action = "return.complete"
-	ActionIssueInvoice         Action = "invoice.issue"
-	ActionVoidInvoice          Action = "invoice.void"
-	ActionAllowInvoice         Action = "invoice.allowance"
-	ActionReconcilePayment     Action = "payment.reconciled"
-	ActionGrantCredit          Action = "credit.grant"
-	ActionAdjustStock          Action = "stock.adjust"
-	ActionReceiveStock         Action = "stock.receive"
-	ActionPublishShipping      Action = "shipping.publish"
-	ActionSetSurcharge         Action = "shipping.surcharge"
-	ActionCreateTier           Action = "tier.create"
-	ActionDeleteTier           Action = "tier.delete"
-	ActionCorrectDelivery      Action = "order.delivery"
-	ActionHideReview           Action = "review.hide"
-	ActionShowReview           Action = "review.show"
-	ActionHandleMessage        Action = "message.handle"
-	ActionReopenMessage        Action = "message.reopen"
-	ActionRepriceVariant       Action = "variant.reprice"
-	ActionRetireVariant        Action = "variant.retire"
-	ActionCreateVariant        Action = "variant.create"
-	ActionCreateProduct        Action = "product.create"
-	ActionPublishProduct       Action = "product.status"
-	ActionCreateCoupon         Action = "coupon.create"
-	ActionToggleCoupon         Action = "coupon.toggle"
-	ActionCreateCampaign       Action = "campaign.create"
-	ActionToggleCampaign       Action = "campaign.toggle"
-	ActionFeatureProduct       Action = "campaign.feature"
-	ActionUnfeatureProduct     Action = "campaign.unfeature"
-	ActionAddOption            Action = "option.add"
-	ActionAddOptionValue       Action = "option.value.add"
-	ActionAddSpec              Action = "spec.add"
-	ActionRemoveSpec           Action = "spec.remove"
-	ActionAttachImage          Action = "image.attach"
-	ActionDetachImage          Action = "image.detach"
-	ActionCreateShippingMethod Action = "shipping.method.create"
-	ActionToggleShippingMethod Action = "shipping.method.toggle"
-	ActionCreateShippingZone   Action = "shipping.zone.create"
-	ActionSetZonePrefixes      Action = "shipping.zone.prefixes"
-	ActionDeleteShippingZone   Action = "shipping.zone.delete"
-	ActionCreateFAQ            Action = "faq.create"
-	ActionUpdateFAQ            Action = "faq.update"
-	ActionDeleteFAQ            Action = "faq.delete"
-	ActionCreateBanner         Action = "banner.create"
-	ActionToggleBanner         Action = "banner.toggle"
-	ActionCreateHeroSlide      Action = "hero.create"
-	ActionToggleHeroSlide      Action = "hero.toggle"
-	ActionPromoteHeroSlide     Action = "hero.promote"
-	ActionCreateBrand          Action = "brand.create"
-	ActionRenameBrand          Action = "brand.rename"
-	ActionDeleteBrand          Action = "brand.delete"
-	ActionCreateCategory       Action = "category.create"
-	ActionRenameCategory       Action = "category.rename"
-	ActionDeleteCategory       Action = "category.delete"
-	ActionAnswerQuestion       Action = "question.answer"
-	ActionHideQuestion         Action = "question.hide"
+	actionViewCustomer             Action = "customer.view"
+	actionShipOrder                Action = "order.ship"
+	actionAdvanceOrder             Action = "order.advance"
+	actionDecideReturn             Action = "return.decide"
+	actionInspectReturn            Action = "return.inspect"
+	actionCompleteReturn           Action = "return.complete"
+	actionIssueInvoice             Action = "invoice.issue"
+	actionVoidInvoice              Action = "invoice.void"
+	actionAllowInvoice             Action = "invoice.allowance"
+	actionAuthorizeAllowanceResend Action = "invoice.allowance_resend_authorized"
+	actionReconcilePayment         Action = "payment.reconciled"
+	actionGrantCredit              Action = "credit.grant"
+	actionAdjustStock              Action = "stock.adjust"
+	actionReceiveStock             Action = "stock.receive"
+	actionPublishShipping          Action = "shipping.publish"
+	actionSetSurcharge             Action = "shipping.surcharge"
+	actionCreateTier               Action = "tier.create"
+	actionDeleteTier               Action = "tier.delete"
+	actionCorrectDelivery          Action = "order.delivery"
+	actionHideReview               Action = "review.hide"
+	actionShowReview               Action = "review.show"
+	actionHandleMessage            Action = "message.handle"
+	actionReopenMessage            Action = "message.reopen"
+	actionRepriceVariant           Action = "variant.reprice"
+	actionRetireVariant            Action = "variant.retire"
+	actionCreateVariant            Action = "variant.create"
+	actionCreateProduct            Action = "product.create"
+	actionUpdateProduct            Action = "product.update"
+	actionPublishProduct           Action = "product.status"
+	actionCreateCoupon             Action = "coupon.create"
+	actionToggleCoupon             Action = "coupon.toggle"
+	actionCreateCampaign           Action = "campaign.create"
+	actionToggleCampaign           Action = "campaign.toggle"
+	actionFeatureProduct           Action = "campaign.feature"
+	actionUnfeatureProduct         Action = "campaign.unfeature"
+	actionAddOption                Action = "option.add"
+	actionAddOptionValue           Action = "option.value.add"
+	actionAddSpec                  Action = "spec.add"
+	actionRemoveSpec               Action = "spec.remove"
+	actionAttachImage              Action = "image.attach"
+	actionDetachImage              Action = "image.detach"
+	actionCreateShippingMethod     Action = "shipping.method.create"
+	actionToggleShippingMethod     Action = "shipping.method.toggle"
+	actionCreateShippingZone       Action = "shipping.zone.create"
+	actionSetZonePrefixes          Action = "shipping.zone.prefixes"
+	actionDeleteShippingZone       Action = "shipping.zone.delete"
+	actionCreateFAQ                Action = "faq.create"
+	actionUpdateFAQ                Action = "faq.update"
+	actionDeleteFAQ                Action = "faq.delete"
+	actionCreateBanner             Action = "banner.create"
+	actionToggleBanner             Action = "banner.toggle"
+	actionCreateHeroSlide          Action = "hero.create"
+	actionToggleHeroSlide          Action = "hero.toggle"
+	actionPromoteHeroSlide         Action = "hero.promote"
+	actionCreateBrand              Action = "brand.create"
+	actionRenameBrand              Action = "brand.rename"
+	actionDeleteBrand              Action = "brand.delete"
+	actionCreateCategory           Action = "category.create"
+	actionRenameCategory           Action = "category.rename"
+	actionDeleteCategory           Action = "category.delete"
+	actionAnswerQuestion           Action = "question.answer"
+	actionHideQuestion             Action = "question.hide"
 )
 
 // ErrNoActor is a back-office write that reached the store without a signed-in
@@ -92,7 +95,6 @@ const MaxAuditRows = 200
 
 // Event is one thing to record. Action and Table are required.
 type Event struct {
-	// Action is what was done.
 	Action Action
 	// Table is what it was done to. Not a foreign key: audit rows outlive the
 	// rows they describe.
@@ -113,7 +115,7 @@ func (s *Store) audited(ctx context.Context, e Event, work func(context.Context,
 	if err != nil {
 		return fmt.Errorf("begin %s: %w", e.Action, err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
 	if err := work(ctx, q); err != nil {
@@ -195,7 +197,7 @@ func (s *Store) Audit(ctx context.Context) (pages.AuditView, error) {
 		e := &rows[i]
 		view.Rows = append(view.Rows, pages.AuditEntry{
 			Action: e.Action, Entity: e.EntityTable, Actor: e.Actor,
-			At:        e.OccurredAt.Format("2006-01-02 15:04:05"),
+			At:        shoptime.Second(e.OccurredAt),
 			RequestID: e.RequestID.String,
 			Detail:    summarise(e.Before, e.After),
 		})
@@ -217,7 +219,6 @@ func summarise(before, after []byte) string {
 	}
 }
 
-// nullableID turns a uuid into the nullable form the audit call takes.
 func nullableID(id uuid.UUID) uuid.NullUUID {
 	return uuid.NullUUID{UUID: id, Valid: id != uuid.UUID{}}
 }

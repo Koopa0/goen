@@ -46,7 +46,7 @@ templ AdminStaff(p layouts.Page, v AdminStaffView) {
 									{ r.DisplayName() }
 									<span class="ui-cart-line__meta">{ r.Email }</span>
 								</td>
-								<td>{ r.RoleText(ctx) }</td>
+								<td>{ r.Role.Label(ctx) }</td>
 								<td>
 									if r.Enrolled {
 										<span class="ui-badge ui-badge--brand">{ r.State(ctx) }</span>
@@ -95,7 +95,7 @@ templ AdminStaff(p layouts.Page, v AdminStaffView) {
 						<label class="ui-label" for="staff-role">{ i18n.T(ctx, i18n.KeyAdminColRole) }</label>
 						<select class="ui-select" id="staff-role" name="role" required>
 							for _, role := range v.Roles {
-								<option value={ role.Value }>{ role.Label }</option>
+								<option value={ string(role) }>{ role.Label(ctx) }</option>
 							}
 						</select>
 					</div>

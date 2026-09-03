@@ -1,14 +1,14 @@
 package contact
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// This is a white-box test on purpose: the private array is the one source
-// rendered by subjectChoices and accepted by Validate, so the test must not
-// reproduce a second list that can drift away from it.
+// White-box on purpose: the private array is the one source rendered and
+// validated, so the test must not reproduce a second list that can drift.
 func TestEveryOfferedSubjectIsAcceptedAndTranslated(t *testing.T) {
 	t.Parallel()
 
@@ -23,9 +23,12 @@ func TestEveryOfferedSubjectIsAcceptedAndTranslated(t *testing.T) {
 			if got := Validate(t.Context(), msg); len(got) != 0 {
 				t.Errorf("Validate() rejected offered subject %q: %v", offered.Value, got)
 			}
-			if _, ok := i18n.MessageFor(offered.LabelKey); !ok {
-				t.Errorf("subject %q names %q, which the catalogue does not define",
-					offered.Value, offered.LabelKey)
+			for _, locale := range i18n.Locales() {
+				translated := i18n.T(i18n.WithLocale(t.Context(), locale), offered.LabelKey)
+				if strings.TrimSpace(translated) == "" || translated == string(offered.LabelKey) {
+					t.Errorf("subject %q names %q, which has no %s translation",
+						offered.Value, offered.LabelKey, locale)
+				}
 			}
 		})
 	}

@@ -51,8 +51,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestHomeShowsCategoriesAndProducts(t *testing.T) {
-	// The assertions below are about the default hero, which shows only when no
-	// slide qualifies.
+	// The default hero shows only when no slide qualifies.
 	emptyHeroSlides(t)
 
 	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler), false)
@@ -76,8 +75,7 @@ func TestHomeShowsCategoriesAndProducts(t *testing.T) {
 	if !strings.Contains(body, "NT$") {
 		t.Error("no price is formatted; the tiles have no price")
 	}
-	// By shape, not by naming one file: a tile renders an <img> only when the
-	// artwork is embedded, and they arrive a few at a time.
+	// By shape, not by naming one file: artwork arrives a few products at a time.
 	if !strings.Contains(body, `src="/static/media/products/`) {
 		t.Error("no product storage key was mapped to an embedded media URL")
 	}
@@ -414,8 +412,8 @@ func TestAnOffSiteCTAIsDroppedNotRendered(t *testing.T) {
 	}
 }
 
-// TestAnOffSiteHeroCTAIsReplacedAtReadTime. The admin form validates these
-// paths too, but direct SQL and old rows still reach the storefront reader.
+// The admin form validates these paths too, but direct SQL and old rows still
+// reach the storefront reader.
 func TestAnOffSiteHeroCTAIsReplacedAtReadTime(t *testing.T) {
 	ctx := t.Context()
 	s := home.NewStore(pool)
@@ -508,8 +506,8 @@ func TestTheHeroSpeaksTheVisitorsLanguage(t *testing.T) {
 	ctx := t.Context()
 	s := home.NewStore(pool)
 
-	// Its own slide, at the front of the queue: the hero is a queue, so another
-	// test's slide would decide what this one reads.
+	// Its own slide, at the front of the queue: another test's slide would
+	// otherwise decide what this one reads.
 	var id uuid.UUID
 	if err := pool.QueryRow(ctx, `
 		INSERT INTO hero_slides (eyebrow, headline, body, primary_cta_label,
@@ -590,7 +588,7 @@ func TestASlideWithNoEyebrowStillRenders(t *testing.T) {
 	}
 }
 
-// free_over_cents lives in shipping_method_versions and a shop edits it at
+// free_over_cents lives in shipping_method_versions, which a shop edits at
 // /admin/shipping, so a page stating the figure can drift from the till.
 func TestTheFreeDeliveryStripStatesWhatTheTillCharges(t *testing.T) {
 	ctx := t.Context()
@@ -612,8 +610,8 @@ func TestTheFreeDeliveryStripStatesWhatTheTillCharges(t *testing.T) {
 		t.Fatalf("load home: %v", err)
 	}
 
-	// The other active method still carries the seeded 300000, which is the
-	// lowest and therefore the honest figure.
+	// The other active method still carries the seeded 300000, the lowest and
+	// therefore the honest figure.
 	if got := view.FreeDelivery(); got != "NT$3,000" {
 		t.Errorf("the strip states %q, want NT$3,000 — the lowest threshold any "+
 			"active method honours", got)
@@ -638,28 +636,16 @@ func TestTheFreeDeliveryStripStatesWhatTheTillCharges(t *testing.T) {
 	}
 }
 
-// TestTheHeaderAndTheTilesAgreeOnOrder holds one question that had two answers.
-//
-// NavCategories ordered by (position, name) and HomeCategories by (position)
-// alone — the same six rows, read by the header and by the tiles directly below
-// it on the same page. Measured before the fix, by colliding two positions: the
-// header read accessories > phones > laptops and the tiles read phones >
-// accessories > laptops, on one render.
-//
-// It is one query now, so the two cannot disagree however the rows are ordered.
-// And the collision that made them disagree is refused at the schema:
+// The header and the home tiles read one query, so their order cannot disagree,
+// and two roots sharing a position is refused at the schema:
 // categories_position_key is NULLS NOT DISTINCT precisely because the ROOT
 // categories are the header, and a plain unique index would treat their NULL
 // parents as distinct and allow the pair.
-//
-// The staged collision this test used to build is therefore a state the
-// application can no longer reach, so it asserts the refusal by NAME instead —
-// a fixture for an impossible state proves nothing about the code that runs.
 func TestTheHeaderAndTheTilesAgreeOnOrder(t *testing.T) {
 	ctx := t.Context()
 
-	// Two roots at one position is what CreateCategory's max(position) + 1 could
-	// hand out to two staff members at once, and what nothing used to refuse.
+	// Two roots at one position is what CreateCategory's max(position) + 1 can
+	// hand two staff members at once.
 	_, err := pool.Exec(ctx, `
 		UPDATE categories SET position = (
 		    SELECT min(position) FROM categories WHERE parent_id IS NULL
@@ -681,7 +667,6 @@ func TestTheHeaderAndTheTilesAgreeOnOrder(t *testing.T) {
 			"another first", pgErr.ConstraintName)
 	}
 
-	// And both surfaces read one query, so there is no second order to drift.
 	locale := i18n.WithLocale(ctx, i18n.ZhHant)
 	store := home.NewStore(pool)
 

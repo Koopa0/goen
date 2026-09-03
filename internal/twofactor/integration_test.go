@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -169,8 +170,8 @@ func TestACodeIsAcceptedExactlyOnceEvenConcurrently(t *testing.T) {
 	_ = secret
 
 	// The STATEMENT is driven directly: calling Store.Verify from N goroutines
-	// staggers enough that later reads see earlier writes, so that version
-	// passed with the guard removed from the SQL.
+	// staggers enough that later reads see earlier writes, which hides a guard
+	// missing from the SQL.
 	var current int64
 	if err := pool.QueryRow(ctx,
 		`SELECT coalesce(last_step, 0) FROM staff_totp_credentials WHERE user_id = $1`,
@@ -216,8 +217,6 @@ func TestACodeIsAcceptedExactlyOnceEvenConcurrently(t *testing.T) {
 	}
 }
 
-// TestRestartingEnrolmentInvalidatesTheOldSecret proves a replaced secret stops
-// working immediately.
 func TestRestartingEnrolmentInvalidatesTheOldSecret(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey)
@@ -288,8 +287,6 @@ func TestAConfirmedFactorCannotBeReplacedByItsOwnHolder(t *testing.T) {
 	}
 }
 
-// TestAnUnconfirmedCredentialCannotVerify proves an unproved secret counts for
-// nothing.
 func TestAnUnconfirmedCredentialCannotVerify(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey)
@@ -360,7 +357,7 @@ func TestACredentialSealedUnderAnotherKeyIsNotAWrongCode(t *testing.T) {
 	}
 }
 
-// TestAStaleKeyIsExplainedInsteadOfBlamingTheCode covers both handler doors.
+// TestAStaleKeyIsExplainedInsteadOfBlamingTheCode covers both handler doors:
 // POST redirects to a stable recovery state, while GET must render that same
 // state directly because its Enrolled read decrypts before POST can run.
 func TestAStaleKeyIsExplainedInsteadOfBlamingTheCode(t *testing.T) {
@@ -404,7 +401,82 @@ func TestAStaleKeyIsExplainedInsteadOfBlamingTheCode(t *testing.T) {
 	}
 }
 
-// TestSessionVerificationExpires proves a proof does not last forever.
+// TestDatabaseFailuresAreNotReportedAsWrongCodes keeps an operational failure
+// out of the user-correctable branch. Retrying different digits cannot repair a
+// failed security-state write, and calling it a bad code hides the incident.
+func TestDatabaseFailuresAreNotReportedAsWrongCodes(t *testing.T) {
+	s := twofactor.NewStore(pool, testKey)
+	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler), false)
+
+	t.Run("step-up verification", func(t *testing.T) {
+		userID, email := staff(t)
+		secret := enrol(t, s, userID, email)
+		forceTOTPUpdateFailure(t, userID)
+
+		code := twofactor.Code(secret, twofactor.StepAt(time.Now())+1)
+		assertTOTPHandlerFailure(t, account.User{ID: userID, Email: email}, code, h.Verify)
+	})
+
+	t.Run("enrolment confirmation", func(t *testing.T) {
+		userID, email := staff(t)
+		secret, _, err := s.Begin(t.Context(), userID, email)
+		if err != nil {
+			t.Fatalf("begin enrolment: %v", err)
+		}
+		forceTOTPUpdateFailure(t, userID)
+
+		code := twofactor.Code(secret, twofactor.StepAt(time.Now()))
+		assertTOTPHandlerFailure(t, account.User{ID: userID, Email: email}, code, h.Confirm)
+	})
+}
+
+func assertTOTPHandlerFailure(
+	t *testing.T,
+	user account.User,
+	code string,
+	handle func(http.ResponseWriter, *http.Request),
+) {
+	t.Helper()
+	req := httptest.NewRequestWithContext(account.WithUser(t.Context(), user),
+		http.MethodPost, "/admin/verify", strings.NewReader("code="+code))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	out := httptest.NewRecorder()
+	handle(out, req)
+	if out.Code != http.StatusInternalServerError {
+		t.Errorf("handler status = %d Location %q, want 500 without a bad-code redirect",
+			out.Code, out.Header().Get("Location"))
+	}
+}
+
+func forceTOTPUpdateFailure(t *testing.T, userID string) {
+	t.Helper()
+	ctx := t.Context()
+	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
+	functionName := pgx.Identifier{"test_fail_totp_update_" + suffix}.Sanitize()
+	triggerName := pgx.Identifier{"test_fail_totp_update_" + suffix}.Sanitize()
+	if _, err := pool.Exec(ctx, fmt.Sprintf(`
+		CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $body$
+		BEGIN
+			IF OLD.user_id = '%s'::uuid THEN
+				RAISE EXCEPTION USING
+					MESSAGE = 'forced totp state write failure',
+					ERRCODE = 'check_violation';
+			END IF;
+			RETURN NEW;
+		END
+		$body$;
+		CREATE TRIGGER %s BEFORE UPDATE ON staff_totp_credentials
+		FOR EACH ROW EXECUTE FUNCTION %s()`,
+		functionName, userID, triggerName, functionName)); err != nil {
+		t.Fatalf("install totp update failure: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.WithoutCancel(ctx), fmt.Sprintf(
+			"DROP TRIGGER IF EXISTS %s ON staff_totp_credentials; DROP FUNCTION IF EXISTS %s()",
+			triggerName, functionName))
+	})
+}
+
 func TestSessionVerificationExpires(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey)
@@ -461,7 +533,6 @@ func TestSessionVerificationExpires(t *testing.T) {
 	}
 }
 
-// TestNoKeyMeansNoEnrolment proves an unconfigured deployment writes nothing.
 func TestNoKeyMeansNoEnrolment(t *testing.T) {
 	s := twofactor.NewStore(pool, nil)
 	userID, email := staff(t)
@@ -481,6 +552,32 @@ func TestNoKeyMeansNoEnrolment(t *testing.T) {
 	}
 	if n != 0 {
 		t.Error("a credential was written with no encryption key configured")
+	}
+}
+
+// TestAnUnkeyedDeploymentSaysSoInsteadOf500 holds the page state an
+// unconfigured deployment must reach: an empty key disables the factor the way
+// an empty Stripe key disables payment — off and saying so. Enrolled surfaces
+// ErrDisabled, which is not ErrSecretUnreadable, so a handler that takes its
+// generic failure branch answers 500 and never renders pages.TwoFactor's
+// !Enabled branch, whose whole job is to name the missing GOEN_TOTP_KEY.
+func TestAnUnkeyedDeploymentSaysSoInsteadOf500(t *testing.T) {
+	userID, email := staff(t)
+	h := twofactor.NewHandler(twofactor.NewStore(pool, nil), slog.New(slog.DiscardHandler), false)
+
+	ctx := account.WithUser(t.Context(), account.User{ID: userID, Email: email, Role: "admin"})
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/admin/verify", http.NoBody)
+	out := httptest.NewRecorder()
+	h.Challenge(out, req)
+
+	if out.Code != http.StatusOK {
+		t.Fatalf("Challenge = %d, want 200; body = %q", out.Code, out.Body.String())
+	}
+	// The status is not the lock on its own: a page rendered with Enabled
+	// hardcoded true keeps the 200 and loses the one sentence that tells an
+	// operator which variable is missing.
+	if want := i18n.T(ctx, i18n.KeyTwoFAOffBody); !strings.Contains(out.Body.String(), want) {
+		t.Errorf("the off-state notice is missing; want %q in the body", want)
 	}
 }
 
@@ -639,6 +736,12 @@ func TestNobodyCanPromoteThemselvesThroughTheStaffForm(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey)
 	actor, address := staff(t)
+	// A SECOND admin, because the demotion below is refused outright when the
+	// actor is the only one — users_last_admin is a database rule, not a Go
+	// check. Which admins exist is shared state and the suite shuffles, so a
+	// fixture relying on another test's leftover admin passes only in some
+	// orderings.
+	staff(t)
 	// Demoted first, or "is still admin" of an admin cannot fail.
 	if _, err := pool.Exec(ctx,
 		`UPDATE users SET role = 'staff' WHERE id = $1`, actor); err != nil {
@@ -691,18 +794,15 @@ func roleOf(t *testing.T, userID string) string {
 
 // TestPromotingAnUnprovedAccountTakesItsCredential closes a full takeover.
 //
-// goen does not verify an address at registration, which is recorded and
-// deliberate. So somebody who knows an address is about to be hired can
-// register it FIRST with their own password, keep a live session, and wait.
-// UpsertStaff resolved ON CONFLICT and set only the role — leaving that
-// password and those sessions exactly where they were — while sessions read
-// users.role live on every request. The promotion handed the back office to
-// whoever had registered the address, and StaffOnly then let the same session
-// enrol its own second factor.
+// goen does not verify an address at registration, so somebody who knows an
+// address is about to be hired can register it FIRST with their own password,
+// keep a live session, and wait: sessions read users.role live on every
+// request, so a promotion that left the password and the sessions in place
+// would hand the back office to whoever registered the address, and StaffOnly
+// would then let that session enrol its own second factor.
 //
-// The rule restored here is the one the statement beside it already stated: a
-// new colleague gets NO password and proves the mailbox through /forgot. An
-// account that has never proved its address is in exactly that position,
+// A new colleague gets NO password and proves the mailbox through /forgot, and
+// an account that has never proved its address is in exactly that position,
 // whoever created it.
 func TestPromotingAnUnprovedAccountTakesItsCredential(t *testing.T) {
 	ctx := t.Context()
@@ -758,13 +858,10 @@ func TestPromotingAnUnprovedAccountTakesItsCredential(t *testing.T) {
 }
 
 // TestPromotingAProvedAccountKeepsIt is the other half, and the reason the rule
-// asks about the ADDRESS rather than about promotion.
-//
-// A verified address provably belongs to whoever reads that mailbox — which is
-// the person being hired. Clearing their password would be friction bought with
-// nothing, and would make the common case (a shop hiring somebody who already
-// shops there, which is the recorded reason promotion exists at all) worse than
-// before.
+// asks about the ADDRESS rather than about promotion: a verified address
+// provably belongs to whoever reads that mailbox, which is the person being
+// hired. Clearing their password would be friction bought with nothing, in the
+// common case of a shop hiring somebody who already shops there.
 func TestPromotingAProvedAccountKeepsIt(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey)
@@ -797,10 +894,8 @@ func TestPromotingAProvedAccountKeepsIt(t *testing.T) {
 }
 
 // TestPromotionEndsTheSessionsOpenedBeforeIt holds the half the credential test
-// cannot see. secure_promoted_account ends sessions ALWAYS and not only when it
-// cleared an unproved password — its own comment says so — and the only test
-// covering a PROVED promotion asserted the password and nothing else, so
-// wrapping the DELETE in the cleared branch left every suite green.
+// cannot see: secure_promoted_account ends sessions ALWAYS, and not only when
+// it cleared an unproved password.
 //
 // role is read live on every request, so a session opened before the promotion
 // becomes a back-office session the moment the role moves: one the shop had not
@@ -844,14 +939,11 @@ func TestPromotionEndsTheSessionsOpenedBeforeIt(t *testing.T) {
 }
 
 // TestRecoveringAFactorEndsTheSessionsItAdmitted holds the other door into the
-// room RevokeStaff already guards.
-//
-// Removing a second factor is the moment it stops being proof. But a session
-// carries its own step-up stamp that SessionTOTPVerified trusts for the rest of
-// StepUpWindow, so a stolen session kept the back office for up to twelve hours
-// after the credential it was admitted on was taken away — and could use
-// StaffOnly to enrol a replacement of the attacker's own choosing, which is
-// exactly the recovery path this function exists to be.
+// room RevokeStaff already guards. A session carries its own step-up stamp that
+// SessionTOTPVerified trusts for the rest of StepUpWindow, so a session left
+// open keeps the back office for up to twelve hours after the credential it was
+// admitted on was removed — and can use StaffOnly to enrol a replacement of the
+// attacker's own choosing, which is exactly the path this function exists to be.
 func TestRecoveringAFactorEndsTheSessionsItAdmitted(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey)
@@ -882,14 +974,73 @@ func TestRecoveringAFactorEndsTheSessionsItAdmitted(t *testing.T) {
 	}
 }
 
-// TestTwoAdminsRevokingEachOtherLeaveOne holds a guard that used to be a
-// read-then-write.
-//
-// CountAdmins ran on the pool and RevokeStaff wrote separately, so two admins
-// revoking each other at once both read two, both passed `admins > 1`, and both
-// wrote. Reproduced against a scratch database: zero admins left, and no way
-// back — granting the role needs /admin/staff, which needs an admin. That is
-// the state this page was built to make impossible.
+// TestRecoveringAFactorRollsBackWhenSessionRevocationFails proves the factor
+// and the sessions are one security change. A failure after deleting only the
+// factor would leave the exact stepped-up session recovery exists to end.
+func TestRecoveringAFactorRollsBackWhenSessionRevocationFails(t *testing.T) {
+	ctx := t.Context()
+	s := twofactor.NewStore(pool, testKey)
+
+	victim, victimEmail := staff(t)
+	other, _ := staff(t)
+	enrol(t, s, victim, victimEmail)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO sessions (token_hash, user_id, expires_at, totp_verified_at)
+		VALUES (sha256($1::bytea), $2, now() + interval '14 days', now())`,
+		"rollback-stolen-"+victim, victim); err != nil {
+		t.Fatalf("create stepped-up session: %v", err)
+	}
+
+	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
+	functionName := pgx.Identifier{"test_fail_factor_session_delete_" + suffix}.Sanitize()
+	triggerName := pgx.Identifier{"test_fail_factor_session_delete_" + suffix}.Sanitize()
+	constraintName := "test_factor_session_delete_" + suffix
+	if _, err := pool.Exec(ctx, fmt.Sprintf(`
+		CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $body$
+		BEGIN
+			IF OLD.user_id = '%s'::uuid THEN
+				RAISE EXCEPTION USING
+					MESSAGE = 'forced session revocation failure',
+					ERRCODE = 'check_violation',
+					CONSTRAINT = '%s';
+			END IF;
+			RETURN OLD;
+		END
+		$body$;
+		CREATE TRIGGER %s BEFORE DELETE ON sessions
+		FOR EACH ROW EXECUTE FUNCTION %s()`,
+		functionName, victim, constraintName, triggerName, functionName)); err != nil {
+		t.Fatalf("install session failure: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.WithoutCancel(ctx), fmt.Sprintf(
+			"DROP TRIGGER IF EXISTS %s ON sessions; DROP FUNCTION IF EXISTS %s()",
+			triggerName, functionName))
+	})
+
+	err := s.RemoveFactor(ctx, victim, other)
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	if !ok || pgErr.ConstraintName != constraintName {
+		t.Fatalf("RemoveFactor = %v, want forced session failure", err)
+	}
+	if !enrolled(t, victim) {
+		t.Error("the credential was deleted even though its sessions could not be ended")
+	}
+	var sessions int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM sessions WHERE user_id = $1`, victim).Scan(&sessions); err != nil {
+		t.Fatalf("count sessions: %v", err)
+	}
+	if sessions == 0 {
+		t.Error("the forced failure did not leave the session in place, so the rollback test proved nothing")
+	}
+}
+
+// TestTwoAdminsRevokingEachOtherLeaveOne holds the last-admin guard against a
+// read-then-write: counting on the pool and writing separately lets two admins
+// revoking each other both read two, both pass `admins > 1`, and both write.
+// Zero admins has no way back — granting the role needs /admin/staff, which
+// needs an admin.
 func TestTwoAdminsRevokingEachOtherLeaveOne(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey)

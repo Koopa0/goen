@@ -360,8 +360,8 @@ func constraintViolation(err error) (code, constraint string) {
 	return pgErr.Code, pgErr.ConstraintName
 }
 
-// Privilege conformance. Every other case in this package connects as the OWNER, who is subject
-// to no missing grant, so this block is the only thing that can see the model is porous.
+// Every other case in this package connects as the OWNER, who is subject to no missing
+// grant, so nothing but the cases below can see whether the privilege model is porous.
 
 // appWritableThroughDefiner names the tables a SECURITY DEFINER function writes that `store`
 // may STILL write directly, with the reason.
@@ -693,9 +693,9 @@ func TestEveryStoredFunctionEndsSearchPathWithPgTemp(t *testing.T) {
 	}
 }
 
-// TestSearchPathPinDefeatsTempShadowing is the behavioural proof behind the catalog gate above:
-// a decoy pg_temp.categories is planted and a cycle written, which the guard misses if it reads
-// the decoy. It runs as the OWNER because `store` holds no write on categories to reach it with.
+// TestSearchPathPinDefeatsTempShadowing plants a decoy pg_temp.categories and writes a cycle,
+// which the guard misses if it reads the decoy. It runs as the OWNER because `store` holds no
+// write on categories to reach it with.
 func TestSearchPathPinDefeatsTempShadowing(t *testing.T) {
 	ctx := t.Context()
 	tx, err := schemaPool(t).Begin(ctx)
@@ -745,6 +745,15 @@ func TestStoreCannotDeleteUsers(t *testing.T) {
 	// The same hole from the INSERT side, which is the easier one to forget.
 	if goenAppHasColumnPriv(t, "users", "role", "INSERT") {
 		t.Error("store can INSERT users.role — a registration could name its own role")
+	}
+}
+
+func TestStoreCannotRewriteTheInvoiceFilingSnapshot(t *testing.T) {
+	if goenAppHasTablePriv(t, "invoice_preferences", "UPDATE") {
+		t.Error("store can UPDATE invoice_preferences; a storefront request could rewrite the tax filing identity after checkout")
+	}
+	if !goenAppHasTablePriv(t, "invoice_preferences", "INSERT") {
+		t.Error("store cannot INSERT invoice_preferences; checkout cannot create the filing snapshot")
 	}
 }
 
@@ -841,7 +850,7 @@ func TestNoStoredFunctionIsPublicExecute(t *testing.T) {
 var adminForbiddenTables = []string{
 	"payments", "refunds", "inventory_movements",
 	"inventory_reservations", "store_credit_entries", "audit_events",
-	"order_number_counters",
+	"loyalty_redemption_operations", "order_number_counters",
 }
 
 // TestAdminCannotWriteMoneyOrStockDirectly is the back office's half: `admin` is a wider set
@@ -954,7 +963,8 @@ func TestNoRoleCanWriteStockDirectly(t *testing.T) {
 func TestAdminHasNoDirectWriteToMoney(t *testing.T) {
 	adminForbidden := []string{
 		"payments", "refunds", "inventory_movements",
-		"inventory_reservations", "store_credit_entries", "order_number_counters",
+		"inventory_reservations", "store_credit_entries",
+		"loyalty_redemption_operations", "order_number_counters",
 	}
 	for _, table := range adminForbidden {
 		for _, priv := range []string{"INSERT", "UPDATE", "DELETE"} {

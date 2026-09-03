@@ -1,8 +1,7 @@
 // Package media stores and serves uploaded images.
 //
-// Nothing the client says about a file is believed: what it is, is whatever Go's
-// decoders make of it, and what is stored is goen's own re-encoding of the
-// pixels rather than the uploaded bytes.
+// Nothing the client says about a file is believed: the decoders decide what it
+// is, and what is stored is goen's own re-encoding rather than the upload.
 package media
 
 import (
@@ -12,6 +11,10 @@ import (
 
 // MaxUploadBytes is the largest file goen will read from a request.
 const MaxUploadBytes = 8 << 20
+
+// MaxStoredBytes bounds goen's normalized output as well as the wire input.
+// Decoding and re-encoding can expand data, so the input cap cannot imply this.
+const MaxStoredBytes = 8 << 20
 
 // MaxPixels bounds what goen will decode.
 const MaxPixels = 40_000_000
@@ -26,7 +29,6 @@ const JPEGQuality = 82
 // URL is the content's own digest, so the bytes at it can never change.
 const CacheTTL = 365 * 24 * time.Hour
 
-// The errors a caller branches on.
 var (
 	// ErrNotAnImage is a file whose bytes no supported decoder accepts.
 	ErrNotAnImage = errors.New("media: not a supported image")

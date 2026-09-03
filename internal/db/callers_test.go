@@ -13,12 +13,11 @@ import (
 )
 
 // TestEveryGeneratedQueryHasAProductionCaller covers the generated layer that
-// x/tools/deadcode treats as live through reflection. It asks the deliberately
-// narrower question: does each sqlc method have a direct selector CallExpr in
-// hand-written, non-test production Go?
+// x/tools/deadcode treats as live through reflection: does each sqlc method have
+// a direct selector CallExpr in hand-written, non-test production Go?
 //
-// This is not type-aware: a same-named selector on another receiver can satisfy
-// it, and a call inside a dead wrapper still counts. make deadcode owns wrapper
+// It is not type-aware — a same-named selector on another receiver satisfies it,
+// and a call inside a dead wrapper still counts. make deadcode owns wrapper
 // reachability; this test owns generated methods with zero production calls.
 func TestEveryGeneratedQueryHasAProductionCaller(t *testing.T) {
 	t.Parallel()
@@ -70,8 +69,8 @@ func generatedMethods(t *testing.T) []string {
 }
 
 // productionCallNames returns selector names used as direct calls in files the
-// current production build includes. Tests, integration-tagged files and every
-// generated projection are excluded so none can make the guard greener.
+// current production build includes. Tests, integration-tagged files and
+// generated code are excluded: none of them may make the guard greener.
 func productionCallNames(t *testing.T) map[string]struct{} {
 	t.Helper()
 

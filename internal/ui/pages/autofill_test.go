@@ -23,19 +23,20 @@ func TestEveryCheckoutFieldTellsTheBrowserWhatItIs(t *testing.T) {
 	t.Parallel()
 
 	want := map[string]string{
-		"email":         "email",
-		"name":          "name",
-		"phone":         "tel",
-		"postal_code":   "postal-code",
-		"city":          "address-level1",
-		"district":      "address-level2",
-		"street":        "street-address",
-		"addr-name":     "name",
-		"addr-phone":    "tel",
-		"addr-postal":   "postal-code",
-		"addr-city":     "address-level1",
-		"addr-district": "address-level2",
-		"addr-street":   "street-address",
+		"email":                "email",
+		"name":                 "name",
+		"phone":                "tel",
+		"postal_code":          "postal-code",
+		"city":                 "address-level1",
+		"district":             "address-level2",
+		"street":               "street-address",
+		"invoice_company_name": "organization",
+		"addr-name":            "name",
+		"addr-phone":           "tel",
+		"addr-postal":          "postal-code",
+		"addr-city":            "address-level1",
+		"addr-district":        "address-level2",
+		"addr-street":          "street-address",
 	}
 	offBecause := map[string]string{
 		"coupon":            "a promotion code is not the customer's own data; a browser offering the last one is offering somebody else's",
@@ -204,9 +205,8 @@ func assertCheckoutKeyboards(t *testing.T, controls map[string]map[string]string
 	if got := store["inputmode"]; got != "" {
 		t.Errorf("pickup_store_code inputmode = %q, want none: mistake #28 would make 149 Hi-Life letter-leading codes unreachable", got)
 	}
-	// Only check these after the field has an explicit off decision, so the
-	// natural RED reports the root omission once. Later mutations of either
-	// keyboard hint still fail by identity.
+	// Only after the field has an explicit off decision, so a missing decision
+	// is reported once rather than three times.
 	if store["autocomplete"] == "off" {
 		if got := store["autocapitalize"]; got != "characters" {
 			t.Errorf("pickup_store_code autocapitalize = %q, want characters", got)

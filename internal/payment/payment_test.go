@@ -5,50 +5,11 @@ import (
 	"errors"
 	"strings"
 	"testing"
-	"time"
 
 	stripe "github.com/stripe/stripe-go/v86"
 
-	"github.com/koopa0/goen/internal/loyalty"
 	"github.com/koopa0/goen/internal/payment"
 )
-
-// TestAPlacedOrderCanActuallyBePaidFor holds that an order placed through
-// checkout can still open a Checkout Session when the customer presses Pay.
-// Time has to PASS here: checkout's one-hour hold must leave Stripe's
-// 30-minute floor plus its one-minute start margin after a 29-minute pay window.
-func TestAPlacedOrderCanActuallyBePaidFor(t *testing.T) {
-	t.Parallel()
-	const expectedPayWindow = 29 * time.Minute
-	const checkoutHold = time.Hour
-
-	placedAt := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
-	o := payment.Order{Number: "GO-1", TotalCents: 199900, HoldExpiresAt: placedAt.Add(checkoutHold)}
-
-	tests := []struct {
-		name    string
-		elapsed time.Duration
-		want    bool
-	}{
-		{name: "one second after placing", elapsed: time.Second, want: true},
-		{name: "halfway through the pay window", elapsed: expectedPayWindow / 2, want: true},
-		{name: "at the last moment of the pay window", elapsed: expectedPayWindow, want: true},
-		// Past the window the remaining hold is under Stripe's floor.
-		{name: "one second past the pay window", elapsed: expectedPayWindow + time.Second, want: false},
-		{name: "long past it", elapsed: checkoutHold, want: false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := o.HoldCoversASession(placedAt.Add(tt.elapsed)); got != tt.want {
-				t.Errorf("HoldCoversASession(%s after placing) = %v, want %v — "+
-					"checkout hold=%s, expected pay window=%s",
-					tt.elapsed, got, tt.want,
-					checkoutHold, expectedPayWindow)
-			}
-		})
-	}
-}
 
 // A signing secret for the tests only; it authenticates nothing that exists.
 const testWebhookSecret = "whsec_thisisatestsecretforgoenonly" //nolint:gosec // G101: test fixture
@@ -136,8 +97,6 @@ func otherSecretHeader(t *testing.T, body []byte) string {
 	return p.Header
 }
 
-// TestWebhookAcceptsAGenuineSignature is the other half: without it the test
-// above passes with verification hard-wired to fail.
 func TestWebhookAcceptsAGenuineSignature(t *testing.T) {
 	g := enabledGateway(t)
 	body, header := signed(t, sessionEvent("evt_ok", "cs_test_ok", "paid", 199900))
@@ -151,11 +110,59 @@ func TestWebhookAcceptsAGenuineSignature(t *testing.T) {
 	}
 }
 
+func TestWebhookRejectsInvalidDurableEventIdentitiesAfterSignatureVerification(t *testing.T) {
+	g := enabledGateway(t)
+	for _, id := range []string{"", strings.Repeat("x", 256), " \t", "evt_ok\nforged"} {
+		t.Run(id, func(t *testing.T) {
+			body, header := signed(t, sessionEvent(id, "cs_test_ok", "paid", 199900))
+			_, err := g.VerifyWebhook(body, header)
+			if err == nil {
+				t.Fatal("VerifyWebhook() accepted an invalid event id")
+			}
+			if errors.Is(err, payment.ErrBadSignature) {
+				t.Errorf("VerifyWebhook() error = %v, but the signature was genuine", err)
+			}
+		})
+	}
+}
+
+func TestInvalidSessionIdentitiesNeverBecomeWebhookObjectReferences(t *testing.T) {
+	g := enabledGateway(t)
+	for _, id := range []string{"", strings.Repeat("x", 256), " \t", "cs_test\nforged"} {
+		t.Run(id, func(t *testing.T) {
+			body, header := signed(t, sessionEvent("evt_valid", id, "paid", 199900))
+			ev, err := g.VerifyWebhook(body, header)
+			if err != nil {
+				t.Fatalf("VerifyWebhook() error = %v", err)
+			}
+			if got := payment.ObjectRef(&ev); got != "" {
+				t.Errorf("ObjectRef() = %q, want empty", got)
+			}
+			if _, ok := payment.CaptureFrom(&ev); ok {
+				t.Error("CaptureFrom() accepted an invalid session id")
+			}
+
+			ev.Type = "checkout.session.expired"
+			if _, ok := payment.AbandonedSessionFrom(&ev); ok {
+				t.Error("AbandonedSessionFrom() accepted an invalid session id")
+			}
+
+			unsettledBody, unsettledHeader := signed(t,
+				sessionEvent("evt_valid_unsettled", id, "unpaid", 199900))
+			unsettled, err := g.VerifyWebhook(unsettledBody, unsettledHeader)
+			if err != nil {
+				t.Fatalf("VerifyWebhook(unsettled) error = %v", err)
+			}
+			if _, ok := payment.UnsettledSessionFrom(&unsettled); ok {
+				t.Error("UnsettledSessionFrom() accepted an invalid session id")
+			}
+		})
+	}
+}
+
 // TestWebhookReadsASignedOlderVersionByShape locks the deliberate webhook
 // version policy: api_version is metadata about the immutable event payload,
 // not a reason to reject an otherwise authentic shape this binary understands.
-// Removing IgnoreAPIVersionMismatch makes verification fail before CaptureFrom
-// gets the opportunity to classify the payload.
 func TestWebhookReadsASignedOlderVersionByShape(t *testing.T) {
 	g := enabledGateway(t)
 	event := sessionEvent("evt_old_version", "cs_old_version", "paid", 199900)
@@ -179,7 +186,6 @@ func TestWebhookReadsASignedOlderVersionByShape(t *testing.T) {
 	}
 }
 
-// typed relabels an event.
 func typed(ev map[string]any, eventType string) map[string]any {
 	ev["type"] = eventType
 	return ev
@@ -234,9 +240,8 @@ func TestOnlyAPaidSessionIsACapture(t *testing.T) {
 			}
 			_, isAbandoned := payment.AbandonedSessionFrom(&ev)
 			_, isUnsettled := payment.UnsettledSessionFrom(&ev)
-			// Every event in this table has a checkout type. The package-internal
-			// classifier test owns that closed type set; this test owns whether
-			// the payload readers can understand each shape.
+			// Every event in this table has a checkout type, so one no reader
+			// can decode is unreadable rather than ignored.
 			unreadable := !got && !isAbandoned && !isUnsettled
 			if unreadable != tt.isUnreadable {
 				t.Errorf("unreadable = %v, want %v", unreadable, tt.isUnreadable)
@@ -507,43 +512,6 @@ func TestTheSessionKeyFollowsTheOrderTheAmountAndTheAttempt(t *testing.T) {
 	}
 }
 
-// TestASessionIsNeverOpenedOnALapsedHold is the rule that binds a Checkout
-// Session to the stock behind it: a hold with less than Stripe's floor left has
-// no honest session at all, and padding it back up to that floor is the defect.
-func TestASessionIsNeverOpenedOnALapsedHold(t *testing.T) {
-	now := time.Date(2026, 8, 4, 12, 0, 0, 0, time.UTC)
-
-	tests := []struct {
-		name  string
-		hold  time.Time
-		start bool
-	}{
-		// `now` is both the base and the instant the gate is asked at, so this
-		// is the zero-elapsed case and nothing else.
-		{"exactly at Stripe's floor", now.Add(30 * time.Minute), false},
-		{"one nanosecond below the safe boundary", now.Add(31*time.Minute - time.Nanosecond), false},
-		{"exactly at the safe boundary", now.Add(31 * time.Minute), true},
-		{"an hour of hold left", now.Add(time.Hour), true},
-		{"a second under Stripe's floor", now.Add(30*time.Minute - time.Second), false},
-		{"five minutes left", now.Add(5 * time.Minute), false},
-		{"the hold ran out", now.Add(-time.Minute), false},
-		{"no hold at all", time.Time{}, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			o := payment.Order{Number: "GO-1", TotalCents: 199900, HoldExpiresAt: tt.hold}
-			if got := o.HoldCoversASession(now); got != tt.start {
-				t.Errorf("HoldCoversASession with the hold at %v = %v, want %v",
-					tt.hold, got, tt.start)
-			}
-			if got := o.SessionExpiry(); !got.Equal(tt.hold) {
-				t.Errorf("SessionExpiry() = %v, want the hold's own deadline %v — a session "+
-					"that expires on any other schedule outlives the stock", got, tt.hold)
-			}
-		})
-	}
-}
-
 // TestOtherEventTypesAreNotCaptures proves no other event posts money.
 // `checkout.session.async_payment_succeeded` does NOT belong here: it IS one.
 func TestOtherEventTypesAreNotCaptures(t *testing.T) {
@@ -591,23 +559,10 @@ func TestNoKeyIsNotAnError(t *testing.T) {
 	if g.Enabled() {
 		t.Error("gateway reports enabled with no key")
 	}
-	if _, _, err := g.StartSession(t.Context(), &payment.Order{Number: "GO-1"}, 0); !errors.Is(err, payment.ErrDisabled) {
+	if _, err := g.StartSession(t.Context(), &payment.Order{Number: "GO-1"}, 0); !errors.Is(err, payment.ErrDisabled) {
 		t.Errorf("StartSession returned %v, want ErrDisabled", err)
 	}
 	if _, err := g.VerifyWebhook([]byte("{}"), ""); !errors.Is(err, payment.ErrDisabled) {
 		t.Errorf("VerifyWebhook returned %v, want ErrDisabled", err)
-	}
-}
-
-// TestTheLoyaltyConstantsMatchTheProgramme proves the capture awards on the
-// terms internal/loyalty publishes, which payment copies rather than imports.
-func TestTheLoyaltyConstantsMatchTheProgramme(t *testing.T) {
-	if got, want := payment.LoyaltyValidityDays, loyalty.Days(loyalty.Validity); got != want {
-		t.Errorf("the capture expires points after %d days and the programme says %d",
-			got, want)
-	}
-	if got, want := payment.MembershipWindowDays, loyalty.Days(loyalty.MembershipWindow); got != want {
-		t.Errorf("the capture reads a %d-day spend window and the programme says %d",
-			got, want)
 	}
 }

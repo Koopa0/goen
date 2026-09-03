@@ -28,7 +28,7 @@ func (s *Store) AttachImage(
 		return fmt.Errorf("%w: the English alt text is longer than %d runes", ErrInvalid, MaxAltRunes)
 	}
 	return s.audited(ctx, Event{
-		Action: ActionAttachImage, Table: "product_images", ID: uuid.NullUUID{},
+		Action: actionAttachImage, Table: "product_images", ID: uuid.NullUUID{},
 		After: map[string]any{"product": slug, "digest": digest, "alt": alt},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -45,7 +45,7 @@ func (s *Store) AttachImage(
 // DetachImage removes one from a product; the shared media object is not deleted.
 func (s *Store) DetachImage(ctx context.Context, slug, digest string) error {
 	return s.audited(ctx, Event{
-		Action: ActionDetachImage, Table: "product_images", ID: uuid.NullUUID{},
+		Action: actionDetachImage, Table: "product_images", ID: uuid.NullUUID{},
 		Before: map[string]any{"product": slug, "digest": digest},
 	},
 		func(ctx context.Context, q *db.Queries) error {

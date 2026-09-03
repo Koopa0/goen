@@ -47,10 +47,8 @@ func (*failingResponseWriter) Write([]byte) (int, error) {
 }
 func (*failingResponseWriter) WriteHeader(int) {}
 
-// TestRequiredAssetsAreVersioned covers every asset the templates name. A
-// missing file already stops the binary during package initialization; this
-// proves the URL each constant produces is the versioned one that the year-long
-// cache header depends on.
+// TestRequiredAssetsAreVersioned proves each constant produces the versioned
+// URL the year-long cache header depends on.
 func TestRequiredAssetsAreVersioned(t *testing.T) {
 	t.Parallel()
 
@@ -171,9 +169,6 @@ func TestHandlerServesRequestedAsset(t *testing.T) {
 	}
 }
 
-// TestAWriteFailureUsesTheConfiguredRequestLogger catches both regressions in
-// the failure-only path: falling back to slog.Default and dropping the request
-// context before the record reaches its handler.
 func TestAWriteFailureUsesTheConfiguredRequestLogger(t *testing.T) {
 	logHandler := &contextLogHandler{}
 	log := slog.New(logHandler)
@@ -483,16 +478,9 @@ func TestHandlerRefusesUnknownAndDirectories(t *testing.T) {
 	}
 }
 
-// TestAnUploadedKeyResolvesToTheMediaHandler proves a digest reaches the
-// media handler and nothing else does.
-//
-// internal/media stores an image under the sha256 of its bytes and serves it at
-// /media/{digest}; assets resolves a storage key to a URL. The two are held
-// together by the digest's SHAPE, spelled out independently in both packages
-// because assets must not import a feature package.
-//
-// This is what stops that agreement drifting: change the shape in one place and
-// an uploaded product photo silently renders as the placeholder.
+// TestAnUploadedKeyResolvesToTheMediaHandler holds the digest SHAPE that
+// internal/media and assets each spell out independently: change it in one
+// place and an uploaded product photo silently renders as the placeholder.
 func TestAnUploadedKeyResolvesToTheMediaHandler(t *testing.T) {
 	const digest = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
 
@@ -504,13 +492,12 @@ func TestAnUploadedKeyResolvesToTheMediaHandler(t *testing.T) {
 		t.Errorf("assets.ProductImageSrcset(digest) = %q, want empty", got)
 	}
 
-	// And nothing that is not a digest takes that path.
 	for _, key := range []string{
 		"aurora-edge-7-01.webp",
 		"../../etc/passwd",
 		strings.ToUpper(digest), // uppercase hex is not the shape
-		digest[:63],             // too short
-		digest + "a",            // too long
+		digest[:63],
+		digest + "a",
 		"9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a0g", // not hex
 	} {
 		if got := assets.ProductImageURL(key); strings.HasPrefix(got, "/media/") {

@@ -78,8 +78,6 @@ var (
 
 	KeyStatusRefunded = key("order.status.refunded", Message{ZhHant: "已退款", En: "Refunded"})
 
-	// Beneath the total on the order page: the goods cost what they cost, and
-	// this says how part of it was paid.
 	KeyOrderCreditApplied = key("order.credit", Message{
 		ZhHant: "商店額度折抵",
 		En:     "Paid with store credit",

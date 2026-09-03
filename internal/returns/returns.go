@@ -15,7 +15,6 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// Sentinel errors, each a distinct decision for the handler.
 var (
 	// ErrNotFound is an order number that names nothing.
 	ErrNotFound = errors.New("returns: order not found")
@@ -28,6 +27,9 @@ var (
 	ErrInvalid = errors.New("returns: invalid request")
 	// ErrTooMany is a requested quantity above what remains returnable.
 	ErrTooMany = errors.New("returns: quantity exceeds returnable amount")
+	// ErrAccountErased means a concurrent erasure removed the only destination
+	// for this return's store-credit payout before the request could commit.
+	ErrAccountErased = errors.New("returns: account was erased before the return committed")
 )
 
 // MaxReasonRunes bounds the reason field.
@@ -58,10 +60,10 @@ func (r *Request) Validate() error {
 	if utf8.RuneCountInString(r.Reason) > MaxReasonRunes {
 		return ErrInvalid
 	}
-	for _, c := range r.Reason {
-		if unicode.IsControl(c) && c != '\n' && c != '\t' && c != '\r' {
-			return ErrInvalid
-		}
+	if strings.ContainsFunc(r.Reason, func(c rune) bool {
+		return unicode.IsControl(c) && c != '\n' && c != '\t' && c != '\r'
+	}) {
+		return ErrInvalid
 	}
 
 	total := int32(0)

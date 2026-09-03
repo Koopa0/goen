@@ -48,6 +48,7 @@ DELETE FROM cart_items WHERE cart_id = $1;
 -- name: CartLines :many
 SELECT
     pv.id AS variant_id,
+    pv.product_id,
     pv.sku,
     pv.price_cents,
     pv.compare_at_price_cents,
@@ -57,6 +58,8 @@ SELECT
     p.status AS product_status,
     p.slug,
     localized_name(p.name, p.name_en, @locale::text) AS name,
+    p.warranty_note,
+    p.warranty_months,
     b.name AS brand,
     -- Localized because the cart line SHOWS the selection; the PDP's variant
     -- query matches on it and is exempt for exactly that reason.
@@ -93,6 +96,15 @@ ORDER BY ci.added_at, pv.id;
 -- How many items a cart holds, for the header badge. UNITS, not lines.
 -- name: CartItemCount :one
 SELECT coalesce(sum(quantity), 0)::bigint FROM cart_items WHERE cart_id = $1;
+
+-- The cart row is already locked by every caller. Updating an existing variant
+-- does not consume another ECPay ItemSeq; inserting a distinct one does.
+-- name: CartLineCapacity :one
+SELECT count(*)::integer AS line_count,
+       (count(*) FILTER (WHERE variant_id = @variant_id::uuid) > 0)::boolean
+           AS already_present
+FROM cart_items
+WHERE cart_id = @cart_id::uuid;
 
 -- name: VariantForCart :one
 SELECT pv.id, pv.is_active,
@@ -174,13 +186,16 @@ INSERT INTO orders (
 )
 RETURNING id, order_number;
 
--- The price is COPIED rather than referenced: a later price change must not
--- rewrite a placed order.
+-- The price and warranty promise are COPIED rather than referenced: a later
+-- catalogue change must not rewrite a placed order or shorten its cover.
 -- name: CreateOrderLine :exec
 INSERT INTO order_lines (
-    order_id, variant_id, sku, product_name, variant_label,
-    unit_price_cents, quantity, position
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
+    order_id, product_id, variant_id, sku, product_name, variant_label,
+    warranty_note, warranty_months, unit_price_cents, quantity, position
+) VALUES (
+    @order_id, @product_id, @variant_id, @sku, @product_name, @variant_label,
+    @warranty_note, @warranty_months, @unit_price_cents, @quantity, @position
+);
 
 -- Both destination groups are written and exactly one is non-NULL, which
 -- order_private_data_one_destination is what refuses anything else.
@@ -265,7 +280,7 @@ SELECT cart_id, order_id FROM checkout_attempts WHERE idempotency_key = $1;
 
 -- name: HoldForOrder :one
 SELECT hold_inventory(
-    @order_id, @variant_id, @quantity::integer, @expires_at, @idempotency_key::text
+    @order_id, @variant_id, @quantity::integer, @hold_for::interval, @idempotency_key::text
 );
 
 -- name: RecordPlacedEvent :exec
@@ -353,12 +368,14 @@ SELECT lock_store_credit_for_checkout(@user_id)::bigint;
 
 -- A NEGATIVE amount, keyed on the order so a retried checkout debits once.
 -- name: SpendCredit :one
-SELECT post_store_credit(@user_id, @amount_cents::bigint, @reason::text,
-                         @order_id, @idempotency_key::text, NULL);
+SELECT spend_store_credit(@order_id, @amount_cents::bigint);
 
 -- name: CreateInvoicePreference :exec
-INSERT INTO invoice_preferences (order_id, invoice_type, carrier_code, tax_id)
-VALUES (@order_id, @invoice_type::text, nullif(@carrier_code::text, ''), nullif(@tax_id::text, ''));
+INSERT INTO invoice_preferences
+    (order_id, invoice_type, carrier_code, tax_id, customer_name, customer_email)
+VALUES
+    (@order_id, @invoice_type::text, nullif(@carrier_code::text, ''),
+     nullif(@tax_id::text, ''), @customer_name::text, @customer_email::text);
 
 -- The window is decided HERE against the DATABASE's clock: starts_at defaults to
 -- its now(), and comparing that to Go's is comparing two clocks. Checkout first

@@ -181,31 +181,52 @@ templ AdminHealth(p layouts.Page, v *WorkerHealthView) {
 				</div>
 			}
 			if len(v.StrandedClaims) > 0 {
-				// A 折讓 claim taken before the provider was asked, on a call that
-				// never answered. Keeping it is right — whether ECPay filed is not
-				// knowable from here — and the order is what an operator needs to
-				// go and look, so the row links to it.
+				// Ordinary ambiguity is reconciled automatically. An aged Allowance
+				// becomes actionable only after an operator verifies provider absence.
 				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminHPClaimsHeading) }</h2>
 				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHPClaimsHint) }</p>
 				<div class="goen-admin__tablewrap">
 					<table class="ui-table goen-admin__table">
 						<thead>
 							<tr>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColKey) }</th>
 								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColOrder) }</th>
 								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColKind) }</th>
 								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColAmount) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColStatus) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColAttempts) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColLastError) }</th>
 								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColStarted) }</th>
+								<th scope="col"><span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminHPAllowanceResendAuthorize) }</span></th>
 							</tr>
 						</thead>
 						<tbody>
 							for _, c := range v.StrandedClaims {
 								<tr>
+									<td>{ c.Operation }</td>
 									<td>
 										<a href={ templ.SafeURL("/admin/orders/" + c.OrderNumber) }>{ c.OrderNumber }</a>
 									</td>
 									<td>{ c.Kind }</td>
 									<td>{ c.Amount() }</td>
+									<td>{ c.Status }</td>
+									<td>{ c.AttemptsText() }</td>
+									<td>{ c.LastError }</td>
 									<td>{ c.Since }</td>
+									<td>
+										if c.CanAuthorizeResend {
+											<form method="post" action="/admin/health/reconcile">
+												<input type="hidden" name="invoice_operation" value={ c.Operation }/>
+												<label>
+													<input type="checkbox" name="invoice_resolution" value="confirmed_absent" required/>
+													{ i18n.T(ctx, i18n.KeyAdminHPAllowanceAbsentConfirm) }
+												</label>
+												<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">
+													{ i18n.T(ctx, i18n.KeyAdminHPAllowanceResendAuthorize) }
+												</button>
+											</form>
+										}
+									</td>
 								</tr>
 							}
 						</tbody>

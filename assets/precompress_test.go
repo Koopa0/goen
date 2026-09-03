@@ -11,10 +11,9 @@ import (
 )
 
 // TestEveryPrecompressibleAssetRoundTrips derives its corpus from the embedded
-// catalogue, so a new stylesheet or script joins the guard automatically. It
-// deliberately rejects an allowlisted embedded file that does not shrink: the
-// outer dynamic middleware must never become a second compression path for a
-// static representation omitted from this catalogue.
+// catalogue. It deliberately rejects an allowlisted file that does not shrink:
+// the outer dynamic middleware must never become a second compression path for
+// a static representation omitted from this catalogue.
 func TestEveryPrecompressibleAssetRoundTrips(t *testing.T) {
 	for name := range catalogue.digests {
 		raw, err := files.ReadFile(name)

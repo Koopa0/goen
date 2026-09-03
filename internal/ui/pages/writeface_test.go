@@ -50,10 +50,8 @@ func TestEveryFormWorksWithScriptingOff(t *testing.T) {
 
 // TestEveryFormActionResolvesToAPostRoute is the other half of naming a handler:
 // the guard above asks that a form HAS an action, never that anything answers
-// it. A form posting to a route nobody registered reaches the ServeMux's 404 —
-// which is not a compile error, not a test failure, and looks like a working
-// page until somebody presses the button. It is mistake #35 on the write face:
-// "is it wired?" and "does a handler exist?" are different questions.
+// it. A form posting to a route nobody registered reaches the ServeMux's 404,
+// which looks like a working page until somebody presses the button.
 func TestEveryFormActionResolvesToAPostRoute(t *testing.T) {
 	t.Parallel()
 
@@ -72,8 +70,8 @@ func TestEveryFormActionResolvesToAPostRoute(t *testing.T) {
 			if action == "{expr}" {
 				// Most of the back office builds its action from literals around
 				// one value — templ.SafeURL("/admin/orders/" + v.Number + "/ship")
-				// — and skipping every expression left the majority of goen's
-				// POST routes uncovered, this PR's own allowance form among them.
+				// — so skipping every expression would leave most POST routes
+				// uncovered.
 				action = pathFromExpr(attrExpr(attrs, "action"))
 				if action == "" {
 					unresolvable++

@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -34,10 +35,14 @@ func (s *Store) Ask(ctx context.Context, slug, userID, body string) error {
 	if err != nil {
 		return ErrQuestionInvalid
 	}
-	if err := s.q.AskQuestion(ctx, db.AskQuestionParams{
+	n, err := s.q.AskQuestion(ctx, db.AskQuestionParams{
 		Slug: slug, UserID: uuid.NullUUID{UUID: asker, Valid: true}, Body: body,
-	}); err != nil {
+	})
+	if err != nil {
 		return fmt.Errorf("ask question: %w", err)
+	}
+	if n == 0 {
+		return ErrNotFound
 	}
 	return nil
 }
@@ -45,7 +50,7 @@ func (s *Store) Ask(ctx context.Context, slug, userID, body string) error {
 // Answer records a CUSTOMER's reply. is_staff is false because of the PACKAGE,
 // never of who is signed in: the shop answers through admin.Store.AnswerQuestion,
 // which is the only endpoint behind RequireStaff.
-func (s *Store) Answer(ctx context.Context, questionID, userID, body string) error {
+func (s *Store) answer(ctx context.Context, questionID, userID, body string) error {
 	body = strings.TrimSpace(body)
 	if body == "" || utf8.RuneCountInString(body) > MaxAnswerRunes {
 		return ErrQuestionInvalid
@@ -90,7 +95,7 @@ func (s *Store) loadQuestions(ctx context.Context, productID uuid.UUID, view *pa
 		view.Questions = append(view.Questions, pages.Question{
 			Asker: rows[i].Asker,
 			Body:  rows[i].Body,
-			Asked: rows[i].CreatedAt.Format("2006-01-02"),
+			Asked: shoptime.Day(rows[i].CreatedAt),
 		})
 	}
 
@@ -108,7 +113,7 @@ func (s *Store) loadQuestions(ctx context.Context, productID uuid.UUID, view *pa
 			Author:  a.Author,
 			Body:    a.Body,
 			IsStaff: a.IsStaff,
-			At:      a.CreatedAt.Format("2006-01-02"),
+			At:      shoptime.Day(a.CreatedAt),
 		})
 	}
 	return nil

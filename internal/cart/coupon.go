@@ -72,23 +72,23 @@ func (c Coupon) Apply(subtotalCents int64) (discountCents int64, freeShipping bo
 	case "free_shipping":
 		return 0, true, nil
 	default:
-		// Coupon fields are private and FindCoupon reads a schema-constrained
+		// Coupon fields are private and CouponByCode reads a schema-constrained
 		// closed set. Reaching this arm is binary/schema skew or an internal
 		// construction bug, not input the customer can repair with another code.
 		panic(fmt.Sprintf("cart: coupon %s has unknown kind %q", c.code, c.kind))
 	}
 }
 
-// FindCoupon looks a code up. Order-specific eligibility and value belong to
+// CouponByCode looks a code up. Order-specific eligibility and value belong to
 // Apply; redemption limits are counted by redeem_coupon under a coupon-row lock.
-func (s *Store) FindCoupon(ctx context.Context, code string) (*Coupon, error) {
-	return findCoupon(ctx, s.q, code)
+func (s *Store) CouponByCode(ctx context.Context, code string) (*Coupon, error) {
+	return couponByCode(ctx, s.q, code)
 }
 
-// findCoupon uses the caller's query binding. Checkout first calls the narrow
+// couponByCode uses the caller's query binding. Checkout first calls the narrow
 // lock_coupon_for_checkout door on that same binding, so this ordinary read and
 // the later quote comparison/redemption stay in the row-locking transaction.
-func findCoupon(ctx context.Context, q *db.Queries, code string) (*Coupon, error) {
+func couponByCode(ctx context.Context, q *db.Queries, code string) (*Coupon, error) {
 	code = NormaliseCode(code)
 	if !couponCode.MatchString(code) {
 		return nil, ErrNoSuchCoupon

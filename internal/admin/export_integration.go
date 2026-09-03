@@ -25,3 +25,17 @@ func (s *Store) ReconcileCompletePayment(
 ) error {
 	return s.reconcileCompletePayment(ctx, providerRef, resolution)
 }
+
+// The audit actions integration fixtures assert by name. Every other action is
+// package-private: the trail's vocabulary is the store's, not a caller's.
+const (
+	ActionAdjustStock              = actionAdjustStock
+	ActionAuthorizeAllowanceResend = actionAuthorizeAllowanceResend
+	ActionCreateCampaign           = actionCreateCampaign
+	ActionGrantCredit              = actionGrantCredit
+	ActionHideQuestion             = actionHideQuestion
+	ActionPublishProduct           = actionPublishProduct
+	ActionReconcilePayment         = actionReconcilePayment
+	ActionRepriceVariant           = actionRepriceVariant
+	ActionUpdateProduct            = actionUpdateProduct
+)

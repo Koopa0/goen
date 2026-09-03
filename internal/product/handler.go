@@ -48,10 +48,7 @@ func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Load(r.Context(), slug, sel)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
-			web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
-				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyProductNotFound)}, "404",
-				i18n.T(r.Context(), i18n.KeyProductNotFound),
-				i18n.T(r.Context(), i18n.KeyProductNotFoundBody)))
+			h.notFound(w, r)
 			return
 		}
 		h.log.ErrorContext(r.Context(), "load product", "error", err, "slug", slug)
@@ -78,6 +75,13 @@ func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, h.log, http.StatusOK, pages.Product(meta, &view))
 }
 
+func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
+	web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyProductNotFound)}, "404",
+		i18n.T(r.Context(), i18n.KeyProductNotFound),
+		i18n.T(r.Context(), i18n.KeyProductNotFoundBody)))
+}
+
 // Review serves POST /p/{slug}/reviews.
 func (h *Handler) Review(w http.ResponseWriter, r *http.Request) {
 	u, signedIn := account.FromContext(r.Context())
@@ -102,6 +106,8 @@ func (h *Handler) Review(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/p/"+url.PathEscape(slug)+"#reviews", http.StatusSeeOther)
 	case errors.Is(err, ErrAlreadyReviewed):
 		h.rejectReview(w, r, slug, review, nil)
+	case errors.Is(err, ErrNotFound):
+		h.notFound(w, r)
 	case len(errs) > 0:
 		h.rejectReview(w, r, slug, review, errs)
 	default:
@@ -128,7 +134,7 @@ func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
 		userID = u.ID
 	}
 
-	err := h.store.RequestRestockNotice(r.Context(), variantID, addr, userID)
+	err := h.store.RequestRestockNotice(r.Context(), slug, variantID, addr, userID)
 	switch {
 	case err == nil:
 		//nolint:gosec // G710: slug is the route's own path value, escaped
@@ -211,8 +217,13 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err := h.store.Ask(r.Context(), slug, u.ID, r.PostFormValue("body"))
+	if errors.Is(err, ErrNotFound) {
+		h.notFound(w, r)
+		return
+	}
 	outcome := "1"
-	if err := h.store.Ask(r.Context(), slug, u.ID, r.PostFormValue("body")); err != nil {
+	if err != nil {
 		h.log.WarnContext(r.Context(), "ask question", "error", err, "slug", slug)
 		outcome = "bad"
 	}

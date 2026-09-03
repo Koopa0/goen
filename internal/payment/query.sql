@@ -76,7 +76,8 @@ WHERE o.order_number = $1;
 -- The earliest expiry among an order's live holds; a session's expires_at is set
 -- from it, so Stripe stops taking money when the sweeper may release the goods.
 -- name: OrderHoldExpiry :one
-SELECT ir.expires_at
+SELECT ir.expires_at,
+       (ir.expires_at >= now() + @required_lifetime::interval)::boolean AS covers_session
 FROM inventory_reservations ir
 WHERE ir.order_id = $1 AND ir.state = 'held'
 ORDER BY ir.expires_at
@@ -134,22 +135,7 @@ INSERT INTO order_events (order_id, kind, note) VALUES ($1, 'paid', @note);
 -- Idempotent on the order, which is why the amount is recomputed here rather
 -- than passed: a caller could supply a different one on the retry.
 -- name: AwardOrderPoints :one
-SELECT award_loyalty_points(
-    o.id,
-    -- One point per whole NT$100 times the customer's tier. sum(bigint) is
-    -- numeric, so casting only the final expression rounded NT$50 to one point;
-    -- the cast on the sum makes both divisions integer and keeps the database
-    -- as the one production definition of this money rule. The multiplier is
-    -- read from the spend the customer had BEFORE this order.
-    ((coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)::bigint FROM order_lines ol
-                WHERE ol.order_id = o.id), 0)
-      - o.discount_cents + o.shipping_cents + o.tax_cents) / 10000
-     * coalesce((SELECT t.points_multiplier_bp FROM membership_tiers t
-                 WHERE t.id = member_tier(o.user_id, @window_days::integer, o.id)), 10000)
-     / 10000)::bigint,
-    (shop_today() + @validity_days::integer)
-)
-FROM orders o WHERE o.id = @order_id;
+SELECT award_loyalty_points(@order_id);
 
 -- Carried in the message rather than read at delivery: erase_user blanks
 -- order_private_data, so a later delivery would have nowhere to go.

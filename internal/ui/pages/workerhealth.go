@@ -29,15 +29,13 @@ type WorkerHealthView struct {
 	// are different evidence and route to different database functions.
 	UnreconciledEvents           []UnreconciledEvent
 	UnreconciledCompletePayments []UnreconciledCompletePayment
-	// StrandedClaims is a 折讓 claim the provider never answered: nothing may be
-	// at the 加值中心 under it and only a person can find out. Named rather than
-	// counted, like its neighbours.
+	// StrandedClaims are aged or alarmed durable ECPay operations. The background
+	// reconciler handles ordinary ambiguity; this list is the remaining evidence.
 	StrandedClaims []StrandedClaim
-	// Notice is the one-shot message a redirect carries. A page that writes
-	// something and answers 303 has to say what it did, or the operator is left
-	// reading a table to work out whether the button worked.
-	Notice      string
-	OpenRefunds []OpenRefund
+	// Notice is the one-shot message a 303 carries, so a write says what it did.
+	Notice          string
+	OpenRefundCount int64
+	OpenRefunds     []OpenRefund
 
 	OutboxStaleAfter     time.Duration
 	MaxExpiredHolds      int64
@@ -76,7 +74,7 @@ func (v *WorkerHealthView) HousekeepingText(ctx context.Context) string {
 }
 
 // RefundsHealthy reports whether every refund goen opened has landed.
-func (v *WorkerHealthView) RefundsHealthy() bool { return len(v.OpenRefunds) == 0 }
+func (v *WorkerHealthView) RefundsHealthy() bool { return v.OpenRefundCount == 0 }
 
 // PaymentsReconciled reports whether every accepted event was acted on. Any at
 // all is unhealthy: each one is money at the provider against goods the shop has
@@ -119,10 +117,10 @@ func (v *WorkerHealthView) SweeperText(ctx context.Context) string {
 
 // RefundsText is the refund ledger's state.
 func (v *WorkerHealthView) RefundsText(ctx context.Context) string {
-	if len(v.OpenRefunds) == 0 {
+	if v.OpenRefundCount == 0 {
 		return i18n.T(ctx, i18n.KeyHealthRefundsClear)
 	}
-	return fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthRefundsStuck), len(v.OpenRefunds))
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyHealthRefundsStuck), v.OpenRefundCount)
 }
 
 // RecommendText is the projection's state.
@@ -216,6 +214,8 @@ func (r OpenRefund) StatusText(ctx context.Context) string {
 		return i18n.T(ctx, i18n.KeyHealthRefundAction)
 	case "failed":
 		return i18n.T(ctx, i18n.KeyHealthRefundFailed)
+	case "cancelled":
+		return i18n.T(ctx, i18n.KeyHealthRefundCancelled)
 	default:
 		return r.Status
 	}
@@ -229,18 +229,30 @@ func (r OpenRefund) Reference(ctx context.Context) string {
 	return r.ProviderRef
 }
 
-// StrandedClaim is a 折讓 claim taken before the provider was asked, on a call
-// that never answered. The claim is right to survive — whether ECPay filed is
-// not knowable from here — so settling it is a person going to look.
+// StrandedClaim is one durable Issue/Allowance/Void operation which is aged or
+// needs operator attention.
 type StrandedClaim struct {
+	Operation   string
 	OrderNumber string
 	Kind        string
+	Status      string
 	AmountCents int64
+	Attempts    int32
+	Sends       int32
+	LastError   string
 	Since       string
+	// CanAuthorizeResend is true only after an ambiguous Allowance send has
+	// remained absent beyond the propagation window and has no live worker lease.
+	CanAuthorizeResend bool
 }
 
 // Amount is what the claim was for.
 func (c StrandedClaim) Amount() string { return twd(c.AmountCents) }
+
+// AttemptsText distinguishes provider sends from safe lookup/reconcile passes.
+func (c StrandedClaim) AttemptsText() string {
+	return fmt.Sprintf("%d / %d", c.Attempts, c.Sends)
+}
 
 // ClaimsSettled reports whether nothing is waiting on the provider.
 func (v *WorkerHealthView) ClaimsSettled() bool { return len(v.StrandedClaims) == 0 }

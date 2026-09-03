@@ -27,14 +27,22 @@ func (o AccountOrder) Total() string { return twd(o.TotalCents) }
 // LineCountText is how many lines it holds.
 func (o AccountOrder) LineCountText() string { return strconv.FormatInt(o.LineCount, 10) }
 
+// awaitingPayment is the one definition of an order that still needs paying.
+// 'pending' alone cannot say it: an order funded wholly from store credit or
+// zeroed by a coupon has no payment row, so it sits at pending and uncommitted
+// while owing nothing.
+func awaitingPayment(status string, committed bool, owedCents int64) bool {
+	return status == "pending" && !committed && owedCents > 0
+}
+
 // StatusText is the fulfilment state in the chrome language.
 func (o AccountOrder) StatusText(ctx context.Context) string {
 	switch o.Status {
 	case "pending":
-		if o.Committed || o.OwedCents <= 0 {
-			return i18n.T(ctx, i18n.KeyStatusPaid)
+		if awaitingPayment(o.Status, o.Committed, o.OwedCents) {
+			return i18n.T(ctx, i18n.KeyStatusAwaitingPayment)
 		}
-		return i18n.T(ctx, i18n.KeyStatusAwaitingPayment)
+		return i18n.T(ctx, i18n.KeyStatusPaid)
 	case "picking":
 		return i18n.T(ctx, i18n.KeyStatusPicking)
 	case "shipped":
@@ -171,7 +179,7 @@ func (v *AccountOrderView) StatusText(ctx context.Context) string {
 
 // AwaitingPayment reports whether this order still needs paying.
 func (v *AccountOrderView) AwaitingPayment() bool {
-	return v.Status == "pending" && !v.Committed && v.OwedCents > 0
+	return awaitingPayment(v.Status, v.Committed, v.OwedCents)
 }
 
 // CanRegisterWarranty reports whether to offer the form: both statuses that end a delivery.

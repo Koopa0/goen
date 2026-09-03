@@ -25,12 +25,11 @@ var mailPayloads = map[string][]string{
 	"NewsletterConfirm": {"../email"},
 	"NewsletterWelcome": {"../email"},
 	"NewsletterIssue":   {"../email"},
-	"EmailVerify":       {"../email"},
+	"AddressVerify":     {"../email"},
 }
 
 // TestEveryMailPayloadMatchesItsProducer holds the duplicated structs to each
-// other, field for field. The drift is silent in both directions: a value
-// thrown away at delivery, or a zero value the notifier reads as real.
+// other, field for field.
 func TestEveryMailPayloadMatchesItsProducer(t *testing.T) {
 	t.Parallel()
 
@@ -56,8 +55,8 @@ func TestEveryMailPayloadMatchesItsProducer(t *testing.T) {
 	}
 }
 
-// TestEveryMailPayloadCarriesALocale is the specific rule underneath: the worker
-// has no locale of its own, so the language has to travel in the payload.
+// TestEveryMailPayloadCarriesALocale: the worker has no locale of its own, so
+// the language has to travel in the payload.
 func TestEveryMailPayloadCarriesALocale(t *testing.T) {
 	t.Parallel()
 

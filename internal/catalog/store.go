@@ -261,9 +261,10 @@ func (s *Store) SitemapProducts(ctx context.Context, limit int32) ([]db.SitemapP
 	return rows, nil
 }
 
-// SitemapCategories is every category that has something to sell.
-func (s *Store) SitemapCategories(ctx context.Context) ([]db.SitemapCategoriesRow, error) {
-	rows, err := s.q.SitemapCategories(ctx)
+// SitemapCategories is the newest categories that have something to sell,
+// bounded by the sitemap document's remaining capacity.
+func (s *Store) SitemapCategories(ctx context.Context, limit int32) ([]db.SitemapCategoriesRow, error) {
+	rows, err := s.q.SitemapCategories(ctx, limit)
 	if err != nil {
 		return nil, fmt.Errorf("read sitemap categories: %w", err)
 	}

@@ -44,7 +44,7 @@ func TestEveryPointsEntryKindHasACompletePresentation(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 
 	for _, tt := range []struct {
-		kind   string
+		kind   PointsEntryKind
 		points int64
 		earned bool
 		amount string
@@ -54,7 +54,7 @@ func TestEveryPointsEntryKindHasACompletePresentation(t *testing.T) {
 		{kind: "spend", points: -10, amount: "-10", what: "Redeemed for store credit"},
 		{kind: "clawback", points: -7, amount: "-7", what: "Reversed for a return"},
 	} {
-		t.Run(tt.kind, func(t *testing.T) {
+		t.Run(string(tt.kind), func(t *testing.T) {
 			t.Parallel()
 			entry := PointsEntry{Kind: tt.kind, Points: tt.points}
 			if got := entry.Earned(); got != tt.earned {

@@ -6,9 +6,7 @@ import (
 	"testing"
 )
 
-// TestSitePathRefusesAnythingButAPathOnThisSite. Each refusal below is a real
-// bypass of the naive prefix check or the more sophisticated RFC 3986 check,
-// not a hypothetical.
+// Every refusal below is a real bypass of a prefix check or of RFC 3986 parsing.
 func TestSitePathRefusesAnythingButAPathOnThisSite(t *testing.T) {
 	t.Parallel()
 

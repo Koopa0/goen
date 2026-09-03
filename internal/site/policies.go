@@ -224,8 +224,7 @@ var policies = map[string]pages.PolicyDoc{
 				HeadingEn: "What we do not do",
 				Body: []string{
 					"不將您的個人資料出售或提供給第三方作行銷用途。",
-					// The cookie list claims completeness, in both locales:
-					// TestThePrivacyPolicyNamesEveryCookie holds it against the source.
+					// The cookie list claims completeness, in both locales.
 					"不在網站上使用第三方追蹤或廣告 cookie。goen 使用的 cookie 只有這幾種:購物車、登入狀態、訂單瀏覽權限、您選擇的語言、您關閉過的網站公告,以及用 Google 登入時暫存幾分鐘的驗證資料。",
 				},
 				BodyEn: []string{

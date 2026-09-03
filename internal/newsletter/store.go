@@ -50,7 +50,7 @@ func (s *Store) Request(ctx context.Context, addr string) (Outcome, error) {
 	if err != nil {
 		return AlreadyActive, fmt.Errorf("beginning newsletter request: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := db.New(tx)
 
 	_, err = q.RequestNewsletterConfirm(ctx, db.RequestNewsletterConfirmParams{
@@ -96,7 +96,7 @@ func (s *Store) Confirm(ctx context.Context, token string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("beginning newsletter confirm: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := db.New(tx)
 
 	addr, err := q.SpendNewsletterConfirmation(ctx, HashToken(token))

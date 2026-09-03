@@ -48,7 +48,7 @@ func (s *Store) CreateZone(ctx context.Context, z *NewZone) (map[string]string, 
 	}
 
 	if err := s.audited(ctx, Event{
-		Action: ActionCreateShippingZone, Table: "shipping_zones",
+		Action: actionCreateShippingZone, Table: "shipping_zones",
 		After: map[string]any{
 			"code": z.Code, "name": z.Name, "prefixes": len(prefixes),
 		},
@@ -91,7 +91,7 @@ func (s *Store) SetZonePrefixes(ctx context.Context, id, list string) (map[strin
 	}
 
 	if err := s.audited(ctx, Event{
-		Action: ActionSetZonePrefixes, Table: "shipping_zone_prefixes",
+		Action: actionSetZonePrefixes, Table: "shipping_zone_prefixes",
 		ID:    nullableID(zoneID),
 		After: map[string]any{"prefixes": len(prefixes)},
 	}, func(ctx context.Context, q *db.Queries) error {
@@ -130,7 +130,7 @@ func (s *Store) DeleteZone(ctx context.Context, id string) error {
 		return ErrNotFound
 	}
 	return s.audited(ctx, Event{
-		Action: ActionDeleteShippingZone, Table: "shipping_zones",
+		Action: actionDeleteShippingZone, Table: "shipping_zones",
 		ID: nullableID(zoneID),
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, execErr := q.DeleteShippingZone(ctx, zoneID)

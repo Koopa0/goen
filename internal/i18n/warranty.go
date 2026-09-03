@@ -20,8 +20,8 @@ var (
 	})
 
 	KeyWarrantyNoneHint = key("warranty.none.hint", Message{
-		ZhHant: "出貨之後,到",
-		En:     "Once an order has shipped, open it from ",
+		ZhHant: "送達之後,到",
+		En:     "Once an order has been delivered, open it from ",
 	})
 
 	KeyWarrantyNoneTail = key("warranty.none.tail", Message{
@@ -44,8 +44,8 @@ var (
 	})
 
 	KeyWarrantyAfterShipping = key("warranty.order.none.hint", Message{
-		ZhHant: "出貨之後就可以登錄。",
-		En:     "Registration opens once it ships.",
+		ZhHant: "送達之後就可以登錄。",
+		En:     "Registration opens on delivery.",
 	})
 
 	KeyWarrantyTerm = key("warranty.term", Message{ZhHant: "保固 %s", En: "%s warranty"})
@@ -102,8 +102,8 @@ var (
 	})
 
 	KeyWarrantyRefused = key("warranty.notice.refused", Message{
-		ZhHant: "這個項目目前無法登錄 —— 可能還沒出貨,或已經登錄過了。",
-		En:     "That cannot be registered — it may not have shipped, or it is registered already.",
+		ZhHant: "這個項目目前無法登錄 —— 可能還沒送達,或已經登錄過了。",
+		En:     "That cannot be registered — it may not have been delivered, or it is registered already.",
 	})
 
 	KeyWarrantyOrderNotFound = key("warranty.order.notfound", Message{

@@ -157,16 +157,22 @@ WHERE p.status = 'active'
 ORDER BY p.published_at DESC, p.id DESC
 LIMIT @row_limit::integer;
 
+-- Resolve current eligibility first so a missing/draft product wins over an old
+-- review. AddReview still relies on CreateReview's active predicate if status
+-- changes between these reads and the insert.
+-- name: ActiveProductForReview :one
+SELECT id FROM products
+WHERE slug = @slug::text AND status = 'active';
+
 -- order_is_committed, never "EXISTS a succeeded payment": a store-credit-funded
--- order is committed with no payment row at all.
+-- order is committed with no payment row at all. product_id is the durable line
+-- identity and survives deletion of the purchased variant.
 -- name: HasBoughtProduct :one
 SELECT EXISTS (
     SELECT 1
     FROM orders o
     JOIN order_lines ol ON ol.order_id = o.id
-    JOIN product_variants pv ON pv.id = ol.variant_id
-    JOIN products p ON p.id = pv.product_id
-    WHERE o.user_id = @user_id AND p.slug = @slug::text
+    WHERE o.user_id = @user_id AND ol.product_id = @product_id
       AND order_is_committed(o.id)
 );
 
@@ -175,22 +181,30 @@ SELECT EXISTS (
 -- name: HasReviewed :one
 SELECT EXISTS (
     SELECT 1 FROM product_reviews r
-    JOIN products p ON p.id = r.product_id
-    WHERE r.user_id = @user_id AND p.slug = @slug::text
+    WHERE r.user_id = @user_id AND r.product_id = @product_id
 );
 
 -- product_reviews_verified_is_real refuses a false is_verified_purchase.
--- name: CreateReview :exec
+-- name: CreateReview :execrows
 INSERT INTO product_reviews (product_id, user_id, rating, title, body, is_verified_purchase)
 SELECT p.id, @user_id, @rating::smallint, nullif(@title::text, ''), @body::text, @verified::boolean
 FROM products p WHERE p.slug = @slug::text AND p.status = 'active';
 
 -- Idempotent through the partial unique index stock_notifications_pending_key, so
 -- somebody notified about one restock may ask again for the next.
--- name: RequestStockNotice :exec
-INSERT INTO stock_notifications (variant_id, user_id, email, locale)
-VALUES (@variant_id, @user_id, @email::text, @locale)
-ON CONFLICT (variant_id, lower(email)) WHERE notified_at IS NULL DO NOTHING;
+-- Lock the variant while deciding it is out of stock. A concurrent restock then
+-- either waits and claims this row, or commits first and makes PostgreSQL recheck
+-- the predicate so no permanently-late pending notice is inserted.
+-- name: RequestStockNotice :one
+WITH eligible AS MATERIALIZED (
+    SELECT lock_stock_notice_variant(@variant_id, @slug::text) AS id
+), inserted AS (
+    INSERT INTO stock_notifications (variant_id, user_id, email, locale)
+    SELECT id, @user_id, @email::text, @locale FROM eligible WHERE id IS NOT NULL
+    ON CONFLICT (variant_id, lower(email)) WHERE notified_at IS NULL DO NOTHING
+    RETURNING 1
+)
+SELECT EXISTS (SELECT 1 FROM eligible WHERE id IS NOT NULL)::boolean AS eligible;
 
 -- name: BoughtTogether :many
 SELECT
@@ -260,7 +274,7 @@ LEFT JOIN users u ON u.id = a.user_id
 WHERE a.question_id = ANY(@question_ids::uuid[]) AND a.hidden_at IS NULL
 ORDER BY a.question_id, a.is_staff DESC, a.created_at;
 
--- name: AskQuestion :exec
+-- name: AskQuestion :execrows
 INSERT INTO product_questions (product_id, user_id, body)
 SELECT p.id, @user_id, @body::text FROM products p
 WHERE p.slug = @slug::text AND p.status = 'active';

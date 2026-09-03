@@ -10,8 +10,8 @@ var (
 	KeyAdminStatusPicking = key("admin.status.picking", Message{ZhHant: "備貨中", En: "Picking"})
 
 	// The other half of 'pending': paid, and waiting for somebody to pick it.
-	// Not a schema state — orders_check_transition knows six — but the queue has
-	// to tell a paid order from an unpaid one, and no status does.
+	// Not a schema state — the queue has to tell a paid order from an unpaid
+	// one, and no status does.
 	KeyAdminStatusReadyToPick = key("admin.status.readytopick", Message{ZhHant: "待出貨", En: "Ready to pick"})
 
 	KeyAdminStatusShipped = key("admin.status.shipped", Message{ZhHant: "已出貨", En: "Shipped"})

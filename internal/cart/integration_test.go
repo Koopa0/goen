@@ -154,7 +154,7 @@ func checkoutQuote(
 	}
 	shipping, discount := quoteTotal(t, delivery), int64(0)
 	if couponCode != "" {
-		coupon, findErr := s.FindCoupon(t.Context(), couponCode)
+		coupon, findErr := s.CouponByCode(t.Context(), couponCode)
 		if findErr != nil {
 			t.Fatalf("find quoted coupon: %v", findErr)
 		}
@@ -294,6 +294,45 @@ func TestStoreRoleCanLockTheCreditAndCouponQuoteFacts(t *testing.T) {
 	}
 }
 
+func TestCompanyInvoiceSnapshotsTheRegisteredBuyerNotTheRecipient(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(storeRolePool(t))
+	cartID := newCart(t, s)
+	if err := s.Add(ctx, cartID, freshVariant(t, "company-invoice-buyer"), 1); err != nil {
+		t.Fatalf("add company invoice line: %v", err)
+	}
+	shippingID := shipVersionFor(t, "home_delivery")
+	addr := &cart.Address{
+		Email: "company-buyer@example.com", Name: "收件人李大華", Phone: "0912345678",
+		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
+	}
+	inv := &cart.Invoice{
+		Type: "company", CompanyName: "買受股份有限公司", TaxID: "04595252",
+	}
+	shown := checkoutQuote(t, s, cartID, uuid.NullUUID{}, shippingID, addr, "")
+	number, err := s.PlaceOrder(
+		ctx, cartID, uuid.NullUUID{}, shippingID, addr, inv, "", shown,
+		checkoutAttemptKey("company-invoice-buyer-"+uuid.NewString()),
+	)
+	if err != nil {
+		t.Fatalf("place company invoice order: %v", err)
+	}
+
+	var buyerName, taxID, recipientName string
+	if err := pool.QueryRow(ctx, `
+		SELECT ip.customer_name, ip.tax_id, opd.recipient_name
+		FROM orders o
+		JOIN invoice_preferences ip ON ip.order_id=o.id
+		JOIN order_private_data opd ON opd.order_id=o.id
+		WHERE o.order_number=$1`, number).Scan(&buyerName, &taxID, &recipientName); err != nil {
+		t.Fatalf("read company filing snapshot: %v", err)
+	}
+	if buyerName != "買受股份有限公司" || taxID != "04595252" ||
+		recipientName != "收件人李大華" {
+		t.Fatalf("company filing/recipient snapshot = %q/%q/%q", buyerName, taxID, recipientName)
+	}
+}
+
 func waitForApplicationLock(t *testing.T, name string, done <-chan error) {
 	t.Helper()
 	deadline := time.Now().Add(15 * time.Second)
@@ -393,7 +432,7 @@ func TestInventoryConstraintIsReportedAsSoldOut(t *testing.T) {
 	}
 	defer func() { _ = blocker.Rollback(ctx) }()
 	if _, err := blocker.Exec(ctx,
-		`SELECT hold_inventory($1, $2, 1, now() + interval '30 minutes', $3)`,
+		`SELECT hold_inventory($1, $2, 1, interval '30 minutes', $3)`,
 		blockOrder, vid, "take-last:"+vid.String()); err != nil {
 		t.Fatalf("hold the last unit: %v", err)
 	}
@@ -422,7 +461,7 @@ func TestInventoryConstraintIsReportedAsSoldOut(t *testing.T) {
 	// store intentionally returns the bare domain sentinel after checking this
 	// name, so the PgError itself is verified through the same production door.
 	_, namedErr := pool.Exec(ctx,
-		`SELECT hold_inventory($1, $2, 1, now() + interval '30 minutes', $3)`,
+		`SELECT hold_inventory($1, $2, 1, interval '30 minutes', $3)`,
 		commitBareOrder(t), vid, "prove-empty:"+vid.String())
 	pgErr, ok := errors.AsType[*pgconn.PgError](namedErr)
 	if !ok || pgErr.ConstraintName != "inventory_never_negative" {
@@ -546,14 +585,14 @@ func TestCartIsFoundByTokenNotByID(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	got, err := s.Find(t.Context(), tok)
+	got, err := s.CartByToken(t.Context(), tok)
 	if err != nil || got != id {
-		t.Fatalf("Find(token) = %v/%v, want %v", got, err, id)
+		t.Fatalf("CartByToken(token) = %v/%v, want %v", got, err, id)
 	}
-	if _, err := s.Find(t.Context(), tok+"x"); err == nil {
+	if _, err := s.CartByToken(t.Context(), tok+"x"); err == nil {
 		t.Error("a near-miss token found a cart")
 	}
-	if _, err := s.Find(t.Context(), ""); err == nil {
+	if _, err := s.CartByToken(t.Context(), ""); err == nil {
 		t.Error("an empty token found a cart")
 	}
 
@@ -1602,6 +1641,50 @@ func TestCheckoutHoldsStock(t *testing.T) {
 	}
 }
 
+func TestCheckoutLineHoldsShareTheOrderDeadline(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+	a, b, _ := threeVariants(t, "shared-hold-deadline")
+	cartID := newCart(t, s)
+	for _, variantID := range []uuid.UUID{a, b} {
+		if err := s.Add(ctx, cartID, variantID, 1); err != nil {
+			t.Fatalf("add variant %s: %v", variantID, err)
+		}
+	}
+
+	shippingID := shipVersionFor(t, "home_delivery")
+	addr := &cart.Address{
+		Email: "shared-hold@example.com", Name: "王小明", Phone: "0912345678",
+		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
+	}
+	number, err := placeOrder(t, s, ctx, cartID, uuid.NullUUID{}, shippingID, addr, "",
+		"shared-hold-"+uuid.NewString())
+	if err != nil {
+		t.Fatalf("place order: %v", err)
+	}
+
+	var holds, deadlines int
+	var seconds float64
+	if readErr := pool.QueryRow(ctx, `
+		SELECT count(*)::integer, count(DISTINCT ir.expires_at)::integer,
+		       extract(epoch FROM min(ir.expires_at) - min(o.placed_at))::float8
+		FROM inventory_reservations ir
+		JOIN orders o ON o.id = ir.order_id
+		WHERE o.order_number = $1`, number).Scan(&holds, &deadlines, &seconds); readErr != nil {
+		t.Fatalf("read hold deadlines: %v", readErr)
+	}
+	if holds != 2 || deadlines != 1 {
+		t.Errorf("order has %d holds across %d deadlines, want 2 holds sharing 1 deadline", holds, deadlines)
+	}
+	wantMinutes, err := strconv.Atoi(pages.HoldMinutesText())
+	if err != nil {
+		t.Fatalf("parse published hold duration: %v", err)
+	}
+	if want := float64(wantMinutes * 60); seconds != want {
+		t.Errorf("hold deadline is %.6f seconds after placement, want %.0f", seconds, want)
+	}
+}
+
 // TestTwoOrdersCannotTakeTheSameLastUnit is the race the hold exists to lose
 // safely. T1's transaction is held OPEN while T2 runs, and both orders are
 // created first because next_order_number() locks the per-day counter row.
@@ -1637,7 +1720,7 @@ func TestTwoOrdersCannotTakeTheSameLastUnit(t *testing.T) {
 	}
 	defer func() { _ = tx1.Rollback(ctx) }()
 	if _, holdErr := tx1.Exec(ctx,
-		`SELECT hold_inventory($1, $2, 1, now() + interval '30 minutes', $3)`,
+		`SELECT hold_inventory($1, $2, 1, interval '30 minutes', $3)`,
 		order1, vid, "race-t1"); holdErr != nil {
 		t.Fatalf("t1 hold: %v", holdErr)
 	}
@@ -1660,7 +1743,7 @@ func TestTwoOrdersCannotTakeTheSameLastUnit(t *testing.T) {
 	raceCtx := t.Context()
 	go func() {
 		_, holdErr := tx2.Exec(raceCtx,
-			`SELECT hold_inventory($1, $2, 1, now() + interval '30 minutes', $3)`,
+			`SELECT hold_inventory($1, $2, 1, interval '30 minutes', $3)`,
 			order2, vid, "race-t2")
 		done <- holdErr
 	}()
@@ -1761,7 +1844,7 @@ func heldOrder(t *testing.T, vid uuid.UUID, ago time.Duration, paid bool) (order
 	// Held normally, then aged — BOTH timestamps move, because expires_at >
 	// created_at is a CHECK and a hold that expired an hour ago was taken before it.
 	if _, err := tx.Exec(ctx,
-		`SELECT hold_inventory($1, $2, 1, now() + interval '30 minutes', $3)`,
+		`SELECT hold_inventory($1, $2, 1, interval '30 minutes', $3)`,
 		orderID, vid, "sweep:"+number); err != nil {
 		t.Fatalf("hold: %v", err)
 	}
@@ -1931,7 +2014,7 @@ func TestInventoryHoldLocksOrderBeforeVariant(t *testing.T) {
 	holdDone := make(chan error, 1)
 	go func() {
 		_, holdErr := holdPool.Exec(ctx, `
-			SELECT hold_inventory($1, $2, 1, now() + interval '30 minutes', $3)`,
+			SELECT hold_inventory($1, $2, 1, interval '30 minutes', $3)`,
 			orderID, variantID, "lock-order-rehold:"+uuid.NewString())
 		holdDone <- holdErr
 	}()
@@ -2115,7 +2198,7 @@ func creditFundedHeldOrder(t *testing.T, vid uuid.UUID, ago time.Duration) (orde
 		t.Fatalf("create private data: %v", err)
 	}
 	if _, err := tx.Exec(ctx,
-		`SELECT hold_inventory($1, $2, 1, now() + interval '30 minutes', $3)`,
+		`SELECT hold_inventory($1, $2, 1, interval '30 minutes', $3)`,
 		orderID, vid, "sweep-credit:"+number); err != nil {
 		t.Fatalf("hold: %v", err)
 	}
@@ -2246,7 +2329,7 @@ func TestCreditIsCappedAtWhatTheOrderOwesAfterTheDiscount(t *testing.T) {
 	if err := s.Add(ctx, id, freshVariant(t, "creditcap"), 1); err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	_, err := s.FindCoupon(ctx, "CREDITCAP")
+	_, err := s.CouponByCode(ctx, "CREDITCAP")
 	if err != nil {
 		t.Fatalf("find the coupon: %v", err)
 	}
@@ -3380,7 +3463,7 @@ func TestAFreeShippingCouponDoesNotPayForTheCrossing(t *testing.T) {
 		if err := s.Add(ctx, id, freshVariant(t, "stockfix-17"), 1); err != nil {
 			t.Fatalf("add: %v", err)
 		}
-		_, err := s.FindCoupon(ctx, "FREESHIPZONE")
+		_, err := s.CouponByCode(ctx, "FREESHIPZONE")
 		if err != nil {
 			t.Fatalf("find the coupon: %v", err)
 		}
@@ -4329,16 +4412,16 @@ func TestAGuestCanFindTheirOwnOrderWithTheEmail(t *testing.T) {
 		t.Fatalf("read the order's address: %v", err)
 	}
 
-	ok, err := s.FindOrder(ctx, number, addr)
+	ok, err := s.OrderBelongsToEmail(ctx, number, addr)
 	if err != nil {
-		t.Fatalf("FindOrder: %v", err)
+		t.Fatalf("OrderBelongsToEmail: %v", err)
 	}
 	if !ok {
 		t.Error("the order's own number and address did not find it")
 	}
 
-	if ok, err := s.FindOrder(ctx, "  "+strings.ToLower(number)+" ", strings.ToUpper(addr)); err != nil {
-		t.Fatalf("FindOrder with odd casing: %v", err)
+	if ok, err := s.OrderBelongsToEmail(ctx, "  "+strings.ToLower(number)+" ", strings.ToUpper(addr)); err != nil {
+		t.Fatalf("OrderBelongsToEmail with odd casing: %v", err)
 	} else if !ok {
 		t.Error("the lookup refused its own order over case or whitespace")
 	}
@@ -4354,8 +4437,8 @@ func TestTheWrongEmailFindsNothing(t *testing.T) {
 		"",
 		"x" + uuid.NewString() + "@example.com",
 	} {
-		if ok, err := s.FindOrder(ctx, number, addr); err != nil {
-			t.Fatalf("FindOrder(%q): %v", addr, err)
+		if ok, err := s.OrderBelongsToEmail(ctx, number, addr); err != nil {
+			t.Fatalf("OrderBelongsToEmail(%q): %v", addr, err)
 		} else if ok {
 			t.Errorf("the lookup accepted %q for somebody else's order", addr)
 		}
@@ -4374,7 +4457,7 @@ func TestAnErasedOrderCannotBeFound(t *testing.T) {
 		number).Scan(&addr); err != nil {
 		t.Fatalf("read the address: %v", err)
 	}
-	if ok, err := s.FindOrder(ctx, number, addr); err != nil || !ok {
+	if ok, err := s.OrderBelongsToEmail(ctx, number, addr); err != nil || !ok {
 		t.Fatalf("the order could not be found before erasure: ok=%v err=%v", ok, err)
 	}
 
@@ -4388,8 +4471,8 @@ func TestAnErasedOrderCannotBeFound(t *testing.T) {
 		t.Fatalf("erase the delivery details: %v", err)
 	}
 
-	if ok, err := s.FindOrder(ctx, number, addr); err != nil {
-		t.Fatalf("FindOrder after erasure: %v", err)
+	if ok, err := s.OrderBelongsToEmail(ctx, number, addr); err != nil {
+		t.Fatalf("OrderBelongsToEmail after erasure: %v", err)
 	} else if ok {
 		t.Error("an erased order can still be found by the address it no longer holds")
 	}
@@ -4431,6 +4514,55 @@ func TestAnOrderLineIsSnapshottedInTheBuyersLanguage(t *testing.T) {
 				t.Errorf("the line was snapshotted in the other language: %q", snapshot)
 			}
 		})
+	}
+}
+
+// TestAnOrderLineSnapshotsTheWarrantyPromise holds the checkout side of the
+// warranty boundary: the immutable order line receives the promise visible at
+// placement, and later catalogue edits cannot reach it.
+func TestAnOrderLineSnapshotsTheWarrantyPromise(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+	vid := freshVariant(t, "warranty-promise-snapshot")
+	const originalNote = "Original checkout promise"
+
+	var productID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		UPDATE products p
+		SET warranty_months = 36, warranty_note = $2
+		FROM product_variants pv
+		WHERE pv.id = $1 AND p.id = pv.product_id
+		RETURNING p.id`, vid, originalNote).Scan(&productID); err != nil {
+		t.Fatalf("set checkout warranty: %v", err)
+	}
+	number := placeOrderInLocale(t, ctx, s, vid, "warranty-promise")
+
+	readSnapshot := func(stage string) (int, string) {
+		t.Helper()
+		var months int
+		var note string
+		if err := pool.QueryRow(ctx, `
+			SELECT ol.warranty_months, ol.warranty_note
+			FROM order_lines ol
+			JOIN orders o ON o.id = ol.order_id
+			WHERE o.order_number = $1`, number).Scan(&months, &note); err != nil {
+			t.Fatalf("%s: read warranty snapshot: %v", stage, err)
+		}
+		return months, note
+	}
+	if months, note := readSnapshot("at placement"); months != 36 || note != originalNote {
+		t.Errorf("checkout copied %d months / %q, want 36 / %q", months, note, originalNote)
+	}
+
+	if _, err := pool.Exec(ctx, `
+		UPDATE products
+		SET warranty_months = 3, warranty_note = 'Shorter live promise'
+		WHERE id = $1`, productID); err != nil {
+		t.Fatalf("edit live warranty: %v", err)
+	}
+	if months, note := readSnapshot("after live edit"); months != 36 || note != originalNote {
+		t.Errorf("catalogue edit rewrote order to %d months / %q, want 36 / %q",
+			months, note, originalNote)
 	}
 }
 
@@ -4766,7 +4898,7 @@ func TestCouponMinimumIsRecheckedWhenCheckoutIsPlaced(t *testing.T) {
 	if preview.SubtotalCents != 200000 {
 		t.Fatalf("preview subtotal = %d, want 200000", preview.SubtotalCents)
 	}
-	definition, couponErr := s.FindCoupon(ctx, code)
+	definition, couponErr := s.CouponByCode(ctx, code)
 	if couponErr != nil {
 		t.Fatalf("find coupon for preview: %v", couponErr)
 	}
@@ -4888,12 +5020,10 @@ func TestCouponMinimumIsRecheckedWhenCheckoutIsPlaced(t *testing.T) {
 }
 
 // TestASpentCouponComesBackAsAFieldErrorNotA500 drives the checkout handler,
-// because the branch that maps ErrCouponUsedUp to a 422 lives there and nothing
-// else reaches it. FindCoupon deliberately reads no limit — they are counted
-// under redeem_coupon's lock — so a spent code passes the form validation EVERY
-// time and is refused inside the transaction EVERY time. That makes this an
-// ordinary outcome on the buying mainline, and the failure it replaced discarded
-// the whole address the customer had just typed.
+// because the branch that maps ErrCouponUsedUp to a 422 lives there. CouponByCode
+// reads no limit — they are counted under redeem_coupon's lock — so a spent code
+// passes form validation every time and is refused inside the transaction every
+// time, which makes this an ordinary outcome on the buying mainline.
 func TestASpentCouponComesBackAsAFieldErrorNotA500(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -4917,7 +5047,7 @@ func TestASpentCouponComesBackAsAFieldErrorNotA500(t *testing.T) {
 		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
 		t.Fatalf("shipping: %v", err)
 	}
-	_, err := s.FindCoupon(ctx, code)
+	_, err := s.CouponByCode(ctx, code)
 	if err != nil {
 		t.Fatalf("find the coupon: %v", err)
 	}
@@ -4982,11 +5112,9 @@ func TestASpentCouponComesBackAsAFieldErrorNotA500(t *testing.T) {
 }
 
 // TestPressingUpdateChangesTheChoiceAndPlacesNothing is the SERVER half of the
-// chooser. The template half is locked by a markup test, and with the branch in
-// handler.go deleted every one of those stayed green — while the 更新 button
-// carries formnovalidate, so a form the customer had already filled in fell
-// straight through and PLACED THE ORDER. Somebody changing their 發票 type
-// bought the basket.
+// chooser: the 更新 button carries formnovalidate, so without the branch in
+// handler.go a form the customer had already filled in falls straight through
+// and places the order.
 func TestPressingUpdateChangesTheChoiceAndPlacesNothing(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -5063,13 +5191,9 @@ func TestPressingUpdateChangesTheChoiceAndPlacesNothing(t *testing.T) {
 	}
 }
 
-// TestPickingASavedAddressFillsTheForm is the chooser nothing rendered.
-//
-// Every checkout fixture left SavedAddresses empty, so OffersTheAddressBook()
-// was false and the address radios appeared in no test — while on the live page
-// a hidden input carried the same NAME and came FIRST, so PostFormValue
-// returned it every time and the pick was discarded. A repeat customer with two
-// saved addresses could use only the default, for ever, on the buying mainline.
+// TestPickingASavedAddressFillsTheForm covers the address chooser through the
+// real form controls, where the pick has to be the value PostFormValue returns
+// for the name the radios carry.
 func TestPickingASavedAddressFillsTheForm(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -5206,9 +5330,12 @@ func TestChangingAnotherChoiceKeepsATypedAddress(t *testing.T) {
 	form := url.Values{
 		"email": {"typed@example.com"}, "name": {"李大華"}, "phone": {"0987654321"},
 		"postal_code": {"407"}, "city": {"台中市"}, "district": {"西屯區"},
-		"street":   {"手打的地址 1 號"},
-		"shipping": {shipID.String()},
-		"update":   {"invoice"},
+		"street":               {"手打的地址 1 號"},
+		"shipping":             {shipID.String()},
+		"invoice_type":         {"company"},
+		"invoice_company_name": {"買受股份有限公司"},
+		"invoice_tax_id":       {"04595252"},
+		"update":               {"invoice"},
 	}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
 		strings.NewReader(form.Encode()))
@@ -5226,5 +5353,12 @@ func TestChangingAnotherChoiceKeepsATypedAddress(t *testing.T) {
 	if body := res.Body.String(); !strings.Contains(body, "手打的地址 1 號") {
 		t.Error("changing the 發票 type overwrote an address typed by hand with " +
 			"the saved one, which is the whole reason 更新 says which chooser it is")
+	}
+	body := res.Body.String()
+	if !strings.Contains(body, `name="invoice_company_name"`) ||
+		!strings.Contains(body, `value="買受股份有限公司"`) ||
+		!strings.Contains(body, `name="invoice_tax_id"`) ||
+		!strings.Contains(body, `value="04595252"`) {
+		t.Errorf("changing the invoice choice did not retain the registered buyer fields: %s", body)
 	}
 }

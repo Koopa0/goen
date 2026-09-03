@@ -204,6 +204,37 @@ ORDER BY ol.position, ol.id;
 INSERT INTO order_events (order_id, kind, note, actor_user_id)
 VALUES (@order_id, @kind::text, @note, @actor_user_id);
 
+-- A payout source commits before this customer-visible append. Keying the row
+-- on the return makes a retry safe after a transient database/context failure.
+-- The WHERE is a second authority: no caller can announce money which neither
+-- the provider ledger nor the store-credit ledger says has moved.
+-- name: RecordReturnRefundedEvent :exec
+INSERT INTO order_events (
+    order_id, kind, note, actor_user_id, return_request_id
+)
+SELECT r.order_id, 'refunded', (
+           SELECT rf.provider_ref
+           FROM refunds rf
+           WHERE rf.return_request_id = r.id AND rf.status = 'succeeded'
+           ORDER BY rf.attempt_no DESC
+           LIMIT 1
+       ), @actor_user_id, r.id
+FROM return_requests r
+WHERE r.id = @return_request_id
+  AND r.status IN ('approved', 'completed')
+  AND (
+      EXISTS (
+          SELECT 1 FROM refunds rf
+          WHERE rf.return_request_id = r.id AND rf.status = 'succeeded'
+      )
+      OR EXISTS (
+          SELECT 1 FROM store_credit_entries e
+          WHERE e.idempotency_key = 'return-credit:' || r.id::text
+            AND e.amount_cents > 0
+      )
+  )
+ON CONFLICT (return_request_id) WHERE return_request_id IS NOT NULL DO NOTHING;
+
 -- name: OrderIDByNumber :one
 SELECT id, fulfillment_status FROM orders WHERE order_number = $1;
 
@@ -251,7 +282,12 @@ LEFT JOIN LATERAL (
     SELECT max(s.delivered_at) AS delivered_at
     FROM order_shipments s WHERE s.order_id = o.id
 ) d ON true
-ORDER BY (r.status = 'requested') DESC, r.created_at DESC
+-- Recovery is the only retry door. Rank it before the intake queue and before
+-- LIMIT, or fifty newer requests can make an older approved-but-unpaid customer
+-- disappear from every actionable screen.
+ORDER BY return_payout_outstanding(r.id) DESC,
+         (r.status = 'requested') DESC,
+         r.created_at DESC
 LIMIT $1;
 
 -- The amount comes from return_refundable_amount and never from anything the
@@ -284,68 +320,47 @@ JOIN order_lines ol ON ol.id = rl.order_line_id
 WHERE rl.return_request_id = ANY(@request_ids::uuid[])
 ORDER BY rl.return_request_id, ol.position, ol.id;
 
--- One row per return, carrying every durable fact needed to decide what its
--- payout can still move. The queue asks for the whole visible set in one call;
--- an approved retry asks for its one id through the same projection. Keeping
--- the source split and completion probes here prevents the page and retry from
--- acquiring two definitions as well as avoiding a query fan-out per row.
---
--- The refund total is deliberately per PAYMENT and excludes this return's own
--- request key. The credit figures are deliberately an order position split by
--- direction and exclude this return's own compensation. Neither question can
--- be answered by the per-order order_refunds view without making a stalled
--- retry count the very claim it is trying to resume.
+-- One row per return, carrying its frozen source allocation and exact durable
+-- settlement. The queue asks for the whole visible set in one call; an approved
+-- retry asks for its one id through the same projection. Provider attempt state
+-- is deliberately absent: pending work reuses its key and a known terminal
+-- generation appends a successor, so neither makes the recovery button unsafe.
 -- name: ReturnPayoutFacts :many
 WITH selected AS (
-    SELECT r.id, r.order_id, o.user_id,
+    SELECT r.id, r.order_id, o.user_id, r.status,
            return_refundable_amount(r.id)::bigint AS refundable_cents,
-           p.id AS payment_id,
-           coalesce(p.captured_amount_cents, 0)::bigint AS captured_cents
+           coalesce(r.card_refund_cents, 0)::bigint AS card_refund_cents,
+           coalesce(r.credit_refund_cents, 0)::bigint AS credit_refund_cents
     FROM return_requests r
     JOIN orders o ON o.id = r.order_id
-    LEFT JOIN payments p ON p.order_id = o.id AND p.status = 'succeeded'
     WHERE r.id = ANY(@request_ids::uuid[])
 )
 SELECT s.id AS return_request_id,
        s.refundable_cents,
-       s.captured_cents,
+       s.card_refund_cents,
+       s.credit_refund_cents,
        (s.user_id IS NOT NULL)::boolean AS has_account,
        coalesce((
            SELECT sum(rf.amount_cents)
            FROM refunds rf
-           WHERE rf.payment_id = s.payment_id
-             AND rf.status IN ('pending', 'requires_action', 'succeeded')
-             AND rf.request_key <> 'return:' || s.id::text
-       ), 0)::bigint AS refunded_cents,
-       coalesce((
-           SELECT -sum(sc.amount_cents) FILTER (WHERE sc.amount_cents < 0)
-           FROM store_credit_entries sc
-           WHERE sc.order_id = s.order_id
-             AND sc.idempotency_key <> 'return-credit:' || s.id::text
-       ), 0)::bigint AS credit_spent_cents,
-       coalesce((
-           SELECT sum(sc.amount_cents) FILTER (WHERE sc.amount_cents > 0)
-           FROM store_credit_entries sc
-           WHERE sc.order_id = s.order_id
-             AND sc.idempotency_key <> 'return-credit:' || s.id::text
-       ), 0)::bigint AS credit_returned_cents,
-       EXISTS (
-           SELECT 1 FROM refunds rf
            WHERE rf.return_request_id = s.id AND rf.status = 'succeeded'
-       )::boolean AS card_settled,
-       EXISTS (
-           SELECT 1 FROM refunds rf
-           WHERE rf.return_request_id = s.id AND rf.status IN ('failed', 'cancelled')
-       )::boolean AS card_terminal,
-       EXISTS (
-           SELECT 1 FROM store_credit_entries sc
+       ), 0)::bigint AS card_paid_cents,
+       coalesce((
+           SELECT sum(sc.amount_cents)
+           FROM store_credit_entries sc
            WHERE sc.idempotency_key = 'return-credit:' || s.id::text
-       )::boolean AS credit_posted,
+       ), 0)::bigint AS credit_paid_cents,
+       EXISTS (
+           SELECT 1 FROM order_events e
+           WHERE e.return_request_id = s.id AND e.kind = 'refunded'
+       )::boolean AS refund_event_recorded,
        CASE
-           WHEN s.user_id IS NULL OR s.refundable_cents <= 0 THEN false
+           -- Erasure detaches the order owner, but deliberately retains the
+           -- order's award lot and loyalty account. A money-settled return may
+           -- therefore still owe its idempotent clawback after user deletion.
+           WHEN s.refundable_cents <= 0 THEN false
            ELSE (
-               return_loyalty_points_requested(
-                   s.order_id, s.id, s.refundable_cents) > 0
+			   return_loyalty_points_allocation(s.id) > 0
                AND EXISTS (
                    SELECT 1 FROM loyalty_entries e
                    WHERE e.order_id = s.order_id AND e.kind = 'award'
@@ -392,6 +407,12 @@ ORDER BY ol.variant_id, rl.order_line_id;
 -- return_requests_completed_is_inspected refuses this while any line is
 -- un-inspected. `status = 'approved'` is restated for DecideReturn's reason: it
 -- is what makes two staff members closing one return resolve to one winner.
+-- name: LockReturnOrder :one
+SELECT o.id
+FROM orders o JOIN return_requests r ON r.order_id = o.id
+WHERE r.id = @id
+FOR UPDATE OF o;
+
 -- name: CompleteReturn :execrows
 UPDATE return_requests
 SET status = 'completed', resolution = coalesce(nullif(@resolution::text, ''), resolution)
@@ -406,19 +427,78 @@ UPDATE return_requests
 SET status = @status::text, resolution = @resolution, decided_at = now()
 WHERE id = @id AND status = 'requested';
 
--- nullif on the reason: "no note" is NULL, not an empty string.
--- name: OpenRefund :one
-SELECT open_refund(@payment_id, @request_key::text, @amount_cents::bigint,
-                   nullif(@reason::text, ''), @return_request_id);
+-- The database derives the payment, request key, amount and reason from the
+-- approved return. It also records this request's actor before any provider
+-- operation begins, so a retry by another staff member remains attributable.
+-- name: ClaimReturnRefundExecution :one
+SELECT claim_return_refund_execution(
+    @return_request_id::uuid, @actor_user_id::uuid, @request_id::text
+);
 
--- nullif again: a failed refund has no provider reference, and settle_refund
--- coalesces NULL onto whatever is there rather than blanking it.
--- name: SettleRefund :exec
-SELECT settle_refund(@request_key::text, nullif(@provider_ref::text, ''), @status::text);
+-- A separate statement deliberately reads after the claim committed. A SELECT
+-- invoking a mutating function keeps its outer snapshot and cannot see the row
+-- that function just inserted.
+-- name: RefundExecution :one
+SELECT r.id AS refund_id, r.request_key,
+       p.provider_ref AS payment_provider_ref,
+       r.amount_cents, r.status
+FROM refunds r
+JOIN payments p ON p.id = r.payment_id
+WHERE r.id = @refund_id
+  AND r.status IN ('pending', 'requires_action');
 
--- 'failed' is listed beside the two outstanding states on purpose: it is
--- terminal at Stripe, the goods came back, the return did not close, and nobody
--- has been paid.
+-- Each provider state has its own door. A caller cannot pair a status with the
+-- wrong identity/timestamp shape through one stringly settle function.
+-- name: RecordRefundPending :one
+SELECT record_refund_pending(
+    @refund_id::uuid, @provider_ref::text, @actor_user_id::uuid, @request_id::text
+);
+
+-- name: RecordRefundRequiresAction :one
+SELECT record_refund_requires_action(
+    @refund_id::uuid, @provider_ref::text, @actor_user_id::uuid, @request_id::text
+);
+
+-- name: RecordRefundSucceeded :one
+SELECT record_refund_succeeded(
+    @refund_id::uuid, @provider_ref::text, @actor_user_id::uuid, @request_id::text
+);
+
+-- name: RecordRefundFailed :one
+SELECT record_refund_failed(
+    @refund_id::uuid, @provider_ref::text, @actor_user_id::uuid, @request_id::text
+);
+
+-- name: RecordRefundCancelled :one
+SELECT record_refund_cancelled(
+    @refund_id::uuid, @provider_ref::text, @actor_user_id::uuid, @request_id::text
+);
+
+-- Only a rejection specifically returned by Stripe's CREATE endpoint takes the
+-- no-provider-object door. Lookup, transport and decode errors stay pending.
+-- name: RecordRefundAPIRejection :one
+SELECT record_refund_api_rejection(
+    @refund_id::uuid, @actor_user_id::uuid, @request_id::text
+);
+
+-- Show only the latest generation of a return refund. A failed predecessor is
+-- evidence, not current work; once its successor succeeds it must not keep the
+-- health page red forever. Non-return refunds have no generation lineage.
+-- name: OpenRefundCount :one
+SELECT count(*)::bigint
+FROM refunds r
+WHERE r.status IN ('pending', 'requires_action', 'failed', 'cancelled')
+  AND (
+      r.return_request_id IS NULL
+      OR NOT EXISTS (
+          SELECT 1 FROM refunds newer
+          WHERE newer.return_request_id = r.return_request_id
+            AND newer.attempt_no > r.attempt_no
+      )
+  );
+
+-- This is a bounded diagnostic sample. OpenRefundCount, not the length of this
+-- sample, is the health figure rendered above it.
 -- name: OpenRefunds :many
 SELECT r.request_key, r.status, r.amount_cents, r.created_at,
        coalesce(r.provider_ref, '')::text AS provider_ref,
@@ -426,7 +506,15 @@ SELECT r.request_key, r.status, r.amount_cents, r.created_at,
 FROM refunds r
 JOIN payments p ON p.id = r.payment_id
 JOIN orders o ON o.id = p.order_id
-WHERE r.status IN ('pending', 'requires_action', 'failed')
+WHERE r.status IN ('pending', 'requires_action', 'failed', 'cancelled')
+  AND (
+      r.return_request_id IS NULL
+      OR NOT EXISTS (
+          SELECT 1 FROM refunds newer
+          WHERE newer.return_request_id = r.return_request_id
+            AND newer.attempt_no > r.attempt_no
+      )
+  )
 ORDER BY r.created_at
 LIMIT $1;
 
@@ -446,9 +534,10 @@ SELECT coalesce((SELECT b.balance_cents FROM store_credit_balances b
 -- The casts are what make the nullability explicit: sqlc reads a bare parameter
 -- as non-nullable, and a grant has no order behind it and may have no actor.
 -- name: PostStoreCredit :one
-SELECT post_store_credit(@user_id, @amount_cents::bigint, @reason::text,
-                         NULL::uuid, @idempotency_key::text,
-                         sqlc.narg(actor_user_id)::uuid);
+SELECT grant_store_credit(
+    @user_id, @amount_cents::bigint, @reason::text,
+    @actor_user_id::uuid, @operation_id::uuid
+)::uuid AS entry_id;
 
 -- name: RecentCredit :many
 SELECT e.amount_cents, e.reason, e.created_at,
@@ -517,8 +606,10 @@ RETURNING slug;
 
 -- Every nullif('') is what lets a translation be CLEARED; absence is the state
 -- the column expresses. warranty_months zero means the shop has stated no term,
--- and registration is then refused rather than given a default.
--- name: UpdateProduct :exec
+-- and registration is then refused rather than given a default. :execrows is
+-- part of the write contract: an absent immutable slug must not look like a
+-- successful customer-visible edit or acquire an audit row.
+-- name: UpdateProduct :execrows
 UPDATE products
 SET brand_id = @brand_id, category_id = @category_id, name = @name::text,
     summary = nullif(@summary::text, ''), description = @description::text,
@@ -580,7 +671,9 @@ VALUES (@code::text, @description::text, @kind::text,
         sqlc.narg(amount_cents)::bigint, sqlc.narg(percent_bp)::integer,
         sqlc.narg(max_discount_cents)::bigint, @min_subtotal_cents::bigint,
         sqlc.narg(max_redemptions)::integer, @per_customer_limit::integer,
-        sqlc.narg(ends_at)::timestamptz);
+        CASE WHEN @days::integer > 0
+             THEN now() + make_interval(days => @days::integer)
+             ELSE NULL END);
 
 -- Switched off, never deleted: coupon_redemptions references it, and a promotion
 -- that ran is part of what past orders were charged.
@@ -637,7 +730,7 @@ SELECT record_audit_event(@actor, @action::text, @entity_table::text,
 -- name: AuditEvents :many
 SELECT a.action, a.entity_table, a.entity_id, a.before, a.after,
        a.request_id, a.occurred_at,
-       coalesce(u.full_name, u.email, '') AS actor
+       coalesce(u.full_name, u.email, a.actor_id_snapshot::text) AS actor
 FROM audit_events a
 LEFT JOIN users u ON u.id = a.actor_user_id
 ORDER BY a.occurred_at DESC, a.id DESC
@@ -822,8 +915,7 @@ SELECT
     sum(ol.unit_price_cents * ol.quantity)::bigint AS revenue_cents
 FROM order_lines ol
 JOIN orders o ON o.id = ol.order_id
-JOIN product_variants pv ON pv.id = ol.variant_id
-JOIN products p ON p.id = pv.product_id
+JOIN products p ON p.id = ol.product_id
 JOIN committed_orders c ON c.id = o.id
 LEFT JOIN brands b ON b.id = p.brand_id
 WHERE o.placed_at >= now() - make_interval(days => @window_days::integer)
@@ -983,31 +1075,34 @@ WHERE p.status = 'requires_reconciliation'
 ORDER BY p.created_at
 LIMIT 50;
 
--- The claims a person has to settle at the provider.
---
--- A 折讓 claim is taken before ECPay is asked, because their allowance endpoint
--- carries no idempotency field, and a call that was not ANSWERED keeps it:
--- whether the document was filed is not knowable from here. That is right, and
--- it leaves a row only a person can settle — the payment_webhook_events shape
--- exactly, and the same reason it belongs on this page.
---
--- NAMED and never counted, for the reason the unreconciled payments are: an
--- operator needs the order to go and look. A count beside the list would be a
--- second definition of the same figure, and whichever gained a predicate first
--- would be the one that disagreed.
---
--- issued_at, because a PENDING row has no provider date yet: it defaults to
--- now() when the claim is taken and is overwritten with the provider's own date
--- when it settles. A claim in flight is legitimately pending for the seconds the
--- call takes, so the window is what tells one apart from one that is stuck.
+-- Durable e-invoice operations which either explicitly alarmed or have remained
+-- pending beyond several worker polls. Rejected and succeeded evidence remains
+-- durable but is not an active health alarm.
 -- name: StrandedInvoiceClaims :many
-SELECT d.id, o.order_number, d.kind, d.amount_cents, d.issued_at
-FROM invoice_documents d
-JOIN orders o ON o.id = d.order_id
-WHERE d.status = 'pending'
-  AND d.issued_at < now() - interval '15 minutes'
-ORDER BY d.issued_at
+SELECT op.id AS operation_id, o.order_number, op.kind, op.status,
+       op.amount_cents, op.reconcile_attempts, op.send_attempts,
+       coalesce(op.last_error, '')::text AS last_error, op.created_at,
+       (op.kind = 'allowance'
+        AND op.status = 'pending'
+        AND op.send_attempts > op.resend_authorizations
+        AND op.last_error = 'allowance_not_yet_visible'
+        AND op.last_send_at IS NOT NULL
+        AND op.last_send_at <= now() - interval '15 minutes'
+        AND (op.lease_until IS NULL OR op.lease_until <= now()))::boolean
+           AS can_authorize_resend
+FROM invoice_operations op
+JOIN orders o ON o.id = op.order_id
+WHERE op.status = 'attention'
+   OR (op.status = 'pending' AND op.created_at < now() - interval '15 minutes')
+ORDER BY op.created_at
 LIMIT 50;
+
+-- A human has independently checked ECPay and confirmed the missing Allowance.
+-- The database rechecks age/state/lease and records actor + request atomically.
+-- name: AuthorizeInvoiceAllowanceResend :one
+SELECT authorize_invoice_allowance_resend(
+    @operation_id::uuid, @actor_user_id::uuid, @request_id::text
+)::boolean AS authorized;
 
 -- The locale comes off the ORDER and never off the staff member who pressed
 -- Ship, which would send a Taiwanese shopkeeper's language to an English
@@ -1072,7 +1167,7 @@ INSERT INTO shipping_method_versions (method_id, name, carrier, name_en, carrier
                                       fee_cents, free_over_cents)
 VALUES (@method_id, @name, nullif(@carrier::text, ''),
         nullif(@name_en::text, ''), nullif(@carrier_en::text, ''),
-        @fee_cents, nullif(@free_over_cents, 0))
+        @fee_cents, nullif(@free_over_cents::bigint, 0))
 RETURNING id;
 
 -- Without this, publishing a new base fee silently drops every surcharge: the
@@ -1206,27 +1301,14 @@ WHERE id = $1 AND handled_at IS NOT NULL;
 -- prescribes for an order that has shipped: a reversal un-funds the order, and
 -- this one was paid for and went out. Idempotent on the return.
 -- name: CompensateReturnWithCredit :one
-SELECT post_store_credit(
-    @user_id, @amount_cents::bigint, @reason::text, @order_id,
-    'return-credit:' || @return_id::text, sqlc.narg(actor)::uuid
+SELECT compensate_return_with_credit(
+    @return_id::uuid, @amount_cents::bigint, sqlc.narg(actor)::uuid
 )::uuid AS entry_id;
 
 -- name: ReverseReturnPoints :one
--- The durable award lot, rather than today's tier, owns the earn arithmetic.
--- Request the refunded proportion of that actual award, then let the posting
--- function clamp it to the lot's unconsumed remainder.
-WITH args AS (
-    SELECT @order_id::uuid AS order_id,
-           @return_id::uuid AS return_id,
-           @refunded_cents::bigint AS refunded_cents
-)
-SELECT reverse_order_points(
-    args.order_id,
-    args.return_id,
-    return_loyalty_points_requested(
-        args.order_id, args.return_id, args.refunded_cents)
-)::bigint AS points_reversed
-FROM args;
+-- The return is the sole capability. The database derives its order, durable
+-- refund amount and award proportion after verifying that the payout landed.
+SELECT reverse_return_points(@return_id::uuid)::bigint AS points_reversed;
 
 -- Prefix on both, each index-backed, with a floor on the term enforced by the
 -- caller. Every role is searched, for AdminCustomer's reason. An erased

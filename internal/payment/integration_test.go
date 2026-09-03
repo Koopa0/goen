@@ -22,12 +22,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	stripe "github.com/stripe/stripe-go/v86"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/outbox"
@@ -427,8 +429,6 @@ func TestCaptureWithNoCardDetails(t *testing.T) {
 	}
 }
 
-// TestCaptureForAnUnknownSessionIsNotFound proves a webhook naming a session
-// goen never opened creates no payment.
 func TestCaptureForAnUnknownSessionIsNotFound(t *testing.T) {
 	s := payment.NewStore(pool)
 	_, err := captureThroughWebhook(t, s, payment.Capture{SessionID: "cs_never_opened", AmountRecv: 100})
@@ -440,7 +440,6 @@ func TestCaptureForAnUnknownSessionIsNotFound(t *testing.T) {
 	}
 }
 
-// TestOpeningTheSamePaymentTwiceIsOneRow proves opening is idempotent.
 func TestOpeningTheSamePaymentTwiceIsOneRow(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
@@ -1405,14 +1404,12 @@ func TestTheSessionExpiryComesFromTheEarliestLiveHold(t *testing.T) {
 	if !o.HoldExpiresAt.IsZero() {
 		t.Errorf("an order holding nothing reports a hold until %v", o.HoldExpiresAt)
 	}
-	if o.HoldCoversASession(time.Now()) {
-		t.Error("an order whose stock has gone back on the shelf would still open a checkout")
-	}
 
-	late := time.Now().Add(45 * time.Minute).Truncate(time.Microsecond)
-	early := time.Now().Add(35 * time.Minute).Truncate(time.Microsecond)
-	hold(t, id, 0, late, "late:"+number)
-	hold(t, id, 1, early, "early:"+number)
+	late := hold(t, id, 0, 45*time.Minute, "late:"+number)
+	early := hold(t, id, 1, 35*time.Minute, "early:"+number)
+	if !early.Before(late) {
+		t.Fatalf("fixture expiry order is early=%v, late=%v", early, late)
+	}
 
 	o, err = s.Order(ctx, number)
 	if err != nil {
@@ -1426,20 +1423,56 @@ func TestTheSessionExpiryComesFromTheEarliestLiveHold(t *testing.T) {
 		t.Errorf("SessionExpiry() is %v, want %v — Stripe would go on taking money "+
 			"after the stock was released", o.SessionExpiry(), early)
 	}
-	if !o.HoldCoversASession(time.Now()) {
-		t.Error("35 minutes of hold is not enough to open a 30-minute session")
+}
+
+func TestHoldAdmissionUsesTheDatabaseTransactionClock(t *testing.T) {
+	ctx := t.Context()
+	_, orderID := order(t, 10000)
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin clock transaction: %v", err)
+	}
+	cleanupCtx := context.WithoutCancel(t.Context())
+	defer func() { _ = tx.Rollback(cleanupCtx) }()
+
+	expires := hold(t, orderID, 0, 150*time.Millisecond, "db-clock:"+uuid.NewString())
+	time.Sleep(250 * time.Millisecond)
+	if !expires.Before(time.Now().Add(50 * time.Millisecond)) {
+		t.Fatal("fixture did not cross the process-clock admission boundary")
+	}
+	row, err := db.New(tx).OrderHoldExpiry(ctx, db.OrderHoldExpiryParams{
+		OrderID: orderID,
+		RequiredLifetime: pgtype.Interval{
+			Microseconds: (50 * time.Millisecond).Microseconds(), Valid: true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("read hold against transaction clock: %v", err)
+	}
+	if !row.CoversSession {
+		t.Fatal("hold admission was recomputed against the process clock instead of DB now()")
 	}
 }
 
 // hold reserves one unit of the nth-largest-stock variant for an order.
-func hold(t *testing.T, orderID uuid.UUID, nth int, until time.Time, key string) {
+func hold(t *testing.T, orderID uuid.UUID, nth int, forDuration time.Duration, key string) time.Time {
 	t.Helper()
-	if _, err := pool.Exec(t.Context(), `
+	var reservationID uuid.UUID
+	if err := pool.QueryRow(t.Context(), `
 		SELECT hold_inventory($1,
 			(SELECT id FROM product_variants ORDER BY stock_quantity DESC, id LIMIT 1 OFFSET $2),
-			1, $3, $4)`, orderID, nth, until, key); err != nil {
+			1, $3::interval, $4)`, orderID, nth, pgtype.Interval{
+		Microseconds: int64(forDuration / time.Microsecond), Valid: true,
+	}, key).Scan(&reservationID); err != nil {
 		t.Fatalf("hold stock: %v", err)
 	}
+	var expiresAt time.Time
+	if err := pool.QueryRow(t.Context(),
+		`SELECT expires_at FROM inventory_reservations WHERE id = $1`, reservationID).
+		Scan(&expiresAt); err != nil {
+		t.Fatalf("read hold expiry: %v", err)
+	}
+	return expiresAt
 }
 
 // TestStoreCannotWriteASucceededPaymentDirectly proves the store role cannot
@@ -1678,6 +1711,129 @@ func TestPointsAreMultipliedByTheCustomersTier(t *testing.T) {
 	}
 }
 
+// TestConcurrentCapturesSerializeTierAwards holds the per-member lock between
+// two different paid orders. Without it, both award statements can read the
+// same pre-payment spend and mint at the base rate even though one payment must
+// precede the other.
+func TestConcurrentCapturesSerializeTierAwards(t *testing.T) {
+	ctx := t.Context()
+	const orderCents = int64(1200000) // NT$12,000.
+
+	// Crossing NT$11,000 promotes the member to 2x on the next order. Reuse the
+	// same exact band as the sequential tier test so the unique spend boundary
+	// remains valid whether this test is run alone or with the whole package.
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO membership_tiers (code, name, min_spend_cents, points_multiplier_bp, position)
+		VALUES ('tiertest', '測試等級', 1100000, 20000, 9)
+		ON CONFLICT (code) DO NOTHING`); err != nil {
+		t.Fatalf("create the tier: %v", err)
+	}
+
+	var userID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO users (email)
+		VALUES ('concurrent-tier-' || gen_random_uuid() || '@goen.invalid')
+		RETURNING id`).Scan(&userID); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	firstNumber, firstOrderID := ownedOrder(t, userID, orderCents)
+	secondNumber, secondOrderID := ownedOrder(t, userID, orderCents)
+	firstSession := "cs_tier_concurrent_first_" + uuid.NewString()[:12]
+	secondSession := "cs_tier_concurrent_second_" + uuid.NewString()[:12]
+	s := payment.NewStore(pool)
+	if err := s.OpenPayment(ctx, firstNumber, firstSession, orderCents); err != nil {
+		t.Fatalf("open first payment: %v", err)
+	}
+	if err := s.OpenPayment(ctx, secondNumber, secondSession, orderCents); err != nil {
+		t.Fatalf("open second payment: %v", err)
+	}
+
+	firstTx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin first capture: %v", err)
+	}
+	cleanupCtx := context.WithoutCancel(ctx)
+	defer func() { _ = firstTx.Rollback(cleanupCtx) }()
+	if _, err := firstTx.Exec(ctx,
+		`SELECT capture_payment($1, $2::bigint, NULL, NULL)`, firstSession, orderCents); err != nil {
+		t.Fatalf("post first capture: %v", err)
+	}
+	var firstPoints int64
+	if err := firstTx.QueryRow(ctx,
+		`SELECT award_loyalty_points($1)`, firstOrderID).Scan(&firstPoints); err != nil {
+		t.Fatalf("award first capture: %v", err)
+	}
+	if firstPoints != 120 {
+		t.Fatalf("first concurrent order awarded %d points, want the base 120", firstPoints)
+	}
+
+	type captureResult struct {
+		points int64
+		err    error
+	}
+	returned := make(chan struct{})
+	done := make(chan captureResult, 1)
+	go func() {
+		defer close(returned)
+		secondTx, beginErr := pool.Begin(ctx)
+		if beginErr != nil {
+			done <- captureResult{err: fmt.Errorf("begin second capture: %w", beginErr)}
+			return
+		}
+		defer func() { _ = secondTx.Rollback(cleanupCtx) }()
+		if _, captureErr := secondTx.Exec(ctx,
+			`SELECT capture_payment($1, $2::bigint, NULL, NULL)`, secondSession, orderCents); captureErr != nil {
+			done <- captureResult{err: fmt.Errorf("post second capture: %w", captureErr)}
+			return
+		}
+		var points int64
+		if awardErr := secondTx.QueryRow(ctx,
+			`SELECT award_loyalty_points($1)`, secondOrderID).Scan(&points); awardErr != nil {
+			done <- captureResult{err: fmt.Errorf("award second capture: %w", awardErr)}
+			return
+		}
+		if commitErr := secondTx.Commit(ctx); commitErr != nil {
+			done <- captureResult{err: fmt.Errorf("commit second capture: %w", commitErr)}
+			return
+		}
+		done <- captureResult{points: points}
+	}()
+
+	// Distinct orders and payment rows share no capture lock. Seeing this query
+	// wait proves the overlap reached award_loyalty_points and serialized on the
+	// member account created by the still-uncommitted first award.
+	waitForSQLLock(t, ctx, returned, "%SELECT award_loyalty_points(%")
+	if err := firstTx.Commit(ctx); err != nil {
+		t.Fatalf("commit first capture: %v", err)
+	}
+
+	var second captureResult
+	select {
+	case second = <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("second award stayed blocked after the first member award committed")
+	}
+	if second.err != nil {
+		t.Fatalf("second capture transaction: %v", second.err)
+	}
+	if second.points != 240 {
+		t.Errorf("second concurrent order awarded %d points, want 240 at 2x", second.points)
+	}
+
+	var totalPoints int64
+	if err := pool.QueryRow(ctx, `
+		SELECT coalesce(sum(points), 0)
+		FROM loyalty_entries
+		WHERE order_id = ANY($1::uuid[])`, []uuid.UUID{firstOrderID, secondOrderID}).
+		Scan(&totalPoints); err != nil {
+		t.Fatalf("read concurrent awards: %v", err)
+	}
+	if totalPoints != 360 {
+		t.Errorf("concurrent orders awarded %d points total, want one base 120 plus one 2x 240", totalPoints)
+	}
+}
+
 // ownedOrder places an order for a signed-in customer without opening payment.
 func ownedOrder(t *testing.T, userID uuid.UUID, cents int64) (number string, orderID uuid.UUID) {
 	t.Helper()
@@ -1794,8 +1950,7 @@ func TestAnOrderThatEarnsNothingIsStillCaptured(t *testing.T) {
 }
 
 // TestTheAwardedPointsUseWholeHundreds binds every integer boundary to the
-// database's single production definition. Wave 0 deliberately removed the
-// second Go definition rather than retaining two implementations to compare.
+// database's single production definition.
 func TestTheAwardedPointsUseWholeHundreds(t *testing.T) {
 	for _, cents := range []int64{4999, 5000, 9999, 10000, 19999, 100000, 2590000} {
 		t.Run(strconv.FormatInt(cents, 10), func(t *testing.T) {
@@ -1955,7 +2110,7 @@ func TestPaidCompleteResolutionCannotOpenSecondSession(t *testing.T) {
 		t.Fatalf("create customer: %v", err)
 	}
 	number, orderID := ownedOrder(t, customerID, amount)
-	hold(t, orderID, 0, time.Now().Add(60*time.Minute), "complete-paid:"+number)
+	hold(t, orderID, 0, 60*time.Minute, "complete-paid:"+number)
 	providerRef := "cs_complete_paid_" + uuid.NewString()[:12]
 	if _, err := pool.Exec(ctx,
 		`SELECT record_complete_payment($1, $2, $3)`, orderID, providerRef, amount); err != nil {
@@ -2084,7 +2239,7 @@ func TestAdmittedCompleteSessionsBecomeVisibleAndResolvable(t *testing.T) {
 			ctx := t.Context()
 			const originalAmount = int64(100000)
 			number, orderID := order(t, originalAmount)
-			hold(t, orderID, 0, time.Now().Add(60*time.Minute), "admitted-complete:"+number)
+			hold(t, orderID, 0, 60*time.Minute, "admitted-complete:"+number)
 			oldSession := "cs_admitted_complete_" + uuid.NewString()[:12]
 			s := payment.NewStore(pool)
 			if err := s.OpenPayment(ctx, number, oldSession, originalAmount); err != nil {
@@ -2269,7 +2424,7 @@ func TestPaymentReconciliationPinsExpiredStock(t *testing.T) {
 			ctx := t.Context()
 			const amount = int64(110000)
 			number, orderID := order(t, amount)
-			hold(t, orderID, 0, time.Now().Add(60*time.Minute), "reconcile-stock:"+number)
+			hold(t, orderID, 0, 60*time.Minute, "reconcile-stock:"+number)
 			var reservationID uuid.UUID
 			if err := pool.QueryRow(ctx, `
 				UPDATE inventory_reservations
@@ -2357,8 +2512,8 @@ func TestReleasedStockMakesLateMoneyARefundCase(t *testing.T) {
 		}
 		if released, _, err := cart.NewStore(pool).Sweep(
 			ctx, slog.New(slog.DiscardHandler),
-		); err != nil || released != 1 {
-			t.Fatalf("sweep before payment outcome = released %d, error %v; want 1, nil",
+		); err != nil || released < 1 {
+			t.Fatalf("sweep before payment outcome = released %d, error %v; want at least 1, nil",
 				released, err)
 		}
 		var state string
@@ -2376,7 +2531,7 @@ func TestReleasedStockMakesLateMoneyARefundCase(t *testing.T) {
 		ctx := t.Context()
 		const amount = int64(117000)
 		number, orderID := order(t, amount)
-		hold(t, orderID, 0, time.Now().Add(60*time.Minute), "late-stock-webhook:"+number)
+		hold(t, orderID, 0, 60*time.Minute, "late-stock-webhook:"+number)
 		providerRef := "cs_late_stock_webhook_" + uuid.NewString()[:12]
 		s := payment.NewStore(pool)
 		if err := s.OpenPayment(ctx, number, providerRef, amount); err != nil {
@@ -2436,7 +2591,7 @@ func TestReleasedStockMakesLateMoneyARefundCase(t *testing.T) {
 		ctx := t.Context()
 		const amount = int64(118000)
 		number, orderID := order(t, amount)
-		hold(t, orderID, 0, time.Now().Add(60*time.Minute), "late-stock-admin:"+number)
+		hold(t, orderID, 0, 60*time.Minute, "late-stock-admin:"+number)
 		providerRef := "cs_late_stock_admin_" + uuid.NewString()[:12]
 		s := payment.NewStore(pool)
 		if err := s.OpenPayment(ctx, number, providerRef, amount); err != nil {
@@ -2523,7 +2678,7 @@ func TestACompleteSessionRejectedAfterItsWebhookAdvancesGeneration(t *testing.T)
 	ctx := t.Context()
 	const amount = int64(125000)
 	number, orderID := order(t, amount)
-	hold(t, orderID, 0, time.Now().Add(60*time.Minute), "complete-race:"+number)
+	hold(t, orderID, 0, 60*time.Minute, "complete-race:"+number)
 
 	completeSession := "cs_complete_race_" + uuid.NewString()[:12]
 	replacementSession := "cs_complete_replacement_" + uuid.NewString()[:12]
@@ -2722,7 +2877,7 @@ func TestAnExpiredRejectedSessionConsumesItsIdempotencyGeneration(t *testing.T) 
 	s := payment.NewStore(pool)
 	const amount = int64(130000)
 	number, orderID := order(t, amount)
-	hold(t, orderID, 0, time.Now().Add(60*time.Minute), "generation:"+number)
+	hold(t, orderID, 0, 60*time.Minute, "generation:"+number)
 
 	oldSession := "cs_generation_old_" + uuid.NewString()[:12]
 	if err := s.OpenPayment(ctx, number, oldSession, amount); err != nil {
@@ -2985,7 +3140,7 @@ func TestObsoleteSessionCleanupConvergesAfterALocalWriteFailure(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
 	number, orderID := order(t, 100000)
-	hold(t, orderID, 0, time.Now().Add(60*time.Minute), "obsolete-cleanup:"+number)
+	hold(t, orderID, 0, 60*time.Minute, "obsolete-cleanup:"+number)
 	oldSession := "cs_obsolete_cleanup_" + uuid.NewString()[:12]
 	if err := s.OpenPayment(ctx, number, oldSession, 100000); err != nil {
 		t.Fatalf("open old amount: %v", err)
@@ -3043,7 +3198,8 @@ func TestObsoleteSessionCleanupConvergesAfterALocalWriteFailure(t *testing.T) {
 			remote.mu.Lock()
 			status := remote.oldStatus
 			remote.mu.Unlock()
-			_, _ = fmt.Fprintf(w, `{"id":%q,"object":"checkout.session","status":%q}`, oldSession, status)
+			_, _ = fmt.Fprintf(w, `{"id":%q,"object":"checkout.session","status":%q,`+
+				`"url":"https://checkout.stripe.com/c/pay/%s"}`, oldSession, status, oldSession)
 		case r.Method == http.MethodPost && r.URL.Path == "/v1/checkout/sessions/"+oldSession+"/expire":
 			remote.mu.Lock()
 			remote.oldStatus = "expired"
@@ -3132,9 +3288,107 @@ func TestObsoleteSessionCleanupConvergesAfterALocalWriteFailure(t *testing.T) {
 	}
 }
 
+// TestObsoleteSessionCleanupSurvivesAClientDisconnect holds the local record of
+// a retirement against a browser that leaves while Stripe is closing the
+// session. Stripe has already expired it by then, so a cancelled local write
+// leaves goen offering a checkout that can never take money.
+func TestObsoleteSessionCleanupSurvivesAClientDisconnect(t *testing.T) {
+	ctx := t.Context()
+	s := payment.NewStore(pool)
+	number, orderID := order(t, 100000)
+	hold(t, orderID, 0, 60*time.Minute, "obsolete-disconnect:"+number)
+	oldSession := "cs_obsolete_disconnect_" + uuid.NewString()[:12]
+	if err := s.OpenPayment(ctx, number, oldSession, 100000); err != nil {
+		t.Fatalf("open old amount: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`UPDATE orders SET shipping_cents = 30000 WHERE id = $1`, orderID); err != nil {
+		t.Fatalf("change amount owed: %v", err)
+	}
+
+	// The disconnect lands after Stripe has applied the expiry and before its
+	// reply is written, which is the only window in which the two records can
+	// disagree.
+	atExpire := make(chan struct{})
+	proceed := make(chan struct{})
+	var remote struct {
+		mu          sync.Mutex
+		status      string
+		expireCalls int
+	}
+	remote.status = "open"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/checkout/sessions/"+oldSession:
+			remote.mu.Lock()
+			status := remote.status
+			remote.mu.Unlock()
+			_, _ = fmt.Fprintf(w, `{"id":%q,"object":"checkout.session","status":%q,`+
+				`"url":"https://checkout.stripe.com/c/pay/%s"}`, oldSession, status, oldSession)
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/checkout/sessions/"+oldSession+"/expire":
+			remote.mu.Lock()
+			remote.status = "expired"
+			remote.expireCalls++
+			remote.mu.Unlock()
+			atExpire <- struct{}{}
+			<-proceed
+			_, _ = fmt.Fprintf(w, `{"id":%q,"object":"checkout.session","status":"expired"}`, oldSession)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	original := stripe.GetBackend(stripe.APIBackend)
+	noRetries := int64(0)
+	stripe.SetBackend(stripe.APIBackend, stripe.GetBackendWithConfig(
+		stripe.APIBackend,
+		&stripe.BackendConfig{URL: stripe.String(srv.URL), MaxNetworkRetries: &noRetries},
+	))
+	gateway, err := payment.NewGateway("sk_test_notreal", testWebhookSecret, "https://goen.example")
+	stripe.SetBackend(stripe.APIBackend, original)
+	if err != nil {
+		t.Fatalf("gateway: %v", err)
+	}
+
+	h := payment.NewHandler(s, gateway, alwaysPlacedHere{}, slog.New(slog.DiscardHandler), false)
+	reqCtx, disconnect := context.WithCancel(ctx)
+	defer disconnect()
+	req := httptest.NewRequestWithContext(reqCtx, http.MethodPost,
+		"/orders/"+number+"/pay", http.NoBody)
+	req.SetPathValue("number", number)
+	returned := make(chan struct{})
+	go func() {
+		defer close(returned)
+		h.Start(httptest.NewRecorder(), req)
+	}()
+
+	<-atExpire
+	disconnect()
+	close(proceed)
+	<-returned
+
+	remote.mu.Lock()
+	expireCalls := remote.expireCalls
+	remote.mu.Unlock()
+	if expireCalls != 1 {
+		t.Fatalf("Stripe expire calls = %d, want 1", expireCalls)
+	}
+
+	var status string
+	if err := pool.QueryRow(ctx,
+		`SELECT status FROM payments WHERE provider_ref = $1`, oldSession).Scan(&status); err != nil {
+		t.Fatalf("read the retired attempt: %v", err)
+	}
+	if status != "cancelled" {
+		t.Errorf("retired attempt status = %q, want %q; Stripe has already expired the session",
+			status, "cancelled")
+	}
+}
+
 // TestTheWebhookRoutesEachEventToItsEffect is the HTTP-level lock on the routing
-// switch: a case deleted from it falls to `default` and every other test here
-// stays green.
+// switch in handler.go.
 func TestTheWebhookRoutesEachEventToItsEffect(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
@@ -3477,7 +3731,7 @@ func TestTheWebhookPersistsCapturesLocalInvariantsRefuse(t *testing.T) {
 				slog.New(slog.NewTextHandler(&logs, nil)), false)
 
 			number, id := order(t, 100000)
-			hold(t, id, 0, time.Now().Add(45*time.Minute), "refused:"+number)
+			hold(t, id, 0, 45*time.Minute, "refused:"+number)
 			session := "cs_refused_" + uuid.NewString()[:12]
 			if err := s.OpenPayment(ctx, number, session, 100000); err != nil {
 				t.Fatalf("open: %v", err)
@@ -3733,11 +3987,9 @@ func TestReachableCaptureConstraintsBecomeDurable(t *testing.T) {
 	}
 }
 
-// TestTheWebhookItselfFlagsMoneyForACancelledOrder drives the real handler,
-// because the test below drives a callback of its own: it proves the store can
-// record the outcome, not that the switch in handler.go ever asks it to. With
-// the branch deleted there the money still arrives, the capture is still
-// refused, and nothing anywhere is unreconciled — which is the whole defect.
+// TestTheWebhookItselfFlagsMoneyForACancelledOrder drives the real handler. The
+// test below drives a callback of its own, so it can only show that the store
+// records the outcome, never that handler.go's switch asks it to.
 func TestTheWebhookItselfFlagsMoneyForACancelledOrder(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)
@@ -3789,19 +4041,13 @@ func TestTheWebhookItselfFlagsMoneyForACancelledOrder(t *testing.T) {
 // TestMoneyForACancelledOrderLeavesSomethingToActOn holds the difference
 // between a log line and a record.
 //
-// A slow webhook and a cancel race: the capture is refused by
+// A slow webhook races a cancel: the capture is refused by
 // payments_refuse_cancelled_order, and the event is still marked processed —
-// which is correct, because retrying changes nothing and rolling the claim back
-// would lose the only trace that money arrived. But the money IS at Stripe,
-// against goods already back on the shelf, and the only output was one ERROR
-// log. Nothing reads a log: /admin/health could not count it, no refund row
-// existed, no outbox topic carried it, and the shop found out when the customer
-// asked.
-//
-// The event is marked UNRECONCILED in the same transaction as the claim, which
-// is ProcessWebhook's own rule — an event may not be recorded as seen unless
-// what it needs is recorded with it — applied to the outcome rather than the
-// effect.
+// retrying changes nothing, and rolling the claim back would lose the only
+// trace that money arrived. The money IS at Stripe against goods already back
+// on the shelf, so the event is marked UNRECONCILED in the same transaction as
+// the claim: an event may not be recorded as seen unless what it needs is
+// recorded with it.
 func TestMoneyForACancelledOrderLeavesSomethingToActOn(t *testing.T) {
 	ctx := t.Context()
 	s := payment.NewStore(pool)

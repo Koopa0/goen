@@ -38,9 +38,11 @@ FROM sessions s
 JOIN users u ON u.id = s.user_id
 WHERE s.token_hash = $1 AND s.expires_at > now();
 
+-- The expiry is computed from the DATABASE's clock, which is what every read
+-- and retention sweep compares it with.
 -- name: CreateSession :exec
 INSERT INTO sessions (token_hash, user_id, user_agent, ip, expires_at)
-VALUES ($1, $2, $3, $4, $5);
+VALUES (@token_hash, @user_id, @user_agent, @ip, now() + @ttl::interval);
 
 -- name: DeleteSession :exec
 DELETE FROM sessions WHERE token_hash = $1;
@@ -348,6 +350,9 @@ SELECT EXISTS (
 ) AS taken;
 -- Keyed on the SUBJECT: a Google account can change address, and a released
 -- Workspace address can be reassigned to somebody else.
+-- name: LockGoogleSubject :exec
+SELECT pg_advisory_xact_lock(hashtextextended('google:' || @subject::text, 0));
+
 -- name: UserByGoogleSubject :one
 SELECT u.id, u.email, u.full_name, u.role
 FROM user_identities i
@@ -370,7 +375,7 @@ VALUES (@email::text, nullif(@full_name::text, ''), now())
 RETURNING id, email, full_name, role;
 
 -- ON CONFLICT DO NOTHING: two tabs finishing one sign-in are one link.
--- name: LinkIdentity :exec
+-- name: LinkIdentity :execrows
 INSERT INTO user_identities (user_id, provider, provider_subject)
 VALUES (@user_id, 'google', @subject::text)
 ON CONFLICT (provider, provider_subject) DO NOTHING;

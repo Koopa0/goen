@@ -15,7 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/koopa0/goen/internal/db"
-	email2 "github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 )
@@ -53,7 +53,7 @@ func (s *Store) requestVerification(ctx context.Context, userID, addr string) er
 	if parseErr != nil {
 		return fmt.Errorf("parse user id: %w", parseErr)
 	}
-	addr = email2.Clean(addr)
+	addr = email.Clean(addr)
 	if EmailError(addr) != "" {
 		return fmt.Errorf("requesting verification of %q: not a usable address", addr)
 	}
@@ -96,7 +96,7 @@ func (s *Store) requestVerification(ctx context.Context, userID, addr string) er
 		return fmt.Errorf("record verification request: %w", reqErr)
 	}
 
-	payload, marshalErr := json.Marshal(email2.EmailVerify{
+	payload, marshalErr := json.Marshal(email.AddressVerify{
 		Email: addr, Token: token, Locale: i18n.FromContext(ctx).Tag(),
 	})
 	if marshalErr != nil {

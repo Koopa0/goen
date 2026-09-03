@@ -173,18 +173,13 @@ func assertNoTableHoldsTheAddress(ctx context.Context, t *testing.T, tx pgx.Tx, 
 	}
 }
 
-// assertNoJSONHoldsTheAddress is the half a column sweep cannot see.
-//
-// The sweep above finds a text column literally named `email`. An address
-// inside a jsonb payload is invisible to it, and goen has two such stores: the
-// outbox freezes the recipient into every message it enqueues, and audit_events
-// is append-only with erase_user unable to reach it at all. A review found the
-// store-credit grant writing a customer's address into the second of those, so
-// the erasure promised on the privacy page was defeated by a table nothing
-// could clean afterwards.
+// assertNoJSONHoldsTheAddress is the half a column sweep cannot see: an address
+// inside a jsonb payload sits under no column named `email`. goen has two such
+// stores — the outbox freezes the recipient into every message it enqueues, and
+// audit_events is append-only with erase_user unable to reach it at all.
 //
 // Derived from information_schema like its neighbour, so a third jsonb store is
-// covered the day it is added rather than the day somebody remembers.
+// covered the day it is added.
 func assertNoJSONHoldsTheAddress(ctx context.Context, t *testing.T, tx pgx.Tx, addr string) {
 	t.Helper()
 

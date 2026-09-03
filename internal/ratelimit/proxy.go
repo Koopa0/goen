@@ -38,7 +38,6 @@ func ParseProxies(list string) (*Proxies, error) {
 	return p, nil
 }
 
-// parseTrusted turns one field into the network it names.
 func parseTrusted(field string) (netip.Prefix, error) {
 	if prefix, err := netip.ParsePrefix(field); err == nil {
 		if prefix.Bits() == 0 {
@@ -85,7 +84,6 @@ func (p *Proxies) clientIP(r *http.Request) string {
 	return host
 }
 
-// trusts reports whether addr is one of the hops goen believes.
 func (p *Proxies) trusts(addr netip.Addr) bool {
 	if p == nil || !addr.IsValid() {
 		return false

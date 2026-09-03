@@ -302,6 +302,11 @@ templ productBuy(v *ProductView) {
 					{ i18n.T(ctx, i18n.KeyAddRefused) }
 				</p>
 			}
+			if v.CartFull() {
+				<p class="ui-alert ui-alert--error" role="alert">
+					{ i18n.T(ctx, i18n.KeyCartLineLimit) }
+				</p>
+			}
 		</form>
 		if v.SoldOut() {
 			<form class="goen-pdp__notify" method="post" action={ templ.SafeURL(v.NotifyAction()) }>

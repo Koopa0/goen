@@ -56,8 +56,7 @@ func (s *Store) Bytes(ctx context.Context, digest string) (contentType string, d
 	return row.ContentType, row.Bytes, nil
 }
 
-// Object reads one stored image's metadata, including the dimensions a caller
-// attaching it needs.
+// Object reads one stored image's metadata.
 func (s *Store) Object(ctx context.Context, digest string) (Object, error) {
 	row, err := s.q.MediaObject(ctx, digest)
 	if err != nil {

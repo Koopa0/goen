@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -121,8 +122,8 @@ func (s *Store) Mine(ctx context.Context, userID string) ([]pages.Warranty, erro
 			Name: r.ProductName, Label: r.VariantLabel.String,
 			Slug: r.ProductSlug, Order: r.OrderNumber,
 			Unit: int(r.UnitNo), Serial: r.SerialNumber,
-			RegisteredAt: r.RegisteredAt.Format("2006-01-02"),
-			ExpiresOn:    r.ExpiresOn.Format("2006-01-02"),
+			RegisteredAt: shoptime.Day(r.RegisteredAt),
+			ExpiresOn:    shoptime.Day(r.ExpiresOn),
 			InForce:      r.InForce,
 		})
 	}

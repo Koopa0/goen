@@ -22,7 +22,6 @@ const (
 	ProductionBaseURL = "https://einvoice.ecpay.com.tw"
 )
 
-// requestTimeout bounds a call to the e-invoice provider.
 const requestTimeout = 20 * time.Second
 
 // Gateway talks to ECPay. The zero value is DISABLED and answers ErrDisabled to
@@ -54,8 +53,13 @@ func NewGateway(merchantID, hashKey, hashIV, baseURL string) (*Gateway, error) {
 	if baseURL == "" {
 		baseURL = StagingBaseURL
 	}
-	if _, err := url.Parse(baseURL); err != nil {
+	parsedBaseURL, err := url.Parse(baseURL)
+	if err != nil {
 		return nil, fmt.Errorf("invoice: base URL %q is not usable: %w", baseURL, err)
+	}
+	if (parsedBaseURL.Scheme != "http" && parsedBaseURL.Scheme != "https") ||
+		parsedBaseURL.Host == "" || parsedBaseURL.User != nil {
+		return nil, fmt.Errorf("invoice: base URL %q must be an absolute HTTP(S) URL without userinfo", baseURL)
 	}
 	return &Gateway{
 		merchantID: merchantID,
@@ -91,35 +95,41 @@ type response struct {
 	Data      string `json:"Data"`
 }
 
-// result is the decrypted inner reply every B2C endpoint shares.
-type result struct {
-	RtnCode     int    `json:"RtnCode"`
-	RtnMsg      string `json:"RtnMsg"`
-	InvoiceNo   string `json:"InvoiceNo"`
-	InvoiceDate string `json:"InvoiceDate"`
-	// RandomNumber is the four digits a VOID needs alongside the number, and the
-	// issue reply is the only place ECPay ever returns them.
-	RandomNumber string `json:"RandomNumber"`
-	// AllowanceNo is a credit note's own number. The allowance reply leaves
-	// InvoiceNo EMPTY and answers here instead.
-	AllowanceNo string `json:"IA_Allow_No"`
+type resultStatus struct {
+	RtnCode int    `json:"RtnCode"`
+	RtnMsg  string `json:"RtnMsg"`
 }
+
+// providerError preserves the machine-readable ECPay verdict. Callers use the
+// code for documented not-found/duplicate outcomes; operator evidence stores
+// only that code and a local category, never this message or a provider payload.
+type providerError struct {
+	Code    int
+	Message string
+}
+
+func (e *providerError) Error() string {
+	return fmt.Sprintf("%s (RtnCode %d)", e.Message, e.Code)
+}
+
+func (e *providerError) Unwrap() error { return ErrRejected }
 
 // call posts one request and returns the decrypted result. Three failure
 // surfaces stay apart — transport, envelope, document — and only the last, which
 // is data a staff member can fix, is ErrRejected.
-func (g *Gateway) call(ctx context.Context, path string, data any) (*result, error) {
+func (g *Gateway) call[T any](ctx context.Context, path string, data any) (T, error) {
+	var zero T
 	if !g.Enabled() {
-		return nil, ErrDisabled
+		return zero, ErrDisabled
 	}
 
 	payload, err := json.Marshal(data)
 	if err != nil {
-		return nil, fmt.Errorf("encode %s request: %w", path, err)
+		return zero, fmt.Errorf("encode %s request: %w", path, err)
 	}
 	sealed, err := g.seal(payload)
 	if err != nil {
-		return nil, fmt.Errorf("encrypt %s request: %w", path, err)
+		return zero, fmt.Errorf("encrypt %s request: %w", path, err)
 	}
 
 	body, err := json.Marshal(envelope{
@@ -128,53 +138,56 @@ func (g *Gateway) call(ctx context.Context, path string, data any) (*result, err
 		Data:       sealed,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("encode %s envelope: %w", path, err)
+		return zero, fmt.Errorf("encode %s envelope: %w", path, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, g.baseURL+path, bytes.NewReader(body))
 	if err != nil {
-		return nil, fmt.Errorf("build %s request: %w", path, err)
+		return zero, fmt.Errorf("build %s request: %w", path, err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := g.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("call %s: %w", path, err)
+		return zero, fmt.Errorf("call %s: %w", path, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	// Bounded: an unbounded read from a third party is memory anybody can spend.
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
-		return nil, fmt.Errorf("read %s reply: %w", path, err)
+		return zero, fmt.Errorf("read %s reply: %w", path, err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%s answered %d", path, resp.StatusCode)
+		return zero, fmt.Errorf("%s answered %d", path, resp.StatusCode)
 	}
 
 	var outer response
 	if unmarshalErr := json.Unmarshal(raw, &outer); unmarshalErr != nil {
-		return nil, fmt.Errorf("decode %s reply: %w", path, unmarshalErr)
+		return zero, fmt.Errorf("decode %s reply: %w", path, unmarshalErr)
 	}
 	// TransCode is the ENVELOPE's verdict: 1 means ECPay could read the request.
 	if outer.TransCode != 1 {
-		return nil, fmt.Errorf("%s refused the envelope: %s (TransCode %d)",
+		return zero, fmt.Errorf("%s refused the envelope: %s (TransCode %d)",
 			path, outer.TransMsg, outer.TransCode)
 	}
 
 	opened, err := g.open(outer.Data)
 	if err != nil {
-		return nil, fmt.Errorf("decrypt %s reply: %w", path, err)
+		return zero, fmt.Errorf("decrypt %s reply: %w", path, err)
 	}
-	var res result
+	var status resultStatus
+	if decodeErr := json.Unmarshal(opened, &status); decodeErr != nil {
+		return zero, fmt.Errorf("decode %s status: %w", path, decodeErr)
+	}
+	if status.RtnCode != 1 {
+		return zero, &providerError{Code: status.RtnCode, Message: status.RtnMsg}
+	}
+	var res T
 	if decodeErr := json.Unmarshal(opened, &res); decodeErr != nil {
-		return nil, fmt.Errorf("decode %s result: %w", path, decodeErr)
+		return zero, fmt.Errorf("decode %s result: %w", path, decodeErr)
 	}
-	// RtnCode is the DOCUMENT's verdict; 1 is success.
-	if res.RtnCode != 1 {
-		return nil, fmt.Errorf("%w: %s (RtnCode %d)", ErrRejected, res.RtnMsg, res.RtnCode)
-	}
-	return &res, nil
+	return res, nil
 }
 
 // seal is ECPay's parameter encryption: URL-encode, AES-128-CBC with PKCS#7,
@@ -260,14 +273,17 @@ func dotNetURLEncode(s string) string {
 		}
 		b.WriteByte(c)
 	}
-	out := b.String()
-	for from, to := range map[string]string{
-		"%21": "!", "%28": "(", "%29": ")", "%2a": "*",
-	} {
-		out = strings.ReplaceAll(out, from, to)
-	}
-	return out
+	return dotNetLiterals.Replace(b.String())
 }
+
+// dotNetLiterals restores the four escapes .NET leaves as literals. They are
+// disjoint and produce no new %XX, so one pass is the whole substitution.
+var dotNetLiterals = strings.NewReplacer(
+	"%21", "!",
+	"%28", "(",
+	"%29", ")",
+	"%2a", "*",
+)
 
 // itemsFor turns goen's lines into ECPay's Items array.
 func itemsFor(lines []Line) []item {
@@ -275,8 +291,9 @@ func itemsFor(lines []Line) []item {
 	for i, l := range lines {
 		out = append(out, item{
 			ItemSeq: i + 1,
-			// ECPay bounds ItemName at 500 characters.
-			ItemName:  truncate(l.Description, 500),
+			// ECPay Issue bounds ItemName at 100 characters.
+			// https://developers.ecpay.com.tw/53662/
+			ItemName:  truncate(l.Description, 100),
 			ItemCount: l.Quantity,
 			// i18n-exempt: ItemWord is the 單位 on a 統一發票, which the 財政部
 			// platform records in Chinese whoever bought the thing.

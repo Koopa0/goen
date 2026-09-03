@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
-	"strconv"
-	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/media"
@@ -113,6 +111,8 @@ func (h *Handler) UpdateProduct(w http.ResponseWriter, r *http.Request) {
 
 	errs, err := h.store.UpdateProduct(r.Context(), f)
 	switch {
+	case errors.Is(err, ErrNotFound):
+		h.notFound(w, r)
 	case err != nil:
 		h.log.ErrorContext(r.Context(), "update product", "error", err)
 		h.serverError(w, r)
@@ -186,10 +186,22 @@ func variantFormOf(r *http.Request) (*VariantForm, pages.AdminVariantDraft, map[
 		"parcel_sum", fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormParcelMeasurement), parcelSumCeilingMM), errs)
 	weight := parseVariantCount(draft.ParcelWeight, parcelWeightCeilingG,
 		"parcel_weight", fmt.Sprintf(i18n.T(r.Context(), i18n.KeyFormParcelMeasurement), parcelWeightCeilingG), errs)
+	// ParsePrice, not a parser returning the figure alone: blank is a legitimate
+	// compare-at price and it stores zero, so a collapsed unreadable figure is
+	// indistinguishable from "no discount". /admin/stock prices through this too.
+	price, priceOK := ParsePrice(r.PostFormValue("price"))
+	compare, compareOK := ParsePrice(r.PostFormValue("compare"))
+	if !priceOK {
+		errs["price"] = i18n.T(r.Context(), i18n.KeyFormPricePositive)
+	}
+	if !compareOK {
+		errs["compare"] = fmt.Sprintf(
+			i18n.T(r.Context(), i18n.KeyFormCompareAmount), MaxPriceCents/100)
+	}
 	return &VariantForm{
 		SKU:          r.PostFormValue("sku"),
-		PriceCents:   dollarsToCents(r.PostFormValue("price")),
-		CompareCents: dollarsToCents(r.PostFormValue("compare")),
+		PriceCents:   price,
+		CompareCents: compare,
 		SafetyStock:  safety,
 		// Zero is UNMEASURED and stores NULL, so a blank field leaves the variant
 		// refused by no shipping method rather than blocked from all of them.
@@ -258,15 +270,6 @@ func (h *Handler) rejectProduct(w http.ResponseWriter, r *http.Request, f *Produ
 	view.Errors = errs
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminProductForm(
 		layouts.Page{Title: view.Title(r.Context())}, view))
-}
-
-// dollarsToCents reads a price typed in whole New Taiwan DOLLARS.
-func dollarsToCents(s string) int64 {
-	n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 64)
-	if err != nil || n < 0 || n > MaxPriceCents/100 {
-		return 0
-	}
-	return n * 100
 }
 
 // UploadImage serves POST /admin/products/{slug}/images. Store then attach,

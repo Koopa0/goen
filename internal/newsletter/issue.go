@@ -15,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/shoptime"
 )
 
 // Field bounds for an issue, counted in RUNES.
@@ -96,7 +97,7 @@ func (s *Store) Send(ctx context.Context, issueID string, actor uuid.NullUUID) (
 	if err != nil {
 		return 0, fmt.Errorf("beginning newsletter send: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := db.New(tx)
 
 	issue, err := q.NewsletterIssue(ctx, id)
@@ -173,7 +174,7 @@ func (s *Store) Issues(ctx context.Context, limit int32) ([]Issue, error) {
 			Sent: r.SentAt.Valid, Recipients: r.Recipients, SentBy: r.SentByEmail,
 		}
 		if r.SentAt.Valid {
-			issue.SentAt = r.SentAt.Time.Format("2006-01-02 15:04")
+			issue.SentAt = shoptime.Minute(r.SentAt.Time)
 		}
 		out = append(out, issue)
 	}

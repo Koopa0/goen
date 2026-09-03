@@ -98,7 +98,7 @@ func (s *Store) insertVariant(
 	ctx context.Context, slug string, f *VariantForm, chosen []uuid.UUID,
 ) error {
 	return s.audited(ctx, Event{
-		Action: ActionCreateVariant, Table: "product_variants", ID: uuid.NullUUID{},
+		Action: actionCreateVariant, Table: "product_variants", ID: uuid.NullUUID{},
 		Before: nil, After: map[string]any{"product": slug, "sku": f.SKU, "price_cents": f.PriceCents},
 	},
 		func(ctx context.Context, q *db.Queries) error {

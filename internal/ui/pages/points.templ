@@ -43,6 +43,7 @@ templ Points(p layouts.Page, v PointsView) {
 			}
 			if v.CanRedeem() {
 				<form class="goen-qa__form" method="post" action="/account/points">
+					<input type="hidden" name="operation_id" value={ v.OperationID }/>
 					<div class="ui-field">
 						<label class="ui-label" for="points">{ i18n.T(ctx, i18n.KeyPointsHowMany) }</label>
 						<input

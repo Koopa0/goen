@@ -62,8 +62,7 @@ var (
 	})
 
 	// KeyPricedFor closes the arithmetic on a line the shelf cannot meet: the
-	// quantity box says 5 and the price is for 2, so the multiplication a
-	// customer does in their head disagrees with the figure beside it.
+	// quantity box says 5 while the price beside it is for 2.
 	KeyPricedFor = key("cart.pricedfor", Message{
 		ZhHant: "以 %s 件計價",
 		En:     "priced for %s",

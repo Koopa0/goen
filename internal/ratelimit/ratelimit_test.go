@@ -147,8 +147,6 @@ func TestTheSweepIsAmortised(t *testing.T) {
 	}
 }
 
-// TestTheBurstIsSpentThenRefused proves the allowance is real and the numbers
-// are the ones intended.
 func TestTheBurstIsSpentThenRefused(t *testing.T) {
 	l := New(Config{Every: time.Minute, Burst: 3, TTL: time.Hour, MaxKeys: testMaxKeys})
 
@@ -166,8 +164,6 @@ func TestTheBurstIsSpentThenRefused(t *testing.T) {
 	}
 }
 
-// TestARefusedAttemptDoesNotSpendTheAllowance proves a throttle never becomes
-// a lockout.
 func TestARefusedAttemptDoesNotSpendTheAllowance(t *testing.T) {
 	l := New(Config{Every: 10 * time.Millisecond, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
 
@@ -189,8 +185,6 @@ func TestARefusedAttemptDoesNotSpendTheAllowance(t *testing.T) {
 	}
 }
 
-// TestKeysAreIndependent proves one client at its limit does not affect
-// another, and that per-IP and per-account keys do not collide.
 func TestKeysAreIndependent(t *testing.T) {
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
 
@@ -208,8 +202,6 @@ func TestKeysAreIndependent(t *testing.T) {
 	}
 }
 
-// TestIdleKeysAreEvicted proves the limiter does not leak the memory it
-// exists to protect.
 func TestIdleKeysAreEvicted(t *testing.T) {
 	l := New(Config{Every: time.Minute, Burst: 1, TTL: 20 * time.Millisecond, MaxKeys: testMaxKeys})
 
@@ -229,7 +221,6 @@ func TestIdleKeysAreEvicted(t *testing.T) {
 	}
 }
 
-// TestTheLimiterIsSafeUnderConcurrency proves the shared state is guarded.
 func TestTheLimiterIsSafeUnderConcurrency(t *testing.T) {
 	l := New(Config{Every: time.Millisecond, Burst: 5, TTL: time.Hour, MaxKeys: testMaxKeys})
 
@@ -243,15 +234,13 @@ func TestTheLimiterIsSafeUnderConcurrency(t *testing.T) {
 		})
 	}
 	wg.Wait()
-	// The assertion is that -race saw nothing; Size stops this passing on
-	// absence alone.
+	// The real assertion is that -race saw nothing; this stops the test
+	// passing on absence alone.
 	if bucketCount(l) == 0 {
 		t.Error("no keys were recorded")
 	}
 }
 
-// TestGuardAnswers429WithARetryAfter proves a refused request never reaches
-// the handler.
 func TestGuardAnswers429WithARetryAfter(t *testing.T) {
 	l := New(Config{Every: 30 * time.Second, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
 	reached := 0
@@ -287,8 +276,6 @@ func TestGuardAnswers429WithARetryAfter(t *testing.T) {
 	}
 }
 
-// TestRetryAfterIsNeverZero proves a sub-second delay still tells a client to
-// wait. The 30-second case above stayed green with the rounding deleted.
 func TestRetryAfterIsNeverZero(t *testing.T) {
 	// 100ms refill: every refusal's true delay is well under one second.
 	l := New(Config{Every: 100 * time.Millisecond, Burst: 1, TTL: time.Hour, MaxKeys: testMaxKeys})
@@ -317,8 +304,6 @@ func TestRetryAfterIsNeverZero(t *testing.T) {
 	}
 }
 
-// TestTheKeyIsTheAddressAndNeverAHeader proves the key cannot be chosen by
-// the client.
 func TestTheKeyIsTheAddressAndNeverAHeader(t *testing.T) {
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/signin", http.NoBody)
 	r.RemoteAddr = "203.0.113.9:54321"
@@ -344,20 +329,8 @@ func TestTheKeyIsTheAddressAndNeverAHeader(t *testing.T) {
 	}
 }
 
-// discardLogger is a logger the tests do not read.
 func discardLogger() *slog.Logger { return slog.New(slog.DiscardHandler) }
 
-// TestARefusalIsInTheReadersLanguage holds an exemption whose reason was false.
-//
-// The 429's body carried an i18n-exempt saying the limiter "fires ahead of
-// anything that could read a locale". withLocale is applied OUTSIDE the mux and
-// every Guard is registered ON it, so the locale is on the context by the time
-// Refuse runs — the comment described a middleware order that is not this one,
-// and a throttled English visitor got a Chinese sentence on an endpoint whose
-// whole job is to be met by somebody having trouble.
-//
-// Still plain text: rendering a page here is the work the limiter exists to
-// avoid. That half of the reason was always sound.
 func TestARefusalIsInTheReadersLanguage(t *testing.T) {
 	t.Parallel()
 

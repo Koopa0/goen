@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -17,7 +17,9 @@ import (
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/pickup"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/web"
 )
 
 // InvoiceReader reads the uniform invoices filed for an order.
@@ -25,16 +27,16 @@ type InvoiceReader interface {
 	Documents(ctx context.Context, orderNumber string) ([]invoice.Document, error)
 }
 
-// InvoiceWriter files and changes uniform invoices for the back office.
+// InvoiceWriter files and changes uniform invoices for the back office. A
+// successful method has durably recorded its audit event in the same local
+// transaction as the invoice transition.
 type InvoiceWriter interface {
 	Issue(ctx context.Context, orderNumber string) (invoice.Document, error)
 	Void(ctx context.Context, orderNumber, reason string) error
-	// Allowance relieves part of a live invoice, which is what a REFUND leaves
-	// owed to the 財政部. internal/invoice has had it since the feature shipped
-	// and this interface did not declare it, so no handler could call it and no
-	// route existed: a customer was refunded while the tax document still
-	// recorded the whole sale. README.md said it was delivered.
-	Allowance(ctx context.Context, orderNumber string, amountCents int64) (invoice.Document, error)
+	// Allowance relieves the authoritative whole-dollar refunded delta of a live
+	// invoice. The provider boundary derives money under a database lock; this
+	// consumer supplies only the aggregate and operation identities.
+	Allowance(ctx context.Context, orderNumber string, operationID uuid.UUID) (invoice.Document, error)
 }
 
 var (
@@ -98,7 +100,7 @@ func (s *Store) Dashboard(ctx context.Context) (pages.AdminDashboardView, error)
 // Orders reads the order queue.
 func (s *Store) Orders(ctx context.Context, status, term string) (pages.AdminOrdersView, error) {
 	term = strings.TrimSpace(term)
-	searched := len([]rune(term)) >= MinSearchRunes
+	searched := utf8.RuneCountInString(term) >= MinSearchRunes
 	var rows []db.AdminOrdersRow
 	var err error
 	if searched {
@@ -154,7 +156,7 @@ func (s *Store) Orders(ctx context.Context, status, term string) (pages.AdminOrd
 			Number:     o.OrderNumber,
 			Status:     o.FulfillmentStatus,
 			StatusText: FundedStatusLabel(ctx, o.FulfillmentStatus, o.Committed, o.OwedCents),
-			PlacedAt:   o.PlacedAt.Format("2006-01-02 15:04"),
+			PlacedAt:   shoptime.Minute(o.PlacedAt),
 			Recipient:  o.Recipient,
 			TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
 			Committed:  o.Committed,
@@ -181,7 +183,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 	view := pages.AdminOrderView{
 		Number: o.OrderNumber, Status: o.FulfillmentStatus,
 		StatusText:    FundedStatusLabel(ctx, o.FulfillmentStatus, o.Committed, o.OwedCents),
-		PlacedAt:      o.PlacedAt.Format("2006-01-02 15:04"),
+		PlacedAt:      shoptime.Minute(o.PlacedAt),
 		ShippingName:  o.ShippingMethodName,
 		SubtotalCents: o.SubtotalCents, ShippingCents: o.ShippingCents,
 		DiscountCents: o.DiscountCents, DiscountReason: o.DiscountReason, TaxCents: o.TaxCents,
@@ -237,7 +239,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 		e := &events[i]
 		view.Timeline = append(view.Timeline, pages.AdminOrderEvent{
 			Kind: e.Kind, Note: e.Note.String,
-			At: e.OccurredAt.Format("2006-01-02 15:04"), Actor: e.ActorName,
+			At: shoptime.Minute(e.OccurredAt), Actor: e.ActorName,
 		})
 	}
 
@@ -249,7 +251,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 		sh := &shipments[i]
 		view.Shipments = append(view.Shipments, pages.AdminShipment{
 			Carrier: sh.Carrier, Tracking: sh.TrackingNumber,
-			ShippedAt:   sh.ShippedAt.Format("2006-01-02 15:04"),
+			ShippedAt:   shoptime.Minute(sh.ShippedAt),
 			DeliveredAt: nullableStamp(sh.DeliveredAt),
 		})
 	}
@@ -275,7 +277,7 @@ func (s *Store) Advance(ctx context.Context, number, status string, actor uuid.N
 	if err != nil {
 		return nil, fmt.Errorf("begin advance: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
 	row, err := q.OrderIDByNumber(ctx, number)
@@ -308,7 +310,7 @@ func (s *Store) Advance(ctx context.Context, number, status string, actor uuid.N
 		return nil, fmt.Errorf("record order event: %w", err)
 	}
 	if err := auditIn(ctx, q, Event{
-		Action: ActionAdvanceOrder, Table: "orders", ID: nullableID(row.ID),
+		Action: actionAdvanceOrder, Table: "orders", ID: nullableID(row.ID),
 		Before: nil, After: map[string]any{"number": number, "status": status},
 	}); err != nil {
 		return nil, err
@@ -403,7 +405,7 @@ func (s *Store) fillInvoices(ctx context.Context, view *pages.AdminOrderView, nu
 		doc := pages.AdminInvoiceDocument{
 			Kind: d.Kind, Number: d.Number, ProviderRef: d.ProviderRef,
 			AmountCents: d.AmountCents, Status: d.Status,
-			IssuedAt: d.IssuedAt.Format("2006-01-02 15:04"),
+			IssuedAt: shoptime.Minute(d.IssuedAt),
 		}
 		for _, l := range d.Lines {
 			doc.Lines = append(doc.Lines, pages.AdminInvoiceLine{
@@ -426,17 +428,12 @@ func (s *Store) fillInvoices(ctx context.Context, view *pages.AdminOrderView, nu
 func (s *Store) fillShippable(
 	ctx context.Context, view *pages.AdminOrderView, orderID uuid.UUID, status string,
 ) error {
-	// DELIVERED is here, and leaving it out was a trap with no exit.
-	// orders_legal_transition permits shipped -> delivered while a line is still
-	// outstanding, deliberately: delivered is a fact about what WENT OUT, and the
-	// parcels that shipped have arrived whether or not more is to come. But the
-	// dropdown offers 已送達 beside 已完成 with no hint of that, so an operator
-	// moves an order there — and then completing it is refused by
-	// orders_finished_when_shipped while the dispatch form is absent. The order
-	// is wedged, and the remaining line's hold is stranded: release_reservation
-	// refuses a committed order, ExpiredReservations excludes it, and
-	// /admin/health counts neither. That is mistake #17's cost exactly, one
-	// status later.
+	// DELIVERED must stay in this set. orders_legal_transition permits
+	// shipped -> delivered while a line is still outstanding, deliberately:
+	// delivered is a fact about what WENT OUT. Without the dispatch form there,
+	// the order wedges — orders_finished_when_shipped refuses 'completed' and the
+	// remaining line's hold is stranded, since release_reservation refuses a
+	// committed order and ExpiredReservations excludes it.
 	if status != "picking" && status != "shipped" && status != "delivered" {
 		return nil
 	}
@@ -481,7 +478,7 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 	if err != nil {
 		return fmt.Errorf("begin ship: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
 	row, err := q.OrderIDByNumber(ctx, number)
@@ -534,7 +531,7 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 		return fmt.Errorf("record order event: %w", err)
 	}
 	if err := auditIn(ctx, q, Event{
-		Action: ActionShipOrder, Table: "orders", ID: nullableID(row.ID),
+		Action: actionShipOrder, Table: "orders", ID: nullableID(row.ID),
 		Before: nil, After: map[string]any{"carrier": carrier, "tracking": tracking},
 	}); err != nil {
 		return err
@@ -673,7 +670,7 @@ func (s *Store) AdjustStock(ctx context.Context, sku string, delta int32, actorI
 		return fmt.Errorf("adjust stock: actor %q is not a user id: %w", actorID, err)
 	}
 	return s.audited(ctx, Event{
-		Action: ActionAdjustStock, Table: "product_variants", ID: nullableID(v.ID),
+		Action: actionAdjustStock, Table: "product_variants", ID: nullableID(v.ID),
 		Before: map[string]any{"sku": sku, "stock": v.StockQuantity},
 		After:  map[string]any{"delta": delta},
 	},
@@ -706,7 +703,7 @@ func (s *Store) ReceiveStock(ctx context.Context, sku string, quantity int32, ac
 		return fmt.Errorf("receive stock: actor %q is not a user id: %w", actorID, err)
 	}
 	return s.audited(ctx, Event{
-		Action: ActionReceiveStock, Table: "product_variants", ID: nullableID(v.ID),
+		Action: actionReceiveStock, Table: "product_variants", ID: nullableID(v.ID),
 		Before: map[string]any{"sku": sku, "stock": v.StockQuantity},
 		After:  map[string]any{"received": quantity},
 	},
@@ -734,7 +731,7 @@ func (s *Store) SetVariantActive(ctx context.Context, sku string, active bool) e
 		return fmt.Errorf("read variant: %w", err)
 	}
 	return s.audited(ctx, Event{
-		Action: ActionRetireVariant, Table: "product_variants", ID: nullableID(v.ID),
+		Action: actionRetireVariant, Table: "product_variants", ID: nullableID(v.ID),
 		Before: map[string]any{"sku": sku, "active": v.IsActive},
 		After:  map[string]any{"active": active},
 	},
@@ -763,7 +760,7 @@ func (s *Store) SetVariantPrice(ctx context.Context, sku string, price, compareA
 		cmp = pgtype.Int8{Int64: compareAt, Valid: true}
 	}
 	return s.audited(ctx, Event{
-		Action: ActionRepriceVariant, Table: "product_variants", ID: nullableID(v.ID),
+		Action: actionRepriceVariant, Table: "product_variants", ID: nullableID(v.ID),
 		Before: map[string]any{"sku": sku, "price_cents": v.PriceCents},
 		After:  map[string]any{"price_cents": price, "compare_at_cents": compareAt},
 	},
@@ -796,54 +793,65 @@ func text(s string) pgtype.Text {
 // GrantCredit puts store credit on a customer's account. The amount is in cents
 // and must be positive: a correction is its own posting with its own reason, so
 // the ledger reads as a history rather than a figure somebody edited.
-func (s *Store) GrantCredit(ctx context.Context, email string, amountCents int64, reason string, actor uuid.NullUUID) (balanceCents int64, err error) {
+func (s *Store) GrantCredit(ctx context.Context, email string, amountCents int64, reason string, operationID uuid.UUID) (balanceCents int64, err error) {
 	email, reason = strings.TrimSpace(email), strings.TrimSpace(reason)
-	if email == "" || reason == "" || amountCents <= 0 {
+	if email == "" || reason == "" || utf8.RuneCountInString(reason) > MaxCreditReasonRunes || amountCents <= 0 || operationID == uuid.Nil {
 		return 0, ErrInvalid
 	}
 	if amountCents > MaxCreditGrant {
 		return 0, ErrInvalid
 	}
-
+	// The authenticated request context, not a parallel caller argument, owns
+	// ledger attribution. The database role is shared by all staff requests, so
+	// this is the last trustworthy per-person boundary before the role-specific
+	// posting function verifies that the durable user is still staff/admin.
+	actorID, ok := actorFrom(ctx)
+	if !ok {
+		return 0, ErrNoActor
+	}
 	user, err := s.q.CustomerByEmail(ctx, email)
 	if err != nil {
 		return 0, fmt.Errorf("%w: no customer for %s", ErrRefused, email)
 	}
 
-	// The key includes the amount and reason, because granting the same customer
-	// 500 twice for different reasons is two grants and not a repeat.
-	key := "grant:" + user.ID.String() + ":" +
-		strconv.FormatInt(amountCents, 10) + ":" + reason
-	err = s.audited(ctx, Event{
-		Action: ActionGrantCredit, Table: "store_credit_entries", ID: nullableID(user.ID),
-		// The customer is named by ID and never by address. audit_events is
-		// append-only and erase_user does not reach it, so an email written
-		// here outlives the erasure meant to remove it — which is the reason
-		// this file already gives for an audit row naming FIELDS rather than
-		// their values, and the privacy policy promises the address goes.
-		// The row already carries user.ID above.
+	event := Event{
+		Action: actionGrantCredit, Table: "store_credit_entries", ID: nullableID(user.ID),
+		// The customer is named by ID and never by address: audit_events is
+		// append-only and erase_user does not reach it, so an email written here
+		// would outlive the erasure meant to remove it.
 		Before: nil, After: map[string]any{"amount_cents": amountCents, "reason": reason},
-	},
-		func(ctx context.Context, q *db.Queries) error {
-			if _, postErr := q.PostStoreCredit(ctx, db.PostStoreCreditParams{
-				UserID:         user.ID,
-				AmountCents:    amountCents,
-				Reason:         reason,
-				IdempotencyKey: key,
-				ActorUserID:    actor,
-			}); postErr != nil {
-				return fmt.Errorf("%w: %w", ErrRefused, postErr)
-			}
-			// Read INSIDE the same transaction, so the number shown is the one
-			// this grant produced and not one a concurrent spend moved.
-			var balErr error
-			balanceCents, balErr = q.CreditBalance(ctx, uuid.NullUUID{UUID: user.ID, Valid: true})
-			if balErr != nil {
-				return fmt.Errorf("read credit balance: %w", balErr)
-			}
-			return nil
-		})
-	return balanceCents, err
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("begin %s: %w", event.Action, err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	q := s.q.WithTx(tx)
+	entryID, err := q.PostStoreCredit(ctx, db.PostStoreCreditParams{
+		UserID: user.ID, AmountCents: amountCents, Reason: reason,
+		ActorUserID: actorID, OperationID: operationID,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("%w: %w", ErrRefused, err)
+	}
+	// A retry of the same durable request observes the original posting and must
+	// not manufacture a second audit row claiming money moved again.
+	if entryID != uuid.Nil {
+		if auditErr := auditIn(ctx, q, event); auditErr != nil {
+			return 0, auditErr
+		}
+	}
+	// Read INSIDE the same transaction, so the number shown is the one this grant
+	// produced and not one a concurrent spend moved.
+	balanceCents, err = q.CreditBalance(ctx, uuid.NullUUID{UUID: user.ID, Valid: true})
+	if err != nil {
+		return 0, fmt.Errorf("read credit balance: %w", err)
+	}
+	if commitErr := tx.Commit(ctx); commitErr != nil {
+		return 0, fmt.Errorf("commit %s: %w", event.Action, commitErr)
+	}
+	return balanceCents, nil
 }
 
 // Credit reads the recent ledger for the back office.
@@ -859,7 +867,7 @@ func (s *Store) Credit(ctx context.Context) (pages.AdminCreditView, error) {
 			Email:       r.Email,
 			AmountCents: r.AmountCents,
 			Reason:      r.Reason,
-			At:          r.CreatedAt.Format("2006-01-02 15:04"),
+			At:          shoptime.Minute(r.CreatedAt),
 		})
 	}
 	return view, nil
@@ -870,7 +878,7 @@ func nullableStamp(t pgtype.Timestamptz) string {
 	if !t.Valid {
 		return ""
 	}
-	return t.Time.Format("2006-01-02 15:04")
+	return shoptime.Minute(t.Time)
 }
 
 // MovementPageSize bounds one page of a variant's stock ledger. The running
@@ -902,7 +910,7 @@ func (s *Store) Movements(ctx context.Context, sku string) (pages.AdminMovements
 	for i := range rows {
 		m := &rows[i]
 		view.Rows = append(view.Rows, pages.AdminMovement{
-			At:          m.CreatedAt.Format("2006-01-02 15:04"),
+			At:          shoptime.Minute(m.CreatedAt),
 			Delta:       m.Delta,
 			Reason:      m.Reason,
 			OrderNumber: m.OrderNumber,
@@ -913,21 +921,19 @@ func (s *Store) Movements(ctx context.Context, sku string) (pages.AdminMovements
 	return view, nil
 }
 
-// IssueInvoice files a uniform invoice for an order. The audit row names the
-// DOCUMENT and never the customer's details: audit_events is append-only and
-// erase_user does not reach it.
+// IssueInvoice files a uniform invoice for an order. The writer owns the local
+// persistence transaction, including its audit row; a second no-op audited
+// transaction here would let either half commit without the other.
 func (s *Store) IssueInvoice(ctx context.Context, number string) error {
 	if s.invoiceWriter == nil {
 		return fmt.Errorf("%w: no e-invoice provider is configured", ErrRefused)
 	}
-	doc, err := s.invoiceWriter.Issue(ctx, number)
+	filingCtx, err := invoiceFilingContext(ctx)
 	if err != nil {
 		return err
 	}
-	return s.audited(ctx, Event{
-		Action: ActionIssueInvoice, Table: "invoice_documents", ID: uuid.NullUUID{},
-		After: map[string]any{"order": number, "invoice": doc.Number},
-	}, func(context.Context, *db.Queries) error { return nil })
+	_, err = s.invoiceWriter.Issue(filingCtx, number)
+	return err
 }
 
 // ReleasePaymentEventAfterRefundOrAccounting records the only safe release
@@ -945,7 +951,7 @@ func (s *Store) ReleasePaymentEventAfterRefundOrAccounting(
 		return ErrInvalid
 	}
 	return s.audited(ctx, Event{
-		Action: ActionReconcilePayment, Table: "payment_webhook_events", ID: uuid.NullUUID{},
+		Action: actionReconcilePayment, Table: "payment_webhook_events", ID: uuid.NullUUID{},
 		After: map[string]any{
 			"event":      eventID,
 			"resolution": "fully_refunded_or_already_accounted",
@@ -978,7 +984,7 @@ func (s *Store) reconcileCompletePayment(
 	}
 
 	event := Event{
-		Action: ActionReconcilePayment, Table: "payments", ID: uuid.NullUUID{},
+		Action: actionReconcilePayment, Table: "payments", ID: uuid.NullUUID{},
 		After: map[string]any{
 			"provider_ref": providerRef,
 			"resolution":   resolution.auditValue(),
@@ -986,13 +992,12 @@ func (s *Store) reconcileCompletePayment(
 	}
 
 	// Paid attribution has capture side effects supplied by internal/payment,
-	// and the audit must share their transaction. Keep this explicit rather than
-	// weakening audited() to expose pgx.Tx to every unrelated admin write.
+	// and the audit must share their transaction.
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin %s: %w", event.Action, err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
 	switch resolution {
@@ -1031,18 +1036,18 @@ func (s *Store) reconcileCompletePayment(
 // AllowInvoice files a 折讓 against an order's live invoice, relieving the part
 // of the sale that was refunded. A void is for an invoice that should not exist;
 // an allowance is for one that should exist for less.
-func (s *Store) AllowInvoice(ctx context.Context, number string, amountCents int64) error {
+func (s *Store) AllowInvoice(
+	ctx context.Context, number string, operationID uuid.UUID,
+) error {
 	if s.invoiceWriter == nil {
 		return fmt.Errorf("%w: no e-invoice provider is configured", ErrRefused)
 	}
-	doc, err := s.invoiceWriter.Allowance(ctx, number, amountCents)
+	filingCtx, err := invoiceFilingContext(ctx)
 	if err != nil {
 		return err
 	}
-	return s.audited(ctx, Event{
-		Action: ActionAllowInvoice, Table: "invoice_documents", ID: uuid.NullUUID{},
-		After: map[string]any{"order": number, "allowance": doc.Number, "amount_cents": amountCents},
-	}, func(context.Context, *db.Queries) error { return nil })
+	_, err = s.invoiceWriter.Allowance(filingCtx, number, operationID)
+	return err
 }
 
 // VoidInvoice cancels an order's live invoice, at the e-invoice provider and here.
@@ -1050,11 +1055,21 @@ func (s *Store) VoidInvoice(ctx context.Context, number, reason string) error {
 	if s.invoiceWriter == nil {
 		return fmt.Errorf("%w: no e-invoice provider is configured", ErrRefused)
 	}
-	if err := s.invoiceWriter.Void(ctx, number, reason); err != nil {
+	filingCtx, err := invoiceFilingContext(ctx)
+	if err != nil {
 		return err
 	}
-	return s.audited(ctx, Event{
-		Action: ActionVoidInvoice, Table: "invoice_documents", ID: uuid.NullUUID{},
-		After: map[string]any{"order": number, "reason": reason},
-	}, func(context.Context, *db.Queries) error { return nil })
+	return s.invoiceWriter.Void(filingCtx, number, reason)
+}
+
+func invoiceFilingContext(ctx context.Context) (context.Context, error) {
+	actorID, ok := actorFrom(ctx)
+	if !ok {
+		return nil, ErrNoActor
+	}
+	requestID := web.RequestID(ctx)
+	if requestID == "" {
+		return nil, ErrNoActor
+	}
+	return invoice.WithFilingIdentity(ctx, actorID, requestID), nil
 }

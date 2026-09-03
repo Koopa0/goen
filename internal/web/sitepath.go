@@ -74,12 +74,7 @@ func SiteOrigin(raw string) (origin, scheme string, ok bool) {
 }
 
 func hasControl(s string) bool {
-	for _, r := range s {
-		if unicode.IsControl(r) {
-			return true
-		}
-	}
-	return false
+	return strings.ContainsFunc(s, unicode.IsControl)
 }
 
 // SitePathOr is SitePath with a fallback, for a caller that must redirect

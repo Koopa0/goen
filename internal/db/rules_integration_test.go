@@ -3,9 +3,11 @@
 package db_test
 
 import (
-	"bytes"
 	"context"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -26,6 +28,7 @@ import (
 // the test that does cover them. A trigger named in neither place still fails.
 var coveredByNamedTest = map[string]string{
 	"loyalty_lot_guard":                      "the loyalty_entries_lot_* rule cases below exercise each branch by its own constraint name",
+	"order_lines_bind_product":               "TestRetiringAPurchasedVariantDoesNotEraseVerifiedPurchase (internal/product)",
 	"product_variants_keep_product_sellable": "TestDeactivatingTheLastVariantIsRefused, TestDeletingTheLastVariantIsRefused",
 	"users_keep_one_admin_on_role":           "TestUsersTriggerKeepsOneAdmin (internal/db)",
 	"users_keep_one_admin_on_delete":         "TestUsersTriggerKeepsOneAdmin (internal/db)",
@@ -213,8 +216,8 @@ var ruleCases = []ruleCase{
 	{
 		rule: "orders_legal_transition",
 		// The reject uses the unpaid order — the legal-transition check fires first,
-		// so it still names this rule. The paid parcel fixture is now already shipped;
-		// use the genuinely picking zero-owed order for a legal forward transition.
+		// so it still names this rule. The paid parcel fixture is already shipped, so
+		// the legal forward transition uses the picking zero-owed order.
 		reject: `UPDATE orders SET fulfillment_status = 'shipped'
 		         WHERE order_number = 'GO-260721-000388';`,
 		accept: `UPDATE orders SET fulfillment_status = 'shipped'
@@ -311,6 +314,12 @@ var ruleCases = []ruleCase{
 		                ('66660001-0000-4000-8000-000000000000', 2, current_date + 730);`,
 	},
 	{
+		rule: "invoice_preferences_immutable",
+		reject: `UPDATE invoice_preferences SET customer_email = 'rewritten@example.com'
+		         WHERE order_id = '66666666-6666-4666-8666-666666666666';`,
+		acceptNote: "checkout inserts the filing snapshot; every later correction is a tax operation",
+	},
+	{
 		rule: "invoice_documents_only_void",
 		reject: `UPDATE invoice_documents SET amount_cents = 1
 		         WHERE id = '99990001-0000-4000-8000-000000000000';`,
@@ -325,7 +334,10 @@ var ruleCases = []ruleCase{
 		// The document must HOLD a key first: the fixture's invoice carries none,
 		// so clearing it is NULL to NULL and changes nothing — a statement that
 		// cannot violate the rule it is meant to prove.
-		reject: `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents, original_id, request_key)
+		reject: `INSERT INTO refunds (payment_id, request_key, provider_ref, status, amount_cents, succeeded_at)
+		         VALUES ('77770001-0000-4000-8000-000000000000', 'invoice-key-immutability',
+		                 're_invoice_key_immutability', 'succeeded', 100, now());
+		         INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents, original_id, request_key)
 		         VALUES ('11110025-0000-4000-8000-000000000001',
 		                 '66666666-6666-4666-8666-666666666666', 'allowance', 'GD-ALLOW-01', 100,
 		                 '99990001-0000-4000-8000-000000000000', 'allowance:key');
@@ -334,16 +346,10 @@ var ruleCases = []ruleCase{
 		acceptNote: "the void above is the legal neighbour; an issued document's key never moves",
 	},
 	{
-		// A filed document is filed. A PENDING claim is a reservation with no
-		// number and nothing at the 加值中心, and releasing one is the only door
-		// out of a 折讓 the provider refused.
 		rule: "invoice_documents_only_void",
 		reject: `DELETE FROM invoice_documents
 		         WHERE id = '99990001-0000-4000-8000-000000000000';`,
-		accept: `INSERT INTO invoice_documents (id, order_id, kind, number, amount_cents, status, request_key)
-		         VALUES ('11110024-0000-4000-8000-000000000001',
-		                 '6666aaaa-6666-4666-8666-666666666666', 'invoice', '', 100, 'pending', 'released');
-		         DELETE FROM invoice_documents WHERE id = '11110024-0000-4000-8000-000000000001';`,
+		acceptNote: "the void above is the only legal mutation; rejected operations retain evidence separately",
 	},
 	{
 		rule: "payments_no_regression",
@@ -379,8 +385,9 @@ var ruleCases = []ruleCase{
 	},
 	{
 		rule: "audit_events_append_only",
-		reject: `INSERT INTO audit_events (id, action, entity_table)
-		         VALUES ('11110004-0000-4000-8000-000000000001', 'order.cancel', 'orders');
+		reject: `INSERT INTO audit_events (id, actor_id_snapshot, action, entity_table)
+		         VALUES ('11110004-0000-4000-8000-000000000001',
+		                 '55555555-5555-4555-8555-555555555555', 'order.cancel', 'orders');
 		         DELETE FROM audit_events WHERE id = '11110004-0000-4000-8000-000000000001';`,
 		acceptNote: "appending is the only permitted operation",
 	},
@@ -405,31 +412,317 @@ var ruleCases = []ruleCase{
 	},
 	{
 		rule: "refunds_no_regression",
-		reject: `INSERT INTO refunds (id, payment_id, request_key, amount_cents, status, succeeded_at)
+		reject: `INSERT INTO refunds (id, payment_id, request_key, provider_ref, amount_cents, status, succeeded_at)
 		         VALUES ('11110020-0000-4000-8000-000000000001', '77770001-0000-4000-8000-000000000000',
-		                 'rk-regress', 100000, 'succeeded', now());
+		                 'rk-regress', 're_regress', 100000, 'succeeded', now());
 		         UPDATE refunds SET status = 'failed', succeeded_at = NULL, failed_at = now()
 		         WHERE id = '11110020-0000-4000-8000-000000000001';`,
 		accept: `INSERT INTO refunds (id, payment_id, request_key, amount_cents, status)
 		         VALUES ('11110021-0000-4000-8000-000000000001', '77770001-0000-4000-8000-000000000000',
 		                 'rk-pending', 100000, 'pending');
-		         UPDATE refunds SET status = 'requires_action'
+		         UPDATE refunds SET status = 'requires_action', provider_ref = 're_pending'
 		         WHERE id = '11110021-0000-4000-8000-000000000001';`,
 	},
 	{
 		rule: "refunds_settled_is_history",
 		// Raising a succeeded refund's amount misstates what was returned. no_regression does not
 		// fire — the status is untouched, only the amount — so this trigger must be the one to refuse.
-		reject: `INSERT INTO refunds (id, payment_id, request_key, amount_cents, status, succeeded_at)
+		reject: `INSERT INTO refunds (id, payment_id, request_key, provider_ref, amount_cents, status, succeeded_at)
 		         VALUES ('11110023-0000-4000-8000-000000000001', '77770001-0000-4000-8000-000000000000',
-		                 'rk-freeze', 50000, 'succeeded', now());
+		                 'rk-freeze', 're_freeze', 50000, 'succeeded', now());
 		         UPDATE refunds SET amount_cents = 60000
 		         WHERE id = '11110023-0000-4000-8000-000000000001';`,
 		accept: `INSERT INTO refunds (id, payment_id, request_key, amount_cents, status)
 		         VALUES ('11110024-0000-4000-8000-000000000001', '77770001-0000-4000-8000-000000000000',
 		                 'rk-freeze-ok', 40000, 'pending');
-		         UPDATE refunds SET amount_cents = 45000
+		         UPDATE refunds SET status = 'requires_action', provider_ref = 're_freeze_ok'
 		         WHERE id = '11110024-0000-4000-8000-000000000001';`,
+	},
+	{
+		rule: "refunds_attempt_identity_immutable",
+		reject: `INSERT INTO refunds (id, payment_id, request_key, amount_cents)
+		         VALUES ('11110025-0000-4000-8000-000000000001',
+		                 '77770001-0000-4000-8000-000000000000',
+		                 'refund-rule-attempt-immutable', 1000);
+		         UPDATE refunds SET amount_cents = 1001
+		         WHERE id = '11110025-0000-4000-8000-000000000001';`,
+		accept: `INSERT INTO refunds (id, payment_id, request_key, amount_cents)
+		         VALUES ('11110025-0000-4000-8000-000000000001',
+		                 '77770001-0000-4000-8000-000000000000',
+		                 'refund-rule-attempt-immutable-ok', 1000);
+		         UPDATE refunds SET status = 'requires_action', provider_ref = 're_attempt_immutable_ok'
+		         WHERE id = '11110025-0000-4000-8000-000000000001';`,
+	},
+	{
+		rule: "refunds_attempt_lineage",
+		reject: refundRuleStaff + refundableCheapReturn + failedFirstReturnRefund + `
+		        INSERT INTO refunds (
+		            id, payment_id, return_request_id, attempt_no,
+		            previous_refund_id, request_key, amount_cents
+		        ) VALUES (
+		            '11110032-0000-4000-8000-000000000001',
+		            '77770001-0000-4000-8000-000000000000',
+		            '88880001-0000-4000-8000-000000000000', 3,
+		            '11110031-0000-4000-8000-000000000001',
+		            'return:88880001-0000-4000-8000-000000000000:attempt:3', 1000
+		        );`,
+		accept: refundRuleStaff + refundableCheapReturn + failedFirstReturnRefund + `
+		        INSERT INTO refunds (
+		            id, payment_id, return_request_id, attempt_no,
+		            previous_refund_id, request_key, amount_cents
+		        ) VALUES (
+		            '11110032-0000-4000-8000-000000000001',
+		            '77770001-0000-4000-8000-000000000000',
+		            '88880001-0000-4000-8000-000000000000', 2,
+		            '11110031-0000-4000-8000-000000000001',
+		            'return:88880001-0000-4000-8000-000000000000:attempt:2', 1000
+		        );`,
+	},
+	{
+		rule: "refunds_execution_actor",
+		reject: `SELECT claim_return_refund_execution(
+		             '88880001-0000-4000-8000-000000000000',
+		             '55555555-5555-4555-8555-555555555555',
+		             'refund-rule-execution-actor');`,
+		accept: refundRuleStaff + refundableCheapReturn + `
+		        SELECT claim_return_refund_execution(
+		            '88880001-0000-4000-8000-000000000000',
+		            '55550001-0000-4000-8000-000000000001',
+		            'refund-rule-execution-actor-ok');`,
+	},
+	{
+		rule: "refunds_execution_request",
+		reject: refundRuleStaff + `
+		        SELECT claim_return_refund_execution(
+		            '88880001-0000-4000-8000-000000000000',
+		            '55550001-0000-4000-8000-000000000001',
+		            'spaces are not a request id');`,
+		accept: refundRuleStaff + refundableCheapReturn + `
+		        SELECT claim_return_refund_execution(
+		            '88880001-0000-4000-8000-000000000000',
+		            '55550001-0000-4000-8000-000000000001',
+		            'refund-rule-execution-request-ok');`,
+	},
+	{
+		rule: "refunds_return_approved",
+		reject: refundRuleStaff + `
+		        SELECT claim_return_refund_execution(
+		            '88880001-0000-4000-8000-000000000000',
+		            '55550001-0000-4000-8000-000000000001',
+		            'refund-rule-return-not-approved');`,
+		accept: refundRuleStaff + refundableCheapReturn + `
+		        SELECT claim_return_refund_execution(
+		            '88880001-0000-4000-8000-000000000000',
+		            '55550001-0000-4000-8000-000000000001',
+		            'refund-rule-return-approved-ok');`,
+	},
+	{
+		rule: "refunds_return_captured",
+		reject: refundRuleStaff + refundableCheapReturn + `
+		        DELETE FROM payments
+		        WHERE id = '77770001-0000-4000-8000-000000000000';
+		        SELECT claim_return_refund_execution(
+		            '88880001-0000-4000-8000-000000000000',
+		            '55550001-0000-4000-8000-000000000001',
+		            'refund-rule-return-no-capture');`,
+		accept: refundRuleStaff + refundableCheapReturn + `
+		        SELECT claim_return_refund_execution(
+		            '88880001-0000-4000-8000-000000000000',
+		            '55550001-0000-4000-8000-000000000001',
+		            'refund-rule-return-captured-ok');`,
+	},
+	{
+		rule: "refunds_card_amount_positive",
+		reject: refundRuleStaff + openReturnAccountFixture + `
+		        UPDATE return_requests SET status = 'approved', decided_at = now()
+		        WHERE id = '11110074-0000-4000-8000-000000000001';
+		        SELECT claim_return_refund_execution(
+		            '11110074-0000-4000-8000-000000000001',
+		            '55550001-0000-4000-8000-000000000001',
+		            'refund-rule-zero-card-amount');`,
+		accept: refundRuleStaff + refundableCheapReturn + `
+		        SELECT claim_return_refund_execution(
+		            '88880001-0000-4000-8000-000000000000',
+		            '55550001-0000-4000-8000-000000000001',
+		            'refund-rule-positive-card-amount');`,
+	},
+	{
+		rule: "refunds_sources_cover_return",
+		reject: refundRuleStaff + openReturnAccountFixture + `
+		        UPDATE return_requests SET status = 'approved', decided_at = now()
+		        WHERE id = '11110074-0000-4000-8000-000000000001';
+		        DELETE FROM users
+		        WHERE id = '55555555-5555-4555-8555-555555555555';
+		        SELECT claim_return_refund_execution(
+		            '11110074-0000-4000-8000-000000000001',
+		            '55550001-0000-4000-8000-000000000001',
+		            'refund-rule-sources-erased');`,
+		accept: refundRuleStaff + refundableCheapReturn + `
+		        SELECT claim_return_refund_execution(
+		            '88880001-0000-4000-8000-000000000000',
+		            '55550001-0000-4000-8000-000000000001',
+		            'refund-rule-sources-cover');`,
+	},
+	{
+		rule: "refunds_credit_attribution",
+		reject: refundRuleStaff + refundableCheapReturn + `
+		        INSERT INTO store_credit_entries (
+		            account_id, amount_cents, reason, idempotency_key
+		        ) VALUES (
+		            'a0000001-0000-4000-8000-000000000000', 1,
+		            '錯誤退貨購物金',
+		            'return-credit:88880001-0000-4000-8000-000000000000'
+		        );
+		        SELECT claim_return_refund_execution(
+		            '88880001-0000-4000-8000-000000000000',
+		            '55550001-0000-4000-8000-000000000001',
+		            'refund-rule-credit-attribution');`,
+		accept: refundRuleStaff + refundableCheapReturn + `
+		        SELECT claim_return_refund_execution(
+		            '88880001-0000-4000-8000-000000000000',
+		            '55550001-0000-4000-8000-000000000001',
+		            'refund-rule-credit-attribution-ok');`,
+	},
+	{
+		rule: "refunds_return_amount_frozen",
+		reject: refundRuleStaff + refundableCheapReturn + `
+		        INSERT INTO refunds (
+		            id, payment_id, return_request_id, request_key, amount_cents
+		        ) VALUES (
+		            '11110031-0000-4000-8000-000000000001',
+		            '77770001-0000-4000-8000-000000000000',
+		            '88880001-0000-4000-8000-000000000000',
+		            'return:88880001-0000-4000-8000-000000000000', 999
+		        );`,
+		accept: refundRuleStaff + refundableCheapReturn + exactPendingReturnRefund,
+	},
+	{
+		rule: "refunds_request_attribution",
+		reject: refundRuleStaff + refundableCheapReturn + `
+		        INSERT INTO refunds (
+		            id, payment_id, return_request_id, request_key, amount_cents
+		        ) VALUES (
+		            '11110031-0000-4000-8000-000000000001',
+		            '77770001-0000-4000-8000-000000000000',
+		            '88880001-0000-4000-8000-000000000000',
+		            'return:88880001-0000-4000-8000-000000000000:wrong', 1000
+		        );
+		        SELECT claim_return_refund_execution(
+		            '88880001-0000-4000-8000-000000000000',
+		            '55550001-0000-4000-8000-000000000001',
+		            'refund-rule-attribution');`,
+		accept: refundRuleStaff + refundableCheapReturn + exactPendingReturnRefund + `
+		        SELECT claim_return_refund_execution(
+		            '88880001-0000-4000-8000-000000000000',
+		            '55550001-0000-4000-8000-000000000001',
+		            'refund-rule-attribution-ok');`,
+	},
+	{
+		rule: "refunds_execution_settled",
+		reject: refundRuleStaff + refundableCheapReturn + `
+		        SELECT claim_return_refund_execution(
+			            '88880001-0000-4000-8000-000000000000',
+			            '55550001-0000-4000-8000-000000000001',
+			            'refund-rule-settled-first');
+		        SELECT record_refund_succeeded(
+			            id, 're_rule_settled',
+			            '55550001-0000-4000-8000-000000000001',
+			            'refund-rule-settled-first')
+		        FROM refunds
+		        WHERE return_request_id = '88880001-0000-4000-8000-000000000000';
+		        SELECT claim_return_refund_execution(
+			            '88880001-0000-4000-8000-000000000000',
+			            '55550001-0000-4000-8000-000000000001',
+			            'refund-rule-settled-second');`,
+		accept: refundRuleStaff + refundableCheapReturn + exactPendingReturnRefund + `
+		        SELECT claim_return_refund_execution(
+		            '88880001-0000-4000-8000-000000000000',
+		            '55550001-0000-4000-8000-000000000001',
+		            'refund-rule-open-claim');`,
+	},
+	{
+		rule: "refunds_outcome_actor",
+		reject: `SELECT apply_refund_provider_outcome(
+		             '11110030-0000-4000-8000-000000000001', 're_actor', 'succeeded',
+		             '55555555-5555-4555-8555-555555555555',
+		             'refund-rule-outcome-actor', false);`,
+		accept: refundRuleStaff + pendingRefundForOutcome + `
+		        SELECT record_refund_succeeded(
+		            '11110030-0000-4000-8000-000000000001', 're_actor_ok',
+		            '55550001-0000-4000-8000-000000000001',
+		            'refund-rule-outcome-actor-ok');`,
+	},
+	{
+		rule: "refunds_outcome_request",
+		reject: refundRuleStaff + `
+		        SELECT apply_refund_provider_outcome(
+		            '11110030-0000-4000-8000-000000000001', 're_request', 'succeeded',
+		            '55550001-0000-4000-8000-000000000001',
+		            'not a request id', false);`,
+		accept: refundRuleStaff + pendingRefundForOutcome + `
+		        SELECT record_refund_succeeded(
+		            '11110030-0000-4000-8000-000000000001', 're_request_ok',
+		            '55550001-0000-4000-8000-000000000001',
+		            'refund-rule-outcome-request-ok');`,
+	},
+	{
+		rule: "refunds_provider_outcome_known",
+		reject: refundRuleStaff + `
+		        SELECT apply_refund_provider_outcome(
+		            '11110030-0000-4000-8000-000000000001', 're_unknown', 'unknown',
+		            '55550001-0000-4000-8000-000000000001',
+		            'refund-rule-unknown-outcome', false);`,
+		accept: refundRuleStaff + pendingRefundForOutcome + `
+		        SELECT record_refund_pending(
+		            '11110030-0000-4000-8000-000000000001', 're_pending_ok',
+		            '55550001-0000-4000-8000-000000000001',
+		            'refund-rule-known-outcome');`,
+	},
+	{
+		rule: "refunds_api_rejection_shape",
+		reject: refundRuleStaff + `
+		        SELECT apply_refund_provider_outcome(
+		            '11110030-0000-4000-8000-000000000001', 're_not_rejected', 'failed',
+		            '55550001-0000-4000-8000-000000000001',
+		            'refund-rule-bad-api-rejection', true);`,
+		accept: refundRuleStaff + pendingRefundForOutcome + `
+		        SELECT record_refund_api_rejection(
+		            '11110030-0000-4000-8000-000000000001',
+		            '55550001-0000-4000-8000-000000000001',
+		            'refund-rule-api-rejection-ok');`,
+	},
+	{
+		rule: "return_credit_requires_live_account",
+		reject: openReturnAccountFixture + `
+		        UPDATE orders SET user_id = NULL
+		        WHERE id = '11110070-0000-4000-8000-000000000001';
+		        SET CONSTRAINTS return_credit_requires_live_account IMMEDIATE;`,
+		accept: openReturnAccountFixture + `
+		        UPDATE return_requests SET status = 'approved', decided_at = now()
+		        WHERE id = '11110074-0000-4000-8000-000000000001';
+		        INSERT INTO store_credit_entries (
+		            account_id, amount_cents, reason, order_id, idempotency_key
+		        ) VALUES (
+		            'a0000001-0000-4000-8000-000000000000', 100000,
+		            '退貨退回購物金', '11110070-0000-4000-8000-000000000001',
+		            'return-credit:11110074-0000-4000-8000-000000000001'
+		        );
+		        UPDATE orders SET user_id = NULL
+		        WHERE id = '11110070-0000-4000-8000-000000000001';
+		        SET CONSTRAINTS return_credit_requires_live_account IMMEDIATE;`,
+	},
+	{
+		rule:   "erase_user_open_return",
+		reject: openReturnAccountFixture + `SELECT erase_user('55555555-5555-4555-8555-555555555555');`,
+		accept: openReturnAccountFixture + refundRuleStaff + `
+		        UPDATE return_requests
+		        SET status = 'approved', resolution = '同意退貨', decided_at = now()
+		        WHERE id = '11110074-0000-4000-8000-000000000001';
+		        SELECT compensate_return_with_credit(
+		            '11110074-0000-4000-8000-000000000001', 100000,
+		            '55550001-0000-4000-8000-000000000001'
+		        );
+		        SELECT erase_user('55555555-5555-4555-8555-555555555555');`,
 	},
 	{
 		rule: "payments_require_complete_order",
@@ -449,7 +742,7 @@ var ruleCases = []ruleCase{
 		         INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
 		         VALUES ('11110022-0000-4000-8000-000000000001', 'X', '商品', 100000, 1);
 		         INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
-		         VALUES ('11110022-0000-4000-8000-000000000001', 'x@example.com', '王', '09', '110', '台北市', '信義區', '路 1 號');
+		         VALUES ('11110022-0000-4000-8000-000000000001', 'x@example.com', '王', '0912345678', '110', '台北市', '信義區', '路 1 號');
 		         SET CONSTRAINTS orders_have_lines IMMEDIATE;`,
 	},
 	{
@@ -471,7 +764,7 @@ var ruleCases = []ruleCase{
 		         INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
 		         VALUES ('11110023-0000-4000-8000-000000000001', 'SHIP-RULE', '商品', 100000, 1);
 		         INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
-		         VALUES ('11110023-0000-4000-8000-000000000001', 'ship-rule@example.com', '王', '09', '110', '台北市', '信義區', '路 1 號');
+		         VALUES ('11110023-0000-4000-8000-000000000001', 'ship-rule@example.com', '王', '0912345678', '110', '台北市', '信義區', '路 1 號');
 		         INSERT INTO order_shipments (order_id, carrier, tracking_number)
 		         VALUES ('11110023-0000-4000-8000-000000000001', '黑貓', 'SHIP-RULE-REJECT');`,
 		accept: `INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code, shipping_method_name, discount_cents)
@@ -479,7 +772,7 @@ var ruleCases = []ruleCase{
 		         INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
 		         VALUES ('11110023-0000-4000-8000-000000000001', 'SHIP-RULE', '商品', 100000, 1);
 		         INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
-		         VALUES ('11110023-0000-4000-8000-000000000001', 'ship-rule@example.com', '王', '09', '110', '台北市', '信義區', '路 1 號');
+		         VALUES ('11110023-0000-4000-8000-000000000001', 'ship-rule@example.com', '王', '0912345678', '110', '台北市', '信義區', '路 1 號');
 		         UPDATE orders SET fulfillment_status = 'picking'
 		         WHERE id = '11110023-0000-4000-8000-000000000001';
 		         INSERT INTO order_shipments (order_id, carrier, tracking_number)
@@ -490,6 +783,41 @@ var ruleCases = []ruleCase{
 		reject: `UPDATE return_requests SET status = 'completed', decided_at = now()
 		         WHERE id = '88880001-0000-4000-8000-000000000000';`,
 		accept: `UPDATE return_requests SET status = 'approved', decided_at = now()
+		         WHERE id = '88880001-0000-4000-8000-000000000000';`,
+	},
+	{
+		rule: "return_requests_sources_cover_refund",
+		reject: `INSERT INTO refunds (
+		             id, payment_id, request_key, amount_cents
+		         ) VALUES (
+		             '11110034-0000-4000-8000-000000000001',
+		             '77770001-0000-4000-8000-000000000000',
+		             'refund-rule-reserve-too-much', 6789500
+		         );
+		         INSERT INTO return_request_lines (
+		             order_id, return_request_id, order_line_id, quantity
+		         ) VALUES (
+		             '66666666-6666-4666-8666-666666666666',
+		             '88880001-0000-4000-8000-000000000000',
+		             '66660003-0000-4000-8000-000000000000', 1
+		         );
+		         UPDATE return_requests SET status = 'approved', decided_at = now()
+		         WHERE id = '88880001-0000-4000-8000-000000000000';`,
+		accept: `INSERT INTO refunds (
+		             id, payment_id, request_key, amount_cents
+		         ) VALUES (
+		             '11110034-0000-4000-8000-000000000001',
+		             '77770001-0000-4000-8000-000000000000',
+		             'refund-rule-leaves-return-capacity', 6789000
+		         );
+		         INSERT INTO return_request_lines (
+		             order_id, return_request_id, order_line_id, quantity
+		         ) VALUES (
+		             '66666666-6666-4666-8666-666666666666',
+		             '88880001-0000-4000-8000-000000000000',
+		             '66660003-0000-4000-8000-000000000000', 1
+		         );
+		         UPDATE return_requests SET status = 'approved', decided_at = now()
 		         WHERE id = '88880001-0000-4000-8000-000000000000';`,
 	},
 	{
@@ -514,7 +842,10 @@ var ruleCases = []ruleCase{
 		reject: `INSERT INTO invoice_documents (order_id, kind, original_id, number, amount_cents)
 		         VALUES ('66666666-6666-4666-8666-666666666666', 'allowance',
 		                 '99990001-0000-4000-8000-000000000000', 'AL-1', 9000000);`,
-		accept: `INSERT INTO invoice_documents (order_id, kind, original_id, number, amount_cents)
+		accept: `INSERT INTO refunds (payment_id, request_key, provider_ref, status, amount_cents, succeeded_at)
+		         VALUES ('77770001-0000-4000-8000-000000000000', 'invoice-allowance-valid',
+		                 're_invoice_allowance_valid', 'succeeded', 1000000, now());
+		         INSERT INTO invoice_documents (order_id, kind, original_id, number, amount_cents)
 		         VALUES ('66666666-6666-4666-8666-666666666666', 'allowance',
 		                 '99990001-0000-4000-8000-000000000000', 'AL-2', 1000000);`,
 	},
@@ -575,9 +906,8 @@ var ruleCases = []ruleCase{
 		acceptNote: "appending is the only permitted operation on a filed document's lines",
 	},
 
-	// Rules raised inside a function body rather than by a trigger of their own
-	// name. TestEveryRuleTriggerIsExercised cannot see these: deleting one branch
-	// removes no trigger, so the trigger that carries it still reads as covered.
+	// Rules raised inside a function body rather than by a trigger of their own name:
+	// deleting one branch removes no trigger, so the trigger gate cannot see them.
 	{
 		rule: "coupon_exists",
 		reject: `SELECT redeem_coupon('cccc0009-0000-4000-8000-00000000dead',
@@ -627,26 +957,33 @@ var ruleCases = []ruleCase{
 		         '55555555-5555-4555-8555-555555555555', 20000);`,
 	},
 	{
+		rule: "inventory_reservations_hold_for_positive",
+		reject: `SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
+		             '44444444-4444-4444-8444-444444444444', 1, interval '0', 'rule-hold-duration');`,
+		accept: `SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
+		             '44444444-4444-4444-8444-444444444444', 1, interval '1 hour', 'rule-hold-duration');`,
+	},
+	{
 		rule: "inventory_reservation_state",
 		reject: `SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
-		             '44444444-4444-4444-8444-444444444444', 2, now() + interval '1 hour', 'rule-hold');
+		             '44444444-4444-4444-8444-444444444444', 2, interval '1 hour', 'rule-hold');
 		         SELECT consume_reservation(id) FROM inventory_reservations
 		         WHERE order_id = '6666aaaa-6666-4666-8666-666666666666';
 		         SELECT consume_reservation(id) FROM inventory_reservations
 		         WHERE order_id = '6666aaaa-6666-4666-8666-666666666666' AND state = 'consumed';`,
 		accept: `SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
-		             '44444444-4444-4444-8444-444444444444', 2, now() + interval '1 hour', 'rule-hold');
+		             '44444444-4444-4444-8444-444444444444', 2, interval '1 hour', 'rule-hold');
 		         SELECT consume_reservation(id) FROM inventory_reservations
 		         WHERE order_id = '6666aaaa-6666-4666-8666-666666666666';`,
 	},
 	{
 		rule: "inventory_reservation_consume_within_hold",
 		reject: `SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
-		             '44444444-4444-4444-8444-444444444444', 2, now() + interval '1 hour', 'rule-hold');
+		             '44444444-4444-4444-8444-444444444444', 2, interval '1 hour', 'rule-hold');
 		         SELECT consume_reservation_partial(id, 3) FROM inventory_reservations
 		         WHERE order_id = '6666aaaa-6666-4666-8666-666666666666';`,
 		accept: `SELECT hold_inventory('6666aaaa-6666-4666-8666-666666666666',
-		             '44444444-4444-4444-8444-444444444444', 2, now() + interval '1 hour', 'rule-hold');
+		             '44444444-4444-4444-8444-444444444444', 2, interval '1 hour', 'rule-hold');
 		         SELECT consume_reservation_partial(id, 1) FROM inventory_reservations
 		         WHERE order_id = '6666aaaa-6666-4666-8666-666666666666';`,
 	},
@@ -656,9 +993,13 @@ var ruleCases = []ruleCase{
 		acceptNote: "capture_payment's happy path is covered where the webhook is, in internal/payment",
 	},
 	{
-		rule:       "refunds_request_key_known",
-		reject:     `SELECT settle_refund('rk_no_such_refund', 're_x', 'succeeded');`,
-		acceptNote: "settle_refund's happy path needs a refund row a decision wrote, which internal/admin does",
+		rule: "refunds_request_key_known",
+		reject: `INSERT INTO users (id, email, role)
+		         VALUES ('55550001-0000-4000-8000-000000000001', 'refund-rule-staff@example.com', 'staff');
+		         SELECT record_refund_succeeded(
+		             '11110030-0000-4000-8000-000000000001', 're_no_such_refund',
+		             '55550001-0000-4000-8000-000000000001', 'refund-rule-request');`,
+		acceptNote: "record_refund_succeeded's happy path needs a claimed refund; internal/admin covers the complete provider outcome",
 	},
 	{
 		rule: "audit_events_actor_required",
@@ -666,6 +1007,13 @@ var ruleCases = []ruleCase{
 		             '33333333-3333-4333-8333-333333333333');`,
 		accept: `SELECT record_audit_event('55555555-5555-4555-8555-555555555555', 'product.published',
 		             'products', '33333333-3333-4333-8333-333333333333');`,
+	},
+	{
+		rule: "invoice_audit_operation",
+		reject: `SELECT record_invoice_operation_audit(
+		             '11110006-0000-4000-8000-000000000098',
+		             '99990001-0000-4000-8000-000000000000', '{}'::jsonb);`,
+		acceptNote: "the private helper's legal path is exercised by every invoice settlement test",
 	},
 	{
 		rule: "return_requests_completed_is_inspected",
@@ -681,7 +1029,96 @@ var ruleCases = []ruleCase{
 		         WHERE id = '88880001-0000-4000-8000-000000000000';
 		         UPDATE return_request_lines SET received_quantity = 1, restocked_quantity = 1
 		         WHERE return_request_id = '88880001-0000-4000-8000-000000000000';
+		         ` + exactSucceededLargeReturnRefund + `
+		         ` + exactReturnRefundedEvent + `
 		         UPDATE return_requests SET status = 'completed'
+		         WHERE id = '88880001-0000-4000-8000-000000000000';`,
+	},
+	{
+		rule: "return_requests_completed_money_settled",
+		reject: shippedReturnLine + `
+		         UPDATE return_requests SET status = 'approved', decided_at = now()
+		         WHERE id = '88880001-0000-4000-8000-000000000000';
+		         UPDATE return_request_lines SET received_quantity = 1, restocked_quantity = 1
+		         WHERE return_request_id = '88880001-0000-4000-8000-000000000000';
+		         UPDATE return_requests SET status = 'completed'
+		         WHERE id = '88880001-0000-4000-8000-000000000000';`,
+		accept: shippedReturnLine + `
+		         UPDATE return_requests SET status = 'approved', decided_at = now()
+		         WHERE id = '88880001-0000-4000-8000-000000000000';
+		         UPDATE return_request_lines SET received_quantity = 1, restocked_quantity = 1
+		         WHERE return_request_id = '88880001-0000-4000-8000-000000000000';
+		         ` + exactSucceededLargeReturnRefund + `
+		         ` + exactReturnRefundedEvent + `
+		         UPDATE return_requests SET status = 'completed'
+		         WHERE id = '88880001-0000-4000-8000-000000000000';`,
+	},
+	{
+		rule: "return_requests_completed_event_recorded",
+		reject: shippedReturnLine + `
+		         UPDATE return_requests SET status = 'approved', decided_at = now()
+		         WHERE id = '88880001-0000-4000-8000-000000000000';
+		         UPDATE return_request_lines SET received_quantity = 1, restocked_quantity = 1
+		         WHERE return_request_id = '88880001-0000-4000-8000-000000000000';
+		         ` + exactSucceededLargeReturnRefund + `
+		         UPDATE return_requests SET status = 'completed'
+		         WHERE id = '88880001-0000-4000-8000-000000000000';`,
+		accept: shippedReturnLine + `
+		         UPDATE return_requests SET status = 'approved', decided_at = now()
+		         WHERE id = '88880001-0000-4000-8000-000000000000';
+		         UPDATE return_request_lines SET received_quantity = 1, restocked_quantity = 1
+		         WHERE return_request_id = '88880001-0000-4000-8000-000000000000';
+		         ` + exactSucceededLargeReturnRefund + `
+		         ` + exactReturnRefundedEvent + `
+		         UPDATE return_requests SET status = 'completed'
+		         WHERE id = '88880001-0000-4000-8000-000000000000';`,
+	},
+	{
+		rule: "return_requests_completed_points_settled",
+		reject: returnRuleAward + shippedReturnLine + `
+		         UPDATE return_requests SET status = 'approved', decided_at = now()
+		         WHERE id = '88880001-0000-4000-8000-000000000000';
+		         UPDATE return_request_lines SET received_quantity = 1, restocked_quantity = 1
+		         WHERE return_request_id = '88880001-0000-4000-8000-000000000000';
+		         ` + exactSucceededLargeReturnRefund + `
+		         ` + exactReturnRefundedEvent + `
+		         UPDATE return_requests SET status = 'completed'
+		         WHERE id = '88880001-0000-4000-8000-000000000000';`,
+		accept: returnRuleAward + shippedReturnLine + `
+		         UPDATE return_requests SET status = 'approved', decided_at = now()
+		         WHERE id = '88880001-0000-4000-8000-000000000000';
+		         UPDATE return_request_lines SET received_quantity = 1, restocked_quantity = 1
+		         WHERE return_request_id = '88880001-0000-4000-8000-000000000000';
+		         ` + exactSucceededLargeReturnRefund + `
+		         ` + exactReturnRefundedEvent + `
+		         SELECT reverse_return_points('88880001-0000-4000-8000-000000000000');
+		         UPDATE return_requests SET status = 'completed'
+		         WHERE id = '88880001-0000-4000-8000-000000000000';`,
+	},
+	{
+		rule: "return_lines_frozen_after_decision",
+		reject: shippedReturnLine + `
+		         UPDATE return_requests SET status = 'approved', decided_at = now()
+		         WHERE id = '88880001-0000-4000-8000-000000000000';
+		         UPDATE return_request_lines SET quantity = 2
+		         WHERE return_request_id = '88880001-0000-4000-8000-000000000000';`,
+		accept: shippedReturnLine + `
+		         UPDATE return_requests SET status = 'approved', decided_at = now()
+		         WHERE id = '88880001-0000-4000-8000-000000000000';
+		         UPDATE return_request_lines SET received_quantity = 1, restocked_quantity = 0
+		         WHERE return_request_id = '88880001-0000-4000-8000-000000000000';`,
+	},
+	{
+		rule: "return_requests_refund_snapshot_frozen",
+		reject: shippedReturnLine + `
+		         UPDATE return_requests SET status = 'approved', decided_at = now()
+		         WHERE id = '88880001-0000-4000-8000-000000000000';
+		         UPDATE return_requests SET goods_refund_cents = goods_refund_cents + 1
+		         WHERE id = '88880001-0000-4000-8000-000000000000';`,
+		accept: shippedReturnLine + `
+		         UPDATE return_requests SET status = 'approved', decided_at = now()
+		         WHERE id = '88880001-0000-4000-8000-000000000000';
+		         UPDATE return_requests SET resolution = 'snapshot unchanged'
 		         WHERE id = '88880001-0000-4000-8000-000000000000';`,
 	},
 	{
@@ -715,6 +1152,108 @@ var ruleCases = []ruleCase{
 	},
 }
 
+const refundRuleStaff = `
+	INSERT INTO users (id, email, role)
+	VALUES ('55550001-0000-4000-8000-000000000001',
+	        'refund-rule-staff@example.com', 'staff');`
+
+// The fixture already shipped one NT$10 cheap line. Claiming just that line
+// keeps the expected provider amount small and exact while leaving the other
+// purchased units outside the return, so delivery is not part of the refund.
+const refundableCheapReturn = `
+	INSERT INTO return_request_lines (
+	    order_id, return_request_id, order_line_id, quantity
+	) VALUES (
+	    '66666666-6666-4666-8666-666666666666',
+	    '88880001-0000-4000-8000-000000000000',
+	    '66660003-0000-4000-8000-000000000000', 1
+	);
+	UPDATE return_requests SET status = 'approved', decided_at = now()
+	WHERE id = '88880001-0000-4000-8000-000000000000';`
+
+const exactPendingReturnRefund = `
+	INSERT INTO refunds (
+	    id, payment_id, return_request_id, request_key, amount_cents
+	) VALUES (
+	    '11110031-0000-4000-8000-000000000001',
+	    '77770001-0000-4000-8000-000000000000',
+	    '88880001-0000-4000-8000-000000000000',
+	    'return:88880001-0000-4000-8000-000000000000', 1000
+	);`
+
+const failedFirstReturnRefund = `
+	INSERT INTO refunds (
+	    id, payment_id, return_request_id, request_key, status,
+	    amount_cents, failed_at
+	) VALUES (
+	    '11110031-0000-4000-8000-000000000001',
+	    '77770001-0000-4000-8000-000000000000',
+	    '88880001-0000-4000-8000-000000000000',
+	    'return:88880001-0000-4000-8000-000000000000', 'failed',
+	    1000, now()
+	);`
+
+const pendingRefundForOutcome = `
+	INSERT INTO refunds (id, payment_id, request_key, amount_cents)
+	VALUES ('11110030-0000-4000-8000-000000000001',
+	        '77770001-0000-4000-8000-000000000000',
+	        'refund-rule-provider-outcome', 1000);`
+
+// A fully store-credit-funded, shipped order with one open full return. It is
+// the smallest fixture for the erasure/return constraint pair: no card money is
+// available, so the exact NT$1,000 obligation needs the still-live account.
+const openReturnAccountFixture = `
+	INSERT INTO orders (
+	    id, order_number, user_id, shipping_version_id,
+	    shipping_method_code, shipping_method_name
+	) VALUES (
+	    '11110070-0000-4000-8000-000000000001', 'GO-260721-000970',
+	    '55555555-5555-4555-8555-555555555555',
+	    'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府'
+	);
+	INSERT INTO order_lines (
+	    id, order_id, sku, product_name, unit_price_cents, quantity
+	) VALUES (
+	    '11110071-0000-4000-8000-000000000001',
+	    '11110070-0000-4000-8000-000000000001',
+	    'CREDIT-RETURN', '購物金退貨商品', 100000, 1
+	);
+	INSERT INTO order_private_data (
+	    order_id, email, recipient_name, phone, postal_code, city, district, street
+	) VALUES (
+	    '11110070-0000-4000-8000-000000000001', 'ming@example.com', '王小明',
+	    '0912345678', '110', '台北市', '信義區', '松高路 68 號'
+	);
+	SELECT spend_store_credit('11110070-0000-4000-8000-000000000001', -100000);
+	UPDATE orders SET fulfillment_status = 'picking'
+	WHERE id = '11110070-0000-4000-8000-000000000001';
+	UPDATE orders SET fulfillment_status = 'shipped'
+	WHERE id = '11110070-0000-4000-8000-000000000001';
+	INSERT INTO order_shipments (id, order_id, carrier, tracking_number)
+	VALUES ('11110072-0000-4000-8000-000000000001',
+	        '11110070-0000-4000-8000-000000000001', '黑貓', 'CREDIT-RETURN-1');
+	INSERT INTO order_shipment_lines (
+	    order_id, shipment_id, order_line_id, quantity
+	) VALUES (
+	    '11110070-0000-4000-8000-000000000001',
+	    '11110072-0000-4000-8000-000000000001',
+	    '11110071-0000-4000-8000-000000000001', 1
+	);
+	INSERT INTO return_requests (
+	    id, order_id, requested_by_user_id, reason
+	) VALUES (
+	    '11110074-0000-4000-8000-000000000001',
+	    '11110070-0000-4000-8000-000000000001',
+	    '55555555-5555-4555-8555-555555555555', '不合用'
+	);
+	INSERT INTO return_request_lines (
+	    order_id, return_request_id, order_line_id, quantity
+	) VALUES (
+	    '11110070-0000-4000-8000-000000000001',
+	    '11110074-0000-4000-8000-000000000001',
+	    '11110071-0000-4000-8000-000000000001', 1
+	);`
+
 // shippedReturnLine puts the fixture's order line in a parcel and claims one of
 // it. return_within_shipment reads the shipment, so without this the statement
 // meant to prove the inspection rule is refused by a different one (#8).
@@ -728,6 +1267,33 @@ const shippedReturnLine = `
 	        '88880001-0000-4000-8000-000000000000',
 	        '66660001-0000-4000-8000-000000000000', 1);`
 
+const exactSucceededLargeReturnRefund = `
+	INSERT INTO refunds (
+	    payment_id, return_request_id, request_key, status, amount_cents,
+	    provider_ref, succeeded_at
+	) VALUES (
+	    '77770001-0000-4000-8000-000000000000',
+	    '88880001-0000-4000-8000-000000000000',
+	    'return:88880001-0000-4000-8000-000000000000',
+	    'succeeded', 3390000, 're_complete_rule', now()
+	);`
+
+const exactReturnRefundedEvent = `
+	INSERT INTO order_events (order_id, kind, return_request_id)
+	VALUES (
+	    '66666666-6666-4666-8666-666666666666', 'refunded',
+	    '88880001-0000-4000-8000-000000000000'
+	);`
+
+const returnRuleAward = `
+	INSERT INTO loyalty_entries (
+	    account_id, kind, points, reason, idempotency_key, order_id, expires_on
+	) VALUES (
+	    'a0000001-0000-4000-8000-000000000000', 'award', 100, 'order',
+	    'complete-rule-award', '66666666-6666-4666-8666-666666666666',
+	    shop_today() + 365
+	);`
+
 func creditEntry(amount int, key string) string {
 	return fmt.Sprintf(
 		`INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
@@ -740,8 +1306,8 @@ func refund(key string, amount int) string {
 		 VALUES ('77770001-0000-4000-8000-000000000000', '%s', %d);`, key, amount)
 }
 
-// Concurrency. Every guard here would pass the single-statement tests above while still being
-// wrong: a trigger that reads before it locks looks identical in one session.
+// Every guard below would pass the single-statement tests above while still being wrong:
+// a trigger that reads before it locks looks identical in one session.
 
 // raceOutcome runs two writers against the same row with a DETERMINISTIC interleaving. T1 opens,
 // executes and STAYS OPEN; T2 then executes while T1 holds whatever it holds, and only then does
@@ -846,7 +1412,6 @@ func requireExactlyOne(t *testing.T, what string, err1, err2 error) {
 }
 
 // TestStockCannotOversell: two buyers take the last unit at once, and exactly one may have it.
-// Two mechanisms stand behind it, so removing either alone leaves this green; both away is red.
 func TestStockCannotOversell(t *testing.T) {
 	variant := "11110005-0000-4000-8000-000000000001"
 	setup(t, `
@@ -896,7 +1461,7 @@ func TestRefundsCannotRacePastCapture(t *testing.T) {
 		INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
 		VALUES ('`+order+`','R-1','商品',100000,1);
 		INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street)
-		VALUES ('`+order+`','r@example.com','王','09','110','台北市','信義區','路 1 號');
+		VALUES ('`+order+`','r@example.com','王','0912345678','110','台北市','信義區','路 1 號');
 		INSERT INTO payments (id, order_id, provider_ref, status, intended_amount_cents, captured_amount_cents, paid_at)
 		VALUES ('`+payment+`','`+order+`','pi_race','succeeded',100000,100000,now());`)
 	t.Cleanup(func() {
@@ -970,12 +1535,10 @@ func TestOrderNumbersAreUniqueUnderConcurrency(t *testing.T) {
 	var wg sync.WaitGroup
 	start := make(chan struct{})
 	for i := range numbers {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
+		wg.Go(func() {
 			<-start
 			errs[i] = p.QueryRow(ctx, `SELECT next_order_number()`).Scan(&numbers[i])
-		}(i)
+		})
 	}
 	close(start)
 	wg.Wait()
@@ -1054,7 +1617,7 @@ func TestReleaseReservationRefusesPaidOrder(t *testing.T) {
 	var held string
 	if err := tx.QueryRow(ctx,
 		`SELECT hold_inventory('66666666-6666-4666-8666-666666666666',
-			'44444444-4444-4444-8444-444444444444', 1, now() + interval '15 min', 'hold-paid-1')`).
+			'44444444-4444-4444-8444-444444444444', 1, interval '15 min', 'hold-paid-1')`).
 		Scan(&held); err != nil {
 		t.Fatalf("hold: %v", err)
 	}
@@ -1124,7 +1687,7 @@ func TestCampaignDiscountSurvivesBulkEdits(t *testing.T) {
 	const (
 		product = "33333333-3333-4333-8333-333333333333"
 		// 44444444 is on the settled order's line; 4444aaaa is on none. The DELETE case has to use the
-		// unsold one, or the cascade trips order_lines_frozen_once_committed first.
+		// unsold one, or the durable order-line catalogue foreign key refuses it first.
 		sold   = "44444444-4444-4444-8444-444444444444"
 		unsold = "4444aaaa-4444-4444-8444-444444444444"
 	)
@@ -1195,9 +1758,11 @@ func TestReservationFunctionsShareOrderBeforeVariant(t *testing.T) {
 	}
 }
 
-// TestEraseUserLeavesNoPersonalData asserts each table is clear afterwards rather than that the
-// function ran. invoice_preferences is keyed by ORDER, so its invoice carrier is easiest to miss.
-func TestEraseUserLeavesNoPersonalData(t *testing.T) {
+// TestEraseUserHonorsThePersonalDataBoundary asserts the ordinary customer and
+// delivery stores are clear while the explicitly retained filing snapshot stays
+// usable. invoice_preferences is keyed by ORDER, so neither side can be inferred
+// merely from deleting users.
+func TestEraseUserHonorsThePersonalDataBoundary(t *testing.T) {
 	ctx := t.Context()
 	tx, err := schemaPool(t).Begin(ctx)
 	if err != nil {
@@ -1217,12 +1782,11 @@ func TestEraseUserLeavesNoPersonalData(t *testing.T) {
 		t.Fatalf("prove erasure fixture mailbox: %v", err)
 	}
 
-	// A letter to this customer, waiting to go out. Without it the JSON half of
-	// the sweep below has no subject: it would report a clean outbox because
-	// the outbox was empty, which is a check over data that needs the data
-	// seeded. The payload is the shape enqueueBulk and the order producers
-	// write — the address frozen in, because the worker serves nobody and
-	// cannot look one up.
+	// A letter to this customer, waiting to go out: without it the JSON half of
+	// the sweep below has no subject and reports a clean outbox because the
+	// outbox was empty. The payload is the shape enqueueBulk and the order
+	// producers write — the address frozen in, because the worker serves nobody
+	// and cannot look one up.
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO outbox_messages (topic, dedupe_key, payload)
 		VALUES ('order.paid', 'erasure-probe',
@@ -1232,8 +1796,7 @@ func TestEraseUserLeavesNoPersonalData(t *testing.T) {
 	// A payload whose address key is CAPITALISED. Go marshals a field with no
 	// json tag under its Go name, and payload->>'email' is case-sensitive, so a
 	// per-key delete reaches one of these and not the other. The sweep below
-	// reads the whole value as text and is blind to the difference, which is why
-	// it is the guard that has to have a subject.
+	// reads the whole value as text and is blind to the difference.
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO outbox_messages (topic, dedupe_key, payload)
 		VALUES ('password.reset', 'erasure-probe-capitalised',
@@ -1241,9 +1804,8 @@ func TestEraseUserLeavesNoPersonalData(t *testing.T) {
 		t.Fatalf("enqueue a reset letter: %v", err)
 	}
 	// The OTHER jsonb store the sweep derives, and the one erase_user cannot
-	// reach at all: audit_events is append-only. A review found the store-credit
-	// grant writing a customer's address into it, so the guard exists — and it
-	// was passing over an empty table, which is a check over data with no data.
+	// reach at all: audit_events is append-only, so an address written there
+	// outlives the erasure meant to remove it.
 	if _, err := tx.Exec(ctx, `
 		SELECT record_audit_event($1, 'credit.granted', 'store_credit_entries', NULL,
 		       NULL, jsonb_build_object('amount_cents', 10000, 'reason', '補償'))`,
@@ -1251,8 +1813,30 @@ func TestEraseUserLeavesNoPersonalData(t *testing.T) {
 		t.Fatalf("write an audit row: %v", err)
 	}
 
+	const invoiceOperation = "11110006-0000-4000-8000-000000000099"
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO invoice_operations
+			(id, order_id, kind, provider_key, amount_cents, request_payload,
+			 actor_user_id, actor_id_snapshot, request_id)
+		VALUES ($1, '66666666-6666-4666-8666-666666666666', 'issue',
+		        'GO260721000387', 6788000, '{}', $2, $2, 'erase-actor')`,
+		invoiceOperation, user); err != nil {
+		t.Fatalf("write an invoice operation attributed to the erased actor: %v", err)
+	}
+
 	if _, err := tx.Exec(ctx, `SELECT erase_user($1)`, user); err != nil {
 		t.Fatalf("erase_user: %v", err)
+	}
+	var actorGone, snapshotKept bool
+	if err := tx.QueryRow(ctx, `
+		SELECT actor_user_id IS NULL, actor_id_snapshot = $2
+		FROM invoice_operations WHERE id = $1`, invoiceOperation, user).
+		Scan(&actorGone, &snapshotKept); err != nil {
+		t.Fatalf("read invoice attribution after erasure: %v", err)
+	}
+	if !actorGone || !snapshotKept {
+		t.Errorf("invoice attribution after erasure live-null/snapshot-kept = %t/%t, want true/true",
+			actorGone, snapshotKept)
 	}
 
 	for _, probe := range []struct {
@@ -1264,13 +1848,10 @@ func TestEraseUserLeavesNoPersonalData(t *testing.T) {
 		// user id could never come back non-zero and could never fail.
 		{"delivery details", `SELECT count(*) FROM order_private_data pd JOIN orders o ON o.id = pd.order_id
 			WHERE o.order_number = 'GO-260721-000387' AND pd.email IS NOT NULL`},
-		{"the invoice carrier", `SELECT count(*) FROM invoice_preferences ip JOIN orders o ON o.id = ip.order_id
-			WHERE o.order_number = 'GO-260721-000387'`},
 		// By ADDRESS and never by user_id: stock_notifications.user_id is ON
 		// DELETE SET NULL, so a probe asking for the account reads zero whether
-		// or not a single row was deleted — the shape the comment four lines
-		// above warns about, committed on the line under it. Both addresses,
-		// because a signed-in customer may ask using any address they type.
+		// or not a single row was deleted. Both addresses, because a signed-in
+		// customer may ask using any address they type.
 		{"restock notifications", `SELECT count(*) FROM stock_notifications
 			WHERE lower(email) IN ('ming@example.com', 'ming.work@example.com')`},
 	} {
@@ -1283,8 +1864,20 @@ func TestEraseUserLeavesNoPersonalData(t *testing.T) {
 		}
 	}
 
-	// Derived from information_schema, so a future table with an email column is covered by
-	// existing rather than by somebody remembering this test.
+	var carrier, filingName, filingEmail string
+	if err := tx.QueryRow(ctx, `
+		SELECT ip.carrier_code, ip.customer_name, ip.customer_email
+		FROM invoice_preferences ip JOIN orders o ON o.id = ip.order_id
+		WHERE o.order_number = 'GO-260721-000387'`).
+		Scan(&carrier, &filingName, &filingEmail); err != nil {
+		t.Fatalf("read retained filing snapshot: %v", err)
+	}
+	if carrier != "/ABC+123" || filingName != "王小明" || filingEmail != "buyer@example.com" {
+		t.Errorf("retained filing snapshot = %q/%q/%q", carrier, filingName, filingEmail)
+	}
+
+	// Derived from information_schema, so a future table with an email column is covered
+	// the day it is added.
 	assertNoTableHoldsTheAddress(ctx, t, tx, "Ming@Example.com")
 
 	// The order is a financial record and must outlive its customer.
@@ -1340,7 +1933,7 @@ func TestZeroOwedOrderIsCommitted(t *testing.T) {
 		var held string
 		if err := tx.QueryRow(ctx,
 			`SELECT hold_inventory($1, '44444444-4444-4444-8444-444444444444',
-				1, now() + interval '15 min', 'hold-zero-owed-1')`, zeroOwed).Scan(&held); err != nil {
+				1, interval '15 min', 'hold-zero-owed-1')`, zeroOwed).Scan(&held); err != nil {
 			t.Fatalf("hold: %v", err)
 		}
 		if _, err := tx.Exec(ctx, `SELECT release_reservation($1)`, held); err == nil {
@@ -1427,37 +2020,22 @@ func creditedOrder(order, account, spend string, total int) string {
 		order, account, spend, total)
 }
 
-// TestReversedCreditDoesNotFundOrder: a spend later reversed must not count toward funding, and
-// a capture net of that ghost must be refused. The formula pairs each spend with its reversal.
-func TestReversedCreditDoesNotFundOrder(t *testing.T) {
+// TestCreditCannotBeReversedWhileCheckoutIsOpen holds the object-authority
+// boundary of reverse_order_credit: cancellation changes the order state first,
+// and there is no role-callable way to disrupt somebody else's live checkout.
+func TestCreditCannotBeReversedWhileCheckoutIsOpen(t *testing.T) {
 	order := "11110040-0000-4000-8000-000000000001"
 	account := "11110041-0000-4000-8000-000000000001"
 	spend := "11110042-0000-4000-8000-000000000001"
-	build := creditedOrder(order, account, spend, 100000) + `
+	err := run(t, creditedOrder(order, account, spend, 100000)+`
 		INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key, reverses_id)
-		VALUES ('` + account + `',100000,'checkout abandoned','` + spend + `-rev','` + spend + `');`
-
-	t.Run("cannot leave pending", func(t *testing.T) {
-		err := run(t, build+`UPDATE orders SET fulfillment_status='picking' WHERE id='`+order+`';`)
-		if err == nil {
-			t.Fatal("a reversed-credit order left pending as if funded")
-		}
-		if _, name := constraintViolation(err); name != "orders_funded_to_leave_pending" {
-			t.Fatalf("refused by %q, want orders_funded_to_leave_pending: %v", name, err)
-		}
-	})
-
-	t.Run("capture net of the ghost is refused", func(t *testing.T) {
-		// The credit is back on the account, so a capture of 1 assuming the ghost must be refused.
-		err := run(t, build+`INSERT INTO payments (order_id, provider_ref, status, intended_amount_cents, captured_amount_cents, paid_at)
-			VALUES ('`+order+`','pi_ghost','succeeded',1,1,now());`)
-		if err == nil {
-			t.Fatal("a capture net of the ghost credit was accepted")
-		}
-		if _, name := constraintViolation(err); name != "payments_capture_matches_order" {
-			t.Fatalf("refused by %q, want payments_capture_matches_order: %v", name, err)
-		}
-	})
+		VALUES ('`+account+`',100000,'checkout abandoned','`+spend+`-rev','`+spend+`');`)
+	if err == nil {
+		t.Fatal("store credit was reversed while its checkout was still open")
+	}
+	if _, name := constraintViolation(err); name != "store_credit_posting_matches_order" {
+		t.Fatalf("refused by %q, want store_credit_posting_matches_order: %v", name, err)
+	}
 }
 
 // TestCreditPostingRespectsOrderState proves store credit cannot be posted to an order out of turn.
@@ -1609,8 +2187,9 @@ func TestDeactivatingTheLastVariantIsRefused(t *testing.T) {
 // TestDeletingTheLastVariantIsRefused covers the DELETE arm, where the trigger has no NEW record
 // at all: referring to NEW there is a runtime error plpgsql cannot catch at definition time.
 func TestDeletingTheLastVariantIsRefused(t *testing.T) {
-	// A product of its own, because deleting the fixture's variant is refused by
-	// order_lines_frozen_once_committed first, and any-refusal would report the wrong guard.
+	// A product of its own, because deleting the fixture's sold variant is refused
+	// by the durable order-line catalogue foreign key first, and any-refusal would
+	// report the wrong guard.
 	err := run(t, `SET CONSTRAINTS ALL IMMEDIATE;
 		INSERT INTO products (id, brand_id, category_id, slug, name, description, status, published_at)
 		VALUES ('3333dddd-3333-4333-8333-333333333333',
@@ -1632,8 +2211,7 @@ func TestDeletingTheLastVariantIsRefused(t *testing.T) {
 }
 
 // TestEveryRoleCanReadWhatItsQueriesRead proves a missing GRANT cannot hide behind the owner,
-// who is subject to no REVOKE — the hole that made `store` unable to read committed_orders,
-// which order_lines' trigger calls, so every checkout returned 500.
+// who is subject to no REVOKE.
 func TestEveryRoleCanReadWhatItsQueriesRead(t *testing.T) {
 	ctx := t.Context()
 
@@ -1694,17 +2272,81 @@ func firstRelation(stmt string) string {
 	return "query"
 }
 
-// TestEveryRaisedRuleIsAssertedByName asks the question TestEveryRuleTriggerIsExercised
-// cannot. That one keys on the TRIGGER, and a trigger function raises as many
-// distinct rules as it has branches: store_credit_guard alone raises four.
-// Deleting one branch removes no trigger, so the coverage guard stays green while
-// the rule it names stops being enforced — and a case that asserts a row was
-// refused, without asking which rule refused it, cannot tell the difference (#8).
+// TestClaimInvoiceIssueRejectsUnsafeRelateNumber exercises the defensive door
+// against a legacy/drifted order number. The live CHECK makes such a row
+// impossible today, so the fixture removes that CHECK inside a transaction and
+// rolls the catalogue change back with the row.
+func TestClaimInvoiceIssueRejectsUnsafeRelateNumber(t *testing.T) {
+	ctx := t.Context()
+	tx, err := schemaPool(t).Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin drift fixture: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+
+	if _, fixtureErr := tx.Exec(ctx, fixtures); fixtureErr != nil {
+		t.Fatalf("load fixtures: %v", fixtureErr)
+	}
+	if _, alterErr := tx.Exec(ctx,
+		`ALTER TABLE orders DROP CONSTRAINT orders_number_format`); alterErr != nil {
+		t.Fatalf("open controlled order-number drift: %v", alterErr)
+	}
+	const actorID = "11110006-0000-4000-8000-000000000018"
+	if _, actorErr := tx.Exec(ctx, `
+		INSERT INTO users (id, email, role)
+		VALUES ($1, 'relate-drift-staff@goen.invalid', 'staff')`, actorID); actorErr != nil {
+		t.Fatalf("insert filing actor: %v", actorErr)
+	}
+
+	const orderID = "11110006-0000-4000-8000-000000000017"
+	orderNumber := strings.Repeat("A", 31)
+	if _, orderErr := tx.Exec(ctx, `
+		INSERT INTO orders
+		    (id, order_number, shipping_version_id, shipping_method_code,
+		     shipping_method_name, discount_cents)
+		SELECT $1, $2, smv.id, sm.code, smv.name, 100000
+		FROM shipping_method_versions smv
+		JOIN shipping_methods sm ON sm.id = smv.method_id
+		ORDER BY smv.effective_at DESC, smv.id
+		LIMIT 1`, orderID, orderNumber); orderErr != nil {
+		t.Fatalf("insert drifted order: %v", orderErr)
+	}
+	if _, lineErr := tx.Exec(ctx, `
+		INSERT INTO order_lines
+		    (order_id, variant_id, sku, product_name, unit_price_cents, quantity, position)
+		SELECT $1, pv.id, 'RELATE-DRIFT', 'Relate drift item', 100000, 1, 0
+		FROM product_variants pv ORDER BY pv.id LIMIT 1`, orderID); lineErr != nil {
+		t.Fatalf("add drifted order line: %v", lineErr)
+	}
+	if _, privateDataErr := tx.Exec(ctx, `
+		INSERT INTO order_private_data
+		    (order_id, email, recipient_name, phone, postal_code, city, district, street)
+		VALUES ($1, 'relate-drift@goen.invalid', 'Relate drift', '0912345678',
+		        '110', '台北市', '信義區', 'Rule 1')`, orderID); privateDataErr != nil {
+		t.Fatalf("complete drifted order: %v", privateDataErr)
+	}
+	if _, updateErr := tx.Exec(ctx,
+		`UPDATE orders SET fulfillment_status = 'picking' WHERE id = $1`, orderID); updateErr != nil {
+		t.Fatalf("commit drifted order: %v", updateErr)
+	}
+
+	_, err = tx.Exec(ctx,
+		`SELECT claim_invoice_issue($1, $2, 'relate-drift')`, orderNumber, actorID)
+	code, name := constraintViolation(err)
+	if code != "23514" || name != "invoice_issue_relate_number" {
+		t.Fatalf("error = %v (SQLSTATE %s constraint %q), want 23514/invoice_issue_relate_number",
+			err, code, name)
+	}
+}
+
+// TestEveryRaisedRuleIsAssertedByName keys on the RULE, where the trigger coverage gate
+// keys on the trigger. A trigger function raises as many distinct rules as it has
+// branches — store_credit_guard alone raises four — so deleting one branch removes no
+// trigger and leaves that gate green while the rule stops being enforced.
 //
-// The corpus is pg_proc, not a list: a rule added to a function body is covered
-// the moment it is written. What it asks for is the name inside a Go string
-// literal in a test, because a name in a comment is how a guard comes to be
-// satisfied by nothing.
+// The corpus is pg_proc, not a list, so a rule added to a function body is covered the
+// moment it is written. It asks for the name inside a Go string literal, because a name
+// in a comment is how a guard comes to be satisfied by nothing.
 func TestEveryRaisedRuleIsAssertedByName(t *testing.T) {
 	rows, err := schemaPool(t).Query(t.Context(), `
 		SELECT DISTINCT m[1]
@@ -1751,8 +2393,12 @@ func TestEveryRaisedRuleIsAssertedByName(t *testing.T) {
 		if readErr != nil {
 			return readErr
 		}
+		literals, parseErr := goStringLiterals(path, body)
+		if parseErr != nil {
+			return parseErr
+		}
 		for _, name := range raised {
-			if bytes.Contains(body, []byte(`"`+name+`"`)) {
+			if literals[name] {
 				asserted[name] = true
 			}
 		}
@@ -1772,5 +2418,47 @@ func TestEveryRaisedRuleIsAssertedByName(t *testing.T) {
 		t.Errorf("%d rules are raised by a function body and asserted by no test:\n  %s\n"+
 			"Each is a branch that can be deleted with every suite still green.",
 			len(missing), strings.Join(missing, "\n  "))
+	}
+}
+
+// goStringLiterals deliberately parses syntax rather than searching source
+// bytes. A constraint name in a comment is an explanation, not an assertion;
+// exact literal values also prevent an unrelated paragraph from satisfying the
+// guard merely because it mentions the name.
+func goStringLiterals(filename string, src []byte) (map[string]bool, error) {
+	f, err := parser.ParseFile(token.NewFileSet(), filename, src, 0)
+	if err != nil {
+		return nil, fmt.Errorf("parse %s: %w", filename, err)
+	}
+	values := make(map[string]bool)
+	ast.Inspect(f, func(n ast.Node) bool {
+		lit, ok := n.(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return true
+		}
+		value, unquoteErr := strconv.Unquote(lit.Value)
+		if unquoteErr == nil {
+			values[value] = true
+		}
+		return true
+	})
+	return values, nil
+}
+
+func TestRaisedRuleCoverageIgnoresNamesThatExistOnlyInComments(t *testing.T) {
+	t.Parallel()
+	values, err := goStringLiterals("comment_only.go", []byte(`package example
+
+// "comment_only_rule" is documentation, not an assertion.
+var asserted = "actually_asserted_rule"
+`))
+	if err != nil {
+		t.Fatalf("parse fixture: %v", err)
+	}
+	if values["comment_only_rule"] {
+		t.Fatal("a name present only in a comment satisfied the assertion guard")
+	}
+	if !values["actually_asserted_rule"] {
+		t.Fatal("a real Go string literal was not recognized")
 	}
 }

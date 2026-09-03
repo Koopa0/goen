@@ -10,13 +10,10 @@ import (
 	"testing"
 )
 
-// stubPinger is a Pinger that answers however the test says.
 type stubPinger struct{ err error }
 
 func (p stubPinger) Ping(context.Context) error { return p.err }
 
-// TestReadinessFailsWhenAnyPoolIsUnreachable holds the probe against every pool
-// goen serves from, not just the first.
 func TestReadinessFailsWhenAnyPoolIsUnreachable(t *testing.T) {
 	down := errors.New("dial tcp 127.0.0.1:59999: connect: connection refused")
 
@@ -35,7 +32,6 @@ func TestReadinessFailsWhenAnyPoolIsUnreachable(t *testing.T) {
 			wantStatus: http.StatusServiceUnavailable, wantBody: "storefront",
 		},
 		{
-			// The case that shipped: everything the probe looked at was fine.
 			name: "admin down", admin: down,
 			wantStatus: http.StatusServiceUnavailable, wantBody: "admin",
 		},
@@ -53,7 +49,6 @@ func TestReadinessFailsWhenAnyPoolIsUnreachable(t *testing.T) {
 			if w.Code != tt.wantStatus {
 				t.Errorf("Ready() status = %d, want %d", w.Code, tt.wantStatus)
 			}
-			// The body NAMES the pool.
 			if body := w.Body.String(); !strings.Contains(body, tt.wantBody) {
 				t.Errorf("Ready() body = %q, want it to mention %q", body, tt.wantBody)
 			}
@@ -61,8 +56,6 @@ func TestReadinessFailsWhenAnyPoolIsUnreachable(t *testing.T) {
 	}
 }
 
-// TestNewHandlerOwnsItsValidatedDependencies proves a caller cannot mutate the
-// variadic backing slice after construction and invalidate Handler's state.
 func TestNewHandlerOwnsItsValidatedDependencies(t *testing.T) {
 	deps := []Dependency{{Name: "storefront", DB: stubPinger{}}}
 	h := NewHandler(slog.New(slog.DiscardHandler), deps...)
@@ -76,8 +69,6 @@ func TestNewHandlerOwnsItsValidatedDependencies(t *testing.T) {
 	}
 }
 
-// TestLivenessIgnoresTheDatabase keeps the two probes different questions:
-// answering a brief outage as liveness turns a blip into a restart loop.
 func TestLivenessIgnoresTheDatabase(t *testing.T) {
 	h := NewHandler(slog.New(slog.DiscardHandler),
 		Dependency{Name: "storefront", DB: stubPinger{err: errors.New("down")}},

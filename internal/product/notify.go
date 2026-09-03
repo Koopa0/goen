@@ -16,7 +16,7 @@ import (
 var ErrNotifyInvalid = errors.New("product: invalid restock request")
 
 // RequestRestockNotice records that somebody wants to know when a variant is back.
-func (s *Store) RequestRestockNotice(ctx context.Context, variantID, addr, userID string) error {
+func (s *Store) RequestRestockNotice(ctx context.Context, slug, variantID, addr, userID string) error {
 	vid, err := uuid.Parse(variantID)
 	if err != nil {
 		return ErrNotifyInvalid
@@ -31,12 +31,16 @@ func (s *Store) RequestRestockNotice(ctx context.Context, variantID, addr, userI
 		owner = uuid.NullUUID{UUID: id, Valid: true}
 	}
 
-	if err := s.q.RequestStockNotice(ctx, db.RequestStockNoticeParams{
-		VariantID: vid, UserID: owner, Email: addr,
+	eligible, err := s.q.RequestStockNotice(ctx, db.RequestStockNoticeParams{
+		Slug: slug, VariantID: vid, UserID: owner, Email: addr,
 		// A worker with no request sends this, so the locale travels on the row.
 		Locale: i18n.FromContext(ctx).Tag(),
-	}); err != nil {
+	})
+	if err != nil {
 		return fmt.Errorf("request restock notice: %w", err)
+	}
+	if !eligible {
+		return ErrNotifyInvalid
 	}
 	return nil
 }

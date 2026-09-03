@@ -8,10 +8,11 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -45,7 +46,7 @@ func (s *Store) Shipping(ctx context.Context) (pages.AdminShippingView, error) {
 			// values through the form or the next version loses them permanently.
 			NameEn: m.NameEn, CarrierEn: m.CarrierEn,
 			FreeOverCents: m.FreeOverCents.Int64,
-			EffectiveAt:   m.EffectiveAt.Format("2006-01-02"),
+			EffectiveAt:   shoptime.Day(m.EffectiveAt),
 			VersionCount:  m.VersionCount, Active: m.IsActive,
 		}
 		for j := range zoneRows {
@@ -95,12 +96,12 @@ func (s *Store) PublishShippingVersion(ctx context.Context, v ShippingVersion) e
 	if name == "" || feeDollars < 0 || freeOverDollars < 0 {
 		return ErrInvalid
 	}
-	if feeDollars*100 > MaxShippingFee {
+	if feeDollars > MaxShippingFee/100 || freeOverDollars > MaxPriceCents/100 {
 		return ErrInvalid
 	}
 
 	return s.audited(ctx, Event{
-		Action: ActionPublishShipping, Table: "shipping_method_versions",
+		Action: actionPublishShipping, Table: "shipping_method_versions",
 		ID:     nullableID(id),
 		Before: nil,
 		After: map[string]any{
@@ -114,7 +115,7 @@ func (s *Store) PublishShippingVersion(ctx context.Context, v ShippingVersion) e
 				MethodID: id, Name: name, Carrier: carrier,
 				NameEn: nameEn, CarrierEn: carrierEn,
 				FeeCents:      feeDollars * 100,
-				FreeOverCents: pgtype.Int8{Int64: freeOverDollars * 100, Valid: true},
+				FreeOverCents: freeOverDollars * 100,
 			})
 			if insErr != nil {
 				return fmt.Errorf("%w: %w", ErrRefused, insErr)
@@ -138,12 +139,12 @@ func (s *Store) SetZoneSurcharge(ctx context.Context, versionID, zoneID string, 
 	if err != nil {
 		return ErrInvalid
 	}
-	if dollars < 0 || dollars*100 > MaxShippingFee {
+	if dollars < 0 || dollars > MaxShippingFee/100 {
 		return ErrInvalid
 	}
 
 	return s.audited(ctx, Event{
-		Action: ActionSetSurcharge, Table: "shipping_version_zones",
+		Action: actionSetSurcharge, Table: "shipping_version_zones",
 		ID:     nullableID(vid),
 		Before: nil,
 		After: map[string]any{
@@ -200,15 +201,22 @@ func (m *NewMethod) Validate(ctx context.Context) map[string]string {
 	if m.Name == "" || utf8.RuneCountInString(m.Name) > MaxTaxonomyNameRunes {
 		errs["name"] = i18n.T(ctx, i18n.KeyFormNameRequired)
 	}
-	if m.Destination != "address" && m.Destination != "pickup_point" {
+	// Asked of the package that owns the set, so a third destination is not
+	// something the back office has to remember separately.
+	if _, ok := cart.DestinationFor(m.Destination); !ok {
 		errs["destination"] = i18n.T(ctx, i18n.KeyFormMethodDestination)
 	}
-	if m.FeeDollars < 0 || m.FeeDollars*100 > MaxShippingFee {
+	if m.FeeDollars < 0 || m.FeeDollars > MaxShippingFee/100 {
 		errs["fee"] = i18n.T(ctx, i18n.KeyFormMethodFee)
 	}
-	if m.FreeOverDollars < 0 {
+	if m.FreeOverDollars < 0 || m.FreeOverDollars > MaxPriceCents/100 {
 		errs["free_over"] = i18n.T(ctx, i18n.KeyFormMethodFreeOver)
 	}
+	validateMethodParcelLimits(ctx, m, errs)
+	return errs
+}
+
+func validateMethodParcelLimits(ctx context.Context, m *NewMethod, errs map[string]string) {
 	// Method limits reuse the parcel reachability ceilings: larger figures can
 	// never match a valid measured parcel and are therefore input mistakes.
 	if m.MaxParcelLongestMM < 0 || m.MaxParcelLongestMM > parcelLongestCeilingMM {
@@ -223,7 +231,6 @@ func (m *NewMethod) Validate(ctx context.Context) map[string]string {
 		errs["max_parcel_weight"] = fmt.Sprintf(
 			i18n.T(ctx, i18n.KeyFormMethodParcelLimit), parcelWeightCeilingG)
 	}
-	return errs
 }
 
 var methodCodeFormat = regexp.MustCompile(`^[a-z0-9]+(_[a-z0-9]+)*$`)
@@ -241,7 +248,7 @@ func (s *Store) CreateMethod(ctx context.Context, m *NewMethod) (map[string]stri
 
 func (s *Store) insertMethod(ctx context.Context, m *NewMethod) error {
 	return s.audited(ctx, Event{
-		Action: ActionCreateShippingMethod, Table: "shipping_methods",
+		Action: actionCreateShippingMethod, Table: "shipping_methods",
 		After: map[string]any{
 			"code": m.Code, "destination_kind": m.Destination,
 			"name": m.Name, "fee_cents": m.FeeDollars * 100,
@@ -260,7 +267,7 @@ func (s *Store) insertMethod(ctx context.Context, m *NewMethod) error {
 			MethodID: methodID, Name: m.Name, Carrier: m.Carrier,
 			NameEn: m.NameEn, CarrierEn: m.CarrierEn,
 			FeeCents:      m.FeeDollars * 100,
-			FreeOverCents: pgtype.Int8{Int64: m.FreeOverDollars * 100, Valid: true},
+			FreeOverCents: m.FreeOverDollars * 100,
 		}); verErr != nil {
 			return verErr
 		}
@@ -294,7 +301,7 @@ func (s *Store) SetMethodActive(ctx context.Context, id string, active bool) err
 		return ErrNotFound
 	}
 	return s.audited(ctx, Event{
-		Action: ActionToggleShippingMethod, Table: "shipping_methods",
+		Action: actionToggleShippingMethod, Table: "shipping_methods",
 		ID:    nullableID(methodID),
 		After: map[string]any{"active": active},
 	}, func(ctx context.Context, q *db.Queries) error {

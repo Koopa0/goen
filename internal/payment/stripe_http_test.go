@@ -6,6 +6,7 @@ package payment
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -90,6 +91,84 @@ func anOrder() *Order {
 	}
 }
 
+func checkoutSessionJSON(t *testing.T, id, redirectURL string, status stripe.CheckoutSessionStatus) string {
+	t.Helper()
+	b, err := json.Marshal(map[string]any{
+		"id": id, "object": "checkout.session", "url": redirectURL, "status": status,
+	})
+	if err != nil {
+		t.Fatalf("marshal Checkout Session fixture: %v", err)
+	}
+	return string(b)
+}
+
+func TestStripeIDContract(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		id   string
+		want bool
+	}{
+		{name: "ordinary", id: "cs_test_a1b2", want: true},
+		{name: "255 characters", id: strings.Repeat("x", 255), want: true},
+		{name: "empty", id: ""},
+		{name: "256 characters", id: strings.Repeat("x", 256)},
+		{name: "whitespace only", id: " \t"},
+		{name: "embedded whitespace", id: "cs_test bad"},
+		{name: "control", id: "cs_test\nforged"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ValidStripeID(tt.id); got != tt.want {
+				t.Errorf("ValidStripeID() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCreateRejectsInvalidProviderSessionIdentities(t *testing.T) {
+	for _, id := range []string{"", strings.Repeat("x", 256), " \t", "cs_test\nforged"} {
+		t.Run(strconv.Quote(id), func(t *testing.T) {
+			g, _ := stripeAt(t, func(*call) (int, string) {
+				return http.StatusOK, checkoutSessionJSON(t, id,
+					"https://pay.goen.example/c/pay/good", stripe.CheckoutSessionStatusOpen)
+			})
+			gotID, err := g.StartSession(t.Context(), anOrder(), 0)
+			if err == nil {
+				t.Fatal("StartSession() accepted an invalid provider session id")
+			}
+			if gotID != "" {
+				t.Errorf("StartSession() = (%q, %v), want no provider id", gotID, err)
+			}
+		})
+	}
+}
+
+func TestCreateReturnsTheDurableIdentityBeforeUsingAnyRedirect(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		url  string
+	}{
+		{name: "custom HTTPS domain", url: "https://pay.goen.example/c/pay/cs_test_created"},
+		{name: "plain HTTP", url: "http://pay.goen.example/c/pay/cs_test_created"},
+		{name: "relative", url: "/c/pay/cs_test_created"},
+		{name: "userinfo", url: "https://staff@pay.goen.example/c/pay/cs_test_created"},
+		{name: "empty", url: ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g, _ := stripeAt(t, func(*call) (int, string) {
+				return http.StatusOK, checkoutSessionJSON(t, "cs_test_created", tt.url,
+					stripe.CheckoutSessionStatusOpen)
+			})
+			id, err := g.StartSession(t.Context(), anOrder(), 0)
+			if err != nil {
+				t.Fatalf("StartSession() error = %v", err)
+			}
+			if id != "cs_test_created" {
+				t.Errorf("StartSession() id = %q, want the created session recorded before any redirect is used", id)
+			}
+		})
+	}
+}
+
 // TestTheSessionRequestCarriesWhatStripeCharges reads the request off the wire.
 // The figures are independent literals, never expressions over the fixture, so
 // an amount wrong at both ends still fails.
@@ -99,15 +178,12 @@ func TestTheSessionRequestCarriesWhatStripeCharges(t *testing.T) {
 			`"url":"https://checkout.stripe.test/c/pay/cs_test_created","status":"open"}`
 	})
 
-	id, redirect, err := g.StartSession(t.Context(), anOrder(), 0)
+	id, err := g.StartSession(t.Context(), anOrder(), 0)
 	if err != nil {
 		t.Fatalf("StartSession() error = %v", err)
 	}
 	if id != "cs_test_created" {
 		t.Errorf("StartSession() id = %q, want cs_test_created", id)
-	}
-	if redirect != "https://checkout.stripe.test/c/pay/cs_test_created" {
-		t.Errorf("StartSession() url = %q, want Stripe's own", redirect)
 	}
 	if len(*log) != 1 {
 		t.Fatalf("made %d requests, want exactly 1", len(*log))
@@ -143,8 +219,7 @@ func TestTheSessionRequestCarriesWhatStripeCharges(t *testing.T) {
 		}
 	}
 
-	// Written from the contract and not from the code: money must not arrive
-	// after the stock hold the session is bounded by has expired.
+	// Money must not arrive after the stock hold the session is bounded by.
 	if got := sent.form["payment_method_types[0]"]; len(got) != 1 || got[0] != "card" {
 		t.Errorf("form[payment_method_types[0]] = %v, want [card]; without the pin "+
 			"the Dashboard may offer a DELAYED method, whose money settles days "+
@@ -172,7 +247,7 @@ func TestTheSessionExpiresWithTheStockHold(t *testing.T) {
 		return http.StatusOK, `{"id":"cs_x","object":"checkout.session","url":"https://x.test","status":"open"}`
 	})
 	o := anOrder()
-	if _, _, err := g.StartSession(t.Context(), o, 0); err != nil {
+	if _, err := g.StartSession(t.Context(), o, 0); err != nil {
 		t.Fatalf("StartSession() error = %v", err)
 	}
 	got := (*log)[0].form.Get("expires_at")
@@ -188,15 +263,8 @@ func TestTheSessionExpiresWithTheStockHold(t *testing.T) {
 // has to satisfy: payments_capture_matches_order refuses a capture that is not
 // exactly order_amount_owed, so the line items must sum to it.
 //
-// Both directions, and the second is the one that mattered. Shipping and tax add
-// to the lines; a coupon and store credit take away. StartSession refused a
-// negative difference outright, so an order reduced by either could never be
-// paid — and free delivery over the advertised threshold means any discount at
-// all lands below the lines. The customer's credit was debited and their coupon
-// spent by the checkout transaction, so the refusal came after the money.
-//
-// The previous version of this test asserted the refusal. It was written from
-// the implementation, and it had to be wrong for the code to look right.
+// Both directions: shipping and tax add to the lines, while a coupon and store
+// credit take away.
 func TestTheSessionTotalsWhatTheOrderOwes(t *testing.T) {
 	for _, tt := range []struct {
 		name  string
@@ -208,10 +276,8 @@ func TestTheSessionTotalsWhatTheOrderOwes(t *testing.T) {
 		// amount wrong at both ends still fails.
 		{name: "shipping on top", owed: 299780, items: 3},
 		{name: "nothing added or taken", owed: 299700, items: 2},
-		// A reduced order collapses to ONE line at the owed price. Stripe
-		// rejects a negative unit_amount — verified against the real API, which
-		// answered 400 "Invalid non-negative integer" to the version that sent
-		// the reduction as its own line.
+		// A reduced order collapses to ONE line at the owed price: the real API
+		// answers 400 "Invalid non-negative integer" to a negative unit_amount.
 		{name: "a coupon takes it below the lines", owed: 294700, items: 1},
 		{name: "store credit takes most of it", owed: 9700, items: 1},
 	} {
@@ -222,7 +288,7 @@ func TestTheSessionTotalsWhatTheOrderOwes(t *testing.T) {
 			o := anOrder()
 			o.TotalCents = tt.owed
 
-			if _, _, err := g.StartSession(t.Context(), o, 0); err != nil {
+			if _, err := g.StartSession(t.Context(), o, 0); err != nil {
 				t.Fatalf("StartSession() refused an order owing %d: %v", tt.owed, err)
 			}
 			if len(*log) != 1 {
@@ -279,7 +345,7 @@ func TestTheHostedPageFollowsTheVisitorsLanguage(t *testing.T) {
 				return http.StatusOK, `{"id":"cs_x","object":"checkout.session","url":"https://x.test","status":"open"}`
 			})
 			ctx := i18n.WithLocale(t.Context(), tt.locale)
-			if _, _, err := g.StartSession(ctx, anOrder(), 0); err != nil {
+			if _, err := g.StartSession(ctx, anOrder(), 0); err != nil {
 				t.Fatalf("StartSession() error = %v", err)
 			}
 			if got := (*log)[0].form.Get("locale"); got != tt.want {
@@ -344,6 +410,68 @@ func TestOnlyAnOpenSessionIsResumable(t *testing.T) {
 	}
 }
 
+func TestResumeRejectsInvalidProviderIdentityOrRedirect(t *testing.T) {
+	const requested = "cs_requested"
+	for _, tt := range []struct {
+		name string
+		id   string
+		url  string
+	}{
+		{name: "empty id", id: "", url: "https://pay.goen.example/c/pay/cs_requested"},
+		{name: "oversized id", id: strings.Repeat("x", 256), url: "https://pay.goen.example/c/pay/cs_requested"},
+		{name: "whitespace id", id: " \t", url: "https://pay.goen.example/c/pay/cs_requested"},
+		{name: "control in id", id: "cs_requested\nforged", url: "https://pay.goen.example/c/pay/cs_requested"},
+		{name: "a different session", id: "cs_someone_else", url: "https://pay.goen.example/c/pay/cs_requested"},
+		{name: "plain HTTP", id: requested, url: "http://pay.goen.example/c/pay/cs_requested"},
+		{name: "relative URL", id: requested, url: "/c/pay/cs_requested"},
+		{name: "URL userinfo", id: requested, url: "https://staff@pay.goen.example/c/pay/cs_requested"},
+		{name: "empty URL", id: requested, url: ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			g, _ := stripeAt(t, func(*call) (int, string) {
+				return http.StatusOK, checkoutSessionJSON(t, tt.id, tt.url,
+					stripe.CheckoutSessionStatusOpen)
+			})
+			redirect, status, err := g.ResumeSession(t.Context(), requested)
+			if err == nil {
+				t.Fatal("ResumeSession() accepted an invalid provider response")
+			}
+			if redirect != "" || status != "" {
+				t.Errorf("ResumeSession() = (%q, %q, %v), want no provider values",
+					redirect, status, err)
+			}
+		})
+	}
+}
+
+func TestResumeAcceptsACustomCheckoutDomain(t *testing.T) {
+	const target = "https://pay.goen.example/c/pay/cs_requested"
+	g, _ := stripeAt(t, func(*call) (int, string) {
+		return http.StatusOK, checkoutSessionJSON(t, "cs_requested", target,
+			stripe.CheckoutSessionStatusOpen)
+	})
+	redirect, status, err := g.ResumeSession(t.Context(), "cs_requested")
+	if err != nil {
+		t.Fatalf("ResumeSession() error = %v", err)
+	}
+	if redirect != target || status != stripe.CheckoutSessionStatusOpen {
+		t.Errorf("ResumeSession() = (%q, %q), want custom URL and open", redirect, status)
+	}
+}
+
+func TestExpireRequiresTheRequestedSessionIdentityInTheReply(t *testing.T) {
+	for _, id := range []string{"", strings.Repeat("x", 256), "cs_someone_else"} {
+		t.Run(strconv.Quote(id), func(t *testing.T) {
+			g, _ := stripeAt(t, func(*call) (int, string) {
+				return http.StatusOK, checkoutSessionJSON(t, id, "", stripe.CheckoutSessionStatusExpired)
+			})
+			if err := g.ExpireSession(t.Context(), "cs_requested"); err == nil {
+				t.Fatal("ExpireSession() accepted an invalid provider session identity")
+			}
+		})
+	}
+}
+
 // TestCancellingClosesTheCheckoutAtStripe covers the request that closes a
 // cancelled order's checkout, whose goods are already back on the shelf.
 func TestCancellingClosesTheCheckoutAtStripe(t *testing.T) {
@@ -394,7 +522,7 @@ func TestADisabledGatewayMakesNoRequest(t *testing.T) {
 	}
 
 	// Each must refuse locally: a nil client reached over the wire panics.
-	if _, _, err := g.StartSession(t.Context(), anOrder(), 0); !errors.Is(err, ErrDisabled) {
+	if _, err := g.StartSession(t.Context(), anOrder(), 0); !errors.Is(err, ErrDisabled) {
 		t.Errorf("StartSession() error = %v, want ErrDisabled", err)
 	}
 	if _, _, err := g.ResumeSession(t.Context(), "cs_1"); !errors.Is(err, ErrDisabled) {

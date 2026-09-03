@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -48,13 +47,24 @@ const contentSecurityPolicy = "default-src 'self'; " +
 	"frame-ancestors 'none'; " +
 	"base-uri 'none'"
 
-// RouterConfig is what the router needs from configuration.
+// RouterConfig is what the router needs: the pools it serves from, the
+// providers its handlers call, and the configuration they read. Pool, AdminPool
+// and the logger are required; every provider below may be nil, and the feature
+// it serves then disables itself and says so.
 type RouterConfig struct {
-	BaseURL string
+	// Pool runs as `store` and AdminPool as `admin`; which one a handler gets
+	// is the privilege boundary, not a performance choice.
+	Pool      *pgxpool.Pool
+	AdminPool *pgxpool.Pool
+	// Payments is Stripe, or is disabled and the payment page says so.
+	Payments *payment.Gateway
+	// Refunder pays a decided return back to the card.
+	Refunder admin.Refunder
+	BaseURL  string
 	// SecureCookies selects the __Host- cookie prefix.
 	SecureCookies bool
 	// TOTPKey is parsed key material from twofactor.ParseKey; nil disables
-	// enrolment. The type keeps raw configuration out of the cipher.
+	// enrolment.
 	TOTPKey []byte
 	// Invoices issues uniform invoices, or is disabled and renders no controls.
 	Invoices *invoice.Gateway
@@ -62,7 +72,15 @@ type RouterConfig struct {
 	Google *account.Google
 }
 
-func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder admin.Refunder, cfg *RouterConfig, log *slog.Logger) http.Handler {
+func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
+	// The two pools were positional parameters the compiler demanded. As struct
+	// fields they can be omitted silently, and they sit beside Payments,
+	// Invoices, Google and TOTPKey, which may legitimately be nil.
+	if cfg == nil || cfg.Pool == nil || cfg.AdminPool == nil || log == nil {
+		panic("goen: newRouter requires both pools and a logger")
+	}
+	pool, adminPool := cfg.Pool, cfg.AdminPool
+	gateway, refunder := cfg.Payments, cfg.Refunder
 	baseURL, secureCookies, totpKey := cfg.BaseURL, cfg.SecureCookies, cfg.TOTPKey
 	authLimit := ratelimit.New(ratelimit.Config{
 		Every: 3 * time.Second, Burst: 20, TTL: time.Hour, MaxKeys: 65_536,
@@ -115,10 +133,15 @@ func newRouter(pool, adminPool *pgxpool.Pool, gateway *payment.Gateway, refunder
 		invoiceReader = invoices
 		invoiceWriter = invoices
 	}
-	back := admin.NewHandler(admin.NewStore(adminPool, refunder, invoiceReader, invoiceWriter),
-		media.NewHandler(media.NewStore(adminPool), log),
-		outbox.NewStore(adminPool, log), newsletter.NewStore(adminPool), log, stepUp,
-		sessionCloser(gateway))
+	back := admin.NewHandler(admin.HandlerDeps{
+		Store:    admin.NewStore(adminPool, refunder, invoiceReader, invoiceWriter),
+		Images:   media.NewHandler(media.NewStore(adminPool), log),
+		Outbox:   outbox.NewStore(adminPool, log),
+		Letters:  newsletter.NewStore(adminPool),
+		Log:      log,
+		StepUp:   stepUp,
+		Sessions: sessionCloser(gateway),
+	})
 	// basketStore answers the order-access question for all three packages.
 	till := payment.NewHandler(payment.NewStore(pool), gateway, basketStore, log, secureCookies)
 	sendbacks := returns.NewHandler(returns.NewStore(pool), basketStore, log, secureCookies)
@@ -367,8 +390,6 @@ func crossOriginProtection(next http.Handler) http.Handler {
 	return http.NewCrossOriginProtection().Handler(next)
 }
 
-type requestIDKey struct{}
-
 // withRequestID gives every request an identifier and echoes it back. A
 // client-supplied X-Request-Id is honoured only when it looks like an id: an
 // arbitrary one reaches the logs, where a newline could forge a log line.
@@ -379,14 +400,10 @@ func withRequestID(next http.Handler) http.Handler {
 			id = uuid.NewString()
 		}
 		w.Header().Set("X-Request-Id", id)
-		// Two keys: this package's logging middleware reads the local one, and a
-		// feature reads internal/web's when it stamps an audit row.
-		ctx := context.WithValue(r.Context(), requestIDKey{}, id)
-		next.ServeHTTP(w, r.WithContext(web.WithRequestID(ctx, id)))
+		next.ServeHTTP(w, r.WithContext(web.WithRequestID(r.Context(), id)))
 	})
 }
 
-// validRequestID accepts the shape an id may take.
 func validRequestID(s string) bool {
 	if s == "" || len(s) > 64 {
 		return false
@@ -398,15 +415,6 @@ func validRequestID(s string) bool {
 		}
 	}
 	return true
-}
-
-// requestID returns the identifier attached to ctx, or "" outside the chain.
-func requestID(ctx context.Context) string {
-	id, ok := ctx.Value(requestIDKey{}).(string)
-	if !ok {
-		return ""
-	}
-	return id
 }
 
 func securityHeaders(next http.Handler) http.Handler {
@@ -426,7 +434,7 @@ func requestLog(next http.Handler, log *slog.Logger) http.Handler {
 		next.ServeHTTP(rec, r)
 
 		log.LogAttrs(r.Context(), slog.LevelInfo, "request",
-			slog.String("request_id", requestID(r.Context())),
+			slog.String("request_id", web.RequestID(r.Context())),
 			slog.String("method", r.Method),
 			slog.String("path", r.URL.Path),
 			slog.Int("status", rec.statusCode()),
@@ -440,7 +448,7 @@ func recoverPanic(next http.Handler, log *slog.Logger) http.Handler {
 		defer func() {
 			if v := recover(); v != nil {
 				log.Error("panic serving request",
-					"request_id", requestID(r.Context()),
+					"request_id", web.RequestID(r.Context()),
 					"panic", v,
 					"method", r.Method,
 					"path", r.URL.Path,
@@ -538,11 +546,9 @@ func withBanner(next http.Handler, store *home.Store, log *slog.Logger, secure b
 
 // navFreePrefixes are the paths whose header carries no category row: the ones
 // that render no storefront header at all, plus /admin, which has its own.
-//
-// Deliberately NOT bannerFreePrefixes. Excluding a promotion from the checkout
-// is a conversion decision; excluding NAVIGATION is not, and the cart, the
-// account pages and the sign-in form all render the site header — with an empty
-// category row, on the chrome CLAUDE.md calls the most-read on the site.
+// Deliberately NOT bannerFreePrefixes — excluding a promotion from the checkout
+// is a conversion decision, while the cart, the account pages and the sign-in
+// form all render the site header and need its categories.
 var navFreePrefixes = []string{
 	"/admin", "/webhooks", "/media", "/static", "/healthz", "/readyz",
 }
@@ -557,15 +563,13 @@ var navFreePrefixes = []string{
 // the CSP, request IDs, logging and panic recovery rather than being mounted on
 // a second mux where one of those protections can drift.
 //
-// Every entry is also in navFreePrefixes and bannerFreePrefixes;
-// TestNothingStatelessRendersChrome holds that containment. /admin is
+// Every entry is also in navFreePrefixes and bannerFreePrefixes. /admin is
 // deliberately absent because RequireStaff reads the user Authenticate puts
 // on the context.
 var statelessPrefixes = []string{
 	"/static", "/media", "/healthz", "/readyz", "/webhooks",
 }
 
-// statelessPath reports whether a path carries no per-visitor state.
 func statelessPath(path string) bool {
 	for _, prefix := range statelessPrefixes {
 		if path == prefix || strings.HasPrefix(path, prefix+"/") {

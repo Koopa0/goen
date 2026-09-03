@@ -65,6 +65,11 @@ type Order struct {
 	Fulfillment string
 	// HoldExpiresAt is the earliest expiry among the order's live stock holds.
 	HoldExpiresAt time.Time
+
+	// holdCoversSession is computed alongside HoldExpiresAt by PostgreSQL's
+	// transaction clock. It is deliberately not recomputed from the process
+	// clock after the read.
+	holdCoversSession bool
 }
 
 // Line is one item as the ORDER recorded it, not as the catalogue reads today.
@@ -98,15 +103,6 @@ func (o *Order) FullyFunded() bool { return o.TotalCents <= 0 }
 // SessionExpiry is when a Checkout Session opened for this order must close: the
 // stock hold's own deadline, so money cannot arrive for goods already re-sold.
 func (o *Order) SessionExpiry() time.Time { return o.HoldExpiresAt }
-
-// HoldCoversASession reports whether there is enough hold left to open a
-// Checkout Session against.
-func (o *Order) HoldCoversASession(now time.Time) bool {
-	if o.HoldExpiresAt.IsZero() {
-		return false
-	}
-	return !o.HoldExpiresAt.Before(now.Add(minSessionLifetime + sessionStartMargin))
-}
 
 // SessionKey is the Idempotency-Key goen sends when it creates a Checkout
 // Session. Stripe honours a key for 24 hours, which is what attempt is in it for.

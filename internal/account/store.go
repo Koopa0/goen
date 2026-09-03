@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -18,6 +19,7 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/pickup"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -112,9 +114,12 @@ func (s *Store) StartSession(ctx context.Context, userID, userAgent, ip string) 
 	if err := s.q.CreateSession(ctx, db.CreateSessionParams{
 		TokenHash: HashToken(token),
 		UserID:    id,
-		UserAgent: text(userAgent),
+		UserAgent: text(normaliseUserAgent(userAgent)),
 		IP:        addr,
-		ExpiresAt: time.Now().Add(SessionTTL * time.Second),
+		Ttl: pgtype.Interval{
+			Microseconds: int64(time.Duration(SessionTTL) * time.Second / time.Microsecond),
+			Valid:        true,
+		},
 	}); err != nil {
 		return "", fmt.Errorf("create session: %w", err)
 	}
@@ -158,7 +163,7 @@ func (s *Store) AdoptCart(ctx context.Context, userID string, guestCartID uuid.U
 	if err != nil {
 		return fmt.Errorf("begin adopt: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
 	// The account is the stable aggregate root for the one-cart decision. Take it
@@ -269,7 +274,7 @@ func (s *Store) ChangePassword(ctx context.Context, userID, password string) err
 	if err != nil {
 		return fmt.Errorf("begin password change: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
 	if err := q.SetPasswordHash(ctx, db.SetPasswordHashParams{
@@ -317,7 +322,7 @@ func (s *Store) Overview(ctx context.Context, u User) (pages.AccountView, error)
 		view.Orders = append(view.Orders, pages.AccountOrder{
 			Number:     o.OrderNumber,
 			Status:     o.FulfillmentStatus,
-			PlacedAt:   o.PlacedAt.Format("2006-01-02"),
+			PlacedAt:   shoptime.Day(o.PlacedAt),
 			TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
 			LineCount:  o.LineCount,
 			Committed:  o.Committed,
@@ -381,7 +386,7 @@ func (s *Store) Order(ctx context.Context, u User, number string) (pages.Account
 
 	view := pages.AccountOrderView{
 		Number: o.OrderNumber, Status: o.FulfillmentStatus,
-		PlacedAt:      o.PlacedAt.Format("2006-01-02 15:04"),
+		PlacedAt:      shoptime.Minute(o.PlacedAt),
 		ShippingName:  o.ShippingMethodName,
 		SubtotalCents: o.SubtotalCents, ShippingCents: o.ShippingCents,
 		DiscountCents: o.DiscountCents, DiscountReason: o.DiscountReason, TaxCents: o.TaxCents,
@@ -409,6 +414,10 @@ func (s *Store) UpdateProfile(ctx context.Context, userID, name, phone string) e
 	if err != nil {
 		return fmt.Errorf("parse user id: %w", err)
 	}
+	name, phone = strings.TrimSpace(name), strings.TrimSpace(phone)
+	if !profileInputValid(name, phone) {
+		return ErrInvalidInput
+	}
 	if err := s.q.UpdateProfile(ctx, db.UpdateProfileParams{
 		ID: id, FullName: text(name), Phone: text(phone),
 	}); err != nil {
@@ -431,12 +440,21 @@ func (s *Store) AddAddress(ctx context.Context, userID string, a *Address) error
 	if err != nil {
 		return fmt.Errorf("parse user id: %w", err)
 	}
+	if a == nil {
+		return ErrInvalidInput
+	}
+	bounded := *a
+	bounded.Trim()
+	if len(bounded.Validate()) > 0 {
+		return ErrInvalidInput
+	}
+	a = &bounded
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin add address: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
 	if a.Default {
@@ -507,7 +525,7 @@ func (s *Store) MakeDefaultAddress(ctx context.Context, userID, addressID string
 	if err != nil {
 		return fmt.Errorf("begin set default address: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
 
 	if clearErr := q.ClearDefaultAddress(ctx, uid); clearErr != nil {
@@ -550,6 +568,10 @@ func (s *Store) Erase(ctx context.Context, userID string) error {
 		return fmt.Errorf("parse user id: %w", err)
 	}
 	if err := s.q.EraseUser(ctx, id); err != nil {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok &&
+			pgErr.ConstraintName == "erase_user_open_return" {
+			return ErrOpenReturn
+		}
 		return fmt.Errorf("erase user: %w", err)
 	}
 	return nil
@@ -570,25 +592,28 @@ type Address struct {
 // Validate checks an address before it is saved.
 func (a *Address) Validate() []FieldError {
 	var errs []FieldError
-	add := func(f string, k i18n.Key) { errs = append(errs, FieldError{Field: f, MessageKey: k}) }
-
-	if strings.TrimSpace(a.Name) == "" {
-		add("name", i18n.KeyNameRequired)
+	appendAddressFieldError(&errs, "name", a.Name, maxNameRunes,
+		i18n.KeyNameRequired, i18n.KeyNameTooLong)
+	switch {
+	case strings.TrimSpace(a.Phone) == "":
+		errs = append(errs, FieldError{Field: "phone", MessageKey: i18n.KeyPhoneRequired})
+	case !looksLikeDeliveryPhone(a.Phone):
+		errs = append(errs, FieldError{Field: "phone", MessageKey: i18n.KeyPhoneMalformed})
 	}
-	if strings.TrimSpace(a.Phone) == "" {
-		add("phone", i18n.KeyPhoneRequired)
+	switch {
+	case strings.TrimSpace(a.PostalCode) == "":
+		errs = append(errs, FieldError{Field: "postal_code", MessageKey: i18n.KeyPostalCodeRequired})
+	case !isHomePostalCode(a.PostalCode):
+		errs = append(errs, FieldError{Field: "postal_code", MessageKey: i18n.KeyPostalCodeMalformed})
 	}
-	if strings.TrimSpace(a.PostalCode) == "" {
-		add("postal_code", i18n.KeyPostalCodeRequired)
-	}
-	if strings.TrimSpace(a.City) == "" {
-		add("city", i18n.KeyCityRequired)
-	}
-	if strings.TrimSpace(a.District) == "" {
-		add("district", i18n.KeyDistrictRequired)
-	}
-	if strings.TrimSpace(a.Street) == "" {
-		add("street", i18n.KeyStreetRequired)
+	appendAddressFieldError(&errs, "city", a.City, maxCityRunes,
+		i18n.KeyCityRequired, i18n.KeyAddressIncomplete)
+	appendAddressFieldError(&errs, "district", a.District, maxDistrictRunes,
+		i18n.KeyDistrictRequired, i18n.KeyAddressIncomplete)
+	appendAddressFieldError(&errs, "street", a.Street, maxStreetRunes,
+		i18n.KeyStreetRequired, i18n.KeyStreetTooLong)
+	if utf8.RuneCountInString(a.Label) > maxAddressLabelRunes {
+		errs = append(errs, FieldError{Field: "label", MessageKey: i18n.KeyAddressIncomplete})
 	}
 	for _, f := range []struct{ name, value string }{
 		{"label", a.Label}, {"name", a.Name}, {"phone", a.Phone},
@@ -596,10 +621,58 @@ func (a *Address) Validate() []FieldError {
 		{"district", a.District}, {"street", a.Street},
 	} {
 		if hasControl(f.value) {
-			add(f.name, i18n.KeyFieldHasControlChars)
+			errs = append(errs, FieldError{Field: f.name, MessageKey: i18n.KeyFieldHasControlChars})
 		}
 	}
 	return errs
+}
+
+// looksLikeDeliveryPhone is deliberately the same contract checkout applies —
+// common Taiwan and international punctuation, 8–15 actual digits, a bounded
+// label-safe representation — so a saved address cannot fail at checkout.
+func looksLikeDeliveryPhone(s string) bool {
+	if utf8.RuneCountInString(s) > maxPhoneRunes {
+		return false
+	}
+	digits := 0
+	for _, r := range s {
+		switch {
+		case r >= '0' && r <= '9':
+			digits++
+		case r == '-' || r == ' ' || r == '(' || r == ')' || r == '+':
+		default:
+			return false
+		}
+	}
+	return digits >= 8 && digits <= 15
+}
+
+// isHomePostalCode accepts Taiwan's legacy three-digit and current longer
+// numeric forms without guessing a city from the prefix.
+func isHomePostalCode(s string) bool {
+	if len(s) < 3 || len(s) > maxPostalCodeRunes {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func appendAddressFieldError(
+	errs *[]FieldError,
+	field, value string,
+	maxRunes int,
+	required, tooLong i18n.Key,
+) {
+	switch {
+	case strings.TrimSpace(value) == "":
+		*errs = append(*errs, FieldError{Field: field, MessageKey: required})
+	case utf8.RuneCountInString(value) > maxRunes:
+		*errs = append(*errs, FieldError{Field: field, MessageKey: tooLong})
+	}
 }
 
 // Trim normalises the whitespace a form carries.
@@ -679,80 +752,146 @@ func (s *Store) RemoveFromWishlist(ctx context.Context, userID, slug string) err
 
 // SignInWithGoogle turns a verified Google identity into a goen session.
 func (s *Store) SignInWithGoogle(ctx context.Context, id Identity) (User, error) {
-	if !id.EmailVerified || id.Email == "" {
-		return User{}, ErrOAuthUnverified
+	id, err := normaliseGoogleIdentity(id)
+	if err != nil {
+		return User{}, err
 	}
 
-	linked, err := s.q.UserByGoogleSubject(ctx, id.Subject)
-	if err == nil {
-		if touchErr := s.q.TouchLastLogin(ctx, linked.ID); touchErr != nil {
-			return User{}, fmt.Errorf("touch last login: %w", touchErr)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return User{}, fmt.Errorf("begin google sign-in: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	q := s.q.WithTx(tx)
+
+	// The provider subject, not its mutable email, is the identity. Serialising on
+	// it makes the initial lookup and a possible link one decision across every
+	// process. hashtextextended collisions only serialize unrelated sign-ins; they
+	// cannot merge identities because the unique index remains the final guard.
+	if lockErr := q.LockGoogleSubject(ctx, id.Subject); lockErr != nil {
+		return User{}, fmt.Errorf("lock google subject: %w", lockErr)
+	}
+
+	linked, lookupErr := q.UserByGoogleSubject(ctx, id.Subject)
+	if lookupErr == nil {
+		return finishGoogleSignIn(ctx, q, tx,
+			linked.ID, linked.Email, linked.FullName, linked.Role)
+	}
+	if !errors.Is(lookupErr, pgx.ErrNoRows) {
+		return User{}, fmt.Errorf("read the linked account: %w", lookupErr)
+	}
+
+	candidateID, candidateEmail, candidateName, candidateRole, candidateErr :=
+		googleLinkCandidate(ctx, q, id)
+	if candidateErr != nil {
+		return User{}, candidateErr
+	}
+
+	n, linkErr := q.LinkIdentity(ctx, db.LinkIdentityParams{
+		UserID: candidateID, Subject: id.Subject,
+	})
+	if linkErr != nil {
+		return User{}, fmt.Errorf("link the google identity: %w", linkErr)
+	}
+	if n == 0 {
+		// Defensive even for a writer that did not take the advisory lock: never
+		// commit a just-created orphan or return the email-selected candidate.
+		if rollbackErr := tx.Rollback(context.WithoutCancel(ctx)); rollbackErr != nil {
+			return User{}, fmt.Errorf("roll back lost google link: %w", rollbackErr)
 		}
-		return User{
-			ID: linked.ID.String(), Email: linked.Email,
-			Name: linked.FullName.String, Role: linked.Role,
-		}, nil
+		return s.googleSubjectOwner(ctx, id.Subject)
 	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return User{}, fmt.Errorf("read the linked account: %w", err)
-	}
+	return finishGoogleSignIn(ctx, q, tx,
+		candidateID, candidateEmail, candidateName, candidateRole)
+}
 
-	existing, err := s.q.UserForOAuthLink(ctx, id.Email)
+func googleLinkCandidate(
+	ctx context.Context,
+	q *db.Queries,
+	id Identity,
+) (userID uuid.UUID, email string, fullName pgtype.Text, role string, err error) {
+	existing, err := q.UserForOAuthLink(ctx, id.Email)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
-		return s.createFromIdentity(ctx, id)
+		row, createErr := q.CreateUserFromIdentity(ctx, db.CreateUserFromIdentityParams{
+			Email: id.Email, FullName: id.Name,
+		})
+		if createErr != nil {
+			// users_email_key is the real guard: another subject can claim the
+			// address while this subject lock is held.
+			if pgErr, ok := errors.AsType[*pgconn.PgError](createErr); ok && pgErr.Code == "23505" {
+				return uuid.UUID{}, "", pgtype.Text{}, "", ErrOAuthCollision
+			}
+			return uuid.UUID{}, "", pgtype.Text{}, "",
+				fmt.Errorf("create an account for %s: %w", id.Email, createErr)
+		}
+		return row.ID, row.Email, row.FullName, row.Role, nil
 	case err != nil:
-		return User{}, fmt.Errorf("read the account for %s: %w", id.Email, err)
+		return uuid.UUID{}, "", pgtype.Text{}, "",
+			fmt.Errorf("read the account for %s: %w", id.Email, err)
 	case !existing.Verified:
 		// Pre-hijacking: an unverified account may belong to whoever registered
 		// the address rather than to whoever reads the mailbox.
-		return User{}, ErrOAuthCollision
+		return uuid.UUID{}, "", pgtype.Text{}, "", ErrOAuthCollision
+	default:
+		return existing.ID, existing.Email, existing.FullName, existing.Role, nil
 	}
+}
 
-	if linkErr := s.q.LinkIdentity(ctx, db.LinkIdentityParams{
-		UserID: existing.ID, Subject: id.Subject,
-	}); linkErr != nil {
-		return User{}, fmt.Errorf("link the google identity: %w", linkErr)
+func finishGoogleSignIn(
+	ctx context.Context,
+	q *db.Queries,
+	tx pgx.Tx,
+	userID uuid.UUID,
+	email string,
+	fullName pgtype.Text,
+	role string,
+) (User, error) {
+	if err := q.TouchLastLogin(ctx, userID); err != nil {
+		return User{}, fmt.Errorf("touch last login: %w", err)
 	}
-	if touchErr := s.q.TouchLastLogin(ctx, existing.ID); touchErr != nil {
-		return User{}, fmt.Errorf("touch last login: %w", touchErr)
+	if err := tx.Commit(ctx); err != nil {
+		return User{}, fmt.Errorf("commit google sign-in: %w", err)
 	}
 	return User{
-		ID: existing.ID.String(), Email: existing.Email,
-		Name: existing.FullName.String, Role: existing.Role,
+		ID: userID.String(), Email: email, Name: fullName.String, Role: role,
 	}, nil
 }
 
-// createFromIdentity makes a new account and its link, in one transaction.
-func (s *Store) createFromIdentity(ctx context.Context, id Identity) (User, error) {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return User{}, fmt.Errorf("begin identity sign-up: %w", err)
+func normaliseGoogleIdentity(id Identity) (Identity, error) {
+	id.Email = strings.TrimSpace(id.Email)
+	if !id.EmailVerified || EmailError(id.Email) != "" {
+		return Identity{}, ErrOAuthUnverified
 	}
-	defer func() { _ = tx.Rollback(ctx) }() //nolint:errcheck // no-op after commit
-	q := s.q.WithTx(tx)
 
-	row, err := q.CreateUserFromIdentity(ctx, db.CreateUserFromIdentityParams{
-		Email: id.Email, FullName: id.Name,
-	})
+	subject := strings.TrimSpace(id.Subject)
+	if subject == "" || subject != id.Subject ||
+		utf8.RuneCountInString(subject) > maxOAuthSubjectRunes || hasControl(subject) {
+		return Identity{}, errOAuthIdentity
+	}
+
+	// The display name is optional provider decoration, not identity. A malformed
+	// or oversized value must not prevent sign-in or become an unbounded row.
+	id.Name = strings.TrimSpace(id.Name)
+	if utf8.RuneCountInString(id.Name) > maxNameRunes || hasControl(id.Name) {
+		id.Name = ""
+	}
+	return id, nil
+}
+
+// googleSubjectOwner returns only the account the unique subject row names. It
+// is the conflict fallback for a writer that did not participate in our lock.
+func (s *Store) googleSubjectOwner(ctx context.Context, subject string) (User, error) {
+	linked, err := s.q.UserByGoogleSubject(ctx, subject)
 	if err != nil {
-		// users_email_key is the real guard: an address can be taken between the two.
-		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == "23505" {
-			return User{}, ErrOAuthCollision
-		}
-		return User{}, fmt.Errorf("create an account for %s: %w", id.Email, err)
+		return User{}, fmt.Errorf("read the winning google link: %w", err)
 	}
-	if linkErr := q.LinkIdentity(ctx, db.LinkIdentityParams{
-		UserID: row.ID, Subject: id.Subject,
-	}); linkErr != nil {
-		return User{}, fmt.Errorf("link the google identity: %w", linkErr)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return User{}, fmt.Errorf("commit identity sign-up: %w", err)
+	if err := s.q.TouchLastLogin(ctx, linked.ID); err != nil {
+		return User{}, fmt.Errorf("touch last login: %w", err)
 	}
 	return User{
-		ID: row.ID.String(), Email: row.Email,
-		Name: row.FullName.String, Role: row.Role,
+		ID: linked.ID.String(), Email: linked.Email,
+		Name: linked.FullName.String, Role: linked.Role,
 	}, nil
 }
 

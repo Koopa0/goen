@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -23,7 +24,7 @@ func (s *Store) Messages(ctx context.Context) (pages.AdminMessagesView, error) {
 			ID: m.ID.String(), Name: m.Name, Email: m.Email, Subject: m.Subject,
 			OrderRef: m.OrderRef, Message: m.Message,
 			Handled: m.HandledAt.Valid,
-			At:      m.CreatedAt.Format("2006-01-02 15:04"),
+			At:      shoptime.Minute(m.CreatedAt),
 			// Computed in the query: subtracting Go's now() from a database-written
 			// created_at would compare two clocks.
 			WaitingDays: int(m.WaitingDays),
@@ -38,9 +39,9 @@ func (s *Store) SetMessageHandled(ctx context.Context, id string, handled bool) 
 	if err != nil {
 		return ErrNotFound
 	}
-	action := ActionReopenMessage
+	action := actionReopenMessage
 	if handled {
-		action = ActionHandleMessage
+		action = actionHandleMessage
 	}
 
 	return s.audited(ctx, Event{

@@ -120,12 +120,8 @@ var (
 		En:     "We cannot show the product list right now. Please try again shortly.",
 	})
 
-	// KeyFromPrice marks the cheapest of several variant prices. Without it a
-	// card and an unchosen product page state one variant's price as the
-	// product's, which for 7 of the seed's 17 active products is not the price of
-	// the thing the shopper has in mind. The figure is INSIDE the message: 起 is
-	// a suffix and "From" is a prefix, so a bare word beside the price cannot
-	// serve both — and 最低 beside it is the price FILTER's label two columns to
-	// the left.
+	// KeyFromPrice marks the cheapest of several variant prices. The figure is
+	// INSIDE the message because 起 is a suffix and "From" is a prefix, so a
+	// bare word beside the price cannot serve both.
 	KeyFromPrice = key("price.from", Message{ZhHant: "%s 起", En: "From %s"})
 )

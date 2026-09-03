@@ -482,6 +482,10 @@ CREATE TABLE product_specs (
 );
 
 CREATE UNIQUE INDEX product_specs_position_key ON product_specs (product_id, position);
+-- Compare aligns rows by the untranslated label, which is the durable identity
+-- shared across products. Two labels on one product would collapse into one
+-- cell and silently discard a value at render time.
+CREATE UNIQUE INDEX product_specs_label_key ON product_specs (product_id, label);
 CREATE INDEX product_specs_label_idx ON product_specs (label);
 
 CREATE TABLE users (
@@ -497,9 +501,18 @@ CREATE TABLE users (
     created_at        timestamptz NOT NULL DEFAULT now(),
     updated_at        timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT users_email_present CHECK (email ~ '[^[:space:]]'),
+	CONSTRAINT users_email_bounded CHECK (octet_length(email) <= 254),
     -- No surrounding whitespace of any kind, or the folded unique index below
     -- would hold two rows for one mailbox.
     CONSTRAINT users_email_trimmed CHECK (email !~ '^[[:space:]]|[[:space:]]$'),
+	CONSTRAINT users_full_name_bounded
+		CHECK (full_name IS NULL OR char_length(full_name) <= 60),
+	CONSTRAINT users_full_name_no_controls
+		CHECK (full_name IS NULL OR full_name !~ '[[:cntrl:]]'),
+	CONSTRAINT users_phone_bounded
+		CHECK (phone IS NULL OR char_length(phone) <= 30),
+	CONSTRAINT users_phone_no_controls
+		CHECK (phone IS NULL OR phone !~ '[[:cntrl:]]'),
     CONSTRAINT users_role_known CHECK (role IN ('customer', 'staff', 'admin'))
 );
 
@@ -518,7 +531,13 @@ CREATE TABLE user_identities (
     provider_subject text NOT NULL,
     created_at       timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT user_identities_provider_known CHECK (provider IN ('google')),
-    CONSTRAINT user_identities_subject_present CHECK (provider_subject ~ '[^[:space:]]')
+    CONSTRAINT user_identities_subject_present CHECK (provider_subject ~ '[^[:space:]]'),
+	CONSTRAINT user_identities_subject_bounded
+		CHECK (char_length(provider_subject) <= 255),
+	CONSTRAINT user_identities_subject_no_controls
+		CHECK (provider_subject !~ '[[:cntrl:]]'),
+	CONSTRAINT user_identities_subject_trimmed
+		CHECK (provider_subject !~ '^[[:space:]]|[[:space:]]$')
 );
 
 CREATE UNIQUE INDEX user_identities_provider_subject_key
@@ -559,7 +578,11 @@ CREATE TABLE sessions (
     totp_verified_at timestamptz,
     CONSTRAINT sessions_expiry_after_creation CHECK (expires_at > created_at),
     CONSTRAINT sessions_totp_after_creation
-        CHECK (totp_verified_at IS NULL OR totp_verified_at >= created_at)
+		CHECK (totp_verified_at IS NULL OR totp_verified_at >= created_at),
+	CONSTRAINT sessions_user_agent_bounded
+		CHECK (user_agent IS NULL OR char_length(user_agent) <= 512),
+	CONSTRAINT sessions_user_agent_no_controls
+		CHECK (user_agent IS NULL OR user_agent !~ '[[:cntrl:]]')
 );
 
 CREATE INDEX sessions_user_id_idx ON sessions (user_id);
@@ -625,7 +648,36 @@ CREATE TABLE addresses (
     CONSTRAINT addresses_postal_code_present CHECK (postal_code ~ '[^[:space:]]'),
     CONSTRAINT addresses_city_present CHECK (city ~ '[^[:space:]]'),
     CONSTRAINT addresses_district_present CHECK (district ~ '[^[:space:]]'),
-    CONSTRAINT addresses_street_present CHECK (street ~ '[^[:space:]]')
+    CONSTRAINT addresses_street_present CHECK (street ~ '[^[:space:]]'),
+    -- These are the same delivery shapes account and checkout accept. Keeping
+    -- them here prevents a maintenance script from creating an address that the
+    -- customer can select from the book but cannot use to place an order.
+    CONSTRAINT addresses_recipient_shape CHECK (
+        recipient_name !~ '[^[:space:]]'
+        OR (char_length(recipient_name) <= 60
+            AND recipient_name !~ '[[:cntrl:]]')
+    ),
+    CONSTRAINT addresses_phone_format CHECK (
+        phone !~ '[^[:space:]]'
+        OR (char_length(phone) <= 30
+            AND phone ~ '^[-0-9+() ]+$'
+            AND char_length(regexp_replace(phone, '[^0-9]', '', 'g')) BETWEEN 8 AND 15)
+    ),
+    CONSTRAINT addresses_postal_code_format CHECK (
+        postal_code !~ '[^[:space:]]' OR postal_code ~ '^[0-9]{3,6}$'
+    ),
+    CONSTRAINT addresses_city_shape CHECK (
+        city !~ '[^[:space:]]'
+        OR (char_length(city) <= 20 AND city !~ '[[:cntrl:]]')
+    ),
+    CONSTRAINT addresses_district_shape CHECK (
+        district !~ '[^[:space:]]'
+        OR (char_length(district) <= 20 AND district !~ '[[:cntrl:]]')
+    ),
+    CONSTRAINT addresses_street_shape CHECK (
+        street !~ '[^[:space:]]'
+        OR (char_length(street) <= 200 AND street !~ '[[:cntrl:]]')
+    )
 );
 
 CREATE INDEX addresses_user_id_idx ON addresses (user_id);
@@ -676,6 +728,7 @@ CREATE TABLE store_credit_entries (
     CONSTRAINT store_credit_entries_amount_in_range
         CHECK (amount_cents BETWEEN -10000000000 AND 10000000000),
     CONSTRAINT store_credit_entries_reason_present CHECK (reason ~ '[^[:space:]]'),
+    CONSTRAINT store_credit_entries_reason_bounded CHECK (char_length(reason) <= 200),
     CONSTRAINT store_credit_entries_key_present CHECK (idempotency_key ~ '[^[:space:]]')
 );
 
@@ -744,9 +797,11 @@ BEGIN
                     USING ERRCODE = 'check_violation', CONSTRAINT = 'store_credit_posting_matches_order';
             END IF;
         ELSE
-            -- Reversing a spend un-funds the order: legal only while it is an
-            -- unpaid checkout or after it was cancelled.
-            IF NOT ((o_status = 'pending' AND NOT o_paid) OR o_status = 'cancelled') THEN
+            -- Reversing a spend un-funds the order. It is legal only after the
+            -- cancellation transition has durably won; allowing it on any open
+            -- unpaid order gives the shared storefront role a cross-customer
+            -- checkout-disruption primitive.
+            IF o_status <> 'cancelled' THEN
                 RAISE EXCEPTION 'store credit spend on order % cannot be reversed (status %, paid %)',
                     o_id, o_status, o_paid
                     USING ERRCODE = 'check_violation', CONSTRAINT = 'store_credit_posting_matches_order';
@@ -908,7 +963,7 @@ CREATE FUNCTION hold_inventory(
     p_order_id uuid,
     p_variant_id uuid,
     p_quantity integer,
-    p_expires_at timestamptz,
+    p_hold_for interval,
     p_idempotency_key text
 ) RETURNS uuid
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
@@ -918,6 +973,11 @@ BEGIN
     IF p_quantity <= 0 THEN
         RAISE EXCEPTION 'a hold must be for a positive quantity'
             USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_reservations_quantity_positive';
+    END IF;
+
+    IF p_hold_for IS NULL OR p_hold_for <= interval '0' THEN
+        RAISE EXCEPTION 'a hold duration must be positive'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_reservations_hold_for_positive';
     END IF;
 
     -- Every path that needs both roots takes the order before stock. In
@@ -934,8 +994,10 @@ BEGIN
         p_variant_id, -p_quantity, 'hold',
         p_idempotency_key, 'order', p_order_id, NULL);
 
+    -- The caller owns only the duration. `now()` is the database transaction
+    -- clock, shared with orders.placed_at and every line held by this checkout.
     INSERT INTO inventory_reservations (order_id, variant_id, quantity, expires_at)
-    VALUES (p_order_id, p_variant_id, p_quantity, p_expires_at)
+    VALUES (p_order_id, p_variant_id, p_quantity, now() + p_hold_for)
     RETURNING id INTO reservation_id;
 
     RETURN reservation_id;
@@ -1260,9 +1322,8 @@ BEGIN
         SELECT 1
         FROM orders o
         JOIN order_lines ol ON ol.order_id = o.id
-        JOIN product_variants pv ON pv.id = ol.variant_id
         WHERE o.user_id = NEW.user_id
-          AND pv.product_id = NEW.product_id
+          AND ol.product_id = NEW.product_id
           AND order_is_committed(o.id)
     ) THEN
         RAISE EXCEPTION 'review on product % claims a verified purchase with no committed order behind it',
@@ -1328,7 +1389,8 @@ CREATE TABLE coupons (
     CONSTRAINT coupons_min_subtotal_non_negative
         CHECK (min_subtotal_cents >= 0 AND min_subtotal_cents <= 10000000000),
     CONSTRAINT coupons_max_discount_positive
-        CHECK (max_discount_cents IS NULL OR max_discount_cents > 0),
+        CHECK (max_discount_cents IS NULL OR
+               (max_discount_cents > 0 AND max_discount_cents <= 10000000000)),
     -- On a fixed amount a cap would be a second, quieter amount that silently
     -- overrides the first.
     CONSTRAINT coupons_cap_only_on_percent
@@ -1408,9 +1470,11 @@ CREATE TABLE shipping_method_versions (
         CHECK (name_en IS NULL OR name_en ~ '[^[:space:]]'),
     CONSTRAINT shipping_method_versions_carrier_en_present
         CHECK (carrier_en IS NULL OR carrier_en ~ '[^[:space:]]'),
-    CONSTRAINT shipping_method_versions_fee_non_negative CHECK (fee_cents >= 0),
+    CONSTRAINT shipping_method_versions_fee_non_negative
+        CHECK (fee_cents >= 0 AND fee_cents <= 500000),
     CONSTRAINT shipping_method_versions_free_over_non_negative
-        CHECK (free_over_cents IS NULL OR free_over_cents >= 0)
+        CHECK (free_over_cents IS NULL OR
+               (free_over_cents >= 0 AND free_over_cents <= 10000000000))
 );
 
 CREATE UNIQUE INDEX shipping_method_versions_effective_key
@@ -1462,7 +1526,7 @@ CREATE TABLE shipping_version_zones (
     surcharge_cents bigint NOT NULL,
     PRIMARY KEY (version_id, zone_id),
     CONSTRAINT shipping_version_zones_surcharge_positive
-        CHECK (surcharge_cents > 0)
+        CHECK (surcharge_cents > 0 AND surcharge_cents <= 500000)
 );
 
 -- The primary key leads on version_id, so a lookup by zone has nothing to use.
@@ -1680,6 +1744,16 @@ BEGIN
                 NEW.order_number, owed
                 USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_funded_to_leave_pending';
         END IF;
+
+        -- For a zero-owed/full-credit order, this is the transition into
+        -- committed_orders; a card-funded order entered when capture was
+        -- accepted. Run the exact count for every pending-to-picking transition
+        -- so alternate funding writers and later pending changes are covered.
+        IF (SELECT count(*) FROM canonical_invoice_lines(NEW.id)) > 999 THEN
+            RAISE EXCEPTION 'order % has more than 999 invoice items', NEW.order_number
+                USING ERRCODE = 'check_violation',
+                      CONSTRAINT = 'invoice_issue_item_count';
+        END IF;
     END IF;
 
     -- An order does not FINISH while it still owes a parcel. 'delivered' and
@@ -1750,16 +1824,21 @@ CREATE TRIGGER orders_start_pending
     BEFORE INSERT ON orders
     FOR EACH ROW EXECUTE FUNCTION orders_check_initial_status();
 
--- What was bought, as it was at the moment of buying. variant_id may become
--- NULL and the line still reads correctly, because the name, sku and price are
--- its own.
+-- What was bought, as it was at the moment of buying. product_id and variant_id
+-- are durable catalogue identities used by verified-purchase, fulfilment,
+-- returns and reporting. Catalogue retirement is a status/is_active change,
+-- never deletion. Nullable identities remain available for legacy imports; the
+-- display copy, price and warranty promise are independent snapshots.
 CREATE TABLE order_lines (
     id               uuid PRIMARY KEY DEFAULT uuidv7(),
     order_id         uuid NOT NULL REFERENCES orders (id) ON DELETE RESTRICT,
-    variant_id       uuid REFERENCES product_variants (id) ON DELETE SET NULL,
+    product_id       uuid REFERENCES products (id) ON DELETE RESTRICT,
+    variant_id       uuid,
     sku              text NOT NULL,
     product_name     text NOT NULL,
     variant_label    text,
+    warranty_note    text,
+    warranty_months  integer,
     unit_price_cents bigint NOT NULL,
     quantity         integer NOT NULL,
     position         integer NOT NULL DEFAULT 0,
@@ -1767,10 +1846,40 @@ CREATE TABLE order_lines (
     CONSTRAINT order_lines_product_name_present CHECK (product_name ~ '[^[:space:]]'),
     CONSTRAINT order_lines_unit_price_in_range
         CHECK (unit_price_cents >= 0 AND unit_price_cents <= 10000000000),
-    CONSTRAINT order_lines_quantity_in_range CHECK (quantity > 0 AND quantity <= 999)
+    CONSTRAINT order_lines_quantity_in_range CHECK (quantity > 0 AND quantity <= 999),
+    CONSTRAINT order_lines_warranty_months_sane
+        CHECK (warranty_months IS NULL OR (warranty_months > 0 AND warranty_months <= 120)),
+    CONSTRAINT order_lines_variant_has_product
+        CHECK (variant_id IS NULL OR product_id IS NOT NULL),
+    CONSTRAINT order_lines_variant_product_fk
+        FOREIGN KEY (product_id, variant_id)
+        REFERENCES product_variants (product_id, id)
+        ON DELETE RESTRICT
 );
 
+-- Legacy/admin import callers historically supplied only variant_id. Bind its
+-- durable product identity before the CHECK/FK run; an explicitly supplied,
+-- mismatched pair is left untouched and refused by the composite FK.
+CREATE FUNCTION order_lines_bind_product() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.variant_id IS NOT NULL AND NEW.product_id IS NULL THEN
+        SELECT pv.product_id INTO NEW.product_id
+        FROM product_variants pv
+        WHERE pv.id = NEW.variant_id;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER order_lines_bind_product
+    BEFORE INSERT ON order_lines
+    FOR EACH ROW EXECUTE FUNCTION order_lines_bind_product();
+
 CREATE UNIQUE INDEX order_lines_position_key ON order_lines (order_id, position);
+-- Supports the composite FK's referencing side; its leading column also serves
+-- verified-purchase lookups by durable product identity.
+CREATE INDEX order_lines_product_variant_idx ON order_lines (product_id, variant_id);
 CREATE INDEX order_lines_variant_id_idx ON order_lines (variant_id);
 -- Referenced by the composite foreign keys that keep shipment and return lines
 -- on the same order as the line.
@@ -1841,6 +1950,39 @@ CREATE TABLE order_private_data (
     ),
     CONSTRAINT order_private_data_pickup_complete CHECK (
         num_nonnulls(pickup_brand, pickup_store_code, pickup_store_name) IN (0, 3)
+    ),
+    -- Nullable because erased and pickup rows intentionally carry no HOME
+    -- destination. Whenever a value is present, however, it follows exactly
+    -- the application contract used by saved addresses and checkout.
+    CONSTRAINT order_private_data_recipient_shape CHECK (
+        recipient_name IS NULL
+        OR (recipient_name ~ '[^[:space:]]'
+            AND char_length(recipient_name) <= 60
+            AND recipient_name !~ '[[:cntrl:]]')
+    ),
+    CONSTRAINT order_private_data_phone_format CHECK (
+        phone IS NULL
+        OR (char_length(phone) <= 30
+            AND phone ~ '^[-0-9+() ]+$'
+            AND char_length(regexp_replace(phone, '[^0-9]', '', 'g')) BETWEEN 8 AND 15)
+    ),
+    CONSTRAINT order_private_data_postal_code_format CHECK (
+        postal_code IS NULL OR postal_code ~ '^[0-9]{3,6}$'
+    ),
+    CONSTRAINT order_private_data_city_shape CHECK (
+        city IS NULL
+        OR (city ~ '[^[:space:]]'
+            AND char_length(city) <= 20 AND city !~ '[[:cntrl:]]')
+    ),
+    CONSTRAINT order_private_data_district_shape CHECK (
+        district IS NULL
+        OR (district ~ '[^[:space:]]'
+            AND char_length(district) <= 20 AND district !~ '[[:cntrl:]]')
+    ),
+    CONSTRAINT order_private_data_street_shape CHECK (
+        street IS NULL
+        OR (street ~ '[^[:space:]]'
+            AND char_length(street) <= 200 AND street !~ '[[:cntrl:]]')
     ),
     -- An allowlist, because the brand decides which carrier's manifest the
     -- parcel joins and a typo there is a parcel that never leaves.
@@ -2210,6 +2352,16 @@ CREATE TABLE return_requests (
     status             text NOT NULL DEFAULT 'requested',
     reason             text NOT NULL,
     resolution         text,
+    -- Frozen when a request is approved. Goods includes its proportional
+    -- discount; delivery is separate so one order can enforce one owner for it.
+    -- Card and credit freeze the funding allocation at that SAME order lock: a
+    -- failed provider attempt or later account erasure must not change which
+    -- source a retry owes. Requested rows are previews and rejected rows reserve
+    -- neither money nor a source.
+    goods_refund_cents     bigint,
+    shipping_refund_cents  bigint NOT NULL DEFAULT 0,
+    card_refund_cents      bigint,
+    credit_refund_cents    bigint,
     created_at         timestamptz NOT NULL DEFAULT now(),
     decided_at         timestamptz,
     CONSTRAINT return_requests_status_known
@@ -2218,8 +2370,42 @@ CREATE TABLE return_requests (
     -- rescind within seven days without giving one, and §19 V voids any agreement
     -- otherwise. The column stays NOT NULL; '' is "none given".
     CONSTRAINT return_requests_reason_bounded CHECK (length(reason) <= 500),
+    -- This becomes immutable provider-attempt reason and append-only audit
+    -- evidence at approval. The browser limit is convenience; this is the
+    -- authority for every writer.
+    CONSTRAINT return_requests_resolution_bounded CHECK (
+        resolution IS NULL OR char_length(resolution) <= 300
+    ),
     CONSTRAINT return_requests_decided_has_time
-        CHECK ((status = 'requested') = (decided_at IS NULL))
+        CHECK ((status = 'requested') = (decided_at IS NULL)),
+    CONSTRAINT return_requests_refund_snapshot_shape CHECK (
+        status NOT IN ('requested', 'approved', 'rejected', 'completed')
+        OR
+        (status IN ('approved', 'completed')
+         AND goods_refund_cents IS NOT NULL
+         AND card_refund_cents IS NOT NULL
+         AND credit_refund_cents IS NOT NULL)
+        OR
+        (status IN ('requested', 'rejected')
+         AND goods_refund_cents IS NULL
+         AND shipping_refund_cents = 0
+         AND card_refund_cents IS NULL
+         AND credit_refund_cents IS NULL)
+    ),
+    CONSTRAINT return_requests_refund_snapshot_in_range CHECK (
+        (goods_refund_cents IS NULL
+         OR goods_refund_cents BETWEEN 0 AND 10000000000)
+        AND shipping_refund_cents BETWEEN 0 AND 10000000000
+        AND (card_refund_cents IS NULL
+             OR card_refund_cents BETWEEN 0 AND 10000000000)
+        AND (credit_refund_cents IS NULL
+             OR credit_refund_cents BETWEEN 0 AND 10000000000)
+    ),
+    CONSTRAINT return_requests_sources_equal_refund CHECK (
+        status NOT IN ('approved', 'completed')
+        OR card_refund_cents + credit_refund_cents
+           = goods_refund_cents + shipping_refund_cents
+    )
 );
 
 CREATE INDEX return_requests_order_id_idx ON return_requests (order_id);
@@ -2228,11 +2414,34 @@ CREATE INDEX return_requests_requester_idx ON return_requests (requested_by_user
 CREATE INDEX return_requests_open_idx ON return_requests (created_at) WHERE status = 'requested';
 -- A second request while one is undecided is refused HERE, not in Go.
 -- returns.Open reads HasOpenReturn on the pool before its own transaction begins,
--- so two submissions can both read "none open"; return_refundable_amount would
--- then allocate the delivery fee to each because full rescission is an order-level
--- question. The partial unique key also serialises the two competing inserts.
+-- so two submissions can both read "none open". The partial unique key serialises
+-- the competing inserts and keeps the customer and staff workflow to one
+-- undecided claim per order.
 CREATE UNIQUE INDEX return_requests_one_open
     ON return_requests (order_id) WHERE status = 'requested';
+-- The transition trigger allocates this under the order lock. The index is the
+-- final authority against any future writer which forgets that lock.
+CREATE UNIQUE INDEX return_requests_shipping_refund_key
+    ON return_requests (order_id) WHERE shipping_refund_cents > 0;
+
+-- A return payout and its customer-visible timeline entry commit separately.
+-- Bind that append-only event to the return so a retry can recreate a missing
+-- entry without writing a duplicate. The composite foreign key also prevents
+-- attributing order A's event to order B's return.
+ALTER TABLE order_events
+    ADD COLUMN return_request_id uuid,
+    ADD CONSTRAINT order_events_return_shape CHECK (
+        (kind = 'refunded') = (return_request_id IS NOT NULL)
+    ),
+    ADD CONSTRAINT order_events_return_request_fk
+        FOREIGN KEY (order_id, return_request_id)
+        REFERENCES return_requests (order_id, id) ON DELETE RESTRICT;
+
+CREATE UNIQUE INDEX order_events_return_request_key
+    ON order_events (return_request_id)
+    WHERE return_request_id IS NOT NULL;
+CREATE INDEX order_events_return_request_fk_idx
+    ON order_events (order_id, return_request_id);
 
 -- order_id is carried for the same reason as on shipment lines: the composite
 -- foreign key makes a cross-order return impossible.
@@ -2321,15 +2530,72 @@ CREATE TRIGGER return_within_shipment
     BEFORE INSERT OR UPDATE ON return_request_lines
     FOR EACH ROW EXECUTE FUNCTION return_lines_within_purchase();
 
+-- The quantity and purchased identity are inputs to the approved money
+-- snapshot. Inspection may fill received/restocked/note later, but no writer may
+-- rewrite those economic inputs once the request leaves requested.
+CREATE FUNCTION return_lines_require_open_request() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+    v_request_id uuid;
+    v_status text;
+BEGIN
+    IF TG_OP = 'UPDATE'
+       AND NEW.order_id IS NOT DISTINCT FROM OLD.order_id
+       AND NEW.return_request_id IS NOT DISTINCT FROM OLD.return_request_id
+       AND NEW.order_line_id IS NOT DISTINCT FROM OLD.order_line_id
+       AND NEW.quantity IS NOT DISTINCT FROM OLD.quantity THEN
+        RETURN NEW;
+    END IF;
+    v_request_id := CASE WHEN TG_OP = 'DELETE'
+                         THEN OLD.return_request_id ELSE NEW.return_request_id END;
+    SELECT status INTO v_status
+    FROM return_requests WHERE id = v_request_id FOR UPDATE;
+    IF v_status IS DISTINCT FROM 'requested' THEN
+        RAISE EXCEPTION 'return % lines are frozen after its decision', v_request_id
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'return_lines_frozen_after_decision';
+    END IF;
+    IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER return_lines_frozen_after_decision
+    BEFORE INSERT OR UPDATE OR DELETE ON return_request_lines
+    FOR EACH ROW EXECUTE FUNCTION return_lines_require_open_request();
+
 -- requested → approved | rejected, approved → completed. 'rejected' is terminal,
 -- so there is deliberately no branch leaving it: this file keeps no guard that
 -- cannot fire.
 CREATE FUNCTION return_requests_recount() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp AS $$
 DECLARE
     legal boolean;
+    v_owner uuid;
+    v_shipping bigint;
+    v_refundable bigint;
+    v_captured bigint;
+    v_card_reserved bigint;
+    v_other_card_refunded bigint;
+    v_credit_spent bigint;
+    v_credit_reserved bigint;
+    v_other_credit_returned bigint;
+    v_credit_expected bigint;
+    v_card_expected bigint;
+    v_card_paid bigint;
+    v_credit_paid bigint;
+    v_points_expected bigint;
 BEGIN
     IF OLD.status = NEW.status THEN
+        IF NEW.goods_refund_cents IS DISTINCT FROM OLD.goods_refund_cents
+           OR NEW.shipping_refund_cents IS DISTINCT FROM OLD.shipping_refund_cents
+           OR NEW.card_refund_cents IS DISTINCT FROM OLD.card_refund_cents
+           OR NEW.credit_refund_cents IS DISTINCT FROM OLD.credit_refund_cents THEN
+            RAISE EXCEPTION 'return % refund snapshot is immutable after allocation', OLD.id
+                USING ERRCODE = 'check_violation',
+                      CONSTRAINT = 'return_requests_refund_snapshot_frozen';
+        END IF;
         RETURN NEW;
     END IF;
     legal := CASE OLD.status
@@ -2342,6 +2608,122 @@ BEGIN
             USING ERRCODE = 'check_violation', CONSTRAINT = 'return_requests_legal_transition';
     END IF;
 
+    IF OLD.status = 'requested' AND NEW.status = 'approved' THEN
+        -- Shipping is allocated at the decision's linearization point, never by
+        -- created_at/UUID order: now() is transaction-start time and neither is
+        -- authority for which approval completed the rescission.
+        SELECT user_id, shipping_cents INTO v_owner, v_shipping
+        FROM orders WHERE id = NEW.order_id FOR UPDATE;
+        NEW.goods_refund_cents := return_goods_refundable_amount(NEW.id);
+        NEW.shipping_refund_cents := 0;
+        IF NOT EXISTS (
+            SELECT 1
+            FROM order_lines ol
+            WHERE ol.order_id = NEW.order_id
+              AND ol.quantity > coalesce((
+                  SELECT sum(rl.quantity)
+                  FROM return_request_lines rl
+                  JOIN return_requests rr ON rr.id = rl.return_request_id
+                  WHERE rl.order_line_id = ol.id
+                    AND (rr.status IN ('approved', 'completed') OR rr.id = NEW.id)
+              ), 0)
+        ) AND NOT EXISTS (
+            SELECT 1 FROM return_requests rr
+            WHERE rr.order_id = NEW.order_id AND rr.shipping_refund_cents > 0
+        ) THEN
+            NEW.shipping_refund_cents := v_shipping;
+        END IF;
+
+        v_refundable := NEW.goods_refund_cents + NEW.shipping_refund_cents;
+
+        -- The capture row is the card-capacity lock used by refunds_guard. A
+        -- direct/manual refund which began first commits before this allocation
+        -- reads it; one which begins later waits and sees the frozen reservation.
+        SELECT coalesce(p.captured_amount_cents, 0)::bigint INTO v_captured
+        FROM payments p
+        WHERE p.order_id = NEW.order_id AND p.status = 'succeeded'
+        FOR UPDATE;
+        IF NOT FOUND THEN v_captured := 0; END IF;
+
+        SELECT coalesce(sum(rr.card_refund_cents), 0)::bigint
+        INTO v_card_reserved
+        FROM return_requests rr
+        WHERE rr.order_id = NEW.order_id
+          AND rr.id <> NEW.id
+          AND rr.status IN ('approved', 'completed');
+        SELECT coalesce(sum(rf.amount_cents), 0)::bigint
+        INTO v_other_card_refunded
+        FROM refunds rf
+        JOIN payments p ON p.id = rf.payment_id
+        WHERE p.order_id = NEW.order_id
+          AND rf.return_request_id IS NULL
+          AND rf.status IN ('pending', 'requires_action', 'succeeded');
+
+        NEW.card_refund_cents := least(
+            v_refundable,
+            greatest(v_captured - v_card_reserved - v_other_card_refunded, 0)
+        );
+
+        -- A frozen credit allocation reserves the original order spend even if
+        -- its idempotent ledger posting has not happened yet. Posted return
+        -- credits are therefore represented by the snapshot, not counted twice
+        -- as an unrelated positive entry.
+        SELECT coalesce(-sum(e.amount_cents) FILTER (WHERE e.amount_cents < 0), 0)::bigint
+        INTO v_credit_spent
+        FROM store_credit_entries e
+        WHERE e.order_id = NEW.order_id;
+        SELECT coalesce(sum(rr.credit_refund_cents), 0)::bigint
+        INTO v_credit_reserved
+        FROM return_requests rr
+        WHERE rr.order_id = NEW.order_id
+          AND rr.id <> NEW.id
+          AND rr.status IN ('approved', 'completed');
+        SELECT coalesce(sum(e.amount_cents), 0)::bigint
+        INTO v_other_credit_returned
+        FROM store_credit_entries e
+        WHERE e.order_id = NEW.order_id
+          AND e.amount_cents > 0
+          AND NOT EXISTS (
+              SELECT 1 FROM return_requests rr
+              WHERE rr.order_id = NEW.order_id
+                AND rr.status IN ('approved', 'completed')
+                AND e.idempotency_key = 'return-credit:' || rr.id::text
+          );
+        NEW.credit_refund_cents := least(
+            greatest(v_refundable - NEW.card_refund_cents, 0),
+            greatest(v_credit_spent - v_credit_reserved - v_other_credit_returned, 0)
+        );
+        IF NEW.card_refund_cents + NEW.credit_refund_cents <> v_refundable THEN
+            RAISE EXCEPTION
+                'return % requests %, but % is already returned or reserved and only % remains across its durable payment sources',
+                NEW.id, v_refundable,
+                v_card_reserved + v_other_card_refunded
+                    + v_credit_reserved + v_other_credit_returned,
+                NEW.card_refund_cents + NEW.credit_refund_cents
+                USING ERRCODE = 'check_violation',
+                      CONSTRAINT = 'return_requests_sources_cover_refund';
+        END IF;
+        IF NEW.credit_refund_cents > 0 AND v_owner IS NULL THEN
+            RAISE EXCEPTION 'return % needs store credit but its account was erased', NEW.id
+                USING ERRCODE = 'check_violation',
+                      CONSTRAINT = 'return_credit_requires_live_account';
+        END IF;
+    ELSIF OLD.status = 'requested' AND NEW.status = 'rejected' THEN
+        NEW.goods_refund_cents := NULL;
+        NEW.shipping_refund_cents := 0;
+        NEW.card_refund_cents := NULL;
+        NEW.credit_refund_cents := NULL;
+    ELSE
+        IF NEW.goods_refund_cents IS DISTINCT FROM OLD.goods_refund_cents
+           OR NEW.shipping_refund_cents IS DISTINCT FROM OLD.shipping_refund_cents
+           OR NEW.card_refund_cents IS DISTINCT FROM OLD.card_refund_cents
+           OR NEW.credit_refund_cents IS DISTINCT FROM OLD.credit_refund_cents THEN
+            RAISE EXCEPTION 'return % refund snapshot is immutable after allocation', OLD.id
+                USING ERRCODE = 'check_violation',
+                      CONSTRAINT = 'return_requests_refund_snapshot_frozen';
+        END IF;
+    END IF;
+
     -- Completed means the parcel was opened and every line accounted for.
     -- Without it, 'completed' is a label somebody clicks over goods nobody
     -- counted.
@@ -2351,12 +2733,53 @@ BEGIN
         RAISE EXCEPTION 'return request % has lines nobody has inspected', NEW.id
             USING ERRCODE = 'check_violation', CONSTRAINT = 'return_requests_completed_is_inspected';
     END IF;
+    IF NEW.status = 'completed' THEN
+        -- Application completion takes this lock before the return row. Repeat
+        -- it here so a future direct writer cannot race a payout while checking
+        -- the exact frozen obligation.
+        PERFORM 1 FROM orders WHERE id = NEW.order_id FOR UPDATE;
+        v_refundable := coalesce(OLD.goods_refund_cents, 0) + OLD.shipping_refund_cents;
+        v_credit_expected := coalesce(OLD.credit_refund_cents, 0);
+        v_card_expected := coalesce(OLD.card_refund_cents, 0);
+        SELECT coalesce(sum(rf.amount_cents), 0)::bigint INTO v_card_paid
+        FROM refunds rf
+        WHERE rf.return_request_id = NEW.id AND rf.status = 'succeeded';
+        SELECT coalesce(sum(e.amount_cents), 0)::bigint INTO v_credit_paid
+        FROM store_credit_entries e
+        WHERE e.idempotency_key = 'return-credit:' || NEW.id::text;
+        IF v_card_paid <> v_card_expected OR v_credit_paid <> v_credit_expected THEN
+            RAISE EXCEPTION 'return % paid card/credit %/%, expected %/%',
+                NEW.id, v_card_paid, v_credit_paid, v_card_expected, v_credit_expected
+                USING ERRCODE = 'check_violation',
+                      CONSTRAINT = 'return_requests_completed_money_settled';
+        END IF;
+        IF v_refundable > 0 AND NOT EXISTS (
+            SELECT 1 FROM order_events e
+            WHERE e.return_request_id = NEW.id AND e.kind = 'refunded'
+        ) THEN
+            RAISE EXCEPTION 'return % has no customer-visible refund event', NEW.id
+                USING ERRCODE = 'check_violation',
+                      CONSTRAINT = 'return_requests_completed_event_recorded';
+        END IF;
+        v_points_expected := return_loyalty_points_allocation(NEW.id);
+        IF v_points_expected > 0 AND NOT EXISTS (
+            SELECT 1 FROM loyalty_entries e
+            WHERE e.return_request_id = NEW.id AND e.kind = 'clawback'
+              AND e.requested_points = v_points_expected
+        ) THEN
+            RAISE EXCEPTION 'return % still owes a % point clawback',
+                NEW.id, v_points_expected
+                USING ERRCODE = 'check_violation',
+                      CONSTRAINT = 'return_requests_completed_points_settled';
+        END IF;
+    END IF;
     RETURN NEW;
 END;
 $$;
 
 CREATE TRIGGER return_requests_legal_transition
-    BEFORE UPDATE OF status ON return_requests
+    BEFORE UPDATE OF status, goods_refund_cents, shipping_refund_cents,
+                     card_refund_cents, credit_refund_cents ON return_requests
     FOR EACH ROW EXECUTE FUNCTION return_requests_recount();
 
 -- Inserting straight into 'approved' would skip the transition machine above,
@@ -2364,8 +2787,12 @@ CREATE TRIGGER return_requests_legal_transition
 CREATE FUNCTION return_requests_check_initial() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
-    IF NEW.status <> 'requested' THEN
-        RAISE EXCEPTION 'a new return request must start requested, not %', NEW.status
+    IF NEW.status <> 'requested'
+       OR NEW.goods_refund_cents IS NOT NULL
+       OR NEW.shipping_refund_cents <> 0
+       OR NEW.card_refund_cents IS NOT NULL
+       OR NEW.credit_refund_cents IS NOT NULL THEN
+        RAISE EXCEPTION 'a new return request must start as an unfrozen request, not %', NEW.status
             USING ERRCODE = 'check_violation', CONSTRAINT = 'return_requests_start_requested';
     END IF;
     RETURN NEW;
@@ -2375,6 +2802,42 @@ $$;
 CREATE TRIGGER return_requests_start_requested
     BEFORE INSERT ON return_requests
     FOR EACH ROW EXECUTE FUNCTION return_requests_check_initial();
+
+-- A browser may pass the access check just before the order owner erases their
+-- account. The order FK keeps the row alive, but only a live owner can receive
+-- the store-credit half of a refund. This deferred check runs after all return
+-- lines exist, so it can compare every unresolved request with the card capacity
+-- none of their durable payouts has reserved. That admits a genuinely card-only
+-- claim but refuses a later access-grant claim which makes store credit necessary.
+CREATE FUNCTION return_credit_owner_guard() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+    v_status text;
+    v_owner uuid;
+BEGIN
+    SELECT r.status, o.user_id
+    INTO v_status, v_owner
+    FROM return_requests r
+    JOIN orders o ON o.id = r.order_id
+    WHERE r.id = NEW.id
+    FOR UPDATE OF o;
+
+    IF v_status IN ('requested', 'approved')
+       AND v_owner IS NULL
+       AND open_return_credit_exposure(NEW.order_id) > 0 THEN
+        RAISE EXCEPTION 'return % needs store credit but its account was erased', NEW.id
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'return_credit_requires_live_account';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE CONSTRAINT TRIGGER return_credit_requires_live_account
+    AFTER INSERT ON return_requests
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW EXECUTE FUNCTION return_credit_owner_guard();
 
 -- One row per UNIT, because buying two phones registers two warranties, which
 -- one row per order line cannot say.
@@ -2416,28 +2879,79 @@ CREATE TRIGGER warranty_unit_within_purchase
 -- ============================================================================
 -- Invoices
 --
--- TWO tables, because they are two things: what the customer asked for is a
--- preference and can be edited; what was issued to the tax authority is a
--- document and cannot. A return issues a credit note rather than altering it.
+-- TWO tables, because they are two things: the first is the immutable filing
+-- snapshot captured with the sale; the second is what was actually issued to
+-- the tax authority. Delivery PII may later be erased, but the minimum filing
+-- identity, carrier and tax number remain with the tax record so a committed
+-- sale can still be issued, voided/reissued and allowanced.
 -- ============================================================================
 
+-- The Ministry of Finance changed the divisor from 10 to 5 for numbers issued
+-- from April 2023. When the seventh digit is 7, its 7*4 contribution may be 1
+-- or 0, exactly as the current attachment's two-column example specifies.
+-- https://www.fia.gov.tw/singlehtml/3?cntId=c4d9cff38c8642ef8872774ee9987283
+CREATE FUNCTION valid_business_tax_id(p_value text) RETURNS boolean
+LANGUAGE plpgsql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+    v_weights integer[] := ARRAY[1, 2, 1, 2, 1, 2, 4, 1];
+    v_digit integer;
+    v_product integer;
+    v_sum integer := 0;
+    v_seventh_is_seven boolean := false;
+    i integer;
+BEGIN
+    IF p_value IS NULL OR p_value !~ '^[0-9]{8}$' THEN
+        RETURN false;
+    END IF;
+    FOR i IN 1..8 LOOP
+        v_digit := substr(p_value, i, 1)::integer;
+        IF i = 7 AND v_digit = 7 THEN
+            v_sum := v_sum + 1;
+            v_seventh_is_seven := true;
+        ELSE
+            v_product := v_digit * v_weights[i];
+            v_sum := v_sum + v_product / 10 + v_product % 10;
+        END IF;
+    END LOOP;
+    RETURN v_sum % 5 = 0
+        OR (v_seventh_is_seven AND (v_sum - 1) % 5 = 0);
+END;
+$$;
+
 CREATE TABLE invoice_preferences (
-    order_id     uuid PRIMARY KEY REFERENCES orders (id) ON DELETE RESTRICT,
-    invoice_type text NOT NULL,
-    carrier_code text,
-    tax_id       text,
+    order_id       uuid PRIMARY KEY REFERENCES orders (id) ON DELETE RESTRICT,
+    invoice_type   text NOT NULL,
+    carrier_code   text,
+    tax_id         text,
+    customer_name  text NOT NULL,
+    customer_email text NOT NULL,
     CONSTRAINT invoice_preferences_type_known
         CHECK (invoice_type IN ('mobile_carrier', 'member_carrier', 'company')),
-    -- `type <> 'company' OR tax_id ~ regex` evaluates to NULL when tax_id is
-    -- NULL, and a NULL CHECK passes — so the NOT NULL has to be spelled out
-    -- before the regex.
+    CONSTRAINT invoice_preferences_company_tax_id_shape
+        CHECK ((invoice_type = 'company') = (tax_id IS NOT NULL)),
     CONSTRAINT invoice_preferences_company_has_tax_id
-        CHECK (invoice_type <> 'company'
-               OR (tax_id IS NOT NULL AND tax_id ~ '^[0-9]{8}$')),
+        CHECK (tax_id IS NULL OR valid_business_tax_id(tax_id)),
+    CONSTRAINT invoice_preferences_mobile_carrier_shape
+        CHECK ((invoice_type = 'mobile_carrier') = (carrier_code IS NOT NULL)),
     CONSTRAINT invoice_preferences_mobile_has_carrier
-        CHECK (invoice_type <> 'mobile_carrier'
-               OR (carrier_code IS NOT NULL AND carrier_code ~ '[^[:space:]]'))
+        CHECK (carrier_code IS NULL OR carrier_code ~ '^/[0-9A-Z+\-.]{7}$'),
+    CONSTRAINT invoice_preferences_customer_name_present
+        CHECK (customer_name ~ '[^[:space:]]'),
+    CONSTRAINT invoice_preferences_customer_name_bounded
+        CHECK (char_length(customer_name) <= 60),
+    CONSTRAINT invoice_preferences_customer_name_no_controls
+        CHECK (customer_name !~ '[[:cntrl:]]'),
+    CONSTRAINT invoice_preferences_customer_email_present
+        CHECK (customer_email ~ '[^[:space:]]'),
+    CONSTRAINT invoice_preferences_customer_email_trimmed
+        CHECK (customer_email !~ '^[[:space:]]|[[:space:]]$'),
+    CONSTRAINT invoice_preferences_customer_email_bounded
+        CHECK (octet_length(customer_email) <= 80)
 );
+
+CREATE TRIGGER invoice_preferences_immutable
+    BEFORE UPDATE OR DELETE ON invoice_preferences
+    FOR EACH ROW EXECUTE FUNCTION forbid_change('invoice_preferences_immutable');
 
 CREATE TABLE invoice_documents (
     id           uuid PRIMARY KEY DEFAULT uuidv7(),
@@ -2449,55 +2963,34 @@ CREATE TABLE invoice_documents (
     amount_cents bigint NOT NULL,
     status       text NOT NULL DEFAULT 'issued',
     provider_ref text,
-    -- What a repeated FILING would be, so that it cannot become a second
-    -- document. ECPay's B2C allowance endpoint carries no idempotency field —
-    -- Issue has RelateNumber and Allowance has nothing — so the key is goen's,
-    -- and it is derived from the order plus the refunded total the form was
-    -- rendered with: a double-click sends the same key, while a genuine second
-    -- 折讓 after a further refund carries a different one. NULL on an invoice,
-    -- whose repeat is refused by RelateNumber at the provider.
+    -- The durable operation that produced an allowance. NULL on an invoice,
+    -- whose provider identity is its frozen RelateNumber operation instead.
     request_key  text,
     issued_at    timestamptz NOT NULL DEFAULT now(),
     voided_at    timestamptz,
     CONSTRAINT invoice_documents_kind_known CHECK (kind IN ('invoice', 'allowance')),
     CONSTRAINT invoice_documents_request_key_present
         CHECK (request_key IS NULL OR request_key ~ '[^[:space:]]'),
-    -- 'pending' is a CLAIM, not a document: it says an attempt with this
-    -- request key is in flight, which is what makes a second press refusable
-    -- BEFORE the provider is asked. ECPay's allowance endpoint carries no
-    -- idempotency field of its own, so filing first and recording after —
-    -- correct for an invoice, whose repeat RelateNumber refuses — put two 折讓
-    -- in front of the 財政部 for one refund.
+	CONSTRAINT invoice_documents_number_bounded CHECK (char_length(number) <= 32),
+	CONSTRAINT invoice_documents_provider_ref_bounded
+		CHECK (provider_ref IS NULL OR char_length(provider_ref) <= 100),
+	CONSTRAINT invoice_documents_request_key_bounded
+		CHECK (request_key IS NULL OR char_length(request_key) <= 100),
     CONSTRAINT invoice_documents_status_known
-        CHECK (status IN ('pending', 'issued', 'voided')),
-    -- A pending claim has no number yet: allocating one is the provider's job,
-    -- and inventing one is what this exists to stop. Both halves, because
-    -- "pending means empty" alone would let an ISSUED document carry whitespace
-    -- as its number, which the rule refused before the claim state existed.
+        CHECK (status IN ('issued', 'voided')),
     CONSTRAINT invoice_documents_number_present
-        CHECK ((status = 'pending' AND number = '')
-               OR (status <> 'pending' AND number ~ '[^[:space:]]')),
+        CHECK (number ~ '[^[:space:]]'),
     CONSTRAINT invoice_documents_amount_positive CHECK (amount_cents > 0),
     CONSTRAINT invoice_documents_voided_has_time
         CHECK ((status = 'voided') = (voided_at IS NOT NULL)),
-    -- A claim carries the key it is claiming, or it claims nothing.
-    CONSTRAINT invoice_documents_pending_is_claimed
-        CHECK (status <> 'pending' OR request_key IS NOT NULL),
     CONSTRAINT invoice_documents_allowance_has_original
         CHECK ((kind = 'allowance') = (original_id IS NOT NULL))
     -- No self-reference CHECK: an invoice must have original_id NULL and a
     -- credit note's original must be a real invoice, so it can never fire.
 );
 
--- Partial, because a PENDING claim has no number and carries '' to say so. A
--- whole-table unique on `number` puts every claim in one another's way: two
--- allowances on two different orders, with two different request keys, collide
--- on the empty string, so at most ONE claim could be in flight in the entire
--- database. One provider failure then refused every 折讓 the shop would ever
--- file — and the refusal named the OTHER order's key, so nobody could see why.
 CREATE UNIQUE INDEX invoice_documents_number_key
-    ON invoice_documents (number)
-    WHERE status <> 'pending';
+    ON invoice_documents (number);
 CREATE INDEX invoice_documents_order_idx ON invoice_documents (order_id);
 CREATE INDEX invoice_documents_original_idx ON invoice_documents (original_id);
 -- At most one live invoice per order: a second while the first stands files two
@@ -2522,31 +3015,8 @@ CREATE FUNCTION invoice_documents_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
     IF TG_OP = 'DELETE' THEN
-        -- A PENDING claim is a reservation, not a document: nothing is at the
-        -- 加值中心 under it and it has no number. Releasing one is the only way
-        -- out for a claim whose provider call was REFUSED — an answer proving
-        -- nothing was filed — and without it a rejected 折讓 holds its key for
-        -- ever, with no door: it cannot be voided (a void needs a number), the
-        -- key cannot be cleared, and the row cannot be deleted.
-        IF OLD.status = 'pending' THEN
-            RETURN OLD;
-        END IF;
         RAISE EXCEPTION 'invoice documents are filed, not deleted'
             USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_documents_only_void';
-    END IF;
-
-    -- A PENDING claim is not yet a document: settling it is what writes the
-    -- number the provider allocated, and that is the one rewrite this rule must
-    -- allow. Everything it guards stays guarded the moment the row is issued.
-    IF OLD.status = 'pending' AND NEW.status = 'issued' THEN
-        IF NEW.id <> OLD.id OR NEW.order_id <> OLD.order_id OR NEW.kind <> OLD.kind
-           OR NEW.amount_cents <> OLD.amount_cents
-           OR NEW.original_id IS DISTINCT FROM OLD.original_id
-           OR NEW.request_key IS DISTINCT FROM OLD.request_key THEN
-            RAISE EXCEPTION 'settling a claim may only write its number, not restate it'
-                USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_documents_only_void';
-        END IF;
-        RETURN NEW;
     END IF;
 
     -- request_key belongs in this list for the reason the others do: clearing it
@@ -2576,6 +3046,106 @@ CREATE TRIGGER invoice_documents_only_void
     BEFORE UPDATE OR DELETE ON invoice_documents
     FOR EACH ROW EXECUTE FUNCTION invoice_documents_guard();
 
+-- A provider request is durable BEFORE it leaves this database.  This is a
+-- separate table rather than a synthetic invoice_documents "pending" row:
+-- ECPay has not allocated a tax document yet, while the operation still needs
+-- its frozen request, original staff attribution, retry evidence and lease.
+CREATE TABLE invoice_operations (
+    id                 uuid PRIMARY KEY DEFAULT uuidv7(),
+    order_id           uuid NOT NULL REFERENCES orders (id) ON DELETE RESTRICT,
+    kind               text NOT NULL,
+    target_document_id uuid REFERENCES invoice_documents (id) ON DELETE RESTRICT,
+    result_document_id uuid REFERENCES invoice_documents (id) ON DELETE RESTRICT,
+    -- RelateNumber for Issue; the immutable invoice number for Allowance/Void.
+    provider_key       text NOT NULL,
+    amount_cents       bigint NOT NULL,
+    -- The exact request facts derived under the order/original-document lock.
+    -- Callers never supply this JSON and reconciliation never re-reads mutable
+    -- customer preferences to rebuild it.
+    request_payload    jsonb NOT NULL,
+    -- The live actor may be erased; the immutable UUID snapshot preserves tax
+    -- filing attribution without making account erasure depend on tax history.
+    actor_user_id      uuid REFERENCES users (id) ON DELETE SET NULL,
+    actor_id_snapshot  uuid NOT NULL,
+    request_id         text NOT NULL,
+    status             text NOT NULL DEFAULT 'pending',
+    reconcile_attempts integer NOT NULL DEFAULT 0,
+    send_attempts      integer NOT NULL DEFAULT 0,
+    -- An Allowance is not provider-idempotent. Every retry after the first
+    -- pre-send stamp therefore consumes one explicit operator authorization,
+    -- recorded below with the staff/request identity that granted it.
+    resend_authorizations integer NOT NULL DEFAULT 0,
+    last_send_at       timestamptz,
+    last_error         text,
+    available_at       timestamptz NOT NULL DEFAULT now(),
+    lease_owner        uuid,
+    lease_until        timestamptz,
+    created_at         timestamptz NOT NULL DEFAULT now(),
+    updated_at         timestamptz NOT NULL DEFAULT now(),
+    completed_at       timestamptz,
+    CONSTRAINT invoice_operations_kind_known
+        CHECK (kind IN ('issue', 'allowance', 'void')),
+    CONSTRAINT invoice_operations_status_known
+        CHECK (status IN ('pending', 'attention', 'succeeded', 'rejected')),
+    CONSTRAINT invoice_operations_provider_key_present
+        CHECK (provider_key ~ '[^[:space:]]' AND char_length(provider_key) <= 100),
+    CONSTRAINT invoice_operations_issue_provider_key_safe
+        CHECK (kind <> 'issue' OR provider_key ~ '^[A-Za-z0-9]{1,30}$'),
+    CONSTRAINT invoice_operations_amount_positive CHECK (amount_cents > 0),
+    CONSTRAINT invoice_operations_payload_object
+        CHECK (jsonb_typeof(request_payload) = 'object'),
+    CONSTRAINT invoice_operations_request_present
+        CHECK (request_id ~ '[^[:space:]]' AND char_length(request_id) <= 200),
+    CONSTRAINT invoice_operations_actor_snapshot_matches
+        CHECK (actor_user_id IS NULL OR actor_id_snapshot = actor_user_id),
+    CONSTRAINT invoice_operations_attempts_non_negative
+        CHECK (reconcile_attempts >= 0 AND send_attempts >= 0
+               AND resend_authorizations >= 0),
+    CONSTRAINT invoice_operations_resend_authority_bounded
+        CHECK (resend_authorizations <= send_attempts),
+    CONSTRAINT invoice_operations_resend_authority_shape
+        CHECK (kind = 'allowance' OR resend_authorizations = 0),
+    CONSTRAINT invoice_operations_last_send_matches_attempts
+        CHECK ((send_attempts = 0) = (last_send_at IS NULL)),
+    CONSTRAINT invoice_operations_error_bounded
+        CHECK (last_error IS NULL OR char_length(last_error) <= 2000),
+    CONSTRAINT invoice_operations_lease_complete
+        CHECK ((lease_owner IS NULL) = (lease_until IS NULL)),
+    CONSTRAINT invoice_operations_completion_matches_status
+        CHECK ((status = 'succeeded') = (completed_at IS NOT NULL)),
+    CONSTRAINT invoice_operations_result_only_on_success
+        CHECK (result_document_id IS NULL OR status = 'succeeded'),
+    CONSTRAINT invoice_operations_target_shape CHECK (
+        (kind = 'issue' AND target_document_id IS NULL)
+        OR (kind IN ('allowance', 'void') AND target_document_id IS NOT NULL)
+    )
+);
+
+CREATE INDEX invoice_operations_reconcile_idx
+    ON invoice_operations (available_at, created_at, id)
+    WHERE status = 'pending';
+CREATE INDEX invoice_operations_order_idx ON invoice_operations (order_id, created_at DESC);
+CREATE INDEX invoice_operations_actor_user_id_idx ON invoice_operations (actor_user_id);
+CREATE INDEX invoice_operations_target_document_id_idx
+    ON invoice_operations (target_document_id);
+CREATE INDEX invoice_operations_result_document_id_idx
+    ON invoice_operations (result_document_id);
+-- ECPay compares RelateNumber case-insensitively and never permits reuse.
+CREATE UNIQUE INDEX invoice_operations_issue_provider_key_key
+    ON invoice_operations (lower(provider_key)) WHERE kind = 'issue';
+-- These are the database authority for "one uncertain remote effect".  An
+-- attention operation remains active deliberately: a mismatch or multiple
+-- provider candidates must block a fresh request, never make resending easier.
+CREATE UNIQUE INDEX invoice_operations_one_active_issue
+    ON invoice_operations (order_id)
+    WHERE kind = 'issue' AND status IN ('pending', 'attention');
+CREATE UNIQUE INDEX invoice_operations_one_active_allowance
+    ON invoice_operations (target_document_id)
+    WHERE kind = 'allowance' AND status IN ('pending', 'attention');
+CREATE UNIQUE INDEX invoice_operations_one_active_void
+    ON invoice_operations (target_document_id)
+    WHERE kind = 'void' AND status IN ('pending', 'attention');
+
 -- A credit note must relieve a real, unvoided invoice of the SAME order, and the
 -- notes against it may not total more than it was for. The original is locked so
 -- two cannot both pass.
@@ -2583,7 +3153,8 @@ CREATE FUNCTION invoice_allowance_valid() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
     orig invoice_documents%ROWTYPE;
-    already bigint;
+    already numeric;
+    refunded numeric;
 BEGIN
     IF NEW.kind <> 'allowance' THEN
         RETURN NEW;
@@ -2604,6 +3175,18 @@ BEGIN
         RAISE EXCEPTION 'allowances would total % against an invoice of %',
             already + NEW.amount_cents, orig.amount_cents
             USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_allowance_valid';
+    END IF;
+
+    -- The same original-invoice row is the aggregate lock for this second cap.
+    -- Two allowances that both passed a pool-level precheck therefore cannot
+    -- each consume the same refunded room.
+    SELECT (card_cents::numeric + credit_cents::numeric) INTO refunded
+    FROM order_refunds WHERE order_id = NEW.order_id;
+    IF already + NEW.amount_cents > coalesce(refunded, 0) THEN
+        RAISE EXCEPTION 'allowances would total % but only % has been refunded',
+            already + NEW.amount_cents, coalesce(refunded, 0)
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'invoice_allowance_within_refund';
     END IF;
     RETURN NEW;
 END;
@@ -2626,6 +3209,7 @@ CREATE TABLE invoice_document_lines (
     tax_type      text NOT NULL,
     position      integer NOT NULL DEFAULT 0,
     CONSTRAINT invoice_document_lines_description_present CHECK (description ~ '[^[:space:]]'),
+	CONSTRAINT invoice_document_lines_description_bounded CHECK (char_length(description) <= 100),
     CONSTRAINT invoice_document_lines_quantity_positive CHECK (quantity > 0),
     CONSTRAINT invoice_document_lines_amount_non_negative CHECK (amount_cents >= 0),
     -- A negative unit price would let an issued invoice be padded with a credit
@@ -2635,7 +3219,9 @@ CREATE TABLE invoice_document_lines (
         CHECK (unit_price_cents >= 0 AND unit_price_cents <= 10000000000),
     CONSTRAINT invoice_document_lines_amount_in_range CHECK (amount_cents <= 10000000000),
     CONSTRAINT invoice_document_lines_tax_type_known
-        CHECK (tax_type IN ('taxable', 'zero_rated', 'exempt'))
+        CHECK (tax_type IN ('taxable', 'zero_rated', 'exempt')),
+    CONSTRAINT invoice_document_lines_position_in_range
+        CHECK (position BETWEEN 0 AND 998)
 );
 
 CREATE UNIQUE INDEX invoice_document_lines_position_key
@@ -2662,6 +3248,10 @@ CREATE TABLE payments (
     created_at             timestamptz NOT NULL DEFAULT now(),
     updated_at             timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT payments_provider_known CHECK (provider IN ('stripe')),
+	CONSTRAINT payments_provider_ref_valid CHECK (
+		char_length(provider_ref) BETWEEN 1 AND 255
+		AND provider_ref !~ '[[:space:][:cntrl:]]'
+	),
     -- There is deliberately no 'failed': Stripe returns a declined intent to
     -- requires_payment_method, and a terminal 'failed' would make a recoverable
     -- decline unrecoverable. requires_reconciliation is different: Stripe has
@@ -2781,6 +3371,15 @@ BEGIN
             USING ERRCODE = 'check_violation', CONSTRAINT = 'payments_require_complete_order';
     END IF;
 
+    -- This is the card-funded transition into committed_orders. Count the
+    -- exact canonical payload, including synthetic delivery and adjustment
+    -- lines, before accepting money for a sale ECPay cannot represent.
+    IF (SELECT count(*) FROM canonical_invoice_lines(o.id)) > 999 THEN
+        RAISE EXCEPTION 'order % has more than 999 invoice items', o.order_number
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'invoice_issue_item_count';
+    END IF;
+
     -- A CANCELLED order cannot be paid, and this is the only line that says so.
     -- Otherwise the two-tab sequence goes through: start a payment, cancel in the
     -- other tab, pay at Stripe, and the stock is already back on the shelf.
@@ -2856,6 +3455,11 @@ CREATE TABLE refunds (
     id           uuid PRIMARY KEY DEFAULT uuidv7(),
     payment_id   uuid NOT NULL REFERENCES payments (id) ON DELETE RESTRICT,
     return_request_id uuid REFERENCES return_requests (id) ON DELETE RESTRICT,
+    -- A hard provider failure is evidence, not a row to recycle. A retry appends
+    -- the next generation and points back to the terminal attempt it follows.
+    -- claim_return_refund_execution derives all three lineage facts.
+    attempt_no   integer NOT NULL DEFAULT 1,
+    previous_refund_id uuid,
     -- The caller's own key, committed BEFORE the provider is called, so a crash
     -- between the call and the response leaves a row reconciliation can resolve.
     request_key  text NOT NULL,
@@ -2869,13 +3473,35 @@ CREATE TABLE refunds (
     failed_at    timestamptz,
     CONSTRAINT refunds_status_known
         CHECK (status IN ('pending', 'requires_action', 'succeeded', 'failed', 'cancelled')),
+	CONSTRAINT refunds_attempt_in_range CHECK (attempt_no BETWEEN 1 AND 1000000),
+	CONSTRAINT refunds_attempt_lineage_shape CHECK (
+		(attempt_no = 1) = (previous_refund_id IS NULL)
+	),
+	CONSTRAINT refunds_provider_ref_valid CHECK (
+		provider_ref IS NULL OR (
+			char_length(provider_ref) BETWEEN 1 AND 255
+			AND provider_ref !~ '[[:space:][:cntrl:]]'
+		)
+	),
+	CONSTRAINT refunds_provider_identity_required CHECK (
+		status NOT IN ('requires_action', 'succeeded', 'cancelled')
+		OR provider_ref IS NOT NULL
+	),
     CONSTRAINT refunds_amount_positive CHECK (amount_cents > 0),
-    CONSTRAINT refunds_request_key_present CHECK (request_key ~ '[^[:space:]]'),
+    CONSTRAINT refunds_request_key_present CHECK (
+        request_key ~ '[^[:space:]]' AND char_length(request_key) <= 255
+    ),
     CONSTRAINT refunds_succeeded_has_time
         CHECK ((status = 'succeeded') = (succeeded_at IS NOT NULL)),
     CONSTRAINT refunds_failed_has_time
         CHECK ((status = 'failed') = (failed_at IS NOT NULL)),
-    CONSTRAINT refunds_amount_in_range CHECK (amount_cents <= 10000000000)
+    CONSTRAINT refunds_amount_in_range CHECK (amount_cents <= 10000000000),
+    CONSTRAINT refunds_return_attempt_key UNIQUE (return_request_id, attempt_no),
+    CONSTRAINT refunds_previous_attempt_key UNIQUE (previous_refund_id),
+    CONSTRAINT refunds_return_id_key UNIQUE (return_request_id, id),
+    CONSTRAINT refunds_previous_same_return
+        FOREIGN KEY (return_request_id, previous_refund_id)
+        REFERENCES refunds (return_request_id, id) ON DELETE RESTRICT
 );
 
 CREATE UNIQUE INDEX refunds_request_key_key ON refunds (request_key);
@@ -2883,6 +3509,15 @@ CREATE UNIQUE INDEX refunds_provider_ref_key ON refunds (provider_ref)
     WHERE provider_ref IS NOT NULL;
 CREATE INDEX refunds_payment_id_idx ON refunds (payment_id);
 CREATE INDEX refunds_return_request_idx ON refunds (return_request_id);
+CREATE INDEX refunds_previous_same_return_idx
+    ON refunds (return_request_id, previous_refund_id);
+-- One provider identity may be ambiguous, but there is never a second attempt
+-- until the latest one is known failed/cancelled. This is the final authority if
+-- a future claim writer forgets the return-row lock.
+CREATE UNIQUE INDEX refunds_one_open_return_attempt
+    ON refunds (return_request_id)
+    WHERE return_request_id IS NOT NULL
+      AND status IN ('pending', 'requires_action');
 
 -- Refunds cannot exceed what was captured. The payment row is locked first, so
 -- two concurrent refunds of 60 against a capture of 100 cannot both see zero
@@ -2894,6 +3529,7 @@ DECLARE
     pay_status text;
     pay_order uuid;
     already  bigint;
+    predecessor refunds%ROWTYPE;
 BEGIN
     -- The identity of a refund is fixed once written: re-pointing it would let
     -- one capture's allowance be spent against a second.
@@ -2902,6 +3538,37 @@ BEGIN
         RAISE EXCEPTION 'a refund cannot be moved to another payment'
             USING ERRCODE = 'check_violation', CONSTRAINT = 'refunds_within_capture';
     END IF;
+	IF TG_OP = 'UPDATE' AND (
+		   NEW.return_request_id IS DISTINCT FROM OLD.return_request_id
+		OR NEW.attempt_no <> OLD.attempt_no
+		OR NEW.previous_refund_id IS DISTINCT FROM OLD.previous_refund_id
+		OR NEW.amount_cents <> OLD.amount_cents
+		OR NEW.reason IS DISTINCT FROM OLD.reason
+	) THEN
+		RAISE EXCEPTION 'refund % attempt identity is immutable', OLD.request_key
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'refunds_attempt_identity_immutable';
+	END IF;
+	IF TG_OP = 'UPDATE' AND OLD.provider_ref IS NOT NULL
+	   AND NEW.provider_ref IS DISTINCT FROM OLD.provider_ref THEN
+		RAISE EXCEPTION 'refund % already belongs to provider object %',
+			OLD.request_key, OLD.provider_ref
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'refunds_provider_ref_immutable';
+	END IF;
+	IF TG_OP = 'INSERT' AND NEW.previous_refund_id IS NOT NULL THEN
+		SELECT rf.* INTO predecessor
+		FROM refunds rf WHERE rf.id = NEW.previous_refund_id;
+		IF NOT FOUND
+		   OR predecessor.return_request_id IS DISTINCT FROM NEW.return_request_id
+		   OR predecessor.attempt_no + 1 <> NEW.attempt_no
+		   OR predecessor.status NOT IN ('failed', 'cancelled') THEN
+			RAISE EXCEPTION 'refund attempt % does not follow one terminal attempt',
+				NEW.attempt_no
+				USING ERRCODE = 'check_violation',
+				      CONSTRAINT = 'refunds_attempt_lineage';
+		END IF;
+	END IF;
 
     SELECT captured_amount_cents, status, order_id INTO captured, pay_status, pay_order
     FROM payments WHERE id = NEW.payment_id FOR UPDATE;
@@ -2923,16 +3590,48 @@ BEGIN
             USING ERRCODE = 'check_violation', CONSTRAINT = 'refunds_same_order';
     END IF;
 
-    SELECT coalesce(sum(amount_cents), 0) INTO already
-    FROM refunds
-    WHERE payment_id = NEW.payment_id
-      AND status <> 'failed'
-      AND status <> 'cancelled'
-      AND id <> NEW.id;
+    -- Approved returns reserve their frozen card source before a provider row is
+    -- opened. Count that snapshot exactly once, and count only unrelated refund
+    -- rows directly; otherwise a manual refund can consume room between approval
+    -- and claim, or one return attempt is counted once as a reservation and once
+    -- again as its provider row.
+    SELECT
+        coalesce((
+            SELECT sum(rf.amount_cents)
+            FROM refunds rf
+            WHERE rf.payment_id = NEW.payment_id
+              AND rf.return_request_id IS NULL
+              AND rf.status IN ('pending', 'requires_action', 'succeeded')
+              AND rf.id <> NEW.id
+        ), 0)
+        + coalesce((
+            SELECT sum(rr.card_refund_cents)
+            FROM return_requests rr
+            WHERE rr.order_id = pay_order
+              AND rr.status IN ('approved', 'completed')
+        ), 0)
+    INTO already;
 
-    IF already + NEW.amount_cents > captured THEN
+    IF NEW.return_request_id IS NOT NULL
+       AND NOT EXISTS (
+           SELECT 1 FROM return_requests rr
+           WHERE rr.id = NEW.return_request_id
+             AND rr.status IN ('approved', 'completed')
+             AND rr.card_refund_cents = NEW.amount_cents
+       ) THEN
+        RAISE EXCEPTION 'return refund amount % does not match its frozen card source',
+            NEW.amount_cents
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'refunds_return_amount_frozen';
+    END IF;
+    IF NEW.return_request_id IS NULL
+       AND NEW.status IN ('pending', 'requires_action', 'succeeded') THEN
+        already := already + NEW.amount_cents;
+    END IF;
+
+    IF already > captured THEN
         RAISE EXCEPTION 'refunds would total % against a capture of %',
-            already + NEW.amount_cents, captured
+            already, captured
             USING ERRCODE = 'check_violation', CONSTRAINT = 'refunds_within_capture';
     END IF;
     RETURN NEW;
@@ -2972,20 +3671,23 @@ CREATE TRIGGER refunds_no_regression
 CREATE FUNCTION refunds_freeze_settled() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp AS $$
 BEGIN
-    IF OLD.status NOT IN ('succeeded', 'failed', 'cancelled') THEN
-        RETURN NEW;
-    END IF;
     IF TG_OP = 'DELETE' THEN
-        IF OLD.status = 'succeeded' THEN
-            RAISE EXCEPTION 'a succeeded refund is history and cannot be deleted'
+        IF OLD.return_request_id IS NOT NULL OR OLD.status = 'succeeded' THEN
+            RAISE EXCEPTION 'a return/provider refund attempt is history and cannot be deleted'
                 USING ERRCODE = 'check_violation', CONSTRAINT = 'refunds_settled_is_history';
         END IF;
         RETURN OLD;
+    END IF;
+    IF OLD.status NOT IN ('succeeded', 'failed', 'cancelled') THEN
+        RETURN NEW;
     END IF;
     IF NEW.amount_cents <> OLD.amount_cents
        OR NEW.payment_id <> OLD.payment_id
        OR NEW.request_key <> OLD.request_key
        OR NEW.return_request_id IS DISTINCT FROM OLD.return_request_id
+       OR NEW.attempt_no <> OLD.attempt_no
+       OR NEW.previous_refund_id IS DISTINCT FROM OLD.previous_refund_id
+       OR NEW.reason IS DISTINCT FROM OLD.reason
        OR NEW.provider_ref IS DISTINCT FROM OLD.provider_ref
        OR NEW.succeeded_at IS DISTINCT FROM OLD.succeeded_at
        OR NEW.failed_at IS DISTINCT FROM OLD.failed_at THEN
@@ -3029,6 +3731,17 @@ CREATE TABLE payment_webhook_events (
     -- is the same shape.
     reconciled_at       timestamptz,
     PRIMARY KEY (provider, event_id),
+	CONSTRAINT payment_webhook_events_provider_known CHECK (provider = 'stripe'),
+	CONSTRAINT payment_webhook_events_event_id_valid CHECK (
+		char_length(event_id) BETWEEN 1 AND 255
+		AND event_id !~ '[[:space:][:cntrl:]]'
+	),
+	CONSTRAINT payment_webhook_events_object_ref_valid CHECK (
+		object_ref IS NULL OR (
+			char_length(object_ref) BETWEEN 1 AND 255
+			AND object_ref !~ '[[:space:][:cntrl:]]'
+		)
+	),
     CONSTRAINT payment_webhook_events_type_present CHECK (type ~ '[^[:space:]]'),
     CONSTRAINT payment_webhook_events_unreconciled_present
         CHECK (unreconciled IS NULL OR unreconciled ~ '[^[:space:]]'),
@@ -3089,21 +3802,29 @@ CREATE INDEX outbox_messages_delivered_at_idx
     WHERE delivered_at IS NOT NULL;
 
 CREATE TABLE audit_events (
-    id            uuid PRIMARY KEY DEFAULT uuidv7(),
-    actor_user_id uuid REFERENCES users (id) ON DELETE SET NULL,
-    action        text NOT NULL,
-    entity_table  text NOT NULL,
-    entity_id     uuid,
-    before        jsonb,
-    after         jsonb,
-    request_id    text,
-    occurred_at   timestamptz NOT NULL DEFAULT now(),
+    id                uuid PRIMARY KEY DEFAULT uuidv7(),
+    -- The live relation makes current staff names displayable and may disappear
+    -- on erasure. The non-FK snapshot is the durable answer to who acted; it is
+    -- immutable because the complete audit row is append-only.
+    actor_user_id     uuid REFERENCES users (id) ON DELETE SET NULL,
+    actor_id_snapshot uuid NOT NULL,
+    action            text NOT NULL,
+    entity_table      text NOT NULL,
+    entity_id         uuid,
+    before            jsonb,
+    after             jsonb,
+    request_id        text,
+    occurred_at       timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT audit_events_action_present CHECK (action ~ '[^[:space:]]'),
-    CONSTRAINT audit_events_entity_present CHECK (entity_table ~ '[^[:space:]]')
+    CONSTRAINT audit_events_entity_present CHECK (entity_table ~ '[^[:space:]]'),
+    CONSTRAINT audit_events_actor_snapshot_matches
+        CHECK (actor_user_id IS NULL OR actor_user_id = actor_id_snapshot)
 );
 
 CREATE INDEX audit_events_entity_idx ON audit_events (entity_table, entity_id, occurred_at DESC);
-CREATE INDEX audit_events_actor_idx ON audit_events (actor_user_id, occurred_at DESC);
+CREATE INDEX audit_events_actor_idx ON audit_events (actor_id_snapshot, occurred_at DESC);
+CREATE INDEX audit_events_actor_user_id_idx
+    ON audit_events (actor_user_id) WHERE actor_user_id IS NOT NULL;
 
 CREATE TRIGGER audit_events_append_only
     BEFORE UPDATE OR DELETE ON audit_events
@@ -3175,10 +3896,11 @@ CREATE TABLE membership_tiers (
     CONSTRAINT membership_tiers_name_present CHECK (name ~ '[^[:space:]]'),
     CONSTRAINT membership_tiers_name_en_present
         CHECK (name_en IS NULL OR name_en ~ '[^[:space:]]'),
-    CONSTRAINT membership_tiers_min_spend_non_negative CHECK (min_spend_cents >= 0),
+    CONSTRAINT membership_tiers_min_spend_non_negative
+        CHECK (min_spend_cents >= 0 AND min_spend_cents <= 10000000000),
     -- A tier earning FEWER points than no tier would punish spending more.
     CONSTRAINT membership_tiers_multiplier_at_least_base
-        CHECK (points_multiplier_bp >= 10000)
+        CHECK (points_multiplier_bp >= 10000 AND points_multiplier_bp <= 30000)
 );
 
 CREATE UNIQUE INDEX membership_tiers_code_key ON membership_tiers (code);
@@ -3558,6 +4280,27 @@ BEGIN
             USING CONSTRAINT = 'erase_user_keeps_one_admin';
     END IF;
 
+    -- A return can be opened by an access grant as well as by the signed-in
+    -- owner, so the user-row lock alone is not the complete race fence. Lock
+    -- every owned order in deterministic order before deciding whether the
+    -- aggregate unresolved value beyond unreserved card capacity would orphan
+    -- credit that can only be posted to this account.
+    PERFORM 1 FROM orders o
+    WHERE o.user_id = p_user_id
+    ORDER BY o.id
+    FOR UPDATE OF o;
+
+    IF EXISTS (
+        SELECT 1
+        FROM orders o
+        WHERE o.user_id = p_user_id
+          AND open_return_credit_exposure(o.id) > 0
+    ) THEN
+        RAISE EXCEPTION 'finish the open store-credit return before erasing this account'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'erase_user_open_return';
+    END IF;
+
     -- Blank every delivery field and stamp erased_at: the all-NULL state
     -- order_private_data_all_or_erased permits.
     UPDATE order_private_data pd SET
@@ -3609,12 +4352,21 @@ BEGIN
     -- mailbox ownership and are handled in the conditional block below.
     DELETE FROM stock_notifications WHERE user_id = p_user_id;
 
-    -- The invoice PREFERENCE carries a personal carrier id and a business tax
-    -- number. It cannot be nulled in place — its CHECKs require the value for
-    -- their type — so the row goes; invoice_documents is the tax record and stays.
-    DELETE FROM invoice_preferences ip
-    USING orders o
-    WHERE ip.order_id = o.id AND o.user_id = p_user_id;
+    -- invoice_preferences is the minimum immutable tax-filing snapshot. It is
+    -- deliberately retained with the order: deleting it can make an already
+    -- committed sale impossible to issue or a later refund impossible to
+    -- allowance after the delivery record is erased. Remove duplicate contact
+    -- data from terminal operation envelopes; pending/attention envelopes keep
+    -- their exact frozen request until provider reconciliation settles them,
+    -- and the settlement/rejection doors scrub those copies themselves.
+    UPDATE invoice_operations op
+    SET request_payload = request_payload - 'customer_name' - 'email',
+        updated_at = now()
+    FROM orders o
+    WHERE op.order_id = o.id
+      AND o.user_id = p_user_id
+      AND op.status IN ('succeeded', 'rejected')
+      AND (op.request_payload ? 'customer_name' OR op.request_payload ? 'email');
 
     -- Cross-table address ownership begins only after the mailbox is proved.
     -- Registration and a pending address change accept an arbitrary address;
@@ -3773,6 +4525,7 @@ REVOKE SELECT ON
     -- and a newsletter confirmation all travel in the PAYLOAD in plaintext,
     -- because sending from the handler loses the message when the process dies.
     users, addresses, carts, contact_messages, invoice_preferences,
+    invoice_operations,
     newsletter_subscribers, outbox_messages, stock_notifications
     FROM reporting;
 
@@ -3782,6 +4535,7 @@ REVOKE SELECT ON
 REVOKE INSERT, UPDATE, DELETE ON
     inventory_movements, inventory_reservations, audit_events, store_credit_entries
     FROM store;
+REVOKE ALL ON invoice_operations FROM store;
 REVOKE INSERT, UPDATE, DELETE ON product_variants FROM store;
 REVOKE INSERT, UPDATE, DELETE ON payments, refunds FROM store;
 REVOKE INSERT, UPDATE, DELETE ON order_number_counters FROM store;
@@ -3827,6 +4581,10 @@ REVOKE DELETE, TRUNCATE ON
     return_requests, return_request_lines, warranty_registrations,
     payments, refunds, shipping_method_versions
     FROM store;
+-- This row is the checkout-time filing snapshot, not a mutable address-book
+-- preference. A correction is Void plus a new invoice, never rewriting what the
+-- sale originally asked the provider to file.
+REVOKE UPDATE ON invoice_preferences FROM store;
 
 
 -- The posting functions run as their owner, so they can write what store cannot.
@@ -3892,10 +4650,10 @@ COMMENT ON FUNCTION order_amount_owed(uuid) IS
     'net of reversals. The one definition every funding check and the payment page '
     'read, so the figure charged and the figure demanded cannot disagree.';
 
--- The discount is allocated PROPORTIONALLY to what is going back and rounded UP,
--- so several partial returns cannot sum past the capture. tax_cents is absent
--- because a displayed price is tax-inclusive (Business Tax Act §32 II).
-CREATE FUNCTION return_refundable_amount(p_return_request_id uuid) RETURNS bigint
+-- The goods half of a return: proportional discount rounded UP, so several
+-- partial returns cannot sum past what the customer paid for the goods. Delivery
+-- is deliberately absent and allocated only at the approval boundary below.
+CREATE FUNCTION return_goods_refundable_amount(p_return_request_id uuid) RETURNS bigint
 LANGUAGE sql
 STABLE
 PARALLEL SAFE
@@ -3904,15 +4662,6 @@ AS $$
     SELECT ret.gross
          - ceil(o.discount_cents::numeric * ret.gross::numeric
                 / nullif(ord.subtotal, 0)::numeric)::bigint
-         + CASE WHEN NOT EXISTS (
-               SELECT 1 FROM order_lines ol
-               WHERE ol.order_id = o.id
-                 AND ol.quantity > (
-                     SELECT coalesce(sum(rl.quantity), 0)
-                     FROM return_request_lines rl
-                     JOIN return_requests rr ON rr.id = rl.return_request_id
-                     WHERE rl.order_line_id = ol.id AND rr.status <> 'rejected')
-           ) THEN o.shipping_cents ELSE 0 END
     FROM return_requests r
     JOIN orders o ON o.id = r.order_id
     CROSS JOIN LATERAL (
@@ -3928,12 +4677,116 @@ AS $$
     WHERE r.id = p_return_request_id;
 $$;
 
+COMMENT ON FUNCTION return_goods_refundable_amount(uuid) IS
+    'The returned lines at purchased prices less their proportional discount, excluding delivery.';
+
+-- Requested is a target-scoped preview: accepted prior returns plus THIS one.
+-- Approved/completed is the immutable snapshot assigned under the order lock.
+-- A rejected request never owns delivery. Approval time, not created_at or UUID
+-- order, is the durable economic sequence; now() is transaction-start time.
+CREATE FUNCTION return_refundable_amount(p_return_request_id uuid) RETURNS bigint
+LANGUAGE sql
+STABLE
+PARALLEL SAFE
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+    SELECT CASE r.status
+        WHEN 'approved' THEN r.goods_refund_cents + r.shipping_refund_cents
+        WHEN 'completed' THEN r.goods_refund_cents + r.shipping_refund_cents
+        WHEN 'requested' THEN return_goods_refundable_amount(r.id)
+            + CASE WHEN NOT EXISTS (
+                    SELECT 1 FROM order_lines ol
+                    WHERE ol.order_id = r.order_id
+                      AND ol.quantity > coalesce((
+                          SELECT sum(rl.quantity)
+                          FROM return_request_lines rl
+                          JOIN return_requests rr ON rr.id = rl.return_request_id
+                          WHERE rl.order_line_id = ol.id
+                            AND (rr.status IN ('approved', 'completed') OR rr.id = r.id)
+                      ), 0)
+                ) AND NOT EXISTS (
+                    SELECT 1 FROM return_requests accepted
+                    WHERE accepted.order_id = r.order_id
+                      AND accepted.shipping_refund_cents > 0
+                ) THEN o.shipping_cents ELSE 0 END
+        ELSE return_goods_refundable_amount(r.id)
+    END::bigint
+    FROM return_requests r JOIN orders o ON o.id = r.order_id
+    WHERE r.id = p_return_request_id;
+$$;
+
 COMMENT ON FUNCTION return_refundable_amount(uuid) IS
-    'What one return request is worth paying back: the returned goods at their '
-    'order-line prices, less their proportional share of the order discount, '
-    'plus the delivery fee when the request completes a full rescission. The one '
-    'definition, read by the queue and by the decision page, so the figure a '
-    'staff member sees and the figure that is paid cannot disagree.';
+    'Requested preview or frozen approved payout: discounted purchased goods plus delivery on the one approval that completed a full rescission.';
+
+-- The amount of unresolved return value which still needs a LIVE store-credit
+-- owner. Approved rows already own an immutable credit allocation; an exact
+-- posting discharges it even if the card attempt later fails. Requested rows
+-- compete only for card capacity left after every frozen approval and unrelated
+-- refund. A per-return preview lets two partial returns each see the same room.
+CREATE FUNCTION open_return_credit_exposure(p_order_id uuid)
+RETURNS bigint
+LANGUAGE sql STABLE
+SET search_path = pg_catalog, public, pg_temp AS $$
+    WITH approved AS (
+        SELECT
+            coalesce(sum(r.card_refund_cents), 0)::bigint AS card_reserved,
+            coalesce(sum(greatest(
+                r.credit_refund_cents - coalesce((
+                    SELECT sum(e.amount_cents)
+                    FROM store_credit_entries e
+                    WHERE e.idempotency_key = 'return-credit:' || r.id::text
+                ), 0),
+                0
+            )), 0)::bigint AS credit_unposted
+        FROM return_requests r
+        WHERE r.order_id = p_order_id
+          AND r.status IN ('approved', 'completed')
+    ), requested AS (
+        SELECT coalesce(sum(return_refundable_amount(r.id)), 0)::bigint AS amount
+        FROM return_requests r
+        WHERE r.order_id = p_order_id AND r.status = 'requested'
+    ), card AS (
+        SELECT
+            coalesce((
+                SELECT sum(p.captured_amount_cents)
+                FROM payments p
+                WHERE p.order_id = p_order_id AND p.status = 'succeeded'
+            ), 0)::bigint AS captured,
+            coalesce((
+                SELECT sum(rf.amount_cents)
+                FROM refunds rf
+                JOIN payments p ON p.id = rf.payment_id
+                WHERE p.order_id = p_order_id
+                  AND rf.return_request_id IS NULL
+                  AND rf.status IN ('pending', 'requires_action', 'succeeded')
+            ), 0)::bigint AS unrelated_refunded
+    )
+    SELECT (
+        a.credit_unposted
+        + greatest(
+            q.amount - greatest(c.captured - a.card_reserved - c.unrelated_refunded, 0),
+            0
+          )
+    )::bigint
+    FROM approved a CROSS JOIN requested q CROSS JOIN card c;
+$$;
+
+COMMENT ON FUNCTION open_return_credit_exposure(uuid) IS
+    'Unposted frozen return credit plus requested value beyond card capacity; zero means erasure cannot orphan a future credit posting.';
+
+-- The store-credit half of an approved return is part of its decision snapshot,
+-- not a value reconstructed from whichever refund attempt happens to be latest.
+CREATE FUNCTION return_store_credit_allocation(p_return_request_id uuid)
+RETURNS bigint
+LANGUAGE sql STABLE
+SET search_path = pg_catalog, public, pg_temp AS $$
+    SELECT coalesce(r.credit_refund_cents, 0)::bigint
+    FROM return_requests r
+    WHERE r.id = p_return_request_id;
+$$;
+
+COMMENT ON FUNCTION return_store_credit_allocation(uuid) IS
+    'The immutable store-credit source allocation frozen when a return was approved.';
 
 CREATE FUNCTION order_is_committed(p_order_id uuid) RETURNS boolean
 LANGUAGE sql STABLE AS $$
@@ -4019,7 +4872,7 @@ RETURNS uuid LANGUAGE sql STABLE AS $$
 $$;
 
 GRANT EXECUTE ON FUNCTION record_inventory_movement(uuid, integer, text, text, text, uuid, uuid) TO store;
-GRANT EXECUTE ON FUNCTION hold_inventory(uuid, uuid, integer, timestamptz, text) TO store;
+GRANT EXECUTE ON FUNCTION hold_inventory(uuid, uuid, integer, interval, text) TO store;
 GRANT EXECUTE ON FUNCTION consume_reservation(uuid) TO store;
 GRANT EXECUTE ON FUNCTION release_reservation(uuid) TO store;
 GRANT EXECUTE ON FUNCTION next_order_number() TO store;
@@ -4069,6 +4922,7 @@ GRANT INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO admin;
 REVOKE INSERT, UPDATE, DELETE ON
     inventory_movements, inventory_reservations, audit_events, store_credit_entries
     FROM admin;
+REVOKE INSERT, UPDATE, DELETE ON invoice_operations FROM admin;
 REVOKE INSERT, UPDATE, DELETE ON payments, refunds FROM admin;
 REVOKE INSERT, UPDATE, DELETE ON order_number_counters FROM admin;
 REVOKE UPDATE, DELETE, TRUNCATE ON invoice_document_lines FROM admin;
@@ -4141,6 +4995,7 @@ GRANT EXECUTE ON FUNCTION order_is_committed(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION order_amount_owed(uuid) TO admin;
 -- admin only: deciding a return is the back office's act, and the customer's own
 -- pages never state an amount.
+GRANT EXECUTE ON FUNCTION return_goods_refundable_amount(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION return_refundable_amount(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION order_is_settled(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION member_spend(uuid, integer, uuid) TO admin;
@@ -4156,6 +5011,1038 @@ BEGIN
         EXECUTE 'REVOKE ALL ON schema_migrations FROM admin';
     END IF;
 END
+$$;
+
+-- ============================================================================
+-- Invoice persistence doors
+--
+-- The admin role may ask ECPay to file a document, but it may not write tax
+-- history a column at a time.  Headers and their lines land in one call, and
+-- allowance claims can only follow their small pending -> issued/released state
+-- machine.  These doors constrain local authority; they do not pretend to prove
+-- the remote provider fact, which still requires provider lookup/reconciliation.
+-- ============================================================================
+
+-- The exact itemisation filed at ECPay, reconstructed from the immutable order
+-- snapshot.  Keeping this beside the persistence door lets that door reject a
+-- role caller who supplies a different tax story that merely has the same total.
+CREATE FUNCTION canonical_invoice_lines(p_order_id uuid)
+RETURNS TABLE(
+    description text,
+    quantity integer,
+    unit_price_cents bigint,
+    amount_cents bigint,
+    line_position integer
+)
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp AS $$
+    WITH header AS (
+        SELECT o.discount_cents::numeric AS discount,
+               o.shipping_cents::numeric AS shipping,
+               (coalesce(sum(ol.unit_price_cents::numeric * ol.quantity), 0)
+                - o.discount_cents + o.shipping_cents + o.tax_cents)::numeric AS total,
+               coalesce(sum(ol.unit_price_cents::numeric * ol.quantity), 0) AS subtotal
+        FROM orders o
+        LEFT JOIN order_lines ol ON ol.order_id = o.id
+        WHERE o.id = p_order_id
+        GROUP BY o.id
+    ), base AS (
+        SELECT (row_number() OVER (ORDER BY ol.position, ol.id) - 1)::integer AS pos,
+               left(ol.product_name || CASE
+                   WHEN coalesce(ol.variant_label, '') = '' THEN ''
+                   ELSE ' ' || ol.variant_label
+               END, 100) AS description,
+               ol.quantity,
+               (ol.unit_price_cents::numeric * ol.quantity) AS gross,
+               h.discount, h.subtotal, h.shipping, h.total
+        FROM order_lines ol CROSS JOIN header h
+        WHERE ol.order_id = p_order_id
+    ), shares AS (
+        SELECT b.*,
+               CASE
+                   WHEN discount <= 0 THEN 0::numeric
+                   WHEN discount >= subtotal THEN gross
+                   ELSE floor(gross * discount / subtotal)
+               END AS cut,
+               CASE
+                   WHEN discount > 0 AND discount < subtotal
+                       THEN gross * discount
+                            - floor(gross * discount / subtotal) * subtotal
+                   ELSE 0::numeric
+               END AS remainder
+        FROM base b
+    ), ranked AS (
+        SELECT s.*,
+               row_number() OVER (ORDER BY remainder DESC, pos)::numeric AS remainder_rank,
+               sum(cut) OVER () AS given_cut
+        FROM shares s
+    ), discounted AS (
+        SELECT r.*,
+               CASE
+                   WHEN discount >= subtotal THEN 0::numeric
+                   ELSE gross - cut - CASE
+                       WHEN remainder_rank <= discount - given_cut THEN 1
+                       ELSE 0
+                   END
+               END AS discounted_amount
+        FROM ranked r
+    ), snapped_items AS (
+        SELECT description, quantity,
+               (floor(discounted_amount / quantity / 100) * 100)::bigint
+                   AS unit_price_cents,
+               (floor(discounted_amount / quantity / 100) * 100 * quantity)::bigint
+                   AS amount_cents,
+               pos AS line_position
+        FROM discounted
+    ), shipping_line AS (
+        SELECT '運費'::text AS description, 1::integer AS quantity,
+               (floor(h.shipping / 100) * 100)::bigint AS unit_price_cents,
+               (floor(h.shipping / 100) * 100)::bigint AS amount_cents,
+               (SELECT count(*)::integer FROM base) AS line_position
+        FROM header h WHERE h.shipping > 0
+    ), before_adjustment AS (
+        SELECT * FROM snapped_items
+        UNION ALL
+        SELECT * FROM shipping_line
+    ), adjustment AS (
+        SELECT '折扣尾數調整'::text AS description, 1::integer AS quantity,
+               ((floor(h.total / 100) * 100)
+                - coalesce(sum(b.amount_cents), 0))::bigint AS unit_price_cents,
+               ((floor(h.total / 100) * 100)
+                - coalesce(sum(b.amount_cents), 0))::bigint AS amount_cents,
+               count(b.*)::integer AS line_position
+        FROM header h LEFT JOIN before_adjustment b ON true
+        GROUP BY h.total
+        HAVING (floor(h.total / 100) * 100) - coalesce(sum(b.amount_cents), 0) > 0
+    )
+    SELECT * FROM before_adjustment
+    UNION ALL
+    SELECT * FROM adjustment
+    ORDER BY line_position;
+$$;
+
+-- Checkout's payment trigger evaluates the canonical count as store, while the
+-- company snapshot CHECK evaluates the current MOF checksum as store.
+GRANT EXECUTE ON FUNCTION canonical_invoice_lines(uuid) TO store;
+GRANT EXECUTE ON FUNCTION valid_business_tax_id(text) TO store;
+
+-- The arrays supplied at settlement are provider evidence.  They must match the
+-- DB-derived snapshot one field at a time: matching only their sum lets a shared
+-- admin role forge tax itemisation while preserving the header total.
+CREATE FUNCTION invoice_operation_lines_match(
+    p_payload jsonb,
+    p_descriptions text[],
+    p_quantities integer[],
+    p_unit_price_cents bigint[],
+    p_amount_cents bigint[]
+) RETURNS boolean
+LANGUAGE plpgsql IMMUTABLE SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+    v_lines jsonb := p_payload -> 'lines';
+    v_count integer;
+    i integer;
+BEGIN
+    IF jsonb_typeof(v_lines) <> 'array' THEN RETURN false; END IF;
+    v_count := jsonb_array_length(v_lines);
+    IF v_count = 0 OR v_count > 999
+       OR cardinality(p_descriptions) IS DISTINCT FROM v_count
+       OR cardinality(p_quantities) IS DISTINCT FROM v_count
+       OR cardinality(p_unit_price_cents) IS DISTINCT FROM v_count
+       OR cardinality(p_amount_cents) IS DISTINCT FROM v_count THEN
+        RETURN false;
+    END IF;
+    FOR i IN 1..v_count LOOP
+        IF p_descriptions[i] IS DISTINCT FROM (v_lines -> (i - 1) ->> 'description')
+           OR p_quantities[i] IS DISTINCT FROM
+              ((v_lines -> (i - 1) ->> 'quantity')::integer)
+           OR p_unit_price_cents[i] IS DISTINCT FROM
+              ((v_lines -> (i - 1) ->> 'unit_price_cents')::bigint)
+           OR p_amount_cents[i] IS DISTINCT FROM
+              ((v_lines -> (i - 1) ->> 'amount_cents')::bigint) THEN
+            RETURN false;
+        END IF;
+    END LOOP;
+    RETURN true;
+END;
+$$;
+
+CREATE FUNCTION claim_invoice_issue(
+    p_order_number text,
+    p_actor_user_id uuid,
+    p_request_id text
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    v_order orders%ROWTYPE;
+    v_existing uuid;
+    v_attempt integer;
+    v_relate_number text;
+    v_amount bigint;
+    v_lines jsonb;
+    v_payload jsonb;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM users
+                   WHERE id = p_actor_user_id AND role IN ('staff', 'admin')) THEN
+        RAISE EXCEPTION 'invoice claim requires a durable staff actor'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_audit_actor';
+    END IF;
+    IF p_request_id IS NULL
+       OR p_request_id !~ '[^[:space:]]'
+       OR char_length(p_request_id) > 200 THEN
+        RAISE EXCEPTION 'invoice claim requires a bounded request id'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_audit_request';
+    END IF;
+
+    SELECT * INTO v_order FROM orders WHERE order_number = p_order_number FOR UPDATE;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'no order %', p_order_number
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_issue_order';
+    END IF;
+    SELECT id INTO v_existing FROM invoice_operations
+    WHERE order_id = v_order.id AND kind = 'issue'
+      AND status IN ('pending', 'attention')
+    ORDER BY created_at, id LIMIT 1;
+    IF FOUND THEN RETURN v_existing; END IF;
+    IF NOT order_is_committed(v_order.id) THEN
+        RAISE EXCEPTION 'only a committed order can be invoiced'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_issue_committed';
+    END IF;
+    IF EXISTS (SELECT 1 FROM invoice_documents
+               WHERE order_id = v_order.id AND kind = 'invoice' AND status = 'issued') THEN
+        RAISE EXCEPTION 'order already has a live invoice'
+            USING ERRCODE = 'unique_violation',
+                  CONSTRAINT = 'invoice_documents_one_active_invoice_per_order';
+    END IF;
+
+    -- Every prior provider request consumes its RelateNumber, including an
+    -- explicit provider rejection that produced no invoice document.
+    SELECT count(*)::integer INTO v_attempt FROM invoice_operations
+    WHERE order_id = v_order.id AND kind = 'issue';
+    v_relate_number := replace(v_order.order_number, '-', '') ||
+        CASE WHEN v_attempt = 0 THEN '' ELSE 'R' || v_attempt::text END;
+    IF v_relate_number !~ '^[A-Za-z0-9]{1,30}$' THEN
+        RAISE EXCEPTION 'order % cannot produce an ECPay RelateNumber',
+            v_order.order_number
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'invoice_issue_relate_number';
+    END IF;
+
+    SELECT (floor(((coalesce(sum(ol.unit_price_cents::numeric * ol.quantity), 0)
+                  - v_order.discount_cents + v_order.shipping_cents
+                  + v_order.tax_cents) / 100)) * 100)::bigint
+    INTO v_amount FROM order_lines ol WHERE ol.order_id = v_order.id;
+    SELECT jsonb_agg(jsonb_build_object(
+               'description', l.description, 'quantity', l.quantity,
+               'unit_price_cents', l.unit_price_cents,
+               'amount_cents', l.amount_cents)
+               ORDER BY l.line_position)
+    INTO v_lines FROM canonical_invoice_lines(v_order.id) l;
+    IF v_amount <= 0 OR v_lines IS NULL
+       OR jsonb_array_length(v_lines) > 999 THEN
+        RAISE EXCEPTION 'invoice request has no positive authoritative itemisation'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_issue_itemisation';
+    END IF;
+
+    SELECT jsonb_build_object(
+        'relate_number', v_relate_number,
+        'customer_name', ip.customer_name,
+        'email', ip.customer_email,
+        'preference', ip.invoice_type,
+        'carrier_code', coalesce(ip.carrier_code, ''),
+        'tax_id', coalesce(ip.tax_id, ''),
+        'amount_cents', v_amount,
+        'lines', v_lines)
+    INTO v_payload
+    FROM orders o
+    JOIN invoice_preferences ip ON ip.order_id = o.id
+    WHERE o.id = v_order.id;
+    IF v_payload IS NULL THEN
+        RAISE EXCEPTION 'invoice filing snapshot is missing for order %', v_order.id
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'invoice_issue_filing_snapshot';
+    END IF;
+
+    INSERT INTO invoice_operations
+        (order_id, kind, provider_key, amount_cents, request_payload,
+         actor_user_id, actor_id_snapshot, request_id)
+    VALUES
+        (v_order.id, 'issue', v_relate_number, v_amount, v_payload,
+         p_actor_user_id, p_actor_user_id, p_request_id)
+    RETURNING id INTO v_existing;
+    RETURN v_existing;
+END;
+$$;
+
+CREATE FUNCTION claim_invoice_allowance(
+    p_original_id uuid,
+    p_operation_id uuid,
+    p_actor_user_id uuid,
+    p_request_id text
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    v_original invoice_documents%ROWTYPE;
+    v_existing invoice_operations%ROWTYPE;
+    v_already numeric;
+    v_refunded numeric;
+    v_amount numeric;
+    v_payload jsonb;
+BEGIN
+    IF p_operation_id IS NULL
+       OR p_operation_id = '00000000-0000-0000-0000-000000000000'::uuid THEN
+        RAISE EXCEPTION 'allowance claim requires a non-zero operation id'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_allowance_operation';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM users
+                   WHERE id = p_actor_user_id AND role IN ('staff', 'admin')) THEN
+        RAISE EXCEPTION 'allowance claim requires a durable staff actor'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_audit_actor';
+    END IF;
+    IF p_request_id IS NULL
+       OR p_request_id !~ '[^[:space:]]'
+       OR char_length(p_request_id) > 200 THEN
+        RAISE EXCEPTION 'allowance claim requires a bounded request id'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_audit_request';
+    END IF;
+    PERFORM pg_advisory_xact_lock(hashtextextended(
+        p_operation_id::text, 390245294063994411::bigint));
+    SELECT * INTO v_existing FROM invoice_operations WHERE id = p_operation_id FOR UPDATE;
+    IF FOUND THEN
+        IF v_existing.kind <> 'allowance'
+           OR v_existing.target_document_id IS DISTINCT FROM p_original_id
+           OR v_existing.order_id IS DISTINCT FROM
+              (SELECT d.order_id FROM invoice_documents d WHERE d.id = p_original_id)
+           OR v_existing.actor_id_snapshot <> p_actor_user_id THEN
+            RAISE EXCEPTION 'allowance operation belongs to different facts or actor'
+                USING ERRCODE = 'check_violation',
+                      CONSTRAINT = 'invoice_allowance_claim_attribution';
+        END IF;
+        RETURN v_existing.id;
+    END IF;
+
+    SELECT * INTO v_original FROM invoice_documents
+    WHERE id = p_original_id FOR UPDATE;
+    IF NOT FOUND OR v_original.kind <> 'invoice' OR v_original.status <> 'issued' THEN
+        RAISE EXCEPTION 'allowance original must be a live invoice'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_allowance_valid';
+    END IF;
+    IF EXISTS (SELECT 1 FROM invoice_operations
+               WHERE target_document_id = p_original_id AND kind = 'allowance'
+                 AND status IN ('pending', 'attention')) THEN
+        RAISE EXCEPTION 'an allowance for this invoice is already unresolved'
+            USING ERRCODE = 'unique_violation',
+                  CONSTRAINT = 'invoice_operations_one_active_allowance';
+    END IF;
+    SELECT coalesce(sum(amount_cents), 0) INTO v_already
+    FROM invoice_documents
+    WHERE original_id = p_original_id AND status <> 'voided';
+    SELECT (card_cents::numeric + credit_cents::numeric) INTO v_refunded
+    FROM order_refunds WHERE order_id = v_original.order_id;
+    -- ECPay files whole NT dollars. Derive the cumulative tax relief from
+    -- settled refunds, cap it at the rounded original invoice, then subtract
+    -- documents already filed. A later refund can expose another exact delta;
+    -- no browser or operator chooses any part of this amount.
+    v_amount := floor(least(
+        v_original.amount_cents::numeric,
+        coalesce(v_refunded, 0)
+    ) / 100) * 100 - v_already;
+    IF v_amount <= 0 THEN
+        RAISE EXCEPTION 'no authoritative whole-dollar refunded room remains'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'invoice_allowance_within_refund';
+    END IF;
+
+    SELECT jsonb_build_object(
+        'invoice_number', v_original.number,
+        'invoice_date', to_char(v_original.issued_at AT TIME ZONE 'UTC', 'YYYY-MM-DD'),
+        'customer_name', ip.customer_name,
+        'email', ip.customer_email,
+        'amount_cents', v_amount,
+        'lines', jsonb_build_array(jsonb_build_object(
+            'description', '退貨折讓', 'quantity', 1,
+            'unit_price_cents', v_amount, 'amount_cents', v_amount)))
+    INTO v_payload
+    FROM orders o JOIN invoice_preferences ip ON ip.order_id = o.id
+    WHERE o.id = v_original.order_id;
+    IF v_payload IS NULL THEN
+        RAISE EXCEPTION 'invoice filing snapshot is missing for order %', v_original.order_id
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'invoice_allowance_filing_snapshot';
+    END IF;
+
+    INSERT INTO invoice_operations
+        (id, order_id, kind, target_document_id, provider_key, amount_cents,
+         request_payload, actor_user_id, actor_id_snapshot, request_id)
+    VALUES
+        (p_operation_id, v_original.order_id, 'allowance', p_original_id,
+         v_original.number, v_amount, v_payload,
+         p_actor_user_id, p_actor_user_id, p_request_id);
+    RETURN p_operation_id;
+END;
+$$;
+
+CREATE FUNCTION claim_invoice_void(
+    p_document_id uuid,
+    p_reason text,
+    p_actor_user_id uuid,
+    p_request_id text
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    v_document invoice_documents%ROWTYPE;
+    v_existing uuid;
+    v_lines jsonb;
+    v_relate_number text;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM users
+                   WHERE id = p_actor_user_id AND role IN ('staff', 'admin')) THEN
+        RAISE EXCEPTION 'void claim requires a durable staff actor'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_audit_actor';
+    END IF;
+    IF p_request_id IS NULL
+       OR p_request_id !~ '[^[:space:]]'
+       OR char_length(p_request_id) > 200 THEN
+        RAISE EXCEPTION 'void claim requires a bounded request id'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_audit_request';
+    END IF;
+    IF btrim(coalesce(p_reason, '')) = '' THEN
+        RAISE EXCEPTION 'voiding an invoice requires a reason'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_void_reason';
+    END IF;
+
+    SELECT * INTO v_document FROM invoice_documents WHERE id = p_document_id FOR UPDATE;
+    IF NOT FOUND OR v_document.kind <> 'invoice' THEN
+        RAISE EXCEPTION 'void target is not an invoice'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_void_target';
+    END IF;
+    SELECT id INTO v_existing FROM invoice_operations
+    WHERE target_document_id = p_document_id AND kind = 'void'
+      AND status IN ('pending', 'attention')
+    ORDER BY created_at, id LIMIT 1;
+    IF FOUND THEN RETURN v_existing; END IF;
+    IF v_document.status <> 'issued' THEN
+        RAISE EXCEPTION 'invoice is already voided'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_void_target';
+    END IF;
+    SELECT jsonb_agg(jsonb_build_object(
+               'description', l.description, 'quantity', l.quantity,
+               'unit_price_cents', l.unit_price_cents,
+               'amount_cents', l.amount_cents)
+               ORDER BY l.position)
+    INTO v_lines FROM invoice_document_lines l WHERE l.document_id = p_document_id;
+    SELECT provider_key INTO v_relate_number FROM invoice_operations
+    WHERE kind = 'issue' AND status = 'succeeded'
+      AND result_document_id = p_document_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'invoice has no durable Issue identity'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'invoice_void_issue_operation';
+    END IF;
+
+    INSERT INTO invoice_operations
+        (order_id, kind, target_document_id, provider_key, amount_cents,
+         request_payload, actor_user_id, actor_id_snapshot, request_id)
+    VALUES
+        (v_document.order_id, 'void', p_document_id, v_document.number,
+         v_document.amount_cents,
+         jsonb_build_object(
+             'invoice_number', v_document.number,
+             'relate_number', v_relate_number,
+             'invoice_date', to_char(v_document.issued_at AT TIME ZONE 'UTC', 'YYYY-MM-DD'),
+             'random_number', coalesce(v_document.provider_ref, ''),
+             'reason', left(btrim(p_reason), 20),
+             'amount_cents', v_document.amount_cents,
+             'lines', coalesce(v_lines, '[]'::jsonb)),
+         p_actor_user_id, p_actor_user_id, p_request_id)
+    RETURNING id INTO v_existing;
+    RETURN v_existing;
+END;
+$$;
+
+-- A DB-clock lease is shared by request handlers and every process running the
+-- background reconciler.  uuid.Nil means "oldest eligible operation" and a
+-- uuid.Nil result means another worker owns it or there is no work.
+CREATE FUNCTION lease_invoice_operation(
+    p_operation_id uuid,
+    p_owner uuid,
+    p_lease_for interval
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    v_id uuid;
+BEGIN
+    IF p_operation_id IS NULL
+       OR p_owner IS NULL
+       OR p_owner = '00000000-0000-0000-0000-000000000000'::uuid
+       OR p_lease_for IS NULL
+       OR p_lease_for <= interval '0'
+       OR p_lease_for > interval '10 minutes' THEN
+        RAISE EXCEPTION 'invoice operation lease is invalid'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_operation_lease';
+    END IF;
+    SELECT id INTO v_id FROM invoice_operations
+    WHERE status = 'pending' AND available_at <= now()
+      AND (lease_until IS NULL OR lease_until <= now())
+      AND (p_operation_id = '00000000-0000-0000-0000-000000000000'::uuid
+           OR id = p_operation_id)
+    ORDER BY available_at, created_at, id
+    FOR UPDATE SKIP LOCKED LIMIT 1;
+    IF NOT FOUND THEN RETURN '00000000-0000-0000-0000-000000000000'::uuid; END IF;
+    UPDATE invoice_operations
+    SET lease_owner = p_owner, lease_until = now() + p_lease_for,
+        reconcile_attempts = reconcile_attempts + 1, updated_at = now()
+    WHERE id = v_id;
+    RETURN v_id;
+END;
+$$;
+
+CREATE FUNCTION mark_invoice_operation_sent(p_id uuid, p_owner uuid) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+    UPDATE invoice_operations
+    SET send_attempts = send_attempts + 1, last_send_at = now(), updated_at = now()
+    WHERE id = p_id AND status = 'pending' AND lease_owner = p_owner
+      AND lease_until > now()
+      -- Issue is keyed by a provider-safe RelateNumber and Void is an exact
+      -- document operation. Allowance has no idempotency key: after its first
+      -- send, SQL itself requires one fresh audited authorization per resend.
+      AND (kind <> 'allowance' OR send_attempts <= resend_authorizations);
+    RETURN FOUND;
+END;
+$$;
+
+-- ECPay's Allowance API has neither an idempotency key nor a query by our own
+-- request identity. An empty list after a marked send can be propagation lag or
+-- a request that never reached ECPay, so the worker must not guess. Only after a
+-- staff member independently checks ECPay, waits out the ordinary propagation
+-- window, and confirms the allowance is absent may exactly one new send occur.
+CREATE FUNCTION authorize_invoice_allowance_resend(
+    p_operation_id uuid,
+    p_actor_user_id uuid,
+    p_request_id text
+) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    v_before integer;
+    v_after integer;
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM users
+                   WHERE id = p_actor_user_id AND role IN ('staff', 'admin')) THEN
+        RAISE EXCEPTION 'allowance resend authorization requires a durable staff actor'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'invoice_allowance_resend_actor';
+    END IF;
+    IF p_request_id IS NULL
+       OR p_request_id !~ '[^[:space:]]'
+       OR char_length(p_request_id) > 200 THEN
+        RAISE EXCEPTION 'allowance resend authorization requires a bounded request id'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'invoice_allowance_resend_request';
+    END IF;
+
+    SELECT resend_authorizations INTO v_before
+    FROM invoice_operations
+    WHERE id = p_operation_id
+      AND kind = 'allowance'
+      AND status = 'pending'
+      AND send_attempts > resend_authorizations
+      AND last_error = 'allowance_not_yet_visible'
+      AND last_send_at IS NOT NULL
+      AND last_send_at <= now() - interval '15 minutes'
+      AND (lease_until IS NULL OR lease_until <= now())
+    FOR UPDATE;
+    IF NOT FOUND THEN RETURN false; END IF;
+
+    v_after := v_before + 1;
+    UPDATE invoice_operations
+    SET resend_authorizations = v_after,
+        last_error = 'allowance_resend_authorized',
+        available_at = now(),
+        lease_owner = NULL,
+        lease_until = NULL,
+        updated_at = now()
+    WHERE id = p_operation_id;
+
+    INSERT INTO audit_events
+        (actor_user_id, actor_id_snapshot, action, entity_table, entity_id,
+         before, after, request_id)
+    VALUES
+        (p_actor_user_id, p_actor_user_id,
+         'invoice.allowance_resend_authorized', 'invoice_operations', p_operation_id,
+         jsonb_build_object('resend_authorizations', v_before),
+         jsonb_build_object('resend_authorizations', v_after), p_request_id);
+    RETURN true;
+END;
+$$;
+
+CREATE FUNCTION reschedule_invoice_operation(
+    p_id uuid, p_owner uuid, p_error text, p_backoff interval
+) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+    IF p_backoff IS NULL
+       OR p_backoff < interval '0'
+       OR p_backoff > interval '1 day' THEN
+        RAISE EXCEPTION 'invoice reconciliation backoff is invalid'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_operation_backoff';
+    END IF;
+    UPDATE invoice_operations
+    SET last_error = left(nullif(p_error, ''), 2000), available_at = now() + p_backoff,
+        lease_owner = NULL, lease_until = NULL, updated_at = now()
+    WHERE id = p_id AND status = 'pending' AND lease_owner = p_owner;
+    RETURN FOUND;
+END;
+$$;
+
+-- GetAllowanceList can authoritatively report that an allowance which was
+-- previously settled here is now invalid. Only a different, still-unsent
+-- allowance operation may absorb that provider-status change: once its send
+-- stamp exists, changing its amount would make an ambiguous remote effect
+-- impossible to identify safely.
+--
+-- The provider facts are repeated at this door even though the Go reconciler
+-- already compared them. This keeps a stale read or a caller using the shared
+-- admin role from voiding tax history after any header/line fact changed. The
+-- document rows themselves are immutable, but status can move one way to
+-- voided, so both the operation and document are locked in the same transaction.
+CREATE FUNCTION reconcile_invalid_invoice_allowance(
+    p_operation_id uuid,
+    p_owner uuid,
+    p_document_id uuid,
+    p_invoice_number text,
+    p_allowance_number text,
+    p_issued_at timestamptz,
+    p_amount_cents bigint,
+    p_descriptions text[],
+    p_quantities integer[],
+    p_unit_price_cents bigint[],
+    p_line_amount_cents bigint[]
+) RETURNS bigint
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    v_operation invoice_operations%ROWTYPE;
+    v_original invoice_documents%ROWTYPE;
+    v_document invoice_documents%ROWTYPE;
+    v_local_lines jsonb;
+    v_already numeric;
+    v_refunded numeric;
+    v_amount bigint;
+    v_order_number text;
+BEGIN
+    SELECT * INTO v_operation FROM invoice_operations
+    WHERE id = p_operation_id AND kind = 'allowance' AND status = 'pending'
+      AND send_attempts = 0 AND lease_owner = p_owner AND lease_until > now()
+    FOR UPDATE;
+    IF NOT FOUND THEN RETURN 0; END IF;
+
+    SELECT * INTO v_original FROM invoice_documents
+    WHERE id = v_operation.target_document_id FOR UPDATE;
+    IF NOT FOUND OR v_original.kind <> 'invoice' OR v_original.status <> 'issued'
+       OR v_original.order_id <> v_operation.order_id
+       OR v_original.number <> v_operation.provider_key
+       OR v_original.number <> p_invoice_number THEN
+        RAISE EXCEPTION 'allowance invalidation has a different original invoice'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'invoice_allowance_invalidation_original';
+    END IF;
+
+    SELECT * INTO v_document FROM invoice_documents
+    WHERE id = p_document_id FOR UPDATE;
+    IF NOT FOUND OR v_document.kind <> 'allowance'
+       OR v_document.original_id IS DISTINCT FROM v_original.id
+       OR v_document.order_id <> v_operation.order_id
+       OR v_document.status <> 'issued'
+       OR v_document.number <> p_allowance_number
+       OR v_document.amount_cents <> p_amount_cents
+       OR v_document.issued_at <> p_issued_at THEN
+        RAISE EXCEPTION 'provider invalidation differs from the issued allowance header'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'invoice_allowance_invalidation_header';
+    END IF;
+
+    SELECT coalesce(jsonb_agg(jsonb_build_object(
+               'description', l.description, 'quantity', l.quantity,
+               'unit_price_cents', l.unit_price_cents,
+               'amount_cents', l.amount_cents)
+               ORDER BY l.position), '[]'::jsonb)
+    INTO v_local_lines
+    FROM invoice_document_lines l
+    WHERE l.document_id = v_document.id AND l.tax_type = 'taxable';
+    IF NOT invoice_operation_lines_match(
+            jsonb_build_object('lines', v_local_lines),
+            p_descriptions, p_quantities, p_unit_price_cents,
+            p_line_amount_cents)
+       OR EXISTS (SELECT 1 FROM invoice_document_lines
+                  WHERE document_id = v_document.id AND tax_type <> 'taxable') THEN
+        RAISE EXCEPTION 'provider invalidation differs from the issued allowance lines'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'invoice_allowance_invalidation_lines';
+    END IF;
+
+    UPDATE invoice_documents
+    SET status = 'voided', voided_at = now()
+    WHERE id = v_document.id;
+
+    SELECT coalesce(sum(amount_cents), 0) INTO v_already
+    FROM invoice_documents
+    WHERE original_id = v_original.id AND status <> 'voided';
+    SELECT (card_cents::numeric + credit_cents::numeric) INTO v_refunded
+    FROM order_refunds WHERE order_id = v_operation.order_id;
+    v_amount := (floor(least(
+        v_original.amount_cents::numeric,
+        coalesce(v_refunded, 0)
+    ) / 100) * 100 - v_already)::bigint;
+    IF v_amount <= 0 THEN
+        RAISE EXCEPTION 'provider invalidation left no authoritative replacement amount'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'invoice_allowance_invalidation_amount';
+    END IF;
+
+    SELECT order_number INTO v_order_number
+    FROM orders WHERE id = v_operation.order_id;
+    INSERT INTO audit_events
+        (actor_user_id, actor_id_snapshot, action, entity_table, entity_id,
+         before, after, request_id)
+    VALUES
+        (v_operation.actor_user_id, v_operation.actor_id_snapshot,
+         'invoice.allowance_provider_invalid', 'invoice_documents', v_document.id,
+         jsonb_build_object(
+             'order', v_order_number, 'allowance', v_document.number,
+             'status', 'issued', 'amount_cents', v_document.amount_cents),
+         jsonb_build_object(
+             'order', v_order_number, 'allowance', v_document.number,
+             'status', 'voided', 'provider_status', 'invalid',
+             'replacement_operation', v_operation.id,
+             'refrozen_amount_cents', v_amount),
+         v_operation.request_id);
+
+    UPDATE invoice_operations
+    SET amount_cents = v_amount,
+        request_payload = jsonb_set(
+            jsonb_set(request_payload, '{amount_cents}', to_jsonb(v_amount)),
+            '{lines}', jsonb_build_array(jsonb_build_object(
+                'description', '退貨折讓', 'quantity', 1,
+                'unit_price_cents', v_amount, 'amount_cents', v_amount))),
+        last_error = 'allowance_provider_invalid_refrozen',
+        available_at = now(), lease_owner = NULL, lease_until = NULL,
+        updated_at = now()
+    WHERE id = v_operation.id;
+    RETURN v_amount;
+END;
+$$;
+
+-- The other invalid-provider state has no local document yet: ECPay accepted a
+-- stamped Allowance, this process lost the success before settlement, and the
+-- provider document was later invalidated. It is unsafe either to discard that
+-- history or to settle it as active. Record the exact frozen provider document
+-- already voided, then reject this operation so a newly attributed claim can
+-- derive and file the amount which remains unrelieved.
+CREATE FUNCTION record_invalid_invoice_allowance(
+    p_operation_id uuid,
+    p_owner uuid,
+    p_invoice_number text,
+    p_allowance_number text,
+    p_issued_at timestamptz,
+    p_amount_cents bigint,
+    p_descriptions text[],
+    p_quantities integer[],
+    p_unit_price_cents bigint[],
+    p_line_amount_cents bigint[]
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    v_operation invoice_operations%ROWTYPE;
+    v_original invoice_documents%ROWTYPE;
+    v_document_id uuid;
+    v_order_number text;
+    i integer;
+BEGIN
+    SELECT * INTO v_operation FROM invoice_operations
+    WHERE id = p_operation_id AND kind = 'allowance' AND status = 'pending'
+      AND send_attempts > 0 AND last_send_at IS NOT NULL
+      AND lease_owner = p_owner AND lease_until > now()
+    FOR UPDATE;
+    IF NOT FOUND THEN RETURN '00000000-0000-0000-0000-000000000000'::uuid; END IF;
+
+    SELECT * INTO v_original FROM invoice_documents
+    WHERE id = v_operation.target_document_id FOR UPDATE;
+    IF NOT FOUND OR v_original.kind <> 'invoice' OR v_original.status <> 'issued'
+       OR v_original.order_id <> v_operation.order_id
+       OR v_original.number <> v_operation.provider_key
+       OR v_original.number <> p_invoice_number THEN
+        RAISE EXCEPTION 'invalid provider allowance has a different original invoice'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'invoice_allowance_invalidation_original';
+    END IF;
+    IF p_allowance_number !~ '^[0-9]{16}$' OR p_issued_at IS NULL
+       OR p_amount_cents <> v_operation.amount_cents THEN
+        RAISE EXCEPTION 'invalid provider allowance differs from the frozen header'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'invoice_allowance_invalidation_header';
+    END IF;
+    IF NOT invoice_operation_lines_match(
+            v_operation.request_payload, p_descriptions, p_quantities,
+            p_unit_price_cents, p_line_amount_cents) THEN
+        RAISE EXCEPTION 'invalid provider allowance differs from the frozen lines'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'invoice_allowance_invalidation_lines';
+    END IF;
+
+    INSERT INTO invoice_documents
+        (order_id, kind, original_id, number, amount_cents, status,
+         request_key, issued_at, voided_at)
+    VALUES
+        (v_operation.order_id, 'allowance', v_operation.target_document_id,
+         p_allowance_number, v_operation.amount_cents, 'voided',
+         'allowance:' || v_operation.id::text, p_issued_at, now())
+    RETURNING id INTO v_document_id;
+    FOR i IN 1..cardinality(p_descriptions) LOOP
+        INSERT INTO invoice_document_lines
+            (document_id, description, quantity, unit_price_cents,
+             amount_cents, tax_type, position)
+        VALUES
+            (v_document_id, p_descriptions[i], p_quantities[i],
+             p_unit_price_cents[i], p_line_amount_cents[i], 'taxable', i - 1);
+    END LOOP;
+
+    SELECT order_number INTO v_order_number
+    FROM orders WHERE id = v_operation.order_id;
+    INSERT INTO audit_events
+        (actor_user_id, actor_id_snapshot, action, entity_table, entity_id,
+         before, after, request_id)
+    VALUES
+        (v_operation.actor_user_id, v_operation.actor_id_snapshot,
+         'invoice.allowance_provider_invalid', 'invoice_documents', v_document_id,
+         NULL,
+         jsonb_build_object(
+             'order', v_order_number, 'allowance', p_allowance_number,
+             'status', 'voided', 'provider_status', 'invalid',
+             'amount_cents', v_operation.amount_cents,
+             'operation', v_operation.id),
+         v_operation.request_id);
+    UPDATE invoice_operations
+    SET status = 'rejected', result_document_id = NULL,
+        request_payload = request_payload - 'customer_name' - 'email',
+        last_error = 'allowance_provider_invalid',
+        lease_owner = NULL, lease_until = NULL, updated_at = now()
+    WHERE id = v_operation.id;
+    RETURN v_document_id;
+END;
+$$;
+
+CREATE FUNCTION alarm_invoice_operation(p_id uuid, p_owner uuid, p_error text) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+    UPDATE invoice_operations
+    SET status = 'attention', last_error = left(nullif(p_error, ''), 2000),
+        lease_owner = NULL, lease_until = NULL, updated_at = now()
+    WHERE id = p_id AND status = 'pending' AND lease_owner = p_owner;
+    RETURN FOUND;
+END;
+$$;
+
+CREATE FUNCTION reject_invoice_operation(p_id uuid, p_owner uuid, p_error text) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+    UPDATE invoice_operations
+    SET status = 'rejected', last_error = left(nullif(p_error, ''), 2000),
+        request_payload = request_payload - 'customer_name' - 'email',
+        lease_owner = NULL, lease_until = NULL, updated_at = now()
+    WHERE id = p_id AND status = 'pending' AND lease_owner = p_owner;
+    RETURN FOUND;
+END;
+$$;
+
+-- Settlement may finish after the filing employee has been erased. Derive both
+-- forms of attribution from the durable operation: the live FK is nullable, but
+-- the UUID snapshot and request identity cannot be supplied by a reconciler.
+-- This helper is deliberately ungranted; the final privilege sweep also removes
+-- PUBLIC EXECUTE, and only the three settlement doors below call it.
+CREATE FUNCTION record_invoice_operation_audit(
+    p_operation_id uuid,
+    p_entity_id uuid,
+    p_after jsonb
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    v_operation invoice_operations%ROWTYPE;
+    v_audit_id uuid;
+BEGIN
+    SELECT * INTO v_operation
+    FROM invoice_operations
+    WHERE id = p_operation_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'no invoice operation % to audit', p_operation_id
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'invoice_audit_operation';
+    END IF;
+
+    INSERT INTO audit_events
+        (actor_user_id, actor_id_snapshot, action, entity_table, entity_id,
+         before, after, request_id)
+    VALUES
+        (v_operation.actor_user_id, v_operation.actor_id_snapshot,
+         'invoice.' || v_operation.kind, 'invoice_documents', p_entity_id,
+         NULL, p_after, v_operation.request_id)
+    RETURNING id INTO v_audit_id;
+    RETURN v_audit_id;
+END;
+$$;
+
+CREATE FUNCTION settle_invoice_issue(
+    p_operation_id uuid,
+    p_owner uuid,
+    p_number text,
+    p_random_number text,
+    p_issued_at timestamptz,
+    p_descriptions text[],
+    p_quantities integer[],
+    p_unit_price_cents bigint[],
+    p_amount_cents bigint[]
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    v_operation invoice_operations%ROWTYPE;
+    v_document_id uuid;
+    v_order_number text;
+    i integer;
+BEGIN
+    SELECT * INTO v_operation FROM invoice_operations
+    WHERE id = p_operation_id AND kind = 'issue' AND status = 'pending'
+      AND lease_owner = p_owner AND lease_until > now() FOR UPDATE;
+    IF NOT FOUND THEN RETURN '00000000-0000-0000-0000-000000000000'::uuid; END IF;
+    IF p_number !~ '^[A-Z]{2}[0-9]{8}$' OR p_random_number !~ '^[0-9]{4}$'
+       OR p_issued_at IS NULL THEN
+        RAISE EXCEPTION 'provider invoice identity is malformed'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_issue_provider_identity';
+    END IF;
+    IF NOT invoice_operation_lines_match(v_operation.request_payload,
+            p_descriptions, p_quantities, p_unit_price_cents, p_amount_cents) THEN
+        RAISE EXCEPTION 'invoice lines differ from the frozen authoritative request'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_lines_authoritative';
+    END IF;
+
+    INSERT INTO invoice_documents
+        (order_id, kind, number, amount_cents, provider_ref, issued_at)
+    VALUES
+        (v_operation.order_id, 'invoice', p_number, v_operation.amount_cents,
+         p_random_number, p_issued_at)
+    RETURNING id INTO v_document_id;
+    FOR i IN 1..cardinality(p_descriptions) LOOP
+        INSERT INTO invoice_document_lines
+            (document_id, description, quantity, unit_price_cents,
+             amount_cents, tax_type, position)
+        VALUES
+            (v_document_id, p_descriptions[i], p_quantities[i],
+             p_unit_price_cents[i], p_amount_cents[i], 'taxable', i - 1);
+    END LOOP;
+    SELECT order_number INTO v_order_number FROM orders WHERE id = v_operation.order_id;
+    PERFORM record_invoice_operation_audit(
+        v_operation.id, v_document_id,
+        jsonb_build_object('order', v_order_number, 'invoice', p_number,
+                           'operation', v_operation.id));
+    UPDATE invoice_operations
+    SET status = 'succeeded', result_document_id = v_document_id,
+        request_payload = request_payload - 'customer_name' - 'email',
+        completed_at = now(), last_error = NULL,
+        lease_owner = NULL, lease_until = NULL, updated_at = now()
+    WHERE id = v_operation.id;
+    RETURN v_document_id;
+END;
+$$;
+
+CREATE FUNCTION settle_invoice_allowance(
+    p_operation_id uuid,
+    p_owner uuid,
+    p_number text,
+    p_issued_at timestamptz,
+    p_descriptions text[],
+    p_quantities integer[],
+    p_unit_price_cents bigint[],
+    p_amount_cents bigint[]
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    v_operation invoice_operations%ROWTYPE;
+    v_document_id uuid;
+    v_order_number text;
+BEGIN
+    SELECT * INTO v_operation FROM invoice_operations
+    WHERE id = p_operation_id AND kind = 'allowance' AND status = 'pending'
+      AND lease_owner = p_owner AND lease_until > now() FOR UPDATE;
+    IF NOT FOUND THEN RETURN '00000000-0000-0000-0000-000000000000'::uuid; END IF;
+    IF p_number !~ '^[0-9]{16}$' OR p_issued_at IS NULL THEN
+        RAISE EXCEPTION 'provider allowance identity is malformed'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_allowance_provider_identity';
+    END IF;
+    IF NOT invoice_operation_lines_match(v_operation.request_payload,
+            p_descriptions, p_quantities, p_unit_price_cents, p_amount_cents) THEN
+        RAISE EXCEPTION 'allowance line differs from the frozen claimed amount'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'invoice_allowance_line_authoritative';
+    END IF;
+
+    INSERT INTO invoice_documents
+        (order_id, kind, original_id, number, amount_cents, request_key, issued_at)
+    VALUES
+        (v_operation.order_id, 'allowance', v_operation.target_document_id,
+         p_number, v_operation.amount_cents,
+         'allowance:' || v_operation.id::text, p_issued_at)
+    RETURNING id INTO v_document_id;
+    INSERT INTO invoice_document_lines
+        (document_id, description, quantity, unit_price_cents,
+         amount_cents, tax_type, position)
+    VALUES
+        (v_document_id, p_descriptions[1], p_quantities[1],
+         p_unit_price_cents[1], p_amount_cents[1], 'taxable', 0);
+    SELECT order_number INTO v_order_number FROM orders WHERE id = v_operation.order_id;
+    PERFORM record_invoice_operation_audit(
+        v_operation.id, v_document_id,
+        jsonb_build_object('order', v_order_number, 'allowance', p_number,
+                           'amount_cents', v_operation.amount_cents,
+                           'operation', v_operation.id));
+    UPDATE invoice_operations
+    SET status = 'succeeded', result_document_id = v_document_id,
+        request_payload = request_payload - 'customer_name' - 'email',
+        completed_at = now(), last_error = NULL,
+        lease_owner = NULL, lease_until = NULL, updated_at = now()
+    WHERE id = v_operation.id;
+    RETURN v_document_id;
+END;
+$$;
+
+CREATE FUNCTION settle_invoice_void(p_operation_id uuid, p_owner uuid) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    v_operation invoice_operations%ROWTYPE;
+    v_number text;
+    v_order_number text;
+BEGIN
+    SELECT * INTO v_operation FROM invoice_operations
+    WHERE id = p_operation_id AND kind = 'void' AND status = 'pending'
+      AND lease_owner = p_owner AND lease_until > now() FOR UPDATE;
+    IF NOT FOUND THEN RETURN '00000000-0000-0000-0000-000000000000'::uuid; END IF;
+    UPDATE invoice_documents SET status = 'voided', voided_at = now()
+    WHERE id = v_operation.target_document_id AND kind = 'invoice' AND status = 'issued'
+    RETURNING number INTO v_number;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'void operation target is no longer a live invoice'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_void_target';
+    END IF;
+    SELECT order_number INTO v_order_number FROM orders WHERE id = v_operation.order_id;
+    PERFORM record_invoice_operation_audit(
+        v_operation.id, v_operation.target_document_id,
+        jsonb_build_object('order', v_order_number, 'invoice', v_number,
+                           'reason', v_operation.request_payload ->> 'reason',
+                           'operation', v_operation.id));
+    UPDATE invoice_operations
+    SET status = 'succeeded', result_document_id = v_operation.target_document_id,
+        request_payload = request_payload - 'customer_name' - 'email',
+        completed_at = now(), last_error = NULL,
+        lease_owner = NULL, lease_until = NULL, updated_at = now()
+    WHERE id = v_operation.id;
+    RETURN v_operation.target_document_id;
+END;
 $$;
 
 -- ============================================================================
@@ -4691,8 +6578,10 @@ BEGIN
 END;
 $$;
 
--- Post a store-credit entry: store holds no INSERT, so this is the door.
--- store_credit_never_negative takes the account row FOR UPDATE before it reads.
+-- The shared ledger primitive is intentionally ungranted.  Role-callable doors
+-- below own the sign, attribution and durable object that justify a posting;
+-- otherwise one broad SECURITY DEFINER function is a mint for `store` and an
+-- unaudited debit facility for `admin`.
 CREATE FUNCTION post_store_credit(
     p_user_id uuid,
     p_amount_cents bigint,
@@ -4705,26 +6594,229 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
     account_id uuid;
     entry_id uuid;
+    existing store_credit_entries%ROWTYPE;
 BEGIN
     -- An account is created on first use rather than at registration: most
     -- customers never have store credit.
-    SELECT id INTO account_id FROM store_credit_accounts WHERE user_id = p_user_id;
-    IF NOT FOUND THEN
-        INSERT INTO store_credit_accounts (user_id) VALUES (p_user_id)
-        RETURNING id INTO account_id;
-    END IF;
-
-    SELECT id INTO entry_id FROM store_credit_entries
-    WHERE idempotency_key = p_idempotency_key;
-    IF FOUND THEN
-        RETURN entry_id;
-    END IF;
+    INSERT INTO store_credit_accounts (user_id) VALUES (p_user_id)
+    ON CONFLICT (user_id) DO UPDATE SET user_id = excluded.user_id
+    RETURNING id INTO account_id;
 
     INSERT INTO store_credit_entries
         (account_id, amount_cents, reason, order_id, idempotency_key, actor_user_id)
     VALUES (account_id, p_amount_cents, p_reason, p_order_id, p_idempotency_key, p_actor_user_id)
+    ON CONFLICT (idempotency_key) DO NOTHING
     RETURNING id INTO entry_id;
+    IF entry_id IS NULL THEN
+        SELECT e.* INTO existing FROM store_credit_entries e
+        WHERE e.idempotency_key = p_idempotency_key;
+        IF existing.account_id <> account_id
+           OR existing.amount_cents <> p_amount_cents
+           OR existing.reason <> p_reason
+           OR existing.order_id IS DISTINCT FROM p_order_id
+           OR existing.actor_user_id IS DISTINCT FROM p_actor_user_id
+           OR existing.reverses_id IS NOT NULL THEN
+            RAISE EXCEPTION 'store credit key collides with another posting'
+                USING ERRCODE = 'check_violation',
+                      CONSTRAINT = 'store_credit_idempotency_attribution';
+        END IF;
+        entry_id := existing.id;
+    END IF;
     RETURN entry_id;
+END;
+$$;
+
+-- Checkout may only debit the account belonging to the still-open order.  The
+-- debit amount is chosen by the customer, but its sign, reason, key and actor
+-- are not caller-owned facts.
+CREATE FUNCTION spend_store_credit(
+    p_order_id uuid,
+    p_amount_cents bigint
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    v_owner uuid;
+    v_owed bigint;
+    v_existing store_credit_entries%ROWTYPE;
+BEGIN
+    IF p_amount_cents >= 0 OR p_amount_cents < -10000000000 THEN
+        RAISE EXCEPTION 'checkout credit must be a debit, got %', p_amount_cents
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'store_credit_checkout_debit';
+    END IF;
+    SELECT user_id INTO v_owner FROM orders
+    WHERE id = p_order_id AND fulfillment_status = 'pending'
+      AND NOT EXISTS (SELECT 1 FROM payments
+                      WHERE order_id = p_order_id AND status = 'succeeded')
+    FOR UPDATE;
+    IF NOT FOUND OR v_owner IS NULL THEN
+        RAISE EXCEPTION 'credit spend requires a customer-owned open unpaid order %', p_order_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'store_credit_checkout_owner';
+    END IF;
+
+    SELECT e.* INTO v_existing FROM store_credit_entries e
+    WHERE e.idempotency_key = 'order:' || p_order_id::text;
+    IF FOUND THEN
+        IF v_existing.order_id = p_order_id
+           AND v_existing.amount_cents = p_amount_cents
+           AND EXISTS (SELECT 1 FROM store_credit_accounts a
+                       WHERE a.id = v_existing.account_id AND a.user_id = v_owner) THEN
+            RETURN v_existing.id;
+        END IF;
+        RAISE EXCEPTION 'checkout credit key collides with another posting'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'store_credit_checkout_attribution';
+    END IF;
+
+    v_owed := order_amount_owed(p_order_id);
+    IF -p_amount_cents > v_owed THEN
+        RAISE EXCEPTION 'credit debit % exceeds order % room %',
+            -p_amount_cents, p_order_id, v_owed
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'store_credit_checkout_amount';
+    END IF;
+
+    -- Refuse an oversized fully credited checkout immediately, before it leaves
+    -- the customer with a paid order fulfilment cannot accept. The authoritative
+    -- pending-to-picking transition repeats this check; a partial debit is
+    -- checked later by the card-capture guard above.
+    IF -p_amount_cents = v_owed
+       AND (SELECT count(*) FROM canonical_invoice_lines(p_order_id)) > 999 THEN
+        RAISE EXCEPTION 'order % has more than 999 invoice items', p_order_id
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'invoice_issue_item_count';
+    END IF;
+
+    RETURN post_store_credit(v_owner, p_amount_cents, '訂單折抵',
+                             p_order_id, 'order:' || p_order_id::text, NULL);
+END;
+$$;
+
+-- A staff grant is always a bounded positive, orderless posting.  Requiring a
+-- durable staff/admin user prevents a caller from naming a customer as actor or
+-- leaving the append-only ledger unattributed.
+CREATE FUNCTION grant_store_credit(
+    p_user_id uuid,
+    p_amount_cents bigint,
+    p_reason text,
+    p_actor_user_id uuid,
+    p_operation_id uuid
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    v_key text;
+    v_existing store_credit_entries%ROWTYPE;
+	v_entry_id uuid;
+BEGIN
+    IF p_amount_cents <= 0 OR p_amount_cents > 10000000 THEN
+        RAISE EXCEPTION 'staff credit grant is outside its positive ceiling: %', p_amount_cents
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'store_credit_grant_amount';
+    END IF;
+    IF p_reason !~ '[^[:space:]]' OR char_length(p_reason) > 200 THEN
+        RAISE EXCEPTION 'staff credit grant reason must contain at most 200 characters'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'store_credit_grant_reason';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM users
+                   WHERE id = p_actor_user_id AND role IN ('staff', 'admin')) THEN
+        RAISE EXCEPTION 'credit grant requires a durable staff actor'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'store_credit_grant_actor';
+    END IF;
+	IF p_operation_id IS NULL
+	   OR p_operation_id = '00000000-0000-0000-0000-000000000000'::uuid THEN
+		RAISE EXCEPTION 'credit grant requires a non-zero operation id'
+			USING ERRCODE = 'check_violation', CONSTRAINT = 'store_credit_grant_operation';
+	END IF;
+
+	v_key := 'grant:' || p_operation_id::text;
+	-- One durable operation is one posting.  The lock makes a concurrent retry
+	-- observe the first insert before deciding whether an audit-worthy effect
+	-- happened, while a later operation with identical business values remains a
+	-- distinct grant under its own request identity.
+	PERFORM pg_advisory_xact_lock(hashtextextended(v_key, 744970110345955117::bigint));
+	SELECT e.* INTO v_existing FROM store_credit_entries e
+	WHERE e.idempotency_key = v_key;
+	IF FOUND THEN
+		IF v_existing.amount_cents <> p_amount_cents
+		   OR v_existing.reason <> p_reason
+		   OR v_existing.order_id IS NOT NULL
+		   OR v_existing.actor_user_id IS DISTINCT FROM p_actor_user_id
+		   OR NOT EXISTS (SELECT 1 FROM store_credit_accounts a
+		                  WHERE a.id = v_existing.account_id AND a.user_id = p_user_id) THEN
+			RAISE EXCEPTION 'credit grant operation key collides with another grant'
+				USING ERRCODE = 'check_violation',
+				      CONSTRAINT = 'store_credit_idempotency_attribution';
+		END IF;
+		-- A non-null sentinel keeps the sqlc contract a plain uuid: scanning SQL
+		-- NULL into google/uuid fails before Go can decide this was an exact retry.
+		RETURN '00000000-0000-0000-0000-000000000000'::uuid;
+	END IF;
+
+	v_entry_id := post_store_credit(p_user_id, p_amount_cents, p_reason, NULL,
+		v_key, p_actor_user_id);
+	RETURN v_entry_id;
+END;
+$$;
+
+-- Return compensation is tied to the approved return, its order and customer.
+-- It may only post the credit-funded remainder after card capacity, and the key
+-- is derived from that return rather than supplied by the role caller.
+CREATE FUNCTION compensate_return_with_credit(
+    p_return_request_id uuid,
+    p_amount_cents bigint,
+    p_actor_user_id uuid
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    v_expected bigint;
+    v_user_id uuid;
+    v_order_id uuid;
+BEGIN
+    -- Read the immutable relation, then lock the user before the order. Erasure
+    -- uses the same user -> orders order: either this payout lands and erasure
+    -- subsequently sees the still-open return, or erasure wins and no posting
+    -- can be made to an orphaned account.
+    SELECT o.user_id, o.id INTO v_user_id, v_order_id FROM orders o
+    JOIN return_requests r ON r.order_id = o.id
+    WHERE r.id = p_return_request_id AND r.status = 'approved'
+      AND o.user_id IS NOT NULL;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'return % is not an approved customer claim',
+            p_return_request_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'store_credit_return_owner';
+    END IF;
+    PERFORM 1 FROM users WHERE id = v_user_id FOR KEY SHARE;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'return % no longer has a live customer account',
+            p_return_request_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'store_credit_return_owner';
+    END IF;
+    PERFORM 1 FROM orders o
+    JOIN return_requests r ON r.order_id = o.id
+    WHERE r.id = p_return_request_id AND r.status = 'approved'
+      AND o.id = v_order_id AND o.user_id = v_user_id
+    FOR UPDATE OF o, r;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'return % is not an approved customer claim',
+            p_return_request_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'store_credit_return_owner';
+    END IF;
+    IF p_amount_cents <= 0 THEN
+        RAISE EXCEPTION 'return compensation must be a positive return posting'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'store_credit_return_amount';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM users
+                   WHERE id = p_actor_user_id AND role IN ('staff', 'admin')) THEN
+        RAISE EXCEPTION 'return compensation requires a durable staff actor'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'store_credit_return_actor';
+    END IF;
+
+    v_expected := return_store_credit_allocation(p_return_request_id);
+    IF p_amount_cents <> v_expected OR v_expected = 0 THEN
+        RAISE EXCEPTION 'return credit %, expected % for return %',
+            p_amount_cents, v_expected, p_return_request_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'store_credit_return_amount';
+    END IF;
+
+    RETURN post_store_credit(v_user_id, v_expected, '退貨退回購物金',
+        v_order_id, 'return-credit:' || p_return_request_id::text, p_actor_user_id);
 END;
 $$;
 
@@ -4785,8 +6877,8 @@ END;
 $$;
 
 COMMENT ON FUNCTION reverse_order_credit(uuid) IS
-    'Return store credit spent on an order that will not ship. Legal only while '
-    'the order is a pending unpaid checkout or has been cancelled — '
+    'Return store credit spent on an order that will not ship. Legal only after '
+    'the order has durably become cancelled — '
     'store_credit_guard enforces that, so calling this on a shipped order is '
     'refused rather than quietly paying twice.';
 
@@ -4803,12 +6895,12 @@ GRANT EXECUTE ON FUNCTION lock_user_for_checkout(uuid) TO store;
 GRANT EXECUTE ON FUNCTION release_payment_event(text) TO admin;
 GRANT EXECUTE ON FUNCTION attribute_complete_payment_paid(text) TO admin;
 GRANT EXECUTE ON FUNCTION release_complete_payment(text) TO admin;
-GRANT EXECUTE ON FUNCTION post_store_credit(uuid, bigint, text, uuid, text, uuid) TO store;
+GRANT EXECUTE ON FUNCTION spend_store_credit(uuid, bigint) TO store;
 GRANT EXECUTE ON FUNCTION lock_store_credit_for_checkout(uuid) TO store;
 -- A customer cancels their own unpaid order, so the storefront role needs this.
 GRANT EXECUTE ON FUNCTION reverse_order_credit(uuid) TO store;
-GRANT EXECUTE ON FUNCTION hold_inventory(uuid, uuid, integer, timestamptz, text) TO admin;
-GRANT EXECUTE ON FUNCTION post_store_credit(uuid, bigint, text, uuid, text, uuid) TO admin;
+GRANT EXECUTE ON FUNCTION grant_store_credit(uuid, bigint, text, uuid, uuid) TO admin;
+GRANT EXECUTE ON FUNCTION compensate_return_with_credit(uuid, bigint, uuid) TO admin;
 -- And the back office cancels on a customer's behalf.
 GRANT EXECUTE ON FUNCTION reverse_order_credit(uuid) TO admin;
 
@@ -4820,71 +6912,375 @@ GRANT EXECUTE ON FUNCTION shop_day(timestamptz) TO store, admin, reporting;
 GRANT EXECUTE ON FUNCTION shop_today() TO store, admin, reporting;
 
 
--- Refund posting. Two functions, not one, because the provider call sits between
--- them: the row is committed BEFORE Stripe is asked, so a crash between the
--- request and the response leaves something reconciliation can find.
-CREATE FUNCTION open_refund(
-    p_payment_id uuid,
-    p_request_key text,
-    p_amount_cents bigint,
-    p_reason text,
-    p_return_request_id uuid
+-- A provider refund is a two-commit state machine. This first door derives the
+-- frozen payment-source amount, generation, lineage, key and reason from the
+-- approved return. An ambiguous attempt reuses its own key; a known
+-- failed/cancelled attempt remains immutable and gets one successor. The claim
+-- and THIS call's staff attribution commit before any network call.
+CREATE FUNCTION claim_return_refund_execution(
+	p_return_request_id uuid,
+	p_actor uuid,
+	p_request_id text
 ) RETURNS uuid
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
-    refund_id uuid;
+	v_order_id uuid;
+	v_user_id uuid;
+	v_payment_id uuid;
+	v_reason text;
+	v_key text;
+	v_returnable bigint;
+	v_captured bigint;
+	v_card_amount bigint;
+	v_credit_amount bigint;
+	v_credit_posted bigint;
+	v_next_attempt integer;
+	v_existing refunds%ROWTYPE;
+	v_previous refunds%ROWTYPE;
 BEGIN
-    -- Idempotent on the caller's key: a retried approval finds its own row
-    -- rather than asking Stripe for a second refund.
-    SELECT id INTO refund_id FROM refunds WHERE request_key = p_request_key;
-    IF FOUND THEN
-        RETURN refund_id;
-    END IF;
+	IF NOT EXISTS (
+		SELECT 1 FROM users u
+		WHERE u.id = p_actor AND u.role IN ('staff', 'admin')
+	) THEN
+		RAISE EXCEPTION 'refund execution requires a durable staff actor'
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'refunds_execution_actor';
+	END IF;
+	IF p_request_id IS NULL
+	   OR p_request_id !~ '^[A-Za-z0-9-]{1,64}$' THEN
+		RAISE EXCEPTION 'refund execution requires a valid request id'
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'refunds_execution_request';
+	END IF;
 
-    INSERT INTO refunds (payment_id, return_request_id, request_key, status,
-                         amount_cents, reason)
-    VALUES (p_payment_id, p_return_request_id, p_request_key, 'pending',
-            p_amount_cents, p_reason)
-    RETURNING id INTO refund_id;
-    RETURN refund_id;
+	-- The return and order are the aggregate claim. Taking them before the
+	-- payment follows compensate_return_with_credit's order and serialises two
+	-- staff members retrying the same approved return.
+	SELECT r.order_id, o.user_id, nullif(r.resolution, ''),
+	       (r.goods_refund_cents + r.shipping_refund_cents)::bigint,
+	       r.card_refund_cents, r.credit_refund_cents
+	INTO v_order_id, v_user_id, v_reason, v_returnable,
+	     v_card_amount, v_credit_amount
+	FROM return_requests r
+	JOIN orders o ON o.id = r.order_id
+	WHERE r.id = p_return_request_id AND r.status = 'approved'
+	FOR UPDATE OF o, r;
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'return % is not approved', p_return_request_id
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'refunds_return_approved';
+	END IF;
+
+	IF v_card_amount + v_credit_amount <> v_returnable THEN
+		RAISE EXCEPTION 'return % does not fit its frozen payment sources',
+			p_return_request_id
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'refunds_sources_cover_return';
+	END IF;
+	SELECT coalesce(sum(sc.amount_cents), 0)::bigint
+	INTO v_credit_posted
+	FROM store_credit_entries sc
+	WHERE sc.idempotency_key = 'return-credit:' || p_return_request_id::text;
+	IF v_credit_posted NOT IN (0, v_credit_amount) THEN
+		RAISE EXCEPTION 'return % has credit posting %, expected %',
+			p_return_request_id, v_credit_posted, v_credit_amount
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'refunds_credit_attribution';
+	END IF;
+	-- Once the exact credit half is posted it no longer needs a live account. This
+	-- is what lets a known-failed card attempt get a successor after lawful account
+	-- erasure without trying to recreate or re-credit the erased customer.
+	IF v_credit_amount > 0 AND v_user_id IS NULL
+	   AND v_credit_posted <> v_credit_amount THEN
+		RAISE EXCEPTION 'return % still needs a live store-credit destination',
+			p_return_request_id
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'refunds_sources_cover_return';
+	END IF;
+	IF v_returnable <= 0 OR v_card_amount <= 0 THEN
+		RAISE EXCEPTION 'return % has no positive card amount', p_return_request_id
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'refunds_card_amount_positive';
+	END IF;
+
+	SELECT p.id, p.captured_amount_cents
+	INTO v_payment_id, v_captured
+	FROM payments p
+	WHERE p.order_id = v_order_id AND p.status = 'succeeded'
+	FOR UPDATE;
+	IF NOT FOUND OR v_captured IS NULL THEN
+		RAISE EXCEPTION 'return % has no captured card payment', p_return_request_id
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'refunds_return_captured';
+	END IF;
+	IF v_card_amount > v_captured THEN
+		RAISE EXCEPTION 'return % card source % exceeds capture %',
+			p_return_request_id, v_card_amount, v_captured
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'refunds_sources_cover_return';
+	END IF;
+
+	SELECT rf.* INTO v_existing
+	FROM refunds rf
+	WHERE rf.return_request_id = p_return_request_id
+	ORDER BY rf.attempt_no DESC
+	LIMIT 1
+	FOR UPDATE;
+	IF FOUND THEN
+		v_key := CASE v_existing.attempt_no
+			WHEN 1 THEN 'return:' || p_return_request_id::text
+			ELSE 'return:' || p_return_request_id::text
+			     || ':attempt:' || v_existing.attempt_no::text
+		END;
+		IF v_existing.payment_id <> v_payment_id
+		   OR v_existing.return_request_id IS DISTINCT FROM p_return_request_id
+		   OR v_existing.amount_cents <> v_card_amount
+		   OR v_existing.reason IS DISTINCT FROM v_reason
+		   OR v_existing.request_key <> v_key THEN
+			RAISE EXCEPTION 'refund key % collides with another attribution', v_key
+				USING ERRCODE = 'check_violation',
+				      CONSTRAINT = 'refunds_request_attribution';
+		END IF;
+		IF v_existing.status = 'succeeded' THEN
+			RAISE EXCEPTION 'refund % already succeeded', v_existing.id
+				USING ERRCODE = 'check_violation',
+				      CONSTRAINT = 'refunds_execution_settled';
+		ELSIF v_existing.status IN ('failed', 'cancelled') THEN
+			v_previous := v_existing;
+			v_next_attempt := v_previous.attempt_no + 1;
+			v_key := 'return:' || p_return_request_id::text
+			         || ':attempt:' || v_next_attempt::text;
+			INSERT INTO refunds (
+				payment_id, return_request_id, attempt_no, previous_refund_id,
+				request_key, status, amount_cents, reason
+			) VALUES (
+				v_payment_id, p_return_request_id, v_next_attempt, v_previous.id,
+				v_key, 'pending', v_card_amount, v_reason
+			)
+			RETURNING refunds.* INTO v_existing;
+		END IF;
+	ELSE
+		v_next_attempt := 1;
+		v_key := 'return:' || p_return_request_id::text;
+		INSERT INTO refunds (
+			payment_id, return_request_id, attempt_no, previous_refund_id,
+			request_key, status, amount_cents, reason
+		) VALUES (
+			v_payment_id, p_return_request_id, v_next_attempt, NULL,
+			v_key, 'pending', v_card_amount, v_reason
+		)
+		RETURNING refunds.* INTO v_existing;
+	END IF;
+
+	PERFORM record_audit_event(
+		p_actor, 'refund.provider_attempt', 'refunds', v_existing.id,
+		NULL,
+			jsonb_build_object(
+				'status', v_existing.status,
+				'request_key', v_existing.request_key,
+				'attempt_no', v_existing.attempt_no,
+				'previous_refund_id', v_existing.previous_refund_id,
+				'amount_cents', v_card_amount
+		),
+		p_request_id
+	);
+
+	RETURN v_existing.id;
 END;
 $$;
 
--- Record what the provider said. Only ever called with an answer in hand.
-CREATE FUNCTION settle_refund(
-    p_request_key text,
-    p_provider_ref text,
-    p_status text
-) RETURNS void
+-- Private transition engine. The final boolean distinguishes a provider object
+-- outcome from an explicit CREATE rejection; only the latter may be failed with
+-- no provider identity. It is deliberately not granted to an application role.
+CREATE FUNCTION apply_refund_provider_outcome(
+	p_refund_id uuid,
+	p_provider_ref text,
+	p_status text,
+	p_actor uuid,
+	p_request_id text,
+	p_api_rejection boolean
+) RETURNS boolean
+LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
+DECLARE
+	v_existing refunds%ROWTYPE;
+	v_payment_id uuid;
+	v_action text;
+BEGIN
+	IF NOT EXISTS (
+		SELECT 1 FROM users u
+		WHERE u.id = p_actor AND u.role IN ('staff', 'admin')
+	) THEN
+		RAISE EXCEPTION 'refund outcome requires a durable staff actor'
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'refunds_outcome_actor';
+	END IF;
+	IF p_request_id IS NULL
+	   OR p_request_id !~ '^[A-Za-z0-9-]{1,64}$' THEN
+		RAISE EXCEPTION 'refund outcome requires a valid request id'
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'refunds_outcome_request';
+	END IF;
+	IF p_status NOT IN ('pending', 'requires_action', 'succeeded', 'failed', 'cancelled') THEN
+		RAISE EXCEPTION 'unknown refund provider status %', p_status
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'refunds_provider_outcome_known';
+	END IF;
+	IF p_api_rejection THEN
+		IF p_status <> 'failed' OR p_provider_ref IS NOT NULL THEN
+			RAISE EXCEPTION 'an API rejection is failed without a provider object'
+				USING ERRCODE = 'check_violation',
+				      CONSTRAINT = 'refunds_api_rejection_shape';
+		END IF;
+		v_action := 'refund.provider_rejected';
+	ELSE
+		IF p_provider_ref IS NULL
+		   OR char_length(p_provider_ref) NOT BETWEEN 1 AND 255
+		   OR p_provider_ref ~ '[[:space:][:cntrl:]]' THEN
+			RAISE EXCEPTION 'provider-object refund outcome needs a valid identity'
+				USING ERRCODE = 'check_violation',
+				      CONSTRAINT = 'refunds_provider_ref_valid';
+		END IF;
+		v_action := 'refund.provider_' || p_status;
+	END IF;
+
+	-- Read the immutable relation, then take payment before refund. A concurrent
+	-- retry claim owns order/return -> payment -> latest refund; taking refund
+	-- first here and letting refunds_guard acquire payment during UPDATE creates
+	-- a payment <-> refund deadlock and can roll a provider success back to
+	-- pending.
+	SELECT rf.payment_id INTO v_payment_id
+	FROM refunds rf
+	WHERE rf.id = p_refund_id;
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'no refund for id %', p_refund_id
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'refunds_request_key_known';
+	END IF;
+	PERFORM 1 FROM payments p WHERE p.id = v_payment_id FOR UPDATE;
+	SELECT rf.* INTO v_existing
+	FROM refunds rf
+	WHERE rf.id = p_refund_id AND rf.payment_id = v_payment_id
+	FOR UPDATE;
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'refund % changed payment identity while its outcome was claimed',
+			p_refund_id
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'refunds_request_attribution';
+	END IF;
+	IF v_existing.provider_ref IS NOT NULL
+	   AND v_existing.provider_ref IS DISTINCT FROM p_provider_ref THEN
+		RAISE EXCEPTION 'refund % belongs to provider object %, not %',
+			p_refund_id, v_existing.provider_ref, p_provider_ref
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'refunds_provider_ref_immutable';
+	END IF;
+
+	-- An exact replay proves no new transition and must preserve both timestamps
+	-- and the one outcome audit row. Any other terminal replay is a contradiction.
+	IF v_existing.status IN ('succeeded', 'failed', 'cancelled') THEN
+		IF v_existing.status = p_status
+		   AND v_existing.provider_ref IS NOT DISTINCT FROM p_provider_ref THEN
+			RETURN false;
+		END IF;
+		RAISE EXCEPTION 'refund % is terminal as %, cannot become %',
+			p_refund_id, v_existing.status, p_status
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'refunds_no_regression';
+	END IF;
+	IF v_existing.status = p_status
+	   AND v_existing.provider_ref IS NOT DISTINCT FROM p_provider_ref THEN
+		RETURN false;
+	END IF;
+
+	UPDATE refunds
+	SET status = p_status,
+	    provider_ref = coalesce(provider_ref, p_provider_ref),
+	    succeeded_at = CASE WHEN p_status = 'succeeded' THEN now() ELSE succeeded_at END,
+	    failed_at = CASE WHEN p_status = 'failed' THEN now() ELSE failed_at END
+	WHERE id = p_refund_id;
+
+	PERFORM record_audit_event(
+		p_actor, v_action, 'refunds', p_refund_id,
+		jsonb_build_object(
+			'status', v_existing.status,
+			'provider_ref', v_existing.provider_ref
+		),
+		jsonb_build_object(
+			'status', p_status,
+			'provider_ref', p_provider_ref,
+			'evidence', CASE WHEN p_api_rejection
+			                 THEN 'api_rejection' ELSE 'provider_object' END
+		),
+		p_request_id
+	);
+	RETURN true;
+END;
+$$;
+
+CREATE FUNCTION record_refund_pending(uuid, text, uuid, text) RETURNS boolean
+LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+	SELECT apply_refund_provider_outcome($1, $2, 'pending', $3, $4, false);
+$$;
+
+CREATE FUNCTION record_refund_requires_action(uuid, text, uuid, text) RETURNS boolean
+LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+	SELECT apply_refund_provider_outcome($1, $2, 'requires_action', $3, $4, false);
+$$;
+
+CREATE FUNCTION record_refund_succeeded(uuid, text, uuid, text) RETURNS boolean
+LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+	SELECT apply_refund_provider_outcome($1, $2, 'succeeded', $3, $4, false);
+$$;
+
+CREATE FUNCTION record_refund_failed(uuid, text, uuid, text) RETURNS boolean
+LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+	SELECT apply_refund_provider_outcome($1, $2, 'failed', $3, $4, false);
+$$;
+
+CREATE FUNCTION record_refund_cancelled(uuid, text, uuid, text) RETURNS boolean
+LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+	SELECT apply_refund_provider_outcome($1, $2, 'cancelled', $3, $4, false);
+$$;
+
+CREATE FUNCTION record_refund_api_rejection(uuid, uuid, text) RETURNS boolean
+LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+	SELECT apply_refund_provider_outcome($1, NULL::text, 'failed', $2, $3, true);
+$$;
+
+GRANT EXECUTE ON FUNCTION claim_return_refund_execution(uuid, uuid, text) TO admin;
+GRANT EXECUTE ON FUNCTION record_refund_pending(uuid, text, uuid, text),
+	record_refund_requires_action(uuid, text, uuid, text),
+	record_refund_succeeded(uuid, text, uuid, text),
+	record_refund_failed(uuid, text, uuid, text),
+	record_refund_cancelled(uuid, text, uuid, text),
+	record_refund_api_rejection(uuid, uuid, text)
+TO admin;
+
+
+-- Decide and hold the variant behind one restock request. SELECT ... FOR UPDATE
+-- requires table UPDATE privilege even though no column changes; keeping the
+-- lock in this narrow SECURITY DEFINER door avoids granting the storefront a
+-- general product-variant writer merely to close a notice/restock race.
+CREATE FUNCTION lock_stock_notice_variant(p_variant_id uuid, p_slug text)
+RETURNS uuid
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
-    current_status text;
+    v_variant_id uuid;
 BEGIN
-    SELECT status INTO current_status FROM refunds
-    WHERE request_key = p_request_key FOR UPDATE;
-
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'no refund for request key %', p_request_key
-            USING ERRCODE = 'check_violation', CONSTRAINT = 'refunds_request_key_known';
-    END IF;
-    IF current_status = 'succeeded' THEN
-        RETURN;  -- already settled; a repeated webhook is not an error
-    END IF;
-
-    UPDATE refunds
-    SET status       = p_status,
-        provider_ref = coalesce(p_provider_ref, provider_ref),
-        succeeded_at = CASE WHEN p_status = 'succeeded' THEN now() ELSE succeeded_at END,
-        failed_at    = CASE WHEN p_status = 'failed'    THEN now() ELSE failed_at END
-    WHERE request_key = p_request_key;
+    SELECT pv.id INTO v_variant_id
+    FROM product_variants pv
+    JOIN products p ON p.id = pv.product_id
+    WHERE pv.id = p_variant_id
+      AND p.slug = p_slug
+      AND p.status = 'active'
+      AND pv.is_active
+      AND pv.stock_quantity <= pv.safety_stock
+    FOR UPDATE OF pv;
+    RETURN v_variant_id;
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION open_refund(uuid, text, bigint, text, uuid) TO admin;
-GRANT EXECUTE ON FUNCTION settle_refund(text, text, text) TO admin;
--- store deliberately gets no EXECUTE on settle_refund: it is a SECURITY DEFINER
--- path around store's revoke on refunds, and 'failed' or 'cancelled' drops a
--- refund out of refunds_guard's sum, freeing the allowance to be claimed again.
+GRANT EXECUTE ON FUNCTION lock_stock_notice_variant(uuid, text) TO store;
 
 
 -- Hold exactly the coupon definition checkout is about to quote and redeem.
@@ -5038,6 +7434,30 @@ CREATE INDEX loyalty_entries_lot_idx
 CREATE INDEX loyalty_entries_return_request_idx
     ON loyalty_entries (return_request_id) WHERE return_request_id IS NOT NULL;
 
+-- One submitted redemption form is one durable operation. First POST binds its
+-- hidden UUID to the customer in the ledger transaction, so failed/unsubmitted
+-- forms leave no rows; a replay converges and another account cannot reuse it.
+CREATE TABLE loyalty_redemption_operations (
+	id uuid PRIMARY KEY DEFAULT uuidv7(),
+	user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+	points bigint,
+	credit_cents bigint,
+	created_at timestamptz NOT NULL DEFAULT now(),
+	completed_at timestamptz,
+	CONSTRAINT loyalty_redemption_operation_completed_together CHECK (
+		(points IS NULL AND credit_cents IS NULL AND completed_at IS NULL)
+		OR (points > 0 AND credit_cents > 0 AND completed_at IS NOT NULL)
+	)
+);
+
+CREATE INDEX loyalty_redemption_operations_user_idx
+	ON loyalty_redemption_operations (user_id, created_at DESC);
+
+-- The operation row is the idempotent ownership fence inside
+-- redeem_loyalty_points. No pool reads or writes it directly, and its hidden
+-- form UUID is not reporting data.
+REVOKE ALL ON loyalty_redemption_operations FROM store, admin, reporting;
+
 CREATE TRIGGER loyalty_entries_append_only
     BEFORE UPDATE OR DELETE ON loyalty_entries
     FOR EACH ROW EXECUTE FUNCTION forbid_change('loyalty_entries_append_only');
@@ -5137,58 +7557,148 @@ GRANT SELECT ON store_credit_balances TO store, admin, reporting;
 -- the grant stays here because the admin role is created between those points.
 GRANT SELECT ON order_refunds TO store, admin, reporting;
 
--- The points a refund ASKS to reverse, before the award lot clamps it to what
--- remains. It lives here because it reads both order_refunds (created above
--- member_spend) and loyalty_entries (created below it). Both the posting door
--- and retry projection call it, so a points-only failure cannot be invisible
--- because the UI and writer disagree about whether a clawback ought to exist.
-CREATE FUNCTION return_loyalty_points_requested(
-    p_order_id uuid,
-    p_return_request_id uuid,
-    p_refunded_cents bigint
-) RETURNS bigint
+-- The points the next PAID return posting may claim. Payout timestamps cannot
+-- define a durable order: now() is transaction-start time, so an early
+-- transaction may commit after a later one and be sorted before an already
+-- immutable clawback. Instead, reverse_return_points takes the account lock and
+-- appends one delta: the points earned on all durably paid return money, less
+-- requested_points already persisted by earlier clawbacks. Existing rows keep
+-- their stored slice forever. The retry projection and posting door share this
+-- one definition.
+CREATE FUNCTION return_loyalty_points_allocation(p_return_request_id uuid)
+RETURNS bigint
 LANGUAGE sql STABLE AS $$
-    WITH award AS (
+    WITH target AS (
+        SELECT r.id, r.order_id,
+               return_refundable_amount(r.id)::numeric AS amount,
+               coalesce((
+                   SELECT sum(rf.amount_cents) FROM refunds rf
+                   WHERE rf.return_request_id = r.id AND rf.status = 'succeeded'
+               ), 0)::numeric + coalesce((
+                   SELECT sum(e.amount_cents) FROM store_credit_entries e
+                   WHERE e.idempotency_key = 'return-credit:' || r.id::text
+               ), 0)::numeric AS paid
+        FROM return_requests r
+        WHERE r.id = p_return_request_id
+    ), award AS (
         SELECT e.points
-        FROM loyalty_entries e
-        WHERE e.order_id = p_order_id AND e.kind = 'award'
+        FROM loyalty_entries e JOIN target t ON t.order_id = e.order_id
+        WHERE e.kind = 'award'
         ORDER BY e.created_at, e.id
         LIMIT 1
-    ), amounts AS (
+    ), order_total AS (
         SELECT greatest(
-            coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
-                      FROM order_lines ol WHERE ol.order_id = o.id), 0)
-            - o.discount_cents + o.shipping_cents + o.tax_cents, 0)::bigint AS total,
-            least(rf.card_cents + rf.credit_cents,
-                  greatest(
-                      coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
-                                FROM order_lines ol WHERE ol.order_id = o.id), 0)
-                      - o.discount_cents + o.shipping_cents + o.tax_cents, 0))::bigint
-                AS refunded
-        FROM orders o
-        JOIN order_refunds rf ON rf.order_id = o.id
-        WHERE o.id = p_order_id
+            coalesce(sum(ol.unit_price_cents::numeric * ol.quantity), 0)
+            - o.discount_cents + o.shipping_cents + o.tax_cents, 0) AS amount
+        FROM orders o JOIN target t ON t.order_id = o.id
+        LEFT JOIN order_lines ol ON ol.order_id = o.id
+        GROUP BY o.id
+    ), return_money AS (
+        SELECT r.id,
+               return_refundable_amount(r.id)::numeric AS amount,
+               coalesce(card.amount, 0) + coalesce(credit.amount, 0) AS paid
+        FROM return_requests r JOIN target t ON t.order_id = r.order_id
+        LEFT JOIN LATERAL (
+            SELECT coalesce(sum(rf.amount_cents), 0)::numeric AS amount
+            FROM refunds rf
+            WHERE rf.return_request_id = r.id AND rf.status = 'succeeded'
+        ) card ON true
+        LEFT JOIN LATERAL (
+            SELECT coalesce(sum(e.amount_cents), 0)::numeric AS amount
+            FROM store_credit_entries e
+            WHERE e.idempotency_key = 'return-credit:' || r.id::text
+        ) credit ON true
+        WHERE r.status IN ('approved', 'completed')
+    ), paid_total AS (
+        SELECT coalesce(sum(amount) FILTER (WHERE amount > 0 AND paid >= amount), 0) AS amount
+        FROM return_money
     ), prior AS (
-        SELECT coalesce(sum(e.requested_points), 0)::bigint AS requested
+        SELECT coalesce(sum(e.requested_points), 0)::numeric AS points
+        FROM loyalty_entries e JOIN target t ON t.order_id = e.order_id
+        WHERE e.kind = 'clawback'
+    ), existing AS (
+        SELECT e.requested_points::bigint AS points
         FROM loyalty_entries e
-        WHERE e.order_id = p_order_id
-          AND e.kind = 'clawback'
-          AND e.return_request_id <> p_return_request_id
+        WHERE e.return_request_id = p_return_request_id AND e.kind = 'clawback'
+        LIMIT 1
     )
-    SELECT CASE
-        WHEN coalesce(amounts.total, 0) <= 0 THEN 0::bigint
-        -- The last partial return receives the integer-rounding residue so a
-        -- fully refunded order eventually requests its whole durable award.
-        WHEN amounts.refunded >= amounts.total
-            THEN greatest(award.points - prior.requested, 0)::bigint
-        ELSE floor(award.points::numeric
-                   * least(p_refunded_cents, amounts.total)::numeric
-                   / amounts.total::numeric)::bigint
-    END
-    FROM award CROSS JOIN amounts CROSS JOIN prior;
+    SELECT coalesce(
+        (SELECT points FROM existing),
+        (SELECT CASE
+            WHEN t.amount <= 0 OR t.paid < t.amount OR ot.amount <= 0 THEN 0
+            ELSE greatest(
+                floor(a.points::numeric * least(pt.amount, ot.amount) / ot.amount)
+                - pr.points,
+                0
+            )::bigint
+         END
+         FROM target t CROSS JOIN award a CROSS JOIN order_total ot
+         CROSS JOIN paid_total pt CROSS JOIN prior pr),
+        0
+    )::bigint;
 $$;
 
-GRANT EXECUTE ON FUNCTION return_loyalty_points_requested(uuid, uuid, bigint) TO admin;
+GRANT EXECUTE ON FUNCTION return_loyalty_points_allocation(uuid) TO admin;
+
+-- Whether an approved return still has useful recovery work. This is the
+-- ordering authority for the bounded back-office queue: without doing this
+-- before LIMIT, fifty newer requests can hide an older customer whose approved
+-- refund is still unpaid forever. Exact equality also keeps malformed overpaid
+-- source rows visible for investigation instead of treating "at least paid" as
+-- settled.
+CREATE FUNCTION return_payout_outstanding(p_return_request_id uuid)
+RETURNS boolean
+LANGUAGE sql STABLE
+SET search_path = pg_catalog, public, pg_temp AS $$
+    WITH target AS (
+        SELECT r.id, r.order_id, r.card_refund_cents, r.credit_refund_cents,
+               return_refundable_amount(r.id)::bigint AS refundable
+        FROM return_requests r
+        WHERE r.id = p_return_request_id AND r.status = 'approved'
+    ), facts AS (
+        SELECT coalesce(t.card_refund_cents, 0)::bigint AS card_expected,
+               coalesce(t.credit_refund_cents, 0)::bigint AS credit_expected,
+               t.refundable,
+               coalesce((
+                   SELECT sum(rf.amount_cents)
+                   FROM refunds rf
+                   WHERE rf.return_request_id = t.id
+                     AND rf.status = 'succeeded'
+               ), 0)::bigint AS card_paid,
+               coalesce((
+                   SELECT sum(e.amount_cents)
+                   FROM store_credit_entries e
+                   WHERE e.idempotency_key = 'return-credit:' || t.id::text
+               ), 0)::bigint AS credit_paid,
+               EXISTS (
+                   SELECT 1 FROM order_events e
+                   WHERE e.return_request_id = t.id AND e.kind = 'refunded'
+               ) AS event_recorded,
+               return_loyalty_points_allocation(t.id) > 0
+                   AND EXISTS (
+                       SELECT 1 FROM loyalty_entries e
+                       WHERE e.order_id = t.order_id AND e.kind = 'award'
+                   )
+                   AND NOT EXISTS (
+                       SELECT 1 FROM loyalty_entries e
+                       WHERE e.return_request_id = t.id AND e.kind = 'clawback'
+                   ) AS points_outstanding
+        FROM target t
+    )
+    SELECT coalesce((
+        SELECT
+            card_expected < 0
+            OR credit_expected < 0
+            OR card_expected + credit_expected <> refundable
+            OR card_paid <> card_expected
+            OR credit_paid <> credit_expected
+            OR ((card_paid > 0 OR credit_paid > 0) AND NOT event_recorded)
+            OR points_outstanding
+        FROM facts
+    ), false);
+$$;
+
+GRANT EXECUTE ON FUNCTION return_payout_outstanding(uuid) TO admin;
 
 -- ---------------------------------------------------------------------------
 -- Co-purchase projection
@@ -5236,14 +7746,14 @@ BEGIN
     DELETE FROM product_copurchases;
 
     INSERT INTO product_copurchases (product_id, other_product_id, orders)
-    SELECT ours.product_id, theirs.product_id, count(DISTINCT c.id)
+    SELECT mine.product_id, other.product_id, count(DISTINCT c.id)
     FROM committed_orders c
     JOIN order_lines mine ON mine.order_id = c.id
     JOIN order_lines other ON other.order_id = c.id
-    JOIN product_variants ours ON ours.id = mine.variant_id
-    JOIN product_variants theirs ON theirs.id = other.variant_id
-    WHERE ours.product_id <> theirs.product_id
-    GROUP BY ours.product_id, theirs.product_id;
+    WHERE mine.product_id IS NOT NULL
+      AND other.product_id IS NOT NULL
+      AND mine.product_id <> other.product_id
+    GROUP BY mine.product_id, other.product_id;
 
     GET DIAGNOSTICS written = ROW_COUNT;
     RETURN written;
@@ -5311,7 +7821,8 @@ CREATE TABLE media_objects (
     -- decompression bomb being stored after it survived decoding.
     CONSTRAINT media_objects_dimensions_sane
         CHECK (width BETWEEN 1 AND 8000 AND height BETWEEN 1 AND 8000),
-    CONSTRAINT media_objects_size_positive CHECK (byte_size > 0),
+    CONSTRAINT media_objects_size_positive
+        CHECK (byte_size > 0 AND byte_size <= 8388608),
     CONSTRAINT media_objects_size_matches CHECK (byte_size = octet_length(bytes)),
     -- 64 lowercase hex characters. This value reaches a URL path, which is why
     -- the handler needs no escaping.
@@ -5361,10 +7872,12 @@ BEGIN
             USING ERRCODE = 'not_null_violation', CONSTRAINT = 'audit_events_actor_required';
     END IF;
 
-    INSERT INTO audit_events (actor_user_id, action, entity_table, entity_id,
-                              before, after, request_id)
-    VALUES (p_actor, p_action, p_entity_table, p_entity_id,
-            p_before, p_after, p_request_id)
+    INSERT INTO audit_events
+        (actor_user_id, actor_id_snapshot, action, entity_table, entity_id,
+         before, after, request_id)
+    VALUES
+        (p_actor, p_actor, p_action, p_entity_table, p_entity_id,
+         p_before, p_after, p_request_id)
     RETURNING id INTO v_id;
     RETURN v_id;
 END;
@@ -5381,76 +7894,136 @@ GRANT EXECUTE ON FUNCTION record_audit_event(uuid, text, text, uuid, jsonb, json
 
 -- Award the points a committed order earned. Idempotent on the order, so a
 -- webhook Stripe sent twice awards once; it returns 0 for a repeat.
-CREATE FUNCTION award_loyalty_points(
-    p_order_id  uuid,
-    p_points    bigint,
-    p_expires_on date
-) RETURNS bigint
+CREATE FUNCTION award_loyalty_points(p_order_id uuid) RETURNS bigint
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
     v_account uuid;
+    v_user uuid;
+    v_total bigint;
+    v_multiplier integer;
+    v_points bigint;
 BEGIN
-    -- An order that earns nothing is not an error, just as a guest order is not
-    -- one. Raising here aborts the capture transaction before its webhook can
-    -- be marked processed, so Stripe retries the same failure indefinitely.
-    IF p_points = 0 THEN
+    -- The order, not the role caller, owns every value carrying economic
+    -- authority.  The fixed 365-day window and expiry are programme policy;
+    -- changing them is a schema change, not an extra argument on a mint.
+    SELECT o.user_id,
+           (coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)::bigint
+                      FROM order_lines ol WHERE ol.order_id = o.id), 0)
+            - o.discount_cents + o.shipping_cents + o.tax_cents)::bigint
+    INTO v_user, v_total
+    FROM orders o
+    WHERE o.id = p_order_id AND order_is_committed(o.id)
+    FOR UPDATE OF o;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'loyalty may only be awarded from a committed order'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'loyalty_award_committed_order';
+    END IF;
+
+    IF v_user IS NULL THEN
         RETURN 0;
     END IF;
-    IF p_points < 0 THEN
-        RAISE EXCEPTION 'an award must be positive, got %', p_points
-            USING ERRCODE = 'check_violation', CONSTRAINT = 'loyalty_entries_points_nonzero';
-    END IF;
 
-    -- The account, created on first use exactly as store credit does it.
-    SELECT id INTO v_account FROM store_credit_accounts
-    WHERE user_id = (SELECT user_id FROM orders WHERE id = p_order_id);
+    -- This account row is the per-member linearization point. Capture already
+    -- holds its own order, but two different orders have no common lock; both
+    -- could otherwise read the same prior spend and award at the old tier. The
+    -- no-op conflict update both creates the first account and waits on an
+    -- existing one before member_spend observes committed payment facts.
+    INSERT INTO store_credit_accounts (user_id)
+    VALUES (v_user)
+    ON CONFLICT (user_id) DO UPDATE SET user_id = excluded.user_id
+    RETURNING id INTO v_account;
 
-    IF v_account IS NULL THEN
-        INSERT INTO store_credit_accounts (user_id)
-        SELECT user_id FROM orders WHERE id = p_order_id AND user_id IS NOT NULL
-        ON CONFLICT (user_id) DO UPDATE SET user_id = excluded.user_id
-        RETURNING id INTO v_account;
-    END IF;
-
-    -- A guest order has no account to credit, and that is not an error.
-    IF v_account IS NULL THEN
+    SELECT coalesce((SELECT t.points_multiplier_bp FROM membership_tiers t
+                     WHERE t.id = member_tier(v_user, 365, p_order_id)), 10000)
+    INTO v_multiplier;
+    v_points := floor(floor(greatest(v_total, 0)::numeric / 10000)
+                      * v_multiplier::numeric / 10000)::bigint;
+    -- An order that earns nothing is not an error. Raising here aborts the
+    -- capture transaction and makes a valid provider webhook retry forever.
+    IF v_points = 0 THEN
         RETURN 0;
     END IF;
 
     INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key,
                                  order_id, expires_on)
-    VALUES (v_account, 'award', p_points, 'order', 'earn:' || p_order_id::text,
-            p_order_id, p_expires_on)
+    VALUES (v_account, 'award', v_points, 'order', 'earn:' || p_order_id::text,
+            p_order_id, shop_today() + 365)
     ON CONFLICT (idempotency_key) DO NOTHING;
 
     IF NOT FOUND THEN
         RETURN 0;
     END IF;
-    RETURN p_points;
+    RETURN v_points;
 END;
 $$;
 
--- Reverse only what remains of the award lot created by this order. A return
--- may ask for more than remains after redemption; requested_points preserves
--- that difference while the zero/negative clawback never overdraws the lot.
-CREATE FUNCTION reverse_order_points(
-    p_order_id uuid,
-    p_return_request_id uuid,
-    p_points bigint
-) RETURNS bigint
+-- Reverse only what remains of the award lot behind a return whose payout has
+-- durably landed. The admin role names one return, never an order/points tuple:
+-- those are economic facts derived under the return lock. That makes an
+-- unrelated-return attachment and an inflated clawback unrepresentable at the
+-- SECURITY DEFINER boundary.
+CREATE FUNCTION reverse_return_points(p_return_request_id uuid) RETURNS bigint
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
     lot record;
+	v_order_id uuid;
+	v_refundable bigint;
+	v_paid bigint;
+	v_points bigint;
     v_remaining bigint;
     v_actual bigint;
 BEGIN
-    IF p_points <= 0 THEN
-        RETURN 0;
-    END IF;
+	-- Resolve the aggregate without taking its child lock, then own the order
+	-- before re-locking and revalidating the return. CompleteReturn and erasure
+	-- use the same order -> return direction. The later loyalty INSERT takes an
+	-- order-FK KEY SHARE lock, while erasure's user deletion may update the
+	-- account FK; taking account before order here creates an account <-> order
+	-- deadlock with erase_user.
+	SELECT r.order_id INTO v_order_id
+	FROM return_requests r
+	WHERE r.id = p_return_request_id;
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'points can only be reversed for an approved return %',
+			p_return_request_id
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'loyalty_return_approved';
+	END IF;
+
+	PERFORM 1 FROM orders o WHERE o.id = v_order_id FOR UPDATE;
+
+	SELECT return_refundable_amount(r.id)
+	INTO v_refundable
+	FROM return_requests r
+	WHERE r.id = p_return_request_id
+	  AND r.order_id = v_order_id
+	  AND r.status IN ('approved', 'completed')
+	FOR UPDATE OF r;
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'points can only be reversed for an approved return %',
+			p_return_request_id
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'loyalty_return_approved';
+	END IF;
+
+	SELECT coalesce((
+		SELECT sum(r.amount_cents) FROM refunds r
+		WHERE r.return_request_id = p_return_request_id
+		  AND r.status = 'succeeded'
+	), 0) + coalesce((
+		SELECT sum(e.amount_cents) FROM store_credit_entries e
+		WHERE e.idempotency_key = 'return-credit:' || p_return_request_id::text
+	), 0)
+	INTO v_paid;
+	IF v_refundable <= 0 OR v_paid < v_refundable THEN
+		RAISE EXCEPTION 'return % has paid %, below its refundable %',
+			p_return_request_id, v_paid, v_refundable
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'loyalty_return_paid';
+	END IF;
 
     SELECT e.id, e.account_id, e.points, e.expires_on INTO lot
     FROM loyalty_entries e
-    WHERE e.order_id = p_order_id AND e.kind = 'award'
+    WHERE e.order_id = v_order_id AND e.kind = 'award'
     ORDER BY e.created_at, e.id
     LIMIT 1;
     IF NOT FOUND THEN
@@ -5461,20 +8034,30 @@ BEGIN
     -- posting door takes this lock, and the lot trigger repeats the authority
     -- for a future direct writer.
     PERFORM 1 FROM store_credit_accounts WHERE id = lot.account_id FOR UPDATE;
+	IF EXISTS (
+		SELECT 1 FROM loyalty_entries e
+		WHERE e.return_request_id = p_return_request_id AND e.kind = 'clawback'
+	) THEN
+		RETURN 0;
+	END IF;
+	v_points := return_loyalty_points_allocation(p_return_request_id);
+	IF coalesce(v_points, 0) <= 0 THEN
+		RETURN 0;
+	END IF;
 
     SELECT greatest(lot.points + coalesce(sum(e.points), 0), 0)::bigint
     INTO v_remaining
     FROM loyalty_entries e
     WHERE e.lot_id = lot.id;
-    v_actual := least(p_points, v_remaining);
+    v_actual := least(v_points, v_remaining);
 
     INSERT INTO loyalty_entries (
         account_id, kind, points, reason, idempotency_key, order_id,
         lot_id, requested_points, return_request_id, expires_on
     ) VALUES (
         lot.account_id, 'clawback', -v_actual, 'return',
-        'return:' || p_return_request_id::text, p_order_id,
-        lot.id, p_points, p_return_request_id, lot.expires_on
+        'return:' || p_return_request_id::text, v_order_id,
+        lot.id, v_points, p_return_request_id, lot.expires_on
     )
     ON CONFLICT (idempotency_key) DO NOTHING;
 
@@ -5488,28 +8071,76 @@ $$;
 -- Spend points and post the store credit they bought, in ONE transaction. Two
 -- statements would let the points go and the credit not arrive.
 CREATE FUNCTION redeem_loyalty_points(
-    p_account_id uuid,
+    p_user_id    uuid,
     p_points     bigint,
-    p_cents      bigint,
-    p_key        text
+    p_operation_id uuid
 ) RETURNS bigint
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
     lot record;
+	v_operation loyalty_redemption_operations%ROWTYPE;
+	v_key text;
     v_left bigint;
     v_take bigint;
+    v_cents bigint;
+    v_account_id uuid;
     v_n integer := 0;
 BEGIN
-    IF p_points <= 0 OR p_cents <= 0 THEN
-        RAISE EXCEPTION 'a redemption must be positive, got % points for %',
-            p_points, p_cents
+	IF p_operation_id IS NULL
+	   OR p_operation_id = '00000000-0000-0000-0000-000000000000'::uuid THEN
+		RAISE EXCEPTION 'redemption requires a non-zero operation id'
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'loyalty_redemption_operation_owner';
+	END IF;
+	IF NOT EXISTS (SELECT 1 FROM store_credit_accounts WHERE user_id = p_user_id) THEN
+		RAISE EXCEPTION 'user % has no loyalty account', p_user_id
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'loyalty_redemption_owner';
+	END IF;
+	-- The hidden UUID is read-only form state, so GET does not write an unbounded
+	-- pile of abandoned operations. First POST binds it to this owner in the same
+	-- transaction as the ledger effects; any failure rolls the claim back.
+	INSERT INTO loyalty_redemption_operations (id, user_id)
+	VALUES (p_operation_id, p_user_id)
+	ON CONFLICT (id) DO NOTHING;
+	SELECT op.* INTO v_operation
+	FROM loyalty_redemption_operations op
+	WHERE op.id = p_operation_id AND op.user_id = p_user_id
+	FOR UPDATE;
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'redemption operation % is not owned by user %',
+			p_operation_id, p_user_id
+			USING ERRCODE = 'check_violation',
+			      CONSTRAINT = 'loyalty_redemption_operation_owner';
+	END IF;
+	IF v_operation.completed_at IS NOT NULL THEN
+		IF v_operation.points <> p_points THEN
+			RAISE EXCEPTION 'redemption operation % collides with different terms',
+				p_operation_id
+				USING ERRCODE = 'check_violation',
+				      CONSTRAINT = 'loyalty_redemption_attribution';
+		END IF;
+		RETURN v_operation.credit_cents;
+	END IF;
+
+    -- The database owns the exchange rate.  Points must be a whole NT$1 unit,
+    -- meet the published minimum, and fit the store-credit ledger ceiling.
+    IF p_points < 100 OR p_points % 10 <> 0 OR p_points > 1000000000 THEN
+        RAISE EXCEPTION 'invalid redemption amount: % points', p_points
             USING ERRCODE = 'check_violation', CONSTRAINT = 'loyalty_entries_points_nonzero';
     END IF;
+    v_cents := (p_points / 10) * 100;
+	v_key := 'points:' || p_operation_id::text;
 
     -- The account is locked HERE, before anything is inserted. An INSERT takes
     -- FOR KEY SHARE for the foreign key and the AFTER trigger then wants FOR
     -- UPDATE — an upgrade, and a deadlock that LOOKS like the guard working.
-    PERFORM 1 FROM store_credit_accounts WHERE id = p_account_id FOR UPDATE;
+    SELECT id INTO v_account_id FROM store_credit_accounts
+    WHERE user_id = p_user_id FOR UPDATE;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'user % has no loyalty account', p_user_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'loyalty_redemption_owner';
+    END IF;
 
     -- FIFO by soonest expiry costs the customer least. Two awards can expire on
     -- the same day, so created_at then id are the deterministic tie-break. One
@@ -5522,7 +8153,7 @@ BEGIN
                                       FROM loyalty_entries s
                                       WHERE s.lot_id = e.id), 0))::bigint AS remaining
         FROM loyalty_entries e
-        WHERE e.account_id = p_account_id
+        WHERE e.account_id = v_account_id
           AND e.kind = 'award'
           AND e.expires_on >= shop_today()
         ORDER BY e.expires_on, e.created_at, e.id
@@ -5533,28 +8164,32 @@ BEGIN
         v_n := v_n + 1;
         INSERT INTO loyalty_entries (account_id, kind, points, reason,
                                      idempotency_key, expires_on, lot_id)
-        VALUES (p_account_id, 'spend', -v_take, 'redeem',
-                p_key || '#' || v_n::text, lot.expires_on, lot.id);
+        VALUES (v_account_id, 'spend', -v_take, 'redeem',
+                v_key || '#' || v_n::text, lot.expires_on, lot.id);
         v_left := v_left - v_take;
     END LOOP;
 
     IF v_left > 0 THEN
-        RAISE EXCEPTION 'account % is short % of % points', p_account_id, v_left, p_points
+        RAISE EXCEPTION 'account % is short % of % points', v_account_id, v_left, p_points
             USING ERRCODE = 'check_violation', CONSTRAINT = 'loyalty_entries_within_balance';
     END IF;
 
     -- The credit, in the same transaction, with a prefixed key so a redemption
     -- and an award of the same id cannot collide.
     INSERT INTO store_credit_entries (account_id, amount_cents, reason, idempotency_key)
-    VALUES (p_account_id, p_cents, 'points', 'redeem:' || p_key);
+	VALUES (v_account_id, v_cents, 'points', 'redeem:' || v_key);
 
-    RETURN p_cents;
+	UPDATE loyalty_redemption_operations
+	SET points = p_points, credit_cents = v_cents, completed_at = now()
+	WHERE id = p_operation_id;
+
+    RETURN v_cents;
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION award_loyalty_points(uuid, bigint, date) TO store, admin;
-GRANT EXECUTE ON FUNCTION reverse_order_points(uuid, uuid, bigint) TO admin;
-GRANT EXECUTE ON FUNCTION redeem_loyalty_points(uuid, bigint, bigint, text) TO store, admin;
+GRANT EXECUTE ON FUNCTION award_loyalty_points(uuid) TO store;
+GRANT EXECUTE ON FUNCTION reverse_return_points(uuid) TO admin;
+GRANT EXECUTE ON FUNCTION redeem_loyalty_points(uuid, bigint, uuid) TO store;
 
 -- The privilege sweep. THIS MUST BE THE LAST THING IN THE FILE: it pins
 -- search_path and revokes EXECUTE from PUBLIC on every function, so anything
@@ -5610,7 +8245,7 @@ GRANT UPDATE (created_at) ON order_access_grants TO store;
 -- What each role holds and no query it runs exercises, every line produced by
 -- TestNoRoleHoldsAWriteItsQueriesNeverMake rather than by reading.
 REVOKE INSERT, UPDATE, DELETE ON
-    order_shipments, order_shipment_lines, invoice_documents,
+    order_shipments, order_shipment_lines, invoice_documents, invoice_operations,
     invoice_document_lines
     FROM store;
 
@@ -5627,20 +8262,34 @@ REVOKE INSERT, UPDATE, DELETE ON
     addresses, carts, cart_items, checkout_attempts, wishlist_items,
     password_reset_tokens, order_access_grants, order_lines,
     return_request_lines, warranty_registrations, invoice_preferences,
-    invoice_documents, invoice_document_lines, user_identities
+    invoice_documents, invoice_document_lines, invoice_operations, user_identities
     FROM admin;
 REVOKE INSERT ON payment_webhook_events FROM admin;
 
--- Filing a document with the tax authority is the back office's act. DELETE is
--- granted for ONE row shape and invoice_documents_only_void is what holds it
--- there: a PENDING claim, which is a reservation with no number and nothing at
--- the 加值中心 under it. Releasing one is the only door out of a 折讓 the
--- provider refused, and the trigger refuses the delete of anything filed —
--- which is where that rule belongs, since it is a rule about the ROW and not
--- about who is asking.
-GRANT INSERT, UPDATE, DELETE ON invoice_documents TO admin;
--- Lines are written with their document and never touched again.
-GRANT INSERT ON invoice_document_lines TO admin;
+-- Tax history is never writable a column at a time.  The SECURITY DEFINER doors
+-- above file header+lines atomically and expose only the allowance state changes
+-- used by the provider workflow.
+GRANT EXECUTE ON FUNCTION
+    claim_invoice_issue(text, uuid, text),
+    claim_invoice_allowance(uuid, uuid, uuid, text),
+    claim_invoice_void(uuid, text, uuid, text),
+    lease_invoice_operation(uuid, uuid, interval),
+    mark_invoice_operation_sent(uuid, uuid),
+    authorize_invoice_allowance_resend(uuid, uuid, text),
+    reschedule_invoice_operation(uuid, uuid, text, interval),
+    reconcile_invalid_invoice_allowance(uuid, uuid, uuid, text, text,
+                                        timestamptz, bigint, text[], integer[],
+                                        bigint[], bigint[]),
+    record_invalid_invoice_allowance(uuid, uuid, text, text, timestamptz,
+                                     bigint, text[], integer[], bigint[], bigint[]),
+    alarm_invoice_operation(uuid, uuid, text),
+    reject_invoice_operation(uuid, uuid, text),
+    settle_invoice_issue(uuid, uuid, text, text, timestamptz,
+                         text[], integer[], bigint[], bigint[]),
+    settle_invoice_allowance(uuid, uuid, text, timestamptz,
+                             text[], integer[], bigint[], bigint[]),
+    settle_invoice_void(uuid, uuid)
+    TO admin;
 
 -- ---------------------------------------------------------------------------
 -- The DECISION columns. store must not write the SHOP's statement about what a
@@ -5672,6 +8321,14 @@ REVOKE INSERT, UPDATE ON return_requests FROM store;
 GRANT INSERT (id, order_id, requested_by_user_id, reason, created_at),
       UPDATE (id, order_id, requested_by_user_id, reason, created_at)
     ON return_requests TO store;
+
+-- Checkout appends the purchased snapshot once. Catalogue identities are
+-- retained for the lifetime of the line; retirement never rewrites them.
+REVOKE INSERT, UPDATE ON order_lines FROM store;
+GRANT INSERT (id, order_id, product_id, variant_id, sku, product_name,
+              variant_label, warranty_note, warranty_months,
+              unit_price_cents, quantity, position)
+    ON order_lines TO store;
 
 -- The customer says WHAT they are sending back; the shop says what arrived. store
 -- writes the claim and never the inspection.
@@ -5728,6 +8385,10 @@ REVOKE INSERT, UPDATE ON return_requests FROM admin;
 GRANT INSERT (id, status, resolution, created_at, decided_at),
       UPDATE (id, status, resolution, created_at, decided_at)
     ON return_requests TO admin;
+
+-- The back office can retire live catalogue rows; it cannot rewrite or append
+-- the immutable purchased snapshots which reference them.
+REVOKE INSERT, UPDATE ON order_lines FROM admin;
 
 -- The mirror. INSERT is revoked outright rather than narrowed: a back office that
 -- could add a return line could return goods on somebody's behalf and refund them

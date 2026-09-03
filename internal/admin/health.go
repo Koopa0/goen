@@ -3,10 +3,16 @@ package admin
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
+	"github.com/google/uuid"
+
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
+	"github.com/koopa0/goen/internal/web"
 )
 
 // Each threshold is a MULTIPLE of its worker's interval, so a healthy gap cannot alarm.
@@ -30,10 +36,10 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (pages
 	}
 	view := pages.WorkerHealthView{
 		OutboxPending:        row.OutboxPending,
-		OutboxOldest:         time.Duration(row.OutboxOldestSeconds) * time.Second,
+		OutboxOldest:         durationFromSeconds(row.OutboxOldestSeconds),
 		OutboxStuck:          row.OutboxStuck,
 		ExpiredHolds:         row.ExpiredHolds,
-		CopurchaseAge:        time.Duration(row.CopurchaseAgeSeconds) * time.Second,
+		CopurchaseAge:        durationFromSeconds(row.CopurchaseAgeSeconds),
 		CopurchaseEverBuilt:  row.CopurchaseEverBuilt,
 		ExpiredSessions:      row.ExpiredSessions,
 		UnreferencedMedia:    row.UnreferencedMedia,
@@ -50,30 +56,16 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (pages
 	if err != nil {
 		return pages.WorkerHealthView{}, fmt.Errorf("read stuck messages: %w", err)
 	}
-	for i := range stuck {
-		m := &stuck[i]
-		view.Stuck = append(view.Stuck, pages.StuckMessage{
-			Topic: m.Topic, Key: m.DedupeKey, Attempts: m.Attempts,
-			LastError: m.LastError, Since: m.Since.Format("2006-01-02 15:04"),
-		})
-	}
+	view.Stuck = stuckMessages(stuck)
 
-	// Stripe events that were accepted but need a person: an unreadable known
-	// object, paid money with no local attribution, money for a cancelled order,
-	// or a verified capture a stable local invariant refused. NAMED rather than
-	// merely counted, because the event and object refs are what let an operator
-	// investigate or refund each one at Stripe.
+	// Stripe events that were accepted but need a person. Named rather than
+	// counted: the event and object refs are what let an operator investigate or
+	// refund each one at Stripe.
 	unreconciled, err := s.q.UnreconciledPayments(ctx)
 	if err != nil {
 		return pages.WorkerHealthView{}, fmt.Errorf("read unreconciled payments: %w", err)
 	}
-	for i := range unreconciled {
-		u := &unreconciled[i]
-		view.UnreconciledEvents = append(view.UnreconciledEvents, pages.UnreconciledEvent{
-			EventID: u.EventID, Type: u.Type, Ref: u.ObjectRef,
-			Reason: u.Reason, Since: u.ReceivedAt.Format("2006-01-02 15:04"),
-		})
-	}
+	view.UnreconciledEvents = unreconciledEvents(unreconciled)
 
 	// A provider-complete Session can be known before any webhook arrives, and
 	// a completed-but-unpaid event is understood without being a capture. The
@@ -83,51 +75,145 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (pages
 	if err != nil {
 		return pages.WorkerHealthView{}, fmt.Errorf("read complete payments awaiting reconciliation: %w", err)
 	}
-	for i := range complete {
-		p := &complete[i]
-		view.UnreconciledCompletePayments = append(
-			view.UnreconciledCompletePayments, pages.UnreconciledCompletePayment{
-				OrderNumber: p.OrderNumber, ProviderRef: p.ProviderRef,
-				PaidAttributionAllowed: p.PaidAttributionAllowed,
-				Since:                  p.CreatedAt.Format("2006-01-02 15:04"),
-			})
-	}
+	view.UnreconciledCompletePayments = unreconciledCompletePayments(complete)
 
-	// 折讓 claims the provider never answered. The claim is right to survive —
-	// whether ECPay filed is not knowable from here — and that leaves a row only
-	// a person can settle, which is exactly why it belongs on this page beside
-	// the unreconciled payments. Without it the only sign was a 折讓 button that
-	// refused, on one order, with a message about checking ECPay.
+	// 折讓 claims the provider never answered. Whether ECPay filed is not knowable
+	// from here, so the claim survives as a row only a person can settle.
 	stranded, err := s.q.StrandedInvoiceClaims(ctx)
 	if err != nil {
 		return pages.WorkerHealthView{}, fmt.Errorf("read stranded invoice claims: %w", err)
 	}
-	for i := range stranded {
-		c := &stranded[i]
-		view.StrandedClaims = append(view.StrandedClaims, pages.StrandedClaim{
-			OrderNumber: c.OrderNumber, Kind: c.Kind,
-			AmountCents: c.AmountCents,
-			Since:       c.IssuedAt.Format("2006-01-02 15:04"),
-		})
-	}
+	view.StrandedClaims = strandedClaims(stranded)
 
-	// goen consumes no refund webhook: this list is the only unpaid-customer alarm.
+	// goen consumes no refund webhook: this is the only unpaid-customer alarm.
+	// Count independently of the bounded diagnostic sample below, or 37 open
+	// refunds are rendered as 20 merely because the table stops at 20 rows.
+	view.OpenRefundCount, err = s.q.OpenRefundCount(ctx)
+	if err != nil {
+		return pages.WorkerHealthView{}, fmt.Errorf("count open refunds: %w", err)
+	}
 	open, err := s.q.OpenRefunds(ctx, OpenRefundListLimit)
 	if err != nil {
 		return pages.WorkerHealthView{}, fmt.Errorf("read open refunds: %w", err)
 	}
-	for i := range open {
-		r := &open[i]
-		view.OpenRefunds = append(view.OpenRefunds, pages.OpenRefund{
+	view.OpenRefunds = openRefunds(open)
+	return view, nil
+}
+
+func stuckMessages(rows []outbox.StuckMessage) []pages.StuckMessage {
+	out := make([]pages.StuckMessage, len(rows))
+	for i := range rows {
+		m := &rows[i]
+		out[i] = pages.StuckMessage{
+			Topic: m.Topic, Key: m.DedupeKey, Attempts: m.Attempts,
+			LastError: m.LastError, Since: shoptime.Minute(m.Since),
+		}
+	}
+	return out
+}
+
+func unreconciledEvents(rows []db.UnreconciledPaymentsRow) []pages.UnreconciledEvent {
+	out := make([]pages.UnreconciledEvent, len(rows))
+	for i := range rows {
+		u := &rows[i]
+		out[i] = pages.UnreconciledEvent{
+			EventID: u.EventID, Type: u.Type, Ref: u.ObjectRef,
+			Reason: u.Reason, Since: shoptime.Minute(u.ReceivedAt),
+		}
+	}
+	return out
+}
+
+func unreconciledCompletePayments(
+	rows []db.UnreconciledCompletePaymentsRow,
+) []pages.UnreconciledCompletePayment {
+	out := make([]pages.UnreconciledCompletePayment, len(rows))
+	for i := range rows {
+		p := &rows[i]
+		out[i] = pages.UnreconciledCompletePayment{
+			OrderNumber: p.OrderNumber, ProviderRef: p.ProviderRef,
+			PaidAttributionAllowed: p.PaidAttributionAllowed,
+			Since:                  shoptime.Minute(p.CreatedAt),
+		}
+	}
+	return out
+}
+
+func strandedClaims(rows []db.StrandedInvoiceClaimsRow) []pages.StrandedClaim {
+	out := make([]pages.StrandedClaim, len(rows))
+	for i := range rows {
+		c := &rows[i]
+		out[i] = pages.StrandedClaim{
+			Operation: c.OperationID.String(), OrderNumber: c.OrderNumber,
+			Kind: c.Kind, Status: c.Status, AmountCents: c.AmountCents,
+			Attempts: c.ReconcileAttempts, Sends: c.SendAttempts,
+			LastError: c.LastError, CanAuthorizeResend: c.CanAuthorizeResend,
+			Since: shoptime.Minute(c.CreatedAt),
+		}
+	}
+	return out
+}
+
+func openRefunds(rows []db.OpenRefundsRow) []pages.OpenRefund {
+	out := make([]pages.OpenRefund, len(rows))
+	for i := range rows {
+		r := &rows[i]
+		out[i] = pages.OpenRefund{
 			OrderNumber: r.OrderNumber,
 			Key:         r.RequestKey,
 			Status:      r.Status,
 			AmountCents: r.AmountCents,
 			ProviderRef: r.ProviderRef,
-			Since:       r.CreatedAt.Format("2006-01-02 15:04"),
-		})
+			Since:       shoptime.Minute(r.CreatedAt),
+		}
 	}
-	return view, nil
+	return out
+}
+
+// AuthorizeInvoiceAllowanceResend records a staff member's independent
+// confirmation that ECPay has no Allowance for an aged ambiguous send. The SQL
+// door owns all eligibility checks and atomically grants exactly one retry with
+// the authenticated actor and request in the append-only audit trail.
+func (s *Store) AuthorizeInvoiceAllowanceResend(
+	ctx context.Context, operationID uuid.UUID,
+) error {
+	if operationID == uuid.Nil {
+		return ErrInvalid
+	}
+	actorID, ok := actorFrom(ctx)
+	if !ok {
+		return ErrNoActor
+	}
+	requestID := web.RequestID(ctx)
+	if requestID == "" {
+		return ErrNoActor
+	}
+	authorized, err := s.q.AuthorizeInvoiceAllowanceResend(
+		ctx, db.AuthorizeInvoiceAllowanceResendParams{
+			OperationID: operationID, ActorUserID: actorID, RequestID: requestID,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("authorize invoice allowance resend: %w", err)
+	}
+	if !authorized {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// durationFromSeconds saturates PostgreSQL's much wider timestamp range at the
+// largest Go duration. A direct multiplication wraps after roughly 292 years;
+// on this health page that wrap turns a centuries-old queue into a negative age
+// which compares as healthy.
+func durationFromSeconds(seconds int64) time.Duration {
+	if seconds <= 0 {
+		return 0
+	}
+	if seconds > math.MaxInt64/int64(time.Second) {
+		return time.Duration(math.MaxInt64)
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 // StuckListLimit bounds the list beside the count.

@@ -1,9 +1,8 @@
 // Package warranty records which units a customer has claimed cover for.
 //
-// A registration is bounded by what was DELIVERED, never by what was dispatched:
-// counting from dispatch takes one to three days off the customer's cover. The
-// term is per product and may be absent, in which case nothing can be registered
-// — defaulting it would be goen inventing a promise nobody made.
+// Cover is bounded by what was DELIVERED, never by what was dispatched: the days
+// in transit come off the customer otherwise. The term is per product and may be
+// absent, in which case nothing can be registered rather than a term invented.
 package warranty
 
 import "errors"
@@ -11,7 +10,6 @@ import "errors"
 // MaxSerialRunes bounds a serial number.
 const MaxSerialRunes = 60
 
-// The errors a caller branches on.
 var (
 	// ErrNotFound is an order this customer does not own, or does not exist. One
 	// error for both, because telling them apart is what a prober wants.

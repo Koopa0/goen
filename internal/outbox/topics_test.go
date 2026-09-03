@@ -13,7 +13,7 @@ import (
 
 // TestEveryTopicHasAProducerAndAHandler holds each topic to both ends of the
 // wire. A topic with no handler is worse than absent: it retries until Stuck()
-// surfaces it. Derived from the SOURCE, because a list goes un-updated.
+// surfaces it.
 func TestEveryTopicHasAProducerAndAHandler(t *testing.T) {
 	t.Parallel()
 

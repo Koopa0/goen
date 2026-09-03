@@ -1,10 +1,9 @@
 // Package assets embeds goen's static files and serves them under [Prefix].
 //
-// Every asset URL carries a ?v= content digest so a changed file is fetched
-// immediately while an unchanged one stays in the browser cache for a year.
-// The names templates reference are declared as constants here and verified
-// against the embedded filesystem at start-up, so a renamed or deleted asset
-// stops the binary instead of shipping a dead link.
+// Every asset URL carries a ?v= content digest, so a changed file is fetched
+// immediately while an unchanged one stays cached for a year. The names
+// templates reference are declared as constants here and verified against the
+// embedded filesystem at start-up, so a renamed asset stops the binary.
 package assets
 
 import (
@@ -64,8 +63,7 @@ var catalogue = mustIndex()
 func mustIndex() assetIndex {
 	indexed, err := index()
 	if err != nil {
-		// The embedded corpus cannot be repaired after the process starts. This
-		// preserves the existing fail-at-startup contract without an init hook.
+		// The embedded corpus cannot be repaired after the process starts.
 		panic("assets: " + err.Error())
 	}
 	return indexed
@@ -117,9 +115,8 @@ func URL(name string) string {
 	return Prefix + name
 }
 
-// Has reports whether name is an embedded asset. Callers that can render
-// something else — a placeholder, a skipped element — use this rather than
-// emitting a URL the handler will 404.
+// Has reports whether name is an embedded asset, so a caller that can render a
+// placeholder instead does not emit a URL the handler will 404.
 func Has(name string) bool {
 	_, ok := catalogue.digests[name]
 	return ok
@@ -134,20 +131,15 @@ func HomeHeroSrcset() string {
 // ProductImageURL maps a product_images.storage_key to its public embedded
 // asset URL, or "" when there is nothing to serve.
 //
-// Product storage keys are filenames, not paths: keeping that boundary here
-// prevents catalogue data from escaping the products directory or selecting
-// another embedded asset.
-//
-// A key naming a file that is not embedded also yields "". The catalogue
-// can declare its imagery before the artwork exists, so a key alone is not
-// evidence of an image. Returning a URL for one puts a broken image on the
-// page where the tile's placeholder belongs, which is worse than the
-// placeholder it replaced.
+// Storage keys are filenames, not paths: that boundary is enforced here so
+// catalogue data cannot escape the products directory or select another
+// embedded asset. A key naming a file that is not embedded also yields "" —
+// the catalogue can declare its imagery before the artwork exists, and a
+// broken image is worse than the tile's placeholder.
 func ProductImageURL(storageKey string) string {
-	// An uploaded image is a 64-character sha256 and is served by
-	// internal/media, not from here. Checked FIRST: the digest can never
-	// collide with an embedded filename, and an uploaded image should not
-	// depend on the embedded set to fail before it is found.
+	// An uploaded image is a 64-character sha256 served by internal/media, not
+	// from here. Checked first: a digest cannot collide with an embedded
+	// filename, so it must not depend on the embedded set to fail first.
 	if uploadedDigest.MatchString(storageKey) {
 		return "/media/" + storageKey
 	}
@@ -158,21 +150,16 @@ func ProductImageURL(storageKey string) string {
 	return URL(name)
 }
 
-// uploadedDigest is the shape internal/media gives a stored image.
-//
-// Spelled out here rather than imported, because assets must not depend on a
-// feature package — and the two are held together by
-// TestAnUploadedKeyResolvesToTheMediaHandler rather than by a comment.
+// uploadedDigest is the shape internal/media gives a stored image. Spelled out
+// here rather than imported: assets must not depend on a feature package.
 var uploadedDigest = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 // ProductImageSrcset returns the 400, 800 and 1600 pixel-wide renditions for a
 // valid embedded product image. The original storage key remains the 1600px
 // source; the two derived filenames are an asset-pipeline detail.
 func ProductImageSrcset(storageKey string) string {
-	// An uploaded image's candidates are derived from its digest and the
-	// original's width, which the caller holds. Without the width there is no
-	// honest srcset to write, so ProductImageSrcsetAt is the entry point that
-	// has one — see its doc for why guessing would mislead a browser.
+	// An uploaded image's candidates need the original's width, which only
+	// ProductImageSrcsetAt is given; guessing one misleads the browser.
 	if uploadedDigest.MatchString(storageKey) {
 		return ""
 	}
@@ -267,23 +254,12 @@ func ifNoneMatch(r *http.Request, etag string) bool {
 	return false
 }
 
-// ---------------------------------------------------------------------------
-// Uploaded images
-//
-// The URL SHAPES for uploaded media live here, beside the ones for embedded
-// assets, because a page asks this package "where is this image" and should get
-// one answer however the image arrived. internal/media owns the bytes and
-// imports these; the dependency runs that way and not the other, so a template
-// never has to know which kind of key it holds.
-// ---------------------------------------------------------------------------
-
 // mediaWidths is the fixed allowlist of renditions an uploaded image may be
 // requested at, in ascending order.
 //
-// An ALLOWLIST, not a range, and that is the security property: rendering costs
+// An allowlist, not a range, and that is the security property: rendering costs
 // CPU proportional to the output, so an open width parameter is a denial of
-// service that costs the attacker one request. Two fixed widths bound the work
-// for any image at two renders, and immutable caching makes it two per client.
+// service that costs the attacker one request.
 var mediaWidths = [...]int{400, 800}
 
 // KnownWidth reports whether w is a rendition goen will produce.
@@ -297,11 +273,8 @@ func MediaRenditionURL(digest string, width int) string {
 	return "/media/" + digest + "/" + strconv.Itoa(width)
 }
 
-// mediaSrcset is the candidate set for an uploaded image.
-//
-// Derivable from the digest and the original's width, so a listing page renders
-// a hundred of them without a further query — the payoff of content addressing
-// plus on-demand rendering.
+// mediaSrcset is the candidate set for an uploaded image, derived from the
+// digest and the original's width alone.
 //
 // Two rules, both of which MISLEAD a browser rather than merely wasting bytes
 // when broken:
@@ -335,12 +308,9 @@ func mediaSrcset(digest string, originalWidth int) string {
 }
 
 // ProductImageSrcsetAt is the candidate set for a product image whose width is
-// known.
-//
-// Two kinds of key reach this function and the branch is the only place in goen
-// that knows the difference: an uploaded image is a sha256 digest served by
-// internal/media, and a seeded one is an embedded filename with pre-built
-// renditions. A template calls this and does not care which it holds.
+// known. Two kinds of key reach it: an uploaded image is a sha256 digest served
+// by internal/media, a seeded one an embedded filename with pre-built
+// renditions.
 func ProductImageSrcsetAt(storageKey string, originalWidth int) string {
 	if uploadedDigest.MatchString(storageKey) {
 		return mediaSrcset(storageKey, originalWidth)

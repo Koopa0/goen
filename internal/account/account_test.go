@@ -378,6 +378,7 @@ func TestValidateRegistration(t *testing.T) {
 		{"short password", func(c *Credentials) { c.Password, c.Confirm = "short", "short" }, "password"},
 		{"mismatched confirmation", func(c *Credentials) { c.Confirm = "something else" }, "confirm"},
 		{"control character in the name", func(c *Credentials) { c.Name = "王\u0085明" }, "name"},
+		{"control character in the email", func(c *Credentials) { c.Email = "a\u0085@example.com" }, "email"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -397,21 +398,145 @@ func TestValidateRegistration(t *testing.T) {
 			if !found {
 				t.Errorf("rejected, but not on %q: %+v", tt.field, errs)
 			}
+			if tt.name == "control character in the email" {
+				for _, e := range errs {
+					if e.Field == "name" {
+						t.Errorf("email-only control character was also attributed to name: %+v", errs)
+					}
+				}
+			}
 		})
 	}
 }
 
-// TestNoFieldMessageLeaksAFormatVerb reads what the form actually renders.
-//
-// fieldMessages formatted every message with MinPasswordRunes, and only the
-// too-short one carries a verb — so the six that do not rendered
-// "%!(EXTRA int=10)" beside the field, in both locales, on the first form the
-// site shows anybody and the one where they decide whether to trust it with a
-// password.
-//
-// It asserts the RENDERED string rather than the catalogue, because the
-// catalogue was correct: every message was translated, and the defect was in
-// what the handler did with it afterwards.
+func TestProfileAndSavedAddressBoundsMatchTheRenderedForms(t *testing.T) {
+	t.Parallel()
+
+	if !profileInputValid(strings.Repeat("名", maxNameRunes), strings.Repeat("1", maxPhoneRunes)) {
+		t.Fatal("profile validator rejects the exact rendered maxlength")
+	}
+	for _, tt := range []struct {
+		name, phone string
+	}{
+		{name: strings.Repeat("名", maxNameRunes+1)},
+		{phone: strings.Repeat("1", maxPhoneRunes+1)},
+		{name: "name\nwith control"},
+	} {
+		if profileInputValid(tt.name, tt.phone) {
+			t.Errorf("profile accepted name=%q phone=%q outside its server bounds", tt.name, tt.phone)
+		}
+	}
+
+	base := Address{
+		Label: "家", Name: "王小明", Phone: "0912345678", PostalCode: "110",
+		City: "台北市", District: "信義區", Street: "松高路 1 號",
+	}
+	for _, phone := range []string{
+		"0912345678",
+		"+886 2 2700-1234",
+		"(02) 2700-1234",
+	} {
+		a := base
+		a.Phone = phone
+		if errs := a.Validate(); len(errs) != 0 {
+			t.Errorf("ordinary delivery phone %q was rejected: %+v", phone, errs)
+		}
+	}
+	for _, tt := range []struct {
+		name  string
+		field string
+		mut   func(*Address)
+	}{
+		{"label", "label", func(a *Address) { a.Label = strings.Repeat("標", maxAddressLabelRunes+1) }},
+		{"name", "name", func(a *Address) { a.Name = strings.Repeat("名", maxNameRunes+1) }},
+		{"phone", "phone", func(a *Address) { a.Phone = strings.Repeat("1", maxPhoneRunes+1) }},
+		{"postal code", "postal_code", func(a *Address) { a.PostalCode = strings.Repeat("1", maxPostalCodeRunes+1) }},
+		{"city", "city", func(a *Address) { a.City = strings.Repeat("市", maxCityRunes+1) }},
+		{"district", "district", func(a *Address) { a.District = strings.Repeat("區", maxDistrictRunes+1) }},
+		{"street", "street", func(a *Address) { a.Street = strings.Repeat("路", maxStreetRunes+1) }},
+		{"phone letters", "phone", func(a *Address) { a.Phone = "09AB123456" }},
+		{"phone too few digits", "phone", func(a *Address) { a.Phone = "02-12345" }},
+		{"phone too many digits", "phone", func(a *Address) { a.Phone = "1234567890123456" }},
+		{"phone representation too long", "phone", func(a *Address) {
+			a.Phone = "0912345678" + strings.Repeat("-", maxPhoneRunes)
+		}},
+		{"postal code letters", "postal_code", func(a *Address) { a.PostalCode = "11A" }},
+		{"postal code too short", "postal_code", func(a *Address) { a.PostalCode = "11" }},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			a := base
+			tt.mut(&a)
+			errs := a.Validate()
+			for _, err := range errs {
+				if err.Field == tt.field {
+					return
+				}
+			}
+			t.Errorf("overlong %s was accepted: %+v", tt.field, errs)
+		})
+	}
+}
+
+func TestNormaliseGoogleIdentityBoundsProviderData(t *testing.T) {
+	t.Parallel()
+
+	valid := Identity{
+		Subject: "google-subject", Email: "person@example.com",
+		EmailVerified: true, Name: "  王小明  ",
+	}
+	got, err := normaliseGoogleIdentity(valid)
+	if err != nil {
+		t.Fatalf("normalise valid identity: %v", err)
+	}
+	if got.Name != "王小明" {
+		t.Errorf("trimmed display name = %q, want 王小明", got.Name)
+	}
+
+	for _, id := range []Identity{
+		{Subject: "", Email: valid.Email, EmailVerified: true},
+		{Subject: " padded ", Email: valid.Email, EmailVerified: true},
+		{Subject: strings.Repeat("s", maxOAuthSubjectRunes+1), Email: valid.Email, EmailVerified: true},
+		{Subject: "google-subject", Email: "not-an-address", EmailVerified: true},
+		{Subject: "google-subject", Email: valid.Email, EmailVerified: false},
+	} {
+		if _, normaliseErr := normaliseGoogleIdentity(id); normaliseErr == nil {
+			t.Errorf("accepted invalid provider identity: %+v", id)
+		}
+	}
+
+	valid.Name = strings.Repeat("名", maxNameRunes+1)
+	got, err = normaliseGoogleIdentity(valid)
+	if err != nil {
+		t.Fatalf("oversized optional name prevented sign-in: %v", err)
+	}
+	if got.Name != "" {
+		t.Errorf("oversized optional name survived as %d runes", len([]rune(got.Name)))
+	}
+}
+
+func TestUserAgentDecorationIsBoundedWithoutRejectingTheSession(t *testing.T) {
+	t.Parallel()
+	if got := normaliseUserAgent("  browser/1  "); got != "browser/1" {
+		t.Errorf("normaliseUserAgent trimmed value = %q", got)
+	}
+	if got := normaliseUserAgent(strings.Repeat("a", maxUserAgentRunes)); len(got) != maxUserAgentRunes {
+		t.Errorf("exact user-agent ceiling became %d runes", len([]rune(got)))
+	}
+	for _, raw := range []string{
+		strings.Repeat("a", maxUserAgentRunes+1),
+		"browser\nforged",
+	} {
+		if got := normaliseUserAgent(raw); got != "" {
+			t.Errorf("unsafe user agent survived as %q", got)
+		}
+	}
+}
+
+// TestNoFieldMessageLeaksAFormatVerb asserts the RENDERED string rather than the
+// catalogue: only the too-short message carries a format verb, and formatting
+// the other six would render "%!(EXTRA int=10)" beside the field.
 func TestNoFieldMessageLeaksAFormatVerb(t *testing.T) {
 	t.Parallel()
 
@@ -427,7 +552,7 @@ func TestNoFieldMessageLeaksAFormatVerb(t *testing.T) {
 
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		for field, msg := range fieldMessages(ctx, every) {
+		for field, msg := range FieldMessages(ctx, every) {
 			if strings.Contains(msg, "%!") || strings.Contains(msg, "%d") ||
 				strings.Contains(msg, "%s") {
 				t.Errorf("%s: the %s field renders %q — a format verb reached the "+
@@ -438,7 +563,7 @@ func TestNoFieldMessageLeaksAFormatVerb(t *testing.T) {
 
 	// The one message that does carry a verb still gets its number.
 	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
-	short := fieldMessages(ctx, []FieldError{
+	short := FieldMessages(ctx, []FieldError{
 		{Field: "password", MessageKey: i18n.KeyPasswordTooShort},
 	})["password"]
 	if !strings.Contains(short, strconv.Itoa(MinPasswordRunes)) {
@@ -446,13 +571,21 @@ func TestNoFieldMessageLeaksAFormatVerb(t *testing.T) {
 	}
 }
 
-// TestAGuestSavingIsSentBackToTheProduct holds where a refused save lands.
-//
-// Saving is a plain POST, so a signed-out visitor pressing it was redirected to
-// /signin?next=/account/wishlist — a fixed string. They signed in and arrived at
-// an empty list, having lost both the item they wanted and the page they were
-// reading. The form has carried a validated same-site return path since it was
-// written; the guest branch simply ran before the form was read.
+func TestAccountNoticeExplainsWhyAnOpenReturnBlocksErasure(t *testing.T) {
+	t.Parallel()
+
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		r := httptest.NewRequestWithContext(ctx, http.MethodGet,
+			"/account?erase=return", http.NoBody)
+		if got, want := accountNotice(r), i18n.T(ctx, i18n.KeyEraseOpenReturn); got != want {
+			t.Errorf("%s open-return erasure notice = %q, want %q", locale, got, want)
+		}
+	}
+}
+
+// TestAGuestSavingIsSentBackToTheProduct holds where a refused save lands: the
+// form's validated same-site return path, never a fixed /account/wishlist.
 func TestAGuestSavingIsSentBackToTheProduct(t *testing.T) {
 	t.Parallel()
 

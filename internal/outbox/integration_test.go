@@ -12,8 +12,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/outbox"
 )
@@ -54,7 +56,6 @@ func enqueue(t *testing.T, topic, key, payload string) {
 	}
 }
 
-// TestDrainDeliversAndStamps proves a handled message is marked done once.
 func TestDrainDeliversAndStamps(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
@@ -78,7 +79,6 @@ func TestDrainDeliversAndStamps(t *testing.T) {
 		t.Errorf("handler saw %q", seen)
 	}
 
-	// A second drain must find nothing: a delivered message is done.
 	delivered, _, err = s.Drain(ctx)
 	if err != nil {
 		t.Fatalf("second drain: %v", err)
@@ -88,7 +88,6 @@ func TestDrainDeliversAndStamps(t *testing.T) {
 	}
 }
 
-// TestAFailedHandlerIsRetriedNotLost proves a failure leaves something to retry.
 func TestAFailedHandlerIsRetriedNotLost(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
@@ -128,8 +127,6 @@ func TestAFailedHandlerIsRetriedNotLost(t *testing.T) {
 	}
 }
 
-// TestBackoffPushesTheRetryIntoTheFuture proves a failing message is not retried
-// every poll, which would turn one broken provider into a tight loop against it.
 func TestBackoffPushesTheRetryIntoTheFuture(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
@@ -163,8 +160,51 @@ func TestBackoffPushesTheRetryIntoTheFuture(t *testing.T) {
 	}
 }
 
-// TestAnUnregisteredTopicIsKeptNotDropped proves an unknown topic survives, so a
-// deployment that publishes what it cannot yet consume does not lose the message.
+func TestRescheduleUsesTheDatabaseTransactionClock(t *testing.T) {
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin clock transaction: %v", err)
+	}
+	cleanupCtx := context.WithoutCancel(t.Context())
+	defer func() { _ = tx.Rollback(cleanupCtx) }()
+
+	var id uuid.UUID
+	var databaseNow time.Time
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO outbox_messages (topic, dedupe_key, payload)
+		VALUES ('test.db-clock', $1, '{}'::jsonb)
+		RETURNING id, now()`, uuid.NewString()).Scan(&id, &databaseNow); err != nil {
+		t.Fatalf("enqueue in clock transaction: %v", err)
+	}
+
+	time.Sleep(250 * time.Millisecond)
+	if err := db.New(tx).RescheduleOutbox(ctx, db.RescheduleOutboxParams{
+		ID: id,
+		Backoff: pgtype.Interval{
+			Microseconds: (50 * time.Millisecond).Microseconds(), Valid: true,
+		},
+		LastError: "clock proof",
+	}); err != nil {
+		t.Fatalf("reschedule: %v", err)
+	}
+
+	var due time.Time
+	if err := tx.QueryRow(ctx,
+		`SELECT available_at FROM outbox_messages WHERE id=$1`, id).Scan(&due); err != nil {
+		t.Fatalf("read reschedule time: %v", err)
+	}
+	want := databaseNow.Add(50 * time.Millisecond)
+	if !due.Equal(want) {
+		t.Fatalf("available_at=%v, want database now()+backoff=%v", due, want)
+	}
+	if !due.Before(time.Now()) {
+		t.Fatal("fixture did not cross the process-clock boundary")
+	}
+}
+
+// TestAnUnregisteredTopicIsKeptNotDropped: a deployment that publishes what it
+// cannot yet consume must not lose the message.
 func TestAnUnregisteredTopicIsKeptNotDropped(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
@@ -187,8 +227,6 @@ func TestAnUnregisteredTopicIsKeptNotDropped(t *testing.T) {
 	}
 }
 
-// TestTwoWorkersDoNotDeliverTheSameMessage drains twice at once against the same
-// table.
 func TestTwoWorkersDoNotDeliverTheSameMessage(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
@@ -268,10 +306,40 @@ func TestAClaimedMessageIsInvisibleUntilItsLeaseExpires(t *testing.T) {
 	}
 }
 
+// TestTheHandlerIsGivenItsBudget: [outbox.HandlerBudget] is what the lease
+// arithmetic spends on one message, so the delivery path is where it has to be
+// applied. A handler nothing can cut short holds its claim until the lease
+// expires and hands the tail of its own batch to a second replica.
+func TestTheHandlerIsGivenItsBudget(t *testing.T) {
+	emptyOutbox(t)
+	ctx := t.Context()
+	s := outbox.NewStore(pool, quiet())
+	enqueue(t, "test.budget", uuid.NewString(), `{}`)
+
+	var budget time.Duration
+	var bounded bool
+	s.Handle("test.budget", func(handlerCtx context.Context, _ []byte) error {
+		var deadline time.Time
+		deadline, bounded = handlerCtx.Deadline()
+		budget = time.Until(deadline)
+		return nil
+	})
+
+	if delivered, _, err := s.Drain(ctx); err != nil || delivered != 1 {
+		t.Fatalf("drain: delivered=%d err=%v, want 1 and nil", delivered, err)
+	}
+	if !bounded {
+		t.Fatal("the handler was given a context with no deadline: nothing enforces " +
+			"HandlerBudget, and a handler that hangs keeps its claim for the whole lease")
+	}
+	// The slack is the time between the deadline being set and the handler reading it.
+	if budget > outbox.HandlerBudget || budget < outbox.HandlerBudget-time.Second {
+		t.Errorf("the handler was given %v, want %v", budget, outbox.HandlerBudget)
+	}
+}
+
 var errStopHere = errors.New("handler declined, for the test")
 
-// TestOneTickDrainsABacklogRatherThanOneBatch: a pass that comes back FULL is
-// followed by another claim, so one tick is not a ceiling of BatchSize.
 func TestOneTickDrainsABacklogRatherThanOneBatch(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
@@ -312,9 +380,6 @@ func TestOneTickDrainsABacklogRatherThanOneBatch(t *testing.T) {
 	}
 }
 
-// TestDrainAllStopsWhenEveryMessageFails proves the loop cannot spin: the
-// BACKOFF is what bounds a full pass of failures, and without it a message
-// spends every retry it has inside one tick.
 func TestDrainAllStopsWhenEveryMessageFails(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
@@ -362,7 +427,6 @@ func TestDrainAllStopsWhenEveryMessageFails(t *testing.T) {
 	}
 }
 
-// TestEnqueueIsIdempotent proves one dedupe key is one message.
 func TestEnqueueIsIdempotent(t *testing.T) {
 	key := uuid.NewString()
 	for range 3 {
@@ -378,16 +442,13 @@ func TestEnqueueIsIdempotent(t *testing.T) {
 	}
 }
 
-// TestTheSweepKeepsWhatWentWrongAndDropsWhatWorked is the retention rule. The
-// half that matters: a FAILED message must not be swept, or the queue reports
-// itself empty and /admin/health stops listing it.
+// TestTheSweepKeepsWhatWentWrongAndDropsWhatWorked: a FAILED message must not be
+// swept, or the queue reports itself empty and /admin/health stops listing it.
 func TestTheSweepKeepsWhatWentWrongAndDropsWhatWorked(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()
 	s := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
 
-	// Three rows: one delivered long ago, one delivered just now, and one that
-	// exhausted its attempts and is still undelivered.
 	enqueue(t, "sweep.old", "old", `{}`)
 	enqueue(t, "sweep.fresh", "fresh", `{}`)
 	enqueue(t, "sweep.stuck", "stuck", `{}`)
@@ -428,7 +489,6 @@ func TestTheSweepKeepsWhatWentWrongAndDropsWhatWorked(t *testing.T) {
 		}
 	}
 
-	// And the stuck one is still what an operator is shown.
 	stuck, err := s.Stuck(ctx, 10)
 	if err != nil {
 		t.Fatalf("Stuck: %v", err)
@@ -444,9 +504,8 @@ func TestTheSweepKeepsWhatWentWrongAndDropsWhatWorked(t *testing.T) {
 	}
 }
 
-// TestTheSweepLeavesAPendingMessageAlone proves the window is judged on
-// delivered_at and not on age: available_at moves forward on every claim, so a
-// message legitimately waiting can be arbitrarily old by that clock.
+// TestTheSweepLeavesAPendingMessageAlone: available_at moves forward on every
+// claim, so a message legitimately waiting can be arbitrarily old by that clock.
 func TestTheSweepLeavesAPendingMessageAlone(t *testing.T) {
 	emptyOutbox(t)
 	ctx := t.Context()

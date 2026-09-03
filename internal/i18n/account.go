@@ -40,4 +40,9 @@ var (
 	KeyDelete = key("account.delete", Message{ZhHant: "刪除", En: "Delete"})
 
 	KeyProfileSaved = key("account.notice.saved", Message{ZhHant: "資料已更新。", En: "Saved."})
+
+	KeyProfileInvalid = key("account.notice.profile.invalid", Message{
+		ZhHant: "姓名或電話過長，或含有不允許的字元。",
+		En:     "The name or phone is too long, or contains a character that is not allowed.",
+	})
 )

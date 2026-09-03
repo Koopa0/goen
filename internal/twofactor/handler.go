@@ -32,12 +32,20 @@ func NewHandler(store *Store, log *slog.Logger, secure bool) *Handler {
 	}
 	return &Handler{
 		store: store, log: log, secure: secure,
-		// Ten attempts, one back a minute: 60 guesses an hour against a million
-		// possibilities is 1,900 years.
+		// Ten attempts, one back a minute: 60 guesses an hour against a million.
 		limit: ratelimit.New(ratelimit.Config{
 			Every: time.Minute, Burst: 10, TTL: time.Hour, MaxKeys: 8_192,
 		}),
 	}
+}
+
+// fault renders the styled failure page. These are browser routes: a bare
+// status code reaches a staff member as an unstyled "500" with no way back.
+func (h *Handler) fault(w http.ResponseWriter, r *http.Request) {
+	web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminFaultTitle)}, "",
+		i18n.T(r.Context(), i18n.KeyAdminFaultHead),
+		i18n.T(r.Context(), i18n.KeyAdminFaultBody)))
 }
 
 // Challenge serves GET /admin/verify.
@@ -49,16 +57,21 @@ func (h *Handler) Challenge(w http.ResponseWriter, r *http.Request) {
 	}
 	enrolled, err := h.store.Enrolled(r.Context(), u.ID)
 	if err != nil {
-		if errors.Is(err, ErrSecretUnreadable) {
+		switch {
+		case errors.Is(err, ErrSecretUnreadable):
 			h.logUnreadable(r)
 			// A credential row exists; only its configured key is stale. Treat it
 			// as enrolled so this password-only page cannot replace the factor,
-			// and render the recovery instruction here rather than redirecting
-			// back into the same failing GET.
+			// and render the recovery instruction rather than redirecting back
+			// into the same failing GET.
 			enrolled = true
-		} else {
+		case errors.Is(err, ErrDisabled):
+			// A deployment fact, not a fault: the view below has a branch that
+			// names the missing key.
+			enrolled = false
+		default:
 			h.log.ErrorContext(r.Context(), "read totp state", "error", err)
-			http.Error(w, "500", http.StatusInternalServerError)
+			h.fault(w, r)
 			return
 		}
 	}
@@ -93,14 +106,23 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.Verify(r.Context(), u.ID, r.PostFormValue("code")); err != nil {
-		if errors.Is(err, ErrSecretUnreadable) {
+		switch {
+		case errors.Is(err, ErrSecretUnreadable):
 			h.logUnreadable(r)
 			http.Redirect(w, r, "/admin/verify?stale=1", http.StatusSeeOther)
 			return
+		case errors.Is(err, ErrDisabled):
+			http.Redirect(w, r, "/admin/verify?disabled=1", http.StatusSeeOther)
+			return
+		case errors.Is(err, ErrBadCode), errors.Is(err, ErrNotEnrolled):
+			h.log.WarnContext(r.Context(), "totp verify", "error", err)
+			http.Redirect(w, r, "/admin/verify?bad=1", http.StatusSeeOther)
+			return
+		default:
+			h.log.ErrorContext(r.Context(), "verify totp", "error", err)
+			h.fault(w, r)
+			return
 		}
-		h.log.WarnContext(r.Context(), "totp verify", "error", err)
-		http.Redirect(w, r, "/admin/verify?bad=1", http.StatusSeeOther)
-		return
 	}
 	token := account.ReadSessionCookie(r, h.secure)
 	if token == "" {
@@ -109,7 +131,7 @@ func (h *Handler) Verify(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.store.MarkVerified(r.Context(), token); err != nil {
 		h.log.ErrorContext(r.Context(), "mark session verified", "error", err)
-		http.Error(w, "500", http.StatusInternalServerError)
+		h.fault(w, r)
 		return
 	}
 	http.Redirect(w, r, "/admin", http.StatusSeeOther)
@@ -139,7 +161,7 @@ func (h *Handler) Enrol(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.log.ErrorContext(r.Context(), "begin enrolment", "error", err)
-		http.Error(w, "500", http.StatusInternalServerError)
+		h.fault(w, r)
 		return
 	}
 	// Rendered rather than redirected to: a redirect would have to carry the
@@ -167,8 +189,19 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.store.Confirm(r.Context(), u.ID, r.PostFormValue("code")); err != nil {
-		h.log.WarnContext(r.Context(), "totp confirm", "error", err)
-		http.Redirect(w, r, "/admin/verify?badenrol=1", http.StatusSeeOther)
+		switch {
+		case errors.Is(err, ErrSecretUnreadable):
+			h.logUnreadable(r)
+			http.Redirect(w, r, "/admin/verify?stale=1", http.StatusSeeOther)
+		case errors.Is(err, ErrDisabled):
+			http.Redirect(w, r, "/admin/verify?disabled=1", http.StatusSeeOther)
+		case errors.Is(err, ErrBadCode), errors.Is(err, ErrNotEnrolled):
+			h.log.WarnContext(r.Context(), "totp confirm", "error", err)
+			http.Redirect(w, r, "/admin/verify?badenrol=1", http.StatusSeeOther)
+		default:
+			h.log.ErrorContext(r.Context(), "confirm totp", "error", err)
+			h.fault(w, r)
+		}
 		return
 	}
 	// Confirming proves the factor, so the session is verified too.
@@ -219,10 +252,7 @@ func (h *Handler) Staff(w http.ResponseWriter, r *http.Request) {
 	view, err := h.store.Staff(r.Context())
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "read staff 2FA status", "error", err)
-		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminFaultTitle)}, "",
-			i18n.T(r.Context(), i18n.KeyAdminFaultHead),
-			i18n.T(r.Context(), i18n.KeyAdminFaultBody)))
+		h.fault(w, r)
 		return
 	}
 	if !h.store.Enabled() {
@@ -299,10 +329,7 @@ func (h *Handler) redirectStaff(w http.ResponseWriter, r *http.Request, err erro
 		http.Redirect(w, r, "/admin/staff?needs=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "change staff", "error", err)
-		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
-			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminFaultTitle)}, "",
-			i18n.T(r.Context(), i18n.KeyAdminFaultHead),
-			i18n.T(r.Context(), i18n.KeyAdminFaultBody)))
+		h.fault(w, r)
 	}
 }
 

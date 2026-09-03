@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/url"
 	"strings"
+	"unicode/utf8"
 )
 
 // ErrNotFound is returned when a slug names no active product.
@@ -23,8 +24,8 @@ type Selection map[string]string
 
 // ParseSelection reads a selection from a query string, ignoring the keys the
 // page uses for other purposes. For repeated keys it uses only the first value.
-// Only the product's variants know which keys are option names, so filtering
-// happens later in [Selection.OnlyOptionsOf].
+// Only the product's variants know which keys are option names, so
+// [Selection.OnlyOptionsOf] does the rest of the filtering.
 func ParseSelection(q url.Values) Selection {
 	sel := make(Selection, len(q))
 	for k, vs := range q {
@@ -38,7 +39,7 @@ func ParseSelection(q url.Values) Selection {
 		if r := []rune(v); len(r) > maxOptionRunes {
 			v = string(r[:maxOptionRunes])
 		}
-		if r := []rune(k); len(r) > maxOptionRunes {
+		if utf8.RuneCountInString(k) > maxOptionRunes {
 			continue
 		}
 		sel[k] = v
@@ -46,17 +47,13 @@ func ParseSelection(q url.Values) Selection {
 	return sel
 }
 
-// OnlyOptionsOf returns the keys carried by a variant. It does not impose an
-// arbitrary option-count limit: the catalogue is the authority on how many
-// axes a real product has, while the HTTP server already bounds request size.
-// It never mutates or aliases s: a non-nil s produces a distinct, non-nil map,
-// including when s is empty or no key survives. A nil s produces nil.
+// OnlyOptionsOf returns the keys carried by a variant. It never mutates or
+// aliases s: a non-nil s produces a distinct, non-nil map, including when s is
+// empty or no key survives. A nil s produces nil.
 //
-// ParseSelection cannot tell a variant option from any other query parameter —
-// it sees a bare query string — so the filtering happens where the product's
-// own options are known. Without it, a key nothing matches makes Resolve find
-// no variant at all, which the page renders as "that combination does not
-// exist" on a product that is in stock.
+// A key no variant carries would make Resolve find nothing at all, which the
+// page renders as "that combination does not exist" on a product that is in
+// stock.
 func (s Selection) OnlyOptionsOf(variants []Variant) Selection {
 	if s == nil {
 		return nil
@@ -123,9 +120,13 @@ func Resolve(variants []Variant, sel Selection) (chosen Variant, exact bool) {
 		if !found {
 			first, found = v, true
 		}
+		// Until a buyable match appears, retain the cheapest fallback: a sold-out
+		// product opens on the same lowest price its tile quoted.
+		if !pinned && v.PriceCents < first.PriceCents {
+			first = v
+		}
 		// The CHEAPEST buyable one, not the first: a listing tile quotes the
-		// cheapest and links here, so picking by position opened the page at a
-		// different price from the one the shopper clicked.
+		// cheapest and links here, so position order would open a different price.
 		if v.Sellable && (!pinned || v.PriceCents < first.PriceCents) {
 			first, pinned = v, true
 		}

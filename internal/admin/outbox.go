@@ -47,12 +47,9 @@ func enqueueOrderShipped(ctx context.Context, q *db.Queries, orderID uuid.UUID, 
 		return fmt.Errorf("encode order.shipped: %w", err)
 	}
 	// Keyed on the CARRIER and the tracking number together, which is what
-	// order_shipments is unique on. The tracking number alone is narrower than
-	// the shipment's own key: two carriers may legitimately issue the same
-	// number, and the second dispatch then met ON CONFLICT DO NOTHING — Ship
-	// still succeeded, and a customer was never told their parcel had left.
-	// An order in two parcels is still two notices, because two parcels of one
-	// order carry two tracking numbers.
+	// order_shipments is unique on: two carriers may legitimately issue the same
+	// number, and the tracking number alone would then swallow the second
+	// dispatch. An order in two parcels is still two notices.
 	if err := q.EnqueueMessage(ctx, db.EnqueueMessageParams{
 		Topic:     outbox.TopicOrderShipped,
 		DedupeKey: m.Carrier + ":" + m.Tracking,

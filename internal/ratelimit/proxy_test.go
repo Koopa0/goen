@@ -7,8 +7,6 @@ import (
 	"time"
 )
 
-// proxied runs r through Resolve and reports the address the limiters would key
-// on.
 func proxied(t *testing.T, p *Proxies, r *http.Request) string {
 	t.Helper()
 
@@ -32,8 +30,6 @@ func request(t *testing.T, remoteAddr string, forwarded ...string) *http.Request
 	return r
 }
 
-// TestNothingIsTrustedUntilSomethingIsConfigured proves the default: RemoteAddr
-// and nothing else, with no header consulted.
 func TestNothingIsTrustedUntilSomethingIsConfigured(t *testing.T) {
 	t.Parallel()
 
@@ -59,8 +55,7 @@ func TestNothingIsTrustedUntilSomethingIsConfigured(t *testing.T) {
 	}
 }
 
-// TestTheRightmostUntrustedHopIsTheClient proves which entry is believed.
-// Taking the leftmost — the shape most frameworks ship — hands over the key.
+// Taking the leftmost hop — the shape most frameworks ship — hands the client the key.
 func TestTheRightmostUntrustedHopIsTheClient(t *testing.T) {
 	t.Parallel()
 
@@ -191,8 +186,8 @@ func TestTheRightmostUntrustedHopIsTheClient(t *testing.T) {
 	}
 }
 
-// TestASpoofedHeaderBuysNoFreshAllowance is the attack this configuration must
-// not open: one attacker holding an unlimited supply of keys.
+// The attack this configuration must not open: one attacker holding an
+// unlimited supply of keys.
 func TestASpoofedHeaderBuysNoFreshAllowance(t *testing.T) {
 	t.Parallel()
 
@@ -227,8 +222,6 @@ func TestASpoofedHeaderBuysNoFreshAllowance(t *testing.T) {
 	}
 }
 
-// TestParseProxiesRefusesWhatCannotBeAConfiguration proves the operator's list
-// is read strictly, `0.0.0.0/0` included.
 func TestParseProxiesRefusesWhatCannotBeAConfiguration(t *testing.T) {
 	t.Parallel()
 

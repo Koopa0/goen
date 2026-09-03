@@ -98,7 +98,7 @@ func (s *Store) CreateBanner(ctx context.Context, f *BannerForm) (map[string]str
 		return errs, nil
 	}
 	if err := s.audited(ctx, Event{
-		Action: ActionCreateBanner, Table: "promo_banners",
+		Action: actionCreateBanner, Table: "promo_banners",
 		After: map[string]any{"message": f.Message, "cta": f.CTAHref},
 	}, func(ctx context.Context, q *db.Queries) error {
 		return q.CreateBanner(ctx, db.CreateBannerParams{
@@ -120,7 +120,7 @@ func (s *Store) SetBannerActive(ctx context.Context, id string, active bool) err
 		return ErrNotFound
 	}
 	return s.audited(ctx, Event{
-		Action: ActionToggleBanner, Table: "promo_banners", ID: nullableID(bannerID),
+		Action: actionToggleBanner, Table: "promo_banners", ID: nullableID(bannerID),
 		After: map[string]any{"active": active},
 	}, func(ctx context.Context, q *db.Queries) error {
 		n, execErr := q.SetBannerActive(ctx, db.SetBannerActiveParams{

@@ -10,10 +10,8 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
-// NewsletterConfirm is what a newsletter.confirm message carries. The TOKEN
-// travels in the payload and lives as long as the outbox row does.
+// NewsletterConfirm is what a newsletter.confirm message carries.
 type NewsletterConfirm struct {
-	// Locale is the language to send in, recorded by the producer.
 	Locale string `json:"locale"`
 	Email  string `json:"email"`
 	Token  string `json:"token"`
@@ -26,8 +24,8 @@ func (n Notifier) SendNewsletterConfirm(ctx context.Context, p *NewsletterConfir
 	}
 
 	ctx = n.locale(ctx, p.Locale)
-	link := strings.TrimRight(n.BaseURL, "/") + "/newsletter/confirm?token=" + url.QueryEscape(p.Token)
-	return n.Sender.Send(ctx, &Message{
+	link := strings.TrimRight(n.baseURL, "/") + "/newsletter/confirm?token=" + url.QueryEscape(p.Token)
+	return n.sender.Send(ctx, &Message{
 		To:      p.Email,
 		Subject: i18n.T(ctx, i18n.KeyMailNewsConfirmSubject),
 		Body:    n.letter(ctx, "", fmt.Sprintf(i18n.T(ctx, i18n.KeyMailNewsConfirmBody), link)),
@@ -38,7 +36,6 @@ func (n Notifier) SendNewsletterConfirm(ctx context.Context, p *NewsletterConfir
 // unsubscribe token never expires, because an email sent a year ago still has to
 // take somebody off the list.
 type NewsletterWelcome struct {
-	// Locale is the language to send in, recorded by the producer.
 	Locale           string `json:"locale"`
 	Email            string `json:"email"`
 	UnsubscribeToken string `json:"unsubscribe_token"`
@@ -51,9 +48,9 @@ func (n Notifier) SendNewsletterWelcome(ctx context.Context, p *NewsletterWelcom
 	}
 
 	ctx = n.locale(ctx, p.Locale)
-	link := strings.TrimRight(n.BaseURL, "/") + "/newsletter/unsubscribe?token=" +
+	link := strings.TrimRight(n.baseURL, "/") + "/newsletter/unsubscribe?token=" +
 		url.QueryEscape(p.UnsubscribeToken)
-	return n.Sender.Send(ctx, &Message{
+	return n.sender.Send(ctx, &Message{
 		To:      p.Email,
 		Subject: i18n.T(ctx, i18n.KeyMailNewsWelcomeSubject),
 		Body:    n.letter(ctx, "", fmt.Sprintf(i18n.T(ctx, i18n.KeyMailNewsWelcomeBody), link)),
@@ -78,13 +75,11 @@ func (n Notifier) SendNewsletterIssue(ctx context.Context, p *NewsletterIssue) e
 		return errors.New("a newsletter issue has no usable email address")
 	}
 	if p.UnsubscribeToken == "" {
-		// Refused rather than sent without one: the outbox reschedules it and
-		// Stuck() shows a human.
 		return errors.New("a newsletter issue has no unsubscribe token")
 	}
 
 	ctx = n.locale(ctx, p.Locale)
-	link := strings.TrimRight(n.BaseURL, "/") + "/newsletter/unsubscribe?token=" +
+	link := strings.TrimRight(n.baseURL, "/") + "/newsletter/unsubscribe?token=" +
 		url.QueryEscape(p.UnsubscribeToken)
 	body := strings.Join([]string{
 		p.Body, "",
@@ -92,27 +87,27 @@ func (n Notifier) SendNewsletterIssue(ctx context.Context, p *NewsletterIssue) e
 		"", i18n.T(ctx, i18n.KeyMailNoReply), "— goen", "",
 	}, "\n")
 
-	return n.Sender.Send(ctx, &Message{To: p.Email, Subject: p.Subject, Body: body})
+	return n.sender.Send(ctx, &Message{To: p.Email, Subject: p.Subject, Body: body})
 }
 
-// EmailVerify is what an account.email_verify message carries. The address is in
-// the payload as well as being the recipient, because a CHANGE sends to the new
-// address while the account still holds the old one.
-type EmailVerify struct {
+// AddressVerify is what an account.email_verify message carries. The address is
+// in the payload as well as being the recipient, because a CHANGE sends to the
+// new address while the account still holds the old one.
+type AddressVerify struct {
 	Locale string `json:"locale"`
 	Email  string `json:"email"`
 	Token  string `json:"token"`
 }
 
-// SendEmailVerify asks somebody to prove an address is theirs.
-func (n Notifier) SendEmailVerify(ctx context.Context, p *EmailVerify) error {
+// SendAddressVerify asks somebody to prove an address is theirs.
+func (n Notifier) SendAddressVerify(ctx context.Context, p *AddressVerify) error {
 	if !Valid(p.Email) {
 		return errors.New("an email verification has no usable address")
 	}
 
 	ctx = n.locale(ctx, p.Locale)
-	link := strings.TrimRight(n.BaseURL, "/") + "/verify?token=" + url.QueryEscape(p.Token)
-	return n.Sender.Send(ctx, &Message{
+	link := strings.TrimRight(n.baseURL, "/") + "/verify?token=" + url.QueryEscape(p.Token)
+	return n.sender.Send(ctx, &Message{
 		To:      p.Email,
 		Subject: i18n.T(ctx, i18n.KeyMailVerifySubject),
 		Body:    n.letter(ctx, "", fmt.Sprintf(i18n.T(ctx, i18n.KeyMailVerifyBody), p.Email, link)),

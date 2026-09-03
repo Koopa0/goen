@@ -27,16 +27,6 @@ var (
 	differentCipherKey = []byte("fedcba9876543210fedcba9876543210")
 )
 
-func TestEveryAcceptedStaffRoleHasALabel(t *testing.T) {
-	t.Parallel()
-	ctx := i18n.WithLocale(t.Context(), i18n.En)
-	for _, role := range roles {
-		if label := roleLabel(ctx, role); label == "" || label == role {
-			t.Errorf("roleLabel(%q) = %q, want a catalogue label", role, label)
-		}
-	}
-}
-
 func mustParseKey(t *testing.T, value string) []byte {
 	t.Helper()
 	key, err := ParseKey(value)
@@ -47,8 +37,8 @@ func mustParseKey(t *testing.T, value string) []byte {
 }
 
 // TestOnlyThirtyTwoRandomBytesIsAKey pins the configuration grammar and the
-// decoded material. An err-only assertion would admit the old SHA-256
-// normaliser, which accepted every passphrase and returned a plausible length.
+// decoded material: an err-only assertion would admit a normaliser that
+// accepted every passphrase and returned a plausible length.
 func TestOnlyThirtyTwoRandomBytesIsAKey(t *testing.T) {
 	hexBytes, err := hex.DecodeString(testHexKey)
 	if err != nil {
@@ -154,9 +144,8 @@ func FuzzParseKey(f *testing.F) {
 	})
 }
 
-// TestTheKeyIsTheDecodedBytesAndNotAHashOfThem names the defect: the raw
-// decoded bytes open the ciphertext and sha256(the environment string) does
-// not.
+// TestTheKeyIsTheDecodedBytesAndNotAHashOfThem: the raw decoded bytes open the
+// ciphertext and sha256(the environment string) does not.
 func TestTheKeyIsTheDecodedBytesAndNotAHashOfThem(t *testing.T) {
 	decoded := mustParseKey(t, testHexKey)
 	sealed, err := newCipher(decoded).seal([]byte("the stored totp secret"))
@@ -185,8 +174,7 @@ func TestTheKeyIsTheDecodedBytesAndNotAHashOfThem(t *testing.T) {
 }
 
 // TestAnUnreadableCredentialNoticeSpeaksBothLocales pins the recovery message
-// used by the Verify redirect. Challenge's no-redirect path is exercised by
-// the integration test against a real unreadable row.
+// used by the Verify redirect.
 func TestAnUnreadableCredentialNoticeSpeaksBothLocales(t *testing.T) {
 	tests := []struct {
 		locale i18n.Locale
@@ -230,7 +218,6 @@ func TestCodeMatchesTheRFCTestVectors(t *testing.T) {
 	}
 }
 
-// TestACodeCannotBeUsedTwice proves a code is spent when it is used.
 func TestACodeCannotBeUsedTwice(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	step := StepAt(now)
@@ -255,8 +242,6 @@ func TestACodeCannotBeUsedTwice(t *testing.T) {
 	}
 }
 
-// TestTheSkewWindowIsExactlyOneStep proves the acceptance window is as narrow
-// as it claims.
 func TestTheSkewWindowIsExactlyOneStep(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	current := StepAt(now)
@@ -284,8 +269,6 @@ func TestTheSkewWindowIsExactlyOneStep(t *testing.T) {
 	}
 }
 
-// TestNothingButASixDigitCodeIsAccepted proves malformed input never reaches
-// the comparison.
 func TestNothingButASixDigitCodeIsAccepted(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	valid := Code(rfcSecret, StepAt(now))
@@ -306,8 +289,6 @@ func TestNothingButASixDigitCodeIsAccepted(t *testing.T) {
 	}
 }
 
-// TestASealedSecretRoundTripsAndIsNotThePlaintext proves the stored form is
-// neither readable nor repeatable.
 func TestASealedSecretRoundTripsAndIsNotThePlaintext(t *testing.T) {
 	c := newCipher(testCipherKey)
 	secret, err := NewSecret()
@@ -342,8 +323,6 @@ func TestASealedSecretRoundTripsAndIsNotThePlaintext(t *testing.T) {
 	}
 }
 
-// TestATamperedSecretDoesNotOpen proves the encryption authenticates rather
-// than merely obscures.
 func TestATamperedSecretDoesNotOpen(t *testing.T) {
 	c := newCipher(testCipherKey)
 	secret, _ := NewSecret()
@@ -369,8 +348,6 @@ func TestATamperedSecretDoesNotOpen(t *testing.T) {
 	}
 }
 
-// TestNoKeyMeansNoStoredSecret proves an unconfigured deployment refuses
-// enrolment rather than storing the secret in the clear.
 func TestNoKeyMeansNoStoredSecret(t *testing.T) {
 	c := newCipher(nil)
 	if c.enabled() {
@@ -384,7 +361,6 @@ func TestNoKeyMeansNoStoredSecret(t *testing.T) {
 	}
 }
 
-// TestTheProvisioningURIIsWhatAnAppExpects proves an app can import it.
 func TestTheProvisioningURIIsWhatAnAppExpects(t *testing.T) {
 	secret := []byte("12345678901234567890")
 	uri := ProvisioningURI("staff@goen.example", secret)

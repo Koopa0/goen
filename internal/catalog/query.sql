@@ -305,7 +305,8 @@ WHERE EXISTS (
     SELECT 1 FROM products p
     WHERE p.category_id = c.id AND p.status = 'active'
 )
-ORDER BY c.updated_at DESC;
+ORDER BY c.updated_at DESC
+LIMIT $1;
 
 -- The window is judged against the database's clock, which wrote the timestamps.
 -- name: RunningCampaign :one
@@ -317,6 +318,7 @@ WHERE slug = @slug::text AND is_active
 -- name: RunningCampaigns :many
 SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title,
        c.ends_at,
+       extract(epoch FROM (c.ends_at - now()))::bigint AS remaining_seconds,
        (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products
 FROM sale_campaigns c
 WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
@@ -333,7 +335,10 @@ SELECT
     mv.price_cents AS min_price_cents,
     -- Whether that price is the cheapest of several, so a card can say "from"
     -- rather than state one variant's price as the product's.
-    EXISTS (
+    NOT EXISTS (
+        SELECT 1 FROM product_variants dv
+        WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents < mv.price_cents
+    ) AND EXISTS (
         SELECT 1 FROM product_variants dv
         WHERE dv.product_id = p.id AND dv.is_active AND dv.price_cents > mv.price_cents
     ) AS price_varies,
@@ -356,7 +361,13 @@ JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
     FROM product_variants
     WHERE product_id = p.id AND is_active
-    ORDER BY (stock_quantity > safety_stock) DESC, price_cents
+    -- A campaign may feature a product only while an active discounted variant
+    -- exists. Price the fact that admitted it, as /deals does, rather than a
+    -- cheaper regular variant that would erase the markdown from the campaign.
+    ORDER BY (compare_at_price_cents IS NOT NULL
+              AND compare_at_price_cents > price_cents) DESC,
+             (stock_quantity > safety_stock) DESC,
+             price_cents
     LIMIT 1
 ) mv ON true
 LEFT JOIN LATERAL (

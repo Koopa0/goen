@@ -4,6 +4,7 @@ package account_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/loyalty"
@@ -12,7 +13,7 @@ import (
 // internal/loyalty imports internal/account, so the constant is copied rather
 // than imported, and nothing else makes the two agree.
 func TestTheMembershipWindowMatchesTheProgramme(t *testing.T) {
-	if got, want := account.MembershipWindowDays, loyalty.Days(loyalty.MembershipWindow); got != want {
+	if got, want := account.MembershipWindowDays, int32(loyalty.MembershipWindow/(24*time.Hour)); got != want {
 		t.Errorf("the account page reads a %d-day window and the programme says %d",
 			got, want)
 	}

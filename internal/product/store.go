@@ -12,6 +12,7 @@ import (
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -81,16 +82,9 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 	}
 
 	// A query key is a variant option only if some variant actually carries it.
-	// reservedParam is a DENYLIST and the page's own redirects outran it: ?ask=,
-	// ?notify= and the /compare set's ?p= were each read by this handler and each
-	// parsed as an option nothing could satisfy — so an in-stock product answered
-	// 找不到這個組合, lost its price box entirely, and emitted OutOfStock with a
-	// price of 0.00 in its JSON-LD. The restock form's own 303 lands on
-	// ?&notify=1, so asking to be told about a restock took the customer to a
-	// page saying the thing does not exist.
-	//
-	// Derived from the variants rather than listed, because the next parameter
-	// somebody adds will not be added to a list.
+	// reservedParam is a DENYLIST, and the page's own ?ask=, ?notify= and the
+	// /compare set's ?p= outran it. Derived from the variants rather than listed,
+	// because the next parameter somebody adds will not be added to a list.
 	sel = sel.OnlyOptionsOf(variants)
 
 	chosen, exact := Resolve(variants, sel)
@@ -233,7 +227,7 @@ func (s *Store) loadOpinion(ctx context.Context, p *db.ProductBySlugRow, view *p
 			Body:     r.Body,
 			Author:   r.Author,
 			Verified: r.IsVerifiedPurchase,
-			Date:     r.CreatedAt.Format("2006-01-02"),
+			Date:     shoptime.Day(r.CreatedAt),
 		})
 	}
 

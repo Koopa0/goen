@@ -71,6 +71,11 @@ var (
 
 	KeyFieldCarrier = key("field.invoice.carrier", Message{ZhHant: "手機條碼載具", En: "Mobile barcode carrier"})
 
+	KeyFieldCompanyName = key("field.invoice.company_name", Message{
+		ZhHant: "公司名稱",
+		En:     "Registered company name",
+	})
+
 	KeyFieldTaxID = key("field.invoice.taxid", Message{ZhHant: "統一編號", En: "Company tax ID"})
 
 	KeyInvoiceMember = key("invoice.member", Message{
@@ -126,9 +131,8 @@ var (
 		En:     "We could not work out the delivery charge. Please try again.",
 	})
 
-	// The button beside each checkout chooser. formnovalidate, because the
-	// customer is mid-form: the browser must not refuse to re-render because a
-	// field they have not reached yet is empty.
+	// The button beside each checkout chooser. It is formnovalidate: the customer
+	// is mid-form, so fields they have not reached yet are still empty.
 	KeyApplyChoice = key("checkout.apply", Message{
 		ZhHant: "更新",
 		En:     "Update",
@@ -225,8 +229,13 @@ var (
 		En:     "A mobile barcode is a slash and seven characters, such as /ABC+123.",
 	})
 
+	KeyCompanyNameMalformed = key("valid.invoice.company_name", Message{
+		ZhHant: "請填寫統一編號所登記的公司名稱（最多 60 字）。",
+		En:     "Enter the registered company name for this tax ID (up to 60 characters).",
+	})
+
 	KeyTaxIDMalformed = key("valid.invoice.taxid", Message{
-		ZhHant: "統一編號應為八位數字。",
-		En:     "A company tax ID is eight digits.",
+		ZhHant: "請填寫有效的八位數統一編號。",
+		En:     "Enter a valid eight-digit company tax ID.",
 	})
 )

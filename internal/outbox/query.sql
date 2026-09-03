@@ -21,10 +21,10 @@ RETURNING m.id, m.topic, m.payload, m.attempts;
 -- name: MarkOutboxDelivered :exec
 UPDATE outbox_messages SET delivered_at = now(), last_error = NULL WHERE id = $1;
 
--- Push a failed message into the future. The backoff is computed by the caller.
+-- Push a failed message relative to the same database clock ClaimOutbox uses.
 -- name: RescheduleOutbox :exec
 UPDATE outbox_messages
-SET available_at = @available_at, last_error = @last_error::text
+SET available_at = now() + @backoff::interval, last_error = @last_error::text
 WHERE id = $1;
 
 -- Messages that have failed too many times, for a human to look at.

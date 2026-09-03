@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	stripe "github.com/stripe/stripe-go/v86"
 	"github.com/stripe/stripe-go/v86/webhook"
@@ -21,6 +24,33 @@ type Gateway struct {
 	client        *stripe.Client
 	webhookSecret string
 	baseURL       string
+}
+
+const maxStripeIDCharacters = 255
+
+var errInvalidStripeResponse = errors.New("payment: Stripe returned an invalid response")
+
+// ValidStripeID reports whether id is safe to retain as a durable provider
+// identity. Stripe IDs are opaque, so this deliberately does not freeze their
+// prefixes; it only enforces the database-sized identity contract and excludes
+// whitespace and controls that can create aliases or forge log lines.
+func ValidStripeID(id string) bool {
+	if id == "" || !utf8.ValidString(id) || utf8.RuneCountInString(id) > maxStripeIDCharacters {
+		return false
+	}
+	return !strings.ContainsFunc(id, func(r rune) bool {
+		return unicode.IsControl(r) || unicode.IsSpace(r)
+	})
+}
+
+// checkoutRedirectURL validates the URL Stripe tells a browser to visit. A
+// custom Checkout domain is still Stripe-hosted, so hostname allowlists reject
+// a supported configuration; the security boundary is an absolute HTTPS URL
+// with a real host and no userinfo.
+func checkoutRedirectURL(raw string) bool {
+	u, err := url.Parse(raw)
+	return err == nil && u.IsAbs() && strings.EqualFold(u.Scheme, "https") &&
+		u.Hostname() != "" && u.User == nil
 }
 
 // NewGateway wires Stripe. A blank API key is not an error; a key with no
@@ -61,29 +91,25 @@ func lineItem(name string, unitCents, quantity int64) *stripe.CheckoutSessionCre
 	}
 }
 
-// StartSession creates a Checkout Session and returns its id and URL.
-func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (id, redirectURL string, err error) {
+// StartSession creates a Checkout Session and returns its durable id. The
+// redirect URL is deliberately not returned: the handler records the id first,
+// then [Gateway.ResumeSession] retrieves and validates a fresh URL. This also
+// means an unusable URL in Create's response cannot orphan an already-created
+// payable Session before its id is recorded.
+func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (string, error) {
 	if !g.Enabled() {
-		return "", "", ErrDisabled
+		return "", ErrDisabled
 	}
 
 	// Stripe's page must total what capture_payment will record, and
 	// payments_capture_matches_order demands exactly order_amount_owed — which is
-	// o.TotalCents, the total less the store credit spent on it.
+	// o.TotalCents, the total less the store credit spent on it. The difference
+	// from the lines runs BOTH ways: shipping and tax add, while a coupon and
+	// store credit take away.
 	//
-	// The difference from the lines runs BOTH ways: shipping and tax add, while a
-	// coupon and store credit take away. Refusing the negative direction made
-	// every reduced order unpayable, and free delivery over the advertised
-	// threshold means any discount at all lands below the lines — with the
-	// customer's credit already debited and their coupon already spent by the
-	// checkout transaction, so the refusal arrived after the money was gone.
-	//
-	// A reduction is carried as ONE line for the whole order rather than spread
-	// across the goods or sent as a Stripe coupon. Stripe rejects a negative
-	// unit_amount outright, and a coupon is an object with its own lifetime to
-	// create, look up and expire for a figure goen has already decided; itemising
-	// the goods at a price nobody agreed to would make the receipt Stripe emails
-	// disagree with the shop's own.
+	// A reduction is carried as ONE line for the whole order: Stripe rejects a
+	// negative unit_amount outright, and itemising the goods at a price nobody
+	// agreed to would make the receipt Stripe emails disagree with the shop's own.
 	var lineTotal int64
 	for i := range o.Lines {
 		lineTotal += o.Lines[i].UnitCents * int64(o.Lines[i].Quantity)
@@ -137,9 +163,13 @@ func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (id
 
 	sess, err := g.client.V1CheckoutSessions.Create(ctx, params)
 	if err != nil {
-		return "", "", fmt.Errorf("create checkout session for order %s: %w", o.Number, err)
+		return "", fmt.Errorf("create checkout session for order %s: %w", o.Number, err)
 	}
-	return sess.ID, sess.URL, nil
+	if sess == nil || !ValidStripeID(sess.ID) {
+		return "", fmt.Errorf("%w: create checkout session returned an invalid session id",
+			errInvalidStripeResponse)
+	}
+	return sess.ID, nil
 }
 
 // ResumeSession reports the provider's current state and, for an open session,
@@ -152,12 +182,23 @@ func (g *Gateway) ResumeSession(
 	if !g.Enabled() {
 		return "", "", ErrDisabled
 	}
+	if !ValidStripeID(sessionID) {
+		return "", "", errors.New("payment: cannot retrieve an invalid Stripe session id")
+	}
 	sess, err := g.client.V1CheckoutSessions.Retrieve(ctx, sessionID, nil)
 	if err != nil {
 		return "", "", fmt.Errorf("read checkout session %s: %w", sessionID, err)
 	}
+	if sess == nil || !ValidStripeID(sess.ID) || sess.ID != sessionID {
+		return "", "", fmt.Errorf("%w: retrieve checkout session %s returned a different or invalid session id",
+			errInvalidStripeResponse, sessionID)
+	}
 	if sess.Status != stripe.CheckoutSessionStatusOpen {
 		return "", sess.Status, nil
+	}
+	if !checkoutRedirectURL(sess.URL) {
+		return "", "", fmt.Errorf("%w: open checkout session %s returned an unsafe redirect URL",
+			errInvalidStripeResponse, sessionID)
 	}
 	return sess.URL, sess.Status, nil
 }
@@ -169,9 +210,17 @@ func (g *Gateway) ExpireSession(ctx context.Context, sessionID string) error {
 	if !g.Enabled() {
 		return ErrDisabled
 	}
-	if _, err := g.client.V1CheckoutSessions.Expire(ctx, sessionID,
-		&stripe.CheckoutSessionExpireParams{}); err != nil {
+	if !ValidStripeID(sessionID) {
+		return errors.New("payment: cannot expire an invalid Stripe session id")
+	}
+	sess, err := g.client.V1CheckoutSessions.Expire(ctx, sessionID,
+		&stripe.CheckoutSessionExpireParams{})
+	if err != nil {
 		return fmt.Errorf("expire checkout session %s: %w", sessionID, err)
+	}
+	if sess == nil || !ValidStripeID(sess.ID) || sess.ID != sessionID {
+		return fmt.Errorf("%w: expire checkout session %s returned a different or invalid session id",
+			errInvalidStripeResponse, sessionID)
 	}
 	return nil
 }
@@ -197,6 +246,10 @@ func (g *Gateway) VerifyWebhook(body []byte, sigHeader string) (stripe.Event, er
 	if err != nil {
 		return stripe.Event{}, fmt.Errorf("%w: %w", ErrBadSignature, err)
 	}
+	if !ValidStripeID(ev.ID) {
+		return stripe.Event{}, fmt.Errorf("%w: webhook carried an invalid event id",
+			errInvalidStripeResponse)
+	}
 	return ev, nil
 }
 
@@ -220,7 +273,7 @@ func CaptureFrom(ev *stripe.Event) (Capture, bool) {
 	if sess.PaymentStatus != stripe.CheckoutSessionPaymentStatusPaid {
 		return Capture{}, false
 	}
-	if sess.ID == "" || sess.AmountTotal <= 0 {
+	if !ValidStripeID(sess.ID) || sess.AmountTotal <= 0 {
 		return Capture{}, false
 	}
 	c := Capture{SessionID: sess.ID, AmountRecv: sess.AmountTotal}
@@ -274,7 +327,7 @@ func AbandonedSessionFrom(ev *stripe.Event) (string, bool) {
 	if err := json.Unmarshal(ev.Data.Raw, &sess); err != nil {
 		return "", false
 	}
-	if sess.ID == "" {
+	if !ValidStripeID(sess.ID) {
 		return "", false
 	}
 	return sess.ID, true
@@ -291,7 +344,7 @@ func UnsettledSessionFrom(ev *stripe.Event) (string, bool) {
 	if err := json.Unmarshal(ev.Data.Raw, &sess); err != nil {
 		return "", false
 	}
-	if sess.ID == "" || sess.PaymentStatus != stripe.CheckoutSessionPaymentStatusUnpaid {
+	if !ValidStripeID(sess.ID) || sess.PaymentStatus != stripe.CheckoutSessionPaymentStatusUnpaid {
 		return "", false
 	}
 	return sess.ID, true
@@ -302,7 +355,7 @@ func ObjectRef(ev *stripe.Event) string {
 	if ev == nil || ev.Data == nil {
 		return ""
 	}
-	if id, ok := ev.Data.Object["id"].(string); ok {
+	if id, ok := ev.Data.Object["id"].(string); ok && ValidStripeID(id) {
 		return id
 	}
 	return ""

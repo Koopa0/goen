@@ -47,16 +47,15 @@ var (
 
 	KeyCompareAdd = key("compare.add", Message{ZhHant: "比較", En: "Compare"})
 
-	// KeyCompareAddNamed is the checkbox's accessible name. Two dozen controls
-	// all called "Compare" is a screen reader reading one word two dozen times.
+	// KeyCompareAddNamed is the checkbox's accessible name; a screen reader
+	// would otherwise read "Compare" once per tile.
 	KeyCompareAddNamed = key("compare.add.named", Message{
 		ZhHant: "把 %s 加入比較",
 		En:     "Add %s to the comparison",
 	})
 
-	// KeyCompareLimit is on the form rather than only in the empty state. Ticking
-	// six and being shown four is a silent cap, and this repository's rule is
-	// that a cap says so.
+	// KeyCompareLimit is on the form rather than only in the empty state: ticking
+	// six and being shown four is a cap that never said so.
 	KeyCompareLimit = key("compare.limit", Message{
 		ZhHant: "最多比較四個",
 		En:     "Up to four at a time",

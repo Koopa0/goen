@@ -12,7 +12,7 @@ import (
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/email"
-	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // Errors the staff page branches on.
@@ -27,32 +27,16 @@ var (
 	ErrInvalidStaff = errors.New("twofactor: that is not a usable staff account")
 )
 
-// roles is the closed set of roles a staff account may hold, in form order.
-var roles = [...]string{"staff", "admin"}
-
-// roleLabel is what a role is called.
-func roleLabel(ctx context.Context, role string) string {
-	switch role {
-	case "staff":
-		return i18n.T(ctx, i18n.KeyAdminRoleStaff)
-	case "admin":
-		return i18n.T(ctx, i18n.KeyAdminRoleAdmin)
-	default:
-		panic("twofactor: no label for role " + role)
-	}
-}
-
 // AddStaff gives somebody back-office access, with no password set. It is an
 // UPSERT resolved by address, so submitting your own address is a
 // self-promotion; the actor is compared for that reason.
-// The bool is an OUTCOME, not an error: the promotion SUCCEEDED, and what the
-// caller has to relay is that the address already had an account which had
-// never proved the mailbox, so its password was cleared and its sessions ended.
-// Carrying that as a sentinel made every `if err != nil` in the chain read a
-// success as a failure.
+//
+// The bool is an outcome and not an error: the promotion succeeded, and true
+// means the address already had an account which had never proved the mailbox,
+// so its password was cleared and its sessions ended. The caller relays that.
 func (s *Store) AddStaff(ctx context.Context, address, name, role, actorID string) (bool, error) {
 	address, name = strings.TrimSpace(address), strings.TrimSpace(name)
-	if !email.Valid(address) || !slices.Contains(roles[:], role) {
+	if !email.Valid(address) || !slices.Contains(pages.StaffRoles[:], pages.StaffRole(role)) {
 		return false, ErrInvalidStaff
 	}
 	actor, err := uuid.Parse(actorID)
@@ -78,9 +62,6 @@ func (s *Store) AddStaff(ctx context.Context, address, name, role, actorID strin
 		}
 		return false, fmt.Errorf("add staff %s: %w", address, err)
 	}
-	// Said rather than swallowed: the person being hired now has no way in until
-	// they set a password through /forgot, and the admin is the one who has to
-	// tell them.
 	return credentialCleared, nil
 }
 
@@ -100,11 +81,8 @@ func (s *Store) RevokeStaff(ctx context.Context, userID, actorID string) error {
 	}
 	if !revoked {
 		// The database function asks the last-admin question under the shared
-		// roster lock, so this
-		// is where it is answered — and it answers two questions at once.
-		// A Go pre-check would give a nicer message and would make the real
-		// guard almost unreachable, which is how a redundant check comes to be
-		// the only one anybody has watched work.
+		// roster lock, so this is where it is answered. A Go pre-check would give
+		// a nicer message and make the real guard almost unreachable.
 		return s.whyRevokeMatchedNothing(ctx, target)
 	}
 	return nil

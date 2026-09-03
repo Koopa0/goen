@@ -48,10 +48,8 @@ func Refuse(ctx context.Context, w http.ResponseWriter, retryAfter time.Duration
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusTooManyRequests)
 	// Plain text rather than a page, because rendering one is the work the
-	// limiter exists to avoid — but in the visitor's own language, because
-	// withLocale is applied OUTSIDE the mux and every Guard is registered on it,
-	// so the locale is on this context. The exemption that used to sit here said
-	// otherwise and was the reason a throttled English visitor got a Chinese
-	// sentence: a comment stating a rule the middleware order does not implement.
+	// limiter exists to avoid — but in the visitor's own language: withLocale is
+	// applied OUTSIDE the mux and every Guard is registered on it, so the locale
+	// is on this context.
 	_, _ = w.Write([]byte("429 " + i18n.T(ctx, i18n.KeyTooManyRequests) + "\n"))
 }

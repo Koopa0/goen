@@ -18,6 +18,13 @@ var (
 		En:     "The compare-at price has to be above the selling price, or it is not a discount.",
 	})
 
+	// Blank is a legitimate answer here and zero is what it stores, so an
+	// unreadable figure cannot be reported by the value alone.
+	KeyFormCompareAmount = key("form.compare.amount", Message{
+		ZhHant: "原價請填 1 到 %d 的整數,或留空表示沒有折扣。",
+		En:     "Type a whole number from 1 to %d for the compare-at price, or leave it blank for no discount.",
+	})
+
 	KeyFormSafetyStock = key("form.safety.stock", Message{
 		ZhHant: "安全庫存請填 0 到 1,000,000 的整數。",
 		En:     "Safety stock is a whole number from 0 to 1,000,000.",

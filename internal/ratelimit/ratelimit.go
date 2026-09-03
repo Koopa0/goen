@@ -54,7 +54,6 @@ type bucketKey struct {
 	hashed bool
 }
 
-// bucket is one key's allowance and when it was last used.
 type bucket struct {
 	limiter *rate.Limiter
 	seen    time.Time
@@ -81,9 +80,8 @@ func (l *Limiter) Allow(key string) (retryAfter time.Duration, ok bool) {
 	b, found := l.buckets[mapKey]
 	if !found {
 		// Work proportional to N once per new key is O(N^2), and during a
-		// sustained arrival no key is old enough to free. Sweep idle keys on an
-		// interval instead. At full capacity an exact oldest-key choice still
-		// costs O(MaxKeys) per distinct miss, but that cost and the map are bound.
+		// sustained arrival no key is old enough to free; sweep on an interval
+		// instead. Both the per-miss cost and the map stay bound.
 		if now.Sub(l.lastSweep) >= l.cfg.TTL/8 || len(l.buckets) >= l.cfg.MaxKeys {
 			l.evictLocked(now)
 			l.lastSweep = now
@@ -111,9 +109,7 @@ func (l *Limiter) Allow(key string) (retryAfter time.Duration, ok bool) {
 
 // clampKey bounds one stored representation without merging long keys that
 // share a prefix. Hashed keys occupy a separate map-key namespace, so a raw key
-// equal to this representation remains independent. The suffix length is
-// derived from the encoding rather than assuming padded base64:
-// RawURLEncoding encodes a SHA-256 digest to 43 bytes.
+// equal to this representation remains independent.
 func clampKey(key string) bucketKey {
 	if len(key) <= maxKeyBytes {
 		return bucketKey{value: key}
@@ -160,7 +156,6 @@ func ClientIP(r *http.Request) string {
 	return remoteHost(r)
 }
 
-// remoteHost is the address half of r.RemoteAddr.
 func remoteHost(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {

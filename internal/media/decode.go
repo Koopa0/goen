@@ -48,18 +48,28 @@ func Normalise(r io.Reader) (obj Object, data []byte, err error) {
 	if decodeErr != nil {
 		return Object{}, nil, ErrNotAnImage
 	}
+	return normaliseDecoded(img, format, encode)
+}
 
-	encoded, contentType, err := encode(img, format)
-	if err != nil {
-		return Object{}, nil, err
-	}
-
-	// Re-checked against the DECODED bounds: a decoder that produced something
-	// other than the header declared would write a row past
-	// media_objects_dimensions_sane.
+// normaliseDecoded bounds, encodes and digests already-decoded pixels.
+func normaliseDecoded(
+	img image.Image,
+	format string,
+	encoder func(image.Image, string) ([]byte, string, error),
+) (obj Object, data []byte, err error) {
+	// Re-check the DECODED bounds: a decoder that produced something other than
+	// the header declared must not reach the encoder.
 	b := img.Bounds()
 	if boundsErr := boundsOK(b.Dx(), b.Dy()); boundsErr != nil {
 		return Object{}, nil, boundsErr
+	}
+
+	encoded, contentType, err := encoder(img, format)
+	if err != nil {
+		return Object{}, nil, err
+	}
+	if err := storedSizeOK(len(encoded)); err != nil {
+		return Object{}, nil, err
 	}
 
 	sum := sha256.Sum256(encoded)
@@ -68,8 +78,18 @@ func Normalise(r io.Reader) (obj Object, data []byte, err error) {
 		ContentType: contentType,
 		Width:       int32(b.Dx()),       //nolint:gosec // G115: bounded by boundsOK above
 		Height:      int32(b.Dy()),       //nolint:gosec // G115: bounded by boundsOK above
-		ByteSize:    int32(len(encoded)), //nolint:gosec // G115: bounded by MaxUploadBytes
+		ByteSize:    int32(len(encoded)), //nolint:gosec // G115: bounded by MaxStoredBytes
 	}, encoded, nil
+}
+
+func storedSizeOK(n int) error {
+	if n <= 0 {
+		return ErrNotAnImage
+	}
+	if n > MaxStoredBytes {
+		return ErrTooLarge
+	}
+	return nil
 }
 
 // boundsOK refuses an image that is too big to decode safely.

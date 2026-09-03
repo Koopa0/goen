@@ -83,13 +83,9 @@ type ProductReview struct {
 func (r ProductReview) RatingText() string { return strconv.Itoa(r.Rating) }
 
 // DisplayAuthor is the reviewer's name, or a stand-in when they gave none and
-// when erase_user has taken it away.
-//
-// NOT the verified-buyer heading, which this borrowed: a name is optional at
-// registration and erasure blanks it, so 23 of 24 reviews were bylined 已購買的
-// 顧客 — every one of them unverified. product_reviews_verified_is_real exists
-// to stop a false verified claim, and the byline made it in words beside the
-// badge that carries the real one.
+// when erase_user has taken it away. The stand-in must not borrow the
+// verified-buyer wording: the badge beside it carries a claim
+// product_reviews_verified_is_real guards, and the byline is not covered by it.
 func (r ProductReview) DisplayAuthor(ctx context.Context) string {
 	if r.Author == "" {
 		return i18n.T(ctx, i18n.KeyAnonymousReviewer)
@@ -121,10 +117,8 @@ type ProductView struct {
 	Exact       bool
 	// PriceVaries reports that dearer variants exist than the one priced here.
 	PriceVaries bool
-	// AnySellable reports whether ANY variant can be bought. Exact says whether
-	// this visitor has chosen one, and the two answer different questions: a
-	// page that knew only the second told somebody to pick a spec on a product
-	// where every spec was gone.
+	// AnySellable reports whether ANY variant can be bought; Exact says whether
+	// this visitor has chosen one. They answer different questions.
 	AnySellable  bool
 	VariantID    string
 	SKU          string
@@ -146,10 +140,8 @@ type ProductView struct {
 	Comparing     []string
 	Questions     []Question
 	AskOutcome    string
-	// AddedOutcome is what the last add-to-cart did. backToProduct has carried
-	// it since the redirect was written and the page ignored it, so pressing
-	// 加入購物車 changed nothing on screen — and a refusal rendered the same page
-	// as a success, on the button a shopper presses most.
+	// AddedOutcome is what the last add-to-cart did; without rendering it a
+	// refusal looks identical to a success.
 	AddedOutcome string
 	AlsoBought   []ProductTile
 
@@ -302,10 +294,14 @@ func (v *ProductView) AskRefused() bool { return v.AskOutcome == "bad" }
 // JustAdded reports whether the last add-to-cart worked.
 func (v *ProductView) JustAdded() bool { return v.AddedOutcome == "added" }
 
-// AddRefused reports whether it did not, which looked identical before.
+// AddRefused reports whether it did not.
 func (v *ProductView) AddRefused() bool {
 	return v.AddedOutcome == "unavailable" || v.AddedOutcome == "unknown"
 }
+
+// CartFull reports that another distinct product would make the order too
+// large for one provider invoice.
+func (v *ProductView) CartFull() bool { return v.AddedOutcome == "full" }
 
 // AskAction is where the question form posts.
 func (v *ProductView) AskAction() string { return "/p/" + v.Slug + "/questions" }

@@ -12,9 +12,8 @@ import (
 	"time"
 )
 
-// TestTheEnvelopeSenderIsABareAddress proves what goes in MAIL FROM is a
-// reverse-path and not a header value. Asserted on envelopeFrom, because the
-// only live form of it is inside a required STARTTLS session.
+// TestTheEnvelopeSenderIsABareAddress asserts on envelopeFrom, because the only
+// live form of MAIL FROM is inside a required STARTTLS session.
 func TestTheEnvelopeSenderIsABareAddress(t *testing.T) {
 	t.Parallel()
 
@@ -58,8 +57,6 @@ func TestTheEnvelopeSenderIsABareAddress(t *testing.T) {
 			if got != tt.want {
 				t.Errorf("envelopeFrom(%q) = %q, want %q", tt.from, got, tt.want)
 			}
-			// What comes out satisfies the rule the recipient is already held
-			// to; a display name does not.
 			if !Valid(got) {
 				t.Errorf("envelopeFrom(%q) = %q, which Valid refuses — that is the "+
 					"exact shape smtp.Client.Mail cannot be given", tt.from, got)
@@ -68,9 +65,8 @@ func TestTheEnvelopeSenderIsABareAddress(t *testing.T) {
 	}
 }
 
-// TestTheFromHeaderKeepsItsDisplayName is the other half: the envelope wants a
-// bare address and the header wants the readable form, and reducing both is a
-// failure no test of the envelope alone can see.
+// TestTheFromHeaderKeepsItsDisplayName: the envelope wants a bare address and
+// the header wants the readable form.
 func TestTheFromHeaderKeepsItsDisplayName(t *testing.T) {
 	t.Parallel()
 
@@ -82,8 +78,6 @@ func TestTheFromHeaderKeepsItsDisplayName(t *testing.T) {
 	}
 }
 
-// TestASenderWithAnUnusableFromNeverOpensASocket proves the refusal happens
-// before the connection.
 func TestASenderWithAnUnusableFromNeverOpensASocket(t *testing.T) {
 	t.Parallel()
 
@@ -111,9 +105,8 @@ func TestASenderWithAnUnusableFromNeverOpensASocket(t *testing.T) {
 	}
 }
 
-// TestTheSocketHasADeadlineAndNotOnlyTheDial proves a server that completes the
-// TCP handshake and then says nothing cannot hold the sender. Not synctest: a
-// kernel socket deadline is not a Go timer, so a fake clock does not reach it.
+// TestTheSocketHasADeadlineAndNotOnlyTheDial is not synctest: a kernel socket
+// deadline is not a Go timer, so a fake clock does not reach it.
 func TestTheSocketHasADeadlineAndNotOnlyTheDial(t *testing.T) {
 	t.Parallel()
 
@@ -166,9 +159,8 @@ func listener(t *testing.T) net.Listener {
 	return ln
 }
 
-// TestTheLogSenderNeverWritesTheBody proves the development fallback is not a
-// token dump: it returns nil, so the outbox stamps the message DELIVERED and
-// nothing looks wrong while the logged body holds a live credential.
+// TestTheLogSenderNeverWritesTheBody: the sender returns nil, so the outbox
+// stamps the message delivered while a logged body would hold a live credential.
 func TestTheLogSenderNeverWritesTheBody(t *testing.T) {
 	t.Parallel()
 

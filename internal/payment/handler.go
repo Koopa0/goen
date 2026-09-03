@@ -7,7 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"time"
 
 	stripe "github.com/stripe/stripe-go/v86"
@@ -131,14 +130,14 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !o.HoldCoversASession(time.Now()) {
+	if !o.holdCoversSession {
 		h.log.InfoContext(r.Context(), "refusing to open a checkout on a lapsed stock hold",
 			"order", number, "hold_expires_at", o.HoldExpiresAt)
 		h.paymentConflict(w, r)
 		return
 	}
 
-	sessionID, _, err := h.gateway.StartSession(r.Context(), o, attempt.Prior)
+	sessionID, err := h.gateway.StartSession(r.Context(), o, attempt.Prior)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "start checkout session", "order", number, "error", err)
 		h.serverError(w, r)
@@ -197,7 +196,7 @@ func (h *Handler) handleExistingAttempt(
 	}
 
 	retireErr := h.retireObsoleteSession(
-		r.Context(), o.Number, attempt.SessionID, attempt.IntendedAmountCents,
+		r, o.Number, attempt.SessionID, attempt.IntendedAmountCents,
 	)
 	if retireErr == nil {
 		return false
@@ -217,10 +216,16 @@ func (h *Handler) handleExistingAttempt(
 // retireObsoleteSession closes a session whose amount no longer matches the
 // order. Only Stripe's explicit open/expired states make replacement safe. A
 // complete, unknown or unreadable state remains a possible capture and is
-// classified separately from a local persistence failure.
+// classified separately from a local persistence failure. Retirement survives a
+// client disconnect but has one short, shared budget: a cancelled local write
+// would leave goen calling a session payable after Stripe closed it.
 func (h *Handler) retireObsoleteSession(
-	ctx context.Context, number, sessionID string, intendedAmountCents int64,
+	r *http.Request, number, sessionID string, intendedAmountCents int64,
 ) error {
+	const timeout = 5 * time.Second
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), timeout)
+	defer cancel()
+
 	_, status, err := h.gateway.ResumeSession(ctx, sessionID)
 	if err != nil {
 		return fmt.Errorf("%w: retrieve session %s: %w", errObsoleteSessionUncertain, sessionID, err)
@@ -338,38 +343,24 @@ func (h *Handler) resume(
 // toCheckout sends the customer to Stripe, having checked that is where the URL
 // actually goes.
 func (h *Handler) toCheckout(w http.ResponseWriter, r *http.Request, number, redirectURL string) {
-	if !checkoutHost(redirectURL) {
-		h.log.ErrorContext(r.Context(), "refusing a checkout redirect off Stripe",
-			"order", number, "url", redirectURL)
+	if !checkoutRedirectURL(redirectURL) {
+		h.log.ErrorContext(r.Context(), "refusing an unsafe Stripe checkout redirect",
+			"order", number, "url_bytes", len(redirectURL))
 		h.serverError(w, r)
 		return
 	}
-	//nolint:gosec // G710: checkoutHost above restricts the target to Stripe;
-	// the taint analyser cannot see through the helper. TestCheckoutHostOnlyAcceptsStripe
-	// AcceptsStripe is what keeps that claim true.
+	//nolint:gosec // G710: checkoutRedirectURL above requires an absolute HTTPS
+	// URL with a host and without userinfo; the taint analyser cannot see through
+	// the helper. TestCheckoutRedirectURL holds that boundary.
 	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
-}
-
-// stripeCheckoutHosts is where a Checkout Session may live. A host added here
-// must also be added to the CSP's form-action.
-var stripeCheckoutHosts = map[string]bool{
-	"checkout.stripe.com": true,
-}
-
-// checkoutHost reports whether a redirect target is a Stripe checkout page.
-func checkoutHost(raw string) bool {
-	u, err := url.Parse(raw)
-	if err != nil || u.Scheme != "https" || u.User != nil {
-		return false
-	}
-	return stripeCheckoutHosts[u.Hostname()]
 }
 
 // Webhook is the automatic door where an order becomes paid. The only other
 // door is an audited admin attribution of a complete Session awaiting a money
 // outcome; a browser return remains no evidence. Stripe retries anything that
-// is not 2xx, so a forgery is 400, an ignored or unreadable event, or one a
-// retry cannot apply, is 200 (the latter two with a durable alarm), and a
+// is not 2xx, so a forgery or a signed event with no safe durable identity is
+// 400, an ignored event, one whose business object is unreadable, or one a
+// retry cannot apply is 200 (the latter two with a durable alarm), and a
 // database failure is 500.
 func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 	if !h.gateway.Enabled() {
@@ -387,8 +378,13 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 
 	ev, err := h.gateway.VerifyWebhook(body, r.Header.Get("Stripe-Signature"))
 	if err != nil {
-		h.log.WarnContext(r.Context(), "rejected stripe webhook", "error", err)
-		http.Error(w, "signature verification failed", http.StatusBadRequest)
+		if errors.Is(err, ErrBadSignature) {
+			h.log.WarnContext(r.Context(), "rejected stripe webhook signature", "error", err)
+			http.Error(w, "signature verification failed", http.StatusBadRequest)
+			return
+		}
+		h.log.ErrorContext(r.Context(), "rejected malformed signed stripe webhook", "error", err)
+		http.Error(w, "signed event was not usable", http.StatusBadRequest)
 		return
 	}
 
@@ -418,12 +414,10 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 			n, captureErr := tx.Capture(ctx, capture)
 			if errors.Is(captureErr, ErrOrderCancelled) {
 				// Swallowed inside the transaction: returning would roll the
-				// claim back and lose the only record that money arrived. But
-				// the event is marked UNRECONCILED in that same transaction —
-				// the money is at Stripe, the goods are back on the shelf, and
-				// somebody has to refund it by hand. A log line is not a record:
-				// nothing reads it, /admin/health cannot count it, and the shop
-				// finds out when the customer asks.
+				// claim back and lose the only record that money arrived. The
+				// event is marked UNRECONCILED in that same transaction — the
+				// money is at Stripe, the goods are back on the shelf, and
+				// somebody has to refund it by hand.
 				cancelledOrder = true
 				number = n
 				return tx.Unreconciled(ctx, webhookUnreconciled(

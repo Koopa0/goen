@@ -322,7 +322,6 @@ func parseQuality(params []string) float64 {
 	return quality
 }
 
-// compile-time checks for the optional response capabilities Compress owns.
 var (
 	_ http.Flusher                    = (*compressor)(nil)
 	_ interface{ FlushError() error } = (*compressor)(nil)

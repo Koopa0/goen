@@ -28,8 +28,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	pool = p
-	// The seed, for shipping_method_versions: an order needs a shipping version
-	// and the migration creates none.
+	// The seed supplies shipping_method_versions; the migration creates none.
 	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
 	if err != nil {
 		panic(err)
@@ -42,8 +41,6 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// parcel is what left the warehouse and whether it ARRIVED — the two states
-// this feature is bounded by.
 type parcel struct {
 	units       int
 	arrived     bool
@@ -51,13 +48,16 @@ type parcel struct {
 }
 
 // fixture is one customer's order: `ordered` units bought, one parcel carrying
-// `p.units` of them, against a product covered for `months` (0 for a product
-// with no term set).
+// `p.units` of them, covered for `months` — 0 meaning no term was set.
 type fixture struct {
-	userID string
-	number string
-	lineID uuid.UUID
+	userID    string
+	number    string
+	lineID    uuid.UUID
+	variantID uuid.UUID
+	productID uuid.UUID
 }
+
+const warrantyFixtureNote = "Original coverage promise"
 
 func newFixture(t *testing.T, ordered, months int, p parcel) fixture {
 	t.Helper()
@@ -79,7 +79,7 @@ func newFixture(t *testing.T, ordered, months int, p parcel) fixture {
 
 	// A product and a variant of its own, so a case that changes the term does
 	// not change it for every other case.
-	var variantID uuid.UUID
+	var variantID, productID uuid.UUID
 	var term any
 	if months > 0 {
 		term = months
@@ -92,15 +92,18 @@ func newFixture(t *testing.T, ordered, months int, p parcel) fixture {
 			INSERT INTO categories (slug, name, position) SELECT 'wc-' || gen_random_uuid(), '保固分類', coalesce(max(position) + 1, 0) FROM categories WHERE parent_id IS NULL
 			RETURNING id
 		), p AS (
-			INSERT INTO products (brand_id, category_id, slug, name, warranty_months)
-			SELECT b.id, c.id, 'w-' || gen_random_uuid(), '保固測試商品', $1::integer
+			INSERT INTO products (
+				brand_id, category_id, slug, name, warranty_months, warranty_note
+			)
+			SELECT b.id, c.id, 'w-' || gen_random_uuid(), '保固測試商品', $1::integer,
+			       CASE WHEN $1::integer IS NULL THEN NULL ELSE $2::text END
 			FROM b, c
 			RETURNING id
 		)
 		INSERT INTO product_variants (product_id, sku, price_cents)
 		-- product_variants_sku_format allows only upper-case alphanumerics.
 		SELECT p.id, 'W-' || upper(replace(gen_random_uuid()::text, '-', '')), 100000 FROM p
-		RETURNING id`, term).Scan(&variantID); err != nil {
+		RETURNING id, product_id`, term, warrantyFixtureNote).Scan(&variantID, &productID); err != nil {
 		t.Fatalf("create product: %v", err)
 	}
 
@@ -119,8 +122,14 @@ func newFixture(t *testing.T, ordered, months int, p parcel) fixture {
 	var lineID uuid.UUID
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO order_lines (order_id, variant_id, sku, product_name,
+		                         warranty_note, warranty_months,
 		                         unit_price_cents, quantity)
-		VALUES ($1, $2, 'W-SKU', '保固測試商品', 100000, $3) RETURNING id`,
+		SELECT $1, pv.id, 'W-SKU', '保固測試商品',
+		       pr.warranty_note, pr.warranty_months, 100000, $3
+		FROM product_variants pv
+		JOIN products pr ON pr.id = pv.product_id
+		WHERE pv.id = $2
+		RETURNING id`,
 		orderID, variantID, ordered).Scan(&lineID); err != nil {
 		t.Fatalf("create line: %v", err)
 	}
@@ -140,7 +149,10 @@ func newFixture(t *testing.T, ordered, months int, p parcel) fixture {
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatalf("commit: %v", err)
 	}
-	return fixture{userID: userID.String(), number: number, lineID: lineID}
+	return fixture{
+		userID: userID.String(), number: number, lineID: lineID,
+		variantID: variantID, productID: productID,
+	}
 }
 
 func addWarrantyShipment(
@@ -201,7 +213,7 @@ func warrantyParcelTimes(p parcel) (shippedAt time.Time, deliveredAt any) {
 }
 
 // TestRegistrationIsBoundedByWhatArrived proves cover cannot start before the
-// goods reach somebody: a clock started in transit loses the customer those days.
+// goods arrive.
 func TestRegistrationIsBoundedByWhatArrived(t *testing.T) {
 	s := warranty.NewStore(pool)
 
@@ -233,8 +245,8 @@ func TestRegistrationIsBoundedByWhatArrived(t *testing.T) {
 	}
 }
 
-// TestTheFormOffersNothingWhileTheParcelIsInTransit is the READ side of the same
-// boundary: the page has to say so before somebody presses a button.
+// TestTheFormOffersNothingWhileTheParcelIsInTransit is the READ side of that
+// boundary.
 func TestTheFormOffersNothingWhileTheParcelIsInTransit(t *testing.T) {
 	ctx := t.Context()
 	s := warranty.NewStore(pool)
@@ -275,7 +287,6 @@ func TestAProductWithNoTermCannotBeRegistered(t *testing.T) {
 			"either goen invented a warranty, or it refused one by crashing", err)
 	}
 
-	// The control.
 	withTerm := newFixture(t, 1, 12, parcel{units: 1, arrived: true})
 	if err := s.Register(t.Context(), withTerm.lineID.String(), withTerm.userID, "", 1); err != nil {
 		t.Errorf("a product with a term was refused: %v", err)
@@ -283,8 +294,7 @@ func TestAProductWithNoTermCannotBeRegistered(t *testing.T) {
 }
 
 // TestTheExpiryRunsFromDeliveryAndNotFromDispatch compares DATES, not a month
-// count: two days do not add a month. The negative half is what makes it a lock,
-// since a fixture stamping both timestamps at once would otherwise go green.
+// count: two days do not add a month, so a month-count assertion is blind here.
 func TestTheExpiryRunsFromDeliveryAndNotFromDispatch(t *testing.T) {
 	ctx := t.Context()
 	s := warranty.NewStore(pool)
@@ -323,6 +333,94 @@ func TestTheExpiryRunsFromDeliveryAndNotFromDispatch(t *testing.T) {
 	if fromAmbientDelivery {
 		t.Error("the cover runs from delivered_at::date in the ambient session zone; " +
 			"07:00 Taipei is the previous day in UTC")
+	}
+}
+
+// TestThePurchasedPromiseSurvivesCatalogueRetirement proves an order owns the
+// warranty bought: a later catalogue edit or retirement may not rewrite it.
+func TestThePurchasedPromiseSurvivesCatalogueRetirement(t *testing.T) {
+	ctx := t.Context()
+	s := warranty.NewStore(pool)
+	f := newFixture(t, 2, 24, parcel{units: 2, arrived: true})
+	var productSlug string
+	if err := pool.QueryRow(ctx, `SELECT slug FROM products WHERE id = $1`, f.productID).
+		Scan(&productSlug); err != nil {
+		t.Fatalf("read product slug: %v", err)
+	}
+
+	if _, err := pool.Exec(ctx, `
+		UPDATE products
+		SET warranty_months = 1, warranty_note = 'Replacement live promise'
+		WHERE id = $1`, f.productID); err != nil {
+		t.Fatalf("edit live warranty: %v", err)
+	}
+
+	assertPurchasedPromise := func(stage string) {
+		t.Helper()
+		view, err := s.Registrable(ctx, f.number, f.userID)
+		if err != nil {
+			t.Fatalf("%s: read registrable line: %v", stage, err)
+		}
+		if len(view.Lines) != 1 {
+			t.Fatalf("%s: got %d lines, want 1", stage, len(view.Lines))
+		}
+		line := view.Lines[0]
+		if !line.HasTerm || line.Months != 24 {
+			t.Errorf("%s: warranty term = %d months (present=%v), want purchased 24",
+				stage, line.Months, line.HasTerm)
+		}
+		if line.Note != warrantyFixtureNote {
+			t.Errorf("%s: warranty note = %q, want purchased %q",
+				stage, line.Note, warrantyFixtureNote)
+		}
+	}
+	assertPurchasedPromise("after live edit")
+
+	if _, err := pool.Exec(ctx,
+		`UPDATE product_variants SET is_active = false WHERE id = $1`, f.variantID); err != nil {
+		t.Fatalf("retire live variant: %v", err)
+	}
+	assertPurchasedPromise("after variant retirement")
+	registrable, err := s.Registrable(ctx, f.number, f.userID)
+	if err != nil {
+		t.Fatalf("read line after variant retirement: %v", err)
+	}
+	if registrable.Lines[0].Slug != productSlug {
+		t.Errorf("variant retirement changed product link to %q, want %q",
+			registrable.Lines[0].Slug, productSlug)
+	}
+	if registerErr := s.Register(ctx, f.lineID.String(), f.userID, "", 1); registerErr != nil {
+		t.Fatalf("register after variant retirement: %v", registerErr)
+	}
+	registered, err := s.Mine(ctx, f.userID)
+	if err != nil {
+		t.Fatalf("list after variant retirement: %v", err)
+	}
+	if len(registered) != 1 || registered[0].Slug != productSlug {
+		t.Fatalf("registered warranty product link = %+v, want slug %q", registered, productSlug)
+	}
+
+	if _, err := pool.Exec(ctx,
+		`UPDATE products SET status = 'archived' WHERE id = $1`, f.productID); err != nil {
+		t.Fatalf("archive live product: %v", err)
+	}
+	assertPurchasedPromise("after catalogue retirement")
+
+	if err := s.Register(ctx, f.lineID.String(), f.userID, "", 2); err != nil {
+		t.Fatalf("register after catalogue retirement: %v", err)
+	}
+	var keptOriginalTerm bool
+	if err := pool.QueryRow(ctx, `
+		SELECT bool_and(w.expires_on =
+		       (shop_day(s.delivered_at) + make_interval(months => 24))::date)
+		FROM warranty_registrations w
+		JOIN order_shipment_lines sl ON sl.order_line_id = w.order_line_id
+		JOIN order_shipments s ON s.id = sl.shipment_id
+		WHERE w.order_line_id = $1`, f.lineID).Scan(&keptOriginalTerm); err != nil {
+		t.Fatalf("read snapshotted expiry: %v", err)
+	}
+	if !keptOriginalTerm {
+		t.Error("registration after catalogue retirement did not use the purchased 24-month term")
 	}
 }
 

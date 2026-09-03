@@ -18,15 +18,11 @@ import (
 )
 
 // TestTheStatedHoldMatchesTheEnforcedOne proves every customer-facing policy
-// states the one presentation-layer hold duration. The cart package separately
-// binds that duration to its private enforcement constant.
+// states the one presentation-layer hold duration.
 func TestTheStatedHoldMatchesTheEnforcedOne(t *testing.T) {
 	enforced := pages.HoldMinutesText()
 
-	// The FAQ makes the same promise and was not covered: it said 30 minutes
-	// against an enforced 60, under a seed comment claiming the row states
-	// the cart's hold. A guard over one of the two pages that make a claim reads as
-	// covering the claim.
+	// The FAQ makes the same promise, from a seeded row.
 	seed, err := os.ReadFile(filepath.Join("..", "..", "seed", "dev_catalog.sql"))
 	if err != nil {
 		t.Fatalf("read the seed: %v", err)
@@ -64,8 +60,6 @@ func TestEveryPolicyRouteHasADocument(t *testing.T) {
 // TestThePrivacyPolicyNamesEveryCookie holds a sentence that CLAIMS
 // completeness against the cookies the binary actually sets.
 func TestThePrivacyPolicyNamesEveryCookie(t *testing.T) {
-	// One entry per cookie the binary can set, naming the words the policy uses
-	// for it. Both locales, because BodyEn is the half no other guard reads.
 	described := map[string]struct{ zh, en string }{
 		cart.CookieName:           {zh: "購物車", en: "your cart"},
 		account.SessionCookieName: {zh: "登入狀態", en: "your sign-in"},
@@ -95,7 +89,6 @@ func TestThePrivacyPolicyNamesEveryCookie(t *testing.T) {
 		}
 	}
 
-	// Completeness: every `__Host-goen_*` literal in the tree has an entry above.
 	for _, name := range hostCookieNames(t) {
 		if _, ok := described[name]; !ok {
 			t.Errorf("%s is set by the binary and the privacy policy does not "+
@@ -170,8 +163,6 @@ func TestPolicyDocumentsAreComplete(t *testing.T) {
 func TestUndecidedTermsAreMarkedPending(t *testing.T) {
 	for path, doc := range policies {
 		for _, s := range doc.Sections {
-			// Both halves: a guard over one locale is a guard over the locale
-			// whoever wrote it happened to read.
 			for _, para := range append(append([]string{}, s.Body...), s.BodyEn...) {
 				if (strings.Contains(para, "尚未確定") ||
 					strings.Contains(para, "not decided") ||
@@ -279,7 +270,6 @@ func TestStatutoryTermsAreNotPending(t *testing.T) {
 			if !ok {
 				t.Fatalf("no policy document at /%s", s.doc)
 			}
-			// Only sections that render as a RULE count.
 			var stated, statedEn strings.Builder
 			for _, sec := range doc.Sections {
 				if sec.Pending {
@@ -313,8 +303,7 @@ func TestStatutoryTermsAreNotPending(t *testing.T) {
 }
 
 // TestTheShippingPageStatesTheSurchargeItCharges holds that the page says where
-// costs extra, in the visitor's language. Both locales, because a surcharge that
-// exists is a different question from one stated in the reader's language.
+// costs extra, in the visitor's language.
 func TestTheShippingPageStatesTheSurchargeItCharges(t *testing.T) {
 	t.Parallel()
 

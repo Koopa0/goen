@@ -5,10 +5,12 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -63,6 +65,31 @@ func refundStripeAt(t *testing.T, h func(*refundStripeCall) (int, string)) (Stri
 	}, &log
 }
 
+func refundStripeJSON(t *testing.T, v any) string {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal Stripe fixture: %v", err)
+	}
+	return string(b)
+}
+
+func validStripeRefundFixture(
+	id, status, requestKey, paymentIntentID string, amount int64,
+) map[string]any {
+	return map[string]any{
+		"id":       id,
+		"object":   "refund",
+		"status":   status,
+		"amount":   amount,
+		"currency": "twd",
+		"payment_intent": map[string]any{
+			"id": paymentIntentID, "object": "payment_intent",
+		},
+		"metadata": map[string]string{refundKeyTag: requestKey},
+	}
+}
+
 func TestStripeRefunderExpandsTheCheckoutPaymentIntent(t *testing.T) {
 	r, log := refundStripeAt(t, func(*refundStripeCall) (int, string) {
 		return http.StatusOK, `{
@@ -96,6 +123,55 @@ func TestStripeRefunderExpandsTheCheckoutPaymentIntent(t *testing.T) {
 	}
 }
 
+func TestStripeRefunderRejectsInvalidCheckoutAndPaymentIntentIdentities(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		sessionID string
+		intentID  string
+	}{
+		{name: "empty returned session", sessionID: "", intentID: "pi_good"},
+		{name: "different returned session", sessionID: "cs_someone_else", intentID: "pi_good"},
+		{name: "empty payment intent", sessionID: "cs_requested", intentID: ""},
+		{name: "oversized payment intent", sessionID: "cs_requested", intentID: strings.Repeat("x", 256)},
+		{name: "whitespace payment intent", sessionID: "cs_requested", intentID: " \t"},
+		{name: "control in payment intent", sessionID: "cs_requested", intentID: "pi_good\nforged"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			r, _ := refundStripeAt(t, func(*refundStripeCall) (int, string) {
+				return http.StatusOK, refundStripeJSON(t, map[string]any{
+					"id": tt.sessionID, "object": "checkout.session",
+					"payment_intent": map[string]any{
+						"id": tt.intentID, "object": "payment_intent",
+					},
+				})
+			})
+			intent, err := r.PaymentIntentFor(t.Context(), "cs_requested")
+			if err == nil {
+				t.Fatal("PaymentIntentFor() accepted an invalid provider identity")
+			}
+			if intent != "" {
+				t.Errorf("PaymentIntentFor() = %q, want empty", intent)
+			}
+		})
+	}
+}
+
+func TestStripeRefunderRejectsInvalidLocalProviderIdentitiesBeforeCallingStripe(t *testing.T) {
+	r, log := refundStripeAt(t, func(*refundStripeCall) (int, string) {
+		t.Fatal("an invalid identity reached Stripe")
+		return http.StatusInternalServerError, `{}`
+	})
+	if _, err := r.PaymentIntentFor(t.Context(), " \t"); err == nil {
+		t.Fatal("PaymentIntentFor() accepted an invalid session id")
+	}
+	if _, _, err := r.Refund(t.Context(), strings.Repeat("x", 256), "return:key", 100); err == nil {
+		t.Fatal("Refund() accepted an invalid payment intent id")
+	}
+	if len(*log) != 0 {
+		t.Errorf("made %d Stripe calls, want none", len(*log))
+	}
+}
+
 func TestStripeRefunderFindsAnExistingRequestAcrossRefundPages(t *testing.T) {
 	const (
 		intentID   = "pi_paid_order_9"
@@ -118,6 +194,8 @@ func TestStripeRefunderFindsAnExistingRequestAcrossRefundPages(t *testing.T) {
 				"object":"list","url":"/v1/refunds","has_more":false,
 				"data":[{
 					"id":"re_original_request_9","object":"refund","status":"pending",
+					"amount":8750,"currency":"twd",
+					"payment_intent":{"id":"pi_paid_order_9","object":"payment_intent"},
 					"metadata":{"goen_request_key":"return:request-9"}
 				}]
 			}`
@@ -157,6 +235,119 @@ func TestStripeRefunderFindsAnExistingRequestAcrossRefundPages(t *testing.T) {
 	}
 }
 
+func TestStripeRefunderRefusesMultipleProviderRefundsForOneRequestKey(t *testing.T) {
+	r, log := refundStripeAt(t, func(*refundStripeCall) (int, string) {
+		return http.StatusOK, `{
+			"object":"list","url":"/v1/refunds","has_more":false,
+			"data":[
+				{"id":"re_duplicate_a","object":"refund","status":"succeeded",
+				 "amount":100,"currency":"twd",
+				 "payment_intent":{"id":"pi_paid","object":"payment_intent"},
+				 "metadata":{"goen_request_key":"return:duplicate"}},
+				{"id":"re_duplicate_b","object":"refund","status":"pending",
+				 "amount":100,"currency":"twd",
+				 "payment_intent":{"id":"pi_paid","object":"payment_intent"},
+				 "metadata":{"goen_request_key":"return:duplicate"}}
+			]
+		}`
+	})
+
+	id, state, err := r.Refund(t.Context(), "pi_paid", "return:duplicate", 100)
+	if err == nil {
+		t.Fatal("Refund() silently attributed one of two provider refunds")
+	}
+	if id != "" || state != "" {
+		t.Errorf("Refund() = (%q, %q, %v), want no arbitrarily selected provider fact",
+			id, state, err)
+	}
+	if errors.Is(err, ErrRefundCreateRejected) {
+		t.Errorf("duplicate lookup = %v, must remain ambiguous rather than free the claim", err)
+	}
+	if len(*log) != 1 {
+		t.Errorf("made %d Stripe calls, want one list and no create", len(*log))
+	}
+}
+
+func TestStripeRefunderRejectsMismatchedListedRefundFacts(t *testing.T) {
+	const (
+		intentID   = "pi_paid"
+		requestKey = "return:request"
+		amount     = int64(100)
+	)
+	tests := []struct {
+		name   string
+		mutate func(map[string]any)
+	}{
+		{name: "wrong amount", mutate: func(ref map[string]any) { ref["amount"] = int64(99) }},
+		{name: "missing amount", mutate: func(ref map[string]any) { delete(ref, "amount") }},
+		{name: "wrong payment intent", mutate: func(ref map[string]any) {
+			ref["payment_intent"] = map[string]any{
+				"id": "pi_someone_else", "object": "payment_intent",
+			}
+		}},
+		{name: "missing payment intent", mutate: func(ref map[string]any) {
+			delete(ref, "payment_intent")
+		}},
+		{name: "wrong currency", mutate: func(ref map[string]any) { ref["currency"] = "usd" }},
+		{name: "missing currency", mutate: func(ref map[string]any) { delete(ref, "currency") }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ref := validStripeRefundFixture(
+				"re_existing", "pending", requestKey, intentID, amount,
+			)
+			tt.mutate(ref)
+			r, log := refundStripeAt(t, func(*refundStripeCall) (int, string) {
+				return http.StatusOK, refundStripeJSON(t, map[string]any{
+					"object": "list", "url": "/v1/refunds", "has_more": false,
+					"data": []any{ref},
+				})
+			})
+
+			id, state, err := r.Refund(t.Context(), intentID, requestKey, amount)
+			if err == nil {
+				t.Fatal("Refund() accepted a listed refund with mismatched provider facts")
+			}
+			if id != "" || state != "" {
+				t.Errorf("Refund() = (%q, %q, %v), want no provider values", id, state, err)
+			}
+			if errors.Is(err, ErrRefundCreateRejected) {
+				t.Errorf("listed refund mismatch = %v, must remain ambiguous", err)
+			}
+			if len(*log) != 1 {
+				t.Errorf("made %d Stripe calls, want one list and no create", len(*log))
+			}
+		})
+	}
+}
+
+func TestStripeRefunderRejectsInvalidListedRefundIdentities(t *testing.T) {
+	for _, id := range []string{"", strings.Repeat("x", 256), " \t", "re_good\nforged"} {
+		t.Run(id, func(t *testing.T) {
+			r, log := refundStripeAt(t, func(*refundStripeCall) (int, string) {
+				return http.StatusOK, refundStripeJSON(t, map[string]any{
+					"object": "list", "url": "/v1/refunds", "has_more": false,
+					"data": []any{map[string]any{
+						"id": id, "object": "refund", "status": "pending",
+						"metadata": map[string]string{refundKeyTag: "return:request"},
+					}},
+				})
+			})
+			gotID, state, err := r.Refund(t.Context(), "pi_good", "return:request", 100)
+			if err == nil {
+				t.Fatal("Refund() accepted an invalid listed refund id")
+			}
+			if gotID != "" || state != "" {
+				t.Errorf("Refund() = (%q, %q, %v), want no provider values", gotID, state, err)
+			}
+			if len(*log) != 1 {
+				t.Errorf("made %d Stripe calls, want one list and no create", len(*log))
+			}
+		})
+	}
+}
+
 func TestStripeRefunderCreatesTheRequestedRefundIdempotently(t *testing.T) {
 	request := 0
 	r, log := refundStripeAt(t, func(call *refundStripeCall) (int, string) {
@@ -169,6 +360,8 @@ func TestStripeRefunderCreatesTheRequestedRefundIdempotently(t *testing.T) {
 		case 2:
 			return http.StatusOK, `{
 				"id":"re_created_12","object":"refund","status":"succeeded",
+				"amount":12850,"currency":"twd",
+				"payment_intent":{"id":"pi_paid_order_12","object":"payment_intent"},
 				"metadata":{"goen_request_key":"return:request-12"}
 			}`
 		default:
@@ -217,6 +410,146 @@ func TestStripeRefunderCreatesTheRequestedRefundIdempotently(t *testing.T) {
 	if created.apiVersion != "2026-08-26.dahlia" {
 		t.Errorf("create Stripe-Version = %q, want the API reviewed with stripe-go v86.4",
 			created.apiVersion)
+	}
+}
+
+func TestStripeRefunderRejectsMismatchedCreatedRefundFacts(t *testing.T) {
+	const (
+		intentID   = "pi_paid"
+		requestKey = "return:request"
+		amount     = int64(100)
+	)
+	tests := []struct {
+		name   string
+		mutate func(map[string]any)
+	}{
+		{name: "wrong amount", mutate: func(ref map[string]any) { ref["amount"] = int64(99) }},
+		{name: "missing amount", mutate: func(ref map[string]any) { delete(ref, "amount") }},
+		{name: "wrong payment intent", mutate: func(ref map[string]any) {
+			ref["payment_intent"] = map[string]any{
+				"id": "pi_someone_else", "object": "payment_intent",
+			}
+		}},
+		{name: "missing payment intent", mutate: func(ref map[string]any) {
+			delete(ref, "payment_intent")
+		}},
+		{name: "wrong currency", mutate: func(ref map[string]any) { ref["currency"] = "usd" }},
+		{name: "missing currency", mutate: func(ref map[string]any) { delete(ref, "currency") }},
+		{name: "wrong request key", mutate: func(ref map[string]any) {
+			ref["metadata"] = map[string]string{refundKeyTag: "return:someone-else"}
+		}},
+		{name: "missing request key", mutate: func(ref map[string]any) {
+			delete(ref, "metadata")
+		}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ref := validStripeRefundFixture(
+				"re_created", "succeeded", requestKey, intentID, amount,
+			)
+			tt.mutate(ref)
+			request := 0
+			r, log := refundStripeAt(t, func(*refundStripeCall) (int, string) {
+				request++
+				if request == 1 {
+					return http.StatusOK,
+						`{"object":"list","url":"/v1/refunds","has_more":false,"data":[]}`
+				}
+				return http.StatusOK, refundStripeJSON(t, ref)
+			})
+
+			id, state, err := r.Refund(t.Context(), intentID, requestKey, amount)
+			if err == nil {
+				t.Fatal("Refund() accepted a created refund with mismatched provider facts")
+			}
+			if id != "" || state != "" {
+				t.Errorf("Refund() = (%q, %q, %v), want no provider values", id, state, err)
+			}
+			if errors.Is(err, ErrRefundCreateRejected) {
+				t.Errorf("created refund mismatch = %v, must remain ambiguous", err)
+			}
+			if len(*log) != 2 {
+				t.Errorf("made %d Stripe calls, want one list and one create", len(*log))
+			}
+		})
+	}
+}
+
+func TestOnlyARefundCreateRejectionGetsTheStableRejectionSentinel(t *testing.T) {
+	const rejection = `{"error":{"type":"invalid_request_error",` +
+		`"code":"charge_already_refunded","message":"already refunded"}}`
+
+	t.Run("the preliminary list failed", func(t *testing.T) {
+		r, log := refundStripeAt(t, func(*refundStripeCall) (int, string) {
+			return http.StatusBadRequest, rejection
+		})
+		_, _, err := r.Refund(t.Context(), "pi_paid", "return:list-failed", 100)
+		if err == nil {
+			t.Fatal("Refund() accepted a failed provider lookup")
+		}
+		if errors.Is(err, ErrRefundCreateRejected) {
+			t.Errorf("list error = %v, must not mean the refund CREATE was rejected", err)
+		}
+		if len(*log) != 1 {
+			t.Errorf("made %d calls, want only the failed list", len(*log))
+		}
+	})
+
+	t.Run("the create endpoint rejected", func(t *testing.T) {
+		request := 0
+		r, log := refundStripeAt(t, func(*refundStripeCall) (int, string) {
+			request++
+			if request == 1 {
+				return http.StatusOK,
+					`{"object":"list","url":"/v1/refunds","has_more":false,"data":[]}`
+			}
+			return http.StatusBadRequest, rejection
+		})
+		_, _, err := r.Refund(t.Context(), "pi_paid", "return:create-rejected", 100)
+		if !errors.Is(err, ErrRefundCreateRejected) {
+			t.Errorf("create error = %v, want ErrRefundCreateRejected", err)
+		}
+		if _, ok := errors.AsType[*stripe.Error](err); !ok {
+			t.Errorf("create error = %v, lost Stripe's provider cause", err)
+		}
+		if len(*log) != 2 {
+			t.Errorf("made %d calls, want one list and one create", len(*log))
+		}
+	})
+}
+
+func TestStripeRefunderRejectsInvalidCreatedRefundIdentities(t *testing.T) {
+	for _, id := range []string{"", strings.Repeat("x", 256), " \t", "re_good\nforged"} {
+		t.Run(id, func(t *testing.T) {
+			request := 0
+			r, log := refundStripeAt(t, func(*refundStripeCall) (int, string) {
+				request++
+				if request == 1 {
+					return http.StatusOK, `{
+						"object":"list","url":"/v1/refunds","has_more":false,"data":[]
+					}`
+				}
+				return http.StatusOK, refundStripeJSON(t, map[string]any{
+					"id": id, "object": "refund", "status": "succeeded", "amount": int64(100),
+					"currency": "twd",
+					"payment_intent": map[string]any{
+						"id": "pi_good", "object": "payment_intent",
+					},
+					"metadata": map[string]string{refundKeyTag: "return:request"},
+				})
+			})
+			gotID, state, err := r.Refund(t.Context(), "pi_good", "return:request", 100)
+			if err == nil {
+				t.Fatal("Refund() accepted an invalid created refund id")
+			}
+			if gotID != "" || state != "" {
+				t.Errorf("Refund() = (%q, %q, %v), want no provider values", gotID, state, err)
+			}
+			if len(*log) != 2 {
+				t.Errorf("made %d Stripe calls, want one list and one create", len(*log))
+			}
+		})
 	}
 }
 

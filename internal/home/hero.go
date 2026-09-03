@@ -28,9 +28,8 @@ func (s *Store) Hero(ctx context.Context) (pages.Hero, error) {
 	primary := pages.CTA{Label: row.PrimaryCtaLabel, Href: primaryHref}
 	secondary := pages.CTA{}
 	if !primaryOK {
-		// A primary CTA is required as a pair. Direct SQL can bypass the write
-		// gate, so keep the slide's copy but give it both built-in CTA pairs
-		// instead of rendering its headline with a dead primary button.
+		// A primary CTA is required as a pair, and direct SQL bypasses the write
+		// gate: keep the slide's copy rather than render a dead primary button.
 		defaults := pages.DefaultHero(ctx)
 		primary, secondary = defaults.PrimaryCTA, defaults.SecondaryCTA
 	} else {
@@ -38,8 +37,6 @@ func (s *Store) Hero(ctx context.Context) (pages.Hero, error) {
 		if secondaryOK {
 			secondary = pages.CTA{Label: row.SecondaryCtaLabel, Href: secondaryHref}
 		}
-		// A refused optional href leaves both fields blank, which
-		// hero_slides_secondary_cta_present also says.
 	}
 
 	return pages.Hero{

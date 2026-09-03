@@ -23,6 +23,7 @@ templ AdminCredit(p layouts.Page, v AdminCreditView) {
 				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
 			}
 			<form class="goen-admin__form goen-admin__grant" method="post" action="/admin/credit">
+				<input type="hidden" name="operation_id" value={ v.OperationID }/>
 				<div class="ui-field">
 					<label class="ui-label" for="credit-email">{ i18n.T(ctx, i18n.KeyAdminCreditEmail) }</label>
 					<input class="ui-input" id="credit-email" name="email" type="email" required autocomplete="off" value={ v.Email }/>

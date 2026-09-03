@@ -21,9 +21,7 @@ const SweepGrace = 24 * time.Hour
 // Candidates is the list Sweep works from: uploads nothing points at and that
 // are older than the grace window.
 //
-// Exported so the window between the list and the deletes can be DRIVEN in a
-// test. Sweep is two statements, and the defect it used to carry lived between
-// them; a test that calls Sweep alone re-reads the list and never meets it.
+// Exported so a test can drive the window between the list and the deletes.
 func (s *Store) Candidates(ctx context.Context, limit int32) ([]string, error) {
 	return s.q.UnreferencedMedia(ctx, limit)
 }
@@ -55,9 +53,8 @@ func (s *Store) Sweep(ctx context.Context, log *slog.Logger) (reclaimed int, err
 			return reclaimed, delErr
 		}
 		if !gone {
-			// The DELETE re-asked whether anything points at it and something
-			// does — attached between the read and here. Not a failure; the
-			// upload is live and the next pass will not offer it.
+			// The DELETE re-asked and something points at it now, attached
+			// between the read and here. Not a failure: the upload is live.
 			log.WarnContext(ctx, "upload was attached between the read and the delete",
 				"digest", digest)
 			continue

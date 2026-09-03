@@ -6,10 +6,10 @@ var (
 	KeyEraseAccount = key("account.erase", Message{ZhHant: "刪除帳號", En: "Delete your account"})
 
 	KeyEraseWarning = key("account.erase.warning", Message{
-		ZhHant: "刪除後將移除你的個人資料與收件資訊。已完成的訂單會以無個資的形式保留,作為交易與稅務紀錄。此操作無法復原。",
+		ZhHant: "刪除後將移除你的個人資料與收件資訊。已完成的訂單會以無個資的形式保留,作為交易與稅務紀錄。有尚未完成的購物金退貨時,需先處理完畢。此操作無法復原。",
 		En: "Deleting removes your personal details and delivery information. Completed " +
-			"orders are kept without them, as a financial and tax record. This cannot be " +
-			"undone.",
+			"orders are kept without them, as a financial and tax record. An open return " +
+			"involving store credit must finish first. This cannot be undone.",
 	})
 
 	KeyEraseDisclosure = key("account.erase.disclosure", Message{
@@ -68,5 +68,10 @@ var (
 	KeyEraseNeedsEmail = key("account.notice.erase", Message{
 		ZhHant: "請輸入帳號的電子郵件以確認刪除。",
 		En:     "Type the account's email address to confirm.",
+	})
+
+	KeyEraseOpenReturn = key("account.notice.erase.return", Message{
+		ZhHant: "這個帳號仍有尚未完成的購物金退貨。請等待退貨完成或聯絡客服後再刪除帳號。",
+		En:     "This account has an unfinished return involving store credit. Finish it or contact support before deleting the account.",
 	})
 )

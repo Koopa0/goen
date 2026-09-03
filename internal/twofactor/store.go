@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -148,27 +149,21 @@ func (s *Store) SessionVerified(ctx context.Context, token string) (bool, error)
 // Remove deletes a credential, which is how a lost authenticator is recovered.
 // Another admin does this; there are no backup codes.
 //
-// It ENDS the sessions too. Removing the factor is the moment it stops being
-// proof, and a session carries its own step-up stamp that SessionTOTPVerified
-// trusts for the rest of StepUpWindow — so a stolen session kept the back
-// office for up to twelve hours after the credential it was admitted on was
-// taken away, and could use StaffOnly to enrol a replacement of its own
-// choosing. Revoking the ROLE already ends sessions for the same reason; this
-// is the other door into the same room.
+// It ENDS the sessions too, in the same statement. A session carries its own
+// step-up stamp that SessionTOTPVerified trusts for the rest of StepUpWindow,
+// so a session left open would keep the back office after the credential it was
+// admitted on was taken away — and could enrol a replacement from there.
 func (s *Store) Remove(ctx context.Context, userID string) error {
 	id, err := uuid.Parse(userID)
 	if err != nil {
 		return ErrNotEnrolled
 	}
-	n, err := s.q.RemoveTOTP(ctx, id)
+	removed, err := s.q.RemoveTOTPAndSessions(ctx, id)
 	if err != nil {
-		return fmt.Errorf("remove totp: %w", err)
+		return fmt.Errorf("remove totp and end its sessions: %w", err)
 	}
-	if n == 0 {
+	if !removed {
 		return ErrNotEnrolled
-	}
-	if err := s.q.EndStaffSessions(ctx, id); err != nil {
-		return fmt.Errorf("end the sessions admitted on the removed factor: %w", err)
 	}
 	return nil
 }
@@ -207,16 +202,13 @@ func (s *Store) Staff(ctx context.Context) (pages.AdminStaffView, error) {
 		return pages.AdminStaffView{}, fmt.Errorf("read staff 2FA status: %w", err)
 	}
 	view := pages.AdminStaffView{Rows: make([]pages.AdminStaffRow, 0, len(rows))}
-	for _, role := range roles {
-		view.Roles = append(view.Roles, pages.StaffRoleChoice{
-			Value: role, Label: roleLabel(ctx, role),
-		})
-	}
+	// Cloned: a slice of the package-level array would let a caller write through it.
+	view.Roles = slices.Clone(pages.StaffRoles[:])
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, pages.AdminStaffRow{
 			ID: r.ID.String(), Email: r.Email, Name: r.FullName,
-			Role: r.Role, Enrolled: r.Enrolled,
+			Role: pages.StaffRole(r.Role), Enrolled: r.Enrolled,
 		})
 	}
 	return view, nil

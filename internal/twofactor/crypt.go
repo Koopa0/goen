@@ -18,12 +18,11 @@ const keyBytes = 32
 // value yields (nil, nil): a deployment with no key, which newCipher turns into
 // a disabled cipher.
 //
-// It is a key and not a passphrase. A single unsalted SHA-256 over a memorable
-// phrase is not a key derivation function: it costs an offline attacker one
-// hash per wordlist entry against every stored credential at once. Anything
-// that is not exactly keyBytes bytes of hex or base64 is therefore refused at
-// startup instead of being normalised into something that merely looks like a
-// key.
+// It is a key and not a passphrase: an unsalted SHA-256 over a memorable phrase
+// is not a key derivation function, and costs an offline attacker one hash per
+// wordlist entry against every stored credential at once. Anything that is not
+// exactly keyBytes bytes of hex or base64 is refused at startup rather than
+// normalised into something that merely looks like a key.
 func ParseKey(value string) ([]byte, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -78,15 +77,13 @@ type secretCipher struct {
 }
 
 // newCipher builds a secretCipher from key material produced by ParseKey. A nil
-// or empty key yields a disabled cipher rather than an error, which is what a
-// deployment with no key gets.
+// or empty key yields a disabled cipher rather than an error.
 func newCipher(key []byte) *secretCipher {
 	if len(key) == 0 {
 		return &secretCipher{}
 	}
 	if len(key) != keyBytes {
-		// Unreachable in production: ParseKey is the only configuration door and
-		// is called before the server is built.
+		// Unreachable: ParseKey is the only configuration door, and runs at startup.
 		panic("twofactor: newCipher needs a key from ParseKey")
 	}
 	block, err := aes.NewCipher(key)

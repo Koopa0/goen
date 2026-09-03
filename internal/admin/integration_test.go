@@ -112,9 +112,13 @@ func staffID(t *testing.T) string {
 
 func adminHandlerOver(p *pgxpool.Pool, s *admin.Store) *admin.Handler {
 	log := slog.New(slog.DiscardHandler)
-	return admin.NewHandler(s,
-		media.NewHandler(media.NewStore(p), log),
-		outbox.NewStore(p, log), newsletter.NewStore(p), log, nil, nil)
+	return admin.NewHandler(admin.HandlerDeps{
+		Store:   s,
+		Images:  media.NewHandler(media.NewStore(p), log),
+		Outbox:  outbox.NewStore(p, log),
+		Letters: newsletter.NewStore(p),
+		Log:     log,
+	})
 }
 
 func TestProductReadsDistinguishAbsenceFromInfrastructure(t *testing.T) {
@@ -190,6 +194,53 @@ func TestProductReadsDistinguishAbsenceFromInfrastructure(t *testing.T) {
 	timedHandler.AddVariant(badVariantRes, badVariantReq)
 	if badVariantRes.Code != http.StatusInternalServerError {
 		t.Fatalf("timed-out rejected-form rebuild answered %d, want 500", badVariantRes.Code)
+	}
+}
+
+func TestProductUpdateDistinguishesAbsenceFromSuccess(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	slug := draftProduct(t, ctx, s)
+	view, err := s.Product(ctx, slug)
+	if err != nil {
+		t.Fatalf("read product fixture: %v", err)
+	}
+	missing := "no-such-product-" + uuid.NewString()
+	form := &admin.ProductForm{
+		Slug: missing, Name: view.Name, Summary: view.Summary,
+		Description: view.Description, NameEn: view.NameEn,
+		SummaryEn: view.SummaryEn, DescriptionEn: view.DescriptionEn,
+		WarrantyNote: view.WarrantyNote, WarrantyMonths: view.WarrantyMonths,
+		BrandID: view.BrandID, CategoryID: view.CategoryID,
+	}
+	before := auditRows(t, admin.ActionUpdateProduct)
+	if errs, updateErr := s.UpdateProduct(ctx, form); !errors.Is(updateErr, admin.ErrNotFound) || len(errs) > 0 {
+		t.Fatalf("UpdateProduct(absent) = %v, %v; want ErrNotFound and no field errors",
+			errs, updateErr)
+	}
+	if after := auditRows(t, admin.ActionUpdateProduct); after != before {
+		t.Fatalf("absent product update left %d audit rows, want %d", after, before)
+	}
+
+	values := url.Values{
+		"name": {form.Name}, "summary": {form.Summary},
+		"description": {form.Description}, "name_en": {form.NameEn},
+		"summary_en": {form.SummaryEn}, "description_en": {form.DescriptionEn},
+		"warranty":        {form.WarrantyNote},
+		"warranty_months": {strconv.FormatInt(int64(form.WarrantyMonths), 10)},
+		"brand":           {form.BrandID}, "category": {form.CategoryID},
+	}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		"/admin/products/"+missing, strings.NewReader(values.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("slug", missing)
+	res := httptest.NewRecorder()
+	adminHandlerOver(pool, s).UpdateProduct(res, req)
+	if res.Code != http.StatusNotFound {
+		t.Fatalf("UpdateProduct(absent) HTTP status = %d, want 404", res.Code)
+	}
+	if location := res.Header().Get("Location"); location != "" {
+		t.Errorf("UpdateProduct(absent) redirected to %q; want no success redirect", location)
 	}
 }
 
@@ -425,7 +476,7 @@ func pendingOrderHoldingStock(t *testing.T) (number string, orderID, variantID u
 		t.Fatalf("create private data: %v", err)
 	}
 	if _, err := tx.Exec(ctx,
-		`SELECT hold_inventory($1, $2, 1, now() + interval '30 minutes', $3)`,
+		`SELECT hold_inventory($1, $2, 1, interval '30 minutes', $3)`,
 		orderID, variantID, "ship-test:"+number); err != nil {
 		t.Fatalf("hold: %v", err)
 	}
@@ -693,10 +744,8 @@ type fakeRefunder struct {
 	failIntent bool
 	refundErr  error
 	state      admin.RefundState
-	// sent counts calls to Refund. The database cannot answer "was this sent
-	// twice": the request key makes a repeat hit the same row and settle_refund
-	// returns early on 'succeeded', so a sum over refunds reads the same either
-	// way. Only the provider knows, which is what this stands in for.
+	// sent counts calls to Refund. Local rows prove durable outcomes, but only
+	// this provider-side counter can prove a retry did not execute twice.
 	sent *atomic.Int64
 }
 
@@ -1101,7 +1150,8 @@ func addTierSpend(t *testing.T, userID uuid.UUID, cents int64) {
 // points posting. A queue derived only from money calls this return complete,
 // hides the retry control, and strands the missing clawback forever.
 func TestAClawbackOnlyFailureRemainsRetryable(t *testing.T) {
-	ctx, _ := staffContext(t)
+	ctx, staff := staffContext(t)
+	actor := uuid.NullUUID{UUID: staff, Valid: true}
 	requestID, orderID, _ := loyaltyReturn(t, []int64{1200000}, 0)
 	if _, err := pool.Exec(ctx, `
 		UPDATE return_requests
@@ -1118,8 +1168,25 @@ func TestAClawbackOnlyFailureRemainsRetryable(t *testing.T) {
 		WHERE p.order_id = $2 AND p.status = 'succeeded'`, requestID, orderID); err != nil {
 		t.Fatalf("settle money before clawback: %v", err)
 	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO order_events (order_id, kind, return_request_id)
+		VALUES ($1, 'refunded', $2)`, orderID, requestID); err != nil {
+		t.Fatalf("record timeline before clawback: %v", err)
+	}
 
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	if err := s.InspectReturn(ctx, requestID.String(), []admin.ReturnLineInspection{{
+		OrderLineID: returnLineID(t, requestID), Received: 1, Restocked: 0,
+	}}, actor); err != nil {
+		t.Fatalf("inspect points-gap return: %v", err)
+	}
+	completeErr := s.CompleteReturn(ctx, requestID.String(), "已驗貨", actor)
+	pgErr, ok := errors.AsType[*pgconn.PgError](completeErr)
+	if !errors.Is(completeErr, admin.ErrRefused) || !ok ||
+		pgErr.ConstraintName != "return_requests_completed_points_settled" {
+		t.Fatalf("completion without clawback = %v, want return_requests_completed_points_settled",
+			completeErr)
+	}
 	view, err := s.Returns(ctx)
 	if err != nil {
 		t.Fatalf("read queue: %v", err)
@@ -1150,6 +1217,9 @@ retry:
 	if points != -120 || requested != 120 {
 		t.Errorf("retried clawback = %d requested %d, want -120/120", points, requested)
 	}
+	if completeErr := s.CompleteReturn(ctx, requestID.String(), "已退款、驗貨並回收點數", actor); completeErr != nil {
+		t.Fatalf("complete return after clawback retry: %v", completeErr)
+	}
 	view, err = s.Returns(ctx)
 	if err != nil {
 		t.Fatalf("read repaired queue: %v", err)
@@ -1159,6 +1229,256 @@ retry:
 			t.Error("completed clawback still offers a payout retry")
 		}
 	}
+}
+
+// TestASettledReturnCanClawPointsBackAfterOwnerErasure pins the recovery order:
+// card money may settle, the user may then lawfully erase their account, and
+// the separately durable loyalty clawback must still be visible and runnable.
+// The award lot and loyalty account are retained accounting records even though
+// orders.user_id is detached.
+func TestASettledReturnCanClawPointsBackAfterOwnerErasure(t *testing.T) {
+	ctx, staff := staffContext(t)
+	actor := uuid.NullUUID{UUID: staff, Valid: true}
+	requestID, orderID, userID := loyaltyReturn(t, []int64{1200000}, 0)
+	if _, err := pool.Exec(ctx, `
+		UPDATE return_requests
+		SET status = 'approved', decided_at = now(), resolution = '退款完成'
+		WHERE id = $1`, requestID); err != nil {
+		t.Fatalf("approve return: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO refunds (payment_id, request_key, amount_cents, reason,
+		                     return_request_id, status, provider_ref, succeeded_at)
+		SELECT p.id, 'return:' || ($1::uuid)::text, 1200000, '退款完成', $1::uuid,
+		       'succeeded', 're_erased_points_gap_' || ($1::uuid)::text, now()
+		FROM payments p
+		WHERE p.order_id = $2 AND p.status = 'succeeded'`, requestID, orderID); err != nil {
+		t.Fatalf("settle money before erasure: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO order_events (order_id, kind, return_request_id)
+		VALUES ($1, 'refunded', $2)`, orderID, requestID); err != nil {
+		t.Fatalf("record timeline before erasure: %v", err)
+	}
+
+	if err := account.NewStore(pool).Erase(ctx, userID.String()); err != nil {
+		t.Fatalf("erase owner after money settled: %v", err)
+	}
+	var detached bool
+	if err := pool.QueryRow(ctx, `
+		SELECT user_id IS NULL FROM orders WHERE id = $1`, orderID).Scan(&detached); err != nil {
+		t.Fatalf("read erased order owner: %v", err)
+	}
+	if !detached {
+		t.Fatal("erasure did not detach the order owner")
+	}
+
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	view, err := s.Returns(ctx)
+	if err != nil {
+		t.Fatalf("read erased-owner recovery queue: %v", err)
+	}
+	found := false
+	for i := range view.Rows {
+		if view.Rows[i].ID != requestID.String() {
+			continue
+		}
+		found = true
+		if !view.Rows[i].PayoutOutstanding || view.Rows[i].PayoutBlocked {
+			t.Fatalf("erased-owner clawback renders outstanding=%v blocked=%v, want true/false",
+				view.Rows[i].PayoutOutstanding, view.Rows[i].PayoutBlocked)
+		}
+	}
+	if !found {
+		t.Fatalf("return %s is absent from the erased-owner recovery queue", requestID)
+	}
+
+	if err := s.Decide(ctx, requestID.String(), "approved", "補登點數", uuid.NullUUID{}); err != nil {
+		t.Fatalf("retry clawback after erasure: %v", err)
+	}
+	var points, requested int64
+	if err := pool.QueryRow(ctx, `
+		SELECT points, requested_points
+		FROM loyalty_entries
+		WHERE return_request_id = $1 AND kind = 'clawback'`, requestID).
+		Scan(&points, &requested); err != nil {
+		t.Fatalf("read post-erasure clawback: %v", err)
+	}
+	if points != -120 || requested != 120 {
+		t.Errorf("post-erasure clawback = %d requested %d, want -120/120", points, requested)
+	}
+
+	if err := s.InspectReturn(ctx, requestID.String(), []admin.ReturnLineInspection{{
+		OrderLineID: returnLineID(t, requestID), Received: 1, Restocked: 0,
+	}}, actor); err != nil {
+		t.Fatalf("inspect erased-owner return: %v", err)
+	}
+	if err := s.CompleteReturn(ctx, requestID.String(), "已退款、驗貨並回收點數", actor); err != nil {
+		t.Fatalf("complete erased-owner return after clawback: %v", err)
+	}
+	var status string
+	if err := pool.QueryRow(ctx,
+		`SELECT status FROM return_requests WHERE id = $1`, requestID).Scan(&status); err != nil {
+		t.Fatalf("read completed erased-owner return: %v", err)
+	}
+	if status != "completed" {
+		t.Errorf("erased-owner return status = %q, want completed", status)
+	}
+}
+
+// TestPointClawbackAndErasureShareOrderBeforeAccount forces the former ABBA
+// window. The clawback pauses at its ledger insert; erasure has already begun.
+// Both must finish in order, with neither PostgreSQL transaction chosen as a
+// deadlock victim.
+func TestPointClawbackAndErasureShareOrderBeforeAccount(t *testing.T) {
+	ctx := t.Context()
+	requestID, orderID, userID := loyaltyReturn(t, []int64{1200000}, 0)
+	if _, err := pool.Exec(ctx, `
+		UPDATE return_requests
+		SET status = 'approved', decided_at = now(), resolution = 'lock order'
+		WHERE id = $1`, requestID); err != nil {
+		t.Fatalf("approve lock-order return: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO refunds (payment_id, request_key, amount_cents, reason,
+		                     return_request_id, status, provider_ref, succeeded_at)
+		SELECT p.id, 'return:' || ($1::uuid)::text, 1200000, 'lock order', $1::uuid,
+		       'succeeded', 're_lock_order_' || ($1::uuid)::text, now()
+		FROM payments p
+		WHERE p.order_id = $2 AND p.status = 'succeeded'`, requestID, orderID); err != nil {
+		t.Fatalf("settle lock-order return: %v", err)
+	}
+
+	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
+	functionName := pgx.Identifier{"test_pause_return_clawback_" + suffix}.Sanitize()
+	triggerName := pgx.Identifier{"test_pause_return_clawback_" + suffix}.Sanitize()
+	const barrierKey int64 = 8_812_233_445_566_781
+	if _, err := pool.Exec(ctx, fmt.Sprintf(`
+		CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $body$
+		BEGIN
+			IF NEW.return_request_id = '%s'::uuid THEN
+				PERFORM pg_advisory_xact_lock(%d);
+			END IF;
+			RETURN NEW;
+		END
+		$body$;
+		CREATE TRIGGER %s BEFORE INSERT ON loyalty_entries
+		FOR EACH ROW EXECUTE FUNCTION %s()`,
+		functionName, requestID, barrierKey, triggerName, functionName)); err != nil {
+		t.Fatalf("install clawback barrier: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_, _ = pool.Exec(cleanupCtx, fmt.Sprintf(
+			"DROP TRIGGER IF EXISTS %s ON loyalty_entries; DROP FUNCTION IF EXISTS %s()",
+			triggerName, functionName))
+	})
+
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin clawback barrier: %v", err)
+	}
+	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
+	if _, lockErr := blocker.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, barrierKey); lockErr != nil {
+		t.Fatalf("hold clawback barrier: %v", lockErr)
+	}
+	reverseConn, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatalf("acquire clawback connection: %v", err)
+	}
+	defer reverseConn.Release()
+	eraseConn, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatalf("acquire erasure connection: %v", err)
+	}
+	defer eraseConn.Release()
+	var reversePID, erasePID int
+	if err := reverseConn.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&reversePID); err != nil {
+		t.Fatalf("read clawback backend: %v", err)
+	}
+	if err := eraseConn.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&erasePID); err != nil {
+		t.Fatalf("read erasure backend: %v", err)
+	}
+
+	type reverseResult struct {
+		points int64
+		err    error
+	}
+	reverseResultCh := make(chan reverseResult, 1)
+	reverseDone := make(chan struct{})
+	go func() {
+		defer close(reverseDone)
+		var points int64
+		err := reverseConn.QueryRow(context.WithoutCancel(ctx),
+			`SELECT reverse_return_points($1)`, requestID).Scan(&points)
+		reverseResultCh <- reverseResult{points: points, err: err}
+	}()
+	waitForBackendLock(t, reversePID, reverseDone)
+
+	eraseResultCh := make(chan error, 1)
+	eraseDone := make(chan struct{})
+	go func() {
+		defer close(eraseDone)
+		_, err := eraseConn.Exec(context.WithoutCancel(ctx), `SELECT erase_user($1)`, userID)
+		eraseResultCh <- err
+	}()
+	waitForBackendLock(t, erasePID, eraseDone)
+
+	if err := blocker.Commit(ctx); err != nil {
+		t.Fatalf("release clawback barrier: %v", err)
+	}
+	select {
+	case result := <-reverseResultCh:
+		if result.err != nil || result.points != 120 {
+			t.Fatalf("concurrent clawback = %d, %v; want 120 and no deadlock", result.points, result.err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("clawback did not finish after its barrier was released")
+	}
+	select {
+	case err := <-eraseResultCh:
+		if err != nil {
+			t.Fatalf("concurrent erasure: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("erasure did not finish after clawback committed")
+	}
+
+	var users, clawbacks int
+	if err := pool.QueryRow(ctx, `
+		SELECT (SELECT count(*) FROM users WHERE id = $1),
+		       (SELECT count(*) FROM loyalty_entries
+		        WHERE return_request_id = $2 AND kind = 'clawback')`, userID, requestID).
+		Scan(&users, &clawbacks); err != nil {
+		t.Fatalf("read lock-order result: %v", err)
+	}
+	if users != 0 || clawbacks != 1 {
+		t.Errorf("lock-order survivors users/clawbacks = %d/%d, want 0/1", users, clawbacks)
+	}
+}
+
+func waitForBackendLock(t *testing.T, pid int, done <-chan struct{}) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		select {
+		case <-done:
+			t.Fatalf("backend %d finished before reaching the forced lock boundary", pid)
+		default:
+		}
+		var waiting bool
+		if err := pool.QueryRow(t.Context(), `
+			SELECT coalesce(wait_event_type = 'Lock', false)
+			FROM pg_stat_activity WHERE pid = $1`, pid).Scan(&waiting); err != nil {
+			t.Fatalf("observe backend %d: %v", pid, err)
+		}
+		if waiting {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("backend %d never reached a lock wait", pid)
 }
 
 func assertReturnedLoyalty(t *testing.T, requestID, orderID, userID uuid.UUID, wantSpend, wantPoints int64) {
@@ -1491,11 +1811,13 @@ func TestAFailedRefundLeavesARowToReconcile(t *testing.T) {
 		},
 		{
 			name: "stripe refused the refund",
-			refunder: fakeRefunder{refundErr: &stripe.Error{
-				Type: stripe.ErrorTypeInvalidRequest,
-				Code: stripe.ErrorCodeChargeAlreadyRefunded,
-				Msg:  "charge has already been refunded",
-			}},
+			refunder: fakeRefunder{refundErr: fmt.Errorf("%w: %w",
+				admin.ErrRefundCreateRejected,
+				&stripe.Error{
+					Type: stripe.ErrorTypeInvalidRequest,
+					Code: stripe.ErrorCodeChargeAlreadyRefunded,
+					Msg:  "charge has already been refunded",
+				})},
 			wantStatus: "failed",
 			why:        "Stripe was asked and said no",
 		},
@@ -1530,13 +1852,11 @@ func TestAFailedRefundLeavesARowToReconcile(t *testing.T) {
 				`SELECT status FROM return_requests WHERE id = $1`, requestID).Scan(&returnStatus); err != nil {
 				t.Fatalf("read return: %v", err)
 			}
-			// APPROVED, and that is the fix rather than a regression. The
-			// decision commits before a cent moves, which is what stops two
-			// staff members deciding one return at once from both paying — so
-			// a refund that fails afterwards can no longer leave the return
-			// open. What must be true instead is that the attempt is on record
-			// and can be finished, which the row above and
-			// TestAStalledRefundCanBeRetriedToCompletion hold.
+			// APPROVED. The decision commits before a cent moves, which is what
+			// stops two staff members deciding one return at once from both
+			// paying, so a refund that fails afterwards cannot reopen it. What
+			// must be true instead is that the attempt is on record and can be
+			// finished.
 			if returnStatus != "approved" {
 				t.Errorf("return is %q after a refund that did not happen, want "+
 					"approved — the shop DID agree to the return, and the money "+
@@ -1593,6 +1913,63 @@ func TestAStalledRefundCanBeRetriedToCompletion(t *testing.T) {
 	}
 }
 
+// TestReturnCompletionWaitsForExactPayoutAndClawback keeps an inspected parcel
+// visible as approved work while its provider claim is ambiguous. Completion is
+// admitted only after the same durable claim succeeds and the corresponding
+// loyalty reversal is present; otherwise completed would hide every retry door.
+func TestReturnCompletionWaitsForExactPayoutAndClawback(t *testing.T) {
+	ctx, staff := staffContext(t)
+	actor := uuid.NullUUID{UUID: staff, Valid: true}
+	requestID, _, _ := loyaltyReturn(t, []int64{1200000}, 0)
+	lineID := returnLineID(t, requestID)
+
+	stalled := admin.NewStore(pool, fakeRefunder{
+		refundErr: errors.New("provider outcome is ambiguous"),
+	}, nil, nil)
+	if err := stalled.Decide(ctx, requestID.String(), "approved", "已收到退貨", actor); err == nil {
+		t.Fatal("ambiguous provider refund was reported as settled")
+	}
+	if err := stalled.InspectReturn(ctx, requestID.String(), []admin.ReturnLineInspection{{
+		OrderLineID: lineID, Received: 1, Restocked: 0,
+	}}, actor); err != nil {
+		t.Fatalf("inspect return before payout retry: %v", err)
+	}
+
+	err := stalled.CompleteReturn(ctx, requestID.String(), "已驗貨", actor)
+	if !errors.Is(err, admin.ErrRefused) {
+		t.Fatalf("complete with ambiguous payout = %v, want ErrRefused", err)
+	}
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	if !ok || pgErr.ConstraintName != "return_requests_completed_money_settled" {
+		t.Fatalf("incomplete payout refused by %v, want return_requests_completed_money_settled", err)
+	}
+
+	healthy := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	if err := healthy.Decide(ctx, requestID.String(), "approved", "完成退款", actor); err != nil {
+		t.Fatalf("retry approved payout and clawback: %v", err)
+	}
+	if err := healthy.CompleteReturn(ctx, requestID.String(), "已退款並驗貨", actor); err != nil {
+		t.Fatalf("complete exactly settled return: %v", err)
+	}
+
+	var status string
+	var succeededRefunds, clawbacks int
+	if err := pool.QueryRow(ctx, `
+		SELECT r.status,
+		       (SELECT count(*) FROM refunds rf
+		        WHERE rf.return_request_id = r.id AND rf.status = 'succeeded'),
+		       (SELECT count(*) FROM loyalty_entries e
+		        WHERE e.return_request_id = r.id AND e.kind = 'clawback')
+		FROM return_requests r WHERE r.id = $1`, requestID).
+		Scan(&status, &succeededRefunds, &clawbacks); err != nil {
+		t.Fatalf("read completed return settlement: %v", err)
+	}
+	if status != "completed" || succeededRefunds != 1 || clawbacks != 1 {
+		t.Errorf("completed settlement status/refunds/clawbacks = %s/%d/%d, want completed/1/1",
+			status, succeededRefunds, clawbacks)
+	}
+}
+
 func TestAStalledRefundOffersItsRetryInTheQueue(t *testing.T) {
 	for _, tc := range []struct {
 		name            string
@@ -1608,10 +1985,9 @@ func TestAStalledRefundOffersItsRetryInTheQueue(t *testing.T) {
 			wantOutstanding: true,
 		},
 		{
-			name:            "a provider refusal is stranded",
+			name:            "a provider refusal offers a successor",
 			refunder:        fakeRefunder{state: admin.RefundFailed},
 			wantOutstanding: true,
-			wantBlocked:     true,
 		},
 		{
 			name:     "a settled payout offers nothing twice",
@@ -1684,6 +2060,163 @@ func TestAStalledRefundOffersItsRetryInTheQueue(t *testing.T) {
 	})
 }
 
+// TestAnOldRecoverySurvivesTheBoundedReturnQueue proves ordering happens before
+// LIMIT. The returns page is the only retry door; if fifty newer intake rows can
+// hide an approved-but-unpaid return, that customer can remain unpaid forever.
+func TestAnOldRecoverySurvivesTheBoundedReturnQueue(t *testing.T) {
+	ctx, _ := staffContext(t)
+	requestID, _ := returnedOrder(t, 1)
+	s := admin.NewStore(pool, fakeRefunder{state: admin.RefundFailed}, nil, nil)
+	decideErr := s.Decide(ctx, requestID.String(), "approved", "terminal retry", uuid.NullUUID{})
+	if !errors.Is(decideErr, admin.ErrRefundIncomplete) || errors.Is(decideErr, admin.ErrRefused) {
+		t.Fatalf("terminal decision = %v, want only ErrRefundIncomplete", decideErr)
+	}
+
+	rows, err := pool.Query(ctx, `
+		WITH method AS (
+			SELECT v.id, sm.code, v.name
+			FROM shipping_method_versions v
+			JOIN shipping_methods sm ON sm.id = v.method_id
+			ORDER BY v.effective_at
+			LIMIT 1
+		), crowded_orders AS (
+			INSERT INTO orders (
+				shipping_version_id, shipping_method_code, shipping_method_name
+			)
+			SELECT m.id, m.code, m.name
+			FROM method m CROSS JOIN generate_series(1, $1::integer)
+			RETURNING id
+		), crowded_lines AS (
+			INSERT INTO order_lines
+				(order_id, sku, product_name, unit_price_cents, quantity)
+			SELECT id, 'QUEUE-' || id::text, 'queue fixture', 10000, 1
+			FROM crowded_orders
+			RETURNING order_id
+		), crowded_private_data AS (
+			INSERT INTO order_private_data
+				(order_id, email, recipient_name, phone, postal_code, city, district, street)
+			SELECT id, 'queue+' || id::text || '@example.invalid', 'queue fixture',
+			       '0912345678', '110', '台北市', '信義區', '測試路 1 號'
+			FROM crowded_orders
+			RETURNING order_id
+		), crowded_returns AS (
+			INSERT INTO return_requests (order_id, reason)
+			SELECT l.order_id, 'newer queue intake'
+			FROM crowded_lines l
+			JOIN crowded_private_data p USING (order_id)
+			RETURNING order_id
+		)
+		SELECT order_id FROM crowded_returns`, admin.PageSize+5)
+	if err != nil {
+		t.Fatalf("create bounded-queue crowd: %v", err)
+	}
+	var crowdedOrders []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if scanErr := rows.Scan(&id); scanErr != nil {
+			rows.Close()
+			t.Fatalf("scan crowded order: %v", scanErr)
+		}
+		crowdedOrders = append(crowdedOrders, id)
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		rows.Close()
+		t.Fatalf("iterate crowded orders: %v", rowsErr)
+	}
+	rows.Close()
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		for _, query := range []string{
+			`DELETE FROM return_requests WHERE order_id = ANY($1::uuid[])`,
+			`DELETE FROM order_private_data WHERE order_id = ANY($1::uuid[])`,
+			`DELETE FROM order_lines WHERE order_id = ANY($1::uuid[])`,
+			`DELETE FROM orders WHERE id = ANY($1::uuid[])`,
+		} {
+			if _, cleanupErr := pool.Exec(cleanupCtx, query, crowdedOrders); cleanupErr != nil {
+				t.Errorf("remove bounded-queue crowd: %v", cleanupErr)
+			}
+		}
+	})
+
+	queue, err := s.Returns(ctx)
+	if err != nil {
+		t.Fatalf("read bounded return queue: %v", err)
+	}
+	if len(queue.Rows) != admin.PageSize {
+		t.Fatalf("bounded queue has %d rows, want %d", len(queue.Rows), admin.PageSize)
+	}
+	for i := range queue.Rows {
+		if queue.Rows[i].ID != requestID.String() {
+			continue
+		}
+		if !queue.Rows[i].CanRetryPayout() {
+			t.Fatalf("old recovery row at position %d has outstanding/blocked %v/%v, want a retry",
+				i, queue.Rows[i].PayoutOutstanding, queue.Rows[i].PayoutBlocked)
+		}
+		return
+	}
+	t.Fatalf("approved recovery %s was hidden behind %d newer intake rows",
+		requestID, len(crowdedOrders))
+}
+
+func TestTerminalRefundHTTPUsesThePayoutRecoveryNotice(t *testing.T) {
+	ctx, _ := staffContext(t)
+	requestID, _ := returnedOrder(t, 1)
+	h := adminHandlerOver(pool,
+		admin.NewStore(pool, fakeRefunder{state: admin.RefundCancelled}, nil, nil))
+	form := url.Values{
+		"decision":   {"approved"},
+		"resolution": {"provider cancelled"},
+	}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		"/admin/returns/"+requestID.String()+"/decide", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("id", requestID.String())
+	res := httptest.NewRecorder()
+
+	h.Decide(res, req)
+	if res.Code != http.StatusSeeOther ||
+		res.Header().Get("Location") != "/admin/returns?refundfailed=1" {
+		t.Fatalf("terminal refund HTTP = %d %q, want payout-recovery redirect",
+			res.Code, res.Header().Get("Location"))
+	}
+}
+
+func TestReturnResolutionOverTheDurableBoundIsRefusedBeforeDecision(t *testing.T) {
+	ctx, _ := staffContext(t)
+	requestID, _ := returnedOrder(t, 1)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	tooLong := strings.Repeat("界", 301)
+	if err := s.Decide(ctx, requestID.String(), "approved", tooLong, uuid.NullUUID{}); !errors.Is(err, admin.ErrInvalid) {
+		t.Fatalf("overlong Store resolution = %v, want ErrInvalid", err)
+	}
+
+	form := url.Values{"decision": {"approved"}, "resolution": {tooLong}}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		"/admin/returns/"+requestID.String()+"/decide", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("id", requestID.String())
+	res := httptest.NewRecorder()
+	adminHandlerOver(pool, s).Decide(res, req)
+	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/admin/returns?refused=1" {
+		t.Fatalf("overlong resolution HTTP = %d %q, want refused redirect",
+			res.Code, res.Header().Get("Location"))
+	}
+
+	var status string
+	var attempts int
+	if err := pool.QueryRow(ctx, `
+		SELECT r.status,
+		       (SELECT count(*) FROM refunds rf WHERE rf.return_request_id = r.id)
+		FROM return_requests r WHERE r.id = $1`, requestID).Scan(&status, &attempts); err != nil {
+		t.Fatalf("read return after overlong resolution: %v", err)
+	}
+	if status != "requested" || attempts != 0 {
+		t.Errorf("overlong resolution left status/attempts = %s/%d, want requested/0", status, attempts)
+	}
+}
+
 func TestAPendingProviderRefundIsNotRecordedAsSucceeded(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -1749,20 +2282,11 @@ func TestAPendingProviderRefundIsNotRecordedAsSucceeded(t *testing.T) {
 	}
 }
 
-// TestARefundStripeRefusedOutrightLeavesTheDecisionStanding replaces a test that
-// asserted the defect's own shape.
-//
-// It used to require the return to stay `requested` after a refund Stripe
-// refused, so it could be decided again — which is only safe if deciding is
-// where the money is settled, and it was not: the payout ran BEFORE the CAS, so
-// two staff members deciding at once could both pay. The claim moved ahead of
-// the money, and a failed refund therefore leaves the decision standing.
-//
-// The property that has to survive is the one the old name was reaching for —
-// a customer who sent goods back must not be stranded — and it does, in two
-// pieces the old contract folded into one: the refund row is on record, and
-// approving again resumes the payout rather than retaking the decision.
-func TestARefundStripeRefusedOutrightLeavesTheDecisionStanding(t *testing.T) {
+// TestAProviderRefusalGetsANewDurableAttempt holds the distinction between
+// retrying ambiguity and retrying a known terminal outcome. Ambiguity reuses one
+// provider key; failed/cancelled is immutable evidence and gets a linked next
+// generation with a fresh DB-derived key.
+func TestAProviderRefusalGetsANewDurableAttempt(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{state: admin.RefundFailed}, nil, nil)
 	requestID, _ := returnedOrder(t, 1)
@@ -1792,26 +2316,62 @@ func TestARefundStripeRefusedOutrightLeavesTheDecisionStanding(t *testing.T) {
 		t.Errorf("refund is %q, want failed — Stripe was asked and said no", refundStatus)
 	}
 
-	// A refund Stripe REFUSED is not retryable here, and that is the schema's
-	// deliberate position rather than a gap this change opened:
-	// refunds_settled_is_history forbids `failed` becoming `succeeded`, and
-	// refundRequestKey means a second attempt finds the same row. The old
-	// contract left the return `requested` as though it could be decided again,
-	// but any retry met the same wall — so what it offered was the appearance
-	// of recovery, not recovery.
-	//
-	// What is real is that the refusal is on record and surfaced:
-	// TestTheHealthPageNamesARefundThatDidNotLand holds /admin/health, and the
-	// staff notice says to check the Stripe dashboard. A STALLED refund — one
-	// left `pending` because nobody knows what Stripe did — is the case that
-	// genuinely resumes, and TestAStalledRefundCanBeRetriedToCompletion holds it.
 	healthy := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-	err := healthy.Decide(ctx, requestID.String(), "approved", "已收到退貨", uuid.NullUUID{})
-	if !errors.Is(err, admin.ErrRefundIncomplete) {
-		t.Errorf("re-approving after a hard refusal gave %v, want ErrRefundIncomplete — "+
-			"a staff member must be told the money still has not gone", err)
+	if err := healthy.Decide(ctx, requestID.String(), "approved", "已收到退貨", uuid.NullUUID{}); err != nil {
+		t.Fatalf("retry after a known provider refusal: %v", err)
+	}
+
+	type attempt struct {
+		id       uuid.UUID
+		previous uuid.NullUUID
+		number   int32
+		key      string
+		status   string
+	}
+	rows, err := pool.Query(ctx, `
+		SELECT id, previous_refund_id, attempt_no, request_key, status
+		FROM refunds WHERE return_request_id = $1 ORDER BY attempt_no`, requestID)
+	if err != nil {
+		t.Fatalf("read provider attempts: %v", err)
+	}
+	defer rows.Close()
+	var attempts []attempt
+	for rows.Next() {
+		var got attempt
+		if scanErr := rows.Scan(&got.id, &got.previous, &got.number, &got.key, &got.status); scanErr != nil {
+			t.Fatalf("scan provider attempt: %v", scanErr)
+		}
+		attempts = append(attempts, got)
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		t.Fatalf("iterate provider attempts: %v", rowsErr)
+	}
+	base := "return:" + requestID.String()
+	if len(attempts) != 2 {
+		t.Fatalf("provider attempts = %#v, want failed evidence plus one successor", attempts)
+	}
+	if attempts[0].number != 1 || attempts[0].key != base || attempts[0].status != "failed" ||
+		attempts[0].previous.Valid {
+		t.Errorf("first provider attempt = %#v, want immutable failed generation 1", attempts[0])
+	}
+	if attempts[1].number != 2 || attempts[1].key != base+":attempt:2" ||
+		attempts[1].status != "succeeded" || !attempts[1].previous.Valid ||
+		attempts[1].previous.UUID != attempts[0].id {
+		t.Errorf("second provider attempt = %#v, want succeeded generation 2 linked to %s",
+			attempts[1], attempts[0].id)
+	}
+	health, err := healthy.WorkerHealth(ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)))
+	if err != nil {
+		t.Fatalf("read health after successful successor: %v", err)
+	}
+	for i := range health.OpenRefunds {
+		if strings.HasPrefix(health.OpenRefunds[i].Key, base) {
+			t.Errorf("historical failed attempt still appears as current health work: %#v",
+				health.OpenRefunds[i])
+		}
 	}
 }
+
 func TestTheHealthPageNamesARefundThatDidNotLand(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{
@@ -1854,6 +2414,53 @@ func TestTheHealthPageNamesARefundThatDidNotLand(t *testing.T) {
 	}
 	if diff := cmp.Diff(want, *found); diff != "" {
 		t.Errorf("WorkerHealth() open refund mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestRefundHealthCountExceedsItsBoundedDiagnosticSample(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
+	before, err := s.WorkerHealth(ctx, worker)
+	if err != nil {
+		t.Fatalf("read refund count before sample crowd: %v", err)
+	}
+	_, orderNumber := returnedOrder(t, 1)
+	prefix := "health-count-" + uuid.NewString() + "-"
+	if _, insertErr := pool.Exec(ctx, `
+		INSERT INTO refunds (payment_id, request_key, amount_cents)
+		SELECT p.id, $2 || g::text, 1
+		FROM payments p
+		JOIN orders o ON o.id = p.order_id
+		CROSS JOIN generate_series(1, 25) g
+		WHERE o.order_number = $1 AND p.status = 'succeeded'`, orderNumber, prefix); insertErr != nil {
+		t.Fatalf("create open-refund sample crowd: %v", insertErr)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if _, cleanupErr := pool.Exec(cleanupCtx,
+			`DELETE FROM refunds WHERE request_key LIKE $1 || '%'`, prefix); cleanupErr != nil {
+			t.Errorf("remove open-refund sample crowd: %v", cleanupErr)
+		}
+	})
+
+	after, err := s.WorkerHealth(ctx, worker)
+	if err != nil {
+		t.Fatalf("read refund count after sample crowd: %v", err)
+	}
+	if after.OpenRefundCount != before.OpenRefundCount+25 {
+		t.Errorf("exact open refund count moved %d -> %d, want +25",
+			before.OpenRefundCount, after.OpenRefundCount)
+	}
+	if len(after.OpenRefunds) != admin.OpenRefundListLimit {
+		t.Errorf("diagnostic sample has %d rows, want bounded %d",
+			len(after.OpenRefunds), admin.OpenRefundListLimit)
+	}
+	enCtx := i18n.WithLocale(ctx, i18n.En)
+	wantText := fmt.Sprintf(i18n.T(enCtx, i18n.KeyHealthRefundsStuck), after.OpenRefundCount)
+	if got := after.RefundsText(enCtx); got != wantText {
+		t.Errorf("refund health text = %q, want exact count %q", got, wantText)
 	}
 }
 
@@ -1959,11 +2566,9 @@ func TestTheLoserOfTwoSimultaneousDecisionsWritesNoAuditRow(t *testing.T) {
 		t.Errorf("the return is %q, want rejected — the loser overwrote the winner", status)
 	}
 
-	// THE MONEY. Every assertion above was true while the loser refunded: it
-	// returned ErrRefused, wrote no audit row and left the winner's status
-	// standing, because the payout happened before the CAS it went on to lose.
-	// A count proves the database held the line; only this says whether a cent
-	// moved.
+	// THE MONEY. Every assertion above stays true even when the loser refunds
+	// before losing the CAS: a count proves the database held the line, and only
+	// this says whether a cent moved.
 	var refunds int
 	if err := pool.QueryRow(ctx,
 		`SELECT count(*) FROM refunds WHERE return_request_id = $1`, requestID).Scan(&refunds); err != nil {
@@ -2053,12 +2658,13 @@ func TestGrantIsBoundedAndPositive(t *testing.T) {
 		{"negative", email, -50000, "扣款", admin.ErrInvalid},
 		{"no reason", email, 50000, "", admin.ErrInvalid},
 		{"whitespace reason", email, 50000, "   ", admin.ErrInvalid},
+		{"reason beyond ledger bound", email, 50000, strings.Repeat("理", admin.MaxCreditReasonRunes+1), admin.ErrInvalid},
 		{"no email", "", 50000, "補償", admin.ErrInvalid},
 		{"unknown customer", "nobody@example.invalid", 50000, "補償", admin.ErrRefused},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := s.GrantCredit(ctx, tt.email, tt.cents, tt.reason, uuid.NullUUID{})
+			_, err := s.GrantCredit(ctx, tt.email, tt.cents, tt.reason, uuid.New())
 			if tt.wantErr == nil {
 				if err != nil {
 					t.Fatalf("a legal grant was refused: %v", err)
@@ -2084,7 +2690,7 @@ func TestGrantIsBoundedAndPositive(t *testing.T) {
 	}
 }
 
-func TestGrantIsIdempotent(t *testing.T) {
+func TestGrantOperationIsIdempotentAndIdenticalOperationsRemainDistinct(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 
@@ -2095,9 +2701,11 @@ func TestGrantIsIdempotent(t *testing.T) {
 		t.Fatalf("create user: %v", err)
 	}
 
+	auditsBefore := auditRows(t, admin.ActionGrantCredit)
+	firstOperation := uuid.New()
 	for range 3 {
-		if _, err := s.GrantCredit(ctx, email, 50000, "退貨補償", uuid.NullUUID{}); err != nil {
-			t.Fatalf("grant: %v", err)
+		if _, err := s.GrantCredit(ctx, email, 50000, "退貨補償", firstOperation); err != nil {
+			t.Fatalf("retry one grant operation: %v", err)
 		}
 	}
 
@@ -2114,38 +2722,41 @@ func TestGrantIsIdempotent(t *testing.T) {
 	}
 	read()
 	if entries != 1 || balance != 50000 {
-		t.Errorf("%d entries totalling %d after submitting the same grant three "+
-			"times, want 1 of 50000", entries, balance)
-	}
-
-	if _, err := s.GrantCredit(ctx, email, 30000, "另一次補償", uuid.NullUUID{}); err != nil {
-		t.Fatalf("second, different grant: %v", err)
-	}
-	read()
-	if entries != 2 || balance != 80000 {
-		t.Errorf("%d entries totalling %d after a second, different grant, want 2 of 80000",
+		t.Errorf("%d entries totalling %d after retrying one operation three times, want 1 of 50000",
 			entries, balance)
 	}
+	if got := auditRows(t, admin.ActionGrantCredit) - auditsBefore; got != 1 {
+		t.Fatalf("one retried grant operation wrote %d audit rows, want 1", got)
+	}
 
-	if _, err := s.GrantCredit(ctx, email, 30000, "第三次補償", uuid.NullUUID{}); err != nil {
-		t.Fatalf("third grant: %v", err)
+	// Same customer, amount and reason can be a second legitimate compensation.
+	// Its durable request identity, not its business values, distinguishes it.
+	secondOperation := uuid.New()
+	if _, err := s.GrantCredit(ctx, email, 50000, "退貨補償", secondOperation); err != nil {
+		t.Fatalf("second identical grant operation: %v", err)
+	}
+	if _, err := s.GrantCredit(ctx, email, 50000, "退貨補償", secondOperation); err != nil {
+		t.Fatalf("retry second operation: %v", err)
 	}
 	read()
-	if entries != 3 || balance != 110000 {
-		t.Errorf("%d entries totalling %d after a same-amount different-reason "+
-			"grant, want 3 of 110000", entries, balance)
+	if entries != 2 || balance != 100000 {
+		t.Errorf("%d entries totalling %d after two identical but distinct operations, want 2 of 100000",
+			entries, balance)
+	}
+	if got := auditRows(t, admin.ActionGrantCredit) - auditsBefore; got != 2 {
+		t.Fatalf("two durable grant operations wrote %d audit rows, want 2", got)
 	}
 }
 
 func TestTheBackOfficeIsInvisibleToEveryoneButStaff(t *testing.T) {
 	ctx := t.Context()
-	h := admin.NewHandler(admin.NewStore(pool, fakeRefunder{}, nil, nil),
-		media.NewHandler(media.NewStore(pool), slog.New(slog.DiscardHandler)),
-		outbox.NewStore(pool, slog.New(slog.DiscardHandler)),
-		newsletter.NewStore(pool),
-		slog.New(slog.DiscardHandler),
-		nil,
-		nil)
+	h := admin.NewHandler(admin.HandlerDeps{
+		Store:   admin.NewStore(pool, fakeRefunder{}, nil, nil),
+		Images:  media.NewHandler(media.NewStore(pool), slog.New(slog.DiscardHandler)),
+		Outbox:  outbox.NewStore(pool, slog.New(slog.DiscardHandler)),
+		Letters: newsletter.NewStore(pool),
+		Log:     slog.New(slog.DiscardHandler),
+	})
 
 	var customerID uuid.UUID
 	if err := pool.QueryRow(ctx, `
@@ -2191,17 +2802,14 @@ func TestTheBackOfficeIsInvisibleToEveryoneButStaff(t *testing.T) {
 		})
 	}
 
-	// BOTH back-office roles, and 'staff' is the one that matters: this block
-	// asserted role 'admin' under a variable named staffID and a comment saying
-	// "create staff", so the role /admin/staff actually offers was never tested.
-	// RequireStaff asked IsAdmin, and every colleague hired as staff met a 404 on
-	// the whole back office.
+	// BOTH back-office roles, and 'staff' is the one that matters: a colleague
+	// hired as staff must not meet a 404 on the whole back office.
 	staffView, err := twofactor.NewStore(pool, nil).Staff(ctx)
 	if err != nil {
 		t.Fatalf("read roles offered by /admin/staff: %v", err)
 	}
 	for _, offered := range staffView.Roles {
-		role := offered.Value
+		role := string(offered)
 		t.Run(role+" reaches the back office", func(t *testing.T) {
 			var id uuid.UUID
 			if err := pool.QueryRow(ctx, `
@@ -2224,13 +2832,13 @@ func TestTheBackOfficeIsInvisibleToEveryoneButStaff(t *testing.T) {
 
 func TestOnlyAnAdminReachesTheStaffPage(t *testing.T) {
 	ctx := t.Context()
-	h := admin.NewHandler(admin.NewStore(pool, fakeRefunder{}, nil, nil),
-		media.NewHandler(media.NewStore(pool), slog.New(slog.DiscardHandler)),
-		outbox.NewStore(pool, slog.New(slog.DiscardHandler)),
-		newsletter.NewStore(pool),
-		slog.New(slog.DiscardHandler),
-		nil,
-		nil)
+	h := admin.NewHandler(admin.HandlerDeps{
+		Store:   admin.NewStore(pool, fakeRefunder{}, nil, nil),
+		Images:  media.NewHandler(media.NewStore(pool), slog.New(slog.DiscardHandler)),
+		Outbox:  outbox.NewStore(pool, slog.New(slog.DiscardHandler)),
+		Letters: newsletter.NewStore(pool),
+		Log:     slog.New(slog.DiscardHandler),
+	})
 
 	guarded := h.RequireAdmin(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -2325,7 +2933,7 @@ func TestEveryBackOfficeWriteLeavesATrail(t *testing.T) {
 		}},
 		{"grant credit", admin.ActionGrantCredit, func() error {
 			_, grantErr := s.GrantCredit(ctx, staffEmail(t, actor), 500,
-				"測試", uuid.NullUUID{UUID: actor, Valid: true})
+				"測試", uuid.New())
 			return grantErr
 		}},
 		{"create campaign", admin.ActionCreateCampaign, func() error {
@@ -2374,6 +2982,79 @@ func TestAnAuditRowNamesItsActorAndRequest(t *testing.T) {
 	}
 	if action != string(admin.ActionPublishProduct) {
 		t.Errorf("action is %q", action)
+	}
+}
+
+func TestProductUpdateAndAuditCommitTogether(t *testing.T) {
+	ctx, actor := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	slug := draftProduct(t, ctx, s)
+	view, err := s.Product(ctx, slug)
+	if err != nil {
+		t.Fatalf("read product fixture: %v", err)
+	}
+	form := &admin.ProductForm{
+		Slug: slug, Name: "已稽核商品 " + uuid.NewString()[:8], Summary: view.Summary,
+		Description: view.Description, NameEn: view.NameEn,
+		SummaryEn: view.SummaryEn, DescriptionEn: view.DescriptionEn,
+		WarrantyNote: view.WarrantyNote, WarrantyMonths: view.WarrantyMonths,
+		BrandID: view.BrandID, CategoryID: view.CategoryID,
+	}
+	before := auditRows(t, admin.ActionUpdateProduct)
+	if errs, updateErr := s.UpdateProduct(ctx, form); updateErr != nil || len(errs) > 0 {
+		t.Fatalf("UpdateProduct: %v %v", updateErr, errs)
+	}
+
+	var gotActor uuid.UUID
+	var requestID, auditedSlug, auditedName string
+	if err := pool.QueryRow(ctx, `
+		SELECT actor_user_id, coalesce(request_id, ''),
+		       coalesce(after->>'slug', ''), coalesce(after->>'name', '')
+		FROM audit_events
+		WHERE action = $1 AND after->>'slug' = $2
+		ORDER BY occurred_at DESC, id DESC LIMIT 1`,
+		string(admin.ActionUpdateProduct), slug).
+		Scan(&gotActor, &requestID, &auditedSlug, &auditedName); err != nil {
+		t.Fatalf("read product update audit row: %v", err)
+	}
+	if gotActor != actor || requestID == "" || auditedSlug != slug || auditedName != form.Name {
+		t.Errorf("product update audit = actor %s request %q slug %q name %q; "+
+			"want %s/nonempty/%q/%q", gotActor, requestID, auditedSlug, auditedName,
+			actor, slug, form.Name)
+	}
+	if after := auditRows(t, admin.ActionUpdateProduct); after != before+1 {
+		t.Fatalf("successful update left %d audit rows, want %d", after, before+1)
+	}
+
+	// A syntactically valid but nonexistent actor reaches record_audit_event and
+	// fails its users foreign key. The product write ran first in the same
+	// transaction, so observing the old name proves the audit failure rolled it
+	// back instead of leaving an unattributed customer-visible change.
+	missingActor := uuid.New()
+	failingCtx := web.WithRequestID(account.WithUser(t.Context(), account.User{
+		ID: missingActor.String(), Role: "admin",
+	}), "req-missing-actor")
+	failing := *form
+	failing.Name = "不得落地 " + uuid.NewString()[:8]
+	errs, updateErr := s.UpdateProduct(failingCtx, &failing)
+	if updateErr == nil || len(errs) > 0 {
+		t.Fatalf("UpdateProduct with an unrecordable actor = %v, %v; want audit error",
+			errs, updateErr)
+	}
+	pgErr, ok := errors.AsType[*pgconn.PgError](updateErr)
+	if !ok || pgErr.ConstraintName != "audit_events_actor_user_id_fkey" {
+		t.Fatalf("product audit insertion failure = %v, want audit actor FK", updateErr)
+	}
+	var persisted string
+	if err := pool.QueryRow(ctx, `SELECT name FROM products WHERE slug = $1`, slug).Scan(&persisted); err != nil {
+		t.Fatalf("read product after audit failure: %v", err)
+	}
+	if persisted != form.Name {
+		t.Errorf("product name after audit failure = %q, want rolled back to %q",
+			persisted, form.Name)
+	}
+	if after := auditRows(t, admin.ActionUpdateProduct); after != before+1 {
+		t.Errorf("failed audit changed product-update trail from %d to %d", before+1, after)
 	}
 }
 
@@ -2442,7 +3123,7 @@ func TestTheTrailCannotBeRewritten(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if _, err := pool.Exec(ctx, tt.stmt); err == nil {
 				t.Fatalf("%s succeeded against an append-only table", tt.name)
-			} else if _, name := constraintFrom(err); name != "audit_events_append_only" {
+			} else if name := constraintFrom(err); name != "audit_events_append_only" {
 				t.Errorf("refused by %q, want audit_events_append_only: %v", name, err)
 			}
 		})
@@ -2459,12 +3140,12 @@ func TestTheTrailCannotBeRewritten(t *testing.T) {
 	}
 }
 
-func constraintFrom(err error) (code, name string) {
+func constraintFrom(err error) string {
 	pgErr, ok := errors.AsType[*pgconn.PgError](err)
 	if !ok {
-		return "", ""
+		return ""
 	}
-	return pgErr.Code, pgErr.ConstraintName
+	return pgErr.ConstraintName
 }
 
 func anyVariantSKU(t *testing.T) string {
@@ -2677,6 +3358,119 @@ func TestRevenueCountsOnlyCommittedOrders(t *testing.T) {
 		t.Errorf("revenue went %d → %d, want +100000",
 			before.RevenueCents, after.RevenueCents)
 	}
+}
+
+func TestBestSellerHistorySurvivesRetirementOfAPurchasedVariant(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	slug := "report-retired-" + uuid.NewString()
+	var productID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO products (brand_id, category_id, slug, name, status, published_at)
+		SELECT b.id, c.id, $1, '退役規格報表商品', 'draft', now()
+		FROM brands b CROSS JOIN categories c
+		WHERE c.parent_id IS NULL ORDER BY b.id, c.id LIMIT 1
+		RETURNING id`, slug).Scan(&productID); err != nil {
+		t.Fatalf("create product: %v", err)
+	}
+	var purchasedVariant uuid.UUID
+	for pos := range 2 {
+		var variantID uuid.UUID
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO product_variants (product_id, sku, price_cents, position)
+			VALUES ($1, 'REPORT-' || upper(replace(gen_random_uuid()::text, '-', '')), 1, $2)
+			RETURNING id`, productID, pos).Scan(&variantID); err != nil {
+			t.Fatalf("create variant %d: %v", pos, err)
+		}
+		if pos == 0 {
+			purchasedVariant = variantID
+		}
+	}
+	if _, err := tx.Exec(ctx, `UPDATE products SET status = 'active' WHERE id = $1`, productID); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+	var orderID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
+		                    shipping_method_name, shipping_cents)
+		SELECT next_order_number(), v.id, sm.code, v.name, 0
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1 RETURNING id`).Scan(&orderID); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_lines
+			(order_id, variant_id, sku, product_name, unit_price_cents, quantity)
+		VALUES ($1, $2, 'REPORT-BOUGHT', '退役規格報表商品', 1, 999)`,
+		orderID, purchasedVariant); err != nil {
+		t.Fatalf("create line: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'report@example.com', '收件', '0912345678',
+		        '110', '台北市', '信義區', '路 1 號')`, orderID); err != nil {
+		t.Fatalf("create private data: %v", err)
+	}
+	providerRef := "report_retired_" + orderID.String()
+	if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, 999)`, orderID, providerRef); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT capture_payment($1, 999, NULL, NULL)`, providerRef); err != nil {
+		t.Fatalf("capture: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+
+	assertSeller := func(stage string) {
+		t.Helper()
+		view, err := s.Report(ctx, 30)
+		if err != nil {
+			t.Fatalf("%s report: %v", stage, err)
+		}
+		for _, seller := range view.Sellers {
+			if seller.Slug == slug {
+				if seller.Units != 999 || seller.RevenueCents != 999 {
+					t.Errorf("%s seller totals = %d/%d, want 999/999",
+						stage, seller.Units, seller.RevenueCents)
+				}
+				return
+			}
+		}
+		t.Fatalf("%s report lost seller %q", stage, slug)
+	}
+	assertSeller("before retirement")
+	if _, err := pool.Exec(ctx,
+		`UPDATE product_variants SET is_active=false WHERE id=$1`, purchasedVariant); err != nil {
+		t.Fatalf("retire purchased variant: %v", err)
+	}
+	var retainedVariant, retainedProduct uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		SELECT variant_id, product_id FROM order_lines
+		WHERE order_id=$1 AND sku='REPORT-BOUGHT'`, orderID).
+		Scan(&retainedVariant, &retainedProduct); err != nil {
+		t.Fatalf("read durable purchased identity: %v", err)
+	}
+	if retainedVariant != purchasedVariant || retainedProduct != productID {
+		t.Fatalf("retirement changed durable identity to variant=%s product=%s, want %s/%s",
+			retainedVariant, retainedProduct, purchasedVariant, productID)
+	}
+	var active bool
+	if err := pool.QueryRow(ctx,
+		`SELECT is_active FROM product_variants WHERE id=$1`, purchasedVariant).Scan(&active); err != nil {
+		t.Fatalf("read retired variant: %v", err)
+	}
+	if active {
+		t.Fatal("purchased variant remained active after retirement")
+	}
+	assertSeller("after retirement")
 }
 
 func TestTheWindowIsAnAllowlist(t *testing.T) {
@@ -3014,10 +3808,9 @@ func TestAnAcknowledgedPaymentLeavesTheAlarm(t *testing.T) {
 		t.Fatalf("payment alarm does not name flagged event %q", eventID)
 	}
 
-	// Merely naming the event is the old unsafe door: it cancelled the linked
-	// attempt and allowed another checkout without saying what happened to the
-	// provider money. There is no generic store operation, and the HTTP boundary
-	// must refuse a form that omits the one precise safe-release conclusion.
+	// Merely naming the event would cancel the linked attempt and allow another
+	// checkout without saying what happened to the provider money, so the HTTP
+	// boundary must refuse a form that omits the safe-release conclusion.
 	form := url.Values{"event": {eventID}}
 	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
 		"/admin/health/reconcile", strings.NewReader(form.Encode()))
@@ -3485,7 +4278,7 @@ func placeHeldOrder(t *testing.T, vid uuid.UUID) string {
 		t.Fatalf("create private data: %v", err)
 	}
 	if _, err := tx.Exec(ctx,
-		`SELECT hold_inventory($1, $2, 1, now() + interval '30 minutes', $3)`,
+		`SELECT hold_inventory($1, $2, 1, interval '30 minutes', $3)`,
 		orderID, vid, "admin-cancel:"+number); err != nil {
 		t.Fatalf("hold: %v", err)
 	}
@@ -3513,10 +4306,8 @@ func TestShippingEnqueuesTheDispatchNotice(t *testing.T) {
 		t.Fatalf("ship: %v", err)
 	}
 
-	// Found by what the notice IS about, not by the dedupe key: the key is
-	// deduplication's business — it carries the carrier as well now, because
-	// order_shipments is unique on the pair — and a test bound to it asserts the
-	// scheme rather than the notice.
+	// Found by what the notice IS about, not by the dedupe key: a test bound to
+	// the key asserts the deduplication scheme rather than the notice.
 	var payload []byte
 	if err := pool.QueryRow(ctx,
 		`SELECT payload FROM outbox_messages
@@ -3722,7 +4513,7 @@ func shippableOrder(t *testing.T, locale string) string {
 		t.Fatalf("create line: %v", err)
 	}
 	if _, err := tx.Exec(ctx,
-		`SELECT hold_inventory($1, $2, 1, now() + interval '30 minutes', $3)`,
+		`SELECT hold_inventory($1, $2, 1, interval '30 minutes', $3)`,
 		orderID, variantID, "ship-fixture:"+number); err != nil {
 		t.Fatalf("hold: %v", err)
 	}
@@ -3765,9 +4556,11 @@ func TestAnOverClaimIsRefusedInWordsRatherThanByAConstraint(t *testing.T) {
 		orderNumber).Scan(&paymentID); err != nil {
 		t.Fatalf("find payment: %v", err)
 	}
-	if _, err := pool.Exec(ctx,
-		`SELECT open_refund($1, $2, 150000, '善意退款', NULL)`,
-		paymentID, "goodwill:"+orderNumber); err != nil {
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO refunds
+		    (payment_id, request_key, amount_cents, reason, status, provider_ref, succeeded_at)
+		VALUES ($1,$2,150000,'善意退款','succeeded',$3,now())`,
+		paymentID, "goodwill:"+orderNumber, "re_goodwill_"+requestID.String()); err != nil {
 		t.Fatalf("post the goodwill refund: %v", err)
 	}
 
@@ -4215,7 +5008,7 @@ func surchargeRows(t *testing.T, versionID uuid.UUID) int {
 }
 
 func TestTheTierWindowMatchesTheProgramme(t *testing.T) {
-	if got, want := admin.MembershipWindowDays, loyalty.Days(loyalty.MembershipWindow); got != want {
+	if got, want := admin.MembershipWindowDays, int32(loyalty.MembershipWindow/(24*time.Hour)); got != want {
 		t.Errorf("the back office reads a %d-day window and the programme says %d", got, want)
 	}
 }
@@ -4781,8 +5574,7 @@ func TestACreditOnlyRefundIsOnTheCustomersTimeline(t *testing.T) {
 	var events int
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*) FROM order_events e
-		JOIN return_requests r ON r.order_id = e.order_id
-		WHERE r.id = $1 AND e.kind = 'refunded'`, requestID).Scan(&events); err != nil {
+		WHERE e.return_request_id = $1 AND e.kind = 'refunded'`, requestID).Scan(&events); err != nil {
 		t.Fatalf("count timeline events: %v", err)
 	}
 	if events != 1 {
@@ -4801,6 +5593,164 @@ func TestACreditOnlyRefundIsOnTheCustomersTimeline(t *testing.T) {
 	}
 	if entries != 1 || credited != 200000 {
 		t.Errorf("returned credit is %d row(s) totalling %d, want one row of 200000", entries, credited)
+	}
+}
+
+// TestAMissingRefundTimelineEventIsRecoveredAfterMoneyCommits injects the
+// boundary where the credit ledger commits but the separately appended customer
+// timeline fails. The approved return must keep offering useful work, recreate
+// exactly one event without paying twice, and only then become completable.
+func TestAMissingRefundTimelineEventIsRecoveredAfterMoneyCommits(t *testing.T) {
+	ctx, staff := staffContext(t)
+	actor := uuid.NullUUID{UUID: staff, Valid: true}
+	requestID, _, accountID := creditFundedReturn(t, 2, 200000)
+
+	const trigger = "test_fail_return_refunded_event"
+	const function = "test_fail_return_refunded_event_fn"
+	dropFailure := func() {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 5*time.Second)
+		defer cancel()
+		_, _ = pool.Exec(cleanupCtx, `
+			DROP TRIGGER IF EXISTS test_fail_return_refunded_event ON order_events;
+			DROP FUNCTION IF EXISTS test_fail_return_refunded_event_fn();`)
+	}
+	dropFailure()
+	t.Cleanup(dropFailure)
+	install := fmt.Sprintf(`
+		CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $$
+		BEGIN
+			RAISE EXCEPTION 'injected return event failure';
+		END;
+		$$;
+		CREATE TRIGGER %s
+		BEFORE INSERT ON order_events
+		FOR EACH ROW
+		WHEN (NEW.return_request_id = '%s'::uuid)
+		EXECUTE FUNCTION %s();`, function, trigger, requestID, function)
+	if _, err := pool.Exec(ctx, install); err != nil {
+		t.Fatalf("install event failure: %v", err)
+	}
+
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	if err := s.Decide(ctx, requestID.String(), "approved", "全額購物金", uuid.NullUUID{}); err == nil {
+		t.Fatal("injected timeline failure was reported as a complete payout")
+	}
+	if got := creditBalanceOf(t, accountID); got != 200000 {
+		t.Fatalf("credit after event failure = %d, want the committed 200000", got)
+	}
+	var events int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM order_events WHERE return_request_id = $1`, requestID).
+		Scan(&events); err != nil {
+		t.Fatalf("count failed timeline append: %v", err)
+	}
+	if events != 0 {
+		t.Fatalf("failed timeline append left %d events, want 0", events)
+	}
+	view, err := s.Returns(ctx)
+	if err != nil {
+		t.Fatalf("read event-recovery queue: %v", err)
+	}
+	found := false
+	for i := range view.Rows {
+		if view.Rows[i].ID != requestID.String() {
+			continue
+		}
+		found = true
+		if !view.Rows[i].PayoutOutstanding || view.Rows[i].PayoutBlocked {
+			t.Fatalf("missing event renders outstanding=%v blocked=%v, want true/false",
+				view.Rows[i].PayoutOutstanding, view.Rows[i].PayoutBlocked)
+		}
+	}
+	if !found {
+		t.Fatalf("return %s is absent from the event-recovery queue", requestID)
+	}
+
+	dropFailure()
+	if err := s.Decide(ctx, requestID.String(), "approved", "補登退款事件", uuid.NullUUID{}); err != nil {
+		t.Fatalf("retry missing refunded event: %v", err)
+	}
+	if got := creditBalanceOf(t, accountID); got != 200000 {
+		t.Errorf("credit after event retry = %d, want no duplicate posting", got)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM order_events WHERE return_request_id = $1`, requestID).
+		Scan(&events); err != nil {
+		t.Fatalf("count repaired timeline append: %v", err)
+	}
+	if events != 1 {
+		t.Errorf("event retry left %d refunded events, want exactly 1", events)
+	}
+	if err := s.Decide(ctx, requestID.String(), "approved", "重複補登", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
+		t.Fatalf("second event retry = %v, want an already-settled refusal", err)
+	}
+
+	if err := s.InspectReturn(ctx, requestID.String(), []admin.ReturnLineInspection{{
+		OrderLineID: returnLineID(t, requestID), Received: 2, Restocked: 0,
+	}}, actor); err != nil {
+		t.Fatalf("inspect event-repaired return: %v", err)
+	}
+	if err := s.CompleteReturn(ctx, requestID.String(), "退款事件已補登", actor); err != nil {
+		t.Fatalf("complete event-repaired return: %v", err)
+	}
+}
+
+func TestASplitReturnStillPostsCreditWhenTheCardAttemptTerminates(t *testing.T) {
+	tests := []struct {
+		name     string
+		refunder fakeRefunder
+	}{
+		{name: "provider object failed", refunder: fakeRefunder{state: admin.RefundFailed}},
+		{name: "create API rejected", refunder: fakeRefunder{refundErr: fmt.Errorf(
+			"%w: provider rejected create", admin.ErrRefundCreateRejected)}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, _ := staffContext(t)
+			requestID, _, accountID := creditFundedReturn(t, 2, 60000)
+			s := admin.NewStore(pool, tt.refunder, nil, nil)
+
+			err := s.Decide(ctx, requestID.String(), "approved", "split terminal", uuid.NullUUID{})
+			if !errors.Is(err, admin.ErrRefundIncomplete) || errors.Is(err, admin.ErrRefused) {
+				t.Fatalf("split terminal decision = %v, want only ErrRefundIncomplete", err)
+			}
+			if got := creditBalanceOf(t, accountID); got != 60000 {
+				t.Errorf("credit after terminal card outcome = %d, want frozen 60000", got)
+			}
+			var refundStatus string
+			var events int
+			if queryErr := pool.QueryRow(ctx, `
+				SELECT status FROM refunds WHERE return_request_id = $1`, requestID).
+				Scan(&refundStatus); queryErr != nil {
+				t.Fatalf("read terminal card attempt: %v", queryErr)
+			}
+			if refundStatus != "failed" {
+				t.Errorf("card attempt = %q, want failed", refundStatus)
+			}
+			if queryErr := pool.QueryRow(ctx, `
+				SELECT count(*) FROM order_events WHERE return_request_id = $1`, requestID).
+				Scan(&events); queryErr != nil {
+				t.Fatalf("count split terminal timeline event: %v", queryErr)
+			}
+			if events != 1 {
+				t.Errorf("split terminal timeline events = %d, want one for credit that landed", events)
+			}
+
+			queue, err := s.Returns(ctx)
+			if err != nil {
+				t.Fatalf("read split terminal queue: %v", err)
+			}
+			for i := range queue.Rows {
+				if queue.Rows[i].ID == requestID.String() {
+					if !queue.Rows[i].CanRetryPayout() {
+						t.Fatalf("split terminal row has outstanding/blocked %v/%v, want card retry",
+							queue.Rows[i].PayoutOutstanding, queue.Rows[i].PayoutBlocked)
+					}
+					return
+				}
+			}
+			t.Fatalf("split terminal return %s absent from recovery queue", requestID)
+		})
 	}
 }
 
@@ -4837,8 +5787,7 @@ func TestASplitRefundWhoseCardIsPendingStillRecordsTheCreditThatLanded(t *testin
 	var events int
 	if err := pool.QueryRow(ctx, `
 		SELECT count(*) FROM order_events e
-		JOIN return_requests r ON r.order_id = e.order_id
-		WHERE r.id = $1 AND e.kind = 'refunded'`, requestID).Scan(&events); err != nil {
+		WHERE e.return_request_id = $1 AND e.kind = 'refunded'`, requestID).Scan(&events); err != nil {
 		t.Fatalf("count timeline events: %v", err)
 	}
 	if events != 1 {
@@ -4879,24 +5828,19 @@ func TestTheRefundFigureCountsCreditToo(t *testing.T) {
 }
 
 func TestCompensatingAReturnTwiceGivesCreditOnce(t *testing.T) {
-	ctx, _ := staffContext(t)
+	ctx, actor := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 	requestID, _, accountID := creditFundedReturn(t, 2, 200000)
 
 	if err := s.Decide(ctx, requestID.String(), "approved", "第一次", uuid.NullUUID{}); err != nil {
 		t.Fatalf("first Decide: %v", err)
 	}
-	var orderID, userID uuid.UUID
-	if err := pool.QueryRow(ctx, `
-		SELECT o.id, o.user_id FROM orders o
-		JOIN return_requests r ON r.order_id = o.id WHERE r.id = $1`,
-		requestID).Scan(&orderID, &userID); err != nil {
-		t.Fatalf("read the order: %v", err)
-	}
+	// Retry the public compensation operation with the exact same authority.
+	// Calling post_store_credit directly would now (correctly) be a different
+	// attribution and must be rejected rather than mistaken for a replay.
 	if _, err := pool.Exec(ctx, `
-		SELECT post_store_credit($1, 200000, '退貨退回購物金', $2,
-		       'return-credit:' || $3::text, NULL)`,
-		userID, orderID, requestID); err != nil {
+		SELECT compensate_return_with_credit($1, 200000, $2)`,
+		requestID, actor); err != nil {
 		t.Fatalf("second compensation: %v", err)
 	}
 
@@ -5660,6 +6604,38 @@ func TestASpecIsRefusedRatherThanTruncated(t *testing.T) {
 		pgErr.ConstraintName != "product_specs_label_bounded" {
 		t.Errorf("a 41-character label written directly returned %v, want "+
 			"product_specs_label_bounded", err)
+	}
+}
+
+func TestAProductCannotHaveTwoSpecsWithTheSameIdentity(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	slug := draftProduct(t, ctx, s)
+
+	if errs, err := s.AddSpec(ctx, slug, admin.SpecDraft{
+		Label: "連接埠", Value: "USB-C",
+	}); err != nil || len(errs) > 0 {
+		t.Fatalf("first AddSpec: %v %v", err, errs)
+	}
+	errs, err := s.AddSpec(ctx, slug, admin.SpecDraft{
+		Label: "連接埠", Value: "HDMI",
+	})
+	if err != nil {
+		t.Fatalf("duplicate AddSpec returned an infrastructure error: %v", err)
+	}
+	if errs["spec_label"] == "" {
+		t.Fatalf("duplicate AddSpec errors = %v, want spec_label", errs)
+	}
+
+	var rows int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM product_specs s
+		JOIN products p ON p.id = s.product_id
+		WHERE p.slug = $1 AND s.label = '連接埠'`, slug).Scan(&rows); err != nil {
+		t.Fatalf("count duplicate specs: %v", err)
+	}
+	if rows != 1 {
+		t.Errorf("product has %d specs named 連接埠, want 1; Compare would overwrite a cell", rows)
 	}
 }
 
@@ -7146,8 +8122,10 @@ func TestTheOrderPageShowsTheInvoiceChoice(t *testing.T) {
 		t.Fatalf("read the order: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO invoice_preferences (order_id, invoice_type, tax_id)
-		VALUES ($1, 'company', '12345678')`, orderID); err != nil {
+		INSERT INTO invoice_preferences
+		    (order_id, invoice_type, tax_id, customer_name, customer_email)
+		VALUES ($1, 'company', '04595252', '測試股份有限公司',
+		        'admin-invoice@goen.invalid')`, orderID); err != nil {
 		t.Fatalf("record the preference: %v", err)
 	}
 
@@ -7158,8 +8136,8 @@ func TestTheOrderPageShowsTheInvoiceChoice(t *testing.T) {
 	if !view.HasInvoice() {
 		t.Fatal("the order page does not show a 發票 preference that exists")
 	}
-	if view.InvoiceText(ctx) != "公司統編 12345678" {
-		t.Errorf("the page says %q, want 公司統編 12345678", view.InvoiceText(ctx))
+	if view.InvoiceText(ctx) != "公司統編 04595252" {
+		t.Errorf("the page says %q, want 公司統編 04595252", view.InvoiceText(ctx))
 	}
 
 	plain, err := s.Order(ctx, placeUnpaidOrder(t))
@@ -7863,7 +8841,7 @@ func twoLineOrderWithStock(t *testing.T, name string) (
 			t.Fatalf("create line: %v", err)
 		}
 		if _, err := tx.Exec(ctx,
-			`SELECT hold_inventory($1, $2, 3, now() + interval '30 minutes', $3)`,
+			`SELECT hold_inventory($1, $2, 3, interval '30 minutes', $3)`,
 			orderID, variantID, "hold:"+slug); err != nil {
 			t.Fatalf("hold: %v", err)
 		}
@@ -8254,10 +9232,14 @@ func registeredWarranty(t *testing.T, serial string) (registered, orderNumber st
 	t.Helper()
 	ctx := t.Context()
 
-	var variantID uuid.UUID
+	var variantID, productID uuid.UUID
+	var warrantyNote string
+	var warrantyMonths int32
 	if err := pool.QueryRow(ctx, `
-		SELECT pv.id FROM product_variants pv JOIN products p ON p.id = pv.product_id
-		WHERE pv.is_active AND p.warranty_months IS NOT NULL LIMIT 1`).Scan(&variantID); err != nil {
+		SELECT pv.id, p.id, coalesce(p.warranty_note, ''), p.warranty_months
+		FROM product_variants pv JOIN products p ON p.id = pv.product_id
+		WHERE pv.is_active AND p.status = 'active' AND p.warranty_months IS NOT NULL
+		ORDER BY pv.id LIMIT 1`).Scan(&variantID, &productID, &warrantyNote, &warrantyMonths); err != nil {
 		t.Fatalf("find a variant of a product with a stated term: %v", err)
 	}
 
@@ -8289,9 +9271,13 @@ func registeredWarranty(t *testing.T, serial string) (registered, orderNumber st
 
 	var lineID uuid.UUID
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO order_lines (order_id, variant_id, sku, product_name, unit_price_cents, quantity)
-		VALUES ($1, $2, 'WR-SKU', '保固測試商品', 100000, 1) RETURNING id`,
-		orderID, variantID).Scan(&lineID); err != nil {
+		INSERT INTO order_lines (
+			order_id, product_id, variant_id, sku, product_name,
+			warranty_note, warranty_months, unit_price_cents, quantity
+		)
+		VALUES ($1, $2, $3, 'WR-SKU', '保固測試商品',
+		        nullif($4, ''), $5, 100000, 1) RETURNING id`,
+		orderID, productID, variantID, warrantyNote, warrantyMonths).Scan(&lineID); err != nil {
 		t.Fatalf("create line: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -8427,13 +9413,9 @@ func TestCategoryIconVocabularyMatchesTheDatabaseConstraint(t *testing.T) {
 }
 
 // TestTheLoserOfTwoSimultaneousDecisionsPostsNoCredit is the same rule with no
-// provider anywhere in it.
-//
-// The card path can look like a Stripe problem. This one cannot: a wholly
-// credit-funded order has no payment row at all, so the losing decision's payout
-// is a single INSERT into the ledger — committed, on its own, before the CAS it
-// was about to lose. The customer's balance went up on a return the shop had
-// just refused, and nothing recorded who did it.
+// provider anywhere in it: a wholly credit-funded order has no payment row, so
+// the losing decision's payout would be a single INSERT into the ledger, raising
+// the customer's balance on a return the shop had just refused.
 func TestTheLoserOfTwoSimultaneousDecisionsPostsNoCredit(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
@@ -8484,19 +9466,15 @@ func creditBalance(t *testing.T, accountID uuid.UUID) int64 {
 	return cents
 }
 
-// TestAnOrderCannotFinishWhileItStillOwesAParcel holds stock that used to be
+// TestAnOrderCannotFinishWhileItStillOwesAParcel keeps stock from being
 // stranded permanently and invisibly.
 //
 // An order ships in as many parcels as it takes, and only the first moves the
-// status. But the transition guard asked nothing about what was outstanding,
-// and the status dropdown offers 已送達 and 已完成 as peers — so shipping one
-// parcel of several and then finishing the order left the remaining
-// reservations `held` with no door out: release_reservation refuses them by
-// name because a completed order is committed, ExpiredReservations excludes
-// committed orders by predicate, and /admin/health counts expired holds with
-// that same predicate. The units were off the shelf forever, invisible on the
-// one page built to make stock backlogs visible, while the customer read 已完成
-// for goods that never left.
+// status. Finishing one that still owes a parcel would leave the remaining
+// reservations `held` with no door out: release_reservation refuses them by name
+// because a completed order is committed, ExpiredReservations excludes committed
+// orders by predicate, and /admin/health counts expired holds with that same
+// predicate.
 //
 // It refuses rather than releasing: what has not gone out is either still going
 // out — CanShip already allows the second parcel — or it is an abandonment,
@@ -8517,8 +9495,7 @@ func TestAnOrderCannotFinishWhileItStillOwesAParcel(t *testing.T) {
 
 	// DELIVERED is allowed and must be: it is a fact about the parcel that went
 	// out, and it is the ONLY thing that stamps order_shipments.delivered_at.
-	// Refusing it left a partially shipped order unable to record that anything
-	// had arrived, so /admin/returns read 尚未送達 for goods the customer held —
+	// Refuse it and /admin/returns reads 尚未送達 for goods the customer holds,
 	// on the screen built to inform a 消保法 §19 decision.
 	if _, err := s.Advance(ctx, number, "delivered", actor); err != nil {
 		t.Fatalf("a partially shipped order could not record its first parcel as "+
@@ -8541,12 +9518,9 @@ func TestAnOrderCannotFinishWhileItStillOwesAParcel(t *testing.T) {
 		t.Fatal("an order still owing a parcel was completed; whatever is still " +
 			"held is now stranded with no door out")
 	}
-	// The `ok` is asserted, not used as a condition. Advance used to wrap with
-	// "%w: %s", which puts the message in the string and the PgError nowhere in
-	// the chain — so `ok` was always false, the whole clause was skipped, and the
-	// test asked only that SOMETHING was refused. Every other rule on that
-	// statement passed it, including the pre-database refusals that never reach
-	// PostgreSQL at all.
+	// The `ok` is asserted, not used as a condition: wrapping that puts the
+	// message in a string and the PgError nowhere in the chain would skip the
+	// whole clause, leaving the test asking only that SOMETHING was refused.
 	pgErr, ok := errors.AsType[*pgconn.PgError](err)
 	if !ok {
 		t.Fatalf("the refusal does not carry the rule that made it: %v\n"+
@@ -8573,19 +9547,16 @@ func TestAnOrderCannotFinishWhileItStillOwesAParcel(t *testing.T) {
 	}
 }
 
-// TestTwoCarriersSharingATrackingNumberBothNotify holds a dedupe key that was
-// narrower than the fact it was deduplicating.
+// TestTwoCarriersSharingATrackingNumberBothNotify holds the dispatch notice's
+// dedupe key to the fact it deduplicates.
 //
 // order_shipments is unique on (carrier, tracking_number) — the schema's own
 // statement that a tracking number identifies a parcel only alongside who is
-// carrying it. The dispatch notice keyed on the tracking number ALONE, so a
-// second shipment with a colliding number from a different carrier met
-// ON CONFLICT DO NOTHING in the outbox: Ship still succeeded, the parcel went
-// out, and the customer was never told.
-//
-// The comment above it says an order shipped in two parcels is two notices, and
-// that stays true — two parcels of one order carry two tracking numbers. What
-// it did not cover is two parcels of DIFFERENT orders that happen to share one.
+// carrying it. Keyed on the tracking number ALONE, a second shipment with a
+// colliding number from a different carrier meets ON CONFLICT DO NOTHING in the
+// outbox: Ship succeeds, the parcel goes out, and the customer is never told.
+// Two parcels of one ORDER carry two tracking numbers; two parcels of different
+// orders may share one.
 func TestTwoCarriersSharingATrackingNumberBothNotify(t *testing.T) {
 	ctx, staff := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
@@ -8621,26 +9592,21 @@ func TestTwoCarriersSharingATrackingNumberBothNotify(t *testing.T) {
 	}
 }
 
-// TestASplitReturnResumesTheHalfThatFailed holds a resume gate that asked one
-// of two questions.
+// TestASplitReturnResumesTheHalfThatFailed holds the resume gate to BOTH
+// sources.
 //
-// A return can be paid from BOTH sources — card first, credit last — and the
+// A return can be paid from card and credit — card first, credit last — and the
 // two commit separately: the card through the provider, the credit as a ledger
-// entry afterwards. The gate deciding whether a retry has anything left to do
-// asked only whether the CARD half had settled. So a return whose card refund
-// landed and whose credit compensation did NOT was reported as finished: the
-// retry was refused by name, no other door posts that credit, and the customer
-// was short by the credit portion with nothing on /admin/health saying so.
+// entry afterwards. A gate asking only whether the CARD half settled reports a
+// return whose credit compensation did NOT as finished, and no other door posts
+// that credit.
 //
 // It also has to resume only what is MISSING. Re-sending a settled card refund
 // meets refunds_settled_is_history and re-posting the credit meets its
 // idempotency key, so a retry that sent both could never finish the failed half.
 //
-// The half-paid state is CONSTRUCTED rather than raced into. An earlier version
-// injected the failure by holding the credit account's row and cancelling on a
-// timer, and it was flaky three runs in four — sometimes the credit landed
-// anyway, and the test then failed for a reason that had nothing to do with the
-// gate. What is under test is the resume, not how the state arose.
+// The half-paid state is CONSTRUCTED rather than raced into: what is under test
+// is the resume, not how the state arose.
 func TestASplitReturnResumesTheHalfThatFailed(t *testing.T) {
 	ctx, _ := staffContext(t)
 	requestID, orderNumber, accountID := creditFundedReturn(t, 2, 60000)
@@ -8681,10 +9647,8 @@ func TestASplitReturnResumesTheHalfThatFailed(t *testing.T) {
 		t.Errorf("store credit went %d -> %d; the failed half was not resumed", before, after)
 	}
 
-	// And the card half is not sent TO STRIPE twice. The row count cannot say so
-	// — the request key makes a repeat hit the same row, and settle_refund
-	// returns early on 'succeeded', so the sum is 140000 whether or not the call
-	// went out. Only the provider knows, which is what the counter stands for.
+	// And the card half is not sent TO STRIPE twice. The durable row proves the
+	// outcome; this provider-side counter proves the retry made no remote call.
 	if n := sent.Load(); n != 0 {
 		t.Errorf("the retry sent %d refund(s) to the provider; the card half had "+
 			"already landed and resuming means paying only what is MISSING", n)
@@ -8695,13 +9659,10 @@ func TestASplitReturnResumesTheHalfThatFailed(t *testing.T) {
 	}
 
 	// The order now holds a refund from BOTH sources, which is the only shape
-	// that can tell the two definitions of "what has gone back" apart. The 折讓
-	// form offers this figure and internal/invoice bounds an allowance by it,
-	// and they were computed separately: card-only here, card + credit there.
-	// So a split-refunded order defaulted the form to the card half and the
-	// 統一發票 went on recording a sale that was reversed.
-	// An invoicer, because the 折讓 figure is only filled when one is configured
-	// — no provider, no form, no number to get wrong.
+	// that can tell the two definitions of "what has gone back" apart. The back
+	// office displays this total, while the invoice claim independently uses the
+	// same authoritative view under lock. A card-only definition would leave the
+	// 統一發票 recording part of a sale that was reversed.
 	withInvoices := admin.NewStore(
 		pool, fakeRefunder{}, noDocuments{}, disabledInvoiceWriter{},
 	)
@@ -8714,8 +9675,8 @@ func TestASplitReturnResumesTheHalfThatFailed(t *testing.T) {
 		t.Fatal("no credit was returned, so this proves nothing about the sum")
 	}
 	if want := int64(140000) + credited; view.RefundedCents != want {
-		t.Errorf("the 折讓 form offers %d and %d has gone back (card %d + credit %d).\n"+
-			"The form's figure and the bound an allowance is held to are one fact, "+
+		t.Errorf("the back office reports %d refunded and %d has gone back (card %d + credit %d).\n"+
+			"The display and the database-derived allowance use one fact, "+
 			"and a 折讓 short of what was refunded over-reports the sale to the 財政部",
 			view.RefundedCents, want, 140000, credited)
 	}
@@ -8735,17 +9696,13 @@ func cardRefunded(t *testing.T, orderNumber string) int64 {
 	return cents
 }
 
-// TestADeliveredOrderCanStillShipWhatItOwes is the exit from a trap that had
-// none. orders_legal_transition permits shipped -> delivered with a line still
-// outstanding, deliberately — delivered says the parcels that WENT OUT have
-// arrived, which is true whether or not more is to come — and
-// orders_finished_when_shipped then refuses 'completed'. With no dispatch form
-// at 'delivered' the order is wedged for ever, and the outstanding line's hold
-// is stranded: release_reservation refuses a committed order, ExpiredReservations
-// excludes it, and /admin/health counts neither.
-//
-// The dropdown offers 已送達 and 已完成 as peers with no hint that one is a
-// one-way door, which is why this belongs in the code and not the operator's head.
+// TestADeliveredOrderCanStillShipWhatItOwes is the exit from a trap that would
+// otherwise have none. orders_legal_transition permits shipped -> delivered with
+// a line still outstanding, deliberately — delivered says the parcels that WENT
+// OUT have arrived — and orders_finished_when_shipped then refuses 'completed'.
+// Without a dispatch form at 'delivered' the order is wedged for ever and the
+// outstanding line's hold is stranded: release_reservation refuses a committed
+// order, ExpiredReservations excludes it, and /admin/health counts neither.
 func TestADeliveredOrderCanStillShipWhatItOwes(t *testing.T) {
 	ctx, staff := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
@@ -8804,6 +9761,74 @@ func (noDocuments) Documents(context.Context, string) ([]invoice.Document, error
 	return nil, nil
 }
 
+type recordingInvoiceWriter struct {
+	orders     []string
+	operations []uuid.UUID
+}
+
+func (*recordingInvoiceWriter) Issue(context.Context, string) (invoice.Document, error) {
+	return invoice.Document{}, invoice.ErrDisabled
+}
+
+func (*recordingInvoiceWriter) Void(context.Context, string, string) error {
+	return invoice.ErrDisabled
+}
+
+func (w *recordingInvoiceWriter) Allowance(
+	_ context.Context, orderNumber string, operationID uuid.UUID,
+) (invoice.Document, error) {
+	w.orders = append(w.orders, orderNumber)
+	w.operations = append(w.operations, operationID)
+	return invoice.Document{Kind: "allowance", Number: "2026080715227214"}, nil
+}
+
+func TestAllowanceHTTPDoesNotAcceptCallerControlledMoney(t *testing.T) {
+	ctx, _ := staffContext(t)
+	writer := &recordingInvoiceWriter{}
+	store := admin.NewStore(pool, fakeRefunder{}, noDocuments{}, writer)
+	handler := adminHandlerOver(pool, store)
+	const number = "GO-260901-000001"
+
+	tests := []struct {
+		name   string
+		amount string
+	}{
+		{name: "amount omitted"},
+		{name: "stale forged amount ignored", amount: "999999999999"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			callsBefore := len(writer.orders)
+			operationID := uuid.New()
+			form := url.Values{"operation_id": {operationID.String()}}
+			if tt.amount != "" {
+				form.Set("amount", tt.amount)
+			}
+			req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+				"/admin/orders/"+number+"/invoice/allowance",
+				strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.SetPathValue("number", number)
+			res := httptest.NewRecorder()
+			handler.AllowInvoice(res, req)
+			if res.Code != http.StatusSeeOther ||
+				res.Header().Get("Location") != "/admin/orders/"+number+"?allowed=1" {
+				t.Fatalf("Allowance HTTP = %d %q, want success redirect",
+					res.Code, res.Header().Get("Location"))
+			}
+			if len(writer.orders) != callsBefore+1 || len(writer.operations) != callsBefore+1 {
+				t.Fatalf("writer call counts = orders %d operations %d, want %d",
+					len(writer.orders), len(writer.operations), callsBefore+1)
+			}
+			at := callsBefore
+			if writer.orders[at] != number || writer.operations[at] != operationID {
+				t.Fatalf("writer calls = orders %v operations %v, want %s/%s",
+					writer.orders, writer.operations, number, operationID)
+			}
+		})
+	}
+}
+
 type disabledInvoiceWriter struct{}
 
 func (disabledInvoiceWriter) Issue(context.Context, string) (invoice.Document, error) {
@@ -8815,24 +9840,19 @@ func (disabledInvoiceWriter) Void(context.Context, string, string) error {
 }
 
 func (disabledInvoiceWriter) Allowance(
-	context.Context, string, int64,
+	context.Context, string, uuid.UUID,
 ) (invoice.Document, error) {
 	return invoice.Document{}, invoice.ErrDisabled
 }
 
-// TestASplitReturnResumesWhenTheCREDITHalfLanded is the mirror of its
-// neighbour, and the direction the card-side exclusion did not cover.
+// TestASplitReturnResumesWhenTheCREDITHalfLanded is the mirror of its neighbour.
 //
 // refundCard answers (ref, RefundPending, nil) for a refund Stripe has accepted
 // and not settled — no error — so payApprovedReturn goes on to post the credit.
 // goen consumes no refund webhook, so that row stays pending for ever and
-// pressing 同意 again is the only door.
-//
-// It was shut. splitRefund excluded this return's own REFUND row from the card
-// side and did not exclude its own COMPENSATION from the credit side, so the
-// retry read the credit it had just posted as credit already returned,
-// collapsed the remaining credit to zero, and refused "does not fit across the
-// two" before the outstanding-source decision was ever reached.
+// pressing 同意 again is the only door. splitRefund must therefore exclude this
+// return's own compensation from the credit side, or the retry reads the credit
+// it just posted as credit already returned and refuses the whole payout.
 func TestASplitReturnResumesWhenTheCREDITHalfLanded(t *testing.T) {
 	ctx, _ := staffContext(t)
 	requestID, orderNumber, accountID := creditFundedReturn(t, 2, 60000)
@@ -8890,17 +9910,80 @@ func TestASplitReturnResumesWhenTheCREDITHalfLanded(t *testing.T) {
 	}
 }
 
-// TestAStrandedInvoiceClaimIsOnTheHealthPage holds the alarm for a state only a
-// person can settle.
+// TestATerminalCardRetrySurvivesErasureAfterCreditLanded proves the two source
+// obligations are independent. Once the exact frozen credit half is posted,
+// erasure may detach the account; a later known-failed card attempt must still
+// get a successor without trying to post credit to an erased customer again.
+func TestATerminalCardRetrySurvivesErasureAfterCreditLanded(t *testing.T) {
+	ctx, staffID := staffContext(t)
+	requestID, orderNumber, accountID := creditFundedReturn(t, 2, 60000)
+	if _, err := pool.Exec(ctx, `
+		UPDATE return_requests SET status = 'approved', decided_at = now(),
+		       resolution = 'erasure retry'
+		WHERE id = $1`, requestID); err != nil {
+		t.Fatalf("approve split return: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`SELECT compensate_return_with_credit($1, 60000, $2)`, requestID, staffID); err != nil {
+		t.Fatalf("post frozen credit half: %v", err)
+	}
+	before := creditBalance(t, accountID)
+
+	failed := admin.NewStore(pool, fakeRefunder{state: admin.RefundFailed}, nil, nil)
+	if err := failed.Decide(ctx, requestID.String(), "approved", "erasure retry", uuid.NullUUID{}); err == nil {
+		t.Fatal("known-failed card attempt was reported as settled")
+	}
+	var customerID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT user_id FROM orders WHERE order_number = $1`, orderNumber).Scan(&customerID); err != nil {
+		t.Fatalf("read return owner: %v", err)
+	}
+	if err := account.NewStore(pool).Erase(ctx, customerID.String()); err != nil {
+		t.Fatalf("erase after exact credit posting: %v", err)
+	}
+	var detached bool
+	if err := pool.QueryRow(ctx, `
+		SELECT user_id IS NULL FROM orders WHERE order_number = $1`, orderNumber).
+		Scan(&detached); err != nil {
+		t.Fatalf("read erased order owner: %v", err)
+	}
+	if !detached {
+		t.Fatal("erasure did not detach the order owner")
+	}
+
+	sent := &atomic.Int64{}
+	healthy := admin.NewStore(pool, fakeRefunder{sent: sent}, nil, nil)
+	if err := healthy.Decide(ctx, requestID.String(), "approved", "erasure retry", uuid.NullUUID{}); err != nil {
+		t.Fatalf("retry terminal card attempt after erasure: %v", err)
+	}
+	if sent.Load() != 1 {
+		t.Errorf("provider calls after erasure = %d, want one successor", sent.Load())
+	}
+	if after := creditBalance(t, accountID); after != before {
+		t.Errorf("erased account credit changed %d -> %d; exact credit was already posted",
+			before, after)
+	}
+	var attempts, succeeded int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*), count(*) FILTER (WHERE status = 'succeeded')
+		FROM refunds WHERE return_request_id = $1`, requestID).Scan(&attempts, &succeeded); err != nil {
+		t.Fatalf("read post-erasure attempts: %v", err)
+	}
+	if attempts != 2 || succeeded != 1 {
+		t.Errorf("post-erasure attempts/succeeded = %d/%d, want 2/1", attempts, succeeded)
+	}
+}
+
+// TestAStrandedInvoiceClaimIsOnTheHealthPage holds the alarm and the only
+// auditable recovery door for an aged ambiguous Allowance.
 //
 // A 折讓 claim is taken before ECPay is asked, because their allowance endpoint
 // carries no idempotency field. A call that was not ANSWERED keeps its claim —
 // right, because whether the document was filed is not knowable from here — and
-// that leaves a row nothing else can resolve. It is the shape
-// payment_webhook_events.unreconciled already has, and the only sign of it used
-// to be a 折讓 button that refused on one order.
+// that leaves a row nothing else can resolve, the shape
+// payment_webhook_events.unreconciled already has.
 func TestAStrandedInvoiceClaimIsOnTheHealthPage(t *testing.T) {
-	ctx, _ := staffContext(t)
+	ctx, actor := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
 
@@ -8914,12 +9997,27 @@ func TestAStrandedInvoiceClaimIsOnTheHealthPage(t *testing.T) {
 	}
 
 	// A claim taken JUST NOW is a call in flight, not a stuck one: the window is
-	// the whole distinction, so the fixture has to sit on the far side of it.
+	// the whole distinction, so the durable operation fixture has to sit on the
+	// far side of it. A pending invoice_documents row is not a tax document and
+	// is deliberately no longer a state the schema admits.
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO invoice_documents (order_id, kind, number, amount_cents, status,
-		                               request_key, original_id, issued_at)
-		VALUES ($1, 'allowance', '', 50000, 'pending', $2, $3, now() - interval '1 hour')`,
-		orderID, "allowance:"+number+":stranded", invoiceID); err != nil {
+		INSERT INTO invoice_operations
+		    (order_id,kind,target_document_id,provider_key,amount_cents,
+		     request_payload,actor_user_id,actor_id_snapshot,request_id,
+		     send_attempts,last_send_at,last_error,created_at,updated_at)
+		SELECT $1,'allowance',d.id,d.number,50000,
+		       jsonb_build_object(
+		           'invoice_number',d.number,
+		           'invoice_date',to_char(d.issued_at AT TIME ZONE 'UTC','YYYY-MM-DD'),
+		           'customer_name','王小明','email','stranded@goen.invalid',
+		           'amount_cents',50000,
+		           'lines',jsonb_build_array(jsonb_build_object(
+		               'description','退貨折讓','quantity',1,
+		               'unit_price_cents',50000,'amount_cents',50000))),
+		       $3,$3,$4,1,now()-interval '1 hour','allowance_not_yet_visible',
+		       now()-interval '1 hour',now()-interval '1 hour'
+		FROM invoice_documents d WHERE d.id=$2`,
+		orderID, invoiceID, actor, "invoice-stranded:"+number); err != nil {
 		t.Fatalf("strand a claim: %v", err)
 	}
 
@@ -8935,14 +10033,102 @@ func TestAStrandedInvoiceClaimIsOnTheHealthPage(t *testing.T) {
 	if view.AllHealthy() {
 		t.Error("the page reads healthy with a claim nobody can settle outstanding")
 	}
-	var named bool
+	var named, actionable bool
+	var operation string
 	for _, c := range view.StrandedClaims {
 		if c.OrderNumber == number {
 			named = true
+			actionable = c.CanAuthorizeResend
+			operation = c.Operation
 		}
 	}
 	if !named {
 		t.Errorf("the claim is counted and not named; an operator needs the order "+
 			"to go and look at ECPay. Got %d claim(s).", len(view.StrandedClaims))
+	}
+	if !actionable {
+		t.Fatal("an aged empty Allowance lookup has no explicit one-resend authorization door")
+	}
+
+	// Naming the operation is not confirmation. The typed conclusion is required
+	// and an active worker lease makes even that conclusion ineligible.
+	post := func(values url.Values) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+			"/admin/health/reconcile", strings.NewReader(values.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		res := httptest.NewRecorder()
+		adminHandlerOver(pool, s).ReconcilePayment(res, req)
+		return res
+	}
+	omitted := post(url.Values{"invoice_operation": {operation}})
+	if omitted.Code != http.StatusSeeOther ||
+		omitted.Header().Get("Location") != "/admin/health?notflagged=1" {
+		t.Fatalf("unconfirmed allowance form = %d %q, want refusal redirect",
+			omitted.Code, omitted.Header().Get("Location"))
+	}
+
+	leaseOwner := uuid.New()
+	if _, err := pool.Exec(ctx, `
+		UPDATE invoice_operations
+		SET lease_owner=$2, lease_until=now()+interval '1 minute'
+		WHERE id=$1`, operation, leaseOwner); err != nil {
+		t.Fatalf("hold a live worker lease: %v", err)
+	}
+	form := url.Values{
+		"invoice_operation":  {operation},
+		"invoice_resolution": {"confirmed_absent"},
+	}
+	leasing := post(form)
+	if leasing.Code != http.StatusSeeOther ||
+		leasing.Header().Get("Location") != "/admin/health?notflagged=1" {
+		t.Fatalf("authorization during lease = %d %q, want refusal redirect",
+			leasing.Code, leasing.Header().Get("Location"))
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE invoice_operations SET lease_owner=NULL, lease_until=NULL WHERE id=$1`,
+		operation); err != nil {
+		t.Fatalf("release worker lease: %v", err)
+	}
+
+	accepted := post(form)
+	if accepted.Code != http.StatusSeeOther ||
+		accepted.Header().Get("Location") != "/admin/health?invoicequeued=1" {
+		t.Fatalf("confirmed allowance form = %d %q, want queued redirect",
+			accepted.Code, accepted.Header().Get("Location"))
+	}
+	duplicate := post(form)
+	if duplicate.Code != http.StatusSeeOther ||
+		duplicate.Header().Get("Location") != "/admin/health?notflagged=1" {
+		t.Fatalf("duplicate authorization = %d %q, want refusal redirect",
+			duplicate.Code, duplicate.Header().Get("Location"))
+	}
+
+	var authorizations, audits int
+	var auditActor uuid.UUID
+	var auditRequest string
+	if err := pool.QueryRow(ctx, `
+		SELECT op.resend_authorizations,
+		       (SELECT count(*)::integer FROM audit_events a
+		        WHERE a.entity_id=op.id
+		          AND a.action=$2),
+		       coalesce((SELECT a.actor_id_snapshot FROM audit_events a
+		                 WHERE a.entity_id=op.id
+		                   AND a.action=$2
+		                 ORDER BY a.occurred_at LIMIT 1),
+		                '00000000-0000-0000-0000-000000000000'::uuid),
+		       coalesce((SELECT a.request_id FROM audit_events a
+		                 WHERE a.entity_id=op.id
+		                   AND a.action=$2
+		                 ORDER BY a.occurred_at LIMIT 1), '')
+		FROM invoice_operations op
+		WHERE op.id=$1`, operation, admin.ActionAuthorizeAllowanceResend).
+		Scan(&authorizations, &audits, &auditActor, &auditRequest); err != nil {
+		t.Fatalf("read authorization and audit: %v", err)
+	}
+	if authorizations != 1 || audits != 1 || auditActor != actor ||
+		auditRequest != "req-"+actor.String()[:8] {
+		t.Fatalf("authorization/audit = %d/%d actor %s request %q",
+			authorizations, audits, auditActor, auditRequest)
 	}
 }

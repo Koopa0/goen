@@ -62,8 +62,7 @@ func TestClean(t *testing.T) {
 	}
 }
 
-// valid is a submission every field of which passes, so a case can change one
-// field and attribute the failure to it.
+// valid passes every rule, so a case can change one field and blame it.
 func valid() contact.Message {
 	return contact.Message{
 		Name:     "王小明",

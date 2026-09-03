@@ -237,7 +237,7 @@ func (s *Store) CreateProduct(ctx context.Context, f *ProductForm) (slug string,
 	brandID, categoryID := uuid.MustParse(f.BrandID), uuid.MustParse(f.CategoryID)
 
 	err = s.audited(ctx, Event{
-		Action: ActionCreateProduct, Table: "products", ID: uuid.NullUUID{},
+		Action: actionCreateProduct, Table: "products", ID: uuid.NullUUID{},
 		Before: nil, After: map[string]any{"name": f.Name, "slug": f.Slug},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -268,29 +268,61 @@ func (s *Store) UpdateProduct(ctx context.Context, f *ProductForm) (map[string]s
 	if errs := f.Validate(ctx); len(errs) > 0 {
 		return errs, nil
 	}
-	if err := s.q.UpdateProduct(ctx, db.UpdateProductParams{
-		BrandID:    uuid.MustParse(f.BrandID),
-		CategoryID: uuid.MustParse(f.CategoryID),
-		Slug:       f.Slug, Name: f.Name, Summary: f.Summary,
-		Description: f.Description, WarrantyNote: f.WarrantyNote,
-		NameEn: f.NameEn, SummaryEn: f.SummaryEn, DescriptionEn: f.DescriptionEn,
-		WarrantyMonths: f.WarrantyMonths,
-	}); err != nil {
+	err := s.audited(ctx, Event{
+		Action: actionUpdateProduct, Table: "products", ID: uuid.NullUUID{},
+		After: map[string]any{
+			"slug": f.Slug, "name": f.Name,
+			"brand_id": f.BrandID, "category_id": f.CategoryID,
+			"warranty_months": f.WarrantyMonths,
+		},
+	}, func(ctx context.Context, q *db.Queries) error {
+		n, updateErr := q.UpdateProduct(ctx, db.UpdateProductParams{
+			BrandID:    uuid.MustParse(f.BrandID),
+			CategoryID: uuid.MustParse(f.CategoryID),
+			Slug:       f.Slug, Name: f.Name, Summary: f.Summary,
+			Description: f.Description, WarrantyNote: f.WarrantyNote,
+			NameEn: f.NameEn, SummaryEn: f.SummaryEn, DescriptionEn: f.DescriptionEn,
+			WarrantyMonths: f.WarrantyMonths,
+		})
+		if updateErr != nil {
+			return updateErr
+		}
+		if n == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
+	if err != nil {
 		if hasConstraint(err, "products_warranty_months_sane") {
 			return map[string]string{"warranty_months": i18n.T(ctx, i18n.KeyFormWarrantyMonths)}, nil
+		}
+		if errors.Is(err, ErrNotFound) {
+			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("update product %s: %w", f.Slug, err)
 	}
 	return nil, nil
 }
 
+// productStatuses is the catalogue lifecycle, stated once. products_status_known
+// is the authority; value and label stay together so a fourth state cannot be
+// admitted by the write and left unlabelled on the page.
+var productStatuses = [...]struct {
+	value string
+	label i18n.Key
+}{
+	{"draft", i18n.KeyAdminProductDraft},
+	{"active", i18n.KeyAdminProductActive},
+	{"archived", i18n.KeyAdminProductArchived},
+}
+
 // SetProductStatus publishes, unpublishes or archives.
 func (s *Store) SetProductStatus(ctx context.Context, slug, status string) error {
-	if status != "draft" && status != "active" && status != "archived" {
+	if !knownProductStatus(status) {
 		return ErrRefused
 	}
 	return s.audited(ctx, Event{
-		Action: ActionPublishProduct, Table: "products", ID: uuid.NullUUID{},
+		Action: actionPublishProduct, Table: "products", ID: uuid.NullUUID{},
 		Before: nil, After: map[string]any{"slug": slug, "status": status},
 	},
 		func(ctx context.Context, q *db.Queries) error {
@@ -307,18 +339,26 @@ func (s *Store) SetProductStatus(ctx context.Context, slug, status string) error
 		})
 }
 
+// knownProductStatus reports whether s is a state the catalogue has.
+func knownProductStatus(s string) bool {
+	for _, status := range productStatuses {
+		if status.value == s {
+			return true
+		}
+	}
+	return false
+}
+
 // ProductStatusLabel is a product's state in the reader's language.
 func ProductStatusLabel(ctx context.Context, s string) string {
-	switch s {
-	case "draft":
-		return i18n.T(ctx, i18n.KeyAdminProductDraft)
-	case "active":
-		return i18n.T(ctx, i18n.KeyAdminProductActive)
-	case "archived":
-		return i18n.T(ctx, i18n.KeyAdminProductArchived)
-	default:
-		panic("admin: no label for product status " + s)
+	for _, status := range productStatuses {
+		if status.value == s {
+			return i18n.T(ctx, status.label)
+		}
 	}
+	// Every writer goes through knownProductStatus, so this is a schema the
+	// binary was not built for rather than anything a request can produce.
+	panic("admin: no label for product status " + s)
 }
 
 // SpecLabelRunes and SpecValueRunes mirror the product_specs CHECKs, in RUNES.
@@ -343,27 +383,27 @@ func (s *Store) AddSpec(ctx context.Context, slug string, d SpecDraft) (map[stri
 	switch {
 	case label == "":
 		errs["spec_label"] = i18n.T(ctx, i18n.KeyFormSpecLabel)
-	case len([]rune(label)) > SpecLabelRunes:
+	case utf8.RuneCountInString(label) > SpecLabelRunes:
 		errs["spec_label"] = i18n.T(ctx, i18n.KeyFormSpecLabelLong)
 	}
 	switch {
 	case value == "":
 		errs["spec_value"] = i18n.T(ctx, i18n.KeyFormSpecValue)
-	case len([]rune(value)) > SpecValueRunes:
+	case utf8.RuneCountInString(value) > SpecValueRunes:
 		errs["spec_value"] = i18n.T(ctx, i18n.KeyFormSpecValueLong)
 	}
-	if len([]rune(labelEn)) > SpecLabelRunes {
+	if utf8.RuneCountInString(labelEn) > SpecLabelRunes {
 		errs["spec_label_en"] = i18n.T(ctx, i18n.KeyFormSpecLabelEnLong)
 	}
-	if len([]rune(valueEn)) > SpecValueRunes {
+	if utf8.RuneCountInString(valueEn) > SpecValueRunes {
 		errs["spec_value_en"] = i18n.T(ctx, i18n.KeyFormSpecValueEnLong)
 	}
 	if len(errs) > 0 {
 		return errs, nil
 	}
 
-	if err := s.audited(ctx, Event{
-		Action: ActionAddSpec, Table: "product_specs", ID: uuid.NullUUID{},
+	err := s.audited(ctx, Event{
+		Action: actionAddSpec, Table: "product_specs", ID: uuid.NullUUID{},
 		Before: nil, After: map[string]any{"slug": slug, "label": label},
 	}, func(ctx context.Context, q *db.Queries) error {
 		if _, err := q.AddProductSpec(ctx, db.AddProductSpecParams{
@@ -376,7 +416,13 @@ func (s *Store) AddSpec(ctx context.Context, slug string, d SpecDraft) (map[stri
 			return fmt.Errorf("%w: %w", ErrRefused, err)
 		}
 		return nil
-	}); err != nil {
+	})
+	if hasConstraint(err, "product_specs_label_key") {
+		return map[string]string{
+			"spec_label": i18n.T(ctx, i18n.KeyFormSpecLabelDuplicate),
+		}, nil
+	}
+	if err != nil {
 		return nil, err
 	}
 	return nil, nil
@@ -389,7 +435,7 @@ func (s *Store) RemoveSpec(ctx context.Context, slug, id string) error {
 		return ErrNotFound
 	}
 	return s.audited(ctx, Event{
-		Action: ActionRemoveSpec, Table: "product_specs", ID: nullableID(specID),
+		Action: actionRemoveSpec, Table: "product_specs", ID: nullableID(specID),
 		Before: map[string]any{"slug": slug}, After: nil,
 	}, func(ctx context.Context, q *db.Queries) error {
 		rows, err := q.RemoveProductSpec(ctx, db.RemoveProductSpecParams{
@@ -423,7 +469,7 @@ func (s *Store) AddOption(ctx context.Context, slug string, d OptionDraft) (map[
 	}
 
 	if err := s.audited(ctx, Event{
-		Action: ActionAddOption, Table: "product_options", ID: uuid.NullUUID{},
+		Action: actionAddOption, Table: "product_options", ID: uuid.NullUUID{},
 		Before: nil, After: map[string]any{"slug": slug, "name": name},
 	}, func(ctx context.Context, q *db.Queries) error {
 		if _, err := q.AddProductOption(ctx, db.AddProductOptionParams{
@@ -459,7 +505,7 @@ func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) 
 	}
 
 	if err := s.audited(ctx, Event{
-		Action: ActionAddOptionValue, Table: "product_option_values", ID: nullableID(optionID),
+		Action: actionAddOptionValue, Table: "product_option_values", ID: nullableID(optionID),
 		Before: nil, After: map[string]any{"slug": slug, "value": name},
 	}, func(ctx context.Context, q *db.Queries) error {
 		if _, err := q.AddProductOptionValue(ctx, db.AddProductOptionValueParams{
@@ -488,10 +534,10 @@ func optionErrors(ctx context.Context, name, nameEn, field string) map[string]st
 	switch {
 	case name == "":
 		errs[field] = i18n.T(ctx, i18n.KeyFormOptionName)
-	case len([]rune(name)) > MaxOptionNameRunes:
+	case utf8.RuneCountInString(name) > MaxOptionNameRunes:
 		errs[field] = i18n.T(ctx, i18n.KeyFormOptionNameLong)
 	}
-	if len([]rune(nameEn)) > MaxOptionNameRunes {
+	if utf8.RuneCountInString(nameEn) > MaxOptionNameRunes {
 		errs[field+"_en"] = i18n.T(ctx, i18n.KeyFormOptionNameEnLong)
 	}
 	return errs

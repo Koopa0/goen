@@ -33,8 +33,7 @@ func (s *Store) Banner(ctx context.Context, dismissed string) (layouts.Banner, e
 	row, err := s.q.CurrentPromoBanner(ctx, string(i18n.FromContext(ctx)))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			// No promotion running, and no fallback: unlike the hero, a shop with
-			// nothing to announce announces nothing.
+			// No fallback, unlike the hero: a shop with nothing to announce announces nothing.
 			return layouts.Banner{}, nil
 		}
 		return layouts.Banner{}, fmt.Errorf("read promo banner: %w", err)
@@ -52,7 +51,6 @@ func (s *Store) Banner(ctx context.Context, dismissed string) (layouts.Banner, e
 	}
 	label := row.CtaLabel
 	if href == "" {
-		// Both or neither, which promo_banners_cta_complete also says.
 		label = ""
 	}
 

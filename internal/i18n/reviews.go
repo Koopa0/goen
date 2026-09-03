@@ -1,9 +1,8 @@
 package i18n
 
 var (
-	// The empty state that makes the first review possible. The form lives
-	// inside the reviews section, so a section that only rendered when a rating
-	// already existed meant no product could ever receive one.
+	// The empty state that makes the first review possible: the form lives
+	// inside the reviews section, which therefore has to render without one.
 	KeyNoReviewsYet = key("pdp.reviews.none", Message{
 		ZhHant: "還沒有人評價這個商品 —— 你可以是第一個。",
 		En:     "Nobody has reviewed this yet — you could be the first.",
@@ -17,9 +16,8 @@ var (
 
 	KeyVerifiedBuyer = key("pdp.reviews.verified", Message{ZhHant: "已購買", En: "Verified purchase"})
 
-	// A reviewer who gave no name, and one whose account has been erased. Says
-	// nothing about whether they bought: the badge beside it does that, and
-	// product_reviews_verified_is_real is what makes the badge true.
+	// A reviewer who gave no name, and one whose account has been erased. It
+	// says nothing about whether they bought; the badge beside it does that.
 	KeyAnonymousReviewer = key("pdp.reviews.anonymous", Message{
 		ZhHant: "匿名顧客",
 		En:     "Anonymous",

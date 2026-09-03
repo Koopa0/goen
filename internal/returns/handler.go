@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -59,40 +60,57 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	req, err := returnRequestFromForm(r, o)
+	if err != nil {
+		h.reject(w, r, o, req, i18n.T(r.Context(), i18n.KeyReturnTooMany))
+		return
+	}
+	err = h.store.Open(r.Context(), o.Number, returnRequester(r.Context()), req)
+	h.respondToOpen(w, r, o, req, err)
+}
+
+func returnRequestFromForm(r *http.Request, o *Order) (*Request, error) {
 	req := &Request{Reason: r.PostFormValue("reason"), Lines: map[string]int32{}}
 	for i := range o.Lines {
-		l := &o.Lines[i]
-		raw := r.PostFormValue("qty_" + l.ID)
+		line := &o.Lines[i]
+		raw := r.PostFormValue("qty_" + line.ID)
 		if raw == "" {
 			continue
 		}
-		n, err := strconv.ParseInt(raw, 10, 32)
-		if err != nil || n < 0 || n > int64(l.Returnable) {
-			h.reject(w, r, o, req, i18n.T(r.Context(), i18n.KeyReturnTooMany))
-			return
+		quantity, err := strconv.ParseInt(raw, 10, 32)
+		if err != nil || quantity < 0 || quantity > int64(line.Returnable) {
+			return req, ErrTooMany
 		}
-		req.Lines[l.ID] = int32(n)
+		req.Lines[line.ID] = int32(quantity)
 	}
+	return req, nil
+}
 
-	var userID uuid.NullUUID
-	if u, signedIn := account.FromContext(r.Context()); signedIn {
-		if id, parseErr := uuid.Parse(u.ID); parseErr == nil {
-			userID = uuid.NullUUID{UUID: id, Valid: true}
-		}
+func returnRequester(ctx context.Context) uuid.NullUUID {
+	user, signedIn := account.FromContext(ctx)
+	if !signedIn {
+		return uuid.NullUUID{}
 	}
+	id, err := uuid.Parse(user.ID)
+	return uuid.NullUUID{UUID: id, Valid: err == nil}
+}
 
-	err := h.store.Open(r.Context(), o.Number, userID, req)
+func (h *Handler) respondToOpen(
+	w http.ResponseWriter, r *http.Request, o *Order, req *Request, err error,
+) {
 	switch {
 	case err == nil:
-		http.Redirect(w, r, "/orders/"+o.Number+"/return?filed=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/orders/"+url.PathEscape(o.Number)+"/return?filed=1", http.StatusSeeOther)
 	case errors.Is(err, ErrAlreadyOpen):
 		h.reject(w, r, o, req, i18n.T(r.Context(), i18n.KeyReturnAlreadyOpen))
 	case errors.Is(err, ErrNotReturnable):
 		h.reject(w, r, o, req, i18n.T(r.Context(), i18n.KeyReturnNothingShort))
 	case errors.Is(err, ErrTooMany):
 		h.reject(w, r, o, req, i18n.T(r.Context(), i18n.KeyReturnTooMany))
+	case errors.Is(err, ErrAccountErased):
+		h.reject(w, r, o, req, i18n.T(r.Context(), i18n.KeyReturnAccountErased))
 	case errors.Is(err, ErrInvalid):
-		h.reject(w, r, o, req, i18n.T(r.Context(), i18n.KeyReturnNeedsReason))
+		h.reject(w, r, o, req, i18n.T(r.Context(), i18n.KeyReturnInvalid))
 	default:
 		h.log.ErrorContext(r.Context(), "open return request", "order", o.Number, "error", err)
 		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(

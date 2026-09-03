@@ -61,7 +61,6 @@ func chromeSources(t *testing.T) map[string]string {
 	return out
 }
 
-// collectSources reads one tree into out.
 func collectSources(t *testing.T, root string, out map[string]string) {
 	t.Helper()
 
@@ -154,8 +153,8 @@ func hardCodedHan(path, line, prev string) bool {
 		return false
 	}
 
-	// SQL writes its words in SINGLE-quoted literals, and a query that assembles
-	// chrome is chrome written where no locale exists.
+	// SQL writes its words in SINGLE-quoted literals, and a query that
+	// assembles chrome is chrome.
 	if strings.HasSuffix(path, ".sql") {
 		line = beforeTrailingSQLComment(line)
 		for _, m := range sqlStringLiteral.FindAllStringSubmatch(line, -1) {

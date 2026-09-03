@@ -407,6 +407,24 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 						}
 						if v.Invoice.NeedsTaxID() {
 							<div class="ui-field">
+								<label class="ui-label" for="invoice_company_name">{ i18n.T(ctx, i18n.KeyFieldCompanyName) }</label>
+								<input
+									class="ui-input"
+									id="invoice_company_name"
+									name="invoice_company_name"
+									maxlength="60"
+									autocomplete="organization"
+									value={ v.Invoice.CompanyName }
+									if v.HasErr("invoice_company_name") {
+										aria-invalid="true"
+										aria-describedby="invoice_company_name-error"
+									}
+								/>
+								if v.HasErr("invoice_company_name") {
+									<p class="ui-error-text" id="invoice_company_name-error">{ v.Err("invoice_company_name") }</p>
+								}
+							</div>
+							<div class="ui-field">
 								<label class="ui-label" for="invoice_tax_id">{ i18n.T(ctx, i18n.KeyFieldTaxID) }</label>
 								<input
 									class="ui-input"

@@ -8,27 +8,11 @@ import (
 	"testing"
 )
 
-// TestEveryRefusedFieldNamesItsError holds the half of a rejection that only one
-// person needs and nobody else can see.
-//
-// The write-face rule says a refused form re-renders at 422 with the values
-// intact and aria-invalid on each control it refused. aria-invalid announces
-// THAT a field is wrong; the reason is a paragraph beside it, and the two are
-// connected by nothing unless aria-describedby says so. So a screen reader read
-// "edit text, invalid" and stopped — the error was on screen, in the DOM, and
-// unreachable by the one visitor who could not simply look at it.
-//
-// Forty-three fields across thirteen templates were in that state, which is
-// most of the forms on the site: the checkout's own field() helper had it right
-// from the day it was written and nothing else copied it.
-//
-// Derived from the SOURCE rather than a list, so a fourteenth template fails
-// here the moment somebody adds aria-invalid to it.
-//
-// This is a static check on purpose. check-layout carries the same rule against
-// a real browser, and every row it measures is a GET — no page it visits has
-// ever rendered a refused field, so that one has no subject today and this is
-// where the coverage actually is.
+// TestEveryRefusedFieldNamesItsError holds the half of a rejection only a
+// screen reader depends on. aria-invalid announces THAT a field is wrong; the
+// reason is a paragraph beside it, and the two are connected by nothing unless
+// aria-describedby says so. The corpus is derived from the SOURCE rather than a
+// list, so a new template is covered the moment it uses aria-invalid.
 func TestEveryRefusedFieldNamesItsError(t *testing.T) {
 	t.Parallel()
 
@@ -94,17 +78,10 @@ func TestEveryRefusedFieldNamesItsError(t *testing.T) {
 }
 
 // TestEveryRefusableControlCanBeMarkedInvalid is the direction its neighbour
-// cannot look.
-//
-// That one starts from `aria-invalid` and asks what it points at, so a control a
-// form can REFUSE that never gets the attribute at all is invisible to it. The
-// checkout's three choosers were exactly that: they were <a> elements until the
-// chooser moved inside the form, so the rule genuinely did not apply — and
-// making them controls a form can refuse did not carry it across. A screen
-// reader was told nothing at all about a refused delivery method.
-//
-// The corpus is every field a view model can carry an error for, derived from
-// the Err/HasErr calls in the templates rather than from a list.
+// cannot look: that one starts from aria-invalid and asks what it points at, so
+// a refusable control that never gets the attribute is invisible to it. The
+// corpus is every field a view model can carry an error for, derived from the
+// Err/HasErr calls in the templates rather than from a list.
 func TestEveryRefusableControlCanBeMarkedInvalid(t *testing.T) {
 	t.Parallel()
 
@@ -134,12 +111,9 @@ func TestEveryRefusableControlCanBeMarkedInvalid(t *testing.T) {
 		for field := range fields {
 			// Three legitimate shapes, and the third is the one the back office
 			// uses everywhere: the attribute lives INSIDE the same HasErr block
-			// that renders the message. A guard looking only for Invalid(field)
-			// reported forty-three correct fields as defects.
-			// Never a blanket `Invalid(name)`: the checkout's field() helper
-			// contains it, so accepting it made every field in that file pass —
-			// including the three radio groups that carry nothing at all. The
-			// helper covers exactly the names it is CALLED with.
+			// that renders the message. Never a blanket `Invalid(name)` — the
+			// checkout's field() helper contains one, so accepting it would pass
+			// every field in that file including controls carrying nothing.
 			marked := strings.Contains(src, `Invalid("`+field+`")`) ||
 				strings.Contains(src, `@field("`+field+`"`)
 			for _, block := range guardedBlocks(src, field) {

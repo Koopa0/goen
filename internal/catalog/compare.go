@@ -80,7 +80,6 @@ func (s *Store) Compare(ctx context.Context, slugs []string) (pages.CompareView,
 	return view, nil
 }
 
-// normaliseSlugs bounds and deduplicates what a URL asked for.
 func normaliseSlugs(raw []string) []string {
 	out := make([]string, 0, MaxCompare)
 	for _, s := range raw {

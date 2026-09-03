@@ -7,20 +7,20 @@ package loyalty
 
 import (
 	"errors"
-	"math"
 	"time"
 )
 
 // PointsPerCredit is the exchange rate, in points per NT$1 of store credit.
 const PointsPerCredit = 10
 
-// Validity is how long an award lasts, per entry rather than per balance.
-const Validity = 365 * 24 * time.Hour
-
 // MinRedemption is the smallest redemption goen accepts.
 const MinRedemption = 100
 
-// The errors a caller branches on.
+// MaxRedemptionPoints is the largest redemption the economic ledger accepts.
+// Keep it in step with redeem_loyalty_points: a bound below the database's own
+// would refuse the replay of an operation the database could have completed.
+const MaxRedemptionPoints int64 = 1_000_000_000
+
 var (
 	// ErrNotEnough is a redemption larger than the balance.
 	ErrNotEnough = errors.New("loyalty: not enough points")
@@ -50,13 +50,3 @@ func Redeemable(balance int64) int64 {
 // MembershipWindow is how far back a customer's spend is counted for their
 // membership tier. A rolling year: a lifetime tier is a permanent liability.
 const MembershipWindow = 365 * 24 * time.Hour
-
-// Days is a duration in whole days, which is the unit the SQL side takes. It
-// feeds make_interval(days => n), so "a year ago" stays a calendar answer across
-// daylight-saving boundaries.
-func Days(d time.Duration) int32 {
-	days := int64(d / (24 * time.Hour))
-	// A time.Duration caps at about 292 years, so the upper bound is defensive;
-	// the clamp makes the int32 conversion explicit in either direction.
-	return int32(min(max(days, 0), math.MaxInt32))
-}

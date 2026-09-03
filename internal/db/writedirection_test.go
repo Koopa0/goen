@@ -249,7 +249,7 @@ func sortedColumnKeys(m map[string]map[string]bool) []string {
 // writeExemptions is a privilege a role holds that its own queries never exercise, keyed
 // role.table, with the reason.
 var writeExemptions = map[string]string{
-	"store.store_credit_accounts": "created on first use; every other verb is revoked and the ledger goes through post_store_credit",
+	"store.store_credit_accounts": "created on first use; every other verb is revoked and each spend, grant, compensation, or reversal goes through its operation-specific door",
 	"admin.store_credit_accounts": "created on first use when the back office grants credit to a customer with no account yet",
 }
 

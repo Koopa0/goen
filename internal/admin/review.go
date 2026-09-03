@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -22,7 +23,7 @@ func (s *Store) Reviews(ctx context.Context) (pages.AdminReviewsView, error) {
 		view.Rows = append(view.Rows, pages.AdminReview{
 			ID: r.ID.String(), Rating: int(r.Rating), Title: r.Title, Body: r.Body,
 			Verified: r.IsVerifiedPurchase, Hidden: r.HiddenAt.Valid,
-			At:   r.CreatedAt.Format("2006-01-02 15:04"),
+			At:   shoptime.Minute(r.CreatedAt),
 			Slug: r.Slug, Product: r.ProductName, Author: r.Author,
 		})
 	}
@@ -35,9 +36,9 @@ func (s *Store) SetReviewHidden(ctx context.Context, id string, hidden bool) err
 	if err != nil {
 		return ErrNotFound
 	}
-	action := ActionShowReview
+	action := actionShowReview
 	if hidden {
-		action = ActionHideReview
+		action = actionHideReview
 	}
 
 	return s.audited(ctx, Event{

@@ -47,7 +47,6 @@ func store(t *testing.T) *newsletter.Store {
 	return newsletter.NewStore(pool)
 }
 
-// subscribed reports whether the address is on the list right now.
 func subscribed(t *testing.T, email string) (onList, known bool) {
 	t.Helper()
 	var unsubscribed *string
@@ -63,7 +62,6 @@ func subscribed(t *testing.T, email string) (onList, known bool) {
 	return unsubscribed == nil, true
 }
 
-// pendingConfirmations counts the outstanding requests for an address.
 func pendingConfirmations(t *testing.T, email string) int {
 	t.Helper()
 	var n int
@@ -75,7 +73,6 @@ func pendingConfirmations(t *testing.T, email string) int {
 	return n
 }
 
-// enqueued counts outbox messages on a topic whose payload names the address.
 func enqueued(t *testing.T, topic, email string) int {
 	t.Helper()
 	var n int
@@ -87,8 +84,8 @@ func enqueued(t *testing.T, topic, email string) int {
 	return n
 }
 
-// tokenFor reads back the token a message carries; the only other copy is a
-// digest. Newest by ID: outbox_messages has no created_at and its key is uuidv7.
+// tokenFor reads a token back out of an outbox payload. Newest by ID:
+// outbox_messages has no created_at and its key is uuidv7.
 func tokenFor(t *testing.T, topic, email, field string) string {
 	t.Helper()
 	var token string
@@ -101,7 +98,6 @@ func tokenFor(t *testing.T, topic, email, field string) string {
 	return token
 }
 
-// TestAnAddressIsNotOnTheListUntilItSaysSo is double opt-in, asserted.
 func TestAnAddressIsNotOnTheListUntilItSaysSo(t *testing.T) {
 	t.Parallel()
 	s, email := store(t), addr(t)
@@ -135,7 +131,6 @@ func TestAnAddressIsNotOnTheListUntilItSaysSo(t *testing.T) {
 	}
 }
 
-// TestTheConfirmationLinkIsSpentByTheStatement proves one token confirms once.
 func TestTheConfirmationLinkIsSpentByTheStatement(t *testing.T) {
 	t.Parallel()
 	s, email := store(t), addr(t)
@@ -181,7 +176,6 @@ func TestAnExpiredConfirmationIsRefused(t *testing.T) {
 	}
 }
 
-// TestASecondSubmissionDoesNotMailAnActiveSubscriber closes the mailbomb.
 func TestASecondSubmissionDoesNotMailAnActiveSubscriber(t *testing.T) {
 	t.Parallel()
 	s, email := store(t), addr(t)
@@ -209,8 +203,6 @@ func TestASecondSubmissionDoesNotMailAnActiveSubscriber(t *testing.T) {
 	}
 }
 
-// TestOneMailboxHoldsOneLiveLink proves a repeated request replaces rather than
-// accumulates.
 func TestOneMailboxHoldsOneLiveLink(t *testing.T) {
 	t.Parallel()
 	s, email := store(t), addr(t)
@@ -224,7 +216,6 @@ func TestOneMailboxHoldsOneLiveLink(t *testing.T) {
 		t.Errorf("pending confirmations = %d after three submissions, want 1", got)
 	}
 
-	// And the SURVIVING link is the newest one.
 	var digest []byte
 	if err := pool.QueryRow(t.Context(),
 		`SELECT digest FROM newsletter_confirmations WHERE lower(email) = lower($1)`,
@@ -237,8 +228,6 @@ func TestOneMailboxHoldsOneLiveLink(t *testing.T) {
 	}
 }
 
-// TestUnsubscribingIsIdempotent proves a second click and a link followed a
-// year later answer the same thing.
 func TestUnsubscribingIsIdempotent(t *testing.T) {
 	t.Parallel()
 	s, email := store(t), addr(t)
@@ -278,8 +267,6 @@ func TestUnsubscribingIsIdempotent(t *testing.T) {
 	}
 }
 
-// TestAnUnknownUnsubscribeTokenIsRefused proves the one case worth telling
-// somebody about: their address is still on the list.
 func TestAnUnknownUnsubscribeTokenIsRefused(t *testing.T) {
 	t.Parallel()
 	s := store(t)
@@ -293,8 +280,6 @@ func TestAnUnknownUnsubscribeTokenIsRefused(t *testing.T) {
 	}
 }
 
-// TestReSubscribingAfterOptingOutNeedsTheMailboxAgain: an unconditional
-// `SET unsubscribed_at = NULL` lets anybody put an opted-out person back on.
 func TestReSubscribingAfterOptingOutNeedsTheMailboxAgain(t *testing.T) {
 	t.Parallel()
 	s, email := store(t), addr(t)
@@ -310,7 +295,6 @@ func TestReSubscribingAfterOptingOutNeedsTheMailboxAgain(t *testing.T) {
 		t.Fatalf("Unsubscribe: %v", err)
 	}
 
-	// It may ASK again — and must not rejoin.
 	outcome, err := s.Request(t.Context(), email)
 	if err != nil {
 		t.Fatalf("Request after opting out: %v", err)
@@ -332,8 +316,6 @@ func TestReSubscribingAfterOptingOutNeedsTheMailboxAgain(t *testing.T) {
 	}
 }
 
-// TestTheWelcomeMailCarriesAWorkingUnsubscribeLink proves the token that reaches
-// the customer is the one the row holds.
 func TestTheWelcomeMailCarriesAWorkingUnsubscribeLink(t *testing.T) {
 	t.Parallel()
 	s, email := store(t), addr(t)
@@ -358,9 +340,8 @@ func TestTheWelcomeMailCarriesAWorkingUnsubscribeLink(t *testing.T) {
 	}
 }
 
-// TestARefusedRequestMailsNothing proves validation runs before the enqueue.
-// Scoped to ONE address, because a global count in a parallel suite is
-// order-dependent.
+// TestARefusedRequestMailsNothing is scoped to ONE address, because a global
+// count in a parallel suite is order-dependent.
 func TestARefusedRequestMailsNothing(t *testing.T) {
 	t.Parallel()
 	s := store(t)
@@ -479,8 +460,6 @@ func TestTheShopCannotAddToItsOwnList(t *testing.T) {
 	}
 }
 
-// TestASentIssueReachesEveryoneOnTheListExactlyOnce: everybody active gets one
-// copy, nobody who left gets any, and every copy can be unsubscribed from.
 func TestASentIssueReachesEveryoneOnTheListExactlyOnce(t *testing.T) {
 	emptyList(t)
 	ctx := t.Context()
@@ -511,7 +490,6 @@ func TestASentIssueReachesEveryoneOnTheListExactlyOnce(t *testing.T) {
 			"has already promised to stop emailing it", got)
 	}
 
-	// The link in the issue is the SAME one the welcome mail carried.
 	token := tokenFor(t, "newsletter.issue", stay, "unsubscribe_token")
 	if want := tokenFor(t, "newsletter.welcome", stay, "unsubscribe_token"); token != want {
 		t.Errorf("the issue carries a different unsubscribe token from the welcome mail")
@@ -620,8 +598,12 @@ func TestABulkSendWaitsBehindTransactionalMail(t *testing.T) {
 	q.Handle(outbox.TopicNewsletterIssue, record(outbox.TopicNewsletterIssue))
 	q.Handle(outbox.TopicNewsletterConfirm, record("other"))
 	q.Handle(outbox.TopicNewsletterWelcome, record("other"))
-	if _, _, err := q.Drain(ctx); err != nil {
-		t.Fatalf("Drain: %v", err)
+	// DrainAll, not one Drain: the assertion is about ORDER, and one batch
+	// reaches both kinds only while BatchSize happens to exceed whatever else
+	// the suite has left queued. Priority is applied per claim, so the ordering
+	// holds across batch boundaries.
+	if _, _, err := q.DrainAll(ctx); err != nil {
+		t.Fatalf("DrainAll: %v", err)
 	}
 
 	firstIssue, lastUrgent := -1, -1
@@ -642,7 +624,6 @@ func TestABulkSendWaitsBehindTransactionalMail(t *testing.T) {
 	}
 }
 
-// TestASentIssueCannotBeRewritten proves the freeze.
 func TestASentIssueCannotBeRewritten(t *testing.T) {
 	emptyList(t)
 	ctx := t.Context()
@@ -699,8 +680,8 @@ func joinList(t *testing.T, s *newsletter.Store, email string) string {
 	return tokenFor(t, "newsletter.welcome", email, "unsubscribe_token")
 }
 
-// TestASecondSendIsRefusedSequentially is the same guard from the cheap,
-// deterministic direction; the concurrent test above goes red only sometimes.
+// TestASecondSendIsRefusedSequentially is the deterministic direction of the
+// same guard; the concurrent test above goes red only sometimes.
 func TestASecondSendIsRefusedSequentially(t *testing.T) {
 	emptyList(t)
 	ctx := t.Context()
@@ -733,7 +714,6 @@ func staffActor(t *testing.T) uuid.NullUUID {
 	return uuid.NullUUID{UUID: id, Valid: true}
 }
 
-// TestASendNeedsAnActor proves nothing is enqueued before the refusal.
 func TestASendNeedsAnActor(t *testing.T) {
 	emptyList(t)
 	ctx := t.Context()
@@ -753,20 +733,11 @@ func TestASendNeedsAnActor(t *testing.T) {
 	}
 }
 
-// TestAnUnsubscribeAfterTheSendIsHonouredAtDelivery holds the half a race test
-// would have missed.
-//
-// Send freezes the recipient list into one outbox row per subscriber, and
-// nothing downstream re-read consent. The reported defect was a race between
-// the list read and the enqueue — real, and the SMALLER half: because delivery
-// never asked, an unsubscribe committing entirely AFTER the send transaction
-// had the same outcome for every copy not yet delivered. The issue goes out at
-// BulkPriority behind every transactional message, and the queue drains eight
-// at a time on a five-second tick, so that window is minutes to hours rather
-// than microseconds.
-//
-// This drives the easier and larger case on purpose: no race at all, just an
-// unsubscribe while the letter waits in the queue.
+// TestAnUnsubscribeAfterTheSendIsHonouredAtDelivery re-reads consent at
+// delivery. Send freezes the recipient list into one outbox row per subscriber,
+// and an issue goes out at BulkPriority behind every transactional message,
+// eight at a time on a five-second tick — so the window between enqueue and
+// delivery is minutes to hours.
 func TestAnUnsubscribeAfterTheSendIsHonouredAtDelivery(t *testing.T) {
 	ctx := t.Context()
 	s := newsletter.NewStore(pool)

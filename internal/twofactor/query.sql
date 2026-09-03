@@ -33,8 +33,21 @@ WHERE user_id = @user_id
   AND confirmed_at IS NOT NULL
   AND (last_step IS NULL OR last_step < @step::bigint);
 
--- name: RemoveTOTP :execrows
-DELETE FROM staff_totp_credentials WHERE user_id = @user_id;
+-- Removing a factor and ending every session it admitted are one security
+-- change. If either DELETE fails, PostgreSQL rolls the whole statement back.
+-- name: RemoveTOTPAndSessions :one
+WITH removed AS (
+    DELETE FROM staff_totp_credentials AS credential
+    WHERE credential.user_id = @user_id
+    RETURNING credential.user_id
+), ended AS (
+    DELETE FROM sessions AS session
+    USING removed r
+    WHERE session.user_id = r.user_id
+    RETURNING session.token_hash
+)
+SELECT EXISTS (SELECT 1 FROM removed)::boolean AS removed
+FROM (SELECT count(*) FROM ended) AS ended_once;
 
 -- name: MarkSessionVerified :exec
 UPDATE sessions SET totp_verified_at = now() WHERE token_hash = $1;
@@ -81,6 +94,3 @@ SELECT revoke_staff($1)::boolean;
 SELECT EXISTS (
     SELECT 1 FROM users WHERE id = @id AND lower(email) = lower(@email::text)
 );
-
--- name: EndStaffSessions :exec
-DELETE FROM sessions WHERE user_id = $1;

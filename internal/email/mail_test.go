@@ -20,10 +20,9 @@ func (c *captured) Send(_ context.Context, m *Message) error {
 func notifier(t *testing.T) (Notifier, *captured) {
 	t.Helper()
 	sink := &captured{}
-	return Notifier{Sender: sink, BaseURL: "https://goen.test"}, sink
+	return New(sink, "https://goen.test", "", ""), sink
 }
 
-// hasHan reports whether s carries a Chinese character.
 func hasHan(s string) bool {
 	for _, r := range s {
 		if unicode.Is(unicode.Han, r) {
@@ -33,9 +32,9 @@ func hasHan(s string) bool {
 	return false
 }
 
-// TestEveryMessageIsSentInThePayloadsLanguage is the whole point of
-// orders.locale. Driven per topic, because each producer records the locale
-// differently: some from a request, some off the order row.
+// TestEveryMessageIsSentInThePayloadsLanguage is driven per topic, because each
+// producer records the locale differently: some from a request, some off the
+// order row.
 func TestEveryMessageIsSentInThePayloadsLanguage(t *testing.T) {
 	t.Parallel()
 
@@ -116,8 +115,6 @@ func TestEveryMessageIsSentInThePayloadsLanguage(t *testing.T) {
 	}
 }
 
-// TestAnUnknownLocaleFallsBackRatherThanFailing proves a row written before
-// orders.locale existed still produces a letter.
 func TestAnUnknownLocaleFallsBackRatherThanFailing(t *testing.T) {
 	t.Parallel()
 
@@ -134,8 +131,6 @@ func TestAnUnknownLocaleFallsBackRatherThanFailing(t *testing.T) {
 	}
 }
 
-// TestTheGreetingDropsAnEmptyName proves a letter to an address nobody named
-// does not open "Hello ,".
 func TestTheGreetingDropsAnEmptyName(t *testing.T) {
 	t.Parallel()
 
@@ -167,11 +162,8 @@ func TestTheConfirmationCarriesTheStatutoryDisclosure(t *testing.T) {
 	t.Run("configured", func(t *testing.T) {
 		t.Parallel()
 		sink := &captured{}
-		n := Notifier{
-			Sender: sink, BaseURL: "https://goen.test",
-			Seller:        "goen Co., Ltd. 統編 90123456",
-			SellerContact: "support@goen.tw / 02-2700-1234",
-		}
+		n := New(sink, "https://goen.test",
+			"goen Co., Ltd. 統編 90123456", "support@goen.tw / 02-2700-1234")
 		if err := n.SendOrderPlaced(t.Context(), placed); err != nil {
 			t.Fatalf("send: %v", err)
 		}
@@ -196,10 +188,7 @@ func TestTheConfirmationCarriesTheStatutoryDisclosure(t *testing.T) {
 	t.Run("English follows the payload", func(t *testing.T) {
 		t.Parallel()
 		sink := &captured{}
-		n := Notifier{
-			Sender: sink, BaseURL: "https://goen.test",
-			Seller: "goen Co., Ltd.", SellerContact: "support@goen.tw",
-		}
+		n := New(sink, "https://goen.test", "goen Co., Ltd.", "support@goen.tw")
 		en := *placed
 		en.Locale = "en"
 		en.Name = "Alex"
@@ -215,7 +204,6 @@ func TestTheConfirmationCarriesTheStatutoryDisclosure(t *testing.T) {
 		}
 	})
 
-	// A disclosure naming no seller is omitted entirely rather than printed blank.
 	t.Run("unconfigured omits it rather than printing a blank seller", func(t *testing.T) {
 		t.Parallel()
 		n, sink := notifier(t)
@@ -226,9 +214,38 @@ func TestTheConfirmationCarriesTheStatutoryDisclosure(t *testing.T) {
 			t.Error("a disclosure naming no seller was sent; it discloses nothing " +
 				"and makes the letter look compliant while saying less than silence")
 		}
-		// The letter itself still goes out.
 		if !strings.Contains(sink.msg.Body, "GO-260806-000001") {
 			t.Error("the confirmation itself went missing with the disclosure")
 		}
 	})
+}
+
+// TestNewRefusesAnUnusableNotifier holds the constructor's invariant. Both
+// omissions are silent otherwise: a nil sender panics at the first message
+// instead of at wiring, and an empty base URL mails a link that resolves
+// nowhere — a password reset nobody can follow.
+func TestNewRefusesAnUnusableNotifier(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		sender  Sender
+		baseURL string
+	}{
+		{name: "no sender", sender: nil, baseURL: "https://goen.test"},
+		{name: "no base URL", sender: &captured{}, baseURL: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			defer func() {
+				if recover() == nil {
+					t.Errorf("New(%v, %q, ...) did not panic", tt.sender, tt.baseURL)
+				}
+			}()
+			New(tt.sender, tt.baseURL, "", "")
+		})
+	}
 }
