@@ -39,11 +39,20 @@ jobs:
           declared=$(awk '$1 == "go" { print $2; exit }' go.mod)
           test "$(go env GOVERSION)" = "go$declared"
 
+      # Versions come from the Makefile, which is where they are pinned and
+      # where the targets version-check against them. Repeating a number here
+      # made CI install squawk 2.63.0 against a Makefile that demanded 2.64.0.
       - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
+        run: |
+          set -euo pipefail
+          version=$(awk -F':= *' '$1 ~ /^GOLANGCI_LINT_VERSION/ { print $2; exit }' Makefile)
+          go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$version"
 
       - name: Install squawk
-        run: npm install -g squawk-cli@2.63.0
+        run: |
+          set -euo pipefail
+          version=$(awk -F':= *' '$1 ~ /^SQUAWK_VERSION/ { print $2; exit }' Makefile)
+          npm install -g "squawk-cli@$version"
 
       # Everything that needs neither Docker nor the network beyond the module
       # cache. Runs first so an ordinary mistake is reported in a minute rather
@@ -80,7 +89,8 @@ jobs:
           make db-up
           export GOEN_DATABASE_URL='postgres://goen:goen@127.0.0.1:5433/goen?sslmode=disable'
           make migrate-up
-          go run -tags=postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1 \
+          migrate=$(awk -F':= *' '$1 ~ /^MIGRATE_VERSION/ { print $2; exit }' Makefile)
+          go run -tags=postgres "github.com/golang-migrate/migrate/v4/cmd/migrate@$migrate" \
             -path migrations -database "$GOEN_DATABASE_URL" down -all
           make migrate-up
 
