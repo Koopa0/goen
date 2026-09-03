@@ -3,7 +3,7 @@ SQLC_VERSION := v1.31.1
 KO_VERSION := v0.19.1
 MIGRATE_VERSION := v4.19.1
 GOVULNCHECK_VERSION := v1.7.0
-SQUAWK_VERSION := 2.63.0
+SQUAWK_VERSION := 2.64.0
 DEADCODE_VERSION := v0.49.0
 
 # Tools that generate or inspect this module but are not part of it. `go run
