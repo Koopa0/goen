@@ -2020,7 +2020,7 @@ func TestConcurrentResetIssuanceLeavesOneLiveToken(t *testing.T) {
 		t.Fatalf("begin reset-issue blocker: %v", err)
 	}
 	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
-	if _, err := blocker.Exec(ctx,
+	if _, err = blocker.Exec(ctx,
 		`SELECT id FROM users WHERE id = $1 FOR UPDATE`, uuid.MustParse(u.ID)); err != nil {
 		t.Fatalf("lock reset account: %v", err)
 	}
@@ -2035,18 +2035,18 @@ func TestConcurrentResetIssuanceLeavesOneLiveToken(t *testing.T) {
 	waitForAccountLock(t, firstName, firstDone)
 	waitForAccountLock(t, secondName, secondDone)
 
-	if err := blocker.Commit(ctx); err != nil {
+	if err = blocker.Commit(ctx); err != nil {
 		t.Fatalf("release reset account: %v", err)
 	}
-	if err := operationResult(t, firstDone); err != nil {
+	if err = operationResult(t, firstDone); err != nil {
 		t.Fatalf("first replacement issue: %v", err)
 	}
-	if err := operationResult(t, secondDone); err != nil {
+	if err = operationResult(t, secondDone); err != nil {
 		t.Fatalf("second replacement issue: %v", err)
 	}
 
 	var live int
-	if err := pool.QueryRow(ctx, `
+	if err = pool.QueryRow(ctx, `
 		SELECT count(*) FROM password_reset_tokens
 		WHERE user_id = $1 AND used_at IS NULL`,
 		uuid.MustParse(u.ID)).Scan(&live); err != nil {
@@ -2056,7 +2056,8 @@ func TestConcurrentResetIssuanceLeavesOneLiveToken(t *testing.T) {
 		t.Fatalf("unused reset tokens after concurrent issuance = %d, want 1", live)
 	}
 
-	rows, err := pool.Query(ctx, `
+	var rows pgx.Rows
+	rows, err = pool.Query(ctx, `
 		SELECT payload->>'token'
 		FROM outbox_messages
 		WHERE topic = $1 AND lower(payload->>'email') = lower($2)
@@ -2068,12 +2069,12 @@ func TestConcurrentResetIssuanceLeavesOneLiveToken(t *testing.T) {
 	var issued []string
 	for rows.Next() {
 		var token string
-		if err := rows.Scan(&token); err != nil {
+		if err = rows.Scan(&token); err != nil {
 			t.Fatalf("read issued reset token: %v", err)
 		}
 		issued = append(issued, token)
 	}
-	if err := rows.Err(); err != nil {
+	if err = rows.Err(); err != nil {
 		t.Fatalf("iterate issued reset tokens: %v", err)
 	}
 	if len(issued) != 2 {
@@ -2082,7 +2083,7 @@ func TestConcurrentResetIssuanceLeavesOneLiveToken(t *testing.T) {
 
 	var accepted int
 	for i, token := range issued {
-		err := s.CompleteReset(ctx, token, fmt.Sprintf("concurrent reset password %d", i))
+		err = s.CompleteReset(ctx, token, fmt.Sprintf("concurrent reset password %d", i))
 		switch {
 		case err == nil:
 			accepted++
