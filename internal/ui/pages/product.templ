@@ -115,26 +115,7 @@ templ Product(p layouts.Page, v *ProductView) {
 				} else {
 					<p class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyNoQuestionsYet) }</p>
 				}
-				<form class="goen-qa__form" method="post" action={ templ.SafeURL(v.AskAction()) }>
-					<div class="ui-field">
-						<label class="ui-label" for="ask-body">{ i18n.T(ctx, i18n.KeyAskLabel) }</label>
-						<textarea
-							class="ui-input"
-							id="ask-body"
-							name="body"
-							rows="3"
-							required
-							maxlength="300"
-							placeholder={ i18n.T(ctx, i18n.KeyAskPlaceholder) }
-							if v.AskRefused() {
-								aria-invalid="true"
-								aria-describedby="ask-body-error"
-							}
-						></textarea>
-						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAskNeedsSignIn) }</p>
-					</div>
-					<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAskSubmit) }</button>
-				</form>
+				@askForm(v)
 			</section>
 			if v.HasRecommendations() {
 				<section class="goen-pdp__also" aria-labelledby="also-heading">
@@ -425,6 +406,35 @@ templ productReviews(v *ProductView) {
 		}
 		@reviewForm(v)
 	</section>
+}
+
+templ askForm(v *ProductView) {
+	if !v.SignedIn {
+		<p class="goen-pdp__reviewnote">
+			<a href={ templ.SafeURL(v.AskSignInHref()) }>{ i18n.T(ctx, i18n.KeySignInFirst) }</a>{ i18n.T(ctx, i18n.KeySignInToAsk) }
+		</p>
+	} else {
+		<form class="goen-qa__form" method="post" action={ templ.SafeURL(v.AskAction()) }>
+			<div class="ui-field">
+				<label class="ui-label" for="ask-body">{ i18n.T(ctx, i18n.KeyAskLabel) }</label>
+				<textarea
+					class="ui-input"
+					id="ask-body"
+					name="body"
+					rows="3"
+					required
+					maxlength="300"
+					placeholder={ i18n.T(ctx, i18n.KeyAskPlaceholder) }
+					if v.AskRefused() {
+						aria-invalid="true"
+						aria-describedby="ask-body-error"
+					}
+				></textarea>
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAskNeedsSignIn) }</p>
+			</div>
+			<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAskSubmit) }</button>
+		</form>
+	}
 }
 
 templ reviewForm(v *ProductView) {

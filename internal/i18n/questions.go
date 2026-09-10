@@ -37,6 +37,11 @@ var (
 		En:     "Sign in to ask. Answers are shown publicly.",
 	})
 
+	KeySignInToAsk = key("pdp.qa.signin.rest", Message{
+		ZhHant: "後可以發問。",
+		En:     " to ask a question.",
+	})
+
 	KeyAskSubmit = key("pdp.qa.submit", Message{ZhHant: "送出問題", En: "Ask"})
 
 	KeyErasedAccount = key("pdp.qa.erased", Message{ZhHant: "已刪除的帳號", En: "Deleted account"})

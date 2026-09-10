@@ -231,6 +231,38 @@ func TestAProductWithNoReviewsCanReceiveItsFirst(t *testing.T) {
 	}
 }
 
+// TestSignedOutQAHasNoAskForm holds that a visitor who is not signed in sees
+// a sign-in link back to #questions, not a form whose body Ask will discard.
+func TestSignedOutQAHasNoAskForm(t *testing.T) {
+	t.Parallel()
+
+	base := ProductView{
+		Name: "Pixelight 9 Pro", Brand: "Meridian", Slug: "pixelight-9-pro",
+		SelectionOK: true, Exact: true, Sellable: true, AnySellable: true,
+		PriceCents: 3690000,
+	}
+	askAction := `action="/p/pixelight-9-pro/questions"`
+
+	out := base
+	html := renderToString(t, Product(ProductMeta(&out), &out))
+	if strings.Contains(html, askAction) {
+		t.Error("signed-out Q&A still renders the ask form")
+	}
+	if !strings.Contains(html, out.AskSignInHref()) {
+		t.Errorf("signed-out Q&A has no return to #questions; want href %q", out.AskSignInHref())
+	}
+
+	in := base
+	in.SignedIn = true
+	signedIn := renderToString(t, Product(ProductMeta(&in), &in))
+	if !strings.Contains(signedIn, askAction) {
+		t.Error("signed-in Q&A lost the ask form")
+	}
+	if strings.Contains(signedIn, in.AskSignInHref()) {
+		t.Error("signed-in Q&A still offers the sign-in link")
+	}
+}
+
 // TestARefundedOrderCanFileAnAllowance holds the 折讓 form's door. Without it a
 // customer is refunded while the 統一發票 still records the whole sale.
 func TestARefundedOrderCanFileAnAllowance(t *testing.T) {
