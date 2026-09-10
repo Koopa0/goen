@@ -205,10 +205,15 @@ func (h *Handler) Confirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Confirming proves the factor, so the session is verified too.
-	if token := account.ReadSessionCookie(r, h.secure); token != "" {
-		if err := h.store.MarkVerified(r.Context(), token); err != nil {
-			h.log.ErrorContext(r.Context(), "mark session verified", "error", err)
-		}
+	token := account.ReadSessionCookie(r, h.secure)
+	if token == "" {
+		http.Redirect(w, r, "/signin", http.StatusSeeOther)
+		return
+	}
+	if err := h.store.MarkVerified(r.Context(), token); err != nil {
+		h.log.ErrorContext(r.Context(), "mark session verified", "error", err)
+		h.fault(w, r)
+		return
 	}
 	http.Redirect(w, r, "/admin?enrolled=1", http.StatusSeeOther)
 }
