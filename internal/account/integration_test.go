@@ -653,6 +653,7 @@ func TestAMergedCartIsVisibleAfterSignInWithTheDeletedGuestCookie(t *testing.T) 
 	signIn := httptest.NewRequestWithContext(ctx, http.MethodPost, "/signin",
 		strings.NewReader(form.Encode()))
 	signIn.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	//nolint:gosec // G124: the browser's own cart cookie, read by this handler
 	signIn.AddCookie(&http.Cookie{Name: "goen_cart", Value: guestToken})
 	signed := httptest.NewRecorder()
 	h.SignIn(signed, signIn)
@@ -673,6 +674,7 @@ func TestAMergedCartIsVisibleAfterSignInWithTheDeletedGuestCookie(t *testing.T) 
 
 	page := httptest.NewRequestWithContext(ctx, http.MethodGet, "/cart", http.NoBody)
 	page.AddCookie(session)
+	//nolint:gosec // G124: the deleted guest token the browser still holds
 	page.AddCookie(&http.Cookie{Name: "goen_cart", Value: guestToken})
 	shown := httptest.NewRecorder()
 	h.Authenticate(http.HandlerFunc(carts.Page)).ServeHTTP(shown, page)
