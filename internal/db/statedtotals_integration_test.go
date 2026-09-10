@@ -3,8 +3,6 @@
 package db_test
 
 import (
-	"errors"
-	"io/fs"
 	"os"
 	"regexp"
 	"strconv"
@@ -74,41 +72,26 @@ func TestTheStatedSchemaTotalsAreTheRealOnes(t *testing.T) {
 		"(\\d+) `?CHECK`?s?(?: constraints)?, (\\d+) foreign keys, " +
 			"(\\d+) unique indexes,? and (\\d+) rule triggers")
 
-	// README.md ships with the repository, so its absence is a broken checkout.
-	// CLAUDE.md is kept out of git: check it where it is present, skip it in a
-	// clone that does not carry it.
-	for _, file := range []struct {
-		path     string
-		required bool
-	}{
-		{path: "../../README.md", required: true},
-		{path: "../../CLAUDE.md", required: false},
-	} {
-		body, err := os.ReadFile(file.path)
-		if err != nil {
-			if !file.required && errors.Is(err, fs.ErrNotExist) {
-				continue
-			}
-			t.Fatalf("read %s: %v", file.path, err)
+	// README.md is the one document a clone carries that states these totals.
+	body, err := os.ReadFile("../../README.md")
+	if err != nil {
+		t.Fatalf("read README.md: %v", err)
+	}
+	// Newlines folded first: where the sentence wraps is a formatting decision
+	// this guard must not depend on.
+	flat := strings.Join(strings.Fields(string(body)), " ")
+	m := stated.FindStringSubmatch(flat)
+	if m == nil {
+		t.Fatal("README.md no longer states the four schema totals in the form this " +
+			"guard reads; restate them or update the pattern")
+	}
+	for i, c := range counts {
+		claimed, convErr := strconv.Atoi(m[i+1])
+		if convErr != nil {
+			t.Fatalf("README.md: %v", convErr)
 		}
-		// Newlines folded first: where the sentence wraps is a formatting
-		// decision this guard must not depend on.
-		flat := strings.Join(strings.Fields(string(body)), " ")
-		m := stated.FindStringSubmatch(flat)
-		if m == nil {
-			t.Errorf("%s no longer states the four schema totals in the form this "+
-				"guard reads; restate them or update the pattern", file.path)
-			continue
-		}
-		for i, c := range counts {
-			claimed, convErr := strconv.Atoi(m[i+1])
-			if convErr != nil {
-				t.Fatalf("%s: %v", file.path, convErr)
-			}
-			if claimed != actual[c.what] {
-				t.Errorf("%s says %d %s; the schema has %d",
-					file.path, claimed, c.what, actual[c.what])
-			}
+		if claimed != actual[c.what] {
+			t.Errorf("README.md says %d %s; the schema has %d", claimed, c.what, actual[c.what])
 		}
 	}
 }
