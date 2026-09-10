@@ -25,6 +25,16 @@ templ Header(p Page) {
 						>{ n.Name }</a>
 					}
 					<a class="ui-navitem goen-header__navitem--deal" href="/deals">{ i18n.T(ctx, i18n.KeyDeals) }</a>
+					// The back office is reached from the header HERE and not from the wide
+					// bar's action row, which is measured to have no room: at 1024 with the
+					// English catalogue names the bar already crushes the search field to
+					// 52px, and a 92px text button overflows the page by 72px. Making room
+					// is an app.css decision about what the wide bar drops first, not a
+					// markup one. Above 1024 this drawer is display:none and /account
+					// carries the entrance instead.
+					if IsStaff(ctx) {
+						<a class="ui-navitem" href="/admin">{ i18n.T(ctx, i18n.KeyBackOffice) }</a>
+					}
 					// i18n-exempt: a language's own name, shown in both locales on purpose.
 					@languageSwitch("goen-header__lang", "繁中", "EN")
 				</nav>
@@ -56,9 +66,21 @@ templ Header(p Page) {
 				<a class="ui-btn ui-btn--ghost ui-btn--icon" href="/account" aria-label={ i18n.T(ctx, i18n.KeyAccount) }>
 					@icons.User()
 				</a>
-				<a class="ui-btn ui-btn--ghost ui-btn--icon goen-header__action--wide" href="/account/wishlist" aria-label={ i18n.T(ctx, i18n.KeyWishlist) }>
-					@icons.Heart()
-				</a>
+				if IsStaff(ctx) {
+					// The wide slot, not a fourth button: at 1024 in English the
+					// action row already crushes the search field to 52px, and
+					// anything added there scrolls the page sideways. A staff
+					// member reaches the wishlist from /account; the back office
+					// is what they open all day, and below 1024 this slot is
+					// hidden and the drawer carries the entrance instead.
+					<a class="ui-btn ui-btn--ghost ui-btn--icon goen-header__action--wide" href="/admin" aria-label={ i18n.T(ctx, i18n.KeyBackOffice) }>
+						@icons.Lock()
+					</a>
+				} else {
+					<a class="ui-btn ui-btn--ghost ui-btn--icon goen-header__action--wide" href="/account/wishlist" aria-label={ i18n.T(ctx, i18n.KeyWishlist) }>
+						@icons.Heart()
+					</a>
+				}
 				@cartLink()
 			</div>
 		</div>

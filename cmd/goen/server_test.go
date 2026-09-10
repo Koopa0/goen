@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/assets"
+	"github.com/koopa0/goen/internal/account"
+	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -340,3 +342,49 @@ func (w *statusListWriter) WriteHeader(status int) {
 }
 
 func (w *statusListWriter) Write(p []byte) (int, error) { return len(p), nil }
+
+// TestOnlyAStaffMemberGetsTheBackOfficeEntrance holds the half the templates
+// cannot see: which requests the chrome is told about at all. The three answers
+// it has to keep apart are a customer (no door), a staff member on the
+// storefront (the door), and a staff member already inside the back office,
+// whose own adminNav row leads everywhere /admin goes.
+func TestOnlyAStaffMemberGetsTheBackOfficeEntrance(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		role string // "" is a signed-out visitor
+		path string
+		want bool
+	}{
+		{name: "signed out", path: "/", want: false},
+		{name: "customer", role: "customer", path: "/", want: false},
+		{name: "staff on the storefront", role: "staff", path: "/", want: true},
+		{name: "staff on a product page", role: "staff", path: "/p/aurora-slate-11", want: true},
+		{name: "admin on the account page", role: "admin", path: "/account", want: true},
+		{name: "staff inside the back office", role: "staff", path: "/admin/orders", want: false},
+		{name: "staff on an asset", role: "staff", path: "/static/js/goen.js", want: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var got bool
+			h := withStaffEntrance(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+				got = layouts.IsStaff(r.Context())
+			}))
+
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.path, http.NoBody)
+			if tt.role != "" {
+				req = req.WithContext(account.WithUser(req.Context(), account.User{
+					ID: "user-1", Email: "somebody@example.com", Role: tt.role,
+				}))
+			}
+			h.ServeHTTP(httptest.NewRecorder(), req)
+
+			if got != tt.want {
+				t.Errorf("layouts.IsStaff on %s as %q = %v, want %v",
+					tt.path, tt.role, got, tt.want)
+			}
+		})
+	}
+}

@@ -227,6 +227,12 @@ templ Account(p layouts.Page, v *AccountView) {
 					<span class="goen-account__navname">{ i18n.T(ctx, i18n.KeyWarrantyTitle) }</span>
 					<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyWarrantyHint) }</span>
 				</a>
+				if layouts.IsStaff(ctx) {
+					<a class="goen-account__navitem" href="/admin">
+						<span class="goen-account__navname">{ i18n.T(ctx, i18n.KeyBackOffice) }</span>
+						<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyBackOfficeHint) }</span>
+					</a>
+				}
 			</nav>
 			if v.HasCredit() {
 				<div class="ui-callout ui-callout--note goen-account__credit">

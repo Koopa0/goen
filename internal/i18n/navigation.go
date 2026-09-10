@@ -31,6 +31,17 @@ var (
 
 	KeyBackToShop = key("nav.back", Message{ZhHant: "回到商店", En: "Back to the shop"})
 
+	// The mirror of KeyBackToShop: that one leaves the back office, this one
+	// enters it. Two keys rather than one reused label, because the storefront's
+	// entrance and the admin chrome's own eyebrow are different sentences that
+	// happen to share a word today.
+	KeyBackOffice = key("nav.admin", Message{ZhHant: "後台管理", En: "Back office"})
+
+	KeyBackOfficeHint = key("nav.admin.hint", Message{
+		ZhHant: "訂單、庫存與商品都在這裡管理",
+		En:     "Orders, stock and the catalogue are managed here",
+	})
+
 	KeyFooterHelp = key("footer.help", Message{ZhHant: "顧客服務", En: "Customer service"})
 
 	KeyFooterPolicies = key("footer.policies", Message{ZhHant: "政策", En: "Policies"})
@@ -95,4 +106,43 @@ var (
 	KeyAdminQueueShipping = key("admin.queue.shipping", Message{ZhHant: "運費", En: "Delivery fees"})
 
 	KeyAdminQueueStaff = key("admin.queue.staff", Message{ZhHant: "人員", En: "Staff"})
+)
+
+// The back office is 23 screens, and flat they are 23 labels a staff member
+// reads to find one. These five name the QUESTION a group of screens answers,
+// which is what a reader scans by — never the table each one happens to write.
+var (
+	// Orders, returns, questions, contact messages, reviews: somebody outside
+	// the shop is waiting for an answer.
+	KeyAdminNavQueues = key("admin.nav.group.queues", Message{ZhHant: "待辦", En: "Queues"})
+
+	// Products, stock, brands and categories, campaigns, coupons: what the shop
+	// sells and what it costs.
+	KeyAdminNavCatalogue = key("admin.nav.group.catalogue", Message{
+		ZhHant: "商品管理",
+		En:     "Catalogue",
+	})
+
+	// Customers, credit, membership tiers, warranty, newsletter: one person and
+	// what the shop owes them. Deliberately not "Customers": that is a SCREEN
+	// inside this group, and a group sharing a name with one of its members
+	// tells a reader nothing about which of the two they are looking at.
+	KeyAdminNavCustomers = key("admin.nav.group.customers", Message{
+		ZhHant: "顧客關係",
+		En:     "Customer care",
+	})
+
+	// Delivery fees, home page, FAQ, staff: what the shop itself is configured
+	// to be, rather than anything a customer did.
+	KeyAdminNavShop = key("admin.nav.group.shop", Message{
+		ZhHant: "店務設定",
+		En:     "Shop settings",
+	})
+
+	// Reports, activity log, background work: what already happened, and
+	// whether it worked.
+	KeyAdminNavRecords = key("admin.nav.group.records", Message{
+		ZhHant: "紀錄與狀態",
+		En:     "Records and status",
+	})
 )

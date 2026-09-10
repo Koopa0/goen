@@ -361,6 +361,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	var handler http.Handler = mux
 	handler = withBanner(handler, home.NewStore(pool), log, secureCookies)
 	handler = withTopNav(handler, home.NewStore(pool), log)
+	handler = withStaffEntrance(handler)
 	handler = onlyVisitorPaths(func(next http.Handler) http.Handler {
 		return withLocale(next, secureCookies)
 	}, handler)
@@ -612,6 +613,29 @@ func withTopNav(next http.Handler, store *home.Store, log *slog.Logger) http.Han
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(layouts.WithTopNav(r.Context(), items)))
+	})
+}
+
+// withStaffEntrance tells the chrome whether this visitor may reach the back
+// office. Without it the only way in is typing the URL: a signed-in staff
+// member saw no link to /admin from anywhere on the site.
+//
+// It reads the user Authenticate has already put on the context, and it is
+// middleware rather than a Page field for the reason the cart badge is — a
+// chrome fact each handler has to remember to fill is one that goes unfilled.
+//
+// navPath is the predicate because it asks exactly the right question: those
+// are the paths whose header carries the storefront's own navigation. /admin is
+// not one of them, so the back office does not offer an entrance to itself
+// beside the adminNav row that already leads there.
+func withStaffEntrance(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u, ok := account.FromContext(r.Context())
+		if !ok || !u.IsStaff() || !navPath(r.URL.Path) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(layouts.WithStaff(r.Context(), true)))
 	})
 }
 

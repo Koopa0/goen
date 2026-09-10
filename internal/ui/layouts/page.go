@@ -42,6 +42,25 @@ func TopNavFrom(ctx context.Context) []NavItem {
 	return items
 }
 
+type staffKey struct{}
+
+// WithStaff records that this request's visitor may reach the back office, so
+// the chrome can offer the entrance. Middleware sets it for the reason the cart
+// badge and the category row are set there: a chrome fact each handler has to
+// remember to fill is a fact that goes unfilled, which is what left
+// Page.CartCount reading 0 for every visitor with a full cart.
+func WithStaff(ctx context.Context, staff bool) context.Context {
+	return context.WithValue(ctx, staffKey{}, staff)
+}
+
+// IsStaff reports whether the chrome should offer the back office. It is false
+// outside the middleware, so a customer — and any surface rendered without it —
+// is never shown a door that answers 404.
+func IsStaff(ctx context.Context) bool {
+	staff, ok := ctx.Value(staffKey{}).(bool)
+	return ok && staff
+}
+
 // footerLink is one entry in a footer link column.
 type footerLink struct {
 	Key  i18n.Key

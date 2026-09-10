@@ -2290,9 +2290,15 @@ a:hover {
   padding: 16px 16px 40px;
 }
 
+/* The back office is 23 screens. Listed flat they are 23 labels a staff member
+   reads through to find one; grouped by the question each answers they are
+   five, and only the group holding the current screen is open. The disclosure
+   is a native <details>, so it survives the enhancement file being deleted, and
+   the server decides which one is open — nothing moves after the first byte. */
 .goen-admin__nav {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 4px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--border);
@@ -2303,6 +2309,66 @@ a:hover {
   min-height: 44px;
   display: inline-flex;
   align-items: center;
+}
+
+.goen-admin__navgroup {
+  min-width: 0;
+}
+
+/* Open, a group is a cluster on the same line as its own name, so one band of
+   nav holds five group names and the five screens of whichever is open. It
+   wraps rather than scrolls: on a stockroom phone the cluster falls under its
+   name, and no width makes the page scroll sideways. */
+.goen-admin__navgroup[open] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 2px;
+  background: var(--elevated);
+  border: 1px solid var(--border-faint);
+  border-radius: var(--r-md);
+}
+
+.goen-admin__navitems {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* The summary is a nav item that opens a group, so it wears the design
+   system's nav-item class and adds only what a summary needs: the pointer, and
+   the UA triangle removed — it sits outside the chip and cannot take its
+   colour. */
+.goen-admin__navlabel {
+  gap: 6px;
+  cursor: pointer;
+  color: var(--fg);
+  font-weight: var(--fw-medium);
+  list-style: none;
+}
+
+.goen-admin__navlabel::-webkit-details-marker {
+  display: none;
+}
+
+/* A caret of our own, and it is DECORATION: which state the group is in is
+   announced by <details> itself, so this must not be readable text. */
+.goen-admin__navlabel::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid var(--fg-subtle);
+  border-bottom: 1.5px solid var(--fg-subtle);
+  transform: rotate(45deg) translate(-1px, -1px);
+  transition: transform var(--dur-base) var(--ease-standard);
+}
+
+.goen-admin__navgroup[open] > .goen-admin__navlabel::after {
+  transform: rotate(-135deg) translate(-1px, -1px);
 }
 
 .goen-admin__stats {
@@ -2481,8 +2547,13 @@ a:hover {
   min-height: 44px;
 }
 
+/* The order queue's tabs and the nav's current screen carry the same weight,
+   and they say it differently on purpose: a tab is a filter that is selected,
+   and a nav item is the page you are reading. The second is an ARIA fact the
+   design system already styles — no `is-active` class beside it, because a
+   class and an attribute stating one thing are two places to disagree. */
 .goen-admin__tabs .is-active,
-.goen-admin__nav .is-active {
+.goen-admin__nav [aria-current="page"] {
   background: var(--accent-faint);
   border-color: var(--accent);
   color: var(--fg);
