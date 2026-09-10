@@ -70,6 +70,12 @@ questions only a browser can answer.
 Run the gate unpiped and report its exit status. A pipe reports the status of
 its last command, which has read a red gate as green here before.
 
+`main` is protected by `.github/branch-protection.json`: no force-push, no
+deletion, a pull request with one review, and all three CI jobs green. GitHub
+refuses to enforce a ruleset on a private free-plan repository, so until the
+repository is public that file is the policy and the maintainer applies it by
+hand.
+
 ## Change it
 
 - Package by feature under `internal/<feature>/`: types, handlers, store,
