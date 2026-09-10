@@ -29,6 +29,7 @@ const (
 	webhookUnattributedCapture   webhookUnreconciledCause = "unattributed_capture"
 	webhookCancelledOrderCapture webhookUnreconciledCause = "cancelled_order_capture"
 	webhookRefusedCapture        webhookUnreconciledCause = "refused_capture"
+	webhookUnsettledSession      webhookUnreconciledCause = "unsettled_session"
 )
 
 func webhookUnreconciled(cause webhookUnreconciledCause, detail string) string {
@@ -408,6 +409,14 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 	case isAbandoned:
 		apply = func(ctx context.Context, tx *webhookTx) error {
 			return tx.CancelSession(ctx)
+		}
+	case isUnsettled:
+		apply = func(ctx context.Context, tx *webhookTx) error {
+			// Money is still in flight. Retries cannot settle it, and a 5xx
+			// would disable the endpoint. The stock hold cannot outlive this
+			// window, so the claim must carry a durable alarm.
+			return tx.Unreconciled(ctx, webhookUnreconciled(webhookUnsettledSession,
+				"a delayed payment method completed a checkout — goen's stock hold cannot outlive it"))
 		}
 	case isCapture:
 		apply = func(ctx context.Context, tx *webhookTx) error {

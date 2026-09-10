@@ -1028,10 +1028,11 @@ SELECT
        AND NOT EXISTS (SELECT 1 FROM hero_slides h WHERE h.image_key = m.digest)
        AND m.created_at < now() - interval '24 hours')::bigint AS unreferenced_media,
     -- Events accepted and NOT acted on: a known Stripe object this binary could
-    -- not read, paid money with no local payment row, or paid money for an order
-    -- already cancelled. Each is still marked processed because retrying the
-    -- same event changes nothing; the durable reason makes the human action
-    -- countable instead of leaving only a log line nobody reads.
+    -- not read, paid money with no local payment row, paid money for an order
+    -- already cancelled, or a completed checkout whose money is still in
+    -- flight. Each is still marked processed because retrying the same event
+    -- changes nothing; the durable reason makes the human action countable
+    -- instead of leaving only a log line nobody reads.
     ((SELECT count(*) FROM payment_webhook_events
       WHERE unreconciled IS NOT NULL AND reconciled_at IS NULL)
      +
@@ -1055,9 +1056,10 @@ ORDER BY received_at
 LIMIT 50;
 
 -- Provider-complete payment identities without an outstanding event alarm.
--- These cover the window before a webhook arrives and understood-but-unpaid
--- completion events. They are excluded when an event alarm already names the
--- same work, so health shows one resolution door rather than two competing ones.
+-- These cover the window before a webhook arrives. Understood-but-unpaid
+-- completion is an event alarm, not this list. They are excluded when an
+-- event alarm already names the same work, so health shows one resolution
+-- door rather than two competing ones.
 -- name: UnreconciledCompletePayments :many
 SELECT o.order_number, p.provider_ref, p.created_at,
        coalesce(NOT EXISTS (
