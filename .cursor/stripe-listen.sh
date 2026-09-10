@@ -33,11 +33,12 @@ sk_test_* | rk_test_*)
 "")
 	echo "stripe-listen: idle — no GOEN_STRIPE_API_KEY set."
 	echo "stripe-listen: add a Stripe TEST-mode key (and GOEN_STRIPE_WEBHOOK_SECRET) as secrets to forward events."
-	exec sleep infinity
+	# Stay alive but detectable (no exec) so start.sh does not relaunch a copy.
+	while true; do sleep 86400; done
 	;;
 *)
 	echo "stripe-listen: refusing to run — GOEN_STRIPE_API_KEY is not a TEST-mode key (sk_test_/rk_test_)." >&2
 	echo "stripe-listen: a development environment must never forward against a live Stripe account." >&2
-	exec sleep infinity
+	while true; do sleep 86400; done
 	;;
 esac

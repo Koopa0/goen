@@ -63,4 +63,40 @@ else
 	echo "start: catalogue already present (${catalogue_count} products); skipping seed"
 fi
 
-echo "start: goen services ready on 127.0.0.1:5433 (db) — run the server terminal for http://127.0.0.1:9700"
+# ---------------------------------------------------------------------------
+# 3. Storefront server, detached so it outlives this script and serves on
+#    127.0.0.1:9700 for the whole session. make run regenerates templ and runs
+#    the binary with development cookie settings.
+# ---------------------------------------------------------------------------
+if curl -sf -o /dev/null http://127.0.0.1:9700/healthz 2>/dev/null; then
+	echo "start: storefront already serving on 127.0.0.1:9700"
+else
+	echo "start: launching storefront server"
+	setsid make run >/tmp/goen-server.log 2>&1 </dev/null &
+	for _ in $(seq 1 60); do
+		if curl -sf -o /dev/null http://127.0.0.1:9700/healthz 2>/dev/null; then
+			break
+		fi
+		sleep 1
+	done
+	if curl -sf -o /dev/null http://127.0.0.1:9700/healthz 2>/dev/null; then
+		echo "start: storefront ready on http://127.0.0.1:9700"
+	else
+		echo "start: storefront did not answer /healthz in time; see /tmp/goen-server.log" >&2
+		tail -n 20 /tmp/goen-server.log >&2 || true
+		exit 1
+	fi
+fi
+
+# ---------------------------------------------------------------------------
+# 4. Stripe webhook forwarding, detached. The script idles harmlessly unless a
+#    TEST-mode GOEN_STRIPE_API_KEY is present, so it is always safe to launch.
+# ---------------------------------------------------------------------------
+if pgrep -f 'stripe-listen.sh' >/dev/null 2>&1 || pgrep -x stripe >/dev/null 2>&1; then
+	echo "start: stripe webhook listener already running"
+else
+	setsid bash .cursor/stripe-listen.sh >/tmp/stripe-listen.log 2>&1 </dev/null &
+	echo "start: stripe webhook listener started (idle unless a Stripe test key is set)"
+fi
+
+echo "start: goen ready — storefront http://127.0.0.1:9700, database 127.0.0.1:5433"
