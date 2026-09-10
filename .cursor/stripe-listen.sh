@@ -32,7 +32,8 @@ sk_test_* | rk_test_* | rkcs_test_*)
 	;;
 "")
 	echo "stripe-listen: idle — no GOEN_STRIPE_API_KEY set."
-	echo "stripe-listen: add a Stripe TEST-mode key (and GOEN_STRIPE_WEBHOOK_SECRET) as secrets to forward events."
+	echo "stripe-listen: run 'bash .cursor/stripe-sandbox.sh' to turn on a local test sandbox,"
+	echo "stripe-listen: or add your own Stripe TEST-mode key + GOEN_STRIPE_WEBHOOK_SECRET as secrets."
 	# Stay alive but detectable (no exec) so start.sh does not relaunch a copy.
 	while true; do sleep 86400; done
 	;;
