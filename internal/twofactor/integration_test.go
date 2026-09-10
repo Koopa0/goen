@@ -564,7 +564,9 @@ func postConfirm(
 		http.MethodPost, "/admin/verify/confirm", strings.NewReader("code="+code))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	if token != "" {
-		req.AddCookie(&http.Cookie{Name: "goen_session", Value: token})
+		req.AddCookie(&http.Cookie{ //nolint:gosec // G124: request cookie, not a Set-Cookie
+			Name: "goen_session", Value: token,
+		})
 	}
 	out := httptest.NewRecorder()
 	h.Confirm(out, req)
