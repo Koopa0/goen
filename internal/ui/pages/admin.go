@@ -59,7 +59,7 @@ func (v AdminVariant) Low() bool { return v.Stock <= v.Safety }
 // AdminOrderRow is one row of the order queue.
 type AdminOrderRow struct {
 	Number     string
-	Status     string
+	Status     FulfillmentStatus
 	StatusText string
 	PlacedAt   string
 	Recipient  string
@@ -72,13 +72,13 @@ func (o AdminOrderRow) Total() string { return twd(o.TotalCents) }
 
 // AdminTransition is one legal next state for an order.
 type AdminTransition struct {
-	Value string
+	Value FulfillmentStatus
 	Label string
 }
 
 // AdminStatusTab is one filter in the order queue.
 type AdminStatusTab struct {
-	Value    string
+	Value    FulfillmentStatus
 	Label    string
 	Count    int64
 	Selected bool
@@ -123,7 +123,7 @@ func (v AdminDashboardView) HasLow() bool { return len(v.Low) > 0 }
 type AdminOrdersView struct {
 	Term     string
 	Searched bool
-	Status   string
+	Status   FulfillmentStatus
 	Orders   []AdminOrderRow
 	Tabs     []AdminStatusTab
 	Notice   string
@@ -152,7 +152,7 @@ func (o AdminOrderRow) RecipientText(ctx context.Context) string {
 // AdminOrderView is one order in the back office.
 type AdminOrderView struct {
 	Number           string
-	Status           string
+	Status           FulfillmentStatus
 	StatusText       string
 	PlacedAt         string
 	ShippingName     string

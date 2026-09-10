@@ -323,7 +323,7 @@ templ AdminOrders(p layouts.Page, v AdminOrdersView) {
 				for _, t := range v.Tabs {
 					<a
 						class={ "ui-filter", templ.KV("is-active", t.Selected) }
-						href={ templ.URL("/admin/orders?status=" + t.Value) }
+						href={ templ.URL("/admin/orders?status=" + string(t.Value)) }
 						if t.Selected {
 							aria-current="true"
 						}
@@ -614,7 +614,7 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 								<label class="ui-label" for="next-status">{ i18n.T(ctx, i18n.KeyAdminQueueNextStatus) }</label>
 								<select class="ui-select" id="next-status" name="status">
 									for _, n := range v.Next {
-										<option value={ n.Value }>{ n.Label }</option>
+										<option value={ string(n.Value) }>{ n.Label }</option>
 									}
 								</select>
 							</div>

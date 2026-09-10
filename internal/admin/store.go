@@ -98,7 +98,7 @@ func (s *Store) Dashboard(ctx context.Context) (pages.AdminDashboardView, error)
 }
 
 // Orders reads the order queue.
-func (s *Store) Orders(ctx context.Context, status, term string) (pages.AdminOrdersView, error) {
+func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term string) (pages.AdminOrdersView, error) {
 	term = strings.TrimSpace(term)
 	searched := utf8.RuneCountInString(term) >= MinSearchRunes
 	var rows []db.AdminOrdersRow
@@ -123,7 +123,7 @@ func (s *Store) Orders(ctx context.Context, status, term string) (pages.AdminOrd
 			}
 		}
 	} else {
-		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{Status: status, RowLimit: PageSize})
+		rows, err = s.q.AdminOrders(ctx, db.AdminOrdersParams{Status: string(status), RowLimit: PageSize})
 	}
 	if err != nil {
 		return pages.AdminOrdersView{}, fmt.Errorf("read orders: %w", err)
@@ -134,10 +134,10 @@ func (s *Store) Orders(ctx context.Context, status, term string) (pages.AdminOrd
 	}
 
 	view := pages.AdminOrdersView{Status: status, Term: term, Searched: searched}
-	countsByStatus := make(map[string]int64, len(counts))
+	countsByStatus := make(map[pages.FulfillmentStatus]int64, len(counts))
 	var total int64
 	for _, c := range counts {
-		countsByStatus[c.FulfillmentStatus] = c.N
+		countsByStatus[pages.FulfillmentStatus(c.FulfillmentStatus)] = c.N
 		total += c.N
 	}
 	view.Tabs = make([]pages.AdminStatusTab, 0, len(statuses)+1)
@@ -152,10 +152,11 @@ func (s *Store) Orders(ctx context.Context, status, term string) (pages.AdminOrd
 	}
 	for i := range rows {
 		o := &rows[i]
+		fulfillment := pages.FulfillmentStatus(o.FulfillmentStatus)
 		view.Orders = append(view.Orders, pages.AdminOrderRow{
 			Number:     o.OrderNumber,
-			Status:     o.FulfillmentStatus,
-			StatusText: FundedStatusLabel(ctx, o.FulfillmentStatus, o.Committed, o.OwedCents),
+			Status:     fulfillment,
+			StatusText: FundedStatusLabel(ctx, fulfillment, o.Committed, o.OwedCents),
 			PlacedAt:   shoptime.Minute(o.PlacedAt),
 			Recipient:  o.Recipient,
 			TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
@@ -180,9 +181,10 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 		return pages.AdminOrderView{}, fmt.Errorf("read order lines: %w", err)
 	}
 
+	fulfillment := pages.FulfillmentStatus(o.FulfillmentStatus)
 	view := pages.AdminOrderView{
-		Number: o.OrderNumber, Status: o.FulfillmentStatus,
-		StatusText:    FundedStatusLabel(ctx, o.FulfillmentStatus, o.Committed, o.OwedCents),
+		Number: o.OrderNumber, Status: fulfillment,
+		StatusText:    FundedStatusLabel(ctx, fulfillment, o.Committed, o.OwedCents),
 		PlacedAt:      shoptime.Minute(o.PlacedAt),
 		ShippingName:  o.ShippingMethodName,
 		SubtotalCents: o.SubtotalCents, ShippingCents: o.ShippingCents,
@@ -202,8 +204,8 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 		},
 		// UpdateOrderDelivery's WHERE clause is the authority; this only decides
 		// whether to offer the form.
-		Correctable: o.FulfillmentStatus != "shipped" &&
-			o.FulfillmentStatus != "delivered" && o.FulfillmentStatus != "completed",
+		Correctable: fulfillment != pages.FulfillmentShipped &&
+			fulfillment != pages.FulfillmentDelivered && fulfillment != pages.FulfillmentCompleted,
 		PickupDestination: o.PickupStoreCode != "",
 		PickupBrands:      pages.PickupBrandChoices(),
 		CustomerNote:      o.CustomerNote.String,
@@ -214,14 +216,14 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 		Committed:         o.Committed,
 	}
 
-	if shipErr := s.fillShippable(ctx, &view, o.ID, o.FulfillmentStatus); shipErr != nil {
+	if shipErr := s.fillShippable(ctx, &view, o.ID, fulfillment); shipErr != nil {
 		return pages.AdminOrderView{}, shipErr
 	}
 
 	if invErr := s.fillInvoices(ctx, &view, number); invErr != nil {
 		return pages.AdminOrderView{}, invErr
 	}
-	for _, n := range NextStatuses(o.FulfillmentStatus) {
+	for _, n := range NextStatuses(fulfillment) {
 		view.Next = append(view.Next, pages.AdminTransition{Value: n, Label: StatusLabel(ctx, n)})
 	}
 	for _, l := range lines {
@@ -263,13 +265,13 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 //
 // The Checkout Sessions returned are a CANCELLATION's, for the caller to close
 // at Stripe once this has committed; every other status returns none.
-func (s *Store) Advance(ctx context.Context, number, status string, actor uuid.NullUUID) ([]string, error) {
-	if ParseStatus(status) == "" {
+func (s *Store) Advance(ctx context.Context, number string, status pages.FulfillmentStatus, actor uuid.NullUUID) ([]string, error) {
+	if !status.Known() {
 		return nil, ErrRefused
 	}
 	// Ship is the only door to 'shipped', because a dispatch also records the
 	// carrier and settles the held stock.
-	if status == "shipped" {
+	if status == pages.FulfillmentShipped {
 		return nil, ErrRefused
 	}
 
@@ -285,7 +287,7 @@ func (s *Store) Advance(ctx context.Context, number, status string, actor uuid.N
 		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	if advanceErr := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
-		OrderNumber: number, Status: status,
+		OrderNumber: number, Status: string(status),
 	}); advanceErr != nil {
 		return nil, fmt.Errorf("%w: %w", ErrRefused, advanceErr)
 	}
@@ -294,7 +296,7 @@ func (s *Store) Advance(ctx context.Context, number, status string, actor uuid.N
 	// transition won, that release waits behind us. A pre-lock snapshot can go
 	// stale and make an otherwise valid cancellation roll back.
 	var held []uuid.UUID
-	if status == "cancelled" {
+	if status == pages.FulfillmentCancelled {
 		if held, err = q.HeldReservationsForOrder(ctx, number); err != nil {
 			return nil, fmt.Errorf("read holds of %s: %w", number, err)
 		}
@@ -311,14 +313,14 @@ func (s *Store) Advance(ctx context.Context, number, status string, actor uuid.N
 	}
 	if err := auditIn(ctx, q, Event{
 		Action: actionAdvanceOrder, Table: "orders", ID: nullableID(row.ID),
-		Before: nil, After: map[string]any{"number": number, "status": status},
+		Before: nil, After: map[string]any{"number": number, "status": string(status)},
 	}); err != nil {
 		return nil, err
 	}
 	// Read inside the transaction so the set handed back is the one this
 	// transaction saw, not what a later read finds after a webhook moved a row.
 	var sessions []string
-	if status == "cancelled" {
+	if status == pages.FulfillmentCancelled {
 		var sessErr error
 		if sessions, sessErr = q.OpenSessionsForOrder(ctx, number); sessErr != nil {
 			return nil, fmt.Errorf("read open checkout sessions of %s: %w", number, sessErr)
@@ -333,7 +335,7 @@ func (s *Store) Advance(ctx context.Context, number, status string, actor uuid.N
 
 // statusEffect is one status move and what it has to reach.
 type statusEffect struct {
-	status  string
+	status  pages.FulfillmentStatus
 	number  string
 	orderID uuid.UUID
 	// held is the order's live reservations, read after the status UPDATE took
@@ -351,13 +353,13 @@ func applyStatusEffects(ctx context.Context, q *db.Queries, e statusEffect) erro
 		}
 	}
 	switch e.status {
-	case "cancelled":
+	case pages.FulfillmentCancelled:
 		// The customer's own cancellation does this too; the back office
 		// cancelling on their behalf must not be the path that keeps their credit.
 		if _, err := q.ReverseOrderCredit(ctx, e.orderID); err != nil {
 			return fmt.Errorf("return store credit spent on %s: %w", e.number, err)
 		}
-	case "delivered", "completed":
+	case pages.FulfillmentDelivered, pages.FulfillmentCompleted:
 		// BOTH transitions that end a delivery: shipped -> completed directly is
 		// the only honest move for convenience-store pickup, and stamping only on
 		// 'delivered' would leave that channel's parcels unstamped, so
@@ -372,20 +374,20 @@ func applyStatusEffects(ctx context.Context, q *db.Queries, e statusEffect) erro
 
 // eventKindFor maps a fulfilment status to its order_events kind. The two
 // vocabularies overlap without being the same list.
-func eventKindFor(status string) string {
+func eventKindFor(status pages.FulfillmentStatus) string {
 	switch status {
-	case "picking":
+	case pages.FulfillmentPicking:
 		return "picking"
-	case "shipped":
+	case pages.FulfillmentShipped:
 		return "shipped"
-	case "delivered":
+	case pages.FulfillmentDelivered:
 		return "delivered"
-	case "completed":
+	case pages.FulfillmentCompleted:
 		return "completed"
-	case "cancelled":
+	case pages.FulfillmentCancelled:
 		return "cancelled"
 	default:
-		panic("admin: no order_events kind for fulfilment status " + status)
+		panic("admin: no order_events kind for fulfilment status " + string(status))
 	}
 }
 
@@ -426,7 +428,7 @@ func (s *Store) fillInvoices(ctx context.Context, view *pages.AdminOrderView, nu
 // follows from what is OUTSTANDING and not from the status, which is what makes
 // a second parcel possible.
 func (s *Store) fillShippable(
-	ctx context.Context, view *pages.AdminOrderView, orderID uuid.UUID, status string,
+	ctx context.Context, view *pages.AdminOrderView, orderID uuid.UUID, status pages.FulfillmentStatus,
 ) error {
 	// DELIVERED must stay in this set. orders_legal_transition permits
 	// shipped -> delivered while a line is still outstanding, deliberately:
@@ -434,7 +436,8 @@ func (s *Store) fillShippable(
 	// the order wedges — orders_finished_when_shipped refuses 'completed' and the
 	// remaining line's hold is stranded, since release_reservation refuses a
 	// committed order and ExpiredReservations excludes it.
-	if status != "picking" && status != "shipped" && status != "delivered" {
+	if status != pages.FulfillmentPicking && status != pages.FulfillmentShipped &&
+		status != pages.FulfillmentDelivered {
 		return nil
 	}
 	rows, err := s.q.ShippableLines(ctx, orderID)
@@ -488,8 +491,9 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 	// A parcel is only recorded for an order that has entered fulfilment. This is
 	// the same set fillShippable renders the form for; the trigger
 	// shipment_order_in_fulfilment is the authority, and this is the sentence.
-	switch row.FulfillmentStatus {
-	case "picking", "shipped", "delivered":
+	fulfillment := pages.FulfillmentStatus(row.FulfillmentStatus)
+	switch fulfillment {
+	case pages.FulfillmentPicking, pages.FulfillmentShipped, pages.FulfillmentDelivered:
 	default:
 		return fmt.Errorf("%w: order %s is %s and has not been picked",
 			ErrRefused, number, row.FulfillmentStatus)
@@ -508,9 +512,9 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 	// Only picking advances to shipped. A second parcel leaves the order where it
 	// already is; the status check above and shipment_order_in_fulfilment refuse
 	// an unpicked order, because this branch never reaches the transition trigger.
-	if row.FulfillmentStatus == "picking" {
+	if fulfillment == pages.FulfillmentPicking {
 		if advErr := q.AdvanceOrder(ctx, db.AdvanceOrderParams{
-			OrderNumber: number, Status: "shipped",
+			OrderNumber: number, Status: string(pages.FulfillmentShipped),
 		}); advErr != nil {
 			return fmt.Errorf("%w: %w", ErrRefused, advErr)
 		}
