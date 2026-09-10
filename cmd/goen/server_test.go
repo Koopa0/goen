@@ -19,7 +19,7 @@ import (
 )
 
 func TestNotifyRouteIsGuardedPerIP(t *testing.T) {
-	src, err := os.ReadFile("server.go") //nolint:gosec // G304: this package's own file
+	src, err := os.ReadFile("server.go")
 	if err != nil {
 		t.Fatal(err)
 	}
