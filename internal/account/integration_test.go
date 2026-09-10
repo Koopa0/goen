@@ -1938,6 +1938,44 @@ func TestAnExpiredResetTokenIsRefused(t *testing.T) {
 	}
 }
 
+func TestAReplacementResetLinkInvalidatesTheEarlierToken(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	email := "replace-reset-" + uuid.NewString() + "@example.com"
+	u := register(t, s, email)
+
+	first := beginReset(t, s, email)
+	second := beginReset(t, s, email)
+	if first == second {
+		t.Fatal("two requests produced the same token")
+	}
+
+	var live int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM password_reset_tokens
+		WHERE user_id = $1 AND used_at IS NULL`,
+		uuid.MustParse(u.ID)).Scan(&live); err != nil {
+		t.Fatalf("count unused reset tokens: %v", err)
+	}
+	if live != 1 {
+		t.Fatalf("unused reset tokens after a replacement = %d, want 1", live)
+	}
+
+	const attempted = "password the replaced link must not set"
+	if err := s.CompleteReset(ctx, first, attempted); !errors.Is(err, account.ErrResetInvalid) {
+		t.Errorf("the replaced link still works: %v", err)
+	}
+	if _, err := s.Authenticate(ctx, email, attempted); err == nil {
+		t.Error("the replaced link changed the password anyway")
+	}
+	if err := s.CompleteReset(ctx, second, "the newly chosen password"); err != nil {
+		t.Fatalf("the latest link failed: %v", err)
+	}
+	if _, err := s.Authenticate(ctx, email, "the newly chosen password"); err != nil {
+		t.Errorf("the new password does not work: %v", err)
+	}
+}
+
 func TestAResetInvalidatesSiblingTokensAndSessions(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
@@ -1968,19 +2006,18 @@ func TestAResetInvalidatesSiblingTokensAndSessions(t *testing.T) {
 	}
 }
 
-// TestConcurrentSiblingResetsSerializeOnTheAccount holds the user row until
-// both reset requests have reached it. Only one token may change the password;
-// that winner invalidates the sibling before the second request can spend it.
-func TestConcurrentSiblingResetsSerializeOnTheAccount(t *testing.T) {
+// TestConcurrentResetIssuanceLeavesOneLiveToken holds the account until both
+// replacement requests have reached it. They serialize on the user row so
+// exactly one unused token remains, and only that token can complete.
+func TestConcurrentResetIssuanceLeavesOneLiveToken(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
-	u := register(t, s, "sibling-race-"+uuid.NewString()+"@example.com")
-	first := beginReset(t, s, u.Email)
-	second := beginReset(t, s, u.Email)
+	email := "replace-race-" + uuid.NewString() + "@example.com"
+	u := register(t, s, email)
 
 	blocker, err := pool.Begin(ctx)
 	if err != nil {
-		t.Fatalf("begin reset blocker: %v", err)
+		t.Fatalf("begin reset-issue blocker: %v", err)
 	}
 	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
 	if _, err := blocker.Exec(ctx,
@@ -1989,33 +2026,72 @@ func TestConcurrentSiblingResetsSerializeOnTheAccount(t *testing.T) {
 	}
 
 	suffix := uuid.NewString()[:8]
-	firstName, secondName := "sibling-reset-a-"+suffix, "sibling-reset-b-"+suffix
+	firstName, secondName := "replace-reset-a-"+suffix, "replace-reset-b-"+suffix
 	firstStore := account.NewStore(accountStorePool(t, firstName))
 	secondStore := account.NewStore(accountStorePool(t, secondName))
 	firstDone, secondDone := make(chan error, 1), make(chan error, 1)
-	const firstPassword = "first sibling reset password"
-	const secondPassword = "second sibling reset password"
-	go func() { firstDone <- firstStore.CompleteReset(context.WithoutCancel(ctx), first, firstPassword) }()
-	go func() { secondDone <- secondStore.CompleteReset(context.WithoutCancel(ctx), second, secondPassword) }()
+	go func() { firstDone <- account.BeginReset(context.WithoutCancel(ctx), firstStore, email) }()
+	go func() { secondDone <- account.BeginReset(context.WithoutCancel(ctx), secondStore, email) }()
 	waitForAccountLock(t, firstName, firstDone)
 	waitForAccountLock(t, secondName, secondDone)
 
 	if err := blocker.Commit(ctx); err != nil {
 		t.Fatalf("release reset account: %v", err)
 	}
-	firstErr, secondErr := operationResult(t, firstDone), operationResult(t, secondDone)
-	oneSucceededAndOneWasInvalid := firstErr == nil && errors.Is(secondErr, account.ErrResetInvalid) ||
-		secondErr == nil && errors.Is(firstErr, account.ErrResetInvalid)
-	if !oneSucceededAndOneWasInvalid {
-		t.Fatalf("sibling resets = %v / %v, want one success and one invalid token",
-			firstErr, secondErr)
+	if err := operationResult(t, firstDone); err != nil {
+		t.Fatalf("first replacement issue: %v", err)
 	}
-	winnerPassword := firstPassword
-	if secondErr == nil {
-		winnerPassword = secondPassword
+	if err := operationResult(t, secondDone); err != nil {
+		t.Fatalf("second replacement issue: %v", err)
 	}
-	if _, err := s.Authenticate(ctx, u.Email, winnerPassword); err != nil {
-		t.Errorf("winning reset password does not authenticate: %v", err)
+
+	var live int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM password_reset_tokens
+		WHERE user_id = $1 AND used_at IS NULL`,
+		uuid.MustParse(u.ID)).Scan(&live); err != nil {
+		t.Fatalf("count unused reset tokens: %v", err)
+	}
+	if live != 1 {
+		t.Fatalf("unused reset tokens after concurrent issuance = %d, want 1", live)
+	}
+
+	rows, err := pool.Query(ctx, `
+		SELECT payload->>'token'
+		FROM outbox_messages
+		WHERE topic = $1 AND lower(payload->>'email') = lower($2)
+		ORDER BY id`, outbox.TopicPasswordReset, email)
+	if err != nil {
+		t.Fatalf("list issued reset tokens: %v", err)
+	}
+	defer rows.Close()
+	var issued []string
+	for rows.Next() {
+		var token string
+		if err := rows.Scan(&token); err != nil {
+			t.Fatalf("read issued reset token: %v", err)
+		}
+		issued = append(issued, token)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate issued reset tokens: %v", err)
+	}
+	if len(issued) != 2 {
+		t.Fatalf("queued reset tokens = %d, want 2", len(issued))
+	}
+
+	var accepted int
+	for i, token := range issued {
+		err := s.CompleteReset(ctx, token, fmt.Sprintf("concurrent reset password %d", i))
+		switch {
+		case err == nil:
+			accepted++
+		case !errors.Is(err, account.ErrResetInvalid):
+			t.Fatalf("complete issued token %d: %v", i, err)
+		}
+	}
+	if accepted != 1 {
+		t.Fatalf("live tokens that completed = %d, want 1", accepted)
 	}
 }
 

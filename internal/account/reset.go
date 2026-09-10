@@ -29,8 +29,10 @@ var ErrResetInvalid = errors.New("account: that reset link is not usable")
 var ErrInvalidPassword = errors.New("account: password refused")
 
 // beginReset atomically issues a reset token and queues its message when the
-// address belongs to an account. An unknown address is the same nil result: the
-// caller must not become an account-existence oracle.
+// address belongs to an account. Earlier unused tokens die in the same
+// transaction, so a replacement link is the only one that can still spend. An
+// unknown address is the same nil result: the caller must not become an
+// account-existence oracle.
 func (s *Store) beginReset(ctx context.Context, email string) error {
 	email = email2.Clean(email)
 	if EmailError(email) != "" {
@@ -64,6 +66,9 @@ func (s *Store) beginReset(ctx context.Context, email string) error {
 		return fmt.Errorf("encode reset message: %w", err)
 	}
 
+	if err := q.InvalidateResetTokens(ctx, row.ID); err != nil {
+		return fmt.Errorf("invalidate prior reset tokens: %w", err)
+	}
 	if err := q.CreatePasswordResetToken(ctx, db.CreatePasswordResetTokenParams{
 		TokenHash: digest[:],
 		UserID:    row.ID,
