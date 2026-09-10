@@ -268,19 +268,88 @@ check-layout:
 			--data-urlencode "serial=LAYOUTSN$$$$" $$U/account/warranty/$$RN; \
 		curl -s -o /dev/null -b "goen_session=$$CT" -H 'Sec-Fetch-Site: same-origin' \
 			--data-urlencode 'reason=尺寸不合,想換一個顏色' --data-urlencode "qty_$$LINE=1" \
-			$$U/orders/$$RN/return
-	@# /admin/health's two ALARM tables and the 折讓 claim row on an order page.
+			$$U/orders/$$RN/return; \
+		RID=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT r.id FROM return_requests r JOIN orders o ON o.id = r.order_id WHERE o.order_number = '$$RN' AND r.status = 'requested' ORDER BY r.created_at DESC LIMIT 1"); \
+		test -n "$$RID" || { echo 'return fixture created no return request' >&2; exit 2; }; \
+		STATUS=$$(curl -sS -o /dev/null -w '%{http_code}' -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
+			-d 'decision=approved' --data-urlencode 'resolution=版面檢查同意退貨' \
+			$$U/admin/returns/$$RID/decide); \
+		test "$$STATUS" = 303 || { echo "return fixture decide answered $$STATUS, want 303" >&2; exit 2; }; \
+		REFUNDED=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT (rf.card_cents + rf.credit_cents)::text FROM order_refunds rf JOIN orders o ON o.id = rf.order_id WHERE o.order_number = '$$RN'"); \
+		test "$${REFUNDED:-0}" -ge 100 || { echo "return fixture refunded $${REFUNDED:-0} cents after decide, want at least 100 so invoice_allowance_valid has room" >&2; exit 2; }
+	@# /admin/health's two ALARM tables and the 折讓 form on an order page.
 	@# Each renders only when there is something wrong, so the page a browser sees
 	@# without them is the healthy one — chrome, a status list, and none of the
 	@# markup added for the states an operator actually has to act on. That is the
 	@# no-fixture trap this file already records for the promotional strip and for
 	@# /admin/questions: a check over DATA needs the data seeded.
 	@#
-	@# The webhook row is money that arrived for an order goen had cancelled; the
-	@# claim is a 折讓 the provider never answered, aged past the window that tells
-	@# a stuck one from a call in flight.
+	@# The webhook row is money that arrived for an order goen had cancelled.
+	@#
+	@# The 折讓 fixtures used to land on the unpaid guest order the payment page
+	@# measures. invoice_allowance_valid now refuses a credit note larger than
+	@# order_refunds, and that order has refunded nothing — a compensation posting
+	@# is refused while it is still an open unpaid checkout. The return fixture
+	@# above is decided through the shop's own form, which posts store credit
+	@# through compensate_return_with_credit, so order_refunds has a real figure
+	@# before any document is written.
+	@#
+	@# A pending invoice_documents row is no longer a tax document. The stranded
+	@# claim — a 折讓 the provider never answered, aged past the window that
+	@# tells a stuck one from a call in flight — lives on invoice_operations.
+	@# The issued invoice and a partial issued allowance (always short of the
+	@# refunded whole-dollar room) are what put the 折讓 form on
+	@# /admin/orders/{number}: the form offers the remainder, and writing the
+	@# allowance after the decide is what invoice_allowance_valid now requires.
 	@psql "$$GOEN_DATABASE_URL" -qtAc "INSERT INTO payment_webhook_events (provider, event_id, type, object_ref, payload, unreconciled) SELECT 'stripe', 'evt_layout_check', 'checkout.session.completed', 'cs_layout_check', '{}'::jsonb, '版面檢查:款項落在已取消的訂單上' WHERE NOT EXISTS (SELECT 1 FROM payment_webhook_events WHERE event_id = 'evt_layout_check')" >/dev/null
-	@psql "$$GOEN_DATABASE_URL" -qtAc "WITH inv AS (INSERT INTO invoice_documents (order_id, kind, number, amount_cents) SELECT o.id, 'invoice', 'GD-LAYOUT1', 100000 FROM orders o JOIN order_access_grants g ON g.order_id = o.id WHERE g.digest = sha256('$$(awk '/goen_placed/ {print $$7}' .layout-chrome/cookies)'::bytea) AND NOT EXISTS (SELECT 1 FROM invoice_documents WHERE number = 'GD-LAYOUT1') RETURNING id, order_id) INSERT INTO invoice_documents (order_id, kind, number, amount_cents, status, request_key, original_id, issued_at) SELECT inv.order_id, 'allowance', '', 50000, 'pending', 'allowance:layout-check', inv.id, now() - interval '1 hour' FROM inv" >/dev/null
+	@psql "$$GOEN_DATABASE_URL" -qtAc "\
+		WITH src AS ( \
+		  SELECT o.id AS order_id, u.id AS actor_id, \
+		         (rf.card_cents + rf.credit_cents) AS refunded \
+		  FROM orders o \
+		  JOIN return_requests r ON r.order_id = o.id \
+		  JOIN order_refunds rf ON rf.order_id = o.id \
+		  JOIN users u ON u.email = 'layout-check@goen.invalid' \
+		  WHERE r.status IN ('approved', 'completed') \
+		    AND o.user_id = (SELECT id FROM users WHERE email = 'layout-cust@goen.invalid') \
+		    AND (rf.card_cents + rf.credit_cents) >= 100 \
+		  ORDER BY o.placed_at DESC LIMIT 1 \
+		), inv AS ( \
+		  INSERT INTO invoice_documents (order_id, kind, number, amount_cents) \
+		  SELECT order_id, 'invoice', 'GD-LAYOUT1', 100000 FROM src \
+		  WHERE NOT EXISTS (SELECT 1 FROM invoice_documents WHERE number = 'GD-LAYOUT1') \
+		  RETURNING id, order_id \
+		), allowance AS ( \
+		  INSERT INTO invoice_documents (order_id, kind, number, amount_cents, request_key, original_id) \
+		  SELECT inv.order_id, 'allowance', 'IA-LAYOUT1', \
+		         least(50000, greatest((src.refunded / 100) * 100 - 100, 100)), \
+		         'allowance:layout-check', inv.id \
+		  FROM inv JOIN src ON src.order_id = inv.order_id \
+		  WHERE (src.refunded / 100) * 100 > 100 \
+		    AND NOT EXISTS (SELECT 1 FROM invoice_documents WHERE number = 'IA-LAYOUT1') \
+		  RETURNING id \
+		) \
+		INSERT INTO invoice_operations \
+		    (order_id, kind, target_document_id, provider_key, amount_cents, \
+		     request_payload, actor_user_id, actor_id_snapshot, request_id, \
+		     send_attempts, last_send_at, last_error, created_at, updated_at) \
+		SELECT inv.order_id, 'allowance', inv.id, 'GD-LAYOUT1', \
+		       least(50000, (src.refunded / 100) * 100), \
+		       jsonb_build_object( \
+		           'invoice_number', 'GD-LAYOUT1', \
+		           'invoice_date', to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD'), \
+		           'customer_name', '版面顧客', 'email', 'layout-cust@goen.invalid', \
+		           'amount_cents', least(50000, (src.refunded / 100) * 100), \
+		           'lines', jsonb_build_array(jsonb_build_object( \
+		               'description', '退貨折讓', 'quantity', 1, \
+		               'unit_price_cents', least(50000, (src.refunded / 100) * 100), \
+		               'amount_cents', least(50000, (src.refunded / 100) * 100)))), \
+		       src.actor_id, src.actor_id, 'invoice-layout-check', \
+		       1, now() - interval '1 hour', 'allowance_not_yet_visible', \
+		       now() - interval '1 hour', now() - interval '1 hour' \
+		FROM inv JOIN src ON src.order_id = inv.order_id \
+		WHERE NOT EXISTS ( \
+		  SELECT 1 FROM invoice_operations WHERE request_id = 'invoice-layout-check')" >/dev/null
 	@# The placed-order cookie carries TOKENS, not order numbers. It used to carry
 	@# the numbers and they were the proof — but a number comes off a per-day
 	@# counter, so anybody could set the cookie by hand and increment into somebody
@@ -293,11 +362,14 @@ check-layout:
 	@# "the newest order", so the cookie and the URL cannot come to name two
 	@# different orders — which is exactly the divergence being repaired here.
 	@PLACED_TOKEN=$$(awk '/goen_placed/ {print $$7}' .layout-chrome/cookies); \
+		INVOICE_ORDER=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT o.order_number FROM orders o JOIN return_requests r ON r.order_id = o.id JOIN invoice_documents d ON d.order_id = o.id AND d.number = 'GD-LAYOUT1' WHERE r.status IN ('approved', 'completed') ORDER BY o.placed_at DESC LIMIT 1"); \
+		test -n "$$INVOICE_ORDER" || { echo 'invoice fixture wrote no refunded order — /admin/orders/ would measure the list and call the 折讓 form covered' >&2; exit 2; }; \
 		PRODUCT_SLUG=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT slug FROM products WHERE status = 'active' ORDER BY slug LIMIT 1") \
 		PICKUP_SHIP=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT v.id FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id WHERE sm.code = 'store_pickup' ORDER BY v.effective_at DESC LIMIT 1") \
 		CART_TOKEN=$$(awk '/goen_cart/ {print $$7}' .layout-chrome/cookies) \
 		PLACED_TOKEN=$$PLACED_TOKEN \
 		PLACED_ORDER=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT o.order_number FROM orders o JOIN order_access_grants g ON g.order_id = o.id WHERE g.digest = sha256('$$PLACED_TOKEN'::bytea)") \
+		INVOICE_ORDER=$$INVOICE_ORDER \
 		CUSTOMER_ID=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT id FROM users WHERE email = 'layout-cust@goen.invalid'") \
 		LAYOUT_SERIAL=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT w.serial_number FROM warranty_registrations w JOIN users u ON u.id = w.user_id WHERE u.email = 'layout-cust@goen.invalid' ORDER BY w.registered_at DESC LIMIT 1") \
 		ADMIN_TOKEN=$$(cat .layout-chrome/admin-token) node scripts/check-layout.mjs; status=$$?; \
