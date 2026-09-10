@@ -501,6 +501,9 @@ var adminNotices = map[string]i18n.Key{
 	"allowed":        i18n.KeyAdminNoticeAllowed,
 	"allowtoomuch":   i18n.KeyAdminNoticeAllowTooMuch,
 	"allowclaimed":   i18n.KeyAdminNoticeAllowClaimed,
+	"voidreason":     i18n.KeyAdminNoticeVoidReason,
+	"voidfailed":     i18n.KeyAdminNoticeVoidFailed,
+	"allowfailed":    i18n.KeyAdminNoticeAllowFailed,
 	"reconciled":     i18n.KeyAdminNoticeReconciled,
 	"invoicequeued":  i18n.KeyAdminNoticeInvoiceQueued,
 	"saved":          i18n.KeyAdminNoticeSaved,
@@ -1772,6 +1775,9 @@ func (h *Handler) VoidInvoice(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		//nolint:gosec // G710: validated by IsOrderNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?voided=1", http.StatusSeeOther)
+	case errors.Is(err, invoice.ErrReason):
+		//nolint:gosec // G710: validated by IsOrderNumber
+		http.Redirect(w, r, "/admin/orders/"+number+"?voidreason=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrNotFound):
 		//nolint:gosec // G710: validated by IsOrderNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?noinvoice=1", http.StatusSeeOther)
@@ -1780,9 +1786,11 @@ func (h *Handler) VoidInvoice(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/orders/"+number+"?invoicepending=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrRejected), errors.Is(err, invoice.ErrDisabled),
 		errors.Is(err, ErrRefused):
+		// invoicefailed names 統編 and carrier codes. A void form collects a
+		// reason; the provider refusal belongs on 綠界, not checkout tax ids.
 		h.log.WarnContext(r.Context(), "invoice void refused", "order", number, "error", err)
 		//nolint:gosec // G710: validated by IsOrderNumber
-		http.Redirect(w, r, "/admin/orders/"+number+"?invoicefailed=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/orders/"+number+"?voidfailed=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "void invoice", "order", number, "error", err)
 		h.serverError(w, r)
@@ -1832,11 +1840,10 @@ func (h *Handler) AllowInvoice(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, invoice.ErrRejected), errors.Is(err, invoice.ErrDisabled),
 		errors.Is(err, ErrRefused):
 		// invoicefailed names 統編 and carrier codes, which is right for ISSUING.
-		// An allowance's own refusals are told apart above, because they send a
-		// staff member to different actions.
+		// An allowance form does not collect those fields.
 		h.log.WarnContext(r.Context(), "invoice allowance refused", "order", number, "error", err)
 		//nolint:gosec // G710: validated by IsOrderNumber
-		http.Redirect(w, r, "/admin/orders/"+number+"?invoicefailed=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/orders/"+number+"?allowfailed=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "file invoice allowance", "order", number, "error", err)
 		h.serverError(w, r)

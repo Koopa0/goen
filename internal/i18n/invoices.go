@@ -97,7 +97,7 @@ var (
 	})
 
 	// The two refusals a 折讓 has of its own. invoicefailed talks about 統編 and
-	// carrier codes, which are the wrong fields here.
+	// carrier codes, which a 折讓 form does not collect.
 	KeyAdminNoticeAllowTooMuch = key("admin.notice.allowtoomuch", Message{
 		ZhHant: "目前沒有尚未折讓的整數元退款；可能已由另一個請求完成。",
 		En:     "No whole-dollar refunded amount remains unrelieved; another request may have completed it.",
@@ -106,6 +106,25 @@ var (
 	KeyAdminNoticeAllowClaimed = key("admin.notice.allowclaimed", Message{
 		ZhHant: "這筆退款的折讓已經開立或正在處理中，請先到綠界確認。",
 		En:     "A credit note for this refund is already filed or in flight; check ECPay first.",
+	})
+
+	// A void form collects a reason, not a 統編. The Issue sentence would send
+	// staff to edit checkout tax ids that are not on this page.
+	KeyAdminNoticeVoidReason = key("admin.notice.voidreason", Message{
+		ZhHant: "作廢需要填寫原因。",
+		En:     "A void needs a reason.",
+	})
+
+	KeyAdminNoticeVoidFailed = key("admin.notice.voidfailed", Message{
+		ZhHant: "加值中心拒絕了這次作廢，詳細原因在伺服器紀錄裡。請先到綠界確認。",
+		En: "The e-invoice provider refused the void; the reason is in the server log. " +
+			"Check ECPay first.",
+	})
+
+	KeyAdminNoticeAllowFailed = key("admin.notice.allowfailed", Message{
+		ZhHant: "加值中心拒絕了這次折讓，詳細原因在伺服器紀錄裡。請先到綠界確認。",
+		En: "The e-invoice provider refused the credit note; the reason is in the server log. " +
+			"Check ECPay first.",
 	})
 
 	KeyAdminNoticeInvoiceFailed = key("admin.notice.invoicefailed", Message{
