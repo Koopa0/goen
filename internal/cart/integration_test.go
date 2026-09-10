@@ -407,6 +407,14 @@ func TestAnInfrastructureFailureIsNotReportedAsSoldOut(t *testing.T) {
 	if !strings.Contains(err.Error(), "hold 1 of variant "+vid.String()) {
 		t.Fatalf("timeout landed outside the intended inventory hold: %v", err)
 	}
+	// The handler branches on this: without it the customer's whole checkout
+	// form is discarded behind a 500, and every pool now carries a
+	// statement_timeout so the wait that produces it is ordinary rather than
+	// exceptional. The PgError above must survive the wrap, or a caller can no
+	// longer tell WHICH statement the database ended.
+	if !errors.Is(err, cart.ErrBusy) {
+		t.Fatalf("a cancelled statement = %v, want ErrBusy so checkout re-renders at 422", err)
+	}
 }
 
 func TestInventoryConstraintIsReportedAsSoldOut(t *testing.T) {

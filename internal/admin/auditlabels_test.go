@@ -4,6 +4,9 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"os"
+	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,14 +27,14 @@ import (
 // phrase belongs, on a page only staff read. Seventeen actions were in that
 // state.
 //
-// The corpus is what THIS package declares. invoice.allowance_provider_invalid
-// is written only by a schema function and has a label without a Go constant;
-// declaring one so this parser could see it would be a dead identifier, which
-// is the defect rather than the guard.
+// The corpus is both writers. Most actions are Go constants in this package;
+// a few are string literals inside a schema function and have no Go constant at
+// all, because declaring one so a parser could see it would be a dead
+// identifier. Reading the migration is what covers those without inventing one.
 func TestEveryAuditActionHasALabel(t *testing.T) {
 	t.Parallel()
 
-	actions := declaredActions(t)
+	actions := append(declaredActions(t), schemaActions(t)...)
 	// Well under the 63 declared, so a parser that silently stops matching
 	// fails here rather than passing over an empty corpus.
 	if len(actions) < 50 {
@@ -52,6 +55,37 @@ func TestEveryAuditActionHasALabel(t *testing.T) {
 			"Add a key to internal/i18n/audit.go and an entry to pages.actionLabels.",
 			len(missing), strings.Join(missing, "\n  "))
 	}
+}
+
+// schemaWrittenAction matches an action a schema function inserts directly,
+// e.g. `'invoice.allowance_provider_invalid', 'invoice_documents',`.
+var schemaWrittenAction = regexp.MustCompile(`'([a-z_]+\.[a-z0-9_.]+)',\s*'[a-z_]+',`)
+
+// schemaActions is every action written by a stored function rather than by Go.
+func schemaActions(t *testing.T) []string {
+	t.Helper()
+
+	body, err := os.ReadFile(filepath.Join("..", "..", "migrations", "001_initial_schema.up.sql"))
+	if err != nil {
+		t.Fatalf("read the schema: %v", err)
+	}
+	// Only the prefixes audit_events actually uses: the pattern is loose enough
+	// to match an unrelated pair of quoted literals otherwise.
+	domains := map[string]bool{
+		"invoice": true, "order": true, "payment": true, "return": true,
+		"credit": true, "stock": true, "shipping": true, "tier": true,
+		"review": true, "customer": true, "newsletter": true,
+	}
+	var out []string
+	for _, m := range schemaWrittenAction.FindAllStringSubmatch(string(body), -1) {
+		if domains[strings.SplitN(m[1], ".", 2)[0]] {
+			out = append(out, m[1])
+		}
+	}
+	if len(out) == 0 {
+		t.Fatal("found no schema-written actions; the pattern has stopped matching")
+	}
+	return out
 }
 
 // declaredActions is every string constant of type Action in audit.go.

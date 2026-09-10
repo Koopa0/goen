@@ -320,6 +320,21 @@ func (s *Store) ShippingChoices(ctx context.Context, cartID uuid.UUID, subtotalC
 	return out, nil
 }
 
+// classifyCheckout maps the database ending a statement onto ErrBusy, so the
+// handler re-renders the form the customer filled in instead of answering 500.
+// Bound to the SQLSTATE: 57014 is query_canceled, which statement_timeout and an
+// operator's pg_cancel_backend both raise, and neither is a defect in what was
+// submitted.
+func classifyCheckout(err error) error {
+	if err == nil {
+		return nil
+	}
+	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == "57014" {
+		return fmt.Errorf("%w: %w", ErrBusy, err)
+	}
+	return err
+}
+
 // PlaceOrder turns a cart into an order in ONE transaction, recomputing the
 // shipping fee from the version rather than taking it from the form. quote is
 // not trusted as pricing input: it is compared with the locked recomputation so
@@ -336,6 +351,11 @@ func (s *Store) placeOrder(
 	shown checkoutQuoteID,
 	attemptID checkoutAttemptID,
 ) (number string, err error) {
+	// One classifier at the boundary rather than a check at each return: every
+	// statement below runs under the pool's statement_timeout, and a lock wait
+	// that outlives it is the ordinary shape of a busy shop rather than a fault.
+	defer func() { err = classifyCheckout(err) }()
+
 	// Nothing reads checkout_attempts on the pool first: claimCheckoutKey asks the
 	// same question under the lock, and the copy that can be wrong is the early one.
 	tx, err := s.pool.Begin(ctx)

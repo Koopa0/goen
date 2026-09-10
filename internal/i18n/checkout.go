@@ -143,6 +143,15 @@ var (
 		En:     "Your available store credit changed to %s. Check it and submit again.",
 	})
 
+	// The checkout takes row locks in a fixed order, so a second checkout of the
+	// same variant waits. statement_timeout ends that wait rather than letting a
+	// request hold a pooled connection indefinitely, and what the customer has
+	// typed is still good: the answer is to submit again, not a 500.
+	KeyCheckoutBusy = key("checkout.busy", Message{
+		ZhHant: "系統正忙,您填寫的資料都還在。請再送出一次。",
+		En:     "The shop is busy right now. Everything you typed is still here — please submit again.",
+	})
+
 	KeyCheckoutChanged = key("checkout.quote.changed", Message{
 		ZhHant: "商品、配送、優惠或折抵內容已更新。請確認新的明細後再送出一次。",
 		En:     "Your items, delivery, discount, or store credit changed. Check the new details and submit again.",

@@ -39,6 +39,10 @@ var (
 	// checkout was being placed. The form must show the fresh figure before a
 	// second submission.
 	ErrCreditChanged = errors.New("cart: available store credit changed")
+	// ErrBusy is a write the database ended before it finished, which for
+	// checkout means a lock wait that outlived statement_timeout. Nothing the
+	// customer typed is wrong, so it is a 422 asking them to submit again.
+	ErrBusy = errors.New("cart: the database ended the statement before it finished")
 	// ErrEmpty is a checkout with nothing in the cart.
 	ErrEmpty = errors.New("cart: empty")
 	// ErrTooManyItems means the cart has no room for another distinct product

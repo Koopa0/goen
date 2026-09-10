@@ -517,6 +517,13 @@ func (h *Handler) answerPlacement(
 	case errors.Is(err, ErrCouponUsedUp), errors.Is(err, ErrCouponExpired),
 		errors.Is(err, ErrCouponMinimum), errors.Is(err, ErrNoSuchCoupon):
 		h.answerCouponRefusal(w, r, cartID, addr, view, err)
+	case errors.Is(err, ErrBusy):
+		// Logged as a warning: a lock wait that outlived statement_timeout is a
+		// busy shop rather than a fault, and nothing the customer typed is wrong.
+		h.log.WarnContext(r.Context(), "checkout timed out waiting for a lock", "error", err)
+		view.Repriced = i18n.T(r.Context(), i18n.KeyCheckoutBusy)
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity,
+			pages.Checkout(pages.CheckoutMeta(r.Context()), view))
 	default:
 		h.log.ErrorContext(r.Context(), "place order", "error", err)
 		h.serverError(w, r)
