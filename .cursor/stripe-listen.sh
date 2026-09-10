@@ -26,7 +26,7 @@ fi
 forward_url="http://127.0.0.1:9700/webhooks/stripe"
 
 case "${GOEN_STRIPE_API_KEY:-}" in
-sk_test_* | rk_test_*)
+sk_test_* | rk_test_* | rkcs_test_*)
 	echo "stripe-listen: forwarding Stripe TEST events to ${forward_url}"
 	exec stripe listen --api-key "${GOEN_STRIPE_API_KEY}" --forward-to "${forward_url}"
 	;;
@@ -37,7 +37,7 @@ sk_test_* | rk_test_*)
 	while true; do sleep 86400; done
 	;;
 *)
-	echo "stripe-listen: refusing to run — GOEN_STRIPE_API_KEY is not a TEST-mode key (sk_test_/rk_test_)." >&2
+	echo "stripe-listen: refusing to run — GOEN_STRIPE_API_KEY is not a TEST-mode key (sk_test_/rk_test_/rkcs_test_)." >&2
 	echo "stripe-listen: a development environment must never forward against a live Stripe account." >&2
 	while true; do sleep 86400; done
 	;;
