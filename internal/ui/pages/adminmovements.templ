@@ -1,0 +1,98 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// AdminMovements renders one variant's stock ledger.
+templ AdminMovements(p layouts.Page, v *AdminMovementsView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("stock")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">
+						<a href="/admin/stock">{ i18n.T(ctx, i18n.KeyAdminStockLink) }</a>
+					</p>
+					<h1 class="ui-page-head__title">{ v.SKU }</h1>
+					<p class="ui-page-head__sub">
+						<a href={ templ.SafeURL("/admin/products/" + v.Slug) }>{ v.ProductName }</a>
+						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminStockNowSafe), v.StockText(), v.SafetyText()) }
+					</p>
+				</div>
+			</div>
+			if v.HasNotice() {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			@adminReceiveForm(v)
+			if v.Empty() {
+				<p class="goen-admin__hint">
+					{ i18n.T(ctx, i18n.KeyAdminLedgerEmpty) }
+				</p>
+			} else {
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table">
+						<thead>
+							<tr>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColWhen) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColChange) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColReason) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColOrder) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColActor) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColBalance) }</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, m := range v.Rows {
+								<tr>
+									<td>{ m.At }</td>
+									<td class={ templ.KV("goen-admin__in", m.In()) }>{ m.DeltaText() }</td>
+									<td>{ m.ReasonText(ctx) }</td>
+									<td>
+										if m.HasOrder() {
+											<a href={ templ.SafeURL("/admin/orders/" + m.OrderNumber) }>{ m.OrderNumber }</a>
+										} else {
+											—
+										}
+									</td>
+									<td>{ m.By(ctx) }</td>
+									<td>{ m.RunningText() }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+				<p class="goen-admin__hint">
+					{ i18n.T(ctx, i18n.KeyAdminLedgerFoot) }
+				</p>
+			}
+		</div>
+	}
+}
+
+templ adminReceiveForm(v *AdminMovementsView) {
+	<form class="goen-admin__form" method="post" action="/admin/stock/receive">
+		<input type="hidden" name="sku" value={ v.SKU }/>
+		<input type="hidden" name="idempotency" value={ v.ReceiveKey() }/>
+		<label class="ui-field" for="receive-qty">
+			<span class="ui-label">{ i18n.T(ctx, i18n.KeyAdminReceiveQty) }</span>
+			<input
+				class="ui-input goen-admin__num"
+				id="receive-qty"
+				type="number"
+				name="quantity"
+				min="1"
+				step="1"
+				placeholder="10"
+				required
+			/>
+		</label>
+		<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminReceiveButton) }</button>
+		<p class="goen-admin__hint">
+			{ i18n.T(ctx, i18n.KeyAdminReceiveHint) }
+		</p>
+	</form>
+}

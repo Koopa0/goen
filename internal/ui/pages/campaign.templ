@@ -1,0 +1,58 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// Campaign renders one running promotion.
+templ Campaign(p layouts.Page, v CampaignView) {
+	@layouts.Base(p) {
+		<div class="goen-listing">
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyCampaignEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ v.Title }</h1>
+					<p class="ui-page-head__sub">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignEndsAt), v.EndsAt) }</p>
+				</div>
+			</div>
+			if v.Empty() {
+				<div class="ui-empty">
+					<p class="ui-empty__title">{ i18n.T(ctx, i18n.KeyCampaignEmpty) }</p>
+					<p class="ui-empty__desc">
+						{ i18n.T(ctx, i18n.KeyCampaignEmptyHint) } <a href="/deals">{ i18n.T(ctx, i18n.KeyCampaignEmptyLink) }</a>
+					</p>
+				</div>
+			} else {
+				<ul class="goen-tiles__grid" role="list">
+					for _, t := range v.Products {
+						@Tile(t)
+					}
+				</ul>
+			}
+		</div>
+	}
+}
+
+templ campaignStrip(campaigns []CampaignSummary) {
+	<section class="goen-campaigns" aria-labelledby="campaigns-heading">
+		<h2 id="campaigns-heading" class="h4">{ i18n.T(ctx, i18n.KeyCampaignEyebrow) }</h2>
+		<ul class="goen-campaigns__list" role="list">
+			for _, c := range campaigns {
+				<li>
+					<a class="goen-campaigns__item" href={ templ.SafeURL(c.Href()) }>
+						<span class="goen-campaigns__title">{ c.Title }</span>
+						<span class="ui-cart-line__meta">
+							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignProducts), c.ProductsText()) }
+							if c.EndsIn != "" {
+								· { c.EndsIn }
+							}
+						</span>
+					</a>
+				</li>
+			}
+		</ul>
+	</section>
+}

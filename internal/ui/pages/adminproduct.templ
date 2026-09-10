@@ -1,0 +1,807 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// AdminProducts renders the back-office catalogue.
+templ AdminProducts(p layouts.Page, v AdminProductsView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("products")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageProducts) }</h1>
+					<p class="ui-page-head__sub">
+						{ i18n.T(ctx, i18n.KeyAdminProdLead) }
+					</p>
+				</div>
+				<a class="ui-btn ui-btn--primary" href="/admin/products/new">
+					{ i18n.T(ctx, i18n.KeyAdminPageNewProduct) }
+				</a>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			if v.Empty() {
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdEmpty) }</p>
+			} else {
+				<ul class="goen-admin__catalogue" role="list">
+					for _, row := range v.Rows {
+						<li class="goen-admin__product">
+							<a class="goen-admin__productname" href={ templ.SafeURL(row.Href()) }>
+								{ row.Name }
+							</a>
+							<span class={ "ui-badge", templ.KV("ui-badge--brand", row.Sellable()) }>
+								{ row.StatusText }
+							</span>
+							<span class="ui-cart-line__meta">{ row.Brand } · { row.Category }</span>
+							<span class="ui-cart-line__meta">
+								{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminProdVariantsFrom), row.VariantsText(), row.From()) }
+							</span>
+							if !row.Translated {
+								<span class="ui-badge ui-badge--warn">{ i18n.T(ctx, i18n.KeyAdminUntranslated) }</span>
+							}
+						</li>
+					}
+				</ul>
+			}
+		</div>
+	}
+}
+
+// AdminProductForm renders the create-or-edit form and its variants.
+templ AdminProductForm(p layouts.Page, v AdminProductView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("products")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">
+						<a href="/admin/products">{ i18n.T(ctx, i18n.KeyAdminPageProducts) }</a>
+					</p>
+					<h1 class="ui-page-head__title">{ v.Title(ctx) }</h1>
+					if !v.IsNew {
+						<p class="ui-page-head__sub">{ v.StatusText } · /p/{ v.Slug }</p>
+					}
+				</div>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			<div class="goen-admin__productlayout">
+				<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.Action()) }>
+					<div class="ui-field">
+						<label class="ui-label" for="p-name">{ i18n.T(ctx, i18n.KeyAdminProdName) }</label>
+						<input
+							class="ui-input"
+							id="p-name"
+							name="name"
+							required
+							maxlength="200"
+							value={ v.Name }
+							if v.HasErr("name") {
+								aria-invalid="true"
+								aria-describedby="p-name-error"
+							}
+						/>
+						if v.HasErr("name") {
+							<p class="ui-error-text" id="p-name-error">{ v.Err("name") }</p>
+						}
+					</div>
+					if v.IsNew {
+						<div class="ui-field">
+							<label class="ui-label" for="p-slug">{ i18n.T(ctx, i18n.KeyAdminColSlug) }</label>
+							<input
+								class="ui-input"
+								id="p-slug"
+								name="slug"
+								required
+								maxlength="120"
+								placeholder="pixelight-9-pro"
+								value={ v.Slug }
+								if v.HasErr("slug") {
+									aria-invalid="true"
+									aria-describedby="p-slug-error"
+								}
+							/>
+							<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdSlugHint) }</p>
+							if v.HasErr("slug") {
+								<p class="ui-error-text" id="p-slug-error">{ v.Err("slug") }</p>
+							}
+						</div>
+					}
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="p-brand">{ i18n.T(ctx, i18n.KeyAdminProdBrand) }</label>
+							<select
+								class="ui-select"
+								id="p-brand"
+								name="brand"
+								required
+								if v.HasErr("brand") {
+									aria-invalid="true"
+									aria-describedby="p-brand-error"
+								}
+							>
+								<option value="">{ i18n.T(ctx, i18n.KeyAdminProdChoose) }</option>
+								for _, c := range v.Brands {
+									<option value={ c.Value } selected?={ v.Selected("brand", c.Value) }>{ c.Label }</option>
+								}
+							</select>
+							if v.HasErr("brand") {
+								<p class="ui-error-text" id="p-brand-error">{ v.Err("brand") }</p>
+							}
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="p-category">{ i18n.T(ctx, i18n.KeyAdminColCategory) }</label>
+							<select
+								class="ui-select"
+								id="p-category"
+								name="category"
+								required
+								if v.HasErr("category") {
+									aria-invalid="true"
+									aria-describedby="p-category-error"
+								}
+							>
+								<option value="">{ i18n.T(ctx, i18n.KeyAdminProdChoose) }</option>
+								for _, c := range v.Categories {
+									<option value={ c.Value } selected?={ v.Selected("category", c.Value) }>{ c.Label }</option>
+								}
+							</select>
+							if v.HasErr("category") {
+								<p class="ui-error-text" id="p-category-error">{ v.Err("category") }</p>
+							}
+						</div>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="p-summary">{ i18n.T(ctx, i18n.KeyAdminProdSummary) }</label>
+						<input class="ui-input" id="p-summary" name="summary" maxlength="500" value={ v.Summary }/>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="p-description">{ i18n.T(ctx, i18n.KeyAdminProdDescription) }</label>
+						<textarea class="ui-input goen-admin__textarea" id="p-description" name="description" rows="8">{ v.Description }</textarea>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="p-name-en">{ i18n.T(ctx, i18n.KeyAdminProdNameEn) }</label>
+						<input
+							class="ui-input"
+							id="p-name-en"
+							name="name_en"
+							maxlength="200"
+							value={ v.NameEn }
+							if v.HasErr("name_en") {
+								aria-invalid="true"
+								aria-describedby="p-name-en-error"
+							}
+						/>
+						if v.HasErr("name_en") {
+							<p class="ui-error-text" id="p-name-en-error">{ v.Err("name_en") }</p>
+						}
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="p-summary-en">{ i18n.T(ctx, i18n.KeyAdminProdSummaryEn) }</label>
+						<input
+							class="ui-input"
+							id="p-summary-en"
+							name="summary_en"
+							maxlength="500"
+							value={ v.SummaryEn }
+							if v.HasErr("summary_en") {
+								aria-invalid="true"
+								aria-describedby="p-summary-en-error"
+							}
+						/>
+						if v.HasErr("summary_en") {
+							<p class="ui-error-text" id="p-summary-en-error">{ v.Err("summary_en") }</p>
+						}
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="p-description-en">{ i18n.T(ctx, i18n.KeyAdminProdDescriptionEn) }</label>
+						<textarea
+							class="ui-input goen-admin__textarea"
+							id="p-description-en"
+							name="description_en"
+							rows="8"
+							if v.HasErr("description_en") {
+								aria-invalid="true"
+								aria-describedby="p-description-en-error"
+							}
+						>{ v.DescriptionEn }</textarea>
+						if v.HasErr("description_en") {
+							<p class="ui-error-text" id="p-description-en-error">{ v.Err("description_en") }</p>
+						}
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="p-warranty-months">{ i18n.T(ctx, i18n.KeyAdminProdWarrantyMonths) }</label>
+						<input
+							class="ui-input"
+							id="p-warranty-months"
+							name="warranty_months"
+							type="text"
+							inputmode="numeric"
+							value={ v.WarrantyMonthsText() }
+							if v.HasErr("warranty_months") {
+								aria-invalid="true"
+								aria-describedby="p-warranty-months-error"
+							}
+						/>
+						if v.HasErr("warranty_months") {
+							<p class="ui-error-text" id="p-warranty-months-error">{ v.Err("warranty_months") }</p>
+						}
+						<p class="goen-admin__hint">
+							{ i18n.T(ctx, i18n.KeyAdminProdWarrantyHint) }
+						</p>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="p-warranty">{ i18n.T(ctx, i18n.KeyAdminProdWarrantyNote) }</label>
+						<input class="ui-input" id="p-warranty" name="warranty" maxlength="300" value={ v.WarrantyNote }/>
+					</div>
+					<button class="ui-btn ui-btn--primary" type="submit">
+						if v.IsNew {
+							{ i18n.T(ctx, i18n.KeyAdminProdCreateDraft) }
+						} else {
+							{ i18n.T(ctx, i18n.KeyAdminProdSave) }
+						}
+					</button>
+				</form>
+				if !v.IsNew {
+					<aside class="goen-admin__side">
+						<section>
+							<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminProdImages) }</h2>
+							if v.HasImages() {
+								<ul class="goen-admin__images" role="list">
+									for _, img := range v.Images {
+										<li class="goen-admin__image">
+											<img src={ img.URL() } alt={ img.Alt } loading="lazy" width="120" height="120"/>
+											<span class="ui-cart-line__meta">{ img.Alt }</span>
+											<form method="post" action={ templ.SafeURL(v.ImageRemoveAction()) }>
+												<input type="hidden" name="digest" value={ img.Key }/>
+												<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminRemove) }</button>
+											</form>
+										</li>
+									}
+								</ul>
+							} else {
+								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdNoImages) }</p>
+							}
+							// Without enctype a browser posts only the filename.
+							<form
+								class="goen-admin__form goen-admin__grant"
+								method="post"
+								action={ templ.SafeURL(v.ImageAction()) }
+								enctype="multipart/form-data"
+							>
+								<div class="ui-field">
+									<label class="ui-label" for="p-image">{ i18n.T(ctx, i18n.KeyAdminProdUpload) }</label>
+									<input class="ui-input" id="p-image" name="image" type="file" accept="image/*" required/>
+									<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdUploadHint) }</p>
+								</div>
+								<div class="ui-field">
+									<label class="ui-label" for="p-alt">{ i18n.T(ctx, i18n.KeyAdminAltText) }</label>
+									<input class="ui-input" id="p-alt" name="alt" required maxlength="200" placeholder={ altExample }/>
+									<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdAltHint) }</p>
+								</div>
+								<div class="ui-field">
+									<label class="ui-label" for="p-alt-en">{ i18n.T(ctx, i18n.KeyAdminProdAltEn) }</label>
+									<input class="ui-input" id="p-alt-en" name="alt_en" maxlength="200" placeholder="Silver laptop, screen open, 45 degrees"/>
+									<p class="goen-admin__hint">
+										{ i18n.T(ctx, i18n.KeyAdminProdAltEnHint) }
+									</p>
+								</div>
+								<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminProdAddImage) }</button>
+							</form>
+							if v.HasLibrary() {
+								<h3 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminProdLibrary) }</h3>
+								<div class="goen-admin__library">
+									for _, img := range v.Library {
+										<form class="goen-admin__libraryitem" method="post" action={ templ.SafeURL(v.ReuseAction()) }>
+											<input type="hidden" name="digest" value={ img.Key }/>
+											<img src={ img.URL() } alt="" width="80" height="80" loading="lazy" decoding="async"/>
+											<label class="goen-sr-only" for={ "reuse-alt-" + img.Key }>{ i18n.T(ctx, i18n.KeyAdminAltText) }</label>
+											<input
+												class="ui-input ui-input--sm"
+												id={ "reuse-alt-" + img.Key }
+												name="alt"
+												required
+												maxlength="200"
+												placeholder={ i18n.T(ctx, i18n.KeyAdminAltText) }
+											/>
+											<label class="goen-sr-only" for={ "reuse-alt-en-" + img.Key }>{ i18n.T(ctx, i18n.KeyAdminProdAltEn) }</label>
+											<input class="ui-input ui-input--sm" id={ "reuse-alt-en-" + img.Key } name="alt_en" maxlength="200" placeholder="English alt text"/>
+											<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminProdReuse) }</button>
+										</form>
+									}
+								</div>
+							}
+							<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminProdOptions) }</h2>
+							<p class="goen-admin__hint">
+								{ i18n.T(ctx, i18n.KeyAdminProdOptionsLead) }
+							</p>
+							if v.HasOptions() {
+								<ul class="goen-admin__taxa" role="list">
+									for _, o := range v.Options {
+										<li class="goen-admin__taxon">
+											<span class="goen-admin__sku">
+												{ o.Name }
+												if o.Translated() {
+													<span class="ui-cart-line__meta">{ o.NameEn }</span>
+												} else {
+													<span class="ui-badge ui-badge--warn">{ i18n.T(ctx, i18n.KeyAdminUntranslated) }</span>
+												}
+											</span>
+											if o.HasValues() {
+												<span class="ui-cart-line__meta">
+													for _, val := range o.Values {
+														{ val.Value }
+														if val.Label != "" {
+															({ val.Label })
+														}
+													}
+												</span>
+											} else {
+												<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyAdminProdNoValues) }</span>
+											}
+										</li>
+									}
+								</ul>
+							} else {
+								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdNoOptions) }</p>
+							}
+							<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.OptionAction()) }>
+								<div class="goen-checkout__fields">
+									<div class="ui-field">
+										<label class="ui-label" for="opt-name">{ i18n.T(ctx, i18n.KeyAdminProdOptionName) }</label>
+										<input
+											class="ui-input"
+											id="opt-name"
+											name="name"
+											required
+											maxlength="40"
+											autocomplete="off"
+											placeholder={ optionExample }
+											if v.HasErr("option") {
+												aria-invalid="true"
+												aria-describedby="opt-name-error"
+											}
+										/>
+										if v.HasErr("option") {
+											<p class="ui-error-text" id="opt-name-error">{ v.Err("option") }</p>
+										}
+									</div>
+									<div class="ui-field">
+										<label class="ui-label" for="opt-name-en">{ i18n.T(ctx, i18n.KeyAdminProdOptionNameEn) }</label>
+										<input
+											class="ui-input"
+											id="opt-name-en"
+											name="name_en"
+											maxlength="40"
+											autocomplete="off"
+											placeholder="Colour"
+											if v.HasErr("option_en") {
+												aria-invalid="true"
+												aria-describedby="opt-name-en-error"
+											}
+										/>
+										if v.HasErr("option_en") {
+											<p class="ui-error-text" id="opt-name-en-error">{ v.Err("option_en") }</p>
+										}
+									</div>
+								</div>
+								<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">
+									{ i18n.T(ctx, i18n.KeyAdminProdOptionAdd) }
+								</button>
+							</form>
+							if v.HasOptions() {
+								<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.OptionValueAction()) }>
+									<div class="ui-field">
+										<label class="ui-label" for="optval-option">{ i18n.T(ctx, i18n.KeyAdminProdValueOption) }</label>
+										<select class="ui-select" id="optval-option" name="option" required>
+											for _, o := range v.Options {
+												<option value={ o.ID }>{ o.Name }</option>
+											}
+										</select>
+									</div>
+									<div class="goen-checkout__fields">
+										<div class="ui-field">
+											<label class="ui-label" for="optval-value">{ i18n.T(ctx, i18n.KeyAdminProdValue) }</label>
+											<input
+												class="ui-input"
+												id="optval-value"
+												name="value"
+												required
+												maxlength="40"
+												autocomplete="off"
+												placeholder={ optionValExample }
+												if v.HasErr("value") {
+													aria-invalid="true"
+													aria-describedby="optval-value-error"
+												}
+											/>
+											if v.HasErr("value") {
+												<p class="ui-error-text" id="optval-value-error">{ v.Err("value") }</p>
+											}
+										</div>
+										<div class="ui-field">
+											<label class="ui-label" for="optval-value-en">{ i18n.T(ctx, i18n.KeyAdminProdValueEn) }</label>
+											<input
+												class="ui-input"
+												id="optval-value-en"
+												name="value_en"
+												maxlength="40"
+												autocomplete="off"
+												placeholder="Mist Blue"
+												if v.HasErr("value_en") {
+													aria-invalid="true"
+													aria-describedby="optval-value-en-error"
+												}
+											/>
+											if v.HasErr("value_en") {
+												<p class="ui-error-text" id="optval-value-en-error">{ v.Err("value_en") }</p>
+											}
+										</div>
+									</div>
+									<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">
+										{ i18n.T(ctx, i18n.KeyAdminProdValueAdd) }
+									</button>
+								</form>
+							}
+							<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminProdVariants) }</h2>
+							if len(v.Variants) == 0 {
+								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdNoVariants) }</p>
+							} else {
+								<ul class="goen-admin__variants" role="list">
+									for _, sv := range v.Variants {
+										<li class="goen-admin__variant">
+											<span class="goen-admin__sku">
+												{ sv.SKU }
+												if sv.OptionText() != "" {
+													<span class="ui-cart-line__meta">{ sv.OptionText() }</span>
+												}
+											</span>
+											<span class="ui-cart-line__meta">
+												{ sv.Price() }
+												if sv.Compare() != "" {
+													{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminProdWasPrice), sv.Compare()) }
+												}
+											</span>
+											<span class="ui-cart-line__meta">{ sv.StockText(ctx) }</span>
+										</li>
+									}
+								</ul>
+							}
+							<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/products/" + v.Slug + "/variants") }>
+								<div class="ui-field">
+									<label class="ui-label" for="v-sku">SKU</label>
+									<input
+										class="ui-input"
+										id="v-sku"
+										name="sku"
+										required
+										maxlength="60"
+										autocomplete="off"
+										value={ v.VariantDraft.SKU }
+										if v.HasErr("sku") {
+											aria-invalid="true"
+											aria-describedby="v-sku-error"
+										}
+									/>
+									if v.HasErr("sku") {
+										<p class="ui-error-text" id="v-sku-error">{ v.Err("sku") }</p>
+									}
+								</div>
+								<div class="goen-checkout__fields">
+									<div class="ui-field">
+										<label class="ui-label" for="v-price">{ i18n.T(ctx, i18n.KeyAdminProdPrice) }</label>
+										<input
+											class="ui-input"
+											id="v-price"
+											name="price"
+											type="number"
+											min="1"
+											step="1"
+											required
+											inputmode="numeric"
+											value={ v.VariantDraft.Price }
+											if v.HasErr("price") {
+												aria-invalid="true"
+												aria-describedby="v-price-error"
+											}
+										/>
+										if v.HasErr("price") {
+											<p class="ui-error-text" id="v-price-error">{ v.Err("price") }</p>
+										}
+									</div>
+									<div class="ui-field">
+										<label class="ui-label" for="v-compare">{ i18n.T(ctx, i18n.KeyAdminProdCompare) }</label>
+										<input
+											class="ui-input"
+											id="v-compare"
+											name="compare"
+											type="number"
+											min="0"
+											step="1"
+											inputmode="numeric"
+											value={ v.VariantDraft.Compare }
+											if v.HasErr("compare") {
+												aria-invalid="true"
+												aria-describedby="v-compare-error"
+											}
+										/>
+										if v.HasErr("compare") {
+											<p class="ui-error-text" id="v-compare-error">{ v.Err("compare") }</p>
+										}
+									</div>
+								</div>
+								if v.HasOptions() {
+									for _, o := range v.Options {
+										<div class="ui-field">
+											<label class="ui-label" for={ "v-opt-" + o.ID }>{ o.Name }</label>
+											<select
+												class="ui-select"
+												id={ "v-opt-" + o.ID }
+												name="option_value"
+												required
+											>
+												for _, val := range o.Values {
+													<option value={ val.ID }>{ val.Value }</option>
+												}
+											</select>
+										</div>
+									}
+									if v.HasErr("options") {
+										<p class="ui-error-text" role="alert">{ v.Err("options") }</p>
+									}
+								}
+								<div class="ui-field">
+									<label class="ui-label" for="v-safety">{ i18n.T(ctx, i18n.KeyAdminProdSafety) }</label>
+									<input
+										class="ui-input"
+										id="v-safety"
+										name="safety"
+										type="text"
+										inputmode="numeric"
+										value={ v.VariantDraft.Safety }
+										if v.HasErr("safety") {
+											aria-invalid="true"
+											aria-describedby="v-safety-error"
+										}
+									/>
+									if v.HasErr("safety") {
+										<p class="ui-error-text" id="v-safety-error">{ v.Err("safety") }</p>
+									}
+								</div>
+								<div class="ui-field">
+									<label class="ui-label" for="v-longest">{ i18n.T(ctx, i18n.KeyAdminProdLongest) }</label>
+									// The parcel, which decides which methods are offered; blank is unmeasured.
+									<input
+										class="ui-input"
+										id="v-longest"
+										name="parcel_longest"
+										type="text"
+										inputmode="numeric"
+										value={ v.VariantDraft.ParcelLongest }
+										if v.HasErr("parcel_longest") {
+											aria-invalid="true"
+											aria-describedby="v-longest-error"
+										}
+									/>
+									if v.HasErr("parcel_longest") {
+										<p class="ui-error-text" id="v-longest-error">{ v.Err("parcel_longest") }</p>
+									}
+								</div>
+								<div class="ui-field">
+									<label class="ui-label" for="v-sum">{ i18n.T(ctx, i18n.KeyAdminProdParcelSum) }</label>
+									<input
+										class="ui-input"
+										id="v-sum"
+										name="parcel_sum"
+										type="text"
+										inputmode="numeric"
+										value={ v.VariantDraft.ParcelSum }
+										if v.HasErr("parcel_sum") {
+											aria-invalid="true"
+											aria-describedby="v-sum-error"
+										}
+									/>
+									if v.HasErr("parcel_sum") {
+										<p class="ui-error-text" id="v-sum-error">{ v.Err("parcel_sum") }</p>
+									}
+								</div>
+								<div class="ui-field">
+									<label class="ui-label" for="v-weight">{ i18n.T(ctx, i18n.KeyAdminProdWeight) }</label>
+									<input
+										class="ui-input"
+										id="v-weight"
+										name="parcel_weight"
+										type="text"
+										inputmode="numeric"
+										value={ v.VariantDraft.ParcelWeight }
+										if v.HasErr("parcel_weight") {
+											aria-invalid="true"
+											aria-describedby="v-weight-error"
+										}
+									/>
+									if v.HasErr("parcel_weight") {
+										<p class="ui-error-text" id="v-weight-error">{ v.Err("parcel_weight") }</p>
+									}
+								</div>
+								<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">
+									{ i18n.T(ctx, i18n.KeyAdminProdVariantAdd) }
+								</button>
+								<p class="goen-admin__hint">
+									{ i18n.T(ctx, i18n.KeyAdminProdVariantStockHint) }
+								</p>
+							</form>
+						</section>
+						<section>
+							<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminProdSpecs) }</h2>
+							<p class="goen-admin__hint">
+								{ i18n.T(ctx, i18n.KeyAdminProdSpecsLead) }
+							</p>
+							if v.HasSpecs() {
+								<div class="goen-admin__tablewrap">
+									<table class="ui-table">
+										<thead>
+											<tr>
+												<th scope="col">{ i18n.T(ctx, i18n.KeyAdminProdSpecLabel) }</th>
+												<th scope="col">{ i18n.T(ctx, i18n.KeyAdminProdSpecValue) }</th>
+												<th scope="col">English</th>
+												<th scope="col">
+													<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminColActions) }</span>
+												</th>
+											</tr>
+										</thead>
+										<tbody>
+											for _, sp := range v.Specs {
+												<tr>
+													<td>{ sp.Label }</td>
+													<td>{ sp.Value }</td>
+													<td>
+														if sp.Translated() {
+															{ sp.LabelEn }
+															if sp.ValueEn != "" {
+																<span class="ui-cart-line__meta">{ sp.ValueEn }</span>
+															}
+														} else {
+															<span class="ui-badge ui-badge--warn">{ i18n.T(ctx, i18n.KeyAdminUntranslated) }</span>
+														}
+													</td>
+													<td>
+														<form method="post" action={ templ.SafeURL(v.SpecRemoveAction()) }>
+															<input type="hidden" name="spec" value={ sp.ID }/>
+															<button class="ui-btn ui-btn--ghost" type="submit">{ i18n.T(ctx, i18n.KeyAdminRemove) }</button>
+														</form>
+													</td>
+												</tr>
+											}
+										</tbody>
+									</table>
+								</div>
+							} else {
+								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdNoSpecs) }</p>
+							}
+							<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.SpecAction()) }>
+								<div class="goen-checkout__fields">
+									<div class="ui-field">
+										<label class="ui-label" for="spec-label">{ i18n.T(ctx, i18n.KeyAdminProdSpecLabel) }</label>
+										<input
+											class="ui-input"
+											id="spec-label"
+											name="label"
+											required
+											maxlength="40"
+											autocomplete="off"
+											placeholder={ specLabelExample }
+											if v.HasErr("spec_label") {
+												aria-invalid="true"
+												aria-describedby="spec-label-error"
+											}
+										/>
+										if v.HasErr("spec_label") {
+											<p class="ui-error-text" id="spec-label-error">{ v.Err("spec_label") }</p>
+										}
+									</div>
+									<div class="ui-field">
+										<label class="ui-label" for="spec-value">{ i18n.T(ctx, i18n.KeyAdminProdSpecValue) }</label>
+										<input
+											class="ui-input"
+											id="spec-value"
+											name="value"
+											required
+											maxlength="200"
+											autocomplete="off"
+											placeholder={ specValueExample }
+											if v.HasErr("spec_value") {
+												aria-invalid="true"
+												aria-describedby="spec-value-error"
+											}
+										/>
+										if v.HasErr("spec_value") {
+											<p class="ui-error-text" id="spec-value-error">{ v.Err("spec_value") }</p>
+										}
+									</div>
+								</div>
+								<div class="goen-checkout__fields">
+									<div class="ui-field">
+										<label class="ui-label" for="spec-label-en">{ i18n.T(ctx, i18n.KeyAdminProdSpecLabelEn) }</label>
+										<input
+											class="ui-input"
+											id="spec-label-en"
+											name="label_en"
+											maxlength="40"
+											autocomplete="off"
+											placeholder="Screen"
+											if v.HasErr("spec_label_en") {
+												aria-invalid="true"
+												aria-describedby="spec-label-en-error"
+											}
+										/>
+										if v.HasErr("spec_label_en") {
+											<p class="ui-error-text" id="spec-label-en-error">{ v.Err("spec_label_en") }</p>
+										}
+									</div>
+									<div class="ui-field">
+										<label class="ui-label" for="spec-value-en">{ i18n.T(ctx, i18n.KeyAdminProdSpecValueEn) }</label>
+										<input
+											class="ui-input"
+											id="spec-value-en"
+											name="value_en"
+											maxlength="200"
+											autocomplete="off"
+											placeholder="6.3-inch OLED"
+											if v.HasErr("spec_value_en") {
+												aria-invalid="true"
+												aria-describedby="spec-value-en-error"
+											}
+										/>
+										if v.HasErr("spec_value_en") {
+											<p class="ui-error-text" id="spec-value-en-error">{ v.Err("spec_value_en") }</p>
+										}
+									</div>
+								</div>
+								<p class="goen-admin__hint">
+									{ i18n.T(ctx, i18n.KeyAdminProdSpecHint) }
+								</p>
+								<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">
+									{ i18n.T(ctx, i18n.KeyAdminProdSpecAdd) }
+								</button>
+							</form>
+						</section>
+						<section>
+							<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminProdPublishing) }</h2>
+							if v.NeedsVariant() {
+								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminProdNeedsVariant) }</p>
+							} else {
+								<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/products/" + v.Slug + "/status") }>
+									<div class="goen-admin__decidebtns">
+										if v.CanPublish() {
+											<button class="ui-btn ui-btn--primary" type="submit" name="status" value="active">
+												{ i18n.T(ctx, i18n.KeyAdminProdPublish) }
+											</button>
+										}
+										if v.Status == "active" {
+											<button class="ui-btn ui-btn--secondary" type="submit" name="status" value="draft">
+												{ i18n.T(ctx, i18n.KeyAdminProdUnpublish) }
+											</button>
+										}
+										if v.Status != "archived" {
+											<button class="ui-btn ui-btn--secondary" type="submit" name="status" value="archived">
+												{ i18n.T(ctx, i18n.KeyAdminProdArchive) }
+											</button>
+										}
+									</div>
+								</form>
+							}
+						</section>
+					</aside>
+				}
+			</div>
+		</div>
+	}
+}

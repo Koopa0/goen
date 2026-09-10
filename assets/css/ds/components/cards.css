@@ -1,0 +1,67 @@
+/* ============================================================
+   koopa.dev — Cards & surfaces
+   ============================================================ */
+
+.ui-card {
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-md);
+  padding: 16px; box-sizing: border-box;
+  transition: border-color var(--dur-base) var(--ease-standard), background var(--dur-base);
+}
+.ui-card--hover:hover { border-color: var(--border-strong); background: var(--elevated); }
+.ui-card--flush { padding: 0; }
+.ui-card--lg { padding: 24px; border-radius: var(--r-lg); }
+
+.ui-card__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.ui-card__title { font-family: var(--font-display); font-size: var(--fs-ed-20); font-weight: var(--fw-semibold); color: var(--fg); margin: 0; letter-spacing: var(--track-snug); }
+.ui-card__desc  { font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg-subtle); margin: 4px 0 0; line-height: var(--lh-normal); }
+.ui-card__footer { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-faint); }
+
+/* leading hex tile used across topic / empty / avatar fallbacks */
+.ui-hextile {
+  width: 40px; height: 40px; flex: none; border-radius: var(--r-md);
+  background: var(--brand-muted); color: var(--brand);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.ui-hextile svg { width: 22px; height: 22px; }
+
+/* ---- Stat card (admin dashboards) ---- */
+.ui-stat { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-md); padding: 18px 18px 16px; box-shadow: var(--shadow-1); display: flex; flex-direction: column; gap: 8px; }
+.ui-stat__label { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-subtle); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+.ui-stat__value { font-family: var(--font-display); font-size: var(--fs-ed-30); font-weight: var(--fw-semibold); color: var(--fg); line-height: 1; letter-spacing: var(--track-tight); font-variant-numeric: tabular-nums; }
+.ui-stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+@media (max-width: 900px) { .ui-stat-grid { grid-template-columns: repeat(2, 1fr); } }
+.ui-stat__delta { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: var(--fs-11); }
+.ui-stat__delta--up   { color: var(--success); }
+.ui-stat__delta--down { color: var(--error); }
+.ui-stat__delta--flat { color: var(--fg-faint); }
+
+/* ---- Avatar (hexagon fallback per brand motif) ---- */
+.ui-avatar {
+  width: 32px; height: 32px; flex: none; border-radius: var(--r-full);
+  overflow: hidden; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--elevated); color: var(--fg-muted);
+  font-family: var(--font-display); font-size: var(--fs-12); font-weight: var(--fw-semibold);
+}
+.ui-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.ui-avatar--sm { width: 24px; height: 24px; font-size: var(--fs-11); }
+.ui-avatar--lg { width: 44px; height: 44px; font-size: var(--fs-14); }
+/* product-specific actor variants (human/claude-*/system) live in packs/koopa.css */
+
+/* ---- Progress / mastery bar ---- */
+.ui-progress { width: 100%; height: 6px; border-radius: var(--r-full); background: var(--overlay); overflow: hidden; }
+.ui-progress__fill { height: 100%; border-radius: inherit; background: var(--brand); transition: width var(--dur-slow) var(--ease-standard); }
+.ui-progress--success .ui-progress__fill { background: var(--success); }
+.ui-progress--warn .ui-progress__fill { background: var(--warn); }
+
+/* ---- Skeleton loaders ---- */
+.ui-skeleton { background: var(--elevated); border-radius: var(--r-sm); position: relative; overflow: hidden; }
+.ui-skeleton::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--fg) 6%, transparent), transparent);
+  transform: translateX(-100%); animation: ui-shimmer 1.4s var(--ease-standard) infinite;
+}
+.ui-skeleton--text { height: 12px; }
+.ui-skeleton--title { height: 20px; }
+.ui-skeleton--circle { border-radius: var(--r-full); }
+@keyframes ui-shimmer { 100% { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .ui-skeleton::after { animation: none; } }

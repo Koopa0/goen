@@ -1,0 +1,167 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// AdminCampaigns renders the promotions and the form that starts one.
+templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("campaigns")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageCampaigns) }</h1>
+					<p class="ui-page-head__sub">
+						{ i18n.T(ctx, i18n.KeyAdminCampLead) }
+					</p>
+				</div>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			<div class="goen-admin__productlayout">
+				<form class="goen-admin__form" method="post" action="/admin/campaigns">
+					<div class="ui-field">
+						<label class="ui-label" for="k-title">{ i18n.T(ctx, i18n.KeyAdminCampTitle) }</label>
+						<input
+							class="ui-input"
+							id="k-title"
+							name="title"
+							required
+							maxlength="60"
+							placeholder={ i18n.T(ctx, i18n.KeyAdminCampTitleExample) }
+							value={ v.Draft.Title }
+							if v.HasErr("title") {
+								aria-invalid="true"
+								aria-describedby="k-title-error"
+							}
+						/>
+						if v.HasErr("title") {
+							<p class="ui-error-text" id="k-title-error">{ v.Err("title") }</p>
+						}
+					</div>
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="k-slug">{ i18n.T(ctx, i18n.KeyAdminColSlug) }</label>
+							<input
+								class="ui-input"
+								id="k-slug"
+								name="slug"
+								required
+								maxlength="120"
+								placeholder="summer-3c"
+								value={ v.Draft.Slug }
+								if v.HasErr("slug") {
+									aria-invalid="true"
+									aria-describedby="k-slug-error"
+								}
+							/>
+							if v.HasErr("slug") {
+								<p class="ui-error-text" id="k-slug-error">{ v.Err("slug") }</p>
+							}
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="k-days">{ i18n.T(ctx, i18n.KeyAdminCampDays) }</label>
+							<input
+								class="ui-input"
+								id="k-days"
+								name="days"
+								type="number"
+								min="1"
+								max="90"
+								step="1"
+								required
+								inputmode="numeric"
+								value={ v.Draft.Days }
+								if v.HasErr("days") {
+									aria-invalid="true"
+									aria-describedby="k-days-error"
+								}
+							/>
+							if v.HasErr("days") {
+								<p class="ui-error-text" id="k-days-error">{ v.Err("days") }</p>
+							}
+						</div>
+					</div>
+					<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminCampCreate) }</button>
+				</form>
+				<aside class="goen-admin__side">
+					<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminCampCurrent) }</h2>
+					if v.Empty() {
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCampEmpty) }</p>
+					} else {
+						<ul class="goen-admin__coupons" role="list">
+							for _, c := range v.Rows {
+								<li class="goen-admin__coupon">
+									<div class="goen-admin__couponhead">
+										<a class="goen-admin__sku" href={ templ.SafeURL(c.Href()) }>{ c.Title }</a>
+										<span class={ "ui-badge", templ.KV("ui-badge--brand", c.Live()) }>{ c.State(ctx) }</span>
+									</div>
+									<span class="ui-cart-line__meta">/s/{ c.Slug }</span>
+									<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCampMeta), c.ProductsText(), c.EndsAt) }</span>
+									<form method="post" action={ templ.SafeURL(c.ToggleAction()) }>
+										<input type="hidden" name="active" value={ c.NextActive() }/>
+										<button class="ui-btn ui-btn--secondary" type="submit">{ c.ToggleLabel(ctx) }</button>
+									</form>
+								</li>
+							}
+						</ul>
+					}
+				</aside>
+			</div>
+		</div>
+	}
+}
+
+// AdminCampaignForm renders one campaign's product selection.
+templ AdminCampaignForm(p layouts.Page, v AdminCampaignView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("campaigns")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">
+						<a href="/admin/campaigns">{ i18n.T(ctx, i18n.KeyAdminPageCampaigns) }</a>
+					</p>
+					<h1 class="ui-page-head__title">{ v.Slug }</h1>
+				</div>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			<form class="goen-admin__form goen-admin__grant" method="post" action={ templ.SafeURL(v.FeatureAction()) }>
+				<div class="ui-field">
+					<label class="ui-label" for="k-product">{ i18n.T(ctx, i18n.KeyAdminCampProductSlug) }</label>
+					<input class="ui-input" id="k-product" name="product" required maxlength="120" placeholder="pixelight-9" autocomplete="off"/>
+					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCampProductHint) }</p>
+				</div>
+				<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminCampAdd) }</button>
+			</form>
+			<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminCampProducts) }</h2>
+			if v.Empty() {
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCampNoProducts) }</p>
+			} else {
+				<ul class="goen-admin__catalogue" role="list">
+					for _, item := range v.Products {
+						<li class="goen-admin__product">
+							<a class="goen-admin__productname" href={ templ.SafeURL("/admin/products/" + item.Slug) }>
+								{ item.Name }
+							</a>
+							<span class="ui-cart-line__meta">/p/{ item.Slug }</span>
+							<form method="post" action={ templ.SafeURL(v.FeatureAction()) }>
+								<input type="hidden" name="product" value={ item.Slug }/>
+								<input type="hidden" name="action" value="remove"/>
+								<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminRemove) }</button>
+							</form>
+						</li>
+					}
+				</ul>
+			}
+		</div>
+	}
+}

@@ -1,0 +1,45 @@
+package pages
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// AdminAudit renders the back office's own history.
+templ AdminAudit(p layouts.Page, v AuditView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("audit")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageAudit) }</h1>
+					<p class="ui-page-head__sub">
+						{ i18n.T(ctx, i18n.KeyAdminAuditLead) }
+					</p>
+				</div>
+			</div>
+			if v.Empty() {
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminAuditEmpty) }</p>
+			} else {
+				<ul class="goen-admin__audit" role="list">
+					for _, e := range v.Rows {
+						<li class={ "goen-admin__auditrow", templ.KV("is-money", e.Money()) }>
+							<div class="goen-admin__audithead">
+								<span class="goen-admin__auditaction">{ e.Label(ctx) }</span>
+								<span class="ui-cart-line__meta">{ e.At }</span>
+							</div>
+							<span class="ui-cart-line__meta">{ e.ActorText(ctx) } · { e.Entity }</span>
+							if e.Detail != "" {
+								<code class="goen-admin__auditdetail">{ e.Detail }</code>
+							}
+							if e.RequestID != "" {
+								<span class="ui-cart-line__meta">req { e.ShortRequestID() }</span>
+							}
+						</li>
+					}
+				</ul>
+			}
+		</div>
+	}
+}

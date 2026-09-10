@@ -1,0 +1,104 @@
+/* ============================================================
+   koopa.dev — App shell (console chrome, defined ONCE)
+   The single source of truth for every admin/console surface:
+   sidebar + topbar + body. Templates may only add pure layout
+   (grid columns, gaps); all appearance comes from these classes.
+   Numbers are law: sidebar 240 · topbar 16/32 · gutter 32 ·
+   content max 1120 · body gap 24.
+   ============================================================ */
+
+:root {
+  --shell-side-w: 240px;
+  --shell-gutter: 32px;
+  --shell-content-max: 1120px;
+}
+
+/* ---- frame ---- */
+.ui-shell {
+  display: grid;
+  grid-template-columns: var(--shell-side-w) 1fr;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+}
+
+/* ---- sidebar ---- */
+.ui-side {
+  border-right: 1px solid var(--border);
+  background: var(--panel);
+  padding: 20px 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ui-side__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px 20px;
+  font-family: var(--font-display);
+  font-weight: var(--fw-semibold);
+  font-size: var(--fs-14);
+  letter-spacing: var(--track-snug);
+  color: var(--fg);
+}
+.ui-side__label {
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  color: var(--fg-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 16px 10px 6px;
+  white-space: nowrap;
+}
+.ui-side__foot { margin-top: auto; padding-top: 16px; }
+
+/* ---- topbar ---- */
+.ui-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px var(--shell-gutter);
+  border-bottom: 1px solid var(--border);
+  min-height: 64px;
+  box-sizing: border-box;
+}
+.ui-topbar__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-ed-20);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--track-snug);
+  color: var(--fg);
+  margin: 0;
+  white-space: nowrap;
+}
+.ui-topbar__spacer { flex: 1; }
+
+/* ---- main + body column ---- */
+.ui-main { min-width: 0; display: flex; flex-direction: column; }
+.ui-body {
+  width: 100%;
+  max-width: var(--shell-content-max);
+  box-sizing: border-box;
+  padding: 28px var(--shell-gutter) 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* single-column pages (no sidebar): same rhythm, centered.
+   NOTE: class is a .ui-body modifier — ".ui-page" is taken by pagination. */
+.ui-body--page {
+  max-width: var(--shell-content-max);
+  margin: 0 auto;
+  padding-top: 56px;
+  padding-bottom: 96px;
+}
+
+@media (max-width: 860px) {
+  .ui-shell { grid-template-columns: 1fr; }
+  .ui-side { display: none; }
+  .ui-topbar, .ui-body { padding-left: 20px; padding-right: 20px; }
+}

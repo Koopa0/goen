@@ -1,0 +1,4084 @@
+/* ============================================================
+   goen — application layer.
+
+   The design system under ../ds owns tokens and components. This
+   file owns only what a design system cannot: page composition and
+   the responsive behaviour that turns the 1440 and 375 artboards
+   into one document. Load it last.
+
+   Breakpoints follow the design system's --bp-* tokens, written as
+   literals because custom properties are not valid in @media.
+     md = 768px   layout goes multi-column
+     lg = 1024px  the full desktop header fits on one row
+   ============================================================ */
+
+/* The artboards set --font-sans / --font-display to put Noto Sans TC
+   behind the Latin faces so Han glyphs match the Latin weight. */
+:root {
+  --font-sans: 'Inter', 'Noto Sans TC', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: 'Space Grotesk', 'Noto Sans TC', ui-sans-serif, system-ui, sans-serif;
+}
+
+a {
+  color: var(--accent-strong);
+}
+
+a:hover {
+  color: var(--accent);
+}
+
+/* The design system silences its own spinners under reduced motion; the
+   component transitions it ships are the application layer's to calm. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- Shell ---------- */
+
+.goen-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.goen-shell > main {
+  flex: 1;
+}
+
+.goen-skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: var(--z-toast);
+  padding: 10px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+}
+
+.goen-skip:focus {
+  left: 8px;
+  top: 8px;
+}
+
+/* Reachable by assistive technology, absent from the visual layout. */
+.goen-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- Header ---------- */
+
+.goen-header {
+  position: relative;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+/* The page gutter is one value per breakpoint — 16 / 24 / 32 — and the header,
+   the page body and the footer all use it. When they drift apart the three
+   landmarks read as three documents stacked rather than one page, which is
+   exactly what `make check-layout` compares. */
+.goen-header__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+}
+
+.goen-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-right: auto;
+  text-decoration: none;
+  color: var(--fg);
+}
+
+.goen-header__brand:hover {
+  color: var(--fg);
+}
+
+.goen-header__wordmark {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.01em;
+  color: var(--fg);
+}
+
+.goen-header__mark {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+
+/* The search field wraps onto its own row until the desktop bar. */
+.goen-header__search {
+  order: 10;
+  flex: 0 0 100%;
+}
+
+.goen-header__search .ui-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.goen-header__nav,
+.goen-header__lang,
+.goen-header__action--wide {
+  display: none;
+}
+
+.goen-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.goen-header__cart {
+  position: relative;
+}
+
+.goen-header__cart .ui-badge--count {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+}
+
+/* Mobile disclosure menu: a native <details>, no script involved. */
+.goen-header__menu > summary {
+  list-style: none;
+}
+
+.goen-header__menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.goen-header__drawer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: var(--z-dropdown);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-2);
+}
+
+/* The language control is desktop-bar chrome, except inside the drawer where
+   it is the only place a small screen can reach it. */
+.goen-header__drawer .goen-header__lang {
+  display: inline-flex;
+  margin-top: 8px;
+  align-self: flex-start;
+}
+
+.goen-header__navitem--deal {
+  color: var(--accent);
+}
+
+/* The header keeps its stacked, wrapping form until the desktop bar at lg, but
+   the gutter steps up with the rest of the page at md. */
+@media (min-width: 768px) {
+  .goen-header__bar {
+    padding: 10px 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .goen-header__bar {
+    flex-wrap: nowrap;
+    gap: 28px;
+    height: 64px;
+    max-width: var(--container);
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+
+  .goen-header__menu {
+    display: none;
+  }
+
+  .goen-header__brand {
+    margin-right: 0;
+    gap: 9px;
+  }
+
+  .goen-header__mark {
+    width: 28px;
+    height: 28px;
+  }
+
+  .goen-header__wordmark {
+    font-size: 21px;
+  }
+
+  .goen-header__nav {
+    display: flex;
+    gap: 4px;
+  }
+
+  .goen-header__search {
+    order: 0;
+    flex: 1 1 auto;
+    max-width: 340px;
+    margin-left: auto;
+  }
+
+  .goen-header__lang,
+  .goen-header__action--wide {
+    display: inline-flex;
+  }
+
+  .goen-header__cart .ui-badge--count {
+    top: 2px;
+    right: 0;
+  }
+}
+
+/* ---------- Footer ---------- */
+
+.goen-footer {
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+}
+
+.goen-footer__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px 16px;
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+.goen-footer__brand,
+.goen-footer__news {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.goen-footer__brandline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.goen-footer__wordmark {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+}
+
+.goen-footer__mark {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+.goen-footer__tagline {
+  margin: 0;
+  max-width: 36ch;
+  color: var(--fg-subtle);
+  line-height: 1.7;
+}
+
+.goen-footer__contact,
+.goen-footer__newsnote {
+  margin: 0;
+}
+
+.goen-footer__signup-done {
+  margin: 0;
+  color: var(--success);
+}
+
+.goen-footer__signup-error {
+  flex: 0 0 100%;
+  margin: 0;
+}
+
+.goen-footer__links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.goen-footer__links a {
+  color: var(--fg-muted);
+  text-decoration: none;
+  padding: 4px 0;
+}
+
+.goen-footer__links a:hover {
+  color: var(--fg);
+}
+
+.goen-footer__signup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.goen-footer__signup .ui-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.goen-footer__social {
+  display: flex;
+  gap: 6px;
+}
+
+.goen-footer__bottom {
+  border-top: 1px solid var(--border-faint);
+}
+
+.goen-footer__bottominner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* The footer's locale control is present at every width — unlike the header's,
+   which the drawer takes over below the desktop bar. */
+.goen-footer__lang {
+  display: inline-flex;
+}
+
+@media (min-width: 768px) {
+  .goen-footer__grid {
+    grid-template-columns: 2fr 1fr 1fr 1.6fr;
+    gap: 40px;
+    padding: 48px 24px 24px;
+  }
+
+  .goen-footer__brand,
+  .goen-footer__news {
+    grid-column: auto;
+    gap: 14px;
+  }
+
+  .goen-footer__wordmark {
+    font-size: 18px;
+  }
+
+  .goen-footer__links {
+    gap: 10px;
+  }
+
+  .goen-footer__bottominner {
+    padding: 16px 24px;
+  }
+}
+
+/* The desktop gutter. The header already switches to it as part of taking its
+   single-row form; the footer needs it spelled out. */
+@media (min-width: 1024px) {
+  .goen-footer__grid {
+    padding: 48px 32px 24px;
+  }
+
+  .goen-footer__bottominner {
+    padding: 16px 32px;
+  }
+}
+
+/* ---------- Home ----------
+
+   The product card, price, rating and guarantee strip come from the design
+   system's commerce pack. Everything below is composition: the page container,
+   the hero split, the two grids, and the fold that turns the 1440 and 375
+   artboards into one document. Type sizes step along the design system's
+   editorial scale rather than restating the artboards' literal pixels. */
+
+.goen-home {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 16px 16px 40px;
+}
+
+.goen-section__title {
+  margin: 0;
+  font-size: var(--fs-ed-20);
+}
+
+/* Hero: the 375 artboard stacks the image over the copy, the 1440 artboard
+   sets them side by side. The copy stays first in the source — it carries the
+   h1 — and the media is pulled above it on small screens with `order`. That
+   reorder is free of focus-order cost because the media holds nothing
+   focusable. */
+.goen-hero {
+  display: grid;
+  grid-template-columns: 1fr;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.goen-hero__body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px;
+}
+
+.goen-hero__title {
+  margin: 0;
+  font-size: var(--fs-ed-24);
+  line-height: 1.2;
+  letter-spacing: var(--track-snug);
+}
+
+.goen-hero__lede {
+  margin: 0;
+  max-width: 38ch;
+  color: var(--fg-muted);
+  line-height: var(--lh-read);
+}
+
+.goen-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+/* A comfortable touch target on the artboard's smallest width. */
+.goen-hero__actions .ui-btn {
+  min-height: 44px;
+}
+
+.goen-hero__media {
+  order: -1;
+  position: relative;
+  aspect-ratio: 341 / 180;
+  background: var(--elevated);
+  overflow: hidden;
+}
+
+.goen-hero__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The standing note where artwork is not embedded yet. The catalogue names its
+   imagery long before the imagery exists, so this is a state the page has to
+   look finished in, not a temporary hack. */
+.goen-ph {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  color: var(--fg-faint);
+  line-height: 2;
+  text-align: center;
+}
+
+/* Category tiles. auto-fill rather than a fixed column count: the catalogue's
+   top level is data and will change, and a hard `repeat(8, …)` would strand
+   the ninth category on a row of its own. */
+.goen-cats,
+.goen-tiles {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.goen-cats__grid,
+.goen-tiles__grid {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+}
+
+/* Three across on the 375 artboard, one row of six on the 1440. minmax(0, 1fr)
+   rather than a bare 1fr: a bare fr track refuses to shrink below its content's
+   min-content width, which is how a grid silently pushes the page wider than
+   the viewport. */
+.goen-cats__grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.goen-cat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 44px;
+  padding: 16px 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--fg);
+  text-decoration: none;
+  transition: border-color var(--dur-base) var(--ease-standard);
+}
+
+.goen-cat:hover {
+  border-color: var(--border-strong);
+  color: var(--fg);
+}
+
+.goen-cat__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-md);
+  background: var(--accent-faint);
+  color: var(--accent);
+}
+
+/* A category whose icon_key is empty — or names a glyph the icon set does not
+   carry — renders no glyph at all. Collapse the chip so the tile reads as a
+   deliberate text tile rather than a broken image. */
+.goen-cat__icon:empty {
+  display: none;
+}
+
+.goen-cat__name {
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  text-align: center;
+}
+
+/* Product grid. The card itself is .ui-product; the anchor only has to stop
+   being a link visually and fill the row. */
+.goen-tiles__grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.goen-tile {
+  height: 100%;
+  color: inherit;
+  text-decoration: none;
+}
+
+/* The compare checkbox sits over the card rather than above it: a row of its
+   own would push every tile down by its height on a page that is mostly tiles. */
+.goen-tile__cell {
+  position: relative;
+}
+
+.goen-tile__compare {
+  position: absolute;
+  z-index: 1;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface, #fff);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 18%);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.goen-compare-pick__go {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 16px;
+}
+
+/* A bare .ui-btn is 31px: the design system's base padding plus a 13px line
+   box. Every other goen surface states its own touch target for the same
+   reason. */
+.goen-compare-pick__go .ui-btn {
+  min-height: 44px;
+}
+
+/* .ui-price is a nowrap inline-flex row. On the 375 artboard a sale tile's
+   "now + was" pair measures ~171px against a ~166px column, and because a grid
+   track will not shrink below its content, the whole page picked up 35px of
+   horizontal scroll. Let the pair wrap instead; the design's own mobile card
+   does the same. */
+.goen-tile .ui-price {
+  flex-wrap: wrap;
+}
+
+.goen-tile:hover {
+  color: inherit;
+}
+
+.goen-tile__ph {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.goen-tile__score {
+  font-size: var(--fs-13);
+  color: var(--fg-muted);
+}
+
+.goen-tile__rating {
+  margin: 0;
+}
+
+/* Shopping guarantees. .ui-incentives already reflows on its own track
+   minimum, so the fold only owns the rule above it and the spacing. */
+.goen-trust {
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+}
+
+@media (min-width: 768px) {
+  .goen-home {
+    gap: 40px;
+    padding: 24px 24px 56px;
+  }
+
+  .goen-section__title {
+    font-size: var(--fs-ed-24);
+  }
+
+  .goen-hero__title {
+    font-size: var(--fs-ed-30);
+  }
+
+  .goen-cats__grid {
+    gap: 14px;
+  }
+
+  .goen-tiles__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .goen-trust {
+    border-bottom: 1px solid var(--border);
+    padding: 28px 0;
+  }
+}
+
+@media (min-width: 1024px) {
+  .goen-home {
+    gap: 56px;
+    padding: 32px 32px 64px;
+  }
+
+  .goen-hero {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .goen-hero__body {
+    gap: 18px;
+    padding: 56px 48px;
+  }
+
+  .goen-hero__title {
+    font-size: var(--fs-ed-38);
+    line-height: var(--lh-tight);
+    letter-spacing: var(--track-tight);
+  }
+
+  .goen-hero__media {
+    order: 0;
+    aspect-ratio: auto;
+    min-height: 380px;
+    border-left: 1px solid var(--border-faint);
+  }
+
+  .goen-cats__grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  /* The 1440 artboard's category tile is taller and its glyph chip larger. */
+  .goen-cat {
+    gap: 10px;
+    padding: 22px 12px;
+  }
+
+  .goen-cat__icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .goen-tiles__grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ---------- Listing and search ----------
+
+   The design system already defines every component this page uses — crumbs,
+   checkboxes, selects, empty states, the product card. What it cannot own is
+   the two-column split and the fold that puts filters above the grid on a
+   small screen, which is all that lives here. The product grid itself reuses
+   .goen-tiles__grid from the home, because it is the same grid. */
+
+.goen-listing {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 16px 16px 40px;
+}
+
+.goen-listing__crumbs {
+  margin: 0;
+}
+
+.goen-listing__head {
+  padding-bottom: 12px;
+}
+
+.goen-listing__layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.goen-listing__results {
+  min-width: 0;
+}
+
+/* Filters. A <details> per group, so disclosure works with the file deleted. */
+.goen-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.goen-filters__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.goen-filters__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+}
+
+.goen-filters__group {
+  border-top: 1px solid var(--border-faint);
+  padding-top: 12px;
+}
+
+.goen-filters__group:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.goen-filters__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  color: var(--fg);
+  cursor: pointer;
+  list-style: none;
+}
+
+.goen-filters__summary::-webkit-details-marker {
+  display: none;
+}
+
+/* The disclosure triangle, drawn rather than borrowed: the design system's
+   accordion chevron is an inline SVG the markup supplies, and a filter group
+   does not need a second icon in every legend. */
+.goen-filters__summary::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid var(--fg-subtle);
+  border-bottom: 1.5px solid var(--fg-subtle);
+  transform: rotate(45deg) translate(-2px, -2px);
+  transition: transform var(--dur-base) var(--ease-standard);
+}
+
+.goen-filters__group[open] > .goen-filters__summary::after {
+  transform: rotate(-135deg) translate(-2px, -2px);
+}
+
+.goen-filters__options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 8px;
+}
+
+/* A comfortable target: the whole row is the label, not just the box. */
+.goen-filters__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 4px;
+  border-radius: var(--r-sm);
+}
+
+.goen-filters__option:hover {
+  background: var(--elevated);
+}
+
+.goen-filters__label {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-13);
+  color: var(--fg-muted);
+}
+
+.goen-filters__prices {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+.goen-filters__prices .ui-input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 44px;
+}
+
+.goen-filters__dash {
+  color: var(--fg-faint);
+  flex: none;
+}
+
+.goen-filters .ui-select {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 44px;
+}
+
+.goen-filters__apply {
+  min-height: 44px;
+}
+
+.goen-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.goen-pager .ui-btn {
+  min-height: 44px;
+}
+
+/* An arrow with nowhere to go stays visible so the control does not move
+   between pages, but reads as unavailable. */
+.goen-pager [aria-disabled="true"] {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.goen-pager__at {
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+  color: var(--fg-subtle);
+  white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+  .goen-listing {
+    gap: 20px;
+    padding: 24px 24px 56px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .goen-listing {
+    gap: 24px;
+    padding: 32px 32px 64px;
+  }
+
+  /* The filter rail. 240px holds the longest brand name plus its count without
+     wrapping. */
+  .goen-listing__layout {
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 32px;
+  }
+
+  /* Three across, not four. The rail and its gap take 272px out of the row, so
+     the home's four-column grid would leave 156px cards here — narrower than
+     the same card on a 375px phone, which is where measuring rather than
+     assuming pays. Four columns come back at xl, where there is room. */
+  .goen-listing .goen-tiles__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .goen-filters {
+    position: sticky;
+    top: 16px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .goen-listing .goen-tiles__grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ---------- Product detail ---------- */
+
+.goen-pdp {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 16px 16px 40px;
+}
+
+.goen-pdp__crumbs {
+  margin: 0;
+}
+
+.goen-pdp__top {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+/* Gallery: every image, stacked. No thumbnail switcher and no lightbox —
+   both need scripting to be worth anything, and a column reads the same
+   everywhere. */
+.goen-pdp__gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.goen-pdp__shot {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: var(--elevated);
+  border: 1px solid var(--border-faint);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.goen-pdp__shot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.goen-pdp__buy {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.goen-pdp__brand {
+  margin: 0;
+}
+
+.goen-pdp__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-ed-24);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--track-snug);
+  color: var(--fg);
+}
+
+.goen-pdp__lede {
+  margin: 0;
+  color: var(--fg-muted);
+  line-height: var(--lh-read);
+}
+
+.goen-pdp__rating {
+  align-self: flex-start;
+  text-decoration: none;
+}
+
+.goen-pdp__pricebox {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 0;
+  border-top: 1px solid var(--border-faint);
+  border-bottom: 1px solid var(--border-faint);
+}
+
+.goen-pdp__price .ui-price__now {
+  font-size: var(--fs-ed-24);
+}
+
+.goen-pdp__option {
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goen-pdp__optname {
+  padding: 0;
+  margin-bottom: 6px;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  color: var(--fg);
+}
+
+.goen-pdp__values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* An option value. A LINK, not a button: choosing navigates to the URL for
+   that combination, which is what makes the picker work with scripting off.
+   The design system's ui-swatch is a button for a JS-driven picker, so this
+   is composition rather than a fork of it. */
+.goen-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 56px;
+  padding: 0 14px;
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-13);
+  color: var(--fg-muted);
+  text-decoration: none;
+  transition: border-color var(--dur-base) var(--ease-standard),
+    color var(--dur-base) var(--ease-standard);
+}
+
+.goen-swatch:hover {
+  border-color: var(--border-strong);
+  color: var(--fg);
+}
+
+.goen-swatch--on {
+  border-color: var(--accent);
+  background: var(--accent-faint);
+  color: var(--fg);
+  font-weight: var(--fw-medium);
+}
+
+/* Unavailable in combination with the other choices. Shown, not hidden:
+   removing it makes the page look like the option does not exist. Still a
+   link, because navigating there is how a visitor changes the other choice. */
+.goen-swatch--out {
+  color: var(--fg-faint);
+  border-style: dashed;
+}
+
+.goen-swatch--out:not(.goen-swatch--on) {
+  text-decoration: line-through;
+  text-decoration-color: var(--border-strong);
+}
+
+.goen-pdp__note {
+  margin: 0;
+  font-size: var(--fs-13);
+  color: var(--fg-subtle);
+}
+
+.goen-pdp__form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.goen-pdp__qty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.goen-pdp__qtyinput {
+  width: 88px;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.goen-pdp__add {
+  min-height: 48px;
+}
+
+.goen-pdp__assurances {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--fs-12);
+  color: var(--fg-subtle);
+}
+
+.goen-pdp__detail {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.goen-pdp__prose,
+.goen-pdp__warranty {
+  margin: 0;
+  color: var(--fg-muted);
+  line-height: var(--lh-read);
+  max-width: var(--measure-article);
+}
+
+.goen-pdp__warranty {
+  margin-top: 10px;
+  font-size: var(--fs-13);
+  color: var(--fg-subtle);
+}
+
+.goen-pdp__reviews {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.goen-pdp__reviewlayout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  margin-top: 12px;
+}
+
+.goen-pdp__score {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-ed-38);
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+  color: var(--fg);
+}
+
+.goen-pdp__bars {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.goen-pdp__bar {
+  display: grid;
+  grid-template-columns: 3.5em 1fr 2.5em;
+  align-items: center;
+  gap: 8px;
+}
+
+.goen-pdp__barlabel,
+.goen-pdp__barcount {
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  color: var(--fg-subtle);
+}
+
+.goen-pdp__barcount {
+  text-align: right;
+}
+
+.goen-pdp__bartrack {
+  display: block;
+}
+
+.goen-pdp__reviewlist {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+@media (min-width: 768px) {
+  .goen-pdp {
+    gap: 32px;
+    padding: 24px 24px 56px;
+  }
+
+  .goen-pdp__title {
+    font-size: var(--fs-ed-30);
+  }
+
+  .goen-pdp__detail {
+    grid-template-columns: 1.4fr 1fr;
+    gap: 40px;
+  }
+
+  .goen-pdp__reviewlayout {
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 32px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .goen-pdp {
+    gap: 40px;
+    padding: 32px 32px 64px;
+  }
+
+  /* Gallery leads, the buy panel holds beside it. 55/45 keeps the panel wide
+     enough for a two-option picker to stay on one line each. */
+  .goen-pdp__top {
+    grid-template-columns: 55fr 45fr;
+    gap: 40px;
+  }
+
+  .goen-pdp__buy {
+    position: sticky;
+    top: 16px;
+    gap: 14px;
+  }
+}
+
+/* ---------- Cart, checkout and order ---------- */
+
+.goen-cart,
+.goen-checkout,
+.goen-order,
+.goen-pay {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 16px 16px 40px;
+}
+
+.goen-cart__layout,
+.goen-checkout__layout,
+.goen-order__layout,
+.goen-pay__layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.goen-cart__lines,
+.goen-order__lines,
+.goen-pay__lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.goen-cart__line {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 12px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border-faint);
+}
+
+/* A line the catalogue can no longer honour. Dimmed, not hidden: a visitor
+   needs to see what they have to remove before checkout will let them past. */
+.goen-cart__line--out {
+  opacity: 0.65;
+}
+
+.goen-cart__thumb {
+  display: block;
+  width: 72px;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--r-sm);
+  background: var(--elevated);
+  overflow: hidden;
+}
+
+.goen-cart__thumb img,
+.goen-cart__thumbph {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.goen-cart__body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.goen-cart__name {
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.goen-cart__controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.goen-cart__qty {
+  width: 76px;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.goen-cart__controls .ui-btn {
+  min-height: 44px;
+}
+
+.goen-cart__money {
+  grid-column: 2;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.goen-cart__summary,
+.goen-checkout__summary,
+.goen-order__summary,
+.goen-pay__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.goen-cart__summarytitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+}
+
+/* .ui-btn--block is width:100% and the design system's buttons carry padding
+   under the default content-box sizing, so a block button inside a padded panel
+   measures 100% PLUS its own padding and pushes the page 5px wider than the
+   viewport at 375. Sizing it border-box makes the 100% mean what it reads as.
+   Applied to goen's own block buttons rather than to .ui-btn, which would be
+   forking a design-system rule into the app layer. */
+.goen-cart__checkout,
+.goen-checkout__submit,
+.goen-order__summary .ui-btn--block,
+.goen-pay__summary .ui-btn--block {
+  box-sizing: border-box;
+  min-height: 48px;
+}
+
+/* A checkout button with a blocked cart behind it: visible so the control does
+   not move, plainly unavailable so nobody presses it into a refusal. */
+.goen-cart__checkout[aria-disabled="true"] {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.goen-cart__keep {
+  align-self: center;
+  font-size: var(--fs-13);
+}
+
+.goen-cart__blocked,
+.goen-checkout__alert,
+.goen-order__status,
+.goen-pay__notice {
+  margin: 0;
+}
+
+.goen-checkout__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  min-width: 0;
+}
+
+.goen-checkout__section {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+}
+
+.goen-checkout__fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.goen-checkout__wide {
+  grid-column: 1 / -1;
+}
+
+.goen-checkout__panel .ui-input,
+.goen-checkout__panel .ui-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 44px;
+}
+
+.goen-checkout__shipping {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.goen-checkout__ship {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.goen-checkout__ship:hover {
+  border-color: var(--border-strong);
+}
+
+/* The shipping option is a LINK, so the selected one is marked by a class the
+   server renders rather than by a checked input. The :has() rule stays for the
+   invoice radios, which are still radios. */
+.goen-checkout__ship--on,
+.goen-checkout__ship:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-faint);
+}
+
+.goen-checkout__ship {
+  text-decoration: none;
+  color: inherit;
+}
+
+.goen-checkout__hint {
+  margin: 4px 0 0;
+  font-size: var(--fs-12);
+  color: var(--fg-subtle);
+}
+
+.goen-checkout__shipname {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-13);
+  color: var(--fg);
+}
+
+.goen-checkout__shipfee {
+  font-family: var(--font-mono);
+  font-size: var(--fs-13);
+  color: var(--fg-muted);
+}
+
+.goen-checkout__lines {
+  margin: 0;
+  padding: 0 0 8px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-bottom: 1px solid var(--border-faint);
+}
+
+.goen-checkout__lines li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: var(--fs-12);
+  color: var(--fg-muted);
+}
+
+.goen-checkout__note {
+  margin: 0;
+  font-size: var(--fs-11);
+  color: var(--fg-subtle);
+  line-height: var(--lh-normal);
+}
+
+.goen-order__line,
+.goen-pay__line {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border-faint);
+}
+
+.goen-order__name,
+.goen-pay__name {
+  margin: 0 0 2px;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  color: var(--fg);
+}
+
+@media (min-width: 768px) {
+  .goen-cart,
+  .goen-checkout,
+  .goen-order,
+  .goen-pay {
+    gap: 24px;
+    padding: 24px 24px 56px;
+  }
+
+  .goen-checkout__fields {
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .goen-cart__line {
+    grid-template-columns: 96px minmax(0, 1fr) auto;
+    gap: 16px;
+  }
+
+  .goen-cart__thumb {
+    width: 96px;
+  }
+
+  .goen-cart__money {
+    grid-column: 3;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: flex-start;
+  }
+}
+
+@media (min-width: 1024px) {
+  .goen-cart,
+  .goen-checkout,
+  .goen-order,
+  .goen-pay {
+    gap: 32px;
+    padding: 32px 32px 64px;
+  }
+
+  .goen-cart__layout,
+  .goen-order__layout,
+  .goen-pay__layout {
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 40px;
+  }
+
+  /* Checkout puts the form first and the summary beside it, so the money stays
+     in view while the address is typed. */
+  .goen-checkout__layout {
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 40px;
+  }
+
+  .goen-cart__summary,
+  .goen-checkout__summary,
+  .goen-order__summary,
+  .goen-pay__summary {
+    position: sticky;
+    top: 16px;
+  }
+}
+
+/* ---------- Sign in, register, account ---------- */
+
+.goen-auth {
+  display: flex;
+  justify-content: center;
+  padding: 32px 16px 56px;
+}
+
+.goen-auth__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 400px;
+  padding: 20px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.goen-auth__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-ed-24);
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+}
+
+.goen-auth__form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.goen-auth__form .ui-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 44px;
+}
+
+.goen-auth__submit {
+  box-sizing: border-box;
+  min-height: 48px;
+  margin-top: 4px;
+}
+
+/* The Google button, and the same content-box compensation .goen-auth__submit
+   makes three rules up: .ui-btn is content-box in the vendored design system, so
+   a 13px line with 9px of padding comes to 31px — under the 44px tap target, and
+   measured by check-layout rather than noticed by eye. The fix belongs upstream;
+   see CLAUDE.md's known follow-ups. */
+.goen-auth__oauth {
+  box-sizing: border-box;
+  min-height: 48px;
+}
+
+.goen-auth__alt {
+  margin: 0;
+  font-size: var(--fs-13);
+  color: var(--fg-subtle);
+  text-align: center;
+}
+
+.goen-account {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 16px 16px 40px;
+}
+
+.goen-account__layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.goen-account__section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  min-width: 0;
+}
+
+.goen-account__heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+}
+
+.goen-account__orders,
+.goen-account__addresses {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.goen-account__order {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-faint);
+}
+
+.goen-account__order:last-child {
+  border-bottom: none;
+}
+
+.goen-account__order > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.goen-account__number {
+  font-family: var(--font-mono);
+  font-size: var(--fs-13);
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.goen-account__ordermeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex: none;
+}
+
+.goen-account__address {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-faint);
+}
+
+.goen-account__address:last-child {
+  border-bottom: none;
+}
+
+.goen-account__addrlabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  color: var(--fg);
+}
+
+.goen-account__side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.goen-account__form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.goen-account__form .ui-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 44px;
+}
+
+.goen-account__form .ui-btn {
+  box-sizing: border-box;
+  min-height: 44px;
+}
+
+.goen-account__empty {
+  margin: 0;
+  font-size: var(--fs-13);
+  color: var(--fg-subtle);
+}
+
+.goen-account__credit {
+  align-self: flex-start;
+}
+
+@media (min-width: 768px) {
+  .goen-account {
+    gap: 24px;
+    padding: 24px 24px 56px;
+  }
+
+  .goen-auth {
+    padding: 56px 24px 80px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .goen-account {
+    gap: 32px;
+    padding: 32px 32px 64px;
+  }
+
+  .goen-account__layout {
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 32px;
+  }
+}
+
+/* ---------- About ---------- */
+
+.about {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: var(--measure-article);
+  margin: 0 auto;
+  padding: 28px 20px 40px;
+}
+
+.about__mark {
+  width: 44px;
+  height: 44px;
+}
+
+.about__title {
+  margin: 0;
+  font-size: var(--fs-ed-24);
+}
+
+.about__lede {
+  margin: 0;
+  font-size: var(--fs-14);
+  color: var(--fg-muted);
+  line-height: 1.9;
+}
+
+.about__values {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.about__value h2 {
+  margin: 0 0 4px;
+  font-size: var(--fs-ed-17);
+}
+
+.about__value p {
+  margin: 0;
+  line-height: 1.8;
+}
+
+.about__legal {
+  margin: 0;
+  font-family: var(--font-mono);
+  line-height: 2;
+}
+
+@media (min-width: 768px) {
+  .about {
+    gap: 24px;
+    padding: 56px 32px 80px;
+  }
+
+  .about__mark {
+    width: 56px;
+    height: 56px;
+  }
+
+  .about__title {
+    font-size: var(--fs-ed-38);
+  }
+
+  .about__lede {
+    font-size: var(--fs-16);
+  }
+
+  .about__values {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+
+  .about__value h2 {
+    margin-bottom: 6px;
+  }
+}
+
+/* ---------- Contact ---------- */
+
+.contact {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 20px 16px 32px;
+}
+
+.contact__title {
+  margin: 0 0 8px;
+  font-size: var(--fs-ed-24);
+}
+
+.contact__hours {
+  margin: 0;
+  color: var(--fg-subtle);
+}
+
+.contact__methods {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.contact-method {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  text-decoration: none;
+}
+
+.contact-method:hover {
+  border-color: var(--border-strong);
+}
+
+.contact-method__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-md);
+  background: var(--accent-faint);
+  color: var(--accent);
+}
+
+.contact-method__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.contact-method__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.contact-method__label {
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+}
+
+.contact-method__value {
+  font-family: var(--font-mono);
+  color: var(--fg-subtle);
+}
+
+.contact__layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.contact__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 16px;
+}
+
+.contact__panel > h2 {
+  margin: 0;
+  font-size: var(--fs-ed-17);
+}
+
+.contact__fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.contact__field--wide {
+  grid-column: 1 / -1;
+}
+
+.contact__panel .ui-input,
+.contact__panel .ui-select,
+.contact__panel .ui-textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+}
+
+.contact__panel .ui-textarea {
+  min-height: 90px;
+}
+
+.contact__submit {
+  align-self: stretch;
+  min-height: 48px;
+}
+
+.contact__aside {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.contact__map {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 4 / 3;
+  background: var(--elevated);
+  border: 1px solid var(--border-faint);
+  border-radius: var(--r-md);
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  color: var(--fg-faint);
+  text-decoration: none;
+}
+
+.contact__address {
+  margin: 0;
+  line-height: 1.8;
+}
+
+@media (min-width: 768px) {
+  .contact {
+    gap: 28px;
+    padding: 48px 32px 80px;
+  }
+
+  .contact__title {
+    font-size: var(--fs-ed-30);
+  }
+
+  .contact__methods {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .contact-method {
+    align-items: flex-start;
+    padding: 18px;
+  }
+
+  .contact__panel {
+    gap: 16px;
+    padding: 24px;
+  }
+
+  .contact__fields {
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  .contact__panel .ui-textarea {
+    min-height: 110px;
+  }
+
+  .contact__submit {
+    align-self: flex-start;
+  }
+}
+
+@media (min-width: 1024px) {
+  .contact__layout {
+    grid-template-columns: 1fr 320px;
+    gap: 40px;
+  }
+}
+
+/* ---------- Simple centred message page (404 / 500) ---------- */
+
+.notice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  max-width: var(--measure-article);
+  margin: 0 auto;
+  padding: 64px 20px 80px;
+}
+
+.notice__code {
+  font-family: var(--font-mono);
+  color: var(--fg-faint);
+  letter-spacing: var(--track-wide);
+}
+
+.notice__title {
+  margin: 0;
+}
+
+.notice__body {
+  margin: 0;
+  color: var(--fg-muted);
+  line-height: 1.9;
+}
+
+/* The newsletter's confirm and unsubscribe links land here, and they are the
+   two pages a reader arrives at from an email — on a phone, one-handed, from a
+   mail client. Both controls need a real target.
+
+   The button is .ui-btn--lg and already comfortable; the "back to the shop"
+   link under it measured 36px, because it is a bare inline <a> with a smaller
+   type size. Padding it to 44 is the fix, and check-layout is what found it:
+   the tap-target rule caught a control nobody would have measured by eye. */
+.notice__form {
+  display: flex;
+  width: 100%;
+}
+
+/* .ui-btn is content-box upstream, so .ui-btn--lg's 10px padding on a 14px
+   line comes to 36px — under the 44px tap target, which check-layout measured
+   rather than anybody noticing. Compensated here per surface, the way
+   .goen-auth__submit and .goen-checkout__ship already do; the fix belongs
+   upstream, where a button that cannot be tapped is a defect for every
+   consumer. See CLAUDE.md's known follow-ups. */
+.notice__form .ui-btn {
+  box-sizing: border-box;
+  min-height: 44px;
+}
+
+.notice__back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--fg-muted);
+}
+
+/* The order 404's two ways through — /orders/find for a guest, /signin for an
+   account holder. They wrap on a phone rather than shrinking, because both are
+   the point of the page and a 320px screen has room for one per line. The
+   min-height is the same content-box compensation .notice__form makes above. */
+.notice__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.notice__actions .ui-btn {
+  box-sizing: border-box;
+  min-height: 44px;
+}
+
+/* A native <details> used as a "show me the form" disclosure on the account
+   page. The forms are long and mostly unused; collapsing them keeps the page
+   readable without hiding anything from a visitor with scripting off. */
+.goen-account__disclosure {
+  border-top: 1px solid var(--border-faint);
+  padding-top: 10px;
+}
+
+.goen-account__summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  color: var(--accent-strong);
+  cursor: pointer;
+  list-style: none;
+}
+
+.goen-account__summary::-webkit-details-marker {
+  display: none;
+}
+
+.goen-account__disclosure[open] > .goen-account__summary {
+  margin-bottom: 8px;
+}
+
+.goen-account__check {
+  min-height: 44px;
+}
+
+.goen-account__address form {
+  margin-top: 4px;
+}
+
+/* Deleting an account is irreversible, so its section reads as the exception it
+   is rather than as one more panel. */
+.goen-account__danger {
+  border-color: var(--error);
+}
+
+/* ---------- Back office ----------
+
+   Denser than the storefront on purpose: this is a queue someone reads all day,
+   not a page someone browses. It still uses the same tokens and the same
+   components — a second visual language for /admin would be a second thing to
+   maintain, and the design system was built to serve both pressures. */
+
+.goen-admin {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 16px 16px 40px;
+}
+
+/* The back office is 23 screens. Listed flat they are 23 labels a staff member
+   reads through to find one; grouped by the question each answers they are
+   five, and only the group holding the current screen is open. The disclosure
+   is a native <details>, so it survives the enhancement file being deleted, and
+   the server decides which one is open — nothing moves after the first byte. */
+.goen-admin__nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.goen-admin__nav .ui-navitem {
+  text-decoration: none;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.goen-admin__navgroup {
+  min-width: 0;
+}
+
+/* Open, a group is a cluster on the same line as its own name, so one band of
+   nav holds five group names and the five screens of whichever is open. It
+   wraps rather than scrolls: on a stockroom phone the cluster falls under its
+   name, and no width makes the page scroll sideways. */
+.goen-admin__navgroup[open] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 2px;
+  background: var(--elevated);
+  border: 1px solid var(--border-faint);
+  border-radius: var(--r-md);
+}
+
+.goen-admin__navitems {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* The summary is a nav item that opens a group, so it wears the design
+   system's nav-item class and adds only what a summary needs: the pointer, and
+   the UA triangle removed — it sits outside the chip and cannot take its
+   colour. */
+.goen-admin__navlabel {
+  gap: 6px;
+  cursor: pointer;
+  color: var(--fg);
+  font-weight: var(--fw-medium);
+  list-style: none;
+}
+
+.goen-admin__navlabel::-webkit-details-marker {
+  display: none;
+}
+
+/* A caret of our own, and it is DECORATION: which state the group is in is
+   announced by <details> itself, so this must not be readable text. */
+.goen-admin__navlabel::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid var(--fg-subtle);
+  border-bottom: 1.5px solid var(--fg-subtle);
+  transform: rotate(45deg) translate(-1px, -1px);
+  transition: transform var(--dur-base) var(--ease-standard);
+}
+
+.goen-admin__navgroup[open] > .goen-admin__navlabel::after {
+  transform: rotate(-135deg) translate(-1px, -1px);
+}
+
+.goen-admin__stats {
+  gap: 12px;
+}
+
+.goen-admin__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  min-width: 0;
+}
+
+.goen-admin__heading {
+  margin: 8px 0 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+}
+
+.goen-admin__heading:first-of-type {
+  margin-top: 0;
+}
+
+.goen-admin__hint {
+  margin: 0;
+  font-size: var(--fs-11);
+  color: var(--fg-subtle);
+  line-height: var(--lh-normal);
+}
+
+.goen-admin__note {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--elevated);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-13);
+  color: var(--fg-muted);
+}
+
+/* A wide table on a narrow screen scrolls INSIDE its own box rather than
+   pushing the page sideways.
+   
+   max-width and min-width:0 are both needed: without them the wrapper is a
+   grid/flex item that grows to its content, so overflow-x has nothing to clip
+   against and the 640px table pushes the whole page to 743px at 375. */
+.goen-admin__tablewrap {
+  overflow-x: auto;
+  max-width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.goen-admin__table {
+  width: 100%;
+  min-width: 640px;
+}
+
+/* Same reason: the panel and the page itself must be allowed to be narrower
+   than their widest child, or the child sets the page width. */
+.goen-admin,
+.goen-admin__panel {
+  min-width: 0;
+}
+
+.goen-admin__stats .ui-stat {
+  min-width: 0;
+}
+
+.goen-admin__row--low td {
+  background: var(--warn-bg);
+}
+
+.goen-admin__inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 6px;
+}
+
+/* Every control in the back office, whatever it is.
+   
+   Written once, over the whole page, because the two selectors it replaced each
+   covered a subset and each left something at 30px: the activate/deactivate
+   button sits in its own form rather than an inline one, and the stock page's
+   filter links were styled only on the orders page. Scoped to .goen-admin
+   rather than raising .ui-filter globally, which would reshape a design-system
+   component from the app layer. */
+.goen-admin .ui-btn,
+.goen-admin .ui-filter,
+.goen-admin .ui-navitem,
+.goen-admin input,
+.goen-admin select {
+  min-height: 44px;
+}
+
+/* .ui-filter is inline-flex, so min-height alone leaves the text at the top. */
+.goen-admin .ui-filter,
+.goen-admin .ui-navitem {
+  display: inline-flex;
+  align-items: center;
+}
+
+.goen-admin__inline .ui-btn {
+  min-height: 44px;
+}
+
+.goen-admin__num {
+  width: 86px;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.goen-admin__form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* The design system's description list is a fixed 180px term column plus the
+   value, which is right at a desk and 18px too wide on a phone: the order page
+   scrolled sideways at 375. It stacks below the wide breakpoint, and the value
+   may break inside a word — a provider reference and an email address have no
+   space to break at. Page composition, so it belongs here rather than upstream:
+   the two-column form is correct for every viewport the design system draws. */
+.goen-admin .ui-dl__row {
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+
+.goen-admin .ui-dl__desc {
+  overflow-wrap: anywhere;
+}
+
+.goen-admin__form .ui-textarea,
+.goen-admin__form .ui-select {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 44px;
+}
+
+.goen-admin__form .ui-btn {
+  box-sizing: border-box;
+  min-height: 44px;
+}
+
+.goen-admin__layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.goen-admin__side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.goen-admin__tabs {
+  gap: 6px;
+}
+
+.goen-admin__tabs .ui-filter {
+  text-decoration: none;
+  min-height: 44px;
+}
+
+/* The order queue's tabs and the nav's current screen carry the same weight,
+   and they say it differently on purpose: a tab is a filter that is selected,
+   and a nav item is the page you are reading. The second is an ARIA fact the
+   design system already styles — no `is-active` class beside it, because a
+   class and an attribute stating one thing are two places to disagree. */
+.goen-admin__tabs .is-active,
+.goen-admin__nav [aria-current="page"] {
+  background: var(--accent-faint);
+  border-color: var(--accent);
+  color: var(--fg);
+}
+
+@media (min-width: 768px) {
+  .goen-admin .ui-dl__row {
+    grid-template-columns: 180px 1fr;
+    gap: 16px;
+  }
+}
+
+@media (min-width: 768px) {
+  .goen-admin {
+    gap: 20px;
+    padding: 24px 24px 56px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .goen-admin {
+    gap: 24px;
+    padding: 32px 32px 64px;
+  }
+
+  .goen-admin__layout {
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 32px;
+  }
+}
+
+/* The Stripe assurance line sits under the pay button: quiet, and deliberately
+   present — a customer about to leave the site for a card form is being asked
+   to trust the handover, and saying who takes the card is the whole reassurance. */
+.goen-pay__assurance {
+  margin: 0;
+  font-size: var(--fs-11);
+  color: var(--fg-subtle);
+  line-height: var(--lh-normal);
+  text-align: center;
+}
+
+.goen-pay__form {
+  margin: 0;
+}
+
+/* The order's history and its tracking, on the customer's confirmation page.
+   Both are lists of short facts, so they read as rows rather than as cards —
+   the page already has a card for the money. */
+.goen-order__tracking,
+.goen-order__history {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.goen-order__subhead {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+}
+
+.goen-order__shipments,
+.goen-order__events {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.goen-order__shipment,
+.goen-order__event {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-faint);
+}
+
+.goen-order__carrier,
+.goen-order__eventkind {
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  color: var(--fg);
+}
+
+/* The return request form. One column at every width: it is a short list of
+   line-plus-quantity rows and a reason, and a second column would only put the
+   quantity input further from the item it belongs to. */
+.goen-returns {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px 16px 40px;
+}
+
+.goen-returns__subhead {
+  margin: 0 0 8px;
+  padding: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+}
+
+.goen-returns__form,
+.goen-returns__existing {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.goen-returns__lines {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.goen-returns__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border-faint);
+}
+
+.goen-returns__name {
+  margin: 0 0 2px;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  color: var(--fg);
+}
+
+/* Wide enough for two digits and the stepper Chrome draws inside a number
+   input, and no wider — a full-width box would read as the most important
+   control on the page. */
+.goen-returns__qty {
+  flex: 0 0 auto;
+  width: 132px;
+}
+
+.goen-returns__reason {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.goen-returns__records {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.goen-returns__record {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-faint);
+}
+
+.goen-returns__status {
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  color: var(--fg);
+}
+
+.goen-returns__alert {
+  margin: 0;
+}
+
+@media (min-width: 768px) {
+  .goen-returns {
+    gap: 24px;
+    padding: 24px 24px 56px;
+  }
+}
+
+/* The back-office return queue. One row per request, its decision form beside
+   it on a wide screen and beneath it on a phone — approving pays money out, so
+   the reason it is being approved stays visible while the button is pressed. */
+.goen-admin__returns {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.goen-admin__return {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.goen-admin__returninfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.goen-admin__returnorder {
+  margin: 0;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+}
+
+.goen-admin__decide {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.goen-admin__decidebtns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.goen-admin__decidebtns .ui-btn {
+  box-sizing: border-box;
+  min-height: 44px;
+  flex: 1 1 auto;
+}
+
+@media (min-width: 1024px) {
+  .goen-admin__return {
+    grid-template-columns: minmax(0, 1fr) 340px;
+    align-items: start;
+  }
+}
+
+/* The store-credit ledger. A grant and a spend read differently because a
+   ledger that hides the sign is a list of numbers that do not add up. */
+.goen-admin__grant {
+  max-width: 480px;
+}
+
+.goen-admin__subhead {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+}
+
+.goen-admin__ledger {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.goen-admin__entry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-faint);
+}
+
+.goen-admin__amount {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+  min-width: 96px;
+}
+
+.goen-admin__amount.is-spend {
+  color: var(--fg-subtle);
+}
+
+/* The invoice block on checkout. Both fields are always shown rather than
+   revealed by the chosen radio: showing them costs two rows, and hiding them
+   needs JavaScript — which the write-face rule forbids being the only way a
+   form works. The server ignores whichever the choice does not use. */
+.goen-checkout__invoice {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.goen-checkout__legend {
+  margin: 8px 0 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+}
+
+/* The wishlist button on a product page, and the remove button under each tile
+   on the wishlist itself. Both are their own form — a form cannot nest inside
+   another, and add-to-cart is already one. */
+.goen-pdp__wish {
+  margin: 8px 0 0;
+}
+
+.goen-pdp__wish .ui-btn,
+.goen-wish__remove .ui-btn {
+  box-sizing: border-box;
+  min-height: 44px;
+}
+
+.goen-wish {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.goen-wish__remove {
+  margin: 0;
+}
+
+/* The back-office catalogue and the product form.
+   The form and its side panel sit apart at desk width: editing copy and adding
+   a variant are different jobs, and interleaving them makes both harder to
+   scan. On a phone they stack, form first, because that is the order the work
+   happens in. */
+.goen-admin__catalogue,
+.goen-admin__variants {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.goen-admin__product,
+.goen-admin__variant {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-faint);
+}
+
+.goen-admin__productname,
+.goen-admin__sku {
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  color: var(--fg);
+  min-width: 0;
+}
+
+.goen-admin__productlayout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.goen-admin__side {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.goen-admin__side section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.goen-admin__textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  resize: vertical;
+}
+
+@media (min-width: 1024px) {
+  .goen-admin__productlayout {
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 32px;
+  }
+}
+
+/* The review form. The rating is a radio group rather than a star widget: a
+   widget needs JavaScript to report which star was clicked, and the write-face
+   rule forbids that being how a form works. Laid out as a row so it reads as a
+   scale rather than as five unrelated questions. */
+.goen-pdp__reviewform {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.goen-pdp__stars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.goen-pdp__star {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  font-size: var(--fs-13);
+  color: var(--fg);
+}
+
+.goen-pdp__reviewbody {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.goen-pdp__reviewnote {
+  margin: 16px 0 0;
+  font-size: var(--fs-13);
+  color: var(--fg-subtle);
+}
+
+/* The coupon field sits under the summary, not above it: a shopper reads the
+   total first and looks for a code only if they have one. Full width, because
+   a code is typed and a narrow box invites a typo. */
+.goen-checkout__coupon {
+  margin-top: 4px;
+}
+
+/* The promotions list beside its form. Each entry leads with its code and
+   whether it works RIGHT NOW — active and in-window are different facts, and a
+   switched-on coupon whose window has passed is off to a customer and on in
+   the list, which is how somebody spends an afternoon puzzled. */
+.goen-admin__coupons {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.goen-admin__coupon {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-faint);
+}
+
+.goen-admin__couponhead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.goen-admin__coupon form {
+  margin-top: 8px;
+}
+
+/* The restock form, shown only where the buy button cannot be. It is the one
+   thing a visitor who wanted this can still do, so it sits where the button
+   was rather than below the fold. */
+.goen-pdp__notify {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.goen-pdp__notify .ui-btn {
+  box-sizing: border-box;
+  min-height: 44px;
+}
+
+/* Policy and FAQ documents. A single readable column — these are read, not
+   scanned, and a wide measure is the thing that makes a policy page feel
+   unreadable regardless of what it says. */
+.goen-doc {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 68ch;
+  margin: 0 auto;
+  padding: 16px 16px 56px;
+}
+
+.goen-doc__section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.goen-doc__section p {
+  margin: 0;
+  font-size: var(--fs-14);
+  line-height: var(--lh-relaxed);
+  color: var(--fg-muted);
+}
+
+/* A section describing what has NOT been decided reads differently from one
+   describing a rule. A reader must be able to tell a promise from a gap, and a
+   shop that sets both in the same typeface is making a promise by accident. */
+.goen-doc__section.is-pending {
+  padding: 16px;
+  background: var(--panel);
+  border-left: 3px solid var(--border);
+  border-radius: var(--r-sm);
+}
+
+.goen-doc__qa {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-faint);
+}
+
+.goen-doc__qa summary {
+  cursor: pointer;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  color: var(--fg);
+  min-height: 32px;
+}
+
+.goen-doc__qa p {
+  margin: 8px 0 0;
+}
+
+.goen-doc__methods {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.goen-doc__method {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-faint);
+}
+
+.goen-doc__methodname,
+.goen-doc__methodfee {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--fs-14);
+  color: var(--fg);
+}
+
+.goen-doc__methodfee {
+  text-align: right;
+}
+
+.goen-doc__contact {
+  margin: 0;
+  font-size: var(--fs-13);
+  color: var(--fg-subtle);
+}
+
+@media (min-width: 768px) {
+  .goen-doc {
+    padding: 32px 24px 72px;
+  }
+}
+
+/* The note that says what the language switch does NOT change. Quiet, and
+   present — a visitor reading English chrome over Chinese product copy should
+   have been told, not left to work it out. */
+.goen-footer__contentnote {
+  margin: 0;
+  color: var(--fg-subtle);
+}
+
+/* The running-promotions strip above the deals grid. Cards rather than a list,
+   because a campaign is a destination and a marked-down product is an item —
+   they should not read as the same kind of thing stacked together. */
+.goen-campaigns {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.goen-campaigns__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.goen-campaigns__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 44px;
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  text-decoration: none;
+}
+
+.goen-campaigns__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+}
+
+@media (min-width: 768px) {
+  .goen-campaigns__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .goen-campaigns__list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* The audit trail. Dense on purpose — it is read by scanning for one row, not
+   by reading every row. */
+.goen-admin__audit {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.goen-admin__auditrow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 0 12px 12px;
+  border-bottom: 1px solid var(--border-faint);
+  border-left: 3px solid transparent;
+}
+
+/* Money and stock get a marked edge: those are the rows somebody investigating
+   an inconsistency is looking for, and a trail where every row looks alike is
+   one they have to read in full. */
+.goen-admin__auditrow.is-money {
+  border-left-color: var(--accent);
+}
+
+.goen-admin__audithead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.goen-admin__auditaction {
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  color: var(--fg);
+}
+
+.goen-admin__auditdetail {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--fs-12);
+  color: var(--fg-subtle);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* The product's image strip in the back office. Fixed-size thumbnails so a
+   portrait and a landscape photo do not make the row jump. */
+.goen-admin__images {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.goen-admin__image {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 120px;
+}
+
+.goen-admin__image img {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: var(--r-sm);
+  background: var(--panel);
+}
+
+/* The hero queue's thumbnail and its two buttons. */
+.goen-admin__heroshot {
+  width: 160px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: var(--r-sm);
+  background: var(--panel);
+}
+
+.goen-admin__heroactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* The one-time secret. Monospace and grouped, because a person is copying it
+   character by character into a phone and losing their place is how a mistyped
+   secret becomes an authenticator that never works. */
+.goen-twofa__secret {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+
+.goen-twofa__secret code {
+  padding: 6px 10px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--fs-16);
+  letter-spacing: 0.08em;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+
+.goen-twofa__uri {
+  display: block;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--fs-12);
+  color: var(--fg-subtle);
+}
+
+.goen-twofa__form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+/* Wide, spaced digits: the field holds six characters and reads back as six
+   characters, so a mistype is visible before submitting. */
+.goen-twofa__code {
+  max-width: 12ch;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--fs-20);
+  letter-spacing: 0.25em;
+}
+
+/* Registered warranties and the lines that can still be registered. One column
+   of cards: each entry is read, not compared against its neighbours, so a table
+   would make a customer scan across for the one date they came for. */
+.goen-warranty {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.goen-warranty__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+/* Expired cover stays visible and reads as past: hiding it would leave a
+   customer wondering whether they ever registered. */
+.goen-warranty__item.is-expired {
+  color: var(--fg-subtle);
+  background: none;
+}
+
+.goen-warranty__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.goen-warranty__name {
+  font-family: var(--font-display);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+}
+
+.goen-warranty__form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-faint);
+}
+
+/* The bought-together strip. Full width below the product's own content,
+   because it is a different question from the one the page came to answer and
+   should not compete with the buy button. */
+.goen-pdp__also {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 40px;
+  padding-top: 32px;
+  border-top: 1px solid var(--border);
+}
+
+/* Brands and the category tree. The indent is a custom property because the
+   tree has no fixed depth and a stylesheet cannot enumerate what it does not
+   know. */
+.goen-admin__taxa {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.goen-admin__taxon {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0 8px calc(var(--depth, 0) * 20px);
+  border-bottom: 1px solid var(--border-faint);
+}
+
+.goen-admin__taxonform {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.goen-admin__taxonform .ui-input {
+  flex: 1 1 12ch;
+  min-width: 12ch;
+}
+
+/* The headline figures. Four boxes that wrap rather than a table, because they
+   are read one at a time and a table would invite comparing them to each
+   other. */
+.goen-report__figures {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.goen-report__figure {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.goen-report__label {
+  font-size: var(--fs-12);
+  color: var(--fg-subtle);
+}
+
+.goen-report__value {
+  font-family: var(--font-display);
+  font-size: var(--fs-24);
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The lists. Denser than the storefront: these are scanned for one row, not
+   browsed. */
+.goen-report__rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.goen-report__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 16px;
+  padding: 10px 0 10px 12px;
+  border-bottom: 1px solid var(--border-faint);
+  border-left: 3px solid transparent;
+}
+
+/* Running out inside a fortnight, which is about how long a reorder takes. */
+.goen-report__row.is-urgent {
+  border-left-color: var(--accent);
+}
+
+.goen-report__num {
+  text-align: right;
+  font-size: var(--fs-14);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+
+@media (min-width: 768px) {
+  .goen-report__row {
+    grid-template-columns: 1fr 1fr auto auto;
+    align-items: baseline;
+  }
+}
+
+/* Questions and answers. A question is a block and its answers are indented
+   under it, because the relationship is the whole structure — a flat list
+   would make an answer look like another question. */
+.goen-pdp__qa {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 40px;
+  padding-top: 32px;
+  border-top: 1px solid var(--border);
+}
+
+.goen-qa {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.goen-qa__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.goen-qa__question {
+  margin: 0;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  color: var(--fg);
+}
+
+.goen-qa__answers {
+  margin: 8px 0 0;
+  padding: 0 0 0 16px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-left: 2px solid var(--border);
+}
+
+.goen-qa__answer p {
+  margin: 0;
+  font-size: var(--fs-14);
+  line-height: var(--lh-relaxed);
+  color: var(--fg-muted);
+}
+
+/* The shop's answer is the one somebody deciding came for, so it reads as the
+   answer rather than as one of several. */
+.goen-qa__answer.is-staff {
+  border-left: 2px solid var(--accent);
+  margin-left: -18px;
+  padding-left: 16px;
+}
+
+.goen-qa__answer.is-staff p {
+  color: var(--fg);
+}
+
+.goen-qa__form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 60ch;
+}
+
+/* The question queue. A waiting question is marked at the edge so the list can
+   be scanned for work rather than read. */
+.goen-admin__questions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.goen-admin__question {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  border-radius: var(--r-md);
+}
+
+.goen-admin__question.is-waiting {
+  border-left-color: var(--accent);
+}
+
+/* The comparison table. It scrolls inside its own box so the PAGE never moves
+   sideways — four columns do not fit at 375, and a document that scrolls
+   horizontally is one nobody can read. */
+.goen-compare {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 16px 56px;
+}
+
+.goen-compare__scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.goen-compare__table {
+  border-collapse: collapse;
+  min-width: 100%;
+}
+
+.goen-compare__table th,
+.goen-compare__table td {
+  padding: 12px 16px;
+  text-align: left;
+  vertical-align: top;
+  font-size: var(--fs-14);
+  border-bottom: 1px solid var(--border-faint);
+  min-width: 140px;
+}
+
+/* The label column stays put while the products scroll past it — without it a
+   reader loses which row they are on the moment they move sideways. */
+.goen-compare__table tbody th {
+  position: sticky;
+  left: 0;
+  background: var(--bg);
+  color: var(--fg-muted);
+  font-weight: var(--fw-medium);
+  min-width: 100px;
+}
+
+.goen-compare__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 160px;
+}
+
+.goen-compare__image {
+  width: 160px;
+  height: 120px;
+  object-fit: contain;
+  background: var(--panel);
+  border-radius: var(--r-sm);
+}
+
+.goen-compare__name {
+  font-family: var(--font-display);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+}
+
+.goen-compare__remove {
+  color: var(--fg-subtle);
+}
+
+.goen-compare__price {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-semibold);
+}
+
+/* A row only some products state is a footnote, not a comparison. It reads
+   quieter so the eye lands on the rows that can actually be compared. */
+.goen-compare__table tr.is-partial td,
+.goen-compare__table tr.is-partial th {
+  color: var(--fg-subtle);
+}
+
+/* Worker health. One box per worker, marked at the edge when it needs
+   attention — the page is opened to find out whether anything is wrong, so the
+   answer has to be visible without reading. */
+.goen-health {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.goen-health__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  border-radius: var(--r-md);
+}
+
+.goen-health__item.is-bad {
+  border-left-color: var(--accent);
+}
+
+.goen-health__name {
+  font-family: var(--font-display);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+}
+
+.goen-health__state {
+  font-size: var(--fs-14);
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The points ledger. The signed amount leads, because a ledger is read down
+   that column. */
+.goen-points {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.goen-points__item {
+  display: grid;
+  grid-template-columns: 5ch 1fr;
+  gap: 2px 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-faint);
+}
+
+.goen-points__item.is-expired {
+  color: var(--fg-subtle);
+}
+
+.goen-points__amount {
+  grid-row: span 2;
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-semibold);
+  color: var(--fg-muted);
+}
+
+.goen-points__amount.is-earned {
+  color: var(--fg);
+}
+
+.goen-points__what {
+  font-size: var(--fs-14);
+  color: var(--fg);
+}
+
+/* The account's own navigation. Cards rather than a list of links, because
+   each one needs a line explaining what it is for — "保固登錄" alone does not
+   tell somebody whether they need it. */
+.goen-account__nav {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.goen-account__navitem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 44px;
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  text-decoration: none;
+}
+
+.goen-account__navname {
+  font-family: var(--font-display);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  color: var(--fg);
+}
+
+@media (min-width: 768px) {
+  .goen-account__nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .goen-account__nav {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   The site-wide promotional strip.
+
+   An INK bar — the foreground colour as its background — and not an accent one.
+   Accent is goen's signal for "interactive": an accent-filled bar would compete
+   with every button on the page for the same meaning. Ink has the strongest
+   contrast against the warm paper background and spends no semantic colour.
+
+   44px tall, which is both the minimum touch target and enough for one line.
+   --------------------------------------------------------------------------- */
+.goen-promo {
+  display: flex;
+  align-items: stretch;
+  min-height: 44px;
+  background: var(--fg);
+  color: var(--bg);
+  font-size: var(--fs-13);
+}
+
+.goen-promo__link {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding-left: 16px;
+  color: var(--bg);
+  text-decoration: none;
+}
+
+/* One line, truncated rather than wrapped: a two-line banner is a banner that
+   changes the page's height between one promotion and the next. */
+.goen-promo__message {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Two copies of the copy, one shown at a time. The short version is different
+   WRITING, not a truncation — which is why promo_banners carries both and the
+   template does not cut the long one. */
+.goen-promo__wide {
+  display: none;
+}
+
+.goen-promo__narrow {
+  display: inline;
+}
+
+/* The discount code. Monospace and dashed, so it reads as something to be
+   copied rather than as part of the sentence. user-select: all makes one tap
+   select the whole code — no script involved. */
+.goen-promo__code {
+  flex: none;
+  padding: 3px 8px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--fs-12);
+  letter-spacing: 0.06em;
+  border: 1px dashed oklch(0.65 0.01 107);
+  border-radius: 2px;
+  user-select: all;
+  -webkit-user-select: all;
+}
+
+/* The CTA is a plain underlined link on wide screens and hidden on narrow ones,
+   where the whole strip is the link instead. */
+.goen-promo__cta {
+  display: none;
+  flex: none;
+  font-weight: var(--fw-medium);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
+
+.goen-promo__chevron {
+  flex: none;
+  margin-left: auto;
+  margin-right: 4px;
+}
+
+/* 44x44, which is why the icon inside it is only 15px. A close control smaller
+   than the minimum target is one people miss and then resent. */
+.goen-promo__close {
+  flex: none;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  background: none;
+  border: none;
+  color: oklch(0.75 0.01 107);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.goen-promo__close:hover {
+  color: var(--bg);
+}
+
+@media (min-width: 768px) {
+  .goen-promo__link {
+    gap: 16px;
+    padding-left: 24px;
+  }
+
+  .goen-promo__wide {
+    display: inline;
+  }
+
+  .goen-promo__narrow {
+    display: none;
+  }
+
+  /* The message takes the slack and the CTA sits at the right, which is only
+     possible once there is room for two targets on one row. */
+  .goen-promo__message {
+    flex: 1;
+  }
+
+  .goen-promo__cta {
+    display: inline;
+  }
+
+  .goen-promo__chevron {
+    display: none;
+  }
+}
+
+.goen-order__cancel {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 4px;
+}
+
+.goen-account__addractions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.goen-admin__returnlines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.goen-admin__returnlines li {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.goen-admin__prefixes {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-12);
+  color: var(--fg-subtle);
+  word-break: break-all;
+}
+
+.goen-admin__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.goen-admin__row .ui-field {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.goen-account__standing {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+/* The product page's own controls.
+   Two things the design system leaves to the page that composes it, and that
+   every other goen surface had already been given one at a time:
+   - .ui-btn is content-box, so .ui-btn--block is its container's width PLUS
+     28px of padding and 2px of border. On a 375px phone the buy column is
+     359px and the button was 389px: the most important page on the site
+     scrolled sideways, and nothing measured it until every page had a row in
+     check-layout.
+   - .ui-btn's default height is 31px, well under the 44px a finger needs.
+     .goen-auth__submit and .goen-checkout__ship each carry their own
+     min-height for the same reason; the product page never got one.
+   Scoped rather than applied to .ui-btn globally: the header's icon buttons
+   and the listing's filter chips are deliberately small, and widening them
+   would be reshaping the design system rather than composing with it. The
+   box-sizing belongs upstream — it is a defect in any 100%-width button — and
+   is noted in CLAUDE.md as one to send back. */
+.goen-pdp .ui-btn {
+  box-sizing: border-box;
+  min-height: 44px;
+}
+
+/* The stars on a review. The design system styles the review block and leaves
+   the rating to whoever composes it; the label beside them is what a screen
+   reader gets, because ★★★☆☆ is punctuation to one. */
+.ui-review__stars {
+  font-size: var(--fs-13);
+  color: var(--accent);
+  letter-spacing: 1px;
+}
+
+.goen-admin__library {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.goen-admin__libraryitem {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 160px;
+  max-width: 100%;
+}
+
+.goen-admin__libraryitem img {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+}
+
+/* A hidden review still shows in the queue — un-hiding is not possible from a
+   list that cannot display it — but it must not read as live. */
+.goen-admin__return.is-hidden {
+  opacity: 0.55;
+}
+
+/* The order search: one row on a desktop, stacked on a phone. Its own class
+   rather than reusing the storefront's filter bar — that one is a set of links
+   and this is a form with a text field, and the two want different spacing. */
+.goen-admin__search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.goen-admin__search .ui-input {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.goen-admin__search .ui-btn {
+  box-sizing: border-box;
+  min-height: 44px;
+}
+
+/* The button that applies a chooser. Small and quiet: it is a step inside the
+   form, not the thing the customer came to press. */
+.goen-checkout__apply {
+  align-self: start;
+  margin: -4px 0 4px;
+  min-height: 44px;
+}

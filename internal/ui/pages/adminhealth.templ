@@ -1,0 +1,267 @@
+package pages
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// AdminHealth renders what the background workers have and have not done.
+templ AdminHealth(p layouts.Page, v *WorkerHealthView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("health")
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageHealth) }</h1>
+					<p class="ui-page-head__sub">
+						{ i18n.T(ctx, i18n.KeyAdminHPLead) }
+					</p>
+				</div>
+				if v.AllHealthy() {
+					<span class="ui-badge ui-badge--brand">{ i18n.T(ctx, i18n.KeyAdminHPAllClear) }</span>
+				} else {
+					<span class="ui-badge">{ i18n.T(ctx, i18n.KeyAdminHPNeedsLook) }</span>
+				}
+			</div>
+			<ul class="goen-health" role="list">
+				<li class={ "goen-health__item", templ.KV("is-bad", !v.OutboxHealthy()) }>
+					<span class="goen-health__name">{ i18n.T(ctx, i18n.KeyAdminHPOutboxName) }</span>
+					<span class="goen-health__state">{ v.OutboxText(ctx) }</span>
+					<span class="ui-cart-line__meta">
+						{ i18n.T(ctx, i18n.KeyAdminHPOutboxNote) }
+					</span>
+				</li>
+				<li class={ "goen-health__item", templ.KV("is-bad", !v.SweeperHealthy()) }>
+					<span class="goen-health__name">{ i18n.T(ctx, i18n.KeyAdminHPHoldsName) }</span>
+					<span class="goen-health__state">{ v.SweeperText(ctx) }</span>
+					<span class="ui-cart-line__meta">
+						{ i18n.T(ctx, i18n.KeyAdminHPHoldsNote) }
+					</span>
+				</li>
+				<li class={ "goen-health__item", templ.KV("is-bad", !v.RecommendHealthy()) }>
+					<span class="goen-health__name">{ i18n.T(ctx, i18n.KeyAdminHPProjectionName) }</span>
+					<span class="goen-health__state">{ v.RecommendText(ctx) }</span>
+					<span class="ui-cart-line__meta">
+						{ i18n.T(ctx, i18n.KeyAdminHPProjectionNote) }
+					</span>
+				</li>
+				<li class={ "goen-health__item", templ.KV("is-bad", !v.RefundsHealthy()) }>
+					<span class="goen-health__name">{ i18n.T(ctx, i18n.KeyAdminHPRefundsName) }</span>
+					<span class="goen-health__state">{ v.RefundsText(ctx) }</span>
+					<span class="ui-cart-line__meta">
+						{ i18n.T(ctx, i18n.KeyAdminHPRefundsNote) }
+					</span>
+				</li>
+				<li class={ "goen-health__item", templ.KV("is-bad", !v.HousekeepingHealthy()) }>
+					<span class="goen-health__name">{ i18n.T(ctx, i18n.KeyAdminHPHousekeepingName) }</span>
+					<span class="goen-health__state">{ v.HousekeepingText(ctx) }</span>
+					<span class="ui-cart-line__meta">
+						{ i18n.T(ctx, i18n.KeyAdminHPHousekeepingNote) }
+					</span>
+				</li>
+			</ul>
+			if len(v.Stuck) > 0 {
+				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminHPStuckHeading) }</h2>
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table goen-admin__table">
+						<thead>
+							<tr>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColTopic) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColKey) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColAttempts) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColLastError) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColSince) }</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, m := range v.Stuck {
+								<tr>
+									<td>{ m.Topic }</td>
+									<td>{ m.Key }</td>
+									<td>{ m.AttemptsText() }</td>
+									<td>{ m.Reason(ctx) }</td>
+									<td>{ m.Since }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+			if len(v.UnreconciledEvents) > 0 {
+				// A webhook event is resolved by its event id. Keep that identity
+				// concrete rather than overloading a payment-provider reference.
+				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminHPUnreconciledHeading) }</h2>
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHPUnreconciledHint) }</p>
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table goen-admin__table">
+						<thead>
+							<tr>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColEvent) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColKind) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColProviderRef) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColReason) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColStarted) }</th>
+								<th scope="col"><span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminHPEventSafeRelease) }</span></th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, u := range v.UnreconciledEvents {
+								<tr>
+									<td>{ u.EventID }</td>
+									<td>{ u.Type }</td>
+									<td>{ u.Ref }</td>
+									<td>{ u.Reason }</td>
+									<td>{ u.Since }</td>
+									<td>
+										<form method="post" action="/admin/health/reconcile">
+											<input type="hidden" name="event" value={ u.EventID }/>
+											<input type="hidden" name="event_resolution" value="fully_refunded_or_accounted"/>
+											<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">
+												{ i18n.T(ctx, i18n.KeyAdminHPEventSafeRelease) }
+											</button>
+										</form>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+			if len(v.UnreconciledCompletePayments) > 0 {
+				// A provider-complete payment is resolved by its provider reference;
+				// it is not a synthetic webhook event.
+				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminHPCompletePaymentsHeading) }</h2>
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHPCompletePaymentsHint) }</p>
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table goen-admin__table">
+						<thead>
+							<tr>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColOrder) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColProviderRef) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColReason) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColStarted) }</th>
+								<th scope="col"><span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminHPCompletePaymentsHeading) }</span></th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, p := range v.UnreconciledCompletePayments {
+								<tr>
+									<td>
+										<a href={ templ.SafeURL("/admin/orders/" + p.OrderNumber) }>{ p.OrderNumber }</a>
+									</td>
+									<td>{ p.ProviderRef }</td>
+									<td>{ p.Reason(ctx) }</td>
+									<td>{ p.Since }</td>
+									<td>
+										if p.PaidAttributionAllowed {
+											<form method="post" action="/admin/health/reconcile">
+												<input type="hidden" name="payment" value={ p.ProviderRef }/>
+												<input type="hidden" name="resolution" value="paid"/>
+												<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">
+													{ i18n.T(ctx, i18n.KeyAdminHPCompletePaid) }
+												</button>
+											</form>
+										}
+										<form method="post" action="/admin/health/reconcile">
+											<input type="hidden" name="payment" value={ p.ProviderRef }/>
+											<input type="hidden" name="resolution" value="unpaid_or_refunded"/>
+											<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">
+												{ i18n.T(ctx, i18n.KeyAdminHPCompleteSafeToRetry) }
+											</button>
+										</form>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+			if len(v.StrandedClaims) > 0 {
+				// Ordinary ambiguity is reconciled automatically. An aged Allowance
+				// becomes actionable only after an operator verifies provider absence.
+				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminHPClaimsHeading) }</h2>
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHPClaimsHint) }</p>
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table goen-admin__table">
+						<thead>
+							<tr>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColKey) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColOrder) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColKind) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColAmount) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColStatus) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColAttempts) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColLastError) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColStarted) }</th>
+								<th scope="col"><span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminHPAllowanceResendAuthorize) }</span></th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, c := range v.StrandedClaims {
+								<tr>
+									<td>{ c.Operation }</td>
+									<td>
+										<a href={ templ.SafeURL("/admin/orders/" + c.OrderNumber) }>{ c.OrderNumber }</a>
+									</td>
+									<td>{ c.Kind }</td>
+									<td>{ c.Amount() }</td>
+									<td>{ c.Status }</td>
+									<td>{ c.AttemptsText() }</td>
+									<td>{ c.LastError }</td>
+									<td>{ c.Since }</td>
+									<td>
+										if c.CanAuthorizeResend {
+											<form method="post" action="/admin/health/reconcile">
+												<input type="hidden" name="invoice_operation" value={ c.Operation }/>
+												<label>
+													<input type="checkbox" name="invoice_resolution" value="confirmed_absent" required/>
+													{ i18n.T(ctx, i18n.KeyAdminHPAllowanceAbsentConfirm) }
+												</label>
+												<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">
+													{ i18n.T(ctx, i18n.KeyAdminHPAllowanceResendAuthorize) }
+												</button>
+											</form>
+										}
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+			if len(v.OpenRefunds) > 0 {
+				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminHPOpenRefundsHeading) }</h2>
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table goen-admin__table">
+						<thead>
+							<tr>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColOrder) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColAmount) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColStatus) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColProviderRef) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColSentKey) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColStarted) }</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, r := range v.OpenRefunds {
+								<tr>
+									<td>{ r.OrderNumber }</td>
+									<td>{ r.Amount() }</td>
+									<td>{ r.StatusText(ctx) }</td>
+									<td>{ r.Reference(ctx) }</td>
+									<td>{ r.Key }</td>
+									<td>{ r.Since }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</div>
+	}
+}

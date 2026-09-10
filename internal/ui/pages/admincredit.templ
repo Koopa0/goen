@@ -1,0 +1,58 @@
+package pages
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// AdminCredit renders the store-credit ledger and the grant form.
+templ AdminCredit(p layouts.Page, v AdminCreditView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("credit")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageCredit) }</h1>
+					<p class="ui-page-head__sub">
+						{ i18n.T(ctx, i18n.KeyAdminCreditLead) }
+					</p>
+				</div>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			<form class="goen-admin__form goen-admin__grant" method="post" action="/admin/credit">
+				<input type="hidden" name="operation_id" value={ v.OperationID }/>
+				<div class="ui-field">
+					<label class="ui-label" for="credit-email">{ i18n.T(ctx, i18n.KeyAdminCreditEmail) }</label>
+					<input class="ui-input" id="credit-email" name="email" type="email" required autocomplete="off" value={ v.Email }/>
+				</div>
+				<div class="ui-field">
+					<label class="ui-label" for="credit-amount">{ i18n.T(ctx, i18n.KeyAdminCreditAmount) }</label>
+					<input class="ui-input" id="credit-amount" name="amount" type="number" min="1" max="100000" step="1" required inputmode="numeric" value={ v.Amount }/>
+				</div>
+				<div class="ui-field">
+					<label class="ui-label" for="credit-reason">{ i18n.T(ctx, i18n.KeyAdminCreditReason) }</label>
+					<input class="ui-input" id="credit-reason" name="reason" required maxlength="200" autocomplete="off" value={ v.Reason }/>
+				</div>
+				<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminCreditGrant) }</button>
+			</form>
+			<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminCreditRecent) }</h2>
+			if v.Empty() {
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCreditEmpty) }</p>
+			} else {
+				<ul class="goen-admin__ledger" role="list">
+					for _, e := range v.Rows {
+						<li class="goen-admin__entry">
+							<span class={ "goen-admin__amount", templ.KV("is-spend", e.IsSpend()) }>{ e.Amount() }</span>
+							<span class="ui-cart-line__meta">{ e.Who(ctx) }</span>
+							<span class="ui-cart-line__meta">{ e.Reason }</span>
+							<span class="ui-cart-line__meta">{ e.At }</span>
+						</li>
+					}
+				</ul>
+			}
+		</div>
+	}
+}

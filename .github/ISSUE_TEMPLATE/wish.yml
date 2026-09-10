@@ -1,0 +1,43 @@
+name: Wish
+description: Something goen should do differently, from a label to a capability it does not have.
+title: "wish: "
+labels: [needs-owner]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        goen is built for one shop, so a wish is judged from the customer or
+        staff member it came from. Say who was doing what, and what they wanted
+        to do next.
+
+        Some things are decisions the shop has already made, and a wish that
+        reverses one is a different conversation: a client framework, a CSS
+        build, a payment method that settles days later, a second icon system,
+        a policy term the Consumer Protection Act fixes.
+
+        Every wish waits for a decision on direction before anyone writes code.
+
+  - type: textarea
+    id: who
+    attributes:
+      label: Who, doing what
+      description: >-
+        A customer on which page, or a staff member in which queue, and what
+        they were trying to do.
+    validations:
+      required: true
+
+  - type: textarea
+    id: today
+    attributes:
+      label: What goen does today
+      description: What happens in that moment now. If nothing happens, say so.
+    validations:
+      required: true
+
+  - type: textarea
+    id: instead
+    attributes:
+      label: What it should do instead
+    validations:
+      required: true

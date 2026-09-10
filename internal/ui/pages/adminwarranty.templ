@@ -1,0 +1,94 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// AdminWarranties renders the back office's warranty lookup.
+templ AdminWarranties(p layouts.Page, v AdminWarrantiesView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("warranty")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageWarranty) }</h1>
+					<p class="ui-page-head__sub">
+						{ i18n.T(ctx, i18n.KeyAdminWarrantyLead) }
+					</p>
+				</div>
+			</div>
+			<form class="goen-admin__form goen-admin__search" method="get" action="/admin/warranty">
+				<label class="goen-sr-only" for="warranty-search">{ i18n.T(ctx, i18n.KeyAdminWarrantySearch) }</label>
+				<input
+					class="ui-input"
+					id="warranty-search"
+					type="search"
+					name="q"
+					value={ v.Term }
+					placeholder={ i18n.T(ctx, i18n.KeyAdminWarrantyPlaceholder) }
+					autocomplete="off"
+				/>
+				<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminSearchButton) }</button>
+			</form>
+			if v.TermTooShort() {
+				<p class="ui-alert ui-alert--warn" role="status">
+					{ i18n.T(ctx, i18n.KeyAdminSearchShort) }
+				</p>
+			}
+			if v.Searching() && v.Empty() {
+				<p class="goen-admin__hint">
+					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminWarrantyNoneFound), v.Term) }
+				</p>
+			}
+			if v.Searching() && !v.Empty() {
+				<div class="goen-admin__tablewrap goen-admin__warranties">
+					<table class="ui-table">
+						<thead>
+							<tr>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColSerial) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColProduct) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColOrder) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColCustomer) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColRegistered) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColExpires) }</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, w := range v.Rows {
+								<tr>
+									<td>{ w.SerialText() }</td>
+									<td>
+										{ w.Product }
+										<span class="ui-cart-line__meta">
+											if w.Label != "" {
+												{ w.Label } ·
+											}
+											{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminUnitNo), w.UnitText()) }
+										</span>
+									</td>
+									<td>
+										<a href={ templ.SafeURL(w.OrderHref()) }>{ w.Order }</a>
+										<span class="ui-cart-line__meta">{ w.OrderStatus }</span>
+									</td>
+									<td>{ w.Customer(ctx) }</td>
+									<td>{ w.RegisteredAt }</td>
+									<td>
+										{ w.ExpiresOn }
+										<span class="ui-cart-line__meta">{ w.StateText(ctx) }</span>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+				<p class="goen-admin__hint">
+					{ i18n.T(ctx, i18n.KeyAdminWarrantyClock) }
+				</p>
+			}
+		</div>
+	}
+}

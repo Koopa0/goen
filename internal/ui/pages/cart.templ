@@ -1,0 +1,726 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// Cart renders the cart page.
+templ Cart(p layouts.Page, v CartView) {
+	@layouts.Base(p) {
+		<div class="goen-cart">
+			<div class="ui-page-head">
+				<div>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyCart) }</h1>
+					if !v.Empty() {
+						<p class="ui-page-head__sub">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCartItemCount), v.ItemCountText()) }</p>
+					}
+				</div>
+			</div>
+			if v.FromReorder() {
+				<p class="ui-alert ui-alert--info" role="status">{ v.ReorderText(ctx) }</p>
+			}
+			if v.Empty() {
+				<div class="ui-empty">
+					<p class="ui-empty__title">{ i18n.T(ctx, i18n.KeyEmptyCart) }</p>
+					<p class="ui-empty__desc">
+						{ i18n.T(ctx, i18n.KeyCartEmptyDesc) }
+						<a href="/">{ i18n.T(ctx, i18n.KeyCartEmptyLink) }</a>
+					</p>
+				</div>
+			} else {
+				<div class="goen-cart__layout">
+					<ul class="goen-cart__lines" role="list">
+						for _, l := range v.Lines {
+							@cartLine(l)
+						}
+					</ul>
+					<aside class="goen-cart__summary" aria-labelledby="summary-heading">
+						<h2 id="summary-heading" class="goen-cart__summarytitle">{ i18n.T(ctx, i18n.KeyOrderSummary) }</h2>
+						<div class="ui-summary">
+							<div class="ui-summary__row">
+								<span>{ i18n.T(ctx, i18n.KeySubtotal) }</span>
+								<span class="ui-summary__val">{ v.Subtotal() }</span>
+							</div>
+							<div class="ui-summary__row">
+								<span>{ i18n.T(ctx, i18n.KeyShippingFee) }</span>
+								<span class="ui-summary__val">{ i18n.T(ctx, i18n.KeyShippingLater) }</span>
+							</div>
+						</div>
+						if v.Blocked() {
+							<p class="ui-alert ui-alert--warn goen-cart__blocked" role="status">
+								{ i18n.T(ctx, i18n.KeyCartStockShort) }
+							</p>
+						}
+						if v.CanCheckout() {
+							<a class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block goen-cart__checkout" href="/checkout">
+								{ i18n.T(ctx, i18n.KeyCheckout) }
+							</a>
+						} else {
+							<span class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block goen-cart__checkout" aria-disabled="true">
+								{ i18n.T(ctx, i18n.KeyCheckout) }
+							</span>
+						}
+						<a class="goen-cart__keep" href="/">{ i18n.T(ctx, i18n.KeyContinue) }</a>
+					</aside>
+				</div>
+			}
+		</div>
+	}
+}
+
+templ cartLine(l CartLine) {
+	<li class={ "goen-cart__line", templ.KV("goen-cart__line--out", l.Unavailable) }>
+		<a class="goen-cart__thumb" href={ templ.URL("/p/" + l.Slug) }>
+			if l.HasImage() {
+				<img src={ l.ImageURL } alt={ l.ImageAlt } loading="lazy" decoding="async"/>
+			} else {
+				<span class="goen-cart__thumbph" aria-hidden="true"></span>
+			}
+		</a>
+		<div class="goen-cart__body">
+			<span class="ui-cart-line__meta">{ l.Brand }</span>
+			<a class="goen-cart__name" href={ templ.URL("/p/" + l.Slug) }>{ l.Name }</a>
+			if l.Label != "" {
+				<span class="ui-cart-line__meta">{ l.Label }</span>
+			}
+			if l.Unavailable {
+				<span class="ui-badge">{ i18n.T(ctx, i18n.KeyNoStock) }</span>
+			} else if l.Short {
+				<span class="ui-badge ui-badge--warn">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOnlyLeft), l.AvailableText()) }</span>
+			}
+			<form class="goen-cart__controls" method="post" action="/cart/items/update">
+				<input type="hidden" name="variant" value={ l.VariantID }/>
+				<label class="goen-sr-only" for={ "qty-" + l.VariantID }>{ i18n.T(ctx, i18n.KeyQuantity) }</label>
+				<input
+					class="ui-input ui-input--sm goen-cart__qty"
+					id={ "qty-" + l.VariantID }
+					type="number"
+					name="quantity"
+					value={ l.QuantityText() }
+					min="0"
+					max={ l.MaxQuantity() }
+					step="1"
+					inputmode="numeric"
+				/>
+				<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyUpdate) }</button>
+				<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit" name="remove" value="1">{ i18n.T(ctx, i18n.KeyRemove) }</button>
+			</form>
+		</div>
+		<div class="goen-cart__money">
+			<span class="ui-cart-line__price">
+				{ l.LineTotal() }
+				if l.Short {
+					<span class="ui-cart-line__meta">
+						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPricedFor), l.PricedQuantityText()) }
+					</span>
+				}
+			</span>
+			<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyUnitPrice), l.UnitPrice()) }</span>
+		</div>
+	</li>
+}
+
+// Checkout renders the checkout form.
+templ Checkout(p layouts.Page, v *CheckoutView) {
+	@layouts.Base(p) {
+		<div class="goen-checkout">
+			<div class="ui-page-head">
+				<div>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyCheckoutTitle) }</h1>
+					<p class="ui-page-head__sub">{ i18n.T(ctx, i18n.KeyCheckoutSub) }</p>
+				</div>
+			</div>
+			if v.AnyErrors() {
+				<p class="ui-alert ui-alert--error goen-checkout__alert" role="alert">
+					{ i18n.T(ctx, i18n.KeyCheckoutHasErrors) }
+				</p>
+			}
+			<form class="goen-checkout__layout" method="post" action="/checkout">
+				// The form's DEFAULT button, and the reason it is first: HTML
+				// makes the first submit button in tree order the one Enter
+				// activates, and the chooser's 更新 buttons sit above the real
+				// one — so pressing Enter in any field re-rendered the form
+				// instead of placing the order. Inert to the keyboard and to a
+				// screen reader; the visible button below is the real control,
+				// and this carries the same words so the two cannot drift.
+				<button
+					class="goen-sr-only"
+					type="submit"
+					tabindex="-1"
+					aria-hidden="true"
+				>{ i18n.T(ctx, i18n.KeyPlaceOrder) }</button>
+				<input type="hidden" name="idempotency" value={ v.IdempotencyKey }/>
+				// One fixed-size identity covers the cart lines and prices, delivery,
+				// coupon and exact credit spend. The server rebuilds it while holding
+				// the corresponding database locks; it is a witness, not pricing input.
+				<input type="hidden" name="checkout_quote" value={ v.QuoteID }/>
+				// No hidden `address` here. It carried the same NAME as the radios
+				// below and came FIRST, so PostFormValue returned it every time and
+				// the customer's pick was discarded — the whole chooser was inert.
+				// It is a leftover from when picking an address was a link.
+				<div class="goen-checkout__panel">
+					<h2 class="goen-checkout__section" id="shipping-heading">{ i18n.T(ctx, i18n.KeySectionShipping) }</h2>
+					// A radio inside the form, not a link beside it. The choice
+					// decides which fields the form asks for, so changing it has
+					// to re-render — and a link carrying only the choice threw
+					// away everything already typed.
+					//
+					// The refusal is announced on the GROUP and not on an option:
+					// a form refuses the choice, not one of the things on offer.
+					// These were <a> elements until the chooser moved inside the
+					// form, so the write-face rule genuinely did not apply — and
+					// making them controls a form can refuse did not carry it
+					// across.
+					<div
+						class="goen-checkout__shipping"
+						role="radiogroup"
+						aria-labelledby="shipping-heading"
+						aria-invalid={ v.Invalid("shipping") }
+						if v.HasErr("shipping") {
+							aria-describedby="shipping-error"
+						}
+					>
+						for _, c := range v.Shipping {
+							<label
+								class={ "goen-checkout__ship",
+									templ.KV("goen-checkout__ship--on", c.VersionID == v.Chosen) }
+							>
+								<input
+									class="ui-radio"
+									type="radio"
+									name="shipping"
+									value={ c.VersionID }
+									checked?={ c.VersionID == v.Chosen }
+								/>
+								<span class="goen-checkout__shipname">
+									{ c.Name }
+									if c.Carrier != "" {
+										<span class="ui-cart-line__meta">{ c.Carrier }</span>
+									}
+								</span>
+								<span class="goen-checkout__shipfee">
+									if c.Free {
+										{ i18n.T(ctx, i18n.KeyFreeShipping) }
+									} else {
+										{ c.Fee() }
+									}
+								</span>
+							</label>
+						}
+					</div>
+					@applyChoice("shipping")
+					if v.HasErr("shipping") {
+						<p class="ui-error-text" id="shipping-error">{ v.Err("shipping") }</p>
+					}
+					if v.Repriced != "" {
+						<p class="ui-alert ui-alert--info" role="status">{ v.Repriced }</p>
+					}
+					if v.CreditChanged != "" {
+						<p class="ui-alert ui-alert--info" role="status">{ v.CreditChanged }</p>
+					}
+					<h2 class="goen-checkout__section" id="recipient-heading">{ i18n.T(ctx, i18n.KeySectionRecipient) }</h2>
+					if v.OffersTheAddressBook() {
+						<div
+							class="goen-checkout__shipping"
+							role="radiogroup"
+							aria-labelledby="recipient-heading"
+							aria-invalid={ v.Invalid("address") }
+							if v.HasErr("address") {
+								aria-describedby="address-error"
+							}
+						>
+							for _, a := range v.SavedAddresses {
+								<label
+									class={ "goen-checkout__ship",
+										templ.KV("goen-checkout__ship--on", a.ID == v.ChosenAddress) }
+								>
+									<input
+										class="ui-radio"
+										type="radio"
+										name="address"
+										value={ a.ID }
+										checked?={ a.ID == v.ChosenAddress }
+									/>
+									<span class="goen-checkout__shipname">
+										{ a.DisplayLabel(ctx) }
+										<span class="ui-cart-line__meta">{ a.Line() }</span>
+									</span>
+								</label>
+							}
+						</div>
+						@applyChoice("address")
+						if v.HasErr("address") {
+							<p class="ui-error-text" id="address-error">{ v.Err("address") }</p>
+						}
+					}
+					<div class="goen-checkout__fields">
+						@field("email", i18n.T(ctx, i18n.KeyFieldEmail), "email", v.Address.Email, v)
+						@field("name", i18n.T(ctx, i18n.KeyFieldName), "text", v.Address.Name, v)
+						@field("phone", i18n.T(ctx, i18n.KeyFieldPhone), "tel", v.Address.Phone, v)
+						if v.ToPickupPoint() {
+							<div class="ui-field">
+								<label class="ui-label" for="pickup_brand">{ i18n.T(ctx, i18n.KeyFieldPickupBrand) }</label>
+								<select
+									class="ui-select"
+									id="pickup_brand"
+									name="pickup_brand"
+									autocomplete="off"
+									required
+									aria-invalid={ v.Invalid("pickup_brand") }
+									if v.HasErr("pickup_brand") {
+										aria-describedby="pickup_brand-error"
+									}
+								>
+									<option value="">{ i18n.T(ctx, i18n.KeySelectPlaceholder) }</option>
+									for _, b := range v.PickupBrands {
+										<option value={ string(b.Value) } selected?={ b.Value == v.Address.PickupBrand }>
+											{ b.Label }
+										</option>
+									}
+								</select>
+								if v.HasErr("pickup_brand") {
+									<p class="ui-error-text" id="pickup_brand-error">{ v.Err("pickup_brand") }</p>
+								}
+							</div>
+							@field("pickup_store_code", i18n.T(ctx, i18n.KeyFieldStoreCode), "text", v.Address.PickupStoreCode, v)
+							<div class="ui-field goen-checkout__wide">
+								<label class="ui-label" for="pickup_store_name">{ i18n.T(ctx, i18n.KeyFieldStoreName) }</label>
+								<input
+									class="ui-input"
+									id="pickup_store_name"
+									type="text"
+									name="pickup_store_name"
+									value={ v.Address.PickupStoreName }
+									autocomplete="off"
+									required
+									maxlength="40"
+									aria-invalid={ v.Invalid("pickup_store_name") }
+									if v.HasErr("pickup_store_name") {
+										aria-describedby="pickup_store_name-error"
+									}
+								/>
+								if v.HasErr("pickup_store_name") {
+									<p class="ui-error-text" id="pickup_store_name-error">{ v.Err("pickup_store_name") }</p>
+								}
+								<p class="goen-checkout__hint">
+									{ i18n.T(ctx, i18n.KeyPickupHint) }
+								</p>
+							</div>
+						} else {
+							@field("postal_code", i18n.T(ctx, i18n.KeyFieldPostalCode), "text", v.Address.PostalCode, v)
+							@field("city", i18n.T(ctx, i18n.KeyFieldCity), "text", v.Address.City, v)
+							@field("district", i18n.T(ctx, i18n.KeyFieldDistrict), "text", v.Address.District, v)
+							<div class="ui-field goen-checkout__wide">
+								<label class="ui-label" for="street">{ i18n.T(ctx, i18n.KeyFieldStreet) }</label>
+								<input
+									class="ui-input"
+									id="street"
+									type="text"
+									name="street"
+									value={ v.Address.Street }
+									required
+									maxlength="200"
+									autocomplete="street-address"
+									aria-invalid={ v.Invalid("street") }
+									if v.HasErr("street") {
+										aria-describedby="street-error"
+									}
+								/>
+								if v.HasErr("street") {
+									<p class="ui-error-text" id="street-error">{ v.Err("street") }</p>
+								}
+							</div>
+						}
+						<div class="ui-field goen-checkout__wide">
+							<label class="ui-label" for="note">{ i18n.T(ctx, i18n.KeyFieldNote) }</label>
+							<textarea
+								class="ui-textarea"
+								id="note"
+								name="note"
+								autocomplete="off"
+								maxlength="500"
+								rows="2"
+								aria-invalid={ v.Invalid("note") }
+								if v.HasErr("note") {
+									aria-describedby="note-error"
+								}
+							>{ v.Address.Note }</textarea>
+							if v.HasErr("note") {
+								<p class="ui-error-text" id="note-error">{ v.Err("note") }</p>
+							}
+						</div>
+					</div>
+					<h2 class="goen-checkout__legend" id="invoice-heading">{ i18n.T(ctx, i18n.KeySectionInvoice) }</h2>
+					// This one sat BELOW the address fields, so choosing it through
+					// a link discarded a whole recipient the customer had just
+					// typed. It is the sharpest case of the three.
+					<div
+						class="goen-checkout__invoice"
+						role="radiogroup"
+						aria-labelledby="invoice-heading"
+						aria-invalid={ v.Invalid("invoice_type") }
+						if v.HasErr("invoice_type") {
+							aria-describedby="invoice_type-error"
+						}
+					>
+						for _, c := range v.InvoiceChoices {
+							<label
+								class={ "goen-checkout__ship",
+									templ.KV("goen-checkout__ship--on", v.Invoice.Is(c.Value)) }
+							>
+								<input
+									class="ui-radio"
+									type="radio"
+									name="invoice_type"
+									value={ string(c.Value) }
+									checked?={ v.Invoice.Is(c.Value) }
+								/>
+								<span class="goen-checkout__shipname">{ c.Label }</span>
+							</label>
+						}
+					</div>
+					@applyChoice("invoice")
+					<div class="goen-checkout__fields">
+						if v.Invoice.NeedsCarrier() {
+							<div class="ui-field">
+								<label class="ui-label" for="invoice_carrier">{ i18n.T(ctx, i18n.KeyFieldCarrier) }</label>
+								<input
+									class="ui-input"
+									id="invoice_carrier"
+									name="invoice_carrier"
+									maxlength="8"
+									autocomplete="off"
+									placeholder="/ABC+123"
+									value={ v.Invoice.Carrier }
+									if v.HasErr("invoice_carrier") {
+										aria-invalid="true"
+										aria-describedby="invoice_carrier-error"
+									}
+								/>
+								if v.HasErr("invoice_carrier") {
+									<p class="ui-error-text" id="invoice_carrier-error">{ v.Err("invoice_carrier") }</p>
+								}
+							</div>
+						}
+						if v.Invoice.NeedsTaxID() {
+							<div class="ui-field">
+								<label class="ui-label" for="invoice_company_name">{ i18n.T(ctx, i18n.KeyFieldCompanyName) }</label>
+								<input
+									class="ui-input"
+									id="invoice_company_name"
+									name="invoice_company_name"
+									maxlength="60"
+									autocomplete="organization"
+									value={ v.Invoice.CompanyName }
+									if v.HasErr("invoice_company_name") {
+										aria-invalid="true"
+										aria-describedby="invoice_company_name-error"
+									}
+								/>
+								if v.HasErr("invoice_company_name") {
+									<p class="ui-error-text" id="invoice_company_name-error">{ v.Err("invoice_company_name") }</p>
+								}
+							</div>
+							<div class="ui-field">
+								<label class="ui-label" for="invoice_tax_id">{ i18n.T(ctx, i18n.KeyFieldTaxID) }</label>
+								<input
+									class="ui-input"
+									id="invoice_tax_id"
+									name="invoice_tax_id"
+									maxlength="8"
+									inputmode="numeric"
+									autocomplete="off"
+									value={ v.Invoice.TaxID }
+									if v.HasErr("invoice_tax_id") {
+										aria-invalid="true"
+										aria-describedby="invoice_tax_id-error"
+									}
+								/>
+								if v.HasErr("invoice_tax_id") {
+									<p class="ui-error-text" id="invoice_tax_id-error">{ v.Err("invoice_tax_id") }</p>
+								}
+							</div>
+						}
+					</div>
+					if v.HasErr("invoice_type") {
+						<p class="ui-error-text" id="invoice_type-error">{ v.Err("invoice_type") }</p>
+					}
+				</div>
+				<aside class="goen-checkout__summary">
+					<h2 class="goen-cart__summarytitle">{ i18n.T(ctx, i18n.KeyOrderSummary) }</h2>
+					<ul class="goen-checkout__lines" role="list">
+						for _, l := range v.Cart.Lines {
+							<li>
+								<span>
+									{ l.Name } × { l.QuantityText() }
+									if l.Label != "" {
+										<span class="ui-cart-line__meta">{ l.Label }</span>
+									}
+								</span>
+								<span class="ui-summary__val">{ l.LineTotal() }</span>
+							</li>
+						}
+					</ul>
+					<div class="ui-summary">
+						<div class="ui-summary__row">
+							<span>{ i18n.T(ctx, i18n.KeySubtotal) }</span>
+							<span class="ui-summary__val">{ v.Cart.Subtotal() }</span>
+						</div>
+						<div class="ui-summary__row">
+							<span>{ i18n.T(ctx, i18n.KeyShippingFee) }</span>
+							<span class="ui-summary__val">
+								if v.ShipsFree() {
+									{ i18n.T(ctx, i18n.KeyFreeShipping) }
+								} else {
+									{ v.ShippingText() }
+								}
+							</span>
+						</div>
+						if v.HasSurcharge() {
+							<div class="ui-summary__row">
+								<span>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyZoneSurcharge), v.ZoneName) }</span>
+								<span class="ui-summary__val">{ v.Surcharge() }</span>
+							</div>
+						}
+						if v.HasCoupon() && v.CouponDiscountCents > 0 {
+							<div class="ui-summary__row">
+								<span>{ i18n.T(ctx, i18n.KeyDiscount) }({ v.CouponApplied })</span>
+								<span class="ui-summary__val">{ v.CouponDiscount() }</span>
+							</div>
+						}
+						if v.UsesCredit() {
+							<div class="ui-summary__row">
+								<span>{ i18n.T(ctx, i18n.KeyStoreCredit) }</span>
+								<span class="ui-summary__val">{ v.Credit() }</span>
+							</div>
+						}
+						<div class="ui-summary__row ui-summary__row--total">
+							<span>{ i18n.T(ctx, i18n.KeyTotal) }</span>
+							<span class="ui-summary__val">{ v.Total() }</span>
+						</div>
+					</div>
+					<div class="ui-field goen-checkout__coupon">
+						<label class="ui-label" for="coupon">{ i18n.T(ctx, i18n.KeyCouponCode) }</label>
+						<input
+							class="ui-input"
+							id="coupon"
+							name="coupon"
+							maxlength="32"
+							autocomplete="off"
+							placeholder={ i18n.T(ctx, i18n.KeyCouponPlaceholder) }
+							value={ v.CouponCode }
+							if v.HasErr("coupon") {
+								aria-invalid="true"
+								aria-describedby="coupon-error"
+							}
+						/>
+						if v.HasErr("coupon") {
+							<p class="ui-error-text" id="coupon-error">{ v.Err("coupon") }</p>
+						}
+						if v.HasCoupon() {
+							<p class="goen-checkout__note">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCouponApplied), v.CouponApplied) }</p>
+						}
+					</div>
+					<button class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block goen-checkout__submit" type="submit">
+						{ i18n.T(ctx, i18n.KeyPlaceOrder) }
+					</button>
+					<p class="goen-checkout__note">
+						{ i18n.T(ctx, i18n.KeyCheckoutSubmitNote) }
+					</p>
+				</aside>
+			</form>
+		</div>
+	}
+}
+
+// applyChoice re-renders the form with the choice above it applied. A submit
+// button rather than a link, because the form carries everything the customer
+// has typed and a link carries only the choice.
+templ applyChoice(which string) {
+	<button
+		class="ui-btn ui-btn--secondary ui-btn--sm goen-checkout__apply"
+		type="submit"
+		name="update"
+		value={ which }
+		formnovalidate
+	>
+		{ i18n.T(ctx, i18n.KeyApplyChoice) }
+	</button>
+}
+
+templ field(name, label, kind, value string, v *CheckoutView) {
+	{{ hints := checkoutHintsFor(name) }}
+	<div class="ui-field">
+		<label class="ui-label" for={ name }>{ label }</label>
+		<input
+			class="ui-input"
+			id={ name }
+			type={ kind }
+			name={ name }
+			value={ value }
+			required
+			autocomplete={ hints.Autocomplete }
+			if hints.InputMode != "" {
+				inputmode={ hints.InputMode }
+			}
+			if hints.AutoCapitalize != "" {
+				autocapitalize={ hints.AutoCapitalize }
+			}
+			if hints.SpellCheck != "" {
+				spellcheck={ hints.SpellCheck }
+			}
+			aria-invalid={ v.Invalid(name) }
+			if v.HasErr(name) {
+				aria-describedby={ name + "-error" }
+			}
+		/>
+		if v.HasErr(name) {
+			<p class="ui-error-text" id={ name + "-error" }>{ v.Err(name) }</p>
+		}
+	</div>
+}
+
+// Order renders the confirmation page.
+templ Order(p layouts.Page, v *OrderView) {
+	@layouts.Base(p) {
+		<div class="goen-order">
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyOrderPlaced) }</p>
+					<h1 class="ui-page-head__title">{ v.Number }</h1>
+					<p class="ui-page-head__sub">
+						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderPlacedAt), v.PlacedAt) }
+						if v.Email != "" {
+							· { fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderEmailNotice), v.Email) }
+						}
+					</p>
+				</div>
+			</div>
+			if v.Cancelled {
+				<p class="ui-alert ui-alert--success goen-order__status" role="status">
+					{ i18n.T(ctx, i18n.KeyOrderCancelled) }
+				</p>
+			}
+			if v.AwaitingPayment() {
+				<p class="ui-alert ui-alert--info goen-order__status" role="status">
+					{ i18n.T(ctx, i18n.KeyOrderUnpaid) }
+					<a href={ templ.SafeURL("/orders/" + v.Number + "/pay") }>{ i18n.T(ctx, i18n.KeyPay) }</a>
+				</p>
+			}
+			<form class="goen-order__cancel" method="post" action={ templ.SafeURL("/orders/" + v.Number + "/reorder") }>
+				<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyOrderReorder) }</button>
+				<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyOrderReorderNote) }</span>
+			</form>
+			if v.CanCancel() {
+				<form class="goen-order__cancel" method="post" action={ templ.SafeURL("/orders/" + v.Number + "/cancel") }>
+					<button class="ui-btn ui-btn--ghost" type="submit">{ i18n.T(ctx, i18n.KeyOrderCancel) }</button>
+					<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyOrderCancelNote) }</span>
+				</form>
+			}
+			if len(v.Shipments) > 0 {
+				<section class="goen-order__tracking" aria-labelledby="tracking-heading">
+					<h2 id="tracking-heading" class="goen-order__subhead">{ i18n.T(ctx, i18n.KeyOrderTracking) }</h2>
+					<ul class="goen-order__shipments" role="list">
+						for _, sh := range v.Shipments {
+							<li class="goen-order__shipment">
+								<span class="goen-order__carrier">{ sh.Carrier }</span>
+								<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderTrackingNo), sh.Tracking) }</span>
+								if sh.Delivered() {
+									<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderDeliveredAt), sh.DeliveredAt) }</span>
+								} else {
+									<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderShippedAt), sh.ShippedAt) }</span>
+								}
+							</li>
+						}
+					</ul>
+				</section>
+			}
+			if len(v.Timeline) > 0 {
+				<section class="goen-order__history" aria-labelledby="history-heading">
+					<h2 id="history-heading" class="goen-order__subhead">{ i18n.T(ctx, i18n.KeyOrderHistory) }</h2>
+					<ol class="goen-order__events">
+						for _, e := range v.Timeline {
+							<li class="goen-order__event">
+								<span class="goen-order__eventkind">{ i18n.T(ctx, e.LabelKey()) }</span>
+								<span class="ui-cart-line__meta">{ e.At }</span>
+								if e.Note != "" {
+									<span class="ui-cart-line__meta">{ e.Note }</span>
+								}
+							</li>
+						}
+					</ol>
+				</section>
+			}
+			if v.DeliveryTo != "" {
+				<section class="goen-order__history" aria-labelledby="delivery-heading">
+					<h2 id="delivery-heading" class="goen-order__subhead">{ i18n.T(ctx, i18n.KeyOrderDeliveryTo) }</h2>
+					<p class="goen-order__event">
+						<span class="goen-order__eventkind">{ v.ShippingName }</span>
+						<span class="ui-cart-line__meta">{ v.DeliveryTo }</span>
+					</p>
+				</section>
+			}
+			<div class="goen-order__layout">
+				<ul class="goen-order__lines" role="list">
+					for _, l := range v.Lines {
+						<li class="goen-order__line">
+							<div>
+								<p class="goen-order__name">{ l.Name }</p>
+								if l.Label != "" {
+									<span class="ui-cart-line__meta">{ l.Label }</span>
+								}
+								<span class="ui-cart-line__meta">{ l.SKU } · { l.UnitPrice() } × { l.QuantityText() }</span>
+							</div>
+							<span class="ui-cart-line__price">{ l.LineTotal() }</span>
+						</li>
+					}
+				</ul>
+				<aside class="goen-order__summary">
+					<div class="ui-summary">
+						<div class="ui-summary__row">
+							<span>{ i18n.T(ctx, i18n.KeySubtotal) }</span>
+							<span class="ui-summary__val">{ v.Subtotal() }</span>
+						</div>
+						<div class="ui-summary__row">
+							<span>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderShippingFee), v.ShippingName) }</span>
+							<span class="ui-summary__val">{ v.Shipping(ctx) }</span>
+						</div>
+						if v.Discounted() {
+							<div class="ui-summary__row">
+								<span>
+									{ i18n.T(ctx, i18n.KeyDiscount) }
+									if v.DiscountReason != "" {
+										({ v.DiscountReason })
+									}
+								</span>
+								<span class="ui-summary__val">{ v.Discount() }</span>
+							</div>
+						}
+						<div class="ui-summary__row ui-summary__row--total">
+							<span>{ i18n.T(ctx, i18n.KeyOrderGrandTotal) }</span>
+							<span class="ui-summary__val">{ v.Total() }</span>
+						</div>
+						// Below the total, because it is not a reduction of the
+						// price: the goods cost what they cost and this is part
+						// of how they were paid for.
+						if v.UsedCredit() {
+							<div class="ui-summary__row">
+								<span>{ i18n.T(ctx, i18n.KeyOrderCreditApplied) }</span>
+								<span class="ui-summary__val">{ v.Credit() }</span>
+							</div>
+						}
+					</div>
+					if v.CanRequestReturn() {
+						<a class="ui-btn ui-btn--secondary ui-btn--block" href={ templ.SafeURL("/orders/" + v.Number + "/return") }>
+							{ i18n.T(ctx, i18n.KeyOrderReturn) }
+						</a>
+					}
+					<a class="ui-btn ui-btn--secondary ui-btn--block" href="/">{ i18n.T(ctx, i18n.KeyContinue) }</a>
+				</aside>
+			</div>
+		</div>
+	}
+}

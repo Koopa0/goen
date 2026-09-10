@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/Koopa0/goen/security/advisories/new
+    about: >-
+      Private advisory, never a public issue. Anything that moves money, stock
+      or a tax document outside its guarded path belongs here. Attach no
+      customer data.

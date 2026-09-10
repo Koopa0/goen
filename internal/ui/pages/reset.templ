@@ -1,0 +1,107 @@
+package pages
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// Forgot renders the request-a-link page.
+templ Forgot(p layouts.Page, v ForgotView) {
+	@layouts.Base(p) {
+		<div class="goen-auth">
+			<div class="goen-auth__panel">
+				<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeyForgotTitle) }</h1>
+				<p class="goen-auth__alt">{ i18n.T(ctx, i18n.KeyForgotSub) }</p>
+				if v.Sent {
+					<p class="ui-alert ui-alert--success" role="status">
+						{ i18n.T(ctx, i18n.KeyForgotSent) }
+					</p>
+				}
+				<form class="goen-auth__form" method="post" action="/forgot">
+					<div class="ui-field">
+						<label class="ui-label" for="email">{ i18n.T(ctx, i18n.KeyFieldEmail) }</label>
+						<input
+							class="ui-input"
+							id="email"
+							name="email"
+							type="email"
+							required
+							maxlength="254"
+							autocomplete="email"
+							autofocus
+						/>
+					</div>
+					<button class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block goen-auth__submit" type="submit">
+						{ i18n.T(ctx, i18n.KeyForgotSubmit) }
+					</button>
+				</form>
+				<p class="goen-auth__alt">
+					{ i18n.T(ctx, i18n.KeyRemembered) }<a href="/signin">{ i18n.T(ctx, i18n.KeyBackToSignIn) }</a>
+				</p>
+			</div>
+		</div>
+	}
+}
+
+// Reset renders the set-a-new-password page.
+templ Reset(p layouts.Page, v ResetView) {
+	@layouts.Base(p) {
+		<div class="goen-auth">
+			<div class="goen-auth__panel">
+				<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeyResetTitle) }</h1>
+				if v.Usable() {
+					<form class="goen-auth__form" method="post" action="/reset">
+						<input type="hidden" name="token" value={ v.Token }/>
+						<div class="ui-field">
+							<label class="ui-label" for="password">{ i18n.T(ctx, i18n.KeyFieldNewPassword) }</label>
+							<input
+								class="ui-input"
+								id="password"
+								name="password"
+								type="password"
+								required
+								minlength="10"
+								autocomplete="new-password"
+								autofocus
+								aria-invalid={ v.Invalid() }
+								if v.HasError() {
+									aria-describedby="reset-error"
+								}
+							/>
+							if v.HasError() {
+								<p class="ui-error-text" role="alert" id="reset-error">{ v.Error }</p>
+							}
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="confirm">{ i18n.T(ctx, i18n.KeyFieldAgain) }</label>
+							<input
+								class="ui-input"
+								id="confirm"
+								name="confirm"
+								type="password"
+								required
+								minlength="10"
+								autocomplete="new-password"
+								aria-invalid={ v.Invalid() }
+								if v.HasError() {
+									aria-describedby="reset-error"
+								}
+							/>
+						</div>
+						<p class="goen-auth__alt">
+							{ i18n.T(ctx, i18n.KeyResetEndsSessions) }
+						</p>
+						<button class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block goen-auth__submit" type="submit">
+							{ i18n.T(ctx, i18n.KeyResetTitle) }
+						</button>
+					</form>
+				} else {
+					<p class="ui-alert ui-alert--error" role="alert">{ v.Refusal(ctx) }</p>
+					<a class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block goen-auth__submit" href="/forgot">
+						{ i18n.T(ctx, i18n.KeyResetAgain) }
+					</a>
+				}
+			</div>
+		</div>
+	}
+}

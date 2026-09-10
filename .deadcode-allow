@@ -1,0 +1,1 @@
+internal/product.Store.answer # reason: the integration-tag facade preserves the customer-answer invariants for the documented storefront reply route that is not wired yet

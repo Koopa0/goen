@@ -1,0 +1,90 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/icons"
+)
+
+// compareForm submits the ticked slugs to /compare. A GET, because a
+// comparison writes nothing — the set is the URL and there is no state to keep.
+templ compareForm() {
+	<form class="goen-compare-pick" method="get" action="/compare">
+		{ children... }
+		<div class="goen-compare-pick__go">
+			<button class="ui-btn ui-btn--secondary" type="submit">
+				{ i18n.T(ctx, i18n.KeyCompareSelected) }
+			</button>
+			<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyCompareLimit) }</span>
+		</div>
+	</form>
+}
+
+// Tile is one product card; the whole card is a single link.
+templ Tile(t ProductTile) {
+	<li class="goen-tile__cell">
+		if t.Comparable {
+			// Outside the card, never inside: the whole card is one link, and a
+			// control nested in an anchor is neither clickable nor valid.
+			<label class="goen-tile__compare">
+				<input type="checkbox" name="p" value={ t.Slug } aria-label={ t.CompareLabel(ctx) }/>
+				<span aria-hidden="true">{ i18n.T(ctx, i18n.KeyCompareAdd) }</span>
+			</label>
+		}
+		<a class="ui-product goen-tile" href={ templ.URL("/p/" + t.Slug) }>
+			<div class="ui-product__media">
+				if t.HasImage() {
+					<img
+						src={ t.ImageURL }
+						srcset={ t.ImageSrcset }
+						sizes="(min-width: 1344px) 308px, (min-width: 1024px) calc((100vw - 112px) / 4), (min-width: 768px) calc((100vw - 80px) / 3), calc((100vw - 42px) / 2)"
+						alt={ t.ImageAlt }
+						if t.HasImageDimensions() {
+							width={ t.ImageWidthText() }
+							height={ t.ImageHeightText() }
+						}
+						loading="lazy"
+						decoding="async"
+					/>
+				} else {
+					<span class="goen-tile__ph" aria-hidden="true"></span>
+				}
+				if t.SoldOut() {
+					<span class="ui-product__flag ui-badge">{ i18n.T(ctx, i18n.KeySoldOut) }</span>
+				} else if t.OnSale() {
+					<span class="ui-product__flag ui-badge ui-badge--brand">{ i18n.T(ctx, i18n.KeyOnSale) }</span>
+				}
+			</div>
+			<div class="ui-product__body">
+				<span class="ui-product__brand">{ t.Brand }</span>
+				<h3 class="ui-product__name">{ t.Name }</h3>
+				if t.HasReviews() {
+					<span class="ui-rating goen-tile__rating">
+						<span class="ui-rating__stars" aria-hidden="true">
+							@icons.Star()
+						</span>
+						<span class="goen-tile__score" aria-hidden="true">{ t.RatingText() }</span>
+						<span class="ui-rating__count" aria-hidden="true">({ t.ReviewCountText() })</span>
+						<span class="goen-sr-only">{ t.RatingLabel(ctx) }</span>
+					</span>
+				}
+				<div class="ui-product__foot">
+					<span class={ "ui-price", templ.KV("ui-price--sale", t.OnSale()) }>
+						<span class="ui-price__now">
+							if t.PriceVaries {
+								{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFromPrice), t.Price()) }
+							} else {
+								{ t.Price() }
+							}
+						</span>
+						if t.OnSale() {
+							<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyWasPrice) }</span>
+							<s class="ui-price__was">{ t.Compare() }</s>
+						}
+					</span>
+				</div>
+			</div>
+		</a>
+	</li>
+}

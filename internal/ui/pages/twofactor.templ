@@ -1,0 +1,100 @@
+package pages
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// TwoFactor renders the step-up challenge and the enrolment flow.
+templ TwoFactor(p layouts.Page, v TwoFactorView) {
+	@layouts.Base(p) {
+		<div class="goen-doc">
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageTwoFactor) }</h1>
+					<p class="ui-page-head__sub">
+						{ i18n.T(ctx, i18n.KeyTwoFALead) }
+					</p>
+				</div>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert" role="status">{ v.Notice }</p>
+			}
+			if !v.Enabled {
+				<section class="goen-doc__section is-pending">
+					<h2 class="h4">{ i18n.T(ctx, i18n.KeyTwoFAOffHeading) }</h2>
+					<p>
+						{ i18n.T(ctx, i18n.KeyTwoFAOffBody) }
+					</p>
+				</section>
+			} else if v.Enrolling {
+				<section class="goen-doc__section">
+					<h2 class="h4">{ i18n.T(ctx, i18n.KeyTwoFAEnrolHeading) }</h2>
+					<p>
+						{ i18n.T(ctx, i18n.KeyTwoFAEnrolBody) }
+						<strong>{ i18n.T(ctx, i18n.KeyTwoFAEnrolOnce) }</strong>
+					</p>
+					<p class="goen-twofa__secret">
+						for _, group := range v.SecretGroups() {
+							<code>{ group }</code>
+						}
+					</p>
+					<details class="goen-doc__qa">
+						<summary>{ i18n.T(ctx, i18n.KeyTwoFAEnrolURI) }</summary>
+						<p><code class="goen-twofa__uri">{ v.URI }</code></p>
+					</details>
+					<form class="goen-twofa__form" method="post" action="/admin/verify/confirm">
+						<div class="ui-field">
+							<label class="ui-label" for="code">{ i18n.T(ctx, i18n.KeyTwoFAEnrolCode) }</label>
+							<input
+								class="ui-input goen-twofa__code"
+								id="code"
+								name="code"
+								required
+								inputmode="numeric"
+								autocomplete="one-time-code"
+								pattern="[0-9 ]{6,8}"
+								maxlength="8"
+								autofocus
+							/>
+						</div>
+						<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyTwoFAEnrolSubmit) }</button>
+					</form>
+				</section>
+			} else if v.NeedsEnrolment() {
+				<section class="goen-doc__section">
+					<h2 class="h4">{ i18n.T(ctx, i18n.KeyTwoFAStartHeading) }</h2>
+					<p>{ i18n.T(ctx, i18n.KeyTwoFAStartBody) }</p>
+					<form method="post" action="/admin/verify/enrol">
+						<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyTwoFAStartSubmit) }</button>
+					</form>
+				</section>
+			} else if v.CanVerify() {
+				<section class="goen-doc__section">
+					<h2 class="h4">{ i18n.T(ctx, i18n.KeyTwoFAChallengeHeading) }</h2>
+					<form class="goen-twofa__form" method="post" action="/admin/verify">
+						<div class="ui-field">
+							<label class="ui-label" for="code">{ i18n.T(ctx, i18n.KeyTwoFAChallengeCode) }</label>
+							<input
+								class="ui-input goen-twofa__code"
+								id="code"
+								name="code"
+								required
+								inputmode="numeric"
+								autocomplete="one-time-code"
+								pattern="[0-9 ]{6,8}"
+								maxlength="8"
+								autofocus
+							/>
+						</div>
+						<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyTwoFAChallengeSubmit) }</button>
+					</form>
+					<p class="goen-doc__contact">
+						{ i18n.T(ctx, i18n.KeyTwoFALost) }
+					</p>
+				</section>
+			}
+		</div>
+	}
+}

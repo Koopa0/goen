@@ -1,0 +1,407 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// AdminShipping renders the delivery configuration.
+templ AdminShipping(p layouts.Page, v AdminShippingView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("shipping")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageShipping) }</h1>
+					<p class="ui-page-head__sub">
+						{ i18n.T(ctx, i18n.KeyAdminShipLead) }
+					</p>
+				</div>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			for _, m := range v.Methods {
+				<section class="goen-admin__panel">
+					<h2 class="goen-admin__heading">
+						{ m.Name }
+						<span class="ui-cart-line__meta">{ m.Code } · { m.DestinationText(ctx) }</span>
+					</h2>
+					<p class="goen-admin__hint">
+						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminShipCurrent), m.Fee(), m.FreeOver(ctx)) }
+						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminShipSince), m.EffectiveAt, m.VersionCountText()) }
+					</p>
+					<form class="goen-admin__form" method="post" action="/admin/shipping/version">
+						<input type="hidden" name="method" value={ m.MethodID }/>
+						<div class="goen-admin__row">
+							<div class="ui-field">
+								<label class="ui-label" for={ "name-" + m.MethodID }>{ i18n.T(ctx, i18n.KeyAdminColName) }</label>
+								<input class="ui-input" id={ "name-" + m.MethodID } name="name" value={ m.Name } required maxlength="60"/>
+							</div>
+							<div class="ui-field">
+								<label class="ui-label" for={ "carrier-" + m.MethodID }>{ i18n.T(ctx, i18n.KeyAdminShipCarrierOptional) }</label>
+								<input class="ui-input" id={ "carrier-" + m.MethodID } name="carrier" value={ m.Carrier } maxlength="60"/>
+							</div>
+							<div class="ui-field">
+								<label class="ui-label" for={ "name-en-" + m.MethodID }>{ i18n.T(ctx, i18n.KeyAdminColNameEn) }</label>
+								<input class="ui-input" id={ "name-en-" + m.MethodID } name="name_en" value={ m.NameEn } maxlength="60" placeholder="Home delivery"/>
+							</div>
+							<div class="ui-field">
+								<label class="ui-label" for={ "carrier-en-" + m.MethodID }>{ i18n.T(ctx, i18n.KeyAdminShipCarrierEn) }</label>
+								<input class="ui-input" id={ "carrier-en-" + m.MethodID } name="carrier_en" value={ m.CarrierEn } maxlength="60"/>
+							</div>
+							<div class="ui-field">
+								<label class="ui-label" for={ "fee-" + m.MethodID }>{ i18n.T(ctx, i18n.KeyAdminShipFee) }</label>
+								<input class="ui-input" id={ "fee-" + m.MethodID } name="fee" type="number" min="0" step="1" value={ m.FeeDollars() } required inputmode="numeric"/>
+							</div>
+							<div class="ui-field">
+								<label class="ui-label" for={ "free-" + m.MethodID }>{ i18n.T(ctx, i18n.KeyAdminShipFreeOver) }</label>
+								<input class="ui-input" id={ "free-" + m.MethodID } name="free_over" type="number" min="0" step="1" value={ m.FreeOverDollars() } inputmode="numeric"/>
+							</div>
+						</div>
+						<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminShipPublish) }</button>
+					</form>
+					<form class="goen-admin__inline" method="post" action={ templ.SafeURL("/admin/shipping/method/" + m.MethodID + "/active") }>
+						if m.Active {
+							<input type="hidden" name="active" value="0"/>
+							<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminShipDisable) }</button>
+						} else {
+							<input type="hidden" name="active" value="1"/>
+							<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminShipReenable) }</button>
+						}
+					</form>
+					if m.Zoned() {
+						<h3 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminShipSurcharges) }</h3>
+						<p class="goen-admin__hint">
+							{ i18n.T(ctx, i18n.KeyAdminShipSurchargeLead) }
+						</p>
+						for _, z := range v.Zones {
+							<form class="goen-admin__inline" method="post" action="/admin/shipping/surcharge">
+								<input type="hidden" name="version" value={ m.VersionID }/>
+								<input type="hidden" name="zone" value={ z.ID }/>
+								<label class="ui-label" for={ "sur-" + m.VersionID + "-" + z.ID }>
+									{ z.Name }
+									<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminShipPrefixCount), z.PrefixCountText()) }</span>
+								</label>
+								<input
+									class="ui-input ui-input--sm"
+									id={ "sur-" + m.VersionID + "-" + z.ID }
+									name="amount"
+									type="number"
+									min="0"
+									step="1"
+									value={ m.SurchargeDollars(z.ID) }
+									inputmode="numeric"
+								/>
+								<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminShipSet) }</button>
+							</form>
+						}
+					} else {
+						<p class="goen-admin__hint">
+							{ i18n.T(ctx, i18n.KeyAdminShipNoZone) }
+						</p>
+					}
+				</section>
+			}
+			<section class="goen-admin__panel">
+				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminShipAddMethod) }</h2>
+				<form class="goen-admin__form" method="post" action="/admin/shipping/method">
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="m-code">{ i18n.T(ctx, i18n.KeyAdminColCode) }</label>
+							<input
+								class="ui-input"
+								id="m-code"
+								name="code"
+								required
+								maxlength="30"
+								pattern="[a-z0-9_]+"
+								value={ v.MethodDraft.Code }
+								placeholder="express_delivery"
+								if v.HasErr("code") {
+									aria-invalid="true"
+									aria-describedby="m-code-error"
+								}
+							/>
+							if v.HasErr("code") {
+								<p class="ui-error-text" id="m-code-error">{ v.Err("code") }</p>
+							}
+							<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminShipCodeHint) }</p>
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="m-destination">{ i18n.T(ctx, i18n.KeyAdminShipDestination) }</label>
+							<select
+								class="ui-select"
+								id="m-destination"
+								name="destination"
+								required
+								if v.HasErr("destination") {
+									aria-invalid="true"
+									aria-describedby="m-destination-error"
+								}
+							>
+								<option value="address" selected?={ !v.PickupSelected() }>{ i18n.T(ctx, i18n.KeyAdminShipToAddress) }</option>
+								<option value="pickup_point" selected?={ v.PickupSelected() }>{ i18n.T(ctx, i18n.KeyAdminDestPickup) }</option>
+							</select>
+							if v.HasErr("destination") {
+								<p class="ui-error-text" id="m-destination-error">{ v.Err("destination") }</p>
+							}
+							<p class="goen-admin__hint">
+								{ i18n.T(ctx, i18n.KeyAdminShipDestinationHint) }
+							</p>
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="m-max-longest">{ i18n.T(ctx, i18n.KeyAdminShipMaxLongest) }</label>
+							// Blank is no stated limit; store pickup is 450mm / 1050mm / 10000g (Hi-Life 5000g).
+							<input
+								class="ui-input"
+								id="m-max-longest"
+								name="max_parcel_longest"
+								type="text"
+								inputmode="numeric"
+								value={ v.MethodDraft.MaxLongest }
+								if v.HasErr("max_parcel_longest") {
+									aria-invalid="true"
+									aria-describedby="m-max-longest-error"
+								}
+							/>
+							if v.HasErr("max_parcel_longest") {
+								<p class="ui-error-text" id="m-max-longest-error">{ v.Err("max_parcel_longest") }</p>
+							}
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="m-max-sum">{ i18n.T(ctx, i18n.KeyAdminShipMaxSum) }</label>
+							<input
+								class="ui-input"
+								id="m-max-sum"
+								name="max_parcel_sum"
+								type="text"
+								inputmode="numeric"
+								value={ v.MethodDraft.MaxSum }
+								if v.HasErr("max_parcel_sum") {
+									aria-invalid="true"
+									aria-describedby="m-max-sum-error"
+								}
+							/>
+							if v.HasErr("max_parcel_sum") {
+								<p class="ui-error-text" id="m-max-sum-error">{ v.Err("max_parcel_sum") }</p>
+							}
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="m-max-weight">{ i18n.T(ctx, i18n.KeyAdminShipMaxWeight) }</label>
+							<input
+								class="ui-input"
+								id="m-max-weight"
+								name="max_parcel_weight"
+								type="text"
+								inputmode="numeric"
+								value={ v.MethodDraft.MaxWeight }
+								if v.HasErr("max_parcel_weight") {
+									aria-invalid="true"
+									aria-describedby="m-max-weight-error"
+								}
+							/>
+							if v.HasErr("max_parcel_weight") {
+								<p class="ui-error-text" id="m-max-weight-error">{ v.Err("max_parcel_weight") }</p>
+							}
+							<p class="goen-admin__hint">
+								{ i18n.T(ctx, i18n.KeyAdminShipLimitsHint) }
+							</p>
+						</div>
+					</div>
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="m-name">{ i18n.T(ctx, i18n.KeyAdminColName) }</label>
+							<input
+								class="ui-input"
+								id="m-name"
+								name="name"
+								required
+								maxlength="60"
+								value={ v.MethodDraft.Name }
+								placeholder={ i18n.T(ctx, i18n.KeyAdminShipNamePlaceholder) }
+								if v.HasErr("name") {
+									aria-invalid="true"
+									aria-describedby="m-name-error"
+								}
+							/>
+							if v.HasErr("name") {
+								<p class="ui-error-text" id="m-name-error">{ v.Err("name") }</p>
+							}
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="m-name-en">{ i18n.T(ctx, i18n.KeyAdminColNameEn) }</label>
+							<input class="ui-input" id="m-name-en" name="name_en" maxlength="60" value={ v.MethodDraft.NameEn } placeholder="Next-day delivery"/>
+						</div>
+					</div>
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="m-carrier">{ i18n.T(ctx, i18n.KeyAdminColCarrier) }</label>
+							<input class="ui-input" id="m-carrier" name="carrier" maxlength="60" value={ v.MethodDraft.Carrier }/>
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="m-carrier-en">{ i18n.T(ctx, i18n.KeyAdminShipCarrierEn) }</label>
+							<input class="ui-input" id="m-carrier-en" name="carrier_en" maxlength="60" value={ v.MethodDraft.CarrierEn }/>
+						</div>
+					</div>
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="m-fee">{ i18n.T(ctx, i18n.KeyAdminShipFee) }</label>
+							<input
+								class="ui-input"
+								id="m-fee"
+								name="fee"
+								type="number"
+								min="0"
+								step="1"
+								required
+								inputmode="numeric"
+								value={ v.MethodDraft.Fee }
+								if v.HasErr("fee") {
+									aria-invalid="true"
+									aria-describedby="m-fee-error"
+								}
+							/>
+							if v.HasErr("fee") {
+								<p class="ui-error-text" id="m-fee-error">{ v.Err("fee") }</p>
+							}
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="m-free">{ i18n.T(ctx, i18n.KeyAdminShipFreeOver) }</label>
+							<input class="ui-input" id="m-free" name="free_over" type="number" min="0" step="1" inputmode="numeric" value={ v.MethodDraft.FreeOver }/>
+						</div>
+					</div>
+					<p class="goen-admin__hint">
+						{ i18n.T(ctx, i18n.KeyAdminShipFirstVersion) }
+					</p>
+					<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminShipAddMethod) }</button>
+				</form>
+			</section>
+			<section class="goen-admin__panel">
+				<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminShipZones) }</h2>
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table goen-admin__table">
+						<thead>
+							<tr>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminShipColZone) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminShipPrefixes) }</th>
+								<th scope="col"><span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminColActions) }</span></th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, z := range v.Zones {
+								<tr>
+									<td>
+										{ z.Name }
+										<span class="ui-cart-line__meta">{ z.Code }</span>
+										if z.NameEn == "" {
+											<span class="ui-badge ui-badge--warn">{ i18n.T(ctx, i18n.KeyAdminUntranslated) }</span>
+										}
+									</td>
+									<td class="goen-admin__prefixes">
+										<form class="goen-admin__inline" method="post" action={ templ.SafeURL("/admin/shipping/zone/" + z.ID + "/prefixes") }>
+											<label class="goen-sr-only" for={ "pre-" + z.ID }>{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminShipZonePrefixes), z.Name) }</label>
+											<input
+												class="ui-input ui-input--sm"
+												id={ "pre-" + z.ID }
+												name="prefixes"
+												value={ v.ZonePrefixesValue(z) }
+												if v.PrefixDraft.ZoneID == z.ID && v.HasErr("zone_prefixes") {
+													aria-invalid="true"
+													aria-describedby={ "pre-" + z.ID + "-error" }
+												}
+											/>
+											<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminShipSet) }</button>
+											if v.PrefixDraft.ZoneID == z.ID && v.HasErr("zone_prefixes") {
+												<p class="ui-error-text" id={ "pre-" + z.ID + "-error" }>{ v.Err("zone_prefixes") }</p>
+											}
+										</form>
+									</td>
+									<td>
+										<form method="post" action={ templ.SafeURL("/admin/shipping/zone/" + z.ID + "/delete") }>
+											<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminDelete) }</button>
+										</form>
+									</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+				<form class="goen-admin__form" method="post" action="/admin/shipping/zone">
+					<h3 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminShipAddZone) }</h3>
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="z-code">{ i18n.T(ctx, i18n.KeyAdminColCode) }</label>
+							<input
+								class="ui-input"
+								id="z-code"
+								name="code"
+								required
+								maxlength="30"
+								pattern="[a-z0-9_]+"
+								value={ v.ZoneDraft.Code }
+								placeholder="offshore"
+								if v.HasErr("zone_code") {
+									aria-invalid="true"
+									aria-describedby="z-code-error"
+								}
+							/>
+							if v.HasErr("zone_code") {
+								<p class="ui-error-text" id="z-code-error">{ v.Err("zone_code") }</p>
+							}
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="z-name">{ i18n.T(ctx, i18n.KeyAdminColName) }</label>
+							<input
+								class="ui-input"
+								id="z-name"
+								name="name"
+								required
+								maxlength="60"
+								value={ v.ZoneDraft.Name }
+								placeholder={ i18n.T(ctx, i18n.KeyAdminShipZoneNamePlaceholder) }
+								if v.HasErr("zone_name") {
+									aria-invalid="true"
+									aria-describedby="z-name-error"
+								}
+							/>
+							if v.HasErr("zone_name") {
+								<p class="ui-error-text" id="z-name-error">{ v.Err("zone_name") }</p>
+							}
+						</div>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="z-name-en">{ i18n.T(ctx, i18n.KeyAdminColNameEn) }</label>
+						<input class="ui-input" id="z-name-en" name="name_en" maxlength="60" value={ v.ZoneDraft.NameEn } placeholder="Outlying islands"/>
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminShipZoneNameEnHint) }</p>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="z-prefixes">{ i18n.T(ctx, i18n.KeyAdminShipPrefixes) }</label>
+						<input
+							class="ui-input"
+							id="z-prefixes"
+							name="prefixes"
+							required
+							value={ v.ZoneDraft.Prefixes }
+							placeholder="880 881 882 890 891"
+							if v.HasErr("prefixes") {
+								aria-invalid="true"
+								aria-describedby="z-prefixes-error"
+							}
+						/>
+						if v.HasErr("prefixes") {
+							<p class="ui-error-text" id="z-prefixes-error">{ v.Err("prefixes") }</p>
+						}
+						<p class="goen-admin__hint">
+							{ i18n.T(ctx, i18n.KeyAdminShipPrefixesHint) }
+						</p>
+					</div>
+					<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminShipAddZone) }</button>
+				</form>
+			</section>
+		</div>
+	}
+}

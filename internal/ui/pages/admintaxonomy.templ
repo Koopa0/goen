@@ -1,0 +1,214 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/icons"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// AdminTaxonomy renders the brands and the category tree with their forms.
+templ AdminTaxonomy(p layouts.Page, v *AdminTaxonomyView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("taxonomy")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageTaxonomy) }</h1>
+					<p class="ui-page-head__sub">
+						{ i18n.T(ctx, i18n.KeyAdminTaxLead) }
+					</p>
+				</div>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			<div class="goen-admin__productlayout">
+				@taxonForm("brands", i18n.KeyAdminTaxNewBrand, v)
+				@taxonList("brands", i18n.KeyAdminTaxBrands, i18n.KeyAdminTaxNoBrands, v.Brands, v)
+			</div>
+			<div class="goen-admin__productlayout">
+				@taxonForm("categories", i18n.KeyAdminTaxNewCategory, v)
+				@taxonList("categories", i18n.KeyAdminTaxCategories, i18n.KeyAdminTaxNoCategories, v.Categories, v)
+			</div>
+		</div>
+	}
+}
+
+templ taxonForm(kind string, title i18n.Key, v *AdminTaxonomyView) {
+	<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/taxonomy/" + kind) }>
+		<h2 class="goen-admin__subhead">{ i18n.T(ctx, title) }</h2>
+		if v.HasErr(kind, "form") {
+			<p class="ui-alert ui-alert--error" role="alert">{ v.Err(kind, "form") }</p>
+		}
+		<div class="ui-field">
+			<label class="ui-label" for={ kind + "-name" }>{ i18n.T(ctx, i18n.KeyAdminColName) }</label>
+			<input
+				class="ui-input"
+				id={ kind + "-name" }
+				name="name"
+				required
+				maxlength="60"
+				value={ v.DraftFor(kind, "name") }
+				if v.HasErr(kind, "name") {
+					aria-invalid="true"
+					aria-describedby={ kind + "-name" + "-error" }
+				}
+			/>
+			if v.HasErr(kind, "name") {
+				<p class="ui-error-text" id={ kind + "-name" + "-error" }>{ v.Err(kind, "name") }</p>
+			}
+		</div>
+		if kind == "categories" {
+			<div class="ui-field">
+				<label class="ui-label" for={ kind + "-name-en" }>{ i18n.T(ctx, i18n.KeyAdminTaxNameEn) }</label>
+				<input
+					class="ui-input"
+					id={ kind + "-name-en" }
+					name="name_en"
+					maxlength="60"
+					value={ v.DraftFor(kind, "name_en") }
+					if v.HasErr(kind, "name_en") {
+						aria-invalid="true"
+						aria-describedby={ kind + "-name-en" + "-error" }
+					}
+				/>
+				if v.HasErr(kind, "name_en") {
+					<p class="ui-error-text" id={ kind + "-name-en" + "-error" }>{ v.Err(kind, "name_en") }</p>
+				}
+				<p class="goen-admin__hint">
+					{ i18n.T(ctx, i18n.KeyAdminTaxNameEnHint) }
+				</p>
+			</div>
+		}
+		<div class="ui-field">
+			<label class="ui-label" for={ kind + "-slug" }>{ i18n.T(ctx, i18n.KeyAdminColSlug) }</label>
+			<input
+				class="ui-input"
+				id={ kind + "-slug" }
+				name="slug"
+				required
+				maxlength="120"
+				placeholder="aurora"
+				value={ v.DraftFor(kind, "slug") }
+				if v.HasErr(kind, "slug") {
+					aria-invalid="true"
+					aria-describedby={ kind + "-slug" + "-error" }
+				}
+			/>
+			if v.HasErr(kind, "slug") {
+				<p class="ui-error-text" id={ kind + "-slug" + "-error" }>{ v.Err(kind, "slug") }</p>
+			}
+			<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminTaxSlugFixed) }</p>
+		</div>
+		if kind == "categories" {
+			<div class="ui-field">
+				<label class="ui-label" for="categories-icon">{ i18n.T(ctx, i18n.KeyAdminColIcon) }</label>
+				<select class="ui-input" id="categories-icon" name="icon_key">
+					<option value="">{ i18n.T(ctx, i18n.KeyAdminIconNone) }</option>
+					for _, k := range icons.CategoryKeys() {
+						<option value={ k } selected?={ v.DraftFor(kind, "icon_key") == k }>{ k }</option>
+					}
+				</select>
+				if v.HasErr(kind, "icon_key") {
+					<p class="ui-error-text">{ v.Err(kind, "icon_key") }</p>
+				}
+			</div>
+			<div class="ui-field">
+				<label class="ui-label" for="categories-parent">{ i18n.T(ctx, i18n.KeyAdminTaxParent) }</label>
+				<input
+					class="ui-input"
+					id="categories-parent"
+					name="parent"
+					maxlength="120"
+					placeholder="phones"
+					list="category-slugs"
+					value={ v.DraftFor(kind, "parent") }
+					if v.HasErr(kind, "parent") {
+						aria-invalid="true"
+						aria-describedby="categories-parent-error"
+					}
+				/>
+				<datalist id="category-slugs">
+					for _, c := range v.Categories {
+						<option value={ c.Slug }>{ c.Name }</option>
+					}
+				</datalist>
+				if v.HasErr(kind, "parent") {
+					<p class="ui-error-text" id="categories-parent-error">{ v.Err(kind, "parent") }</p>
+				}
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminTaxParentHint) }</p>
+			</div>
+		}
+		<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminTaxCreate) }</button>
+	</form>
+}
+
+templ taxonList(kind string, title, empty i18n.Key, rows []AdminTaxon, v *AdminTaxonomyView) {
+	<aside class="goen-admin__side">
+		<h2 class="goen-admin__subhead">{ i18n.T(ctx, title) }</h2>
+		if len(rows) == 0 {
+			<p class="goen-admin__hint">{ i18n.T(ctx, empty) }</p>
+		} else {
+			<ul class="goen-admin__taxa" role="list">
+				for _, t := range rows {
+					<li class="goen-admin__taxon" style={ t.Indent() }>
+						<form class="goen-admin__taxonform" method="post" action={ templ.SafeURL("/admin/taxonomy/" + kind + "/" + t.Slug) }>
+							<input
+								class="ui-input"
+								name="name"
+								value={ t.Name }
+								required
+								maxlength="60"
+								aria-label={ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxNameOf), t.Name) }
+							/>
+							if kind == "categories" {
+								// Rendered with its current value: the rename writes what the form carries.
+								<input
+									class="ui-input"
+									name="name_en"
+									value={ t.NameEn }
+									maxlength="60"
+									placeholder="English"
+									aria-label={ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxNameEnOf), t.Name) }
+								/>
+								<select
+									class="ui-input"
+									name="icon_key"
+									aria-label={ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxIconOf), t.Name) }
+								>
+									<option value="">{ i18n.T(ctx, i18n.KeyAdminIconNone) }</option>
+									for _, k := range icons.CategoryKeys() {
+										<option value={ k } selected?={ t.IconKey == k }>{ k }</option>
+									}
+								</select>
+							}
+							<button class="ui-btn ui-btn--secondary" type="submit" name="action" value="rename">
+								{ i18n.T(ctx, i18n.KeyAdminTaxRename) }
+							</button>
+							if t.Removable() {
+								<button class="ui-btn ui-btn--secondary" type="submit" name="action" value="delete">
+									{ i18n.T(ctx, i18n.KeyAdminDelete) }
+								</button>
+							}
+						</form>
+						<span class="ui-cart-line__meta">
+							{ t.Slug }
+							if kind == "categories" && !t.Translated() {
+								<span class="ui-badge ui-badge--warn">{ i18n.T(ctx, i18n.KeyAdminUntranslated) }</span>
+							}
+							if t.Parent != "" {
+								{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminTaxUnder), t.Parent) }
+							}
+							if !t.Removable() {
+								· { t.Why(ctx) }
+							}
+						</span>
+					</li>
+				}
+			</ul>
+		}
+	</aside>
+}

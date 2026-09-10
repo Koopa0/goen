@@ -1,0 +1,39 @@
+package pages
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// Notice is a centred message page.
+templ Notice(p layouts.Page, code, heading, body string) {
+	@layouts.Base(p) {
+		<div class="notice">
+			if code != "" {
+				<span class="notice__code">{ code }</span>
+			}
+			<h1 class="h2 notice__title">{ heading }</h1>
+			<p class="body notice__body">{ body }</p>
+			<a class="ui-btn ui-btn--secondary ui-btn--lg" href="/">{ i18n.T(ctx, i18n.KeyBackToShop) }</a>
+		</div>
+	}
+}
+
+// OrderNotFound is the 404 for an order this browser may not see.
+templ OrderNotFound(p layouts.Page) {
+	@layouts.Base(p) {
+		<div class="notice">
+			<span class="notice__code">404</span>
+			<h1 class="h2 notice__title">{ i18n.T(ctx, i18n.KeyOrderNotFound) }</h1>
+			<p class="body notice__body">{ i18n.T(ctx, i18n.KeyOrderNotYours) }</p>
+			<div class="notice__actions">
+				<a class="ui-btn ui-btn--primary ui-btn--lg" href="/orders/find">
+					{ i18n.T(ctx, i18n.KeyFindOrderTitle) }
+				</a>
+				<a class="ui-btn ui-btn--secondary ui-btn--lg" href="/signin">
+					{ i18n.T(ctx, i18n.KeySignIn) }
+				</a>
+			</div>
+		</div>
+	}
+}

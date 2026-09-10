@@ -1,0 +1,810 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// adminNav is the back office's own navigation: 23 screens, grouped by the
+// QUESTION each one answers rather than listed. Flat, they were 24 labels in
+// one row and finding a screen meant reading all of them.
+//
+// Every group is a native <details>, so the disclosure needs no script, and the
+// one holding the current screen is rendered `open` by the server — nothing
+// moves after the first byte. A closed group costs a keyboard user one key:
+// its <summary> is in the tab order and opens on Enter.
+//
+// They share a `name`, which is what makes them exclusive: opening one closes
+// the rest, so the nav is one band however much a staff member explores. A
+// browser that does not know the attribute opens several and the nav grows a
+// row, which is the whole of the degradation.
+templ adminNav(current string) {
+	<nav class="goen-admin__nav" aria-label={ i18n.T(ctx, i18n.KeyAdminQueueNavLabel) }>
+		<a
+			class="ui-navitem"
+			href="/admin"
+			if current == "dashboard" {
+				aria-current="page"
+			}
+		>{ i18n.T(ctx, i18n.KeyAdminQueueOverview) }</a>
+		<details
+			class="goen-admin__navgroup"
+			name="goen-admin-nav"
+			open?={ adminNavHolds(current, "orders", "returns", "questions", "messages", "reviews") }
+		>
+			<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavQueues) }</summary>
+			<div class="goen-admin__navitems">
+				<a
+					class="ui-navitem"
+					href="/admin/orders"
+					if current == "orders" {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminQueueOrders) }</a>
+				<a
+					class="ui-navitem"
+					href="/admin/returns"
+					if current == "returns" {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminQueueReturns) }</a>
+				<a
+					class="ui-navitem"
+					href="/admin/questions"
+					if current == "questions" {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminQueueQuestions) }</a>
+				<a
+					class="ui-navitem"
+					href="/admin/messages"
+					if current == "messages" {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminPageMessages) }</a>
+				<a
+					class="ui-navitem"
+					href="/admin/reviews"
+					if current == "reviews" {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminQueueReviews) }</a>
+			</div>
+		</details>
+		<details
+			class="goen-admin__navgroup"
+			name="goen-admin-nav"
+			open?={ adminNavHolds(current, "products", "stock", "taxonomy", "campaigns", "coupons") }
+		>
+			<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavCatalogue) }</summary>
+			<div class="goen-admin__navitems">
+				<a
+					class="ui-navitem"
+					href="/admin/products"
+					if current == "products" {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminPageProducts) }</a>
+				<a
+					class="ui-navitem"
+					href="/admin/stock"
+					if current == "stock" {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminQueueStock) }</a>
+				<a
+					class="ui-navitem"
+					href="/admin/taxonomy"
+					if current == "taxonomy" {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminQueueTaxonomy) }</a>
+				<a
+					class="ui-navitem"
+					href="/admin/campaigns"
+					if current == "campaigns" {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminQueueCampaigns) }</a>
+				<a
+					class="ui-navitem"
+					href="/admin/coupons"
+					if current == "coupons" {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminPageCoupons) }</a>
+			</div>
+		</details>
+		<details
+			class="goen-admin__navgroup"
+			name="goen-admin-nav"
+			open?={ adminNavHolds(current, "customers", "credit", "tiers", "warranty", "newsletter") }
+		>
+			<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavCustomers) }</summary>
+			<div class="goen-admin__navitems">
+				<a
+					class="ui-navitem"
+					href="/admin/customers"
+					if current == "customers" {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminPageCustomers) }</a>
+				<a
+					class="ui-navitem"
+					href="/admin/credit"
+					if current == "credit" {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminQueueCredit) }</a>
+				<a
+					class="ui-navitem"
+					href="/admin/tiers"
+					if current == "tiers" {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminPageTiers) }</a>
+				<a
+					class="ui-navitem"
+					href="/admin/warranty"
+					if current == "warranty" {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminQueueWarranty) }</a>
+				<a
+					class="ui-navitem"
+					href="/admin/newsletter"
+					if current == "newsletter" {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminPageNewsletter) }</a>
+			</div>
+		</details>
+		<details
+			class="goen-admin__navgroup"
+			name="goen-admin-nav"
+			open?={ adminNavHolds(current, "shipping", "home", "faq", "staff") }
+		>
+			<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavShop) }</summary>
+			<div class="goen-admin__navitems">
+				<a
+					class="ui-navitem"
+					href="/admin/shipping"
+					if current == "shipping" {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminQueueShipping) }</a>
+				<a
+					class="ui-navitem"
+					href="/admin/home"
+					if current == "home" {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminQueueHomePage) }</a>
+				<a
+					class="ui-navitem"
+					href="/admin/faq"
+					if current == "faq" {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminPageFAQ) }</a>
+				<a
+					class="ui-navitem"
+					href="/admin/staff"
+					if current == "staff" {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminQueueStaff) }</a>
+			</div>
+		</details>
+		<details
+			class="goen-admin__navgroup"
+			name="goen-admin-nav"
+			open?={ adminNavHolds(current, "reports", "audit", "health") }
+		>
+			<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavRecords) }</summary>
+			<div class="goen-admin__navitems">
+				<a
+					class="ui-navitem"
+					href="/admin/reports"
+					if current == "reports" {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminPageReports) }</a>
+				<a
+					class="ui-navitem"
+					href="/admin/audit"
+					if current == "audit" {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminPageAudit) }</a>
+				<a
+					class="ui-navitem"
+					href="/admin/health"
+					if current == "health" {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminPageHealth) }</a>
+			</div>
+		</details>
+		<a class="ui-navitem" href="/">{ i18n.T(ctx, i18n.KeyBackToShop) }</a>
+	</nav>
+}
+
+// AdminDashboard renders the back office landing page.
+templ AdminDashboard(p layouts.Page, v AdminDashboardView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("dashboard")
+			<div class="ui-page-head">
+				<div>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminQueueDashboardTitle) }</h1>
+				</div>
+			</div>
+			<div class="ui-stat-grid goen-admin__stats">
+				<div class="ui-stat">
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminQueueStatPending) }</span>
+					<span class="ui-stat__value">{ v.PendingText() }</span>
+				</div>
+				<div class="ui-stat">
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminStatusPicking) }</span>
+					<span class="ui-stat__value">{ v.PickingText() }</span>
+				</div>
+				<div class="ui-stat">
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminQueueStatLowStock) }</span>
+					<span class="ui-stat__value">{ v.LowStockText() }</span>
+				</div>
+				<div class="ui-stat">
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminQueueStatActive) }</span>
+					<span class="ui-stat__value">{ v.ActiveProductsText() }</span>
+				</div>
+				<a class="ui-stat" href="/admin/messages">
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminQueueStatMessages) }</span>
+					<span class="ui-stat__value">{ v.OpenMessagesText() }</span>
+				</a>
+			</div>
+			if v.HasLow() {
+				<section class="goen-admin__panel" aria-labelledby="low-heading">
+					<h2 id="low-heading" class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminQueueRestockHead) }</h2>
+					<p class="goen-admin__hint">
+						{ i18n.T(ctx, i18n.KeyAdminQueueSellableHint) }
+					</p>
+					<div class="goen-admin__tablewrap">
+						@adminVariantTable(v.Low)
+					</div>
+					<a class="ui-btn ui-btn--secondary ui-btn--sm" href="/admin/stock?low=1">{ i18n.T(ctx, i18n.KeyAdminQueueAllLowStock) }</a>
+				</section>
+			}
+		</div>
+	}
+}
+
+// AdminOrders renders the order queue.
+templ AdminOrders(p layouts.Page, v AdminOrdersView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("orders")
+			<div class="ui-page-head">
+				<div>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminQueueOrders) }</h1>
+				</div>
+			</div>
+			if v.HasNotice() {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			<form class="goen-admin__form goen-admin__search" method="get" action="/admin/orders">
+				<label class="goen-sr-only" for="order-search">{ i18n.T(ctx, i18n.KeyAdminQueueSearchLabel) }</label>
+				<input
+					class="ui-input"
+					id="order-search"
+					type="search"
+					name="q"
+					value={ v.Term }
+					placeholder={ i18n.T(ctx, i18n.KeyAdminQueueSearchPlaceholder) }
+					autocomplete="off"
+				/>
+				<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminSearch) }</button>
+				if v.Searching() {
+					<a class="ui-btn ui-btn--ghost" href="/admin/orders">{ i18n.T(ctx, i18n.KeyAdminQueueClear) }</a>
+				}
+			</form>
+			if v.Searching() {
+				<p class="goen-admin__hint">
+					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueSearchNote), v.Term) }
+				</p>
+			}
+			if v.TermTooShort() {
+				<p class="ui-alert ui-alert--warn" role="status">
+					{ i18n.T(ctx, i18n.KeyAdminQueueSearchShort) }
+				</p>
+			}
+			<div class="ui-filterbar goen-admin__tabs">
+				for _, t := range v.Tabs {
+					<a
+						class={ "ui-filter", templ.KV("is-active", t.Selected) }
+						href={ templ.URL("/admin/orders?status=" + t.Value) }
+						if t.Selected {
+							aria-current="true"
+						}
+					>
+						{ t.Label }
+						<span class="ui-filter__count">{ t.CountText() }</span>
+					</a>
+				}
+			</div>
+			if v.Empty() {
+				<div class="ui-empty">
+					<p class="ui-empty__title">{ i18n.T(ctx, i18n.KeyAdminQueueEmpty) }</p>
+				</div>
+			} else {
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table goen-admin__table">
+						<thead>
+							<tr>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyFieldOrderNumber) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColStatus) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyFieldRecipient) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColPlacedAt) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColAmount) }</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, o := range v.Orders {
+								<tr>
+									<td>
+										<a href={ templ.URL("/admin/orders/" + o.Number) }>{ o.Number }</a>
+									</td>
+									<td>
+										<span class="ui-badge">{ o.StatusText }</span>
+										if o.Committed {
+											<span class="ui-badge ui-badge--success">{ i18n.T(ctx, i18n.KeyAdminQueueCommitted) }</span>
+										}
+									</td>
+									<td>{ o.RecipientText(ctx) }</td>
+									<td>{ o.PlacedAt }</td>
+									<td>{ o.Total() }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</div>
+	}
+}
+
+// AdminOrder renders one order, with the moves the schema will accept.
+templ AdminOrder(p layouts.Page, v *AdminOrderView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("orders")
+			<nav class="ui-crumbs" aria-label={ i18n.T(ctx, i18n.KeyBreadcrumb) }>
+				<a href="/admin/orders">{ i18n.T(ctx, i18n.KeyAdminQueueOrders) }</a>
+				<span class="ui-crumbs__sep" aria-hidden="true">/</span>
+				<span class="ui-crumbs__current" aria-current="page">{ v.Number }</span>
+			</nav>
+			<div class="ui-page-head">
+				<div>
+					<h1 class="ui-page-head__title">{ v.Number }</h1>
+					<p class="ui-page-head__sub">{ v.PlacedAt } · { v.ShippingName }</p>
+				</div>
+				<div class="ui-page-head__actions">
+					<span class="ui-badge">{ v.StatusText }</span>
+					if v.Committed {
+						<span class="ui-badge ui-badge--success">{ i18n.T(ctx, i18n.KeyAdminQueueCommitted) }</span>
+					}
+				</div>
+			</div>
+			if v.HasNotice() {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			<div class="goen-admin__layout">
+				<div class="goen-admin__panel">
+					<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminQueueItems) }</h2>
+					<ul class="goen-order__lines" role="list">
+						for _, l := range v.Lines {
+							<li class="goen-order__line">
+								<div>
+									<p class="goen-order__name">{ l.Name }</p>
+									if l.Label != "" {
+										<span class="ui-cart-line__meta">{ l.Label }</span>
+									}
+									<span class="ui-cart-line__meta">{ l.SKU } · { l.UnitPrice() } × { l.QuantityText() }</span>
+								</div>
+								<span class="ui-cart-line__price">{ l.LineTotal() }</span>
+							</li>
+						}
+					</ul>
+					<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminQueueDelivery) }</h2>
+					<dl class="ui-dl">
+						<div class="ui-dl__row">
+							<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldRecipient) }</dt>
+							<dd class="ui-dl__desc">{ v.RecipientText(ctx) }</dd>
+						</div>
+						<div class="ui-dl__row">
+							<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldPhoneShort) }</dt>
+							<dd class="ui-dl__desc">{ v.Phone }</dd>
+						</div>
+						<div class="ui-dl__row">
+							<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldEmail) }</dt>
+							<dd class="ui-dl__desc">{ v.Email }</dd>
+						</div>
+						<div class="ui-dl__row">
+							<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminQueueAddress) }</dt>
+							<dd class="ui-dl__desc">{ v.Address }</dd>
+						</div>
+						if v.HasInvoice() {
+							<div class="ui-dl__row">
+								<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeySectionInvoice) }</dt>
+								<dd class="ui-dl__desc">{ v.InvoiceText(ctx) }</dd>
+							</div>
+						}
+					</dl>
+					if v.Correctable {
+						<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminQueueDelivery) }</h2>
+						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/delivery") }>
+							<div class="goen-admin__row">
+								<div class="ui-field">
+									<label class="ui-label" for="d-recipient">{ i18n.T(ctx, i18n.KeyFieldRecipient) }</label>
+									<input class="ui-input" id="d-recipient" name="recipient" value={ v.Delivery.Recipient } required maxlength="60"/>
+								</div>
+								<div class="ui-field">
+									<label class="ui-label" for="d-phone">{ i18n.T(ctx, i18n.KeyFieldPhoneShort) }</label>
+									<input class="ui-input" id="d-phone" name="phone" type="tel" value={ v.Delivery.Phone } required maxlength="30"/>
+								</div>
+								<div class="ui-field">
+									<label class="ui-label" for="d-email">{ i18n.T(ctx, i18n.KeyFieldEmail) }</label>
+									<input class="ui-input" id="d-email" name="email" type="email" value={ v.Delivery.Email } required maxlength="254"/>
+								</div>
+							</div>
+							if v.PickupDestination {
+								<div class="goen-admin__row">
+									<div class="ui-field">
+										<label class="ui-label" for="d-brand">{ i18n.T(ctx, i18n.KeyFieldPickupBrand) }</label>
+										<select class="ui-select" id="d-brand" name="pickup_brand" required>
+											for _, b := range v.PickupBrands {
+												<option value={ string(b.Value) } selected?={ b.Value == v.Delivery.PickupBrand }>{ b.Label }</option>
+											}
+										</select>
+									</div>
+									<div class="ui-field">
+										<label class="ui-label" for="d-store-code">{ i18n.T(ctx, i18n.KeyFieldStoreCode) }</label>
+										<input class="ui-input" id="d-store-code" name="pickup_store_code" value={ v.Delivery.PickupStoreCode } required maxlength="10"/>
+									</div>
+									<div class="ui-field">
+										<label class="ui-label" for="d-store-name">{ i18n.T(ctx, i18n.KeyFieldStoreName) }</label>
+										<input class="ui-input" id="d-store-name" name="pickup_store_name" value={ v.Delivery.PickupStoreName } required maxlength="40"/>
+									</div>
+								</div>
+							} else {
+								<div class="goen-admin__row">
+									<div class="ui-field">
+										<label class="ui-label" for="d-postal">{ i18n.T(ctx, i18n.KeyFieldPostalCode) }</label>
+										<input class="ui-input" id="d-postal" name="postal_code" value={ v.Delivery.PostalCode } required maxlength="6"/>
+									</div>
+									<div class="ui-field">
+										<label class="ui-label" for="d-city">{ i18n.T(ctx, i18n.KeyFieldCity) }</label>
+										<input class="ui-input" id="d-city" name="city" value={ v.Delivery.City } required maxlength="20"/>
+									</div>
+									<div class="ui-field">
+										<label class="ui-label" for="d-district">{ i18n.T(ctx, i18n.KeyFieldDistrict) }</label>
+										<input class="ui-input" id="d-district" name="district" value={ v.Delivery.District } required maxlength="20"/>
+									</div>
+									<div class="ui-field goen-checkout__wide">
+										<label class="ui-label" for="d-street">{ i18n.T(ctx, i18n.KeyFieldStreet) }</label>
+										<input class="ui-input" id="d-street" name="street" value={ v.Delivery.Street } required maxlength="200"/>
+									</div>
+								</div>
+							}
+							<p class="goen-admin__hint">
+								{ i18n.T(ctx, i18n.KeyAdminQueueDeliveryHint) }
+							</p>
+							<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueueDeliverySave) }</button>
+						</form>
+					}
+					if len(v.Shipments) > 0 {
+						<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminQueueDispatch) }</h2>
+						<ul class="goen-admin__returnlines" role="list">
+							for _, sh := range v.Shipments {
+								<li>
+									<span class="ui-cart-line__meta">{ sh.Carrier } · { sh.Tracking }</span>
+									if sh.Delivered() {
+										<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueDelivered), sh.DeliveredAt) }</span>
+									} else {
+										<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueDispatched), sh.ShippedAt) }</span>
+									}
+								</li>
+							}
+						</ul>
+					}
+					if len(v.Timeline) > 0 {
+						<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminQueueTimeline) }</h2>
+						<ul class="goen-admin__returnlines" role="list">
+							for _, e := range v.Timeline {
+								<li>
+									<span class="ui-cart-line__meta">{ i18n.T(ctx, e.LabelKey()) } · { e.At }</span>
+									<span class="ui-cart-line__meta">{ e.By(ctx) }</span>
+									if e.Note != "" {
+										<span class="ui-cart-line__meta">{ e.Note }</span>
+									}
+								</li>
+							}
+						</ul>
+					}
+					if v.HasCustomerNote() {
+						<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminQueueCustomerNote) }</h2>
+						<p class="goen-admin__note">{ v.CustomerNote }</p>
+					}
+					<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminQueueStaffNote) }</h2>
+					<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/note") }>
+						<label class="goen-sr-only" for="staff-note">{ i18n.T(ctx, i18n.KeyAdminQueueStaffNote) }</label>
+						<textarea class="ui-textarea" id="staff-note" name="note" rows="3" maxlength="1000">{ v.StaffNote }</textarea>
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueStaffNoteHint) }</p>
+						<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueueNoteSave) }</button>
+					</form>
+				</div>
+				<aside class="goen-admin__side">
+					<div class="ui-summary">
+						<div class="ui-summary__row">
+							<span>{ i18n.T(ctx, i18n.KeySubtotal) }</span>
+							<span class="ui-summary__val">{ v.Subtotal() }</span>
+						</div>
+						<div class="ui-summary__row">
+							<span>{ i18n.T(ctx, i18n.KeyShippingFee) }</span>
+							<span class="ui-summary__val">{ v.Shipping() }</span>
+						</div>
+						if v.Discounted() {
+							<div class="ui-summary__row">
+								<span>
+									{ i18n.T(ctx, i18n.KeyDiscount) }
+									if v.DiscountReason != "" {
+										({ v.DiscountReason })
+									}
+								</span>
+								<span class="ui-summary__val">{ v.Discount() }</span>
+							</div>
+						}
+						<div class="ui-summary__row ui-summary__row--total">
+							<span>{ i18n.T(ctx, i18n.KeyOrderGrandTotal) }</span>
+							<span class="ui-summary__val">{ v.Total() }</span>
+						</div>
+					</div>
+					if v.CanShip {
+						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/ship") }>
+							<div class="ui-field">
+								<label class="ui-label" for="ship-carrier">{ i18n.T(ctx, i18n.KeyAdminColCarrier) }</label>
+								<input class="ui-input" id="ship-carrier" name="carrier" required maxlength="60" autocomplete="off"/>
+							</div>
+							<div class="ui-field">
+								<label class="ui-label" for="ship-tracking">{ i18n.T(ctx, i18n.KeyAdminQueueTracking) }</label>
+								<input class="ui-input" id="ship-tracking" name="tracking" required maxlength="60" autocomplete="off"/>
+							</div>
+							for _, l := range v.Shippable {
+								<div class="ui-field">
+									<label class="ui-label" for={ "qty-" + l.OrderLineID }>
+										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueRemaining), l.Line(), l.RemainingText()) }
+									</label>
+									<input
+										class="ui-input"
+										id={ "qty-" + l.OrderLineID }
+										type="number"
+										name={ "qty_" + l.OrderLineID }
+										value={ l.RemainingText() }
+										min="0"
+										max={ l.RemainingText() }
+									/>
+									// A line holding less than it owes cannot ship: no movement is posted.
+									if l.Short() {
+										<p class="goen-admin__hint">
+											{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueShortHold), l.HeldText()) }
+										</p>
+									}
+								</div>
+							}
+							<button class="ui-btn ui-btn--primary ui-btn--block" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueueDispatch) }</button>
+							<p class="goen-admin__hint">
+								{ i18n.T(ctx, i18n.KeyAdminQueueDispatchHint) }
+							</p>
+						</form>
+					}
+					if v.CanAdvance() {
+						<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/status") }>
+							<div class="ui-field">
+								<label class="ui-label" for="next-status">{ i18n.T(ctx, i18n.KeyAdminQueueNextStatus) }</label>
+								<select class="ui-select" id="next-status" name="status">
+									for _, n := range v.Next {
+										<option value={ n.Value }>{ n.Label }</option>
+									}
+								</select>
+							</div>
+							<button class="ui-btn ui-btn--primary ui-btn--block" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueueStatusSave) }</button>
+							<p class="goen-admin__hint">
+								{ i18n.T(ctx, i18n.KeyAdminQueueNextHint) }
+							</p>
+						</form>
+					} else {
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueFinal) }</p>
+					}
+					<section class="goen-admin__invoices" aria-labelledby="invoice-heading">
+						<h2 id="invoice-heading" class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminDocInvoice) }</h2>
+						if !v.InvoicingEnabled {
+							<p class="goen-admin__hint">
+								{ i18n.T(ctx, i18n.KeyAdminQueueNoInvoicing) }
+							</p>
+						} else {
+							if len(v.InvoiceDocuments) > 0 {
+								<ul class="goen-admin__returnlines" role="list">
+									for _, d := range v.InvoiceDocuments {
+										<li>
+											<span class="ui-cart-line__meta">
+												{ d.KindText(ctx) } { d.Number } · { d.Amount() }
+												if d.Voided() {
+													<strong>{ i18n.T(ctx, i18n.KeyAdminQueueVoided) }</strong>
+												}
+												if d.Pending() {
+													<strong>{ i18n.T(ctx, i18n.KeyAdminQueuePending) }</strong>
+												}
+											</span>
+											<span class="ui-cart-line__meta">{ d.IssuedAt }</span>
+											if d.ProviderRef != "" {
+												<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueRandomCode), d.ProviderRef) }</span>
+											}
+											for _, l := range d.Lines {
+												<span class="ui-cart-line__meta">{ l.Line() }</span>
+											}
+										</li>
+									}
+								</ul>
+							}
+							if v.CanIssueInvoice() {
+								<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/invoice") }>
+									<button class="ui-btn ui-btn--primary ui-btn--block" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueueIssue) }</button>
+									<p class="goen-admin__hint">
+										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueIssueHint), v.InvoiceText(ctx)) }
+									</p>
+								</form>
+							}
+							if v.CanVoidInvoice() {
+								<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/invoice/void") }>
+									<div class="ui-field">
+										<label class="ui-label" for="void-reason">{ i18n.T(ctx, i18n.KeyAdminQueueVoidReason) }</label>
+										<input class="ui-input" id="void-reason" name="reason" required maxlength="20" autocomplete="off"/>
+									</div>
+									<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueueVoid) }</button>
+									<p class="goen-admin__hint">
+										{ i18n.T(ctx, i18n.KeyAdminQueueVoidHint) }
+									</p>
+								</form>
+							}
+							if v.CanAllowInvoice() {
+								// The door 折讓 never had. internal/invoice has filed
+								// them since the feature shipped; nothing could reach
+								// it, so a refunded customer left the 統一發票 still
+								// recording the whole sale.
+								<form class="goen-admin__form" method="post" action={ templ.SafeURL("/admin/orders/" + v.Number + "/invoice/allowance") }>
+									<input type="hidden" name="operation_id" value={ v.AllowanceOperationID }/>
+									<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueueAllowance) }</button>
+									<p class="goen-admin__hint">
+										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueAllowanceHint), v.AllowanceAmount()) }
+									</p>
+								</form>
+							}
+							if !v.CanIssueInvoice() && !v.CanVoidInvoice() && len(v.InvoiceDocuments) == 0 {
+								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueNotCommitted) }</p>
+							}
+						}
+					</section>
+				</aside>
+			</div>
+		</div>
+	}
+}
+
+// AdminVariants renders the stock list and its editing forms.
+templ AdminVariants(p layouts.Page, v AdminVariantsView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("stock")
+			<div class="ui-page-head">
+				<div>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminQueueStock) }</h1>
+					<p class="ui-page-head__sub">
+						{ i18n.T(ctx, i18n.KeyAdminQueueStockLead) }
+					</p>
+				</div>
+			</div>
+			if v.HasNotice() {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			<div class="ui-filterbar">
+				<a class={ "ui-filter", templ.KV("is-active", !v.LowOnly) } href="/admin/stock">{ i18n.T(ctx, i18n.KeyAdminTabAll) }</a>
+				<a class={ "ui-filter", templ.KV("is-active", v.LowOnly) } href="/admin/stock?low=1">{ i18n.T(ctx, i18n.KeyAdminQueueLowOnly) }</a>
+			</div>
+			if v.Empty() {
+				<div class="ui-empty">
+					<p class="ui-empty__title">{ i18n.T(ctx, i18n.KeyAdminQueueNoVariants) }</p>
+				</div>
+			} else {
+				<div class="goen-admin__tablewrap">
+					@adminVariantTable(v.Variants)
+				</div>
+			}
+		</div>
+	}
+}
+
+templ adminVariantTable(variants []AdminVariant) {
+	<table class="ui-table goen-admin__table">
+		<thead>
+			<tr>
+				<th scope="col">SKU</th>
+				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColProduct) }</th>
+				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminQueueColStock) }</th>
+				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminQueueColPrice) }</th>
+				<th scope="col">{ i18n.T(ctx, i18n.KeyAdminQueueAdjust) }</th>
+			</tr>
+		</thead>
+		<tbody>
+			for _, x := range variants {
+				<tr class={ templ.KV("goen-admin__row--low", x.Low()) }>
+					<td>
+						<a href={ templ.SafeURL("/admin/stock/" + x.SKU) }>{ x.SKU }</a>
+						<span class="ui-cart-line__meta">
+							<a href={ templ.URL("/p/" + x.Slug) }>{ i18n.T(ctx, i18n.KeyAdminQueueViewProduct) }</a>
+						</span>
+						if !x.Active {
+							<span class="ui-badge">{ i18n.T(ctx, i18n.KeyAdminQueueVariantOff) }</span>
+						}
+					</td>
+					<td>
+						{ x.ProductName }
+						<span class="ui-cart-line__meta">{ x.Brand }</span>
+					</td>
+					<td>
+						{ x.StockText() } / { x.SafetyText() } /
+						<strong>{ x.SellableText() }</strong>
+					</td>
+					<td>
+						<form class="goen-admin__inline" method="post" action="/admin/stock/price">
+							<input type="hidden" name="sku" value={ x.SKU }/>
+							<label class="goen-sr-only" for={ "price-" + x.SKU }>{ i18n.T(ctx, i18n.KeyAdminQueuePrice) }</label>
+							<input class="ui-input ui-input--sm goen-admin__num" id={ "price-" + x.SKU } type="number" name="price" value={ x.PriceText() } min="0" step="1"/>
+							<label class="goen-sr-only" for={ "cmp-" + x.SKU }>{ i18n.T(ctx, i18n.KeyAdminQueueComparePrice) }</label>
+							<input
+								class="ui-input ui-input--sm goen-admin__num"
+								id={ "cmp-" + x.SKU }
+								type="number"
+								name="compare_at"
+								value={ x.CompareText() }
+								min="0"
+								step="1"
+								placeholder={ i18n.T(ctx, i18n.KeyAdminQueueComparePrice) }
+							/>
+							<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueuePriceSave) }</button>
+						</form>
+					</td>
+					<td>
+						<form class="goen-admin__inline" method="post" action="/admin/stock/adjust">
+							<input type="hidden" name="sku" value={ x.SKU }/>
+							<input type="hidden" name="idempotency" value={ x.AdjustKey() }/>
+							<label class="goen-sr-only" for={ "adj-" + x.SKU }>{ i18n.T(ctx, i18n.KeyAdminQueueAdjustQty) }</label>
+							<input class="ui-input ui-input--sm goen-admin__num" id={ "adj-" + x.SKU } type="number" name="delta" placeholder="+10" step="1"/>
+							<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminQueueAdjust) }</button>
+						</form>
+						<form class="goen-admin__inline" method="post" action="/admin/stock/active">
+							<input type="hidden" name="sku" value={ x.SKU }/>
+							if x.Active {
+								<input type="hidden" name="active" value="0"/>
+								<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminToggleOff) }</button>
+							} else {
+								<input type="hidden" name="active" value="1"/>
+								<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminToggleOn) }</button>
+							}
+						</form>
+					</td>
+				</tr>
+			}
+		</tbody>
+	</table>
+}

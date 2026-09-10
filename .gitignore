@@ -1,0 +1,36 @@
+bin/
+.env
+*.out
+.DS_Store
+
+# Scratch space for probes and screenshots; never part of the delivery.
+/tmp/
+
+# The throwaway Chrome profile `make check-layout` drives.
+/.layout-chrome/
+
+# Provider credentials. .env covers the normal path; these catch the
+# copy-paste-from-the-dashboard file that arrives beside it.
+*api-key*.txt
+*secret*.txt
+stripe-*.txt
+
+# The compiled binary, if somebody runs `go build` without -o.
+/goen
+
+# Assistant tooling: it configures the tools used to build goen, not goen.
+# AGENTS.md is the exception and is tracked — it is the contract an agent
+# reads before opening a pull request.
+/.claude/
+/.agents/
+/CLAUDE.md
+/skills-lock.json
+
+# Notes, briefs, review transcripts and decision records. The code is the
+# specification; a spec beside it becomes a second answer that drifts.
+/docs/
+/branding/
+
+# Product photography. The images the site serves live in PostgreSQL.
+/goen-product-images/
+goen-product-images.zip

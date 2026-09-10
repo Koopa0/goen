@@ -1,0 +1,10 @@
+# Generated and vendored files, marked so the repository's language statistics,
+# pull-request diffs and code search describe what is written here. The product
+# is Go and hand-authored CSS; sqlc's output, templ's output, the vendored
+# design system and htmx must not classify it otherwise.
+*_templ.go linguist-generated
+internal/db/db.go linguist-generated
+internal/db/models.go linguist-generated
+internal/db/query.sql.go linguist-generated
+assets/css/ds/** linguist-vendored
+assets/js/vendor/** linguist-vendored

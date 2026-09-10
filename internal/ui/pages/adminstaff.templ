@@ -1,0 +1,107 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// AdminStaff renders who can reach the back office, and who is protected.
+templ AdminStaff(p layouts.Page, v AdminStaffView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("staff")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageStaff) }</h1>
+					<p class="ui-page-head__sub">
+						{ i18n.T(ctx, i18n.KeyAdminStaffLead) }
+					</p>
+				</div>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			if !v.AllProtected() {
+				<p class="ui-alert ui-alert--error" role="alert">
+					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminStaffUnprotected), v.UnprotectedText()) }
+				</p>
+			}
+			<div class="goen-admin__tablewrap">
+				<table class="ui-table goen-admin__table">
+					<thead>
+						<tr>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColPerson) }</th>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColRole) }</th>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColTwoFa) }</th>
+							<th scope="col"></th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, r := range v.Rows {
+							<tr>
+								<td>
+									{ r.DisplayName() }
+									<span class="ui-cart-line__meta">{ r.Email }</span>
+								</td>
+								<td>{ r.Role.Label(ctx) }</td>
+								<td>
+									if r.Enrolled {
+										<span class="ui-badge ui-badge--brand">{ r.State(ctx) }</span>
+									} else {
+										<span class="ui-badge ui-badge--warn">{ r.State(ctx) }</span>
+									}
+								</td>
+								<td>
+									if v.IsActor(r) {
+										<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyAdminStaffYou) }</span>
+									} else {
+										<div class="goen-admin__addractions">
+											if r.Enrolled {
+												<form method="post" action="/admin/staff/factor">
+													<input type="hidden" name="user" value={ r.ID }/>
+													<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminStaffDropFa) }</button>
+												</form>
+											}
+											<form method="post" action="/admin/staff/revoke">
+												<input type="hidden" name="user" value={ r.ID }/>
+												<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminStaffRevoke) }</button>
+											</form>
+										</div>
+									}
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminStaffAdd) }</h2>
+			<p class="goen-admin__hint">
+				{ i18n.T(ctx, i18n.KeyAdminStaffAddLead) }
+			</p>
+			<form class="goen-admin__form" method="post" action="/admin/staff">
+				<div class="goen-admin__row">
+					<div class="ui-field">
+						<label class="ui-label" for="staff-email">{ i18n.T(ctx, i18n.KeyAdminStaffEmail) }</label>
+						<input class="ui-input" id="staff-email" name="email" type="email" required maxlength="254"/>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="staff-name">{ i18n.T(ctx, i18n.KeyAdminStaffName) }</label>
+						<input class="ui-input" id="staff-name" name="name" maxlength="60"/>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="staff-role">{ i18n.T(ctx, i18n.KeyAdminColRole) }</label>
+						<select class="ui-select" id="staff-role" name="role" required>
+							for _, role := range v.Roles {
+								<option value={ string(role) }>{ role.Label(ctx) }</option>
+							}
+						</select>
+					</div>
+				</div>
+				<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminAddButton) }</button>
+			</form>
+		</div>
+	}
+}

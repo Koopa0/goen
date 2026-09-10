@@ -1,0 +1,66 @@
+name: Bug report
+description: Something goen does is wrong.
+title: "bug: "
+labels: [needs-repro]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two reports go somewhere other than here.
+
+        **Something moves money, stock or a tax document outside its guarded
+        path, or a browser reaches an order it did not place.** Report that
+        through [GitHub's private advisory form](https://github.com/Koopa0/goen/security/advisories/new),
+        never in a public issue.
+
+        **A back-office page answers 500 right after you pulled.** Run
+        `make db-reset` first: `migrations/001` is amended in place, and a
+        database built from an older copy is missing what the code reads.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, and what goen did. Quote the response or the log line.
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce it
+      description: >-
+        The shortest path from `make db-reset && make run` to the wrong
+        behaviour. Forms and URLs are better than prose: which page, which
+        fields, which button.
+      placeholder: |
+        1. Add any in-stock variant to the cart
+        2. POST /checkout with store_pickup and no postal code
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: commit
+    attributes:
+      label: Commit
+      description: "`git rev-parse --short HEAD`"
+    validations:
+      required: true
+
+  - type: textarea
+    id: guard
+    attributes:
+      label: Which guard stayed green
+      description: >-
+        Optional, and the most useful line in the report. goen's tests derive
+        what they cover from the schema and the source; if a defect got through,
+        something in that coverage has a gap. Name the test or constraint that
+        should have refused this and did not.

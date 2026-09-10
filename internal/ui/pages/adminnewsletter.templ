@@ -1,0 +1,121 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// AdminNewsletter renders the mailing list, the compose form and the issues.
+templ AdminNewsletter(p layouts.Page, v AdminNewsletterView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("newsletter")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageNewsletter) }</h1>
+					<p class="ui-page-head__sub">
+						{ i18n.T(ctx, i18n.KeyAdminNewsLead) }
+					</p>
+				</div>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			<div class="goen-admin__stats">
+				<div class="ui-stat">
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminNewsOnList) }</span>
+					<span class="ui-stat__value">{ v.ActiveText() }</span>
+				</div>
+				<div class="ui-stat">
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminNewsAwaiting) }</span>
+					<span class="ui-stat__value">{ v.AwaitingText() }</span>
+				</div>
+				<div class="ui-stat">
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminNewsUnsubscribed) }</span>
+					<span class="ui-stat__value">{ v.UnsubscribedText() }</span>
+				</div>
+			</div>
+			<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminNewsCompose) }</h2>
+			<form class="goen-admin__form" method="post" action="/admin/newsletter">
+				<label class="ui-field" for="issue-subject">
+					<span class="ui-label">{ i18n.T(ctx, i18n.KeyAdminNewsSubject) }</span>
+					<input
+						class="ui-input"
+						id="issue-subject"
+						type="text"
+						name="subject"
+						value={ v.Draft.Subject }
+						maxlength="120"
+						required
+						aria-invalid={ v.Invalid("subject") }
+						if v.HasErr("subject") {
+							aria-describedby="issue-subject-error"
+						}
+					/>
+					if v.HasErr("subject") {
+						<span class="ui-error-text" id="issue-subject-error">{ v.Err("subject") }</span>
+					}
+				</label>
+				<label class="ui-field" for="issue-body">
+					<span class="ui-label">{ i18n.T(ctx, i18n.KeyAdminNewsBody) }</span>
+					<textarea
+						class="ui-input goen-admin__textarea"
+						id="issue-body"
+						name="body"
+						rows="10"
+						maxlength="20000"
+						required
+						aria-invalid={ v.Invalid("body") }
+						if v.HasErr("body") {
+							aria-describedby="issue-body-error"
+						}
+					>{ v.Draft.Body }</textarea>
+					if v.HasErr("body") {
+						<span class="ui-error-text" id="issue-body-error">{ v.Err("body") }</span>
+					}
+				</label>
+				<p class="goen-admin__hint">
+					{ i18n.T(ctx, i18n.KeyAdminNewsDraftHint) }
+				</p>
+				<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminNewsSaveDraft) }</button>
+			</form>
+			<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminNewsIssues) }</h2>
+			if v.Empty() {
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminNewsEmpty) }</p>
+			} else {
+				<ul class="goen-admin__returns" role="list">
+					for _, issue := range v.Issues {
+						<li class={ "goen-admin__return", templ.KV("is-hidden", issue.Sent) }>
+							<div class="goen-admin__returninfo">
+								<p class="goen-admin__returnorder">{ issue.Subject }</p>
+								<span class="ui-cart-line__meta">{ issue.Preview() }</span>
+								if issue.Sent {
+									<span class="ui-cart-line__meta">
+										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminNewsSentMeta), issue.SentAt, issue.RecipientsText()) }
+										if issue.SentBy != "" {
+											· { issue.SentBy }
+										}
+									</span>
+								}
+							</div>
+							if issue.Sent {
+								<span class="ui-badge">{ i18n.T(ctx, i18n.KeyAdminNewsSent) }</span>
+							} else if v.CanSend() {
+								<form method="post" action={ templ.SafeURL(issue.SendAction()) }>
+									<button class="ui-btn ui-btn--primary ui-btn--sm" type="submit">
+										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminNewsSend), v.ActiveText()) }
+									</button>
+								</form>
+							} else {
+								<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyAdminNewsNobody) }</span>
+							}
+						</li>
+					}
+				</ul>
+			}
+		</div>
+	}
+}

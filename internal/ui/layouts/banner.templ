@@ -1,0 +1,75 @@
+package layouts
+
+import "github.com/koopa0/goen/internal/i18n"
+
+templ promoBanner() {
+	{{ b := bannerFrom(ctx) }}
+	if b.Shown() {
+		<form class="goen-promo" method="post" action={ templ.SafeURL(b.DismissAction()) }>
+			<input type="hidden" name="banner" value={ b.ID }/>
+			<input type="hidden" name="return" value={ returnPath(ctx) }/>
+			if b.HasCTA() {
+				<a class="goen-promo__link" href={ templ.SafeURL(b.CTAHref) }>
+					<span class="goen-promo__message">
+						<span class="goen-promo__wide">{ b.Message }</span>
+						<span class="goen-promo__narrow">{ b.Narrow() }</span>
+					</span>
+					if b.HasCode() {
+						@promoCode(b.Code)
+					}
+					<span class="goen-promo__cta">{ b.CTALabel }</span>
+					@chevronRight()
+				</a>
+			} else {
+				<span class="goen-promo__link">
+					<span class="goen-promo__message">
+						<span class="goen-promo__wide">{ b.Message }</span>
+						<span class="goen-promo__narrow">{ b.Narrow() }</span>
+					</span>
+					if b.HasCode() {
+						@promoCode(b.Code)
+					}
+				</span>
+			}
+			<button class="goen-promo__close" type="submit" aria-label={ i18n.T(ctx, i18n.KeyCloseBanner) }>
+				@closeIcon()
+			</button>
+		</form>
+	}
+}
+
+templ promoCode(code string) {
+	<code class="goen-promo__code">{ code }</code>
+}
+
+templ chevronRight() {
+	<svg
+		class="goen-promo__chevron"
+		width="14"
+		height="14"
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="1.5"
+		stroke-linecap="round"
+		stroke-linejoin="round"
+		aria-hidden="true"
+	>
+		<path d="m9 18 6-6-6-6"></path>
+	</svg>
+}
+
+templ closeIcon() {
+	<svg
+		width="15"
+		height="15"
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		stroke-width="1.5"
+		stroke-linecap="round"
+		aria-hidden="true"
+	>
+		<path d="M18 6 6 18M6 6l12 12"></path>
+	</svg>
+}

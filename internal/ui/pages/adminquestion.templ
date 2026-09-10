@@ -1,0 +1,73 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// AdminQuestions renders the customer questions waiting for the shop.
+templ AdminQuestions(p layouts.Page, v AdminQuestionsView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("questions")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageQuestions) }</h1>
+					<p class="ui-page-head__sub">
+						{ i18n.T(ctx, i18n.KeyAdminQuestionsLead) }
+					</p>
+				</div>
+				if v.Waiting() > 0 {
+					<span class="ui-badge ui-badge--brand">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQuestionsWaiting), v.WaitingText()) }</span>
+				}
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			if v.Empty() {
+				<div class="ui-empty">
+					<p class="ui-empty__title">{ i18n.T(ctx, i18n.KeyAdminQuestionsEmpty) }</p>
+				</div>
+			} else {
+				<ul class="goen-admin__questions" role="list">
+					for _, q := range v.Rows {
+						<li class={ "goen-admin__question", templ.KV("is-waiting", q.Waiting()) }>
+							<div class="goen-admin__couponhead">
+								<a class="goen-admin__sku" href={ templ.SafeURL(q.ProductHref()) }>{ q.ProductName }</a>
+								<span class={ "ui-badge", templ.KV("ui-badge--brand", q.Waiting()) }>{ q.State(ctx) }</span>
+							</div>
+							<p class="goen-qa__question">{ q.Body }</p>
+							<span class="ui-cart-line__meta">
+								{ q.Who(ctx) } · { q.Asked } · { fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQuestionAnswers), q.AnswersText()) }
+							</span>
+							<form class="goen-admin__form" method="post" action={ templ.SafeURL(q.AnswerAction()) }>
+								<div class="ui-field">
+									<label class="goen-sr-only" for={ "answer-" + q.ID }>{ i18n.T(ctx, i18n.KeyAdminQuestionReply) }</label>
+									<textarea
+										class="ui-input"
+										id={ "answer-" + q.ID }
+										name="body"
+										rows="2"
+										maxlength="1000"
+										placeholder={ i18n.T(ctx, i18n.KeyAdminQuestionHint) }
+									></textarea>
+								</div>
+								<div class="goen-admin__heroactions">
+									<button class="ui-btn ui-btn--primary" type="submit" name="action" value="answer">
+										{ i18n.T(ctx, i18n.KeyAdminQuestionSend) }
+									</button>
+									<button class="ui-btn ui-btn--secondary" type="submit" name="action" value="hide">
+										{ i18n.T(ctx, i18n.KeyAdminQuestionHide) }
+									</button>
+								</div>
+							</form>
+						</li>
+					}
+				</ul>
+			}
+		</div>
+	}
+}

@@ -1,0 +1,358 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// AdminHome renders the hero queue and the form that adds to it.
+templ AdminHome(p layouts.Page, v *AdminHeroView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("home")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageHero) }</h1>
+					<p class="ui-page-head__sub">
+						{ i18n.T(ctx, i18n.KeyAdminHomeLead) }
+					</p>
+				</div>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			if v.UsingFallback() {
+				<p class="ui-alert" role="status">{ i18n.T(ctx, i18n.KeyAdminHomeFallback) }</p>
+			}
+			<div class="goen-admin__productlayout">
+				<form
+					class="goen-admin__form"
+					method="post"
+					action="/admin/home"
+					enctype="multipart/form-data"
+				>
+					<div class="ui-field">
+						<label class="ui-label" for="h-headline">{ i18n.T(ctx, i18n.KeyAdminHomeHeadline) }</label>
+						<input
+							class="ui-input"
+							id="h-headline"
+							name="headline"
+							required
+							maxlength="40"
+							placeholder={ i18n.T(ctx, i18n.KeyHeroHeadline) }
+							value={ v.Draft.Headline }
+							if v.HasErr("headline") {
+								aria-invalid="true"
+								aria-describedby="h-headline-error"
+							}
+						/>
+						if v.HasErr("headline") {
+							<p class="ui-error-text" id="h-headline-error">{ v.Err("headline") }</p>
+						}
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="h-eyebrow">{ i18n.T(ctx, i18n.KeyAdminHomeEyebrow) }</label>
+						<input class="ui-input" id="h-eyebrow" name="eyebrow" maxlength="40" value={ v.Draft.Eyebrow } placeholder={ i18n.T(ctx, i18n.KeyHeroEyebrow) }/>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="h-body">{ i18n.T(ctx, i18n.KeyAdminHomeBody) }</label>
+						<textarea class="ui-input" id="h-body" name="body" rows="2" maxlength="200">{ v.Draft.Body }</textarea>
+					</div>
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="h-plabel">{ i18n.T(ctx, i18n.KeyAdminHomePrimaryLabel) }</label>
+							<input
+								class="ui-input"
+								id="h-plabel"
+								name="primary_label"
+								required
+								maxlength="20"
+								value={ v.Draft.PrimaryLabel }
+								if v.HasErr("primary") {
+									aria-invalid="true"
+									aria-describedby="h-plabel-error"
+								}
+							/>
+							if v.HasErr("primary") {
+								<p class="ui-error-text" id="h-plabel-error">{ v.Err("primary") }</p>
+							}
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="h-phref">{ i18n.T(ctx, i18n.KeyAdminHomePrimaryHref) }</label>
+							<input
+								class="ui-input"
+								id="h-phref"
+								name="primary_href"
+								required
+								placeholder="/deals"
+								value={ v.Draft.PrimaryHref }
+								if v.HasErr("primaryhref") {
+									aria-invalid="true"
+									aria-describedby="h-phref-error"
+								}
+							/>
+							if v.HasErr("primaryhref") {
+								<p class="ui-error-text" id="h-phref-error">{ v.Err("primaryhref") }</p>
+							}
+						</div>
+					</div>
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="h-slabel">{ i18n.T(ctx, i18n.KeyAdminHomeSecondLabel) }</label>
+							<input class="ui-input" id="h-slabel" name="second_label" maxlength="20" value={ v.Draft.SecondLabel }/>
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="h-shref">{ i18n.T(ctx, i18n.KeyAdminHomeSecondHref) }</label>
+							<input
+								class="ui-input"
+								id="h-shref"
+								name="second_href"
+								placeholder="/about"
+								value={ v.Draft.SecondHref }
+								if v.HasErr("second") {
+									aria-invalid="true"
+									aria-describedby="h-shref-error"
+								}
+							/>
+							if v.HasErr("second") {
+								<p class="ui-error-text" id="h-shref-error">{ v.Err("second") }</p>
+							}
+						</div>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="h-image">{ i18n.T(ctx, i18n.KeyAdminHomeImage) }</label>
+						<input class="ui-input" id="h-image" name="image" type="file" accept="image/*"/>
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHomeImageHint) }</p>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="h-alt">{ i18n.T(ctx, i18n.KeyAdminAltText) }</label>
+						<input
+							class="ui-input"
+							id="h-alt"
+							name="alt"
+							maxlength="200"
+							value={ v.Draft.ImageAlt }
+							if v.HasErr("alt") {
+								aria-invalid="true"
+								aria-describedby="h-alt-error"
+							}
+						/>
+						if v.HasErr("alt") {
+							<p class="ui-error-text" id="h-alt-error">{ v.Err("alt") }</p>
+						}
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="h-eyebrow-en">{ i18n.T(ctx, i18n.KeyAdminHomeEyebrowEn) }</label>
+						<input class="ui-input" id="h-eyebrow-en" name="eyebrow_en" maxlength="40" value={ v.Draft.EyebrowEn }/>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="h-headline-en">{ i18n.T(ctx, i18n.KeyAdminHomeHeadlineEn) }</label>
+						<input class="ui-input" id="h-headline-en" name="headline_en" maxlength="40" value={ v.Draft.HeadlineEn } placeholder="Choose one good thing."/>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="h-body-en">{ i18n.T(ctx, i18n.KeyAdminHomeBodyEn) }</label>
+						<textarea class="ui-input goen-admin__textarea" id="h-body-en" name="body_en" rows="3" maxlength="200">{ v.Draft.BodyEn }</textarea>
+					</div>
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="h-plabel-en">{ i18n.T(ctx, i18n.KeyAdminHomePrimaryLabelEn) }</label>
+							<input class="ui-input" id="h-plabel-en" name="primary_label_en" maxlength="20" value={ v.Draft.PrimaryLabelEn }/>
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="h-slabel-en">{ i18n.T(ctx, i18n.KeyAdminHomeSecondLabelEn) }</label>
+							<input class="ui-input" id="h-slabel-en" name="second_label_en" maxlength="20" value={ v.Draft.SecondLabelEn }/>
+						</div>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="h-alt-en">{ i18n.T(ctx, i18n.KeyAdminHomeAltEn) }</label>
+						<input class="ui-input" id="h-alt-en" name="alt_en" maxlength="200" value={ v.Draft.ImageAltEn }/>
+						<p class="goen-admin__hint">
+							{ i18n.T(ctx, i18n.KeyAdminHomeAltEnHint) }
+						</p>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="h-days">{ i18n.T(ctx, i18n.KeyAdminHomeDays) }</label>
+						<input
+							class="ui-input"
+							id="h-days"
+							name="days"
+							type="number"
+							min="0"
+							max="365"
+							step="1"
+							inputmode="numeric"
+							value={ v.Draft.Days }
+							placeholder="0"
+							if v.HasErr("days") {
+								aria-invalid="true"
+								aria-describedby="h-days-error"
+							}
+						/>
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHomeDaysHint) }</p>
+						if v.HasErr("days") {
+							<p class="ui-error-text" id="h-days-error">{ v.Err("days") }</p>
+						}
+					</div>
+					<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminHomeAdd) }</button>
+				</form>
+				<aside class="goen-admin__side">
+					<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminHomeQueue) }</h2>
+					if v.Empty() {
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHomeEmpty) }</p>
+					} else {
+						<ul class="goen-admin__coupons" role="list">
+							for _, slide := range v.Rows {
+								<li class="goen-admin__coupon">
+									<div class="goen-admin__couponhead">
+										<span class="goen-admin__sku">{ slide.Headline }</span>
+										if v.IsShowing(slide) {
+											<span class="ui-badge ui-badge--brand">{ i18n.T(ctx, i18n.KeyAdminHomeShowing) }</span>
+										} else {
+											<span class="ui-badge">{ slide.State() }</span>
+										}
+									</div>
+									if slide.ImageURL() != "" {
+										<img class="goen-admin__heroshot" src={ slide.ImageURL() } alt="" loading="lazy" width="160" height="90"/>
+									}
+									<span class="ui-cart-line__meta">{ slide.CTALabel } → { slide.CTAHref }</span>
+									if slide.EndsAt != "" {
+										<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminHomeEndsAt), slide.EndsAt) }</span>
+									}
+									<div class="goen-admin__heroactions">
+										if !v.IsShowing(slide) && slide.Active {
+											<form method="post" action={ templ.SafeURL(slide.PromoteAction()) }>
+												<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminHomePromote) }</button>
+											</form>
+										}
+										<form method="post" action={ templ.SafeURL(slide.ToggleAction()) }>
+											<input type="hidden" name="active" value={ slide.NextActive() }/>
+											<button class="ui-btn ui-btn--secondary" type="submit">{ slide.ToggleLabel() }</button>
+										</form>
+									</div>
+								</li>
+							}
+						</ul>
+					}
+				</aside>
+			</div>
+			<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminHomeBanner) }</h2>
+			<p class="goen-admin__hint">
+				{ i18n.T(ctx, i18n.KeyAdminHomeBannerLead) }
+			</p>
+			<div class="goen-admin__split">
+				<form class="goen-admin__form" method="post" action="/admin/home/banner">
+					<div class="ui-field">
+						<label class="ui-label" for="b-message">{ i18n.T(ctx, i18n.KeyAdminHomeBannerMessage) }</label>
+						<input
+							class="ui-input"
+							id="b-message"
+							name="message"
+							required
+							maxlength="60"
+							value={ v.BannerDraft.Message }
+							placeholder={ i18n.T(ctx, i18n.KeyAdminHomeBannerMessageExample) }
+							if v.HasErr("message") {
+								aria-invalid="true"
+								aria-describedby="b-message-error"
+							}
+						/>
+						if v.HasErr("message") {
+							<p class="ui-error-text" id="b-message-error">{ v.Err("message") }</p>
+						}
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="b-short">{ i18n.T(ctx, i18n.KeyAdminHomeBannerShort) }</label>
+						<input class="ui-input" id="b-short" name="short" maxlength="60" value={ v.BannerDraft.Short } placeholder={ i18n.T(ctx, i18n.KeyAdminHomeBannerShortExample) }/>
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHomeBannerShortHint) }</p>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="b-message-en">{ i18n.T(ctx, i18n.KeyAdminHomeBannerMessageEn) }</label>
+						<input class="ui-input" id="b-message-en" name="message_en" maxlength="60" value={ v.BannerDraft.MessageEn } placeholder="Free delivery over NT$3,000"/>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="b-short-en">{ i18n.T(ctx, i18n.KeyAdminHomeBannerShortEn) }</label>
+						<input class="ui-input" id="b-short-en" name="short_en" maxlength="60" value={ v.BannerDraft.ShortEn }/>
+					</div>
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="b-code">{ i18n.T(ctx, i18n.KeyAdminHomeBannerCode) }</label>
+							<input class="ui-input" id="b-code" name="code" maxlength="40" value={ v.BannerDraft.Code } placeholder="FREESHIP"/>
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="b-days">{ i18n.T(ctx, i18n.KeyAdminHomeDays) }</label>
+							<input class="ui-input" id="b-days" name="days" type="number" min="0" max="365" step="1" inputmode="numeric" value={ v.BannerDraft.Days } placeholder="0"/>
+							if v.HasErr("days") {
+								<p class="ui-error-text">{ v.Err("days") }</p>
+							}
+						</div>
+					</div>
+					<div class="goen-checkout__fields">
+						<div class="ui-field">
+							<label class="ui-label" for="b-cta-label">{ i18n.T(ctx, i18n.KeyAdminHomeBannerCTALabel) }</label>
+							<input class="ui-input" id="b-cta-label" name="cta_label" maxlength="20" value={ v.BannerDraft.CTALabel } placeholder={ i18n.T(ctx, i18n.KeyAdminHomeBannerCTAExample) }/>
+						</div>
+						<div class="ui-field">
+							<label class="ui-label" for="b-cta-href">{ i18n.T(ctx, i18n.KeyAdminHomeBannerCTAHref) }</label>
+							<input class="ui-input" id="b-cta-href" name="cta_href" maxlength="200" value={ v.BannerDraft.CTAHref } placeholder="/deals"/>
+						</div>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="b-cta-label-en">{ i18n.T(ctx, i18n.KeyAdminHomeBannerCTALabelEn) }</label>
+						<input class="ui-input" id="b-cta-label-en" name="cta_label_en" maxlength="20" value={ v.BannerDraft.CTALabelEn } placeholder="Shop"/>
+					</div>
+					if v.HasErr("cta") {
+						<p class="ui-error-text" role="alert">{ v.Err("cta") }</p>
+					}
+					<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminHomeBannerAdd) }</button>
+				</form>
+				<aside class="goen-admin__side">
+					<h3 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminHomeBannerCurrent) }</h3>
+					if !v.HasBanners() {
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminHomeBannerEmpty) }</p>
+					} else {
+						<ul class="goen-admin__coupons" role="list">
+							for _, b := range v.Banners {
+								<li class="goen-admin__coupon">
+									<div class="goen-admin__couponhead">
+										<span class="goen-admin__sku">{ b.Message }</span>
+										if b.Active {
+											<span class="ui-badge ui-badge--brand">{ i18n.T(ctx, i18n.KeyAdminHomeShowing) }</span>
+										} else {
+											<span class="ui-badge">{ i18n.T(ctx, i18n.KeyAdminHomeBannerOff) }</span>
+										}
+										if !b.Translated() {
+											<span class="ui-badge ui-badge--warn">{ i18n.T(ctx, i18n.KeyAdminUntranslated) }</span>
+										}
+									</div>
+									<span class="ui-cart-line__meta">
+										if b.MessageEn != "" {
+											{ b.MessageEn }
+										}
+										if b.HasCTA() {
+											· { b.CTALabel } → { b.CTAHref }
+										}
+										if b.Scheduled() {
+											{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminHomeBannerEndsAt), b.EndsAt) }
+										}
+									</span>
+									<form method="post" action={ templ.SafeURL("/admin/home/banner/" + b.ID + "/active") }>
+										if b.Active {
+											<input type="hidden" name="active" value="0"/>
+											<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminHomeBannerClose) }</button>
+										} else {
+											<input type="hidden" name="active" value="1"/>
+											<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminHomeBannerOpen) }</button>
+										}
+									</form>
+								</li>
+							}
+						</ul>
+					}
+				</aside>
+			</div>
+		</div>
+	}
+}

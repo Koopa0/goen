@@ -1,0 +1,57 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    schema: "migrations/*.up.sql"
+    queries:
+      - "internal/contact/query.sql"
+      - "internal/newsletter/query.sql"
+      - "internal/home/query.sql"
+      - "internal/catalog/query.sql"
+      - "internal/product/query.sql"
+      - "internal/cart/query.sql"
+      - "internal/payment/query.sql"
+      - "internal/returns/query.sql"
+      - "internal/outbox/query.sql"
+      - "internal/loyalty/query.sql"
+      - "internal/media/query.sql"
+      - "internal/site/query.sql"
+      - "internal/twofactor/query.sql"
+      - "internal/recommend/query.sql"
+      - "internal/warranty/query.sql"
+      - "internal/account/query.sql"
+      - "internal/admin/query.sql"
+      - "internal/invoice/query.sql"
+    gen:
+      go:
+        package: "db"
+        out: "internal/db"
+        sql_package: "pgx/v5"
+        emit_empty_slices: true
+        emit_result_struct_pointers: false
+        emit_params_struct_pointers: false
+        # Go's initialism convention, which sqlc does not know: it would
+        # otherwise emit Sku, Id and Ip.
+        rename:
+          sku: "SKU"
+          id: "ID"
+          ip: "IP"
+          url: "URL"
+          html: "HTML"
+          api: "API"
+        overrides:
+          # A uuid column is a uuid, not a struct wrapping one. pgtype.UUID
+          # would make every caller unpack .Bytes and check .Valid even where
+          # the column is NOT NULL.
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type:
+              import: "github.com/google/uuid"
+              type: "NullUUID"
+          # timestamptz is a time. The NULL case keeps a pgtype so the
+          # difference between "not set" and the zero time stays visible.
+          - db_type: "timestamptz"
+            go_type: "time.Time"
+          - db_type: "date"
+            go_type: "time.Time"

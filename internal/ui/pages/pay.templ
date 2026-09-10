@@ -1,0 +1,69 @@
+package pages
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// Pay hands the customer over to Stripe's hosted card form.
+templ Pay(p layouts.Page, v PayView) {
+	@layouts.Base(p) {
+		<div class="goen-pay">
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyPayEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ v.Number }</h1>
+					<p class="ui-page-head__sub">
+						{ i18n.T(ctx, i18n.KeyPayBody) }
+					</p>
+				</div>
+			</div>
+			if v.Cancelled {
+				<p class="ui-alert ui-alert--info goen-pay__notice" role="status">
+					{ i18n.T(ctx, i18n.KeyPayCancelled) }
+				</p>
+			}
+			<div class="goen-pay__layout">
+				<ul class="goen-pay__lines" role="list">
+					for _, l := range v.Lines {
+						<li class="goen-pay__line">
+							<div>
+								<p class="goen-pay__name">{ l.Name }</p>
+								if l.Label != "" {
+									<span class="ui-cart-line__meta">{ l.Label }</span>
+								}
+								<span class="ui-cart-line__meta">{ l.UnitPrice() } × { l.QuantityText() }</span>
+							</div>
+							<span class="ui-cart-line__price">{ l.LineTotal() }</span>
+						</li>
+					}
+				</ul>
+				<aside class="goen-pay__summary">
+					<div class="ui-summary">
+						<div class="ui-summary__row ui-summary__row--total">
+							<span>{ i18n.T(ctx, i18n.KeyTotal) }</span>
+							<span class="ui-summary__val">{ v.Total() }</span>
+						</div>
+					</div>
+					if v.Enabled {
+						<form method="post" action={ templ.SafeURL(v.Action()) } class="goen-pay__form">
+							<button type="submit" class="ui-btn ui-btn--primary ui-btn--block">
+								{ i18n.T(ctx, i18n.KeyPay) }
+							</button>
+						</form>
+						<p class="goen-pay__assurance">
+							{ i18n.T(ctx, i18n.KeyPayStripeNote) }
+						</p>
+					} else {
+						<p class="ui-alert ui-alert--info" role="status">
+							{ i18n.T(ctx, i18n.KeyPayDisabled) }
+						</p>
+					}
+					<a class="ui-btn ui-btn--secondary ui-btn--block" href={ templ.SafeURL("/orders/" + v.Number) }>
+						{ i18n.T(ctx, i18n.KeyPayViewOrder) }
+					</a>
+				</aside>
+			</div>
+		</div>
+	}
+}

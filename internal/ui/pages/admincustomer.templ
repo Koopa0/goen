@@ -1,0 +1,156 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// AdminCustomers renders the customer search.
+templ AdminCustomers(p layouts.Page, v AdminCustomersView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("customers")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageCustomers) }</h1>
+					<p class="ui-page-head__sub">
+						{ i18n.T(ctx, i18n.KeyAdminCustLead) }
+					</p>
+				</div>
+			</div>
+			<form class="goen-admin__form goen-admin__search" method="get" action="/admin/customers">
+				<label class="goen-sr-only" for="customer-search">{ i18n.T(ctx, i18n.KeyAdminCustSearch) }</label>
+				<input
+					class="ui-input"
+					id="customer-search"
+					type="search"
+					name="q"
+					value={ v.Term }
+					placeholder={ i18n.T(ctx, i18n.KeyAdminCustPlaceholder) }
+					autocomplete="off"
+				/>
+				<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminSearch) }</button>
+			</form>
+			if v.TermTooShort() {
+				<p class="ui-alert ui-alert--warn" role="status">
+					{ i18n.T(ctx, i18n.KeyAdminCustSearchShort) }
+				</p>
+			}
+			if v.Searching() && v.Empty() {
+				<p class="goen-admin__hint">
+					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCustNoneFound), v.Term) }
+				</p>
+			}
+			if v.Searching() && !v.Empty() {
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table">
+						<thead>
+							<tr>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCustColCustomer) }</th>
+								<th scope="col">Email</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColOrder) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCustSince) }</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, c := range v.Rows {
+								<tr>
+									<td><a href={ templ.SafeURL(c.Href()) }>{ c.DisplayName() }</a></td>
+									<td>
+										{ c.Email }
+										if !c.Verified {
+											<span class="ui-badge ui-badge--warn">{ i18n.T(ctx, i18n.KeyAdminCustUnconfirmed) }</span>
+										}
+									</td>
+									<td>{ c.OrdersText() }</td>
+									<td>{ c.Since }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</div>
+	}
+}
+
+// AdminCustomer renders one customer, whole.
+templ AdminCustomer(p layouts.Page, v *AdminCustomerView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("customers")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminPageCustomers) }</p>
+					<h1 class="ui-page-head__title">{ v.DisplayName() }</h1>
+					<p class="ui-page-head__sub">
+						{ v.Email }
+						if !v.Verified {
+							<span class="ui-badge ui-badge--warn">{ i18n.T(ctx, i18n.KeyAdminCustEmailUnconfirmed) }</span>
+						}
+					</p>
+				</div>
+			</div>
+			<div class="goen-admin__stats">
+				<div class="ui-stat">
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminCustStatOrders) }</span>
+					<span class="ui-stat__value">{ v.OrdersText() }</span>
+				</div>
+				<div class="ui-stat">
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminCustStatSpent) }</span>
+					<span class="ui-stat__value">{ v.Spent() }</span>
+				</div>
+				<div class="ui-stat">
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminCustStatCredit) }</span>
+					<span class="ui-stat__value">{ v.Credit() }</span>
+				</div>
+				<div class="ui-stat">
+					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminCustStatPoints) }</span>
+					<span class="ui-stat__value">{ v.PointsText() }</span>
+				</div>
+			</div>
+			<dl class="ui-dl">
+				<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminColPhone) }</dt>
+				<dd class="ui-dl__desc">
+					if v.Phone != "" {
+						{ v.Phone }
+					} else {
+						—
+					}
+				</dd>
+				<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminCustSince) }</dt>
+				<dd class="ui-dl__desc">{ v.Since }</dd>
+			</dl>
+			<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminCustOrders) }</h2>
+			if !v.HasOrders() {
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCustNoOrders) }</p>
+			} else {
+				<div class="goen-admin__tablewrap">
+					<table class="ui-table">
+						<thead>
+							<tr>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCustColNumber) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColStatus) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColAmount) }</th>
+								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColPlacedAt) }</th>
+							</tr>
+						</thead>
+						<tbody>
+							for _, o := range v.Recent {
+								<tr>
+									<td><a href={ templ.SafeURL("/admin/orders/" + o.Number) }>{ o.Number }</a></td>
+									<td>{ o.StatusText }</td>
+									<td>{ o.Total() }</td>
+									<td>{ o.PlacedAt }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+		</div>
+	}
+}

@@ -1,0 +1,23 @@
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: goen
+      POSTGRES_PASSWORD: goen
+      POSTGRES_DB: goen
+    # 5433 on the host so a locally installed PostgreSQL keeps 5432.
+    ports:
+      - "127.0.0.1:5433:5432"
+    # PostgreSQL 18+ images keep data in a major-version subdirectory, so the
+    # mount belongs at /var/lib/postgresql. Mounting .../data instead makes the
+    # entrypoint refuse to start.
+    volumes:
+      - goen-pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U goen -d goen"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  goen-pgdata:

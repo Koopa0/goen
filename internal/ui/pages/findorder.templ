@@ -1,0 +1,53 @@
+package pages
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// FindOrder is the lookup a guest who has lost their cookie uses.
+templ FindOrder(p layouts.Page, v FindOrderView) {
+	@layouts.Base(p) {
+		<div class="goen-auth">
+			<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeyFindOrderTitle) }</h1>
+			<p class="goen-auth__alt">{ i18n.T(ctx, i18n.KeyFindOrderSub) }</p>
+			if v.Error != "" {
+				<p class="ui-alert ui-alert--error" role="alert">{ v.Error }</p>
+			}
+			<form class="goen-auth__form" method="post" action="/orders/find">
+				<label class="ui-field" for="find-number">
+					<span class="ui-label">{ i18n.T(ctx, i18n.KeyFieldOrderNumber) }</span>
+					<input
+						class="ui-input"
+						id="find-number"
+						type="text"
+						name="number"
+						value={ v.Number }
+						placeholder="GO-260101-000001"
+						autocomplete="off"
+						required
+					/>
+				</label>
+				<label class="ui-field" for="find-email">
+					<span class="ui-label">{ i18n.T(ctx, i18n.KeyFieldEmail) }</span>
+					<input
+						class="ui-input"
+						id="find-email"
+						type="email"
+						name="email"
+						value={ v.Email }
+						autocomplete="email"
+						required
+					/>
+				</label>
+				<button class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block goen-auth__submit" type="submit">
+					{ i18n.T(ctx, i18n.KeyFindOrderSubmit) }
+				</button>
+			</form>
+			<p class="goen-auth__alt">
+				{ i18n.T(ctx, i18n.KeyFindOrderSignIn) }
+				<a href="/signin">{ i18n.T(ctx, i18n.KeySignIn) }</a>
+			</p>
+		</div>
+	}
+}

@@ -1,0 +1,23 @@
+package pages
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// NewsletterAction is the page a newsletter link opens; it writes nothing.
+templ NewsletterAction(p layouts.Page, v NewsletterActionView) {
+	@layouts.Base(p) {
+		<div class="notice">
+			<h1 class="h2 notice__title">{ v.Heading }</h1>
+			<p class="body notice__body">{ v.Body }</p>
+			if v.Token != "" {
+				<form class="notice__form" method="post" action={ templ.SafeURL(v.Action) }>
+					<input type="hidden" name="token" value={ v.Token }/>
+					<button class="ui-btn ui-btn--primary ui-btn--lg" type="submit">{ v.Submit }</button>
+				</form>
+			}
+			<a class="notice__back body-sm" href="/">{ i18n.T(ctx, i18n.KeyBackToShop) }</a>
+		</div>
+	}
+}

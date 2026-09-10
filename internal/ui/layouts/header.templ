@@ -1,0 +1,127 @@
+package layouts
+
+import (
+	"strconv"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/icons"
+	"github.com/koopa0/goen/internal/web"
+)
+
+// Header renders the site header.
+templ Header(p Page) {
+	<header class="goen-header">
+		<div class="goen-header__bar">
+			<details class="goen-header__menu" data-menu>
+				<summary class="ui-btn ui-btn--ghost ui-btn--icon" aria-label={ i18n.T(ctx, i18n.KeyMenu) }>
+					@icons.Menu()
+				</summary>
+				<nav class="goen-header__drawer" aria-label={ i18n.T(ctx, i18n.KeyCategoryNav) }>
+					for _, n := range TopNavFrom(ctx) {
+						<a
+							class={ "ui-navitem", templ.KV("is-active", p.current(n)) }
+							aria-current={ p.ariaCurrent(n) }
+							href={ templ.URL(n.Href) }
+						>{ n.Name }</a>
+					}
+					<a class="ui-navitem goen-header__navitem--deal" href="/deals">{ i18n.T(ctx, i18n.KeyDeals) }</a>
+					// The back office is reached from the header HERE and not from the wide
+					// bar's action row, which is measured to have no room: at 1024 with the
+					// English catalogue names the bar already crushes the search field to
+					// 52px, and a 92px text button overflows the page by 72px. Making room
+					// is an app.css decision about what the wide bar drops first, not a
+					// markup one. Above 1024 this drawer is display:none and /account
+					// carries the entrance instead.
+					if IsStaff(ctx) {
+						<a class="ui-navitem" href="/admin">{ i18n.T(ctx, i18n.KeyBackOffice) }</a>
+					}
+					// i18n-exempt: a language's own name, shown in both locales on purpose.
+					@languageSwitch("goen-header__lang", "繁中", "EN")
+				</nav>
+			</details>
+			<a class="goen-header__brand" href="/">
+				@icons.Mark("goen-header__mark")
+				<span class="goen-header__wordmark">goen</span>
+			</a>
+			<nav class="goen-header__nav" aria-label={ i18n.T(ctx, i18n.KeyCategoryNav) }>
+				for _, n := range TopNavFrom(ctx) {
+					<a
+						class={ "ui-navitem", templ.KV("is-active", p.current(n)) }
+						aria-current={ p.ariaCurrent(n) }
+						href={ templ.URL(n.Href) }
+					>{ n.Name }</a>
+				}
+				<a class="ui-navitem goen-header__navitem--deal" href="/deals">{ i18n.T(ctx, i18n.KeyDeals) }</a>
+			</nav>
+			<form class="goen-header__search ui-input-group" role="search" action="/search" method="get">
+				<span class="ui-input-group__icon">
+					@icons.Search()
+				</span>
+				<label class="goen-sr-only" for="site-search">{ i18n.T(ctx, i18n.KeySearch) }</label>
+				<input class="ui-input" id="site-search" type="search" name="q" placeholder={ i18n.T(ctx, i18n.KeySearchHint) }/>
+			</form>
+			// i18n-exempt: a language's own name, shown in both locales on purpose.
+			@languageSwitch("goen-header__lang", "繁中", "EN")
+			<div class="goen-header__actions">
+				<a class="ui-btn ui-btn--ghost ui-btn--icon" href="/account" aria-label={ i18n.T(ctx, i18n.KeyAccount) }>
+					@icons.User()
+				</a>
+				if IsStaff(ctx) {
+					// The wide slot, not a fourth button: at 1024 in English the
+					// action row already crushes the search field to 52px, and
+					// anything added there scrolls the page sideways. A staff
+					// member reaches the wishlist from /account; the back office
+					// is what they open all day, and below 1024 this slot is
+					// hidden and the drawer carries the entrance instead.
+					<a class="ui-btn ui-btn--ghost ui-btn--icon goen-header__action--wide" href="/admin" aria-label={ i18n.T(ctx, i18n.KeyBackOffice) }>
+						@icons.Lock()
+					</a>
+				} else {
+					<a class="ui-btn ui-btn--ghost ui-btn--icon goen-header__action--wide" href="/account/wishlist" aria-label={ i18n.T(ctx, i18n.KeyWishlist) }>
+						@icons.Heart()
+					</a>
+				}
+				@cartLink()
+			</div>
+		</div>
+	</header>
+}
+
+templ cartLink() {
+	{{ count := web.CartCount(ctx) }}
+	<a class="ui-btn ui-btn--ghost ui-btn--icon goen-header__cart" href="/cart" aria-label={ cartLabel(ctx, count) }>
+		@icons.Cart()
+		if count > 0 {
+			<span class="ui-badge ui-badge--count" aria-hidden="true">{ strconv.Itoa(count) }</span>
+		}
+	</a>
+}
+
+templ languageSwitch(class, zh, en string) {
+	{{ current := i18n.FromContext(ctx) }}
+	<form class={ "ui-segmented", class } method="post" action="/locale" role="group" aria-label={ i18n.T(ctx, i18n.KeyLanguage) }>
+		<input type="hidden" name="return" value={ returnPath(ctx) }/>
+		for _, l := range i18n.Locales() {
+			<button
+				class={ "ui-segmented__item", templ.KV("is-active", l == current) }
+				type="submit"
+				name="locale"
+				value={ l.Tag() }
+				aria-pressed={ pressed(l == current) }
+			>
+				if l == i18n.En {
+					{ en }
+				} else {
+					{ zh }
+				}
+			</button>
+		}
+	</form>
+}
+
+func pressed(on bool) string {
+	if on {
+		return "true"
+	}
+	return "false"
+}

@@ -1,0 +1,37 @@
+name: Documentation problem
+description: Something goen says or ships is wrong, missing, or impossible to follow.
+title: "docs: "
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        This form is for text: the README, CONTRIBUTING, a code comment, a
+        policy page, a form label, an error message. If goen behaves wrongly,
+        file a bug report instead; if the text about that behaviour is wrong,
+        it belongs here.
+
+  - type: input
+    id: where
+    attributes:
+      label: Where the text is
+      placeholder: README.md, under "Configuration"; or /shipping, second paragraph
+    validations:
+      required: true
+
+  - type: textarea
+    id: says
+    attributes:
+      label: What it says
+      description: Quote it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: true-instead
+    attributes:
+      label: What is true instead
+      description: >-
+        What it should say, or what went wrong when you followed it. You do not
+        need the right answer to report a wrong one.
+    validations:
+      required: true

@@ -1,0 +1,173 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// AdminReturns renders the return queue and the decision forms.
+templ AdminReturns(p layouts.Page, v AdminReturnsView) {
+	@layouts.Base(p) {
+		<div class="goen-admin">
+			@adminNav("returns")
+			<div class="ui-page-head">
+				<div>
+					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageReturns) }</h1>
+					<p class="ui-page-head__sub">
+						{ i18n.T(ctx, i18n.KeyAdminRetLead) }
+					</p>
+				</div>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			if v.Empty() {
+				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetEmpty) }</p>
+			} else {
+				<ul class="goen-admin__returns" role="list">
+					for _, r := range v.Rows {
+						<li class="goen-admin__return">
+							<div class="goen-admin__returninfo">
+								<p class="goen-admin__returnorder">{ r.OrderNumber }</p>
+								<span class="ui-cart-line__meta">{ r.StatusText } · { r.CreatedAt }</span>
+								<span class="ui-cart-line__meta">
+									{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetUnitsAmount), r.UnitsText(), r.Amount()) }
+								</span>
+								// Consumer Protection Act §19 I: seven days from receipt, unwaivable under §19 V.
+								if r.Rescission() {
+									<span class="ui-cart-line__meta">
+										<strong>{ r.WindowText(ctx) }</strong>
+										{ i18n.T(ctx, i18n.KeyAdminRetMustAccept) }
+									</span>
+								} else {
+									<span class="ui-cart-line__meta">{ r.WindowText(ctx) }</span>
+								}
+								<span class="ui-cart-line__meta">{ r.Reason }</span>
+								if len(r.Lines) > 0 {
+									<ul class="goen-admin__returnlines" role="list">
+										for _, l := range r.Lines {
+											<li>
+												<span class="ui-cart-line__meta">{ l.Line() }</span>
+												<span class="ui-cart-line__meta">{ l.SKU } · { l.UnitPrice() }</span>
+												if l.Inspected {
+													<span class="ui-cart-line__meta">
+														{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetReceivedRestocked), l.ReceivedText(), l.RestockedText()) }
+														if l.Shortfall() {
+															<strong>{ i18n.T(ctx, i18n.KeyAdminRetShortfall) }</strong>
+														}
+														if l.Scrapped() {
+															<strong>{ i18n.T(ctx, i18n.KeyAdminRetScrapped) }</strong>
+														}
+													</span>
+													if l.Note != "" {
+														<span class="ui-cart-line__meta">{ l.Note }</span>
+													}
+												}
+											</li>
+										}
+									</ul>
+								}
+							</div>
+							if !r.Decided {
+								<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.Action()) }>
+									<div class="ui-field">
+										<label class="ui-label" for={ "res-" + r.ID }>{ i18n.T(ctx, i18n.KeyAdminRetResolution) }</label>
+										<input class="ui-input" id={ "res-" + r.ID } name="resolution" maxlength="300" autocomplete="off"/>
+									</div>
+									<div class="goen-admin__decidebtns">
+										<button class="ui-btn ui-btn--primary" type="submit" name="decision" value="approved">
+											{ i18n.T(ctx, i18n.KeyAdminRetApprove) }
+										</button>
+										<button class="ui-btn ui-btn--secondary" type="submit" name="decision" value="rejected">
+											{ i18n.T(ctx, i18n.KeyAdminRetReject) }
+										</button>
+									</div>
+								</form>
+							} else if r.CanRetryPayout() {
+								<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.Action()) }>
+									<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetPayoutOutstanding) }</p>
+									<input type="hidden" name="decision" value="approved"/>
+									<div class="goen-admin__decidebtns">
+										<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminRetRetryPayout) }</button>
+									</div>
+								</form>
+							} else if r.PayoutStranded() {
+								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetPayoutStranded) }</p>
+							}
+							if r.AwaitingGoods() {
+								<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.InspectAction()) }>
+									<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetInspectHint) }</p>
+									for _, l := range r.Lines {
+										<fieldset class="goen-admin__inspectline">
+											<legend class="ui-cart-line__meta">{ l.Line() }</legend>
+											<div class="ui-field">
+												<label class="ui-label" for={ "recv-" + l.OrderLineID }>{ i18n.T(ctx, i18n.KeyAdminRetReceivedQty) }</label>
+												<input
+													class="ui-input"
+													id={ "recv-" + l.OrderLineID }
+													type="number"
+													name={ "received_" + l.OrderLineID }
+													value={ l.MaxQuantityText() }
+													min="0"
+													max={ l.MaxQuantityText() }
+													required
+												/>
+											</div>
+											if l.Restockable {
+												<div class="ui-field">
+													<label class="ui-label" for={ "stock-" + l.OrderLineID }>{ i18n.T(ctx, i18n.KeyAdminRetRestockedQty) }</label>
+													<input
+														class="ui-input"
+														id={ "stock-" + l.OrderLineID }
+														type="number"
+														name={ "restocked_" + l.OrderLineID }
+														value="0"
+														min="0"
+														max={ l.MaxQuantityText() }
+													/>
+												</div>
+											} else {
+												<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetNoVariant) }</p>
+											}
+											<div class="ui-field">
+												<label class="ui-label" for={ "note-" + l.OrderLineID }>{ i18n.T(ctx, i18n.KeyAdminRetNote) }</label>
+												<input
+													class="ui-input"
+													id={ "note-" + l.OrderLineID }
+													name={ "note_" + l.OrderLineID }
+													maxlength="500"
+													autocomplete="off"
+													placeholder={ i18n.T(ctx, i18n.KeyAdminRetNotePlaceholder) }
+												/>
+											</div>
+										</fieldset>
+									}
+									<div class="goen-admin__decidebtns">
+										<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminRetInspectButton) }</button>
+									</div>
+								</form>
+							}
+							if r.CanComplete() {
+								<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.CompleteAction()) }>
+									<p class="goen-admin__hint">
+										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetRestockedUnits), r.RestockedUnitsText()) }
+									</p>
+									<div class="ui-field">
+										<label class="ui-label" for={ "done-" + r.ID }>{ i18n.T(ctx, i18n.KeyAdminRetCloseNote) }</label>
+										<input class="ui-input" id={ "done-" + r.ID } name="resolution" maxlength="300" autocomplete="off"/>
+									</div>
+									<div class="goen-admin__decidebtns">
+										<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminRetCloseButton) }</button>
+									</div>
+								</form>
+							}
+						</li>
+					}
+				</ul>
+			}
+		</div>
+	}
+}

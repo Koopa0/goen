@@ -1,0 +1,133 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// WarrantyList renders what a customer has registered.
+templ WarrantyList(p layouts.Page, v WarrantyListView) {
+	@layouts.Base(p) {
+		<div class="goen-account">
+			<nav class="ui-crumbs" aria-label={ i18n.T(ctx, i18n.KeyBreadcrumb) }>
+				<a href="/account">{ i18n.T(ctx, i18n.KeyAccountTitle) }</a>
+				<span class="ui-crumbs__sep" aria-hidden="true">/</span>
+				<span class="ui-crumbs__current" aria-current="page">{ i18n.T(ctx, i18n.KeyWarrantyTitle) }</span>
+			</nav>
+			<div class="ui-page-head">
+				<div>
+					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyWarrantyTitle) }</h1>
+					<p class="ui-page-head__sub">
+						{ i18n.T(ctx, i18n.KeyWarrantySub) }
+					</p>
+				</div>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			if v.Empty() {
+				<div class="ui-empty">
+					<p class="ui-empty__title">{ i18n.T(ctx, i18n.KeyWarrantyNone) }</p>
+					<p class="ui-empty__desc">
+						{ i18n.T(ctx, i18n.KeyWarrantyNoneHint) }<a href="/account">{ i18n.T(ctx, i18n.KeyAccountTitle) }</a>{ i18n.T(ctx, i18n.KeyWarrantyNoneTail) }
+					</p>
+				</div>
+			} else {
+				<ul class="goen-warranty" role="list">
+					for _, item := range v.Rows {
+						<li class={ "goen-warranty__item", templ.KV("is-expired", !item.InForce) }>
+							<div class="goen-warranty__head">
+								if item.Href() != "" {
+									<a class="goen-warranty__name" href={ templ.SafeURL(item.Href()) }>{ item.Name }</a>
+								} else {
+									<span class="goen-warranty__name">{ item.Name }</span>
+								}
+								<span class={ "ui-badge", templ.KV("ui-badge--brand", item.InForce) }>{ item.State(ctx) }</span>
+							</div>
+							if item.Label != "" {
+								<span class="ui-cart-line__meta">{ item.Label }</span>
+							}
+							<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyUntil), item.ExpiresOn) }</span>
+							<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyOrderMeta), item.Order, item.RegisteredAt) }</span>
+							if item.Serial != "" {
+								<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantySerialShown), item.Serial) }</span>
+							}
+						</li>
+					}
+				</ul>
+			}
+		</div>
+	}
+}
+
+// WarrantyOrder renders one order's registration form.
+templ WarrantyOrder(p layouts.Page, v WarrantyOrderView) {
+	@layouts.Base(p) {
+		<div class="goen-account">
+			<nav class="ui-crumbs" aria-label={ i18n.T(ctx, i18n.KeyBreadcrumb) }>
+				<a href="/account">{ i18n.T(ctx, i18n.KeyAccountTitle) }</a>
+				<span class="ui-crumbs__sep" aria-hidden="true">/</span>
+				<a href="/account/warranty">{ i18n.T(ctx, i18n.KeyWarrantyTitle) }</a>
+				<span class="ui-crumbs__sep" aria-hidden="true">/</span>
+				<span class="ui-crumbs__current" aria-current="page">{ v.Number }</span>
+			</nav>
+			<div class="ui-page-head">
+				<div>
+					<h1 class="ui-page-head__title">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderMeta), v.Number) }</h1>
+				</div>
+			</div>
+			if v.Notice != "" {
+				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			}
+			if !v.AnyRegistrable() {
+				<div class="ui-empty">
+					<p class="ui-empty__title">{ i18n.T(ctx, i18n.KeyWarrantyNothingHere) }</p>
+					<p class="ui-empty__desc">{ i18n.T(ctx, i18n.KeyWarrantyAfterShipping) }</p>
+				</div>
+			}
+			<ul class="goen-warranty" role="list">
+				for _, line := range v.Lines {
+					<li class="goen-warranty__item">
+						<div class="goen-warranty__head">
+							<span class="goen-warranty__name">{ line.Name }</span>
+							if line.TermText(ctx) != "" {
+								<span class="ui-badge">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyTerm), line.TermText(ctx)) }</span>
+							}
+						</div>
+						if line.Label != "" {
+							<span class="ui-cart-line__meta">{ line.Label }</span>
+						}
+						if line.Note != "" {
+							<p class="ui-cart-line__meta">{ line.Note }</p>
+						}
+						if line.Registrable() {
+							<form class="goen-warranty__form" method="post" action={ templ.SafeURL(v.Action()) }>
+								<input type="hidden" name="line" value={ line.ID }/>
+								<input type="hidden" name="unit" value={ line.NextUnit() }/>
+								<div class="ui-field">
+									<label class="ui-label" for={ "serial-" + line.ID }>{ i18n.T(ctx, i18n.KeyFieldSerialOpt) }</label>
+									<input
+										class="ui-input"
+										id={ "serial-" + line.ID }
+										name="serial"
+										maxlength="60"
+										autocomplete="off"
+										placeholder={ i18n.T(ctx, i18n.KeySerialPlaceholder) }
+									/>
+									<p class="goen-admin__hint">
+										{ i18n.T(ctx, i18n.KeySerialHint) }
+									</p>
+								</div>
+								<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyWarrantyRegister) }</button>
+							</form>
+						} else {
+							<p class="ui-cart-line__meta">{ line.Why(ctx) }</p>
+						}
+					</li>
+				}
+			</ul>
+		</div>
+	}
+}

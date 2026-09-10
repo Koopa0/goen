@@ -1,0 +1,15 @@
+pg_version = "18.0"
+
+# Down migrations exist to drop what the up migration created. Linting them for
+# destructive statements would report their entire purpose as a finding, so they
+# are out of scope; `make migrate-down` is a development tool, never a
+# production step.
+excluded_paths = ["migrations/*.down.sql"]
+
+# golang-migrate records the applied version and sends each file as one implicit
+# transaction, so a failed migration leaves nothing behind to collide with on a
+# re-run. `IF NOT EXISTS` would buy nothing here and would let a table that
+# already exists with a DIFFERENT shape pass silently — a check that cannot
+# fail. Every other rule stays on; where a statement genuinely does not apply it
+# carries an inline `-- squawk-ignore` with the reason written next to it.
+excluded_rules = ["prefer-robust-stmts"]
