@@ -30,6 +30,7 @@ import (
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
+	"github.com/koopa0/goen/internal/ratelimit"
 )
 
 var pool *pgxpool.Pool
@@ -595,6 +596,116 @@ func TestAdoptCartMergesRatherThanReplaces(t *testing.T) {
 	if guestStillThere != 0 {
 		t.Error("the guest cart survived the merge and would be adopted again on the next sign-in")
 	}
+}
+
+// TestAMergedCartIsVisibleAfterSignInWithTheDeletedGuestCookie holds the
+// storefront path: sign-in adopt deletes the guest row, the browser cookie
+// still names it, and GET /cart must show the surviving account cart.
+func TestAMergedCartIsVisibleAfterSignInWithTheDeletedGuestCookie(t *testing.T) {
+	ctx := t.Context()
+	accounts := account.NewStore(pool)
+	u := register(t, accounts, "merge-cookie-"+uuid.NewString()+"@example.com")
+	uid := uuid.MustParse(u.ID)
+
+	var a, b uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM product_variants WHERE is_active ORDER BY position LIMIT 1`).Scan(&a); err != nil {
+		t.Fatalf("variant a: %v", err)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM product_variants WHERE is_active AND id <> $1 ORDER BY position LIMIT 1`,
+		a).Scan(&b); err != nil {
+		t.Fatalf("variant b: %v", err)
+	}
+
+	guestToken := "guest-cart-" + u.ID
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2)`,
+		account.HashToken("account-cart-"+u.ID), uid); err != nil {
+		t.Fatalf("account cart: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO cart_items (cart_id, variant_id, quantity)
+		 SELECT id, $2, 1 FROM carts WHERE token_hash = $1`,
+		account.HashToken("account-cart-"+u.ID), a); err != nil {
+		t.Fatalf("account line: %v", err)
+	}
+
+	var guestCart uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
+		account.HashToken(guestToken)).Scan(&guestCart); err != nil {
+		t.Fatalf("guest cart: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO cart_items (cart_id, variant_id, quantity)
+		VALUES ($1, $2, 2), ($1, $3, 5)`, guestCart, a, b); err != nil {
+		t.Fatalf("guest lines: %v", err)
+	}
+
+	carts := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false,
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil)
+	h := account.NewHandler(accounts, carts, slog.New(slog.DiscardHandler), false, nil)
+
+	form := url.Values{
+		"email": {u.Email}, "password": {"a sufficiently long password"}, "next": {"/cart"},
+	}
+	signIn := httptest.NewRequestWithContext(ctx, http.MethodPost, "/signin",
+		strings.NewReader(form.Encode()))
+	signIn.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	signIn.AddCookie(&http.Cookie{Name: "goen_cart", Value: guestToken})
+	signed := httptest.NewRecorder()
+	h.SignIn(signed, signIn)
+	if signed.Code != http.StatusSeeOther {
+		t.Fatalf("sign-in status = %d, want 303; body=%s", signed.Code, signed.Body.String())
+	}
+
+	var session *http.Cookie
+	for _, c := range signed.Result().Cookies() {
+		if c.Name == "goen_session" || strings.HasSuffix(c.Name, "goen_session") {
+			session = c
+			break
+		}
+	}
+	if session == nil {
+		t.Fatalf("sign-in cookies = %v, want a session", signed.Result().Cookies())
+	}
+
+	page := httptest.NewRequestWithContext(ctx, http.MethodGet, "/cart", http.NoBody)
+	page.AddCookie(session)
+	page.AddCookie(&http.Cookie{Name: "goen_cart", Value: guestToken})
+	shown := httptest.NewRecorder()
+	h.Authenticate(http.HandlerFunc(carts.Page)).ServeHTTP(shown, page)
+	if shown.Code != http.StatusOK {
+		t.Fatalf("GET /cart status = %d, want 200; body=%s", shown.Code, shown.Body.String())
+	}
+	body := shown.Body.String()
+	if got := cartLineQuantity(body, a); got != "3" {
+		t.Errorf("merged cart still empty after sign-in: variant %s quantity = %q, want 3", a, got)
+	}
+	if got := cartLineQuantity(body, b); got != "5" {
+		t.Errorf("merged guest-only line missing: variant %s quantity = %q, want 5", b, got)
+	}
+}
+
+func cartLineQuantity(body string, variant uuid.UUID) string {
+	marker := `id="qty-` + variant.String() + `"`
+	start := strings.Index(body, marker)
+	if start < 0 {
+		return ""
+	}
+	rest := body[start:]
+	value := `value="`
+	at := strings.Index(rest, value)
+	if at < 0 {
+		return ""
+	}
+	rest = rest[at+len(value):]
+	end := strings.IndexByte(rest, '"')
+	if end < 0 {
+		return ""
+	}
+	return rest[:end]
 }
 
 // TestConcurrentFirstAdoptersKeepBothGuestCarts holds the account row before
