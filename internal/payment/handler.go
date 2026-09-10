@@ -392,75 +392,16 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 	capture, isCapture := CaptureFrom(&ev)
 	abandonedSession, isAbandoned := AbandonedSessionFrom(&ev)
 	unsettledSession, isUnsettled := UnsettledSessionFrom(&ev)
-	readState := classifyWebhook(&ev, isCapture || isAbandoned || isUnsettled)
-	var apply func(context.Context, *webhookTx) error
-	var number string
-	var unattributedCapture, cancelledOrder, refusedCapture bool
-	switch {
-	case readState == webhookReadUnreadable:
-		apply = func(ctx context.Context, tx *webhookTx) error {
-			// A retry delivers the same bytes and can never make this payload
-			// readable. Commit a durable alarm and answer 200 instead of turning
-			// version skew into a retry storm that disables the endpoint.
-			return tx.Unreconciled(ctx, webhookUnreconciled(webhookUnreadableEvent,
-				"goen could not read a "+string(ev.Type)+
-					" it acts on: the payload is not the shape this binary expects"))
-		}
-	case isAbandoned:
-		apply = func(ctx context.Context, tx *webhookTx) error {
-			return tx.CancelSession(ctx)
-		}
-	case isUnsettled:
-		apply = func(ctx context.Context, tx *webhookTx) error {
-			// Money is still in flight. Retries cannot settle it, and a 5xx
-			// would disable the endpoint. The stock hold cannot outlive this
-			// window, so the claim must carry a durable alarm.
-			return tx.Unreconciled(ctx, webhookUnreconciled(webhookUnsettledSession,
-				"a delayed payment method completed a checkout — goen's stock hold cannot outlive it"))
-		}
-	case isCapture:
-		apply = func(ctx context.Context, tx *webhookTx) error {
-			n, captureErr := tx.Capture(ctx, capture)
-			if errors.Is(captureErr, ErrOrderCancelled) {
-				// Swallowed inside the transaction: returning would roll the
-				// claim back and lose the only record that money arrived. The
-				// event is marked UNRECONCILED in that same transaction — the
-				// money is at Stripe, the goods are back on the shelf, and
-				// somebody has to refund it by hand.
-				cancelledOrder = true
-				number = n
-				return tx.Unreconciled(ctx, webhookUnreconciled(
-					webhookCancelledOrderCapture,
-					"money arrived for an order that was already cancelled"))
-			}
-			if errors.Is(captureErr, ErrNotFound) {
-				// CaptureFrom already established that this is a paid, positive
-				// Checkout Session. There is no order to guess: keep the 200 so the
-				// same unresolvable bytes are not retried, and leave the session id
-				// in object_ref for the person who must find the money at Stripe.
-				unattributedCapture = true
-				return tx.Unreconciled(ctx, webhookUnreconciled(
-					webhookUnattributedCapture,
-					"a paid Checkout Session has no payment row to attribute it to"))
-			}
-			if errors.Is(captureErr, errCaptureRefused) {
-				// Stripe has already reported this session paid. A stable amount,
-				// state, or schema invariant rejected it locally; retries carry the
-				// same facts and cannot heal it. Preserve the reason in the event
-				// transaction so admin health has something durable to act on.
-				refusedCapture = true
-				number = n
-				return tx.Unreconciled(ctx, webhookUnreconciled(
-					webhookRefusedCapture, captureErr.Error()))
-			}
-			number = n
-			return captureErr
-		}
+	outcome := &webhookOutcome{
+		event: &ev, capture: capture,
+		readState:        classifyWebhook(&ev, isCapture || isAbandoned || isUnsettled),
+		abandonedSession: abandonedSession, unsettledSession: unsettledSession,
+		isAbandoned: isAbandoned, isCapture: isCapture, isUnsettled: isUnsettled,
 	}
 
 	claimed, err := h.store.processWebhook(r.Context(), &webhookEvent{
 		ID: ev.ID, Type: string(ev.Type), ObjectRef: ObjectRef(&ev), Payload: body,
-	}, apply)
+	}, outcome.apply())
 	switch {
 	case err != nil:
 		// 500 so Stripe retries; the claim rolled back with the effect.
@@ -475,14 +416,75 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logWebhookOutcome(r.Context(), webhookOutcome{
-		event: &ev, capture: capture, readState: readState,
-		abandonedSession: abandonedSession, unsettledSession: unsettledSession,
-		number: number, isAbandoned: isAbandoned, isCapture: isCapture,
-		isUnsettled: isUnsettled, cancelledOrder: cancelledOrder,
-		unattributedCapture: unattributedCapture, refusedCapture: refusedCapture,
-	})
+	h.logWebhookOutcome(r.Context(), *outcome)
 	w.WriteHeader(http.StatusOK)
+}
+
+// apply is the effect this event is allowed to have. nil means record-and-
+// ignore: Stripe must not retry an event goen has no branch for.
+func (o *webhookOutcome) apply() func(context.Context, *webhookTx) error {
+	switch {
+	case o.readState == webhookReadUnreadable:
+		return func(ctx context.Context, tx *webhookTx) error {
+			// A retry delivers the same bytes and can never make this payload
+			// readable. Commit a durable alarm and answer 200 instead of turning
+			// version skew into a retry storm that disables the endpoint.
+			return tx.Unreconciled(ctx, webhookUnreconciled(webhookUnreadableEvent,
+				"goen could not read a "+string(o.event.Type)+
+					" it acts on: the payload is not the shape this binary expects"))
+		}
+	case o.isAbandoned:
+		return func(ctx context.Context, tx *webhookTx) error {
+			return tx.CancelSession(ctx)
+		}
+	case o.isUnsettled:
+		return func(ctx context.Context, tx *webhookTx) error {
+			// Money is still in flight. Retries cannot settle it, and a 5xx
+			// would disable the endpoint. The stock hold cannot outlive this
+			// window, so the claim must carry a durable alarm.
+			return tx.Unreconciled(ctx, webhookUnreconciled(webhookUnsettledSession,
+				"a delayed payment method completed a checkout — goen's stock hold cannot outlive it"))
+		}
+	case o.isCapture:
+		return func(ctx context.Context, tx *webhookTx) error {
+			n, captureErr := tx.Capture(ctx, o.capture)
+			if errors.Is(captureErr, ErrOrderCancelled) {
+				// Swallowed inside the transaction: returning would roll the
+				// claim back and lose the only record that money arrived. The
+				// event is marked UNRECONCILED in that same transaction — the
+				// money is at Stripe, the goods are back on the shelf, and
+				// somebody has to refund it by hand.
+				o.cancelledOrder = true
+				o.number = n
+				return tx.Unreconciled(ctx, webhookUnreconciled(
+					webhookCancelledOrderCapture,
+					"money arrived for an order that was already cancelled"))
+			}
+			if errors.Is(captureErr, ErrNotFound) {
+				// CaptureFrom already established that this is a paid, positive
+				// Checkout Session. There is no order to guess: keep the 200 so the
+				// same unresolvable bytes are not retried, and leave the session id
+				// in object_ref for the person who must find the money at Stripe.
+				o.unattributedCapture = true
+				return tx.Unreconciled(ctx, webhookUnreconciled(
+					webhookUnattributedCapture,
+					"a paid Checkout Session has no payment row to attribute it to"))
+			}
+			if errors.Is(captureErr, errCaptureRefused) {
+				// Stripe has already reported this session paid. A stable amount,
+				// state, or schema invariant rejected it locally; retries carry the
+				// same facts and cannot heal it. Preserve the reason in the event
+				// transaction so admin health has something durable to act on.
+				o.refusedCapture = true
+				o.number = n
+				return tx.Unreconciled(ctx, webhookUnreconciled(
+					webhookRefusedCapture, captureErr.Error()))
+			}
+			o.number = n
+			return captureErr
+		}
+	}
+	return nil
 }
 
 func (h *Handler) logWebhookOutcome(ctx context.Context, outcome webhookOutcome) {
