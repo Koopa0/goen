@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -16,6 +17,17 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/web"
 )
+
+func TestNotifyRouteIsGuardedPerIP(t *testing.T) {
+	src, err := os.ReadFile("server.go") //nolint:gosec // G304: this package's own file
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `mux.HandleFunc("POST /p/{slug}/notify", ratelimit.Guard(notifyLimit, log, items.Notify))`
+	if !bytes.Contains(src, []byte(want)) {
+		t.Fatal("POST /p/{slug}/notify is registered without ratelimit.Guard")
+	}
+}
 
 func TestAnAssetRequestNeverReachesPerVisitorMiddleware(t *testing.T) {
 	tests := []struct {
