@@ -6,6 +6,16 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
+func TestStaffAuditActionsRenderAPhrase(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	for _, action := range []string{"staff.grant", "staff.revoke", "staff.factor.remove"} {
+		if got := (AuditEntry{Action: action}).Label(ctx); got == action {
+			t.Errorf("Label(%q) = %q; the staff action has no staff-facing phrase", action, got)
+		}
+	}
+}
+
 func TestProductUpdateAuditLabelIsLocalized(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {

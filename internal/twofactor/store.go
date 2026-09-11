@@ -19,6 +19,7 @@ import (
 
 // Store is the database side of the second factor.
 type Store struct {
+	pool   *pgxpool.Pool
 	q      *db.Queries
 	cipher *secretCipher
 }
@@ -28,7 +29,7 @@ func NewStore(pool *pgxpool.Pool, key []byte) *Store {
 	if pool == nil {
 		panic("twofactor: NewStore requires a pool")
 	}
-	return &Store{q: db.New(pool), cipher: newCipher(key)}
+	return &Store{pool: pool, q: db.New(pool), cipher: newCipher(key)}
 }
 
 // Enabled reports whether enrolment is possible in this deployment.
@@ -144,28 +145,6 @@ func (s *Store) SessionVerified(ctx context.Context, token string) (bool, error)
 		return false, fmt.Errorf("read session verification: %w", err)
 	}
 	return verified, nil
-}
-
-// Remove deletes a credential, which is how a lost authenticator is recovered.
-// Another admin does this; there are no backup codes.
-//
-// It ENDS the sessions too, in the same statement. A session carries its own
-// step-up stamp that SessionTOTPVerified trusts for the rest of StepUpWindow,
-// so a session left open would keep the back office after the credential it was
-// admitted on was taken away — and could enrol a replacement from there.
-func (s *Store) Remove(ctx context.Context, userID string) error {
-	id, err := uuid.Parse(userID)
-	if err != nil {
-		return ErrNotEnrolled
-	}
-	removed, err := s.q.RemoveTOTPAndSessions(ctx, id)
-	if err != nil {
-		return fmt.Errorf("remove totp and end its sessions: %w", err)
-	}
-	if !removed {
-		return ErrNotEnrolled
-	}
-	return nil
 }
 
 // load reads and decrypts a credential. Confirm is the one caller for which an

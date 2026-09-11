@@ -90,6 +90,9 @@ var actionLabels = map[string]i18n.Key{
 	"shipping.surcharge":                  i18n.KeyAuditShippingSurcharge,
 	"tier.create":                         i18n.KeyAuditTierCreate,
 	"tier.delete":                         i18n.KeyAuditTierDelete,
+	"staff.grant":                         i18n.KeyAuditStaffGrant,
+	"staff.revoke":                        i18n.KeyAuditStaffRevoke,
+	"staff.factor.remove":                 i18n.KeyAuditStaffFactorRemove,
 }
 
 // ActorText is who did it, or a stand-in for an account that is gone.

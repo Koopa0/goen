@@ -170,4 +170,10 @@ var (
 	KeyAuditTierCreate = key("audit.tier.create", Message{ZhHant: "新增會員等級", En: "Add membership tier"})
 
 	KeyAuditTierDelete = key("audit.tier.delete", Message{ZhHant: "刪除會員等級", En: "Delete membership tier"})
+
+	KeyAuditStaffGrant = key("audit.staff.grant", Message{ZhHant: "授予後台權限", En: "Grant staff access"})
+
+	KeyAuditStaffRevoke = key("audit.staff.revoke", Message{ZhHant: "撤銷後台權限", En: "Revoke staff access"})
+
+	KeyAuditStaffFactorRemove = key("audit.staff.factor.remove", Message{ZhHant: "移除第二因素", En: "Remove second factor"})
 )

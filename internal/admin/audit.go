@@ -84,6 +84,9 @@ const (
 	actionDeleteCategory           Action = "category.delete"
 	actionAnswerQuestion           Action = "question.answer"
 	actionHideQuestion             Action = "question.hide"
+	actionGrantStaff               Action = "staff.grant"
+	actionRevokeStaff              Action = "staff.revoke"
+	actionRemoveStaffFactor        Action = "staff.factor.remove"
 )
 
 // ErrNoActor is a back-office write that reached the store without a signed-in
