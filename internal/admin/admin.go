@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 var (
@@ -90,40 +91,39 @@ const MinSearchRunes = 2
 // orders_check_transition decides which moves are legal; parsing and the queue
 // tabs consume this closed set.
 var statuses = [...]struct {
-	value string
+	value pages.FulfillmentStatus
 	label i18n.Key
 }{
-	{"pending", i18n.KeyAdminStatusPending},
-	{"picking", i18n.KeyAdminStatusPicking},
-	{"shipped", i18n.KeyAdminStatusShipped},
-	{"delivered", i18n.KeyAdminStatusDelivered},
-	{"completed", i18n.KeyAdminStatusCompleted},
-	{"cancelled", i18n.KeyAdminStatusCancelled},
+	{pages.FulfillmentPending, i18n.KeyAdminStatusPending},
+	{pages.FulfillmentPicking, i18n.KeyAdminStatusPicking},
+	{pages.FulfillmentShipped, i18n.KeyAdminStatusShipped},
+	{pages.FulfillmentDelivered, i18n.KeyAdminStatusDelivered},
+	{pages.FulfillmentCompleted, i18n.KeyAdminStatusCompleted},
+	{pages.FulfillmentCancelled, i18n.KeyAdminStatusCancelled},
 }
 
 // ParseStatus maps a query value to a fulfilment state, or "" for all.
-func ParseStatus(s string) string {
-	for _, status := range statuses {
-		if status.value == s {
-			return s
-		}
+func ParseStatus(s string) pages.FulfillmentStatus {
+	status := pages.FulfillmentStatus(s)
+	if status.Known() {
+		return status
 	}
 	return ""
 }
 
 // NextStatuses is what an order in this state may legally become.
-func NextStatuses(current string) []string {
+func NextStatuses(current pages.FulfillmentStatus) []pages.FulfillmentStatus {
 	switch current {
-	case "pending":
-		return []string{"picking", "cancelled"}
-	case "picking":
+	case pages.FulfillmentPending:
+		return []pages.FulfillmentStatus{pages.FulfillmentPicking, pages.FulfillmentCancelled}
+	case pages.FulfillmentPicking:
 		// 'shipped' is absent: [Store.Ship] is the only door, because a dispatch
 		// must also settle the stock the order holds.
-		return []string{"cancelled"}
-	case "shipped":
-		return []string{"delivered", "completed"}
-	case "delivered":
-		return []string{"completed"}
+		return []pages.FulfillmentStatus{pages.FulfillmentCancelled}
+	case pages.FulfillmentShipped:
+		return []pages.FulfillmentStatus{pages.FulfillmentDelivered, pages.FulfillmentCompleted}
+	case pages.FulfillmentDelivered:
+		return []pages.FulfillmentStatus{pages.FulfillmentCompleted}
 	default:
 		return nil
 	}
@@ -133,15 +133,16 @@ func NextStatuses(current string) []string {
 //
 // It answers from the status alone, which is right everywhere but 'pending' —
 // see FundedStatusLabel, which the order surfaces use.
-func StatusLabel(ctx context.Context, s string) string {
+func StatusLabel(ctx context.Context, s pages.FulfillmentStatus) string {
 	for _, status := range statuses {
 		if status.value == s {
 			return i18n.T(ctx, status.label)
 		}
 	}
 	// Not a panic, unlike ReturnStatusLabel: a queue opening with one
-	// untranslated word beats one that will not load.
-	return s
+	// untranslated word beats one that will not load. audit_events is
+	// append-only, so a row naming a retired status must still render.
+	return string(s)
 }
 
 // IsOrderNumber reports whether s has the shape next_order_number() produces:
@@ -247,8 +248,8 @@ const MaxCreditReasonRunes = 200
 // committed means the shop has taken the order on; owed == 0 means nothing is
 // due. Either is enough here: a card capture sets the first, and store credit or
 // a full discount sets the second.
-func FundedStatusLabel(ctx context.Context, status string, committed bool, owedCents int64) string {
-	if status == "pending" && (committed || owedCents <= 0) {
+func FundedStatusLabel(ctx context.Context, status pages.FulfillmentStatus, committed bool, owedCents int64) string {
+	if status == pages.FulfillmentPending && (committed || owedCents <= 0) {
 		return i18n.T(ctx, i18n.KeyAdminStatusReadyToPick)
 	}
 	return StatusLabel(ctx, status)

@@ -321,7 +321,7 @@ func (s *Store) Overview(ctx context.Context, u User) (pages.AccountView, error)
 		o := &orders[i]
 		view.Orders = append(view.Orders, pages.AccountOrder{
 			Number:     o.OrderNumber,
-			Status:     o.FulfillmentStatus,
+			Status:     pages.FulfillmentStatus(o.FulfillmentStatus),
 			PlacedAt:   shoptime.Day(o.PlacedAt),
 			TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
 			LineCount:  o.LineCount,
@@ -385,7 +385,7 @@ func (s *Store) Order(ctx context.Context, u User, number string) (pages.Account
 	}
 
 	view := pages.AccountOrderView{
-		Number: o.OrderNumber, Status: o.FulfillmentStatus,
+		Number: o.OrderNumber, Status: pages.FulfillmentStatus(o.FulfillmentStatus),
 		PlacedAt:      shoptime.Minute(o.PlacedAt),
 		ShippingName:  o.ShippingMethodName,
 		SubtotalCents: o.SubtotalCents, ShippingCents: o.ShippingCents,

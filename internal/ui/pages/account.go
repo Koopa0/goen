@@ -13,7 +13,7 @@ import (
 // AccountOrder is one row of the order history.
 type AccountOrder struct {
 	Number     string
-	Status     string
+	Status     FulfillmentStatus
 	PlacedAt   string
 	TotalCents int64
 	LineCount  int64
@@ -31,30 +31,31 @@ func (o AccountOrder) LineCountText() string { return strconv.FormatInt(o.LineCo
 // 'pending' alone cannot say it: an order funded wholly from store credit or
 // zeroed by a coupon has no payment row, so it sits at pending and uncommitted
 // while owing nothing.
-func awaitingPayment(status string, committed bool, owedCents int64) bool {
-	return status == "pending" && !committed && owedCents > 0
+func awaitingPayment(status FulfillmentStatus, committed bool, owedCents int64) bool {
+	return status == FulfillmentPending && !committed && owedCents > 0
 }
 
 // StatusText is the fulfilment state in the chrome language.
 func (o AccountOrder) StatusText(ctx context.Context) string {
 	switch o.Status {
-	case "pending":
+	case FulfillmentPending:
 		if awaitingPayment(o.Status, o.Committed, o.OwedCents) {
 			return i18n.T(ctx, i18n.KeyStatusAwaitingPayment)
 		}
 		return i18n.T(ctx, i18n.KeyStatusPaid)
-	case "picking":
+	case FulfillmentPicking:
 		return i18n.T(ctx, i18n.KeyStatusPicking)
-	case "shipped":
+	case FulfillmentShipped:
 		return i18n.T(ctx, i18n.KeyStatusShipped)
-	case "delivered":
+	case FulfillmentDelivered:
 		return i18n.T(ctx, i18n.KeyStatusDelivered)
-	case "completed":
+	case FulfillmentCompleted:
 		return i18n.T(ctx, i18n.KeyStatusDone)
-	case "cancelled":
+	case FulfillmentCancelled:
 		return i18n.T(ctx, i18n.KeyStatusCalledOff)
 	default:
-		return o.Status
+		// A retired value from append-only history still has to render.
+		return string(o.Status)
 	}
 }
 
@@ -131,7 +132,7 @@ func (v *AccountView) HasNotice() bool { return v.Notice != "" }
 // AccountOrderView is one order, seen by its owner.
 type AccountOrderView struct {
 	Number         string
-	Status         string
+	Status         FulfillmentStatus
 	PlacedAt       string
 	ShippingName   string
 	Lines          []OrderLine
@@ -185,7 +186,7 @@ func (v *AccountOrderView) AwaitingPayment() bool {
 // CanRegisterWarranty reports whether to offer the form: both statuses that end a delivery.
 func (v *AccountOrderView) CanRegisterWarranty() bool {
 	switch v.Status {
-	case "delivered", "completed":
+	case FulfillmentDelivered, FulfillmentCompleted:
 		return true
 	default:
 		return false

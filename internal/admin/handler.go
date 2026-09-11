@@ -219,7 +219,7 @@ func (h *Handler) AdvanceOrder(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	sessions, err := h.store.Advance(r.Context(), number, r.PostFormValue("status"), staffID(r))
+	sessions, err := h.store.Advance(r.Context(), number, ParseStatus(r.PostFormValue("status")), staffID(r))
 	switch {
 	case err == nil:
 		h.closeSessions(r.Context(), number, sessions)

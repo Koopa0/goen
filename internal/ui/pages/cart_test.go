@@ -120,7 +120,7 @@ func TestCanCancelIsAboutFundingNotJustStatus(t *testing.T) {
 
 	for _, tt := range []struct {
 		name      string
-		status    string
+		status    FulfillmentStatus
 		committed bool
 		want      bool
 	}{
@@ -249,7 +249,7 @@ func TestTheOrderPageShowsTheDiscountAndWhy(t *testing.T) {
 func TestOnlyAnOrderThatOwesMoneyIsOfferedPayment(t *testing.T) {
 	tests := []struct {
 		name      string
-		status    string
+		status    FulfillmentStatus
 		committed bool
 		owed      int64
 		want      bool
@@ -334,7 +334,7 @@ func TestTheOrderNotFoundPageOffersAWayThrough(t *testing.T) {
 func TestADeliveredOrderLinksToItsWarrantyForm(t *testing.T) {
 	tests := []struct {
 		name   string
-		status string
+		status FulfillmentStatus
 		want   bool
 	}{
 		{name: "pending", status: "pending", want: false},

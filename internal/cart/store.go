@@ -897,7 +897,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 
 	view := pages.OrderView{
 		Number:       o.OrderNumber,
-		Status:       o.FulfillmentStatus,
+		Status:       pages.FulfillmentStatus(o.FulfillmentStatus),
 		Email:        o.Email,
 		ShippingName: o.ShippingMethodName,
 		Committed:    o.Committed,
