@@ -93,6 +93,24 @@ func beginReset(t *testing.T, s *account.Store, email string) string {
 	return token
 }
 
+// plantLiveResetToken writes an unused token without going through beginReset.
+// Issuing a replacement spends every earlier unused row, so a fixture that
+// needs two live siblings has to write those rows itself.
+func plantLiveResetToken(t *testing.T, userID string) string {
+	t.Helper()
+	token, err := account.NewToken()
+	if err != nil {
+		t.Fatalf("mint reset token: %v", err)
+	}
+	if _, err := pool.Exec(t.Context(), `
+		INSERT INTO password_reset_tokens (token_hash, user_id, expires_at)
+		VALUES ($1, $2, now() + interval '1 hour')`,
+		account.HashToken(token), uuid.MustParse(userID)); err != nil {
+		t.Fatalf("plant live reset token: %v", err)
+	}
+	return token
+}
+
 func requestVerification(t *testing.T, s *account.Store, userID, email string) string {
 	t.Helper()
 	if err := account.RequestVerification(t.Context(), s, userID, email); err != nil {
@@ -1985,10 +2003,10 @@ func TestAResetInvalidatesSiblingTokensAndSessions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start session: %v", err)
 	}
-	first := beginReset(t, s, "siblings@example.com")
-	second := beginReset(t, s, "siblings@example.com")
+	first := plantLiveResetToken(t, u.ID)
+	second := plantLiveResetToken(t, u.ID)
 	if first == second {
-		t.Fatal("two requests produced the same token")
+		t.Fatal("two planted tokens collided")
 	}
 
 	if err := s.CompleteReset(ctx, second, "the newly chosen password"); err != nil {
@@ -2093,6 +2111,58 @@ func TestConcurrentResetIssuanceLeavesOneLiveToken(t *testing.T) {
 	}
 	if accepted != 1 {
 		t.Fatalf("live tokens that completed = %d, want 1", accepted)
+	}
+}
+
+// TestConcurrentSiblingResetsSerializeOnTheAccount holds the user row until
+// both already-issued sibling links have reached it. Only one token may change
+// the password; that winner invalidates the sibling before the second request
+// can spend it.
+func TestConcurrentSiblingResetsSerializeOnTheAccount(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	u := register(t, s, "sibling-race-"+uuid.NewString()+"@example.com")
+	first := plantLiveResetToken(t, u.ID)
+	second := plantLiveResetToken(t, u.ID)
+
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin reset blocker: %v", err)
+	}
+	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err = blocker.Exec(ctx,
+		`SELECT id FROM users WHERE id = $1 FOR UPDATE`, uuid.MustParse(u.ID)); err != nil {
+		t.Fatalf("lock reset account: %v", err)
+	}
+
+	suffix := uuid.NewString()[:8]
+	firstName, secondName := "sibling-reset-a-"+suffix, "sibling-reset-b-"+suffix
+	firstStore := account.NewStore(accountStorePool(t, firstName))
+	secondStore := account.NewStore(accountStorePool(t, secondName))
+	firstDone, secondDone := make(chan error, 1), make(chan error, 1)
+	const firstPassword = "first sibling reset password"
+	const secondPassword = "second sibling reset password"
+	go func() { firstDone <- firstStore.CompleteReset(context.WithoutCancel(ctx), first, firstPassword) }()
+	go func() { secondDone <- secondStore.CompleteReset(context.WithoutCancel(ctx), second, secondPassword) }()
+	waitForAccountLock(t, firstName, firstDone)
+	waitForAccountLock(t, secondName, secondDone)
+
+	if err = blocker.Commit(ctx); err != nil {
+		t.Fatalf("release reset account: %v", err)
+	}
+	firstErr, secondErr := operationResult(t, firstDone), operationResult(t, secondDone)
+	oneSucceededAndOneWasInvalid := firstErr == nil && errors.Is(secondErr, account.ErrResetInvalid) ||
+		secondErr == nil && errors.Is(firstErr, account.ErrResetInvalid)
+	if !oneSucceededAndOneWasInvalid {
+		t.Fatalf("sibling resets = %v / %v, want one success and one invalid token",
+			firstErr, secondErr)
+	}
+	winnerPassword := firstPassword
+	if secondErr == nil {
+		winnerPassword = secondPassword
+	}
+	if _, err := s.Authenticate(ctx, u.Email, winnerPassword); err != nil {
+		t.Errorf("winning reset password does not authenticate: %v", err)
 	}
 }
 
