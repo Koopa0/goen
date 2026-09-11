@@ -28,6 +28,9 @@ var (
 	ErrTooSmall = errors.New("loyalty: that is below the minimum redemption")
 	// ErrNoAccount is a customer who has never held points or credit.
 	ErrNoAccount = errors.New("loyalty: no account")
+	// ErrInvalidOperation is a missing or unparseable redemption identity.
+	// Folding it into ErrNoAccount tells a funded account they have no points.
+	ErrInvalidOperation = errors.New("loyalty: invalid operation")
 )
 
 // CreditFor is what a number of points is worth, in cents.

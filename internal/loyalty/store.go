@@ -66,7 +66,7 @@ func (s *Store) Redeem(
 		return 0, ErrNoAccount
 	}
 	if operationID == uuid.Nil {
-		return 0, ErrNoAccount
+		return 0, ErrInvalidOperation
 	}
 
 	cents, err := s.q.RedeemPoints(ctx, db.RedeemPointsParams{
