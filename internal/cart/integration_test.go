@@ -22,10 +22,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -4844,17 +4846,18 @@ func TestASecondOrderKeepsTheFirstOnesGrantAlive(t *testing.T) {
 
 	first := placeUnpaidOrderFor(t, s, "twice@example.com")
 	firstCookie := placedCookie(t, s, first)
+	second := placeUnpaidOrderFor(t, s, "twice@example.com")
 
-	// Aged PAST the retention window: just inside it, the sweep spares the row
-	// either way and the case stays green with the refresh deleted.
+	retain := cart.GrantRetain.String()
+	// Just inside the window: close enough to expiry that sweep would drop the row
+	// without touch, but still live when RememberOrder restarts the clock.
 	if _, err := pool.Exec(ctx, `
-		UPDATE order_access_grants SET created_at = now() - $2::interval
-		WHERE order_id = (SELECT id FROM orders WHERE order_number = $1)`,
-		first, (cart.GrantRetain + time.Hour).String()); err != nil {
+		UPDATE order_access_grants
+		SET created_at = now() - $1::interval + interval '1 second'
+		WHERE order_id = (SELECT id FROM orders WHERE order_number = $2)`,
+		retain, first); err != nil {
 		t.Fatalf("age the first grant: %v", err)
 	}
-
-	second := placeUnpaidOrderFor(t, s, "twice@example.com")
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody)
 	r.AddCookie(firstCookie)
@@ -4889,6 +4892,126 @@ func TestASecondOrderKeepsTheFirstOnesGrantAlive(t *testing.T) {
 		t.Errorf("the browser that placed this order got %d for it, want 200 — its "+
 			"grant was swept while the cookie carrying it was still live, which is "+
 			"the state GrantRetain's own comment says must never happen", rec.Code)
+	}
+}
+
+// TestAStaleCarriedGrantStaysDeadAfterAnotherOrder. TouchOrderAccessGrants must
+// not revive a grant at or past GrantRetain; placing another order with the
+// stale token carried forward must leave the first order unreachable.
+func TestAStaleCarriedGrantStaysDeadAfterAnotherOrder(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil)
+
+	retain := cart.GrantRetain.String()
+
+	for _, tc := range []struct {
+		name   string
+		offset string
+	}{
+		{name: "exact_boundary", offset: "0"},
+		{name: "just_outside", offset: "-1 microsecond"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			first := placeUnpaidOrderFor(t, s, tc.name+"@example.com")
+			firstCookie := placedCookie(t, s, first)
+
+			if _, err := pool.Exec(ctx, `
+				UPDATE order_access_grants
+				SET created_at = now() - $1::interval + $2::interval
+				WHERE order_id = (SELECT id FROM orders WHERE order_number = $3)`,
+				retain, tc.offset, first); err != nil {
+				t.Fatalf("age the first grant: %v", err)
+			}
+
+			second := placeUnpaidOrderFor(t, s, tc.name+"@example.com")
+			w := httptest.NewRecorder()
+			r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", http.NoBody)
+			r.AddCookie(firstCookie)
+			if err := s.RememberOrder(ctx, w, r, second, false); err != nil {
+				t.Fatalf("remember the second order: %v", err)
+			}
+			var carried *http.Cookie
+			for _, c := range w.Result().Cookies() {
+				if c.Name == "goen_placed" {
+					carried = c
+				}
+			}
+			if carried == nil {
+				t.Fatal("the second order set no cookie")
+			}
+
+			req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+first, http.NoBody)
+			req.SetPathValue("number", first)
+			req.AddCookie(carried)
+			rec := httptest.NewRecorder()
+			h.OrderPage(rec, req)
+
+			if rec.Code != http.StatusNotFound {
+				t.Errorf("a stale carried grant reached the first order: status %d, want 404", rec.Code)
+			}
+			if strings.Contains(rec.Body.String(), tc.name+"@example.com") {
+				t.Error("a stale carried grant leaked the first order's email")
+			}
+		})
+	}
+}
+
+// TestGrantRetainBoundsOrderAccess. Order access uses the database clock and a
+// strict created_at > now() - retain. One transaction fixes now() across the
+// fixture timestamps and the lookup so the equality case cannot flake.
+func TestGrantRetainBoundsOrderAccess(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+	number := placeUnpaidOrderFor(t, s, "retain-bound@example.com")
+	cookie := placedCookie(t, s, number)
+	token := cookie.Value
+	if i := strings.IndexByte(token, '.'); i >= 0 {
+		token = token[:i]
+	}
+
+	retain := cart.GrantRetain.String()
+	retainParam := pgtype.Interval{
+		Microseconds: int64(cart.GrantRetain / time.Microsecond), Valid: true,
+	}
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	q := db.New(tx)
+
+	for _, tc := range []struct {
+		name   string
+		offset string
+		want   bool
+	}{
+		{name: "just_inside", offset: "1 microsecond", want: true},
+		{name: "exact_boundary", offset: "0", want: false},
+		{name: "just_outside", offset: "-1 microsecond", want: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := tx.Exec(ctx, `
+				UPDATE order_access_grants
+				SET created_at = now() - $1::interval + $2::interval
+				WHERE order_id = (SELECT id FROM orders WHERE order_number = $3)`,
+				retain, tc.offset, number); err != nil {
+				t.Fatalf("set grant age: %v", err)
+			}
+			ok, err := q.OrderAccessibleWith(ctx, db.OrderAccessibleWithParams{
+				OrderNumber: number,
+				Digests:     [][]byte{cart.HashToken(token)},
+				Retain:      retainParam,
+			})
+			if err != nil {
+				t.Fatalf("OrderAccessibleWith: %v", err)
+			}
+			if ok != tc.want {
+				t.Errorf("OrderAccessibleWith = %v, want %v", ok, tc.want)
+			}
+		})
 	}
 }
 

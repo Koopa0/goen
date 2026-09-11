@@ -443,10 +443,12 @@ ON CONFLICT (digest) DO NOTHING;
 
 -- The cookie is RE-ISSUED with a fresh MaxAge on every order, carrying older
 -- tokens forward, so their grants' retention clock restarts on the same event or
--- one dies under a live cookie. Scoped to the digests actually presented.
+-- one dies under a live cookie. Scoped to the digests actually presented and
+-- still inside GrantRetain: a copied stale token must not be revived here.
 -- name: TouchOrderAccessGrants :exec
 UPDATE order_access_grants SET created_at = now()
-WHERE digest = ANY(@digests::bytea[]);
+WHERE digest = ANY(@digests::bytea[])
+AND created_at > now() - @retain::interval;
 
 -- Hold the checkout's idempotency key for the length of this transaction. An
 -- advisory lock rather than an early INSERT, whose row would hold the key with
@@ -470,6 +472,7 @@ SELECT EXISTS (
     SELECT 1 FROM order_access_grants g
     JOIN orders o ON o.id = g.order_id
     WHERE o.order_number = @order_number::text AND g.digest = ANY(@digests::bytea[])
+    AND g.created_at > now() - @retain::interval
 );
 
 -- Every Checkout Session this order still has open at Stripe. 'requires_payment'
