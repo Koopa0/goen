@@ -11,6 +11,71 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
+func TestASplitRefundedEventWaitsUntilEverySourceSettled(t *testing.T) {
+	t.Parallel()
+	requestID := uuid.MustParse("018f0df6-57c0-7b31-9c13-b56a9e778f02")
+	tests := []struct {
+		name            string
+		facts           returnPayoutFacts
+		wantEvent       bool
+		wantSettled     bool
+		wantOutstanding bool
+	}{
+		{
+			name: "credit posted while the card is still pending",
+			facts: returnPayoutFacts{
+				ID: requestID, RefundableCents: 200000,
+				CardRefundCents: 140000, CreditRefundCents: 60000,
+				CreditPaidCents: 60000, HasAccount: true,
+			},
+			wantOutstanding: true,
+		},
+		{
+			name: "both sources settled and the timeline row is missing",
+			facts: returnPayoutFacts{
+				ID: requestID, RefundableCents: 200000,
+				CardRefundCents: 140000, CreditRefundCents: 60000,
+				CardPaidCents: 140000, CreditPaidCents: 60000, HasAccount: true,
+			},
+			wantEvent:       true,
+			wantSettled:     true,
+			wantOutstanding: true,
+		},
+		{
+			name: "credit-only refund settled without a timeline row",
+			facts: returnPayoutFacts{
+				ID: requestID, RefundableCents: 200000,
+				CreditRefundCents: 200000, CreditPaidCents: 200000, HasAccount: true,
+			},
+			wantEvent:       true,
+			wantSettled:     true,
+			wantOutstanding: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			position, err := tt.facts.position()
+			if err != nil {
+				t.Fatalf("position() = %v", err)
+			}
+			if position.EventOutstanding != tt.wantEvent {
+				t.Errorf("EventOutstanding = %t, want %t", position.EventOutstanding, tt.wantEvent)
+			}
+			if position.MoneySettled != tt.wantSettled {
+				t.Errorf("MoneySettled = %t, want %t", position.MoneySettled, tt.wantSettled)
+			}
+			item := pages.AdminReturn{}
+			if fillErr := fillReturnPayoutState("approved", tt.facts, &item); fillErr != nil {
+				t.Fatalf("fillReturnPayoutState() = %v", fillErr)
+			}
+			if item.PayoutOutstanding != tt.wantOutstanding {
+				t.Errorf("PayoutOutstanding = %t, want %t", item.PayoutOutstanding, tt.wantOutstanding)
+			}
+		})
+	}
+}
+
 func TestReturnPayoutDiagnosticRouting(t *testing.T) {
 	t.Parallel()
 	requestID := uuid.MustParse("018f0df6-57c0-7b31-9c13-b56a9e778f01")
