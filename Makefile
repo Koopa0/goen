@@ -232,9 +232,11 @@ check-layout:
 	@# anything in the check.
 	@CT=$$(cat .layout-chrome/cust-token); AT=$$(cat .layout-chrome/admin-token); \
 		U=$${GOEN_URL:-http://127.0.0.1:9700}; \
+		CREDIT_OP=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT gen_random_uuid()"); \
 		curl -s -o /dev/null -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
 			--data-urlencode 'email=layout-cust@goen.invalid' --data-urlencode 'amount=99999' \
-			--data-urlencode "reason=版面檢查用的退貨樣本 $$$$" $$U/admin/credit; \
+			--data-urlencode "reason=版面檢查用的退貨樣本 $$$$" \
+			--data-urlencode "operation_id=$$CREDIT_OP" $$U/admin/credit; \
 		VARIANT=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT pv.id FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE p.status = 'active' AND pv.is_active AND pv.stock_quantity > pv.safety_stock AND p.warranty_months IS NOT NULL LIMIT 1"); \
 		rm -f .layout-chrome/cust-cookies; \
 		curl -s -o /dev/null -c .layout-chrome/cust-cookies -b "goen_session=$$CT" \
