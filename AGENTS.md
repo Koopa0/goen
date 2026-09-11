@@ -29,8 +29,15 @@ says what goen is and how to build it; read it first.
    quoted. `make test-integration` if you touched a `.sql` file or
    `migrations/`. A scoped `go test ./internal/cart/` is worth reporting as
    what it is.
-5. No AI attribution trailer, in the commits or the description.
+5. Commits and GitHub text carry no agent identity. See below.
 6. Opening the pull request ends your work. Never merge.
+
+### Commit and GitHub text — no agent identity
+
+Do not put any of the following in commit messages, PR titles/bodies, or Issue/PR comments:
+
+- `Co-authored-by: Cursor Agent <…>` or any Cursor Co-authored-by trailer
+- Self-identification as Cursor / Cursor Agent / app/cursor / "written by Cursor"
 
 ## The gate
 
