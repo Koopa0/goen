@@ -504,7 +504,7 @@ func (i CheckoutInvoice) NeedsTaxID() bool { return i.Chosen().NeedsTaxID() }
 // OrderView is the confirmation page.
 type OrderView struct {
 	Number         string
-	Status         string
+	Status         FulfillmentStatus
 	Email          string
 	ShippingName   string
 	DeliveryTo     string
@@ -526,7 +526,7 @@ type OrderView struct {
 
 // CanCancel reports whether the customer may still call this order off.
 func (v *OrderView) CanCancel() bool {
-	return v.Status == "pending" && !v.Committed
+	return v.Status == FulfillmentPending && !v.Committed
 }
 
 // OrderMeta is the chrome view model for a placed order.
@@ -567,7 +567,7 @@ func (v *OrderView) Credit() string { return "-" + twd(v.CreditCents) }
 // CanRequestReturn reports whether the goods have left the warehouse.
 func (v *OrderView) CanRequestReturn() bool {
 	switch v.Status {
-	case "shipped", "delivered", "completed":
+	case FulfillmentShipped, FulfillmentDelivered, FulfillmentCompleted:
 		return true
 	default:
 		return false

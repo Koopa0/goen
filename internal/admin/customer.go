@@ -91,9 +91,10 @@ func (s *Store) Customer(ctx context.Context, id string, actor uuid.NullUUID) (
 	}
 	for i := range orders {
 		o := &orders[i]
+		fulfillment := pages.FulfillmentStatus(o.FulfillmentStatus)
 		view.Recent = append(view.Recent, pages.AdminOrderRow{
-			Number: o.OrderNumber, Status: o.FulfillmentStatus,
-			StatusText: FundedStatusLabel(ctx, o.FulfillmentStatus, o.Committed, o.OwedCents),
+			Number: o.OrderNumber, Status: fulfillment,
+			StatusText: FundedStatusLabel(ctx, fulfillment, o.Committed, o.OwedCents),
 			PlacedAt:   shoptime.Minute(o.PlacedAt),
 			TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
 		})
