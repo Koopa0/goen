@@ -19,6 +19,7 @@ import (
 
 // Store is the database side of the second factor.
 type Store struct {
+	pool   *pgxpool.Pool
 	q      *db.Queries
 	cipher *secretCipher
 }
@@ -28,7 +29,7 @@ func NewStore(pool *pgxpool.Pool, key []byte) *Store {
 	if pool == nil {
 		panic("twofactor: NewStore requires a pool")
 	}
-	return &Store{q: db.New(pool), cipher: newCipher(key)}
+	return &Store{pool: pool, q: db.New(pool), cipher: newCipher(key)}
 }
 
 // Enabled reports whether enrolment is possible in this deployment.
