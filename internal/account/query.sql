@@ -4,13 +4,15 @@ SELECT id, email, password_hash, full_name, role
 FROM users WHERE lower(email) = lower($1);
 
 -- A reset token and its outbox message are created while this lock is held.
--- erase_user takes FOR UPDATE on the same row, so either both reset records
--- commit first and erasure purges them, or erasure wins and this returns no row.
+-- FOR UPDATE serializes a replacement request against another issuance and
+-- against erase_user, so only one unused token remains, and either both reset
+-- records commit first and erasure purges them, or erasure wins and this
+-- returns no row.
 -- name: UserForPasswordReset :one
 SELECT id, email
 FROM users
 WHERE lower(email) = lower($1)
-FOR KEY SHARE;
+FOR UPDATE;
 
 -- name: UserByID :one
 SELECT id, email, full_name, phone, role, created_at,
@@ -84,7 +86,8 @@ UPDATE password_reset_tokens SET used_at = now()
 WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now()
 RETURNING user_id;
 
--- Somebody who asked three times leaves two more live links in their mailbox.
+-- A replacement link, a completed reset, or a verified mailbox must leave no
+-- unused token that could still spend.
 -- name: InvalidateResetTokens :exec
 UPDATE password_reset_tokens SET used_at = now()
 WHERE user_id = $1 AND used_at IS NULL;
