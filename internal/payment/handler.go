@@ -543,7 +543,7 @@ func (h *Handler) payableOrder(w http.ResponseWriter, r *http.Request, number st
 		return nil, false
 	}
 	// An open payment page on a cancelled order takes money for no goods.
-	if o.Fulfillment != "pending" && !o.Paid {
+	if o.Fulfillment != "pending" && !o.Paid && !o.FullyFunded() {
 		h.notice(w, r, http.StatusConflict,
 			i18n.T(r.Context(), i18n.KeyPayRefusedTitle),
 			i18n.T(r.Context(), i18n.KeyPayRefusedTitle),
