@@ -3396,12 +3396,13 @@ func TestTheWebhookRoutesEachEventToItsEffect(t *testing.T) {
 		slog.New(slog.DiscardHandler), false)
 
 	tests := []struct {
-		name       string
-		eventType  string
-		payStatus  string
-		apiVersion string
-		wantStatus string
-		wantPaid   bool
+		name             string
+		eventType        string
+		payStatus        string
+		apiVersion       string
+		wantStatus       string
+		wantPaid         bool
+		wantUnreconciled string
 	}{
 		{
 			name:      "an older-version paid checkout captures from its payload shape",
@@ -3414,10 +3415,12 @@ func TestTheWebhookRoutesEachEventToItsEffect(t *testing.T) {
 			payStatus: "paid", wantStatus: "succeeded", wantPaid: true,
 		},
 		{
-			// The alarm branch: money is in flight, so the row stays open.
-			name:      "a delayed method still in flight does neither",
-			eventType: "checkout.session.completed",
-			payStatus: "unpaid", wantStatus: "requires_payment",
+			// Money is in flight: the row stays open and the event is the alarm.
+			name:             "a delayed method still in flight does neither",
+			eventType:        "checkout.session.completed",
+			payStatus:        "unpaid",
+			wantStatus:       "requires_payment",
+			wantUnreconciled: "unsettled_session: ",
 		},
 		{
 			name:      "an expired session closes the payment row",
@@ -3481,9 +3484,9 @@ func TestTheWebhookRoutesEachEventToItsEffect(t *testing.T) {
 					"this event to the wrong branch, or to none", tt.eventType, paid, tt.wantPaid)
 			}
 
-			// Recorded whatever branch it took: that row is the idempotency. Every
-			// row in this table is either understood or deliberately ignored; none
-			// should be mistaken for an unreadable actionable event.
+			// Recorded whatever branch it took: that row is the idempotency.
+			// Unsettled completion is understood and still needs a person; the
+			// other understood or ignored rows must not look unreadable.
 			var seen int
 			var reason *string
 			if err := pool.QueryRow(ctx,
@@ -3494,10 +3497,128 @@ func TestTheWebhookRoutesEachEventToItsEffect(t *testing.T) {
 			if seen != 1 {
 				t.Errorf("the event was recorded %d times, want once", seen)
 			}
-			if reason != nil {
+			switch {
+			case tt.wantUnreconciled == "" && reason != nil:
 				t.Errorf("the understood/ignored event was marked unreconciled as %q", *reason)
+			case tt.wantUnreconciled != "" && (reason == nil || !strings.HasPrefix(*reason, tt.wantUnreconciled)):
+				t.Errorf("unreconciled = %v, want prefix %q", reason, tt.wantUnreconciled)
 			}
 		})
+	}
+}
+
+// TestAnUnsettledCompletedSessionIsRecordedForAPerson holds the difference
+// between classifying a delayed-method completion and leaving a person
+// something to act on. The payment stays open so a later
+// async_payment_succeeded can still capture through the existing door.
+func TestAnUnsettledCompletedSessionIsRecordedForAPerson(t *testing.T) {
+	ctx := t.Context()
+	s := payment.NewStore(pool)
+	var logs bytes.Buffer
+	h := payment.NewHandler(s, enabledGateway(t), alwaysPlacedHere{},
+		slog.New(slog.NewTextHandler(&logs, nil)), false)
+
+	number, _ := order(t, 67000)
+	session := "cs_unsettled_" + uuid.NewString()[:12]
+	if err := s.OpenPayment(ctx, number, session, 67000); err != nil {
+		t.Fatalf("open the known payment: %v", err)
+	}
+	eventID := "evt_" + uuid.NewString()[:12]
+	body, header := signed(t, sessionEvent(eventID, session, "unpaid", 67000))
+
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		"/webhooks/stripe", bytes.NewReader(body))
+	req.Header.Set("Stripe-Signature", header)
+	w := httptest.NewRecorder()
+	h.Webhook(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("Webhook() status = %d, want 200 — Stripe must not retry a session that cannot settle here", w.Code)
+	}
+
+	var processedAt *time.Time
+	var reason *string
+	var objectRef string
+	if err := pool.QueryRow(ctx, `
+		SELECT processed_at, unreconciled, coalesce(object_ref, '')
+		FROM payment_webhook_events
+		WHERE provider = 'stripe' AND event_id = $1`, eventID).
+		Scan(&processedAt, &reason, &objectRef); err != nil {
+		t.Fatalf("read unsettled event: %v", err)
+	}
+	if processedAt == nil {
+		t.Error("the unsettled event was not marked processed, so Stripe will retry identical bytes")
+	}
+	if reason == nil || !strings.HasPrefix(*reason, "unsettled_session: ") {
+		t.Fatalf("unreconciled = %v, want durable unsettled_session cause", reason)
+	}
+	if objectRef != session {
+		t.Errorf("object_ref = %q, want the known session %q", objectRef, session)
+	}
+
+	backOffice := admin.NewStore(pool, admin.NewRefunder(""), nil, nil)
+	health, err := backOffice.WorkerHealth(
+		ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)),
+	)
+	if err != nil {
+		t.Fatalf("read health: %v", err)
+	}
+	var listed bool
+	for _, event := range health.UnreconciledEvents {
+		if event.EventID == eventID && event.Ref == session {
+			listed = true
+			break
+		}
+	}
+	if !listed {
+		t.Fatalf("health does not list unsettled session %q", session)
+	}
+
+	var paymentStatus string
+	var captured *int64
+	if err := pool.QueryRow(ctx, `
+		SELECT status, captured_amount_cents FROM payments WHERE provider_ref = $1`, session).
+		Scan(&paymentStatus, &captured); err != nil {
+		t.Fatalf("read open payment: %v", err)
+	}
+	if paymentStatus != "requires_payment" || captured != nil {
+		t.Errorf("unsettled completion left payment=%q captured=%v, want requires_payment/NULL",
+			paymentStatus, captured)
+	}
+	if output := logs.String(); !strings.Contains(output, "level=ERROR") ||
+		!strings.Contains(output, "delayed payment method") {
+		t.Errorf("unsettled event log = %q, want ERROR naming the delayed method", output)
+	}
+
+	clearedID := "evt_" + uuid.NewString()[:12]
+	clearedBody, clearedHeader := signed(t, typed(sessionEvent(clearedID, session, "paid", 67000),
+		"checkout.session.async_payment_succeeded"))
+	clearedReq := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		"/webhooks/stripe", bytes.NewReader(clearedBody))
+	clearedReq.Header.Set("Stripe-Signature", clearedHeader)
+	cleared := httptest.NewRecorder()
+	h.Webhook(cleared, clearedReq)
+	if cleared.Code != http.StatusOK {
+		t.Fatalf("async_payment_succeeded status = %d, want 200", cleared.Code)
+	}
+	var clearedStatus string
+	var clearedCaptured *int64
+	if err := pool.QueryRow(ctx, `
+		SELECT status, captured_amount_cents FROM payments WHERE provider_ref = $1`, session).
+		Scan(&clearedStatus, &clearedCaptured); err != nil {
+		t.Fatalf("read captured payment: %v", err)
+	}
+	if clearedStatus != "succeeded" || clearedCaptured == nil || *clearedCaptured != 67000 {
+		t.Errorf("after async_payment_succeeded payment=%q captured=%v, want succeeded/67000",
+			clearedStatus, clearedCaptured)
+	}
+	var stillFlagged *string
+	if err := pool.QueryRow(ctx,
+		`SELECT unreconciled FROM payment_webhook_events WHERE event_id = $1`,
+		eventID).Scan(&stillFlagged); err != nil {
+		t.Fatalf("reread unsettled event: %v", err)
+	}
+	if stillFlagged == nil || *stillFlagged != *reason {
+		t.Errorf("later capture rewrote the unsettled alarm from %v to %v", reason, stillFlagged)
 	}
 }
 
