@@ -77,6 +77,10 @@ type OrderPlaced struct {
 	Email       string `json:"email"`
 	Name        string `json:"name"`
 	TotalCents  int64  `json:"total_cents"`
+	// OwedCents is what is still payable after store credit. A missing
+	// field (already-queued rows) falls back to TotalCents so an in-flight
+	// letter does not flip to the funded copy.
+	OwedCents *int64 `json:"owed_cents,omitempty"`
 }
 
 // SendOrderPlaced sends the confirmation.
@@ -88,13 +92,25 @@ func (n Notifier) SendOrderPlaced(ctx context.Context, p *OrderPlaced) error {
 	}
 
 	ctx = n.locale(ctx, p.Locale)
+	owed := p.TotalCents
+	if p.OwedCents != nil {
+		owed = *p.OwedCents
+	}
+	body := placedLetterBody(ctx, p.OrderNumber, owed, n.orderURL(p.OrderNumber))
 	return n.sender.Send(ctx, &Message{
 		To:      p.Email,
 		Subject: fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPlacedSubject), p.OrderNumber),
-		Body: n.letter(ctx, p.Name, fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPlacedBody),
-			p.OrderNumber, twd(p.TotalCents), n.orderURL(p.OrderNumber))+
-			n.statutoryDisclosure(ctx)),
+		Body:    n.letter(ctx, p.Name, body+n.statutoryDisclosure(ctx)),
 	})
+}
+
+// placedLetterBody quotes the amount still owed, not the order total. A
+// credit-funded order has nothing to collect.
+func placedLetterBody(ctx context.Context, number string, owedCents int64, orderURL string) string {
+	if owedCents == 0 {
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPlacedFundedBody), number, orderURL)
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyMailPlacedBody), number, twd(owedCents), orderURL)
 }
 
 // twd formats cents through the same renderer the page uses, so a letter and
