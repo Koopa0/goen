@@ -5,6 +5,8 @@ var (
 
 	KeyAuditNewsletterSend = key("audit.newsletter.send", Message{ZhHant: "寄送電子報", En: "Send newsletter"})
 
+	KeyAuditNewsletterCompose = key("audit.newsletter.compose", Message{ZhHant: "撰寫電子報", En: "Compose newsletter"})
+
 	KeyAuditOrderShip = key("audit.order.ship", Message{ZhHant: "出貨", En: "Ship order"})
 
 	KeyAuditOrderAdvance = key("audit.order.advance", Message{ZhHant: "訂單狀態", En: "Order status"})

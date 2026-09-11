@@ -27,13 +27,15 @@ const (
 // ErrAlreadySent is an issue somebody is trying to send twice.
 var ErrAlreadySent = errors.New("newsletter: that issue has already been sent")
 
-// ActionSend is what a send is called in audit_events. It lives here rather than
-// beside internal/admin's other actions because internal/admin imports this
-// package.
-const ActionSend = "newsletter.send"
+// Action names live here rather than beside internal/admin's other actions
+// because internal/admin imports this package.
+const (
+	ActionSend    = "newsletter.send"
+	ActionCompose = "newsletter.compose"
+)
 
-// ErrNoActor is a send with nobody to attribute it to.
-var ErrNoActor = errors.New("newsletter: a send needs a staff member to attribute it to")
+// ErrNoActor is a compose or send with nobody to attribute it to.
+var ErrNoActor = errors.New("newsletter: a staff write needs a staff member to attribute it to")
 
 // ErrNoSuchIssue is an issue id that matches nothing.
 var ErrNoSuchIssue = errors.New("newsletter: no such issue")
@@ -67,16 +69,50 @@ func ValidateIssue(subject, body string) map[string]i18n.Key {
 	return errs
 }
 
-// Compose writes a draft and returns its id. It sends nothing.
-func (s *Store) Compose(ctx context.Context, subject, body string) (string, error) {
+// Compose writes a draft and the staff audit row that names who wrote it.
+// One transaction: a draft with no trail, or a trail with no draft, cannot
+// commit. The subject travels and the body does not — audit_events is
+// append-only and erase_user does not reach it.
+func (s *Store) Compose(ctx context.Context, subject, body string, actor uuid.NullUUID) (string, error) {
 	if len(ValidateIssue(subject, body)) > 0 {
 		return "", errors.New("composing an issue: refused by validation")
 	}
-	id, err := s.q.CreateNewsletterIssue(ctx, db.CreateNewsletterIssueParams{
-		Subject: strings.TrimSpace(subject), Body: strings.TrimSpace(body),
+	if !actor.Valid {
+		return "", ErrNoActor
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return "", fmt.Errorf("beginning newsletter compose: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	q := db.New(tx)
+
+	subject = strings.TrimSpace(subject)
+	body = strings.TrimSpace(body)
+	id, err := q.CreateNewsletterIssue(ctx, db.CreateNewsletterIssueParams{
+		Subject: subject, Body: body,
 	})
 	if err != nil {
 		return "", fmt.Errorf("composing an issue: %w", err)
+	}
+
+	after, err := json.Marshal(map[string]any{
+		"issue_id": id.String(), "subject": subject,
+	})
+	if err != nil {
+		return "", fmt.Errorf("encoding the audit row: %w", err)
+	}
+	// RecordNewsletterSend is the granted record_audit_event wrapper; compose
+	// and send share it so a new query does not widen the admin grant.
+	if err := q.RecordNewsletterSend(ctx, db.RecordNewsletterSendParams{
+		Actor: actor, Action: ActionCompose, IssueID: id, After: after,
+	}); err != nil {
+		return "", fmt.Errorf("recording the compose: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return "", fmt.Errorf("committing newsletter compose: %w", err)
 	}
 	return id.String(), nil
 }
