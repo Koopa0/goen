@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -218,18 +219,18 @@ func parseBoundedInt(s string, ceiling int32) (int32, bool) {
 
 // ReturnStatusLabel is a return request's state in the chrome language. The
 // states are return_requests_status_known's CHECK.
-func ReturnStatusLabel(ctx context.Context, s string) string {
+func ReturnStatusLabel(ctx context.Context, s returns.ReturnStatus) string {
 	switch s {
-	case "requested":
+	case returns.ReturnRequested:
 		return i18n.T(ctx, i18n.KeyAdminReturnRequested)
-	case "approved":
+	case returns.ReturnApproved:
 		return i18n.T(ctx, i18n.KeyAdminReturnApproved)
-	case "rejected":
+	case returns.ReturnRejected:
 		return i18n.T(ctx, i18n.KeyAdminReturnRejected)
-	case "completed":
+	case returns.ReturnCompleted:
 		return i18n.T(ctx, i18n.KeyAdminReturnCompleted)
 	default:
-		panic("admin: no label for return status " + s)
+		return string(s)
 	}
 }
 

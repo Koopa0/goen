@@ -8,6 +8,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 
+	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -66,7 +67,7 @@ func TestASplitRefundedEventWaitsUntilEverySourceSettled(t *testing.T) {
 				t.Errorf("MoneySettled = %t, want %t", position.MoneySettled, tt.wantSettled)
 			}
 			item := pages.AdminReturn{}
-			if fillErr := fillReturnPayoutState("approved", tt.facts, &item); fillErr != nil {
+			if fillErr := fillReturnPayoutState(returns.ReturnApproved, tt.facts, &item); fillErr != nil {
 				t.Fatalf("fillReturnPayoutState() = %v", fillErr)
 			}
 			if item.PayoutOutstanding != tt.wantOutstanding {
@@ -119,7 +120,7 @@ func TestReturnPayoutDiagnosticRouting(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			item := pages.AdminReturn{}
-			err := fillReturnPayoutState("approved", tt.facts, &item)
+			err := fillReturnPayoutState(returns.ReturnApproved, tt.facts, &item)
 			if got := errors.Is(err, ErrRefused); got != tt.wantErr {
 				t.Fatalf("fillReturnPayoutState() ErrRefused = %t, want %t; error = %v",
 					got, tt.wantErr, err)

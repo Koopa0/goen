@@ -52,6 +52,36 @@ type Request struct {
 	Lines map[string]int32
 }
 
+// ReturnStatus is return_requests.status, as return_requests_status_known spells it.
+type ReturnStatus string
+
+// The four states return_requests_status_known allows.
+const (
+	ReturnRequested ReturnStatus = "requested"
+	ReturnApproved  ReturnStatus = "approved"
+	ReturnRejected  ReturnStatus = "rejected"
+	ReturnCompleted ReturnStatus = "completed"
+)
+
+var knownReturnStatuses = [...]ReturnStatus{
+	ReturnRequested,
+	ReturnApproved,
+	ReturnRejected,
+	ReturnCompleted,
+}
+
+// ParseDecision reads an approve/reject choice from a form. Only the two
+// decision verbs are accepted; lifecycle states and typos are refused.
+func ParseDecision(s string) (ReturnStatus, bool) {
+	d := ReturnStatus(s)
+	switch d {
+	case ReturnApproved, ReturnRejected:
+		return d, true
+	default:
+		return "", false
+	}
+}
+
 // Validate refuses what the form should never have submitted. A blank reason is
 // legal: Consumer Protection Act §19 I lets a consumer rescind inside seven days
 // without giving one, and §19 V voids any agreement otherwise.
@@ -80,17 +110,17 @@ func (r *Request) Validate() error {
 }
 
 // StatusLabel is a return's state in the chrome language.
-func StatusLabel(ctx context.Context, s string) string {
+func StatusLabel(ctx context.Context, s ReturnStatus) string {
 	switch s {
-	case "requested":
+	case ReturnRequested:
 		return i18n.T(ctx, i18n.KeyReturnStateOpen)
-	case "approved":
+	case ReturnApproved:
 		return i18n.T(ctx, i18n.KeyReturnStateApproved)
-	case "rejected":
+	case ReturnRejected:
 		return i18n.T(ctx, i18n.KeyReturnStateRefused)
-	case "completed":
+	case ReturnCompleted:
 		return i18n.T(ctx, i18n.KeyReturnStateDone)
 	default:
-		panic("returns: no label for status " + s)
+		return string(s)
 	}
 }

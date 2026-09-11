@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 func TestParseWantedDistinguishesQuantityFromMalformedInput(t *testing.T) {
@@ -18,5 +20,48 @@ func TestParseWantedDistinguishesQuantityFromMalformedInput(t *testing.T) {
 	if _, err := parseWanted(uuid.NewString(), 1, allowed); !errors.Is(err, ErrInvalid) ||
 		errors.Is(err, ErrTooMany) {
 		t.Fatalf("unknown line = %v, want only ErrInvalid", err)
+	}
+}
+
+// TestEveryKnownReturnStatusHasACustomerLabel holds the closed set together:
+// a status with no catalogue entry must render as itself, never panic.
+func TestEveryKnownReturnStatusHasACustomerLabel(t *testing.T) {
+	t.Parallel()
+
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		for _, status := range knownReturnStatuses {
+			label := StatusLabel(ctx, status)
+			if label == "" || label == string(status) {
+				t.Errorf("StatusLabel(%q) in %s = %q, want a catalogue label",
+					status, locale, label)
+			}
+		}
+	}
+}
+
+func TestParseDecisionRejectsTypos(t *testing.T) {
+	t.Parallel()
+
+	for _, typo := range []string{"approveed", "rejectted", "requested", "completed", ""} {
+		if _, ok := ParseDecision(typo); ok {
+			t.Errorf("ParseDecision(%q) accepted a non-decision", typo)
+		}
+	}
+	for _, decision := range []ReturnStatus{ReturnApproved, ReturnRejected} {
+		got, ok := ParseDecision(string(decision))
+		if !ok || got != decision {
+			t.Errorf("ParseDecision(%q) = %q/%t, want %q/true", decision, got, ok, decision)
+		}
+	}
+}
+
+func TestUnknownReturnStatusRendersAsItself(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	unknown := ReturnStatus("legacy_foo")
+	if got := StatusLabel(ctx, unknown); got != "legacy_foo" {
+		t.Fatalf("StatusLabel(%q) = %q, want the raw status", unknown, got)
 	}
 }
