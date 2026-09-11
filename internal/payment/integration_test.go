@@ -2089,6 +2089,7 @@ func TestFundingCompleteSideEffectsOnce(t *testing.T) {
 			name:       "card-only",
 			wantPoints: 5,
 			run: func(t *testing.T) (string, uuid.UUID, func()) {
+				t.Helper()
 				userID := newCustomer(t)
 				number, orderID := ownedOrder(t, userID, cents)
 				s := payment.NewStore(pool)
@@ -2108,6 +2109,7 @@ func TestFundingCompleteSideEffectsOnce(t *testing.T) {
 			name:       "credit-only",
 			wantPoints: 5,
 			run: func(t *testing.T) (string, uuid.UUID, func()) {
+				t.Helper()
 				userID := creditedUser(t, cents)
 				number, orderID := ownedOrder(t, userID, cents)
 				spendCreditOnOrder(t, orderID, -cents)
@@ -2121,6 +2123,7 @@ func TestFundingCompleteSideEffectsOnce(t *testing.T) {
 			name:       "coupon-to-zero",
 			wantPoints: 0,
 			run: func(t *testing.T) (string, uuid.UUID, func()) {
+				t.Helper()
 				userID := newCustomer(t)
 				number, orderID := ownedOrder(t, userID, cents)
 				redeemCouponCovering(t, orderID, userID, cents)
@@ -2134,6 +2137,7 @@ func TestFundingCompleteSideEffectsOnce(t *testing.T) {
 			name:       "split funding",
 			wantPoints: 5,
 			run: func(t *testing.T) (string, uuid.UUID, func()) {
+				t.Helper()
 				const credit, card = int64(20000), int64(30000)
 				userID := creditedUser(t, credit)
 				number, orderID := ownedOrder(t, userID, cents)
