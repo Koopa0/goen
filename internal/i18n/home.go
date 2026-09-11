@@ -37,10 +37,12 @@ var (
 			"door for free, and you can register and check your cover online.",
 	})
 
+	// %s is the lowest fee, interpolated from shipping_method_versions: a literal
+	// here is a promise that stops agreeing with what checkout charges.
 	KeyTrustShippingBody = key("home.trust.shipping", Message{
-		ZhHant: "宅配與超商取貨皆適用;未達門檻運費 NT$60 起。",
+		ZhHant: "宅配與超商取貨皆適用;未達門檻運費 %s 起。",
 		En: "Home delivery and store pickup alike. Below the threshold, delivery is from " +
-			"NT$60.",
+			"%s.",
 	})
 
 	KeyTrustReturnsBody = key("home.trust.returns", Message{
