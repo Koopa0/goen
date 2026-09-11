@@ -1,28 +1,15 @@
 # goen
 
-A full-stack e-commerce application written in Go.
+[繁體中文](README.zh-TW.md)
 
-goen serves the storefront, the customer account and the back office from a
-single binary: `net/http` for routing, [templ](https://templ.guide) for
-server-rendered pages, [htmx](https://htmx.org) for fragment swaps, and
-PostgreSQL for the data. There is no front-end framework and no JavaScript
-runtime — the stack is Go from the request to the row.
+goen is one Go binary for a Taiwanese 3C shop. It serves the storefront,
+customer accounts and the back office over PostgreSQL, takes cards at Stripe,
+and files 統一發票 through 綠界. It is a demonstration and reference project,
+not a hosted service.
 
-It is built for a Taiwanese 3C shop, so it carries what that means in practice:
-Traditional Chinese and English throughout, 超商取貨 alongside home delivery,
-離島 surcharges, 統一發票 filing, and the Consumer Protection Act's rescission
-window enforced in the schema rather than in a policy page.
+![The goen storefront home page in Traditional Chinese: navigation, hero, category tiles and recommended products](assets/readme/storefront.png)
 
-## Status
-
-The shop works end to end: browse, compare, cart, guest or account checkout,
-pay at Stripe, track the parcel, request a return, register a warranty — and run
-all of it from `/admin` behind a second factor.
-
-Observability, delayed payment methods and a search projection for short CJK
-queries are not built. Each is a decision rather than an omission.
-
-## Getting started
+## Run it
 
 You need Go 1.27, Docker, and `psql`.
 
@@ -37,11 +24,72 @@ make run          # http://127.0.0.1:9700
 Stripe is optional. With no key the site still sells and the payment page says
 so.
 
+## What holds
+
+Four boundaries are enforced in the tree, not by convention:
+
+- **Every mutation is a plain form.** A write is `<form method="post">`, answers
+  `303 See Other` so a reload cannot resubmit, and re-renders at `422` with the
+  submitted values intact. htmx changes what comes back, never whether the write
+  happens.
+- **The database enforces what it can.** 316 `CHECK` constraints, 90 foreign keys,
+  75 unique indexes and 46 rule triggers, with money and stock writable only
+  through `SECURITY DEFINER` functions the application role may execute but not
+  bypass. The conformance suite derives what it must cover from the system
+  catalogue, so a constraint added without a test fails the build.
+- **Chrome follows the reader; content follows the shop.** Navigation, labels
+  and validation are translated. Product copy is translated only where the shop
+  has actually written it.
+- **The design system is vendored.** `assets/css/ds/` is fixed upstream;
+  `assets/css/app/app.css` owns page composition only.
+
+Pages are server-rendered HTML. [htmx](https://htmx.org) and a small native
+`assets/js/goen.js` enhance them. There is no client framework, no Node runtime,
+and no JavaScript build.
+
+## Status
+
+A local clone can browse, compare, cart, check out as a guest or an account,
+open the payment page, request a return, register a warranty, and run `/admin`
+behind a second factor.
+
+Card capture, 統一發票 filing and outbound mail are implemented against their
+providers. They have not been accepted against live Stripe, 綠界 or SMTP
+endpoints ([#40](https://github.com/Koopa0/goen/issues/40)).
+
+The advertised 7-day and 14-day return windows live in policy copy. The return
+decision path does not yet enforce them
+([#50](https://github.com/Koopa0/goen/issues/50)).
+
+Observability, delayed payment methods and a search projection for short CJK
+queries are not built. Each is a decision rather than an omission.
+
+## Architecture
+
+The project is organised by feature. `cmd/goen` is wiring;
+`internal/<feature>` holds a feature's types, handlers, queries and tests
+together. There is no `services`, `repositories` or `models` directory.
+
+[CONTRIBUTING.md](CONTRIBUTING.md) has the four boundaries, the gate, and how
+to change generated `internal/db` and `*_templ.go` files.
+
+## Verify
+
+```sh
+make verify       # format, generate, vet, lint, build and race tests
+make verify-all   # verify, plus the database suite and govulncheck
+make test-integration
+make check-layout # layout and accessibility in a real browser
+```
+
+`make verify` needs `golangci-lint` and `squawk` on `PATH`; every other tool is
+pinned in the `Makefile` and fetched by `go run`. The integration suite needs
+Docker. `make check-layout` needs Chrome and a running server.
+
 ## Configuration
 
-Configuration is environment-only; `.env.example` documents every variable.
-`GOEN_DATABASE_URL` is required and has no default, so a missing one stops the
-binary rather than letting it reach some other database.
+Configuration is environment-only; [`.env.example`](.env.example) documents
+every variable. `GOEN_DATABASE_URL` is required and has no default.
 
 Four combinations refuse to start, each because the alternative is worse than
 not running:
@@ -53,46 +101,12 @@ not running:
 | `GOEN_SMTP_ADDR` | empty while cookies are Secure — resets would be marked sent and never leave |
 | `GOEN_BASE_URL` | not a root HTTPS origin in a production posture — a cleartext reset link leaks its token |
 
-## Development
-
-```sh
-make verify       # format, generate, vet, lint, build and race tests
-make verify-all   # verify, plus the database suite and govulncheck
-make test-integration
-make check-layout # layout and accessibility in a real browser
-```
-
-`make verify` needs `golangci-lint` and `squawk` on `PATH`; every other tool is
-pinned in the `Makefile` and fetched by `go run`. The integration suite runs
-against a real PostgreSQL through testcontainers and needs Docker.
-
-## Design
-
-The project is organised by feature. `cmd/goen` is wiring, `internal/<feature>`
-holds a feature's types, handlers, queries and tests together, and there is no
-`services`, `repositories` or `models` directory.
-
-Three decisions shape most of the code:
-
-- **Every mutation is a plain form that works with scripting off.** It answers
-  `303 See Other` so a reload cannot resubmit, and re-renders at `422` with the
-  submitted values intact. htmx only changes what comes back, never whether the
-  write happens.
-- **The database enforces what it can.** 316 `CHECK` constraints, 90 foreign
-  keys, 75 unique indexes and 46 rule triggers, with money and stock writable
-  only through `SECURITY DEFINER` functions the application role may execute but
-  not bypass. The conformance suite derives what it must cover from the system
-  catalogue, so a constraint added without a test fails the build.
-- **Chrome follows the reader; content follows the shop.** Navigation, labels
-  and validation are translated. Product copy is translated only where the shop
-  has actually written it, and the site says which is which.
-
 ## Contributing
 
-Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) has
-the build, the gate, and the four boundaries every change stays inside.
-Security problems go through the [private advisory form](https://github.com/Koopa0/goen/security/advisories/new),
-never a public issue.
+Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) is
+the contributor manual. Security problems go through the
+[private advisory form](https://github.com/Koopa0/goen/security/advisories/new),
+never a public issue. See [SECURITY.md](.github/SECURITY.md).
 
 ## License
 
