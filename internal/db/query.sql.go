@@ -7111,18 +7111,20 @@ SELECT EXISTS (
     SELECT 1 FROM order_access_grants g
     JOIN orders o ON o.id = g.order_id
     WHERE o.order_number = $1::text AND g.digest = ANY($2::bytea[])
+    AND g.created_at > now() - $3::interval
 )
 `
 
 type OrderAccessibleWithParams struct {
 	OrderNumber string
 	Digests     [][]byte
+	Retain      pgtype.Interval
 }
 
 // Compared IN the database and answered as a boolean: which token matched is not
 // something any page needs to disclose.
 func (q *Queries) OrderAccessibleWith(ctx context.Context, arg OrderAccessibleWithParams) (bool, error) {
-	row := q.db.QueryRow(ctx, orderAccessibleWith, arg.OrderNumber, arg.Digests)
+	row := q.db.QueryRow(ctx, orderAccessibleWith, arg.OrderNumber, arg.Digests, arg.Retain)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
@@ -11944,13 +11946,20 @@ func (q *Queries) TouchLastLogin(ctx context.Context, id uuid.UUID) error {
 const touchOrderAccessGrants = `-- name: TouchOrderAccessGrants :exec
 UPDATE order_access_grants SET created_at = now()
 WHERE digest = ANY($1::bytea[])
+AND created_at > now() - $2::interval
 `
+
+type TouchOrderAccessGrantsParams struct {
+	Digests [][]byte
+	Retain  pgtype.Interval
+}
 
 // The cookie is RE-ISSUED with a fresh MaxAge on every order, carrying older
 // tokens forward, so their grants' retention clock restarts on the same event or
-// one dies under a live cookie. Scoped to the digests actually presented.
-func (q *Queries) TouchOrderAccessGrants(ctx context.Context, digests [][]byte) error {
-	_, err := q.db.Exec(ctx, touchOrderAccessGrants, digests)
+// one dies under a live cookie. Scoped to the digests actually presented and
+// still inside GrantRetain: a copied stale token must not be revived here.
+func (q *Queries) TouchOrderAccessGrants(ctx context.Context, arg TouchOrderAccessGrantsParams) error {
+	_, err := q.db.Exec(ctx, touchOrderAccessGrants, arg.Digests, arg.Retain)
 	return err
 }
 

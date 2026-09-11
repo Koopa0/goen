@@ -21,6 +21,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/db"
@@ -317,7 +318,12 @@ func (s *Store) RememberOrder(
 		for _, t := range carried {
 			digests = append(digests, HashToken(t))
 		}
-		if err := s.q.TouchOrderAccessGrants(ctx, digests); err != nil {
+		if err := s.q.TouchOrderAccessGrants(ctx, db.TouchOrderAccessGrantsParams{
+			Digests: digests,
+			Retain: pgtype.Interval{
+				Microseconds: int64(GrantRetain / time.Microsecond), Valid: true,
+			},
+		}); err != nil {
 			touchErr = fmt.Errorf("refresh carried order access grants: %w", err)
 		}
 	}
@@ -376,6 +382,9 @@ func (s *Store) PlacedHere(ctx context.Context, r *http.Request, number string, 
 	}
 	ok, err := s.q.OrderAccessibleWith(ctx, db.OrderAccessibleWithParams{
 		OrderNumber: number, Digests: digests,
+		Retain: pgtype.Interval{
+			Microseconds: int64(GrantRetain / time.Microsecond), Valid: true,
+		},
 	})
 	if err != nil {
 		return false
