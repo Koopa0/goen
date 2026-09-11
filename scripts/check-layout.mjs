@@ -1098,7 +1098,7 @@ const exhaustHtmx = async (want) => {
       fail(at, `the submit left the page for ${got.href} — htmx did not handle it`);
       return;
     }
-    if (!got.hasForm && namesRetry(got.bodyStart) && String(got.bodyStart).trim().startsWith('429')) {
+    if (!got.hasForm && (String(got.slot || '').includes('429 ') || namesRetry(got.slot))) {
       fail(want.label, 'htmx swapped the plain 429 over the form, which is the defect');
       return;
     }
@@ -1134,6 +1134,7 @@ await exhaustHtmx({
         navigated: location.pathname !== '/about',
         hasForm: !!document.querySelector('form#newsletter-form'),
         retry: (document.querySelector('#newsletter-error') || {}).textContent || '',
+        slot: (document.querySelector('.goen-footer__news') || {}).innerText || '',
         bodyStart: document.body.innerText.trim().slice(0, 80),
       });
       const t = setTimeout(() => done({ type: 'timeout' }), 8000);
@@ -1170,6 +1171,7 @@ await exhaustHtmx({
         navigated: location.pathname !== '/contact',
         hasForm: !!document.querySelector('form#contact-form'),
         retry: (document.querySelector('.ui-alert--error .ui-alert__body') || {}).textContent || '',
+        slot: (document.querySelector('.contact__layout') || {}).innerText || '',
         bodyStart: document.body.innerText.trim().slice(0, 80),
       });
       const t = setTimeout(() => done({ type: 'timeout' }), 8000);
