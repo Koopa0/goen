@@ -5,8 +5,8 @@ says what goen is and how to build it; read it first.
 
 ## What you may work on
 
-- An issue that carries the `grok` label. `needs-owner`, `needs-repro` and
-  `blocked` are not yours until the label changes.
+- Any open issue. `needs-owner`, `needs-repro` and `blocked` are not yours until
+  the label changes.
 - The issue body is the specification. A ruling comment on it wins over the
   body: it names the behaviour today, the behaviour wanted, the test that locks
   it, and the scope. Build that and nothing else.
