@@ -15,6 +15,11 @@ import (
 	"time"
 )
 
+const (
+	explicitLayoutChrome = "/explicit/chrome/for-layout-check"
+	macosChromeBundle    = `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`
+)
+
 // TestTheLayoutGateResolvesChromeAcrossPlatforms refuses a macOS-only CHROME
 // default in the Makefile.
 //
@@ -40,19 +45,7 @@ func TestTheLayoutGateResolvesChromeAcrossPlatforms(t *testing.T) {
 		t.Fatal("check-layout must not resolve Chrome in a recipe line that a later line cannot see")
 	}
 
-	cmd := exec.CommandContext(ctx, "make", "-n", "check-layout")
-	cmd.Dir = root
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("make -n check-layout: %v\n%s", err, out)
-	}
-	dryRun := string(out)
-	if strings.Contains(dryRun, "$$CHROME") {
-		t.Fatalf("make -n check-layout still launches through a per-line shell variable:\n%s", dryRun)
-	}
-	if strings.Contains(dryRun, `test -x "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"`) {
-		t.Fatalf("make -n check-layout still probes only the macOS app bundle:\n%s", dryRun)
-	}
+	assertCheckLayoutDryRunPropagatesChrome(t, ctx, root)
 
 	resolver := filepath.Join(root, "scripts", "resolve-chrome.sh")
 	if runtime.GOOS == "linux" {
@@ -177,6 +170,30 @@ func envWithoutChrome(env []string) []string {
 	return out
 }
 
+func assertCheckLayoutDryRunPropagatesChrome(t *testing.T, ctx context.Context, root string) {
+	t.Helper()
+
+	// Pin CHROME so a Darwin host whose resolver correctly names the app
+	// bundle is not treated as a macOS-only Makefile.
+	cmd := exec.CommandContext(ctx, "make", "-n", "check-layout", "CHROME="+explicitLayoutChrome)
+	cmd.Dir = root
+	cmd.Env = envWithoutChrome(os.Environ())
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("make -n check-layout: %v\n%s", err, out)
+	}
+	dryRun := string(out)
+	if strings.Contains(dryRun, "$$CHROME") {
+		t.Fatalf("make -n check-layout still launches through a per-line shell variable:\n%s", dryRun)
+	}
+	if !strings.Contains(dryRun, `test -x "`+explicitLayoutChrome+`"`) {
+		t.Fatalf("make -n check-layout did not carry the explicit CHROME path:\n%s", dryRun)
+	}
+	if strings.Contains(dryRun, `test -x "`+macosChromeBundle+`"`) {
+		t.Fatalf("make -n check-layout still probes only the macOS app bundle:\n%s", dryRun)
+	}
+}
+
 func assertLinuxChromeResolver(t *testing.T, ctx context.Context, resolver string) {
 	t.Helper()
 
@@ -200,12 +217,12 @@ func assertExplicitChromeIsRespected(t *testing.T, ctx context.Context, resolver
 	t.Helper()
 
 	explicitChrome := exec.CommandContext(ctx, resolver)
-	explicitChrome.Env = append(os.Environ(), "CHROME=/explicit/chrome/for-layout-check")
+	explicitChrome.Env = append(os.Environ(), "CHROME="+explicitLayoutChrome)
 	got, err := explicitChrome.Output()
 	if err != nil {
 		t.Fatalf("resolve-chrome.sh with CHROME set: %v", err)
 	}
-	if !bytes.Equal(got, []byte("/explicit/chrome/for-layout-check\n")) {
+	if !bytes.Equal(got, []byte(explicitLayoutChrome+"\n")) {
 		t.Fatalf("resolve-chrome.sh = %q, want explicit CHROME respected", strings.TrimSpace(string(got)))
 	}
 }
