@@ -1,0 +1,5 @@
+[default]
+account_id = 'acct_live_fixture'
+test_mode_api_key = 'sk_live_fixture_must_not_reach_stripe_cli'
+test_mode_key_expires_at = '2026-09-18T00:00:00Z'
+device_name = 'goen-dev'

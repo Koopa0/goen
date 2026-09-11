@@ -1,0 +1,5 @@
+[default]
+account_id = 'acct_unknown_fixture'
+test_mode_api_key = 'pk_test_fixture_unknown_prefix'
+test_mode_key_expires_at = '2026-09-18T00:00:00Z'
+device_name = 'goen-dev'
