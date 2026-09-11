@@ -992,6 +992,194 @@ if (process.env.ADMIN_TOKEN) {
   console.log('admin           skipped (no ADMIN_TOKEN)');
 }
 
+// The footer newsletter and the contact panel both target themselves with
+// outerHTML. htmx 4 swaps every status except 204/304, so a plain-text 429
+// replaces the interactive surface with raw `429 …` and the visitor cannot
+// retry. A handler test can only see the fragment; these rows spend the live
+// limiter through the actual submit control and read the swapped DOM.
+const RETRY_ZH = '請求過於頻繁,請稍後再試。';
+const RETRY_EN = 'Too many requests. Please try again shortly.';
+const namesRetry = (text) => String(text || '').includes(RETRY_ZH) || String(text || '').includes(RETRY_EN);
+
+const evalPage = async (expression) => {
+  const evaluated = await send(ws, 'Runtime.evaluate', {
+    expression, returnByValue: true, awaitPromise: true,
+  });
+  if (evaluated.exceptionDetails || !evaluated.result || evaluated.result.value === undefined) {
+    return {
+      threw: true,
+      why: evaluated.exceptionDetails?.exception?.description || JSON.stringify(evaluated).slice(0, 400),
+    };
+  }
+  return evaluated.result.value;
+};
+
+const openAt = async (label, path) => {
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: 1440, height: 900, deviceScaleFactor: 1, mobile: false,
+  });
+  const target = ORIGIN + path;
+  await send(ws, 'Page.navigate', { url: target });
+  await settled(ws, label, target);
+};
+
+const proveUsable = async (at, fieldSel, formSel) => {
+  const got = await evalPage(`(() => {
+    const form = document.querySelector(${JSON.stringify(formSel)});
+    const field = document.querySelector(${JSON.stringify(fieldSel)});
+    if (!form || form.tagName !== 'FORM' || !field) {
+      return { form: !!form, field: !!field };
+    }
+    const typed = 'still-usable@example.com';
+    field.focus();
+    field.value = typed;
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    const submit = form.querySelector('button[type=submit]');
+    return {
+      form: true,
+      field: true,
+      hxPost: form.getAttribute('hx-post') || '',
+      typed: field.value,
+      enabled: !field.disabled && !field.readOnly,
+      canSubmit: !!(submit && !submit.disabled),
+    };
+  })()`);
+  if (got.threw) {
+    fail(at, `usability probe did not run — ${got.why}`);
+    return;
+  }
+  if (!got.form || !got.field) {
+    fail(at, 'the swapped 429 left no form field to type into');
+    return;
+  }
+  if (!got.enabled || got.typed !== 'still-usable@example.com') {
+    fail(at, 'the swapped form does not accept input');
+  }
+  if (!got.canSubmit) {
+    fail(at, 'the swapped form has no usable submit control');
+  }
+  if (!got.hxPost) {
+    fail(at, 'the swapped form lost hx-post, so a later submit would leave the page');
+  }
+};
+
+const exhaustHtmx = async (want) => {
+  let sawRetry = false;
+  for (let n = 1; n <= want.budget; n++) {
+    const at = `${want.label} try ${n}`;
+    await openAt(at, want.path);
+    const ready = await evalPage(`({
+      htmx: typeof htmx !== 'undefined',
+      form: !!document.querySelector(${JSON.stringify(want.form)}),
+    })`);
+    if (ready.threw || !ready.htmx) {
+      fail(want.label, 'htmx is not on the page, so this check cannot see a swap');
+      return;
+    }
+    if (!ready.form) {
+      fail(at, `${want.form} is absent before submit`);
+      return;
+    }
+
+    const got = await evalPage(want.submit);
+    if (got.threw) {
+      fail(at, `submit did not run — ${got.why}`);
+      return;
+    }
+    if (!got.ok) {
+      fail(at, got.why || 'submit did not start');
+      return;
+    }
+    if (got.event === 'timeout') {
+      fail(at, `htmx never swapped — landed on ${got.href} (${got.bodyStart})`);
+      return;
+    }
+    if (got.navigated) {
+      fail(at, `the submit left the page for ${got.href} — htmx did not handle it`);
+      return;
+    }
+    if (!got.hasForm && namesRetry(got.bodyStart) && String(got.bodyStart).trim().startsWith('429')) {
+      fail(want.label, 'htmx swapped the plain 429 over the form, which is the defect');
+      return;
+    }
+    if (got.hasForm && namesRetry(got.retry)) {
+      sawRetry = true;
+      await proveUsable(want.label, want.field, want.form);
+      console.log(`${want.label.padEnd(16)} 429-html retry visible, form still usable`);
+      break;
+    }
+  }
+  if (!sawRetry) {
+    fail(want.label, `never exhausted after ${want.budget} htmx submits — the limiter was not reached`);
+  }
+};
+
+await exhaustHtmx({
+  label: 'newsletter 429',
+  path: '/about',
+  form: 'form#newsletter-form',
+  field: '#newsletter-email',
+  budget: 8,
+  submit: `(() => {
+    const form = document.querySelector('form#newsletter-form');
+    const input = document.querySelector('#newsletter-email');
+    if (!form || !input) return { ok: false, why: 'footer form missing before submit' };
+    input.value = 'layout-nl-' + Date.now() + '@example.com';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    return new Promise((resolve) => {
+      const done = (ev) => resolve({
+        ok: true,
+        event: ev.type,
+        href: location.pathname,
+        navigated: location.pathname !== '/about',
+        hasForm: !!document.querySelector('form#newsletter-form'),
+        retry: (document.querySelector('#newsletter-error') || {}).textContent || '',
+        bodyStart: document.body.innerText.trim().slice(0, 80),
+      });
+      const t = setTimeout(() => done({ type: 'timeout' }), 8000);
+      const wrap = (ev) => { clearTimeout(t); done(ev); };
+      document.addEventListener('htmx:after:swap', wrap, { once: true });
+      form.requestSubmit();
+    });
+  })()`,
+});
+
+await exhaustHtmx({
+  label: 'contact 429',
+  path: '/contact',
+  form: 'form#contact-form',
+  field: '#contact-email',
+  budget: 8,
+  submit: `(() => {
+    const form = document.querySelector('form#contact-form');
+    if (!form) return { ok: false, why: 'contact form missing before submit' };
+    const set = (sel, value) => {
+      const el = document.querySelector(sel);
+      if (!el) return;
+      el.value = value;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    set('#contact-name', '版面檢查');
+    set('#contact-email', 'layout-contact-' + Date.now() + '@example.com');
+    set('#contact-message', '想確認一下出貨時間,謝謝。');
+    return new Promise((resolve) => {
+      const done = (ev) => resolve({
+        ok: true,
+        event: ev.type,
+        href: location.pathname,
+        navigated: location.pathname !== '/contact',
+        hasForm: !!document.querySelector('form#contact-form'),
+        retry: (document.querySelector('.ui-alert--error .ui-alert__body') || {}).textContent || '',
+        bodyStart: document.body.innerText.trim().slice(0, 80),
+      });
+      const t = setTimeout(() => done({ type: 'timeout' }), 8000);
+      const wrap = (ev) => { clearTimeout(t); done(ev); };
+      document.addEventListener('htmx:after:swap', wrap, { once: true });
+      form.requestSubmit();
+    });
+  })()`,
+});
+
 ws.close();
 
 if (failures.length) {
