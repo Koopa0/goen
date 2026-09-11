@@ -13,8 +13,7 @@ set -euo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 config_key() {
-	sed -n "s/.*test_mode_api_key *= *'\([^']*\)'.*/\1/p" \
-		"${HOME}/.config/stripe/config.toml" 2>/dev/null | head -1
+	bash "$(dirname "${BASH_SOURCE[0]}")/lib/stripe-config-key.sh" "${HOME}/.config/stripe/config.toml"
 }
 
 print_secret() {
