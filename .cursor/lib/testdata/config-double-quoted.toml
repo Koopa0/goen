@@ -1,0 +1,5 @@
+[default]
+account_id = "acct_1234567890"
+test_mode_api_key = "rkcs_test_XYZ789doublequoted"
+test_mode_key_expires_at = "2026-09-18T00:00:00Z"
+device_name = "goen-dev"

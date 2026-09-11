@@ -25,7 +25,7 @@ endif
 .PHONY: build run test test-race test-integration production-build-check integration-build-check \
         image image-push lint fmt fmt-check vet deadcode gen templ-check vuln \
         sqlc sqlc-check squawk db-up db-down migrate-up migrate-down db-seed \
-        verify verify-all check-layout db-reset clean
+        cursor-scripts-check verify verify-all check-layout db-reset clean
 
 build: gen
 	go build -o bin/goen ./cmd/goen
@@ -727,9 +727,19 @@ db-reset:
 	$(MAKE) db-seed
 	@echo 'database rebuilt from migrations/ and seeded'
 
+# Deterministic checks for the .cursor/ Cloud Agent environment scripts: a
+# syntax pass over every script, then the config-key parser test against
+# committed CLI-shaped fixtures and TEST-mode key-prefix guards. No network and
+# no live Stripe, so a regression — dropping double-quoted TOML support or
+# accepting a live key prefix — turns make verify red instead of merging green.
+cursor-scripts-check:
+	@for f in .cursor/*.sh .cursor/lib/*.sh; do bash -n "$$f" || exit 1; done
+	@bash .cursor/lib/stripe-config-key.test.sh
+	@bash .cursor/lib/stripe-sandbox-key.test.sh
+
 # The single gate. Stop at the first failure — a passing later stage must never
 # be able to bury an earlier red one.
-verify: fmt-check templ-check squawk sqlc-check vet deadcode lint production-build-check integration-build-check test-race
+verify: cursor-scripts-check fmt-check templ-check squawk sqlc-check vet deadcode lint production-build-check integration-build-check test-race
 	@echo 'verify: PASS (unit tests only — make verify-all adds the database suite)'
 
 # Everything verify runs plus the parts that need Docker and the network.
