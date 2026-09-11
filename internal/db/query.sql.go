@@ -5920,7 +5920,8 @@ UPDATE password_reset_tokens SET used_at = now()
 WHERE user_id = $1 AND used_at IS NULL
 `
 
-// Somebody who asked three times leaves two more live links in their mailbox.
+// A replacement link, a completed reset, or a verified mailbox must leave no
+// unused token that could still spend.
 func (q *Queries) InvalidateResetTokens(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, invalidateResetTokens, userID)
 	return err
@@ -12478,7 +12479,7 @@ const userForPasswordReset = `-- name: UserForPasswordReset :one
 SELECT id, email
 FROM users
 WHERE lower(email) = lower($1)
-FOR KEY SHARE
+FOR UPDATE
 `
 
 type UserForPasswordResetRow struct {
@@ -12487,8 +12488,10 @@ type UserForPasswordResetRow struct {
 }
 
 // A reset token and its outbox message are created while this lock is held.
-// erase_user takes FOR UPDATE on the same row, so either both reset records
-// commit first and erasure purges them, or erasure wins and this returns no row.
+// FOR UPDATE serializes a replacement request against another issuance and
+// against erase_user, so only one unused token remains, and either both reset
+// records commit first and erasure purges them, or erasure wins and this
+// returns no row.
 func (q *Queries) UserForPasswordReset(ctx context.Context, lower string) (UserForPasswordResetRow, error) {
 	row := q.db.QueryRow(ctx, userForPasswordReset, lower)
 	var i UserForPasswordResetRow
