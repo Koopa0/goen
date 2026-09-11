@@ -7111,18 +7111,20 @@ SELECT EXISTS (
     SELECT 1 FROM order_access_grants g
     JOIN orders o ON o.id = g.order_id
     WHERE o.order_number = $1::text AND g.digest = ANY($2::bytea[])
+    AND g.created_at > now() - $3::interval
 )
 `
 
 type OrderAccessibleWithParams struct {
 	OrderNumber string
 	Digests     [][]byte
+	Retain      pgtype.Interval
 }
 
 // Compared IN the database and answered as a boolean: which token matched is not
 // something any page needs to disclose.
 func (q *Queries) OrderAccessibleWith(ctx context.Context, arg OrderAccessibleWithParams) (bool, error) {
-	row := q.db.QueryRow(ctx, orderAccessibleWith, arg.OrderNumber, arg.Digests)
+	row := q.db.QueryRow(ctx, orderAccessibleWith, arg.OrderNumber, arg.Digests, arg.Retain)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err

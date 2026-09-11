@@ -470,6 +470,7 @@ SELECT EXISTS (
     SELECT 1 FROM order_access_grants g
     JOIN orders o ON o.id = g.order_id
     WHERE o.order_number = @order_number::text AND g.digest = ANY(@digests::bytea[])
+    AND g.created_at > now() - @retain::interval
 );
 
 -- Every Checkout Session this order still has open at Stripe. 'requires_payment'

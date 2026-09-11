@@ -21,6 +21,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/db"
@@ -376,6 +377,9 @@ func (s *Store) PlacedHere(ctx context.Context, r *http.Request, number string, 
 	}
 	ok, err := s.q.OrderAccessibleWith(ctx, db.OrderAccessibleWithParams{
 		OrderNumber: number, Digests: digests,
+		Retain: pgtype.Interval{
+			Microseconds: int64(GrantRetain / time.Microsecond), Valid: true,
+		},
 	})
 	if err != nil {
 		return false

@@ -4892,6 +4892,34 @@ func TestASecondOrderKeepsTheFirstOnesGrantAlive(t *testing.T) {
 	}
 }
 
+func TestABackdatedGrantReachesNothing(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil)
+	number := placeUnpaidOrderFor(t, s, "stale@example.com")
+	cookie := placedCookie(t, s, number)
+
+	if _, err := pool.Exec(ctx, `
+		UPDATE order_access_grants SET created_at = now() - $2::interval
+		WHERE order_id = (SELECT id FROM orders WHERE order_number = $1)`,
+		number, (cart.GrantRetain + time.Hour).String()); err != nil {
+		t.Fatalf("age the grant: %v", err)
+	}
+
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number, http.NoBody)
+	req.SetPathValue("number", number)
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	h.OrderPage(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("a backdated grant reached the order page: status %d, want 404", rec.Code)
+	}
+	if strings.Contains(rec.Body.String(), "stale@example.com") {
+		t.Error("a backdated grant leaked the customer's email")
+	}
+}
+
 func TestAForgedPlacedCookieReachesNothing(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
