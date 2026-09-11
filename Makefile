@@ -190,8 +190,9 @@ check-layout:
 	@# The return needs an order that SHIPPED, which return_lines_within_purchase
 	@# enforces in the database — so this cannot be one INSERT. It is the whole
 	@# commercial path: the shop grants store credit, the customer spends it at
-	@# checkout (which leaves the order owing nothing and therefore COMMITTED with
-	@# no payment row at all — the zero-owed case order_is_committed exists for),
+	@# checkout (which leaves the order owing nothing — funded and still pending,
+	@# with no payment row, the zero-owed case; committed_orders counts it only
+	@# once fulfillment leaves pending, which this chain does at picking),
 	@# the shop picks and ships it, and only then can the customer send it back.
 	@#
 	@# It is worth the six requests precisely because of that: five separate
