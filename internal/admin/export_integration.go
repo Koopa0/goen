@@ -32,6 +32,7 @@ const (
 	ActionAdjustStock              = actionAdjustStock
 	ActionAuthorizeAllowanceResend = actionAuthorizeAllowanceResend
 	ActionCreateCampaign           = actionCreateCampaign
+	ActionFeatureProduct           = actionFeatureProduct
 	ActionGrantCredit              = actionGrantCredit
 	ActionHideQuestion             = actionHideQuestion
 	ActionPublishProduct           = actionPublishProduct
