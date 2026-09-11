@@ -27,6 +27,7 @@ func (e AuditEntry) Label(ctx context.Context) string {
 var actionLabels = map[string]i18n.Key{
 	"customer.view":                       i18n.KeyAuditCustomerView,
 	"newsletter.send":                     i18n.KeyAuditNewsletterSend,
+	"newsletter.compose":                  i18n.KeyAuditNewsletterCompose,
 	"order.ship":                          i18n.KeyAuditOrderShip,
 	"order.advance":                       i18n.KeyAuditOrderAdvance,
 	"return.decide":                       i18n.KeyAuditReturnDecide,

@@ -57,6 +57,19 @@ func TestEveryAuditActionHasALabel(t *testing.T) {
 	}
 }
 
+// TestNewsletterComposeRendersAPhrase locks the compose action that lives in
+// newsletter rather than admin's Action const block, so a missing label cannot
+// hide behind the raw identifier on /admin/audit.
+func TestNewsletterComposeRendersAPhrase(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	entry := pages.AuditEntry{Action: "newsletter.compose"}
+	if got := entry.Label(ctx); got == "newsletter.compose" {
+		t.Errorf("Label() = %q; the compose action has no staff-facing phrase", got)
+	}
+}
+
 // schemaWrittenAction matches an action a schema function inserts directly,
 // e.g. `'invoice.allowance_provider_invalid', 'invoice_documents',`.
 var schemaWrittenAction = regexp.MustCompile(`'([a-z_]+\.[a-z0-9_.]+)',\s*'[a-z_]+',`)
