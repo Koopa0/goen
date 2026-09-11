@@ -222,21 +222,29 @@ check-layout:
 	@# warranty_registrations_serial_key is unique, so a fixed one registers exactly
 	@# once ever and every later run passes on the row the first left behind.
 	@#
-	@# The reason carries $$$$ because GrantCredit is idempotent on
-	@# (customer, amount, reason) — a double-submitted form is one posting, which is
-	@# correct and which made a FIXED reason fund only the very first run. Every run
-	@# after it checked out an unfunded order, could not ship it, created no return,
-	@# and passed anyway on the row the first run had left behind. A fixture that
-	@# stops working and leaves its evidence lying around is worse than one that
-	@# never worked; it was caught by shipping being REFUSED in the log, not by
-	@# anything in the check.
+	@# GrantCredit is idempotent on the form's operation_id, not on
+	@# (customer, amount, reason). The page mints that id; a POST without it is
+	@# 303 to ?needs=1 and funds nothing. A curl that only sends email/amount/reason
+	@# therefore checks out an unfunded order, cannot pick or ship it, creates no
+	@# return, and leaves invoice_allowance_valid with a zero refund — the same
+	@# silent-fixture failure a fixed reason used to cause. Read the id off the
+	@# form and require ok=1, because a refused grant is also a 303.
+	@#
+	@# The reason still carries $$$$: the ledger is append-only and a repeated
+	@# sentence makes two runs look like one posting when an operator reads it.
 	@CT=$$(cat .layout-chrome/cust-token); AT=$$(cat .layout-chrome/admin-token); \
 		U=$${GOEN_URL:-http://127.0.0.1:9700}; \
-		CREDIT_OP=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT gen_random_uuid()"); \
-		curl -s -o /dev/null -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
+		CREDIT_PAGE=$$(curl -fsS -b "goen_session=$$AT" $$U/admin/credit); \
+		OP=$$(printf '%s' "$$CREDIT_PAGE" | grep -o 'name="operation_id" value="[^"]*"' | head -1 | cut -d'"' -f4); \
+		test -n "$$OP" || { echo 'credit grant form did not render an operation_id' >&2; exit 2; }; \
+		GRANT=$$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' -b "goen_session=$$AT" \
+			-H 'Sec-Fetch-Site: same-origin' \
 			--data-urlencode 'email=layout-cust@goen.invalid' --data-urlencode 'amount=99999' \
 			--data-urlencode "reason=版面檢查用的退貨樣本 $$$$" \
-			--data-urlencode "operation_id=$$CREDIT_OP" $$U/admin/credit; \
+			--data-urlencode "operation_id=$$OP" $$U/admin/credit); \
+		test "$${GRANT%% *}" = 303 || { echo "credit grant answered $${GRANT%% *}, want 303" >&2; exit 2; }; \
+		printf '%s' "$${GRANT#* }" | grep -q 'ok=1' \
+			|| { echo "credit grant redirected to $${GRANT#* }, want ok=1" >&2; exit 2; }; \
 		VARIANT=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT pv.id FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE p.status = 'active' AND pv.is_active AND pv.stock_quantity > pv.safety_stock AND p.warranty_months IS NOT NULL LIMIT 1"); \
 		rm -f .layout-chrome/cust-cookies; \
 		curl -s -o /dev/null -c .layout-chrome/cust-cookies -b "goen_session=$$CT" \
@@ -257,6 +265,8 @@ check-layout:
 		test "$$STATUS" = 303 || { echo "return fixture checkout answered $$STATUS, want 303" >&2; exit 2; }; \
 		RN=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT o.order_number FROM orders o JOIN users u ON u.id = o.user_id WHERE u.email = 'layout-cust@goen.invalid' ORDER BY o.placed_at DESC LIMIT 1"); \
 		test -n "$$RN" || { echo 'return fixture checkout created no customer order' >&2; exit 2; }; \
+		OWED=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT order_amount_owed(id)::text FROM orders WHERE order_number = '$$RN'"); \
+		test "$$OWED" = "0" || { echo "return fixture checkout left $$RN owing $$OWED cents; pick will be refused" >&2; exit 2; }; \
 		curl -s -o /dev/null -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
 			-d 'status=picking' $$U/admin/orders/$$RN/status; \
 		curl -s -o /dev/null -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
