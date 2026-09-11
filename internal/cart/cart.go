@@ -318,7 +318,12 @@ func (s *Store) RememberOrder(
 		for _, t := range carried {
 			digests = append(digests, HashToken(t))
 		}
-		if err := s.q.TouchOrderAccessGrants(ctx, digests); err != nil {
+		if err := s.q.TouchOrderAccessGrants(ctx, db.TouchOrderAccessGrantsParams{
+			Digests: digests,
+			Retain: pgtype.Interval{
+				Microseconds: int64(GrantRetain / time.Microsecond), Valid: true,
+			},
+		}); err != nil {
 			touchErr = fmt.Errorf("refresh carried order access grants: %w", err)
 		}
 	}

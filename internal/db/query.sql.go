@@ -11946,13 +11946,20 @@ func (q *Queries) TouchLastLogin(ctx context.Context, id uuid.UUID) error {
 const touchOrderAccessGrants = `-- name: TouchOrderAccessGrants :exec
 UPDATE order_access_grants SET created_at = now()
 WHERE digest = ANY($1::bytea[])
+AND created_at > now() - $2::interval
 `
+
+type TouchOrderAccessGrantsParams struct {
+	Digests [][]byte
+	Retain  pgtype.Interval
+}
 
 // The cookie is RE-ISSUED with a fresh MaxAge on every order, carrying older
 // tokens forward, so their grants' retention clock restarts on the same event or
-// one dies under a live cookie. Scoped to the digests actually presented.
-func (q *Queries) TouchOrderAccessGrants(ctx context.Context, digests [][]byte) error {
-	_, err := q.db.Exec(ctx, touchOrderAccessGrants, digests)
+// one dies under a live cookie. Scoped to the digests actually presented and
+// still inside GrantRetain: a copied stale token must not be revived here.
+func (q *Queries) TouchOrderAccessGrants(ctx context.Context, arg TouchOrderAccessGrantsParams) error {
+	_, err := q.db.Exec(ctx, touchOrderAccessGrants, arg.Digests, arg.Retain)
 	return err
 }
 
