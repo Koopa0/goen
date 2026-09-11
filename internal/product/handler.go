@@ -21,10 +21,11 @@ import (
 
 // Handler serves the product detail page.
 type Handler struct {
-	askLimit *ratelimit.Limiter
-	baseURL  string
-	store    *Store
-	log      *slog.Logger
+	askLimit    *ratelimit.Limiter
+	notifyLimit *ratelimit.Limiter
+	baseURL     string
+	store       *Store
+	log         *slog.Logger
 }
 
 // NewHandler returns a Handler reading through store.
@@ -36,6 +37,11 @@ func NewHandler(store *Store, log *slog.Logger, baseURL string) *Handler {
 		store: store, log: log, baseURL: baseURL,
 		askLimit: ratelimit.New(ratelimit.Config{
 			Every: 6 * time.Second, Burst: 10, TTL: time.Hour, MaxKeys: 8_192,
+		}),
+		// Same budget as /contact: the form is anonymous, the mailbox is free
+		// text, and the variant id is on the public page.
+		notifyLimit: ratelimit.New(ratelimit.Config{
+			Every: 5 * time.Minute, Burst: 5, TTL: time.Hour, MaxKeys: 8_192,
 		}),
 	}
 }
@@ -121,6 +127,10 @@ func (h *Handler) Review(w http.ResponseWriter, r *http.Request) {
 
 // Notify serves POST /p/{slug}/notify.
 func (h *Handler) Notify(w http.ResponseWriter, r *http.Request) {
+	if retryAfter, allowed := h.notifyLimit.Allow(ratelimit.ClientIP(r)); !allowed {
+		ratelimit.Refuse(r.Context(), w, retryAfter)
+		return
+	}
 	if err := web.ParseForm(w, r); err != nil {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return

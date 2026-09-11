@@ -98,6 +98,12 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 		Every: 5 * time.Minute, Burst: 5, TTL: time.Hour, MaxKeys: 65_536,
 	})
 	messages := contact.NewHandler(contact.NewStore(pool), contactLimit, log)
+	// Restock notify is the same anonymous mailbox door as /contact, without
+	// the contact form's other fields. A shared bucket would let one door
+	// spend the other's budget.
+	notifyLimit := ratelimit.New(ratelimit.Config{
+		Every: 5 * time.Minute, Burst: 5, TTL: time.Hour, MaxKeys: 65_536,
+	})
 	// Tighter than authLimit: this one defends somebody else's mailbox.
 	signupLimit := ratelimit.New(ratelimit.Config{
 		Every: 10 * time.Minute, Burst: 2, TTL: time.Hour, MaxKeys: 65_536,
@@ -187,7 +193,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /s/{slug}", browse.Campaign)
 	mux.HandleFunc("GET /p/{slug}", items.Detail)
 	mux.HandleFunc("POST /p/{slug}/reviews", items.Review)
-	mux.HandleFunc("POST /p/{slug}/notify", items.Notify)
+	mux.HandleFunc("POST /p/{slug}/notify", ratelimit.Guard(notifyLimit, log, items.Notify))
 	mux.HandleFunc("POST /p/{slug}/questions", items.Ask)
 	mux.HandleFunc("GET /cart", basket.Page)
 	mux.HandleFunc("POST /cart/items", basket.AddItem)
