@@ -224,6 +224,21 @@ const ADMIN = [
   { label: 'admin staff 1440', width: 1440, height: 900, path: '/admin/staff', marker: '.goen-admin' },
 ];
 
+// The expired redemption-form notice. GET ?badform=1 is the 303 landing of a
+// stripped or stale operation_id. Without these rows the sweep never measures
+// the sentence that replaced ?short=1, and a single-locale row would leave the
+// other voice unmeasured. CUST_TOKEN is the customer the Makefile signed in.
+const ACCOUNT = [
+  { label: 'points badform 375', width: 375, height: 812, locale: 'zh-Hant',
+    notice: '這份兌換表單已過期,請重新送出。' },
+  { label: 'points badform 1440', width: 1440, height: 900, locale: 'zh-Hant',
+    notice: '這份兌換表單已過期,請重新送出。' },
+  { label: 'points badform en 375', width: 375, height: 812, locale: 'en',
+    notice: 'That redemption form expired. Submit it again.' },
+  { label: 'points badform en 1440', width: 1440, height: 900, locale: 'en',
+    notice: 'That redemption form expired. Submit it again.' },
+];
+
 const MIN_TAP = 44; // the smallest comfortable touch target, in CSS px
 
 // The narrowest a product card may be once the viewport is wide enough for the
@@ -773,6 +788,89 @@ const ADMIN_PROBE = `(() => {
     ${ACCESSIBILITY}
   };
 })()`;
+
+const ACCOUNT_PROBE = `(() => {
+  const de = document.documentElement;
+  const clipped = (e) => {
+    let p = e.parentElement;
+    while (p && p !== document.body) {
+      const o = getComputedStyle(p).overflowX;
+      if (o === 'auto' || o === 'hidden' || o === 'scroll') return true;
+      p = p.parentElement;
+    }
+    return false;
+  };
+  const notice = document.querySelector('.ui-alert--info');
+  // Buttons and the points field only: crumb links are not the surface this
+  // row exists to measure, and they sit under the 44px floor on every account
+  // page.
+  const taps = [...document.querySelectorAll('.goen-account .ui-btn, .goen-account input[type=number]')]
+    .map((e) => e.getBoundingClientRect().height).filter((h) => h > 0);
+  return {
+    viewportWidth: de.clientWidth,
+    scrollWidth: document.body.scrollWidth,
+    overflowing: [...document.querySelectorAll('body *')]
+      .filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > de.clientWidth + 0.5 && !clipped(e); })
+      .slice(0, 4).map((e) => e.tagName.toLowerCase() + '.' + String(e.className || '').split(' ')[0]),
+    minTap: taps.length ? +Math.min(...taps).toFixed(1) : 0,
+    controls: taps.length,
+    notice: notice ? notice.textContent.trim() : '',
+    ${ACCESSIBILITY}
+  };
+})()`;
+
+if (process.env.CUST_TOKEN) {
+  await send(ws, 'Network.enable');
+  await send(ws, 'Network.setCookie', {
+    name: 'goen_session', value: process.env.CUST_TOKEN, domain: '127.0.0.1', path: '/',
+  });
+
+  for (const want of ACCOUNT) {
+    await send(ws, 'Network.setCookie', {
+      name: 'goen_locale', value: want.locale, domain: '127.0.0.1', path: '/',
+    });
+    await send(ws, 'Emulation.setDeviceMetricsOverride', {
+      width: want.width, height: want.height, deviceScaleFactor: 1, mobile: want.width < 768,
+    });
+    const target = ORIGIN + '/account/points?badform=1';
+    await send(ws, 'Page.navigate', { url: target });
+    await settled(ws, want.label, target);
+
+    const evaluated = await send(ws, 'Runtime.evaluate', {
+      expression: ACCOUNT_PROBE, returnByValue: true,
+    });
+    if (evaluated.exceptionDetails || !evaluated.result || evaluated.result.value === undefined) {
+      fail(want.label, 'the probe did not run — ' +
+        (evaluated.exceptionDetails?.exception?.description || JSON.stringify(evaluated).slice(0, 400)));
+      continue;
+    }
+    const got = evaluated.result.value;
+    const at = want.label;
+
+    if (!got.notice) {
+      fail(at, 'the expired-form notice did not render (.ui-alert--info is absent) — this check proved nothing');
+      continue;
+    }
+    if (got.notice !== want.notice) {
+      fail(at, `notice = ${JSON.stringify(got.notice)}, want ${JSON.stringify(want.notice)}`);
+    }
+    if (got.lang !== want.locale) {
+      fail(at, `<html lang> is ${JSON.stringify(got.lang)}, want ${JSON.stringify(want.locale)}`);
+    }
+    checkAccessibility(at, got);
+    if (got.scrollWidth > got.viewportWidth) {
+      fail(at, `page scrolls horizontally (${got.scrollWidth} > ${got.viewportWidth})` +
+        (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));
+    }
+    if (got.controls > 0 && got.minTap < MIN_TAP) {
+      fail(at, `smallest control is ${got.minTap}px, want >= ${MIN_TAP}`);
+    }
+    console.log(`${at.padEnd(24)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
+      `lang=${got.lang} tap=${got.minTap || '-'} notice=${JSON.stringify(got.notice)}`);
+  }
+} else {
+  console.log('points badform   skipped (no CUST_TOKEN)');
+}
 
 if (process.env.ADMIN_TOKEN) {
   await send(ws, 'Network.enable');

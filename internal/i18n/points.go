@@ -84,6 +84,11 @@ var (
 		En:     "Redeem a whole multiple, and not less than the minimum.",
 	})
 
+	KeyPointsBadForm = key("points.notice.badform", Message{
+		ZhHant: "這份兌換表單已過期,請重新送出。",
+		En:     "That redemption form expired. Submit it again.",
+	})
+
 	KeyPointsShort = key("points.notice.short", Message{
 		ZhHant: "點數不夠 —— 可能剛剛有一筆到期了。",
 		En:     "Not enough points — some may have just expired.",

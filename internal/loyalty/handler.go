@@ -78,6 +78,8 @@ func (h *Handler) Redeem(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/account/points?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrTooSmall):
 		http.Redirect(w, r, "/account/points?small=1", http.StatusSeeOther)
+	case errors.Is(err, ErrInvalidOperation):
+		http.Redirect(w, r, "/account/points?badform=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotEnough), errors.Is(err, ErrNoAccount):
 		http.Redirect(w, r, "/account/points?short=1", http.StatusSeeOther)
 	default:
@@ -100,6 +102,8 @@ func noticeFor(r *http.Request) string {
 		return i18n.T(ctx, i18n.KeyPointsRedeemed)
 	case r.URL.Query().Get("small") == "1":
 		return i18n.T(ctx, i18n.KeyPointsBadAmount)
+	case r.URL.Query().Get("badform") == "1":
+		return i18n.T(ctx, i18n.KeyPointsBadForm)
 	case r.URL.Query().Get("short") == "1":
 		return i18n.T(ctx, i18n.KeyPointsShort)
 	default:
