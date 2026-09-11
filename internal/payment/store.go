@@ -336,7 +336,7 @@ func (w *webhookTx) postCapture(ctx context.Context, c Capture) error {
 	if postErr := post(w.q.WithTx(sp)); postErr != nil {
 		// Back to the savepoint, so the transaction is usable and the caller can
 		// say what happened.
-		_ = sp.Rollback(ctx) //nolint:errcheck // the error being reported is postErr
+		_ = sp.Rollback(context.WithoutCancel(ctx)) //nolint:errcheck // the error being reported is postErr
 		return postErr
 	}
 	if err := sp.Commit(ctx); err != nil {
