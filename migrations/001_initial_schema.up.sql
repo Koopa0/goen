@@ -969,6 +969,7 @@ CREATE FUNCTION hold_inventory(
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
 DECLARE
     reservation_id uuid;
+    order_status text;
 BEGIN
     IF p_quantity <= 0 THEN
         RAISE EXCEPTION 'a hold must be for a positive quantity'
@@ -985,7 +986,14 @@ BEGIN
     -- cancellation/expiry release owns the order and waits for that variant.
     -- The later reservation INSERT would acquire only a foreign-key key-share
     -- lock, which is too late to establish this order.
-    PERFORM 1 FROM orders WHERE id = p_order_id FOR UPDATE;
+    SELECT fulfillment_status INTO order_status
+    FROM orders WHERE id = p_order_id FOR UPDATE;
+    -- Checkout is the only lifecycle that owns a hold. A settled order
+    -- would keep the decrement with no session left to consume or release it.
+    IF order_status <> 'pending' THEN
+        RAISE EXCEPTION 'order % is % and cannot take a hold', p_order_id, order_status
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_hold_needs_pending';
+    END IF;
 
     -- The idempotency key is the CALLER's: a retry of the same attempt is a
     -- no-op through the movement's unique key, while a genuinely new hold after

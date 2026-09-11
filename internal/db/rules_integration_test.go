@@ -1613,19 +1613,85 @@ func TestReleaseReservationRefusesPaidOrder(t *testing.T) {
 		t.Fatalf("fixtures: %v", err)
 	}
 
-	// A hold on the PAID fixture order (66666666 carries succeeded payment 77770001).
+	// The hold has to land while the order is still pending; afterwards
+	// hold_inventory refuses, and release still has to see committed stock.
+	const pending = "6666aaaa-6666-4666-8666-666666666666"
 	var held string
 	if err := tx.QueryRow(ctx,
-		`SELECT hold_inventory('66666666-6666-4666-8666-666666666666',
-			'44444444-4444-4444-8444-444444444444', 1, interval '15 min', 'hold-paid-1')`).
+		`SELECT hold_inventory($1,
+			'44444444-4444-4444-8444-444444444444', 1, interval '15 min', 'hold-paid-1')`, pending).
 		Scan(&held); err != nil {
 		t.Fatalf("hold: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO payments (order_id, provider_ref, status, intended_amount_cents,
+		                      captured_amount_cents, paid_at)
+		VALUES ($1, 'pi-hold-then-pay', 'succeeded', 3690000, 3690000, now())`, pending); err != nil {
+		t.Fatalf("fund: %v", err)
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE orders SET fulfillment_status = 'picking' WHERE id = $1`, pending); err != nil {
+		t.Fatalf("pick: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `SELECT release_reservation($1)`, held); err == nil {
 		t.Fatal("released a hold on a paid order — sold stock returned to the shelf")
 	} else if _, name := constraintViolation(err); name != "inventory_reservation_committed_no_release" {
 		t.Fatalf("refused by %q, want inventory_reservation_committed_no_release: %v", name, err)
 	}
+}
+
+// TestHoldInventoryRefusesSettledOrders locks that a hold belongs to a
+// pending checkout. A cancelled or completed order has no session that
+// will consume or release a new reservation.
+func TestHoldInventoryRefusesSettledOrders(t *testing.T) {
+	const (
+		pending = "6666aaaa-6666-4666-8666-666666666666"
+		shipped = "66666666-6666-4666-8666-666666666666"
+		holdSQL = `SELECT hold_inventory('%s', '44444444-4444-4444-8444-444444444444', 1, interval '15 min', '%s')`
+	)
+
+	t.Run("pending still holds", func(t *testing.T) {
+		if err := run(t, fmt.Sprintf(holdSQL, pending, "hold-pending-ok")); err != nil {
+			t.Fatalf("a live checkout was refused a hold: %v", err)
+		}
+	})
+
+	t.Run("cancelled is refused by name", func(t *testing.T) {
+		err := run(t, `UPDATE orders SET fulfillment_status = 'cancelled', cancelled_at = now()
+			WHERE id = '`+pending+`';`+fmt.Sprintf(holdSQL, pending, "hold-cancelled"))
+		if err == nil {
+			t.Fatal("held stock on a cancelled order")
+		}
+		if _, name := constraintViolation(err); name != "inventory_hold_needs_pending" {
+			t.Fatalf("refused by %q, want inventory_hold_needs_pending: %v", name, err)
+		}
+	})
+
+	t.Run("completed is refused by name", func(t *testing.T) {
+		err := run(t, `
+			WITH s AS (
+				INSERT INTO order_shipments (order_id, carrier, tracking_number)
+				VALUES ('`+shipped+`', '黑貓', 'TRK-HOLD-DONE') RETURNING id
+			)
+			INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+			SELECT ol.order_id, s.id, ol.id,
+			       ol.quantity - coalesce((
+			           SELECT sum(sl.quantity) FROM order_shipment_lines sl
+			           WHERE sl.order_line_id = ol.id), 0)
+			FROM order_lines ol, s
+			WHERE ol.order_id = '`+shipped+`'
+			  AND ol.quantity > coalesce((
+			      SELECT sum(sl.quantity) FROM order_shipment_lines sl
+			      WHERE sl.order_line_id = ol.id), 0);
+			UPDATE orders SET fulfillment_status = 'completed', completed_at = now()
+			WHERE id = '`+shipped+`';`+fmt.Sprintf(holdSQL, shipped, "hold-completed"))
+		if err == nil {
+			t.Fatal("held stock on a completed order")
+		}
+		if _, name := constraintViolation(err); name != "inventory_hold_needs_pending" {
+			t.Fatalf("refused by %q, want inventory_hold_needs_pending: %v", name, err)
+		}
+	})
 }
 
 // TestACancelledOrderIsSettledButNotCommitted holds the line between the two views from the side
@@ -1930,11 +1996,37 @@ func TestZeroOwedOrderIsCommitted(t *testing.T) {
 			t.Fatalf("fixtures: %v", err)
 		}
 
+		// The fixture zero-owed order is already picking. Take the hold on
+		// a still-pending sibling, then leave pending through the same door.
+		const stillPending = "6666dddd-6666-4666-8666-666666666666"
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO orders (id, order_number, shipping_version_id, shipping_method_code,
+			                    shipping_method_name, discount_cents)
+			VALUES ($1, 'GO-260721-000399',
+			        'ffff0002-0000-4000-8000-000000000000', 'home_delivery', '宅配到府', 100000)`, stillPending); err != nil {
+			t.Fatalf("create pending zero-owed sibling: %v", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity, position)
+			VALUES ($1, 'PXL-9P-512-BL', 'Pixelight 9 Pro 5G', 100000, 1, 0)`, stillPending); err != nil {
+			t.Fatalf("create sibling line: %v", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+			                                postal_code, city, district, street)
+			VALUES ($1, 'free-hold@example.com', '免單', '0900000002',
+			        '110', '台北市', '信義區', '松高路 1 號')`, stillPending); err != nil {
+			t.Fatalf("create sibling delivery: %v", err)
+		}
 		var held string
 		if err := tx.QueryRow(ctx,
 			`SELECT hold_inventory($1, '44444444-4444-4444-8444-444444444444',
-				1, interval '15 min', 'hold-zero-owed-1')`, zeroOwed).Scan(&held); err != nil {
+				1, interval '15 min', 'hold-zero-owed-1')`, stillPending).Scan(&held); err != nil {
 			t.Fatalf("hold: %v", err)
+		}
+		if _, err := tx.Exec(ctx,
+			`UPDATE orders SET fulfillment_status = 'picking' WHERE id = $1`, stillPending); err != nil {
+			t.Fatalf("leave pending: %v", err)
 		}
 		if _, err := tx.Exec(ctx, `SELECT release_reservation($1)`, held); err == nil {
 			t.Fatal("released the hold on a committed zero-owed order — sold stock back on the shelf")
