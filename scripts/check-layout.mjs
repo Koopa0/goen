@@ -157,11 +157,14 @@ const ADMIN = [
   { label: 'admin health 1440', width: 1440, height: 900, path: '/admin/health', marker: '.ui-table' },
   // ONE order in full, which is where every invoice control lives: issue, void
   // and the 折讓 form. The list had rows and the detail page had none, so no
-  // browser had ever rendered a form on the page that files a tax document —
-  // and the Makefile's fixture leaves a pending claim on it, so the "not filed,
-  // check ECPay" row is on screen too.
-  { label: 'admin order 375', width: 375, height: 812, path: '/admin/orders/PLACED_ORDER', marker: '.goen-admin__form' },
-  { label: 'admin order 1440', width: 1440, height: 900, path: '/admin/orders/PLACED_ORDER', marker: '.goen-admin__form' },
+  // browser had ever rendered a form on the page that files a tax document.
+  // INVOICE_ORDER is the return-fixture order the Makefile refunds and then
+  // files against — the unpaid guest order PLACED_ORDER cannot carry a
+  // compensation, so a 折讓 on that page would violate invoice_allowance_valid.
+  // The stranded claim is an invoice_operations row, which is what puts the
+  // health alarm on /admin/health; the form here needs the refunded room.
+  { label: 'admin order 375', width: 375, height: 812, path: '/admin/orders/INVOICE_ORDER', marker: '.goen-admin__form' },
+  { label: 'admin order 1440', width: 1440, height: 900, path: '/admin/orders/INVOICE_ORDER', marker: '.goen-admin__form' },
   { label: 'admin home 375', width: 375, height: 812, path: '/admin/home', marker: '.goen-admin' },
   { label: 'admin home 1440', width: 1440, height: 900, path: '/admin/home', marker: '.goen-admin' },
   { label: 'admin questions 375', width: 375, height: 812, path: '/admin/questions', marker: '.goen-admin__questions' },
@@ -832,6 +835,7 @@ if (process.env.ADMIN_TOKEN) {
     });
     const target = ORIGIN + want.path
       .replace('PLACED_ORDER', process.env.PLACED_ORDER || '')
+      .replace('INVOICE_ORDER', process.env.INVOICE_ORDER || '')
       .replace('CUSTOMER_ID', process.env.CUSTOMER_ID || '')
       .replace('LAYOUT_SERIAL', process.env.LAYOUT_SERIAL || '')
       .replace('PRODUCT_SLUG', process.env.PRODUCT_SLUG || '');
