@@ -143,8 +143,48 @@ func TestWarrantyOrderEmptyHintMatchesWhy(t *testing.T) {
 	}
 }
 
+// TestWarrantyOrderAllRegisteredHasNoFuturePromise locks the all-registered
+// empty banner: the hint is Why()'s already-registered sentence, and the
+// shared title must not promise a later registration.
+func TestWarrantyOrderAllRegisteredHasNoFuturePromise(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	html := renderWarrantyInLocale(t, ctx, WarrantyOrder(
+		layouts.Page{Title: "Warranty"}, WarrantyOrderView{
+			Number: "GOEN-TEST",
+			Lines: []WarrantyLine{{
+				ID: "line-1", Name: "Item", Months: 12, HasTerm: true,
+				Delivered: 1, Registered: 1,
+			}},
+		},
+	))
+	if got := warrantyEmptyDesc(html); got != i18n.T(ctx, i18n.KeyWarrantyAllDone) {
+		t.Errorf("empty hint = %q, want %q", got, i18n.T(ctx, i18n.KeyWarrantyAllDone))
+	}
+	title := warrantyEmptyTitle(html)
+	if title != i18n.T(ctx, i18n.KeyWarrantyNothingHere) {
+		t.Errorf("empty title = %q, want %q", title, i18n.T(ctx, i18n.KeyWarrantyNothingHere))
+	}
+	if strings.Contains(title, "yet") {
+		t.Errorf("empty title still promises a later registration: %q", title)
+	}
+	if strings.Contains(html, i18n.T(ctx, i18n.KeyWarrantyAfterShipping)) {
+		t.Errorf("all-registered render still has the delivery hint %q", i18n.T(ctx, i18n.KeyWarrantyAfterShipping))
+	}
+	if strings.Contains(html, "registered yet") {
+		t.Errorf("all-registered render still has the future-eligibility promise")
+	}
+}
+
+func warrantyEmptyTitle(html string) string {
+	return warrantyEmptyText(html, `class="ui-empty__title"`)
+}
+
 func warrantyEmptyDesc(html string) string {
-	const mark = `class="ui-empty__desc"`
+	return warrantyEmptyText(html, `class="ui-empty__desc"`)
+}
+
+func warrantyEmptyText(html, mark string) string {
 	i := strings.Index(html, mark)
 	if i < 0 {
 		return ""
