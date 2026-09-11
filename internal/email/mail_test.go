@@ -182,6 +182,122 @@ func TestARestockNoticeIdentifiesTheQueuedVariant(t *testing.T) {
 	}
 }
 
+func centsPtr(n int64) *int64 { return &n }
+
+// TestAPlacedLetterNamesWhatIsStillOwed: store credit and a coupon change
+// the amount payable, not the order total. The confirmation must quote the
+// former and drop the pay CTA when nothing remains.
+func TestAPlacedLetterNamesWhatIsStillOwed(t *testing.T) {
+	t.Parallel()
+
+	const (
+		number = "GO-260101-000001"
+		total  = int64(199900)
+		owed   = int64(99900)
+	)
+
+	t.Run("fully funded omits the pay CTA", func(t *testing.T) {
+		t.Parallel()
+
+		n, sink := notifier(t)
+		if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
+			Locale: "zh-Hant", Email: "a@b.co", Name: "王小明",
+			OrderNumber: number, TotalCents: total, OwedCents: centsPtr(0),
+		}); err != nil {
+			t.Fatalf("send: %v", err)
+		}
+		body := sink.msg.Body
+		if strings.Contains(body, "付款") {
+			t.Errorf("a fully funded Chinese letter still asks the customer to pay:\n%s", body)
+		}
+		if strings.Contains(body, "應付金額") {
+			t.Errorf("a fully funded letter still names an amount due:\n%s", body)
+		}
+		if !strings.Contains(body, "查看訂單:") {
+			t.Errorf("a fully funded letter dropped the order link:\n%s", body)
+		}
+		if !strings.Contains(body, "https://goen.test/orders/"+number) {
+			t.Errorf("a fully funded letter dropped the order URL:\n%s", body)
+		}
+
+		n, sink = notifier(t)
+		if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
+			Locale: "en", Email: "a@b.co", Name: "Alex",
+			OrderNumber: number, TotalCents: total, OwedCents: centsPtr(0),
+		}); err != nil {
+			t.Fatalf("send en: %v", err)
+		}
+		en := sink.msg.Body
+		if strings.Contains(strings.ToLower(en), "pay") {
+			t.Errorf("a fully funded English letter still asks the customer to pay:\n%s", en)
+		}
+		if strings.Contains(en, "Amount due") {
+			t.Errorf("a fully funded English letter still names an amount due:\n%s", en)
+		}
+		if !strings.Contains(en, "View the order:") {
+			t.Errorf("a fully funded English letter dropped the order link:\n%s", en)
+		}
+	})
+
+	t.Run("partial credit quotes owed not the total", func(t *testing.T) {
+		t.Parallel()
+
+		n, sink := notifier(t)
+		if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
+			Locale: "zh-Hant", Email: "a@b.co", Name: "王小明",
+			OrderNumber: number, TotalCents: total, OwedCents: centsPtr(owed),
+		}); err != nil {
+			t.Fatalf("send: %v", err)
+		}
+		body := sink.msg.Body
+		if !strings.Contains(body, "NT$999") {
+			t.Errorf("a partly funded letter does not name the amount still owed:\n%s", body)
+		}
+		if strings.Contains(body, "NT$1,999") {
+			t.Errorf("a partly funded letter quotes the order total instead of what is owed:\n%s", body)
+		}
+		if !strings.Contains(body, "查看訂單與付款") {
+			t.Errorf("a partly funded letter dropped the pay CTA:\n%s", body)
+		}
+
+		n, sink = notifier(t)
+		if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
+			Locale: "en", Email: "a@b.co", Name: "Alex",
+			OrderNumber: number, TotalCents: total, OwedCents: centsPtr(owed),
+		}); err != nil {
+			t.Fatalf("send en: %v", err)
+		}
+		en := sink.msg.Body
+		if !strings.Contains(en, "NT$999") {
+			t.Errorf("the English letter does not name the amount still owed:\n%s", en)
+		}
+		if strings.Contains(en, "NT$1,999") {
+			t.Errorf("the English letter quotes the order total instead of what is owed:\n%s", en)
+		}
+		if !strings.Contains(en, "View it and pay") {
+			t.Errorf("the English letter dropped the pay CTA:\n%s", en)
+		}
+	})
+
+	t.Run("a queued row without owed_cents keeps the total", func(t *testing.T) {
+		t.Parallel()
+
+		n, sink := notifier(t)
+		if err := n.SendOrderPlaced(t.Context(), &OrderPlaced{
+			Locale: "en", Email: "a@b.co", Name: "Alex",
+			OrderNumber: number, TotalCents: total,
+		}); err != nil {
+			t.Fatalf("send: %v", err)
+		}
+		if !strings.Contains(sink.msg.Body, "NT$1,999") {
+			t.Errorf("an already-queued letter did not fall back to the total:\n%s", sink.msg.Body)
+		}
+		if !strings.Contains(sink.msg.Body, "View it and pay") {
+			t.Errorf("an already-queued letter dropped the pay CTA:\n%s", sink.msg.Body)
+		}
+	})
+}
+
 func TestTheGreetingDropsAnEmptyName(t *testing.T) {
 	t.Parallel()
 

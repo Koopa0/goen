@@ -18,6 +18,13 @@ var (
 		ZhHant: "我們已經收到您的訂單 %s。\n\n應付金額:%s\n\n查看訂單與付款:\n%s",
 		En:     "We have your order %s.\n\nAmount due: %s\n\nView it and pay:\n%s",
 	})
+	// KeyMailPlacedFundedBody is the confirmation when store credit or a
+	// coupon has already brought the amount owed to zero. The pay CTA would
+	// send the customer to a page that has nothing to collect.
+	KeyMailPlacedFundedBody = key("mail.placed.funded.body", Message{
+		ZhHant: "我們已經收到您的訂單 %s。\n\n查看訂單:\n%s",
+		En:     "We have your order %s.\n\nView the order:\n%s",
+	})
 
 	// KeyMailStatutoryDisclosure carries Consumer Protection Act §18's disclosure.
 	// Under §19 III the seven-day window runs from the day after it is finally

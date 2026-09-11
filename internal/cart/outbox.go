@@ -22,14 +22,25 @@ type OrderPlaced struct {
 	Email       string `json:"email"`
 	Name        string `json:"name"`
 	TotalCents  int64  `json:"total_cents"`
+	// OwedCents is what is still payable after store credit. A missing
+	// field (already-queued rows) falls back to TotalCents so an in-flight
+	// letter does not flip to the funded copy.
+	OwedCents *int64 `json:"owed_cents,omitempty"`
 }
 
 // enqueueOrderPlaced writes the message in the order's own transaction, keyed on
 // the order number so a retried checkout cannot send a second confirmation.
 func enqueueOrderPlaced(ctx context.Context, q *db.Queries, orderID uuid.UUID, number string, addr *Address, totalCents int64) error {
+	// Credit is already posted in this transaction, so order_amount_owed is
+	// the figure the payment page will show.
+	summary, err := q.OrderSummaryByNumber(ctx, number)
+	if err != nil {
+		return fmt.Errorf("read owed for order.placed: %w", err)
+	}
+	owed := summary.OwedCents
 	payload, err := json.Marshal(OrderPlaced{
 		OrderNumber: number, Email: addr.Email, Name: addr.Name, TotalCents: totalCents,
-		Locale: i18n.FromContext(ctx).Tag(),
+		OwedCents: &owed, Locale: i18n.FromContext(ctx).Tag(),
 	})
 	if err != nil {
 		return fmt.Errorf("encode order.placed: %w", err)
