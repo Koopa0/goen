@@ -224,7 +224,8 @@ func TestRestartingEnrolmentInvalidatesTheOldSecret(t *testing.T) {
 	old := enrol(t, s, userID, email)
 
 	// Through the RECOVERY path, the only way a proved factor is replaced.
-	if err := s.Remove(ctx, userID); err != nil {
+	helper, _ := staff(t)
+	if err := s.RemoveFactor(ctx, userID, helper); err != nil {
 		t.Fatalf("remove the old factor: %v", err)
 	}
 
