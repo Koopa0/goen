@@ -10383,6 +10383,17 @@ func (q *Queries) ReverseOrderCredit(ctx context.Context, orderID uuid.UUID) (in
 	return returned_cents, err
 }
 
+const reverseOrderPoints = `-- name: ReverseOrderPoints :one
+SELECT reverse_order_points($1)::bigint AS points_reversed
+`
+
+func (q *Queries) ReverseOrderPoints(ctx context.Context, orderID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, reverseOrderPoints, orderID)
+	var points_reversed int64
+	err := row.Scan(&points_reversed)
+	return points_reversed, err
+}
+
 const reverseReturnPoints = `-- name: ReverseReturnPoints :one
 SELECT reverse_return_points($1::uuid)::bigint AS points_reversed
 `

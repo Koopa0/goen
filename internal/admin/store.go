@@ -361,6 +361,9 @@ func applyStatusEffects(ctx context.Context, q *db.Queries, e statusEffect) erro
 		if _, err := q.ReverseOrderCredit(ctx, e.orderID); err != nil {
 			return fmt.Errorf("return store credit spent on %s: %w", e.number, err)
 		}
+		if _, err := q.ReverseOrderPoints(ctx, e.orderID); err != nil {
+			return fmt.Errorf("claw back loyalty earned on %s: %w", e.number, err)
+		}
 	case pages.FulfillmentDelivered, pages.FulfillmentCompleted:
 		// BOTH transitions that end a delivery: shipped -> completed directly is
 		// the only honest move for convenience-store pickup, and stamping only on

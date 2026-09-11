@@ -7433,6 +7433,10 @@ CREATE TABLE loyalty_entries (
         (kind = 'clawback' AND points <= 0 AND lot_id IS NOT NULL
             AND requested_points > 0 AND -points <= requested_points
             AND return_request_id IS NOT NULL)
+        OR
+        (kind = 'clawback' AND points <= 0 AND lot_id IS NOT NULL
+            AND requested_points > 0 AND -points <= requested_points
+            AND return_request_id IS NULL AND order_id IS NOT NULL)
     )
 );
 
@@ -8080,6 +8084,80 @@ BEGIN
 END;
 $$;
 
+-- Claw back the award lot behind an order the back office has cancelled. Unlike
+-- reverse_return_points, this keys on the order alone: no return exists.
+CREATE FUNCTION reverse_order_points(p_order_id uuid) RETURNS bigint
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    lot record;
+    v_status text;
+    v_points bigint;
+    v_remaining bigint;
+    v_actual bigint;
+BEGIN
+    SELECT o.fulfillment_status INTO v_status
+    FROM orders o
+    WHERE o.id = p_order_id
+    FOR UPDATE;
+    IF NOT FOUND THEN
+        RETURN 0;
+    END IF;
+    IF v_status <> 'cancelled' THEN
+        RAISE EXCEPTION 'loyalty can only be reversed on a cancelled order %',
+            p_order_id
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'loyalty_clawback_cancelled_order';
+    END IF;
+
+    SELECT e.id, e.account_id, e.points, e.expires_on INTO lot
+    FROM loyalty_entries e
+    WHERE e.order_id = p_order_id AND e.kind = 'award'
+    ORDER BY e.created_at, e.id
+    LIMIT 1;
+    IF NOT FOUND THEN
+        RETURN 0;
+    END IF;
+
+    PERFORM 1 FROM store_credit_accounts WHERE id = lot.account_id FOR UPDATE;
+    IF EXISTS (
+        SELECT 1 FROM loyalty_entries e
+        WHERE e.idempotency_key = 'cancel:' || p_order_id::text
+    ) THEN
+        RETURN 0;
+    END IF;
+
+    v_points := lot.points;
+    IF v_points <= 0 THEN
+        RETURN 0;
+    END IF;
+
+    SELECT greatest(lot.points + coalesce(sum(e.points), 0), 0)::bigint
+    INTO v_remaining
+    FROM loyalty_entries e
+    WHERE e.lot_id = lot.id;
+    v_actual := least(v_points, v_remaining);
+
+    INSERT INTO loyalty_entries (
+        account_id, kind, points, reason, idempotency_key, order_id,
+        lot_id, requested_points, expires_on
+    ) VALUES (
+        lot.account_id, 'clawback', -v_actual, 'cancelled',
+        'cancel:' || p_order_id::text, p_order_id,
+        lot.id, v_points, lot.expires_on
+    )
+    ON CONFLICT (idempotency_key) DO NOTHING;
+
+    IF NOT FOUND THEN
+        RETURN 0;
+    END IF;
+    RETURN v_actual;
+END;
+$$;
+
+COMMENT ON FUNCTION reverse_order_points(uuid) IS
+    'Claw back the points a cancelled order awarded. Idempotent on the order; '
+    'records requested_points even when the lot was wholly consumed.';
+
 -- Spend points and post the store credit they bought, in ONE transaction. Two
 -- statements would let the points go and the credit not arrive.
 CREATE FUNCTION redeem_loyalty_points(
@@ -8201,6 +8279,7 @@ $$;
 
 GRANT EXECUTE ON FUNCTION award_loyalty_points(uuid) TO store;
 GRANT EXECUTE ON FUNCTION reverse_return_points(uuid) TO admin;
+GRANT EXECUTE ON FUNCTION reverse_order_points(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION redeem_loyalty_points(uuid, bigint, uuid) TO store;
 
 -- The privilege sweep. THIS MUST BE THE LAST THING IN THE FILE: it pins
