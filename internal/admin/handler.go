@@ -1780,12 +1780,17 @@ func (h *Handler) VoidInvoice(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/orders/"+number+"?noinvoice=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrPending):
 		http.Redirect(w, r, "/admin/orders/"+number+"?invoicepending=1", http.StatusSeeOther)
-	case errors.Is(err, invoice.ErrRejected), errors.Is(err, invoice.ErrDisabled),
-		errors.Is(err, ErrRefused):
+	case errors.Is(err, invoice.ErrRejected):
 		// invoicefailed names 統編 and carrier codes. A void form collects a
 		// reason; the provider refusal belongs on 綠界, not checkout tax ids.
-		h.log.WarnContext(r.Context(), "invoice void refused", "order", number, "error", err)
+		h.log.ErrorContext(r.Context(), "the e-invoice provider refused the void",
+			"order", number, "error", err)
 		http.Redirect(w, r, "/admin/orders/"+number+"?voidfailed=1", http.StatusSeeOther)
+	case errors.Is(err, invoice.ErrDisabled), errors.Is(err, ErrRefused):
+		// No issuer is configured. voidfailed would say ECPay refused a call
+		// that never happened.
+		h.log.WarnContext(r.Context(), "invoice void refused", "order", number, "error", err)
+		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "void invoice", "order", number, "error", err)
 		h.serverError(w, r)
@@ -1827,12 +1832,17 @@ func (h *Handler) AllowInvoice(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/orders/"+number+"?invoicepending=1", http.StatusSeeOther)
 	case errors.Is(err, invoice.ErrTooMuch):
 		http.Redirect(w, r, "/admin/orders/"+number+"?allowtoomuch=1", http.StatusSeeOther)
-	case errors.Is(err, invoice.ErrRejected), errors.Is(err, invoice.ErrDisabled),
-		errors.Is(err, ErrRefused):
+	case errors.Is(err, invoice.ErrRejected):
 		// invoicefailed names 統編 and carrier codes, which is right for ISSUING.
 		// An allowance form does not collect those fields.
-		h.log.WarnContext(r.Context(), "invoice allowance refused", "order", number, "error", err)
+		h.log.ErrorContext(r.Context(), "the e-invoice provider refused the allowance",
+			"order", number, "error", err)
 		http.Redirect(w, r, "/admin/orders/"+number+"?allowfailed=1", http.StatusSeeOther)
+	case errors.Is(err, invoice.ErrDisabled), errors.Is(err, ErrRefused):
+		// No issuer is configured. allowfailed would say ECPay refused a call
+		// that never happened.
+		h.log.WarnContext(r.Context(), "invoice allowance refused", "order", number, "error", err)
+		http.Redirect(w, r, "/admin/orders/"+number+"?refused=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "file invoice allowance", "order", number, "error", err)
 		h.serverError(w, r)

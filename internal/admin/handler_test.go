@@ -202,3 +202,54 @@ func TestVoidAndAllowanceProviderRefusalDoesNotBlameTaxIDs(t *testing.T) {
 		}
 	}
 }
+
+func TestVoidAndAllowanceUnconfiguredIssuerUsesRefusedNotice(t *testing.T) {
+	t.Parallel()
+
+	// Store.VoidInvoice / AllowInvoice return ErrRefused when the writer is
+	// gone: a stale POST after the issuer was disabled, or a shop that never
+	// had one. ECPay is not called.
+	unconfigured := &Handler{
+		store: &Store{},
+		log:   slog.New(slog.DiscardHandler),
+	}
+	voidRes := postVoid(t, unconfigured, "資料錯誤")
+	if voidRes.Code != http.StatusSeeOther ||
+		!strings.HasSuffix(voidRes.Header().Get("Location"), "?refused=1") {
+		t.Fatalf("Void unconfigured issuer = %d %q, want 303 ?refused=1",
+			voidRes.Code, voidRes.Header().Get("Location"))
+	}
+
+	allowRes := postAllowance(t, unconfigured)
+	if allowRes.Code != http.StatusSeeOther ||
+		!strings.HasSuffix(allowRes.Header().Get("Location"), "?refused=1") {
+		t.Fatalf("Allowance unconfigured issuer = %d %q, want 303 ?refused=1",
+			allowRes.Code, allowRes.Header().Get("Location"))
+	}
+
+	disabled := invoiceNoticeHandler(stubInvoiceWriter{
+		voidErr: invoice.ErrDisabled, allowanceErr: invoice.ErrDisabled,
+	})
+	voidDisabled := postVoid(t, disabled, "資料錯誤")
+	if voidDisabled.Code != http.StatusSeeOther ||
+		!strings.HasSuffix(voidDisabled.Header().Get("Location"), "?refused=1") {
+		t.Fatalf("Void disabled issuer = %d %q, want 303 ?refused=1",
+			voidDisabled.Code, voidDisabled.Header().Get("Location"))
+	}
+	allowDisabled := postAllowance(t, disabled)
+	if allowDisabled.Code != http.StatusSeeOther ||
+		!strings.HasSuffix(allowDisabled.Header().Get("Location"), "?refused=1") {
+		t.Fatalf("Allowance disabled issuer = %d %q, want 303 ?refused=1",
+			allowDisabled.Code, allowDisabled.Header().Get("Location"))
+	}
+
+	req := httptest.NewRequestWithContext(invoiceNoticeContext(t), http.MethodGet,
+		"/admin/orders/"+invoiceNoticeOrder+"?refused=1", nil)
+	got := noticeFor(req)
+	if got == "" {
+		t.Fatal("refused has no notice")
+	}
+	if strings.Contains(got, "加值中心") || strings.Contains(got, "綠界") {
+		t.Errorf("refused notice %q names a provider that was never called", got)
+	}
+}
