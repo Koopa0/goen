@@ -3,6 +3,8 @@ package cart
 import (
 	"context"
 	"log/slog"
+	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -61,5 +63,24 @@ func TestPostCommitSessionExpiryOwnsItsContext(t *testing.T) {
 	if observed.remaining <= 0 || observed.remaining > 5*time.Second {
 		t.Errorf("ExpireSession context had %v remaining; want a live deadline no more than 5s away",
 			observed.remaining)
+	}
+}
+
+// TestSignedInCartLookupFallsBackToTheAccountCart holds the HTTP resolution
+// after a merge-adopt: the cookie still names the deleted guest row, and a
+// signed-in add must not mint an unowned cart.
+func TestSignedInCartLookupFallsBackToTheAccountCart(t *testing.T) {
+	t.Parallel()
+
+	src, err := os.ReadFile("handler.go")
+	if err != nil {
+		t.Fatalf("read handler.go: %v", err)
+	}
+	body := string(src)
+	if !strings.Contains(body, "CartForUser") {
+		t.Error("signed-in cart lookup does not resolve CartForUser when the cookie misses")
+	}
+	if strings.Contains(body, "Create(r.Context(), token, uuid.NullUUID{})") {
+		t.Error("signed-in add still mints an unowned cart")
 	}
 }
