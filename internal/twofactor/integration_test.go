@@ -224,7 +224,8 @@ func TestRestartingEnrolmentInvalidatesTheOldSecret(t *testing.T) {
 	old := enrol(t, s, userID, email)
 
 	// Through the RECOVERY path, the only way a proved factor is replaced.
-	if err := s.Remove(ctx, userID); err != nil {
+	helper, _ := staff(t)
+	if err := s.RemoveFactor(ctx, userID, helper); err != nil {
 		t.Fatalf("remove the old factor: %v", err)
 	}
 
@@ -1283,5 +1284,189 @@ func TestErasureAndDemotionShareTheRosterGuard(t *testing.T) {
 	}
 	if admins != 1 {
 		t.Errorf("erase/demote left %d admins, want 1", admins)
+	}
+}
+
+func staffAuditCount(t *testing.T, action string) int {
+	t.Helper()
+	var n int
+	if err := pool.QueryRow(t.Context(),
+		`SELECT count(*) FROM audit_events WHERE action = $1`, action).Scan(&n); err != nil {
+		t.Fatalf("count %s: %v", action, err)
+	}
+	return n
+}
+
+func readStaffAudit(t *testing.T, action, target string) (actor, email, role string) {
+	t.Helper()
+	if err := pool.QueryRow(t.Context(), `
+		SELECT actor_user_id::text, coalesce(after->>'email', ''), coalesce(after->>'role', '')
+		FROM audit_events
+		WHERE action = $1 AND entity_id = $2
+		ORDER BY occurred_at DESC, id DESC LIMIT 1`, action, target).
+		Scan(&actor, &email, &role); err != nil {
+		t.Fatalf("read %s audit for %s: %v", action, target, err)
+	}
+	return actor, email, role
+}
+
+// TestStaffAuthorizationChangesLeaveATrail is the lock for #122: each staff
+// form that actually changes authorization or a factor writes one audit row
+// naming the actor and the target. A drop of the record call is a silent
+// back-office grant.
+func TestStaffAuthorizationChangesLeaveATrail(t *testing.T) {
+	ctx := web.WithRequestID(t.Context(), "req-staff-audit")
+	s := twofactor.NewStore(pool, testKey)
+	actor, _ := staff(t)
+
+	address := "audited-" + uuid.NewString()[:8] + "@goen.invalid"
+	beforeGrant := staffAuditCount(t, "staff.grant")
+	if _, err := s.AddStaff(ctx, address, "稽核同事", "staff", actor); err != nil {
+		t.Fatalf("AddStaff: %v", err)
+	}
+	if after := staffAuditCount(t, "staff.grant"); after != beforeGrant+1 {
+		t.Fatalf("AddStaff left %d staff.grant rows, want %d", after, beforeGrant+1)
+	}
+	var target string
+	if err := pool.QueryRow(ctx,
+		`SELECT id::text FROM users WHERE lower(email) = lower($1)`, address).Scan(&target); err != nil {
+		t.Fatalf("read promoted id: %v", err)
+	}
+	gotActor, gotEmail, gotRole := readStaffAudit(t, "staff.grant", target)
+	if gotActor != actor || gotEmail != address || gotRole != "staff" {
+		t.Errorf("staff.grant = actor %s email %q role %q; want %s/%q/staff",
+			gotActor, gotEmail, gotRole, actor, address)
+	}
+
+	beforeRevoke := staffAuditCount(t, "staff.revoke")
+	if err := s.RevokeStaff(ctx, target, actor); err != nil {
+		t.Fatalf("RevokeStaff: %v", err)
+	}
+	if after := staffAuditCount(t, "staff.revoke"); after != beforeRevoke+1 {
+		t.Fatalf("RevokeStaff left %d staff.revoke rows, want %d", after, beforeRevoke+1)
+	}
+	gotActor, gotEmail, gotRole = readStaffAudit(t, "staff.revoke", target)
+	if gotActor != actor || gotEmail != address || gotRole != "customer" {
+		t.Errorf("staff.revoke = actor %s email %q role %q; want %s/%q/customer",
+			gotActor, gotEmail, gotRole, actor, address)
+	}
+
+	lost, lostEmail := staff(t)
+	enrol(t, s, lost, lostEmail)
+	beforeRemove := staffAuditCount(t, "staff.factor.remove")
+	if err := s.RemoveFactor(ctx, lost, actor); err != nil {
+		t.Fatalf("RemoveFactor: %v", err)
+	}
+	if after := staffAuditCount(t, "staff.factor.remove"); after != beforeRemove+1 {
+		t.Fatalf("RemoveFactor left %d staff.factor.remove rows, want %d", after, beforeRemove+1)
+	}
+	gotActor, gotEmail, _ = readStaffAudit(t, "staff.factor.remove", lost)
+	if gotActor != actor || gotEmail != lostEmail {
+		t.Errorf("staff.factor.remove = actor %s email %q; want %s/%q",
+			gotActor, gotEmail, actor, lostEmail)
+	}
+	var secretInTrail int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM audit_events
+		WHERE action = 'staff.factor.remove' AND entity_id = $1
+		  AND (after ? 'secret' OR after::text ILIKE '%secret%')`, lost).Scan(&secretInTrail); err != nil {
+		t.Fatalf("look for a secret in the trail: %v", err)
+	}
+	if secretInTrail != 0 {
+		t.Error("factor-remove after retained TOTP material")
+	}
+}
+
+// TestRefusedStaffChangesLeaveNoTrail: a no-op must not claim a completed
+// authorization change on /admin/audit.
+func TestRefusedStaffChangesLeaveNoTrail(t *testing.T) {
+	ctx := t.Context()
+	s := twofactor.NewStore(pool, testKey)
+	self, selfEmail := staff(t)
+	helper, _ := staff(t)
+
+	beforeGrant := staffAuditCount(t, "staff.grant")
+	if _, err := s.AddStaff(ctx, selfEmail, "我自己", "admin", self); !errors.Is(err, twofactor.ErrSelf) {
+		t.Fatalf("self AddStaff = %v, want ErrSelf", err)
+	}
+	if _, err := s.AddStaff(ctx, "not-an-email", "無效", "staff", self); !errors.Is(err, twofactor.ErrInvalidStaff) {
+		t.Fatalf("invalid AddStaff = %v, want ErrInvalidStaff", err)
+	}
+	if after := staffAuditCount(t, "staff.grant"); after != beforeGrant {
+		t.Errorf("refused AddStaff left %d staff.grant rows, want %d", after, beforeGrant)
+	}
+
+	beforeRevoke := staffAuditCount(t, "staff.revoke")
+	if err := s.RevokeStaff(ctx, self, self); !errors.Is(err, twofactor.ErrSelf) {
+		t.Fatalf("self RevokeStaff = %v, want ErrSelf", err)
+	}
+	if after := staffAuditCount(t, "staff.revoke"); after != beforeRevoke {
+		t.Errorf("self RevokeStaff left %d staff.revoke rows, want %d", after, beforeRevoke)
+	}
+
+	enrol(t, s, self, selfEmail)
+	beforeRemove := staffAuditCount(t, "staff.factor.remove")
+	if err := s.RemoveFactor(ctx, self, self); !errors.Is(err, twofactor.ErrSelf) {
+		t.Fatalf("self RemoveFactor = %v, want ErrSelf", err)
+	}
+	missing := uuid.NewString()
+	if err := s.RemoveFactor(ctx, missing, helper); !errors.Is(err, twofactor.ErrNotEnrolled) {
+		t.Fatalf("RemoveFactor on nobody = %v, want ErrNotEnrolled", err)
+	}
+	if after := staffAuditCount(t, "staff.factor.remove"); after != beforeRemove {
+		t.Errorf("refused RemoveFactor left %d staff.factor.remove rows, want %d", after, beforeRemove)
+	}
+
+	only, _ := staff(t)
+	if _, err := pool.Exec(ctx,
+		`UPDATE users SET role = 'customer' WHERE role = 'admin' AND id <> $1`, only); err != nil {
+		t.Fatalf("leave one admin: %v", err)
+	}
+	other, _ := staff(t)
+	if _, err := pool.Exec(ctx, `UPDATE users SET role = 'staff' WHERE id = $1`, other); err != nil {
+		t.Fatalf("demote the helper: %v", err)
+	}
+	beforeLast := staffAuditCount(t, "staff.revoke")
+	if err := s.RevokeStaff(ctx, only, other); !errors.Is(err, twofactor.ErrLastAdmin) {
+		t.Fatalf("last-admin RevokeStaff = %v, want ErrLastAdmin", err)
+	}
+	if after := staffAuditCount(t, "staff.revoke"); after != beforeLast {
+		t.Errorf("last-admin revoke left %d staff.revoke rows, want %d", after, beforeLast)
+	}
+	if roleOf(t, only) != "admin" {
+		t.Errorf("the last admin is now %q", roleOf(t, only))
+	}
+}
+
+// TestStaffWriteRollsBackWhenAuditCannotRecord: a grant that cannot be
+// attributed must not land. The missing actor fails the audit FK after the
+// upsert, so seeing no user proves the two statements shared a transaction.
+func TestStaffWriteRollsBackWhenAuditCannotRecord(t *testing.T) {
+	ctx := t.Context()
+	s := twofactor.NewStore(pool, testKey)
+	missing := uuid.NewString()
+	address := "unattributed-" + uuid.NewString()[:8] + "@goen.invalid"
+
+	_, err := s.AddStaff(ctx, address, "不得落地", "staff", missing)
+	if err == nil {
+		t.Fatal("AddStaff with an unrecordable actor succeeded")
+	}
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	if !ok || pgErr.ConstraintName != "audit_events_actor_user_id_fkey" {
+		t.Fatalf("AddStaff audit failure = %v, want audit actor FK", err)
+	}
+
+	var users, audits int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM users WHERE lower(email) = lower($1)`, address).Scan(&users); err != nil {
+		t.Fatalf("count users: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM audit_events
+		WHERE action = 'staff.grant' AND after->>'email' = $1`, address).Scan(&audits); err != nil {
+		t.Fatalf("count audits: %v", err)
+	}
+	if users != 0 || audits != 0 {
+		t.Errorf("unattributed grant left %d user(s) and %d audit row(s), want 0/0", users, audits)
 	}
 }
