@@ -516,8 +516,9 @@ func (s *Store) Ship(ctx context.Context, number string, d Dispatch, actor uuid.
 		}
 	}
 
-	// One notice per PARCEL: the dedupe key is the tracking number and not the
-	// order, so an order arriving in two boxes is two notices.
+	// One notice per PARCEL: the dedupe key is carrier and tracking together,
+	// which is what order_shipments is unique on, not the order. An order in two
+	// parcels is still two notices.
 	if err := enqueueOrderShipped(ctx, q, row.ID, &OrderShipped{
 		OrderNumber: number, Carrier: carrier, Tracking: tracking,
 	}); err != nil {
