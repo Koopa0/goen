@@ -708,6 +708,103 @@ func TestAdvanceCannotShip(t *testing.T) {
 	}
 }
 
+// TestAdminCancelClawsBackLoyaltyPoints holds that a paid order cancelled in the
+// back office leaves no net loyalty on the order. Capture awards once; Advance
+// to cancelled must claw back idempotently.
+func TestAdminCancelClawsBackLoyaltyPoints(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+
+	var userID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO users (email, role, full_name)
+		VALUES ('cancel-points-' || gen_random_uuid() || '@goen.invalid', 'customer', '取消點數')
+		RETURNING id`).Scan(&userID); err != nil {
+		t.Fatalf("create customer: %v", err)
+	}
+
+	number, orderID := paidPickingOrderForUser(t, userID, 1200000)
+
+	var awarded int64
+	if err := pool.QueryRow(ctx,
+		`SELECT coalesce(sum(points), 0) FROM loyalty_entries WHERE order_id = $1`,
+		orderID).Scan(&awarded); err != nil {
+		t.Fatalf("read award: %v", err)
+	}
+	if awarded != 120 {
+		t.Fatalf("awarded = %d, want 120", awarded)
+	}
+
+	if _, err := s.Advance(ctx, number, "cancelled", uuid.NullUUID{}); err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
+
+	var net int64
+	if err := pool.QueryRow(ctx,
+		`SELECT coalesce(sum(points), 0) FROM loyalty_entries WHERE order_id = $1`,
+		orderID).Scan(&net); err != nil {
+		t.Fatalf("read net points: %v", err)
+	}
+	if net != 0 {
+		t.Errorf("net points after cancel = %d, want 0", net)
+	}
+
+	var replay int64
+	if err := pool.QueryRow(ctx,
+		`SELECT reverse_order_points($1)`, orderID).Scan(&replay); err != nil || replay != 0 {
+		t.Fatalf("cancel clawback replay = %d, %v; want 0, nil", replay, err)
+	}
+}
+
+func paidPickingOrderForUser(t *testing.T, userID uuid.UUID, cents int64) (number string, orderID uuid.UUID) {
+	t.Helper()
+	ctx := t.Context()
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, user_id, shipping_version_id,
+		                    shipping_method_code, shipping_method_name, shipping_cents)
+		SELECT next_order_number(), $1, v.id, sm.code, v.name, 0
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1
+		RETURNING id, order_number`, userID).Scan(&orderID, &number); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
+		VALUES ($1, 'CANCEL-POINTS', '點數取消', $2, 1)`, orderID, cents); err != nil {
+		t.Fatalf("create line: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'cancel-points@example.com', '收件', '0912345678',
+		        '110', '台北市', '信義區', '路 1 號')`, orderID); err != nil {
+		t.Fatalf("create private data: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, $3)`,
+		orderID, "cs_cancel_pts_"+number, cents); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT capture_payment($1, $2, NULL, NULL)`,
+		"cs_cancel_pts_"+number, cents); err != nil {
+		t.Fatalf("capture: %v", err)
+	}
+	if _, err := tx.Exec(ctx,
+		`UPDATE orders SET fulfillment_status = 'picking' WHERE id = $1`, orderID); err != nil {
+		t.Fatalf("to picking: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	return number, orderID
+}
+
 func TestAdvanceRecordsWhoAndWhen(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
