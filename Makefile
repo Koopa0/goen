@@ -388,7 +388,8 @@ check-layout:
 		INVOICE_ORDER=$$INVOICE_ORDER \
 		CUSTOMER_ID=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT id FROM users WHERE email = 'layout-cust@goen.invalid'") \
 		LAYOUT_SERIAL=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT w.serial_number FROM warranty_registrations w JOIN users u ON u.id = w.user_id WHERE u.email = 'layout-cust@goen.invalid' ORDER BY w.registered_at DESC LIMIT 1") \
-		ADMIN_TOKEN=$$(cat .layout-chrome/admin-token) node scripts/check-layout.mjs; status=$$?; \
+		ADMIN_TOKEN=$$(cat .layout-chrome/admin-token) \
+		CUST_TOKEN=$$(cat .layout-chrome/cust-token) node scripts/check-layout.mjs; status=$$?; \
 		kill $$(cat .layout-chrome/pid) 2>/dev/null; sleep 1; rm -rf .layout-chrome 2>/dev/null; \
 		exit $$status
 
