@@ -582,6 +582,140 @@ func TestAChangedCreditBalanceReRendersCheckoutWithTheFreshFigure(t *testing.T) 
 	}
 }
 
+// TestConcurrentSignedInFirstAddsShareOneOwnedCart holds an uncommitted owned
+// row so both HTTP first-adds miss CartForUser and wait on carts_one_per_user.
+// Releasing that row lets one insert win; the loser must reread it, not 500.
+func TestConcurrentSignedInFirstAddsShareOneOwnedCart(t *testing.T) {
+	ctx := t.Context()
+	var userID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO users (email, role, full_name)
+		VALUES ('first-add-' || gen_random_uuid() || '@goen.invalid', 'customer', '王小明')
+		RETURNING id`).Scan(&userID); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	firstVariant, secondVariant, _ := variantsOf(t, "signed-in-first-add", 2)
+
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin owned-cart blocker: %v", err)
+	}
+	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := blocker.Exec(ctx,
+		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2)`,
+		cart.HashToken("blocker-"+userID.String()), userID); err != nil {
+		t.Fatalf("hold uncommitted owned cart: %v", err)
+	}
+
+	suffix := uuid.NewString()[:8]
+	firstName, secondName := "first-add-a-"+suffix, "first-add-b-"+suffix
+	firstHandler := cart.NewHandler(cart.NewStore(applicationPool(t, firstName)),
+		slog.New(slog.DiscardHandler), false,
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil)
+	secondHandler := cart.NewHandler(cart.NewStore(applicationPool(t, secondName)),
+		slog.New(slog.DiscardHandler), false,
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil)
+
+	type addResult struct {
+		code int
+		body string
+	}
+	postAdd := func(h *cart.Handler, variant uuid.UUID, quantity string) addResult {
+		form := url.Values{
+			"variant":  {variant.String()},
+			"quantity": {quantity},
+			"back":     {"signed-in-first-add"},
+		}
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/cart/items",
+			strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req = req.WithContext(account.WithUser(req.Context(), account.User{
+			ID: userID.String(), Role: "customer",
+		}))
+		res := httptest.NewRecorder()
+		h.AddItem(res, req)
+		return addResult{code: res.Code, body: res.Body.String()}
+	}
+
+	firstDone, secondDone := make(chan error, 1), make(chan error, 1)
+	firstRes, secondRes := make(chan addResult, 1), make(chan addResult, 1)
+	go func() {
+		got := postAdd(firstHandler, firstVariant, "2")
+		firstRes <- got
+		if got.code >= 500 {
+			firstDone <- fmt.Errorf("first add status = %d; body=%s", got.code, got.body)
+			return
+		}
+		firstDone <- nil
+	}()
+	go func() {
+		got := postAdd(secondHandler, secondVariant, "3")
+		secondRes <- got
+		if got.code >= 500 {
+			secondDone <- fmt.Errorf("second add status = %d; body=%s", got.code, got.body)
+			return
+		}
+		secondDone <- nil
+	}()
+	waitForApplicationLock(t, firstName, firstDone)
+	waitForApplicationLock(t, secondName, secondDone)
+
+	if err := blocker.Rollback(ctx); err != nil {
+		t.Fatalf("release owned-cart blocker: %v", err)
+	}
+
+	if err := <-firstDone; err != nil {
+		t.Errorf("first add: %v", err)
+	}
+	if err := <-secondDone; err != nil {
+		t.Errorf("second add: %v", err)
+	}
+	first := <-firstRes
+	second := <-secondRes
+	if first.code != http.StatusSeeOther {
+		t.Errorf("first add status = %d, want 303; body=%s", first.code, first.body)
+	}
+	if second.code != http.StatusSeeOther {
+		t.Errorf("second add status = %d, want 303; body=%s", second.code, second.body)
+	}
+
+	var owned int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM carts WHERE user_id = $1`, userID).
+		Scan(&owned); err != nil {
+		t.Fatalf("count owned carts: %v", err)
+	}
+	if owned != 1 {
+		t.Fatalf("owned carts = %d, want 1", owned)
+	}
+
+	var cartID uuid.UUID
+	if err := pool.QueryRow(ctx, `SELECT id FROM carts WHERE user_id = $1`, userID).
+		Scan(&cartID); err != nil {
+		t.Fatalf("read owned cart: %v", err)
+	}
+	rows, err := pool.Query(ctx,
+		`SELECT variant_id, quantity FROM cart_items WHERE cart_id = $1`, cartID)
+	if err != nil {
+		t.Fatalf("read cart lines: %v", err)
+	}
+	defer rows.Close()
+	got := map[uuid.UUID]int32{}
+	for rows.Next() {
+		var variantID uuid.UUID
+		var quantity int32
+		if err := rows.Scan(&variantID, &quantity); err != nil {
+			t.Fatalf("scan cart line: %v", err)
+		}
+		got[variantID] = quantity
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate cart lines: %v", err)
+	}
+	if got[firstVariant] != 2 || got[secondVariant] != 3 || len(got) != 2 {
+		t.Errorf("cart lines = %v, want %s×2 and %s×3", got, firstVariant, secondVariant)
+	}
+}
+
 func TestCartIsFoundByTokenNotByID(t *testing.T) {
 	s := cart.NewStore(pool)
 	tok, err := cart.NewToken()

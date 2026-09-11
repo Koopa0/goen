@@ -1038,7 +1038,9 @@ func (h *Handler) existingCart(r *http.Request) (uuid.UUID, bool) {
 
 // cartForWrite returns the request's cart, opening one if this is the visitor's
 // first item. A signed-in create attaches user_id so the next add does not mint
-// an unowned cart the account can never see through the cookie.
+// an unowned cart the account can never see through the cookie. Create recovers
+// a carts_one_per_user collision by rereading the winner, so two first adds
+// share that one owned row.
 func (h *Handler) cartForWrite(w http.ResponseWriter, r *http.Request) (uuid.UUID, error) {
 	if id, ok := h.existingCart(r); ok {
 		return id, nil
