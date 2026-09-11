@@ -729,12 +729,13 @@ db-reset:
 
 # Deterministic checks for the .cursor/ Cloud Agent environment scripts: a
 # syntax pass over every script, then the config-key parser test against
-# committed CLI-shaped fixtures. No network and no live Stripe, so a regression
-# — dropping double-quoted TOML support, say — turns make verify red instead of
-# merging green.
+# committed CLI-shaped fixtures and TEST-mode key-prefix guards. No network and
+# no live Stripe, so a regression — dropping double-quoted TOML support or
+# accepting a live key prefix — turns make verify red instead of merging green.
 cursor-scripts-check:
 	@for f in .cursor/*.sh .cursor/lib/*.sh; do bash -n "$$f" || exit 1; done
 	@bash .cursor/lib/stripe-config-key.test.sh
+	@bash .cursor/lib/stripe-sandbox-key.test.sh
 
 # The single gate. Stop at the first failure — a passing later stage must never
 # be able to bury an earlier red one.

@@ -12,8 +12,18 @@ set -euo pipefail
 
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+lib_dir="$(dirname "${BASH_SOURCE[0]}")/lib"
+
 config_key() {
-	bash "$(dirname "${BASH_SOURCE[0]}")/lib/stripe-config-key.sh" "${HOME}/.config/stripe/config.toml"
+	bash "${lib_dir}/stripe-config-key.sh" "${HOME}/.config/stripe/config.toml"
+}
+
+require_test_key() {
+	if ! bash "${lib_dir}/stripe-test-key.sh" "$1"; then
+		echo "stripe-sandbox: refusing non-TEST-mode API key (sk_test_/rk_test_/rkcs_test_ only)" >&2
+		echo "stripe-sandbox: a development environment must never use a live Stripe account." >&2
+		exit 1
+	fi
 }
 
 print_secret() {
@@ -40,6 +50,7 @@ echo "stripe-sandbox: provisioning a local Stripe TEST sandbox..."
 key="$(config_key)"
 whsec=""
 if [ -n "$key" ]; then
+	require_test_key "$key"
 	whsec="$(print_secret "$key" || true)"
 fi
 
@@ -47,6 +58,11 @@ if [ -z "$key" ] || [ -z "$whsec" ]; then
 	echo "stripe-sandbox: creating a new sandbox (no valid key yet)"
 	stripe sandbox create --from-git --non-interactive >/dev/null
 	key="$(config_key)"
+	if [ -z "$key" ]; then
+		echo "stripe-sandbox: could not obtain a Stripe test key / webhook secret" >&2
+		exit 1
+	fi
+	require_test_key "$key"
 	whsec="$(print_secret "$key" || true)"
 fi
 
@@ -55,7 +71,9 @@ if [ -z "$key" ] || [ -z "$whsec" ]; then
 	exit 1
 fi
 
-echo "stripe-sandbox: key ${key:0:12}...  webhook secret ${whsec:0:12}..."
+require_test_key "$key"
+
+echo "stripe-sandbox: obtained TEST-mode credentials"
 
 # Write the credentials into .env (replacing any previous active Stripe lines).
 [ -f .env ] || cp .env.example .env
