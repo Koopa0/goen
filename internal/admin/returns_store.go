@@ -135,11 +135,16 @@ func (f returnPayoutFacts) position() (returnPayoutPosition, error) {
 			"%w: return %s still owes %d in store credit but the order has no account",
 			ErrRefused, f.ID, outstanding.Credit)
 	}
+	moneySettled := outstanding.Card == 0 && outstanding.Credit == 0
 	return returnPayoutPosition{
-		Full:              full,
-		Outstanding:       outstanding,
-		MoneySettled:      outstanding.Card == 0 && outstanding.Credit == 0,
-		EventOutstanding:  (f.CardPaidCents > 0 || f.CreditPaidCents > 0) && !f.RefundEventRecorded,
+		Full:         full,
+		Outstanding:  outstanding,
+		MoneySettled: moneySettled,
+		// A single refunded event is the completed-tense word. It is recovery
+		// work only after every frozen source has settled; otherwise a retry
+		// would tell the customer the card money is back while it is not.
+		EventOutstanding: moneySettled &&
+			(f.CardPaidCents > 0 || f.CreditPaidCents > 0) && !f.RefundEventRecorded,
 		PointsOutstanding: f.PointsOutstanding,
 	}, nil
 }
@@ -400,29 +405,18 @@ type refundSplit struct {
 func (s *Store) payApprovedReturn(ctx context.Context, row *db.ReturnForDecisionRow,
 	split refundSplit, actor uuid.NullUUID,
 ) error {
-	moved := false
 	payoutDone := true
 	var payoutErr error
 	if split.Card > 0 {
-		cardMoved, cardDone, cardErr := s.payReturnCardSource(ctx, row.ID)
-		moved = cardMoved
+		_, cardDone, cardErr := s.payReturnCardSource(ctx, row.ID)
 		payoutDone = cardDone
 		payoutErr = errors.Join(payoutErr, cardErr)
 	}
 	if split.Credit > 0 {
-		creditMoved, creditErr := s.payReturnCreditSource(ctx, row.ID, split.Credit, actor)
-		moved = moved || creditMoved
+		_, creditErr := s.payReturnCreditSource(ctx, row.ID, split.Credit, actor)
 		if creditErr != nil {
 			payoutErr = errors.Join(payoutErr, creditErr)
 			payoutDone = false
-		}
-	}
-	// Written once any source in THIS pass moves money. The event carries the
-	// return's durable identity and its insert conflicts harmlessly on replay, so
-	// a failure here is recoverable without duplicating the customer timeline.
-	if moved {
-		if err := s.recordReturnRefundedEvent(ctx, row.ID, actor); err != nil {
-			payoutErr = errors.Join(payoutErr, err)
 		}
 	}
 	if payoutErr != nil {
@@ -433,9 +427,13 @@ func (s *Store) payApprovedReturn(ctx context.Context, row *db.ReturnForDecision
 	// without error and no card is still pending, the whole payout has landed.
 	// Use the return's full refundable amount, not the retry remainder, or a
 	// split refund whose second half resumes would claw back only that last half.
-	// This follows the timeline insert: money already moved even if the separate
-	// points posting fails, and its customer-visible event must not disappear.
+	// The timeline word is refunded: write it only once every source has settled,
+	// then claw back points. A later failure of either step is recoverable
+	// without duplicating the customer timeline.
 	if payoutDone {
+		if err := s.recordReturnRefundedEvent(ctx, row.ID, actor); err != nil {
+			return fmt.Errorf("%w: %w", ErrRefundIncomplete, err)
+		}
 		if err := s.reverseReturnPoints(ctx, row); err != nil {
 			return err
 		}

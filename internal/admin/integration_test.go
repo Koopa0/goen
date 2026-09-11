@@ -5732,8 +5732,9 @@ func TestASplitReturnStillPostsCreditWhenTheCardAttemptTerminates(t *testing.T) 
 				Scan(&events); queryErr != nil {
 				t.Fatalf("count split terminal timeline event: %v", queryErr)
 			}
-			if events != 1 {
-				t.Errorf("split terminal timeline events = %d, want one for credit that landed", events)
+			if events != 0 {
+				t.Errorf("split terminal timeline events = %d, want 0 — refunded is the "+
+					"completed-tense word and the card half has not settled", events)
 			}
 
 			queue, err := s.Returns(ctx)
@@ -5790,8 +5791,21 @@ func TestASplitRefundWhoseCardIsPendingStillRecordsTheCreditThatLanded(t *testin
 		WHERE e.return_request_id = $1 AND e.kind = 'refunded'`, requestID).Scan(&events); err != nil {
 		t.Fatalf("count timeline events: %v", err)
 	}
-	if events != 1 {
-		t.Errorf("%d refunded events after credit landed while the card stayed pending, want 1", events)
+	if events != 0 {
+		t.Errorf("%d refunded events after credit landed while the card stayed pending, want 0 — "+
+			"refunded tells the customer the money is back", events)
+	}
+
+	if err := s.Decide(ctx, requestID.String(), "approved", "分拆退款", uuid.NullUUID{}); err != nil {
+		t.Fatalf("retry while the card is still pending: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM order_events e
+		WHERE e.return_request_id = $1 AND e.kind = 'refunded'`, requestID).Scan(&events); err != nil {
+		t.Fatalf("count timeline events after retry: %v", err)
+	}
+	if events != 0 {
+		t.Errorf("%d refunded events after retrying a still-pending card, want 0", events)
 	}
 }
 
@@ -9907,6 +9921,15 @@ func TestASplitReturnResumesWhenTheCREDITHalfLanded(t *testing.T) {
 	if after := creditBalance(t, accountID); after != before {
 		t.Errorf("store credit went %d -> %d; the credit half had already landed "+
 			"and resuming means paying only what is MISSING", before, after)
+	}
+	var events int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM order_events e
+		WHERE e.return_request_id = $1 AND e.kind = 'refunded'`, requestID).Scan(&events); err != nil {
+		t.Fatalf("count timeline events after the card half settled: %v", err)
+	}
+	if events != 1 {
+		t.Errorf("%d refunded events after both sources settled, want 1", events)
 	}
 }
 
