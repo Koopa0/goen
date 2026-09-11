@@ -282,6 +282,9 @@ func (s *Store) ChangePassword(ctx context.Context, userID, password string) err
 	}); err != nil {
 		return fmt.Errorf("set password: %w", err)
 	}
+	if err := q.InvalidateResetTokens(ctx, id); err != nil {
+		return fmt.Errorf("invalidate reset tokens: %w", err)
+	}
 	if err := q.DeleteUserSessions(ctx, id); err != nil {
 		return fmt.Errorf("end sessions: %w", err)
 	}
