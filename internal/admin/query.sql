@@ -260,11 +260,8 @@ VALUES (@order_id, @shipment_id, @order_line_id, @quantity::integer);
 -- rescission_window: Consumer Protection Act §19 I runs seven days from RECEIPT,
 -- Civil Code §120 II excludes the day of receipt, and §19 IV fixes the moment on
 -- the customer's side — so created_at against delivered_at, both database
--- clocks, and both on the SHOP's calendar through shop_day. `::date` answers
--- in the session TimeZone, which is UTC here and stated nowhere: a parcel
--- handed over at 07:00 Taipei is the previous day in UTC, which closes an
--- unwaivable window a day early. Undelivered is neither answer, because the
--- window has not started.
+-- clocks, and both on the SHOP's calendar through shop_day. Undelivered is
+-- neither answer, because the window has not started.
 -- name: ReturnQueue :many
 SELECT r.id, r.status, r.reason, r.created_at, r.decided_at,
        o.order_number,
