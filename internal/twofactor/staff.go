@@ -30,12 +30,16 @@ var (
 	ErrInvalidStaff = errors.New("twofactor: that is not a usable staff account")
 )
 
-// The staff forms record these and nothing else. A TOTP secret in after would
-// live forever: audit_events is append-only and erase_user does not reach it.
+// staffAuditAction is the closed set of staff writes the trail records.
+// An arbitrary string would invent an action /admin/audit has no phrase for.
+// A TOTP secret in after would live forever: audit_events is append-only
+// and erase_user does not reach it.
+type staffAuditAction string
+
 const (
-	actionGrantStaff        = "staff.grant"
-	actionRevokeStaff       = "staff.revoke"
-	actionRemoveStaffFactor = "staff.factor.remove"
+	actionGrantStaff        staffAuditAction = "staff.grant"
+	actionRevokeStaff       staffAuditAction = "staff.revoke"
+	actionRemoveStaffFactor staffAuditAction = "staff.factor.remove"
 )
 
 // AddStaff gives somebody back-office access, with no password set. It is an
@@ -159,7 +163,7 @@ func (s *Store) RemoveFactor(ctx context.Context, userID, actorID string) error 
 func (s *Store) withStaffAudit(
 	ctx context.Context,
 	actor uuid.UUID,
-	action string,
+	action staffAuditAction,
 	work func(context.Context, *db.Queries) (uuid.UUID, any, error),
 ) error {
 	tx, err := s.pool.Begin(ctx)
@@ -180,7 +184,7 @@ func (s *Store) withStaffAudit(
 	requestID := web.RequestID(ctx)
 	if _, err := q.RecordAuditEvent(ctx, db.RecordAuditEventParams{
 		Actor:       actor,
-		Action:      action,
+		Action:      string(action),
 		EntityTable: "users",
 		EntityID:    uuid.NullUUID{UUID: target, Valid: true},
 		After:       payload,
