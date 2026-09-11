@@ -9,8 +9,10 @@ import (
 	"testing"
 )
 
-// plainRollback matches a rollback handed the request's own context.
-var plainRollback = regexp.MustCompile(`\btx\.Rollback\(ctx\)`)
+// plainRollback matches a rollback handed the request's own context, whatever
+// the receiver is named. A savepoint is the same pgx Tx as the outer
+// transaction; a cancelled ctx still dies the pooled connection.
+var plainRollback = regexp.MustCompile(`\.Rollback\(ctx\)`)
 
 // TestEveryRollbackOutlivesItsRequest derives its corpus from the tree rather
 // than a list, so a store written next week is covered the day it is written.
@@ -55,7 +57,7 @@ func TestEveryRollbackOutlivesItsRequest(t *testing.T) {
 		t.Errorf("%d rollback(s) take the request's own context:\n  %s\n\n"+
 			"A cancelled context makes pgx fail the ROLLBACK before it reaches the "+
 			"server and destroy the pooled connection. Use "+
-			"tx.Rollback(context.WithoutCancel(ctx)).",
+			".Rollback(context.WithoutCancel(ctx)).",
 			len(offenders), strings.Join(offenders, "\n  "))
 	}
 }
