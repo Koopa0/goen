@@ -34,6 +34,7 @@ import (
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/web"
 )
 
 var pool *pgxpool.Pool
@@ -2062,40 +2063,102 @@ func TestOrderIsPaidMatchesZeroOwedCreditFunding(t *testing.T) {
 
 // TestFullyCreditFundedOrderEarnsPointsAfterPicking holds that store credit
 // closing an order posts the same funding-complete effects as a card capture
-// once fulfilment takes it on.
+// once fulfilment takes it on. Advance is a back-office write: the staff
+// actor has to be on the context, or auditIn refuses the row before
+// CompleteFunding runs.
 func TestFullyCreditFundedOrderEarnsPointsAfterPicking(t *testing.T) {
-	ctx := t.Context()
-	userID := creditedUser(t, 50000)
-	number, orderID := ownedOrder(t, userID, 50000)
+	const cents = int64(50000)
+	userID := creditedUser(t, cents)
+	number, orderID := ownedOrder(t, userID, cents)
+	spendCreditOnOrder(t, orderID, -cents)
+	advanceToPicking(t, number)
+	assertFundingComplete(t, orderID, number, 5)
+}
 
-	if _, err := pool.Exec(ctx,
-		`SELECT post_store_credit($1, $2, '結帳折抵', $3, $4, NULL)`,
-		userID, int64(-50000), orderID, "spend-pick:"+number); err != nil {
-		t.Fatalf("spend credit on the order: %v", err)
+// TestFundingCompleteSideEffectsOnce is the #49 acceptance lock: each funding
+// path posts exactly one paid event, one receipt, and the points the order
+// earns; a second production door must not duplicate any of them.
+func TestFundingCompleteSideEffectsOnce(t *testing.T) {
+	const cents = int64(50000)
+	tests := []struct {
+		name       string
+		wantPoints int64
+		run        func(t *testing.T) (number string, orderID uuid.UUID, replay func())
+	}{
+		{
+			name:       "card-only",
+			wantPoints: 5,
+			run: func(t *testing.T) (string, uuid.UUID, func()) {
+				userID := newCustomer(t)
+				number, orderID := ownedOrder(t, userID, cents)
+				s := payment.NewStore(pool)
+				session := "cs_fund_card_" + number
+				captureOwned(t, s, number, session, cents)
+				return number, orderID, func() {
+					if _, err := captureThroughWebhook(t, s, payment.Capture{
+						SessionID: session, AmountRecv: cents,
+					}); err != nil {
+						t.Fatalf("replay capture: %v", err)
+					}
+					advanceToPicking(t, number)
+				}
+			},
+		},
+		{
+			name:       "credit-only",
+			wantPoints: 5,
+			run: func(t *testing.T) (string, uuid.UUID, func()) {
+				userID := creditedUser(t, cents)
+				number, orderID := ownedOrder(t, userID, cents)
+				spendCreditOnOrder(t, orderID, -cents)
+				advanceToPicking(t, number)
+				return number, orderID, func() {
+					replayCompleteFunding(t, orderID, number)
+				}
+			},
+		},
+		{
+			name:       "coupon-to-zero",
+			wantPoints: 0,
+			run: func(t *testing.T) (string, uuid.UUID, func()) {
+				userID := newCustomer(t)
+				number, orderID := ownedOrder(t, userID, cents)
+				redeemCouponCovering(t, orderID, userID, cents)
+				advanceToPicking(t, number)
+				return number, orderID, func() {
+					replayCompleteFunding(t, orderID, number)
+				}
+			},
+		},
+		{
+			name:       "split funding",
+			wantPoints: 5,
+			run: func(t *testing.T) (string, uuid.UUID, func()) {
+				const credit, card = int64(20000), int64(30000)
+				userID := creditedUser(t, credit)
+				number, orderID := ownedOrder(t, userID, cents)
+				spendCreditOnOrder(t, orderID, -credit)
+				s := payment.NewStore(pool)
+				session := "cs_fund_split_" + number
+				captureOwned(t, s, number, session, card)
+				return number, orderID, func() {
+					if _, err := captureThroughWebhook(t, s, payment.Capture{
+						SessionID: session, AmountRecv: card,
+					}); err != nil {
+						t.Fatalf("replay capture: %v", err)
+					}
+					advanceToPicking(t, number)
+				}
+			},
+		},
 	}
-
-	var staffID uuid.UUID
-	if err := pool.QueryRow(ctx, `
-		INSERT INTO users (email, role, full_name)
-		VALUES ('staff-' || gen_random_uuid() || '@goen.invalid', 'admin', '進倉測試')
-		RETURNING id`).Scan(&staffID); err != nil {
-		t.Fatalf("create staff: %v", err)
-	}
-	staffCtx := account.WithUser(ctx, account.User{ID: staffID.String(), Role: "admin"})
-
-	backOffice := admin.NewStore(pool, admin.NewRefunder(""), nil, nil)
-	if _, err := backOffice.Advance(staffCtx, number, "picking", uuid.NullUUID{UUID: staffID, Valid: true}); err != nil {
-		t.Fatalf("advance to picking: %v", err)
-	}
-
-	var points int64
-	if err := pool.QueryRow(ctx,
-		`SELECT coalesce(sum(points), 0) FROM loyalty_entries WHERE order_id = $1`,
-		orderID).Scan(&points); err != nil {
-		t.Fatalf("read points: %v", err)
-	}
-	if points != 5 {
-		t.Errorf("awarded %d points, want 5", points)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			number, orderID, replay := tt.run(t)
+			assertFundingComplete(t, orderID, number, tt.wantPoints)
+			replay()
+			assertFundingComplete(t, orderID, number, tt.wantPoints)
+		})
 	}
 }
 
@@ -2129,6 +2192,128 @@ func TestPickedCreditFundedPayPageRedirects(t *testing.T) {
 	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/orders/"+number {
 		t.Fatalf("GET /pay on a picked credit-funded order = %d %q, want 303 to order",
 			res.Code, res.Header().Get("Location"))
+	}
+}
+
+// staffContext is a signed-in admin. Advance records audit_events from the
+// context; a missing actor is refused before status effects run.
+func staffContext(t *testing.T) (context.Context, uuid.UUID) {
+	t.Helper()
+	var id uuid.UUID
+	if err := pool.QueryRow(t.Context(), `
+		INSERT INTO users (email, role, full_name)
+		VALUES ('audit-' || gen_random_uuid() || '@goen.invalid', 'admin', '稽核測試')
+		RETURNING id`).Scan(&id); err != nil {
+		t.Fatalf("create staff: %v", err)
+	}
+	ctx := account.WithUser(t.Context(), account.User{ID: id.String(), Role: "admin"})
+	return web.WithRequestID(ctx, "req-"+id.String()[:8]), id
+}
+
+func advanceToPicking(t *testing.T, number string) {
+	t.Helper()
+	ctx, actor := staffContext(t)
+	backOffice := admin.NewStore(pool, admin.NewRefunder(""), nil, nil)
+	if _, err := backOffice.Advance(ctx, number, "picking", uuid.NullUUID{UUID: actor, Valid: true}); err != nil {
+		t.Fatalf("advance to picking: %v", err)
+	}
+}
+
+func replayCompleteFunding(t *testing.T, orderID uuid.UUID, number string) {
+	t.Helper()
+	if err := payment.CompleteFunding(t.Context(), db.New(pool), orderID, number, payment.Capture{}); err != nil {
+		t.Fatalf("replay CompleteFunding: %v", err)
+	}
+}
+
+func spendCreditOnOrder(t *testing.T, orderID uuid.UUID, debitCents int64) {
+	t.Helper()
+	if _, err := pool.Exec(t.Context(), `SELECT spend_store_credit($1, $2)`,
+		orderID, debitCents); err != nil {
+		t.Fatalf("spend credit on the order: %v", err)
+	}
+}
+
+func captureOwned(t *testing.T, s *payment.Store, number, session string, cents int64) {
+	t.Helper()
+	if err := s.OpenPayment(t.Context(), number, session, cents); err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if _, err := captureThroughWebhook(t, s, payment.Capture{
+		SessionID: session, AmountRecv: cents,
+	}); err != nil {
+		t.Fatalf("capture: %v", err)
+	}
+}
+
+func redeemCouponCovering(t *testing.T, orderID, userID uuid.UUID, cents int64) {
+	t.Helper()
+	ctx := t.Context()
+	code := "Z" + strings.ToUpper(strings.ReplaceAll(uuid.NewString(), "-", "")[:12])
+	var couponID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO coupons (code, description, kind, amount_cents)
+		VALUES ($1, '測試折抵', 'amount', $2)
+		RETURNING id`, code, cents).Scan(&couponID); err != nil {
+		t.Fatalf("create coupon: %v", err)
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin coupon redeem: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx,
+		`UPDATE orders SET discount_cents = $1 WHERE id = $2`, cents, orderID); err != nil {
+		t.Fatalf("set the discount: %v", err)
+	}
+	if _, err := tx.Exec(ctx,
+		`SELECT redeem_coupon($1, $2, $3, $4)`, couponID, orderID, userID, cents); err != nil {
+		t.Fatalf("redeem: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit coupon redeem: %v", err)
+	}
+}
+
+func newCustomer(t *testing.T) uuid.UUID {
+	t.Helper()
+	var id uuid.UUID
+	if err := pool.QueryRow(t.Context(), `
+		INSERT INTO users (email, role, full_name)
+		VALUES ('fund-'||gen_random_uuid()||'@goen.invalid', 'customer', '付款測試')
+		RETURNING id`).Scan(&id); err != nil {
+		t.Fatalf("create customer: %v", err)
+	}
+	return id
+}
+
+func assertFundingComplete(t *testing.T, orderID uuid.UUID, number string, wantPoints int64) {
+	t.Helper()
+	ctx := t.Context()
+	o, err := payment.NewStore(pool).Order(ctx, number)
+	if err != nil {
+		t.Fatalf("Order: %v", err)
+	}
+	if !o.Paid {
+		t.Error("OrderIsPaid disagrees with a closed funding path — reports unpaid")
+	}
+	for _, assertion := range []struct {
+		name string
+		sql  string
+		args []any
+		want int64
+	}{
+		{"paid event", `SELECT count(*) FROM order_events WHERE order_id = $1 AND kind = 'paid'`, []any{orderID}, 1},
+		{"receipt", `SELECT count(*) FROM outbox_messages WHERE topic = 'order.paid' AND dedupe_key = $1`, []any{number}, 1},
+		{"points", `SELECT coalesce(sum(points), 0) FROM loyalty_entries WHERE order_id = $1`, []any{orderID}, wantPoints},
+	} {
+		var got int64
+		if err := pool.QueryRow(ctx, assertion.sql, assertion.args...).Scan(&got); err != nil {
+			t.Fatalf("read %s: %v", assertion.name, err)
+		}
+		if got != assertion.want {
+			t.Errorf("%s = %d, want %d", assertion.name, got, assertion.want)
+		}
 	}
 }
 
