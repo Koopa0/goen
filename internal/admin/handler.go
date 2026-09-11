@@ -818,10 +818,16 @@ func (h *Handler) FeatureProduct(w http.ResponseWriter, r *http.Request) {
 		err = h.store.FeatureProduct(r.Context(), slug, r.PostFormValue("product"))
 	}
 	if err != nil {
-		// Usually sale_campaign_needs_discount: nothing is marked down.
 		h.log.WarnContext(r.Context(), "feature product", "campaign", slug, "error", err)
+		back := "/admin/campaigns/" + slug
+		if errors.Is(err, ErrNotFound) {
+			//nolint:gosec // G710: slug is the route's own path value
+			http.Redirect(w, r, back+"?refused=1", http.StatusSeeOther)
+			return
+		}
+		// sale_campaign_needs_discount: nothing is marked down.
 		//nolint:gosec // G710: slug is the route's own path value
-		http.Redirect(w, r, "/admin/campaigns/"+slug+"?nodiscount=1", http.StatusSeeOther)
+		http.Redirect(w, r, back+"?nodiscount=1", http.StatusSeeOther)
 		return
 	}
 	//nolint:gosec // G710: slug is the route's own path value
