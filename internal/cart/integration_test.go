@@ -596,15 +596,15 @@ func TestConcurrentSignedInFirstAddsShareOneOwnedCart(t *testing.T) {
 	}
 	firstVariant, secondVariant, _ := variantsOf(t, "signed-in-first-add", 2)
 
-	blocker, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatalf("begin owned-cart blocker: %v", err)
+	blocker, beginErr := pool.Begin(ctx)
+	if beginErr != nil {
+		t.Fatalf("begin owned-cart blocker: %v", beginErr)
 	}
 	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
-	if _, err := blocker.Exec(ctx,
+	if _, holdErr := blocker.Exec(ctx,
 		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2)`,
-		cart.HashToken("blocker-"+userID.String()), userID); err != nil {
-		t.Fatalf("hold uncommitted owned cart: %v", err)
+		cart.HashToken("blocker-"+userID.String()), userID); holdErr != nil {
+		t.Fatalf("hold uncommitted owned cart: %v", holdErr)
 	}
 
 	suffix := uuid.NewString()[:8]
@@ -660,15 +660,15 @@ func TestConcurrentSignedInFirstAddsShareOneOwnedCart(t *testing.T) {
 	waitForApplicationLock(t, firstName, firstDone)
 	waitForApplicationLock(t, secondName, secondDone)
 
-	if err := blocker.Rollback(ctx); err != nil {
-		t.Fatalf("release owned-cart blocker: %v", err)
+	if releaseErr := blocker.Rollback(ctx); releaseErr != nil {
+		t.Fatalf("release owned-cart blocker: %v", releaseErr)
 	}
 
-	if err := <-firstDone; err != nil {
-		t.Errorf("first add: %v", err)
+	if firstErr := <-firstDone; firstErr != nil {
+		t.Errorf("first add: %v", firstErr)
 	}
-	if err := <-secondDone; err != nil {
-		t.Errorf("second add: %v", err)
+	if secondErr := <-secondDone; secondErr != nil {
+		t.Errorf("second add: %v", secondErr)
 	}
 	first := <-firstRes
 	second := <-secondRes
