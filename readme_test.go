@@ -29,7 +29,7 @@ func TestBothReadmesResolveTheirLinks(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)
 		}
-		if len(strings.TrimSpace(string(raw))) == 0 {
+		if strings.TrimSpace(string(raw)) == "" {
 			t.Fatalf("%s is empty", name)
 		}
 		bodies[name] = string(raw)
