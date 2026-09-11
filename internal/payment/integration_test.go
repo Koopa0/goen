@@ -2065,17 +2065,26 @@ func TestOrderIsPaidMatchesZeroOwedCreditFunding(t *testing.T) {
 // once fulfilment takes it on.
 func TestFullyCreditFundedOrderEarnsPointsAfterPicking(t *testing.T) {
 	ctx := t.Context()
-	number, orderID := order(t, 50000)
-
 	userID := creditedUser(t, 50000)
+	number, orderID := ownedOrder(t, userID, 50000)
+
 	if _, err := pool.Exec(ctx,
 		`SELECT post_store_credit($1, $2, '結帳折抵', $3, $4, NULL)`,
 		userID, int64(-50000), orderID, "spend-pick:"+number); err != nil {
 		t.Fatalf("spend credit on the order: %v", err)
 	}
 
+	var staffID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO users (email, role, full_name)
+		VALUES ('staff-' || gen_random_uuid() || '@goen.invalid', 'admin', '進倉測試')
+		RETURNING id`).Scan(&staffID); err != nil {
+		t.Fatalf("create staff: %v", err)
+	}
+	staffCtx := account.WithUser(ctx, account.User{ID: staffID.String(), Role: "admin"})
+
 	backOffice := admin.NewStore(pool, admin.NewRefunder(""), nil, nil)
-	if _, err := backOffice.Advance(ctx, number, "picking", uuid.NullUUID{}); err != nil {
+	if _, err := backOffice.Advance(staffCtx, number, "picking", uuid.NullUUID{UUID: staffID, Valid: true}); err != nil {
 		t.Fatalf("advance to picking: %v", err)
 	}
 
