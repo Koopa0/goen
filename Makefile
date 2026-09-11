@@ -79,13 +79,16 @@ test-integration: gen
 # overflow that matters.
 #
 # Run `make run` in another shell first.
-CHROME ?= /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+#
+# LAYOUT_CHROME is a target variable so the resolved path survives GNU make's
+# one-shell-per-recipe-line default. Quoted for the macOS app bundle path.
+check-layout: LAYOUT_CHROME := $(if $(CHROME),$(CHROME),$(shell scripts/resolve-chrome.sh 2>/dev/null))
 check-layout:
-	@test -x "$(CHROME)" || { echo 'Chrome not found; set CHROME=/path/to/chrome' >&2; exit 2; }
+	@test -n "$(LAYOUT_CHROME)" && test -x "$(LAYOUT_CHROME)" || { echo 'Chrome not found; set CHROME=/path/to/chrome' >&2; exit 2; }
 	@curl -sf -o /dev/null $${GOEN_URL:-http://127.0.0.1:9700/} \
 		|| { echo 'no server on $${GOEN_URL:-http://127.0.0.1:9700/} — run `make run` first' >&2; exit 2; }
 	@rm -rf .layout-chrome && mkdir -p .layout-chrome
-	@"$(CHROME)" --headless --disable-gpu --no-first-run \
+	@"$(LAYOUT_CHROME)" --headless --disable-gpu --no-first-run \
 		--remote-debugging-port=$${CDP_PORT:-9222} \
 		--user-data-dir=$(PWD)/.layout-chrome about:blank >/dev/null 2>&1 & echo $$! > .layout-chrome/pid
 	@sleep 3

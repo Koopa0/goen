@@ -63,9 +63,11 @@ tests. `make verify-all` adds the database suite and the vulnerability scan.
 
 Two tools have to be on `PATH`, pinned at the top of the `Makefile`:
 `golangci-lint` and `squawk`. Every other tool is fetched by `go run` at its
-pinned version. `make check-layout` additionally needs Chrome and a running
-server; it drives every route in a real browser and asks the accessibility
-questions only a browser can answer.
+pinned version. `make check-layout` additionally needs a Chrome or Chromium
+binary and a running server; it drives every route in a real browser and asks
+the accessibility questions only a browser can answer. The Makefile probes common
+macOS app bundles and Linux package names; set `CHROME` when yours lives
+elsewhere.
 
 Run the gate unpiped and report its exit status. A pipe reports the status of
 its last command, which has read a red gate as green here before.
