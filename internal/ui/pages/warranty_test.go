@@ -68,6 +68,96 @@ func TestWarrantyCopyWaitsForDelivery(t *testing.T) {
 	}
 }
 
+// TestWarrantyOrderEmptyHintMatchesWhy locks the empty banner to the same
+// reasons Why() already names. The delivery sentence is only true when every
+// line is still waiting to arrive.
+func TestWarrantyOrderEmptyHintMatchesWhy(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	afterShipping := i18n.T(ctx, i18n.KeyWarrantyAfterShipping)
+	allDone := i18n.T(ctx, i18n.KeyWarrantyAllDone)
+	noTerm := i18n.T(ctx, i18n.KeyWarrantyNoTerm)
+
+	tests := []struct {
+		name    string
+		lines   []WarrantyLine
+		want    string
+		notWant string
+	}{
+		{
+			name: "every unit already registered",
+			lines: []WarrantyLine{{
+				ID: "line-1", Name: "Item", Months: 12, HasTerm: true,
+				Delivered: 1, Registered: 1,
+			}},
+			want:    allDone,
+			notWant: afterShipping,
+		},
+		{
+			name: "no warranty term",
+			lines: []WarrantyLine{{
+				ID: "line-1", Name: "Item", HasTerm: false,
+			}},
+			want:    noTerm,
+			notWant: afterShipping,
+		},
+		{
+			name: "mixed undelivered and registered",
+			lines: []WarrantyLine{
+				{
+					ID: "line-1", Name: "Waiting", Months: 12, HasTerm: true,
+				},
+				{
+					ID: "line-2", Name: "Done", Months: 12, HasTerm: true,
+					Delivered: 1, Registered: 1,
+				},
+			},
+			want:    "",
+			notWant: afterShipping,
+		},
+		{
+			name: "every line still undelivered",
+			lines: []WarrantyLine{{
+				ID: "line-1", Name: "Item", Months: 12, HasTerm: true,
+			}},
+			want: afterShipping,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			html := renderWarrantyInLocale(t, ctx, WarrantyOrder(
+				layouts.Page{Title: "Warranty"}, WarrantyOrderView{
+					Number: "GOEN-TEST",
+					Lines:  tt.lines,
+				},
+			))
+			got := warrantyEmptyDesc(html)
+			if got != tt.want {
+				t.Errorf("empty hint = %q, want %q", got, tt.want)
+			}
+			if tt.notWant != "" && got == tt.notWant {
+				t.Errorf("empty hint still uses the delivery sentence %q", tt.notWant)
+			}
+		})
+	}
+}
+
+func warrantyEmptyDesc(html string) string {
+	const mark = `class="ui-empty__desc"`
+	i := strings.Index(html, mark)
+	if i < 0 {
+		return ""
+	}
+	rest := html[i:]
+	gt := strings.Index(rest, ">")
+	end := strings.Index(rest, "</p>")
+	if gt < 0 || end < 0 || end <= gt {
+		return ""
+	}
+	return rest[gt+1 : end]
+}
+
 func renderWarrantyInLocale(t *testing.T, ctx context.Context, c templ.Component) string {
 	t.Helper()
 	var b strings.Builder
