@@ -21,8 +21,8 @@ make db-seed      # without a catalogue the storefront is correct and empty
 make run          # http://127.0.0.1:9700
 ```
 
-Stripe is optional. With no key the site still sells and the payment page says
-so.
+Stripe is optional. With no key the shop still runs; checkout reaches the
+payment page, which says payment is not enabled.
 
 ## What holds
 
