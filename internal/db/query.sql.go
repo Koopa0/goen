@@ -64,7 +64,7 @@ func (q *Queries) ActiveSubscribers(ctx context.Context) ([]ActiveSubscribersRow
 	return items, nil
 }
 
-const addCampaignProduct = `-- name: AddCampaignProduct :exec
+const addCampaignProduct = `-- name: AddCampaignProduct :execrows
 INSERT INTO sale_campaign_products (campaign_id, product_id, position)
 SELECT c.id, p.id,
        coalesce((SELECT max(position) + 1 FROM sale_campaign_products x
@@ -82,9 +82,12 @@ type AddCampaignProductParams struct {
 // ONE statement: sale_campaign_needs_discount refuses a product with nothing
 // marked down and takes a lock on it first, so a check here would be a check a
 // concurrent price change invalidates.
-func (q *Queries) AddCampaignProduct(ctx context.Context, arg AddCampaignProductParams) error {
-	_, err := q.db.Exec(ctx, addCampaignProduct, arg.Campaign, arg.Product)
-	return err
+func (q *Queries) AddCampaignProduct(ctx context.Context, arg AddCampaignProductParams) (int64, error) {
+	result, err := q.db.Exec(ctx, addCampaignProduct, arg.Campaign, arg.Product)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const addCartItem = `-- name: AddCartItem :exec

@@ -696,7 +696,7 @@ UPDATE sale_campaigns SET is_active = @is_active::boolean WHERE slug = @slug::te
 -- ONE statement: sale_campaign_needs_discount refuses a product with nothing
 -- marked down and takes a lock on it first, so a check here would be a check a
 -- concurrent price change invalidates.
--- name: AddCampaignProduct :exec
+-- name: AddCampaignProduct :execrows
 INSERT INTO sale_campaign_products (campaign_id, product_id, position)
 SELECT c.id, p.id,
        coalesce((SELECT max(position) + 1 FROM sale_campaign_products x

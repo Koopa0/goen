@@ -438,6 +438,105 @@ func TestRetiringTheLastDiscountedVariantIsRefused(t *testing.T) {
 	}
 }
 
+func testCampaignSlug(t *testing.T) string {
+	t.Helper()
+	return "admin-camp-" + uuid.NewString()[:8]
+}
+
+func discountedProductSlug(t *testing.T) string {
+	t.Helper()
+	var slug string
+	if err := pool.QueryRow(t.Context(), `
+		SELECT p.slug FROM products p JOIN product_variants pv ON pv.product_id = p.id
+		WHERE p.status = 'active' AND pv.is_active
+		  AND pv.compare_at_price_cents > pv.price_cents
+		LIMIT 1`).Scan(&slug); err != nil {
+		t.Fatalf("find discounted product: %v", err)
+	}
+	return slug
+}
+
+func TestFeatureProductUnknownProductReturnsNotFound(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	slug := testCampaignSlug(t)
+	if _, err := s.CreateCampaign(ctx, &admin.CampaignForm{
+		Slug: slug, Title: "測試活動", Days: 7,
+	}); err != nil {
+		t.Fatalf("create campaign: %v", err)
+	}
+
+	missing := "no-such-product-" + uuid.NewString()
+	before := auditRows(t, admin.ActionFeatureProduct)
+	if err := s.FeatureProduct(ctx, slug, missing); !errors.Is(err, admin.ErrNotFound) {
+		t.Fatalf("unknown product = %v, want ErrNotFound", err)
+	}
+	if after := auditRows(t, admin.ActionFeatureProduct); after != before {
+		t.Errorf("%d audit rows after a zero-row feature, want %d", after, before)
+	}
+}
+
+func TestFeatureProductAlreadyFeaturedReturnsNotFound(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	slug := testCampaignSlug(t)
+	productSlug := discountedProductSlug(t)
+	if _, err := s.CreateCampaign(ctx, &admin.CampaignForm{
+		Slug: slug, Title: "測試活動", Days: 7,
+	}); err != nil {
+		t.Fatalf("create campaign: %v", err)
+	}
+	if err := s.FeatureProduct(ctx, slug, productSlug); err != nil {
+		t.Fatalf("first feature: %v", err)
+	}
+	if err := s.FeatureProduct(ctx, slug, productSlug); !errors.Is(err, admin.ErrNotFound) {
+		t.Fatalf("already featured = %v, want ErrNotFound", err)
+	}
+}
+
+func TestFeatureProductHandlerNeverOKOnMiss(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	h := adminHandlerOver(pool, s)
+	slug := testCampaignSlug(t)
+	if _, err := s.CreateCampaign(ctx, &admin.CampaignForm{
+		Slug: slug, Title: "測試活動", Days: 7,
+	}); err != nil {
+		t.Fatalf("create campaign: %v", err)
+	}
+
+	post := func(product string) *httptest.ResponseRecorder {
+		body := url.Values{"product": {product}}
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+			"/admin/campaigns/"+slug+"/products", strings.NewReader(body.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.SetPathValue("slug", slug)
+		res := httptest.NewRecorder()
+		h.FeatureProduct(res, req)
+		return res
+	}
+
+	missing := "no-such-product-" + uuid.NewString()
+	if res := post(missing); res.Code != http.StatusSeeOther ||
+		!strings.Contains(res.Header().Get("Location"), "?refused=1") ||
+		strings.Contains(res.Header().Get("Location"), "?ok=1") {
+		t.Fatalf("unknown product redirect = %d %q, want refused without ok",
+			res.Code, res.Header().Get("Location"))
+	}
+
+	productSlug := discountedProductSlug(t)
+	if ok := post(productSlug); ok.Code != http.StatusSeeOther ||
+		!strings.Contains(ok.Header().Get("Location"), "?ok=1") {
+		t.Fatalf("first feature redirect = %d %q, want ok=1", ok.Code, ok.Header().Get("Location"))
+	}
+	if again := post(productSlug); again.Code != http.StatusSeeOther ||
+		!strings.Contains(again.Header().Get("Location"), "?refused=1") ||
+		strings.Contains(again.Header().Get("Location"), "?ok=1") {
+		t.Fatalf("already featured redirect = %d %q, want refused without ok",
+			again.Code, again.Header().Get("Location"))
+	}
+}
+
 func pendingOrderHoldingStock(t *testing.T) (number string, orderID, variantID uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
