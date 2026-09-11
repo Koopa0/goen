@@ -22,10 +22,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
+	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ratelimit"
@@ -4892,31 +4894,61 @@ func TestASecondOrderKeepsTheFirstOnesGrantAlive(t *testing.T) {
 	}
 }
 
-func TestABackdatedGrantReachesNothing(t *testing.T) {
+// TestGrantRetainBoundsOrderAccess. Order access uses the database clock and a
+// strict created_at > now() - retain. One transaction fixes now() across the
+// fixture timestamps and the lookup so the equality case cannot flake.
+func TestGrantRetainBoundsOrderAccess(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil)
-	number := placeUnpaidOrderFor(t, s, "stale@example.com")
+	number := placeUnpaidOrderFor(t, s, "retain-bound@example.com")
 	cookie := placedCookie(t, s, number)
-
-	if _, err := pool.Exec(ctx, `
-		UPDATE order_access_grants SET created_at = now() - $2::interval
-		WHERE order_id = (SELECT id FROM orders WHERE order_number = $1)`,
-		number, (cart.GrantRetain + time.Hour).String()); err != nil {
-		t.Fatalf("age the grant: %v", err)
+	token := cookie.Value
+	if i := strings.IndexByte(token, '.'); i >= 0 {
+		token = token[:i]
 	}
 
-	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number, http.NoBody)
-	req.SetPathValue("number", number)
-	req.AddCookie(cookie)
-	rec := httptest.NewRecorder()
-	h.OrderPage(rec, req)
-
-	if rec.Code != http.StatusNotFound {
-		t.Errorf("a backdated grant reached the order page: status %d, want 404", rec.Code)
+	retain := cart.GrantRetain.String()
+	retainParam := pgtype.Interval{
+		Microseconds: int64(cart.GrantRetain / time.Microsecond), Valid: true,
 	}
-	if strings.Contains(rec.Body.String(), "stale@example.com") {
-		t.Error("a backdated grant leaked the customer's email")
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	q := db.New(tx)
+
+	for _, tc := range []struct {
+		name   string
+		offset string
+		want   bool
+	}{
+		{name: "just_inside", offset: "1 microsecond", want: true},
+		{name: "exact_boundary", offset: "0", want: false},
+		{name: "just_outside", offset: "-1 microsecond", want: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := tx.Exec(ctx, `
+				UPDATE order_access_grants
+				SET created_at = now() - $1::interval + $2::interval
+				WHERE order_id = (SELECT id FROM orders WHERE order_number = $3)`,
+				retain, tc.offset, number); err != nil {
+				t.Fatalf("set grant age: %v", err)
+			}
+			ok, err := q.OrderAccessibleWith(ctx, db.OrderAccessibleWithParams{
+				OrderNumber: number,
+				Digests:     [][]byte{cart.HashToken(token)},
+				Retain:      retainParam,
+			})
+			if err != nil {
+				t.Fatalf("OrderAccessibleWith: %v", err)
+			}
+			if ok != tc.want {
+				t.Errorf("OrderAccessibleWith = %v, want %v", ok, tc.want)
+			}
+		})
 	}
 }
 
