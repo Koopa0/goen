@@ -2270,7 +2270,7 @@ func redeemCouponCovering(t *testing.T, orderID, userID uuid.UUID, cents int64) 
 	if err != nil {
 		t.Fatalf("begin coupon redeem: %v", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 	if _, err := tx.Exec(ctx,
 		`UPDATE orders SET discount_cents = $1 WHERE id = $2`, cents, orderID); err != nil {
 		t.Fatalf("set the discount: %v", err)
