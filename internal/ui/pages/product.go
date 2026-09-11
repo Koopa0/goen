@@ -140,6 +140,9 @@ type ProductView struct {
 	Comparing     []string
 	Questions     []Question
 	AskOutcome    string
+	// AskDraft is a refused question, replayed into the textarea so a 422
+	// does not empty what the customer already typed.
+	AskDraft string
 	// AddedOutcome is what the last add-to-cart did; without rendering it a
 	// refusal looks identical to a success.
 	AddedOutcome string
@@ -305,6 +308,12 @@ func (v *ProductView) CartFull() bool { return v.AddedOutcome == "full" }
 
 // AskAction is where the question form posts.
 func (v *ProductView) AskAction() string { return "/p/" + v.Slug + "/questions" }
+
+// AskSignInHref returns the visitor to #questions after sign-in. The hash is
+// %23 in the query so it is part of next, not a fragment on /signin.
+func (v *ProductView) AskSignInHref() string {
+	return "/signin?next=/p/" + v.Slug + "%23questions"
+}
 
 // CompareHref adds this product to a comparison, carrying whatever was already there.
 func (v *ProductView) CompareHref() string {

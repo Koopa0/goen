@@ -227,18 +227,40 @@ func (h *Handler) Ask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.store.Ask(r.Context(), slug, u.ID, r.PostFormValue("body"))
-	if errors.Is(err, ErrNotFound) {
+	body := r.PostFormValue("body")
+	err := h.store.Ask(r.Context(), slug, u.ID, body)
+	switch {
+	case err == nil:
+		http.Redirect(w, r, "/p/"+url.PathEscape(slug)+"?ask=1#questions",
+			http.StatusSeeOther)
+	case errors.Is(err, ErrNotFound):
 		h.notFound(w, r)
+	case errors.Is(err, ErrQuestionInvalid):
+		h.rejectAsk(w, r, slug, body)
+	default:
+		h.log.ErrorContext(r.Context(), "ask question", "error", err, "slug", slug)
+		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
+			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
+			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
+			i18n.T(r.Context(), i18n.KeyLoggedTryAgain)))
+	}
+}
+
+func (h *Handler) rejectAsk(w http.ResponseWriter, r *http.Request, slug, body string) {
+	view, err := h.store.Load(r.Context(), slug, ParseSelection(r.URL.Query()))
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "reload product", "error", err, "slug", slug)
+		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
+			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyTryAgainTitle)}, "",
+			i18n.T(r.Context(), i18n.KeyTryAgainTitle),
+			i18n.T(r.Context(), i18n.KeyTryAgainBody)))
 		return
 	}
-	outcome := "1"
-	if err != nil {
-		h.log.WarnContext(r.Context(), "ask question", "error", err, "slug", slug)
-		outcome = "bad"
-	}
-	http.Redirect(w, r, "/p/"+url.PathEscape(slug)+"?ask="+outcome+"#questions",
-		http.StatusSeeOther)
+	h.fillReviewForm(r, slug, &view)
+	view.AskOutcome = "bad"
+	view.AskDraft = body
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
+		pages.Product(pages.ProductMeta(&view), &view))
 }
 
 func boundedSlugs(raw []string) []string {
