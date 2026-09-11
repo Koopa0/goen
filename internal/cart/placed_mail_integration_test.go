@@ -83,7 +83,7 @@ func TestCheckoutWritesWhatThePlacedLetterStillOwes(t *testing.T) {
 	})
 }
 
-func placedOrderPayload(t *testing.T, number string) (cart.OrderPlaced, int64, int64) {
+func placedOrderPayload(t *testing.T, number string) (payload cart.OrderPlaced, total, owed int64) {
 	t.Helper()
 	var raw []byte
 	if err := pool.QueryRow(t.Context(), `
@@ -91,12 +91,10 @@ func placedOrderPayload(t *testing.T, number string) (cart.OrderPlaced, int64, i
 		WHERE topic = 'order.placed' AND dedupe_key = $1`, number).Scan(&raw); err != nil {
 		t.Fatalf("read order.placed payload for %s: %v", number, err)
 	}
-	var payload cart.OrderPlaced
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		t.Fatalf("decode order.placed payload: %v", err)
 	}
 
-	var total, owed int64
 	if err := pool.QueryRow(t.Context(), `
 		SELECT (SELECT coalesce(sum(ol.unit_price_cents * ol.quantity), 0)
 		          FROM order_lines ol WHERE ol.order_id = o.id)
