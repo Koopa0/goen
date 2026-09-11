@@ -353,17 +353,13 @@ func applyStatusEffects(ctx context.Context, q *db.Queries, e statusEffect) erro
 		}
 	}
 	switch e.status {
-<<<<<<< HEAD
-	case pages.FulfillmentPending, pages.FulfillmentPicking, pages.FulfillmentShipped:
+	case pages.FulfillmentPending, pages.FulfillmentShipped:
 		// These moves only release the holds already walked above.
-	case pages.FulfillmentCancelled:
-=======
-	case "picking":
+	case pages.FulfillmentPicking:
 		if err := payment.CompleteFunding(ctx, q, e.orderID, e.number, payment.Capture{}); err != nil {
 			return fmt.Errorf("complete funding for %s: %w", e.number, err)
 		}
-	case "cancelled":
->>>>>>> 28971eb (Run funding-complete side effects for zero-owed orders)
+	case pages.FulfillmentCancelled:
 		// The customer's own cancellation does this too; the back office
 		// cancelling on their behalf must not be the path that keeps their credit.
 		if _, err := q.ReverseOrderCredit(ctx, e.orderID); err != nil {
