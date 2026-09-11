@@ -748,22 +748,23 @@ func TestComposeRecordsWhoWroteTheDraft(t *testing.T) {
 		t.Fatalf("Compose: %v", err)
 	}
 
-	var after, actorID string
+	var after, actorID, auditedID, auditedSubject string
 	if err := pool.QueryRow(ctx, `
-		SELECT after::text, actor_user_id::text
+		SELECT after::text, actor_user_id::text,
+		       after->>'issue_id', after->>'subject'
 		FROM audit_events
 		WHERE entity_id = $1 AND action = $2`,
-		id, newsletter.ActionCompose).Scan(&after, &actorID); err != nil {
+		id, newsletter.ActionCompose).Scan(&after, &actorID, &auditedID, &auditedSubject); err != nil {
 		t.Fatalf("read compose audit: %v", err)
 	}
 	if actorID != actor.UUID.String() {
 		t.Errorf("compose actor = %s, want %s", actorID, actor.UUID)
 	}
-	if !strings.Contains(after, `"issue_id":"`+id+`"`) {
-		t.Errorf("audit after = %s, want issue_id %s", after, id)
+	if auditedID != id {
+		t.Errorf("audit issue_id = %s, want %s", auditedID, id)
 	}
-	if !strings.Contains(after, subject) {
-		t.Errorf("audit after = %s, want the subject", after)
+	if auditedSubject != subject {
+		t.Errorf("audit subject = %q, want %q", auditedSubject, subject)
 	}
 	if strings.Contains(after, body) {
 		t.Errorf("audit after retained the body: %s", after)
