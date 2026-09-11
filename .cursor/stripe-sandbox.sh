@@ -40,14 +40,14 @@ echo "stripe-sandbox: provisioning a local Stripe TEST sandbox..."
 key="$(config_key)"
 whsec=""
 if [ -n "$key" ]; then
-	whsec="$(print_secret "$key")"
+	whsec="$(print_secret "$key" || true)"
 fi
 
 if [ -z "$key" ] || [ -z "$whsec" ]; then
 	echo "stripe-sandbox: creating a new sandbox (no valid key yet)"
 	stripe sandbox create --from-git --non-interactive >/dev/null
 	key="$(config_key)"
-	whsec="$(print_secret "$key")"
+	whsec="$(print_secret "$key" || true)"
 fi
 
 if [ -z "$key" ] || [ -z "$whsec" ]; then
