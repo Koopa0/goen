@@ -28,10 +28,12 @@ so.
 
 Four boundaries are enforced in the tree, not by convention:
 
-- **Every mutation is a plain form.** A write is `<form method="post">`, answers
-  `303 See Other` so a reload cannot resubmit, and re-renders at `422` with the
-  submitted values intact. htmx changes what comes back, never whether the write
-  happens.
+- **Every mutation is a plain form.** A write is `<form method="post">` and
+  answers `303 See Other` so a reload cannot resubmit. A validation refusal
+  re-renders at `422` with the submitted values intact, except the signed-in
+  Q&A ask, which still redirects and drops the draft
+  ([#154](https://github.com/Koopa0/goen/issues/154)). htmx changes what comes
+  back, never whether the write happens.
 - **The database enforces what it can.** 316 `CHECK` constraints, 90 foreign keys,
   75 unique indexes and 46 rule triggers, with money and stock writable only
   through `SECURITY DEFINER` functions the application role may execute but not
