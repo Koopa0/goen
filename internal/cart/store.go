@@ -52,13 +52,35 @@ func (s *Store) CartByToken(ctx context.Context, token string) (uuid.UUID, error
 	return row.ID, nil
 }
 
-// Create opens a new cart and returns its id.
+// Create opens a new cart and returns its id. Two signed-in first writes can
+// both observe no row; carts_one_per_user refuses the second insert, and the
+// winner is the account cart.
 func (s *Store) Create(ctx context.Context, token string, userID uuid.NullUUID) (uuid.UUID, error) {
 	id, err := s.q.CreateCart(ctx, db.CreateCartParams{TokenHash: HashToken(token), UserID: userID})
 	if err != nil {
+		if existing, ok := s.ownedCartIfTaken(ctx, userID, err); ok {
+			return existing, nil
+		}
 		return uuid.Nil, fmt.Errorf("create cart: %w", err)
 	}
 	return id, nil
+}
+
+// ownedCartIfTaken rereads the account cart after carts_one_per_user refuses
+// an insert. The unique index is the one-cart rule; this only names it.
+func (s *Store) ownedCartIfTaken(ctx context.Context, userID uuid.NullUUID, err error) (uuid.UUID, bool) {
+	if !userID.Valid {
+		return uuid.Nil, false
+	}
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	if !ok || pgErr.ConstraintName != "carts_one_per_user" {
+		return uuid.Nil, false
+	}
+	existing, readErr := s.CartForUser(ctx, userID.UUID.String())
+	if readErr != nil {
+		return uuid.Nil, false
+	}
+	return existing, true
 }
 
 // Add puts a variant in a cart, checked before the write so an inactive one is a
