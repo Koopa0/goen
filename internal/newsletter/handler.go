@@ -22,9 +22,9 @@ type Handler struct {
 	log   *slog.Logger
 }
 
-// NewHandler returns a Handler writing through store. limit bounds submissions
-// per ADDRESS; per-IP is middleware in cmd/goen, and neither alone can see the
-// attack the other bounds.
+// NewHandler returns a Handler writing through store. limit is Submit's: it
+// spends two disjoint keys — the client IP, and "newsletter:"+the address —
+// and neither sees the attack the other bounds.
 func NewHandler(store *Store, limit *ratelimit.Limiter, log *slog.Logger) *Handler {
 	if store == nil || limit == nil || log == nil {
 		panic("newsletter: NewHandler requires a store, a limiter and a logger")
