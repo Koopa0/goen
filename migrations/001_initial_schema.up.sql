@@ -2908,7 +2908,7 @@ DECLARE
     v_seventh_is_seven boolean := false;
     i integer;
 BEGIN
-    IF p_value IS NULL OR p_value !~ '^[0-9]{8}$' THEN
+    IF p_value IS NULL OR p_value !~ '^[0-9]{8}$' OR p_value = '00000000' THEN
         RETURN false;
     END IF;
     FOR i IN 1..8 LOOP

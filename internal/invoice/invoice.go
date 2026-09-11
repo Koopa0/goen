@@ -58,6 +58,9 @@ func ValidTaxID(value string) bool {
 	if len(value) != 8 {
 		return false
 	}
+	if value == "00000000" {
+		return false
+	}
 	weights := [...]int{1, 2, 1, 2, 1, 2, 4, 1}
 	sum := 0
 	seventhIsSeven := false
