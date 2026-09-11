@@ -1297,7 +1297,7 @@ func staffAuditCount(t *testing.T, action string) int {
 	return n
 }
 
-func readStaffAudit(t *testing.T, action string, target string) (actor, email, role string) {
+func readStaffAudit(t *testing.T, action, target string) (actor, email, role string) {
 	t.Helper()
 	if err := pool.QueryRow(t.Context(), `
 		SELECT actor_user_id::text, coalesce(after->>'email', ''), coalesce(after->>'role', '')
