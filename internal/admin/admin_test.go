@@ -81,10 +81,10 @@ func TestWorkerAgeSecondsSaturateInsteadOfWrappingHealthy(t *testing.T) {
 func TestParseStatusAcceptsOnlyTheFulfilmentLifecycle(t *testing.T) {
 	t.Parallel()
 	for _, status := range statuses {
-		if got := ParseStatus(status.value); got != status.value {
+		if got := ParseStatus(string(status.value)); got != status.value {
 			t.Errorf("ParseStatus(%q) = %q, want the same status", status.value, got)
 		}
-		if got := StatusLabel(t.Context(), status.value); got == "" || got == status.value {
+		if got := StatusLabel(t.Context(), status.value); got == "" || got == string(status.value) {
 			t.Errorf("StatusLabel(%q) = %q, want a catalogue label", status.value, got)
 		}
 	}
@@ -99,10 +99,41 @@ func TestEveryTransitionStaysInsideTheFulfilmentLifecycle(t *testing.T) {
 	t.Parallel()
 	for _, current := range statuses {
 		for _, next := range NextStatuses(current.value) {
-			if ParseStatus(next) == "" {
+			if !next.Known() {
 				t.Errorf("NextStatuses(%q) contains unknown state %q", current.value, next)
 			}
 		}
+	}
+}
+
+// TestTheAdminCatalogueIsTheFulfilmentClosedSet holds the two halves together:
+// pages.FulfillmentStatuses is what cart, account and the queue carry, and
+// statuses is what ParseStatus and the tabs offer, so a state added to one
+// and forgotten in the other is a filter that cannot name it or a label that
+// never appears.
+func TestTheAdminCatalogueIsTheFulfilmentClosedSet(t *testing.T) {
+	t.Parallel()
+	if len(statuses) != len(pages.FulfillmentStatuses) {
+		t.Fatalf("admin catalogue has %d states, pages.FulfillmentStatuses has %d",
+			len(statuses), len(pages.FulfillmentStatuses))
+	}
+	for i, want := range pages.FulfillmentStatuses {
+		if statuses[i].value != want {
+			t.Errorf("statuses[%d] = %q, want %q — the queue order drifted from the closed set",
+				i, statuses[i].value, want)
+		}
+	}
+}
+
+// TestStatusLabelRendersARetiredStatus holds the reason StatusLabel is not a
+// panic: audit_events is append-only, so a row naming a state the shop no
+// longer occupies must still open.
+func TestStatusLabelRendersARetiredStatus(t *testing.T) {
+	t.Parallel()
+	const retired pages.FulfillmentStatus = "packing"
+	if got := StatusLabel(t.Context(), retired); got != string(retired) {
+		t.Errorf("StatusLabel(%q) = %q, want the raw value so the queue still loads",
+			retired, got)
 	}
 }
 
@@ -334,7 +365,7 @@ func TestAFundedOrderIsNotBadgedUnpaid(t *testing.T) {
 
 	for _, tt := range []struct {
 		name      string
-		status    string
+		status    pages.FulfillmentStatus
 		committed bool
 		owed      int64
 		want      string

@@ -32,7 +32,7 @@ func (s *Store) Warranties(ctx context.Context, term string) (pages.AdminWarrant
 		view.Rows = append(view.Rows, pages.AdminWarrantyRow{
 			Serial: r.SerialNumber, Product: r.ProductName, Label: r.VariantLabel,
 			Unit: int(r.UnitNo), Order: r.OrderNumber,
-			OrderStatus:   StatusLabel(ctx, r.FulfillmentStatus),
+			OrderStatus:   StatusLabel(ctx, pages.FulfillmentStatus(r.FulfillmentStatus)),
 			CustomerName:  r.CustomerName,
 			CustomerEmail: r.CustomerEmail,
 			RegisteredAt:  shoptime.Day(r.RegisteredAt),
