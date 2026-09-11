@@ -335,7 +335,7 @@ templ AdminOrders(p layouts.Page, v AdminOrdersView) {
 			</div>
 			if v.Empty() {
 				<div class="ui-empty">
-					<p class="ui-empty__title">{ i18n.T(ctx, i18n.KeyAdminQueueEmpty) }</p>
+					<p class="ui-empty__title">{ v.EmptyText(ctx) }</p>
 				</div>
 			} else {
 				<div class="goen-admin__tablewrap">

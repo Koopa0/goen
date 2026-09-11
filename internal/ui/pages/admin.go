@@ -138,6 +138,17 @@ func (v AdminOrdersView) TermTooShort() bool { return v.Term != "" && !v.Searche
 // Empty reports whether the queue has nothing in this state.
 func (v AdminOrdersView) Empty() bool { return len(v.Orders) == 0 }
 
+// EmptyText is the empty-state headline: a search miss, an empty shop, or an empty status tab.
+func (v AdminOrdersView) EmptyText(ctx context.Context) string {
+	if v.Searching() {
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminQueueNoneFound), v.Term)
+	}
+	if v.Status == "" {
+		return i18n.T(ctx, i18n.KeyAdminQueueNoneYet)
+	}
+	return i18n.T(ctx, i18n.KeyAdminQueueEmpty)
+}
+
 // HasNotice reports whether to show the banner.
 func (v AdminOrdersView) HasNotice() bool { return v.Notice != "" }
 
