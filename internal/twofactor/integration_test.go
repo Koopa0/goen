@@ -477,6 +477,131 @@ func forceTOTPUpdateFailure(t *testing.T, userID string) {
 	})
 }
 
+// TestConfirmDoesNotClaimEnrolmentSuccessWhenMarkVerifiedFails: the factor can
+// stay committed, but a failed session stamp is a fault, not /admin?enrolled=1.
+func TestConfirmDoesNotClaimEnrolmentSuccessWhenMarkVerifiedFails(t *testing.T) {
+	s := twofactor.NewStore(pool, testKey)
+	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler), false)
+	userID, email := staff(t)
+	secret, _, err := s.Begin(t.Context(), userID, email)
+	if err != nil {
+		t.Fatalf("begin enrolment: %v", err)
+	}
+
+	token := "confirm-mark-verified-fails-" + userID
+	if _, err := pool.Exec(t.Context(), `
+		INSERT INTO sessions (token_hash, user_id, expires_at)
+		VALUES (sha256($1::bytea), $2, now() + interval '1 day')`,
+		[]byte(token), uuid.MustParse(userID)); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	forceSessionMarkFailure(t, userID)
+
+	out := postConfirm(t, h, account.User{ID: userID, Email: email},
+		twofactor.Code(secret, twofactor.StepAt(time.Now())), token)
+	if out.Code != http.StatusInternalServerError {
+		t.Errorf("Confirm = %d Location %q, want 500 without ?enrolled=1",
+			out.Code, out.Header().Get("Location"))
+	}
+	if loc := out.Header().Get("Location"); strings.Contains(loc, "enrolled=1") {
+		t.Errorf("Confirm Location = %q; MarkVerified failure must not claim enrolment success", loc)
+	}
+
+	enrolled, enrolErr := s.Enrolled(t.Context(), userID)
+	if enrolErr != nil {
+		t.Fatalf("enrolled: %v", enrolErr)
+	}
+	if !enrolled {
+		t.Error("the factor was rolled back after a failed session stamp")
+	}
+	verified, verifyErr := s.SessionVerified(t.Context(), token)
+	if verifyErr != nil {
+		t.Fatalf("session verified: %v", verifyErr)
+	}
+	if verified {
+		t.Error("the session was marked verified even though MarkVerified failed")
+	}
+}
+
+// TestConfirmWithoutASessionCookieIsNotEnrolmentSuccess: a missing cookie is a
+// signed-out request. Enrolment can stay committed; the 303 is not success.
+func TestConfirmWithoutASessionCookieIsNotEnrolmentSuccess(t *testing.T) {
+	s := twofactor.NewStore(pool, testKey)
+	h := twofactor.NewHandler(s, slog.New(slog.DiscardHandler), false)
+	userID, email := staff(t)
+	secret, _, err := s.Begin(t.Context(), userID, email)
+	if err != nil {
+		t.Fatalf("begin enrolment: %v", err)
+	}
+
+	out := postConfirm(t, h, account.User{ID: userID, Email: email},
+		twofactor.Code(secret, twofactor.StepAt(time.Now())), "")
+	if out.Code != http.StatusSeeOther || out.Header().Get("Location") != "/signin" {
+		t.Errorf("Confirm = %d Location %q, want 303 /signin",
+			out.Code, out.Header().Get("Location"))
+	}
+	if loc := out.Header().Get("Location"); strings.Contains(loc, "enrolled=1") {
+		t.Errorf("Confirm Location = %q; a missing cookie must not claim enrolment success", loc)
+	}
+
+	enrolled, enrolErr := s.Enrolled(t.Context(), userID)
+	if enrolErr != nil {
+		t.Fatalf("enrolled: %v", enrolErr)
+	}
+	if !enrolled {
+		t.Error("the factor was rolled back when the session cookie was missing")
+	}
+}
+
+func postConfirm(
+	t *testing.T,
+	h *twofactor.Handler,
+	user account.User,
+	code, token string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequestWithContext(account.WithUser(t.Context(), user),
+		http.MethodPost, "/admin/verify/confirm", strings.NewReader("code="+code))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	if token != "" {
+		req.AddCookie(&http.Cookie{ //nolint:gosec // G124: request cookie, not a Set-Cookie
+			Name: "goen_session", Value: token,
+		})
+	}
+	out := httptest.NewRecorder()
+	h.Confirm(out, req)
+	return out
+}
+
+func forceSessionMarkFailure(t *testing.T, userID string) {
+	t.Helper()
+	ctx := t.Context()
+	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
+	functionName := pgx.Identifier{"test_fail_session_mark_" + suffix}.Sanitize()
+	triggerName := pgx.Identifier{"test_fail_session_mark_" + suffix}.Sanitize()
+	if _, err := pool.Exec(ctx, fmt.Sprintf(`
+		CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $body$
+		BEGIN
+			IF NEW.user_id = '%s'::uuid THEN
+				RAISE EXCEPTION USING
+					MESSAGE = 'forced mark session verified failure',
+					ERRCODE = 'check_violation';
+			END IF;
+			RETURN NEW;
+		END
+		$body$;
+		CREATE TRIGGER %s BEFORE UPDATE ON sessions
+		FOR EACH ROW EXECUTE FUNCTION %s()`,
+		functionName, userID, triggerName, functionName)); err != nil {
+		t.Fatalf("install session mark failure: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.WithoutCancel(ctx), fmt.Sprintf(
+			"DROP TRIGGER IF EXISTS %s ON sessions; DROP FUNCTION IF EXISTS %s()",
+			triggerName, functionName))
+	})
+}
+
 func TestSessionVerificationExpires(t *testing.T) {
 	ctx := t.Context()
 	s := twofactor.NewStore(pool, testKey)
