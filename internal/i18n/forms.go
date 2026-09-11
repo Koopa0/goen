@@ -47,6 +47,11 @@ var (
 		En: "The database refused that change. Either the status move is not a legal one, " +
 			"or it would break a stock or campaign rule.",
 	})
+
+	KeyAdminNoticeGone = key("admin.notice.gone", Message{
+		ZhHant: "這筆資料已不存在,或狀態已變更。請重新載入列表。",
+		En:     "That record is gone or its state has already changed. Reload the list.",
+	})
 )
 
 var KeyFormRunDays = key("form.run.days", Message{

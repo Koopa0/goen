@@ -5705,6 +5705,103 @@ func TestTheInboxDoesNotCopyTheMessageIntoTheAuditTrail(t *testing.T) {
 	}
 }
 
+// TestStaleReviewAndMessageActionsExplainInsteadOfVanishing covers both queues:
+// a missing id and a stale form (already hidden or handled) must redirect with
+// ?gone=1 and render that notice, never a bare list or a false success.
+func TestStaleReviewAndMessageActionsExplainInsteadOfVanishing(t *testing.T) {
+	ctx, _ := staffContext(t)
+	h := adminHandlerOver(pool, admin.NewStore(pool, fakeRefunder{}, nil, nil))
+	gone := i18n.T(ctx, i18n.KeyAdminNoticeGone)
+
+	for _, tt := range []struct {
+		name     string
+		postPath string
+		listPath string
+		field    string
+		id       string
+	}{
+		{
+			name:     "unknown review",
+			postPath: "/admin/reviews/hide",
+			listPath: "/admin/reviews",
+			field:    "review",
+			id:       uuid.NewString(),
+		},
+		{
+			name:     "unknown message",
+			postPath: "/admin/messages/handle",
+			listPath: "/admin/messages",
+			field:    "message",
+			id:       uuid.NewString(),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			form := url.Values{tt.field: {tt.id}}
+			req := httptest.NewRequestWithContext(ctx, http.MethodPost, tt.postPath,
+				strings.NewReader(form.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			res := httptest.NewRecorder()
+			switch tt.postPath {
+			case "/admin/reviews/hide":
+				h.HideReview(res, req)
+			case "/admin/messages/handle":
+				h.HandleMessage(res, req)
+			}
+			want := tt.listPath + "?gone=1"
+			if res.Code != http.StatusSeeOther || res.Header().Get("Location") != want {
+				t.Fatalf("POST = %d Location %q, want 303 %q", res.Code, res.Header().Get("Location"), want)
+			}
+
+			get := httptest.NewRequestWithContext(ctx, http.MethodGet, want, http.NoBody)
+			out := httptest.NewRecorder()
+			switch tt.listPath {
+			case "/admin/reviews":
+				h.Reviews(out, get)
+			case "/admin/messages":
+				h.Messages(out, get)
+			}
+			if out.Code != http.StatusOK {
+				t.Fatalf("GET = %d, want 200; body=%s", out.Code, out.Body.String())
+			}
+			if !strings.Contains(out.Body.String(), gone) {
+				t.Errorf("GET omitted the gone notice %q; body=%s", gone, out.Body.String())
+			}
+		})
+	}
+
+	reviewID := someReview(t)
+	if err := admin.NewStore(pool, fakeRefunder{}, nil, nil).SetReviewHidden(ctx, reviewID, true); err != nil {
+		t.Fatalf("hide review for stale case: %v", err)
+	}
+	staleReview := url.Values{"review": {reviewID}}
+	staleReviewReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/reviews/hide",
+		strings.NewReader(staleReview.Encode()))
+	staleReviewReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	staleReviewRes := httptest.NewRecorder()
+	h.HideReview(staleReviewRes, staleReviewReq)
+	if staleReviewRes.Code != http.StatusSeeOther ||
+		staleReviewRes.Header().Get("Location") != "/admin/reviews?gone=1" {
+		t.Fatalf("stale review hide = %d %q, want 303 /admin/reviews?gone=1",
+			staleReviewRes.Code, staleReviewRes.Header().Get("Location"))
+	}
+
+	msgID := messageAgedDays(t, "已處理過", 0)
+	if err := admin.NewStore(pool, fakeRefunder{}, nil, nil).SetMessageHandled(ctx, msgID, true); err != nil {
+		t.Fatalf("handle message for stale case: %v", err)
+	}
+	staleMsg := url.Values{"message": {msgID}}
+	staleMsgReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/messages/handle",
+		strings.NewReader(staleMsg.Encode()))
+	staleMsgReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	staleMsgRes := httptest.NewRecorder()
+	h.HandleMessage(staleMsgRes, staleMsgReq)
+	if staleMsgRes.Code != http.StatusSeeOther ||
+		staleMsgRes.Header().Get("Location") != "/admin/messages?gone=1" {
+		t.Fatalf("stale message handle = %d %q, want 303 /admin/messages?gone=1",
+			staleMsgRes.Code, staleMsgRes.Header().Get("Location"))
+	}
+}
+
 func messageAgedDays(t *testing.T, message string, days int) string {
 	t.Helper()
 	var id string
