@@ -27,7 +27,7 @@ require_test_key() {
 }
 
 print_secret() {
-	stripe listen --api-key "$1" --print-secret 2>/dev/null
+	bash "${lib_dir}/stripe-cli.sh" listen --api-key "$1" --print-secret 2>/dev/null
 }
 
 # Stop whatever is listening on a TCP port, using only /proc (no lsof/ss/fuser
@@ -56,7 +56,7 @@ fi
 
 if [ -z "$key" ] || [ -z "$whsec" ]; then
 	echo "stripe-sandbox: creating a new sandbox (no valid key yet)"
-	stripe sandbox create --from-git --non-interactive >/dev/null
+	bash "${lib_dir}/stripe-cli.sh" sandbox create --from-git --non-interactive >/dev/null
 	key="$(config_key)"
 	if [ -z "$key" ]; then
 		echo "stripe-sandbox: could not obtain a Stripe test key / webhook secret" >&2

@@ -37,7 +37,7 @@ fi
 
 if bash "${lib_dir}/stripe-test-key.sh" "${GOEN_STRIPE_API_KEY}"; then
 	echo "stripe-listen: forwarding Stripe TEST events to ${forward_url}"
-	exec stripe listen --api-key "${GOEN_STRIPE_API_KEY}" --forward-to "${forward_url}"
+	exec bash "${lib_dir}/stripe-cli.sh" listen --api-key "${GOEN_STRIPE_API_KEY}" --forward-to "${forward_url}"
 fi
 
 echo "stripe-listen: refusing to run — GOEN_STRIPE_API_KEY is not a TEST-mode key (sk_test_/rk_test_/rkcs_test_)." >&2
