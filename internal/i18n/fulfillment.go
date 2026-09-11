@@ -59,6 +59,16 @@ var (
 			"order queue.",
 	})
 
+	KeyAdminQueueNoneFound = key("admin.queue.nonefound", Message{
+		ZhHant: "找不到符合「%s」的訂單。",
+		En:     "No order matches %q.",
+	})
+
+	KeyAdminQueueNoneYet = key("admin.queue.noneyet", Message{
+		ZhHant: "還沒有訂單。",
+		En:     "No orders yet.",
+	})
+
 	KeyAdminQueueEmpty = key("admin.queue.empty", Message{
 		ZhHant: "這個狀態沒有訂單",
 		En:     "No orders in this state",
