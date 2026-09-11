@@ -231,10 +231,12 @@ func TestAProductWithNoReviewsCanReceiveItsFirst(t *testing.T) {
 	}
 }
 
-// TestSignedOutQAHasNoAskForm holds that a visitor who is not signed in sees
-// a sign-in link back to #questions, not a form whose body Ask will discard.
-func TestSignedOutQAHasNoAskForm(t *testing.T) {
+// TestQAAskSurface holds the three Q&A states as one matrix: signed-out
+// visitors get a return to #questions, signed-in visitors get the form
+// without a sign-in hint, and a refused draft stays in the textarea.
+func TestQAAskSurface(t *testing.T) {
 	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
 
 	base := ProductView{
 		Name: "Pixelight 9 Pro", Brand: "Meridian", Slug: "pixelight-9-pro",
@@ -242,6 +244,7 @@ func TestSignedOutQAHasNoAskForm(t *testing.T) {
 		PriceCents: 3690000,
 	}
 	askAction := `action="/p/pixelight-9-pro/questions"`
+	signInHint := i18n.T(ctx, i18n.KeySignInToAsk)
 
 	out := base
 	html := renderToString(t, Product(ProductMeta(&out), &out))
@@ -260,6 +263,26 @@ func TestSignedOutQAHasNoAskForm(t *testing.T) {
 	}
 	if strings.Contains(signedIn, in.AskSignInHref()) {
 		t.Error("signed-in Q&A still offers the sign-in link")
+	}
+	if strings.Contains(signedIn, signInHint) {
+		t.Error("signed-in Q&A still tells the customer to sign in")
+	}
+
+	refused := in
+	refused.AskOutcome = "bad"
+	refused.AskDraft = "這個草稿在 422 之後還必須留在欄位裡"
+	rejected := renderToString(t, Product(ProductMeta(&refused), &refused))
+	if !strings.Contains(rejected, refused.AskDraft) {
+		t.Error("rejected Q&A lost the submitted draft")
+	}
+	if !strings.Contains(rejected, i18n.T(ctx, i18n.KeyQuestionRefused)) {
+		t.Error("rejected Q&A has no field error")
+	}
+	if !strings.Contains(rejected, `aria-invalid="true"`) {
+		t.Error("rejected Q&A does not mark the textarea invalid")
+	}
+	if strings.Contains(rejected, signInHint) {
+		t.Error("rejected Q&A tells a signed-in customer to sign in")
 	}
 }
 

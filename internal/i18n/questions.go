@@ -32,11 +32,6 @@ var (
 		En:     "For example: which fast-charge standards does this model support?",
 	})
 
-	KeyAskNeedsSignIn = key("pdp.qa.signin", Message{
-		ZhHant: "需要登入才能發問。回答會公開顯示。",
-		En:     "Sign in to ask. Answers are shown publicly.",
-	})
-
 	KeySignInToAsk = key("pdp.qa.signin.rest", Message{
 		ZhHant: "後可以發問。",
 		En:     " to ask a question.",

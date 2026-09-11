@@ -138,8 +138,11 @@ type ProductView struct {
 	ReviewDraft   ReviewDraft
 	NotifyOutcome string
 	Comparing     []string
-	Questions     []Question
-	AskOutcome    string
+	Questions  []Question
+	AskOutcome string
+	// AskDraft is a refused question, replayed into the textarea so a 422
+	// does not empty what the customer already typed.
+	AskDraft string
 	// AddedOutcome is what the last add-to-cart did; without rendering it a
 	// refusal looks identical to a success.
 	AddedOutcome string

@@ -80,11 +80,6 @@ templ Product(p layouts.Page, v *ProductView) {
 						{ i18n.T(ctx, i18n.KeyQuestionPosted) }
 					</p>
 				}
-				if v.AskRefused() {
-					<p class="ui-alert ui-alert--error" role="alert" id="ask-body-error">
-						{ i18n.T(ctx, i18n.KeyQuestionRefused) }
-					</p>
-				}
 				if v.HasQuestions() {
 					<ul class="goen-qa" role="list">
 						for _, q := range v.Questions {
@@ -429,8 +424,10 @@ templ askForm(v *ProductView) {
 						aria-invalid="true"
 						aria-describedby="ask-body-error"
 					}
-				></textarea>
-				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAskNeedsSignIn) }</p>
+				>{ v.AskDraft }</textarea>
+				if v.AskRefused() {
+					<p class="ui-error-text" id="ask-body-error">{ i18n.T(ctx, i18n.KeyQuestionRefused) }</p>
+				}
 			</div>
 			<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAskSubmit) }</button>
 		</form>

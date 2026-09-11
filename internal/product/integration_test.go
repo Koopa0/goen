@@ -1421,6 +1421,41 @@ func TestAHiddenQuestionDisappearsWithItsAnswers(t *testing.T) {
 	}
 }
 
+// TestARejectedQuestionKeepsTheDraft holds the handler arm of the Q&A
+// matrix: an over-limit signed-in POST answers 422 with the submitted body
+// and the field error, not a redirect that empties the textarea.
+func TestARejectedQuestionKeepsTheDraft(t *testing.T) {
+	ctx := t.Context()
+	slug := anyActiveProduct(t)
+	customer := newCustomer(t)
+	draft := strings.Repeat("問", product.MaxQuestionRunes+1)
+
+	form := url.Values{"body": {draft}}
+	req := httptest.NewRequestWithContext(
+		account.WithUser(ctx, account.User{ID: customer}),
+		http.MethodPost, "/p/"+slug+"/questions", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("slug", slug)
+	res := httptest.NewRecorder()
+	product.NewHandler(product.NewStore(pool), slog.New(slog.DiscardHandler), "https://goen.example").
+		Ask(res, req)
+
+	if res.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("rejected ask answered %d, want 422; Location=%q",
+			res.Code, res.Header().Get("Location"))
+	}
+	if loc := res.Header().Get("Location"); loc != "" {
+		t.Errorf("rejected ask redirected to %q; the draft is gone after a 303", loc)
+	}
+	body := res.Body.String()
+	if !strings.Contains(body, draft) {
+		t.Error("422 did not keep the submitted over-limit draft")
+	}
+	if !strings.Contains(body, `aria-invalid="true"`) {
+		t.Error("422 did not mark the textarea invalid")
+	}
+}
+
 func TestAQuestionIsBoundedInRunesNotBytes(t *testing.T) {
 	ctx := t.Context()
 	s := product.NewStore(pool)
