@@ -131,6 +131,57 @@ func TestAnUnknownLocaleFallsBackRatherThanFailing(t *testing.T) {
 	}
 }
 
+// TestARestockNoticeIdentifiesTheQueuedVariant: two variants of one product
+// share a name and slug, so only the queued SKU tells the recipient which
+// one came back.
+func TestARestockNoticeIdentifiesTheQueuedVariant(t *testing.T) {
+	t.Parallel()
+
+	n, sink := notifier(t)
+	first := &RestockNotice{
+		Locale: "en", Email: "a@b.co",
+		ProductName: "Koto Pad", Slug: "koto-pad", SKU: "KP-BLUE",
+	}
+	if err := n.SendRestockNotice(t.Context(), first); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	body := sink.msg.Body
+	if !strings.Contains(body, "KP-BLUE") {
+		t.Errorf("the restock letter does not name the queued SKU:\n%s", body)
+	}
+	if strings.Contains(body, "KP-BLACK") {
+		t.Errorf("the restock letter names a sibling variant:\n%s", body)
+	}
+	if !strings.Contains(body, "https://goen.test/p/koto-pad") {
+		t.Errorf("the restock letter dropped the product link:\n%s", body)
+	}
+	if !strings.Contains(body, "does not reserve") {
+		t.Errorf("the restock letter dropped the no-reservation warning:\n%s", body)
+	}
+
+	sibling := *first
+	sibling.SKU = "KP-BLACK"
+	if err := n.SendRestockNotice(t.Context(), &sibling); err != nil {
+		t.Fatalf("send sibling: %v", err)
+	}
+	if !strings.Contains(sink.msg.Body, "KP-BLACK") {
+		t.Errorf("the sibling letter does not name its queued SKU:\n%s", sink.msg.Body)
+	}
+	if strings.Contains(sink.msg.Body, "KP-BLUE") {
+		t.Errorf("the sibling letter names the other variant:\n%s", sink.msg.Body)
+	}
+
+	n, sink = notifier(t)
+	zh := *first
+	zh.Locale = "zh-Hant"
+	if err := n.SendRestockNotice(t.Context(), &zh); err != nil {
+		t.Fatalf("send zh-Hant: %v", err)
+	}
+	if !strings.Contains(sink.msg.Body, "KP-BLUE") {
+		t.Errorf("the Chinese letter does not name the queued SKU:\n%s", sink.msg.Body)
+	}
+}
+
 func TestTheGreetingDropsAnEmptyName(t *testing.T) {
 	t.Parallel()
 

@@ -85,7 +85,7 @@ func (n Notifier) SendRestockNotice(ctx context.Context, p *RestockNotice) error
 
 	ctx = n.locale(ctx, p.Locale)
 	body := n.letter(ctx, "", fmt.Sprintf(i18n.T(ctx, i18n.KeyMailRestockBody),
-		p.ProductName, strings.TrimRight(n.baseURL, "/")+"/p/"+p.Slug))
+		p.ProductName, p.SKU, strings.TrimRight(n.baseURL, "/")+"/p/"+p.Slug))
 
 	return n.sender.Send(ctx, &Message{
 		To:      p.Email,

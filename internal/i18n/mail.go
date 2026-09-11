@@ -71,9 +71,12 @@ var (
 		ZhHant: "「%s」補貨通知",
 		En:     "%s is back in stock",
 	})
+	// The second hole is the queued SKU. A multi-variant product would
+	// otherwise only name the parent, and the recipient could not tell
+	// which requested variant is back.
 	KeyMailRestockBody = key("mail.restock.body", Message{
-		ZhHant: "您關注的商品「%s」補貨了。\n\n%s\n\n數量有限,先買到的先出貨 —— 這封通知不會為您保留庫存。",
-		En: "%s, which you asked about, is back in stock.\n\n%s\n\nQuantities are limited " +
+		ZhHant: "您關注的商品「%s」（%s）補貨了。\n\n%s\n\n數量有限,先買到的先出貨 —— 這封通知不會為您保留庫存。",
+		En: "%s (%s), which you asked about, is back in stock.\n\n%s\n\nQuantities are limited " +
 			"and it is first come, first served — this notice does not reserve one for you.",
 	})
 	KeyMailPaidCard = key("mail.paid.card", Message{ZhHant: "付款方式:%s", En: "Paid with: %s"})
