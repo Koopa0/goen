@@ -636,6 +636,43 @@ func TestTheFreeDeliveryStripStatesWhatTheTillCharges(t *testing.T) {
 	}
 }
 
+// fee_cents lives in shipping_method_versions, which a shop edits at
+// /admin/shipping, so a page stating the figure can drift from the till.
+func TestTheTrustBodyStatesTheLowestCurrentFee(t *testing.T) {
+	ctx := t.Context()
+
+	// A new version, because shipping_method_versions is append-only. Every
+	// active method is raised so the lowest honest figure is the fixture, not
+	// a leftover seed 6000. free_over_cents stays positive so the card renders.
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO shipping_method_versions
+		    (method_id, name, carrier, fee_cents, free_over_cents, effective_at)
+		SELECT DISTINCT ON (v.method_id) v.method_id, v.name, v.carrier, 8000,
+		       coalesce(v.free_over_cents, 300000), now()
+		FROM shipping_method_versions v
+		JOIN shipping_methods sm ON sm.id = v.method_id
+		WHERE sm.is_active
+		ORDER BY v.method_id, v.effective_at DESC`); err != nil {
+		t.Fatalf("publish a new fee: %v", err)
+	}
+
+	h := home.NewHandler(home.NewStore(pool), slog.New(slog.DiscardHandler), false)
+	req := httptest.NewRequestWithContext(i18n.WithLocale(ctx, i18n.ZhHant), http.MethodGet, "/", http.NoBody)
+	res := httptest.NewRecorder()
+	h.Home(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("status = %d; want 200", res.Code)
+	}
+	body := res.Body.String()
+
+	if !strings.Contains(body, "未達門檻運費 NT$80 起") {
+		t.Error("the trust body does not state the current lowest fee")
+	}
+	if strings.Contains(body, "NT$60") {
+		t.Error("the trust body still states the old NT$60 floor")
+	}
+}
+
 // The header and the home tiles read one query, so their order cannot disagree,
 // and two roots sharing a position is refused at the schema:
 // categories_position_key is NULLS NOT DISTINCT precisely because the ROOT

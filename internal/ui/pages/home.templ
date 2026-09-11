@@ -91,7 +91,7 @@ templ Home(p layouts.Page, v HomeView) {
 				<div class="ui-incentives">
 					@incentive(icons.Shield(), i18n.T(ctx, i18n.KeyGuaranteeWarranty), i18n.T(ctx, i18n.KeyTrustWarrantyBody))
 					if v.FreeDelivery() != "" {
-						@incentive(icons.Truck(), fmt.Sprintf(i18n.T(ctx, i18n.KeyGuaranteeShipping), v.FreeDelivery()), i18n.T(ctx, i18n.KeyTrustShippingBody))
+						@incentive(icons.Truck(), fmt.Sprintf(i18n.T(ctx, i18n.KeyGuaranteeShipping), v.FreeDelivery()), fmt.Sprintf(i18n.T(ctx, i18n.KeyTrustShippingBody), v.LowestFee()))
 					}
 					@incentive(icons.Return(), i18n.T(ctx, i18n.KeyGuaranteeReturns), i18n.T(ctx, i18n.KeyTrustReturnsBody))
 					@incentive(icons.Lock(), i18n.T(ctx, i18n.KeyTrustPayment), i18n.T(ctx, i18n.KeyTrustPaymentBody))
