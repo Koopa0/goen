@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/db"
+	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
@@ -75,16 +76,16 @@ func (s *Store) Returns(ctx context.Context) (ReturnQueue, error) {
 			ID:          r.ID.String(),
 			OrderNumber: r.OrderNumber,
 			Status:      r.Status,
-			StatusText:  ReturnStatusLabel(ctx, r.Status),
+			StatusText:  ReturnStatusLabel(ctx, returns.ReturnStatus(r.Status)),
 			Reason:      r.Reason,
 			Units:       r.Units,
 			AmountCents: r.RefundableCents,
 			CreatedAt:   shoptime.Minute(r.CreatedAt),
-			Decided:     r.Status != "requested",
+			Decided:     returns.ReturnStatus(r.Status) != returns.ReturnRequested,
 			Lines:       byRequest[r.ID],
 			Window:      r.RescissionWindow,
 		}
-		if payoutErr := fillReturnPayoutState(r.Status, payoutFacts[r.ID], &item); payoutErr != nil {
+		if payoutErr := fillReturnPayoutState(returns.ReturnStatus(r.Status), payoutFacts[r.ID], &item); payoutErr != nil {
 			if !errors.Is(payoutErr, ErrRefused) {
 				return ReturnQueue{}, payoutErr
 			}
@@ -225,9 +226,9 @@ func (s *Store) returnPayoutFact(
 }
 
 func fillReturnPayoutState(
-	status string, facts returnPayoutFacts, item *pages.AdminReturn,
+	status returns.ReturnStatus, facts returnPayoutFacts, item *pages.AdminReturn,
 ) error {
-	if status != "approved" {
+	if status != returns.ReturnApproved {
 		return nil
 	}
 	position, err := facts.position()
@@ -271,12 +272,16 @@ func (s *Store) Decide(ctx context.Context, id, decision, resolution string, _ u
 	// different people.
 	actor := uuid.NullUUID{UUID: actorID, Valid: true}
 
-	row, retry, readErr := s.returnUnderDecision(ctx, id, decision)
+	decisionStatus, ok := returns.ParseDecision(decision)
+	if !ok {
+		return ErrRefused
+	}
+	row, retry, readErr := s.returnUnderDecision(ctx, id, decisionStatus)
 	if readErr != nil {
 		return readErr
 	}
-	if decision == "rejected" {
-		return s.closeReturn(ctx, row.ID, "rejected", resolution)
+	if decisionStatus == returns.ReturnRejected {
+		return s.closeReturn(ctx, row.ID, returns.ReturnRejected, resolution)
 	}
 
 	if retry {
@@ -296,7 +301,7 @@ func (s *Store) Decide(ctx context.Context, id, decision, resolution string, _ u
 	// and the loser must not have paid anything on the way to finding out. The
 	// transition freezes goods and the one delivery allocation under the order
 	// lock, so every provider retry keeps this winning economic identity.
-	if closeErr := s.closeReturn(ctx, row.ID, "approved", resolution); closeErr != nil {
+	if closeErr := s.closeReturn(ctx, row.ID, returns.ReturnApproved, resolution); closeErr != nil {
 		return closeErr
 	}
 	frozen, err := s.q.ReturnForDecision(ctx, row.ID)
@@ -363,21 +368,19 @@ func (s *Store) retryApprovedReturn(
 // reuses its durable key; a known failed/cancelled attempt gets a DB-derived
 // successor generation so Stripe may execute new work without losing lineage.
 func (s *Store) returnUnderDecision(
-	ctx context.Context, id, decision string,
+	ctx context.Context, id string, decision returns.ReturnStatus,
 ) (db.ReturnForDecisionRow, bool, error) {
 	requestID, err := uuid.Parse(id)
 	if err != nil {
-		return db.ReturnForDecisionRow{}, false, ErrRefused
-	}
-	if decision != "approved" && decision != "rejected" {
 		return db.ReturnForDecisionRow{}, false, ErrRefused
 	}
 	row, err := s.q.ReturnForDecision(ctx, requestID)
 	if err != nil {
 		return db.ReturnForDecisionRow{}, false, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
-	retry := row.Status == "approved" && decision == "approved"
-	if row.Status != "requested" && !retry {
+	status := returns.ReturnStatus(row.Status)
+	retry := status == returns.ReturnApproved && decision == returns.ReturnApproved
+	if status != returns.ReturnRequested && !retry {
 		return db.ReturnForDecisionRow{}, false,
 			fmt.Errorf("%w: return %s is already %s", ErrRefused, id, row.Status)
 	}
@@ -637,7 +640,8 @@ func refundProviderResult(providerRef string, state RefundState) (string, Refund
 func (s *Store) closeReturn(
 	ctx context.Context,
 	requestID uuid.UUID,
-	status, resolution string,
+	status returns.ReturnStatus,
+	resolution string,
 ) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -654,7 +658,7 @@ func (s *Store) closeReturn(
 	// settles which of two staff members deciding at once wins — and it runs
 	// BEFORE any money moves.
 	decided, decideErr := q.DecideReturn(ctx, db.DecideReturnParams{
-		ID: requestID, Status: status, Resolution: text(resolution),
+		ID: requestID, Status: string(status), Resolution: text(resolution),
 	})
 	if decideErr != nil {
 		return fmt.Errorf("%w: %w", ErrRefused, decideErr)
@@ -665,7 +669,7 @@ func (s *Store) closeReturn(
 	}
 	if err := auditIn(ctx, q, Event{
 		Action: actionDecideReturn, Table: "return_requests", ID: nullableID(requestID),
-		After: map[string]any{"decision": status, "resolution": resolution},
+		After: map[string]any{"decision": string(status), "resolution": resolution},
 	}); err != nil {
 		return err
 	}
