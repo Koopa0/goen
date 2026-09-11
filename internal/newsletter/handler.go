@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/i18n"
@@ -34,6 +35,15 @@ func NewHandler(store *Store, limit *ratelimit.Limiter, log *slog.Logger) *Handl
 // Submit serves POST /newsletter. Nothing joins the list here, and every
 // outcome is answered identically.
 func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
+	// Per-IP lives here rather than in Guard so an HTMX refusal can still
+	// replace the footer form; Guard's plain 429 would swap over it.
+	if retryAfter, ok := h.limit.Allow(ratelimit.ClientIP(r)); !ok {
+		h.log.WarnContext(r.Context(), "rate limited",
+			"path", r.URL.Path, "retry_after_seconds", int(retryAfter.Seconds()+1))
+		h.throttled(w, r, "", retryAfter)
+		return
+	}
+
 	if err := web.ParseForm(w, r); err != nil {
 		h.log.WarnContext(r.Context(), "parse newsletter form", "error", err)
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
@@ -53,7 +63,7 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	// Keyed on the address and BEFORE the write: unbounded, the form mails a
 	// confirmation to whoever is typed into it, as often as the button is pressed.
 	if retryAfter, ok := h.limit.Allow("newsletter:" + addr); !ok {
-		ratelimit.Refuse(r.Context(), w, retryAfter)
+		h.throttled(w, r, addr, retryAfter)
 		return
 	}
 
@@ -184,6 +194,17 @@ func (h *Handler) linkFailed(w http.ResponseWriter, r *http.Request, heading, bo
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.NewsletterAction(
 		pages.NewsletterMeta(heading),
 		pages.NewsletterActionView{Heading: heading, Body: body}))
+}
+
+// throttled answers an over-budget submission. HTMX swaps the body into the
+// footer form, so it must stay a form; a plain request can stay text.
+func (h *Handler) throttled(w http.ResponseWriter, r *http.Request, addr string, retryAfter time.Duration) {
+	if web.IsHTMX(r) {
+		ratelimit.SetRetryAfter(w, retryAfter)
+		h.fail(w, r, http.StatusTooManyRequests, addr, i18n.T(r.Context(), i18n.KeyTooManyRequests))
+		return
+	}
+	ratelimit.Refuse(r.Context(), w, retryAfter)
 }
 
 // fail answers a rejected submission: the form itself for htmx, a standalone

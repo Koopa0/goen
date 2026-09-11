@@ -30,10 +30,9 @@ func Guard(l *Limiter, log *slog.Logger, next http.HandlerFunc) http.HandlerFunc
 	}
 }
 
-// Refuse writes the 429. Exported so the sign-in handler's per-account refusal
-// is byte-identical to the per-IP one, which is what stops it answering "does
-// this account exist?".
-func Refuse(ctx context.Context, w http.ResponseWriter, retryAfter time.Duration) {
+// SetRetryAfter writes the header Refuse also writes, so an HTMX 429 that
+// renders a form instead of plain text still tells the client when to retry.
+func SetRetryAfter(w http.ResponseWriter, retryAfter time.Duration) {
 	// Rounded UP: rounding down tells a client to come back before it is
 	// allowed, which produces a second 429.
 	seconds := int(retryAfter.Seconds())
@@ -44,6 +43,13 @@ func Refuse(ctx context.Context, w http.ResponseWriter, retryAfter time.Duration
 		seconds = 1
 	}
 	w.Header().Set("Retry-After", strconv.Itoa(seconds))
+}
+
+// Refuse writes the 429. Exported so the sign-in handler's per-account refusal
+// is byte-identical to the per-IP one, which is what stops it answering "does
+// this account exist?".
+func Refuse(ctx context.Context, w http.ResponseWriter, retryAfter time.Duration) {
+	SetRetryAfter(w, retryAfter)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusTooManyRequests)
