@@ -421,6 +421,9 @@ WHERE created_at < now() - sqlc.arg(retain)::interval;
 -- name: ReverseOrderCredit :one
 SELECT reverse_order_credit(@order_id)::bigint AS returned_cents;
 
+-- name: ReverseOrderPoints :one
+SELECT reverse_order_points(@order_id)::bigint AS points_reversed;
+
 -- Does this order number belong to this email address? Both halves in ONE
 -- statement answering a boolean: a caller that got a row back could report WHICH
 -- half was wrong, and only the address is secret.
