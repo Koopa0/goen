@@ -47,12 +47,17 @@ func (s *Store) Load(ctx context.Context, recommended int32) (pages.HomeView, er
 	if err != nil {
 		return pages.HomeView{}, fmt.Errorf("read free delivery threshold: %w", err)
 	}
+	lowestFee, err := s.q.LowestDeliveryFee(ctx)
+	if err != nil {
+		return pages.HomeView{}, fmt.Errorf("read lowest delivery fee: %w", err)
+	}
 
 	view := pages.HomeView{
 		Hero:              hero,
 		Categories:        make([]pages.HomeCategory, 0, len(cats)),
 		Recommended:       make([]pages.ProductTile, 0, len(tiles)),
 		FreeDeliveryCents: freeOver,
+		LowestFeeCents:    lowestFee,
 	}
 	for _, c := range cats {
 		view.Categories = append(view.Categories, pages.HomeCategory{

@@ -27,8 +27,12 @@ type HomeView struct {
 	Hero              Hero
 	Categories        []HomeCategory
 	FreeDeliveryCents int64
+	LowestFeeCents    int64
 	Recommended       []ProductTile
 }
 
 // FreeDelivery is the threshold the trust strip states, or "" for none.
 func (v *HomeView) FreeDelivery() string { return FreeDeliveryText(v.FreeDeliveryCents) }
+
+// LowestFee is the floor the trust body states.
+func (v *HomeView) LowestFee() string { return twd(v.LowestFeeCents) }

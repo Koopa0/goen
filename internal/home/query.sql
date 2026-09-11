@@ -135,3 +135,16 @@ WHERE sm.is_active
   AND v.id = (SELECT id FROM shipping_method_versions
               WHERE method_id = sm.id AND effective_at <= now()
               ORDER BY effective_at DESC LIMIT 1);
+
+-- MIN across methods: the strip states one floor, and the honest one is the
+-- lowest fee any active method charges. coalesce AND cast, because min() over
+-- an empty set is NULL and sqlc types the result as non-null.
+-- name: LowestDeliveryFee :one
+SELECT coalesce(min(v.fee_cents), 0)::bigint AS fee_cents
+FROM shipping_methods sm
+JOIN shipping_method_versions v ON v.method_id = sm.id
+WHERE sm.is_active
+  AND v.effective_at <= now()
+  AND v.id = (SELECT id FROM shipping_method_versions
+              WHERE method_id = sm.id AND effective_at <= now()
+              ORDER BY effective_at DESC LIMIT 1);
