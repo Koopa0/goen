@@ -472,7 +472,7 @@ func TestASentIssueReachesEveryoneOnTheListExactlyOnce(t *testing.T) {
 		t.Fatalf("unsubscribe %s: %v", left, err)
 	}
 
-	id, err := s.Compose(ctx, "本月新品", "三款值得看的耳機。")
+	id, err := s.Compose(ctx, "本月新品", "三款值得看的耳機。", staffActor(t))
 	if err != nil {
 		t.Fatalf("Compose: %v", err)
 	}
@@ -507,7 +507,7 @@ func TestAnIssueIsSentOnceUnderConcurrency(t *testing.T) {
 	s := store(t)
 	joinList(t, s, addr(t))
 
-	id, err := s.Compose(ctx, "只送一次", "內容。")
+	id, err := s.Compose(ctx, "只送一次", "內容。", staffActor(t))
 	if err != nil {
 		t.Fatalf("Compose: %v", err)
 	}
@@ -568,7 +568,7 @@ func TestABulkSendWaitsBehindTransactionalMail(t *testing.T) {
 		joinList(t, s, addr(t))
 	}
 
-	id, err := s.Compose(ctx, "大量寄送", "內容。")
+	id, err := s.Compose(ctx, "大量寄送", "內容。", staffActor(t))
 	if err != nil {
 		t.Fatalf("Compose: %v", err)
 	}
@@ -630,7 +630,7 @@ func TestASentIssueCannotBeRewritten(t *testing.T) {
 	s := store(t)
 	joinList(t, s, addr(t))
 
-	id, err := s.Compose(ctx, "原本的主旨", "原本的內容。")
+	id, err := s.Compose(ctx, "原本的主旨", "原本的內容。", staffActor(t))
 	if err != nil {
 		t.Fatalf("Compose: %v", err)
 	}
@@ -688,7 +688,7 @@ func TestASecondSendIsRefusedSequentially(t *testing.T) {
 	s := store(t)
 	joinList(t, s, addr(t))
 
-	id, err := s.Compose(ctx, "序列送兩次", "內容。")
+	id, err := s.Compose(ctx, "序列送兩次", "內容。", staffActor(t))
 	if err != nil {
 		t.Fatalf("Compose: %v", err)
 	}
@@ -721,7 +721,7 @@ func TestASendNeedsAnActor(t *testing.T) {
 	subscriber := addr(t)
 	joinList(t, s, subscriber)
 
-	id, err := s.Compose(ctx, "沒有操作者", "內容。")
+	id, err := s.Compose(ctx, "沒有操作者", "內容。", staffActor(t))
 	if err != nil {
 		t.Fatalf("Compose: %v", err)
 	}
@@ -730,6 +730,107 @@ func TestASendNeedsAnActor(t *testing.T) {
 	}
 	if got := enqueued(t, "newsletter.issue", subscriber); got != 0 {
 		t.Errorf("%d copies were enqueued for a send that was refused, want 0", got)
+	}
+}
+
+// TestComposeRecordsWhoWroteTheDraft locks the staff trail: a draft that is
+// never sent still names who wrote it. The body stays out of audit_events
+// because erase_user cannot reach that table.
+func TestComposeRecordsWhoWroteTheDraft(t *testing.T) {
+	ctx := t.Context()
+	s := store(t)
+	actor := staffActor(t)
+	const subject = "本月草稿"
+	const body = "這段不得寫進 audit_events。"
+
+	id, err := s.Compose(ctx, subject, body, actor)
+	if err != nil {
+		t.Fatalf("Compose: %v", err)
+	}
+
+	var after, actorID, auditedID, auditedSubject string
+	if err := pool.QueryRow(ctx, `
+		SELECT after::text, actor_user_id::text,
+		       after->>'issue_id', after->>'subject'
+		FROM audit_events
+		WHERE entity_id = $1 AND action = $2`,
+		id, newsletter.ActionCompose).Scan(&after, &actorID, &auditedID, &auditedSubject); err != nil {
+		t.Fatalf("read compose audit: %v", err)
+	}
+	if actorID != actor.UUID.String() {
+		t.Errorf("compose actor = %s, want %s", actorID, actor.UUID)
+	}
+	if auditedID != id {
+		t.Errorf("audit issue_id = %s, want %s", auditedID, id)
+	}
+	if auditedSubject != subject {
+		t.Errorf("audit subject = %q, want %q", auditedSubject, subject)
+	}
+	if strings.Contains(after, body) {
+		t.Errorf("audit after retained the body: %s", after)
+	}
+
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM newsletter_issues WHERE id = $1`, id).Scan(&n); err != nil {
+		t.Fatalf("count issue: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("issues for the draft = %d, want 1", n)
+	}
+}
+
+func TestComposeNeedsAnActor(t *testing.T) {
+	ctx := t.Context()
+	s := store(t)
+	const subject = "沒有操作者的草稿"
+
+	id, err := s.Compose(ctx, subject, "內容。", uuid.NullUUID{})
+	if id != "" || !errors.Is(err, newsletter.ErrNoActor) {
+		t.Errorf("Compose with no actor = %q, %v; want ErrNoActor", id, err)
+	}
+
+	var issues, audits int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM newsletter_issues WHERE subject = $1`, subject).Scan(&issues); err != nil {
+		t.Fatalf("count issues: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM audit_events
+		WHERE action = $1 AND after->>'subject' = $2`,
+		newsletter.ActionCompose, subject).Scan(&audits); err != nil {
+		t.Fatalf("count audits: %v", err)
+	}
+	if issues != 0 || audits != 0 {
+		t.Errorf("unattributed compose left %d issue(s) and %d audit row(s), want 0/0", issues, audits)
+	}
+}
+
+func TestComposeLeavesNeitherRowWhenAuditFails(t *testing.T) {
+	ctx := t.Context()
+	s := store(t)
+	subject := "不得落地 " + uuid.NewString()[:8]
+	missing := uuid.NullUUID{UUID: uuid.New(), Valid: true}
+
+	id, err := s.Compose(ctx, subject, "內容。", missing)
+	if err == nil {
+		t.Fatalf("Compose with an unrecordable actor = %s, nil; want audit error", id)
+	}
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	if !ok || pgErr.ConstraintName != "audit_events_actor_user_id_fkey" {
+		t.Fatalf("compose audit insertion failure = %v, want audit actor FK", err)
+	}
+
+	var issues, audits int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM newsletter_issues WHERE subject = $1`, subject).Scan(&issues); err != nil {
+		t.Fatalf("count issues: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM audit_events
+		WHERE action = $1 AND after->>'subject' = $2`,
+		newsletter.ActionCompose, subject).Scan(&audits); err != nil {
+		t.Fatalf("count audits: %v", err)
+	}
+	if issues != 0 || audits != 0 {
+		t.Errorf("failed audit left %d issue(s) and %d audit row(s), want 0/0", issues, audits)
 	}
 }
 

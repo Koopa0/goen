@@ -1623,7 +1623,7 @@ func (h *Handler) ComposeNewsletter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.letters.Compose(r.Context(), subject, body); err != nil {
+	if _, err := h.letters.Compose(r.Context(), subject, body, staffID(r)); err != nil {
 		h.log.ErrorContext(r.Context(), "compose a newsletter issue", "error", err)
 		h.serverError(w, r)
 		return
