@@ -404,7 +404,7 @@ func (w *webhookTx) Capture(ctx context.Context, c Capture) (orderNumber string,
 // a zero-owed picking transition passes none.
 func CompleteFunding(
 	ctx context.Context, q *db.Queries, orderID uuid.UUID, orderNumber string, c Capture,
-) error {
+) (err error) {
 	has, err := q.OrderHasPaidEvent(ctx, orderID)
 	if err != nil {
 		return fmt.Errorf("read paid event of order %s: %w", orderNumber, err)
@@ -413,22 +413,24 @@ func CompleteFunding(
 		return nil
 	}
 
-	if err := q.RecordPaidEvent(ctx, db.RecordPaidEventParams{
+	if err = q.RecordPaidEvent(ctx, db.RecordPaidEventParams{
 		OrderID: orderID, Note: text(cardLabel(c)),
 	}); err != nil {
 		return fmt.Errorf("record paid event for order %s: %w", orderNumber, err)
 	}
 
-	if _, err := q.AwardOrderPoints(ctx, orderID); err != nil {
+	if _, err = q.AwardOrderPoints(ctx, orderID); err != nil {
 		return fmt.Errorf("award points for order %s: %w", orderNumber, err)
 	}
 
-	if err := enqueueOrderPaid(ctx, q, orderID, &OrderPaid{
-		OrderNumber: orderNumber, AmountCents: c.AmountRecv, Card: cardLabel(c),
-	}); err != nil {
-		return err
+	var amount int64
+	amount, err = q.OrderReceiptAmount(ctx, orderID)
+	if err != nil {
+		return fmt.Errorf("read receipt amount of order %s: %w", orderNumber, err)
 	}
-	return nil
+	return enqueueOrderPaid(ctx, q, orderID, &OrderPaid{
+		OrderNumber: orderNumber, AmountCents: amount, Card: cardLabel(c),
+	})
 }
 
 func capturePostingError(orderNumber, sessionID string, cause error) (string, error) {

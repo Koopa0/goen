@@ -2072,7 +2072,7 @@ func TestFullyCreditFundedOrderEarnsPointsAfterPicking(t *testing.T) {
 	number, orderID := ownedOrder(t, userID, cents)
 	spendCreditOnOrder(t, orderID, -cents)
 	advanceToPicking(t, number)
-	assertFundingComplete(t, orderID, number, 5)
+	assertFundingComplete(t, orderID, number, 5, fundingReceipt{amountCents: cents})
 }
 
 // TestFundingCompleteSideEffectsOnce is the #49 acceptance lock: each funding
@@ -2083,18 +2083,20 @@ func TestFundingCompleteSideEffectsOnce(t *testing.T) {
 	tests := []struct {
 		name       string
 		wantPoints int64
+		want       fundingReceipt
 		run        func(t *testing.T) (number string, orderID uuid.UUID, replay func())
 	}{
 		{
 			name:       "card-only",
 			wantPoints: 5,
+			want:       fundingReceipt{amountCents: cents, card: "visa ****4242"},
 			run: func(t *testing.T) (string, uuid.UUID, func()) {
 				t.Helper()
 				userID := newCustomer(t)
 				number, orderID := ownedOrder(t, userID, cents)
 				s := payment.NewStore(pool)
 				session := "cs_fund_card_" + number
-				captureOwned(t, s, number, session, cents)
+				captureOwned(t, s, number, session, cents, "visa", "4242")
 				return number, orderID, func() {
 					if _, err := captureThroughWebhook(t, s, payment.Capture{
 						SessionID: session, AmountRecv: cents,
@@ -2108,6 +2110,7 @@ func TestFundingCompleteSideEffectsOnce(t *testing.T) {
 		{
 			name:       "credit-only",
 			wantPoints: 5,
+			want:       fundingReceipt{amountCents: cents},
 			run: func(t *testing.T) (string, uuid.UUID, func()) {
 				t.Helper()
 				userID := creditedUser(t, cents)
@@ -2122,6 +2125,7 @@ func TestFundingCompleteSideEffectsOnce(t *testing.T) {
 		{
 			name:       "coupon-to-zero",
 			wantPoints: 0,
+			want:       fundingReceipt{amountCents: 0},
 			run: func(t *testing.T) (string, uuid.UUID, func()) {
 				t.Helper()
 				userID := newCustomer(t)
@@ -2136,6 +2140,7 @@ func TestFundingCompleteSideEffectsOnce(t *testing.T) {
 		{
 			name:       "split funding",
 			wantPoints: 5,
+			want:       fundingReceipt{amountCents: cents, card: "mastercard ****5555"},
 			run: func(t *testing.T) (string, uuid.UUID, func()) {
 				t.Helper()
 				const credit, card = int64(20000), int64(30000)
@@ -2144,7 +2149,7 @@ func TestFundingCompleteSideEffectsOnce(t *testing.T) {
 				spendCreditOnOrder(t, orderID, -credit)
 				s := payment.NewStore(pool)
 				session := "cs_fund_split_" + number
-				captureOwned(t, s, number, session, card)
+				captureOwned(t, s, number, session, card, "mastercard", "5555")
 				return number, orderID, func() {
 					if _, err := captureThroughWebhook(t, s, payment.Capture{
 						SessionID: session, AmountRecv: card,
@@ -2159,9 +2164,9 @@ func TestFundingCompleteSideEffectsOnce(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			number, orderID, replay := tt.run(t)
-			assertFundingComplete(t, orderID, number, tt.wantPoints)
+			assertFundingComplete(t, orderID, number, tt.wantPoints, tt.want)
 			replay()
-			assertFundingComplete(t, orderID, number, tt.wantPoints)
+			assertFundingComplete(t, orderID, number, tt.wantPoints, tt.want)
 		})
 	}
 }
@@ -2238,13 +2243,13 @@ func spendCreditOnOrder(t *testing.T, orderID uuid.UUID, debitCents int64) {
 	}
 }
 
-func captureOwned(t *testing.T, s *payment.Store, number, session string, cents int64) {
+func captureOwned(t *testing.T, s *payment.Store, number, session string, cents int64, cardBrand, cardLast4 string) {
 	t.Helper()
 	if err := s.OpenPayment(t.Context(), number, session, cents); err != nil {
 		t.Fatalf("open: %v", err)
 	}
 	if _, err := captureThroughWebhook(t, s, payment.Capture{
-		SessionID: session, AmountRecv: cents,
+		SessionID: session, AmountRecv: cents, CardBrand: cardBrand, CardLast4: cardLast4,
 	}); err != nil {
 		t.Fatalf("capture: %v", err)
 	}
@@ -2291,7 +2296,13 @@ func newCustomer(t *testing.T) uuid.UUID {
 	return id
 }
 
-func assertFundingComplete(t *testing.T, orderID uuid.UUID, number string, wantPoints int64) {
+// fundingReceipt is what order.paid must carry after funding closes.
+type fundingReceipt struct {
+	amountCents int64
+	card        string
+}
+
+func assertFundingComplete(t *testing.T, orderID uuid.UUID, number string, wantPoints int64, want fundingReceipt) {
 	t.Helper()
 	ctx := t.Context()
 	o, err := payment.NewStore(pool).Order(ctx, number)
@@ -2308,7 +2319,6 @@ func assertFundingComplete(t *testing.T, orderID uuid.UUID, number string, wantP
 		want int64
 	}{
 		{"paid event", `SELECT count(*) FROM order_events WHERE order_id = $1 AND kind = 'paid'`, []any{orderID}, 1},
-		{"receipt", `SELECT count(*) FROM outbox_messages WHERE topic = 'order.paid' AND dedupe_key = $1`, []any{number}, 1},
 		{"points", `SELECT coalesce(sum(points), 0) FROM loyalty_entries WHERE order_id = $1`, []any{orderID}, wantPoints},
 	} {
 		var got int64
@@ -2318,6 +2328,26 @@ func assertFundingComplete(t *testing.T, orderID uuid.UUID, number string, wantP
 		if got != assertion.want {
 			t.Errorf("%s = %d, want %d", assertion.name, got, assertion.want)
 		}
+	}
+
+	var payload []byte
+	if err := pool.QueryRow(ctx,
+		`SELECT payload FROM outbox_messages WHERE topic = 'order.paid' AND dedupe_key = $1`,
+		number).Scan(&payload); err != nil {
+		t.Fatalf("read receipt: %v", err)
+	}
+	var got email.OrderPaid
+	if err := json.Unmarshal(payload, &got); err != nil {
+		t.Fatalf("decode receipt: %v", err)
+	}
+	if got.OrderNumber != number {
+		t.Errorf("receipt order_number = %q, want %q", got.OrderNumber, number)
+	}
+	if got.AmountCents != want.amountCents {
+		t.Errorf("receipt amount_cents = %d, want %d", got.AmountCents, want.amountCents)
+	}
+	if got.Card != want.card {
+		t.Errorf("receipt card = %q, want %q", got.Card, want.card)
 	}
 }
 

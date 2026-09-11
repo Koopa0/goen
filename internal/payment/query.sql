@@ -144,6 +144,17 @@ INSERT INTO order_events (order_id, kind, note) VALUES ($1, 'paid', @note);
 -- name: AwardOrderPoints :one
 SELECT award_loyalty_points(@order_id);
 
+-- The priced total, not what is still owed and not a capture payload: picking
+-- closes a credit-funded order with no provider amount, and a coupon-to-zero
+-- order is honestly 0.
+-- name: OrderReceiptAmount :one
+SELECT (
+    coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
+              FROM order_lines ol WHERE ol.order_id = o.id), 0)
+    - o.discount_cents + o.shipping_cents + o.tax_cents
+)::bigint
+FROM orders o WHERE o.id = $1;
+
 -- Carried in the message rather than read at delivery: erase_user blanks
 -- order_private_data, so a later delivery would have nowhere to go.
 -- name: OrderRecipient :one

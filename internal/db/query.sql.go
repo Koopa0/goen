@@ -7469,6 +7469,25 @@ func (q *Queries) OrderNumberByID(ctx context.Context, id uuid.UUID) (string, er
 	return order_number, err
 }
 
+const orderReceiptAmount = `-- name: OrderReceiptAmount :one
+SELECT (
+    coalesce((SELECT sum(ol.unit_price_cents * ol.quantity)
+              FROM order_lines ol WHERE ol.order_id = o.id), 0)
+    - o.discount_cents + o.shipping_cents + o.tax_cents
+)::bigint
+FROM orders o WHERE o.id = $1
+`
+
+// The priced total, not what is still owed and not a capture payload: picking
+// closes a credit-funded order with no provider amount, and a coupon-to-zero
+// order is honestly 0.
+func (q *Queries) OrderReceiptAmount(ctx context.Context, id uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, orderReceiptAmount, id)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const orderRecipient = `-- name: OrderRecipient :one
 SELECT coalesce(pd.email, '') AS email,
        coalesce(pd.recipient_name, '') AS recipient_name,
