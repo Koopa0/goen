@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -92,6 +93,38 @@ func TestParseStatusAcceptsOnlyTheFulfilmentLifecycle(t *testing.T) {
 		if got := ParseStatus(status); got != "" {
 			t.Errorf("ParseStatus(%q) = %q, want all-status fallback", status, got)
 		}
+	}
+}
+
+// TestEveryKnownReturnStatusHasAnAdminLabel holds the closed set together:
+// a status with no catalogue entry must render as itself, never panic.
+func TestEveryKnownReturnStatusHasAnAdminLabel(t *testing.T) {
+	t.Parallel()
+
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		for _, status := range []returns.ReturnStatus{
+			returns.ReturnRequested,
+			returns.ReturnApproved,
+			returns.ReturnRejected,
+			returns.ReturnCompleted,
+		} {
+			label := ReturnStatusLabel(ctx, status)
+			if label == "" || label == string(status) {
+				t.Errorf("ReturnStatusLabel(%q) in %s = %q, want a catalogue label",
+					status, locale, label)
+			}
+		}
+	}
+}
+
+func TestUnknownReturnStatusLabelRendersAsItself(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.En)
+	unknown := returns.ReturnStatus("legacy_foo")
+	if got := ReturnStatusLabel(ctx, unknown); got != "legacy_foo" {
+		t.Fatalf("ReturnStatusLabel(%q) = %q, want the raw status", unknown, got)
 	}
 }
 
