@@ -144,23 +144,7 @@ func canonicalQuery(f Filters) string {
 
 // trimForDisplay bounds what a search term may be echoed back as.
 func trimForDisplay(q string) string {
-	r := []rune(q)
-	// Trimmed the same way SearchPattern does, so the heading and the search
-	// agree about what was searched for.
-	for len(r) > 0 && (r[0] == ' ' || r[0] == '\t' || r[0] == '\n' || r[0] == '\r') {
-		r = r[1:]
-	}
-	for len(r) > 0 {
-		last := r[len(r)-1]
-		if last != ' ' && last != '\t' && last != '\n' && last != '\r' {
-			break
-		}
-		r = r[:len(r)-1]
-	}
-	if len(r) > MaxQueryRunes {
-		r = r[:MaxQueryRunes]
-	}
-	return string(r)
+	return trimmedQuery(q)
 }
 
 // Deals serves GET /deals.
