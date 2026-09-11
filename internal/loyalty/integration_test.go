@@ -1159,7 +1159,7 @@ func TestMoneyPostingDoorsAreRoleNarrowAndDataAuthoritative(t *testing.T) {
 		{"store", "redeem_loyalty_points(uuid,bigint,uuid)", true},
 		{"admin", "redeem_loyalty_points(uuid,bigint,uuid)", false},
 		{"store", "award_loyalty_points(uuid)", true},
-		{"admin", "award_loyalty_points(uuid)", false},
+		{"admin", "award_loyalty_points(uuid)", true},
 		{"store", "reverse_return_points(uuid)", false},
 		{"admin", "reverse_return_points(uuid)", true},
 		{"store", "hold_inventory(uuid,uuid,integer,interval,text)", true},
@@ -1251,7 +1251,9 @@ func TestMoneyPostingDoorsAreRoleNarrowAndDataAuthoritative(t *testing.T) {
 
 	precommit := openOrderFor(t, userID, 250000)
 	_, err = adminRole.Exec(ctx, `SELECT award_loyalty_points($1)`, precommit)
-	requirePermissionDenied(t, err)
+	if why := constraintOf(err); why != "loyalty_award_committed_order" {
+		t.Fatalf("precommit admin award refused by %q, want loyalty_award_committed_order", why)
+	}
 	_, err = adminRole.Exec(ctx,
 		`SELECT hold_inventory($1, $2, 1, interval '1 minute', 'admin-hold')`, precommit, uuid.New())
 	requirePermissionDenied(t, err)
@@ -1266,6 +1268,13 @@ func TestMoneyPostingDoorsAreRoleNarrowAndDataAuthoritative(t *testing.T) {
 	}
 	if awarded != 25 {
 		t.Fatalf("derived award = %d, want 25", awarded)
+	}
+	adminPaid := orderFor(t, userID, 250000)
+	if queryErr := adminRole.QueryRow(ctx, `SELECT award_loyalty_points($1)`, adminPaid).Scan(&awarded); queryErr != nil {
+		t.Fatalf("legal admin derived award: %v", queryErr)
+	}
+	if awarded != 25 {
+		t.Fatalf("admin derived award = %d, want 25", awarded)
 	}
 
 	if _, execErr := pool.Exec(ctx, `

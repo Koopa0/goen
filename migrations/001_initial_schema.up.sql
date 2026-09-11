@@ -8278,6 +8278,10 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION award_loyalty_points(uuid) TO store;
+-- Picking a zero-owed order awards from the admin pool. Capture already awards
+-- as store. The function takes only an order id and is idempotent on
+-- earn:<order_id>.
+GRANT EXECUTE ON FUNCTION award_loyalty_points(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION reverse_return_points(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION reverse_order_points(uuid) TO admin;
 GRANT EXECUTE ON FUNCTION redeem_loyalty_points(uuid, bigint, uuid) TO store;

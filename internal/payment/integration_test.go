@@ -2075,6 +2075,35 @@ func TestFullyCreditFundedOrderEarnsPointsAfterPicking(t *testing.T) {
 	assertFundingComplete(t, orderID, number, 5, fundingReceipt{amountCents: cents})
 }
 
+// TestAdminRoleCompletesCreditFundingOnPicking drives the live picking door as
+// the production admin role. The suite pool is a superuser and would hide a
+// missing EXECUTE on award_loyalty_points behind a green Advance.
+func TestAdminRoleCompletesCreditFundingOnPicking(t *testing.T) {
+	const cents = int64(50000)
+	userID := creditedUser(t, cents)
+	number, orderID := ownedOrder(t, userID, cents)
+	spendCreditOnOrder(t, orderID, -cents)
+
+	adminPool := adminRolePool(t)
+	var role string
+	var superuser bool
+	if err := adminPool.QueryRow(t.Context(),
+		`SELECT current_user, current_setting('is_superuser')::boolean`).
+		Scan(&role, &superuser); err != nil {
+		t.Fatalf("read admin-role session: %v", err)
+	}
+	if role != "admin" || superuser {
+		t.Fatalf("admin-role pool is %s superuser=%t; SET ROLE did not bind", role, superuser)
+	}
+
+	ctx, actor := staffContext(t)
+	backOffice := admin.NewStore(adminPool, admin.NewRefunder(""), nil, nil)
+	if _, err := backOffice.Advance(ctx, number, "picking", uuid.NullUUID{UUID: actor, Valid: true}); err != nil {
+		t.Fatalf("admin-role advance to picking: %v", err)
+	}
+	assertFundingComplete(t, orderID, number, 5, fundingReceipt{amountCents: cents})
+}
+
 // TestFundingCompleteSideEffectsOnce is the #49 acceptance lock: each funding
 // path posts exactly one paid event, one receipt, and the points the order
 // earns; a second production door must not duplicate any of them.
@@ -2226,6 +2255,25 @@ func advanceToPicking(t *testing.T, number string) {
 	if _, err := backOffice.Advance(ctx, number, "picking", uuid.NullUUID{UUID: actor, Valid: true}); err != nil {
 		t.Fatalf("advance to picking: %v", err)
 	}
+}
+
+func adminRolePool(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	cfg, err := pgxpool.ParseConfig(pool.Config().ConnString())
+	if err != nil {
+		t.Fatalf("parse admin-role pool: %v", err)
+	}
+	cfg.MaxConns = 1
+	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		_, roleErr := conn.Exec(ctx, "SET ROLE "+pgx.Identifier{"admin"}.Sanitize())
+		return roleErr
+	}
+	p, err := pgxpool.NewWithConfig(t.Context(), cfg)
+	if err != nil {
+		t.Fatalf("open admin-role pool: %v", err)
+	}
+	t.Cleanup(p.Close)
+	return p
 }
 
 func replayCompleteFunding(t *testing.T, orderID uuid.UUID, number string) {
