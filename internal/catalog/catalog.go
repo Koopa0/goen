@@ -116,15 +116,23 @@ func ParsePrice(s string) int64 {
 	return n * 100
 }
 
+// trimmedQuery is what both the ILIKE pattern and the echoed heading start
+// from. Unicode space counts as space, so a query of only NBSP is empty for
+// both rather than a searched term one side never queried.
+func trimmedQuery(q string) string {
+	q = strings.TrimSpace(q)
+	if r := []rune(q); len(r) > MaxQueryRunes {
+		return string(r[:MaxQueryRunes])
+	}
+	return q
+}
+
 // SearchPattern turns a visitor's words into an ILIKE pattern. Escaping happens
 // before the wildcards are added, or it would escape goen's own.
 func SearchPattern(q string) string {
-	q = strings.TrimSpace(q)
+	q = trimmedQuery(q)
 	if q == "" {
 		return ""
-	}
-	if r := []rune(q); len(r) > MaxQueryRunes {
-		q = string(r[:MaxQueryRunes])
 	}
 	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 	return "%" + r.Replace(q) + "%"
