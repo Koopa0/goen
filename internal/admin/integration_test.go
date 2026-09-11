@@ -754,6 +754,15 @@ func TestAdminCancelClawsBackLoyaltyPoints(t *testing.T) {
 		`SELECT reverse_order_points($1)`, orderID).Scan(&replay); err != nil || replay != 0 {
 		t.Fatalf("cancel clawback replay = %d, %v; want 0, nil", replay, err)
 	}
+
+	_, pickingID := paidPickingOrderForUser(t, userID, 500000)
+	earlyErr := pool.QueryRow(ctx, `SELECT reverse_order_points($1)`, pickingID).Scan(&replay)
+	if earlyErr == nil {
+		t.Fatal("loyalty was reversed before the order was cancelled")
+	}
+	if constraintFrom(earlyErr) != "loyalty_clawback_cancelled_order" {
+		t.Fatalf("refused by %q, want loyalty_clawback_cancelled_order: %v", constraintFrom(earlyErr), earlyErr)
+	}
 }
 
 func paidPickingOrderForUser(t *testing.T, userID uuid.UUID, cents int64) (number string, orderID uuid.UUID) {
@@ -794,6 +803,13 @@ func paidPickingOrderForUser(t *testing.T, userID uuid.UUID, cents int64) (numbe
 	if _, err := tx.Exec(ctx, `SELECT capture_payment($1, $2, NULL, NULL)`,
 		"cs_cancel_pts_"+number, cents); err != nil {
 		t.Fatalf("capture: %v", err)
+	}
+	var awarded int64
+	if err := tx.QueryRow(ctx, `SELECT award_loyalty_points($1)`, orderID).Scan(&awarded); err != nil {
+		t.Fatalf("award: %v", err)
+	}
+	if awarded != cents/10000 {
+		t.Fatalf("awarded = %d, want %d", awarded, cents/10000)
 	}
 	if _, err := tx.Exec(ctx,
 		`UPDATE orders SET fulfillment_status = 'picking' WHERE id = $1`, orderID); err != nil {
