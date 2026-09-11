@@ -127,6 +127,13 @@ FROM order_lines WHERE order_id = $1 ORDER BY position, id;
 -- name: OrderIsPaid :one
 SELECT EXISTS (
     SELECT 1 FROM payments WHERE order_id = $1 AND status = 'succeeded'
+    UNION ALL
+    SELECT 1 WHERE order_amount_owed($1) <= 0
+);
+
+-- name: OrderHasPaidEvent :one
+SELECT EXISTS (
+    SELECT 1 FROM order_events WHERE order_id = $1 AND kind = 'paid'
 );
 
 -- name: RecordPaidEvent :exec

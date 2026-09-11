@@ -2034,6 +2034,95 @@ func TestAFullyFundedOrderIsNeverSentToStripe(t *testing.T) {
 	}
 }
 
+// TestOrderIsPaidMatchesZeroOwedCreditFunding holds that an order fully covered
+// by store credit reads as paid through the same store the payment page uses.
+func TestOrderIsPaidMatchesZeroOwedCreditFunding(t *testing.T) {
+	ctx := t.Context()
+	s := payment.NewStore(pool)
+	number, orderID := order(t, 50000)
+
+	userID := creditedUser(t, 50000)
+	if _, err := pool.Exec(ctx,
+		`SELECT post_store_credit($1, $2, '結帳折抵', $3, $4, NULL)`,
+		userID, int64(-50000), orderID, "spend-paid:"+number); err != nil {
+		t.Fatalf("spend credit on the order: %v", err)
+	}
+
+	o, err := s.Order(ctx, number)
+	if err != nil {
+		t.Fatalf("Order: %v", err)
+	}
+	if o.TotalCents != 0 {
+		t.Fatalf("owed %d, want 0", o.TotalCents)
+	}
+	if !o.Paid {
+		t.Error("OrderIsPaid disagrees with owed=0 — reports unpaid")
+	}
+}
+
+// TestFullyCreditFundedOrderEarnsPointsAfterPicking holds that store credit
+// closing an order posts the same funding-complete effects as a card capture
+// once fulfilment takes it on.
+func TestFullyCreditFundedOrderEarnsPointsAfterPicking(t *testing.T) {
+	ctx := t.Context()
+	number, orderID := order(t, 50000)
+
+	userID := creditedUser(t, 50000)
+	if _, err := pool.Exec(ctx,
+		`SELECT post_store_credit($1, $2, '結帳折抵', $3, $4, NULL)`,
+		userID, int64(-50000), orderID, "spend-pick:"+number); err != nil {
+		t.Fatalf("spend credit on the order: %v", err)
+	}
+
+	backOffice := admin.NewStore(pool, admin.NewRefunder(""), nil, nil)
+	if _, err := backOffice.Advance(ctx, number, "picking", uuid.NullUUID{}); err != nil {
+		t.Fatalf("advance to picking: %v", err)
+	}
+
+	var points int64
+	if err := pool.QueryRow(ctx,
+		`SELECT coalesce(sum(points), 0) FROM loyalty_entries WHERE order_id = $1`,
+		orderID).Scan(&points); err != nil {
+		t.Fatalf("read points: %v", err)
+	}
+	if points != 5 {
+		t.Errorf("awarded %d points, want 5", points)
+	}
+}
+
+// TestPickedCreditFundedPayPageRedirects holds that a credit-funded order in
+// fulfilment is sent to its order page, not refused as unpaid.
+func TestPickedCreditFundedPayPageRedirects(t *testing.T) {
+	ctx := t.Context()
+	number, orderID := order(t, 50000)
+
+	userID := creditedUser(t, 50000)
+	if _, err := pool.Exec(ctx,
+		`SELECT post_store_credit($1, $2, '結帳折抵', $3, $4, NULL)`,
+		userID, int64(-50000), orderID, "spend-pay:"+number); err != nil {
+		t.Fatalf("spend credit on the order: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`UPDATE orders SET fulfillment_status = 'picking' WHERE id = $1`, orderID); err != nil {
+		t.Fatalf("move into fulfilment: %v", err)
+	}
+
+	gateway, err := payment.NewGateway("", "", "")
+	if err != nil {
+		t.Fatalf("gateway: %v", err)
+	}
+	h := payment.NewHandler(payment.NewStore(pool), gateway, alwaysPlacedHere{},
+		slog.New(slog.DiscardHandler), false)
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number+"/pay", http.NoBody)
+	req.SetPathValue("number", number)
+	res := httptest.NewRecorder()
+	h.Page(res, req)
+	if res.Code != http.StatusSeeOther || res.Header().Get("Location") != "/orders/"+number {
+		t.Fatalf("GET /pay on a picked credit-funded order = %d %q, want 303 to order",
+			res.Code, res.Header().Get("Location"))
+	}
+}
+
 // creditedUser makes a customer holding cents of store credit.
 func creditedUser(t *testing.T, cents int64) uuid.UUID {
 	t.Helper()

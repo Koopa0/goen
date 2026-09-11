@@ -7307,6 +7307,19 @@ func (q *Queries) OrderForReturn(ctx context.Context, orderNumber string) (Order
 	return i, err
 }
 
+const orderHasPaidEvent = `-- name: OrderHasPaidEvent :one
+SELECT EXISTS (
+    SELECT 1 FROM order_events WHERE order_id = $1 AND kind = 'paid'
+)
+`
+
+func (q *Queries) OrderHasPaidEvent(ctx context.Context, orderID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, orderHasPaidEvent, orderID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const orderHoldExpiry = `-- name: OrderHoldExpiry :one
 SELECT ir.expires_at,
        (ir.expires_at >= now() + $2::interval)::boolean AS covers_session
@@ -7354,6 +7367,8 @@ func (q *Queries) OrderIDByNumber(ctx context.Context, orderNumber string) (Orde
 const orderIsPaid = `-- name: OrderIsPaid :one
 SELECT EXISTS (
     SELECT 1 FROM payments WHERE order_id = $1 AND status = 'succeeded'
+    UNION ALL
+    SELECT 1 WHERE order_amount_owed($1) <= 0
 )
 `
 
