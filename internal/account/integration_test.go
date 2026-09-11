@@ -436,6 +436,27 @@ func TestChangingPasswordEndsEveryOtherSession(t *testing.T) {
 	}
 }
 
+func TestChangingPasswordInvalidatesPriorResetTokens(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	email := "rotate-reset-" + uuid.NewString() + "@example.com"
+	u := register(t, s, email)
+
+	token := beginReset(t, s, email)
+	if err := s.ChangePassword(ctx, u.ID, "an entirely different password"); err != nil {
+		t.Fatalf("change password: %v", err)
+	}
+	if err := s.CompleteReset(ctx, token, "password the stale link tried to set"); !errors.Is(err, account.ErrResetInvalid) {
+		t.Errorf("a reset token issued before the password change still works: %v", err)
+	}
+	if _, err := s.Authenticate(ctx, email, "password the stale link tried to set"); err == nil {
+		t.Error("the stale reset link changed the password anyway")
+	}
+	if _, err := s.Authenticate(ctx, email, "an entirely different password"); err != nil {
+		t.Errorf("the password chosen in account settings does not work: %v", err)
+	}
+}
+
 func TestOrdersAreScopedToTheirOwner(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
