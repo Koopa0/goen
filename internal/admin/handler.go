@@ -509,6 +509,7 @@ var adminNotices = map[string]i18n.Key{
 	"specfailed":     i18n.KeyAdminNoticeSpecFailed,
 	"notflagged":     i18n.KeyAdminNoticeNotFlagged,
 	"mustrefund":     i18n.KeyAdminNoticePaymentMustRefund,
+	"gone":           i18n.KeyAdminNoticeGone,
 }
 
 // noticeFor turns a redirect's one-shot query parameter into a message.
@@ -1541,7 +1542,7 @@ func (h *Handler) setReviewHidden(w http.ResponseWriter, r *http.Request, hidden
 	case err == nil:
 		http.Redirect(w, r, "/admin/reviews?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
-		http.Redirect(w, r, "/admin/reviews", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/reviews?gone=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "set review hidden", "error", err)
 		h.serverError(w, r)
@@ -1580,7 +1581,7 @@ func (h *Handler) setMessageHandled(w http.ResponseWriter, r *http.Request, hand
 	case err == nil:
 		http.Redirect(w, r, "/admin/messages?ok=1", http.StatusSeeOther)
 	case errors.Is(err, ErrNotFound):
-		http.Redirect(w, r, "/admin/messages", http.StatusSeeOther)
+		http.Redirect(w, r, "/admin/messages?gone=1", http.StatusSeeOther)
 	default:
 		h.log.ErrorContext(r.Context(), "set message handled", "error", err)
 		h.serverError(w, r)
