@@ -231,6 +231,61 @@ func TestAProductWithNoReviewsCanReceiveItsFirst(t *testing.T) {
 	}
 }
 
+// TestQAAskSurface holds the three Q&A states as one matrix: signed-out
+// visitors get a return to #questions, signed-in visitors get the form
+// without a sign-in hint, and a refused draft stays in the textarea.
+func TestQAAskSurface(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	base := ProductView{
+		Name: "Pixelight 9 Pro", Brand: "Meridian", Slug: "pixelight-9-pro",
+		SelectionOK: true, Exact: true, Sellable: true, AnySellable: true,
+		PriceCents: 3690000,
+	}
+	askAction := `action="/p/pixelight-9-pro/questions"`
+	signInHint := i18n.T(ctx, i18n.KeySignInToAsk)
+
+	out := base
+	html := renderToString(t, Product(ProductMeta(&out), &out))
+	if strings.Contains(html, askAction) {
+		t.Error("signed-out Q&A still renders the ask form")
+	}
+	if !strings.Contains(html, out.AskSignInHref()) {
+		t.Errorf("signed-out Q&A has no return to #questions; want href %q", out.AskSignInHref())
+	}
+
+	in := base
+	in.SignedIn = true
+	signedIn := renderToString(t, Product(ProductMeta(&in), &in))
+	if !strings.Contains(signedIn, askAction) {
+		t.Error("signed-in Q&A lost the ask form")
+	}
+	if strings.Contains(signedIn, in.AskSignInHref()) {
+		t.Error("signed-in Q&A still offers the sign-in link")
+	}
+	if strings.Contains(signedIn, signInHint) {
+		t.Error("signed-in Q&A still tells the customer to sign in")
+	}
+
+	refused := in
+	refused.AskOutcome = "bad"
+	refused.AskDraft = "這個草稿在 422 之後還必須留在欄位裡"
+	rejected := renderToString(t, Product(ProductMeta(&refused), &refused))
+	if !strings.Contains(rejected, refused.AskDraft) {
+		t.Error("rejected Q&A lost the submitted draft")
+	}
+	if !strings.Contains(rejected, i18n.T(ctx, i18n.KeyQuestionRefused)) {
+		t.Error("rejected Q&A has no field error")
+	}
+	if !strings.Contains(rejected, `aria-invalid="true"`) {
+		t.Error("rejected Q&A does not mark the textarea invalid")
+	}
+	if strings.Contains(rejected, signInHint) {
+		t.Error("rejected Q&A tells a signed-in customer to sign in")
+	}
+}
+
 // TestARefundedOrderCanFileAnAllowance holds the 折讓 form's door. Without it a
 // customer is refunded while the 統一發票 still records the whole sale.
 func TestARefundedOrderCanFileAnAllowance(t *testing.T) {
