@@ -70,6 +70,14 @@ const PAGES = [
   { label: 'register 1440', width: 1440, height: 900, path: '/register', marker: '.goen-auth__form' },
   { label: 'search 375', width: 375, height: 812, path: '/search?q=pixelight', marker: '.goen-listing' },
   { label: 'search 1440', width: 1440, height: 900, path: '/search?q=pixelight', marker: '.goen-listing' },
+  // A query of only NBSP is the empty prompt, not a no-results heading for an
+  // invisible term. Measuring /search?q=pixelight never visits that state.
+  { label: 'search nbsp 375', width: 375, height: 812, path: '/search?q=%C2%A0', marker: '.ui-empty' },
+  { label: 'search nbsp 1440', width: 1440, height: 900, path: '/search?q=%C2%A0', marker: '.ui-empty' },
+  // The same Unicode trim at the edges of a real term: heading and ILIKE both
+  // see "pixelight". The grid is the surface that term produces.
+  { label: 'search edge-trim 375', width: 375, height: 812, path: '/search?q=%C2%A0%E3%80%80pixelight%E2%80%83', marker: '.goen-listing' },
+  { label: 'search edge-trim 1440', width: 1440, height: 900, path: '/search?q=%C2%A0%E3%80%80pixelight%E2%80%83', marker: '.goen-listing' },
   { label: 'deals 375', width: 375, height: 812, path: '/deals', marker: '.goen-listing' },
   { label: 'deals 1440', width: 1440, height: 900, path: '/deals', marker: '.goen-listing' },
   { label: 'pdp 375', width: 375, height: 812, path: '/p/PRODUCT_SLUG', marker: '.goen-pdp' },
