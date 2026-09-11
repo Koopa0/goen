@@ -1028,22 +1028,19 @@ func invoiceChoices(ctx context.Context) []pages.InvoiceChoice {
 	return out
 }
 
-// existingCart returns the cart the request's cookie names, without creating
-// one. A GET must not create a cart: a crawler would leave a row per visit.
+// existingCart returns the cart this request should see, without creating one.
+// A GET must not create a cart: a crawler would leave a row per visit. The
+// cookie is tried first. After a merge-adopt it still names the deleted guest
+// row, so a signed-in miss falls through to the account cart.
 func (h *Handler) existingCart(r *http.Request) (uuid.UUID, bool) {
-	token := ReadCookie(r, h.secure)
-	if token == "" {
-		return uuid.Nil, false
-	}
-	id, err := h.store.CartByToken(r.Context(), token)
-	if err != nil {
-		return uuid.Nil, false
-	}
-	return id, true
+	return h.lookupCart(r.Context(), r)
 }
 
 // cartForWrite returns the request's cart, opening one if this is the visitor's
-// first item.
+// first item. A signed-in create attaches user_id so the next add does not mint
+// an unowned cart the account can never see through the cookie. Create recovers
+// a carts_one_per_user collision by rereading the winner, so two first adds
+// share that one owned row.
 func (h *Handler) cartForWrite(w http.ResponseWriter, r *http.Request) (uuid.UUID, error) {
 	if id, ok := h.existingCart(r); ok {
 		return id, nil
@@ -1052,12 +1049,42 @@ func (h *Handler) cartForWrite(w http.ResponseWriter, r *http.Request) (uuid.UUI
 	if err != nil {
 		return uuid.Nil, err
 	}
-	id, err := h.store.Create(r.Context(), token, uuid.NullUUID{})
+	id, err := h.store.Create(r.Context(), token, signedInOwner(r))
 	if err != nil {
 		return uuid.Nil, err
 	}
 	SetCookie(w, token, h.secure)
 	return id, nil
+}
+
+func (h *Handler) lookupCart(ctx context.Context, r *http.Request) (uuid.UUID, bool) {
+	if token := ReadCookie(r, h.secure); token != "" {
+		id, err := h.store.CartByToken(ctx, token)
+		if err == nil {
+			return id, true
+		}
+	}
+	u, ok := account.FromContext(r.Context())
+	if !ok {
+		return uuid.Nil, false
+	}
+	id, err := h.store.CartForUser(ctx, u.ID)
+	if err != nil {
+		return uuid.Nil, false
+	}
+	return id, true
+}
+
+func signedInOwner(r *http.Request) uuid.NullUUID {
+	u, ok := account.FromContext(r.Context())
+	if !ok {
+		return uuid.NullUUID{}
+	}
+	id, err := uuid.Parse(u.ID)
+	if err != nil {
+		return uuid.NullUUID{}
+	}
+	return uuid.NullUUID{UUID: id, Valid: true}
 }
 
 // backToProduct answers 303 to the product the form came from, carrying an
@@ -1100,18 +1127,9 @@ func (h *Handler) notFoundPage(r *http.Request) layouts.Page {
 	return layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}
 }
 
-// CartIDForRequest returns the cart a request's cookie names, without creating
-// one.
+// CartIDForRequest returns the cart a request should see, without creating one.
 func (h *Handler) CartIDForRequest(ctx context.Context, r *http.Request) (uuid.UUID, bool) {
-	token := ReadCookie(r, h.secure)
-	if token == "" {
-		return uuid.Nil, false
-	}
-	id, err := h.store.CartByToken(ctx, token)
-	if err != nil {
-		return uuid.Nil, false
-	}
-	return id, true
+	return h.lookupCart(ctx, r)
 }
 
 // WithCount puts the visitor's cart size into the request context for the
