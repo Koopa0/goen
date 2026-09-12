@@ -7566,6 +7566,169 @@ func TestSupportCanAnswerAQuestionWithoutADeploy(t *testing.T) {
 	}
 }
 
+const (
+	invoiceFAQQuestion = "發票怎麼開立?"
+	invoiceFAQZh       = "結帳時可以選擇會員載具、手機條碼載具或公司統編,系統會記錄您的選擇。這份部署若已設定綠界加值中心,後台會依該選擇開立電子發票;尚未設定時不會開立,後台會說明原因。"
+	invoiceFAQEn       = "At checkout you can choose a member carrier, a mobile barcode carrier, or a company tax ID, and we record your choice. When this deployment has ECPay credentials the back office issues the electronic invoice against that choice; without them nothing is filed, and the back office says so."
+	staleInvoiceFAQZh  = "結帳時可以選擇會員載具、手機條碼載具或公司統編,系統會記錄您的選擇。電子發票的實際開立需要串接加值中心,這部分尚未完成。"
+	staleInvoiceFAQEn  = "At checkout you can choose a member carrier, a mobile barcode carrier, or a company tax ID, and we record your choice. Actually issuing the electronic invoice needs an integration with a certified provider, which is not built yet."
+)
+
+// TestSeededInvoiceFAQMatchesTheWiredIssuer holds the published invoice FAQ
+// to Gateway.Issue: a fresh seed, the shipped repair file on a kept stale
+// row, and the back-office form all say the same deployment-gated thing,
+// in both locales.
+func TestSeededInvoiceFAQMatchesTheWiredIssuer(t *testing.T) {
+	ctx, _ := staffContext(t)
+	content := site.NewStore(pool)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+
+	if _, err := invoice.NewGateway("", "", "", ""); err != nil {
+		t.Fatalf("an empty configuration must be legal: %v", err)
+	}
+
+	assertInvoiceFAQLocales(t, content, ctx, invoiceFAQZh, invoiceFAQEn)
+	assertStatutoryReturnFAQUntouched(t, content, ctx)
+
+	catalog, err := os.ReadFile("../../seed/dev_catalog.sql")
+	if err != nil {
+		t.Fatalf("read catalogue seed: %v", err)
+	}
+	repair, err := os.ReadFile("../../seed/repair_invoice_faq.sql")
+	if err != nil {
+		t.Fatalf("read shipped invoice FAQ repair: %v", err)
+	}
+
+	isolated := dbtest.Pool(t)
+	if _, loadErr := isolated.Exec(ctx, string(catalog)); loadErr != nil {
+		t.Fatalf("seed isolated catalogue: %v", loadErr)
+	}
+	plantStaleInvoiceFAQ(t, ctx, isolated)
+	isolatedContent := site.NewStore(isolated)
+	zh, en := invoiceFAQAnswers(t, isolatedContent, ctx)
+	if !strings.Contains(zh, "尚未完成") || !strings.Contains(en, "not built yet") {
+		t.Fatalf("the planted stale answers did not reach /faq: zh=%q en=%q", zh, en)
+	}
+	conn, err := isolated.Acquire(ctx)
+	if err != nil {
+		t.Fatalf("acquire isolated connection: %v", err)
+	}
+	if _, seedErr := conn.Exec(ctx, string(catalog)); seedErr == nil {
+		conn.Release()
+		t.Fatal("the catalogue seed succeeded against a kept database; " +
+			"db-seed cannot be the repair path")
+	}
+	if _, rollErr := conn.Exec(ctx, "ROLLBACK"); rollErr != nil {
+		conn.Release()
+		t.Fatalf("rollback failed catalogue re-seed: %v", rollErr)
+	}
+	conn.Release()
+	zh, en = invoiceFAQAnswers(t, isolatedContent, ctx)
+	if !strings.Contains(zh, "尚未完成") || !strings.Contains(en, "not built yet") {
+		t.Fatal("the failed catalogue re-seed changed the kept invoice FAQ")
+	}
+	if _, repairErr := isolated.Exec(ctx, string(repair)); repairErr != nil {
+		t.Fatalf("apply shipped invoice FAQ repair: %v", repairErr)
+	}
+	assertInvoiceFAQLocales(t, isolatedContent, ctx, invoiceFAQZh, invoiceFAQEn)
+	assertStatutoryReturnFAQUntouched(t, isolatedContent, ctx)
+
+	t.Cleanup(func() {
+		if _, restoreErr := pool.Exec(context.WithoutCancel(ctx), string(repair)); restoreErr != nil {
+			t.Errorf("restore invoice FAQ: %v", restoreErr)
+		}
+	})
+	plantStaleInvoiceFAQ(t, ctx, pool)
+	var entry pages.AdminFAQEntry
+	view, err := s.FAQ(ctx)
+	if err != nil {
+		t.Fatalf("FAQ: %v", err)
+	}
+	for i := range view.Rows {
+		if view.Rows[i].Question == invoiceFAQQuestion {
+			entry = view.Rows[i]
+			break
+		}
+	}
+	if entry.ID == "" {
+		t.Fatal("the invoice FAQ row is not in the back office")
+	}
+	if errs, updErr := s.UpdateFAQEntry(ctx, &admin.FAQForm{
+		ID: entry.ID, Category: entry.Category,
+		Question: invoiceFAQQuestion, Answer: invoiceFAQZh,
+		CategoryEn: entry.CategoryEn, QuestionEn: entry.QuestionEn,
+		AnswerEn: invoiceFAQEn,
+	}); updErr != nil || len(errs) > 0 {
+		t.Fatalf("UpdateFAQEntry: %v %v", updErr, errs)
+	}
+	assertInvoiceFAQLocales(t, content, ctx, invoiceFAQZh, invoiceFAQEn)
+	assertStatutoryReturnFAQUntouched(t, content, ctx)
+}
+
+func plantStaleInvoiceFAQ(t *testing.T, ctx context.Context, p *pgxpool.Pool) {
+	t.Helper()
+	if _, err := p.Exec(ctx, `
+		UPDATE faq_entries
+		SET answer = $1, answer_en = $2
+		WHERE question = $3`,
+		staleInvoiceFAQZh, staleInvoiceFAQEn, invoiceFAQQuestion); err != nil {
+		t.Fatalf("plant stale invoice FAQ: %v", err)
+	}
+}
+
+func invoiceFAQAnswers(t *testing.T, content *site.Store, ctx context.Context) (zh, en string) {
+	t.Helper()
+	return faqAnswer(t, content, ctx, i18n.ZhHant, invoiceFAQQuestion),
+		faqAnswer(t, content, ctx, i18n.En, "How is my invoice issued?")
+}
+
+func faqAnswer(t *testing.T, content *site.Store, ctx context.Context, loc i18n.Locale, question string) string {
+	t.Helper()
+	rows, err := content.FAQEntries(i18n.WithLocale(ctx, loc))
+	if err != nil {
+		t.Fatalf("FAQEntries(%s): %v", loc, err)
+	}
+	for i := range rows {
+		if rows[i].Question == question {
+			return rows[i].Answer
+		}
+	}
+	t.Fatalf("/faq has no %q in %s", question, loc)
+	return ""
+}
+
+func assertInvoiceFAQLocales(t *testing.T, content *site.Store, ctx context.Context, wantZh, wantEn string) {
+	t.Helper()
+	zh, en := invoiceFAQAnswers(t, content, ctx)
+	if zh != wantZh {
+		t.Errorf("Chinese invoice FAQ = %q, want %q", zh, wantZh)
+	}
+	if en != wantEn {
+		t.Errorf("English invoice FAQ = %q, want %q", en, wantEn)
+	}
+	if strings.Contains(zh, "尚未完成") || strings.Contains(en, "not built yet") {
+		t.Errorf("published invoice FAQ still calls the issuer unfinished: zh=%q en=%q", zh, en)
+	}
+	if strings.Contains(zh, "已成功開立") || strings.Contains(en, "successfully issued") {
+		t.Errorf("published invoice FAQ invents a successful filing: zh=%q en=%q", zh, en)
+	}
+	if !strings.Contains(zh, "綠界") || !strings.Contains(en, "ECPay") {
+		t.Errorf("published invoice FAQ does not name the issuer: zh=%q en=%q", zh, en)
+	}
+}
+
+func assertStatutoryReturnFAQUntouched(t *testing.T, content *site.Store, ctx context.Context) {
+	t.Helper()
+	zh := faqAnswer(t, content, ctx, i18n.ZhHant, "退貨要付運費嗎?")
+	en := faqAnswer(t, content, ctx, i18n.En, "Who pays return postage?")
+	if !strings.Contains(zh, "退貨運費由 goen 負擔") {
+		t.Errorf("statutory return FAQ was edited: %q", zh)
+	}
+	if !strings.Contains(en, "Rescinding within seven days") {
+		t.Errorf("statutory English return FAQ was edited: %q", en)
+	}
+}
+
 func TestTwoFAQEntriesInOneCategoryDoNotCollide(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)

@@ -636,8 +636,11 @@ INSERT INTO faq_entries (category, question, answer, position) VALUES
     ('退換貨', '退貨要付運費嗎?',
      '收到商品後七天內解除契約,您不需要負擔任何費用,退貨運費由 goen 負擔。詳見「退換貨政策」頁面。', 30),
 
+    -- Not 「尚未完成」. Gateway.Issue is wired; a missing merchant id is a
+    -- deployment, not an unfinished product, and the back office already
+    -- says so. Two authorities answering one customer question.
     ('發票', '發票怎麼開立?',
-     '結帳時可以選擇會員載具、手機條碼載具或公司統編,系統會記錄您的選擇。電子發票的實際開立需要串接加值中心,這部分尚未完成。', 10),
+     '結帳時可以選擇會員載具、手機條碼載具或公司統編,系統會記錄您的選擇。這份部署若已設定綠界加值中心,後台會依該選擇開立電子發票;尚未設定時不會開立,後台會說明原因。', 10),
     ('發票', '可以開公司統編嗎?',
      '可以。結帳時選擇「公司統編」並填入八位數字的統一編號即可。', 20),
 
@@ -666,7 +669,7 @@ FROM (VALUES
     ('可以刪除我的帳號嗎?', 'Membership', 'Can I delete my account?',
      'Yes. You can ask for deletion from your account page. Your personal and delivery details are erased; the financial record of your orders is kept, because accounting requires it.'),
     ('發票怎麼開立?', 'Invoices', 'How is my invoice issued?',
-     'At checkout you can choose a member carrier, a mobile barcode carrier, or a company tax ID, and we record your choice. Actually issuing the electronic invoice needs an integration with a certified provider, which is not built yet.'),
+     'At checkout you can choose a member carrier, a mobile barcode carrier, or a company tax ID, and we record your choice. When this deployment has ECPay credentials the back office issues the electronic invoice against that choice; without them nothing is filed, and the back office says so.'),
     ('可以開公司統編嗎?', 'Invoices', 'Can you invoice a company tax ID?',
      'Yes. Choose "company tax ID" at checkout and enter the eight digits.'),
     ('可以用哪些方式付款?', 'Ordering and payment', 'How can I pay?',
