@@ -17,6 +17,143 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
+// TestRefundCopyNamesBothPayoutChannels holds the three surfaces that used to
+// describe every refund as Stripe. compensate_return_with_credit pays the
+// store-credit half, so those sentences cannot stay Stripe-only.
+func TestRefundCopyNamesBothPayoutChannels(t *testing.T) {
+	t.Parallel()
+
+	schema, err := os.ReadFile(filepath.Join("..", "..", "migrations", "001_initial_schema.up.sql"))
+	if err != nil {
+		t.Fatalf("read the schema: %v", err)
+	}
+	if !strings.Contains(string(schema), "CREATE FUNCTION compensate_return_with_credit") {
+		t.Fatal("compensate_return_with_credit is gone; this lock describes a payout that no longer exists")
+	}
+
+	oldStripeOnly := []string{
+		"系統會立即向 Stripe 發出退款",
+		"立刻透過 Stripe 退款",
+		"we ask Stripe to refund",
+		"refunds it through Stripe immediately",
+		"A refund always goes back to the way you paid. We will not substitute another channel.",
+	}
+	mustNameBoth := func(t *testing.T, surface, text string) {
+		t.Helper()
+		hasCredit := strings.Contains(text, "店儲") ||
+			strings.Contains(text, "購物金") ||
+			strings.Contains(text, "額度") ||
+			strings.Contains(strings.ToLower(text), "store credit")
+		if !hasCredit {
+			t.Errorf("%s does not name the store-credit refund channel:\n%s", surface, text)
+		}
+		for _, old := range oldStripeOnly {
+			if strings.Contains(text, old) {
+				t.Errorf("%s still claims every refund goes through Stripe (%q)", surface, old)
+			}
+		}
+	}
+
+	doc := policies["returns"]
+	var refund, refundEn strings.Builder
+	for _, s := range doc.Sections {
+		if s.Heading != "退款" {
+			continue
+		}
+		for _, p := range s.Body {
+			refund.WriteString(p)
+			refund.WriteString("\n")
+		}
+		for _, p := range s.BodyEn {
+			refundEn.WriteString(p)
+			refundEn.WriteString("\n")
+		}
+	}
+	if refund.Len() == 0 || refundEn.Len() == 0 {
+		t.Fatal("/returns has no refund section")
+	}
+	mustNameBoth(t, "/returns 退款 (zh-Hant)", refund.String())
+	mustNameBoth(t, "/returns Refunds (en)", refundEn.String())
+
+	seed, err := os.ReadFile(filepath.Join("..", "..", "seed", "dev_catalog.sql"))
+	if err != nil {
+		t.Fatalf("read the seed: %v", err)
+	}
+	src := string(seed)
+	const faqQuestion = "退款什麼時候會收到?"
+	insertAt := strings.Index(src, "('退換貨', '"+faqQuestion+"'")
+	if insertAt < 0 {
+		t.Fatal("seed has no refund FAQ INSERT")
+	}
+	insert := src[insertAt:]
+	if end := strings.Index(insert, ", 20)"); end > 0 {
+		insert = insert[:end]
+	}
+	mustNameBoth(t, "seed FAQ INSERT (zh-Hant)", insert)
+
+	enAt := strings.Index(src, "('"+faqQuestion+"', 'Returns'")
+	if enAt < 0 {
+		t.Fatal("seed has no refund FAQ English")
+	}
+	english := src[enAt:]
+	if end := strings.Index(english, "'),"); end > 0 {
+		english = english[:end]
+	}
+	mustNameBoth(t, "seed FAQ English (en)", english)
+
+	const oldZh = "退貨經審核同意後,系統會立即向 Stripe 發出退款。實際入帳時間依發卡銀行而定,通常是數個工作天。"
+	const oldEn = "As soon as a return is approved we ask Stripe to refund. When it lands depends on your card issuer, usually a few working days."
+	if strings.Contains(src, oldZh) || strings.Contains(src, oldEn) {
+		t.Error("catalogue seed still carries the Stripe-only refund sentences; " +
+			"a kept database never reaches an UPDATE buried after brands_pkey")
+	}
+
+	repair, err := os.ReadFile(filepath.Join("..", "..", "seed", "repair_refund_faq.sql"))
+	if err != nil {
+		t.Fatalf("read the refund FAQ repair: %v", err)
+	}
+	fix := string(repair)
+	if strings.Contains(fix, "INSERT INTO") || strings.Contains(fix, "DELETE FROM") ||
+		strings.Contains(fix, "UPDATE brands") || strings.Contains(fix, "UPDATE products") {
+		t.Error("the refund FAQ repair is not bounded: it must rewrite one FAQ row")
+	}
+	if n := strings.Count(fix, "UPDATE faq_entries"); n != 2 {
+		t.Errorf("refund FAQ repair has %d UPDATE faq_entries, want 2 (one locale each)", n)
+	}
+	if strings.Contains(fix, " OR ") {
+		t.Error("refund FAQ repair matches locales with OR; a shop-edited locale would be overwritten")
+	}
+	for i, block := range strings.Split(fix, "UPDATE faq_entries")[1:] {
+		hasZh := strings.Contains(block, "SET answer =")
+		hasEn := strings.Contains(block, "SET answer_en =")
+		if hasZh && hasEn {
+			t.Errorf("UPDATE %d rewrites both locales", i+1)
+		}
+	}
+	for _, want := range []string{faqQuestion, oldZh, oldEn} {
+		if !strings.Contains(fix, want) {
+			t.Errorf("shipped refund FAQ repair is missing %q", want)
+		}
+	}
+
+	zhInsert := sqlStringAfter(t, src, "('退換貨', '"+faqQuestion+"',")
+	enValues := sqlStringAfter(t, src, "'When will I get my refund?',")
+	zhSet := sqlStringAfter(t, fix, "SET answer =")
+	enSet := sqlStringAfter(t, fix, "SET answer_en =")
+	if zhInsert != zhSet || enValues != enSet {
+		t.Errorf("fresh INSERT/VALUES and the shipped repair disagree:\n"+
+			"  insert zh = %q\n  repair zh = %q\n  values en = %q\n  repair en = %q",
+			zhInsert, zhSet, enValues, enSet)
+	}
+	mustNameBoth(t, "shipped refund FAQ repair (zh-Hant)", zhSet)
+	mustNameBoth(t, "shipped refund FAQ repair (en)", enSet)
+
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		lead := i18n.T(i18n.WithLocale(t.Context(), locale), i18n.KeyAdminRetLead)
+		mustNameBoth(t, "KeyAdminRetLead ("+string(locale)+")", lead)
+	}
+}
+
 // TestTheStatedHoldMatchesTheEnforcedOne proves every customer-facing policy
 // states the one presentation-layer hold duration.
 func TestTheStatedHoldMatchesTheEnforcedOne(t *testing.T) {
@@ -352,4 +489,30 @@ func TestTheShippingPageStatesTheSurchargeItCharges(t *testing.T) {
 	if plain.SurchargeText(i18n.WithLocale(t.Context(), i18n.En)) != "" {
 		t.Error("a method with no surcharge still says something")
 	}
+}
+
+func sqlStringAfter(t *testing.T, src, marker string) string {
+	t.Helper()
+	i := strings.Index(src, marker)
+	if i < 0 {
+		t.Fatalf("seed has no %q", marker)
+	}
+	rest := strings.TrimLeft(src[i+len(marker):], " \t\n")
+	if !strings.HasPrefix(rest, "'") {
+		t.Fatalf("seed text after %q is not a SQL string: %q", marker, rest[:min(40, len(rest))])
+	}
+	var b strings.Builder
+	for j := 1; j < len(rest); j++ {
+		if rest[j] == '\'' {
+			if j+1 < len(rest) && rest[j+1] == '\'' {
+				b.WriteByte('\'')
+				j++
+				continue
+			}
+			return b.String()
+		}
+		b.WriteByte(rest[j])
+	}
+	t.Fatalf("unterminated SQL string after %q", marker)
+	return ""
 }

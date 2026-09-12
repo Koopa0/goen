@@ -628,7 +628,7 @@ INSERT INTO faq_entries (category, question, answer, position) VALUES
     ('退換貨', '哪些商品可以退貨?',
      '只有「已出貨」的商品可以申請退貨,而且數量以實際出貨數為上限。尚未出貨的訂單請聯絡我們取消,不需要走退貨流程。', 10),
     ('退換貨', '退款什麼時候會收到?',
-     '退貨經審核同意後,系統會立即向 Stripe 發出退款。實際入帳時間依發卡銀行而定,通常是數個工作天。', 20),
+     '退貨經審核同意後,系統依原付款組成退回:卡款立刻向 Stripe 發出退款,店儲退回購物金。卡款入帳時間依發卡銀行而定,通常是數個工作天;額度退回後可立刻使用。', 20),
     -- Not 「尚未確定」. 消保法 §19 I gives the customer seven days from receipt
     -- with 不負擔任何費用, and §19 V voids any agreement otherwise — so this was
     -- never the shop's to leave open, and the row contradicted /returns, which
@@ -680,7 +680,7 @@ FROM (VALUES
     ('哪些商品可以退貨?', 'Returns', 'What can I return?',
      'Only items that have SHIPPED, and only up to the quantity actually shipped. For an order that has not shipped, contact us to cancel instead — there is no need for a return.'),
     ('退款什麼時候會收到?', 'Returns', 'When will I get my refund?',
-     'As soon as a return is approved we ask Stripe to refund. When it lands depends on your card issuer, usually a few working days.'),
+     'As soon as a return is approved we pay it back the way you paid: the card share through Stripe, store credit back to your balance. When a card refund lands depends on your card issuer, usually a few working days; credit is available again at once.'),
     ('退貨要付運費嗎?', 'Returns', 'Who pays return postage?',
      'We do. Rescinding within seven days of delivery costs you nothing — see the returns policy page.'),
     ('運費怎麼算?免運門檻是多少?', 'Delivery', 'How much is delivery, and when is it free?',
