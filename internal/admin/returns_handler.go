@@ -43,7 +43,8 @@ func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := h.store.Decide(r.Context(), r.PathValue("id"),
-		r.PostFormValue("decision"), r.PostFormValue("resolution"), staffID(r))
+		r.PostFormValue("decision"), r.PostFormValue("resolution"),
+		r.PostFormValue("rejection_ground"), staffID(r))
 	switch {
 	case err == nil:
 		http.Redirect(w, r, "/admin/returns?ok=1", http.StatusSeeOther)
