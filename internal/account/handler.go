@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -303,28 +304,14 @@ func accountNotice(r *http.Request) string {
 	return ""
 }
 
-// OrderPage serves GET /account/orders/{number}.
+// OrderPage redirects GET /account/orders/{number} to the canonical order page.
 func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
-	u, ok := FromContext(r.Context())
-	if !ok {
+	if _, ok := FromContext(r.Context()); !ok {
 		http.Redirect(w, r, "/signin", http.StatusSeeOther)
 		return
 	}
-	view, err := h.store.Order(r.Context(), u, r.PathValue("number"))
-	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			web.Render(w, r, h.log, http.StatusNotFound, pages.Notice(
-				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}, "404",
-				i18n.T(r.Context(), i18n.KeyOrderNotFound),
-				i18n.T(r.Context(), i18n.KeyOrderNotYours2)))
-			return
-		}
-		h.log.ErrorContext(r.Context(), "read account order", "error", err)
-		h.serverError(w, r)
-		return
-	}
-	web.Render(w, r, h.log, http.StatusOK,
-		pages.AccountOrderPage(pages.OrderMeta(r.Context(), view.Number), &view))
+	number := r.PathValue("number")
+	http.Redirect(w, r, "/orders/"+url.PathEscape(number), http.StatusSeeOther)
 }
 
 // UpdateProfile serves POST /account/profile.

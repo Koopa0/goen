@@ -713,6 +713,11 @@ templ Order(p layouts.Page, v *OrderView) {
 							</div>
 						}
 					</div>
+					if v.ShowWarrantyLink && v.CanRegisterWarranty() {
+						<a class="ui-btn ui-btn--secondary ui-btn--block" href={ templ.SafeURL(v.WarrantyLink()) }>
+							{ i18n.T(ctx, i18n.KeyWarrantyTitle) }
+						</a>
+					}
 					if v.CanRequestReturn() {
 						<a class="ui-btn ui-btn--secondary ui-btn--block" href={ templ.SafeURL("/orders/" + v.Number + "/return") }>
 							{ i18n.T(ctx, i18n.KeyOrderReturn) }

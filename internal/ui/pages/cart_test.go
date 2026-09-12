@@ -280,6 +280,25 @@ func TestOnlyAnOrderThatOwesMoneyIsOfferedPayment(t *testing.T) {
 	}
 }
 
+// TestAccountOrderHistoryLinksToCanonicalOrderPage holds that the account
+// overview sends readers to /orders/{number}, not a second detail template.
+func TestAccountOrderHistoryLinksToCanonicalOrderPage(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	view := &AccountView{
+		Orders: []AccountOrder{{
+			Number: "GO-260101-000012", Status: FulfillmentDelivered,
+			PlacedAt: "2026-01-01", TotalCents: 106000, LineCount: 1,
+		}},
+	}
+	html := renderToString(t, Account(AccountMeta(ctx), view))
+	if !strings.Contains(html, `href="/orders/GO-260101-000012"`) {
+		t.Error("the order history does not link to the canonical order page")
+	}
+	if strings.Contains(html, "/account/orders/") {
+		t.Error("the order history still links to the retired account order page")
+	}
+}
+
 // TestAPaidOrderIsNotBadgedAwaitingPaymentInTheAccount holds the same fact on
 // both signed-in surfaces: the history badge and the detail page's notice.
 func TestAPaidOrderIsNotBadgedAwaitingPaymentInTheAccount(t *testing.T) {
@@ -299,18 +318,14 @@ func TestAPaidOrderIsNotBadgedAwaitingPaymentInTheAccount(t *testing.T) {
 		t.Errorf("an unpaid order is badged %q, want 待付款", got)
 	}
 
-	view := &AccountOrderView{
-		Number: "GO-260101-000010", Status: "pending",
+	view := &OrderView{
+		Number: "GO-260101-000010", Status: FulfillmentPending,
 		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
 		Committed: true, OwedCents: 106000,
 	}
-	html := renderToString(t, AccountOrderPage(layouts.Page{Title: "訂單"}, view))
+	html := renderToString(t, Order(layouts.Page{Title: "訂單"}, view))
 	if strings.Contains(html, "尚未付款") {
-		t.Error("the account's own order page tells a paid customer their order is unpaid")
-	}
-	if got := view.StatusText(ctx); got != "付款完成" {
-		t.Errorf("the detail page badges the order %q, want 付款完成 — the funding "+
-			"fields did not travel into the AccountOrder literal", got)
+		t.Error("the canonical order page tells a paid customer their order is unpaid")
 	}
 }
 
@@ -325,6 +340,27 @@ func TestTheOrderNotFoundPageOffersAWayThrough(t *testing.T) {
 			t.Errorf("the order 404 does not link to %s; the reader is one of two "+
 				"people and the page cannot tell which", want)
 		}
+	}
+}
+
+// TestADeliveredOrderOffersReturnAndShowsCredit holds that the canonical order
+// page carries return and store-credit summary for a delivered order.
+func TestADeliveredOrderOffersReturnAndShowsCredit(t *testing.T) {
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	v := &OrderView{
+		Number: "GO-260101-000012", Status: FulfillmentDelivered,
+		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
+		CreditCents: 50000,
+	}
+	html := renderToString(t, Order(layouts.Page{Title: "訂單"}, v))
+	if !strings.Contains(html, "/orders/GO-260101-000012/return") {
+		t.Error("a delivered order does not link to its return form")
+	}
+	if !strings.Contains(html, i18n.T(ctx, i18n.KeyOrderCreditApplied)) {
+		t.Error("a store-credited order does not show the credit row in its summary")
+	}
+	if !strings.Contains(html, "-NT$500") {
+		t.Error("the credit row does not show how much store credit was applied")
 	}
 }
 
@@ -348,18 +384,32 @@ func TestADeliveredOrderLinksToItsWarrantyForm(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			v := &AccountOrderView{
+			v := &OrderView{
 				Number: "GO-260101-000012", Status: tt.status,
 				SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
-				Committed: true,
+				Committed: true, ShowWarrantyLink: true,
 			}
-			html := renderToString(t, AccountOrderPage(layouts.Page{Title: "訂單"}, v))
+			html := renderToString(t, Order(layouts.Page{Title: "訂單"}, v))
 
 			got := strings.Contains(html, "/account/warranty/GO-260101-000012")
 			if got != tt.want {
 				t.Errorf("the order page links its warranty form = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+// TestGuestTokenViewerDoesNotSeeWarrantyLink holds that a delivered order read
+// through a guest access token must not expose the account-only registration door.
+func TestGuestTokenViewerDoesNotSeeWarrantyLink(t *testing.T) {
+	v := &OrderView{
+		Number: "GO-260101-000012", Status: FulfillmentDelivered,
+		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
+		ShowWarrantyLink: false,
+	}
+	html := renderToString(t, Order(layouts.Page{Title: "訂單"}, v))
+	if strings.Contains(html, "/account/warranty/GO-260101-000012") {
+		t.Error("a guest-token viewer sees the account warranty registration link")
 	}
 }
 
@@ -677,8 +727,8 @@ func TestEnterInTheCheckoutPlacesTheOrder(t *testing.T) {
 func TestAFullyFundedOrderIsNotAskedToPay(t *testing.T) {
 	t.Parallel()
 
-	funded := &AccountOrderView{
-		Number: "GO-260101-000012", Status: "pending",
+	funded := &OrderView{
+		Number: "GO-260101-000012", Status: FulfillmentPending,
 		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
 		// Not committed and nothing owed: paid in full from store credit.
 		Committed: false, OwedCents: 0,
@@ -688,14 +738,14 @@ func TestAFullyFundedOrderIsNotAskedToPay(t *testing.T) {
 			"renders goes to a Stripe session that cannot be created")
 	}
 
-	html := renderToString(t, AccountOrderPage(layouts.Page{Title: "訂單"}, funded))
+	html := renderToString(t, Order(layouts.Page{Title: "訂單"}, funded))
 	if strings.Contains(html, "/orders/"+funded.Number+"/pay") {
 		t.Error("the order page offers a payment link for an order that owes nothing")
 	}
 
 	// The control: same order, same status, same Committed, money still owed.
-	owing := &AccountOrderView{
-		Number: "GO-260101-000013", Status: "pending",
+	owing := &OrderView{
+		Number: "GO-260101-000013", Status: FulfillmentPending,
 		SubtotalCents: 100000, ShippingCents: 6000, ShippingName: "宅配",
 		Committed: false, OwedCents: 106000,
 	}

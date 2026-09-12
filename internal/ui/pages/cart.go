@@ -522,6 +522,9 @@ type OrderView struct {
 	Committed      bool
 	// OwedCents is what is left to pay: the total less the store credit spent on it.
 	OwedCents int64
+	// ShowWarrantyLink is set when a signed-in account owns the order. Guest-token
+	// viewers can read the page but must not see account-only registration.
+	ShowWarrantyLink bool
 }
 
 // CanCancel reports whether the customer may still call this order off.
@@ -573,6 +576,19 @@ func (v *OrderView) CanRequestReturn() bool {
 		return false
 	}
 }
+
+// CanRegisterWarranty reports whether to offer the form: both statuses that end a delivery.
+func (v *OrderView) CanRegisterWarranty() bool {
+	switch v.Status {
+	case FulfillmentDelivered, FulfillmentCompleted:
+		return true
+	default:
+		return false
+	}
+}
+
+// WarrantyLink is where that form lives.
+func (v *OrderView) WarrantyLink() string { return "/account/warranty/" + v.Number }
 
 // AwaitingPayment reports whether the order is waiting to be paid.
 func (v *OrderView) AwaitingPayment() bool {
