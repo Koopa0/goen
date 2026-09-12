@@ -257,11 +257,10 @@ const ADMIN = [
   { label: 'admin staff 1440', width: 1440, height: 900, path: '/admin/staff', marker: '.goen-admin' },
 ];
 
-// The expired redemption-form notice. GET ?badform=1 is the 303 landing of a
-// stripped or stale operation_id. Without these rows the sweep never measures
-// the sentence that replaced ?short=1, and a single-locale row would leave the
-// other voice unmeasured. CUST_TOKEN is the customer the Makefile signed in.
-const ACCOUNT = [
+// Signed-in customer surfaces. CUST_TOKEN is the session the Makefile mints;
+// RETURN_FORM_ORDER is a delivered order with no return filed yet;
+// INVOICE_ORDER is the refunded order the return fixture decided.
+const ACCOUNT_BADFORM = [
   { label: 'points badform 375', width: 375, height: 812, locale: 'zh-Hant',
     notice: '這份兌換表單已過期,請重新送出。' },
   { label: 'points badform 1440', width: 1440, height: 900, locale: 'zh-Hant',
@@ -270,6 +269,41 @@ const ACCOUNT = [
     notice: 'That redemption form expired. Submit it again.' },
   { label: 'points badform en 1440', width: 1440, height: 900, locale: 'en',
     notice: 'That redemption form expired. Submit it again.' },
+];
+
+const ACCOUNT_PAGES = [
+  // The order history lives on /account, not a separate /account/orders list.
+  // .goen-account__orders is absent until the customer owns an order.
+  { label: 'account orders 375', width: 375, height: 812, path: '/account',
+    marker: '.goen-account__orders' },
+  { label: 'account orders 1440', width: 1440, height: 900, path: '/account',
+    marker: '.goen-account__orders' },
+  // Canonical order detail (#295). INVOICE_ORDER is delivered, refunded and
+  // owned by the signed-in customer — not the guest PLACED_ORDER cookie.
+  { label: 'order detail 375', width: 375, height: 812,
+    path: '/orders/INVOICE_ORDER', marker: '.goen-order__lines' },
+  { label: 'order detail 1440', width: 1440, height: 900,
+    path: '/orders/INVOICE_ORDER', marker: '.goen-order__lines' },
+  { label: 'return form 375', width: 375, height: 812,
+    path: '/orders/RETURN_FORM_ORDER/return', marker: '.goen-returns__form' },
+  { label: 'return form 1440', width: 1440, height: 900,
+    path: '/orders/RETURN_FORM_ORDER/return', marker: '.goen-returns__form' },
+  // #points is the redeem field; it renders only when the ledger has spendable
+  // hundreds from the fixture's credit-funded checkouts.
+  { label: 'points 375', width: 375, height: 812, path: '/account/points',
+    marker: '#points' },
+  { label: 'points 1440', width: 1440, height: 900, path: '/account/points',
+    marker: '#points' },
+  // The saved-product tile and the remove form are separate nodes today (#320);
+  // .goen-wish can exist empty while the real controls live outside it.
+  { label: 'wishlist 375', width: 375, height: 812, path: '/account/wishlist',
+    marker: '.goen-tiles__grid .goen-tile', wishlist: true },
+  { label: 'wishlist 1440', width: 1440, height: 900, path: '/account/wishlist',
+    marker: '.goen-tiles__grid .goen-tile', wishlist: true },
+  { label: 'warranty 375', width: 375, height: 812, path: '/account/warranty',
+    marker: '.goen-warranty__item' },
+  { label: 'warranty 1440', width: 1440, height: 900, path: '/account/warranty',
+    marker: '.goen-warranty__item' },
 ];
 
 const MIN_TAP = 44; // the smallest comfortable touch target, in CSS px
@@ -973,7 +1007,7 @@ const ADMIN_PROBE = `(() => {
   };
 })()`;
 
-const ACCOUNT_PROBE = `(() => {
+const ACCOUNT_BADFORM_PROBE = `(() => {
   const de = document.documentElement;
   const clipped = (e) => {
     let p = e.parentElement;
@@ -1003,13 +1037,75 @@ const ACCOUNT_PROBE = `(() => {
   };
 })()`;
 
+const ACCOUNT_PAGE_PROBE = `(() => {
+  const de = document.documentElement;
+  const clipped = (e) => {
+    let p = e.parentElement;
+    while (p && p !== document.body) {
+      const o = getComputedStyle(p).overflowX;
+      if (o === 'auto' || o === 'hidden' || o === 'scroll') return true;
+      p = p.parentElement;
+    }
+    return false;
+  };
+  if (__MARKER__ && !document.querySelector(__MARKER__)) return { noMarker: true };
+  const taps = [...document.querySelectorAll(
+    '.goen-account .ui-page-head .ui-btn, .goen-qa__form .ui-btn, .goen-qa__form .ui-input, ' +
+    '.goen-order__cancel .ui-btn, .goen-returns__form .ui-btn, .goen-returns__form button, ' +
+    '#points')]
+    .map((e) => e.getBoundingClientRect().height).filter((h) => h > 0);
+  return {
+    viewportWidth: de.clientWidth,
+    scrollWidth: document.body.scrollWidth,
+    overflowing: [...document.querySelectorAll('body *')]
+      .filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > de.clientWidth + 0.5 && !clipped(e); })
+      .slice(0, 4).map((e) => e.tagName.toLowerCase() + '.' + String(e.className || '').split(' ')[0]),
+    minTap: taps.length ? +Math.min(...taps).toFixed(1) : 0,
+    controls: taps.length,
+    ${ACCESSIBILITY}
+  };
+})()`;
+
+// Wishlist rows need the saved product card and the remove form the fixture
+// seeds. The wrapper .goen-wish can be empty while Tile's <li> and the remove
+// form sit as siblings — measuring .goen-wish .ui-btn reported controls=0 and
+// still passed.
+const WISHLIST_PAGE_PROBE = `(() => {
+  const de = document.documentElement;
+  const clipped = (e) => {
+    let p = e.parentElement;
+    while (p && p !== document.body) {
+      const o = getComputedStyle(p).overflowX;
+      if (o === 'auto' || o === 'hidden' || o === 'scroll') return true;
+      p = p.parentElement;
+    }
+    return false;
+  };
+  const tile = document.querySelector('.goen-tiles__grid .goen-tile');
+  if (!tile) return { noMarker: true };
+  const removeForm = document.querySelector('form.goen-wish__remove');
+  if (!removeForm) return { noRemove: true };
+  const taps = [...document.querySelectorAll('.goen-wish__remove .ui-btn')]
+    .map((e) => e.getBoundingClientRect().height).filter((h) => h > 0);
+  return {
+    viewportWidth: de.clientWidth,
+    scrollWidth: document.body.scrollWidth,
+    overflowing: [...document.querySelectorAll('body *')]
+      .filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > de.clientWidth + 0.5 && !clipped(e); })
+      .slice(0, 4).map((e) => e.tagName.toLowerCase() + '.' + String(e.className || '').split(' ')[0]),
+    minTap: taps.length ? +Math.min(...taps).toFixed(1) : 0,
+    controls: taps.length,
+    ${ACCESSIBILITY}
+  };
+})()`;
+
 if (process.env.CUST_TOKEN) {
   await send(ws, 'Network.enable');
   await send(ws, 'Network.setCookie', {
     name: 'goen_session', value: process.env.CUST_TOKEN, domain: '127.0.0.1', path: '/',
   });
 
-  for (const want of ACCOUNT) {
+  for (const want of ACCOUNT_BADFORM) {
     await send(ws, 'Network.setCookie', {
       name: 'goen_locale', value: want.locale, domain: '127.0.0.1', path: '/',
     });
@@ -1021,7 +1117,7 @@ if (process.env.CUST_TOKEN) {
     await settled(ws, want.label, target);
 
     const evaluated = await send(ws, 'Runtime.evaluate', {
-      expression: ACCOUNT_PROBE, returnByValue: true,
+      expression: ACCOUNT_BADFORM_PROBE, returnByValue: true,
     });
     if (evaluated.exceptionDetails || !evaluated.result || evaluated.result.value === undefined) {
       fail(want.label, 'the probe did not run — ' +
@@ -1052,8 +1148,48 @@ if (process.env.CUST_TOKEN) {
     console.log(`${at.padEnd(24)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
       `lang=${got.lang} tap=${got.minTap || '-'} notice=${JSON.stringify(got.notice)}`);
   }
+
+  for (const want of ACCOUNT_PAGES) {
+    await send(ws, 'Emulation.setDeviceMetricsOverride', {
+      width: want.width, height: want.height, deviceScaleFactor: 1, mobile: want.width < 768,
+    });
+    const target = ORIGIN + want.path
+      .replace('INVOICE_ORDER', process.env.INVOICE_ORDER || '')
+      .replace('RETURN_FORM_ORDER', process.env.RETURN_FORM_ORDER || '');
+    await send(ws, 'Page.navigate', { url: target });
+    await settled(ws, want.label, target);
+
+    const probe = want.wishlist ? WISHLIST_PAGE_PROBE
+      : ACCOUNT_PAGE_PROBE.replaceAll('__MARKER__', JSON.stringify(want.marker || null));
+    const { result } = await send(ws, 'Runtime.evaluate', {
+      expression: probe, returnByValue: true,
+    });
+    const got = result.value;
+    const at = want.label;
+
+    if (got.noMarker) {
+      fail(at, `the page rendered without ${want.marker} — its fixture did not run, so this check proved nothing`);
+      continue;
+    }
+    if (got.noRemove) {
+      fail(at, 'the wishlist rendered a product tile without form.goen-wish__remove — this check proved nothing');
+      continue;
+    }
+    checkAccessibility(at, got);
+    if (got.scrollWidth > got.viewportWidth) {
+      fail(at, `page scrolls horizontally (${got.scrollWidth} > ${got.viewportWidth})` +
+        (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));
+    }
+    if (want.wishlist && got.controls === 0) {
+      fail(at, 'no remove control on the populated wishlist — this check proved nothing');
+    } else if (got.controls > 0 && got.minTap < MIN_TAP) {
+      fail(at, `smallest control is ${got.minTap}px, want >= ${MIN_TAP}`);
+    }
+    console.log(`${at.padEnd(24)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
+      `controls=${got.controls} tap=${got.minTap || '-'}`);
+  }
 } else {
-  console.log('points badform   skipped (no CUST_TOKEN)');
+  console.log('account pages    skipped (no CUST_TOKEN)');
 }
 
 if (process.env.ADMIN_TOKEN) {
