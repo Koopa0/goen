@@ -9,6 +9,22 @@ import (
 	"github.com/koopa0/goen/internal/i18n"
 )
 
+// TestValidateAcceptsABlankReason holds Consumer Protection Act §19 I at
+// the form gate: a blank reason is legal, and the policy page says so.
+func TestValidateAcceptsABlankReason(t *testing.T) {
+	t.Parallel()
+
+	for _, reason := range []string{"", "   \t "} {
+		req := Request{
+			Reason: reason,
+			Lines:  map[string]int32{"line": 1},
+		}
+		if err := req.Validate(); err != nil {
+			t.Errorf("reason %q was refused: %v", reason, err)
+		}
+	}
+}
+
 func TestParseWantedDistinguishesQuantityFromMalformedInput(t *testing.T) {
 	lineID := uuid.New()
 	allowed := map[string]int32{lineID.String(): 1}
