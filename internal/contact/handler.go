@@ -45,14 +45,6 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
 		return
 	}
-	// Keyed on the IP alone, unlike /forgot and the newsletter: this form mails
-	// nobody, and its address field is the sender's own claim, so bounding on it
-	// would let anybody buy more attempts by editing a field.
-	if retryAfter, allowed := h.limit.Allow(ratelimit.ClientIP(r)); !allowed {
-		ratelimit.Refuse(r.Context(), w, retryAfter)
-		return
-	}
-
 	msg := Clean(Message{
 		Name:     r.PostFormValue("name"),
 		Email:    r.PostFormValue("email"),
@@ -68,6 +60,21 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 		OrderRef: msg.OrderRef,
 		Message:  msg.Body,
 		Subjects: subjectChoices(r.Context()),
+	}
+
+	// Keyed on the IP alone, unlike /forgot and the newsletter: this form mails
+	// nobody, and its address field is the sender's own claim, so bounding on it
+	// would let anybody buy more attempts by editing a field. After Clean so a
+	// 429 fragment can keep the values the same way 422 does.
+	if retryAfter, allowed := h.limit.Allow(ratelimit.ClientIP(r)); !allowed {
+		form.Errors = map[string]string{"": i18n.T(r.Context(), i18n.KeyTooManyRequests)}
+		if web.IsHTMX(r) {
+			ratelimit.SetRetryAfter(w, retryAfter)
+			h.respond(w, r, http.StatusTooManyRequests, form)
+			return
+		}
+		ratelimit.Refuse(r.Context(), w, retryAfter)
+		return
 	}
 
 	if errs := Validate(r.Context(), msg); len(errs) > 0 {

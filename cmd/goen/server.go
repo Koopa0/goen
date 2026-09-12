@@ -177,7 +177,9 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /about", pages.About)
 	mux.HandleFunc("GET /contact", messages.Page)
 	mux.HandleFunc("POST /contact", messages.Submit)
-	mux.HandleFunc("POST /newsletter", ratelimit.Guard(signupLimit, log, signups.Submit))
+	// Submit applies the per-IP bound itself: Guard would answer plain text and
+	// htmx would swap that over the footer form.
+	mux.HandleFunc("POST /newsletter", signups.Submit)
 	mux.HandleFunc("GET /newsletter/thanks", signups.Thanks)
 	// Both links open a page carrying a form; a GET that confirmed or
 	// unsubscribed would be completed by every link scanner that reads the mail
