@@ -36,6 +36,9 @@ var (
 	// another replica owns its lease, the provider result is not visible yet, or
 	// an ambiguity needs the background reconciler/operator alarm.
 	ErrPending = errors.New("invoice: reconciliation pending")
+	// ErrReason is a void claimed without a reason the 財政部 will accept.
+	// claim_invoice_void raises invoice_void_reason; the handler must not 500.
+	ErrReason = errors.New("invoice: void reason is required")
 )
 
 // TaxRate is Taiwan's business tax, 5%.

@@ -120,10 +120,23 @@ func (s *Store) Void(ctx context.Context, orderNumber, reason string) error {
 		ActorUserID: actorID, RequestID: requestID,
 	})
 	if err != nil {
-		return fmt.Errorf("claim the void of %s: %w", live.Number, err)
+		return mapVoidClaim(live.Number, err)
 	}
 	_, err = s.processClaim(ctx, operationID)
 	return err
+}
+
+// mapVoidClaim keeps the two claim_invoice_void rules typed. The handler's
+// default arm is a 500 Notice, so wrapping them only would hide a blank
+// reason and an already-voided document from the operator.
+func mapVoidClaim(documentNumber string, err error) error {
+	switch constraintName(err) {
+	case "invoice_void_reason":
+		return fmt.Errorf("%w: voiding %s needs a reason", ErrReason, documentNumber)
+	case "invoice_void_target":
+		return fmt.Errorf("%w: %s is not a live invoice", ErrNotFound, documentNumber)
+	}
+	return fmt.Errorf("claim the void of %s: %w", documentNumber, err)
 }
 
 // Allowance files a credit note against an order's live invoice. The database
