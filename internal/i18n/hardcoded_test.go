@@ -9,6 +9,34 @@ import (
 	"unicode"
 )
 
+// TestNoGenericChromeIsHardCoded refuses generic English UI words the code writes
+// on a customer's screen without going through i18n. Exclusions are by CATEGORY
+// with a reason, never string by string.
+func TestNoGenericChromeIsHardCoded(t *testing.T) {
+	t.Parallel()
+
+	var offenders []string
+	for path, src := range chromeSources(t) {
+		if _, owed := pendingTranslation[path]; owed {
+			continue
+		}
+		lines := strings.Split(src, "\n")
+		for i, line := range lines {
+			if hardCodedGeneric(path, line, before(lines, i)) {
+				offenders = append(offenders, trimLine(path, i+1, line))
+			}
+		}
+	}
+
+	if len(offenders) > 0 {
+		t.Errorf("%d hard-coded generic chrome strings on customer-facing surfaces. "+
+			"Each is a label a zh-Hant visitor reads in English — move it to "+
+			"internal/i18n, or mark the line // i18n-exempt: <why> if it must "+
+			"stay as written:\n%s",
+			len(offenders), strings.Join(offenders, "\n"))
+	}
+}
+
 // TestNoChromeStringIsHardCoded refuses Han the code writes on a customer's
 // screen. Exclusions are by CATEGORY with a reason, never string by string.
 func TestNoChromeStringIsHardCoded(t *testing.T) {
@@ -139,6 +167,32 @@ func beforeTrailingSQLComment(line string) string {
 
 // goStringLiteral matches a double-quoted Go or templ attribute string.
 var goStringLiteral = regexp.MustCompile(`"((?:[^"\\]|\\.)*)"`)
+
+// hardCodedGeneric reports whether line puts a generic English UI word on a
+// customer's screen; prev is the comment block above it, where an exemption may sit.
+func hardCodedGeneric(path, line, prev string) bool {
+	if !strings.HasSuffix(path, ".templ") {
+		return false
+	}
+	trimmed := strings.TrimSpace(line)
+	switch {
+	case strings.HasPrefix(trimmed, "//"):
+		return false
+	case strings.Contains(line, "i18n-exempt:"), strings.Contains(prev, "i18n-exempt:"):
+		return false
+	case strings.Contains(line, "i18n.T"):
+		return false
+	}
+
+	stripped := goStringLiteral.ReplaceAllString(line, "")
+	if strings.Contains(stripped, ">Email<") || strings.Contains(stripped, ">Email<span") {
+		return true
+	}
+	if strings.Contains(line, `"Email"`) {
+		return true
+	}
+	return strings.Contains(line, `<th scope="col">English</th>`)
+}
 
 // hardCodedHan reports whether line puts Han characters on a customer's screen;
 // prev is the comment block above it, where a long line's exemption may sit.

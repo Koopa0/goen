@@ -295,7 +295,7 @@ templ productBuy(v *ProductView) {
 					</p>
 				} else {
 					<div class="ui-field">
-						<label class="ui-label" for="notify-email">Email</label>
+						<label class="ui-label" for="notify-email">{ i18n.T(ctx, i18n.KeyFieldEmail) }</label>
 						<input
 							class="ui-input"
 							type="email"
