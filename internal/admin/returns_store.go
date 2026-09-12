@@ -85,6 +85,10 @@ func (s *Store) Returns(ctx context.Context) (ReturnQueue, error) {
 			Lines:       byRequest[r.ID],
 			Window:      r.RescissionWindow,
 		}
+		if facts, ok := payoutFacts[r.ID]; ok {
+			item.CardRefundCents = facts.CardRefundCents
+			item.CreditRefundCents = facts.CreditRefundCents
+		}
 		if payoutErr := fillReturnPayoutState(returns.ReturnStatus(r.Status), payoutFacts[r.ID], &item); payoutErr != nil {
 			if !errors.Is(payoutErr, ErrRefused) {
 				return ReturnQueue{}, payoutErr
