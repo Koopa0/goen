@@ -29,14 +29,14 @@ func TestRefundRecoveryAttributesEveryProviderAttempt(t *testing.T) {
 		refundErr: errors.New("read tcp 1.2.3.4:443: i/o timeout"),
 		sent:      calls,
 	}, nil, nil)
-	if err := stalled.Decide(ctxA, returnID.String(), "approved", "refund recovery", uuid.NullUUID{
+	if err := stalled.Decide(ctxA, returnID.String(), "approved", "refund recovery", "", uuid.NullUUID{
 		UUID: actorA, Valid: true,
 	}); err == nil {
 		t.Fatal("a timed-out refund was reported as complete")
 	}
 
 	healthy := admin.NewStore(pool, fakeRefunder{sent: calls}, nil, nil)
-	if err := healthy.Decide(ctxB, returnID.String(), "approved", "refund recovery", uuid.NullUUID{
+	if err := healthy.Decide(ctxB, returnID.String(), "approved", "refund recovery", "", uuid.NullUUID{
 		UUID: actorB, Valid: true,
 	}); err != nil {
 		t.Fatalf("retry refund: %v", err)
@@ -132,12 +132,12 @@ func TestEveryKnownTerminalRefundOutcomeGetsOneSuccessor(t *testing.T) {
 			ctx, _ := staffContext(t)
 			returnID, _ := returnedOrder(t, 1)
 			if err := admin.NewStore(pool, tt.refunder, nil, nil).Decide(
-				ctx, returnID.String(), "approved", "terminal recovery", uuid.NullUUID{},
+				ctx, returnID.String(), "approved", "terminal recovery", "", uuid.NullUUID{},
 			); err == nil {
 				t.Fatal("terminal provider outcome was reported as a settled refund")
 			}
 			if err := admin.NewStore(pool, fakeRefunder{}, nil, nil).Decide(
-				ctx, returnID.String(), "approved", "terminal recovery", uuid.NullUUID{},
+				ctx, returnID.String(), "approved", "terminal recovery", "", uuid.NullUUID{},
 			); err != nil {
 				t.Fatalf("retry terminal provider outcome: %v", err)
 			}
@@ -421,7 +421,7 @@ func TestRefundRecoveryRequiresActorAndRequestIDBeforeProviderCall(t *testing.T)
 			calls := &atomic.Int64{}
 			s := admin.NewStore(pool, fakeRefunder{sent: calls}, nil, nil)
 
-			if err := s.Decide(ctx, returnID.String(), "approved", "retry", actor); err == nil {
+			if err := s.Decide(ctx, returnID.String(), "approved", "retry", "", actor); err == nil {
 				t.Fatal("refund execution without its durable request identity succeeded")
 			}
 			if got := calls.Load(); got != 0 {
@@ -456,7 +456,7 @@ func TestRefundAttemptAuditFailureRollsBackClaim(t *testing.T) {
 	calls := &atomic.Int64{}
 	s := admin.NewStore(pool, fakeRefunder{sent: calls}, nil, nil)
 
-	if err := s.Decide(ctx, returnID.String(), "approved", "audit rollback", uuid.NullUUID{
+	if err := s.Decide(ctx, returnID.String(), "approved", "audit rollback", "", uuid.NullUUID{
 		UUID: actor, Valid: true,
 	}); err == nil {
 		t.Fatal("refund claim succeeded despite its rejected attempt audit")
@@ -489,7 +489,7 @@ func TestRefundSucceededAuditFailureRollsBackOutcome(t *testing.T) {
 	calls := &atomic.Int64{}
 	s := admin.NewStore(pool, fakeRefunder{sent: calls}, nil, nil)
 
-	if err := s.Decide(ctx, returnID.String(), "approved", "audit rollback", uuid.NullUUID{
+	if err := s.Decide(ctx, returnID.String(), "approved", "audit rollback", "", uuid.NullUUID{
 		UUID: actor, Valid: true,
 	}); err == nil {
 		t.Fatal("refund outcome succeeded despite its rejected outcome audit")

@@ -257,10 +257,12 @@ FROM order_shipments WHERE order_id = $1 ORDER BY shipped_at, id;
 INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
 VALUES (@order_id, @shipment_id, @order_line_id, @quantity::integer);
 
--- rescission_window: Consumer Protection Act §19 I runs seven days from RECEIPT,
+-- policy_window: Consumer Protection Act §19 I runs seven days from RECEIPT,
 -- Civil Code §120 II excludes the day of receipt, and §19 IV fixes the moment on
 -- the customer's side — so created_at against delivered_at, both database
--- clocks, and both on the SHOP's calendar through shop_day. Undelivered is
+-- clocks, and both on the SHOP's calendar through shop_day. now() would move a
+-- filed request into a later window the day the staff member opens it.
+-- Days 8–14 are the shop's advertised offer, not the statute. Undelivered is
 -- neither answer, because the window has not started.
 -- name: ReturnQueue :many
 SELECT r.id, r.status, r.reason, r.created_at, r.decided_at,
@@ -271,6 +273,7 @@ SELECT r.id, r.status, r.reason, r.created_at, r.decided_at,
        (CASE
             WHEN d.delivered_at IS NULL THEN 'undelivered'
             WHEN shop_day(r.created_at) <= shop_day(d.delivered_at) + 7 THEN 'within'
+            WHEN shop_day(r.created_at) <= shop_day(d.delivered_at) + 14 THEN 'goodwill'
             ELSE 'after'
         END)::text AS rescission_window
 FROM return_requests r
@@ -290,6 +293,8 @@ LIMIT $1;
 -- The amount comes from return_refundable_amount and never from anything the
 -- request carried. It is a FUNCTION rather than an expression because the queue
 -- needs the same number, and two copies are two figures free to disagree.
+-- policy_window is the same CASE as ReturnQueue, on the same two clocks: a
+-- decision that classified from now() would take a day-5 right away on day 20.
 -- name: ReturnForDecision :one
 SELECT r.id, r.status, r.reason, r.order_id,
        o.order_number, o.fulfillment_status,
@@ -297,10 +302,20 @@ SELECT r.id, r.status, r.reason, r.order_id,
        p.id AS payment_id,
        p.provider_ref,
        p.captured_amount_cents,
-       o.user_id
+       o.user_id,
+       (CASE
+            WHEN d.delivered_at IS NULL THEN 'undelivered'
+            WHEN shop_day(r.created_at) <= shop_day(d.delivered_at) + 7 THEN 'within'
+            WHEN shop_day(r.created_at) <= shop_day(d.delivered_at) + 14 THEN 'goodwill'
+            ELSE 'after'
+        END)::text AS policy_window
 FROM return_requests r
 JOIN orders o ON o.id = r.order_id
 LEFT JOIN payments p ON p.order_id = o.id AND p.status = 'succeeded'
+LEFT JOIN LATERAL (
+    SELECT max(s.delivered_at) AS delivered_at
+    FROM order_shipments s WHERE s.order_id = o.id
+) d ON true
 WHERE r.id = $1;
 
 -- received_quantity is NULL until somebody opens the parcel: "not looked at yet"
