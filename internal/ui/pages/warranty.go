@@ -81,6 +81,37 @@ func (v WarrantyOrderView) AnyRegistrable() bool {
 	return false
 }
 
+// EmptyHint is the empty-banner sentence. Delivery is only true when every
+// line is still waiting to arrive; any other mix would contradict the Why()
+// already under each line.
+func (v WarrantyOrderView) EmptyHint(ctx context.Context) string {
+	if v.AnyRegistrable() {
+		return ""
+	}
+	if len(v.Lines) == 0 || v.waitingOnDelivery() {
+		return i18n.T(ctx, i18n.KeyWarrantyAfterShipping)
+	}
+	shared := v.Lines[0].Why(ctx)
+	for _, l := range v.Lines[1:] {
+		if l.Why(ctx) != shared {
+			return ""
+		}
+	}
+	return shared
+}
+
+func (v WarrantyOrderView) waitingOnDelivery() bool {
+	if len(v.Lines) == 0 {
+		return false
+	}
+	for _, l := range v.Lines {
+		if !l.HasTerm || l.Delivered != 0 {
+			return false
+		}
+	}
+	return true
+}
+
 // Action is where the form posts.
 func (v WarrantyOrderView) Action() string { return "/account/warranty/" + v.Number }
 

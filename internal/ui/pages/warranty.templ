@@ -84,7 +84,9 @@ templ WarrantyOrder(p layouts.Page, v WarrantyOrderView) {
 			if !v.AnyRegistrable() {
 				<div class="ui-empty">
 					<p class="ui-empty__title">{ i18n.T(ctx, i18n.KeyWarrantyNothingHere) }</p>
-					<p class="ui-empty__desc">{ i18n.T(ctx, i18n.KeyWarrantyAfterShipping) }</p>
+					if v.EmptyHint(ctx) != "" {
+						<p class="ui-empty__desc">{ v.EmptyHint(ctx) }</p>
+					}
 				</div>
 			}
 			<ul class="goen-warranty" role="list">
