@@ -265,21 +265,21 @@ templ productBuy(v *ProductView) {
 					{ i18n.T(ctx, i18n.KeyAddToCart) }
 				}
 			</button>
-			// The outcome of the last press. The redirect has carried it since it
-			// was written and nothing showed it, so a refusal rendered the same
-			// page as a success — on the one control a shopper presses most.
+			// The outcome of the last press sits directly under the button so a
+			// phone viewport still sees it beside the control that produced it.
 			if v.JustAdded() {
-				<p class="ui-alert ui-alert--info" role="status">
+				<p id="added" class="ui-alert ui-alert--info goen-pdp__added" role="status">
 					{ i18n.T(ctx, i18n.KeyAddedToCart) }
+					<a class="goen-pdp__addedlink" href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a>
 				</p>
 			}
 			if v.AddRefused() {
-				<p class="ui-alert ui-alert--error" role="alert">
+				<p id="added" class="ui-alert ui-alert--error goen-pdp__added" role="alert">
 					{ i18n.T(ctx, i18n.KeyAddRefused) }
 				</p>
 			}
 			if v.CartFull() {
-				<p class="ui-alert ui-alert--error" role="alert">
+				<p id="added" class="ui-alert ui-alert--error goen-pdp__added" role="alert">
 					{ i18n.T(ctx, i18n.KeyCartLineLimit) }
 				</p>
 			}

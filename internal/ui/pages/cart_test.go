@@ -466,6 +466,13 @@ func TestTheProductPageSaysWhetherItAddedAnything(t *testing.T) {
 	if !strings.Contains(added, confirm) {
 		t.Errorf("a successful add renders no confirmation; wanted %q", confirm)
 	}
+	viewCart := i18n.T(ctx, i18n.KeyViewCart)
+	if !strings.Contains(added, viewCart) || !strings.Contains(added, `href="/cart"`) {
+		t.Errorf("a successful add renders no cart link; wanted %q beside /cart", viewCart)
+	}
+	if !strings.Contains(added, `role="status"`) {
+		t.Error("the success confirmation is not exposed as a live status")
+	}
 
 	refused := renderToString(t, Product(layouts.Page{Title: "x"}, base("unavailable")))
 	if !strings.Contains(refused, refusal) {

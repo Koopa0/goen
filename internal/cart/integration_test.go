@@ -30,6 +30,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
@@ -748,6 +749,137 @@ func TestCartIsFoundByTokenNotByID(t *testing.T) {
 	if string(stored) == tok {
 		t.Error("the cart table stores the raw token; a leak would hand over live cart cookies")
 	}
+}
+
+func TestAddToCartReturnsToTheChosenVariant(t *testing.T) {
+	const slug = "nimbus-buds-pro"
+	vid := nimbusVariant(t, "雲白")
+	h := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false, testLimiter(), nil)
+
+	res := postAddToProduct(t, h, vid, slug, "1")
+	if res.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303; body=%s", res.Code, res.Body.String())
+	}
+	loc, err := url.Parse(res.Header().Get("Location"))
+	if err != nil {
+		t.Fatalf("parse redirect: %v", err)
+	}
+	if loc.Query().Get("added") != "added" {
+		t.Errorf("redirect is %q, want added=added", loc)
+	}
+	if loc.Query().Get("顏色") != "雲白" {
+		t.Errorf("redirect dropped the colour selection: %q", loc)
+	}
+
+	follow := httptest.NewRequestWithContext(t.Context(), http.MethodGet, loc.String(), http.NoBody)
+	follow.SetPathValue("slug", slug)
+	pres := httptest.NewRecorder()
+	product.NewHandler(product.NewStore(pool), slog.New(slog.DiscardHandler), "https://goen.example").
+		Detail(pres, follow)
+	if pres.Code != http.StatusOK {
+		t.Fatalf("follow-up GET answered %d", pres.Code)
+	}
+	body := pres.Body.String()
+	choose := i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyChooseBeforeAdding)
+	if strings.Contains(body, choose) {
+		t.Error("the returned page forgot the chosen variant after a successful add")
+	}
+	if !strings.Contains(body, i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyAddedToCart)) {
+		t.Error("the returned page shows no success confirmation")
+	}
+}
+
+func TestAddToCartRefusalKeepsTheChosenVariant(t *testing.T) {
+	const slug = "aurora-slate-11"
+	vid := soldOutAuroraVariant(t)
+	h := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false, testLimiter(), nil)
+
+	res := postAddToProduct(t, h, vid, slug, "1")
+	if res.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303; body=%s", res.Code, res.Body.String())
+	}
+	loc, err := url.Parse(res.Header().Get("Location"))
+	if err != nil {
+		t.Fatalf("parse redirect: %v", err)
+	}
+	if loc.Query().Get("added") != "unavailable" {
+		t.Errorf("redirect is %q, want added=unavailable", loc)
+	}
+	if loc.Query().Get("顏色") != "曙光金" || loc.Query().Get("容量") != "128GB" {
+		t.Errorf("redirect dropped the sold-out selection: %q", loc)
+	}
+}
+
+func TestAddToCartRejectsAMismatchedBackSlug(t *testing.T) {
+	vid := variantOf(t, "nimbus-buds-pro", true)
+	h := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false, testLimiter(), nil)
+
+	res := postAddToProduct(t, h, vid, "pixelight-9-pro", "1")
+	if res.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303; body=%s", res.Code, res.Body.String())
+	}
+	if loc := res.Header().Get("Location"); loc != "/cart" {
+		t.Errorf("mismatched back redirected to %q, want /cart", loc)
+	}
+}
+
+func postAddToProduct(
+	t *testing.T, h *cart.Handler, variantID uuid.UUID, slug, quantity string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	form := url.Values{
+		"variant":  {variantID.String()},
+		"quantity": {quantity},
+		"back":     {slug},
+	}
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/cart/items",
+		strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	res := httptest.NewRecorder()
+	h.AddItem(res, req)
+	return res
+}
+
+func nimbusVariant(t *testing.T, colour string) uuid.UUID {
+	t.Helper()
+	var id uuid.UUID
+	err := pool.QueryRow(t.Context(), `
+		SELECT pv.id
+		FROM product_variants pv
+		JOIN products p ON p.id = pv.product_id
+		JOIN variant_option_values vov ON vov.variant_id = pv.id
+		JOIN product_option_values pov ON pov.id = vov.option_value_id
+		WHERE p.slug = 'nimbus-buds-pro' AND pov.value = $1
+		LIMIT 1`, colour).Scan(&id)
+	if err != nil {
+		t.Fatalf("find nimbus variant %q: %v", colour, err)
+	}
+	return id
+}
+
+func soldOutAuroraVariant(t *testing.T) uuid.UUID {
+	t.Helper()
+	var id uuid.UUID
+	err := pool.QueryRow(t.Context(), `
+		SELECT pv.id
+		FROM product_variants pv
+		JOIN products p ON p.id = pv.product_id
+		JOIN variant_option_values vov ON vov.variant_id = pv.id
+		JOIN product_option_values pov ON pov.id = vov.option_value_id
+		JOIN product_options po ON po.id = vov.option_id
+		WHERE p.slug = 'aurora-slate-11'
+		  AND po.name = '顏色' AND pov.value = '曙光金'
+		  AND EXISTS (
+		    SELECT 1 FROM variant_option_values v2
+		    JOIN product_option_values p2 ON p2.id = v2.option_value_id
+		    JOIN product_options o2 ON o2.id = v2.option_id
+		    WHERE v2.variant_id = pv.id AND o2.name = '容量' AND p2.value = '128GB'
+		  )
+		LIMIT 1`).Scan(&id)
+	if err != nil {
+		t.Fatalf("find sold-out aurora variant: %v", err)
+	}
+	return id
 }
 
 func TestAddRefusesWhatCannotBeSold(t *testing.T) {

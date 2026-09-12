@@ -1172,6 +1172,16 @@ a:hover {
   min-height: 48px;
 }
 
+.goen-pdp__added {
+  margin: 0;
+  scroll-margin-top: 12px;
+}
+
+.goen-pdp__addedlink {
+  margin-left: 0.35em;
+  white-space: nowrap;
+}
+
 .goen-pdp__assurances {
   margin: 4px 0 0;
   padding: 0;

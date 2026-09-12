@@ -1182,6 +1182,178 @@ await exhaustHtmx({
   })()`,
 });
 
+const waitForHref = async (match, label) => {
+  for (let i = 0; i < 50; i++) {
+    const { result } = await send(ws, 'Runtime.evaluate', {
+      expression: 'location.href', returnByValue: true,
+    });
+    const href = String(result.value || '');
+    if (match(href)) {
+      await new Promise((r) => setTimeout(r, 250));
+      return href;
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  fail(label, 'navigation never reached the expected product URL after add-to-cart');
+  return '';
+};
+
+const provePdpAdd = async (label, scriptingOff) => {
+  await send(ws, 'Emulation.setScriptExecutionDisabled', { value: scriptingOff });
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: 375, height: 812, deviceScaleFactor: 1, mobile: true,
+  });
+  const slug = process.env.PDP_SLUG || 'nimbus-buds-pro';
+  const start = `${ORIGIN}/p/${slug}`;
+  await send(ws, 'Page.navigate', { url: start });
+  await settled(ws, `${label} open`, start);
+
+  const pick = await evalPage(`(() => {
+    const form = document.querySelector('.goen-pdp__form');
+    const add = form && form.querySelector('.goen-pdp__add');
+    if (form && add && !add.disabled) return { ok: true, ready: true };
+    const swatch = document.querySelector('.goen-swatch:not(.goen-swatch--on):not(.goen-swatch--out)');
+    if (!swatch) return { ok: false, why: 'no choosable swatch on the pdp' };
+    const href = swatch.getAttribute('href');
+    if (!href) return { ok: false, why: 'swatch has no href' };
+    return { ok: true, ready: false, href };
+  })()`);
+  if (pick.threw) {
+    fail(label, `chooser probe did not run — ${pick.why}`);
+    return;
+  }
+  if (!pick.ok) {
+    fail(label, pick.why || 'could not prepare a variant on the pdp');
+    return;
+  }
+  if (!pick.ready) {
+    const chosen = ORIGIN + pick.href;
+    await send(ws, 'Page.navigate', { url: chosen });
+    await settled(ws, `${label} choose`, chosen);
+  }
+
+  const submit = await evalPage(`(() => {
+    const form = document.querySelector('.goen-pdp__form');
+    const add = form && form.querySelector('.goen-pdp__add');
+    if (!form || !add || add.disabled) {
+      return { ok: false, why: 'add-to-cart is not ready before submit' };
+    }
+    form.requestSubmit();
+    return { ok: true };
+  })()`);
+  if (submit.threw || !submit.ok) {
+    fail(label, submit.why || 'add-to-cart submit did not start');
+    return;
+  }
+
+  const landed = await waitForHref(
+    (href) => href.includes(`/p/${slug}`) && href.includes('added=added')
+      && href.includes('?') && href.includes('#added'),
+    label,
+  );
+  if (!landed) return;
+
+  const got = await evalPage(`(() => {
+    const add = document.querySelector('.goen-pdp__add');
+    const notice = document.querySelector('.goen-pdp__added[role="status"]');
+    const link = document.querySelector('.goen-pdp__addedlink');
+    const addRect = add ? add.getBoundingClientRect() : null;
+    const noticeRect = notice ? notice.getBoundingClientRect() : null;
+    const viewport = window.innerHeight;
+    return {
+      href: location.href,
+      addDisabled: !!(add && add.disabled),
+      notice: notice ? notice.textContent.trim() : '',
+      hasCartLink: !!(link && link.getAttribute('href') === '/cart'),
+      noticeInView: !!(noticeRect && noticeRect.top >= 0 && noticeRect.bottom <= viewport + 1),
+      noticeNearAdd: !!(addRect && noticeRect && noticeRect.top >= addRect.bottom - 2
+        && noticeRect.top - addRect.bottom < 96),
+    };
+  })()`);
+  if (got.threw) {
+    fail(label, `post-add probe did not run — ${got.why}`);
+    return;
+  }
+  if (got.addDisabled) {
+    fail(label, 'add-to-cart is disabled after a successful add');
+  }
+  if (!got.notice) {
+    fail(label, 'no success notice rendered after add-to-cart');
+  }
+  if (!got.hasCartLink) {
+    fail(label, 'the success notice has no /cart link');
+  }
+  if (!got.noticeNearAdd) {
+    fail(label, 'the success notice is not adjacent to the add button at 375px');
+  }
+  if (!got.noticeInView) {
+    fail(label, 'the success notice is not fully inside the 375px viewport');
+  }
+
+  const cartCount = () => `(() => {
+    const badge = document.querySelector('.goen-header__cart .ui-badge--count');
+    return badge ? parseInt(badge.textContent.trim(), 10) : 0;
+  })()`;
+
+  const before = await evalPage(`({
+    notices: document.querySelectorAll('.goen-pdp__added').length,
+    cartUnits: ${cartCount()},
+    documentStarted: performance.timeOrigin,
+  })`);
+  if (before.threw) {
+    fail(label, `pre-refresh probe did not run — ${before.why}`);
+    return;
+  }
+  if (before.cartUnits < 1) {
+    fail(label, 'the header cart badge did not reflect the add-to-cart write');
+  }
+
+  await send(ws, 'Page.reload', { ignoreCache: false });
+  let refreshed = false;
+  for (let i = 0; i < 50; i++) {
+    const ready = await evalPage(`({
+      complete: document.readyState === 'complete',
+      documentStarted: performance.timeOrigin,
+      href: location.href,
+    })`);
+    if (!ready.threw && ready.complete && ready.documentStarted !== before.documentStarted
+      && ready.href === landed) {
+      refreshed = true;
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  if (!refreshed) {
+    fail(label, 'refresh did not complete in a new product document');
+    return;
+  }
+  const after = await evalPage(`({
+    href: location.href,
+    notices: document.querySelectorAll('.goen-pdp__added').length,
+    cartUnits: ${cartCount()},
+    addDisabled: !!(document.querySelector('.goen-pdp__add') && document.querySelector('.goen-pdp__add').disabled),
+  })`);
+  if (after.threw) {
+    fail(label, `refresh probe did not run — ${after.why}`);
+    return;
+  }
+  if (after.addDisabled) {
+    fail(label, 'refresh left add-to-cart disabled');
+  }
+  if (after.notices < before.notices) {
+    fail(label, 'refresh dropped the add-to-cart notice');
+  }
+  if (after.cartUnits !== before.cartUnits) {
+    fail(label, `refresh changed the cart unit count from ${before.cartUnits} to ${after.cartUnits}`);
+  }
+  console.log(`${label.padEnd(24)} scripting=${scriptingOff ? 'off' : 'on'} ` +
+    `noticeInView=${got.noticeInView} noticeNearAdd=${got.noticeNearAdd} cartLink=${got.hasCartLink}`);
+};
+
+await provePdpAdd('pdp add 375 off', true);
+await provePdpAdd('pdp add 375 on', false);
+await send(ws, 'Emulation.setScriptExecutionDisabled', { value: false });
+
 ws.close();
 
 if (failures.length) {

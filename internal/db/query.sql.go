@@ -12760,6 +12760,44 @@ func (q *Queries) VariantMovements(ctx context.Context, arg VariantMovementsPara
 	return items, nil
 }
 
+const variantProductSelection = `-- name: VariantProductSelection :one
+SELECT
+    p.slug,
+    coalesce(
+        (SELECT array_agg(o.name ORDER BY o.position, o.id)
+         FROM variant_option_values vov
+         JOIN product_options o ON o.id = vov.option_id
+         WHERE vov.variant_id = pv.id),
+        ARRAY[]::text[]
+    )::text[] AS option_names,
+    coalesce(
+        (SELECT array_agg(v.value ORDER BY o.position, o.id)
+         FROM variant_option_values vov
+         JOIN product_options o ON o.id = vov.option_id
+         JOIN product_option_values v ON v.id = vov.option_value_id
+         WHERE vov.variant_id = pv.id),
+        ARRAY[]::text[]
+    )::text[] AS option_values
+FROM product_variants pv
+JOIN products p ON p.id = pv.product_id
+WHERE pv.id = $1 AND p.status = 'active' AND pv.is_active
+`
+
+type VariantProductSelectionRow struct {
+	Slug         string
+	OptionNames  []string
+	OptionValues []string
+}
+
+// option_name and value are identity, what the URL selects on; the PDP's own
+// query matches on them and is exempt for exactly that reason.
+func (q *Queries) VariantProductSelection(ctx context.Context, id uuid.UUID) (VariantProductSelectionRow, error) {
+	row := q.db.QueryRow(ctx, variantProductSelection, id)
+	var i VariantProductSelectionRow
+	err := row.Scan(&i.Slug, &i.OptionNames, &i.OptionValues)
+	return i, err
+}
+
 const wishlistHas = `-- name: WishlistHas :one
 SELECT EXISTS (
     SELECT 1 FROM wishlist_items w JOIN products p ON p.id = w.product_id

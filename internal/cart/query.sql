@@ -114,6 +114,30 @@ FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
 WHERE pv.id = $1;
 
+-- option_name and value are identity, what the URL selects on; the PDP's own
+-- query matches on them and is exempt for exactly that reason.
+-- name: VariantProductSelection :one
+SELECT
+    p.slug,
+    coalesce(
+        (SELECT array_agg(o.name ORDER BY o.position, o.id)
+         FROM variant_option_values vov
+         JOIN product_options o ON o.id = vov.option_id
+         WHERE vov.variant_id = pv.id),
+        ARRAY[]::text[]
+    )::text[] AS option_names,
+    coalesce(
+        (SELECT array_agg(v.value ORDER BY o.position, o.id)
+         FROM variant_option_values vov
+         JOIN product_options o ON o.id = vov.option_id
+         JOIN product_option_values v ON v.id = vov.option_value_id
+         WHERE vov.variant_id = pv.id),
+        ARRAY[]::text[]
+    )::text[] AS option_values
+FROM product_variants pv
+JOIN products p ON p.id = pv.product_id
+WHERE pv.id = $1 AND p.status = 'active' AND pv.is_active;
+
 -- Each method's newest version, offered only for a cart its carrier will take.
 -- The test is PER ITEM: one item that does not fit cannot be split, while NULL
 -- on either side is unmeasured rather than too big.

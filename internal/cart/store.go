@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -244,6 +245,33 @@ func (s *Store) View(ctx context.Context, cartID uuid.UUID) (pages.CartView, err
 		}
 	}
 	return view, nil
+}
+
+// productReturnURL is where AddItem sends the browser after a write. The
+// selection query is rebuilt from the variant row the server accepted; only
+// added= comes from the handler outcome.
+func (s *Store) productReturnURL(
+	ctx context.Context, slug string, variantID uuid.UUID, outcome string,
+) (string, error) {
+	q := url.Values{}
+	q.Set("added", outcome)
+	if variantID == uuid.Nil {
+		return "/p/" + slug + "?" + q.Encode() + "#added", nil
+	}
+	row, err := s.q.VariantProductSelection(ctx, variantID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "/p/" + slug + "?" + q.Encode() + "#added", nil
+		}
+		return "", fmt.Errorf("read variant selection: %w", err)
+	}
+	if row.Slug != slug {
+		return "/cart", nil
+	}
+	for i := range min(len(row.OptionNames), len(row.OptionValues)) {
+		q.Set(row.OptionNames[i], row.OptionValues[i])
+	}
+	return "/p/" + row.Slug + "?" + q.Encode() + "#added", nil
 }
 
 // optionLabel renders a variant's option values, joined with a middle dot.
