@@ -45,10 +45,12 @@ var (
 			"%s.",
 	})
 
+	// A numbered landing window here is a second SLA next to /returns, which
+	// leaves the day to the card issuer.
 	KeyTrustReturnsBody = key("home.trust.returns", Message{
-		ZhHant: "線上申請、宅配回收,退款 3–5 個工作天入帳。",
-		En: "Request it online, we collect it, and the refund lands in 3 to 5 working " +
-			"days.",
+		ZhHant: "線上申請、宅配回收,實際入帳時間由發卡銀行決定,通常是數個工作天。",
+		En: "Request it online, we collect it. When it lands is your card issuer's " +
+			"decision, usually a few working days.",
 	})
 
 	KeyTrustPayment = key("home.trust.payment", Message{ZhHant: "付款安全", En: "Secure payment"})
