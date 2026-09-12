@@ -14,6 +14,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -173,6 +174,133 @@ func TestUndecidedTermsAreMarkedPending(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestReturnsHowToAskDoesNotRequireAReasonUnlessTheFormDoes holds the
+// Chinese /returns "怎麼申請" steps to the form. Consumer Protection
+// Act §19 I needs no reason; the customer textarea has no required,
+// so a Chinese reader told to fill a reason before sending will think
+// a blank is refused.
+func TestReturnsHowToAskDoesNotRequireAReasonUnlessTheFormDoes(t *testing.T) {
+	t.Parallel()
+
+	zhHow := returnsHowToAsk(t, i18n.ZhHant)
+	enHow := returnsHowToAsk(t, i18n.En)
+	zhHTML := renderReturnsPolicy(t, i18n.ZhHant)
+	enHTML := renderReturnsPolicy(t, i18n.En)
+
+	if !strings.Contains(zhHTML, zhHow.heading) {
+		t.Errorf("Chinese /returns does not render the how-to-ask heading %q", zhHow.heading)
+	}
+	if !strings.Contains(enHTML, enHow.heading) {
+		t.Errorf("English /returns does not render the how-to-ask heading %q", enHow.heading)
+	}
+	for _, para := range zhHow.body {
+		if !strings.Contains(zhHTML, para) {
+			t.Errorf("Chinese /returns does not render how-to-ask %q", para)
+		}
+	}
+	if !strings.Contains(enHTML, "A reason is optional") {
+		t.Errorf("English /returns does not render the optional-reason sentence")
+	}
+
+	if returnReasonFieldIsRequired(t) {
+		return
+	}
+
+	impliedRequired := []string{"填寫原因後送出", "填寫原因後", "必須填寫原因", "請填寫原因"}
+	for _, phrase := range impliedRequired {
+		if strings.Contains(zhHow.text, phrase) {
+			t.Errorf("Chinese how-to-ask implies a reason is required: %q", phrase)
+		}
+		if strings.Contains(zhHTML, phrase) {
+			t.Errorf("rendered Chinese /returns still implies a required reason: %q", phrase)
+		}
+	}
+	if !strings.Contains(zhHow.text, "原因選填") {
+		t.Error("Chinese how-to-ask does not say the reason is optional")
+	}
+	if !strings.Contains(zhHTML, "原因選填") {
+		t.Error("rendered Chinese /returns does not say the reason is optional")
+	}
+	if !strings.Contains(enHow.text, "A reason is optional") {
+		t.Error("English how-to-ask no longer says a reason is optional")
+	}
+}
+
+type howToAskCopy struct {
+	heading string
+	body    []string
+	text    string
+}
+
+func returnsHowToAsk(t *testing.T, locale i18n.Locale) howToAskCopy {
+	t.Helper()
+
+	doc, ok := policies["returns"]
+	if !ok {
+		t.Fatal("no /returns policy")
+	}
+	localized := doc.For(locale)
+	want := "怎麼申請"
+	if locale == i18n.En {
+		want = "How to ask"
+	}
+	for _, s := range localized.Sections {
+		if s.Heading != want {
+			continue
+		}
+		return howToAskCopy{
+			heading: s.Heading,
+			body:    s.Body,
+			text:    strings.Join(s.Body, "\n"),
+		}
+	}
+	t.Fatalf("/returns has no %q section", want)
+	return howToAskCopy{}
+}
+
+func renderReturnsPolicy(t *testing.T, locale i18n.Locale) string {
+	t.Helper()
+
+	doc, ok := policies["returns"]
+	if !ok {
+		t.Fatal("no /returns policy")
+	}
+	doc = doc.For(locale)
+	var b strings.Builder
+	if err := pages.Policy(
+		layouts.Page{Title: doc.Title, Description: doc.Summary},
+		doc,
+	).Render(i18n.WithLocale(t.Context(), locale), &b); err != nil {
+		t.Fatalf("render /returns: %v", err)
+	}
+	out := b.String()
+	if out == "" {
+		t.Fatal("rendered /returns is empty")
+	}
+	return out
+}
+
+// returnReasonFieldIsRequired reports the customer return form's reason
+// textarea. The policy may tell a reader a reason is required only when
+// this control does.
+func returnReasonFieldIsRequired(t *testing.T) bool {
+	t.Helper()
+
+	src, err := os.ReadFile(filepath.Join("..", "ui", "pages", "returns.templ"))
+	if err != nil {
+		t.Fatalf("read returns.templ: %v", err)
+	}
+	textareas := regexp.MustCompile(`(?s)<textarea\b[^>]*>`).FindAllString(string(src), -1)
+	for _, tag := range textareas {
+		if !strings.Contains(tag, `id="return-reason"`) {
+			continue
+		}
+		return regexp.MustCompile(`(?:^|[\s{])required(?:$|[\s}])`).MatchString(tag)
+	}
+	t.Fatal("returns.templ has no #return-reason textarea; the lock is not reading the form")
+	return false
 }
 
 // TestEveryPolicyClauseIsTranslated refuses a policy page that goes
