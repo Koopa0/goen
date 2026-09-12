@@ -65,12 +65,12 @@ var (
 
 	KeyHeroHeadline = key("home.hero.headline", Message{
 		ZhHant: "手機、筆電、平板與耳機",
-		En:     "Phones, laptops, tablets and headphones",
+		En:     "Phones and laptops",
 	})
 
 	KeyHeroBody = key("home.hero.body", Message{
 		ZhHant: "也賣穿戴裝置與配件。保固期限寫在各商品頁。",
-		En:     "Wearables and accessories as well. Warranty terms are on each product page.",
+		En:     "Tablets, headphones, wearables and accessories as well. Warranty terms are on each product page.",
 	})
 
 	KeyHeroPrimaryCTA = key("home.hero.cta.primary", Message{

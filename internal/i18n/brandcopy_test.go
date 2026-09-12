@@ -84,16 +84,17 @@ func TestBrandCopyJobsDoNotShareASentence(t *testing.T) {
 func TestBuiltInHeroNamesTheCatalogue(t *testing.T) {
 	t.Parallel()
 
-	zh := messages[KeyHeroHeadline].ZhHant
-	en := messages[KeyHeroHeadline].En
+	zh := messages[KeyHeroHeadline].ZhHant + " " + messages[KeyHeroBody].ZhHant
+	en := messages[KeyHeroHeadline].En + " " + messages[KeyHeroBody].En
 	for _, word := range []string{"手機", "筆電", "平板", "耳機"} {
 		if !strings.Contains(zh, word) {
-			t.Errorf("Chinese hero headline %q does not name %s", zh, word)
+			t.Errorf("Chinese built-in hero %q does not name %s", zh, word)
 		}
 	}
-	for _, word := range []string{"Phones", "laptops", "tablets", "headphones"} {
-		if !strings.Contains(en, word) {
-			t.Errorf("English hero headline %q does not name %s", en, word)
+	enFold := strings.ToLower(en)
+	for _, word := range []string{"phones", "laptops", "tablets", "headphones"} {
+		if !strings.Contains(enFold, word) {
+			t.Errorf("English built-in hero %q does not name %s", en, word)
 		}
 	}
 }
