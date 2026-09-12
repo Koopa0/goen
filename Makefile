@@ -25,6 +25,7 @@ endif
 .PHONY: build run test test-race test-integration production-build-check integration-build-check \
         image image-push lint fmt fmt-check vet deadcode gen templ-check vuln \
         sqlc sqlc-check squawk db-up db-down migrate-up migrate-down db-seed \
+        db-repair-invoice-faq \
         cursor-scripts-check verify verify-all check-layout db-reset clean
 
 build: gen
@@ -561,6 +562,13 @@ migrate-down:
 db-seed:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
 	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/dev_catalog.sql
+
+# Rewrite the published invoice FAQ on a database that already has one.
+# db-seed cannot: the catalogue INSERT stops on the first kept brand.
+# This file updates that one question and nothing else.
+db-repair-invoice-faq:
+	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
+	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/repair_invoice_faq.sql
 
 # Rebuild the development database from scratch.
 #
