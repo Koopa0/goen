@@ -16,7 +16,7 @@ templ Contact(p layouts.Page, f ContactForm) {
 				<p class="ui-sm contact__hours">{ i18n.T(ctx, i18n.KeyContactHours) }</p>
 			</div>
 			<div class="contact__methods">
-				@contactMethod("mailto:support@goen.tw", "Email", "support@goen.tw") {
+				@contactMethod("mailto:support@goen.tw", i18n.T(ctx, i18n.KeyFieldEmail), "support@goen.tw") {
 					@icons.Mail()
 				}
 				@contactMethod("tel:+886227001234", i18n.T(ctx, i18n.KeyContactPhone), "02-2700-1234") {
@@ -115,7 +115,7 @@ templ ContactPanel(f ContactForm) {
 					}
 				</label>
 				<label class="ui-field" for="contact-email">
-					<span class="ui-label">Email<span class="ui-req">*</span></span>
+					<span class="ui-label">{ i18n.T(ctx, i18n.KeyFieldEmail) }<span class="ui-req">*</span></span>
 					<input
 						class="ui-input ui-input--lg"
 						id="contact-email"
