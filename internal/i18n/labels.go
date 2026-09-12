@@ -23,6 +23,8 @@ var (
 
 	KeyAdminColNameEn = key("admin.col.nameen", Message{ZhHant: "名稱(英文)", En: "Name (English)"})
 
+	KeyAdminColEnglish = key("admin.col.english", Message{ZhHant: "英文", En: "English"})
+
 	KeyAdminColCode = key("admin.col.code", Message{ZhHant: "代碼", En: "Code"})
 
 	KeyAdminColSlug = key("admin.col.slug", Message{ZhHant: "網址代稱", En: "Slug"})
