@@ -295,7 +295,34 @@ check-layout:
 			$$U/admin/returns/$$RID/decide); \
 		test "$$STATUS" = 303 || { echo "return fixture decide answered $$STATUS, want 303" >&2; exit 2; }; \
 		REFUNDED=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT (rf.card_cents + rf.credit_cents)::text FROM order_refunds rf JOIN orders o ON o.id = rf.order_id WHERE o.order_number = '$$RN'"); \
-		test "$${REFUNDED:-0}" -ge 100 || { echo "return fixture refunded $${REFUNDED:-0} cents after decide, want at least 100 so invoice_allowance_valid has room" >&2; exit 2; }
+		test "$${REFUNDED:-0}" -ge 100 || { echo "return fixture refunded $${REFUNDED:-0} cents after decide, want at least 100 so invoice_allowance_valid has room" >&2; exit 2; }; \
+		VARIANT2=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT pv.id FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE p.status = 'active' AND pv.is_active AND pv.stock_quantity > pv.safety_stock LIMIT 1"); \
+		rm -f .layout-chrome/cust-cookies2; \
+		curl -s -o /dev/null -c .layout-chrome/cust-cookies2 -b "goen_session=$$CT" \
+			-d "variant=$$VARIANT2&quantity=1" $$U/cart/items; \
+		PAGE=$$(curl -fsS -b .layout-chrome/cust-cookies2 -b "goen_session=$$CT" $$U/checkout); \
+		QUOTE=$$(printf '%s' "$$PAGE" | grep -o 'name="checkout_quote" value="[^"]*"' | head -1 | cut -d'"' -f4); \
+		ATTEMPT=$$(printf '%s' "$$PAGE" | grep -o 'name="idempotency" value="[^"]*"' | head -1 | cut -d'"' -f4); \
+		SHIP=$$(printf '%s' "$$PAGE" | grep -o 'name="shipping" value="[^"]*" checked' | head -1 | cut -d'"' -f4); \
+		test -n "$$QUOTE" -a -n "$$ATTEMPT" -a -n "$$SHIP" || { echo 'return-form fixture did not render its quote, attempt ID and selected shipping method' >&2; exit 2; }; \
+		STATUS=$$(curl -sS -o /dev/null -w '%{http_code}' -b .layout-chrome/cust-cookies2 -c .layout-chrome/cust-cookies2 \
+			-b "goen_session=$$CT" -H 'Sec-Fetch-Site: same-origin' \
+			--data-urlencode 'email=layout-cust@goen.invalid' --data-urlencode 'name=版面顧客' \
+			--data-urlencode 'phone=0912345678' --data-urlencode 'postal_code=110' \
+			--data-urlencode 'city=台北市' --data-urlencode 'district=信義區' \
+			--data-urlencode 'street=松高路 1 號' --data-urlencode "shipping=$$SHIP" \
+			--data-urlencode "checkout_quote=$$QUOTE" \
+			--data-urlencode "idempotency=$$ATTEMPT" $$U/checkout); \
+		test "$$STATUS" = 303 || { echo "return-form fixture checkout answered $$STATUS, want 303" >&2; exit 2; }; \
+		RETURN_FORM_ORDER=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT o.order_number FROM orders o JOIN users u ON u.id = o.user_id WHERE u.email = 'layout-cust@goen.invalid' ORDER BY o.placed_at DESC LIMIT 1"); \
+		test -n "$$RETURN_FORM_ORDER" || { echo 'return-form fixture checkout created no customer order' >&2; exit 2; }; \
+		curl -s -o /dev/null -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
+			-d 'status=picking' $$U/admin/orders/$$RETURN_FORM_ORDER/status; \
+		curl -s -o /dev/null -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
+			--data-urlencode 'carrier=黑貓宅急便' --data-urlencode "tracking=LAYOUTCHECK2$$$$" \
+			--data-urlencode 'fee=80' $$U/admin/orders/$$RETURN_FORM_ORDER/ship; \
+		curl -s -o /dev/null -b "goen_session=$$AT" -H 'Sec-Fetch-Site: same-origin' \
+			-d 'status=delivered' $$U/admin/orders/$$RETURN_FORM_ORDER/status
 	@# /admin/health's two ALARM tables and the 折讓 form on an order page.
 	@# Each renders only when there is something wrong, so the page a browser sees
 	@# without them is the healthy one — chrome, a status list, and none of the
@@ -380,9 +407,18 @@ check-layout:
 	@# The number is read back through the GRANT the token names rather than as
 	@# "the newest order", so the cookie and the URL cannot come to name two
 	@# different orders — which is exactly the divergence being repaired here.
+	@CT=$$(cat .layout-chrome/cust-token); U=$${GOEN_URL:-http://127.0.0.1:9700}; \
+		PRODUCT_SLUG=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT slug FROM products WHERE status = 'active' ORDER BY slug LIMIT 1"); \
+		test -n "$$PRODUCT_SLUG" || { echo 'wishlist fixture found no active product slug' >&2; exit 2; }; \
+		curl -s -o /dev/null -b "goen_session=$$CT" -H 'Sec-Fetch-Site: same-origin' \
+			--data-urlencode "slug=$$PRODUCT_SLUG" $$U/account/wishlist; \
+		test "$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT count(*) FROM wishlist_items w JOIN users u ON u.id = w.user_id JOIN products p ON p.id = w.product_id WHERE u.email = 'layout-cust@goen.invalid' AND p.slug = '$$PRODUCT_SLUG'")" -ge 1 \
+			|| { echo 'wishlist fixture wrote no row for layout-cust@goen.invalid' >&2; exit 2; }
 	@PLACED_TOKEN=$$(awk '/goen_placed/ {print $$7}' .layout-chrome/cookies); \
 		INVOICE_ORDER=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT o.order_number FROM orders o JOIN return_requests r ON r.order_id = o.id JOIN invoice_documents d ON d.order_id = o.id AND d.number = 'GD-LAYOUT1' WHERE r.status IN ('approved', 'completed') ORDER BY o.placed_at DESC LIMIT 1"); \
 		test -n "$$INVOICE_ORDER" || { echo 'invoice fixture wrote no refunded order — /admin/orders/ would measure the list and call the 折讓 form covered' >&2; exit 2; }; \
+		RETURN_FORM_ORDER=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT o.order_number FROM orders o JOIN users u ON u.id = o.user_id LEFT JOIN return_requests r ON r.order_id = o.id WHERE u.email = 'layout-cust@goen.invalid' AND o.fulfillment_status = 'delivered' AND r.id IS NULL ORDER BY o.placed_at DESC LIMIT 1"); \
+		test -n "$$RETURN_FORM_ORDER" || { echo 'return-form fixture wrote no delivered order without a return — /orders/{n}/return would measure history only' >&2; exit 2; }; \
 		PRODUCT_SLUG=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT slug FROM products WHERE status = 'active' ORDER BY slug LIMIT 1"); \
 		COMPARE_SLUG_B=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT slug FROM products WHERE status = 'active' ORDER BY slug OFFSET 1 LIMIT 1"); \
 		test -n "$$COMPARE_SLUG_B" && test "$$PRODUCT_SLUG" != "$$COMPARE_SLUG_B" || { echo 'need two distinct active products to measure /compare — one p= renders the empty state' >&2; exit 2; }; \
@@ -393,6 +429,7 @@ check-layout:
 		PLACED_TOKEN=$$PLACED_TOKEN \
 		PLACED_ORDER=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT o.order_number FROM orders o JOIN order_access_grants g ON g.order_id = o.id WHERE g.digest = sha256('$$PLACED_TOKEN'::bytea)") \
 		INVOICE_ORDER=$$INVOICE_ORDER \
+		RETURN_FORM_ORDER=$$RETURN_FORM_ORDER \
 		CUSTOMER_ID=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT id FROM users WHERE email = 'layout-cust@goen.invalid'") \
 		LAYOUT_SERIAL=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT w.serial_number FROM warranty_registrations w JOIN users u ON u.id = w.user_id WHERE u.email = 'layout-cust@goen.invalid' ORDER BY w.registered_at DESC LIMIT 1") \
 		ADMIN_TOKEN=$$(cat .layout-chrome/admin-token) \
