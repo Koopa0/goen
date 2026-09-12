@@ -32,7 +32,11 @@ var policies = map[string]pages.PolicyDoc{
 				Heading:   "怎麼申請",
 				HeadingEn: "How to ask",
 				Body: []string{
-					"在訂單頁點「申請退貨」,選擇要退回的商品與數量,填寫原因後送出。同一筆訂單一次只能有一件處理中的申請。",
+					// Consumer Protection Act §19 I needs no reason; the form
+					// and return_requests_reason_bounded allow a blank. Chinese
+					// that treats filling one as a step before submit tells
+					// that reader a blank is refused.
+					"在訂單頁點「申請退貨」,選擇要退回的商品與數量後送出。原因選填。同一筆訂單一次只能有一件處理中的申請。",
 					"我們收到申請後會審核並回覆結果,同意或不同意都會說明原因。",
 				},
 				BodyEn: []string{
