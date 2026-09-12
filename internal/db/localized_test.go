@@ -119,6 +119,8 @@ func TestEveryOptionLabelIsLocalized(t *testing.T) {
 		"ProductOptionCount":       "counts axes, reads no text",
 		"SetVariantOptionValue":    "the write",
 		"AdminVariantOptionValues": "back office: the variant list's option column",
+		"VariantProductSelection": "matching, not display: rebuilds the canonical " +
+			"selection URL the PDP resolves after add-to-cart",
 	}
 
 	used := map[string]bool{}
@@ -179,6 +181,8 @@ func TestEveryProductNameIsLocalized(t *testing.T) {
 		"AddProductOption":         "the write",
 		"CreateProduct":            "the write",
 		"UpdateProduct":            "the write",
+		"VariantProductSelection": "matching, not display: joins products only to " +
+			"read slug and canonical option identity for the redirect URL",
 	}
 
 	used := map[string]bool{}

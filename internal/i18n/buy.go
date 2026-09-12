@@ -5,6 +5,8 @@ var (
 
 	KeyAddedToCart = key("buy.added", Message{ZhHant: "已加入購物車。", En: "Added to your cart."})
 
+	KeyViewCart = key("buy.view_cart", Message{ZhHant: "查看購物車", En: "View cart"})
+
 	KeyAddRefused = key("buy.add.refused", Message{
 		ZhHant: "這個規格剛剛被買走了,沒有加入購物車。",
 		En:     "That option has just sold out, so nothing was added.",
