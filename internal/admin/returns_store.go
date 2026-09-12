@@ -257,7 +257,9 @@ func fillReturnPayoutState(
 // after, so a crash between the two leaves something reconciliation can find;
 // an ambiguous attempt reuses its provider key, while a known terminal attempt
 // gets a fresh DB-derived key and immutable successor row.
-func (s *Store) Decide(ctx context.Context, id, decision, resolution string, _ uuid.NullUUID) error {
+func (s *Store) Decide(
+	ctx context.Context, id, decision, resolution, rejectionGround string, _ uuid.NullUUID,
+) error {
 	if !validReturnResolution(resolution) {
 		return fmt.Errorf("%w: return resolution exceeds %d characters",
 			ErrInvalid, maxReturnResolutionRunes)
@@ -280,8 +282,13 @@ func (s *Store) Decide(ctx context.Context, id, decision, resolution string, _ u
 	if readErr != nil {
 		return readErr
 	}
+	window, entitlement, policyErr := applyReturnPolicy(
+		retry, &row, decisionStatus, rejectionGround)
+	if policyErr != nil {
+		return policyErr
+	}
 	if decisionStatus == returns.ReturnRejected {
-		return s.closeReturn(ctx, row.ID, returns.ReturnRejected, resolution)
+		return s.closeReturn(ctx, row.ID, returns.ReturnRejected, resolution, window, entitlement)
 	}
 
 	if retry {
@@ -301,7 +308,7 @@ func (s *Store) Decide(ctx context.Context, id, decision, resolution string, _ u
 	// and the loser must not have paid anything on the way to finding out. The
 	// transition freezes goods and the one delivery allocation under the order
 	// lock, so every provider retry keeps this winning economic identity.
-	if closeErr := s.closeReturn(ctx, row.ID, returns.ReturnApproved, resolution); closeErr != nil {
+	if closeErr := s.closeReturn(ctx, row.ID, returns.ReturnApproved, resolution, window, entitlement); closeErr != nil {
 		return closeErr
 	}
 	frozen, err := s.q.ReturnForDecision(ctx, row.ID)
@@ -385,6 +392,59 @@ func (s *Store) returnUnderDecision(
 			fmt.Errorf("%w: return %s is already %s", ErrRefused, id, row.Status)
 	}
 	return row, retry, nil
+}
+
+func applyReturnPolicy(
+	retry bool, row *db.ReturnForDecisionRow, decision returns.ReturnStatus, rejectionGround string,
+) (returns.PolicyWindow, returns.Entitlement, error) {
+	if retry {
+		return "", "", nil
+	}
+	return returnDecisionClaim(row.PolicyWindow, decision, row.Reason, rejectionGround)
+}
+
+// returnDecisionClaim is the advertised policy at the decision door. A retry
+// has already been decided; re-reading now() or the clocks must not rewrite
+// that claim. A first decision classifies from the query's policy_window, which
+// is created_at against delivered_at, so a day-5 filing stays statutory on
+// day 20.
+func returnDecisionClaim(
+	policyWindow string, decision returns.ReturnStatus, reason, rejectionGround string,
+) (returns.PolicyWindow, returns.Entitlement, error) {
+	window, ok := returns.ParsePolicyWindow(policyWindow)
+	if !ok {
+		return "", "", fmt.Errorf("%w: return policy window %q is not a known window",
+			ErrRefused, policyWindow)
+	}
+	ground, groundOK := returns.ParseRejectionGround(rejectionGround)
+	if decision == returns.ReturnRejected && rejectionGround != "" && !groundOK {
+		return "", "", fmt.Errorf("%w: rejection ground %q is not a known ground",
+			ErrRefused, rejectionGround)
+	}
+	if decision == returns.ReturnRejected && returns.RefuseRejection(window, reason, ground) {
+		return "", "", fmt.Errorf("%w: statutory rescission cannot be refused for a blank reason",
+			ErrRefused)
+	}
+	var entitlement returns.Entitlement
+	if decision == returns.ReturnApproved {
+		entitlement = returns.EntitlementFor(window)
+	}
+	return window, entitlement, nil
+}
+
+func returnDecisionAudit(
+	status returns.ReturnStatus, resolution string,
+	window returns.PolicyWindow, entitlement returns.Entitlement,
+) map[string]any {
+	after := map[string]any{
+		"decision":      string(status),
+		"resolution":    resolution,
+		"policy_window": string(window),
+	}
+	if entitlement != "" {
+		after["entitlement"] = string(entitlement)
+	}
+	return after
 }
 
 // refundSplit is how a return is paid back: part to the card, part to the
@@ -642,6 +702,8 @@ func (s *Store) closeReturn(
 	requestID uuid.UUID,
 	status returns.ReturnStatus,
 	resolution string,
+	window returns.PolicyWindow,
+	entitlement returns.Entitlement,
 ) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -669,7 +731,7 @@ func (s *Store) closeReturn(
 	}
 	if err := auditIn(ctx, q, Event{
 		Action: actionDecideReturn, Table: "return_requests", ID: nullableID(requestID),
-		After: map[string]any{"decision": string(status), "resolution": resolution},
+		After: returnDecisionAudit(status, resolution, window, entitlement),
 	}); err != nil {
 		return err
 	}

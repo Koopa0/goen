@@ -42,6 +42,16 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 										<strong>{ r.WindowText(ctx) }</strong>
 										{ i18n.T(ctx, i18n.KeyAdminRetMustAccept) }
 									</span>
+								} else if r.Goodwill() {
+									<span class="ui-cart-line__meta">
+										<strong>{ r.WindowText(ctx) }</strong>
+										{ i18n.T(ctx, i18n.KeyAdminRetGoodwillHint) }
+									</span>
+								} else if r.Late() {
+									<span class="ui-cart-line__meta">
+										{ r.WindowText(ctx) }
+										{ i18n.T(ctx, i18n.KeyAdminRetLateHint) }
+									</span>
 								} else {
 									<span class="ui-cart-line__meta">{ r.WindowText(ctx) }</span>
 								}
@@ -73,6 +83,13 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 							</div>
 							if !r.Decided {
 								<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.Action()) }>
+									<div class="ui-field">
+										<label class="ui-label" for={ "ground-" + r.ID }>{ i18n.T(ctx, i18n.KeyAdminRetRejectionGround) }</label>
+										<select class="ui-input" id={ "ground-" + r.ID } name="rejection_ground">
+											<option value="missing_reason">{ i18n.T(ctx, i18n.KeyAdminRetRejectionGroundMissingReason) }</option>
+											<option value="ineligible">{ i18n.T(ctx, i18n.KeyAdminRetRejectionGroundIneligible) }</option>
+										</select>
+									</div>
 									<div class="ui-field">
 										<label class="ui-label" for={ "res-" + r.ID }>{ i18n.T(ctx, i18n.KeyAdminRetResolution) }</label>
 										<input class="ui-input" id={ "res-" + r.ID } name="resolution" maxlength="300" autocomplete="off"/>

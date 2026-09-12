@@ -18,8 +18,9 @@ type AdminReturn struct {
 	Units       int32
 	AmountCents int64
 	CreatedAt   string
-	// Window is "within", "after" or "undelivered" against Consumer Protection
-	// Act §19 I's seven days from receipt.
+	// Window is "within", "goodwill", "after" or "undelivered": the statutory
+	// seven days, the shop's advertised days 8–14, later than that, or a
+	// parcel whose window has not started. Counted from the request clock.
 	Window  string
 	Decided bool
 	// Decided and settled are separate facts: approval is committed before the
@@ -81,11 +82,21 @@ func (r AdminReturn) RestockedUnitsText() string {
 // Rescission reports whether this request is inside the statutory seven days.
 func (r AdminReturn) Rescission() bool { return r.Window == "within" }
 
+// Goodwill reports whether this request is inside the shop's advertised
+// days 8–14. That is a window, not an entitlement: unused and complete are
+// not facts the decision can read.
+func (r AdminReturn) Goodwill() bool { return r.Window == "goodwill" }
+
+// Late reports whether this request was filed after the advertised 14 days.
+func (r AdminReturn) Late() bool { return r.Window == "after" }
+
 // WindowText names the window in the reader's language.
 func (r AdminReturn) WindowText(ctx context.Context) string {
 	switch r.Window {
 	case "within":
 		return i18n.T(ctx, i18n.KeyAdminReturnWindowWithin)
+	case "goodwill":
+		return i18n.T(ctx, i18n.KeyAdminReturnWindowGoodwill)
 	case "after":
 		return i18n.T(ctx, i18n.KeyAdminReturnWindowAfter)
 	case "undelivered":

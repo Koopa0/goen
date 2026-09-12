@@ -8,6 +8,19 @@ import (
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
+func TestEveryReturnPolicyWindowHasALabel(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		for _, window := range []string{"within", "goodwill", "after", "undelivered"} {
+			label := AdminReturn{Window: window}.WindowText(ctx)
+			if label == "" || label == window {
+				t.Errorf("WindowText(%q) in %s = %q, want a catalogue label", window, locale, label)
+			}
+		}
+	}
+}
+
 func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 	base := func(id string) AdminReturn {
 		return AdminReturn{
@@ -22,6 +35,55 @@ func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 		}))
 	}
 
+	t.Run("each policy window names itself without claiming a missing fact", func(t *testing.T) {
+		ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+		tests := []struct {
+			window string
+			want   []string
+			hide   []string
+		}{
+			{
+				window: "within",
+				want:   []string{i18n.T(ctx, i18n.KeyAdminReturnWindowWithin), i18n.T(ctx, i18n.KeyAdminRetMustAccept)},
+				hide:   []string{i18n.T(ctx, i18n.KeyAdminRetGoodwillHint), i18n.T(ctx, i18n.KeyAdminRetLateHint)},
+			},
+			{
+				window: "goodwill",
+				want:   []string{i18n.T(ctx, i18n.KeyAdminReturnWindowGoodwill), i18n.T(ctx, i18n.KeyAdminRetGoodwillHint)},
+				hide:   []string{i18n.T(ctx, i18n.KeyAdminRetMustAccept)},
+			},
+			{
+				window: "after",
+				want:   []string{i18n.T(ctx, i18n.KeyAdminReturnWindowAfter), i18n.T(ctx, i18n.KeyAdminRetLateHint)},
+				hide:   []string{i18n.T(ctx, i18n.KeyAdminRetMustAccept), i18n.T(ctx, i18n.KeyAdminRetGoodwillHint)},
+			},
+			{
+				window: "undelivered",
+				want:   []string{i18n.T(ctx, i18n.KeyAdminReturnWindowUndelivered)},
+				hide:   []string{i18n.T(ctx, i18n.KeyAdminRetMustAccept), i18n.T(ctx, i18n.KeyAdminRetLateHint)},
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.window, func(t *testing.T) {
+				row := base("window-" + tt.window)
+				row.Status = "requested"
+				row.Decided = false
+				row.Window = tt.window
+				html := render(t, row)
+				for _, want := range tt.want {
+					if !strings.Contains(html, want) {
+						t.Errorf("window %s HTML lacks %q", tt.window, want)
+					}
+				}
+				for _, hide := range tt.hide {
+					if strings.Contains(html, hide) {
+						t.Errorf("window %s HTML still claims %q", tt.window, hide)
+					}
+				}
+			})
+		}
+	})
+
 	t.Run("an open request offers both decisions", func(t *testing.T) {
 		row := base("open-row")
 		row.Status = "requested"
@@ -29,6 +91,7 @@ func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 		html := render(t, row)
 		for _, want := range []string{
 			`action="/admin/returns/open-row/decide"`, `value="approved"`, `value="rejected"`,
+			`name="rejection_ground"`, `value="missing_reason"`, `value="ineligible"`,
 			`name="resolution"`, `maxlength="300"`,
 		} {
 			if !strings.Contains(html, want) {

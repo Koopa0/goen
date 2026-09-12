@@ -97,6 +97,11 @@ var (
 		En:     "Within the statutory 7-day right to cancel",
 	})
 
+	KeyAdminReturnWindowGoodwill = key("admin.return.window.goodwill", Message{
+		ZhHant: "送達後第 8–14 日(店家優惠)",
+		En:     "Days 8–14 of the shop's voluntary offer",
+	})
+
 	KeyAdminReturnWindowAfter = key("admin.return.window.after", Message{
 		ZhHant: "已逾鑑賞期",
 		En:     "Past the statutory 7-day right to cancel",
@@ -132,6 +137,17 @@ var (
 		En:     "(the law does not allow this one to be refused, and the refund includes the original delivery fee)",
 	})
 
+	KeyAdminRetGoodwillHint = key("admin.ret.goodwillhint", Message{
+		ZhHant: "未使用且包裝與配件齊全才是政策內受理；系統沒有這兩項事實，同意即為人工例外。",
+		En: "Unused and complete with box and accessories is the advertised offer. " +
+			"Those facts are not on the request, so approval is a staff exception.",
+	})
+
+	KeyAdminRetLateHint = key("admin.ret.latehint", Message{
+		ZhHant: "已逾 14 日。同意是人工例外，不是政策內權利。",
+		En:     "Past 14 days. Approval is a staff exception, not a policy entitlement.",
+	})
+
 	KeyAdminRetReceivedRestocked = key("admin.ret.receivedrestocked", Message{
 		ZhHant: "收到 %s · 入庫 %s",
 		En:     "%s received · %s back in stock",
@@ -142,6 +158,21 @@ var (
 	KeyAdminRetScrapped = key("admin.ret.scrapped", Message{ZhHant: "(未入庫)", En: "(not restocked)"})
 
 	KeyAdminRetResolution = key("admin.ret.resolution", Message{ZhHant: "處理說明", En: "Resolution note"})
+
+	KeyAdminRetRejectionGround = key("admin.ret.rejectionground", Message{
+		ZhHant: "不同意事由",
+		En:     "Ground for declining",
+	})
+
+	KeyAdminRetRejectionGroundMissingReason = key("admin.ret.rejectionground.missingreason", Message{
+		ZhHant: "客戶未填退貨原因",
+		En:     "Customer gave no reason",
+	})
+
+	KeyAdminRetRejectionGroundIneligible = key("admin.ret.rejectionground.ineligible", Message{
+		ZhHant: "其他事由（商品已使用、不符合條件等）",
+		En:     "Other ground (used, ineligible, etc.)",
+	})
 
 	KeyAdminRetApprove = key("admin.ret.approve", Message{ZhHant: "同意並退款", En: "Approve and refund"})
 
