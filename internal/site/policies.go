@@ -43,13 +43,15 @@ var policies = map[string]pages.PolicyDoc{
 			{
 				Heading:   "退款",
 				HeadingEn: "Refunds",
+				// compensate_return_with_credit pays the store-credit half of a
+				// return; naming only Stripe here would describe a different shop.
 				Body: []string{
-					"退貨經同意後,系統會立即向 Stripe 發出退款,金額依訂單本身的單價計算。實際入帳時間由發卡銀行決定,通常是數個工作天。",
-					"退款一定會退回原付款方式,不會改用其他管道。",
+					"退貨經同意後,系統依原付款組成退回:卡款立刻向 Stripe 發出退款,店儲退回購物金餘額。金額依訂單本身的單價計算。卡款入帳時間由發卡銀行決定,通常是數個工作天;額度退回後可立刻再用於結帳。",
+					"退款依原路退回,不會改用其他管道。",
 				},
 				BodyEn: []string{
-					"Once a return is approved we ask Stripe to refund immediately. The amount comes from the order's own prices, less the share of any discount those goods carried. When it lands is your card issuer's decision, usually a few working days.",
-					"A refund always goes back to the way you paid. We will not substitute another channel.",
+					"Once a return is approved we pay it back the way you paid: the card share is refunded through Stripe immediately, and store credit returns to your balance. The amount comes from the order's own prices, less the share of any discount those goods carried. When a card refund lands is your card issuer's decision, usually a few working days; credit is available again at once.",
+					"A refund always follows the original payment: card through Stripe, store credit to your balance. We will not substitute another channel.",
 				},
 			},
 			// Consumer Protection Act §19 I: seven days from receipt, no reason,
