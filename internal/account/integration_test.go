@@ -465,16 +465,36 @@ func TestOrdersAreScopedToTheirOwner(t *testing.T) {
 
 	number := placeOrderFor(t, theirs.ID)
 
-	if _, err := s.Order(ctx, theirs, number); err != nil {
-		t.Fatalf("the owner cannot see their own order: %v", err)
+	cartStore := cart.NewStore(pool)
+	h := cart.NewHandler(cartStore, slog.New(slog.DiscardHandler), false,
+		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
+		nil)
+
+	owner := httptest.NewRequestWithContext(account.WithUser(ctx, theirs), http.MethodGet,
+		"/orders/"+number, http.NoBody)
+	owner.SetPathValue("number", number)
+	ownerOK := httptest.NewRecorder()
+	h.OrderPage(ownerOK, owner)
+	if ownerOK.Code != http.StatusOK {
+		t.Fatalf("the owner cannot see their own order: status %d, want 200", ownerOK.Code)
 	}
-	_, otherErr := s.Order(ctx, mine, number)
-	_, missingErr := s.Order(ctx, mine, "GO-000000-999999")
-	if !errors.Is(otherErr, account.ErrNotFound) {
-		t.Errorf("another customer's order gave %v, want ErrNotFound", otherErr)
+
+	stranger := httptest.NewRequestWithContext(account.WithUser(ctx, mine), http.MethodGet,
+		"/orders/"+number, http.NoBody)
+	stranger.SetPathValue("number", number)
+	strangerRes := httptest.NewRecorder()
+	h.OrderPage(strangerRes, stranger)
+	if strangerRes.Code != http.StatusNotFound {
+		t.Errorf("another customer's order gave status %d, want 404", strangerRes.Code)
 	}
-	if !errors.Is(missingErr, account.ErrNotFound) {
-		t.Errorf("a nonexistent order gave %v, want ErrNotFound", missingErr)
+
+	missing := httptest.NewRequestWithContext(account.WithUser(ctx, mine), http.MethodGet,
+		"/orders/GO-000000-999999", http.NoBody)
+	missing.SetPathValue("number", "GO-000000-999999")
+	missingRes := httptest.NewRecorder()
+	h.OrderPage(missingRes, missing)
+	if missingRes.Code != http.StatusNotFound {
+		t.Errorf("a nonexistent order gave status %d, want 404", missingRes.Code)
 	}
 
 	view, err := s.Overview(ctx, mine)

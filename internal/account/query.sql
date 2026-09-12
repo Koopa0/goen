@@ -154,35 +154,6 @@ WHERE o.user_id = $1
 ORDER BY o.placed_at DESC, o.id DESC
 LIMIT $2;
 
--- The user_id is part of the WHERE, never checked afterwards in Go.
--- name: UserOrderByNumber :one
-SELECT
-    o.id, o.order_number, o.fulfillment_status, o.placed_at,
-    o.shipping_cents, o.discount_cents, o.tax_cents, o.shipping_method_name,
-       -- Joined rather than snapshotted: coupons.code is never updated and the
-       -- FK is ON DELETE RESTRICT, so one join always reaches it.
-       coalesce((SELECT c.code || ' · ' || c.description
-                 FROM coupon_redemptions cr JOIN coupons c ON c.id = cr.coupon_id
-                 WHERE cr.order_id = o.id), '')::text AS discount_reason,
-    coalesce((SELECT sum(ol.unit_price_cents * ol.quantity) FROM order_lines ol
-              WHERE ol.order_id = o.id), 0)::bigint AS subtotal_cents,
-    coalesce(pd.email, '') AS email,
-    coalesce(pd.recipient_name, '') AS recipient_name,
-    coalesce(pd.phone, '') AS phone,
-    coalesce(pd.postal_code, '') AS postal_code,
-    coalesce(pd.city, '') AS city,
-    coalesce(pd.district, '') AS district,
-    coalesce(pd.street, '') AS street,
-    coalesce(pd.pickup_brand, '') AS pickup_brand,
-    coalesce(pd.pickup_store_code, '') AS pickup_store_code,
-    coalesce(pd.pickup_store_name, '') AS pickup_store_name,
-    -- See UserOrders: the status alone cannot say whether anything is still owed.
-    (o.id IN (SELECT id FROM committed_orders))::boolean AS committed,
-    order_amount_owed(o.id)::bigint AS owed_cents
-FROM orders o
-LEFT JOIN order_private_data pd ON pd.order_id = o.id
-WHERE o.order_number = $1 AND o.user_id = $2;
-
 -- A scalar subquery, so an account that has never held credit gets 0 and not no row.
 -- name: StoreCreditBalance :one
 SELECT coalesce((SELECT b.balance_cents FROM store_credit_balances b
