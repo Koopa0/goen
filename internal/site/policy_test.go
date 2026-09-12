@@ -1,6 +1,7 @@
 package site
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/home"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
@@ -36,6 +38,116 @@ func TestTheStatedHoldMatchesTheEnforcedOne(t *testing.T) {
 				"window the sweeper enforces are two different numbers", want)
 		}
 	}
+}
+
+// TestActiveInvoiceFAQDoesNotCallTheIssuerUnbuilt holds /faq to the issuer
+// that is already wired. A missing merchant id is a deployment, not an
+// unfinished product; saying 「尚未完成」 while Gateway.Issue exists is two
+// answers to one customer question.
+func TestActiveInvoiceFAQDoesNotCallTheIssuerUnbuilt(t *testing.T) {
+	t.Parallel()
+
+	g, err := invoice.NewGateway("", "", "", "")
+	if err != nil {
+		t.Fatalf("an empty configuration must be legal: %v", err)
+	}
+	if _, issueErr := g.Issue(t.Context(), invoice.IssueRequest{}); !errors.Is(issueErr, invoice.ErrDisabled) {
+		t.Fatalf("Gateway.Issue is not wired: %v", issueErr)
+	}
+
+	seed, err := os.ReadFile(filepath.Join("..", "..", "seed", "dev_catalog.sql"))
+	if err != nil {
+		t.Fatalf("read the seed: %v", err)
+	}
+	repair, err := os.ReadFile(filepath.Join("..", "..", "seed", "repair_invoice_faq.sql"))
+	if err != nil {
+		t.Fatalf("read the invoice FAQ repair: %v", err)
+	}
+	src := string(seed)
+	fix := string(repair)
+
+	zhInsert := sqlStringAfter(t, src, "('發票', '發票怎麼開立?',")
+	enValues := sqlStringAfter(t, src, "'How is my invoice issued?',")
+	rewrite := rewriteInvoiceFAQ(t, fix)
+	if zhInsert != rewrite.zh || enValues != rewrite.en {
+		t.Errorf("fresh INSERT/VALUES and the shipped repair disagree:\n"+
+			"  insert zh = %q\n  repair zh = %q\n  values en = %q\n  repair en = %q",
+			zhInsert, rewrite.zh, enValues, rewrite.en)
+	}
+	if strings.Contains(fix, "INSERT INTO") || strings.Contains(fix, "DELETE FROM") ||
+		strings.Contains(fix, "UPDATE brands") || strings.Contains(fix, "UPDATE products") {
+		t.Error("the invoice FAQ repair is not bounded: it must rewrite one FAQ row")
+	}
+
+	for loc, answer := range map[string]string{"zh-Hant": rewrite.zh, "en": rewrite.en} {
+		if strings.Contains(answer, "尚未完成") || strings.Contains(answer, "not built yet") {
+			t.Errorf("%s invoice FAQ still says the issuer is unfinished: %q", loc, answer)
+		}
+		if strings.Contains(answer, "successfully issued") ||
+			strings.Contains(answer, "已成功開立") {
+			t.Errorf("%s invoice FAQ invents a successful filing: %q", loc, answer)
+		}
+	}
+	if !strings.Contains(rewrite.zh, "綠界") || !strings.Contains(rewrite.zh, "設定") {
+		t.Errorf("Chinese invoice FAQ does not describe ECPay as a deployment: %q", rewrite.zh)
+	}
+	if !strings.Contains(rewrite.en, "ECPay") || !strings.Contains(rewrite.en, "credentials") {
+		t.Errorf("English invoice FAQ does not describe ECPay as a deployment: %q", rewrite.en)
+	}
+
+	// The statutory return row is a different authority. Editing it here
+	// would reopen 消保法 §19.
+	if !strings.Contains(src, "退貨運費由 goen 負擔") ||
+		!strings.Contains(src, "Rescinding within seven days of delivery costs you nothing") {
+		t.Error("the statutory return FAQ was edited")
+	}
+}
+
+type invoiceFAQCopy struct{ zh, en string }
+
+func rewriteInvoiceFAQ(t *testing.T, src string) invoiceFAQCopy {
+	t.Helper()
+	const where = "WHERE question = '發票怎麼開立?';"
+	i := strings.LastIndex(src, where)
+	if i < 0 {
+		t.Fatal("the shipped repair has no UPDATE of 發票怎麼開立?")
+	}
+	block := src[:i]
+	start := strings.LastIndex(block, "UPDATE faq_entries")
+	if start < 0 {
+		t.Fatal("the shipped repair has no UPDATE faq_entries")
+	}
+	block = block[start:]
+	return invoiceFAQCopy{
+		zh: sqlStringAfter(t, block, "SET answer = "),
+		en: sqlStringAfter(t, block, "answer_en = "),
+	}
+}
+
+func sqlStringAfter(t *testing.T, src, marker string) string {
+	t.Helper()
+	i := strings.Index(src, marker)
+	if i < 0 {
+		t.Fatalf("seed has no %q", marker)
+	}
+	rest := strings.TrimLeft(src[i+len(marker):], " \t\n")
+	if !strings.HasPrefix(rest, "'") {
+		t.Fatalf("seed text after %q is not a SQL string: %q", marker, rest[:min(40, len(rest))])
+	}
+	var b strings.Builder
+	for j := 1; j < len(rest); j++ {
+		if rest[j] == '\'' {
+			if j+1 < len(rest) && rest[j+1] == '\'' {
+				b.WriteByte('\'')
+				j++
+				continue
+			}
+			return b.String()
+		}
+		b.WriteByte(rest[j])
+	}
+	t.Fatalf("unterminated SQL string after %q", marker)
+	return ""
 }
 
 // TestEveryPolicyRouteHasADocument proves every routed policy resolves, and
