@@ -40,6 +40,12 @@ templ Pay(p layouts.Page, v PayView) {
 				</ul>
 				<aside class="goen-pay__summary">
 					<div class="ui-summary">
+						if v.HasAdjustment() {
+							<div class="ui-summary__row">
+								<span>{ i18n.T(ctx, i18n.KeyPayApplied) }</span>
+								<span class="ui-summary__val">{ v.Adjustment() }</span>
+							</div>
+						}
 						<div class="ui-summary__row ui-summary__row--total">
 							<span>{ i18n.T(ctx, i18n.KeyTotal) }</span>
 							<span class="ui-summary__val">{ v.Total() }</span>

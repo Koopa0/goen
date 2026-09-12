@@ -60,6 +60,14 @@ var (
 		En:     "Delivery and tax",
 	})
 
+	// Coupon, store credit and any shipping that also sits in the owed
+	// total are one net row: the page is given owed cents, not the named
+	// halves checkout already itemised.
+	KeyPayApplied = key("pay.applied", Message{
+		ZhHant: "已折抵",
+		En:     "Net applied",
+	})
+
 	// A reduced order reaches Stripe as one line naming itself; the itemisation
 	// lives on goen's own order page, which the confirmation links to.
 	KeyPayOrderLine = key("pay.orderline", Message{ZhHant: "訂單 %s", En: "Order %s"})

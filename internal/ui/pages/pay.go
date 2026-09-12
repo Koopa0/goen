@@ -36,6 +36,30 @@ type PayView struct {
 	Cancelled  bool
 }
 
+// LineTotalCents is the goods as recorded. TotalCents is still what is owed.
+// The two only match when nothing else was applied.
+func (v PayView) LineTotalCents() int64 {
+	var n int64
+	for _, l := range v.Lines {
+		n += l.UnitCents * int64(l.Quantity)
+	}
+	return n
+}
+
+// AdjustmentCents is LineTotalCents minus what is still owed. A positive
+// figure is the net reduction the summary can name. The page is given only
+// those two totals, so shipping and tax that also sit in TotalCents are
+// already netted in and cannot be labelled on their own.
+func (v PayView) AdjustmentCents() int64 { return v.LineTotalCents() - v.TotalCents }
+
+// HasAdjustment is the extra summary row that closes the arithmetic when
+// owed is below the recorded lines.
+func (v PayView) HasAdjustment() bool { return v.AdjustmentCents() > 0 }
+
+// Adjustment is the extra row's amount. Prefixed so it cannot be read as
+// another charge sitting under the goods.
+func (v PayView) Adjustment() string { return "-" + twd(v.AdjustmentCents()) }
+
 // Total is what is owed.
 func (v PayView) Total() string { return twd(v.TotalCents) }
 
