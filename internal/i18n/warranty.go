@@ -40,7 +40,9 @@ var (
 
 	KeyWarrantyNothingHere = key("warranty.order.none", Message{
 		ZhHant: "這筆訂單目前沒有可以登錄的商品",
-		En:     "Nothing on this order can be registered yet",
+		// Shared across every empty reason, including terminal ones such as every
+		// unit already being registered, so the title must stay time-neutral.
+		En: "Nothing on this order can be registered.",
 	})
 
 	KeyWarrantyAfterShipping = key("warranty.order.none.hint", Message{
