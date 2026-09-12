@@ -380,7 +380,11 @@ check-layout:
 	@PLACED_TOKEN=$$(awk '/goen_placed/ {print $$7}' .layout-chrome/cookies); \
 		INVOICE_ORDER=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT o.order_number FROM orders o JOIN return_requests r ON r.order_id = o.id JOIN invoice_documents d ON d.order_id = o.id AND d.number = 'GD-LAYOUT1' WHERE r.status IN ('approved', 'completed') ORDER BY o.placed_at DESC LIMIT 1"); \
 		test -n "$$INVOICE_ORDER" || { echo 'invoice fixture wrote no refunded order — /admin/orders/ would measure the list and call the 折讓 form covered' >&2; exit 2; }; \
-		PRODUCT_SLUG=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT slug FROM products WHERE status = 'active' ORDER BY slug LIMIT 1") \
+		PRODUCT_SLUG=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT slug FROM products WHERE status = 'active' ORDER BY slug LIMIT 1"); \
+		COMPARE_SLUG_B=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT slug FROM products WHERE status = 'active' ORDER BY slug OFFSET 1 LIMIT 1"); \
+		test -n "$$COMPARE_SLUG_B" && test "$$PRODUCT_SLUG" != "$$COMPARE_SLUG_B" || { echo 'need two distinct active products to measure /compare — one p= renders the empty state' >&2; exit 2; }; \
+		PRODUCT_SLUG=$$PRODUCT_SLUG \
+		COMPARE_SLUG_B=$$COMPARE_SLUG_B \
 		PICKUP_SHIP=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT v.id FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id WHERE sm.code = 'store_pickup' ORDER BY v.effective_at DESC LIMIT 1") \
 		CART_TOKEN=$$(awk '/goen_cart/ {print $$7}' .layout-chrome/cookies) \
 		PLACED_TOKEN=$$PLACED_TOKEN \

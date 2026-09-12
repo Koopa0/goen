@@ -82,8 +82,22 @@ const PAGES = [
   { label: 'deals 1440', width: 1440, height: 900, path: '/deals', marker: '.goen-listing' },
   { label: 'pdp 375', width: 375, height: 812, path: '/p/PRODUCT_SLUG', marker: '.goen-pdp' },
   { label: 'pdp 1440', width: 1440, height: 900, path: '/p/PRODUCT_SLUG', marker: '.goen-pdp' },
-  { label: 'compare 375', width: 375, height: 812, path: '/compare?p=PRODUCT_SLUG', marker: '.goen-compare' },
-  { label: 'compare 1440', width: 1440, height: 900, path: '/compare?p=PRODUCT_SLUG', marker: '.goen-compare' },
+];
+
+// The comparison TABLE. Enough() needs two columns; one p= is the too-few
+// empty state, and .goen-compare wraps that state too. A marker on the
+// wrapper measures chrome and calls the table covered (CLAUDE.md #24).
+// COMPARE_SLUG_B is a second active seed product. table: true is what says
+// this row measured columns, the sticky first cell, and (at 375) overflow
+// inside the scroll box — not merely that a marker existed.
+//
+// The one-product empty state is a different page. It cannot stand in for
+// the table.
+const COMPARE = [
+  { label: 'compare 375', width: 375, height: 812, path: '/compare?p=PRODUCT_SLUG&p=COMPARE_SLUG_B', marker: '.goen-compare__table', table: true },
+  { label: 'compare 1440', width: 1440, height: 900, path: '/compare?p=PRODUCT_SLUG&p=COMPARE_SLUG_B', marker: '.goen-compare__table', table: true },
+  { label: 'compare one 375', width: 375, height: 812, path: '/compare?p=PRODUCT_SLUG', marker: '.ui-empty' },
+  { label: 'compare one 1440', width: 1440, height: 900, path: '/compare?p=PRODUCT_SLUG', marker: '.ui-empty' },
 ];
 
 const CART = [
@@ -759,6 +773,84 @@ for (const want of [...CART, ...PAGES]) {
   }
   console.log(`${at.padEnd(16)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
     `controls=${got.controls} tap=${got.minTap}`);
+}
+
+// The comparison table. CART_PROBE's marker-only check is not enough: the
+// wrapper is present on the empty state, and the table's job is to scroll
+// inside its own box while the first column stays put.
+const COMPARE_PROBE = `(() => {
+  const de = document.documentElement;
+  const clipped = (e) => {
+    let p = e.parentElement;
+    while (p && p !== document.body) {
+      const o = getComputedStyle(p).overflowX;
+      if (o === 'auto' || o === 'hidden' || o === 'scroll') return true;
+      p = p.parentElement;
+    }
+    return false;
+  };
+  const table = document.querySelector('.goen-compare__table');
+  const scroller = document.querySelector('.goen-compare__scroll');
+  const firstCol = document.querySelector('.goen-compare__table tbody th');
+  const sticky = firstCol ? getComputedStyle(firstCol) : null;
+  return {
+    viewportWidth: de.clientWidth,
+    scrollWidth: document.body.scrollWidth,
+    overflowing: [...document.querySelectorAll('body *')]
+      .filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > de.clientWidth + 0.5 && !clipped(e); })
+      .slice(0, 4).map((e) => e.tagName.toLowerCase() + '.' + String(e.className || '').split(' ')[0]),
+    marker: __MARKER__ ? !!document.querySelector(__MARKER__) : true,
+    productColumns: table ? table.querySelectorAll('thead .goen-compare__head').length : 0,
+    tableScrolls: !!(scroller && scroller.scrollWidth > scroller.clientWidth + 0.5),
+    stickyLeft: !!(sticky && sticky.position === 'sticky' && parseFloat(sticky.left) === 0),
+    ${ACCESSIBILITY}
+  };
+})()`;
+
+for (const want of COMPARE) {
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: want.width, height: want.height, deviceScaleFactor: 1, mobile: want.width < 768,
+  });
+  const target = ORIGIN + want.path
+    .replace('COMPARE_SLUG_B', process.env.COMPARE_SLUG_B || '')
+    .replace('PRODUCT_SLUG', process.env.PRODUCT_SLUG || '');
+  await send(ws, 'Page.navigate', { url: target });
+  await settled(ws, want.label, target);
+
+  const evaluated = await send(ws, 'Runtime.evaluate', {
+    expression: COMPARE_PROBE.replaceAll('__MARKER__', JSON.stringify(want.marker || null)),
+    returnByValue: true,
+  });
+  if (evaluated.exceptionDetails || !evaluated.result || evaluated.result.value === undefined) {
+    fail(want.label, 'the probe did not run — ' +
+      (evaluated.exceptionDetails?.exception?.description || JSON.stringify(evaluated).slice(0, 400)));
+    continue;
+  }
+  const got = evaluated.result.value;
+  const at = want.label;
+
+  if (!got.marker) {
+    fail(at, `the page did not render (${want.marker} is absent) — this check proved nothing`);
+    continue;
+  }
+  checkAccessibility(at, got);
+  if (got.scrollWidth > got.viewportWidth) {
+    fail(at, `page scrolls horizontally (${got.scrollWidth} > ${got.viewportWidth})` +
+      (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));
+  }
+  if (want.table) {
+    if (got.productColumns < 2) {
+      fail(at, `comparison has ${got.productColumns} product columns, want at least 2`);
+    }
+    if (!got.stickyLeft) {
+      fail(at, 'the first column is not sticky — a reader loses the row label when the table scrolls');
+    }
+    if (want.width === 375 && !got.tableScrolls) {
+      fail(at, 'the table does not scroll inside its box at 375 — the columns were never wide enough to measure');
+    }
+  }
+  console.log(`${at.padEnd(16)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
+    `cols=${got.productColumns} sticky=${got.stickyLeft} tableScroll=${got.tableScrolls}`);
 }
 
 // The back office. Its tables are deliberately wider than a phone and scroll
