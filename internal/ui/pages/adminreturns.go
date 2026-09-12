@@ -2,6 +2,7 @@ package pages
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
@@ -17,7 +18,12 @@ type AdminReturn struct {
 	Reason      string
 	Units       int32
 	AmountCents int64
-	CreatedAt   string
+	// CardRefundCents and CreditRefundCents are the frozen source allocation.
+	// Both stay zero until approval freezes them, so the queue does not invent
+	// a channel for an open request.
+	CardRefundCents   int64
+	CreditRefundCents int64
+	CreatedAt         string
 	// Window is "within", "after" or "undelivered" against Consumer Protection
 	// Act §19 I's seven days from receipt.
 	Window  string
@@ -97,6 +103,22 @@ func (r AdminReturn) WindowText(ctx context.Context) string {
 
 // Amount is what approving it would refund.
 func (r AdminReturn) Amount() string { return twd(r.AmountCents) }
+
+// PayoutChannel names the frozen refund sources. Empty until approval, because
+// the allocation does not exist until then.
+func (r AdminReturn) PayoutChannel(ctx context.Context) string {
+	switch {
+	case r.CardRefundCents > 0 && r.CreditRefundCents > 0:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetPayoutSplit),
+			twd(r.CardRefundCents), twd(r.CreditRefundCents))
+	case r.CreditRefundCents > 0:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetPayoutCredit), twd(r.CreditRefundCents))
+	case r.CardRefundCents > 0:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetPayoutCard), twd(r.CardRefundCents))
+	default:
+		return ""
+	}
+}
 
 // UnitsText is how many items are being sent back.
 func (r AdminReturn) UnitsText() string { return strconv.FormatInt(int64(r.Units), 10) }

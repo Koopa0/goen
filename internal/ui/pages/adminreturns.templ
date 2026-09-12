@@ -36,6 +36,9 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 								<span class="ui-cart-line__meta">
 									{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetUnitsAmount), r.UnitsText(), r.Amount()) }
 								</span>
+								if ch := r.PayoutChannel(ctx); ch != "" {
+									<span class="ui-cart-line__meta">{ ch }</span>
+								}
 								// Consumer Protection Act §19 I: seven days from receipt, unwaivable under §19 V.
 								if r.Rescission() {
 									<span class="ui-cart-line__meta">
