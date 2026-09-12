@@ -18,7 +18,6 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
-	"github.com/koopa0/goen/internal/pickup"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
 
@@ -362,50 +361,6 @@ func (s *Store) Overview(ctx context.Context, u User) (pages.AccountView, error)
 			ID: a.ID.String(), Label: a.Label.String, Name: a.RecipientName, Phone: a.Phone,
 			PostalCode: a.PostalCode, City: a.City, District: a.District,
 			Street: a.Street, Default: a.IsDefault,
-		})
-	}
-	return view, nil
-}
-
-// Order reads one of this account's orders.
-func (s *Store) Order(ctx context.Context, u User, number string) (pages.AccountOrderView, error) {
-	id, err := uuid.Parse(u.ID)
-	if err != nil {
-		return pages.AccountOrderView{}, fmt.Errorf("parse user id: %w", err)
-	}
-	o, err := s.q.UserOrderByNumber(ctx, db.UserOrderByNumberParams{
-		OrderNumber: number, UserID: uuid.NullUUID{UUID: id, Valid: true},
-	})
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return pages.AccountOrderView{}, ErrNotFound
-		}
-		return pages.AccountOrderView{}, fmt.Errorf("read order: %w", err)
-	}
-	lines, err := s.q.OrderLinesByOrder(ctx, o.ID)
-	if err != nil {
-		return pages.AccountOrderView{}, fmt.Errorf("read order lines: %w", err)
-	}
-
-	view := pages.AccountOrderView{
-		Number: o.OrderNumber, Status: pages.FulfillmentStatus(o.FulfillmentStatus),
-		PlacedAt:      shoptime.Minute(o.PlacedAt),
-		ShippingName:  o.ShippingMethodName,
-		SubtotalCents: o.SubtotalCents, ShippingCents: o.ShippingCents,
-		DiscountCents: o.DiscountCents, DiscountReason: o.DiscountReason, TaxCents: o.TaxCents,
-		Recipient: o.RecipientName, Phone: o.Phone, Email: o.Email,
-		Address: pages.Delivery{
-			PostalCode: o.PostalCode, City: o.City, District: o.District, Street: o.Street,
-			PickupBrand: pickup.Brand(o.PickupBrand), PickupStoreCode: o.PickupStoreCode,
-			PickupStoreName: o.PickupStoreName,
-		}.Line(),
-		Committed: o.Committed,
-		OwedCents: o.OwedCents,
-	}
-	for _, l := range lines {
-		view.Lines = append(view.Lines, pages.OrderLine{
-			SKU: l.SKU, Name: l.ProductName, Label: l.VariantLabel.String,
-			UnitCents: l.UnitPriceCents, Quantity: l.Quantity,
 		})
 	}
 	return view, nil

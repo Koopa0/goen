@@ -248,7 +248,7 @@ templ Account(p layouts.Page, v *AccountView) {
 							for _, o := range v.Orders {
 								<li class="goen-account__order">
 									<div>
-										<a class="goen-account__number" href={ templ.URL("/account/orders/" + o.Number) }>
+										<a class="goen-account__number" href={ templ.URL("/orders/" + o.Number) }>
 											{ o.Number }
 										</a>
 										<span class="ui-cart-line__meta">
@@ -442,108 +442,6 @@ templ Account(p layouts.Page, v *AccountView) {
 						</details>
 					</section>
 				</div>
-			</div>
-		</div>
-	}
-}
-
-// AccountOrderPage renders one order for its owner, delivery details included.
-templ AccountOrderPage(p layouts.Page, v *AccountOrderView) {
-	@layouts.Base(p) {
-		<div class="goen-order">
-			<nav class="ui-crumbs" aria-label={ i18n.T(ctx, i18n.KeyBreadcrumb) }>
-				<a href="/account">{ i18n.T(ctx, i18n.KeyAccountTitle) }</a>
-				<span class="ui-crumbs__sep" aria-hidden="true">/</span>
-				<span class="ui-crumbs__current" aria-current="page">{ v.Number }</span>
-			</nav>
-			<div class="ui-page-head">
-				<div>
-					<h1 class="ui-page-head__title">{ v.Number }</h1>
-					<p class="ui-page-head__sub">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderPlacedAt), v.PlacedAt) }</p>
-				</div>
-				<div class="ui-page-head__actions">
-					<span class="ui-badge">{ v.StatusText(ctx) }</span>
-					<form method="post" action={ templ.SafeURL("/orders/" + v.Number + "/reorder") }>
-						<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyOrderReorder) }</button>
-					</form>
-					if v.CanRegisterWarranty() {
-						<a class="ui-btn ui-btn--secondary" href={ templ.SafeURL(v.WarrantyLink()) }>
-							{ i18n.T(ctx, i18n.KeyWarrantyTitle) }
-						</a>
-					}
-				</div>
-			</div>
-			if v.AwaitingPayment() {
-				<p class="ui-alert ui-alert--info" role="status">
-					{ i18n.T(ctx, i18n.KeyPayLaterNotice) }
-					<a href={ templ.SafeURL("/orders/" + v.Number + "/pay") }>{ i18n.T(ctx, i18n.KeyPay) }</a>
-				</p>
-			}
-			<div class="goen-order__layout">
-				<div>
-					<ul class="goen-order__lines" role="list">
-						for _, l := range v.Lines {
-							<li class="goen-order__line">
-								<div>
-									<p class="goen-order__name">{ l.Name }</p>
-									if l.Label != "" {
-										<span class="ui-cart-line__meta">{ l.Label }</span>
-									}
-									<span class="ui-cart-line__meta">{ l.SKU } · { l.UnitPrice() } × { l.QuantityText() }</span>
-								</div>
-								<span class="ui-cart-line__price">{ l.LineTotal() }</span>
-							</li>
-						}
-					</ul>
-					<section class="goen-account__section" aria-labelledby="delivery-heading">
-						<h2 id="delivery-heading" class="goen-account__heading">{ i18n.T(ctx, i18n.KeySectionRecipient) }</h2>
-						<dl class="ui-dl">
-							<div class="ui-dl__row">
-								<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldRecipient) }</dt>
-								<dd class="ui-dl__desc">{ v.Recipient }</dd>
-							</div>
-							<div class="ui-dl__row">
-								<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldPhoneShort) }</dt>
-								<dd class="ui-dl__desc">{ v.Phone }</dd>
-							</div>
-							<div class="ui-dl__row">
-								<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldStreet) }</dt>
-								<dd class="ui-dl__desc">{ v.Address }</dd>
-							</div>
-							<div class="ui-dl__row">
-								<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeySectionShipping) }</dt>
-								<dd class="ui-dl__desc">{ v.ShippingName }</dd>
-							</div>
-						</dl>
-					</section>
-				</div>
-				<aside class="goen-order__summary">
-					<div class="ui-summary">
-						<div class="ui-summary__row">
-							<span>{ i18n.T(ctx, i18n.KeySubtotal) }</span>
-							<span class="ui-summary__val">{ v.Subtotal() }</span>
-						</div>
-						<div class="ui-summary__row">
-							<span>{ i18n.T(ctx, i18n.KeyShippingFee) }</span>
-							<span class="ui-summary__val">{ v.Shipping(ctx) }</span>
-						</div>
-						if v.Discounted() {
-							<div class="ui-summary__row">
-								<span>
-									{ i18n.T(ctx, i18n.KeyDiscount) }
-									if v.DiscountReason != "" {
-										({ v.DiscountReason })
-									}
-								</span>
-								<span class="ui-summary__val">{ v.Discount() }</span>
-							</div>
-						}
-						<div class="ui-summary__row ui-summary__row--total">
-							<span>{ i18n.T(ctx, i18n.KeyOrderGrandTotal) }</span>
-							<span class="ui-summary__val">{ v.Total() }</span>
-						</div>
-					</div>
-				</aside>
 			</div>
 		</div>
 	}

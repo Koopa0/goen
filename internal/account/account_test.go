@@ -633,3 +633,25 @@ func TestAGuestSavingIsSentBackToTheProduct(t *testing.T) {
 		})
 	}
 }
+
+// TestAccountOrderPageRedirectsToCanonical holds that the legacy account order
+// URL forwards to /orders/{number}, where shipment, return and funding live.
+func TestAccountOrderPageRedirectsToCanonical(t *testing.T) {
+	t.Parallel()
+
+	h := &Handler{log: slog.New(slog.DiscardHandler)}
+	ctx := WithUser(t.Context(), User{ID: "11110000-0000-4000-8000-000000000001"})
+	r := httptest.NewRequestWithContext(ctx, http.MethodGet,
+		"/account/orders/GO-260101-000012", http.NoBody)
+	r.SetPathValue("number", "GO-260101-000012")
+	w := httptest.NewRecorder()
+
+	h.OrderPage(w, r)
+
+	if w.Code != http.StatusSeeOther {
+		t.Fatalf("OrderPage status = %d, want %d", w.Code, http.StatusSeeOther)
+	}
+	if got := w.Header().Get("Location"); got != "/orders/GO-260101-000012" {
+		t.Errorf("OrderPage redirects to %q, want /orders/GO-260101-000012", got)
+	}
+}

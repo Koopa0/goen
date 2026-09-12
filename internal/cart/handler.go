@@ -853,6 +853,7 @@ func (h *Handler) OrderPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.Cancelled = r.URL.Query().Get("cancelled") == "1"
+	view.ShowWarrantyLink = h.ownedBySignedInUser(r, number)
 	web.Render(w, r, h.log, http.StatusOK, pages.Order(pages.OrderMeta(r.Context(), view.Number), &view))
 }
 
