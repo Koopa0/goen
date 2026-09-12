@@ -173,6 +173,15 @@ const ADMIN = [
   // health alarm on /admin/health; the form here needs the refunded room.
   { label: 'admin order 375', width: 375, height: 812, path: '/admin/orders/INVOICE_ORDER', marker: '.goen-admin__form' },
   { label: 'admin order 1440', width: 1440, height: 900, path: '/admin/orders/INVOICE_ORDER', marker: '.goen-admin__form' },
+  // The three notices a void or 折讓 can land on. The order page without a
+  // query flag never renders them, so the rows above measure the form and
+  // miss the copy.
+  { label: 'admin order voidreason 375', width: 375, height: 812, path: '/admin/orders/INVOICE_ORDER?voidreason=1', marker: '.ui-alert' },
+  { label: 'admin order voidreason 1440', width: 1440, height: 900, path: '/admin/orders/INVOICE_ORDER?voidreason=1', marker: '.ui-alert' },
+  { label: 'admin order voidfailed 375', width: 375, height: 812, path: '/admin/orders/INVOICE_ORDER?voidfailed=1', marker: '.ui-alert' },
+  { label: 'admin order voidfailed 1440', width: 1440, height: 900, path: '/admin/orders/INVOICE_ORDER?voidfailed=1', marker: '.ui-alert' },
+  { label: 'admin order allowfailed 375', width: 375, height: 812, path: '/admin/orders/INVOICE_ORDER?allowfailed=1', marker: '.ui-alert' },
+  { label: 'admin order allowfailed 1440', width: 1440, height: 900, path: '/admin/orders/INVOICE_ORDER?allowfailed=1', marker: '.ui-alert' },
   { label: 'admin home 375', width: 375, height: 812, path: '/admin/home', marker: '.goen-admin' },
   { label: 'admin home 1440', width: 1440, height: 900, path: '/admin/home', marker: '.goen-admin' },
   { label: 'admin questions 375', width: 375, height: 812, path: '/admin/questions', marker: '.goen-admin__questions' },
