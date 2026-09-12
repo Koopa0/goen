@@ -2,14 +2,14 @@ package i18n
 
 var (
 	KeyHomeTitle = key("home.title", Message{
-		ZhHant: "goen — 3C 選物",
-		En:     "goen — curated 3C",
+		ZhHant: "goen — 3C",
+		En:     "goen — 3C",
 	})
 
 	KeyHomeDescription = key("home.description", Message{
-		ZhHant: "goen 精選手機、筆電、平板、耳機與周邊配件。台灣出貨,原廠保固。",
-		En: "Phones, laptops, tablets, headphones and accessories, chosen rather than " +
-			"listed. Ships from Taiwan with the manufacturer's warranty.",
+		ZhHant: "goen 賣手機、筆電、平板、耳機、穿戴裝置與配件。台灣出貨。保固期限寫在各商品頁。",
+		En: "Phones, laptops, tablets, headphones, wearables and accessories from goen. " +
+			"Ships from Taiwan. Warranty terms are on each product page.",
 	})
 
 	KeyCannotLoadHome = key("error.cannotload.home", Message{
@@ -59,19 +59,18 @@ var (
 	})
 
 	KeyHeroEyebrow = key("home.hero.eyebrow", Message{
-		ZhHant: "台灣出貨 · 原廠保固",
-		En:     "Ships from Taiwan · manufacturer's warranty",
+		ZhHant: "台灣出貨",
+		En:     "Ships from Taiwan",
 	})
 
 	KeyHeroHeadline = key("home.hero.headline", Message{
-		ZhHant: "挑一台好的,值得。",
-		En:     "A good one is worth choosing.",
+		ZhHant: "手機、筆電、平板與耳機",
+		En:     "Phones, laptops, tablets and headphones",
 	})
 
 	KeyHeroBody = key("home.hero.body", Message{
-		ZhHant: "goen 精選手機、筆電、平板與耳機周邊——把難挑的東西,挑好給你。",
-		En: "Phones, laptops, tablets and audio, chosen rather than listed — the hard " +
-			"decisions made for you.",
+		ZhHant: "也賣穿戴裝置與配件。保固期限寫在各商品頁。",
+		En:     "Wearables and accessories as well. Warranty terms are on each product page.",
 	})
 
 	KeyHeroPrimaryCTA = key("home.hero.cta.primary", Message{
