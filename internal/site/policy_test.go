@@ -17,6 +17,54 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
+// TestHomeRefundTimingDoesNotOutrunReturns holds the home trust strip to the
+// /returns refund clause: a numbered landing window on the home is a second
+// SLA, and the issuer decides.
+func TestHomeRefundTimingDoesNotOutrunReturns(t *testing.T) {
+	t.Parallel()
+
+	doc, ok := policies["returns"]
+	if !ok {
+		t.Fatal("no /returns document; the home strip has nothing to agree with")
+	}
+
+	var policyZH, policyEN strings.Builder
+	for _, s := range doc.Sections {
+		if s.Heading != "退款" {
+			continue
+		}
+		for _, p := range s.Body {
+			policyZH.WriteString(p)
+		}
+		for _, p := range s.BodyEn {
+			policyEN.WriteString(p)
+		}
+	}
+	if policyZH.Len() == 0 || policyEN.Len() == 0 {
+		t.Fatal("the returns refund section is empty in one locale")
+	}
+
+	homeZH := i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyTrustReturnsBody)
+	homeEN := i18n.T(i18n.WithLocale(t.Context(), i18n.En), i18n.KeyTrustReturnsBody)
+	if homeZH == "" || homeEN == "" {
+		t.Fatal("KeyTrustReturnsBody is blank; the catalogue panic should have refused it")
+	}
+
+	for _, tt := range []struct {
+		locale, home, policy string
+	}{
+		{"zh-Hant", homeZH, policyZH.String()},
+		{"en", homeEN, policyEN.String()},
+	} {
+		for _, needle := range []string{"3–5", "3-5", "3—5", "3 to 5", "3～5", "3~5"} {
+			if strings.Contains(tt.home, needle) && !strings.Contains(tt.policy, needle) {
+				t.Errorf("home trust %s promises %q and /returns does not:\n  home: %q\n  /returns: %q",
+					tt.locale, needle, tt.home, tt.policy)
+			}
+		}
+	}
+}
+
 // TestTheStatedHoldMatchesTheEnforcedOne proves every customer-facing policy
 // states the one presentation-layer hold duration.
 func TestTheStatedHoldMatchesTheEnforcedOne(t *testing.T) {
