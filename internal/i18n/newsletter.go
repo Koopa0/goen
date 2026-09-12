@@ -33,14 +33,14 @@ var (
 	})
 
 	KeyNewsletterDone = key("news.done", Message{
-		ZhHant: "已訂閱,感謝你的信任",
-		En:     "Subscribed — thank you",
+		ZhHant: "已訂閱",
+		En:     "Subscribed",
 	})
 
 	KeyNewsletterDoneBody = key("news.done.body", Message{
-		ZhHant: "%s 已經在名單上。每月一封,新品與比價重點,不灌水;退訂連結在剛剛寄出的那封信裡。",
-		En: "%s is on the list. One letter a month — new arrivals and what is worth comparing, " +
-			"nothing padded. The unsubscribe link is in the email we just sent.",
+		ZhHant: "%s 已經在名單上。每月一封;退訂連結在剛剛寄出的那封信裡。",
+		En: "%s is on the list. One letter a month. The unsubscribe link is in the email " +
+			"we just sent.",
 	})
 
 	KeyNewsletterLeaveTitle = key("news.leave.title", Message{
@@ -113,8 +113,8 @@ var (
 	KeyNewsletter = key("site.newsletter", Message{ZhHant: "電子報", En: "Newsletter"})
 
 	KeyNewsletterNote = key("site.newsletter.note", Message{
-		ZhHant: "每月一封,新品與比價重點,不灌水。",
-		En:     "One letter a month: new arrivals and what is worth comparing, nothing padded.",
+		ZhHant: "每月一封。訂閱前會先寄確認信。",
+		En:     "One letter a month. We send a confirmation link first.",
 	})
 
 	KeyNewsletterSubmit = key("site.newsletter.submit", Message{ZhHant: "訂閱", En: "Subscribe"})
