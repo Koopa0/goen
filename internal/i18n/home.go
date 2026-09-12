@@ -2,8 +2,8 @@ package i18n
 
 var (
 	KeyHomeTitle = key("home.title", Message{
-		ZhHant: "goen — 3C",
-		En:     "goen — 3C",
+		ZhHant: "3C",
+		En:     "3C",
 	})
 
 	KeyHomeDescription = key("home.description", Message{
