@@ -146,13 +146,13 @@ var ruleCases = []ruleCase{
 	{
 		rule: "loyalty_entries_lot_not_expired",
 		reject: `INSERT INTO loyalty_entries (id, account_id, kind, points, reason, idempotency_key, expires_on)
-		         VALUES ('a1000003-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 'award', 100, 'old', 'expired-seed', current_date - 1);
+		         VALUES ('a1000003-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 'award', 100, 'old', 'expired-seed', shop_today() - 1);
 		         INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on, lot_id)
-		         VALUES ('a0000001-0000-4000-8000-000000000000', 'spend', -10, 'late', 'expired-spend', current_date - 1, 'a1000003-0000-4000-8000-000000000001');`,
+		         VALUES ('a0000001-0000-4000-8000-000000000000', 'spend', -10, 'late', 'expired-spend', shop_today() - 1, 'a1000003-0000-4000-8000-000000000001');`,
 		accept: `INSERT INTO loyalty_entries (id, account_id, kind, points, reason, idempotency_key, expires_on)
-		         VALUES ('a1000003-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 'award', 100, 'live', 'live-seed', current_date);
+		         VALUES ('a1000003-0000-4000-8000-000000000001', 'a0000001-0000-4000-8000-000000000000', 'award', 100, 'live', 'live-seed', shop_today());
 		         INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on, lot_id)
-		         VALUES ('a0000001-0000-4000-8000-000000000000', 'spend', -10, 'today', 'live-spend', current_date, 'a1000003-0000-4000-8000-000000000001');`,
+		         VALUES ('a0000001-0000-4000-8000-000000000000', 'spend', -10, 'today', 'live-spend', shop_today(), 'a1000003-0000-4000-8000-000000000001');`,
 	},
 	{
 		rule: "loyalty_entries_lot_not_overdrawn",
