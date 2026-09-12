@@ -11,6 +11,106 @@ import (
 	"testing"
 )
 
+// verbLockedTables are the tables whose leftover blanket verbs the table-level
+// write-direction guard cannot see: a role that INSERTs still held UPDATE or
+// DELETE.
+var verbLockedTables = map[string]bool{
+	"order_private_data":     true,
+	"contact_messages":       true,
+	"stock_notifications":    true,
+	"checkout_attempts":      true,
+	"warranty_registrations": true,
+}
+
+// TestNoRoleHoldsAVerbItsQueriesNeverMake is the same question as the table
+// guard, per INSERT/UPDATE/DELETE, on the tables whose unused verbs were the
+// leftover grant.
+func TestNoRoleHoldsAVerbItsQueriesNeverMake(t *testing.T) {
+	for _, role := range []string{"store", "admin"} {
+		t.Run(role, func(t *testing.T) {
+			allowed := writableVerbs(t, role)
+			for table := range verbLockedTables {
+				for _, priv := range []string{"INSERT", "UPDATE", "DELETE"} {
+					if !roleHoldsTableVerb(t, role, table, priv) {
+						continue
+					}
+					if allowed[table][priv] {
+						continue
+					}
+					t.Errorf("%s holds %s on %s, and no query it runs uses that verb.\n"+
+						"  The table-level guard cannot see this: a role that INSERTs the "+
+						"table is treated as allowed to hold every write. Revoke the unused "+
+						"verb, or a production query should start using it.",
+						role, priv, table)
+				}
+			}
+		})
+	}
+}
+
+func writableVerbs(t *testing.T, role string) map[string]map[string]bool {
+	t.Helper()
+	byQuery := queryWriteVerbs(t)
+	out := map[string]map[string]bool{}
+	for _, pkg := range packagesOn(role) {
+		for _, method := range calledQueries(t, pkg) {
+			for table, verbs := range byQuery[method] {
+				if out[table] == nil {
+					out[table] = map[string]bool{}
+				}
+				for verb := range verbs {
+					out[table][verb] = true
+				}
+			}
+		}
+	}
+	return out
+}
+
+func queryWriteVerbs(t *testing.T) map[string]map[string]map[string]bool {
+	t.Helper()
+	src, err := os.ReadFile("query.sql.go")
+	if err != nil {
+		t.Fatalf("read the generated queries: %v", err)
+	}
+	out := map[string]map[string]map[string]bool{}
+	for _, m := range generatedQuery.FindAllStringSubmatch(string(src), -1) {
+		out[m[1]] = writeVerbTargets(m[2])
+	}
+	return out
+}
+
+var insertVerb = regexp.MustCompile(
+	`(?is)\bINSERT\s+INTO\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)`)
+var updateVerb = regexp.MustCompile(
+	`(?is)\bUPDATE\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)(?:\s+[a-z_][a-z0-9_]*)?\s+SET\b`)
+var deleteVerb = regexp.MustCompile(
+	`(?is)\bDELETE\s+FROM\s+(?:ONLY\s+)?([a-z_][a-z0-9_]*)`)
+
+func writeVerbTargets(src string) map[string]map[string]bool {
+	clean := stripSQLComments(src)
+	out := map[string]map[string]bool{}
+	note := func(table, verb string) {
+		if table == "set" {
+			return
+		}
+		if out[table] == nil {
+			out[table] = map[string]bool{}
+		}
+		out[table][verb] = true
+	}
+	for _, m := range insertVerb.FindAllStringSubmatch(clean, -1) {
+		note(m[1], "INSERT")
+	}
+	for _, m := range updateVerb.FindAllStringSubmatch(clean, -1) {
+		note(m[1], "UPDATE")
+	}
+	for _, m := range deleteVerb.FindAllStringSubmatch(clean, -1) {
+		note(m[1], "DELETE")
+	}
+	return out
+}
+
 // TestNoRoleHoldsAWriteItsQueriesNeverMake holds a role to writing only tables its own queries
 // write. Which role performs a write is the pool a store is constructed on, which lives in Go.
 func TestNoRoleHoldsAWriteItsQueriesNeverMake(t *testing.T) {
@@ -146,6 +246,8 @@ var columnNarrowed = map[string]bool{
 	"contact_messages":       true,
 	"stock_notifications":    true,
 	"order_private_data":     true,
+	"checkout_attempts":      true,
+	"warranty_registrations": true,
 }
 
 // columnExemptions is a column privilege a role holds that its queries never exercise, keyed

@@ -4589,6 +4589,12 @@ REVOKE DELETE, TRUNCATE ON
     return_requests, return_request_lines, warranty_registrations,
     payments, refunds, shipping_method_versions
     FROM store;
+-- Checkout attempts are an idempotency index: insert on start, delete after the
+-- replay window. UPDATE would repoint a key at another order.
+REVOKE UPDATE ON checkout_attempts FROM store;
+-- A warranty row is a registration fact. The storefront inserts one unit;
+-- serial and expiry are computed from the delivered parcel, never rewritten.
+REVOKE UPDATE ON warranty_registrations FROM store;
 -- This row is the checkout-time filing snapshot, not a mutable address-book
 -- preference. A correction is Void plus a new invoice, never rewriting what the
 -- sale originally asked the provider to file.
@@ -4879,10 +4885,10 @@ RETURNS uuid LANGUAGE sql STABLE AS $$
     LIMIT 1;
 $$;
 
-GRANT EXECUTE ON FUNCTION record_inventory_movement(uuid, integer, text, text, text, uuid, uuid) TO store;
 GRANT EXECUTE ON FUNCTION hold_inventory(uuid, uuid, integer, interval, text) TO store;
-GRANT EXECUTE ON FUNCTION consume_reservation(uuid) TO store;
 GRANT EXECUTE ON FUNCTION release_reservation(uuid) TO store;
+-- consume_reservation is not granted: storefront holds are taken and released
+-- whole, and fulfilment uses consume_reservation_partial on the admin pool.
 GRANT EXECUTE ON FUNCTION next_order_number() TO store;
 GRANT EXECUTE ON FUNCTION erase_user(uuid) TO store;
 -- The freeze triggers run SECURITY INVOKER, so they call this as store, and an
@@ -4994,7 +5000,7 @@ GRANT UPDATE (sku, price_cents, compare_at_price_cents, safety_stock,
     ON product_variants TO admin;
 
 GRANT EXECUTE ON FUNCTION record_inventory_movement(uuid, integer, text, text, text, uuid, uuid) TO admin;
-GRANT EXECUTE ON FUNCTION consume_reservation(uuid) TO admin;
+-- consume_reservation is not granted: dispatch uses consume_reservation_partial.
 -- admin ONLY: dispatching is the back office's act, and store's holds are taken
 -- and released whole.
 GRANT EXECUTE ON FUNCTION consume_reservation_partial(uuid, integer) TO admin;
@@ -7371,8 +7377,9 @@ BEGIN
 END;
 $$;
 
+-- Checkout on the store pool is the only production caller. Admin merchandises
+-- coupons and must not insert a redemption off that path.
 GRANT EXECUTE ON FUNCTION redeem_coupon(uuid, uuid, uuid, bigint) TO store;
-GRANT EXECUTE ON FUNCTION redeem_coupon(uuid, uuid, uuid, bigint) TO admin;
 
 
 -- ---------------------------------------------------------------------------
@@ -8392,8 +8399,17 @@ GRANT EXECUTE ON FUNCTION
 -- admin must not write the CUSTOMER's own words or the money the checkout
 -- computed. Every list is DERIVED from what the write-column guard reports.
 --
--- `admin` on order_private_data and stock_notifications is deliberately ABSENT:
--- the parser cannot resolve those sets, so they stay with the table-level guard.
+-- `admin` on order_private_data and stock_notifications stays at table-level
+-- UPDATE: the parser cannot resolve those column sets. INSERT and DELETE have
+-- no production caller — delivery correction and restock claim are UPDATEs —
+-- and replacing a shipped destination by delete-plus-insert would walk past
+-- the fulfillment_status WHERE.
+REVOKE INSERT, UPDATE, DELETE ON order_private_data FROM admin;
+GRANT UPDATE (email, recipient_name, phone, postal_code, city, district, street,
+              pickup_brand, pickup_store_code, pickup_store_name)
+    ON order_private_data TO admin;
+REVOKE INSERT, UPDATE, DELETE ON stock_notifications FROM admin;
+GRANT UPDATE (notified_at) ON stock_notifications TO admin;
 -- ---------------------------------------------------------------------------
 REVOKE INSERT, UPDATE ON product_reviews FROM store;
 GRANT INSERT (id, product_id, user_id, rating, title, body, is_verified_purchase,
@@ -8442,21 +8458,24 @@ GRANT INSERT (id, order_number, user_id, fulfillment_status, discount_cents,
               placed_at, cancelled_at, updated_at)
     ON orders TO store;
 
-REVOKE INSERT, UPDATE ON contact_messages FROM store;
-GRANT INSERT (id, name, email, subject, order_ref, message, created_at),
-      UPDATE (id, name, email, subject, order_ref, message, created_at)
+REVOKE INSERT, UPDATE, DELETE ON contact_messages FROM store;
+GRANT INSERT (id, name, email, subject, order_ref, message, created_at)
     ON contact_messages TO store;
 
-REVOKE INSERT, UPDATE ON stock_notifications FROM store;
-GRANT INSERT (id, variant_id, user_id, email, locale, created_at),
-      UPDATE (id, variant_id, user_id, email, locale, created_at)
+REVOKE INSERT, UPDATE, DELETE ON stock_notifications FROM store;
+GRANT INSERT (id, variant_id, user_id, email, locale, created_at)
     ON stock_notifications TO store;
+
+REVOKE INSERT, UPDATE, DELETE ON checkout_attempts FROM store;
+GRANT INSERT (idempotency_key, cart_id, order_id) ON checkout_attempts TO store;
+GRANT DELETE ON checkout_attempts TO store;
+
+REVOKE INSERT, UPDATE ON warranty_registrations FROM store;
+GRANT INSERT (order_line_id, unit_no, user_id, serial_number, expires_on)
+    ON warranty_registrations TO store;
 
 REVOKE INSERT, UPDATE ON order_private_data FROM store;
 GRANT INSERT (order_id, email, recipient_name, phone, postal_code, city,
-              district, street, pickup_brand, pickup_store_code,
-              pickup_store_name),
-      UPDATE (order_id, email, recipient_name, phone, postal_code, city,
               district, street, pickup_brand, pickup_store_code,
               pickup_store_name)
     ON order_private_data TO store;
@@ -8499,9 +8518,10 @@ GRANT INSERT (id, fulfillment_status, staff_note, placed_at, cancelled_at,
               completed_at, updated_at)
     ON orders TO admin;
 
-REVOKE INSERT, UPDATE ON contact_messages FROM admin;
-GRANT INSERT (id, handled_at, created_at),
-      UPDATE (id, handled_at, created_at)
+REVOKE INSERT, UPDATE, DELETE ON contact_messages FROM admin;
+-- handled_at is the shop's mark that a message was seen. id and created_at are
+-- the submission's identity and history; rewriting them is not handling.
+GRANT UPDATE (handled_at)
     ON contact_messages TO admin;
 
 -- ---------------------------------------------------------------------------
