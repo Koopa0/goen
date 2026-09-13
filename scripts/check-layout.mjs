@@ -130,6 +130,16 @@ const LISTING = [
   { label: 'listing 1440', width: 1440, height: 900, rail: 'beside' },
 ];
 
+// English category names in the desktop header compete with the search field.
+// A row that never sets goen_locale and never asks the field's width cannot
+// see a crush. Home and listing at 1024/1440 are the surfaces that show the bar.
+const HEADER_EN = [
+  { label: 'header en 1024', width: 1024, height: 900, path: '/' },
+  { label: 'header en 1440', width: 1440, height: 900, path: '/' },
+  { label: 'listing header en 1024', width: 1024, height: 900, path: '/c/phones' },
+  { label: 'listing header en 1440', width: 1440, height: 900, path: '/c/phones' },
+];
+
 // The back office. Needs a staff session, which the Makefile provides through
 // ADMIN_TOKEN; without one these are skipped rather than silently measuring a
 // sign-in page.
@@ -256,6 +266,11 @@ const MIN_TAP = 44; // the smallest comfortable touch target, in CSS px
 // a phone, which is a column count that stopped fitting once the rail took
 // 272px out of the row. Only checked where rail === 'beside'.
 const MIN_CARD = 200;
+
+// The narrowest the desktop search field may be once English names are in
+// the bar. Below this the input is a sliver: the icon still shows and a
+// visitor cannot type.
+const MIN_SEARCH = 120;
 
 let nextId = 1;
 const pending = new Map();
@@ -682,6 +697,74 @@ for (const want of LISTING) {
   console.log(`${at.padEnd(16)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
     `rail=${got.rail} tiles=${got.tiles} tap=${got.minTap}`);
 }
+
+const HEADER_EN_PROBE = `(() => {
+  const de = document.documentElement;
+  const clipped = (e) => {
+    let p = e.parentElement;
+    while (p && p !== document.body) {
+      const o = getComputedStyle(p).overflowX;
+      if (o === 'auto' || o === 'hidden' || o === 'scroll') return true;
+      p = p.parentElement;
+    }
+    return false;
+  };
+  const search = document.querySelector('.goen-header__search');
+  return {
+    viewportWidth: de.clientWidth,
+    scrollWidth: document.body.scrollWidth,
+    overflowing: [...document.querySelectorAll('body *')]
+      .filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > de.clientWidth + 0.5 && !clipped(e); })
+      .slice(0, 6).map((e) => e.tagName.toLowerCase() + '.' + String(e.className || '').split(' ')[0]),
+    searchWidth: search ? search.clientWidth : 0,
+    ${ACCESSIBILITY}
+  };
+})()`;
+
+await send(ws, 'Network.enable');
+for (const want of HEADER_EN) {
+  await send(ws, 'Network.setCookie', {
+    name: 'goen_locale', value: 'en', domain: '127.0.0.1', path: '/',
+  });
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: want.width, height: want.height, deviceScaleFactor: 1, mobile: false,
+  });
+  const target = ORIGIN + want.path;
+  await send(ws, 'Page.navigate', { url: target });
+  await settled(ws, want.label, target);
+
+  const evaluated = await send(ws, 'Runtime.evaluate', {
+    expression: HEADER_EN_PROBE, returnByValue: true,
+  });
+  if (evaluated.exceptionDetails || !evaluated.result || evaluated.result.value === undefined) {
+    fail(want.label, 'the probe did not run — ' +
+      (evaluated.exceptionDetails?.exception?.description || JSON.stringify(evaluated).slice(0, 400)));
+    continue;
+  }
+  const got = evaluated.result.value;
+  const at = want.label;
+
+  if (!got.searchWidth) {
+    fail(at, 'the header search field did not render — this check proved nothing');
+    continue;
+  }
+  if (got.lang !== 'en') {
+    fail(at, `<html lang> is ${JSON.stringify(got.lang)}, want "en"`);
+  }
+  checkAccessibility(at, got);
+  if (got.searchWidth < MIN_SEARCH) {
+    fail(at, `header search is ${got.searchWidth}px wide, want >= ${MIN_SEARCH}`);
+  }
+  if (got.scrollWidth > got.viewportWidth) {
+    fail(at, `page scrolls horizontally (${got.scrollWidth} > ${got.viewportWidth})` +
+      (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));
+  }
+  console.log(`${at.padEnd(24)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
+    `lang=${got.lang} search=${got.searchWidth}`);
+}
+await send(ws, 'Network.deleteCookies', {
+  name: 'goen_locale', domain: '127.0.0.1', path: '/',
+});
 
 // The cart pages. Their probe measures the CONTROLS: a cart is a page of
 // buttons and number inputs, and the defect this caught on its first run was a

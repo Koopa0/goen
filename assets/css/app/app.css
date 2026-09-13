@@ -209,10 +209,13 @@ a:hover {
 }
 
 @media (min-width: 1024px) {
+  /* English catalogue names out-measure the zh-Hant ones. nowrap on this
+     row shrinks the search field below a usable width; the field keeps a
+     floor and the bar may wrap rather than overflow or crush the input. */
   .goen-header__bar {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     gap: 28px;
-    height: 64px;
+    min-height: 64px;
     max-width: var(--container);
     margin: 0 auto;
     padding: 0 32px;
@@ -243,7 +246,8 @@ a:hover {
 
   .goen-header__search {
     order: 0;
-    flex: 1 1 auto;
+    flex: 1 1 120px;
+    min-width: 120px;
     max-width: 340px;
     margin-left: auto;
   }
