@@ -27,7 +27,7 @@ endif
 .PHONY: build run test test-race test-integration production-build-check integration-build-check \
         image image-push lint fmt fmt-check vet deadcode gen templ-check vuln \
         sqlc sqlc-check squawk db-up db-down migrate-up migrate-down db-seed \
-        db-repair-invoice-faq db-repair-refund-faq \
+        db-repair-invoice-faq db-repair-refund-faq gen-scale-catalog catalogue-query-plans \
         cursor-scripts-check workflow-check verify verify-all check-layout db-reset clean
 
 build: gen
@@ -605,6 +605,16 @@ migrate-down:
 db-seed:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
 	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/dev_catalog.sql
+
+# Disposable catalogue shapes for query-plan evidence (#335). small copies
+# dev_catalog; large emits 10,000 active products via generate_series.
+gen-scale-catalog:
+	python3 seed/gen_scale_catalog.py all
+
+# Capture EXPLAIN (ANALYZE, BUFFERS) measurements against both scales on a fresh
+# owned database and write SHA-tagged JSON under internal/catalog/queryplan/artifacts/.
+catalogue-query-plans: gen-scale-catalog
+	GOEN_WRITE_QUERY_PLAN_ARTIFACTS=1 go test -tags=integration -count=1 ./internal/catalog/queryplan/ -run '^TestCatalogueQueryPlans'
 
 # Rewrite the published invoice FAQ on a database that already has one.
 # db-seed cannot: the catalogue INSERT stops on the first kept brand.
