@@ -11,6 +11,7 @@ import (
 	"net/mail"
 	"net/smtp"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -61,6 +62,21 @@ type SMTPSender struct {
 // SendTimeout bounds one delivery.
 const SendTimeout = 30 * time.Second
 
+var (
+	smtpConnMu sync.Mutex
+	smtpConn   = func(ctx context.Context, addr string) (net.Conn, error) {
+		var d net.Dialer
+		return d.DialContext(ctx, "tcp", addr)
+	}
+)
+
+func dialSMTPConn(ctx context.Context, addr string) (net.Conn, error) {
+	smtpConnMu.Lock()
+	dial := smtpConn
+	smtpConnMu.Unlock()
+	return dial(ctx, addr)
+}
+
 // Send delivers m. STARTTLS is required, not attempted.
 func (s SMTPSender) Send(ctx context.Context, m *Message) error {
 	if s.Addr == "" {
@@ -78,21 +94,17 @@ func (s SMTPSender) Send(ctx context.Context, m *Message) error {
 	ctx, cancel := context.WithTimeout(ctx, SendTimeout)
 	defer cancel()
 
-	var d net.Dialer
-	conn, err := d.DialContext(ctx, "tcp", s.Addr)
+	conn, err := dialSMTPConn(ctx, s.Addr)
 	if err != nil {
 		return fmt.Errorf("dial smtp: %w", err)
 	}
 	defer func() { _ = conn.Close() }() //nolint:errcheck // best-effort cleanup
 
-	// The context's deadline, put on the SOCKET. net/smtp has no context-aware
-	// call, so without this the greeting, STARTTLS, AUTH, MAIL, RCPT and DATA all
-	// run unbounded and a server that accepts and goes quiet stalls the worker.
-	if deadline, ok := ctx.Deadline(); ok {
-		if deadlineErr := conn.SetDeadline(deadline); deadlineErr != nil {
-			return fmt.Errorf("set smtp deadline: %w", deadlineErr)
-		}
+	stop, err := prepareSMTPConn(conn, ctx)
+	if err != nil {
+		return err
 	}
+	defer stop()
 
 	host := s.TLSName
 	if host == "" {
@@ -109,6 +121,24 @@ func (s SMTPSender) Send(ctx context.Context, m *Message) error {
 	defer func() { _ = c.Quit() }() //nolint:errcheck // best-effort cleanup
 
 	return deliver(c, s, m, host, envelope)
+}
+
+// prepareSMTPConn binds the delivery context to conn. The delivery deadline is
+// installed before the cancellation hook so a cancel that fires while the
+// deadline is being set cannot be overwritten by a later SetDeadline.
+func prepareSMTPConn(conn net.Conn, ctx context.Context) (stop func() bool, err error) {
+	if deadline, ok := ctx.Deadline(); ok {
+		if err := conn.SetDeadline(deadline); err != nil {
+			return nil, fmt.Errorf("set smtp deadline: %w", err)
+		}
+	}
+	stop = context.AfterFunc(ctx, func() {
+		_ = conn.SetDeadline(time.Now()) //nolint:errcheck // best-effort interrupt
+	})
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		_ = conn.SetDeadline(time.Now()) //nolint:errcheck // cancelled before hook ran
+	}
+	return stop, nil
 }
 
 // envelopeFrom is the address that goes in MAIL FROM: a bare addr-spec and never
