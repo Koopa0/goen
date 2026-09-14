@@ -744,8 +744,8 @@ const LISTING_PROBE = `(() => {
              +(r.right - parseFloat(cs.paddingRight)).toFixed(1) ];
   };
   const taps = [...document.querySelectorAll(
-    '.goen-filters__shell-summary, .goen-filters__option, .goen-filters__apply, .goen-filters .ui-input',
-  )].map((e) => e.getBoundingClientRect().height);
+    '.goen-filters__shell-summary, .goen-filters__option, .goen-filters__apply, .goen-filters #sort, .goen-filters .ui-input:not([type=checkbox])',
+  )].map((e) => e.getBoundingClientRect().height).filter((h) => h > 0);
   return {
     viewportWidth: de.clientWidth,
     scrollWidth: document.body.scrollWidth,
