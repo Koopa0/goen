@@ -116,11 +116,10 @@ var (
 		En:     "You are subscribed to the goen newsletter",
 	})
 	KeyMailNewsWelcomeBody = key("mail.news.welcome.body", Message{
-		ZhHant: "訂閱完成,謝謝您。\n\n每月一封,新品與比價重點,不灌水。\n\n任何時候想退訂,用這個連結:\n%s\n\n這個連結不會過期,請留著這封信。每一封電子報的頁尾也都會附上。",
-		En: "Subscribed — thank you.\n\nOne letter a month: new arrivals and what is worth " +
-			"comparing, nothing padded.\n\nTo leave at any time, use this link:\n%s\n\nIt " +
-			"does not expire, so keep this message. Every newsletter carries it at the foot " +
-			"as well.",
+		ZhHant: "訂閱完成。\n\n每月一封。\n\n任何時候想退訂,用這個連結:\n%s\n\n這個連結不會過期,請留著這封信。每一封電子報的頁尾也都會附上。",
+		En: "You are subscribed.\n\nOne letter a month.\n\nTo leave at any time, use this " +
+			"link:\n%s\n\nIt does not expire, so keep this message. Every newsletter " +
+			"carries it at the foot as well.",
 	})
 
 	// KeyMailIssueFooter is the one translated part of an issue; the shop authors the rest.
