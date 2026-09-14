@@ -331,23 +331,23 @@ func evaluateException(
 	if window == WindowStatutory {
 		return Claim{}, refuse(RefuseUseApprove)
 	}
+	// A late or undelivered line cannot stand in for missing days 8–14
+	// observations. Unmet may justify an exception only after every
+	// required goodwill fact is assessed.
+	if hasGoodwill && goodwillUnknown {
+		return Claim{}, refuse(RefuseIncomplete)
+	}
 	if window == WindowGoodwill {
-		if goodwillUnknown && !goodwillUnmet {
-			return Claim{}, refuse(RefuseIncomplete)
-		}
 		if goodwillAllMet {
 			return Claim{}, refuse(RefuseUseApprove)
 		}
 		if goodwillUnmet {
 			return Claim{Window: WindowGoodwill, Entitlement: EntitlementException}, nil
 		}
-		return Claim{}, refuse(RefuseIncomplete)
+		return Claim{}, refuse(RefuseNeedException)
 	}
 	if window == WindowLate || window == WindowUndelivered {
 		return Claim{Window: window, Entitlement: EntitlementException}, nil
-	}
-	if hasStatutory && hasGoodwill && goodwillUnknown && !goodwillUnmet && !hasLate && !hasUndelivered {
-		return Claim{}, refuse(RefuseIncomplete)
 	}
 	if hasStatutory && (goodwillUnmet || hasLate || hasUndelivered) {
 		return Claim{Window: WindowMixed, Entitlement: EntitlementException}, nil

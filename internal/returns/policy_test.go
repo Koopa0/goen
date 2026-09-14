@@ -66,6 +66,10 @@ func TestEvaluateEnforcesAdvertisedWindows(t *testing.T) {
 		OrderLineID: "g", Window: WindowGoodwill,
 		Unused: FactUnmet, Packaging: FactMet, Accessories: FactMet,
 	}
+	goodwillPartialUnmet := LineAssessment{
+		OrderLineID: "g", Window: WindowGoodwill,
+		Unused: FactUnmet, Packaging: FactUnknown, Accessories: FactUnknown,
+	}
 	late := LineAssessment{OrderLineID: "l", Window: WindowLate}
 	undelivered := LineAssessment{OrderLineID: "u", Window: WindowUndelivered}
 
@@ -153,6 +157,12 @@ func TestEvaluateEnforcesAdvertisedWindows(t *testing.T) {
 			wantEnt:    EntitlementException,
 		},
 		{
+			name:       "goodwill partial unmet cannot become an exception",
+			lines:      []LineAssessment{goodwillPartialUnmet},
+			kind:       DecisionException,
+			wantRefuse: RefuseIncomplete,
+		},
+		{
 			name:       "late approve cannot claim a policy right",
 			lines:      []LineAssessment{late},
 			kind:       DecisionApprove,
@@ -188,6 +198,18 @@ func TestEvaluateEnforcesAdvertisedWindows(t *testing.T) {
 			name:       "mixed statutory and unknown goodwill stays open",
 			lines:      []LineAssessment{statutory, goodwillUnknown},
 			kind:       DecisionApprove,
+			wantRefuse: RefuseIncomplete,
+		},
+		{
+			name:       "mixed unknown goodwill cannot become an exception",
+			lines:      []LineAssessment{statutory, goodwillUnknown},
+			kind:       DecisionException,
+			wantRefuse: RefuseIncomplete,
+		},
+		{
+			name:       "mixed unknown goodwill and late cannot become an exception",
+			lines:      []LineAssessment{statutory, goodwillUnknown, late},
+			kind:       DecisionException,
 			wantRefuse: RefuseIncomplete,
 		},
 		{

@@ -129,6 +129,61 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		}
 	})
 
+	t.Run("day 10 partial assessment cannot except until every fact is known", func(t *testing.T) {
+		delivered := shopNoonDaysAgo(t, 10)
+		number, lineID := deliveredOrderAt(t, delivered)
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
+			Reason: "used", Lines: map[string]int32{lineID.String(): 1},
+		}); err != nil {
+			t.Fatalf("open day-10 return: %v", err)
+		}
+		requestID := openReturnID(t, number)
+		if err := s.Assess(ctx, requestID.String(), "opened but packaging unchecked", []admin.LineEligibility{{
+			OrderLineID: lineID,
+			Unused:      "unmet",
+			Packaging:   "unknown",
+			Accessories: "unknown",
+		}}); err != nil {
+			t.Fatalf("assess partial unmet: %v", err)
+		}
+		if err := s.Decide(ctx, requestID.String(), "exception", "goodwill exception", "1", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
+			t.Fatalf("exception partial goodwill = %v, want ErrRefused", err)
+		}
+		status, refunds := returnPayout(t, requestID)
+		if status != "requested" || refunds != 0 {
+			t.Errorf("partial goodwill exception left %q with %d refunds, want requested/0", status, refunds)
+		}
+	})
+
+	t.Run("day 10 fully assessed unmet may except and pay", func(t *testing.T) {
+		delivered := shopNoonDaysAgo(t, 10)
+		number, lineID := deliveredOrderAt(t, delivered)
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
+			Reason: "used", Lines: map[string]int32{lineID.String(): 1},
+		}); err != nil {
+			t.Fatalf("open day-10 return: %v", err)
+		}
+		requestID := openReturnID(t, number)
+		if err := s.Assess(ctx, requestID.String(), "opened the parcel", []admin.LineEligibility{{
+			OrderLineID: lineID,
+			Unused:      "unmet",
+			Packaging:   "met",
+			Accessories: "met",
+		}}); err != nil {
+			t.Fatalf("assess unmet: %v", err)
+		}
+		if err := s.Decide(ctx, requestID.String(), "exception", "goodwill exception", "1", uuid.NullUUID{}); err != nil {
+			t.Fatalf("exception fully assessed unmet goodwill: %v", err)
+		}
+		status, refunds := returnPayout(t, requestID)
+		if status != "approved" || refunds != 1 {
+			t.Errorf("exception unmet goodwill is %q with %d refunds, want approved/1", status, refunds)
+		}
+		if got := decisionClaim(t, requestID); got != "exception" {
+			t.Errorf("exception unmet goodwill entitlement = %q, want exception", got)
+		}
+	})
+
 	t.Run("day 10 unmet cannot record goodwill and may be rejected or excepted", func(t *testing.T) {
 		delivered := shopNoonDaysAgo(t, 10)
 		number, lineID := deliveredOrderAt(t, delivered)
