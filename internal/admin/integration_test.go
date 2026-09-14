@@ -2294,6 +2294,16 @@ func TestReturnCompletionWaitsForExactPayoutAndClawback(t *testing.T) {
 }
 
 func TestAStalledRefundOffersItsRetryInTheQueue(t *testing.T) {
+	ctx := t.Context()
+	isolated := dbtest.Pool(t)
+	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
+	if err != nil {
+		t.Fatalf("read isolated stalled-refund seed: %v", err)
+	}
+	if _, execErr := isolated.Exec(ctx, string(seed)); execErr != nil {
+		t.Fatalf("load isolated stalled-refund seed: %v", execErr)
+	}
+
 	for _, tc := range []struct {
 		name            string
 		refunder        fakeRefunder
@@ -2318,12 +2328,12 @@ func TestAStalledRefundOffersItsRetryInTheQueue(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx, _ := staffContext(t)
-			requestID, _ := returnedOrder(t, 1)
-			s := admin.NewStore(pool, tc.refunder, nil, nil)
-			_ = s.Decide(ctx, requestID.String(), "approved", "退款", "", uuid.NullUUID{})
+			staffCtx, _ := staffContextOn(t, isolated)
+			requestID, _ := returnedOrderOn(t, isolated, 1)
+			s := admin.NewStore(isolated, tc.refunder, nil, nil)
+			_ = s.Decide(staffCtx, requestID.String(), "approved", "退款", "", uuid.NullUUID{})
 
-			view, err := s.Returns(ctx)
+			view, err := s.Returns(staffCtx)
 			if err != nil {
 				t.Fatalf("read queue: %v", err)
 			}
@@ -2349,14 +2359,14 @@ func TestAStalledRefundOffersItsRetryInTheQueue(t *testing.T) {
 	}
 
 	t.Run("a split payout offers the half that has not landed", func(t *testing.T) {
-		ctx, _ := staffContext(t)
-		requestID, orderNumber, _ := creditFundedReturn(t, 2, 60000)
-		if _, err := pool.Exec(ctx, `
+		staffCtx, _ := staffContextOn(t, isolated)
+		requestID, orderNumber, _ := creditFundedReturnOn(t, isolated, 2, 60000)
+		if _, err := isolated.Exec(staffCtx, `
 			UPDATE return_requests SET status = 'approved', decided_at = now(), resolution = '退款'
 			WHERE id = $1`, requestID); err != nil {
 			t.Fatalf("approve split return: %v", err)
 		}
-		if _, err := pool.Exec(ctx, `
+		if _, err := isolated.Exec(staffCtx, `
 			INSERT INTO refunds (payment_id, request_key, amount_cents, reason,
 			                     return_request_id, status, provider_ref, succeeded_at)
 			SELECT p.id, 'return:' || $1::text, 140000, '退款', $1::uuid,
@@ -2365,8 +2375,8 @@ func TestAStalledRefundOffersItsRetryInTheQueue(t *testing.T) {
 			WHERE o.order_number = $2 AND p.status = 'succeeded'`, requestID, orderNumber); err != nil {
 			t.Fatalf("construct settled card half: %v", err)
 		}
-		s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
-		view, err := s.Returns(ctx)
+		s := admin.NewStore(isolated, fakeRefunder{}, nil, nil)
+		view, err := s.Returns(staffCtx)
 		if err != nil {
 			t.Fatalf("read split queue: %v", err)
 		}
@@ -3212,8 +3222,13 @@ func TestOnlyAnAdminReachesTheStaffPage(t *testing.T) {
 
 func staffContext(t *testing.T) (context.Context, uuid.UUID) {
 	t.Helper()
+	return staffContextOn(t, pool)
+}
+
+func staffContextOn(t *testing.T, p *pgxpool.Pool) (context.Context, uuid.UUID) {
+	t.Helper()
 	var id uuid.UUID
-	if err := pool.QueryRow(t.Context(), `
+	if err := p.QueryRow(t.Context(), `
 		INSERT INTO users (email, role, full_name)
 		VALUES ('audit-' || gen_random_uuid() || '@goen.invalid', 'admin', '稽核測試')
 		RETURNING id`).Scan(&id); err != nil {
@@ -6410,12 +6425,19 @@ func creditFundedReturn(t *testing.T, qty int32, creditCents int64) (
 	requestID uuid.UUID, orderNumber string, accountID uuid.UUID,
 ) {
 	t.Helper()
+	return creditFundedReturnOn(t, pool, qty, creditCents)
+}
+
+func creditFundedReturnOn(
+	t *testing.T, p *pgxpool.Pool, qty int32, creditCents int64,
+) (requestID uuid.UUID, orderNumber string, accountID uuid.UUID) {
+	t.Helper()
 	ctx := t.Context()
 	const price = 100000
 	total := int64(2) * price
 	card := total - creditCents
 
-	tx, err := pool.Begin(ctx)
+	tx, err := p.Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
