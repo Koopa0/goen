@@ -397,15 +397,15 @@ SELECT coalesce(max(version), 0)::int + 1 AS version
 FROM return_eligibility_assessments
 WHERE return_request_id = @return_request_id;
 
--- Latest row is taken FOR UPDATE so a second assessor cannot replace the
--- facts a concurrent decision is about to freeze.
+-- closeReturn already holds the order row. A concurrent Assess waits on
+-- that same lock, so this read does not take FOR UPDATE: admin has INSERT
+-- and SELECT only, and PostgreSQL would refuse the lock without UPDATE.
 -- name: LatestEligibilityAssessment :one
 SELECT id, order_id, return_request_id, version, assessed_by, assessed_at, basis
 FROM return_eligibility_assessments
 WHERE return_request_id = @return_request_id
 ORDER BY version DESC
-LIMIT 1
-FOR UPDATE;
+LIMIT 1;
 
 -- name: EligibilityFacts :many
 SELECT assessment_id, order_id, return_request_id, order_line_id,

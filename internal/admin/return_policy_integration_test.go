@@ -158,6 +158,42 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		}
 	})
 
+	t.Run("day 10 unmet exception pays without goodwill", func(t *testing.T) {
+		delivered := shopNoonDaysAgo(t, 10)
+		number, lineID := deliveredOrderAt(t, delivered)
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
+			Reason: "used", Lines: map[string]int32{lineID.String(): 1},
+		}); err != nil {
+			t.Fatalf("open day-10 return: %v", err)
+		}
+		requestID := openReturnID(t, number)
+		if err := s.Assess(ctx, requestID.String(), "opened the parcel", []admin.LineEligibility{{
+			OrderLineID: lineID,
+			Unused:      "unmet",
+			Packaging:   "met",
+			Accessories: "met",
+		}}); err != nil {
+			t.Fatalf("assess unmet: %v", err)
+		}
+		if received, restocked := inspectionCounts(t, requestID); received || restocked {
+			t.Fatalf("assessment wrote receive/restock = %t/%t, want neither", received, restocked)
+		}
+		status, refunds := returnPayout(t, requestID)
+		if status != "requested" || refunds != 0 {
+			t.Fatalf("assessment itself left %q/%d, want requested/0", status, refunds)
+		}
+		if err := s.Decide(ctx, requestID.String(), "exception", "used; staff exception", "1", uuid.NullUUID{}); err != nil {
+			t.Fatalf("exception unmet goodwill: %v", err)
+		}
+		status, refunds = returnPayout(t, requestID)
+		if status != "approved" || refunds != 1 {
+			t.Errorf("excepted unmet goodwill is %q with %d refunds, want approved/1", status, refunds)
+		}
+		if got := decisionClaim(t, requestID); got != "exception" {
+			t.Errorf("excepted unmet entitlement = %q, want exception", got)
+		}
+	})
+
 	t.Run("day 10 all met records goodwill and pays", func(t *testing.T) {
 		delivered := shopNoonDaysAgo(t, 10)
 		number, lineID := deliveredOrderAt(t, delivered)
@@ -249,6 +285,39 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		}
 		if got := decisionClaim(t, requestID); got != "statutory" {
 			t.Errorf("partial-delivery entitlement = %q, want statutory", got)
+		}
+	})
+
+	t.Run("mixed statutory and goodwill unknown stays open", func(t *testing.T) {
+		requestID, statutoryLine, goodwillLine := mixedWindowReturn(t,
+			shopNoonDaysAgo(t, 3),
+			shopNoonDaysAgo(t, 10),
+			time.Now(),
+		)
+		if window := queueWindow(t, s, requestID); window != "mixed" {
+			t.Fatalf("mixed window = %q, want mixed", window)
+		}
+		if err := s.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
+			t.Fatalf("approve mixed unknown = %v, want ErrRefused", err)
+		}
+		if err := s.Decide(ctx, requestID.String(), "rejected", "", "", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
+			t.Fatalf("reject mixed statutory = %v, want ErrRefused", err)
+		}
+		if err := s.Assess(ctx, requestID.String(), "photos of both parcels", []admin.LineEligibility{
+			{OrderLineID: statutoryLine, Unused: "met", Packaging: "met", Accessories: "met"},
+			{OrderLineID: goodwillLine, Unused: "met", Packaging: "met", Accessories: "met"},
+		}); err != nil {
+			t.Fatalf("assess mixed met: %v", err)
+		}
+		if err := s.Decide(ctx, requestID.String(), "approved", "", "1", uuid.NullUUID{}); err != nil {
+			t.Fatalf("approve mixed all-met: %v", err)
+		}
+		status, refunds := returnPayout(t, requestID)
+		if status != "approved" || refunds != 1 {
+			t.Errorf("mixed all-met is %q with %d refunds, want approved/1", status, refunds)
+		}
+		if got := decisionClaim(t, requestID); got != "goodwill" {
+			t.Errorf("mixed all-met entitlement = %q, want goodwill", got)
 		}
 	})
 
@@ -481,6 +550,114 @@ func returnPayout(t *testing.T, requestID uuid.UUID) (status string, refunds int
 		t.Fatalf("count refunds: %v", err)
 	}
 	return status, refunds
+}
+
+func inspectionCounts(t *testing.T, requestID uuid.UUID) (received, restocked bool) {
+	t.Helper()
+	var receivedN, restockedN int
+	if err := pool.QueryRow(t.Context(), `
+		SELECT count(*) FILTER (WHERE received_quantity IS NOT NULL),
+		       count(*) FILTER (WHERE restocked_quantity IS NOT NULL AND restocked_quantity > 0)
+		FROM return_request_lines
+		WHERE return_request_id = $1`, requestID).Scan(&receivedN, &restockedN); err != nil {
+		t.Fatalf("read inspection counts: %v", err)
+	}
+	return receivedN > 0, restockedN > 0
+}
+
+func mixedWindowReturn(t *testing.T, statutoryDelivered, goodwillDelivered, requested time.Time) (
+	requestID, statutoryLine, goodwillLine uuid.UUID,
+) {
+	t.Helper()
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var orderID uuid.UUID
+	var number string
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO orders (order_number, shipping_version_id, shipping_method_code,
+		                    shipping_method_name, shipping_cents)
+		SELECT next_order_number(), v.id, sm.code, v.name, 0
+		FROM shipping_method_versions v JOIN shipping_methods sm ON sm.id = v.method_id
+		ORDER BY v.effective_at LIMIT 1
+		RETURNING id, order_number`).Scan(&orderID, &number); err != nil {
+		t.Fatalf("create order: %v", err)
+	}
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity, position)
+		VALUES ($1, $2, '法定視窗', 50000, 1, 0) RETURNING id`,
+		orderID, "MIX-STAT-"+uuid.NewString()[:8]).Scan(&statutoryLine); err != nil {
+		t.Fatalf("create statutory line: %v", err)
+	}
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity, position)
+		VALUES ($1, $2, '優惠視窗', 50000, 1, 1) RETURNING id`,
+		orderID, "MIX-GOOD-"+uuid.NewString()[:8]).Scan(&goodwillLine); err != nil {
+		t.Fatalf("create goodwill line: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
+		                                postal_code, city, district, street)
+		VALUES ($1, 'mixed-return@example.com', '收件', '0912345678',
+		        '110', '台北市', '信義區', '路 1 號')`, orderID); err != nil {
+		t.Fatalf("create private data: %v", err)
+	}
+	sessionID := "cs_ret_mixed_" + number
+	if _, err := tx.Exec(ctx, `SELECT open_payment($1, $2, 100000)`, orderID, sessionID); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT capture_payment($1, 100000, NULL, NULL)`, sessionID); err != nil {
+		t.Fatalf("capture payment: %v", err)
+	}
+	moveOrderToShipped(t, tx, orderID)
+
+	var firstShipment, secondShipment uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO order_shipments (
+			order_id, carrier, tracking_number, shipped_at, delivered_at
+		) VALUES ($1, '黑貓', 'T-MIX-S-' || $2, $3, $4)
+		RETURNING id`, orderID, number, statutoryDelivered.Add(-48*time.Hour), statutoryDelivered).
+		Scan(&firstShipment); err != nil {
+		t.Fatalf("create statutory parcel: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+		VALUES ($1, $2, $3, 1)`, orderID, firstShipment, statutoryLine); err != nil {
+		t.Fatalf("ship statutory line: %v", err)
+	}
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO order_shipments (
+			order_id, carrier, tracking_number, shipped_at, delivered_at
+		) VALUES ($1, '黑貓', 'T-MIX-G-' || $2, $3, $4)
+		RETURNING id`, orderID, number, goodwillDelivered.Add(-48*time.Hour), goodwillDelivered).
+		Scan(&secondShipment); err != nil {
+		t.Fatalf("create goodwill parcel: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+		VALUES ($1, $2, $3, 1)`, orderID, secondShipment, goodwillLine); err != nil {
+		t.Fatalf("ship goodwill line: %v", err)
+	}
+
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO return_requests (order_id, reason, created_at)
+		VALUES ($1, 'mixed', $2) RETURNING id`, orderID, requested).Scan(&requestID); err != nil {
+		t.Fatalf("create return request: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+		VALUES ($1, $2, $3, 1), ($1, $2, $4, 1)`,
+		orderID, requestID, statutoryLine, goodwillLine); err != nil {
+		t.Fatalf("create return lines: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	return requestID, statutoryLine, goodwillLine
 }
 
 func decisionClaim(t *testing.T, requestID uuid.UUID) string {

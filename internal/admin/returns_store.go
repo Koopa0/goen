@@ -473,6 +473,7 @@ func parseAssessmentVersion(raw string) (int32, error) {
 func returnDecisionAudit(
 	status returns.ReturnStatus, resolution string,
 	window returns.PolicyWindow, entitlement returns.Entitlement,
+	assessmentVersion int32,
 ) map[string]any {
 	after := map[string]any{
 		"decision":      string(status),
@@ -481,6 +482,9 @@ func returnDecisionAudit(
 	}
 	if entitlement != "" {
 		after["entitlement"] = string(entitlement)
+	}
+	if assessmentVersion > 0 {
+		after["assessment_version"] = assessmentVersion
 	}
 	return after
 }
@@ -885,7 +889,7 @@ func (s *Store) closeReturn(
 	}
 	if err := auditIn(ctx, q, Event{
 		Action: actionDecideReturn, Table: "return_requests", ID: nullableID(requestID),
-		After: returnDecisionAudit(kind.Status(), resolution, claim.Window, claim.Entitlement),
+		After: returnDecisionAudit(kind.Status(), resolution, claim.Window, claim.Entitlement, assessmentVersion),
 	}); err != nil {
 		return err
 	}

@@ -6352,11 +6352,11 @@ FROM return_eligibility_assessments
 WHERE return_request_id = $1
 ORDER BY version DESC
 LIMIT 1
-FOR UPDATE
 `
 
-// Latest row is taken FOR UPDATE so a second assessor cannot replace the
-// facts a concurrent decision is about to freeze.
+// closeReturn already holds the order row. A concurrent Assess waits on
+// that same lock, so this read does not take FOR UPDATE: admin has INSERT
+// and SELECT only, and PostgreSQL would refuse the lock without UPDATE.
 func (q *Queries) LatestEligibilityAssessment(ctx context.Context, returnRequestID uuid.UUID) (ReturnEligibilityAssessment, error) {
 	row := q.db.QueryRow(ctx, latestEligibilityAssessment, returnRequestID)
 	var i ReturnEligibilityAssessment
