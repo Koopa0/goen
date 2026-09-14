@@ -403,9 +403,6 @@ func (s *Store) Decide(
 		}
 		return s.retryApprovedReturn(ctx, &row, position, actor)
 	}
-	if err := requireExceptionReason(kind, resolution); err != nil {
-		return err
-	}
 
 	// THE CLAIM, and it commits before a cent moves. Two staff members deciding
 	// one return at once both passed the pool read above; only one wins this,
@@ -919,6 +916,9 @@ func (s *Store) closeReturn(
 	resolution string,
 	assessmentVersion int32,
 ) error {
+	if err := requireExceptionReason(kind, resolution); err != nil {
+		return err
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin return decision: %w", err)
