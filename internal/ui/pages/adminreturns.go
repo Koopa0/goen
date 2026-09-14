@@ -24,11 +24,15 @@ type AdminReturn struct {
 	CardRefundCents   int64
 	CreditRefundCents int64
 	CreatedAt         string
-	// Window is "within", "goodwill", "after" or "undelivered": the statutory
-	// seven days, the shop's advertised days 8–14, later than that, or a
-	// parcel whose window has not started. Counted from the request clock.
-	Window  string
-	Decided bool
+	// Window is "within", "goodwill", "after", "undelivered" or "mixed":
+	// the statutory seven days, the shop's advertised days 8–14, later
+	// than that, a parcel whose window has not started, or a request whose
+	// lines disagree. Counted from the request clock against each line.
+	Window            string
+	AssessmentVersion int32
+	AssessmentBasis   string
+	AssessedAt        string
+	Decided           bool
 	// Decided and settled are separate facts: approval is committed before the
 	// provider or credit ledger completes what the shop owes.
 	PayoutOutstanding bool
@@ -89,12 +93,14 @@ func (r AdminReturn) RestockedUnitsText() string {
 func (r AdminReturn) Rescission() bool { return r.Window == "within" }
 
 // Goodwill reports whether this request is inside the shop's advertised
-// days 8–14. That is a window, not an entitlement: unused and complete are
-// not facts the decision can read.
+// days 8–14. Entitlement still depends on unused-and-complete facts.
 func (r AdminReturn) Goodwill() bool { return r.Window == "goodwill" }
 
 // Late reports whether this request was filed after the advertised 14 days.
 func (r AdminReturn) Late() bool { return r.Window == "after" }
+
+// Mixed reports whether the returned lines fall in more than one window.
+func (r AdminReturn) Mixed() bool { return r.Window == "mixed" }
 
 // WindowText names the window in the reader's language.
 func (r AdminReturn) WindowText(ctx context.Context) string {
@@ -107,9 +113,26 @@ func (r AdminReturn) WindowText(ctx context.Context) string {
 		return i18n.T(ctx, i18n.KeyAdminReturnWindowAfter)
 	case "undelivered":
 		return i18n.T(ctx, i18n.KeyAdminReturnWindowUndelivered)
+	case "mixed":
+		return i18n.T(ctx, i18n.KeyAdminReturnWindowMixed)
 	default:
 		panic("pages: unknown rescission window: " + r.Window)
 	}
+}
+
+// AssessmentVersionText is the hidden input the decide form freezes.
+func (r AdminReturn) AssessmentVersionText() string {
+	return strconv.FormatInt(int64(r.AssessmentVersion), 10)
+}
+
+// AssessmentStamp is the version and when it was written, for the staff
+// member who is about to freeze it.
+func (r AdminReturn) AssessmentStamp(ctx context.Context) string {
+	if r.AssessmentVersion == 0 {
+		return ""
+	}
+	return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetAssessedAt),
+		r.AssessmentVersionText(), r.AssessedAt)
 }
 
 // Amount is what approving it would refund.
@@ -137,6 +160,9 @@ func (r AdminReturn) UnitsText() string { return strconv.FormatInt(int64(r.Units
 // Action is where a decision on this return posts.
 func (r AdminReturn) Action() string { return "/admin/returns/" + r.ID + "/decide" }
 
+// AssessAction is where a pre-decision eligibility assessment posts.
+func (r AdminReturn) AssessAction() string { return "/admin/returns/" + r.ID + "/assess" }
+
 // InspectAction and CompleteAction are the tail's two forms.
 func (r AdminReturn) InspectAction() string { return "/admin/returns/" + r.ID + "/inspect" }
 
@@ -147,6 +173,22 @@ func (r AdminReturn) CompleteAction() string { return "/admin/returns/" + r.ID +
 type AdminReturnsView struct {
 	Rows   []AdminReturn
 	Notice string
+	// Errors keys as "{returnID}.{field}" so a 422 can mark one row without
+	// painting every other request on the queue.
+	Errors map[string]string
+}
+
+// FieldError is the sentence under one control on one request, if any.
+func (v AdminReturnsView) FieldError(returnID, field string) string {
+	if v.Errors == nil {
+		return ""
+	}
+	return v.Errors[returnID+"."+field]
+}
+
+// FieldInvalid reports whether that control should carry aria-invalid.
+func (v AdminReturnsView) FieldInvalid(returnID, field string) bool {
+	return v.FieldError(returnID, field) != ""
 }
 
 // Empty reports whether there is nothing to show.
@@ -165,6 +207,33 @@ type AdminReturnLine struct {
 	Restocked   int32
 	Note        string
 	Restockable bool
+	Window      string
+	Unused      string
+	Packaging   string
+	Accessories string
+}
+
+// FactValue is the radio this line currently holds. Unknown is the default
+// so a first visit cannot look pre-ticked as met.
+func (l AdminReturnLine) FactValue(name string) string {
+	var got string
+	switch name {
+	case "unused":
+		got = l.Unused
+	case "packaging":
+		got = l.Packaging
+	case "accessories":
+		got = l.Accessories
+	}
+	if got == "" {
+		return "unknown"
+	}
+	return got
+}
+
+// FactChecked is whether this radio is the current observation.
+func (l AdminReturnLine) FactChecked(name, value string) bool {
+	return l.FactValue(name) == value
 }
 
 // ReceivedText and RestockedText are the figures as the form's default values.

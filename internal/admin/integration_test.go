@@ -2792,7 +2792,7 @@ func TestRejectingAReturnMovesNoMoney(t *testing.T) {
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 	requestID, _ := returnedOrder(t, 2)
 
-	if err := s.Decide(ctx, requestID.String(), "rejected", "超過鑑賞期", "ineligible", uuid.NullUUID{}); err != nil {
+	if err := s.Decide(ctx, requestID.String(), "rejected", "超過鑑賞期", "", uuid.NullUUID{}); err != nil {
 		t.Fatalf("reject: %v", err)
 	}
 

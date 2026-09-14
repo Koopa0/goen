@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/returns"
@@ -14,6 +17,28 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
 )
+
+const maxAssessmentBasisRunes = 500
+
+// FormRefusal is a decision or assessment the advertised policy (or the
+// form) refused, naming the control the queue should mark.
+type FormRefusal struct {
+	Field string
+	Kind  returns.RefusalKind
+}
+
+func (e *FormRefusal) Error() string {
+	if e == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s: %s", ErrRefused.Error(), e.Kind)
+}
+
+func (e *FormRefusal) Unwrap() error { return ErrRefused }
+
+func formRefuse(field string, kind returns.RefusalKind) error {
+	return &FormRefusal{Field: field, Kind: kind}
+}
 
 const maxReturnResolutionRunes = 300
 
@@ -66,7 +91,38 @@ func (s *Store) Returns(ctx context.Context) (ReturnQueue, error) {
 			Restocked:   l.RestockedQuantity.Int32,
 			Note:        l.InspectionNote,
 			Restockable: l.Restockable,
+			Window:      l.PolicyWindow,
 		})
+	}
+	assessments, err := s.q.LatestEligibilityAssessments(ctx, ids)
+	if err != nil {
+		return ReturnQueue{}, fmt.Errorf("read return assessments: %w", err)
+	}
+	assessmentIDs := make([]uuid.UUID, 0, len(assessments))
+	assessmentByRequest := make(map[uuid.UUID]db.ReturnEligibilityAssessment, len(assessments))
+	for i := range assessments {
+		assessmentIDs = append(assessmentIDs, assessments[i].ID)
+		assessmentByRequest[assessments[i].ReturnRequestID] = assessments[i]
+	}
+	if len(assessmentIDs) > 0 {
+		facts, factErr := s.q.EligibilityFactsForAssessments(ctx, assessmentIDs)
+		if factErr != nil {
+			return ReturnQueue{}, fmt.Errorf("read return eligibility facts: %w", factErr)
+		}
+		for i := range facts {
+			f := &facts[i]
+			lines := byRequest[f.ReturnRequestID]
+			for j := range lines {
+				if lines[j].OrderLineID != f.OrderLineID.String() {
+					continue
+				}
+				lines[j].Unused = f.Unused
+				lines[j].Packaging = f.PackagingComplete
+				lines[j].Accessories = f.AccessoriesComplete
+				lines[j].Window = f.PolicyWindow
+			}
+			byRequest[f.ReturnRequestID] = lines
+		}
 	}
 
 	view := ReturnQueue{}
@@ -84,6 +140,11 @@ func (s *Store) Returns(ctx context.Context) (ReturnQueue, error) {
 			Decided:     returns.ReturnStatus(r.Status) != returns.ReturnRequested,
 			Lines:       byRequest[r.ID],
 			Window:      r.RescissionWindow,
+		}
+		if a, ok := assessmentByRequest[r.ID]; ok {
+			item.AssessmentVersion = a.Version
+			item.AssessmentBasis = a.Basis
+			item.AssessedAt = shoptime.Minute(a.AssessedAt)
 		}
 		if facts, ok := payoutFacts[r.ID]; ok {
 			item.CardRefundCents = facts.CardRefundCents
@@ -262,7 +323,7 @@ func fillReturnPayoutState(
 // an ambiguous attempt reuses its provider key, while a known terminal attempt
 // gets a fresh DB-derived key and immutable successor row.
 func (s *Store) Decide(
-	ctx context.Context, id, decision, resolution, rejectionGround string, _ uuid.NullUUID,
+	ctx context.Context, id, decision, resolution, assessmentVersion string, _ uuid.NullUUID,
 ) error {
 	if !validReturnResolution(resolution) {
 		return fmt.Errorf("%w: return resolution exceeds %d characters",
@@ -278,21 +339,17 @@ func (s *Store) Decide(
 	// different people.
 	actor := uuid.NullUUID{UUID: actorID, Valid: true}
 
-	decisionStatus, ok := returns.ParseDecision(decision)
+	kind, ok := returns.ParseDecisionKind(decision)
 	if !ok {
 		return ErrRefused
 	}
-	row, retry, readErr := s.returnUnderDecision(ctx, id, decisionStatus)
+	version, versionErr := parseAssessmentVersion(assessmentVersion)
+	if versionErr != nil {
+		return versionErr
+	}
+	row, retry, readErr := s.returnUnderDecision(ctx, id, kind)
 	if readErr != nil {
 		return readErr
-	}
-	window, entitlement, policyErr := applyReturnPolicy(
-		retry, &row, decisionStatus, rejectionGround)
-	if policyErr != nil {
-		return policyErr
-	}
-	if decisionStatus == returns.ReturnRejected {
-		return s.closeReturn(ctx, row.ID, returns.ReturnRejected, resolution, window, entitlement)
 	}
 
 	if retry {
@@ -312,7 +369,7 @@ func (s *Store) Decide(
 	// and the loser must not have paid anything on the way to finding out. The
 	// transition freezes goods and the one delivery allocation under the order
 	// lock, so every provider retry keeps this winning economic identity.
-	if closeErr := s.closeReturn(ctx, row.ID, returns.ReturnApproved, resolution, window, entitlement); closeErr != nil {
+	if closeErr := s.closeReturn(ctx, row.ID, kind, resolution, version); closeErr != nil {
 		return closeErr
 	}
 	frozen, err := s.q.ReturnForDecision(ctx, row.ID)
@@ -379,7 +436,7 @@ func (s *Store) retryApprovedReturn(
 // reuses its durable key; a known failed/cancelled attempt gets a DB-derived
 // successor generation so Stripe may execute new work without losing lineage.
 func (s *Store) returnUnderDecision(
-	ctx context.Context, id string, decision returns.ReturnStatus,
+	ctx context.Context, id string, kind returns.DecisionKind,
 ) (db.ReturnForDecisionRow, bool, error) {
 	requestID, err := uuid.Parse(id)
 	if err != nil {
@@ -390,7 +447,7 @@ func (s *Store) returnUnderDecision(
 		return db.ReturnForDecisionRow{}, false, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	status := returns.ReturnStatus(row.Status)
-	retry := status == returns.ReturnApproved && decision == returns.ReturnApproved
+	retry := status == returns.ReturnApproved && kind == returns.DecisionApprove
 	if status != returns.ReturnRequested && !retry {
 		return db.ReturnForDecisionRow{}, false,
 			fmt.Errorf("%w: return %s is already %s", ErrRefused, id, row.Status)
@@ -398,42 +455,16 @@ func (s *Store) returnUnderDecision(
 	return row, retry, nil
 }
 
-func applyReturnPolicy(
-	retry bool, row *db.ReturnForDecisionRow, decision returns.ReturnStatus, rejectionGround string,
-) (returns.PolicyWindow, returns.Entitlement, error) {
-	if retry {
-		return "", "", nil
+func parseAssessmentVersion(raw string) (int32, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, nil
 	}
-	return returnDecisionClaim(row.PolicyWindow, decision, row.Reason, rejectionGround)
-}
-
-// returnDecisionClaim is the advertised policy at the decision door. A retry
-// has already been decided; re-reading now() or the clocks must not rewrite
-// that claim. A first decision classifies from the query's policy_window, which
-// is created_at against delivered_at, so a day-5 filing stays statutory on
-// day 20.
-func returnDecisionClaim(
-	policyWindow string, decision returns.ReturnStatus, reason, rejectionGround string,
-) (returns.PolicyWindow, returns.Entitlement, error) {
-	window, ok := returns.ParsePolicyWindow(policyWindow)
-	if !ok {
-		return "", "", fmt.Errorf("%w: return policy window %q is not a known window",
-			ErrRefused, policyWindow)
+	n, err := strconv.ParseInt(raw, 10, 32)
+	if err != nil || n < 0 {
+		return 0, formRefuse("decision", returns.RefuseIncomplete)
 	}
-	ground, groundOK := returns.ParseRejectionGround(rejectionGround)
-	if decision == returns.ReturnRejected && rejectionGround != "" && !groundOK {
-		return "", "", fmt.Errorf("%w: rejection ground %q is not a known ground",
-			ErrRefused, rejectionGround)
-	}
-	if decision == returns.ReturnRejected && returns.RefuseRejection(window, reason, ground) {
-		return "", "", fmt.Errorf("%w: statutory rescission cannot be refused for a blank reason",
-			ErrRefused)
-	}
-	var entitlement returns.Entitlement
-	if decision == returns.ReturnApproved {
-		entitlement = returns.EntitlementFor(window)
-	}
-	return window, entitlement, nil
+	return int32(n), nil
 }
 
 func returnDecisionAudit(
@@ -700,14 +731,121 @@ func refundProviderResult(providerRef string, state RefundState) (string, Refund
 	}
 }
 
+// LineEligibility is one line's three observed facts from the assess form.
+type LineEligibility struct {
+	OrderLineID uuid.UUID
+	Unused      string
+	Packaging   string
+	Accessories string
+}
+
+func validAssessmentBasis(s string) bool {
+	s = strings.TrimSpace(s)
+	return utf8.ValidString(s) && utf8.RuneCountInString(s) > 0 &&
+		utf8.RuneCountInString(s) <= maxAssessmentBasisRunes
+}
+
+// Assess records a pre-decision eligibility observation. It does not pay
+// and does not restock: those stay behind Decide and InspectReturn.
+func (s *Store) Assess(ctx context.Context, id, basis string, facts []LineEligibility) error {
+	basis = strings.TrimSpace(basis)
+	if !validAssessmentBasis(basis) {
+		return formRefuse("basis", returns.RefuseIncomplete)
+	}
+	actorID, ok := actorFrom(ctx)
+	if !ok {
+		return fmt.Errorf("%w: assess return", ErrNoActor)
+	}
+	requestID, err := uuid.Parse(id)
+	if err != nil {
+		return ErrRefused
+	}
+	byLine := make(map[uuid.UUID]LineEligibility, len(facts))
+	for _, fact := range facts {
+		if _, ok := returns.ParseFact(fact.Unused); !ok {
+			return formRefuse("unused-"+fact.OrderLineID.String(), returns.RefuseIncomplete)
+		}
+		if _, ok := returns.ParseFact(fact.Packaging); !ok {
+			return formRefuse("packaging-"+fact.OrderLineID.String(), returns.RefuseIncomplete)
+		}
+		if _, ok := returns.ParseFact(fact.Accessories); !ok {
+			return formRefuse("accessories-"+fact.OrderLineID.String(), returns.RefuseIncomplete)
+		}
+		byLine[fact.OrderLineID] = fact
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin return assessment: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	q := s.q.WithTx(tx)
+	if _, err := q.LockReturnOrder(ctx, requestID); err != nil {
+		return fmt.Errorf("%w: lock return order for assessment: %w", ErrRefused, err)
+	}
+	row, err := q.ReturnForDecision(ctx, requestID)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrRefused, err)
+	}
+	if returns.ReturnStatus(row.Status) != returns.ReturnRequested {
+		return fmt.Errorf("%w: return %s is already %s", ErrRefused, id, row.Status)
+	}
+	lines, err := q.ReturnLines(ctx, []uuid.UUID{requestID})
+	if err != nil {
+		return fmt.Errorf("read return lines for assessment: %w", err)
+	}
+	if len(lines) == 0 {
+		return ErrRefused
+	}
+	version, err := q.NextEligibilityVersion(ctx, requestID)
+	if err != nil {
+		return fmt.Errorf("next eligibility version: %w", err)
+	}
+	assessment, err := q.InsertEligibilityAssessment(ctx, db.InsertEligibilityAssessmentParams{
+		OrderID:         row.OrderID,
+		ReturnRequestID: requestID,
+		Version:         version,
+		AssessedBy:      actorID,
+		Basis:           basis,
+	})
+	if err != nil {
+		return fmt.Errorf("insert eligibility assessment: %w", err)
+	}
+	for i := range lines {
+		line := &lines[i]
+		fact := byLine[line.OrderLineID]
+		unused, packaging, accessories := "unknown", "unknown", "unknown"
+		if fact.OrderLineID == line.OrderLineID {
+			unused, packaging, accessories = fact.Unused, fact.Packaging, fact.Accessories
+		}
+		if err := q.InsertEligibilityFact(ctx, db.InsertEligibilityFactParams{
+			AssessmentID:        assessment.ID,
+			OrderID:             line.OrderID,
+			ReturnRequestID:     requestID,
+			OrderLineID:         line.OrderLineID,
+			Unused:              unused,
+			PackagingComplete:   packaging,
+			AccessoriesComplete: accessories,
+			RequestedAt:         line.RequestedAt,
+			DeliveredAt:         line.DeliveredAt,
+			PolicyWindow:        line.PolicyWindow,
+		}); err != nil {
+			return fmt.Errorf("insert eligibility fact: %w", err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit return assessment: %w", err)
+	}
+	return nil
+}
+
 // closeReturn stamps the decision and appends to the order's history, together.
 func (s *Store) closeReturn(
 	ctx context.Context,
 	requestID uuid.UUID,
-	status returns.ReturnStatus,
+	kind returns.DecisionKind,
 	resolution string,
-	window returns.PolicyWindow,
-	entitlement returns.Entitlement,
+	assessmentVersion int32,
 ) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -719,12 +857,21 @@ func (s *Store) closeReturn(
 		return fmt.Errorf("%w: lock return order for decision: %w", ErrRefused, err)
 	}
 
+	lines, err := q.ReturnLines(ctx, []uuid.UUID{requestID})
+	if err != nil {
+		return fmt.Errorf("read return lines for decision: %w", err)
+	}
+	_, claim, policyErr := decisionClaim(ctx, q, requestID, lines, kind, assessmentVersion)
+	if policyErr != nil {
+		return policyErr
+	}
+
 	// The row count is the decision. Decide's pre-check runs on the pool outside
 	// this transaction, so the statement's own `status = 'requested'` is what
 	// settles which of two staff members deciding at once wins — and it runs
 	// BEFORE any money moves.
 	decided, decideErr := q.DecideReturn(ctx, db.DecideReturnParams{
-		ID: requestID, Status: string(status), Resolution: text(resolution),
+		ID: requestID, Status: string(kind.Status()), Resolution: text(resolution),
 	})
 	if decideErr != nil {
 		return fmt.Errorf("%w: %w", ErrRefused, decideErr)
@@ -735,7 +882,7 @@ func (s *Store) closeReturn(
 	}
 	if err := auditIn(ctx, q, Event{
 		Action: actionDecideReturn, Table: "return_requests", ID: nullableID(requestID),
-		After: returnDecisionAudit(status, resolution, window, entitlement),
+		After: returnDecisionAudit(kind.Status(), resolution, claim.Window, claim.Entitlement),
 	}); err != nil {
 		return err
 	}
@@ -743,6 +890,89 @@ func (s *Store) closeReturn(
 		return fmt.Errorf("commit return decision: %w", err)
 	}
 	return nil
+}
+
+func decisionClaim(
+	ctx context.Context,
+	q *db.Queries,
+	requestID uuid.UUID,
+	lines []db.ReturnLinesRow,
+	kind returns.DecisionKind,
+	assessmentVersion int32,
+) ([]returns.LineAssessment, returns.Claim, error) {
+	assessed := lineAssessmentsFromRows(lines)
+	if assessmentVersion > 0 {
+		latest, err := q.LatestEligibilityAssessment(ctx, requestID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, returns.Claim{}, formRefuse("decision", returns.RefuseStale)
+		}
+		if err != nil {
+			return nil, returns.Claim{}, fmt.Errorf("lock eligibility assessment: %w", err)
+		}
+		if latest.Version != assessmentVersion {
+			return nil, returns.Claim{}, formRefuse("decision", returns.RefuseStale)
+		}
+		facts, factErr := q.EligibilityFacts(ctx, latest.ID)
+		if factErr != nil {
+			return nil, returns.Claim{}, fmt.Errorf("read eligibility facts: %w", factErr)
+		}
+		assessed = overlayEligibilityFacts(assessed, facts)
+	}
+	claim, err := returns.Evaluate(assessed, kind)
+	if err != nil {
+		var refused *returns.Refusal
+		if errors.As(err, &refused) {
+			return nil, returns.Claim{}, formRefuse("decision", refused.Kind)
+		}
+		return nil, returns.Claim{}, fmt.Errorf("%w: %w", ErrRefused, err)
+	}
+	return assessed, claim, nil
+}
+
+func lineAssessmentsFromRows(lines []db.ReturnLinesRow) []returns.LineAssessment {
+	out := make([]returns.LineAssessment, 0, len(lines))
+	for i := range lines {
+		window, ok := returns.ParsePolicyWindow(lines[i].PolicyWindow)
+		if !ok || window == returns.WindowMixed {
+			window = returns.WindowUndelivered
+		}
+		out = append(out, returns.LineAssessment{
+			OrderLineID: lines[i].OrderLineID.String(),
+			Window:      window,
+			Unused:      returns.FactUnknown,
+			Packaging:   returns.FactUnknown,
+			Accessories: returns.FactUnknown,
+		})
+	}
+	return out
+}
+
+func overlayEligibilityFacts(
+	lines []returns.LineAssessment, facts []db.ReturnEligibilityFact,
+) []returns.LineAssessment {
+	byLine := make(map[string]db.ReturnEligibilityFact, len(facts))
+	for i := range facts {
+		byLine[facts[i].OrderLineID.String()] = facts[i]
+	}
+	for i := range lines {
+		f, ok := byLine[lines[i].OrderLineID]
+		if !ok {
+			continue
+		}
+		if window, ok := returns.ParsePolicyWindow(f.PolicyWindow); ok && window != returns.WindowMixed {
+			lines[i].Window = window
+		}
+		if unused, ok := returns.ParseFact(f.Unused); ok {
+			lines[i].Unused = unused
+		}
+		if packaging, ok := returns.ParseFact(f.PackagingComplete); ok {
+			lines[i].Packaging = packaging
+		}
+		if accessories, ok := returns.ParseFact(f.AccessoriesComplete); ok {
+			lines[i].Accessories = accessories
+		}
+	}
+	return lines
 }
 
 // ReturnLineInspection is what a staff member found in one line of a parcel.

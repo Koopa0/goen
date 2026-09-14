@@ -141,56 +141,49 @@ func TestReturnPayoutDiagnosticRouting(t *testing.T) {
 	}
 }
 
-func TestAStatutoryBlankReasonCannotBeTheSoleRejection(t *testing.T) {
+func TestAStatutoryRequestCannotBeRejectedOnTheDecisionPath(t *testing.T) {
 	t.Parallel()
 
-	_, _, err := returnDecisionClaim("within", returns.ReturnRejected, "", "")
-	if !errors.Is(err, ErrRefused) {
-		t.Fatalf("blank statutory rejection = %v, want ErrRefused", err)
-	}
-
-	window, entitlement, err := returnDecisionClaim(
-		"within", returns.ReturnRejected, "", string(returns.RejectionGroundIneligible))
-	if err != nil {
-		t.Fatalf("statutory rejection with another ground = %v", err)
-	}
-	if window != returns.WindowStatutory || entitlement != "" {
-		t.Errorf("claim = %q/%q, want statutory window and no approval entitlement",
-			window, entitlement)
+	_, err := returns.Evaluate([]returns.LineAssessment{{
+		OrderLineID: "1", Window: returns.WindowStatutory,
+	}}, returns.DecisionReject)
+	if !errors.Is(err, returns.ErrPolicy) {
+		t.Fatalf("statutory rejection = %v, want ErrPolicy", err)
 	}
 }
 
 func TestLateApprovalCannotClaimPolicyEntitlement(t *testing.T) {
 	t.Parallel()
 
-	for _, tc := range []struct {
-		window string
+	tests := []struct {
+		window returns.PolicyWindow
+		kind   returns.DecisionKind
 		want   returns.Entitlement
+		refuse bool
 	}{
-		{"goodwill", ""},
-		{"after", returns.EntitlementException},
-		{"undelivered", returns.EntitlementException},
-	} {
-		gotWindow, entitlement, err := returnDecisionClaim(
-			tc.window, returns.ReturnApproved, "", "")
+		{returns.WindowGoodwill, returns.DecisionApprove, "", true},
+		{returns.WindowLate, returns.DecisionApprove, "", true},
+		{returns.WindowLate, returns.DecisionException, returns.EntitlementException, false},
+		{returns.WindowUndelivered, returns.DecisionApprove, returns.EntitlementException, false},
+		{returns.WindowStatutory, returns.DecisionApprove, returns.EntitlementStatutory, false},
+	}
+	for _, tc := range tests {
+		got, err := returns.Evaluate([]returns.LineAssessment{{
+			OrderLineID: "1", Window: tc.window,
+		}}, tc.kind)
+		if tc.refuse {
+			if !errors.Is(err, returns.ErrPolicy) {
+				t.Fatalf("Evaluate(%s, %s) = %v, want ErrPolicy", tc.window, tc.kind, err)
+			}
+			continue
+		}
 		if err != nil {
-			t.Fatalf("approve %s = %v", tc.window, err)
+			t.Fatalf("Evaluate(%s, %s) = %v", tc.window, tc.kind, err)
 		}
-		if gotWindow != returns.PolicyWindow(tc.window) {
-			t.Errorf("window = %q, want %q", gotWindow, tc.window)
+		if got.Entitlement != tc.want {
+			t.Errorf("Evaluate(%s, %s) entitlement = %q, want %q",
+				tc.window, tc.kind, got.Entitlement, tc.want)
 		}
-		if entitlement != tc.want {
-			t.Errorf("approve %s entitlement = %q, want %q", tc.window, entitlement, tc.want)
-		}
-	}
-
-	window, entitlement, err := returnDecisionClaim(
-		"within", returns.ReturnApproved, "", "")
-	if err != nil {
-		t.Fatalf("approve statutory = %v", err)
-	}
-	if window != returns.WindowStatutory || entitlement != returns.EntitlementStatutory {
-		t.Errorf("statutory approval = %q/%q, want within/statutory", window, entitlement)
 	}
 }
 

@@ -140,7 +140,7 @@ func TestEveryReturnPolicyWindowHasALabel(t *testing.T) {
 	t.Parallel()
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
-		for _, window := range []string{"within", "goodwill", "after", "undelivered"} {
+		for _, window := range []string{"within", "goodwill", "after", "undelivered", "mixed"} {
 			label := AdminReturn{Window: window}.WindowText(ctx)
 			if label == "" || label == window {
 				t.Errorf("WindowText(%q) in %s = %q, want a catalogue label", window, locale, label)
@@ -178,8 +178,9 @@ func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 			{
 				window: "goodwill",
 				want:   []string{i18n.T(ctx, i18n.KeyAdminReturnWindowGoodwill), i18n.T(ctx, i18n.KeyAdminRetGoodwillHint)},
-				// Days 8–14 are a conditional offer, not a staff-exception label.
-				hide: []string{i18n.T(ctx, i18n.KeyAdminRetMustAccept), "人工例外", "staff exception"},
+				// Days 8–14 are a conditional offer; the late-window exception
+				// sentence must not appear on the hint.
+				hide: []string{i18n.T(ctx, i18n.KeyAdminRetMustAccept), i18n.T(ctx, i18n.KeyAdminRetLateHint)},
 			},
 			{
 				window: "after",
@@ -189,6 +190,11 @@ func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 			{
 				window: "undelivered",
 				want:   []string{i18n.T(ctx, i18n.KeyAdminReturnWindowUndelivered)},
+				hide:   []string{i18n.T(ctx, i18n.KeyAdminRetMustAccept), i18n.T(ctx, i18n.KeyAdminRetLateHint)},
+			},
+			{
+				window: "mixed",
+				want:   []string{i18n.T(ctx, i18n.KeyAdminReturnWindowMixed), i18n.T(ctx, i18n.KeyAdminRetGoodwillHint)},
 				hide:   []string{i18n.T(ctx, i18n.KeyAdminRetMustAccept), i18n.T(ctx, i18n.KeyAdminRetLateHint)},
 			},
 		}
@@ -213,18 +219,46 @@ func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 		}
 	})
 
-	t.Run("an open request offers both decisions", func(t *testing.T) {
+	t.Run("an open statutory request offers approval without a reject escape", func(t *testing.T) {
 		row := base("open-row")
 		row.Status = "requested"
 		row.Decided = false
 		html := render(t, row)
 		for _, want := range []string{
-			`action="/admin/returns/open-row/decide"`, `value="approved"`, `value="rejected"`,
-			`name="rejection_ground"`, `value="missing_reason"`, `value="ineligible"`,
-			`name="resolution"`, `maxlength="300"`,
+			`action="/admin/returns/open-row/decide"`, `value="approved"`,
+			`name="assessment_version"`, `name="resolution"`, `maxlength="300"`,
 		} {
 			if !strings.Contains(html, want) {
 				t.Errorf("open request HTML lacks %s", want)
+			}
+		}
+		for _, hide := range []string{
+			`name="rejection_ground"`, `value="missing_reason"`, `value="ineligible"`,
+			`value="rejected"`,
+		} {
+			if strings.Contains(html, hide) {
+				t.Errorf("statutory form still offers %s", hide)
+			}
+		}
+	})
+
+	t.Run("a goodwill request offers assessment and the three verbs", func(t *testing.T) {
+		row := base("goodwill-row")
+		row.Status = "requested"
+		row.Decided = false
+		row.Window = "goodwill"
+		row.Lines = []AdminReturnLine{{
+			OrderLineID: "line-1", Name: "測試", Quantity: 1, SKU: "SKU-1",
+		}}
+		html := render(t, row)
+		for _, want := range []string{
+			`action="/admin/returns/goodwill-row/assess"`,
+			`name="unused_line-1"`, `name="packaging_line-1"`, `name="accessories_line-1"`,
+			`value="unknown"`, `value="met"`, `value="unmet"`,
+			`name="basis"`, `value="approved"`, `value="rejected"`, `value="exception"`,
+		} {
+			if !strings.Contains(html, want) {
+				t.Errorf("goodwill HTML lacks %s", want)
 			}
 		}
 	})
