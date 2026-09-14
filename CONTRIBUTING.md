@@ -72,11 +72,28 @@ elsewhere.
 Run the gate unpiped and report its exit status. A pipe reports the status of
 its last command, which has read a red gate as green here before.
 
-`main` is protected by `.github/branch-protection.json`: no force-push, no
-deletion, a pull request with one review, and all three CI jobs green. GitHub
-refuses to enforce a ruleset on a private free-plan repository, so until the
-repository is public that file is the policy and the maintainer applies it by
-hand.
+This public repository has an active `main` ruleset (id `22740037`). It blocks
+deletion and force-push, requires resolved review threads and one approval,
+dismisses approvals on a new push, and requires the branch to be current with
+the base. `.github/branch-protection.json` is its reviewed import artifact, not
+the enforcement mechanism: verify current settings through the rulesets API.
+
+The import artifact requires `verify`, `schema`, `vulnerabilities`, `ci-policy`,
+`commit-attribution`, `CodeQL (go)` and `CodeQL (actions)` from GitHub Actions.
+New contexts are applied to the live ruleset only after successful PR runs.
+The CodeQL rule also blocks error-level findings and high/critical security
+findings; apply it only after successful PR and merged-main analyses exist.
+`make workflow-check`, also part of `make verify`, validates workflow syntax and
+the committed gate contract. Commit messages are checked separately over the
+actual PR or main-push range. Secret scanning and push protection are enabled.
+
+The owner role still has an `always` bypass in GitHub. This can bypass required
+checks and reviews; it is not evidence of acceptance. Restrict its use to an
+explicitly recorded break-glass decision. An owner-authored PR cannot satisfy
+its own native approval: the exact-head human acceptance policy and removing
+that bypass remain part of [#40](https://github.com/Koopa0/goen/issues/40).
+Browser-gate promotion, provider acceptance and release provenance also remain
+there; green presubmit jobs do not establish those product-level guarantees.
 
 ## Change it
 

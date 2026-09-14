@@ -1,5 +1,5 @@
 {
-  "_comment": "Ruleset for main. GitHub refuses rulesets and branch protection on a private free-plan repository (HTTP 403). Apply the moment the repository is public or on Pro: gh api -X POST repos/Koopa0/goen/rulesets --input .github/branch-protection.json",
+  "_comment": "Import artifact for active main ruleset 22740037. This file does not enforce GitHub settings. Read the rulesets API to verify live enforcement; apply reviewed changes with gh api -X PUT repos/Koopa0/goen/rulesets/22740037 --input .github/branch-protection.json only after successful new-check runs and merged-main CodeQL results exist. The owner role still has an always bypass; its restriction/removal and exact-head human acceptance are tracked in #40.",
   "name": "main",
   "target": "branch",
   "enforcement": "active",
@@ -25,9 +25,25 @@
       "parameters": {
         "strict_required_status_checks_policy": true,
         "required_status_checks": [
-          { "context": "verify" },
-          { "context": "schema" },
-          { "context": "vulnerabilities" }
+          { "context": "verify", "integration_id": 15368 },
+          { "context": "schema", "integration_id": 15368 },
+          { "context": "vulnerabilities", "integration_id": 15368 },
+          { "context": "ci-policy", "integration_id": 15368 },
+          { "context": "commit-attribution", "integration_id": 15368 },
+          { "context": "CodeQL (go)", "integration_id": 15368 },
+          { "context": "CodeQL (actions)", "integration_id": 15368 }
+        ]
+      }
+    },
+    {
+      "type": "code_scanning",
+      "parameters": {
+        "code_scanning_tools": [
+          {
+            "tool": "CodeQL",
+            "alerts_threshold": "errors",
+            "security_alerts_threshold": "high_or_higher"
+          }
         ]
       }
     }
