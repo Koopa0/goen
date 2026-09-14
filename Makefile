@@ -24,7 +24,8 @@ include .env
 export
 endif
 
-.PHONY: build run test test-race test-integration production-build-check integration-build-check \
+.PHONY: build run test test-race test-integration commerce-acceptance commerce-acceptance-list \
+        commerce-acceptance-all production-build-check integration-build-check \
         image image-push lint fmt fmt-check vet deadcode gen templ-check vuln \
         sqlc sqlc-check squawk db-up db-down migrate-up migrate-down db-seed \
         db-repair-invoice-faq db-repair-refund-faq \
@@ -60,6 +61,27 @@ production-build-check: gen
 # Requires Docker: these start a real PostgreSQL 18 through testcontainers.
 # The database is never mocked — most of goen's data rules live in CHECK
 # constraints and partial unique indexes, and a fake has none of them.
+# Executable commerce scenario composition from #337. Reuses existing integration
+# tests declared in acceptance/manifest.json and adds only missing composition
+# assertions under internal/acceptance.
+commerce-acceptance-list:
+	go run ./cmd/commerce-acceptance list
+
+commerce-acceptance:
+	@scenario="$(filter-out $@,$(MAKECMDGOALS))"; \
+	if [ -n "$$scenario" ]; then \
+		go run ./cmd/commerce-acceptance run --ready-only "$$scenario"; \
+	else \
+		go run ./cmd/commerce-acceptance run --ready-only all; \
+	fi
+
+commerce-acceptance-all:
+	go run ./cmd/commerce-acceptance run --all
+
+# Swallow scenario ids passed as extra goals: `make commerce-acceptance C05`.
+C01 C02 C03 C04 C05 C06 C07 C08 C09 C10 C11 C12 C13 C14 C15 C16:
+	@:
+
 test-integration: gen
 	@# -shuffle=on, because the integration suites share a database and a test
 	@# that consumes stock another one assumes is there passes in file order and
