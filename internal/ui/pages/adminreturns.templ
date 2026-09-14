@@ -125,7 +125,14 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 								}
 								<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.Action()) }>
 									<input type="hidden" name="assessment_version" value={ r.AssessmentVersionText() }/>
-									<p class="ui-error-text" id={ "decision-" + r.ID + "-error" } role="alert">{ v.FieldError(r.ID, "decision") }</p>
+									<p
+										class="ui-error-text"
+										id={ "decision-" + r.ID + "-error" }
+										role="alert"
+										if v.FieldInvalid(r.ID, "decision") {
+											aria-invalid="true"
+										}
+									>{ v.FieldError(r.ID, "decision") }</p>
 									<div class="ui-field">
 										<label class="ui-label" for={ "res-" + r.ID }>{ i18n.T(ctx, i18n.KeyAdminRetResolution) }</label>
 										<input
