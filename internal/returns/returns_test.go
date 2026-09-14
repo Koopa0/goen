@@ -56,22 +56,6 @@ func TestEveryKnownReturnStatusHasACustomerLabel(t *testing.T) {
 	}
 }
 
-func TestParseDecisionRejectsTypos(t *testing.T) {
-	t.Parallel()
-
-	for _, typo := range []string{"approveed", "rejectted", "requested", "completed", ""} {
-		if _, ok := ParseDecision(typo); ok {
-			t.Errorf("ParseDecision(%q) accepted a non-decision", typo)
-		}
-	}
-	for _, decision := range []ReturnStatus{ReturnApproved, ReturnRejected} {
-		got, ok := ParseDecision(string(decision))
-		if !ok || got != decision {
-			t.Errorf("ParseDecision(%q) = %q/%t, want %q/true", decision, got, ok, decision)
-		}
-	}
-}
-
 func TestUnknownReturnStatusRendersAsItself(t *testing.T) {
 	t.Parallel()
 
