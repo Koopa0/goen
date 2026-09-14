@@ -158,8 +158,8 @@ func assessmentLines(r *http.Request) ([]LineEligibility, error) {
 }
 
 func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, err error) bool {
-	var refused *FormRefusal
-	if !errors.As(err, &refused) {
+	refused, ok := errors.AsType[*FormRefusalError](err)
+	if !ok {
 		return false
 	}
 	queue, readErr := h.store.Returns(r.Context())

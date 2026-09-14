@@ -238,8 +238,8 @@ func TestEvaluateEnforcesAdvertisedWindows(t *testing.T) {
 			t.Parallel()
 			got, err := Evaluate(tt.lines, tt.kind)
 			if tt.wantRefuse != "" {
-				var refused *Refusal
-				if !errors.As(err, &refused) || refused.Kind != tt.wantRefuse {
+				refused, ok := errors.AsType[*RefusalError](err)
+				if !ok || refused.Kind != tt.wantRefuse {
 					t.Fatalf("Evaluate() = %+v / %v, want refusal %q", got, err, tt.wantRefuse)
 				}
 				return

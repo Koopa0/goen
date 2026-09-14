@@ -173,34 +173,33 @@ const (
 	RefuseStale           RefusalKind = "stale"
 )
 
-// Refusal is a policy refusal with a stable kind.
-type Refusal struct {
+// RefusalError is a policy refusal with a stable kind.
+type RefusalError struct {
 	Kind RefusalKind
 }
 
-func (r *Refusal) Error() string {
+func (r *RefusalError) Error() string {
 	if r == nil {
 		return ""
 	}
 	return fmt.Sprintf("%s: %s", ErrPolicy.Error(), r.Kind)
 }
 
-func (r *Refusal) Unwrap() error { return ErrPolicy }
+func (r *RefusalError) Unwrap() error { return ErrPolicy }
 
 func refuse(kind RefusalKind) error {
-	return &Refusal{Kind: kind}
+	return &RefusalError{Kind: kind}
 }
 
-// Evaluate is the advertised policy at the decision door. A retry has
-// already been decided and must not call this: re-reading the clocks or
-// the facts would rewrite a claim that already paid.
-func Evaluate(lines []LineAssessment, kind DecisionKind) (Claim, error) {
-	if len(lines) == 0 {
-		return Claim{}, refuse(RefuseEmpty)
-	}
+type linePolicyState struct {
+	hasStatutory, hasGoodwill, hasLate, hasUndelivered bool
+	goodwillUnknown, goodwillUnmet, goodwillAllMet     bool
+}
+
+func normalizeAssessmentLines(lines []LineAssessment) error {
 	for i := range lines {
 		if _, ok := ParsePolicyWindow(string(lines[i].Window)); !ok || lines[i].Window == WindowMixed {
-			return Claim{}, fmt.Errorf("%w: line window %q is not a known line window",
+			return fmt.Errorf("%w: line window %q is not a known line window",
 				ErrPolicy, lines[i].Window)
 		}
 		if lines[i].Unused == "" {
@@ -213,48 +212,66 @@ func Evaluate(lines []LineAssessment, kind DecisionKind) (Claim, error) {
 			lines[i].Accessories = FactUnknown
 		}
 	}
-	window := RequestWindow(lines)
+	return nil
+}
 
-	var hasStatutory, hasGoodwill, hasLate, hasUndelivered bool
-	goodwillUnknown, goodwillUnmet := false, false
+func linePolicyStateFrom(lines []LineAssessment) linePolicyState {
+	var state linePolicyState
+	state.goodwillAllMet = true
 	goodwillCount := 0
-	goodwillAllMet := true
 	for _, l := range lines {
 		switch l.Window {
 		case WindowStatutory:
-			hasStatutory = true
+			state.hasStatutory = true
 		case WindowGoodwill:
-			hasGoodwill = true
+			state.hasGoodwill = true
 			goodwillCount++
 			if l.anyUnknown() {
-				goodwillUnknown = true
+				state.goodwillUnknown = true
 			}
 			if l.anyUnmet() {
-				goodwillUnmet = true
+				state.goodwillUnmet = true
 			}
 			if !l.allMet() {
-				goodwillAllMet = false
+				state.goodwillAllMet = false
 			}
 		case WindowLate:
-			hasLate = true
+			state.hasLate = true
 		case WindowUndelivered:
-			hasUndelivered = true
+			state.hasUndelivered = true
+		case WindowMixed:
+			// Request-level only; line windows are validated in normalizeAssessmentLines.
 		}
 	}
 	if goodwillCount == 0 {
-		goodwillAllMet = false
+		state.goodwillAllMet = false
 	}
+	return state
+}
+
+// Evaluate is the advertised policy at the decision door. A retry has
+// already been decided and must not call this: re-reading the clocks or
+// the facts would rewrite a claim that already paid.
+func Evaluate(lines []LineAssessment, kind DecisionKind) (Claim, error) {
+	if len(lines) == 0 {
+		return Claim{}, refuse(RefuseEmpty)
+	}
+	if err := normalizeAssessmentLines(lines); err != nil {
+		return Claim{}, err
+	}
+	window := RequestWindow(lines)
+	state := linePolicyStateFrom(lines)
 
 	switch kind {
 	case DecisionApprove:
-		return evaluateApprove(window, hasStatutory, hasGoodwill, hasLate, hasUndelivered,
-			goodwillUnknown, goodwillUnmet, goodwillAllMet)
+		return evaluateApprove(window, state.hasStatutory, state.hasGoodwill, state.hasLate, state.hasUndelivered,
+			state.goodwillUnknown, state.goodwillUnmet, state.goodwillAllMet)
 	case DecisionReject:
-		return evaluateReject(window, hasStatutory, hasGoodwill, hasLate, hasUndelivered,
-			goodwillUnknown, goodwillUnmet)
+		return evaluateReject(window, state.hasStatutory, state.hasGoodwill, state.hasLate, state.hasUndelivered,
+			state.goodwillUnknown, state.goodwillUnmet)
 	case DecisionException:
-		return evaluateException(window, hasStatutory, hasGoodwill, hasLate, hasUndelivered,
-			goodwillUnknown, goodwillUnmet, goodwillAllMet)
+		return evaluateException(window, state.hasStatutory, state.hasGoodwill, state.hasLate, state.hasUndelivered,
+			state.goodwillUnknown, state.goodwillUnmet, state.goodwillAllMet)
 	default:
 		return Claim{}, fmt.Errorf("%w: decision %q is not a known kind", ErrPolicy, kind)
 	}

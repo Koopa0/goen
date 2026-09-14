@@ -20,24 +20,24 @@ import (
 
 const maxAssessmentBasisRunes = 500
 
-// FormRefusal is a decision or assessment the advertised policy (or the
+// FormRefusalError is a decision or assessment the advertised policy (or the
 // form) refused, naming the control the queue should mark.
-type FormRefusal struct {
+type FormRefusalError struct {
 	Field string
 	Kind  returns.RefusalKind
 }
 
-func (e *FormRefusal) Error() string {
+func (e *FormRefusalError) Error() string {
 	if e == nil {
 		return ""
 	}
 	return fmt.Sprintf("%s: %s", ErrRefused.Error(), e.Kind)
 }
 
-func (e *FormRefusal) Unwrap() error { return ErrRefused }
+func (e *FormRefusalError) Unwrap() error { return ErrRefused }
 
 func formRefuse(field string, kind returns.RefusalKind) error {
-	return &FormRefusal{Field: field, Kind: kind}
+	return &FormRefusalError{Field: field, Kind: kind}
 }
 
 const maxReturnResolutionRunes = 300
@@ -104,27 +104,54 @@ func (s *Store) Returns(ctx context.Context) (ReturnQueue, error) {
 		assessmentIDs = append(assessmentIDs, assessments[i].ID)
 		assessmentByRequest[assessments[i].ReturnRequestID] = assessments[i]
 	}
-	if len(assessmentIDs) > 0 {
-		facts, factErr := s.q.EligibilityFactsForAssessments(ctx, assessmentIDs)
-		if factErr != nil {
-			return ReturnQueue{}, fmt.Errorf("read return eligibility facts: %w", factErr)
-		}
-		for i := range facts {
-			f := &facts[i]
-			lines := byRequest[f.ReturnRequestID]
-			for j := range lines {
-				if lines[j].OrderLineID != f.OrderLineID.String() {
-					continue
-				}
-				lines[j].Unused = f.Unused
-				lines[j].Packaging = f.PackagingComplete
-				lines[j].Accessories = f.AccessoriesComplete
-				lines[j].Window = f.PolicyWindow
-			}
-			byRequest[f.ReturnRequestID] = lines
-		}
+	if overlayErr := overlayReturnAssessmentFacts(ctx, s.q, byRequest, assessmentIDs); overlayErr != nil {
+		return ReturnQueue{}, overlayErr
 	}
 
+	view, err := buildReturnQueue(ctx, rows, byRequest, assessmentByRequest, payoutFacts)
+	if err != nil {
+		return ReturnQueue{}, err
+	}
+	return view, nil
+}
+
+func overlayReturnAssessmentFacts(
+	ctx context.Context,
+	q *db.Queries,
+	byRequest map[uuid.UUID][]pages.AdminReturnLine,
+	assessmentIDs []uuid.UUID,
+) error {
+	if len(assessmentIDs) == 0 {
+		return nil
+	}
+	facts, err := q.EligibilityFactsForAssessments(ctx, assessmentIDs)
+	if err != nil {
+		return fmt.Errorf("read return eligibility facts: %w", err)
+	}
+	for i := range facts {
+		f := &facts[i]
+		lines := byRequest[f.ReturnRequestID]
+		for j := range lines {
+			if lines[j].OrderLineID != f.OrderLineID.String() {
+				continue
+			}
+			lines[j].Unused = f.Unused
+			lines[j].Packaging = f.PackagingComplete
+			lines[j].Accessories = f.AccessoriesComplete
+			lines[j].Window = f.PolicyWindow
+		}
+		byRequest[f.ReturnRequestID] = lines
+	}
+	return nil
+}
+
+func buildReturnQueue(
+	ctx context.Context,
+	rows []db.ReturnQueueRow,
+	byRequest map[uuid.UUID][]pages.AdminReturnLine,
+	assessmentByRequest map[uuid.UUID]db.ReturnEligibilityAssessment,
+	payoutFacts map[uuid.UUID]returnPayoutFacts,
+) (ReturnQueue, error) {
 	view := ReturnQueue{}
 	for i := range rows {
 		r := &rows[i]
@@ -752,6 +779,56 @@ func validAssessmentBasis(s string) bool {
 		utf8.RuneCountInString(s) <= maxAssessmentBasisRunes
 }
 
+func lineEligibilityByID(facts []LineEligibility) (map[uuid.UUID]LineEligibility, error) {
+	byLine := make(map[uuid.UUID]LineEligibility, len(facts))
+	for _, fact := range facts {
+		if _, ok := returns.ParseFact(fact.Unused); !ok {
+			return nil, formRefuse("unused-"+fact.OrderLineID.String(), returns.RefuseIncomplete)
+		}
+		if _, ok := returns.ParseFact(fact.Packaging); !ok {
+			return nil, formRefuse("packaging-"+fact.OrderLineID.String(), returns.RefuseIncomplete)
+		}
+		if _, ok := returns.ParseFact(fact.Accessories); !ok {
+			return nil, formRefuse("accessories-"+fact.OrderLineID.String(), returns.RefuseIncomplete)
+		}
+		byLine[fact.OrderLineID] = fact
+	}
+	return byLine, nil
+}
+
+func insertEligibilityFacts(
+	ctx context.Context,
+	q *db.Queries,
+	assessment db.ReturnEligibilityAssessment,
+	requestID uuid.UUID,
+	lines []db.ReturnLinesRow,
+	byLine map[uuid.UUID]LineEligibility,
+) error {
+	for i := range lines {
+		line := &lines[i]
+		fact := byLine[line.OrderLineID]
+		unused, packaging, accessories := "unknown", "unknown", "unknown"
+		if fact.OrderLineID == line.OrderLineID {
+			unused, packaging, accessories = fact.Unused, fact.Packaging, fact.Accessories
+		}
+		if err := q.InsertEligibilityFact(ctx, db.InsertEligibilityFactParams{
+			AssessmentID:        assessment.ID,
+			OrderID:             line.OrderID,
+			ReturnRequestID:     requestID,
+			OrderLineID:         line.OrderLineID,
+			Unused:              unused,
+			PackagingComplete:   packaging,
+			AccessoriesComplete: accessories,
+			RequestedAt:         line.RequestedAt,
+			DeliveredAt:         line.DeliveredAt,
+			PolicyWindow:        line.PolicyWindow,
+		}); err != nil {
+			return fmt.Errorf("insert eligibility fact: %w", err)
+		}
+	}
+	return nil
+}
+
 // Assess records a pre-decision eligibility observation. It does not pay
 // and does not restock: those stay behind Decide and InspectReturn.
 func (s *Store) Assess(ctx context.Context, id, basis string, facts []LineEligibility) error {
@@ -767,18 +844,9 @@ func (s *Store) Assess(ctx context.Context, id, basis string, facts []LineEligib
 	if err != nil {
 		return ErrRefused
 	}
-	byLine := make(map[uuid.UUID]LineEligibility, len(facts))
-	for _, fact := range facts {
-		if _, ok := returns.ParseFact(fact.Unused); !ok {
-			return formRefuse("unused-"+fact.OrderLineID.String(), returns.RefuseIncomplete)
-		}
-		if _, ok := returns.ParseFact(fact.Packaging); !ok {
-			return formRefuse("packaging-"+fact.OrderLineID.String(), returns.RefuseIncomplete)
-		}
-		if _, ok := returns.ParseFact(fact.Accessories); !ok {
-			return formRefuse("accessories-"+fact.OrderLineID.String(), returns.RefuseIncomplete)
-		}
-		byLine[fact.OrderLineID] = fact
+	byLine, err := lineEligibilityByID(facts)
+	if err != nil {
+		return err
 	}
 
 	tx, err := s.pool.Begin(ctx)
@@ -787,8 +855,8 @@ func (s *Store) Assess(ctx context.Context, id, basis string, facts []LineEligib
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
-	if _, err := q.LockReturnOrder(ctx, requestID); err != nil {
-		return fmt.Errorf("%w: lock return order for assessment: %w", ErrRefused, err)
+	if _, lockErr := q.LockReturnOrder(ctx, requestID); lockErr != nil {
+		return fmt.Errorf("%w: lock return order for assessment: %w", ErrRefused, lockErr)
 	}
 	row, err := q.ReturnForDecision(ctx, requestID)
 	if err != nil {
@@ -818,27 +886,8 @@ func (s *Store) Assess(ctx context.Context, id, basis string, facts []LineEligib
 	if err != nil {
 		return fmt.Errorf("insert eligibility assessment: %w", err)
 	}
-	for i := range lines {
-		line := &lines[i]
-		fact := byLine[line.OrderLineID]
-		unused, packaging, accessories := "unknown", "unknown", "unknown"
-		if fact.OrderLineID == line.OrderLineID {
-			unused, packaging, accessories = fact.Unused, fact.Packaging, fact.Accessories
-		}
-		if err := q.InsertEligibilityFact(ctx, db.InsertEligibilityFactParams{
-			AssessmentID:        assessment.ID,
-			OrderID:             line.OrderID,
-			ReturnRequestID:     requestID,
-			OrderLineID:         line.OrderLineID,
-			Unused:              unused,
-			PackagingComplete:   packaging,
-			AccessoriesComplete: accessories,
-			RequestedAt:         line.RequestedAt,
-			DeliveredAt:         line.DeliveredAt,
-			PolicyWindow:        line.PolicyWindow,
-		}); err != nil {
-			return fmt.Errorf("insert eligibility fact: %w", err)
-		}
+	if err := insertEligibilityFacts(ctx, q, assessment, requestID, lines, byLine); err != nil {
+		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit return assessment: %w", err)
@@ -860,8 +909,8 @@ func (s *Store) closeReturn(
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
 	q := s.q.WithTx(tx)
-	if _, err := q.LockReturnOrder(ctx, requestID); err != nil {
-		return fmt.Errorf("%w: lock return order for decision: %w", ErrRefused, err)
+	if _, lockErr := q.LockReturnOrder(ctx, requestID); lockErr != nil {
+		return fmt.Errorf("%w: lock return order for decision: %w", ErrRefused, lockErr)
 	}
 
 	lines, err := q.ReturnLines(ctx, []uuid.UUID{requestID})
@@ -899,6 +948,34 @@ func (s *Store) closeReturn(
 	return nil
 }
 
+func assessedLinesAtVersion(
+	ctx context.Context,
+	q *db.Queries,
+	requestID uuid.UUID,
+	lines []db.ReturnLinesRow,
+	assessmentVersion int32,
+) ([]returns.LineAssessment, error) {
+	assessed := lineAssessmentsFromRows(lines)
+	if assessmentVersion == 0 {
+		return assessed, nil
+	}
+	latest, err := q.LatestEligibilityAssessment(ctx, requestID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, formRefuse("decision", returns.RefuseStale)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("lock eligibility assessment: %w", err)
+	}
+	if latest.Version != assessmentVersion {
+		return nil, formRefuse("decision", returns.RefuseStale)
+	}
+	facts, factErr := q.EligibilityFacts(ctx, latest.ID)
+	if factErr != nil {
+		return nil, fmt.Errorf("read eligibility facts: %w", factErr)
+	}
+	return overlayEligibilityFacts(assessed, facts), nil
+}
+
 func decisionClaim(
 	ctx context.Context,
 	q *db.Queries,
@@ -907,28 +984,13 @@ func decisionClaim(
 	kind returns.DecisionKind,
 	assessmentVersion int32,
 ) ([]returns.LineAssessment, returns.Claim, error) {
-	assessed := lineAssessmentsFromRows(lines)
-	if assessmentVersion > 0 {
-		latest, err := q.LatestEligibilityAssessment(ctx, requestID)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, returns.Claim{}, formRefuse("decision", returns.RefuseStale)
-		}
-		if err != nil {
-			return nil, returns.Claim{}, fmt.Errorf("lock eligibility assessment: %w", err)
-		}
-		if latest.Version != assessmentVersion {
-			return nil, returns.Claim{}, formRefuse("decision", returns.RefuseStale)
-		}
-		facts, factErr := q.EligibilityFacts(ctx, latest.ID)
-		if factErr != nil {
-			return nil, returns.Claim{}, fmt.Errorf("read eligibility facts: %w", factErr)
-		}
-		assessed = overlayEligibilityFacts(assessed, facts)
+	assessed, err := assessedLinesAtVersion(ctx, q, requestID, lines, assessmentVersion)
+	if err != nil {
+		return nil, returns.Claim{}, err
 	}
 	claim, err := returns.Evaluate(assessed, kind)
 	if err != nil {
-		var refused *returns.Refusal
-		if errors.As(err, &refused) {
+		if refused, ok := errors.AsType[*returns.RefusalError](err); ok {
 			return nil, returns.Claim{}, formRefuse("decision", refused.Kind)
 		}
 		return nil, returns.Claim{}, fmt.Errorf("%w: %w", ErrRefused, err)

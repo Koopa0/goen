@@ -141,7 +141,7 @@ func TestEveryReturnPolicyWindowHasALabel(t *testing.T) {
 	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
 		ctx := i18n.WithLocale(t.Context(), locale)
 		for _, window := range []string{"within", "goodwill", "after", "undelivered", "mixed"} {
-			label := AdminReturn{Window: window}.WindowText(ctx)
+			label := ReturnLineWindowText(ctx, window)
 			if label == "" || label == window {
 				t.Errorf("WindowText(%q) in %s = %q, want a catalogue label", window, locale, label)
 			}

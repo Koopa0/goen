@@ -402,9 +402,9 @@ func AdminReturns(p layouts.Page, v AdminReturnsView) templ.Component {
 									return templ_7745c5c3_Err
 								}
 								var templ_7745c5c3_Var24 string
-								templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(AdminReturn{Window: l.Window}.WindowText(ctx))
+								templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(ReturnLineWindowText(ctx, l.Window))
 								if templ_7745c5c3_Err != nil {
-									return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/adminreturns.templ`, Line: 69, Col: 93}
+									return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/adminreturns.templ`, Line: 69, Col: 83}
 								}
 								_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 								if templ_7745c5c3_Err != nil {

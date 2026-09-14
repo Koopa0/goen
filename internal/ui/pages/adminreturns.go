@@ -44,23 +44,23 @@ type AdminReturn struct {
 
 // CanRetryPayout reports whether the approved decision has money left behind a
 // resume-safe door.
-func (r AdminReturn) CanRetryPayout() bool {
+func (r *AdminReturn) CanRetryPayout() bool {
 	return r.Decided && r.PayoutOutstanding && !r.PayoutBlocked
 }
 
 // PayoutStranded reports whether a person must repair inconsistent durable
 // payout facts before goen can safely retry.
-func (r AdminReturn) PayoutStranded() bool {
+func (r *AdminReturn) PayoutStranded() bool {
 	return r.Decided && r.PayoutOutstanding && r.PayoutBlocked
 }
 
 // AwaitingGoods reports whether an approved parcel is still unaccounted for.
-func (r AdminReturn) AwaitingGoods() bool {
+func (r *AdminReturn) AwaitingGoods() bool {
 	if r.Status != "approved" {
 		return false
 	}
-	for _, l := range r.Lines {
-		if !l.Inspected {
+	for i := range r.Lines {
+		if !r.Lines[i].Inspected {
 			return true
 		}
 	}
@@ -68,12 +68,12 @@ func (r AdminReturn) AwaitingGoods() bool {
 }
 
 // CanComplete reports whether every line has been inspected.
-func (r AdminReturn) CanComplete() bool {
+func (r *AdminReturn) CanComplete() bool {
 	if r.Status != "approved" || len(r.Lines) == 0 {
 		return false
 	}
-	for _, l := range r.Lines {
-		if !l.Inspected {
+	for i := range r.Lines {
+		if !r.Lines[i].Inspected {
 			return false
 		}
 	}
@@ -81,29 +81,34 @@ func (r AdminReturn) CanComplete() bool {
 }
 
 // RestockedUnitsText is how many units this return put back on the shelf.
-func (r AdminReturn) RestockedUnitsText() string {
+func (r *AdminReturn) RestockedUnitsText() string {
 	var n int32
-	for _, l := range r.Lines {
-		n += l.Restocked
+	for i := range r.Lines {
+		n += r.Lines[i].Restocked
 	}
 	return strconv.FormatInt(int64(n), 10)
 }
 
+// ReturnLineWindowText names one line's window without copying a queue row.
+func ReturnLineWindowText(ctx context.Context, window string) string {
+	return (&AdminReturn{Window: window}).WindowText(ctx)
+}
+
 // Rescission reports whether this request is inside the statutory seven days.
-func (r AdminReturn) Rescission() bool { return r.Window == "within" }
+func (r *AdminReturn) Rescission() bool { return r.Window == "within" }
 
 // Goodwill reports whether this request is inside the shop's advertised
 // days 8–14. Entitlement still depends on unused-and-complete facts.
-func (r AdminReturn) Goodwill() bool { return r.Window == "goodwill" }
+func (r *AdminReturn) Goodwill() bool { return r.Window == "goodwill" }
 
 // Late reports whether this request was filed after the advertised 14 days.
-func (r AdminReturn) Late() bool { return r.Window == "after" }
+func (r *AdminReturn) Late() bool { return r.Window == "after" }
 
 // Mixed reports whether the returned lines fall in more than one window.
-func (r AdminReturn) Mixed() bool { return r.Window == "mixed" }
+func (r *AdminReturn) Mixed() bool { return r.Window == "mixed" }
 
 // WindowText names the window in the reader's language.
-func (r AdminReturn) WindowText(ctx context.Context) string {
+func (r *AdminReturn) WindowText(ctx context.Context) string {
 	switch r.Window {
 	case "within":
 		return i18n.T(ctx, i18n.KeyAdminReturnWindowWithin)
@@ -121,13 +126,13 @@ func (r AdminReturn) WindowText(ctx context.Context) string {
 }
 
 // AssessmentVersionText is the hidden input the decide form freezes.
-func (r AdminReturn) AssessmentVersionText() string {
+func (r *AdminReturn) AssessmentVersionText() string {
 	return strconv.FormatInt(int64(r.AssessmentVersion), 10)
 }
 
 // AssessmentStamp is the version and when it was written, for the staff
 // member who is about to freeze it.
-func (r AdminReturn) AssessmentStamp(ctx context.Context) string {
+func (r *AdminReturn) AssessmentStamp(ctx context.Context) string {
 	if r.AssessmentVersion == 0 {
 		return ""
 	}
@@ -136,11 +141,11 @@ func (r AdminReturn) AssessmentStamp(ctx context.Context) string {
 }
 
 // Amount is what approving it would refund.
-func (r AdminReturn) Amount() string { return twd(r.AmountCents) }
+func (r *AdminReturn) Amount() string { return twd(r.AmountCents) }
 
 // PayoutChannel names the frozen refund sources. Empty until approval, because
 // the allocation does not exist until then.
-func (r AdminReturn) PayoutChannel(ctx context.Context) string {
+func (r *AdminReturn) PayoutChannel(ctx context.Context) string {
 	switch {
 	case r.CardRefundCents > 0 && r.CreditRefundCents > 0:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetPayoutSplit),
@@ -155,19 +160,19 @@ func (r AdminReturn) PayoutChannel(ctx context.Context) string {
 }
 
 // UnitsText is how many items are being sent back.
-func (r AdminReturn) UnitsText() string { return strconv.FormatInt(int64(r.Units), 10) }
+func (r *AdminReturn) UnitsText() string { return strconv.FormatInt(int64(r.Units), 10) }
 
 // Action is where a decision on this return posts.
-func (r AdminReturn) Action() string { return "/admin/returns/" + r.ID + "/decide" }
+func (r *AdminReturn) Action() string { return "/admin/returns/" + r.ID + "/decide" }
 
 // AssessAction is where a pre-decision eligibility assessment posts.
-func (r AdminReturn) AssessAction() string { return "/admin/returns/" + r.ID + "/assess" }
+func (r *AdminReturn) AssessAction() string { return "/admin/returns/" + r.ID + "/assess" }
 
 // InspectAction and CompleteAction are the tail's two forms.
-func (r AdminReturn) InspectAction() string { return "/admin/returns/" + r.ID + "/inspect" }
+func (r *AdminReturn) InspectAction() string { return "/admin/returns/" + r.ID + "/inspect" }
 
 // CompleteAction closes an inspected return.
-func (r AdminReturn) CompleteAction() string { return "/admin/returns/" + r.ID + "/complete" }
+func (r *AdminReturn) CompleteAction() string { return "/admin/returns/" + r.ID + "/complete" }
 
 // AdminReturnsView is the return queue.
 type AdminReturnsView struct {

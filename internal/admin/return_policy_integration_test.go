@@ -3,6 +3,7 @@
 package admin_test
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/admin"
 	"github.com/koopa0/goen/internal/returns"
@@ -738,6 +740,46 @@ func returnWithLaterUnrelatedShipment(t *testing.T, delivered, requested, later 
 	return twoLineReturn(t, delivered, later, requested, true)
 }
 
+func insertPartialReturnSecondShipment(
+	t *testing.T,
+	ctx context.Context,
+	tx pgx.Tx,
+	orderID uuid.UUID,
+	number string,
+	secondLine uuid.UUID,
+	delivered, extra time.Time,
+) {
+	t.Helper()
+	if extra.IsZero() {
+		var undeliveredID uuid.UUID
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO order_shipments (order_id, carrier, tracking_number, shipped_at)
+			VALUES ($1, '黑貓', 'T-PART-U-' || $2, $3)
+			RETURNING id`, orderID, number, delivered.Add(-24*time.Hour)).Scan(&undeliveredID); err != nil {
+			t.Fatalf("create undelivered parcel: %v", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+			VALUES ($1, $2, $3, 1)`, orderID, undeliveredID, secondLine); err != nil {
+			t.Fatalf("ship undelivered line: %v", err)
+		}
+		return
+	}
+	var laterID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO order_shipments (
+			order_id, carrier, tracking_number, shipped_at, delivered_at
+		) VALUES ($1, '黑貓', 'T-PART-L-' || $2, $3, $4)
+		RETURNING id`, orderID, number, extra.Add(-24*time.Hour), extra).Scan(&laterID); err != nil {
+		t.Fatalf("create later parcel: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+		VALUES ($1, $2, $3, 1)`, orderID, laterID, secondLine); err != nil {
+		t.Fatalf("ship later line: %v", err)
+	}
+}
+
 func twoLineReturn(t *testing.T, delivered, extra, requested time.Time, returnFirstOnly bool) uuid.UUID {
 	t.Helper()
 	ctx := t.Context()
@@ -796,34 +838,7 @@ func twoLineReturn(t *testing.T, delivered, extra, requested time.Time, returnFi
 		VALUES ($1, $2, $3, 1)`, orderID, firstShipment, lines[0]); err != nil {
 		t.Fatalf("ship delivered line: %v", err)
 	}
-	if extra.IsZero() {
-		var undeliveredID uuid.UUID
-		if err := tx.QueryRow(ctx, `
-			INSERT INTO order_shipments (order_id, carrier, tracking_number, shipped_at)
-			VALUES ($1, '黑貓', 'T-PART-U-' || $2, $3)
-			RETURNING id`, orderID, number, delivered.Add(-24*time.Hour)).Scan(&undeliveredID); err != nil {
-			t.Fatalf("create undelivered parcel: %v", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
-			VALUES ($1, $2, $3, 1)`, orderID, undeliveredID, lines[1]); err != nil {
-			t.Fatalf("ship undelivered line: %v", err)
-		}
-	} else {
-		var laterID uuid.UUID
-		if err := tx.QueryRow(ctx, `
-			INSERT INTO order_shipments (
-				order_id, carrier, tracking_number, shipped_at, delivered_at
-			) VALUES ($1, '黑貓', 'T-PART-L-' || $2, $3, $4)
-			RETURNING id`, orderID, number, extra.Add(-24*time.Hour), extra).Scan(&laterID); err != nil {
-			t.Fatalf("create later parcel: %v", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
-			VALUES ($1, $2, $3, 1)`, orderID, laterID, lines[1]); err != nil {
-			t.Fatalf("ship later line: %v", err)
-		}
-	}
+	insertPartialReturnSecondShipment(t, ctx, tx, orderID, number, lines[1], delivered, extra)
 
 	var requestID uuid.UUID
 	if err := tx.QueryRow(ctx, `
