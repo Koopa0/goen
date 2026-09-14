@@ -408,10 +408,10 @@ func run() error {
 	return nil
 }
 
-// Pool size and statement bound per role. A statement_timeout is the only
-// thing that ends a slow query: http.Server's WriteTimeout does not cancel
-// r.Context(), so a handler blocked in the database holds its connection until
-// PostgreSQL ends the statement, and enough of them starve the pool.
+// Pool size, request budget and statement bound per role. statement_timeout
+// ends a slow query after a connection is acquired; storeRequestBudget ends
+// pool acquisition and every store-pool round trip before http.Server's
+// WriteTimeout, which does not cancel r.Context().
 const (
 	// pgx would otherwise take max(4, NumCPU), which is four on a small
 	// container serving every visitor plus the background workers that share
@@ -423,6 +423,9 @@ const (
 	// retention sweeps that share this pool are logged and retried on the next
 	// tick if their DELETE ever exceeds it.
 	storeStatementTimeout = 15 * time.Second
+	// Five seconds under WriteTimeout: enough headroom to render a failure after
+	// a saturated pool wait plus a statement that runs the full store bound.
+	storeRequestBudget = 25 * time.Second
 
 	adminMaxConns = 10
 	// /admin/reports scans order history over a 90-day window and grows with

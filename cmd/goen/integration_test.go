@@ -97,10 +97,9 @@ func TestMaintenancePoolIsReachedAndRoleCheckedAtStartup(t *testing.T) {
 	}
 }
 
-// TestEachPoolCarriesItsRoleStatementTimeout is the only bound a request has.
-// http.Server's WriteTimeout does not cancel r.Context(), so nothing in Go ends
-// a handler blocked in the database and enough of them starve the pool. The
-// three figures are independent literals rather than the constants, because a
+// TestEachPoolCarriesItsRoleStatementTimeout is the PostgreSQL-side bound on an
+// acquired connection. storeRequestBudget ends pool waits before WriteTimeout;
+// these figures are independent literals rather than the constants, because a
 // timeout that reaches no session and one nobody chose look the same from here.
 func TestEachPoolCarriesItsRoleStatementTimeout(t *testing.T) {
 	dsn := pool.Config().ConnString()
