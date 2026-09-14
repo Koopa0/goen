@@ -85,9 +85,17 @@ func (s SMTPSender) Send(ctx context.Context, m *Message) error {
 	}
 	defer func() { _ = conn.Close() }() //nolint:errcheck // best-effort cleanup
 
-	// The context's deadline, put on the SOCKET. net/smtp has no context-aware
-	// call, so without this the greeting, STARTTLS, AUTH, MAIL, RCPT and DATA all
-	// run unbounded and a server that accepts and goes quiet stalls the worker.
+	// net/smtp has no context-aware I/O. After the dial, cancellation must
+	// interrupt the socket; otherwise a quiet peer holds the outbox worker until
+	// the delivery deadline.
+	stop := context.AfterFunc(ctx, func() {
+		_ = conn.SetDeadline(time.Now()) //nolint:errcheck // best-effort interrupt
+	})
+	defer stop()
+
+	// The context's deadline, put on the SOCKET. Without this the greeting,
+	// STARTTLS, AUTH, MAIL, RCPT and DATA all run unbounded and a server that
+	// accepts and goes quiet stalls the worker.
 	if deadline, ok := ctx.Deadline(); ok {
 		if deadlineErr := conn.SetDeadline(deadline); deadlineErr != nil {
 			return fmt.Errorf("set smtp deadline: %w", deadlineErr)
