@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"slices"
 	"strings"
@@ -52,8 +53,15 @@ func TestMain(m *testing.M) {
 
 func get(t *testing.T, target string) (status int, body string) {
 	t.Helper()
+	return getInLocale(t, i18n.ZhHant, target)
+}
+
+func getInLocale(t *testing.T, locale i18n.Locale, target string) (status int, body string) {
+	t.Helper()
 	h := catalog.NewHandler(catalog.NewStore(pool), slog.New(slog.DiscardHandler))
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, target, http.NoBody)
+	req := httptest.NewRequestWithContext(
+		i18n.WithLocale(t.Context(), locale),
+		http.MethodGet, target, http.NoBody)
 	res := httptest.NewRecorder()
 
 	if strings.HasPrefix(target, "/c/") {
@@ -67,6 +75,26 @@ func get(t *testing.T, target string) (status int, body string) {
 		h.Search(res, req)
 	}
 	return res.Code, res.Body.String()
+}
+
+func headerSearchValue(html string) string {
+	const marker = `id="site-search"`
+	i := strings.Index(html, marker)
+	if i < 0 {
+		return ""
+	}
+	rest := html[i:]
+	const attr = `value="`
+	j := strings.Index(rest, attr)
+	if j < 0 {
+		return ""
+	}
+	rest = rest[j+len(attr):]
+	k := strings.Index(rest, `"`)
+	if k < 0 {
+		return ""
+	}
+	return rest[:k]
 }
 
 // /c/accessories holds no products of its own; chargers and cases hold four
@@ -220,6 +248,37 @@ func TestSearchEscapesWildcards(t *testing.T) {
 	}
 	if !strings.Contains(body, "找不到") {
 		t.Error("a search matching nothing did not render the empty state")
+	}
+}
+
+func TestSearchPageKeepsTheHeaderInputInSyncWithTheHeading(t *testing.T) {
+	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			for _, tc := range []struct {
+				name string
+				q    string
+				want string
+			}{
+				{"canonical term", "pixelight", "pixelight"},
+				{"unicode trim", "\u00a0\u3000pixel\u2003", "pixel"},
+				{"html specials", `a&b"c`, `a&amp;b&#34;c`},
+				{
+					"length cap",
+					"\u00a0" + strings.Repeat("字", catalog.MaxQueryRunes+8) + "\u3000",
+					strings.Repeat("字", catalog.MaxQueryRunes),
+				},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					code, body := getInLocale(t, locale, "/search?q="+url.QueryEscape(tc.q))
+					if code != http.StatusOK {
+						t.Fatalf("status = %d, want 200", code)
+					}
+					if got := headerSearchValue(body); got != tc.want {
+						t.Errorf("header search value = %q, want %q", got, tc.want)
+					}
+				})
+			}
+		})
 	}
 }
 

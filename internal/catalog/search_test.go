@@ -13,6 +13,57 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
+func TestSearchPageLeavesTheHeaderInputBlankWithoutAQuery(t *testing.T) {
+	for _, locale := range []i18n.Locale{i18n.En, i18n.ZhHant} {
+		t.Run(locale.Tag(), func(t *testing.T) {
+			body := searchPageInLocale(t, locale, "")
+			if got := headerSearchValue(body); got != "" {
+				t.Errorf("header search value = %q, want empty without a query", got)
+			}
+		})
+	}
+}
+
+func headerSearchValue(html string) string {
+	const marker = `id="site-search"`
+	i := strings.Index(html, marker)
+	if i < 0 {
+		return ""
+	}
+	rest := html[i:]
+	const attr = `value="`
+	j := strings.Index(rest, attr)
+	if j < 0 {
+		return ""
+	}
+	rest = rest[j+len(attr):]
+	k := strings.Index(rest, `"`)
+	if k < 0 {
+		return ""
+	}
+	return rest[:k]
+}
+
+func searchPage(t *testing.T, q string) string {
+	t.Helper()
+	return searchPageInLocale(t, i18n.En, q)
+}
+
+func searchPageInLocale(t *testing.T, locale i18n.Locale, q string) string {
+	t.Helper()
+	h := &Handler{store: &Store{}, log: slog.New(slog.DiscardHandler)}
+	target := "/search?q=" + url.QueryEscape(q)
+	req := httptest.NewRequestWithContext(
+		i18n.WithLocale(t.Context(), locale),
+		http.MethodGet, target, http.NoBody)
+	res := httptest.NewRecorder()
+	h.Search(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body %s", res.Code, res.Body.String())
+	}
+	return res.Body.String()
+}
+
 func TestSearchUnicodeWhitespaceIsEmptyForPatternAndDisplay(t *testing.T) {
 	ctx := i18n.WithLocale(t.Context(), i18n.En)
 	prompt := i18n.T(ctx, i18n.KeySearchPrompt)
@@ -63,19 +114,4 @@ func TestSearchKeepsATermWrappedInUnicodeSpaceThenCapsRunes(t *testing.T) {
 	if got := SearchPattern(over); got != "%"+want+"%" {
 		t.Fatalf("SearchPattern after edge trim+cap = %q, want the same %d-rune term", got, MaxQueryRunes)
 	}
-}
-
-func searchPage(t *testing.T, q string) string {
-	t.Helper()
-	h := &Handler{store: &Store{}, log: slog.New(slog.DiscardHandler)}
-	target := "/search?q=" + url.QueryEscape(q)
-	req := httptest.NewRequestWithContext(
-		i18n.WithLocale(t.Context(), i18n.En),
-		http.MethodGet, target, http.NoBody)
-	res := httptest.NewRecorder()
-	h.Search(res, req)
-	if res.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body %s", res.Code, res.Body.String())
-	}
-	return res.Body.String()
 }
