@@ -95,14 +95,21 @@ func TestStorefrontPoolWaitRespectsRequestBudget(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result := make(chan error, 1)
+	type responseResult struct {
+		status int
+		body   string
+		err    error
+	}
+	result := make(chan responseResult, 1)
 	go func() {
 		resp, doErr := http.DefaultClient.Do(req)
+		got := responseResult{err: doErr}
 		if doErr == nil {
-			_, _ = io.Copy(io.Discard, resp.Body)
+			body, readErr := io.ReadAll(resp.Body)
+			got = responseResult{status: resp.StatusCode, body: string(body), err: readErr}
 			resp.Body.Close()
 		}
-		result <- doErr
+		result <- got
 	}()
 
 	<-started
@@ -125,7 +132,6 @@ func TestStorefrontPoolWaitRespectsRequestBudget(t *testing.T) {
 		)
 	}
 
-	clientCancel()
 	release()
 	select {
 	case <-finished:
@@ -133,8 +139,11 @@ func TestStorefrontPoolWaitRespectsRequestBudget(t *testing.T) {
 		t.Error("handler did not drain after cancellation")
 	}
 	select {
-	case err := <-result:
-		t.Logf("client cleanup: %v", err)
+	case got := <-result:
+		if got.err != nil || got.status < 500 || got.body == "" {
+			t.Fatalf("timeout response: status=%d body=%q err=%v; want complete failure response", got.status, got.body, got.err)
+		}
+		t.Logf("client received complete response: status=%d bytes=%d", got.status, len(got.body))
 	case <-time.After(3 * time.Second):
 		t.Error("client did not drain")
 	}
