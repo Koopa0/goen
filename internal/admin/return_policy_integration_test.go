@@ -28,8 +28,8 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	customer := returns.NewStore(pool)
 
 	t.Run("statutory blank reason cannot be rejected", func(t *testing.T) {
-		delivered := mustRFC3339(t, "2026-01-01T07:00:00+08:00")
-		requested := mustRFC3339(t, "2026-01-06T12:00:00+08:00")
+		delivered := shopNoonDaysAgo(t, 5)
+		requested := shopNoonDaysAgo(t, 3)
 		requestID := returnedOrderAtWithReason(t, delivered, requested, "")
 
 		if window := queueWindow(t, s, requestID); window != "within" {
@@ -69,8 +69,8 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	})
 
 	t.Run("handler missing_reason and ineligible posts cannot close a statutory request", func(t *testing.T) {
-		delivered := mustRFC3339(t, "2026-01-01T07:00:00+08:00")
-		requested := mustRFC3339(t, "2026-01-06T12:00:00+08:00")
+		delivered := shopNoonDaysAgo(t, 5)
+		requested := shopNoonDaysAgo(t, 3)
 		requestID := returnedOrderAtWithReason(t, delivered, requested, "")
 		h := adminHandlerOver(pool, s)
 
@@ -448,8 +448,8 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 
 	t.Run("partial delivery still decides against the delivered line", func(t *testing.T) {
 		requestID := partiallyDeliveredReturn(t,
-			mustRFC3339(t, "2026-01-01T07:00:00+08:00"),
-			mustRFC3339(t, "2026-01-06T12:00:00+08:00"),
+			shopNoonDaysAgo(t, 5),
+			shopNoonDaysAgo(t, 3),
 		)
 		if window := queueWindow(t, s, requestID); window != "within" {
 			t.Fatalf("partial-delivery window = %q, want within", window)
@@ -501,9 +501,9 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 
 	t.Run("a later unrelated shipment does not reopen the returned line", func(t *testing.T) {
 		requestID := returnWithLaterUnrelatedShipment(t,
-			mustRFC3339(t, "2026-01-01T07:00:00+08:00"),
-			mustRFC3339(t, "2026-01-06T12:00:00+08:00"),
-			mustRFC3339(t, "2026-02-01T07:00:00+08:00"),
+			shopNoonDaysAgo(t, 5),
+			shopNoonDaysAgo(t, 3),
+			shopNoonDaysAgo(t, 1),
 		)
 		if window := queueWindow(t, s, requestID); window != "within" {
 			t.Fatalf("unrelated later shipment window = %q, want within", window)
@@ -740,8 +740,8 @@ func TestTwoStaffCannotBothRejectAStatutoryRequest(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 	requestID := returnedOrderAtWithReason(t,
-		mustRFC3339(t, "2026-01-01T07:00:00+08:00"),
-		mustRFC3339(t, "2026-01-06T12:00:00+08:00"),
+		shopNoonDaysAgo(t, 5),
+		shopNoonDaysAgo(t, 3),
 		"",
 	)
 
@@ -767,8 +767,8 @@ func TestTwoStaffStillSerialiseALateException(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 	requestID := returnedOrderAtWithReason(t,
-		mustRFC3339(t, "2026-01-01T12:00:00+08:00"),
-		mustRFC3339(t, "2026-01-16T12:00:00+08:00"),
+		shopNoonDaysAgo(t, 20),
+		shopNoonDaysAgo(t, 5),
 		"",
 	)
 	if window := queueWindow(t, s, requestID); window != "after" {
@@ -803,15 +803,6 @@ func TestTwoStaffStillSerialiseALateException(t *testing.T) {
 	if got := decisionClaim(t, requestID); got != "exception" {
 		t.Errorf("late concurrent entitlement = %q, want exception", got)
 	}
-}
-
-func mustRFC3339(t *testing.T, value string) time.Time {
-	t.Helper()
-	ts, err := time.Parse(time.RFC3339, value)
-	if err != nil {
-		t.Fatalf("parse %s: %v", value, err)
-	}
-	return ts
 }
 
 func shopNoonDaysAgo(t *testing.T, days int) time.Time {
