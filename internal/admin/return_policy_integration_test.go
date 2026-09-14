@@ -155,6 +155,38 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		if status != "requested" || refunds != 0 {
 			t.Errorf("partial goodwill exception left %q with %d refunds, want requested/0", status, refunds)
 		}
+		if received, restocked := inspectionCounts(t, requestID); received || restocked {
+			t.Errorf("partial goodwill exception wrote receive/restock = %t/%t, want neither", received, restocked)
+		}
+	})
+
+	t.Run("mixed unknown goodwill and late cannot be excepted", func(t *testing.T) {
+		requestID, goodwillLine, _ := mixedWindowReturn(t,
+			shopNoonDaysAgo(t, 10),
+			shopNoonDaysAgo(t, 20),
+			time.Now(),
+		)
+		if window := queueWindow(t, s, requestID); window != "mixed" {
+			t.Fatalf("window = %q, want mixed", window)
+		}
+		if err := s.Assess(ctx, requestID.String(), "photos pending", []admin.LineEligibility{{
+			OrderLineID: goodwillLine,
+			Unused:      "unknown",
+			Packaging:   "unknown",
+			Accessories: "unknown",
+		}}); err != nil {
+			t.Fatalf("assess unknown goodwill line: %v", err)
+		}
+		if err := s.Decide(ctx, requestID.String(), "exception", "late line goodwill", "1", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
+			t.Fatalf("exception mixed unknown goodwill + late = %v, want ErrRefused", err)
+		}
+		status, refunds := returnPayout(t, requestID)
+		if status != "requested" || refunds != 0 {
+			t.Errorf("mixed unknown exception left %q with %d refunds, want requested/0", status, refunds)
+		}
+		if received, restocked := inspectionCounts(t, requestID); received || restocked {
+			t.Errorf("mixed unknown exception wrote receive/restock = %t/%t, want neither", received, restocked)
+		}
 	})
 
 	t.Run("day 10 fully assessed unmet may except and pay", func(t *testing.T) {
