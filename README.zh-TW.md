@@ -4,7 +4,7 @@
 
 [![verify](https://github.com/Koopa0/goen/actions/workflows/verify.yml/badge.svg)](https://github.com/Koopa0/goen/actions/workflows/verify.yml)
 [![Go](https://img.shields.io/github/go-mod/go-version/Koopa0/goen)](go.mod)
-[![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![Apache-2.0](https://img.shields.io/badge/Apache--2.0-blue)](LICENSE)
 
 goen 是電商示範與參考專案，提供買家瀏覽比價、下單與管理訂單，也讓店家透過後台
 處理商品與出貨。專案不提供代管服務。

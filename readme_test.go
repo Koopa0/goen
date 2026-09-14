@@ -126,7 +126,7 @@ func TestReadmeMetadata(t *testing.T) {
 		want := []string{
 			"[![verify](https://github.com/Koopa0/goen/actions/workflows/verify.yml/badge.svg)](https://github.com/Koopa0/goen/actions/workflows/verify.yml)",
 			"[![Go](https://img.shields.io/github/go-mod/go-version/Koopa0/goen)](go.mod)",
-			"[![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)",
+			"[![Apache-2.0](https://img.shields.io/badge/Apache--2.0-blue)](LICENSE)",
 		}
 		if len(badges) != len(want) {
 			t.Errorf("%s: got %d linked badges, want %d", name, len(badges), len(want))
