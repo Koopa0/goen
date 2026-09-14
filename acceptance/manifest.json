@@ -1,0 +1,476 @@
+{
+  "epic": 331,
+  "scenarios": [
+    {
+      "id": "C01",
+      "title": "Discover and select a product",
+      "status": "ready",
+      "issues": [130, 164, 157, 236, 323, 322, 319, 335, 337],
+      "entry_points": [
+        "internal/catalog/handler.go",
+        "internal/product/handler.go"
+      ],
+      "fixture": "seed/dev_catalog.sql",
+      "fault": "deleted or unavailable catalogue rows stay actionable in search and listing",
+      "assertions": [
+        {
+          "kind": "go_test",
+          "package": "./internal/catalog",
+          "run": "TestSearchFindsLatinAndChinese",
+          "build_tags": ["integration"],
+          "evidence": "search_covers_both_locales",
+          "entry_point": "catalog.Handler.Search"
+        },
+        {
+          "kind": "go_test",
+          "package": "./internal/catalog",
+          "run": "TestInStockMeansSellable",
+          "build_tags": ["integration"],
+          "evidence": "availability_matches_stock_floor"
+        },
+        {
+          "kind": "browser",
+          "runner": "check-layout",
+          "pages": ["search 375", "search 1440"],
+          "evidence": "buyer_search_layout",
+          "entry_point": "/search"
+        }
+      ]
+    },
+    {
+      "id": "C02",
+      "title": "A promoted product receives a traffic spike",
+      "status": "blocked",
+      "issues": [330, 327, 332, 333, 337],
+      "blocked_by": [330],
+      "entry_points": ["internal/media/cache.go"],
+      "fault": "shared cache cold start, hot key and outage recovery",
+      "assertions": [
+        {
+          "kind": "gate",
+          "evidence": "blocked_on_shared_cache_330",
+          "status": "blocked"
+        }
+      ],
+      "dependencies": [330, 333]
+    },
+    {
+      "id": "C03",
+      "title": "Guest shopping becomes signed-in shopping",
+      "status": "ready",
+      "issues": [116, 117, 60, 320, 337],
+      "entry_points": [
+        "internal/account/handler.go",
+        "internal/cart/store.go"
+      ],
+      "fixture": "seed/dev_catalog.sql",
+      "fault": "concurrent adoption must merge carts without silent loss",
+      "assertions": [
+        {
+          "kind": "go_test",
+          "package": "./internal/account",
+          "run": "TestAdoptCartMergesRatherThanReplaces",
+          "build_tags": ["integration"],
+          "evidence": "guest_lines_survive_sign_in"
+        },
+        {
+          "kind": "go_test",
+          "package": "./internal/account",
+          "run": "TestConcurrentFirstAdoptersKeepBothGuestCarts",
+          "build_tags": ["integration"],
+          "evidence": "concurrent_adoption_keeps_both_carts"
+        },
+        {
+          "kind": "browser",
+          "runner": "check-layout",
+          "pages": ["signin 375", "cart 375"],
+          "evidence": "guest_to_account_surfaces"
+        }
+      ]
+    },
+    {
+      "id": "C04",
+      "title": "Discounts, coupons and shipping determine the payable amount",
+      "status": "ready",
+      "issues": [174, 120, 119, 114, 337],
+      "entry_points": ["internal/cart/store.go", "internal/cart/coupon.go"],
+      "fixture": "seed/dev_catalog.sql",
+      "fault": "concurrent final coupon redemption must respect the intended limit",
+      "assertions": [
+        {
+          "kind": "go_test",
+          "package": "./internal/cart",
+          "run": "TestCouponPricing",
+          "build_tags": ["integration"],
+          "evidence": "pricing_explains_discount_and_shipping"
+        },
+        {
+          "kind": "go_test",
+          "package": "./internal/cart",
+          "run": "TestTotalRedemptionLimitIsEnforced",
+          "build_tags": ["integration"],
+          "evidence": "coupon_limit_is_authoritative"
+        },
+        {
+          "kind": "browser",
+          "runner": "check-layout",
+          "pages": ["cart 375", "checkout 375"],
+          "evidence": "buyer_sees_payable_total"
+        }
+      ]
+    },
+    {
+      "id": "C05",
+      "title": "Multiple buyers compete for the last units",
+      "status": "ready",
+      "issues": [100, 158, 333, 337],
+      "entry_points": [
+        "internal/cart/store.go",
+        "migrations/001.up.sql"
+      ],
+      "fixture": "seed/dev_catalog.sql",
+      "fault": "two buyers must not both take the last sellable unit",
+      "assertions": [
+        {
+          "kind": "go_test",
+          "package": "./internal/cart",
+          "run": "TestTwoOrdersCannotTakeTheSameLastUnit",
+          "build_tags": ["integration"],
+          "evidence": "database_hold_serialises_last_unit"
+        },
+        {
+          "kind": "go_test",
+          "package": "./internal/cart",
+          "run": "TestInventoryConstraintIsReportedAsSoldOut",
+          "build_tags": ["integration"],
+          "evidence": "application_maps_shortage_to_buyer_visible_refusal"
+        },
+        {
+          "kind": "go_test",
+          "package": "./internal/acceptance",
+          "run": "TestTwoBuyersContendForTheLastSellableUnit",
+          "build_tags": ["integration"],
+          "evidence": "composition_two_checkouts_one_success_one_shortage"
+        }
+      ]
+    },
+    {
+      "id": "C06",
+      "title": "A buyer double-clicks checkout or retries after a lost response",
+      "status": "ready",
+      "issues": [112, 115, 337],
+      "entry_points": [
+        "internal/cart/handler.go",
+        "internal/payment/store.go"
+      ],
+      "fixture": "seed/dev_catalog.sql",
+      "fault": "duplicate submission must not duplicate order effects",
+      "assertions": [
+        {
+          "kind": "go_test",
+          "package": "./internal/cart",
+          "run": "TestCheckoutHTTPReplayFindsTheSameOrderAfterTheCartIsEmpty",
+          "build_tags": ["integration"],
+          "evidence": "http_replay_returns_same_order"
+        },
+        {
+          "kind": "go_test",
+          "package": "./internal/cart",
+          "run": "TestADoubleClickedCheckoutPlacesOneOrder",
+          "build_tags": ["integration"],
+          "evidence": "concurrent_idempotency_key_serialises"
+        }
+      ]
+    },
+    {
+      "id": "C07",
+      "title": "Payment succeeds while the return page and webhook race",
+      "status": "ready",
+      "issues": [136, 135, 40, 334, 337, 338, 339],
+      "entry_points": [
+        "internal/payment/handler.go",
+        "internal/payment/store.go"
+      ],
+      "fixture": "seed/dev_catalog.sql",
+      "fault": "duplicate and out-of-order provider events must not duplicate money effects",
+      "assertions": [
+        {
+          "kind": "go_test",
+          "package": "./internal/payment",
+          "run": "TestReplayedWebhookIsProcessedOnce",
+          "build_tags": ["integration"],
+          "evidence": "webhook_redelivery_is_idempotent"
+        },
+        {
+          "kind": "go_test",
+          "package": "./internal/payment",
+          "run": "TestCaptureWinningTheOpenRaceRefusesASecondSession",
+          "build_tags": ["integration"],
+          "evidence": "return_and_open_race_has_one_capture"
+        }
+      ],
+      "extensions": [
+        {
+          "issues": [338, 339],
+          "title": "external refund and dispute facts after capture",
+          "status": "blocked",
+          "evidence": "provider_facts_outside_goen_requests"
+        }
+      ]
+    },
+    {
+      "id": "C08",
+      "title": "An unpaid order expires, or payment arrives during cancellation",
+      "status": "ready",
+      "issues": [100, 102, 103, 334, 337],
+      "entry_points": [
+        "internal/cart/store.go",
+        "internal/payment/store.go"
+      ],
+      "fixture": "seed/dev_catalog.sql",
+      "fault": "expired holds must release stock once without orphan orders",
+      "assertions": [
+        {
+          "kind": "go_test",
+          "package": "./internal/cart",
+          "run": "TestSweepReturnsAbandonedHoldsToTheShelf",
+          "build_tags": ["integration"],
+          "evidence": "expired_hold_returns_stock"
+        },
+        {
+          "kind": "go_test",
+          "package": "./internal/payment",
+          "run": "TestExpiredPaymentTombstoneIsIdempotentAndNeverRegressesCapturedMoney",
+          "build_tags": ["integration"],
+          "evidence": "expiry_does_not_undo_capture"
+        }
+      ]
+    },
+    {
+      "id": "C09",
+      "title": "Goods ship, arrive for pickup, remain uncollected or fail delivery",
+      "status": "ready",
+      "issues": [195, 71, 114, 143, 337],
+      "entry_points": ["internal/admin/store.go"],
+      "fixture": "seed/dev_catalog.sql",
+      "fault": "partial fulfillment must stay explicit and retry-safe",
+      "assertions": [
+        {
+          "kind": "go_test",
+          "package": "./internal/admin",
+          "run": "TestAnOrderCanShipInTwoParcels",
+          "build_tags": ["integration"],
+          "evidence": "multi_parcel_shipment"
+        },
+        {
+          "kind": "go_test",
+          "package": "./internal/admin",
+          "run": "TestADeliveredOrderCanStillShipWhatItOwes",
+          "build_tags": ["integration"],
+          "evidence": "delivered_order_can_clear_remaining_quantity"
+        }
+      ]
+    },
+    {
+      "id": "C10",
+      "title": "A partial return refunds a mixed card/store-credit purchase",
+      "status": "ready",
+      "issues": [52, 50, 102, 103, 88, 337, 338, 339],
+      "entry_points": [
+        "internal/admin/store.go",
+        "internal/returns/store.go"
+      ],
+      "fixture": "seed/dev_catalog.sql",
+      "fault": "partial refund retries must resume only the missing leg",
+      "assertions": [
+        {
+          "kind": "go_test",
+          "package": "./internal/admin",
+          "run": "TestRefundRecoveryAttributesEveryProviderAttempt",
+          "build_tags": ["integration"],
+          "evidence": "provider_retry_keeps_one_refund_row"
+        },
+        {
+          "kind": "go_test",
+          "package": "./internal/admin",
+          "run": "TestAStalledRefundCanBeRetriedToCompletion",
+          "build_tags": ["integration"],
+          "evidence": "partial_success_is_resumable"
+        }
+      ],
+      "extensions": [
+        {
+          "issues": [338, 339],
+          "title": "asynchronous refund updates and disputes on mixed purchases",
+          "status": "blocked",
+          "evidence": "post_capture_provider_refund_and_dispute_composition"
+        }
+      ]
+    },
+    {
+      "id": "C11",
+      "title": "An asynchronous worker crashes or a provider keeps failing",
+      "status": "ready",
+      "issues": [245, 328, 132, 332, 337],
+      "entry_points": ["internal/outbox/store.go"],
+      "fixture": "seed/dev_catalog.sql",
+      "fault": "at-least-once delivery must not duplicate financial side effects",
+      "assertions": [
+        {
+          "kind": "go_test",
+          "package": "./internal/outbox",
+          "run": "TestTwoWorkersDoNotDeliverTheSameMessage",
+          "build_tags": ["integration"],
+          "evidence": "lease_prevents_duplicate_delivery"
+        },
+        {
+          "kind": "go_test",
+          "package": "./internal/outbox",
+          "run": "TestAFailedHandlerIsRetriedNotLost",
+          "build_tags": ["integration"],
+          "evidence": "retry_after_handler_failure"
+        }
+      ]
+    },
+    {
+      "id": "C12",
+      "title": "Customer and staff identities change during a transaction",
+      "status": "ready",
+      "issues": [207, 205, 106, 231, 330, 337],
+      "entry_points": [
+        "internal/account/store.go",
+        "internal/twofactor/store.go"
+      ],
+      "fixture": "seed/dev_catalog.sql",
+      "fault": "session revocation and staff role changes must stay authoritative",
+      "assertions": [
+        {
+          "kind": "go_test",
+          "package": "./internal/account",
+          "run": "TestChangingPasswordEndsEveryOtherSession",
+          "build_tags": ["integration"],
+          "evidence": "credential_change_revokes_sessions"
+        },
+        {
+          "kind": "go_test",
+          "package": "./internal/twofactor",
+          "run": "TestRevokingAccessEndsTheSessionsThatHadIt",
+          "build_tags": ["integration"],
+          "evidence": "staff_revocation_ends_sessions"
+        }
+      ]
+    },
+    {
+      "id": "C13",
+      "title": "Staff edit the catalog and resolve operational exceptions",
+      "status": "ready",
+      "issues": [162, 123, 87, 145, 144, 89, 337],
+      "entry_points": ["internal/admin/store.go", "internal/product/store.go"],
+      "fixture": "seed/dev_catalog.sql",
+      "fault": "concurrent publication edits must remain auditable",
+      "assertions": [
+        {
+          "kind": "go_test",
+          "package": "./internal/admin",
+          "run": "TestProductUpdateDistinguishesAbsenceFromSuccess",
+          "build_tags": ["integration"],
+          "evidence": "catalog_edit_reports_misses"
+        },
+        {
+          "kind": "go_test",
+          "package": "./internal/admin",
+          "run": "TestStockMovesOnlyThroughTheLedger",
+          "build_tags": ["integration"],
+          "evidence": "inventory_adjustment_is_ledger_backed"
+        }
+      ]
+    },
+    {
+      "id": "C14",
+      "title": "Orders, payments, refunds and invoices disagree after an external failure",
+      "status": "ready",
+      "issues": [119, 103, 72, 61, 80, 332, 334, 337, 338, 339],
+      "entry_points": [
+        "internal/admin/store.go",
+        "internal/payment/store.go"
+      ],
+      "fixture": "seed/dev_catalog.sql",
+      "fault": "unreconciled provider facts must surface an operator repair path",
+      "assertions": [
+        {
+          "kind": "go_test",
+          "package": "./internal/admin",
+          "run": "TestTheHealthPageNamesARefundThatDidNotLand",
+          "build_tags": ["integration"],
+          "evidence": "operator_sees_refund_exception"
+        },
+        {
+          "kind": "go_test",
+          "package": "./internal/acceptance",
+          "run": "TestReconciliationSurfacesRequiresReconciliationPayments",
+          "build_tags": ["integration"],
+          "evidence": "composition_payment_health_alarm"
+        }
+      ],
+      "extensions": [
+        {
+          "issues": [338, 339],
+          "title": "external refunds and disputes without goen claim metadata",
+          "status": "blocked",
+          "evidence": "provider_originated_money_facts"
+        }
+      ]
+    },
+    {
+      "id": "C15",
+      "title": "Traffic overloads dependencies, deployment interrupts work, or data must be restored",
+      "status": "blocked",
+      "issues": [327, 328, 329, 40, 332, 333, 334, 336, 337],
+      "blocked_by": [333, 336],
+      "entry_points": ["cmd/goen/main.go"],
+      "fault": "bounded admission, draining and restore must be reproducible",
+      "assertions": [
+        {
+          "kind": "gate",
+          "evidence": "blocked_on_load_topology_333_and_restore_336",
+          "status": "blocked"
+        }
+      ],
+      "dependencies": [333, 336]
+    },
+    {
+      "id": "C16",
+      "title": "The buyer needs order history, support or after-sales service",
+      "status": "ready",
+      "issues": [237, 230, 146, 220, 132, 324, 337],
+      "entry_points": [
+        "internal/account/handler.go",
+        "internal/warranty/store.go"
+      ],
+      "fixture": "seed/dev_catalog.sql",
+      "fault": "after-sales eligibility must match delivered facts",
+      "assertions": [
+        {
+          "kind": "go_test",
+          "package": "./internal/warranty",
+          "run": "TestRegistrationIsBoundedByWhatArrived",
+          "build_tags": ["integration"],
+          "evidence": "warranty_follows_delivery"
+        },
+        {
+          "kind": "go_test",
+          "package": "./internal/account",
+          "run": "TestOrdersAreScopedToTheirOwner",
+          "build_tags": ["integration"],
+          "evidence": "order_history_is_owner_scoped"
+        },
+        {
+          "kind": "browser",
+          "runner": "check-layout",
+          "pages": ["orders 375", "warranty 375"],
+          "evidence": "buyer_after_sales_surfaces"
+        }
+      ]
+    }
+  ]
+}
