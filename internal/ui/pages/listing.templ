@@ -59,94 +59,96 @@ templ Listing(p layouts.Page, v ListingView) {
 }
 
 templ listingFilters(v ListingView) {
-	<details class="goen-filters__shell">
-		<summary class="goen-filters__shell-summary">{ i18n.T(ctx, i18n.KeyFiltersAndSort) }</summary>
-		<form class="goen-filters" method="get" action={ templ.SafeURL(v.FilterAction()) }>
-			<div class="goen-filters__head">
-				<h2 class="goen-filters__title">{ i18n.T(ctx, i18n.KeyFilters) }</h2>
-			</div>
-			if len(v.Brands) > 0 {
+	<div class="goen-listing__filters">
+		<details class="goen-filters__shell">
+			<summary class="goen-filters__shell-summary">{ i18n.T(ctx, i18n.KeyFiltersAndSort) }</summary>
+			<form class="goen-filters" method="get" action={ templ.SafeURL(v.FilterAction()) }>
+				<div class="goen-filters__head">
+					<h2 class="goen-filters__title">{ i18n.T(ctx, i18n.KeyFilters) }</h2>
+				</div>
+				if len(v.Brands) > 0 {
+					<details class="goen-filters__group" open>
+						<summary class="goen-filters__summary">{ i18n.T(ctx, i18n.KeyFacetBrand) }</summary>
+						<div class="goen-filters__options">
+							for _, b := range v.Brands {
+								<label class="ui-check goen-filters__option">
+									<input
+										type="checkbox"
+										name="brand"
+										value={ b.Value }
+										checked?={ b.Selected }
+									/>
+									<span class="ui-check__box" aria-hidden="true"></span>
+									<span class="goen-filters__label">{ b.Label }</span>
+									<span class="ui-filter__count">{ b.CountText() }</span>
+								</label>
+							}
+						</div>
+					</details>
+				}
 				<details class="goen-filters__group" open>
-					<summary class="goen-filters__summary">{ i18n.T(ctx, i18n.KeyFacetBrand) }</summary>
+					<summary class="goen-filters__summary">{ i18n.T(ctx, i18n.KeyFacetStock) }</summary>
 					<div class="goen-filters__options">
-						for _, b := range v.Brands {
-							<label class="ui-check goen-filters__option">
-								<input
-									type="checkbox"
-									name="brand"
-									value={ b.Value }
-									checked?={ b.Selected }
-								/>
-								<span class="ui-check__box" aria-hidden="true"></span>
-								<span class="goen-filters__label">{ b.Label }</span>
-								<span class="ui-filter__count">{ b.CountText() }</span>
-							</label>
-						}
+						<label class="ui-check goen-filters__option">
+							<input type="checkbox" name="in_stock" value="1" checked?={ v.InStockOnly }/>
+							<span class="ui-check__box" aria-hidden="true"></span>
+							<span class="goen-filters__label">{ i18n.T(ctx, i18n.KeyFacetInStock) }</span>
+						</label>
 					</div>
 				</details>
-			}
-			<details class="goen-filters__group" open>
-				<summary class="goen-filters__summary">{ i18n.T(ctx, i18n.KeyFacetStock) }</summary>
-				<div class="goen-filters__options">
-					<label class="ui-check goen-filters__option">
-						<input type="checkbox" name="in_stock" value="1" checked?={ v.InStockOnly }/>
-						<span class="ui-check__box" aria-hidden="true"></span>
-						<span class="goen-filters__label">{ i18n.T(ctx, i18n.KeyFacetInStock) }</span>
-					</label>
+				<details class="goen-filters__group" open>
+					<summary class="goen-filters__summary">{ i18n.T(ctx, i18n.KeyFacetPrice) }</summary>
+					<div class="goen-filters__prices">
+						<label class="goen-sr-only" for="min-price">{ i18n.T(ctx, i18n.KeyPriceMin) }</label>
+						<input
+							class="ui-input ui-input--sm"
+							id="min-price"
+							type="number"
+							name="min_price"
+							inputmode="numeric"
+							min="0"
+							placeholder={ i18n.T(ctx, i18n.KeyPriceMinShort) }
+							value={ v.MinPriceText() }
+						/>
+						<span class="goen-filters__dash" aria-hidden="true">–</span>
+						<label class="goen-sr-only" for="max-price">{ i18n.T(ctx, i18n.KeyPriceMax) }</label>
+						<input
+							class="ui-input ui-input--sm"
+							id="max-price"
+							type="number"
+							name="max_price"
+							inputmode="numeric"
+							min="0"
+							placeholder={ i18n.T(ctx, i18n.KeyPriceMaxShort) }
+							value={ v.MaxPriceText() }
+						/>
+					</div>
+				</details>
+				<div class="ui-field goen-filters__group">
+					<label class="ui-label" for="sort">{ i18n.T(ctx, i18n.KeySort) }</label>
+					<select class="ui-select" id="sort" name="sort">
+						for _, o := range v.SortOptions(ctx) {
+							<option value={ o.Value } selected?={ o.Selected }>{ o.Label }</option>
+						}
+					</select>
 				</div>
-			</details>
-			<details class="goen-filters__group" open>
-				<summary class="goen-filters__summary">{ i18n.T(ctx, i18n.KeyFacetPrice) }</summary>
-				<div class="goen-filters__prices">
-					<label class="goen-sr-only" for="min-price">{ i18n.T(ctx, i18n.KeyPriceMin) }</label>
-					<input
-						class="ui-input ui-input--sm"
-						id="min-price"
-						type="number"
-						name="min_price"
-						inputmode="numeric"
-						min="0"
-						placeholder={ i18n.T(ctx, i18n.KeyPriceMinShort) }
-						value={ v.MinPriceText() }
-					/>
-					<span class="goen-filters__dash" aria-hidden="true">–</span>
-					<label class="goen-sr-only" for="max-price">{ i18n.T(ctx, i18n.KeyPriceMax) }</label>
-					<input
-						class="ui-input ui-input--sm"
-						id="max-price"
-						type="number"
-						name="max_price"
-						inputmode="numeric"
-						min="0"
-						placeholder={ i18n.T(ctx, i18n.KeyPriceMaxShort) }
-						value={ v.MaxPriceText() }
-					/>
-				</div>
-			</details>
-			<div class="ui-field goen-filters__group">
-				<label class="ui-label" for="sort">{ i18n.T(ctx, i18n.KeySort) }</label>
-				<select class="ui-select" id="sort" name="sort">
-					for _, o := range v.SortOptions(ctx) {
-						<option value={ o.Value } selected?={ o.Selected }>{ o.Label }</option>
+				<button class="ui-btn ui-btn--primary ui-btn--block goen-filters__apply" type="submit">
+					{ i18n.T(ctx, i18n.KeyApplyFilters) }
+				</button>
+			</form>
+		</details>
+		if v.Filtered {
+			<div class="goen-filters__applied" role="status">
+				<span class="goen-filters__applied-label">{ i18n.T(ctx, i18n.KeyFiltersActive) }</span>
+				<ul class="goen-filters__chips" role="list">
+					for _, chip := range v.AppliedChips(ctx) {
+						<li class="goen-filters__chip">{ chip }</li>
 					}
-				</select>
+				</ul>
+				<a class="ui-filterbar__clear" href={ templ.URL("/c/" + v.Slug) }>{ i18n.T(ctx, i18n.KeyClearFilters) }</a>
 			</div>
-			<button class="ui-btn ui-btn--primary ui-btn--block goen-filters__apply" type="submit">
-				{ i18n.T(ctx, i18n.KeyApplyFilters) }
-			</button>
-		</form>
-	</details>
-	if v.Filtered {
-		<div class="goen-filters__applied" role="status">
-			<span class="goen-filters__applied-label">{ i18n.T(ctx, i18n.KeyFiltersActive) }</span>
-			<ul class="goen-filters__chips" role="list">
-				for _, chip := range v.AppliedChips(ctx) {
-					<li class="goen-filters__chip">{ chip }</li>
-				}
-			</ul>
-			<a class="ui-filterbar__clear" href={ templ.URL("/c/" + v.Slug) }>{ i18n.T(ctx, i18n.KeyClearFilters) }</a>
-		</div>
-	}
+		}
+	</div>
 }
 
 templ pager(hasPrev, hasNext bool, prev, next, page, pages string) {
