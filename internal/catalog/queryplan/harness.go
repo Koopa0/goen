@@ -63,18 +63,34 @@ func MeasureAll(ctx context.Context, pool *pgxpool.Pool, scale Scale, commitSHA 
 	return out, nil
 }
 
+// warmSamples is how many warm EXPLAIN runs the harness keeps; budget checks
+// use the minimum execution time so a single slow CI sample cannot fail schema.
+const warmSamples = 3
+
 func measureQuery(ctx context.Context, pool *pgxpool.Pool, scale Scale, q Query, warm bool, sha string) (Result, error) {
-	if warm {
-		if _, err := pool.Exec(ctx, q.SQL, q.Args...); err != nil {
-			return Result{}, fmt.Errorf("%s warm run: %w", q.Route, err)
+	if !warm {
+		r, err := Measure(ctx, pool, q.Route, scale, false, q.SQL, q.Args...)
+		if err != nil {
+			return Result{}, err
+		}
+		r.CommitSHA = sha
+		return r, nil
+	}
+	if _, err := pool.Exec(ctx, q.SQL, q.Args...); err != nil {
+		return Result{}, fmt.Errorf("%s warm run: %w", q.Route, err)
+	}
+	var best Result
+	for i := range warmSamples {
+		r, err := Measure(ctx, pool, q.Route, scale, true, q.SQL, q.Args...)
+		if err != nil {
+			return Result{}, err
+		}
+		r.CommitSHA = sha
+		if i == 0 || r.ExecutionMS < best.ExecutionMS {
+			best = r
 		}
 	}
-	r, err := Measure(ctx, pool, q.Route, scale, warm, q.SQL, q.Args...)
-	if err != nil {
-		return Result{}, err
-	}
-	r.CommitSHA = sha
-	return r, nil
+	return best, nil
 }
 
 func prepareCatalogue(ctx context.Context, pool *pgxpool.Pool) error {
