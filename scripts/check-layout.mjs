@@ -294,12 +294,13 @@ const ACCOUNT_PAGES = [
     marker: '#points', points: true },
   { label: 'points 1440', width: 1440, height: 900, path: '/account/points',
     marker: '#points', points: true },
-  // The saved-product tile and the remove form are separate nodes today (#320);
-  // .goen-wish can exist empty while the real controls live outside it.
+  // Each saved product must be one direct grid list item with its card and
+  // remove form inside it and matching slugs. A global tile plus a global form
+  // is the #320 topology and must not pass (#321 fixes the product).
   { label: 'wishlist 375', width: 375, height: 812, path: '/account/wishlist',
-    marker: '.goen-tiles__grid .goen-tile', wishlist: true },
+    marker: '.goen-tiles__grid > li.goen-wish', wishlist: true },
   { label: 'wishlist 1440', width: 1440, height: 900, path: '/account/wishlist',
-    marker: '.goen-tiles__grid .goen-tile', wishlist: true },
+    marker: '.goen-tiles__grid > li.goen-wish', wishlist: true },
   { label: 'warranty 375', width: 375, height: 812, path: '/account/warranty',
     marker: '.goen-warranty__item' },
   { label: 'warranty 1440', width: 1440, height: 900, path: '/account/warranty',
@@ -1108,10 +1109,10 @@ const POINTS_PAGE_PROBE = `(() => {
   };
 })()`;
 
-// Wishlist rows need the saved product card and the remove form the fixture
-// seeds. The wrapper .goen-wish can be empty while Tile's <li> and the remove
-// form sit as siblings — measuring .goen-wish .ui-btn reported controls=0 and
-// still passed.
+// Wishlist rows need each saved product as one direct grid list item: the card
+// link and its native remove form live in the same li, with matching slugs.
+// Tile already emits li.goen-tile__cell; wrapping @Tile in li.goen-wish leaves
+// an empty outer item and parks the form as a direct ul child (#320).
 const WISHLIST_PAGE_PROBE = `(() => {
   const de = document.documentElement;
   const clipped = (e) => {
@@ -1123,18 +1124,68 @@ const WISHLIST_PAGE_PROBE = `(() => {
     }
     return false;
   };
-  const tile = document.querySelector('.goen-tiles__grid .goen-tile');
-  if (!tile) return { noMarker: true };
-  const removeForm = document.querySelector('form.goen-wish__remove');
-  if (!removeForm) return { noRemove: true };
-  const taps = [...document.querySelectorAll('.goen-wish__remove .ui-btn')]
-    .map((e) => e.getBoundingClientRect().height).filter((h) => h > 0);
+  const grid = document.querySelector('.goen-tiles__grid');
+  if (!grid) return { noMarker: true };
+  const slugFromCard = (item) => {
+    const link = item.querySelector('a.goen-tile[href]');
+    if (!link) return '';
+    const m = (link.getAttribute('href') || '').match(/^\\/p\\/([^?#]+)/);
+    return m ? decodeURIComponent(m[1]) : '';
+  };
+  const slugFromForm = (item) => {
+    const input = item.querySelector('form.goen-wish__remove input[name="slug"]');
+    return input ? input.value : '';
+  };
+  const direct = [...grid.children];
+  if (!direct.length) return { noMarker: true };
+  const problems = [];
+  const taps = [];
+  let composed = 0;
+  for (const child of direct) {
+    if (child.tagName !== 'LI') {
+      problems.push(child.tagName.toLowerCase() + ' is a direct grid child');
+      continue;
+    }
+    if (!child.classList.contains('goen-wish')) {
+      problems.push('grid li is not .goen-wish');
+      continue;
+    }
+    if (child.querySelector('li')) {
+      problems.push('grid li nests another list item');
+      continue;
+    }
+    const card = child.querySelector('a.goen-tile');
+    const form = child.querySelector('form.goen-wish__remove');
+    if (!card) {
+      problems.push('.goen-wish has no product card');
+      continue;
+    }
+    if (!form) {
+      problems.push('.goen-wish has no remove form');
+      continue;
+    }
+    const cardSlug = slugFromCard(child);
+    const formSlug = slugFromForm(child);
+    if (!cardSlug || !formSlug || cardSlug !== formSlug) {
+      problems.push('card slug and remove form slug do not match');
+      continue;
+    }
+    const btn = form.querySelector('.ui-btn');
+    if (btn) {
+      const h = btn.getBoundingClientRect().height;
+      if (h > 0) taps.push(h);
+    }
+    composed++;
+  }
   return {
     viewportWidth: de.clientWidth,
     scrollWidth: document.body.scrollWidth,
     overflowing: [...document.querySelectorAll('body *')]
       .filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > de.clientWidth + 0.5 && !clipped(e); })
       .slice(0, 4).map((e) => e.tagName.toLowerCase() + '.' + String(e.className || '').split(' ')[0]),
+    items: direct.length,
+    composed,
+    problems,
     minTap: taps.length ? +Math.min(...taps).toFixed(1) : 0,
     controls: taps.length,
     ${ACCESSIBILITY}
@@ -1221,11 +1272,18 @@ if (process.env.CUST_TOKEN) {
     const at = want.label;
 
     if (got.noMarker) {
-      fail(at, `the page rendered without ${want.marker} — its fixture did not run, so this check proved nothing`);
+      fail(at, want.wishlist
+        ? 'the wishlist rendered without a product grid — its fixture did not run, so this check proved nothing'
+        : `the page rendered without ${want.marker} — its fixture did not run, so this check proved nothing`);
       continue;
     }
-    if (got.noRemove) {
-      fail(at, 'the wishlist rendered a product tile without form.goen-wish__remove — this check proved nothing');
+    if (want.wishlist && got.composed < 1) {
+      const detail = got.problems?.length ? ` — ${got.problems.join('; ')}` : '';
+      fail(at, `wishlist has no composed saved-product row — card and remove form must share one grid list item with matching slugs${detail}`);
+      continue;
+    }
+    if (want.wishlist && got.items !== got.composed) {
+      fail(at, `wishlist grid has ${got.items} direct children but only ${got.composed} compose a card with its matching remove form`);
       continue;
     }
     if (got.noRedeem) {
@@ -1248,7 +1306,8 @@ if (process.env.CUST_TOKEN) {
     } else if (got.controls > 0 && got.minTap < MIN_TAP) {
       fail(at, `smallest control is ${got.minTap}px, want >= ${MIN_TAP}`);
     }
-    const extra = want.points ? ` redeemable=${got.redeemable}` : '';
+    const extra = want.points ? ` redeemable=${got.redeemable}`
+      : want.wishlist ? ` items=${got.items} composed=${got.composed}` : '';
     console.log(`${at.padEnd(24)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
       `controls=${got.controls} tap=${got.minTap || '-'}${extra}`);
   }
