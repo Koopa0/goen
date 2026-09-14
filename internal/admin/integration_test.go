@@ -4991,7 +4991,7 @@ func TestTheReturnQueueNamesTheRefundChannels(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			requestID := tt.setup(t)
-			if err := s.Decide(ctx, requestID.String(), "approved", "核准", uuid.NullUUID{}); err != nil {
+			if err := s.Decide(ctx, requestID.String(), "approved", "核准", "", uuid.NullUUID{}); err != nil {
 				t.Fatalf("Decide: %v", err)
 			}
 			view, err := s.Returns(ctx)

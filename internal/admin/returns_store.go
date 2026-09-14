@@ -372,6 +372,9 @@ func (s *Store) Decide(
 	if closeErr := s.closeReturn(ctx, row.ID, kind, resolution, version); closeErr != nil {
 		return closeErr
 	}
+	if kind == returns.DecisionReject {
+		return nil
+	}
 	frozen, err := s.q.ReturnForDecision(ctx, row.ID)
 	if err != nil {
 		return fmt.Errorf("read frozen approved return %s: %w", row.ID, err)

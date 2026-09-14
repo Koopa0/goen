@@ -128,7 +128,17 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 									<p class="ui-error-text" id={ "decision-" + r.ID + "-error" } role="alert">{ v.FieldError(r.ID, "decision") }</p>
 									<div class="ui-field">
 										<label class="ui-label" for={ "res-" + r.ID }>{ i18n.T(ctx, i18n.KeyAdminRetResolution) }</label>
-										<input class="ui-input" id={ "res-" + r.ID } name="resolution" maxlength="300" autocomplete="off"/>
+										<input
+											class="ui-input"
+											id={ "res-" + r.ID }
+											name="resolution"
+											maxlength="300"
+											autocomplete="off"
+											aria-describedby={ "decision-" + r.ID + "-error" }
+											if v.FieldInvalid(r.ID, "decision") {
+												aria-invalid="true"
+											}
+										/>
 									</div>
 									<div class="goen-admin__decidebtns">
 										if !r.Late() {
