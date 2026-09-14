@@ -18,6 +18,17 @@ import (
 	"github.com/koopa0/goen/internal/web"
 )
 
+func TestPanicRecoveryUsesProductionRequestTracing(t *testing.T) {
+	src, err := os.ReadFile("server.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "return withRequestTracing(handler, log)"
+	if !bytes.Contains(src, []byte(want)) {
+		t.Fatalf("newRouter must return %q so panic recovery sees the request identifier", want)
+	}
+}
+
 func TestNotifyRouteIsGuardedPerIP(t *testing.T) {
 	src, err := os.ReadFile("server.go")
 	if err != nil {

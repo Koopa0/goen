@@ -378,9 +378,16 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	handler = crossOriginProtection(handler)
 	handler = securityHeaders(handler)
 	handler = web.Compress(handler)
-	handler = requestLog(handler, log)
-	handler = withRequestID(handler)
-	return recoverPanic(handler, log)
+	return withRequestTracing(handler, log)
+}
+
+// withRequestTracing wraps a handler with the request log, panic recovery,
+// and identifier middleware. withRequestID is outermost so recovery sees the
+// same context the response header was stamped from.
+func withRequestTracing(next http.Handler, log *slog.Logger) http.Handler {
+	next = requestLog(next, log)
+	next = recoverPanic(next, log)
+	return withRequestID(next)
 }
 
 // staticAssetHandler leaves identity-versus-gzip selection with assets.Handler.
