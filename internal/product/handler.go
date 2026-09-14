@@ -57,6 +57,14 @@ func (h *Handler) Detail(w http.ResponseWriter, r *http.Request) {
 			h.notFound(w, r)
 			return
 		}
+		if errors.Is(err, ErrOverloaded) {
+			w.Header().Set("Retry-After", "1")
+			web.Render(w, r, h.log, http.StatusServiceUnavailable, pages.Notice(
+				layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCannotLoad)}, "",
+				i18n.T(r.Context(), i18n.KeyCannotLoad),
+				i18n.T(r.Context(), i18n.KeyCannotLoadProduct)))
+			return
+		}
 		h.log.ErrorContext(r.Context(), "load product", "error", err, "slug", slug)
 		web.Render(w, r, h.log, http.StatusInternalServerError, pages.Notice(
 			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyCannotLoad)}, "",

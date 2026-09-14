@@ -8397,6 +8397,25 @@ func (q *Queries) ProductOptions(ctx context.Context, arg ProductOptionsParams) 
 	return items, nil
 }
 
+const productPresentationGate = `-- name: ProductPresentationGate :one
+SELECT p.id, p.presentation_revision
+FROM products p
+WHERE p.slug = $1 AND p.status = 'active'
+`
+
+type ProductPresentationGateRow struct {
+	ID                   uuid.UUID
+	PresentationRevision int64
+}
+
+// The revision gate: one row when the product is active, nothing otherwise.
+func (q *Queries) ProductPresentationGate(ctx context.Context, slug string) (ProductPresentationGateRow, error) {
+	row := q.db.QueryRow(ctx, productPresentationGate, slug)
+	var i ProductPresentationGateRow
+	err := row.Scan(&i.ID, &i.PresentationRevision)
+	return i, err
+}
+
 const productQuestions = `-- name: ProductQuestions :many
 SELECT q.id, q.body, q.created_at,
        coalesce(u.full_name, '') AS asker
