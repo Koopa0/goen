@@ -77,6 +77,9 @@ func TestMobileFiltersStayCollapsedWithoutScript(t *testing.T) {
 	}
 	html := renderToString(t, Listing(ListingMeta(ctx, view), view))
 
+	if !strings.Contains(html, `<div class="goen-listing__filters">`) {
+		t.Error("the filter rail is not grouped into one layout column")
+	}
 	if !strings.Contains(html, `<details class="goen-filters__shell">`) {
 		t.Error("the listing carries no mobile filter disclosure")
 	}
@@ -110,6 +113,12 @@ func TestFilteredListingFocusesResults(t *testing.T) {
 	}
 	if !strings.Contains(html, `class="goen-filters__applied"`) {
 		t.Error("a filtered listing shows no applied-filter summary")
+	}
+	idxFilters := strings.Index(html, `class="goen-listing__filters"`)
+	idxResults := strings.Index(html, `id="listing-results"`)
+	if idxFilters < 0 || idxResults < 0 ||
+		!strings.Contains(html[idxFilters:idxResults], `class="goen-filters__applied"`) {
+		t.Error("applied-filter summary is not grouped in the filter column")
 	}
 	if !strings.Contains(html, i18n.T(ctx, i18n.KeyFacetInStock)) {
 		t.Error("the applied summary does not name the active stock filter")

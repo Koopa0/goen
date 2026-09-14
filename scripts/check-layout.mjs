@@ -702,6 +702,63 @@ const assertDesktopFiltersVisible = (at, got) => {
   }
 };
 
+const LISTING_LAYOUT_PROBE = `(() => {
+  const filters = document.querySelector('.goen-listing__filters');
+  const filterForm = document.querySelector('.goen-filters');
+  const results = document.querySelector('.goen-listing__results');
+  const card = document.querySelector('.goen-tiles__grid > li');
+  const layout = document.querySelector('.goen-listing__layout');
+  if (!filterForm || !results || !layout) {
+    return { ok: false, why: 'listing layout landmarks missing' };
+  }
+  const rail = (filters || filterForm).getBoundingClientRect();
+  const resultsRect = results.getBoundingClientRect();
+  const cardRect = card ? card.getBoundingClientRect() : null;
+  return {
+    ok: true,
+    rail: Math.abs(rail.y - resultsRect.y) < 2 ? 'beside' : 'stacked',
+    filterX: +rail.x.toFixed(1),
+    filterW: +rail.width.toFixed(1),
+    resultsX: +resultsRect.x.toFixed(1),
+    resultsW: +resultsRect.width.toFixed(1),
+    cardW: cardRect ? +cardRect.width.toFixed(1) : 0,
+    layoutChildren: [...layout.children].map((e) => String(e.className || '').split(' ')[0]),
+    resultsBesideFilter: resultsRect.left > rail.right - 2,
+  };
+})()`;
+
+const assertDesktopResultsLayout = (at, got) => {
+  if (got.threw || !got.ok) {
+    fail(at, got.why || 'listing layout probe failed');
+    return;
+  }
+  if (got.rail !== 'beside') {
+    fail(at, `results are not beside the filter rail — ${JSON.stringify(got)}`);
+  }
+  if (!got.resultsBesideFilter) {
+    fail(at, `results sit in the narrow filter column — ${JSON.stringify(got)}`);
+  }
+  if (got.layoutChildren.length !== 2) {
+    fail(at, `layout has ${got.layoutChildren.length} direct children, want 2 — ${got.layoutChildren}`);
+  }
+  if (got.cardW > 0 && got.cardW < MIN_CARD) {
+    fail(at, `product card is ${got.cardW}px wide, want >= ${MIN_CARD} — ${JSON.stringify(got)}`);
+  }
+};
+
+const assertMobileResultsLayout = (at, got) => {
+  if (got.threw || !got.ok) {
+    fail(at, got.why || 'listing layout probe failed');
+    return;
+  }
+  if (got.rail !== 'stacked') {
+    fail(at, `mobile results are not stacked under the filter rail — ${JSON.stringify(got)}`);
+  }
+  if (got.layoutChildren.length !== 2) {
+    fail(at, `layout has ${got.layoutChildren.length} direct children, want 2 — ${got.layoutChildren}`);
+  }
+};
+
 const evalPage = async (expression) => {
   const evaluated = await send(ws, 'Runtime.evaluate', {
     expression, returnByValue: true, awaitPromise: true,
@@ -729,7 +786,8 @@ const LISTING_PROBE = `(() => {
     }
     return false;
   };
-  const rail = document.querySelector('.goen-filters').getBoundingClientRect();
+  const rail = (document.querySelector('.goen-listing__filters')
+    || document.querySelector('.goen-filters')).getBoundingClientRect();
   const results = document.querySelector('.goen-listing__results').getBoundingClientRect();
   const cols = (sel) => {
     const items = [...document.querySelectorAll(sel)];
@@ -895,7 +953,12 @@ for (const want of LISTING_AUDIO) {
     `rail=${got.rail} tileTop=${got.firstTileTop} shell=${got.shellOpen}`);
 }
 
-const proveListingFilterJourney = async (label) => {
+const proveListingFilterJourney = async (label, locale) => {
+  if (locale) {
+    await send(ws, 'Network.setCookie', {
+      name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/',
+    });
+  }
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: 375, height: 812, deviceScaleFactor: 1, mobile: true,
   });
@@ -971,12 +1034,45 @@ const proveListingFilterJourney = async (label) => {
   if (!landed.hasClear) fail(label, 'filtered reload offers no clear-all control');
   if (landed.shellOpen) fail(label, 'filter shell stayed open after a filtered reload');
 
-  console.log(`${label.padEnd(24)} collapsed tileTop=${collapsed.tileTop} filtered focus ok`);
+  const filteredLayout = await evalPage(LISTING_LAYOUT_PROBE);
+  assertMobileResultsLayout(`${label} filtered`, filteredLayout);
+  if (filteredLayout.cardW > 0 && filteredLayout.cardW < MIN_CARD) {
+    fail(label, `filtered mobile card is ${filteredLayout.cardW}px wide, want >= ${MIN_CARD}`);
+  }
+
+  const cleared = await evalPage(`(() => {
+    const clear = document.querySelector('.goen-filters__applied .ui-filterbar__clear');
+    if (!clear) return { ok: false, why: 'clear-all link missing after filter' };
+    clear.click();
+    return { ok: true };
+  })()`);
+  if (cleared.threw || !cleared.ok) {
+    fail(label, cleared.why || 'clear-all navigation did not start');
+    return;
+  }
+  await settled(ws, `${label} cleared`, `${ORIGIN}/c/audio`);
+  const afterClear = await evalPage(LISTING_LAYOUT_PROBE);
+  assertMobileResultsLayout(`${label} cleared`, afterClear);
+  const clearedProbe = await evalPage(`(() => ({
+    hasApplied: !!document.querySelector('.goen-filters__applied'),
+    href: location.href,
+  }))()`);
+  if (clearedProbe.hasApplied) fail(label, 'clear-all left the applied-filter summary visible');
+  if (clearedProbe.href.includes('in_stock=')) fail(label, 'clear-all left filter query parameters in the URL');
+
+  console.log(`${label.padEnd(24)} collapsed tileTop=${collapsed.tileTop} filtered focus clear ok`);
 };
 
-await proveListingFilterJourney('listing audio journey');
+for (const locale of ['zh-Hant', 'en']) {
+  await proveListingFilterJourney(`listing audio journey ${locale}`, locale);
+}
 
-const proveListingDesktopResize = async (label) => {
+const proveListingDesktopResize = async (label, locale) => {
+  if (locale) {
+    await send(ws, 'Network.setCookie', {
+      name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/',
+    });
+  }
   const loadDesktop = async (scriptingOff) => {
     await send(ws, 'Emulation.setScriptExecutionDisabled', { value: scriptingOff });
     await send(ws, 'Emulation.setDeviceMetricsOverride', {
@@ -988,6 +1084,8 @@ const proveListingDesktopResize = async (label) => {
     const got = await evalPage(FILTER_SHELL_PROBE);
     if (got.threw) fail(label, got.why || 'desktop filter probe failed');
     assertDesktopFiltersVisible(`${label} desktop`, got);
+    const layout = await evalPage(LISTING_LAYOUT_PROBE);
+    assertDesktopResultsLayout(`${label} desktop`, layout);
     return got;
   };
 
@@ -1045,6 +1143,28 @@ const proveListingDesktopResize = async (label) => {
   if (!afterFilter.hasClear) fail(label, 'desktop filtered reload offers no clear-all control');
   if (!afterFilter.stockChecked) fail(label, 'desktop filtered reload lost the in_stock checkbox state');
 
+  const filteredLayout = await evalPage(LISTING_LAYOUT_PROBE);
+  assertDesktopResultsLayout(`${label} filtered`, filteredLayout);
+
+  const cleared = await evalPage(`(() => {
+    const clear = document.querySelector('.goen-filters__applied .ui-filterbar__clear');
+    if (!clear) return { ok: false, why: 'clear-all link missing after desktop filter' };
+    clear.click();
+    return { ok: true };
+  })()`);
+  if (cleared.threw || !cleared.ok) {
+    fail(label, cleared.why || 'desktop clear-all navigation did not start');
+    return;
+  }
+  await settled(ws, `${label} cleared`, `${ORIGIN}/c/audio`);
+  const afterClear = await evalPage(LISTING_LAYOUT_PROBE);
+  assertDesktopResultsLayout(`${label} cleared`, afterClear);
+  const clearedProbe = await evalPage(`(() => ({
+    hasApplied: !!document.querySelector('.goen-filters__applied'),
+    href: location.href,
+  }))()`);
+  if (clearedProbe.hasApplied) fail(label, 'desktop clear-all left the applied-filter summary visible');
+
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: 375, height: 812, deviceScaleFactor: 1, mobile: true,
   });
@@ -1081,10 +1201,12 @@ const proveListingDesktopResize = async (label) => {
   if (desktopAgain.threw) fail(label, desktopAgain.why || 'desktop re-expand probe failed');
   assertDesktopFiltersVisible(`${label} after resize`, desktopAgain);
 
-  console.log(`${label.padEnd(24)} desktop submit resize ok`);
+  console.log(`${label.padEnd(24)} desktop submit filter clear resize ok`);
 };
 
-await proveListingDesktopResize('listing audio desktop');
+for (const locale of ['zh-Hant', 'en']) {
+  await proveListingDesktopResize(`listing audio desktop ${locale}`, locale);
+}
 
 const HEADER_EN_PROBE = `(() => {
   const de = document.documentElement;

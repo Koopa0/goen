@@ -795,6 +795,14 @@ a:hover {
   min-width: 0;
 }
 
+/* One grid cell for the filter rail and any applied-filter summary beneath it. */
+.goen-listing__filters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
 /* On a phone the whole filter form collapses behind one disclosure so the
    product grid stays in the first viewport. Wide screens hide the summary and
    force the details content open through ::details-content: a descendant
@@ -1070,7 +1078,7 @@ a:hover {
     display: flex;
   }
 
-  .goen-filters {
+  .goen-listing__filters {
     position: sticky;
     top: 16px;
   }
