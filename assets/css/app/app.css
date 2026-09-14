@@ -797,7 +797,8 @@ a:hover {
 
 /* On a phone the whole filter form collapses behind one disclosure so the
    product grid stays in the first viewport. Wide screens hide the summary and
-   keep the rail always open — still a native <details>, so scripting off works. */
+   force the details content open through ::details-content: a descendant
+   display rule alone cannot override the closed details slot in Chrome. */
 .goen-filters__shell {
   border: 1px solid var(--border);
   border-radius: var(--r-md);
@@ -1059,6 +1060,10 @@ a:hover {
 
   .goen-filters__shell-summary {
     display: none;
+  }
+
+  .goen-filters__shell::details-content {
+    content-visibility: visible;
   }
 
   .goen-filters__shell > .goen-filters {

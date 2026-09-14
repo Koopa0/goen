@@ -659,6 +659,62 @@ for (const want of EXPECTED) {
     `cats=${got.cats} tiles=${got.tiles} hero=${got.heroSplit} tap=${got.minTap}${mark}`);
 }
 
+// Whether the filter shell exposes its form and a control. On desktop a closed
+// <details> keeps ::details-content at content-visibility:hidden until the
+// stylesheet opens it; display:flex on the form alone is not enough.
+const FILTER_SHELL_PROBE = `(() => {
+  const shell = document.querySelector('.goen-filters__shell');
+  const form = document.querySelector('.goen-filters');
+  const input = document.querySelector('.goen-filters .ui-input, .goen-filters .ui-select');
+  const summary = document.querySelector('.goen-filters__shell-summary');
+  const formRect = form ? form.getBoundingClientRect() : null;
+  const inputRect = input ? input.getBoundingClientRect() : null;
+  const summaryStyle = summary ? getComputedStyle(summary) : null;
+  let contentVisibility = null;
+  if (shell) {
+    try {
+      contentVisibility = getComputedStyle(shell, '::details-content').contentVisibility;
+    } catch (_) {
+      contentVisibility = null;
+    }
+  }
+  return {
+    open: shell ? shell.open : null,
+    summaryDisplay: summaryStyle ? summaryStyle.display : null,
+    summaryVisible: !!(summary && summary.getBoundingClientRect().height > 0),
+    formVisible: !!(formRect && formRect.height > 0 && formRect.width > 0),
+    inputVisible: !!(inputRect && inputRect.height > 0 && inputRect.width > 0),
+    contentVisibility,
+    products: document.querySelectorAll('.goen-tiles__grid > li').length,
+    viewport: document.documentElement.clientWidth,
+  };
+})()`;
+
+const assertDesktopFiltersVisible = (at, got) => {
+  if (!got.formVisible) {
+    fail(at, `desktop filter form is not visible — ${JSON.stringify(got)}`);
+  }
+  if (!got.inputVisible) {
+    fail(at, `desktop filter controls are not visible — ${JSON.stringify(got)}`);
+  }
+  if (got.contentVisibility === 'hidden') {
+    fail(at, `desktop ::details-content is still hidden — ${JSON.stringify(got)}`);
+  }
+};
+
+const evalPage = async (expression) => {
+  const evaluated = await send(ws, 'Runtime.evaluate', {
+    expression, returnByValue: true, awaitPromise: true,
+  });
+  if (evaluated.exceptionDetails || !evaluated.result || evaluated.result.value === undefined) {
+    return {
+      threw: true,
+      why: evaluated.exceptionDetails?.exception?.description || JSON.stringify(evaluated).slice(0, 400),
+    };
+  }
+  return evaluated.result.value;
+};
+
 // The listing page. Its own probe: no hero and no category grid, but a filter
 // rail whose position is the fold, and the same no-overflow and shared-gutter
 // rules the home is held to.
@@ -760,6 +816,14 @@ for (const want of LISTING) {
     if (got.firstTileTop !== null && !got.firstTileInView) {
       fail(at, 'the first product tile is not fully visible on entry');
     }
+    const filters = await evalPage(FILTER_SHELL_PROBE);
+    if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
+    if (filters.formVisible) fail(at, 'filter form is visible while the shell is collapsed on mobile');
+  }
+  if (want.rail === 'beside') {
+    const filters = await evalPage(FILTER_SHELL_PROBE);
+    if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
+    assertDesktopFiltersVisible(at, filters);
   }
   if (got.minTap < MIN_TAP) fail(at, `smallest filter control is ${got.minTap}px, want >= ${MIN_TAP}`);
   if (want.rail === 'beside' && got.cardWidth > 0 && got.cardWidth < MIN_CARD) {
@@ -818,6 +882,14 @@ for (const want of LISTING_AUDIO) {
       fail(at, `first product starts at ${got.firstTileTop}px, below the ${got.viewportHeight}px viewport`);
     }
     if (!got.firstTileInView) fail(at, 'the first product is not visible on entry');
+    const filters = await evalPage(FILTER_SHELL_PROBE);
+    if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
+    if (filters.formVisible) fail(at, 'filter form is visible while the shell is collapsed on mobile');
+  }
+  if (want.rail === 'beside') {
+    const filters = await evalPage(FILTER_SHELL_PROBE);
+    if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
+    assertDesktopFiltersVisible(at, filters);
   }
   console.log(`${at.padEnd(24)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
     `rail=${got.rail} tileTop=${got.firstTileTop} shell=${got.shellOpen}`);
@@ -903,6 +975,116 @@ const proveListingFilterJourney = async (label) => {
 };
 
 await proveListingFilterJourney('listing audio journey');
+
+const proveListingDesktopResize = async (label) => {
+  const loadDesktop = async (scriptingOff) => {
+    await send(ws, 'Emulation.setScriptExecutionDisabled', { value: scriptingOff });
+    await send(ws, 'Emulation.setDeviceMetricsOverride', {
+      width: 1440, height: 900, deviceScaleFactor: 1, mobile: false,
+    });
+    const target = `${ORIGIN}/c/audio`;
+    await send(ws, 'Page.navigate', { url: target });
+    await settled(ws, `${label} desktop load`, target);
+    const got = await evalPage(FILTER_SHELL_PROBE);
+    if (got.threw) fail(label, got.why || 'desktop filter probe failed');
+    assertDesktopFiltersVisible(`${label} desktop`, got);
+    return got;
+  };
+
+  await loadDesktop(false);
+  await loadDesktop(true);
+  await send(ws, 'Emulation.setScriptExecutionDisabled', { value: false });
+
+  const submitted = await evalPage(`(() => {
+    const box = document.querySelector('.goen-filters input[name=in_stock]');
+    const form = document.querySelector('.goen-filters');
+    if (!box || !form) return { ok: false, why: 'desktop filter controls missing before submit' };
+    box.checked = true;
+    form.requestSubmit();
+    return { ok: true };
+  })()`);
+  if (submitted.threw || !submitted.ok) {
+    fail(label, submitted.why || 'desktop filter submit did not start');
+    return;
+  }
+  const filteredHref = await (async () => {
+    for (let i = 0; i < 50; i++) {
+      const { result } = await send(ws, 'Runtime.evaluate', {
+        expression: 'location.href', returnByValue: true,
+      });
+      const href = String(result.value || '');
+      if (href.includes('in_stock=1') && href.includes('#listing-results')) return href;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return '';
+  })();
+  if (!filteredHref) {
+    fail(label, 'desktop filter submit did not land on in_stock=1#listing-results');
+    return;
+  }
+
+  const afterFilter = await evalPage(`(() => {
+    const results = document.getElementById('listing-results');
+    const applied = document.querySelector('.goen-filters__applied');
+    const clear = document.querySelector('.goen-filters__applied .ui-filterbar__clear');
+    const box = document.querySelector('.goen-filters input[name=in_stock]');
+    return {
+      ok: true,
+      focused: document.activeElement === results,
+      hasApplied: !!applied,
+      hasClear: !!clear,
+      stockChecked: !!(box && box.checked),
+    };
+  })()`);
+  if (afterFilter.threw || !afterFilter.ok) {
+    fail(label, afterFilter.why || 'desktop filtered landing probe failed');
+    return;
+  }
+  if (!afterFilter.focused) fail(label, 'desktop filtered reload did not focus #listing-results');
+  if (!afterFilter.hasApplied) fail(label, 'desktop filtered reload shows no applied-filter summary');
+  if (!afterFilter.hasClear) fail(label, 'desktop filtered reload offers no clear-all control');
+  if (!afterFilter.stockChecked) fail(label, 'desktop filtered reload lost the in_stock checkbox state');
+
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: 375, height: 812, deviceScaleFactor: 1, mobile: true,
+  });
+  await new Promise((r) => setTimeout(r, 250));
+  const mobileCollapsed = await evalPage(FILTER_SHELL_PROBE);
+  if (mobileCollapsed.threw) fail(label, mobileCollapsed.why || 'mobile resize probe failed');
+  if (mobileCollapsed.open) fail(label, 'filter shell is open after resize to mobile');
+  if (mobileCollapsed.formVisible) {
+    fail(label, 'filter form is visible while the shell is closed on mobile after resize');
+  }
+
+  const expanded = await evalPage(`(() => {
+    const summary = document.querySelector('.goen-filters__shell-summary');
+    if (!summary) return { ok: false, why: 'mobile summary missing after resize' };
+    summary.click();
+    const form = document.querySelector('.goen-filters');
+    const formRect = form ? form.getBoundingClientRect() : null;
+    return {
+      ok: true,
+      formVisible: !!(formRect && formRect.height > 0 && formRect.width > 0),
+    };
+  })()`);
+  if (expanded.threw || !expanded.ok) {
+    fail(label, expanded.why || 'mobile expand after resize failed');
+    return;
+  }
+  if (!expanded.formVisible) fail(label, 'filter form did not open after summary click on mobile');
+
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: 1440, height: 900, deviceScaleFactor: 1, mobile: false,
+  });
+  await new Promise((r) => setTimeout(r, 250));
+  const desktopAgain = await evalPage(FILTER_SHELL_PROBE);
+  if (desktopAgain.threw) fail(label, desktopAgain.why || 'desktop re-expand probe failed');
+  assertDesktopFiltersVisible(`${label} after resize`, desktopAgain);
+
+  console.log(`${label.padEnd(24)} desktop submit resize ok`);
+};
+
+await proveListingDesktopResize('listing audio desktop');
 
 const HEADER_EN_PROBE = `(() => {
   const de = document.documentElement;
@@ -1591,19 +1773,6 @@ if (process.env.ADMIN_TOKEN) {
 const RETRY_ZH = '請求過於頻繁,請稍後再試。';
 const RETRY_EN = 'Too many requests. Please try again shortly.';
 const namesRetry = (text) => String(text || '').includes(RETRY_ZH) || String(text || '').includes(RETRY_EN);
-
-const evalPage = async (expression) => {
-  const evaluated = await send(ws, 'Runtime.evaluate', {
-    expression, returnByValue: true, awaitPromise: true,
-  });
-  if (evaluated.exceptionDetails || !evaluated.result || evaluated.result.value === undefined) {
-    return {
-      threw: true,
-      why: evaluated.exceptionDetails?.exception?.description || JSON.stringify(evaluated).slice(0, 400),
-    };
-  }
-  return evaluated.result.value;
-};
 
 const openAt = async (label, path) => {
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
