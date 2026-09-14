@@ -169,3 +169,20 @@ func isScreenshot(href string) bool {
 			strings.HasSuffix(base, ".jpg") ||
 			strings.HasSuffix(base, ".jpeg"))
 }
+
+// The product introduction excludes schema inventories in both languages.
+func TestReadmesDoNotPublishSchemaInventories(t *testing.T) {
+	t.Parallel()
+
+	inventory := regexp.MustCompile("(?i)CHECK constraints|foreign keys|unique indexes|rule triggers|`CHECK`|外鍵|規則觸發器")
+	for _, name := range []string{"README.md", "README.zh-TW.md"} {
+		//nolint:gosec // G304: names are the two README files in this repository
+		raw, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inventory.Match(raw) {
+			t.Errorf("%s contains a schema inventory instead of product information", name)
+		}
+	}
+}

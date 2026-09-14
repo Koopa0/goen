@@ -28,7 +28,7 @@ goen 是電商示範與參考專案，提供買家瀏覽比價、下單與管理
 
 ## 目前限制
 
-付款、電子發票與寄信仍待外部服務驗收
+付款、電子發票與寄信尚未完成服務商串接驗證
 （[#40](https://github.com/Koopa0/goen/issues/40)）。退貨審核尚未落實公告的申請期限
 （[#50](https://github.com/Koopa0/goen/issues/50)）；超商取貨訂單的保固收件流程也尚未完整
 （[#225](https://github.com/Koopa0/goen/issues/225)）。
