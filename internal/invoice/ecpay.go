@@ -14,6 +14,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/koopa0/goen/internal/outbound"
 )
 
 // ECPay's B2C e-invoice endpoints; staging is the default.
@@ -21,8 +23,6 @@ const (
 	StagingBaseURL    = "https://einvoice-stage.ecpay.com.tw"
 	ProductionBaseURL = "https://einvoice.ecpay.com.tw"
 )
-
-const requestTimeout = 20 * time.Second
 
 // Gateway talks to ECPay. The zero value is DISABLED and answers ErrDisabled to
 // everything.
@@ -66,7 +66,7 @@ func NewGateway(merchantID, hashKey, hashIV, baseURL string) (*Gateway, error) {
 		hashKey:    []byte(hashKey),
 		hashIV:     []byte(hashIV),
 		baseURL:    strings.TrimSuffix(baseURL, "/"),
-		http:       &http.Client{Timeout: requestTimeout},
+		http:       outbound.HTTPClient(outbound.ECPay),
 	}, nil
 }
 
@@ -117,11 +117,14 @@ func (e *providerError) Unwrap() error { return ErrRejected }
 // call posts one request and returns the decrypted result. Three failure
 // surfaces stay apart — transport, envelope, document — and only the last, which
 // is data a staff member can fix, is ErrRejected.
-func (g *Gateway) call[T any](ctx context.Context, path string, data any) (T, error) {
+func (g *Gateway) call[T any](ctx context.Context, class outbound.Class, path string, data any) (T, error) {
 	var zero T
 	if !g.Enabled() {
 		return zero, ErrDisabled
 	}
+
+	ctx, cancel := outbound.WithOperation(ctx, outbound.ECPay, class, path, class == outbound.FinancialMutation)
+	defer cancel()
 
 	payload, err := json.Marshal(data)
 	if err != nil {
