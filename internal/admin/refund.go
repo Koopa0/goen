@@ -7,6 +7,7 @@ import (
 
 	stripe "github.com/stripe/stripe-go/v86"
 
+	"github.com/koopa0/goen/internal/outbound"
 	"github.com/koopa0/goen/internal/payment"
 )
 
@@ -50,7 +51,7 @@ func NewRefunder(apiKey string) StripeRefunder {
 	if apiKey == "" {
 		return StripeRefunder{}
 	}
-	return StripeRefunder{client: stripe.NewClient(apiKey)}
+	return StripeRefunder{client: outbound.StripeClient(apiKey)}
 }
 
 func (s StripeRefunder) PaymentIntentFor(ctx context.Context, sessionID string) (string, error) {
@@ -60,6 +61,9 @@ func (s StripeRefunder) PaymentIntentFor(ctx context.Context, sessionID string) 
 	if !payment.ValidStripeID(sessionID) {
 		return "", errors.New("read checkout session: invalid Stripe session id")
 	}
+	ctx, cancel := outbound.WithOperation(ctx, outbound.Stripe, outbound.ForegroundLookup,
+		sessionID, false)
+	defer cancel()
 	sess, err := s.client.V1CheckoutSessions.Retrieve(ctx, sessionID,
 		&stripe.CheckoutSessionRetrieveParams{
 			Expand: []*string{stripe.String("payment_intent")},
@@ -81,6 +85,9 @@ const refundKeyTag = "goen_request_key"
 func (s StripeRefunder) refundFor(
 	ctx context.Context, paymentIntentID, requestKey string, amountCents int64,
 ) (id string, state RefundState, found bool, err error) {
+	ctx, cancel := outbound.WithOperation(ctx, outbound.Stripe, outbound.ForegroundLookup,
+		requestKey, false)
+	defer cancel()
 	list := s.client.V1Refunds.List(ctx, &stripe.RefundListParams{
 		PaymentIntent: stripe.String(paymentIntentID),
 	})
@@ -140,6 +147,9 @@ func (s StripeRefunder) Refund(ctx context.Context, paymentIntentID, requestKey 
 		Metadata:      map[string]string{refundKeyTag: requestKey},
 	}
 	params.SetIdempotencyKey(requestKey)
+	ctx, cancel := outbound.WithOperation(ctx, outbound.Stripe, outbound.FinancialMutation,
+		requestKey, true)
+	defer cancel()
 	ref, err := s.client.V1Refunds.Create(ctx, params)
 	if err != nil {
 		wrapped := fmt.Errorf("create refund for %s: %w", paymentIntentID, err)
