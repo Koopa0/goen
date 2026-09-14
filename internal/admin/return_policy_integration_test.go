@@ -601,6 +601,141 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 	})
 }
 
+func TestReviewClearedAssessmentBasisSurvivesRefusal(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	customer := returns.NewStore(pool)
+
+	const storedBasis = "old evidence withdrawn by staff"
+	openDay10 := func(t *testing.T) (uuid.UUID, uuid.UUID) {
+		t.Helper()
+		delivered := shopNoonDaysAgo(t, 10)
+		number, lineID := deliveredOrderAt(t, delivered)
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
+			Reason: "box opened", Lines: map[string]int32{lineID.String(): 1},
+		}); err != nil {
+			t.Fatalf("open day-10 return: %v", err)
+		}
+		requestID := openReturnID(t, number)
+		if err := s.Assess(ctx, requestID.String(), storedBasis, []admin.LineEligibility{{
+			OrderLineID: lineID, Unused: "met", Packaging: "met", Accessories: "met",
+		}}); err != nil {
+			t.Fatalf("seed assessment: %v", err)
+		}
+		return requestID, lineID
+	}
+
+	postAssess := func(t *testing.T, h *admin.Handler, requestID, lineID uuid.UUID, basis string, unused string) *httptest.ResponseRecorder {
+		t.Helper()
+		form := url.Values{
+			"basis":                          {basis},
+			"unused_" + lineID.String():      {unused},
+			"packaging_" + lineID.String():   {"met"},
+			"accessories_" + lineID.String(): {"met"},
+		}
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+			"/admin/returns/"+requestID.String()+"/assess", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.SetPathValue("id", requestID.String())
+		res := httptest.NewRecorder()
+		h.Assess(res, req)
+		return res
+	}
+
+	assertRefusedBasis := func(t *testing.T, body string, requestID uuid.UUID, want string) {
+		t.Helper()
+		id := "basis-" + requestID.String()
+		input := inputElementByID(t, body, id)
+		if got := inputAttribute(t, input, "value"); got != want {
+			t.Fatalf("refused assessment draft basis=%q invalid=%q; want submitted %q and invalid=true",
+				got, inputAttribute(t, input, "aria-invalid"), want)
+		}
+		if inputAttribute(t, input, "aria-invalid") != "true" {
+			t.Fatalf("basis %q was not marked aria-invalid", id)
+		}
+	}
+
+	assertStoredBasis := func(t *testing.T, requestID uuid.UUID) {
+		t.Helper()
+		var persisted string
+		if err := pool.QueryRow(t.Context(), `
+			SELECT basis FROM return_eligibility_assessments
+			WHERE return_request_id = $1 ORDER BY version DESC LIMIT 1`,
+			requestID).Scan(&persisted); err != nil {
+			t.Fatalf("read stored basis: %v", err)
+		}
+		if persisted != storedBasis {
+			t.Fatalf("stored basis = %q, want unchanged %q", persisted, storedBasis)
+		}
+	}
+
+	t.Run("blank basis clearing", func(t *testing.T) {
+		requestID, lineID := openDay10(t)
+		h := adminHandlerOver(pool, s)
+		res := postAssess(t, h, requestID, lineID, "", "unmet")
+		if res.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("cleared basis assess = %d, want 422", res.Code)
+		}
+		assertRefusedBasis(t, res.Body.String(), requestID, "")
+		assertStoredBasis(t, requestID)
+	})
+
+	t.Run("whitespace basis clearing", func(t *testing.T) {
+		requestID, lineID := openDay10(t)
+		h := adminHandlerOver(pool, s)
+		res := postAssess(t, h, requestID, lineID, "   ", "unmet")
+		if res.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("whitespace basis assess = %d, want 422", res.Code)
+		}
+		assertRefusedBasis(t, res.Body.String(), requestID, "   ")
+		assertStoredBasis(t, requestID)
+	})
+
+	t.Run("nonempty basis edit", func(t *testing.T) {
+		requestID, lineID := openDay10(t)
+		h := adminHandlerOver(pool, s)
+		edited := strings.Repeat("x", 501)
+		res := postAssess(t, h, requestID, lineID, edited, "unmet")
+		if res.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("edited basis assess = %d, want 422", res.Code)
+		}
+		assertRefusedBasis(t, res.Body.String(), requestID, edited)
+		assertStoredBasis(t, requestID)
+	})
+
+	t.Run("decision-only refusal keeps saved assessment", func(t *testing.T) {
+		requestID, lineID := openDay10(t)
+		if err := s.Assess(ctx, requestID.String(), storedBasis, []admin.LineEligibility{{
+			OrderLineID: lineID, Unused: "unknown", Packaging: "unknown", Accessories: "unknown",
+		}}); err != nil {
+			t.Fatalf("reassess unknown: %v", err)
+		}
+		h := adminHandlerOver(pool, s)
+		decide := url.Values{
+			"decision":           {"approved"},
+			"assessment_version": {"2"},
+		}
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+			"/admin/returns/"+requestID.String()+"/decide", strings.NewReader(decide.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.SetPathValue("id", requestID.String())
+		res := httptest.NewRecorder()
+		h.Decide(res, req)
+		if res.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("approve without reassess = %d, want 422", res.Code)
+		}
+		body := res.Body.String()
+		id := "basis-" + requestID.String()
+		input := inputElementByID(t, body, id)
+		if got := inputAttribute(t, input, "value"); got != storedBasis {
+			t.Fatalf("decision-only refusal basis = %q, want saved %q", got, storedBasis)
+		}
+		if inputAttribute(t, input, "aria-invalid") == "true" {
+			t.Fatalf("decision-only refusal marked basis %q invalid", id)
+		}
+	})
+}
+
 func TestTwoStaffCannotBothRejectAStatutoryRequest(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)

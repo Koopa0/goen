@@ -184,8 +184,8 @@ func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, er
 		if view.Rows[i].ID != r.PathValue("id") {
 			continue
 		}
-		if basis := strings.TrimSpace(r.PostFormValue("basis")); basis != "" {
-			view.Rows[i].AssessmentBasis = basis
+		if _, submitted := r.PostForm["basis"]; submitted {
+			view.Rows[i].AssessmentBasis = r.PostFormValue("basis")
 		}
 		if resolution := r.PostFormValue("resolution"); resolution != "" {
 			view.Rows[i].Resolution = resolution
