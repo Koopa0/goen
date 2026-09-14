@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -375,6 +376,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	}, handler)
 	handler = onlyVisitorPaths(basket.WithCount, handler)
 	handler = onlyVisitorPaths(customers.Authenticate, handler)
+	handler = withStorefrontRequestBudget(handler)
 	handler = crossOriginProtection(handler)
 	handler = securityHeaders(handler)
 	handler = web.Compress(handler)
@@ -397,6 +399,22 @@ func staticAssetHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		web.NoCompress(w)
 		next.ServeHTTP(w, r)
+	})
+}
+
+// withStorefrontRequestBudget bounds pool acquisition and every database round
+// trip on a visitor request, including the chrome middleware that shares the
+// storefront pool. Stateless routes skip it: probes and webhooks must not spend
+// a budget they never use.
+func withStorefrontRequestBudget(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if statelessPath(r.URL.Path) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), storeRequestBudget)
+		defer cancel()
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
