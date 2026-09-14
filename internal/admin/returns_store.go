@@ -393,16 +393,34 @@ func (s *Store) Decide(
 	}
 
 	if retry {
-		facts, factErr := s.returnPayoutFact(ctx, row.ID)
-		if factErr != nil {
-			return factErr
-		}
-		position, positionErr := facts.position()
-		if positionErr != nil {
-			return positionErr
-		}
-		return s.retryApprovedReturn(ctx, &row, position, actor)
+		return s.retryDecideReturn(ctx, &row, actor)
 	}
+	return s.decideReturnFirst(ctx, &row, kind, resolution, version, actor)
+}
+
+func (s *Store) retryDecideReturn(
+	ctx context.Context, row *db.ReturnForDecisionRow, actor uuid.NullUUID,
+) error {
+	facts, err := s.returnPayoutFact(ctx, row.ID)
+	if err != nil {
+		return err
+	}
+	position, err := facts.position()
+	if err != nil {
+		return err
+	}
+	return s.retryApprovedReturn(ctx, row, position, actor)
+}
+
+func (s *Store) decideReturnFirst(
+	ctx context.Context,
+	row *db.ReturnForDecisionRow,
+	kind returns.DecisionKind,
+	resolution string,
+	version int32,
+	actor uuid.NullUUID,
+) error {
+	resolution = strings.TrimSpace(resolution)
 
 	// THE CLAIM, and it commits before a cent moves. Two staff members deciding
 	// one return at once both passed the pool read above; only one wins this,
