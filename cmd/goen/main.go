@@ -29,6 +29,7 @@ import (
 	"github.com/koopa0/goen/internal/newsletter"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
+	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/recommend"
 	"github.com/koopa0/goen/internal/twofactor"
@@ -82,6 +83,9 @@ type config struct {
 	// Empty is the default and must stay it: a header is set by the client, so
 	// believing one hands an attacker an unlimited supply of rate-limit keys.
 	TrustedProxies string
+	// ValkeyURL is the shared cache for public product presentation. Empty
+	// disables it and every presentation read goes to PostgreSQL.
+	ValkeyURL string
 }
 
 func loadConfig() (config, error) {
@@ -125,6 +129,7 @@ func loadConfig() (config, error) {
 		SMTPFrom:       envOr("GOEN_SMTP_FROM", "goen <no-reply@goen.example>"),
 		SMTPUser:       os.Getenv("GOEN_SMTP_USER"),
 		SMTPPassword:   os.Getenv("GOEN_SMTP_PASSWORD"),
+		ValkeyURL:      os.Getenv("GOEN_VALKEY_URL"),
 	}, nil
 }
 
@@ -301,6 +306,82 @@ func openProviders(cfg *config, log *slog.Logger) (
 }
 
 // openGoogleSignIn builds the OAuth client and says when there is none.
+type appRuntime struct {
+	pool, adminPool, maintenancePool *pgxpool.Pool
+	proxies                          *ratelimit.Proxies
+	gateway                          *payment.Gateway
+	invoices                         *invoice.Gateway
+	googleSignIn                     *account.Google
+	refunder                         admin.Refunder
+	productCache                     *product.PresentationCache
+	notifier                         email.Notifier
+}
+
+func prepareRuntime(cfg *config, log *slog.Logger) (*appRuntime, error) {
+	if postureErr := cfg.prepareRuntimePosture(log); postureErr != nil {
+		return nil, postureErr
+	}
+	notifier, notifierErr := newNotifier(cfg, log)
+	if notifierErr != nil {
+		return nil, notifierErr
+	}
+	proxies, proxyErr := cfg.trustedProxies(log)
+	if proxyErr != nil {
+		return nil, proxyErr
+	}
+	gateway, invoices, googleSignIn, providerErr := openProviders(cfg, log)
+	if providerErr != nil {
+		return nil, providerErr
+	}
+	productCache, cacheErr := openProductCache(cfg, log)
+	if cacheErr != nil {
+		return nil, cacheErr
+	}
+
+	ctx := context.Background()
+	pool, poolErr := openPool(ctx, cfg.DatabaseURL)
+	if poolErr != nil {
+		productCache.Close()
+		return nil, fmt.Errorf("open database pool: %w", redactURL(poolErr, cfg.DatabaseURL))
+	}
+	if reachErr := reachDatabase(ctx, pool, cfg.DatabaseURL, log); reachErr != nil {
+		pool.Close()
+		productCache.Close()
+		return nil, reachErr
+	}
+	adminPool, adminErr := reachableAdminPool(ctx, cfg.AdminDatabaseURL)
+	if adminErr != nil {
+		pool.Close()
+		productCache.Close()
+		return nil, adminErr
+	}
+	maintenancePool, maintenanceErr := openMaintenancePool(ctx, cfg.MaintenanceDatabaseURL)
+	if maintenanceErr != nil {
+		adminPool.Close()
+		pool.Close()
+		productCache.Close()
+		return nil, fmt.Errorf("open maintenance pool: %w", maintenanceErr)
+	}
+	return &appRuntime{
+		pool: pool, adminPool: adminPool, maintenancePool: maintenancePool,
+		proxies: proxies, gateway: gateway, invoices: invoices, googleSignIn: googleSignIn,
+		refunder: admin.NewRefunder(cfg.StripeAPIKey), productCache: productCache,
+		notifier: notifier,
+	}, nil
+}
+
+func openProductCache(cfg *config, log *slog.Logger) (*product.PresentationCache, error) {
+	cache, err := product.OpenPresentationCache(cfg.ValkeyURL, product.DefaultCacheConfig())
+	if err != nil {
+		return nil, fmt.Errorf("open product cache: %w", err)
+	}
+	if cfg.ValkeyURL == "" {
+		log.Info("valkey is not configured; product presentation is read from PostgreSQL",
+			"set", "GOEN_VALKEY_URL")
+	}
+	return cache, nil
+}
+
 func openGoogleSignIn(cfg *config, log *slog.Logger) (*account.Google, error) {
 	g, err := account.NewGoogle(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.BaseURL)
 	if err != nil {
@@ -320,64 +401,32 @@ func run() error {
 	}
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: cfg.LogLevel}))
-	if postureErr := cfg.prepareRuntimePosture(log); postureErr != nil {
-		return postureErr
+	runtime, runtimeErr := prepareRuntime(&cfg, log)
+	if runtimeErr != nil {
+		return runtimeErr
 	}
-	notifier, notifierErr := newNotifier(&cfg, log)
-	if notifierErr != nil {
-		return notifierErr
-	}
-	proxies, proxyErr := cfg.trustedProxies(log)
-	if proxyErr != nil {
-		return proxyErr
-	}
-	gateway, invoices, googleSignIn, providerErr := openProviders(&cfg, log)
-	if providerErr != nil {
-		return providerErr
-	}
-	refunder := admin.NewRefunder(cfg.StripeAPIKey)
+	defer runtime.productCache.Close()
+	defer runtime.maintenancePool.Close()
+	defer runtime.adminPool.Close()
+	defer runtime.pool.Close()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	pool, poolErr := openPool(ctx, cfg.DatabaseURL)
-	if poolErr != nil {
-		return fmt.Errorf("open database pool: %w", redactURL(poolErr, cfg.DatabaseURL))
-	}
-	defer pool.Close()
-
-	if reachErr := reachDatabase(ctx, pool, cfg.DatabaseURL, log); reachErr != nil {
-		return reachErr
-	}
-
-	adminPool, adminErr := reachableAdminPool(ctx, cfg.AdminDatabaseURL)
-	if adminErr != nil {
-		return adminErr
-	}
-	defer adminPool.Close()
-
 	srv := newServer(&cfg, &RouterConfig{
-		Pool: pool, AdminPool: adminPool, Payments: gateway, Refunder: refunder,
-		BaseURL: cfg.BaseURL, SecureCookies: cfg.SecureCookies, TOTPKey: cfg.totpKey,
-		Invoices: invoices, Google: googleSignIn,
-	}, proxies, log)
-
-	// Opened here and not inside startWorkers: a pool closed by that function's
-	// own defer would be closed before the worker it belongs to has done
-	// anything.
-	maintenancePool, maintenanceErr := openMaintenancePool(ctx, cfg.MaintenanceDatabaseURL)
-	if maintenanceErr != nil {
-		return fmt.Errorf("open maintenance pool: %w", maintenanceErr)
-	}
-	defer maintenancePool.Close()
+		Pool: runtime.pool, AdminPool: runtime.adminPool, Payments: runtime.gateway,
+		Refunder: runtime.refunder, BaseURL: cfg.BaseURL, SecureCookies: cfg.SecureCookies,
+		TOTPKey: cfg.totpKey, Invoices: runtime.invoices, Google: runtime.googleSignIn,
+		ProductCache: runtime.productCache,
+	}, runtime.proxies, log)
 
 	// Nothing above starts a goroutine: a return between a worker and the Wait
 	// that owns it would leave it running on a pool that is closing. Registered
 	// after every Close so LIFO drains the workers first.
 	var background sync.WaitGroup
 	startWorkers(ctx, workerDeps{
-		pool: pool, admin: adminPool, maintenance: maintenancePool,
-		log: log, notifier: notifier, invoices: invoices, run: background.Go,
+		pool: runtime.pool, admin: runtime.adminPool, maintenance: runtime.maintenancePool,
+		log: log, notifier: runtime.notifier, invoices: runtime.invoices, run: background.Go,
 	})
 	defer background.Wait()
 
