@@ -15,6 +15,7 @@ type Page struct {
 	Description    string
 	Nav            string
 	StructuredData string
+	SearchQuery    string
 }
 
 // NavItem is one top-level category entry in the header.
