@@ -106,6 +106,104 @@ func TestASenderWithAnUnusableFromNeverOpensASocket(t *testing.T) {
 	}
 }
 
+// stallFirstSetDeadlineConn pauses the first SetDeadline until a concurrent
+// caller has also set the socket deadline, so cancellation can run between hook
+// registration and the delivery deadline install.
+type stallFirstSetDeadlineConn struct {
+	net.Conn
+
+	onFirst func()
+	once    sync.Once
+	calls   int
+	mu      sync.Mutex
+}
+
+func (c *stallFirstSetDeadlineConn) SetDeadline(t time.Time) error {
+	c.mu.Lock()
+	c.calls++
+	call := c.calls
+	c.mu.Unlock()
+
+	if call == 1 {
+		c.once.Do(c.onFirst)
+		deadline := time.Now().Add(200 * time.Millisecond)
+		for time.Now().Before(deadline) {
+			c.mu.Lock()
+			seen := c.calls
+			c.mu.Unlock()
+			if seen >= 2 {
+				break
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	return c.Conn.SetDeadline(t)
+}
+
+// TestAuditSMTPCancellationDuringSocketSetup: cancellation that races the
+// initial socket-deadline install must not be overwritten by the delivery
+// deadline. A hook registered before SetDeadline lets the main goroutine
+// replace the interrupt with the future timeout.
+func TestAuditSMTPCancellationDuringSocketSetup(t *testing.T) {
+	ln := listener(t)
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		c, err := ln.Accept()
+		if err == nil {
+			accepted <- c
+		}
+	}()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	smtpConnMu.Lock()
+	origDial := smtpConn
+	smtpConn = func(dialCtx context.Context, addr string) (net.Conn, error) {
+		c, err := origDial(dialCtx, addr)
+		if err != nil {
+			return nil, err
+		}
+		return &stallFirstSetDeadlineConn{
+			Conn: c,
+			onFirst: func() {
+				cancel()
+			},
+		}, nil
+	}
+	smtpConnMu.Unlock()
+	t.Cleanup(func() {
+		smtpConnMu.Lock()
+		smtpConn = origDial
+		smtpConnMu.Unlock()
+	})
+
+	s := SMTPSender{Addr: ln.Addr().String(), From: "no-reply@goen.example", Auth: nil, TLSName: ""}
+	done := make(chan error, 1)
+	go func() {
+		done <- s.Send(ctx, &Message{To: "a@b.co", Subject: "s", Body: "b"})
+	}()
+
+	var peer net.Conn
+	select {
+	case peer = <-accepted:
+	case <-time.After(3 * time.Second):
+		t.Fatal("sender did not dial fixture")
+	}
+	t.Cleanup(func() { _ = peer.Close() })
+
+	started := time.Now()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("cancelled send succeeded")
+		}
+		t.Logf("returned after setup cancellation in %s: %v", time.Since(started), err)
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("SMTP remains blocked after cancellation: initial deadline overwrote the cancellation interrupt")
+	}
+}
+
 // TestAuditSMTPCancellationAfterDial: once the TCP connection is up, an
 // explicit parent cancellation must interrupt the SMTP conversation promptly,
 // not only when the delivery deadline eventually fires.

@@ -11,6 +11,7 @@ import (
 	"net/mail"
 	"net/smtp"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -61,6 +62,21 @@ type SMTPSender struct {
 // SendTimeout bounds one delivery.
 const SendTimeout = 30 * time.Second
 
+var (
+	smtpConnMu sync.Mutex
+	smtpConn   = func(ctx context.Context, addr string) (net.Conn, error) {
+		var d net.Dialer
+		return d.DialContext(ctx, "tcp", addr)
+	}
+)
+
+func dialSMTPConn(ctx context.Context, addr string) (net.Conn, error) {
+	smtpConnMu.Lock()
+	dial := smtpConn
+	smtpConnMu.Unlock()
+	return dial(ctx, addr)
+}
+
 // Send delivers m. STARTTLS is required, not attempted.
 func (s SMTPSender) Send(ctx context.Context, m *Message) error {
 	if s.Addr == "" {
@@ -78,8 +94,7 @@ func (s SMTPSender) Send(ctx context.Context, m *Message) error {
 	ctx, cancel := context.WithTimeout(ctx, SendTimeout)
 	defer cancel()
 
-	var d net.Dialer
-	conn, err := d.DialContext(ctx, "tcp", s.Addr)
+	conn, err := dialSMTPConn(ctx, s.Addr)
 	if err != nil {
 		return fmt.Errorf("dial smtp: %w", err)
 	}
@@ -120,7 +135,7 @@ func prepareSMTPConn(conn net.Conn, ctx context.Context) (stop func() bool, err 
 	stop = context.AfterFunc(ctx, func() {
 		_ = conn.SetDeadline(time.Now()) //nolint:errcheck // best-effort interrupt
 	})
-	if ctx.Err() != nil {
+	if ctxErr := ctx.Err(); ctxErr != nil {
 		_ = conn.SetDeadline(time.Now()) //nolint:errcheck // cancelled before hook ran
 	}
 	return stop, nil
