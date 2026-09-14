@@ -8556,7 +8556,7 @@ CREATE TABLE return_eligibility_assessments (
     assessed_at       timestamptz NOT NULL DEFAULT now(),
     basis             text NOT NULL,
     CONSTRAINT return_eligibility_assessments_version_positive CHECK (version > 0),
-    CONSTRAINT return_eligibility_assessments_basis_present CHECK (char_length(btrim(basis)) > 0),
+    CONSTRAINT return_eligibility_assessments_basis_present CHECK (char_length(btrim(basis, E' \t\n\r')) > 0),
     CONSTRAINT return_eligibility_assessments_basis_bounded CHECK (char_length(basis) <= 500),
     CONSTRAINT return_eligibility_assessments_request_fk
         FOREIGN KEY (order_id, return_request_id)
@@ -8569,6 +8569,8 @@ CREATE TABLE return_eligibility_assessments (
 
 CREATE INDEX return_eligibility_assessments_request_idx
     ON return_eligibility_assessments (return_request_id, version DESC);
+CREATE INDEX return_eligibility_assessments_request_fk_idx
+    ON return_eligibility_assessments (order_id, return_request_id);
 CREATE INDEX return_eligibility_assessments_assessor_idx
     ON return_eligibility_assessments (assessed_by);
 

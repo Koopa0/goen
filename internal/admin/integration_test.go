@@ -5031,7 +5031,7 @@ func TestTheReturnQueueNamesTheRefundChannels(t *testing.T) {
 	}
 }
 
-func TestTheReturnQueueUsesThreeQueriesForAnyNumberOfApprovedRows(t *testing.T) {
+func TestTheReturnQueueUsesAConstantQueryCountForAnyNumberOfApprovedRows(t *testing.T) {
 	ctx := t.Context()
 	isolated := dbtest.Pool(t)
 	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
@@ -5083,8 +5083,8 @@ func TestTheReturnQueueUsesThreeQueriesForAnyNumberOfApprovedRows(t *testing.T) 
 		}
 	}
 	got := queries.Load()
-	if got != 3 {
-		t.Errorf("Returns() made %d queries, want 3 (queue, lines, payout facts)", got)
+	if got != 4 {
+		t.Errorf("Returns() made %d queries, want 4 (queue, lines, payout facts, assessments)", got)
 	}
 	queryNamesMu.Lock()
 	gotNames := slices.Clone(queryNames)
@@ -5093,11 +5093,12 @@ func TestTheReturnQueueUsesThreeQueriesForAnyNumberOfApprovedRows(t *testing.T) 
 		"-- name: ReturnQueue :many",
 		"-- name: ReturnLines :many",
 		"-- name: ReturnPayoutFacts :many",
+		"-- name: LatestEligibilityAssessments :many",
 	}
 	if diff := cmp.Diff(wantNames, gotNames); diff != "" {
 		t.Errorf("Returns() query names mismatch (-want +got):\n%s", diff)
 	}
-	t.Logf("Returns() query count = %d (queue, lines, payout facts)", got)
+	t.Logf("Returns() query count = %d (queue, lines, payout facts, assessments)", got)
 }
 
 func TestTheRescissionWindowIsCountedOnTheShopsCalendar(t *testing.T) {
