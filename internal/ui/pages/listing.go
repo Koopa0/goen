@@ -159,7 +159,10 @@ func SearchMeta(ctx context.Context, q string) layouts.Page {
 	if q == "" {
 		return layouts.Page{Title: i18n.T(ctx, i18n.KeySearchTitle)}
 	}
-	return layouts.Page{Title: fmt.Sprintf(i18n.T(ctx, i18n.KeySearchFor), q)}
+	return layouts.Page{
+		Title:       fmt.Sprintf(i18n.T(ctx, i18n.KeySearchFor), q),
+		SearchQuery: q,
+	}
 }
 
 // Searched reports whether a term was actually submitted.

@@ -58,7 +58,7 @@ templ Header(p Page) {
 					@icons.Search()
 				</span>
 				<label class="goen-sr-only" for="site-search">{ i18n.T(ctx, i18n.KeySearch) }</label>
-				<input class="ui-input" id="site-search" type="search" name="q" placeholder={ i18n.T(ctx, i18n.KeySearchHint) }/>
+				<input class="ui-input" id="site-search" type="search" name="q" value={ p.SearchQuery } placeholder={ i18n.T(ctx, i18n.KeySearchHint) }/>
 			</form>
 			// i18n-exempt: a language's own name, shown in both locales on purpose.
 			@languageSwitch("goen-header__lang", "繁中", "EN")
