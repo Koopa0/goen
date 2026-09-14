@@ -85,22 +85,11 @@ func (s SMTPSender) Send(ctx context.Context, m *Message) error {
 	}
 	defer func() { _ = conn.Close() }() //nolint:errcheck // best-effort cleanup
 
-	// net/smtp has no context-aware I/O. After the dial, cancellation must
-	// interrupt the socket; otherwise a quiet peer holds the outbox worker until
-	// the delivery deadline.
-	stop := context.AfterFunc(ctx, func() {
-		_ = conn.SetDeadline(time.Now()) //nolint:errcheck // best-effort interrupt
-	})
-	defer stop()
-
-	// The context's deadline, put on the SOCKET. Without this the greeting,
-	// STARTTLS, AUTH, MAIL, RCPT and DATA all run unbounded and a server that
-	// accepts and goes quiet stalls the worker.
-	if deadline, ok := ctx.Deadline(); ok {
-		if deadlineErr := conn.SetDeadline(deadline); deadlineErr != nil {
-			return fmt.Errorf("set smtp deadline: %w", deadlineErr)
-		}
+	stop, err := prepareSMTPConn(conn, ctx)
+	if err != nil {
+		return err
 	}
+	defer stop()
 
 	host := s.TLSName
 	if host == "" {
@@ -117,6 +106,24 @@ func (s SMTPSender) Send(ctx context.Context, m *Message) error {
 	defer func() { _ = c.Quit() }() //nolint:errcheck // best-effort cleanup
 
 	return deliver(c, s, m, host, envelope)
+}
+
+// prepareSMTPConn binds the delivery context to conn. The delivery deadline is
+// installed before the cancellation hook so a cancel that fires while the
+// deadline is being set cannot be overwritten by a later SetDeadline.
+func prepareSMTPConn(conn net.Conn, ctx context.Context) (stop func() bool, err error) {
+	if deadline, ok := ctx.Deadline(); ok {
+		if err := conn.SetDeadline(deadline); err != nil {
+			return nil, fmt.Errorf("set smtp deadline: %w", err)
+		}
+	}
+	stop = context.AfterFunc(ctx, func() {
+		_ = conn.SetDeadline(time.Now()) //nolint:errcheck // best-effort interrupt
+	})
+	if ctx.Err() != nil {
+		_ = conn.SetDeadline(time.Now()) //nolint:errcheck // cancelled before hook ran
+	}
+	return stop, nil
 }
 
 // envelopeFrom is the address that goes in MAIL FROM: a bare addr-spec and never
