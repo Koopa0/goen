@@ -136,6 +136,19 @@ func TestTheReturnQueueHTMLNamesTheRefundChannels(t *testing.T) {
 	})
 }
 
+func TestEveryReturnPolicyWindowHasALabel(t *testing.T) {
+	t.Parallel()
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		for _, window := range []string{"within", "goodwill", "after", "undelivered", "mixed"} {
+			label := ReturnLineWindowText(ctx, window)
+			if label == "" || label == window {
+				t.Errorf("WindowText(%q) in %s = %q, want a catalogue label", window, locale, label)
+			}
+		}
+	}
+}
+
 func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 	base := func(id string) AdminReturn {
 		return AdminReturn{
@@ -150,17 +163,102 @@ func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 		}))
 	}
 
-	t.Run("an open request offers both decisions", func(t *testing.T) {
+	t.Run("each policy window names itself without claiming a missing fact", func(t *testing.T) {
+		ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+		tests := []struct {
+			window string
+			want   []string
+			hide   []string
+		}{
+			{
+				window: "within",
+				want:   []string{i18n.T(ctx, i18n.KeyAdminReturnWindowWithin), i18n.T(ctx, i18n.KeyAdminRetMustAccept)},
+				hide:   []string{i18n.T(ctx, i18n.KeyAdminRetGoodwillHint), i18n.T(ctx, i18n.KeyAdminRetLateHint)},
+			},
+			{
+				window: "goodwill",
+				want:   []string{i18n.T(ctx, i18n.KeyAdminReturnWindowGoodwill), i18n.T(ctx, i18n.KeyAdminRetGoodwillHint)},
+				// Days 8–14 are a conditional offer; the late-window exception
+				// sentence must not appear on the hint.
+				hide: []string{i18n.T(ctx, i18n.KeyAdminRetMustAccept), i18n.T(ctx, i18n.KeyAdminRetLateHint)},
+			},
+			{
+				window: "after",
+				want:   []string{i18n.T(ctx, i18n.KeyAdminReturnWindowAfter), i18n.T(ctx, i18n.KeyAdminRetLateHint)},
+				hide:   []string{i18n.T(ctx, i18n.KeyAdminRetMustAccept), i18n.T(ctx, i18n.KeyAdminRetGoodwillHint)},
+			},
+			{
+				window: "undelivered",
+				want:   []string{i18n.T(ctx, i18n.KeyAdminReturnWindowUndelivered)},
+				hide:   []string{i18n.T(ctx, i18n.KeyAdminRetMustAccept), i18n.T(ctx, i18n.KeyAdminRetLateHint)},
+			},
+			{
+				window: "mixed",
+				want:   []string{i18n.T(ctx, i18n.KeyAdminReturnWindowMixed), i18n.T(ctx, i18n.KeyAdminRetGoodwillHint)},
+				hide:   []string{i18n.T(ctx, i18n.KeyAdminRetMustAccept), i18n.T(ctx, i18n.KeyAdminRetLateHint)},
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.window, func(t *testing.T) {
+				row := base("window-" + tt.window)
+				row.Status = "requested"
+				row.Decided = false
+				row.Window = tt.window
+				html := render(t, row)
+				for _, want := range tt.want {
+					if !strings.Contains(html, want) {
+						t.Errorf("window %s HTML lacks %q", tt.window, want)
+					}
+				}
+				for _, hide := range tt.hide {
+					if strings.Contains(html, hide) {
+						t.Errorf("window %s HTML still claims %q", tt.window, hide)
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("an open statutory request offers approval without a reject escape", func(t *testing.T) {
 		row := base("open-row")
 		row.Status = "requested"
 		row.Decided = false
 		html := render(t, row)
 		for _, want := range []string{
-			`action="/admin/returns/open-row/decide"`, `value="approved"`, `value="rejected"`,
-			`name="resolution"`, `maxlength="300"`,
+			`action="/admin/returns/open-row/decide"`, `value="approved"`,
+			`name="assessment_version"`, `name="resolution"`, `maxlength="300"`,
 		} {
 			if !strings.Contains(html, want) {
 				t.Errorf("open request HTML lacks %s", want)
+			}
+		}
+		for _, hide := range []string{
+			`name="rejection_ground"`, `value="missing_reason"`, `value="ineligible"`,
+			`value="rejected"`,
+		} {
+			if strings.Contains(html, hide) {
+				t.Errorf("statutory form still offers %s", hide)
+			}
+		}
+	})
+
+	t.Run("a goodwill request offers assessment and the three verbs", func(t *testing.T) {
+		row := base("goodwill-row")
+		row.Status = "requested"
+		row.Decided = false
+		row.Window = "goodwill"
+		row.Lines = []AdminReturnLine{{
+			OrderLineID: "line-1", Name: "測試", Quantity: 1, SKU: "SKU-1",
+		}}
+		html := render(t, row)
+		for _, want := range []string{
+			`action="/admin/returns/goodwill-row/assess"`,
+			`name="unused_line-1"`, `name="packaging_line-1"`, `name="accessories_line-1"`,
+			`value="unknown"`, `value="met"`, `value="unmet"`,
+			`name="basis"`, `value="approved"`, `value="rejected"`, `value="exception"`,
+		} {
+			if !strings.Contains(html, want) {
+				t.Errorf("goodwill HTML lacks %s", want)
 			}
 		}
 	})
@@ -183,6 +281,27 @@ func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 		}
 		if strings.Contains(html, `name="resolution"`) {
 			t.Error("a payout retry asks for a new decision note which cannot change the approved claim")
+		}
+	})
+
+	t.Run("a refused exception keeps the typed reason and marks the field", func(t *testing.T) {
+		row := base("except-row")
+		row.Status = "requested"
+		row.Decided = false
+		row.Window = "after"
+		row.Resolution = "   "
+		html := renderToString(t, AdminReturns(layouts.Page{Title: "退貨"}, AdminReturnsView{
+			Rows:   []AdminReturn{row},
+			Errors: map[string]string{"except-row.resolution": "need a reason"},
+		}))
+		if !strings.Contains(html, `value="   "`) {
+			t.Error("422 dropped the typed whitespace reason")
+		}
+		if !strings.Contains(html, `id="res-except-row"`) || !strings.Contains(html, `aria-invalid="true"`) {
+			t.Error("422 did not mark the resolution field")
+		}
+		if !strings.Contains(html, "need a reason") {
+			t.Error("422 hid the field-specific refusal")
 		}
 	})
 

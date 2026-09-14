@@ -287,6 +287,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /admin/stock/price", back.RequireStaff(back.SetVariantPrice))
 	mux.HandleFunc("GET /admin/returns", back.RequireStaff(back.Returns))
 	mux.HandleFunc("POST /admin/returns/{id}/decide", back.RequireStaff(back.Decide))
+	mux.HandleFunc("POST /admin/returns/{id}/assess", back.RequireStaff(back.Assess))
 	mux.HandleFunc("POST /admin/returns/{id}/inspect", back.RequireStaff(back.Inspect))
 	mux.HandleFunc("POST /admin/returns/{id}/complete", back.RequireStaff(back.Complete))
 	mux.HandleFunc("POST /admin/orders/{number}/invoice", back.RequireStaff(back.IssueInvoice))

@@ -70,18 +70,6 @@ var knownReturnStatuses = [...]ReturnStatus{
 	ReturnCompleted,
 }
 
-// ParseDecision reads an approve/reject choice from a form. Only the two
-// decision verbs are accepted; lifecycle states and typos are refused.
-func ParseDecision(s string) (ReturnStatus, bool) {
-	d := ReturnStatus(s)
-	switch d {
-	case ReturnApproved, ReturnRejected:
-		return d, true
-	default:
-		return "", false
-	}
-}
-
 // Validate refuses what the form should never have submitted. A blank reason is
 // legal: Consumer Protection Act §19 I lets a consumer rescind inside seven days
 // without giving one, and §19 V voids any agreement otherwise.

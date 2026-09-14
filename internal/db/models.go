@@ -634,6 +634,29 @@ type Refund struct {
 	FailedAt         pgtype.Timestamptz
 }
 
+type ReturnEligibilityAssessment struct {
+	ID              uuid.UUID
+	OrderID         uuid.UUID
+	ReturnRequestID uuid.UUID
+	Version         int32
+	AssessedBy      uuid.UUID
+	AssessedAt      time.Time
+	Basis           string
+}
+
+type ReturnEligibilityFact struct {
+	AssessmentID        uuid.UUID
+	OrderID             uuid.UUID
+	ReturnRequestID     uuid.UUID
+	OrderLineID         uuid.UUID
+	Unused              string
+	PackagingComplete   string
+	AccessoriesComplete string
+	RequestedAt         time.Time
+	DeliveredAt         pgtype.Timestamptz
+	PolicyWindow        string
+}
+
 type ReturnRequest struct {
 	ID                  uuid.UUID
 	OrderID             uuid.UUID

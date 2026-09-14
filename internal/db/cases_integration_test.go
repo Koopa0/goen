@@ -1355,6 +1355,158 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity, received_quantity, restocked_quantity, inspection_note) VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1, 1, 1, repeat('x', 500));`,
 	},
 	{
+		constraint: "return_eligibility_assessments_version_positive",
+		reject: `INSERT INTO return_eligibility_assessments (id, order_id, return_request_id, version, assessed_by, basis)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', 0, '55555555-5555-4555-8555-555555555555', 'saw it');`,
+		accept: `INSERT INTO return_eligibility_assessments (id, order_id, return_request_id, version, assessed_by, basis)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', 'saw it');`,
+	},
+	{
+		constraint: "return_eligibility_assessments_basis_present",
+		reject: `INSERT INTO return_eligibility_assessments (id, order_id, return_request_id, version, assessed_by, basis)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', E'\t');`,
+		accept: `INSERT INTO return_eligibility_assessments (id, order_id, return_request_id, version, assessed_by, basis)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', 'saw it');`,
+	},
+	{
+		constraint: "return_eligibility_assessments_basis_bounded",
+		reject: `INSERT INTO return_eligibility_assessments (id, order_id, return_request_id, version, assessed_by, basis)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', repeat('x', 501));`,
+		accept: `INSERT INTO return_eligibility_assessments (id, order_id, return_request_id, version, assessed_by, basis)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', repeat('x', 500));`,
+	},
+	{
+		constraint: "return_eligibility_facts_unused_known",
+		reject: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+		         VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1);
+		         INSERT INTO return_eligibility_assessments (id, order_id, return_request_id, version, assessed_by, basis)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', 'saw it');
+		         INSERT INTO return_eligibility_facts (
+		             assessment_id, order_id, return_request_id, order_line_id,
+		             unused, requested_at, policy_window)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000',
+		                 'used', now(), 'undelivered');`,
+		accept: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+		         VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1);
+		         INSERT INTO return_eligibility_assessments (id, order_id, return_request_id, version, assessed_by, basis)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', 'saw it');
+		         INSERT INTO return_eligibility_facts (
+		             assessment_id, order_id, return_request_id, order_line_id,
+		             unused, requested_at, policy_window)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000',
+		                 'unknown', now(), 'undelivered');`,
+	},
+	{
+		constraint: "return_eligibility_facts_packaging_known",
+		reject: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+		         VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1);
+		         INSERT INTO return_eligibility_assessments (id, order_id, return_request_id, version, assessed_by, basis)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', 'saw it');
+		         INSERT INTO return_eligibility_facts (
+		             assessment_id, order_id, return_request_id, order_line_id,
+		             packaging_complete, requested_at, policy_window)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000',
+		                 'full', now(), 'undelivered');`,
+		accept: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+		         VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1);
+		         INSERT INTO return_eligibility_assessments (id, order_id, return_request_id, version, assessed_by, basis)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', 'saw it');
+		         INSERT INTO return_eligibility_facts (
+		             assessment_id, order_id, return_request_id, order_line_id,
+		             packaging_complete, requested_at, policy_window)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000',
+		                 'met', now(), 'undelivered');`,
+	},
+	{
+		constraint: "return_eligibility_facts_accessories_known",
+		reject: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+		         VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1);
+		         INSERT INTO return_eligibility_assessments (id, order_id, return_request_id, version, assessed_by, basis)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', 'saw it');
+		         INSERT INTO return_eligibility_facts (
+		             assessment_id, order_id, return_request_id, order_line_id,
+		             accessories_complete, requested_at, policy_window)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000',
+		                 'missing', now(), 'undelivered');`,
+		accept: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+		         VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1);
+		         INSERT INTO return_eligibility_assessments (id, order_id, return_request_id, version, assessed_by, basis)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', 'saw it');
+		         INSERT INTO return_eligibility_facts (
+		             assessment_id, order_id, return_request_id, order_line_id,
+		             accessories_complete, requested_at, policy_window)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000',
+		                 'unmet', now(), 'undelivered');`,
+	},
+	{
+		constraint: "return_eligibility_facts_window_known",
+		reject: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+		         VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1);
+		         INSERT INTO return_eligibility_assessments (id, order_id, return_request_id, version, assessed_by, basis)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', 'saw it');
+		         INSERT INTO return_eligibility_facts (
+		             assessment_id, order_id, return_request_id, order_line_id,
+		             requested_at, policy_window)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000',
+		                 now(), 'trial');`,
+		accept: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+		         VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1);
+		         INSERT INTO return_eligibility_assessments (id, order_id, return_request_id, version, assessed_by, basis)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', 'saw it');
+		         INSERT INTO return_eligibility_facts (
+		             assessment_id, order_id, return_request_id, order_line_id,
+		             requested_at, policy_window)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000',
+		                 now(), 'undelivered');`,
+	},
+	{
+		constraint: "return_eligibility_facts_window_matches",
+		reject: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+		         VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1);
+		         INSERT INTO return_eligibility_assessments (id, order_id, return_request_id, version, assessed_by, basis)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', 'saw it');
+		         INSERT INTO return_eligibility_facts (
+		             assessment_id, order_id, return_request_id, order_line_id,
+		             requested_at, delivered_at, policy_window)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000',
+		                 timestamptz '2026-02-01 12:00:00+08', timestamptz '2026-01-01 12:00:00+08', 'within');`,
+		accept: `INSERT INTO return_request_lines (order_id, return_request_id, order_line_id, quantity)
+		         VALUES ('66666666-6666-4666-8666-666666666666', '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000', 1);
+		         INSERT INTO return_eligibility_assessments (id, order_id, return_request_id, version, assessed_by, basis)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', 'saw it');
+		         INSERT INTO return_eligibility_facts (
+		             assessment_id, order_id, return_request_id, order_line_id,
+		             requested_at, delivered_at, policy_window)
+		         VALUES ('ae010001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		                 '88880001-0000-4000-8000-000000000000', '66660003-0000-4000-8000-000000000000',
+		                 timestamptz '2026-02-01 12:00:00+08', timestamptz '2026-01-01 12:00:00+08', 'after');`,
+	},
+	{
 		constraint: "return_requests_decided_has_time",
 		// Tested from the 'requested' side so the start-requested INSERT trigger does not shadow it.
 		reject: `INSERT INTO return_requests (id, order_id, reason, decided_at) VALUES ('11110001-0000-4000-8000-000000000001', '6666aaaa-6666-4666-8666-666666666666', '退貨', now());`,
@@ -1849,6 +2001,21 @@ var uniqueCases = []uniqueCase{
 		reject: `INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 'award', 10, 'test', 'fixture-dup', current_date + 365);
 		         INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 'award', 10, 'test', 'fixture-dup', current_date + 365);`,
 		accept: `INSERT INTO loyalty_entries (account_id, kind, points, reason, idempotency_key, expires_on) VALUES ('a0000001-0000-4000-8000-000000000000', 'award', 10, 'test', 'fixture-other', current_date + 365);`,
+	},
+	{
+		index: "return_eligibility_assessments_version_key",
+		reject: `INSERT INTO return_eligibility_assessments (id, order_id, return_request_id, version, assessed_by, basis)
+		         VALUES
+		             ('ae020001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		              '88880001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', 'first'),
+		             ('ae020001-0000-4000-8000-000000000002', '66666666-6666-4666-8666-666666666666',
+		              '88880001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', 'again');`,
+		accept: `INSERT INTO return_eligibility_assessments (id, order_id, return_request_id, version, assessed_by, basis)
+		         VALUES
+		             ('ae020001-0000-4000-8000-000000000001', '66666666-6666-4666-8666-666666666666',
+		              '88880001-0000-4000-8000-000000000000', 1, '55555555-5555-4555-8555-555555555555', 'first'),
+		             ('ae020001-0000-4000-8000-000000000002', '66666666-6666-4666-8666-666666666666',
+		              '88880001-0000-4000-8000-000000000000', 2, '55555555-5555-4555-8555-555555555555', 'second');`,
 	},
 	{
 		index: "return_requests_one_open",
