@@ -433,11 +433,17 @@ func (s *Store) decideReturnFirst(
 	if kind == returns.DecisionReject {
 		return nil
 	}
-	frozen, err := s.q.ReturnForDecision(ctx, row.ID)
+	return s.payFrozenApprovedReturn(ctx, row.ID, actor)
+}
+
+func (s *Store) payFrozenApprovedReturn(
+	ctx context.Context, returnID uuid.UUID, actor uuid.NullUUID,
+) error {
+	frozen, err := s.q.ReturnForDecision(ctx, returnID)
 	if err != nil {
-		return fmt.Errorf("read frozen approved return %s: %w", row.ID, err)
+		return fmt.Errorf("read frozen approved return %s: %w", returnID, err)
 	}
-	frozenFacts, err := s.returnPayoutFact(ctx, row.ID)
+	frozenFacts, err := s.returnPayoutFact(ctx, returnID)
 	if err != nil {
 		return err
 	}
