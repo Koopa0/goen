@@ -3606,7 +3606,7 @@ a:hover {
 .goen-order__cancel .ui-btn,
 .goen-account .ui-page-head .ui-btn,
 .goen-returns__form .ui-btn,
-.goen-wish .ui-btn {
+.goen-wish__remove .ui-btn {
   min-height: 44px;
 }
 

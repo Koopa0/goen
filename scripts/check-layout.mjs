@@ -288,12 +288,12 @@ const ACCOUNT_PAGES = [
     path: '/orders/RETURN_FORM_ORDER/return', marker: '.goen-returns__form' },
   { label: 'return form 1440', width: 1440, height: 900,
     path: '/orders/RETURN_FORM_ORDER/return', marker: '.goen-returns__form' },
-  // #points is the redeem field; it renders only when the ledger has spendable
-  // hundreds from the fixture's credit-funded checkouts.
+  // The redeem field and its max both come from spendable hundreds the fixture
+  // funded — a bare .goen-account marker would pass on balance alone.
   { label: 'points 375', width: 375, height: 812, path: '/account/points',
-    marker: '#points' },
+    marker: '#points', points: true },
   { label: 'points 1440', width: 1440, height: 900, path: '/account/points',
-    marker: '#points' },
+    marker: '#points', points: true },
   // The saved-product tile and the remove form are separate nodes today (#320);
   // .goen-wish can exist empty while the real controls live outside it.
   { label: 'wishlist 375', width: 375, height: 812, path: '/account/wishlist',
@@ -1007,6 +1007,22 @@ const ADMIN_PROBE = `(() => {
   };
 })()`;
 
+const POINTS_REDEEM_PROBE = `(() => {
+  const redeemForm = document.querySelector('form.goen-qa__form');
+  const redeemField = document.querySelector('#points');
+  if (!redeemForm || !redeemField) return { noRedeem: true };
+  const max = parseInt(redeemField.getAttribute('max') || '0', 10);
+  if (!(max > 0)) return { noRedeemable: true };
+  const taps = [...document.querySelectorAll('.goen-qa__form .ui-btn, .goen-qa__form .ui-input')]
+    .map((e) => e.getBoundingClientRect().height).filter((h) => h > 0);
+  return {
+    redeemable: max,
+    controls: taps.length,
+    minTap: taps.length ? +Math.min(...taps).toFixed(1) : 0,
+    taps,
+  };
+})()`;
+
 const ACCOUNT_BADFORM_PROBE = `(() => {
   const de = document.documentElement;
   const clipped = (e) => {
@@ -1019,19 +1035,18 @@ const ACCOUNT_BADFORM_PROBE = `(() => {
     return false;
   };
   const notice = document.querySelector('.ui-alert--info');
-  // Buttons and the points field only: crumb links are not the surface this
-  // row exists to measure, and they sit under the 44px floor on every account
-  // page.
-  const taps = [...document.querySelectorAll('.goen-account .ui-btn, .goen-account input[type=number]')]
-    .map((e) => e.getBoundingClientRect().height).filter((h) => h > 0);
+  const redeem = ${POINTS_REDEEM_PROBE};
+  if (redeem.noRedeem) return { noRedeem: true };
+  if (redeem.noRedeemable) return { noRedeemable: true };
   return {
     viewportWidth: de.clientWidth,
     scrollWidth: document.body.scrollWidth,
     overflowing: [...document.querySelectorAll('body *')]
       .filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > de.clientWidth + 0.5 && !clipped(e); })
       .slice(0, 4).map((e) => e.tagName.toLowerCase() + '.' + String(e.className || '').split(' ')[0]),
-    minTap: taps.length ? +Math.min(...taps).toFixed(1) : 0,
-    controls: taps.length,
+    minTap: redeem.minTap,
+    controls: redeem.controls,
+    redeemable: redeem.redeemable,
     notice: notice ? notice.textContent.trim() : '',
     ${ACCESSIBILITY}
   };
@@ -1062,6 +1077,33 @@ const ACCOUNT_PAGE_PROBE = `(() => {
       .slice(0, 4).map((e) => e.tagName.toLowerCase() + '.' + String(e.className || '').split(' ')[0]),
     minTap: taps.length ? +Math.min(...taps).toFixed(1) : 0,
     controls: taps.length,
+    ${ACCESSIBILITY}
+  };
+})()`;
+
+const POINTS_PAGE_PROBE = `(() => {
+  const de = document.documentElement;
+  const clipped = (e) => {
+    let p = e.parentElement;
+    while (p && p !== document.body) {
+      const o = getComputedStyle(p).overflowX;
+      if (o === 'auto' || o === 'hidden' || o === 'scroll') return true;
+      p = p.parentElement;
+    }
+    return false;
+  };
+  const redeem = ${POINTS_REDEEM_PROBE};
+  if (redeem.noRedeem) return { noRedeem: true };
+  if (redeem.noRedeemable) return { noRedeemable: true };
+  return {
+    viewportWidth: de.clientWidth,
+    scrollWidth: document.body.scrollWidth,
+    overflowing: [...document.querySelectorAll('body *')]
+      .filter((e) => { const r = e.getBoundingClientRect(); return r.width > 0 && r.right > de.clientWidth + 0.5 && !clipped(e); })
+      .slice(0, 4).map((e) => e.tagName.toLowerCase() + '.' + String(e.className || '').split(' ')[0]),
+    minTap: redeem.minTap,
+    controls: redeem.controls,
+    redeemable: redeem.redeemable,
     ${ACCESSIBILITY}
   };
 })()`;
@@ -1127,6 +1169,14 @@ if (process.env.CUST_TOKEN) {
     const got = evaluated.result.value;
     const at = want.label;
 
+    if (got.noRedeem) {
+      fail(at, 'the points page rendered without form.goen-qa__form and #points — its fixture did not run, so this check proved nothing');
+      continue;
+    }
+    if (got.noRedeemable) {
+      fail(at, 'the points page has no redeemable hundreds — #points max is zero, so this check proved nothing');
+      continue;
+    }
     if (!got.notice) {
       fail(at, 'the expired-form notice did not render (.ui-alert--info is absent) — this check proved nothing');
       continue;
@@ -1142,11 +1192,13 @@ if (process.env.CUST_TOKEN) {
       fail(at, `page scrolls horizontally (${got.scrollWidth} > ${got.viewportWidth})` +
         (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));
     }
-    if (got.controls > 0 && got.minTap < MIN_TAP) {
-      fail(at, `smallest control is ${got.minTap}px, want >= ${MIN_TAP}`);
+    if (got.controls === 0) {
+      fail(at, 'no redemption controls on the populated points page — this check proved nothing');
+    } else if (got.minTap < MIN_TAP) {
+      fail(at, `smallest redemption control is ${got.minTap}px, want >= ${MIN_TAP}`);
     }
     console.log(`${at.padEnd(24)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
-      `lang=${got.lang} tap=${got.minTap || '-'} notice=${JSON.stringify(got.notice)}`);
+      `lang=${got.lang} controls=${got.controls} tap=${got.minTap || '-'} redeemable=${got.redeemable} notice=${JSON.stringify(got.notice)}`);
   }
 
   for (const want of ACCOUNT_PAGES) {
@@ -1160,7 +1212,8 @@ if (process.env.CUST_TOKEN) {
     await settled(ws, want.label, target);
 
     const probe = want.wishlist ? WISHLIST_PAGE_PROBE
-      : ACCOUNT_PAGE_PROBE.replaceAll('__MARKER__', JSON.stringify(want.marker || null));
+      : want.points ? POINTS_PAGE_PROBE
+        : ACCOUNT_PAGE_PROBE.replaceAll('__MARKER__', JSON.stringify(want.marker || null));
     const { result } = await send(ws, 'Runtime.evaluate', {
       expression: probe, returnByValue: true,
     });
@@ -1175,18 +1228,29 @@ if (process.env.CUST_TOKEN) {
       fail(at, 'the wishlist rendered a product tile without form.goen-wish__remove — this check proved nothing');
       continue;
     }
+    if (got.noRedeem) {
+      fail(at, 'the points page rendered without form.goen-qa__form and #points — its fixture did not run, so this check proved nothing');
+      continue;
+    }
+    if (got.noRedeemable) {
+      fail(at, 'the points page has no redeemable hundreds — #points max is zero, so this check proved nothing');
+      continue;
+    }
     checkAccessibility(at, got);
     if (got.scrollWidth > got.viewportWidth) {
       fail(at, `page scrolls horizontally (${got.scrollWidth} > ${got.viewportWidth})` +
         (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));
     }
-    if (want.wishlist && got.controls === 0) {
-      fail(at, 'no remove control on the populated wishlist — this check proved nothing');
+    if ((want.wishlist || want.points) && got.controls === 0) {
+      fail(at, want.wishlist
+        ? 'no remove control on the populated wishlist — this check proved nothing'
+        : 'no redemption controls on the populated points page — this check proved nothing');
     } else if (got.controls > 0 && got.minTap < MIN_TAP) {
       fail(at, `smallest control is ${got.minTap}px, want >= ${MIN_TAP}`);
     }
+    const extra = want.points ? ` redeemable=${got.redeemable}` : '';
     console.log(`${at.padEnd(24)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
-      `controls=${got.controls} tap=${got.minTap || '-'}`);
+      `controls=${got.controls} tap=${got.minTap || '-'}${extra}`);
   }
 } else {
   console.log('account pages    skipped (no CUST_TOKEN)');
