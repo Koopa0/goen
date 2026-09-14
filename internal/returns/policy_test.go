@@ -70,12 +70,12 @@ func TestEvaluateEnforcesAdvertisedWindows(t *testing.T) {
 	undelivered := LineAssessment{OrderLineID: "u", Window: WindowUndelivered}
 
 	tests := []struct {
-		name        string
-		lines       []LineAssessment
-		kind        DecisionKind
-		wantWindow  PolicyWindow
-		wantEnt     Entitlement
-		wantRefuse  RefusalKind
+		name       string
+		lines      []LineAssessment
+		kind       DecisionKind
+		wantWindow PolicyWindow
+		wantEnt    Entitlement
+		wantRefuse RefusalKind
 	}{
 		{
 			name:       "statutory approve is a right",

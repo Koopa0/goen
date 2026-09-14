@@ -379,9 +379,9 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		h := adminHandlerOver(pool, s)
 
 		assess := url.Values{
-			"basis":                         {"photos on the ticket"},
-			"unused_" + lineID.String():     {"unknown"},
-			"packaging_" + lineID.String():  {"unknown"},
+			"basis":                          {"photos on the ticket"},
+			"unused_" + lineID.String():      {"unknown"},
+			"packaging_" + lineID.String():   {"unknown"},
 			"accessories_" + lineID.String(): {"unknown"},
 		}
 		req := httptest.NewRequestWithContext(ctx, http.MethodPost,
@@ -397,8 +397,8 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		}
 
 		decide := url.Values{
-			"decision":            {"approved"},
-			"assessment_version":  {"1"},
+			"decision":           {"approved"},
+			"assessment_version": {"1"},
 		}
 		req = httptest.NewRequestWithContext(ctx, http.MethodPost,
 			"/admin/returns/"+requestID.String()+"/decide", strings.NewReader(decide.Encode()))
