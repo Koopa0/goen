@@ -168,7 +168,7 @@ func Product(p layouts.Page, v *ProductView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if v.Description != "" || v.HasSpecs() {
+			if v.Description != "" || v.HasSpecs() || v.HasWarranty() || v.WarrantyNote != "" {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<div class=\"goen-pdp__detail\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
