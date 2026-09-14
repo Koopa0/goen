@@ -8524,6 +8524,100 @@ REVOKE INSERT, UPDATE, DELETE ON contact_messages FROM admin;
 GRANT UPDATE (handled_at)
     ON contact_messages TO admin;
 
+-- Pre-decision eligibility, separate from receive/restock. Unknown is the
+-- default and is not "does not meet": an unobserved parcel cannot satisfy the
+-- advertised unused-and-complete offer.
+CREATE FUNCTION return_line_policy_window(requested_at timestamptz, delivered_at timestamptz)
+RETURNS text
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT CASE
+        WHEN delivered_at IS NULL THEN 'undelivered'
+        WHEN shop_day(requested_at) <= shop_day(delivered_at) + 7 THEN 'within'
+        WHEN shop_day(requested_at) <= shop_day(delivered_at) + 14 THEN 'goodwill'
+        ELSE 'after'
+    END;
+$$;
+
+COMMENT ON FUNCTION return_line_policy_window(timestamptz, timestamptz) IS
+    'Window for ONE returned line: request clock against THAT line''s delivery, '
+    'never now() and never another line''s later parcel.';
+
+GRANT EXECUTE ON FUNCTION return_line_policy_window(timestamptz, timestamptz)
+    TO store, admin, reporting;
+
+CREATE TABLE return_eligibility_assessments (
+    id                uuid PRIMARY KEY DEFAULT uuidv7(),
+    order_id          uuid NOT NULL,
+    return_request_id uuid NOT NULL,
+    version           integer NOT NULL,
+    assessed_by       uuid NOT NULL,
+    assessed_at       timestamptz NOT NULL DEFAULT now(),
+    basis             text NOT NULL,
+    CONSTRAINT return_eligibility_assessments_version_positive CHECK (version > 0),
+    CONSTRAINT return_eligibility_assessments_basis_present CHECK (char_length(btrim(basis, E' \t\n\r')) > 0),
+    CONSTRAINT return_eligibility_assessments_basis_bounded CHECK (char_length(basis) <= 500),
+    CONSTRAINT return_eligibility_assessments_request_fk
+        FOREIGN KEY (order_id, return_request_id)
+        REFERENCES return_requests (order_id, id) ON DELETE CASCADE,
+    CONSTRAINT return_eligibility_assessments_assessor_fk
+        FOREIGN KEY (assessed_by) REFERENCES users (id) ON DELETE RESTRICT,
+    CONSTRAINT return_eligibility_assessments_version_key
+        UNIQUE (return_request_id, version)
+);
+
+CREATE INDEX return_eligibility_assessments_request_idx
+    ON return_eligibility_assessments (return_request_id, version DESC);
+CREATE INDEX return_eligibility_assessments_request_fk_idx
+    ON return_eligibility_assessments (order_id, return_request_id);
+CREATE INDEX return_eligibility_assessments_assessor_idx
+    ON return_eligibility_assessments (assessed_by);
+
+CREATE TABLE return_eligibility_facts (
+    assessment_id        uuid NOT NULL REFERENCES return_eligibility_assessments (id) ON DELETE CASCADE,
+    order_id             uuid NOT NULL,
+    return_request_id    uuid NOT NULL,
+    order_line_id        uuid NOT NULL,
+    unused               text NOT NULL DEFAULT 'unknown',
+    packaging_complete   text NOT NULL DEFAULT 'unknown',
+    accessories_complete text NOT NULL DEFAULT 'unknown',
+    requested_at         timestamptz NOT NULL,
+    delivered_at         timestamptz,
+    policy_window        text NOT NULL,
+    PRIMARY KEY (assessment_id, order_line_id),
+    CONSTRAINT return_eligibility_facts_unused_known
+        CHECK (unused IN ('unknown', 'met', 'unmet')),
+    CONSTRAINT return_eligibility_facts_packaging_known
+        CHECK (packaging_complete IN ('unknown', 'met', 'unmet')),
+    CONSTRAINT return_eligibility_facts_accessories_known
+        CHECK (accessories_complete IN ('unknown', 'met', 'unmet')),
+    CONSTRAINT return_eligibility_facts_window_known
+        CHECK (policy_window IN ('undelivered', 'within', 'goodwill', 'after')),
+    CONSTRAINT return_eligibility_facts_window_matches
+        CHECK (policy_window = return_line_policy_window(requested_at, delivered_at)),
+    CONSTRAINT return_eligibility_facts_line_fk
+        FOREIGN KEY (return_request_id, order_line_id)
+        REFERENCES return_request_lines (return_request_id, order_line_id)
+        ON DELETE CASCADE
+);
+
+CREATE INDEX return_eligibility_facts_line_idx
+    ON return_eligibility_facts (return_request_id, order_line_id);
+
+-- These tables are created after the blanket ALL TABLES grants. Admin writes
+-- assessments; storefront and reporting may read but never write.
+GRANT SELECT ON return_eligibility_assessments TO store, admin, reporting;
+GRANT SELECT ON return_eligibility_facts TO store, admin, reporting;
+REVOKE INSERT, UPDATE, DELETE ON return_eligibility_assessments FROM store, reporting;
+REVOKE INSERT, UPDATE, DELETE ON return_eligibility_facts FROM store, reporting;
+GRANT INSERT (id, order_id, return_request_id, version, assessed_by, assessed_at, basis)
+    ON return_eligibility_assessments TO admin;
+GRANT INSERT (assessment_id, order_id, return_request_id, order_line_id,
+              unused, packaging_complete, accessories_complete,
+              requested_at, delivered_at, policy_window)
+    ON return_eligibility_facts TO admin;
+
 -- ---------------------------------------------------------------------------
 -- pg_temp is searched FIRST for relations even when it is not listed, so a role
 -- that may create temp tables could plant a decoy an unpinned trigger guard would

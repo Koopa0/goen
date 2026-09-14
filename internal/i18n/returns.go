@@ -97,6 +97,11 @@ var (
 		En:     "Within the statutory 7-day right to cancel",
 	})
 
+	KeyAdminReturnWindowGoodwill = key("admin.return.window.goodwill", Message{
+		ZhHant: "送達後第 8–14 日(店家優惠)",
+		En:     "Days 8–14 of the shop's voluntary offer",
+	})
+
 	KeyAdminReturnWindowAfter = key("admin.return.window.after", Message{
 		ZhHant: "已逾鑑賞期",
 		En:     "Past the statutory 7-day right to cancel",
@@ -105,6 +110,11 @@ var (
 	KeyAdminReturnWindowUndelivered = key("admin.return.window.undelivered", Message{
 		ZhHant: "尚未送達",
 		En:     "Not delivered yet, so the window has not started",
+	})
+
+	KeyAdminReturnWindowMixed = key("admin.return.window.mixed", Message{
+		ZhHant: "品項分屬不同期限",
+		En:     "Lines fall in different return windows",
 	})
 
 	KeyAdminPageReturns = key("admin.page.returns", Message{ZhHant: "退貨申請", En: "Return requests"})
@@ -147,6 +157,16 @@ var (
 		En:     "(the law does not allow this one to be refused, and the refund includes the original delivery fee)",
 	})
 
+	KeyAdminRetGoodwillHint = key("admin.ret.goodwillhint", Message{
+		ZhHant: "未使用且包裝與配件齊全才是政策內受理。請先逐項評估這三項：有未知就不能核准或拒絕；三項皆符合才記政策內權利。",
+		En:     "Unused and complete with box and accessories is the advertised offer. Assess those three facts first: unknown cannot be approved or declined, and only all-met records a policy entitlement.",
+	})
+
+	KeyAdminRetLateHint = key("admin.ret.latehint", Message{
+		ZhHant: "已逾 14 日。同意是人工例外，不是政策內權利。",
+		En:     "Past 14 days. Approval is a staff exception, not a policy entitlement.",
+	})
+
 	KeyAdminRetReceivedRestocked = key("admin.ret.receivedrestocked", Message{
 		ZhHant: "收到 %s · 入庫 %s",
 		En:     "%s received · %s back in stock",
@@ -161,6 +181,94 @@ var (
 	KeyAdminRetApprove = key("admin.ret.approve", Message{ZhHant: "同意並退款", En: "Approve and refund"})
 
 	KeyAdminRetReject = key("admin.ret.reject", Message{ZhHant: "不同意", En: "Decline"})
+
+	KeyAdminRetException = key("admin.ret.exception", Message{
+		ZhHant: "以人工例外核准",
+		En:     "Approve as a staff exception",
+	})
+
+	KeyAdminRetAssessHint = key("admin.ret.assesshint", Message{
+		ZhHant: "決策前先逐項記下未使用、原包裝齊全、配件齊全。預設是未知；未知不是不符合，也不能當成符合。",
+		En:     "Before deciding, record unused, original packaging, and accessories per line. Unknown is the default: it is not a failure, and it is not a pass.",
+	})
+
+	KeyAdminRetAssessBasis = key("admin.ret.assessbasis", Message{
+		ZhHant: "評估依據",
+		En:     "What this assessment is based on",
+	})
+
+	KeyAdminRetFactUnused = key("admin.ret.fact.unused", Message{ZhHant: "未使用", En: "Unused"})
+
+	KeyAdminRetFactPackaging = key("admin.ret.fact.packaging", Message{
+		ZhHant: "原包裝齊全",
+		En:     "Original packaging complete",
+	})
+
+	KeyAdminRetFactAccessories = key("admin.ret.fact.accessories", Message{
+		ZhHant: "配件齊全",
+		En:     "Accessories complete",
+	})
+
+	KeyAdminRetFactUnknown = key("admin.ret.fact.unknown", Message{ZhHant: "未知", En: "Unknown"})
+
+	KeyAdminRetFactMet = key("admin.ret.fact.met", Message{ZhHant: "符合", En: "Met"})
+
+	KeyAdminRetFactUnmet = key("admin.ret.fact.unmet", Message{ZhHant: "不符合", En: "Not met"})
+
+	KeyAdminRetAssessButton = key("admin.ret.assessbutton", Message{
+		ZhHant: "儲存資格評估",
+		En:     "Save the eligibility assessment",
+	})
+
+	KeyAdminRetAssessedAt = key("admin.ret.assessedat", Message{
+		ZhHant: "評估版本 %s · %s",
+		En:     "Assessment version %s · %s",
+	})
+
+	KeyAdminRetErrStatutoryReject = key("admin.ret.err.statutoryreject", Message{
+		ZhHant: "七日內的有效申請不能因未填原因、拆封或第 8–14 日條件而拒絕。",
+		En:     "A valid request inside seven days cannot be refused for a missing reason, for opening the parcel, or for the days 8–14 conditions.",
+	})
+
+	KeyAdminRetErrIncomplete = key("admin.ret.err.incomplete", Message{
+		ZhHant: "還有未觀察的品項。補齊三項評估後才能核准或拒絕；未知不能默認符合，也不能默認拒絕。",
+		En:     "Some facts are still unknown. Finish the three observations before approving or declining; unknown is neither a pass nor a failure.",
+	})
+
+	KeyAdminRetErrNeedException = key("admin.ret.err.needexception", Message{
+		ZhHant: "這筆不能記成政策內權利。若要核准，請明確選擇人工例外。",
+		En:     "This cannot be recorded as a policy entitlement. To pay it, choose a staff exception.",
+	})
+
+	KeyAdminRetErrUnmetApprove = key("admin.ret.err.unmetapprove", Message{
+		ZhHant: "已有不符合的觀察，不能記成第 8–14 日政策內權利。拒絕須引用該事實，或改選人工例外。",
+		En:     "An unmet observation cannot be recorded as the days 8–14 policy entitlement. Decline by citing that fact, or approve as a staff exception.",
+	})
+
+	KeyAdminRetErrNoUnmet = key("admin.ret.err.nounmet", Message{
+		ZhHant: "沒有已確認不符合的事實可以引用，因此不能拒絕。",
+		En:     "There is no confirmed unmet fact to cite, so this cannot be declined.",
+	})
+
+	KeyAdminRetErrUseApprove = key("admin.ret.err.useapprove", Message{
+		ZhHant: "條件已符合政策，請用「同意並退款」而不是人工例外。",
+		En:     "The advertised conditions are met, so use Approve and refund rather than a staff exception.",
+	})
+
+	KeyAdminRetErrStale = key("admin.ret.err.stale", Message{
+		ZhHant: "評估已被其他人更新。請重新讀取後再決定。",
+		En:     "Someone else updated the assessment. Reload and decide again.",
+	})
+
+	KeyAdminRetErrBasis = key("admin.ret.err.basis", Message{
+		ZhHant: "請寫下這次評估依據，且不要超過 500 字。",
+		En:     "Say what this assessment is based on, in at most 500 characters.",
+	})
+
+	KeyAdminRetErrExceptionReason = key("admin.ret.err.exceptionreason", Message{
+		ZhHant: "人工例外必須寫下核准理由，空白或只有空白字元不能付款。",
+		En:     "A staff exception needs a recorded reason; blank or whitespace cannot pay.",
+	})
 
 	KeyAdminRetRetryPayout = key("admin.ret.retrypayout", Message{
 		ZhHant: "重新退款",
@@ -240,5 +348,10 @@ var (
 		ZhHant: "數量填寫有問題:入庫數不能超過實際收到的數量,實際收到也不能超過申請退回的數量。",
 		En: "Those quantities do not work: what goes back on the shelf cannot exceed what arrived, " +
 			"and what arrived cannot exceed what the customer asked to return.",
+	})
+
+	KeyAdminNoticeAssessed = key("admin.notice.assessed", Message{
+		ZhHant: "資格評估已記錄。核准與拒絕會凍結這個版本。",
+		En:     "Eligibility assessment recorded. Approving or declining will freeze this version.",
 	})
 )

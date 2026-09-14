@@ -5325,6 +5325,84 @@ func (q *Queries) DetachProductImage(ctx context.Context, arg DetachProductImage
 	return result.RowsAffected(), nil
 }
 
+const eligibilityFacts = `-- name: EligibilityFacts :many
+SELECT assessment_id, order_id, return_request_id, order_line_id,
+       unused, packaging_complete, accessories_complete,
+       requested_at, delivered_at, policy_window
+FROM return_eligibility_facts
+WHERE assessment_id = $1
+`
+
+func (q *Queries) EligibilityFacts(ctx context.Context, assessmentID uuid.UUID) ([]ReturnEligibilityFact, error) {
+	rows, err := q.db.Query(ctx, eligibilityFacts, assessmentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ReturnEligibilityFact{}
+	for rows.Next() {
+		var i ReturnEligibilityFact
+		if err := rows.Scan(
+			&i.AssessmentID,
+			&i.OrderID,
+			&i.ReturnRequestID,
+			&i.OrderLineID,
+			&i.Unused,
+			&i.PackagingComplete,
+			&i.AccessoriesComplete,
+			&i.RequestedAt,
+			&i.DeliveredAt,
+			&i.PolicyWindow,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const eligibilityFactsForAssessments = `-- name: EligibilityFactsForAssessments :many
+SELECT assessment_id, order_id, return_request_id, order_line_id,
+       unused, packaging_complete, accessories_complete,
+       requested_at, delivered_at, policy_window
+FROM return_eligibility_facts
+WHERE assessment_id = ANY($1::uuid[])
+`
+
+func (q *Queries) EligibilityFactsForAssessments(ctx context.Context, assessmentIds []uuid.UUID) ([]ReturnEligibilityFact, error) {
+	rows, err := q.db.Query(ctx, eligibilityFactsForAssessments, assessmentIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ReturnEligibilityFact{}
+	for rows.Next() {
+		var i ReturnEligibilityFact
+		if err := rows.Scan(
+			&i.AssessmentID,
+			&i.OrderID,
+			&i.ReturnRequestID,
+			&i.OrderLineID,
+			&i.Unused,
+			&i.PackagingComplete,
+			&i.AccessoriesComplete,
+			&i.RequestedAt,
+			&i.DeliveredAt,
+			&i.PolicyWindow,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const emailBelongsToSomebodyElse = `-- name: EmailBelongsToSomebodyElse :one
 SELECT EXISTS (
     SELECT 1 FROM users
@@ -5880,6 +5958,85 @@ func (q *Queries) IdentitiesForUser(ctx context.Context, userID uuid.UUID) ([]Id
 	return items, nil
 }
 
+const insertEligibilityAssessment = `-- name: InsertEligibilityAssessment :one
+INSERT INTO return_eligibility_assessments (
+    order_id, return_request_id, version, assessed_by, basis
+) VALUES (
+    $1, $2, $3, $4, $5
+)
+RETURNING id, order_id, return_request_id, version, assessed_by, assessed_at, basis
+`
+
+type InsertEligibilityAssessmentParams struct {
+	OrderID         uuid.UUID
+	ReturnRequestID uuid.UUID
+	Version         int32
+	AssessedBy      uuid.UUID
+	Basis           string
+}
+
+func (q *Queries) InsertEligibilityAssessment(ctx context.Context, arg InsertEligibilityAssessmentParams) (ReturnEligibilityAssessment, error) {
+	row := q.db.QueryRow(ctx, insertEligibilityAssessment,
+		arg.OrderID,
+		arg.ReturnRequestID,
+		arg.Version,
+		arg.AssessedBy,
+		arg.Basis,
+	)
+	var i ReturnEligibilityAssessment
+	err := row.Scan(
+		&i.ID,
+		&i.OrderID,
+		&i.ReturnRequestID,
+		&i.Version,
+		&i.AssessedBy,
+		&i.AssessedAt,
+		&i.Basis,
+	)
+	return i, err
+}
+
+const insertEligibilityFact = `-- name: InsertEligibilityFact :exec
+INSERT INTO return_eligibility_facts (
+    assessment_id, order_id, return_request_id, order_line_id,
+    unused, packaging_complete, accessories_complete,
+    requested_at, delivered_at, policy_window
+) VALUES (
+    $1, $2, $3, $4,
+    $5, $6, $7,
+    $8, $9, $10
+)
+`
+
+type InsertEligibilityFactParams struct {
+	AssessmentID        uuid.UUID
+	OrderID             uuid.UUID
+	ReturnRequestID     uuid.UUID
+	OrderLineID         uuid.UUID
+	Unused              string
+	PackagingComplete   string
+	AccessoriesComplete string
+	RequestedAt         time.Time
+	DeliveredAt         pgtype.Timestamptz
+	PolicyWindow        string
+}
+
+func (q *Queries) InsertEligibilityFact(ctx context.Context, arg InsertEligibilityFactParams) error {
+	_, err := q.db.Exec(ctx, insertEligibilityFact,
+		arg.AssessmentID,
+		arg.OrderID,
+		arg.ReturnRequestID,
+		arg.OrderLineID,
+		arg.Unused,
+		arg.PackagingComplete,
+		arg.AccessoriesComplete,
+		arg.RequestedAt,
+		arg.DeliveredAt,
+		arg.PolicyWindow,
+	)
+	return err
+}
+
 const inspectReturnLine = `-- name: InspectReturnLine :execrows
 UPDATE return_request_lines rl
 SET received_quantity = $1::integer,
@@ -6178,6 +6335,68 @@ func (q *Queries) KnownAllowances(ctx context.Context, originalID uuid.UUID) ([]
 			&i.UnitPriceCents,
 			&i.LineAmountCents,
 			&i.TaxTypes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const latestEligibilityAssessment = `-- name: LatestEligibilityAssessment :one
+SELECT id, order_id, return_request_id, version, assessed_by, assessed_at, basis
+FROM return_eligibility_assessments
+WHERE return_request_id = $1
+ORDER BY version DESC
+LIMIT 1
+`
+
+// closeReturn already holds the order row. A concurrent Assess waits on
+// that same lock, so this read does not take FOR UPDATE: admin has INSERT
+// and SELECT only, and PostgreSQL would refuse the lock without UPDATE.
+func (q *Queries) LatestEligibilityAssessment(ctx context.Context, returnRequestID uuid.UUID) (ReturnEligibilityAssessment, error) {
+	row := q.db.QueryRow(ctx, latestEligibilityAssessment, returnRequestID)
+	var i ReturnEligibilityAssessment
+	err := row.Scan(
+		&i.ID,
+		&i.OrderID,
+		&i.ReturnRequestID,
+		&i.Version,
+		&i.AssessedBy,
+		&i.AssessedAt,
+		&i.Basis,
+	)
+	return i, err
+}
+
+const latestEligibilityAssessments = `-- name: LatestEligibilityAssessments :many
+SELECT DISTINCT ON (return_request_id)
+    id, order_id, return_request_id, version, assessed_by, assessed_at, basis
+FROM return_eligibility_assessments
+WHERE return_request_id = ANY($1::uuid[])
+ORDER BY return_request_id, version DESC
+`
+
+func (q *Queries) LatestEligibilityAssessments(ctx context.Context, requestIds []uuid.UUID) ([]ReturnEligibilityAssessment, error) {
+	rows, err := q.db.Query(ctx, latestEligibilityAssessments, requestIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ReturnEligibilityAssessment{}
+	for rows.Next() {
+		var i ReturnEligibilityAssessment
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrderID,
+			&i.ReturnRequestID,
+			&i.Version,
+			&i.AssessedBy,
+			&i.AssessedAt,
+			&i.Basis,
 		); err != nil {
 			return nil, err
 		}
@@ -6997,6 +7216,19 @@ func (q *Queries) NewsletterIssues(ctx context.Context, limit int32) ([]Newslett
 		return nil, err
 	}
 	return items, nil
+}
+
+const nextEligibilityVersion = `-- name: NextEligibilityVersion :one
+SELECT coalesce(max(version), 0)::int + 1 AS version
+FROM return_eligibility_assessments
+WHERE return_request_id = $1
+`
+
+func (q *Queries) NextEligibilityVersion(ctx context.Context, returnRequestID uuid.UUID) (int32, error) {
+	row := q.db.QueryRow(ctx, nextEligibilityVersion, returnRequestID)
+	var version int32
+	err := row.Scan(&version)
+	return version, err
 }
 
 const openPayment = `-- name: OpenPayment :one
@@ -9933,7 +10165,31 @@ SELECT r.id, r.status, r.reason, r.order_id,
        p.id AS payment_id,
        p.provider_ref,
        p.captured_amount_cents,
-       o.user_id
+       o.user_id,
+       coalesce((
+           SELECT CASE
+               WHEN bool_and(w.win = 'within') THEN 'within'
+               WHEN bool_and(w.win = 'goodwill') THEN 'goodwill'
+               WHEN bool_and(w.win = 'after') THEN 'after'
+               WHEN bool_and(w.win = 'undelivered') THEN 'undelivered'
+               ELSE 'mixed'
+           END
+           FROM (
+               SELECT return_line_policy_window(r.created_at, sh.delivered_at) AS win
+               FROM return_request_lines rl
+               LEFT JOIN LATERAL (
+                   SELECT s.delivered_at
+                   FROM order_shipment_lines osl
+                   JOIN order_shipments s ON s.id = osl.shipment_id
+                   WHERE osl.order_line_id = rl.order_line_id
+                     AND s.order_id = r.order_id
+                     AND s.delivered_at IS NOT NULL
+                   ORDER BY s.delivered_at DESC
+                   LIMIT 1
+               ) sh ON true
+               WHERE rl.return_request_id = r.id
+           ) w
+       ), 'undelivered')::text AS policy_window
 FROM return_requests r
 JOIN orders o ON o.id = r.order_id
 LEFT JOIN payments p ON p.order_id = o.id AND p.status = 'succeeded'
@@ -9952,11 +10208,14 @@ type ReturnForDecisionRow struct {
 	ProviderRef         pgtype.Text
 	CapturedAmountCents pgtype.Int8
 	UserID              uuid.NullUUID
+	PolicyWindow        string
 }
 
 // The amount comes from return_refundable_amount and never from anything the
 // request carried. It is a FUNCTION rather than an expression because the queue
 // needs the same number, and two copies are two figures free to disagree.
+// policy_window is the same union as ReturnQueue, on the same two clocks: a
+// decision that classified from now() would take a day-5 right away on day 20.
 func (q *Queries) ReturnForDecision(ctx context.Context, id uuid.UUID) (ReturnForDecisionRow, error) {
 	row := q.db.QueryRow(ctx, returnForDecision, id)
 	var i ReturnForDecisionRow
@@ -9972,6 +10231,7 @@ func (q *Queries) ReturnForDecision(ctx context.Context, id uuid.UUID) (ReturnFo
 		&i.ProviderRef,
 		&i.CapturedAmountCents,
 		&i.UserID,
+		&i.PolicyWindow,
 	)
 	return i, err
 }
@@ -9981,9 +10241,24 @@ SELECT rl.return_request_id, ol.id AS order_line_id, ol.sku, ol.product_name,
        ol.variant_label, ol.unit_price_cents, rl.quantity,
        rl.received_quantity, rl.restocked_quantity,
        coalesce(rl.inspection_note, '')::text AS inspection_note,
-       (ol.variant_id IS NOT NULL)::boolean AS restockable
+       (ol.variant_id IS NOT NULL)::boolean AS restockable,
+       r.order_id,
+       r.created_at AS requested_at,
+       sh.delivered_at,
+       return_line_policy_window(r.created_at, sh.delivered_at) AS policy_window
 FROM return_request_lines rl
+JOIN return_requests r ON r.id = rl.return_request_id
 JOIN order_lines ol ON ol.id = rl.order_line_id
+LEFT JOIN LATERAL (
+    SELECT s.delivered_at
+    FROM order_shipment_lines osl
+    JOIN order_shipments s ON s.id = osl.shipment_id
+    WHERE osl.order_line_id = rl.order_line_id
+      AND s.order_id = r.order_id
+      AND s.delivered_at IS NOT NULL
+    ORDER BY s.delivered_at DESC
+    LIMIT 1
+) sh ON true
 WHERE rl.return_request_id = ANY($1::uuid[])
 ORDER BY rl.return_request_id, ol.position, ol.id
 `
@@ -10000,11 +10275,16 @@ type ReturnLinesRow struct {
 	RestockedQuantity pgtype.Int4
 	InspectionNote    string
 	Restockable       bool
+	OrderID           uuid.UUID
+	RequestedAt       time.Time
+	DeliveredAt       pgtype.Timestamptz
+	PolicyWindow      string
 }
 
 // received_quantity is NULL until somebody opens the parcel: "not looked at yet"
 // and "looked at, nothing arrived" are different facts. restockable is false for
 // a line whose variant was deleted, so the form cannot offer a refused control.
+// policy_window is THIS line's shipment, never a later parcel on the order.
 func (q *Queries) ReturnLines(ctx context.Context, requestIds []uuid.UUID) ([]ReturnLinesRow, error) {
 	rows, err := q.db.Query(ctx, returnLines, requestIds)
 	if err != nil {
@@ -10026,6 +10306,10 @@ func (q *Queries) ReturnLines(ctx context.Context, requestIds []uuid.UUID) ([]Re
 			&i.RestockedQuantity,
 			&i.InspectionNote,
 			&i.Restockable,
+			&i.OrderID,
+			&i.RequestedAt,
+			&i.DeliveredAt,
+			&i.PolicyWindow,
 		); err != nil {
 			return nil, err
 		}
@@ -10140,17 +10424,32 @@ SELECT r.id, r.status, r.reason, r.created_at, r.decided_at,
        (SELECT coalesce(sum(rl.quantity), 0) FROM return_request_lines rl
         WHERE rl.return_request_id = r.id)::integer AS units,
        return_refundable_amount(r.id)::bigint AS refundable_cents,
-       (CASE
-            WHEN d.delivered_at IS NULL THEN 'undelivered'
-            WHEN shop_day(r.created_at) <= shop_day(d.delivered_at) + 7 THEN 'within'
-            ELSE 'after'
-        END)::text AS rescission_window
+       coalesce((
+           SELECT CASE
+               WHEN bool_and(w.win = 'within') THEN 'within'
+               WHEN bool_and(w.win = 'goodwill') THEN 'goodwill'
+               WHEN bool_and(w.win = 'after') THEN 'after'
+               WHEN bool_and(w.win = 'undelivered') THEN 'undelivered'
+               ELSE 'mixed'
+           END
+           FROM (
+               SELECT return_line_policy_window(r.created_at, sh.delivered_at) AS win
+               FROM return_request_lines rl
+               LEFT JOIN LATERAL (
+                   SELECT s.delivered_at
+                   FROM order_shipment_lines osl
+                   JOIN order_shipments s ON s.id = osl.shipment_id
+                   WHERE osl.order_line_id = rl.order_line_id
+                     AND s.order_id = r.order_id
+                     AND s.delivered_at IS NOT NULL
+                   ORDER BY s.delivered_at DESC
+                   LIMIT 1
+               ) sh ON true
+               WHERE rl.return_request_id = r.id
+           ) w
+       ), 'undelivered')::text AS rescission_window
 FROM return_requests r
 JOIN orders o ON o.id = r.order_id
-LEFT JOIN LATERAL (
-    SELECT max(s.delivered_at) AS delivered_at
-    FROM order_shipments s WHERE s.order_id = o.id
-) d ON true
 ORDER BY return_payout_outstanding(r.id) DESC,
          (r.status = 'requested') DESC,
          r.created_at DESC
@@ -10169,11 +10468,10 @@ type ReturnQueueRow struct {
 	RescissionWindow string
 }
 
-// rescission_window: Consumer Protection Act §19 I runs seven days from RECEIPT,
-// Civil Code §120 II excludes the day of receipt, and §19 IV fixes the moment on
-// the customer's side — so created_at against delivered_at, both database
-// clocks, and both on the SHOP's calendar through shop_day. Undelivered is
-// neither answer, because the window has not started.
+// policy_window is the union of THIS request's returned lines against each
+// line's own shipment. A later unrelated parcel on the same order must not
+// reopen a window that line already closed. now() would move a filed request
+// into a later window the day the staff member opens it.
 // Recovery is the only retry door. Rank it before the intake queue and before
 // LIMIT, or fifty newer requests can make an older approved-but-unpaid customer
 // disappear from every actionable screen.

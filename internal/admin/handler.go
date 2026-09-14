@@ -490,6 +490,7 @@ var adminNotices = map[string]i18n.Key{
 	"badqty":         i18n.KeyAdminNoticeBadQty,
 	"inspected":      i18n.KeyAdminNoticeInspected,
 	"closed":         i18n.KeyAdminNoticeClosed,
+	"assessed":       i18n.KeyAdminNoticeAssessed,
 	"badcount":       i18n.KeyAdminNoticeBadCount,
 	"badparcel":      i18n.KeyAdminNoticeBadParcel,
 	"invoiced":       i18n.KeyAdminNoticeInvoiced,

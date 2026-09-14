@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
@@ -43,7 +44,8 @@ func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err := h.store.Decide(r.Context(), r.PathValue("id"),
-		r.PostFormValue("decision"), r.PostFormValue("resolution"), staffID(r))
+		r.PostFormValue("decision"), r.PostFormValue("resolution"),
+		r.PostFormValue("assessment_version"), staffID(r))
 	switch {
 	case err == nil:
 		http.Redirect(w, r, "/admin/returns?ok=1", http.StatusSeeOther)
@@ -57,6 +59,9 @@ func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrInvalid), errors.Is(err, ErrRefused):
 		h.log.WarnContext(r.Context(), "return decision refused",
 			"return", r.PathValue("id"), "error", err)
+		if h.renderReturnRefusal(w, r, err) {
+			return
+		}
 		http.Redirect(w, r, "/admin/returns?refused=1", http.StatusSeeOther)
 	default:
 		// Infrastructure errors which occurred before this became a durable payout
@@ -65,6 +70,166 @@ func (h *Handler) Decide(w http.ResponseWriter, r *http.Request) {
 			"return", r.PathValue("id"), "error", err)
 		http.Redirect(w, r, "/admin/returns?refundfailed=1", http.StatusSeeOther)
 	}
+}
+
+// Assess serves POST /admin/returns/{id}/assess. It records eligibility
+// facts and never pays or restocks.
+func (h *Handler) Assess(w http.ResponseWriter, r *http.Request) {
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
+		return
+	}
+	facts, parseErr := assessmentLines(r)
+	if parseErr != nil {
+		h.log.WarnContext(r.Context(), "return assessment rejected",
+			"return", r.PathValue("id"), "error", parseErr)
+		if h.renderReturnRefusal(w, r, formRefuse("decision", returns.RefuseIncomplete)) {
+			return
+		}
+		http.Redirect(w, r, "/admin/returns?refused=1", http.StatusSeeOther)
+		return
+	}
+	err := h.store.Assess(r.Context(), r.PathValue("id"), r.PostFormValue("basis"), facts)
+	switch {
+	case err == nil:
+		http.Redirect(w, r, "/admin/returns?assessed=1", http.StatusSeeOther)
+	case errors.Is(err, ErrInvalid), errors.Is(err, ErrRefused):
+		h.log.WarnContext(r.Context(), "return assessment refused",
+			"return", r.PathValue("id"), "error", err)
+		if h.renderReturnRefusal(w, r, err) {
+			return
+		}
+		http.Redirect(w, r, "/admin/returns?refused=1", http.StatusSeeOther)
+	default:
+		h.log.ErrorContext(r.Context(), "assess return",
+			"return", r.PathValue("id"), "error", err)
+		h.serverError(w, r)
+	}
+}
+
+func assessmentLines(r *http.Request) ([]LineEligibility, error) {
+	seen := map[string]LineEligibility{}
+	for name, values := range r.PostForm {
+		kind, rest, ok := strings.Cut(name, "_")
+		if !ok || len(values) == 0 {
+			continue
+		}
+		var dest *string
+		switch kind {
+		case "unused", "packaging", "accessories":
+		default:
+			continue
+		}
+		lineID, err := uuid.Parse(rest)
+		if err != nil {
+			return nil, fmt.Errorf("field %q does not name an order line: %w", name, err)
+		}
+		fact, ok := returns.ParseFact(strings.TrimSpace(values[0]))
+		if !ok {
+			return nil, fmt.Errorf("field %q is not a known fact", name)
+		}
+		row := seen[rest]
+		row.OrderLineID = lineID
+		switch kind {
+		case "unused":
+			dest = &row.Unused
+		case "packaging":
+			dest = &row.Packaging
+		case "accessories":
+			dest = &row.Accessories
+		}
+		*dest = string(fact)
+		seen[rest] = row
+	}
+	out := make([]LineEligibility, 0, len(seen))
+	for _, row := range seen {
+		if row.Unused == "" {
+			row.Unused = string(returns.FactUnknown)
+		}
+		if row.Packaging == "" {
+			row.Packaging = string(returns.FactUnknown)
+		}
+		if row.Accessories == "" {
+			row.Accessories = string(returns.FactUnknown)
+		}
+		out = append(out, row)
+	}
+	return out, nil
+}
+
+func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, err error) bool {
+	refused, ok := errors.AsType[*FormRefusalError](err)
+	if !ok {
+		return false
+	}
+	queue, readErr := h.store.Returns(r.Context())
+	if readErr != nil {
+		h.log.ErrorContext(r.Context(), "read return queue after refusal", "error", readErr)
+		h.serverError(w, r)
+		return true
+	}
+	field := refused.Field
+	if field == "" {
+		field = "decision"
+	}
+	msg := refusalMessage(r, refused.Kind)
+	if field == "basis" {
+		msg = i18n.T(r.Context(), i18n.KeyAdminRetErrBasis)
+	}
+	view := pages.AdminReturnsView{
+		Rows:   queue.Rows,
+		Errors: map[string]string{r.PathValue("id") + "." + field: msg},
+	}
+	for i := range view.Rows {
+		if view.Rows[i].ID != r.PathValue("id") {
+			continue
+		}
+		if _, submitted := r.PostForm["basis"]; submitted {
+			view.Rows[i].AssessmentBasis = r.PostFormValue("basis")
+		}
+		if resolution := r.PostFormValue("resolution"); resolution != "" {
+			view.Rows[i].Resolution = resolution
+		}
+		overlayDraftFacts(&view.Rows[i], r)
+	}
+	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminReturns(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReturns)}, view))
+	return true
+}
+
+func overlayDraftFacts(row *pages.AdminReturn, r *http.Request) {
+	for i := range row.Lines {
+		id := row.Lines[i].OrderLineID
+		if v := strings.TrimSpace(r.PostFormValue("unused_" + id)); v != "" {
+			row.Lines[i].Unused = v
+		}
+		if v := strings.TrimSpace(r.PostFormValue("packaging_" + id)); v != "" {
+			row.Lines[i].Packaging = v
+		}
+		if v := strings.TrimSpace(r.PostFormValue("accessories_" + id)); v != "" {
+			row.Lines[i].Accessories = v
+		}
+	}
+}
+
+func refusalMessage(r *http.Request, kind returns.RefusalKind) string {
+	key, ok := refusalKeys[kind]
+	if !ok {
+		return i18n.T(r.Context(), i18n.KeyAdminNoticeRefused)
+	}
+	return i18n.T(r.Context(), key)
+}
+
+var refusalKeys = map[returns.RefusalKind]i18n.Key{
+	returns.RefuseStatutoryReject: i18n.KeyAdminRetErrStatutoryReject,
+	returns.RefuseIncomplete:      i18n.KeyAdminRetErrIncomplete,
+	returns.RefuseNeedException:   i18n.KeyAdminRetErrNeedException,
+	returns.RefuseUnmetApprove:    i18n.KeyAdminRetErrUnmetApprove,
+	returns.RefuseNoUnmet:         i18n.KeyAdminRetErrNoUnmet,
+	returns.RefuseUseApprove:      i18n.KeyAdminRetErrUseApprove,
+	returns.RefuseStale:           i18n.KeyAdminRetErrStale,
+	returns.RefuseEmpty:           i18n.KeyAdminRetErrIncomplete,
+	returns.RefuseExceptionReason: i18n.KeyAdminRetErrExceptionReason,
 }
 
 // Inspect serves POST /admin/returns/{id}/inspect, one form per parcel.

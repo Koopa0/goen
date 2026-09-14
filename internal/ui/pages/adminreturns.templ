@@ -45,6 +45,16 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 										<strong>{ r.WindowText(ctx) }</strong>
 										{ i18n.T(ctx, i18n.KeyAdminRetMustAccept) }
 									</span>
+								} else if r.Goodwill() || r.Mixed() {
+									<span class="ui-cart-line__meta">
+										<strong>{ r.WindowText(ctx) }</strong>
+										{ i18n.T(ctx, i18n.KeyAdminRetGoodwillHint) }
+									</span>
+								} else if r.Late() {
+									<span class="ui-cart-line__meta">
+										{ r.WindowText(ctx) }
+										{ i18n.T(ctx, i18n.KeyAdminRetLateHint) }
+									</span>
 								} else {
 									<span class="ui-cart-line__meta">{ r.WindowText(ctx) }</span>
 								}
@@ -55,6 +65,9 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 											<li>
 												<span class="ui-cart-line__meta">{ l.Line() }</span>
 												<span class="ui-cart-line__meta">{ l.SKU } · { l.UnitPrice() }</span>
+												if l.Window != "" {
+													<span class="ui-cart-line__meta">{ ReturnLineWindowText(ctx, l.Window) }</span>
+												}
 												if l.Inspected {
 													<span class="ui-cart-line__meta">
 														{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetReceivedRestocked), l.ReceivedText(), l.RestockedText()) }
@@ -75,18 +88,76 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 								}
 							</div>
 							if !r.Decided {
+								if r.Goodwill() || r.Mixed() {
+									<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.AssessAction()) }>
+										<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetAssessHint) }</p>
+										if stamp := r.AssessmentStamp(ctx); stamp != "" {
+											<p class="ui-cart-line__meta">{ stamp }</p>
+										}
+										for _, l := range r.Lines {
+											<fieldset class="goen-admin__inspectline">
+												<legend class="ui-cart-line__meta">{ l.Line() }</legend>
+												@eligibilityFactRadios(r.ID, l, "unused", i18n.KeyAdminRetFactUnused, v)
+												@eligibilityFactRadios(r.ID, l, "packaging", i18n.KeyAdminRetFactPackaging, v)
+												@eligibilityFactRadios(r.ID, l, "accessories", i18n.KeyAdminRetFactAccessories, v)
+											</fieldset>
+										}
+										<div class="ui-field">
+											<label class="ui-label" for={ "basis-" + r.ID }>{ i18n.T(ctx, i18n.KeyAdminRetAssessBasis) }</label>
+											<input
+												class="ui-input"
+												id={ "basis-" + r.ID }
+												name="basis"
+												maxlength="500"
+												autocomplete="off"
+												value={ r.AssessmentBasis }
+												aria-describedby={ "basis-" + r.ID + "-error" }
+												if v.FieldInvalid(r.ID, "basis") {
+													aria-invalid="true"
+												}
+											/>
+											<p class="ui-error-text" id={ "basis-" + r.ID + "-error" }>{ v.FieldError(r.ID, "basis") }</p>
+										</div>
+										<div class="goen-admin__decidebtns">
+											<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminRetAssessButton) }</button>
+										</div>
+									</form>
+								}
 								<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.Action()) }>
+									<input type="hidden" name="assessment_version" value={ r.AssessmentVersionText() }/>
+									<p class="ui-error-text" id={ "decision-" + r.ID + "-error" } role="alert">{ v.FieldError(r.ID, "decision") }</p>
 									<div class="ui-field">
 										<label class="ui-label" for={ "res-" + r.ID }>{ i18n.T(ctx, i18n.KeyAdminRetResolution) }</label>
-										<input class="ui-input" id={ "res-" + r.ID } name="resolution" maxlength="300" autocomplete="off"/>
+										<input
+											class="ui-input"
+											id={ "res-" + r.ID }
+											name="resolution"
+											maxlength="300"
+											autocomplete="off"
+											value={ r.Resolution }
+											aria-describedby={ "res-" + r.ID + "-error" }
+											if v.FieldInvalid(r.ID, "resolution") {
+												aria-invalid="true"
+											}
+										/>
+										<p class="ui-error-text" id={ "res-" + r.ID + "-error" }>{ v.FieldError(r.ID, "resolution") }</p>
 									</div>
 									<div class="goen-admin__decidebtns">
-										<button class="ui-btn ui-btn--primary" type="submit" name="decision" value="approved">
-											{ i18n.T(ctx, i18n.KeyAdminRetApprove) }
-										</button>
-										<button class="ui-btn ui-btn--secondary" type="submit" name="decision" value="rejected">
-											{ i18n.T(ctx, i18n.KeyAdminRetReject) }
-										</button>
+										if !r.Late() {
+											<button class="ui-btn ui-btn--primary" type="submit" name="decision" value="approved">
+												{ i18n.T(ctx, i18n.KeyAdminRetApprove) }
+											</button>
+										}
+										if r.Goodwill() || r.Mixed() || r.Late() {
+											<button class="ui-btn ui-btn--secondary" type="submit" name="decision" value="exception">
+												{ i18n.T(ctx, i18n.KeyAdminRetException) }
+											</button>
+										}
+										if !r.Rescission() {
+											<button class="ui-btn ui-btn--secondary" type="submit" name="decision" value="rejected">
+												{ i18n.T(ctx, i18n.KeyAdminRetReject) }
+											</button>
+										}
 									</div>
 								</form>
 							} else if r.CanRetryPayout() {
@@ -173,4 +244,48 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 			}
 		</div>
 	}
+}
+
+templ eligibilityFactRadios(returnID string, l AdminReturnLine, name string, label i18n.Key, v AdminReturnsView) {
+	<fieldset class="ui-field">
+		<legend class="ui-label">{ i18n.T(ctx, label) }</legend>
+		<p class="ui-error-text" id={ name + "-" + l.OrderLineID + "-error" } role="alert">{ v.FieldError(returnID, name+"-"+l.OrderLineID) }</p>
+		<label>
+			<input
+				type="radio"
+				name={ name + "_" + l.OrderLineID }
+				value="unknown"
+				aria-describedby={ name + "-" + l.OrderLineID + "-error" }
+				if l.FactChecked(name, "unknown") {
+					checked
+				}
+				if v.FieldInvalid(returnID, name+"-"+l.OrderLineID) {
+					aria-invalid="true"
+				}
+			/>
+			{ i18n.T(ctx, i18n.KeyAdminRetFactUnknown) }
+		</label>
+		<label>
+			<input
+				type="radio"
+				name={ name + "_" + l.OrderLineID }
+				value="met"
+				if l.FactChecked(name, "met") {
+					checked
+				}
+			/>
+			{ i18n.T(ctx, i18n.KeyAdminRetFactMet) }
+		</label>
+		<label>
+			<input
+				type="radio"
+				name={ name + "_" + l.OrderLineID }
+				value="unmet"
+				if l.FactChecked(name, "unmet") {
+					checked
+				}
+			/>
+			{ i18n.T(ctx, i18n.KeyAdminRetFactUnmet) }
+		</label>
+	</fieldset>
 }
