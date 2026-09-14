@@ -34,8 +34,8 @@ templ Wishlist(p layouts.Page, v WishlistView) {
 			} else {
 				<ul class="goen-tiles__grid" role="list">
 					for _, t := range v.Products {
-						<li class="goen-wish">
-							@Tile(t)
+						<li class="goen-wish goen-tile__cell">
+							@tileCard(t)
 							<form method="post" action="/account/wishlist" class="goen-wish__remove">
 								<input type="hidden" name="slug" value={ t.Slug }/>
 								<input type="hidden" name="action" value="remove"/>

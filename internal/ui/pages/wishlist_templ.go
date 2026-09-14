@@ -135,11 +135,11 @@ func Wishlist(p layouts.Page, v WishlistView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				for _, t := range v.Products {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<li class=\"goen-wish\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<li class=\"goen-wish goen-tile__cell\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = Tile(t).Render(ctx, templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = tileCard(t).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
