@@ -28,7 +28,7 @@ templ Product(p layouts.Page, v *ProductView) {
 				@productGallery(v)
 				@productBuy(v)
 			</div>
-			if v.Description != "" || v.HasSpecs() {
+			if v.Description != "" || v.HasSpecs() || v.HasWarranty() || v.WarrantyNote != "" {
 				<div class="goen-pdp__detail">
 					if v.Description != "" {
 						<section class="goen-pdp__desc" aria-labelledby="desc-heading">
