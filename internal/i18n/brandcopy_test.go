@@ -126,7 +126,7 @@ func TestChineseHeroLedeDoesNotOrphanAShortTail(t *testing.T) {
 
 func wrapEqualCells(s string, width int) []string {
 	var lines []string
-	var cur []rune
+	cur := make([]rune, 0, len(s))
 	for _, r := range s {
 		cur = append(cur, r)
 		if len(cur) == width {
