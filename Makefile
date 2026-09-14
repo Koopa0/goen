@@ -27,7 +27,8 @@ endif
 .PHONY: build run test test-race test-integration production-build-check integration-build-check \
         image image-push lint fmt fmt-check vet deadcode gen templ-check vuln \
         sqlc sqlc-check squawk db-up db-down migrate-up migrate-down db-seed \
-        db-repair-invoice-faq db-repair-refund-faq \
+        db-repair-invoice-faq db-repair-refund-faq db-seed-restore \
+        restore-drill restore-drill-app \
         cursor-scripts-check workflow-check verify verify-all check-layout db-reset clean
 
 build: gen
@@ -606,6 +607,12 @@ db-seed:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
 	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/dev_catalog.sql
 
+# Representative commerce state for owned restore drills: paid/unpaid/expired
+# orders, partial refunds, pending work and stored image bytes.
+db-seed-restore:
+	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
+	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/restore_fixture.sql
+
 # Rewrite the published invoice FAQ on a database that already has one.
 # db-seed cannot: the catalogue INSERT stops on the first kept brand.
 # This file updates that one question and nothing else.
@@ -865,8 +872,54 @@ restore-drill:
 		echo '  -  is the live database at the dump'"'"'s snapshot; +  is what came back.'; \
 		cat "$$work/rows.diff"; \
 	fi; \
+	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -At -f internal/restore/manifest.sql > "$$work/manifest-live.raw"; \
+	sort "$$work/manifest-live.raw" > "$$work/manifest-live.txt"; \
+	psql "$$copyurl" -v ON_ERROR_STOP=1 -At -f internal/restore/manifest.sql > "$$work/manifest-copy.raw"; \
+	sort "$$work/manifest-copy.raw" > "$$work/manifest-copy.txt"; \
+	test -s "$$work/manifest-live.txt" || { echo 'restore-drill: the live business manifest came back EMPTY; nothing was compared' >&2; exit 3; }; \
+	if diff -u "$$work/manifest-live.txt" "$$work/manifest-copy.txt" > "$$work/manifest.diff"; then \
+		echo 'restore-drill: business manifest: PASS'; \
+	else \
+		business_fail=1; \
+		echo 'restore-drill: FAIL — the restored BUSINESS MANIFEST does not match the snapshot.'; \
+		echo '  Row counts alone are not enough; this oracle covers holds, ledgers,'; \
+		echo '  payment/refund summaries and media byte digests without customer secrets.'; \
+		echo '  -  is the live database; +  is what came back.'; \
+		cat "$$work/manifest.diff"; \
+	fi; \
+	backup_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ); \
+	recovery_end=$$(date -u +%Y-%m-%dT%H:%M:%SZ); \
+	echo "restore-drill: backup_at=$$backup_at recovery_end=$$recovery_end destination=$$copy commit=$$(git rev-parse HEAD 2>/dev/null || echo unknown)"; \
 	test "$$fail" -eq 0 || exit 1; \
-	echo 'restore-drill: PASS — same catalog, same dump-carried grants, same exact row counts'
+	test "$${business_fail:-0}" -eq 0 || exit 1; \
+	echo 'restore-drill: PASS — same catalog, same dump-carried grants, same exact row counts, same business manifest'
+
+# Exercise the production binary against a restored throwaway database. Run
+# after restore-drill on the same GOEN_DATABASE_URL family. Provider doubles
+# only: no live mail or payment side effects.
+.PHONY: restore-drill-app
+restore-drill-app:
+	@test -n "$${GOEN_RESTORE_DATABASE_URL:-}" || { echo 'GOEN_RESTORE_DATABASE_URL is required: the restored throwaway database' >&2; exit 2; }
+	@set -eu; \
+	addr=$${GOEN_RESTORE_ADDR:-127.0.0.1:19701}; \
+	log=$$(mktemp); \
+	$(MAKE) build >/dev/null; \
+	GOEN_DATABASE_URL="$$GOEN_RESTORE_DATABASE_URL" \
+	GOEN_ADMIN_DATABASE_URL="$$GOEN_RESTORE_DATABASE_URL" \
+	GOEN_MAINTENANCE_DATABASE_URL="$$GOEN_RESTORE_DATABASE_URL" \
+	GOEN_ADDR="$$addr" GOEN_INSECURE_COOKIES=1 GOEN_LOG_LEVEL=error \
+	./bin/goen >"$$log" 2>&1 & pid=$$!; \
+	trap 'kill $$pid 2>/dev/null || true; wait $$pid 2>/dev/null || true; rm -f "$$log"' EXIT; \
+	for i in $$(seq 1 50); do \
+		curl -sf -o /dev/null "http://$$addr/" && break; \
+		sleep 0.2; \
+	done; \
+	curl -sf "http://$$addr/p/pixelight-9-pro" | grep -q 'Pixelight 9 Pro 5G'; \
+	digest=$$(psql "$$GOEN_RESTORE_DATABASE_URL" -At -v ON_ERROR_STOP=1 -c \
+		"SELECT encode(sha256(decode('010203726573746f7265', 'hex')), 'hex')"); \
+	curl -sf -o /dev/null "http://$$addr/media/$$digest"; \
+	curl -sf "http://$$addr/orders/find" -o /dev/null; \
+	echo 'restore-drill-app: PASS — catalog, media and customer order surfaces answered on the restored database'
 
 db-reset:
 	docker compose exec -T db dropdb -U goen --if-exists --force goen
