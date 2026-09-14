@@ -71,7 +71,7 @@ var (
 	})
 
 	KeyHeroBody = key("home.hero.body", Message{
-		ZhHant: "也賣穿戴裝置與配件。保固期限寫在各商品頁。",
+		ZhHant: "也賣穿戴裝置與配件。保固見商品頁。",
 		En:     "Tablets, headphones, wearables and accessories as well. Warranty terms are on each product page.",
 	})
 

@@ -98,3 +98,44 @@ func TestBuiltInHeroNamesTheCatalogue(t *testing.T) {
 		}
 	}
 }
+
+// heroLedeCells is how many Han cells the 375px hero lede holds once Noto
+// Sans TC has loaded: the box is 301px and the face is 16px.
+const heroLedeCells = 18
+
+func TestChineseHeroLedeDoesNotOrphanAShortTail(t *testing.T) {
+	t.Parallel()
+
+	body := messages[KeyHeroBody].ZhHant
+	if !strings.Contains(body, "穿戴") || !strings.Contains(body, "配件") ||
+		!strings.Contains(body, "商品頁") {
+		t.Fatalf("lede %q dropped a category or the warranty location", body)
+	}
+
+	lines := wrapEqualCells(body, heroLedeCells)
+	if len(lines) == 0 {
+		t.Fatal("the Chinese hero lede is empty")
+	}
+	tail := []rune(lines[len(lines)-1])
+	// 品頁。 is three cells — the wrap #268 refuses at 375px.
+	if len(lines) > 1 && len(tail) < 4 {
+		t.Errorf("lede %q wraps to a %d-cell tail %q at %d cells",
+			body, len(tail), lines[len(lines)-1], heroLedeCells)
+	}
+}
+
+func wrapEqualCells(s string, width int) []string {
+	var lines []string
+	var cur []rune
+	for _, r := range s {
+		cur = append(cur, r)
+		if len(cur) == width {
+			lines = append(lines, string(cur))
+			cur = nil
+		}
+	}
+	if len(cur) > 0 {
+		lines = append(lines, string(cur))
+	}
+	return lines
+}
