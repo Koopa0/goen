@@ -29,6 +29,7 @@ import (
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/site"
+	"github.com/koopa0/goen/internal/telemetry"
 	"github.com/koopa0/goen/internal/twofactor"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/warranty"
@@ -341,6 +342,12 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /admin/questions/{id}", back.RequireStaff(back.AnswerQuestion))
 	mux.HandleFunc("GET /admin/health", back.RequireStaff(back.Health))
 	mux.HandleFunc("POST /admin/health/reconcile", back.RequireStaff(back.ReconcilePayment))
+	if telemetry.DiagnosticsEnabled() {
+		diag := http.StripPrefix("/admin/diagnostics", telemetry.DiagnosticsHandler())
+		mux.Handle("/admin/diagnostics/", back.RequireStaff(func(w http.ResponseWriter, r *http.Request) {
+			diag.ServeHTTP(w, r)
+		}))
+	}
 	mux.HandleFunc("GET /admin/reports", back.RequireStaff(back.Reports))
 	mux.HandleFunc("GET /admin/taxonomy", back.RequireStaff(back.Taxonomy))
 	mux.HandleFunc("POST /admin/taxonomy/{kind}", back.RequireStaff(back.CreateTaxon))
@@ -366,9 +373,9 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /", pages.NotFound)
 
 	// Applied inner to outer, so a request passes through them in the reverse of
-	// this order. The chrome middleware fills what every page shows, and the
-	// locale is on the context before any handler or template reads it.
-	var handler http.Handler = mux
+	// this order. Instrument the mux before chrome middleware so ServeMux can
+	// stamp Pattern on the request telemetry reads after routing.
+	var handler = telemetry.HTTP(mux)
 	handler = withBanner(handler, home.NewStore(pool), log, secureCookies)
 	handler = withTopNav(handler, home.NewStore(pool), log)
 	handler = withStaffEntrance(handler)
@@ -386,7 +393,8 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 
 // withRequestTracing wraps a handler with the request log, panic recovery,
 // and identifier middleware. withRequestID is outermost so recovery sees the
-// same context the response header was stamped from.
+// same context the response header was stamped from. HTTP spans are opened on
+// the mux in newRouter so Pattern is populated before the span ends.
 func withRequestTracing(next http.Handler, log *slog.Logger) http.Handler {
 	next = requestLog(next, log)
 	next = recoverPanic(next, log)

@@ -189,15 +189,15 @@ func TestTheCacheIsBoundedAndEvictsTheLeastRecentlyUsed(t *testing.T) {
 		return "", nil, nil
 	}, 1, limit)
 
-	r.put("a", "image/png", make([]byte, 200))
-	r.put("b", "image/png", make([]byte, 200))
+	r.put(t.Context(), "a", "image/png", make([]byte, 200))
+	r.put(t.Context(), "b", "image/png", make([]byte, 200))
 
 	// Touching "a" makes "b" the least recently used, so the next insert must
 	// take "b" — under a first-in policy it would take "a".
 	if _, _, ok := r.cached("a"); !ok {
 		t.Fatal("a was not stored")
 	}
-	r.put("c", "image/png", make([]byte, 200))
+	r.put(t.Context(), "c", "image/png", make([]byte, 200))
 
 	for _, key := range []string{"a", "c"} {
 		if _, _, ok := r.cached(key); !ok {
@@ -220,7 +220,7 @@ func TestTheCacheIsBoundedAndEvictsTheLeastRecentlyUsed(t *testing.T) {
 	}
 
 	// One entry bigger than the whole cache is not stored at all.
-	r.put("huge", "image/jpeg", make([]byte, limit+1))
+	r.put(t.Context(), "huge", "image/jpeg", make([]byte, limit+1))
 	if _, _, ok := r.cached("huge"); ok {
 		t.Error("an entry larger than the cache was stored")
 	}
