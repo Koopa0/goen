@@ -171,6 +171,7 @@ const (
 	RefuseUseApprove      RefusalKind = "use_approve"
 	RefuseEmpty           RefusalKind = "empty"
 	RefuseStale           RefusalKind = "stale"
+	RefuseExceptionReason RefusalKind = "exception_reason"
 )
 
 // RefusalError is a policy refusal with a stable kind.

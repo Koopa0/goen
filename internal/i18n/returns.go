@@ -265,6 +265,11 @@ var (
 		En:     "Say what this assessment is based on, in at most 500 characters.",
 	})
 
+	KeyAdminRetErrExceptionReason = key("admin.ret.err.exceptionreason", Message{
+		ZhHant: "人工例外必須寫下核准理由，空白或只有空白字元不能付款。",
+		En:     "A staff exception needs a recorded reason; blank or whitespace cannot pay.",
+	})
+
 	KeyAdminRetRetryPayout = key("admin.ret.retrypayout", Message{
 		ZhHant: "重新退款",
 		En:     "Send the refund again",

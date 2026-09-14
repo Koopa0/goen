@@ -32,7 +32,11 @@ type AdminReturn struct {
 	AssessmentVersion int32
 	AssessmentBasis   string
 	AssessedAt        string
-	Decided           bool
+	// Resolution is the staff note still in the decide form. It is empty on a
+	// first paint and holds the submitted text after a 422 so the reason is
+	// not lost.
+	Resolution string
+	Decided    bool
 	// Decided and settled are separate facts: approval is committed before the
 	// provider or credit ledger completes what the shop owes.
 	PayoutOutstanding bool

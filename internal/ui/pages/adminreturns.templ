@@ -134,11 +134,13 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 											name="resolution"
 											maxlength="300"
 											autocomplete="off"
-											aria-describedby={ "decision-" + r.ID + "-error" }
-											if v.FieldInvalid(r.ID, "decision") {
+											value={ r.Resolution }
+											aria-describedby={ "res-" + r.ID + "-error" }
+											if v.FieldInvalid(r.ID, "resolution") {
 												aria-invalid="true"
 											}
 										/>
+										<p class="ui-error-text" id={ "res-" + r.ID + "-error" }>{ v.FieldError(r.ID, "resolution") }</p>
 									</div>
 									<div class="goen-admin__decidebtns">
 										if !r.Late() {

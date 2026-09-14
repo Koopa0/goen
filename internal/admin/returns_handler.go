@@ -187,6 +187,9 @@ func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, er
 		if basis := strings.TrimSpace(r.PostFormValue("basis")); basis != "" {
 			view.Rows[i].AssessmentBasis = basis
 		}
+		if resolution := r.PostFormValue("resolution"); resolution != "" {
+			view.Rows[i].Resolution = resolution
+		}
 		overlayDraftFacts(&view.Rows[i], r)
 	}
 	web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminReturns(
@@ -226,6 +229,7 @@ var refusalKeys = map[returns.RefusalKind]i18n.Key{
 	returns.RefuseUseApprove:      i18n.KeyAdminRetErrUseApprove,
 	returns.RefuseStale:           i18n.KeyAdminRetErrStale,
 	returns.RefuseEmpty:           i18n.KeyAdminRetErrIncomplete,
+	returns.RefuseExceptionReason: i18n.KeyAdminRetErrExceptionReason,
 }
 
 // Inspect serves POST /admin/returns/{id}/inspect, one form per parcel.

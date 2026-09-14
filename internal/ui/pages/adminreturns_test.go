@@ -284,6 +284,27 @@ func TestAnApprovedReturnWithMoneyOutstandingOffersToSendItAgain(t *testing.T) {
 		}
 	})
 
+	t.Run("a refused exception keeps the typed reason and marks the field", func(t *testing.T) {
+		row := base("except-row")
+		row.Status = "requested"
+		row.Decided = false
+		row.Window = "after"
+		row.Resolution = "   "
+		html := renderToString(t, AdminReturns(layouts.Page{Title: "退貨"}, AdminReturnsView{
+			Rows:   []AdminReturn{row},
+			Errors: map[string]string{"except-row.resolution": "need a reason"},
+		}))
+		if !strings.Contains(html, `value="   "`) {
+			t.Error("422 dropped the typed whitespace reason")
+		}
+		if !strings.Contains(html, `id="res-except-row"`) || !strings.Contains(html, `aria-invalid="true"`) {
+			t.Error("422 did not mark the resolution field")
+		}
+		if !strings.Contains(html, "need a reason") {
+			t.Error("422 hid the field-specific refusal")
+		}
+	})
+
 	t.Run("a settled payout has no decision action", func(t *testing.T) {
 		row := base("settled-row")
 		row.Decided = true

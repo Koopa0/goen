@@ -343,6 +343,94 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		}
 	})
 
+	t.Run("unexplained exception stays open", func(t *testing.T) {
+		for _, resolution := range []string{"", "   "} {
+			delivered := shopNoonDaysAgo(t, 15)
+			number, lineID := deliveredOrderAt(t, delivered)
+			if err := customer.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
+				Reason: "", Lines: map[string]int32{lineID.String(): 1},
+			}); err != nil {
+				t.Fatalf("open day-15 return: %v", err)
+			}
+			requestID := openReturnID(t, number)
+			if err := s.Decide(ctx, requestID.String(), "exception", resolution, "", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
+				t.Fatalf("unexplained exception %q = %v, want ErrRefused", resolution, err)
+			}
+			status, refunds := returnPayout(t, requestID)
+			if status != "requested" || refunds != 0 {
+				t.Errorf("unexplained exception left %q with %d refunds, want requested/0", status, refunds)
+			}
+			if received, restocked := inspectionCounts(t, requestID); received || restocked {
+				t.Errorf("unexplained exception wrote receive/restock = %t/%t, want neither", received, restocked)
+			}
+		}
+	})
+
+	t.Run("handler unexplained exception is 422 and keeps the draft", func(t *testing.T) {
+		delivered := shopNoonDaysAgo(t, 15)
+		number, lineID := deliveredOrderAt(t, delivered)
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
+			Reason: "", Lines: map[string]int32{lineID.String(): 1},
+		}); err != nil {
+			t.Fatalf("open day-15 return: %v", err)
+		}
+		requestID := openReturnID(t, number)
+		h := adminHandlerOver(pool, s)
+		form := url.Values{"decision": {"exception"}, "resolution": {"   "}}
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+			"/admin/returns/"+requestID.String()+"/decide", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.SetPathValue("id", requestID.String())
+		res := httptest.NewRecorder()
+		h.Decide(res, req)
+		if res.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("blank exception HTTP = %d, want 422", res.Code)
+		}
+		body := res.Body.String()
+		if !strings.Contains(body, `aria-invalid="true"`) {
+			t.Error("422 did not mark the resolution field")
+		}
+		if !strings.Contains(body, `value="   "`) {
+			t.Error("422 dropped the typed whitespace reason")
+		}
+		status, refunds := returnPayout(t, requestID)
+		if status != "requested" || refunds != 0 {
+			t.Errorf("handler blank exception left %q/%d, want requested/0", status, refunds)
+		}
+	})
+
+	t.Run("approved exception retry does not demand a new reason", func(t *testing.T) {
+		delivered := shopNoonDaysAgo(t, 15)
+		number, lineID := deliveredOrderAt(t, delivered)
+		if err := customer.Open(ctx, number, uuid.NullUUID{}, &returns.Request{
+			Reason: "", Lines: map[string]int32{lineID.String(): 1},
+		}); err != nil {
+			t.Fatalf("open day-15 return: %v", err)
+		}
+		requestID := openReturnID(t, number)
+		stalled := admin.NewStore(pool, fakeRefunder{
+			refundErr: errors.New("read tcp 1.2.3.4:443: i/o timeout"),
+		}, nil, nil)
+		if err := stalled.Decide(ctx, requestID.String(), "exception", "beyond 14 days", "", uuid.NullUUID{}); err == nil {
+			t.Fatal("a timed-out exception payout was reported as complete")
+		}
+		status, refunds := returnPayout(t, requestID)
+		if status != "approved" || refunds != 1 {
+			t.Fatalf("stalled exception is %q/%d, want approved/1", status, refunds)
+		}
+		healthy := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+		if err := healthy.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{}); err != nil {
+			t.Fatalf("retry approved exception payout without a new reason: %v", err)
+		}
+		status, refunds = returnPayout(t, requestID)
+		if status != "approved" || refunds != 1 {
+			t.Errorf("retried exception is %q/%d, want approved/1", status, refunds)
+		}
+		if got := decisionClaim(t, requestID); got != "exception" {
+			t.Errorf("retried entitlement = %q, want exception", got)
+		}
+	})
+
 	t.Run("undelivered keeps the existing decide path", func(t *testing.T) {
 		requestID, _ := returnedOrder(t, 1)
 		if window := queueWindow(t, s, requestID); window != "undelivered" {

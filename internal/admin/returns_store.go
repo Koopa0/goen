@@ -46,6 +46,19 @@ func validReturnResolution(s string) bool {
 	return utf8.ValidString(s) && utf8.RuneCountInString(s) <= maxReturnResolutionRunes
 }
 
+// A first exception is the shop paying outside an advertised right.
+// Without a recorded reason the audit cannot say why the money moved.
+// Retries never call this: they resume an already-decided claim.
+func requireExceptionReason(kind returns.DecisionKind, resolution string) error {
+	if kind != returns.DecisionException {
+		return nil
+	}
+	if strings.TrimSpace(resolution) != "" {
+		return nil
+	}
+	return formRefuse("resolution", returns.RefuseExceptionReason)
+}
+
 // ReturnQueue is the back-office return view plus operator-only diagnostics.
 // Diagnostics stay out of the rendered page but cross the Store boundary so
 // the handler can record quantitative source inconsistencies.
@@ -389,6 +402,9 @@ func (s *Store) Decide(
 			return positionErr
 		}
 		return s.retryApprovedReturn(ctx, &row, position, actor)
+	}
+	if err := requireExceptionReason(kind, resolution); err != nil {
+		return err
 	}
 
 	// THE CLAIM, and it commits before a cent moves. Two staff members deciding
