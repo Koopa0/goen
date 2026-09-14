@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -586,8 +587,12 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		if res.Code != http.StatusUnprocessableEntity {
 			t.Fatalf("approve unknown facts = %d, want 422", res.Code)
 		}
-		if !strings.Contains(res.Body.String(), `aria-invalid="true"`) {
-			t.Error("422 did not mark a field aria-invalid")
+		body := res.Body.String()
+		if !strings.Contains(body, `role="alert"`) {
+			t.Error("422 did not announce the decision refusal")
+		}
+		if !strings.Contains(body, i18n.T(ctx, i18n.KeyAdminRetErrIncomplete)) {
+			t.Error("422 hid the incomplete-assessment refusal")
 		}
 		status, refunds := returnPayout(t, requestID)
 		if status != "requested" || refunds != 0 {
