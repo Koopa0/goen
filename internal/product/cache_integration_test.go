@@ -135,7 +135,7 @@ func TestPresentationRevisionAdvancesOnStaffEdit(t *testing.T) {
 		t.Fatalf("staff edit: %v", execErr)
 	}
 	t.Cleanup(func() {
-		_, _ = pool.Exec(context.Background(),
+		_, _ = pool.Exec(t.Context(),
 			`UPDATE products SET name = $1 WHERE slug = $2`, viewBefore.Name, slug)
 	})
 
@@ -163,7 +163,7 @@ func TestUnpublishedProductIsNotServedFromCache(t *testing.T) {
 		t.Fatalf("unpublish: %v", execErr)
 	}
 	t.Cleanup(func() {
-		_, _ = pool.Exec(context.Background(),
+		_, _ = pool.Exec(t.Context(),
 			`UPDATE products SET status = 'active' WHERE slug = $1`, slug)
 	})
 	if _, err := store.Load(ctx, slug, nil); !errors.Is(err, product.ErrNotFound) {
@@ -270,7 +270,7 @@ func TestCheckoutStillValidatesLivePriceAfterWarmCache(t *testing.T) {
 		t.Fatalf("raise price: %v", execErr)
 	}
 	t.Cleanup(func() {
-		_, _ = pool.Exec(context.Background(),
+		_, _ = pool.Exec(t.Context(),
 			`UPDATE product_variants SET price_cents = price_cents - 100
 			 WHERE product_id = (SELECT id FROM products WHERE slug = $1)`, slug)
 	})
