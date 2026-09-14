@@ -323,6 +323,20 @@ func evaluateReject(
 	return Claim{}, refuse(RefuseNoUnmet)
 }
 
+func exceptionGround(goodwillUnmet, hasLate, hasUndelivered bool) bool {
+	return goodwillUnmet || hasLate || hasUndelivered
+}
+
+func evaluateGoodwillException(goodwillUnmet, goodwillAllMet bool) (Claim, error) {
+	if goodwillAllMet {
+		return Claim{}, refuse(RefuseUseApprove)
+	}
+	if goodwillUnmet {
+		return Claim{Window: WindowGoodwill, Entitlement: EntitlementException}, nil
+	}
+	return Claim{}, refuse(RefuseNeedException)
+}
+
 func evaluateException(
 	window PolicyWindow,
 	hasStatutory, hasGoodwill, hasLate, hasUndelivered bool,
@@ -338,21 +352,16 @@ func evaluateException(
 		return Claim{}, refuse(RefuseIncomplete)
 	}
 	if window == WindowGoodwill {
-		if goodwillAllMet {
-			return Claim{}, refuse(RefuseUseApprove)
-		}
-		if goodwillUnmet {
-			return Claim{Window: WindowGoodwill, Entitlement: EntitlementException}, nil
-		}
-		return Claim{}, refuse(RefuseNeedException)
+		return evaluateGoodwillException(goodwillUnmet, goodwillAllMet)
 	}
 	if window == WindowLate || window == WindowUndelivered {
 		return Claim{Window: window, Entitlement: EntitlementException}, nil
 	}
-	if hasStatutory && (goodwillUnmet || hasLate || hasUndelivered) {
+	ground := exceptionGround(goodwillUnmet, hasLate, hasUndelivered)
+	if hasStatutory && ground {
 		return Claim{Window: WindowMixed, Entitlement: EntitlementException}, nil
 	}
-	if goodwillUnmet || hasLate || hasUndelivered {
+	if ground {
 		return Claim{Window: window, Entitlement: EntitlementException}, nil
 	}
 	return Claim{}, refuse(RefuseNeedException)
