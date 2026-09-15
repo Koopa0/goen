@@ -79,9 +79,6 @@ type AddCampaignProductParams struct {
 	Product  string
 }
 
-// ONE statement: sale_campaign_needs_discount refuses a product with nothing
-// marked down and takes a lock on it first, so a check here would be a check a
-// concurrent price change invalidates.
 func (q *Queries) AddCampaignProduct(ctx context.Context, arg AddCampaignProductParams) (int64, error) {
 	result, err := q.db.Exec(ctx, addCampaignProduct, arg.Campaign, arg.Product)
 	if err != nil {
@@ -4102,8 +4099,6 @@ type CreateFAQEntryParams struct {
 	AnswerEn   string
 }
 
-// The position is computed WITHIN the category, because faq_entries_position_key
-// is unique on (category, position).
 func (q *Queries) CreateFAQEntry(ctx context.Context, arg CreateFAQEntryParams) error {
 	_, err := q.db.Exec(ctx, createFAQEntry,
 		arg.Category,
@@ -6495,6 +6490,21 @@ func (q *Queries) LockAvailableCredit(ctx context.Context, userID uuid.UUID) (in
 	return column_1, err
 }
 
+const lockCampaignAppendPosition = `-- name: LockCampaignAppendPosition :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    'append:campaign:' || c.id::text, 628471039582915603::bigint))
+FROM sale_campaigns c
+WHERE c.slug = $1::text
+`
+
+// ONE statement: sale_campaign_needs_discount refuses a product with nothing
+// marked down and takes a lock on it first, so a check here would be a check a
+// concurrent price change invalidates.
+func (q *Queries) LockCampaignAppendPosition(ctx context.Context, campaign string) error {
+	_, err := q.db.Exec(ctx, lockCampaignAppendPosition, campaign)
+	return err
+}
+
 const lockCartCatalogue = `-- name: LockCartCatalogue :exec
 SELECT lock_cart_catalogue($1::uuid)
 `
@@ -6558,6 +6568,18 @@ func (q *Queries) LockCouponForCheckout(ctx context.Context, code string) error 
 	return err
 }
 
+const lockFAQAppendPosition = `-- name: LockFAQAppendPosition :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    'append:faq:' || $1::text, 628471039582915603::bigint))
+`
+
+// The position is computed WITHIN the category, because faq_entries_position_key
+// is unique on (category, position).
+func (q *Queries) LockFAQAppendPosition(ctx context.Context, category string) error {
+	_, err := q.db.Exec(ctx, lockFAQAppendPosition, category)
+	return err
+}
+
 const lockGoogleSubject = `-- name: LockGoogleSubject :exec
 SELECT pg_advisory_xact_lock(hashtextextended('google:' || $1::text, 0))
 `
@@ -6566,6 +6588,16 @@ SELECT pg_advisory_xact_lock(hashtextextended('google:' || $1::text, 0))
 // Workspace address can be reassigned to somebody else.
 func (q *Queries) LockGoogleSubject(ctx context.Context, subject string) error {
 	_, err := q.db.Exec(ctx, lockGoogleSubject, subject)
+	return err
+}
+
+const lockHeroAppendPosition = `-- name: LockHeroAppendPosition :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    'append:hero_slides', 628471039582915603::bigint))
+`
+
+func (q *Queries) LockHeroAppendPosition(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, lockHeroAppendPosition)
 	return err
 }
 
