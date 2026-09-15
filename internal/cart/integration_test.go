@@ -30,6 +30,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -5232,6 +5233,73 @@ func testLimiter() *ratelimit.Limiter {
 	return ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000})
 }
 
+func assertPlacementGrantFailurePage(t *testing.T, body, orderNumber string) {
+	t.Helper()
+	if !strings.Contains(body, "/orders/find") {
+		t.Fatal("placement grant failure did not offer find-order recovery")
+	}
+	zh := i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyPlacementGrantFailedBody)
+	if !strings.Contains(body, zh) {
+		t.Fatalf("placement grant failure body missing recovery copy: %q", body)
+	}
+	if strings.Contains(body, i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyCartUnavailable)) {
+		t.Fatal("placement grant failure used the generic cart-unavailable notice")
+	}
+	if orderNumber != "" && strings.Contains(body, orderNumber) {
+		t.Fatal("placement grant failure leaked the order number")
+	}
+}
+
+func assertFindOrderGrantFailurePage(t *testing.T, body string) {
+	t.Helper()
+	if !strings.Contains(body, "/orders/find") {
+		t.Fatal("find-order grant failure did not offer find-order recovery")
+	}
+	zh := i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyFindOrderGrantFailedBody)
+	if !strings.Contains(body, zh) {
+		t.Fatalf("find-order grant failure body missing recovery copy: %q", body)
+	}
+	if strings.Contains(body, i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyPlacementGrantFailedBody)) {
+		t.Fatal("find-order grant failure reused placement recovery copy")
+	}
+}
+
+func testPayHandler(t *testing.T, s *cart.Store) *payment.Handler {
+	t.Helper()
+	gateway, err := payment.NewGateway("", "", "")
+	if err != nil {
+		t.Fatalf("gateway: %v", err)
+	}
+	return payment.NewHandler(payment.NewStore(pool), gateway, s, slog.New(slog.DiscardHandler), false)
+}
+
+func followPayWithCookie(
+	t *testing.T, ctx context.Context, payH *payment.Handler, number string, cookie *http.Cookie,
+) {
+	t.Helper()
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number+"/pay", http.NoBody)
+	req.SetPathValue("number", number)
+	req.AddCookie(cookie)
+	res := httptest.NewRecorder()
+	payH.Page(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("issued cookie could not reach pay page for %s: %d", number, res.Code)
+	}
+}
+
+func assertPayUnreachableWithoutGrant(
+	t *testing.T, ctx context.Context, payH *payment.Handler, number string,
+) {
+	t.Helper()
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number+"/pay", http.NoBody)
+	req.SetPathValue("number", number)
+	res := httptest.NewRecorder()
+	payH.Page(res, req)
+	if res.Code != http.StatusNotFound {
+		t.Fatalf("unrelated browser reached pay page for %s: %d, want 404", number, res.Code)
+	}
+}
+
 // placeUnpaidOrderFor places one order for an address, through the store's own
 // checkout.
 func placeUnpaidOrderFor(t *testing.T, s *cart.Store, address string) string {
@@ -5844,6 +5912,7 @@ func TestGrantFailureAfterCommittedPlacementDoesNotRedirectTo404(t *testing.T) {
 	if res.Code != http.StatusInternalServerError {
 		t.Fatalf("grant failure answered %d, want 500 Internal Server Error", res.Code)
 	}
+	assertPlacementGrantFailurePage(t, res.Body.String(), "")
 	for _, c := range res.Result().Cookies() {
 		if c.Name == "goen_placed" {
 			t.Fatal("grant failure response issued a goen_placed cookie")
@@ -5862,6 +5931,19 @@ func TestGrantFailureAfterCommittedPlacementDoesNotRedirectTo404(t *testing.T) {
 	}
 	if orderCount != 1 {
 		t.Fatalf("order count for %s = %d, want exactly 1 committed order", addr.Email, orderCount)
+	}
+	assertPlacementGrantFailurePage(t, res.Body.String(), orderNumber)
+
+	var reserved int32
+	if err := pool.QueryRow(ctx, `
+		SELECT coalesce(sum(ir.quantity), 0) FROM inventory_reservations ir
+		JOIN orders o ON o.id = ir.order_id
+		WHERE o.order_number = $1 AND ir.variant_id = $2 AND ir.state = 'held'`,
+		orderNumber, variant).Scan(&reserved); err != nil {
+		t.Fatalf("read stock hold after grant failure: %v", err)
+	}
+	if reserved != 1 {
+		t.Fatalf("order %s holds %d units after grant failure, want 1", orderNumber, reserved)
 	}
 
 	// Verify that replay with prior attempt also encounters grant failure and answers 500 rather than 303.
@@ -5908,6 +5990,20 @@ func TestGrantFailureAfterCommittedPlacementDoesNotRedirectTo404(t *testing.T) {
 	}
 	if placedCookie == nil {
 		t.Fatal("recovered replay set no goen_placed cookie")
+	}
+
+	payH := testPayHandler(t, s)
+	followPayWithCookie(t, ctx, payH, orderNumber, placedCookie)
+	assertPayUnreachableWithoutGrant(t, ctx, payH, orderNumber)
+
+	wrong := httptest.NewRequestWithContext(ctx, http.MethodGet,
+		"/orders/"+nextOrderNumber(orderNumber)+"/pay", http.NoBody)
+	wrong.SetPathValue("number", nextOrderNumber(orderNumber))
+	wrong.AddCookie(placedCookie)
+	wrongRes := httptest.NewRecorder()
+	payH.Page(wrongRes, wrong)
+	if wrongRes.Code != http.StatusNotFound {
+		t.Fatalf("cookie alone reached another order's pay page: %d, want 404", wrongRes.Code)
 	}
 
 	// Verify order was not duplicated.
@@ -6009,6 +6105,7 @@ func TestGrantTouchFailureAfterCommittedPlacementDoesNotRedirectTo404(t *testing
 	if res.Code != http.StatusInternalServerError {
 		t.Fatalf("touch failure answered %d, want 500 Internal Server Error", res.Code)
 	}
+	assertPlacementGrantFailurePage(t, res.Body.String(), "")
 	for _, c := range res.Result().Cookies() {
 		if c.Name == "goen_placed" {
 			t.Fatal("touch failure response issued a goen_placed cookie")
@@ -6027,6 +6124,28 @@ func TestGrantTouchFailureAfterCommittedPlacementDoesNotRedirectTo404(t *testing
 	}
 	if orderCount != 1 {
 		t.Fatalf("order count for %s = %d, want exactly 1 committed order", addr.Email, orderCount)
+	}
+	assertPlacementGrantFailurePage(t, res.Body.String(), secondOrderNumber)
+
+	var reserved int32
+	if err := pool.QueryRow(ctx, `
+		SELECT coalesce(sum(ir.quantity), 0) FROM inventory_reservations ir
+		JOIN orders o ON o.id = ir.order_id
+		WHERE o.order_number = $1 AND ir.variant_id = $2 AND ir.state = 'held'`,
+		secondOrderNumber, variant).Scan(&reserved); err != nil {
+		t.Fatalf("read stock hold after touch failure: %v", err)
+	}
+	if reserved != 1 {
+		t.Fatalf("order %s holds %d units after touch failure, want 1", secondOrderNumber, reserved)
+	}
+
+	firstReq := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+firstOrder, http.NoBody)
+	firstReq.SetPathValue("number", firstOrder)
+	firstReq.AddCookie(firstCookie)
+	firstRes := httptest.NewRecorder()
+	h.OrderPage(firstRes, firstReq)
+	if firstRes.Code != http.StatusOK {
+		t.Fatalf("carried first-order access lost after touch failure: %d, want 200", firstRes.Code)
 	}
 
 	// Remove failure trigger to simulate recovery.
@@ -6056,6 +6175,19 @@ func TestGrantTouchFailureAfterCommittedPlacementDoesNotRedirectTo404(t *testing
 	}
 	if carriedCookie == nil {
 		t.Fatal("recovered touch replay set no goen_placed cookie")
+	}
+
+	payH := testPayHandler(t, s)
+	followPayWithCookie(t, ctx, payH, secondOrderNumber, carriedCookie)
+	assertPayUnreachableWithoutGrant(t, ctx, payH, secondOrderNumber)
+
+	firstAfter := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+firstOrder, http.NoBody)
+	firstAfter.SetPathValue("number", firstOrder)
+	firstAfter.AddCookie(carriedCookie)
+	firstAfterRes := httptest.NewRecorder()
+	h.OrderPage(firstAfterRes, firstAfter)
+	if firstAfterRes.Code != http.StatusOK {
+		t.Fatalf("carried first-order access lost after touch recovery: %d, want 200", firstAfterRes.Code)
 	}
 
 	// Verify order was not duplicated.
@@ -6125,6 +6257,7 @@ func TestFindOrderGrantFailureDoesNotRedirectTo404(t *testing.T) {
 	if res.Code != http.StatusInternalServerError {
 		t.Fatalf("find order answered %d, want 500 Internal Server Error", res.Code)
 	}
+	assertFindOrderGrantFailurePage(t, res.Body.String())
 	for _, c := range res.Result().Cookies() {
 		if c.Name == "goen_placed" {
 			t.Fatal("find order grant failure response issued a goen_placed cookie")
@@ -6148,5 +6281,42 @@ func TestFindOrderGrantFailureDoesNotRedirectTo404(t *testing.T) {
 	wantLocation := "/orders/" + url.PathEscape(orderNumber)
 	if recoveredRes.Header().Get("Location") != wantLocation {
 		t.Fatalf("recovered find order Location = %q, want %q", recoveredRes.Header().Get("Location"), wantLocation)
+	}
+	var recoveredCookie *http.Cookie
+	for _, c := range recoveredRes.Result().Cookies() {
+		if c.Name == "goen_placed" {
+			recoveredCookie = c
+			break
+		}
+	}
+	if recoveredCookie == nil {
+		t.Fatal("recovered find order set no goen_placed cookie")
+	}
+
+	orderReq := httptest.NewRequestWithContext(ctx, http.MethodGet, wantLocation, http.NoBody)
+	orderReq.SetPathValue("number", orderNumber)
+	orderReq.AddCookie(recoveredCookie)
+	orderRes := httptest.NewRecorder()
+	h.OrderPage(orderRes, orderReq)
+	if orderRes.Code != http.StatusOK {
+		t.Fatalf("recovered find-order cookie could not reach order page: %d", orderRes.Code)
+	}
+
+	stranger := httptest.NewRequestWithContext(ctx, http.MethodGet, wantLocation, http.NoBody)
+	stranger.SetPathValue("number", orderNumber)
+	strangerRes := httptest.NewRecorder()
+	h.OrderPage(strangerRes, stranger)
+	if strangerRes.Code != http.StatusNotFound {
+		t.Fatalf("unrelated browser reached order page after find-order recovery: %d, want 404",
+			strangerRes.Code)
+	}
+
+	forged := httptest.NewRequestWithContext(ctx, http.MethodGet, wantLocation, http.NoBody)
+	forged.SetPathValue("number", orderNumber)
+	forged.AddCookie(&http.Cookie{Name: "goen_placed", Value: orderNumber}) //nolint:gosec // G124: forgery under test
+	forgedRes := httptest.NewRecorder()
+	h.OrderPage(forgedRes, forged)
+	if forgedRes.Code != http.StatusNotFound {
+		t.Fatalf("order number alone in cookie reached order page: %d, want 404", forgedRes.Code)
 	}
 }
