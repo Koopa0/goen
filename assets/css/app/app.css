@@ -795,6 +795,91 @@ a:hover {
   min-width: 0;
 }
 
+/* One grid cell for the filter rail and any applied-filter summary beneath it. */
+.goen-listing__filters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* On a phone the whole filter form collapses behind one disclosure so the
+   product grid stays in the first viewport. Wide screens hide the summary and
+   force the details content open through ::details-content: a descendant
+   display rule alone cannot override the closed details slot in Chrome. */
+.goen-filters__shell {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--panel);
+}
+
+.goen-filters__shell-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 0 16px;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  color: var(--fg);
+  cursor: pointer;
+  list-style: none;
+}
+
+.goen-filters__shell-summary::-webkit-details-marker {
+  display: none;
+}
+
+.goen-filters__shell-summary::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid var(--fg-subtle);
+  border-bottom: 1.5px solid var(--fg-subtle);
+  transform: rotate(45deg) translate(-2px, -2px);
+  transition: transform var(--dur-base) var(--ease-standard);
+}
+
+.goen-filters__shell[open] > .goen-filters__shell-summary::after {
+  transform: rotate(-135deg) translate(-2px, -2px);
+}
+
+.goen-filters__applied {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  background: var(--elevated);
+  border: 1px solid var(--border-faint);
+  border-radius: var(--r-md);
+}
+
+.goen-filters__applied-label {
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+  color: var(--fg-muted);
+}
+
+.goen-filters__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.goen-filters__chip {
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  color: var(--fg-muted);
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--panel);
+}
+
 /* Filters. A <details> per group, so disclosure works with the file deleted. */
 .goen-filters {
   display: flex;
@@ -975,9 +1060,43 @@ a:hover {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .goen-filters {
+  .goen-filters__shell {
+    border: none;
+    background: none;
+    border-radius: 0;
+  }
+
+  .goen-filters__shell-summary {
+    display: none;
+  }
+
+  .goen-filters__shell::details-content {
+    content-visibility: visible;
+  }
+
+  .goen-filters__shell > .goen-filters {
+    display: flex;
+  }
+
+  .goen-listing__filters {
     position: sticky;
     top: 16px;
+  }
+}
+
+.goen-filters__shell > .goen-filters {
+  border: none;
+  border-radius: 0;
+  border-top: 1px solid var(--border-faint);
+  background: transparent;
+}
+
+@media (min-width: 1024px) {
+  .goen-filters__shell > .goen-filters {
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    border-top: 1px solid var(--border);
+    background: var(--panel);
   }
 }
 

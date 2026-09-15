@@ -659,6 +659,119 @@ for (const want of EXPECTED) {
     `cats=${got.cats} tiles=${got.tiles} hero=${got.heroSplit} tap=${got.minTap}${mark}`);
 }
 
+// Whether the filter shell exposes its form and a control. On desktop a closed
+// <details> keeps ::details-content at content-visibility:hidden until the
+// stylesheet opens it; display:flex on the form alone is not enough.
+const FILTER_SHELL_PROBE = `(() => {
+  const shell = document.querySelector('.goen-filters__shell');
+  const form = document.querySelector('.goen-filters');
+  const input = document.querySelector('.goen-filters .ui-input, .goen-filters .ui-select');
+  const summary = document.querySelector('.goen-filters__shell-summary');
+  const formRect = form ? form.getBoundingClientRect() : null;
+  const inputRect = input ? input.getBoundingClientRect() : null;
+  const summaryStyle = summary ? getComputedStyle(summary) : null;
+  let contentVisibility = null;
+  if (shell) {
+    try {
+      contentVisibility = getComputedStyle(shell, '::details-content').contentVisibility;
+    } catch (_) {
+      contentVisibility = null;
+    }
+  }
+  return {
+    open: shell ? shell.open : null,
+    summaryDisplay: summaryStyle ? summaryStyle.display : null,
+    summaryVisible: !!(summary && summary.getBoundingClientRect().height > 0),
+    formVisible: !!(formRect && formRect.height > 0 && formRect.width > 0),
+    inputVisible: !!(inputRect && inputRect.height > 0 && inputRect.width > 0),
+    contentVisibility,
+    products: document.querySelectorAll('.goen-tiles__grid > li').length,
+    viewport: document.documentElement.clientWidth,
+  };
+})()`;
+
+const assertDesktopFiltersVisible = (at, got) => {
+  if (!got.formVisible) {
+    fail(at, `desktop filter form is not visible — ${JSON.stringify(got)}`);
+  }
+  if (!got.inputVisible) {
+    fail(at, `desktop filter controls are not visible — ${JSON.stringify(got)}`);
+  }
+  if (got.contentVisibility === 'hidden') {
+    fail(at, `desktop ::details-content is still hidden — ${JSON.stringify(got)}`);
+  }
+};
+
+const LISTING_LAYOUT_PROBE = `(() => {
+  const filters = document.querySelector('.goen-listing__filters');
+  const filterForm = document.querySelector('.goen-filters');
+  const results = document.querySelector('.goen-listing__results');
+  const card = document.querySelector('.goen-tiles__grid > li');
+  const layout = document.querySelector('.goen-listing__layout');
+  if (!filterForm || !results || !layout) {
+    return { ok: false, why: 'listing layout landmarks missing' };
+  }
+  const rail = (filters || filterForm).getBoundingClientRect();
+  const resultsRect = results.getBoundingClientRect();
+  const cardRect = card ? card.getBoundingClientRect() : null;
+  return {
+    ok: true,
+    rail: Math.abs(rail.y - resultsRect.y) < 2 ? 'beside' : 'stacked',
+    filterX: +rail.x.toFixed(1),
+    filterW: +rail.width.toFixed(1),
+    resultsX: +resultsRect.x.toFixed(1),
+    resultsW: +resultsRect.width.toFixed(1),
+    cardW: cardRect ? +cardRect.width.toFixed(1) : 0,
+    layoutChildren: [...layout.children].map((e) => String(e.className || '').split(' ')[0]),
+    resultsBesideFilter: resultsRect.left > rail.right - 2,
+  };
+})()`;
+
+const assertDesktopResultsLayout = (at, got) => {
+  if (got.threw || !got.ok) {
+    fail(at, got.why || 'listing layout probe failed');
+    return;
+  }
+  if (got.rail !== 'beside') {
+    fail(at, `results are not beside the filter rail — ${JSON.stringify(got)}`);
+  }
+  if (!got.resultsBesideFilter) {
+    fail(at, `results sit in the narrow filter column — ${JSON.stringify(got)}`);
+  }
+  if (got.layoutChildren.length !== 2) {
+    fail(at, `layout has ${got.layoutChildren.length} direct children, want 2 — ${got.layoutChildren}`);
+  }
+  if (got.cardW > 0 && got.cardW < MIN_CARD) {
+    fail(at, `product card is ${got.cardW}px wide, want >= ${MIN_CARD} — ${JSON.stringify(got)}`);
+  }
+};
+
+const assertMobileResultsLayout = (at, got) => {
+  if (got.threw || !got.ok) {
+    fail(at, got.why || 'listing layout probe failed');
+    return;
+  }
+  if (got.rail !== 'stacked') {
+    fail(at, `mobile results are not stacked under the filter rail — ${JSON.stringify(got)}`);
+  }
+  if (got.layoutChildren.length !== 2) {
+    fail(at, `layout has ${got.layoutChildren.length} direct children, want 2 — ${got.layoutChildren}`);
+  }
+};
+
+const evalPage = async (expression) => {
+  const evaluated = await send(ws, 'Runtime.evaluate', {
+    expression, returnByValue: true, awaitPromise: true,
+  });
+  if (evaluated.exceptionDetails || !evaluated.result || evaluated.result.value === undefined) {
+    return {
+      threw: true,
+      why: evaluated.exceptionDetails?.exception?.description || JSON.stringify(evaluated).slice(0, 400),
+    };
+  }
+  return evaluated.result.value;
+};
+
 // The listing page. Its own probe: no hero and no category grid, but a filter
 // rail whose position is the fold, and the same no-overflow and shared-gutter
 // rules the home is held to.
@@ -673,7 +786,8 @@ const LISTING_PROBE = `(() => {
     }
     return false;
   };
-  const rail = document.querySelector('.goen-filters').getBoundingClientRect();
+  const rail = (document.querySelector('.goen-listing__filters')
+    || document.querySelector('.goen-filters')).getBoundingClientRect();
   const results = document.querySelector('.goen-listing__results').getBoundingClientRect();
   const cols = (sel) => {
     const items = [...document.querySelectorAll(sel)];
@@ -687,8 +801,9 @@ const LISTING_PROBE = `(() => {
     return [ +(r.left + parseFloat(cs.paddingLeft)).toFixed(1),
              +(r.right - parseFloat(cs.paddingRight)).toFixed(1) ];
   };
-  const taps = [...document.querySelectorAll('.goen-filters__option, .goen-filters__apply, .goen-filters .ui-input')]
-    .map((e) => e.getBoundingClientRect().height);
+  const taps = [...document.querySelectorAll(
+    '.goen-filters__shell-summary, .goen-filters__option, .goen-filters__apply, .goen-filters #sort, .goen-filters .ui-input:not([type=checkbox])',
+  )].map((e) => e.getBoundingClientRect().height).filter((h) => h > 0);
   return {
     viewportWidth: de.clientWidth,
     scrollWidth: document.body.scrollWidth,
@@ -708,6 +823,24 @@ const LISTING_PROBE = `(() => {
     header: edges('.goen-header__bar'),
     main: edges('.goen-listing'),
     minTap: taps.length ? +Math.min(...taps).toFixed(1) : 0,
+    viewportHeight: window.innerHeight,
+    shellOpen: document.querySelector('.goen-filters__shell')?.open ?? null,
+    firstTileTop: (() => {
+      const t = document.querySelector('.goen-tiles__grid > li');
+      return t ? +t.getBoundingClientRect().top.toFixed(1) : null;
+    })(),
+    firstTileInView: (() => {
+      const t = document.querySelector('.goen-tiles__grid > li');
+      if (!t) return false;
+      const r = t.getBoundingClientRect();
+      const img = t.querySelector('img');
+      const name = t.querySelector('.ui-product__name, .goen-tile__name, h3');
+      const price = t.querySelector('.ui-price, .goen-tile__price');
+      return r.top < window.innerHeight && r.bottom > 0
+        && !!(img && img.getBoundingClientRect().height > 0)
+        && !!(name && name.textContent.trim())
+        && !!(price && price.textContent.trim());
+    })(),
     ${ACCESSIBILITY}
   };
 })()`;
@@ -733,6 +866,23 @@ for (const want of LISTING) {
       (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));
   }
   if (got.rail !== want.rail) fail(at, `filter rail is ${got.rail}, want ${want.rail}`);
+  if (want.width === 375) {
+    if (got.shellOpen) fail(at, 'filter shell is open by default on mobile');
+    if (got.firstTileTop !== null && got.firstTileTop >= got.viewportHeight) {
+      fail(at, `first product starts at ${got.firstTileTop}px, below the ${got.viewportHeight}px viewport`);
+    }
+    if (got.firstTileTop !== null && !got.firstTileInView) {
+      fail(at, 'the first product tile is not fully visible on entry');
+    }
+    const filters = await evalPage(FILTER_SHELL_PROBE);
+    if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
+    if (filters.formVisible) fail(at, 'filter form is visible while the shell is collapsed on mobile');
+  }
+  if (want.rail === 'beside') {
+    const filters = await evalPage(FILTER_SHELL_PROBE);
+    if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
+    assertDesktopFiltersVisible(at, filters);
+  }
   if (got.minTap < MIN_TAP) fail(at, `smallest filter control is ${got.minTap}px, want >= ${MIN_TAP}`);
   if (want.rail === 'beside' && got.cardWidth > 0 && got.cardWidth < MIN_CARD) {
     fail(at, `product card is ${got.cardWidth}px wide, want >= ${MIN_CARD} — ` +
@@ -745,6 +895,317 @@ for (const want of LISTING) {
 
   console.log(`${at.padEnd(16)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
     `rail=${got.rail} tiles=${got.tiles} tap=${got.minTap}`);
+}
+
+// The seeded /c/audio page at 375px: products must stay in the first viewport,
+// the shell must expand on demand, and a filtered reload must focus results.
+const LISTING_AUDIO = [
+  { label: 'listing audio zh 375', width: 375, height: 812, path: '/c/audio', locale: 'zh-Hant' },
+  { label: 'listing audio en 375', width: 375, height: 812, path: '/c/audio', locale: 'en' },
+  { label: 'listing audio zh 1440', width: 1440, height: 900, path: '/c/audio', locale: 'zh-Hant', rail: 'beside' },
+  { label: 'listing audio en 1440', width: 1440, height: 900, path: '/c/audio', locale: 'en', rail: 'beside' },
+];
+
+for (const want of LISTING_AUDIO) {
+  if (want.locale) {
+    await send(ws, 'Network.setCookie', {
+      name: 'goen_locale', value: want.locale, domain: '127.0.0.1', path: '/',
+    });
+  }
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: want.width,
+    height: want.height,
+    deviceScaleFactor: 1,
+    mobile: want.width < 768,
+  });
+  const target = ORIGIN + want.path;
+  await send(ws, 'Page.navigate', { url: target });
+  await settled(ws, want.label, target);
+
+  const { result } = await send(ws, 'Runtime.evaluate', { expression: LISTING_PROBE, returnByValue: true });
+  const got = result.value;
+  const at = want.label;
+  checkAccessibility(at, got);
+
+  if (got.scrollWidth > got.viewportWidth) {
+    fail(at, `page scrolls horizontally (${got.scrollWidth} > ${got.viewportWidth})` +
+      (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));
+  }
+  if (want.rail && got.rail !== want.rail) {
+    fail(at, `filter rail is ${got.rail}, want ${want.rail}`);
+  }
+  if (want.width === 375) {
+    if (got.shellOpen) fail(at, 'filter shell is open by default on mobile');
+    if (got.firstTileTop !== null && got.firstTileTop >= got.viewportHeight) {
+      fail(at, `first product starts at ${got.firstTileTop}px, below the ${got.viewportHeight}px viewport`);
+    }
+    if (!got.firstTileInView) fail(at, 'the first product is not visible on entry');
+    const filters = await evalPage(FILTER_SHELL_PROBE);
+    if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
+    if (filters.formVisible) fail(at, 'filter form is visible while the shell is collapsed on mobile');
+  }
+  if (want.rail === 'beside') {
+    const filters = await evalPage(FILTER_SHELL_PROBE);
+    if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
+    assertDesktopFiltersVisible(at, filters);
+  }
+  console.log(`${at.padEnd(24)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
+    `rail=${got.rail} tileTop=${got.firstTileTop} shell=${got.shellOpen}`);
+}
+
+const proveListingFilterJourney = async (label, locale) => {
+  if (locale) {
+    await send(ws, 'Network.setCookie', {
+      name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/',
+    });
+  }
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: 375, height: 812, deviceScaleFactor: 1, mobile: true,
+  });
+  const start = `${ORIGIN}/c/audio`;
+  await send(ws, 'Page.navigate', { url: start });
+  await settled(ws, `${label} entry`, start);
+
+  const collapsed = await evalPage(`(() => {
+    const shell = document.querySelector('.goen-filters__shell');
+    const tile = document.querySelector('.goen-tiles__grid > li');
+    if (!shell || !tile) return { ok: false, why: 'shell or product tile missing' };
+    const top = tile.getBoundingClientRect().top;
+    return {
+      ok: true,
+      shellOpen: shell.open,
+      tileTop: +top.toFixed(1),
+      inView: top < window.innerHeight,
+    };
+  })()`);
+  if (collapsed.threw || !collapsed.ok) {
+    fail(label, collapsed.why || 'collapsed entry probe failed');
+    return;
+  }
+  if (collapsed.shellOpen) fail(label, 'filter shell is open before the visitor asks');
+  if (!collapsed.inView) {
+    fail(label, `first product starts at ${collapsed.tileTop}px, outside the viewport`);
+  }
+
+  const expanded = await evalPage(`(() => {
+    const shell = document.querySelector('.goen-filters__shell');
+    const summary = document.querySelector('.goen-filters__shell-summary');
+    if (!shell || !summary) return { ok: false, why: 'shell summary missing' };
+    summary.click();
+    const apply = document.querySelector('.goen-filters__apply');
+    const applyRect = apply ? apply.getBoundingClientRect() : null;
+    return {
+      ok: true,
+      shellOpen: shell.open,
+      applyVisible: !!(applyRect && applyRect.height > 0 && applyRect.bottom > 0),
+    };
+  })()`);
+  if (expanded.threw || !expanded.ok) {
+    fail(label, expanded.why || 'expanded probe failed');
+    return;
+  }
+  if (!expanded.shellOpen) fail(label, 'filter shell did not open after the summary was activated');
+  if (!expanded.applyVisible) fail(label, 'apply control is not visible after expanding the shell');
+
+  const filtered = `${ORIGIN}/c/audio?in_stock=1#listing-results`;
+  await send(ws, 'Page.navigate', { url: filtered });
+  await settled(ws, `${label} filtered`, filtered);
+
+  const landed = await evalPage(`(() => {
+    const results = document.getElementById('listing-results');
+    const applied = document.querySelector('.goen-filters__applied');
+    const clear = document.querySelector('.goen-filters__applied .ui-filterbar__clear');
+    const shell = document.querySelector('.goen-filters__shell');
+    return {
+      ok: true,
+      focused: document.activeElement === results,
+      hasApplied: !!applied,
+      hasClear: !!clear,
+      shellOpen: shell ? shell.open : null,
+      href: location.href,
+    };
+  })()`);
+  if (landed.threw || !landed.ok) {
+    fail(label, landed.why || 'filtered landing probe failed');
+    return;
+  }
+  if (!landed.focused) fail(label, 'filtered reload did not focus #listing-results');
+  if (!landed.hasApplied) fail(label, 'filtered reload shows no applied-filter summary');
+  if (!landed.hasClear) fail(label, 'filtered reload offers no clear-all control');
+  if (landed.shellOpen) fail(label, 'filter shell stayed open after a filtered reload');
+
+  const filteredLayout = await evalPage(LISTING_LAYOUT_PROBE);
+  assertMobileResultsLayout(`${label} filtered`, filteredLayout);
+  if (filteredLayout.cardW > 0 && filteredLayout.cardW < MIN_CARD) {
+    fail(label, `filtered mobile card is ${filteredLayout.cardW}px wide, want >= ${MIN_CARD}`);
+  }
+
+  const cleared = await evalPage(`(() => {
+    const clear = document.querySelector('.goen-filters__applied .ui-filterbar__clear');
+    if (!clear) return { ok: false, why: 'clear-all link missing after filter' };
+    clear.click();
+    return { ok: true };
+  })()`);
+  if (cleared.threw || !cleared.ok) {
+    fail(label, cleared.why || 'clear-all navigation did not start');
+    return;
+  }
+  await settled(ws, `${label} cleared`, `${ORIGIN}/c/audio`);
+  const afterClear = await evalPage(LISTING_LAYOUT_PROBE);
+  assertMobileResultsLayout(`${label} cleared`, afterClear);
+  const clearedProbe = await evalPage(`(() => ({
+    hasApplied: !!document.querySelector('.goen-filters__applied'),
+    href: location.href,
+  }))()`);
+  if (clearedProbe.hasApplied) fail(label, 'clear-all left the applied-filter summary visible');
+  if (clearedProbe.href.includes('in_stock=')) fail(label, 'clear-all left filter query parameters in the URL');
+
+  console.log(`${label.padEnd(24)} collapsed tileTop=${collapsed.tileTop} filtered focus clear ok`);
+};
+
+for (const locale of ['zh-Hant', 'en']) {
+  await proveListingFilterJourney(`listing audio journey ${locale}`, locale);
+}
+
+const proveListingDesktopResize = async (label, locale) => {
+  if (locale) {
+    await send(ws, 'Network.setCookie', {
+      name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/',
+    });
+  }
+  const loadDesktop = async (scriptingOff) => {
+    await send(ws, 'Emulation.setScriptExecutionDisabled', { value: scriptingOff });
+    await send(ws, 'Emulation.setDeviceMetricsOverride', {
+      width: 1440, height: 900, deviceScaleFactor: 1, mobile: false,
+    });
+    const target = `${ORIGIN}/c/audio`;
+    await send(ws, 'Page.navigate', { url: target });
+    await settled(ws, `${label} desktop load`, target);
+    const got = await evalPage(FILTER_SHELL_PROBE);
+    if (got.threw) fail(label, got.why || 'desktop filter probe failed');
+    assertDesktopFiltersVisible(`${label} desktop`, got);
+    const layout = await evalPage(LISTING_LAYOUT_PROBE);
+    assertDesktopResultsLayout(`${label} desktop`, layout);
+    return got;
+  };
+
+  await loadDesktop(false);
+  await loadDesktop(true);
+  await send(ws, 'Emulation.setScriptExecutionDisabled', { value: false });
+
+  const submitted = await evalPage(`(() => {
+    const box = document.querySelector('.goen-filters input[name=in_stock]');
+    const form = document.querySelector('.goen-filters');
+    if (!box || !form) return { ok: false, why: 'desktop filter controls missing before submit' };
+    box.checked = true;
+    form.requestSubmit();
+    return { ok: true };
+  })()`);
+  if (submitted.threw || !submitted.ok) {
+    fail(label, submitted.why || 'desktop filter submit did not start');
+    return;
+  }
+  const filteredHref = await (async () => {
+    for (let i = 0; i < 50; i++) {
+      const { result } = await send(ws, 'Runtime.evaluate', {
+        expression: 'location.href', returnByValue: true,
+      });
+      const href = String(result.value || '');
+      if (href.includes('in_stock=1') && href.includes('#listing-results')) return href;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return '';
+  })();
+  if (!filteredHref) {
+    fail(label, 'desktop filter submit did not land on in_stock=1#listing-results');
+    return;
+  }
+
+  const afterFilter = await evalPage(`(() => {
+    const results = document.getElementById('listing-results');
+    const applied = document.querySelector('.goen-filters__applied');
+    const clear = document.querySelector('.goen-filters__applied .ui-filterbar__clear');
+    const box = document.querySelector('.goen-filters input[name=in_stock]');
+    return {
+      ok: true,
+      focused: document.activeElement === results,
+      hasApplied: !!applied,
+      hasClear: !!clear,
+      stockChecked: !!(box && box.checked),
+    };
+  })()`);
+  if (afterFilter.threw || !afterFilter.ok) {
+    fail(label, afterFilter.why || 'desktop filtered landing probe failed');
+    return;
+  }
+  if (!afterFilter.focused) fail(label, 'desktop filtered reload did not focus #listing-results');
+  if (!afterFilter.hasApplied) fail(label, 'desktop filtered reload shows no applied-filter summary');
+  if (!afterFilter.hasClear) fail(label, 'desktop filtered reload offers no clear-all control');
+  if (!afterFilter.stockChecked) fail(label, 'desktop filtered reload lost the in_stock checkbox state');
+
+  const filteredLayout = await evalPage(LISTING_LAYOUT_PROBE);
+  assertDesktopResultsLayout(`${label} filtered`, filteredLayout);
+
+  const cleared = await evalPage(`(() => {
+    const clear = document.querySelector('.goen-filters__applied .ui-filterbar__clear');
+    if (!clear) return { ok: false, why: 'clear-all link missing after desktop filter' };
+    clear.click();
+    return { ok: true };
+  })()`);
+  if (cleared.threw || !cleared.ok) {
+    fail(label, cleared.why || 'desktop clear-all navigation did not start');
+    return;
+  }
+  await settled(ws, `${label} cleared`, `${ORIGIN}/c/audio`);
+  const afterClear = await evalPage(LISTING_LAYOUT_PROBE);
+  assertDesktopResultsLayout(`${label} cleared`, afterClear);
+  const clearedProbe = await evalPage(`(() => ({
+    hasApplied: !!document.querySelector('.goen-filters__applied'),
+    href: location.href,
+  }))()`);
+  if (clearedProbe.hasApplied) fail(label, 'desktop clear-all left the applied-filter summary visible');
+
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: 375, height: 812, deviceScaleFactor: 1, mobile: true,
+  });
+  await new Promise((r) => setTimeout(r, 250));
+  const mobileCollapsed = await evalPage(FILTER_SHELL_PROBE);
+  if (mobileCollapsed.threw) fail(label, mobileCollapsed.why || 'mobile resize probe failed');
+  if (mobileCollapsed.open) fail(label, 'filter shell is open after resize to mobile');
+  if (mobileCollapsed.formVisible) {
+    fail(label, 'filter form is visible while the shell is closed on mobile after resize');
+  }
+
+  const expanded = await evalPage(`(() => {
+    const summary = document.querySelector('.goen-filters__shell-summary');
+    if (!summary) return { ok: false, why: 'mobile summary missing after resize' };
+    summary.click();
+    const form = document.querySelector('.goen-filters');
+    const formRect = form ? form.getBoundingClientRect() : null;
+    return {
+      ok: true,
+      formVisible: !!(formRect && formRect.height > 0 && formRect.width > 0),
+    };
+  })()`);
+  if (expanded.threw || !expanded.ok) {
+    fail(label, expanded.why || 'mobile expand after resize failed');
+    return;
+  }
+  if (!expanded.formVisible) fail(label, 'filter form did not open after summary click on mobile');
+
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: 1440, height: 900, deviceScaleFactor: 1, mobile: false,
+  });
+  await new Promise((r) => setTimeout(r, 250));
+  const desktopAgain = await evalPage(FILTER_SHELL_PROBE);
+  if (desktopAgain.threw) fail(label, desktopAgain.why || 'desktop re-expand probe failed');
+  assertDesktopFiltersVisible(`${label} after resize`, desktopAgain);
+
+  console.log(`${label.padEnd(24)} desktop submit filter clear resize ok`);
+};
+
+for (const locale of ['zh-Hant', 'en']) {
+  await proveListingDesktopResize(`listing audio desktop ${locale}`, locale);
 }
 
 const HEADER_EN_PROBE = `(() => {
@@ -1434,19 +1895,6 @@ if (process.env.ADMIN_TOKEN) {
 const RETRY_ZH = '請求過於頻繁,請稍後再試。';
 const RETRY_EN = 'Too many requests. Please try again shortly.';
 const namesRetry = (text) => String(text || '').includes(RETRY_ZH) || String(text || '').includes(RETRY_EN);
-
-const evalPage = async (expression) => {
-  const evaluated = await send(ws, 'Runtime.evaluate', {
-    expression, returnByValue: true, awaitPromise: true,
-  });
-  if (evaluated.exceptionDetails || !evaluated.result || evaluated.result.value === undefined) {
-    return {
-      threw: true,
-      why: evaluated.exceptionDetails?.exception?.description || JSON.stringify(evaluated).slice(0, 400),
-    };
-  }
-  return evaluated.result.value;
-};
 
 const openAt = async (label, path) => {
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
