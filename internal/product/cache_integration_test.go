@@ -328,6 +328,24 @@ func TestCacheFailureFallsBackWithBoundedAdmission(t *testing.T) {
 	slug := "pixelight-9-pro"
 
 	stopValkey()
+	cache.Close()
+
+	releaseFallback := make(chan struct{})
+	maxFallback := cfg.MaxFallback
+	var fallbackHolding atomic.Int32
+	product.SetIntegrationFillPause(func(pauseCtx context.Context) error {
+		if int(fallbackHolding.Add(1)) > maxFallback {
+			fallbackHolding.Add(-1)
+			return nil
+		}
+		select {
+		case <-releaseFallback:
+			return nil
+		case <-pauseCtx.Done():
+			return pauseCtx.Err()
+		}
+	})
+	defer product.SetIntegrationFillPause(nil)
 
 	const workers = 5
 	var wg sync.WaitGroup
@@ -340,6 +358,11 @@ func TestCacheFailureFallsBackWithBoundedAdmission(t *testing.T) {
 			results[idx] = loadErr
 		}(i)
 	}
+	for int(fallbackHolding.Load()) < maxFallback {
+		time.Sleep(5 * time.Millisecond)
+	}
+	time.Sleep(25 * time.Millisecond)
+	close(releaseFallback)
 	wg.Wait()
 
 	var overloaded, succeeded int
@@ -425,6 +448,11 @@ func TestCheckoutRejectsStalePriceAfterWarmPresentationCache(t *testing.T) {
 		ORDER BY pv.position LIMIT 1`, slug).Scan(&variantID); err != nil {
 		t.Fatalf("variant: %v", err)
 	}
+	var originalPrice int64
+	if err := pool.QueryRow(ctx,
+		`SELECT price_cents FROM product_variants WHERE id = $1`, variantID).Scan(&originalPrice); err != nil {
+		t.Fatalf("original price: %v", err)
+	}
 	if _, execErr := pool.Exec(ctx,
 		`UPDATE product_variants SET price_cents = 100000 WHERE id = $1`, variantID); execErr != nil {
 		t.Fatalf("set checkout price: %v", execErr)
@@ -433,7 +461,7 @@ func TestCheckoutRejectsStalePriceAfterWarmPresentationCache(t *testing.T) {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
 		_, _ = pool.Exec(cleanupCtx,
-			`UPDATE product_variants SET price_cents = price_cents WHERE id = $1`, variantID)
+			`UPDATE product_variants SET price_cents = $1 WHERE id = $2`, originalPrice, variantID)
 	})
 
 	cartStore := cart.NewStore(pool)
