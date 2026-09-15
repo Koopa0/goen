@@ -49,6 +49,9 @@ var (
 	// ErrTooManyItems means the cart has no room for another distinct product
 	// while keeping every resulting invoice within ECPay's Items limit.
 	ErrTooManyItems = errors.New("cart: too many invoice items")
+	// ErrQuantityAdjusted means the write succeeded but less than requested was
+	// kept because the shelf could not supply the full quantity.
+	ErrQuantityAdjusted = errors.New("cart: quantity adjusted to available stock")
 	// errCheckoutChanged means the commercial facts no longer match the quote the
 	// customer confirmed. The refreshed quote must be shown before retrying.
 	errCheckoutChanged = errors.New("cart: checkout quote changed")

@@ -65,7 +65,7 @@ func (s *Store) Reorder(ctx context.Context, cartID uuid.UUID, number string) (R
 			continue
 		}
 
-		if err := addCartItem(ctx, q, cartID, l.VariantID.UUID, l.Quantity); err != nil {
+		if _, err := addCartItem(ctx, q, cartID, l.VariantID.UUID, l.Quantity); err != nil {
 			// The known skip cases continued above. Any revalidation or write
 			// failure for a selected line aborts the whole reorder.
 			return Reorder{}, fmt.Errorf("add %s to cart: %w", l.ProductName, err)

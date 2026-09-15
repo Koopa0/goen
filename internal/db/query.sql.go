@@ -2761,6 +2761,36 @@ func (q *Queries) CartItemCount(ctx context.Context, cartID uuid.UUID) (int64, e
 	return column_1, err
 }
 
+const cartItemRows = `-- name: CartItemRows :many
+SELECT variant_id, quantity FROM cart_items WHERE cart_id = $1::uuid ORDER BY variant_id
+`
+
+type CartItemRowsRow struct {
+	VariantID uuid.UUID
+	Quantity  int32
+}
+
+// Guest lines for adoption and merge, read after the cart lock is held.
+func (q *Queries) CartItemRows(ctx context.Context, cartID uuid.UUID) ([]CartItemRowsRow, error) {
+	rows, err := q.db.Query(ctx, cartItemRows, cartID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CartItemRowsRow{}
+	for rows.Next() {
+		var i CartItemRowsRow
+		if err := rows.Scan(&i.VariantID, &i.Quantity); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const cartLineCapacity = `-- name: CartLineCapacity :one
 SELECT count(*)::integer AS line_count,
        (count(*) FILTER (WHERE variant_id = $1::uuid) > 0)::boolean
@@ -2786,6 +2816,22 @@ func (q *Queries) CartLineCapacity(ctx context.Context, arg CartLineCapacityPara
 	var i CartLineCapacityRow
 	err := row.Scan(&i.LineCount, &i.AlreadyPresent)
 	return i, err
+}
+
+const cartLineQuantity = `-- name: CartLineQuantity :one
+SELECT quantity FROM cart_items WHERE cart_id = $1 AND variant_id = $2
+`
+
+type CartLineQuantityParams struct {
+	CartID    uuid.UUID
+	VariantID uuid.UUID
+}
+
+func (q *Queries) CartLineQuantity(ctx context.Context, arg CartLineQuantityParams) (int32, error) {
+	row := q.db.QueryRow(ctx, cartLineQuantity, arg.CartID, arg.VariantID)
+	var quantity int32
+	err := row.Scan(&quantity)
+	return quantity, err
 }
 
 const cartLines = `-- name: CartLines :many
@@ -7056,24 +7102,6 @@ func (q *Queries) MemberStanding(ctx context.Context, arg MemberStandingParams) 
 		&i.NextNeedsCents,
 	)
 	return i, err
-}
-
-const mergeCartItems = `-- name: MergeCartItems :exec
-INSERT INTO cart_items (cart_id, variant_id, quantity)
-SELECT $2, src.variant_id, src.quantity FROM cart_items src WHERE src.cart_id = $1
-ON CONFLICT (cart_id, variant_id) DO UPDATE
-SET quantity = least(cart_items.quantity + EXCLUDED.quantity, 999)
-`
-
-type MergeCartItemsParams struct {
-	CartID   uuid.UUID
-	CartID_2 uuid.UUID
-}
-
-// Quantities add rather than replace, capped at the line ceiling.
-func (q *Queries) MergeCartItems(ctx context.Context, arg MergeCartItemsParams) error {
-	_, err := q.db.Exec(ctx, mergeCartItems, arg.CartID, arg.CartID_2)
-	return err
 }
 
 const myWarranties = `-- name: MyWarranties :many

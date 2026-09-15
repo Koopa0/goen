@@ -166,8 +166,12 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !h.startSession(w, r, u) {
+	started, adoptAdjusted := h.startSession(w, r, u)
+	if !started {
 		return
+	}
+	if adoptAdjusted {
+		next = appendCartAdjustNotice(next)
 	}
 	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 }
@@ -234,8 +238,12 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		h.log.WarnContext(r.Context(), "request verification at registration", "error", err)
 	}
 
-	if !h.startSession(w, r, u) {
+	started, adoptAdjusted := h.startSession(w, r, u)
+	if !started {
 		return
+	}
+	if adoptAdjusted {
+		next = appendCartAdjustNotice(next)
 	}
 	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 }
@@ -300,6 +308,8 @@ func accountNotice(r *http.Request) string {
 		return i18n.T(ctx, i18n.KeyGoogleUnlinked)
 	case q.Get("lastmethod") == "1":
 		return i18n.T(ctx, i18n.KeyGoogleLastMethod)
+	case q.Get("cart") == "adjusted":
+		return i18n.T(ctx, i18n.KeyCartQuantityAdjusted)
 	}
 	return ""
 }
@@ -338,24 +348,37 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/account?saved=1", http.StatusSeeOther)
 }
 
-func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u User) bool {
+func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u User) (started, adoptAdjusted bool) {
 	token, err := h.store.StartSession(r.Context(), u.ID, r.UserAgent(), clientIP(r))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "start session", "error", err)
 		h.serverError(w, r)
-		return false
+		return false, false
 	}
 	SetSessionCookie(w, token, h.secure)
 
 	// A failed cart merge must not take the sign-in down with it.
-	if h.carts != nil {
-		if cartID, ok := h.carts.CartIDForRequest(r.Context(), r); ok {
-			if err := h.store.AdoptCart(r.Context(), u.ID, cartID); err != nil {
-				h.log.ErrorContext(r.Context(), "adopt cart", "error", err, "user_id", u.ID)
-			}
-		}
+	adoptAdjusted = h.adoptRequestCart(r, u.ID)
+	return true, adoptAdjusted
+}
+
+func (h *Handler) adoptRequestCart(r *http.Request, userID string) bool {
+	if h.carts == nil {
+		return false
 	}
-	return true
+	cartID, ok := h.carts.CartIDForRequest(r.Context(), r)
+	if !ok {
+		return false
+	}
+	err := h.store.AdoptCart(r.Context(), userID, cartID)
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, ErrQuantityAdjusted) {
+		return true
+	}
+	h.log.ErrorContext(r.Context(), "adopt cart", "error", err, "user_id", userID)
+	return false
 }
 
 func clientIP(r *http.Request) string {
@@ -376,6 +399,13 @@ func urlQueryEscape(s string) string {
 		}
 	}
 	return string(b)
+}
+
+func appendCartAdjustNotice(target string) string {
+	if strings.Contains(target, "?") {
+		return target + "&cart=adjusted"
+	}
+	return target + "?cart=adjusted"
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
@@ -757,10 +787,15 @@ func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !h.startSession(w, r, u) {
+	started, adoptAdjusted := h.startSession(w, r, u)
+	if !started {
 		return
 	}
-	http.Redirect(w, r, state.Next, http.StatusSeeOther)
+	next := state.Next
+	if adoptAdjusted {
+		next = appendCartAdjustNotice(next)
+	}
+	http.Redirect(w, r, next, http.StatusSeeOther)
 }
 
 // UnlinkGoogle serves POST /account/google/unlink.

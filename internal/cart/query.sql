@@ -46,6 +46,9 @@ WHERE cart_id = $1 AND variant_id = $2;
 -- name: RemoveCartItem :exec
 DELETE FROM cart_items WHERE cart_id = $1 AND variant_id = $2;
 
+-- name: CartLineQuantity :one
+SELECT quantity FROM cart_items WHERE cart_id = $1 AND variant_id = $2;
+
 -- name: ClearCart :exec
 DELETE FROM cart_items WHERE cart_id = $1;
 
