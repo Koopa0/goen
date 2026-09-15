@@ -171,7 +171,7 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if adoptFailed {
-		next = appendCartMergeNotice(next)
+		next = cartRecoveryLanding(next)
 	}
 	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 }
@@ -243,7 +243,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if adoptFailed {
-		next = appendCartMergeNotice(next)
+		next = cartRecoveryLanding(next)
 	}
 	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 }
@@ -308,10 +308,47 @@ func accountNotice(r *http.Request) string {
 		return i18n.T(ctx, i18n.KeyGoogleUnlinked)
 	case q.Get("lastmethod") == "1":
 		return i18n.T(ctx, i18n.KeyGoogleLastMethod)
-	case q.Get("cart") == "mergefailed":
-		return i18n.T(ctx, i18n.KeyCartMergeFailed)
 	}
 	return ""
+}
+
+// CartRecoveryPage serves GET /account/cart-recovery.
+func (h *Handler) CartRecoveryPage(w http.ResponseWriter, r *http.Request) {
+	if _, ok := FromContext(r.Context()); !ok {
+		http.Redirect(w, r, "/signin", http.StatusSeeOther)
+		return
+	}
+	next := web.SitePathOr(r.URL.Query().Get("next"), "/account")
+	web.Render(w, r, h.log, http.StatusOK, pages.CartRecovery(
+		pages.CartRecoveryMeta(r.Context()), pages.CartRecoveryView{
+			Next:   next,
+			Notice: i18n.T(r.Context(), i18n.KeyCartMergeFailed),
+			Retry:  i18n.T(r.Context(), i18n.KeyCartMergeRetry),
+		}))
+}
+
+// RetryCartAdoption serves POST /account/cart/retry.
+func (h *Handler) RetryCartAdoption(w http.ResponseWriter, r *http.Request) {
+	u, ok := FromContext(r.Context())
+	if !ok {
+		http.Redirect(w, r, "/signin", http.StatusSeeOther)
+		return
+	}
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
+		return
+	}
+	next := web.SitePathOr(r.PostFormValue("next"), "/account")
+	if h.carts != nil {
+		if cartID, ok := h.carts.CartIDForRequest(r.Context(), r); ok {
+			if err := h.store.AdoptCart(r.Context(), u.ID, cartID); err != nil {
+				h.log.ErrorContext(r.Context(), "retry adopt cart", "error", err, "user_id", u.ID)
+				http.Redirect(w, r, cartRecoveryLanding(next), http.StatusSeeOther)
+				return
+			}
+		}
+	}
+	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 }
 
 // OrderPage redirects GET /account/orders/{number} to the canonical order page.
@@ -389,11 +426,13 @@ func urlQueryEscape(s string) string {
 	return string(b)
 }
 
-func appendCartMergeNotice(target string) string {
-	if strings.Contains(target, "?") {
-		return target + "&cart=mergefailed"
-	}
-	return target + "?cart=mergefailed"
+func cartRecoveryLanding(continuation string) string {
+	next := web.SitePathOr(continuation, "/account")
+	u := &url.URL{Path: "/account/cart-recovery"}
+	q := u.Query()
+	q.Set("next", next)
+	u.RawQuery = q.Encode()
+	return u.String()
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
@@ -781,7 +820,7 @@ func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	next := state.Next
 	if adoptFailed {
-		next = appendCartMergeNotice(next)
+		next = cartRecoveryLanding(next)
 	}
 	http.Redirect(w, r, next, http.StatusSeeOther)
 }

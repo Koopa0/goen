@@ -243,6 +243,8 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /register", ratelimit.Guard(authLimit, log, customers.Register))
 	mux.HandleFunc("POST /signout", customers.SignOut)
 	mux.HandleFunc("GET /account", customers.RequireUser(customers.Overview))
+	mux.HandleFunc("GET /account/cart-recovery", customers.RequireUser(customers.CartRecoveryPage))
+	mux.HandleFunc("POST /account/cart/retry", customers.RequireUser(customers.RetryCartAdoption))
 	mux.HandleFunc("GET /account/points", customers.RequireUser(points.Page))
 	mux.HandleFunc("POST /account/points", customers.RequireUser(points.Redeem))
 	mux.HandleFunc("GET /account/warranty", customers.RequireUser(cover.List))
