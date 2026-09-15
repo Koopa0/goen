@@ -139,6 +139,19 @@ func (s *Store) SetQuantity(ctx context.Context, cartID, variantID uuid.UUID, qu
 			}
 			return nil
 		}
+		v, err := q.VariantForCart(ctx, variantID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			return fmt.Errorf("read variant: %w", err)
+		}
+		if !v.IsActive || v.Status != "active" || v.SellableQuantity <= 0 {
+			return ErrUnavailable
+		}
+		if quantity > v.SellableQuantity {
+			quantity = v.SellableQuantity
+		}
 		if err := q.SetCartItemQuantity(ctx, db.SetCartItemQuantityParams{
 			CartID: cartID, VariantID: variantID, Quantity: quantity,
 		}); err != nil {
