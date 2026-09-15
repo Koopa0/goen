@@ -90,7 +90,7 @@ func (s SMTPSender) Send(ctx context.Context, m *Message) error {
 	// Resolved BEFORE anything is dialled: an unsendable From fails every message.
 	envelope, err := envelopeFrom(s.From)
 	if err != nil {
-		return outbox.NonRetryable(err)
+		return err
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, SendTimeout)

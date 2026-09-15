@@ -490,9 +490,9 @@ func TestInvalidRecipientIsNonRetryableAndOmitsAddress(t *testing.T) {
 	}
 }
 
-// TestInvalidEnvelopeFromIsNonRetryable guards that an unsendable From address
-// fails as non-retryable so poison messages do not spin retry queues.
-func TestInvalidEnvelopeFromIsNonRetryable(t *testing.T) {
+// TestInvalidEnvelopeFromIsRetryable guards that a deployment From misconfiguration
+// remains retryable so a valid queued payload survives until configuration is fixed.
+func TestInvalidEnvelopeFromIsRetryable(t *testing.T) {
 	t.Parallel()
 
 	s := SMTPSender{Addr: "127.0.0.1:25", From: "not an address"}
@@ -500,7 +500,7 @@ func TestInvalidEnvelopeFromIsNonRetryable(t *testing.T) {
 	if err == nil {
 		t.Fatal("Send accepted an invalid From address")
 	}
-	if !outbox.IsNonRetryable(err) {
-		t.Errorf("error %v is not non-retryable", err)
+	if outbox.IsNonRetryable(err) {
+		t.Errorf("error %v is non-retryable; configuration failures must stay recoverable", err)
 	}
 }

@@ -95,13 +95,15 @@ templ AdminHealth(p layouts.Page, v *WorkerHealthView) {
 													{ i18n.T(ctx, i18n.KeyAdminHPDropOutbox) }
 												</button>
 											</form>
-											<form method="post" action="/admin/health/reconcile">
-												<input type="hidden" name="outbox_message" value={ m.ID }/>
-												<input type="hidden" name="outbox_action" value="replay"/>
-												<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">
-													{ i18n.T(ctx, i18n.KeyAdminHPReplayOutbox) }
-												</button>
-											</form>
+											if m.Recoverable {
+												<form method="post" action="/admin/health/reconcile">
+													<input type="hidden" name="outbox_message" value={ m.ID }/>
+													<input type="hidden" name="outbox_action" value="replay"/>
+													<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">
+														{ i18n.T(ctx, i18n.KeyAdminHPReplayOutbox) }
+													</button>
+												</form>
+											}
 										</div>
 									</td>
 								</tr>
