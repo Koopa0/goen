@@ -115,6 +115,9 @@ func (s *Store) CreateHeroSlide(ctx context.Context, f *HeroForm) (map[string]st
 		After: map[string]any{"headline": f.Headline, "cta": f.PrimaryHref},
 	},
 		func(ctx context.Context, q *db.Queries) error {
+			if err := q.LockHeroPosition(ctx); err != nil {
+				return fmt.Errorf("lock hero position: %w", err)
+			}
 			return q.CreateHeroSlide(ctx, db.CreateHeroSlideParams{
 				Eyebrow: f.Eyebrow, Headline: f.Headline, Body: f.Body,
 				PrimaryCtaLabel: f.PrimaryLabel, PrimaryCtaHref: f.PrimaryHref,

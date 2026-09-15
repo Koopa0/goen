@@ -6558,6 +6558,16 @@ func (q *Queries) LockCouponForCheckout(ctx context.Context, code string) error 
 	return err
 }
 
+const lockFAQCategoryPosition = `-- name: LockFAQCategoryPosition :exec
+SELECT pg_advisory_xact_lock(hashtextextended('faq_entries:position:' || $1::text, 0))
+`
+
+// LockFAQCategoryPosition serializes position allocation within one FAQ category.
+func (q *Queries) LockFAQCategoryPosition(ctx context.Context, category string) error {
+	_, err := q.db.Exec(ctx, lockFAQCategoryPosition, category)
+	return err
+}
+
 const lockGoogleSubject = `-- name: LockGoogleSubject :exec
 SELECT pg_advisory_xact_lock(hashtextextended('google:' || $1::text, 0))
 `
@@ -6566,6 +6576,16 @@ SELECT pg_advisory_xact_lock(hashtextextended('google:' || $1::text, 0))
 // Workspace address can be reassigned to somebody else.
 func (q *Queries) LockGoogleSubject(ctx context.Context, subject string) error {
 	_, err := q.db.Exec(ctx, lockGoogleSubject, subject)
+	return err
+}
+
+const lockHeroPosition = `-- name: LockHeroPosition :exec
+SELECT pg_advisory_xact_lock(hashtextextended('hero_slides:position', 0))
+`
+
+// LockHeroPosition serializes position allocation for hero slides across concurrent staff.
+func (q *Queries) LockHeroPosition(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, lockHeroPosition)
 	return err
 }
 

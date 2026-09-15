@@ -878,6 +878,10 @@ FROM hero_slides h
 ORDER BY h.position, h.id
 LIMIT $1;
 
+-- LockHeroPosition serializes position allocation for hero slides across concurrent staff.
+-- name: LockHeroPosition :exec
+SELECT pg_advisory_xact_lock(hashtextextended('hero_slides:position', 0));
+
 -- name: CreateHeroSlide :exec
 INSERT INTO hero_slides (
     eyebrow, headline, body, primary_cta_label, primary_cta_href,
@@ -1606,6 +1610,10 @@ SELECT id, category, question, answer,
 FROM faq_entries
 ORDER BY category, position, id
 LIMIT $1;
+
+-- LockFAQCategoryPosition serializes position allocation within one FAQ category.
+-- name: LockFAQCategoryPosition :exec
+SELECT pg_advisory_xact_lock(hashtextextended('faq_entries:position:' || @category::text, 0));
 
 -- The position is computed WITHIN the category, because faq_entries_position_key
 -- is unique on (category, position).

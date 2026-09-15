@@ -8156,6 +8156,248 @@ func TestTwoFAQEntriesInOneCategoryDoNotCollide(t *testing.T) {
 	}
 }
 
+func TestConcurrentFAQEntryInsertsInSameCategoryAllocateDistinctPositions(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	category := "併發分類-" + uuid.NewString()[:8]
+
+	barrierFunc := "test_pause_faq_" + strings.ReplaceAll(uuid.NewString()[:8], "-", "")
+	const barrierKey int64 = 7_711_223_344_556_111
+	if _, err := pool.Exec(ctx, fmt.Sprintf(`
+		CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $body$
+		BEGIN
+			IF NEW.category = '%s' THEN
+				PERFORM pg_advisory_xact_lock(%d);
+			END IF;
+			RETURN NEW;
+		END
+		$body$;
+		CREATE TRIGGER %s BEFORE INSERT ON faq_entries
+		FOR EACH ROW EXECUTE FUNCTION %s()`,
+		barrierFunc, category, barrierKey, barrierFunc, barrierFunc)); err != nil {
+		t.Fatalf("install faq barrier: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_, _ = pool.Exec(cleanupCtx, fmt.Sprintf(
+			"DROP TRIGGER IF EXISTS %s ON faq_entries; DROP FUNCTION IF EXISTS %s()",
+			barrierFunc, barrierFunc))
+	})
+
+	blocker, beginErr := pool.Begin(ctx)
+	if beginErr != nil {
+		t.Fatalf("begin barrier: %v", beginErr)
+	}
+	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
+	if _, lockErr := blocker.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, barrierKey); lockErr != nil {
+		t.Fatalf("hold barrier: %v", lockErr)
+	}
+
+	const n = 2
+	var wg sync.WaitGroup
+	errCh := make(chan error, n)
+
+	// First insert reaches the barrier trigger inside its INSERT and pauses holding the lock (if locked) or holding snapshot.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, insertErr := s.CreateFAQEntry(ctx, &admin.FAQForm{
+			Category: category,
+			Question: "問題-1",
+			Answer:   "答案-1",
+		})
+		errCh <- insertErr
+	}()
+
+	// Wait until backend 1 is waiting on barrierKey
+	var t1Waiting bool
+	for range 50 {
+		time.Sleep(50 * time.Millisecond)
+		var waitingCount int
+		if lockQueryErr := pool.QueryRow(ctx, `
+			SELECT count(*) FROM pg_locks
+			WHERE locktype = 'advisory' AND objid = ($1 & 4294967295)::integer AND NOT granted`,
+			barrierKey).Scan(&waitingCount); lockQueryErr == nil && waitingCount > 0 {
+			t1Waiting = true
+			break
+		}
+	}
+	if !t1Waiting {
+		t.Fatal("T1 did not reach the barrier")
+	}
+
+	// Now start T2. If advisory lock is missing, T2 will compute max(position)+1 without waiting for T1 to finish,
+	// and attempt to insert the same position or block on unique index / barrier.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, insertErr := s.CreateFAQEntry(ctx, &admin.FAQForm{
+			Category: category,
+			Question: "問題-2",
+			Answer:   "答案-2",
+		})
+		errCh <- insertErr
+	}()
+
+	// Give T2 time to proceed and either queue on advisory lock or reach the barrier
+	time.Sleep(200 * time.Millisecond)
+
+	// Release the barrier
+	_ = blocker.Rollback(ctx)
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		if err != nil {
+			t.Fatalf("CreateFAQEntry failed: %v", err)
+		}
+	}
+
+	var positions []int32
+	rows, err := pool.Query(ctx,
+		`SELECT position FROM faq_entries WHERE category = $1 ORDER BY position`, category)
+	if err != nil {
+		t.Fatalf("read positions: %v", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var p int32
+		if scanErr := rows.Scan(&p); scanErr != nil {
+			t.Fatalf("scan: %v", scanErr)
+		}
+		positions = append(positions, p)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate FAQ positions: %v", err)
+	}
+	if len(positions) != n {
+		t.Fatalf("got %d entries, want %d", len(positions), n)
+	}
+	if positions[0] == positions[1] {
+		t.Errorf("concurrent inserts received colliding positions: %v", positions)
+	}
+}
+
+func TestConcurrentHeroSlideInsertsAllocateDistinctPositions(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+
+	idPrefix := uuid.NewString()[:8]
+	headlinePattern := "主視覺-" + idPrefix + "-%"
+	barrierFunc := "test_pause_hero_" + strings.ReplaceAll(idPrefix, "-", "")
+	const barrierKey int64 = 7_711_223_344_556_222
+	if _, err := pool.Exec(ctx, fmt.Sprintf(`
+		CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $body$
+		BEGIN
+			IF NEW.headline LIKE '%s' THEN
+				PERFORM pg_advisory_xact_lock(%d);
+			END IF;
+			RETURN NEW;
+		END
+		$body$;
+		CREATE TRIGGER %s BEFORE INSERT ON hero_slides
+		FOR EACH ROW EXECUTE FUNCTION %s()`,
+		barrierFunc, headlinePattern, barrierKey, barrierFunc, barrierFunc)); err != nil {
+		t.Fatalf("install hero barrier: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_, _ = pool.Exec(cleanupCtx, fmt.Sprintf(
+			"DROP TRIGGER IF EXISTS %s ON hero_slides; DROP FUNCTION IF EXISTS %s()",
+			barrierFunc, barrierFunc))
+	})
+
+	blocker, beginErr := pool.Begin(ctx)
+	if beginErr != nil {
+		t.Fatalf("begin barrier: %v", beginErr)
+	}
+	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
+	if _, lockErr := blocker.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, barrierKey); lockErr != nil {
+		t.Fatalf("hold barrier: %v", lockErr)
+	}
+
+	const n = 2
+	var wg sync.WaitGroup
+	errCh := make(chan error, n)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, insertErr := s.CreateHeroSlide(ctx, &admin.HeroForm{
+			Headline:     fmt.Sprintf("主視覺-%s-1", idPrefix),
+			PrimaryLabel: "看更多",
+			PrimaryHref:  "/deals",
+		})
+		errCh <- insertErr
+	}()
+
+	var t1Waiting bool
+	for range 50 {
+		time.Sleep(50 * time.Millisecond)
+		var waitingCount int
+		if lockQueryErr := pool.QueryRow(ctx, `
+			SELECT count(*) FROM pg_locks
+			WHERE locktype = 'advisory' AND objid = ($1 & 4294967295)::integer AND NOT granted`,
+			barrierKey).Scan(&waitingCount); lockQueryErr == nil && waitingCount > 0 {
+			t1Waiting = true
+			break
+		}
+	}
+	if !t1Waiting {
+		t.Fatal("T1 did not reach the barrier")
+	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, insertErr := s.CreateHeroSlide(ctx, &admin.HeroForm{
+			Headline:     fmt.Sprintf("主視覺-%s-2", idPrefix),
+			PrimaryLabel: "看更多",
+			PrimaryHref:  "/deals",
+		})
+		errCh <- insertErr
+	}()
+
+	time.Sleep(200 * time.Millisecond)
+
+	_ = blocker.Rollback(ctx)
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		if err != nil {
+			t.Fatalf("CreateHeroSlide failed: %v", err)
+		}
+	}
+
+	var positions []int32
+	rows, err := pool.Query(ctx,
+		`SELECT position FROM hero_slides WHERE headline LIKE $1 ORDER BY position`,
+		headlinePattern)
+	if err != nil {
+		t.Fatalf("read hero positions: %v", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var p int32
+		if scanErr := rows.Scan(&p); scanErr != nil {
+			t.Fatalf("scan: %v", scanErr)
+		}
+		positions = append(positions, p)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate hero positions: %v", err)
+	}
+	if len(positions) != n {
+		t.Fatalf("got %d hero slides, want %d", len(positions), n)
+	}
+	if positions[0] == positions[1] {
+		t.Errorf("concurrent hero inserts received colliding positions: %v", positions)
+	}
+}
+
 func TestAMethodParcelLimitRefusalKeepsTheRawText(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
