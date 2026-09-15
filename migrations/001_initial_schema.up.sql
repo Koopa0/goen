@@ -3992,6 +3992,12 @@ CREATE TABLE sale_campaign_products (
 
 CREATE INDEX sale_campaign_products_product_id_idx ON sale_campaign_products (product_id);
 
+-- AddCampaignProduct assigns position as max(position) + 1 per campaign. Without
+-- a unique index two concurrent features both succeed at the same position and
+-- ORDER BY position, p.id hides the tie.
+CREATE UNIQUE INDEX sale_campaign_products_position_key
+    ON sale_campaign_products (campaign_id, position);
+
 -- A featured product that shows no saving is a promise the page cannot keep.
 CREATE FUNCTION sale_campaign_products_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
