@@ -33,7 +33,12 @@ var coveredByNamedTest = map[string]string{
 	"users_keep_one_admin_on_role":           "TestUsersTriggerKeepsOneAdmin (internal/db)",
 	"users_keep_one_admin_on_delete":         "TestUsersTriggerKeepsOneAdmin (internal/db)",
 	// Exercised where the send is: proving it needs an issue that has actually been sent.
-	"newsletter_issues_frozen_once_sent": "TestASentIssueCannotBeRewritten (internal/newsletter)",
+	"newsletter_issues_frozen_once_sent":            "TestASentIssueCannotBeRewritten (internal/newsletter)",
+	"products_bump_presentation_revision":           "TestPresentationRevisionAdvancesOnStaffEdit (internal/product)",
+	"product_images_bump_presentation_revision":     "TestPresentationRevisionAdvancesOnStaffEdit (internal/product)",
+	"product_specs_bump_presentation_revision":      "TestPresentationRevisionAdvancesOnStaffEdit (internal/product)",
+	"brands_bump_product_presentation_revision":     "TestPresentationRevisionAdvancesOnStaffEdit (internal/product)",
+	"categories_bump_product_presentation_revision": "TestPresentationRevisionAdvancesOnStaffEdit (internal/product)",
 }
 
 // TestEveryRuleTriggerIsExercised requires a case for every rule trigger in the catalog.

@@ -208,6 +208,9 @@ CREATE TABLE products (
     warranty_months integer,
     status        text NOT NULL DEFAULT 'draft',
     published_at  timestamptz,
+    -- Bumped atomically with every presentation-affecting write. The storefront
+    -- reads this before choosing a cache key so an edit never serves stale copy.
+    presentation_revision bigint NOT NULL DEFAULT 1,
     created_at    timestamptz NOT NULL DEFAULT now(),
     updated_at    timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT products_warranty_months_sane
@@ -487,6 +490,97 @@ CREATE UNIQUE INDEX product_specs_position_key ON product_specs (product_id, pos
 -- cell and silently discard a value at render time.
 CREATE UNIQUE INDEX product_specs_label_key ON product_specs (product_id, label);
 CREATE INDEX product_specs_label_idx ON product_specs (label);
+
+-- presentation_revision advances in the same transaction as the write that
+-- changes what a reader would see. Child-table bumps use UPDATE so the
+-- products BEFORE trigger below does not count them twice.
+CREATE FUNCTION products_bump_presentation_revision() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF TG_OP = 'UPDATE' AND (
+        NEW.name IS DISTINCT FROM OLD.name OR
+        NEW.name_en IS DISTINCT FROM OLD.name_en OR
+        NEW.summary IS DISTINCT FROM OLD.summary OR
+        NEW.summary_en IS DISTINCT FROM OLD.summary_en OR
+        NEW.description IS DISTINCT FROM OLD.description OR
+        NEW.description_en IS DISTINCT FROM OLD.description_en OR
+        NEW.warranty_note IS DISTINCT FROM OLD.warranty_note OR
+        NEW.warranty_months IS DISTINCT FROM OLD.warranty_months OR
+        NEW.brand_id IS DISTINCT FROM OLD.brand_id OR
+        NEW.category_id IS DISTINCT FROM OLD.category_id OR
+        NEW.status IS DISTINCT FROM OLD.status
+    ) THEN
+        NEW.presentation_revision := OLD.presentation_revision + 1;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER products_bump_presentation_revision
+    BEFORE UPDATE ON products
+    FOR EACH ROW EXECUTE FUNCTION products_bump_presentation_revision();
+
+CREATE FUNCTION product_children_bump_presentation_revision() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE
+    pid uuid;
+BEGIN
+    pid := COALESCE(NEW.product_id, OLD.product_id);
+    UPDATE products
+    SET presentation_revision = presentation_revision + 1
+    WHERE id = pid;
+    RETURN COALESCE(NEW, OLD);
+END;
+$$;
+
+CREATE TRIGGER product_images_bump_presentation_revision
+    AFTER INSERT OR UPDATE OR DELETE ON product_images
+    FOR EACH ROW EXECUTE FUNCTION product_children_bump_presentation_revision();
+
+CREATE TRIGGER product_specs_bump_presentation_revision
+    AFTER INSERT OR UPDATE OR DELETE ON product_specs
+    FOR EACH ROW EXECUTE FUNCTION product_children_bump_presentation_revision();
+
+CREATE FUNCTION brands_bump_product_presentation_revision() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.name IS DISTINCT FROM OLD.name THEN
+        UPDATE products
+        SET presentation_revision = presentation_revision + 1
+        WHERE brand_id = NEW.id;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER brands_bump_product_presentation_revision
+    AFTER UPDATE OF name ON brands
+    FOR EACH ROW EXECUTE FUNCTION brands_bump_product_presentation_revision();
+
+CREATE FUNCTION categories_bump_product_presentation_revision() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.name IS DISTINCT FROM OLD.name OR
+       NEW.name_en IS DISTINCT FROM OLD.name_en OR
+       NEW.parent_id IS DISTINCT FROM OLD.parent_id THEN
+        UPDATE products
+        SET presentation_revision = presentation_revision + 1
+        WHERE category_id IN (
+            WITH RECURSIVE subtree AS (
+                SELECT NEW.id AS id
+                UNION ALL
+                SELECT c.id FROM categories c JOIN subtree s ON c.parent_id = s.id
+            )
+            SELECT id FROM subtree
+        );
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER categories_bump_product_presentation_revision
+    AFTER UPDATE OF name, name_en, parent_id ON categories
+    FOR EACH ROW EXECUTE FUNCTION categories_bump_product_presentation_revision();
 
 CREATE TABLE users (
     id                uuid PRIMARY KEY DEFAULT uuidv7(),
