@@ -198,10 +198,11 @@ ON CONFLICT (id) DO NOTHING;
 
 -- Pending and completed asynchronous work.
 INSERT INTO outbox_messages (id, topic, dedupe_key, payload, attempts, available_at, delivered_at) VALUES
-    ('bbbb0001-0000-4000-8000-000000000001', 'email.order_paid', 'restore-delivered',
+    ('bbbb0001-0000-4000-8000-000000000001', 'order.paid', 'restore-delivered',
      '{"order_number":"GO-260914-000001"}'::jsonb, 1, now() - interval '1 hour', now() - interval '59 minutes'),
-    ('bbbb0002-0000-4000-8000-000000000002', 'email.order_shipped', 'restore-pending',
-     '{"order_number":"GO-260914-000001"}'::jsonb, 0, now(), NULL)
+    ('bbbb0002-0000-4000-8000-000000000002', 'order.shipped', 'restore-pending',
+     '{"locale":"zh-Hant","order_number":"GO-260914-000001","email":"restore-paid@example.com","name":"還原付費","carrier":"黑貓宅急便","tracking":"903-RESTORE-001"}'::jsonb,
+     0, now(), NULL)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO products (id, brand_id, category_id, slug, name, status, published_at) VALUES

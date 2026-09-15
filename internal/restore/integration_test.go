@@ -74,7 +74,7 @@ func TestBusinessManifestCapturesCommerceState(t *testing.T) {
 		"payment\trequires_reconciliation",
 		"refund\tsucceeded",
 		"media\t",
-		"outbox_pending\temail.order_shipped",
+		"outbox_pending\torder.shipped",
 	} {
 		if !strings.Contains(joined, needle) {
 			t.Errorf("manifest missing %q in:\n%s", needle, joined)
@@ -183,7 +183,7 @@ func TestRecoverableWorkDoesNotDuplicateCompletedEffects(t *testing.T) {
 	s := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
 
 	var delivered int
-	s.Handle("email.order_shipped", func(context.Context, []byte) error {
+	s.Handle(outbox.TopicOrderShipped, func(context.Context, []byte) error {
 		delivered++
 		return nil
 	})
