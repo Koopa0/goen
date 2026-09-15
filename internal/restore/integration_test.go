@@ -178,8 +178,17 @@ func TestBusinessManifestRejectsTamperedPaymentAmount(t *testing.T) {
 	}
 }
 
+const restorePendingShipmentOutboxID = "bbbb0002-0000-4000-8000-000000000002"
+
 func TestRecoverableWorkDoesNotDuplicateCompletedEffects(t *testing.T) {
 	ctx := t.Context()
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.WithoutCancel(ctx), `
+			UPDATE outbox_messages
+			   SET delivered_at = NULL, attempts = 0, available_at = now() - interval '1 second'
+			 WHERE id = $1`, restorePendingShipmentOutboxID)
+	})
+
 	s := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
 
 	var delivered int
