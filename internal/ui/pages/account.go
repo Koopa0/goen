@@ -208,3 +208,15 @@ func (m MemberStanding) HasNext() bool { return m.NextName != "" }
 
 // NextNeeds is how much more the next band asks for.
 func (m MemberStanding) NextNeeds() string { return twd(m.NextNeedsCents) }
+
+// CartRecoveryView is the cart-merge recovery landing after sign-in.
+type CartRecoveryView struct {
+	Next   string
+	Notice string
+	Retry  string
+}
+
+// CartRecoveryMeta is the chrome view model for the recovery page.
+func CartRecoveryMeta(ctx context.Context) layouts.Page {
+	return layouts.Page{Title: i18n.T(ctx, i18n.KeyCartMergeRecoveryTitle)}
+}

@@ -19,9 +19,6 @@ templ Cart(p layouts.Page, v CartView) {
 					}
 				</div>
 			</div>
-			if v.HasNotice() {
-				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
-			}
 			if v.FromReorder() {
 				<p class="ui-alert ui-alert--info" role="status">{ v.ReorderText(ctx) }</p>
 			}
