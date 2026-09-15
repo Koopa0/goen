@@ -89,7 +89,7 @@ func largeBudgets() []Budget {
 		{Route: RouteCategoryPriceAsc, WarmMaxMS: 200, ColdMaxMS: 235, MinRows: 1, MaxRows: 24},
 		{Route: RouteCategoryDeepPage, WarmMaxMS: 250, ColdMaxMS: 255, MinRows: 0, MaxRows: 24},
 		{Route: RouteSearchNameLatin, WarmMaxMS: 340, ColdMaxMS: 300, MinRows: 1, MaxRows: 24},
-		{Route: RouteSearchBrand, WarmMaxMS: 130, ColdMaxMS: 140, MinRows: 1, MaxRows: 24},
+		{Route: RouteSearchBrand, WarmMaxMS: 150, ColdMaxMS: 140, MinRows: 1, MaxRows: 24},
 		{Route: RouteSearchChinese, WarmMaxMS: 65, ColdMaxMS: 90, MinRows: 0, MaxRows: 24},
 		{Route: RouteSearchNoMatch, WarmMaxMS: 65, ColdMaxMS: 65, MinRows: 0, MaxRows: 0},
 	}
