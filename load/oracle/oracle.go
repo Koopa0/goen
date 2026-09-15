@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -12,30 +14,29 @@ import (
 
 // VariantSnapshot is the stock picture oracle checks use.
 type VariantSnapshot struct {
-	VariantID     uuid.UUID
-	StockQuantity int64
-	SafetyStock   int64
-	SoldCommitted int64
-	ActiveHolds   int64
+	VariantID      uuid.UUID
+	StockQuantity  int64
+	SafetyStock    int64
+	InitialReceipt int64
+	LedgerBalance  int64
+	SoldCommitted  int64
+	ActiveHolds    int64
 }
 
-// SellableUnits is stock the storefront may still sell.
-func (v VariantSnapshot) SellableUnits() int64 {
-	available := v.StockQuantity - v.SafetyStock
-	if available < 0 {
-		return 0
-	}
-	return available
+// AccountedUnits is stock still on the shelf plus units committed on live orders.
+// Holds already decremented stock and their order lines are in SoldCommitted, so
+// they must not be added again.
+func (v VariantSnapshot) AccountedUnits() int64 {
+	return v.StockQuantity + v.SoldCommitted
 }
 
-// ConsumedUnits is committed sales plus inventory still held for checkout.
-func (v VariantSnapshot) ConsumedUnits() int64 {
-	return v.SoldCommitted + v.ActiveHolds
-}
-
-// Oversell reports whether committed plus held units exceed sellable stock.
+// Oversell reports whether shelf plus committed units exceed received inventory
+// or the movement ledger no longer matches the stock projection.
 func (v VariantSnapshot) Oversell() bool {
-	return v.ConsumedUnits() > v.SellableUnits()
+	if v.LedgerBalance != v.StockQuantity {
+		return true
+	}
+	return v.AccountedUnits() > v.InitialReceipt
 }
 
 // LoadVariantSnapshot reads the oracle inputs for one variant.
@@ -51,6 +52,18 @@ func LoadVariantSnapshot(ctx context.Context, db *pgxpool.Pool, variantID uuid.U
 		WHERE id = $1`, variantID).Scan(&snap.StockQuantity, &snap.SafetyStock)
 	if err != nil {
 		return VariantSnapshot{}, fmt.Errorf("oracle: read variant stock: %w", err)
+	}
+	if err := db.QueryRow(ctx, `
+		SELECT COALESCE(SUM(delta), 0)
+		FROM inventory_movements
+		WHERE variant_id = $1 AND reason = 'receipt'`, variantID).Scan(&snap.InitialReceipt); err != nil {
+		return VariantSnapshot{}, fmt.Errorf("oracle: sum receipt movements: %w", err)
+	}
+	if err := db.QueryRow(ctx, `
+		SELECT COALESCE(SUM(delta), 0)
+		FROM inventory_movements
+		WHERE variant_id = $1`, variantID).Scan(&snap.LedgerBalance); err != nil {
+		return VariantSnapshot{}, fmt.Errorf("oracle: sum ledger movements: %w", err)
 	}
 	if err := db.QueryRow(ctx, `
 		SELECT COALESCE(SUM(ol.quantity), 0)
@@ -72,16 +85,16 @@ func LoadVariantSnapshot(ctx context.Context, db *pgxpool.Pool, variantID uuid.U
 	return snap, nil
 }
 
-// CheckNoOversell fails when sold plus held units exceed sellable stock.
+// CheckNoOversell fails when committed units exceed received inventory.
 func CheckNoOversell(ctx context.Context, db *pgxpool.Pool, variantID uuid.UUID) error {
 	snap, err := LoadVariantSnapshot(ctx, db, variantID)
 	if err != nil {
 		return err
 	}
 	if snap.Oversell() {
-		return fmt.Errorf("oracle: oversell on variant %s: consumed %d > sellable %d (stock=%d safety=%d sold=%d holds=%d)",
-			variantID, snap.ConsumedUnits(), snap.SellableUnits(),
-			snap.StockQuantity, snap.SafetyStock, snap.SoldCommitted, snap.ActiveHolds)
+		return fmt.Errorf("oracle: oversell on variant %s: accounted %d > initial receipt %d (stock=%d ledger=%d sold=%d holds=%d safety=%d)",
+			variantID, snap.AccountedUnits(), snap.InitialReceipt,
+			snap.StockQuantity, snap.LedgerBalance, snap.SoldCommitted, snap.ActiveHolds, snap.SafetyStock)
 	}
 	return nil
 }
@@ -145,6 +158,22 @@ func DegradedWork(successful, total, minSuccess int64) error {
 			successful, total, minSuccess)
 	}
 	return nil
+}
+
+// ParseRequiredCount parses a required non-negative run counter.
+func ParseRequiredCount(name, raw string) (int64, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return 0, fmt.Errorf("oracle: %s is required", name)
+	}
+	v, err := strconv.ParseInt(trimmed, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("oracle: %s must be an integer: %w", name, err)
+	}
+	if v < 0 {
+		return 0, fmt.Errorf("oracle: %s must be non-negative", name)
+	}
+	return v, nil
 }
 
 // FlashSaleVariantID is the pinned limited-stock variant from load/fixtures/catalog.sql.

@@ -62,12 +62,15 @@ threshold breaches). Tune `LOAD_K6_VUS_MAX`, `LOAD_K6_DURATION`, and
 
 `load/oracle` checks:
 
-- sold plus held units never exceed sellable stock on the flash-sale variant;
+- shelf stock plus committed order lines never exceed received inventory on the
+  flash-sale variant (holds are not double-counted against already-decremented
+  stock);
 - no idempotency key produced more than one order;
-- impaired runs still complete useful work (`DegradedWork`).
+- impaired runs still complete useful work (`DegradedWork`) using k6 check counts
+  carried in from the profile summary.
 
-Plant an oversell by ignoring active holds in `VariantSnapshot.ConsumedUnits`;
-`go test ./load/oracle/ -run Oversell` goes red.
+Plant a conservation violation by adding committed units without matching stock;
+`go test ./load/oracle/ -run Conservation` goes red.
 
 Provider doubles are marked simulated in `topology.json`. External sandbox
 acceptance remains #40; this harness does not claim production throughput.

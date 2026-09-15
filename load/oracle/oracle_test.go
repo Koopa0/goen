@@ -6,17 +6,48 @@ import (
 	"github.com/google/uuid"
 )
 
-func TestOversellOracleDetectsActiveHolds(t *testing.T) {
+func TestLegitimateHoldIsNotOversell(t *testing.T) {
 	t.Parallel()
 	snap := VariantSnapshot{
-		VariantID:     uuid.New(),
-		StockQuantity: 3,
-		SafetyStock:   0,
-		SoldCommitted: 2,
-		ActiveHolds:   2,
+		VariantID:      uuid.New(),
+		StockQuantity:  1,
+		SafetyStock:    0,
+		InitialReceipt: 3,
+		LedgerBalance:  1,
+		SoldCommitted:  2,
+		ActiveHolds:    2,
+	}
+	if snap.Oversell() {
+		t.Fatal("pending checkout must not count holds twice against remaining stock")
+	}
+}
+
+func TestOversellOracleDetectsConservationViolation(t *testing.T) {
+	t.Parallel()
+	snap := VariantSnapshot{
+		VariantID:      uuid.New(),
+		StockQuantity:  0,
+		SafetyStock:    0,
+		InitialReceipt: 3,
+		LedgerBalance:  0,
+		SoldCommitted:  4,
 	}
 	if !snap.Oversell() {
-		t.Fatal("expected oversell when sold plus holds exceed sellable units")
+		t.Fatal("expected oversell when committed units exceed received inventory")
+	}
+}
+
+func TestOversellOracleDetectsLedgerDrift(t *testing.T) {
+	t.Parallel()
+	snap := VariantSnapshot{
+		VariantID:      uuid.New(),
+		StockQuantity:  1,
+		InitialReceipt: 3,
+		LedgerBalance:  2,
+		SoldCommitted:  2,
+	}
+	if !snap.Oversell() {
+		t.Fatal("expected oversell when the ledger projection no longer matches stock")
 	}
 }
 
@@ -30,11 +61,16 @@ func TestDegradedWorkRejectsTotalRejection(t *testing.T) {
 	}
 }
 
-func TestSellableUnitsRespectsSafetyStock(t *testing.T) {
+func TestParseRequiredCountRejectsMissingAndMalformed(t *testing.T) {
 	t.Parallel()
-	snap := VariantSnapshot{StockQuantity: 5, SafetyStock: 2}
-	if snap.SellableUnits() != 3 {
-		t.Fatalf("sellable = %d, want 3", snap.SellableUnits())
+	if _, err := ParseRequiredCount("LOAD_ORACLE_SUCCESS_COUNT", ""); err == nil {
+		t.Fatal("expected missing counter to fail closed")
+	}
+	if _, err := ParseRequiredCount("LOAD_ORACLE_TOTAL_COUNT", "nope"); err == nil {
+		t.Fatal("expected malformed counter to fail closed")
+	}
+	if v, err := ParseRequiredCount("LOAD_ORACLE_SUCCESS_COUNT", " 7 "); err != nil || v != 7 {
+		t.Fatalf("ParseRequiredCount = (%d, %v), want (7, nil)", v, err)
 	}
 }
 
