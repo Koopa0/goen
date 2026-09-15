@@ -3,10 +3,14 @@ package cart
 import (
 	"context"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/koopa0/goen/internal/i18n"
 )
 
 // sessionCloseObservation records the context at the existing SessionCloser
@@ -82,5 +86,23 @@ func TestSignedInCartLookupFallsBackToTheAccountCart(t *testing.T) {
 	}
 	if strings.Contains(body, "Create(r.Context(), token, uuid.NullUUID{})") {
 		t.Error("signed-in add still mints an unowned cart")
+	}
+}
+
+func TestCartPageDisplaysMergeFailedNotice(t *testing.T) {
+	t.Parallel()
+
+	h := &Handler{log: slog.New(slog.DiscardHandler)}
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/cart?cart=mergefailed", http.NoBody)
+	w := httptest.NewRecorder()
+
+	h.Page(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /cart?cart=mergefailed status = %d, want 200", w.Code)
+	}
+	wantNotice := i18n.T(t.Context(), i18n.KeyCartMergeFailed)
+	if !strings.Contains(w.Body.String(), wantNotice) {
+		t.Errorf("cart page does not render merge failed notice: %s", w.Body.String())
 	}
 }
