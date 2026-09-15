@@ -320,6 +320,11 @@ func (c *PresentationCache) fallback(ctx context.Context, fill func(context.Cont
 	}
 	defer c.endFallback()
 	c.metrics.Fallbacks.Add(1)
+	if integrationFillPause != nil {
+		if pauseErr := integrationFillPause(ctx); pauseErr != nil {
+			return Presentation{}, pauseErr
+		}
+	}
 	return fill(ctx)
 }
 
