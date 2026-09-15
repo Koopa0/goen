@@ -33,6 +33,31 @@ var (
 
 	KeyFilters = key("listing.filters", Message{ZhHant: "篩選", En: "Filters"})
 
+	KeyFiltersAndSort = key("listing.filters.and.sort", Message{
+		ZhHant: "篩選與排序",
+		En:     "Filters & sort",
+	})
+
+	KeyFiltersActive = key("listing.filters.active", Message{
+		ZhHant: "已套用篩選",
+		En:     "Active filters",
+	})
+
+	KeyPriceRangeChip = key("listing.filters.chip.price.range", Message{
+		ZhHant: "%s–%s",
+		En:     "%s–%s",
+	})
+
+	KeyPriceFromChip = key("listing.filters.chip.price.from", Message{
+		ZhHant: "%s 起",
+		En:     "From %s",
+	})
+
+	KeyPriceUpToChip = key("listing.filters.chip.price.upto", Message{
+		ZhHant: "最高 %s",
+		En:     "Up to %s",
+	})
+
 	KeyClearFilters = key("listing.filters.clear", Message{ZhHant: "清除全部", En: "Clear all"})
 
 	KeyApplyFilters = key("listing.filters.apply", Message{ZhHant: "套用篩選", En: "Apply filters"})

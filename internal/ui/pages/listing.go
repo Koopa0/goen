@@ -143,6 +143,41 @@ func (v ListingView) PageText() string { return strconv.Itoa(v.Page) }
 // PagesText is the page count as text.
 func (v ListingView) PagesText() string { return strconv.Itoa(v.Pages()) }
 
+// FilterAction is where a filter submission should land: the results region.
+func (v ListingView) FilterAction() string {
+	return "/c/" + v.Slug + "#listing-results"
+}
+
+// AppliedChips names each active filter for the summary bar.
+func (v ListingView) AppliedChips(ctx context.Context) []string {
+	var chips []string
+	for _, b := range v.Brands {
+		if b.Selected {
+			chips = append(chips, b.Label)
+		}
+	}
+	if v.InStockOnly {
+		chips = append(chips, i18n.T(ctx, i18n.KeyFacetInStock))
+	}
+	if v.MinPrice > 0 || v.MaxPrice > 0 {
+		chips = append(chips, v.priceRangeChip(ctx))
+	}
+	return chips
+}
+
+func (v ListingView) priceRangeChip(ctx context.Context) string {
+	low := v.MinPriceText()
+	high := v.MaxPriceText()
+	switch {
+	case low != "" && high != "":
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyPriceRangeChip), low, high)
+	case low != "":
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyPriceFromChip), low)
+	default:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyPriceUpToChip), high)
+	}
+}
+
 // SearchView is everything the search results page renders.
 type SearchView struct {
 	Query     string
