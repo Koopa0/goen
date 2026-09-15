@@ -39,6 +39,47 @@ func initHTTPInstruments(m metric.Meter) error {
 	return nil
 }
 
+type routeCapture struct {
+	pattern string
+}
+
+type routeCaptureKey struct{}
+
+func newRouteCaptureContext(ctx context.Context) (context.Context, *routeCapture) {
+	capture := &routeCapture{}
+	return context.WithValue(ctx, routeCaptureKey{}, capture), capture
+}
+
+func httpRoutePattern(r *http.Request) string {
+	if r.Pattern != "" {
+		return r.Pattern
+	}
+	capture, ok := r.Context().Value(routeCaptureKey{}).(*routeCapture)
+	if !ok || capture.pattern == "" {
+		return ""
+	}
+	return capture.pattern
+}
+
+// CaptureHTTPRoute publishes the mux pattern for outer telemetry spans.
+// Visitor middleware replaces Request values with WithContext copies, so the
+// matched template must be captured beside the mux and read through context.
+func CaptureHTTPRoute(next http.Handler) http.Handler {
+	if next == nil {
+		return nil
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
+		if r.Pattern == "" {
+			return
+		}
+		capture, ok := r.Context().Value(routeCaptureKey{}).(*routeCapture)
+		if ok {
+			capture.pattern = r.Pattern
+		}
+	})
+}
+
 // HTTP wraps a handler with route-template spans and metrics.
 func HTTP(next http.Handler) http.Handler {
 	if next == nil {
@@ -49,8 +90,9 @@ func HTTP(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		route := RouteLabel(r.Method, r.Pattern)
-		ctx, span := Tracer().Start(r.Context(), route,
+		ctx, _ := newRouteCaptureContext(r.Context())
+		route := RouteLabel(r.Method, httpRoutePattern(r))
+		ctx, span := Tracer().Start(ctx, route,
 			trace.WithAttributes(
 				attribute.String("http.route", route),
 				attribute.String("http.method", r.Method),
@@ -60,7 +102,8 @@ func HTTP(next http.Handler) http.Handler {
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w}
 		next.ServeHTTP(rec, r)
-		route = RouteLabel(r.Method, r.Pattern)
+		pattern := httpRoutePattern(r)
+		route = RouteLabel(r.Method, pattern)
 		span.SetName(route)
 		span.SetAttributes(attribute.String("http.route", route))
 		status := rec.statusCode()
@@ -73,7 +116,7 @@ func HTTP(next http.Handler) http.Handler {
 			span.SetStatus(codes.Error, class)
 		}
 		span.End()
-		RecordHTTPRequest(ctx, r.Method, r.Pattern, status, time.Since(start).Seconds())
+		RecordHTTPRequest(ctx, r.Method, pattern, status, time.Since(start).Seconds())
 	})
 }
 

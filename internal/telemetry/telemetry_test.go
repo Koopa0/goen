@@ -122,6 +122,37 @@ func TestCorrelatedHandlerAddsTraceFields(t *testing.T) {
 	}
 }
 
+func TestHTTPMiddlewareUsesRoutePatternThroughContextCopies(t *testing.T) {
+	exporter := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
+	otel.SetTracerProvider(tp)
+	t.Cleanup(func() { _ = tp.Shutdown(t.Context()) })
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /p/{slug}", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	inner := telemetry.CaptureHTTPRoute(mux)
+	outer := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		inner.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), contextKey("probe"), true)))
+	})
+	handler := telemetry.HTTP(outer)
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/p/alpha", http.NoBody)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	spans := exporter.GetSpans()
+	if len(spans) != 1 {
+		t.Fatalf("span count = %d, want 1", len(spans))
+	}
+	if spans[0].Name != "GET /p/{slug}" {
+		t.Fatalf("span name = %q, want route template label", spans[0].Name)
+	}
+}
+
+type contextKey string
+
 func TestHTTPMiddlewareUsesRoutePattern(t *testing.T) {
 	exporter := tracetest.NewInMemoryExporter()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))

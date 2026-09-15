@@ -13,8 +13,14 @@ func TestRequestTracingIncludesOpenTelemetryHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(src, []byte("var handler = telemetry.HTTP(mux)")) {
-		t.Fatal("newRouter must wrap the mux with telemetry.HTTP before chrome middleware")
+	if !bytes.Contains(src, []byte("next = telemetry.HTTP(next)")) {
+		t.Fatal("withRequestTracing must wrap the handler stack with telemetry.HTTP")
+	}
+	if !bytes.Contains(src, []byte("telemetry.CaptureHTTPRoute(mux)")) {
+		t.Fatal("newRouter must capture mux route templates for outer HTTP spans")
+	}
+	if bytes.Contains(src, []byte("var handler = telemetry.HTTP(mux)")) {
+		t.Fatal("telemetry.HTTP must not sit inside chrome middleware")
 	}
 }
 
