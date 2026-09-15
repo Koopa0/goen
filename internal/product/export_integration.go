@@ -15,6 +15,11 @@ type CacheStats struct {
 	Hits, Misses, Errors, Fills, Coalesced, Fallbacks uint64
 }
 
+// SetIntegrationFillPause blocks the fill owner until fn returns. Only for tests.
+func SetIntegrationFillPause(fn func(context.Context) error) {
+	integrationFillPause = fn
+}
+
 // CacheStatsOf reads presentation-cache counters for acceptance tests.
 func CacheStatsOf(c *PresentationCache) CacheStats {
 	if c == nil || c.metrics == nil {
