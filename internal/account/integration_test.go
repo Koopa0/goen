@@ -559,22 +559,43 @@ func placeOrderFor(t *testing.T, userID string) string {
 	return number
 }
 
+func sellableVariant(t *testing.T, ctx context.Context) uuid.UUID {
+	t.Helper()
+	var id uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		SELECT pv.id FROM product_variants pv
+		JOIN products p ON p.id = pv.product_id
+		WHERE pv.is_active AND p.status = 'active'
+		  AND (pv.stock_quantity - pv.safety_stock) > 0
+		ORDER BY pv.position, pv.id LIMIT 1`).Scan(&id); err != nil {
+		t.Fatalf("sellable variant: %v", err)
+	}
+	return id
+}
+
+func anotherSellableVariant(t *testing.T, ctx context.Context, not uuid.UUID) uuid.UUID {
+	t.Helper()
+	var id uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		SELECT pv.id FROM product_variants pv
+		JOIN products p ON p.id = pv.product_id
+		WHERE pv.is_active AND p.status = 'active'
+		  AND (pv.stock_quantity - pv.safety_stock) > 0
+		  AND pv.id <> $1
+		ORDER BY pv.position, pv.id LIMIT 1`, not).Scan(&id); err != nil {
+		t.Fatalf("second sellable variant: %v", err)
+	}
+	return id
+}
+
 func TestAdoptCartMergesRatherThanReplaces(t *testing.T) {
 	ctx := t.Context()
 	s := account.NewStore(pool)
 	u := register(t, s, "merge@example.com")
 	uid := uuid.MustParse(u.ID)
 
-	var a, b uuid.UUID
-	if err := pool.QueryRow(ctx,
-		`SELECT id FROM product_variants WHERE is_active ORDER BY position LIMIT 1`).Scan(&a); err != nil {
-		t.Fatalf("variant a: %v", err)
-	}
-	if err := pool.QueryRow(ctx,
-		`SELECT id FROM product_variants WHERE is_active AND id <> $1 ORDER BY position LIMIT 1`,
-		a).Scan(&b); err != nil {
-		t.Fatalf("variant b: %v", err)
-	}
+	a := sellableVariant(t, ctx)
+	b := anotherSellableVariant(t, ctx, a)
 
 	var accountCart uuid.UUID
 	if err := pool.QueryRow(ctx,
@@ -639,6 +660,163 @@ func TestAdoptCartMergesRatherThanReplaces(t *testing.T) {
 	}
 }
 
+func TestAdoptCartMergeClampsCombinedQuantity(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	u := register(t, s, "merge-clamp-"+uuid.NewString()+"@example.com")
+	uid := uuid.MustParse(u.ID)
+
+	var vid uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		SELECT pv.id FROM product_variants pv
+		JOIN products p ON p.id = pv.product_id
+		WHERE pv.is_active AND p.status = 'active'
+		  AND (pv.stock_quantity - pv.safety_stock) > 0
+		ORDER BY pv.position, pv.id LIMIT 1`).Scan(&vid); err != nil {
+		t.Fatalf("variant: %v", err)
+	}
+	var wasStock, wasSafety int32
+	if err := pool.QueryRow(ctx,
+		`SELECT stock_quantity, safety_stock FROM product_variants WHERE id = $1`,
+		vid).Scan(&wasStock, &wasSafety); err != nil {
+		t.Fatalf("read stock: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), //nolint:usetesting // t.Context is already cancelled in Cleanup
+			`UPDATE product_variants SET stock_quantity = $2, safety_stock = $3 WHERE id = $1`,
+			vid, wasStock, wasSafety)
+	})
+	if _, err := pool.Exec(ctx,
+		`UPDATE product_variants SET stock_quantity = 5, safety_stock = 2 WHERE id = $1`,
+		vid); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+
+	var accountCart uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+		account.HashToken("account-cart-"+u.ID), uid).Scan(&accountCart); err != nil {
+		t.Fatalf("account cart: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 2)`,
+		accountCart, vid); err != nil {
+		t.Fatalf("account line: %v", err)
+	}
+
+	var guestCart uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
+		account.HashToken("guest-cart-"+u.ID)).Scan(&guestCart); err != nil {
+		t.Fatalf("guest cart: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 2)`,
+		guestCart, vid); err != nil {
+		t.Fatalf("guest line: %v", err)
+	}
+
+	if err := s.AdoptCart(ctx, u.ID, guestCart); !errors.Is(err, account.ErrQuantityAdjusted) {
+		t.Fatalf("merge over stock returned %v, want ErrQuantityAdjusted", err)
+	}
+
+	var merged int32
+	if err := pool.QueryRow(ctx,
+		`SELECT quantity FROM cart_items WHERE cart_id = $1 AND variant_id = $2`,
+		accountCart, vid).Scan(&merged); err != nil {
+		t.Fatalf("read merged line: %v", err)
+	}
+	if merged != 3 {
+		t.Errorf("merged quantity = %d, want 3 (2 + 2 clamped to sellable 3)", merged)
+	}
+}
+
+func TestAdoptUnavailableGuestLinePreservesBothCarts(t *testing.T) {
+	ctx := t.Context()
+	s := account.NewStore(pool)
+	u := register(t, s, "merge-refuse-"+uuid.NewString()+"@example.com")
+	uid := uuid.MustParse(u.ID)
+
+	var available, unavailable uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM product_variants WHERE is_active ORDER BY position LIMIT 1`).Scan(&available); err != nil {
+		t.Fatalf("available variant: %v", err)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM product_variants WHERE is_active AND id <> $1 ORDER BY position LIMIT 1`,
+		available).Scan(&unavailable); err != nil {
+		t.Fatalf("second variant: %v", err)
+	}
+	var wasStock, wasSafety int32
+	if err := pool.QueryRow(ctx,
+		`SELECT stock_quantity, safety_stock FROM product_variants WHERE id = $1`,
+		unavailable).Scan(&wasStock, &wasSafety); err != nil {
+		t.Fatalf("read stock: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), //nolint:usetesting // t.Context is already cancelled in Cleanup
+			`UPDATE product_variants SET stock_quantity = $2, safety_stock = $3, is_active = true WHERE id = $1`,
+			unavailable, wasStock, wasSafety)
+	})
+	if _, err := pool.Exec(ctx,
+		`UPDATE product_variants SET stock_quantity = 0, safety_stock = 0 WHERE id = $1`,
+		unavailable); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+
+	var accountCart uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+		account.HashToken("account-cart-"+u.ID), uid).Scan(&accountCart); err != nil {
+		t.Fatalf("account cart: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 1)`,
+		accountCart, available); err != nil {
+		t.Fatalf("account line: %v", err)
+	}
+
+	var guestCart uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
+		account.HashToken("guest-cart-"+u.ID)).Scan(&guestCart); err != nil {
+		t.Fatalf("guest cart: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 1)`,
+		guestCart, unavailable); err != nil {
+		t.Fatalf("guest line: %v", err)
+	}
+
+	if err := s.AdoptCart(ctx, u.ID, guestCart); !errors.Is(err, account.ErrCartMergeRefused) {
+		t.Fatalf("adopt with unavailable guest line returned %v, want ErrCartMergeRefused", err)
+	}
+
+	var guestCount, accountCount int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM cart_items WHERE cart_id = $1`, guestCart).Scan(&guestCount); err != nil {
+		t.Fatalf("count guest items: %v", err)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM cart_items WHERE cart_id = $1`, accountCart).Scan(&accountCount); err != nil {
+		t.Fatalf("count account items: %v", err)
+	}
+	if guestCount != 1 {
+		t.Errorf("guest cart items = %d, want 1 unchanged", guestCount)
+	}
+	if accountCount != 1 {
+		t.Errorf("account cart items = %d, want 1 unchanged", accountCount)
+	}
+	var guestStillThere int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM carts WHERE id = $1`, guestCart).Scan(&guestStillThere); err != nil {
+		t.Fatalf("count guest cart row: %v", err)
+	}
+	if guestStillThere != 1 {
+		t.Errorf("guest cart row count = %d, want 1", guestStillThere)
+	}
+}
+
 // TestAMergedCartIsVisibleAfterSignInWithTheDeletedGuestCookie holds the
 // storefront path: sign-in adopt deletes the guest row, the browser cookie
 // still names it, and GET /cart must show the surviving account cart.
@@ -648,16 +826,8 @@ func TestAMergedCartIsVisibleAfterSignInWithTheDeletedGuestCookie(t *testing.T) 
 	u := register(t, accounts, "merge-cookie-"+uuid.NewString()+"@example.com")
 	uid := uuid.MustParse(u.ID)
 
-	var a, b uuid.UUID
-	if err := pool.QueryRow(ctx,
-		`SELECT id FROM product_variants WHERE is_active ORDER BY position LIMIT 1`).Scan(&a); err != nil {
-		t.Fatalf("variant a: %v", err)
-	}
-	if err := pool.QueryRow(ctx,
-		`SELECT id FROM product_variants WHERE is_active AND id <> $1 ORDER BY position LIMIT 1`,
-		a).Scan(&b); err != nil {
-		t.Fatalf("variant b: %v", err)
-	}
+	a := sellableVariant(t, ctx)
+	b := anotherSellableVariant(t, ctx, a)
 
 	guestToken := "guest-cart-" + u.ID
 	if _, err := pool.Exec(ctx,

@@ -273,6 +273,12 @@ templ productBuy(v *ProductView) {
 					<a class="goen-pdp__addedlink" href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a>
 				</p>
 			}
+			if v.AddAdjusted() {
+				<p id="added" class="ui-alert ui-alert--info goen-pdp__added" role="status">
+					{ i18n.T(ctx, i18n.KeyAddAdjusted) }
+					<a class="goen-pdp__addedlink" href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a>
+				</p>
+			}
 			if v.AddRefused() {
 				<p id="added" class="ui-alert ui-alert--error goen-pdp__added" role="alert">
 					{ i18n.T(ctx, i18n.KeyAddRefused) }
