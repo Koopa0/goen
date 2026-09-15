@@ -4901,6 +4901,29 @@ func (q *Queries) CustomerByEmail(ctx context.Context, email string) (CustomerBy
 	return i, err
 }
 
+const deadLetterOutbox = `-- name: DeadLetterOutbox :exec
+UPDATE outbox_messages
+SET attempts = greatest(attempts, $2::integer),
+    available_at = now() + interval '100 years',
+    payload = '{}'::jsonb,
+    last_error = $3::text
+WHERE id = $1
+`
+
+type DeadLetterOutboxParams struct {
+	ID          uuid.UUID
+	MaxAttempts int32
+	LastError   string
+}
+
+// Dead-letter a poison message: stop automatic retries, purge payload to eliminate
+// secret retention, and record the fatal error. It stays delivered_at IS NULL with
+// attempts >= max_attempts so /admin/health lists it for operator action.
+func (q *Queries) DeadLetterOutbox(ctx context.Context, arg DeadLetterOutboxParams) error {
+	_, err := q.db.Exec(ctx, deadLetterOutbox, arg.ID, arg.MaxAttempts, arg.LastError)
+	return err
+}
+
 const dealProducts = `-- name: DealProducts :many
 SELECT
     p.slug,
@@ -5323,6 +5346,31 @@ func (q *Queries) DetachProductImage(ctx context.Context, arg DetachProductImage
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const dropStuckOutboxMessage = `-- name: DropStuckOutboxMessage :one
+UPDATE outbox_messages
+SET delivered_at = now(),
+    payload = '{}'::jsonb,
+    last_error = coalesce(last_error, '') || ' [dropped by operator]'
+WHERE id = $1::uuid
+  AND delivered_at IS NULL
+RETURNING id, topic, dedupe_key
+`
+
+type DropStuckOutboxMessageRow struct {
+	ID        uuid.UUID
+	Topic     string
+	DedupeKey string
+}
+
+// Drops a stuck outbox message: marks it delivered and clears the payload.
+// Returns the affected row's topic and dedupe_key so the audit event can snapshot them.
+func (q *Queries) DropStuckOutboxMessage(ctx context.Context, id uuid.UUID) (DropStuckOutboxMessageRow, error) {
+	row := q.db.QueryRow(ctx, dropStuckOutboxMessage, id)
+	var i DropStuckOutboxMessageRow
+	err := row.Scan(&i.ID, &i.Topic, &i.DedupeKey)
+	return i, err
 }
 
 const eligibilityFacts = `-- name: EligibilityFacts :many
@@ -9958,6 +10006,31 @@ func (q *Queries) ReorderLines(ctx context.Context, orderNumber string) ([]Reord
 	return items, nil
 }
 
+const replayStuckOutboxMessage = `-- name: ReplayStuckOutboxMessage :one
+UPDATE outbox_messages
+SET attempts = 0,
+    available_at = now(),
+    last_error = NULL
+WHERE id = $1::uuid
+  AND delivered_at IS NULL
+RETURNING id, topic, dedupe_key
+`
+
+type ReplayStuckOutboxMessageRow struct {
+	ID        uuid.UUID
+	Topic     string
+	DedupeKey string
+}
+
+// Resets a stuck outbox message for immediate replay: resets attempts to 0,
+// sets available_at = now(), clears last_error.
+func (q *Queries) ReplayStuckOutboxMessage(ctx context.Context, id uuid.UUID) (ReplayStuckOutboxMessageRow, error) {
+	row := q.db.QueryRow(ctx, replayStuckOutboxMessage, id)
+	var i ReplayStuckOutboxMessageRow
+	err := row.Scan(&i.ID, &i.Topic, &i.DedupeKey)
+	return i, err
+}
+
 const requestEmailVerification = `-- name: RequestEmailVerification :exec
 INSERT INTO email_verifications (user_id, email, digest, expires_at)
 VALUES ($1, $2::text, $3, now() + $4::interval)
@@ -12265,15 +12338,19 @@ func (q *Queries) StuckOutbox(ctx context.Context, arg StuckOutboxParams) ([]Stu
 
 const sweepDeliveredMessages = `-- name: SweepDeliveredMessages :execrows
 DELETE FROM outbox_messages
-WHERE delivered_at IS NOT NULL
-  AND delivered_at < now() - $1::interval
+WHERE (delivered_at IS NOT NULL AND delivered_at < now() - $1::interval)
+   OR (delivered_at IS NULL AND attempts >= $2::integer AND created_at < now() - $1::interval)
 `
 
-// DELIVERED only, and keyed on delivered_at: a message that exhausted its
-// attempts is kept so /admin/health lists it, and available_at moves forward on
-// every claim, so keying on that would delete unsent mail.
-func (q *Queries) SweepDeliveredMessages(ctx context.Context, retain pgtype.Interval) (int64, error) {
-	result, err := q.db.Exec(ctx, sweepDeliveredMessages, retain)
+type SweepDeliveredMessagesParams struct {
+	Retain      pgtype.Interval
+	MaxAttempts int32
+}
+
+// DELIVERED messages past retain, plus undelivered messages that have exhausted
+// attempts and exceeded retain since created_at (bounding retention of poison/stuck rows).
+func (q *Queries) SweepDeliveredMessages(ctx context.Context, arg SweepDeliveredMessagesParams) (int64, error) {
+	result, err := q.db.Exec(ctx, sweepDeliveredMessages, arg.Retain, arg.MaxAttempts)
 	if err != nil {
 		return 0, err
 	}

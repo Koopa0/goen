@@ -3791,6 +3791,7 @@ CREATE TABLE outbox_messages (
     delivered_at timestamptz,
     attempts     integer NOT NULL DEFAULT 0,
     last_error   text,
+    created_at   timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT outbox_messages_topic_present CHECK (topic ~ '[^[:space:]]'),
     CONSTRAINT outbox_messages_attempts_non_negative CHECK (attempts >= 0),
     CONSTRAINT outbox_messages_priority_non_negative CHECK (priority >= 0)
@@ -3808,6 +3809,10 @@ CREATE INDEX outbox_messages_pending_idx
 CREATE INDEX outbox_messages_delivered_at_idx
     ON outbox_messages (delivered_at)
     WHERE delivered_at IS NOT NULL;
+
+CREATE INDEX outbox_messages_stuck_sweep_idx
+    ON outbox_messages (created_at)
+    WHERE delivered_at IS NULL;
 
 CREATE TABLE audit_events (
     id                uuid PRIMARY KEY DEFAULT uuidv7(),

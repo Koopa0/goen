@@ -525,3 +525,160 @@ func TestTheSweepLeavesAPendingMessageAlone(t *testing.T) {
 		t.Errorf("Sweep deleted %d undelivered rows, want 0", n)
 	}
 }
+
+type dummyPasswordReset struct {
+	Token string `json:"token"`
+	Email string `json:"email"`
+}
+
+// TestPoisonPayloadIsRedactedAndDoesNotReinvoke guards against token retention
+// in unsendable messages: a poison payload with corrupt JSON must be dead-lettered
+// on the first Drain, scrubbing its payload so secrets are not retained, and a
+// second Drain must not re-claim the row or re-invoke SMTP.
+func TestPoisonPayloadIsRedactedAndDoesNotReinvoke(t *testing.T) {
+	emptyOutbox(t)
+	ctx := t.Context()
+	s := outbox.NewStore(pool, quiet())
+	key := uuid.NewString()
+
+	// Enqueue an account.password_reset with unmarshalable JSON (token is integer instead of string).
+	enqueue(t, outbox.TopicPasswordReset, key, `{"token": 999999, "email": "victim@example.com"}`)
+
+	var smtpCalls int
+	s.HandleJSON[dummyPasswordReset](outbox.TopicPasswordReset, func(_ context.Context, _ *dummyPasswordReset) error {
+		smtpCalls++
+		return nil
+	})
+
+	delivered, failed, err := s.Drain(ctx)
+	if err != nil {
+		t.Fatalf("first drain: %v", err)
+	}
+	if delivered != 0 || failed != 1 {
+		t.Fatalf("delivered=%d failed=%d, want 0 and 1", delivered, failed)
+	}
+	if smtpCalls != 0 {
+		t.Errorf("handler/SMTP was invoked %d times on corrupt JSON, want 0", smtpCalls)
+	}
+
+	var attempts int32
+	var payload []byte
+	var lastErr string
+	var deliveredAt pgtype.Timestamptz
+	if queryErr := pool.QueryRow(ctx, `
+		SELECT attempts, payload, coalesce(last_error, ''), delivered_at
+		FROM outbox_messages WHERE dedupe_key = $1`, key).Scan(&attempts, &payload, &lastErr, &deliveredAt); queryErr != nil {
+		t.Fatalf("read message: %v", queryErr)
+	}
+
+	if attempts < 1 {
+		t.Errorf("attempts = %d, want >= 1", attempts)
+	}
+	if string(payload) != "{}" && string(payload) != "{ }" {
+		t.Errorf("payload = %s, want empty/redacted JSON to drop secrets", string(payload))
+	}
+	if lastErr == "" {
+		t.Error("last_error is empty, want failure reason recorded")
+	}
+	if deliveredAt.Valid {
+		t.Error("delivered_at is set on dead-letter; it must stay NULL so /admin/health lists it")
+	}
+
+	// Second Drain: must not re-claim the dead-lettered message or invoke SMTP.
+	delivered2, failed2, err2 := s.Drain(ctx)
+	if err2 != nil {
+		t.Fatalf("second drain: %v", err2)
+	}
+	if delivered2 != 0 || failed2 != 0 {
+		t.Errorf("second drain delivered=%d failed=%d, want 0 and 0", delivered2, failed2)
+	}
+	if smtpCalls != 0 {
+		t.Errorf("second drain invoked handler/SMTP %d times, want 0", smtpCalls)
+	}
+
+	// Verify StuckOutbox still finds it for /admin/health.
+	stuck, stuckErr := s.Stuck(ctx, 10)
+	if stuckErr != nil {
+		t.Fatalf("Stuck: %v", stuckErr)
+	}
+	var found bool
+	for _, m := range stuck {
+		if m.DedupeKey == key {
+			found = true
+			if m.ID == uuid.Nil {
+				t.Error("stuck message has nil ID; operator cannot act on it")
+			}
+		}
+	}
+	if !found {
+		t.Errorf("StuckOutbox did not list the dead-lettered message %s", key)
+	}
+}
+
+// TestTheSweepBoundsRetentionOfUndeliveredStuckMessages verifies that undelivered
+// messages that have exhausted attempts are swept after Retain (30 days), while
+// fresh stuck messages and pending messages are kept.
+func TestTheSweepBoundsRetentionOfUndeliveredStuckMessages(t *testing.T) {
+	emptyOutbox(t)
+	ctx := t.Context()
+	s := outbox.NewStore(pool, quiet())
+
+	enqueue(t, "sweep.stuck.aged", "stuck-aged", `{}`)
+	enqueue(t, "sweep.stuck.recent", "stuck-recent", `{}`)
+	enqueue(t, "sweep.delivered.old", "delivered-old", `{}`)
+	enqueue(t, "sweep.pending.old", "pending-old", `{}`)
+
+	// stuck.aged: exhausted attempts, created 60 days ago (> Retain 30 days) -> swept!
+	if _, err := pool.Exec(ctx, `
+		UPDATE outbox_messages
+		SET attempts = $1, created_at = now() - interval '60 days', available_at = now() + interval '100 years'
+		WHERE dedupe_key = 'stuck-aged'`, outbox.MaxAttempts); err != nil {
+		t.Fatalf("age stuck.aged: %v", err)
+	}
+	// stuck.recent: exhausted attempts, created 1 day ago (< Retain 30 days) -> kept!
+	if _, err := pool.Exec(ctx, `
+		UPDATE outbox_messages
+		SET attempts = $1, created_at = now() - interval '1 day', available_at = now() + interval '100 years'
+		WHERE dedupe_key = 'stuck-recent'`, outbox.MaxAttempts); err != nil {
+		t.Fatalf("age stuck.recent: %v", err)
+	}
+	// delivered.old: delivered 60 days ago (> Retain 30 days) -> swept!
+	if _, err := pool.Exec(ctx, `
+		UPDATE outbox_messages
+		SET delivered_at = now() - interval '60 days'
+		WHERE dedupe_key = 'delivered-old'`); err != nil {
+		t.Fatalf("age delivered.old: %v", err)
+	}
+	// pending.old: never attempted (attempts 0), created 60 days ago -> kept!
+	if _, err := pool.Exec(ctx, `
+		UPDATE outbox_messages
+		SET created_at = now() - interval '60 days', available_at = now() - interval '60 days'
+		WHERE dedupe_key = 'pending-old'`); err != nil {
+		t.Fatalf("age pending.old: %v", err)
+	}
+
+	n, err := s.Sweep(ctx)
+	if err != nil {
+		t.Fatalf("Sweep: %v", err)
+	}
+	if n != 2 {
+		t.Errorf("Sweep deleted %d rows, want 2 (stuck-aged and delivered-old)", n)
+	}
+
+	for key, wantExists := range map[string]bool{
+		"stuck-aged":    false,
+		"delivered-old": false,
+		"stuck-recent":  true,
+		"pending-old":   true,
+	} {
+		var exists bool
+		if scanErr := pool.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM outbox_messages WHERE dedupe_key = $1)`,
+			key).Scan(&exists); scanErr != nil {
+			t.Fatalf("check %s: %v", key, scanErr)
+		}
+		if exists != wantExists {
+			t.Errorf("message %s: exists=%v, want %v", key, exists, wantExists)
+		}
+	}
+}

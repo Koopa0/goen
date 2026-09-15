@@ -447,6 +447,7 @@ type OutboxMessage struct {
 	DeliveredAt pgtype.Timestamptz
 	Attempts    int32
 	LastError   pgtype.Text
+	CreatedAt   time.Time
 }
 
 type PasswordResetToken struct {

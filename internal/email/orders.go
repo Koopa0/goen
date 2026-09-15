@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 // OrderPaid is what an order.paid message carries.
@@ -25,7 +26,7 @@ type OrderPaid struct {
 // SendOrderPaid tells somebody their money arrived.
 func (n Notifier) SendOrderPaid(ctx context.Context, p *OrderPaid) error {
 	if !Valid(p.Email) {
-		return errors.New("an order.paid message has no usable email address")
+		return outbox.NonRetryable(errors.New("an order.paid message has no usable email address"))
 	}
 
 	ctx = n.locale(ctx, p.Locale)
@@ -55,7 +56,7 @@ type OrderShipped struct {
 // SendOrderShipped tells somebody their parcel is on its way.
 func (n Notifier) SendOrderShipped(ctx context.Context, p *OrderShipped) error {
 	if !Valid(p.Email) {
-		return errors.New("an order.shipped message has no usable email address")
+		return outbox.NonRetryable(errors.New("an order.shipped message has no usable email address"))
 	}
 
 	ctx = n.locale(ctx, p.Locale)
@@ -80,7 +81,7 @@ type RestockNotice struct {
 // nothing and the copy does not pretend otherwise.
 func (n Notifier) SendRestockNotice(ctx context.Context, p *RestockNotice) error {
 	if !Valid(p.Email) {
-		return errors.New("a restock notice has no usable email address")
+		return outbox.NonRetryable(errors.New("a restock notice has no usable email address"))
 	}
 
 	ctx = n.locale(ctx, p.Locale)
