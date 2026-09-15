@@ -114,6 +114,9 @@ func (s *Store) FeatureProduct(ctx context.Context, campaign, product string) er
 		Before: nil, After: map[string]any{"campaign": campaign, "product": product},
 	},
 		func(ctx context.Context, q *db.Queries) error {
+			if err := q.LockCampaignAppendPosition(ctx, strings.TrimSpace(campaign)); err != nil {
+				return err
+			}
 			n, err := q.AddCampaignProduct(ctx, db.AddCampaignProductParams{
 				Campaign: strings.TrimSpace(campaign), Product: strings.TrimSpace(product),
 			})
