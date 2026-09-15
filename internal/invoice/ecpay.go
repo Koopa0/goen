@@ -117,14 +117,14 @@ func (e *providerError) Unwrap() error { return ErrRejected }
 // call posts one request and returns the decrypted result. Three failure
 // surfaces stay apart — transport, envelope, document — and only the last, which
 // is data a staff member can fix, is ErrRejected.
-func (g *Gateway) call[T any](ctx context.Context, class outbound.Class, path string, data any) (T, error) {
+func (g *Gateway) call[T any](ctx context.Context, class outbound.Class, path string, data any) (result T, err error) {
 	var zero T
 	if !g.Enabled() {
 		return zero, ErrDisabled
 	}
 
-	ctx, cancel := outbound.WithOperation(ctx, outbound.ECPay, class, path, class == outbound.FinancialMutation)
-	defer cancel()
+	ctx, finish := outbound.WithOperation(ctx, outbound.ECPay, class, path, class == outbound.FinancialMutation)
+	defer func() { finish(err) }()
 
 	payload, err := json.Marshal(data)
 	if err != nil {

@@ -2,8 +2,9 @@ package outbound
 
 import (
 	"context"
+	"io"
 	"net/http"
-	"sync/atomic"
+	"sync"
 	"time"
 )
 
@@ -24,33 +25,71 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if !tagged {
 		op = operation{dep: t.dep, class: ForegroundLookup}
 	}
-	start := time.Now()
+	if meta := metaFrom(ctx); meta != nil {
+		meta.tries.Add(1)
+	}
 	if err := acquire(ctx, t.dep); err != nil {
-		outcome := Classify(ctx, op.mutate, err)
-		record(op, outcome, time.Since(start), 0)
 		return nil, err
 	}
-	defer release(t.dep)
 
-	attempts := int32(1)
+	var cancel context.CancelFunc
 	class := op.class
 	perAttempt := perAttemptTimeout(ctx, class)
 	req = req.Clone(ctx)
 	if perAttempt > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, perAttempt)
-		defer cancel()
+		var attemptCancel context.CancelFunc
+		ctx, attemptCancel = context.WithTimeout(ctx, perAttempt)
+		cancel = attemptCancel
 		req = req.WithContext(ctx)
+	}
+
+	releaseOnce := func() {
+		release(t.dep)
+		if cancel != nil {
+			cancel()
+		}
 	}
 
 	resp, err := t.base.RoundTrip(req)
 	if err != nil {
-		outcome := Classify(ctx, op.mutate, err)
-		record(op, outcome, time.Since(start), int(attempts))
+		releaseOnce()
 		return nil, err
 	}
-	record(op, OutcomeSucceeded, time.Since(start), int(attempts))
+	if resp.Body == nil {
+		releaseOnce()
+		return resp, nil
+	}
+	resp.Body = &releaseBody{rc: resp.Body, release: sync.OnceFunc(releaseOnce)}
 	return resp, nil
+}
+
+type releaseBody struct {
+	rc      io.ReadCloser
+	release func()
+	once    sync.Once
+}
+
+func (b *releaseBody) Read(p []byte) (int, error) {
+	n, err := b.rc.Read(p)
+	if err != nil {
+		b.close()
+	}
+	return n, err
+}
+
+func (b *releaseBody) Close() error {
+	var err error
+	b.once.Do(func() {
+		err = b.rc.Close()
+		b.release()
+	})
+	return err
+}
+
+func (b *releaseBody) close() {
+	if err := b.Close(); err != nil {
+		return
+	}
 }
 
 func perAttemptTimeout(ctx context.Context, class Class) time.Duration {
@@ -87,17 +126,4 @@ func observeActive(dep Dependency) {
 		return
 	}
 	SetActiveCallsObserver(dep, ActiveCalls(dep))
-}
-
-// instrumentedTransport wraps a base transport and counts attempts for Stripe.
-type countingTransport struct {
-	dep   Dependency
-	base  http.RoundTripper
-	count *atomic.Int32
-}
-
-func (t *countingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	t.count.Add(1)
-	tr := &transport{dep: t.dep, base: t.base}
-	return tr.RoundTrip(req)
 }

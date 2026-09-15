@@ -97,7 +97,7 @@ func lineItem(name string, unitCents, quantity int64) *stripe.CheckoutSessionCre
 // then [Gateway.ResumeSession] retrieves and validates a fresh URL. This also
 // means an unusable URL in Create's response cannot orphan an already-created
 // payable Session before its id is recorded.
-func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (string, error) {
+func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (id string, err error) {
 	if !g.Enabled() {
 		return "", ErrDisabled
 	}
@@ -162,9 +162,9 @@ func (g *Gateway) StartSession(ctx context.Context, o *Order, attempt int32) (st
 
 	params.SetIdempotencyKey(SessionKey(o.Number, o.TotalCents, attempt))
 
-	ctx, cancel := outbound.WithOperation(ctx, outbound.Stripe, outbound.FinancialMutation,
+	ctx, finish := outbound.WithOperation(ctx, outbound.Stripe, outbound.FinancialMutation,
 		SessionKey(o.Number, o.TotalCents, attempt), true)
-	defer cancel()
+	defer func() { finish(err) }()
 	sess, err := g.client.V1CheckoutSessions.Create(ctx, params)
 	if err != nil {
 		return "", fmt.Errorf("create checkout session for order %s: %w", o.Number, err)
@@ -189,9 +189,9 @@ func (g *Gateway) ResumeSession(
 	if !ValidStripeID(sessionID) {
 		return "", "", errors.New("payment: cannot retrieve an invalid Stripe session id")
 	}
-	ctx, cancel := outbound.WithOperation(ctx, outbound.Stripe, outbound.ForegroundLookup,
+	ctx, finish := outbound.WithOperation(ctx, outbound.Stripe, outbound.ForegroundLookup,
 		sessionID, false)
-	defer cancel()
+	defer func() { finish(err) }()
 	sess, err := g.client.V1CheckoutSessions.Retrieve(ctx, sessionID, nil)
 	if err != nil {
 		return "", "", fmt.Errorf("read checkout session %s: %w", sessionID, err)
@@ -213,16 +213,16 @@ func (g *Gateway) ResumeSession(
 // ExpireSession closes a Checkout Session so nobody can pay a cancelled order on
 // a tab they still have open. Stripe refuses anything but an open session, and
 // that refusal is returned rather than swallowed.
-func (g *Gateway) ExpireSession(ctx context.Context, sessionID string) error {
+func (g *Gateway) ExpireSession(ctx context.Context, sessionID string) (err error) {
 	if !g.Enabled() {
 		return ErrDisabled
 	}
 	if !ValidStripeID(sessionID) {
 		return errors.New("payment: cannot expire an invalid Stripe session id")
 	}
-	ctx, cancel := outbound.WithOperation(ctx, outbound.Stripe, outbound.AsyncReconcile,
+	ctx, finish := outbound.WithOperation(ctx, outbound.Stripe, outbound.AsyncReconcile,
 		sessionID, false)
-	defer cancel()
+	defer func() { finish(err) }()
 	sess, err := g.client.V1CheckoutSessions.Expire(ctx, sessionID,
 		&stripe.CheckoutSessionExpireParams{})
 	if err != nil {

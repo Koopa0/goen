@@ -131,7 +131,7 @@ func (g *Google) Exchange(ctx context.Context, code, verifier string) (Identity,
 	return g.userInfo(ctx, token)
 }
 
-func (g *Google) token(ctx context.Context, code, verifier string) (string, error) {
+func (g *Google) token(ctx context.Context, code, verifier string) (token string, err error) {
 	form := url.Values{
 		"code":          {code},
 		"client_id":     {g.clientID},
@@ -140,9 +140,9 @@ func (g *Google) token(ctx context.Context, code, verifier string) (string, erro
 		"grant_type":    {"authorization_code"},
 		"code_verifier": {verifier},
 	}
-	ctx, cancel := outbound.WithOperation(ctx, outbound.Google, outbound.ForegroundLookup,
+	ctx, finish := outbound.WithOperation(ctx, outbound.Google, outbound.ForegroundLookup,
 		"oauth:token", false)
-	defer cancel()
+	defer func() { finish(err) }()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, googleTokenURL,
 		strings.NewReader(form.Encode()))
 	if err != nil {
@@ -176,10 +176,10 @@ func (g *Google) token(ctx context.Context, code, verifier string) (string, erro
 	return out.AccessToken, nil
 }
 
-func (g *Google) userInfo(ctx context.Context, token string) (Identity, error) {
-	ctx, cancel := outbound.WithOperation(ctx, outbound.Google, outbound.ForegroundLookup,
+func (g *Google) userInfo(ctx context.Context, token string) (identity Identity, err error) {
+	ctx, finish := outbound.WithOperation(ctx, outbound.Google, outbound.ForegroundLookup,
 		"oauth:userinfo", false)
-	defer cancel()
+	defer func() { finish(err) }()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, googleUserInfoURL, http.NoBody)
 	if err != nil {
 		return Identity{}, fmt.Errorf("build userinfo request: %w", err)
