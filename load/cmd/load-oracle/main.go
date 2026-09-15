@@ -58,28 +58,22 @@ func run(ctx context.Context, dbURL, profile, variant string, minSuccess int64) 
 			return 1
 		}
 	case "dependency-failure":
-		if floor := envInt64("LOAD_ORACLE_MIN_SUCCESS", minSuccess); floor > 0 {
-			success := envInt64("LOAD_ORACLE_SUCCESS_COUNT", floor)
-			total := envInt64("LOAD_ORACLE_TOTAL_COUNT", success)
-			if err := oracle.DegradedWork(success, total, floor); err != nil {
-				fmt.Fprintln(os.Stderr, err.Error())
-				return 1
-			}
+		success, err := oracle.ParseRequiredCount("LOAD_ORACLE_SUCCESS_COUNT", os.Getenv("LOAD_ORACLE_SUCCESS_COUNT"))
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			return 1
+		}
+		total, err := oracle.ParseRequiredCount("LOAD_ORACLE_TOTAL_COUNT", os.Getenv("LOAD_ORACLE_TOTAL_COUNT"))
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			return 1
+		}
+		if err := oracle.DegradedWork(success, total, minSuccess); err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			return 1
 		}
 	}
 
 	slog.Info("load oracle passed", "profile", profile)
 	return 0
-}
-
-func envInt64(name string, fallback int64) int64 {
-	raw := os.Getenv(name)
-	if raw == "" {
-		return fallback
-	}
-	var v int64
-	if _, err := fmt.Sscan(raw, &v); err != nil {
-		return fallback
-	}
-	return v
 }

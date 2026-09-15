@@ -67,8 +67,7 @@ SELECT
 FROM generate_series(1, 8) AS n
 ON CONFLICT (sku) DO NOTHING;
 
-INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
-SELECT v.id, m.qty, 'receipt', 'load-seed:' || v.sku
+SELECT record_inventory_movement(v.id, m.qty, 'receipt', 'load-seed:' || v.sku)
 FROM (VALUES
     ('LOAD-HOT-001', 500),
     ('LOAD-FLASH-001', 3),
