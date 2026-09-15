@@ -166,8 +166,12 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !h.startSession(w, r, u) {
+	started, adoptFailed := h.startSession(w, r, u)
+	if !started {
 		return
+	}
+	if adoptFailed {
+		next = appendCartMergeNotice(next)
 	}
 	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 }
@@ -234,8 +238,12 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		h.log.WarnContext(r.Context(), "request verification at registration", "error", err)
 	}
 
-	if !h.startSession(w, r, u) {
+	started, adoptFailed := h.startSession(w, r, u)
+	if !started {
 		return
+	}
+	if adoptFailed {
+		next = appendCartMergeNotice(next)
 	}
 	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 }
@@ -300,6 +308,8 @@ func accountNotice(r *http.Request) string {
 		return i18n.T(ctx, i18n.KeyGoogleUnlinked)
 	case q.Get("lastmethod") == "1":
 		return i18n.T(ctx, i18n.KeyGoogleLastMethod)
+	case q.Get("cart") == "mergefailed":
+		return i18n.T(ctx, i18n.KeyCartMergeFailed)
 	}
 	return ""
 }
@@ -338,12 +348,12 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/account?saved=1", http.StatusSeeOther)
 }
 
-func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u User) bool {
+func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u User) (started, adoptFailed bool) {
 	token, err := h.store.StartSession(r.Context(), u.ID, r.UserAgent(), clientIP(r))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "start session", "error", err)
 		h.serverError(w, r)
-		return false
+		return false, false
 	}
 	SetSessionCookie(w, token, h.secure)
 
@@ -351,11 +361,12 @@ func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u User) b
 	if h.carts != nil {
 		if cartID, ok := h.carts.CartIDForRequest(r.Context(), r); ok {
 			if err := h.store.AdoptCart(r.Context(), u.ID, cartID); err != nil {
+				adoptFailed = true
 				h.log.ErrorContext(r.Context(), "adopt cart", "error", err, "user_id", u.ID)
 			}
 		}
 	}
-	return true
+	return true, adoptFailed
 }
 
 func clientIP(r *http.Request) string {
@@ -376,6 +387,13 @@ func urlQueryEscape(s string) string {
 		}
 	}
 	return string(b)
+}
+
+func appendCartMergeNotice(target string) string {
+	if strings.Contains(target, "?") {
+		return target + "&cart=mergefailed"
+	}
+	return target + "?cart=mergefailed"
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
@@ -757,10 +775,15 @@ func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !h.startSession(w, r, u) {
+	started, adoptFailed := h.startSession(w, r, u)
+	if !started {
 		return
 	}
-	http.Redirect(w, r, state.Next, http.StatusSeeOther)
+	next := state.Next
+	if adoptFailed {
+		next = appendCartMergeNotice(next)
+	}
+	http.Redirect(w, r, next, http.StatusSeeOther)
 }
 
 // UnlinkGoogle serves POST /account/google/unlink.
