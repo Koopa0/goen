@@ -584,34 +584,22 @@ func TestAccountNoticeExplainsWhyAnOpenReturnBlocksErasure(t *testing.T) {
 	}
 }
 
-func TestAccountNoticeExplainsCartMergeFailure(t *testing.T) {
-	t.Parallel()
-
-	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
-		ctx := i18n.WithLocale(t.Context(), locale)
-		r := httptest.NewRequestWithContext(ctx, http.MethodGet,
-			"/account?cart=mergefailed", http.NoBody)
-		if got, want := accountNotice(r), i18n.T(ctx, i18n.KeyCartMergeFailed); got != want {
-			t.Errorf("%s cart merge failure notice = %q, want %q", locale, got, want)
-		}
-	}
-}
-
-func TestAppendCartMergeNotice(t *testing.T) {
+func TestCartRecoveryLandingPreservesContinuation(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		input string
 		want  string
 	}{
-		{"/account", "/account?cart=mergefailed"},
-		{"/cart", "/cart?cart=mergefailed"},
-		{"/account?saved=1", "/account?saved=1&cart=mergefailed"},
-		{"/checkout?ship=express", "/checkout?ship=express&cart=mergefailed"},
+		{"/account", "/account/cart-recovery?next=%2Faccount"},
+		{"/cart", "/account/cart-recovery?next=%2Fcart"},
+		{"/checkout?ship=express", "/account/cart-recovery?next=%2Fcheckout%3Fship%3Dexpress"},
+		{"/products/demo#specs", "/account/cart-recovery?next=%2Fproducts%2Fdemo%23specs"},
+		{"//evil.example", "/account/cart-recovery?next=%2Faccount"},
 	}
 	for _, tt := range tests {
-		if got := appendCartMergeNotice(tt.input); got != tt.want {
-			t.Errorf("appendCartMergeNotice(%q) = %q, want %q", tt.input, got, tt.want)
+		if got := cartRecoveryLanding(tt.input); got != tt.want {
+			t.Errorf("cartRecoveryLanding(%q) = %q, want %q", tt.input, got, tt.want)
 		}
 	}
 }

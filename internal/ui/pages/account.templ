@@ -177,6 +177,21 @@ templ Register(p layouts.Page, v AuthView) {
 	}
 }
 
+// CartRecovery is where sign-in lands when guest-cart adoption fails.
+templ CartRecovery(p layouts.Page, v CartRecoveryView) {
+	@layouts.Base(p) {
+		<div class="notice">
+			<h1 class="h2 notice__title">{ i18n.T(ctx, i18n.KeyCartMergeRecoveryTitle) }</h1>
+			<p class="ui-alert ui-alert--info notice__body" role="status">{ v.Notice }</p>
+			<form class="notice__form" method="post" action="/account/cart/retry">
+				<input type="hidden" name="next" value={ v.Next }/>
+				<button class="ui-btn ui-btn--primary ui-btn--lg" type="submit">{ v.Retry }</button>
+			</form>
+			<a class="notice__back body-sm" href={ templ.SafeURL(v.Next) }>{ i18n.T(ctx, i18n.KeyBackToShop) }</a>
+		</div>
+	}
+}
+
 // Account renders the account landing page.
 templ Account(p layouts.Page, v *AccountView) {
 	@layouts.Base(p) {
