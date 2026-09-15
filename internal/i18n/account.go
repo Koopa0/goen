@@ -45,4 +45,9 @@ var (
 		ZhHant: "姓名或電話過長，或含有不允許的字元。",
 		En:     "The name or phone is too long, or contains a character that is not allowed.",
 	})
+
+	KeyCartMergeFailed = key("account.notice.cart.mergefailed", Message{
+		ZhHant: "購物車合併未成功，原有商品仍保留於購物車中。",
+		En:     "Cart merge was not completed. Your existing items remain in the cart.",
+	})
 )
