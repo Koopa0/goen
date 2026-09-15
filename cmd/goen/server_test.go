@@ -3,11 +3,13 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
+	"html"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -409,5 +411,89 @@ func TestOnlyAStaffMemberGetsTheBackOfficeEntrance(t *testing.T) {
 					tt.path, tt.role, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestLocaleReturnPathPreservesComparisonSlugs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{name: "root", raw: "/", want: "/"},
+		{name: "deals", raw: "/deals", want: "/deals"},
+		{name: "search drops query", raw: "/search?q=pixelight", want: "/search"},
+		{name: "product drops query", raw: "/p/aurora-slate?ask=1", want: "/p/aurora-slate"},
+		{name: "category drops query", raw: "/c/phones?sort=price", want: "/c/phones"},
+		{name: "cart drops query", raw: "/cart?x=1", want: "/cart"},
+		{name: "compare without query", raw: "/compare", want: "/compare"},
+		{name: "compare empty query", raw: "/compare?", want: "/compare"},
+		{name: "compare two valid slugs", raw: "/compare?p=aurora-charger-65&p=aurora-edge-7", want: "/compare?p=aurora-charger-65&p=aurora-edge-7"},
+		{name: "compare preserves order", raw: "/compare?p=aurora-edge-7&p=aurora-charger-65", want: "/compare?p=aurora-edge-7&p=aurora-charger-65"},
+		{name: "compare drops sensitive and unsupported params", raw: "/compare?p=aurora-charger-65&p=aurora-edge-7&q=secret&token=123", want: "/compare?p=aurora-charger-65&p=aurora-edge-7"},
+		{name: "compare drops invalid slug formats", raw: "/compare?p=aurora-charger-65&p=BAD_SLUG&p=../evil&p=aurora-edge-7", want: "/compare?p=aurora-charger-65&p=aurora-edge-7"},
+		{name: "compare deduplicates slugs", raw: "/compare?p=aurora-charger-65&p=aurora-charger-65&p=aurora-edge-7", want: "/compare?p=aurora-charger-65&p=aurora-edge-7"},
+		{name: "compare caps at max four slugs", raw: "/compare?p=p1&p=p2&p=p3&p=p4&p=p5", want: "/compare?p=p1&p=p2&p=p3&p=p4"},
+		{name: "compare single slug", raw: "/compare?p=aurora-charger-65", want: "/compare?p=aurora-charger-65"},
+		{name: "compare all invalid slugs falls back", raw: "/compare?p=BAD%201&p=BAD_2", want: "/compare"},
+		{name: "compare only invalid query keys falls back", raw: "/compare?q=search&sort=desc", want: "/compare"},
+		{name: "compare empty slug value is skipped", raw: "/compare?p=&p=aurora-edge-7", want: "/compare?p=aurora-edge-7"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.raw, http.NoBody)
+			if got := localeReturnPath(req); got != tt.want {
+				t.Errorf("localeReturnPath(%q) = %q, want %q", tt.raw, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLanguageSwitchComparisonJourney(t *testing.T) {
+	t.Parallel()
+
+	const rawURL = "/compare?p=aurora-charger-65&p=aurora-edge-7&q=search-leak"
+	const wantReturn = "/compare?p=aurora-charger-65&p=aurora-edge-7"
+
+	var onContext string
+	var renderedHTML string
+	h := withLocale(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		onContext = web.RequestPath(r.Context())
+		var buf bytes.Buffer
+		if err := layouts.Header(layouts.Page{}).Render(r.Context(), &buf); err != nil {
+			t.Fatalf("render header: %v", err)
+		}
+		renderedHTML = buf.String()
+	}), false)
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, rawURL, http.NoBody)
+	h.ServeHTTP(httptest.NewRecorder(), req)
+
+	if onContext != wantReturn {
+		t.Fatalf("web.RequestPath on context = %q, want %q", onContext, wantReturn)
+	}
+
+	re := regexp.MustCompile(`<input type="hidden" name="return" value="([^"]*)"`)
+	matches := re.FindStringSubmatch(renderedHTML)
+	if len(matches) < 2 {
+		t.Fatalf("language form return input not found in rendered header:\n%s", renderedHTML)
+	}
+	extractedReturn := html.UnescapeString(matches[1])
+	if extractedReturn != wantReturn {
+		t.Fatalf("rendered return target = %q, want %q", extractedReturn, wantReturn)
+	}
+	if strings.Contains(renderedHTML, "search-leak") {
+		t.Fatal("rendered header carried raw query search term")
+	}
+
+	// Verify the return target resolves through the same-site redirect guard.
+	redirectTarget := web.SitePathOr(extractedReturn, "/")
+	if redirectTarget != wantReturn {
+		t.Fatalf("SitePathOr(%q) = %q, want %q", extractedReturn, redirectTarget, wantReturn)
 	}
 }
