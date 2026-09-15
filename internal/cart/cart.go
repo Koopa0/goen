@@ -299,7 +299,14 @@ func (s *Store) RememberOrder(
 	if err != nil {
 		return err
 	}
-	n, err := s.q.GrantOrderAccess(ctx, db.GrantOrderAccessParams{
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin remember order: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	q := s.q.WithTx(tx)
+
+	n, err := q.GrantOrderAccess(ctx, db.GrantOrderAccessParams{
 		Digest: HashToken(token), OrderNumber: number,
 	})
 	if err != nil {
@@ -312,24 +319,27 @@ func (s *Store) RememberOrder(
 
 	// The cookie below carries older tokens forward with a fresh MaxAge, so their
 	// grants need the same retention clock restarted.
-	var touchErr error
 	if carried := placedTokens(r, secure); len(carried) > 0 {
 		digests := make([][]byte, 0, len(carried))
 		for _, t := range carried {
 			digests = append(digests, HashToken(t))
 		}
-		if err := s.q.TouchOrderAccessGrants(ctx, db.TouchOrderAccessGrantsParams{
+		if err := q.TouchOrderAccessGrants(ctx, db.TouchOrderAccessGrantsParams{
 			Digests: digests,
 			Retain: pgtype.Interval{
 				Microseconds: int64(GrantRetain / time.Microsecond), Valid: true,
 			},
 		}); err != nil {
-			touchErr = fmt.Errorf("refresh carried order access grants: %w", err)
+			return fmt.Errorf("refresh carried order access grants: %w", err)
 		}
 	}
 
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit remember order %s: %w", number, err)
+	}
+
 	writePlacedCookie(w, r, token, secure)
-	return touchErr
+	return nil
 }
 
 func writePlacedCookie(w http.ResponseWriter, r *http.Request, token string, secure bool) {
