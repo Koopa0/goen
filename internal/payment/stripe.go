@@ -277,13 +277,26 @@ func CaptureFrom(ev *stripe.Event) (Capture, bool) {
 		return Capture{}, false
 	}
 	c := Capture{SessionID: sess.ID, AmountRecv: sess.AmountTotal}
-	if pi := sess.PaymentIntent; pi != nil && pi.LatestCharge != nil {
-		if d := pi.LatestCharge.PaymentMethodDetails; d != nil && d.Card != nil {
-			c.CardBrand = string(d.Card.Brand)
-			c.CardLast4 = d.Card.Last4
-		}
+	if pi := sess.PaymentIntent; pi != nil {
+		capturePaymentIntent(&c, pi)
 	}
 	return c, true
+}
+
+func capturePaymentIntent(c *Capture, pi *stripe.PaymentIntent) {
+	if ValidStripeID(pi.ID) {
+		c.PaymentIntentID = pi.ID
+	}
+	if pi.LatestCharge == nil {
+		return
+	}
+	if ValidStripeID(pi.LatestCharge.ID) {
+		c.ChargeID = pi.LatestCharge.ID
+	}
+	if d := pi.LatestCharge.PaymentMethodDetails; d != nil && d.Card != nil {
+		c.CardBrand = string(d.Card.Brand)
+		c.CardLast4 = d.Card.Last4
+	}
 }
 
 // abandonedEvents are the two ways a Checkout Session ends with no money.
@@ -296,7 +309,10 @@ var abandonedEvents = map[stripe.EventType]bool{
 // here that yields nothing from every reader is a payload this binary could not
 // read — not an event goen does not act on, and the two must not share an arm.
 func actionable(ev *stripe.Event) bool {
-	return ev != nil && (captureEvents[ev.Type] || abandonedEvents[ev.Type])
+	if ev == nil {
+		return false
+	}
+	return captureEvents[ev.Type] || abandonedEvents[ev.Type] || disputeEvents[ev.Type]
 }
 
 type webhookReadState uint8

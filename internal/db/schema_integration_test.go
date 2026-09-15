@@ -151,6 +151,11 @@ var expectedForeignKeys = map[string]bool{
 	"warranty_registrations_user_id_fkey":         true,
 	"wishlist_items_product_id_fkey":              true,
 	"wishlist_items_user_id_fkey":                 true,
+	"payment_dispute_events_dispute_id_fkey":      true,
+	"payment_dispute_movements_dispute_id_fkey":   true,
+	"payment_disputes_payment_id_fkey":            true,
+	"payment_disputes_reviewed_by_fkey":           true,
+	"payment_provider_links_payment_id_fkey":      true,
 }
 
 // TestForeignKeySetIsComplete requires the live foreign keys to equal expectedForeignKeys exactly.

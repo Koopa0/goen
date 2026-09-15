@@ -2124,6 +2124,52 @@ func (q *Queries) AnswersForQuestions(ctx context.Context, questionIds []uuid.UU
 	return items, nil
 }
 
+const applyPaymentDispute = `-- name: ApplyPaymentDispute :one
+SELECT apply_payment_dispute(
+    $1::text,
+    $2::text,
+    $3::text,
+    $4::bigint,
+    $5::text,
+    $6::text,
+    $7::text,
+    $8::timestamptz,
+    $9::timestamptz,
+    $10::text
+)
+`
+
+type ApplyPaymentDisputeParams struct {
+	ProviderRef      string
+	ChargeRef        string
+	PaymentIntentRef string
+	AmountCents      int64
+	Currency         string
+	Status           string
+	Reason           pgtype.Text
+	EvidenceDueAt    pgtype.Timestamptz
+	ProviderSeenAt   time.Time
+	ProviderEventID  string
+}
+
+func (q *Queries) ApplyPaymentDispute(ctx context.Context, arg ApplyPaymentDisputeParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, applyPaymentDispute,
+		arg.ProviderRef,
+		arg.ChargeRef,
+		arg.PaymentIntentRef,
+		arg.AmountCents,
+		arg.Currency,
+		arg.Status,
+		arg.Reason,
+		arg.EvidenceDueAt,
+		arg.ProviderSeenAt,
+		arg.ProviderEventID,
+	)
+	var apply_payment_dispute uuid.UUID
+	err := row.Scan(&apply_payment_dispute)
+	return apply_payment_dispute, err
+}
+
 const askQuestion = `-- name: AskQuestion :execrows
 INSERT INTO product_questions (product_id, user_id, body)
 SELECT p.id, $1, $2::text FROM products p
@@ -5325,6 +5371,104 @@ func (q *Queries) DetachProductImage(ctx context.Context, arg DetachProductImage
 	return result.RowsAffected(), nil
 }
 
+const disputeHasPayment = `-- name: DisputeHasPayment :one
+SELECT coalesce(payment_id IS NOT NULL, false)::boolean FROM payment_disputes WHERE id = $1
+`
+
+func (q *Queries) DisputeHasPayment(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, disputeHasPayment, id)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const disputeQueue = `-- name: DisputeQueue :many
+SELECT d.id,
+       d.provider_ref,
+       d.charge_ref,
+       d.amount_cents,
+       d.currency,
+       d.status,
+       d.reason,
+       d.evidence_due_at,
+       d.disposition,
+       d.reviewed_at,
+       d.created_at,
+       o.order_number,
+       p.provider_ref AS payment_session_ref,
+       (d.evidence_due_at IS NOT NULL AND d.evidence_due_at < $2::timestamptz)::boolean AS overdue
+FROM payment_disputes d
+LEFT JOIN payments p ON p.id = d.payment_id
+LEFT JOIN orders o ON o.id = p.order_id
+WHERE d.status IN ('warning_needs_response', 'warning_under_review',
+                   'needs_response', 'under_review')
+   OR (d.reviewed_at IS NULL
+       AND d.status IN ('won', 'lost', 'charge_refunded', 'warning_closed'))
+ORDER BY overdue DESC,
+         d.evidence_due_at NULLS LAST,
+         d.created_at DESC
+LIMIT $1
+`
+
+type DisputeQueueParams struct {
+	Limit int32
+	Now   time.Time
+}
+
+type DisputeQueueRow struct {
+	ID                uuid.UUID
+	ProviderRef       string
+	ChargeRef         string
+	AmountCents       int64
+	Currency          string
+	Status            string
+	Reason            pgtype.Text
+	EvidenceDueAt     pgtype.Timestamptz
+	Disposition       pgtype.Text
+	ReviewedAt        pgtype.Timestamptz
+	CreatedAt         time.Time
+	OrderNumber       pgtype.Text
+	PaymentSessionRef pgtype.Text
+	Overdue           bool
+}
+
+// Open disputes for the staff queue. Overdue is computed against @now, not
+// database now(), so tests can inject a clock.
+func (q *Queries) DisputeQueue(ctx context.Context, arg DisputeQueueParams) ([]DisputeQueueRow, error) {
+	rows, err := q.db.Query(ctx, disputeQueue, arg.Limit, arg.Now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DisputeQueueRow{}
+	for rows.Next() {
+		var i DisputeQueueRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProviderRef,
+			&i.ChargeRef,
+			&i.AmountCents,
+			&i.Currency,
+			&i.Status,
+			&i.Reason,
+			&i.EvidenceDueAt,
+			&i.Disposition,
+			&i.ReviewedAt,
+			&i.CreatedAt,
+			&i.OrderNumber,
+			&i.PaymentSessionRef,
+			&i.Overdue,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const eligibilityFacts = `-- name: EligibilityFacts :many
 SELECT assessment_id, order_id, return_request_id, order_line_id,
        unused, packaging_complete, accessories_complete,
@@ -8054,6 +8198,17 @@ func (q *Queries) PaymentAttemptForOrder(ctx context.Context, arg PaymentAttempt
 	return i, err
 }
 
+const paymentIDByCaptureRef = `-- name: PaymentIDByCaptureRef :one
+SELECT id FROM payments WHERE provider_ref = $1 AND status = 'succeeded'
+`
+
+func (q *Queries) PaymentIDByCaptureRef(ctx context.Context, providerRef string) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, paymentIDByCaptureRef, providerRef)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const pointsBalance = `-- name: PointsBalance :one
 SELECT a.id AS account_id, coalesce(b.points, 0)::bigint AS points
 FROM store_credit_accounts a
@@ -8974,6 +9129,32 @@ func (q *Queries) RecordCompletePayment(ctx context.Context, arg RecordCompleteP
 	return record_complete_payment, err
 }
 
+const recordDisputeMovement = `-- name: RecordDisputeMovement :exec
+SELECT record_dispute_movement(
+    $1::uuid,
+    $2::text,
+    $3::bigint,
+    $4::text
+)
+`
+
+type RecordDisputeMovementParams struct {
+	DisputeID   uuid.UUID
+	Kind        string
+	AmountCents int64
+	ProviderRef string
+}
+
+func (q *Queries) RecordDisputeMovement(ctx context.Context, arg RecordDisputeMovementParams) error {
+	_, err := q.db.Exec(ctx, recordDisputeMovement,
+		arg.DisputeID,
+		arg.Kind,
+		arg.AmountCents,
+		arg.ProviderRef,
+	)
+	return err
+}
+
 const recordExpiredPayment = `-- name: RecordExpiredPayment :one
 SELECT record_expired_payment(
     $1::uuid,
@@ -9109,6 +9290,24 @@ type RecordPaidEventParams struct {
 
 func (q *Queries) RecordPaidEvent(ctx context.Context, arg RecordPaidEventParams) error {
 	_, err := q.db.Exec(ctx, recordPaidEvent, arg.OrderID, arg.Note)
+	return err
+}
+
+const recordPaymentProviderLink = `-- name: RecordPaymentProviderLink :exec
+
+SELECT record_payment_provider_link($1::uuid, $2::text, $3::text)
+`
+
+type RecordPaymentProviderLinkParams struct {
+	PaymentID   uuid.UUID
+	LinkKind    string
+	ProviderRef string
+}
+
+// EnqueueMessage is defined in internal/cart/query.sql; sqlc builds one db
+// package for the module.
+func (q *Queries) RecordPaymentProviderLink(ctx context.Context, arg RecordPaymentProviderLinkParams) error {
+	_, err := q.db.Exec(ctx, recordPaymentProviderLink, arg.PaymentID, arg.LinkKind, arg.ProviderRef)
 	return err
 }
 
@@ -10740,6 +10939,21 @@ func (q *Queries) ReverseReturnPoints(ctx context.Context, returnID uuid.UUID) (
 	var points_reversed int64
 	err := row.Scan(&points_reversed)
 	return points_reversed, err
+}
+
+const reviewPaymentDispute = `-- name: ReviewPaymentDispute :exec
+SELECT review_payment_dispute($1::uuid, $2::uuid, $3::text)
+`
+
+type ReviewPaymentDisputeParams struct {
+	DisputeID   uuid.UUID
+	Actor       uuid.UUID
+	Disposition string
+}
+
+func (q *Queries) ReviewPaymentDispute(ctx context.Context, arg ReviewPaymentDisputeParams) error {
+	_, err := q.db.Exec(ctx, reviewPaymentDispute, arg.DisputeID, arg.Actor, arg.Disposition)
+	return err
 }
 
 const revokeStaff = `-- name: RevokeStaff :one

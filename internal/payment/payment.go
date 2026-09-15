@@ -82,10 +82,12 @@ type Line struct {
 
 // Capture is what a verified webhook says Stripe took.
 type Capture struct {
-	SessionID  string
-	AmountRecv int64
-	CardBrand  string
-	CardLast4  string
+	SessionID       string
+	AmountRecv      int64
+	CardBrand       string
+	CardLast4       string
+	PaymentIntentID string
+	ChargeID        string
 }
 
 // webhookEvent is a verified Stripe event, ready to be recorded.

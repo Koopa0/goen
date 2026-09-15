@@ -32,7 +32,7 @@ templ adminNav(current string) {
 		<details
 			class="goen-admin__navgroup"
 			name="goen-admin-nav"
-			open?={ adminNavHolds(current, "orders", "returns", "questions", "messages", "reviews") }
+			open?={ adminNavHolds(current, "orders", "returns", "disputes", "questions", "messages", "reviews") }
 		>
 			<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavQueues) }</summary>
 			<div class="goen-admin__navitems">
@@ -50,6 +50,13 @@ templ adminNav(current string) {
 						aria-current="page"
 					}
 				>{ i18n.T(ctx, i18n.KeyAdminQueueReturns) }</a>
+				<a
+					class="ui-navitem"
+					href="/admin/disputes"
+					if current == "disputes" {
+						aria-current="page"
+					}
+				>{ i18n.T(ctx, i18n.KeyAdminQueueDisputes) }</a>
 				<a
 					class="ui-navitem"
 					href="/admin/questions"
