@@ -14,9 +14,11 @@ type Result struct {
 	Route         Route
 	Scale         Scale
 	Warm          bool
+	WarmSample    int // 0 = cold; 1..warmSamples = warm repeat index
 	PlanningMS    float64
 	ExecutionMS   float64
 	ActualRows    int64
+	CountRead     bool
 	CommitSHA     string
 	MeasuredAtUTC time.Time
 	PlanJSON      json.RawMessage
@@ -32,27 +34,30 @@ type explainRoot struct {
 
 // Measure runs one query with EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) and
 // returns parsed timing and row cardinalities.
-func Measure(ctx context.Context, pool *pgxpool.Pool, route Route, scale Scale, warm bool, sql string, args ...any) (Result, error) {
-	explainSQL := "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) " + sql
+func Measure(ctx context.Context, pool *pgxpool.Pool, q Query, scale Scale, warm bool, warmSample int, sha string) (Result, error) {
+	explainSQL := "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) " + q.SQL
 	var payload []byte
-	if err := pool.QueryRow(ctx, explainSQL, args...).Scan(&payload); err != nil {
-		return Result{}, fmt.Errorf("%s: %w", route, err)
+	if err := pool.QueryRow(ctx, explainSQL, q.Args...).Scan(&payload); err != nil {
+		return Result{}, fmt.Errorf("%s: %w", q.Route, err)
 	}
 	var roots []explainRoot
 	if err := json.Unmarshal(payload, &roots); err != nil {
-		return Result{}, fmt.Errorf("%s: parse explain json: %w", route, err)
+		return Result{}, fmt.Errorf("%s: parse explain json: %w", q.Route, err)
 	}
 	if len(roots) == 0 {
-		return Result{}, fmt.Errorf("%s: empty explain payload", route)
+		return Result{}, fmt.Errorf("%s: empty explain payload", q.Route)
 	}
 	root := roots[0]
 	return Result{
-		Route:         route,
+		Route:         q.Route,
 		Scale:         scale,
 		Warm:          warm,
+		WarmSample:    warmSample,
 		PlanningMS:    root.PlanningTime,
 		ExecutionMS:   root.ExecutionTime,
 		ActualRows:    int64(root.Plan.ActualRows),
+		CountRead:     q.CountRead,
+		CommitSHA:     sha,
 		MeasuredAtUTC: time.Now().UTC(),
 		PlanJSON:      json.RawMessage(payload),
 	}, nil
@@ -68,11 +73,21 @@ func CheckBudget(b Budget, r Result) error {
 		return fmt.Errorf("%s at %s (%s): execution %.2fms exceeds budget %.2fms",
 			r.Route, r.Scale, warmLabel(r.Warm), r.ExecutionMS, limit)
 	}
+	if r.CountRead {
+		return nil
+	}
 	if r.ActualRows < b.MinRows {
 		return fmt.Errorf("%s at %s: actual rows %d below minimum %d",
 			r.Route, r.Scale, r.ActualRows, b.MinRows)
 	}
-	if b.MaxRows > 0 && r.ActualRows > b.MaxRows {
+	if b.MaxRows == 0 {
+		if r.ActualRows != 0 {
+			return fmt.Errorf("%s at %s: actual rows %d, want exact empty result",
+				r.Route, r.Scale, r.ActualRows)
+		}
+		return nil
+	}
+	if r.ActualRows > b.MaxRows {
 		return fmt.Errorf("%s at %s: actual rows %d above maximum %d",
 			r.Route, r.Scale, r.ActualRows, b.MaxRows)
 	}
