@@ -101,11 +101,16 @@ func runCommand(args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
+	if *allMode && *readyOnly {
+		fmt.Fprintln(os.Stderr, "run: --all and --ready-only contradict each other")
+		return 2
+	}
 	target := "all"
 	if fs.NArg() > 0 {
 		target = strings.ToUpper(fs.Arg(0))
 	}
-	if target != "all" && !*allMode {
+	explicitSelection := target != "all"
+	if explicitSelection && !*allMode {
 		*readyOnly = true
 	}
 	manifest, err := acceptance.LoadManifest()
@@ -115,9 +120,10 @@ func runCommand(args []string) int {
 	}
 	start := time.Now()
 	results, err := acceptance.RunManifest(context.Background(), manifest, acceptance.RunOptions{
-		ReadyOnly:   *readyOnly,
-		WithBrowser: *withBrowser,
-		ScenarioID:  target,
+		ReadyOnly:         *readyOnly,
+		WithBrowser:       *withBrowser,
+		ScenarioID:        target,
+		ExplicitSelection: explicitSelection,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "run: %v\n", err)
