@@ -807,6 +807,12 @@ UPDATE sale_campaigns SET is_active = @is_active::boolean WHERE slug = @slug::te
 -- ONE statement: sale_campaign_needs_discount refuses a product with nothing
 -- marked down and takes a lock on it first, so a check here would be a check a
 -- concurrent price change invalidates.
+-- name: LockCampaignAppendPosition :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    'append:campaign:' || c.id::text, 628471039582915603::bigint))
+FROM sale_campaigns c
+WHERE c.slug = @campaign::text;
+
 -- name: AddCampaignProduct :execrows
 INSERT INTO sale_campaign_products (campaign_id, product_id, position)
 SELECT c.id, p.id,
@@ -877,6 +883,10 @@ SELECT h.id, h.eyebrow, h.headline, h.primary_cta_label, h.primary_cta_href,
 FROM hero_slides h
 ORDER BY h.position, h.id
 LIMIT $1;
+
+-- name: LockHeroAppendPosition :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    'append:hero_slides', 628471039582915603::bigint));
 
 -- name: CreateHeroSlide :exec
 INSERT INTO hero_slides (
@@ -1609,6 +1619,10 @@ LIMIT $1;
 
 -- The position is computed WITHIN the category, because faq_entries_position_key
 -- is unique on (category, position).
+-- name: LockFAQAppendPosition :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    'append:faq:' || @category::text, 628471039582915603::bigint));
+
 -- name: CreateFAQEntry :exec
 INSERT INTO faq_entries (category, question, answer,
                          category_en, question_en, answer_en, position)
