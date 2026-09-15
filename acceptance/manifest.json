@@ -151,6 +151,13 @@
           "run": "TestTwoBuyersContendForTheLastSellableUnit",
           "build_tags": ["integration"],
           "evidence": "composition_two_checkouts_one_success_one_shortage"
+        },
+        {
+          "kind": "go_test",
+          "package": "./internal/acceptance",
+          "run": "TestTwoBuyersContendForTheLastSellableUnitViaCheckout",
+          "build_tags": ["integration"],
+          "evidence": "handler_checkout_one_payment_one_cart_shortage"
         }
       ]
     },
