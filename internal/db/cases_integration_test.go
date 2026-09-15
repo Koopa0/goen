@@ -2147,6 +2147,11 @@ var uniqueCases = []uniqueCase{
 		accept: `INSERT INTO hero_slides (headline, primary_cta_label, primary_cta_href, position) VALUES ('第二張主視覺', '立即選購', '/c/laptops', 1);`,
 	},
 	{
+		index:  "sale_campaign_products_position_key",
+		reject: `SET LOCAL session_replication_role = replica; INSERT INTO sale_campaign_products (campaign_id, product_id, position) VALUES ('aaaa1111-0000-4000-8000-000000000000', '33333333-3333-4333-8333-333333333333', 0); INSERT INTO sale_campaign_products (campaign_id, product_id, position) VALUES ('aaaa1111-0000-4000-8000-000000000000', '3333aaaa-3333-4333-8333-333333333333', 0);`,
+		accept: `SET LOCAL session_replication_role = replica; INSERT INTO sale_campaign_products (campaign_id, product_id, position) VALUES ('aaaa1111-0000-4000-8000-000000000000', '33333333-3333-4333-8333-333333333333', 0); INSERT INTO sale_campaign_products (campaign_id, product_id, position) VALUES ('aaaa1111-0000-4000-8000-000000000000', '3333aaaa-3333-4333-8333-333333333333', 1);`,
+	},
+	{
 		index: "inventory_movements_idempotency_key",
 		reject: `INSERT INTO inventory_movements (variant_id, delta, reason, idempotency_key)
 VALUES ('44444444-4444-4444-8444-444444444444', 1, 'receipt', 'im-dup');
