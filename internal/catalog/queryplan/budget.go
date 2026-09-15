@@ -78,11 +78,11 @@ func largeBudgets() []Budget {
 	// sample on the same SQL.
 	//
 	// home_recommended warm: local max-of-3 ~107ms on this fixture; GitHub Actions
-	// shared-runner peak 320ms (schema CI 2026-09-15).
+	// shared-runner peak 345ms (schema CI 2026-09-15).
 	// home_recommended cold: local first-post-ANALYZE ~191ms; GitHub Actions peak 482ms.
 	// search_name_latin warm: local max-of-3 ~130ms with occasional ~141ms variance.
 	return []Budget{
-		{Route: RouteHomeRecommended, WarmMaxMS: 330, ColdMaxMS: 500, MinRows: 1, MaxRows: 8},
+		{Route: RouteHomeRecommended, WarmMaxMS: 360, ColdMaxMS: 500, MinRows: 1, MaxRows: 8},
 		{Route: RouteHomeCategories, WarmMaxMS: 5, ColdMaxMS: 20, MinRows: 6, MaxRows: 8},
 		{Route: RouteCategoryListing, WarmMaxMS: 150, ColdMaxMS: 200, MinRows: 1, MaxRows: 24},
 		{Route: RouteCategoryFiltered, WarmMaxMS: 35, ColdMaxMS: 100, MinRows: 0, MaxRows: 24},
