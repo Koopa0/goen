@@ -54,6 +54,7 @@ type webhookOutcome struct {
 // OrderAccess reports whether this browser holds a token for the order.
 type OrderAccess interface {
 	PlacedHere(ctx context.Context, r *http.Request, number string, secure bool) bool
+	RememberOrder(ctx context.Context, w http.ResponseWriter, r *http.Request, number string, secure bool) error
 }
 
 // Handler serves the payment page and Stripe's webhook.
@@ -327,6 +328,7 @@ func (h *Handler) resume(
 		}
 		h.log.InfoContext(r.Context(), "the checkout session completed at Stripe; waiting for its webhook",
 			"order", o.Number, "session", sessionID)
+		h.rememberOrder(w, r, o.Number)
 	default:
 		h.log.ErrorContext(r.Context(), "Stripe returned an unknown checkout session state",
 			"order", o.Number, "session", sessionID, "status", status)
@@ -567,10 +569,14 @@ func (h *Handler) ownedBySignedInUser(r *http.Request, number string) bool {
 }
 
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
-	h.notice(w, r, http.StatusNotFound,
-		i18n.T(r.Context(), i18n.KeyOrderNotFound),
-		i18n.T(r.Context(), i18n.KeyOrderNotFound),
-		i18n.T(r.Context(), i18n.KeyOrderNotYours))
+	web.Render(w, r, h.log, http.StatusNotFound, pages.OrderNotFound(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}))
+}
+
+func (h *Handler) rememberOrder(w http.ResponseWriter, r *http.Request, number string) {
+	if err := h.access.RememberOrder(r.Context(), w, r, number, h.secure); err != nil {
+		h.log.ErrorContext(r.Context(), "remember order", "error", err, "order", number)
+	}
 }
 
 func (h *Handler) notice(w http.ResponseWriter, r *http.Request, status int, title, heading, body string) {

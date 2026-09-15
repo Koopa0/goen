@@ -2418,12 +2418,16 @@ func creditedUser(t *testing.T, cents int64) uuid.UUID {
 	return id
 }
 
-// alwaysPlacedHere is the one method internal/payment needs from internal/cart.
+// alwaysPlacedHere satisfies the OrderAccess methods internal/payment needs from internal/cart.
 // The webhook does not use it, and nothing here asserts on it.
 type alwaysPlacedHere struct{}
 
 func (alwaysPlacedHere) PlacedHere(context.Context, *http.Request, string, bool) bool {
 	return true
+}
+
+func (alwaysPlacedHere) RememberOrder(context.Context, http.ResponseWriter, *http.Request, string, bool) error {
+	return nil
 }
 
 // gatewayRecordingCalls gives an external-package integration test a real
@@ -2753,6 +2757,110 @@ func TestAdmittedCompleteSessionsBecomeVisibleAndResolvable(t *testing.T) {
 				t.Errorf("replacement Session read %d times, want 1", newReads)
 			}
 		})
+	}
+}
+
+// TestSimulatePayReturnWithoutPlacedCookie locks issue #135: a guest pay return
+// without a placed cookie must receive the find-order message rather than a
+// bare 404, and a verified complete session must issue the grant cookie before
+// redirecting so a new browser acquires access.
+func TestSimulatePayReturnWithoutPlacedCookie(t *testing.T) {
+	ctx := t.Context()
+	const amount = int64(100000)
+	number, orderID := order(t, amount)
+	hold(t, orderID, 0, 60*time.Minute, "pay-return:"+number)
+	sessionID := "cs_pay_return_" + uuid.NewString()[:12]
+
+	s := payment.NewStore(pool)
+	if err := s.OpenPayment(ctx, number, sessionID, amount); err != nil {
+		t.Fatalf("open payment: %v", err)
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodGet && r.URL.Path == "/v1/checkout/sessions/"+sessionID {
+			_, _ = fmt.Fprintf(w,
+				`{"id":%q,"object":"checkout.session","status":"complete",`+
+					`"payment_status":"paid"}`, sessionID)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(srv.Close)
+
+	originalBackend := stripe.GetBackend(stripe.APIBackend)
+	noRetries := int64(0)
+	stripe.SetBackend(stripe.APIBackend, stripe.GetBackendWithConfig(
+		stripe.APIBackend,
+		&stripe.BackendConfig{URL: stripe.String(srv.URL), MaxNetworkRetries: &noRetries},
+	))
+	gateway, err := payment.NewGateway(
+		"sk_test_notreal", testWebhookSecret, "https://goen.example",
+	)
+	stripe.SetBackend(stripe.APIBackend, originalBackend)
+	if err != nil {
+		t.Fatalf("gateway: %v", err)
+	}
+
+	basketStore := cart.NewStore(pool)
+	h := payment.NewHandler(s, gateway, basketStore, slog.New(slog.DiscardHandler), false)
+
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		req := httptest.NewRequestWithContext(ctx, method, "/orders/"+number+"/pay", http.NoBody)
+		req.SetPathValue("number", number)
+		rec := httptest.NewRecorder()
+		if method == http.MethodGet {
+			h.Page(rec, req)
+		} else {
+			h.Start(rec, req)
+		}
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("%s /pay without cookie = %d, want %d", method, rec.Code, http.StatusNotFound)
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, "/orders/find") {
+			t.Errorf("%s /pay without cookie rendered bare 404 with no find-order link", method)
+		}
+	}
+
+	recA := httptest.NewRecorder()
+	reqA := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/pay", http.NoBody)
+	reqA.SetPathValue("number", number)
+	if err := basketStore.RememberOrder(ctx, recA, reqA, number, false); err != nil {
+		t.Fatalf("remember order for device A: %v", err)
+	}
+	for _, c := range recA.Result().Cookies() {
+		reqA.AddCookie(c)
+	}
+
+	recStart := httptest.NewRecorder()
+	h.Start(recStart, reqA)
+	if recStart.Code != http.StatusSeeOther || recStart.Header().Get("Location") != "/orders/"+number {
+		t.Fatalf("Start complete = %d %q, want 303 to /orders/%s",
+			recStart.Code, recStart.Header().Get("Location"), number)
+	}
+
+	cookies := recStart.Result().Cookies()
+	var placedCookie *http.Cookie
+	for _, c := range cookies {
+		if c.Name == "goen_placed" {
+			placedCookie = c
+			break
+		}
+	}
+	if placedCookie == nil {
+		t.Fatal("Start complete did not issue goen_placed cookie before redirect")
+	}
+
+	reqB := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number, http.NoBody)
+	reqB.AddCookie(placedCookie)
+	if !basketStore.PlacedHere(ctx, reqB, number, false) {
+		t.Errorf("device B holding issued grant cookie PlacedHere = false, want true")
+	}
+
+	reqBare := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number, http.NoBody)
+	if basketStore.PlacedHere(ctx, reqBare, number, false) {
+		t.Errorf("device B without cookie PlacedHere = true, want false")
 	}
 }
 
