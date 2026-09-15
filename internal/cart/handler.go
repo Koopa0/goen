@@ -254,12 +254,13 @@ func emailOf(r *http.Request) string {
 	return ""
 }
 
-// rememberOrder gives this browser a token for an order it is allowed to see. A
-// failure is logged and NOT fatal: only the browser's proof of it failed.
-func (h *Handler) rememberOrder(w http.ResponseWriter, r *http.Request, number string) {
+// rememberOrder gives this browser a token for an order it is allowed to see.
+func (h *Handler) rememberOrder(w http.ResponseWriter, r *http.Request, number string) error {
 	if err := h.store.RememberOrder(r.Context(), w, r, number, h.secure); err != nil {
 		h.log.ErrorContext(r.Context(), "remember order", "error", err, "order", number)
+		return err
 	}
+	return nil
 }
 
 // PlaceOrder serves POST /checkout, re-rendering at 422 with the submitted
@@ -334,7 +335,10 @@ func (h *Handler) answerPriorCheckout(
 	if !found {
 		return false
 	}
-	h.rememberOrder(w, r, prior)
+	if err := h.rememberOrder(w, r, prior); err != nil {
+		h.serverError(w, r)
+		return true
+	}
 	http.Redirect(w, r, "/orders/"+prior+"/pay", http.StatusSeeOther) //nolint:gosec // server-generated order number
 	return true
 }
@@ -492,7 +496,10 @@ func (h *Handler) answerPlacement(
 ) {
 	switch {
 	case err == nil:
-		h.rememberOrder(w, r, number)
+		if rememberErr := h.rememberOrder(w, r, number); rememberErr != nil {
+			h.serverError(w, r)
+			return
+		}
 		// Straight to payment rather than to the confirmation, which shown
 		// before payment reads as "done" to a customer who then closes the tab.
 		http.Redirect(w, r, "/orders/"+number+"/pay", http.StatusSeeOther) //nolint:gosec // G710: server-generated order number
@@ -1199,6 +1206,9 @@ func (h *Handler) FindOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.rememberOrder(w, r, number)
+	if err := h.rememberOrder(w, r, number); err != nil {
+		h.serverError(w, r)
+		return
+	}
 	http.Redirect(w, r, "/orders/"+url.PathEscape(number), http.StatusSeeOther)
 }
