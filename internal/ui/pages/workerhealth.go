@@ -172,13 +172,15 @@ func (p UnreconciledCompletePayment) Reason(ctx context.Context) string {
 	return i18n.T(ctx, i18n.KeyAdminHPCompleteOutcomeUnknown)
 }
 
-// StuckMessage is one delivery that has exhausted its attempts.
+// StuckMessage is one delivery that automatic retry has stopped for.
 type StuckMessage struct {
-	Topic     string
-	Key       string
-	Attempts  int32
-	LastError string
-	Since     string
+	ID          string
+	Topic       string
+	Key         string
+	Attempts    int32
+	LastError   string
+	Since       string
+	Recoverable bool
 }
 
 // AttemptsText is how many times it has been tried.

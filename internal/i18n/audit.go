@@ -176,4 +176,8 @@ var (
 	KeyAuditStaffRevoke = key("audit.staff.revoke", Message{ZhHant: "撤銷後台權限", En: "Revoke staff access"})
 
 	KeyAuditStaffFactorRemove = key("audit.staff.factor.remove", Message{ZhHant: "移除第二因素", En: "Remove second factor"})
+
+	KeyAuditOutboxDrop = key("audit.outbox.drop", Message{ZhHant: "捨棄待發郵件", En: "Drop outbox message"})
+
+	KeyAuditOutboxReplay = key("audit.outbox.replay", Message{ZhHant: "重送待發郵件", En: "Replay outbox message"})
 )

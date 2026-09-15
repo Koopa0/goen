@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/koopa0/goen/internal/outbox"
 )
 
 // Message is one email.
@@ -83,7 +85,7 @@ func (s SMTPSender) Send(ctx context.Context, m *Message) error {
 		return errors.New("email: no SMTP address configured")
 	}
 	if !Valid(m.To) {
-		return fmt.Errorf("email: refusing to send to %q", m.To)
+		return outbox.NonRetryable(errors.New("email: refusing to send to invalid address"))
 	}
 	// Resolved BEFORE anything is dialled: an unsendable From fails every message.
 	envelope, err := envelopeFrom(s.From)

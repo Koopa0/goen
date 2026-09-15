@@ -4095,8 +4095,8 @@ func TestHealthIsDerivedFromTheWorkNotFromAHeartbeat(t *testing.T) {
 	}
 
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO outbox_messages (topic, dedupe_key, payload, attempts, available_at)
-		VALUES ('test.health', 'health-stuck', '{}'::jsonb, 99, now())`); err != nil {
+		INSERT INTO outbox_messages (topic, dedupe_key, payload, attempts, available_at, blocked_at)
+		VALUES ('test.health', 'health-stuck', '{}'::jsonb, 99, now(), now())`); err != nil {
 		t.Fatalf("insert stuck: %v", err)
 	}
 	stuck, stuckErr := s.WorkerHealth(ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)))
@@ -11083,5 +11083,142 @@ func TestAStrandedInvoiceClaimIsOnTheHealthPage(t *testing.T) {
 		auditRequest != "req-"+actor.String()[:8] {
 		t.Fatalf("authorization/audit = %d/%d actor %s request %q",
 			authorizations, audits, auditActor, auditRequest)
+	}
+}
+
+// TestStuckOutboxMessageDropAndReplayOnHealthPage verifies operator controls
+// on /admin/health for blocked mail:
+// Drop is terminal without delivery; Replay clears blocked_at without resetting attempts.
+// Both write append-only audit events.
+func TestStuckOutboxMessageDropAndReplayOnHealthPage(t *testing.T) {
+	ctx, actor := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	worker := outbox.NewStore(pool, slog.New(slog.DiscardHandler))
+
+	post := func(values url.Values) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+			"/admin/health/reconcile", strings.NewReader(values.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		res := httptest.NewRecorder()
+		adminHandlerOver(pool, s).ReconcilePayment(res, req)
+		return res
+	}
+
+	// 1. Test Drop
+	var dropID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO outbox_messages (topic, dedupe_key, payload, attempts, available_at, blocked_at, last_error)
+		VALUES ('account.password_reset', $1, '{"token": "secret-drop-me"}'::jsonb, 8, now(), now(), 'corrupt JSON')
+		RETURNING id`, "drop-"+uuid.NewString()).Scan(&dropID); err != nil {
+		t.Fatalf("enqueue stuck message: %v", err)
+	}
+
+	view, err := s.WorkerHealth(ctx, worker)
+	if err != nil {
+		t.Fatalf("health: %v", err)
+	}
+	var foundDrop bool
+	for _, m := range view.Stuck {
+		if m.ID == dropID.String() {
+			foundDrop = true
+			break
+		}
+	}
+	if !foundDrop {
+		t.Fatalf("stuck message %s is not listed in WorkerHealth", dropID)
+	}
+
+	// Post invalid action -> refused
+	refused := post(url.Values{"outbox_message": {dropID.String()}, "outbox_action": {"destroy"}})
+	if refused.Code != http.StatusSeeOther || refused.Header().Get("Location") != "/admin/health?notflagged=1" {
+		t.Fatalf("invalid action response = %d %q, want notflagged redirect",
+			refused.Code, refused.Header().Get("Location"))
+	}
+
+	// Post drop
+	dropped := post(url.Values{"outbox_message": {dropID.String()}, "outbox_action": {"drop"}})
+	if dropped.Code != http.StatusSeeOther || dropped.Header().Get("Location") != "/admin/health?outboxdropped=1" {
+		t.Fatalf("drop response = %d %q, want outboxdropped redirect",
+			dropped.Code, dropped.Header().Get("Location"))
+	}
+
+	var wasDropped bool
+	var delivered bool
+	var payload []byte
+	if err := pool.QueryRow(ctx, `
+		SELECT dropped_at IS NOT NULL, delivered_at IS NOT NULL, payload
+		FROM outbox_messages WHERE id = $1`, dropID).Scan(&wasDropped, &delivered, &payload); err != nil {
+		t.Fatalf("read dropped message: %v", err)
+	}
+	if !wasDropped {
+		t.Error("dropped message has no dropped_at")
+	}
+	if delivered {
+		t.Error("dropped message is marked delivered; drop is not delivery")
+	}
+	if string(payload) != "{}" && string(payload) != "{ }" {
+		t.Errorf("dropped message payload = %s, want empty/redacted JSON", string(payload))
+	}
+
+	var dropActor uuid.UUID
+	var dropReq string
+	if err := pool.QueryRow(ctx, `
+		SELECT actor_id_snapshot, coalesce(request_id, '')
+		FROM audit_events
+		WHERE entity_table = 'outbox_messages' AND entity_id = $1 AND action = 'outbox.drop'`,
+		dropID).Scan(&dropActor, &dropReq); err != nil {
+		t.Fatalf("read drop audit: %v", err)
+	}
+	if dropActor != actor || dropReq != "req-"+actor.String()[:8] {
+		t.Errorf("drop actor/req = %s/%q, want %s/%q",
+			dropActor, dropReq, actor, "req-"+actor.String()[:8])
+	}
+
+	// 2. Test Replay
+	var replayID uuid.UUID
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO outbox_messages (topic, dedupe_key, payload, attempts, available_at, blocked_at, last_error)
+		VALUES ('account.password_reset', $1, '{"token": "retry-me"}'::jsonb, 8, now(), now(), 'transient failure')
+		RETURNING id`, "replay-"+uuid.NewString()).Scan(&replayID); err != nil {
+		t.Fatalf("enqueue stuck message for replay: %v", err)
+	}
+
+	replayed := post(url.Values{"outbox_message": {replayID.String()}, "outbox_action": {"replay"}})
+	if replayed.Code != http.StatusSeeOther || replayed.Header().Get("Location") != "/admin/health?outboxreplayed=1" {
+		t.Fatalf("replay response = %d %q, want outboxreplayed redirect",
+			replayed.Code, replayed.Header().Get("Location"))
+	}
+
+	var replayAttempts int32
+	var replayDue time.Time
+	var replayErr *string
+	if err := pool.QueryRow(ctx, `
+		SELECT attempts, available_at, last_error
+		FROM outbox_messages WHERE id = $1`, replayID).Scan(&replayAttempts, &replayDue, &replayErr); err != nil {
+		t.Fatalf("read replayed message: %v", err)
+	}
+	if replayAttempts != 8 {
+		t.Errorf("replayed attempts = %d, want 8 (replay must not reset attempts)", replayAttempts)
+	}
+	if replayDue.After(time.Now().Add(5 * time.Second)) {
+		t.Errorf("replayed available_at = %v, want due now", replayDue)
+	}
+	if replayErr != nil {
+		t.Errorf("replayed last_error = %v, want NULL", *replayErr)
+	}
+
+	var replayActor uuid.UUID
+	var replayReq string
+	if err := pool.QueryRow(ctx, `
+		SELECT actor_id_snapshot, coalesce(request_id, '')
+		FROM audit_events
+		WHERE entity_table = 'outbox_messages' AND entity_id = $1 AND action = 'outbox.replay'`,
+		replayID).Scan(&replayActor, &replayReq); err != nil {
+		t.Fatalf("read replay audit: %v", err)
+	}
+	if replayActor != actor || replayReq != "req-"+actor.String()[:8] {
+		t.Errorf("replay actor/req = %s/%q, want %s/%q",
+			replayActor, replayReq, actor, "req-"+actor.String()[:8])
 	}
 }

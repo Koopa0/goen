@@ -75,6 +75,7 @@ templ AdminHealth(p layouts.Page, v *WorkerHealthView) {
 								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColAttempts) }</th>
 								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColLastError) }</th>
 								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminHPColSince) }</th>
+								<th scope="col"><span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminHPColAction) }</span></th>
 							</tr>
 						</thead>
 						<tbody>
@@ -85,6 +86,26 @@ templ AdminHealth(p layouts.Page, v *WorkerHealthView) {
 									<td>{ m.AttemptsText() }</td>
 									<td>{ m.Reason(ctx) }</td>
 									<td>{ m.Since }</td>
+									<td>
+										<div class="ui-btn-group">
+											<form method="post" action="/admin/health/reconcile">
+												<input type="hidden" name="outbox_message" value={ m.ID }/>
+												<input type="hidden" name="outbox_action" value="drop"/>
+												<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">
+													{ i18n.T(ctx, i18n.KeyAdminHPDropOutbox) }
+												</button>
+											</form>
+											if m.Recoverable {
+												<form method="post" action="/admin/health/reconcile">
+													<input type="hidden" name="outbox_message" value={ m.ID }/>
+													<input type="hidden" name="outbox_action" value="replay"/>
+													<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">
+														{ i18n.T(ctx, i18n.KeyAdminHPReplayOutbox) }
+													</button>
+												</form>
+											}
+										</div>
+									</td>
 								</tr>
 							}
 						</tbody>
