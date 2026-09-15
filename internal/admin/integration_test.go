@@ -76,6 +76,19 @@ func (t returnQueryTracer) TraceQueryStart(
 
 func (returnQueryTracer) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
 
+func isolatedAdminSeedPool(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	isolated := dbtest.Pool(t)
+	seed, err := os.ReadFile("../../seed/dev_catalog.sql")
+	if err != nil {
+		t.Fatalf("read isolated admin seed: %v", err)
+	}
+	if _, execErr := isolated.Exec(t.Context(), string(seed)); execErr != nil {
+		t.Fatalf("load isolated admin seed: %v", execErr)
+	}
+	return isolated
+}
+
 func TestMain(m *testing.M) {
 	p, stop, err := dbtest.Start(context.Background())
 	if err != nil {
@@ -1117,18 +1130,20 @@ func returnedOrderOn(
 // returnedOrderAt is the delivered sibling of returnedOrder: the rescission
 // window is a read of the two explicit database clocks, so neither may inherit
 // the test process's wall clock.
-func returnedOrderAt(t *testing.T, delivered, requested time.Time) (requestID uuid.UUID) {
+func returnedOrderAtOn(
+	t *testing.T, p *pgxpool.Pool, delivered, requested time.Time,
+) (requestID uuid.UUID) {
 	t.Helper()
-	return returnedOrderAtWithReason(t, delivered, requested, "不合用")
+	return returnedOrderAtWithReasonOn(t, p, delivered, requested, "不合用")
 }
 
-func returnedOrderAtWithReason(
-	t *testing.T, delivered, requested time.Time, reason string,
+func returnedOrderAtWithReasonOn(
+	t *testing.T, p *pgxpool.Pool, delivered, requested time.Time, reason string,
 ) (requestID uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
 
-	tx, err := pool.Begin(ctx)
+	tx, err := p.Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
@@ -1198,8 +1213,13 @@ func returnedOrderAtWithReason(
 
 func deliveredOrderAt(t *testing.T, delivered time.Time) (number string, lineID uuid.UUID) {
 	t.Helper()
+	return deliveredOrderAtOn(t, pool, delivered)
+}
+
+func deliveredOrderAtOn(t *testing.T, p *pgxpool.Pool, delivered time.Time) (number string, lineID uuid.UUID) {
+	t.Helper()
 	ctx := t.Context()
-	tx, err := pool.Begin(ctx)
+	tx, err := p.Begin(ctx)
 	if err != nil {
 		t.Fatalf("begin: %v", err)
 	}
@@ -5117,8 +5137,9 @@ func TestTheReturnQueueUsesAConstantQueryCountForAnyNumberOfApprovedRows(t *test
 }
 
 func TestTheRescissionWindowIsCountedOnTheShopsCalendar(t *testing.T) {
-	ctx, _ := staffContext(t)
-	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	isolated := isolatedAdminSeedPool(t)
+	ctx, _ := staffContextOn(t, isolated)
+	s := admin.NewStore(isolated, fakeRefunder{}, nil, nil)
 
 	cases := []struct {
 		name           string
@@ -5178,7 +5199,7 @@ func TestTheRescissionWindowIsCountedOnTheShopsCalendar(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parse requested_at: %v", err)
 			}
-			requestID := returnedOrderAt(t, delivered, requested)
+			requestID := returnedOrderAtOn(t, isolated, delivered, requested)
 
 			view, err := s.Returns(ctx)
 			if err != nil {
