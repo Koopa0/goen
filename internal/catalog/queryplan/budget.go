@@ -76,14 +76,18 @@ func largeBudgets() []Budget {
 	// Warm values envelope the max of three retained warm EXPLAIN samples plus
 	// shared-runner variance headroom; cold values envelope the first post-ANALYZE
 	// sample on the same SQL.
+	//
+	// home_recommended warm: local max-of-3 ~107ms on this fixture; GitHub Actions
+	// shared-runner peak 282ms (schema CI 2026-09-15) — budget envelopes that peak.
+	// search_name_latin warm: local max-of-3 ~130ms with occasional ~141ms variance.
 	return []Budget{
-		{Route: RouteHomeRecommended, WarmMaxMS: 150, ColdMaxMS: 220, MinRows: 1, MaxRows: 8},
+		{Route: RouteHomeRecommended, WarmMaxMS: 290, ColdMaxMS: 230, MinRows: 1, MaxRows: 8},
 		{Route: RouteHomeCategories, WarmMaxMS: 5, ColdMaxMS: 20, MinRows: 6, MaxRows: 8},
 		{Route: RouteCategoryListing, WarmMaxMS: 80, ColdMaxMS: 80, MinRows: 1, MaxRows: 24},
 		{Route: RouteCategoryFiltered, WarmMaxMS: 35, ColdMaxMS: 40, MinRows: 0, MaxRows: 24},
 		{Route: RouteCategoryPriceAsc, WarmMaxMS: 80, ColdMaxMS: 80, MinRows: 1, MaxRows: 24},
 		{Route: RouteCategoryDeepPage, WarmMaxMS: 95, ColdMaxMS: 95, MinRows: 0, MaxRows: 24},
-		{Route: RouteSearchNameLatin, WarmMaxMS: 135, ColdMaxMS: 135, MinRows: 1, MaxRows: 24},
+		{Route: RouteSearchNameLatin, WarmMaxMS: 150, ColdMaxMS: 150, MinRows: 1, MaxRows: 24},
 		{Route: RouteSearchBrand, WarmMaxMS: 95, ColdMaxMS: 95, MinRows: 1, MaxRows: 24},
 		{Route: RouteSearchChinese, WarmMaxMS: 65, ColdMaxMS: 65, MinRows: 0, MaxRows: 24},
 		{Route: RouteSearchNoMatch, WarmMaxMS: 65, ColdMaxMS: 65, MinRows: 0, MaxRows: 0},
