@@ -3589,6 +3589,11 @@ BEGIN
             USING ERRCODE = 'check_violation', CONSTRAINT = 'refunds_within_capture';
     END IF;
 
+    IF payment_has_open_dispute(NEW.payment_id) THEN
+        RAISE EXCEPTION 'refunding while a card dispute is still open on this payment'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'refunds_blocked_by_open_dispute';
+    END IF;
+
     -- payment_id and return_request_id are otherwise unrelated foreign keys, so
     -- order A's capture could be refunded against order B's return.
     IF NEW.return_request_id IS NOT NULL
@@ -3769,6 +3774,128 @@ CREATE INDEX payment_webhook_events_unprocessed_idx
     ON payment_webhook_events (received_at)
     WHERE processed_at IS NULL;
 CREATE INDEX payment_webhook_events_object_idx ON payment_webhook_events (object_ref);
+
+-- Verified provider identities that belong to a captured payment but are not
+-- the Checkout Session id stored on payments.provider_ref. Disputes and other
+-- post-capture facts arrive on charge or PaymentIntent ids; this table is the
+-- shared attribution map #338 establishes and #339 consumes.
+CREATE TABLE payment_provider_links (
+    payment_id   uuid NOT NULL REFERENCES payments (id) ON DELETE RESTRICT,
+    provider     text NOT NULL DEFAULT 'stripe',
+    link_kind    text NOT NULL,
+    provider_ref text NOT NULL,
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT payment_provider_links_provider_known CHECK (provider = 'stripe'),
+    CONSTRAINT payment_provider_links_kind_known
+        CHECK (link_kind IN ('payment_intent', 'charge')),
+    CONSTRAINT payment_provider_links_ref_valid CHECK (
+        char_length(provider_ref) BETWEEN 1 AND 255
+        AND provider_ref !~ '[[:space:][:cntrl:]]'
+    ),
+    PRIMARY KEY (provider, link_kind, provider_ref)
+);
+
+CREATE INDEX payment_provider_links_payment_id_idx
+    ON payment_provider_links (payment_id);
+
+-- A card dispute is a provider fact distinct from capture and from refunds.
+-- Funds withdrawn or reinstated live in payment_dispute_movements, not in
+-- payments.captured_amount_cents or refunds.
+CREATE TABLE payment_disputes (
+    id               uuid PRIMARY KEY DEFAULT uuidv7(),
+    payment_id       uuid REFERENCES payments (id) ON DELETE RESTRICT,
+    provider         text NOT NULL DEFAULT 'stripe',
+    provider_ref     text NOT NULL,
+    charge_ref       text NOT NULL,
+    amount_cents     bigint NOT NULL,
+    currency         text NOT NULL DEFAULT 'TWD',
+    status           text NOT NULL,
+    reason           text,
+    evidence_due_at  timestamptz,
+    reviewed_by      uuid REFERENCES users (id) ON DELETE RESTRICT,
+    disposition      text,
+    reviewed_at      timestamptz,
+    provider_seen_at timestamptz NOT NULL,
+    created_at       timestamptz NOT NULL DEFAULT now(),
+    updated_at       timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT payment_disputes_provider_known CHECK (provider = 'stripe'),
+    CONSTRAINT payment_disputes_provider_ref_valid CHECK (
+        char_length(provider_ref) BETWEEN 1 AND 255
+        AND provider_ref !~ '[[:space:][:cntrl:]]'
+    ),
+    CONSTRAINT payment_disputes_charge_ref_valid CHECK (
+        char_length(charge_ref) BETWEEN 1 AND 255
+        AND charge_ref !~ '[[:space:][:cntrl:]]'
+    ),
+    CONSTRAINT payment_disputes_status_known CHECK (
+        status IN ('warning_needs_response', 'warning_under_review', 'warning_closed',
+                   'needs_response', 'under_review', 'charge_refunded', 'won', 'lost')
+    ),
+    CONSTRAINT payment_disputes_amount_positive CHECK (amount_cents > 0),
+    CONSTRAINT payment_disputes_amount_in_range CHECK (amount_cents <= 10000000000),
+    CONSTRAINT payment_disputes_currency_is_twd CHECK (currency = 'TWD'),
+    CONSTRAINT payment_disputes_disposition_known CHECK (
+        disposition IS NULL
+        OR disposition IN ('monitoring', 'accepted', 'challenging', 'closed')
+    ),
+    CONSTRAINT payment_disputes_reviewed_shape CHECK (
+        (reviewed_by IS NULL) = (reviewed_at IS NULL)
+        AND (disposition IS NULL) = (reviewed_at IS NULL)
+    )
+);
+
+CREATE UNIQUE INDEX payment_disputes_provider_ref_key
+    ON payment_disputes (provider, provider_ref);
+CREATE INDEX payment_disputes_payment_id_idx ON payment_disputes (payment_id);
+CREATE INDEX payment_disputes_reviewed_by_idx ON payment_disputes (reviewed_by);
+CREATE INDEX payment_disputes_open_idx
+    ON payment_disputes (evidence_due_at NULLS LAST, created_at DESC)
+    WHERE status IN ('warning_needs_response', 'warning_under_review',
+                     'needs_response', 'under_review');
+
+CREATE TRIGGER payment_disputes_set_updated_at
+    BEFORE UPDATE ON payment_disputes
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- Each applied provider observation, for history and idempotency on event id.
+CREATE TABLE payment_dispute_events (
+    provider         text NOT NULL DEFAULT 'stripe',
+    provider_event_id text NOT NULL,
+    dispute_id       uuid NOT NULL REFERENCES payment_disputes (id) ON DELETE RESTRICT,
+    provider_status  text NOT NULL,
+    observed_at      timestamptz NOT NULL,
+    recorded_at      timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT payment_dispute_events_provider_known CHECK (provider = 'stripe'),
+    CONSTRAINT payment_dispute_events_event_id_valid CHECK (
+        char_length(provider_event_id) BETWEEN 1 AND 255
+        AND provider_event_id !~ '[[:space:][:cntrl:]]'
+    ),
+    PRIMARY KEY (provider, provider_event_id)
+);
+
+CREATE INDEX payment_dispute_events_dispute_id_idx
+    ON payment_dispute_events (dispute_id, observed_at DESC);
+
+-- Withdrawn or reinstated dispute funds, distinct from refunds.
+CREATE TABLE payment_dispute_movements (
+    id           uuid PRIMARY KEY DEFAULT uuidv7(),
+    dispute_id   uuid NOT NULL REFERENCES payment_disputes (id) ON DELETE RESTRICT,
+    kind         text NOT NULL,
+    amount_cents bigint NOT NULL,
+    provider_ref text NOT NULL,
+    recorded_at  timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT payment_dispute_movements_kind_known
+        CHECK (kind IN ('withdrawn', 'reinstated')),
+    CONSTRAINT payment_dispute_movements_amount_positive CHECK (amount_cents > 0),
+    CONSTRAINT payment_dispute_movements_amount_in_range CHECK (amount_cents <= 10000000000),
+    CONSTRAINT payment_dispute_movements_ref_valid CHECK (
+        char_length(provider_ref) BETWEEN 1 AND 255
+        AND provider_ref !~ '[[:space:][:cntrl:]]'
+    )
+);
+
+CREATE UNIQUE INDEX payment_dispute_movements_provider_ref_key
+    ON payment_dispute_movements (dispute_id, provider_ref);
 
 -- ============================================================================
 -- Outbox
@@ -4546,6 +4673,9 @@ REVOKE INSERT, UPDATE, DELETE ON
 REVOKE ALL ON invoice_operations FROM store;
 REVOKE INSERT, UPDATE, DELETE ON product_variants FROM store;
 REVOKE INSERT, UPDATE, DELETE ON payments, refunds FROM store;
+REVOKE INSERT, UPDATE, DELETE ON
+    payment_disputes, payment_dispute_movements, payment_provider_links, payment_dispute_events
+    FROM store;
 REVOKE INSERT, UPDATE, DELETE ON order_number_counters FROM store;
 REVOKE UPDATE, DELETE, TRUNCATE ON invoice_document_lines FROM store;
 -- UPDATE would repoint a whole balance at another user. DELETE is deleting a
@@ -4938,6 +5068,9 @@ REVOKE INSERT, UPDATE, DELETE ON
     FROM admin;
 REVOKE INSERT, UPDATE, DELETE ON invoice_operations FROM admin;
 REVOKE INSERT, UPDATE, DELETE ON payments, refunds FROM admin;
+REVOKE INSERT, UPDATE, DELETE ON
+    payment_disputes, payment_dispute_movements, payment_provider_links, payment_dispute_events
+    FROM admin;
 REVOKE INSERT, UPDATE, DELETE ON order_number_counters FROM admin;
 REVOKE UPDATE, DELETE, TRUNCATE ON invoice_document_lines FROM admin;
 REVOKE UPDATE, DELETE ON store_credit_accounts FROM admin;
@@ -6234,6 +6367,175 @@ BEGIN
 END;
 $$;
 
+-- Record a verified PaymentIntent or Charge identity for a captured payment.
+-- Idempotent: a replayed capture webhook must not fail on a second link.
+CREATE FUNCTION record_payment_provider_link(
+    p_payment_id uuid,
+    p_link_kind text,
+    p_provider_ref text
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+    IF p_provider_ref IS NULL OR p_provider_ref = '' THEN
+        RETURN;
+    END IF;
+    INSERT INTO payment_provider_links (payment_id, link_kind, provider_ref)
+    VALUES (p_payment_id, p_link_kind, p_provider_ref)
+    ON CONFLICT (provider, link_kind, provider_ref) DO NOTHING;
+END;
+$$;
+
+-- Resolve a captured payment from a post-capture provider identity.
+CREATE FUNCTION payment_id_for_provider_link(
+    p_link_kind text,
+    p_provider_ref text
+) RETURNS uuid
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+    SELECT l.payment_id
+    FROM payment_provider_links l
+    WHERE l.provider = 'stripe'
+      AND l.link_kind = p_link_kind
+      AND l.provider_ref = p_provider_ref;
+$$;
+
+-- Apply or reconcile a provider dispute fact. Events may arrive out of order;
+-- provider_seen_at is the observation time used to accept a newer status even
+-- when it reverses an earlier terminal result Stripe documents as appealable.
+CREATE FUNCTION apply_payment_dispute(
+    p_provider_ref text,
+    p_charge_ref text,
+    p_payment_intent_ref text,
+    p_amount_cents bigint,
+    p_currency text,
+    p_status text,
+    p_reason text,
+    p_evidence_due_at timestamptz,
+    p_provider_seen_at timestamptz,
+    p_provider_event_id text
+) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+DECLARE
+    v_payment_id uuid;
+    v_dispute_id uuid;
+    v_current_status text;
+    v_current_seen timestamptz;
+BEGIN
+    IF p_payment_intent_ref IS NOT NULL AND p_payment_intent_ref <> '' THEN
+        v_payment_id := payment_id_for_provider_link('payment_intent', p_payment_intent_ref);
+    END IF;
+    IF v_payment_id IS NULL AND p_charge_ref IS NOT NULL AND p_charge_ref <> '' THEN
+        v_payment_id := payment_id_for_provider_link('charge', p_charge_ref);
+    END IF;
+
+    INSERT INTO payment_disputes (
+        payment_id, provider_ref, charge_ref, amount_cents, currency,
+        status, reason, evidence_due_at, provider_seen_at
+    )
+    VALUES (
+        v_payment_id, p_provider_ref, p_charge_ref, p_amount_cents, p_currency,
+        p_status, p_reason, p_evidence_due_at, p_provider_seen_at
+    )
+    ON CONFLICT (provider, provider_ref) DO NOTHING
+    RETURNING id INTO v_dispute_id;
+
+    IF v_dispute_id IS NULL THEN
+        SELECT id, status, provider_seen_at
+        INTO v_dispute_id, v_current_status, v_current_seen
+        FROM payment_disputes
+        WHERE provider = 'stripe' AND provider_ref = p_provider_ref
+        FOR UPDATE;
+    END IF;
+
+    IF v_dispute_id IS NULL THEN
+        RAISE EXCEPTION 'dispute % could not be created or loaded', p_provider_ref
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'payment_disputes_provider_ref_known';
+    END IF;
+
+    -- Link payment if attribution arrived after the first event.
+    IF v_payment_id IS NOT NULL THEN
+        UPDATE payment_disputes
+        SET payment_id = coalesce(payment_id, v_payment_id)
+        WHERE id = v_dispute_id AND payment_id IS NULL;
+    END IF;
+
+    INSERT INTO payment_dispute_events (
+        provider_event_id, dispute_id, provider_status, observed_at
+    )
+    VALUES (p_provider_event_id, v_dispute_id, p_status, p_provider_seen_at)
+    ON CONFLICT (provider, provider_event_id) DO NOTHING;
+
+    SELECT status, provider_seen_at
+    INTO v_current_status, v_current_seen
+    FROM payment_disputes WHERE id = v_dispute_id;
+
+    IF p_provider_seen_at >= v_current_seen
+       OR v_current_status IN ('lost', 'charge_refunded')
+          AND p_status IN ('won', 'needs_response', 'under_review') THEN
+        UPDATE payment_disputes
+        SET status = p_status,
+            reason = coalesce(p_reason, reason),
+            evidence_due_at = p_evidence_due_at,
+            amount_cents = p_amount_cents,
+            provider_seen_at = p_provider_seen_at,
+            payment_id = coalesce(payment_id, v_payment_id)
+        WHERE id = v_dispute_id;
+    END IF;
+
+    RETURN v_dispute_id;
+END;
+$$;
+
+CREATE FUNCTION record_dispute_movement(
+    p_dispute_id uuid,
+    p_kind text,
+    p_amount_cents bigint,
+    p_provider_ref text
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+    INSERT INTO payment_dispute_movements (dispute_id, kind, amount_cents, provider_ref)
+    VALUES (p_dispute_id, p_kind, p_amount_cents, p_provider_ref)
+    ON CONFLICT (dispute_id, provider_ref) DO NOTHING;
+END;
+$$;
+
+CREATE FUNCTION review_payment_dispute(
+    p_dispute_id uuid,
+    p_actor uuid,
+    p_disposition text
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM users u
+        WHERE u.id = p_actor AND u.role IN ('staff', 'admin')
+    ) THEN
+        RAISE EXCEPTION 'dispute review requires a durable staff actor'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'payment_disputes_review_requires_staff';
+    END IF;
+    UPDATE payment_disputes
+    SET reviewed_by = p_actor,
+        disposition = p_disposition,
+        reviewed_at = now()
+    WHERE id = p_dispute_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'dispute % not found', p_dispute_id
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'payment_disputes_exists';
+    END IF;
+END;
+$$;
+
+CREATE FUNCTION payment_has_open_dispute(p_payment_id uuid) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM payment_disputes d
+        WHERE d.payment_id = p_payment_id
+          AND d.status IN ('warning_needs_response', 'warning_under_review',
+                           'needs_response', 'under_review')
+    );
+$$;
+
 -- Record a Checkout Session that Stripe has explicitly expired after local
 -- admission failed. This is a tombstone, not another admission attempt: the
 -- order may now be cancelled, funded, repriced or awaiting reconciliation.
@@ -6907,6 +7209,12 @@ GRANT EXECUTE ON FUNCTION record_complete_payment(uuid, text, bigint) TO store;
 GRANT EXECUTE ON FUNCTION cancel_payment(text) TO store;
 GRANT EXECUTE ON FUNCTION mark_payment_event_unreconciled(text, text) TO store;
 GRANT EXECUTE ON FUNCTION lock_payment_provider_ref(text, text) TO store;
+GRANT EXECUTE ON FUNCTION record_payment_provider_link(uuid, text, text) TO store;
+GRANT EXECUTE ON FUNCTION payment_id_for_provider_link(text, text) TO store, admin, reporting;
+GRANT EXECUTE ON FUNCTION apply_payment_dispute(text, text, text, bigint, text, text, text, timestamptz, timestamptz, text) TO store;
+GRANT EXECUTE ON FUNCTION record_dispute_movement(uuid, text, bigint, text) TO store;
+GRANT EXECUTE ON FUNCTION review_payment_dispute(uuid, uuid, text) TO admin;
+GRANT EXECUTE ON FUNCTION payment_has_open_dispute(uuid) TO store, admin, reporting;
 GRANT EXECUTE ON FUNCTION lock_cart_catalogue(uuid) TO store;
 GRANT EXECUTE ON FUNCTION lock_user_for_cart_adoption(uuid) TO store;
 GRANT EXECUTE ON FUNCTION lock_user_for_checkout(uuid) TO store;

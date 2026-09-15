@@ -167,3 +167,34 @@ WHERE o.id = $1;
 
 -- EnqueueMessage is defined in internal/cart/query.sql; sqlc builds one db
 -- package for the module.
+
+-- name: RecordPaymentProviderLink :exec
+SELECT record_payment_provider_link(@payment_id::uuid, @link_kind::text, @provider_ref::text);
+
+-- name: ApplyPaymentDispute :one
+SELECT apply_payment_dispute(
+    @provider_ref::text,
+    @charge_ref::text,
+    @payment_intent_ref::text,
+    @amount_cents::bigint,
+    @currency::text,
+    @status::text,
+    sqlc.narg('reason')::text,
+    sqlc.narg('evidence_due_at')::timestamptz,
+    @provider_seen_at::timestamptz,
+    @provider_event_id::text
+);
+
+-- name: RecordDisputeMovement :exec
+SELECT record_dispute_movement(
+    @dispute_id::uuid,
+    @kind::text,
+    @amount_cents::bigint,
+    @provider_ref::text
+);
+
+-- name: PaymentIDByCaptureRef :one
+SELECT id FROM payments WHERE provider_ref = $1 AND status = 'succeeded';
+
+-- name: DisputeHasPayment :one
+SELECT coalesce(payment_id IS NOT NULL, false)::boolean FROM payment_disputes WHERE id = $1;
