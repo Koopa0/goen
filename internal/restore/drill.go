@@ -9,11 +9,12 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
+
+	"github.com/koopa0/goen/internal/db/dbtest"
 )
 
 // SnapshotArtifacts are the immutable oracle rows read inside one exported
@@ -56,52 +57,10 @@ func DumpCopy(ctx context.Context, sourceURL, copyName string) (copyURL string, 
 		return "", SnapshotArtifacts{}, nil, err
 	}
 
-	conn, err := pgx.Connect(ctx, sourceURL)
+	artifacts, err = exportSnapshot(ctx, sourceURL, work)
 	if err != nil {
 		cleanup()
 		return "", SnapshotArtifacts{}, nil, err
-	}
-	defer closeConn(ctx, conn)
-
-	tx, err := conn.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
-	if err != nil {
-		cleanup()
-		return "", SnapshotArtifacts{}, nil, err
-	}
-	defer func() {
-		if rollbackErr := tx.Rollback(context.WithoutCancel(ctx)); rollbackErr != nil {
-			return
-		}
-	}()
-
-	if scanErr := tx.QueryRow(ctx, "SELECT pg_export_snapshot()").Scan(&artifacts.SnapshotID); scanErr != nil {
-		cleanup()
-		return "", SnapshotArtifacts{}, nil, scanErr
-	}
-
-	dumpPath := filepath.Join(work, "goen.dump")
-	dump := exec.CommandContext(ctx, "pg_dump", sourceURL, //nolint:gosec // G204: drill URLs come from the test harness or operator shell
-		"--snapshot="+artifacts.SnapshotID, "-Fc", "-f", dumpPath)
-	if dumpErr := dump.Run(); dumpErr != nil {
-		cleanup()
-		return "", SnapshotArtifacts{}, nil, fmt.Errorf("pg_dump: %w", dumpErr)
-	}
-
-	artifacts.RowCounts, err = queryStringLines(ctx, tx, RowCountsSQL)
-	if err != nil {
-		cleanup()
-		return "", SnapshotArtifacts{}, nil, err
-	}
-	artifacts.Manifest, err = queryStringLines(ctx, tx, manifestSQL)
-	if err != nil {
-		cleanup()
-		return "", SnapshotArtifacts{}, nil, err
-	}
-	sort.Strings(artifacts.Manifest)
-
-	if commitErr := tx.Commit(ctx); commitErr != nil {
-		cleanup()
-		return "", SnapshotArtifacts{}, nil, commitErr
 	}
 
 	if createErr := createDatabase(ctx, sourceURL, copyName); createErr != nil {
@@ -109,9 +68,8 @@ func DumpCopy(ctx context.Context, sourceURL, copyName string) (copyURL string, 
 		return "", SnapshotArtifacts{}, nil, createErr
 	}
 
-	restore := exec.CommandContext(ctx, "pg_restore", //nolint:gosec // G204: drill URLs come from the test harness or operator shell
-		"-d", copyURL, "--no-owner", "--exit-on-error", dumpPath)
-	if restoreErr := restore.Run(); restoreErr != nil {
+	if restoreErr := runPostgresClient(ctx, work, "pg_restore",
+		"-d", copyURL, "--no-owner", "--exit-on-error", "goen.dump"); restoreErr != nil {
 		cleanup()
 		return "", SnapshotArtifacts{}, nil, fmt.Errorf("pg_restore: %w", restoreErr)
 	}
@@ -235,6 +193,71 @@ func siblingDatabaseURL(sourceURL, copyName string) (string, error) {
 
 func quoteLiteral(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
+}
+
+func exportSnapshot(ctx context.Context, sourceURL, work string) (SnapshotArtifacts, error) {
+	conn, err := pgx.Connect(ctx, sourceURL)
+	if err != nil {
+		return SnapshotArtifacts{}, err
+	}
+	defer closeConn(ctx, conn)
+
+	if _, execErr := conn.Exec(ctx, "SET idle_in_transaction_session_timeout = '10min'"); execErr != nil {
+		return SnapshotArtifacts{}, execErr
+	}
+	tx, err := conn.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead})
+	if err != nil {
+		return SnapshotArtifacts{}, err
+	}
+	defer func() {
+		if rollbackErr := tx.Rollback(context.WithoutCancel(ctx)); rollbackErr != nil {
+			return
+		}
+	}()
+
+	var artifacts SnapshotArtifacts
+	if scanErr := tx.QueryRow(ctx, "SELECT pg_export_snapshot()").Scan(&artifacts.SnapshotID); scanErr != nil {
+		return SnapshotArtifacts{}, scanErr
+	}
+
+	if dumpErr := runPostgresClient(ctx, work, "pg_dump", sourceURL,
+		"--snapshot="+artifacts.SnapshotID, "-Fc", "-f", "goen.dump"); dumpErr != nil {
+		return SnapshotArtifacts{}, fmt.Errorf("pg_dump: %w", dumpErr)
+	}
+
+	artifacts.RowCounts, err = queryStringLines(ctx, tx, RowCountsSQL)
+	if err != nil {
+		return SnapshotArtifacts{}, err
+	}
+	artifacts.Manifest, err = queryStringLines(ctx, tx, manifestSQL)
+	if err != nil {
+		return SnapshotArtifacts{}, err
+	}
+	sort.Strings(artifacts.Manifest)
+
+	if commitErr := tx.Commit(ctx); commitErr != nil {
+		return SnapshotArtifacts{}, commitErr
+	}
+	return artifacts, nil
+}
+
+func runPostgresClient(ctx context.Context, workDir, tool string, args ...string) error {
+	cmd := exec.CommandContext(ctx, "docker", "run", "--rm", //nolint:gosec // G204: integration drill runs client tools in the test database image
+		"--network", "host",
+		"-v", workDir+":/work",
+		"-w", "/work",
+		dbtest.Image,
+		tool)
+	cmd.Args = append(cmd.Args, args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if msg != "" {
+			return fmt.Errorf("%w: %s", err, msg)
+		}
+		return err
+	}
+	return nil
 }
 
 func queryStringLines(ctx context.Context, tx pgx.Tx, sql string) ([]string, error) {

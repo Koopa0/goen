@@ -18,8 +18,9 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-// The schema calls uuidv7(), which is PostgreSQL 18 or later.
-const image = "postgres:18-alpine"
+// Image is the PostgreSQL major integration tests connect to. Restore drills
+// run pg_dump and pg_restore from this image so the client matches the server.
+const Image = "postgres:18-alpine"
 
 // Pool starts a PostgreSQL container for one test and removes it afterwards.
 func Pool(t *testing.T) *pgxpool.Pool {
@@ -35,7 +36,7 @@ func Pool(t *testing.T) *pgxpool.Pool {
 
 // Start brings up PostgreSQL, applies every migration, and returns a pool and its teardown.
 func Start(ctx context.Context) (*pgxpool.Pool, func(), error) {
-	container, err := postgres.Run(ctx, image,
+	container, err := postgres.Run(ctx, Image,
 		postgres.WithDatabase("goen_test"),
 		postgres.WithUsername("goen"),
 		postgres.WithPassword("goen"),
