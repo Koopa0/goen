@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/koopa0/goen/internal/telemetry"
 )
 
 // Message is one email.
@@ -78,7 +80,9 @@ func dialSMTPConn(ctx context.Context, addr string) (net.Conn, error) {
 }
 
 // Send delivers m. STARTTLS is required, not attempted.
-func (s SMTPSender) Send(ctx context.Context, m *Message) error {
+func (s SMTPSender) Send(ctx context.Context, m *Message) (err error) {
+	ctx, call := telemetry.BeginProvider(ctx, telemetry.ProviderSMTP, "send")
+	defer func() { call.End(ctx, err) }()
 	if s.Addr == "" {
 		return errors.New("email: no SMTP address configured")
 	}
