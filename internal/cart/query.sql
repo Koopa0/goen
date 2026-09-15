@@ -25,13 +25,19 @@ SELECT lock_user_for_checkout(@user_id::uuid);
 -- name: LockCartCatalogue :exec
 SELECT lock_cart_catalogue(@cart_id::uuid);
 
--- least() caps a repeat add at the CHECK's own ceiling rather than raising a
--- constraint violation the visitor did nothing to deserve.
+-- least() caps a repeat add at available stock and the line ceiling rather than
+-- raising a constraint violation the visitor did nothing to deserve.
 -- name: AddCartItem :exec
 INSERT INTO cart_items (cart_id, variant_id, quantity)
 VALUES ($1, $2, $3)
 ON CONFLICT (cart_id, variant_id) DO UPDATE
-SET quantity = least(cart_items.quantity + EXCLUDED.quantity, 999);
+SET quantity = least(
+    cart_items.quantity + EXCLUDED.quantity,
+    999,
+    greatest((SELECT (pv.stock_quantity - pv.safety_stock)::integer
+              FROM product_variants pv
+              WHERE pv.id = cart_items.variant_id), 1)
+);
 
 -- name: SetCartItemQuantity :exec
 UPDATE cart_items SET quantity = $3

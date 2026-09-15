@@ -94,7 +94,13 @@ const addCartItem = `-- name: AddCartItem :exec
 INSERT INTO cart_items (cart_id, variant_id, quantity)
 VALUES ($1, $2, $3)
 ON CONFLICT (cart_id, variant_id) DO UPDATE
-SET quantity = least(cart_items.quantity + EXCLUDED.quantity, 999)
+SET quantity = least(
+    cart_items.quantity + EXCLUDED.quantity,
+    999,
+    greatest((SELECT (pv.stock_quantity - pv.safety_stock)::integer
+              FROM product_variants pv
+              WHERE pv.id = cart_items.variant_id), 1)
+)
 `
 
 type AddCartItemParams struct {
@@ -103,8 +109,8 @@ type AddCartItemParams struct {
 	Quantity  int32
 }
 
-// least() caps a repeat add at the CHECK's own ceiling rather than raising a
-// constraint violation the visitor did nothing to deserve.
+// least() caps a repeat add at available stock and the line ceiling rather than
+// raising a constraint violation the visitor did nothing to deserve.
 func (q *Queries) AddCartItem(ctx context.Context, arg AddCartItemParams) error {
 	_, err := q.db.Exec(ctx, addCartItem, arg.CartID, arg.VariantID, arg.Quantity)
 	return err
