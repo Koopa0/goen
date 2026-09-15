@@ -8,7 +8,11 @@ English | [繁體中文](README.zh-TW.md)
 
 goen is an e-commerce project for shoppers and shop operators. Browse and compare
 products, place an order, manage purchases, and handle fulfillment from the back office.
-It is a demonstration and reference project, not a hosted service.
+It is a demonstration and reference project, not a shop you can buy from:
+[goen.koopa0.dev](https://goen.koopa0.dev) runs the fifteen-product sample
+catalogue with payments switched off, no mail leaving the host, and the database
+restored every night. How those limits are configured is recorded in
+[deploy/demo/README.md](deploy/demo/README.md).
 
 ![English storefront with product categories and recommended products](assets/readme/storefront.en.png)
 
