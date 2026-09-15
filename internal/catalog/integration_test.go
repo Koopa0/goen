@@ -978,3 +978,94 @@ func TestPromotionalTilesArePricedOnTheDiscountedVariant(t *testing.T) {
 		t.Error("campaign tile says its discounted price is the bottom of a range, but a cheaper variant exists")
 	}
 }
+
+// The count query must mirror the listing predicate for every filter combination
+// a visitor can apply; otherwise the page reports a total the grid cannot show.
+func TestListingCountAgreesWithFilters(t *testing.T) {
+	ctx := t.Context()
+	s := catalog.NewStore(pool)
+
+	cases := []struct {
+		name    string
+		slug    string
+		filters catalog.Filters
+	}{
+		{name: "phones default", slug: "phones", filters: catalog.Filters{Page: 1}},
+		{name: "phones in stock", slug: "phones", filters: catalog.Filters{Page: 1, InStockOnly: true}},
+		{name: "phones min price", slug: "phones", filters: catalog.Filters{Page: 1, MinPrice: 1_000_000}},
+		{name: "accessories descendants", slug: "accessories", filters: catalog.Filters{Page: 1}},
+		{name: "phones brand filter", slug: "phones", filters: catalog.Filters{Page: 1, BrandSlugs: []string{"pixelight"}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			view, err := s.Listing(ctx, tc.slug, tc.filters)
+			if err != nil {
+				t.Fatalf("listing: %v", err)
+			}
+			ids, err := categoryDescendantIDs(ctx, pool, tc.slug)
+			if err != nil {
+				t.Fatalf("descendants: %v", err)
+			}
+			brandIDs, err := catalog.ResolveListingBrandIDs(ctx, pool, ids, tc.filters.BrandSlugs)
+			if err != nil {
+				t.Fatalf("brand ids: %v", err)
+			}
+			independent, err := catalog.CountListingPredicate(ctx, pool, ids, brandIDs, tc.filters)
+			if err != nil {
+				t.Fatalf("independent count: %v", err)
+			}
+			if view.Total != independent {
+				t.Errorf("listing reports %d products, independent count is %d",
+					view.Total, independent)
+			}
+		})
+	}
+}
+
+func TestListingSortByPriceAscending(t *testing.T) {
+	ctx := t.Context()
+	s := catalog.NewStore(pool)
+
+	view, err := s.Listing(ctx, "phones", catalog.Filters{Page: 1, Sort: catalog.SortPriceAsc})
+	if err != nil {
+		t.Fatalf("listing: %v", err)
+	}
+	if len(view.Products) < 2 {
+		t.Skip("not enough phones to observe sort order")
+	}
+	last := view.Products[0].PriceCents
+	for i, p := range view.Products[1:] {
+		if p.PriceCents < last {
+			t.Errorf("product %d is cheaper than the one before it (%d < %d)",
+				i+1, p.PriceCents, last)
+		}
+		last = p.PriceCents
+	}
+}
+
+func categoryDescendantIDs(ctx context.Context, pool *pgxpool.Pool, slug string) ([]uuid.UUID, error) {
+	var root uuid.UUID
+	if err := pool.QueryRow(ctx, `SELECT id FROM categories WHERE slug = $1`, slug).Scan(&root); err != nil {
+		return nil, err
+	}
+	rows, err := pool.Query(ctx, `
+		WITH RECURSIVE d AS (
+		    SELECT c.id FROM categories c WHERE c.id = $1
+		    UNION ALL
+		    SELECT c.id FROM categories c JOIN d ON c.parent_id = d.id
+		)
+		SELECT id FROM d`, root)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
