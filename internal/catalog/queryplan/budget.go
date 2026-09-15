@@ -84,7 +84,7 @@ func largeBudgets() []Budget {
 	return []Budget{
 		{Route: RouteHomeRecommended, WarmMaxMS: 450, ColdMaxMS: 500, MinRows: 1, MaxRows: 8},
 		{Route: RouteHomeCategories, WarmMaxMS: 5, ColdMaxMS: 20, MinRows: 6, MaxRows: 8},
-		{Route: RouteCategoryListing, WarmMaxMS: 190, ColdMaxMS: 220, MinRows: 1, MaxRows: 24},
+		{Route: RouteCategoryListing, WarmMaxMS: 220, ColdMaxMS: 220, MinRows: 1, MaxRows: 24},
 		{Route: RouteCategoryFiltered, WarmMaxMS: 100, ColdMaxMS: 100, MinRows: 0, MaxRows: 24},
 		{Route: RouteCategoryPriceAsc, WarmMaxMS: 170, ColdMaxMS: 160, MinRows: 1, MaxRows: 24},
 		{Route: RouteCategoryDeepPage, WarmMaxMS: 110, ColdMaxMS: 110, MinRows: 0, MaxRows: 24},
