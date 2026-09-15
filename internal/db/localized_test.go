@@ -74,6 +74,9 @@ func TestEverySpecLabelIsLocalized(t *testing.T) {
 		"AdminProductSpecs": "the back office, which shows BOTH pairs — it is where " +
 			"the translation is entered",
 		"AddProductSpec": "the write",
+		"SearchProducts": "matching, not display: matches specifications in either language",
+		"SearchProductsCount": "the same predicate as SearchProducts, and it has to stay " +
+			"the same or the count disagrees with the rows",
 	}
 
 	used := map[string]bool{}
