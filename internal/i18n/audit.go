@@ -139,6 +139,11 @@ var (
 
 	KeyAuditPaymentReconciled = key("audit.payment.reconciled", Message{ZhHant: "款項對帳", En: "Reconcile payment"})
 
+	KeyAuditPaymentDisputeReviewed = key("audit.payment.dispute_reviewed", Message{
+		ZhHant: "記錄付款爭議處置",
+		En:     "Review payment dispute",
+	})
+
 	KeyAuditInvoiceIssue = key("audit.invoice.issue", Message{ZhHant: "開立發票", En: "Issue invoice"})
 
 	KeyAuditInvoiceVoid = key("audit.invoice.void", Message{ZhHant: "作廢發票", En: "Void invoice"})
