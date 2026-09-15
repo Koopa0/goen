@@ -2,11 +2,13 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/outbox"
@@ -105,7 +107,7 @@ func stuckMessages(rows []outbox.StuckMessage) []pages.StuckMessage {
 	for i := range rows {
 		m := &rows[i]
 		out[i] = pages.StuckMessage{
-			Topic: m.Topic, Key: m.DedupeKey, Attempts: m.Attempts,
+			ID: m.ID.String(), Topic: m.Topic, Key: m.DedupeKey, Attempts: m.Attempts,
 			LastError: m.LastError, Since: shoptime.Minute(m.Since),
 		}
 	}
@@ -200,6 +202,50 @@ func (s *Store) AuthorizeInvoiceAllowanceResend(
 		return ErrNotFound
 	}
 	return nil
+}
+
+// DropOutboxMessage marks a stuck outbox message as delivered with its payload
+// cleared, and records the staff member who did so in the audit log.
+func (s *Store) DropOutboxMessage(ctx context.Context, id uuid.UUID) error {
+	if id == uuid.Nil {
+		return ErrInvalid
+	}
+	return s.audited(ctx, Event{
+		Action: actionDropOutbox,
+		Table:  "outbox_messages",
+		ID:     uuid.NullUUID{UUID: id, Valid: true},
+	}, func(ctx context.Context, q *db.Queries) error {
+		_, err := q.DropStuckOutboxMessage(ctx, id)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			return fmt.Errorf("drop stuck outbox message: %w", err)
+		}
+		return nil
+	})
+}
+
+// ReplayOutboxMessage resets attempts and marks a stuck outbox message due now,
+// and records the staff member who did so in the audit log.
+func (s *Store) ReplayOutboxMessage(ctx context.Context, id uuid.UUID) error {
+	if id == uuid.Nil {
+		return ErrInvalid
+	}
+	return s.audited(ctx, Event{
+		Action: actionReplayOutbox,
+		Table:  "outbox_messages",
+		ID:     uuid.NullUUID{UUID: id, Valid: true},
+	}, func(ctx context.Context, q *db.Queries) error {
+		_, err := q.ReplayStuckOutboxMessage(ctx, id)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			return fmt.Errorf("replay stuck outbox message: %w", err)
+		}
+		return nil
+	})
 }
 
 // durationFromSeconds saturates PostgreSQL's much wider timestamp range at the

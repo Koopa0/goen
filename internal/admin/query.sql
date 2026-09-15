@@ -1763,3 +1763,25 @@ JOIN orders o ON o.id = p.order_id;
 -- Checkout generation; paid attribution has a separate capture path.
 -- name: ReleaseCompletePayment :one
 SELECT release_complete_payment(@provider_ref::text);
+
+-- Drops a stuck outbox message: marks it delivered and clears the payload.
+-- Returns the affected row's topic and dedupe_key so the audit event can snapshot them.
+-- name: DropStuckOutboxMessage :one
+UPDATE outbox_messages
+SET delivered_at = now(),
+    payload = '{}'::jsonb,
+    last_error = coalesce(last_error, '') || ' [dropped by operator]'
+WHERE id = @id::uuid
+  AND delivered_at IS NULL
+RETURNING id, topic, dedupe_key;
+
+-- Resets a stuck outbox message for immediate replay: resets attempts to 0,
+-- sets available_at = now(), clears last_error.
+-- name: ReplayStuckOutboxMessage :one
+UPDATE outbox_messages
+SET attempts = 0,
+    available_at = now(),
+    last_error = NULL
+WHERE id = @id::uuid
+  AND delivered_at IS NULL
+RETURNING id, topic, dedupe_key;

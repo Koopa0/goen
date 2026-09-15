@@ -16,6 +16,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -127,6 +128,23 @@ func (s *Store) Handle(topic string, h Handler) {
 	s.handlers[topic] = h
 }
 
+// ErrNonRetryable marks an outbox failure that cannot succeed on retry,
+// such as a corrupt payload or an invalid recipient address.
+var ErrNonRetryable = errors.New("outbox: non-retryable")
+
+// NonRetryable wraps err with ErrNonRetryable.
+func NonRetryable(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: %w", ErrNonRetryable, err)
+}
+
+// IsNonRetryable reports whether err cannot succeed on retry.
+func IsNonRetryable(err error) bool {
+	return errors.Is(err, ErrNonRetryable)
+}
+
 // HandleJSON registers a typed JSON handler. Each delivery decodes a fresh T.
 // Unknown object fields remain accepted so an older consumer can read a payload
 // written by a newer producer.
@@ -137,7 +155,7 @@ func (s *Store) HandleJSON[T any](topic string, h func(context.Context, *T) erro
 	s.Handle(topic, func(ctx context.Context, payload []byte) error {
 		var message T
 		if err := json.Unmarshal(payload, &message); err != nil {
-			return fmt.Errorf("decode outbox payload for %s: %w", topic, err)
+			return NonRetryable(fmt.Errorf("decode outbox payload for %s: %w", topic, err))
 		}
 		return h(ctx, &message)
 	})
@@ -194,7 +212,11 @@ func (s *Store) deliver(ctx context.Context, m *db.ClaimOutboxRow) bool {
 	}
 
 	if err := runHandler(ctx, h, m.Payload); err != nil {
-		s.reschedule(ctx, m, err)
+		if IsNonRetryable(err) {
+			s.deadLetter(ctx, m, err)
+		} else {
+			s.reschedule(ctx, m, err)
+		}
 		return false
 	}
 	settle, cancel := context.WithTimeout(ctx, SettleBudget)
@@ -217,6 +239,20 @@ func runHandler(ctx context.Context, h Handler, payload []byte) error {
 	ctx, cancel := context.WithTimeout(ctx, HandlerBudget)
 	defer cancel()
 	return h(ctx, payload)
+}
+
+func (s *Store) deadLetter(ctx context.Context, m *db.ClaimOutboxRow, cause error) {
+	s.log.ErrorContext(ctx, "outbox message is non-retryable; dead-lettering",
+		"message", m.ID, "topic", m.Topic, "error", cause)
+	settle, cancel := context.WithTimeout(ctx, SettleBudget)
+	defer cancel()
+	if err := s.q.DeadLetterOutbox(settle, db.DeadLetterOutboxParams{
+		ID:          m.ID,
+		MaxAttempts: MaxAttempts,
+		LastError:   truncate(cause.Error(), 500),
+	}); err != nil {
+		s.log.ErrorContext(ctx, "outbox dead-letter", "message", m.ID, "error", err)
+	}
 }
 
 func (s *Store) reschedule(ctx context.Context, m *db.ClaimOutboxRow, cause error) {
@@ -279,6 +315,7 @@ func (s *Store) Run(ctx context.Context) {
 
 // StuckMessage is one that has exhausted its attempts.
 type StuckMessage struct {
+	ID        uuid.UUID
 	Topic     string
 	DedupeKey string
 	Attempts  int32
@@ -298,7 +335,7 @@ func (s *Store) Stuck(ctx context.Context, limit int32) ([]StuckMessage, error) 
 	for i := range rows {
 		r := &rows[i]
 		out = append(out, StuckMessage{
-			Topic: r.Topic, DedupeKey: r.DedupeKey, Attempts: r.Attempts,
+			ID: r.ID, Topic: r.Topic, DedupeKey: r.DedupeKey, Attempts: r.Attempts,
 			LastError: r.LastError, Since: r.AvailableAt,
 		})
 	}
@@ -319,10 +356,14 @@ func truncate(s string, n int) string {
 	return s[:n]
 }
 
-// Sweep deletes delivered messages past [Retain], once.
+// Sweep deletes delivered messages past [Retain], once, as well as stuck undelivered
+// messages past [Retain] from their created_at.
 func (s *Store) Sweep(ctx context.Context) (int64, error) {
-	n, err := s.q.SweepDeliveredMessages(ctx, pgtype.Interval{
-		Microseconds: int64(Retain / time.Microsecond), Valid: true,
+	n, err := s.q.SweepDeliveredMessages(ctx, db.SweepDeliveredMessagesParams{
+		Retain: pgtype.Interval{
+			Microseconds: int64(Retain / time.Microsecond), Valid: true,
+		},
+		MaxAttempts: MaxAttempts,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("sweep delivered messages: %w", err)

@@ -174,6 +174,7 @@ func (p UnreconciledCompletePayment) Reason(ctx context.Context) string {
 
 // StuckMessage is one delivery that has exhausted its attempts.
 type StuckMessage struct {
+	ID        string
 	Topic     string
 	Key       string
 	Attempts  int32

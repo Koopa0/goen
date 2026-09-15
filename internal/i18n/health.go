@@ -297,4 +297,29 @@ var (
 		ZhHant: "已留下操作人與請求紀錄，並只授權一次折讓重送。",
 		En:     "The actor and request were recorded, and exactly one Allowance resend was authorized.",
 	})
+
+	KeyAdminNoticeOutboxDropped = key("admin.notice.outboxdropped", Message{
+		ZhHant: "已捨棄卡住的通知信件並清除機密資料。",
+		En:     "Dropped stuck notification email and cleared sensitive payload.",
+	})
+
+	KeyAdminNoticeOutboxReplayed = key("admin.notice.outboxreplayed", Message{
+		ZhHant: "已重新排程通知信件立即重送。",
+		En:     "Replayed notification email for immediate delivery.",
+	})
+
+	KeyAdminHPColAction = key("admin.hp.col.action", Message{
+		ZhHant: "操作",
+		En:     "Action",
+	})
+
+	KeyAdminHPDropOutbox = key("admin.hp.outbox.drop", Message{
+		ZhHant: "捨棄",
+		En:     "Drop",
+	})
+
+	KeyAdminHPReplayOutbox = key("admin.hp.outbox.replay", Message{
+		ZhHant: "重試",
+		En:     "Replay",
+	})
 )
