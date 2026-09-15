@@ -695,6 +695,28 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 							}
 						}
 					</section>
+					if len(v.ProviderRefunds) > 0 || v.ExternalRefundCents > 0 || v.UnresolvedRefundCents > 0 {
+						<section class="goen-admin__invoices" aria-labelledby="provider-refunds-heading">
+							<h2 id="provider-refunds-heading" class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminOrderProviderRefundsHeading) }</h2>
+							if v.ExternalRefundCents > 0 {
+								<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminOrderProviderRefundsExternal), twd(v.ExternalRefundCents)) }</p>
+							}
+							if v.UnresolvedRefundCents > 0 {
+								<p class="goen-admin__hint">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminOrderProviderRefundsUnresolved), twd(v.UnresolvedRefundCents)) }</p>
+							}
+							<ul class="goen-admin__returnlines" role="list">
+								for _, r := range v.ProviderRefunds {
+									<li>
+										<span class="ui-cart-line__meta">{ r.ProviderRef } · { r.Amount() } · { r.Status }</span>
+										if r.NeedsReview {
+											<strong>{ i18n.T(ctx, i18n.KeyAdminOrderProviderRefundReview) }</strong>
+										}
+										<span class="ui-cart-line__meta">{ r.CreatedAt }</span>
+									</li>
+								}
+							</ul>
+						</section>
+					}
 				</aside>
 			</div>
 		</div>

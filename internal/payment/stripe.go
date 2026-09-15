@@ -296,7 +296,8 @@ var abandonedEvents = map[stripe.EventType]bool{
 // here that yields nothing from every reader is a payload this binary could not
 // read — not an event goen does not act on, and the two must not share an arm.
 func actionable(ev *stripe.Event) bool {
-	return ev != nil && (captureEvents[ev.Type] || abandonedEvents[ev.Type])
+	return ev != nil && (captureEvents[ev.Type] || abandonedEvents[ev.Type] ||
+		refundEvents[ev.Type] || ev.Type == chargeRefundedEvent)
 }
 
 type webhookReadState uint8

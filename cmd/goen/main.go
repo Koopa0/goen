@@ -611,6 +611,8 @@ func startWorkers(ctx context.Context, d workerDeps) {
 		d.run(func() { invoice.NewStore(d.admin, d.invoices).ReconcileForever(ctx, d.log) })
 	}
 
+	d.run(func() { payment.NewStore(d.pool).SweepIgnoredRefundWebhooksForever(ctx, d.log) })
+
 	d.run(func() { recommend.NewStore(d.maintenance, d.log).RefreshForever(ctx) })
 }
 

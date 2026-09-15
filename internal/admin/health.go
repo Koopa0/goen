@@ -85,9 +85,8 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (pages
 	}
 	view.StrandedClaims = strandedClaims(stranded)
 
-	// goen consumes no refund webhook: this is the only unpaid-customer alarm.
-	// Count independently of the bounded diagnostic sample below, or 37 open
-	// refunds are rendered as 20 merely because the table stops at 20 rows.
+	// Local refund rows that have not landed, plus provider facts that still need
+	// allocation review. Count independently of the bounded samples below.
 	view.OpenRefundCount, err = s.q.OpenRefundCount(ctx)
 	if err != nil {
 		return pages.WorkerHealthView{}, fmt.Errorf("count open refunds: %w", err)
@@ -97,6 +96,16 @@ func (s *Store) WorkerHealth(ctx context.Context, messages *outbox.Store) (pages
 		return pages.WorkerHealthView{}, fmt.Errorf("read open refunds: %w", err)
 	}
 	view.OpenRefunds = openRefunds(open)
+
+	view.ProviderRefundReviewCount, err = s.q.ProviderRefundReviewCount(ctx)
+	if err != nil {
+		return pages.WorkerHealthView{}, fmt.Errorf("count provider refunds needing review: %w", err)
+	}
+	review, err := s.q.ProviderRefundsNeedingReview(ctx, OpenRefundListLimit)
+	if err != nil {
+		return pages.WorkerHealthView{}, fmt.Errorf("read provider refunds needing review: %w", err)
+	}
+	view.ProviderRefundsNeedingReview = providerRefundsNeedingReview(review)
 	return view, nil
 }
 
@@ -149,6 +158,22 @@ func strandedClaims(rows []db.StrandedInvoiceClaimsRow) []pages.StrandedClaim {
 			Attempts: c.ReconcileAttempts, Sends: c.SendAttempts,
 			LastError: c.LastError, CanAuthorizeResend: c.CanAuthorizeResend,
 			Since: shoptime.Minute(c.CreatedAt),
+		}
+	}
+	return out
+}
+
+func providerRefundsNeedingReview(rows []db.ProviderRefundsNeedingReviewRow) []pages.ProviderRefundReview {
+	out := make([]pages.ProviderRefundReview, len(rows))
+	for i := range rows {
+		r := &rows[i]
+		out[i] = pages.ProviderRefundReview{
+			OrderNumber: r.OrderNumber,
+			ProviderRef: r.ProviderRef,
+			AmountCents: r.AmountCents,
+			Status:      r.Status,
+			Allocation:  r.Allocation,
+			Since:       shoptime.Minute(r.CreatedAt),
 		}
 	}
 	return out
