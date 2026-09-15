@@ -25,6 +25,11 @@ var (
 		En:     "Some items are short of stock. Adjust the quantities before checking out.",
 	})
 
+	KeyCartQuantityAdjusted = key("cart.qty.adjusted", Message{
+		ZhHant: "部分商品數量已依庫存調整。",
+		En:     "Some item quantities were reduced to match available stock.",
+	})
+
 	KeyNoStock = key("cart.nostock", Message{ZhHant: "已無庫存", En: "None left"})
 
 	KeyOnlyLeft = key("cart.onlyleft", Message{ZhHant: "僅剩 %s 件", En: "Only %s left"})

@@ -101,12 +101,9 @@ WHERE topic = 'account.password_reset'
   AND lower(coalesce(payload ->> 'email', payload ->> 'Email', '')) =
       lower(@email::text);
 
--- Quantities add rather than replace, capped at the line ceiling.
--- name: MergeCartItems :exec
-INSERT INTO cart_items (cart_id, variant_id, quantity)
-SELECT $2, src.variant_id, src.quantity FROM cart_items src WHERE src.cart_id = $1
-ON CONFLICT (cart_id, variant_id) DO UPDATE
-SET quantity = least(cart_items.quantity + EXCLUDED.quantity, 999);
+-- Guest lines for adoption and merge, read after the cart lock is held.
+-- name: CartItemRows :many
+SELECT variant_id, quantity FROM cart_items WHERE cart_id = @cart_id::uuid ORDER BY variant_id;
 
 -- The account row is the stable lock for deciding which of two guest carts is
 -- the first one this user adopts. A SECURITY DEFINER function is required

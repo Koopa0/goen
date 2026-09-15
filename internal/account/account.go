@@ -33,6 +33,13 @@ var (
 	ErrInvalidInput = errors.New("account: invalid input")
 	// ErrOpenReturn means erasure would orphan an unresolved store-credit payout.
 	ErrOpenReturn = errors.New("account: finish the open return before erasure")
+	// ErrQuantityAdjusted means adoption or merge succeeded but at least one line
+	// was capped to what the shelf can supply.
+	ErrQuantityAdjusted = errors.New("account: quantity adjusted to available stock")
+	// ErrCartMergeRefused means a guest line cannot be adopted or merged because
+	// the catalogue no longer honours it. The transaction rolls back with both
+	// carts unchanged.
+	ErrCartMergeRefused = errors.New("account: guest cart contains unavailable merchandise")
 )
 
 // SessionCookieName is the session cookie; __Host- refuses a subdomain's forgery.

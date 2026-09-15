@@ -87,7 +87,8 @@ func (h *Handler) closeSessions(ctx context.Context, number string, sessions []s
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	cartID, ok := h.existingCart(r)
 	if !ok {
-		web.Render(w, r, h.log, http.StatusOK, pages.Cart(pages.CartMeta(r.Context()), pages.CartView{}))
+		view := pages.CartView{Notice: cartPageNotice(r)}
+		web.Render(w, r, h.log, http.StatusOK, pages.Cart(pages.CartMeta(r.Context()), view))
 		return
 	}
 	view, err := h.store.View(r.Context(), cartID)
@@ -97,7 +98,21 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.ReorderAdded, view.ReorderSkipped = reorderOutcome(r)
+	if notice := cartPageNotice(r); notice != "" {
+		view.Notice = notice
+	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Cart(pages.CartMeta(r.Context()), view))
+}
+
+func cartPageNotice(r *http.Request) string {
+	switch r.URL.Query().Get("qty") {
+	case "adjusted":
+		return i18n.T(r.Context(), i18n.KeyCartQuantityAdjusted)
+	case "unavailable":
+		return i18n.T(r.Context(), i18n.KeyAddRefused)
+	default:
+		return ""
+	}
 }
 
 // reorderOutcome reads the counts a reorder redirect is reporting. A
@@ -134,6 +149,8 @@ func (h *Handler) AddItem(w http.ResponseWriter, r *http.Request) {
 	switch err := h.store.Add(r.Context(), cartID, variantID, quantity); {
 	case err == nil:
 		h.backToProduct(w, r, variantID, "added")
+	case errors.Is(err, ErrQuantityAdjusted):
+		h.backToProduct(w, r, variantID, "adjusted")
 	case errors.Is(err, ErrTooManyItems):
 		h.backToProduct(w, r, variantID, "full")
 	case errors.Is(err, ErrUnavailable), errors.Is(err, ErrNotFound):
@@ -177,8 +194,15 @@ func (h *Handler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.store.SetQuantity(r.Context(), cartID, variantID, quantity); err != nil {
-		h.log.ErrorContext(r.Context(), "update cart item", "error", err)
-		h.serverError(w, r)
+		switch {
+		case errors.Is(err, ErrQuantityAdjusted):
+			http.Redirect(w, r, "/cart?qty=adjusted", http.StatusSeeOther)
+		case errors.Is(err, ErrUnavailable), errors.Is(err, ErrNotFound):
+			http.Redirect(w, r, "/cart?qty=unavailable", http.StatusSeeOther)
+		default:
+			h.log.ErrorContext(r.Context(), "update cart item", "error", err)
+			h.serverError(w, r)
+		}
 		return
 	}
 	http.Redirect(w, r, "/cart", http.StatusSeeOther)
