@@ -7,7 +7,10 @@ goen has one maintainer, who reviews every submission before it lands.
 goen is a full-stack e-commerce application in Go for a Taiwanese 3C shop. It
 is one binary that serves the storefront, the customer account and the back
 office, over PostgreSQL, paying at Stripe and filing 統一發票 through 綠界. It
-is a demonstration and reference project, not a hosted service.
+is a demonstration and reference project. A public demo runs at
+[goen.koopa0.dev](https://goen.koopa0.dev); its sanitized configuration,
+scheduled restore job, and verification record live in
+[deploy/demo/README.md](deploy/demo/README.md).
 
 Four boundaries hold, and each is enforced in the tree rather than by
 convention:
