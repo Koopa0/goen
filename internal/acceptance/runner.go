@@ -24,10 +24,11 @@ type Result struct {
 
 // RunOptions controls suite execution.
 type RunOptions struct {
-	Root        string
-	ReadyOnly   bool
-	WithBrowser bool
-	ScenarioID  string
+	Root              string
+	ReadyOnly         bool
+	WithBrowser       bool
+	ScenarioID        string
+	ExplicitSelection bool
 }
 
 // RunManifest executes ready scenarios and returns per-assertion results.
@@ -64,11 +65,14 @@ func selectedScenarios(manifest Manifest, scenarioID string) ([]Scenario, error)
 }
 
 func runScenario(ctx context.Context, root string, scenario *Scenario, opts RunOptions) []Result {
-	if opts.ReadyOnly && scenario.Status != StatusReady {
+	if scenario.Status == StatusBlocked {
+		if opts.ExplicitSelection || !opts.ReadyOnly {
+			return blockedScenarioResults(scenario)
+		}
 		return nil
 	}
-	if scenario.Status == StatusBlocked {
-		return blockedScenarioResults(scenario)
+	if opts.ReadyOnly && scenario.Status != StatusReady {
+		return nil
 	}
 	var results []Result
 	ready := scenario.ReadyAssertions()
@@ -195,6 +199,9 @@ func runBrowser(ctx context.Context, root, scenarioID string, assertion Assertio
 
 // ExitCode maps results to a process exit status.
 func ExitCode(results []Result, allMode bool) int {
+	if allMode && len(results) == 0 {
+		return 1
+	}
 	for i := range results {
 		result := &results[i]
 		if result.Err != nil {
@@ -213,10 +220,11 @@ func FormatResults(results []Result) string {
 	for i := range results {
 		result := &results[i]
 		state := "PASS"
-		if result.Err != nil {
-			state = "FAIL"
-		} else if result.Status == StatusBlocked {
+		switch {
+		case result.Status == StatusBlocked:
 			state = "BLOCKED"
+		case result.Err != nil:
+			state = "FAIL"
 		}
 		fmt.Fprintf(&b, "%s %s", result.ScenarioID, state)
 		if result.Assertion.Run != "" {
