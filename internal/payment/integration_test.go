@@ -32,11 +32,8 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/email"
-<<<<<<< HEAD
 	"github.com/koopa0/goen/internal/i18n"
-=======
 	"github.com/koopa0/goen/internal/outbound"
->>>>>>> 62dda1d (fix: wire outbound bounds into payment integration test gateways)
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/web"
