@@ -121,6 +121,12 @@ func TestEveryTableIsRead(t *testing.T) {
 			"inside redeem_loyalty_points; the application query invokes that one door",
 		"stock_notifications": "ClaimRestockNotices reads each claimed row through " +
 			"UPDATE ... RETURNING; this guard recognizes FROM/JOIN reads, not a writer's RETURNING set",
+		"payment_dispute_events": "append-only provider observations written by apply_payment_dispute; " +
+			"v1 staff queue reads payment_disputes, not the event log",
+		"payment_dispute_movements": "withdrawn/reinstated facts written by record_dispute_movement; " +
+			"v1 staff queue reads payment_disputes only",
+		"payment_provider_links": "attribution map written at capture and read inside " +
+			"payment_id_for_provider_link when a dispute arrives",
 	}
 
 	ctx := t.Context()

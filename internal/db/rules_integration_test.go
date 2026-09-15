@@ -33,7 +33,8 @@ var coveredByNamedTest = map[string]string{
 	"users_keep_one_admin_on_role":           "TestUsersTriggerKeepsOneAdmin (internal/db)",
 	"users_keep_one_admin_on_delete":         "TestUsersTriggerKeepsOneAdmin (internal/db)",
 	// Exercised where the send is: proving it needs an issue that has actually been sent.
-	"newsletter_issues_frozen_once_sent": "TestASentIssueCannotBeRewritten (internal/newsletter)",
+	"newsletter_issues_frozen_once_sent":  "TestASentIssueCannotBeRewritten (internal/newsletter)",
+	"payment_disputes_provider_ref_known": "TestPaymentDisputeProviderRefKnownRace",
 }
 
 // TestEveryRuleTriggerIsExercised requires a case for every rule trigger in the catalog.
@@ -1150,6 +1151,71 @@ var ruleCases = []ruleCase{
 		         SET CONSTRAINTS orders_have_lines IMMEDIATE;`,
 		acceptNote: "the fixture's orders all total above zero and every other case commits over them",
 	},
+	{
+		rule: "refunds_blocked_by_open_dispute",
+		reject: `INSERT INTO payment_disputes (
+		            id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at
+		        ) VALUES (
+		            '11110052-0000-4000-8000-000000000001',
+		            '77770001-0000-4000-8000-000000000000',
+		            'dp_open_refund', 'ch_open_refund', 1000, 'needs_response', now()
+		        );
+		        INSERT INTO refunds (id, payment_id, request_key, status, amount_cents)
+		        VALUES (
+		            '11110052-0000-4000-8000-000000000002',
+		            '77770001-0000-4000-8000-000000000000',
+		            'rk-open-dispute', 'pending', 1000
+		        );`,
+		accept: `INSERT INTO refunds (id, payment_id, request_key, status, amount_cents)
+		         VALUES (
+		             '11110052-0000-4000-8000-000000000003',
+		             '77770001-0000-4000-8000-000000000000',
+		             'rk-no-open-dispute', 'pending', 1000
+		         );`,
+	},
+	{
+		rule: "payment_disputes_exists",
+		reject: refundRuleStaff + `
+		        SELECT review_payment_dispute(
+		            '11110053-0000-4000-8000-000000000099'::uuid,
+		            '55550001-0000-4000-8000-000000000001', 'monitoring');`,
+		accept: refundRuleStaff + `
+		        INSERT INTO payment_disputes (
+		            id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at
+		        ) VALUES (
+		            '11110053-0000-4000-8000-000000000001',
+		            '77770001-0000-4000-8000-000000000000',
+		            'dp_review_ok', 'ch_review_ok', 1000, 'needs_response', now()
+		        );
+		        SELECT review_payment_dispute(
+		            '11110053-0000-4000-8000-000000000001',
+		            '55550001-0000-4000-8000-000000000001', 'monitoring');`,
+	},
+	{
+		rule: "payment_disputes_review_requires_staff",
+		reject: refundRuleStaff + `
+		        INSERT INTO payment_disputes (
+		            id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at
+		        ) VALUES (
+		            '11110054-0000-4000-8000-000000000001',
+		            '77770001-0000-4000-8000-000000000000',
+		            'dp_staff_reject', 'ch_staff_reject', 1000, 'needs_response', now()
+		        );
+		        SELECT review_payment_dispute(
+		            '11110054-0000-4000-8000-000000000001',
+		            '55555555-5555-4555-8555-555555555555', 'monitoring');`,
+		accept: refundRuleStaff + `
+		        INSERT INTO payment_disputes (
+		            id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at
+		        ) VALUES (
+		            '11110054-0000-4000-8000-000000000002',
+		            '77770001-0000-4000-8000-000000000000',
+		            'dp_staff_accept', 'ch_staff_accept', 1000, 'needs_response', now()
+		        );
+		        SELECT review_payment_dispute(
+		            '11110054-0000-4000-8000-000000000002',
+		            '55550001-0000-4000-8000-000000000001', 'monitoring');`,
+	},
 }
 
 const refundRuleStaff = `
@@ -1408,6 +1474,95 @@ func requireExactlyOne(t *testing.T, what string, err1, err2 error) {
 		t.Errorf("both writers succeeded; %s is not protected", what)
 	case err1 != nil && err2 != nil:
 		t.Errorf("neither writer succeeded (%v / %v); %s rejects legal work", err1, err2, what)
+	}
+}
+
+// TestPaymentDisputeProviderRefKnownRace: apply_payment_dispute can lose the row it
+// conflicted on before it locks it, which is the only path to payment_disputes_provider_ref_known.
+func TestPaymentDisputeProviderRefKnownRace(t *testing.T) {
+	const rule = "payment_disputes_provider_ref_known"
+	dispute := "dp_provider_ref_race"
+	setup(t, `
+		INSERT INTO payment_disputes (
+		    id, provider_ref, charge_ref, amount_cents, status, provider_seen_at
+		) VALUES (
+		    '11110065-0000-4000-8000-000000000001',
+		    '`+dispute+`', 'ch_provider_ref_race', 1000, 'needs_response', now()
+		);`)
+	t.Cleanup(func() {
+		mustExec(t, `DELETE FROM payment_dispute_events
+		             WHERE dispute_id = '11110065-0000-4000-8000-000000000001'`)
+		mustExec(t, `DELETE FROM payment_disputes WHERE provider_ref = $1`, dispute)
+	})
+
+	ctx := t.Context()
+	c1, err := schemaPool(t).Acquire(ctx)
+	if err != nil {
+		t.Fatalf("acquire: %v", err)
+	}
+	defer c1.Release()
+	c2, err := schemaPool(t).Acquire(ctx)
+	if err != nil {
+		t.Fatalf("acquire: %v", err)
+	}
+	defer c2.Release()
+
+	tx1, err := c1.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	tx2, err := c2.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+
+	if _, err := tx1.Exec(ctx,
+		`SELECT id FROM payment_disputes WHERE provider_ref = $1 FOR UPDATE`, dispute); err != nil {
+		t.Fatalf("lock dispute row: %v", err)
+	}
+
+	var pid2 int
+	if err := c2.QueryRow(ctx, "SELECT pg_backend_pid()").Scan(&pid2); err != nil {
+		t.Fatalf("backend pid: %v", err)
+	}
+
+	done := make(chan struct{})
+	var err2 error
+	go func() {
+		defer close(done)
+		_, err2 = tx2.Exec(ctx, `SELECT apply_payment_dispute(
+		    $1, 'ch_provider_ref_race', '', 1000, 'TWD', 'needs_response',
+		    NULL, NULL, now(), 'evt_provider_ref_race')`, dispute)
+	}()
+
+	waitForDecision(t, pid2, done)
+
+	if _, err := tx1.Exec(ctx, `DELETE FROM payment_dispute_events
+		WHERE dispute_id = '11110065-0000-4000-8000-000000000001'`); err != nil {
+		t.Fatalf("delete dispute events: %v", err)
+	}
+	if _, err := tx1.Exec(ctx, `DELETE FROM payment_disputes WHERE provider_ref = $1`, dispute); err != nil {
+		t.Fatalf("delete disputed row: %v", err)
+	}
+	if err := tx1.Commit(ctx); err != nil {
+		t.Fatalf("commit delete: %v", err)
+	}
+
+	<-done
+	if err2 == nil {
+		if err := tx2.Commit(ctx); err != nil {
+			err2 = err
+		}
+	} else {
+		_ = tx2.Rollback(ctx)
+	}
+
+	if err2 == nil {
+		t.Fatalf("the database accepted it; %s does not enforce this", rule)
+	}
+	code, name := constraintViolation(err2)
+	if name != rule {
+		t.Fatalf("refused by %q (SQLSTATE %s), want %q: %v", name, code, rule, err2)
 	}
 }
 
