@@ -4575,18 +4575,7 @@ func TestCompleteSessionShowsProcessingNotPayAgain(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		originalBackend := stripe.GetBackend(stripe.APIBackend)
-		noRetries := int64(0)
-		stripe.SetBackend(stripe.APIBackend, stripe.GetBackendWithConfig(
-			stripe.APIBackend,
-			&stripe.BackendConfig{URL: stripe.String(srv.URL), MaxNetworkRetries: &noRetries},
-		))
-		gateway, err := payment.NewGateway("sk_test_notreal", testWebhookSecret, "https://goen.example")
-		stripe.SetBackend(stripe.APIBackend, originalBackend)
-		if err != nil {
-			t.Fatalf("gateway: %v", err)
-		}
-
+		gateway := gatewayAt(t, srv.URL)
 		h := payment.NewHandler(s, gateway, alwaysPlacedHere{}, slog.New(slog.DiscardHandler), false)
 
 		// 1. Complete session without webhook: Start redirects to /orders/{number}/pay
@@ -4672,18 +4661,7 @@ func TestCompleteSessionShowsProcessingNotPayAgain(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		originalBackend := stripe.GetBackend(stripe.APIBackend)
-		noRetries := int64(0)
-		stripe.SetBackend(stripe.APIBackend, stripe.GetBackendWithConfig(
-			stripe.APIBackend,
-			&stripe.BackendConfig{URL: stripe.String(srv.URL), MaxNetworkRetries: &noRetries},
-		))
-		gateway, err := payment.NewGateway("sk_test_notreal", testWebhookSecret, "https://goen.example")
-		stripe.SetBackend(stripe.APIBackend, originalBackend)
-		if err != nil {
-			t.Fatalf("gateway: %v", err)
-		}
-
+		gateway := gatewayAt(t, srv.URL)
 		h := payment.NewHandler(s, gateway, alwaysPlacedHere{}, slog.New(slog.DiscardHandler), false)
 
 		// Complete session without webhook records complete and redirects to pay page
