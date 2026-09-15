@@ -40,7 +40,7 @@ func TestRefundRecoversAfterDroppedCreateResponse(t *testing.T) {
 			_, _ = io.WriteString(w, `{"object":"list","has_more":false,"data":[]}`)
 		case r.Method == http.MethodPost && r.URL.Path == "/v1/refunds":
 			n := createCalls.Add(1)
-			if n <= 2 {
+			if n <= 3 {
 				hj, ok := w.(http.Hijacker)
 				if !ok {
 					return
@@ -80,7 +80,7 @@ func TestRefundRecoversAfterDroppedCreateResponse(t *testing.T) {
 	if id != "re_recovered" || state != RefundPending {
 		t.Errorf("retry = (%q, %q), want (re_recovered, pending)", id, state)
 	}
-	if createCalls.Load() != 3 {
-		t.Errorf("create calls = %d, want 3 (two dropped attempts then recovery)", createCalls.Load())
+	if createCalls.Load() != 4 {
+		t.Errorf("create calls = %d, want 3 (three dropped attempts then recovery)", createCalls.Load())
 	}
 }
