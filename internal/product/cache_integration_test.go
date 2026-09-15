@@ -285,6 +285,20 @@ func TestIndependentInstancesCoalesceFillUnderSharedLease(t *testing.T) {
 	ctx := t.Context()
 	slug := "pixelight-9-pro"
 
+	fillEntered := make(chan struct{})
+	releaseFill := make(chan struct{})
+	var fillEnteredOnce sync.Once
+	product.SetIntegrationFillPause(func(pauseCtx context.Context) error {
+		fillEnteredOnce.Do(func() { close(fillEntered) })
+		select {
+		case <-releaseFill:
+			return nil
+		case <-pauseCtx.Done():
+			return pauseCtx.Err()
+		}
+	})
+	t.Cleanup(func() { product.SetIntegrationFillPause(nil) })
+
 	var wg sync.WaitGroup
 	for i := range 8 {
 		store := storeA
@@ -299,6 +313,13 @@ func TestIndependentInstancesCoalesceFillUnderSharedLease(t *testing.T) {
 			}
 		}(store)
 	}
+	select {
+	case <-fillEntered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("fill owner never entered pause hook")
+	}
+	time.Sleep(25 * time.Millisecond)
+	close(releaseFill)
 	wg.Wait()
 
 	fills := product.CacheStatsOf(cacheA).Fills + product.CacheStatsOf(cacheB).Fills
