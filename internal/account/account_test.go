@@ -584,6 +584,38 @@ func TestAccountNoticeExplainsWhyAnOpenReturnBlocksErasure(t *testing.T) {
 	}
 }
 
+func TestAccountNoticeExplainsCartMergeFailure(t *testing.T) {
+	t.Parallel()
+
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		ctx := i18n.WithLocale(t.Context(), locale)
+		r := httptest.NewRequestWithContext(ctx, http.MethodGet,
+			"/account?cart=mergefailed", http.NoBody)
+		if got, want := accountNotice(r), i18n.T(ctx, i18n.KeyCartMergeFailed); got != want {
+			t.Errorf("%s cart merge failure notice = %q, want %q", locale, got, want)
+		}
+	}
+}
+
+func TestAppendCartMergeNotice(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"/account", "/account?cart=mergefailed"},
+		{"/cart", "/cart?cart=mergefailed"},
+		{"/account?saved=1", "/account?saved=1&cart=mergefailed"},
+		{"/checkout?ship=express", "/checkout?ship=express&cart=mergefailed"},
+	}
+	for _, tt := range tests {
+		if got := appendCartMergeNotice(tt.input); got != tt.want {
+			t.Errorf("appendCartMergeNotice(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
 // TestAGuestSavingIsSentBackToTheProduct holds where a refused save lands: the
 // form's validated same-site return path, never a fixed /account/wishlist.
 func TestAGuestSavingIsSentBackToTheProduct(t *testing.T) {

@@ -79,7 +79,11 @@ type CartView struct {
 
 	ReorderAdded   int
 	ReorderSkipped int
+	Notice         string
 }
+
+// HasNotice reports whether to show the notice banner.
+func (v CartView) HasNotice() bool { return v.Notice != "" }
 
 // FromReorder reports whether this page is showing the result of a reorder.
 func (v CartView) FromReorder() bool { return v.ReorderAdded > 0 || v.ReorderSkipped > 0 }
