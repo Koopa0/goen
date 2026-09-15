@@ -62,14 +62,14 @@ func tracedPool(base *pgxpool.Pool, queries, presentation *atomic.Int64) *pgxpoo
 
 func testLogger() *slog.Logger { return slog.New(slog.DiscardHandler) }
 
-func openCache(t *testing.T, cfg product.CacheConfig) (*product.PresentationCache, func()) {
+func openCache(t *testing.T, cfg product.CacheConfig) (c *product.PresentationCache, stop func()) {
 	t.Helper()
 	addr := dbtest.Valkey(t)
-	cache, err := product.OpenPresentationCache(addr, cfg)
+	opened, err := product.OpenPresentationCache(addr, cfg)
 	if err != nil {
 		t.Fatalf("open cache: %v", err)
 	}
-	return cache, func() { cache.Close() }
+	return opened, func() { opened.Close() }
 }
 
 func openCacheOnAddr(t *testing.T, addr string, cfg product.CacheConfig) *product.PresentationCache {
@@ -688,11 +688,11 @@ func TestTaxonomyEditAdvancesCachedPresentation(t *testing.T) {
 
 	newBrand := "品牌 " + uuid.NewString()
 	var brandID uuid.UUID
-	if err := pool.QueryRow(ctx, `
+	if queryErr := pool.QueryRow(ctx, `
 		SELECT b.id FROM brands b
 		JOIN products p ON p.brand_id = b.id
-		WHERE p.slug = $1`, slug).Scan(&brandID); err != nil {
-		t.Fatalf("brand id: %v", err)
+		WHERE p.slug = $1`, slug).Scan(&brandID); queryErr != nil {
+		t.Fatalf("brand id: %v", queryErr)
 	}
 	if _, execErr := pool.Exec(ctx,
 		`UPDATE brands SET name = $1 WHERE id = $2`, newBrand, brandID); execErr != nil {
