@@ -4,7 +4,10 @@
 -- name: ClaimOutbox :many
 WITH due AS (
     SELECT id FROM outbox_messages
-    WHERE delivered_at IS NULL AND available_at <= now()
+    WHERE delivered_at IS NULL
+      AND dropped_at IS NULL
+      AND blocked_at IS NULL
+      AND available_at <= now()
     -- Priority first, then age: a receipt must not wait for a newsletter.
     ORDER BY priority, available_at
     LIMIT @batch_size::integer
@@ -27,28 +30,58 @@ UPDATE outbox_messages
 SET available_at = now() + @backoff::interval, last_error = @last_error::text
 WHERE id = $1;
 
--- Messages that have failed too many times, for a human to look at.
+-- Stop automatic retries for a repairable failure that exhausted its budget.
+-- name: BlockOutbox :exec
+UPDATE outbox_messages
+SET blocked_at = now(),
+    available_at = now(),
+    last_error = @last_error::text
+WHERE id = $1;
+
+-- Messages blocked for operator action: poison redaction or exhausted attempts.
 -- name: StuckOutbox :many
-SELECT id, topic, dedupe_key, attempts, coalesce(last_error, '') AS last_error, available_at
+SELECT id, topic, dedupe_key, attempts, coalesce(last_error, '') AS last_error,
+       blocked_at AS available_at,
+       (payload <> '{}'::jsonb
+        AND created_at > now() - @retain::interval) AS recoverable
 FROM outbox_messages
-WHERE delivered_at IS NULL AND attempts >= @min_attempts::integer
-ORDER BY attempts DESC, available_at
+WHERE delivered_at IS NULL
+  AND dropped_at IS NULL
+  AND blocked_at IS NOT NULL
+ORDER BY blocked_at DESC
 LIMIT $1;
 
--- Dead-letter a poison message: stop automatic retries, purge payload to eliminate
--- secret retention, and record the fatal error. It stays delivered_at IS NULL with
--- attempts >= max_attempts so /admin/health lists it for operator action.
--- name: DeadLetterOutbox :exec
+-- Poison a message-local failure: stop automatic retries, purge payload to eliminate
+-- secret retention, and record the fatal error. blocked_at is the terminal marker;
+-- delivered_at stays NULL so /admin/health lists it for operator action.
+-- name: PoisonOutbox :exec
 UPDATE outbox_messages
 SET attempts = greatest(attempts, @max_attempts::integer),
-    available_at = now() + interval '100 years',
+    blocked_at = now(),
+    available_at = now(),
     payload = '{}'::jsonb,
     last_error = @last_error::text
 WHERE id = $1;
 
--- DELIVERED messages past retain, plus undelivered messages that have exhausted
--- attempts and exceeded retain since created_at (bounding retention of poison/stuck rows).
+-- Redact undelivered payloads past Retain from creation time. Never marks sent.
+-- name: ExpireOutboxPayloads :execrows
+UPDATE outbox_messages
+SET payload = '{}'::jsonb,
+    blocked_at = coalesce(blocked_at, now()),
+    available_at = now(),
+    last_error = CASE
+        WHEN blocked_at IS NULL THEN coalesce(last_error, '') || ' [payload expired]'
+        ELSE last_error
+    END
+WHERE delivered_at IS NULL
+  AND dropped_at IS NULL
+  AND payload <> '{}'::jsonb
+  AND created_at < now() - sqlc.arg(retain)::interval;
+
+-- DELIVERED messages past retain, plus undelivered terminal rows past twice retain
+-- from created_at (payload lifetime plus metadata retention).
 -- name: SweepDeliveredMessages :execrows
 DELETE FROM outbox_messages
 WHERE (delivered_at IS NOT NULL AND delivered_at < now() - sqlc.arg(retain)::interval)
-   OR (delivered_at IS NULL AND attempts >= sqlc.arg(max_attempts)::integer AND created_at < now() - sqlc.arg(retain)::interval);
+   OR (delivered_at IS NULL
+       AND created_at < now() - sqlc.arg(retain)::interval * 2);

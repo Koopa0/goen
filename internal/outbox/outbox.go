@@ -213,7 +213,7 @@ func (s *Store) deliver(ctx context.Context, m *db.ClaimOutboxRow) bool {
 
 	if err := runHandler(ctx, h, m.Payload); err != nil {
 		if IsNonRetryable(err) {
-			s.deadLetter(ctx, m, err)
+			s.poison(ctx, m, err)
 		} else {
 			s.reschedule(ctx, m, err)
 		}
@@ -241,29 +241,35 @@ func runHandler(ctx context.Context, h Handler, payload []byte) error {
 	return h(ctx, payload)
 }
 
-func (s *Store) deadLetter(ctx context.Context, m *db.ClaimOutboxRow, cause error) {
-	s.log.ErrorContext(ctx, "outbox message is non-retryable; dead-lettering",
+func (s *Store) poison(ctx context.Context, m *db.ClaimOutboxRow, cause error) {
+	s.log.ErrorContext(ctx, "outbox message is poison; blocking and redacting payload",
 		"message", m.ID, "topic", m.Topic, "error", cause)
 	settle, cancel := context.WithTimeout(ctx, SettleBudget)
 	defer cancel()
-	if err := s.q.DeadLetterOutbox(settle, db.DeadLetterOutboxParams{
+	if err := s.q.PoisonOutbox(settle, db.PoisonOutboxParams{
 		ID:          m.ID,
 		MaxAttempts: MaxAttempts,
 		LastError:   truncate(cause.Error(), 500),
 	}); err != nil {
-		s.log.ErrorContext(ctx, "outbox dead-letter", "message", m.ID, "error", err)
+		s.log.ErrorContext(ctx, "outbox poison", "message", m.ID, "error", err)
 	}
 }
 
 func (s *Store) reschedule(ctx context.Context, m *db.ClaimOutboxRow, cause error) {
-	delay := backoff(m.Attempts)
+	lastError := truncate(cause.Error(), 500)
 	if m.Attempts >= MaxAttempts {
-		// Far enough out that the automatic retry effectively stops, without
-		// inventing a "failed" state the schema does not have.
-		delay = 24 * time.Hour
 		s.log.ErrorContext(ctx, "outbox message is stuck",
 			"message", m.ID, "topic", m.Topic, "attempts", m.Attempts, "error", cause)
+		settle, cancel := context.WithTimeout(ctx, SettleBudget)
+		defer cancel()
+		if err := s.q.BlockOutbox(settle, db.BlockOutboxParams{
+			ID: m.ID, LastError: lastError,
+		}); err != nil {
+			s.log.ErrorContext(ctx, "outbox block", "message", m.ID, "error", err)
+		}
+		return
 	}
+	delay := backoff(m.Attempts)
 	settle, cancel := context.WithTimeout(ctx, SettleBudget)
 	defer cancel()
 	if err := s.q.RescheduleOutbox(settle, db.RescheduleOutboxParams{
@@ -271,7 +277,7 @@ func (s *Store) reschedule(ctx context.Context, m *db.ClaimOutboxRow, cause erro
 		Backoff: pgtype.Interval{
 			Microseconds: delay.Microseconds(), Valid: true,
 		},
-		LastError: truncate(cause.Error(), 500),
+		LastError: lastError,
 	}); err != nil {
 		s.log.ErrorContext(ctx, "outbox reschedule", "message", m.ID, "error", err)
 	}
@@ -313,20 +319,24 @@ func (s *Store) Run(ctx context.Context) {
 	}
 }
 
-// StuckMessage is one that has exhausted its attempts.
+// StuckMessage is one that automatic retry has stopped for operator action.
 type StuckMessage struct {
-	ID        uuid.UUID
-	Topic     string
-	DedupeKey string
-	Attempts  int32
-	LastError string
-	Since     time.Time
+	ID          uuid.UUID
+	Topic       string
+	DedupeKey   string
+	Attempts    int32
+	LastError   string
+	Since       time.Time
+	Recoverable bool
 }
 
 // Stuck is what has failed too often, for a human.
 func (s *Store) Stuck(ctx context.Context, limit int32) ([]StuckMessage, error) {
 	rows, err := s.q.StuckOutbox(ctx, db.StuckOutboxParams{
-		MinAttempts: MaxAttempts, Limit: limit,
+		Retain: pgtype.Interval{
+			Microseconds: int64(Retain / time.Microsecond), Valid: true,
+		},
+		Limit: limit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("read stuck outbox: %w", err)
@@ -336,7 +346,7 @@ func (s *Store) Stuck(ctx context.Context, limit int32) ([]StuckMessage, error) 
 		r := &rows[i]
 		out = append(out, StuckMessage{
 			ID: r.ID, Topic: r.Topic, DedupeKey: r.DedupeKey, Attempts: r.Attempts,
-			LastError: r.LastError, Since: r.AvailableAt,
+			LastError: r.LastError, Since: r.AvailableAt.Time, Recoverable: r.Recoverable.Bool,
 		})
 	}
 	return out, nil
@@ -356,15 +366,16 @@ func truncate(s string, n int) string {
 	return s[:n]
 }
 
-// Sweep deletes delivered messages past [Retain], once, as well as stuck undelivered
-// messages past [Retain] from their created_at.
+// Sweep expires undelivered payloads past [Retain], then deletes delivered
+// messages past [Retain] and terminal undelivered rows past twice [Retain].
 func (s *Store) Sweep(ctx context.Context) (int64, error) {
-	n, err := s.q.SweepDeliveredMessages(ctx, db.SweepDeliveredMessagesParams{
-		Retain: pgtype.Interval{
-			Microseconds: int64(Retain / time.Microsecond), Valid: true,
-		},
-		MaxAttempts: MaxAttempts,
-	})
+	retain := pgtype.Interval{
+		Microseconds: int64(Retain / time.Microsecond), Valid: true,
+	}
+	if _, err := s.q.ExpireOutboxPayloads(ctx, retain); err != nil {
+		return 0, fmt.Errorf("expire outbox payloads: %w", err)
+	}
+	n, err := s.q.SweepDeliveredMessages(ctx, retain)
 	if err != nil {
 		return 0, fmt.Errorf("sweep delivered messages: %w", err)
 	}

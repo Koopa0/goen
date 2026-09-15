@@ -4095,8 +4095,8 @@ func TestHealthIsDerivedFromTheWorkNotFromAHeartbeat(t *testing.T) {
 	}
 
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO outbox_messages (topic, dedupe_key, payload, attempts, available_at)
-		VALUES ('test.health', 'health-stuck', '{}'::jsonb, 99, now())`); err != nil {
+		INSERT INTO outbox_messages (topic, dedupe_key, payload, attempts, available_at, blocked_at)
+		VALUES ('test.health', 'health-stuck', '{}'::jsonb, 99, now(), now())`); err != nil {
 		t.Fatalf("insert stuck: %v", err)
 	}
 	stuck, stuckErr := s.WorkerHealth(ctx, outbox.NewStore(pool, slog.New(slog.DiscardHandler)))
@@ -11087,8 +11087,8 @@ func TestAStrandedInvoiceClaimIsOnTheHealthPage(t *testing.T) {
 }
 
 // TestStuckOutboxMessageDropAndReplayOnHealthPage verifies operator controls
-// on /admin/health for poison/stuck mail:
-// Drop cleanses secrets and marks delivered; Replay resets for immediate retry.
+// on /admin/health for blocked mail:
+// Drop is terminal without delivery; Replay clears blocked_at without resetting attempts.
 // Both write append-only audit events.
 func TestStuckOutboxMessageDropAndReplayOnHealthPage(t *testing.T) {
 	ctx, actor := staffContext(t)
@@ -11108,8 +11108,8 @@ func TestStuckOutboxMessageDropAndReplayOnHealthPage(t *testing.T) {
 	// 1. Test Drop
 	var dropID uuid.UUID
 	if err := pool.QueryRow(ctx, `
-		INSERT INTO outbox_messages (topic, dedupe_key, payload, attempts, available_at, last_error)
-		VALUES ('account.password_reset', $1, '{"token": "secret-drop-me"}'::jsonb, 8, now() + interval '100 years', 'corrupt JSON')
+		INSERT INTO outbox_messages (topic, dedupe_key, payload, attempts, available_at, blocked_at, last_error)
+		VALUES ('account.password_reset', $1, '{"token": "secret-drop-me"}'::jsonb, 8, now(), now(), 'corrupt JSON')
 		RETURNING id`, "drop-"+uuid.NewString()).Scan(&dropID); err != nil {
 		t.Fatalf("enqueue stuck message: %v", err)
 	}
@@ -11143,15 +11143,19 @@ func TestStuckOutboxMessageDropAndReplayOnHealthPage(t *testing.T) {
 			dropped.Code, dropped.Header().Get("Location"))
 	}
 
+	var wasDropped bool
 	var delivered bool
 	var payload []byte
 	if err := pool.QueryRow(ctx, `
-		SELECT delivered_at IS NOT NULL, payload
-		FROM outbox_messages WHERE id = $1`, dropID).Scan(&delivered, &payload); err != nil {
+		SELECT dropped_at IS NOT NULL, delivered_at IS NOT NULL, payload
+		FROM outbox_messages WHERE id = $1`, dropID).Scan(&wasDropped, &delivered, &payload); err != nil {
 		t.Fatalf("read dropped message: %v", err)
 	}
-	if !delivered {
-		t.Error("dropped message is still undelivered")
+	if !wasDropped {
+		t.Error("dropped message has no dropped_at")
+	}
+	if delivered {
+		t.Error("dropped message is marked delivered; drop is not delivery")
 	}
 	if string(payload) != "{}" && string(payload) != "{ }" {
 		t.Errorf("dropped message payload = %s, want empty/redacted JSON", string(payload))
@@ -11174,8 +11178,8 @@ func TestStuckOutboxMessageDropAndReplayOnHealthPage(t *testing.T) {
 	// 2. Test Replay
 	var replayID uuid.UUID
 	if err := pool.QueryRow(ctx, `
-		INSERT INTO outbox_messages (topic, dedupe_key, payload, attempts, available_at, last_error)
-		VALUES ('account.password_reset', $1, '{"token": "retry-me"}'::jsonb, 8, now() + interval '100 years', 'transient failure')
+		INSERT INTO outbox_messages (topic, dedupe_key, payload, attempts, available_at, blocked_at, last_error)
+		VALUES ('account.password_reset', $1, '{"token": "retry-me"}'::jsonb, 8, now(), now(), 'transient failure')
 		RETURNING id`, "replay-"+uuid.NewString()).Scan(&replayID); err != nil {
 		t.Fatalf("enqueue stuck message for replay: %v", err)
 	}
@@ -11194,8 +11198,8 @@ func TestStuckOutboxMessageDropAndReplayOnHealthPage(t *testing.T) {
 		FROM outbox_messages WHERE id = $1`, replayID).Scan(&replayAttempts, &replayDue, &replayErr); err != nil {
 		t.Fatalf("read replayed message: %v", err)
 	}
-	if replayAttempts != 0 {
-		t.Errorf("replayed attempts = %d, want 0", replayAttempts)
+	if replayAttempts != 8 {
+		t.Errorf("replayed attempts = %d, want 8 (replay must not reset attempts)", replayAttempts)
 	}
 	if replayDue.After(time.Now().Add(5 * time.Second)) {
 		t.Errorf("replayed available_at = %v, want due now", replayDue)
