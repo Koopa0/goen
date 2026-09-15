@@ -692,6 +692,33 @@ var ruleCases = []ruleCase{
 		            'refund-rule-api-rejection-ok');`,
 	},
 	{
+		rule: "stripe_refund_facts_shape",
+		reject: `SELECT reconcile_stripe_refund_webhook(
+		            'evt_rule_shape', NULL, 'pi_rule_shape', '',
+		            100, 'TWD', 'pending', '', '', 0);`,
+		accept: `SELECT reconcile_stripe_refund_webhook(
+		            'evt_rule_shape_ok', 're_rule_shape_ok', 'pi_rule_shape', '',
+		            100, 'TWD', 'pending', '', '', 0);`,
+	},
+	{
+		rule: "stripe_refund_facts_status_known",
+		reject: `SELECT reconcile_stripe_refund_webhook(
+		            'evt_rule_status', 're_rule_status', 'pi_rule_status', '',
+		            100, 'TWD', 'processing', '', '', 0);`,
+		accept: `SELECT reconcile_stripe_refund_webhook(
+		            'evt_rule_status_ok', 're_rule_status_ok', 'pi_rule_status', '',
+		            100, 'TWD', 'pending', '', '', 0);`,
+	},
+	{
+		rule: "stripe_refund_facts_intent_valid",
+		reject: `SELECT reconcile_stripe_refund_webhook(
+		            'evt_rule_intent', 're_rule_intent', NULL, '',
+		            100, 'TWD', 'pending', '', '', 0);`,
+		accept: `SELECT reconcile_stripe_refund_webhook(
+		            'evt_rule_intent_ok', 're_rule_intent_ok', 'pi_rule_intent', '',
+		            100, 'TWD', 'pending', '', '', 0);`,
+	},
+	{
 		rule: "return_credit_requires_live_account",
 		reject: openReturnAccountFixture + `
 		        UPDATE orders SET user_id = NULL

@@ -626,6 +626,29 @@ WHERE r.status IN ('pending', 'requires_action', 'failed', 'cancelled')
 ORDER BY r.created_at
 LIMIT $1;
 
+-- Provider refund facts attributed to one order, including external Dashboard
+-- refunds and rows that still need allocation review.
+-- name: ProviderRefundFactsForOrder :many
+SELECT srf.provider_ref, srf.amount_cents, srf.status, srf.allocation,
+       srf.needs_review, srf.created_at
+FROM stripe_refund_facts srf
+WHERE srf.order_id = (
+    SELECT id FROM orders WHERE order_number = @order_number::text
+)
+ORDER BY srf.created_at, srf.provider_ref;
+
+-- name: ProviderRefundReviewCount :one
+SELECT count(*)::bigint FROM stripe_refund_facts WHERE needs_review;
+
+-- name: ProviderRefundsNeedingReview :many
+SELECT srf.provider_ref, srf.amount_cents, srf.status, srf.allocation,
+       coalesce(o.order_number, '')::text AS order_number, srf.created_at
+FROM stripe_refund_facts srf
+LEFT JOIN orders o ON o.id = srf.order_id
+WHERE srf.needs_review
+ORDER BY srf.created_at
+LIMIT $1;
+
 -- internal/account already defines UserByEmail for sign-in and sqlc generates
 -- one db package, so this one is named for what it is FOR. It also selects less:
 -- the back office has no business reading a password hash.

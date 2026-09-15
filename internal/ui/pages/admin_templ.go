@@ -3403,7 +3403,157 @@ func AdminOrder(p layouts.Page, v *AdminOrderView) templ.Component {
 					}
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 338, "</section></aside></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 338, "</section>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if len(v.ProviderRefunds) > 0 || v.ExternalRefundCents > 0 || v.UnresolvedRefundCents > 0 {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 339, "<section class=\"goen-admin__invoices\" aria-labelledby=\"provider-refunds-heading\"><h2 id=\"provider-refunds-heading\" class=\"goen-admin__subhead\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var199 string
+				templ_7745c5c3_Var199, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminOrderProviderRefundsHeading))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 700, Col: 124}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var199))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 340, "</h2>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				if v.ExternalRefundCents > 0 {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 341, "<p class=\"goen-admin__hint\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var200 string
+					templ_7745c5c3_Var200, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminOrderProviderRefundsExternal), twd(v.ExternalRefundCents)))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 702, Col: 133}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var200))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 342, "</p>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				if v.UnresolvedRefundCents > 0 {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 343, "<p class=\"goen-admin__hint\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var201 string
+					templ_7745c5c3_Var201, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminOrderProviderRefundsUnresolved), twd(v.UnresolvedRefundCents)))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 705, Col: 137}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var201))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 344, "</p>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 345, "<ul class=\"goen-admin__returnlines\" role=\"list\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				for _, r := range v.ProviderRefunds {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 346, "<li><span class=\"ui-cart-line__meta\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var202 string
+					templ_7745c5c3_Var202, templ_7745c5c3_Err = templ.JoinStringErrs(r.ProviderRef)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 710, Col: 58}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var202))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 347, " · ")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var203 string
+					templ_7745c5c3_Var203, templ_7745c5c3_Err = templ.JoinStringErrs(r.Amount())
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 710, Col: 76}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var203))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 348, " · ")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var204 string
+					templ_7745c5c3_Var204, templ_7745c5c3_Err = templ.JoinStringErrs(r.Status)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 710, Col: 92}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var204))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 349, "</span> ")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					if r.NeedsReview {
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 350, "<strong>")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						var templ_7745c5c3_Var205 string
+						templ_7745c5c3_Var205, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminOrderProviderRefundReview))
+						if templ_7745c5c3_Err != nil {
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 712, Col: 72}
+						}
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var205))
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 351, "</strong> ")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 352, "<span class=\"ui-cart-line__meta\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var206 string
+					templ_7745c5c3_Var206, templ_7745c5c3_Err = templ.JoinStringErrs(r.CreatedAt)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 714, Col: 56}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var206))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 353, "</span></li>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 354, "</ul></section>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 355, "</aside></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -3434,12 +3584,12 @@ func AdminVariants(p layouts.Page, v AdminVariantsView) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var199 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var199 == nil {
-			templ_7745c5c3_Var199 = templ.NopComponent
+		templ_7745c5c3_Var207 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var207 == nil {
+			templ_7745c5c3_Var207 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Var200 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_Var208 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
 			if !templ_7745c5c3_IsBuffer {
@@ -3451,7 +3601,7 @@ func AdminVariants(p layouts.Page, v AdminVariantsView) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 339, "<div class=\"goen-admin\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 356, "<div class=\"goen-admin\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -3459,149 +3609,149 @@ func AdminVariants(p layouts.Page, v AdminVariantsView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 340, "<div class=\"ui-page-head\"><div><h1 class=\"ui-page-head__title\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var201 string
-			templ_7745c5c3_Var201, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueStock))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 711, Col: 75}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var201))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 341, "</h1><p class=\"ui-page-head__sub\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var202 string
-			templ_7745c5c3_Var202, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueStockLead))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 713, Col: 48}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var202))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 342, "</p></div></div>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			if v.HasNotice() {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 343, "<p class=\"ui-alert ui-alert--info\" role=\"status\">")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var203 string
-				templ_7745c5c3_Var203, templ_7745c5c3_Err = templ.JoinStringErrs(v.Notice)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 718, Col: 63}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var203))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 344, "</p>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 345, "<div class=\"ui-filterbar\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var204 = []any{"ui-filter", templ.KV("is-active", !v.LowOnly)}
-			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var204...)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 346, "<a class=\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var205 string
-			templ_7745c5c3_Var205, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var204).String())
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 1, Col: 0}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var205)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 347, "\" href=\"/admin/stock\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var206 string
-			templ_7745c5c3_Var206, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminTabAll))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 721, Col: 118}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var206))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 348, "</a> ")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var207 = []any{"ui-filter", templ.KV("is-active", v.LowOnly)}
-			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var207...)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 349, "<a class=\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var208 string
-			templ_7745c5c3_Var208, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var207).String())
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 1, Col: 0}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var208)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 350, "\" href=\"/admin/stock?low=1\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 357, "<div class=\"ui-page-head\"><div><h1 class=\"ui-page-head__title\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var209 string
-			templ_7745c5c3_Var209, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueLowOnly))
+			templ_7745c5c3_Var209, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueStock))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 722, Col: 129}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 733, Col: 75}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var209))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 351, "</a></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 358, "</h1><p class=\"ui-page-head__sub\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var210 string
+			templ_7745c5c3_Var210, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueStockLead))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 735, Col: 48}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var210))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 359, "</p></div></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if v.HasNotice() {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 360, "<p class=\"ui-alert ui-alert--info\" role=\"status\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var211 string
+				templ_7745c5c3_Var211, templ_7745c5c3_Err = templ.JoinStringErrs(v.Notice)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 740, Col: 63}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var211))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 361, "</p>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 362, "<div class=\"ui-filterbar\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var212 = []any{"ui-filter", templ.KV("is-active", !v.LowOnly)}
+			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var212...)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 363, "<a class=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var213 string
+			templ_7745c5c3_Var213, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var212).String())
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 1, Col: 0}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var213)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 364, "\" href=\"/admin/stock\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var214 string
+			templ_7745c5c3_Var214, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminTabAll))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 743, Col: 118}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var214))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 365, "</a> ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var215 = []any{"ui-filter", templ.KV("is-active", v.LowOnly)}
+			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var215...)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 366, "<a class=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var216 string
+			templ_7745c5c3_Var216, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var215).String())
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 1, Col: 0}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var216)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 367, "\" href=\"/admin/stock?low=1\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var217 string
+			templ_7745c5c3_Var217, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueLowOnly))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 744, Col: 129}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var217))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 368, "</a></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if v.Empty() {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 352, "<div class=\"ui-empty\"><p class=\"ui-empty__title\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 369, "<div class=\"ui-empty\"><p class=\"ui-empty__title\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var210 string
-				templ_7745c5c3_Var210, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueNoVariants))
+				var templ_7745c5c3_Var218 string
+				templ_7745c5c3_Var218, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueNoVariants))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 726, Col: 75}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 748, Col: 75}
 				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var210))
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var218))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 353, "</p></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 370, "</p></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 354, "<div class=\"goen-admin__tablewrap\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 371, "<div class=\"goen-admin__tablewrap\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -3609,18 +3759,18 @@ func AdminVariants(p layouts.Page, v AdminVariantsView) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 355, "</div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 372, "</div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 356, "</div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 373, "</div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = layouts.Base(p).Render(templ.WithChildren(ctx, templ_7745c5c3_Var200), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = layouts.Base(p).Render(templ.WithChildren(ctx, templ_7745c5c3_Var208), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -3644,301 +3794,96 @@ func adminVariantTable(variants []AdminVariant) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var211 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var211 == nil {
-			templ_7745c5c3_Var211 = templ.NopComponent
+		templ_7745c5c3_Var219 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var219 == nil {
+			templ_7745c5c3_Var219 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 357, "<table class=\"ui-table goen-admin__table\"><thead><tr><th scope=\"col\">SKU</th><th scope=\"col\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 374, "<table class=\"ui-table goen-admin__table\"><thead><tr><th scope=\"col\">SKU</th><th scope=\"col\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var212 string
-		templ_7745c5c3_Var212, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminColProduct))
+		var templ_7745c5c3_Var220 string
+		templ_7745c5c3_Var220, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminColProduct))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 742, Col: 58}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 764, Col: 58}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var212))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 358, "</th><th scope=\"col\">")
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var220))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var213 string
-		templ_7745c5c3_Var213, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueColStock))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 743, Col: 61}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var213))
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 375, "</th><th scope=\"col\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 359, "</th><th scope=\"col\">")
+		var templ_7745c5c3_Var221 string
+		templ_7745c5c3_Var221, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueColStock))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 765, Col: 61}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var221))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var214 string
-		templ_7745c5c3_Var214, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueColPrice))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 744, Col: 61}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var214))
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 376, "</th><th scope=\"col\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 360, "</th><th scope=\"col\">")
+		var templ_7745c5c3_Var222 string
+		templ_7745c5c3_Var222, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueColPrice))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 766, Col: 61}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var222))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var215 string
-		templ_7745c5c3_Var215, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueAdjust))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 745, Col: 59}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var215))
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 377, "</th><th scope=\"col\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 361, "</th></tr></thead> <tbody>")
+		var templ_7745c5c3_Var223 string
+		templ_7745c5c3_Var223, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueAdjust))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 767, Col: 59}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var223))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 378, "</th></tr></thead> <tbody>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		for _, x := range variants {
-			var templ_7745c5c3_Var216 = []any{templ.KV("goen-admin__row--low", x.Low())}
-			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var216...)
+			var templ_7745c5c3_Var224 = []any{templ.KV("goen-admin__row--low", x.Low())}
+			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var224...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 362, "<tr class=\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var217 string
-			templ_7745c5c3_Var217, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var216).String())
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 1, Col: 0}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var217)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 363, "\"><td><a href=\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var218 templ.SafeURL
-			templ_7745c5c3_Var218, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/admin/stock/" + x.SKU))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 752, Col: 54}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var218))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 364, "\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var219 string
-			templ_7745c5c3_Var219, templ_7745c5c3_Err = templ.JoinStringErrs(x.SKU)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 752, Col: 64}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var219))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 365, "</a> <span class=\"ui-cart-line__meta\"><a href=\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var220 templ.SafeURL
-			templ_7745c5c3_Var220, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/p/" + x.Slug))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 754, Col: 42}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var220))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 366, "\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var221 string
-			templ_7745c5c3_Var221, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueViewProduct))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 754, Col: 89}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var221))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 367, "</a></span> ")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			if !x.Active {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 368, "<span class=\"ui-badge\">")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var222 string
-				templ_7745c5c3_Var222, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueVariantOff))
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 757, Col: 73}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var222))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 369, "</span>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 370, "</td><td>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var223 string
-			templ_7745c5c3_Var223, templ_7745c5c3_Err = templ.JoinStringErrs(x.ProductName)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 761, Col: 21}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var223))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 371, " <span class=\"ui-cart-line__meta\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var224 string
-			templ_7745c5c3_Var224, templ_7745c5c3_Err = templ.JoinStringErrs(x.Brand)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 762, Col: 48}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var224))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 372, "</span></td><td>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 379, "<tr class=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var225 string
-			templ_7745c5c3_Var225, templ_7745c5c3_Err = templ.JoinStringErrs(x.StockText())
+			templ_7745c5c3_Var225, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var224).String())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 765, Col: 21}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 1, Col: 0}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var225))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var225)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 373, " / ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 380, "\"><td><a href=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var226 string
-			templ_7745c5c3_Var226, templ_7745c5c3_Err = templ.JoinStringErrs(x.SafetyText())
+			var templ_7745c5c3_Var226 templ.SafeURL
+			templ_7745c5c3_Var226, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/admin/stock/" + x.SKU))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 765, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 774, Col: 54}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var226))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 374, " / <strong>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var227 string
-			templ_7745c5c3_Var227, templ_7745c5c3_Err = templ.JoinStringErrs(x.SellableText())
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 766, Col: 32}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var227))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 375, "</strong></td><td><form class=\"goen-admin__inline\" method=\"post\" action=\"/admin/stock/price\"><input type=\"hidden\" name=\"sku\" value=\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var228 string
-			templ_7745c5c3_Var228, templ_7745c5c3_Err = templ.ResolveAttributeValue(x.SKU)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 770, Col: 52}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var228)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 376, "\"> <label class=\"goen-sr-only\" for=\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var229 string
-			templ_7745c5c3_Var229, templ_7745c5c3_Err = templ.ResolveAttributeValue("price-" + x.SKU)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 771, Col: 57}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var229)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 377, "\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var230 string
-			templ_7745c5c3_Var230, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueuePrice))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 771, Col: 98}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var230))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 378, "</label> <input class=\"ui-input ui-input--sm goen-admin__num\" id=\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var231 string
-			templ_7745c5c3_Var231, templ_7745c5c3_Err = templ.ResolveAttributeValue("price-" + x.SKU)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 772, Col: 81}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var231)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 379, "\" type=\"number\" name=\"price\" value=\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var232 string
-			templ_7745c5c3_Var232, templ_7745c5c3_Err = templ.ResolveAttributeValue(x.PriceText())
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 772, Col: 132}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var232)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 380, "\" min=\"0\" step=\"1\"> <label class=\"goen-sr-only\" for=\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var233 string
-			templ_7745c5c3_Var233, templ_7745c5c3_Err = templ.ResolveAttributeValue("cmp-" + x.SKU)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 773, Col: 55}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var233)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -3946,205 +3891,410 @@ func adminVariantTable(variants []AdminVariant) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var234 string
-			templ_7745c5c3_Var234, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueComparePrice))
+			var templ_7745c5c3_Var227 string
+			templ_7745c5c3_Var227, templ_7745c5c3_Err = templ.JoinStringErrs(x.SKU)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 773, Col: 103}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 774, Col: 64}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var227))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 382, "</a> <span class=\"ui-cart-line__meta\"><a href=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var228 templ.SafeURL
+			templ_7745c5c3_Var228, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL("/p/" + x.Slug))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 776, Col: 42}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var228))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 383, "\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var229 string
+			templ_7745c5c3_Var229, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueViewProduct))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 776, Col: 89}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var229))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 384, "</a></span> ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if !x.Active {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 385, "<span class=\"ui-badge\">")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var230 string
+				templ_7745c5c3_Var230, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueVariantOff))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 779, Col: 73}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var230))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 386, "</span>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 387, "</td><td>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var231 string
+			templ_7745c5c3_Var231, templ_7745c5c3_Err = templ.JoinStringErrs(x.ProductName)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 783, Col: 21}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var231))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 388, " <span class=\"ui-cart-line__meta\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var232 string
+			templ_7745c5c3_Var232, templ_7745c5c3_Err = templ.JoinStringErrs(x.Brand)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 784, Col: 48}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var232))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 389, "</span></td><td>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var233 string
+			templ_7745c5c3_Var233, templ_7745c5c3_Err = templ.JoinStringErrs(x.StockText())
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 787, Col: 21}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var233))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 390, " / ")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var234 string
+			templ_7745c5c3_Var234, templ_7745c5c3_Err = templ.JoinStringErrs(x.SafetyText())
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 787, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var234))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 382, "</label> <input class=\"ui-input ui-input--sm goen-admin__num\" id=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 391, " / <strong>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var235 string
-			templ_7745c5c3_Var235, templ_7745c5c3_Err = templ.ResolveAttributeValue("cmp-" + x.SKU)
+			templ_7745c5c3_Var235, templ_7745c5c3_Err = templ.JoinStringErrs(x.SellableText())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 776, Col: 27}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 788, Col: 32}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var235)
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var235))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 383, "\" type=\"number\" name=\"compare_at\" value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 392, "</strong></td><td><form class=\"goen-admin__inline\" method=\"post\" action=\"/admin/stock/price\"><input type=\"hidden\" name=\"sku\" value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var236 string
-			templ_7745c5c3_Var236, templ_7745c5c3_Err = templ.ResolveAttributeValue(x.CompareText())
+			templ_7745c5c3_Var236, templ_7745c5c3_Err = templ.ResolveAttributeValue(x.SKU)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 779, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 792, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var236)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 384, "\" min=\"0\" step=\"1\" placeholder=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 393, "\"> <label class=\"goen-sr-only\" for=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var237 string
-			templ_7745c5c3_Var237, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, i18n.KeyAdminQueueComparePrice))
+			templ_7745c5c3_Var237, templ_7745c5c3_Err = templ.ResolveAttributeValue("price-" + x.SKU)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 782, Col: 65}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 793, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var237)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 385, "\"> <button class=\"ui-btn ui-btn--secondary ui-btn--sm\" type=\"submit\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 394, "\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var238 string
-			templ_7745c5c3_Var238, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueuePriceSave))
+			templ_7745c5c3_Var238, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueuePrice))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 784, Col: 115}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 793, Col: 98}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var238))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 386, "</button></form></td><td><form class=\"goen-admin__inline\" method=\"post\" action=\"/admin/stock/adjust\"><input type=\"hidden\" name=\"sku\" value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 395, "</label> <input class=\"ui-input ui-input--sm goen-admin__num\" id=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var239 string
-			templ_7745c5c3_Var239, templ_7745c5c3_Err = templ.ResolveAttributeValue(x.SKU)
+			templ_7745c5c3_Var239, templ_7745c5c3_Err = templ.ResolveAttributeValue("price-" + x.SKU)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 789, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 794, Col: 81}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var239)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 387, "\"> <input type=\"hidden\" name=\"idempotency\" value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 396, "\" type=\"number\" name=\"price\" value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var240 string
-			templ_7745c5c3_Var240, templ_7745c5c3_Err = templ.ResolveAttributeValue(x.AdjustKey())
+			templ_7745c5c3_Var240, templ_7745c5c3_Err = templ.ResolveAttributeValue(x.PriceText())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 790, Col: 68}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 794, Col: 132}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var240)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 388, "\"> <label class=\"goen-sr-only\" for=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 397, "\" min=\"0\" step=\"1\"> <label class=\"goen-sr-only\" for=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var241 string
-			templ_7745c5c3_Var241, templ_7745c5c3_Err = templ.ResolveAttributeValue("adj-" + x.SKU)
+			templ_7745c5c3_Var241, templ_7745c5c3_Err = templ.ResolveAttributeValue("cmp-" + x.SKU)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 791, Col: 55}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 795, Col: 55}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var241)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 389, "\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 398, "\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var242 string
-			templ_7745c5c3_Var242, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueAdjustQty))
+			templ_7745c5c3_Var242, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueComparePrice))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 791, Col: 100}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 795, Col: 103}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var242))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 390, "</label> <input class=\"ui-input ui-input--sm goen-admin__num\" id=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 399, "</label> <input class=\"ui-input ui-input--sm goen-admin__num\" id=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var243 string
-			templ_7745c5c3_Var243, templ_7745c5c3_Err = templ.ResolveAttributeValue("adj-" + x.SKU)
+			templ_7745c5c3_Var243, templ_7745c5c3_Err = templ.ResolveAttributeValue("cmp-" + x.SKU)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 792, Col: 79}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 798, Col: 27}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var243)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 391, "\" type=\"number\" name=\"delta\" placeholder=\"+10\" step=\"1\"> <button class=\"ui-btn ui-btn--secondary ui-btn--sm\" type=\"submit\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 400, "\" type=\"number\" name=\"compare_at\" value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var244 string
-			templ_7745c5c3_Var244, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueAdjust))
+			templ_7745c5c3_Var244, templ_7745c5c3_Err = templ.ResolveAttributeValue(x.CompareText())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 793, Col: 112}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 801, Col: 31}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var244))
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var244)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 392, "</button></form><form class=\"goen-admin__inline\" method=\"post\" action=\"/admin/stock/active\"><input type=\"hidden\" name=\"sku\" value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 401, "\" min=\"0\" step=\"1\" placeholder=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var245 string
-			templ_7745c5c3_Var245, templ_7745c5c3_Err = templ.ResolveAttributeValue(x.SKU)
+			templ_7745c5c3_Var245, templ_7745c5c3_Err = templ.ResolveAttributeValue(i18n.T(ctx, i18n.KeyAdminQueueComparePrice))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 796, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 804, Col: 65}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var245)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 393, "\"> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 402, "\"> <button class=\"ui-btn ui-btn--secondary ui-btn--sm\" type=\"submit\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var246 string
+			templ_7745c5c3_Var246, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueuePriceSave))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 806, Col: 115}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var246))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 403, "</button></form></td><td><form class=\"goen-admin__inline\" method=\"post\" action=\"/admin/stock/adjust\"><input type=\"hidden\" name=\"sku\" value=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var247 string
+			templ_7745c5c3_Var247, templ_7745c5c3_Err = templ.ResolveAttributeValue(x.SKU)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 811, Col: 52}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var247)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 404, "\"> <input type=\"hidden\" name=\"idempotency\" value=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var248 string
+			templ_7745c5c3_Var248, templ_7745c5c3_Err = templ.ResolveAttributeValue(x.AdjustKey())
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 812, Col: 68}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var248)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 405, "\"> <label class=\"goen-sr-only\" for=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var249 string
+			templ_7745c5c3_Var249, templ_7745c5c3_Err = templ.ResolveAttributeValue("adj-" + x.SKU)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 813, Col: 55}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var249)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 406, "\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var250 string
+			templ_7745c5c3_Var250, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueAdjustQty))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 813, Col: 100}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var250))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 407, "</label> <input class=\"ui-input ui-input--sm goen-admin__num\" id=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var251 string
+			templ_7745c5c3_Var251, templ_7745c5c3_Err = templ.ResolveAttributeValue("adj-" + x.SKU)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 814, Col: 79}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var251)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 408, "\" type=\"number\" name=\"delta\" placeholder=\"+10\" step=\"1\"> <button class=\"ui-btn ui-btn--secondary ui-btn--sm\" type=\"submit\">")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var252 string
+			templ_7745c5c3_Var252, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminQueueAdjust))
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 815, Col: 112}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var252))
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 409, "</button></form><form class=\"goen-admin__inline\" method=\"post\" action=\"/admin/stock/active\"><input type=\"hidden\" name=\"sku\" value=\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			var templ_7745c5c3_Var253 string
+			templ_7745c5c3_Var253, templ_7745c5c3_Err = templ.ResolveAttributeValue(x.SKU)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 818, Col: 52}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var253)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 410, "\"> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			if x.Active {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 394, "<input type=\"hidden\" name=\"active\" value=\"0\"> <button class=\"ui-btn ui-btn--ghost ui-btn--sm\" type=\"submit\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 411, "<input type=\"hidden\" name=\"active\" value=\"0\"> <button class=\"ui-btn ui-btn--ghost ui-btn--sm\" type=\"submit\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var246 string
-				templ_7745c5c3_Var246, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminToggleOff))
+				var templ_7745c5c3_Var254 string
+				templ_7745c5c3_Var254, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminToggleOff))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 799, Col: 107}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 821, Col: 107}
 				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var246))
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var254))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 395, "</button>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 412, "</button>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 396, "<input type=\"hidden\" name=\"active\" value=\"1\"> <button class=\"ui-btn ui-btn--ghost ui-btn--sm\" type=\"submit\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 413, "<input type=\"hidden\" name=\"active\" value=\"1\"> <button class=\"ui-btn ui-btn--ghost ui-btn--sm\" type=\"submit\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var247 string
-				templ_7745c5c3_Var247, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminToggleOn))
+				var templ_7745c5c3_Var255 string
+				templ_7745c5c3_Var255, templ_7745c5c3_Err = templ.JoinStringErrs(i18n.T(ctx, i18n.KeyAdminToggleOn))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 802, Col: 106}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/admin.templ`, Line: 824, Col: 106}
 				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var247))
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var255))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 397, "</button>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 414, "</button>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 398, "</form></td></tr>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 415, "</form></td></tr>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 399, "</tbody></table>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 416, "</tbody></table>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
