@@ -22,6 +22,9 @@ import (
 // bounded database fallback budget for this request.
 var ErrOverloaded = errors.New("product: cache fallback budget exhausted")
 
+// integrationFillPause is set only by integration acceptance tests.
+var integrationFillPause func(context.Context) error
+
 // CacheMetrics counts cache behaviour without customer-identifying labels.
 type CacheMetrics struct {
 	Hits          atomic.Uint64
@@ -211,6 +214,13 @@ func (c *PresentationCache) fill(
 
 	if !ownsLease {
 		return c.waitOrFallback(ctx, key, lease, fill)
+	}
+
+	if integrationFillPause != nil {
+		if pauseErr := integrationFillPause(ctx); pauseErr != nil {
+			c.releaseLease(ctx, lease, token)
+			return Presentation{}, pauseErr
+		}
 	}
 
 	pres, fillErr := fill(ctx)
