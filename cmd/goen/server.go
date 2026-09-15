@@ -4,6 +4,9 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -537,6 +540,37 @@ func (s *statusRecorder) statusCode() int {
 	return s.status
 }
 
+var slugFormat = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+
+// localeReturnPath computes the target path to send a visitor back to after a
+// language switch. RawQuery is dropped to avoid carrying a search term or
+// sensitive parameter into a redirect target; only /compare preserves a
+// bounded allowlist of public product slugs.
+func localeReturnPath(r *http.Request) string {
+	if r.URL.Path != "/compare" {
+		return r.URL.Path
+	}
+	raw := r.URL.Query()["p"]
+	if len(raw) == 0 {
+		return "/compare"
+	}
+	out := make([]string, 0, catalog.MaxCompare)
+	for _, s := range raw {
+		if !slugFormat.MatchString(s) || slices.Contains(out, s) {
+			continue
+		}
+		out = append(out, s)
+		if len(out) == catalog.MaxCompare {
+			break
+		}
+	}
+	if len(out) == 0 {
+		return "/compare"
+	}
+	q := url.Values{"p": out}
+	return "/compare?" + q.Encode()
+}
+
 // withLocale attaches the request's language to its context.
 func withLocale(next http.Handler, secure bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -547,7 +581,8 @@ func withLocale(next http.Handler, secure bool) http.Handler {
 		ctx := i18n.WithLocale(r.Context(), l)
 		// The path, so the language switch can send the visitor back. RawQuery
 		// is dropped: it would carry a search term into a redirect target.
-		ctx = web.WithRequestPath(ctx, r.URL.Path)
+		// /compare preserves a bounded allowlist of public comparison slugs.
+		ctx = web.WithRequestPath(ctx, localeReturnPath(r))
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
