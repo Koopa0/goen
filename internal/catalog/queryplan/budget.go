@@ -71,21 +71,22 @@ func smallBudgets() []Budget {
 }
 
 func largeBudgets() []Budget {
-	// Targets from PR #25 on bare metal (~70ms warm / ~276ms cold home tiles;
-	// Latin trgm ~1.5ms; two-char Chinese ~8.8ms). Ceilings include the
-	// testcontainers envelope on this fixture plus GitHub Actions shared-runner
-	// variance (home_recommended warm peaked at ~203ms on 2026-09-14).
+	// Ceilings target sqlc production reads on the 10k fixture in testcontainers
+	// (2026-09-15): each route budget covers list and count reads separately.
+	// Warm values envelope the max of three retained warm EXPLAIN samples plus
+	// shared-runner variance headroom; cold values envelope the first post-ANALYZE
+	// sample on the same SQL.
 	return []Budget{
-		{Route: RouteHomeRecommended, WarmMaxMS: 250, ColdMaxMS: 700, MinRows: 1, MaxRows: 8},
+		{Route: RouteHomeRecommended, WarmMaxMS: 150, ColdMaxMS: 220, MinRows: 1, MaxRows: 8},
 		{Route: RouteHomeCategories, WarmMaxMS: 5, ColdMaxMS: 20, MinRows: 6, MaxRows: 8},
-		{Route: RouteCategoryListing, WarmMaxMS: 25, ColdMaxMS: 50, MinRows: 1, MaxRows: 24},
-		{Route: RouteCategoryFiltered, WarmMaxMS: 25, ColdMaxMS: 50, MinRows: 0, MaxRows: 24},
-		{Route: RouteCategoryPriceAsc, WarmMaxMS: 25, ColdMaxMS: 50, MinRows: 1, MaxRows: 24},
-		{Route: RouteCategoryDeepPage, WarmMaxMS: 25, ColdMaxMS: 50, MinRows: 0, MaxRows: 24},
-		{Route: RouteSearchNameLatin, WarmMaxMS: 50, ColdMaxMS: 80, MinRows: 1, MaxRows: 24},
-		{Route: RouteSearchBrand, WarmMaxMS: 40, ColdMaxMS: 60, MinRows: 1, MaxRows: 24},
-		{Route: RouteSearchChinese, WarmMaxMS: 50, ColdMaxMS: 80, MinRows: 0, MaxRows: 24},
-		{Route: RouteSearchNoMatch, WarmMaxMS: 40, ColdMaxMS: 60, MinRows: 0, MaxRows: 0},
+		{Route: RouteCategoryListing, WarmMaxMS: 80, ColdMaxMS: 80, MinRows: 1, MaxRows: 24},
+		{Route: RouteCategoryFiltered, WarmMaxMS: 35, ColdMaxMS: 40, MinRows: 0, MaxRows: 24},
+		{Route: RouteCategoryPriceAsc, WarmMaxMS: 80, ColdMaxMS: 80, MinRows: 1, MaxRows: 24},
+		{Route: RouteCategoryDeepPage, WarmMaxMS: 95, ColdMaxMS: 95, MinRows: 0, MaxRows: 24},
+		{Route: RouteSearchNameLatin, WarmMaxMS: 135, ColdMaxMS: 135, MinRows: 1, MaxRows: 24},
+		{Route: RouteSearchBrand, WarmMaxMS: 95, ColdMaxMS: 95, MinRows: 1, MaxRows: 24},
+		{Route: RouteSearchChinese, WarmMaxMS: 65, ColdMaxMS: 65, MinRows: 0, MaxRows: 24},
+		{Route: RouteSearchNoMatch, WarmMaxMS: 65, ColdMaxMS: 65, MinRows: 0, MaxRows: 0},
 	}
 }
 

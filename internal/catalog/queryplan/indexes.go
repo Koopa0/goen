@@ -44,7 +44,7 @@ var IndexCatalogue = []IndexCoverage{
 // UnindexedPredicates names filters the planner must evaluate without a dedicated
 // catalogue index today.
 var UnindexedPredicates = []string{
-	"name_en / summary / summary_en / brand ILIKE (SearchProducts broad match)",
+	"name_en / summary / summary_en / brand / product_specs ILIKE (SearchProducts broad match)",
 	"short Chinese ILIKE on name (too unselective for trgm; seq scan per 001 comment)",
 	"variant EXISTS filters (in_stock, min/max price) on CategoryListing",
 	"price_asc / price_desc / rating sort (sort keys come from LATERAL aggregates)",

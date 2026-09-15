@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -46,51 +47,46 @@ func MeasureAll(ctx context.Context, pool *pgxpool.Pool, scale Scale, commitSHA 
 
 	var out []Result
 	for _, q := range queries {
-		// Cold is the first EXPLAIN after ANALYZE; warm is a second run with the
-		// plan already cached. Shared-buffer cold starts are owned by #333.
+		// Cold is the first EXPLAIN after ANALYZE; warm repeats use a cached plan.
+		// Shared-buffer cold starts are owned by #333.
 		cold, err := measureQuery(ctx, pool, scale, q, false, commitSHA)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, cold)
+		out = append(out, cold...)
 
 		warm, err := measureQuery(ctx, pool, scale, q, true, commitSHA)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, warm)
+		out = append(out, warm...)
 	}
 	return out, nil
 }
 
-// warmSamples is how many warm EXPLAIN runs the harness keeps; budget checks
-// use the minimum execution time so a single slow CI sample cannot fail schema.
+// warmSamples is how many warm EXPLAIN runs the harness keeps per query.
 const warmSamples = 3
 
-func measureQuery(ctx context.Context, pool *pgxpool.Pool, scale Scale, q Query, warm bool, sha string) (Result, error) {
+func measureQuery(ctx context.Context, pool *pgxpool.Pool, scale Scale, q Query, warm bool, sha string) ([]Result, error) {
 	if !warm {
-		r, err := Measure(ctx, pool, q.Route, scale, false, q.SQL, q.Args...)
+		r, err := Measure(ctx, pool, q, scale, false, 0, sha)
 		if err != nil {
-			return Result{}, err
+			return nil, err
 		}
-		r.CommitSHA = sha
-		return r, nil
+		return []Result{r}, nil
 	}
 	if _, err := pool.Exec(ctx, q.SQL, q.Args...); err != nil {
-		return Result{}, fmt.Errorf("%s warm run: %w", q.Route, err)
+		return nil, fmt.Errorf("%s warm run: %w", q.Route, err)
 	}
-	var best Result
+	out := make([]Result, 0, warmSamples)
 	for i := range warmSamples {
-		r, err := Measure(ctx, pool, q.Route, scale, true, q.SQL, q.Args...)
+		r, err := Measure(ctx, pool, q, scale, true, i+1, sha)
 		if err != nil {
-			return Result{}, err
+			return nil, err
 		}
-		r.CommitSHA = sha
-		if i == 0 || r.ExecutionMS < best.ExecutionMS {
-			best = r
-		}
+		out = append(out, r)
 	}
-	return best, nil
+	return out, nil
 }
 
 func prepareCatalogue(ctx context.Context, pool *pgxpool.Pool) error {
@@ -99,6 +95,7 @@ func prepareCatalogue(ctx context.Context, pool *pgxpool.Pool) error {
 		"ANALYZE product_variants",
 		"ANALYZE product_images",
 		"ANALYZE product_reviews",
+		"ANALYZE product_specs",
 		"ANALYZE brands",
 		"ANALYZE categories",
 	}
@@ -139,6 +136,7 @@ func catalogueScope(ctx context.Context, pool *pgxpool.Pool) (categoryIDs []uuid
 }
 
 // WriteArtifacts stores JSON evidence under internal/catalog/queryplan/artifacts/<sha>/.
+// Each scale write merges into the manifest so small and large runs both survive.
 func WriteArtifacts(results []Result, commitSHA string) (string, error) {
 	root, rootErr := repoRoot()
 	if rootErr != nil {
@@ -149,7 +147,11 @@ func WriteArtifacts(results []Result, commitSHA string) (string, error) {
 		return "", mkdirErr
 	}
 	path := filepath.Join(dir, "results.json")
-	payload, err := json.MarshalIndent(results, "", "  ")
+	merged, err := mergeArtifactResults(path, results)
+	if err != nil {
+		return "", err
+	}
+	payload, err := json.MarshalIndent(merged, "", "  ")
 	if err != nil {
 		return "", err
 	}
@@ -157,6 +159,78 @@ func WriteArtifacts(results []Result, commitSHA string) (string, error) {
 		return "", err
 	}
 	return path, nil
+}
+
+func mergeArtifactResults(path string, incoming []Result) ([]Result, error) {
+	if len(incoming) == 0 {
+		return readArtifactResults(path)
+	}
+	existing, err := readArtifactResults(path)
+	if err != nil {
+		return nil, err
+	}
+	replaced := map[Scale]bool{}
+	for i := range incoming {
+		replaced[incoming[i].Scale] = true
+	}
+	out := make([]Result, 0, len(existing)+len(incoming))
+	for i := range existing {
+		if !replaced[existing[i].Scale] {
+			out = append(out, existing[i])
+		}
+	}
+	out = append(out, incoming...)
+	slices.SortFunc(out, compareArtifactResults)
+	return out, nil
+}
+
+func compareArtifactResults(a, b Result) int {
+	if a.Scale != b.Scale {
+		if a.Scale == ScaleSmall {
+			return -1
+		}
+		return 1
+	}
+	if a.Route != b.Route {
+		if a.Route < b.Route {
+			return -1
+		}
+		return 1
+	}
+	if a.Warm != b.Warm {
+		if !a.Warm {
+			return -1
+		}
+		return 1
+	}
+	if a.WarmSample != b.WarmSample {
+		if a.WarmSample < b.WarmSample {
+			return -1
+		}
+		return 1
+	}
+	if a.CountRead != b.CountRead {
+		if !a.CountRead {
+			return -1
+		}
+		return 1
+	}
+	return 0
+}
+
+func readArtifactResults(path string) ([]Result, error) {
+	data, err := os.ReadFile(path) //nolint:gosec // G304: path joins repo root to a fixed artifact filename
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var out []Result
+	if err := json.Unmarshal(data, &out); err != nil {
+		return nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+	return out, nil
 }
 
 func repoRoot() (string, error) {
