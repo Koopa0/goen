@@ -1,1 +1,3 @@
 internal/product.Store.answer # reason: the integration-tag facade preserves the customer-answer invariants for the documented storefront reply route that is not wired yet
+internal/outbound.ResetAdmission # reason: clears per-dependency admission between outbound fault-injection tests in payment and admin
+internal/outbound.MaxActiveCalls # reason: documents admission ceilings for outbound tests now and #332 saturation reporting next
