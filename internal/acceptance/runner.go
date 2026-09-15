@@ -3,6 +3,7 @@ package acceptance
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -129,6 +130,7 @@ func runGoTest(ctx context.Context, root, scenarioID string, assertion Assertion
 	args = append(args,
 		"-count=1",
 		"-race",
+		"-json",
 		assertion.Package,
 		"-run", "^"+assertion.Run+"$",
 	)
@@ -138,15 +140,69 @@ func runGoTest(ctx context.Context, root, scenarioID string, assertion Assertion
 	cmd.Stdout = &output
 	cmd.Stderr = &output
 	err := cmd.Run()
+	outputText := output.String()
+	if evidenceErr := verifyRequiredGoTest(outputText, assertion.Run); evidenceErr != nil {
+		if err == nil {
+			err = evidenceErr
+		}
+	}
 	return Result{
 		ScenarioID: scenarioID,
 		Assertion:  assertion,
 		Status:     StatusReady,
 		Command:    "go " + strings.Join(args, " "),
 		Duration:   time.Since(start),
-		Output:     output.String(),
+		Output:     outputText,
 		Err:        err,
 	}
+}
+
+type goTestEvent struct {
+	Action string
+	Test   string
+	Output string
+}
+
+func verifyRequiredGoTest(output, testName string) error {
+	if strings.TrimSpace(output) == "" {
+		return fmt.Errorf("required test %q produced no go test output", testName)
+	}
+	var (
+		sawEvent bool
+		passed   bool
+	)
+	for line := range strings.SplitSeq(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var event goTestEvent
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			return fmt.Errorf("required test %q produced malformed go test output: %w", testName, err)
+		}
+		sawEvent = true
+		if event.Test != testName {
+			if event.Test == "" && strings.Contains(event.Output, "no tests to run") {
+				return fmt.Errorf("required test %q did not run", testName)
+			}
+			continue
+		}
+		switch event.Action {
+		case "pass":
+			passed = true
+		case "skip":
+			return fmt.Errorf("required test %q was skipped", testName)
+		case "fail":
+			return fmt.Errorf("required test %q failed", testName)
+		}
+	}
+	if !sawEvent {
+		return fmt.Errorf("required test %q produced no structured go test events", testName)
+	}
+	if !passed {
+		return fmt.Errorf("required test %q did not pass", testName)
+	}
+	return nil
 }
 
 func runBrowser(ctx context.Context, root, scenarioID string, assertion Assertion) Result {
