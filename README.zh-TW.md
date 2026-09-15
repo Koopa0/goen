@@ -7,7 +7,8 @@
 [![Apache-2.0](https://img.shields.io/badge/Apache--2.0-blue)](LICENSE)
 
 goen 是電商示範與參考專案，提供買家瀏覽比價、下單與管理訂單，也讓店家透過後台
-處理商品與出貨。專案不提供代管服務。
+處理商品與出貨。專案不是真的可以買東西的商店：[goen.koopa0.dev](https://goen.koopa0.dev)
+跑的是 `seed/` 裡的種子型錄，金流關閉，信件出不了那台機器，資料庫每晚還原。
 
 ![繁體中文店面：商品分類與推薦商品](assets/readme/storefront.zh-TW.png)
 
