@@ -46,8 +46,19 @@ var (
 		En:     "The name or phone is too long, or contains a character that is not allowed.",
 	})
 
+	KeyCartMergeRecoveryTitle = key("account.cart.merge.title", Message{
+		ZhHant: "購物車合併",
+		En:     "Cart merge",
+	})
+
 	KeyCartMergeFailed = key("account.notice.cart.mergefailed", Message{
-		ZhHant: "購物車合併未成功，原有商品仍保留於購物車中。",
-		En:     "Cart merge was not completed. Your existing items remain in the cart.",
+		ZhHant: "登入後購物車未能合併。此瀏覽器目前顯示的是訪客購物車；您帳戶中的購物車仍保留原有品項。",
+		En: "Your carts could not be merged after sign-in. This browser is still showing your guest cart; " +
+			"your account cart still holds its existing items.",
+	})
+
+	KeyCartMergeRetry = key("account.cart.merge.retry", Message{
+		ZhHant: "重試合併購物車",
+		En:     "Retry cart merge",
 	})
 )

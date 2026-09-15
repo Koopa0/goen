@@ -87,11 +87,7 @@ func (h *Handler) closeSessions(ctx context.Context, number string, sessions []s
 func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	cartID, ok := h.existingCart(r)
 	if !ok {
-		view := pages.CartView{}
-		if r.URL.Query().Get("cart") == "mergefailed" {
-			view.Notice = i18n.T(r.Context(), i18n.KeyCartMergeFailed)
-		}
-		web.Render(w, r, h.log, http.StatusOK, pages.Cart(pages.CartMeta(r.Context()), view))
+		web.Render(w, r, h.log, http.StatusOK, pages.Cart(pages.CartMeta(r.Context()), pages.CartView{}))
 		return
 	}
 	view, err := h.store.View(r.Context(), cartID)
@@ -101,9 +97,6 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view.ReorderAdded, view.ReorderSkipped = reorderOutcome(r)
-	if r.URL.Query().Get("cart") == "mergefailed" {
-		view.Notice = i18n.T(r.Context(), i18n.KeyCartMergeFailed)
-	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Cart(pages.CartMeta(r.Context()), view))
 }
 
