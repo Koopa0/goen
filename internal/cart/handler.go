@@ -336,7 +336,7 @@ func (h *Handler) answerPriorCheckout(
 		return false
 	}
 	if err := h.rememberOrder(w, r, prior); err != nil {
-		h.serverError(w, r)
+		h.placementGrantFailed(w, r)
 		return true
 	}
 	http.Redirect(w, r, "/orders/"+prior+"/pay", http.StatusSeeOther) //nolint:gosec // server-generated order number
@@ -497,7 +497,7 @@ func (h *Handler) answerPlacement(
 	switch {
 	case err == nil:
 		if rememberErr := h.rememberOrder(w, r, number); rememberErr != nil {
-			h.serverError(w, r)
+			h.placementGrantFailed(w, r)
 			return
 		}
 		// Straight to payment rather than to the confirmation, which shown
@@ -1137,6 +1137,16 @@ func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
 		i18n.T(r.Context(), i18n.KeyCartUnavailable)))
 }
 
+func (h *Handler) placementGrantFailed(w http.ResponseWriter, r *http.Request) {
+	web.Render(w, r, h.log, http.StatusInternalServerError, pages.PlacementGrantFailed(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyPlacementGrantFailedTitle)}))
+}
+
+func (h *Handler) findOrderGrantFailed(w http.ResponseWriter, r *http.Request) {
+	web.Render(w, r, h.log, http.StatusInternalServerError, pages.FindOrderGrantFailed(
+		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyFindOrderGrantFailedTitle)}))
+}
+
 // notFoundPage is the shell for "no such order".
 func (h *Handler) notFoundPage(r *http.Request) layouts.Page {
 	return layouts.Page{Title: i18n.T(r.Context(), i18n.KeyOrderNotFound)}
@@ -1207,7 +1217,7 @@ func (h *Handler) FindOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.rememberOrder(w, r, number); err != nil {
-		h.serverError(w, r)
+		h.findOrderGrantFailed(w, r)
 		return
 	}
 	http.Redirect(w, r, "/orders/"+url.PathEscape(number), http.StatusSeeOther)
