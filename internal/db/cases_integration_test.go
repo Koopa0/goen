@@ -977,6 +977,108 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO payment_webhook_events (provider, event_id, type, payload) VALUES ('stripe','evt_acc_type','payment_intent.succeeded','{}'::jsonb);`,
 	},
 	{
+		constraint: "payment_disputes_amount_positive",
+		reject:     `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110060-0000-4000-8000-000000000001','77770001-0000-4000-8000-000000000000','dp_rej_amt','ch_rej_amt',0,'needs_response',now());`,
+		accept:     `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110060-0000-4000-8000-000000000001','77770001-0000-4000-8000-000000000000','dp_acc_amt','ch_acc_amt',1,'needs_response',now());`,
+	},
+	{
+		constraint: "payment_disputes_amount_in_range",
+		reject:     `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110060-0000-4000-8000-000000000002','77770001-0000-4000-8000-000000000000','dp_rej_range','ch_rej_range',10000000001,'needs_response',now());`,
+		accept:     `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110060-0000-4000-8000-000000000002','77770001-0000-4000-8000-000000000000','dp_acc_range','ch_acc_range',10000000000,'needs_response',now());`,
+	},
+	{
+		constraint: "payment_disputes_currency_is_twd",
+		reject:     `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, currency, status, provider_seen_at) VALUES ('11110060-0000-4000-8000-000000000003','77770001-0000-4000-8000-000000000000','dp_rej_cur','ch_rej_cur',1000,'USD','needs_response',now());`,
+		accept:     `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110060-0000-4000-8000-000000000003','77770001-0000-4000-8000-000000000000','dp_acc_cur','ch_acc_cur',1000,'needs_response',now());`,
+	},
+	{
+		constraint: "payment_disputes_provider_known",
+		reject:     `INSERT INTO payment_disputes (id, payment_id, provider, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110060-0000-4000-8000-000000000004','77770001-0000-4000-8000-000000000000','paypal','dp_rej_provider','ch_rej_provider',1000,'needs_response',now());`,
+		accept:     `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110060-0000-4000-8000-000000000004','77770001-0000-4000-8000-000000000000','dp_acc_provider','ch_acc_provider',1000,'needs_response',now());`,
+	},
+	{
+		constraint: "payment_disputes_provider_ref_valid",
+		reject:     `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110060-0000-4000-8000-000000000005','77770001-0000-4000-8000-000000000000',E'dp_good\nforged','ch_acc_pref',1000,'needs_response',now());`,
+		accept:     `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110060-0000-4000-8000-000000000005','77770001-0000-4000-8000-000000000000','dp_acc_pref',repeat('c', 255),1000,'needs_response',now());`,
+	},
+	{
+		constraint: "payment_disputes_charge_ref_valid",
+		reject:     `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110060-0000-4000-8000-000000000006','77770001-0000-4000-8000-000000000000','dp_acc_chref',E'ch_good\nforged',1000,'needs_response',now());`,
+		accept:     `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110060-0000-4000-8000-000000000006','77770001-0000-4000-8000-000000000000','dp_acc_chref',repeat('c', 255),1000,'needs_response',now());`,
+	},
+	{
+		constraint: "payment_disputes_status_known",
+		reject:     `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110060-0000-4000-8000-000000000007','77770001-0000-4000-8000-000000000000','dp_rej_status','ch_rej_status',1000,'fraudulent',now());`,
+		accept:     `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110060-0000-4000-8000-000000000007','77770001-0000-4000-8000-000000000000','dp_acc_status','ch_acc_status',1000,'needs_response',now());`,
+	},
+	{
+		constraint: "payment_disputes_disposition_known",
+		reject:     `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, disposition, reviewed_by, reviewed_at, provider_seen_at) VALUES ('11110060-0000-4000-8000-000000000008','77770001-0000-4000-8000-000000000000','dp_rej_disp','ch_rej_disp',1000,'needs_response','escalated','55555555-5555-4555-8555-555555555555',now(),now());`,
+		accept:     `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, disposition, reviewed_by, reviewed_at, provider_seen_at) VALUES ('11110060-0000-4000-8000-000000000008','77770001-0000-4000-8000-000000000000','dp_acc_disp','ch_acc_disp',1000,'needs_response','monitoring','55555555-5555-4555-8555-555555555555',now(),now());`,
+	},
+	{
+		constraint: "payment_disputes_reviewed_shape",
+		reject:     `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, reviewed_by, provider_seen_at) VALUES ('11110060-0000-4000-8000-000000000009','77770001-0000-4000-8000-000000000000','dp_rej_review','ch_rej_review',1000,'needs_response','55555555-5555-4555-8555-555555555555',now());`,
+		accept:     `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110060-0000-4000-8000-000000000009','77770001-0000-4000-8000-000000000000','dp_acc_review','ch_acc_review',1000,'needs_response',now());`,
+	},
+	{
+		constraint: "payment_dispute_events_provider_known",
+		reject: `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110061-0000-4000-8000-000000000001','77770001-0000-4000-8000-000000000000','dp_evt_rej','ch_evt_rej',1000,'needs_response',now());
+		         INSERT INTO payment_dispute_events (provider, provider_event_id, dispute_id, provider_status, observed_at) VALUES ('paypal','evt_rej_provider','11110061-0000-4000-8000-000000000001','needs_response',now());`,
+		accept: `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110061-0000-4000-8000-000000000001','77770001-0000-4000-8000-000000000000','dp_evt_acc','ch_evt_acc',1000,'needs_response',now());
+		         INSERT INTO payment_dispute_events (provider_event_id, dispute_id, provider_status, observed_at) VALUES ('evt_acc_provider','11110061-0000-4000-8000-000000000001','needs_response',now());`,
+	},
+	{
+		constraint: "payment_dispute_events_event_id_valid",
+		reject: `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110061-0000-4000-8000-000000000002','77770001-0000-4000-8000-000000000000','dp_evt_id_rej','ch_evt_id_rej',1000,'needs_response',now());
+		         INSERT INTO payment_dispute_events (provider_event_id, dispute_id, provider_status, observed_at) VALUES (E'evt_good\nforged','11110061-0000-4000-8000-000000000002','needs_response',now());`,
+		accept: `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110061-0000-4000-8000-000000000002','77770001-0000-4000-8000-000000000000','dp_evt_id_acc','ch_evt_id_acc',1000,'needs_response',now());
+		         INSERT INTO payment_dispute_events (provider_event_id, dispute_id, provider_status, observed_at) VALUES (repeat('e', 255),'11110061-0000-4000-8000-000000000002','needs_response',now());`,
+	},
+	{
+		constraint: "payment_dispute_movements_kind_known",
+		reject: `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110062-0000-4000-8000-000000000001','77770001-0000-4000-8000-000000000000','dp_move_rej','ch_move_rej',1000,'needs_response',now());
+		         INSERT INTO payment_dispute_movements (dispute_id, kind, amount_cents, provider_ref) VALUES ('11110062-0000-4000-8000-000000000001','refunded',1000,'txn_rej_kind');`,
+		accept: `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110062-0000-4000-8000-000000000001','77770001-0000-4000-8000-000000000000','dp_move_acc','ch_move_acc',1000,'needs_response',now());
+		         INSERT INTO payment_dispute_movements (dispute_id, kind, amount_cents, provider_ref) VALUES ('11110062-0000-4000-8000-000000000001','withdrawn',1000,'txn_acc_kind');`,
+	},
+	{
+		constraint: "payment_dispute_movements_amount_positive",
+		reject: `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110062-0000-4000-8000-000000000002','77770001-0000-4000-8000-000000000000','dp_move_amt_rej','ch_move_amt_rej',1000,'needs_response',now());
+		         INSERT INTO payment_dispute_movements (dispute_id, kind, amount_cents, provider_ref) VALUES ('11110062-0000-4000-8000-000000000002','withdrawn',0,'txn_rej_amt');`,
+		accept: `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110062-0000-4000-8000-000000000002','77770001-0000-4000-8000-000000000000','dp_move_amt_acc','ch_move_amt_acc',1000,'needs_response',now());
+		         INSERT INTO payment_dispute_movements (dispute_id, kind, amount_cents, provider_ref) VALUES ('11110062-0000-4000-8000-000000000002','withdrawn',1,'txn_acc_amt');`,
+	},
+	{
+		constraint: "payment_dispute_movements_amount_in_range",
+		reject: `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110062-0000-4000-8000-000000000003','77770001-0000-4000-8000-000000000000','dp_move_rng_rej','ch_move_rng_rej',1000,'needs_response',now());
+		         INSERT INTO payment_dispute_movements (dispute_id, kind, amount_cents, provider_ref) VALUES ('11110062-0000-4000-8000-000000000003','withdrawn',10000000001,'txn_rej_rng');`,
+		accept: `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110062-0000-4000-8000-000000000003','77770001-0000-4000-8000-000000000000','dp_move_rng_acc','ch_move_rng_acc',1000,'needs_response',now());
+		         INSERT INTO payment_dispute_movements (dispute_id, kind, amount_cents, provider_ref) VALUES ('11110062-0000-4000-8000-000000000003','withdrawn',10000000000,'txn_acc_rng');`,
+	},
+	{
+		constraint: "payment_dispute_movements_ref_valid",
+		reject: `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110062-0000-4000-8000-000000000004','77770001-0000-4000-8000-000000000000','dp_move_ref_rej','ch_move_ref_rej',1000,'needs_response',now());
+		         INSERT INTO payment_dispute_movements (dispute_id, kind, amount_cents, provider_ref) VALUES ('11110062-0000-4000-8000-000000000004','withdrawn',1000,E'txn_good\nforged');`,
+		accept: `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110062-0000-4000-8000-000000000004','77770001-0000-4000-8000-000000000000','dp_move_ref_acc','ch_move_ref_acc',1000,'needs_response',now());
+		         INSERT INTO payment_dispute_movements (dispute_id, kind, amount_cents, provider_ref) VALUES ('11110062-0000-4000-8000-000000000004','withdrawn',1000,repeat('t', 255));`,
+	},
+	{
+		constraint: "payment_provider_links_provider_known",
+		reject:     `INSERT INTO payment_provider_links (payment_id, provider, link_kind, provider_ref) VALUES ('77770001-0000-4000-8000-000000000000','paypal','charge','ch_link_rej');`,
+		accept:     `INSERT INTO payment_provider_links (payment_id, link_kind, provider_ref) VALUES ('77770001-0000-4000-8000-000000000000','charge','ch_link_acc');`,
+	},
+	{
+		constraint: "payment_provider_links_kind_known",
+		reject:     `INSERT INTO payment_provider_links (payment_id, link_kind, provider_ref) VALUES ('77770001-0000-4000-8000-000000000000','session','pi_link_rej');`,
+		accept:     `INSERT INTO payment_provider_links (payment_id, link_kind, provider_ref) VALUES ('77770001-0000-4000-8000-000000000000','payment_intent','pi_link_acc');`,
+	},
+	{
+		constraint: "payment_provider_links_ref_valid",
+		reject:     `INSERT INTO payment_provider_links (payment_id, link_kind, provider_ref) VALUES ('77770001-0000-4000-8000-000000000000','charge',E'ch_good\nforged');`,
+		accept:     `INSERT INTO payment_provider_links (payment_id, link_kind, provider_ref) VALUES ('77770001-0000-4000-8000-000000000000','charge',repeat('l', 255));`,
+	},
+	{
 		constraint: "payments_captured_non_negative",
 		reject:     `INSERT INTO payments (id, order_id, provider_ref, status, intended_amount_cents, captured_amount_cents) VALUES ('11110001-0000-4000-8000-000000000004','6666aaaa-6666-4666-8666-666666666666','pi_rej_captured','processing',6788000,-1);`,
 		accept:     `INSERT INTO payments (id, order_id, provider_ref, status, intended_amount_cents, captured_amount_cents) VALUES ('11110001-0000-4000-8000-000000000004','6666aaaa-6666-4666-8666-666666666666','pi_acc_captured','processing',6788000,NULL);`,
@@ -2350,6 +2452,22 @@ VALUES ('66666666-6666-4666-8666-666666666666', '4444aaaa-4444-4444-8444-4444444
 		index:  "refunds_provider_ref_key",
 		reject: `INSERT INTO refunds (id, payment_id, request_key, provider_ref, status, amount_cents) VALUES ('11110006-0000-4000-8000-000000000001','77770001-0000-4000-8000-000000000000','rk-pra','pr_dup','pending',100000); INSERT INTO refunds (id, payment_id, request_key, provider_ref, status, amount_cents) VALUES ('11110006-0000-4000-8000-000000000002','77770001-0000-4000-8000-000000000000','rk-prb','pr_dup','pending',100000);`,
 		accept: `INSERT INTO refunds (id, payment_id, request_key, provider_ref, status, amount_cents) VALUES ('11110006-0000-4000-8000-000000000001','77770001-0000-4000-8000-000000000000','rk-pra',NULL,'pending',100000); INSERT INTO refunds (id, payment_id, request_key, provider_ref, status, amount_cents) VALUES ('11110006-0000-4000-8000-000000000002','77770001-0000-4000-8000-000000000000','rk-prb',NULL,'pending',100000);`,
+	},
+	{
+		index: "payment_disputes_provider_ref_key",
+		reject: `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110063-0000-4000-8000-000000000001','77770001-0000-4000-8000-000000000000','dp_unique','ch_unique_a',1000,'needs_response',now());
+		         INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110063-0000-4000-8000-000000000002','77770001-0000-4000-8000-000000000000','dp_unique','ch_unique_b',1000,'needs_response',now());`,
+		accept: `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110063-0000-4000-8000-000000000001','77770001-0000-4000-8000-000000000000','dp_unique_a','ch_unique_a',1000,'needs_response',now());
+		         INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110063-0000-4000-8000-000000000002','77770001-0000-4000-8000-000000000000','dp_unique_b','ch_unique_b',1000,'needs_response',now());`,
+	},
+	{
+		index: "payment_dispute_movements_provider_ref_key",
+		reject: `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110064-0000-4000-8000-000000000001','77770001-0000-4000-8000-000000000000','dp_move_unique','ch_move_unique',1000,'needs_response',now());
+		         INSERT INTO payment_dispute_movements (dispute_id, kind, amount_cents, provider_ref) VALUES ('11110064-0000-4000-8000-000000000001','withdrawn',1000,'txn_dup');
+		         INSERT INTO payment_dispute_movements (dispute_id, kind, amount_cents, provider_ref) VALUES ('11110064-0000-4000-8000-000000000001','reinstated',1000,'txn_dup');`,
+		accept: `INSERT INTO payment_disputes (id, payment_id, provider_ref, charge_ref, amount_cents, status, provider_seen_at) VALUES ('11110064-0000-4000-8000-000000000001','77770001-0000-4000-8000-000000000000','dp_move_unique','ch_move_unique',1000,'needs_response',now());
+		         INSERT INTO payment_dispute_movements (dispute_id, kind, amount_cents, provider_ref) VALUES ('11110064-0000-4000-8000-000000000001','withdrawn',1000,'txn_a');
+		         INSERT INTO payment_dispute_movements (dispute_id, kind, amount_cents, provider_ref) VALUES ('11110064-0000-4000-8000-000000000001','reinstated',1000,'txn_b');`,
 	},
 	{
 		index:  "refunds_request_key_key",
