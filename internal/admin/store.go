@@ -223,6 +223,9 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 	if invErr := s.fillInvoices(ctx, &view, number); invErr != nil {
 		return pages.AdminOrderView{}, invErr
 	}
+	if refundErr := s.fillProviderRefunds(ctx, &view, number); refundErr != nil {
+		return pages.AdminOrderView{}, refundErr
+	}
 	for _, n := range NextStatuses(fulfillment) {
 		view.Next = append(view.Next, pages.AdminTransition{Value: n, Label: StatusLabel(ctx, n)})
 	}
@@ -430,6 +433,33 @@ func (s *Store) fillInvoices(ctx context.Context, view *pages.AdminOrderView, nu
 		return fmt.Errorf("read settled refunds for %s: %w", number, err)
 	}
 	view.RefundedCents = refunded
+	return nil
+}
+
+func (s *Store) fillProviderRefunds(
+	ctx context.Context, view *pages.AdminOrderView, number string,
+) error {
+	rows, err := s.q.ProviderRefundFactsForOrder(ctx, number)
+	if err != nil {
+		return fmt.Errorf("read provider refund facts for %s: %w", number, err)
+	}
+	for i := range rows {
+		r := &rows[i]
+		view.ProviderRefunds = append(view.ProviderRefunds, pages.AdminProviderRefundFact{
+			ProviderRef: r.ProviderRef,
+			AmountCents: r.AmountCents,
+			Status:      r.Status,
+			Allocation:  r.Allocation,
+			NeedsReview: r.NeedsReview,
+			CreatedAt:   shoptime.Minute(r.CreatedAt),
+		})
+		if r.Allocation == "external" && r.Status == "succeeded" {
+			view.ExternalRefundCents += r.AmountCents
+		}
+		if r.NeedsReview {
+			view.UnresolvedRefundCents += r.AmountCents
+		}
+	}
 	return nil
 }
 
