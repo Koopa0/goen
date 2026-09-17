@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -73,6 +74,18 @@ func (b RatingBar) CountText() string { return strconv.FormatInt(b.Count, 10) }
 // taken rather than the one below so the error is never one-sided.
 func (b RatingBar) WidthClass() string {
 	return "goen-pdp__barfill--" + strconv.Itoa((b.Percent+5)/10*10)
+}
+
+// Trail is the breadcrumb, from the shop's front page down to this product.
+// The last step carries no link: a link to where you already are is a step a
+// keyboard has to pass through for nothing.
+func (v *ProductView) Trail(ctx context.Context) []components.Crumb {
+	trail := []components.Crumb{{Label: i18n.T(ctx, i18n.KeyHome), Href: "/"}}
+	for _, c := range v.Crumbs {
+		trail = append(trail, components.Crumb{Label: c.Name, Href: "/c/" + c.Slug})
+	}
+	trail = append(trail, components.Crumb{Label: v.CategoryName, Href: "/c/" + v.CategorySlug})
+	return append(trail, components.Crumb{Label: v.Name})
 }
 
 // ProductReview is one published review.
