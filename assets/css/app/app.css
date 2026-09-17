@@ -1723,6 +1723,23 @@ textarea.goen-input {
   margin: 0;
 }
 
+/* An instruction rather than a state: no panel, no border, the same muted
+   voice the assurances use. */
+.goen-pdp__hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+}
+
+.goen-pdp__hint svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
 /* The one primary action, and the outcome of the last press directly under it
    with nothing in between. A phone has to show both at once, or the
    confirmation is a sentence about a button that has scrolled away. */

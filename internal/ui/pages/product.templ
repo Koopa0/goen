@@ -204,9 +204,14 @@ templ productBuy(v *ProductView) {
 				{ i18n.T(ctx, i18n.KeyAllSoldOutHint) }
 			}
 		} else if v.NeedsChoice() {
-			@components.Notice(components.NoticeProps{Class: "goen-pdp__note"}) {
-				{ i18n.T(ctx, i18n.KeyChooseBeforeAdding) }
-			}
+			// Guidance, not a state. A variant not found and a product sold out
+			// are things that went wrong; this one is an instruction, and a
+			// filled panel gives it the weight of a refusal on the page's
+			// landing view — which every link on the site opens.
+			<p class="goen-pdp__hint" role="status">
+				@icons.AlertCircle()
+				<span>{ i18n.T(ctx, i18n.KeyChooseBeforeAdding) }</span>
+			</p>
 		}
 		@productAddForm(v)
 		if v.SoldOut() {
