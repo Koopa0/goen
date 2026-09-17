@@ -66,8 +66,14 @@ func (b RatingBar) StarsText() string { return strconv.Itoa(b.Stars) }
 // CountText is how many reviews gave this many stars.
 func (b RatingBar) CountText() string { return strconv.FormatInt(b.Count, 10) }
 
-// PercentStyle is the inline width for the bar's fill.
-func (b RatingBar) PercentStyle() string { return "width:" + strconv.Itoa(b.Percent) + "%" }
+// WidthClass is the bar's width, as a class app.css carries. It cannot be an
+// inline style: goen's Content-Security-Policy has no 'unsafe-inline' under
+// style-src, so a refused width draws no bar at all. The ladder steps by ten,
+// which is finer than five buckets can distinguish, and the nearest step is
+// taken rather than the one below so the error is never one-sided.
+func (b RatingBar) WidthClass() string {
+	return "goen-pdp__barfill--" + strconv.Itoa((b.Percent+5)/10*10)
+}
 
 // ProductReview is one published review.
 type ProductReview struct {
