@@ -180,9 +180,14 @@ h4,
    surface using one is rebuilt, and nothing wears both -- an element carrying
    a .goen- class and its .ui- ancestor is two systems painting one box.
 
-   Control heights follow the reference: 36px is the default, 32 small, 40
-   large. A pointer that is a finger gets 44 at the foot of this section,
-   because a target sized for a cursor is not one sized for a thumb.
+   Control heights are 44px, which is goen's rule and not the reference's:
+   `scripts/check-layout.mjs:1300` sweeps `button, .ui-btn, input[type=number]`
+   on every route and fails under `MIN_TAP`. The reference's 36px default is a
+   desktop density this gate rejects, so what is ported from it is the
+   proportion — padding, type step, radius, weight — and not the height. A
+   media query for coarse pointers was the wrong answer: headless Chrome
+   reports a fine pointer, and more to the point a 36px target is small for a
+   mouse too.
    ------------------------------------------------------------------------ */
 
 .goen-btn {
@@ -191,7 +196,7 @@ h4,
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: 2.25rem;
+  height: 2.75rem;
   padding: 0 1rem;
   border: 1px solid transparent;
   border-radius: var(--r-md);
@@ -226,18 +231,20 @@ h4,
   box-shadow: 0 0 0 3px var(--accent-muted);
 }
 
+/* Small is less padding and a smaller type step, never a smaller target. */
 .goen-btn--sm {
-  height: 2rem;
   padding: 0 0.75rem;
+  font-size: var(--fs-13);
 }
 
 .goen-btn--lg {
-  height: 2.5rem;
+  height: 3rem;
   padding: 0 1.5rem;
+  font-size: var(--fs-16);
 }
 
 .goen-btn--icon {
-  width: 2.25rem;
+  width: 2.75rem;
   padding: 0;
 }
 
@@ -387,7 +394,7 @@ h4,
 .goen-input {
   box-sizing: border-box;
   width: 100%;
-  height: 2.25rem;
+  height: 2.75rem;
   padding: 0.25rem 0.75rem;
   border: 1px solid var(--border);
   border-radius: var(--r-md);
@@ -452,25 +459,6 @@ textarea.goen-input {
 .goen-crumbs__current {
   color: var(--fg);
   font-weight: var(--fw-medium);
-}
-
-/* A finger is not a cursor. Where the pointer is coarse every control grows to
-   the 44px a thumb needs, which is padding around the same box rather than a
-   different design for touch. */
-@media (pointer: coarse) {
-  .goen-btn,
-  .goen-input,
-  .goen-btn--sm {
-    height: 2.75rem;
-  }
-
-  .goen-btn--icon {
-    width: 2.75rem;
-  }
-
-  textarea.goen-input {
-    height: auto;
-  }
 }
 
 /* ---------- Header ---------- */
