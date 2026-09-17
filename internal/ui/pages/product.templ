@@ -371,7 +371,7 @@ templ productReviews(v *ProductView) {
 							<div class="goen-pdp__bar">
 								<span class="goen-pdp__barlabel">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyStarsLabel), b.StarsText()) }</span>
 								<span class="ui-progress goen-pdp__bartrack">
-									<span class="ui-progress__fill" style={ b.PercentStyle() }></span>
+									<span class={ "ui-progress__fill", "goen-pdp__barfill", b.WidthClass() }></span>
 								</span>
 								<span class="goen-pdp__barcount">{ b.CountText() }</span>
 							</div>

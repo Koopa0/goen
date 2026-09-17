@@ -1384,8 +1384,68 @@ a:hover {
   text-align: right;
 }
 
+/* The histogram bar. The track's box is drawn here and not by the vendored
+   .ui-progress, which never reaches the browser: the comment at
+   assets/css/ds/components/cards.css:48 closes early inside `claude-*\/`, and
+   the rule after it is swallowed by the invalid selector that results. The fill
+   is a block because width does not apply to an inline span, and its width is a
+   class because style-src carries no 'unsafe-inline' — a refused inline width
+   leaves the row with a label, a count and nothing between them. Ten steps;
+   five buckets cannot show a finer ratio. */
 .goen-pdp__bartrack {
   display: block;
+  height: 6px;
+  border-radius: var(--r-full);
+  background: var(--overlay);
+  overflow: hidden;
+}
+
+.goen-pdp__barfill {
+  display: block;
+}
+
+.goen-pdp__barfill--0 {
+  width: 0;
+}
+
+.goen-pdp__barfill--10 {
+  width: 10%;
+}
+
+.goen-pdp__barfill--20 {
+  width: 20%;
+}
+
+.goen-pdp__barfill--30 {
+  width: 30%;
+}
+
+.goen-pdp__barfill--40 {
+  width: 40%;
+}
+
+.goen-pdp__barfill--50 {
+  width: 50%;
+}
+
+.goen-pdp__barfill--60 {
+  width: 60%;
+}
+
+.goen-pdp__barfill--70 {
+  width: 70%;
+}
+
+.goen-pdp__barfill--80 {
+  width: 80%;
+}
+
+.goen-pdp__barfill--90 {
+  width: 90%;
+}
+
+.goen-pdp__barfill--100 {
+  width: 100%;
 }
 
 .goen-pdp__reviewlist {
@@ -3542,9 +3602,12 @@ a:hover {
   border-top: 1px solid var(--border);
 }
 
-/* Brands and the category tree. The indent is a custom property because the
-   tree has no fixed depth and a stylesheet cannot enumerate what it does not
-   know. */
+/* Brands and the category tree. The indent is a ladder of attribute selectors
+   and not a custom property set inline: style-src carries no 'unsafe-inline',
+   so a refused --depth renders the whole tree flat. The schema rejects cycles
+   and nothing else, so the tree still has no maximum depth; the ladder ends at
+   six and AdminTaxon.DepthText clamps anything deeper onto that step, which
+   keeps a very deep row indented rather than losing its indent entirely. */
 .goen-admin__taxa {
   margin: 0;
   padding: 0;
@@ -3558,8 +3621,32 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 8px 0 8px calc(var(--depth, 0) * 20px);
+  padding: 8px 0;
   border-bottom: 1px solid var(--border-faint);
+}
+
+.goen-admin__taxon[data-depth="1"] {
+  padding-left: 20px;
+}
+
+.goen-admin__taxon[data-depth="2"] {
+  padding-left: 40px;
+}
+
+.goen-admin__taxon[data-depth="3"] {
+  padding-left: 60px;
+}
+
+.goen-admin__taxon[data-depth="4"] {
+  padding-left: 80px;
+}
+
+.goen-admin__taxon[data-depth="5"] {
+  padding-left: 100px;
+}
+
+.goen-admin__taxon[data-depth="6"] {
+  padding-left: 120px;
 }
 
 .goen-admin__taxonform {

@@ -5,12 +5,15 @@ import (
 	"compress/gzip"
 	"html"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -309,6 +312,66 @@ func TestCSPAllowsTheHandoverToStripe(t *testing.T) {
 	}
 	if !strings.Contains(directive, "'self'") {
 		t.Errorf("form-action is %q and no longer allows goen's own forms", directive)
+	}
+}
+
+// inlineStyleAttribute matches a style attribute written into markup, in either
+// of templ's two spellings: style="…" and style={ … }.
+var inlineStyleAttribute = regexp.MustCompile(`(?:^|\s)style\s*=`)
+
+// TestNoTemplateWritesAnInlineStyle holds contentSecurityPolicy's comment to its
+// word. style-src carries no 'unsafe-inline', so a style attribute a template
+// writes is dropped by the browser and the element renders without whatever the
+// attribute carried: a rating bar with no width, a category tree with no indent.
+// A handler test cannot see this — it reads the markup, not the policy that then
+// refuses it — so the two statements are checked against each other here.
+//
+// The guard yields if the policy ever admits inline styles. That is one decision
+// taken in server.go, not something a template may decide by drifting.
+func TestNoTemplateWritesAnInlineStyle(t *testing.T) {
+	t.Parallel()
+
+	if strings.Contains(contentSecurityPolicy, "'unsafe-inline'") {
+		t.Skip("style-src admits 'unsafe-inline'; a template may write a style attribute")
+	}
+
+	root := filepath.Join("..", "..", "internal", "ui")
+	var scanned int
+	var offenders []string
+
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil || d.IsDir() || filepath.Ext(path) != ".templ" {
+			return walkErr
+		}
+		body, readErr := os.ReadFile(path) //nolint:gosec // G304: paths come from walking a fixed directory
+		if readErr != nil {
+			return readErr
+		}
+		scanned++
+		rel, _ := filepath.Rel(root, path)
+		for i, line := range strings.Split(string(body), "\n") {
+			trimmed := strings.TrimSpace(line)
+			// A comment is prose about markup rather than markup.
+			if strings.HasPrefix(trimmed, "//") || !inlineStyleAttribute.MatchString(line) {
+				continue
+			}
+			offenders = append(offenders, "internal/ui/"+rel+":"+strconv.Itoa(i+1)+"  "+trimmed)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk %s: %v", root, err)
+	}
+	if scanned == 0 {
+		t.Fatalf("no .templ files under %s; this guard has no subject", root)
+	}
+
+	if len(offenders) > 0 {
+		t.Errorf("%d inline style attributes across %d templates, and style-src "+
+			"refuses every one of them. Carry the value in a class or a data "+
+			"attribute the stylesheet selects on, or take the decision in "+
+			"server.go to admit 'unsafe-inline':\n%s",
+			len(offenders), scanned, strings.Join(offenders, "\n"))
 	}
 }
 
