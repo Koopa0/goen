@@ -154,7 +154,7 @@ templ taxonList(kind string, title, empty i18n.Key, rows []AdminTaxon, v *AdminT
 		} else {
 			<ul class="goen-admin__taxa" role="list">
 				for _, t := range rows {
-					<li class="goen-admin__taxon" style={ t.Indent() }>
+					<li class="goen-admin__taxon" data-depth={ t.DepthText() }>
 						<form class="goen-admin__taxonform" method="post" action={ templ.SafeURL("/admin/taxonomy/" + kind + "/" + t.Slug) }>
 							<input
 								class="ui-input"
