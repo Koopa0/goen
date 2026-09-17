@@ -12,13 +12,16 @@ import "github.com/a-h/templ"
 type Variant string
 
 const (
-	VariantPrimary Variant = "primary"
-	VariantOutline Variant = "outline"
-	VariantGhost   Variant = "ghost"
+	VariantPrimary   Variant = "primary"
+	VariantSecondary Variant = "secondary"
+	VariantOutline   Variant = "outline"
+	VariantGhost     Variant = "ghost"
 )
 
 func (v Variant) class() string {
 	switch v {
+	case VariantSecondary:
+		return "goen-btn--secondary"
 	case VariantOutline:
 		return "goen-btn--outline"
 	case VariantGhost:
@@ -102,8 +105,12 @@ type ButtonProps struct {
 	Variant Variant
 	Size    Size
 	Block   bool
-	Class   string
-	Attrs   templ.Attributes
+	// Icon makes the control square, for a button whose only content is a
+	// glyph. Such a button carries its name in aria-label, so a caller that
+	// sets Icon without one has built a control a screen reader cannot name.
+	Icon  bool
+	Class string
+	Attrs templ.Attributes
 }
 
 func (p ButtonProps) class() string {
@@ -113,6 +120,9 @@ func (p ButtonProps) class() string {
 	}
 	if p.Block {
 		out += " goen-btn--block"
+	}
+	if p.Icon {
+		out += " goen-btn--icon"
 	}
 	if p.Class != "" {
 		out += " " + p.Class

@@ -125,19 +125,33 @@ templ productBuy(v *ProductView) {
 	<div class="goen-pdp__buy" id="buybox">
 		<div class="goen-pdp__head">
 			<p class="goen-pdp__brand">{ v.Brand }</p>
-			<h1 class="goen-pdp__title">{ v.Name }</h1>
-			if v.Summary != "" {
-				<p class="goen-pdp__lede">{ v.Summary }</p>
-			}
+			<div class="goen-pdp__titlerow">
+				<h1 class="goen-pdp__title">{ v.Name }</h1>
+				if v.SelectionOK {
+					if v.AllSoldOut() {
+						@components.Badge(components.BadgeProps{Tone: components.ToneDanger}) {
+							{ i18n.T(ctx, i18n.KeyAllSoldOut) }
+						}
+					} else if v.SoldOut() {
+						@components.Badge(components.BadgeProps{Tone: components.ToneDanger}) {
+							{ i18n.T(ctx, i18n.KeySoldOut) }
+						}
+					} else if v.LowStock() {
+						@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOnlyLeft), v.AvailableText()) }
+						}
+					}
+				}
+			</div>
 			if v.HasRating() {
 				<a class="goen-pdp__rating" href="#reviews">
-					<span class="goen-pdp__ratingstars" aria-hidden="true">
-						@icons.Star()
-					</span>
-					<span class="goen-pdp__ratingvalue" aria-hidden="true">{ v.RatingText() }</span>
+					<span class="goen-pdp__ratingstars" aria-hidden="true">{ v.Stars() }</span>
 					<span class="goen-pdp__ratingcount" aria-hidden="true">({ v.ReviewCountText() })</span>
 					<span class="goen-sr-only">{ v.RatingLabel(ctx) }</span>
 				</a>
+			}
+			if v.Summary != "" {
+				<p class="goen-pdp__lede">{ v.Summary }</p>
 			}
 		</div>
 		if v.SelectionOK {
@@ -154,19 +168,6 @@ templ productBuy(v *ProductView) {
 					<s class="goen-pdp__was">{ v.Compare() }</s>
 					@components.Badge(components.BadgeProps{Tone: components.ToneAccent}) {
 						{ i18n.T(ctx, i18n.KeyOnSale) }
-					}
-				}
-				if v.AllSoldOut() {
-					@components.Badge(components.BadgeProps{Tone: components.ToneDanger}) {
-						{ i18n.T(ctx, i18n.KeyAllSoldOut) }
-					}
-				} else if v.SoldOut() {
-					@components.Badge(components.BadgeProps{Tone: components.ToneDanger}) {
-						{ i18n.T(ctx, i18n.KeySoldOut) }
-					}
-				} else if v.LowStock() {
-					@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
-						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOnlyLeft), v.AvailableText()) }
 					}
 				}
 			</div>
@@ -211,37 +212,19 @@ templ productBuy(v *ProductView) {
 		if v.SoldOut() {
 			@productNotifyForm(v)
 		}
-		<div class="goen-pdp__secondary">
-			if !v.AlreadyComparing() && !v.ComparingFull() {
-				@components.ButtonLink(components.ButtonProps{
-					Variant: components.VariantOutline, Size: components.SizeSmall,
-				}, templ.SafeURL(v.CompareHref())) {
-					{ i18n.T(ctx, i18n.KeyAddToCompare) }
-				}
-			} else if v.AlreadyComparing() {
-				@components.ButtonLink(components.ButtonProps{
-					Variant: components.VariantOutline, Size: components.SizeSmall,
-				}, templ.SafeURL(v.CompareHref())) {
-					{ i18n.T(ctx, i18n.KeyViewCompare) }
-				}
+		if !v.AlreadyComparing() && !v.ComparingFull() {
+			@components.ButtonLink(components.ButtonProps{
+				Variant: components.VariantSecondary, Block: true, Class: "goen-pdp__compare",
+			}, templ.SafeURL(v.CompareHref())) {
+				{ i18n.T(ctx, i18n.KeyAddToCompare) }
 			}
-			<form method="post" action="/account/wishlist" class="goen-pdp__wish">
-				<input type="hidden" name="slug" value={ v.Slug }/>
-				<input type="hidden" name="return" value={ "/p/" + v.Slug }/>
-				if v.Saved {
-					<input type="hidden" name="action" value="remove"/>
-				}
-				@components.Button(components.ButtonProps{
-					Variant: components.VariantOutline, Size: components.SizeSmall, Block: true,
-				}, "submit") {
-					if v.Saved {
-						{ i18n.T(ctx, i18n.KeyWishlistRemove) }
-					} else {
-						{ i18n.T(ctx, i18n.KeyWishlistAdd) }
-					}
-				}
-			</form>
-		</div>
+		} else if v.AlreadyComparing() {
+			@components.ButtonLink(components.ButtonProps{
+				Variant: components.VariantSecondary, Block: true, Class: "goen-pdp__compare",
+			}, templ.SafeURL(v.CompareHref())) {
+				{ i18n.T(ctx, i18n.KeyViewCompare) }
+			}
+		}
 		<ul class="goen-pdp__assurances" role="list">
 			<li class="goen-pdp__assurance">
 				@icons.Shield()
@@ -261,15 +244,20 @@ templ productBuy(v *ProductView) {
 	</div>
 }
 
-// productAddForm is the page's one primary action. The outcome of the last
-// press sits directly under the button, with nothing between them: a phone
-// viewport has to show both at once for the confirmation to mean anything.
+// productAddForm is the page's one filled action, with the wishlist beside it
+// as an icon. The outcome of the last press sits directly under the button
+// with nothing between them: a phone has to show the two together, or the
+// confirmation is a sentence about a control that has scrolled away.
+//
+// The wishlist is a second form rather than a second button, because it posts
+// somewhere else and a form cannot nest inside a form. The wrapper is what
+// puts them on one row.
 templ productAddForm(v *ProductView) {
-	<form class="goen-pdp__form" method="post" action="/cart/items">
-		<input type="hidden" name="variant" value={ v.VariantID }/>
-		<input type="hidden" name="back" value={ v.Slug }/>
-		<div class="goen-pdp__buyrow">
-			<div class="goen-pdp__qty">
+	<div class="goen-pdp__actions">
+		<form class="goen-pdp__form" method="post" action="/cart/items">
+			<input type="hidden" name="variant" value={ v.VariantID }/>
+			<input type="hidden" name="back" value={ v.Slug }/>
+			<div class="goen-pdp__buyrow">
 				@components.Label("quantity", "goen-sr-only") {
 					{ i18n.T(ctx, i18n.KeyQuantity) }
 				}
@@ -281,46 +269,65 @@ templ productAddForm(v *ProductView) {
 						"inputmode": "numeric", "disabled": !v.CanBuy(),
 					},
 				})
+				@components.Button(components.ButtonProps{
+					Variant: components.VariantPrimary,
+					Class:   "goen-pdp__add",
+					Attrs:   templ.Attributes{"disabled": !v.CanBuy()},
+				}, "submit") {
+					@icons.Cart()
+					<span>
+						if v.AllSoldOut() {
+							{ i18n.T(ctx, i18n.KeyAllSoldOut) }
+						} else if v.SoldOut() {
+							{ i18n.T(ctx, i18n.KeySoldOut) }
+						} else if v.NeedsChoice() {
+							{ i18n.T(ctx, i18n.KeyChooseOptions) }
+						} else {
+							{ i18n.T(ctx, i18n.KeyAddToCart) }
+						}
+					</span>
+				}
 			</div>
-			@components.Button(components.ButtonProps{
-				Variant: components.VariantPrimary, Size: components.SizeLarge,
-				Class: "goen-pdp__add",
-				Attrs: templ.Attributes{"disabled": !v.CanBuy()},
-			}, "submit") {
-				if v.AllSoldOut() {
-					{ i18n.T(ctx, i18n.KeyAllSoldOut) }
-				} else if v.SoldOut() {
-					{ i18n.T(ctx, i18n.KeySoldOut) }
-				} else if v.NeedsChoice() {
-					{ i18n.T(ctx, i18n.KeyChooseOptions) }
-				} else {
-					{ i18n.T(ctx, i18n.KeyAddToCart) }
+			if v.JustAdded() {
+				@components.Notice(components.NoticeProps{
+					Tone: components.ToneAccent, ID: "added", Class: "goen-pdp__added",
+				}) {
+					{ i18n.T(ctx, i18n.KeyAddedToCart) }
+					<a class="goen-pdp__addedlink" href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a>
 				}
 			}
-		</div>
-		if v.JustAdded() {
-			@components.Notice(components.NoticeProps{
-				Tone: components.ToneAccent, ID: "added", Class: "goen-pdp__added",
-			}) {
-				{ i18n.T(ctx, i18n.KeyAddedToCart) }
-				<a class="goen-pdp__addedlink" href="/cart">{ i18n.T(ctx, i18n.KeyViewCart) }</a>
+			if v.AddRefused() {
+				@components.Notice(components.NoticeProps{
+					Tone: components.ToneDanger, ID: "added", Class: "goen-pdp__added",
+				}) {
+					{ i18n.T(ctx, i18n.KeyAddRefused) }
+				}
 			}
-		}
-		if v.AddRefused() {
-			@components.Notice(components.NoticeProps{
-				Tone: components.ToneDanger, ID: "added", Class: "goen-pdp__added",
-			}) {
-				{ i18n.T(ctx, i18n.KeyAddRefused) }
+			if v.CartFull() {
+				@components.Notice(components.NoticeProps{
+					Tone: components.ToneDanger, ID: "added", Class: "goen-pdp__added",
+				}) {
+					{ i18n.T(ctx, i18n.KeyCartLineLimit) }
+				}
 			}
-		}
-		if v.CartFull() {
-			@components.Notice(components.NoticeProps{
-				Tone: components.ToneDanger, ID: "added", Class: "goen-pdp__added",
-			}) {
-				{ i18n.T(ctx, i18n.KeyCartLineLimit) }
+		</form>
+		<form method="post" action="/account/wishlist" class="goen-pdp__wish">
+			<input type="hidden" name="slug" value={ v.Slug }/>
+			<input type="hidden" name="return" value={ "/p/" + v.Slug }/>
+			if v.Saved {
+				<input type="hidden" name="action" value="remove"/>
 			}
-		}
-	</form>
+			@components.Button(components.ButtonProps{
+				Variant: components.VariantOutline, Icon: true,
+				Attrs: templ.Attributes{
+					"aria-label":   v.WishlistLabel(ctx),
+					"aria-pressed": v.SavedText(),
+				},
+			}, "submit") {
+				@icons.Heart()
+			}
+		</form>
+	</div>
 }
 
 templ productNotifyForm(v *ProductView) {

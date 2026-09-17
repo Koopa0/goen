@@ -76,6 +76,26 @@ func (b RatingBar) WidthClass() string {
 	return "goen-pdp__barfill--" + strconv.Itoa((b.Percent+5)/10*10)
 }
 
+// Stars is the average rounded to whole stars, as punctuation. A screen reader
+// is given RatingLabel instead, which says the number.
+func (v *ProductView) Stars() string { return starsOf(int(v.Rating + 0.5)) }
+
+// WishlistLabel names the wishlist control, which carries a glyph and no text.
+func (v *ProductView) WishlistLabel(ctx context.Context) string {
+	if v.Saved {
+		return i18n.T(ctx, i18n.KeyWishlistRemove)
+	}
+	return i18n.T(ctx, i18n.KeyWishlistAdd)
+}
+
+// SavedText is the aria-pressed state of the wishlist control.
+func (v *ProductView) SavedText() string {
+	if v.Saved {
+		return "true"
+	}
+	return "false"
+}
+
 // Trail is the breadcrumb, from the shop's front page down to this product.
 // The last step carries no link: a link to where you already are is a step a
 // keyboard has to pass through for nothing.

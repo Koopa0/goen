@@ -81,38 +81,125 @@ a:hover {
   border: 0;
 }
 
-/* ---------- Components ----------
+/* ---------- The ground ----------
 
-   goen's own presentation layer, written here as each surface adopts it. The
-   design system's .ui-* equivalents stay where they are until the last surface
-   using one is rebuilt, and nothing wears both: an element carrying a .goen-
-   class and its .ui- ancestor is two systems painting one box.
+   Every value the storefront is drawn from, set here rather than in the
+   vendored token sheet. `app.css` is the last stylesheet the document links,
+   and `:root` here and `.theme-blue` on <html> have the same specificity, so
+   source order decides and these win. Nothing under `assets/css/ds/` is
+   edited, which is what keeps that directory deletable in one piece.
+
+   The palette, the radius base and the type steps are ported from the design
+   the shop is being rebuilt against: a white ground, near-black ink, one grey
+   for muted surfaces and one for muted text, a single hairline, and blue as
+   the one interactive colour. The warm oatmeal paper the previous ground used
+   is gone deliberately — it is what made every rebuilt page still read as the
+   old system.
    ------------------------------------------------------------------------ */
 
-/* A control's box, whatever element carries it — a submit and a link that looks
-   like one are the same shape, so they share one class and differ only in which
-   tag the markup needed.
+:root {
+  /* Ground and surfaces. Panels sit ON the ground rather than above it: the
+     border carries the separation, not a second shade. */
+  --bg: oklch(1 0 0);
+  --panel: oklch(1 0 0);
+  --elevated: oklch(0.967 0.001 286.375);
+  --overlay: oklch(0.967 0.001 286.375);
 
-   box-sizing is set HERE rather than left to the sheet's default. A full-width
-   control with horizontal padding overflows its row otherwise, and the old
-   per-page compensations for that were each one page noticing it alone.
+  /* Ink. Two steps of grey and no more: a third invites a page to say three
+     different things about the same level of importance. */
+  --fg: oklch(0.141 0.005 285.823);
+  --fg-muted: oklch(0.552 0.016 285.938);
+  --fg-subtle: oklch(0.552 0.016 285.938);
+  --fg-faint: oklch(0.705 0.015 286.067);
 
-   min-height is 44px on every size, including the small one: small means less
-   padding and a smaller type step, never a target a finger misses. */
+  /* Lines. One hairline everywhere; the strong and faint steps exist for the
+     two places a border has to lead or recede, and nowhere else. */
+  --border: oklch(0.92 0.004 286.32);
+  --border-strong: oklch(0.871 0.006 286.286);
+  --border-faint: oklch(0.955 0.003 286.32);
+
+  /* The one interactive colour. */
+  --accent: oklch(0.546 0.245 262.881);
+  --accent-strong: oklch(0.488 0.243 264.376);
+  --accent-muted: oklch(0.546 0.245 262.881 / 0.12);
+  --accent-faint: oklch(0.546 0.245 262.881 / 0.06);
+  --on-accent: oklch(0.97 0.014 254.604);
+  --ring: oklch(0.623 0.214 259.815);
+
+  --error: oklch(0.577 0.245 27.325);
+  --error-bg: oklch(0.577 0.245 27.325 / 0.1);
+  --warn: oklch(0.666 0.179 58.318);
+  --warn-bg: oklch(0.666 0.179 58.318 / 0.12);
+  --success: oklch(0.596 0.145 163.225);
+  --success-bg: oklch(0.596 0.145 163.225 / 0.12);
+
+  /* One radius, and the steps derived from it. A page never writes a corner
+     that is not on this ladder. */
+  --radius: 0.65rem;
+  --r-sm: calc(var(--radius) - 4px);
+  --r-md: calc(var(--radius) - 2px);
+  --r-lg: var(--radius);
+  --r-xl: calc(var(--radius) + 4px);
+
+  /* Two levels. There is no third. */
+  --shadow-1: 0 1px 2px 0 oklch(0 0 0 / 0.05);
+  --shadow-2:
+    0 4px 6px -1px oklch(0 0 0 / 0.1),
+    0 2px 4px -2px oklch(0 0 0 / 0.1);
+
+  /* One family for everything, headings included. Noto Sans TC follows Inter
+     so Han is covered by a face that sits beside it rather than under a
+     second personality. */
+  --font-sans: "Inter", "Noto Sans TC", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-sans);
+
+  /* The steps that move; the rest of the ladder already matches. */
+  --fs-ed-24: 1.5rem;
+  --fs-ed-30: 1.875rem;
+  --fs-ed-38: 2.25rem;
+}
+
+/* A heading is the body face at 600 with the tracking pulled in. The display
+   family and its separate weights are gone with the second typeface. */
+h1,
+h2,
+h3,
+h4,
+.goen-pdp__title,
+.goen-pdp__sectiontitle,
+.goen-pdp__score {
+  font-family: var(--font-sans);
+  letter-spacing: -0.02em;
+}
+
+/* ---------- Components ----------
+
+   goen's own presentation layer: the shapes a page repeats, ported from the
+   design the shop is being rebuilt against and written on the tokens above.
+   The design system's .ui-* equivalents stay where they are until the last
+   surface using one is rebuilt, and nothing wears both -- an element carrying
+   a .goen- class and its .ui- ancestor is two systems painting one box.
+
+   Control heights follow the reference: 36px is the default, 32 small, 40
+   large. A pointer that is a finger gets 44 at the foot of this section,
+   because a target sized for a cursor is not one sized for a thumb.
+   ------------------------------------------------------------------------ */
+
 .goen-btn {
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 44px;
-  padding: 8px 16px;
+  height: 2.25rem;
+  padding: 0 1rem;
   border: 1px solid transparent;
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   font-family: inherit;
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
-  line-height: 1.2;
+  line-height: 1;
+  white-space: nowrap;
   text-align: center;
   text-decoration: none;
   cursor: pointer;
@@ -122,15 +209,36 @@ a:hover {
     color var(--dur-base) var(--ease-standard);
 }
 
+.goen-btn svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+/* The focus ring is a shadow rather than an outline so it follows the radius,
+   and it is three pixels because a one-pixel ring on a one-pixel border is a
+   ring nobody sees. */
+.goen-btn:focus-visible,
+.goen-input:focus-visible,
+.goen-swatch:focus-visible {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px var(--accent-muted);
+}
+
 .goen-btn--sm {
-  min-height: 44px;
-  padding: 6px 12px;
-  font-size: var(--fs-13);
+  height: 2rem;
+  padding: 0 0.75rem;
 }
 
 .goen-btn--lg {
-  padding: 12px 24px;
-  font-size: var(--fs-16);
+  height: 2.5rem;
+  padding: 0 1.5rem;
+}
+
+.goen-btn--icon {
+  width: 2.25rem;
+  padding: 0;
 }
 
 .goen-btn--block {
@@ -138,12 +246,13 @@ a:hover {
   width: 100%;
 }
 
-/* One primary to a surface. Everything else is quieter on purpose: a row of
-   equally weighted buttons makes the shopper choose before they can act. */
+/* One filled control to a surface. Everything else is quieter on purpose: a
+   row of equally weighted buttons makes the shopper choose before they act. */
 .goen-btn--primary {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--on-accent);
+  box-shadow: var(--shadow-1);
 }
 
 .goen-btn--primary:hover {
@@ -151,10 +260,22 @@ a:hover {
   border-color: var(--accent-strong);
 }
 
-.goen-btn--outline {
-  background: transparent;
-  border-color: var(--border-strong);
+.goen-btn--secondary {
+  background: var(--elevated);
+  border-color: transparent;
   color: var(--fg);
+  box-shadow: var(--shadow-1);
+}
+
+.goen-btn--secondary:hover {
+  background: var(--border-faint);
+}
+
+.goen-btn--outline {
+  background: var(--bg);
+  border-color: var(--border);
+  color: var(--fg);
+  box-shadow: var(--shadow-1);
 }
 
 .goen-btn--outline:hover {
@@ -164,71 +285,69 @@ a:hover {
 .goen-btn--ghost {
   background: transparent;
   border-color: transparent;
-  color: var(--fg-muted);
+  color: var(--fg);
 }
 
 .goen-btn--ghost:hover {
   background: var(--overlay);
-  color: var(--fg);
 }
 
-/* A disabled control keeps its place in the layout and stops responding. It is
-   not hidden: a shopper who cannot buy still needs to see what they cannot buy
-   and why the sentence beside it says so. */
+/* A disabled control keeps its place and stops responding. It is not hidden: a
+   shopper who cannot buy still needs to see what they cannot buy, and the
+   sentence beside it saying why. */
 .goen-btn:disabled,
 .goen-btn[aria-disabled="true"] {
   opacity: 0.5;
-  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .goen-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
+  width: fit-content;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
   background: var(--elevated);
-  color: var(--fg-subtle);
-  font-size: var(--fs-11);
+  color: var(--fg);
+  font-size: var(--fs-12);
   font-weight: var(--fw-medium);
+  line-height: 1.4;
   white-space: nowrap;
 }
 
 .goen-badge--accent {
-  border-color: transparent;
-  background: var(--accent-muted);
-  color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 .goen-badge--warn {
-  border-color: transparent;
   background: var(--warn-bg);
   color: var(--warn);
 }
 
 .goen-badge--danger {
-  border-color: transparent;
-  background: var(--error-bg);
-  color: var(--error);
+  background: var(--error);
+  color: var(--on-accent);
 }
 
-/* A bordered panel. It carries no heading: the heading belongs to the section
-   around it, which is what decides the level a screen reader announces. */
+/* A bordered panel on the same white as the ground: the border separates it,
+   not a second shade. It carries no heading, because the heading belongs to
+   the section around it, which is what decides the level announced. */
 .goen-card {
+  padding: 1.5rem;
   border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-xl);
   background: var(--panel);
   box-shadow: var(--shadow-1);
-  padding: 16px;
 }
 
-/* One sentence about what just happened. */
 .goen-notice {
   margin: 0;
-  padding: 10px 12px;
+  padding: 0.625rem 0.75rem;
   border: 1px solid var(--border);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
   background: var(--elevated);
   color: var(--fg-muted);
   font-size: var(--fs-14);
@@ -259,37 +378,50 @@ a:hover {
 }
 
 .goen-label {
-  font-size: var(--fs-13);
+  font-size: var(--fs-14);
   font-weight: var(--fw-medium);
+  line-height: 1;
   color: var(--fg);
 }
 
 .goen-input {
   box-sizing: border-box;
   width: 100%;
-  min-height: 44px;
-  padding: 8px 12px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
-  background: var(--bg);
+  height: 2.25rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: transparent;
   color: var(--fg);
   font-family: inherit;
   font-size: var(--fs-14);
-  transition: border-color var(--dur-base) var(--ease-standard);
+  box-shadow: var(--shadow-1);
+  transition:
+    border-color var(--dur-base) var(--ease-standard),
+    box-shadow var(--dur-base) var(--ease-standard);
 }
 
-.goen-input:focus {
-  border-color: var(--accent);
+.goen-input::placeholder {
+  color: var(--fg-faint);
 }
 
-/* A refused field is marked by its border AND by the sentence beside it. The
+/* A refused field is marked by its border AND by the sentence beside it. A
    border alone is a colour, and a colour alone is not a reason. */
-.goen-input--invalid {
+.goen-input--invalid,
+.goen-input[aria-invalid="true"] {
   border-color: var(--error);
 }
 
+.goen-input--invalid:focus-visible,
+.goen-input[aria-invalid="true"]:focus-visible {
+  border-color: var(--error);
+  box-shadow: 0 0 0 3px var(--error-bg);
+}
+
 textarea.goen-input {
+  height: auto;
   min-height: 0;
+  padding: 0.5rem 0.75rem;
   resize: vertical;
   line-height: var(--lh-normal);
 }
@@ -298,13 +430,13 @@ textarea.goen-input {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  font-size: var(--fs-12);
-  color: var(--fg-subtle);
+  gap: 8px;
+  font-size: var(--fs-14);
+  color: var(--fg-muted);
 }
 
 .goen-crumbs__link {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   text-decoration: none;
   transition: color var(--dur-base) var(--ease-standard);
 }
@@ -319,6 +451,26 @@ textarea.goen-input {
 
 .goen-crumbs__current {
   color: var(--fg);
+  font-weight: var(--fw-medium);
+}
+
+/* A finger is not a cursor. Where the pointer is coarse every control grows to
+   the 44px a thumb needs, which is padding around the same box rather than a
+   different design for touch. */
+@media (pointer: coarse) {
+  .goen-btn,
+  .goen-input,
+  .goen-btn--sm {
+    height: 2.75rem;
+  }
+
+  .goen-btn--icon {
+    width: 2.75rem;
+  }
+
+  textarea.goen-input {
+    height: auto;
+  }
 }
 
 /* ---------- Header ---------- */
@@ -1448,6 +1600,13 @@ textarea.goen-input {
   color: var(--fg-subtle);
 }
 
+.goen-pdp__titlerow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .goen-pdp__title {
   margin: 0;
   font-family: var(--font-display);
@@ -1479,15 +1638,16 @@ textarea.goen-input {
   color: var(--fg);
 }
 
-.goen-pdp__ratingstars {
-  display: inline-flex;
-  color: var(--accent);
+/* Amber, not the brand colour: a star that is the same blue as the buy button
+   reads as something to press. */
+.goen-pdp__ratingstars,
+.goen-pdp__reviewstars {
+  color: var(--warn);
+  letter-spacing: 0.08em;
 }
 
-.goen-pdp__ratingvalue {
-  font-weight: var(--fw-medium);
-  font-variant-numeric: tabular-nums;
-  color: var(--fg);
+.goen-pdp__ratingcount {
+  color: var(--fg-muted);
 }
 
 .goen-pdp__pricebox {
@@ -1578,34 +1738,41 @@ textarea.goen-input {
 /* The one primary action, and the outcome of the last press directly under it
    with nothing in between. A phone has to show both at once, or the
    confirmation is a sentence about a button that has scrolled away. */
+.goen-pdp__actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
 .goen-pdp__form {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding-top: 20px;
-  border-top: 1px solid var(--border-faint);
 }
 
 .goen-pdp__buyrow {
   display: flex;
-  align-items: flex-end;
-  gap: 12px;
-}
-
-.goen-pdp__qty {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: stretch;
+  gap: 8px;
 }
 
 .goen-pdp__qtyinput {
-  width: 5rem;
+  width: 4.5rem;
+  flex: none;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
 
 .goen-pdp__add {
   flex: 1 1 auto;
+}
+
+.goen-pdp__compare {
+  margin-top: -4px;
 }
 
 .goen-pdp__added {
@@ -1648,33 +1815,23 @@ textarea.goen-input {
   min-width: 14ch;
 }
 
-/* Two quiet actions, side by side at every width. They are secondary to the
-   button above and they read that way; the row exists so neither of them ever
-   competes with it for the full width. */
-.goen-pdp__secondary {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.goen-pdp__secondary > .goen-btn {
-  width: 100%;
-}
-
 .goen-pdp__wish {
   margin: 0;
+  flex: none;
   display: flex;
 }
 
 .goen-pdp__assurances {
   margin: 0;
-  padding: 0;
+  padding-top: 20px;
+  padding-left: 0;
   list-style: none;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  font-size: var(--fs-13);
-  color: var(--fg-subtle);
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-14);
+  color: var(--fg-muted);
 }
 
 .goen-pdp__assurance {
