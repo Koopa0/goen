@@ -273,13 +273,12 @@ templ productAddForm(v *ProductView) {
 				@components.Label(components.LabelProps{For: "quantity", Class: "goen-sr-only"}) {
 					{ i18n.T(ctx, i18n.KeyQuantity) }
 				}
-				@components.Input(components.FieldProps{
-					ID: "quantity", Name: "quantity", Type: "number", Value: "1",
-					Class: "goen-pdp__qtyinput",
-					Attrs: templ.Attributes{
-						"min": "1", "max": v.MaxQuantity(), "step": "1",
-						"inputmode": "numeric", "disabled": !v.CanBuy(),
-					},
+				@components.Stepper(components.StepperProps{
+					ID: "quantity", Name: "quantity", Value: "1",
+					Min: "1", Max: v.MaxQuantity(), Disabled: !v.CanBuy(),
+					DecreaseLabel: i18n.T(ctx, i18n.KeyQuantityDecrease),
+					IncreaseLabel: i18n.T(ctx, i18n.KeyQuantityIncrease),
+					Class:         "goen-pdp__qty",
 				})
 				@components.Button(components.ButtonProps{
 					Variant: components.VariantPrimary,

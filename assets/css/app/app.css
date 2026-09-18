@@ -378,6 +378,79 @@ h4,
   color: var(--fg);
 }
 
+/* A quantity field with a step on each side, as one control. The field is the
+   control and the buttons are the enhancement: they are out of sight until the
+   stylesheet is told scripting is on, so a browser without it -- or without the
+   query -- shows the plain field the keyboard already steps.
+
+   Hidden by default and revealed, rather than shown by default and hidden: a
+   query that never matches then leaves a working field instead of two buttons
+   that do nothing. */
+.goen-stepper {
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-1);
+  display: inline-flex;
+  height: 2.75rem;
+  overflow: hidden;
+}
+
+.goen-stepper__step {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--fg-muted);
+  cursor: pointer;
+  display: none;
+  font-size: var(--fs-16);
+  justify-content: center;
+  line-height: 1;
+  transition: background-color var(--dur-base) var(--ease-standard);
+  width: 2.5rem;
+}
+
+.goen-stepper__step:hover {
+  background: var(--overlay);
+  color: var(--fg);
+}
+
+.goen-stepper__step:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.goen-stepper__value {
+  appearance: textfield;
+  background: transparent;
+  border: 0;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: var(--fs-14);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  width: 3.25rem;
+}
+
+.goen-stepper__value:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+/* The spinners the browser draws inside a number input are a second stepper
+   beside this one. */
+.goen-stepper__value::-webkit-inner-spin-button,
+.goen-stepper__value::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+@media (scripting: enabled) {
+  .goen-stepper__step {
+    display: inline-flex;
+  }
+}
+
 .goen-field {
   display: flex;
   flex-direction: column;
@@ -1773,11 +1846,8 @@ h4,
   gap: 8px;
 }
 
-.goen-pdp__qtyinput {
+.goen-pdp__qty {
   flex: none;
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-  width: 4.5rem;
 }
 
 .goen-pdp__add {
