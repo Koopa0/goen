@@ -2338,21 +2338,70 @@ const AXE_RUN = `axe.run(document, {
 const annotate = (msg) => console.log(
   process.env.GITHUB_ACTIONS ? `::warning title=axe-core::${msg}` : `  warning: ${msg}`);
 
+// Where the browser actually ends up, which is not always where it was sent.
+//
+// By the time the audit runs the session carries a signed-in cookie, and
+// /forgot answers 303 to /account for a visitor who already is: settled()'s
+// href === url would report that as a page that never loaded. about:blank
+// first, so a document that is still the PREVIOUS page cannot be mistaken for
+// this one, and then whatever the browser landed on.
+//
+// It reports rather than exits, unlike settled(), because this pass runs last:
+// an exit here would throw away the failure list everything above built.
+const axeSettled = async (route, url) => {
+  await send(ws, 'Page.navigate', { url: 'about:blank' });
+  for (let i = 0; i < 30; i++) {
+    const { result } = await send(ws, 'Runtime.evaluate', {
+      expression: 'location.href', returnByValue: true,
+    });
+    if (String(result.value) === 'about:blank') break;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+
+  await send(ws, 'Page.navigate', { url });
+  for (let i = 0; i < 100; i++) {
+    const { result } = await send(ws, 'Runtime.evaluate', {
+      expression: 'document.readyState + " " + location.href', returnByValue: true,
+    });
+    const [state, href] = String(result.value).split(' ');
+    if (state === 'complete' && href !== 'about:blank') {
+      await new Promise((r) => setTimeout(r, 150));
+      return href;
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  fail(`axe ${route}`, 'the page never finished loading for the audit');
+  return '';
+};
+
 const auditAccessibility = async () => {
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: AXE_WIDTH.width, height: AXE_WIDTH.height, deviceScaleFactor: 1, mobile: false,
   });
 
-  const routes = [...visited.entries()];
-  console.log(`\naxe-core wcag2a + wcag2aa, ${routes.length} routes at ${AXE_WIDTH.width}px`);
+  const requested = [...visited.entries()];
+  console.log(`\naxe-core wcag2a + wcag2aa, ${requested.length} routes at ${AXE_WIDTH.width}px`);
 
   const observed = {};
   const unaudited = [];
+  const audited = new Set();
   let debtMoved = false;
 
-  for (const [route, url] of routes) {
-    await send(ws, 'Page.navigate', { url });
-    await settled(ws, `axe ${route}`, url);
+  for (const [asked, url] of requested) {
+    const landed = await axeSettled(asked, url);
+    if (!landed) {
+      unaudited.push(asked);
+      continue;
+    }
+    // The page that was served, which is what the baseline has to name: a
+    // redirected route audited under the name it was asked for would record
+    // one page's debt against another's.
+    const route = routeOf(landed);
+    if (audited.has(route)) {
+      console.log(`axe ${asked.padEnd(46).slice(0, 46)} -> ${route}, already audited`);
+      continue;
+    }
+    audited.add(route);
 
     let violations;
     try {
