@@ -111,8 +111,13 @@ check-layout:
 	@curl -fsSL --retry 3 -o .layout-chrome/axe.min.js \
 		https://unpkg.com/axe-core@$(AXE_CORE_VERSION)/axe.min.js \
 		|| { echo 'could not fetch axe-core $(AXE_CORE_VERSION)' >&2; exit 2; }
-	@echo '$(AXE_CORE_SHA256)  .layout-chrome/axe.min.js' | shasum -a 256 -c - >/dev/null \
-		|| { echo 'axe-core $(AXE_CORE_VERSION) does not match AXE_CORE_SHA256' >&2; exit 2; }
+	@# openssl rather than shasum or sha256sum: this recipe already requires it a
+	@# few lines down, and neither of the others is on both macOS and a Linux
+	@# runner. The last field, because OpenSSL 3 prints SHA2-256(file)= and
+	@# LibreSSL prints SHA256(file)=.
+	@digest=$$(openssl dgst -sha256 .layout-chrome/axe.min.js | awk '{print $$NF}'); \
+		test "$$digest" = '$(AXE_CORE_SHA256)' \
+		|| { echo "axe-core $(AXE_CORE_VERSION) hashes to $$digest, not AXE_CORE_SHA256" >&2; exit 2; }
 	@# The cart pages need a cart. Added through the site's own POST, so if
 	@# add-to-cart is broken this check fails too — which is correct.
 	@rm -f .layout-chrome/cookies

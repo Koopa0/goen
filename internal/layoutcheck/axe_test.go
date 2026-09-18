@@ -36,8 +36,9 @@ func TestTheLayoutGateFetchesAxeCoreAtAPinnedDigest(t *testing.T) {
 	if !strings.Contains(makefile, "axe-core@$(AXE_CORE_VERSION)/axe.min.js") {
 		t.Fatal("check-layout must fetch axe-core at AXE_CORE_VERSION, not at a floating tag")
 	}
-	if !strings.Contains(makefile, "$(AXE_CORE_SHA256)  .layout-chrome/axe.min.js") {
-		t.Fatal("check-layout must verify the fetched axe-core against AXE_CORE_SHA256")
+	if !strings.Contains(makefile, "openssl dgst -sha256 .layout-chrome/axe.min.js") ||
+		!strings.Contains(makefile, `test "$$digest" = '$(AXE_CORE_SHA256)'`) {
+		t.Fatal("check-layout must hash the fetched axe-core and compare it with AXE_CORE_SHA256")
 	}
 
 	script := readLayoutScript(t, root)

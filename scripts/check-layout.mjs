@@ -2347,6 +2347,7 @@ const auditAccessibility = async () => {
   console.log(`\naxe-core wcag2a + wcag2aa, ${routes.length} routes at ${AXE_WIDTH.width}px`);
 
   const observed = {};
+  const unaudited = [];
   let debtMoved = false;
 
   for (const [route, url] of routes) {
@@ -2359,6 +2360,7 @@ const auditAccessibility = async () => {
         expression: axeSource, includeCommandLineAPI: true,
       });
       if (injected.exceptionDetails) {
+        unaudited.push(route);
         fail(`axe ${route}`, 'axe-core did not load — ' +
           (injected.exceptionDetails.exception?.description || 'no exception detail'));
         continue;
@@ -2367,6 +2369,7 @@ const auditAccessibility = async () => {
         expression: AXE_RUN, awaitPromise: true, returnByValue: true,
       }, 120000);
       if (evaluated.exceptionDetails || typeof evaluated.result?.value !== 'string') {
+        unaudited.push(route);
         fail(`axe ${route}`, 'axe.run did not return a result — ' +
           (evaluated.exceptionDetails?.exception?.description
             || JSON.stringify(evaluated).slice(0, 300)));
@@ -2374,6 +2377,7 @@ const auditAccessibility = async () => {
       }
       violations = JSON.parse(evaluated.result.value);
     } catch (err) {
+      unaudited.push(route);
       fail(`axe ${route}`, `the audit did not complete — ${err.message}`);
       continue;
     }
@@ -2420,6 +2424,12 @@ const auditAccessibility = async () => {
   const ordered = {};
   for (const route of Object.keys(merged).sort()) ordered[route] = merged[route];
   console.log('::group::axe baseline candidate — scripts/axe-baseline.json');
+  // A route whose audit crashed keeps whatever the baseline already said about
+  // it and contributes nothing new, so a candidate collected over one is
+  // incomplete. Say which, rather than let it be pasted as if it were whole.
+  if (unaudited.length) {
+    console.log(`INCOMPLETE — these routes were not audited: ${unaudited.join(', ')}`);
+  }
   console.log(JSON.stringify({ ...axeBaselineFile, routes: ordered }, null, 2));
   console.log('::endgroup::');
 };

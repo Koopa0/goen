@@ -205,7 +205,6 @@ jobs:
           path: |
             layout.log
             server.log
-            .layout-chrome/*.png
           if-no-files-found: warn
 
   vulnerabilities:
