@@ -14,8 +14,58 @@
 //
 // Usage: make check-layout   (needs Chrome and a server on GOEN_URL)
 
+import { readFileSync } from 'node:fs';
+
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
 const ORIGIN = (process.env.GOEN_URL || 'http://127.0.0.1:9700/').replace(/\/$/, '');
+
+// axe-core runs once per route at the end of this file, over the same CDP
+// session everything else uses.
+//
+// Its source is read HERE, before Chrome is contacted, so an absent file stops
+// the run in a second rather than after ten minutes of measuring. A gate that
+// quietly skips its own audit when an input is missing is not a gate.
+//
+// It is never a <script src>: the site sends `script-src 'self'`, and relaxing
+// that so the checker could get in would mean auditing a page no visitor is
+// served. A CDP evaluation runs outside the page's CSP and leaves the document
+// exactly as a visitor receives it.
+const AXE_SOURCE = process.env.AXE_SOURCE || '.layout-chrome/axe.min.js';
+const AXE_BASELINE = process.env.AXE_BASELINE || 'scripts/axe-baseline.json';
+
+// The impacts that fail the run. moderate and minor are printed as annotations:
+// they are real and they are not "this page is unusable for somebody", and a
+// gate that fails on all four would be turned off within a week.
+const AXE_GATES = new Set(['serious', 'critical']);
+
+// One width. Every rule asked for below is a property of the document rather
+// than of the fold, and the widths are already covered by the geometry
+// assertions above.
+const AXE_WIDTH = { width: 1440, height: 900 };
+
+let axeSource;
+try {
+  axeSource = readFileSync(AXE_SOURCE, 'utf8');
+} catch (err) {
+  console.error(`axe-core is not readable at ${AXE_SOURCE}: ${err.message}\n` +
+    'make check-layout fetches it at the Makefile\'s AXE_CORE_VERSION and verifies ' +
+    'its digest; run this check through make rather than by hand.');
+  process.exit(2);
+}
+
+// The accessibility debt already in the tree, as route -> rule ids. A pair that
+// is not listed fails the run; a pair listed that no longer fires fails it too,
+// so this file can only shrink. Rule ids and not selectors, because the markup
+// under a rule changes every week and a stale selector would fail a run for a
+// reason that has nothing to do with accessibility.
+let axeBaselineFile;
+try {
+  axeBaselineFile = JSON.parse(readFileSync(AXE_BASELINE, 'utf8'));
+} catch (err) {
+  console.error(`the axe baseline at ${AXE_BASELINE} did not parse: ${err.message}`);
+  process.exit(2);
+}
+const axeBaseline = axeBaselineFile.routes || {};
 
 // What the two artboards fold into. Column counts are read off the rendered
 // boxes — how many children share the top row — not off the CSS, so a rule that
@@ -324,14 +374,17 @@ const MIN_SEARCH = 120;
 let nextId = 1;
 const pending = new Map();
 
-function send(ws, method, params = {}) {
+// timeoutMs is a parameter because one call is not like the others: axe.run on
+// a back-office table takes longer than every probe in this file put together,
+// and capping it at the default would report a slow audit as a dead socket.
+function send(ws, method, params = {}, timeoutMs = 30000) {
   const id = nextId++;
   ws.send(JSON.stringify({ id, method, params }));
   return new Promise((resolve, reject) => {
     pending.set(id, { resolve, reject });
     setTimeout(() => {
       if (pending.delete(id)) reject(new Error(`${method} timed out`));
-    }, 30000);
+    }, timeoutMs);
   });
 }
 
@@ -511,6 +564,13 @@ const PROBE = `(() => {
 //
 // Polls readyState instead, with a ceiling. A page that never completes is a real
 // failure and says so.
+// Every route this run actually visited, in the order it first saw them, as
+// route -> the URL that reached it. The axe pass at the end reads this rather
+// than a second list of paths: a list would drift from the tables above, and
+// the point of the audit is that it covers what the gate covers.
+const visited = new Map();
+const routeOf = (url) => (url.startsWith(ORIGIN) ? url.slice(ORIGIN.length) : url) || '/';
+
 const settled = async (ws, label, url) => {
   for (let i = 0; i < 50; i++) {
     const { result } = await send(ws, 'Runtime.evaluate', {
@@ -526,6 +586,8 @@ const settled = async (ws, label, url) => {
       // One frame more, so layout and web fonts have applied before anything is
       // measured — the geometry assertions are the reason this check exists.
       await new Promise((r) => setTimeout(r, 250));
+      const route = routeOf(url);
+      if (!visited.has(route)) visited.set(route, url);
       return;
     }
     await new Promise((r) => setTimeout(r, 100));
@@ -2248,6 +2310,121 @@ const provePdpAdd = async (label, scriptingOff) => {
 await provePdpAdd('pdp add 375 off', true);
 await provePdpAdd('pdp add 375 on', false);
 await send(ws, 'Emulation.setScriptExecutionDisabled', { value: false });
+
+// axe-core, once per route.
+//
+// A separate pass rather than a call inside settled(), and that is deliberate:
+// the journeys above spend a live rate limiter and compare timestamps across a
+// reload, and a second or two of audit inserted between their requests would
+// change what they measure. Running afterwards costs one extra navigation per
+// route and changes nothing any other assertion sees.
+//
+// What it asks for is WCAG 2.0/2.1 A and AA. Not the best-practice rules: those
+// are opinions about landmarks and heading order, and a build gate holding an
+// opinion is how a gate gets disabled.
+const AXE_RUN = `axe.run(document, {
+  runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa'] },
+  resultTypes: ['violations'],
+}).then((r) => JSON.stringify(r.violations.map((v) => ({
+  id: v.id,
+  impact: v.impact,
+  help: v.help,
+  target: v.nodes[0] && v.nodes[0].target ? String(v.nodes[0].target[0]) : '(no node)',
+  count: v.nodes.length,
+}))))`;
+
+// A moderate or minor finding is reported and does not gate. ::warning is what
+// puts it on the pull request's Files view; outside Actions it is a plain line.
+const annotate = (msg) => console.log(
+  process.env.GITHUB_ACTIONS ? `::warning title=axe-core::${msg}` : `  warning: ${msg}`);
+
+const auditAccessibility = async () => {
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: AXE_WIDTH.width, height: AXE_WIDTH.height, deviceScaleFactor: 1, mobile: false,
+  });
+
+  const routes = [...visited.entries()];
+  console.log(`\naxe-core wcag2a + wcag2aa, ${routes.length} routes at ${AXE_WIDTH.width}px`);
+
+  const observed = {};
+  let debtMoved = false;
+
+  for (const [route, url] of routes) {
+    await send(ws, 'Page.navigate', { url });
+    await settled(ws, `axe ${route}`, url);
+
+    let violations;
+    try {
+      const injected = await send(ws, 'Runtime.evaluate', {
+        expression: axeSource, includeCommandLineAPI: true,
+      });
+      if (injected.exceptionDetails) {
+        fail(`axe ${route}`, 'axe-core did not load — ' +
+          (injected.exceptionDetails.exception?.description || 'no exception detail'));
+        continue;
+      }
+      const evaluated = await send(ws, 'Runtime.evaluate', {
+        expression: AXE_RUN, awaitPromise: true, returnByValue: true,
+      }, 120000);
+      if (evaluated.exceptionDetails || typeof evaluated.result?.value !== 'string') {
+        fail(`axe ${route}`, 'axe.run did not return a result — ' +
+          (evaluated.exceptionDetails?.exception?.description
+            || JSON.stringify(evaluated).slice(0, 300)));
+        continue;
+      }
+      violations = JSON.parse(evaluated.result.value);
+    } catch (err) {
+      fail(`axe ${route}`, `the audit did not complete — ${err.message}`);
+      continue;
+    }
+
+    const known = axeBaseline[route] || [];
+    const gating = new Set();
+    for (const v of violations) {
+      const detail = `${v.id} (${v.impact}) — ${v.help}; first: ${v.target}` +
+        (v.count > 1 ? ` (and ${v.count - 1} more on this page)` : '');
+      if (!AXE_GATES.has(v.impact)) {
+        annotate(`${route}: ${detail}`);
+        continue;
+      }
+      gating.add(v.id);
+      if (known.includes(v.id)) continue;
+      debtMoved = true;
+      fail(`axe ${route}`, detail);
+    }
+    observed[route] = [...gating].sort();
+
+    // A baseline entry that stopped firing is removed by the change that fixed
+    // it, not by the next person to read a stale file. Only routes this run
+    // actually audited are judged, so a skipped back office cannot delete the
+    // debt recorded for it.
+    for (const id of known) {
+      if (observed[route].includes(id)) continue;
+      debtMoved = true;
+      fail(`axe ${route}`, `the baseline lists ${id}, which no longer fires here — remove it`);
+    }
+
+    console.log(`axe ${route.padEnd(46).slice(0, 46)} ` +
+      `violations=${violations.length} gating=${observed[route].length}`);
+  }
+
+  if (!debtMoved) return;
+
+  // The exact file that makes this run green, so accepting a finding is a
+  // review of these lines rather than a second run to collect them.
+  const merged = { ...axeBaseline };
+  for (const [route, ids] of Object.entries(observed)) {
+    if (ids.length) merged[route] = ids;
+    else delete merged[route];
+  }
+  const ordered = {};
+  for (const route of Object.keys(merged).sort()) ordered[route] = merged[route];
+  console.log('::group::axe baseline candidate — scripts/axe-baseline.json');
+  console.log(JSON.stringify({ ...axeBaselineFile, routes: ordered }, null, 2));
+  console.log('::endgroup::');
+};
+
+await auditAccessibility();
 
 ws.close();
 

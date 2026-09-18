@@ -127,6 +127,87 @@ jobs:
             -path migrations -database "$GOEN_DATABASE_URL" down -all
           make migrate-up
 
+  # The browser gate. Separate again, and for the third distinct reason: it needs
+  # a database, a running server AND a Chrome, so a failure here reads as "a page
+  # broke" rather than as a slow lint run or a schema change.
+  #
+  # needs: verify, because there is no sense spending five minutes seeding a
+  # catalogue for a tree that does not compile.
+  layout:
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    env:
+      # The compose file owns the credentials and the port; this is the same URL
+      # the schema job's round trip uses.
+      GOEN_DATABASE_URL: postgres://goen:goen@127.0.0.1:5433/goen?sslmode=disable
+      GOEN_URL: http://127.0.0.1:9700
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          check-latest: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      # Docker compose rather than a services: block, so the image, the port and
+      # the credentials stay stated once, in the file the developer runs.
+      - name: Start PostgreSQL
+        run: make db-up
+
+      - name: Migrate and seed
+        run: |
+          set -euo pipefail
+          make migrate-up
+          make db-seed
+
+      # Backgrounded with its output redirected: a step that leaves the server on
+      # the step's own pipe does not return until the server exits.
+      #
+      # GOEN_INSECURE_COOKIES is what `make run` sets locally. Without it the cart
+      # cookie carries Secure and a browser never sends it back over http, so the
+      # cart pages would measure an empty cart and pass.
+      - name: Start the storefront
+        run: |
+          set -euo pipefail
+          make build
+          GOEN_INSECURE_COOKIES=1 ./bin/goen > server.log 2>&1 &
+          for _ in $(seq 1 60); do
+            if curl -sf -o /dev/null "$GOEN_URL/readyz"; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo 'the server never answered /readyz' >&2
+          cat server.log >&2
+          exit 1
+
+      # shell: bash for pipefail — tee otherwise reports ITS exit status and a red
+      # gate reads as green. Chrome is resolved by scripts/resolve-chrome.sh, which
+      # finds the runner's google-chrome without this file naming a path.
+      - name: Layout and accessibility gate
+        shell: bash
+        run: make check-layout 2>&1 | tee layout.log
+
+      - name: Keep the run's output
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: layout
+          path: |
+            layout.log
+            server.log
+            .layout-chrome/*.png
+          if-no-files-found: warn
+
   vulnerabilities:
     runs-on: ubuntu-24.04
     timeout-minutes: 15

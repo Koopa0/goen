@@ -1,0 +1,4 @@
+{
+  "_comment": "Accessibility debt make check-layout has accepted, as route -> axe-core rule ids at impact serious or critical. A pair that is not listed fails the gate; a pair listed that no longer fires fails it too, so this file can only shrink. Rule ids rather than selectors: the markup under a rule changes with every page change and a stale selector would fail a run for a reason that has nothing to do with accessibility. The run prints the exact replacement for this file when the set moves.",
+  "routes": {}
+}
