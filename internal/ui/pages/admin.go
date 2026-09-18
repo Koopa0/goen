@@ -88,12 +88,18 @@ type AdminStatusTab struct {
 func (t AdminStatusTab) CountText() string { return strconv.FormatInt(t.Count, 10) }
 
 // AdminDashboardView is the back office landing page.
+//
+// Recent is the queue the page is read for: the newest orders, whatever state
+// they are in. Filtering it to one state would answer a question the tiles
+// above it already answer, and hide the order somebody walked over to ask
+// about.
 type AdminDashboardView struct {
 	PendingOrders  int64
 	PickingOrders  int64
 	LowStock       int64
 	ActiveProducts int64
 	OpenMessages   int64
+	Recent         []AdminOrderRow
 	Low            []AdminVariant
 }
 
