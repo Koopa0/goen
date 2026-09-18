@@ -104,7 +104,7 @@ func Compare(p layouts.Page, v CompareView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if !v.Enough() {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div class=\"ui-empty\"><span class=\"goen-empty__icon\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<div class=\"ui-empty\"><span class=\"goen-medallion\" aria-hidden=\"true\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

@@ -27,7 +27,7 @@ templ Wishlist(p layouts.Page, v WishlistView) {
 			</div>
 			if v.Empty() {
 				<div class="ui-empty">
-					<span class="goen-empty__icon">
+					<span class="goen-medallion" aria-hidden="true">
 						@icons.Heart()
 					</span>
 					<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyWishlistEmpty) }</p>

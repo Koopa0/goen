@@ -113,7 +113,7 @@ func Listing(p layouts.Page, v ListingView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if v.Empty() {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<div class=\"ui-empty\"><span class=\"goen-empty__icon\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<div class=\"ui-empty\"><span class=\"goen-medallion\" aria-hidden=\"true\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -965,7 +965,7 @@ func Search(p layouts.Page, v SearchView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if !v.Searched() {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "<div class=\"ui-empty\"><span class=\"goen-empty__icon\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 81, "<div class=\"ui-empty\"><span class=\"goen-medallion\" aria-hidden=\"true\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1004,7 +1004,7 @@ func Search(p layouts.Page, v SearchView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			} else if v.Empty() {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "<div class=\"ui-empty\"><span class=\"goen-empty__icon\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 85, "<div class=\"ui-empty\"><span class=\"goen-medallion\" aria-hidden=\"true\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

@@ -1643,33 +1643,6 @@ h4,
   padding: 24px var(--page-gutter) 56px;
 }
 
-.goen-pagehead {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.goen-pagehead__eyebrow {
-  color: var(--fg-muted);
-  font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
-  margin: 0;
-}
-
-.goen-pagehead__title {
-  font-size: var(--fs-ed-30);
-  font-weight: var(--fw-semibold);
-  letter-spacing: -0.02em;
-  margin: 0;
-}
-
-.goen-pagehead__sub {
-  color: var(--fg-muted);
-  font-size: var(--fs-14);
-  font-variant-numeric: tabular-nums;
-  margin: 0;
-}
-
 .goen-listing__layout {
   display: grid;
   gap: 24px;
@@ -1913,51 +1886,6 @@ h4,
   color: var(--fg-muted);
   font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;
-}
-
-/* The empty states. `ui-empty` is the name four gates locate the state by —
-   `check-layout.mjs:75,99` as a row marker and `compare_test.go:32` as the
-   whole class attribute — so the box keeps it and the parts inside are goen's.
-   The rule is scoped because the cart, the warranty pages and the back office
-   still wear the vendored recipe. */
-.goen-compare .ui-empty,
-.goen-listing .ui-empty {
-  align-items: center;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 56px 24px;
-  text-align: center;
-}
-
-.goen-empty__icon {
-  align-items: center;
-  background: var(--elevated);
-  border-radius: var(--r-full);
-  color: var(--fg-muted);
-  display: inline-flex;
-  height: 56px;
-  justify-content: center;
-  width: 56px;
-}
-
-.goen-empty__icon svg {
-  height: 24px;
-  width: 24px;
-}
-
-.goen-empty__title {
-  font-size: var(--fs-18);
-  font-weight: var(--fw-semibold);
-  margin: 0;
-}
-
-.goen-empty__text {
-  color: var(--fg-muted);
-  font-size: var(--fs-14);
-  line-height: var(--lh-normal);
-  margin: 0;
-  max-width: 32rem;
 }
 
 /* The running-promotions strip above the deals grid. A campaign is a
@@ -3038,6 +2966,7 @@ h4,
 .goen-order__meta {
   color: var(--fg-muted);
   font-size: var(--fs-14);
+  font-variant-numeric: tabular-nums;
   margin: 0;
 }
 
@@ -3225,7 +3154,15 @@ h4,
   padding-top: 12px;
 }
 
-.goen-empty {
+/* The browse screens join this rule rather than declare a second one. They
+   cannot join it by class name: `compare_test.go:33` reads `class="ui-empty"`
+   as the whole attribute and `check-layout.mjs:75,99` uses the same name as a
+   row marker, so their box keeps that spelling and this rule reaches it by
+   descent. The vendored `.ui-empty` sets the same six properties from a sheet
+   the document links earlier, so every one of them is decided here. */
+.goen-empty,
+.goen-compare .ui-empty,
+.goen-listing .ui-empty {
   align-items: center;
   display: flex;
   flex-direction: column;
