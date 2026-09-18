@@ -24,14 +24,6 @@ var (
 		En:     "Placing the order reserves the stock. Payment comes next.",
 	})
 
-	KeySelectPlaceholder = key("checkout.select", Message{ZhHant: "請選擇", En: "Choose one"})
-
-	KeyPickupHint = key("checkout.pickup.hint", Message{
-		ZhHant: "店號和店名可以在超商官網的門市查詢找到,或問店員。",
-		En: "The store number and name are on the chain's own store finder, or ask at " +
-			"the counter.",
-	})
-
 	KeyZoneSurcharge = key("checkout.zone.surcharge", Message{
 		ZhHant: "%s加價(已含)",
 		En:     "%s surcharge (included)",
@@ -203,11 +195,6 @@ var (
 	KeyStoreCodeMalformed = key("valid.pickup.code", Message{
 		ZhHant: "店號需為 1 到 10 碼數字或英文字母",
 		En:     "A store number is 1 to 10 digits or letters",
-	})
-
-	KeyStoreNameRequired = key("valid.pickup.name.required", Message{
-		ZhHant: "請填寫門市名稱",
-		En:     "Enter the store name",
 	})
 
 	KeyStoreNameTooLong = key("valid.pickup.name.toolong", Message{

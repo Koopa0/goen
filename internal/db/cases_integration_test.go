@@ -762,9 +762,13 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', '110', '台北市', '信義區', '松高路 100 號', NULL, NULL, NULL);`,
 	},
 	{
+		// A store with no chain, on a row whose destination is the address beside
+		// it, so order_private_data_one_destination is satisfied and this rule is
+		// the only one left. The chain alone is legal — it is what checkout
+		// writes — so the reject cannot be a missing store.
 		constraint: "order_private_data_pickup_complete",
-		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', '110', '台北市', '信義區', '松高路 100 號', 'seven_eleven', NULL, '信義門市');`,
-		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', NULL, NULL, NULL, NULL, 'seven_eleven', '123456', '信義門市');`,
+		reject:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', '110', '台北市', '信義區', '松高路 100 號', NULL, '123456', '信義門市');`,
+		accept:     `DELETE FROM order_private_data WHERE order_id = '6666aaaa-6666-4666-8666-666666666666'; INSERT INTO order_private_data (order_id, email, recipient_name, phone, postal_code, city, district, street, pickup_brand, pickup_store_code, pickup_store_name) VALUES ('6666aaaa-6666-4666-8666-666666666666', 'test@example.com', '測試', '0912000000', '110', '台北市', '信義區', '松高路 100 號', NULL, NULL, NULL);`,
 	},
 	{
 		constraint: "order_private_data_one_destination",

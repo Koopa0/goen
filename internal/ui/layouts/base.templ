@@ -12,6 +12,7 @@ templ Base(p Page) {
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<meta name="htmx-config" content={ htmxConfig }/>
 			<title>{ p.title(ctx) }</title>
 			if p.Description != "" {
 				<meta name="description" content={ p.Description }/>

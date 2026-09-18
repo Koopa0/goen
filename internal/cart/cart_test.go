@@ -659,6 +659,7 @@ func TestValidateAsksForTheDestinationTheMethodNeeds(t *testing.T) {
 	pickupAddress := func(a *Address) {
 		a.PickupBrand, a.PickupStoreCode, a.PickupStoreName = "seven_eleven", "123456", "信義門市"
 	}
+	chainOnly := func(a *Address) { a.PickupBrand = "seven_eleven" }
 
 	cases := []struct {
 		name  string
@@ -683,10 +684,15 @@ func TestValidateAsksForTheDestinationTheMethodNeeds(t *testing.T) {
 			wants: []string{"postal_code", "city", "district", "street"},
 		},
 		{
+			name: "a pickup order carrying the chain alone",
+			to:   ToPickupPoint,
+			fill: []func(*Address){contact, chainOnly},
+		},
+		{
 			name:  "a pickup order carrying only an address",
 			to:    ToPickupPoint,
 			fill:  []func(*Address){contact, address},
-			wants: []string{"pickup_brand", "pickup_store_code", "pickup_store_name"},
+			wants: []string{"pickup_brand"},
 		},
 		{
 			name:  "a method whose destination is unknown here",
@@ -735,7 +741,9 @@ func TestAPickupStoreCodeIsWhateverTheChainNumbersItsStores(t *testing.T) {
 		{name: "萊爾富 高縣後庄店 typed in lower case", brand: "hi_life", code: "s884"},
 
 		{name: "a 店名 typed into the code field", brand: "seven_eleven", code: "信義門市", refuse: true},
-		{name: "no code at all", brand: "seven_eleven", code: "", refuse: true},
+		// The chain is the whole choice a shopper makes; a code arrives from the
+		// back office, or from the carrier's picker when that is integrated.
+		{name: "no code at all", brand: "seven_eleven", code: ""},
 		{name: "longer than a 門市代碼", brand: "seven_eleven", code: "11008011008", refuse: true},
 	}
 
