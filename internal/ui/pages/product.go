@@ -76,38 +76,6 @@ func (b RatingBar) WidthClass() string {
 	return "goen-pdp__barfill--" + strconv.Itoa((b.Percent+5)/10*10)
 }
 
-// Stars is the average rounded to whole stars, as punctuation. A screen reader
-// is given RatingLabel instead, which says the number.
-func (v *ProductView) Stars() string { return starsOf(int(v.Rating + 0.5)) }
-
-// WishlistLabel names the wishlist control, which carries a glyph and no text.
-func (v *ProductView) WishlistLabel(ctx context.Context) string {
-	if v.Saved {
-		return i18n.T(ctx, i18n.KeyWishlistRemove)
-	}
-	return i18n.T(ctx, i18n.KeyWishlistAdd)
-}
-
-// SavedText is the aria-pressed state of the wishlist control.
-func (v *ProductView) SavedText() string {
-	if v.Saved {
-		return "true"
-	}
-	return "false"
-}
-
-// Trail is the breadcrumb, from the shop's front page down to this product.
-// The last step carries no link: a link to where you already are is a step a
-// keyboard has to pass through for nothing.
-func (v *ProductView) Trail(ctx context.Context) []components.Crumb {
-	trail := []components.Crumb{{Label: i18n.T(ctx, i18n.KeyHome), Href: "/"}}
-	for _, c := range v.Crumbs {
-		trail = append(trail, components.Crumb{Label: c.Name, Href: "/c/" + c.Slug})
-	}
-	trail = append(trail, components.Crumb{Label: v.CategoryName, Href: "/c/" + v.CategorySlug})
-	return append(trail, components.Crumb{Label: v.Name})
-}
-
 // ProductReview is one published review.
 type ProductReview struct {
 	Rating   int
@@ -190,6 +158,38 @@ type ProductView struct {
 	Related []ProductTile
 }
 
+// Stars is the average rounded to whole stars, as punctuation. A screen reader
+// is given RatingLabel instead, which says the number.
+func (v *ProductView) Stars() string { return starsOf(int(v.Rating + 0.5)) }
+
+// WishlistLabel names the wishlist control, which carries a glyph and no text.
+func (v *ProductView) WishlistLabel(ctx context.Context) string {
+	if v.Saved {
+		return i18n.T(ctx, i18n.KeyWishlistRemove)
+	}
+	return i18n.T(ctx, i18n.KeyWishlistAdd)
+}
+
+// SavedText is the aria-pressed state of the wishlist control.
+func (v *ProductView) SavedText() string {
+	if v.Saved {
+		return "true"
+	}
+	return "false"
+}
+
+// Trail is the breadcrumb, from the shop's front page down to this product.
+// The last step carries no link: a link to where you already are is a step a
+// keyboard has to pass through for nothing.
+func (v *ProductView) Trail(ctx context.Context) []components.Crumb {
+	trail := []components.Crumb{{Label: i18n.T(ctx, i18n.KeyHome), Href: "/"}}
+	for _, c := range v.Crumbs {
+		trail = append(trail, components.Crumb{Label: c.Name, Href: "/c/" + c.Slug})
+	}
+	trail = append(trail, components.Crumb{Label: v.CategoryName, Href: "/c/" + v.CategorySlug})
+	return append(trail, components.Crumb{Label: v.Name})
+}
+
 // ProductMeta is the chrome view model for a product page.
 func ProductMeta(v *ProductView) layouts.Page {
 	desc := v.Summary
@@ -235,6 +235,14 @@ func (v *ProductView) OnSale() bool { return v.Sellable && v.CompareCents > v.Pr
 
 // CanBuy reports whether the page can offer an add-to-cart button.
 func (v *ProductView) CanBuy() bool { return v.SelectionOK && v.Exact && v.Sellable }
+
+// InStock reports whether the chosen variant is buyable and not running out.
+// It is the state the other three badges do not cover, and it is only ever
+// shown once a variant is settled: on the bare product URL there is no one
+// variant whose stock it could describe.
+func (v *ProductView) InStock() bool {
+	return v.CanBuy() && !v.LowStock() && !v.SoldOut() && !v.AllSoldOut()
+}
 
 // NeedsChoice reports whether the visitor still has an option to pick.
 func (v *ProductView) NeedsChoice() bool { return v.SelectionOK && !v.Exact }

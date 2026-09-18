@@ -773,7 +773,7 @@ func Breadcrumb(label string, crumbs []Crumb) templ.Component {
 		var templ_7745c5c3_Var42 string
 		templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.ResolveAttributeValue(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 107, Col: 44}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 109, Col: 44}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var42)
 		if templ_7745c5c3_Err != nil {
@@ -802,7 +802,7 @@ func Breadcrumb(label string, crumbs []Crumb) templ.Component {
 				var templ_7745c5c3_Var43 string
 				templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(c.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 113, Col: 68}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 115, Col: 68}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 				if templ_7745c5c3_Err != nil {
@@ -820,7 +820,7 @@ func Breadcrumb(label string, crumbs []Crumb) templ.Component {
 				var templ_7745c5c3_Var44 templ.SafeURL
 				templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(c.Href))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 115, Col: 61}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 117, Col: 61}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 				if templ_7745c5c3_Err != nil {
@@ -833,7 +833,7 @@ func Breadcrumb(label string, crumbs []Crumb) templ.Component {
 				var templ_7745c5c3_Var45 string
 				templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(c.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 115, Col: 73}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 117, Col: 73}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 				if templ_7745c5c3_Err != nil {

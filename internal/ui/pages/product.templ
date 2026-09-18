@@ -140,6 +140,10 @@ templ productBuy(v *ProductView) {
 						@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
 							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOnlyLeft), v.AvailableText()) }
 						}
+					} else if v.InStock() {
+						@components.Badge(components.BadgeProps{}) {
+							{ i18n.T(ctx, i18n.KeyCompareInStock) }
+						}
 					}
 				}
 			</div>

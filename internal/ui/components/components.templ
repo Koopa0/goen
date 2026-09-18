@@ -91,7 +91,9 @@ templ Textarea(p FieldProps) {
 			}
 		}
 		{ p.Attrs... }
-	>{ children... }</textarea>
+	>
+		{ children... }
+	</textarea>
 }
 
 // Crumb is one step on the trail. An empty Href marks the page itself, which is
