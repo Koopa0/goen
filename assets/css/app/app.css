@@ -5578,3 +5578,71 @@ h4,
   min-height: 44px;
 }
 
+
+/* ---------- Motion ----------
+
+   Page to page. Every link stays a plain <a href> and every navigation stays a
+   full document load; what changes is that the browser now cross-fades the two
+   documents instead of cutting between them. That is the whole mechanism — no
+   script, no polyfill, no router — and a browser without it navigates exactly
+   as it did before.
+
+   The chrome both documents share is named, so the browser lifts it out of the
+   root snapshot and paints it once instead of fading it out and back in. That
+   is also why `main` is not named: with the header and footer already lifted
+   out, the root cross-fade IS the content cross-fade, while a name on `main`
+   would animate its group between two page heights, which is a scale.
+   ------------------------------------------------------------------------ */
+
+@view-transition {
+  navigation: auto;
+}
+
+.goen-header {
+  view-transition-name: header;
+}
+
+.goen-footer {
+  view-transition-name: footer;
+}
+
+/* The two regions the product page swaps in place carry the same names here as
+   they do there, so one set of rules covers the navigation into the page and
+   the swap inside it. */
+.goen-pdp__gallery {
+  view-transition-name: gallery;
+}
+
+.goen-pdp__buy {
+  view-transition-name: buybox;
+}
+
+/* Opacity only, at the slow step. The pair carries the cross-fade. The group
+   carries the geometry, and its keyframes are what would move or resize a named
+   region when the two pages put it in different places: a page read halfway
+   down leaves its header above the viewport, and the browser would otherwise
+   slide the header back down into the new page. Dropping the name and keeping
+   the timing leaves the group where the new page puts it and lets the pair
+   fade there. The timing is set on the group as well because the user agent
+   puts its own 0.25s there and the pair inherits from it. */
+::view-transition-group(*) {
+  animation-duration: var(--dur-slow);
+  animation-name: none;
+  animation-timing-function: var(--ease-standard);
+}
+
+::view-transition-old(*),
+::view-transition-new(*) {
+  animation-duration: var(--dur-slow);
+  animation-timing-function: var(--ease-standard);
+}
+
+/* The global reduce block at the top of this file matches elements, and these
+   snapshots are not elements, so the opt-out is spelled again. Taking the
+   transition out of the navigation leaves the plain document cut: the new page
+   is simply there, which is the state change reduced motion asks to keep. */
+@media (prefers-reduced-motion: reduce) {
+  @view-transition {
+    navigation: none;
+  }
+}
