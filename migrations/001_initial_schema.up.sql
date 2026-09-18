@@ -316,8 +316,9 @@ CREATE TABLE product_option_values (
     -- this column existed.
     --
     -- Lower-case six-digit hex, because a swatch is compared and sorted by the
-    -- shop as text and '#FFF' and '#ffffff' are the same colour under two
-    -- spellings. The CHECK is what stops the second one being stored.
+    -- shop as text and '#FFFFFF' and '#ffffff' are one colour under two
+    -- spellings. The CHECK admits one of them; the admin lower-cases before the
+    -- CHECK sees it, so typing the other is not an error.
     swatch_hex text,
     position   integer NOT NULL DEFAULT 0,
     CONSTRAINT product_option_values_value_present CHECK (value ~ '[^[:space:]]'),

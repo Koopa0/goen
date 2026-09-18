@@ -7395,6 +7395,100 @@ func TestTheShopCanGiveAProductAVariantPicker(t *testing.T) {
 	}
 }
 
+// A colour is a shape, not a word, and the shop finds that out at the field
+// rather than from a refused write. The column's CHECK is the last word; this
+// is the first one, and the two have to agree or the page 500s on a typo.
+func TestAMistypedColourComesBackBesideTheField(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	h := adminHandlerOver(pool, s)
+	slug := draftProduct(t, ctx, s)
+
+	if errs, err := s.AddOption(ctx, slug, admin.OptionDraft{
+		Name: "顏色", NameEn: "Colour",
+	}); err != nil || len(errs) > 0 {
+		t.Fatalf("AddOption: %v %v", err, errs)
+	}
+	view, err := s.Product(ctx, slug)
+	if err != nil {
+		t.Fatalf("Product: %v", err)
+	}
+	optionID := view.Options[0].ID
+
+	refused := []struct {
+		name string
+		raw  string
+	}{
+		{name: "no hash", raw: "1c1c1e"},
+		{name: "three digits", raw: "#abc"},
+		{name: "not hexadecimal", raw: "#1c1c1g"},
+		{name: "a colour name", raw: "black"},
+		{name: "too long", raw: "#1c1c1e0"},
+	}
+	for _, tt := range refused {
+		t.Run(tt.name, func(t *testing.T) {
+			res := postOptionValueForm(t, h, ctx, slug, url.Values{
+				"option":     {optionID},
+				"value":      {"色碼測試 " + uuid.NewString()[:8]},
+				"value_en":   {""},
+				"swatch_hex": {tt.raw},
+			})
+			if res.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("AddOptionValue(swatch_hex=%q) status = %d, want 422", tt.raw, res.Code)
+			}
+			body := res.Body.String()
+			input := inputElementByID(t, body, "optval-swatch")
+			if got := inputAttribute(t, input, "aria-invalid"); got != "true" {
+				t.Errorf("colour field aria-invalid = %q, want true", got)
+			}
+			if got := inputAttribute(t, input, "aria-describedby"); got != "optval-swatch-error" {
+				t.Errorf("colour field aria-describedby = %q, want the error's id", got)
+			}
+			if !regexp.MustCompile(`<p[^>]*id="optval-swatch-error"[^>]*>[^<]+</p>`).MatchString(body) {
+				t.Error("the refusal names no reason beside the colour field")
+			}
+			if strings.Contains(inputElementByID(t, body, "optval-value"), `aria-invalid`) {
+				t.Error("a bad colour marked the value field invalid too")
+			}
+		})
+	}
+
+	// The spelling is not the shape. A shop that types the other case is
+	// storing the same colour, so this one is accepted and lower-cased.
+	value := "曜石黑 " + uuid.NewString()[:8]
+	res := postOptionValueForm(t, h, ctx, slug, url.Values{
+		"option":     {optionID},
+		"value":      {value},
+		"value_en":   {""},
+		"swatch_hex": {"#1C1C1E"},
+	})
+	if res.Code != http.StatusSeeOther {
+		t.Fatalf("AddOptionValue(swatch_hex=%q) status = %d, want 303", "#1C1C1E", res.Code)
+	}
+	var stored string
+	if err := pool.QueryRow(ctx,
+		`SELECT swatch_hex FROM product_option_values WHERE option_id = $1::uuid AND value = $2`,
+		optionID, value).Scan(&stored); err != nil {
+		t.Fatalf("read the stored colour: %v", err)
+	}
+	if stored != "#1c1c1e" {
+		t.Errorf("stored colour = %q, want the lower-cased spelling", stored)
+	}
+}
+
+func postOptionValueForm(
+	t *testing.T, h *admin.Handler, ctx context.Context, slug string, form url.Values,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		"/admin/products/"+slug+"/options/values", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("slug", slug)
+	res := httptest.NewRecorder()
+	h.AddOptionValue(res, req)
+	return res
+}
+
 func TestAVariantCannotBorrowAnotherProductsOptionValue(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)

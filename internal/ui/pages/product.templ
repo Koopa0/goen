@@ -206,6 +206,17 @@ templ productBuy(v *ProductView) {
 								// style one, so the policy has nothing to refuse.
 								<svg class="goen-swatch__dot" viewBox="0 0 36 36" width="36" height="36" aria-hidden="true">
 									<circle cx="18" cy="18" r="17.5" fill={ val.SwatchHex }></circle>
+									if !val.Available {
+										// Struck through, not dimmed: a line SAYS
+										// sold out where a lower opacity only says
+										// the page is tired. Two strokes on one
+										// diagonal, the page's ground under the
+										// page's ink, so the mark reads on a colour
+										// of any darkness — the same answer the
+										// selected ring gives, for the same reason.
+										<line class="goen-swatch__barground" x1="7.4" y1="28.6" x2="28.6" y2="7.4"></line>
+										<line class="goen-swatch__bar" x1="7.4" y1="28.6" x2="28.6" y2="7.4"></line>
+									}
 								</svg>
 								<span class="goen-sr-only">{ val.Label }</span>
 							} else {

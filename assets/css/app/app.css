@@ -1780,6 +1780,9 @@ h4,
   gap: 4px;
 }
 
+/* An option value. A LINK, not a button: choosing navigates to the URL for
+   that combination, so the choice survives a reload, a shared address and
+   scripting being off. */
 .goen-swatch {
   align-items: center;
   background: transparent;
@@ -1838,8 +1841,9 @@ h4,
   stroke-width: 1;
 }
 
-/* Two rings, with the ground between them, so the mark reads on a colour of
-   any darkness without touching the colour itself. */
+/* The chosen colour. The circle draws back so the ring can be struck at the
+   edge the disc used to reach, half on the colour and half on the ground, and
+   the page's own box-shadow ring is dropped: one mark, not two. */
 .goen-swatch--dot.goen-swatch--on {
   border: 0;
   box-shadow: none;
@@ -1851,16 +1855,31 @@ h4,
   stroke-width: 2;
 }
 
-/* Unavailable in this combination. Shown rather than hidden, and dimmed rather
-   than crossed: a stroke through a colour reads as a different colour. */
+/* Unavailable in this combination. Shown rather than hidden, and struck rather
+   than dimmed: a visitor still needs to know the shop sells this colour, and a
+   fainter disc reads as a paler colour instead of as a colour they cannot have.
+   The strike is two lines on one diagonal, both drawn in the markup: the wider
+   one carries the page's ground and the narrower one the page's ink, so the
+   mark is legible on a near-white disc and on a near-black one without either
+   stroke touching the colour's own edge. */
 .goen-swatch--dot.goen-swatch--out {
   border: 0;
-  opacity: 0.4;
 }
 
-/* An option value. A LINK, not a button: choosing navigates to the URL for
-   that combination, so the choice survives a reload, a shared address and
-   scripting being off. */
+.goen-swatch__bar,
+.goen-swatch__barground {
+  stroke-linecap: round;
+}
+
+.goen-swatch__barground {
+  stroke: var(--bg);
+  stroke-width: 4;
+}
+
+.goen-swatch__bar {
+  stroke: var(--fg);
+  stroke-width: 2;
+}
 
 .goen-pdp__note {
   margin: 0;
