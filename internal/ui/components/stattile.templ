@@ -1,0 +1,15 @@
+package components
+
+// StatTile is one figure in an overview row: what it counts, how many, and a
+// link to the screen that holds them.
+//
+// The label comes before the value in the document so a screen reader hears
+// what is being counted before the number, and the stylesheet does not reorder
+// them — a visual order the reading order disagrees with is the defect this
+// component exists not to have.
+templ StatTile(p StatTileProps) {
+	<a class={ p.class() } href={ templ.SafeURL(p.Href) }>
+		<span class="goen-stat__label">{ p.Label }</span>
+		<span class="goen-stat__value">{ p.Value }</span>
+	</a>
+}
