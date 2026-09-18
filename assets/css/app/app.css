@@ -3959,11 +3959,14 @@ h4,
   border-color: var(--error);
 }
 
+/* The nav's anchors aim at these headings, so the margin that keeps a jumped-to
+   heading off the top edge belongs here rather than on the card around it. */
 .goen-account__heading {
   color: var(--fg);
   font-size: var(--fs-16);
   font-weight: var(--fw-semibold);
   margin: 0;
+  scroll-margin-top: 24px;
 }
 
 .goen-account__standing {
@@ -4607,9 +4610,12 @@ h4,
 
 /* A section describing what has not been decided reads differently from one
    describing a rule. A reader must be able to tell a promise from a gap, and a
-   shop that sets both in the same ink is making a promise by accident. */
-.goen-doc__section.is-pending p {
-  color: var(--fg-faint);
+   shop that sets both in the same ink is making a promise by accident. The
+   difference is a rule beside the text rather than a lighter grey: grey enough
+   to read as pending is grey enough to fail a contrast check. */
+.goen-doc__section.is-pending {
+  border-left: 2px solid var(--border-strong);
+  padding-left: 16px;
 }
 
 .goen-doc__qa {
