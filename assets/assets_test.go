@@ -410,6 +410,35 @@ func TestHandlerRefusesLongCacheWithoutMatchingVersion(t *testing.T) {
 	}
 }
 
+// TestTheStyleSheetCarriesThePageTransition proves the rules that turn a
+// navigation into a cross-fade reach the browser. They are the whole of #369 —
+// CSS and nothing else — so without this assertion the at-rule could be dropped
+// and every other test here would stay green while every page went back to a
+// hard cut.
+func TestTheStyleSheetCarriesThePageTransition(t *testing.T) {
+	t.Parallel()
+
+	res := requestAsset(t, assets.AppCSS, "", "")
+	if res.Code != http.StatusOK {
+		t.Fatalf("GET %s = %d, want %d", assets.AppCSS, res.Code, http.StatusOK)
+	}
+
+	sheet := res.Body.String()
+	// The opt-in, then each name that keeps a shared region from repainting
+	// between the two documents.
+	for _, rule := range []string{
+		"@view-transition {\n  navigation: auto;\n}",
+		"view-transition-name: header;",
+		"view-transition-name: footer;",
+		"view-transition-name: gallery;",
+		"view-transition-name: buybox;",
+	} {
+		if !strings.Contains(sheet, rule) {
+			t.Errorf("served %s does not contain %q", assets.AppCSS, rule)
+		}
+	}
+}
+
 func requestAsset(t *testing.T, name, acceptEncoding, ifNoneMatch string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, assets.URL(name), http.NoBody)
