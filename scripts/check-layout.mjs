@@ -615,6 +615,38 @@ const settled = async (ws, label, url) => {
 const failures = [];
 const fail = (where, msg) => failures.push(`${where}: ${msg}`);
 
+// Wait for every <img> in main to have FINISHED fetching, before the probe reads
+// naturalWidth off it.
+//
+// "Not yet" and "not served" are different facts and naturalWidth tells them
+// apart only once the fetch has settled. readyState complete does not wait for
+// images, so on a cold cache the first page of a run is measured mid-download:
+// CI reported two product images as missing at the 375 artboard — the run's
+// first navigation — that loaded correctly at 768, 1024 and 1440 seconds later.
+//
+// This is a correction to the probe, not a weaker assertion. `complete` is true
+// the moment the fetch settles WHETHER OR NOT it succeeded, so an image the
+// server does not serve still arrives here with naturalWidth 0 and still fails,
+// without waiting: only a slow byte is given time, never a missing one. The
+// ceiling exists so an image that never starts fetching cannot hang the run —
+// the probe then reports it by src, which is the failure that was wanted.
+//
+// The ceiling is generous because reaching it is not the normal cost: an image
+// that is served arrives long before, and one that is NOT served is `complete`
+// on the first poll and returns immediately. Only an image that never starts
+// fetching waits the whole way.
+const imagesFetched = async (label) => {
+  for (let i = 0; i < 150; i++) {
+    const { result } = await send(ws, 'Runtime.evaluate', {
+      expression: `[...document.querySelectorAll('main img')].filter((img) => !img.complete).length`,
+      returnByValue: true,
+    });
+    if (result.value === 0) return;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  fail(label, 'an image in main never finished fetching within 15s');
+};
+
 // checkAccessibility reports the invariants the probe measured.
 //
 // Called for every row of every table. These are properties of a PAGE rather than of
@@ -699,6 +731,7 @@ for (const want of EXPECTED) {
   const target = ORIGIN + '/';
   await send(ws, 'Page.navigate', { url: target });
   await settled(ws, want.label, target);
+  await imagesFetched(want.label);
 
   const evaluated = await send(ws, 'Runtime.evaluate', { expression: PROBE, returnByValue: true });
   // A probe that THREW comes back with exceptionDetails and no value, and reading
