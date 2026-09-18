@@ -4895,20 +4895,6 @@ h4,
   }
 }
 
-/* The note that says what the language switch does NOT change. Quiet, and
-   present — a visitor reading English chrome over Chinese product copy should
-   have been told, not left to work it out. */
-.goen-footer__contentnote {
-  margin: 0;
-  color: var(--fg-subtle);
-}
-
-@media (min-width: 1024px) {
-  .goen-campaigns__list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
 /* The audit trail. Dense on purpose — it is read by scanning for one row, not
    by reading every row. */
 .goen-admin__audit {
