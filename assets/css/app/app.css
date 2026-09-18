@@ -881,6 +881,42 @@ h4,
   top: 2px;
 }
 
+/* The locale form, shared by the header bar, the drawer and the footer: a
+   segmented pair of submits, the current one filled, both keeping
+   aria-pressed. */
+.goen-lang {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+}
+
+.goen-lang__item {
+  background: none;
+  border: none;
+  border-radius: var(--r-sm);
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+  min-height: 40px;
+  padding: 0 12px;
+  transition:
+    background-color var(--dur-base) var(--ease-standard),
+    color var(--dur-base) var(--ease-standard);
+}
+
+.goen-lang__item:hover {
+  color: var(--fg);
+}
+
+.goen-lang__item[aria-pressed='true'] {
+  background: var(--elevated);
+  color: var(--fg);
+}
+
 /* The disclosure menu: a native <details>, no script involved in opening it. */
 .goen-header__menu > summary {
   list-style: none;
@@ -939,42 +975,6 @@ h4,
   align-self: flex-start;
   display: inline-flex;
   margin-top: 8px;
-}
-
-/* The locale form, shared by the header bar, the drawer and the footer: a
-   segmented pair of submits, the current one filled, both keeping
-   aria-pressed. */
-.goen-lang {
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  display: inline-flex;
-  gap: 2px;
-  padding: 2px;
-}
-
-.goen-lang__item {
-  background: none;
-  border: none;
-  border-radius: var(--r-sm);
-  color: var(--fg-muted);
-  cursor: pointer;
-  font-family: inherit;
-  font-size: var(--fs-12);
-  font-weight: var(--fw-medium);
-  min-height: 40px;
-  padding: 0 12px;
-  transition:
-    background-color var(--dur-base) var(--ease-standard),
-    color var(--dur-base) var(--ease-standard);
-}
-
-.goen-lang__item:hover {
-  color: var(--fg);
-}
-
-.goen-lang__item[aria-pressed='true'] {
-  background: var(--elevated);
-  color: var(--fg);
 }
 
 /* English catalogue names out-measure the zh-Hant ones, so the desktop row is
@@ -1478,6 +1478,7 @@ h4,
   border-radius: var(--r-lg);
   color: var(--fg);
   display: flex;
+  flex: 1;
   flex-direction: column;
   overflow: hidden;
   text-decoration: none;
@@ -1517,6 +1518,7 @@ h4,
 
 .goen-tile__body {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 4px;
   padding: 12px;
@@ -1560,7 +1562,8 @@ h4,
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-semibold);
   gap: 8px;
-  margin-top: 4px;
+  margin-top: auto;
+  padding-top: 4px;
 }
 
 .goen-tile__was {
