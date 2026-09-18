@@ -106,13 +106,6 @@ func (p Page) ariaCurrent(item NavItem) string {
 	return "false"
 }
 
-func boolAttr(v bool) string {
-	if v {
-		return "true"
-	}
-	return "false"
-}
-
 func cartLabel(ctx context.Context, count int) string {
 	if count == 0 {
 		return i18n.T(ctx, i18n.KeyCartEmpty)
