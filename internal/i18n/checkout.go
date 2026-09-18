@@ -138,6 +138,13 @@ var (
 		En:     "Update",
 	})
 
+	// The control beside the coupon field. It applies a code without placing the
+	// order, so it says what it does rather than borrowing the choosers' 更新.
+	KeyApplyCoupon = key("checkout.coupon.apply", Message{
+		ZhHant: "套用",
+		En:     "Apply",
+	})
+
 	KeyCreditChanged = key("checkout.credit.changed", Message{
 		ZhHant: "可用購物金已變更為 %s。請確認後再送出一次。",
 		En:     "Your available store credit changed to %s. Check it and submit again.",
