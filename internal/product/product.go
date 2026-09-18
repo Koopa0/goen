@@ -147,6 +147,10 @@ type OptionValue struct {
 	Href      string
 	// Label is what the visitor reads; Value is what the URL carries.
 	Label string
+	// SwatchHex is the colour this value shows as, empty where the value is not
+	// a colour. A capacity has none, and neither has a finish the shop has not
+	// given one — the page shows the name instead.
+	SwatchHex string
 }
 
 // Option is one picker: a group name and its values.
@@ -184,6 +188,7 @@ func BuildOptions(slug string, groups map[string][]OptionChoice, order []string,
 				Selected:  sel[name] == val,
 				Available: anySellable(variants, next),
 				Href:      Href(slug, next),
+				SwatchHex: choice.SwatchHex,
 			})
 		}
 		opts = append(opts, o)
@@ -194,8 +199,9 @@ func BuildOptions(slug string, groups map[string][]OptionChoice, order []string,
 // OptionChoice is one value on an axis: what the URL selects on, and what the
 // visitor reads.
 type OptionChoice struct {
-	Value string
-	Label string
+	Value     string
+	Label     string
+	SwatchHex string
 }
 
 func labelOr(label, canonical string) string {

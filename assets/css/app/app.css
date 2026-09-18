@@ -155,6 +155,11 @@ a:hover {
     0 2px 4px -2px oklch(0 0 0 / 0.1);
   --success: oklch(0.596 0.145 163.225);
   --success-bg: oklch(0.596 0.145 163.225 / 0.12);
+
+  /* The hairline a swatch needs so a near-white colour is still a disc on a
+     white ground. Translucent black rather than a grey: it disappears into a
+     dark colour, which is where a ring would be noise. */
+  --swatch-ring: oklch(0 0 0 / 0.15);
   --warn: oklch(0.666 0.179 58.318);
   --warn-bg: oklch(0.666 0.179 58.318 / 0.12);
 }
@@ -1751,9 +1756,18 @@ h4,
 
 .goen-pdp__optname {
   color: var(--fg);
-  font-size: var(--fs-13);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--fs-14);
   font-weight: var(--fw-medium);
+  gap: 6px;
   padding: 0 0 8px;
+}
+
+/* A colour has no words on it, so the chosen one says its name here. */
+.goen-pdp__optchosen {
+  color: var(--fg-muted);
+  font-weight: 400;
 }
 
 .goen-pdp__values {
@@ -1762,9 +1776,10 @@ h4,
   gap: 8px;
 }
 
-/* An option value. A LINK, not a button: choosing navigates to the URL for
-   that combination, so the choice survives a reload, a shared address and
-   scripting being off. */
+.goen-pdp__values--swatches {
+  gap: 4px;
+}
+
 .goen-swatch {
   align-items: center;
   background: transparent;
@@ -1799,6 +1814,53 @@ h4,
   border-style: dashed;
   color: var(--fg-faint);
 }
+
+/* A colour swatch. The link is the target and the disc is what is seen: 44px
+   of reachable area around a 36px circle, so a thumb has the room a finger
+   needs without the colours drifting apart into a loose row. */
+.goen-swatch--dot {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-full);
+  justify-content: center;
+  min-height: 44px;
+  padding: 0;
+  width: 44px;
+}
+
+.goen-swatch--dot:hover {
+  background: transparent;
+}
+
+.goen-swatch__dot circle {
+  stroke: var(--swatch-ring);
+  stroke-width: 1;
+}
+
+/* Two rings, with the ground between them, so the mark reads on a colour of
+   any darkness without touching the colour itself. */
+.goen-swatch--dot.goen-swatch--on {
+  border: 0;
+  box-shadow: none;
+}
+
+.goen-swatch--dot.goen-swatch--on .goen-swatch__dot circle {
+  r: 16;
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+/* Unavailable in this combination. Shown rather than hidden, and dimmed rather
+   than crossed: a stroke through a colour reads as a different colour. */
+.goen-swatch--dot.goen-swatch--out {
+  border: 0;
+  opacity: 0.4;
+}
+
+/* An option value. A LINK, not a button: choosing navigates to the URL for
+   that combination, so the choice survives a reload, a shared address and
+   scripting being off. */
 
 .goen-pdp__note {
   margin: 0;

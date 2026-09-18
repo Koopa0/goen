@@ -459,6 +459,9 @@ type OptionDraft struct {
 	OptionID string
 	Name     string
 	NameEn   string
+	// SwatchHex is the colour a value shows as, empty where it is not a colour.
+	// Only AddOptionValue reads it; an option is an axis and has no colour.
+	SwatchHex string
 }
 
 // AddOption appends an option — an axis such as colour — to a product.
@@ -493,6 +496,10 @@ func (s *Store) AddOption(ctx context.Context, slug string, d OptionDraft) (map[
 	return nil, nil
 }
 
+// swatchHex is the shape the column's CHECK accepts, applied here so a typo
+// comes back as a field error beside the field rather than as a refused write.
+var swatchHex = regexp.MustCompile(`^#[0-9a-f]{6}$`)
+
 // AddOptionValue appends a value to one of a product's options.
 func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) (map[string]string, error) {
 	optionID, err := uuid.Parse(d.OptionID)
@@ -503,6 +510,13 @@ func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) 
 	if errs := optionErrors(ctx, name, nameEn, "value"); len(errs) > 0 {
 		return errs, nil
 	}
+	// Lower-cased before the CHECK sees it, so a shop that types #1C1C1E is
+	// storing the same colour as one that types #1c1c1e rather than being
+	// refused for the spelling.
+	swatch := strings.ToLower(strings.TrimSpace(d.SwatchHex))
+	if swatch != "" && !swatchHex.MatchString(swatch) {
+		return map[string]string{"swatch_hex": i18n.T(ctx, i18n.KeyFormSwatchHex)}, nil
+	}
 
 	if err := s.audited(ctx, Event{
 		Action: actionAddOptionValue, Table: "product_option_values", ID: nullableID(optionID),
@@ -510,6 +524,7 @@ func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) 
 	}, func(ctx context.Context, q *db.Queries) error {
 		if _, err := q.AddProductOptionValue(ctx, db.AddProductOptionValueParams{
 			Slug: slug, OptionID: optionID, Value: name, ValueEn: nameEn,
+			SwatchHex: swatch,
 		}); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrNotFound

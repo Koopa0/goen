@@ -45,6 +45,8 @@ type ProductOptionValue struct {
 	Selected  bool
 	Available bool
 	Href      string
+	// SwatchHex is the colour to draw, empty where the value is not a colour.
+	SwatchHex string
 }
 
 // ProductOption is one picker.
@@ -52,6 +54,34 @@ type ProductOption struct {
 	Name   string
 	Label  string
 	Values []ProductOptionValue
+}
+
+// HasSwatches reports whether this option draws its values as colours.
+//
+// All or nothing, per option: one row of choices should look like one row, and
+// a colour beside a word reads as two kinds of thing. A shop that has given
+// half its colours a value gets words until it has given the rest.
+func (o ProductOption) HasSwatches() bool {
+	if len(o.Values) == 0 {
+		return false
+	}
+	for _, v := range o.Values {
+		if v.SwatchHex == "" {
+			return false
+		}
+	}
+	return true
+}
+
+// SelectedLabel is the name of the value chosen on this axis, empty when none
+// is. A swatch shows a colour and no words, so the name has to be somewhere.
+func (o ProductOption) SelectedLabel() string {
+	for _, v := range o.Values {
+		if v.Selected {
+			return v.Label
+		}
+	}
+	return ""
 }
 
 // RatingBar is one row of the rating histogram.
