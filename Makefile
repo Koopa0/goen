@@ -98,9 +98,16 @@ check-layout:
 	@# The cart pages need a cart. Added through the site's own POST, so if
 	@# add-to-cart is broken this check fails too — which is correct.
 	@rm -f .layout-chrome/cookies
+	@# Both halves are checked, because every way of ending up without a cart used
+	@# to surface as the checkout fixture's "did not render its quote" further
+	@# down: a catalogue with nothing sellable, a GOEN_DATABASE_URL that is not the
+	@# database the server at GOEN_URL reads, and a genuinely broken add to cart all
+	@# arrived as that one sentence. Reporting three causes as one is CLAUDE.md #17.
 	@VARIANT=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT pv.id FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE p.status = 'active' AND pv.is_active AND pv.stock_quantity > pv.safety_stock LIMIT 1"); \
-		curl -s -o /dev/null -c .layout-chrome/cookies \
-			-d "variant=$$VARIANT&quantity=1" $${GOEN_URL:-http://127.0.0.1:9700}/cart/items
+		test -n "$$VARIANT" || { echo 'no sellable variant in GOEN_DATABASE_URL: run `make db-seed` against the database the server reads' >&2; exit 2; }; \
+		STATUS=$$(curl -s -o /dev/null -w '%{http_code}' -c .layout-chrome/cookies \
+			-d "variant=$$VARIANT&quantity=1" $${GOEN_URL:-http://127.0.0.1:9700}/cart/items); \
+		case "$$STATUS" in 200|30*) ;; *) echo "add to cart answered $$STATUS for variant $$VARIANT — the server at GOEN_URL does not know it, which is usually a different database than GOEN_DATABASE_URL" >&2; exit 2;; esac
 	@# The two sessions every fixture below signs in with, minted HERE rather than
 	@# at the end, because the back office's own forms are what seed the last three
 	@# admin pages and they need a staff cookie to POST with.
@@ -127,6 +134,8 @@ check-layout:
 	@# own checkout for the same reason the cart is: if placing an order is
 	@# broken, this check should fail too.
 	@U=$${GOEN_URL:-http://127.0.0.1:9700}; \
+		STATUS=$$(curl -s -o /dev/null -w '%{http_code}' -b .layout-chrome/cookies $$U/checkout); \
+		test "$$STATUS" = 200 || { echo "GET /checkout answered $$STATUS, want 200 — an empty cart redirects, and then nothing below can be read from the page" >&2; exit 2; }; \
 		PAGE=$$(curl -fsS -b .layout-chrome/cookies $$U/checkout); \
 		QUOTE=$$(printf '%s' "$$PAGE" | grep -o 'name="checkout_quote" value="[^"]*"' | head -1 | cut -d'"' -f4); \
 		ATTEMPT=$$(printf '%s' "$$PAGE" | grep -o 'name="idempotency" value="[^"]*"' | head -1 | cut -d'"' -f4); \
