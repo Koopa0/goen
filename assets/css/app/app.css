@@ -901,7 +901,7 @@ h4,
   font-family: inherit;
   font-size: var(--fs-12);
   font-weight: var(--fw-medium);
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 12px;
   transition:
     background-color var(--dur-base) var(--ease-standard),
@@ -2165,6 +2165,15 @@ h4,
     padding: 32px var(--page-gutter) 56px;
   }
 
+  /* The rail takes 256px and a 32px gap out of the row, so a fourth column
+     beside it is a 150px card — under the width the gate calls readable
+     (`check-layout.mjs:317`, `MIN_CARD`). Three until there is room at 1280.
+     Only the category listing has a rail; search, deals, a campaign and the
+     wishlist keep the four the shared rule gives them. */
+  .goen-listing__results .goen-tiles__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   /* The rail is open at every desk width: the summary goes, and the slot the
      closed <details> hides is forced back into rendering. */
   .goen-filters__shell {
@@ -2186,6 +2195,12 @@ h4,
   .goen-filters {
     border: 1px solid var(--border);
     border-radius: var(--r-lg);
+  }
+}
+
+@media (min-width: 1280px) {
+  .goen-listing__results .goen-tiles__grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 /* ---------- Product detail ----------
