@@ -2120,9 +2120,18 @@ h4,
     display: flex;
   }
 
+  /* At desk width the rail is a column of the page, not a panel sitting on it:
+     the hairline between one facet and the next is the whole separation, and the
+     space around them does the rest. The card shape belongs to the phone, where
+     the same markup is a disclosure that has to read as one closed thing. */
   .goen-filters {
-    border: 1px solid var(--border);
-    border-radius: var(--r-lg);
+    border: none;
+    gap: 24px;
+    padding: 0;
+  }
+
+  .goen-filters__group {
+    padding-bottom: 24px;
   }
 }
 
