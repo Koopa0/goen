@@ -355,9 +355,10 @@ func (h *Handler) AddOption(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) AddOptionValue(w http.ResponseWriter, r *http.Request) {
 	h.optionWrite(w, r, func(slug string) (map[string]string, error) {
 		return h.store.AddOptionValue(r.Context(), slug, OptionDraft{
-			OptionID: r.PostFormValue("option"),
-			Name:     r.PostFormValue("value"),
-			NameEn:   r.PostFormValue("value_en"),
+			OptionID:  r.PostFormValue("option"),
+			Name:      r.PostFormValue("value"),
+			NameEn:    r.PostFormValue("value_en"),
+			SwatchHex: r.PostFormValue("swatch_hex"),
 		})
 	})
 }

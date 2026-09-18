@@ -445,6 +445,25 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 												<p class="ui-error-text" id="optval-value-en-error">{ v.Err("value_en") }</p>
 											}
 										</div>
+										<div class="ui-field">
+											<label class="ui-label" for="optval-swatch">{ i18n.T(ctx, i18n.KeyAdminProdValueSwatch) }</label>
+											<input
+												class="ui-input"
+												id="optval-swatch"
+												name="swatch_hex"
+												maxlength="7"
+												autocomplete="off"
+												pattern="#[0-9a-f]{6}"
+												placeholder="#1c1c1e"
+												if v.HasErr("swatch_hex") {
+													aria-invalid="true"
+													aria-describedby="optval-swatch-error"
+												}
+											/>
+											if v.HasErr("swatch_hex") {
+												<p class="ui-error-text" id="optval-swatch-error">{ v.Err("swatch_hex") }</p>
+											}
+										</div>
 									</div>
 									<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">
 										{ i18n.T(ctx, i18n.KeyAdminProdValueAdd) }

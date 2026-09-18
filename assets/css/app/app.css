@@ -315,6 +315,11 @@ a:hover {
     0 2px 4px -2px oklch(0 0 0 / 0.1);
   --success: oklch(0.596 0.145 163.225);
   --success-bg: oklch(0.596 0.145 163.225 / 0.12);
+
+  /* The hairline a swatch needs so a near-white colour is still a disc on a
+     white ground. Translucent black rather than a grey: it disappears into a
+     dark colour, which is where a ring would be noise. */
+  --swatch-ring: oklch(0 0 0 / 0.15);
   --warn: oklch(0.666 0.179 58.318);
   --warn-bg: oklch(0.666 0.179 58.318 / 0.12);
 }
@@ -2329,15 +2334,28 @@ h4,
 
 .goen-pdp__optname {
   color: var(--fg);
-  font-size: var(--fs-13);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--fs-14);
   font-weight: var(--fw-medium);
+  gap: 6px;
   padding: 0 0 8px;
+}
+
+/* A colour has no words on it, so the chosen one says its name here. */
+.goen-pdp__optchosen {
+  color: var(--fg-muted);
+  font-weight: 400;
 }
 
 .goen-pdp__values {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.goen-pdp__values--swatches {
+  gap: 4px;
 }
 
 /* An option value. A LINK, not a button: choosing navigates to the URL for
@@ -2376,6 +2394,69 @@ h4,
 .goen-swatch--out {
   border-style: dashed;
   color: var(--fg-faint);
+}
+
+/* A colour swatch. The link is the target and the disc is what is seen: 44px
+   of reachable area around a 36px circle, so a thumb has the room a finger
+   needs without the colours drifting apart into a loose row. */
+.goen-swatch--dot {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-full);
+  justify-content: center;
+  min-height: 44px;
+  padding: 0;
+  width: 44px;
+}
+
+.goen-swatch--dot:hover {
+  background: transparent;
+}
+
+.goen-swatch__dot circle {
+  stroke: var(--swatch-ring);
+  stroke-width: 1;
+}
+
+/* The chosen colour. The circle draws back so the ring can be struck at the
+   edge the disc used to reach, half on the colour and half on the ground, and
+   the page's own box-shadow ring is dropped: one mark, not two. */
+.goen-swatch--dot.goen-swatch--on {
+  border: 0;
+  box-shadow: none;
+}
+
+.goen-swatch--dot.goen-swatch--on .goen-swatch__dot circle {
+  r: 16;
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+/* Unavailable in this combination. Shown rather than hidden, and struck rather
+   than dimmed: a visitor still needs to know the shop sells this colour, and a
+   fainter disc reads as a paler colour instead of as a colour they cannot have.
+   The strike is two lines on one diagonal, both drawn in the markup: the wider
+   one carries the page's ground and the narrower one the page's ink, so the
+   mark is legible on a near-white disc and on a near-black one without either
+   stroke touching the colour's own edge. */
+.goen-swatch--dot.goen-swatch--out {
+  border: 0;
+}
+
+.goen-swatch__bar,
+.goen-swatch__barground {
+  stroke-linecap: round;
+}
+
+.goen-swatch__barground {
+  stroke: var(--bg);
+  stroke-width: 4;
+}
+
+.goen-swatch__bar {
+  stroke: var(--fg);
+  stroke-width: 2;
 }
 
 .goen-pdp__note {
