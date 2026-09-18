@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -11,21 +12,23 @@ import (
 templ Campaign(p layouts.Page, v CampaignView) {
 	@layouts.Base(p) {
 		<div class="goen-listing">
-			<div class="ui-page-head">
-				<div>
-					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyCampaignEyebrow) }</p>
-					<h1 class="ui-page-head__title">{ v.Title }</h1>
-					<p class="ui-page-head__sub">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignEndsAt), v.EndsAt) }</p>
-				</div>
+			<div class="goen-pagehead">
+				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyCampaignEyebrow) }</p>
+				<h1 class="goen-pagehead__title">{ v.Title }</h1>
+				<p class="goen-pagehead__sub">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignEndsAt), v.EndsAt) }</p>
 			</div>
 			if v.Empty() {
 				<div class="ui-empty">
-					<p class="ui-empty__title">{ i18n.T(ctx, i18n.KeyCampaignEmpty) }</p>
-					<p class="ui-empty__desc">
+					<span class="goen-empty__icon">
+						@icons.Search()
+					</span>
+					<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyCampaignEmpty) }</p>
+					<p class="goen-empty__text">
 						{ i18n.T(ctx, i18n.KeyCampaignEmptyHint) } <a href="/deals">{ i18n.T(ctx, i18n.KeyCampaignEmptyLink) }</a>
 					</p>
 				</div>
 			} else {
+				<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
 				<ul class="goen-tiles__grid" role="list">
 					for _, t := range v.Products {
 						@Tile(t)
@@ -36,15 +39,18 @@ templ Campaign(p layouts.Page, v CampaignView) {
 	}
 }
 
+// campaignStrip is the running promotions above the deals grid. A campaign is a
+// destination and a marked-down product is an item; they are drawn apart so
+// they do not read as the same kind of thing stacked together.
 templ campaignStrip(campaigns []CampaignSummary) {
 	<section class="goen-campaigns" aria-labelledby="campaigns-heading">
-		<h2 id="campaigns-heading" class="h4">{ i18n.T(ctx, i18n.KeyCampaignEyebrow) }</h2>
+		<h2 id="campaigns-heading" class="goen-campaigns__heading">{ i18n.T(ctx, i18n.KeyCampaignEyebrow) }</h2>
 		<ul class="goen-campaigns__list" role="list">
 			for _, c := range campaigns {
 				<li>
 					<a class="goen-campaigns__item" href={ templ.SafeURL(c.Href()) }>
 						<span class="goen-campaigns__title">{ c.Title }</span>
-						<span class="ui-cart-line__meta">
+						<span class="goen-campaigns__meta">
 							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignProducts), c.ProductsText()) }
 							if c.EndsIn != "" {
 								· { c.EndsIn }
