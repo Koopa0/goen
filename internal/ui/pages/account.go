@@ -179,14 +179,6 @@ func (v AuthView) Err(field string) string { return v.Errors[field] }
 // HasErr reports whether a field was rejected.
 func (v AuthView) HasErr(field string) bool { return v.Errors[field] != "" }
 
-// Invalid is the aria-invalid value for a field.
-func (v AuthView) Invalid(field string) string {
-	if v.HasErr(field) {
-		return "true"
-	}
-	return "false"
-}
-
 // AnyErrors reports whether the form was rejected at all.
 func (v AuthView) AnyErrors() bool { return len(v.Errors) > 0 }
 
