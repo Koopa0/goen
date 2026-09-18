@@ -1935,7 +1935,9 @@ CREATE TABLE order_private_data (
     street         text,
     -- The pickup store a parcel is collected from. Three columns because they
     -- answer different questions: which carrier's manifest the parcel joins,
-    -- which store, and what a human reads on the label.
+    -- which store, and what a human reads on the label. Only the first is
+    -- asked for at checkout; the carrier's own picker fills the other two, and
+    -- until it is integrated they stay empty.
     pickup_brand      text,
     pickup_store_code text,
     pickup_store_name text,
@@ -1954,23 +1956,27 @@ CREATE TABLE order_private_data (
             AND pickup_brand IS NULL AND pickup_store_code IS NULL
             AND pickup_store_name IS NULL)
     ),
-    -- A live row carries EXACTLY ONE destination. Written as two all-or-nothing
-    -- groups and an XOR rather than "street IS NOT NULL OR pickup_store_code IS
-    -- NOT NULL", which a row carrying a city and no street would satisfy.
+    -- A live row carries EXACTLY ONE destination. The address half is written
+    -- as an all-or-nothing group and an XOR rather than "street IS NOT NULL OR
+    -- pickup_brand IS NOT NULL", which a row carrying a city and no street
+    -- would satisfy. The pickup half is the chain alone: it names the counter
+    -- the parcel is sent to, and a store behind it is an addition.
     CONSTRAINT order_private_data_one_destination CHECK (
         erased_at IS NOT NULL
         OR (
             (postal_code IS NOT NULL AND city IS NOT NULL
                 AND district IS NOT NULL AND street IS NOT NULL)
-            <> (pickup_brand IS NOT NULL AND pickup_store_code IS NOT NULL
-                AND pickup_store_name IS NOT NULL)
+            <> (pickup_brand IS NOT NULL)
         )
     ),
     CONSTRAINT order_private_data_address_complete CHECK (
         num_nonnulls(postal_code, city, district, street) IN (0, 4)
     ),
+    -- A store with no chain is not a destination: nothing says whose manifest
+    -- the parcel joins. The reverse is allowed, and is what checkout writes.
     CONSTRAINT order_private_data_pickup_complete CHECK (
-        num_nonnulls(pickup_brand, pickup_store_code, pickup_store_name) IN (0, 3)
+        pickup_brand IS NOT NULL
+        OR num_nonnulls(pickup_store_code, pickup_store_name) = 0
     ),
     -- Nullable because erased and pickup rows intentionally carry no HOME
     -- destination. Whenever a value is present, however, it follows exactly
@@ -3376,7 +3382,9 @@ BEGIN
 
     -- A LIVE, filled-in row: order_private_data_all_or_erased permits an
     -- all-NULL erased shape, and a live row could carry blanks. The DESTINATION
-    -- is an either/or — asking for a street made every pickup order unpayable.
+    -- is an either/or — asking for a street made every pickup order unpayable,
+    -- and asking for a store number would do the same to one whose chain is all
+    -- that has been chosen.
     IF lines = 0
        OR NOT EXISTS (
            SELECT 1 FROM order_private_data
@@ -3385,8 +3393,7 @@ BEGIN
              AND phone ~ '[^[:space:]]'
              AND ((postal_code ~ '[^[:space:]]' AND city ~ '[^[:space:]]'
                    AND district ~ '[^[:space:]]' AND street ~ '[^[:space:]]')
-                  OR (pickup_brand ~ '[^[:space:]]' AND pickup_store_code ~ '[^[:space:]]'
-                      AND pickup_store_name ~ '[^[:space:]]')))
+                  OR pickup_brand ~ '[^[:space:]]'))
        OR subtotal - o.discount_cents + o.shipping_cents + o.tax_cents < 0 THEN
         RAISE EXCEPTION 'order % is not complete enough to be paid', o.order_number
             USING ERRCODE = 'check_violation', CONSTRAINT = 'payments_require_complete_order';

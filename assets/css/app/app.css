@@ -3205,6 +3205,13 @@ h4,
   min-width: 0;
 }
 
+/* With scripting off the 更新 button answers with the whole form again and its
+   fragment names the section it changed, so the browser lands on this heading
+   rather than the top of the form. The margin keeps it off the viewport edge. */
+.goen-checkout__section {
+  scroll-margin-top: 24px;
+}
+
 .goen-summary__title,
 .goen-checkout__heading,
 .goen-order__subhead {
@@ -3387,6 +3394,17 @@ h4,
   justify-content: flex-end;
 }
 
+/* Where scripting is on, changing a chooser applies it, and two ways to apply
+   one choice on the same screen is one way too many. Hidden when the sheet is
+   told scripting is on rather than shown when it is told scripting is off, so a
+   browser that has never heard of the query keeps the button that always works.
+   check-layout measures visible controls only, and a hidden button has no box. */
+@media (scripting: enabled) {
+  .goen-checkout__apply {
+    display: none;
+  }
+}
+
 .goen-checkout .goen-checkout__fields {
   display: grid;
   gap: 16px;
@@ -3395,36 +3413,6 @@ h4,
 
 .goen-checkout .goen-checkout__wide {
   grid-column: 1 / -1;
-}
-
-.goen-checkout__hint {
-  color: var(--fg-muted);
-  font-size: var(--fs-12);
-  margin: 0;
-}
-
-/* A native select wearing the input recipe. It stays a select: a listbox built
-   from divs needs script, and the write-face rule forbids script being the only
-   way a form works. */
-.goen-checkout__select {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow-1);
-  box-sizing: border-box;
-  color: var(--fg);
-  font-family: inherit;
-  font-size: var(--fs-14);
-  height: 2.75rem;
-  padding: 0.25rem 2rem 0.25rem 0.75rem;
-  transition: border-color var(--dur-base) var(--ease-standard);
-  width: 100%;
-}
-
-.goen-checkout__select:focus-visible {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px var(--accent-muted);
-  outline: none;
 }
 
 .goen-checkout__lines {
@@ -5644,5 +5632,14 @@ h4,
 @media (prefers-reduced-motion: reduce) {
   @view-transition {
     navigation: none;
+  }
+
+  /* A region swapped in place is not a navigation, so the opt-out above does
+     not reach it and the snapshots are named again here. Without the animation
+     the new content is simply there, which is the state change reduced motion
+     asks to keep. */
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none;
   }
 }

@@ -3080,6 +3080,45 @@ func TestThePickupDestinationComesFromTheMethodNotTheForm(t *testing.T) {
 	}
 }
 
+// TestAPickupOrderIsPlacedWithTheChainAlone holds what checkout now submits: a
+// convenience-store order carrying no store number and no store name. The
+// columns stay for the day the carrier's picker fills them.
+func TestAPickupOrderIsPlacedWithTheChainAlone(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+	id := newCart(t, s)
+	if err := s.Add(ctx, id, variantOf(t, "pixelight-9-pro", true), 1); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+
+	addr := &cart.Address{
+		To:    cart.ToPickupPoint,
+		Email: "chain@example.com", Name: "林小美", Phone: "0955666777",
+		PickupBrand: "seven_eleven",
+	}
+	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{},
+		shipVersionFor(t, "store_pickup"), addr, "", "dest-chain-1")
+	if err != nil {
+		t.Fatalf("place a pickup order with the chain alone: %v", err)
+	}
+
+	street, brand, code, name := destinationOf(t, number)
+	if brand != "seven_eleven" {
+		t.Errorf("the chain is %q, want seven_eleven", brand)
+	}
+	if street != "" || code != "" || name != "" {
+		t.Errorf("the order carries more than the chain: %q/%q/%q", street, code, name)
+	}
+
+	view, err := s.Order(ctx, number)
+	if err != nil {
+		t.Fatalf("read the order back: %v", err)
+	}
+	if !strings.Contains(view.DeliveryTo, "7-ELEVEN") {
+		t.Errorf("the confirmation does not name the chain: %q", view.DeliveryTo)
+	}
+}
+
 func TestAnAddressOrderKeepsNoPickupPoint(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)

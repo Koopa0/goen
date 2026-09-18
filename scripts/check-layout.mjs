@@ -105,12 +105,13 @@ const CART = [
   { label: 'cart 1440', width: 1440, height: 900, path: '/cart' },
   { label: 'checkout 375', width: 375, height: 812, path: '/checkout' },
   { label: 'checkout 1440', width: 1440, height: 900, path: '/checkout' },
-  // The checkout with 超商取貨 chosen. It is a different form — a store picker
-  // rather than a street address — so a layout row for the default method
-  // measures only half the page. PICKUP_SHIP is the version id the Makefile
-  // reads from the database, and the marker insists the store field is there.
-  { label: 'pickup 375', width: 375, height: 812, path: '/checkout?ship=PICKUP_SHIP', marker: '#pickup_store_code' },
-  { label: 'pickup 1440', width: 1440, height: 900, path: '/checkout?ship=PICKUP_SHIP', marker: '#pickup_store_code' },
+  // The checkout with 超商取貨 chosen. It is a different form — a chain to
+  // choose rather than a street address — so a layout row for the default
+  // method measures only half the page. PICKUP_SHIP is the version id the
+  // Makefile reads from the database, and the marker insists the chain
+  // chooser is there.
+  { label: 'pickup 375', width: 375, height: 812, path: '/checkout?ship=PICKUP_SHIP', marker: 'input[name=pickup_brand]' },
+  { label: 'pickup 1440', width: 1440, height: 900, path: '/checkout?ship=PICKUP_SHIP', marker: 'input[name=pickup_brand]' },
   // The payment page. PLACED_ORDER is the NUMBER of the order the Makefile just
   // placed; PLACED_TOKEN, set as a cookie above, is the browser's proof that it
   // placed it. Two facts, two variables — without either the page is the 404 a

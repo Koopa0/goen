@@ -185,7 +185,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 				<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyCheckoutTitle) }</h1>
 				<p class="goen-pagehead__sub">{ i18n.T(ctx, i18n.KeyCheckoutSub) }</p>
 			</div>
-			<form class="goen-checkout__layout" method="post" action="/checkout">
+			<form class="goen-checkout__layout" id="checkout-form" method="post" action="/checkout">
 				// The form's DEFAULT button, and the reason it is first: HTML
 				// makes the first submit button in tree order the one Enter
 				// activates, and the chooser's 更新 buttons sit above the real
@@ -231,6 +231,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 						// a form refuses the choice, not one of the things on offer.
 						<div
 							class="goen-checkout__choices"
+							{ checkoutChoiceSwap("shipping")... }
 							role="radiogroup"
 							aria-labelledby="shipping-heading"
 							aria-invalid={ v.Invalid("shipping") }
@@ -242,6 +243,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 								<label class="goen-checkout__ship">
 									<input
 										class="goen-sr-only"
+										id={ "shipping-" + c.VersionID }
 										type="radio"
 										name="shipping"
 										value={ c.VersionID }
@@ -289,6 +291,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 						if v.OffersTheAddressBook() {
 							<div
 								class="goen-checkout__choices"
+								{ checkoutChoiceSwap("address")... }
 								role="radiogroup"
 								aria-labelledby="recipient-heading"
 								aria-invalid={ v.Invalid("address") }
@@ -300,6 +303,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 									<label class="goen-checkout__ship">
 										<input
 											class="goen-sr-only"
+											id={ "address-" + a.ID }
 											type="radio"
 											name="address"
 											value={ a.ID }
@@ -322,57 +326,38 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 							@field("name", i18n.T(ctx, i18n.KeyFieldName), "text", v.Address.Name, v)
 							@field("phone", i18n.T(ctx, i18n.KeyFieldPhone), "tel", v.Address.Phone, v)
 							if v.ToPickupPoint() {
-								<div class="goen-field">
-									@components.Label(components.LabelProps{For: "pickup_brand"}) {
-										{ i18n.T(ctx, i18n.KeyFieldPickupBrand) }
-									}
-									<select
-										class="goen-checkout__select"
-										id="pickup_brand"
-										name="pickup_brand"
-										autocomplete="off"
-										required
+								// The chain is the whole pickup choice. Which store
+								// the parcel waits at comes from the carrier's own
+								// picker; nobody types a store number, and asking for
+								// one only produced refusals.
+								<div class="goen-field goen-checkout__wide">
+									<p class="goen-label" id="pickup_brand-label">{ i18n.T(ctx, i18n.KeyFieldPickupBrand) }</p>
+									<div
+										class="goen-checkout__choices"
+										role="radiogroup"
+										aria-labelledby="pickup_brand-label"
 										aria-invalid={ v.Invalid("pickup_brand") }
 										if v.HasErr("pickup_brand") {
 											aria-describedby="pickup_brand-error"
 										}
 									>
-										<option value="">{ i18n.T(ctx, i18n.KeySelectPlaceholder) }</option>
 										for _, b := range v.PickupBrands {
-											<option value={ string(b.Value) } selected?={ b.Value == v.Address.PickupBrand }>
-												{ b.Label }
-											</option>
+											<label class="goen-checkout__ship">
+												<input
+													class="goen-sr-only"
+													id={ "pickup_brand-" + string(b.Value) }
+													type="radio"
+													name="pickup_brand"
+													value={ string(b.Value) }
+													checked?={ b.Value == v.Address.PickupBrand }
+												/>
+												<span class="goen-checkout__shipname">{ b.Label }</span>
+											</label>
 										}
-									</select>
+									</div>
 									if v.HasErr("pickup_brand") {
 										<p class="ui-error-text" id="pickup_brand-error">{ v.Err("pickup_brand") }</p>
 									}
-								</div>
-								@field("pickup_store_code", i18n.T(ctx, i18n.KeyFieldStoreCode), "text", v.Address.PickupStoreCode, v)
-								<div class="goen-field goen-checkout__wide">
-									@components.Label(components.LabelProps{For: "pickup_store_name"}) {
-										{ i18n.T(ctx, i18n.KeyFieldStoreName) }
-									}
-									<input
-										class="goen-input"
-										id="pickup_store_name"
-										type="text"
-										name="pickup_store_name"
-										value={ v.Address.PickupStoreName }
-										autocomplete="off"
-										required
-										maxlength="40"
-										aria-invalid={ v.Invalid("pickup_store_name") }
-										if v.HasErr("pickup_store_name") {
-											aria-describedby="pickup_store_name-error"
-										}
-									/>
-									if v.HasErr("pickup_store_name") {
-										<p class="ui-error-text" id="pickup_store_name-error">{ v.Err("pickup_store_name") }</p>
-									}
-									<p class="goen-checkout__hint">
-										{ i18n.T(ctx, i18n.KeyPickupHint) }
-									</p>
 								</div>
 							} else {
 								@field("postal_code", i18n.T(ctx, i18n.KeyFieldPostalCode), "text", v.Address.PostalCode, v)
@@ -433,6 +418,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 						// typed. It is the sharpest case of the three.
 						<div
 							class="goen-checkout__choices"
+							{ checkoutChoiceSwap("invoice")... }
 							role="radiogroup"
 							aria-labelledby="invoice-heading"
 							aria-invalid={ v.Invalid("invoice_type") }
@@ -444,6 +430,7 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 								<label class="goen-checkout__ship">
 									<input
 										class="goen-sr-only"
+										id={ "invoice_type-" + string(c.Value) }
 										type="radio"
 										name="invoice_type"
 										value={ string(c.Value) }
@@ -634,12 +621,18 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 // applyChoice re-renders the form with the choice above it applied. A submit
 // button rather than a link, because the form carries everything the customer
 // has typed and a link carries only the choice.
+//
+// It is the path a browser without scripting takes; the stylesheet hides it
+// where the change itself applies the choice. The fragment names the section
+// this button belongs to, so the answer opens at that heading instead of the
+// top of a form the customer had already scrolled past.
 templ applyChoice(which string) {
 	<div class="goen-checkout__apply">
 		@components.Button(components.ButtonProps{
 			Variant: components.VariantOutline,
 			Size:    components.SizeSmall,
 			Attrs: templ.Attributes{
+				"formaction":     "/checkout#" + which,
 				"name":           "update",
 				"value":          which,
 				"formnovalidate": true,

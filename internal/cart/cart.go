@@ -636,13 +636,13 @@ func (a *Address) destinationErrors() []account.FieldError {
 		if !a.PickupBrand.Known() {
 			add("pickup_brand", i18n.KeyPickupBrandRequired)
 		}
-		if !isStoreCode(a.PickupStoreCode) {
+		// The chain is all a shopper is asked for. A store number and name reach
+		// this only from the back office, so they are checked when they carry a
+		// value and never demanded: the carrier's picker will supply them.
+		if a.PickupStoreCode != "" && !isStoreCode(a.PickupStoreCode) {
 			add("pickup_store_code", i18n.KeyStoreCodeMalformed)
 		}
-		switch {
-		case strings.TrimSpace(a.PickupStoreName) == "":
-			add("pickup_store_name", i18n.KeyStoreNameRequired)
-		case utf8.RuneCountInString(a.PickupStoreName) > maxStoreNameRunes:
+		if utf8.RuneCountInString(a.PickupStoreName) > maxStoreNameRunes {
 			add("pickup_store_name", i18n.KeyStoreNameTooLong)
 		}
 	default:
