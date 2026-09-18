@@ -6,6 +6,13 @@ GOVULNCHECK_VERSION := v1.7.0
 SQUAWK_VERSION := 2.64.0
 DEADCODE_VERSION := v0.49.0
 ACTIONLINT_VERSION := v1.7.12
+AXE_CORE_VERSION := 4.13.0
+
+# The digest of axe.min.js at that version, as the npm registry tarball and
+# unpkg both serve it. check-layout downloads the file and verifies this before
+# evaluating it in the page, because the alternative — a <script src> at a CDN —
+# lets a third party decide what runs inside the gate that decides what merges.
+AXE_CORE_SHA256 := c24f097bd2f451d4f933e8bc7d8d539f8672a2ebcb5cc9f9f3eec8ca9470a0c1
 
 # Tools that generate or inspect this module but are not part of it. `go run
 # pkg@version` pins each as firmly as a require line without joining the module
@@ -95,6 +102,22 @@ check-layout:
 		--remote-debugging-port=$${CDP_PORT:-9222} \
 		--user-data-dir=$(PWD)/.layout-chrome about:blank >/dev/null 2>&1 & echo $$! > .layout-chrome/pid
 	@sleep 3
+	@# axe-core, fetched at the pin above and checked against it. Downloaded
+	@# AFTER the browser is launched so the wait for Chrome pays for the fetch,
+	@# and into the throwaway profile directory so nothing survives the run.
+	@# The script evaluates it over CDP rather than injecting a <script>: the
+	@# site sends script-src 'self' and a gate that needs the page to relax its
+	@# own CSP measures a page nobody visits.
+	@curl -fsSL --retry 3 -o .layout-chrome/axe.min.js \
+		https://unpkg.com/axe-core@$(AXE_CORE_VERSION)/axe.min.js \
+		|| { echo 'could not fetch axe-core $(AXE_CORE_VERSION)' >&2; exit 2; }
+	@# openssl rather than shasum or sha256sum: this recipe already requires it a
+	@# few lines down, and neither of the others is on both macOS and a Linux
+	@# runner. The last field, because OpenSSL 3 prints SHA2-256(file)= and
+	@# LibreSSL prints SHA256(file)=.
+	@digest=$$(openssl dgst -sha256 .layout-chrome/axe.min.js | awk '{print $$NF}'); \
+		test "$$digest" = '$(AXE_CORE_SHA256)' \
+		|| { echo "axe-core $(AXE_CORE_VERSION) hashes to $$digest, not AXE_CORE_SHA256" >&2; exit 2; }
 	@# The cart pages need a cart. Added through the site's own POST, so if
 	@# add-to-cart is broken this check fails too — which is correct.
 	@rm -f .layout-chrome/cookies
