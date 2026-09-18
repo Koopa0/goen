@@ -11,24 +11,34 @@ import (
 templ Policy(p layouts.Page, doc PolicyDoc) {
 	@layouts.Base(p) {
 		<div class="goen-doc">
-			<div class="ui-page-head">
-				<div>
-					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyPolicyEyebrow) }</p>
-					<h1 class="ui-page-head__title">{ doc.Title }</h1>
-					<p class="ui-page-head__sub">{ doc.Summary }</p>
-				</div>
+			<div class="goen-pagehead goen-doc__head">
+				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyPolicyEyebrow) }</p>
+				<h1 class="goen-pagehead__title">{ doc.Title }</h1>
+				<p class="goen-pagehead__sub">{ doc.Summary }</p>
 			</div>
-			for _, s := range doc.Sections {
-				<section class={ "goen-doc__section", templ.KV("is-pending", s.Pending) }>
-					<h2 class="h4">{ s.Heading }</h2>
-					for _, para := range s.Body {
-						<p>{ para }</p>
+			<div class="goen-doc__layout">
+				if len(doc.Sections) > 0 {
+					<nav class="goen-doc__toc" aria-labelledby="doc-toc-heading">
+						<p class="goen-doc__tochead" id="doc-toc-heading">{ doc.Title }</p>
+						for i, s := range doc.Sections {
+							<a class="goen-doc__toclink" href={ templ.SafeURL(doc.SectionHref(i)) }>{ s.Heading }</a>
+						}
+					</nav>
+				}
+				<article class="goen-doc__article">
+					for i, s := range doc.Sections {
+						<section class={ "goen-doc__section", templ.KV("is-pending", s.Pending) } id={ doc.SectionID(i) }>
+							<h2>{ s.Heading }</h2>
+							for _, para := range s.Body {
+								<p>{ para }</p>
+							}
+						</section>
 					}
-				</section>
-			}
-			<p class="goen-doc__contact">
-				{ i18n.T(ctx, i18n.KeyPolicyMore) }<a href="/contact">{ i18n.T(ctx, i18n.KeyPolicyContactLink) }</a>{ i18n.T(ctx, i18n.KeyPolicyMoreFAQ) }<a href="/faq">{ i18n.T(ctx, i18n.KeyPolicyFAQLink) }</a>
-			</p>
+					<p class="goen-doc__contact">
+						{ i18n.T(ctx, i18n.KeyPolicyMore) }<a href="/contact">{ i18n.T(ctx, i18n.KeyPolicyContactLink) }</a>{ i18n.T(ctx, i18n.KeyPolicyMoreFAQ) }<a href="/faq">{ i18n.T(ctx, i18n.KeyPolicyFAQLink) }</a>
+					</p>
+				</article>
+			</div>
 		</div>
 	}
 }
@@ -37,29 +47,39 @@ templ Policy(p layouts.Page, doc PolicyDoc) {
 templ FAQ(p layouts.Page, v FAQView) {
 	@layouts.Base(p) {
 		<div class="goen-doc">
-			<div class="ui-page-head">
-				<div>
-					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyPolicyHelp) }</p>
-					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyFAQTitle) }</h1>
-				</div>
+			<div class="goen-pagehead goen-doc__head">
+				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyPolicyHelp) }</p>
+				<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyFAQTitle) }</h1>
 			</div>
-			if v.Empty() {
-				<p class="goen-doc__contact">
-					{ i18n.T(ctx, i18n.KeyFAQEmpty) }<a href="/contact">{ i18n.T(ctx, i18n.KeyPolicyContactLink) }</a>{ i18n.T(ctx, i18n.KeyFAQEmptyTail) }
-				</p>
-			} else {
-				for _, g := range v.Groups {
-					<section class="goen-doc__section">
-						<h2 class="h4">{ g.Category }</h2>
-						for _, item := range g.Items {
-							<details class="goen-doc__qa">
-								<summary>{ item.Question }</summary>
-								<p>{ item.Answer }</p>
-							</details>
+			<div class="goen-doc__layout">
+				if !v.Empty() {
+					<nav class="goen-doc__toc" aria-labelledby="faq-toc-heading">
+						<p class="goen-doc__tochead" id="faq-toc-heading">{ i18n.T(ctx, i18n.KeyFAQTitle) }</p>
+						for i, g := range v.Groups {
+							<a class="goen-doc__toclink" href={ templ.SafeURL(faqGroupHref(i)) }>{ g.Category }</a>
 						}
-					</section>
+					</nav>
 				}
-			}
+				<article class="goen-doc__article">
+					if v.Empty() {
+						<p class="goen-doc__contact">
+							{ i18n.T(ctx, i18n.KeyFAQEmpty) }<a href="/contact">{ i18n.T(ctx, i18n.KeyPolicyContactLink) }</a>{ i18n.T(ctx, i18n.KeyFAQEmptyTail) }
+						</p>
+					} else {
+						for i, g := range v.Groups {
+							<section class="goen-doc__section" id={ faqGroupID(i) }>
+								<h2>{ g.Category }</h2>
+								for _, item := range g.Items {
+									<details class="goen-doc__qa">
+										<summary>{ item.Question }</summary>
+										<p>{ item.Answer }</p>
+									</details>
+								}
+							</section>
+						}
+					}
+				</article>
+			</div>
 		</div>
 	}
 }
@@ -68,54 +88,62 @@ templ FAQ(p layouts.Page, v FAQView) {
 templ Shipping(p layouts.Page, v ShippingView) {
 	@layouts.Base(p) {
 		<div class="goen-doc">
-			<div class="ui-page-head">
-				<div>
-					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyPolicyEyebrow) }</p>
-					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyShippingTitle) }</h1>
-					<p class="ui-page-head__sub">{ i18n.T(ctx, i18n.KeyShippingSub) }</p>
-				</div>
+			<div class="goen-pagehead goen-doc__head">
+				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyPolicyEyebrow) }</p>
+				<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyShippingTitle) }</h1>
+				<p class="goen-pagehead__sub">{ i18n.T(ctx, i18n.KeyShippingSub) }</p>
 			</div>
-			<section class="goen-doc__section">
-				<h2 class="h4">{ i18n.T(ctx, i18n.KeyShippingMethods) }</h2>
-				if v.Empty() {
-					<p>{ i18n.T(ctx, i18n.KeyShippingNoMethods) }</p>
-				} else {
-					<ul class="goen-doc__methods" role="list">
-						for _, m := range v.Methods {
-							<li class="goen-doc__method">
-								<span class="goen-doc__methodname">
-									{ m.Name }
-									if m.Carrier != "" {
-										<span class="ui-cart-line__meta">{ m.Carrier }</span>
-									}
-								</span>
-								<span class="goen-doc__methodfee">
-									{ m.Fee() }
-									if m.FreeOver() != "" {
-										<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyShippingFreeOver), m.FreeOver()) }</span>
-									}
-									if m.HasSurcharges() {
-										<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyShippingZoneNote), m.SurchargeText(ctx)) }</span>
-									}
-								</span>
-							</li>
+			<div class="goen-doc__layout">
+				<nav class="goen-doc__toc" aria-labelledby="shipping-toc-heading">
+					<p class="goen-doc__tochead" id="shipping-toc-heading">{ i18n.T(ctx, i18n.KeyShippingTitle) }</p>
+					<a class="goen-doc__toclink" href="#shipping-methods">{ i18n.T(ctx, i18n.KeyShippingMethods) }</a>
+					<a class="goen-doc__toclink" href="#shipping-tracking">{ i18n.T(ctx, i18n.KeyShippingTracking) }</a>
+					<a class="goen-doc__toclink" href="#shipping-hold">{ i18n.T(ctx, i18n.KeyShippingHold) }</a>
+				</nav>
+				<article class="goen-doc__article">
+					<section class="goen-doc__section" id="shipping-methods">
+						<h2>{ i18n.T(ctx, i18n.KeyShippingMethods) }</h2>
+						if v.Empty() {
+							<p>{ i18n.T(ctx, i18n.KeyShippingNoMethods) }</p>
+						} else {
+							<ul class="goen-doc__methods" role="list">
+								for _, m := range v.Methods {
+									<li class="goen-doc__method">
+										<span class="goen-doc__methodname">
+											{ m.Name }
+											if m.Carrier != "" {
+												<span class="goen-doc__methodmeta">{ m.Carrier }</span>
+											}
+										</span>
+										<span class="goen-doc__methodfee">
+											{ m.Fee() }
+											if m.FreeOver() != "" {
+												<span class="goen-doc__methodmeta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyShippingFreeOver), m.FreeOver()) }</span>
+											}
+											if m.HasSurcharges() {
+												<span class="goen-doc__methodmeta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyShippingZoneNote), m.SurchargeText(ctx)) }</span>
+											}
+										</span>
+									</li>
+								}
+							</ul>
 						}
-					</ul>
-				}
-			</section>
-			<section class="goen-doc__section">
-				<h2 class="h4">{ i18n.T(ctx, i18n.KeyShippingTracking) }</h2>
-				<p>{ i18n.T(ctx, i18n.KeyShippingTrackingBody) }</p>
-			</section>
-			<section class="goen-doc__section">
-				<h2 class="h4">{ i18n.T(ctx, i18n.KeyShippingHold) }</h2>
-				<p>
-					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyShippingHoldBody), HoldMinutesText()) }
-				</p>
-			</section>
-			<p class="goen-doc__contact">
-				{ i18n.T(ctx, i18n.KeyPolicyMore) }<a href="/contact">{ i18n.T(ctx, i18n.KeyPolicyContactLink) }</a>{ i18n.T(ctx, i18n.KeyPolicyMoreFAQ) }<a href="/faq">{ i18n.T(ctx, i18n.KeyPolicyFAQLink) }</a>
-			</p>
+					</section>
+					<section class="goen-doc__section" id="shipping-tracking">
+						<h2>{ i18n.T(ctx, i18n.KeyShippingTracking) }</h2>
+						<p>{ i18n.T(ctx, i18n.KeyShippingTrackingBody) }</p>
+					</section>
+					<section class="goen-doc__section" id="shipping-hold">
+						<h2>{ i18n.T(ctx, i18n.KeyShippingHold) }</h2>
+						<p>
+							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyShippingHoldBody), HoldMinutesText()) }
+						</p>
+					</section>
+					<p class="goen-doc__contact">
+						{ i18n.T(ctx, i18n.KeyPolicyMore) }<a href="/contact">{ i18n.T(ctx, i18n.KeyPolicyContactLink) }</a>{ i18n.T(ctx, i18n.KeyPolicyMoreFAQ) }<a href="/faq">{ i18n.T(ctx, i18n.KeyPolicyFAQLink) }</a>
+					</p>
+				</article>
+			</div>
 		</div>
 	}
 }

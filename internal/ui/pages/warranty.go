@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 )
 
 // WarrantyLine is one order line as the registration form sees it.
@@ -134,6 +135,16 @@ func (w Warranty) State(ctx context.Context) string {
 		return i18n.T(ctx, i18n.KeyWarrantyActive)
 	}
 	return i18n.T(ctx, i18n.KeyWarrantyExpired)
+}
+
+// BadgeTone is how the cover reads beside the item: the shop's own colour while
+// it holds, and the quiet neutral once it has lapsed — an expired warranty is a
+// date that has passed, not a refusal.
+func (w Warranty) BadgeTone() components.Tone {
+	if w.InForce {
+		return components.ToneAccent
+	}
+	return components.ToneNeutral
 }
 
 // Href is the product's page, or empty when the product is gone.

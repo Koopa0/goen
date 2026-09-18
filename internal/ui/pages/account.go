@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -56,6 +57,21 @@ func (o AccountOrder) StatusText(ctx context.Context) string {
 	default:
 		// A retired value from append-only history still has to render.
 		return string(o.Status)
+	}
+}
+
+// BadgeTone is how the order's state reads in the history table. Only two
+// states are coloured: one the shopper still has to act on, and one that ended
+// without a delivery. Everything in between is progress, and a row of coloured
+// badges would say each step is a thing to look at.
+func (o AccountOrder) BadgeTone() components.Tone {
+	switch {
+	case o.Status == FulfillmentCancelled:
+		return components.ToneDanger
+	case awaitingPayment(o.Status, o.Committed, o.OwedCents):
+		return components.ToneWarn
+	default:
+		return components.ToneNeutral
 	}
 }
 
