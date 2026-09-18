@@ -40,7 +40,32 @@ a:hover {
   }
 }
 
-/* ---------- Shell ---------- */
+/* ---------- Shell ----------
+
+   The frame, and the one measurement every surface shares: a content column
+   that stops at 1280px inside a gutter of 16 / 24 / 32px.
+   `scripts/check-layout.mjs:496-498` compares the header bar's, the home
+   page's and the footer grid's content edges and fails when they disagree, so
+   the three read that column from one pair of properties rather than each
+   writing the numbers again.
+   ------------------------------------------------------------------------ */
+
+:root {
+  --page-gutter: 16px;
+  --page-width: 1280px;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --page-gutter: 24px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --page-gutter: 32px;
+  }
+}
 
 .goen-shell {
   display: flex;
@@ -52,15 +77,19 @@ a:hover {
   flex: 1;
 }
 
+/* Off the canvas until it is focused, which is the one moment it has to be
+   reachable. `check-layout.mjs:443-445` knows it parks at left:-9999px and
+   measures only the right edge because of it. */
 .goen-skip {
-  position: absolute;
-  left: -9999px;
-  top: 0;
-  z-index: var(--z-toast);
-  padding: 10px 16px;
   background: var(--panel);
   border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
+  border-radius: var(--r-md);
+  font-size: var(--fs-14);
+  left: -9999px;
+  padding: 8px 16px;
+  position: absolute;
+  top: 0;
+  z-index: var(--z-toast);
 }
 
 .goen-skip:focus {
@@ -70,17 +99,147 @@ a:hover {
 
 /* Reachable by assistive technology, absent from the visual layout. */
 .goen-sr-only {
-  position: absolute;
-  width: 1px;
+  border: 0;
+  clip-path: inset(50%);
   height: 1px;
   margin: -1px;
-  padding: 0;
   overflow: hidden;
-  clip-path: inset(50%);
+  padding: 0;
+  position: absolute;
   white-space: nowrap;
-  border: 0;
+  width: 1px;
 }
 
+/* ---------- Promo banner ----------
+
+   One row above the header and IN FLOW, not fixed: it is rendered on first
+   paint and removed by a form, so it never moves the page after load. The bar
+   carries the accent because it is the shop speaking in its own voice, and its
+   dismiss control is a full 44px because `check-layout.mjs:1300` sweeps every
+   button outside the header and the footer.
+   ------------------------------------------------------------------------ */
+
+.goen-promo {
+  background: var(--accent);
+  color: var(--on-accent);
+  display: block;
+  font-size: var(--fs-14);
+  margin: 0;
+}
+
+.goen-promo__bar {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin: 0 auto;
+  max-width: var(--page-width);
+  padding: 0 var(--page-gutter);
+}
+
+.goen-promo__link {
+  align-items: center;
+  color: inherit;
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 0;
+  text-decoration: none;
+}
+
+/* One line, clipped rather than wrapped: a two-line bar changes the page's
+   height between one promotion and the next. */
+.goen-promo__message {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Two copies of the copy, one shown at a time. The short version is different
+   WRITING, not a truncation — which is why promo_banners carries both. */
+.goen-promo__wide {
+  display: none;
+}
+
+.goen-promo__narrow {
+  display: inline;
+}
+
+/* The discount code reads as something to be copied rather than as part of the
+   sentence, and user-select: all makes one tap take the whole of it. */
+.goen-promo__code {
+  background: var(--on-accent);
+  border-radius: var(--r-sm);
+  color: var(--accent-strong);
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+  padding: 2px 6px;
+  -webkit-user-select: all;
+  user-select: all;
+}
+
+.goen-promo__cta {
+  display: none;
+  flex: none;
+  font-weight: var(--fw-medium);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.goen-promo__chevron {
+  flex: none;
+  margin-left: auto;
+}
+
+/* 44 x 44, which is why the glyph inside it is 16px. A close control smaller
+   than the minimum target is one people miss and then resent. */
+.goen-promo__close {
+  align-items: center;
+  background: none;
+  border: none;
+  border-radius: var(--r-md);
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  height: 44px;
+  justify-content: center;
+  margin-right: -8px;
+  padding: 0;
+  transition: background-color var(--dur-base) var(--ease-standard);
+  width: 44px;
+}
+
+.goen-promo__close:hover {
+  background: var(--accent-strong);
+}
+
+@media (min-width: 768px) {
+  .goen-promo__wide {
+    display: inline;
+  }
+
+  .goen-promo__narrow {
+    display: none;
+  }
+
+  /* The message takes the slack and the call to action sits at the right,
+     which is only possible once there is room for two targets on one row. */
+  .goen-promo__message {
+    flex: 1;
+  }
+
+  .goen-promo__cta {
+    display: inline;
+  }
+
+  .goen-promo__chevron {
+    margin-left: 0;
+  }
+}
 /* ---------- The ground ----------
 
    Every value the storefront is drawn from, set here rather than in the
@@ -534,90 +693,194 @@ h4,
   font-weight: var(--fw-medium);
 }
 
-/* ---------- Header ---------- */
+/* ---------- Header ----------
+
+   One static row: brand, category links, search, language, the account and
+   wide actions, and the cart. Static and not sticky on purpose — a bar that
+   follows the scroll takes 64px out of an 844px phone and moves every scroll
+   position the follow-up issues are measured against.
+
+   Below 1024 the category links move into a native <details data-menu> and the
+   search field wraps onto its own row. The drawer is the element
+   `assets/js/goen.js` closes on Escape and on an outside click; nothing here
+   needs script to open it.
+   ------------------------------------------------------------------------ */
 
 .goen-header {
-  position: relative;
-  background: var(--panel);
+  background: var(--bg);
   border-bottom: 1px solid var(--border);
+  position: relative;
 }
 
-/* The page gutter is one value per breakpoint — 16 / 24 / 32 — and the header,
-   the page body and the footer all use it. When they drift apart the three
-   landmarks read as three documents stacked rather than one page, which is
-   exactly what `make check-layout` compares. */
 .goen-header__bar {
+  align-items: center;
+  column-gap: 12px;
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
+  margin: 0 auto;
+  max-width: var(--page-width);
+  min-height: 64px;
+  padding: 8px var(--page-gutter);
+  row-gap: 8px;
 }
 
 .goen-header__brand {
-  display: flex;
   align-items: center;
-  gap: 7px;
+  color: var(--fg);
+  display: flex;
+  gap: 8px;
   margin-right: auto;
   text-decoration: none;
-  color: var(--fg);
 }
 
 .goen-header__brand:hover {
   color: var(--fg);
 }
 
-.goen-header__wordmark {
-  font-family: var(--font-display);
-  font-size: 19px;
-  font-weight: var(--fw-semibold);
-  letter-spacing: -0.01em;
-  color: var(--fg);
-}
-
 .goen-header__mark {
-  width: 24px;
-  height: 24px;
   flex: none;
+  height: 24px;
+  width: 24px;
 }
 
-/* The search field wraps onto its own row until the desktop bar. */
-.goen-header__search {
-  order: 10;
-  flex: 0 0 100%;
+.goen-header__wordmark {
+  font-size: var(--fs-18);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.02em;
 }
 
-.goen-header__search .ui-input {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.goen-header__nav,
-.goen-header__lang,
-.goen-header__action--wide {
+/* The bar's category row, the drawer's, and the one link that is a promotion
+   rather than a category. The `ui-navitem` spelling is kept because
+   `internal/ui/pages/backoffice_test.go:22` locates the drawer's /admin
+   entrance by the whole tag; every declaration the vendored sheet gives that
+   name is replaced here. */
+.goen-header__nav {
   display: none;
 }
 
-.goen-header__actions {
-  display: flex;
+.goen-header__nav .ui-navitem {
   align-items: center;
+  background: none;
+  border-radius: var(--r-md);
+  color: var(--fg-muted);
+  display: inline-flex;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  min-height: 44px;
+  padding: 0 8px;
+  text-decoration: none;
+  transition: color var(--dur-base) var(--ease-standard);
+}
+
+.goen-header__nav .ui-navitem:hover {
+  background: none;
+  color: var(--fg);
+}
+
+.goen-header__nav .ui-navitem[aria-current='page'] {
+  background: none;
+  color: var(--fg);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.goen-header .goen-header__navitem--deal {
+  color: var(--accent);
+}
+
+.goen-header__search {
+  flex: 0 0 100%;
+  order: 10;
+  position: relative;
+}
+
+.goen-header__searchicon {
+  align-items: center;
+  bottom: 0;
+  color: var(--fg-muted);
+  display: flex;
+  left: 0;
+  padding-left: 12px;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+}
+
+.goen-header__searchicon svg {
+  height: 16px;
+  width: 16px;
+}
+
+.goen-header__field {
+  padding-left: 40px;
+}
+
+.goen-header__actions {
+  align-items: center;
+  display: flex;
   gap: 4px;
+}
+
+/* The wide slot: /admin for staff, the wishlist for everybody else. It keeps
+   the vendored button spelling because `backoffice_test.go:112` asserts the
+   whole class attribute, so the ghost-icon recipe is written out again here
+   rather than taken from `.goen-btn`. */
+.goen-header__action--wide {
+  align-items: center;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  color: var(--fg);
+  cursor: pointer;
+  display: none;
+  height: 44px;
+  justify-content: center;
+  padding: 0;
+  text-decoration: none;
+  transition: background-color var(--dur-base) var(--ease-standard);
+  width: 44px;
+}
+
+.goen-header__action--wide:hover {
+  background: var(--overlay);
+  color: var(--fg);
+}
+
+.goen-header__action--wide svg {
+  flex: none;
+  height: 16px;
+  width: 16px;
 }
 
 .goen-header__cart {
   position: relative;
 }
 
+/* The count pill. `check-layout.mjs:2176` reads its text through this exact
+   pair of names after an add to cart, so the spelling stays and the
+   declarations are goen's. */
 .goen-header__cart .ui-badge--count {
-  position: absolute;
-  top: 0;
-  right: -2px;
+  align-items: center;
   background: var(--accent);
-  color: var(--on-accent);
   border: none;
+  border-radius: var(--r-full);
+  color: var(--on-accent);
+  display: flex;
+  font-family: inherit;
+  font-size: var(--fs-11);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-medium);
+  height: 20px;
+  justify-content: center;
+  line-height: 1;
+  min-width: 20px;
+  padding: 0 6px;
+  position: absolute;
+  right: -2px;
+  top: 2px;
 }
 
-/* Mobile disclosure menu: a native <details>, no script involved. */
+/* The disclosure menu: a native <details>, no script involved in opening it. */
 .goen-header__menu > summary {
   list-style: none;
 }
@@ -627,51 +890,99 @@ h4,
 }
 
 .goen-header__drawer {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 100%;
-  z-index: var(--z-dropdown);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-2);
   display: flex;
   flex-direction: column;
   gap: 2px;
+  left: 0;
   padding: 12px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--border);
-  box-shadow: var(--shadow-2);
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: var(--z-dropdown);
 }
 
-/* The language control is desktop-bar chrome, except inside the drawer where
-   it is the only place a small screen can reach it. */
+.goen-header__drawer .ui-navitem {
+  align-items: center;
+  background: none;
+  border-radius: var(--r-md);
+  color: var(--fg);
+  display: flex;
+  font-size: var(--fs-16);
+  font-weight: var(--fw-medium);
+  min-height: 44px;
+  padding: 0 12px;
+  text-decoration: none;
+  transition: background-color var(--dur-base) var(--ease-standard);
+}
+
+.goen-header__drawer .ui-navitem:hover {
+  background: var(--overlay);
+  color: var(--fg);
+}
+
+.goen-header__drawer .ui-navitem[aria-current='page'] {
+  background: var(--overlay);
+  color: var(--fg);
+}
+
+/* The language control is bar chrome above 1024; below it the drawer is the
+   only place a small screen can reach it. */
+.goen-header__lang {
+  display: none;
+}
+
 .goen-header__drawer .goen-header__lang {
+  align-self: flex-start;
   display: inline-flex;
   margin-top: 8px;
-  align-self: flex-start;
 }
 
-.goen-header__navitem--deal {
-  color: var(--accent);
+/* The locale form, shared by the header bar, the drawer and the footer: a
+   segmented pair of submits, the current one filled, both keeping
+   aria-pressed. */
+.goen-lang {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
 }
 
-/* The header keeps its stacked, wrapping form until the desktop bar at lg, but
-   the gutter steps up with the rest of the page at md. */
-@media (min-width: 768px) {
-  .goen-header__bar {
-    padding: 10px 24px;
-  }
+.goen-lang__item {
+  background: none;
+  border: none;
+  border-radius: var(--r-sm);
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+  min-height: 40px;
+  padding: 0 12px;
+  transition:
+    background-color var(--dur-base) var(--ease-standard),
+    color var(--dur-base) var(--ease-standard);
 }
 
+.goen-lang__item:hover {
+  color: var(--fg);
+}
+
+.goen-lang__item[aria-pressed='true'] {
+  background: var(--elevated);
+  color: var(--fg);
+}
+
+/* English catalogue names out-measure the zh-Hant ones, so the desktop row is
+   allowed to wrap rather than crush the search field below the width
+   `check-layout.mjs:1265` calls usable. */
 @media (min-width: 1024px) {
-  /* English catalogue names out-measure the zh-Hant ones. nowrap on this
-     row shrinks the search field below a usable width; the field keeps a
-     floor and the bar may wrap rather than overflow or crush the input. */
   .goen-header__bar {
-    flex-wrap: wrap;
-    gap: 28px;
-    min-height: 64px;
-    max-width: var(--container);
-    margin: 0 auto;
-    padding: 0 32px;
+    column-gap: 24px;
+    padding: 0 var(--page-gutter);
   }
 
   .goen-header__menu {
@@ -680,16 +991,11 @@ h4,
 
   .goen-header__brand {
     margin-right: 0;
-    gap: 9px;
   }
 
   .goen-header__mark {
-    width: 28px;
     height: 28px;
-  }
-
-  .goen-header__wordmark {
-    font-size: 21px;
+    width: 28px;
   }
 
   .goen-header__nav {
@@ -698,82 +1004,132 @@ h4,
   }
 
   .goen-header__search {
-    order: 0;
-    flex: 1 1 120px;
-    min-width: 120px;
-    max-width: 340px;
+    flex: 1 1 200px;
     margin-left: auto;
+    max-width: 28rem;
+    min-width: 140px;
+    order: 0;
   }
 
-  .goen-header__lang,
-  .goen-header__action--wide {
+  .goen-header__lang {
     display: inline-flex;
   }
 
-  .goen-header__cart .ui-badge--count {
-    top: 2px;
-    right: 0;
+  .goen-header__action--wide {
+    display: inline-flex;
   }
 }
 
-/* ---------- Footer ---------- */
+/* ---------- Footer ----------
+
+   Five columns at desk width — brand and contact, two link columns, the
+   newsletter — over a bottom bar carrying the company line and the locale
+   control. One column in source order on a phone.
+   ------------------------------------------------------------------------ */
 
 .goen-footer {
-  background: var(--panel);
+  background: var(--bg);
   border-top: 1px solid var(--border);
 }
 
 .goen-footer__grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px 16px;
-  max-width: var(--container);
+  gap: 32px;
   margin: 0 auto;
-  padding: 24px 16px;
-}
-
-.goen-footer__brand,
-.goen-footer__news {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  max-width: var(--page-width);
+  padding: 40px var(--page-gutter);
 }
 
 .goen-footer__brandline {
-  display: flex;
   align-items: center;
+  display: flex;
   gap: 8px;
 }
 
-.goen-footer__wordmark {
-  font-family: var(--font-display);
-  font-size: 17px;
-  font-weight: var(--fw-semibold);
-  color: var(--fg);
+.goen-footer__mark {
+  flex: none;
+  height: 24px;
+  width: 24px;
 }
 
-.goen-footer__mark {
-  width: 22px;
-  height: 22px;
-  flex: none;
+.goen-footer__wordmark {
+  font-size: var(--fs-18);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.02em;
 }
 
 .goen-footer__tagline {
-  margin: 0;
-  max-width: 36ch;
-  color: var(--fg-subtle);
-  line-height: 1.7;
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+  line-height: var(--lh-normal);
+  margin: 16px 0 0;
+  max-width: 28rem;
 }
 
-.goen-footer__contact,
+.goen-footer__contact {
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+  line-height: var(--lh-normal);
+  margin: 16px 0 0;
+}
+
+.goen-footer__links {
+  display: flex;
+  flex-direction: column;
+}
+
+.goen-footer__heading {
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+}
+
+.goen-footer__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+}
+
+.goen-footer__link {
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+  text-decoration: none;
+  transition: color var(--dur-base) var(--ease-standard);
+}
+
+.goen-footer__link:hover {
+  color: var(--fg);
+}
+
+.goen-footer__news {
+  display: flex;
+  flex-direction: column;
+}
+
 .goen-footer__newsnote {
-  margin: 0;
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+  line-height: var(--lh-normal);
+  margin: 8px 0 0;
+}
+
+.goen-footer__signup {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.goen-footer__signup .goen-input {
+  flex: 1;
+  min-width: 0;
 }
 
 .goen-footer__signup-done {
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
   margin: 0;
-  color: var(--success);
 }
 
 .goen-footer__signup-error {
@@ -781,97 +1137,60 @@ h4,
   margin: 0;
 }
 
-.goen-footer__links {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.goen-footer__links a {
-  color: var(--fg-muted);
-  text-decoration: none;
-  padding: 4px 0;
-}
-
-.goen-footer__links a:hover {
-  color: var(--fg);
-}
-
-.goen-footer__signup {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.goen-footer__signup .ui-input {
-  flex: 1;
-  min-width: 0;
-}
-
 .goen-footer__social {
   display: flex;
-  gap: 6px;
+  gap: 8px;
+  margin-top: 24px;
 }
 
 .goen-footer__bottom {
-  border-top: 1px solid var(--border-faint);
+  border-top: 1px solid var(--border);
 }
 
 .goen-footer__bottominner {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  max-width: var(--container);
+  flex-direction: column;
+  gap: 16px;
   margin: 0 auto;
-  padding: 16px;
+  max-width: var(--page-width);
+  padding: 24px var(--page-gutter);
 }
 
-/* The footer's locale control is present at every width — unlike the header's,
-   which the drawer takes over below the desktop bar. */
-.goen-footer__lang {
-  display: inline-flex;
+.goen-footer__copyright {
+  color: var(--fg-muted);
+  font-size: var(--fs-12);
+}
+
+.goen-footer__contentnote {
+  color: var(--fg-muted);
+  font-size: var(--fs-12);
 }
 
 @media (min-width: 768px) {
   .goen-footer__grid {
-    grid-template-columns: 2fr 1fr 1fr 1.6fr;
-    gap: 40px;
-    padding: 48px 24px 24px;
-  }
-
-  .goen-footer__brand,
-  .goen-footer__news {
-    grid-column: auto;
-    gap: 14px;
-  }
-
-  .goen-footer__wordmark {
-    font-size: 18px;
-  }
-
-  .goen-footer__links {
-    gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .goen-footer__bottominner {
-    padding: 16px 24px;
+    align-items: center;
+    flex-direction: row;
+    justify-content: space-between;
   }
 }
 
-/* The desktop gutter. The header already switches to it as part of taking its
-   single-row form; the footer needs it spelled out. */
 @media (min-width: 1024px) {
   .goen-footer__grid {
-    padding: 48px 32px 24px;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 
-  .goen-footer__bottominner {
-    padding: 16px 32px;
+  .goen-footer__brand {
+    grid-column: span 2;
+  }
+
+  .goen-footer__news {
+    grid-column: span 2;
   }
 }
-
 /* ---------- Home ----------
 
    The product card, price, rating and guarantee strip come from the design
@@ -4956,135 +5275,12 @@ h4,
   }
 }
 
-/* ---------------------------------------------------------------------------
-   The site-wide promotional strip.
-
-   An INK bar — the foreground colour as its background — and not an accent one.
-   Accent is goen's signal for "interactive": an accent-filled bar would compete
-   with every button on the page for the same meaning. Ink has the strongest
-   contrast against the warm paper background and spends no semantic colour.
-
-   44px tall, which is both the minimum touch target and enough for one line.
-   --------------------------------------------------------------------------- */
-.goen-promo {
+.goen-order__cancel {
   display: flex;
-  align-items: stretch;
-  min-height: 44px;
-  background: var(--fg);
-  color: var(--bg);
-  font-size: var(--fs-13);
-}
-
-.goen-promo__link {
-  display: flex;
-  flex: 1;
-  min-width: 0;
   align-items: center;
-  gap: 8px;
-  padding-left: 16px;
-  color: var(--bg);
-  text-decoration: none;
-}
-
-/* One line, truncated rather than wrapped: a two-line banner is a banner that
-   changes the page's height between one promotion and the next. */
-.goen-promo__message {
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Two copies of the copy, one shown at a time. The short version is different
-   WRITING, not a truncation — which is why promo_banners carries both and the
-   template does not cut the long one. */
-.goen-promo__wide {
-  display: none;
-}
-
-.goen-promo__narrow {
-  display: inline;
-}
-
-/* The discount code. Monospace and dashed, so it reads as something to be
-   copied rather than as part of the sentence. user-select: all makes one tap
-   select the whole code — no script involved. */
-.goen-promo__code {
-  flex: none;
-  padding: 3px 8px;
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: var(--fs-12);
-  letter-spacing: 0.06em;
-  border: 1px dashed oklch(0.65 0.01 107);
-  border-radius: 2px;
-  user-select: all;
-  -webkit-user-select: all;
-}
-
-/* The CTA is a plain underlined link on wide screens and hidden on narrow ones,
-   where the whole strip is the link instead. */
-.goen-promo__cta {
-  display: none;
-  flex: none;
-  font-weight: var(--fw-medium);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  white-space: nowrap;
-}
-
-.goen-promo__chevron {
-  flex: none;
-  margin-left: auto;
-  margin-right: 4px;
-}
-
-/* 44x44, which is why the icon inside it is only 15px. A close control smaller
-   than the minimum target is one people miss and then resent. */
-.goen-promo__close {
-  flex: none;
-  width: 44px;
-  min-height: 44px;
-  padding: 0;
-  background: none;
-  border: none;
-  color: oklch(0.75 0.01 107);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.goen-promo__close:hover {
-  color: var(--bg);
-}
-
-@media (min-width: 768px) {
-  .goen-promo__link {
-    gap: 16px;
-    padding-left: 24px;
-  }
-
-  .goen-promo__wide {
-    display: inline;
-  }
-
-  .goen-promo__narrow {
-    display: none;
-  }
-
-  /* The message takes the slack and the CTA sits at the right, which is only
-     possible once there is room for two targets on one row. */
-  .goen-promo__message {
-    flex: 1;
-  }
-
-  .goen-promo__cta {
-    display: inline;
-  }
-
-  .goen-promo__chevron {
-    display: none;
-  }
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 4px;
 }
 
 .goen-account__addractions {
