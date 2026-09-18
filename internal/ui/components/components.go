@@ -147,6 +147,27 @@ func (p BadgeProps) class() string {
 	return out
 }
 
+// LabelProps configures [Label]. For is required rather than optional: a label
+// that names nothing is the failure this component exists to prevent.
+type LabelProps struct {
+	For   string
+	Class string
+}
+
+func (p LabelProps) class() string {
+	if p.Class == "" {
+		return "goen-label"
+	}
+	return "goen-label " + p.Class
+}
+
+// BreadcrumbProps configures [Breadcrumb]. Label is the trail's own name for a
+// screen reader; the sentence belongs to internal/i18n, so the page passes it.
+type BreadcrumbProps struct {
+	Label  string
+	Crumbs []Crumb
+}
+
 // CardProps configures [Card]. A card is a bordered panel; it carries no
 // heading of its own, because the heading belongs to the section around it and
 // the page decides its level.
@@ -204,6 +225,20 @@ type FieldProps struct {
 
 func (p FieldProps) class() string {
 	out := "goen-input"
+	if p.Invalid {
+		out += " goen-input--invalid"
+	}
+	if p.Class != "" {
+		out += " " + p.Class
+	}
+	return out
+}
+
+// areaClass is the same field over several lines. It carries its own modifier
+// rather than letting the stylesheet name the element: a rule that qualifies a
+// class with a tag is one the class can no longer be moved out of.
+func (p FieldProps) areaClass() string {
+	out := "goen-input goen-input--area"
 	if p.Invalid {
 		out += " goen-input--invalid"
 	}

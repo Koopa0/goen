@@ -418,7 +418,7 @@ func Notice(p NoticeProps) templ.Component {
 
 // Label names a field. The for attribute is required rather than optional: a
 // label that names nothing is the failure this component exists to prevent.
-func Label(forID, class string) templ.Component {
+func Label(p LabelProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -439,7 +439,7 @@ func Label(forID, class string) templ.Component {
 			templ_7745c5c3_Var23 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		var templ_7745c5c3_Var24 = []any{"goen-label", templ.KV(class, class != "")}
+		var templ_7745c5c3_Var24 = []any{p.class()}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var24...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -462,9 +462,9 @@ func Label(forID, class string) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var26 string
-		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.ResolveAttributeValue(forID)
+		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.For)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 55, Col: 13}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 53, Col: 39}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var26)
 		if templ_7745c5c3_Err != nil {
@@ -534,7 +534,7 @@ func Input(p FieldProps) templ.Component {
 		var templ_7745c5c3_Var30 string
 		templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 66, Col: 11}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 63, Col: 11}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var30)
 		if templ_7745c5c3_Err != nil {
@@ -547,7 +547,7 @@ func Input(p FieldProps) templ.Component {
 		var templ_7745c5c3_Var31 string
 		templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 67, Col: 15}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 64, Col: 15}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var31)
 		if templ_7745c5c3_Err != nil {
@@ -560,7 +560,7 @@ func Input(p FieldProps) templ.Component {
 		var templ_7745c5c3_Var32 string
 		templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.inputType())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 68, Col: 22}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 65, Col: 22}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var32)
 		if templ_7745c5c3_Err != nil {
@@ -573,7 +573,7 @@ func Input(p FieldProps) templ.Component {
 		var templ_7745c5c3_Var33 string
 		templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Value)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 69, Col: 17}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 66, Col: 17}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var33)
 		if templ_7745c5c3_Err != nil {
@@ -596,7 +596,7 @@ func Input(p FieldProps) templ.Component {
 				var templ_7745c5c3_Var34 string
 				templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Describes)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 73, Col: 34}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 70, Col: 34}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var34)
 				if templ_7745c5c3_Err != nil {
@@ -643,7 +643,7 @@ func Textarea(p FieldProps) templ.Component {
 			templ_7745c5c3_Var35 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		var templ_7745c5c3_Var36 = []any{p.class()}
+		var templ_7745c5c3_Var36 = []any{p.areaClass()}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var36...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -668,7 +668,7 @@ func Textarea(p FieldProps) templ.Component {
 		var templ_7745c5c3_Var38 string
 		templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 85, Col: 11}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 82, Col: 11}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var38)
 		if templ_7745c5c3_Err != nil {
@@ -681,7 +681,7 @@ func Textarea(p FieldProps) templ.Component {
 		var templ_7745c5c3_Var39 string
 		templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 86, Col: 15}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 83, Col: 15}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var39)
 		if templ_7745c5c3_Err != nil {
@@ -704,7 +704,7 @@ func Textarea(p FieldProps) templ.Component {
 				var templ_7745c5c3_Var40 string
 				templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Describes)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 90, Col: 34}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 87, Col: 34}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var40)
 				if templ_7745c5c3_Err != nil {
@@ -745,7 +745,12 @@ type Crumb struct {
 
 // Breadcrumb renders the trail. The label is the page's, because the sentence
 // "you are here" belongs to internal/i18n and not to this file.
-func Breadcrumb(label string, crumbs []Crumb) templ.Component {
+//
+// The class is the design system's spelling and not a goen- one. A test locates
+// the product page's trail by it (internal/product/integration_test.go:233), and
+// a selector a test reads keeps its spelling while its declarations change —
+// which is what app.css does with it. Renaming it would be an oracle change.
+func Breadcrumb(p BreadcrumbProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -766,14 +771,14 @@ func Breadcrumb(label string, crumbs []Crumb) templ.Component {
 			templ_7745c5c3_Var41 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "<nav class=\"goen-crumbs\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "<nav class=\"ui-crumbs\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var42 string
-		templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.ResolveAttributeValue(label)
+		templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 109, Col: 44}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 111, Col: 44}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var42)
 		if templ_7745c5c3_Err != nil {
@@ -783,9 +788,9 @@ func Breadcrumb(label string, crumbs []Crumb) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		for i, c := range crumbs {
+		for i, c := range p.Crumbs {
 			if i > 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "<span class=\"goen-crumbs__sep\" aria-hidden=\"true\">/</span>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "<span class=\"ui-crumbs__sep\" aria-hidden=\"true\">/</span>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -795,14 +800,14 @@ func Breadcrumb(label string, crumbs []Crumb) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if c.Href == "" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "<span class=\"goen-crumbs__current\" aria-current=\"page\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 54, "<span class=\"ui-crumbs__current\" aria-current=\"page\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var43 string
 				templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(c.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 115, Col: 68}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 117, Col: 66}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 				if templ_7745c5c3_Err != nil {
@@ -813,14 +818,14 @@ func Breadcrumb(label string, crumbs []Crumb) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "<a class=\"goen-crumbs__link\" href=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 56, "<a class=\"ui-crumbs__link\" href=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var44 templ.SafeURL
 				templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(c.Href))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 117, Col: 61}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 119, Col: 59}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 				if templ_7745c5c3_Err != nil {
@@ -833,7 +838,7 @@ func Breadcrumb(label string, crumbs []Crumb) templ.Component {
 				var templ_7745c5c3_Var45 string
 				templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(c.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 117, Col: 73}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/components.templ`, Line: 119, Col: 71}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 				if templ_7745c5c3_Err != nil {

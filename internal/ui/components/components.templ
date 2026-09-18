@@ -49,11 +49,8 @@ templ Notice(p NoticeProps) {
 
 // Label names a field. The for attribute is required rather than optional: a
 // label that names nothing is the failure this component exists to prevent.
-templ Label(forID, class string) {
-	<label
-		class={ "goen-label", templ.KV(class, class != "") }
-		for={ forID }
-	>
+templ Label(p LabelProps) {
+	<label class={ p.class() } for={ p.For }>
 		{ children... }
 	</label>
 }
@@ -81,7 +78,7 @@ templ Input(p FieldProps) {
 // the element carries its content between its tags.
 templ Textarea(p FieldProps) {
 	<textarea
-		class={ p.class() }
+		class={ p.areaClass() }
 		id={ p.ID }
 		name={ p.Name }
 		if p.Invalid {
@@ -105,16 +102,21 @@ type Crumb struct {
 
 // Breadcrumb renders the trail. The label is the page's, because the sentence
 // "you are here" belongs to internal/i18n and not to this file.
-templ Breadcrumb(label string, crumbs []Crumb) {
-	<nav class="goen-crumbs" aria-label={ label }>
-		for i, c := range crumbs {
+//
+// The class is the design system's spelling and not a goen- one. A test locates
+// the product page's trail by it (internal/product/integration_test.go:233), and
+// a selector a test reads keeps its spelling while its declarations change —
+// which is what app.css does with it. Renaming it would be an oracle change.
+templ Breadcrumb(p BreadcrumbProps) {
+	<nav class="ui-crumbs" aria-label={ p.Label }>
+		for i, c := range p.Crumbs {
 			if i > 0 {
-				<span class="goen-crumbs__sep" aria-hidden="true">/</span>
+				<span class="ui-crumbs__sep" aria-hidden="true">/</span>
 			}
 			if c.Href == "" {
-				<span class="goen-crumbs__current" aria-current="page">{ c.Label }</span>
+				<span class="ui-crumbs__current" aria-current="page">{ c.Label }</span>
 			} else {
-				<a class="goen-crumbs__link" href={ templ.SafeURL(c.Href) }>{ c.Label }</a>
+				<a class="ui-crumbs__link" href={ templ.SafeURL(c.Href) }>{ c.Label }</a>
 			}
 		}
 	</nav>

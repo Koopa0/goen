@@ -98,65 +98,65 @@ a:hover {
    ------------------------------------------------------------------------ */
 
 :root {
+
+  /* The one interactive colour. */
+  --accent: oklch(0.546 0.245 262.881);
+  --accent-faint: oklch(0.546 0.245 262.881 / 0.06);
+  --accent-muted: oklch(0.546 0.245 262.881 / 0.12);
+  --accent-strong: oklch(0.488 0.243 264.376);
   /* Ground and surfaces. Panels sit ON the ground rather than above it: the
      border carries the separation, not a second shade. */
   --bg: oklch(1 0 0);
-  --panel: oklch(1 0 0);
-  --elevated: oklch(0.967 0.001 286.375);
-  --overlay: oklch(0.967 0.001 286.375);
-
-  /* Ink. Two steps of grey and no more: a third invites a page to say three
-     different things about the same level of importance. */
-  --fg: oklch(0.141 0.005 285.823);
-  --fg-muted: oklch(0.552 0.016 285.938);
-  --fg-subtle: oklch(0.552 0.016 285.938);
-  --fg-faint: oklch(0.705 0.015 286.067);
 
   /* Lines. One hairline everywhere; the strong and faint steps exist for the
      two places a border has to lead or recede, and nowhere else. */
   --border: oklch(0.92 0.004 286.32);
-  --border-strong: oklch(0.871 0.006 286.286);
   --border-faint: oklch(0.955 0.003 286.32);
-
-  /* The one interactive colour. */
-  --accent: oklch(0.546 0.245 262.881);
-  --accent-strong: oklch(0.488 0.243 264.376);
-  --accent-muted: oklch(0.546 0.245 262.881 / 0.12);
-  --accent-faint: oklch(0.546 0.245 262.881 / 0.06);
-  --on-accent: oklch(0.97 0.014 254.604);
-  --ring: oklch(0.623 0.214 259.815);
+  --border-strong: oklch(0.871 0.006 286.286);
+  --elevated: oklch(0.967 0.001 286.375);
 
   --error: oklch(0.577 0.245 27.325);
   --error-bg: oklch(0.577 0.245 27.325 / 0.1);
-  --warn: oklch(0.666 0.179 58.318);
-  --warn-bg: oklch(0.666 0.179 58.318 / 0.12);
-  --success: oklch(0.596 0.145 163.225);
-  --success-bg: oklch(0.596 0.145 163.225 / 0.12);
+
+  /* Ink. Two steps of grey and no more: a third invites a page to say three
+     different things about the same level of importance. */
+  --fg: oklch(0.141 0.005 285.823);
+  --fg-faint: oklch(0.705 0.015 286.067);
+  --fg-muted: oklch(0.552 0.016 285.938);
+  --fg-subtle: oklch(0.552 0.016 285.938);
+  --font-display: var(--font-sans);
+
+  /* One family for everything, headings included. Noto Sans TC follows Inter
+     so Han is covered by a face that sits beside it rather than under a
+     second personality. */
+  --font-sans: 'Inter', 'Noto Sans TC', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* The steps that move; the rest of the ladder already matches. */
+  --fs-ed-24: 1.5rem;
+  --fs-ed-30: 1.875rem;
+  --fs-ed-38: 2.25rem;
+  --on-accent: oklch(0.97 0.014 254.604);
+  --overlay: oklch(0.967 0.001 286.375);
+  --panel: oklch(1 0 0);
+  --r-lg: var(--radius);
+  --r-md: calc(var(--radius) - 2px);
+  --r-sm: calc(var(--radius) - 4px);
+  --r-xl: calc(var(--radius) + 4px);
 
   /* One radius, and the steps derived from it. A page never writes a corner
      that is not on this ladder. */
   --radius: 0.65rem;
-  --r-sm: calc(var(--radius) - 4px);
-  --r-md: calc(var(--radius) - 2px);
-  --r-lg: var(--radius);
-  --r-xl: calc(var(--radius) + 4px);
+  --ring: oklch(0.623 0.214 259.815);
 
   /* Two levels. There is no third. */
   --shadow-1: 0 1px 2px 0 oklch(0 0 0 / 0.05);
   --shadow-2:
     0 4px 6px -1px oklch(0 0 0 / 0.1),
     0 2px 4px -2px oklch(0 0 0 / 0.1);
-
-  /* One family for everything, headings included. Noto Sans TC follows Inter
-     so Han is covered by a face that sits beside it rather than under a
-     second personality. */
-  --font-sans: "Inter", "Noto Sans TC", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-display: var(--font-sans);
-
-  /* The steps that move; the rest of the ladder already matches. */
-  --fs-ed-24: 1.5rem;
-  --fs-ed-30: 1.875rem;
-  --fs-ed-38: 2.25rem;
+  --success: oklch(0.596 0.145 163.225);
+  --success-bg: oklch(0.596 0.145 163.225 / 0.12);
+  --warn: oklch(0.666 0.179 58.318);
+  --warn-bg: oklch(0.666 0.179 58.318 / 0.12);
 }
 
 /* A heading is the body face at 600 with the tracking pulled in. The display
@@ -191,33 +191,33 @@ h4,
    ------------------------------------------------------------------------ */
 
 .goen-btn {
-  box-sizing: border-box;
-  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  height: 2.75rem;
-  padding: 0 1rem;
   border: 1px solid transparent;
   border-radius: var(--r-md);
+  box-sizing: border-box;
+  cursor: pointer;
+  display: inline-flex;
   font-family: inherit;
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
+  gap: 8px;
+  height: 2.75rem;
+  justify-content: center;
   line-height: 1;
-  white-space: nowrap;
+  padding: 0 1rem;
   text-align: center;
   text-decoration: none;
-  cursor: pointer;
   transition:
     background-color var(--dur-base) var(--ease-standard),
     border-color var(--dur-base) var(--ease-standard),
     color var(--dur-base) var(--ease-standard);
+  white-space: nowrap;
 }
 
 .goen-btn svg {
   flex: none;
-  width: 16px;
   height: 16px;
+  width: 16px;
 }
 
 /* The focus ring is a shadow rather than an outline so it follows the radius,
@@ -226,26 +226,26 @@ h4,
 .goen-btn:focus-visible,
 .goen-input:focus-visible,
 .goen-swatch:focus-visible {
-  outline: none;
   border-color: var(--ring);
   box-shadow: 0 0 0 3px var(--accent-muted);
+  outline: none;
 }
 
 /* Small is less padding and a smaller type step, never a smaller target. */
 .goen-btn--sm {
-  padding: 0 0.75rem;
   font-size: var(--fs-13);
+  padding: 0 0.75rem;
 }
 
 .goen-btn--lg {
+  font-size: var(--fs-16);
   height: 3rem;
   padding: 0 1.5rem;
-  font-size: var(--fs-16);
 }
 
 .goen-btn--icon {
-  width: 2.75rem;
   padding: 0;
+  width: 2.75rem;
 }
 
 .goen-btn--block {
@@ -258,8 +258,8 @@ h4,
 .goen-btn--primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--on-accent);
   box-shadow: var(--shadow-1);
+  color: var(--on-accent);
 }
 
 .goen-btn--primary:hover {
@@ -270,8 +270,8 @@ h4,
 .goen-btn--secondary {
   background: var(--elevated);
   border-color: transparent;
-  color: var(--fg);
   box-shadow: var(--shadow-1);
+  color: var(--fg);
 }
 
 .goen-btn--secondary:hover {
@@ -281,8 +281,8 @@ h4,
 .goen-btn--outline {
   background: var(--bg);
   border-color: var(--border);
-  color: var(--fg);
   box-shadow: var(--shadow-1);
+  color: var(--fg);
 }
 
 .goen-btn--outline:hover {
@@ -303,25 +303,25 @@ h4,
    shopper who cannot buy still needs to see what they cannot buy, and the
    sentence beside it saying why. */
 .goen-btn:disabled,
-.goen-btn[aria-disabled="true"] {
+.goen-btn[aria-disabled='true'] {
   opacity: 0.5;
   pointer-events: none;
 }
 
 .goen-badge {
-  display: inline-flex;
   align-items: center;
-  gap: 4px;
-  width: fit-content;
-  padding: 0.125rem 0.5rem;
+  background: var(--elevated);
   border: 1px solid transparent;
   border-radius: var(--r-md);
-  background: var(--elevated);
   color: var(--fg);
+  display: inline-flex;
   font-size: var(--fs-12);
   font-weight: var(--fw-medium);
+  gap: 4px;
   line-height: 1.4;
+  padding: 0.125rem 0.5rem;
   white-space: nowrap;
+  width: fit-content;
 }
 
 .goen-badge--accent {
@@ -343,38 +343,38 @@ h4,
    not a second shade. It carries no heading, because the heading belongs to
    the section around it, which is what decides the level announced. */
 .goen-card {
-  padding: 1.5rem;
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--r-xl);
-  background: var(--panel);
   box-shadow: var(--shadow-1);
+  padding: 1.5rem;
 }
 
 .goen-notice {
-  margin: 0;
-  padding: 0.625rem 0.75rem;
+  background: var(--elevated);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-  background: var(--elevated);
   color: var(--fg-muted);
   font-size: var(--fs-14);
+  margin: 0;
+  padding: 0.625rem 0.75rem;
 }
 
 .goen-notice--accent {
-  border-color: transparent;
   background: var(--accent-faint);
+  border-color: transparent;
   color: var(--fg);
 }
 
 .goen-notice--warn {
-  border-color: transparent;
   background: var(--warn-bg);
+  border-color: transparent;
   color: var(--fg);
 }
 
 .goen-notice--danger {
-  border-color: transparent;
   background: var(--error-bg);
+  border-color: transparent;
   color: var(--fg);
 }
 
@@ -385,27 +385,27 @@ h4,
 }
 
 .goen-label {
+  color: var(--fg);
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
   line-height: 1;
-  color: var(--fg);
 }
 
 .goen-input {
-  box-sizing: border-box;
-  width: 100%;
-  height: 2.75rem;
-  padding: 0.25rem 0.75rem;
+  background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-  background: transparent;
+  box-shadow: var(--shadow-1);
+  box-sizing: border-box;
   color: var(--fg);
   font-family: inherit;
   font-size: var(--fs-14);
-  box-shadow: var(--shadow-1);
+  height: 2.75rem;
+  padding: 0.25rem 0.75rem;
   transition:
     border-color var(--dur-base) var(--ease-standard),
     box-shadow var(--dur-base) var(--ease-standard);
+  width: 100%;
 }
 
 .goen-input::placeholder {
@@ -415,34 +415,34 @@ h4,
 /* A refused field is marked by its border AND by the sentence beside it. A
    border alone is a colour, and a colour alone is not a reason. */
 .goen-input--invalid,
-.goen-input[aria-invalid="true"] {
+.goen-input[aria-invalid='true'] {
   border-color: var(--error);
 }
 
 .goen-input--invalid:focus-visible,
-.goen-input[aria-invalid="true"]:focus-visible {
+.goen-input[aria-invalid='true']:focus-visible {
   border-color: var(--error);
   box-shadow: 0 0 0 3px var(--error-bg);
 }
 
-textarea.goen-input {
+.goen-input--area {
   height: auto;
+  line-height: var(--lh-normal);
   min-height: 0;
   padding: 0.5rem 0.75rem;
   resize: vertical;
-  line-height: var(--lh-normal);
 }
 
-.goen-crumbs {
+.ui-crumbs {
+  align-items: center;
+  color: var(--fg-muted);
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
   font-size: var(--fs-14);
-  color: var(--fg-muted);
+  gap: 8px;
 }
 
-.goen-crumbs__link {
+.ui-crumbs__link {
   color: var(--fg-muted);
   text-decoration: none;
   transition: color var(--dur-base) var(--ease-standard);
@@ -452,11 +452,11 @@ textarea.goen-input {
   color: var(--fg);
 }
 
-.goen-crumbs__sep {
+.ui-crumbs__sep {
   color: var(--fg-faint);
 }
 
-.goen-crumbs__current {
+.ui-crumbs__current {
   color: var(--fg);
   font-weight: var(--fw-medium);
 }
@@ -1508,14 +1508,14 @@ textarea.goen-input {
    ------------------------------------------------------------------------ */
 
 .goen-pdp {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 32px;
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 1280px;
   margin: 0 auto;
+  max-width: 1280px;
   padding: 16px 16px 56px;
+  width: 100%;
 }
 
 .goen-pdp__top {
@@ -1524,12 +1524,12 @@ textarea.goen-input {
 }
 
 .goen-pdp__sectiontitle {
-  margin: 0;
+  color: var(--fg);
   font-family: var(--font-display);
   font-size: var(--fs-ed-20);
   font-weight: var(--fw-semibold);
   line-height: var(--lh-snug);
-  color: var(--fg);
+  margin: 0;
 }
 
 /* Gallery. Every shot in a frame of its own: the catalogue's photography is
@@ -1543,27 +1543,27 @@ textarea.goen-input {
 }
 
 .goen-pdp__shot {
-  margin: 0;
-  overflow: hidden;
+  aspect-ratio: 1 / 1;
+  background: var(--elevated);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-  background: var(--elevated);
-  aspect-ratio: 1 / 1;
+  margin: 0;
+  overflow: hidden;
 }
 
 .goen-pdp__shotimg {
   display: block;
-  width: 100%;
   height: 100%;
   object-fit: cover;
+  width: 100%;
 }
 
 .goen-pdp__shot--empty {
-  display: flex;
   align-items: center;
-  justify-content: center;
   color: var(--fg-subtle);
+  display: flex;
   font-size: var(--fs-14);
+  justify-content: center;
 }
 
 /* Buy column. The groups are separated by a hairline rather than by a rule
@@ -1583,41 +1583,41 @@ textarea.goen-input {
 }
 
 .goen-pdp__brand {
-  margin: 0;
-  font-size: var(--fs-13);
   color: var(--fg-subtle);
+  font-size: var(--fs-13);
+  margin: 0;
 }
 
 .goen-pdp__titlerow {
-  display: flex;
   align-items: flex-start;
-  justify-content: space-between;
+  display: flex;
   gap: 12px;
+  justify-content: space-between;
 }
 
 .goen-pdp__title {
-  margin: 0;
+  color: var(--fg);
   font-family: var(--font-display);
   font-size: var(--fs-ed-24);
   font-weight: var(--fw-semibold);
   line-height: var(--lh-snug);
-  color: var(--fg);
+  margin: 0;
 }
 
 .goen-pdp__lede {
-  margin: 0;
+  color: var(--fg-muted);
   font-size: var(--fs-14);
   line-height: var(--lh-normal);
-  color: var(--fg-muted);
+  margin: 0;
 }
 
 .goen-pdp__rating {
-  display: inline-flex;
   align-items: center;
-  gap: 4px;
   align-self: flex-start;
   color: var(--fg-subtle);
+  display: inline-flex;
   font-size: var(--fs-13);
+  gap: 4px;
   text-decoration: none;
   transition: color var(--dur-base) var(--ease-standard);
 }
@@ -1639,48 +1639,48 @@ textarea.goen-input {
 }
 
 .goen-pdp__pricebox {
+  align-items: baseline;
+  border-top: 1px solid var(--border-faint);
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
   gap: 8px;
   padding-top: 20px;
-  border-top: 1px solid var(--border-faint);
 }
 
 .goen-pdp__price {
-  font-size: var(--fs-ed-24);
-  font-weight: var(--fw-semibold);
-  font-variant-numeric: tabular-nums;
   color: var(--fg);
+  font-size: var(--fs-ed-24);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-semibold);
 }
 
 .goen-pdp__was {
+  color: var(--fg-faint);
   font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;
-  color: var(--fg-faint);
 }
 
 /* An option group. The fieldset keeps the legend, which is the only thing that
    tells a screen reader what the row of chips is choosing between. */
 .goen-pdp__option {
-  margin: 0;
-  padding: 20px 0 0;
   border: 0;
   border-top: 1px solid var(--border);
+  margin: 0;
+  padding: 20px 0 0;
 }
 
 /* Only the first group takes the rule: consecutive groups are one block of
    choices, not two sections. */
 .goen-pdp__option + .goen-pdp__option {
-  padding-top: 12px;
   border-top: 0;
+  padding-top: 12px;
 }
 
 .goen-pdp__optname {
-  padding: 0 0 8px;
+  color: var(--fg);
   font-size: var(--fs-13);
   font-weight: var(--fw-medium);
-  color: var(--fg);
+  padding: 0 0 8px;
 }
 
 .goen-pdp__values {
@@ -1693,16 +1693,16 @@ textarea.goen-input {
    that combination, so the choice survives a reload, a shared address and
    scripting being off. */
 .goen-swatch {
-  box-sizing: border-box;
-  display: inline-flex;
   align-items: center;
-  min-height: 44px;
-  padding: 6px 14px;
+  background: transparent;
   border: 1px solid var(--border-strong);
   border-radius: var(--r-sm);
-  background: transparent;
+  box-sizing: border-box;
   color: var(--fg);
+  display: inline-flex;
   font-size: var(--fs-13);
+  min-height: 44px;
+  padding: 6px 14px;
   text-decoration: none;
   transition:
     background-color var(--dur-base) var(--ease-standard),
@@ -1734,50 +1734,50 @@ textarea.goen-input {
 /* An instruction rather than a state: no panel, no border, the same muted
    voice the assurances use. */
 .goen-pdp__hint {
-  display: flex;
   align-items: center;
+  color: var(--fg-muted);
+  display: flex;
+  font-size: var(--fs-14);
   gap: 8px;
   margin: 0;
-  color: var(--fg-muted);
-  font-size: var(--fs-14);
 }
 
 .goen-pdp__hint svg {
   flex: none;
-  width: 16px;
   height: 16px;
+  width: 16px;
 }
 
 /* The one primary action, and the outcome of the last press directly under it
    with nothing in between. A phone has to show both at once, or the
    confirmation is a sentence about a button that has scrolled away. */
 .goen-pdp__actions {
-  display: flex;
   align-items: flex-start;
+  border-top: 1px solid var(--border);
+  display: flex;
   gap: 8px;
   padding-top: 20px;
-  border-top: 1px solid var(--border);
 }
 
 .goen-pdp__form {
-  flex: 1 1 auto;
-  min-width: 0;
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;
 }
 
 .goen-pdp__buyrow {
-  display: flex;
   align-items: stretch;
+  display: flex;
   gap: 8px;
 }
 
 .goen-pdp__qtyinput {
-  width: 4.5rem;
   flex: none;
-  text-align: center;
   font-variant-numeric: tabular-nums;
+  text-align: center;
+  width: 4.5rem;
 }
 
 .goen-pdp__add {
@@ -1789,9 +1789,9 @@ textarea.goen-input {
 }
 
 .goen-pdp__added {
+  align-items: center;
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: 8px;
   scroll-margin-top: 12px;
 }
@@ -1803,18 +1803,18 @@ textarea.goen-input {
 }
 
 .goen-pdp__notify {
+  border-top: 1px solid var(--border-faint);
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding-top: 20px;
-  border-top: 1px solid var(--border-faint);
 }
 
 .goen-pdp__notifyhead {
-  margin: 0;
+  color: var(--fg);
   font-size: var(--fs-14);
   font-weight: var(--fw-semibold);
-  color: var(--fg);
+  margin: 0;
 }
 
 .goen-pdp__notifyrow {
@@ -1829,34 +1829,34 @@ textarea.goen-input {
 }
 
 .goen-pdp__wish {
-  margin: 0;
-  flex: none;
   display: flex;
+  flex: none;
+  margin: 0;
 }
 
 .goen-pdp__assurances {
-  margin: 0;
-  padding-top: 20px;
-  padding-left: 0;
-  list-style: none;
+  border-top: 1px solid var(--border);
+  color: var(--fg-muted);
   display: flex;
   flex-wrap: wrap;
-  gap: 12px 20px;
-  border-top: 1px solid var(--border);
   font-size: var(--fs-14);
-  color: var(--fg-muted);
+  gap: 12px 20px;
+  list-style: none;
+  margin: 0;
+  padding-left: 0;
+  padding-top: 20px;
 }
 
 .goen-pdp__assurance {
-  display: flex;
   align-items: center;
+  display: flex;
   gap: 8px;
 }
 
 .goen-pdp__assurance svg {
   flex: none;
-  width: 16px;
   height: 16px;
+  width: 16px;
 }
 
 /* Description, warranty and specifications. Never behind tabs: everything a
@@ -1876,11 +1876,11 @@ textarea.goen-input {
 }
 
 .goen-pdp__prose {
-  margin: 0;
-  max-width: 68ch;
+  color: var(--fg-muted);
   font-size: var(--fs-16);
   line-height: var(--lh-read);
-  color: var(--fg-muted);
+  margin: 0;
+  max-width: 68ch;
 }
 
 .goen-pdp__facts {
@@ -1889,10 +1889,10 @@ textarea.goen-input {
 }
 
 .goen-pdp__warranty {
-  margin: 0;
+  color: var(--fg-muted);
   font-size: var(--fs-14);
   line-height: var(--lh-normal);
-  color: var(--fg-muted);
+  margin: 0;
 }
 
 .goen-pdp__warranty + .goen-pdp__warranty {
@@ -1900,16 +1900,16 @@ textarea.goen-input {
 }
 
 .goen-pdp__speclist {
-  margin: 0;
   display: grid;
-  gap: 8px;
   font-size: var(--fs-14);
+  gap: 8px;
+  margin: 0;
 }
 
 .goen-pdp__specrow {
   display: grid;
-  grid-template-columns: minmax(8rem, auto) 1fr;
   gap: 16px;
+  grid-template-columns: minmax(8rem, auto) 1fr;
 }
 
 .goen-pdp__specterm {
@@ -1917,9 +1917,9 @@ textarea.goen-input {
 }
 
 .goen-pdp__specvalue {
-  margin: 0;
-  font-weight: var(--fw-medium);
   color: var(--fg);
+  font-weight: var(--fw-medium);
+  margin: 0;
 }
 
 /* Reviews. The summary and the list sit side by side where there is room; the
@@ -1941,26 +1941,26 @@ textarea.goen-input {
 }
 
 .goen-pdp__summary {
+  align-self: start;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  align-self: start;
 }
 
 .goen-pdp__score {
-  margin: 0;
+  color: var(--fg);
   font-family: var(--font-display);
   font-size: var(--fs-ed-38);
-  font-weight: var(--fw-semibold);
   font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-semibold);
   line-height: 1;
-  color: var(--fg);
+  margin: 0;
 }
 
 .goen-pdp__scorecount {
-  margin: 0;
-  font-size: var(--fs-12);
   color: var(--fg-subtle);
+  font-size: var(--fs-12);
+  margin: 0;
 }
 
 .goen-pdp__bars {
@@ -1971,22 +1971,22 @@ textarea.goen-input {
 }
 
 .goen-pdp__bar {
-  display: grid;
-  grid-template-columns: 3.5em 1fr 2.5em;
   align-items: center;
+  display: grid;
   gap: 8px;
+  grid-template-columns: 3.5em 1fr 2.5em;
 }
 
 .goen-pdp__barlabel,
 .goen-pdp__barcount {
+  color: var(--fg-subtle);
   font-family: var(--font-mono);
   font-size: var(--fs-11);
-  color: var(--fg-subtle);
 }
 
 .goen-pdp__barcount {
-  text-align: right;
   font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 /* The bar's track and fill. Both are drawn here rather than borrowed: the
@@ -1997,18 +1997,18 @@ textarea.goen-input {
    'unsafe-inline' and a refused width leaves a row with a label, a count and
    nothing between them. Ten steps; five buckets show no finer ratio. */
 .goen-pdp__bartrack {
+  background: var(--overlay);
+  border-radius: var(--r-full);
   display: block;
   height: 6px;
-  border-radius: var(--r-full);
-  background: var(--overlay);
   overflow: hidden;
 }
 
 .goen-pdp__barfill {
+  background: var(--accent);
+  border-radius: inherit;
   display: block;
   height: 100%;
-  border-radius: inherit;
-  background: var(--accent);
   transition: width var(--dur-slow) var(--ease-standard);
 }
 
@@ -2064,54 +2064,54 @@ textarea.goen-input {
 }
 
 .goen-pdp__review {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
 }
 
 .goen-pdp__reviewhead {
+  align-items: center;
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
   font-size: var(--fs-13);
+  gap: 8px;
 }
 
 .goen-pdp__reviewname {
-  font-weight: var(--fw-medium);
   color: var(--fg);
+  font-weight: var(--fw-medium);
 }
 
 .goen-pdp__reviewdate {
-  margin-left: auto;
+  color: var(--fg-faint);
   font-family: var(--font-mono);
   font-size: var(--fs-11);
-  color: var(--fg-faint);
+  margin-left: auto;
 }
 
 .goen-pdp__reviewtitle {
-  margin: 0;
-  font-weight: var(--fw-medium);
-  font-size: var(--fs-14);
   color: var(--fg);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  margin: 0;
 }
 
 .goen-pdp__reviewbody {
-  margin: 0;
+  color: var(--fg-muted);
   font-size: var(--fs-14);
   line-height: var(--lh-normal);
-  color: var(--fg-muted);
+  margin: 0;
 }
 
 .goen-pdp__noreviews,
 .goen-pdp__reviewnote,
 .goen-pdp__meta {
-  margin: 0;
-  font-size: var(--fs-13);
   color: var(--fg-subtle);
+  font-size: var(--fs-13);
+  margin: 0;
 }
 
 .goen-pdp__reviewform {
@@ -2127,31 +2127,31 @@ textarea.goen-input {
 }
 
 .goen-pdp__reviewformhead {
-  margin: 0;
+  color: var(--fg);
   font-size: var(--fs-16);
   font-weight: var(--fw-semibold);
-  color: var(--fg);
+  margin: 0;
 }
 
 /* The rating is a radio group and not a star widget: a row of stars that only
    answers to a pointer is a control a keyboard cannot set. */
 .goen-pdp__stars {
-  margin: 0;
-  padding: 0;
   border: 0;
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+  margin: 0;
+  padding: 0;
 }
 
 .goen-pdp__star {
-  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 44px;
-  font-size: var(--fs-13);
   color: var(--fg-muted);
   cursor: pointer;
+  display: inline-flex;
+  font-size: var(--fs-13);
+  gap: 6px;
+  min-height: 44px;
 }
 
 .goen-pdp__reviewbody.goen-input {
@@ -2161,19 +2161,19 @@ textarea.goen-input {
 /* Questions and answers. An answer is indented under its question by a rule on
    the left, so the relationship survives at any width without a nested grid. */
 .goen-qa {
-  margin: 0;
-  padding: 0;
-  list-style: none;
   display: flex;
   flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .goen-qa__item {
+  border-bottom: 1px solid var(--border-faint);
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 16px 0;
-  border-bottom: 1px solid var(--border-faint);
 }
 
 .goen-qa__item:last-child {
@@ -2181,13 +2181,13 @@ textarea.goen-input {
 }
 
 .goen-qa__answers {
-  margin: 8px 0 0;
-  padding: 0 0 0 16px;
-  list-style: none;
+  border-left: 2px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: 8px;
-  border-left: 2px solid var(--border);
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0 0 0 16px;
 }
 
 .goen-qa__answer {
@@ -2197,10 +2197,10 @@ textarea.goen-input {
 }
 
 .goen-qa__answerbody {
-  margin: 0;
+  color: var(--fg-muted);
   font-size: var(--fs-14);
   line-height: var(--lh-normal);
-  color: var(--fg-muted);
+  margin: 0;
 }
 
 @media (min-width: 768px) {
@@ -2225,9 +2225,9 @@ textarea.goen-input {
   }
 
   .goen-pdp__top {
-    grid-template-columns: 1fr 1fr;
-    gap: 48px;
     align-items: start;
+    gap: 48px;
+    grid-template-columns: 1fr 1fr;
   }
 
   .goen-pdp__title {

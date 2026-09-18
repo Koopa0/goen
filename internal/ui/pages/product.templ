@@ -14,7 +14,10 @@ import (
 templ Product(p layouts.Page, v *ProductView) {
 	@layouts.Base(p) {
 		<div class="goen-pdp">
-			@components.Breadcrumb(i18n.T(ctx, i18n.KeyBreadcrumb), v.Trail(ctx))
+			@components.Breadcrumb(components.BreadcrumbProps{
+				Label:  i18n.T(ctx, i18n.KeyBreadcrumb),
+				Crumbs: v.Trail(ctx),
+			})
 			<div class="goen-pdp__top">
 				@productGallery(v)
 				@productBuy(v)
@@ -267,7 +270,7 @@ templ productAddForm(v *ProductView) {
 			<input type="hidden" name="variant" value={ v.VariantID }/>
 			<input type="hidden" name="back" value={ v.Slug }/>
 			<div class="goen-pdp__buyrow">
-				@components.Label("quantity", "goen-sr-only") {
+				@components.Label(components.LabelProps{For: "quantity", Class: "goen-sr-only"}) {
 					{ i18n.T(ctx, i18n.KeyQuantity) }
 				}
 				@components.Input(components.FieldProps{
@@ -350,7 +353,7 @@ templ productNotifyForm(v *ProductView) {
 			}
 		} else {
 			<div class="goen-pdp__notifyrow">
-				@components.Label("notify-email", "goen-sr-only") {
+				@components.Label(components.LabelProps{For: "notify-email", Class: "goen-sr-only"}) {
 					{ i18n.T(ctx, i18n.KeyFieldEmail) }
 				}
 				@components.Input(components.FieldProps{
@@ -442,7 +445,7 @@ templ productQuestions(v *ProductView) {
 						if q.Answered() {
 							<ul class="goen-qa__answers" role="list">
 								for _, a := range q.Answers {
-									<li class={ "goen-qa__answer", templ.KV("is-staff", a.IsStaff) }>
+									<li class="goen-qa__answer">
 										<p class="goen-qa__answerbody">{ a.Body }</p>
 										<span class="goen-pdp__meta">
 											{ a.Who(ctx) }
@@ -477,7 +480,7 @@ templ askForm(v *ProductView) {
 	} else {
 		<form class="goen-qa__form" method="post" action={ templ.SafeURL(v.AskAction()) }>
 			<div class="goen-field">
-				@components.Label("ask-body", "") {
+				@components.Label(components.LabelProps{For: "ask-body"}) {
 					{ i18n.T(ctx, i18n.KeyAskLabel) }
 				}
 				@components.Textarea(components.FieldProps{
@@ -535,7 +538,7 @@ templ reviewForm(v *ProductView) {
 					<p class="ui-error-text">{ v.ReviewErr("rating") }</p>
 				}
 				<div class="goen-field">
-					@components.Label("review-title", "") {
+					@components.Label(components.LabelProps{For: "review-title"}) {
 						{ i18n.T(ctx, i18n.KeyFieldReviewTitle) }
 					}
 					@components.Input(components.FieldProps{
@@ -544,7 +547,7 @@ templ reviewForm(v *ProductView) {
 					})
 				</div>
 				<div class="goen-field">
-					@components.Label("review-body", "") {
+					@components.Label(components.LabelProps{For: "review-body"}) {
 						{ i18n.T(ctx, i18n.KeyFieldReviewBody) }
 					}
 					@components.Textarea(components.FieldProps{
