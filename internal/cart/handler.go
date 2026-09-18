@@ -961,7 +961,7 @@ func (h *Handler) checkoutView(ctx context.Context, cartID uuid.UUID, owner uuid
 	view := pages.CheckoutView{
 		Cart: cartView, Shipping: choices,
 		InvoiceChoices: invoiceChoices(ctx),
-		PickupBrands:   pages.PickupBrandChoices(),
+		PickupBrands:   pages.CheckoutPickupBrandChoices(),
 		SavedAddresses: saved,
 		IdempotencyKey: attemptID.String(),
 	}

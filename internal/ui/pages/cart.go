@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/a-h/templ"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/pickup"
@@ -194,14 +196,29 @@ var checkoutFieldHints = map[string]checkoutFieldHint{
 	"postal_code": {Autocomplete: "postal-code", InputMode: "numeric"},
 	"city":        {Autocomplete: "address-level1"},
 	"district":    {Autocomplete: "address-level2"},
-	// A convenience-store code is not an address. It may begin with a letter,
-	// so a numeric keyboard would make valid stores unreachable.
-	"pickup_store_code": {
-		Autocomplete: "off", AutoCapitalize: "characters", SpellCheck: "false",
-	},
 }
 
 func checkoutHintsFor(name string) checkoutFieldHint { return checkoutFieldHints[name] }
+
+// checkoutChoiceSwap is what turns a chooser into the choice itself where
+// scripting is on: changing it sends exactly what its 更新 button sends —
+// everything typed into the form, plus the name of the chooser — and puts the
+// re-rendered form back in place. The request is the same POST, so the write
+// face is unchanged and the button below remains the path with scripting off.
+//
+// show:none keeps the swap where the customer is looking: they pressed a radio
+// half way down the form to reveal a field beside it.
+func checkoutChoiceSwap(which string) templ.Attributes {
+	return templ.Attributes{
+		"hx-include": "#checkout-form",
+		"hx-post":    "/checkout",
+		"hx-select":  "#checkout-form",
+		"hx-swap":    "outerHTML show:none",
+		"hx-target":  "#checkout-form",
+		"hx-trigger": "change",
+		"hx-vals":    `{"update":"` + which + `"}`,
+	}
+}
 
 // InvoiceChoice is one option in the invoice-type radio group.
 type InvoiceChoice struct {
@@ -235,9 +252,19 @@ type PickupBrandChoice struct {
 	Label string
 }
 
-// PickupBrandChoices is what any form collecting a pickup store offers.
+// PickupBrandChoices is every chain the shop can accept, which is what the back
+// office offers: an order already placed at one of them has to stay correctable.
 func PickupBrandChoices() []PickupBrandChoice {
-	brands := pickup.Offered()
+	return choicesFor(pickup.Offered())
+}
+
+// CheckoutPickupBrandChoices is the part of that set a shopper may choose today:
+// the two chains whose own store picker the shop will integrate first.
+func CheckoutPickupBrandChoices() []PickupBrandChoice {
+	return choicesFor([]pickup.Brand{pickup.SevenEleven, pickup.FamilyMart})
+}
+
+func choicesFor(brands []pickup.Brand) []PickupBrandChoice {
 	out := make([]PickupBrandChoice, 0, len(brands))
 	for _, b := range brands {
 		out = append(out, PickupBrandChoice{Value: b, Label: pickupBrandLabel(b)})
@@ -276,13 +303,21 @@ type Delivery struct {
 }
 
 // IsPickup reports whether this order is collected from a convenience store.
-func (d Delivery) IsPickup() bool { return d.PickupStoreCode != "" }
+// The chain is the destination: the store behind it is filled in by the
+// carrier's picker, and is absent on an order placed before one exists.
+func (d Delivery) IsPickup() bool { return d.PickupBrand != "" }
 
 // Line is the destination as one line a person can read.
 func (d Delivery) Line() string {
 	if d.IsPickup() {
-		return pickupBrandLabel(d.PickupBrand) + " " + d.PickupStoreName +
-			"(" + d.PickupStoreCode + ")"
+		line := pickupBrandLabel(d.PickupBrand)
+		if d.PickupStoreName != "" {
+			line += " " + d.PickupStoreName
+		}
+		if d.PickupStoreCode != "" {
+			line += "(" + d.PickupStoreCode + ")"
+		}
+		return line
 	}
 	return strings.TrimSpace(d.PostalCode + " " + d.City + d.District + d.Street)
 }

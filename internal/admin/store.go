@@ -206,7 +206,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 		// whether to offer the form.
 		Correctable: fulfillment != pages.FulfillmentShipped &&
 			fulfillment != pages.FulfillmentDelivered && fulfillment != pages.FulfillmentCompleted,
-		PickupDestination: o.PickupStoreCode != "",
+		PickupDestination: o.PickupBrand != "",
 		PickupBrands:      pages.PickupBrandChoices(),
 		CustomerNote:      o.CustomerNote.String,
 		StaffNote:         o.StaffNote.String,
