@@ -8,8 +8,6 @@ var (
 		En:     "Put the specifications side by side instead of flipping between two tabs.",
 	})
 
-	KeyCompareInStock = key("compare.instock", Message{ZhHant: "有貨", En: "In stock"})
-
 	KeyWarrantyYears = key("compare.warranty.years", Message{ZhHant: "%d 年", En: "%d years"})
 
 	KeyWarrantyMonths = key("compare.warranty.months", Message{ZhHant: "%d 個月", En: "%d months"})

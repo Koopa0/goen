@@ -4,25 +4,28 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/web"
 )
 
-// Header renders the site header.
+// Header renders the site header: one row, static at every width. The category
+// links sit in the bar from 1024 up and behind a native disclosure below it;
+// the search field stays in the bar and wraps onto its own row.
+//
+// The ui-navitem and ui-btn spellings inside it are not leftovers: two
+// assertions in backoffice_test.go locate the back-office entrance by the whole
+// tag, and app.css replaces every declaration those names carry upstream.
 templ Header(p Page) {
 	<header class="goen-header">
 		<div class="goen-header__bar">
 			<details class="goen-header__menu" data-menu>
-				<summary class="ui-btn ui-btn--ghost ui-btn--icon" aria-label={ i18n.T(ctx, i18n.KeyMenu) }>
+				<summary class="goen-btn goen-btn--ghost goen-btn--icon" aria-label={ i18n.T(ctx, i18n.KeyMenu) }>
 					@icons.Menu()
 				</summary>
 				<nav class="goen-header__drawer" aria-label={ i18n.T(ctx, i18n.KeyCategoryNav) }>
 					for _, n := range TopNavFrom(ctx) {
-						<a
-							class={ "ui-navitem", templ.KV("is-active", p.current(n)) }
-							aria-current={ p.ariaCurrent(n) }
-							href={ templ.URL(n.Href) }
-						>{ n.Name }</a>
+						<a class="ui-navitem" aria-current={ p.ariaCurrent(n) } href={ templ.URL(n.Href) }>{ n.Name }</a>
 					}
 					<a class="ui-navitem goen-header__navitem--deal" href="/deals">{ i18n.T(ctx, i18n.KeyDeals) }</a>
 					// The back office is reached from the header HERE and not from the wide
@@ -45,27 +48,34 @@ templ Header(p Page) {
 			</a>
 			<nav class="goen-header__nav" aria-label={ i18n.T(ctx, i18n.KeyCategoryNav) }>
 				for _, n := range TopNavFrom(ctx) {
-					<a
-						class={ "ui-navitem", templ.KV("is-active", p.current(n)) }
-						aria-current={ p.ariaCurrent(n) }
-						href={ templ.URL(n.Href) }
-					>{ n.Name }</a>
+					<a class="ui-navitem" aria-current={ p.ariaCurrent(n) } href={ templ.URL(n.Href) }>{ n.Name }</a>
 				}
 				<a class="ui-navitem goen-header__navitem--deal" href="/deals">{ i18n.T(ctx, i18n.KeyDeals) }</a>
 			</nav>
-			<form class="goen-header__search ui-input-group" role="search" action="/search" method="get">
-				<span class="ui-input-group__icon">
+			<form class="goen-header__search" role="search" action="/search" method="get">
+				<span class="goen-header__searchicon">
 					@icons.Search()
 				</span>
 				<label class="goen-sr-only" for="site-search">{ i18n.T(ctx, i18n.KeySearch) }</label>
-				<input class="ui-input" id="site-search" type="search" name="q" value={ p.SearchQuery } placeholder={ i18n.T(ctx, i18n.KeySearchHint) }/>
+				@components.Input(components.FieldProps{
+					ID:    "site-search",
+					Name:  "q",
+					Type:  "search",
+					Value: p.SearchQuery,
+					Class: "goen-header__field",
+					Attrs: templ.Attributes{"placeholder": i18n.T(ctx, i18n.KeySearchHint)},
+				})
 			</form>
 			// i18n-exempt: a language's own name, shown in both locales on purpose.
 			@languageSwitch("goen-header__lang", "繁中", "EN")
 			<div class="goen-header__actions">
-				<a class="ui-btn ui-btn--ghost ui-btn--icon" href="/account" aria-label={ i18n.T(ctx, i18n.KeyAccount) }>
+				@components.ButtonLink(components.ButtonProps{
+					Variant: components.VariantGhost,
+					Icon:    true,
+					Attrs:   templ.Attributes{"aria-label": i18n.T(ctx, i18n.KeyAccount)},
+				}, templ.SafeURL("/account")) {
 					@icons.User()
-				</a>
+				}
 				if IsStaff(ctx) {
 					// The wide slot, not a fourth button: at 1024 in English the
 					// search field is already on its floor, and anything added
@@ -89,21 +99,33 @@ templ Header(p Page) {
 
 templ cartLink() {
 	{{ count := web.CartCount(ctx) }}
-	<a class="ui-btn ui-btn--ghost ui-btn--icon goen-header__cart" href="/cart" aria-label={ cartLabel(ctx, count) }>
+	@components.ButtonLink(components.ButtonProps{
+		Variant: components.VariantGhost,
+		Icon:    true,
+		Class:   "goen-header__cart",
+		Attrs:   templ.Attributes{"aria-label": cartLabel(ctx, count)},
+	}, templ.SafeURL("/cart")) {
 		@icons.Cart()
 		if count > 0 {
-			<span class="ui-badge ui-badge--count" aria-hidden="true">{ strconv.Itoa(count) }</span>
+			<span class="ui-badge--count" aria-hidden="true">{ strconv.Itoa(count) }</span>
 		}
-	</a>
+	}
 }
 
+// languageSwitch is the locale form, shared by the header bar, the drawer and
+// the footer. Which language is on is read from aria-pressed rather than from a
+// second class the server renders: one fact, one source.
+//
+// class is where the caller needs to place the form, and is empty where it does
+// not: the header shows and hides its copies at three widths, the footer's sits
+// in a flex row that already puts it at the end.
 templ languageSwitch(class, zh, en string) {
 	{{ current := i18n.FromContext(ctx) }}
-	<form class={ "ui-segmented", class } method="post" action="/locale" role="group" aria-label={ i18n.T(ctx, i18n.KeyLanguage) }>
+	<form class={ "goen-lang", templ.KV(class, class != "") } method="post" action="/locale" role="group" aria-label={ i18n.T(ctx, i18n.KeyLanguage) }>
 		<input type="hidden" name="return" value={ returnPath(ctx) }/>
 		for _, l := range i18n.Locales() {
 			<button
-				class={ "ui-segmented__item", templ.KV("is-active", l == current) }
+				class="goen-lang__item"
 				type="submit"
 				name="locale"
 				value={ l.Tag() }

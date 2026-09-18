@@ -1036,9 +1036,15 @@ const proveListingFilterJourney = async (label, locale) => {
 
   const filteredLayout = await evalPage(LISTING_LAYOUT_PROBE);
   assertMobileResultsLayout(`${label} filtered`, filteredLayout);
-  if (filteredLayout.cardW > 0 && filteredLayout.cardW < MIN_CARD) {
-    fail(label, `filtered mobile card is ${filteredLayout.cardW}px wide, want >= ${MIN_CARD}`);
-  }
+  // MIN_CARD is deliberately NOT asserted here. It asks whether a column count
+  // still fits once the filter rail has taken its width out of the row, which is
+  // a question only the desktop layout can answer — its own declaration says
+  // "Only checked where rail === 'beside'", and the two call sites that honour
+  // that are assertDesktopResultsLayout and the `want.rail === 'beside'` guard
+  // on the LISTING rows. This journey runs at 375, where the rail is stacked and
+  // EXPECTED requires two columns; two columns in a 343px content area is a
+  // 163.5px card, so asserting 200 here contradicts the artboard the same file
+  // declares. Adding it back makes the two assertions unsatisfiable together.
 
   const cleared = await evalPage(`(() => {
     const clear = document.querySelector('.goen-filters__applied .ui-filterbar__clear');

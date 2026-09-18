@@ -48,5 +48,6 @@ func (s *Store) Hero(ctx context.Context) (pages.Hero, error) {
 		ImageKey:     row.ImageKey.String,
 		ImageAlt:     row.ImageAlt,
 		ImageWidth:   int(row.ImageWidth),
+		ImageHeight:  int(row.ImageHeight),
 	}, nil
 }

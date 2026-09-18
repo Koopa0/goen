@@ -31,7 +31,7 @@ templ Base(p Page) {
 			<script src={ templ.URL(assets.URL(assets.AppJS)) } defer></script>
 		</head>
 		<body class="goen-shell">
-			<a class="goen-skip ui-sm" href="#main">{ i18n.T(ctx, i18n.KeySkipToContent) }</a>
+			<a class="goen-skip" href="#main">{ i18n.T(ctx, i18n.KeySkipToContent) }</a>
 			@promoBanner()
 			@Header(p)
 			<main id="main">

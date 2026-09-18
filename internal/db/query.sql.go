@@ -4787,8 +4787,10 @@ SELECT coalesce(localized_name(h.eyebrow, h.eyebrow_en, $1::text), '')::text
        h.secondary_cta_href, h.image_key,
        coalesce(localized_name(h.image_alt, h.image_alt_en, $1::text), '')::text
            AS image_alt,
-       -- Width comes from media_objects: one row of bytes, one row of dimensions.
-       coalesce(m.width, 0)::integer AS image_width
+       -- Dimensions come from media_objects: one row of bytes, one row of size.
+       -- Both, because a width without a height reserves no space in the layout.
+       coalesce(m.width, 0)::integer AS image_width,
+       coalesce(m.height, 0)::integer AS image_height
 FROM hero_slides h
 LEFT JOIN media_objects m ON m.digest = h.image_key
 WHERE h.is_active
@@ -4809,6 +4811,7 @@ type CurrentHeroSlideRow struct {
 	ImageKey          pgtype.Text
 	ImageAlt          string
 	ImageWidth        int32
+	ImageHeight       int32
 }
 
 // One slide, not a carousel: `position` is how an editor queues the next one.
@@ -4830,6 +4833,7 @@ func (q *Queries) CurrentHeroSlide(ctx context.Context, locale string) (CurrentH
 		&i.ImageKey,
 		&i.ImageAlt,
 		&i.ImageWidth,
+		&i.ImageHeight,
 	)
 	return i, err
 }
