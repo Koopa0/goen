@@ -2163,6 +2163,13 @@ h4,
      complaint the issue opened with.
    ------------------------------------------------------------------------ */
 
+/* overflow-anchor is what moved the swatch row under a thumb, and it was trying
+   to help: choosing a variant removes the "choose every option" line, the
+   browser picks a node below it to hold still, and scrolls to compensate. The
+   row's own position in the document never changed, so the compensation was the
+   whole of the movement. It is switched off here, on the page, rather than on
+   the region that swaps — the node the browser anchors to is below that region,
+   which is why doing it there had no effect. */
 .goen-pdp {
   box-sizing: border-box;
   display: flex;
@@ -2170,6 +2177,7 @@ h4,
   gap: 32px;
   margin: 0 auto;
   max-width: 1280px;
+  overflow-anchor: none;
   padding: 16px 16px 56px;
   width: 100%;
 }
@@ -2509,8 +2517,27 @@ h4,
   flex: none;
 }
 
+/* The one button in goen whose label is a sentence. `.goen-btn` keeps every
+   other button on a single line, which is right for 加入購物車 and wrong for
+   目前全部規格都已售完: at 375 this control shares a 291px row with the quantity
+   stepper, and a sentence that cannot break makes the row as wide as the
+   sentence rather than as wide as the column. Three declarations undo that,
+   here and nowhere else — min-width so flex may shrink it below its text at
+   all, white-space so the text has somewhere to break, and height as a minimum
+   so a second line is not cut off. The tap target stays 44px because the
+   minimum is the height it had.
+
+   A label that fitted on one line would be a better button than one that wraps
+   well; that is `pdp.allsoldout`, and it is the shop's sentence. This rule is
+   what stops any label, in any font, from deciding how wide the page is. */
 .goen-pdp__add {
   flex: 1 1 auto;
+  height: auto;
+  line-height: var(--lh-snug);
+  min-height: 2.75rem;
+  min-width: 0;
+  padding-block: 8px;
+  white-space: normal;
 }
 
 .goen-pdp__compare {
