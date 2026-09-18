@@ -1,0 +1,143 @@
+{
+  "_comment": "Accessibility debt make check-layout has accepted, as route -> axe-core rule ids at impact serious or critical. A pair that is not listed fails the gate; a pair listed that no longer fires fails it too, so this file can only shrink. Rule ids rather than selectors: the markup under a rule changes with every page change and a stale selector would fail a run for a reason that has nothing to do with accessibility. The run prints the exact replacement for this file when the set moves.",
+  "routes": {
+    "/": [
+      "color-contrast"
+    ],
+    "/account": [
+      "color-contrast"
+    ],
+    "/admin": [
+      "color-contrast"
+    ],
+    "/admin/audit": [
+      "color-contrast"
+    ],
+    "/admin/campaigns": [
+      "color-contrast"
+    ],
+    "/admin/coupons": [
+      "color-contrast"
+    ],
+    "/admin/credit": [
+      "color-contrast"
+    ],
+    "/admin/customers/{id}": [
+      "color-contrast"
+    ],
+    "/admin/customers?q=layout": [
+      "color-contrast"
+    ],
+    "/admin/faq": [
+      "color-contrast"
+    ],
+    "/admin/health": [
+      "color-contrast"
+    ],
+    "/admin/home": [
+      "color-contrast"
+    ],
+    "/admin/messages": [
+      "color-contrast"
+    ],
+    "/admin/newsletter": [
+      "color-contrast"
+    ],
+    "/admin/orders": [
+      "color-contrast"
+    ],
+    "/admin/orders/{order}": [
+      "color-contrast"
+    ],
+    "/admin/orders/{order}?allowfailed=1": [
+      "color-contrast"
+    ],
+    "/admin/orders/{order}?voidfailed=1": [
+      "color-contrast"
+    ],
+    "/admin/orders/{order}?voidreason=1": [
+      "color-contrast"
+    ],
+    "/admin/products": [
+      "color-contrast"
+    ],
+    "/admin/products/aurora-charger-65": [
+      "color-contrast"
+    ],
+    "/admin/questions": [
+      "color-contrast"
+    ],
+    "/admin/reports": [
+      "color-contrast"
+    ],
+    "/admin/returns": [
+      "color-contrast"
+    ],
+    "/admin/reviews": [
+      "color-contrast"
+    ],
+    "/admin/shipping": [
+      "color-contrast"
+    ],
+    "/admin/staff": [
+      "color-contrast"
+    ],
+    "/admin/stock": [
+      "color-contrast"
+    ],
+    "/admin/stock/PXL-9P-1-1": [
+      "color-contrast"
+    ],
+    "/admin/taxonomy": [
+      "color-contrast"
+    ],
+    "/admin/tiers": [
+      "color-contrast"
+    ],
+    "/admin/warranty?q={serial}": [
+      "color-contrast"
+    ],
+    "/contact": [
+      "color-contrast"
+    ],
+    "/deals": [
+      "color-contrast"
+    ],
+    "/faq": [
+      "color-contrast"
+    ],
+    "/orders/{order}": [
+      "color-contrast"
+    ],
+    "/orders/{order}/return": [
+      "color-contrast"
+    ],
+    "/p/aurora-charger-65": [
+      "color-contrast"
+    ],
+    "/p/nimbus-buds-pro": [
+      "color-contrast"
+    ],
+    "/p/nimbus-buds-pro?%E9%A1%8F%E8%89%B2=%E9%9B%B2%E7%99%BD": [
+      "color-contrast"
+    ],
+    "/payment": [
+      "color-contrast"
+    ],
+    "/privacy": [
+      "color-contrast"
+    ],
+    "/returns": [
+      "color-contrast"
+    ],
+    "/shipping": [
+      "color-contrast"
+    ],
+    "/terms": [
+      "color-contrast"
+    ],
+    "/warranty": [
+      "color-contrast"
+    ]
+  }
+}

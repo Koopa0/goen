@@ -72,6 +72,16 @@ the accessibility questions only a browser can answer. The Makefile probes commo
 macOS app bundles and Linux package names; set `CHROME` when yours lives
 elsewhere.
 
+The `layout` job runs that same command on every pull request, against a fresh
+database, the seeded catalogue and the runner's Chrome, and keeps `layout.log`
+as an artifact. It also runs axe-core's WCAG 2 A and AA rules once per route
+through the CDP session the check already holds, fetched at `AXE_CORE_VERSION`
+and verified against `AXE_CORE_SHA256` rather than loaded from a CDN; a finding
+at impact `serious` or `critical` fails the run unless `scripts/axe-baseline.json`
+already records that route and rule, and the run prints the exact replacement for
+that file whenever the set moves. The local recipe above is unchanged: `make run`
+in one shell, `make check-layout` in another.
+
 Run the gate unpiped and report its exit status. A pipe reports the status of
 its last command, which has read a red gate as green here before.
 
@@ -82,7 +92,8 @@ the base. `.github/branch-protection.json` is its reviewed import artifact, not
 the enforcement mechanism: verify current settings through the rulesets API.
 
 The import artifact requires `verify`, `schema`, `vulnerabilities`, `ci-policy`,
-`commit-attribution`, `CodeQL (go)` and `CodeQL (actions)` from GitHub Actions.
+`commit-attribution`, `layout`, `CodeQL (go)` and `CodeQL (actions)` from GitHub
+Actions.
 New contexts are applied to the live ruleset only after successful PR runs.
 The CodeQL rule also blocks error-level findings and high/critical security
 findings; apply it only after successful PR and merged-main analyses exist.
