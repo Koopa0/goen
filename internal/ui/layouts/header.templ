@@ -115,9 +115,13 @@ templ cartLink() {
 // languageSwitch is the locale form, shared by the header bar, the drawer and
 // the footer. Which language is on is read from aria-pressed rather than from a
 // second class the server renders: one fact, one source.
+//
+// class is where the caller needs to place the form, and is empty where it does
+// not: the header shows and hides its copies at three widths, the footer's sits
+// in a flex row that already puts it at the end.
 templ languageSwitch(class, zh, en string) {
 	{{ current := i18n.FromContext(ctx) }}
-	<form class={ "goen-lang", class } method="post" action="/locale" role="group" aria-label={ i18n.T(ctx, i18n.KeyLanguage) }>
+	<form class={ "goen-lang", templ.KV(class, class != "") } method="post" action="/locale" role="group" aria-label={ i18n.T(ctx, i18n.KeyLanguage) }>
 		<input type="hidden" name="return" value={ returnPath(ctx) }/>
 		for _, l := range i18n.Locales() {
 			<button

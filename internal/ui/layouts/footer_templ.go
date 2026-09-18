@@ -165,7 +165,7 @@ func Footer() templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = languageSwitch("goen-footer__lang", "繁體中文", "English").Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = languageSwitch("", "繁體中文", "English").Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
