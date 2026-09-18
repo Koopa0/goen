@@ -1523,7 +1523,12 @@ SELECT o.id, o.name, coalesce(o.name_en, '') AS name_en, o.position,
            (SELECT array_agg(coalesce(v.value_en, '') ORDER BY v.position, v.id)
             FROM product_option_values v WHERE v.option_id = o.id),
            ARRAY[]::text[]
-       )::text[] AS value_labels
+       )::text[] AS value_labels,
+       coalesce(
+           (SELECT array_agg(coalesce(v.swatch_hex, '') ORDER BY v.position, v.id)
+            FROM product_option_values v WHERE v.option_id = o.id),
+           ARRAY[]::text[]
+       )::text[] AS swatch_hexes
 FROM product_options o
 JOIN products p ON p.id = o.product_id
 WHERE p.slug = $1
@@ -1542,8 +1547,9 @@ RETURNING id;
 -- attached to an option of a different product: the composite foreign key would
 -- refuse it, and resolving it here means the caller cannot try.
 -- name: AddProductOptionValue :one
-INSERT INTO product_option_values (product_id, option_id, value, value_en, position)
+INSERT INTO product_option_values (product_id, option_id, value, value_en, swatch_hex, position)
 SELECT o.product_id, o.id, @value::text, nullif(@value_en::text, ''),
+       nullif(@swatch_hex::text, ''),
        coalesce((SELECT max(v.position) FROM product_option_values v
                  WHERE v.option_id = o.id), 0) + 1
 FROM product_options o

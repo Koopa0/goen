@@ -197,6 +197,26 @@ FROM (VALUES
 ) AS m(zh, en)
 WHERE v.value = m.zh;
 
+-- The colour each name shows as on a product page. Read from the shop's own
+-- colour names, because the photography is per PRODUCT and not per variant, so
+-- there is no image to sample a variant's finish from. Whoever holds the real
+-- products should correct any that do not match one.
+--
+-- 透明 and 霧透 are absent on purpose: they are finishes, not colours, and a
+-- flat fill would show them as two shades of grey that neither of them is. The
+-- page falls back to their names, which is what it already did for capacities.
+UPDATE product_option_values v SET swatch_hex = m.hex
+FROM (VALUES
+    ('雲白', '#f4f5f6'), ('太空銀', '#d9dadb'), ('銀', '#c9ccce'),
+    ('燕麥', '#e3dbcb'), ('曙光金', '#e8c9a0'), ('玫瑰金', '#e0bfb8'),
+    ('櫻花粉', '#f2c9d4'), ('珊瑚橘', '#f08163'), ('薄荷綠', '#b7e2cd'),
+    ('天空藍', '#a8c8e8'), ('星霧藍', '#9fb3c8'), ('墨綠', '#2f4f43'),
+    ('胡桃', '#7b5b43'), ('石墨灰', '#6e7276'), ('午夜灰', '#3c4043'),
+    ('炭黑', '#36393d'), ('石墨黑', '#2b2d30'), ('曜石黑', '#1c1c1e'),
+    ('黑', '#16181a')
+) AS m(zh, hex)
+WHERE v.value = m.zh;
+
 INSERT INTO product_variants (id, product_id, sku, price_cents, compare_at_price_cents, safety_stock, position) VALUES
     ('00000015-0000-4000-8000-000000000015', '0000000e-0000-4000-8000-00000000000e', 'PXL-9P-1-1', 3390000, 3690000, 2, 0),
     ('00000016-0000-4000-8000-000000000016', '0000000e-0000-4000-8000-00000000000e', 'PXL-9P-1-2', 3690000, 3990000, 2, 1),

@@ -157,21 +157,23 @@ func (q *Queries) AddProductOption(ctx context.Context, arg AddProductOptionPara
 }
 
 const addProductOptionValue = `-- name: AddProductOptionValue :one
-INSERT INTO product_option_values (product_id, option_id, value, value_en, position)
+INSERT INTO product_option_values (product_id, option_id, value, value_en, swatch_hex, position)
 SELECT o.product_id, o.id, $1::text, nullif($2::text, ''),
+       nullif($3::text, ''),
        coalesce((SELECT max(v.position) FROM product_option_values v
                  WHERE v.option_id = o.id), 0) + 1
 FROM product_options o
 JOIN products p ON p.id = o.product_id
-WHERE p.slug = $3::text AND o.id = $4
+WHERE p.slug = $4::text AND o.id = $5
 RETURNING id
 `
 
 type AddProductOptionValueParams struct {
-	Value    string
-	ValueEn  string
-	Slug     string
-	OptionID uuid.UUID
+	Value     string
+	ValueEn   string
+	SwatchHex string
+	Slug      string
+	OptionID  uuid.UUID
 }
 
 // product_id comes from the OPTION and not from the caller, so a value cannot be
@@ -181,6 +183,7 @@ func (q *Queries) AddProductOptionValue(ctx context.Context, arg AddProductOptio
 	row := q.db.QueryRow(ctx, addProductOptionValue,
 		arg.Value,
 		arg.ValueEn,
+		arg.SwatchHex,
 		arg.Slug,
 		arg.OptionID,
 	)
@@ -1179,7 +1182,12 @@ SELECT o.id, o.name, coalesce(o.name_en, '') AS name_en, o.position,
            (SELECT array_agg(coalesce(v.value_en, '') ORDER BY v.position, v.id)
             FROM product_option_values v WHERE v.option_id = o.id),
            ARRAY[]::text[]
-       )::text[] AS value_labels
+       )::text[] AS value_labels,
+       coalesce(
+           (SELECT array_agg(coalesce(v.swatch_hex, '') ORDER BY v.position, v.id)
+            FROM product_option_values v WHERE v.option_id = o.id),
+           ARRAY[]::text[]
+       )::text[] AS swatch_hexes
 FROM product_options o
 JOIN products p ON p.id = o.product_id
 WHERE p.slug = $1
@@ -1194,6 +1202,7 @@ type AdminProductOptionsRow struct {
 	ValueIds    []string
 	Values      []string
 	ValueLabels []string
+	SwatchHexes []string
 }
 
 func (q *Queries) AdminProductOptions(ctx context.Context, slug string) ([]AdminProductOptionsRow, error) {
@@ -1213,6 +1222,7 @@ func (q *Queries) AdminProductOptions(ctx context.Context, slug string) ([]Admin
 			&i.ValueIds,
 			&i.Values,
 			&i.ValueLabels,
+			&i.SwatchHexes,
 		); err != nil {
 			return nil, err
 		}
@@ -8382,7 +8392,8 @@ const productOptions = `-- name: ProductOptions :many
 SELECT o.name AS option_name,
        localized_name(o.name, o.name_en, $2::text) AS option_label,
        v.value,
-       localized_name(v.value, v.value_en, $2::text) AS value_label
+       localized_name(v.value, v.value_en, $2::text) AS value_label,
+       coalesce(v.swatch_hex, '') AS swatch_hex
 FROM product_options o
 JOIN product_option_values v ON v.option_id = o.id
 WHERE o.product_id = $1
@@ -8404,6 +8415,7 @@ type ProductOptionsRow struct {
 	OptionLabel string
 	Value       string
 	ValueLabel  string
+	SwatchHex   string
 }
 
 // option_name and value are identity, what the URL selects on; the _label columns
@@ -8422,6 +8434,7 @@ func (q *Queries) ProductOptions(ctx context.Context, arg ProductOptionsParams) 
 			&i.OptionLabel,
 			&i.Value,
 			&i.ValueLabel,
+			&i.SwatchHex,
 		); err != nil {
 			return nil, err
 		}

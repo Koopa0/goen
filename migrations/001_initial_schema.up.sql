@@ -309,10 +309,23 @@ CREATE TABLE product_option_values (
     -- A label, exactly like product_options.name_en: `value` is what the URL
     -- selects on and what variant matching compares.
     value_en   text,
+    -- The colour this value shows as, for the swatch on a product page. NULL
+    -- wherever the value is not a colour: every capacity, and a finish such as
+    -- 透明 or 霧透 that a flat fill would misrepresent as a shade of grey. The
+    -- page falls back to the value's own name, which is what it showed before
+    -- this column existed.
+    --
+    -- Lower-case six-digit hex, because a swatch is compared and sorted by the
+    -- shop as text and '#FFFFFF' and '#ffffff' are one colour under two
+    -- spellings. The CHECK admits one of them; the admin lower-cases before the
+    -- CHECK sees it, so typing the other is not an error.
+    swatch_hex text,
     position   integer NOT NULL DEFAULT 0,
     CONSTRAINT product_option_values_value_present CHECK (value ~ '[^[:space:]]'),
     CONSTRAINT product_option_values_value_en_present
         CHECK (value_en IS NULL OR value_en ~ '[^[:space:]]'),
+    CONSTRAINT product_option_values_swatch_hex_shape
+        CHECK (swatch_hex IS NULL OR swatch_hex ~ '^#[0-9a-f]{6}$'),
     CONSTRAINT product_option_values_option_fk
         FOREIGN KEY (product_id, option_id) REFERENCES product_options (product_id, id)
         ON DELETE CASCADE

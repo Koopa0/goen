@@ -1066,6 +1066,14 @@ VALUES ('66666666-6666-4666-8666-666666666666', '44444444-4444-4444-8444-4444444
 		accept:     `INSERT INTO product_option_values (id, product_id, option_id, value, value_en) VALUES ('11110006-0000-4000-8000-000000000092', '33333333-3333-4333-8333-333333333333', 'aaaa0001-0000-4000-8000-000000000000', '測試值', 'Test value');`,
 	},
 	{
+		// Upper case is the rejection worth watching: '#FFFFFF' and '#ffffff' are
+		// one colour under two spellings, and a column that accepts both is a
+		// column the shop can sort two ways.
+		constraint: "product_option_values_swatch_hex_shape",
+		reject:     `INSERT INTO product_option_values (id, product_id, option_id, value, swatch_hex) VALUES ('11110007-0000-4000-8000-000000000093', '33333333-3333-4333-8333-333333333333', 'aaaa0001-0000-4000-8000-000000000000', '測試色', '#FFFFFF');`,
+		accept:     `INSERT INTO product_option_values (id, product_id, option_id, value, swatch_hex) VALUES ('11110007-0000-4000-8000-000000000093', '33333333-3333-4333-8333-333333333333', 'aaaa0001-0000-4000-8000-000000000000', '測試色', '#ffffff');`,
+	},
+	{
 		constraint: "product_option_values_value_present",
 		reject:     `INSERT INTO product_option_values (id, product_id, option_id, value) VALUES ('11110002-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'aaaa0001-0000-4000-8000-000000000000', E'\t');`,
 		accept:     `INSERT INTO product_option_values (id, product_id, option_id, value) VALUES ('11110002-0000-4000-8000-000000000001', '33333333-3333-4333-8333-333333333333', 'aaaa0001-0000-4000-8000-000000000000', '玫瑰金');`,
