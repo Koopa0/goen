@@ -569,7 +569,23 @@ const PROBE = `(() => {
 // than a second list of paths: a list would drift from the tables above, and
 // the point of the audit is that it covers what the gate covers.
 const visited = new Map();
-const routeOf = (url) => (url.startsWith(ORIGIN) ? url.slice(ORIGIN.length) : url) || '/';
+
+// A route key has to mean the same thing next week. The fixtures mint a
+// customer id, an order number carrying today's date and a warranty serial from
+// the shell's pid on every run, so a key taken verbatim would name a page that
+// does not exist tomorrow and the baseline would be stale on the run after the
+// one that wrote it.
+const PER_RUN = [
+  [/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '{id}'],
+  [/GO-\d{6}-\d{6}/g, '{order}'],
+  [/LAYOUTSN\d+/g, '{serial}'],
+];
+
+const routeOf = (url) => {
+  let route = (url.startsWith(ORIGIN) ? url.slice(ORIGIN.length) : url) || '/';
+  for (const [fixture, name] of PER_RUN) route = route.replace(fixture, name);
+  return route;
+};
 
 const settled = async (ws, label, url) => {
   for (let i = 0; i < 50; i++) {

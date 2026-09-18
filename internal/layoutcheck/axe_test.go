@@ -42,6 +42,9 @@ func TestTheLayoutGateFetchesAxeCoreAtAPinnedDigest(t *testing.T) {
 	}
 
 	script := readLayoutScript(t, root)
+	if !strings.Contains(script, "const PER_RUN = [") {
+		t.Fatal("check-layout.mjs must fold the per-run fixtures out of a route key")
+	}
 	for _, host := range []string{"unpkg.com", "cdn.jsdelivr.net", "cdnjs.cloudflare.com"} {
 		if strings.Contains(script, host) {
 			t.Fatalf("check-layout.mjs names %s: the rules must be fetched and verified by the "+
@@ -109,10 +112,18 @@ func TestTheAxeBaselineIsRouteToRuleIDs(t *testing.T) {
 	if err := json.Unmarshal(body, &baseline); err != nil {
 		t.Fatalf("the axe baseline does not parse: %v", err)
 	}
+	// The fixtures mint these on every run, so a baseline naming one is stale by
+	// the next run and reports its own staleness as an accessibility failure.
+	perRun := regexp.MustCompile(`[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}` +
+		`|GO-\d{6}-\d{6}|LAYOUTSN\d+`)
 	ruleID := regexp.MustCompile(`^[a-z0-9-]+$`)
 	for route, rules := range baseline.Routes {
 		if !strings.HasPrefix(route, "/") {
 			t.Errorf("baseline route %q is not a path", route)
+		}
+		if perRun.MatchString(route) {
+			t.Errorf("baseline route %q names a per-run fixture; check-layout.mjs replaces "+
+				"those with {id}, {order} and {serial}", route)
 		}
 		if len(rules) == 0 {
 			t.Errorf("baseline route %q lists no rule; an empty entry is debt nobody owns", route)
