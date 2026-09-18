@@ -2,10 +2,13 @@ package layouts
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 )
 
-// Footer renders the site footer.
+// Footer renders the site footer: the shop and how to reach it, two link
+// columns, the newsletter, and a bottom bar with the company line and the
+// language control.
 templ Footer() {
 	<footer class="goen-footer">
 		<div class="goen-footer__grid">
@@ -14,54 +17,62 @@ templ Footer() {
 					@icons.Mark("goen-footer__mark")
 					<span class="goen-footer__wordmark">goen</span>
 				</div>
-				<p class="ui-sm goen-footer__tagline">{ i18n.T(ctx, i18n.KeyFooterTagline) }</p>
-				<p class="caption goen-footer__contact">
+				<p class="goen-footer__tagline">{ i18n.T(ctx, i18n.KeyFooterTagline) }</p>
+				<p class="goen-footer__contact">
 					{ i18n.T(ctx, i18n.KeySupportHours) }
 					<br/>
-					<a href="mailto:support@goen.tw">support@goen.tw</a> · <a href="tel:+886227001234">02-2700-1234</a>
+					<a class="goen-footer__link" href="mailto:support@goen.tw">support@goen.tw</a>
+					·
+					<a class="goen-footer__link" href="tel:+886227001234">02-2700-1234</a>
 				</p>
-			</div>
-			<nav class="goen-footer__links" aria-label={ i18n.T(ctx, i18n.KeyFooterHelp) }>
-				<span class="micro">{ i18n.T(ctx, i18n.KeyFooterHelp) }</span>
-				for _, l := range footerShopping {
-					<a class="ui-sm" href={ templ.URL(l.Href) }>{ l.Label(ctx) }</a>
-				}
-			</nav>
-			<nav class="goen-footer__links" aria-label={ i18n.T(ctx, i18n.KeyFooterPolicies) }>
-				<span class="micro">{ i18n.T(ctx, i18n.KeyFooterPolicies) }</span>
-				for _, l := range footerAbout {
-					<a class="ui-sm" href={ templ.URL(l.Href) }>{ l.Label(ctx) }</a>
-				}
-			</nav>
-			if i18n.FromContext(ctx) != i18n.Default {
-				<p class="ui-sm goen-footer__contentnote">{ i18n.T(ctx, i18n.KeyContentNotice) }</p>
-			}
-			<div class="goen-footer__news">
-				<span class="micro">{ i18n.T(ctx, i18n.KeyNewsletter) }</span>
-				<p class="caption goen-footer__newsnote">{ i18n.T(ctx, i18n.KeyNewsletterNote) }</p>
-				@NewsletterForm(NewsletterState{})
 				<div class="goen-footer__social">
-					<a class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm" href="https://www.instagram.com/" aria-label="Instagram" rel="noreferrer">
+					<a class="goen-btn goen-btn--ghost goen-btn--icon" href="https://www.instagram.com/" aria-label="Instagram" rel="noreferrer">
 						@icons.Instagram()
 					</a>
-					<a class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm" href="https://www.youtube.com/" aria-label="YouTube" rel="noreferrer">
+					<a class="goen-btn goen-btn--ghost goen-btn--icon" href="https://www.youtube.com/" aria-label="YouTube" rel="noreferrer">
 						@icons.YouTube()
 					</a>
-					<a class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm" href="https://www.facebook.com/" aria-label="Facebook" rel="noreferrer">
+					<a class="goen-btn goen-btn--ghost goen-btn--icon" href="https://www.facebook.com/" aria-label="Facebook" rel="noreferrer">
 						@icons.Facebook()
 					</a>
 				</div>
+			</div>
+			@footerColumn(i18n.T(ctx, i18n.KeyFooterHelp), footerShopping[:])
+			@footerColumn(i18n.T(ctx, i18n.KeyFooterPolicies), footerAbout[:])
+			<div class="goen-footer__news">
+				<span class="goen-footer__heading">{ i18n.T(ctx, i18n.KeyNewsletter) }</span>
+				<p class="goen-footer__newsnote">{ i18n.T(ctx, i18n.KeyNewsletterNote) }</p>
+				@NewsletterForm(NewsletterState{})
 			</div>
 		</div>
 		<div class="goen-footer__bottom">
 			<div class="goen-footer__bottominner">
 				// i18n-exempt: a company registration line: a legal name and a tax number.
-				<span class="caption">© 2026 goen Co., Ltd. 統編 90123456</span>
+				<span class="goen-footer__copyright">© 2026 goen Co., Ltd. 統編 90123456</span>
+				if i18n.FromContext(ctx) != i18n.Default {
+					<p class="goen-footer__contentnote">{ i18n.T(ctx, i18n.KeyContentNotice) }</p>
+				}
 				// i18n-exempt: a language's own name, shown in both locales on purpose.
-				@languageSwitch("goen-footer__lang", "繁體中文", "English")
+				@languageSwitch("", "繁體中文", "English")
 			</div>
 		</div>
 	</footer>
+}
+
+// footerColumn is one titled list of links. The title is a span rather than a
+// heading: the footer sits after the page's own outline and a heading here
+// would take a level the page has already spent.
+templ footerColumn(title string, links []footerLink) {
+	<nav class="goen-footer__links" aria-label={ title }>
+		<span class="goen-footer__heading">{ title }</span>
+		<ul class="goen-footer__list" role="list">
+			for _, l := range links {
+				<li>
+					<a class="goen-footer__link" href={ templ.URL(l.Href) }>{ l.Label(ctx) }</a>
+				</li>
+			}
+		</ul>
+	</nav>
 }
 
 // NewsletterState carries the outcome of a subscribe attempt into the form.
@@ -83,25 +94,26 @@ templ NewsletterForm(s NewsletterState) {
 		hx-swap="outerHTML"
 	>
 		if s.Done {
-			<p class="ui-sm goen-footer__signup-done" role="status">{ i18n.T(ctx, i18n.KeyNewsletterInlineDone) }</p>
+			<p class="goen-footer__signup-done" role="status">{ i18n.T(ctx, i18n.KeyNewsletterInlineDone) }</p>
 		} else {
 			<label class="goen-sr-only" for="newsletter-email">{ i18n.T(ctx, i18n.KeyFieldEmail) }</label>
-			<input
-				class="ui-input"
-				id="newsletter-email"
-				type="email"
-				name="email"
-				value={ s.Email }
-				placeholder="you@example.com"
-				required
-				autocomplete="email"
-				maxlength="254"
-				aria-invalid={ boolAttr(s.Error != "") }
-				if s.Error != "" {
-					aria-describedby="newsletter-error"
-				}
-			/>
-			<button class="ui-btn ui-btn--primary ui-btn--md" type="submit">{ i18n.T(ctx, i18n.KeyNewsletterSubmit) }</button>
+			@components.Input(components.FieldProps{
+				ID:        "newsletter-email",
+				Name:      "email",
+				Type:      "email",
+				Value:     s.Email,
+				Invalid:   s.Error != "",
+				Describes: "newsletter-error",
+				Attrs: templ.Attributes{
+					"placeholder":  "you@example.com",
+					"required":     true,
+					"autocomplete": "email",
+					"maxlength":    "254",
+				},
+			})
+			@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+				{ i18n.T(ctx, i18n.KeyNewsletterSubmit) }
+			}
 			if s.Error != "" {
 				<p class="ui-error-text goen-footer__signup-error" id="newsletter-error" role="alert">{ s.Error }</p>
 			}

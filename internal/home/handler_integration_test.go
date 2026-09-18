@@ -264,6 +264,11 @@ func TestTheHeroImageCarriesItsRealWidth(t *testing.T) {
 		t.Errorf("ImageWidth is %d, want 1440 — the srcset would state a width "+
 			"the image does not have", hero.ImageWidth)
 	}
+	if hero.ImageHeight != 900 {
+		t.Errorf("ImageHeight is %d, want 900 — without it the hero <img> carries "+
+			"no intrinsic ratio and the copy under it moves when the artwork lands",
+			hero.ImageHeight)
+	}
 	if !hero.Custom() {
 		t.Error("a slide with an image reported itself as the fallback")
 	}

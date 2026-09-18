@@ -1,6 +1,11 @@
 package i18n
 
 var (
+	// KeyInStock is the one sentence goen has for "there is stock": the
+	// product page wears it as a badge and the comparison table prints it in
+	// a cell, so the name says the fact and not the surface.
+	KeyInStock = key("stock.instock", Message{ZhHant: "有貨", En: "In stock"})
+
 	KeyAdminColWhen = key("admin.col.when", Message{ZhHant: "時間", En: "When"})
 
 	KeyAdminColChange = key("admin.col.change", Message{ZhHant: "異動", En: "Change"})
