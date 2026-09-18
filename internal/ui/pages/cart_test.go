@@ -727,6 +727,97 @@ func TestEnterInTheCheckoutPlacesTheOrder(t *testing.T) {
 	}
 }
 
+// TestTheChosenOptionIsMarkedOnTheRadioAlone holds the single source for "this
+// is the one chosen". The page used to say it twice — a class the server
+// rendered onto the label, and a :has(input:checked) rule following the live
+// control — and the two disagree the moment a shopper presses one, which is
+// #378's first symptom. The checked attribute is what a browser, a screen
+// reader and the stylesheet all read, so it is the one that stays.
+func TestTheChosenOptionIsMarkedOnTheRadioAlone(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	view := CheckoutView{
+		Cart: CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Shipping: []ShippingChoice{
+			{VersionID: "ship-1", Code: "home", Name: "宅配到府"},
+			{VersionID: "ship-2", Code: "store_pickup", Name: "超商取貨"},
+		},
+		Chosen:         "ship-2",
+		Invoice:        CheckoutInvoice{Type: "mobile_carrier"},
+		InvoiceChoices: []InvoiceChoice{{Value: "member_carrier", Label: "會員載具"}, {Value: "mobile_carrier", Label: "手機條碼載具"}},
+	}
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
+
+	for _, want := range []string{`value="ship-2" checked`, `value="mobile_carrier" checked`} {
+		if !strings.Contains(html, want) {
+			t.Errorf("the chosen option does not carry %s — nothing in the document "+
+				"says which one it is, so the card cannot show it and a screen "+
+				"reader cannot announce it", want)
+		}
+	}
+	for _, unwanted := range []string{`value="ship-1" checked`, `value="member_carrier" checked`} {
+		if strings.Contains(html, unwanted) {
+			t.Errorf("an option nobody picked renders %s", unwanted)
+		}
+	}
+
+	// And no second marker beside it. A class the server paints onto the chosen
+	// label is a fact stored twice.
+	if strings.Contains(html, "--on") {
+		t.Error("the chooser still renders a server-side selected class beside the " +
+			"checked radio; two sources for one fact disagree after a press")
+	}
+}
+
+// TestACouponCanBeAppliedWithoutPlacingTheOrder holds the control that makes a
+// discount code checkable. The field on its own left the shopper one button —
+// the one that buys — so the only way to learn whether a code worked was to
+// place the order and read the total afterwards.
+//
+// It is an `update` submit like the three chooser buttons, because it wants the
+// same thing: re-render this form with one more decision applied. formnovalidate
+// travels with it for the same reason they carry it — the customer is mid-form
+// and the fields below are still empty.
+func TestACouponCanBeAppliedWithoutPlacingTheOrder(t *testing.T) {
+	t.Parallel()
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+
+	view := CheckoutView{
+		Cart:     CartView{Lines: []CartLine{{Name: "x", Quantity: 1, UnitCents: 100}}},
+		Shipping: []ShippingChoice{{VersionID: "s1", Code: "home", Name: "宅配到府"}},
+		Chosen:   "s1",
+	}
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), &view))
+
+	_, form, ok := strings.Cut(html, `action="/checkout"`)
+	if !ok {
+		t.Fatal("the checkout rendered no form")
+	}
+	form, _, _ = strings.Cut(form, "</form>")
+
+	_, coupon, ok := strings.Cut(form, `id="coupon"`)
+	if !ok {
+		t.Fatal("the checkout rendered no coupon field")
+	}
+	button, _, ok := strings.Cut(coupon, "</button>")
+	if !ok {
+		t.Fatal("no control follows the coupon field, so a code can only be tried by buying")
+	}
+	for _, want := range []string{`name="update"`, `value="coupon"`, "formnovalidate"} {
+		if !strings.Contains(button, want) {
+			t.Errorf("the control beside the coupon field is missing %s:\n%s", want, button)
+		}
+	}
+
+	// And it must not become the form's default: Enter in any field still
+	// places the order, which TestEnterInTheCheckoutPlacesTheOrder locks from
+	// the other side.
+	if strings.Index(form, `value="coupon"`) < strings.Index(form, i18n.T(ctx, i18n.KeyPlaceOrder)) {
+		t.Error("the coupon button comes before the order button, so Enter applies a code instead of buying")
+	}
+}
+
 // TestAFullyFundedOrderIsNotAskedToPay covers the funding term of
 // AwaitingPayment. An order paid entirely from store credit, or zeroed by a
 // 100% coupon, is legitimately 'pending' with NO payment row, so status and
