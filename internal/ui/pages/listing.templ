@@ -15,7 +15,10 @@ import (
 templ Listing(p layouts.Page, v ListingView) {
 	@layouts.Base(p) {
 		<div class="goen-listing">
-			@components.Breadcrumb(i18n.T(ctx, i18n.KeyBreadcrumb), v.Trail(ctx))
+			@components.Breadcrumb(components.BreadcrumbProps{
+				Label:  i18n.T(ctx, i18n.KeyBreadcrumb),
+				Crumbs: v.Trail(ctx),
+			})
 			<div class="goen-pagehead">
 				<h1 class="goen-pagehead__title">{ v.Name }</h1>
 				<p class="goen-pagehead__sub">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyListingCount), v.TotalText()) }</p>
@@ -127,7 +130,7 @@ templ listingFilters(v ListingView) {
 					</div>
 				</details>
 				<div class="goen-filters__field">
-					@components.Label("sort", "") {
+					@components.Label(components.LabelProps{For: "sort"}) {
 						{ i18n.T(ctx, i18n.KeySort) }
 					}
 					<select class="ui-select" id="sort" name="sort">

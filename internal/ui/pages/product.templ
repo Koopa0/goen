@@ -145,7 +145,7 @@ templ productBuy(v *ProductView) {
 						}
 					} else if v.InStock() {
 						@components.Badge(components.BadgeProps{}) {
-							{ i18n.T(ctx, i18n.KeyCompareInStock) }
+							{ i18n.T(ctx, i18n.KeyInStock) }
 						}
 					}
 				}
