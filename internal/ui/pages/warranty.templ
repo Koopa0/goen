@@ -45,7 +45,7 @@ templ WarrantyList(p layouts.Page, v WarrantyListView) {
 								} else {
 									<span class="goen-warranty__name">{ item.Name }</span>
 								}
-								@components.Badge(components.BadgeProps{Tone: item.BadgeTone()}) {
+								@components.Badge(components.BadgeProps{}) {
 									{ item.State(ctx) }
 								}
 							</div>
