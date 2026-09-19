@@ -190,9 +190,14 @@ func templateSources(t *testing.T) map[string]string {
 		if readErr != nil {
 			return readErr
 		}
+		// Keyed by the path under internal/ui and not by the base name: two
+		// packages here both hold an admin.templ, and a map of base names drops
+		// one of them in silence — the write-face of a whole file then goes
+		// unchecked while both guards below still meet their floors.
+		//
 		// Comments are stripped first, or a doc comment quoting `<form
 		// method="post">` is read as a form.
-		out[filepath.Base(path)] = withoutComments(string(src))
+		out[filepath.ToSlash(strings.TrimPrefix(path, root+string(filepath.Separator)))] = withoutComments(string(src))
 		return nil
 	})
 	if err != nil {
