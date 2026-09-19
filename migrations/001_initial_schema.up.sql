@@ -1973,10 +1973,12 @@ CREATE TABLE order_private_data (
         num_nonnulls(postal_code, city, district, street) IN (0, 4)
     ),
     -- A store with no chain is not a destination: nothing says whose manifest
-    -- the parcel joins. The reverse is allowed, and is what checkout writes.
+    -- the parcel joins. The chain alone is allowed, and is what checkout
+    -- writes; once the picker starts filling in the store, though, a code
+    -- with no name or a name with no code is a half-written pickup point.
     CONSTRAINT order_private_data_pickup_complete CHECK (
-        pickup_brand IS NOT NULL
-        OR num_nonnulls(pickup_store_code, pickup_store_name) = 0
+        (pickup_brand IS NOT NULL OR num_nonnulls(pickup_store_code, pickup_store_name) = 0)
+        AND (pickup_store_code IS NULL) = (pickup_store_name IS NULL)
     ),
     -- Nullable because erased and pickup rows intentionally carry no HOME
     -- destination. Whenever a value is present, however, it follows exactly
