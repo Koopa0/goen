@@ -1,7 +1,8 @@
-package pages
+package layouts
 
 import (
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -129,22 +130,30 @@ func adminNavSource(t *testing.T) (groups []adminNavGroup, standalone []string) 
 	return groups, standalone
 }
 
-// adminNavCallers is every screen the back office renders the nav for.
+// adminNavCallers is every screen the back office renders the nav for. The
+// screen is named where the page enters the shell, because the shell is what
+// renders the rail now: a page that names a screen the nav has never heard of
+// gets a rail with every group shut, and nothing anywhere says so.
+//
+// The step-up challenge names no screen — it is reached before the back office
+// will answer, so it takes the bar and no rail — and the pattern below does not
+// match its empty argument, which is how it stays out of this list.
 func adminNavCallers(t *testing.T) []string {
 	t.Helper()
 
-	files, err := os.ReadDir(".")
+	const pages = "../pages"
+	files, err := os.ReadDir(pages)
 	if err != nil {
-		t.Fatalf("list this package: %v", err)
+		t.Fatalf("list the pages package: %v", err)
 	}
-	call := regexp.MustCompile(`adminNav\("([a-z]+)"\)`)
+	call := regexp.MustCompile(`layouts\.Admin\(p, "([a-z]+)"\)`)
 
 	var out []string
 	for _, f := range files {
 		if f.IsDir() || !strings.HasSuffix(f.Name(), ".templ") {
 			continue
 		}
-		body, readErr := os.ReadFile(f.Name())
+		body, readErr := os.ReadFile(filepath.Join(pages, f.Name()))
 		if readErr != nil {
 			t.Fatalf("read %s: %v", f.Name(), readErr)
 		}
