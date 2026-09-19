@@ -55,6 +55,9 @@ the file and not in your database.
 make test              # unit and handler tests, race-enabled, shuffled
 make lint              # golangci-lint at the version the Makefile pins
 make test-integration  # the schema conformance suite, needs Docker
+make commerce-acceptance-list
+make commerce-acceptance              # ready #331 scenarios from acceptance/manifest.json
+make commerce-acceptance-all          # all scenarios; nonzero for blocked or failed
 ```
 
 ### The gate
