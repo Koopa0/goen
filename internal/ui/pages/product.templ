@@ -314,7 +314,28 @@ templ productBuy(v *ProductView) {
 // puts them on one row.
 templ productAddForm(v *ProductView) {
 	<div class="goen-pdp__actions">
-		<form class="goen-pdp__form" method="post" action="/cart/items">
+		// Still a form, still a POST, still /cart/items, and with scripting off
+		// nothing below this line exists: the browser posts, the server answers
+		// 303 and the visitor lands on the product page with the notice on it.
+		//
+		// With script, the same POST goes through htmx and the answer is used
+		// rather than navigated to. There is no second server path: the 303 is
+		// followed, the page that comes back is the page a reload would give,
+		// and hx-select takes the buy column out of it. hx-select-oob names the
+		// header's cart link in that same response, so the count and the link's
+		// accessible name change from the document the server just rendered
+		// instead of from a number this page would have to keep.
+		<form
+			class="goen-pdp__form"
+			method="post"
+			action="/cart/items"
+			hx-post="/cart/items"
+			hx-target="#buybox"
+			hx-swap="outerHTML"
+			hx-select="#buybox"
+			hx-select-oob="#cart-link"
+			hx-push-url="true"
+		>
 			<input type="hidden" name="variant" value={ v.VariantID }/>
 			<input type="hidden" name="back" value={ v.Slug }/>
 			<div class="goen-pdp__buyrow">
