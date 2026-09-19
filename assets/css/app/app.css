@@ -262,7 +262,13 @@ a:hover {
   /* The one interactive colour. */
   --accent: oklch(0.546 0.245 262.881);
   --accent-faint: oklch(0.546 0.245 262.881 / 0.06);
-  --accent-muted: oklch(0.546 0.245 262.881 / 0.12);
+  /* 0.10 rather than 0.12, which is the whole of what the back office's brand
+     pill needed: the accent printed on its own tint measured 4.42:1 at 0.12 and
+     4.55:1 at 0.10, and the alternative was darkening --accent itself and
+     repainting every primary button to fix a status pill. What it costs is two
+     percent of the soft halo on four focus rings; the ring itself is --ring and
+     does not move. */
+  --accent-muted: oklch(0.546 0.245 262.881 / 0.1);
   --accent-strong: oklch(0.488 0.243 264.376);
   /* Ground and surfaces. Panels sit ON the ground rather than above it: the
      border carries the separation, not a second shade. */
@@ -275,15 +281,37 @@ a:hover {
   --border-strong: oklch(0.871 0.006 286.286);
   --elevated: oklch(0.967 0.001 286.375);
 
-  --error: oklch(0.577 0.245 27.325);
+  /* Slightly darker than the reference red, because this colour is a ground as
+     often as it is ink. White-ish text on the old value measured 4.38:1 in the
+     danger badge and the red itself measured 4.34:1 as text on --elevated;
+     0.562 clears 4.5 in both directions and on both grounds.
+
+     The tint keeps the reference lightness, as --warn-bg and --success-bg do: a
+     tint is a ground, and dragging a ground down because its ink moved takes
+     contrast from everything else printed on it. */
+  --error: oklch(0.562 0.245 27.325);
   --error-bg: oklch(0.577 0.245 27.325 / 0.1);
 
-  /* Ink. Two steps of grey and no more: a third invites a page to say three
-     different things about the same level of importance. */
+  /* Ink. One step of grey below --fg, and the three names below all hold it.
+     That is not tidiness, it is the arithmetic: the lightest grey that reads at
+     4.5:1 on --elevated is L 0.544, and the lightest that reads on white is
+     L 0.568 — so between "readable" and "white" there is 0.024 of lightness to
+     spend, which is not a tier. --fg-faint used to sit at 0.705 and measured
+     2.62:1 against white, which is what axe was naming on the product page's
+     struck price and review dates.
+
+     --fg-muted and --fg-subtle were already the same value before this change.
+     Three names for one colour is a thing to fix by deleting names, and that is
+     markup and rules rather than values, so it is not this change.
+
+     0.535 rather than the 0.544 the storefront needs, because the back office
+     prints this on the warn tint in a low-stock row: 4.35:1 at 0.544 and 4.55:1
+     at 0.535. Nine thousandths of lightness buys a whole route, and the two
+     values are the same colour to look at. */
   --fg: oklch(0.141 0.005 285.823);
-  --fg-faint: oklch(0.705 0.015 286.067);
-  --fg-muted: oklch(0.552 0.016 285.938);
-  --fg-subtle: oklch(0.552 0.016 285.938);
+  --fg-faint: oklch(0.535 0.016 285.938);
+  --fg-muted: oklch(0.535 0.016 285.938);
+  --fg-subtle: oklch(0.535 0.016 285.938);
   --font-display: var(--font-sans);
 
   /* One family for everything, headings included. Noto Sans TC follows Inter
@@ -313,14 +341,34 @@ a:hover {
   --shadow-2:
     0 4px 6px -1px oklch(0 0 0 / 0.1),
     0 2px 4px -2px oklch(0 0 0 / 0.1);
-  --success: oklch(0.596 0.145 163.225);
+  /* Darker than the reference green, because every place this token is ink it
+     is ink on a pale ground: on its own 12% tint in the medallion it measured
+     3.17:1 and against white in the points ledger 3.65:1. 0.496 clears 4.5 on
+     both.
+
+     The tint keeps the reference lightness rather than following the ink down;
+     see --error-bg for why that is the rule for all three. */
+  --success: oklch(0.496 0.145 163.225);
   --success-bg: oklch(0.596 0.145 163.225 / 0.12);
 
   /* The hairline a swatch needs so a near-white colour is still a disc on a
      white ground. Translucent black rather than a grey: it disappears into a
      dark colour, which is where a ring would be noise. */
   --swatch-ring: oklch(0 0 0 / 0.15);
-  --warn: oklch(0.666 0.179 58.318);
+  /* Darker than the reference amber, for the same reason: the warn badge paints
+     this on its own 12% tint and measured 2.80:1, which is the worst pair on the
+     storefront. 0.534 clears 4.5 there and 5.47:1 on white.
+
+     It costs something, and the cost is worth naming: .goen-pdp__reviewstars
+     borrows this token for a rating, so the stars darken with it. A star is not
+     a warning and should not be reading a warning's colour — but that is a rule
+     to move, not a value, so it is not fixed here.
+
+     The tint keeps the reference lightness, and here the reason is measurable:
+     the back office prints muted text on this ground in a low-stock row, and
+     that pair reads 4.55:1 with the tint left alone against 4.18:1 with it
+     dragged down behind the ink. */
+  --warn: oklch(0.534 0.179 58.318);
   --warn-bg: oklch(0.666 0.179 58.318 / 0.12);
 }
 
