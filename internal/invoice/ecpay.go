@@ -14,6 +14,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/koopa0/goen/internal/telemetry"
 )
 
 // ECPay's B2C e-invoice endpoints; staging is the default.
@@ -117,7 +119,9 @@ func (e *providerError) Unwrap() error { return ErrRejected }
 // call posts one request and returns the decrypted result. Three failure
 // surfaces stay apart — transport, envelope, document — and only the last, which
 // is data a staff member can fix, is ErrRejected.
-func (g *Gateway) call[T any](ctx context.Context, path string, data any) (T, error) {
+func (g *Gateway) call[T any](ctx context.Context, path string, data any) (res T, err error) {
+	ctx, call := telemetry.BeginProvider(ctx, telemetry.ProviderECPay, ecpayOperation(path))
+	defer func() { call.End(ctx, err) }()
 	var zero T
 	if !g.Enabled() {
 		return zero, ErrDisabled
@@ -183,11 +187,27 @@ func (g *Gateway) call[T any](ctx context.Context, path string, data any) (T, er
 	if status.RtnCode != 1 {
 		return zero, &providerError{Code: status.RtnCode, Message: status.RtnMsg}
 	}
-	var res T
 	if decodeErr := json.Unmarshal(opened, &res); decodeErr != nil {
 		return zero, fmt.Errorf("decode %s result: %w", path, decodeErr)
 	}
 	return res, nil
+}
+
+func ecpayOperation(path string) string {
+	switch path {
+	case "/B2CInvoice/Issue":
+		return "issue"
+	case "/B2CInvoice/Invalid":
+		return "void"
+	case "/B2CInvoice/Allowance":
+		return "allowance"
+	case "/B2CInvoice/GetIssue":
+		return "get_issue"
+	case "/B2CInvoice/GetAllowanceList":
+		return "get_allowance_list"
+	default:
+		return "unknown"
+	}
 }
 
 // seal is ECPay's parameter encryption: URL-encode, AES-128-CBC with PKCS#7,

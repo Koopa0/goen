@@ -32,6 +32,7 @@ import (
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/returns"
 	"github.com/koopa0/goen/internal/site"
+	"github.com/koopa0/goen/internal/telemetry"
 	"github.com/koopa0/goen/internal/twofactor"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/warranty"
@@ -348,6 +349,12 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /admin/questions/{id}", back.RequireStaff(back.AnswerQuestion))
 	mux.HandleFunc("GET /admin/health", back.RequireStaff(back.Health))
 	mux.HandleFunc("POST /admin/health/reconcile", back.RequireStaff(back.ReconcilePayment))
+	if telemetry.DiagnosticsEnabled() {
+		diag := http.StripPrefix("/admin/diagnostics", telemetry.DiagnosticsHandler())
+		mux.Handle("/admin/diagnostics/", back.RequireStaff(func(w http.ResponseWriter, r *http.Request) {
+			diag.ServeHTTP(w, r)
+		}))
+	}
 	mux.HandleFunc("GET /admin/reports", back.RequireStaff(back.Reports))
 	mux.HandleFunc("GET /admin/taxonomy", back.RequireStaff(back.Taxonomy))
 	mux.HandleFunc("POST /admin/taxonomy/{kind}", back.RequireStaff(back.CreateTaxon))
@@ -373,9 +380,9 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /", pages.NotFound)
 
 	// Applied inner to outer, so a request passes through them in the reverse of
-	// this order. The chrome middleware fills what every page shows, and the
-	// locale is on the context before any handler or template reads it.
-	var handler http.Handler = mux
+	// this order. HTTP spans open in withRequestTracing so pool waits, chrome
+	// and auth share the same trace the completion log records.
+	handler := mux
 	handler = withBanner(handler, home.NewStore(pool), log, secureCookies)
 	handler = withTopNav(handler, home.NewStore(pool), log)
 	handler = withStaffEntrance(handler)
@@ -392,11 +399,14 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 }
 
 // withRequestTracing wraps a handler with the request log, panic recovery,
-// and identifier middleware. withRequestID is outermost so recovery sees the
-// same context the response header was stamped from.
+// identifier middleware, and the HTTP span. withRequestID is outermost so
+// recovery sees the same context the response header was stamped from. The span
+// wraps every storefront middleware so pool waits and chrome work share one
+// trace; ServeMux still stamps Pattern before the span ends.
 func withRequestTracing(next http.Handler, log *slog.Logger) http.Handler {
 	next = requestLog(next, log)
 	next = recoverPanic(next, log)
+	next = telemetry.HTTP(next)
 	return withRequestID(next)
 }
 
