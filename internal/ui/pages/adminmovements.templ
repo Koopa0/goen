@@ -69,6 +69,7 @@ templ AdminMovements(p layouts.Page, v *AdminMovementsView) {
 						}
 					</tbody>
 				</table>
+				@listBound(v.ListBound, ByRecency, false)
 			</div>
 			<p class="goen-admin__hint">
 				{ i18n.T(ctx, i18n.KeyAdminLedgerFoot) }

@@ -81,6 +81,7 @@ templ AdminCustomers(p layouts.Page, v AdminCustomersView) {
 						}
 					</tbody>
 				</table>
+				@listBound(v.ListBound, ByRecency, true)
 			</div>
 		}
 	}

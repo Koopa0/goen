@@ -25,11 +25,13 @@ func (s *Store) Customers(ctx context.Context, term string) (pages.AdminCustomer
 	view.Searched = true
 
 	rows, err := s.q.AdminSearchCustomers(ctx, db.AdminSearchCustomersParams{
-		Term: term, RowLimit: PageSize,
+		Term: term, RowLimit: PageLimit,
 	})
 	if err != nil {
 		return pages.AdminCustomersView{}, fmt.Errorf("search customers: %w", err)
 	}
+	rows, more := pageOf(rows, PageSize)
+	view.ListBound = pages.Bound(more, PageSize)
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, pages.AdminCustomerRow{

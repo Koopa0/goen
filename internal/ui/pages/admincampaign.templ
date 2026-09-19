@@ -81,6 +81,7 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 						}
 					</tbody>
 				</table>
+				@listBound(v.ListBound, ByOwnOrder, false)
 			</div>
 		}
 		@components.Card(components.CardProps{Class: "goen-admin__section"}) {

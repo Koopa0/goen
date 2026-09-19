@@ -91,6 +91,7 @@ templ AdminWarranties(p layouts.Page, v AdminWarrantiesView) {
 						}
 					</tbody>
 				</table>
+				@listBound(v.ListBound, ByOwnOrder, true)
 			</div>
 			<p class="goen-admin__hint">
 				{ i18n.T(ctx, i18n.KeyAdminWarrantyClock) }
