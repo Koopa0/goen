@@ -4,10 +4,23 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 // AdminMessages renders the customer-service inbox.
+//
+// How long a message has waited is a badge and not a shade of the row. It was
+// both before — the row was dimmed when it had been handled and marked when it
+// was overdue — and the dimming said "handled" in a colour nobody had been told
+// to read, while the overdue mark had no rule behind it at all and painted
+// nothing. The sentence the view model already writes says both facts, so the
+// badge carries it and the row stays legible.
+//
+// The list keeps the class the layout gate finds the page by
+// (scripts/check-layout.mjs:285-286); that rule stacks the list and this file's
+// divided-list rules shape the rows inside it.
 templ AdminMessages(p layouts.Page, v AdminMessagesView) {
 	@layouts.Admin(p, "messages") {
 		<div class="ui-page-head">
@@ -19,40 +32,65 @@ templ AdminMessages(p layouts.Page, v AdminMessagesView) {
 				</p>
 			</div>
 			if !v.Empty() {
-				<div class="ui-page-head__actions">
-					<span class="ui-badge">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminMessagesOpen), v.OpenCountText()) }</span>
-				</div>
+				@components.Badge(components.BadgeProps{Tone: components.ToneAccent}) {
+					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminMessagesOpen), v.OpenCountText()) }
+				}
 			}
 		</div>
 		if v.Notice != "" {
-			<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+				{ v.Notice }
+			}
 		}
 		if v.Empty() {
-			<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminMessagesEmpty) }</p>
+			<div class="goen-admin__empty">
+				<span class="goen-modqueue__emptyicon">
+					@icons.Mail()
+				</span>
+				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminMessagesEmpty) }</p>
+			</div>
 		} else {
 			<ul class="goen-admin__returns" role="list">
 				for _, m := range v.Rows {
-					<li
-						class={ "goen-admin__return",
-								templ.KV("is-hidden", m.Handled),
-								templ.KV("is-urgent", m.Overdue()) }
-					>
-						<div class="goen-admin__returninfo">
-							<p class="goen-admin__returnorder">{ m.Subject }</p>
-							<span class="ui-cart-line__meta">
-								{ m.Name } · { m.Email } · { m.At } · { m.Waiting(ctx) }
+					<li class="goen-modqueue__item goen-modqueue__item--split">
+						<div class="goen-modqueue__record">
+							<div class="goen-modqueue__head">
+								<p class="goen-modqueue__title">{ m.Subject }</p>
+								if m.Handled {
+									@components.Badge(components.BadgeProps{}) {
+										{ m.Waiting(ctx) }
+									}
+								} else if m.Overdue() {
+									@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+										{ m.Waiting(ctx) }
+									}
+								} else {
+									@components.Badge(components.BadgeProps{Tone: components.ToneAccent}) {
+										{ m.Waiting(ctx) }
+									}
+								}
+							</div>
+							<span class="goen-admin__meta">
+								{ m.Name } · { m.Email } · { m.At }
 							</span>
 							if m.HasOrderRef() {
-								<span class="ui-cart-line__meta">
-									{ i18n.T(ctx, i18n.KeyAdminMessagesOrder) } <a class="goen-admin__productname" href={ templ.SafeURL(m.OrderHref()) }>{ m.OrderRef }</a>
+								<span class="goen-admin__meta">
+									{ i18n.T(ctx, i18n.KeyAdminMessagesOrder) } <a href={ templ.SafeURL(m.OrderHref()) }>{ m.OrderRef }</a>
 								</span>
 							}
 							<p class="goen-admin__note">{ m.Message }</p>
 						</div>
-						<form class="goen-admin__decide" method="post" action={ templ.SafeURL(m.Action()) }>
-							<input type="hidden" name="message" value={ m.ID }/>
-							<button class="ui-btn ui-btn--secondary ui-btn--sm" type="submit">{ m.ActionLabel(ctx) }</button>
-						</form>
+						<div class="goen-modqueue__actions">
+							<form method="post" action={ templ.SafeURL(m.Action()) }>
+								<input type="hidden" name="message" value={ m.ID }/>
+								@components.Button(components.ButtonProps{
+									Variant: components.VariantOutline,
+									Size:    components.SizeSmall,
+								}, "submit") {
+									{ m.ActionLabel(ctx) }
+								}
+							</form>
+						</div>
 					</li>
 				}
 			</ul>

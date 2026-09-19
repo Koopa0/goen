@@ -6325,50 +6325,6 @@ h4,
   gap: 8px;
 }
 
-/* The one-time secret. Monospace and grouped, because a person is copying it
-   character by character into a phone and losing their place is how a mistyped
-   secret becomes an authenticator that never works. */
-.goen-twofa__secret {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 0;
-}
-
-.goen-twofa__secret code {
-  padding: 6px 10px;
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: var(--fs-16);
-  letter-spacing: 0.08em;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-}
-
-.goen-twofa__uri {
-  display: block;
-  overflow-wrap: anywhere;
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: var(--fs-12);
-  color: var(--fg-subtle);
-}
-
-.goen-twofa__form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 8px;
-}
-
-/* Wide, spaced digits: the field holds six characters and reads back as six
-   characters, so a mistype is visible before submitting. */
-.goen-twofa__code {
-  max-width: 12ch;
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: var(--fs-20);
-  letter-spacing: 0.25em;
-}
-
 
 /* Brands and the category tree. The indent is a ladder of attribute selectors
    and not a custom property set inline: style-src carries no 'unsafe-inline',
@@ -6518,32 +6474,6 @@ h4,
   max-width: 60ch;
 }
 
-/* The question queue. A waiting question is marked at the edge so the list can
-   be scanned for work rather than read. */
-.goen-admin__questions {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.goen-admin__question {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 16px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-left: 3px solid transparent;
-  border-radius: var(--r-md);
-}
-
-.goen-admin__question.is-waiting {
-  border-left-color: var(--accent);
-}
-
 /* Worker health. One box per worker, marked at the edge when it needs
    attention — the page is opened to find out whether anything is wrong, so the
    answer has to be visible without reading. */
@@ -6657,12 +6587,6 @@ h4,
   border: 1px solid var(--border);
 }
 
-/* A hidden review still shows in the queue — un-hiding is not possible from a
-   list that cannot display it — but it must not read as live. */
-.goen-admin__return.is-hidden {
-  opacity: 0.55;
-}
-
 /* The order search: one row on a desktop, stacked on a phone. Its own class
    rather than reusing the storefront's filter bar — that one is a set of links
    and this is a form with a text field, and the two want different spacing. */
@@ -6683,6 +6607,194 @@ h4,
   box-sizing: border-box;
   min-height: 44px;
 }
+
+
+/* Back office — content
+
+   The five content queues — the FAQ editor, the contact inbox, the product
+   questions, the review queue and the newsletter's issues — are one shape:
+   a record, the state it is in, and the decision somebody opened the screen to
+   make. They were five shapes before, three of them borrowed from a screen
+   about something else, so moderating a review and then answering a question
+   meant reading two different lists of the same thing. One divided list serves
+   all five.
+
+   The rule between records lives on the item and not on the list. Three of
+   these lists are found by a layout-gate marker that another screen's rule
+   already paints — .goen-admin__coupons on the FAQ, .goen-admin__returns on the
+   inbox — and that rule does the list's job: reset the bullets, stack the
+   children, space them. This one does the item's job. No element is painted
+   twice, and when those screens are rebuilt their rule goes without this one
+   having to move. */
+.goen-modqueue {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* A hairline between records rather than a border around each one: a queue is
+   read down the column, and twenty boxes are twenty things to look at where a
+   list is one. */
+.goen-modqueue__item {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.goen-modqueue__item + .goen-modqueue__item {
+  border-top: 1px solid var(--border-faint);
+  padding-top: 16px;
+}
+
+/* What the record is, and what state it is in, on one line: the badge is beside
+   the name because that pairing is what a queue is scanned for. */
+.goen-modqueue__head {
+  align-items: center;
+  column-gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.goen-modqueue__title {
+  color: var(--fg);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The name leads somewhere on four of the five screens. It carries no colour of
+   its own: it is already the strongest thing in its row, and a blue one would
+   read as a second action beside the decision. */
+.goen-modqueue__title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.goen-modqueue__title a:hover {
+  text-decoration: underline;
+}
+
+.goen-modqueue__record {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.goen-modqueue__actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* One decision, taken beside what it is about. Only the queues whose whole form
+   is a button or two: the FAQ's editor and the answer box are full-width fields
+   and reading them in a 280px column is worse than reading them below. */
+@media (min-width: 1024px) {
+  .goen-modqueue__item--split {
+    align-items: start;
+    display: grid;
+    gap: 16px;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+/* The queue's own glyph above its empty sentence, at the size an empty screen
+   wants rather than the 18px the icon set draws for a button: the box is 40px
+   of padding around one line, and a badge-sized mark in the middle of it reads
+   as something that failed to load. */
+.goen-modqueue__emptyicon {
+  color: var(--fg-faint);
+  display: flex;
+}
+
+.goen-modqueue__emptyicon svg {
+  height: 32px;
+  width: 32px;
+}
+
+/* The step-up challenge and enrolment. One thing to do, so the screen is one
+   card in the middle of the column — the shape the storefront gives a sign-in,
+   inside the back office's own chrome, because a person who has not passed the
+   second factor yet still needs to know where they are. */
+.goen-twofa {
+  margin: 0 auto;
+  max-width: 26rem;
+  width: 100%;
+}
+
+.goen-twofa__card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.goen-twofa__title {
+  color: var(--fg);
+  font-size: var(--fs-ed-24);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.goen-twofa__lead {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  line-height: var(--lh-normal);
+  margin: 0;
+}
+
+/* The one-time secret. Monospace and grouped, because it is being copied
+   character by character into a phone, and losing your place is how a mistyped
+   secret becomes an authenticator that never works. */
+.goen-twofa__secret {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+
+.goen-twofa__secret code {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--fs-16);
+  letter-spacing: 0.08em;
+  padding: 6px 8px;
+}
+
+.goen-twofa__uri {
+  color: var(--fg-subtle);
+  display: block;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--fs-12);
+  overflow-wrap: anywhere;
+}
+
+.goen-twofa__form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Wide, spaced digits: the field holds six characters and reads back as six
+   characters, so a mistype is visible before it is submitted. */
+.goen-twofa__code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--fs-18);
+  letter-spacing: 0.25em;
+  max-width: 12ch;
+}
+
 
 
 /* ---------- Motion ----------
