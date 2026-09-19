@@ -4,10 +4,21 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 // AdminNewsletter renders the mailing list, the compose form and the issues.
+//
+// Three figures, then the thing you came to write, then what has already gone
+// out. The figures are the shop's own overview tiles rather than a second kind
+// of stat box, and they are divisions rather than links because no screen lists
+// the people they count — a tile that answers nothing when it is pressed is
+// worse than one that never looked pressable.
+//
+// Sending is the one decision on this page, so it is the only primary control;
+// saving a draft is reversible and takes an outline.
 templ AdminNewsletter(p layouts.Page, v AdminNewsletterView) {
 	@layouts.Admin(p, "newsletter") {
 		<div class="ui-page-head">
@@ -20,99 +31,130 @@ templ AdminNewsletter(p layouts.Page, v AdminNewsletterView) {
 			</div>
 		</div>
 		if v.Notice != "" {
-			<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+				{ v.Notice }
+			}
 		}
 		<div class="goen-admin__stats">
-			<div class="ui-stat">
-				<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminNewsOnList) }</span>
-				<span class="ui-stat__value">{ v.ActiveText() }</span>
+			<div class="goen-stat">
+				<span class="goen-stat__label">{ i18n.T(ctx, i18n.KeyAdminNewsOnList) }</span>
+				<span class="goen-stat__value">{ v.ActiveText() }</span>
 			</div>
-			<div class="ui-stat">
-				<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminNewsAwaiting) }</span>
-				<span class="ui-stat__value">{ v.AwaitingText() }</span>
+			<div class="goen-stat">
+				<span class="goen-stat__label">{ i18n.T(ctx, i18n.KeyAdminNewsAwaiting) }</span>
+				<span class="goen-stat__value">{ v.AwaitingText() }</span>
 			</div>
-			<div class="ui-stat">
-				<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminNewsUnsubscribed) }</span>
-				<span class="ui-stat__value">{ v.UnsubscribedText() }</span>
+			<div class="goen-stat">
+				<span class="goen-stat__label">{ i18n.T(ctx, i18n.KeyAdminNewsUnsubscribed) }</span>
+				<span class="goen-stat__value">{ v.UnsubscribedText() }</span>
 			</div>
 		</div>
-		<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminNewsCompose) }</h2>
-		<form class="goen-admin__form" method="post" action="/admin/newsletter">
-			<label class="ui-field" for="issue-subject">
-				<span class="ui-label">{ i18n.T(ctx, i18n.KeyAdminNewsSubject) }</span>
-				<input
-					class="ui-input"
-					id="issue-subject"
-					type="text"
-					name="subject"
-					value={ v.Draft.Subject }
-					maxlength="120"
-					required
-					aria-invalid={ v.Invalid("subject") }
+		@components.Card(components.CardProps{Class: "goen-admin__add"}) {
+			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminNewsCompose) }</h2>
+			<form class="goen-admin__form" method="post" action="/admin/newsletter">
+				<div class="goen-admin__field">
+					@components.Label(components.LabelProps{For: "issue-subject"}) {
+						{ i18n.T(ctx, i18n.KeyAdminNewsSubject) }
+					}
+					@components.Input(components.FieldProps{
+						ID:        "issue-subject",
+						Name:      "subject",
+						Value:     v.Draft.Subject,
+						Invalid:   v.HasErr("subject"),
+						Describes: "issue-subject-error",
+						Attrs: templ.Attributes{
+							"maxlength": "120",
+							"required":  true,
+						},
+					})
 					if v.HasErr("subject") {
-						aria-describedby="issue-subject-error"
+						<p class="ui-error-text" id="issue-subject-error" role="alert">{ v.Err("subject") }</p>
 					}
-				/>
-				if v.HasErr("subject") {
-					<span class="ui-error-text" id="issue-subject-error">{ v.Err("subject") }</span>
-				}
-			</label>
-			<label class="ui-field" for="issue-body">
-				<span class="ui-label">{ i18n.T(ctx, i18n.KeyAdminNewsBody) }</span>
-				<textarea
-					class="ui-input goen-admin__textarea"
-					id="issue-body"
-					name="body"
-					rows="10"
-					maxlength="20000"
-					required
-					aria-invalid={ v.Invalid("body") }
+				</div>
+				<div class="goen-admin__field">
+					@components.Label(components.LabelProps{For: "issue-body"}) {
+						{ i18n.T(ctx, i18n.KeyAdminNewsBody) }
+					}
+					@components.Textarea(components.FieldProps{
+						ID:        "issue-body",
+						Name:      "body",
+						Invalid:   v.HasErr("body"),
+						Describes: "issue-body-error",
+						Attrs: templ.Attributes{
+							"maxlength": "20000",
+							"required":  true,
+							"rows":      "10",
+						},
+					}) {
+						{ v.Draft.Body }
+					}
 					if v.HasErr("body") {
-						aria-describedby="issue-body-error"
+						<p class="ui-error-text" id="issue-body-error" role="alert">{ v.Err("body") }</p>
 					}
-				>{ v.Draft.Body }</textarea>
-				if v.HasErr("body") {
-					<span class="ui-error-text" id="issue-body-error">{ v.Err("body") }</span>
+				</div>
+				<p class="goen-admin__hint">
+					{ i18n.T(ctx, i18n.KeyAdminNewsDraftHint) }
+				</p>
+				@components.Button(components.ButtonProps{
+					Variant: components.VariantOutline,
+					Class:   "goen-admin__submit",
+				}, "submit") {
+					{ i18n.T(ctx, i18n.KeyAdminNewsSaveDraft) }
 				}
-			</label>
-			<p class="goen-admin__hint">
-				{ i18n.T(ctx, i18n.KeyAdminNewsDraftHint) }
-			</p>
-			<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminNewsSaveDraft) }</button>
-		</form>
-		<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminNewsIssues) }</h2>
-		if v.Empty() {
-			<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminNewsEmpty) }</p>
-		} else {
-			<ul class="goen-admin__returns" role="list">
-				for _, issue := range v.Issues {
-					<li class={ "goen-admin__return", templ.KV("is-hidden", issue.Sent) }>
-						<div class="goen-admin__returninfo">
-							<p class="goen-admin__returnorder">{ issue.Subject }</p>
-							<span class="ui-cart-line__meta">{ issue.Preview() }</span>
-							if issue.Sent {
-								<span class="ui-cart-line__meta">
-									{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminNewsSentMeta), issue.SentAt, issue.RecipientsText()) }
-									if issue.SentBy != "" {
-										· { issue.SentBy }
+			</form>
+		}
+		@components.Card(components.CardProps{Class: "goen-admin__add"}) {
+			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminNewsIssues) }</h2>
+			if v.Empty() {
+				<div class="goen-admin__empty">
+					<span class="goen-modqueue__emptyicon">
+						@icons.Mail()
+					</span>
+					<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminNewsEmpty) }</p>
+				</div>
+			} else {
+				<ul class="goen-modqueue" role="list">
+					for _, issue := range v.Issues {
+						<li class="goen-modqueue__item goen-modqueue__item--split">
+							<div class="goen-modqueue__record">
+								<div class="goen-modqueue__head">
+									<p class="goen-modqueue__title">{ issue.Subject }</p>
+									if issue.Sent {
+										@components.Badge(components.BadgeProps{}) {
+											{ i18n.T(ctx, i18n.KeyAdminNewsSent) }
+										}
 									}
-								</span>
+								</div>
+								<span class="goen-admin__meta">{ issue.Preview() }</span>
+								if issue.Sent {
+									<span class="goen-admin__meta">
+										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminNewsSentMeta), issue.SentAt, issue.RecipientsText()) }
+										if issue.SentBy != "" {
+											· { issue.SentBy }
+										}
+									</span>
+								}
+							</div>
+							if !issue.Sent {
+								<div class="goen-modqueue__actions">
+									if v.CanSend() {
+										<form method="post" action={ templ.SafeURL(issue.SendAction()) }>
+											@components.Button(components.ButtonProps{
+												Variant: components.VariantPrimary,
+												Size:    components.SizeSmall,
+											}, "submit") {
+												{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminNewsSend), v.ActiveText()) }
+											}
+										</form>
+									} else {
+										<span class="goen-admin__meta">{ i18n.T(ctx, i18n.KeyAdminNewsNobody) }</span>
+									}
+								</div>
 							}
-						</div>
-						if issue.Sent {
-							<span class="ui-badge">{ i18n.T(ctx, i18n.KeyAdminNewsSent) }</span>
-						} else if v.CanSend() {
-							<form method="post" action={ templ.SafeURL(issue.SendAction()) }>
-								<button class="ui-btn ui-btn--primary ui-btn--sm" type="submit">
-									{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminNewsSend), v.ActiveText()) }
-								</button>
-							</form>
-						} else {
-							<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyAdminNewsNobody) }</span>
-						}
-					</li>
-				}
-			</ul>
+						</li>
+					}
+				</ul>
+			}
 		}
 	}
 }
