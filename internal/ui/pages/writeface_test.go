@@ -40,6 +40,14 @@ func TestEveryFormWorksWithScriptingOff(t *testing.T) {
 				t.Errorf("%s\n  carries hx-post but is not method=post — htmx would "+
 					"be the only way this write happens", where)
 			}
+			// Same write, same handler. A form whose hx-post goes somewhere its
+			// action does not is two server paths wearing one button: the
+			// scripting-off visitor reaches one and everyone else reaches the
+			// other, and nothing but a reader notices when they drift.
+			if hx := attrValue(attrs, "hx-post"); hx != "" && hx != action {
+				t.Errorf("%s\n  posts to %q with script and %q without — a write has "+
+					"one handler, not one per visitor", where, hx, action)
+			}
 		}
 	}
 

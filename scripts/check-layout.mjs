@@ -2239,12 +2239,19 @@ const provePdpAdd = async (label, scriptingOff) => {
     await settled(ws, `${label} choose`, chosen);
   }
 
+  // Press the button from where a person has to press it. Submitting from the
+  // top of the page put the button 148px below the fold at 375, and then asking
+  // whether the confirmation beside it was on screen measured nothing about the
+  // confirmation: it measured whether anything had scrolled. Adding in place
+  // scrolls nothing on purpose, so the button is brought into view first and
+  // the assertions below keep their meaning under both mechanisms.
   const submit = await evalPage(`(() => {
     const form = document.querySelector('.goen-pdp__form');
     const add = form && form.querySelector('.goen-pdp__add');
     if (!form || !add || add.disabled) {
       return { ok: false, why: 'add-to-cart is not ready before submit' };
     }
+    add.scrollIntoView({ block: 'center', behavior: 'instant' });
     form.requestSubmit();
     return { ok: true };
   })()`);
@@ -2253,9 +2260,14 @@ const provePdpAdd = async (label, scriptingOff) => {
     return;
   }
 
+  // The address says the same thing either way — this product, added=added,
+  // the selection that was bought — but the fragment belongs to the navigation
+  // and not to the outcome. With no script the browser navigates and #buybox is
+  // what aims the landing; with script nothing navigates, nothing needs aiming,
+  // and a fragment in the pushed URL would claim a jump that did not happen.
   const landed = await waitForHref(
     (href) => href.includes(`/p/${slug}`) && href.includes('added=added')
-      && href.includes('?') && href.includes('#added'),
+      && href.includes('?') && href.includes('#buybox') === scriptingOff,
     label,
   );
   if (!landed) return;
