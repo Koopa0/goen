@@ -138,18 +138,14 @@ templ cartLine(l CartLine) {
 			<form class="goen-line__controls" method="post" action="/cart/items/update">
 				<input type="hidden" name="variant" value={ l.VariantID }/>
 				<label class="goen-sr-only" for={ "qty-" + l.VariantID }>{ i18n.T(ctx, i18n.KeyQuantity) }</label>
-				@components.Input(components.FieldProps{
-					ID:    "qty-" + l.VariantID,
-					Name:  "quantity",
-					Type:  "number",
+				@components.Stepper(components.StepperProps{
+					ID: "qty-" + l.VariantID, Name: "quantity",
 					Value: l.QuantityText(),
-					Class: "goen-line__qty",
-					Attrs: templ.Attributes{
-						"min":       "0",
-						"max":       l.MaxQuantity(),
-						"step":      "1",
-						"inputmode": "numeric",
-					},
+					// Zero is how a line is removed with no script, so the
+					// field's floor is zero here and one on the product page.
+					Min: "0", Max: l.MaxQuantity(),
+					DecreaseLabel: i18n.T(ctx, i18n.KeyQuantityDecrease),
+					IncreaseLabel: i18n.T(ctx, i18n.KeyQuantityIncrease),
 				})
 				@components.Button(components.ButtonProps{
 					Variant: components.VariantOutline,
