@@ -2163,6 +2163,13 @@ h4,
      complaint the issue opened with.
    ------------------------------------------------------------------------ */
 
+/* overflow-anchor is what moved the swatch row under a thumb, and it was trying
+   to help: choosing a variant removes the "choose every option" line, the
+   browser picks a node below it to hold still, and scrolls to compensate. The
+   row's own position in the document never changed, so the compensation was the
+   whole of the movement. It is switched off here, on the page, rather than on
+   the region that swaps — the node the browser anchors to is below that region,
+   which is why doing it there had no effect. */
 .goen-pdp {
   box-sizing: border-box;
   display: flex;
@@ -2170,6 +2177,7 @@ h4,
   gap: 32px;
   margin: 0 auto;
   max-width: 1280px;
+  overflow-anchor: none;
   padding: 16px 16px 56px;
   width: 100%;
 }
@@ -2225,11 +2233,17 @@ h4,
 /* Buy column. The groups are separated by a hairline rather than by a rule
    element: the line is decoration, and an <hr> would put a separator in the
    accessibility tree between a price and the control that acts on it. */
+/* scroll-margin-top is for the visitor with no script: adding to the cart is a
+   POST, a 303 and a landing on #buybox, and without it the browser puts the
+   column's first pixel flush against the top of the window. The header does not
+   overlap it — nothing on this site is sticky — so this is breathing room and
+   not clearance, which is why it is one gap and not a header's height. */
 .goen-pdp__buy {
   display: flex;
   flex-direction: column;
   gap: 20px;
   min-width: 0;
+  scroll-margin-top: 24px;
 }
 
 .goen-pdp__head {
@@ -2509,8 +2523,27 @@ h4,
   flex: none;
 }
 
+/* The one button in goen whose label is a sentence. `.goen-btn` keeps every
+   other button on a single line, which is right for 加入購物車 and wrong for
+   目前全部規格都已售完: at 375 this control shares a 291px row with the quantity
+   stepper, and a sentence that cannot break makes the row as wide as the
+   sentence rather than as wide as the column. Three declarations undo that,
+   here and nowhere else — min-width so flex may shrink it below its text at
+   all, white-space so the text has somewhere to break, and height as a minimum
+   so a second line is not cut off. The tap target stays 44px because the
+   minimum is the height it had.
+
+   A label that fitted on one line would be a better button than one that wraps
+   well; that is `pdp.allsoldout`, and it is the shop's sentence. This rule is
+   what stops any label, in any font, from deciding how wide the page is. */
 .goen-pdp__add {
   flex: 1 1 auto;
+  height: auto;
+  line-height: var(--lh-snug);
+  min-height: 2.75rem;
+  min-width: 0;
+  padding-block: 8px;
+  white-space: normal;
 }
 
 .goen-pdp__compare {
@@ -3162,7 +3195,6 @@ h4,
   margin-top: 8px;
 }
 
-.goen-line__qty,
 .goen-returns__qty .goen-input {
   font-variant-numeric: tabular-nums;
   padding-left: 8px;
@@ -3413,6 +3445,39 @@ h4,
 
 .goen-checkout .goen-checkout__wide {
   grid-column: 1 / -1;
+}
+
+.goen-checkout__hint {
+  color: var(--fg-muted);
+  font-size: var(--fs-12);
+  margin: 0;
+}
+
+/* A native select wearing the input recipe. It stays a select: a listbox built
+   from divs needs script, and the write-face rule forbids script being the only
+   way a form works. The contact form joins this rule rather than declaring a
+   second one — it is the same control asking the same kind of question. */
+.contact__select,
+.goen-checkout__select {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-1);
+  box-sizing: border-box;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: var(--fs-14);
+  height: 2.75rem;
+  padding: 0.25rem 2rem 0.25rem 0.75rem;
+  transition: border-color var(--dur-base) var(--ease-standard);
+  width: 100%;
+}
+
+.contact__select:focus-visible,
+.goen-checkout__select:focus-visible {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px var(--accent-muted);
+  outline: none;
 }
 
 .goen-checkout__lines {
@@ -3704,594 +3769,438 @@ h4,
   }
 }
 
-/* ---------- Sign in, register, account ---------- */
+/* ---------- Sign in, register, account ----------
+
+   One centred card carries every credential form — sign in, register, forgot,
+   reset and the guest order lookup — and behind it the account page: a column
+   of links beside a stack of cards. There are no tabs. Every section is in the
+   document and the nav moves the page it is already on, which is what keeps
+   the whole surface working with scripting off.
+
+   The card is a card from 768 up and nothing below it. A 375 screen has no
+   room to spend on a border around a form that already fills it.
+   ------------------------------------------------------------------------ */
 
 .goen-auth {
+  box-sizing: border-box;
   display: flex;
   justify-content: center;
-  padding: 32px 16px 56px;
+  margin: 0 auto;
+  max-width: var(--container);
+  min-height: 60vh;
+  padding: 32px var(--page-gutter) 56px;
+  width: 100%;
 }
 
 .goen-auth__panel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
+  margin: auto 0;
+  max-width: 24rem;
   width: 100%;
-  max-width: 400px;
-  padding: 20px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
+}
+
+/* Registration asks for four fields where signing in asks for two, so its card
+   is one step wider rather than one step taller. */
+.goen-auth__panel--wide {
+  max-width: 28rem;
 }
 
 .goen-auth__title {
-  margin: 0;
-  font-family: var(--font-display);
+  color: var(--fg);
   font-size: var(--fs-ed-24);
   font-weight: var(--fw-semibold);
-  color: var(--fg);
+  margin: 0;
+}
+
+.goen-auth__lede,
+.goen-auth__hint {
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+  margin: 0;
 }
 
 .goen-auth__form {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
-.goen-auth__form .ui-input {
-  width: 100%;
-  box-sizing: border-box;
-  min-height: 44px;
+/* The way out of a forgotten password sits on the label's own row, beside the
+   field it is about, rather than under the button where it reads as a second
+   action of equal weight. */
+.goen-auth__labelrow {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
 }
 
-.goen-auth__submit {
-  box-sizing: border-box;
-  min-height: 48px;
-  margin-top: 4px;
+.goen-auth__forgot {
+  color: var(--accent-strong);
+  font-size: var(--fs-14);
+  text-decoration: none;
 }
 
-/* The Google button, and the same content-box compensation .goen-auth__submit
-   makes three rules up: .ui-btn is content-box in the vendored design system, so
-   a 13px line with 9px of padding comes to 31px — under the 44px tap target, and
-   measured by check-layout rather than noticed by eye. The fix belongs upstream;
-   see CLAUDE.md's known follow-ups. */
+.goen-auth__forgot:hover {
+  text-decoration: underline;
+}
+
+/* The line between the password path and the Google one. It is a rule and not
+   a word: a sentence goen says lives in internal/i18n, and the shop has not
+   written one for this. */
+.goen-auth__divider {
+  background: var(--border);
+  border: 0;
+  height: 1px;
+  margin: 0;
+}
+
 .goen-auth__oauth {
-  box-sizing: border-box;
-  min-height: 48px;
+  width: 100%;
 }
 
 .goen-auth__alt {
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
   margin: 0;
-  font-size: var(--fs-13);
-  color: var(--fg-subtle);
   text-align: center;
 }
 
+.goen-auth__alt a {
+  color: var(--accent-strong);
+  font-weight: var(--fw-medium);
+  text-underline-offset: 4px;
+}
+
+/* The account page, and the two pages that hang off it. The shell is shared:
+   one content column, one page head, and the sections under it. */
 .goen-account {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  max-width: var(--container);
+  gap: 24px;
   margin: 0 auto;
-  padding: 16px 16px 40px;
+  max-width: var(--container);
+  padding: 16px var(--page-gutter) 56px;
+  width: 100%;
+}
+
+/* Points and warranty are one column of short rows. A 1280px column around
+   that much content reads as a page with something missing. */
+.goen-account--narrow {
+  max-width: 48rem;
+}
+
+/* The head also carries the vendored page-head spelling, because the layout
+   gate measures the sign-out control through it (scripts/check-layout.mjs:1542).
+   Every property that sheet sets on it is set again here, so the spelling is a
+   handle and the appearance is decided in this file. */
+.goen-account__head {
+  align-items: flex-end;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: space-between;
+  padding-bottom: 16px;
+}
+
+.goen-account__headactions {
+  flex: none;
 }
 
 .goen-account__layout {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 20px;
   align-items: start;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: 1fr;
+  min-width: 0;
+}
+
+/* Below 1024 the nav is a strip that scrolls inside itself. The strip scrolls;
+   the page does not, which is the thing the overflow gate measures. */
+.goen-account__nav {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.goen-account__navitem {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-sizing: border-box;
+  color: var(--fg);
+  display: inline-flex;
+  flex: none;
+  gap: 8px;
+  min-height: 2.75rem;
+  padding: 0 12px;
+  text-decoration: none;
+  transition: background-color var(--dur-base) var(--ease-standard);
+  white-space: nowrap;
+}
+
+.goen-account__navitem:hover {
+  background: var(--overlay);
+  color: var(--fg);
+}
+
+.goen-account__navname {
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+}
+
+/* The hint says what the page behind a link holds. The strip has room for one
+   line, and there the link's own name is the whole answer. */
+.goen-account__navhint {
+  display: none;
+}
+
+/* Between the sections of this page and the pages of their own. */
+.goen-account__navrule {
+  background: var(--border);
+  border: 0;
+  flex: none;
+  height: 2.75rem;
+  margin: 0;
+  width: 1px;
+}
+
+.goen-account__panels {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
 }
 
 .goen-account__section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  gap: 16px;
   min-width: 0;
+  scroll-margin-top: 24px;
 }
 
+/* Deleting an account is irreversible, so its card reads as the exception it
+   is rather than as one more panel. */
+.goen-account__section--danger {
+  border-color: var(--error);
+}
+
+/* The nav's anchors aim at these headings, so the margin that keeps a jumped-to
+   heading off the top edge belongs here rather than on the card around it. */
 .goen-account__heading {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--fs-14);
-  font-weight: var(--fw-semibold);
   color: var(--fg);
+  font-size: var(--fs-16);
+  font-weight: var(--fw-semibold);
+  margin: 0;
+  scroll-margin-top: 24px;
 }
 
-.goen-account__orders,
-.goen-account__addresses {
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.goen-account__standing {
   display: flex;
   flex-direction: column;
+  gap: 4px;
 }
 
-.goen-account__order {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border-faint);
+.goen-account__tier {
+  color: var(--fg);
+  font-size: var(--fs-18);
+  font-weight: var(--fw-semibold);
+  margin: 0;
 }
 
-.goen-account__order:last-child {
-  border-bottom: none;
+/* No tier reached is a sentence, not an empty medallion. */
+.goen-account__tier--none {
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-regular);
 }
 
-.goen-account__order > div {
+.goen-account__meta,
+.goen-account__hint {
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+/* Store credit sits inside the standing card rather than in a card of its own:
+   it is one figure about where a shopper stands, and a card holding one figure
+   reads as a section with something missing. */
+.goen-account__credit {
+  background: var(--elevated);
+  border-radius: var(--r-md);
   display: flex;
   flex-direction: column;
   gap: 2px;
-  min-width: 0;
+  padding: 16px;
+}
+
+.goen-account__creditlabel {
+  color: var(--fg-muted);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+}
+
+.goen-account__creditamount {
+  color: var(--fg);
+  font-size: var(--fs-18);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-semibold);
+}
+
+/* The order history. One table at every width: below 768 the date column folds
+   into the number cell rather than a second markup tree rendering the same
+   rows again. */
+.goen-account__orders {
+  border-collapse: collapse;
+  font-size: var(--fs-14);
+  width: 100%;
+}
+
+.goen-account__orders th {
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-muted);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+  padding: 8px 8px 8px 0;
+  text-align: left;
+}
+
+.goen-account__orders td {
+  border-bottom: 1px solid var(--border);
+  padding: 12px 8px 12px 0;
+  vertical-align: top;
+}
+
+.goen-account__orders tr:last-child td {
+  border-bottom: 0;
 }
 
 .goen-account__number {
-  font-family: var(--font-mono);
-  font-size: var(--fs-13);
   color: var(--fg);
+  font-weight: var(--fw-medium);
   text-decoration: none;
 }
 
-.goen-account__ordermeta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-  flex: none;
-}
-
-.goen-account__address {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border-faint);
-}
-
-.goen-account__address:last-child {
-  border-bottom: none;
-}
-
-.goen-account__addrlabel {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--fs-13);
-  font-weight: var(--fw-medium);
+.goen-account__number:hover {
   color: var(--fg);
+  text-decoration: underline;
 }
 
-.goen-account__side {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
+.goen-account__ordercol {
+  display: none;
+}
+
+.goen-account__ordermeta {
+  color: var(--fg-muted);
+  display: block;
+  font-size: var(--fs-12);
+  margin-top: 2px;
+}
+
+.goen-account__ordertotal {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.goen-account__empty {
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+  margin: 0;
 }
 
 .goen-account__form {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-
-.goen-account__form .ui-input {
-  width: 100%;
-  box-sizing: border-box;
-  min-height: 44px;
-}
-
-.goen-account__form .ui-btn {
-  box-sizing: border-box;
-  min-height: 44px;
-}
-
-.goen-account__empty {
-  margin: 0;
-  font-size: var(--fs-13);
-  color: var(--fg-subtle);
-}
-
-.goen-account__credit {
-  align-self: flex-start;
-}
-
-@media (min-width: 768px) {
-  .goen-account {
-    gap: 24px;
-    padding: 24px 24px 56px;
-  }
-
-  .goen-auth {
-    padding: 56px 24px 80px;
-  }
-}
-
-@media (min-width: 1024px) {
-  .goen-account {
-    gap: 32px;
-    padding: 32px 32px 64px;
-  }
-
-  .goen-account__layout {
-    grid-template-columns: minmax(0, 1fr) 320px;
-    gap: 32px;
-  }
-}
-
-/* ---------- About ---------- */
-
-.about {
-  display: flex;
-  flex-direction: column;
   gap: 16px;
-  max-width: var(--measure-article);
-  margin: 0 auto;
-  padding: 28px 20px 40px;
 }
 
-.about__mark {
-  width: 44px;
-  height: 44px;
-}
-
-.about__title {
-  margin: 0;
-  font-size: var(--fs-ed-24);
-}
-
-.about__lede {
-  margin: 0;
-  font-size: var(--fs-14);
-  color: var(--fg-muted);
-  line-height: 1.9;
-}
-
-.about__values {
+.goen-account__fields {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 14px;
-}
-
-.about__value h2 {
-  margin: 0 0 4px;
-  font-size: var(--fs-ed-17);
-}
-
-.about__value p {
-  margin: 0;
-  line-height: 1.8;
-}
-
-.about__legal {
-  margin: 0;
-  font-family: var(--font-mono);
-  line-height: 2;
-}
-
-@media (min-width: 768px) {
-  .about {
-    gap: 24px;
-    padding: 56px 32px 80px;
-  }
-
-  .about__mark {
-    width: 56px;
-    height: 56px;
-  }
-
-  .about__title {
-    font-size: var(--fs-ed-38);
-  }
-
-  .about__lede {
-    font-size: var(--fs-16);
-  }
-
-  .about__values {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 24px;
-  }
-
-  .about__value h2 {
-    margin-bottom: 6px;
-  }
-}
-
-/* ---------- Contact ---------- */
-
-.contact {
-  display: flex;
-  flex-direction: column;
   gap: 16px;
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 20px 16px 32px;
-}
-
-.contact__title {
-  margin: 0 0 8px;
-  font-size: var(--fs-ed-24);
-}
-
-.contact__hours {
-  margin: 0;
-  color: var(--fg-subtle);
-}
-
-.contact__methods {
-  display: grid;
   grid-template-columns: 1fr;
+}
+
+.goen-account__actions {
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
-.contact-method {
-  display: flex;
+.goen-account__value {
   align-items: center;
-  gap: 12px;
-  box-sizing: border-box;
-  min-height: 44px;
-  padding: 12px 14px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  text-decoration: none;
-}
-
-.contact-method:hover {
-  border-color: var(--border-strong);
-}
-
-.contact-method__icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--r-md);
-  background: var(--accent-faint);
-  color: var(--accent);
-}
-
-.contact-method__icon svg {
-  width: 18px;
-  height: 18px;
-}
-
-.contact-method__text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.contact-method__label {
-  font-weight: var(--fw-semibold);
   color: var(--fg);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--fs-14);
+  gap: 8px;
+  margin: 0;
 }
 
-.contact-method__value {
-  font-family: var(--font-mono);
-  color: var(--fg-subtle);
-}
-
-.contact__layout {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 16px;
-  align-items: start;
-}
-
-.contact__panel {
+.goen-account__addresses {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: var(--panel);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goen-account__address {
   border: 1px solid var(--border);
   border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   padding: 16px;
 }
 
-.contact__panel > h2 {
-  margin: 0;
-  font-size: var(--fs-ed-17);
-}
-
-.contact__fields {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
-}
-
-.contact__field--wide {
-  grid-column: 1 / -1;
-}
-
-.contact__panel .ui-input,
-.contact__panel .ui-select,
-.contact__panel .ui-textarea {
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 44px;
-}
-
-.contact__panel .ui-textarea {
-  min-height: 90px;
-}
-
-.contact__submit {
-  align-self: stretch;
-  min-height: 48px;
-}
-
-.contact__aside {
+.goen-account__addrbody {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 4px;
+  min-width: 0;
 }
 
-.contact__map {
-  display: flex;
+.goen-account__addrlabel {
   align-items: center;
-  justify-content: center;
-  aspect-ratio: 4 / 3;
-  background: var(--elevated);
-  border: 1px solid var(--border-faint);
-  border-radius: var(--r-md);
-  font-family: var(--font-mono);
-  font-size: var(--fs-11);
-  color: var(--fg-faint);
-  text-decoration: none;
-}
-
-.contact__address {
-  margin: 0;
-  line-height: 1.8;
-}
-
-@media (min-width: 768px) {
-  .contact {
-    gap: 28px;
-    padding: 48px 32px 80px;
-  }
-
-  .contact__title {
-    font-size: var(--fs-ed-30);
-  }
-
-  .contact__methods {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
-  }
-
-  .contact-method {
-    align-items: flex-start;
-    padding: 18px;
-  }
-
-  .contact__panel {
-    gap: 16px;
-    padding: 24px;
-  }
-
-  .contact__fields {
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-  }
-
-  .contact__panel .ui-textarea {
-    min-height: 110px;
-  }
-
-  .contact__submit {
-    align-self: flex-start;
-  }
-}
-
-@media (min-width: 1024px) {
-  .contact__layout {
-    grid-template-columns: 1fr 320px;
-    gap: 40px;
-  }
-}
-
-/* ---------- Simple centred message page (404 / 500) ---------- */
-
-.notice {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 16px;
-  max-width: var(--measure-article);
-  margin: 0 auto;
-  padding: 64px 20px 80px;
-}
-
-.notice__code {
-  font-family: var(--font-mono);
-  color: var(--fg-faint);
-  letter-spacing: var(--track-wide);
-}
-
-.notice__title {
-  margin: 0;
-}
-
-.notice__body {
-  margin: 0;
-  color: var(--fg-muted);
-  line-height: 1.9;
-}
-
-/* The newsletter's confirm and unsubscribe links land here, and they are the
-   two pages a reader arrives at from an email — on a phone, one-handed, from a
-   mail client. Both controls need a real target.
-
-   The button is .ui-btn--lg and already comfortable; the "back to the shop"
-   link under it measured 36px, because it is a bare inline <a> with a smaller
-   type size. Padding it to 44 is the fix, and check-layout is what found it:
-   the tap-target rule caught a control nobody would have measured by eye. */
-.notice__form {
-  display: flex;
-  width: 100%;
-}
-
-/* .ui-btn is content-box upstream, so .ui-btn--lg's 10px padding on a 14px
-   line comes to 36px — under the 44px tap target, which check-layout measured
-   rather than anybody noticing. Compensated here per surface, the way
-   .goen-auth__submit and .goen-checkout__ship already do; the fix belongs
-   upstream, where a button that cannot be tapped is a defect for every
-   consumer. See CLAUDE.md's known follow-ups. */
-.notice__form .ui-btn {
-  box-sizing: border-box;
-  min-height: 44px;
-}
-
-.notice__back {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  color: var(--fg-muted);
-}
-
-/* The order 404's two ways through — /orders/find for a guest, /signin for an
-   account holder. They wrap on a phone rather than shrinking, because both are
-   the point of the page and a 320px screen has room for one per line. The
-   min-height is the same content-box compensation .notice__form makes above. */
-.notice__actions {
+  color: var(--fg);
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  gap: 8px;
 }
 
-.notice__actions .ui-btn {
-  box-sizing: border-box;
-  min-height: 44px;
+.goen-account__addractions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-/* A native <details> used as a "show me the form" disclosure on the account
-   page. The forms are long and mostly unused; collapsing them keeps the page
-   readable without hiding anything from a visitor with scripting off. */
+/* A native <details> used as "show me the form". The forms are long and mostly
+   unused; collapsing them keeps the page readable without hiding anything from
+   a visitor with scripting off. */
 .goen-account__disclosure {
-  border-top: 1px solid var(--border-faint);
-  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
 }
 
 .goen-account__summary {
-  min-height: 44px;
-  display: flex;
   align-items: center;
-  font-size: var(--fs-13);
-  font-weight: var(--fw-medium);
   color: var(--accent-strong);
   cursor: pointer;
+  display: flex;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
   list-style: none;
+  min-height: 2.75rem;
 }
 
 .goen-account__summary::-webkit-details-marker {
@@ -4302,18 +4211,945 @@ h4,
   margin-bottom: 8px;
 }
 
-.goen-account__check {
-  min-height: 44px;
-}
-
-.goen-account__address form {
-  margin-top: 4px;
-}
-
-/* Deleting an account is irreversible, so its section reads as the exception it
-   is rather than as one more panel. */
-.goen-account__danger {
+/* The storefront's one destructive control. It keeps the outline shape so it is
+   not read as the action its card is about, and takes the error colour so it is
+   not pressed by accident. */
+.goen-account__erase {
   border-color: var(--error);
+  color: var(--error);
+}
+
+.goen-account__erase:hover {
+  background: var(--error-bg);
+  color: var(--error);
+}
+
+/* A native checkbox, sized up to the row it sits in rather than replaced by a
+   box drawn in CSS: the native control is the one a screen reader and a
+   keyboard already know. */
+.goen-check {
+  align-items: center;
+  color: var(--fg);
+  cursor: pointer;
+  display: flex;
+  font-size: var(--fs-14);
+  gap: 8px;
+  min-height: 2.75rem;
+}
+
+.goen-check__box {
+  accent-color: var(--accent);
+  height: 1rem;
+  margin: 0;
+  width: 1rem;
+}
+
+@media (min-width: 768px) {
+  .goen-account__fields {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .goen-auth__panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--r-xl);
+    box-shadow: var(--shadow-1);
+    padding: 32px;
+  }
+
+  .goen-account__field--wide {
+    grid-column: 1 / -1;
+  }
+
+  .goen-account__ordercol {
+    display: table-cell;
+  }
+
+  .goen-account__ordermeta {
+    display: none;
+  }
+
+  .goen-auth {
+    padding: 56px var(--page-gutter) 80px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .goen-account {
+    gap: 32px;
+  }
+
+  .goen-account__layout {
+    gap: 32px;
+    grid-template-columns: 14rem minmax(0, 1fr);
+  }
+
+  .goen-account__nav {
+    align-self: start;
+    flex-direction: column;
+    gap: 2px;
+    overflow-x: visible;
+    padding-bottom: 0;
+    position: sticky;
+    top: 32px;
+  }
+
+  .goen-account__navitem {
+    align-items: flex-start;
+    border-color: transparent;
+    flex-direction: column;
+    gap: 2px;
+    justify-content: center;
+    padding: 8px 12px;
+    white-space: normal;
+  }
+
+  .goen-account__navhint {
+    color: var(--fg-muted);
+    display: block;
+    font-size: var(--fs-12);
+  }
+
+  .goen-account__navrule {
+    height: 1px;
+    margin: 8px 0;
+    width: auto;
+  }
+}
+
+/* ---------- Points and warranty registration ----------
+
+   Two pages that hang off the account: what the shop owes in points, and what
+   it covers. Both are one column of short rows inside the account shell, so
+   only the rows are declared here.
+   ------------------------------------------------------------------------ */
+
+.goen-points__figures {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goen-points__figure {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+}
+
+.goen-points__label {
+  color: var(--fg-muted);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+}
+
+.goen-points__value {
+  color: var(--fg);
+  font-size: var(--fs-ed-24);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-semibold);
+}
+
+.goen-points__meta {
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+  margin: 0;
+}
+
+.goen-points__rule {
+  color: var(--fg-muted);
+  font-size: var(--fs-12);
+  margin: 0;
+}
+
+.goen-points__field {
+  max-width: 10rem;
+  text-align: right;
+}
+
+/* The redemption field keeps the vendored spelling beside its own, because the
+   layout gate measures this control through it (scripts/check-layout.mjs:1490).
+   The vendored sheet reaches it on hover and on focus with a higher specificity
+   than a single class, so those two states are decided here instead. */
+.goen-qa__form .ui-input:focus,
+.goen-qa__form .ui-input:hover {
+  background: transparent;
+  border-color: var(--border);
+}
+
+/* One control, not a bar: the form asks for a number and then offers the one
+   thing to do with it. */
+.goen-points__submit {
+  align-self: flex-start;
+}
+
+.goen-points__ledger {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.goen-points__ledgerhead {
+  color: var(--fg);
+  font-size: var(--fs-16);
+  font-weight: var(--fw-semibold);
+  margin: 0;
+}
+
+/* The ledger. The signed amount leads, because a ledger is read down that
+   column. */
+.goen-points {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goen-points__item {
+  align-items: baseline;
+  border-bottom: 1px solid var(--border);
+  display: grid;
+  gap: 4px 12px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 12px 0;
+}
+
+.goen-points__item:last-child {
+  border-bottom: 0;
+}
+
+/* An expired line stays visible and reads as past: hiding it would leave a
+   customer wondering whether the points were ever there. */
+.goen-points__item.is-expired {
+  opacity: 0.6;
+}
+
+.goen-points__amount {
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-medium);
+}
+
+.goen-points__amount.is-earned {
+  color: var(--success);
+}
+
+.goen-points__what {
+  color: var(--fg);
+  font-size: var(--fs-14);
+}
+
+.goen-points .goen-points__meta {
+  font-size: var(--fs-12);
+  grid-column: 2;
+}
+
+/* Registered cover, and the lines that can still be registered. One column of
+   bordered rows: each entry is read rather than compared against its
+   neighbours, so a table would make a customer scan across for one date. */
+.goen-warranty {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goen-warranty__item {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+}
+
+.goen-warranty__item.is-expired {
+  opacity: 0.6;
+}
+
+.goen-warranty__head {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.goen-warranty__name {
+  color: var(--fg);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  text-decoration: none;
+}
+
+.goen-warranty__name:hover {
+  color: var(--fg);
+  text-decoration: underline;
+}
+
+.goen-warranty__meta {
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+  margin: 0;
+}
+
+.goen-warranty__hint {
+  color: var(--fg-muted);
+  font-size: var(--fs-12);
+  margin: 0;
+}
+
+.goen-warranty__form {
+  align-items: flex-end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.goen-warranty__field {
+  flex: 1 1 16rem;
+}
+
+/* The empty state's two sentences are compared by the whole class attribute
+   (internal/ui/pages/warranty_test.go:180,184), so the paragraphs carry the
+   vendored spelling alone and every declaration is made here. */
+.goen-empty .ui-empty__title {
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: var(--fs-ed-24);
+  font-weight: var(--fw-semibold);
+  margin: 0;
+}
+
+.goen-empty .ui-empty__desc {
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  line-height: var(--lh-normal);
+  margin: 0;
+  max-width: 40ch;
+}
+
+@media (min-width: 768px) {
+  .goen-points__figures {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ---------- Policy, FAQ, shipping and the public warranty ----------
+
+   One shell for every page that is prose. The article sits in the page's own
+   column with the section list beside it from 1024 up and above it below that
+   — a list of links, because a contents list a reader has to open is a
+   contents list nobody opens.
+
+   /admin/verify renders through .goen-doc, .goen-doc__section, .goen-doc__qa
+   and .goen-doc__contact as well. They are rewritten here with the rest so the
+   back office stays on one ground until the PR that rebuilds it.
+   ------------------------------------------------------------------------ */
+
+.goen-doc {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin: 0 auto;
+  max-width: var(--container);
+  padding: 16px var(--page-gutter) 56px;
+  width: 100%;
+}
+
+.goen-doc__head {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 16px;
+}
+
+.goen-doc__layout {
+  align-items: start;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: 1fr;
+}
+
+.goen-doc__toc {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.goen-doc__tochead {
+  color: var(--fg-muted);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+  margin: 0 0 4px;
+}
+
+.goen-doc__toclink {
+  align-items: center;
+  color: var(--fg-muted);
+  display: flex;
+  font-size: var(--fs-14);
+  min-height: 2.75rem;
+  text-decoration: none;
+  transition: color var(--dur-base) var(--ease-standard);
+}
+
+.goen-doc__toclink:hover {
+  color: var(--fg);
+}
+
+/* A measure, not a column width: a policy page is read, and a wide measure is
+   what makes one feel unreadable regardless of what it says. */
+.goen-doc__article {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  max-width: 68ch;
+  min-width: 0;
+}
+
+.goen-doc__section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scroll-margin-top: 24px;
+}
+
+.goen-doc__section h2 {
+  color: var(--fg);
+  font-size: var(--fs-18);
+  font-weight: var(--fw-semibold);
+  margin: 0;
+}
+
+.goen-doc__section p {
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+  line-height: var(--lh-read);
+  margin: 0;
+}
+
+/* A section describing what has not been decided reads differently from one
+   describing a rule. A reader must be able to tell a promise from a gap, and a
+   shop that sets both in the same ink is making a promise by accident. The
+   difference is a rule beside the text rather than a lighter grey: grey enough
+   to read as pending is grey enough to fail a contrast check. */
+.goen-doc__section.is-pending {
+  border-left: 2px solid var(--border-strong);
+  padding-left: 16px;
+}
+
+.goen-doc__qa {
+  border-bottom: 1px solid var(--border);
+}
+
+.goen-doc__qa:last-child {
+  border-bottom: 0;
+}
+
+.goen-doc__qa summary {
+  align-items: center;
+  color: var(--fg);
+  cursor: pointer;
+  display: flex;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  gap: 12px;
+  justify-content: space-between;
+  list-style: none;
+  min-height: 2.75rem;
+  padding: 12px 0;
+}
+
+.goen-doc__qa summary::-webkit-details-marker {
+  display: none;
+}
+
+/* A flex summary drops the marker the browser would draw, so the affordance is
+   drawn here: two borders of one box, turned. */
+.goen-doc__qa summary::after {
+  border-bottom: 2px solid currentcolor;
+  border-right: 2px solid currentcolor;
+  color: var(--fg-faint);
+  content: '';
+  flex: none;
+  height: 8px;
+  transform: rotate(45deg);
+  width: 8px;
+}
+
+.goen-doc__qa[open] summary::after {
+  transform: rotate(-135deg);
+}
+
+.goen-doc__qa p {
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+  line-height: var(--lh-read);
+  margin: 0;
+  padding-bottom: 16px;
+}
+
+.goen-doc__methods {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goen-doc__method {
+  align-items: baseline;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px 0;
+}
+
+.goen-doc__method:last-child {
+  border-bottom: 0;
+}
+
+.goen-doc__methodname {
+  color: var(--fg);
+  display: flex;
+  flex-direction: column;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  gap: 2px;
+}
+
+.goen-doc__methodfee {
+  color: var(--fg);
+  display: flex;
+  flex-direction: column;
+  font-size: var(--fs-14);
+  font-variant-numeric: tabular-nums;
+  gap: 2px;
+  text-align: right;
+}
+
+.goen-doc__methodmeta {
+  color: var(--fg-muted);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-regular);
+}
+
+.goen-doc__contact {
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+  margin: 0;
+}
+
+@media (min-width: 1024px) {
+  .goen-doc {
+    gap: 32px;
+  }
+
+  .goen-doc__layout {
+    gap: 32px;
+    grid-template-columns: 14rem minmax(0, 1fr);
+  }
+
+  .goen-doc__toc {
+    position: sticky;
+    top: 32px;
+  }
+}
+
+/* ---------- About ----------
+
+   One centred column: the mark, the claim, two paragraphs, the three things
+   the shop says it does, and the lines a company has to print. Only the three
+   are cards, because they are three of one kind.
+   ------------------------------------------------------------------------ */
+
+.about {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin: 0 auto;
+  max-width: 48rem;
+  padding: 32px var(--page-gutter) 56px;
+  width: 100%;
+}
+
+.about__mark {
+  height: 40px;
+  width: 40px;
+}
+
+.about__title {
+  color: var(--fg);
+  font-size: var(--fs-ed-30);
+  font-weight: var(--fw-semibold);
+  margin: 0;
+}
+
+.about__lede {
+  color: var(--fg-muted);
+  font-size: var(--fs-16);
+  line-height: var(--lh-read);
+  margin: 0;
+}
+
+.about__values {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+}
+
+.about__value {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.about__valuetitle {
+  color: var(--fg);
+  font-size: var(--fs-16);
+  font-weight: var(--fw-semibold);
+  margin: 0;
+}
+
+.about__valuebody {
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+  line-height: var(--lh-normal);
+  margin: 0;
+}
+
+.about__legal {
+  color: var(--fg-muted);
+  font-size: var(--fs-12);
+  line-height: var(--lh-read);
+  margin: 0;
+}
+
+/* One hairline, drawn as an element because the page uses it to part two kinds
+   of content rather than to decorate a box. */
+.goen-separator {
+  background: var(--border);
+  border: 0;
+  height: 1px;
+  margin: 0;
+}
+
+@media (min-width: 768px) {
+  .about {
+    gap: 32px;
+    padding: 56px var(--page-gutter) 80px;
+  }
+
+  .about__mark {
+    height: 56px;
+    width: 56px;
+  }
+
+  .about__title {
+    font-size: var(--fs-ed-38);
+  }
+
+  .about__values {
+    gap: 24px;
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ---------- Contact ----------
+
+   The three ways to reach the shop, then the form beside what a visitor would
+   otherwise have to ask for: the hours, the address and the way there.
+
+   The two banners inside the form are written in the page rather than through
+   the notice component, because the layout gate reads the refusal's sentence
+   through a vendored descendant pair (scripts/check-layout.mjs:2068) and one
+   caller does not earn a Prop.
+   ------------------------------------------------------------------------ */
+
+.contact {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin: 0 auto;
+  max-width: var(--container);
+  padding: 16px var(--page-gutter) 56px;
+  width: 100%;
+}
+
+.contact__methods {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr;
+}
+
+.contact-method {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-sizing: border-box;
+  display: flex;
+  gap: 12px;
+  min-height: 2.75rem;
+  padding: 12px 16px;
+  text-decoration: none;
+  transition: border-color var(--dur-base) var(--ease-standard);
+}
+
+.contact-method:hover {
+  border-color: var(--border-strong);
+}
+
+.contact-method__icon {
+  align-items: center;
+  color: var(--fg-muted);
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+}
+
+.contact-method__icon svg {
+  height: 20px;
+  width: 20px;
+}
+
+.contact-method__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.contact-method__label {
+  color: var(--fg-muted);
+  font-size: var(--fs-12);
+}
+
+.contact-method__value {
+  color: var(--fg);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+}
+
+.contact__layout {
+  align-items: start;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: 1fr;
+}
+
+.contact__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 32rem;
+}
+
+.contact__panel--done {
+  align-items: flex-start;
+  flex-direction: row;
+  gap: 12px;
+}
+
+.contact__donemark {
+  color: var(--success);
+  display: inline-flex;
+  flex: none;
+}
+
+.contact__formtitle {
+  color: var(--fg);
+  font-size: var(--fs-16);
+  font-weight: var(--fw-semibold);
+  margin: 0;
+}
+
+.contact__req {
+  color: var(--error);
+  margin-left: 2px;
+}
+
+.contact__fields {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+}
+
+.contact__field--wide {
+  grid-column: 1 / -1;
+}
+
+/* An order number is copied from a mail, so it is set in the face that makes
+   one character distinct from the next. */
+.contact__ref {
+  font-family: var(--font-mono);
+}
+
+.contact__message {
+  min-height: 8rem;
+}
+
+.contact__submit {
+  align-self: stretch;
+}
+
+.contact__aside {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.contact__map {
+  align-items: center;
+  aspect-ratio: 4 / 3;
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--fg-muted);
+  display: flex;
+  font-size: var(--fs-14);
+  justify-content: center;
+  text-decoration: none;
+}
+
+.contact__map:hover {
+  border-color: var(--border-strong);
+  color: var(--fg);
+}
+
+.contact__address {
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+  line-height: var(--lh-read);
+  margin: 0;
+}
+
+/* The refusal's sentence is read through the vendored descendant pair, so the
+   span keeps that spelling; the muted ink it would otherwise take from the
+   vendored sheet is decided here. */
+.goen-notice .ui-alert__body {
+  color: inherit;
+}
+
+@media (min-width: 768px) {
+  .contact {
+    gap: 32px;
+    padding: 32px var(--page-gutter) 80px;
+  }
+
+  .contact__fields {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .contact__methods {
+    gap: 16px;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .contact__submit {
+    align-self: flex-start;
+  }
+}
+
+@media (min-width: 1024px) {
+  .contact__layout {
+    gap: 32px;
+    grid-template-columns: minmax(0, 1fr) 20rem;
+  }
+}
+
+/* ---------- Simple centred message page (404 / 500) ----------
+
+   The 404, the two grant failures, the newsletter links and /verify. One
+   centred stack: the code where there is one, the heading, the sentence, and
+   at most two ways on — one filled and one outline, never three of equal
+   weight.
+   ------------------------------------------------------------------------ */
+
+.notice {
+  align-items: center;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  justify-content: center;
+  margin: 0 auto;
+  max-width: 32rem;
+  min-height: 50vh;
+  padding: 56px var(--page-gutter) 80px;
+  text-align: center;
+  width: 100%;
+}
+
+/* Display type with no step on the ladder: large enough to read as the page's
+   subject, light enough not to be read as its message, and small enough that a
+   375 viewport never scrolls sideways around it. */
+.notice__code {
+  color: var(--fg-faint);
+  font-size: 3.75rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-semibold);
+  line-height: 1;
+}
+
+.notice__title {
+  color: var(--fg);
+  font-size: var(--fs-ed-30);
+  font-weight: var(--fw-semibold);
+  margin: 0;
+}
+
+.notice__body {
+  color: var(--fg-muted);
+  font-size: var(--fs-16);
+  line-height: var(--lh-normal);
+  margin: 0;
+}
+
+.notice__form {
+  display: flex;
+  width: 100%;
+}
+
+.notice__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.notice__back {
+  width: 100%;
+}
+
+@media (min-width: 768px) {
+  .notice__actions {
+    flex-direction: row;
+    justify-content: center;
+  }
+
+  .notice__back,
+  .notice__form {
+    width: auto;
+  }
+
+  .notice__code {
+    font-size: 5rem;
+  }
 }
 
 /* ---------- Back office ----------
@@ -4322,6 +5158,129 @@ h4,
    not a page someone browses. It still uses the same tokens and the same
    components — a second visual language for /admin would be a second thing to
    maintain, and the design system was built to serve both pressures. */
+
+/* The back office's own document chrome. The storefront's header and footer are
+   a shopper's tools — a category row, a product search, a wishlist, a cart, a
+   newsletter signup, five policy columns — and on a screen a staff member reads
+   all day every one of them is a row between them and the queue. What is left
+   is one bar: where am I, how do I leave, how do I sign out. The screens
+   themselves are the rail inside .goen-admin, not this.
+
+   It takes the storefront bar's measurements — the same centred column, the
+   same gutter — because the two are the same object on two sites, and it takes
+   the same view-transition name so a navigation repaints it once instead of
+   fading it out and back in. The names cannot collide: no document renders both
+   bars. */
+.goen-adminbar {
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  view-transition-name: header;
+}
+
+.goen-adminbar__inner {
+  align-items: center;
+  box-sizing: border-box;
+  column-gap: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  margin: 0 auto;
+  max-width: var(--page-width);
+  min-height: 56px;
+  padding: 6px var(--page-gutter);
+  row-gap: 4px;
+}
+
+.goen-adminbar__brand {
+  align-items: center;
+  color: var(--fg);
+  display: flex;
+  gap: 8px;
+  min-height: 44px;
+  text-decoration: none;
+}
+
+.goen-adminbar__brand:hover {
+  color: var(--fg);
+}
+
+.goen-adminbar__mark {
+  flex: none;
+  height: 24px;
+  width: 24px;
+}
+
+.goen-adminbar__wordmark {
+  font-size: var(--fs-18);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.02em;
+}
+
+/* Which of the two sites this is, said once in the chrome so no screen has to
+   say it in its own title. Hidden on a phone, where the brand alone is the
+   answer and the row has to end before the disclosure that opens the rail. */
+.goen-adminbar__tag {
+  display: none;
+}
+
+.goen-adminbar__actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+/* The way out, and on a phone the rail's own last link is already it — so the
+   bar drops this copy there and keeps its row to one line, which is what leaves
+   room for the disclosure that opens the rail. */
+.goen-adminbar__link {
+  align-items: center;
+  border-radius: var(--r-md);
+  color: var(--fg-muted);
+  display: none;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  min-height: 44px;
+  padding: 0 8px;
+  text-decoration: none;
+  transition: color var(--dur-base) var(--ease-standard);
+  white-space: nowrap;
+}
+
+.goen-adminbar__link:hover {
+  color: var(--fg);
+}
+
+@media (min-width: 768px) {
+  .goen-adminbar__tag {
+    background: var(--accent-muted);
+    border-radius: var(--r-sm);
+    color: var(--accent-strong);
+    display: inline-flex;
+    font-size: var(--fs-12);
+    font-weight: var(--fw-medium);
+    padding: 2px 8px;
+  }
+
+  .goen-adminbar__link {
+    display: inline-flex;
+  }
+}
+
+/* One line, because a back office has one thing to say at the bottom of a page
+   and the shop's newsletter, policies and social accounts are not it. */
+.goen-adminfoot {
+  border-top: 1px solid var(--border);
+  padding: 16px 0;
+}
+
+.goen-adminfoot__copyright {
+  color: var(--fg-faint);
+  display: block;
+  font-size: var(--fs-12);
+  margin: 0 auto;
+  max-width: var(--page-width);
+  padding: 0 var(--page-gutter);
+}
 
 /* Three names the customer's order and checkout used to share with the back
    office. The storefront moved off them; these declarations are what /admin was
@@ -4368,13 +5327,49 @@ h4,
   }
 }
 
+/* A rail and a page. The rail is a column beside the work from the wide
+   breakpoint and a band above it below one, which is one element and two sets
+   of rules rather than two navigations: a second copy of 23 links is a second
+   copy to keep current, and a screen reader reads both.
+
+   The grid puts the rail in column one and every other child in column two, so
+   a screen that renders its sections as direct children of .goen-admin needs no
+   wrapper of its own. */
 .goen-admin {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   gap: 16px;
-  max-width: var(--container);
+  grid-template-columns: minmax(0, 1fr);
   margin: 0 auto;
+  max-width: var(--container);
+  min-width: 0;
   padding: 16px 16px 40px;
+}
+
+/* A panel the page can shut. On a stockroom phone 23 links are a screen of
+   their own before the work starts; at the desk the summary is gone and the
+   panel is the rail, which is why the element renders open — there would be no
+   control left to reopen it with. */
+.goen-disclosure {
+  min-width: 0;
+}
+
+.goen-disclosure__summary {
+  align-items: center;
+  border-radius: var(--r-sm);
+  color: var(--fg);
+  cursor: pointer;
+  display: flex;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  gap: 6px;
+  justify-content: space-between;
+  list-style: none;
+  min-height: 44px;
+  padding: 0 12px;
+}
+
+.goen-disclosure__panel {
+  min-width: 0;
 }
 
 /* The back office is 23 screens. Listed flat they are 23 labels a staff member
@@ -4383,19 +5378,51 @@ h4,
    is a native <details>, so it survives the enhancement file being deleted, and
    the server decides which one is open — nothing moves after the first byte. */
 .goen-admin__nav {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  min-width: 0;
+  padding: 4px;
+}
+
+.goen-admin__navlist {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: 4px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border);
+  min-width: 0;
 }
 
 .goen-admin__nav .ui-navitem {
-  text-decoration: none;
-  min-height: 44px;
-  display: inline-flex;
   align-items: center;
+  border-radius: var(--r-sm);
+  color: var(--fg-muted);
+  display: flex;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  min-height: 44px;
+  padding: 0 12px;
+  text-decoration: none;
+  transition:
+    background-color var(--dur-base) var(--ease-standard),
+    color var(--dur-base) var(--ease-standard);
+  white-space: nowrap;
+}
+
+.goen-admin__nav .ui-navitem:hover {
+  background: var(--overlay);
+  color: var(--fg);
+}
+
+/* The screen being read, stated by the ARIA attribute the markup already
+   carries. A state class beside it would be a second place to disagree. */
+.goen-admin__nav [aria-current='page'] {
+  background: var(--accent-muted);
+  color: var(--accent-strong);
+  font-weight: var(--fw-semibold);
+}
+
+.goen-admin__navback {
+  color: var(--fg-faint);
 }
 
 .goen-admin__navgroup {
@@ -4407,21 +5434,20 @@ h4,
    wraps rather than scrolls: on a stockroom phone the cluster falls under its
    name, and no width makes the page scroll sideways. */
 .goen-admin__navgroup[open] {
+  align-items: center;
+  background: var(--elevated);
+  border-radius: var(--r-md);
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: 4px;
   min-width: 0;
   padding: 2px;
-  background: var(--elevated);
-  border: 1px solid var(--border-faint);
-  border-radius: var(--r-md);
 }
 
 .goen-admin__navitems {
+  align-items: center;
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: 4px;
   min-width: 0;
 }
@@ -4431,35 +5457,168 @@ h4,
    the UA triangle removed — it sits outside the chip and cannot take its
    colour. */
 .goen-admin__navlabel {
-  gap: 6px;
-  cursor: pointer;
   color: var(--fg);
-  font-weight: var(--fw-medium);
+  cursor: pointer;
+  font-weight: var(--fw-semibold);
+  gap: 6px;
   list-style: none;
 }
 
-.goen-admin__navlabel::-webkit-details-marker {
+.goen-admin__navlabel::-webkit-details-marker,
+.goen-disclosure__summary::-webkit-details-marker {
   display: none;
 }
 
 /* A caret of our own, and it is DECORATION: which state the group is in is
    announced by <details> itself, so this must not be readable text. */
-.goen-admin__navlabel::after {
-  content: "";
-  width: 6px;
+.goen-admin__navlabel::after,
+.goen-disclosure__summary::after {
+  border-bottom: 1.5px solid var(--fg-faint);
+  border-right: 1.5px solid var(--fg-faint);
+  content: '';
   height: 6px;
-  border-right: 1.5px solid var(--fg-subtle);
-  border-bottom: 1.5px solid var(--fg-subtle);
   transform: rotate(45deg) translate(-1px, -1px);
   transition: transform var(--dur-base) var(--ease-standard);
+  width: 6px;
 }
 
-.goen-admin__navgroup[open] > .goen-admin__navlabel::after {
+.goen-admin__navgroup[open] > .goen-admin__navlabel::after,
+.goen-disclosure[open] > .goen-disclosure__summary::after {
   transform: rotate(-135deg) translate(-1px, -1px);
 }
 
+/* The page's own name, denser than the storefront's: this is a heading read
+   forty times a day, not one a visitor arrives at. */
+.goen-admin .ui-page-head {
+  align-items: flex-start;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: space-between;
+  padding-bottom: 16px;
+}
+
+.goen-admin .ui-page-head__eyebrow {
+  color: var(--fg-faint);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+  letter-spacing: 0.06em;
+  margin: 0 0 4px;
+  text-transform: uppercase;
+}
+
+.goen-admin .ui-page-head__title {
+  font-size: var(--fs-ed-24);
+}
+
+.goen-admin .ui-page-head__sub {
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+  line-height: var(--lh-normal);
+  margin: 6px 0 0;
+  max-width: 68ch;
+}
+
+/* The figures a shift starts with. A counted grid with tracks that may shrink
+   to nothing, not auto-fit: a track whose minimum is a length is floored by it,
+   and one screen on this row has a stat label the design system refuses to
+   wrap, which took the whole page sideways at 375. */
+/* As many tiles as fit a figure, counted by the browser rather than by hand at
+   three widths. A back-office figure is money as often as it is a count — a
+   customer's lifetime spend, their store credit — and a six-figure sum at the
+   editorial size needs about 13rem of tile. Counted by hand it did not get it:
+   two across at 375 put the number outside its tile and the page scrolling
+   sideways, and five across at 1280 asks for five tiles out of a column the
+   rail has already taken 15rem from. The floor is the measurement; the count
+   follows from it, at every width and from whatever the rail leaves. */
 .goen-admin__stats {
+  display: grid;
   gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+}
+
+.goen-stat {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-1);
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 16px;
+  text-decoration: none;
+  transition:
+    border-color var(--dur-base) var(--ease-standard),
+    box-shadow var(--dur-base) var(--ease-standard);
+}
+
+.goen-stat:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-2);
+}
+
+.goen-stat__label {
+  color: var(--fg-muted);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-normal);
+}
+
+.goen-stat__value {
+  color: var(--fg);
+  font-size: var(--fs-ed-30);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+/* The work, wrapped. One element beside the rail is what keeps the rail's
+   grid row from being as tall as 23 links on a page whose first section is a
+   heading. */
+.goen-admin__main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* One queue: its heading, whatever it says about itself, and the table. */
+.goen-admin__queue {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.goen-admin__empty {
+  align-items: center;
+  background: var(--panel);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 40px 24px;
+  text-align: center;
+}
+
+.goen-admin__emptytitle {
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+  margin: 0;
+}
+
+/* A control inside a column of full-width blocks. Without this it stretches to
+   the width of the table above it, which reads as a banner rather than a
+   button. */
+.goen-admin__queue > .goen-btn,
+.goen-admin__submit {
+  align-self: flex-start;
 }
 
 .goen-admin__panel {
@@ -4474,21 +5633,37 @@ h4,
 }
 
 .goen-admin__heading {
-  margin: 8px 0 0;
-  font-family: var(--font-display);
-  font-size: var(--fs-14);
-  font-weight: var(--fw-semibold);
   color: var(--fg);
+  font-size: var(--fs-ed-20);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.02em;
+  margin: 0;
 }
 
-.goen-admin__heading:first-of-type {
-  margin-top: 0;
+/* A queue whose heading is the way into it. The link carries no colour of its
+   own: the heading is already the strongest thing in its band, and a blue one
+   would read as a second action beside the rows. */
+.goen-admin__heading a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.goen-admin__heading a:hover {
+  text-decoration: underline;
 }
 
 .goen-admin__hint {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  line-height: var(--lh-normal);
   margin: 0;
-  font-size: var(--fs-11);
-  color: var(--fg-subtle);
+}
+
+/* The second line of a cell or a card: who, when, which brand. */
+.goen-admin__meta {
+  color: var(--fg-muted);
+  display: block;
+  font-size: var(--fs-12);
   line-height: var(--lh-normal);
 }
 
@@ -4503,32 +5678,114 @@ h4,
 
 /* A wide table on a narrow screen scrolls INSIDE its own box rather than
    pushing the page sideways.
-   
+
    max-width and min-width:0 are both needed: without them the wrapper is a
    grid/flex item that grows to its content, so overflow-x has nothing to clip
    against and the 640px table pushes the whole page to 743px at 375. */
 .goen-admin__tablewrap {
-  overflow-x: auto;
-  max-width: 100%;
-  min-width: 0;
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
 }
 
 .goen-admin__table {
-  width: 100%;
   min-width: 640px;
+  width: 100%;
 }
 
-/* Same reason: the panel and the page itself must be allowed to be narrower
-   than their widest child, or the child sets the page width. */
-.goen-admin,
+/* Every back-office table, on the class the layout gate reads. Written on
+   .ui-table rather than on a new name so that one recipe serves all 23 screens
+   while they are rebuilt one group at a time — two table looks inside one back
+   office is the outcome ruling 2 exists to prevent. */
+.goen-admin .ui-table thead th {
+  background: var(--elevated);
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-muted);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.04em;
+  padding: 10px 12px;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.goen-admin .ui-table tbody td {
+  border-top: 1px solid var(--border-faint);
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  line-height: var(--lh-normal);
+  padding: 12px;
+  vertical-align: top;
+}
+
+.goen-admin .ui-table tbody tr:first-child td {
+  border-top: 0;
+}
+
+/* The cell a row is identified by reads as the row's name. */
+.goen-admin__cellkey {
+  color: var(--fg);
+  font-weight: var(--fw-medium);
+}
+
+.goen-admin__cellbadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* A column of money or counts. Not .goen-admin__num, which is the stock page's
+   86px number INPUT and would put that width on a table column. */
+.goen-admin__cellnum {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* A cell of controls stays a table cell: display:flex on a <td> takes the
+   element out of the row and the columns stop lining up. */
+.goen-admin__cellactions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.goen-admin__cellactions form {
+  display: inline-block;
+  margin: 0 0 0 6px;
+}
+
+/* The three cell modifiers above are single classes and the base rules that
+   set the same properties name the element too, so they are stated again here
+   with the weight to win. A type selector joined to the class would be the
+   shorter way and is not one this sheet uses. */
+.goen-admin .ui-table thead .goen-admin__cellactions,
+.goen-admin .ui-table thead .goen-admin__cellnum {
+  text-align: right;
+}
+
+.goen-admin .ui-table tbody .goen-admin__cellkey {
+  color: var(--fg);
+}
+
+/* Same reason as the wrapper above: the panel must be allowed to be narrower
+   than its widest child, or the child sets the page width. */
 .goen-admin__panel {
   min-width: 0;
 }
 
 .goen-admin__stats .ui-stat {
   min-width: 0;
+}
+
+/* The design system's stat label does not wrap, so a long one is wider than
+   its grid track and takes the page sideways with it. The screens still on
+   that component are measured at 375 by the layout gate. */
+.goen-admin__stats .ui-stat__label {
+  white-space: normal;
 }
 
 .goen-admin__row--low td {
@@ -4558,11 +5815,12 @@ h4,
   min-height: 44px;
 }
 
-/* .ui-filter is inline-flex, so min-height alone leaves the text at the top. */
-.goen-admin .ui-filter,
-.goen-admin .ui-navitem {
-  display: inline-flex;
+/* .ui-filter is inline-flex, so min-height alone leaves the text at the top.
+   The nav item is not here: the rail gives it a box of its own, and two rules
+   of equal weight setting display on one element is a source-order puzzle. */
+.goen-admin .ui-filter {
   align-items: center;
+  display: inline-flex;
 }
 
 .goen-admin__inline .ui-btn {
@@ -4579,6 +5837,39 @@ h4,
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.goen-admin__add {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.goen-admin__fields {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.goen-admin__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* The one checkbox in the back office that authorises a resend. It sits in a
+   table cell, so it wraps rather than pushing the column wider. */
+.goen-admin__confirm {
+  align-items: center;
+  color: var(--fg-muted);
+  display: flex;
+  font-size: var(--fs-12);
+  gap: 6px;
+  line-height: var(--lh-normal);
+  text-align: left;
+  white-space: normal;
 }
 
 /* The design system's description list is a fixed 180px term column plus the
@@ -4634,13 +5925,9 @@ h4,
   min-height: 44px;
 }
 
-/* The order queue's tabs and the nav's current screen carry the same weight,
-   and they say it differently on purpose: a tab is a filter that is selected,
-   and a nav item is the page you are reading. The second is an ARIA fact the
-   design system already styles — no `is-active` class beside it, because a
-   class and an attribute stating one thing are two places to disagree. */
-.goen-admin__tabs .is-active,
-.goen-admin__nav [aria-current="page"] {
+/* A tab is a filter that is selected. The nav's current screen says the same
+   thing in the rail's own terms and has its own rule up there. */
+.goen-admin__tabs .is-active {
   background: var(--accent-faint);
   border-color: var(--accent);
   color: var(--fg);
@@ -4662,8 +5949,72 @@ h4,
 
 @media (min-width: 1024px) {
   .goen-admin {
-    gap: 24px;
+    gap: 24px 32px;
     padding: 32px 32px 64px;
+  }
+
+  .goen-admin .ui-page-head__title {
+    font-size: var(--fs-ed-30);
+  }
+
+  .goen-admin__main {
+    gap: 24px;
+  }
+
+  /* The rail becomes a column beside the work, and only on a screen that has
+     wrapped its work in one element: it then shares that element's grid row,
+     so the row is as tall as the work rather than as tall as 23 links. The
+     shell writes that wrapper for every back-office screen now, so the test
+     here is really "does this page have a rail at all" — the step-up challenge
+     has none, and stays one column. */
+  .goen-admin:has(.goen-admin__main) {
+    grid-template-columns: 15rem minmax(0, 1fr);
+  }
+
+  /* It follows the page down rather than scrolling away from a queue somebody
+     is reading to the bottom. */
+  .goen-admin:has(.goen-admin__main) > .goen-admin__nav {
+    align-self: start;
+    background: none;
+    border: 0;
+    border-radius: 0;
+    border-right: 1px solid var(--border);
+    padding: 0 16px 0 0;
+    position: sticky;
+    top: 24px;
+  }
+
+  .goen-admin:has(.goen-admin__main) .goen-disclosure__summary {
+    display: none;
+  }
+
+  .goen-admin:has(.goen-admin__main) .goen-admin__navlist {
+    align-items: stretch;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 2px;
+  }
+
+  .goen-admin:has(.goen-admin__main) .goen-admin__navgroup[open] {
+    background: none;
+    display: block;
+    padding: 0;
+  }
+
+  .goen-admin:has(.goen-admin__main) .goen-admin__navitems {
+    align-items: stretch;
+    border-left: 1px solid var(--border);
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 2px;
+    margin: 2px 0 2px 16px;
+    padding-left: 8px;
+  }
+
+  .goen-admin:has(.goen-admin__main) .goen-admin__navback {
+    border-top: 1px solid var(--border);
+    margin-top: 8px;
+    padding-top: 8px;
   }
 
   .goen-admin__layout {
@@ -4879,145 +6230,58 @@ h4,
 
 
 
-/* Policy and FAQ documents. A single readable column — these are read, not
-   scanned, and a wide measure is the thing that makes a policy page feel
-   unreadable regardless of what it says. */
-.goen-doc {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  max-width: 68ch;
-  margin: 0 auto;
-  padding: 16px 16px 56px;
-}
-
-.goen-doc__section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.goen-doc__section p {
-  margin: 0;
-  font-size: var(--fs-14);
-  line-height: var(--lh-relaxed);
-  color: var(--fg-muted);
-}
-
-/* A section describing what has NOT been decided reads differently from one
-   describing a rule. A reader must be able to tell a promise from a gap, and a
-   shop that sets both in the same typeface is making a promise by accident. */
-.goen-doc__section.is-pending {
-  padding: 16px;
-  background: var(--panel);
-  border-left: 3px solid var(--border);
-  border-radius: var(--r-sm);
-}
-
-.goen-doc__qa {
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border-faint);
-}
-
-.goen-doc__qa summary {
-  cursor: pointer;
-  font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
-  color: var(--fg);
-  min-height: 32px;
-}
-
-.goen-doc__qa p {
-  margin: 8px 0 0;
-}
-
-.goen-doc__methods {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-}
-
-.goen-doc__method {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border-faint);
-}
-
-.goen-doc__methodname,
-.goen-doc__methodfee {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: var(--fs-14);
-  color: var(--fg);
-}
-
-.goen-doc__methodfee {
-  text-align: right;
-}
-
-.goen-doc__contact {
-  margin: 0;
-  font-size: var(--fs-13);
-  color: var(--fg-subtle);
-}
-
-@media (min-width: 768px) {
-  .goen-doc {
-    padding: 32px 24px 72px;
-  }
-}
 
 /* The audit trail. Dense on purpose — it is read by scanning for one row, not
    by reading every row. */
 .goen-admin__audit {
-  margin: 0;
-  padding: 0;
-  list-style: none;
   display: flex;
   flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .goen-admin__auditrow {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: var(--r-md);
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 12px 0 12px 12px;
-  border-bottom: 1px solid var(--border-faint);
-  border-left: 3px solid transparent;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 16px;
 }
 
-/* Money and stock get a marked edge: those are the rows somebody investigating
-   an inconsistency is looking for, and a trail where every row looks alike is
-   one they have to read in full. */
+/* Money moved. The row is marked so a reader scanning for it does not read
+   forty lines of catalogue edits first. */
 .goen-admin__auditrow.is-money {
   border-left-color: var(--accent);
 }
 
 .goen-admin__audithead {
-  display: flex;
   align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   justify-content: space-between;
-  gap: 16px;
 }
 
 .goen-admin__auditaction {
-  font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
   color: var(--fg);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
 }
 
 .goen-admin__auditdetail {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: var(--fs-12);
-  color: var(--fg-subtle);
-  overflow-x: auto;
-  white-space: pre;
+  background: var(--elevated);
+  border-radius: var(--r-sm);
+  color: var(--fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  overflow-wrap: anywhere;
+  padding: 6px 8px;
 }
 
 /* The product's image strip in the back office. Fixed-size thumbnails so a
@@ -5103,58 +6367,6 @@ h4,
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: var(--fs-20);
   letter-spacing: 0.25em;
-}
-
-/* Registered warranties and the lines that can still be registered. One column
-   of cards: each entry is read, not compared against its neighbours, so a table
-   would make a customer scan across for the one date they came for. */
-.goen-warranty {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.goen-warranty__item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 16px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-}
-
-/* Expired cover stays visible and reads as past: hiding it would leave a
-   customer wondering whether they ever registered. */
-.goen-warranty__item.is-expired {
-  color: var(--fg-subtle);
-  background: none;
-}
-
-.goen-warranty__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.goen-warranty__name {
-  font-family: var(--font-display);
-  font-size: var(--fs-14);
-  font-weight: var(--fw-semibold);
-  color: var(--fg);
-}
-
-.goen-warranty__form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 8px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-faint);
 }
 
 
@@ -5306,15 +6518,6 @@ h4,
   max-width: 60ch;
 }
 
-.goen-qa__form .ui-input,
-.goen-qa__form .ui-btn {
-  min-height: 44px;
-}
-
-.goen-account .ui-page-head .ui-btn {
-  min-height: 44px;
-}
-
 /* The question queue. A waiting question is marked at the edge so the list can
    be scanned for work rather than read. */
 .goen-admin__questions {
@@ -5345,118 +6548,50 @@ h4,
    attention — the page is opened to find out whether anything is wrong, so the
    answer has to be visible without reading. */
 .goen-health {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  list-style: none;
   margin: 0;
   padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
 }
 
 .goen-health__item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 16px;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-left: 3px solid transparent;
   border-radius: var(--r-md);
+  box-shadow: var(--shadow-1);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 16px;
 }
 
+/* A worker that has stopped is a shop that looks fine and is not. The badge
+   beside the name says the same thing, because a state told only by a border
+   colour is a state somebody cannot read. */
 .goen-health__item.is-bad {
-  border-left-color: var(--accent);
+  border-color: var(--warn);
+}
+
+.goen-health__head {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
 }
 
 .goen-health__name {
-  font-family: var(--font-display);
+  color: var(--fg);
   font-size: var(--fs-14);
   font-weight: var(--fw-semibold);
-  color: var(--fg);
 }
 
 .goen-health__state {
-  font-size: var(--fs-14);
   color: var(--fg);
+  font-size: var(--fs-13);
   font-variant-numeric: tabular-nums;
-}
-
-/* The points ledger. The signed amount leads, because a ledger is read down
-   that column. */
-.goen-points {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-}
-
-.goen-points__item {
-  display: grid;
-  grid-template-columns: 5ch 1fr;
-  gap: 2px 16px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border-faint);
-}
-
-.goen-points__item.is-expired {
-  color: var(--fg-subtle);
-}
-
-.goen-points__amount {
-  grid-row: span 2;
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-semibold);
-  color: var(--fg-muted);
-}
-
-.goen-points__amount.is-earned {
-  color: var(--fg);
-}
-
-.goen-points__what {
-  font-size: var(--fs-14);
-  color: var(--fg);
-}
-
-/* The account's own navigation. Cards rather than a list of links, because
-   each one needs a line explaining what it is for — "保固登錄" alone does not
-   tell somebody whether they need it. */
-.goen-account__nav {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
-}
-
-.goen-account__navitem {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-height: 44px;
-  padding: 16px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  text-decoration: none;
-}
-
-.goen-account__navname {
-  font-family: var(--font-display);
-  font-size: var(--fs-14);
-  font-weight: var(--fw-semibold);
-  color: var(--fg);
-}
-
-@media (min-width: 768px) {
-  .goen-account__nav {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1024px) {
-  .goen-account__nav {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
 }
 
 .goen-order__cancel {
@@ -5465,12 +6600,6 @@ h4,
   gap: 10px;
   flex-wrap: wrap;
   margin: 0 0 4px;
-}
-
-.goen-account__addractions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
 }
 
 .goen-admin__returnlines {
@@ -5504,17 +6633,6 @@ h4,
 .goen-admin__row .ui-field {
   flex: 1 1 160px;
   min-width: 0;
-}
-
-.goen-account__standing {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  background: var(--surface-2);
 }
 
 .goen-admin__library {

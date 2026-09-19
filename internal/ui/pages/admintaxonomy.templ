@@ -10,29 +10,26 @@ import (
 
 // AdminTaxonomy renders the brands and the category tree with their forms.
 templ AdminTaxonomy(p layouts.Page, v *AdminTaxonomyView) {
-	@layouts.Base(p) {
-		<div class="goen-admin">
-			@adminNav("taxonomy")
-			<div class="ui-page-head">
-				<div>
-					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
-					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageTaxonomy) }</h1>
-					<p class="ui-page-head__sub">
-						{ i18n.T(ctx, i18n.KeyAdminTaxLead) }
-					</p>
-				</div>
+	@layouts.Admin(p, "taxonomy") {
+		<div class="ui-page-head">
+			<div>
+				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+				<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageTaxonomy) }</h1>
+				<p class="ui-page-head__sub">
+					{ i18n.T(ctx, i18n.KeyAdminTaxLead) }
+				</p>
 			</div>
-			if v.Notice != "" {
-				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
-			}
-			<div class="goen-admin__productlayout">
-				@taxonForm("brands", i18n.KeyAdminTaxNewBrand, v)
-				@taxonList("brands", i18n.KeyAdminTaxBrands, i18n.KeyAdminTaxNoBrands, v.Brands, v)
-			</div>
-			<div class="goen-admin__productlayout">
-				@taxonForm("categories", i18n.KeyAdminTaxNewCategory, v)
-				@taxonList("categories", i18n.KeyAdminTaxCategories, i18n.KeyAdminTaxNoCategories, v.Categories, v)
-			</div>
+		</div>
+		if v.Notice != "" {
+			<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+		}
+		<div class="goen-admin__productlayout">
+			@taxonForm("brands", i18n.KeyAdminTaxNewBrand, v)
+			@taxonList("brands", i18n.KeyAdminTaxBrands, i18n.KeyAdminTaxNoBrands, v.Brands, v)
+		</div>
+		<div class="goen-admin__productlayout">
+			@taxonForm("categories", i18n.KeyAdminTaxNewCategory, v)
+			@taxonList("categories", i18n.KeyAdminTaxCategories, i18n.KeyAdminTaxNoCategories, v.Categories, v)
 		</div>
 	}
 }

@@ -87,6 +87,17 @@ func (s *Store) Dashboard(ctx context.Context) (pages.AdminDashboardView, error)
 		OpenMessages:   sum.OpenMessages,
 	}
 
+	// No status: the newest orders whatever state they are in. The tiles above
+	// the queue already count each state, and a queue filtered to one of them
+	// hides the order somebody is standing at the counter asking about.
+	recent, err := s.q.AdminOrders(ctx, db.AdminOrdersParams{RowLimit: DashboardRows})
+	if err != nil {
+		return pages.AdminDashboardView{}, fmt.Errorf("read recent orders: %w", err)
+	}
+	for i := range recent {
+		view.Recent = append(view.Recent, orderRow(ctx, &recent[i]))
+	}
+
 	low, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{LowOnly: true, RowLimit: 10})
 	if err != nil {
 		return pages.AdminDashboardView{}, fmt.Errorf("read low stock: %w", err)
@@ -95,6 +106,26 @@ func (s *Store) Dashboard(ctx context.Context) (pages.AdminDashboardView, error)
 		view.Low = append(view.Low, variantRow(&low[i]))
 	}
 	return view, nil
+}
+
+// DashboardRows is how much of the order queue the landing page shows. It is a
+// glance and not the queue itself: the heading beside it links to all of them.
+const DashboardRows = 8
+
+// orderRow is one order as both the queue and the landing page render it. The
+// total is assembled here rather than in the query because the storefront's
+// own order view computes it the same way from the same four columns.
+func orderRow(ctx context.Context, o *db.AdminOrdersRow) pages.AdminOrderRow {
+	fulfillment := pages.FulfillmentStatus(o.FulfillmentStatus)
+	return pages.AdminOrderRow{
+		Number:     o.OrderNumber,
+		Status:     fulfillment,
+		StatusText: FundedStatusLabel(ctx, fulfillment, o.Committed, o.OwedCents),
+		PlacedAt:   shoptime.Minute(o.PlacedAt),
+		Recipient:  o.Recipient,
+		TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
+		Committed:  o.Committed,
+	}
 }
 
 // Orders reads the order queue.
@@ -151,17 +182,7 @@ func (s *Store) Orders(ctx context.Context, status pages.FulfillmentStatus, term
 		})
 	}
 	for i := range rows {
-		o := &rows[i]
-		fulfillment := pages.FulfillmentStatus(o.FulfillmentStatus)
-		view.Orders = append(view.Orders, pages.AdminOrderRow{
-			Number:     o.OrderNumber,
-			Status:     fulfillment,
-			StatusText: FundedStatusLabel(ctx, fulfillment, o.Committed, o.OwedCents),
-			PlacedAt:   shoptime.Minute(o.PlacedAt),
-			Recipient:  o.Recipient,
-			TotalCents: o.SubtotalCents - o.DiscountCents + o.ShippingCents + o.TaxCents,
-			Committed:  o.Committed,
-		})
+		view.Orders = append(view.Orders, orderRow(ctx, &rows[i]))
 	}
 	return view, nil
 }

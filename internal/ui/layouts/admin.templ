@@ -1,0 +1,317 @@
+package layouts
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/icons"
+)
+
+// Admin is the back office's document shell. It shares the head with [Base] and
+// nothing else: the storefront chrome is a shopper's tools — a category row, a
+// product search, a wishlist, a cart, a newsletter signup, policy columns — and
+// on a screen a staff member reads all day every one of them is a row of noise
+// between them and the queue. What replaces it is a slim bar that answers the
+// three questions the chrome is there for: where am I, how do I leave, how do I
+// sign out.
+//
+// It also owns the FRAME, and that is the fix for a rail that was on the left
+// of four screens and above the other nineteen. The two-column rule reaches the
+// rail through the element the work is wrapped in, so a screen that opened its
+// own .goen-admin and put its sections straight into it handed the grid extra
+// children and pushed the rail onto a row of its own. A page cannot get that
+// wrong if it never writes it: current names the screen, the shell renders the
+// rail and the column, and the page is only what goes inside them.
+//
+// An empty current is the screen that is not one of the 23 — the step-up
+// challenge, which is reached before the back office will answer — and it gets
+// the bar and nothing else, because every link in the rail would send a staff
+// member back to the challenge they are standing on.
+templ Admin(p Page, current string) {
+	<!DOCTYPE html>
+	<html lang={ i18n.FromContext(ctx).Tag() } class="theme-blue">
+		@documentHead(p)
+		<body class="goen-shell">
+			<a class="goen-skip" href="#main">{ i18n.T(ctx, i18n.KeySkipToContent) }</a>
+			@adminBar()
+			<main id="main">
+				if current == "" {
+					{ children... }
+				} else {
+					<div class="goen-admin">
+						@adminNav(current)
+						<div class="goen-admin__main">
+							{ children... }
+						</div>
+					</div>
+				}
+			</main>
+			<footer class="goen-adminfoot">
+				// i18n-exempt: a company registration line: a legal name and a tax number.
+				<span class="goen-adminfoot__copyright">© 2026 goen Co., Ltd. 統編 90123456</span>
+			</footer>
+		</body>
+	</html>
+}
+
+// adminBar is the back office's top bar.
+//
+// It carries no page navigation: the 23 screens are the rail inside the page,
+// and a second route into them here would be a second list to keep current.
+// The mark links to the dashboard, which is what a brand mark in a back office
+// is for.
+templ adminBar() {
+	<header class="goen-adminbar">
+		<div class="goen-adminbar__inner">
+			<a class="goen-adminbar__brand" href="/admin">
+				@icons.Mark("goen-adminbar__mark")
+				<span class="goen-adminbar__wordmark">goen</span>
+				<span class="goen-adminbar__tag">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</span>
+			</a>
+			<div class="goen-adminbar__actions">
+				<a class="goen-adminbar__link" href="/">{ i18n.T(ctx, i18n.KeyBackToShop) }</a>
+				// i18n-exempt: a language's own name, shown in both locales on purpose.
+				@languageSwitch("goen-adminbar__lang", "繁中", "EN")
+				<form method="post" action="/signout">
+					@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+						{ i18n.T(ctx, i18n.KeySignOut) }
+					}
+				</form>
+			</div>
+		</div>
+	</header>
+}
+
+// adminNav is the back office's own navigation: 23 screens, grouped by the
+// QUESTION each one answers rather than listed. Flat, they were 24 labels in
+// one row and finding a screen meant reading all of them.
+//
+// It is a column beside the page from the wide breakpoint and a band above it
+// below one, which is one element and two stylesheets rather than two navs: a
+// second copy of 23 links is a second copy to keep current, and a screen
+// reader hears both.
+//
+// Every group is a native <details>, so the disclosure needs no script, and the
+// one holding the current screen is rendered `open` by the server — nothing
+// moves after the first byte. A closed group costs a keyboard user one key:
+// its <summary> is in the tab order and opens on Enter.
+//
+// They share a `name`, which is what makes them exclusive: opening one closes
+// the rest, so the nav is one band however much a staff member explores. A
+// browser that does not know the attribute opens several and the nav grows a
+// row, which is the whole of the degradation.
+templ adminNav(current string) {
+	@components.Disclosure(components.DisclosureProps{
+		Class:   "goen-admin__nav",
+		Summary: i18n.T(ctx, i18n.KeyAdminQueueNavLabel),
+	}) {
+		<nav class="goen-admin__navlist" aria-label={ i18n.T(ctx, i18n.KeyAdminQueueNavLabel) }>
+			<a
+				class="ui-navitem"
+				href="/admin"
+				if current == "dashboard" {
+					aria-current="page"
+				}
+			>{ i18n.T(ctx, i18n.KeyAdminQueueOverview) }</a>
+			<details
+				class="goen-admin__navgroup"
+				name="goen-admin-nav"
+				open?={ adminNavHolds(current, "orders", "returns", "questions", "messages", "reviews") }
+			>
+				<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavQueues) }</summary>
+				<div class="goen-admin__navitems">
+					<a
+						class="ui-navitem"
+						href="/admin/orders"
+						if current == "orders" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueOrders) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/returns"
+						if current == "returns" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueReturns) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/questions"
+						if current == "questions" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueQuestions) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/messages"
+						if current == "messages" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminPageMessages) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/reviews"
+						if current == "reviews" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueReviews) }</a>
+				</div>
+			</details>
+			<details
+				class="goen-admin__navgroup"
+				name="goen-admin-nav"
+				open?={ adminNavHolds(current, "products", "stock", "taxonomy", "campaigns", "coupons") }
+			>
+				<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavCatalogue) }</summary>
+				<div class="goen-admin__navitems">
+					<a
+						class="ui-navitem"
+						href="/admin/products"
+						if current == "products" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminPageProducts) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/stock"
+						if current == "stock" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueStock) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/taxonomy"
+						if current == "taxonomy" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueTaxonomy) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/campaigns"
+						if current == "campaigns" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueCampaigns) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/coupons"
+						if current == "coupons" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminPageCoupons) }</a>
+				</div>
+			</details>
+			<details
+				class="goen-admin__navgroup"
+				name="goen-admin-nav"
+				open?={ adminNavHolds(current, "customers", "credit", "tiers", "warranty", "newsletter") }
+			>
+				<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavCustomers) }</summary>
+				<div class="goen-admin__navitems">
+					<a
+						class="ui-navitem"
+						href="/admin/customers"
+						if current == "customers" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminPageCustomers) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/credit"
+						if current == "credit" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueCredit) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/tiers"
+						if current == "tiers" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminPageTiers) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/warranty"
+						if current == "warranty" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueWarranty) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/newsletter"
+						if current == "newsletter" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminPageNewsletter) }</a>
+				</div>
+			</details>
+			<details
+				class="goen-admin__navgroup"
+				name="goen-admin-nav"
+				open?={ adminNavHolds(current, "shipping", "home", "faq", "staff") }
+			>
+				<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavShop) }</summary>
+				<div class="goen-admin__navitems">
+					<a
+						class="ui-navitem"
+						href="/admin/shipping"
+						if current == "shipping" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueShipping) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/home"
+						if current == "home" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueHomePage) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/faq"
+						if current == "faq" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminPageFAQ) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/staff"
+						if current == "staff" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueStaff) }</a>
+				</div>
+			</details>
+			<details
+				class="goen-admin__navgroup"
+				name="goen-admin-nav"
+				open?={ adminNavHolds(current, "reports", "audit", "health") }
+			>
+				<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavRecords) }</summary>
+				<div class="goen-admin__navitems">
+					<a
+						class="ui-navitem"
+						href="/admin/reports"
+						if current == "reports" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminPageReports) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/audit"
+						if current == "audit" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminPageAudit) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/health"
+						if current == "health" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminPageHealth) }</a>
+				</div>
+			</details>
+			<a class="ui-navitem goen-admin__navback" href="/">{ i18n.T(ctx, i18n.KeyBackToShop) }</a>
+		</nav>
+	}
+}

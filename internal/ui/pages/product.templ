@@ -189,12 +189,32 @@ templ productBuy(v *ProductView) {
 				</legend>
 				<div class={ "goen-pdp__values", templ.KV("goen-pdp__values--swatches", o.HasSwatches()) }>
 					for _, val := range o.Values {
+						// Still a link, and still the whole answer with scripting
+						// off: the href navigates, the URL carries the choice, and
+						// the server renders the page it always did. The hx-
+						// attributes ask for that same URL and keep only the part
+						// that changes, so there is no second server path to keep
+						// in step with the first.
+						//
+						// What changes is the buy column and nothing else. The
+						// photography is per PRODUCT — product_images has no
+						// variant column — so the gallery the server sends for one
+						// colour is the gallery it sends for every other, byte for
+						// byte, and a test holds that. Selecting it into the swap
+						// would destroy the <img> and build an identical one, which
+						// is a fetch, a decode and an empty frame in between for a
+						// picture that did not change. It is left alone instead.
 						<a
 							class={ "goen-swatch",
 								templ.KV("goen-swatch--dot", o.HasSwatches()),
 								templ.KV("goen-swatch--on", val.Selected),
 								templ.KV("goen-swatch--out", !val.Available) }
 							href={ templ.URL(val.Href) }
+							hx-get={ val.Href }
+							hx-select="#buybox"
+							hx-target="#buybox"
+							hx-swap="outerHTML"
+							hx-push-url="true"
 							if val.Selected {
 								aria-current="true"
 							}
@@ -294,7 +314,28 @@ templ productBuy(v *ProductView) {
 // puts them on one row.
 templ productAddForm(v *ProductView) {
 	<div class="goen-pdp__actions">
-		<form class="goen-pdp__form" method="post" action="/cart/items">
+		// Still a form, still a POST, still /cart/items, and with scripting off
+		// nothing below this line exists: the browser posts, the server answers
+		// 303 and the visitor lands on the product page with the notice on it.
+		//
+		// With script, the same POST goes through htmx and the answer is used
+		// rather than navigated to. There is no second server path: the 303 is
+		// followed, the page that comes back is the page a reload would give,
+		// and hx-select takes the buy column out of it. hx-select-oob names the
+		// header's cart link in that same response, so the count and the link's
+		// accessible name change from the document the server just rendered
+		// instead of from a number this page would have to keep.
+		<form
+			class="goen-pdp__form"
+			method="post"
+			action="/cart/items"
+			hx-post="/cart/items"
+			hx-target="#buybox"
+			hx-swap="outerHTML"
+			hx-select="#buybox"
+			hx-select-oob="#cart-link"
+			hx-push-url="true"
+		>
 			<input type="hidden" name="variant" value={ v.VariantID }/>
 			<input type="hidden" name="back" value={ v.Slug }/>
 			<div class="goen-pdp__buyrow">

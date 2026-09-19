@@ -97,13 +97,21 @@ templ Header(p Page) {
 	</header>
 }
 
+// cartLink carries an id because adding to the cart from a product page
+// replaces this element out of band, out of the same response the buy column
+// comes from. The whole link is the unit and not the number inside it: the
+// count appears and disappears, and the accessible name says how many are in
+// there, so swapping the number alone would leave the sentence behind.
 templ cartLink() {
 	{{ count := web.CartCount(ctx) }}
 	@components.ButtonLink(components.ButtonProps{
 		Variant: components.VariantGhost,
 		Icon:    true,
 		Class:   "goen-header__cart",
-		Attrs:   templ.Attributes{"aria-label": cartLabel(ctx, count)},
+		Attrs: templ.Attributes{
+			"aria-label": cartLabel(ctx, count),
+			"id":         "cart-link",
+		},
 	}, templ.SafeURL("/cart")) {
 		@icons.Cart()
 		if count > 0 {

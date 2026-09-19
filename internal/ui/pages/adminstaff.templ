@@ -4,104 +4,142 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 // AdminStaff renders who can reach the back office, and who is protected.
+//
+// Each row's two writes are two forms of one field each, so revoking somebody
+// carries their id and nothing else: a single form with a name attribute per
+// button would let a browser that submits the wrong one act on the wrong
+// person.
 templ AdminStaff(p layouts.Page, v AdminStaffView) {
-	@layouts.Base(p) {
-		<div class="goen-admin">
-			@adminNav("staff")
-			<div class="ui-page-head">
-				<div>
-					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
-					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageStaff) }</h1>
-					<p class="ui-page-head__sub">
-						{ i18n.T(ctx, i18n.KeyAdminStaffLead) }
-					</p>
-				</div>
-			</div>
-			if v.Notice != "" {
-				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
-			}
-			if !v.AllProtected() {
-				<p class="ui-alert ui-alert--error" role="alert">
-					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminStaffUnprotected), v.UnprotectedText()) }
+	@layouts.Admin(p, "staff") {
+		<div class="ui-page-head">
+			<div>
+				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+				<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminPageStaff) }</h1>
+				<p class="ui-page-head__sub">
+					{ i18n.T(ctx, i18n.KeyAdminStaffLead) }
 				</p>
-			}
-			<div class="goen-admin__tablewrap">
-				<table class="ui-table goen-admin__table">
-					<thead>
-						<tr>
-							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColPerson) }</th>
-							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColRole) }</th>
-							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColTwoFa) }</th>
-							<th scope="col"></th>
-						</tr>
-					</thead>
-					<tbody>
-						for _, r := range v.Rows {
-							<tr>
-								<td>
-									{ r.DisplayName() }
-									<span class="ui-cart-line__meta">{ r.Email }</span>
-								</td>
-								<td>{ r.Role.Label(ctx) }</td>
-								<td>
-									if r.Enrolled {
-										<span class="ui-badge ui-badge--brand">{ r.State(ctx) }</span>
-									} else {
-										<span class="ui-badge ui-badge--warn">{ r.State(ctx) }</span>
-									}
-								</td>
-								<td>
-									if v.IsActor(r) {
-										<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyAdminStaffYou) }</span>
-									} else {
-										<div class="goen-admin__addractions">
-											if r.Enrolled {
-												<form method="post" action="/admin/staff/factor">
-													<input type="hidden" name="user" value={ r.ID }/>
-													<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminStaffDropFa) }</button>
-												</form>
-											}
-											<form method="post" action="/admin/staff/revoke">
-												<input type="hidden" name="user" value={ r.ID }/>
-												<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminStaffRevoke) }</button>
-											</form>
-										</div>
-									}
-								</td>
-							</tr>
-						}
-					</tbody>
-				</table>
 			</div>
+		</div>
+		if v.Notice != "" {
+			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+				{ v.Notice }
+			}
+		}
+		if !v.AllProtected() {
+			@components.Notice(components.NoticeProps{Tone: components.ToneDanger}) {
+				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminStaffUnprotected), v.UnprotectedText()) }
+			}
+		}
+		<div class="goen-admin__tablewrap">
+			<table class="ui-table goen-admin__table">
+				<thead>
+					<tr>
+						<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColPerson) }</th>
+						<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColRole) }</th>
+						<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColTwoFa) }</th>
+						<th class="goen-admin__cellactions" scope="col">
+							<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminColActions) }</span>
+						</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, r := range v.Rows {
+						<tr>
+							<td class="goen-admin__cellkey">
+								{ r.DisplayName() }
+								<span class="goen-admin__meta">{ r.Email }</span>
+							</td>
+							<td>{ r.Role.Label(ctx) }</td>
+							<td>
+								if r.Enrolled {
+									@components.Badge(components.BadgeProps{Tone: components.ToneAccent}) {
+										{ r.State(ctx) }
+									}
+								} else {
+									@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+										{ r.State(ctx) }
+									}
+								}
+							</td>
+							<td class="goen-admin__cellactions">
+								if v.IsActor(r) {
+									<span class="goen-admin__meta">{ i18n.T(ctx, i18n.KeyAdminStaffYou) }</span>
+								} else {
+									if r.Enrolled {
+										<form method="post" action="/admin/staff/factor">
+											<input type="hidden" name="user" value={ r.ID }/>
+											@components.Button(components.ButtonProps{
+												Variant: components.VariantOutline,
+												Size:    components.SizeSmall,
+											}, "submit") {
+												{ i18n.T(ctx, i18n.KeyAdminStaffDropFa) }
+											}
+										</form>
+									}
+									<form method="post" action="/admin/staff/revoke">
+										<input type="hidden" name="user" value={ r.ID }/>
+										@components.Button(components.ButtonProps{
+											Variant: components.VariantOutline,
+											Size:    components.SizeSmall,
+										}, "submit") {
+											{ i18n.T(ctx, i18n.KeyAdminStaffRevoke) }
+										}
+									</form>
+								}
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+		@components.Card(components.CardProps{Class: "goen-admin__add"}) {
 			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminStaffAdd) }</h2>
 			<p class="goen-admin__hint">
 				{ i18n.T(ctx, i18n.KeyAdminStaffAddLead) }
 			</p>
 			<form class="goen-admin__form" method="post" action="/admin/staff">
-				<div class="goen-admin__row">
-					<div class="ui-field">
-						<label class="ui-label" for="staff-email">{ i18n.T(ctx, i18n.KeyAdminStaffEmail) }</label>
-						<input class="ui-input" id="staff-email" name="email" type="email" required maxlength="254"/>
+				<div class="goen-admin__fields">
+					<div class="goen-admin__field">
+						@components.Label(components.LabelProps{For: "staff-email"}) {
+							{ i18n.T(ctx, i18n.KeyAdminStaffEmail) }
+						}
+						@components.Input(components.FieldProps{
+							ID:    "staff-email",
+							Name:  "email",
+							Type:  "email",
+							Attrs: templ.Attributes{"required": true, "maxlength": "254"},
+						})
 					</div>
-					<div class="ui-field">
-						<label class="ui-label" for="staff-name">{ i18n.T(ctx, i18n.KeyAdminStaffName) }</label>
-						<input class="ui-input" id="staff-name" name="name" maxlength="60"/>
+					<div class="goen-admin__field">
+						@components.Label(components.LabelProps{For: "staff-name"}) {
+							{ i18n.T(ctx, i18n.KeyAdminStaffName) }
+						}
+						@components.Input(components.FieldProps{
+							ID:    "staff-name",
+							Name:  "name",
+							Attrs: templ.Attributes{"maxlength": "60"},
+						})
 					</div>
-					<div class="ui-field">
-						<label class="ui-label" for="staff-role">{ i18n.T(ctx, i18n.KeyAdminColRole) }</label>
-						<select class="ui-select" id="staff-role" name="role" required>
+					<div class="goen-admin__field">
+						@components.Label(components.LabelProps{For: "staff-role"}) {
+							{ i18n.T(ctx, i18n.KeyAdminColRole) }
+						}
+						<select class="goen-input" id="staff-role" name="role" required>
 							for _, role := range v.Roles {
 								<option value={ string(role) }>{ role.Label(ctx) }</option>
 							}
 						</select>
 					</div>
 				</div>
-				<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminAddButton) }</button>
+				@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Class: "goen-admin__submit"}, "submit") {
+					{ i18n.T(ctx, i18n.KeyAdminAddButton) }
+				}
 			</form>
-		</div>
+		}
 	}
 }

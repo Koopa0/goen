@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -14,61 +15,73 @@ templ SignIn(p layouts.Page, v AuthView) {
 			<div class="goen-auth__panel">
 				<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeySignIn) }</h1>
 				if v.HasNotice() {
-					<p class="ui-alert ui-alert--success" role="status">{ v.Notice }</p>
+					@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+						{ v.Notice }
+					}
 				}
 				if v.HasErr("form") {
-					<p class="ui-alert ui-alert--error" role="alert" id="signin-error">{ v.Err("form") }</p>
+					// Written here rather than through the notice component: a guard
+					// reads role="alert" out of this source to know the refusal is
+					// announced (internal/ui/pages/aria_test.go:122).
+					<p class="goen-notice goen-notice--danger" id="signin-error" role="alert">{ v.Err("form") }</p>
 				}
 				<form class="goen-auth__form" method="post" action="/signin">
 					<input type="hidden" name="next" value={ v.Next }/>
-					<div class="ui-field">
-						<label class="ui-label" for="email">{ i18n.T(ctx, i18n.KeyFieldEmail) }</label>
-						<input
-							class="ui-input"
-							id="email"
-							type="email"
-							name="email"
-							value={ v.Email }
-							required
-							autocomplete="email"
-							autofocus
-							aria-invalid={ v.Invalid("email") }
-							if v.HasErr("form") {
-								aria-describedby="signin-error"
-							}
-						/>
+					<div class="goen-field">
+						@components.Label(components.LabelProps{For: "email"}) {
+							{ i18n.T(ctx, i18n.KeyFieldEmail) }
+						}
+						@components.Input(components.FieldProps{
+							ID:        "email",
+							Name:      "email",
+							Type:      "email",
+							Value:     v.Email,
+							Invalid:   v.HasErr("form"),
+							Describes: "signin-error",
+							Attrs: templ.Attributes{
+								"autocomplete": "email",
+								"autofocus":    true,
+								"required":     true,
+							},
+						})
 					</div>
-					<div class="ui-field">
-						<label class="ui-label" for="password">{ i18n.T(ctx, i18n.KeyFieldPassword) }</label>
-						<input
-							class="ui-input"
-							id="password"
-							type="password"
-							name="password"
-							required
-							autocomplete="current-password"
-							aria-invalid={ v.Invalid("password") }
-							if v.HasErr("form") {
-								aria-describedby="signin-error"
+					<div class="goen-field">
+						<div class="goen-auth__labelrow">
+							@components.Label(components.LabelProps{For: "password"}) {
+								{ i18n.T(ctx, i18n.KeyFieldPassword) }
 							}
-						/>
+							<a class="goen-auth__forgot" href="/forgot">{ i18n.T(ctx, i18n.KeyForgotPassword) }</a>
+						</div>
+						@components.Input(components.FieldProps{
+							ID:        "password",
+							Name:      "password",
+							Type:      "password",
+							Invalid:   v.HasErr("form"),
+							Describes: "signin-error",
+							Attrs: templ.Attributes{
+								"autocomplete": "current-password",
+								"required":     true,
+							},
+						})
 					</div>
-					<button class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block goen-auth__submit" type="submit">
+					@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge, Block: true}, "submit") {
 						{ i18n.T(ctx, i18n.KeySignIn) }
-					</button>
+					}
 				</form>
 				if v.GoogleSignIn {
-					<div class="goen-auth__alt">
-						<a class="ui-btn ui-btn--secondary ui-btn--block goen-auth__oauth" href={ templ.SafeURL(v.GoogleLink()) }>
-							{ i18n.T(ctx, i18n.KeySignInWithGoogle) }
-						</a>
-					</div>
+					<hr class="goen-auth__divider"/>
+					@components.ButtonLink(components.ButtonProps{
+						Variant: components.VariantOutline,
+						Size:    components.SizeLarge,
+						Block:   true,
+						Class:   "goen-auth__oauth",
+					}, templ.SafeURL(v.GoogleLink())) {
+						{ i18n.T(ctx, i18n.KeySignInWithGoogle) }
+					}
 				}
 				<p class="goen-auth__alt">
-					{ i18n.T(ctx, i18n.KeyNoAccountYet) }<a href="/register">{ i18n.T(ctx, i18n.KeyNoAccountLink) }</a>
-				</p>
-				<p class="goen-auth__alt">
-					<a href="/forgot">{ i18n.T(ctx, i18n.KeyForgotPassword) }</a>
+					{ i18n.T(ctx, i18n.KeyNoAccountYet) }
+					<a href="/register">{ i18n.T(ctx, i18n.KeyNoAccountLink) }</a>
 				</p>
 			</div>
 		</div>
@@ -79,98 +92,103 @@ templ SignIn(p layouts.Page, v AuthView) {
 templ Register(p layouts.Page, v AuthView) {
 	@layouts.Base(p) {
 		<div class="goen-auth">
-			<div class="goen-auth__panel">
+			<div class="goen-auth__panel goen-auth__panel--wide">
 				<h1 class="goen-auth__title">{ i18n.T(ctx, i18n.KeyCreateAccount) }</h1>
 				if v.AnyErrors() {
-					<p class="ui-alert ui-alert--error" role="alert">{ i18n.T(ctx, i18n.KeyFormHasErrors) }</p>
+					@components.Notice(components.NoticeProps{Tone: components.ToneDanger}) {
+						{ i18n.T(ctx, i18n.KeyFormHasErrors) }
+					}
 				}
 				<form class="goen-auth__form" method="post" action="/register">
 					<input type="hidden" name="next" value={ v.Next }/>
-					<div class="ui-field">
-						<label class="ui-label" for="email">{ i18n.T(ctx, i18n.KeyFieldEmail) }</label>
-						<input
-							class="ui-input"
-							id="email"
-							type="email"
-							name="email"
-							value={ v.Email }
-							required
-							autocomplete="email"
-							autofocus
-							aria-invalid={ v.Invalid("email") }
-							if v.HasErr("email") {
-								aria-describedby="email-error"
-							}
-						/>
+					<div class="goen-field">
+						@components.Label(components.LabelProps{For: "email"}) {
+							{ i18n.T(ctx, i18n.KeyFieldEmail) }
+						}
+						@components.Input(components.FieldProps{
+							ID:        "email",
+							Name:      "email",
+							Type:      "email",
+							Value:     v.Email,
+							Invalid:   v.HasErr("email"),
+							Describes: "email-error",
+							Attrs: templ.Attributes{
+								"autocomplete": "email",
+								"autofocus":    true,
+								"required":     true,
+							},
+						})
 						if v.HasErr("email") {
-							<p class="ui-error-text" id="email-error">{ v.Err("email") }</p>
+							<p class="ui-error-text" id="email-error" role="alert">{ v.Err("email") }</p>
 						}
 					</div>
-					<div class="ui-field">
-						<label class="ui-label" for="name">{ i18n.T(ctx, i18n.KeyFieldNameOpt) }</label>
-						<input
-							class="ui-input"
-							id="name"
-							type="text"
-							name="name"
-							value={ v.Name }
-							maxlength="60"
-							autocomplete="name"
-							aria-invalid={ v.Invalid("name") }
-							if v.HasErr("name") {
-								aria-describedby="name-error"
-							}
-						/>
+					<div class="goen-field">
+						@components.Label(components.LabelProps{For: "name"}) {
+							{ i18n.T(ctx, i18n.KeyFieldNameOpt) }
+						}
+						@components.Input(components.FieldProps{
+							ID:        "name",
+							Name:      "name",
+							Type:      "text",
+							Value:     v.Name,
+							Invalid:   v.HasErr("name"),
+							Describes: "name-error",
+							Attrs: templ.Attributes{
+								"autocomplete": "name",
+								"maxlength":    "60",
+							},
+						})
 						if v.HasErr("name") {
-							<p class="ui-error-text" id="name-error">{ v.Err("name") }</p>
+							<p class="ui-error-text" id="name-error" role="alert">{ v.Err("name") }</p>
 						}
 					</div>
-					<div class="ui-field">
-						<label class="ui-label" for="password">{ i18n.T(ctx, i18n.KeyFieldPassword) }</label>
-						<input
-							class="ui-input"
-							id="password"
-							type="password"
-							name="password"
-							required
-							minlength="10"
-							autocomplete="new-password"
-							aria-invalid={ v.Invalid("password") }
-							if v.HasErr("password") {
-								aria-describedby="password-error password-hint"
-							} else {
-								aria-describedby="password-hint"
-							}
-						/>
-						<p class="ui-hint" id="password-hint">{ i18n.T(ctx, i18n.KeyPasswordHint) }</p>
+					<div class="goen-field">
+						@components.Label(components.LabelProps{For: "password"}) {
+							{ i18n.T(ctx, i18n.KeyFieldPassword) }
+						}
+						@components.Input(components.FieldProps{
+							ID:        "password",
+							Name:      "password",
+							Type:      "password",
+							Invalid:   v.HasErr("password"),
+							Describes: "password-error password-hint",
+							Attrs: templ.Attributes{
+								"autocomplete": "new-password",
+								"minlength":    "10",
+								"required":     true,
+							},
+						})
+						<p class="goen-auth__hint" id="password-hint">{ i18n.T(ctx, i18n.KeyPasswordHint) }</p>
 						if v.HasErr("password") {
-							<p class="ui-error-text" id="password-error">{ v.Err("password") }</p>
+							<p class="ui-error-text" id="password-error" role="alert">{ v.Err("password") }</p>
 						}
 					</div>
-					<div class="ui-field">
-						<label class="ui-label" for="confirm">{ i18n.T(ctx, i18n.KeyFieldConfirmPassword) }</label>
-						<input
-							class="ui-input"
-							id="confirm"
-							type="password"
-							name="confirm"
-							required
-							autocomplete="new-password"
-							aria-invalid={ v.Invalid("confirm") }
-							if v.HasErr("confirm") {
-								aria-describedby="confirm-error"
-							}
-						/>
+					<div class="goen-field">
+						@components.Label(components.LabelProps{For: "confirm"}) {
+							{ i18n.T(ctx, i18n.KeyFieldConfirmPassword) }
+						}
+						@components.Input(components.FieldProps{
+							ID:        "confirm",
+							Name:      "confirm",
+							Type:      "password",
+							Invalid:   v.HasErr("confirm"),
+							Describes: "confirm-error",
+							Attrs: templ.Attributes{
+								"autocomplete": "new-password",
+								"required":     true,
+							},
+						})
 						if v.HasErr("confirm") {
-							<p class="ui-error-text" id="confirm-error">{ v.Err("confirm") }</p>
+							<p class="ui-error-text" id="confirm-error" role="alert">{ v.Err("confirm") }</p>
 						}
 					</div>
-					<button class="ui-btn ui-btn--primary ui-btn--lg ui-btn--block goen-auth__submit" type="submit">
+					@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge, Block: true}, "submit") {
 						{ i18n.T(ctx, i18n.KeyCreateAccount) }
-					</button>
+					}
 				</form>
 				<p class="goen-auth__alt">
-					{ i18n.T(ctx, i18n.KeyHaveAccount) }<a href="/signin">{ i18n.T(ctx, i18n.KeySignIn) }</a>
+					{ i18n.T(ctx, i18n.KeyHaveAccount) }
+					<a href="/signin">{ i18n.T(ctx, i18n.KeySignIn) }</a>
 				</p>
 			</div>
 		</div>
@@ -181,145 +199,213 @@ templ Register(p layouts.Page, v AuthView) {
 templ CartRecovery(p layouts.Page, v CartRecoveryView) {
 	@layouts.Base(p) {
 		<div class="notice">
-			<h1 class="h2 notice__title">{ i18n.T(ctx, i18n.KeyCartMergeRecoveryTitle) }</h1>
-			<p class="ui-alert ui-alert--info notice__body" role="status">{ v.Notice }</p>
+			<h1 class="notice__title">{ i18n.T(ctx, i18n.KeyCartMergeRecoveryTitle) }</h1>
+			@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "cart-recovery", Class: "ui-alert--info notice__body"}) {
+				{ v.Notice }
+			}
 			<form class="notice__form" method="post" action="/account/cart/retry">
 				<input type="hidden" name="next" value={ v.Next }/>
-				<button class="ui-btn ui-btn--primary ui-btn--lg" type="submit">{ v.Retry }</button>
+				@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge, Block: true}, "submit") {
+					{ v.Retry }
+				}
 			</form>
-			<a class="notice__back body-sm" href={ templ.SafeURL(v.Next) }>{ i18n.T(ctx, i18n.KeyBackToShop) }</a>
+			@components.ButtonLink(components.ButtonProps{Variant: components.VariantGhost, Class: "notice__back"}, templ.SafeURL(v.Next)) {
+				{ i18n.T(ctx, i18n.KeyBackToShop) }
+			}
 		</div>
 	}
+}
+
+// accountNavItem is one row of the account nav: an in-page anchor to a section
+// of this page, or a link to a page of its own. A hint is what the page behind
+// the link holds; a section of this page needs none, because the section is
+// directly below.
+templ accountNavItem(href, label, hint string) {
+	<a class="goen-account__navitem" href={ templ.SafeURL(href) }>
+		<span class="goen-account__navname">{ label }</span>
+		if hint != "" {
+			<span class="goen-account__navhint">{ hint }</span>
+		}
+	</a>
 }
 
 // Account renders the account landing page.
 templ Account(p layouts.Page, v *AccountView) {
 	@layouts.Base(p) {
 		<div class="goen-account">
-			<div class="ui-page-head">
-				<div>
-					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAccountTitle) }</h1>
-					<p class="ui-page-head__sub">{ v.DisplayName() }</p>
+			<div class="goen-account__head ui-page-head">
+				<div class="goen-pagehead">
+					<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyAccountTitle) }</h1>
+					<p class="goen-pagehead__sub">{ v.DisplayName() }</p>
 				</div>
-				<div class="ui-page-head__actions">
-					<form method="post" action="/signout">
-						<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeySignOut) }</button>
-					</form>
-				</div>
+				<form class="goen-account__headactions" method="post" action="/signout">
+					@components.Button(components.ButtonProps{Variant: components.VariantOutline, Class: "ui-btn"}, "submit") {
+						{ i18n.T(ctx, i18n.KeySignOut) }
+					}
+				</form>
 			</div>
 			if v.HasNotice() {
-				<p class="ui-alert ui-alert--success" role="status">{ v.Notice }</p>
-			}
-			<section class="goen-account__standing" aria-labelledby="standing-heading">
-				<h2 id="standing-heading" class="goen-sr-only">{ i18n.T(ctx, i18n.KeyMembershipTier) }</h2>
-				if v.Standing.HasTier() {
-					<span class="ui-badge ui-badge--brand">{ v.Standing.TierName }</span>
-					<span class="ui-cart-line__meta">
-						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsMultiplier), v.Standing.Multiplier(ctx)) }
-					</span>
-				} else {
-					<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyNoTierYet) }</span>
+				@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "account-notice"}) {
+					{ v.Notice }
 				}
-				<span class="ui-cart-line__meta">
-					{ fmt.Sprintf(i18n.T(ctx, i18n.KeySpendLastYear), v.Standing.Spend()) }
-				</span>
-				if v.Standing.HasNext() {
-					<span class="ui-cart-line__meta">
-						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyNextTier), v.Standing.NextNeeds(), v.Standing.NextName) }
-					</span>
-				}
-			</section>
-			<nav class="goen-account__nav" aria-label={ i18n.T(ctx, i18n.KeyAccountNav) }>
-				<a class="goen-account__navitem" href="/account/points">
-					<span class="goen-account__navname">{ i18n.T(ctx, i18n.KeyLoyaltyPoints) }</span>
-					<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyLoyaltyPointsHint) }</span>
-				</a>
-				<a class="goen-account__navitem" href="/account/wishlist">
-					<span class="goen-account__navname">{ i18n.T(ctx, i18n.KeyWishlistTitle) }</span>
-					<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyWishlistHint) }</span>
-				</a>
-				<a class="goen-account__navitem" href="/account/warranty">
-					<span class="goen-account__navname">{ i18n.T(ctx, i18n.KeyWarrantyTitle) }</span>
-					<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyWarrantyHint) }</span>
-				</a>
-				if layouts.IsStaff(ctx) {
-					<a class="goen-account__navitem" href="/admin">
-						<span class="goen-account__navname">{ i18n.T(ctx, i18n.KeyBackOffice) }</span>
-						<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyBackOfficeHint) }</span>
-					</a>
-				}
-			</nav>
-			if v.HasCredit() {
-				<div class="ui-callout ui-callout--note goen-account__credit">
-					<span class="ui-callout__label">{ i18n.T(ctx, i18n.KeyStoreCredit) }</span>
-					<span class="ui-callout__body">{ v.Credit() }</span>
-				</div>
 			}
 			<div class="goen-account__layout">
-				<section class="goen-account__section" aria-labelledby="orders-heading">
-					<h2 id="orders-heading" class="goen-account__heading">{ i18n.T(ctx, i18n.KeyOrderHistory2) }</h2>
-					if v.HasOrders() {
-						<ul class="goen-account__orders" role="list">
-							for _, o := range v.Orders {
-								<li class="goen-account__order">
-									<div>
-										<a class="goen-account__number" href={ templ.URL("/orders/" + o.Number) }>
-											{ o.Number }
-										</a>
-										<span class="ui-cart-line__meta">
-											{ o.PlacedAt } · { fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderLineCount), o.LineCountText()) }
-										</span>
-									</div>
-									<div class="goen-account__ordermeta">
-										<span class="ui-badge">{ o.StatusText(ctx) }</span>
-										<span class="ui-cart-line__price">{ o.Total() }</span>
-									</div>
-								</li>
-							}
-						</ul>
-					} else {
-						<p class="goen-account__empty">{ i18n.T(ctx, i18n.KeyNoOrdersYet) } <a href="/">{ i18n.T(ctx, i18n.KeyNoOrdersLink) }</a></p>
+				<nav class="goen-account__nav" aria-label={ i18n.T(ctx, i18n.KeyAccountNav) }>
+					@accountNavItem("#standing-heading", i18n.T(ctx, i18n.KeyMembershipTier), "")
+					@accountNavItem("#orders-heading", i18n.T(ctx, i18n.KeyOrderHistory2), "")
+					@accountNavItem("#profile-heading", i18n.T(ctx, i18n.KeyProfile), "")
+					@accountNavItem("#addresses-heading", i18n.T(ctx, i18n.KeyAddresses), "")
+					@accountNavItem("#email-heading", i18n.T(ctx, i18n.KeyEmailSection), "")
+					@accountNavItem("#password-heading", i18n.T(ctx, i18n.KeyChangePassword), "")
+					if v.GoogleLinked {
+						@accountNavItem("#google-heading", i18n.T(ctx, i18n.KeyLinkedAccounts), "")
 					}
-				</section>
-				<div class="goen-account__side">
-					<section class="goen-account__section" aria-labelledby="profile-heading">
-						<h2 id="profile-heading" class="goen-account__heading">{ i18n.T(ctx, i18n.KeyProfile) }</h2>
+					@accountNavItem("#erase-heading", i18n.T(ctx, i18n.KeyEraseAccount), "")
+					<hr class="goen-account__navrule"/>
+					@accountNavItem("/account/points", i18n.T(ctx, i18n.KeyLoyaltyPoints), i18n.T(ctx, i18n.KeyLoyaltyPointsHint))
+					@accountNavItem("/account/wishlist", i18n.T(ctx, i18n.KeyWishlistTitle), i18n.T(ctx, i18n.KeyWishlistHint))
+					@accountNavItem("/account/warranty", i18n.T(ctx, i18n.KeyWarrantyTitle), i18n.T(ctx, i18n.KeyWarrantyHint))
+					if layouts.IsStaff(ctx) {
+						@accountNavItem("/admin", i18n.T(ctx, i18n.KeyBackOffice), i18n.T(ctx, i18n.KeyBackOfficeHint))
+					}
+				</nav>
+				<div class="goen-account__panels">
+					<section class="goen-card goen-account__section" aria-labelledby="standing-heading">
+						<h2 class="goen-account__heading" id="standing-heading">{ i18n.T(ctx, i18n.KeyMembershipTier) }</h2>
+						<div class="goen-account__standing">
+							if v.Standing.HasTier() {
+								<p class="goen-account__tier">{ v.Standing.TierName }</p>
+								<p class="goen-account__meta">
+									{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPointsMultiplier), v.Standing.Multiplier(ctx)) }
+								</p>
+							} else {
+								<p class="goen-account__tier goen-account__tier--none">{ i18n.T(ctx, i18n.KeyNoTierYet) }</p>
+							}
+							<p class="goen-account__meta">
+								{ fmt.Sprintf(i18n.T(ctx, i18n.KeySpendLastYear), v.Standing.Spend()) }
+							</p>
+							if v.Standing.HasNext() {
+								<p class="goen-account__meta">
+									{ fmt.Sprintf(i18n.T(ctx, i18n.KeyNextTier), v.Standing.NextNeeds(), v.Standing.NextName) }
+								</p>
+							}
+						</div>
+						if v.HasCredit() {
+							<div class="goen-account__credit">
+								<span class="goen-account__creditlabel">{ i18n.T(ctx, i18n.KeyStoreCredit) }</span>
+								<span class="goen-account__creditamount">{ v.Credit() }</span>
+							</div>
+						}
+					</section>
+					<section class="goen-card goen-account__section" aria-labelledby="orders-heading">
+						<h2 class="goen-account__heading" id="orders-heading">{ i18n.T(ctx, i18n.KeyOrderHistory2) }</h2>
+						if v.HasOrders() {
+							<table class="goen-account__orders">
+								<thead>
+									<tr>
+										<th class="goen-account__ordercol" scope="col">{ i18n.T(ctx, i18n.KeyAdminColPlacedAt) }</th>
+										<th scope="col">{ i18n.T(ctx, i18n.KeyFieldOrderNumber) }</th>
+										<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColStatus) }</th>
+										<th class="goen-account__ordertotal" scope="col">{ i18n.T(ctx, i18n.KeyAdminColAmount) }</th>
+									</tr>
+								</thead>
+								<tbody>
+									for _, o := range v.Orders {
+										<tr>
+											<td class="goen-account__ordercol">{ o.PlacedAt }</td>
+											<td>
+												<a class="goen-account__number" href={ templ.SafeURL("/orders/" + o.Number) }>
+													{ o.Number }
+												</a>
+												<span class="goen-account__ordermeta">
+													{ o.PlacedAt } · { fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderLineCount), o.LineCountText()) }
+												</span>
+											</td>
+											<td>
+												@components.Badge(components.BadgeProps{Tone: o.BadgeTone()}) {
+													{ o.StatusText(ctx) }
+												}
+											</td>
+											<td class="goen-account__ordertotal">{ o.Total() }</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						} else {
+							<p class="goen-account__empty">
+								{ i18n.T(ctx, i18n.KeyNoOrdersYet) }
+								<a href="/">{ i18n.T(ctx, i18n.KeyNoOrdersLink) }</a>
+							</p>
+						}
+					</section>
+					<section class="goen-card goen-account__section" aria-labelledby="profile-heading">
+						<h2 class="goen-account__heading" id="profile-heading">{ i18n.T(ctx, i18n.KeyProfile) }</h2>
 						<form class="goen-account__form" method="post" action="/account/profile">
-							<div class="ui-field">
-								<label class="ui-label" for="acct-name">{ i18n.T(ctx, i18n.KeyFieldFullName) }</label>
-								<input class="ui-input" id="acct-name" type="text" name="name" value={ v.Name } maxlength="60" autocomplete="name"/>
+							<div class="goen-account__fields">
+								<div class="goen-field">
+									@components.Label(components.LabelProps{For: "acct-name"}) {
+										{ i18n.T(ctx, i18n.KeyFieldFullName) }
+									}
+									@components.Input(components.FieldProps{
+										ID:    "acct-name",
+										Name:  "name",
+										Type:  "text",
+										Value: v.Name,
+										Attrs: templ.Attributes{"maxlength": "60", "autocomplete": "name"},
+									})
+								</div>
+								<div class="goen-field">
+									@components.Label(components.LabelProps{For: "acct-phone"}) {
+										{ i18n.T(ctx, i18n.KeyFieldPhone) }
+									}
+									@components.Input(components.FieldProps{
+										ID:    "acct-phone",
+										Name:  "phone",
+										Type:  "tel",
+										Value: v.Phone,
+										Attrs: templ.Attributes{"maxlength": "30", "autocomplete": "tel"},
+									})
+								</div>
 							</div>
-							<div class="ui-field">
-								<label class="ui-label" for="acct-phone">{ i18n.T(ctx, i18n.KeyFieldPhone) }</label>
-								<input class="ui-input" id="acct-phone" type="tel" name="phone" value={ v.Phone } maxlength="30" autocomplete="tel"/>
+							<div class="goen-account__actions">
+								@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+									{ i18n.T(ctx, i18n.KeySave) }
+								}
 							</div>
-							<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">{ i18n.T(ctx, i18n.KeySave) }</button>
 						</form>
 					</section>
-					<section class="goen-account__section" aria-labelledby="addresses-heading">
-						<h2 id="addresses-heading" class="goen-account__heading">{ i18n.T(ctx, i18n.KeyAddresses) }</h2>
+					<section class="goen-card goen-account__section" aria-labelledby="addresses-heading">
+						<h2 class="goen-account__heading" id="addresses-heading">{ i18n.T(ctx, i18n.KeyAddresses) }</h2>
 						if v.HasAddresses() {
 							<ul class="goen-account__addresses" role="list">
 								for _, a := range v.Addresses {
 									<li class="goen-account__address">
-										<span class="goen-account__addrlabel">
-											{ a.DisplayLabel(ctx) }
-											if a.Default {
-												<span class="ui-badge ui-badge--brand">{ i18n.T(ctx, i18n.KeyDefaultBadge) }</span>
-											}
-										</span>
-										<span class="ui-cart-line__meta">{ a.Name } · { a.Phone }</span>
-										<span class="ui-cart-line__meta">{ a.Line() }</span>
+										<div class="goen-account__addrbody">
+											<span class="goen-account__addrlabel">
+												{ a.DisplayLabel(ctx) }
+												if a.Default {
+													@components.Badge(components.BadgeProps{}) {
+														{ i18n.T(ctx, i18n.KeyDefaultBadge) }
+													}
+												}
+											</span>
+											<span class="goen-account__meta">{ a.Name } · { a.Phone }</span>
+											<span class="goen-account__meta">{ a.Line() }</span>
+										</div>
 										<div class="goen-account__addractions">
 											if !a.Default {
 												<form method="post" action="/account/addresses/default">
 													<input type="hidden" name="address" value={ a.ID }/>
-													<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyMakeDefault) }</button>
+													@components.Button(components.ButtonProps{Variant: components.VariantGhost, Size: components.SizeSmall}, "submit") {
+														{ i18n.T(ctx, i18n.KeyMakeDefault) }
+													}
 												</form>
 											}
 											<form method="post" action="/account/addresses/delete">
 												<input type="hidden" name="address" value={ a.ID }/>
-												<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyDelete) }</button>
+												@components.Button(components.ButtonProps{Variant: components.VariantGhost, Size: components.SizeSmall}, "submit") {
+													{ i18n.T(ctx, i18n.KeyDelete) }
+												}
 											</form>
 										</div>
 									</li>
@@ -331,128 +417,264 @@ templ Account(p layouts.Page, v *AccountView) {
 						<details class="goen-account__disclosure">
 							<summary class="goen-account__summary">{ i18n.T(ctx, i18n.KeyAddAddress) }</summary>
 							<form class="goen-account__form" method="post" action="/account/addresses">
-								<div class="ui-field">
-									<label class="ui-label" for="addr-label">{ i18n.T(ctx, i18n.KeyFieldLabelOpt) }</label>
-									<input class="ui-input" id="addr-label" type="text" name="label" maxlength="30" autocomplete="off" placeholder={ i18n.T(ctx, i18n.KeyLabelPlaceholder) }/>
+								<div class="goen-account__fields">
+									<div class="goen-field">
+										@components.Label(components.LabelProps{For: "addr-label"}) {
+											{ i18n.T(ctx, i18n.KeyFieldLabelOpt) }
+										}
+										@components.Input(components.FieldProps{
+											ID:   "addr-label",
+											Name: "label",
+											Type: "text",
+											Attrs: templ.Attributes{
+												"maxlength":    "30",
+												"autocomplete": "off",
+												"placeholder":  i18n.T(ctx, i18n.KeyLabelPlaceholder),
+											},
+										})
+									</div>
+									<div class="goen-field">
+										@components.Label(components.LabelProps{For: "addr-name"}) {
+											{ i18n.T(ctx, i18n.KeyFieldRecipient) }
+										}
+										@components.Input(components.FieldProps{
+											ID:    "addr-name",
+											Name:  "name",
+											Type:  "text",
+											Attrs: templ.Attributes{"required": true, "maxlength": "60", "autocomplete": "name"},
+										})
+									</div>
+									<div class="goen-field">
+										@components.Label(components.LabelProps{For: "addr-phone"}) {
+											{ i18n.T(ctx, i18n.KeyFieldPhoneShort) }
+										}
+										@components.Input(components.FieldProps{
+											ID:    "addr-phone",
+											Name:  "phone",
+											Type:  "tel",
+											Attrs: templ.Attributes{"required": true, "maxlength": "30", "autocomplete": "tel"},
+										})
+									</div>
+									<div class="goen-field">
+										@components.Label(components.LabelProps{For: "addr-postal"}) {
+											{ i18n.T(ctx, i18n.KeyFieldPostalCode) }
+										}
+										@components.Input(components.FieldProps{
+											ID:   "addr-postal",
+											Name: "postal_code",
+											Type: "text",
+											Attrs: templ.Attributes{
+												"required":     true,
+												"maxlength":    "6",
+												"inputmode":    "numeric",
+												"autocomplete": "postal-code",
+											},
+										})
+									</div>
+									<div class="goen-field">
+										@components.Label(components.LabelProps{For: "addr-city"}) {
+											{ i18n.T(ctx, i18n.KeyFieldCity) }
+										}
+										@components.Input(components.FieldProps{
+											ID:    "addr-city",
+											Name:  "city",
+											Type:  "text",
+											Attrs: templ.Attributes{"required": true, "maxlength": "20", "autocomplete": "address-level1"},
+										})
+									</div>
+									<div class="goen-field">
+										@components.Label(components.LabelProps{For: "addr-district"}) {
+											{ i18n.T(ctx, i18n.KeyFieldDistrict) }
+										}
+										@components.Input(components.FieldProps{
+											ID:    "addr-district",
+											Name:  "district",
+											Type:  "text",
+											Attrs: templ.Attributes{"required": true, "maxlength": "20", "autocomplete": "address-level2"},
+										})
+									</div>
+									<div class="goen-field goen-account__field--wide">
+										@components.Label(components.LabelProps{For: "addr-street"}) {
+											{ i18n.T(ctx, i18n.KeyFieldStreet) }
+										}
+										@components.Input(components.FieldProps{
+											ID:    "addr-street",
+											Name:  "street",
+											Type:  "text",
+											Attrs: templ.Attributes{"required": true, "maxlength": "200", "autocomplete": "street-address"},
+										})
+									</div>
 								</div>
-								<div class="ui-field">
-									<label class="ui-label" for="addr-name">{ i18n.T(ctx, i18n.KeyFieldRecipient) }</label>
-									<input class="ui-input" id="addr-name" type="text" name="name" required maxlength="60" autocomplete="name"/>
-								</div>
-								<div class="ui-field">
-									<label class="ui-label" for="addr-phone">{ i18n.T(ctx, i18n.KeyFieldPhoneShort) }</label>
-									<input class="ui-input" id="addr-phone" type="tel" name="phone" required maxlength="30" autocomplete="tel"/>
-								</div>
-								<div class="ui-field">
-									<label class="ui-label" for="addr-postal">{ i18n.T(ctx, i18n.KeyFieldPostalCode) }</label>
-									<input class="ui-input" id="addr-postal" type="text" name="postal_code" required maxlength="6" inputmode="numeric" autocomplete="postal-code"/>
-								</div>
-								<div class="ui-field">
-									<label class="ui-label" for="addr-city">{ i18n.T(ctx, i18n.KeyFieldCity) }</label>
-									<input class="ui-input" id="addr-city" type="text" name="city" required maxlength="20" autocomplete="address-level1"/>
-								</div>
-								<div class="ui-field">
-									<label class="ui-label" for="addr-district">{ i18n.T(ctx, i18n.KeyFieldDistrict) }</label>
-									<input class="ui-input" id="addr-district" type="text" name="district" required maxlength="20" autocomplete="address-level2"/>
-								</div>
-								<div class="ui-field">
-									<label class="ui-label" for="addr-street">{ i18n.T(ctx, i18n.KeyFieldStreet) }</label>
-									<input class="ui-input" id="addr-street" type="text" name="street" required maxlength="200" autocomplete="street-address"/>
-								</div>
-								<label class="ui-check goen-account__check">
-									<input type="checkbox" name="default" value="1"/>
-									<span class="ui-check__box" aria-hidden="true"></span>
+								<label class="goen-check">
+									<input class="goen-check__box" type="checkbox" name="default" value="1"/>
 									<span>{ i18n.T(ctx, i18n.KeySetAsDefault) }</span>
 								</label>
-								<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">{ i18n.T(ctx, i18n.KeySaveAddress) }</button>
+								<div class="goen-account__actions">
+									@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+										{ i18n.T(ctx, i18n.KeySaveAddress) }
+									}
+								</div>
 							</form>
 						</details>
 					</section>
-					<section class="goen-account__section" aria-labelledby="email-heading">
-						<h2 id="email-heading" class="goen-account__heading">{ i18n.T(ctx, i18n.KeyEmailSection) }</h2>
+					<section class="goen-card goen-account__section" aria-labelledby="email-heading">
+						<h2 class="goen-account__heading" id="email-heading">{ i18n.T(ctx, i18n.KeyEmailSection) }</h2>
 						<p class="goen-account__value">
 							{ v.Email }
 							if v.EmailVerified {
-								<span class="ui-badge">{ i18n.T(ctx, i18n.KeyEmailVerified) }</span>
+								@components.Badge(components.BadgeProps{}) {
+									{ i18n.T(ctx, i18n.KeyEmailVerified) }
+								}
 							} else {
-								<span class="ui-badge ui-badge--warn">{ i18n.T(ctx, i18n.KeyEmailUnverified) }</span>
+								@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+									{ i18n.T(ctx, i18n.KeyEmailUnverified) }
+								}
 							}
 						</p>
 						if !v.EmailVerified {
-							<p class="ui-hint">{ i18n.T(ctx, i18n.KeyEmailUnverifiedHint) }</p>
+							<p class="goen-account__meta">{ i18n.T(ctx, i18n.KeyEmailUnverifiedHint) }</p>
 							<form class="goen-account__form" method="post" action="/account/email/resend">
-								<button class="ui-btn ui-btn--secondary" type="submit">
-									{ i18n.T(ctx, i18n.KeyEmailResend) }
-								</button>
+								<div class="goen-account__actions">
+									@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+										{ i18n.T(ctx, i18n.KeyEmailResend) }
+									}
+								</div>
 							</form>
 						}
 						if v.PendingEmail != "" {
-							<p class="ui-cart-line__meta">
+							<p class="goen-account__meta">
 								{ fmt.Sprintf(i18n.T(ctx, i18n.KeyEmailPending), v.PendingEmail) }
 							</p>
 						}
 						<details class="goen-account__disclosure">
 							<summary class="goen-account__summary">{ i18n.T(ctx, i18n.KeyEmailChange) }</summary>
 							<form class="goen-account__form" method="post" action="/account/email">
-								<p class="ui-hint">{ i18n.T(ctx, i18n.KeyEmailChangeHint) }</p>
-								<label class="ui-label" for="new-email">{ i18n.T(ctx, i18n.KeyFieldNewEmail) }</label>
-								<input class="ui-input" id="new-email" type="email" name="email" required autocomplete="email"/>
-								<label class="ui-label" for="email-current">{ i18n.T(ctx, i18n.KeyFieldCurrentPassword) }</label>
-								<input class="ui-input" id="email-current" type="password" name="current" required autocomplete="current-password"/>
-								<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">
-									{ i18n.T(ctx, i18n.KeyEmailChange) }
-								</button>
+								<p class="goen-account__meta">{ i18n.T(ctx, i18n.KeyEmailChangeHint) }</p>
+								<div class="goen-account__fields">
+									<div class="goen-field">
+										@components.Label(components.LabelProps{For: "new-email"}) {
+											{ i18n.T(ctx, i18n.KeyFieldNewEmail) }
+										}
+										@components.Input(components.FieldProps{
+											ID:    "new-email",
+											Name:  "email",
+											Type:  "email",
+											Attrs: templ.Attributes{"required": true, "autocomplete": "email"},
+										})
+									</div>
+									<div class="goen-field">
+										@components.Label(components.LabelProps{For: "email-current"}) {
+											{ i18n.T(ctx, i18n.KeyFieldCurrentPassword) }
+										}
+										@components.Input(components.FieldProps{
+											ID:    "email-current",
+											Name:  "current",
+											Type:  "password",
+											Attrs: templ.Attributes{"required": true, "autocomplete": "current-password"},
+										})
+									</div>
+								</div>
+								<div class="goen-account__actions">
+									@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+										{ i18n.T(ctx, i18n.KeyEmailChange) }
+									}
+								</div>
 							</form>
 						</details>
 					</section>
-					<section class="goen-account__section" aria-labelledby="password-heading">
-						<h2 id="password-heading" class="goen-account__heading">{ i18n.T(ctx, i18n.KeyChangePassword) }</h2>
+					<section class="goen-card goen-account__section" aria-labelledby="password-heading">
+						<h2 class="goen-account__heading" id="password-heading">{ i18n.T(ctx, i18n.KeyChangePassword) }</h2>
 						<details class="goen-account__disclosure">
 							<summary class="goen-account__summary">{ i18n.T(ctx, i18n.KeyChangePassword) }</summary>
 							<form class="goen-account__form" method="post" action="/account/password">
-								<div class="ui-field">
-									<label class="ui-label" for="pw-current">{ i18n.T(ctx, i18n.KeyFieldCurrentPassword) }</label>
-									<input class="ui-input" id="pw-current" type="password" name="current" required autocomplete="current-password"/>
+								<div class="goen-account__fields">
+									<div class="goen-field goen-account__field--wide">
+										@components.Label(components.LabelProps{For: "pw-current"}) {
+											{ i18n.T(ctx, i18n.KeyFieldCurrentPassword) }
+										}
+										@components.Input(components.FieldProps{
+											ID:    "pw-current",
+											Name:  "current",
+											Type:  "password",
+											Attrs: templ.Attributes{"required": true, "autocomplete": "current-password"},
+										})
+									</div>
+									<div class="goen-field">
+										@components.Label(components.LabelProps{For: "pw-new"}) {
+											{ i18n.T(ctx, i18n.KeyFieldNewPassword) }
+										}
+										@components.Input(components.FieldProps{
+											ID:   "pw-new",
+											Name: "password",
+											Type: "password",
+											Attrs: templ.Attributes{
+												"required":         true,
+												"minlength":        "10",
+												"autocomplete":     "new-password",
+												"aria-describedby": "pw-hint",
+											},
+										})
+										<p class="goen-account__hint" id="pw-hint">{ i18n.T(ctx, i18n.KeyPasswordHintEndsSessions) }</p>
+									</div>
+									<div class="goen-field">
+										@components.Label(components.LabelProps{For: "pw-confirm"}) {
+											{ i18n.T(ctx, i18n.KeyFieldConfirmNewPassword) }
+										}
+										@components.Input(components.FieldProps{
+											ID:    "pw-confirm",
+											Name:  "confirm",
+											Type:  "password",
+											Attrs: templ.Attributes{"required": true, "autocomplete": "new-password"},
+										})
+									</div>
 								</div>
-								<div class="ui-field">
-									<label class="ui-label" for="pw-new">{ i18n.T(ctx, i18n.KeyFieldNewPassword) }</label>
-									<input class="ui-input" id="pw-new" type="password" name="password" required minlength="10" autocomplete="new-password" aria-describedby="pw-hint"/>
-									<p class="ui-hint" id="pw-hint">{ i18n.T(ctx, i18n.KeyPasswordHintEndsSessions) }</p>
+								<div class="goen-account__actions">
+									@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+										{ i18n.T(ctx, i18n.KeyChangePassword) }
+									}
 								</div>
-								<div class="ui-field">
-									<label class="ui-label" for="pw-confirm">{ i18n.T(ctx, i18n.KeyFieldConfirmNewPassword) }</label>
-									<input class="ui-input" id="pw-confirm" type="password" name="confirm" required autocomplete="new-password"/>
-								</div>
-								<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">{ i18n.T(ctx, i18n.KeyChangePassword) }</button>
 							</form>
 						</details>
 					</section>
 					if v.GoogleLinked {
-						<section class="goen-account__section" aria-labelledby="google-heading">
-							<h2 id="google-heading" class="goen-account__heading">{ i18n.T(ctx, i18n.KeyLinkedAccounts) }</h2>
-							<p class="goen-account__empty">{ i18n.T(ctx, i18n.KeyGoogleLinked) }</p>
+						<section class="goen-card goen-account__section" aria-labelledby="google-heading">
+							<h2 class="goen-account__heading" id="google-heading">{ i18n.T(ctx, i18n.KeyLinkedAccounts) }</h2>
+							<p class="goen-account__value">{ i18n.T(ctx, i18n.KeyGoogleLinked) }</p>
 							if v.CanUnlinkGoogle {
 								<form class="goen-account__form" method="post" action="/account/google/unlink">
-									<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyUnlinkGoogle) }</button>
+									<div class="goen-account__actions">
+										@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+											{ i18n.T(ctx, i18n.KeyUnlinkGoogle) }
+										}
+									</div>
 								</form>
 							} else {
-								<p class="ui-hint">{ i18n.T(ctx, i18n.KeyGoogleOnlyMethod) }</p>
+								<p class="goen-account__meta">{ i18n.T(ctx, i18n.KeyGoogleOnlyMethod) }</p>
 							}
 						</section>
 					}
-					<section class="goen-account__section goen-account__danger" aria-labelledby="erase-heading">
-						<h2 id="erase-heading" class="goen-account__heading">{ i18n.T(ctx, i18n.KeyEraseAccount) }</h2>
-						<p class="goen-account__empty">
-							{ i18n.T(ctx, i18n.KeyEraseWarning) }
-						</p>
+					<section class="goen-card goen-account__section goen-account__section--danger" aria-labelledby="erase-heading">
+						<h2 class="goen-account__heading" id="erase-heading">{ i18n.T(ctx, i18n.KeyEraseAccount) }</h2>
+						<p class="goen-account__meta">{ i18n.T(ctx, i18n.KeyEraseWarning) }</p>
 						<details class="goen-account__disclosure">
 							<summary class="goen-account__summary">{ i18n.T(ctx, i18n.KeyEraseDisclosure) }</summary>
 							<form class="goen-account__form" method="post" action="/account/erase">
-								<div class="ui-field">
-									<label class="ui-label" for="erase-confirm">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyEraseConfirmLabel), v.Email) }</label>
-									<input class="ui-input" id="erase-confirm" type="text" name="confirm" required autocomplete="off"/>
+								<div class="goen-field">
+									@components.Label(components.LabelProps{For: "erase-confirm"}) {
+										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyEraseConfirmLabel), v.Email) }
+									}
+									@components.Input(components.FieldProps{
+										ID:    "erase-confirm",
+										Name:  "confirm",
+										Type:  "text",
+										Attrs: templ.Attributes{"required": true, "autocomplete": "off"},
+									})
 								</div>
-								<button class="ui-btn ui-btn--danger ui-btn--block" type="submit">{ i18n.T(ctx, i18n.KeyEraseSubmit) }</button>
+								<div class="goen-account__actions">
+									@components.Button(components.ButtonProps{Variant: components.VariantOutline, Class: "goen-account__erase"}, "submit") {
+										{ i18n.T(ctx, i18n.KeyEraseSubmit) }
+									}
+								</div>
 							</form>
 						</details>
 					</section>
