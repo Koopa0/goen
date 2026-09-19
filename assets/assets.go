@@ -20,7 +20,7 @@ import (
 	"strings"
 )
 
-//go:embed all:brand all:css all:fonts all:js all:media
+//go:embed all:brand all:css all:fonts all:js all:media all:speculation
 var files embed.FS
 
 // Prefix is the URL path the asset handler is mounted on.
@@ -36,7 +36,13 @@ const (
 	// InterLatinWOFF2 is the one face worth a preload: every page paints Latin
 	// before it paints anything else, and the browser cannot discover a font
 	// until it has parsed the stylesheet that names it.
-	InterLatinWOFF2  = "fonts/inter/latin.woff2"
+	InterLatinWOFF2 = "fonts/inter/latin.woff2"
+	// SpeculationRules is the document the Speculation-Rules header names. It
+	// is an asset rather than an inline <script type="speculationrules">
+	// because the policy admits no inline script, and it is one document for
+	// every page because the rules are about where a link goes, not about
+	// which page the visitor is on.
+	SpeculationRules = "speculation/rules.json"
 	HTMXJS           = "js/vendor/htmx.min.js"
 	AppJS            = "js/goen.js"
 	MarkSVG          = "brand/goen-mark.svg"
@@ -53,6 +59,7 @@ var required = []string{
 	AppCSS,
 	FontsCSS,
 	InterLatinWOFF2,
+	SpeculationRules,
 	HTMXJS,
 	AppJS,
 	MarkSVG,
@@ -249,6 +256,13 @@ func Handler(log *slog.Logger) http.Handler {
 			return
 		}
 		w.Header().Set("ETag", `"`+digest+`"`)
+		// Set here rather than left to the file server, which would sniff the
+		// extension and answer application/json. A browser refuses a
+		// speculation rules document that does not arrive as
+		// application/speculationrules+json, and that check is what stops any
+		// JSON a site happens to serve from becoming rules. ServeContent keeps
+		// a Content-Type that is already set.
+		w.Header().Set("Content-Type", contentType(name))
 		fileServer.ServeHTTP(w, r)
 	}))
 }

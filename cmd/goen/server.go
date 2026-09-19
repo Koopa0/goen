@@ -204,15 +204,15 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /p/{slug}/notify", ratelimit.Guard(notifyLimit, log, items.Notify))
 	mux.HandleFunc("POST /p/{slug}/questions", items.Ask)
 	mux.HandleFunc("GET /cart", basket.Page)
-	mux.HandleFunc("POST /cart/items", basket.AddItem)
-	mux.HandleFunc("POST /cart/items/update", basket.UpdateItem)
+	mux.HandleFunc("POST /cart/items", clearSpeculations(basket.AddItem))
+	mux.HandleFunc("POST /cart/items/update", clearSpeculations(basket.UpdateItem))
 	mux.HandleFunc("GET /checkout", basket.Checkout)
 	mux.HandleFunc("POST /checkout", basket.PlaceOrder)
 	mux.HandleFunc("GET /orders/find", basket.FindOrderPage)
 	mux.HandleFunc("POST /orders/find", ratelimit.Guard(findLimit, log, basket.FindOrder))
 	mux.HandleFunc("GET /orders/{number}", basket.OrderPage)
 	mux.HandleFunc("POST /orders/{number}/cancel", basket.CancelOrder)
-	mux.HandleFunc("POST /orders/{number}/reorder", basket.ReorderItems)
+	mux.HandleFunc("POST /orders/{number}/reorder", clearSpeculations(basket.ReorderItems))
 	mux.HandleFunc("GET /orders/{number}/pay", till.Page)
 	mux.HandleFunc("POST /orders/{number}/pay", till.Start)
 	mux.HandleFunc("GET /orders/{number}/return", sendbacks.Page)
@@ -232,7 +232,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	// The limiter runs before argon2 does: at 64 MiB a hash, an unbounded
 	// endpoint is a memory exhaustion anybody can trigger. One limiter across
 	// them all, so moving between them earns no fresh allowance.
-	mux.HandleFunc("POST /signin", ratelimit.Guard(authLimit, log, customers.SignIn))
+	mux.HandleFunc("POST /signin", clearSpeculations(ratelimit.Guard(authLimit, log, customers.SignIn)))
 	mux.HandleFunc("GET /forgot", customers.ForgotPage)
 	mux.HandleFunc("POST /forgot", ratelimit.Guard(authLimit, log, customers.Forgot))
 	mux.HandleFunc("GET /reset", customers.ResetPage)
@@ -242,8 +242,8 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /verify", customers.VerifyPage)
 	mux.HandleFunc("POST /verify", ratelimit.Guard(authLimit, log, customers.Verify))
 	mux.HandleFunc("GET /register", customers.RegisterPage)
-	mux.HandleFunc("POST /register", ratelimit.Guard(authLimit, log, customers.Register))
-	mux.HandleFunc("POST /signout", customers.SignOut)
+	mux.HandleFunc("POST /register", clearSpeculations(ratelimit.Guard(authLimit, log, customers.Register)))
+	mux.HandleFunc("POST /signout", clearSpeculations(customers.SignOut))
 	mux.HandleFunc("GET /account", customers.RequireUser(customers.Overview))
 	mux.HandleFunc("GET /account/cart-recovery", customers.RequireUser(customers.CartRecoveryPage))
 	mux.HandleFunc("POST /account/cart/retry", customers.RequireUser(customers.RetryCartAdoption))
@@ -465,8 +465,84 @@ func securityHeaders(next http.Handler) http.Handler {
 		h.Set("Content-Security-Policy", contentSecurityPolicy)
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		if speculates(r) {
+			h.Set("Speculation-Rules", `"`+assets.URL(assets.SpeculationRules)+`"`)
+		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// unspeculated are the paths goen will not offer speculation rules from.
+//
+// The rules themselves already refuse to prerender a link into any of these —
+// the document is the guard, and this is the second half of the same decision:
+// a page a visitor reaches only after signing in, or one that is a step in
+// paying, offers no rules at all. Nothing is gained by speculating from a page
+// somebody is reading once, and a bug in the rules costs more there than
+// anywhere else on the site.
+//
+// Prefixes, because every one of them owns its whole subtree.
+var unspeculated = []string{
+	"/checkout",
+	"/orders/",
+	"/account",
+	"/admin",
+	"/signin",
+	"/register",
+	"/reset",
+	"/verify",
+}
+
+// clearSpeculations is what a write says to a browser holding speculative
+// copies of this site: throw them away, they were taken before this happened.
+//
+// A speculated page is a whole document, header included, rendered when the
+// browser asked for it. goen renders the cart's count into that header, so a
+// copy of a product page taken before an add shows the count from before the
+// add — measured at 1440: hover a related product until the speculation fires,
+// add in place so the count goes 1 to 2, press the link, and the landed page's
+// header reads 1.
+//
+// Which writes: the ones that change what the shared chrome says. The header
+// renders two things from the session — the cart's count, and whether the
+// visitor is staff (back office) or not (wishlist) — so the cart's four writes
+// and the three that change who you are all carry it. A wishlist write does
+// not: nothing in the chrome counts it, and /account* is refused by the rules
+// anyway, so there is no speculated copy of it to throw away.
+//
+// The asymmetry is what makes this worth shipping where putting /cart back into
+// the rules is not. A browser that ignores these directive names leaves a count
+// one behind for a single page view, and the next navigation corrects it. A
+// browser that ignored them with /cart speculated would show an empty cart to
+// somebody who had just filled it. One is a blemish; the other is a lie about
+// what the shop is holding for you.
+func clearSpeculations(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			// Only on a write. On a page response this would throw away the
+			// speculations the visitor's own browsing has just earned.
+			w.Header().Set("Clear-Site-Data", `"prefetchCache", "prerenderCache"`)
+		}
+		next(w, r)
+	}
+}
+
+// speculates reports whether this request may carry the Speculation-Rules
+// header. Only a GET of a page: a POST has already happened, and an asset is
+// not a document a browser reads rules from.
+func speculates(r *http.Request) bool {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return false
+	}
+	if strings.HasPrefix(r.URL.Path, assets.Prefix) || strings.HasPrefix(r.URL.Path, "/media/") {
+		return false
+	}
+	for _, prefix := range unspeculated {
+		if r.URL.Path == strings.TrimSuffix(prefix, "/") || strings.HasPrefix(r.URL.Path, prefix) {
+			return false
+		}
+	}
+	return true
 }
 
 func requestLog(next http.Handler, log *slog.Logger) http.Handler {
