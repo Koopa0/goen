@@ -2233,11 +2233,17 @@ h4,
 /* Buy column. The groups are separated by a hairline rather than by a rule
    element: the line is decoration, and an <hr> would put a separator in the
    accessibility tree between a price and the control that acts on it. */
+/* scroll-margin-top is for the visitor with no script: adding to the cart is a
+   POST, a 303 and a landing on #buybox, and without it the browser puts the
+   column's first pixel flush against the top of the window. The header does not
+   overlap it — nothing on this site is sticky — so this is breathing room and
+   not clearance, which is why it is one gap and not a header's height. */
 .goen-pdp__buy {
   display: flex;
   flex-direction: column;
   gap: 20px;
   min-width: 0;
+  scroll-margin-top: 24px;
 }
 
 .goen-pdp__head {
