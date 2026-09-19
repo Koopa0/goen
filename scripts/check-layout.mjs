@@ -636,7 +636,43 @@ const fail = (where, msg) => failures.push(`${where}: ${msg}`);
 // that is served arrives long before, and one that is NOT served is `complete`
 // on the first poll and returns immediately. Only an image that never starts
 // fetching waits the whole way.
+//
+// And "never starts fetching" is what a tile below the fold does. The home
+// page's product tiles carry loading="lazy", which is right for a shopper: a
+// phone should not pay for eight images to read a hero. A driven viewport never
+// scrolls, so the deepest row stays outside the distance Chrome starts a lazy
+// fetch at, sits at complete=false for the whole ceiling, and is then reported
+// as an image the server does not serve. The run that sent this here says so
+// exactly: the two tiles named in its failure never appear in the server's log
+// during the fifteen seconds, and are requested the instant the viewport widens
+// for the next artboard.
+//
+// So walk the document through in viewport-height steps first, which is what a
+// shopper's thumb does, and come back to the top before anything is measured —
+// every geometry assertion below reads a box at scroll 0.
+//
+// This too is a correction rather than a weaker assertion: after the walk the
+// fetch has been asked for, so the poll below is once again deciding whether a
+// byte ARRIVED. An image the server does not serve is still `complete` with
+// naturalWidth 0 and still fails, on the first poll and without waiting.
 const imagesFetched = async (label) => {
+  await send(ws, 'Runtime.evaluate', {
+    // Two frames per step, because the lazy fetch is scheduled off the frame
+    // that the scroll produced, not off the scroll call. The step ceiling is
+    // there because scrollHeight GROWS as the images it is being walked for
+    // arrive, and a loop bounded only by it can chase its own tail.
+    expression: `(async () => {
+      const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const step = window.innerHeight;
+      for (let y = 0; y < document.documentElement.scrollHeight && y < step * 60; y += step) {
+        window.scrollTo(0, y);
+        await frame();
+      }
+      window.scrollTo(0, 0);
+      await frame();
+    })()`,
+    awaitPromise: true,
+  });
   for (let i = 0; i < 150; i++) {
     const { result } = await send(ws, 'Runtime.evaluate', {
       expression: `[...document.querySelectorAll('main img')].filter((img) => !img.complete).length`,
@@ -1223,13 +1259,24 @@ const proveListingDesktopResize = async (label, locale) => {
     fail(label, submitted.why || 'desktop filter submit did not start');
     return;
   }
+  // readyState as well as the URL, for the reason `settled` gives: location.href
+  // is the new document's the moment the navigation commits, which is before that
+  // document has run anything. The landing probe below reads activeElement, and
+  // a URL match alone hands it a document still at readyState "loading".
+  //
+  // `settled` itself is not used here because it records the URL as a route for
+  // the accessibility pass at the end of this file, and this href carries the
+  // empty price and sort fields the form submits — a second spelling of a page
+  // that pass already audits.
   const filteredHref = await (async () => {
     for (let i = 0; i < 50; i++) {
       const { result } = await send(ws, 'Runtime.evaluate', {
-        expression: 'location.href', returnByValue: true,
+        expression: 'document.readyState + " " + location.href', returnByValue: true,
       });
-      const href = String(result.value || '');
-      if (href.includes('in_stock=1') && href.includes('#listing-results')) return href;
+      const [state, href] = String(result.value || '').split(' ');
+      if (state === 'complete' && href.includes('in_stock=1') && href.includes('#listing-results')) {
+        return href;
+      }
       await new Promise((r) => setTimeout(r, 100));
     }
     return '';
@@ -1239,14 +1286,38 @@ const proveListingDesktopResize = async (label, locale) => {
     return;
   }
 
+  // autofocus is flushed when the new document first updates its rendering, and
+  // readyState complete is not that moment: a cross-document view transition
+  // holds the first render until the old page's snapshot is ready, so the focus
+  // a keyboard visitor gets can arrive a frame or two after the load event.
+  // Give it a ceiling rather than one reading — a landing that never focuses
+  // still exhausts the poll and still fails.
+  //
+  // The element has to EXIST for this to be true. Reading
+  // `document.activeElement === document.getElementById(id)` on a page without
+  // the region is null === null, which is how a missing results region would
+  // have passed as a focused one.
+  const focusReached = await (async () => {
+    for (let i = 0; i < 30; i++) {
+      const { result } = await send(ws, 'Runtime.evaluate', {
+        expression: `(() => {
+          const results = document.getElementById('listing-results');
+          return !!results && document.activeElement === results;
+        })()`,
+        returnByValue: true,
+      });
+      if (result.value === true) return true;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return false;
+  })();
+
   const afterFilter = await evalPage(`(() => {
-    const results = document.getElementById('listing-results');
     const applied = document.querySelector('.goen-filters__applied');
     const clear = document.querySelector('.goen-filters__applied .ui-filterbar__clear');
     const box = document.querySelector('.goen-filters input[name=in_stock]');
     return {
       ok: true,
-      focused: document.activeElement === results,
       hasApplied: !!applied,
       hasClear: !!clear,
       stockChecked: !!(box && box.checked),
@@ -1256,7 +1327,7 @@ const proveListingDesktopResize = async (label, locale) => {
     fail(label, afterFilter.why || 'desktop filtered landing probe failed');
     return;
   }
-  if (!afterFilter.focused) fail(label, 'desktop filtered reload did not focus #listing-results');
+  if (!focusReached) fail(label, 'desktop filtered reload did not focus #listing-results');
   if (!afterFilter.hasApplied) fail(label, 'desktop filtered reload shows no applied-filter summary');
   if (!afterFilter.hasClear) fail(label, 'desktop filtered reload offers no clear-all control');
   if (!afterFilter.stockChecked) fail(label, 'desktop filtered reload lost the in_stock checkbox state');
