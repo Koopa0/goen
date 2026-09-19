@@ -182,9 +182,12 @@ func TestAWriteFailureUsesTheConfiguredRequestLogger(t *testing.T) {
 	if logHandler.contextValue != "asset-request" {
 		t.Errorf("write warning context marker = %q, want %q", logHandler.contextValue, "asset-request")
 	}
-	if logHandler.record.Message != "assets: write gzip body" {
+	// One message for both representations this package writes from memory:
+	// the gzip one and a stylesheet whose remote @import was removed. Which it
+	// was is in the record's name field, not in the sentence.
+	if logHandler.record.Message != "assets: write body" {
 		t.Errorf("write warning message = %q, want %q",
-			logHandler.record.Message, "assets: write gzip body")
+			logHandler.record.Message, "assets: write body")
 	}
 }
 
