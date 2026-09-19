@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -20,54 +21,63 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 			</div>
 		</div>
 		if v.Notice != "" {
-			<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+				{ v.Notice }
+			}
 		}
 		if v.Empty() {
-			<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetEmpty) }</p>
+			<div class="goen-admin__empty">
+				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminRetEmpty) }</p>
+			</div>
 		} else {
 			<ul class="goen-admin__returns" role="list">
 				for _, r := range v.Rows {
 					<li class="goen-admin__return">
 						<div class="goen-admin__returninfo">
 							<p class="goen-admin__returnorder">{ r.OrderNumber }</p>
-							<span class="ui-cart-line__meta">{ r.StatusText } · { r.CreatedAt }</span>
-							<span class="ui-cart-line__meta">
+							<div class="goen-admin__cellbadges">
+								@components.Badge(components.BadgeProps{}) {
+									{ r.StatusText }
+								}
+							</div>
+							<span class="goen-admin__meta">{ r.CreatedAt }</span>
+							<span class="goen-admin__meta">
 								{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetUnitsAmount), r.UnitsText(), r.Amount()) }
 							</span>
 							if ch := r.PayoutChannel(ctx); ch != "" {
-								<span class="ui-cart-line__meta">{ ch }</span>
+								<span class="goen-admin__meta">{ ch }</span>
 							}
 							// Consumer Protection Act §19 I: seven days from receipt, unwaivable under §19 V.
 							if r.Rescission() {
-								<span class="ui-cart-line__meta">
+								<span class="goen-admin__meta">
 									<strong>{ r.WindowText(ctx) }</strong>
 									{ i18n.T(ctx, i18n.KeyAdminRetMustAccept) }
 								</span>
 							} else if r.Goodwill() || r.Mixed() {
-								<span class="ui-cart-line__meta">
+								<span class="goen-admin__meta">
 									<strong>{ r.WindowText(ctx) }</strong>
 									{ i18n.T(ctx, i18n.KeyAdminRetGoodwillHint) }
 								</span>
 							} else if r.Late() {
-								<span class="ui-cart-line__meta">
+								<span class="goen-admin__meta">
 									{ r.WindowText(ctx) }
 									{ i18n.T(ctx, i18n.KeyAdminRetLateHint) }
 								</span>
 							} else {
-								<span class="ui-cart-line__meta">{ r.WindowText(ctx) }</span>
+								<span class="goen-admin__meta">{ r.WindowText(ctx) }</span>
 							}
-							<span class="ui-cart-line__meta">{ r.Reason }</span>
+							<span class="goen-admin__meta">{ r.Reason }</span>
 							if len(r.Lines) > 0 {
 								<ul class="goen-admin__returnlines" role="list">
 									for _, l := range r.Lines {
 										<li>
-											<span class="ui-cart-line__meta">{ l.Line() }</span>
-											<span class="ui-cart-line__meta">{ l.SKU } · { l.UnitPrice() }</span>
+											<span class="goen-admin__meta">{ l.Line() }</span>
+											<span class="goen-admin__meta">{ l.SKU } · { l.UnitPrice() }</span>
 											if l.Window != "" {
-												<span class="ui-cart-line__meta">{ ReturnLineWindowText(ctx, l.Window) }</span>
+												<span class="goen-admin__meta">{ ReturnLineWindowText(ctx, l.Window) }</span>
 											}
 											if l.Inspected {
-												<span class="ui-cart-line__meta">
+												<span class="goen-admin__meta">
 													{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminRetReceivedRestocked), l.ReceivedText(), l.RestockedText()) }
 													if l.Shortfall() {
 														<strong>{ i18n.T(ctx, i18n.KeyAdminRetShortfall) }</strong>
@@ -77,7 +87,7 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 													}
 												</span>
 												if l.Note != "" {
-													<span class="ui-cart-line__meta">{ l.Note }</span>
+													<span class="goen-admin__meta">{ l.Note }</span>
 												}
 											}
 										</li>
@@ -90,11 +100,11 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 								<form class="goen-admin__decide" method="post" action={ templ.SafeURL(r.AssessAction()) }>
 									<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetAssessHint) }</p>
 									if stamp := r.AssessmentStamp(ctx); stamp != "" {
-										<p class="ui-cart-line__meta">{ stamp }</p>
+										<p class="goen-admin__meta">{ stamp }</p>
 									}
 									for _, l := range r.Lines {
 										<fieldset class="goen-admin__inspectline">
-											<legend class="ui-cart-line__meta">{ l.Line() }</legend>
+											<legend class="goen-admin__meta">{ l.Line() }</legend>
 											@eligibilityFactRadios(r.ID, l, "unused", i18n.KeyAdminRetFactUnused, v)
 											@eligibilityFactRadios(r.ID, l, "packaging", i18n.KeyAdminRetFactPackaging, v)
 											@eligibilityFactRadios(r.ID, l, "accessories", i18n.KeyAdminRetFactAccessories, v)
@@ -117,7 +127,9 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 										<p class="ui-error-text" id={ "basis-" + r.ID + "-error" }>{ v.FieldError(r.ID, "basis") }</p>
 									</div>
 									<div class="goen-admin__decidebtns">
-										<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminRetAssessButton) }</button>
+										@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+											{ i18n.T(ctx, i18n.KeyAdminRetAssessButton) }
+										}
 									</div>
 								</form>
 							}
@@ -142,19 +154,28 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 								</div>
 								<div class="goen-admin__decidebtns">
 									if !r.Late() {
-										<button class="ui-btn ui-btn--primary" type="submit" name="decision" value="approved">
+										@components.Button(components.ButtonProps{
+											Variant: components.VariantPrimary,
+											Attrs:   templ.Attributes{"name": "decision", "value": "approved"},
+										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminRetApprove) }
-										</button>
+										}
 									}
 									if r.Goodwill() || r.Mixed() || r.Late() {
-										<button class="ui-btn ui-btn--secondary" type="submit" name="decision" value="exception">
+										@components.Button(components.ButtonProps{
+											Variant: components.VariantOutline,
+											Attrs:   templ.Attributes{"name": "decision", "value": "exception"},
+										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminRetException) }
-										</button>
+										}
 									}
 									if !r.Rescission() {
-										<button class="ui-btn ui-btn--secondary" type="submit" name="decision" value="rejected">
+										@components.Button(components.ButtonProps{
+											Variant: components.VariantOutline,
+											Attrs:   templ.Attributes{"name": "decision", "value": "rejected"},
+										}, "submit") {
 											{ i18n.T(ctx, i18n.KeyAdminRetReject) }
-										</button>
+										}
 									}
 								</div>
 							</form>
@@ -163,7 +184,9 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetPayoutOutstanding) }</p>
 								<input type="hidden" name="decision" value="approved"/>
 								<div class="goen-admin__decidebtns">
-									<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminRetRetryPayout) }</button>
+									@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+										{ i18n.T(ctx, i18n.KeyAdminRetRetryPayout) }
+									}
 								</div>
 							</form>
 						} else if r.PayoutStranded() {
@@ -174,7 +197,7 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 								<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRetInspectHint) }</p>
 								for _, l := range r.Lines {
 									<fieldset class="goen-admin__inspectline">
-										<legend class="ui-cart-line__meta">{ l.Line() }</legend>
+										<legend class="goen-admin__meta">{ l.Line() }</legend>
 										<div class="ui-field">
 											<label class="ui-label" for={ "recv-" + l.OrderLineID }>{ i18n.T(ctx, i18n.KeyAdminRetReceivedQty) }</label>
 											<input
@@ -218,7 +241,9 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 									</fieldset>
 								}
 								<div class="goen-admin__decidebtns">
-									<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminRetInspectButton) }</button>
+									@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+										{ i18n.T(ctx, i18n.KeyAdminRetInspectButton) }
+									}
 								</div>
 							</form>
 						}
@@ -232,7 +257,9 @@ templ AdminReturns(p layouts.Page, v AdminReturnsView) {
 									<input class="ui-input" id={ "done-" + r.ID } name="resolution" maxlength="300" autocomplete="off"/>
 								</div>
 								<div class="goen-admin__decidebtns">
-									<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminRetCloseButton) }</button>
+									@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+										{ i18n.T(ctx, i18n.KeyAdminRetCloseButton) }
+									}
 								</div>
 							</form>
 						}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -19,7 +20,7 @@ templ AdminWarranties(p layouts.Page, v AdminWarrantiesView) {
 				</p>
 			</div>
 		</div>
-		<form class="goen-admin__form goen-admin__search" method="get" action="/admin/warranty">
+		<form class="goen-admin__search" method="get" action="/admin/warranty">
 			<label class="goen-sr-only" for="warranty-search">{ i18n.T(ctx, i18n.KeyAdminWarrantySearch) }</label>
 			<input
 				class="ui-input"
@@ -30,21 +31,25 @@ templ AdminWarranties(p layouts.Page, v AdminWarrantiesView) {
 				placeholder={ i18n.T(ctx, i18n.KeyAdminWarrantyPlaceholder) }
 				autocomplete="off"
 			/>
-			<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminSearchButton) }</button>
+			@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+				{ i18n.T(ctx, i18n.KeyAdminSearchButton) }
+			}
 		</form>
 		if v.TermTooShort() {
-			<p class="ui-alert ui-alert--warn" role="status">
+			@components.Notice(components.NoticeProps{Tone: components.ToneWarn}) {
 				{ i18n.T(ctx, i18n.KeyAdminSearchShort) }
-			</p>
+			}
 		}
 		if v.Searching() && v.Empty() {
-			<p class="goen-admin__hint">
-				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminWarrantyNoneFound), v.Term) }
-			</p>
+			<div class="goen-admin__empty">
+				<p class="goen-admin__emptytitle">
+					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminWarrantyNoneFound), v.Term) }
+				</p>
+			</div>
 		}
 		if v.Searching() && !v.Empty() {
 			<div class="goen-admin__tablewrap goen-admin__warranties">
-				<table class="ui-table">
+				<table class="ui-table goen-admin__table">
 					<thead>
 						<tr>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColSerial) }</th>
@@ -58,10 +63,10 @@ templ AdminWarranties(p layouts.Page, v AdminWarrantiesView) {
 					<tbody>
 						for _, w := range v.Rows {
 							<tr>
-								<td>{ w.SerialText() }</td>
+								<td class="goen-admin__cellkey">{ w.SerialText() }</td>
 								<td>
 									{ w.Product }
-									<span class="ui-cart-line__meta">
+									<span class="goen-admin__meta">
 										if w.Label != "" {
 											{ w.Label } ·
 										}
@@ -70,13 +75,17 @@ templ AdminWarranties(p layouts.Page, v AdminWarrantiesView) {
 								</td>
 								<td>
 									<a href={ templ.SafeURL(w.OrderHref()) }>{ w.Order }</a>
-									<span class="ui-cart-line__meta">{ w.OrderStatus }</span>
+									<span class="goen-admin__meta">{ w.OrderStatus }</span>
 								</td>
 								<td>{ w.Customer(ctx) }</td>
 								<td>{ w.RegisteredAt }</td>
 								<td>
 									{ w.ExpiresOn }
-									<span class="ui-cart-line__meta">{ w.StateText(ctx) }</span>
+									<div class="goen-admin__cellbadges">
+										@components.Badge(components.BadgeProps{}) {
+											{ w.StateText(ctx) }
+										}
+									</div>
 								</td>
 							</tr>
 						}
