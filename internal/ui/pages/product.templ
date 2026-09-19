@@ -189,12 +189,32 @@ templ productBuy(v *ProductView) {
 				</legend>
 				<div class={ "goen-pdp__values", templ.KV("goen-pdp__values--swatches", o.HasSwatches()) }>
 					for _, val := range o.Values {
+						// Still a link, and still the whole answer with scripting
+						// off: the href navigates, the URL carries the choice, and
+						// the server renders the page it always did. The hx-
+						// attributes ask for that same URL and keep only the part
+						// that changes, so there is no second server path to keep
+						// in step with the first.
+						//
+						// What changes is the buy column and nothing else. The
+						// photography is per PRODUCT — product_images has no
+						// variant column — so the gallery the server sends for one
+						// colour is the gallery it sends for every other, byte for
+						// byte, and a test holds that. Selecting it into the swap
+						// would destroy the <img> and build an identical one, which
+						// is a fetch, a decode and an empty frame in between for a
+						// picture that did not change. It is left alone instead.
 						<a
 							class={ "goen-swatch",
 								templ.KV("goen-swatch--dot", o.HasSwatches()),
 								templ.KV("goen-swatch--on", val.Selected),
 								templ.KV("goen-swatch--out", !val.Available) }
 							href={ templ.URL(val.Href) }
+							hx-get={ val.Href }
+							hx-select="#buybox"
+							hx-target="#buybox"
+							hx-swap="outerHTML"
+							hx-push-url="true"
 							if val.Selected {
 								aria-current="true"
 							}
