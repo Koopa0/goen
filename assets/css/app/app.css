@@ -6726,8 +6726,10 @@ h4,
    inside the back office's own chrome, because a person who has not passed the
    second factor yet still needs to know where they are. */
 .goen-twofa {
+  box-sizing: border-box;
   margin: 0 auto;
-  max-width: 26rem;
+  max-width: 28rem;
+  padding: 24px 16px;
   width: 100%;
 }
 

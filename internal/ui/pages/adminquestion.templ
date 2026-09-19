@@ -17,6 +17,11 @@ import (
 // reader is scanning for is a badge beside the product, so the answer to "what
 // is left" is on the row and not in its colour.
 //
+// Neither button is the primary one. A queue of seventeen questions is a queue
+// of seventeen answer boxes, and a filled button on every row is a screen of
+// filled buttons — the reply box is already where the eye goes, and the rule is
+// one primary to a screen.
+//
 // The list keeps the class the layout gate finds the page by
 // (scripts/check-layout.mjs:262, :289); its old rules are gone and the divided
 // list paints it now.
@@ -90,7 +95,7 @@ templ AdminQuestions(p layouts.Page, v AdminQuestionsView) {
 							</div>
 							<div class="goen-modqueue__actions">
 								@components.Button(components.ButtonProps{
-									Variant: components.VariantPrimary,
+									Variant: components.VariantOutline,
 									Size:    components.SizeSmall,
 									Attrs:   templ.Attributes{"name": "action", "value": "answer"},
 								}, "submit") {
