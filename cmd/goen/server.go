@@ -39,11 +39,13 @@ import (
 )
 
 // contentSecurityPolicy is strict: goen renders no inline script and no inline
-// style, and the two font hosts are the only third parties.
+// style, serves its own fonts, and names no third-party origin a browser may
+// fetch from. The one third party left is where a payment form is allowed to
+// post, which is a destination rather than a source.
 const contentSecurityPolicy = "default-src 'self'; " +
 	"script-src 'self'; " +
-	"style-src 'self' https://fonts.googleapis.com; " +
-	"font-src 'self' https://fonts.gstatic.com; " +
+	"style-src 'self'; " +
+	"font-src 'self'; " +
 	"img-src 'self' data:; " +
 	// Browsers have applied form-action to the redirect a submission lands on,
 	// and goen answers the payment form with a 303 to checkout.stripe.com.

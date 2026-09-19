@@ -20,7 +20,7 @@ import (
 	"strings"
 )
 
-//go:embed all:brand all:css all:js all:media
+//go:embed all:brand all:css all:fonts all:js all:media
 var files embed.FS
 
 // Prefix is the URL path the asset handler is mounted on.
@@ -28,10 +28,15 @@ const Prefix = "/static/"
 
 // Asset names referenced by templates. Keep in sync with [required].
 const (
-	DesignSystemCSS  = "css/ds/styles.css"
-	AccentsCSS       = "css/ds/themes/accents.css"
-	CommerceCSS      = "css/ds/packs/commerce.css"
-	AppCSS           = "css/app/app.css"
+	DesignSystemCSS = "css/ds/styles.css"
+	AccentsCSS      = "css/ds/themes/accents.css"
+	CommerceCSS     = "css/ds/packs/commerce.css"
+	AppCSS          = "css/app/app.css"
+	FontsCSS        = "css/app/fonts.css"
+	// InterLatinWOFF2 is the one face worth a preload: every page paints Latin
+	// before it paints anything else, and the browser cannot discover a font
+	// until it has parsed the stylesheet that names it.
+	InterLatinWOFF2  = "fonts/inter/latin.woff2"
 	HTMXJS           = "js/vendor/htmx.min.js"
 	AppJS            = "js/goen.js"
 	MarkSVG          = "brand/goen-mark.svg"
@@ -46,6 +51,8 @@ var required = []string{
 	AccentsCSS,
 	CommerceCSS,
 	AppCSS,
+	FontsCSS,
+	InterLatinWOFF2,
 	HTMXJS,
 	AppJS,
 	MarkSVG,
@@ -56,6 +63,12 @@ var required = []string{
 type assetIndex struct {
 	digests map[string]string
 	gzipped map[string][]byte
+	// bodies holds the served bytes for an asset whose embedded bytes are not
+	// what goen serves. Only stylesheets appear here, and only when a remote
+	// @import was removed; everything else is served straight off the embedded
+	// filesystem. The digest is taken from the served bytes either way, so a
+	// cached copy is a copy of what the visitor was actually sent.
+	bodies map[string][]byte
 }
 
 var catalogue = mustIndex()
@@ -73,6 +86,7 @@ func index() (assetIndex, error) {
 	indexed := assetIndex{
 		digests: make(map[string]string),
 		gzipped: make(map[string][]byte),
+		bodies:  make(map[string][]byte),
 	}
 	err := fs.WalkDir(files, ".", func(name string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
@@ -81,6 +95,10 @@ func index() (assetIndex, error) {
 		raw, err := fs.ReadFile(files, name)
 		if err != nil {
 			return fmt.Errorf("read %s: %w", name, err)
+		}
+		if rewritten, changed := stripRemoteImports(name, raw); changed {
+			raw = rewritten
+			indexed.bodies[name] = raw
 		}
 		sum := sha256.Sum256(raw)
 		indexed.digests[name] = hex.EncodeToString(sum[:])[:12]
@@ -214,32 +232,48 @@ func Handler(log *slog.Logger) http.Handler {
 		} else {
 			w.Header().Set("Cache-Control", "no-cache")
 		}
-		body, hasGzip := catalogue.gzipped[name]
+		gzipped, hasGzip := catalogue.gzipped[name]
 		if hasGzip {
 			w.Header().Add("Vary", "Accept-Encoding")
 		}
 		if hasGzip && acceptsGzip(r) {
-			etag := `"` + digest + `-gz"`
-			w.Header().Set("ETag", etag)
-			w.Header().Set("Content-Type", contentType(name))
 			w.Header().Set("Content-Encoding", "gzip")
-			if ifNoneMatch(r, etag) {
-				w.WriteHeader(http.StatusNotModified)
-				return
-			}
-			w.Header().Set("Content-Length", strconv.Itoa(len(body)))
-			if r.Method == http.MethodHead {
-				w.WriteHeader(http.StatusOK)
-				return
-			}
-			if _, err := w.Write(body); err != nil {
-				log.WarnContext(r.Context(), "assets: write gzip body", "name", name, "error", err)
-			}
+			writeBody(w, r, log, name, `"`+digest+`-gz"`, gzipped)
+			return
+		}
+		// A stylesheet whose remote @import was removed is served from memory,
+		// because the embedded bytes and the served bytes differ: see
+		// stripRemoteImports. Everything else comes off the filesystem.
+		if body, rewritten := catalogue.bodies[name]; rewritten {
+			writeBody(w, r, log, name, `"`+digest+`"`, body)
 			return
 		}
 		w.Header().Set("ETag", `"`+digest+`"`)
 		fileServer.ServeHTTP(w, r)
 	}))
+}
+
+// writeBody answers with bytes this package is holding rather than with a file,
+// which is the case for both a precompressed representation and a rewritten
+// stylesheet. It owns the conditional request and the HEAD, so those two
+// answers cannot drift apart between the callers.
+func writeBody(
+	w http.ResponseWriter, r *http.Request, log *slog.Logger, name, etag string, body []byte,
+) {
+	w.Header().Set("ETag", etag)
+	w.Header().Set("Content-Type", contentType(name))
+	if ifNoneMatch(r, etag) {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+	if r.Method == http.MethodHead {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	if _, err := w.Write(body); err != nil {
+		log.WarnContext(r.Context(), "assets: write body", "name", name, "error", err)
+	}
 }
 
 func ifNoneMatch(r *http.Request, etag string) bool {
