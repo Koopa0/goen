@@ -376,6 +376,13 @@ func (h *Handler) optionWrite(
 	switch {
 	case err != nil:
 		h.log.WarnContext(r.Context(), "write product option", "error", err, "slug", slug)
+		// A constraint the form has a control for is a refusal and not a
+		// missing product. Without this the page tells a staff member who
+		// mistyped a colour that the product they are looking at is gone.
+		if refused := optionRefusal(r.Context(), err); len(refused) > 0 {
+			h.editProductWithErrors(w, r, slug, refused, pages.AdminVariantDraft{})
+			return
+		}
 		h.notFound(w, r)
 	case len(errs) > 0:
 		h.editProductWithErrors(w, r, slug, errs, pages.AdminVariantDraft{})
