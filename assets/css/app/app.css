@@ -6882,17 +6882,6 @@ h4,
    ending in its own save. Everything else on these screens is a recipe the
    back office already has, which is why this block is short. */
 
-/* The editor's column. .goen-admin__main already stacks with this gap, so the
-   wrapper exists to keep the cards together as one group rather than to space
-   them: a screen that grew a sibling after the cards would otherwise have it
-   land between two of them. */
-.goen-admin__editor {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
-}
-
 /* Inside a card: a heading, whatever the card says about itself, the list it
    holds and the form that adds to it. min-width lets the card be narrower than
    its widest child, which is what keeps a 640px table inside its own scroll

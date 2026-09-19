@@ -116,16 +116,14 @@ templ AdminProductForm(p layouts.Page, v AdminProductView) {
 				{ v.Notice }
 			}
 		}
-		<div class="goen-admin__editor">
-			@adminProductDetails(v)
-			if !v.IsNew {
-				@adminProductImages(v)
-				@adminProductOptions(v)
-				@adminProductVariants(v)
-				@adminProductSpecs(v)
-				@adminProductPublishing(v)
-			}
-		</div>
+		@adminProductDetails(v)
+		if !v.IsNew {
+			@adminProductImages(v)
+			@adminProductOptions(v)
+			@adminProductVariants(v)
+			@adminProductSpecs(v)
+			@adminProductPublishing(v)
+		}
 	}
 }
 
