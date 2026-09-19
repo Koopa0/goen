@@ -5364,10 +5364,6 @@ h4,
   grid-template-columns: 1fr;
 }
 
-.goen-checkout__wide {
-  grid-column: 1 / -1;
-}
-
 @media (min-width: 768px) {
   .goen-checkout__fields {
     gap: 16px;
@@ -5973,14 +5969,6 @@ h4,
   min-height: 44px;
 }
 
-/* A tab is a filter that is selected. The nav's current screen says the same
-   thing in the rail's own terms and has its own rule up there. */
-.goen-admin__tabs .is-active {
-  background: var(--accent-faint);
-  border-color: var(--accent);
-  color: var(--fg);
-}
-
 @media (min-width: 768px) {
   .goen-admin .ui-dl__row {
     grid-template-columns: 180px 1fr;
@@ -6477,79 +6465,6 @@ h4,
   min-width: 12ch;
 }
 
-/* The headline figures. Four boxes that wrap rather than a table, because they
-   are read one at a time and a table would invite comparing them to each
-   other. */
-.goen-report__figures {
-  margin: 0 0 8px;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-}
-
-.goen-report__figure {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 16px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-}
-
-.goen-report__label {
-  font-size: var(--fs-12);
-  color: var(--fg-subtle);
-}
-
-.goen-report__value {
-  font-family: var(--font-display);
-  font-size: var(--fs-24);
-  font-weight: var(--fw-semibold);
-  color: var(--fg);
-  font-variant-numeric: tabular-nums;
-}
-
-/* The lists. Denser than the storefront: these are scanned for one row, not
-   browsed. */
-.goen-report__rows {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-}
-
-.goen-report__row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 2px 16px;
-  padding: 10px 0 10px 12px;
-  border-bottom: 1px solid var(--border-faint);
-  border-left: 3px solid transparent;
-}
-
-/* Running out inside a fortnight, which is about how long a reorder takes. */
-.goen-report__row.is-urgent {
-  border-left-color: var(--accent);
-}
-
-.goen-report__num {
-  text-align: right;
-  font-size: var(--fs-14);
-  font-variant-numeric: tabular-nums;
-  color: var(--fg);
-}
-
-@media (min-width: 768px) {
-  .goen-report__row {
-    grid-template-columns: 1fr 1fr auto auto;
-    align-items: baseline;
-  }
-}
-
 
 .goen-qa__question {
   margin: 0;
@@ -6727,11 +6642,258 @@ h4,
   min-width: 0;
 }
 
-.goen-admin__search .ui-btn {
+
+/* Back office — orders
+
+   The order, customer, return, warranty, credit and report screens. Denser
+   than the storefront for the same reason the rest of /admin is: these are
+   read all day, not browsed.
+
+   One idea runs through all six. A screen is a stack of cards, and a card is
+   one thing a staff member can do or read: the lines, the address, the money,
+   dispatch, the invoice. Before this, an order was two panels holding nine
+   forms between them, and the button nearest the cursor was rarely the one
+   that was meant. */
+
+/* Which tab is on is said once, by the attribute the browser already carries.
+   A class rendered beside it would be a second source for the same fact, and
+   the two disagree the first time one of them is forgotten. */
+.goen-admin__tabs [aria-current] {
+  background: var(--accent-faint);
+  border-color: var(--accent);
+  color: var(--fg);
+}
+
+/* A button in a column of full-width fields is not a banner: it shrinks to its
+   own label, and the one move the screen is about says so with Block instead. */
+.goen-admin__form .goen-btn {
+  align-self: flex-start;
   box-sizing: border-box;
   min-height: 44px;
 }
 
+/* The search's own button, on the component's class rather than the vendored
+   one. It sits on the field's line, so it keeps the row's alignment. */
+.goen-admin__search .goen-btn {
+  align-self: center;
+  box-sizing: border-box;
+  min-height: 44px;
+}
+
+/* A row of decision buttons shares its width: approving, excepting and
+   refusing are three answers to one question, so none of them leads. */
+.goen-admin__decidebtns .goen-btn {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-height: 44px;
+}
+
+/* One operation: a card holding one form and the sentence that explains it.
+   Tighter than the storefront's card, which is sized for reading. */
+.goen-admin__op {
+  border-radius: var(--r-md);
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+}
+
+.goen-admin__optitle {
+  color: var(--fg);
+  font-size: var(--fs-ed-20);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+/* A field that takes the whole row of the correction form — a street is not
+   two words wide. The row gives every field a 160px basis, so the override has
+   to be read at the same depth. */
+.goen-admin__row .goen-admin__wide {
+  flex-basis: 100%;
+}
+
+/* The order screen: what was bought and what has happened on the left, what
+   the shop can do about it on the right. Both columns are stacks of cards; the
+   rail beside them is the shell's, not this screen's. */
+.goen-admin__orderpanel,
+.goen-admin__orderside {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.goen-admin__linetotal {
+  color: var(--fg);
+  font-size: var(--fs-14);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+
+/* The lines are the card's whole content, so the last one needs no rule
+   beneath it: the card's own border is already there. */
+.goen-admin__op .goen-order__line:last-child {
+  border-bottom: 0;
+}
+
+/* The money, and under it the one move the order is waiting for. */
+.goen-admin__totalrow {
+  align-items: baseline;
+  color: var(--fg-muted);
+  display: flex;
+  font-size: var(--fs-13);
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.goen-admin__totalrow--grand {
+  border-top: 1px solid var(--border);
+  color: var(--fg);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  padding-top: 12px;
+}
+
+.goen-admin__totalval {
+  font-variant-numeric: tabular-nums;
+}
+
+/* What has happened, newest reading first: dispatches, the order's own history
+   and the invoice documents all take this shape, because a staff member reads
+   them for the same thing — what changed, and when. */
+.goen-admin__timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.goen-admin__event {
+  border-left: 2px solid var(--border-strong);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-left: 12px;
+}
+
+.goen-admin__eventhead {
+  color: var(--fg);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+}
+
+/* Who a ledger entry is about, beside the amount rather than under it. */
+.goen-admin__entrywho {
+  color: var(--fg);
+  font-size: var(--fs-13);
+}
+
+/* The layout gate finds the order screen's notice by the vendored spelling, so
+   the element keeps it (#380 R8). The vendored box it brings with it is
+   decided here instead. */
+.goen-notice.ui-alert {
+  display: block;
+  line-height: var(--lh-read);
+}
+
+/* The report's headline figures. Tiles rather than a table: they are read one
+   at a time, and a table invites comparing a revenue to a completion rate. */
+.goen-report__figures {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.goen-report__figure {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 16px;
+}
+
+.goen-report__label {
+  color: var(--fg-subtle);
+  font-size: var(--fs-12);
+}
+
+.goen-report__value {
+  color: var(--fg);
+  font-family: var(--font-display);
+  font-size: var(--fs-ed-24);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-semibold);
+}
+
+/* The two lists under the figures. Not tables: every cell already carries its
+   own label, because the sentence is what internal/i18n holds. */
+.goen-report__rows {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0 16px;
+}
+
+.goen-report__row {
+  align-items: baseline;
+  border-bottom: 1px solid var(--border-faint);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  padding: 12px 0;
+}
+
+.goen-report__row:last-child {
+  border-bottom: 0;
+}
+
+.goen-report__name {
+  color: var(--fg);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  min-width: 0;
+}
+
+.goen-report__num {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 1024px) {
+  /* The money follows the reader down the page: on a long order the totals are
+     what a staff member checks against whatever they are about to press.
+
+     The column has to be as tall as the row for that to be true. The grid
+     start-aligns its children, so without this the aside is only as tall as
+     its own cards and the summary stops following a third of the way down --
+     which is the part of a long order it exists for. */
+  .goen-admin__orderside {
+    align-self: stretch;
+  }
+
+  .goen-admin__ordersummary {
+    position: sticky;
+    top: 16px;
+  }
+}
 
 /* ---------- Motion ----------
 

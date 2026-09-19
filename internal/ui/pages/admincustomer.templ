@@ -4,10 +4,14 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 // AdminCustomers renders the customer search.
+//
+// The table appears only once somebody has searched: a back office that lists
+// every customer by default is a page nobody reads and a query nobody wanted.
 templ AdminCustomers(p layouts.Page, v AdminCustomersView) {
 	@layouts.Admin(p, "customers") {
 		<div class="ui-page-head">
@@ -19,7 +23,7 @@ templ AdminCustomers(p layouts.Page, v AdminCustomersView) {
 				</p>
 			</div>
 		</div>
-		<form class="goen-admin__form goen-admin__search" method="get" action="/admin/customers">
+		<form class="goen-admin__search" method="get" action="/admin/customers">
 			<label class="goen-sr-only" for="customer-search">{ i18n.T(ctx, i18n.KeyAdminCustSearch) }</label>
 			<input
 				class="ui-input"
@@ -30,40 +34,48 @@ templ AdminCustomers(p layouts.Page, v AdminCustomersView) {
 				placeholder={ i18n.T(ctx, i18n.KeyAdminCustPlaceholder) }
 				autocomplete="off"
 			/>
-			<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminSearch) }</button>
+			@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+				{ i18n.T(ctx, i18n.KeyAdminSearch) }
+			}
 		</form>
 		if v.TermTooShort() {
-			<p class="ui-alert ui-alert--warn" role="status">
+			@components.Notice(components.NoticeProps{Tone: components.ToneWarn}) {
 				{ i18n.T(ctx, i18n.KeyAdminCustSearchShort) }
-			</p>
+			}
 		}
 		if v.Searching() && v.Empty() {
-			<p class="goen-admin__hint">
-				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCustNoneFound), v.Term) }
-			</p>
+			<div class="goen-admin__empty">
+				<p class="goen-admin__emptytitle">
+					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCustNoneFound), v.Term) }
+				</p>
+			</div>
 		}
 		if v.Searching() && !v.Empty() {
 			<div class="goen-admin__tablewrap">
-				<table class="ui-table">
+				<table class="ui-table goen-admin__table">
 					<thead>
 						<tr>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCustColCustomer) }</th>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyFieldEmail) }</th>
-							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColOrder) }</th>
+							<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminColOrder) }</th>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCustSince) }</th>
 						</tr>
 					</thead>
 					<tbody>
 						for _, c := range v.Rows {
 							<tr>
-								<td><a href={ templ.SafeURL(c.Href()) }>{ c.DisplayName() }</a></td>
+								<td class="goen-admin__cellkey">
+									<a href={ templ.SafeURL(c.Href()) }>{ c.DisplayName() }</a>
+								</td>
 								<td>
 									{ c.Email }
 									if !c.Verified {
-										<span class="ui-badge ui-badge--warn">{ i18n.T(ctx, i18n.KeyAdminCustUnconfirmed) }</span>
+										@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+											{ i18n.T(ctx, i18n.KeyAdminCustUnconfirmed) }
+										}
 									}
 								</td>
-								<td>{ c.OrdersText() }</td>
+								<td class="goen-admin__cellnum">{ c.OrdersText() }</td>
 								<td>{ c.Since }</td>
 							</tr>
 						}
@@ -74,17 +86,26 @@ templ AdminCustomers(p layouts.Page, v AdminCustomersView) {
 	}
 }
 
-// AdminCustomer renders one customer, whole.
+// AdminCustomer renders one customer, whole: the four figures a staff member
+// checks first, then what the shop knows, then what they have bought.
 templ AdminCustomer(p layouts.Page, v *AdminCustomerView) {
 	@layouts.Admin(p, "customers") {
+		@components.Breadcrumb(components.BreadcrumbProps{
+			Label: i18n.T(ctx, i18n.KeyBreadcrumb),
+			Crumbs: []components.Crumb{
+				{Label: i18n.T(ctx, i18n.KeyAdminPageCustomers), Href: "/admin/customers"},
+				{Label: v.DisplayName()},
+			},
+		})
 		<div class="ui-page-head">
 			<div>
-				<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminPageCustomers) }</p>
 				<h1 class="ui-page-head__title">{ v.DisplayName() }</h1>
 				<p class="ui-page-head__sub">
 					{ v.Email }
 					if !v.Verified {
-						<span class="ui-badge ui-badge--warn">{ i18n.T(ctx, i18n.KeyAdminCustEmailUnconfirmed) }</span>
+						@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+							{ i18n.T(ctx, i18n.KeyAdminCustEmailUnconfirmed) }
+						}
 					}
 				</p>
 			</div>
@@ -107,38 +128,56 @@ templ AdminCustomer(p layouts.Page, v *AdminCustomerView) {
 				<span class="ui-stat__value">{ v.PointsText() }</span>
 			</div>
 		</div>
-		<dl class="ui-dl">
-			<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminColPhone) }</dt>
-			<dd class="ui-dl__desc">
-				if v.Phone != "" {
-					{ v.Phone }
-				} else {
-					—
-				}
-			</dd>
-			<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminCustSince) }</dt>
-			<dd class="ui-dl__desc">{ v.Since }</dd>
-		</dl>
+		@components.Card(components.CardProps{Class: "goen-admin__op"}) {
+			<dl class="ui-dl">
+				<div class="ui-dl__row">
+					<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminColPhone) }</dt>
+					<dd class="ui-dl__desc">
+						if v.Phone != "" {
+							{ v.Phone }
+						} else {
+							—
+						}
+					</dd>
+				</div>
+				<div class="ui-dl__row">
+					<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldEmail) }</dt>
+					<dd class="ui-dl__desc">{ v.Email }</dd>
+				</div>
+				<div class="ui-dl__row">
+					<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminCustSince) }</dt>
+					<dd class="ui-dl__desc">{ v.Since }</dd>
+				</div>
+			</dl>
+		}
 		<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminCustOrders) }</h2>
 		if !v.HasOrders() {
-			<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCustNoOrders) }</p>
+			<div class="goen-admin__empty">
+				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminCustNoOrders) }</p>
+			</div>
 		} else {
 			<div class="goen-admin__tablewrap">
-				<table class="ui-table">
+				<table class="ui-table goen-admin__table">
 					<thead>
 						<tr>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCustColNumber) }</th>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColStatus) }</th>
-							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColAmount) }</th>
+							<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminColAmount) }</th>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColPlacedAt) }</th>
 						</tr>
 					</thead>
 					<tbody>
 						for _, o := range v.Recent {
 							<tr>
-								<td><a href={ templ.SafeURL("/admin/orders/" + o.Number) }>{ o.Number }</a></td>
-								<td>{ o.StatusText }</td>
-								<td>{ o.Total() }</td>
+								<td class="goen-admin__cellkey">
+									<a href={ templ.SafeURL("/admin/orders/" + o.Number) }>{ o.Number }</a>
+								</td>
+								<td>
+									@components.Badge(components.BadgeProps{}) {
+										{ o.StatusText }
+									}
+								</td>
+								<td class="goen-admin__cellnum">{ o.Total() }</td>
 								<td>{ o.PlacedAt }</td>
 							</tr>
 						}
