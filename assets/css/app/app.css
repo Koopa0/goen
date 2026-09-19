@@ -1,23 +1,16 @@
 /* ============================================================
    goen — application layer.
 
-   The design system under ../ds owns tokens and components. This
-   file owns only what a design system cannot: page composition and
-   the responsive behaviour that turns the 1440 and 375 artboards
-   into one document. Load it last.
+   base.css owns the tokens, the element defaults and the shared
+   primitives. This file owns page composition and the responsive
+   behaviour that turns the 1440 and 375 artboards into one document.
+   Load it last.
 
-   Breakpoints follow the design system's --bp-* tokens, written as
-   literals because custom properties are not valid in @media.
+   Breakpoints are written as literals, because a custom property is
+   not valid in @media.
      md = 768px   layout goes multi-column
      lg = 1024px  the full desktop header fits on one row
    ============================================================ */
-
-/* The artboards set --font-sans / --font-display to put Noto Sans TC
-   behind the Latin faces so Han glyphs match the Latin weight. */
-:root {
-  --font-sans: 'Inter', 'Noto Sans TC', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-display: 'Space Grotesk', 'Noto Sans TC', ui-sans-serif, system-ui, sans-serif;
-}
 
 a {
   color: var(--accent-strong);
@@ -27,8 +20,8 @@ a:hover {
   color: var(--accent);
 }
 
-/* The design system silences its own spinners under reduced motion; the
-   component transitions it ships are the application layer's to calm. */
+/* Motion a reader has asked not to see. The shared primitives carry
+   transitions of their own, and this is where they are calmed. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -243,11 +236,10 @@ a:hover {
 }
 /* ---------- The ground ----------
 
-   Every value the storefront is drawn from, set here rather than in the
-   vendored token sheet. `app.css` is the last stylesheet the document links,
-   and `:root` here and `.theme-blue` on <html> have the same specificity, so
-   source order decides and these win. Nothing under `assets/css/ds/` is
-   edited, which is what keeps that directory deletable in one piece.
+   Every value the storefront is drawn from. `app.css` is the last stylesheet
+   the document links, so a token declared both here and in base.css is settled
+   by source order and these win. base.css declares a token only when this file
+   does not: one name, one declaration.
 
    The palette, the radius base and the type steps are ported from the design
    the shop is being rebuilt against: a white ground, near-black ink, one grey
@@ -292,26 +284,18 @@ a:hover {
   --error: oklch(0.562 0.245 27.325);
   --error-bg: oklch(0.577 0.245 27.325 / 0.1);
 
-  /* Ink. One step of grey below --fg, and the three names below all hold it.
+  /* Ink. One step of grey below --fg, and there is no second step to have.
      That is not tidiness, it is the arithmetic: the lightest grey that reads at
      4.5:1 on --elevated is L 0.544, and the lightest that reads on white is
      L 0.568 — so between "readable" and "white" there is 0.024 of lightness to
-     spend, which is not a tier. --fg-faint used to sit at 0.705 and measured
-     2.62:1 against white, which is what axe was naming on the product page's
-     struck price and review dates.
-
-     --fg-muted and --fg-subtle were already the same value before this change.
-     Three names for one colour is a thing to fix by deleting names, and that is
-     markup and rules rather than values, so it is not this change.
+     spend, which is not a tier.
 
      0.535 rather than the 0.544 the storefront needs, because the back office
      prints this on the warn tint in a low-stock row: 4.35:1 at 0.544 and 4.55:1
      at 0.535. Nine thousandths of lightness buys a whole route, and the two
      values are the same colour to look at. */
   --fg: oklch(0.141 0.005 285.823);
-  --fg-faint: oklch(0.535 0.016 285.938);
   --fg-muted: oklch(0.535 0.016 285.938);
-  --fg-subtle: oklch(0.535 0.016 285.938);
   --font-display: var(--font-sans);
 
   /* One family for everything, headings included. Noto Sans TC follows Inter
@@ -389,9 +373,9 @@ h4,
 
    goen's own presentation layer: the shapes a page repeats, ported from the
    design the shop is being rebuilt against and written on the tokens above.
-   The design system's .ui-* equivalents stay where they are until the last
-   surface using one is rebuilt, and nothing wears both -- an element carrying
-   a .goen- class and its .ui- ancestor is two systems painting one box.
+   The .ui-* primitives in base.css stay until the last surface using one is
+   rebuilt, and nothing wears both -- an element carrying a .goen- class and
+   its .ui- ancestor is two shapes painting one box.
 
    Control heights are 44px, which is goen's rule and not the reference's:
    `scripts/check-layout.mjs:1300` sweeps `button, .ui-btn, input[type=number]`
@@ -695,7 +679,7 @@ h4,
 }
 
 .goen-input::placeholder {
-  color: var(--fg-faint);
+  color: var(--fg-muted);
 }
 
 /* A refused field is marked by its border AND by the sentence beside it. A
@@ -739,7 +723,7 @@ h4,
 }
 
 .ui-crumbs__sep {
-  color: var(--fg-faint);
+  color: var(--fg-muted);
 }
 
 .ui-crumbs__current {
@@ -806,8 +790,8 @@ h4,
 /* The bar's category row, the drawer's, and the one link that is a promotion
    rather than a category. The `ui-navitem` spelling is kept because
    `internal/ui/pages/backoffice_test.go:22` locates the drawer's /admin
-   entrance by the whole tag; every declaration the vendored sheet gives that
-   name is replaced here. */
+   entrance by the whole tag; every declaration base.css gives that name is
+   replaced here. */
 .goen-header__nav {
   display: none;
 }
@@ -876,7 +860,7 @@ h4,
 }
 
 /* The wide slot: /admin for staff, the wishlist for everybody else. It keeps
-   the vendored button spelling because `backoffice_test.go:112` asserts the
+   the shared button spelling because `backoffice_test.go:112` asserts the
    whole class attribute, so the ghost-icon recipe is written out again here
    rather than taken from `.goen-btn`. */
 .goen-header__action--wide {
@@ -1341,7 +1325,7 @@ h4,
    broken page. */
 .goen-ph {
   align-items: center;
-  color: var(--fg-faint);
+  color: var(--fg-muted);
   display: flex;
   font-size: var(--fs-14);
   height: 100%;
@@ -1857,7 +1841,7 @@ h4,
   gap: 6px;
 }
 
-/* The price pair and the sort control keep the vendored names: the shell probe
+/* The price pair and the sort control keep the shared names: the shell probe
    at `check-layout.mjs:668` decides the desktop rail rendered at all by finding
    one of them, and the tap sweep at `:805` measures them. */
 .goen-filters .ui-input,
@@ -2091,7 +2075,7 @@ h4,
    quieter so the eye lands on the rows that can actually be compared. */
 .goen-compare__table .is-partial td,
 .goen-compare__table .is-partial th {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
 }
 
 /* One saved product: the card, and under it the form that removes it. The form
@@ -2272,7 +2256,7 @@ h4,
 
 .goen-pdp__shot--empty {
   align-items: center;
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   display: flex;
   font-size: var(--fs-14);
   justify-content: center;
@@ -2301,7 +2285,7 @@ h4,
 }
 
 .goen-pdp__brand {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   font-size: var(--fs-13);
   margin: 0;
 }
@@ -2332,7 +2316,7 @@ h4,
 .goen-pdp__rating {
   align-items: center;
   align-self: flex-start;
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   display: inline-flex;
   font-size: var(--fs-13);
   gap: 4px;
@@ -2373,7 +2357,7 @@ h4,
 }
 
 .goen-pdp__was {
-  color: var(--fg-faint);
+  color: var(--fg-muted);
   font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;
 }
@@ -2455,7 +2439,7 @@ h4,
    and the link still leads to that variant's page. */
 .goen-swatch--out {
   border-style: dashed;
-  color: var(--fg-faint);
+  color: var(--fg-muted);
 }
 
 /* A colour swatch. The link is the target and the disc is what is seen: 44px
@@ -2723,7 +2707,7 @@ h4,
 }
 
 .goen-pdp__specterm {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
 }
 
 .goen-pdp__specvalue {
@@ -2768,7 +2752,7 @@ h4,
 }
 
 .goen-pdp__scorecount {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   font-size: var(--fs-12);
   margin: 0;
 }
@@ -2789,7 +2773,7 @@ h4,
 
 .goen-pdp__barlabel,
 .goen-pdp__barcount {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   font-family: var(--font-mono);
   font-size: var(--fs-11);
 }
@@ -2800,7 +2784,7 @@ h4,
 }
 
 /* The bar's track and fill. Both are drawn here rather than borrowed: the
-   design system's progress rule never reaches the browser, and the fill needs
+   base.css carries no progress rule at all, and the fill needs
    a display of its own because width does not apply to an inline span.
 
    The width is a class and not an inline style, because style-src carries no
@@ -2896,7 +2880,7 @@ h4,
 }
 
 .goen-pdp__reviewdate {
-  color: var(--fg-faint);
+  color: var(--fg-muted);
   font-family: var(--font-mono);
   font-size: var(--fs-11);
   margin-left: auto;
@@ -2919,7 +2903,7 @@ h4,
 .goen-pdp__noreviews,
 .goen-pdp__reviewnote,
 .goen-pdp__meta {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   font-size: var(--fs-13);
   margin: 0;
 }
@@ -3335,7 +3319,7 @@ h4,
    cannot join it by class name: `compare_test.go:33` reads `class="ui-empty"`
    as the whole attribute and `check-layout.mjs:75,99` uses the same name as a
    row marker, so their box keeps that spelling and this rule reaches it by
-   descent. The vendored `.ui-empty` sets the same six properties from a sheet
+   descent. base.css sets the same six properties on `.ui-empty` from a sheet
    the document links earlier, so every one of them is decided here. */
 .goen-empty,
 .goen-compare .ui-empty,
@@ -3941,7 +3925,7 @@ h4,
   max-width: 48rem;
 }
 
-/* The head also carries the vendored page-head spelling, because the layout
+/* The head also carries the shared page-head spelling, because the layout
    gate measures the sign-out control through it (scripts/check-layout.mjs:1542).
    Every property that sheet sets on it is set again here, so the spelling is a
    handle and the appearance is decided in this file. */
@@ -4420,10 +4404,10 @@ h4,
   text-align: right;
 }
 
-/* The redemption field keeps the vendored spelling beside its own, because the
+/* The redemption field keeps the shared spelling beside its own, because the
    layout gate measures this control through it (scripts/check-layout.mjs:1490).
-   The vendored sheet reaches it on hover and on focus with a higher specificity
-   than a single class, so those two states are decided here instead. */
+   base.css reaches it on hover and on focus with a higher specificity than a
+   single class, so those two states are decided here instead. */
 .goen-qa__form .ui-input:focus,
 .goen-qa__form .ui-input:hover {
   background: transparent;
@@ -4570,7 +4554,7 @@ h4,
 
 /* The empty state's two sentences are compared by the whole class attribute
    (internal/ui/pages/warranty_test.go:180,184), so the paragraphs carry the
-   vendored spelling alone and every declaration is made here. */
+   shared spelling alone and every declaration is made here. */
 .goen-empty .ui-empty__title {
   color: var(--fg);
   font-family: var(--font-sans);
@@ -4729,7 +4713,7 @@ h4,
 .goen-doc__qa summary::after {
   border-bottom: 2px solid currentcolor;
   border-right: 2px solid currentcolor;
-  color: var(--fg-faint);
+  color: var(--fg-muted);
   content: '';
   flex: none;
   height: 8px;
@@ -4924,7 +4908,7 @@ h4,
 
    The two banners inside the form are written in the page rather than through
    the notice component, because the layout gate reads the refusal's sentence
-   through a vendored descendant pair (scripts/check-layout.mjs:2068) and one
+   through a shared descendant pair (scripts/check-layout.mjs:2068) and one
    caller does not earn a Prop.
    ------------------------------------------------------------------------ */
 
@@ -5086,9 +5070,9 @@ h4,
   margin: 0;
 }
 
-/* The refusal's sentence is read through the vendored descendant pair, so the
-   span keeps that spelling; the muted ink it would otherwise take from the
-   vendored sheet is decided here. */
+/* The refusal's sentence is read through the shared descendant pair, so the
+   span keeps that spelling; the muted ink it would otherwise take from
+   base.css is decided here. */
 .goen-notice .ui-alert__body {
   color: inherit;
 }
@@ -5147,7 +5131,7 @@ h4,
    subject, light enough not to be read as its message, and small enough that a
    375 viewport never scrolls sideways around it. */
 .notice__code {
-  color: var(--fg-faint);
+  color: var(--fg-muted);
   font-size: 3.75rem;
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-semibold);
@@ -5205,7 +5189,7 @@ h4,
    Denser than the storefront on purpose: this is a queue someone reads all day,
    not a page someone browses. It still uses the same tokens and the same
    components — a second visual language for /admin would be a second thing to
-   maintain, and the design system was built to serve both pressures. */
+   maintain, and the shared primitives serve both pressures. */
 
 /* The back office's own document chrome. The storefront's header and footer are
    a shopper's tools — a category row, a product search, a wishlist, a cart, a
@@ -5322,7 +5306,7 @@ h4,
 }
 
 .goen-adminfoot__copyright {
-  color: var(--fg-faint);
+  color: var(--fg-muted);
   display: block;
   font-size: var(--fs-12);
   margin: 0 auto;
@@ -5466,7 +5450,7 @@ h4,
 }
 
 .goen-admin__navback {
-  color: var(--fg-faint);
+  color: var(--fg-muted);
 }
 
 .goen-admin__navgroup {
@@ -5517,8 +5501,8 @@ h4,
    announced by <details> itself, so this must not be readable text. */
 .goen-admin__navlabel::after,
 .goen-disclosure__summary::after {
-  border-bottom: 1.5px solid var(--fg-faint);
-  border-right: 1.5px solid var(--fg-faint);
+  border-bottom: 1.5px solid var(--fg-muted);
+  border-right: 1.5px solid var(--fg-muted);
   content: '';
   height: 6px;
   transform: rotate(45deg) translate(-1px, -1px);
@@ -5544,7 +5528,7 @@ h4,
 }
 
 .goen-admin .ui-page-head__eyebrow {
-  color: var(--fg-faint);
+  color: var(--fg-muted);
   font-family: var(--font-sans);
   font-size: var(--fs-12);
   font-weight: var(--fw-medium);
@@ -5567,8 +5551,8 @@ h4,
 
 /* The figures a shift starts with. A counted grid with tracks that may shrink
    to nothing, not auto-fit: a track whose minimum is a length is floored by it,
-   and one screen on this row has a stat label the design system refuses to
-   wrap, which took the whole page sideways at 375. */
+   and one screen on this row has a stat label base.css refuses to wrap,
+   which took the whole page sideways at 375. */
 /* As many tiles as fit a figure, counted by the browser rather than by hand at
    three widths. A back-office figure is money as often as it is a count — a
    customer's lifetime spend, their store credit — and a six-figure sum at the
@@ -5826,7 +5810,7 @@ h4,
   min-width: 0;
 }
 
-/* The design system's stat label does not wrap, so a long one is wider than
+/* The shared stat label does not wrap, so a long one is wider than
    its grid track and takes the page sideways with it. The screens still on
    that component are measured at 375 by the layout gate. */
 .goen-admin__stats .ui-stat__label {
@@ -5850,7 +5834,7 @@ h4,
    covered a subset and each left something at 30px: the activate/deactivate
    button sits in its own form rather than an inline one, and the stock page's
    filter links were styled only on the orders page. Scoped to .goen-admin
-   rather than raising .ui-filter globally, which would reshape a design-system
+   rather than raising .ui-filter globally, which would reshape a shared
    component from the app layer. */
 .goen-admin .ui-btn,
 .goen-admin .ui-filter,
@@ -5917,12 +5901,12 @@ h4,
   white-space: normal;
 }
 
-/* The design system's description list is a fixed 180px term column plus the
+/* The shared description list is a fixed 180px term column plus the
    value, which is right at a desk and 18px too wide on a phone: the order page
    scrolled sideways at 375. It stacks below the wide breakpoint, and the value
    may break inside a word — a provider reference and an email address have no
    space to break at. Page composition, so it belongs here rather than upstream:
-   the two-column form is correct for every viewport the design system draws. */
+   the two-column form is correct for every viewport base.css draws. */
 .goen-admin .ui-dl__row {
   grid-template-columns: 1fr;
   gap: 4px;
@@ -6161,7 +6145,7 @@ h4,
 }
 
 .goen-admin__amount.is-spend {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
 }
 
 .goen-admin__productname,
@@ -6462,7 +6446,7 @@ h4,
   min-height: 44px;
 }
 
-/* The search's own button, on the component's class rather than the vendored
+/* The search's own button, on the component's class rather than the shared
    one. It sits on the field's line, so it keeps the row's alignment. */
 .goen-admin__search .goen-btn {
   align-self: center;
@@ -6586,8 +6570,8 @@ h4,
   font-size: var(--fs-13);
 }
 
-/* The layout gate finds the order screen's notice by the vendored spelling, so
-   the element keeps it (#380 R8). The vendored box it brings with it is
+/* The layout gate finds the order screen's notice by the shared spelling, so
+   the element keeps it (#380 R8). The box base.css brings with it is
    decided here instead. */
 .goen-notice.ui-alert {
   display: block;
@@ -6616,7 +6600,7 @@ h4,
 }
 
 .goen-report__label {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   font-size: var(--fs-12);
 }
 
@@ -6788,7 +6772,7 @@ h4,
    of padding around one line, and a badge-sized mark in the middle of it reads
    as something that failed to load. */
 .goen-modqueue__emptyicon {
-  color: var(--fg-faint);
+  color: var(--fg-muted);
   display: flex;
 }
 
@@ -6851,7 +6835,7 @@ h4,
 }
 
 .goen-twofa__uri {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   display: block;
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: var(--fs-12);

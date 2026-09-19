@@ -28,11 +28,12 @@ const Prefix = "/static/"
 
 // Asset names referenced by templates. Keep in sync with [required].
 const (
-	DesignSystemCSS = "css/ds/styles.css"
-	AccentsCSS      = "css/ds/themes/accents.css"
-	CommerceCSS     = "css/ds/packs/commerce.css"
-	AppCSS          = "css/app/app.css"
-	FontsCSS        = "css/app/fonts.css"
+	// BaseCSS carries the tokens, the element defaults and the shared
+	// primitives, and is linked before AppCSS: a value set in both is
+	// settled by source order.
+	BaseCSS  = "css/app/base.css"
+	AppCSS   = "css/app/app.css"
+	FontsCSS = "css/app/fonts.css"
 	// InterLatinWOFF2 is the one face worth a preload: every page paints Latin
 	// before it paints anything else, and the browser cannot discover a font
 	// until it has parsed the stylesheet that names it.
@@ -53,9 +54,7 @@ const (
 const productMediaPrefix = "media/products/"
 
 var required = []string{
-	DesignSystemCSS,
-	AccentsCSS,
-	CommerceCSS,
+	BaseCSS,
 	AppCSS,
 	FontsCSS,
 	InterLatinWOFF2,
@@ -70,12 +69,6 @@ var required = []string{
 type assetIndex struct {
 	digests map[string]string
 	gzipped map[string][]byte
-	// bodies holds the served bytes for an asset whose embedded bytes are not
-	// what goen serves. Only stylesheets appear here, and only when a remote
-	// @import was removed; everything else is served straight off the embedded
-	// filesystem. The digest is taken from the served bytes either way, so a
-	// cached copy is a copy of what the visitor was actually sent.
-	bodies map[string][]byte
 }
 
 var catalogue = mustIndex()
@@ -93,7 +86,6 @@ func index() (assetIndex, error) {
 	indexed := assetIndex{
 		digests: make(map[string]string),
 		gzipped: make(map[string][]byte),
-		bodies:  make(map[string][]byte),
 	}
 	err := fs.WalkDir(files, ".", func(name string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
@@ -102,10 +94,6 @@ func index() (assetIndex, error) {
 		raw, err := fs.ReadFile(files, name)
 		if err != nil {
 			return fmt.Errorf("read %s: %w", name, err)
-		}
-		if rewritten, changed := stripRemoteImports(name, raw); changed {
-			raw = rewritten
-			indexed.bodies[name] = raw
 		}
 		sum := sha256.Sum256(raw)
 		indexed.digests[name] = hex.EncodeToString(sum[:])[:12]
@@ -248,13 +236,6 @@ func Handler(log *slog.Logger) http.Handler {
 			writeBody(w, r, log, name, `"`+digest+`-gz"`, gzipped)
 			return
 		}
-		// A stylesheet whose remote @import was removed is served from memory,
-		// because the embedded bytes and the served bytes differ: see
-		// stripRemoteImports. Everything else comes off the filesystem.
-		if body, rewritten := catalogue.bodies[name]; rewritten {
-			writeBody(w, r, log, name, `"`+digest+`"`, body)
-			return
-		}
 		w.Header().Set("ETag", `"`+digest+`"`)
 		// Set here rather than left to the file server, which would sniff the
 		// extension and answer application/json. A browser refuses a
@@ -268,9 +249,9 @@ func Handler(log *slog.Logger) http.Handler {
 }
 
 // writeBody answers with bytes this package is holding rather than with a file,
-// which is the case for both a precompressed representation and a rewritten
-// stylesheet. It owns the conditional request and the HEAD, so those two
-// answers cannot drift apart between the callers.
+// which is the case for a precompressed representation. It owns the conditional
+// request and the HEAD, so those two answers cannot drift apart between the
+// callers.
 func writeBody(
 	w http.ResponseWriter, r *http.Request, log *slog.Logger, name, etag string, body []byte,
 ) {

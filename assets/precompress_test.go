@@ -20,14 +20,6 @@ func TestEveryPrecompressibleAssetRoundTrips(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)
 		}
-		// The served bytes, not the embedded ones: a stylesheet whose remote
-		// @import was removed is served from catalogue.bodies, and the two
-		// representations of one asset have to be the same document. A client
-		// that sends Accept-Encoding: gzip must not get a different stylesheet
-		// from one that does not.
-		if served, rewritten := catalogue.bodies[name]; rewritten {
-			raw = served
-		}
 		if !compressible[path.Ext(name)] || len(raw) < minPrecompress {
 			continue
 		}
