@@ -703,6 +703,28 @@ func TestAWriteThrowsAwaySpeculationsTakenBeforeIt(t *testing.T) {
 		t.Error("the wrapped handler never ran; the middleware swallowed the request")
 	}
 
+	// The value, and not only the header's presence. Clear-Site-Data's other
+	// directives are destructive in a way these two are not: "cookies" on an
+	// add-to-cart response signs the shopper out and empties the cart it was
+	// meant to protect, "storage" and "cache" throw away work the visitor's
+	// browsing paid for, and "*" does all of it. Widening this value is a
+	// plausible edit — it reads like making the header more thorough — so the
+	// four spellings that must never appear are named here.
+	res := httptest.NewRecorder()
+	handler(res, httptest.NewRequestWithContext(
+		t.Context(), http.MethodPost, "/cart/items", http.NoBody))
+	value := res.Header().Get("Clear-Site-Data")
+	for _, forbidden := range []string{"cookies", "storage", "cache", "*"} {
+		// "cache" is a substring of nothing here: the two permitted directives
+		// are prefetchCache and prerenderCache, so a case-sensitive search for
+		// the lower-case directive name cannot match either.
+		if strings.Contains(value, `"`+forbidden+`"`) || value == forbidden {
+			t.Errorf("Clear-Site-Data is %q and carries %q: on a cart write that "+
+				"signs the shopper out, empties what they were saving, or throws "+
+				"away the browsing that paid for the speculation", value, forbidden)
+		}
+	}
+
 	for _, method := range []string{http.MethodGet, http.MethodHead} {
 		res := httptest.NewRecorder()
 		req := httptest.NewRequestWithContext(t.Context(), method, "/p/x", http.NoBody)
