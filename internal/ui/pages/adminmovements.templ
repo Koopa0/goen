@@ -9,67 +9,64 @@ import (
 
 // AdminMovements renders one variant's stock ledger.
 templ AdminMovements(p layouts.Page, v *AdminMovementsView) {
-	@layouts.Admin(p) {
-		<div class="goen-admin">
-			@adminNav("stock")
-			<div class="ui-page-head">
-				<div>
-					<p class="ui-page-head__eyebrow">
-						<a href="/admin/stock">{ i18n.T(ctx, i18n.KeyAdminStockLink) }</a>
-					</p>
-					<h1 class="ui-page-head__title">{ v.SKU }</h1>
-					<p class="ui-page-head__sub">
-						<a href={ templ.SafeURL("/admin/products/" + v.Slug) }>{ v.ProductName }</a>
-						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminStockNowSafe), v.StockText(), v.SafetyText()) }
-					</p>
-				</div>
+	@layouts.Admin(p, "stock") {
+		<div class="ui-page-head">
+			<div>
+				<p class="ui-page-head__eyebrow">
+					<a href="/admin/stock">{ i18n.T(ctx, i18n.KeyAdminStockLink) }</a>
+				</p>
+				<h1 class="ui-page-head__title">{ v.SKU }</h1>
+				<p class="ui-page-head__sub">
+					<a href={ templ.SafeURL("/admin/products/" + v.Slug) }>{ v.ProductName }</a>
+					{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminStockNowSafe), v.StockText(), v.SafetyText()) }
+				</p>
 			</div>
-			if v.HasNotice() {
-				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
-			}
-			@adminReceiveForm(v)
-			if v.Empty() {
-				<p class="goen-admin__hint">
-					{ i18n.T(ctx, i18n.KeyAdminLedgerEmpty) }
-				</p>
-			} else {
-				<div class="goen-admin__tablewrap">
-					<table class="ui-table">
-						<thead>
-							<tr>
-								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColWhen) }</th>
-								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColChange) }</th>
-								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColReason) }</th>
-								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColOrder) }</th>
-								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColActor) }</th>
-								<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColBalance) }</th>
-							</tr>
-						</thead>
-						<tbody>
-							for _, m := range v.Rows {
-								<tr>
-									<td>{ m.At }</td>
-									<td class={ templ.KV("goen-admin__in", m.In()) }>{ m.DeltaText() }</td>
-									<td>{ m.ReasonText(ctx) }</td>
-									<td>
-										if m.HasOrder() {
-											<a href={ templ.SafeURL("/admin/orders/" + m.OrderNumber) }>{ m.OrderNumber }</a>
-										} else {
-											—
-										}
-									</td>
-									<td>{ m.By(ctx) }</td>
-									<td>{ m.RunningText() }</td>
-								</tr>
-							}
-						</tbody>
-					</table>
-				</div>
-				<p class="goen-admin__hint">
-					{ i18n.T(ctx, i18n.KeyAdminLedgerFoot) }
-				</p>
-			}
 		</div>
+		if v.HasNotice() {
+			<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+		}
+		@adminReceiveForm(v)
+		if v.Empty() {
+			<p class="goen-admin__hint">
+				{ i18n.T(ctx, i18n.KeyAdminLedgerEmpty) }
+			</p>
+		} else {
+			<div class="goen-admin__tablewrap">
+				<table class="ui-table">
+					<thead>
+						<tr>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColWhen) }</th>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColChange) }</th>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColReason) }</th>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColOrder) }</th>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColActor) }</th>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColBalance) }</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, m := range v.Rows {
+							<tr>
+								<td>{ m.At }</td>
+								<td class={ templ.KV("goen-admin__in", m.In()) }>{ m.DeltaText() }</td>
+								<td>{ m.ReasonText(ctx) }</td>
+								<td>
+									if m.HasOrder() {
+										<a href={ templ.SafeURL("/admin/orders/" + m.OrderNumber) }>{ m.OrderNumber }</a>
+									} else {
+										—
+									}
+								</td>
+								<td>{ m.By(ctx) }</td>
+								<td>{ m.RunningText() }</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+			<p class="goen-admin__hint">
+				{ i18n.T(ctx, i18n.KeyAdminLedgerFoot) }
+			</p>
+		}
 	}
 }
 

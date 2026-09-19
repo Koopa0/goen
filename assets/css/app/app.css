@@ -5954,9 +5954,10 @@ h4,
 
   /* The rail becomes a column beside the work, and only on a screen that has
      wrapped its work in one element: it then shares that element's grid row,
-     so the row is as tall as the work rather than as tall as 23 links. A
-     screen still waiting to be rebuilt keeps the rail as a band above its
-     sections, which is what it has today. */
+     so the row is as tall as the work rather than as tall as 23 links. The
+     shell writes that wrapper for every back-office screen now, so the test
+     here is really "does this page have a rail at all" — the step-up challenge
+     has none, and stays one column. */
   .goen-admin:has(.goen-admin__main) {
     grid-template-columns: 15rem minmax(0, 1fr);
   }
