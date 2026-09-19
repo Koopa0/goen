@@ -11425,3 +11425,81 @@ func TestAStrandedInvoiceClaimIsOnTheHealthPage(t *testing.T) {
 			authorizations, audits, auditActor, auditRequest)
 	}
 }
+
+// TestABoundedListSaysSoAtTheBoundary is the integration half of the change
+// #400's sibling made: every back-office list reads a page and shows it, and
+// until now no page said so.
+//
+// The boundary is the only place this can be wrong, so that is what is tested:
+// exactly a page says nothing, and one row past a page says something. The
+// contact inbox is the fixture because a message needs no product, no order and
+// no customer — every other capped list would need a catalogue built first to
+// prove a property that has nothing to do with catalogues.
+func TestABoundedListSaysSoAtTheBoundary(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+
+	// The marker goes in the address, not the subject: contact_messages.subject
+	// is a closed set the schema enforces, so a made-up one is refused.
+	marker := "bound-" + uuid.NewString()[:8] + "@goen.invalid"
+	defer func() {
+		if _, err := pool.Exec(context.WithoutCancel(ctx),
+			`DELETE FROM contact_messages WHERE email = $1`, marker); err != nil {
+			t.Errorf("clean up the bounded-list fixture: %v", err)
+		}
+	}()
+
+	// Anything already in the inbox counts towards the page, so the fixture
+	// fills whatever is left rather than assuming it starts empty.
+	var existing int
+	if err := pool.QueryRow(ctx, `SELECT count(*)::int FROM contact_messages`).Scan(&existing); err != nil {
+		t.Fatalf("count the inbox: %v", err)
+	}
+	if existing > admin.PageSize {
+		t.Skipf("the inbox already holds %d messages, more than a page; "+
+			"this test needs to own the boundary", existing)
+	}
+
+	write := func(n int) {
+		t.Helper()
+		for i := range n {
+			if _, err := pool.Exec(ctx, `
+				INSERT INTO contact_messages (name, email, subject, message)
+				VALUES ($1, $2, '商品諮詢', $3)`,
+				"版面測試", marker,
+				fmt.Sprintf("訊息內容 %03d", i)); err != nil {
+				t.Fatalf("write fixture message %d: %v", i, err)
+			}
+		}
+	}
+
+	write(admin.PageSize - existing)
+	full, err := s.Messages(ctx)
+	if err != nil {
+		t.Fatalf("read the inbox at exactly a page: %v", err)
+	}
+	if len(full.Rows) != admin.PageSize {
+		t.Fatalf("a full page holds %d rows, want %d", len(full.Rows), admin.PageSize)
+	}
+	if full.More {
+		t.Error("a list holding exactly a page says there is more; the sentence " +
+			"would appear on an inbox nobody has anything left to read in")
+	}
+
+	write(1)
+	over, err := s.Messages(ctx)
+	if err != nil {
+		t.Fatalf("read the inbox one past a page: %v", err)
+	}
+	if len(over.Rows) != admin.PageSize {
+		t.Errorf("one row past a page renders %d rows, want %d — the extra row is "+
+			"there to be counted, not shown", len(over.Rows), admin.PageSize)
+	}
+	if !over.More {
+		t.Error("a list with more than a page says nothing; a staff member cannot " +
+			"tell fifty messages from fifty of nine hundred")
+	}
+	if over.Limit != admin.PageSize {
+		t.Errorf("the sentence would name %d rather than %d", over.Limit, admin.PageSize)
+	}
+}

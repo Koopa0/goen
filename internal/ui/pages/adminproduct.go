@@ -47,6 +47,8 @@ func (p AdminProduct) Sellable() bool { return p.Status == "active" && p.Variant
 
 // AdminProductsView is the back-office catalogue.
 type AdminProductsView struct {
+	ListBound
+
 	Rows   []AdminProduct
 	Notice string
 }
