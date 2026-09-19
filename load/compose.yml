@@ -1,0 +1,75 @@
+# Isolated multi-instance reference topology for commerce load profiles (#333).
+# PostgreSQL, Valkey and Mailpit run in Docker; two goen instances run on the
+# host (published ports) so the harness works when inter-container DB routing is
+# blocked. nginx load-balances the host listeners.
+
+name: goen-load
+
+services:
+  db:
+    image: ${POSTGRES_IMAGE:-postgres:18-alpine}
+    environment:
+      POSTGRES_USER: goen
+      POSTGRES_PASSWORD: goen
+      POSTGRES_DB: goen
+    ports:
+      - "127.0.0.1:${LOAD_DB_PORT:-15433}:5432"
+    volumes:
+      - goen-load-pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U goen -d goen"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1g
+
+  valkey:
+    image: ${VALKEY_IMAGE:-valkey/valkey:8.0.2-alpine}
+    command: ["valkey-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:${LOAD_VALKEY_PORT:-16379}:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256m
+
+  mailpit:
+    image: ${MAILPIT_IMAGE:-axllent/mailpit:v1.21.6}
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:${LOAD_MAIL_UI_PORT:-18026}:8025"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128m
+
+  nginx:
+    image: ${NGINX_IMAGE:-nginx:1.27.4-alpine}
+    ports:
+      - "127.0.0.1:${LOAD_HTTP_PORT:-19700}:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128m
+
+volumes:
+  goen-load-pgdata:

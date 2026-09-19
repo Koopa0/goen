@@ -35,7 +35,10 @@ endif
         image image-push lint fmt fmt-check vet deadcode gen templ-check vuln \
         sqlc sqlc-check squawk db-up db-down migrate-up migrate-down db-seed \
         db-repair-invoice-faq db-repair-refund-faq \
-        cursor-scripts-check workflow-check verify verify-all check-layout db-reset clean
+        cursor-scripts-check workflow-check verify verify-all check-layout db-reset \
+        load-up load-down load-oracle load-profile-browse load-profile-cache-stress \
+        load-profile-stock-contention load-profile-mixed-ops load-profile-dependency-failure \
+        clean
 
 build: gen
 	go build -o bin/goen ./cmd/goen
@@ -930,6 +933,39 @@ verify: workflow-check cursor-scripts-check fmt-check templ-check squawk sqlc-ch
 # Everything verify runs plus the parts that need Docker and the network.
 verify-all: verify test-integration vuln
 	@echo 'verify-all: PASS' 
+
+# Multi-instance commerce load harness (#333). Isolated from `make db-up` on 5433.
+load-up:
+	@chmod +x load/scripts/*.sh
+	@bash load/scripts/provision.sh
+
+load-down:
+	@chmod +x load/scripts/*.sh
+	@bash load/scripts/teardown.sh
+
+load-oracle:
+	@chmod +x load/scripts/*.sh
+	@bash load/scripts/oracle-check.sh stock-contention
+
+load-profile-browse:
+	@chmod +x load/scripts/*.sh
+	@bash load/scripts/run-profile.sh browse
+
+load-profile-cache-stress:
+	@chmod +x load/scripts/*.sh
+	@bash load/scripts/run-profile.sh cache-stress
+
+load-profile-stock-contention:
+	@chmod +x load/scripts/*.sh
+	@bash load/scripts/run-profile.sh stock-contention
+
+load-profile-mixed-ops:
+	@chmod +x load/scripts/*.sh
+	@bash load/scripts/run-profile.sh mixed-ops
+
+load-profile-dependency-failure:
+	@chmod +x load/scripts/*.sh
+	@bash load/scripts/run-profile.sh dependency-failure
 
 clean:
 	rm -rf bin
