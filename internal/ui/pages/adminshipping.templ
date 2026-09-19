@@ -9,7 +9,7 @@ import (
 
 // AdminShipping renders the delivery configuration.
 templ AdminShipping(p layouts.Page, v AdminShippingView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("shipping")
 			<div class="ui-page-head">

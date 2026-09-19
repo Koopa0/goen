@@ -9,7 +9,7 @@ import (
 
 // AdminReturns renders the return queue and the decision forms.
 templ AdminReturns(p layouts.Page, v AdminReturnsView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("returns")
 			<div class="ui-page-head">

@@ -250,7 +250,7 @@ templ adminNav(current string) {
 // work and not where it is, and the screen holding it is one they would
 // otherwise find in the navigation.
 templ AdminDashboard(p layouts.Page, v AdminDashboardView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("dashboard")
 			<div class="goen-admin__main">
@@ -384,7 +384,7 @@ templ AdminDashboard(p layouts.Page, v AdminDashboardView) {
 
 // AdminOrders renders the order queue.
 templ AdminOrders(p layouts.Page, v AdminOrdersView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("orders")
 			<div class="ui-page-head">
@@ -478,7 +478,7 @@ templ AdminOrders(p layouts.Page, v AdminOrdersView) {
 
 // AdminOrder renders one order, with the moves the schema will accept.
 templ AdminOrder(p layouts.Page, v *AdminOrderView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("orders")
 			<nav class="ui-crumbs" aria-label={ i18n.T(ctx, i18n.KeyBreadcrumb) }>
@@ -805,7 +805,7 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 
 // AdminVariants renders the stock list and its editing forms.
 templ AdminVariants(p layouts.Page, v AdminVariantsView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("stock")
 			<div class="ui-page-head">

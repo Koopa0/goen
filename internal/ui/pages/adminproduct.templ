@@ -9,7 +9,7 @@ import (
 
 // AdminProducts renders the back-office catalogue.
 templ AdminProducts(p layouts.Page, v AdminProductsView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("products")
 			<div class="ui-page-head">
@@ -56,7 +56,7 @@ templ AdminProducts(p layouts.Page, v AdminProductsView) {
 
 // AdminProductForm renders the create-or-edit form and its variants.
 templ AdminProductForm(p layouts.Page, v AdminProductView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("products")
 			<div class="ui-page-head">

@@ -9,7 +9,7 @@ import (
 
 // AdminWarranties renders the back office's warranty lookup.
 templ AdminWarranties(p layouts.Page, v AdminWarrantiesView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("warranty")
 			<div class="ui-page-head">

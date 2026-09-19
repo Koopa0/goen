@@ -9,7 +9,7 @@ import (
 
 // AdminReport renders the shop's numbers over one window.
 templ AdminReport(p layouts.Page, v *AdminReportView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("reports")
 			<div class="ui-page-head">

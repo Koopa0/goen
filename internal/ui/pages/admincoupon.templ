@@ -9,7 +9,7 @@ import (
 
 // AdminCoupons renders the promotions and the form that issues one.
 templ AdminCoupons(p layouts.Page, v AdminCouponsView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("coupons")
 			<div class="ui-page-head">

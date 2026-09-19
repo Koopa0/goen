@@ -9,7 +9,7 @@ import (
 
 // AdminMovements renders one variant's stock ledger.
 templ AdminMovements(p layouts.Page, v *AdminMovementsView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("stock")
 			<div class="ui-page-head">

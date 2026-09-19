@@ -9,7 +9,7 @@ import (
 
 // AdminReviews renders the review queue.
 templ AdminReviews(p layouts.Page, v AdminReviewsView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("reviews")
 			<div class="ui-page-head">

@@ -5154,6 +5154,129 @@ h4,
    components — a second visual language for /admin would be a second thing to
    maintain, and the design system was built to serve both pressures. */
 
+/* The back office's own document chrome. The storefront's header and footer are
+   a shopper's tools — a category row, a product search, a wishlist, a cart, a
+   newsletter signup, five policy columns — and on a screen a staff member reads
+   all day every one of them is a row between them and the queue. What is left
+   is one bar: where am I, how do I leave, how do I sign out. The screens
+   themselves are the rail inside .goen-admin, not this.
+
+   It takes the storefront bar's measurements — the same centred column, the
+   same gutter — because the two are the same object on two sites, and it takes
+   the same view-transition name so a navigation repaints it once instead of
+   fading it out and back in. The names cannot collide: no document renders both
+   bars. */
+.goen-adminbar {
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  view-transition-name: header;
+}
+
+.goen-adminbar__inner {
+  align-items: center;
+  box-sizing: border-box;
+  column-gap: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  margin: 0 auto;
+  max-width: var(--page-width);
+  min-height: 56px;
+  padding: 6px var(--page-gutter);
+  row-gap: 4px;
+}
+
+.goen-adminbar__brand {
+  align-items: center;
+  color: var(--fg);
+  display: flex;
+  gap: 8px;
+  min-height: 44px;
+  text-decoration: none;
+}
+
+.goen-adminbar__brand:hover {
+  color: var(--fg);
+}
+
+.goen-adminbar__mark {
+  flex: none;
+  height: 24px;
+  width: 24px;
+}
+
+.goen-adminbar__wordmark {
+  font-size: var(--fs-18);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.02em;
+}
+
+/* Which of the two sites this is, said once in the chrome so no screen has to
+   say it in its own title. Hidden on a phone, where the brand alone is the
+   answer and the row has to end before the disclosure that opens the rail. */
+.goen-adminbar__tag {
+  display: none;
+}
+
+.goen-adminbar__actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+/* The way out, and on a phone the rail's own last link is already it — so the
+   bar drops this copy there and keeps its row to one line, which is what leaves
+   room for the disclosure that opens the rail. */
+.goen-adminbar__link {
+  align-items: center;
+  border-radius: var(--r-md);
+  color: var(--fg-muted);
+  display: none;
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  min-height: 44px;
+  padding: 0 8px;
+  text-decoration: none;
+  transition: color var(--dur-base) var(--ease-standard);
+  white-space: nowrap;
+}
+
+.goen-adminbar__link:hover {
+  color: var(--fg);
+}
+
+@media (min-width: 768px) {
+  .goen-adminbar__tag {
+    background: var(--accent-muted);
+    border-radius: var(--r-sm);
+    color: var(--accent-strong);
+    display: inline-flex;
+    font-size: var(--fs-12);
+    font-weight: var(--fw-medium);
+    padding: 2px 8px;
+  }
+
+  .goen-adminbar__link {
+    display: inline-flex;
+  }
+}
+
+/* One line, because a back office has one thing to say at the bottom of a page
+   and the shop's newsletter, policies and social accounts are not it. */
+.goen-adminfoot {
+  border-top: 1px solid var(--border);
+  padding: 16px 0;
+}
+
+.goen-adminfoot__copyright {
+  color: var(--fg-faint);
+  display: block;
+  font-size: var(--fs-12);
+  margin: 0 auto;
+  max-width: var(--page-width);
+  padding: 0 var(--page-gutter);
+}
+
 /* Three names the customer's order and checkout used to share with the back
    office. The storefront moved off them; these declarations are what /admin was
    already getting, kept here until PR 6 rebuilds it. */

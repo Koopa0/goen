@@ -9,7 +9,7 @@ import (
 
 // AdminHome renders the hero queue and the form that adds to it.
 templ AdminHome(p layouts.Page, v *AdminHeroView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("home")
 			<div class="ui-page-head">

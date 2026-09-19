@@ -9,7 +9,7 @@ import (
 
 // AdminNewsletter renders the mailing list, the compose form and the issues.
 templ AdminNewsletter(p layouts.Page, v AdminNewsletterView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("newsletter")
 			<div class="ui-page-head">

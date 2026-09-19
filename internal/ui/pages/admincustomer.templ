@@ -9,7 +9,7 @@ import (
 
 // AdminCustomers renders the customer search.
 templ AdminCustomers(p layouts.Page, v AdminCustomersView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("customers")
 			<div class="ui-page-head">
@@ -79,7 +79,7 @@ templ AdminCustomers(p layouts.Page, v AdminCustomersView) {
 
 // AdminCustomer renders one customer, whole.
 templ AdminCustomer(p layouts.Page, v *AdminCustomerView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("customers")
 			<div class="ui-page-head">

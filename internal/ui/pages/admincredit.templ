@@ -7,7 +7,7 @@ import (
 
 // AdminCredit renders the store-credit ledger and the grant form.
 templ AdminCredit(p layouts.Page, v AdminCreditView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("credit")
 			<div class="ui-page-head">

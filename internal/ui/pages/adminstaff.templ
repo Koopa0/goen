@@ -15,7 +15,7 @@ import (
 // button would let a browser that submits the wrong one act on the wrong
 // person.
 templ AdminStaff(p layouts.Page, v AdminStaffView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("staff")
 			<div class="goen-admin__main">

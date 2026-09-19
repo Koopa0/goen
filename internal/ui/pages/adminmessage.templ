@@ -9,7 +9,7 @@ import (
 
 // AdminMessages renders the customer-service inbox.
 templ AdminMessages(p layouts.Page, v AdminMessagesView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("messages")
 			<div class="ui-page-head">

@@ -13,7 +13,7 @@ import (
 // empty page means the shop is running itself, and anything below the states
 // is work.
 templ AdminHealth(p layouts.Page, v *WorkerHealthView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("health")
 			<div class="goen-admin__main">

@@ -9,7 +9,7 @@ import (
 
 // AdminFAQ renders the FAQ management page.
 templ AdminFAQ(p layouts.Page, v *AdminFAQView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("faq")
 			<div class="ui-page-head">

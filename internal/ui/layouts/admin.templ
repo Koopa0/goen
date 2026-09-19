@@ -1,0 +1,60 @@
+package layouts
+
+import (
+	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/icons"
+)
+
+// Admin is the back office's document shell. It shares the head with [Base] and
+// nothing else: the storefront chrome is a shopper's tools — a category row, a
+// product search, a wishlist, a cart, a newsletter signup, policy columns — and
+// on a screen a staff member reads all day every one of them is a row of noise
+// between them and the queue. What replaces it is a slim bar that answers the
+// three questions the chrome is there for: where am I, how do I leave, how do I
+// sign out. The back office's own navigation is the page's, not the shell's.
+templ Admin(p Page) {
+	<!DOCTYPE html>
+	<html lang={ i18n.FromContext(ctx).Tag() } class="theme-blue">
+		@documentHead(p)
+		<body class="goen-shell">
+			<a class="goen-skip" href="#main">{ i18n.T(ctx, i18n.KeySkipToContent) }</a>
+			@adminBar()
+			<main id="main">
+				{ children... }
+			</main>
+			<footer class="goen-adminfoot">
+				// i18n-exempt: a company registration line: a legal name and a tax number.
+				<span class="goen-adminfoot__copyright">© 2026 goen Co., Ltd. 統編 90123456</span>
+			</footer>
+		</body>
+	</html>
+}
+
+// adminBar is the back office's top bar.
+//
+// It carries no page navigation: the 23 screens are the rail inside the page,
+// and a second route into them here would be a second list to keep current.
+// The mark links to the dashboard, which is what a brand mark in a back office
+// is for.
+templ adminBar() {
+	<header class="goen-adminbar">
+		<div class="goen-adminbar__inner">
+			<a class="goen-adminbar__brand" href="/admin">
+				@icons.Mark("goen-adminbar__mark")
+				<span class="goen-adminbar__wordmark">goen</span>
+				<span class="goen-adminbar__tag">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</span>
+			</a>
+			<div class="goen-adminbar__actions">
+				<a class="goen-adminbar__link" href="/">{ i18n.T(ctx, i18n.KeyBackToShop) }</a>
+				// i18n-exempt: a language's own name, shown in both locales on purpose.
+				@languageSwitch("goen-adminbar__lang", "繁中", "EN")
+				<form method="post" action="/signout">
+					@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+						{ i18n.T(ctx, i18n.KeySignOut) }
+					}
+				</form>
+			</div>
+		</div>
+	</header>
+}

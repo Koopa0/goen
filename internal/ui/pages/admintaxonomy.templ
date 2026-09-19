@@ -10,7 +10,7 @@ import (
 
 // AdminTaxonomy renders the brands and the category tree with their forms.
 templ AdminTaxonomy(p layouts.Page, v *AdminTaxonomyView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("taxonomy")
 			<div class="ui-page-head">

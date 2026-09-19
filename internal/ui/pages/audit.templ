@@ -12,7 +12,7 @@ import (
 // space. What a table would give — one fact per column — the head line gives
 // instead, with the action first because that is what a reader is scanning for.
 templ AdminAudit(p layouts.Page, v AuditView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("audit")
 			<div class="goen-admin__main">

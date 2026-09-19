@@ -9,7 +9,7 @@ import (
 
 // AdminQuestions renders the customer questions waiting for the shop.
 templ AdminQuestions(p layouts.Page, v AdminQuestionsView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("questions")
 			<div class="ui-page-head">

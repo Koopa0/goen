@@ -9,7 +9,7 @@ import (
 
 // AdminCampaigns renders the promotions and the form that starts one.
 templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("campaigns")
 			<div class="ui-page-head">
@@ -120,7 +120,7 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 
 // AdminCampaignForm renders one campaign's product selection.
 templ AdminCampaignForm(p layouts.Page, v AdminCampaignView) {
-	@layouts.Base(p) {
+	@layouts.Admin(p) {
 		<div class="goen-admin">
 			@adminNav("campaigns")
 			<div class="ui-page-head">
