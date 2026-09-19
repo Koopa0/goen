@@ -2,10 +2,17 @@ package pages
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// AdminTiers renders the membership bands.
+// AdminTiers renders the membership bands: what each one asks for, what it is
+// worth, and how many customers stand in it.
+//
+// A table rather than a list, because every band carries the same four facts
+// and a column of thresholds is read down. The threshold, the rate and the
+// count are one column each so they line up; a band's own name identifies the
+// row and carries its code underneath.
 templ AdminTiers(p layouts.Page, v AdminTiersView) {
 	@layouts.Admin(p, "tiers") {
 		<div class="ui-page-head">
@@ -18,38 +25,47 @@ templ AdminTiers(p layouts.Page, v AdminTiersView) {
 			</div>
 		</div>
 		if v.Notice != "" {
-			<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+				{ v.Notice }
+			}
 		}
 		if v.Empty() {
-			<p class="goen-admin__hint">
-				{ i18n.T(ctx, i18n.KeyAdminTierEmpty) }
-			</p>
+			<div class="goen-admin__empty">
+				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminTierEmpty) }</p>
+			</div>
 		} else {
 			<div class="goen-admin__tablewrap">
 				<table class="ui-table goen-admin__table">
 					<thead>
 						<tr>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminTierColBand) }</th>
-							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminTierColThreshold) }</th>
+							<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminTierColThreshold) }</th>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminTierColRate) }</th>
-							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminTierColMembers) }</th>
-							<th scope="col"></th>
+							<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminTierColMembers) }</th>
+							<th class="goen-admin__cellactions" scope="col">
+								<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminColActions) }</span>
+							</th>
 						</tr>
 					</thead>
 					<tbody>
 						for _, t := range v.Rows {
 							<tr>
-								<td>
+								<td class="goen-admin__cellkey">
 									{ t.Name }
-									<span class="ui-cart-line__meta">{ t.Code }</span>
+									<span class="goen-admin__meta">{ t.Code }</span>
 								</td>
-								<td>{ t.Threshold() }</td>
+								<td class="goen-admin__cellnum">{ t.Threshold() }</td>
 								<td>{ t.Multiplier(ctx) }</td>
-								<td>{ t.MembersText() }</td>
-								<td>
+								<td class="goen-admin__cellnum">{ t.MembersText() }</td>
+								<td class="goen-admin__cellactions">
 									<form method="post" action="/admin/tiers/delete">
 										<input type="hidden" name="tier" value={ t.ID }/>
-										<button class="ui-btn ui-btn--ghost ui-btn--sm" type="submit">{ i18n.T(ctx, i18n.KeyAdminRemove) }</button>
+										@components.Button(components.ButtonProps{
+											Variant: components.VariantOutline,
+											Size:    components.SizeSmall,
+										}, "submit") {
+											{ i18n.T(ctx, i18n.KeyAdminRemove) }
+										}
 									</form>
 								</td>
 							</tr>
@@ -58,34 +74,51 @@ templ AdminTiers(p layouts.Page, v AdminTiersView) {
 				</table>
 			</div>
 		}
-		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminTierAdd) }</h2>
-		<form class="goen-admin__form" method="post" action="/admin/tiers">
-			<div class="goen-admin__row">
-				<div class="ui-field">
-					<label class="ui-label" for="tier-code">{ i18n.T(ctx, i18n.KeyAdminColCode) }</label>
-					<input class="ui-input" id="tier-code" name="code" required maxlength="30" pattern="[a-z0-9_]+"/>
+		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminTierAdd) }</h2>
+			<form class="goen-admin__form" method="post" action="/admin/tiers">
+				<div class="goen-admin__fields">
+					<div class="goen-admin__field">
+						@components.Label(components.LabelProps{For: "tier-code"}) {
+							{ i18n.T(ctx, i18n.KeyAdminColCode) }
+						}
+						<input class="goen-input" id="tier-code" name="code" required maxlength="30" pattern="[a-z0-9_]+"/>
+					</div>
+					<div class="goen-admin__field">
+						@components.Label(components.LabelProps{For: "tier-name"}) {
+							{ i18n.T(ctx, i18n.KeyAdminColName) }
+						}
+						<input class="goen-input" id="tier-name" name="name" required maxlength="30"/>
+					</div>
+					<div class="goen-admin__field">
+						@components.Label(components.LabelProps{For: "tier-name-en"}) {
+							{ i18n.T(ctx, i18n.KeyAdminColNameEn) }
+						}
+						<input class="goen-input" id="tier-name-en" name="name_en" maxlength="30" placeholder="Silver"/>
+						<p class="goen-admin__hint">
+							{ i18n.T(ctx, i18n.KeyAdminTierNameEnHint) }
+						</p>
+					</div>
+					<div class="goen-admin__field">
+						@components.Label(components.LabelProps{For: "tier-threshold"}) {
+							{ i18n.T(ctx, i18n.KeyAdminTierThreshold) }
+						}
+						<input class="goen-input" id="tier-threshold" name="threshold" type="number" min="0" step="1" required inputmode="numeric"/>
+					</div>
+					<div class="goen-admin__field">
+						@components.Label(components.LabelProps{For: "tier-percent"}) {
+							{ i18n.T(ctx, i18n.KeyAdminTierRate) }
+						}
+						<input class="goen-input" id="tier-percent" name="percent" type="number" min="100" max="300" step="1" value="100" required inputmode="numeric"/>
+					</div>
 				</div>
-				<div class="ui-field">
-					<label class="ui-label" for="tier-name">{ i18n.T(ctx, i18n.KeyAdminColName) }</label>
-					<input class="ui-input" id="tier-name" name="name" required maxlength="30"/>
-				</div>
-				<div class="ui-field">
-					<label class="ui-label" for="tier-name-en">{ i18n.T(ctx, i18n.KeyAdminColNameEn) }</label>
-					<input class="ui-input" id="tier-name-en" name="name_en" maxlength="30" placeholder="Silver"/>
-					<p class="goen-admin__hint">
-						{ i18n.T(ctx, i18n.KeyAdminTierNameEnHint) }
-					</p>
-				</div>
-				<div class="ui-field">
-					<label class="ui-label" for="tier-threshold">{ i18n.T(ctx, i18n.KeyAdminTierThreshold) }</label>
-					<input class="ui-input" id="tier-threshold" name="threshold" type="number" min="0" step="1" required inputmode="numeric"/>
-				</div>
-				<div class="ui-field">
-					<label class="ui-label" for="tier-percent">{ i18n.T(ctx, i18n.KeyAdminTierRate) }</label>
-					<input class="ui-input" id="tier-percent" name="percent" type="number" min="100" max="300" step="1" value="100" required inputmode="numeric"/>
-				</div>
-			</div>
-			<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminAddButton) }</button>
-		</form>
+				@components.Button(components.ButtonProps{
+					Variant: components.VariantPrimary,
+					Class:   "goen-admin__submit",
+				}, "submit") {
+					{ i18n.T(ctx, i18n.KeyAdminAddButton) }
+				}
+			</form>
+		}
 	}
 }

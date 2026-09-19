@@ -4,10 +4,15 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 // AdminCampaigns renders the promotions and the form that starts one.
+//
+// The list leads with whether a campaign is running RIGHT NOW, because a
+// switched-on campaign whose window has closed is off to a shopper and on in
+// the list, which is how somebody spends an afternoon puzzled.
 templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 	@layouts.Admin(p, "campaigns") {
 		<div class="ui-page-head">
@@ -20,14 +25,73 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 			</div>
 		</div>
 		if v.Notice != "" {
-			<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+				{ v.Notice }
+			}
 		}
-		<div class="goen-admin__productlayout">
+		if v.Empty() {
+			<div class="goen-admin__empty">
+				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminCampEmpty) }</p>
+			</div>
+		} else {
+			<div class="goen-admin__tablewrap">
+				<table class="ui-table goen-admin__table">
+					<thead>
+						<tr>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCampCurrent) }</th>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColStatus) }</th>
+							<th class="goen-admin__cellactions" scope="col">
+								<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminColActions) }</span>
+							</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, c := range v.Rows {
+							<tr>
+								<td class="goen-admin__cellkey">
+									<a href={ templ.SafeURL(c.Href()) }>{ c.Title }</a>
+									<span class="goen-admin__meta">/s/{ c.Slug }</span>
+									<span class="goen-admin__meta">
+										{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCampMeta), c.ProductsText(), c.EndsAt) }
+									</span>
+								</td>
+								<td>
+									if c.Live() {
+										@components.Badge(components.BadgeProps{Tone: components.ToneAccent}) {
+											{ c.State(ctx) }
+										}
+									} else {
+										@components.Badge(components.BadgeProps{Tone: components.ToneNeutral}) {
+											{ c.State(ctx) }
+										}
+									}
+								</td>
+								<td class="goen-admin__cellactions">
+									<form method="post" action={ templ.SafeURL(c.ToggleAction()) }>
+										<input type="hidden" name="active" value={ c.NextActive() }/>
+										@components.Button(components.ButtonProps{
+											Variant: components.VariantOutline,
+											Size:    components.SizeSmall,
+										}, "submit") {
+											{ c.ToggleLabel(ctx) }
+										}
+									</form>
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCampCreate) }</h2>
 			<form class="goen-admin__form" method="post" action="/admin/campaigns">
-				<div class="ui-field">
-					<label class="ui-label" for="k-title">{ i18n.T(ctx, i18n.KeyAdminCampTitle) }</label>
+				<div class="goen-admin__field">
+					@components.Label(components.LabelProps{For: "k-title"}) {
+						{ i18n.T(ctx, i18n.KeyAdminCampTitle) }
+					}
 					<input
-						class="ui-input"
+						class="goen-input"
 						id="k-title"
 						name="title"
 						required
@@ -43,11 +107,13 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 						<p class="ui-error-text" id="k-title-error">{ v.Err("title") }</p>
 					}
 				</div>
-				<div class="goen-checkout__fields">
-					<div class="ui-field">
-						<label class="ui-label" for="k-slug">{ i18n.T(ctx, i18n.KeyAdminColSlug) }</label>
+				<div class="goen-admin__fields">
+					<div class="goen-admin__field">
+						@components.Label(components.LabelProps{For: "k-slug"}) {
+							{ i18n.T(ctx, i18n.KeyAdminColSlug) }
+						}
 						<input
-							class="ui-input"
+							class="goen-input"
 							id="k-slug"
 							name="slug"
 							required
@@ -63,10 +129,12 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 							<p class="ui-error-text" id="k-slug-error">{ v.Err("slug") }</p>
 						}
 					</div>
-					<div class="ui-field">
-						<label class="ui-label" for="k-days">{ i18n.T(ctx, i18n.KeyAdminCampDays) }</label>
+					<div class="goen-admin__field">
+						@components.Label(components.LabelProps{For: "k-days"}) {
+							{ i18n.T(ctx, i18n.KeyAdminCampDays) }
+						}
 						<input
-							class="ui-input"
+							class="goen-input"
 							id="k-days"
 							name="days"
 							type="number"
@@ -86,32 +154,14 @@ templ AdminCampaigns(p layouts.Page, v AdminCampaignsView) {
 						}
 					</div>
 				</div>
-				<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminCampCreate) }</button>
-			</form>
-			<aside class="goen-admin__side">
-				<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminCampCurrent) }</h2>
-				if v.Empty() {
-					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCampEmpty) }</p>
-				} else {
-					<ul class="goen-admin__coupons" role="list">
-						for _, c := range v.Rows {
-							<li class="goen-admin__coupon">
-								<div class="goen-admin__couponhead">
-									<a class="goen-admin__sku" href={ templ.SafeURL(c.Href()) }>{ c.Title }</a>
-									<span class={ "ui-badge", templ.KV("ui-badge--brand", c.Live()) }>{ c.State(ctx) }</span>
-								</div>
-								<span class="ui-cart-line__meta">/s/{ c.Slug }</span>
-								<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminCampMeta), c.ProductsText(), c.EndsAt) }</span>
-								<form method="post" action={ templ.SafeURL(c.ToggleAction()) }>
-									<input type="hidden" name="active" value={ c.NextActive() }/>
-									<button class="ui-btn ui-btn--secondary" type="submit">{ c.ToggleLabel(ctx) }</button>
-								</form>
-							</li>
-						}
-					</ul>
+				@components.Button(components.ButtonProps{
+					Variant: components.VariantPrimary,
+					Class:   "goen-admin__submit",
+				}, "submit") {
+					{ i18n.T(ctx, i18n.KeyAdminCampCreate) }
 				}
-			</aside>
-		</div>
+			</form>
+		}
 	}
 }
 
@@ -127,35 +177,67 @@ templ AdminCampaignForm(p layouts.Page, v AdminCampaignView) {
 			</div>
 		</div>
 		if v.Notice != "" {
-			<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+				{ v.Notice }
+			}
 		}
-		<form class="goen-admin__form goen-admin__grant" method="post" action={ templ.SafeURL(v.FeatureAction()) }>
-			<div class="ui-field">
-				<label class="ui-label" for="k-product">{ i18n.T(ctx, i18n.KeyAdminCampProductSlug) }</label>
-				<input class="ui-input" id="k-product" name="product" required maxlength="120" placeholder="pixelight-9" autocomplete="off"/>
-				<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCampProductHint) }</p>
-			</div>
-			<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyAdminCampAdd) }</button>
-		</form>
-		<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminCampProducts) }</h2>
 		if v.Empty() {
-			<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCampNoProducts) }</p>
+			<div class="goen-admin__empty">
+				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminCampNoProducts) }</p>
+			</div>
 		} else {
-			<ul class="goen-admin__catalogue" role="list">
-				for _, item := range v.Products {
-					<li class="goen-admin__product">
-						<a class="goen-admin__productname" href={ templ.SafeURL("/admin/products/" + item.Slug) }>
-							{ item.Name }
-						</a>
-						<span class="ui-cart-line__meta">/p/{ item.Slug }</span>
-						<form method="post" action={ templ.SafeURL(v.FeatureAction()) }>
-							<input type="hidden" name="product" value={ item.Slug }/>
-							<input type="hidden" name="action" value="remove"/>
-							<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminRemove) }</button>
-						</form>
-					</li>
+			<div class="goen-admin__tablewrap">
+				<table class="ui-table goen-admin__table">
+					<thead>
+						<tr>
+							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminCampProducts) }</th>
+							<th class="goen-admin__cellactions" scope="col">
+								<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyAdminColActions) }</span>
+							</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, item := range v.Products {
+							<tr>
+								<td class="goen-admin__cellkey">
+									<a href={ templ.SafeURL("/admin/products/" + item.Slug) }>{ item.Name }</a>
+									<span class="goen-admin__meta">/p/{ item.Slug }</span>
+								</td>
+								<td class="goen-admin__cellactions">
+									<form method="post" action={ templ.SafeURL(v.FeatureAction()) }>
+										<input type="hidden" name="product" value={ item.Slug }/>
+										<input type="hidden" name="action" value="remove"/>
+										@components.Button(components.ButtonProps{
+											Variant: components.VariantOutline,
+											Size:    components.SizeSmall,
+										}, "submit") {
+											{ i18n.T(ctx, i18n.KeyAdminRemove) }
+										}
+									</form>
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+		@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+			<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminCampAdd) }</h2>
+			<form class="goen-admin__form" method="post" action={ templ.SafeURL(v.FeatureAction()) }>
+				<div class="goen-admin__field">
+					@components.Label(components.LabelProps{For: "k-product"}) {
+						{ i18n.T(ctx, i18n.KeyAdminCampProductSlug) }
+					}
+					<input class="goen-input" id="k-product" name="product" required maxlength="120" placeholder="pixelight-9" autocomplete="off"/>
+					<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminCampProductHint) }</p>
+				</div>
+				@components.Button(components.ButtonProps{
+					Variant: components.VariantPrimary,
+					Class:   "goen-admin__submit",
+				}, "submit") {
+					{ i18n.T(ctx, i18n.KeyAdminCampAdd) }
 				}
-			</ul>
+			</form>
 		}
 	}
 }
