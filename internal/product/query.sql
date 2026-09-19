@@ -1,3 +1,9 @@
+-- The revision gate: one row when the product is active, nothing otherwise.
+-- name: ProductPresentationGate :one
+SELECT p.id, p.presentation_revision
+FROM products p
+WHERE p.slug = $1 AND p.status = 'active';
+
 -- name: ProductBySlug :one
 SELECT
     p.id,

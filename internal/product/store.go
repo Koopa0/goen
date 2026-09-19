@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/db"
@@ -18,7 +19,8 @@ import (
 
 // Store reads a product detail page.
 type Store struct {
-	q *db.Queries
+	q     *db.Queries
+	cache *PresentationCache
 }
 
 // NewStore returns a Store reading through dbtx.
@@ -29,8 +31,23 @@ func NewStore(dbtx db.DBTX) *Store {
 	return &Store{q: db.New(dbtx)}
 }
 
+// NewStoreWithCache returns a Store that may read presentation through cache.
+func NewStoreWithCache(dbtx db.DBTX, cache *PresentationCache) *Store {
+	if dbtx == nil {
+		panic("product: NewStoreWithCache requires a database handle")
+	}
+	return &Store{q: db.New(dbtx), cache: cache}
+}
+
 // Load reads everything the detail page renders, resolving sel to a variant.
 func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.ProductView, error) {
+	if s.cache != nil && s.cache.Enabled() {
+		return s.loadWithCache(ctx, slug, sel)
+	}
+	return s.loadFromDatabase(ctx, slug, sel)
+}
+
+func (s *Store) loadFromDatabase(ctx context.Context, slug string, sel Selection) (pages.ProductView, error) {
 	p, err := s.q.ProductBySlug(ctx, db.ProductBySlugParams{
 		Slug: slug, Locale: string(i18n.FromContext(ctx)),
 	})
@@ -40,7 +57,58 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 		}
 		return pages.ProductView{}, fmt.Errorf("read product %q: %w", slug, err)
 	}
+	view, err := s.buildVariantView(ctx, slug, sel, &p)
+	if err != nil {
+		return pages.ProductView{}, err
+	}
+	if err := s.loadDetail(ctx, &p, &view); err != nil {
+		return pages.ProductView{}, err
+	}
+	return view, nil
+}
 
+func (s *Store) loadWithCache(ctx context.Context, slug string, sel Selection) (pages.ProductView, error) {
+	gate, err := s.q.ProductPresentationGate(ctx, slug)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return pages.ProductView{}, ErrNotFound
+		}
+		return pages.ProductView{}, fmt.Errorf("read presentation gate for %q: %w", slug, err)
+	}
+	locale := string(i18n.FromContext(ctx))
+	pres, err := s.cache.Get(ctx, gate.ID, gate.PresentationRevision, locale,
+		func(fillCtx context.Context) (Presentation, error) {
+			return s.loadPresentationPayload(fillCtx, slug)
+		})
+	if err != nil {
+		return pages.ProductView{}, err
+	}
+	row := productBySlugRowFrom(&pres)
+	view, err := s.buildVariantView(ctx, slug, sel, row)
+	if err != nil {
+		return pages.ProductView{}, err
+	}
+	pres.apply(&view)
+	if opinionErr := s.loadOpinion(ctx, row, &view); opinionErr != nil {
+		return pages.ProductView{}, opinionErr
+	}
+	also, alsoErr := s.boughtTogether(ctx, row.ID)
+	if alsoErr != nil {
+		return pages.ProductView{}, alsoErr
+	}
+	view.AlsoBought = also
+	if questionsErr := s.loadQuestions(ctx, row.ID, &view); questionsErr != nil {
+		return pages.ProductView{}, questionsErr
+	}
+	return view, nil
+}
+
+func (s *Store) buildVariantView(
+	ctx context.Context,
+	slug string,
+	sel Selection,
+	p *db.ProductBySlugRow,
+) (pages.ProductView, error) {
 	rows, err := s.q.ProductVariants(ctx, p.ID)
 	if err != nil {
 		return pages.ProductView{}, fmt.Errorf("read variants of %q: %w", slug, err)
@@ -81,12 +149,7 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 			OptionChoice{Value: o.Value, Label: o.ValueLabel, SwatchHex: o.SwatchHex})
 	}
 
-	// A query key is a variant option only if some variant actually carries it.
-	// reservedParam is a DENYLIST, and the page's own ?ask=, ?notify= and the
-	// /compare set's ?p= outran it. Derived from the variants rather than listed,
-	// because the next parameter somebody adds will not be added to a list.
 	sel = sel.OnlyOptionsOf(variants)
-
 	chosen, exact := Resolve(variants, sel)
 
 	freeOver, err := s.q.FreeDeliveryThreshold(ctx)
@@ -132,11 +195,58 @@ func (s *Store) Load(ctx context.Context, slug string, sel Selection) (pages.Pro
 		}
 		view.Options = append(view.Options, po)
 	}
-
-	if err := s.loadDetail(ctx, &p, &view); err != nil {
-		return pages.ProductView{}, err
-	}
 	return view, nil
+}
+
+func (s *Store) loadPresentationPayload(ctx context.Context, slug string) (Presentation, error) {
+	p, err := s.q.ProductBySlug(ctx, db.ProductBySlugParams{
+		Slug: slug, Locale: string(i18n.FromContext(ctx)),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Presentation{}, ErrNotFound
+		}
+		return Presentation{}, fmt.Errorf("read product %q: %w", slug, err)
+	}
+	pres := Presentation{
+		ProductID:        p.ID,
+		Slug:             p.Slug,
+		Name:             p.Name,
+		Summary:          p.Summary,
+		Description:      p.Description,
+		WarrantyNote:     p.WarrantyNote.String,
+		WarrantyMonths:   p.WarrantyMonths,
+		Brand:            p.Brand,
+		CategorySlug:     p.CategorySlug,
+		CategoryName:     p.CategoryName,
+		CategoryID:       p.CategoryID,
+		CategoryParentID: p.CategoryParentID,
+	}
+	view := pages.ProductView{}
+	if err := s.loadPresentation(ctx, &p, &view); err != nil {
+		return Presentation{}, err
+	}
+	pres.Crumbs = view.Crumbs
+	pres.Images = view.Images
+	pres.Specs = view.Specs
+	return pres, nil
+}
+
+func productBySlugRowFrom(pres *Presentation) *db.ProductBySlugRow {
+	return &db.ProductBySlugRow{
+		ID:               pres.ProductID,
+		Slug:             pres.Slug,
+		Name:             pres.Name,
+		Summary:          pres.Summary,
+		Description:      pres.Description,
+		WarrantyNote:     pgtype.Text{String: pres.WarrantyNote, Valid: pres.WarrantyNote != ""},
+		WarrantyMonths:   pres.WarrantyMonths,
+		Brand:            pres.Brand,
+		CategorySlug:     pres.CategorySlug,
+		CategoryName:     pres.CategoryName,
+		CategoryID:       pres.CategoryID,
+		CategoryParentID: pres.CategoryParentID,
+	}
 }
 
 func (s *Store) loadDetail(ctx context.Context, p *db.ProductBySlugRow, view *pages.ProductView) error {

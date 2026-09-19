@@ -76,6 +76,8 @@ type RouterConfig struct {
 	Invoices *invoice.Gateway
 	// Google signs customers in, or is disabled and 404s its two routes.
 	Google *account.Google
+	// ProductCache holds shared presentation payloads, or is disabled.
+	ProductCache *product.PresentationCache
 }
 
 func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
@@ -120,7 +122,11 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	signups := newsletter.NewHandler(newsletter.NewStore(pool), signupLimit, log)
 	cover := warranty.NewHandler(warranty.NewStore(pool), log)
 	points := loyalty.NewHandler(loyalty.NewStore(pool), log)
-	items := product.NewHandler(product.NewStore(pool), log, baseURL)
+	productStore := product.NewStore(pool)
+	if cfg.ProductCache != nil && cfg.ProductCache.Enabled() {
+		productStore = product.NewStoreWithCache(pool, cfg.ProductCache)
+	}
+	items := product.NewHandler(productStore, log, baseURL)
 	// Half of the order-lookup credential is a guessable order number, so
 	// unlimited asking makes the endpoint an oracle for the other half.
 	findLimit := ratelimit.New(ratelimit.Config{

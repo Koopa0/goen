@@ -3272,7 +3272,10 @@ func TestEveryBackOfficeWriteLeavesATrail(t *testing.T) {
 	ctx, actor := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
 
-	sku := anyVariantSKU(t)
+	// Repricing clears compare_at; a variant whose product is featured in a
+	// campaign must keep at least one discounted sibling, so other integration
+	// tests that feature seed products must not hand this one their SKU.
+	sku := anyUnfeaturedVariantSKU(t)
 	slug := anyProductSlug(t)
 
 	tests := []struct {
@@ -3506,12 +3509,19 @@ func constraintFrom(err error) string {
 	return pgErr.ConstraintName
 }
 
-func anyVariantSKU(t *testing.T) string {
+func anyUnfeaturedVariantSKU(t *testing.T) string {
 	t.Helper()
 	var sku string
-	if err := pool.QueryRow(t.Context(),
-		`SELECT sku FROM product_variants LIMIT 1`).Scan(&sku); err != nil {
-		t.Fatalf("find variant: %v", err)
+	if err := pool.QueryRow(t.Context(), `
+		SELECT pv.sku FROM product_variants pv
+		WHERE pv.is_active
+		  AND NOT EXISTS (
+		      SELECT 1 FROM sale_campaign_products scp
+		      WHERE scp.product_id = pv.product_id
+		  )
+		ORDER BY pv.sku
+		LIMIT 1`).Scan(&sku); err != nil {
+		t.Fatalf("find unfeatured variant: %v", err)
 	}
 	return sku
 }
