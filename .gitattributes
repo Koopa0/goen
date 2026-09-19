@@ -8,3 +8,10 @@ internal/db/models.go linguist-generated
 internal/db/query.sql.go linguist-generated
 assets/css/ds/** linguist-vendored
 assets/js/vendor/** linguist-vendored
+
+# The fonts are Google's woff2, fetched once and vendored; the stylesheet that
+# names them is generated from those files by the step in assets/fonts/README.
+# Neither is written here, and a 109-rule sheet would otherwise read as the
+# largest piece of CSS in the repository.
+assets/fonts/** linguist-vendored
+assets/css/app/fonts.css linguist-generated
