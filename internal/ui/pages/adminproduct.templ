@@ -62,21 +62,26 @@ templ AdminProducts(p layouts.Page, v AdminProductsView) {
 								<td>
 									{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminProdVariantsFrom), row.VariantsText(), row.From()) }
 								</td>
-								<td class="goen-admin__cellbadges">
-									if row.Sellable() {
-										@components.Badge(components.BadgeProps{Tone: components.ToneAccent}) {
-											{ row.StatusText }
+								<td>
+									// display:flex belongs to a division inside the cell: setting it on
+									// the <td> stops the element being a table cell and the columns
+									// stop lining up.
+									<div class="goen-admin__cellbadges">
+										if row.Sellable() {
+											@components.Badge(components.BadgeProps{Tone: components.ToneAccent}) {
+												{ row.StatusText }
+											}
+										} else {
+											@components.Badge(components.BadgeProps{Tone: components.ToneNeutral}) {
+												{ row.StatusText }
+											}
 										}
-									} else {
-										@components.Badge(components.BadgeProps{Tone: components.ToneNeutral}) {
-											{ row.StatusText }
+										if !row.Translated {
+											@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
+												{ i18n.T(ctx, i18n.KeyAdminUntranslated) }
+											}
 										}
-									}
-									if !row.Translated {
-										@components.Badge(components.BadgeProps{Tone: components.ToneWarn}) {
-											{ i18n.T(ctx, i18n.KeyAdminUntranslated) }
-										}
-									}
+									</div>
 								</td>
 							</tr>
 						}
