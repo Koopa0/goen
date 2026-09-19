@@ -34,7 +34,8 @@ endif
 .PHONY: build run test test-race test-integration production-build-check integration-build-check \
         image image-push lint fmt fmt-check vet deadcode gen templ-check vuln \
         sqlc sqlc-check squawk db-up db-down migrate-up migrate-down db-seed \
-        db-repair-invoice-faq db-repair-refund-faq \
+        db-repair-invoice-faq db-repair-refund-faq db-seed-restore \
+        restore-drill restore-drill-app \
         cursor-scripts-check workflow-check verify verify-all check-layout db-reset clean
 
 build: gen
@@ -638,6 +639,12 @@ db-seed:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
 	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/dev_catalog.sql
 
+# Representative commerce state for owned restore drills: paid/unpaid/expired
+# orders, partial refunds, pending work and stored image bytes.
+db-seed-restore:
+	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
+	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/restore_fixture.sql
+
 # Rewrite the published invoice FAQ on a database that already has one.
 # db-seed cannot: the catalogue INSERT stops on the first kept brand.
 # This file updates that one question and nothing else.
@@ -807,14 +814,21 @@ restore-drill:
 	@set -eu; \
 	copy=goen_restore_drill_$$$$; \
 	work=$$(mktemp -d); \
-	snapper=; \
+	snapper=; app_pid=; store_role=; admin_role=; maint_role=; \
 	cleanup_restore_drill() { \
 		status=$$?; \
 		trap - EXIT HUP INT TERM; \
 		exec 9>&- 2>/dev/null || true; \
+		if test -n "$$app_pid"; then \
+			kill "$$app_pid" 2>/dev/null || true; \
+			wait "$$app_pid" 2>/dev/null || true; \
+		fi; \
 		if test -n "$$snapper"; then \
 			kill "$$snapper" 2>/dev/null || true; \
 			wait "$$snapper" 2>/dev/null || true; \
+		fi; \
+		if test -n "$$store_role"; then \
+			psql "$$copyurl" -q -c "DROP ROLE IF EXISTS $$store_role, $$admin_role, $$maint_role" >/dev/null 2>&1 || true; \
 		fi; \
 		docker compose exec -T db dropdb -U goen --if-exists --force "$$copy" >/dev/null 2>&1 || true; \
 		rm -rf "$$work"; \
@@ -828,6 +842,7 @@ restore-drill:
 	base=$${GOEN_DATABASE_URL%%\?*}; \
 	case "$$GOEN_DATABASE_URL" in *\?*) query="?$${GOEN_DATABASE_URL#*\?}";; *) query="";; esac; \
 	copyurl="$${base%/*}/$$copy$$query"; \
+	backup_at=$$(date -u +%Y-%m-%dT%H:%M:%SZ); \
 	echo 'restore-drill: dumping...'; \
 	psql "$$GOEN_DATABASE_URL" -At -q -v ON_ERROR_STOP=1 -f "$$work/hold" > "$$work/held.txt" & \
 	snapper=$$!; \
@@ -841,7 +856,7 @@ restore-drill:
 	done; \
 	test -n "$$snap" || { echo 'restore-drill: could not open a snapshot on the live database' >&2; exit 3; }; \
 	pg_dump "$$GOEN_DATABASE_URL" --snapshot="$$snap" -Fc -f "$$work/goen.dump"; \
-	printf '%s;\nCOMMIT;\n' $(EXACT_COUNTS_SQL) >&9; \
+	printf '%s;\n\\o %s/manifest-snapshot.raw\n\\i internal/restore/manifest.sql\n\\o\nCOMMIT;\n' $(EXACT_COUNTS_SQL) "$$work" >&9; \
 	exec 9>&-; \
 	wait "$$snapper"; \
 	snapper=; \
@@ -897,8 +912,86 @@ restore-drill:
 		echo '  -  is the live database at the dump'"'"'s snapshot; +  is what came back.'; \
 		cat "$$work/rows.diff"; \
 	fi; \
+	sort "$$work/manifest-snapshot.raw" > "$$work/manifest-snapshot.txt"; \
+	test -s "$$work/manifest-snapshot.txt" || { echo 'restore-drill: the snapshot business manifest came back EMPTY; nothing was compared' >&2; exit 3; }; \
+	psql "$$copyurl" -v ON_ERROR_STOP=1 -At -f internal/restore/manifest.sql > "$$work/manifest-copy.raw"; \
+	sort "$$work/manifest-copy.raw" > "$$work/manifest-copy.txt"; \
+	if diff -u "$$work/manifest-snapshot.txt" "$$work/manifest-copy.txt" > "$$work/manifest.diff"; then \
+		echo 'restore-drill: business manifest: PASS'; \
+	else \
+		business_fail=1; \
+		echo 'restore-drill: FAIL — the restored BUSINESS MANIFEST does not match the snapshot artifact.'; \
+		echo '  Row counts alone are not enough; this oracle covers holds, ledgers,'; \
+		echo '  payment/refund summaries and media byte digests without customer secrets.'; \
+		echo '  -  is the immutable snapshot artifact; +  is what came back.'; \
+		cat "$$work/manifest.diff"; \
+	fi; \
 	test "$$fail" -eq 0 || exit 1; \
-	echo 'restore-drill: PASS — same catalog, same dump-carried grants, same exact row counts'
+	test "$${business_fail:-0}" -eq 0 || exit 1; \
+	recovery_start_epoch=$$(date -u +%s); \
+	recovery_start=$$(date -u +%Y-%m-%dT%H:%M:%SZ); \
+	echo 'restore-drill: accepting restored application on the retained copy...'; \
+	drill_pw=$$(openssl rand -hex 16); \
+	store_role=restore_drill_store_$$$$; \
+	admin_role=restore_drill_admin_$$$$; \
+	maint_role=restore_drill_maint_$$$$; \
+	psql "$$copyurl" -v ON_ERROR_STOP=1 -q -c "CREATE ROLE $$store_role LOGIN NOSUPERUSER PASSWORD '$$drill_pw' IN ROLE store"; \
+	psql "$$copyurl" -v ON_ERROR_STOP=1 -q -c "CREATE ROLE $$admin_role LOGIN NOSUPERUSER PASSWORD '$$drill_pw' IN ROLE admin"; \
+	psql "$$copyurl" -v ON_ERROR_STOP=1 -q -c "CREATE ROLE $$maint_role LOGIN NOSUPERUSER PASSWORD '$$drill_pw' IN ROLE maintenance"; \
+	dsn_authority=$${GOEN_DATABASE_URL#*://}; \
+	dsn_authority=$${dsn_authority%%/*}; \
+	hostport=$${dsn_authority#*@}; \
+	copy_store_url="postgres://$$store_role:$$drill_pw@$$hostport/$$copy$$query"; \
+	copy_admin_url="postgres://$$admin_role:$$drill_pw@$$hostport/$$copy$$query"; \
+	copy_maint_url="postgres://$$maint_role:$$drill_pw@$$hostport/$$copy$$query"; \
+	test "$$(psql "$$copy_store_url" -At -v ON_ERROR_STOP=1 -c "SELECT current_database()")" = "$$copy"; \
+	test "$$(psql "$$copy_admin_url" -At -v ON_ERROR_STOP=1 -c "SELECT current_database()")" = "$$copy"; \
+	test "$$(psql "$$copy_maint_url" -At -v ON_ERROR_STOP=1 -c "SELECT current_database()")" = "$$copy"; \
+	addr=$${GOEN_RESTORE_ADDR:-127.0.0.1:19701}; \
+	applog=$$(mktemp); \
+	pending_before=$$(psql "$$copyurl" -At -v ON_ERROR_STOP=1 -c \
+		"SELECT count(*) FROM outbox_messages WHERE delivered_at IS NULL AND topic = 'order.shipped'"); \
+	$(MAKE) build >/dev/null; \
+	env -u GOEN_STRIPE_API_KEY -u GOEN_STRIPE_SECRET_KEY -u GOEN_STRIPE_WEBHOOK_SECRET \
+		-u GOEN_ECPAY_MERCHANT_ID -u GOEN_ECPAY_HASH_KEY -u GOEN_ECPAY_HASH_IV -u GOEN_ECPAY_BASE_URL \
+		-u GOEN_GOOGLE_CLIENT_ID -u GOEN_GOOGLE_CLIENT_SECRET \
+		-u GOEN_SMTP_ADDR -u GOEN_SMTP_USER -u GOEN_SMTP_PASSWORD -u GOEN_TOTP_KEY \
+		GOEN_DATABASE_URL="$$copy_store_url" \
+		GOEN_ADMIN_DATABASE_URL="$$copy_admin_url" \
+		GOEN_MAINTENANCE_DATABASE_URL="$$copy_maint_url" \
+		GOEN_ADDR="$$addr" GOEN_INSECURE_COOKIES=1 GOEN_LOG_LEVEL=error \
+		GOEN_BASE_URL="http://$$addr" \
+		./bin/goen >"$$applog" 2>&1 & app_pid=$$!; \
+	for i in $$(seq 1 50); do \
+		curl -sf -o /dev/null "http://$$addr/" && break; \
+		sleep 0.2; \
+	done; \
+	curl -sf "http://$$addr/p/pixelight-9-pro" | grep -q 'Pixelight 9 Pro 5G'; \
+	digest=$$(psql "$$copyurl" -At -v ON_ERROR_STOP=1 -c \
+		"SELECT encode(sha256(decode('010203726573746f7265', 'hex')), 'hex')"); \
+	curl -sf -o /dev/null "http://$$addr/media/$$digest"; \
+	curl -sf "http://$$addr/orders/find" -o /dev/null; \
+	for i in $$(seq 1 50); do \
+		pending_after=$$(psql "$$copyurl" -At -v ON_ERROR_STOP=1 -c \
+			"SELECT count(*) FROM outbox_messages WHERE delivered_at IS NULL AND topic = 'order.shipped'"); \
+		test "$$pending_after" -lt "$$pending_before" && break; \
+		sleep 0.2; \
+	done; \
+	test "$$pending_after" -lt "$$pending_before" \
+		|| { echo 'restore-drill: pending outbox work did not drain on the restored copy' >&2; exit 1; }; \
+	kill $$app_pid 2>/dev/null || true; wait $$app_pid 2>/dev/null || true; app_pid=; \
+	rm -f "$$applog"; \
+	recovery_end_epoch=$$(date -u +%s); \
+	recovery_end=$$(date -u +%Y-%m-%dT%H:%M:%SZ); \
+	echo "restore-drill: backup_at=$$backup_at recovery_start=$$recovery_start recovery_end=$$recovery_end recovery_elapsed_s=$$((recovery_end_epoch - recovery_start_epoch)) destination=$$copy commit=$$(git rev-parse HEAD 2>/dev/null || echo unknown) valkey=not_configured"; \
+	echo 'restore-drill: PASS — same catalog, same dump-carried grants, same exact row counts, same snapshot business manifest, restored application accepted'
+
+# Integrated into restore-drill. This target remains as a guardrail against a
+# hand-supplied URL that might silently point at the live source.
+.PHONY: restore-drill-app
+restore-drill-app:
+	@echo 'restore-drill-app is integrated into restore-drill; run make restore-drill on the owned source database' >&2; \
+	exit 2
 
 db-reset:
 	docker compose exec -T db dropdb -U goen --if-exists --force goen
