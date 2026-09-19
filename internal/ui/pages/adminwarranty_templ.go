@@ -89,7 +89,7 @@ func AdminWarranties(p layouts.Page, v AdminWarrantiesView) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</p></div></div><form class=\"goen-admin__form goen-admin__search\" method=\"get\" action=\"/admin/warranty\"><label class=\"goen-sr-only\" for=\"warranty-search\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</p></div></div><form class=\"goen-admin__search\" method=\"get\" action=\"/admin/warranty\"><label class=\"goen-sr-only\" for=\"warranty-search\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

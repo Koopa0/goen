@@ -5316,10 +5316,6 @@ h4,
   grid-template-columns: 1fr;
 }
 
-.goen-checkout__wide {
-  grid-column: 1 / -1;
-}
-
 @media (min-width: 768px) {
   .goen-checkout__fields {
     gap: 16px;
@@ -6620,9 +6616,18 @@ h4,
   color: var(--fg);
 }
 
+/* A button in a column of full-width fields is not a banner: it shrinks to its
+   own label, and the one move the screen is about says so with Block instead. */
+.goen-admin__form .goen-btn {
+  align-self: flex-start;
+  box-sizing: border-box;
+  min-height: 44px;
+}
+
 /* The search's own button, on the component's class rather than the vendored
-   one. Height is the layout gate's number, not the reference's. */
+   one. It sits on the field's line, so it keeps the row's alignment. */
 .goen-admin__search .goen-btn {
+  align-self: center;
   box-sizing: border-box;
   min-height: 44px;
 }
@@ -6679,6 +6684,12 @@ h4,
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-medium);
   white-space: nowrap;
+}
+
+/* The lines are the card's whole content, so the last one needs no rule
+   beneath it: the card's own border is already there. */
+.goen-admin__op .goen-order__line:last-child {
+  border-bottom: 0;
 }
 
 /* The money, and under it the one move the order is waiting for. */

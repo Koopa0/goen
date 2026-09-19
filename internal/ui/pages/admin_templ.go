@@ -671,7 +671,7 @@ func AdminOrders(p layouts.Page, v AdminOrdersView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, " <form class=\"goen-admin__form goen-admin__search\" method=\"get\" action=\"/admin/orders\"><label class=\"goen-sr-only\" for=\"order-search\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, " <form class=\"goen-admin__search\" method=\"get\" action=\"/admin/orders\"><label class=\"goen-sr-only\" for=\"order-search\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

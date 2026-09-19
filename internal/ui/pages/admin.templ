@@ -161,7 +161,7 @@ templ AdminOrders(p layouts.Page, v AdminOrdersView) {
 				{ v.Notice }
 			}
 		}
-		<form class="goen-admin__form goen-admin__search" method="get" action="/admin/orders">
+		<form class="goen-admin__search" method="get" action="/admin/orders">
 			<label class="goen-sr-only" for="order-search">{ i18n.T(ctx, i18n.KeyAdminQueueSearchLabel) }</label>
 			<input
 				class="ui-input"
