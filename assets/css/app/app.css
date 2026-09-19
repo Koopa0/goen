@@ -6831,7 +6831,16 @@ h4,
 
 @media (min-width: 1024px) {
   /* The money follows the reader down the page: on a long order the totals are
-     what a staff member checks against whatever they are about to press. */
+     what a staff member checks against whatever they are about to press.
+
+     The column has to be as tall as the row for that to be true. The grid
+     start-aligns its children, so without this the aside is only as tall as
+     its own cards and the summary stops following a third of the way down --
+     which is the part of a long order it exists for. */
+  .goen-admin__orderside {
+    align-self: stretch;
+  }
+
   .goen-admin__ordersummary {
     position: sticky;
     top: 16px;
