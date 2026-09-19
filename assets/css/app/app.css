@@ -5733,6 +5733,7 @@ h4,
   max-width: 100%;
   min-width: 0;
   overflow-x: auto;
+  position: relative;
 }
 
 .goen-admin__table {
@@ -6163,30 +6164,6 @@ h4,
   color: var(--fg-subtle);
 }
 
-/* The back-office catalogue and the product form.
-   The form and its side panel sit apart at desk width: editing copy and adding
-   a variant are different jobs, and interleaving them makes both harder to
-   scan. On a phone they stack, form first, because that is the order the work
-   happens in. */
-.goen-admin__catalogue,
-.goen-admin__variants {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-}
-
-.goen-admin__product,
-.goen-admin__variant {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 16px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border-faint);
-}
-
 .goen-admin__productname,
 .goen-admin__sku {
   font-size: var(--fs-14);
@@ -6195,6 +6172,10 @@ h4,
   min-width: 0;
 }
 
+/* A form and its side panel sit apart at desk width: editing copy and adding a
+   variant are different jobs, and interleaving them makes both harder to scan.
+   On a phone they stack, form first, because that is the order the work happens
+   in. */
 .goen-admin__productlayout {
   display: grid;
   grid-template-columns: 1fr;
@@ -6320,32 +6301,6 @@ h4,
   padding: 6px 8px;
 }
 
-/* The product's image strip in the back office. Fixed-size thumbnails so a
-   portrait and a landscape photo do not make the row jump. */
-.goen-admin__images {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-.goen-admin__image {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  width: 120px;
-}
-
-.goen-admin__image img {
-  width: 120px;
-  height: 120px;
-  object-fit: cover;
-  border-radius: var(--r-sm);
-  background: var(--panel);
-}
-
 /* The hero queue's thumbnail and its two buttons. */
 .goen-admin__heroshot {
   width: 160px;
@@ -6359,66 +6314,6 @@ h4,
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-}
-
-
-/* Brands and the category tree. The indent is a ladder of attribute selectors
-   and not a custom property set inline: style-src carries no 'unsafe-inline',
-   so a refused --depth renders the whole tree flat. The schema rejects cycles
-   and nothing else, so the tree still has no maximum depth; the ladder ends at
-   six and AdminTaxon.DepthText clamps anything deeper onto that step, which
-   keeps a very deep row indented rather than losing its indent entirely. */
-.goen-admin__taxa {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.goen-admin__taxon {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border-faint);
-}
-
-.goen-admin__taxon[data-depth="1"] {
-  padding-left: 20px;
-}
-
-.goen-admin__taxon[data-depth="2"] {
-  padding-left: 40px;
-}
-
-.goen-admin__taxon[data-depth="3"] {
-  padding-left: 60px;
-}
-
-.goen-admin__taxon[data-depth="4"] {
-  padding-left: 80px;
-}
-
-.goen-admin__taxon[data-depth="5"] {
-  padding-left: 100px;
-}
-
-.goen-admin__taxon[data-depth="6"] {
-  padding-left: 120px;
-}
-
-.goen-admin__taxonform {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-}
-
-.goen-admin__taxonform .ui-input {
-  flex: 1 1 12ch;
-  min-width: 12ch;
 }
 
 
@@ -6510,13 +6405,6 @@ h4,
   flex-wrap: wrap;
 }
 
-.goen-admin__prefixes {
-  font-variant-numeric: tabular-nums;
-  font-size: var(--fs-12);
-  color: var(--fg-subtle);
-  word-break: break-all;
-}
-
 .goen-admin__row {
   display: flex;
   flex-wrap: wrap;
@@ -6526,28 +6414,6 @@ h4,
 .goen-admin__row .ui-field {
   flex: 1 1 160px;
   min-width: 0;
-}
-
-.goen-admin__library {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.goen-admin__libraryitem {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 160px;
-  max-width: 100%;
-}
-
-.goen-admin__libraryitem img {
-  width: 80px;
-  height: 80px;
-  object-fit: cover;
-  border-radius: var(--r-sm);
-  border: 1px solid var(--border);
 }
 
 /* The order search: one row on a desktop, stacked on a phone. Its own class
@@ -7008,6 +6874,187 @@ h4,
 }
 
 
+
+/* Back office — catalogue
+
+   The catalogue screens are a list and an editor. A list is a table with one
+   status badge per row; an editor is a column of cards, one per job, each
+   ending in its own save. Everything else on these screens is a recipe the
+   back office already has, which is why this block is short. */
+
+/* The editor's column. .goen-admin__main already stacks with this gap, so the
+   wrapper exists to keep the cards together as one group rather than to space
+   them: a screen that grew a sibling after the cards would otherwise have it
+   land between two of them. */
+.goen-admin__editor {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* Inside a card: a heading, whatever the card says about itself, the list it
+   holds and the form that adds to it. min-width lets the card be narrower than
+   its widest child, which is what keeps a 640px table inside its own scroll
+   box instead of setting the page width. */
+.goen-admin__section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* A product's options and its variants read the same way: one row per thing,
+   divided by a hairline, the name first and the facts about it after. Neither
+   is a table — a variant carries a price, a stock line and an option string of
+   no fixed width, and a column that has to hold one turns every other row into
+   empty space. */
+.goen-admin__options,
+.goen-admin__variants {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goen-admin__option,
+.goen-admin__variant {
+  align-items: baseline;
+  border-bottom: 1px solid var(--border-faint);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  padding: 12px 0;
+}
+
+/* An inbound movement, marked so a reader scanning a ledger for a delivery
+   does not read every line. The class was rendered and painted by nothing. */
+.goen-admin__in {
+  color: var(--success);
+}
+
+/* Brands and the category tree. The indent is a ladder of attribute selectors
+   and not a custom property set inline: style-src carries no 'unsafe-inline',
+   so a refused --depth renders the whole tree flat. The schema rejects cycles
+   and nothing else, so the tree still has no maximum depth; the ladder ends at
+   six and AdminTaxon.DepthText clamps anything deeper onto that step, which
+   keeps a very deep row indented rather than losing its indent entirely. */
+.goen-admin__taxa {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goen-admin__taxon {
+  border-bottom: 1px solid var(--border-faint);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+}
+
+.goen-admin__taxon[data-depth='1'] {
+  padding-left: 20px;
+}
+
+.goen-admin__taxon[data-depth='2'] {
+  padding-left: 40px;
+}
+
+.goen-admin__taxon[data-depth='3'] {
+  padding-left: 60px;
+}
+
+.goen-admin__taxon[data-depth='4'] {
+  padding-left: 80px;
+}
+
+.goen-admin__taxon[data-depth='5'] {
+  padding-left: 100px;
+}
+
+.goen-admin__taxon[data-depth='6'] {
+  padding-left: 120px;
+}
+
+/* One row of the tree is a rename form: the fields carry the current values and
+   the buttons say which write they are. The fields shrink before they wrap, so
+   a deep row still fits the column. */
+.goen-admin__taxonform {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.goen-admin__taxonform .goen-input {
+  flex: 1 1 12ch;
+  min-width: 12ch;
+}
+
+/* The product's pictures. Fixed-size thumbnails, so a portrait and a landscape
+   photo do not make the row jump, and an explicit box so the strip does not
+   reflow as the images arrive. */
+.goen-admin__images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goen-admin__image {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 120px;
+}
+
+.goen-admin__image img {
+  background: var(--panel);
+  border-radius: var(--r-sm);
+  height: 120px;
+  object-fit: cover;
+  width: 120px;
+}
+
+/* Everything already uploaded, so a second product can wear the same photo
+   without a second upload. Each item is its own form: the alt text is written
+   again here because it describes the picture ON THIS PRODUCT. */
+.goen-admin__library {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.goen-admin__libraryitem {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 100%;
+  width: 160px;
+}
+
+.goen-admin__libraryitem img {
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  height: 80px;
+  object-fit: cover;
+  width: 80px;
+}
+
+/* A zone's postal prefixes: a long run of digits that has to be allowed to
+   break, or the cell sets the table's width. */
+.goen-admin__prefixes {
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+  word-break: break-all;
+}
 
 /* ---------- Motion ----------
 
