@@ -5520,10 +5520,18 @@ h4,
    to nothing, not auto-fit: a track whose minimum is a length is floored by it,
    and one screen on this row has a stat label the design system refuses to
    wrap, which took the whole page sideways at 375. */
+/* As many tiles as fit a figure, counted by the browser rather than by hand at
+   three widths. A back-office figure is money as often as it is a count — a
+   customer's lifetime spend, their store credit — and a six-figure sum at the
+   editorial size needs about 13rem of tile. Counted by hand it did not get it:
+   two across at 375 put the number outside its tile and the page scrolling
+   sideways, and five across at 1280 asks for five tiles out of a column the
+   rail has already taken 15rem from. The floor is the measurement; the count
+   follows from it, at every width and from whatever the rail leaves. */
 .goen-admin__stats {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
 }
 
 .goen-stat {
@@ -5932,10 +5940,6 @@ h4,
     gap: 20px;
     padding: 24px 24px 56px;
   }
-
-  .goen-admin__stats {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
 }
 
 @media (min-width: 1024px) {
@@ -6011,12 +6015,6 @@ h4,
   .goen-admin__layout {
     grid-template-columns: minmax(0, 1fr) 320px;
     gap: 32px;
-  }
-}
-
-@media (min-width: 1280px) {
-  .goen-admin__stats {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 
