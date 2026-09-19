@@ -4,12 +4,18 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 // adminNav is the back office's own navigation: 23 screens, grouped by the
 // QUESTION each one answers rather than listed. Flat, they were 24 labels in
 // one row and finding a screen meant reading all of them.
+//
+// It is a column beside the page from the wide breakpoint and a band above it
+// below one, which is one element and two stylesheets rather than two navs: a
+// second copy of 23 links is a second copy to keep current, and a screen
+// reader hears both.
 //
 // Every group is a native <details>, so the disclosure needs no script, and the
 // one holding the current screen is rendered `open` by the server — nothing
@@ -21,261 +27,357 @@ import (
 // browser that does not know the attribute opens several and the nav grows a
 // row, which is the whole of the degradation.
 templ adminNav(current string) {
-	<nav class="goen-admin__nav" aria-label={ i18n.T(ctx, i18n.KeyAdminQueueNavLabel) }>
-		<a
-			class="ui-navitem"
-			href="/admin"
-			if current == "dashboard" {
-				aria-current="page"
-			}
-		>{ i18n.T(ctx, i18n.KeyAdminQueueOverview) }</a>
-		<details
-			class="goen-admin__navgroup"
-			name="goen-admin-nav"
-			open?={ adminNavHolds(current, "orders", "returns", "questions", "messages", "reviews") }
-		>
-			<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavQueues) }</summary>
-			<div class="goen-admin__navitems">
-				<a
-					class="ui-navitem"
-					href="/admin/orders"
-					if current == "orders" {
-						aria-current="page"
-					}
-				>{ i18n.T(ctx, i18n.KeyAdminQueueOrders) }</a>
-				<a
-					class="ui-navitem"
-					href="/admin/returns"
-					if current == "returns" {
-						aria-current="page"
-					}
-				>{ i18n.T(ctx, i18n.KeyAdminQueueReturns) }</a>
-				<a
-					class="ui-navitem"
-					href="/admin/questions"
-					if current == "questions" {
-						aria-current="page"
-					}
-				>{ i18n.T(ctx, i18n.KeyAdminQueueQuestions) }</a>
-				<a
-					class="ui-navitem"
-					href="/admin/messages"
-					if current == "messages" {
-						aria-current="page"
-					}
-				>{ i18n.T(ctx, i18n.KeyAdminPageMessages) }</a>
-				<a
-					class="ui-navitem"
-					href="/admin/reviews"
-					if current == "reviews" {
-						aria-current="page"
-					}
-				>{ i18n.T(ctx, i18n.KeyAdminQueueReviews) }</a>
-			</div>
-		</details>
-		<details
-			class="goen-admin__navgroup"
-			name="goen-admin-nav"
-			open?={ adminNavHolds(current, "products", "stock", "taxonomy", "campaigns", "coupons") }
-		>
-			<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavCatalogue) }</summary>
-			<div class="goen-admin__navitems">
-				<a
-					class="ui-navitem"
-					href="/admin/products"
-					if current == "products" {
-						aria-current="page"
-					}
-				>{ i18n.T(ctx, i18n.KeyAdminPageProducts) }</a>
-				<a
-					class="ui-navitem"
-					href="/admin/stock"
-					if current == "stock" {
-						aria-current="page"
-					}
-				>{ i18n.T(ctx, i18n.KeyAdminQueueStock) }</a>
-				<a
-					class="ui-navitem"
-					href="/admin/taxonomy"
-					if current == "taxonomy" {
-						aria-current="page"
-					}
-				>{ i18n.T(ctx, i18n.KeyAdminQueueTaxonomy) }</a>
-				<a
-					class="ui-navitem"
-					href="/admin/campaigns"
-					if current == "campaigns" {
-						aria-current="page"
-					}
-				>{ i18n.T(ctx, i18n.KeyAdminQueueCampaigns) }</a>
-				<a
-					class="ui-navitem"
-					href="/admin/coupons"
-					if current == "coupons" {
-						aria-current="page"
-					}
-				>{ i18n.T(ctx, i18n.KeyAdminPageCoupons) }</a>
-			</div>
-		</details>
-		<details
-			class="goen-admin__navgroup"
-			name="goen-admin-nav"
-			open?={ adminNavHolds(current, "customers", "credit", "tiers", "warranty", "newsletter") }
-		>
-			<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavCustomers) }</summary>
-			<div class="goen-admin__navitems">
-				<a
-					class="ui-navitem"
-					href="/admin/customers"
-					if current == "customers" {
-						aria-current="page"
-					}
-				>{ i18n.T(ctx, i18n.KeyAdminPageCustomers) }</a>
-				<a
-					class="ui-navitem"
-					href="/admin/credit"
-					if current == "credit" {
-						aria-current="page"
-					}
-				>{ i18n.T(ctx, i18n.KeyAdminQueueCredit) }</a>
-				<a
-					class="ui-navitem"
-					href="/admin/tiers"
-					if current == "tiers" {
-						aria-current="page"
-					}
-				>{ i18n.T(ctx, i18n.KeyAdminPageTiers) }</a>
-				<a
-					class="ui-navitem"
-					href="/admin/warranty"
-					if current == "warranty" {
-						aria-current="page"
-					}
-				>{ i18n.T(ctx, i18n.KeyAdminQueueWarranty) }</a>
-				<a
-					class="ui-navitem"
-					href="/admin/newsletter"
-					if current == "newsletter" {
-						aria-current="page"
-					}
-				>{ i18n.T(ctx, i18n.KeyAdminPageNewsletter) }</a>
-			</div>
-		</details>
-		<details
-			class="goen-admin__navgroup"
-			name="goen-admin-nav"
-			open?={ adminNavHolds(current, "shipping", "home", "faq", "staff") }
-		>
-			<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavShop) }</summary>
-			<div class="goen-admin__navitems">
-				<a
-					class="ui-navitem"
-					href="/admin/shipping"
-					if current == "shipping" {
-						aria-current="page"
-					}
-				>{ i18n.T(ctx, i18n.KeyAdminQueueShipping) }</a>
-				<a
-					class="ui-navitem"
-					href="/admin/home"
-					if current == "home" {
-						aria-current="page"
-					}
-				>{ i18n.T(ctx, i18n.KeyAdminQueueHomePage) }</a>
-				<a
-					class="ui-navitem"
-					href="/admin/faq"
-					if current == "faq" {
-						aria-current="page"
-					}
-				>{ i18n.T(ctx, i18n.KeyAdminPageFAQ) }</a>
-				<a
-					class="ui-navitem"
-					href="/admin/staff"
-					if current == "staff" {
-						aria-current="page"
-					}
-				>{ i18n.T(ctx, i18n.KeyAdminQueueStaff) }</a>
-			</div>
-		</details>
-		<details
-			class="goen-admin__navgroup"
-			name="goen-admin-nav"
-			open?={ adminNavHolds(current, "reports", "audit", "health") }
-		>
-			<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavRecords) }</summary>
-			<div class="goen-admin__navitems">
-				<a
-					class="ui-navitem"
-					href="/admin/reports"
-					if current == "reports" {
-						aria-current="page"
-					}
-				>{ i18n.T(ctx, i18n.KeyAdminPageReports) }</a>
-				<a
-					class="ui-navitem"
-					href="/admin/audit"
-					if current == "audit" {
-						aria-current="page"
-					}
-				>{ i18n.T(ctx, i18n.KeyAdminPageAudit) }</a>
-				<a
-					class="ui-navitem"
-					href="/admin/health"
-					if current == "health" {
-						aria-current="page"
-					}
-				>{ i18n.T(ctx, i18n.KeyAdminPageHealth) }</a>
-			</div>
-		</details>
-		<a class="ui-navitem" href="/">{ i18n.T(ctx, i18n.KeyBackToShop) }</a>
-	</nav>
+	@components.Disclosure(components.DisclosureProps{
+		Class:   "goen-admin__nav",
+		Summary: i18n.T(ctx, i18n.KeyAdminQueueNavLabel),
+	}) {
+		<nav class="goen-admin__navlist" aria-label={ i18n.T(ctx, i18n.KeyAdminQueueNavLabel) }>
+			<a
+				class="ui-navitem"
+				href="/admin"
+				if current == "dashboard" {
+					aria-current="page"
+				}
+			>{ i18n.T(ctx, i18n.KeyAdminQueueOverview) }</a>
+			<details
+				class="goen-admin__navgroup"
+				name="goen-admin-nav"
+				open?={ adminNavHolds(current, "orders", "returns", "questions", "messages", "reviews") }
+			>
+				<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavQueues) }</summary>
+				<div class="goen-admin__navitems">
+					<a
+						class="ui-navitem"
+						href="/admin/orders"
+						if current == "orders" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueOrders) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/returns"
+						if current == "returns" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueReturns) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/questions"
+						if current == "questions" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueQuestions) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/messages"
+						if current == "messages" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminPageMessages) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/reviews"
+						if current == "reviews" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueReviews) }</a>
+				</div>
+			</details>
+			<details
+				class="goen-admin__navgroup"
+				name="goen-admin-nav"
+				open?={ adminNavHolds(current, "products", "stock", "taxonomy", "campaigns", "coupons") }
+			>
+				<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavCatalogue) }</summary>
+				<div class="goen-admin__navitems">
+					<a
+						class="ui-navitem"
+						href="/admin/products"
+						if current == "products" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminPageProducts) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/stock"
+						if current == "stock" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueStock) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/taxonomy"
+						if current == "taxonomy" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueTaxonomy) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/campaigns"
+						if current == "campaigns" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueCampaigns) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/coupons"
+						if current == "coupons" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminPageCoupons) }</a>
+				</div>
+			</details>
+			<details
+				class="goen-admin__navgroup"
+				name="goen-admin-nav"
+				open?={ adminNavHolds(current, "customers", "credit", "tiers", "warranty", "newsletter") }
+			>
+				<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavCustomers) }</summary>
+				<div class="goen-admin__navitems">
+					<a
+						class="ui-navitem"
+						href="/admin/customers"
+						if current == "customers" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminPageCustomers) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/credit"
+						if current == "credit" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueCredit) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/tiers"
+						if current == "tiers" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminPageTiers) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/warranty"
+						if current == "warranty" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueWarranty) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/newsletter"
+						if current == "newsletter" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminPageNewsletter) }</a>
+				</div>
+			</details>
+			<details
+				class="goen-admin__navgroup"
+				name="goen-admin-nav"
+				open?={ adminNavHolds(current, "shipping", "home", "faq", "staff") }
+			>
+				<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavShop) }</summary>
+				<div class="goen-admin__navitems">
+					<a
+						class="ui-navitem"
+						href="/admin/shipping"
+						if current == "shipping" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueShipping) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/home"
+						if current == "home" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueHomePage) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/faq"
+						if current == "faq" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminPageFAQ) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/staff"
+						if current == "staff" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminQueueStaff) }</a>
+				</div>
+			</details>
+			<details
+				class="goen-admin__navgroup"
+				name="goen-admin-nav"
+				open?={ adminNavHolds(current, "reports", "audit", "health") }
+			>
+				<summary class="ui-navitem goen-admin__navlabel">{ i18n.T(ctx, i18n.KeyAdminNavRecords) }</summary>
+				<div class="goen-admin__navitems">
+					<a
+						class="ui-navitem"
+						href="/admin/reports"
+						if current == "reports" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminPageReports) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/audit"
+						if current == "audit" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminPageAudit) }</a>
+					<a
+						class="ui-navitem"
+						href="/admin/health"
+						if current == "health" {
+							aria-current="page"
+						}
+					>{ i18n.T(ctx, i18n.KeyAdminPageHealth) }</a>
+				</div>
+			</details>
+			<a class="ui-navitem goen-admin__navback" href="/">{ i18n.T(ctx, i18n.KeyBackToShop) }</a>
+		</nav>
+	}
 }
 
-// AdminDashboard renders the back office landing page.
+// AdminDashboard renders the back office landing page: the five figures the
+// shop is judged by, then the two queues somebody actually works from.
+//
+// Every figure is a link. A count on its own tells a staff member that there is
+// work and not where it is, and the screen holding it is one they would
+// otherwise find in the navigation.
 templ AdminDashboard(p layouts.Page, v AdminDashboardView) {
 	@layouts.Base(p) {
 		<div class="goen-admin">
 			@adminNav("dashboard")
-			<div class="ui-page-head">
-				<div>
-					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminQueueDashboardTitle) }</h1>
-				</div>
-			</div>
-			<div class="ui-stat-grid goen-admin__stats">
-				<div class="ui-stat">
-					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminQueueStatPending) }</span>
-					<span class="ui-stat__value">{ v.PendingText() }</span>
-				</div>
-				<div class="ui-stat">
-					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminStatusPicking) }</span>
-					<span class="ui-stat__value">{ v.PickingText() }</span>
-				</div>
-				<div class="ui-stat">
-					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminQueueStatLowStock) }</span>
-					<span class="ui-stat__value">{ v.LowStockText() }</span>
-				</div>
-				<div class="ui-stat">
-					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminQueueStatActive) }</span>
-					<span class="ui-stat__value">{ v.ActiveProductsText() }</span>
-				</div>
-				<a class="ui-stat" href="/admin/messages">
-					<span class="ui-stat__label">{ i18n.T(ctx, i18n.KeyAdminQueueStatMessages) }</span>
-					<span class="ui-stat__value">{ v.OpenMessagesText() }</span>
-				</a>
-			</div>
-			if v.HasLow() {
-				<section class="goen-admin__panel" aria-labelledby="low-heading">
-					<h2 id="low-heading" class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminQueueRestockHead) }</h2>
-					<p class="goen-admin__hint">
-						{ i18n.T(ctx, i18n.KeyAdminQueueSellableHint) }
-					</p>
-					<div class="goen-admin__tablewrap">
-						@adminVariantTable(v.Low)
+			<div class="goen-admin__main">
+				<div class="ui-page-head">
+					<div>
+						<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAdminEyebrow) }</p>
+						<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyAdminQueueDashboardTitle) }</h1>
 					</div>
-					<a class="ui-btn ui-btn--secondary ui-btn--sm" href="/admin/stock?low=1">{ i18n.T(ctx, i18n.KeyAdminQueueAllLowStock) }</a>
+				</div>
+				<div class="goen-admin__stats">
+					@components.StatTile(components.StatTileProps{
+						Label: i18n.T(ctx, i18n.KeyAdminQueueStatPending),
+						Value: v.PendingText(),
+						Href:  "/admin/orders?status=pending",
+					})
+					@components.StatTile(components.StatTileProps{
+						Label: i18n.T(ctx, i18n.KeyAdminStatusPicking),
+						Value: v.PickingText(),
+						Href:  "/admin/orders?status=picking",
+					})
+					@components.StatTile(components.StatTileProps{
+						Label: i18n.T(ctx, i18n.KeyAdminQueueStatLowStock),
+						Value: v.LowStockText(),
+						Href:  "/admin/stock?low=1",
+					})
+					@components.StatTile(components.StatTileProps{
+						Label: i18n.T(ctx, i18n.KeyAdminQueueStatActive),
+						Value: v.ActiveProductsText(),
+						Href:  "/admin/products",
+					})
+					@components.StatTile(components.StatTileProps{
+						Label: i18n.T(ctx, i18n.KeyAdminQueueStatMessages),
+						Value: v.OpenMessagesText(),
+						Href:  "/admin/messages",
+					})
+				</div>
+				<section class="goen-admin__queue" aria-labelledby="orders-heading">
+					<h2 class="goen-admin__heading" id="orders-heading">
+						<a href="/admin/orders">{ i18n.T(ctx, i18n.KeyAdminQueueOrders) }</a>
+					</h2>
+					if len(v.Recent) == 0 {
+						<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminQueueNoneYet) }</p>
+					} else {
+						<div class="goen-admin__tablewrap">
+							<table class="ui-table goen-admin__table">
+								<thead>
+									<tr>
+										<th scope="col">{ i18n.T(ctx, i18n.KeyFieldOrderNumber) }</th>
+										<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColStatus) }</th>
+										<th scope="col">{ i18n.T(ctx, i18n.KeyFieldRecipient) }</th>
+										<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColPlacedAt) }</th>
+										<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminColAmount) }</th>
+									</tr>
+								</thead>
+								<tbody>
+									for _, o := range v.Recent {
+										<tr>
+											<td class="goen-admin__cellkey">
+												<a href={ templ.URL("/admin/orders/" + o.Number) }>{ o.Number }</a>
+											</td>
+											<td>
+												<div class="goen-admin__cellbadges">
+													@components.Badge(components.BadgeProps{}) {
+														{ o.StatusText }
+													}
+													if o.Committed {
+														@components.Badge(components.BadgeProps{Tone: components.ToneAccent}) {
+															{ i18n.T(ctx, i18n.KeyAdminQueueCommitted) }
+														}
+													}
+												</div>
+											</td>
+											<td>{ o.RecipientText(ctx) }</td>
+											<td>{ o.PlacedAt }</td>
+											<td class="goen-admin__cellnum">{ o.Total() }</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
+					}
 				</section>
-			}
+				if v.HasLow() {
+					<section class="goen-admin__queue" aria-labelledby="low-heading">
+						<h2 class="goen-admin__heading" id="low-heading">
+							<a href="/admin/stock?low=1">{ i18n.T(ctx, i18n.KeyAdminQueueRestockHead) }</a>
+						</h2>
+						<p class="goen-admin__hint">
+							{ i18n.T(ctx, i18n.KeyAdminQueueSellableHint) }
+						</p>
+						<div class="goen-admin__tablewrap">
+							<table class="ui-table goen-admin__table">
+								<thead>
+									<tr>
+										<th scope="col">SKU</th>
+										<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColProduct) }</th>
+										<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminQueueColStock) }</th>
+									</tr>
+								</thead>
+								<tbody>
+									for _, x := range v.Low {
+										<tr>
+											<td class="goen-admin__cellkey">
+												<a href={ templ.SafeURL("/admin/stock/" + x.SKU) }>{ x.SKU }</a>
+											</td>
+											<td>
+												{ x.ProductName }
+												<span class="goen-admin__meta">{ x.Brand }</span>
+											</td>
+											<td class="goen-admin__cellnum">
+												{ x.StockText() } / { x.SafetyText() } /
+												<strong>{ x.SellableText() }</strong>
+											</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
+						@components.ButtonLink(components.ButtonProps{
+							Variant: components.VariantOutline,
+							Size:    components.SizeSmall,
+						}, "/admin/stock?low=1") {
+							{ i18n.T(ctx, i18n.KeyAdminQueueAllLowStock) }
+						}
+					</section>
+				}
+			</div>
 		</div>
 	}
 }
