@@ -58,31 +58,24 @@ func TestFontStylesheetMatchesTheEmbeddedFonts(t *testing.T) {
 // TestNoStylesheetFetchesFromAnotherOrigin holds the promise style-src 'self'
 // makes: nothing goen serves asks a browser to connect anywhere else.
 //
-// It is written to be independent of stripRemoteImports on purpose. A guard
-// that reuses the rewrite's own matcher tests that the code agrees with itself,
-// and the first version of this pair did exactly that — the matcher missed an
-// @import split across two lines, and a test built on the same matcher would
-// have missed it too. So this one strips comments itself, folds the whitespace
-// itself, and then looks for any absolute URL in any @import or url() in the
-// bytes goen actually sends.
+// It reads the bytes goen serves and decides for itself: it strips comments,
+// folds the whitespace, and then looks for any absolute URL in any @import or
+// url(). A guard that borrows a matcher from the code it guards tests that the
+// code agrees with itself — and the matcher this pair was first written with
+// missed an @import split across two lines, which a test built on it would have
+// missed too.
 func TestNoStylesheetFetchesFromAnotherOrigin(t *testing.T) {
 	t.Parallel()
 
-	var checked, rewritten int
+	var checked int
 	err := fs.WalkDir(files, "css", func(name string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || path.Ext(name) != ".css" {
 			return err
 		}
 		checked++
-		body, ok := catalogue.bodies[name]
-		if ok {
-			rewritten++
-		} else {
-			raw, readErr := fs.ReadFile(files, name)
-			if readErr != nil {
-				return readErr
-			}
-			body = raw
+		body, readErr := fs.ReadFile(files, name)
+		if readErr != nil {
+			return readErr
 		}
 		for _, target := range absoluteTargets(string(body)) {
 			t.Errorf("%s asks the browser for %s; style-src is 'self' and it would "+
@@ -95,12 +88,6 @@ func TestNoStylesheetFetchesFromAnotherOrigin(t *testing.T) {
 	}
 	if checked == 0 {
 		t.Fatal("no stylesheets were checked; the walk found nothing")
-	}
-	// The design system's token sheet is the one that needs it. If a vendor
-	// update drops the @import, this fails and the rewrite can go.
-	if rewritten == 0 {
-		t.Error("no stylesheet needed rewriting; stripRemoteImports is now dead code " +
-			"and should be removed with the reason it existed")
 	}
 }
 
