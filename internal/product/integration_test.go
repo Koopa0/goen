@@ -6,11 +6,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -73,6 +75,121 @@ func get(t *testing.T, slug, query string) (status int, body string) {
 	h.Detail(res, req)
 	return res.Code, res.Body.String()
 }
+
+// TestChoosingAVariantHasNoSecondServerPath holds the property that makes the
+// in-place swap safe to keep.
+//
+// The option links ask for the same URL they navigate to, and the page keeps
+// only the region that changed. That works because the server answers an htmx
+// request with the document it always answered with — no branch on HX-Request,
+// no fragment endpoint, nothing that can drift out of step with the page a
+// visitor gets with scripting off. The day someone adds that branch, the
+// scripting-off path and the swapped path stop being the same thing, and this
+// is what notices.
+func TestChoosingAVariantHasNoSecondServerPath(t *testing.T) {
+	const slug, query = "nimbus-buds-pro", "%E9%A1%8F%E8%89%B2=%E9%9B%B2%E7%99%BD"
+
+	plain := render(t, slug, query, nil)
+	if plain.Code != http.StatusOK {
+		t.Fatalf("plain status = %d, want 200", plain.Code)
+	}
+	swapped := render(t, slug, query, map[string]string{
+		"HX-Request": "true", "HX-Target": "buybox",
+	})
+
+	if swapped.Code != plain.Code {
+		t.Errorf("htmx status = %d, plain = %d", swapped.Code, plain.Code)
+	}
+	if swapped.Body.String() != plain.Body.String() {
+		t.Error("the htmx response body differs from the plain one: there is a second " +
+			"server path, and the scripting-off page and the swapped region can now drift")
+	}
+	// The headers too, and not only the body: an HX-Retarget, an HX-Reswap or a
+	// Vary that only htmx sees is a second path as surely as different markup
+	// is, and it is the kind that reads as harmless while it drifts.
+	if got, want := fmt.Sprint(swapped.Header()), fmt.Sprint(plain.Header()); got != want {
+		t.Errorf("the htmx response headers differ from the plain one:\n  htmx  %s\n  plain %s", got, want)
+	}
+	if !strings.Contains(plain.Body.String(), `id="buybox"`) {
+		t.Error("the response carries no #buybox for the swap to select")
+	}
+}
+
+// render serves the detail page, optionally as htmx would ask for it, and hands
+// back the whole response rather than two of its parts.
+func render(t *testing.T, slug, query string, headers map[string]string) *httptest.ResponseRecorder {
+	t.Helper()
+	h := product.NewHandler(product.NewStore(pool), slog.New(slog.DiscardHandler), "https://goen.example")
+	target := "/p/" + slug
+	if query != "" {
+		target += "?" + query
+	}
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, target, http.NoBody)
+	req.SetPathValue("slug", slug)
+	for name, value := range headers {
+		req.Header.Set(name, value)
+	}
+	res := httptest.NewRecorder()
+	h.Detail(res, req)
+	return res
+}
+
+// TestTheGalleryDoesNotDependOnTheChosenVariant is why the swap is allowed to
+// be as narrow as it is.
+//
+// The photography is per PRODUCT: product_images has no variant or option
+// column, so every combination of a product's options is served the same
+// gallery. Selecting it into the swap would tear down an <img> and build an
+// identical one — a cache read, a decode, and an empty frame in between for a
+// picture nobody changed, which is the flash this page was reported for.
+//
+// If a shop ever gets per-variant photography, this test goes red before anyone
+// notices the gallery has stopped following the choice, and the answer then is
+// to widen hx-select and hx-target to a region containing both.
+func TestTheGalleryDoesNotDependOnTheChosenVariant(t *testing.T) {
+	for _, slug := range []string{"pixelight-9-pro", "nimbus-buds-pro", "meridian-watch-s3"} {
+		t.Run(slug, func(t *testing.T) {
+			_, first := get(t, slug, "")
+			base := gallery(t, first)
+			for _, href := range optionHrefs(t, first) {
+				query := ""
+				if i := strings.IndexByte(href, '?'); i >= 0 {
+					query = href[i+1:]
+				}
+				if _, body := get(t, slug, query); gallery(t, body) != base {
+					t.Fatalf("choosing %q changed the gallery; the swap must carry it too", query)
+				}
+			}
+		})
+	}
+}
+
+// gallery is the markup from #gallery up to #buybox, which is the whole of it.
+func gallery(t *testing.T, body string) string {
+	t.Helper()
+	start := strings.Index(body, `id="gallery"`)
+	end := strings.Index(body, `id="buybox"`)
+	if start < 0 || end <= start {
+		t.Fatal("the page has no gallery before its buy column")
+	}
+	return body[start:end]
+}
+
+// optionHrefs is every choice the picker offers, in the order it offers them.
+func optionHrefs(t *testing.T, body string) []string {
+	t.Helper()
+	hrefs := optionHref.FindAllStringSubmatch(body, -1)
+	if len(hrefs) == 0 {
+		t.Fatal("the page offers no option values")
+	}
+	out := make([]string, 0, len(hrefs))
+	for _, m := range hrefs {
+		out = append(out, html.UnescapeString(m[1]))
+	}
+	return out
+}
+
+var optionHref = regexp.MustCompile(`<a class="goen-swatch[^"]*" href="([^"]+)"`)
 
 func TestDraftProductIs404(t *testing.T) {
 	ctx := t.Context()
