@@ -103,9 +103,6 @@
     "/deals": [
       "color-contrast"
     ],
-    "/faq": [
-      "color-contrast"
-    ],
     "/orders/{order}": [
       "color-contrast"
     ],
@@ -119,24 +116,6 @@
       "color-contrast"
     ],
     "/p/nimbus-buds-pro?%E9%A1%8F%E8%89%B2=%E9%9B%B2%E7%99%BD": [
-      "color-contrast"
-    ],
-    "/payment": [
-      "color-contrast"
-    ],
-    "/privacy": [
-      "color-contrast"
-    ],
-    "/returns": [
-      "color-contrast"
-    ],
-    "/shipping": [
-      "color-contrast"
-    ],
-    "/terms": [
-      "color-contrast"
-    ],
-    "/warranty": [
       "color-contrast"
     ]
   }
