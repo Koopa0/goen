@@ -273,6 +273,12 @@ a:hover {
   --border-strong: oklch(0.871 0.006 286.286);
   --elevated: oklch(0.967 0.001 286.375);
 
+  /* The flat ground baked into the product and hero renders (assets/media),
+     in hex rather than oklch so the container and the photo match byte for
+     byte: a round-tripped oklch value would not land on the same sRGB bytes
+     the images were re-encoded to. */
+  --photo-ground: #f9f9f9;
+
   /* Slightly darker than the reference red, because this colour is a ground as
      often as it is ink. White-ish text on the old value measured 4.38:1 in the
      danger badge and the red itself measured 4.34:1 as text on --elevated;
@@ -1306,7 +1312,7 @@ h4,
    keeps the copy from jumping on a slow connection. */
 .goen-hero__media {
   aspect-ratio: 16 / 10;
-  background: var(--elevated);
+  background: var(--photo-ground);
   border-radius: var(--r-lg);
   order: -1;
   overflow: hidden;
@@ -1529,7 +1535,7 @@ h4,
 
 .goen-tile__media {
   aspect-ratio: 1;
-  background: var(--elevated);
+  background: var(--photo-ground);
   overflow: hidden;
   position: relative;
 }
@@ -2240,7 +2246,7 @@ h4,
 
 .goen-pdp__shot {
   aspect-ratio: 1 / 1;
-  background: var(--elevated);
+  background: var(--photo-ground);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   margin: 0;
@@ -3171,7 +3177,7 @@ h4,
 }
 
 .goen-line__thumb {
-  background: var(--elevated);
+  background: var(--photo-ground);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   display: block;
