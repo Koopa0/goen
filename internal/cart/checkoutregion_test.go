@@ -24,6 +24,11 @@ var divTag = regexp.MustCompile(`</?div\b[^>]*>`)
 // names, and the one PlaceOrder's update branch must swap in whole, forms and
 // all, for the store button to have anything to submit after an in-place
 // choice.
+//
+// Deliberately div-only, unlike the pages package's own elementByID: this
+// file always looks up the literal "checkout-region" id, which is only ever
+// a <div> in cart.templ, rather than an id read off a live hx-select
+// attribute that could name any element.
 func checkoutRegionElement(t *testing.T, html string) string {
 	t.Helper()
 
