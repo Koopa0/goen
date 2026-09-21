@@ -96,11 +96,12 @@ func (f *ProductForm) Validate(ctx context.Context) map[string]string {
 
 // Products reads the catalogue for the back office.
 func (s *Store) Products(ctx context.Context) (pages.AdminProductsView, error) {
-	rows, err := s.q.AdminProducts(ctx, PageSize)
+	rows, err := s.q.AdminProducts(ctx, PageLimit)
 	if err != nil {
 		return pages.AdminProductsView{}, fmt.Errorf("read products: %w", err)
 	}
-	view := pages.AdminProductsView{}
+	rows, more := pageOf(rows, PageSize)
+	view := pages.AdminProductsView{ListBound: pages.Bound(more, PageSize)}
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, pages.AdminProduct{

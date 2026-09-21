@@ -4,6 +4,8 @@ import "strconv"
 
 // AdminCustomersView is the customer search.
 type AdminCustomersView struct {
+	ListBound
+
 	Term     string
 	Searched bool
 	Rows     []AdminCustomerRow

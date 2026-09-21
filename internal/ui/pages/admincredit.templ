@@ -64,6 +64,7 @@ templ AdminCredit(p layouts.Page, v AdminCreditView) {
 					</li>
 				}
 			</ul>
+			@listBound(v.ListBound, ByRecency, false)
 		}
 	}
 }

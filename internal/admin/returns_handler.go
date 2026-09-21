@@ -29,8 +29,9 @@ func (h *Handler) Returns(w http.ResponseWriter, r *http.Request) {
 			"return_id", issue.returnID, "error", issue.err)
 	}
 	view := pages.AdminReturnsView{
-		Rows:   queue.Rows,
-		Notice: noticeFor(r),
+		ListBound: queue.Bound,
+		Rows:      queue.Rows,
+		Notice:    noticeFor(r),
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.AdminReturns(
 		layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageReturns)}, view))
@@ -177,8 +178,9 @@ func (h *Handler) renderReturnRefusal(w http.ResponseWriter, r *http.Request, er
 		msg = i18n.T(r.Context(), i18n.KeyAdminRetErrBasis)
 	}
 	view := pages.AdminReturnsView{
-		Rows:   queue.Rows,
-		Errors: map[string]string{r.PathValue("id") + "." + field: msg},
+		ListBound: queue.Bound,
+		Rows:      queue.Rows,
+		Errors:    map[string]string{r.PathValue("id") + "." + field: msg},
 	}
 	for i := range view.Rows {
 		if view.Rows[i].ID != r.PathValue("id") {

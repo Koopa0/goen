@@ -10,6 +10,8 @@ import (
 
 // AdminMessagesView is the customer-service inbox.
 type AdminMessagesView struct {
+	ListBound
+
 	Rows   []AdminMessage
 	Notice string
 }

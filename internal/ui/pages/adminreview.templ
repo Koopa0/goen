@@ -85,6 +85,7 @@ templ AdminReviews(p layouts.Page, v AdminReviewsView) {
 					</li>
 				}
 			</ul>
+			@listBound(v.ListBound, ByRecency, false)
 		}
 	}
 }
