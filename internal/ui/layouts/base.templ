@@ -23,9 +23,12 @@ templ Base(p Page) {
 }
 
 // documentHead is the head both shells send. It is one templ and not two
-// because every entry in it — the fonts, the four stylesheets, htmx and its
+// because every entry in it — the fonts, the stylesheets, htmx and its
 // configuration — is a fact about the document rather than about the storefront,
 // and a second copy is a second copy to keep current.
+//
+// base.css is linked before app.css because that order is the cascade: a value
+// set in both is settled by source order, and app.css is what wins.
 templ documentHead(p Page) {
 	<head>
 		<meta charset="utf-8"/>
@@ -50,9 +53,7 @@ templ documentHead(p Page) {
 		// preloaded guess costs a file the page may never paint.
 		<link rel="preload" href={ templ.URL(assets.URL(assets.InterLatinWOFF2)) } as="font" type="font/woff2" crossorigin/>
 		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.FontsCSS)) }/>
-		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.DesignSystemCSS)) }/>
-		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.AccentsCSS)) }/>
-		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.CommerceCSS)) }/>
+		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.BaseCSS)) }/>
 		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.AppCSS)) }/>
 		<script src={ templ.URL(assets.URL(assets.HTMXJS)) } defer></script>
 		<script src={ templ.URL(assets.URL(assets.AppJS)) } defer></script>

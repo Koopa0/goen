@@ -1,0 +1,283 @@
+/* ============================================================
+   goen — base layer.
+
+   The tokens a page reads, the element defaults every page starts from,
+   and the shared primitives more than one surface still wears. app.css
+   composes pages on top of it and is linked after it, so a value set in
+   both places is settled by source order and app.css wins.
+
+   A custom property is declared here only when app.css does not declare
+   it: one name, one declaration, one place to change it.
+   ============================================================ */
+
+:root {
+  /* The one palette entry app.css has no opinion about: the informational
+     tint, which only the inline notice wears. */
+  --info: oklch(0.52 0.09 220);
+  --info-bg: oklch(0.52 0.09 220 / 0.10);
+
+  /* The brand names are the accent under the spelling the shared
+     primitives were written against. They follow --accent rather than
+     repeating it, so the accent moves in one place. */
+  --brand: var(--accent);
+  --brand-muted: var(--accent-muted);
+  --brand-faint: var(--accent-faint);
+
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* The UI type ladder. The editorial step is the one size above it that
+     a heading still reaches for. */
+  --fs-11: 0.6875rem;
+  --fs-12: 0.750rem;
+  --fs-13: 0.8125rem;
+  --fs-14: 0.875rem;
+  --fs-16: 1.000rem;
+  --fs-18: 1.125rem;
+  --fs-ed-20: 1.250rem;
+
+  --lh-snug: 1.35;
+  --lh-normal: 1.5;
+  --lh-read: 1.75;
+
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+
+  --track-tight: -0.02em;
+
+  /* Stacking. Three levels, because a page that needs a fourth has a
+     layering problem a number will not fix. */
+  --z-base: 0;
+  --z-dropdown: 60;
+  --z-toast: 200;
+
+  /* A radius that is always a circle, whatever --radius is. */
+  --r-full: 999px;
+
+  --container: 1280px;
+
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --dur-base: 120ms;
+  --dur-slow: 200ms;
+
+  /* Form controls, scrollbars and the canvas a page has not painted all
+     follow this, and goen draws one ground. */
+  color-scheme: light;
+}
+
+/* ---------- Element defaults ---------- */
+
+/* The root stays at the browser's own size so a rem is the reader's
+   setting; body text sizes itself from the ladder above. */
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  line-height: var(--lh-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Every focusable thing has a ring before any component asks for one. */
+*:focus-visible {
+  outline: 2px solid var(--fg-muted);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+/* ---------- Button ---------- */
+
+.ui-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  appearance: none; -webkit-appearance: none;
+  font-family: var(--font-sans); font-weight: var(--fw-semibold); line-height: 1;
+  border-radius: var(--r-sm); border: 1px solid transparent;
+  cursor: pointer; white-space: nowrap; text-decoration: none;
+  padding: 8px 14px; font-size: var(--fs-13);
+  transition: background var(--dur-base) var(--ease-standard), border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard), color var(--dur-base) var(--ease-standard);
+}
+.ui-btn:disabled,
+.ui-btn[aria-disabled="true"],
+.ui-btn[disabled] { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+
+.ui-btn--sm { padding: 6px 10px; font-size: var(--fs-13); }
+.ui-btn--icon { padding: 8px; }            /* square icon-only */
+.ui-btn--icon.ui-btn--sm { padding: 6px; }
+
+.ui-btn--primary { background: var(--accent); color: var(--on-accent); box-shadow: 0 1px 2px rgb(0 0 0 / 0.10), inset 0 1px 0 rgb(255 255 255 / 0.15); }
+.ui-btn--primary:hover  { background: var(--accent-strong); }
+.ui-btn--primary:active { background: var(--accent-strong); box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.20); }
+
+.ui-btn--secondary { background: var(--elevated); color: var(--fg); border-color: var(--border); }
+.ui-btn--secondary:hover  { background: var(--overlay); border-color: var(--border-strong); }
+.ui-btn--secondary:active { background: var(--panel); }
+
+.ui-btn--ghost { background: transparent; color: var(--fg-muted); }
+.ui-btn--ghost:hover  { background: var(--overlay); color: var(--fg); }
+.ui-btn--ghost:active { background: var(--panel); }
+
+.ui-btn svg { width: 16px; height: 16px; flex: none; }
+.ui-btn--sm svg { width: 14px; height: 14px; }
+
+/* ---------- Badge ---------- */
+
+.ui-badge {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  font-family: var(--font-sans); font-size: var(--fs-11); font-weight: var(--fw-medium);
+  line-height: 1; padding: 3px 8px; border-radius: var(--r-sm);
+  background: var(--elevated); color: var(--fg-muted); border: 1px solid var(--border-faint);
+}
+.ui-badge--brand { background: var(--brand-muted); color: var(--brand); border-color: transparent; }
+.ui-badge--warn  { background: var(--warn-bg);     color: var(--warn);  border-color: transparent; }
+
+/* count pill (the cart's number) */
+.ui-badge--count {
+  min-width: 18px; height: 18px; padding: 0 5px; justify-content: center;
+  border-radius: var(--r-full); font-family: var(--font-mono); font-size: var(--fs-11);
+  background: var(--brand); color: var(--on-accent); border: none;
+}
+
+/* ---------- Form controls ---------- */
+
+.ui-field { display: flex; flex-direction: column; gap: 6px; }
+.ui-label {
+  font-family: var(--font-sans); font-size: var(--fs-12); font-weight: var(--fw-medium);
+  color: var(--fg-muted);
+}
+.ui-error-text { font-size: var(--fs-12); color: var(--error); }
+
+.ui-input, .ui-textarea {
+  font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg);
+  background: var(--elevated); border: 1px solid var(--border); border-radius: var(--r-sm);
+  padding: 8px 10px; width: 100%; box-sizing: border-box; outline: none;
+  transition: border-color var(--dur-base) var(--ease-standard), background var(--dur-base);
+}
+.ui-input::placeholder, .ui-textarea::placeholder { color: var(--fg-muted); }
+.ui-input:hover, .ui-textarea:hover { border-color: var(--border-strong); }
+.ui-input:focus, .ui-textarea:focus { border-color: var(--brand); background: var(--panel); }
+.ui-input:disabled, .ui-textarea:disabled { opacity: 0.45; cursor: not-allowed; }
+.ui-input[aria-invalid="true"], .ui-textarea[aria-invalid="true"] { border-color: var(--error); }
+.ui-textarea { resize: vertical; min-height: 80px; line-height: var(--lh-normal); }
+
+.ui-input--sm { padding: 6px 8px; font-size: var(--fs-12); }
+
+.ui-select {
+  font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg);
+  background: var(--elevated); border: 1px solid var(--border); border-radius: var(--r-sm);
+  padding: 8px 30px 8px 10px; width: 100%; box-sizing: border-box; outline: none; cursor: pointer;
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 9px center;
+  transition: border-color var(--dur-base);
+}
+.ui-select:hover { border-color: var(--border-strong); }
+.ui-select:focus { border-color: var(--brand); }
+.ui-select:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ---------- Stat (back-office figures) ---------- */
+
+.ui-stat { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r-md); padding: 18px 18px 16px; box-shadow: var(--shadow-1); display: flex; flex-direction: column; gap: 8px; }
+.ui-stat__label { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-muted); letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+.ui-stat__value { font-family: var(--font-display); font-size: var(--fs-ed-30); font-weight: var(--fw-semibold); color: var(--fg); line-height: 1; letter-spacing: var(--track-tight); font-variant-numeric: tabular-nums; }
+
+/* ---------- Breadcrumbs ---------- */
+
+.ui-crumbs { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-muted); flex-wrap: wrap; }
+.ui-crumbs a { color: var(--fg-muted); text-decoration: none; }
+.ui-crumbs a:hover { color: var(--fg); }
+.ui-crumbs__sep { color: var(--fg-muted); }
+.ui-crumbs__current { color: var(--fg-muted); }
+
+/* ---------- Navigation item (header and back-office rail) ---------- */
+
+.ui-navitem {
+  display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: var(--r-sm);
+  font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg-muted);
+  text-decoration: none; cursor: pointer; transition: background var(--dur-base), color var(--dur-base);
+}
+.ui-navitem:hover { background: var(--overlay); color: var(--fg); }
+.ui-navitem[aria-current="page"], .ui-navitem.is-active { background: var(--brand-faint); color: var(--fg); }
+.ui-navitem svg { width: 17px; height: 17px; color: var(--fg-muted); flex: none; }
+.ui-navitem.is-active svg { color: var(--brand); }
+
+/* ---------- Inline alert ---------- */
+
+.ui-alert { display: flex; gap: 10px; padding: 10px 12px; border-radius: var(--r-sm); font-family: var(--font-sans); font-size: var(--fs-13); line-height: var(--lh-normal); }
+.ui-alert svg { width: 16px; height: 16px; flex: none; margin-top: 1px; }
+.ui-alert--info  { background: var(--info-bg);  color: var(--info); }
+.ui-alert--error { background: var(--error-bg); color: var(--error); }
+.ui-alert strong { font-weight: var(--fw-semibold); }
+.ui-alert__body { color: var(--fg-muted); }
+
+/* ---------- Empty state ---------- */
+
+.ui-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 48px 24px; }
+.ui-empty__title { font-family: var(--font-display); font-size: var(--fs-18); font-weight: var(--fw-semibold); color: var(--fg-muted); margin: 0; }
+.ui-empty__desc { font-family: var(--font-sans); font-size: var(--fs-13); color: var(--fg-muted); margin: 0; max-width: 320px; line-height: var(--lh-normal); }
+
+/* ---------- Table ---------- */
+
+.ui-table { width: 100%; border-collapse: collapse; font-family: var(--font-sans); font-size: var(--fs-13); }
+.ui-table thead th {
+  text-align: left; font-family: var(--font-mono); font-size: var(--fs-11); font-weight: var(--fw-medium);
+  color: var(--fg-muted); letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.ui-table tbody td { padding: 9px 12px; border-bottom: 1px solid var(--border-faint); color: var(--fg-muted); vertical-align: middle; height: 32px; box-sizing: border-box; }
+.ui-table tbody tr { transition: background var(--dur-base); }
+.ui-table tbody tr:hover { background: var(--overlay); }
+
+/* ---------- Description list ---------- */
+
+.ui-dl { display: flex; flex-direction: column; }
+.ui-dl__row { display: grid; grid-template-columns: 180px 1fr; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--border-faint); }
+.ui-dl__row:last-child { border-bottom: none; }
+.ui-dl__term { font-size: var(--fs-13); color: var(--fg-muted); }
+.ui-dl__desc { font-size: var(--fs-13); color: var(--fg); }
+
+/* ---------- Page heading ---------- */
+
+.ui-page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.ui-page-head__eyebrow { font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-muted); margin: 0 0 6px; white-space: nowrap; }
+.ui-page-head__title { font-family: var(--font-display); font-size: var(--fs-ed-30); font-weight: var(--fw-semibold); letter-spacing: var(--track-tight); color: var(--fg); margin: 0; }
+.ui-page-head__sub { font-size: var(--fs-13); color: var(--fg-muted); margin: 6px 0 0; max-width: 60ch; }
+.ui-page-head__actions { display: flex; align-items: center; gap: 8px; flex: none; }
+
+/* ---------- Filter bar ---------- */
+
+.ui-filterbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ui-filter { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-sans); font-size: var(--fs-12); font-weight: var(--fw-medium); color: var(--fg-muted); background: var(--elevated); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 5px 10px; cursor: pointer; transition: color var(--dur-base), border-color var(--dur-base), background var(--dur-base); }
+.ui-filter:hover { color: var(--fg); border-color: var(--border-strong); }
+.ui-filter__count { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-muted); }
+.ui-filterbar__clear { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-muted); background: none; border: none; cursor: pointer; padding: 4px; }
+.ui-filterbar__clear:hover { color: var(--fg-muted); }
+
+/* ---------- Cross-cutting states ----------
+
+   These come after the components they touch, which is what lets one
+   rule answer for all of them. Keep them last.
+   ------------------------------------------------------------------ */
+
+.ui-navitem:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+/* The browser's own verdict on a control the reader has touched, and
+   goen's on one the server refused. */
+.ui-input:user-valid, .ui-textarea:user-valid { border-color: var(--success); }
+.ui-input[aria-invalid="true"], .ui-textarea[aria-invalid="true"],
+.ui-input:user-invalid, .ui-textarea:user-invalid { border-color: var(--error); }
+.ui-input:read-only:not([type="button"]), .ui-textarea:read-only {
+  background: var(--panel); color: var(--fg-muted); cursor: default;
+}
+.ui-input:read-only:hover { border-color: var(--border); }
+
+.ui-navitem:active { background: var(--panel); }
+
+/* ---------- Commerce ---------- */
+
+.ui-cart-line__meta { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-muted); }

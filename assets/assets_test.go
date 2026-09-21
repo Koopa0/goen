@@ -53,9 +53,7 @@ func TestRequiredAssetsAreVersioned(t *testing.T) {
 	t.Parallel()
 
 	names := []string{
-		assets.DesignSystemCSS,
-		assets.AccentsCSS,
-		assets.CommerceCSS,
+		assets.BaseCSS,
 		assets.AppCSS,
 		assets.HTMXJS,
 		assets.AppJS,
@@ -218,7 +216,7 @@ func TestAnAssetIsServedPrecompressed(t *testing.T) {
 func TestASmallTextAssetHasOnlyItsIdentityRepresentation(t *testing.T) {
 	t.Parallel()
 
-	res := requestAsset(t, assets.DesignSystemCSS, "gzip", "")
+	res := requestAsset(t, assets.MarkSVG, "gzip", "")
 	if got := res.Header().Get("Content-Encoding"); got != "" {
 		t.Errorf("Content-Encoding = %q, want identity below the precompression threshold", got)
 	}
