@@ -87,6 +87,7 @@ templ AdminProducts(p layouts.Page, v AdminProductsView) {
 						}
 					</tbody>
 				</table>
+				@listBound(v.ListBound, ByRecency, false)
 			</div>
 		}
 	}

@@ -111,6 +111,8 @@ func (v AdminDashboardView) HasLow() bool { return len(v.Low) > 0 }
 
 // AdminOrdersView is the order queue.
 type AdminOrdersView struct {
+	ListBound
+
 	Term     string
 	Searched bool
 	Status   FulfillmentStatus
@@ -428,6 +430,8 @@ func (v *AdminOrderView) HasCustomerNote() bool { return v.CustomerNote != "" }
 
 // AdminVariantsView is the stock list.
 type AdminVariantsView struct {
+	ListBound
+
 	Variants []AdminVariant
 	LowOnly  bool
 	Notice   string
@@ -527,6 +531,8 @@ func (m AdminMovement) ReasonText(ctx context.Context) string {
 
 // AdminMovementsView is one variant's stock ledger.
 type AdminMovementsView struct {
+	ListBound
+
 	SKU         string
 	ProductName string
 	Slug        string

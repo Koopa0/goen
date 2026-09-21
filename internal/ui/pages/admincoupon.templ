@@ -95,6 +95,7 @@ templ AdminCoupons(p layouts.Page, v AdminCouponsView) {
 						}
 					</tbody>
 				</table>
+				@listBound(v.ListBound, ByOwnOrder, false)
 			</div>
 		}
 		@components.Card(components.CardProps{Class: "goen-admin__section"}) {

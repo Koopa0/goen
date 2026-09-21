@@ -246,6 +246,7 @@ templ AdminOrders(p layouts.Page, v AdminOrdersView) {
 						}
 					</tbody>
 				</table>
+				@listBound(v.ListBound, ByRecency, true)
 			</div>
 		}
 	}
@@ -665,6 +666,11 @@ templ AdminVariants(p layouts.Page, v AdminVariantsView) {
 			<div class="goen-admin__tablewrap">
 				@adminVariantTable(v.Variants)
 			</div>
+			// Ordered by how short of stock each line is, then by name — not by
+			// time — so this one says "the first", not "the most recent". And
+			// no second sentence: the All / low-only pair above is a toggle,
+			// not a way to reach the fifty-first row of either.
+			@listBound(v.ListBound, ByOwnOrder, false)
 		}
 	}
 }
