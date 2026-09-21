@@ -23,6 +23,7 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/email"
 	"github.com/koopa0/goen/internal/newsletter"
@@ -305,5 +306,71 @@ func TestAnUnsubscribeDuringTheDrainStopsTheCopy(t *testing.T) {
 	if sender.sent != 1 {
 		t.Errorf("%d copies sent; the second went to an address that had "+
 			"unsubscribed while the queue was draining", sender.sent)
+	}
+}
+
+// TestTheStoreMapReturnCostsNoDatabaseRoundTrip measures what the routing
+// decision beside it claims. The return route is the one door open to an
+// unauthenticated cross-site POST from anybody, so a chrome query on it is a
+// database round trip an attacker can ask for at no cost to themselves.
+//
+// A predicate test can pin that the route is not a nav path; only a traced pool
+// can show that the middleware still running on it — the session reader and the
+// cart badge — asks the database nothing on a request carrying no cookies.
+func TestTheStoreMapReturnCostsNoDatabaseRoundTrip(t *testing.T) {
+	var queries atomic.Int64
+	poolConfig := pool.Config()
+	poolConfig.ConnConfig.Tracer = countingTracer{queries: &queries}
+	counted, err := pgxpool.NewWithConfig(t.Context(), poolConfig)
+	if err != nil {
+		t.Fatalf("open traced pool: %v", err)
+	}
+	t.Cleanup(counted.Close)
+
+	gateway, err := payment.NewGateway("", "", "http://127.0.0.1")
+	if err != nil {
+		t.Fatalf("build disabled payment gateway: %v", err)
+	}
+	// ECPay's own published staging merchant, which is documentation.
+	storeMap, err := cart.NewMap("2000132", string(cart.ModeB2C), "", "https://goen.test")
+	if err != nil {
+		t.Fatalf("build the store map: %v", err)
+	}
+	router := newRouter(&RouterConfig{
+		Pool: counted, AdminPool: counted, Payments: gateway,
+		Refunder: admin.NewRefunder(""), BaseURL: "https://goen.test",
+		StoreMap: storeMap,
+	}, slog.New(slog.DiscardHandler))
+
+	form := url.Values{
+		"MerchantID": {"2000132"}, "MerchantTradeNo": {"ABCDEFGHIJ1234567890"},
+		"LogisticsSubType": {"UNIMART"}, "CVSStoreID": {"131386"},
+		"CVSStoreName": {"南港園區"}, "CVSAddress": {"台北市南港區三重路19-2號"},
+		"CVSOutSide": {"0"}, "ExtraData": {"0123456789abcdef0123"},
+	}
+	queries.Store(0)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
+		cart.PickupReturnPath, strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+	res := httptest.NewRecorder()
+	router.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("the return route answered %d, want 200; the count below would "+
+			"then be measuring a refusal", res.Code)
+	}
+	if got := queries.Load(); got != 0 {
+		t.Errorf("an anonymous cross-site post to the return route made %d database "+
+			"queries, want 0", got)
+	}
+
+	// The control: a storefront page on the same router does query, so the zero
+	// above is a fact about this route rather than about the tracer.
+	queries.Store(0)
+	home := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+	router.ServeHTTP(httptest.NewRecorder(), home)
+	if queries.Load() == 0 {
+		t.Error("the home page made no database queries either; the tracer proves nothing")
 	}
 }
