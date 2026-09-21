@@ -61,7 +61,6 @@ Do not put any of the following in commit messages, PR titles/bodies, or Issue/P
   stock hold, or webhook attribution from goen's own payment row.
 - The statutory terms in `internal/site/policies.go`. They are 消保法 §19.
 - Product names, descriptions, FAQ and policy prose: the shop's content.
-- `assets/css/ds/`: vendored. Style its classes from `app.css`.
 
 Stop if the change needs to cross one. If the ruling authorises it, do what it
 authorises and no more. Otherwise write `NEEDS-KOOPA` under "Needs a ruling",
