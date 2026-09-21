@@ -37,6 +37,9 @@ type Handler struct {
 	// sessions closes a cancelled order's checkout at the payment provider. Nil
 	// on a deployment with no Stripe key, where there is no session to close.
 	sessions SessionCloser
+	// storeMap is the carrier's hosted store picker. Nil or disabled on a
+	// deployment with no carrier, where the checkout asks for a chain alone.
+	storeMap *Map
 }
 
 // SessionCloser closes a checkout the customer may still have open at the
@@ -46,15 +49,18 @@ type SessionCloser interface {
 }
 
 // NewHandler returns a Handler writing through store. A nil sessions means no
-// provider is configured, so no session was ever opened to close.
+// provider is configured, so no session was ever opened to close; a nil or
+// disabled storeMap means no carrier picker, and the checkout asks for a chain
+// exactly as it did before one existed.
 func NewHandler(store *Store, log *slog.Logger, secure bool, findLimit *ratelimit.Limiter,
-	sessions SessionCloser,
+	sessions SessionCloser, storeMap *Map,
 ) *Handler {
 	if store == nil || log == nil || findLimit == nil {
 		panic("cart: NewHandler requires a store, a logger and a lookup limiter")
 	}
 	return &Handler{
-		store: store, log: log, secure: secure, findLimit: findLimit, sessions: sessions,
+		store: store, log: log, secure: secure, findLimit: findLimit,
+		sessions: sessions, storeMap: storeMap,
 	}
 }
 
@@ -203,9 +209,15 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 		return
 	}
+	// A store coming back from the carrier's map arrives on a cross-site POST,
+	// which carries no query of its own. The three keys the form had already
+	// chosen ride in the pickup cookie instead, and each is re-validated below
+	// by the same code that validates the query.
+	chosen := h.checkoutChoices(r)
+
 	// The chosen method lives in the URL and nowhere else, so it is a link and
 	// the choice works with scripting off.
-	if ship := r.URL.Query().Get("ship"); ship != "" {
+	if ship := chosen.Ship; ship != "" {
 		for i := range view.Shipping {
 			if view.Shipping[i].VersionID == ship {
 				view.Chosen = ship
@@ -216,17 +228,18 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 	// The 發票 choice travels the same way, and for the same reason: it decides
 	// which field the form asks for, so a chooser that only a script could act
 	// on would leave the two disagreeing.
-	if kind := invoicepkg.Preference(r.URL.Query().Get("invoice")); kind.Known() {
+	if kind := invoicepkg.Preference(chosen.Invoice); kind.Known() {
 		view.Invoice.Type = kind
 	}
 
 	var prefill Address
-	fillFromBook(&view, &prefill, r.URL.Query().Get("address"))
+	fillFromBook(&view, &prefill, chosen.Address)
 	view.Address = pages.CheckoutAddress{
 		Email: emailOf(r), Name: prefill.Name, Phone: prefill.Phone,
 		PostalCode: prefill.PostalCode, City: prefill.City,
 		District: prefill.District, Street: prefill.Street,
 	}
+	status := h.applyReturnedStore(r, &view)
 	shippingID, err := uuid.Parse(view.Chosen)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "checkout has no valid shipping choice", "error", err)
@@ -243,7 +256,188 @@ func (h *Handler) Checkout(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, r)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.Checkout(pages.CheckoutMeta(r.Context()), &view))
+	h.renderCheckout(w, r, status, &view)
+}
+
+// checkoutChoices is the three keys Checkout reads, taken from the URL and, on
+// the one hop back from the carrier's map, from the pickup cookie. The cookie
+// is read ONLY on that hop: a plain visit to /checkout keeps today's defaults
+// rather than silently restoring an older choice.
+func (h *Handler) checkoutChoices(r *http.Request) pickupState {
+	q := r.URL.Query()
+	chosen := pickupState{
+		Ship: q.Get("ship"), Invoice: q.Get("invoice"), Address: q.Get("address"),
+	}
+	if q.Get("pickup_n") == "" {
+		return chosen
+	}
+	saved, ok := readPickupCookie(r, h.secure)
+	if !ok {
+		return chosen
+	}
+	if chosen.Ship == "" {
+		chosen.Ship = saved.Ship
+	}
+	if chosen.Invoice == "" {
+		chosen.Invoice = saved.Invoice
+	}
+	if chosen.Address == "" {
+		chosen.Address = saved.Address
+	}
+	return chosen
+}
+
+// applyReturnedStore decides whether the store in the URL is this browser's,
+// and answers the status the page renders at. Nothing that arrived is echoed on
+// a refusal: the page says a store could not be confirmed and asks again.
+func (h *Handler) applyReturnedStore(r *http.Request, view *pages.CheckoutView) int {
+	// Without a carrier there is no picker, so no store can have been chosen and
+	// these keys mean nothing. An unconfigured goen ignores them exactly as it
+	// did before any of this existed.
+	if !h.storeMap.Enabled() {
+		return http.StatusOK
+	}
+	q := r.URL.Query()
+	posted := PostedStore{
+		Brand: pickup.Brand(q.Get("pickup_brand")),
+		Code:  q.Get("pickup_store_code"),
+		Name:  q.Get("pickup_store_name"),
+		Nonce: q.Get("pickup_n"),
+	}
+	if posted.Empty() {
+		return http.StatusOK
+	}
+	state, known := readPickupCookie(r, h.secure)
+	if !honourPickupStore(posted, state, known) {
+		view.PickupRefused = true
+		return http.StatusUnprocessableEntity
+	}
+	view.Address.PickupBrand = posted.Brand
+	view.Address.PickupStoreCode = posted.Code
+	view.Address.PickupStoreName = posted.Name
+	// Display only, and only here: the address is never posted back and never
+	// stored, so it cannot outlive the page the shopper reads it on.
+	view.PickupStoreAddr = q.Get("pickup_store_addr")
+	return http.StatusOK
+}
+
+// PickupReturn serves POST /checkout/pickup/return: the store the shopper
+// picked, posted by their own browser from the carrier's page.
+//
+// It is the one route exempt from goen's cross-origin defence, so it is written
+// to be worth nothing to an attacker who drives it: it validates SHAPE only,
+// reads no cookie, sets no cookie, touches no database, and answers a page that
+// sends the browser to a fixed local path with the store as encoded query
+// parameters. Whether that store is honoured is decided at /checkout, against a
+// nonce this browser alone holds.
+func (h *Handler) PickupReturn(w http.ResponseWriter, r *http.Request) {
+	// Smaller than web.MaxFormBytes: the whole callback is under 300 bytes, and
+	// this endpoint takes traffic nobody authenticated.
+	r.Body = http.MaxBytesReader(w, r.Body, maxCallbackFieldBytes)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
+		return
+	}
+	store, ok := h.storeMap.readCallback(r)
+	if !ok {
+		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyPickupStoreUnreadable), http.StatusBadRequest)
+		return
+	}
+	// Nothing here may be cached: the body carries a store a third party chose
+	// for whoever is holding this browser.
+	w.Header().Set("Cache-Control", "no-store")
+	web.Render(w, r, h.log, http.StatusOK, pages.PickupReturn(store.refreshTarget()))
+}
+
+// dropUnvouchedStore is the placement half of the same rule. A posted chain on
+// its own is the ordinary checkout and needs nothing; a store number or name
+// has to arrive with a nonce this browser's own cookie matches, or both halves
+// are blanked and the page says a store could not be confirmed.
+//
+// It also drops a store belonging to the OTHER chain. pickup_store_brand is the
+// chain the store was chosen at, and the radio is the chain chosen now: a
+// shopper who changes chain has no store, because a parcel waiting at a
+// 7-ELEVEN is not waiting at a 全家. That comparison is consistency and not
+// security — both halves come from the same form — and it is why it sits beside
+// the nonce rather than inside it.
+func (h *Handler) dropUnvouchedStore(r *http.Request, addr *Address) bool {
+	if !h.storeMap.Enabled() {
+		// As above: with no picker there is nothing to vouch for, and the only
+		// writer of these fields is the back office through its own form.
+		return false
+	}
+	if addr.PickupStoreCode == "" && addr.PickupStoreName == "" {
+		return false
+	}
+	posted := PostedStore{
+		Brand: addr.PickupBrand,
+		Code:  addr.PickupStoreCode,
+		Name:  addr.PickupStoreName,
+		Nonce: r.PostFormValue("pickup_n"),
+	}
+	state, known := readPickupCookie(r, h.secure)
+	sameChain := r.PostFormValue("pickup_store_brand") == string(addr.PickupBrand)
+	if sameChain && honourPickupStore(posted, state, known) {
+		return false
+	}
+	addr.PickupStoreCode, addr.PickupStoreName = "", ""
+	// A chain change is the shopper's own doing and is not a refusal to report.
+	return sameChain
+}
+
+// renderCheckout answers with the checkout form. Every render refreshes the
+// pickup cookie first, because a cookie has to be written before the body and
+// because every render is one the shopper may leave for the carrier's map from.
+func (h *Handler) renderCheckout(
+	w http.ResponseWriter, r *http.Request, status int, view *pages.CheckoutView,
+) {
+	h.offerTheStoreMap(w, r, view)
+	web.Render(w, r, h.log, status, pages.Checkout(pages.CheckoutMeta(r.Context()), view))
+}
+
+// offerTheStoreMap refreshes the pickup cookie and builds the one sibling form
+// that posts to the carrier. The nonce is kept across renders — reload and the
+// back button both have to keep working — while everything else is rebuilt from
+// this request, so an invoice or address choice never comes back stale.
+func (h *Handler) offerTheStoreMap(
+	w http.ResponseWriter, r *http.Request, view *pages.CheckoutView,
+) {
+	if !h.storeMap.Enabled() || !view.ToPickupPoint() {
+		return
+	}
+	state, ok := readPickupCookie(r, h.secure)
+	if !ok {
+		nonce, err := newPickupNonce()
+		if err != nil {
+			h.log.ErrorContext(r.Context(), "open a pickup nonce", "error", err)
+			return
+		}
+		state = pickupState{Nonce: nonce}
+	}
+	state.Ship = view.Chosen
+	state.Invoice = string(view.Invoice.Type)
+	state.Address = view.ChosenAddress
+	writePickupCookie(w, state, h.secure)
+	view.PickupNonce = state.Nonce
+
+	// The chain decides which map opens, and the map form is a sibling of the
+	// checkout form rather than a button inside it, so it cannot read a radio
+	// nobody has applied yet. Until a chain is chosen there is nothing to open.
+	tradeNo, err := NewMerchantTradeNo()
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "open a map correlation number", "error", err)
+		return
+	}
+	view.Map, _ = h.storeMap.Request(
+		view.Address.PickupBrand, tradeNo, state.Nonce, wantsTheMobileMap(r),
+	)
+}
+
+// wantsTheMobileMap reports whether the shopper is on a phone. 7-ELEVEN serves
+// a different map to one and takes whatever value it is given; 全家's map is
+// responsive and ignores the field.
+func wantsTheMobileMap(r *http.Request) bool {
+	return strings.Contains(r.Header.Get("User-Agent"), "Mobile")
 }
 
 // emailOf is the signed-in customer's address, or "".
@@ -291,8 +485,7 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 	// re-renders with the submitted values intact; nothing is validated, because
 	// nobody has finished.
 	if r.PostFormValue("update") != "" {
-		web.Render(w, r, h.log, http.StatusOK,
-			pages.Checkout(pages.CheckoutMeta(r.Context()), &submission.view))
+		h.renderCheckout(w, r, http.StatusOK, &submission.view)
 		return
 	}
 
@@ -306,8 +499,7 @@ func (h *Handler) PlaceOrder(w http.ResponseWriter, r *http.Request) {
 		// retained checkoutView's fresh identity instead of echoing malformed form
 		// text; require confirmation before that new identity can write anything.
 		submission.view.Repriced = i18n.T(r.Context(), i18n.KeyCheckoutChanged)
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-			pages.Checkout(pages.CheckoutMeta(r.Context()), &submission.view))
+		h.renderCheckout(w, r, http.StatusUnprocessableEntity, &submission.view)
 		return
 	}
 
@@ -377,6 +569,10 @@ func (h *Handler) checkoutSubmission(
 		Note:            r.PostFormValue("note"),
 	}
 	addr.Trim()
+	// The same rule as the GET, over the fields the form carries back. Without
+	// it a 422 re-render would hand a dropped store straight back in its own
+	// hidden inputs, and the second submit would place the order with it.
+	storeRefused := h.dropUnvouchedStore(r, &addr)
 
 	view, err := h.checkoutView(r.Context(), cartID, owner)
 	if err != nil {
@@ -384,6 +580,7 @@ func (h *Handler) checkoutSubmission(
 		h.serverError(w, r)
 		return nil, false
 	}
+	view.PickupRefused = storeRefused
 	// Another tab may already have emptied or invalidated this cart. The cart
 	// page explains the current state; Store keeps the same rule transactionally.
 	if !view.Cart.CanCheckout() {
@@ -461,6 +658,7 @@ func (h *Handler) validateCheckoutSubmission(
 ) (checkoutQuoteID, bool) {
 	errs := checkoutErrors(
 		r.Context(), &submission.address, submission.shippingErr, &submission.invoice,
+		h.storeMap.Enabled(),
 	)
 	if submission.couponErr != "" {
 		if errs == nil {
@@ -482,8 +680,7 @@ func (h *Handler) validateCheckoutSubmission(
 	}
 	if len(errs) > 0 || submission.view.Repriced != "" {
 		submission.view.Errors = errs
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-			pages.Checkout(pages.CheckoutMeta(r.Context()), &submission.view))
+		h.renderCheckout(w, r, http.StatusUnprocessableEntity, &submission.view)
 		return checkoutQuoteID{}, false
 	}
 	return shown, true
@@ -500,6 +697,9 @@ func (h *Handler) answerPlacement(
 			h.placementGrantFailed(w, r)
 			return
 		}
+		// The nonce has done its work. Left behind, it would still vouch for a
+		// store in the next checkout this browser starts.
+		clearPickupCookie(w, h.secure)
 		// Straight to payment rather than to the confirmation, which shown
 		// before payment reads as "done" to a customer who then closes the tab.
 		http.Redirect(w, r, "/orders/"+number+"/pay", http.StatusSeeOther) //nolint:gosec // G710: server-generated order number
@@ -511,8 +711,7 @@ func (h *Handler) answerPlacement(
 		http.Redirect(w, r, "/cart", http.StatusSeeOther)
 	case errors.Is(err, ErrTooManyItems):
 		view.Repriced = i18n.T(r.Context(), i18n.KeyCartLineLimit)
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-			pages.Checkout(pages.CheckoutMeta(r.Context()), view))
+		h.renderCheckout(w, r, http.StatusUnprocessableEntity, view)
 	case errors.Is(err, ErrCreditChanged):
 		h.answerCreditChanged(w, r, cartID, view)
 	case errors.Is(err, errCheckoutChanged):
@@ -529,8 +728,7 @@ func (h *Handler) answerPlacement(
 		// busy shop rather than a fault, and nothing the customer typed is wrong.
 		h.log.WarnContext(r.Context(), "checkout timed out waiting for a lock", "error", err)
 		view.Repriced = i18n.T(r.Context(), i18n.KeyCheckoutBusy)
-		web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-			pages.Checkout(pages.CheckoutMeta(r.Context()), view))
+		h.renderCheckout(w, r, http.StatusUnprocessableEntity, view)
 	default:
 		h.log.ErrorContext(r.Context(), "place order", "error", err)
 		h.serverError(w, r)
@@ -553,8 +751,7 @@ func (h *Handler) answerCreditChanged(
 		h.serverError(w, r)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-		pages.Checkout(pages.CheckoutMeta(r.Context()), view))
+	h.renderCheckout(w, r, http.StatusUnprocessableEntity, view)
 }
 
 func (h *Handler) answerCheckoutChanged(
@@ -578,8 +775,7 @@ func (h *Handler) answerCheckoutChanged(
 		h.serverError(w, r)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-		pages.Checkout(pages.CheckoutMeta(r.Context()), view))
+	h.renderCheckout(w, r, http.StatusUnprocessableEntity, view)
 }
 
 func (h *Handler) answerCheckoutKeyConflict(
@@ -600,8 +796,7 @@ func (h *Handler) answerCheckoutKeyConflict(
 		h.serverError(w, r)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-		pages.Checkout(pages.CheckoutMeta(r.Context()), view))
+	h.renderCheckout(w, r, http.StatusUnprocessableEntity, view)
 }
 
 func (h *Handler) answerMissingShipping(
@@ -622,8 +817,7 @@ func (h *Handler) answerMissingShipping(
 		h.serverError(w, r)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-		pages.Checkout(pages.CheckoutMeta(r.Context()), view))
+	h.renderCheckout(w, r, http.StatusUnprocessableEntity, view)
 }
 
 func (h *Handler) answerCouponRefusal(
@@ -656,8 +850,7 @@ func (h *Handler) answerCouponRefusal(
 		h.serverError(w, r)
 		return
 	}
-	web.Render(w, r, h.log, http.StatusUnprocessableEntity,
-		pages.Checkout(pages.CheckoutMeta(r.Context()), view))
+	h.renderCheckout(w, r, http.StatusUnprocessableEntity, view)
 }
 
 // refreshCheckoutState re-prices the server-owned parts of a submitted
@@ -756,12 +949,26 @@ func (h *Handler) resolveCoupon(r *http.Request, view *pages.CheckoutView) strin
 	}
 }
 
-// checkoutErrors collects everything wrong with a submission.
-func checkoutErrors(ctx context.Context, addr *Address, shipErr error, inv *Invoice) map[string]string {
+// checkoutErrors collects everything wrong with a submission. storeRequired is
+// the carrier's own rule rather than the schema's: where a store picker is
+// configured, a pickup order names a store, and it names one of the two chains
+// whose picker this deployment can open.
+func checkoutErrors(
+	ctx context.Context, addr *Address, shipErr error, inv *Invoice, storeRequired bool,
+) map[string]string {
 	fieldErrs := addr.Validate()
 	if shipErr != nil {
 		fieldErrs = append(fieldErrs,
 			account.FieldError{Field: "shipping", MessageKey: i18n.KeyChooseShipping})
+	}
+	if storeRequired && addr.To == ToPickupPoint {
+		if !offeredAtCheckout(addr.PickupBrand) {
+			fieldErrs = append(fieldErrs,
+				account.FieldError{Field: "pickup_brand", MessageKey: i18n.KeyPickupBrandRequired})
+		} else if addr.PickupStoreCode == "" || addr.PickupStoreName == "" {
+			fieldErrs = append(fieldErrs,
+				account.FieldError{Field: "pickup_store", MessageKey: i18n.KeyPickupStoreRequired})
+		}
 	}
 	fieldErrs = append(fieldErrs, inv.Validate()...)
 	return account.FieldMessages(ctx, fieldErrs)

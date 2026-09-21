@@ -117,7 +117,7 @@ func TestNothingStatelessRendersChrome(t *testing.T) {
 }
 
 func TestAnAssetIsNotCompressedTwiceByTheChain(t *testing.T) {
-	h := web.Compress(securityHeaders(assets.Handler(slog.New(slog.DiscardHandler))))
+	h := web.Compress(securityHeaders(assets.Handler(slog.New(slog.DiscardHandler)), contentSecurityPolicy))
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, assets.URL(assets.AppCSS), http.NoBody)
 	req.Header.Set("Accept-Encoding", "gzip")
 	res := httptest.NewRecorder()
@@ -278,7 +278,7 @@ func TestWebhookSurvivesTheMiddlewareChain(t *testing.T) {
 				reached = true
 				w.WriteHeader(http.StatusOK)
 			})
-			handler := crossOriginProtection(mux)
+			handler := crossOriginProtection(mux, false)
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
 				"/webhooks/stripe", strings.NewReader(`{"id":"evt_1"}`))
