@@ -322,14 +322,19 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 							@field("name", i18n.T(ctx, i18n.KeyFieldName), "text", v.Address.Name, v)
 							@field("phone", i18n.T(ctx, i18n.KeyFieldPhone), "tel", v.Address.Phone, v)
 							if v.ToPickupPoint() {
-								// The chain is the whole pickup choice. Which store
-								// the parcel waits at comes from the carrier's own
-								// picker; nobody types a store number, and asking for
-								// one only produced refusals.
-								<div class="goen-field goen-checkout__wide">
+								// The chain is what the shopper chooses here. Which
+								// store the parcel waits at comes from the carrier's
+								// own picker; nobody types a store number, and asking
+								// for one only produced refusals.
+								//
+								// The chooser re-renders the form, because the chain
+								// decides which map the button below opens and that
+								// form is built on the server.
+								<div class="goen-field goen-checkout__wide" id="pickup_brand">
 									<p class="goen-label" id="pickup_brand-label">{ i18n.T(ctx, i18n.KeyFieldPickupBrand) }</p>
 									<div
 										class="goen-checkout__choices"
+										{ checkoutChoiceSwap("pickup_brand")... }
 										role="radiogroup"
 										aria-labelledby="pickup_brand-label"
 										aria-invalid={ v.Invalid("pickup_brand") }
@@ -351,9 +356,11 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 											</label>
 										}
 									</div>
+									@applyChoice("pickup_brand")
 									if v.HasErr("pickup_brand") {
 										<p class="ui-error-text" id="pickup_brand-error">{ v.Err("pickup_brand") }</p>
 									}
+									@pickupStore(v)
 								</div>
 							} else {
 								@field("postal_code", i18n.T(ctx, i18n.KeyFieldPostalCode), "text", v.Address.PostalCode, v)
@@ -610,7 +617,93 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 					</p>
 				}
 			</form>
+			@storeMapForm(v)
 		</div>
+	}
+}
+
+// pickupStore is the store the parcel waits at, and the control that opens the
+// carrier's map to choose one.
+//
+// The summary is a SECURITY CONTROL, not decoration. The map's callback carries
+// no signature of any kind and the map itself is run by the convenience-store
+// chain rather than by the carrier, so a store reported back cannot be checked
+// by any means goen has. The shopper reading the name AND the address before
+// paying is the only check there is. Do not reduce it to the name.
+templ pickupStore(v *CheckoutView) {
+	if v.OffersTheStoreMap() || v.HasPickupStore() || v.PickupRefused {
+		<div class="goen-pickup">
+			if v.PickupRefused {
+				// The message says a store could not be confirmed and repeats
+				// NONE of what arrived: that text came from a cross-site post.
+				@components.Notice(components.NoticeProps{
+					Tone:  components.ToneDanger,
+					Class: "ui-alert--error",
+				}) {
+					{ i18n.T(ctx, i18n.KeyPickupStoreUnconfirmed) }
+				}
+			}
+			if v.HasPickupStore() {
+				// Carried back so the order can be placed from this page. The
+				// ADDRESS is not among them: it is read from the URL for the
+				// summary above, and is never posted and never stored.
+				<input type="hidden" name="pickup_store_code" value={ v.Address.PickupStoreCode }/>
+				<input type="hidden" name="pickup_store_name" value={ v.Address.PickupStoreName }/>
+				<input type="hidden" name="pickup_store_brand" value={ string(v.Address.PickupBrand) }/>
+				<input type="hidden" name="pickup_n" value={ v.PickupNonce }/>
+				<p class="goen-pickup__name">{ v.Address.PickupStoreName } ({ v.Address.PickupStoreCode })</p>
+				if v.PickupStoreAddr != "" {
+					<p class="goen-pickup__addr">{ v.PickupStoreAddr }</p>
+				}
+			}
+			if v.HasErr("pickup_store") {
+				<p class="ui-error-text" id="pickup_store-error">{ v.Err("pickup_store") }</p>
+			}
+			if v.OffersTheStoreMap() {
+				// form= and no name or value: a form-associated submit button
+				// contributes its OWN name and value to the form it submits, and
+				// that would be one more field on its way to a third party.
+				//
+				// It is also the control a refusal belongs to: nobody types a
+				// store, they choose one through the picker this opens.
+				{{ storeAttrs := checkoutStoreButtonAttrs(v.Invalid("pickup_store"), v.HasErr("pickup_store")) }}
+				@components.Button(components.ButtonProps{
+					Variant: components.VariantOutline,
+					Attrs:   storeAttrs,
+				}, "submit") {
+					if v.HasPickupStore() {
+						{ i18n.T(ctx, i18n.KeyPickupChangeStore) }
+					} else {
+						{ i18n.T(ctx, i18n.KeyPickupChooseStore) }
+					}
+				}
+			}
+		</div>
+	}
+}
+
+// storeMapForm is the one form that posts to the carrier, and it is a SIBLING
+// of the checkout form rather than anything inside it. Two reasons, both
+// absolute: a formaction on #checkout-form would hand a third party the
+// shopper's name, phone, e-mail and street address, and a <form> nested in a
+// <form> is dropped by the HTML parser outright.
+//
+// Every input here is a parameter the carrier's map documents. Nothing the
+// shopper typed appears, and nothing may be added.
+templ storeMapForm(v *CheckoutView) {
+	if v.OffersTheStoreMap() {
+		<form id={ mapFormID } class="goen-pickup__map" method="post" action={ templ.URL(v.Map.Action) }>
+			<input type="hidden" name="MerchantID" value={ v.Map.MerchantID }/>
+			<input type="hidden" name="MerchantTradeNo" value={ v.Map.MerchantTradeNo }/>
+			<input type="hidden" name="LogisticsType" value={ v.Map.LogisticsType }/>
+			<input type="hidden" name="LogisticsSubType" value={ v.Map.LogisticsSubType }/>
+			<input type="hidden" name="IsCollection" value={ v.Map.IsCollection }/>
+			<input type="hidden" name="ServerReplyURL" value={ v.Map.ServerReplyURL }/>
+			<input type="hidden" name="ExtraData" value={ v.Map.ExtraData }/>
+			if v.Map.Device != "" {
+				<input type="hidden" name="Device" value={ v.Map.Device }/>
+			}
+		</form>
 	}
 }
 

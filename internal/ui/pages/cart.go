@@ -173,6 +173,71 @@ type CheckoutView struct {
 	// The cart package creates it; the page only carries it back unchanged.
 	QuoteID        string
 	IdempotencyKey string
+	// Map is the carrier's hosted store picker, or the zero value where no
+	// carrier is configured and the form asks for a chain alone.
+	Map CheckoutMapForm
+	// PickupNonce is the browser-bound secret that decides whether the store
+	// above was honoured. It travels to the carrier in ExtraData and back in
+	// the URL, and it is checked against a cookie this browser alone holds.
+	PickupNonce string
+	// PickupStoreAddr is DISPLAY ONLY. It is read from the URL for the summary
+	// the shopper reads before paying, is never a hidden field, is never
+	// posted, and is never stored: the schema keeps a code and a name.
+	PickupStoreAddr string
+	// PickupRefused says a store arrived that this browser cannot vouch for.
+	// The page says so and echoes none of what arrived.
+	PickupRefused bool
+}
+
+// mapFormID names the sibling form the pickup section's button submits. It is
+// a constant because the button and the form must agree: a typo on either side
+// leaves a control that submits the checkout form to goen instead.
+const mapFormID = "pickup-map-form"
+
+// checkoutStoreButtonAttrs is what the store button carries: the sibling form
+// it submits, and the refusal state of the store itself. The button is the
+// control a store refusal belongs to, because a store is chosen through the
+// picker this opens rather than typed into a field.
+func checkoutStoreButtonAttrs(invalid string, refused bool) templ.Attributes {
+	attrs := templ.Attributes{"form": mapFormID, "aria-invalid": invalid}
+	if refused {
+		attrs["aria-describedby"] = "pickup_store-error"
+	}
+	return attrs
+}
+
+// CheckoutMapForm is the carrier's hosted store picker, as the one sibling form
+// that posts to it. Every field here is a parameter ECPay's map documents; the
+// struct exists so the template cannot invent an eighth one carrying something
+// the shopper typed.
+type CheckoutMapForm struct {
+	Action          string
+	MerchantID      string
+	MerchantTradeNo string
+	LogisticsType   string
+	// LogisticsSubType is the chain, in the spelling the merchant's own
+	// contract uses. B2C and C2C spell the same chain differently.
+	LogisticsSubType string
+	IsCollection     string
+	ServerReplyURL   string
+	ExtraData        string
+	// Device is sent only to a phone, and only 7-ELEVEN reads it.
+	Device string
+}
+
+// Offered reports whether there is a picker to send the shopper to.
+func (f CheckoutMapForm) Offered() bool { return f.Action != "" }
+
+// OffersTheStoreMap reports whether this render shows the picker's button.
+func (v *CheckoutView) OffersTheStoreMap() bool {
+	return v.ToPickupPoint() && v.Map.Offered()
+}
+
+// HasPickupStore reports whether a store has been chosen and honoured. Both
+// halves, because order_private_data refuses a row carrying one without the
+// other.
+func (v *CheckoutView) HasPickupStore() bool {
+	return v.Address.PickupStoreCode != "" && v.Address.PickupStoreName != ""
 }
 
 // checkoutFieldHint tells a browser what one helper-rendered checkout control
