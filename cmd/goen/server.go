@@ -53,6 +53,21 @@ const contentSecurityPolicy = "default-src 'self'; " +
 	"frame-ancestors 'none'; " +
 	"base-uri 'none'"
 
+// formActionDirective is the one directive a configured store map widens, and
+// the only place that widening may happen.
+const formActionDirective = "form-action 'self' https://checkout.stripe.com"
+
+// policyWith is the policy this deployment sends. With no store map configured
+// it is contentSecurityPolicy itself, byte for byte; with one it names exactly
+// one more origin, and only as a form DESTINATION.
+func policyWith(mapOrigin string) string {
+	if mapOrigin == "" {
+		return contentSecurityPolicy
+	}
+	return strings.Replace(contentSecurityPolicy, formActionDirective,
+		formActionDirective+" "+mapOrigin, 1)
+}
+
 // RouterConfig is what the router needs: the pools it serves from, the
 // providers its handlers call, and the configuration they read. Pool, AdminPool
 // and the logger are required; every provider below may be nil, and the feature
@@ -76,6 +91,10 @@ type RouterConfig struct {
 	Invoices *invoice.Gateway
 	// Google signs customers in, or is disabled and 404s its two routes.
 	Google *account.Google
+	// StoreMap is the carrier's convenience-store picker, or is disabled and
+	// the checkout asks for a chain alone, the route is not registered, the
+	// cross-origin defence gains no bypass, and the policy is unchanged.
+	StoreMap *cart.Map
 }
 
 func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
@@ -127,7 +146,8 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 		Every: 6 * time.Minute, Burst: 10, TTL: time.Hour, MaxKeys: 65_536,
 	})
 	basketStore := cart.NewStore(pool)
-	basket := cart.NewHandler(basketStore, log, secureCookies, findLimit, sessionCloser(gateway))
+	basket := cart.NewHandler(basketStore, log, secureCookies, findLimit,
+		sessionCloser(gateway), cfg.StoreMap)
 	customers := account.NewHandler(account.NewStore(pool), basket, log, secureCookies, cfg.Google)
 	// The second factor runs on the ADMIN pool. On the storefront pool `store`
 	// would need write on staff_totp_credentials and users.role, so any slip
@@ -208,6 +228,13 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /cart/items/update", clearSpeculations(basket.UpdateItem))
 	mux.HandleFunc("GET /checkout", basket.Checkout)
 	mux.HandleFunc("POST /checkout", basket.PlaceOrder)
+	if cfg.StoreMap.Enabled() {
+		// The carrier's page posts the chosen store here from the SHOPPER'S
+		// browser, so it arrives cross-site with none of goen's cookies. It
+		// exists only where a carrier is configured: an unconfigured goen
+		// answers 404 here and its cross-origin defence keeps no bypass.
+		mux.HandleFunc("POST "+cart.PickupReturnPath, basket.PickupReturn)
+	}
 	mux.HandleFunc("GET /orders/find", basket.FindOrderPage)
 	mux.HandleFunc("POST /orders/find", ratelimit.Guard(findLimit, log, basket.FindOrder))
 	mux.HandleFunc("GET /orders/{number}", basket.OrderPage)
@@ -385,8 +412,8 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	handler = onlyVisitorPaths(basket.WithCount, handler)
 	handler = onlyVisitorPaths(customers.Authenticate, handler)
 	handler = withStorefrontRequestBudget(handler)
-	handler = crossOriginProtection(handler)
-	handler = securityHeaders(handler)
+	handler = crossOriginProtection(handler, cfg.StoreMap.Enabled())
+	handler = securityHeaders(handler, policyWith(cfg.StoreMap.Origin()))
 	handler = web.Compress(handler)
 	return withRequestTracing(handler, log)
 }
@@ -428,8 +455,23 @@ func withStorefrontRequestBudget(next http.Handler) http.Handler {
 
 // crossOriginProtection rejects cross-site form posts using the browser's own
 // Sec-Fetch-Site signal, which is why goen's forms carry no CSRF token.
-func crossOriginProtection(next http.Handler) http.Handler {
-	return http.NewCrossOriginProtection().Handler(next)
+//
+// pickupReturn adds the one bypass goen has, and only where a carrier is
+// configured. The store map answers by having the shopper's own browser post to
+// goen from the carrier's page, which is a cross-site POST by construction and
+// cannot be made anything else. The pattern is matched exactly: a trailing
+// slash or a cleaned path is a redirect to this pattern rather than this
+// pattern, and net/http does not admit those. The handler behind it is written
+// to be worth nothing to whoever drives it.
+//
+// A fresh CrossOriginProtection per call, never one hoisted to a package
+// variable: AddInsecureBypassPattern panics on a pattern it already holds.
+func crossOriginProtection(next http.Handler, pickupReturn bool) http.Handler {
+	protection := http.NewCrossOriginProtection()
+	if pickupReturn {
+		protection.AddInsecureBypassPattern("POST " + cart.PickupReturnPath)
+	}
+	return protection.Handler(next)
 }
 
 // withRequestID gives every request an identifier and echoes it back. A
@@ -459,10 +501,10 @@ func validRequestID(s string) bool {
 	return true
 }
 
-func securityHeaders(next http.Handler) http.Handler {
+func securityHeaders(next http.Handler, policy string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
-		h.Set("Content-Security-Policy", contentSecurityPolicy)
+		h.Set("Content-Security-Policy", policy)
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		if speculates(r) {
@@ -699,8 +741,13 @@ func withBanner(next http.Handler, store *home.Store, log *slog.Logger, secure b
 // Deliberately NOT bannerFreePrefixes — excluding a promotion from the checkout
 // is a conversion decision, while the cart, the account pages and the sign-in
 // form all render the site header and need its categories.
+//
+// The store map's return route is here for a different reason: it is an
+// unauthenticated cross-site POST anybody can send, it renders no header at
+// all, and leaving it a nav path would spend a category query on every one.
 var navFreePrefixes = []string{
 	"/admin", "/webhooks", "/media", "/static", "/healthz", "/readyz",
+	cart.PickupReturnPath,
 }
 
 // statelessPrefixes belong to no visitor: goen's own bytes, probes and the

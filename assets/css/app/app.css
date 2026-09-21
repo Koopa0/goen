@@ -3485,6 +3485,92 @@ h4,
   margin: 0;
 }
 
+/* The chosen convenience store, and the control that opens the carrier's map
+   to choose one. The store's name and address are what the shopper reads
+   before paying, and that reading is the only check goen has that the store
+   reported back is the store they picked — so they are ordinary page text at
+   the body size, not a quiet caption. */
+.goen-pickup {
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+}
+
+.goen-pickup__name {
+  color: var(--fg);
+  font-size: var(--fs-16);
+  font-weight: var(--fw-medium);
+  margin: 0;
+}
+
+.goen-pickup__addr {
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+  line-height: var(--lh-normal);
+  margin: 0;
+}
+
+/* The form that posts to the carrier holds nothing but hidden inputs, and the
+   button that submits it lives in the section above through form=. It is out
+   of the flow so it cannot open a gap between the checkout form and the page
+   below it. */
+.goen-pickup__map {
+  display: none;
+}
+
+/* The hop back from the carrier's page. No header, no footer: it exists for
+   the fraction of a second before the refresh lands, and a category query for
+   a header nobody reads is a database round trip per cross-site post. */
+.goen-handoff {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  justify-content: center;
+  min-height: 100dvh;
+  padding: 24px;
+  text-align: center;
+}
+
+/* Delayed, so a fast return shows the page ground and not a flash of words
+   nobody had time to read. Reduced motion shows them at once: a reader who
+   has asked for no motion has not asked to be told nothing. */
+.goen-handoff__text {
+  animation: goen-handoff-in var(--dur-base) var(--ease-standard) 400ms both;
+  color: var(--fg-muted);
+  font-size: var(--fs-16);
+  margin: 0;
+}
+
+.goen-handoff__link {
+  color: var(--accent);
+  font-size: var(--fs-14);
+  /* 44px, so the one control on this page is a tap target on a phone. */
+  line-height: 44px;
+  min-height: 44px;
+}
+
+@keyframes goen-handoff-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .goen-handoff__text {
+    animation-delay: 0ms;
+  }
+}
+
 /* A native select wearing the input recipe. It stays a select: a listbox built
    from divs needs script, and the write-face rule forbids script being the only
    way a form works. The contact form joins this rule rather than declaring a

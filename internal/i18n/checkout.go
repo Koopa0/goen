@@ -57,6 +57,35 @@ var (
 
 	KeyFieldPickupBrand = key("field.pickup.brand", Message{ZhHant: "超商", En: "Convenience store"})
 
+	KeyPickupChooseStore = key("pickup.choose", Message{ZhHant: "選擇門市", En: "Choose a store"})
+
+	KeyPickupChangeStore = key("pickup.change", Message{ZhHant: "變更門市", En: "Change the store"})
+
+	KeyPickupReturning = key("pickup.returning", Message{
+		ZhHant: "正在返回結帳…",
+		En:     "Returning to the checkout…",
+	})
+
+	KeyPickupReturnLink = key("pickup.return.link", Message{
+		ZhHant: "繼續結帳",
+		En:     "Continue to the checkout",
+	})
+
+	KeyPickupStoreUnconfirmed = key("pickup.unconfirmed", Message{
+		ZhHant: "無法確認這家門市是不是你剛才挑的,請再選一次。",
+		En:     "That store could not be confirmed as the one you picked. Choose it again.",
+	})
+
+	KeyPickupStoreUnreadable = key("pickup.unreadable", Message{
+		ZhHant: "門市資料無法讀取",
+		En:     "That store could not be read",
+	})
+
+	KeyPickupStoreRequired = key("valid.pickup.store", Message{
+		ZhHant: "請選擇取貨門市",
+		En:     "Choose the store to collect from",
+	})
+
 	KeyFieldStoreCode = key("field.pickup.code", Message{ZhHant: "門市店號", En: "Store number"})
 
 	KeyFieldStoreName = key("field.pickup.name", Message{ZhHant: "門市名稱", En: "Store name"})
