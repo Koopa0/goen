@@ -15,16 +15,16 @@ import (
 	"github.com/koopa0/goen/internal/cart"
 )
 
-// mapSandboxMerchant is ECPay's own published B2C staging merchant, which is
-// public documentation rather than a credential.
-const mapSandboxMerchant = "2000132"
+// mapMerchantID stands for whatever id the environment names; goen only ever
+// compares it against what the callback repeats.
+const mapMerchantID = "1000001"
 
 // aForeignNonce is a well-formed nonce that no browser here holds.
 const aForeignNonce = "fedcba98765432100000"
 
 func configuredMap(t *testing.T) *cart.Map {
 	t.Helper()
-	m, err := cart.NewMap(mapSandboxMerchant, string(cart.ModeB2C), "", "https://goen.test")
+	m, err := cart.NewMap(mapMerchantID, string(cart.ModeB2C), "", "https://goen.test")
 	if err != nil {
 		t.Fatalf("build the store map: %v", err)
 	}
@@ -83,7 +83,7 @@ func theMapAnswers(t *testing.T, h *cart.Handler, nonce, code, name, address str
 ) {
 	t.Helper()
 	form := url.Values{
-		"MerchantID":       {mapSandboxMerchant},
+		"MerchantID":       {mapMerchantID},
 		"MerchantTradeNo":  {"ABCDEFGHIJ1234567890"},
 		"LogisticsSubType": {"UNIMART"},
 		"CVSStoreID":       {code},

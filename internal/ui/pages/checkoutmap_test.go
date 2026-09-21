@@ -44,7 +44,7 @@ func aCheckoutWithAStore() *CheckoutView {
 		PickupNonce:     "0123456789abcdef0123",
 		Map: CheckoutMapForm{
 			Action:          "https://logistics-stage.ecpay.com.tw/Express/map",
-			MerchantID:      "2000132",
+			MerchantID:      "1000001",
 			MerchantTradeNo: "ABCDEFGHIJ1234567890",
 			LogisticsType:   "CVS", LogisticsSubType: "UNIMART",
 			IsCollection:   "N",

@@ -331,8 +331,8 @@ func TestTheStoreMapReturnCostsNoDatabaseRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build disabled payment gateway: %v", err)
 	}
-	// ECPay's own published staging merchant, which is documentation.
-	storeMap, err := cart.NewMap("2000132", string(cart.ModeB2C), "", "https://goen.test")
+	// Any id: goen compares it against what a callback repeats and nothing else.
+	storeMap, err := cart.NewMap("1000001", string(cart.ModeB2C), "", "https://goen.test")
 	if err != nil {
 		t.Fatalf("build the store map: %v", err)
 	}
@@ -343,7 +343,7 @@ func TestTheStoreMapReturnCostsNoDatabaseRoundTrip(t *testing.T) {
 	}, slog.New(slog.DiscardHandler))
 
 	form := url.Values{
-		"MerchantID": {"2000132"}, "MerchantTradeNo": {"ABCDEFGHIJ1234567890"},
+		"MerchantID": {"1000001"}, "MerchantTradeNo": {"ABCDEFGHIJ1234567890"},
 		"LogisticsSubType": {"UNIMART"}, "CVSStoreID": {"131386"},
 		"CVSStoreName": {"南港園區"}, "CVSAddress": {"台北市南港區三重路19-2號"},
 		"CVSOutSide": {"0"}, "ExtraData": {"0123456789abcdef0123"},

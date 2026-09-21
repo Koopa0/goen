@@ -57,9 +57,9 @@ func storeMapRouter(t *testing.T, configured bool) http.Handler {
 	}, slog.New(slog.DiscardHandler))
 }
 
-// testMerchantID is ECPay's own published B2C sandbox merchant. It is public
-// documentation, not a credential.
-const testMerchantID = "2000132"
+// testMerchantID stands for whatever id the environment names. goen only
+// compares it against what a callback repeats, so a made-up one will do.
+const testMerchantID = "1000001"
 
 // aStoreCallback is the form ECPay's page posts back, as it documents it.
 func aStoreCallback() url.Values {
@@ -141,13 +141,13 @@ func TestTheBypassAdmitsExactlyOneMethodAndPath(t *testing.T) {
 	t.Run("a malformed callback is refused by shape, not by the defence", func(t *testing.T) {
 		t.Parallel()
 		form := aStoreCallback()
-		form.Set("MerchantID", "9999999")
+		form.Set("MerchantID", "1000002")
 		res := httptest.NewRecorder()
 		router.ServeHTTP(res, crossSitePost(t, cart.PickupReturnPath, form))
 		if res.Code != http.StatusBadRequest {
 			t.Errorf("a callback naming another merchant = %d, want 400", res.Code)
 		}
-		if strings.Contains(res.Body.String(), "9999999") {
+		if strings.Contains(res.Body.String(), "1000002") {
 			t.Error("the refusal repeats what it was posted")
 		}
 	})

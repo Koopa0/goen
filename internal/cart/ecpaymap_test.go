@@ -11,9 +11,10 @@ import (
 	"github.com/koopa0/goen/internal/pickup"
 )
 
-// sandboxMerchantID is ECPay's own published B2C staging merchant. It is
-// documentation rather than a credential, and the map's callback repeats it.
-const sandboxMerchantID = "2000132"
+// aMerchantID stands for whatever id the environment names. It is opaque to
+// goen: the only thing done with it is equality against what the callback
+// repeats, so a made-up one exercises the rule exactly as the real one would.
+const aMerchantID = "1000001"
 
 // aNonce is a nonce of the exact shape newPickupNonce produces.
 const aNonce = "0123456789abcdef0123"
@@ -26,7 +27,7 @@ const urlWithUserinfo = "https://user:pass@logistics.example"
 
 func testMap(t *testing.T, mode LogisticsMode) *Map {
 	t.Helper()
-	m, err := NewMap(sandboxMerchantID, string(mode), "", "https://goen.test")
+	m, err := NewMap(aMerchantID, string(mode), "", "https://goen.test")
 	if err != nil {
 		t.Fatalf("build the store map: %v", err)
 	}
@@ -50,7 +51,7 @@ func TestTheStoreMapIsOffUntilAContractIsNamed(t *testing.T) {
 	}{
 		{
 			name: "no mode is the feature off, and off is not an error",
-			mode: "", merchantID: sandboxMerchantID, site: "https://goen.test",
+			mode: "", merchantID: aMerchantID, site: "https://goen.test",
 		},
 		{
 			name: "off even with no merchant id at all",
@@ -58,7 +59,7 @@ func TestTheStoreMapIsOffUntilAContractIsNamed(t *testing.T) {
 		},
 		{
 			name:       "b2c defaults to the staging map",
-			merchantID: sandboxMerchantID, mode: "b2c", site: "https://goen.test",
+			merchantID: aMerchantID, mode: "b2c", site: "https://goen.test",
 			wantOn:     true,
 			wantAction: "https://logistics-stage.ecpay.com.tw/Express/map",
 			wantReply:  "https://goen.test/checkout/pickup/return",
@@ -66,7 +67,7 @@ func TestTheStoreMapIsOffUntilAContractIsNamed(t *testing.T) {
 		},
 		{
 			name:       "production is a base URL and nothing else",
-			merchantID: sandboxMerchantID, mode: "c2c",
+			merchantID: aMerchantID, mode: "c2c",
 			base: MapProductionBaseURL, site: "https://goen.test",
 			wantOn:     true,
 			wantAction: "https://logistics.ecpay.com.tw/Express/map",
@@ -79,21 +80,21 @@ func TestTheStoreMapIsOffUntilAContractIsNamed(t *testing.T) {
 		},
 		{
 			name:       "an unknown mode refuses to start",
-			merchantID: sandboxMerchantID, mode: "B2C2C", site: "https://goen.test",
+			merchantID: aMerchantID, mode: "B2C2C", site: "https://goen.test",
 			wantErr: true,
 		},
 		{
 			name:       "no public base URL refuses to start",
-			merchantID: sandboxMerchantID, mode: "b2c", wantErr: true,
+			merchantID: aMerchantID, mode: "b2c", wantErr: true,
 		},
 		{
 			name:       "a base URL that is not http(s) refuses to start",
-			merchantID: sandboxMerchantID, mode: "b2c",
+			merchantID: aMerchantID, mode: "b2c",
 			base: "ftp://logistics.example", site: "https://goen.test", wantErr: true,
 		},
 		{
 			name:       "a base URL carrying credentials refuses to start",
-			merchantID: sandboxMerchantID, mode: "b2c",
+			merchantID: aMerchantID, mode: "b2c",
 			base: urlWithUserinfo, site: "https://goen.test", wantErr: true,
 		},
 	}
@@ -189,8 +190,8 @@ func TestTheMapFormCarriesTheContractAndNothingElse(t *testing.T) {
 			if form.ExtraData != aNonce {
 				t.Errorf("ExtraData = %q, want the nonce %q", form.ExtraData, aNonce)
 			}
-			if form.MerchantID != sandboxMerchantID {
-				t.Errorf("MerchantID = %q, want %q", form.MerchantID, sandboxMerchantID)
+			if form.MerchantID != aMerchantID {
+				t.Errorf("MerchantID = %q, want %q", form.MerchantID, aMerchantID)
 			}
 			if form.Device != "" {
 				t.Errorf("Device = %q on a desktop render, want it absent", form.Device)
@@ -342,7 +343,7 @@ func TestTheCallbackIsCheckedForShapeAndNothingElse(t *testing.T) {
 
 	good := func() url.Values {
 		return url.Values{
-			"MerchantID":       {sandboxMerchantID},
+			"MerchantID":       {aMerchantID},
 			"MerchantTradeNo":  {"ABCDEFGHIJ1234567890"},
 			"LogisticsSubType": {"UNIMART"},
 			"CVSStoreID":       {"131386"},
@@ -372,7 +373,7 @@ func TestTheCallbackIsCheckedForShapeAndNothingElse(t *testing.T) {
 		},
 		{
 			name: "another merchant's callback",
-			edit: func(v url.Values) { v.Set("MerchantID", "2000933") },
+			edit: func(v url.Values) { v.Set("MerchantID", "1000002") },
 		},
 		{
 			name: "no merchant at all",
@@ -471,13 +472,13 @@ func TestTheCallbackIsCheckedForShapeAndNothingElse(t *testing.T) {
 func TestADisabledMapReadsNoCallbackAtAll(t *testing.T) {
 	t.Parallel()
 
-	off, err := NewMap(sandboxMerchantID, "", "", "https://goen.test")
+	off, err := NewMap(aMerchantID, "", "", "https://goen.test")
 	if err != nil {
 		t.Fatalf("NewMap: %v", err)
 	}
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost, PickupReturnPath,
 		strings.NewReader(url.Values{
-			"MerchantID": {sandboxMerchantID}, "LogisticsSubType": {"UNIMART"},
+			"MerchantID": {aMerchantID}, "LogisticsSubType": {"UNIMART"},
 			"CVSStoreID": {"131386"}, "CVSStoreName": {"南港園區"}, "ExtraData": {aNonce},
 		}.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -494,7 +495,7 @@ func TestALowerCaseStoreCodeIsReadTheWayPlacementReadsIt(t *testing.T) {
 	t.Parallel()
 
 	form := url.Values{
-		"MerchantID": {sandboxMerchantID}, "LogisticsSubType": {"FAMI"},
+		"MerchantID": {aMerchantID}, "LogisticsSubType": {"FAMI"},
 		"CVSStoreID": {" a12345 "}, "CVSStoreName": {"松高店"}, "ExtraData": {aNonce},
 	}
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
