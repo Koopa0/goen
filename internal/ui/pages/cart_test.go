@@ -114,8 +114,8 @@ func TestChangingACheckoutChoiceAppliesIt(t *testing.T) {
 			`hx-post="/checkout"`,
 			`hx-trigger="change"`,
 			`hx-include="#checkout-form"`,
-			`hx-target="#checkout-form"`,
-			`hx-select="#checkout-form"`,
+			`hx-target="#checkout-region"`,
+			`hx-select="#checkout-region"`,
 			"show:none",
 		} {
 			if !strings.Contains(group, want) {

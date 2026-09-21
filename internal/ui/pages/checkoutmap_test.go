@@ -59,7 +59,85 @@ var (
 	mapFormOpen  = regexp.MustCompile(`(?s)<form[^>]*id="pickup-map-form".*?</form>`)
 	inputName    = regexp.MustCompile(`<input[^>]*\bname="([^"]*)"`)
 	associatedEl = regexp.MustCompile(`<[^>]*\bform="pickup-map-form"[^>]*>`)
+	// hxSelectAttr pulls the swap's own selector out of a chooser's attributes,
+	// rather than a test hardcoding the id it currently names — so a mutation
+	// of hx-select is what this file's own mutation test flips red.
+	hxSelectAttr = regexp.MustCompile(`hx-select="#([^"]+)"`)
+	// tagName reads the element name off an opening tag, so elementByID can
+	// balance the SAME tag hx-select actually named. hx-select can point at a
+	// <div> (the fix) or a <form> (the bug, under mutation) and the two must
+	// not be balanced against each other: #checkout-form's own </form> closes
+	// well before the sibling map form, while #checkout-region's </div> closes
+	// after it.
+	tagName = regexp.MustCompile(`^<([a-zA-Z0-9]+)`)
 )
+
+// elementByID returns the outerHTML of the element carrying id="id", found by
+// reading the tag name off its own opening tag and then counting THAT tag's
+// open and close markers onward. Generic on purpose: the element hx-select
+// names is exactly what a browser's own selector would find, whatever element
+// it turns out to be.
+func elementByID(t *testing.T, html, id string) string {
+	t.Helper()
+
+	marker := `id="` + id + `"`
+	at := strings.Index(html, marker)
+	if at < 0 {
+		t.Fatalf("no element carries id=%q", id)
+	}
+	start := strings.LastIndex(html[:at], "<")
+	openEnd := strings.Index(html[start:], ">")
+	if start < 0 || openEnd < 0 {
+		t.Fatalf("id=%q is not inside a tag", id)
+	}
+	name := tagName.FindStringSubmatch(html[start : start+openEnd+1])
+	if name == nil {
+		t.Fatalf("id=%q is not on a recognisable tag", id)
+	}
+	tag := regexp.MustCompile(`</?` + name[1] + `\b[^>]*>`)
+	depth := 0
+	for _, m := range tag.FindAllStringIndex(html[start:], -1) {
+		found := html[start+m[0] : start+m[1]]
+		if strings.HasPrefix(found, "</") {
+			depth--
+		} else {
+			depth++
+		}
+		if depth == 0 {
+			return html[start : start+m[1]]
+		}
+	}
+	t.Fatalf("id=%q is never closed", id)
+	return ""
+}
+
+// TestTheSwapRegionCarriesBothForms is the mutation checkoutChoiceSwap exists
+// for: an in-place choice on the checkout page selects and replaces exactly
+// the element hx-select names, and if that element does not also carry the
+// map form and the button that submits it, 「選擇門市」 has nothing to submit
+// once the shopper has changed any chooser in place with scripting on.
+func TestTheSwapRegionCarriesBothForms(t *testing.T) {
+	t.Parallel()
+
+	ctx := i18n.WithLocale(t.Context(), i18n.ZhHant)
+	html := renderToString(t, Checkout(CheckoutMeta(ctx), aCheckoutWithAStore()))
+
+	chooser := tagCarrying(t, html, `hx-vals="{&#34;update&#34;:&#34;shipping&#34;}"`)
+	m := hxSelectAttr.FindStringSubmatch(chooser)
+	if m == nil {
+		t.Fatal("the shipping chooser carries no hx-select")
+	}
+	region := elementByID(t, html, m[1])
+
+	if !strings.Contains(region, `id="pickup-map-form"`) {
+		t.Errorf("the region hx-select names (id=%q) does not carry the map form; "+
+			"an in-place choice swaps it away and 「選擇門市」 has nothing to submit", m[1])
+	}
+	if !strings.Contains(region, `form="pickup-map-form"`) {
+		t.Errorf("the region hx-select names (id=%q) does not carry the button that "+
+			"submits the map form", m[1])
+	}
+}
 
 // TestTheMapFormCarriesNothingTheShopperTyped is the PII guard, and it is the
 // reason the map form is a sibling rather than a formaction. Submitting

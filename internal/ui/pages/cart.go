@@ -277,9 +277,9 @@ func checkoutChoiceSwap(which string) templ.Attributes {
 	return templ.Attributes{
 		"hx-include": "#checkout-form",
 		"hx-post":    "/checkout",
-		"hx-select":  "#checkout-form",
+		"hx-select":  "#checkout-region",
 		"hx-swap":    "outerHTML show:none",
-		"hx-target":  "#checkout-form",
+		"hx-target":  "#checkout-region",
 		"hx-trigger": "change",
 		"hx-vals":    `{"update":"` + which + `"}`,
 	}
