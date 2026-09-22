@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 campaign_proof_dir="${RUNNER_TEMP:-/tmp}/goen-campaign-mutations"
 mkdir -p "$campaign_proof_dir"
 campaign_backup_dir=$(mktemp -d)
-campaign_paths=(internal/catalog/query.sql internal/db/query.sql.go internal/catalog/handler.go internal/ui/pages/deals.templ internal/ui/pages/deals_templ.go)
+campaign_paths=(internal/catalog/campaign.go internal/catalog/handler.go internal/ui/pages/deals.templ internal/ui/pages/deals_templ.go)
 for i in "${!campaign_paths[@]}"; do
   cp "${campaign_paths[$i]}" "$campaign_backup_dir/$i"
 done
@@ -35,7 +35,7 @@ for campaign_mutant in offset request navigation; do
 import sys
 from pathlib import Path
 changes = {
-    'offset': ('internal/catalog/query.sql', 'ORDER BY c.ends_at, c.id\nLIMIT @page_size::integer OFFSET @page_offset::integer;', 'ORDER BY c.ends_at, c.id\nLIMIT @page_size::integer OFFSET (@page_offset::integer * 0);'),
+    'offset': ('internal/catalog/campaign.go', 'PageOffset: int32((page - 1) * CampaignPageSize)', 'PageOffset: 0'),
     'request': ('internal/catalog/handler.go', 'ParsePage(r.URL.Query().Get("campaign_page"))', 'ParsePage(r.URL.Query().Get("page"))'),
     'navigation': ('internal/ui/pages/deals.templ', 'v.CampaignPageHref(v.Campaigns.Page + 1)', 'v.PageHref(v.Campaigns.Page + 1)'),
 }
@@ -46,10 +46,7 @@ if s.count(before) != 1:
     raise SystemExit('mutation target is no longer unique: ' + name)
 p.write_text(s.replace(before, after, 1))
 PY
-  if [[ "$campaign_mutant" == offset ]]; then
-    make sqlc > "$campaign_proof_dir/offset-generation.log" 2>&1
-    grep -F '::integer * 0);' internal/db/query.sql.go > "$campaign_proof_dir/offset-generated-target.txt"
-  elif [[ "$campaign_mutant" == navigation ]]; then
+  if [[ "$campaign_mutant" == navigation ]]; then
     go tool templ generate -path internal/ui > "$campaign_proof_dir/navigation-generation.log" 2>&1
     grep -F 'v.PageHref(v.Campaigns.Page + 1)' internal/ui/pages/deals_templ.go > "$campaign_proof_dir/navigation-generated-target.txt"
   fi
