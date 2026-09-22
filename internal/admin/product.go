@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/i18n"
@@ -95,11 +96,12 @@ func (f *ProductForm) Validate(ctx context.Context) map[string]string {
 
 // Products reads the catalogue for the back office.
 func (s *Store) Products(ctx context.Context) (pages.AdminProductsView, error) {
-	rows, err := s.q.AdminProducts(ctx, PageSize)
+	rows, err := s.q.AdminProducts(ctx, PageLimit)
 	if err != nil {
 		return pages.AdminProductsView{}, fmt.Errorf("read products: %w", err)
 	}
-	view := pages.AdminProductsView{}
+	rows, more := pageOf(rows, PageSize)
+	view := pages.AdminProductsView{ListBound: pages.Bound(more, PageSize)}
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, pages.AdminProduct{
@@ -542,6 +544,39 @@ func (s *Store) AddOptionValue(ctx context.Context, slug string, d OptionDraft) 
 		return nil, fmt.Errorf("%w: %w", ErrRefused, err)
 	}
 	return nil, nil
+}
+
+// optionConstraints names the form field each option constraint speaks for.
+// Bound to ConstraintName: a PgError's message never carries the name, so a
+// substring search on the text cannot find it.
+//
+// Every entry mirrors a CHECK the Go code above also applies, so today the
+// database is the second line and not the first. It is the line that answers
+// when a check here is removed or a column gains a rule this file has not
+// learned yet, and without it such a write reads as a product that does not
+// exist.
+var optionConstraints = map[string]struct {
+	field   string
+	message i18n.Key
+}{
+	"product_options_name_present":           {"option", i18n.KeyFormOptionName},
+	"product_option_values_value_present":    {"value", i18n.KeyFormOptionName},
+	"product_option_values_swatch_hex_shape": {"swatch_hex", i18n.KeyFormSwatchHex},
+}
+
+// optionRefusal is the field error a refused option write comes back as, or nil
+// when the failure names no field the form can mark — a missing product, or an
+// infrastructure error, which are not things a staff member can retype.
+func optionRefusal(ctx context.Context, err error) map[string]string {
+	pgErr, ok := errors.AsType[*pgconn.PgError](err)
+	if !ok {
+		return nil
+	}
+	named, ok := optionConstraints[pgErr.ConstraintName]
+	if !ok {
+		return nil
+	}
+	return map[string]string{named.field: i18n.T(ctx, named.message)}
 }
 
 func optionErrors(ctx context.Context, name, nameEn, field string) map[string]string {

@@ -1,23 +1,16 @@
 /* ============================================================
    goen — application layer.
 
-   The design system under ../ds owns tokens and components. This
-   file owns only what a design system cannot: page composition and
-   the responsive behaviour that turns the 1440 and 375 artboards
-   into one document. Load it last.
+   base.css owns the tokens, the element defaults and the shared
+   primitives. This file owns page composition and the responsive
+   behaviour that turns the 1440 and 375 artboards into one document.
+   Load it last.
 
-   Breakpoints follow the design system's --bp-* tokens, written as
-   literals because custom properties are not valid in @media.
+   Breakpoints are written as literals, because a custom property is
+   not valid in @media.
      md = 768px   layout goes multi-column
      lg = 1024px  the full desktop header fits on one row
    ============================================================ */
-
-/* The artboards set --font-sans / --font-display to put Noto Sans TC
-   behind the Latin faces so Han glyphs match the Latin weight. */
-:root {
-  --font-sans: 'Inter', 'Noto Sans TC', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-display: 'Space Grotesk', 'Noto Sans TC', ui-sans-serif, system-ui, sans-serif;
-}
 
 a {
   color: var(--accent-strong);
@@ -27,8 +20,8 @@ a:hover {
   color: var(--accent);
 }
 
-/* The design system silences its own spinners under reduced motion; the
-   component transitions it ships are the application layer's to calm. */
+/* Motion a reader has asked not to see. The shared primitives carry
+   transitions of their own, and this is where they are calmed. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -243,11 +236,10 @@ a:hover {
 }
 /* ---------- The ground ----------
 
-   Every value the storefront is drawn from, set here rather than in the
-   vendored token sheet. `app.css` is the last stylesheet the document links,
-   and `:root` here and `.theme-blue` on <html> have the same specificity, so
-   source order decides and these win. Nothing under `assets/css/ds/` is
-   edited, which is what keeps that directory deletable in one piece.
+   Every value the storefront is drawn from. `app.css` is the last stylesheet
+   the document links, so a token declared both here and in base.css is settled
+   by source order and these win. base.css declares a token only when this file
+   does not: one name, one declaration.
 
    The palette, the radius base and the type steps are ported from the design
    the shop is being rebuilt against: a white ground, near-black ink, one grey
@@ -262,7 +254,13 @@ a:hover {
   /* The one interactive colour. */
   --accent: oklch(0.546 0.245 262.881);
   --accent-faint: oklch(0.546 0.245 262.881 / 0.06);
-  --accent-muted: oklch(0.546 0.245 262.881 / 0.12);
+  /* 0.10 rather than 0.12, which is the whole of what the back office's brand
+     pill needed: the accent printed on its own tint measured 4.42:1 at 0.12 and
+     4.55:1 at 0.10, and the alternative was darkening --accent itself and
+     repainting every primary button to fix a status pill. What it costs is two
+     percent of the soft halo on four focus rings; the ring itself is --ring and
+     does not move. */
+  --accent-muted: oklch(0.546 0.245 262.881 / 0.1);
   --accent-strong: oklch(0.488 0.243 264.376);
   /* Ground and surfaces. Panels sit ON the ground rather than above it: the
      border carries the separation, not a second shade. */
@@ -275,15 +273,35 @@ a:hover {
   --border-strong: oklch(0.871 0.006 286.286);
   --elevated: oklch(0.967 0.001 286.375);
 
-  --error: oklch(0.577 0.245 27.325);
+  /* The flat ground baked into the product and hero renders (assets/media),
+     in hex rather than oklch so the container and the photo match byte for
+     byte: a round-tripped oklch value would not land on the same sRGB bytes
+     the images were re-encoded to. */
+  --photo-ground: #f9f9f9;
+
+  /* Slightly darker than the reference red, because this colour is a ground as
+     often as it is ink. White-ish text on the old value measured 4.38:1 in the
+     danger badge and the red itself measured 4.34:1 as text on --elevated;
+     0.562 clears 4.5 in both directions and on both grounds.
+
+     The tint keeps the reference lightness, as --warn-bg and --success-bg do: a
+     tint is a ground, and dragging a ground down because its ink moved takes
+     contrast from everything else printed on it. */
+  --error: oklch(0.562 0.245 27.325);
   --error-bg: oklch(0.577 0.245 27.325 / 0.1);
 
-  /* Ink. Two steps of grey and no more: a third invites a page to say three
-     different things about the same level of importance. */
+  /* Ink. One step of grey below --fg, and there is no second step to have.
+     That is not tidiness, it is the arithmetic: the lightest grey that reads at
+     4.5:1 on --elevated is L 0.544, and the lightest that reads on white is
+     L 0.568 — so between "readable" and "white" there is 0.024 of lightness to
+     spend, which is not a tier.
+
+     0.535 rather than the 0.544 the storefront needs, because the back office
+     prints this on the warn tint in a low-stock row: 4.35:1 at 0.544 and 4.55:1
+     at 0.535. Nine thousandths of lightness buys a whole route, and the two
+     values are the same colour to look at. */
   --fg: oklch(0.141 0.005 285.823);
-  --fg-faint: oklch(0.705 0.015 286.067);
-  --fg-muted: oklch(0.552 0.016 285.938);
-  --fg-subtle: oklch(0.552 0.016 285.938);
+  --fg-muted: oklch(0.535 0.016 285.938);
   --font-display: var(--font-sans);
 
   /* One family for everything, headings included. Noto Sans TC follows Inter
@@ -313,14 +331,34 @@ a:hover {
   --shadow-2:
     0 4px 6px -1px oklch(0 0 0 / 0.1),
     0 2px 4px -2px oklch(0 0 0 / 0.1);
-  --success: oklch(0.596 0.145 163.225);
+  /* Darker than the reference green, because every place this token is ink it
+     is ink on a pale ground: on its own 12% tint in the medallion it measured
+     3.17:1 and against white in the points ledger 3.65:1. 0.496 clears 4.5 on
+     both.
+
+     The tint keeps the reference lightness rather than following the ink down;
+     see --error-bg for why that is the rule for all three. */
+  --success: oklch(0.496 0.145 163.225);
   --success-bg: oklch(0.596 0.145 163.225 / 0.12);
 
   /* The hairline a swatch needs so a near-white colour is still a disc on a
      white ground. Translucent black rather than a grey: it disappears into a
      dark colour, which is where a ring would be noise. */
   --swatch-ring: oklch(0 0 0 / 0.15);
-  --warn: oklch(0.666 0.179 58.318);
+  /* Darker than the reference amber, for the same reason: the warn badge paints
+     this on its own 12% tint and measured 2.80:1, which is the worst pair on the
+     storefront. 0.534 clears 4.5 there and 5.47:1 on white.
+
+     It costs something, and the cost is worth naming: .goen-pdp__reviewstars
+     borrows this token for a rating, so the stars darken with it. A star is not
+     a warning and should not be reading a warning's colour — but that is a rule
+     to move, not a value, so it is not fixed here.
+
+     The tint keeps the reference lightness, and here the reason is measurable:
+     the back office prints muted text on this ground in a low-stock row, and
+     that pair reads 4.55:1 with the tint left alone against 4.18:1 with it
+     dragged down behind the ink. */
+  --warn: oklch(0.534 0.179 58.318);
   --warn-bg: oklch(0.666 0.179 58.318 / 0.12);
 }
 
@@ -341,9 +379,9 @@ h4,
 
    goen's own presentation layer: the shapes a page repeats, ported from the
    design the shop is being rebuilt against and written on the tokens above.
-   The design system's .ui-* equivalents stay where they are until the last
-   surface using one is rebuilt, and nothing wears both -- an element carrying
-   a .goen- class and its .ui- ancestor is two systems painting one box.
+   The .ui-* primitives in base.css stay until the last surface using one is
+   rebuilt, and nothing wears both -- an element carrying a .goen- class and
+   its .ui- ancestor is two shapes painting one box.
 
    Control heights are 44px, which is goen's rule and not the reference's:
    `scripts/check-layout.mjs:1300` sweeps `button, .ui-btn, input[type=number]`
@@ -647,7 +685,7 @@ h4,
 }
 
 .goen-input::placeholder {
-  color: var(--fg-faint);
+  color: var(--fg-muted);
 }
 
 /* A refused field is marked by its border AND by the sentence beside it. A
@@ -691,7 +729,7 @@ h4,
 }
 
 .ui-crumbs__sep {
-  color: var(--fg-faint);
+  color: var(--fg-muted);
 }
 
 .ui-crumbs__current {
@@ -758,8 +796,8 @@ h4,
 /* The bar's category row, the drawer's, and the one link that is a promotion
    rather than a category. The `ui-navitem` spelling is kept because
    `internal/ui/pages/backoffice_test.go:22` locates the drawer's /admin
-   entrance by the whole tag; every declaration the vendored sheet gives that
-   name is replaced here. */
+   entrance by the whole tag; every declaration base.css gives that name is
+   replaced here. */
 .goen-header__nav {
   display: none;
 }
@@ -828,7 +866,7 @@ h4,
 }
 
 /* The wide slot: /admin for staff, the wishlist for everybody else. It keeps
-   the vendored button spelling because `backoffice_test.go:112` asserts the
+   the shared button spelling because `backoffice_test.go:112` asserts the
    whole class attribute, so the ghost-icon recipe is written out again here
    rather than taken from `.goen-btn`. */
 .goen-header__action--wide {
@@ -1274,7 +1312,7 @@ h4,
    keeps the copy from jumping on a slow connection. */
 .goen-hero__media {
   aspect-ratio: 16 / 10;
-  background: var(--elevated);
+  background: var(--photo-ground);
   border-radius: var(--r-lg);
   order: -1;
   overflow: hidden;
@@ -1293,7 +1331,7 @@ h4,
    broken page. */
 .goen-ph {
   align-items: center;
-  color: var(--fg-faint);
+  color: var(--fg-muted);
   display: flex;
   font-size: var(--fs-14);
   height: 100%;
@@ -1497,7 +1535,7 @@ h4,
 
 .goen-tile__media {
   aspect-ratio: 1;
-  background: var(--elevated);
+  background: var(--photo-ground);
   overflow: hidden;
   position: relative;
 }
@@ -1809,7 +1847,7 @@ h4,
   gap: 6px;
 }
 
-/* The price pair and the sort control keep the vendored names: the shell probe
+/* The price pair and the sort control keep the shared names: the shell probe
    at `check-layout.mjs:668` decides the desktop rail rendered at all by finding
    one of them, and the tap sweep at `:805` measures them. */
 .goen-filters .ui-input,
@@ -2043,7 +2081,7 @@ h4,
    quieter so the eye lands on the rows that can actually be compared. */
 .goen-compare__table .is-partial td,
 .goen-compare__table .is-partial th {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
 }
 
 /* One saved product: the card, and under it the form that removes it. The form
@@ -2208,7 +2246,7 @@ h4,
 
 .goen-pdp__shot {
   aspect-ratio: 1 / 1;
-  background: var(--elevated);
+  background: var(--photo-ground);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   margin: 0;
@@ -2224,7 +2262,7 @@ h4,
 
 .goen-pdp__shot--empty {
   align-items: center;
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   display: flex;
   font-size: var(--fs-14);
   justify-content: center;
@@ -2253,7 +2291,7 @@ h4,
 }
 
 .goen-pdp__brand {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   font-size: var(--fs-13);
   margin: 0;
 }
@@ -2284,7 +2322,7 @@ h4,
 .goen-pdp__rating {
   align-items: center;
   align-self: flex-start;
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   display: inline-flex;
   font-size: var(--fs-13);
   gap: 4px;
@@ -2325,7 +2363,7 @@ h4,
 }
 
 .goen-pdp__was {
-  color: var(--fg-faint);
+  color: var(--fg-muted);
   font-size: var(--fs-14);
   font-variant-numeric: tabular-nums;
 }
@@ -2407,7 +2445,7 @@ h4,
    and the link still leads to that variant's page. */
 .goen-swatch--out {
   border-style: dashed;
-  color: var(--fg-faint);
+  color: var(--fg-muted);
 }
 
 /* A colour swatch. The link is the target and the disc is what is seen: 44px
@@ -2675,7 +2713,7 @@ h4,
 }
 
 .goen-pdp__specterm {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
 }
 
 .goen-pdp__specvalue {
@@ -2720,7 +2758,7 @@ h4,
 }
 
 .goen-pdp__scorecount {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   font-size: var(--fs-12);
   margin: 0;
 }
@@ -2741,7 +2779,7 @@ h4,
 
 .goen-pdp__barlabel,
 .goen-pdp__barcount {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   font-family: var(--font-mono);
   font-size: var(--fs-11);
 }
@@ -2752,7 +2790,7 @@ h4,
 }
 
 /* The bar's track and fill. Both are drawn here rather than borrowed: the
-   design system's progress rule never reaches the browser, and the fill needs
+   base.css carries no progress rule at all, and the fill needs
    a display of its own because width does not apply to an inline span.
 
    The width is a class and not an inline style, because style-src carries no
@@ -2848,7 +2886,7 @@ h4,
 }
 
 .goen-pdp__reviewdate {
-  color: var(--fg-faint);
+  color: var(--fg-muted);
   font-family: var(--font-mono);
   font-size: var(--fs-11);
   margin-left: auto;
@@ -2871,7 +2909,7 @@ h4,
 .goen-pdp__noreviews,
 .goen-pdp__reviewnote,
 .goen-pdp__meta {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   font-size: var(--fs-13);
   margin: 0;
 }
@@ -3139,7 +3177,7 @@ h4,
 }
 
 .goen-line__thumb {
-  background: var(--elevated);
+  background: var(--photo-ground);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   display: block;
@@ -3287,7 +3325,7 @@ h4,
    cannot join it by class name: `compare_test.go:33` reads `class="ui-empty"`
    as the whole attribute and `check-layout.mjs:75,99` uses the same name as a
    row marker, so their box keeps that spelling and this rule reaches it by
-   descent. The vendored `.ui-empty` sets the same six properties from a sheet
+   descent. base.css sets the same six properties on `.ui-empty` from a sheet
    the document links earlier, so every one of them is decided here. */
 .goen-empty,
 .goen-compare .ui-empty,
@@ -3451,6 +3489,92 @@ h4,
   color: var(--fg-muted);
   font-size: var(--fs-12);
   margin: 0;
+}
+
+/* The chosen convenience store, and the control that opens the carrier's map
+   to choose one. The store's name and address are what the shopper reads
+   before paying, and that reading is the only check goen has that the store
+   reported back is the store they picked — so they are ordinary page text at
+   the body size, not a quiet caption. */
+.goen-pickup {
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+}
+
+.goen-pickup__name {
+  color: var(--fg);
+  font-size: var(--fs-16);
+  font-weight: var(--fw-medium);
+  margin: 0;
+}
+
+.goen-pickup__addr {
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+  line-height: var(--lh-normal);
+  margin: 0;
+}
+
+/* The form that posts to the carrier holds nothing but hidden inputs, and the
+   button that submits it lives in the section above through form=. It is out
+   of the flow so it cannot open a gap between the checkout form and the page
+   below it. */
+.goen-pickup__map {
+  display: none;
+}
+
+/* The hop back from the carrier's page. No header, no footer: it exists for
+   the fraction of a second before the refresh lands, and a category query for
+   a header nobody reads is a database round trip per cross-site post. */
+.goen-handoff {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  justify-content: center;
+  min-height: 100dvh;
+  padding: 24px;
+  text-align: center;
+}
+
+/* Delayed, so a fast return shows the page ground and not a flash of words
+   nobody had time to read. Reduced motion shows them at once: a reader who
+   has asked for no motion has not asked to be told nothing. */
+.goen-handoff__text {
+  animation: goen-handoff-in var(--dur-base) var(--ease-standard) 400ms both;
+  color: var(--fg-muted);
+  font-size: var(--fs-16);
+  margin: 0;
+}
+
+.goen-handoff__link {
+  color: var(--accent);
+  font-size: var(--fs-14);
+  /* 44px, so the one control on this page is a tap target on a phone. */
+  line-height: 44px;
+  min-height: 44px;
+}
+
+@keyframes goen-handoff-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .goen-handoff__text {
+    animation-delay: 0ms;
+  }
 }
 
 /* A native select wearing the input recipe. It stays a select: a listbox built
@@ -3893,7 +4017,7 @@ h4,
   max-width: 48rem;
 }
 
-/* The head also carries the vendored page-head spelling, because the layout
+/* The head also carries the shared page-head spelling, because the layout
    gate measures the sign-out control through it (scripts/check-layout.mjs:1542).
    Every property that sheet sets on it is set again here, so the spelling is a
    handle and the appearance is decided in this file. */
@@ -4372,10 +4496,10 @@ h4,
   text-align: right;
 }
 
-/* The redemption field keeps the vendored spelling beside its own, because the
+/* The redemption field keeps the shared spelling beside its own, because the
    layout gate measures this control through it (scripts/check-layout.mjs:1490).
-   The vendored sheet reaches it on hover and on focus with a higher specificity
-   than a single class, so those two states are decided here instead. */
+   base.css reaches it on hover and on focus with a higher specificity than a
+   single class, so those two states are decided here instead. */
 .goen-qa__form .ui-input:focus,
 .goen-qa__form .ui-input:hover {
   background: transparent;
@@ -4522,7 +4646,7 @@ h4,
 
 /* The empty state's two sentences are compared by the whole class attribute
    (internal/ui/pages/warranty_test.go:180,184), so the paragraphs carry the
-   vendored spelling alone and every declaration is made here. */
+   shared spelling alone and every declaration is made here. */
 .goen-empty .ui-empty__title {
   color: var(--fg);
   font-family: var(--font-sans);
@@ -4681,7 +4805,7 @@ h4,
 .goen-doc__qa summary::after {
   border-bottom: 2px solid currentcolor;
   border-right: 2px solid currentcolor;
-  color: var(--fg-faint);
+  color: var(--fg-muted);
   content: '';
   flex: none;
   height: 8px;
@@ -4876,7 +5000,7 @@ h4,
 
    The two banners inside the form are written in the page rather than through
    the notice component, because the layout gate reads the refusal's sentence
-   through a vendored descendant pair (scripts/check-layout.mjs:2068) and one
+   through a shared descendant pair (scripts/check-layout.mjs:2068) and one
    caller does not earn a Prop.
    ------------------------------------------------------------------------ */
 
@@ -5038,9 +5162,9 @@ h4,
   margin: 0;
 }
 
-/* The refusal's sentence is read through the vendored descendant pair, so the
-   span keeps that spelling; the muted ink it would otherwise take from the
-   vendored sheet is decided here. */
+/* The refusal's sentence is read through the shared descendant pair, so the
+   span keeps that spelling; the muted ink it would otherwise take from
+   base.css is decided here. */
 .goen-notice .ui-alert__body {
   color: inherit;
 }
@@ -5099,7 +5223,7 @@ h4,
    subject, light enough not to be read as its message, and small enough that a
    375 viewport never scrolls sideways around it. */
 .notice__code {
-  color: var(--fg-faint);
+  color: var(--fg-muted);
   font-size: 3.75rem;
   font-variant-numeric: tabular-nums;
   font-weight: var(--fw-semibold);
@@ -5157,7 +5281,7 @@ h4,
    Denser than the storefront on purpose: this is a queue someone reads all day,
    not a page someone browses. It still uses the same tokens and the same
    components — a second visual language for /admin would be a second thing to
-   maintain, and the design system was built to serve both pressures. */
+   maintain, and the shared primitives serve both pressures. */
 
 /* The back office's own document chrome. The storefront's header and footer are
    a shopper's tools — a category row, a product search, a wishlist, a cart, a
@@ -5274,7 +5398,7 @@ h4,
 }
 
 .goen-adminfoot__copyright {
-  color: var(--fg-faint);
+  color: var(--fg-muted);
   display: block;
   font-size: var(--fs-12);
   margin: 0 auto;
@@ -5314,10 +5438,6 @@ h4,
   display: grid;
   gap: 12px;
   grid-template-columns: 1fr;
-}
-
-.goen-checkout__wide {
-  grid-column: 1 / -1;
 }
 
 @media (min-width: 768px) {
@@ -5422,7 +5542,7 @@ h4,
 }
 
 .goen-admin__navback {
-  color: var(--fg-faint);
+  color: var(--fg-muted);
 }
 
 .goen-admin__navgroup {
@@ -5473,8 +5593,8 @@ h4,
    announced by <details> itself, so this must not be readable text. */
 .goen-admin__navlabel::after,
 .goen-disclosure__summary::after {
-  border-bottom: 1.5px solid var(--fg-faint);
-  border-right: 1.5px solid var(--fg-faint);
+  border-bottom: 1.5px solid var(--fg-muted);
+  border-right: 1.5px solid var(--fg-muted);
   content: '';
   height: 6px;
   transform: rotate(45deg) translate(-1px, -1px);
@@ -5500,7 +5620,7 @@ h4,
 }
 
 .goen-admin .ui-page-head__eyebrow {
-  color: var(--fg-faint);
+  color: var(--fg-muted);
   font-family: var(--font-sans);
   font-size: var(--fs-12);
   font-weight: var(--fw-medium);
@@ -5523,8 +5643,8 @@ h4,
 
 /* The figures a shift starts with. A counted grid with tracks that may shrink
    to nothing, not auto-fit: a track whose minimum is a length is floored by it,
-   and one screen on this row has a stat label the design system refuses to
-   wrap, which took the whole page sideways at 375. */
+   and one screen on this row has a stat label base.css refuses to wrap,
+   which took the whole page sideways at 375. */
 /* As many tiles as fit a figure, counted by the browser rather than by hand at
    three widths. A back-office figure is money as often as it is a count — a
    customer's lifetime spend, their store credit — and a six-figure sum at the
@@ -5689,6 +5809,7 @@ h4,
   max-width: 100%;
   min-width: 0;
   overflow-x: auto;
+  position: relative;
 }
 
 .goen-admin__table {
@@ -5781,7 +5902,7 @@ h4,
   min-width: 0;
 }
 
-/* The design system's stat label does not wrap, so a long one is wider than
+/* The shared stat label does not wrap, so a long one is wider than
    its grid track and takes the page sideways with it. The screens still on
    that component are measured at 375 by the layout gate. */
 .goen-admin__stats .ui-stat__label {
@@ -5805,7 +5926,7 @@ h4,
    covered a subset and each left something at 30px: the activate/deactivate
    button sits in its own form rather than an inline one, and the stock page's
    filter links were styled only on the orders page. Scoped to .goen-admin
-   rather than raising .ui-filter globally, which would reshape a design-system
+   rather than raising .ui-filter globally, which would reshape a shared
    component from the app layer. */
 .goen-admin .ui-btn,
 .goen-admin .ui-filter,
@@ -5872,12 +5993,12 @@ h4,
   white-space: normal;
 }
 
-/* The design system's description list is a fixed 180px term column plus the
+/* The shared description list is a fixed 180px term column plus the
    value, which is right at a desk and 18px too wide on a phone: the order page
    scrolled sideways at 375. It stacks below the wide breakpoint, and the value
    may break inside a word — a provider reference and an email address have no
    space to break at. Page composition, so it belongs here rather than upstream:
-   the two-column form is correct for every viewport the design system draws. */
+   the two-column form is correct for every viewport base.css draws. */
 .goen-admin .ui-dl__row {
   grid-template-columns: 1fr;
   gap: 4px;
@@ -5923,14 +6044,6 @@ h4,
 .goen-admin__tabs .ui-filter {
   text-decoration: none;
   min-height: 44px;
-}
-
-/* A tab is a filter that is selected. The nav's current screen says the same
-   thing in the rail's own terms and has its own rule up there. */
-.goen-admin__tabs .is-active {
-  background: var(--accent-faint);
-  border-color: var(--accent);
-  color: var(--fg);
 }
 
 @media (min-width: 768px) {
@@ -6124,31 +6237,7 @@ h4,
 }
 
 .goen-admin__amount.is-spend {
-  color: var(--fg-subtle);
-}
-
-/* The back-office catalogue and the product form.
-   The form and its side panel sit apart at desk width: editing copy and adding
-   a variant are different jobs, and interleaving them makes both harder to
-   scan. On a phone they stack, form first, because that is the order the work
-   happens in. */
-.goen-admin__catalogue,
-.goen-admin__variants {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-}
-
-.goen-admin__product,
-.goen-admin__variant {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 16px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border-faint);
+  color: var(--fg-muted);
 }
 
 .goen-admin__productname,
@@ -6159,6 +6248,10 @@ h4,
   min-width: 0;
 }
 
+/* A form and its side panel sit apart at desk width: editing copy and adding a
+   variant are different jobs, and interleaving them makes both harder to scan.
+   On a phone they stack, form first, because that is the order the work happens
+   in. */
 .goen-admin__productlayout {
   display: grid;
   grid-template-columns: 1fr;
@@ -6284,32 +6377,6 @@ h4,
   padding: 6px 8px;
 }
 
-/* The product's image strip in the back office. Fixed-size thumbnails so a
-   portrait and a landscape photo do not make the row jump. */
-.goen-admin__images {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-.goen-admin__image {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  width: 120px;
-}
-
-.goen-admin__image img {
-  width: 120px;
-  height: 120px;
-  object-fit: cover;
-  border-radius: var(--r-sm);
-  background: var(--panel);
-}
-
 /* The hero queue's thumbnail and its two buttons. */
 .goen-admin__heroshot {
   width: 160px;
@@ -6323,183 +6390,6 @@ h4,
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-}
-
-/* The one-time secret. Monospace and grouped, because a person is copying it
-   character by character into a phone and losing their place is how a mistyped
-   secret becomes an authenticator that never works. */
-.goen-twofa__secret {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 0;
-}
-
-.goen-twofa__secret code {
-  padding: 6px 10px;
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: var(--fs-16);
-  letter-spacing: 0.08em;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-}
-
-.goen-twofa__uri {
-  display: block;
-  overflow-wrap: anywhere;
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: var(--fs-12);
-  color: var(--fg-subtle);
-}
-
-.goen-twofa__form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 8px;
-}
-
-/* Wide, spaced digits: the field holds six characters and reads back as six
-   characters, so a mistype is visible before submitting. */
-.goen-twofa__code {
-  max-width: 12ch;
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: var(--fs-20);
-  letter-spacing: 0.25em;
-}
-
-
-/* Brands and the category tree. The indent is a ladder of attribute selectors
-   and not a custom property set inline: style-src carries no 'unsafe-inline',
-   so a refused --depth renders the whole tree flat. The schema rejects cycles
-   and nothing else, so the tree still has no maximum depth; the ladder ends at
-   six and AdminTaxon.DepthText clamps anything deeper onto that step, which
-   keeps a very deep row indented rather than losing its indent entirely. */
-.goen-admin__taxa {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.goen-admin__taxon {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border-faint);
-}
-
-.goen-admin__taxon[data-depth="1"] {
-  padding-left: 20px;
-}
-
-.goen-admin__taxon[data-depth="2"] {
-  padding-left: 40px;
-}
-
-.goen-admin__taxon[data-depth="3"] {
-  padding-left: 60px;
-}
-
-.goen-admin__taxon[data-depth="4"] {
-  padding-left: 80px;
-}
-
-.goen-admin__taxon[data-depth="5"] {
-  padding-left: 100px;
-}
-
-.goen-admin__taxon[data-depth="6"] {
-  padding-left: 120px;
-}
-
-.goen-admin__taxonform {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-}
-
-.goen-admin__taxonform .ui-input {
-  flex: 1 1 12ch;
-  min-width: 12ch;
-}
-
-/* The headline figures. Four boxes that wrap rather than a table, because they
-   are read one at a time and a table would invite comparing them to each
-   other. */
-.goen-report__figures {
-  margin: 0 0 8px;
-  padding: 0;
-  list-style: none;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-}
-
-.goen-report__figure {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 16px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-}
-
-.goen-report__label {
-  font-size: var(--fs-12);
-  color: var(--fg-subtle);
-}
-
-.goen-report__value {
-  font-family: var(--font-display);
-  font-size: var(--fs-24);
-  font-weight: var(--fw-semibold);
-  color: var(--fg);
-  font-variant-numeric: tabular-nums;
-}
-
-/* The lists. Denser than the storefront: these are scanned for one row, not
-   browsed. */
-.goen-report__rows {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-}
-
-.goen-report__row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 2px 16px;
-  padding: 10px 0 10px 12px;
-  border-bottom: 1px solid var(--border-faint);
-  border-left: 3px solid transparent;
-}
-
-/* Running out inside a fortnight, which is about how long a reorder takes. */
-.goen-report__row.is-urgent {
-  border-left-color: var(--accent);
-}
-
-.goen-report__num {
-  text-align: right;
-  font-size: var(--fs-14);
-  font-variant-numeric: tabular-nums;
-  color: var(--fg);
-}
-
-@media (min-width: 768px) {
-  .goen-report__row {
-    grid-template-columns: 1fr 1fr auto auto;
-    align-items: baseline;
-  }
 }
 
 
@@ -6516,32 +6406,6 @@ h4,
   flex-direction: column;
   gap: 12px;
   max-width: 60ch;
-}
-
-/* The question queue. A waiting question is marked at the edge so the list can
-   be scanned for work rather than read. */
-.goen-admin__questions {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.goen-admin__question {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 16px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-left: 3px solid transparent;
-  border-radius: var(--r-md);
-}
-
-.goen-admin__question.is-waiting {
-  border-left-color: var(--accent);
 }
 
 /* Worker health. One box per worker, marked at the edge when it needs
@@ -6617,13 +6481,6 @@ h4,
   flex-wrap: wrap;
 }
 
-.goen-admin__prefixes {
-  font-variant-numeric: tabular-nums;
-  font-size: var(--fs-12);
-  color: var(--fg-subtle);
-  word-break: break-all;
-}
-
 .goen-admin__row {
   display: flex;
   flex-wrap: wrap;
@@ -6633,34 +6490,6 @@ h4,
 .goen-admin__row .ui-field {
   flex: 1 1 160px;
   min-width: 0;
-}
-
-.goen-admin__library {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.goen-admin__libraryitem {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 160px;
-  max-width: 100%;
-}
-
-.goen-admin__libraryitem img {
-  width: 80px;
-  height: 80px;
-  object-fit: cover;
-  border-radius: var(--r-sm);
-  border: 1px solid var(--border);
-}
-
-/* A hidden review still shows in the queue — un-hiding is not possible from a
-   list that cannot display it — but it must not read as live. */
-.goen-admin__return.is-hidden {
-  opacity: 0.55;
 }
 
 /* The order search: one row on a desktop, stacked on a phone. Its own class
@@ -6679,11 +6508,618 @@ h4,
   min-width: 0;
 }
 
-.goen-admin__search .ui-btn {
+
+/* Back office — orders
+
+   The order, customer, return, warranty, credit and report screens. Denser
+   than the storefront for the same reason the rest of /admin is: these are
+   read all day, not browsed.
+
+   One idea runs through all six. A screen is a stack of cards, and a card is
+   one thing a staff member can do or read: the lines, the address, the money,
+   dispatch, the invoice. Before this, an order was two panels holding nine
+   forms between them, and the button nearest the cursor was rarely the one
+   that was meant. */
+
+/* Which tab is on is said once, by the attribute the browser already carries.
+   A class rendered beside it would be a second source for the same fact, and
+   the two disagree the first time one of them is forgotten. */
+.goen-admin__tabs [aria-current] {
+  background: var(--accent-faint);
+  border-color: var(--accent);
+  color: var(--fg);
+}
+
+/* A button in a column of full-width fields is not a banner: it shrinks to its
+   own label, and the one move the screen is about says so with Block instead. */
+.goen-admin__form .goen-btn {
+  align-self: flex-start;
   box-sizing: border-box;
   min-height: 44px;
 }
 
+/* The search's own button, on the component's class rather than the shared
+   one. It sits on the field's line, so it keeps the row's alignment. */
+.goen-admin__search .goen-btn {
+  align-self: center;
+  box-sizing: border-box;
+  min-height: 44px;
+}
+
+/* A row of decision buttons shares its width: approving, excepting and
+   refusing are three answers to one question, so none of them leads. */
+.goen-admin__decidebtns .goen-btn {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-height: 44px;
+}
+
+/* One operation: a card holding one form and the sentence that explains it.
+   Tighter than the storefront's card, which is sized for reading. */
+.goen-admin__op {
+  border-radius: var(--r-md);
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+}
+
+.goen-admin__optitle {
+  color: var(--fg);
+  font-size: var(--fs-ed-20);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+/* A field that takes the whole row of the correction form — a street is not
+   two words wide. The row gives every field a 160px basis, so the override has
+   to be read at the same depth. */
+.goen-admin__row .goen-admin__wide {
+  flex-basis: 100%;
+}
+
+/* The order screen: what was bought and what has happened on the left, what
+   the shop can do about it on the right. Both columns are stacks of cards; the
+   rail beside them is the shell's, not this screen's. */
+.goen-admin__orderpanel,
+.goen-admin__orderside {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.goen-admin__linetotal {
+  color: var(--fg);
+  font-size: var(--fs-14);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+
+/* The lines are the card's whole content, so the last one needs no rule
+   beneath it: the card's own border is already there. */
+.goen-admin__op .goen-order__line:last-child {
+  border-bottom: 0;
+}
+
+/* The money, and under it the one move the order is waiting for. */
+.goen-admin__totalrow {
+  align-items: baseline;
+  color: var(--fg-muted);
+  display: flex;
+  font-size: var(--fs-13);
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.goen-admin__totalrow--grand {
+  border-top: 1px solid var(--border);
+  color: var(--fg);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  padding-top: 12px;
+}
+
+.goen-admin__totalval {
+  font-variant-numeric: tabular-nums;
+}
+
+/* What has happened, newest reading first: dispatches, the order's own history
+   and the invoice documents all take this shape, because a staff member reads
+   them for the same thing — what changed, and when. */
+.goen-admin__timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.goen-admin__event {
+  border-left: 2px solid var(--border-strong);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-left: 12px;
+}
+
+.goen-admin__eventhead {
+  color: var(--fg);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+}
+
+/* Who a ledger entry is about, beside the amount rather than under it. */
+.goen-admin__entrywho {
+  color: var(--fg);
+  font-size: var(--fs-13);
+}
+
+/* The layout gate finds the order screen's notice by the shared spelling, so
+   the element keeps it (#380 R8). The box base.css brings with it is
+   decided here instead. */
+.goen-notice.ui-alert {
+  display: block;
+  line-height: var(--lh-read);
+}
+
+/* The report's headline figures. Tiles rather than a table: they are read one
+   at a time, and a table invites comparing a revenue to a completion rate. */
+.goen-report__figures {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.goen-report__figure {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 16px;
+}
+
+.goen-report__label {
+  color: var(--fg-muted);
+  font-size: var(--fs-12);
+}
+
+.goen-report__value {
+  color: var(--fg);
+  font-family: var(--font-display);
+  font-size: var(--fs-ed-24);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-semibold);
+}
+
+/* The two lists under the figures. Not tables: every cell already carries its
+   own label, because the sentence is what internal/i18n holds. */
+.goen-report__rows {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0 16px;
+}
+
+.goen-report__row {
+  align-items: baseline;
+  border-bottom: 1px solid var(--border-faint);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  padding: 12px 0;
+}
+
+.goen-report__row:last-child {
+  border-bottom: 0;
+}
+
+.goen-report__name {
+  color: var(--fg);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  min-width: 0;
+}
+
+.goen-report__num {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 1024px) {
+  /* The money follows the reader down the page: on a long order the totals are
+     what a staff member checks against whatever they are about to press.
+
+     The column has to be as tall as the row for that to be true. The grid
+     start-aligns its children, so without this the aside is only as tall as
+     its own cards and the summary stops following a third of the way down --
+     which is the part of a long order it exists for. */
+  .goen-admin__orderside {
+    align-self: stretch;
+  }
+
+  .goen-admin__ordersummary {
+    position: sticky;
+    top: 16px;
+  }
+}
+
+/* Back office — content
+
+   The five content queues — the FAQ editor, the contact inbox, the product
+   questions, the review queue and the newsletter's issues — are one shape:
+   a record, the state it is in, and the decision somebody opened the screen to
+   make. They were five shapes before, three of them borrowed from a screen
+   about something else, so moderating a review and then answering a question
+   meant reading two different lists of the same thing. One divided list serves
+   all five.
+
+   The rule between records lives on the item and not on the list. Three of
+   these lists are found by a layout-gate marker that another screen's rule
+   already paints — .goen-admin__coupons on the FAQ, .goen-admin__returns on the
+   inbox — and that rule does the list's job: reset the bullets, stack the
+   children, space them. This one does the item's job. No element is painted
+   twice, and when those screens are rebuilt their rule goes without this one
+   having to move. */
+.goen-modqueue {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* A hairline between records rather than a border around each one: a queue is
+   read down the column, and twenty boxes are twenty things to look at where a
+   list is one. */
+.goen-modqueue__item {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.goen-modqueue__item + .goen-modqueue__item {
+  border-top: 1px solid var(--border-faint);
+  padding-top: 16px;
+}
+
+/* What the record is, and what state it is in, on one line: the badge is beside
+   the name because that pairing is what a queue is scanned for. */
+.goen-modqueue__head {
+  align-items: center;
+  column-gap: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.goen-modqueue__title {
+  color: var(--fg);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-semibold);
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The name leads somewhere on four of the five screens. It carries no colour of
+   its own: it is already the strongest thing in its row, and a blue one would
+   read as a second action beside the decision. */
+.goen-modqueue__title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.goen-modqueue__title a:hover {
+  text-decoration: underline;
+}
+
+.goen-modqueue__record {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.goen-modqueue__actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* One decision, taken beside what it is about. Only the queues whose whole form
+   is a button or two: the FAQ's editor and the answer box are full-width fields
+   and reading them in a 280px column is worse than reading them below. */
+@media (min-width: 1024px) {
+  .goen-modqueue__item--split {
+    align-items: start;
+    display: grid;
+    gap: 16px;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+/* The queue's own glyph above its empty sentence, at the size an empty screen
+   wants rather than the 18px the icon set draws for a button: the box is 40px
+   of padding around one line, and a badge-sized mark in the middle of it reads
+   as something that failed to load. */
+.goen-modqueue__emptyicon {
+  color: var(--fg-muted);
+  display: flex;
+}
+
+.goen-modqueue__emptyicon svg {
+  height: 32px;
+  width: 32px;
+}
+
+/* The step-up challenge and enrolment. One thing to do, so the screen is one
+   card in the middle of the column — the shape the storefront gives a sign-in,
+   inside the back office's own chrome, because a person who has not passed the
+   second factor yet still needs to know where they are. */
+.goen-twofa {
+  box-sizing: border-box;
+  margin: 0 auto;
+  max-width: 28rem;
+  padding: 24px 16px;
+  width: 100%;
+}
+
+.goen-twofa__card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.goen-twofa__title {
+  color: var(--fg);
+  font-size: var(--fs-ed-24);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.goen-twofa__lead {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  line-height: var(--lh-normal);
+  margin: 0;
+}
+
+/* The one-time secret. Monospace and grouped, because it is being copied
+   character by character into a phone, and losing your place is how a mistyped
+   secret becomes an authenticator that never works. */
+.goen-twofa__secret {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+
+.goen-twofa__secret code {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--fs-16);
+  letter-spacing: 0.08em;
+  padding: 6px 8px;
+}
+
+.goen-twofa__uri {
+  color: var(--fg-muted);
+  display: block;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--fs-12);
+  overflow-wrap: anywhere;
+}
+
+.goen-twofa__form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Wide, spaced digits: the field holds six characters and reads back as six
+   characters, so a mistype is visible before it is submitted. */
+.goen-twofa__code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--fs-18);
+  letter-spacing: 0.25em;
+  max-width: 12ch;
+}
+
+
+
+/* Back office — catalogue
+
+   The catalogue screens are a list and an editor. A list is a table with one
+   status badge per row; an editor is a column of cards, one per job, each
+   ending in its own save. Everything else on these screens is a recipe the
+   back office already has, which is why this block is short. */
+
+/* Inside a card: a heading, whatever the card says about itself, the list it
+   holds and the form that adds to it. min-width lets the card be narrower than
+   its widest child, which is what keeps a 640px table inside its own scroll
+   box instead of setting the page width. */
+.goen-admin__section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* A product's options and its variants read the same way: one row per thing,
+   divided by a hairline, the name first and the facts about it after. Neither
+   is a table — a variant carries a price, a stock line and an option string of
+   no fixed width, and a column that has to hold one turns every other row into
+   empty space. */
+.goen-admin__options,
+.goen-admin__variants {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goen-admin__option,
+.goen-admin__variant {
+  align-items: baseline;
+  border-bottom: 1px solid var(--border-faint);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  padding: 12px 0;
+}
+
+/* An inbound movement, marked so a reader scanning a ledger for a delivery
+   does not read every line. The class was rendered and painted by nothing. */
+.goen-admin__in {
+  color: var(--success);
+}
+
+/* Brands and the category tree. The indent is a ladder of attribute selectors
+   and not a custom property set inline: style-src carries no 'unsafe-inline',
+   so a refused --depth renders the whole tree flat. The schema rejects cycles
+   and nothing else, so the tree still has no maximum depth; the ladder ends at
+   six and AdminTaxon.DepthText clamps anything deeper onto that step, which
+   keeps a very deep row indented rather than losing its indent entirely. */
+.goen-admin__taxa {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goen-admin__taxon {
+  border-bottom: 1px solid var(--border-faint);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+}
+
+.goen-admin__taxon[data-depth='1'] {
+  padding-left: 20px;
+}
+
+.goen-admin__taxon[data-depth='2'] {
+  padding-left: 40px;
+}
+
+.goen-admin__taxon[data-depth='3'] {
+  padding-left: 60px;
+}
+
+.goen-admin__taxon[data-depth='4'] {
+  padding-left: 80px;
+}
+
+.goen-admin__taxon[data-depth='5'] {
+  padding-left: 100px;
+}
+
+.goen-admin__taxon[data-depth='6'] {
+  padding-left: 120px;
+}
+
+/* One row of the tree is a rename form: the fields carry the current values and
+   the buttons say which write they are. The fields shrink before they wrap, so
+   a deep row still fits the column. */
+.goen-admin__taxonform {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.goen-admin__taxonform .goen-input {
+  flex: 1 1 12ch;
+  min-width: 12ch;
+}
+
+/* The product's pictures. Fixed-size thumbnails, so a portrait and a landscape
+   photo do not make the row jump, and an explicit box so the strip does not
+   reflow as the images arrive. */
+.goen-admin__images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goen-admin__image {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 120px;
+}
+
+.goen-admin__image img {
+  background: var(--panel);
+  border-radius: var(--r-sm);
+  height: 120px;
+  object-fit: cover;
+  width: 120px;
+}
+
+/* Everything already uploaded, so a second product can wear the same photo
+   without a second upload. Each item is its own form: the alt text is written
+   again here because it describes the picture ON THIS PRODUCT. */
+.goen-admin__library {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.goen-admin__libraryitem {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 100%;
+  width: 160px;
+}
+
+.goen-admin__libraryitem img {
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  height: 80px;
+  object-fit: cover;
+  width: 80px;
+}
+
+/* A zone's postal prefixes: a long run of digits that has to be allowed to
+   break, or the cell sets the table's width. */
+.goen-admin__prefixes {
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+  word-break: break-all;
+}
 
 /* ---------- Motion ----------
 

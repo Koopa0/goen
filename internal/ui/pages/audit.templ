@@ -44,6 +44,7 @@ templ AdminAudit(p layouts.Page, v AuditView) {
 					</li>
 				}
 			</ul>
+			@listBound(v.ListBound, ByRecency, false)
 		}
 	}
 }

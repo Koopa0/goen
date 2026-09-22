@@ -4,10 +4,15 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 // AdminMovements renders one variant's stock ledger.
+//
+// The receiving form comes before the ledger because that is why the page is
+// open: a delivery has arrived and the count has to be raised. The ledger
+// below is read afterwards to check it landed.
 templ AdminMovements(p layouts.Page, v *AdminMovementsView) {
 	@layouts.Admin(p, "stock") {
 		<div class="ui-page-head">
@@ -23,31 +28,33 @@ templ AdminMovements(p layouts.Page, v *AdminMovementsView) {
 			</div>
 		</div>
 		if v.HasNotice() {
-			<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+			@components.Notice(components.NoticeProps{Tone: components.ToneAccent}) {
+				{ v.Notice }
+			}
 		}
 		@adminReceiveForm(v)
 		if v.Empty() {
-			<p class="goen-admin__hint">
-				{ i18n.T(ctx, i18n.KeyAdminLedgerEmpty) }
-			</p>
+			<div class="goen-admin__empty">
+				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminLedgerEmpty) }</p>
+			</div>
 		} else {
 			<div class="goen-admin__tablewrap">
-				<table class="ui-table">
+				<table class="ui-table goen-admin__table">
 					<thead>
 						<tr>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColWhen) }</th>
-							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColChange) }</th>
+							<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminColChange) }</th>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColReason) }</th>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColOrder) }</th>
 							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColActor) }</th>
-							<th scope="col">{ i18n.T(ctx, i18n.KeyAdminColBalance) }</th>
+							<th class="goen-admin__cellnum" scope="col">{ i18n.T(ctx, i18n.KeyAdminColBalance) }</th>
 						</tr>
 					</thead>
 					<tbody>
 						for _, m := range v.Rows {
 							<tr>
-								<td>{ m.At }</td>
-								<td class={ templ.KV("goen-admin__in", m.In()) }>{ m.DeltaText() }</td>
+								<td class="goen-admin__cellkey">{ m.At }</td>
+								<td class={ "goen-admin__cellnum", templ.KV("goen-admin__in", m.In()) }>{ m.DeltaText() }</td>
 								<td>{ m.ReasonText(ctx) }</td>
 								<td>
 									if m.HasOrder() {
@@ -57,11 +64,12 @@ templ AdminMovements(p layouts.Page, v *AdminMovementsView) {
 									}
 								</td>
 								<td>{ m.By(ctx) }</td>
-								<td>{ m.RunningText() }</td>
+								<td class="goen-admin__cellnum">{ m.RunningText() }</td>
 							</tr>
 						}
 					</tbody>
 				</table>
+				@listBound(v.ListBound, ByRecency, false)
 			</div>
 			<p class="goen-admin__hint">
 				{ i18n.T(ctx, i18n.KeyAdminLedgerFoot) }
@@ -70,26 +78,38 @@ templ AdminMovements(p layouts.Page, v *AdminMovementsView) {
 	}
 }
 
+// adminReceiveForm raises the count. The idempotency key is rendered with the
+// form so a reload cannot post the same delivery twice.
 templ adminReceiveForm(v *AdminMovementsView) {
-	<form class="goen-admin__form" method="post" action="/admin/stock/receive">
-		<input type="hidden" name="sku" value={ v.SKU }/>
-		<input type="hidden" name="idempotency" value={ v.ReceiveKey() }/>
-		<label class="ui-field" for="receive-qty">
-			<span class="ui-label">{ i18n.T(ctx, i18n.KeyAdminReceiveQty) }</span>
-			<input
-				class="ui-input goen-admin__num"
-				id="receive-qty"
-				type="number"
-				name="quantity"
-				min="1"
-				step="1"
-				placeholder="10"
-				required
-			/>
-		</label>
-		<button class="ui-btn ui-btn--secondary" type="submit">{ i18n.T(ctx, i18n.KeyAdminReceiveButton) }</button>
-		<p class="goen-admin__hint">
-			{ i18n.T(ctx, i18n.KeyAdminReceiveHint) }
-		</p>
-	</form>
+	@components.Card(components.CardProps{Class: "goen-admin__section"}) {
+		<h2 class="goen-admin__heading">{ i18n.T(ctx, i18n.KeyAdminReceiveButton) }</h2>
+		<form class="goen-admin__form" method="post" action="/admin/stock/receive">
+			<input type="hidden" name="sku" value={ v.SKU }/>
+			<input type="hidden" name="idempotency" value={ v.ReceiveKey() }/>
+			<div class="goen-admin__field">
+				@components.Label(components.LabelProps{For: "receive-qty"}) {
+					{ i18n.T(ctx, i18n.KeyAdminReceiveQty) }
+				}
+				<input
+					class="goen-input goen-admin__num"
+					id="receive-qty"
+					type="number"
+					name="quantity"
+					min="1"
+					step="1"
+					placeholder="10"
+					required
+				/>
+			</div>
+			@components.Button(components.ButtonProps{
+				Variant: components.VariantPrimary,
+				Class:   "goen-admin__submit",
+			}, "submit") {
+				{ i18n.T(ctx, i18n.KeyAdminReceiveButton) }
+			}
+			<p class="goen-admin__hint">
+				{ i18n.T(ctx, i18n.KeyAdminReceiveHint) }
+			</p>
+		</form>
+	}
 }

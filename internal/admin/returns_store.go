@@ -63,6 +63,9 @@ func requireExceptionReason(kind returns.DecisionKind, resolution string) error 
 // Diagnostics stay out of the rendered page but cross the Store boundary so
 // the handler can record quantitative source inconsistencies.
 type ReturnQueue struct {
+	// Bound is what the page says about its own edge: the queue reads one row
+	// more than it shows and drops it here.
+	Bound        pages.ListBound
 	Rows         []pages.AdminReturn
 	payoutIssues []returnPayoutIssue
 }
@@ -74,10 +77,14 @@ type returnPayoutIssue struct {
 
 // Returns reads the back-office queue.
 func (s *Store) Returns(ctx context.Context) (ReturnQueue, error) {
-	rows, err := s.q.ReturnQueue(ctx, PageSize)
+	rows, err := s.q.ReturnQueue(ctx, PageLimit)
 	if err != nil {
 		return ReturnQueue{}, fmt.Errorf("read return queue: %w", err)
 	}
+	// Dropped before ids is built, not after: the extra row exists to be
+	// counted, and reading its lines and payout facts would be work done for a
+	// return nobody is shown.
+	rows, more := pageOf(rows, PageSize)
 	ids := make([]uuid.UUID, 0, len(rows))
 	for i := range rows {
 		ids = append(ids, rows[i].ID)
@@ -125,6 +132,9 @@ func (s *Store) Returns(ctx context.Context) (ReturnQueue, error) {
 	if err != nil {
 		return ReturnQueue{}, err
 	}
+	// Set here rather than in the builder, which is given rows and knows
+	// nothing about the read that produced them.
+	view.Bound = pages.Bound(more, PageSize)
 	return view, nil
 }
 

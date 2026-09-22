@@ -28,9 +28,11 @@ convention:
   itself says lives in `internal/i18n`, declared once with both languages.
   Product copy is translated only where the shop has written a translation.
   `TestNoChromeStringIsHardCoded` refuses a Han literal anywhere else.
-- **The design system is vendored, not authored here.** `assets/css/ds/` is
-  fixed upstream and re-vendored; `assets/css/app/app.css` owns page composition
-  only. There is no CSS build, no JavaScript build, and no client framework.
+- **All of the CSS is authored here.** `assets/css/app/base.css` carries the
+  tokens, the element defaults and the shared primitives; `assets/css/app/app.css`
+  owns the surfaces and is linked after it, so a value set in both is settled by
+  source order. There is no CSS build, no JavaScript build, and no client
+  framework.
 
 ## Build and run it
 

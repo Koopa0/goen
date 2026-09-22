@@ -27,6 +27,8 @@ func (e AdminCreditEntry) IsSpend() bool { return e.AmountCents < 0 }
 
 // AdminCreditView is the store-credit page.
 type AdminCreditView struct {
+	ListBound
+
 	Rows   []AdminCreditEntry
 	Notice string
 	Email  string

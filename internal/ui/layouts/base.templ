@@ -23,9 +23,12 @@ templ Base(p Page) {
 }
 
 // documentHead is the head both shells send. It is one templ and not two
-// because every entry in it — the fonts, the four stylesheets, htmx and its
+// because every entry in it — the fonts, the stylesheets, htmx and its
 // configuration — is a fact about the document rather than about the storefront,
 // and a second copy is a second copy to keep current.
+//
+// base.css is linked before app.css because that order is the cascade: a value
+// set in both is settled by source order, and app.css is what wins.
 templ documentHead(p Page) {
 	<head>
 		<meta charset="utf-8"/>
@@ -39,20 +42,18 @@ templ documentHead(p Page) {
 			@structuredData(p.StructuredData)
 		}
 		<link rel="icon" type="image/svg+xml" href={ templ.URL(assets.URL(assets.MarkSVG)) }/>
-		<link rel="preconnect" href="https://fonts.googleapis.com"/>
-		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&amp;display=swap"/>
-		// The design system's own sheet opens with an @import of these four
-		// families, which the browser cannot discover until that sheet has
-		// arrived and been parsed — a second font fetch chained behind the
-		// first. Asking for the same URL here starts it with the rest of the
-		// head, so the @import resolves from cache instead of opening a
-		// round trip of its own. The sheet is vendored and cannot say this
-		// itself; the URL has to match it exactly.
-		<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,300;1,6..72,400;1,6..72,500&amp;family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap"/>
-		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.DesignSystemCSS)) }/>
-		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.AccentsCSS)) }/>
-		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.CommerceCSS)) }/>
+		// goen's own faces, from goen's own origin. There is no preconnect
+		// because there is no second origin to connect to: the stylesheet and
+		// every file it names arrive on the connection that fetched the page.
+		//
+		// The Latin face is preloaded because every page paints Latin before it
+		// paints anything else, and a browser cannot discover a font until it has
+		// parsed the sheet that names it. The Han subsets are not preloaded:
+		// which of the 105 a page needs depends on the characters on it, and a
+		// preloaded guess costs a file the page may never paint.
+		<link rel="preload" href={ templ.URL(assets.URL(assets.InterLatinWOFF2)) } as="font" type="font/woff2" crossorigin/>
+		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.FontsCSS)) }/>
+		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.BaseCSS)) }/>
 		<link rel="stylesheet" href={ templ.URL(assets.URL(assets.AppCSS)) }/>
 		<script src={ templ.URL(assets.URL(assets.HTMXJS)) } defer></script>
 		<script src={ templ.URL(assets.URL(assets.AppJS)) } defer></script>

@@ -547,7 +547,7 @@ func TestCheckoutShowsOneMessagePerField(t *testing.T) {
 		"shipping": i18n.T(ctx, i18n.KeyChooseShipping),
 	}
 
-	got := checkoutErrors(ctx, addr, errors.New("no shipping method chosen"), &Invoice{})
+	got := checkoutErrors(ctx, addr, errors.New("no shipping method chosen"), &Invoice{}, false)
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("checkoutErrors (-want +got):\n%s", diff)
 	}
