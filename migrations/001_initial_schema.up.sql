@@ -3937,8 +3937,7 @@ BEGIN
     FOR UPDATE;
 
     IF FOUND THEN
-        -- Stale snapshot: ignore out-of-order provider_updated_at when we already
-        -- know a terminal fact, unless the status itself is a contradiction.
+        -- Event creation, not refund creation, orders distinct snapshots.
         IF v_existing.provider_updated_at IS NOT NULL
            AND p_provider_updated_at IS NOT NULL
            AND p_provider_updated_at < v_existing.provider_updated_at THEN
@@ -3951,6 +3950,11 @@ BEGIN
         IF v_existing.status IN ('succeeded', 'failed', 'cancelled')
            AND v_existing.status = p_status
            AND v_existing.amount_cents = p_amount_cents THEN
+            -- An unchanged newer observation still supersedes intervening events.
+            UPDATE stripe_refund_facts
+            SET provider_updated_at = greatest(provider_updated_at, p_provider_updated_at),
+                last_event_id = p_event_id
+            WHERE provider_ref = p_provider_ref;
             UPDATE payment_webhook_events
             SET refund_reconciled_at = now()
             WHERE provider = 'stripe' AND event_id = p_event_id

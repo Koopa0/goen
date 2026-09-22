@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -22,6 +23,8 @@ import (
 // Gateway is the only thing in goen that knows Stripe exists.
 type Gateway struct {
 	client        *stripe.Client
+	refundClient  *stripe.Client
+	refundHTTP    *http.Client
 	webhookSecret string
 	baseURL       string
 }
@@ -67,7 +70,16 @@ func NewGateway(apiKey, webhookSecret, baseURL string) (*Gateway, error) {
 	if !ok {
 		return nil, fmt.Errorf("payment: base URL %q is not usable for Stripe return URLs", baseURL)
 	}
+	refundHTTP := &http.Client{Timeout: RefundReconcileBudget}
+	refundBackend := stripe.GetBackendWithConfig(stripe.APIBackend, &stripe.BackendConfig{
+		MaxNetworkRetries: stripe.Int64(0),
+		HTTPClient:        refundHTTP,
+	})
 	return &Gateway{
+		refundHTTP: refundHTTP,
+		refundClient: stripe.NewClient(apiKey, stripe.WithBackends(&stripe.Backends{
+			API: refundBackend, Connect: refundBackend, Uploads: refundBackend,
+		})),
 		client:        stripe.NewClient(apiKey),
 		webhookSecret: webhookSecret,
 		baseURL:       origin,

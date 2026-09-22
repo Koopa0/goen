@@ -37,6 +37,7 @@ func webhookUnreconciled(cause webhookUnreconciledCause, detail string) string {
 }
 
 type webhookOutcome struct {
+	gateway             *Gateway
 	event               *stripe.Event
 	capture             Capture
 	refund              ProviderRefund
@@ -400,14 +401,20 @@ func (h *Handler) Webhook(w http.ResponseWriter, r *http.Request) {
 	chargeRefunds, isChargeRefunded := RefundsFromCharge(&ev)
 	understood := isCapture || isAbandoned || isUnsettled || isRefund || isChargeRefunded
 	outcome := &webhookOutcome{
-		event: &ev, capture: capture, refund: refund, chargeRefunds: chargeRefunds,
+		gateway: h.gateway, event: &ev, capture: capture, refund: refund, chargeRefunds: chargeRefunds,
 		readState:        classifyWebhook(&ev, understood),
 		abandonedSession: abandonedSession, unsettledSession: unsettledSession,
 		isAbandoned: isAbandoned, isCapture: isCapture, isUnsettled: isUnsettled,
 		isRefund: isRefund, isChargeRefunded: isChargeRefunded,
 	}
 
-	claimed, err := h.store.processWebhook(r.Context(), &webhookEvent{
+	ctx := r.Context()
+	if isRefund || isChargeRefunded {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, RefundReconcileBudget)
+		defer cancel()
+	}
+	claimed, err := h.store.processWebhook(ctx, &webhookEvent{
 		ID: ev.ID, Type: string(ev.Type), ObjectRef: ObjectRef(&ev), Payload: body,
 	}, outcome.apply())
 	switch {
@@ -457,7 +464,7 @@ func (o *webhookOutcome) apply() func(context.Context, *webhookTx) error {
 		return o.captureEffect()
 	case o.isRefund:
 		return func(ctx context.Context, tx *webhookTx) error {
-			return tx.ReconcileRefund(ctx, o.event.ID, o.refund)
+			return tx.ReconcileRefund(ctx, o.event.ID, o.refund, o.gateway)
 		}
 	case o.isChargeRefunded:
 		return o.chargeRefundEffect()
@@ -503,7 +510,7 @@ func (o *webhookOutcome) captureEffect() func(context.Context, *webhookTx) error
 func (o *webhookOutcome) chargeRefundEffect() func(context.Context, *webhookTx) error {
 	return func(ctx context.Context, tx *webhookTx) error {
 		for i := range o.chargeRefunds {
-			if err := tx.ReconcileRefund(ctx, o.event.ID, o.chargeRefunds[i]); err != nil {
+			if err := tx.ReconcileRefund(ctx, o.event.ID, o.chargeRefunds[i], o.gateway); err != nil {
 				return err
 			}
 		}

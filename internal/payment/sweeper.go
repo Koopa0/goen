@@ -16,8 +16,8 @@ const RefundWebhookBackfillLimit = 20
 
 // SweepIgnoredRefundWebhooks replays stored refund webhooks that predate
 // reconciliation support.
-func (s *Store) SweepIgnoredRefundWebhooks(ctx context.Context, log *slog.Logger) (int, error) {
-	n, err := s.BackfillIgnoredRefundWebhooks(ctx, RefundWebhookBackfillLimit)
+func (s *Store) SweepIgnoredRefundWebhooks(ctx context.Context, log *slog.Logger, gateway *Gateway) (int, error) {
+	n, err := s.BackfillIgnoredRefundWebhooks(ctx, RefundWebhookBackfillLimit, gateway)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		return 0, err
 	}
@@ -28,7 +28,7 @@ func (s *Store) SweepIgnoredRefundWebhooks(ctx context.Context, log *slog.Logger
 }
 
 // SweepIgnoredRefundWebhooksForever runs the bounded backfill on a timer.
-func (s *Store) SweepIgnoredRefundWebhooksForever(ctx context.Context, log *slog.Logger) {
+func (s *Store) SweepIgnoredRefundWebhooksForever(ctx context.Context, log *slog.Logger, gateway *Gateway) {
 	t := time.NewTicker(RefundWebhookSweepInterval)
 	defer t.Stop()
 	for {
@@ -36,7 +36,7 @@ func (s *Store) SweepIgnoredRefundWebhooksForever(ctx context.Context, log *slog
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			if _, err := s.SweepIgnoredRefundWebhooks(ctx, log); err != nil && !errors.Is(err, context.Canceled) {
+			if _, err := s.SweepIgnoredRefundWebhooks(ctx, log, gateway); err != nil && !errors.Is(err, context.Canceled) {
 				log.ErrorContext(ctx, "sweep ignored refund webhooks", "error", err)
 			}
 		}

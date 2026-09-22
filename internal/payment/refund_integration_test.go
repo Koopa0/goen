@@ -177,7 +177,7 @@ func TestIgnoredRefundEventCanBeBackfilled(t *testing.T) {
 		t.Fatalf("seed ignored event: %v", err)
 	}
 
-	applied, err := payment.NewStore(pool).BackfillIgnoredRefundWebhooks(ctx, 10)
+	applied, err := payment.NewStore(pool).BackfillIgnoredRefundWebhooks(ctx, 10, nil)
 	if err != nil {
 		t.Fatalf("backfill: %v", err)
 	}

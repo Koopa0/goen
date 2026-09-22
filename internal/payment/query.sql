@@ -195,5 +195,12 @@ WHERE provider = 'stripe'
 ORDER BY received_at
 LIMIT $1;
 
+
+-- name: RefundFactForReconciliation :one
+SELECT provider_ref, payment_intent_ref, charge_ref, amount_cents, currency,
+       status, provider_updated_at
+FROM stripe_refund_facts
+WHERE provider_ref = $1;
+
 -- EnqueueMessage is defined in internal/cart/query.sql; sqlc builds one db
 -- package for the module.

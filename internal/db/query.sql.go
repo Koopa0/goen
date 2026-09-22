@@ -9669,6 +9669,38 @@ func (q *Queries) RefundExecution(ctx context.Context, refundID uuid.UUID) (Refu
 	return i, err
 }
 
+const refundFactForReconciliation = `-- name: RefundFactForReconciliation :one
+SELECT provider_ref, payment_intent_ref, charge_ref, amount_cents, currency,
+       status, provider_updated_at
+FROM stripe_refund_facts
+WHERE provider_ref = $1
+`
+
+type RefundFactForReconciliationRow struct {
+	ProviderRef       string
+	PaymentIntentRef  string
+	ChargeRef         pgtype.Text
+	AmountCents       int64
+	Currency          string
+	Status            string
+	ProviderUpdatedAt pgtype.Int8
+}
+
+func (q *Queries) RefundFactForReconciliation(ctx context.Context, providerRef string) (RefundFactForReconciliationRow, error) {
+	row := q.db.QueryRow(ctx, refundFactForReconciliation, providerRef)
+	var i RefundFactForReconciliationRow
+	err := row.Scan(
+		&i.ProviderRef,
+		&i.PaymentIntentRef,
+		&i.ChargeRef,
+		&i.AmountCents,
+		&i.Currency,
+		&i.Status,
+		&i.ProviderUpdatedAt,
+	)
+	return i, err
+}
+
 const registerWarranty = `-- name: RegisterWarranty :execrows
 INSERT INTO warranty_registrations (order_line_id, unit_no, user_id, serial_number, expires_on)
 SELECT ol.id, $1::smallint, $2, nullif($3::text, ''),

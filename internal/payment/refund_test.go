@@ -47,3 +47,38 @@ func TestRefundEventsAreActionable(t *testing.T) {
 		}
 	}
 }
+
+func TestRefundStatusAndEventWatermark(t *testing.T) {
+	for _, tc := range []struct {
+		provider string
+		want     payment.RefundStatus
+	}{
+		{"pending", payment.RefundPending},
+		{"requires_action", payment.RefundRequiresAction},
+		{"succeeded", payment.RefundSucceeded},
+		{"failed", payment.RefundFailed},
+		{"canceled", payment.RefundCancelled},
+	} {
+		t.Run(tc.provider, func(t *testing.T) {
+			ev := refundEvent("refund.updated", "re_state", "pi_state", 100, tc.provider, "")
+			ev.Created = 200
+			got, ok := payment.RefundFrom(&ev)
+			if !ok || got.Status != tc.want || got.ProviderUpdatedAt != ev.Created {
+				t.Fatalf("refund=%+v/%v; want %s at event creation", got, ok, tc.want)
+			}
+			var obj any
+			if err := json.Unmarshal(ev.Data.Raw, &obj); err != nil {
+				t.Fatal(err)
+			}
+			raw, err := json.Marshal(map[string]any{"id": "ch_state", "payment_intent": "pi_state", "refunds": map[string]any{"data": []any{obj}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			ev.Type, ev.Data.Raw = "charge.refunded", raw
+			refunds, ok := payment.RefundsFromCharge(&ev)
+			if !ok || len(refunds) != 1 || refunds[0].Status != tc.want || refunds[0].ProviderUpdatedAt != ev.Created {
+				t.Fatalf("charge refunds=%+v/%v", refunds, ok)
+			}
+		})
+	}
+}
