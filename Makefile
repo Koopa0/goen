@@ -35,7 +35,7 @@ endif
         image image-push lint fmt fmt-check vet deadcode gen templ-check vuln \
         sqlc sqlc-check squawk db-up db-down migrate-up migrate-down db-seed \
         db-repair-invoice-faq db-repair-refund-faq \
-        cursor-scripts-check workflow-check verify verify-all check-layout db-reset clean
+        demo-restore-check cursor-scripts-check workflow-check verify verify-all check-layout db-reset clean
 
 build: gen
 	go build -o bin/goen ./cmd/goen
@@ -919,12 +919,16 @@ cursor-scripts-check:
 
 # The single gate. Stop at the first failure — a passing later stage must never
 # be able to bury an earlier red one.
+demo-restore-check:
+	bash -n deploy/demo/restore-demo-db.sh scripts/demo-restore-test.sh
+	scripts/demo-restore-test.sh
+
 workflow-check:
 	$(ACTIONLINT) -shellcheck=
 	go test ./internal/db -run '^TestCI' -count=1
 	go test ./internal/db -run '^TestCommitAttribution' -count=1
 
-verify: workflow-check cursor-scripts-check fmt-check templ-check squawk sqlc-check vet deadcode lint production-build-check integration-build-check test-race
+verify: demo-restore-check workflow-check cursor-scripts-check fmt-check templ-check squawk sqlc-check vet deadcode lint production-build-check integration-build-check test-race
 	@echo 'verify: PASS (unit tests only — make verify-all adds the database suite)'
 
 # Everything verify runs plus the parts that need Docker and the network.
