@@ -619,6 +619,7 @@ func startWorkers(ctx context.Context, d workerDeps) {
 	messages.HandleJSON[email.NewsletterConfirm](outbox.TopicNewsletterConfirm, d.notifier.SendNewsletterConfirm)
 	messages.HandleJSON[email.NewsletterWelcome](outbox.TopicNewsletterWelcome, d.notifier.SendNewsletterWelcome)
 	messages.HandleJSON[email.AddressVerify](outbox.TopicEmailVerify, d.notifier.SendAddressVerify)
+	messages.HandleJSON[email.StaffInvitation](outbox.TopicStaffInvitation, staffInvitationHandler(twofactor.NewStore(d.admin, nil), d.notifier))
 	messages.HandleJSON[email.NewsletterIssue](outbox.TopicNewsletterIssue,
 		newsletterIssueHandler(newsletter.NewStore(d.pool), d.notifier))
 	messages.HandleJSON[email.RestockNotice](outbox.TopicRestocked, d.notifier.SendRestockNotice)
@@ -661,5 +662,18 @@ func newsletterIssueHandler(
 			return nil
 		}
 		return notifier.SendNewsletterIssue(ctx, p)
+	}
+}
+
+func staffInvitationHandler(staff *twofactor.Store, notifier email.Notifier) func(context.Context, *email.StaffInvitation) error {
+	return func(ctx context.Context, p *email.StaffInvitation) error {
+		address, name, err := staff.InvitationRecipient(ctx, p.UserID)
+		if err != nil {
+			return err
+		}
+		if address == "" {
+			return nil
+		}
+		return notifier.SendStaffInvitation(ctx, p, address, name)
 	}
 }

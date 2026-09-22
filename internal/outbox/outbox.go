@@ -35,6 +35,7 @@ const (
 	// TopicNewsletterIssue is enqueued at [BulkPriority].
 	TopicNewsletterIssue = "newsletter.issue"
 	TopicEmailVerify     = "account.email_verify"
+	TopicStaffInvitation = "staff.invitation"
 )
 
 // BulkPriority is where a send that can wait goes in the queue. Transactional
