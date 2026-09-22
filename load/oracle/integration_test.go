@@ -11,7 +11,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -245,4 +247,62 @@ func checkoutQuote(
 func checkoutAttemptKey(label string) string {
 	digest := sha256.Sum256([]byte(label))
 	return base64.RawURLEncoding.EncodeToString(digest[:16])
+}
+
+func TestStockRunRequiresFreshSingleEffects(t *testing.T) {
+	t.Parallel()
+	for _, mutation := range []string{"none", "stale", "missing hold", "wrong amount", "extra order"} {
+		t.Run(mutation, func(t *testing.T) {
+			t.Parallel()
+			pool := seededPool(t)
+			ctx := t.Context()
+			started := time.Now().UTC().Add(-time.Second)
+			runID := "oracle-" + uuid.NewString()
+			orders := make([]evidenceOrder, 0, 2)
+			var anchor uuid.UUID
+			for i := range 2 {
+				id := placeFlashOrder(t, pool, ctx, 1)
+				buyer := "0"
+				if i == 0 {
+					anchor, buyer = id, "replay"
+				}
+				if _, err := pool.Exec(ctx, `UPDATE order_private_data SET email=$2 WHERE order_id=$1`, id, "load-"+runID+"-"+buyer+"@goen.invalid"); err != nil {
+					t.Fatal(err)
+				}
+				var event evidenceOrder
+				if err := pool.QueryRow(ctx, `SELECT o.order_number,a.idempotency_key FROM orders o JOIN checkout_attempts a ON a.order_id=o.id WHERE o.id=$1`, id).Scan(&event.number, &event.key); err != nil {
+					t.Fatal(err)
+				}
+				orders = append(orders, event)
+			}
+			switch mutation {
+			case "stale":
+				started = time.Now().UTC().Add(time.Hour)
+			case "missing hold":
+				if _, err := pool.Exec(ctx, `DELETE FROM inventory_reservations WHERE order_id=$1`, anchor); err != nil {
+					t.Fatal(err)
+				}
+			case "wrong amount":
+				if _, err := pool.Exec(ctx, `UPDATE orders SET shipping_cents=shipping_cents+1 WHERE id=$1`, anchor); err != nil {
+					t.Fatal(err)
+				}
+			case "extra order":
+				extra := placeFlashOrder(t, pool, ctx, 1)
+				if _, err := pool.Exec(ctx, `UPDATE order_private_data SET email=$2 WHERE order_id=$1`, extra, "load-"+runID+"-replay@goen.invalid"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			run, err := oracle.ReadStockRun(strings.NewReader(stockEvidence(t, runID, started, orders)), runID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = oracle.CheckStockRun(ctx, pool, run)
+			if mutation == "none" && err != nil {
+				t.Fatal(err)
+			}
+			if mutation != "none" && err == nil {
+				t.Fatal("planted incorrect run accepted")
+			}
+		})
+	}
 }

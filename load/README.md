@@ -74,3 +74,29 @@ Plant a conservation violation by adding committed units without matching stock;
 
 Provider doubles are marked simulated in `topology.json`. External sandbox
 acceptance remains #40; this harness does not claim production throughput.
+
+### Stock replay evidence
+
+`stock-contention` requires a freshly provisioned fixture. The runner generates
+`LOAD_RUN_ID` (or accepts an explicit unique value). Setup prepares independent
+buyer carts before consuming stock, places one anchor order, and passes only
+JSON body/cookie snapshots to VUs. `competingBuyer` places distinct orders;
+`repeatSubmit` restores the anchor cookies and submits the identical encoded
+body/key six times, requiring the original order redirect. Redirects are not
+followed into provider payment routes. DOM selectors read actual form controls,
+including the invoice type; missing fields and unsuccessful placement fail.
+
+The summary and JSONL console evidence use the run ID in their filenames.
+Cookies and checkout bodies are hashed, never included in evidence. The database
+oracle requires the same run ID, six identical replays and at least one successful
+competing placement. It ties each observed order/key/email to timestamps from this
+run, one line, one live hold and one inventory debit, the expected TWD amount,
+and no payment or credit entry. Global inventory conservation is checked as well.
+Old healthy database rows alone cannot satisfy this gate. The runner collects
+evidence and runs the oracle even when k6 fails, preserving its nonzero exit.
+
+The `load-replay` CI job provisions two app processes and a fresh database for
+both controls. Its negative control removes the actual replay function and must
+still produce fresh anchor/competing orders before the oracle rejects zero
+replays. This is pending-checkout acceptance only. It does not exercise Stripe
+or ECPay, provider doubles, capture/refund delivery, or dependency recovery.

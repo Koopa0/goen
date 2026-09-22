@@ -20,7 +20,7 @@ export const options = {
       exec: 'staffWork',
     },
   },
-  thresholds,
+  thresholds: { ...thresholds, checks: ['rate==1'] },
   tags: { profile: 'mixed-ops', seed: String(seed) },
 };
 
@@ -34,7 +34,7 @@ export default function () {
   getText('/');
   getText(`/p/${slugs.hot}`);
   addToCart(cookies, __ENV.LOAD_HOT_VARIANT_ID || 'a3330004-0000-4000-8000-000000000004', 1);
-  checkoutFlow(cookies, `mixed-${seed}-${__VU}-${__ITER}@goen.invalid`, '');
+  checkoutFlow(cookies, `mixed-${seed}-${__VU}-${__ITER}@goen.invalid`);
   sleep(0.5);
 }
 

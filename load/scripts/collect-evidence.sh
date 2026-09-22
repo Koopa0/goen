@@ -38,8 +38,10 @@ fi
 if [[ -f "$LOAD_DIR/evidence/topology.json" ]]; then
   cp "$LOAD_DIR/evidence/topology.json" "$OUT/topology.json"
 fi
-if [[ -f "$LOAD_DIR/evidence/${PROFILE}-${LOAD_SEED}.json" ]]; then
-  cp "$LOAD_DIR/evidence/${PROFILE}-${LOAD_SEED}.json" "$OUT/k6-summary.json"
+SUMMARY_ID="${LOAD_SEED}"
+if [[ "$PROFILE" == "stock-contention" ]]; then SUMMARY_ID="${LOAD_RUN_ID:?}"; fi
+if [[ -f "$LOAD_DIR/evidence/${PROFILE}-${SUMMARY_ID}.json" ]]; then
+  cp "$LOAD_DIR/evidence/${PROFILE}-${SUMMARY_ID}.json" "$OUT/k6-summary.json"
 fi
 
 cat >"$OUT/summary.txt" <<EOF

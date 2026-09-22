@@ -8,6 +8,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/koopa0/goen/load/oracle"
 )
 
@@ -40,40 +42,64 @@ func run(ctx context.Context, dbURL, profile, variant string, minSuccess int64) 
 	}
 	defer stop()
 
-	variantID, err := oracle.MustParseUUID(variant)
-	if err != nil {
+	if _, err := oracle.MustParseUUID(variant); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		return 2
 	}
 
-	if err := oracle.CheckNoDuplicateOrders(ctx, pool); err != nil {
+	if err := checkProfile(ctx, pool, profile, variant, minSuccess); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		return 1
 	}
 
-	switch profile {
-	case "stock-contention", "mixed-ops", "":
-		if err := oracle.CheckNoOversell(ctx, pool, variantID); err != nil {
-			fmt.Fprintln(os.Stderr, err.Error())
-			return 1
-		}
-	case "dependency-failure":
-		success, err := oracle.ParseRequiredCount("LOAD_ORACLE_SUCCESS_COUNT", os.Getenv("LOAD_ORACLE_SUCCESS_COUNT"))
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err.Error())
-			return 1
-		}
-		total, err := oracle.ParseRequiredCount("LOAD_ORACLE_TOTAL_COUNT", os.Getenv("LOAD_ORACLE_TOTAL_COUNT"))
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err.Error())
-			return 1
-		}
-		if err := oracle.DegradedWork(success, total, minSuccess); err != nil {
-			fmt.Fprintln(os.Stderr, err.Error())
-			return 1
-		}
-	}
-
 	slog.Info("load oracle passed", "profile", profile)
 	return 0
+}
+
+func checkStockEvidence(ctx context.Context, pool *pgxpool.Pool) error {
+	file, err := os.Open(os.Getenv("LOAD_STOCK_EVIDENCE")) //nolint:gosec // G304: explicit local load-run evidence input
+	if err != nil {
+		return fmt.Errorf("open stock evidence: %w", err)
+	}
+	defer file.Close()
+	run, err := oracle.ReadStockRun(file, os.Getenv("LOAD_RUN_ID"))
+	if err != nil {
+		return err
+	}
+	return oracle.CheckStockRun(ctx, pool, run)
+}
+
+func checkProfile(ctx context.Context, pool *pgxpool.Pool, profile, variant string, minSuccess int64) error {
+	variantID, err := oracle.MustParseUUID(variant)
+	if err != nil {
+		return err
+	}
+	if err := oracle.CheckNoDuplicateOrders(ctx, pool); err != nil {
+		return err
+	}
+	switch profile {
+	case "stock-contention":
+		if err := checkStockEvidence(ctx, pool); err != nil {
+			return err
+		}
+		return oracle.CheckNoOversell(ctx, pool, variantID)
+	case "mixed-ops", "":
+		return oracle.CheckNoOversell(ctx, pool, variantID)
+	case "dependency-failure":
+		return checkDegradedWork(minSuccess)
+	default:
+		return nil
+	}
+}
+
+func checkDegradedWork(minSuccess int64) error {
+	success, err := oracle.ParseRequiredCount("LOAD_ORACLE_SUCCESS_COUNT", os.Getenv("LOAD_ORACLE_SUCCESS_COUNT"))
+	if err != nil {
+		return err
+	}
+	total, err := oracle.ParseRequiredCount("LOAD_ORACLE_TOTAL_COUNT", os.Getenv("LOAD_ORACLE_TOTAL_COUNT"))
+	if err != nil {
+		return err
+	}
+	return oracle.DegradedWork(success, total, minSuccess)
 }

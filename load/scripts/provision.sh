@@ -82,7 +82,7 @@ cat >"$LOAD_DIR/evidence/topology.json" <<EOF
   "database_url_host": "127.0.0.1:${LOAD_DB_PORT}",
   "valkey_port": ${LOAD_VALKEY_PORT:-16379},
   "providers_simulated": {
-    "stripe": ${LOAD_STRIPE_SIMULATED:-1},
+    "stripe": ${LOAD_STRIPE_SIMULATED:-0},
     "ecpay": ${LOAD_ECPAY_SIMULATED:-0}
   }
 }

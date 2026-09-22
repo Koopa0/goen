@@ -7,72 +7,66 @@ export function jar() {
 }
 
 export function getText(path, params = {}) {
-  const res = http.get(`${baseURL}${path}`, {
-    tags: { name: path },
-    ...params,
-  });
+  const res = http.get(`${baseURL}${path}`, { tags: { name: path }, ...params });
   check(res, { [`${path} status 200`]: (r) => r.status === 200 });
   return res;
 }
 
-export function extractInput(html, name) {
-  const re = new RegExp(`name="${name}" value="([^"]*)"`, 'i');
-  const match = html.match(re);
-  return match ? match[1] : '';
-}
-
-export function extractCheckedRadio(html, name) {
-  const re = new RegExp(`name="${name}" value="([^"]*)" checked`, 'i');
-  const match = html.match(re);
-  return match ? match[1] : '';
-}
-
-export function addToCart(jar, variantID, quantity = 1) {
-  const res = http.post(
-    `${baseURL}/cart/items`,
-    { variant: variantID, quantity: String(quantity) },
-    { jar, tags: { name: 'POST /cart/items' } },
-  );
-  check(res, { 'add to cart redirects or ok': (r) => r.status === 200 || r.status === 303 });
+export function addToCart(cookies, variantID, quantity = 1) {
+  const res = http.post(`${baseURL}/cart/items`, { variant: variantID, quantity: String(quantity) }, {
+    jar: cookies, redirects: 0, tags: { name: 'POST /cart/items' },
+  });
+  if (!check(res, { 'cart addition redirects': (r) => r.status === 303 })) {
+    throw new Error(`cart precondition failed: HTTP ${res.status}`);
+  }
   return res;
 }
 
-export function checkoutFlow(jar, email, idempotencyKey) {
-  const page = http.get(`${baseURL}/checkout`, { jar, tags: { name: 'GET /checkout' } });
-  if (page.status !== 200) {
-    return { ok: false, status: page.status };
+export function prepareCheckout(cookies, email) {
+  const page = http.get(`${baseURL}/checkout`, { jar: cookies, redirects: 0, tags: { name: 'GET /checkout' } });
+  if (!check(page, { 'checkout form available': (r) => r.status === 200 })) {
+    throw new Error(`checkout precondition failed: HTTP ${page.status}`);
   }
-  const body = page.body;
-  const quote = extractInput(body, 'checkout_quote');
-  const attempt = extractInput(body, 'idempotency') || idempotencyKey;
-  const shipping = extractCheckedRadio(body, 'shipping');
-  if (!quote || !attempt || !shipping) {
-    return { ok: false, status: page.status, reason: 'missing checkout fields' };
+  const form = page.html('form[action="/checkout"]');
+  const value = (selector) => form.find(selector).first().attr('value') || '';
+  const quote = value('input[name="checkout_quote"]');
+  const attempt = value('input[name="idempotency"]');
+  const shipping = value('input[name="shipping"][checked]');
+  const invoice = value('input[name="invoice_type"][checked]');
+  if (!check(null, { 'checkout required fields present': () => Boolean(quote && attempt && shipping && invoice) })) {
+    throw new Error('checkout precondition failed: missing quote, attempt, shipping or invoice');
   }
   const payload = {
-    email,
-    name: 'Load Buyer',
-    phone: '0912345678',
-    postal_code: '110',
-    city: '台北市',
-    district: '信義區',
-    street: '松高路 1 號',
-    shipping,
-    checkout_quote: quote,
-    idempotency: attempt,
+    email, name: 'Load Buyer', phone: '0912345678', postal_code: '110',
+    city: '台北市', district: '信義區', street: '松高路 1 號',
+    shipping, invoice_type: invoice, checkout_quote: quote, idempotency: attempt,
   };
-  const res = http.post(`${baseURL}/checkout`, payload, {
-    jar,
+  const body = Object.keys(payload).sort().map((key) => `${encodeURIComponent(key)}=${encodeURIComponent(payload[key])}`).join('&');
+  return { body, idempotency: attempt, email, shipping };
+}
+
+export function submitCheckout(cookies, prepared) {
+  const res = http.post(`${baseURL}/checkout`, prepared.body, {
+    jar: cookies, redirects: 0,
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     tags: { name: 'POST /checkout' },
   });
-  const ok = res.status === 303 || res.status === 422;
-  return { ok, status: res.status, idempotency: attempt };
+  const location = res.headers.Location || '';
+  const match = /^\/orders\/(GO-[0-9]{6}-[0-9]{6})\/pay$/.exec(location);
+  return { ok: res.status === 303 && Boolean(match), status: res.status, order: match ? match[1] : '', location };
+}
+
+export function checkoutFlow(cookies, email) {
+  const prepared = prepareCheckout(cookies, email);
+  const result = submitCheckout(cookies, prepared);
+  // A validation response is not successful checkout work for mixed-ops.
+  if (!check(result, { 'checkout placed an order': (r) => r.ok })) {
+    throw new Error(`checkout placement failed: HTTP ${result.status}, location ${result.location}`);
+  }
+  return { ...prepared, ...result };
 }
 
 export function randomSlug(slugs, hotWeight = 0.6) {
-  if (Math.random() < hotWeight) {
-    return slugs.hot;
-  }
-  const fillers = slugs.fillers;
-  return fillers[Math.floor(Math.random() * fillers.length)];
+  if (Math.random() < hotWeight) return slugs.hot;
+  return slugs.fillers[Math.floor(Math.random() * slugs.fillers.length)];
 }
