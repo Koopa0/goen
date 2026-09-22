@@ -33,7 +33,7 @@ func TestCheckoutLostCreateReplyRecoversThroughTheSamePayment(t *testing.T) {
 	wantKey := payment.SessionKey(number, amount, 0)
 
 	var provider struct {
-		sync.Mutex
+		mu      sync.Mutex
 		healthy bool
 		keys    []string
 		objects map[string]bool
@@ -44,11 +44,11 @@ func TestCheckoutLostCreateReplyRecoversThroughTheSamePayment(t *testing.T) {
 		switch {
 		case r.Method == http.MethodPost && r.URL.Path == "/v1/checkout/sessions":
 			key := r.Header.Get("Idempotency-Key")
-			provider.Lock()
+			provider.mu.Lock()
 			provider.keys = append(provider.keys, key)
 			provider.objects[key] = true
 			healthy := provider.healthy
-			provider.Unlock()
+			provider.mu.Unlock()
 			if !healthy {
 				// The remote object exists before the TCP reply disappears.
 				conn, _, err := w.(http.Hijacker).Hijack()
@@ -150,10 +150,10 @@ func TestCheckoutLostCreateReplyRecoversThroughTheSamePayment(t *testing.T) {
 	if status, _ := post(path, nil, ""); status != http.StatusInternalServerError {
 		t.Fatalf("lost reply status=%d, want 500", status)
 	}
-	provider.Lock()
+	provider.mu.Lock()
 	firstCalls, firstObjects := len(provider.keys), len(provider.objects)
 	provider.healthy = true
-	provider.Unlock()
+	provider.mu.Unlock()
 	if firstCalls != 2 || firstObjects != 1 {
 		t.Fatalf("first logical mutation attempts/remote objects=%d/%d, want 2/1", firstCalls, firstObjects)
 	}
@@ -168,10 +168,10 @@ func TestCheckoutLostCreateReplyRecoversThroughTheSamePayment(t *testing.T) {
 			t.Fatalf("recovered payment response=%d %q, want same-session 303", status, location)
 		}
 	}
-	provider.Lock()
+	provider.mu.Lock()
 	keys := append([]string(nil), provider.keys...)
 	objects := len(provider.objects)
-	provider.Unlock()
+	provider.mu.Unlock()
 	if len(keys) != 3 || objects != 1 {
 		t.Fatalf("SDK attempts after recovery=%v remote objects=%d, want three calls and one object", keys, objects)
 	}
