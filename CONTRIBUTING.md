@@ -51,6 +51,12 @@ a change to it run `make db-reset`, which rebuilds and re-seeds. The symptom of
 not doing so is a back-office page answering 500 for a column that exists in
 the file and not in your database.
 
+`make migrate-up` records the migration fingerprint in the development database.
+`make run` checks it before starting, and `make db-check` checks it separately.
+A changed migration or an older database without a fingerprint refuses startup
+with an instruction to preserve any needed data and run `make db-reset`. The
+check never rebuilds a database; the deployed binary does not run this dev check.
+
 ## Run the tests
 
 ```sh

@@ -35,7 +35,7 @@ endif
         image image-push lint fmt fmt-check vet deadcode gen templ-check vuln \
         sqlc sqlc-check squawk db-up db-down migrate-up migrate-down db-seed \
         db-repair-invoice-faq db-repair-refund-faq \
-        cursor-scripts-check workflow-check verify verify-all check-layout db-reset clean
+        cursor-scripts-check workflow-check verify verify-all check-layout db-reset db-check dev-schema-check clean
 
 build: gen
 	go build -o bin/goen ./cmd/goen
@@ -45,7 +45,7 @@ build: gen
 # over the plain http:// this serves on — the cart would appear to lose itself
 # on every request. The default is secure, so forgetting this in a deployment
 # fails safe.
-run: gen
+run: db-check gen
 	GOEN_INSECURE_COOKIES=1 go run ./cmd/goen
 
 test: gen
@@ -624,7 +624,15 @@ db-down:
 
 migrate-up:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
-	$(MIGRATE) -path migrations -database "$$GOEN_DATABASE_URL" up
+	scripts/dev-schema.sh apply $(MIGRATE) -path migrations -database "$$GOEN_DATABASE_URL" up
+
+dev-schema-check:
+	bash -n scripts/dev-schema.sh scripts/dev-schema-test.sh scripts/dev-schema-mutation-test.sh scripts/dev-schema-database-test.sh
+	scripts/dev-schema-test.sh
+	scripts/dev-schema-mutation-test.sh
+
+db-check:
+	scripts/dev-schema.sh check
 
 migrate-down:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
@@ -924,7 +932,7 @@ workflow-check:
 	go test ./internal/db -run '^TestCI' -count=1
 	go test ./internal/db -run '^TestCommitAttribution' -count=1
 
-verify: workflow-check cursor-scripts-check fmt-check templ-check squawk sqlc-check vet deadcode lint production-build-check integration-build-check test-race
+verify: dev-schema-check workflow-check cursor-scripts-check fmt-check templ-check squawk sqlc-check vet deadcode lint production-build-check integration-build-check test-race
 	@echo 'verify: PASS (unit tests only — make verify-all adds the database suite)'
 
 # Everything verify runs plus the parts that need Docker and the network.
