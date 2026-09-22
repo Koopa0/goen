@@ -757,13 +757,26 @@ templ field(name, label, kind, value string, v *CheckoutView) {
 			if hints.SpellCheck != "" {
 				spellcheck={ hints.SpellCheck }
 			}
-			aria-invalid={ v.Invalid(name) }
+			if hints.Pattern != "" {
+				pattern={ hints.Pattern }
+				if !v.HasErr(name) {
+					data-checkout-constraint
+				}
+			}
+			if hints.MaxLength != "" {
+				maxlength={ hints.MaxLength }
+			}
 			if v.HasErr(name) {
+				aria-invalid="true"
+			}
+			if v.HasErr(name) || hints.Pattern != "" {
 				aria-describedby={ name + "-error" }
 			}
 		/>
 		if v.HasErr(name) {
 			<p class="ui-error-text" id={ name + "-error" }>{ v.Err(name) }</p>
+		} else if hints.Pattern != "" {
+			<p class="ui-error-text goen-field__constraint" id={ name + "-error" }>{ i18n.T(ctx, hints.ConstraintMessage) }</p>
 		}
 	</div>
 }

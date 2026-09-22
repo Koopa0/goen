@@ -1512,6 +1512,49 @@ const CART_PROBE = `(() => {
   };
 })()`;
 
+// Exercise the checkout's actual inputs: native validity and the blur feedback
+// must agree before an order can leave this form.
+async function checkoutConstraintFeedback(label) {
+  const initial = await evalPage(`(() => {
+    const field = document.getElementById('postal_code');
+    const message = document.getElementById('postal_code-error');
+    if (!field || !message) return { ok: false };
+    field.focus();
+    field.select();
+    return { ok: true, hidden: getComputedStyle(message).display === 'none' };
+  })()`);
+  if (!initial.ok || !initial.hidden) {
+    fail(label, 'checkout postal constraint feedback is missing or starts visible');
+    return;
+  }
+  await send(ws, 'Input.insertText', { text: 'abc' });
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
+  const checked = await evalPage(`(() => {
+    const field = document.getElementById('postal_code');
+    const message = document.getElementById('postal_code-error');
+    const refused = !field.validity.valid && field.getAttribute('aria-invalid') === 'true' && getComputedStyle(message).display !== 'none';
+    field.value = '001';
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    const recovered = field.validity.valid && field.getAttribute('aria-invalid') !== 'true' && getComputedStyle(message).display === 'none';
+    const lengths = ['city', 'district'].every(id => {
+      const input = document.getElementById(id);
+      if (!input) return false;
+      const saved = input.value;
+      input.value = String.fromCodePoint(0x20000).repeat(20);
+      const twenty = input.validity.valid;
+      input.value += String.fromCodePoint(0x20000);
+      const twentyOne = input.validity.valid;
+      input.value = saved;
+      return twenty && !twentyOne;
+    });
+    return { ok: true, refused, recovered, lengths };
+  })()`);
+  if (!checked.ok || !checked.refused || !checked.recovered || !checked.lengths) {
+    fail(label, 'checkout constraints failed: ' + JSON.stringify(checked));
+  }
+}
+
 for (const want of [...CART, ...PAGES]) {
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: want.width, height: want.height, deviceScaleFactor: 1, mobile: want.width < 768,
@@ -1547,6 +1590,7 @@ for (const want of [...CART, ...PAGES]) {
   }
   console.log(`${at.padEnd(16)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
     `controls=${got.controls} tap=${got.minTap}`);
+  if (want.path === '/checkout') await checkoutConstraintFeedback(at);
 }
 
 // The comparison table. CART_PROBE's marker-only check is not enough: the
