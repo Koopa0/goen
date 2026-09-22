@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"golang.org/x/net/html"
+
 	"github.com/koopa0/goen/internal/i18n"
 )
 
@@ -67,7 +69,7 @@ func TestWishlistUsesSignInNavigationUntilAuthenticated(t *testing.T) {
 					t.Fatalf("signedIn=%t: wishlist mutation form availability disagrees with authentication", signedIn)
 				}
 				if !signedIn {
-					if !strings.Contains(html, `href="/signin?next=/p/sample-product"`) || !strings.Contains(html, i18n.T(ctx, i18n.KeyWishlistSignIn)) {
+					if wishlistSignInDestination(t, html, i18n.T(ctx, i18n.KeyWishlistSignIn)) != "/signin?next=/p/sample-product" {
 						t.Fatal("guest wishlist lacks explicit sign-in link returning to the product")
 					}
 					if strings.Contains(html, `aria-label="`+i18n.T(ctx, i18n.KeyWishlistAdd)+`"`) || strings.Contains(html, `aria-label="`+i18n.T(ctx, i18n.KeyWishlistRemove)+`"`) {
@@ -84,4 +86,24 @@ func TestWishlistUsesSignInNavigationUntilAuthenticated(t *testing.T) {
 			}
 		}
 	}
+}
+
+func wishlistSignInDestination(t *testing.T, raw, label string) string {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	link := findDescendant(doc, func(n *html.Node) bool {
+		if n.Type != html.ElementNode || n.Data != "a" {
+			return false
+		}
+		return findDescendant(n, func(child *html.Node) bool {
+			return child.Type == html.TextNode && strings.TrimSpace(child.Data) == label
+		}) != nil
+	})
+	if link == nil {
+		t.Fatal("guest wishlist lacks its visible sign-in link")
+	}
+	return attrValue(link, "href")
 }
