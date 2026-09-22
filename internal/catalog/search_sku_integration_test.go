@@ -79,6 +79,13 @@ func TestSearchSKUsRankAndPaginateWithoutDuplicateProducts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	for _, page := range [][]pages.ProductTile{first.Products, second.Products} {
+		for _, product := range page {
+			if product.Slug == privateSlug {
+				t.Fatal("SKU search exposed a non-public product")
+			}
+		}
+	}
 	if first.Total != int64(len(slugs)) || len(first.Products) != catalog.PageSize || len(second.Products) != 1 {
 		t.Fatalf("SKU pagination total=%d first=%d second=%d", first.Total, len(first.Products), len(second.Products))
 	}
@@ -94,9 +101,6 @@ func TestSearchSKUsRankAndPaginateWithoutDuplicateProducts(t *testing.T) {
 	seen := map[string]bool{}
 	for _, page := range [][]string{skuResultSlugs(first.Products), skuResultSlugs(second.Products)} {
 		for _, slug := range page {
-			if slug == privateSlug {
-				t.Fatal("SKU search exposed a non-public product")
-			}
 			if seen[slug] {
 				t.Errorf("product %s is duplicated across SKU results", slug)
 			}
