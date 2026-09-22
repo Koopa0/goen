@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/ratelimit"
 )
@@ -69,7 +70,7 @@ func TestCheckoutDonationAndCitizenChoiceRoundTripWithoutScript(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := s.Add(ctx, id, freshVariant(t, "invoice-form-"+tt.kind), 1); err != nil {
+			if err := s.Add(ctx, id, freshVariant(t, "invoice-form-"+strings.ReplaceAll(tt.kind, "_", "-")), 1); err != nil {
 				t.Fatal(err)
 			}
 			h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)

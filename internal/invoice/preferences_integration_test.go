@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 )
 
@@ -14,15 +15,22 @@ func TestNewInvoicePreferencesSurviveCanonicalSnapshotAndIssue(t *testing.T) {
 		t.Run(string(preference), func(t *testing.T) {
 			ctx := t.Context()
 			var seen issueRequest
+			var providerMu sync.Mutex
+			invoiceNumber := []string{"PC12345678", "PD12345678"}[at]
 			number := orderToInvoiceFor(t, 10000, 0, 0, preference, "Buyer", "")
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				providerMu.Lock()
+				defer providerMu.Unlock()
 				switch r.URL.Path {
 				case "/B2CInvoice/GetIssue":
-					replyNoIssue(t, w)
+					if seen.RelateNumber == "" {
+						replyNoIssue(t, w)
+					} else {
+						replyIssueLookup(t, w, &seen, invoiceNumber, "1234", false)
+					}
 				case "/B2CInvoice/Issue":
 					seen = openIssue(t, r)
-					invoiceNumber := []string{"PC12345678", "PD12345678"}[at]
-					reply(t, w, result{RtnCode: 1, InvoiceNo: invoiceNumber, InvoiceDate: "2026-08-07 10:30:00", RandomNumber: "1234"})
+					reply(t, w, result{RtnCode: 1, InvoiceNo: invoiceNumber, InvoiceDate: "2026-08-21 10:00:00", RandomNumber: "1234"})
 				default:
 					t.Errorf("unexpected provider path %s", r.URL.Path)
 					http.NotFound(w, r)
@@ -47,12 +55,15 @@ func TestNewInvoicePreferencesSurviveCanonicalSnapshotAndIssue(t *testing.T) {
 			if frozen.Preference != preference {
 				t.Fatalf("snapshot preference %q", frozen.Preference)
 			}
+			providerMu.Lock()
+			captured := seen
+			providerMu.Unlock()
 			if preference == PreferenceDonate {
-				if frozen.DonationCode != "00123" || seen.Donation != "1" || seen.LoveCode != "00123" || seen.CarrierT != "" {
-					t.Fatalf("donation snapshot/wire = %+v / %+v", frozen, seen)
+				if frozen.DonationCode != "00123" || captured.Donation != "1" || captured.LoveCode != "00123" || captured.CarrierT != "" {
+					t.Fatalf("donation snapshot/wire = %+v / %+v", frozen, captured)
 				}
-			} else if frozen.CarrierCode != "AB12345678901234" || seen.CarrierT != "2" || seen.CarrierNum != frozen.CarrierCode {
-				t.Fatalf("citizen snapshot/wire = %+v / %+v", frozen, seen)
+			} else if frozen.CarrierCode != "AB12345678901234" || captured.CarrierT != "2" || captured.CarrierNum != frozen.CarrierCode {
+				t.Fatalf("citizen snapshot/wire = %+v / %+v", frozen, captured)
 			}
 		})
 	}
