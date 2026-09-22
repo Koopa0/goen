@@ -9,7 +9,20 @@ The oneshot reads `/etc/goen/restore.env`, separately from the storefront's
 `/etc/goen/demo.env`. Start from [restore.env.example](restore.env.example) and
 supply a separately authorized database owner/restore login. Do not give the
 storefront, admin, reporting or maintenance roles DDL privileges. This proposal
-creates no database role and changes no grants.
+creates no deployment database role and changes no application grants.
+
+The schema CI job runs `scripts/check-demo-restore-database.py` in its own
+PostgreSQL container, with no published port or shared database. It loads this
+revision's migration, builds custom-format snapshots, and runs the production
+restore script using a fixture-only `restore_owner` login. That login owns the
+destination database, is not a superuser, and has no role memberships. The drill
+checks successful data replacement, then a real CHECK failure during COPY and
+the rollback of earlier changes. Removing the production transaction flag must
+fail the same data-preservation assertion; the original script must pass again.
+The artifact records source and dump hashes, identity, ownership, before/after
+rows, command exits and PostgreSQL logs. Only `systemctl` is simulated, and its
+record proves requested stop/start ordering, not the state of a real service.
+CI fixture execution does not authorize or attest a deployment identity.
 
 Before stopping `goen.service`, the script verifies the database connection's
 session identity and the custom-format snapshot's table of contents. Restore
