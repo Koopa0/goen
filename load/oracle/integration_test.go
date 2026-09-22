@@ -296,7 +296,7 @@ func TestStockRunRequiresFreshSingleEffects(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = oracle.CheckStockRun(ctx, pool, run)
+			err = oracle.CheckStockRun(ctx, pool, &run)
 			if mutation == "none" && err != nil {
 				t.Fatal(err)
 			}

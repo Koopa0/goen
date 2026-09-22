@@ -52,7 +52,7 @@ type StockRun struct {
 var runIDPattern = regexp.MustCompile(`^[A-Za-z0-9-]{8,80}$`)
 var digestPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
 var attemptPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{22}$`)
-var orderPattern = regexp.MustCompile(`^GO-[0-9]{6}-[0-9]{6}$`)
+var orderPattern = regexp.MustCompile(`^GO-\d{6}-\d{6}$`)
 
 // ReadStockRun rejects incomplete, mixed-run or identity-changing evidence.
 func ReadStockRun(reader io.Reader, runID string) (StockRun, error) {
@@ -69,7 +69,7 @@ func ReadStockRun(reader io.Reader, runID string) (StockRun, error) {
 		if event.RunID != runID {
 			return run, errors.New("oracle: checkout evidence belongs to another run")
 		}
-		if err := run.add(event); err != nil {
+		if err := run.add(&event); err != nil {
 			return run, err
 		}
 	}
@@ -85,7 +85,7 @@ func ReadStockRun(reader io.Reader, runID string) (StockRun, error) {
 	return run, nil
 }
 
-func (run *StockRun) add(event checkoutEvidence) error {
+func (run *StockRun) add(event *checkoutEvidence) error {
 	if event.Kind == evidenceStart {
 		return run.begin(event)
 	}
@@ -107,36 +107,36 @@ func (run *StockRun) add(event checkoutEvidence) error {
 	}
 }
 
-func (run *StockRun) begin(event checkoutEvidence) error {
+func (run *StockRun) begin(event *checkoutEvidence) error {
 	if !run.start.StartedAt.IsZero() || event.StartedAt.IsZero() || event.Buyers < 2 || event.Buyers > 40 || event.Replays != 6 {
 		return errors.New("oracle: invalid or repeated run start")
 	}
-	run.start = event
+	run.start = *event
 	return nil
 }
 
-func (run *StockRun) addAnchor(event checkoutEvidence) error {
+func (run *StockRun) addAnchor(event *checkoutEvidence) error {
 	if run.anchor.Order != "" || event.Email != "load-"+event.RunID+"-replay@goen.invalid" {
 		return errors.New("oracle: invalid or repeated anchor")
 	}
-	run.anchor = event
-	run.placements = append(run.placements, event)
+	run.anchor = *event
+	run.placements = append(run.placements, *event)
 	return nil
 }
 
-func (run *StockRun) addBuyer(event checkoutEvidence) error {
+func (run *StockRun) addBuyer(event *checkoutEvidence) error {
 	if run.anchor.Order == "" || run.attempts[event.Email] || !run.buyerEmail(event.Email) || event.Key == run.anchor.Key {
 		return errors.New("oracle: invalid or repeated buyer")
 	}
 	run.attempts[event.Email] = true
 	if event.Kind == evidencePlacement {
-		run.placements = append(run.placements, event)
+		run.placements = append(run.placements, *event)
 	}
 	return nil
 }
 
-func (run *StockRun) addReplay(event checkoutEvidence) error {
-	if !event.sameCheckout(run.anchor) || event.ReplayIndex < 0 || event.ReplayIndex >= 6 || run.replays[event.ReplayIndex] {
+func (run *StockRun) addReplay(event *checkoutEvidence) error {
+	if !event.sameCheckout(&run.anchor) || event.ReplayIndex < 0 || event.ReplayIndex >= 6 || run.replays[event.ReplayIndex] {
 		return errors.New("oracle: replay changed checkout identity or repeated an index")
 	}
 	run.replays[event.ReplayIndex] = true
@@ -152,7 +152,7 @@ func (run *StockRun) buyerEmail(email string) bool {
 	return false
 }
 
-func (event checkoutEvidence) validateIdentity() error {
+func (event *checkoutEvidence) validateIdentity() error {
 	if !attemptPattern.MatchString(event.Key) || !digestPattern.MatchString(event.BodyHash) || !digestPattern.MatchString(event.CookieHash) || event.VariantID != FlashSaleVariantID.String() || event.Quantity != 1 || event.TotalCents != 107000 {
 		return errors.New("oracle: invalid checkout identity")
 	}
@@ -166,14 +166,14 @@ func (event checkoutEvidence) validateIdentity() error {
 	return nil
 }
 
-func (event checkoutEvidence) sameCheckout(other checkoutEvidence) bool {
+func (event *checkoutEvidence) sameCheckout(other *checkoutEvidence) bool {
 	return event.Key == other.Key && event.Email == other.Email && event.Order == other.Order && event.BodyHash == other.BodyHash && event.CookieHash == other.CookieHash
 }
 
 // CheckStockRun ties each observed success to fresh database effects. Pending
 // checkout must have exactly one hold and no provider or credit posting.
-func CheckStockRun(ctx context.Context, pool *pgxpool.Pool, run StockRun) error {
-	if pool == nil || len(run.placements) < 2 || len(run.replays) != 6 {
+func CheckStockRun(ctx context.Context, pool *pgxpool.Pool, run *StockRun) error {
+	if pool == nil || run == nil || len(run.placements) < 2 || len(run.replays) != 6 {
 		return errors.New("oracle: complete stock run and database are required")
 	}
 	var count int
@@ -184,7 +184,8 @@ func CheckStockRun(ctx context.Context, pool *pgxpool.Pool, run StockRun) error 
 		return fmt.Errorf("oracle: run has %d orders, want %d observed placements", count, len(run.placements))
 	}
 	orders, keys := make(map[string]bool), make(map[string]bool)
-	for _, event := range run.placements {
+	for i := range run.placements {
+		event := &run.placements[i]
 		if orders[event.Order] || keys[event.Key] {
 			return errors.New("oracle: distinct placements reused an order or key")
 		}
@@ -196,7 +197,7 @@ func CheckStockRun(ctx context.Context, pool *pgxpool.Pool, run StockRun) error 
 	return nil
 }
 
-func checkPlacement(ctx context.Context, pool *pgxpool.Pool, started time.Time, event checkoutEvidence) error {
+func checkPlacement(ctx context.Context, pool *pgxpool.Pool, started time.Time, event *checkoutEvidence) error {
 	var valid bool
 	err := pool.QueryRow(ctx, `SELECT
   o.placed_at >= $4 AND o.fulfillment_status = 'pending' AND o.currency = 'TWD'

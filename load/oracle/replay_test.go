@@ -13,7 +13,8 @@ type evidenceOrder struct{ number, key string }
 
 func stockEvidence(t *testing.T, runID string, started time.Time, orders []evidenceOrder) string {
 	t.Helper()
-	records := []map[string]any{{"kind": "start", "run_id": runID, "started_at": started, "buyers": 2, "replays": 6}}
+	records := make([]map[string]any, 0, 1+len(orders)+1+6)
+	records = append(records, map[string]any{"kind": "start", "run_id": runID, "started_at": started, "buyers": 2, "replays": 6})
 	for i, order := range orders {
 		kind, buyer := "placement", "0"
 		if i == 0 {
@@ -65,6 +66,7 @@ func TestReadStockRun(t *testing.T) {
 		"repeated replay":                   evidence + lines[4] + "\n",
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			if _, err := oracle.ReadStockRun(strings.NewReader(bad), runID); err == nil {
 				t.Fatal("incomplete or changed run accepted")
 			}

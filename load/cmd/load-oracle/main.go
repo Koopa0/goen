@@ -61,12 +61,15 @@ func checkStockEvidence(ctx context.Context, pool *pgxpool.Pool) error {
 	if err != nil {
 		return fmt.Errorf("open stock evidence: %w", err)
 	}
-	defer file.Close()
-	run, err := oracle.ReadStockRun(file, os.Getenv("LOAD_RUN_ID"))
-	if err != nil {
-		return err
+	run, readErr := oracle.ReadStockRun(file, os.Getenv("LOAD_RUN_ID"))
+	closeErr := file.Close()
+	if readErr != nil {
+		return readErr
 	}
-	return oracle.CheckStockRun(ctx, pool, run)
+	if closeErr != nil {
+		return fmt.Errorf("close stock evidence: %w", closeErr)
+	}
+	return oracle.CheckStockRun(ctx, pool, &run)
 }
 
 func checkProfile(ctx context.Context, pool *pgxpool.Pool, profile, variant string, minSuccess int64) error {

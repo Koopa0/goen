@@ -37,6 +37,14 @@ function snapshot(cookies) {
   return Object.keys(values).sort().map((name) => ({ name, value: values[name][0] }));
 }
 
+// Setup data reaches VUs as Go-backed objects, whose property enumeration is
+// not an identity. Arrays keep every cookie value without object-key ordering.
+function cookieIdentity(values) {
+  const entries = values.map((cookie) => [cookie.name, cookie.value]);
+  entries.sort((left, right) => left[0] < right[0] ? -1 : left[0] > right[0] ? 1 : 0);
+  return JSON.stringify(entries);
+}
+
 function restore(values) {
   const cookies = new http.CookieJar();
   values.forEach((cookie) => cookies.set(baseURL, cookie.name, cookie.value, { path: '/' }));
@@ -56,7 +64,7 @@ function evidence(kind, prepared, result, extra = {}) {
     kind, run_id: runID, key: prepared.idempotency, email: prepared.email,
     order: result.order, variant_id: variantID, quantity: 1,
     total_cents: 107000, body_hash: crypto.sha256(prepared.body, 'hex'),
-    cookie_hash: crypto.sha256(JSON.stringify(prepared.cookies), 'hex'), ...extra,
+    cookie_hash: crypto.sha256(cookieIdentity(prepared.cookies), 'hex'), ...extra,
   }));
 }
 
@@ -88,7 +96,7 @@ export function repeatSubmit(data) {
   require(data && data.anchor && data.anchor.order, 'replay anchor exists');
   const prepared = data.anchor;
   const cookies = restore(prepared.cookies);
-  require(JSON.stringify(snapshot(cookies)) === JSON.stringify(prepared.cookies), 'replay restores identical cookies');
+  require(cookieIdentity(snapshot(cookies)) === cookieIdentity(prepared.cookies), 'replay restores identical cookies');
   const result = submitCheckout(cookies, prepared);
   require(result.ok && result.order === prepared.order, 'replay returned the original order');
   replaySuccess.add(1);
