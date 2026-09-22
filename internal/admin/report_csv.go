@@ -44,15 +44,15 @@ func bestSellerCSV(view *pages.AdminReportView) ([]byte, error) {
 	// an ANSI code page; all field quoting still belongs to encoding/csv.
 	out.WriteString("\xef\xbb\xbf")
 	writer := csv.NewWriter(&out)
-	rows := [][]string{{"window_days", "product_slug", "product_name", "brand", "units", "gross_merchandise_cents"}}
+	rows := make([][]string, 0, 1+len(view.Sellers))
+	rows = append(rows, []string{"window_days", "product_slug", "product_name", "brand", "units", "gross_merchandise_cents"})
 	for _, seller := range view.Sellers {
 		rows = append(rows, []string{
 			strconv.Itoa(view.Days), csvText(seller.Slug), csvText(seller.Name), csvText(seller.Brand),
 			strconv.FormatInt(seller.Units, 10), strconv.FormatInt(seller.RevenueCents, 10),
 		})
 	}
-	writer.WriteAll(rows)
-	if err := writer.Error(); err != nil {
+	if err := writer.WriteAll(rows); err != nil {
 		return nil, fmt.Errorf("write best sellers CSV: %w", err)
 	}
 	return out.Bytes(), nil

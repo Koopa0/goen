@@ -20,7 +20,7 @@ func TestReportCSVMatchesTheSelectedQueryWindow(t *testing.T) {
 		id := reportOrder(t, 100, false)
 		_, err := pool.Exec(ctx, `
             UPDATE order_lines SET variant_id = (SELECT id FROM product_variants ORDER BY id LIMIT 1),
-                quantity = 1001 WHERE order_id = $1;
+                quantity = 999 WHERE order_id = $1;
         `, id)
 		if err != nil {
 			t.Fatal(err)
@@ -29,10 +29,10 @@ func TestReportCSVMatchesTheSelectedQueryWindow(t *testing.T) {
 			t.Fatal(err)
 		}
 		ref := "csv_" + id.String()
-		if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, 100100)`, id, ref); err != nil {
+		if _, err := pool.Exec(ctx, `SELECT open_payment($1, $2, 99900)`, id, ref); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := pool.Exec(ctx, `SELECT capture_payment($1, 100100, NULL, NULL)`, ref); err != nil {
+		if _, err := pool.Exec(ctx, `SELECT capture_payment($1, 99900, NULL, NULL)`, ref); err != nil {
 			t.Fatal(err)
 		}
 	}
