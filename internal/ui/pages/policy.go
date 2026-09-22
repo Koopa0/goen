@@ -49,6 +49,23 @@ type FAQItem struct {
 	Answer   string
 }
 
+// SectionID is the anchor one section answers to. A policy section has no
+// identifier of its own — the documents are prose in internal/site — so the
+// position in the document is what names it, and the contents list above is
+// built from the same numbers.
+func (d PolicyDoc) SectionID(i int) string {
+	return "doc-section-" + strconv.Itoa(i+1)
+}
+
+// SectionHref is the same anchor as a link.
+func (d PolicyDoc) SectionHref(i int) string { return "#" + d.SectionID(i) }
+
+// faqGroupID names one category the same way, for the same reason.
+func faqGroupID(i int) string { return "faq-group-" + strconv.Itoa(i+1) }
+
+// faqGroupHref is that anchor as a link.
+func faqGroupHref(i int) string { return "#" + faqGroupID(i) }
+
 // FAQGroup is the questions under one heading.
 type FAQGroup struct {
 	Category string

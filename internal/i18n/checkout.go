@@ -24,14 +24,6 @@ var (
 		En:     "Placing the order reserves the stock. Payment comes next.",
 	})
 
-	KeySelectPlaceholder = key("checkout.select", Message{ZhHant: "請選擇", En: "Choose one"})
-
-	KeyPickupHint = key("checkout.pickup.hint", Message{
-		ZhHant: "店號和店名可以在超商官網的門市查詢找到,或問店員。",
-		En: "The store number and name are on the chain's own store finder, or ask at " +
-			"the counter.",
-	})
-
 	KeyZoneSurcharge = key("checkout.zone.surcharge", Message{
 		ZhHant: "%s加價(已含)",
 		En:     "%s surcharge (included)",
@@ -64,6 +56,35 @@ var (
 	KeyFieldNote = key("field.note", Message{ZhHant: "備註(選填)", En: "Note (optional)"})
 
 	KeyFieldPickupBrand = key("field.pickup.brand", Message{ZhHant: "超商", En: "Convenience store"})
+
+	KeyPickupChooseStore = key("pickup.choose", Message{ZhHant: "選擇門市", En: "Choose a store"})
+
+	KeyPickupChangeStore = key("pickup.change", Message{ZhHant: "變更門市", En: "Change the store"})
+
+	KeyPickupReturning = key("pickup.returning", Message{
+		ZhHant: "正在返回結帳…",
+		En:     "Returning to the checkout…",
+	})
+
+	KeyPickupReturnLink = key("pickup.return.link", Message{
+		ZhHant: "繼續結帳",
+		En:     "Continue to the checkout",
+	})
+
+	KeyPickupStoreUnconfirmed = key("pickup.unconfirmed", Message{
+		ZhHant: "無法確認這家門市是不是你剛才挑的,請再選一次。",
+		En:     "That store could not be confirmed as the one you picked. Choose it again.",
+	})
+
+	KeyPickupStoreUnreadable = key("pickup.unreadable", Message{
+		ZhHant: "門市資料無法讀取",
+		En:     "That store could not be read",
+	})
+
+	KeyPickupStoreRequired = key("valid.pickup.store", Message{
+		ZhHant: "請選擇取貨門市",
+		En:     "Choose the store to collect from",
+	})
 
 	KeyFieldStoreCode = key("field.pickup.code", Message{ZhHant: "門市店號", En: "Store number"})
 
@@ -138,6 +159,13 @@ var (
 		En:     "Update",
 	})
 
+	// The control beside the coupon field. It applies a code without placing the
+	// order, so it says what it does rather than borrowing the choosers' 更新.
+	KeyApplyCoupon = key("checkout.coupon.apply", Message{
+		ZhHant: "套用",
+		En:     "Apply",
+	})
+
 	KeyCreditChanged = key("checkout.credit.changed", Message{
 		ZhHant: "可用購物金已變更為 %s。請確認後再送出一次。",
 		En:     "Your available store credit changed to %s. Check it and submit again.",
@@ -196,11 +224,6 @@ var (
 	KeyStoreCodeMalformed = key("valid.pickup.code", Message{
 		ZhHant: "店號需為 1 到 10 碼數字或英文字母",
 		En:     "A store number is 1 to 10 digits or letters",
-	})
-
-	KeyStoreNameRequired = key("valid.pickup.name.required", Message{
-		ZhHant: "請填寫門市名稱",
-		En:     "Enter the store name",
 	})
 
 	KeyStoreNameTooLong = key("valid.pickup.name.toolong", Message{

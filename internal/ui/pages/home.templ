@@ -5,31 +5,39 @@ import (
 
 	"github.com/koopa0/goen/assets"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
-// Home renders the storefront home page.
+// Home renders the storefront home page: the hero, the categories, what the
+// shop recommends, and what it guarantees. Four sections and no more.
 templ Home(p layouts.Page, v HomeView) {
 	@layouts.Base(p) {
 		<div class="goen-home">
 			<section class="goen-hero" aria-labelledby="hero-heading">
 				<div class="goen-hero__body">
 					if v.Hero.Eyebrow != "" {
-						<span class="ui-badge ui-badge--brand">{ v.Hero.Eyebrow }</span>
+						@components.Badge(components.BadgeProps{Class: "goen-hero__eyebrow"}) {
+							{ v.Hero.Eyebrow }
+						}
 					}
-					<h1 id="hero-heading" class="h1 goen-hero__title">{ v.Hero.Headline }</h1>
+					<h1 id="hero-heading" class="goen-hero__title">{ v.Hero.Headline }</h1>
 					if v.Hero.Body != "" {
 						<p class="goen-hero__lede">{ v.Hero.Body }</p>
 					}
 					<div class="goen-hero__actions">
 						if v.Hero.PrimaryCTA.Shown() {
-							<a class="ui-btn ui-btn--primary ui-btn--lg" href={ templ.SafeURL(v.Hero.PrimaryCTA.Href) }>
+							// ui-btn is kept beside the goen- recipe on these two: the
+							// home page's whole tap sweep is `.goen-cat` plus
+							// `.goen-hero__actions .ui-btn` (check-layout.mjs:479), and
+							// dropping the name would stop the buttons being measured.
+							<a class="goen-btn goen-btn--primary goen-btn--lg ui-btn" href={ templ.SafeURL(v.Hero.PrimaryCTA.Href) }>
 								{ v.Hero.PrimaryCTA.Label }
 							</a>
 						}
 						if v.Hero.SecondaryCTA.Shown() {
-							<a class="ui-btn ui-btn--secondary ui-btn--lg" href={ templ.SafeURL(v.Hero.SecondaryCTA.Href) }>
+							<a class="goen-btn goen-btn--outline goen-btn--lg ui-btn" href={ templ.SafeURL(v.Hero.SecondaryCTA.Href) }>
 								{ v.Hero.SecondaryCTA.Label }
 							</a>
 						}
@@ -41,8 +49,12 @@ templ Home(p layouts.Page, v HomeView) {
 							class="goen-hero__image"
 							src={ assets.MediaURL(v.Hero.ImageKey) }
 							srcset={ assets.ProductImageSrcsetAt(v.Hero.ImageKey, v.Hero.ImageWidth) }
-							sizes="(min-width: 1344px) 640px, (min-width: 1024px) calc((100vw - 64px) / 2), (min-width: 768px) calc(100vw - 48px), calc(100vw - 32px)"
+							sizes="(min-width: 1344px) 592px, (min-width: 1024px) calc((100vw - 96px) / 2), (min-width: 768px) calc(100vw - 48px), calc(100vw - 32px)"
 							alt={ v.Hero.ImageAlt }
+							if v.Hero.HasImageDimensions() {
+								width={ v.Hero.ImageWidthText() }
+								height={ v.Hero.ImageHeightText() }
+							}
 							decoding="async"
 							fetchpriority="high"
 						/>
@@ -51,7 +63,7 @@ templ Home(p layouts.Page, v HomeView) {
 							class="goen-hero__image"
 							src={ assets.URL(assets.HomeHeroImage) }
 							srcset={ assets.HomeHeroSrcset() }
-							sizes="(min-width: 1344px) 640px, (min-width: 1024px) calc((100vw - 64px) / 2), (min-width: 768px) calc(100vw - 48px), calc(100vw - 32px)"
+							sizes="(min-width: 1344px) 592px, (min-width: 1024px) calc((100vw - 96px) / 2), (min-width: 768px) calc(100vw - 48px), calc(100vw - 32px)"
 							alt=""
 							width="1440"
 							height="900"
@@ -63,8 +75,8 @@ templ Home(p layouts.Page, v HomeView) {
 					}
 				</div>
 			</section>
-			<section class="goen-cats" aria-labelledby="cats-heading">
-				<h2 id="cats-heading" class="h3 goen-section__title">{ i18n.T(ctx, i18n.KeySectionCategories) }</h2>
+			<section class="goen-home__section" aria-labelledby="cats-heading">
+				<h2 id="cats-heading" class="goen-home__heading">{ i18n.T(ctx, i18n.KeySectionCategories) }</h2>
 				<ul class="goen-cats__grid" role="list">
 					for _, c := range v.Categories {
 						<li>
@@ -78,17 +90,17 @@ templ Home(p layouts.Page, v HomeView) {
 					}
 				</ul>
 			</section>
-			<section class="goen-tiles" aria-labelledby="rec-heading">
-				<h2 id="rec-heading" class="h3 goen-section__title">{ i18n.T(ctx, i18n.KeySectionRecommended) }</h2>
+			<section class="goen-home__section" aria-labelledby="rec-heading">
+				<h2 id="rec-heading" class="goen-home__heading">{ i18n.T(ctx, i18n.KeySectionRecommended) }</h2>
 				<ul class="goen-tiles__grid" role="list">
 					for _, t := range v.Recommended {
 						@Tile(t)
 					}
 				</ul>
 			</section>
-			<section class="goen-trust" aria-labelledby="trust-heading">
+			<section class="goen-home__section" aria-labelledby="trust-heading">
 				<h2 id="trust-heading" class="goen-sr-only">{ i18n.T(ctx, i18n.KeySectionTrust) }</h2>
-				<div class="ui-incentives">
+				<div class="goen-trust__grid">
 					@incentive(icons.Shield(), i18n.T(ctx, i18n.KeyGuaranteeWarranty), i18n.T(ctx, i18n.KeyTrustWarrantyBody))
 					if v.FreeDelivery() != "" {
 						@incentive(icons.Truck(), fmt.Sprintf(i18n.T(ctx, i18n.KeyGuaranteeShipping), v.FreeDelivery()), fmt.Sprintf(i18n.T(ctx, i18n.KeyTrustShippingBody), v.LowestFee()))
@@ -102,13 +114,13 @@ templ Home(p layouts.Page, v HomeView) {
 }
 
 templ incentive(icon templ.Component, title, desc string) {
-	<div class="ui-incentive">
-		<span class="ui-incentive__icon">
-			@icon
-		</span>
-		<div>
-			<h3 class="ui-incentive__title">{ title }</h3>
-			<p class="ui-incentive__desc">{ desc }</p>
+	<div class="goen-trust__item">
+		<div class="goen-trust__head">
+			<span class="goen-trust__icon">
+				@icon
+			</span>
+			<h3 class="goen-trust__title">{ title }</h3>
 		</div>
+		<p class="goen-trust__body">{ desc }</p>
 	</div>
 }
