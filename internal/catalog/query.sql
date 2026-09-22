@@ -192,8 +192,14 @@ WHERE p.status = 'active'
                   OR coalesce(ps.value_en, '') ILIKE @pattern::text)
        ))
 ORDER BY
-    -- A name match outranks a summary or brand match. Either name counts.
-    (p.name ILIKE @pattern::text OR coalesce(p.name_en, '') ILIKE @pattern::text) DESC,
+    -- Field relevance is explicit; repeated words, sales and ratings do not change it.
+    CASE
+        WHEN p.name ILIKE @exact_pattern::text OR coalesce(p.name_en, '') ILIKE @exact_pattern::text THEN 4
+        WHEN p.name ILIKE @pattern::text OR coalesce(p.name_en, '') ILIKE @pattern::text THEN 3
+        WHEN b.name ILIKE @pattern::text THEN 2
+        WHEN coalesce(p.summary, '') ILIKE @pattern::text OR coalesce(p.summary_en, '') ILIKE @pattern::text THEN 1
+        ELSE 0
+    END DESC,
     p.published_at DESC, p.id DESC
 LIMIT @page_size::integer OFFSET @page_offset::integer;
 
