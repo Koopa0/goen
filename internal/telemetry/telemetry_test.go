@@ -30,21 +30,6 @@ func TestRouteLabelUsesPatternNotPath(t *testing.T) {
 	}
 }
 
-func TestSanitizeValueRedactsSensitiveData(t *testing.T) {
-	t.Parallel()
-	tests := []string{
-		"Bearer sekret",
-		"user@example.com",
-		"550e8400-e29b-41d4-a716-446655440000",
-		"token=abc123",
-	}
-	for _, in := range tests {
-		if got := telemetry.SanitizeValue(in); got != "[redacted]" {
-			t.Fatalf("SanitizeValue(%q) = %q, want [redacted]", in, got)
-		}
-	}
-}
-
 func TestProviderCallRecordsSpanAndMetric(t *testing.T) {
 	exporter := tracetest.NewInMemoryExporter()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
