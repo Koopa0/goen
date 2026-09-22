@@ -71,27 +71,19 @@ func smallBudgets() []Budget {
 }
 
 func largeBudgets() []Budget {
-	// Ceilings target sqlc production reads on the 10k fixture in testcontainers
-	// (2026-09-15): each route budget covers list and count reads separately.
-	// Warm values envelope the max of three retained warm EXPLAIN samples plus
-	// shared-runner variance headroom; cold values envelope the first post-ANALYZE
-	// sample on the same SQL.
-	//
-	// home_recommended warm: local max-of-3 ~107ms on this fixture; GitHub Actions
-	// shared-runner peak 434ms (schema CI 2026-09-15).
-	// home_recommended cold: local first-post-ANALYZE ~191ms; GitHub Actions peak 482ms.
-	// search_name_latin warm: local max-of-3 ~130ms with occasional ~141ms variance.
+	// A slow retained sample is a query regression to investigate, not a new
+	// ceiling. Changes to these reference targets require an owner ruling.
 	return []Budget{
-		{Route: RouteHomeRecommended, WarmMaxMS: 450, ColdMaxMS: 500, MinRows: 1, MaxRows: 8},
+		{Route: RouteHomeRecommended, WarmMaxMS: 100, ColdMaxMS: 500, MinRows: 1, MaxRows: 8},
 		{Route: RouteHomeCategories, WarmMaxMS: 5, ColdMaxMS: 20, MinRows: 6, MaxRows: 8},
-		{Route: RouteCategoryListing, WarmMaxMS: 300, ColdMaxMS: 220, MinRows: 1, MaxRows: 24},
-		{Route: RouteCategoryFiltered, WarmMaxMS: 145, ColdMaxMS: 110, MinRows: 0, MaxRows: 24},
-		{Route: RouteCategoryPriceAsc, WarmMaxMS: 200, ColdMaxMS: 235, MinRows: 1, MaxRows: 24},
-		{Route: RouteCategoryDeepPage, WarmMaxMS: 250, ColdMaxMS: 255, MinRows: 0, MaxRows: 24},
-		{Route: RouteSearchNameLatin, WarmMaxMS: 340, ColdMaxMS: 330, MinRows: 1, MaxRows: 24},
-		{Route: RouteSearchBrand, WarmMaxMS: 150, ColdMaxMS: 220, MinRows: 1, MaxRows: 24},
-		{Route: RouteSearchChinese, WarmMaxMS: 75, ColdMaxMS: 115, MinRows: 24, MaxRows: 24},
-		{Route: RouteSearchNoMatch, WarmMaxMS: 65, ColdMaxMS: 75, MinRows: 0, MaxRows: 0},
+		{Route: RouteCategoryListing, WarmMaxMS: 25, ColdMaxMS: 50, MinRows: 1, MaxRows: 24},
+		{Route: RouteCategoryFiltered, WarmMaxMS: 25, ColdMaxMS: 50, MinRows: 0, MaxRows: 24},
+		{Route: RouteCategoryPriceAsc, WarmMaxMS: 25, ColdMaxMS: 50, MinRows: 1, MaxRows: 24},
+		{Route: RouteCategoryDeepPage, WarmMaxMS: 25, ColdMaxMS: 50, MinRows: 0, MaxRows: 24},
+		{Route: RouteSearchNameLatin, WarmMaxMS: 50, ColdMaxMS: 80, MinRows: 1, MaxRows: 24},
+		{Route: RouteSearchBrand, WarmMaxMS: 40, ColdMaxMS: 60, MinRows: 1, MaxRows: 24},
+		{Route: RouteSearchChinese, WarmMaxMS: 50, ColdMaxMS: 80, MinRows: 24, MaxRows: 24},
+		{Route: RouteSearchNoMatch, WarmMaxMS: 40, ColdMaxMS: 60, MinRows: 0, MaxRows: 0},
 	}
 }
 
