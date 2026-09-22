@@ -45,7 +45,7 @@ func TestStaffNoteHTTPRecordsOperationsWithoutContent(t *testing.T) {
 		{"", "order.note.clear"},
 	} {
 		started := time.Now().Add(-time.Second)
-		req := httptest.NewRequest(http.MethodPost, "/admin/orders/"+number+"/note", strings.NewReader(url.Values{"note": {step.note}}.Encode())).WithContext(ctx)
+		req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/orders/"+number+"/note", strings.NewReader(url.Values{"note": {step.note}}.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.SetPathValue("number", number)
 		w := httptest.NewRecorder()
