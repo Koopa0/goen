@@ -77,10 +77,14 @@ WITH inactive AS (
 )
 INSERT INTO product_variants (product_id, sku, price_cents, is_active)
 SELECT id, 'PAGE-INACTIVE', 100, false FROM inactive;
-INSERT INTO product_specs (product_id, label, value_en, value)
-SELECT id, 'page boundary', 'needle-spec', 'fixture' FROM products WHERE slug = 'scale-00001';
-INSERT INTO product_specs (product_id, label, value_en, value)
-SELECT id, 'second boundary', 'needle-spec', 'fixture' FROM products WHERE slug = 'scale-00001';
+INSERT INTO product_specs (product_id, label, value_en, value, position)
+SELECT p.id, 'page boundary', 'needle-spec', 'fixture',
+    coalesce((SELECT max(s.position) + 1 FROM product_specs s WHERE s.product_id = p.id), 0)
+FROM products p WHERE p.slug = 'scale-00001';
+INSERT INTO product_specs (product_id, label, value_en, value, position)
+SELECT p.id, 'second boundary', 'needle-spec', 'fixture',
+    coalesce((SELECT max(s.position) + 1 FROM product_specs s WHERE s.product_id = p.id), 0)
+FROM products p WHERE p.slug = 'scale-00001';
 UPDATE products SET name = 'needle-order', name_en = 'localized needle-order',
     summary = 'first fixture', summary_en = NULL, published_at = now() - interval '1 day'
 WHERE slug = 'scale-00001';
