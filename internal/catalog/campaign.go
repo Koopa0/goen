@@ -15,8 +15,8 @@ import (
 	"github.com/koopa0/goen/internal/ui/pages"
 )
 
-// MaxCampaigns bounds how many running promotions a page lists.
-const MaxCampaigns = 6
+// CampaignPageSize bounds one page of running promotions.
+const CampaignPageSize = 6
 
 // Campaign reads a running promotion and what it features. One outside its
 // window is ErrNotFound rather than an empty page.
@@ -45,24 +45,29 @@ func (s *Store) Campaign(ctx context.Context, slug string) (pages.CampaignView, 
 	}, nil
 }
 
-// RunningCampaigns is every promotion on right now, for a page that lists them.
-func (s *Store) RunningCampaigns(ctx context.Context) ([]pages.CampaignSummary, error) {
+// RunningCampaigns reads one page of promotions and the total needed to reach all of them.
+func (s *Store) RunningCampaigns(ctx context.Context, page int) (pages.CampaignPage, error) {
+	total, err := s.q.RunningCampaignsCount(ctx)
+	if err != nil {
+		return pages.CampaignPage{}, fmt.Errorf("count campaigns: %w", err)
+	}
+	page = max(1, min(page, maxPage, max(1, int((total+CampaignPageSize-1)/CampaignPageSize))))
+	view := pages.CampaignPage{Page: page, Total: total, PageSize: CampaignPageSize}
+	//nolint:gosec // G115: page is bounded to maxPage above.
 	rows, err := s.q.RunningCampaigns(ctx, db.RunningCampaignsParams{
-		Limit: MaxCampaigns, Locale: string(i18n.FromContext(ctx)),
+		PageSize: CampaignPageSize, PageOffset: int32((page - 1) * CampaignPageSize), Locale: string(i18n.FromContext(ctx)),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("read campaigns: %w", err)
+		return pages.CampaignPage{}, fmt.Errorf("read campaigns: %w", err)
 	}
-	out := make([]pages.CampaignSummary, 0, len(rows))
 	for i := range rows {
 		c := &rows[i]
-		out = append(out, pages.CampaignSummary{
+		view.Rows = append(view.Rows, pages.CampaignSummary{
 			Slug: c.Slug, Title: c.Title, Products: c.Products,
-			EndsAt: shoptime.Minute(c.EndsAt),
-			EndsIn: humanRemaining(ctx, c.RemainingSeconds),
+			EndsAt: shoptime.Minute(c.EndsAt), EndsIn: humanRemaining(ctx, c.RemainingSeconds),
 		})
 	}
-	return out, nil
+	return view, nil
 }
 
 // humanRemaining keeps the database result as an integer: a schema-valid

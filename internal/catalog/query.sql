@@ -338,8 +338,12 @@ SELECT c.id, c.slug, localized_name(c.title, c.title_en, @locale::text) AS title
        (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products
 FROM sale_campaigns c
 WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
-ORDER BY c.ends_at
-LIMIT $1;
+ORDER BY c.ends_at, c.id
+LIMIT @page_size::integer OFFSET @page_offset::integer;
+
+-- name: RunningCampaignsCount :one
+SELECT count(*)::bigint FROM sale_campaigns
+WHERE is_active AND starts_at <= now() AND ends_at > now();
 
 -- Ordered by the position the back office set: a campaign is merchandising.
 -- name: CampaignProducts :many
