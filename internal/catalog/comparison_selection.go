@@ -56,7 +56,7 @@ func (h *Handler) changeComparison(w http.ResponseWriter, r *http.Request, actio
 	http.Redirect(w, r, next, http.StatusSeeOther)
 }
 
-func (h *Handler) updatedComparison(ctx context.Context, selected []string, slug string, action comparisonAction) ([]string, string, error) {
+func (h *Handler) updatedComparison(ctx context.Context, selected []string, slug string, action comparisonAction) (selection []string, outcome string, resultErr error) {
 	if action == compareClear {
 		return nil, string(action), nil
 	}

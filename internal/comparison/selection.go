@@ -44,6 +44,7 @@ func Read(r *http.Request) []string {
 
 func Write(w http.ResponseWriter, slugs []string, secure bool) {
 	selected, _ := Normalize(slugs)
+	//nolint:gosec // G124: Secure follows the deployment flag; plain HTTP requires the explicit development opt-out.
 	cookie := &http.Cookie{Name: CookieName, Value: strings.Join(selected, ","), Path: "/", Secure: secure, HttpOnly: true, SameSite: http.SameSiteLaxMode}
 	if len(selected) == 0 {
 		cookie.MaxAge = -1

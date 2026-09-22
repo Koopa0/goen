@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -274,5 +273,3 @@ func boundedSlugs(raw []string) []string {
 	selected, _ := comparison.Normalize(raw)
 	return selected
 }
-
-var slugFormat = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)

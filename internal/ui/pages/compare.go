@@ -115,9 +115,9 @@ func (v CompareView) ProductHref(slug string) string {
 // RemoveHref is the comparison without one product.
 func (v CompareView) RemoveHref(slug string) string {
 	var remaining []string
-	for _, product := range v.Products {
-		if product.Slug != slug {
-			remaining = append(remaining, product.Slug)
+	for i := range v.Products {
+		if v.Products[i].Slug != slug {
+			remaining = append(remaining, v.Products[i].Slug)
 		}
 	}
 	return comparison.Href(remaining)
@@ -125,8 +125,8 @@ func (v CompareView) RemoveHref(slug string) string {
 
 func (v CompareView) Slugs() []string {
 	slugs := make([]string, 0, len(v.Products))
-	for _, product := range v.Products {
-		slugs = append(slugs, product.Slug)
+	for i := range v.Products {
+		slugs = append(slugs, v.Products[i].Slug)
 	}
 	return slugs
 }
@@ -134,8 +134,8 @@ func (v CompareView) Slugs() []string {
 func (v CompareView) ShareHref() string { return comparison.Href(v.Slugs()) }
 func (v CompareView) Full() bool        { return len(v.Products) >= comparison.Max }
 func (v CompareView) Contains(slug string) bool {
-	for _, product := range v.Products {
-		if product.Slug == slug {
+	for i := range v.Products {
+		if v.Products[i].Slug == slug {
 			return true
 		}
 	}
