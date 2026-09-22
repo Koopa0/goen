@@ -55,7 +55,7 @@ func TestPointsPaginationKeepsWholeSpendsAndOlderClawbacksReachable(t *testing.T
 	seen := map[string]bool{}
 	target := "/account/points"
 	clawbackSeen := false
-	for page := 0; page < 3; page++ {
+	for page := range 3 {
 		u, err := url.Parse(target)
 		if err != nil {
 			t.Fatal(err)
