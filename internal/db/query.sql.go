@@ -6615,6 +6615,23 @@ func (q *Queries) LockHeroAppendPosition(ctx context.Context) error {
 	return err
 }
 
+const lockOrderForAdvance = `-- name: LockOrderForAdvance :one
+SELECT id, fulfillment_status FROM orders WHERE order_number = $1 FOR UPDATE
+`
+
+type LockOrderForAdvanceRow struct {
+	ID                uuid.UUID
+	FulfillmentStatus string
+}
+
+// Lock before reading the prior state so concurrent completion cannot duplicate arrival mail.
+func (q *Queries) LockOrderForAdvance(ctx context.Context, orderNumber string) (LockOrderForAdvanceRow, error) {
+	row := q.db.QueryRow(ctx, lockOrderForAdvance, orderNumber)
+	var i LockOrderForAdvanceRow
+	err := row.Scan(&i.ID, &i.FulfillmentStatus)
+	return i, err
+}
+
 const lockPaymentProviderRef = `-- name: LockPaymentProviderRef :exec
 SELECT lock_payment_provider_ref('stripe', $1::text)
 `
@@ -12360,6 +12377,33 @@ func (q *Queries) TOTPCredential(ctx context.Context, userID uuid.UUID) (TOTPCre
 	row := q.db.QueryRow(ctx, tOTPCredential, userID)
 	var i TOTPCredentialRow
 	err := row.Scan(&i.SecretEncrypted, &i.ConfirmedAt, &i.LastStep)
+	return i, err
+}
+
+const terminalOrderRecipient = `-- name: TerminalOrderRecipient :one
+SELECT o.order_number, o.locale, pd.email, pd.recipient_name
+FROM orders o
+JOIN order_private_data pd ON pd.order_id = o.id
+WHERE o.id = $1 AND pd.erased_at IS NULL
+`
+
+type TerminalOrderRecipientRow struct {
+	OrderNumber   string
+	Locale        string
+	Email         pgtype.Text
+	RecipientName pgtype.Text
+}
+
+// Delivery reads current private data so an erasure cannot be undone by a queued address.
+func (q *Queries) TerminalOrderRecipient(ctx context.Context, id uuid.UUID) (TerminalOrderRecipientRow, error) {
+	row := q.db.QueryRow(ctx, terminalOrderRecipient, id)
+	var i TerminalOrderRecipientRow
+	err := row.Scan(
+		&i.OrderNumber,
+		&i.Locale,
+		&i.Email,
+		&i.RecipientName,
+	)
 	return i, err
 }
 
