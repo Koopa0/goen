@@ -24,7 +24,7 @@ func terminalNotice(t *testing.T, id uuid.UUID, want ordernotice.Kind) {
 	t.Helper()
 	var payload []byte
 	if err := pool.QueryRow(t.Context(), `SELECT payload FROM outbox_messages WHERE topic=$1 AND dedupe_key=$2`, outbox.TopicOrderTerminal, id.String()+":"+string(want)).Scan(&payload); err != nil {
-		t.Fatal(err)
+		t.Fatalf("missing terminal notice: %v", err)
 	}
 	var fields map[string]string
 	if err := json.Unmarshal(payload, &fields); err != nil {
