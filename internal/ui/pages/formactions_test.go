@@ -16,6 +16,7 @@ import (
 // Both arms of conditional actions matter; strings copied from routes would
 // leave a broken method invisible to the route gate.
 func methodFormActions(t *testing.T) map[string][]string {
+	t.Helper()
 	product := &pages.AdminProductView{Slug: "product"}
 	newProduct := &pages.AdminProductView{IsNew: true}
 	pdp := &pages.ProductView{Slug: "product"}
@@ -58,7 +59,7 @@ func methodFormActions(t *testing.T) map[string][]string {
 // production assignment instead of duplicating the two URLs in fixtures.
 func newsletterFormActions(t *testing.T) []string {
 	t.Helper()
-	file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(repoRoot(t), "internal/newsletter/handler.go"), nil, 0)
+	file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(repoRoot(t), "internal", "newsletter", "handler.go"), nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
