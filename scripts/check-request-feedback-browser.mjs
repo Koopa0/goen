@@ -112,21 +112,25 @@ try {
       const menu = await evaluate(`(async () => {
         const menu = document.querySelector('[data-menu]');
         if (!menu || !CSS.supports('selector(details::details-content)') || !document.startViewTransition) throw new Error('Chrome cannot measure the required native motion surfaces');
-        menu.querySelector('summary').click();
+        const visible = menu.getBoundingClientRect().width > 0;
+        if (visible) menu.querySelector('summary').click();
         const duration = getComputedStyle(menu, '::details-content').transitionDuration;
         const transition = document.startViewTransition(() => { document.body.dataset.feedbackProof = 'changed'; });
         await transition.ready;
         const animation = getComputedStyle(document.documentElement, '::view-transition-new(root)').animationName;
         transition.skipTransition();
         await transition.finished;
-        return { open: menu.open, duration, animation };
+        return { visible, open: menu.open, duration, animation };
       })()`);
       const reduced = motion === 'reduce';
-      check(`menu_${reduced ? 'reduce' : 'normal'}_${width}`, menu.open && (reduced ? menu.duration === '0s' : parseFloat(menu.duration) > 0), menu);
+      if (width === 375) check(`menu_${reduced ? 'reduce' : 'normal'}_${width}`, menu.visible && menu.open && (reduced ? menu.duration === '0s' : parseFloat(menu.duration) > 0), menu);
+      else check(`desktop_menu_hidden_${reduced ? 'reduce' : 'normal'}`, !menu.visible && !menu.open, menu);
       check(`transition_${reduced ? 'reduce' : 'normal'}_${width}`, reduced ? menu.animation === 'none' : menu.animation !== 'none', menu);
-      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
-      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
-      check(`focus_${reduced ? 'reduce' : 'normal'}_${width}`, await evaluate(`(() => { const menu = document.querySelector('[data-menu]'); return !menu.open && document.activeElement === menu.querySelector('summary'); })()`));
+      if (width === 375) {
+        await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+        await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+        check(`focus_${reduced ? 'reduce' : 'normal'}_${width}`, await evaluate(`(() => { const menu = document.querySelector('[data-menu]'); return !menu.open && document.activeElement === menu.querySelector('summary'); })()`));
+      }
     }
 
     await send('Emulation.setScriptExecutionDisabled', { value: true });

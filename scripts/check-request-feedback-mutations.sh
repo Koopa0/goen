@@ -98,7 +98,11 @@ expected = ['served_js', 'served_css', 'probe_completed']
 for width in (375, 1440):
     expected += [f'pending_{width}', f'cleanup_{width}', f'noscript_{width}']
     for motion in ('normal', 'reduce'):
-        expected += [f'menu_{motion}_{width}', f'transition_{motion}_{width}', f'focus_{motion}_{width}']
+        expected += [f'transition_{motion}_{width}']
+        if width == 375:
+            expected += [f'menu_{motion}_{width}', f'focus_{motion}_{width}']
+        else:
+            expected += [f'desktop_menu_hidden_{motion}']
 for phase in ('baseline', 'restored'):
     records = []
     for line in (Path(sys.argv[1]) / f'{phase}.jsonl').read_text().splitlines():
