@@ -141,12 +141,12 @@ func TestInvoiceClaimAndCancellationSerialize(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer func() { _ = first.Rollback(context.WithoutCancel(ctx)) }()
-			if _, err := first.Exec(ctx, `SET LOCAL ROLE admin`); err != nil {
-				t.Fatal(err)
+			if _, roleErr := first.Exec(ctx, `SET LOCAL ROLE admin`); roleErr != nil {
+				t.Fatal(roleErr)
 			}
 			var firstPID int32
-			if err := first.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&firstPID); err != nil {
-				t.Fatal(err)
+			if queryErr := first.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&firstPID); queryErr != nil {
+				t.Fatal(queryErr)
 			}
 			if claimFirst {
 				_, err = first.Exec(ctx, `SELECT claim_invoice_issue($1, $2, $3)`, number, filingActor, uuid.NewString())
@@ -288,21 +288,21 @@ func TestInvoiceSettlementLocksOrderBeforeOperation(t *testing.T) {
 	}
 	defer func() { _ = first.Rollback(context.WithoutCancel(ctx)) }()
 	var firstPID int32
-	if err := first.QueryRow(ctx, `SELECT pg_backend_pid() FROM orders WHERE order_number = $1 FOR UPDATE`, number).Scan(&firstPID); err != nil {
-		t.Fatal(err)
+	if queryErr := first.QueryRow(ctx, `SELECT pg_backend_pid() FROM orders WHERE order_number = $1 FOR UPDATE`, number).Scan(&firstPID); queryErr != nil {
+		t.Fatal(queryErr)
 	}
 	second, err := pool.Acquire(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer second.Release()
-	if _, err := second.Exec(ctx, `SET ROLE admin`); err != nil {
-		t.Fatal(err)
+	if _, roleErr := second.Exec(ctx, `SET ROLE admin`); roleErr != nil {
+		t.Fatal(roleErr)
 	}
 	defer func() { _, _ = second.Exec(context.WithoutCancel(ctx), `RESET ROLE`) }()
 	var secondPID int32
-	if err := second.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&secondPID); err != nil {
-		t.Fatal(err)
+	if queryErr := second.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&secondPID); queryErr != nil {
+		t.Fatal(queryErr)
 	}
 	done := make(chan error, 1)
 	go func() {
