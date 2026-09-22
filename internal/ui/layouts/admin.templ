@@ -272,13 +272,15 @@ templ adminNav(current string) {
 							aria-current="page"
 						}
 					>{ i18n.T(ctx, i18n.KeyAdminPageFAQ) }</a>
-					<a
-						class="ui-navitem"
-						href="/admin/staff"
-						if current == "staff" {
-							aria-current="page"
-						}
-					>{ i18n.T(ctx, i18n.KeyAdminQueueStaff) }</a>
+					if isAdmin(ctx) {
+						<a
+							class="ui-navitem"
+							href="/admin/staff"
+							if current == "staff" {
+								aria-current="page"
+							}
+						>{ i18n.T(ctx, i18n.KeyAdminQueueStaff) }</a>
+					}
 				</div>
 			</details>
 			<details
