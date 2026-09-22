@@ -6909,6 +6909,13 @@ h4,
 /* The one-time secret. Monospace and grouped, because it is being copied
    character by character into a phone, and losing your place is how a mistyped
    secret becomes an authenticator that never works. */
+.goen-twofa__qr {
+  width: 256px;
+  max-width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+}
+
 .goen-twofa__secret {
   display: flex;
   flex-wrap: wrap;
