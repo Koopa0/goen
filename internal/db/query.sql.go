@@ -12063,6 +12063,24 @@ func (q *Queries) SpendPasswordResetToken(ctx context.Context, tokenHash []byte)
 	return user_id, err
 }
 
+const staffInvitationRecipient = `-- name: StaffInvitationRecipient :one
+SELECT email, coalesce(full_name, '') AS full_name
+FROM users WHERE id = $1 AND role IN ('staff', 'admin')
+`
+
+type StaffInvitationRecipientRow struct {
+	Email    string
+	FullName string
+}
+
+// A queued invitation is no longer wanted after revocation or erasure.
+func (q *Queries) StaffInvitationRecipient(ctx context.Context, id uuid.UUID) (StaffInvitationRecipientRow, error) {
+	row := q.db.QueryRow(ctx, staffInvitationRecipient, id)
+	var i StaffInvitationRecipientRow
+	err := row.Scan(&i.Email, &i.FullName)
+	return i, err
+}
+
 const staffTOTPStatus = `-- name: StaffTOTPStatus :many
 SELECT u.id, u.email, coalesce(u.full_name, '') AS full_name, u.role,
        (c.confirmed_at IS NOT NULL)::boolean AS enrolled

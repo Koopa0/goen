@@ -79,3 +79,8 @@ var (
 
 	KeyAdminAddButton = key("admin.add.button", Message{ZhHant: "新增", En: "Add"})
 )
+
+var (
+	KeyMailStaffInvitationSubject = key("mail.staff.invitation.subject", Message{ZhHant: "你已獲邀使用 goen 後台", En: "You have been invited to the goen back office"})
+	KeyMailStaffInvitationBody    = key("mail.staff.invitation.body", Message{ZhHant: "管理員已為你開通後台權限。你可使用既有帳號登入；若需要設定密碼，請使用此信箱透過「忘記密碼」完成信箱確認，再依畫面完成兩階段驗證：%s", En: "An administrator has granted you back-office access. You can sign in with your existing account. If you need to set a password, use this email address with Forgot password, then follow the two-factor setup instructions: %s"})
+)
