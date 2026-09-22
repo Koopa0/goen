@@ -26,14 +26,14 @@ MUTANTS = [
         "before": b"if delta := comparison.NewSurcharge - comparison.OldSurcharge; delta != 0 {",
         "after": b"if delta := comparison.NewSurcharge - comparison.OldSurcharge; delta < 0 {",
         "fail": {DIRECTIONS, DIRECTIONS + "/increase"},
-        "assertions": {DIRECTIONS + "/increase": "correction error=<nil> change=<nil>"},
+        "assertions": {DIRECTIONS + "/increase": "correction error=<nil> change=admin: delivery surcharge changes"},
     },
     {
         "label": "negative-delta-accepted",
         "before": b"if delta := comparison.NewSurcharge - comparison.OldSurcharge; delta != 0 {",
         "after": b"if delta := comparison.NewSurcharge - comparison.OldSurcharge; delta > 0 {",
         "fail": {DIRECTIONS, DIRECTIONS + "/decrease"},
-        "assertions": {DIRECTIONS + "/decrease": "correction error=<nil> change=<nil>"},
+        "assertions": {DIRECTIONS + "/decrease": "correction error=<nil> change=admin: delivery surcharge changes"},
     },
     {
         "label": "frozen-charge-substituted-for-current-quote",
