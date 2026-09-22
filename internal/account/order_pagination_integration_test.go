@@ -66,33 +66,40 @@ func TestAccountOrdersReachEveryOlderOrderWithoutJavaScript(t *testing.T) {
 			t.Fatal("next page is not a plain link")
 		}
 		if page == 0 {
-			next, err := url.Parse(v.OrdersNext)
-			if err != nil {
-				t.Fatal(err)
-			}
-			before, err := s.Overview(ctx, owner, next.Query().Get("after"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			placeOrderFor(t, owner.ID)
-			after, err := s.Overview(ctx, owner, next.Query().Get("after"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if before.Orders[0].Number != after.Orders[0].Number {
-				t.Fatal("new order displaced the next page")
-			}
-			theirs, err := s.Overview(ctx, other, next.Query().Get("after"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(theirs.Orders) != 0 {
-				t.Fatal("another account's cursor exposed orders")
-			}
+			assertOrderCursorSurvivesInsertion(t, s, owner, other, v.OrdersNext)
 		}
 		target = v.OrdersNext
 	}
 	if len(seen) != 41 || target != "" {
 		t.Fatalf("reached %d original orders; final next=%q", len(seen), target)
+	}
+}
+
+func assertOrderCursorSurvivesInsertion(t *testing.T, s *account.Store, owner, other account.User, target string) {
+	t.Helper()
+	ctx := t.Context()
+
+	next, err := url.Parse(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := s.Overview(ctx, owner, next.Query().Get("after"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	placeOrderFor(t, owner.ID)
+	after, err := s.Overview(ctx, owner, next.Query().Get("after"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before.Orders[0].Number != after.Orders[0].Number {
+		t.Fatal("new order displaced the next page")
+	}
+	theirs, err := s.Overview(ctx, other, next.Query().Get("after"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(theirs.Orders) != 0 {
+		t.Fatal("another account's cursor exposed orders")
 	}
 }
