@@ -10893,19 +10893,20 @@ func (q *Queries) RunningCampaign(ctx context.Context, arg RunningCampaignParams
 }
 
 const runningCampaigns = `-- name: RunningCampaigns :many
-SELECT c.id, c.slug, localized_name(c.title, c.title_en, $2::text) AS title,
+SELECT c.id, c.slug, localized_name(c.title, c.title_en, $1::text) AS title,
        c.ends_at,
        extract(epoch FROM (c.ends_at - now()))::bigint AS remaining_seconds,
        (SELECT count(*) FROM sale_campaign_products p WHERE p.campaign_id = c.id)::bigint AS products
 FROM sale_campaigns c
 WHERE c.is_active AND c.starts_at <= now() AND c.ends_at > now()
-ORDER BY c.ends_at
-LIMIT $1
+ORDER BY c.ends_at, c.id
+LIMIT $3::integer OFFSET $2::integer
 `
 
 type RunningCampaignsParams struct {
-	Limit  int32
-	Locale string
+	Locale     string
+	PageOffset int32
+	PageSize   int32
 }
 
 type RunningCampaignsRow struct {
@@ -10918,7 +10919,7 @@ type RunningCampaignsRow struct {
 }
 
 func (q *Queries) RunningCampaigns(ctx context.Context, arg RunningCampaignsParams) ([]RunningCampaignsRow, error) {
-	rows, err := q.db.Query(ctx, runningCampaigns, arg.Limit, arg.Locale)
+	rows, err := q.db.Query(ctx, runningCampaigns, arg.Locale, arg.PageOffset, arg.PageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -10942,6 +10943,18 @@ func (q *Queries) RunningCampaigns(ctx context.Context, arg RunningCampaignsPara
 		return nil, err
 	}
 	return items, nil
+}
+
+const runningCampaignsCount = `-- name: RunningCampaignsCount :one
+SELECT count(*)::bigint FROM sale_campaigns
+WHERE is_active AND starts_at <= now() AND ends_at > now()
+`
+
+func (q *Queries) RunningCampaignsCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, runningCampaignsCount)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const savedAddresses = `-- name: SavedAddresses :many

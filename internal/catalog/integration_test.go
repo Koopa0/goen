@@ -517,11 +517,11 @@ func TestRunningCampaignCountdownUsesTheDatabaseClock(t *testing.T) {
 	// passes ends_at, only a countdown derived by the same database clock that
 	// admitted the row remains positive.
 	time.Sleep(1100 * time.Millisecond)
-	campaigns, err := catalog.NewStore(tx).RunningCampaigns(ctx)
+	campaigns, err := catalog.NewStore(tx).RunningCampaigns(ctx, 1)
 	if err != nil {
 		t.Fatalf("running campaigns: %v", err)
 	}
-	for _, got := range campaigns {
+	for _, got := range campaigns.Rows {
 		if got.Slug == slug {
 			if got.EndsIn == "" {
 				t.Fatal("database still considers the campaign running, but its countdown is empty")

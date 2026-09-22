@@ -197,7 +197,7 @@ type SearchView struct {
 	Total     int64
 	Page      int
 	PageSize  int
-	Campaigns []CampaignSummary
+	Campaigns CampaignPage
 	Path      string
 }
 
@@ -239,8 +239,15 @@ func (v SearchView) NextHref() string { return v.PageHref(v.Page + 1) }
 // PageHref builds a search URL.
 func (v SearchView) PageHref(n int) string {
 	if v.Path != "" {
+		q := url.Values{}
 		if n > 1 {
-			return v.Path + "?page=" + strconv.Itoa(n)
+			q.Set("page", strconv.Itoa(n))
+		}
+		if v.Campaigns.Page > 1 {
+			q.Set("campaign_page", strconv.Itoa(v.Campaigns.Page))
+		}
+		if len(q) > 0 {
+			return v.Path + "?" + q.Encode()
 		}
 		return v.Path
 	}
@@ -255,4 +262,19 @@ func (v SearchView) PageText() string  { return strconv.Itoa(v.Page) }
 func (v SearchView) PagesText() string { return strconv.Itoa(v.Pages()) }
 
 // HasCampaigns reports whether any promotion is running.
-func (v SearchView) HasCampaigns() bool { return len(v.Campaigns) > 0 }
+func (v SearchView) HasCampaigns() bool { return len(v.Campaigns.Rows) > 0 }
+
+func (v SearchView) CampaignPageHref(page int) string {
+	q := url.Values{}
+	if v.Page > 1 {
+		q.Set("page", strconv.Itoa(v.Page))
+	}
+	if page > 1 {
+		q.Set("campaign_page", strconv.Itoa(page))
+	}
+	href := "/deals"
+	if len(q) > 0 {
+		href += "?" + q.Encode()
+	}
+	return href + "#campaigns"
+}

@@ -26,7 +26,20 @@ templ Deals(p layouts.Page, v SearchView) {
 				}
 			</div>
 			if v.HasCampaigns() {
-				@campaignStrip(v.Campaigns)
+				<section id="campaigns">
+					@campaignStrip(v.Campaigns.Rows)
+					if v.Campaigns.Pages() > 1 {
+						<nav class="goen-pager" aria-label={ i18n.T(ctx, i18n.KeyCampaignPagination) }>
+							if v.Campaigns.Page > 1 {
+								<a class="goen-btn goen-btn--outline goen-btn--sm" href={ templ.URL(v.CampaignPageHref(v.Campaigns.Page - 1)) }>{ i18n.T(ctx, i18n.KeyPrevPage) }</a>
+							}
+							<span class="goen-pager__at">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignPageCount), v.Campaigns.Page, v.Campaigns.Pages()) }</span>
+							if v.Campaigns.Page < v.Campaigns.Pages() {
+								<a class="goen-btn goen-btn--outline goen-btn--sm" href={ templ.URL(v.CampaignPageHref(v.Campaigns.Page + 1)) }>{ i18n.T(ctx, i18n.KeyNextPage) }</a>
+							}
+						</nav>
+					}
+				</section>
 			}
 			if v.Total == 0 {
 				@components.Notice(components.NoticeProps{}) {

@@ -42,3 +42,18 @@ func CampaignMeta(ctx context.Context, title string) layouts.Page {
 		Description: fmt.Sprintf(i18n.T(ctx, i18n.KeyCampaignDescription), title),
 	}
 }
+
+// CampaignPage keeps the promotion pager independent of the discounted-product pager.
+type CampaignPage struct {
+	Rows     []CampaignSummary
+	Page     int
+	Total    int64
+	PageSize int
+}
+
+func (p CampaignPage) Pages() int {
+	if p.PageSize <= 0 {
+		return 1
+	}
+	return max(1, int((p.Total+int64(p.PageSize)-1)/int64(p.PageSize)))
+}
