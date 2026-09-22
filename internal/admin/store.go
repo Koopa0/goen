@@ -233,8 +233,7 @@ func (s *Store) Order(ctx context.Context, number string) (pages.AdminOrderView,
 		},
 		// UpdateOrderDelivery's WHERE clause is the authority; this only decides
 		// whether to offer the form.
-		Correctable: fulfillment != pages.FulfillmentShipped &&
-			fulfillment != pages.FulfillmentDelivered && fulfillment != pages.FulfillmentCompleted,
+		Correctable:       fulfillment == pages.FulfillmentPending || fulfillment == pages.FulfillmentPicking,
 		PickupDestination: o.PickupBrand != "",
 		PickupBrands:      pages.PickupBrandChoices(),
 		CustomerNote:      o.CustomerNote.String,

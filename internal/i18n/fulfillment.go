@@ -199,11 +199,7 @@ var (
 		En:     "Dispatched. The delivery details and the stock movement are both recorded.",
 	})
 
-	KeyAdminNoticeTooLate = key("admin.notice.toolate", Message{
-		ZhHant: "這筆訂單已經出貨,收件資訊改不了了。包裹已經寄出,改紀錄只會讓紀錄和事實對不上。",
-		En: "This order has shipped, so the delivery details can no longer be changed. " +
-			"The parcel is already on its way; editing the record would only make it disagree with where it went.",
-	})
+	KeyAdminNoticeTooLate = key("admin.notice.toolate", Message{ZhHant: "此訂單已不能更正收件資訊；原收件資料未變更。", En: "This order no longer accepts delivery corrections. Its delivery details were not changed."})
 
 	KeyAdminNoticeNeeds = key("admin.notice.needs", Message{
 		ZhHant: "請填寫物流商與查詢編號。",

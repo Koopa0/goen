@@ -5315,6 +5315,49 @@ func (q *Queries) DeleteUserSessions(ctx context.Context, userID uuid.UUID) erro
 	return err
 }
 
+const deliverySurchargeComparison = `-- name: DeliverySurchargeComparison :one
+SELECT coalesce(old_rate.surcharge_cents, 0)::bigint AS old_surcharge,
+       coalesce(new_rate.surcharge_cents, 0)::bigint AS new_surcharge,
+       coalesce(pd.postal_code ~ '^[0-9]{3,6}$'
+        AND $1::text ~ '^[0-9]{3,6}$', false)::boolean AS resolved,
+       (pd.erased_at IS NOT NULL)::boolean AS erased
+FROM order_private_data pd
+JOIN shipping_method_versions v ON v.id = $2
+LEFT JOIN shipping_zone_prefixes old_zone ON old_zone.prefix = left(pd.postal_code, 3)
+LEFT JOIN shipping_zone_prefixes new_zone ON new_zone.prefix = left($1::text, 3)
+LEFT JOIN shipping_version_zones old_rate ON old_rate.version_id = v.id AND old_rate.zone_id = old_zone.zone_id
+LEFT JOIN shipping_version_zones new_rate ON new_rate.version_id = v.id AND new_rate.zone_id = new_zone.zone_id
+WHERE pd.order_id = $3
+`
+
+type DeliverySurchargeComparisonParams struct {
+	NewPostalCode string
+	VersionID     uuid.UUID
+	OrderID       uuid.UUID
+}
+
+type DeliverySurchargeComparisonRow struct {
+	OldSurcharge int64
+	NewSurcharge int64
+	Resolved     bool
+	Erased       bool
+}
+
+// One snapshot compares both destinations; the saved version remains usable
+// after its method is retired. A missing zone uses checkout's mainland zero.
+// These are current surcharges, not a reconstructed historical shipping quote.
+func (q *Queries) DeliverySurchargeComparison(ctx context.Context, arg DeliverySurchargeComparisonParams) (DeliverySurchargeComparisonRow, error) {
+	row := q.db.QueryRow(ctx, deliverySurchargeComparison, arg.NewPostalCode, arg.VersionID, arg.OrderID)
+	var i DeliverySurchargeComparisonRow
+	err := row.Scan(
+		&i.OldSurcharge,
+		&i.NewSurcharge,
+		&i.Resolved,
+		&i.Erased,
+	)
+	return i, err
+}
+
 const detachProductImage = `-- name: DetachProductImage :execrows
 DELETE FROM product_images pi
 USING products p
@@ -6615,6 +6658,39 @@ func (q *Queries) LockHeroAppendPosition(ctx context.Context) error {
 	return err
 }
 
+const lockOrderDelivery = `-- name: LockOrderDelivery :one
+SELECT o.id, o.shipping_version_id, o.shipping_cents, o.fulfillment_status,
+       sm.destination_kind
+FROM orders o
+JOIN shipping_method_versions v ON v.id = o.shipping_version_id
+JOIN shipping_methods sm ON sm.id = v.method_id
+WHERE o.order_number = $1
+FOR UPDATE OF o
+`
+
+type LockOrderDeliveryRow struct {
+	ID                uuid.UUID
+	ShippingVersionID uuid.UUID
+	ShippingCents     int64
+	FulfillmentStatus string
+	DestinationKind   string
+}
+
+// The order lock also belongs to shipment, cancellation and erasure. Read the
+// destination after acquiring it so a correction cannot outlive that decision.
+func (q *Queries) LockOrderDelivery(ctx context.Context, orderNumber string) (LockOrderDeliveryRow, error) {
+	row := q.db.QueryRow(ctx, lockOrderDelivery, orderNumber)
+	var i LockOrderDeliveryRow
+	err := row.Scan(
+		&i.ID,
+		&i.ShippingVersionID,
+		&i.ShippingCents,
+		&i.FulfillmentStatus,
+		&i.DestinationKind,
+	)
+	return i, err
+}
+
 const lockPaymentProviderRef = `-- name: LockPaymentProviderRef :exec
 SELECT lock_payment_provider_ref('stripe', $1::text)
 `
@@ -7501,26 +7577,6 @@ func (q *Queries) OrderByPaymentRef(ctx context.Context, providerRef string) (Or
 		&i.IntendedAmountCents,
 		&i.Status,
 	)
-	return i, err
-}
-
-const orderDestinationKind = `-- name: OrderDestinationKind :one
-SELECT sm.destination_kind, o.fulfillment_status
-FROM orders o
-JOIN shipping_method_versions v ON v.id = o.shipping_version_id
-JOIN shipping_methods sm ON sm.id = v.method_id
-WHERE o.order_number = $1
-`
-
-type OrderDestinationKindRow struct {
-	DestinationKind   string
-	FulfillmentStatus string
-}
-
-func (q *Queries) OrderDestinationKind(ctx context.Context, orderNumber string) (OrderDestinationKindRow, error) {
-	row := q.db.QueryRow(ctx, orderDestinationKind, orderNumber)
-	var i OrderDestinationKindRow
-	err := row.Scan(&i.DestinationKind, &i.FulfillmentStatus)
 	return i, err
 }
 
@@ -12669,7 +12725,7 @@ FROM orders o
 WHERE pd.order_id = o.id
   AND o.order_number = $11
   AND pd.erased_at IS NULL
-  AND o.fulfillment_status NOT IN ('shipped', 'delivered', 'completed')
+  AND o.fulfillment_status IN ('pending', 'picking')
 `
 
 type UpdateOrderDeliveryParams struct {

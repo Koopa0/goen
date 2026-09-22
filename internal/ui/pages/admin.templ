@@ -382,7 +382,20 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 								<div class="goen-admin__row">
 									<div class="ui-field">
 										<label class="ui-label" for="d-postal">{ i18n.T(ctx, i18n.KeyFieldPostalCode) }</label>
-										<input class="ui-input" id="d-postal" name="postal_code" value={ v.Delivery.PostalCode } required maxlength="6"/>
+										<div>
+											<input
+												class="ui-input"
+												id="d-postal"
+												name="postal_code"
+												value={ v.Delivery.PostalCode }
+												required
+												maxlength="6"
+												if v.DeliveryError != "" {
+													aria-invalid="true"
+													aria-describedby="d-postal-error"
+												}
+											/>
+										</div>
 									</div>
 									<div class="ui-field">
 										<label class="ui-label" for="d-city">{ i18n.T(ctx, i18n.KeyFieldCity) }</label>
@@ -397,6 +410,9 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 										<input class="ui-input" id="d-street" name="street" value={ v.Delivery.Street } required maxlength="200"/>
 									</div>
 								</div>
+							}
+							if v.DeliveryError != "" {
+								<p id="d-postal-error" class="ui-error-text" role="alert">{ v.DeliveryError }</p>
 							}
 							<p class="goen-admin__hint">
 								{ i18n.T(ctx, i18n.KeyAdminQueueDeliveryHint) }

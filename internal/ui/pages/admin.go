@@ -188,6 +188,7 @@ type AdminOrderView struct {
 	Notice               string
 	Timeline             []AdminOrderEvent
 	Shipments            []AdminShipment
+	DeliveryError        string
 	Delivery             AdminDelivery
 	Correctable          bool
 	PickupDestination    bool
