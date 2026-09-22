@@ -27,6 +27,7 @@
         "required_status_checks": [
           { "context": "verify", "integration_id": 15368 },
           { "context": "schema", "integration_id": 15368 },
+          { "context": "load-replay", "integration_id": 15368 },
           { "context": "vulnerabilities", "integration_id": 15368 },
           { "context": "ci-policy", "integration_id": 15368 },
           { "context": "commit-attribution", "integration_id": 15368 },
