@@ -87,8 +87,10 @@ for line in Path(sys.argv[1]).read_text().splitlines():
 test, marker = sys.argv[2:]
 ran = any(e.get('Action') == 'run' and e.get('Test') == test for e in records)
 failed = any(e.get('Action') == 'fail' and e.get('Test') == test for e in records)
+failed_tests = {e.get('Test') for e in records if e.get('Action') == 'fail'}
 assertion = [e.get('Output', '').strip() for e in records
-             if e.get('Test', '').startswith(test + '/') and marker in e.get('Output', '')]
+             if e.get('Test', '').startswith(test + '/') and e.get('Test') in failed_tests
+             and marker in e.get('Output', '')]
 if not (ran and failed and assertion):
     raise SystemExit('no matching runtime assertion; this failure is not mutation evidence')
 print('Observed runtime red for ' + test + ': ' + assertion[0])
@@ -97,4 +99,22 @@ done
 
 restore_staff_sources
 go test -json -tags=integration -race -count=1 -timeout=5m ./internal/twofactor -run "^($staff_cases)$" > "$staff_proof_dir/restored.jsonl" 2>&1
+python3 - "$staff_proof_dir" "$staff_cases" <<'PY'
+import json
+import sys
+from pathlib import Path
+for name in ('baseline', 'restored'):
+    records = []
+    for line in (Path(sys.argv[1]) / (name + '.jsonl')).read_text().splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict):
+            records.append(event)
+    for test in sys.argv[2].split('|'):
+        for action in ('run', 'pass'):
+            if not any(e.get('Test') == test and e.get('Action') == action for e in records):
+                raise SystemExit(name + ' did not ' + action + ' ' + test)
+PY
 echo 'staff-add production sources restored; scoped tests passed'
