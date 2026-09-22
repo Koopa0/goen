@@ -466,9 +466,7 @@ func TestOrdersAreScopedToTheirOwner(t *testing.T) {
 	number := placeOrderFor(t, theirs.ID)
 
 	cartStore := cart.NewStore(pool)
-	h := cart.NewHandler(cartStore, slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
-		nil)
+	h := cart.NewHandler(cartStore, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
 	owner := httptest.NewRequestWithContext(account.WithUser(ctx, theirs), http.MethodGet,
 		"/orders/"+number, http.NoBody)
@@ -684,8 +682,8 @@ func TestAMergedCartIsVisibleAfterSignInWithTheDeletedGuestCookie(t *testing.T) 
 		t.Fatalf("guest lines: %v", err)
 	}
 
-	carts := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil)
+	carts := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+
 	h := account.NewHandler(accounts, carts, slog.New(slog.DiscardHandler), false, nil)
 
 	form := url.Values{
@@ -807,8 +805,8 @@ func TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts(t *testing.T
 		t.Fatalf("lock guest cart: %v", err)
 	}
 
-	carts := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil)
+	carts := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+
 	h := account.NewHandler(accounts, carts, slog.New(slog.DiscardHandler), false, nil)
 
 	signCtx, signCancel := context.WithTimeout(ctx, 3*time.Second)
@@ -955,8 +953,8 @@ func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
 		t.Fatalf("guest line: %v", err)
 	}
 
-	carts := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil)
+	carts := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+
 	h := account.NewHandler(accounts, carts, slog.New(slog.DiscardHandler), false, nil)
 
 	form := url.Values{

@@ -1643,8 +1643,10 @@ func TestPickupOrderCanBePaid(t *testing.T) {
 	}
 }
 
-// pickupOrder writes an order collected from a convenience store: no street
-// address at all, as order_private_data_one_destination requires.
+// pickupOrder writes an order collected from a convenience store: the chain and
+// no street address at all, as order_private_data_one_destination requires. No
+// store number either — checkout asks for the chain alone, so payment has to
+// find such an order complete.
 func pickupOrder(t *testing.T, totalCents int64) (number string, id uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
@@ -1670,9 +1672,8 @@ func pickupOrder(t *testing.T, totalCents int64) (number string, id uuid.UUID) {
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
-		                                pickup_brand, pickup_store_code, pickup_store_name)
-		VALUES ($1, 'pickup@example.com', '收件', '0912345678',
-		        'family_mart', '012345', '台北車站門市')`, id); err != nil {
+		                                pickup_brand)
+		VALUES ($1, 'pickup@example.com', '收件', '0912345678', 'family_mart')`, id); err != nil {
 		t.Fatalf("create pickup private data: %v", err)
 	}
 	if err := tx.Commit(ctx); err != nil {

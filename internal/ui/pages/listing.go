@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -79,6 +80,17 @@ func (v ListingView) SortOptions(ctx context.Context) []SortOption {
 		opts[i].Selected = opts[i].Value == v.Sort
 	}
 	return opts
+}
+
+// Trail is the breadcrumb, from the shop's front page down to this category.
+// The last step carries no href: it is the page you are on, and a link to here
+// is a link to nowhere.
+func (v ListingView) Trail(ctx context.Context) []components.Crumb {
+	trail := []components.Crumb{{Label: i18n.T(ctx, i18n.KeyHome), Href: "/"}}
+	for _, c := range v.Crumbs {
+		trail = append(trail, components.Crumb{Label: c.Name, Href: "/c/" + c.Slug})
+	}
+	return append(trail, components.Crumb{Label: v.Name})
 }
 
 // ListingMeta is the chrome view model for a category page.

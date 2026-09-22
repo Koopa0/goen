@@ -39,14 +39,11 @@ func TestEveryCheckoutFieldTellsTheBrowserWhatItIs(t *testing.T) {
 		"addr-street":          "street-address",
 	}
 	offBecause := map[string]string{
-		"coupon":            "a promotion code is not the customer's own data; a browser offering the last one is offering somebody else's",
-		"invoice_carrier":   "a mobile carrier barcode is not an autofill category",
-		"invoice_tax_id":    "no WHATWG token names a Taiwan tax ID",
-		"pickup_brand":      "no token names a convenience-store chain, and a wrong chain sends a parcel to the wrong counter",
-		"pickup_store_code": "a store, not the customer's address",
-		"pickup_store_name": "a store, not the customer's address",
-		"note":              "a free-text delivery note; filling a stored address here would be wrong",
-		"addr-label":        "the customer's own nickname for the row",
+		"coupon":          "a promotion code is not the customer's own data; a browser offering the last one is offering somebody else's",
+		"invoice_carrier": "a mobile carrier barcode is not an autofill category",
+		"invoice_tax_id":  "no WHATWG token names a Taiwan tax ID",
+		"note":            "a free-text delivery note; filling a stored address here would be wrong",
+		"addr-label":      "the customer's own nickname for the row",
 	}
 
 	controls := renderedAutofillControls(t)
@@ -200,19 +197,5 @@ func assertCheckoutKeyboards(t *testing.T, controls map[string]map[string]string
 	}
 	if got := controls["phone"]["inputmode"]; got != "" {
 		t.Errorf("phone inputmode = %q, want none so +886 remains typeable", got)
-	}
-	store := controls["pickup_store_code"]
-	if got := store["inputmode"]; got != "" {
-		t.Errorf("pickup_store_code inputmode = %q, want none: mistake #28 would make 149 Hi-Life letter-leading codes unreachable", got)
-	}
-	// Only after the field has an explicit off decision, so a missing decision
-	// is reported once rather than three times.
-	if store["autocomplete"] == "off" {
-		if got := store["autocapitalize"]; got != "characters" {
-			t.Errorf("pickup_store_code autocapitalize = %q, want characters", got)
-		}
-		if got := store["spellcheck"]; got != "false" {
-			t.Errorf("pickup_store_code spellcheck = %q, want false", got)
-		}
 	}
 }

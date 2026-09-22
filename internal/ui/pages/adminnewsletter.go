@@ -53,14 +53,6 @@ func (v AdminNewsletterView) Err(field string) string { return v.Errors[field] }
 // HasErr reports whether a field was refused, for aria-invalid.
 func (v AdminNewsletterView) HasErr(field string) bool { return v.Errors[field] != "" }
 
-// Invalid is the aria-invalid value for a field.
-func (v AdminNewsletterView) Invalid(field string) string {
-	if v.HasErr(field) {
-		return "true"
-	}
-	return "false"
-}
-
 // RecipientsText is how many copies an issue went to.
 func (i AdminNewsletterIssue) RecipientsText() string {
 	return strconv.FormatInt(int64(i.Recipients), 10)

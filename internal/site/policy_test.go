@@ -376,6 +376,7 @@ func TestThePrivacyPolicyNamesEveryCookie(t *testing.T) {
 		cart.CookieName:           {zh: "購物車", en: "your cart"},
 		account.SessionCookieName: {zh: "登入狀態", en: "your sign-in"},
 		cart.PlacedCookieName:     {zh: "訂單瀏覽權限", en: "permission to view an order"},
+		cart.PickupCookieName:     {zh: "挑選超商取貨門市", en: "picking a convenience store"},
 		i18n.CookieName:           {zh: "您選擇的語言", en: "the language you chose"},
 		home.DismissCookie:        {zh: "您關閉過的網站公告", en: "which site notice you have dismissed"},
 		"__Host-goen_oauth":       {zh: "用 Google 登入時暫存", en: "while you sign in with Google"},

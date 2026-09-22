@@ -9,6 +9,8 @@ import (
 
 // AdminWarrantiesView is the back office's warranty lookup.
 type AdminWarrantiesView struct {
+	ListBound
+
 	Term     string
 	Searched bool
 	Rows     []AdminWarrantyRow

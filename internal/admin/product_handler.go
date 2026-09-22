@@ -355,9 +355,10 @@ func (h *Handler) AddOption(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) AddOptionValue(w http.ResponseWriter, r *http.Request) {
 	h.optionWrite(w, r, func(slug string) (map[string]string, error) {
 		return h.store.AddOptionValue(r.Context(), slug, OptionDraft{
-			OptionID: r.PostFormValue("option"),
-			Name:     r.PostFormValue("value"),
-			NameEn:   r.PostFormValue("value_en"),
+			OptionID:  r.PostFormValue("option"),
+			Name:      r.PostFormValue("value"),
+			NameEn:    r.PostFormValue("value_en"),
+			SwatchHex: r.PostFormValue("swatch_hex"),
 		})
 	})
 }
@@ -375,6 +376,13 @@ func (h *Handler) optionWrite(
 	switch {
 	case err != nil:
 		h.log.WarnContext(r.Context(), "write product option", "error", err, "slug", slug)
+		// A constraint the form has a control for is a refusal and not a
+		// missing product. Without this the page tells a staff member who
+		// mistyped a colour that the product they are looking at is gone.
+		if refused := optionRefusal(r.Context(), err); len(refused) > 0 {
+			h.editProductWithErrors(w, r, slug, refused, pages.AdminVariantDraft{})
+			return
+		}
 		h.notFound(w, r)
 	case len(errs) > 0:
 		h.editProductWithErrors(w, r, slug, errs, pages.AdminVariantDraft{})
