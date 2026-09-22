@@ -342,10 +342,14 @@ templ Account(p layouts.Page, v *AccountView) {
 						if v.OrdersFirst != "" || v.OrdersNext != "" {
 							<nav class="goen-pager" aria-label={ i18n.T(ctx, i18n.KeyPagination) }>
 								if v.OrdersFirst != "" {
-									<a class="goen-btn goen-btn--outline" href={ templ.URL(v.OrdersFirst) }>{ i18n.T(ctx, i18n.KeyAccountOrdersFirst) }</a>
+									@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, templ.URL(v.OrdersFirst)) {
+										{ i18n.T(ctx, i18n.KeyAccountOrdersFirst) }
+									}
 								}
 								if v.OrdersNext != "" {
-									<a class="goen-btn goen-btn--outline" href={ templ.URL(v.OrdersNext) } rel="next">{ i18n.T(ctx, i18n.KeyNextPage) }</a>
+									@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline, Attrs: templ.Attributes{"rel": "next"}}, templ.URL(v.OrdersNext)) {
+										{ i18n.T(ctx, i18n.KeyNextPage) }
+									}
 								}
 							</nav>
 						}
