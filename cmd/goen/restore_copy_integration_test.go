@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/cart"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/restore"
@@ -92,30 +92,48 @@ func TestRestoredCopyApplicationServesAuthorizedViews(t *testing.T) {
 		t.Fatal("customer order page did not name the restored order")
 	}
 
-	adminStore := admin.NewStore(copyPool, admin.NewRefunder(""), nil, nil)
-	order, err := adminStore.Order(ctx, "GO-260914-000001")
+	operatorID := uuid.New()
+	if _, insertErr := copyPool.Exec(ctx, `INSERT INTO users (id, email, role)
+		VALUES ($1, 'restore-operator@example.com', 'admin')`, operatorID); insertErr != nil {
+		t.Fatalf("create restored-copy operator: %v", insertErr)
+	}
+	accounts := account.NewStore(copyPool)
+	operatorToken, err := accounts.StartSession(ctx, operatorID.String(), "restore drill", "127.0.0.1")
 	if err != nil {
-		t.Fatalf("operator order view: %v", err)
+		t.Fatalf("start operator session: %v", err)
 	}
-	if order.Number != "GO-260914-000001" {
-		t.Fatalf("operator order number = %q", order.Number)
+	if _, verifyErr := copyPool.Exec(ctx, `UPDATE sessions SET totp_verified_at = now()
+		WHERE token_hash = $1`, account.HashToken(operatorToken)); verifyErr != nil {
+		t.Fatalf("verify owned operator session: %v", verifyErr)
 	}
-
-	returnQueue, err := adminStore.Returns(ctx)
+	customerToken, err := accounts.StartSession(ctx, "55555555-5555-4555-8555-555555555555", "restore drill", "127.0.0.1")
 	if err != nil {
-		t.Fatalf("operator return queue: %v", err)
+		t.Fatalf("start customer session: %v", err)
 	}
-	if len(returnQueue.Rows) == 0 {
-		t.Fatal("operator return queue is empty on the restored copy")
-	}
-	found := false
-	for _, row := range returnQueue.Rows {
-		if row.OrderNumber == "GO-260914-000001" {
-			found = true
-			break
+	for _, path := range []string{"/admin/orders/GO-260914-000001", "/admin/returns"} {
+		for _, viewer := range []struct {
+			name, token string
+			status      int
+		}{
+			{"operator", operatorToken, http.StatusOK},
+			{"customer", customerToken, http.StatusNotFound},
+			{"anonymous", "", http.StatusNotFound},
+		} {
+			t.Run(path+"/"+viewer.name, func(t *testing.T) {
+				req := httptest.NewRequestWithContext(ctx, http.MethodGet, path, http.NoBody)
+				if viewer.token != "" {
+					req.AddCookie(&http.Cookie{Name: "goen_session", Value: viewer.token})
+				}
+				res := httptest.NewRecorder()
+				handler.ServeHTTP(res, req)
+				if res.Code != viewer.status {
+					t.Fatalf("restored %s view status = %d, want %d", viewer.name, res.Code, viewer.status)
+				}
+				containsOrder := strings.Contains(res.Body.String(), "GO-260914-000001")
+				if containsOrder != (viewer.status == http.StatusOK) {
+					t.Fatalf("restored order disclosure = %t for %s", containsOrder, viewer.name)
+				}
+			})
 		}
-	}
-	if !found {
-		t.Fatal("operator return queue did not list the restored open return")
 	}
 }

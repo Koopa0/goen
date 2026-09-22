@@ -812,7 +812,12 @@ schema-drift:
 restore-drill:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required: the database to back up' >&2; exit 2; }
 	@set -eu; \
-	copy=goen_restore_drill_$$$$; \
+	copy=$${GOEN_RESTORE_COPY:-goen_restore_drill_$$$$}; \
+	case "$$copy" in ''|*[!a-z0-9_]*) echo 'restore-drill: invalid destination name' >&2; exit 2;; esac; \
+	test "$${#copy}" -le 63 || { echo 'restore-drill: destination name exceeds 63 bytes' >&2; exit 2; }; \
+	source_name=$$(psql "$$GOEN_DATABASE_URL" -At -v ON_ERROR_STOP=1 -c 'SELECT current_database()'); \
+	test "$$copy" != "$$source_name" || { echo 'restore-drill: destination equals source' >&2; exit 2; }; \
+	created=0; \
 	work=$$(mktemp -d); \
 	snapper=; app_pid=; store_role=; admin_role=; maint_role=; \
 	cleanup_restore_drill() { \
@@ -830,7 +835,9 @@ restore-drill:
 		if test -n "$$store_role"; then \
 			psql "$$copyurl" -q -c "DROP ROLE IF EXISTS $$store_role, $$admin_role, $$maint_role" >/dev/null 2>&1 || true; \
 		fi; \
-		docker compose exec -T db dropdb -U goen --if-exists --force "$$copy" >/dev/null 2>&1 || true; \
+		if test "$$created" -eq 1; then \
+			psql "$$GOEN_DATABASE_URL" -q -v ON_ERROR_STOP=1 -c "DROP DATABASE \"$$copy\" WITH (FORCE)" >/dev/null 2>&1 || true; \
+		fi; \
 		rm -rf "$$work"; \
 		exit "$$status"; \
 	}; \
@@ -863,7 +870,10 @@ restore-drill:
 	tail -n +2 "$$work/held.txt" > "$$work/rows-live.raw"; \
 	sort "$$work/rows-live.raw" > "$$work/rows-live.txt"; \
 	test -s "$$work/rows-live.txt" || { echo 'restore-drill: no live row counts were read' >&2; exit 3; }; \
-	docker compose exec -T db createdb -U goen "$$copy"; \
+	recovery_start_epoch=$$(date -u +%s); \
+	recovery_start=$$(date -u +%Y-%m-%dT%H:%M:%SZ); \
+	psql "$$GOEN_DATABASE_URL" -q -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$$copy\""; \
+	created=1; \
 	echo 'restore-drill: restoring into a throwaway...'; \
 	pg_restore -d "$$copyurl" --no-owner --exit-on-error "$$work/goen.dump" > "$$work/restore.log" 2>&1 \
 		|| { echo 'restore-drill: FAIL — pg_restore refused the dump.' >&2; cat "$$work/restore.log" >&2; exit 1; }; \
@@ -928,9 +938,11 @@ restore-drill:
 	fi; \
 	test "$$fail" -eq 0 || exit 1; \
 	test "$${business_fail:-0}" -eq 0 || exit 1; \
-	recovery_start_epoch=$$(date -u +%s); \
-	recovery_start=$$(date -u +%Y-%m-%dT%H:%M:%SZ); \
 	echo 'restore-drill: accepting restored application on the retained copy...'; \
+	operator_token=$$(openssl rand -hex 32); \
+	customer_token=$$(openssl rand -hex 32); \
+	psql "$$copyurl" -q -v ON_ERROR_STOP=1 -c "WITH operator AS (INSERT INTO users (email, role) VALUES ('restore-operator-$$$$@example.com', 'admin') RETURNING id) INSERT INTO sessions (token_hash, user_id, expires_at, totp_verified_at) SELECT sha256(convert_to('$$operator_token', 'UTF8')), id, now() + interval '10 minutes', now() FROM operator"; \
+	psql "$$copyurl" -q -v ON_ERROR_STOP=1 -c "INSERT INTO sessions (token_hash, user_id, expires_at) SELECT sha256(convert_to('$$customer_token', 'UTF8')), user_id, now() + interval '10 minutes' FROM orders WHERE order_number = 'GO-260914-000001'"; \
 	drill_pw=$$(openssl rand -hex 16); \
 	store_role=restore_drill_store_$$$$; \
 	admin_role=restore_drill_admin_$$$$; \
@@ -971,6 +983,13 @@ restore-drill:
 		"SELECT encode(sha256(decode('010203726573746f7265', 'hex')), 'hex')"); \
 	curl -sf -o /dev/null "http://$$addr/media/$$digest"; \
 	curl -sf "http://$$addr/orders/find" -o /dev/null; \
+	curl -sf -b "goen_session=$$customer_token" "http://$$addr/orders/GO-260914-000001" | grep -q 'GO-260914-000001'; \
+	for path in /admin/orders/GO-260914-000001 /admin/returns; do \
+		curl -sf -b "goen_session=$$operator_token" "http://$$addr$$path" | grep -q 'GO-260914-000001'; \
+		test "$$(curl -s -o /dev/null -w '%{http_code}' -b "goen_session=$$customer_token" "http://$$addr$$path")" = 404; \
+		test "$$(curl -s -o /dev/null -w '%{http_code}' "http://$$addr$$path")" = 404; \
+	done; \
+	echo 'restore-drill: authorized customer/operator HTTP views: PASS'; \
 	for i in $$(seq 1 50); do \
 		pending_after=$$(psql "$$copyurl" -At -v ON_ERROR_STOP=1 -c \
 			"SELECT count(*) FROM outbox_messages WHERE delivered_at IS NULL AND topic = 'order.shipped'"); \
@@ -983,7 +1002,7 @@ restore-drill:
 	rm -f "$$applog"; \
 	recovery_end_epoch=$$(date -u +%s); \
 	recovery_end=$$(date -u +%Y-%m-%dT%H:%M:%SZ); \
-	echo "restore-drill: backup_at=$$backup_at recovery_start=$$recovery_start recovery_end=$$recovery_end recovery_elapsed_s=$$((recovery_end_epoch - recovery_start_epoch)) destination=$$copy commit=$$(git rev-parse HEAD 2>/dev/null || echo unknown) valkey=not_configured"; \
+	echo "restore-drill: backup_at=$$backup_at recovery_start=$$recovery_start recovery_end=$$recovery_end recovery_elapsed_s=$$((recovery_end_epoch - recovery_start_epoch)) destination=$$copy recovery_objective_s=$${GOEN_RESTORE_OBJECTIVE_SECONDS:-undeclared} commit=$$(git rev-parse HEAD 2>/dev/null || echo unknown) artifact_sha256=$$(openssl dgst -sha256 bin/goen | sed 's/.*= //') valkey=not_configured"; \
 	echo 'restore-drill: PASS — same catalog, same dump-carried grants, same exact row counts, same snapshot business manifest, restored application accepted'
 
 # Integrated into restore-drill. This target remains as a guardrail against a
