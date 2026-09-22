@@ -59,9 +59,13 @@ var (
 	})
 
 	KeyTwoFAEnrolBody = key("admin.2fa.enrol.body", Message{
-		ZhHant: "用 Google Authenticator、1Password 或任何支援 TOTP 的 app,手動新增一組,填入下面的字串。",
-		En: "In Google Authenticator, 1Password or any app that supports TOTP, add an entry by hand and " +
-			"type the string below into it.",
+		ZhHant: "用支援 TOTP 的驗證器掃描下方 QR code,或手動新增並輸入下面的字串。",
+		En:     "Scan the QR code with an authenticator that supports TOTP, or add an entry by hand using the secret below.",
+	})
+
+	KeyTwoFAQRCode = key("admin.2fa.enrol.qr", Message{
+		ZhHant: "驗證器設定 QR code;無法掃描時可輸入下方祕密字串。",
+		En:     "Authenticator setup QR code; if you cannot scan it, enter the secret below.",
 	})
 
 	// Its own key because it renders inside a <strong>: templ escapes markup out

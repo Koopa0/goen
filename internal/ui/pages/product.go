@@ -208,15 +208,20 @@ func (v *ProductView) SavedText() string {
 	return "false"
 }
 
+// CategoryTrail includes the direct category as well as its ancestors, so the
+// visible breadcrumb and structured data describe the same catalogue path.
+func (v *ProductView) CategoryTrail() []Crumb {
+	return append(slices.Clone(v.Crumbs), Crumb{Slug: v.CategorySlug, Name: v.CategoryName})
+}
+
 // Trail is the breadcrumb, from the shop's front page down to this product.
 // The last step carries no link: a link to where you already are is a step a
 // keyboard has to pass through for nothing.
 func (v *ProductView) Trail(ctx context.Context) []components.Crumb {
 	trail := []components.Crumb{{Label: i18n.T(ctx, i18n.KeyHome), Href: "/"}}
-	for _, c := range v.Crumbs {
+	for _, c := range v.CategoryTrail() {
 		trail = append(trail, components.Crumb{Label: c.Name, Href: "/c/" + c.Slug})
 	}
-	trail = append(trail, components.Crumb{Label: v.CategoryName, Href: "/c/" + v.CategorySlug})
 	return append(trail, components.Crumb{Label: v.Name})
 }
 
