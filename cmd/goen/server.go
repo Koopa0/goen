@@ -376,6 +376,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /admin/health", back.RequireStaff(back.Health))
 	mux.HandleFunc("POST /admin/health/reconcile", back.RequireStaff(back.ReconcilePayment))
 	mux.HandleFunc("GET /admin/reports", back.RequireStaff(back.Reports))
+	mux.HandleFunc("GET /admin/reports/export.csv", back.RequireStaff(back.ReportCSV))
 	mux.HandleFunc("GET /admin/taxonomy", back.RequireStaff(back.Taxonomy))
 	mux.HandleFunc("POST /admin/taxonomy/{kind}", back.RequireStaff(back.CreateTaxon))
 	mux.HandleFunc("POST /admin/taxonomy/{kind}/{slug}", back.RequireStaff(back.EditTaxon))

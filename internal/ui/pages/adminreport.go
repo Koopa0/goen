@@ -115,3 +115,8 @@ func (v AdminReportView) WindowLabel(ctx context.Context, days int32) string {
 
 // IsWindow reports whether days is the one being shown.
 func (v AdminReportView) IsWindow(days int32) bool { return int(days) == v.Days }
+
+// ExportHref preserves the normalized window used by the report.
+func (v AdminReportView) ExportHref() string {
+	return "/admin/reports/export.csv?days=" + strconv.Itoa(v.Days)
+}

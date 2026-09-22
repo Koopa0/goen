@@ -1,7 +1,9 @@
 package i18n
 
 var (
-	KeyAdminPageReports = key("admin.page.reports", Message{ZhHant: "報表", En: "Reports"})
+	KeyAdminRepExport     = key("admin.rep.export", Message{ZhHant: "下載熱銷前十名 CSV", En: "Export top 10 sellers (CSV)"})
+	KeyAdminRepExportHint = key("admin.rep.exporthint", Message{ZhHant: "CSV 金額為商品毛額，未扣訂單折扣或退款，也不含運費與稅額。", En: "CSV amounts are gross merchandise totals, before order discounts or refunds and excluding shipping and tax."})
+	KeyAdminPageReports   = key("admin.page.reports", Message{ZhHant: "報表", En: "Reports"})
 
 	KeyAdminRepLead = key("admin.rep.lead", Message{
 		ZhHant: "只計入已付款的訂單。未付款的訂單不是營收。",

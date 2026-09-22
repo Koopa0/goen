@@ -1,12 +1,35 @@
 package pages
 
 import (
+	"fmt"
+	"html"
 	"strings"
 	"testing"
 
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
+
+func TestReportExportKeepsWindowAndExplainsGrossAmount(t *testing.T) {
+	for _, locale := range []i18n.Locale{i18n.ZhHant, i18n.En} {
+		for _, days := range []int{7, 30, 90} {
+			ctx := i18n.WithLocale(t.Context(), locale)
+			var output strings.Builder
+			if err := AdminReport(layouts.Page{}, &AdminReportView{Days: days}).Render(ctx, &output); err != nil {
+				t.Fatal(err)
+			}
+			want := fmt.Sprintf(`href="/admin/reports/export.csv?days=%d"`, days)
+			if !strings.Contains(output.String(), want) {
+				t.Fatalf("empty report lost selected-window export: %s", want)
+			}
+			for _, key := range []i18n.Key{i18n.KeyAdminRepExport, i18n.KeyAdminRepExportHint} {
+				if !strings.Contains(html.UnescapeString(output.String()), i18n.T(ctx, key)) {
+					t.Fatalf("report lacks localized export scope: %s", key)
+				}
+			}
+		}
+	}
+}
 
 func TestAnEmptySalesWindowStillListsStockAtRisk(t *testing.T) {
 	t.Parallel()

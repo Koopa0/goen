@@ -40,7 +40,13 @@ templ AdminReport(p layouts.Page, v *AdminReportView) {
 					</a>
 				}
 			</nav>
+			<div class="ui-page-head__actions">
+				@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline}, templ.SafeURL(v.ExportHref())) {
+					{ i18n.T(ctx, i18n.KeyAdminRepExport) }
+				}
+			</div>
 		</div>
+		<p class="goen-admin__hint">{ i18n.T(ctx, i18n.KeyAdminRepExportHint) }</p>
 		if v.Empty() {
 			<div class="goen-admin__empty">
 				<p class="goen-admin__emptytitle">{ i18n.T(ctx, i18n.KeyAdminRepEmpty) }</p>
