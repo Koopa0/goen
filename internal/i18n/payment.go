@@ -1,6 +1,10 @@
 package i18n
 
 var (
+	KeyPayWindowClosedTitle = key("pay.windowclosed.title", Message{ZhHant: "開始付款的期限已過", En: "The window to start payment has closed"})
+	KeyPayWindowClosedBody  = key("pay.windowclosed.body", Message{ZhHant: "這筆訂單已無法開啟新的付款頁面。請使用「再買一次」將目前仍可購買的商品加入購物車，確認最新價格與庫存後重新下單。原訂單仍可查看。", En: "A new payment session can no longer be opened for this order. Use Buy again to add available items to your cart, then review current prices and stock before placing a new order. You can still view the original order."})
+	KeyPayStartBy           = key("pay.startby", Message{ZhHant: "請在 %s（台灣時間）前開始付款。", En: "Start payment before %s (Taiwan time)."})
+
 	KeyPayEyebrow = key("pay.eyebrow", Message{ZhHant: "完成付款", En: "Complete payment"})
 
 	KeyPayBody = key("pay.body", Message{

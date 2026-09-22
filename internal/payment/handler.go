@@ -13,6 +13,7 @@ import (
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/shoptime"
 	"github.com/koopa0/goen/internal/ui/layouts"
 	"github.com/koopa0/goen/internal/ui/pages"
 	"github.com/koopa0/goen/internal/web"
@@ -99,12 +100,20 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.renderPay(w, r, o, attempt.SessionID != "", http.StatusOK)
+}
+
+func (h *Handler) renderPay(w http.ResponseWriter, r *http.Request, o *Order, hasSession bool, status int) {
 	view := pages.PayView{
-		Number:     o.Number,
-		TotalCents: o.TotalCents,
-		Email:      o.Email,
-		Enabled:    h.gateway.Enabled(),
-		Cancelled:  r.URL.Query().Get("cancelled") == "1",
+		Number:       o.Number,
+		TotalCents:   o.TotalCents,
+		Email:        o.Email,
+		Enabled:      h.gateway.Enabled(),
+		Cancelled:    r.URL.Query().Get("cancelled") == "1",
+		WindowClosed: !hasSession && !o.holdCoversSession,
+	}
+	if !hasSession && o.holdCoversSession {
+		view.StartBy = shoptime.Minute(o.HoldExpiresAt.Add(-minSessionLifetime - sessionStartMargin))
 	}
 	for i := range o.Lines {
 		l := &o.Lines[i]
@@ -112,7 +121,7 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 			Name: l.Name, Label: l.Label, UnitCents: l.UnitCents, Quantity: l.Quantity,
 		})
 	}
-	web.Render(w, r, h.log, http.StatusOK, pages.Pay(pages.PayMeta(r.Context(), o.Number), view))
+	web.Render(w, r, h.log, status, pages.Pay(pages.PayMeta(r.Context(), o.Number), view))
 }
 
 // Start creates the Stripe Checkout Session and sends the customer to it with a
@@ -148,7 +157,7 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 	if !o.holdCoversSession {
 		h.log.InfoContext(r.Context(), "refusing to open a checkout on a lapsed stock hold",
 			"order", number, "hold_expires_at", o.HoldExpiresAt)
-		h.paymentConflict(w, r)
+		h.renderPay(w, r, o, false, http.StatusConflict)
 		return
 	}
 
