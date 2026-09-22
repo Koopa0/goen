@@ -7204,3 +7204,55 @@ h4,
     animation: none;
   }
 }
+
+/* Request feedback shares the buttons' existing disabled treatment without
+   removing a named submitter from the form payload. */
+form[data-request-pending],
+form[data-request-pending] button,
+form[data-request-pending] input[type="submit"] {
+  cursor: progress;
+}
+
+form[data-request-pending] [aria-disabled="true"] {
+  opacity: 0.5;
+}
+
+.goen-btn:active:not(:disabled):not([aria-disabled="true"]) {
+  opacity: 0.85;
+}
+
+/* These are entry fades, never timers that dismiss unread feedback. Removal
+   during a request uses the same view transition as its surrounding region. */
+.goen-notice {
+  transition: opacity var(--dur-base) var(--ease-standard);
+}
+
+@starting-style {
+  .goen-notice { opacity: 0; }
+}
+
+@supports selector(details::details-content) {
+  .goen-header__menu::details-content {
+    opacity: 0;
+    transition: opacity var(--dur-base) var(--ease-standard), content-visibility var(--dur-base);
+    transition-behavior: allow-discrete;
+  }
+
+  .goen-header__menu[open]::details-content { opacity: 1; }
+
+  @starting-style {
+    .goen-header__menu[open]::details-content { opacity: 0; }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .goen-notice,
+  .goen-header__menu::details-content {
+    transition: none;
+  }
+
+  @starting-style {
+    .goen-notice,
+    .goen-header__menu[open]::details-content { opacity: 1; }
+  }
+}

@@ -1512,6 +1512,37 @@ const CART_PROBE = `(() => {
   };
 })()`;
 
+// Hold one real checkout update at the fetch boundary, inspect its pending
+// state, then release it and require the same request to settle successfully.
+async function proveCheckoutRequestFeedback(label) {
+  const result = await evalPage(`(async () => {
+    const choice = document.querySelector('input[name="shipping"]:not(:checked)');
+    const form = choice?.form;
+    if (!choice || !form) return { ok: false, why: 'no alternate shipping choice' };
+    const originalFetch = window.fetch;
+    let release;
+    const held = new Promise(resolve => { release = resolve; });
+    let started;
+    const issued = new Promise(resolve => { started = resolve; });
+    window.fetch = async (...args) => { started(); await held; return originalFetch(...args); };
+    let finish;
+    const done = new Promise(resolve => { finish = resolve; });
+    const source = choice.closest('[hx-post]');
+    if (!source) { window.fetch = originalFetch; return { ok: false, why: 'choice has no request source' }; }
+    source.addEventListener('htmx:finally:request', () => finish(), { once: true });
+    try {
+      choice.click();
+      await Promise.race([issued, new Promise((_, reject) => setTimeout(() => reject(new Error('checkout request did not start')), 5000))]);
+      const busy = form.getAttribute('aria-busy') === 'true' && !!form.querySelector('[aria-disabled="true"]');
+      release();
+      await Promise.race([done, new Promise((_, reject) => setTimeout(() => reject(new Error('checkout request did not finish')), 15000))]);
+      const cleared = !document.querySelector('form[data-request-pending]');
+      return { ok: busy && cleared, busy, cleared };
+    } finally { release(); window.fetch = originalFetch; }
+  })()`);
+  if (!result.ok) fail(label, 'request feedback: ' + JSON.stringify(result));
+}
+
 for (const want of [...CART, ...PAGES]) {
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: want.width, height: want.height, deviceScaleFactor: 1, mobile: want.width < 768,
@@ -1547,7 +1578,38 @@ for (const want of [...CART, ...PAGES]) {
   }
   console.log(`${at.padEnd(16)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
     `controls=${got.controls} tap=${got.minTap}`);
+  if (want.path === '/checkout') await proveCheckoutRequestFeedback(at);
 }
+
+// The served transition rules must honor reduced motion, including pseudo-
+// elements and native details content that the global element override misses.
+for (const motion of ['no-preference', 'reduce']) {
+  await send(ws, 'Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: motion }] });
+  await send(ws, 'Emulation.setDeviceMetricsOverride', { width: 375, height: 812, deviceScaleFactor: 1, mobile: true });
+  await send(ws, 'Page.navigate', { url: ORIGIN + '/' });
+  await settled(ws, 'motion ' + motion, ORIGIN + '/');
+  const checked = await evalPage(`(async () => {
+    const menu = document.querySelector('[data-menu]');
+    if (!menu) return { ok: false, why: 'missing native menu' };
+    menu.querySelector('summary').click();
+    const duration = getComputedStyle(menu, '::details-content').transitionDuration;
+    if (!document.startViewTransition) return { ok: true, supported: false, duration };
+    const transition = document.startViewTransition(() => { document.body.dataset.motionProbe = 'changed'; });
+    await transition.ready;
+    const animation = getComputedStyle(document.documentElement, '::view-transition-new(root)').animationName;
+    transition.skipTransition();
+    await transition.finished;
+    return { ok: true, supported: true, animation, duration };
+  })()`);
+  if (!checked.ok) fail('motion ' + motion, JSON.stringify(checked));
+  if (checked.supported && (motion === 'reduce' ? checked.animation !== 'none' : checked.animation === 'none')) fail('motion ' + motion, 'transition animation = ' + checked.animation);
+  if (motion === 'reduce' && checked.duration !== '0s') fail('motion reduce', 'menu still transitions: ' + checked.duration);
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await send(ws, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  const closed = await evalPage(`(() => { const menu = document.querySelector('[data-menu]'); return !menu.open && document.activeElement === menu.querySelector('summary'); })()`);
+  if (closed !== true) fail('motion ' + motion, 'Escape did not close the menu and return focus');
+}
+await send(ws, 'Emulation.setEmulatedMedia', { features: [] });
 
 // The comparison table. CART_PROBE's marker-only check is not enough: the
 // wrapper is present on the empty state, and the table's job is to scroll
