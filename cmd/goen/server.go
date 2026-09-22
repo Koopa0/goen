@@ -111,7 +111,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 		Every: 3 * time.Second, Burst: 20, TTL: time.Hour, MaxKeys: 65_536,
 	})
 	catalogue := catalog.NewStore(pool)
-	browse := catalog.NewHandler(catalogue, log)
+	browse := catalog.NewHandler(catalogue, log, secureCookies)
 	pages := site.NewHandler(log, baseURL, catalogue, site.NewStore(pool), secureCookies)
 	storefront := home.NewHandler(home.NewStore(pool), log, secureCookies)
 	probes := health.NewHandler(log,
@@ -217,6 +217,10 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /c/{slug}", browse.Listing)
 	mux.HandleFunc("GET /search", browse.Search)
 	mux.HandleFunc("GET /compare", browse.Compare)
+	mux.HandleFunc("POST /compare/add", browse.AddComparison)
+	mux.HandleFunc("POST /compare/remove", browse.RemoveComparison)
+	mux.HandleFunc("POST /compare/clear", browse.ClearComparison)
+	mux.HandleFunc("POST /compare/save", browse.SaveComparison)
 	mux.HandleFunc("GET /deals", browse.Deals)
 	mux.HandleFunc("GET /s/{slug}", browse.Campaign)
 	mux.HandleFunc("GET /p/{slug}", items.Detail)

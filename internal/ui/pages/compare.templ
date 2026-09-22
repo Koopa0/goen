@@ -2,6 +2,7 @@ package pages
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
@@ -21,6 +22,85 @@ templ Compare(p layouts.Page, v CompareView) {
 					</p>
 				}
 			</div>
+			if v.Notice != "" {
+				<p class="goen-pdp__hint" role="status">{ v.Notice }</p>
+			}
+			if v.Snapshot {
+				<p>{ i18n.T(ctx, i18n.KeyCompareSnapshot) }</p>
+				<form method="post" action="/compare/save">
+					@comparisonSnapshot(v)
+					@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+						{ i18n.T(ctx, i18n.KeyCompareUse) }
+					}
+				</form>
+			}
+			if !v.Empty() {
+				<ul class="goen-filters__chips" role="list">
+					for _, item := range v.Products {
+						<li class="goen-filters__chip">
+							<span>{ item.Name }</span>
+							if v.Snapshot {
+								<a href={ templ.URL(v.RemoveHref(item.Slug)) }>{ i18n.T(ctx, i18n.KeyRemove) }</a>
+							} else {
+								<form method="post" action="/compare/remove">
+									<input type="hidden" name="slug" value={ item.Slug }/>
+									@components.Button(components.ButtonProps{Variant: components.VariantOutline, Size: components.SizeSmall}, "submit") {
+										{ i18n.T(ctx, i18n.KeyRemove) }
+									}
+								</form>
+							}
+						</li>
+					}
+				</ul>
+				<a href={ templ.URL(v.ShareHref()) }>{ i18n.T(ctx, i18n.KeyCompareShare) }</a>
+				if !v.Snapshot {
+					<form method="post" action="/compare/clear">
+						@components.Button(components.ButtonProps{Variant: components.VariantOutline, Size: components.SizeSmall}, "submit") {
+							{ i18n.T(ctx, i18n.KeyCompareClear) }
+						}
+					</form>
+				}
+			}
+			<form method="get" action="/compare" class="goen-compare__search">
+				<div>
+					@components.Label(components.LabelProps{For: "compare-search"}) {
+						{ i18n.T(ctx, i18n.KeyCompareSearch) }
+					}
+					<input class="goen-input" id="compare-search" type="search" name="q" value={ v.Query } maxlength="100"/>
+				</div>
+				if v.Snapshot {
+					if v.Empty() {
+						<input type="hidden" name="p" value=""/>
+					}
+					for _, item := range v.Products {
+						<input type="hidden" name="p" value={ item.Slug }/>
+					}
+				}
+				@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+					{ i18n.T(ctx, i18n.KeySearch) }
+				}
+			</form>
+			if v.Query != "" && len(v.Candidates) == 0 {
+				<p>{ i18n.T(ctx, i18n.KeySearchNoResults) }</p>
+			}
+			if len(v.Candidates) > 0 {
+				<ul class="goen-tiles__grid" role="list">
+					for _, candidate := range v.Candidates {
+						<li>
+							@tileCard(candidate)
+							if !v.Contains(candidate.Slug) && !v.Full() {
+								<form method="post" action="/compare/add">
+									<input type="hidden" name="slug" value={ candidate.Slug }/>
+									@comparisonSnapshot(v)
+									@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+										{ i18n.T(ctx, i18n.KeyAddToCompare) }
+									}
+								</form>
+							}
+						</li>
+					}
+				</ul>
+			}
 			if !v.Enough() {
 				<div class="ui-empty">
 					<span class="goen-medallion" aria-hidden="true">
@@ -57,11 +137,6 @@ templ Compare(p layouts.Page, v CompareView) {
 											}
 											<a class="goen-compare__name" href={ templ.SafeURL(v.ProductHref(item.Slug)) }>{ item.Name }</a>
 											<span class="goen-compare__brand">{ item.Brand }</span>
-											// A link, not a form button: the comparison set is the URL,
-											// so removing a column writes nothing.
-											<a class="goen-compare__remove" href={ templ.SafeURL(v.RemoveHref(item.Slug)) }>
-												{ i18n.T(ctx, i18n.KeyRemove) }
-											</a>
 										</div>
 									</th>
 								}
@@ -111,5 +186,15 @@ templ Compare(p layouts.Page, v CompareView) {
 				</div>
 			}
 		</div>
+	}
+}
+
+// Explicit POST actions may adopt a shared snapshot; opening it never does.
+templ comparisonSnapshot(v CompareView) {
+	if v.Snapshot {
+		<input type="hidden" name="snapshot" value="1"/>
+		for _, item := range v.Products {
+			<input type="hidden" name="p" value={ item.Slug }/>
+		}
 	}
 }

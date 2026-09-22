@@ -7204,3 +7204,17 @@ h4,
     animation: none;
   }
 }
+
+/* The comparison picker follows the existing search-bar recipe: input first,
+   action alongside when space permits, then wrapped below at narrow widths. */
+.goen-compare__search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+  margin-block: 24px;
+}
+
+.goen-compare__search > div {
+  flex: 1 1 240px;
+}
