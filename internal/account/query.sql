@@ -135,6 +135,7 @@ DELETE FROM carts WHERE id = $1;
 
 -- name: UserOrders :many
 SELECT
+    o.id,
     o.order_number,
     o.fulfillment_status,
     o.placed_at,
@@ -150,9 +151,10 @@ SELECT
     (o.id IN (SELECT id FROM committed_orders))::boolean AS committed,
     order_amount_owed(o.id)::bigint AS owed_cents
 FROM orders o
-WHERE o.user_id = $1
+WHERE o.user_id = @user_id
+  AND (NOT @has_cursor::boolean OR (o.placed_at, o.id) < (@after_at::timestamptz, @after_id::uuid))
 ORDER BY o.placed_at DESC, o.id DESC
-LIMIT $2;
+LIMIT @row_limit::integer;
 
 -- A scalar subquery, so an account that has never held credit gets 0 and not no row.
 -- name: StoreCreditBalance :one

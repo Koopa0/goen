@@ -12960,6 +12960,7 @@ func (q *Queries) UserHasEmail(ctx context.Context, arg UserHasEmailParams) (boo
 
 const userOrders = `-- name: UserOrders :many
 SELECT
+    o.id,
     o.order_number,
     o.fulfillment_status,
     o.placed_at,
@@ -12976,16 +12977,21 @@ SELECT
     order_amount_owed(o.id)::bigint AS owed_cents
 FROM orders o
 WHERE o.user_id = $1
+  AND (NOT $2::boolean OR (o.placed_at, o.id) < ($3::timestamptz, $4::uuid))
 ORDER BY o.placed_at DESC, o.id DESC
-LIMIT $2
+LIMIT $5::integer
 `
 
 type UserOrdersParams struct {
-	UserID uuid.NullUUID
-	Limit  int32
+	UserID    uuid.NullUUID
+	HasCursor bool
+	AfterAt   time.Time
+	AfterID   uuid.UUID
+	RowLimit  int32
 }
 
 type UserOrdersRow struct {
+	ID                uuid.UUID
 	OrderNumber       string
 	FulfillmentStatus string
 	PlacedAt          time.Time
@@ -12999,7 +13005,13 @@ type UserOrdersRow struct {
 }
 
 func (q *Queries) UserOrders(ctx context.Context, arg UserOrdersParams) ([]UserOrdersRow, error) {
-	rows, err := q.db.Query(ctx, userOrders, arg.UserID, arg.Limit)
+	rows, err := q.db.Query(ctx, userOrders,
+		arg.UserID,
+		arg.HasCursor,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -13008,6 +13020,7 @@ func (q *Queries) UserOrders(ctx context.Context, arg UserOrdersParams) ([]UserO
 	for rows.Next() {
 		var i UserOrdersRow
 		if err := rows.Scan(
+			&i.ID,
 			&i.OrderNumber,
 			&i.FulfillmentStatus,
 			&i.PlacedAt,
