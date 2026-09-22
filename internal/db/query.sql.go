@@ -4784,6 +4784,24 @@ func (q *Queries) CreditBalance(ctx context.Context, userID uuid.NullUUID) (int6
 	return column_1, err
 }
 
+const creditCustomerByID = `-- name: CreditCustomerByID :one
+SELECT id, email, coalesce(full_name, '') AS full_name FROM users WHERE id = $1
+`
+
+type CreditCustomerByIDRow struct {
+	ID       uuid.UUID
+	Email    string
+	FullName string
+}
+
+// The confirmation names an immutable account, never an address that can move.
+func (q *Queries) CreditCustomerByID(ctx context.Context, id uuid.UUID) (CreditCustomerByIDRow, error) {
+	row := q.db.QueryRow(ctx, creditCustomerByID, id)
+	var i CreditCustomerByIDRow
+	err := row.Scan(&i.ID, &i.Email, &i.FullName)
+	return i, err
+}
+
 const currentHeroSlide = `-- name: CurrentHeroSlide :one
 SELECT coalesce(localized_name(h.eyebrow, h.eyebrow_en, $1::text), '')::text
            AS eyebrow,

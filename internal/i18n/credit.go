@@ -1,6 +1,13 @@
 package i18n
 
 var (
+	KeyAdminCreditReview   = key("admin.credit.review", Message{ZhHant: "核對顧客與金額", En: "Review recipient and amount"})
+	KeyAdminCreditConfirm  = key("admin.credit.confirm", Message{ZhHant: "確認發放額度", En: "Confirm credit grant"})
+	KeyAdminCreditCustomer = key("admin.credit.customer", Message{ZhHant: "收取額度的顧客", En: "Credit recipient"})
+	KeyAdminCreditBalance  = key("admin.credit.balance", Message{ZhHant: "目前餘額", En: "Current balance"})
+	KeyAdminCreditEdit     = key("admin.credit.edit", Message{ZhHant: "返回修改", En: "Back to edit"})
+	KeyAdminCreditUnknown  = key("admin.credit.unknown", Message{ZhHant: "找不到這個 Email 的會員，請核對後再試。", En: "No customer has that email. Check the address and try again."})
+
 	KeyAdminErasedShort = key("admin.erased.short", Message{ZhHant: "(已刪除)", En: "(deleted)"})
 
 	KeyAdminPageCredit = key("admin.page.credit", Message{ZhHant: "商店額度", En: "Store credit"})

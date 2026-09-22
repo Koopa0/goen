@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -577,20 +578,44 @@ func (h *Handler) GrantCredit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, i18n.T(r.Context(), i18n.KeyAdminBadForm), http.StatusBadRequest)
 		return
 	}
-	cents, ok := positiveDollarsToCents(r.PostFormValue("amount"), MaxCreditGrant)
-	if !ok {
-		http.Redirect(w, r, "/admin/credit?needs=1", http.StatusSeeOther)
-		return
-	}
-
-	operationID, operationErr := uuid.Parse(r.PostFormValue("operation_id"))
+	view := pages.AdminCreditView{Email: r.PostFormValue("email"), Amount: r.PostFormValue("amount"), Reason: r.PostFormValue("reason"), OperationID: r.PostFormValue("operation_id")}
+	cents, ok := positiveDollarsToCents(view.Amount, MaxCreditGrant)
+	operationID, operationErr := uuid.Parse(view.OperationID)
+	view.AmountInvalid = !ok
+	view.ReasonInvalid = strings.TrimSpace(view.Reason) == "" || utf8.RuneCountInString(view.Reason) > MaxCreditReasonRunes
 	if operationErr != nil || operationID == uuid.Nil {
-		http.Redirect(w, r, "/admin/credit?needs=1", http.StatusSeeOther)
+		view.OperationID = uuid.NewString()
+	}
+	if view.AmountInvalid || view.ReasonInvalid || operationErr != nil || operationID == uuid.Nil {
+		h.renderCreditForm(w, r, view, http.StatusUnprocessableEntity, i18n.KeyAdminNoticeNeeds)
 		return
 	}
-
-	balance, err := h.store.GrantCredit(r.Context(), r.PostFormValue("email"),
-		cents, r.PostFormValue("reason"), operationID)
+	if err := h.store.creditRecipient(r.Context(), &view); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			view.EmailInvalid = true
+			h.renderCreditForm(w, r, view, http.StatusUnprocessableEntity, i18n.KeyAdminCreditUnknown)
+		} else {
+			h.log.ErrorContext(r.Context(), "read credit recipient", "error", err)
+			h.serverError(w, r)
+		}
+		return
+	}
+	view.GrantCents = cents
+	if r.PostFormValue("edit") == "1" {
+		h.renderCreditForm(w, r, view, http.StatusOK, "")
+		return
+	}
+	if r.PostFormValue("confirm") != "grant" || r.PostFormValue("customer_id") != view.CustomerID {
+		view.Confirm = true
+		h.renderCreditForm(w, r, view, http.StatusOK, "")
+		return
+	}
+	customerID, parseErr := uuid.Parse(view.CustomerID)
+	if parseErr != nil {
+		h.serverError(w, r)
+		return
+	}
+	balance, err := h.store.GrantCredit(r.Context(), customerID, cents, view.Reason, operationID)
 	switch {
 	case err == nil:
 		// The balance travels as a number and never the address it belongs to,
@@ -1856,4 +1881,18 @@ func positiveDollarsToCents(raw string, maxCents int64) (int64, bool) {
 		return 0, false
 	}
 	return dollars * 100, true
+}
+
+func (h *Handler) renderCreditForm(w http.ResponseWriter, r *http.Request, view pages.AdminCreditView, status int, notice i18n.Key) {
+	ledger, err := h.store.Credit(r.Context())
+	if err != nil {
+		h.log.ErrorContext(r.Context(), "read credit ledger", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	view.Rows, view.ListBound = ledger.Rows, ledger.ListBound
+	if notice != "" {
+		view.Notice = i18n.T(r.Context(), notice)
+	}
+	web.Render(w, r, h.log, status, pages.AdminCredit(layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageCredit)}, view))
 }

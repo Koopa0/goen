@@ -28,25 +28,60 @@ templ AdminCredit(p layouts.Page, v AdminCreditView) {
 			}
 		}
 		@components.Card(components.CardProps{Class: "goen-admin__op"}) {
-			<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminCreditGrant) }</h2>
-			<form class="goen-admin__form goen-admin__grant" method="post" action="/admin/credit">
-				<input type="hidden" name="operation_id" value={ v.OperationID }/>
-				<div class="ui-field">
-					<label class="ui-label" for="credit-email">{ i18n.T(ctx, i18n.KeyAdminCreditEmail) }</label>
-					<input class="ui-input" id="credit-email" name="email" type="email" required autocomplete="off" value={ v.Email }/>
-				</div>
-				<div class="ui-field">
-					<label class="ui-label" for="credit-amount">{ i18n.T(ctx, i18n.KeyAdminCreditAmount) }</label>
-					<input class="ui-input" id="credit-amount" name="amount" type="number" min="1" max="100000" step="1" required inputmode="numeric" value={ v.Amount }/>
-				</div>
-				<div class="ui-field">
-					<label class="ui-label" for="credit-reason">{ i18n.T(ctx, i18n.KeyAdminCreditReason) }</label>
-					<input class="ui-input" id="credit-reason" name="reason" required maxlength="200" autocomplete="off" value={ v.Reason }/>
-				</div>
-				@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
-					{ i18n.T(ctx, i18n.KeyAdminCreditGrant) }
-				}
-			</form>
+			if v.Confirm {
+				<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminCreditConfirm) }</h2>
+				<dl class="ui-dl">
+					<div class="ui-dl__row">
+						<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminCreditCustomer) }</dt>
+						<dd class="ui-dl__desc">{ v.CustomerName } · { v.Email }</dd>
+					</div>
+					<div class="ui-dl__row">
+						<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminCreditBalance) }</dt>
+						<dd class="ui-dl__desc">{ v.Balance() }</dd>
+					</div>
+					<div class="ui-dl__row">
+						<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminCreditAmount) }</dt>
+						<dd class="ui-dl__desc">{ v.GrantAmount() }</dd>
+					</div>
+					<div class="ui-dl__row">
+						<dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminCreditReason) }</dt>
+						<dd class="ui-dl__desc">{ v.Reason }</dd>
+					</div>
+				</dl>
+				<form method="post" action="/admin/credit" class="goen-admin__form">
+					<input type="hidden" name="operation_id" value={ v.OperationID }/>
+					<input type="hidden" name="customer_id" value={ v.CustomerID }/>
+					<input type="hidden" name="email" value={ v.Email }/>
+					<input type="hidden" name="amount" value={ v.Amount }/>
+					<input type="hidden" name="reason" value={ v.Reason }/>
+					@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Attrs: templ.Attributes{"name": "confirm", "value": "grant"}}, "submit") {
+						{ i18n.T(ctx, i18n.KeyAdminCreditGrant) }
+					}
+					@components.Button(components.ButtonProps{Variant: components.VariantOutline, Attrs: templ.Attributes{"name": "edit", "value": "1"}}, "submit") {
+						{ i18n.T(ctx, i18n.KeyAdminCreditEdit) }
+					}
+				</form>
+			} else {
+				<h2 class="goen-admin__optitle">{ i18n.T(ctx, i18n.KeyAdminCreditGrant) }</h2>
+				<form class="goen-admin__form goen-admin__grant" method="post" action="/admin/credit">
+					<input type="hidden" name="operation_id" value={ v.OperationID }/>
+					<div class="ui-field">
+						<label class="ui-label" for="credit-email">{ i18n.T(ctx, i18n.KeyAdminCreditEmail) }</label>
+						<input class="ui-input" id="credit-email" name="email" type="email" required autocomplete="off" aria-invalid={ v.EmailInvalid } value={ v.Email }/>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="credit-amount">{ i18n.T(ctx, i18n.KeyAdminCreditAmount) }</label>
+						<input class="ui-input" id="credit-amount" name="amount" type="number" min="1" max="100000" step="1" required inputmode="numeric" aria-invalid={ v.AmountInvalid } value={ v.Amount }/>
+					</div>
+					<div class="ui-field">
+						<label class="ui-label" for="credit-reason">{ i18n.T(ctx, i18n.KeyAdminCreditReason) }</label>
+						<input class="ui-input" id="credit-reason" name="reason" required maxlength="200" autocomplete="off" aria-invalid={ v.ReasonInvalid } value={ v.Reason }/>
+					</div>
+					@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+						{ i18n.T(ctx, i18n.KeyAdminCreditReview) }
+					}
+				</form>
+			}
 		}
 		<h2 class="goen-admin__subhead">{ i18n.T(ctx, i18n.KeyAdminCreditRecent) }</h2>
 		if v.Empty() {
