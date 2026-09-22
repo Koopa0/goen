@@ -112,8 +112,13 @@ templ AdminStaff(p layouts.Page, v AdminStaffView) {
 							ID:    "staff-email",
 							Name:  "email",
 							Type:  "email",
+							Value: v.AddEmail,
+							Invalid: v.AddError != "", Describes: "staff-email-error",
 							Attrs: templ.Attributes{"required": true, "maxlength": "254"},
 						})
+						if v.AddError != "" {
+							<p class="ui-error-text" id="staff-email-error" role="alert">{ v.AddError }</p>
+						}
 					</div>
 					<div class="goen-admin__field">
 						@components.Label(components.LabelProps{For: "staff-name"}) {
@@ -122,6 +127,7 @@ templ AdminStaff(p layouts.Page, v AdminStaffView) {
 						@components.Input(components.FieldProps{
 							ID:    "staff-name",
 							Name:  "name",
+							Value: v.AddName,
 							Attrs: templ.Attributes{"maxlength": "60"},
 						})
 					</div>
@@ -131,7 +137,7 @@ templ AdminStaff(p layouts.Page, v AdminStaffView) {
 						}
 						<select class="goen-input" id="staff-role" name="role" required>
 							for _, role := range v.Roles {
-								<option value={ string(role) }>{ role.Label(ctx) }</option>
+								<option value={ string(role) } selected?={ v.AddRole == role }>{ role.Label(ctx) }</option>
 							}
 						</select>
 					</div>

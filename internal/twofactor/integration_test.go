@@ -1224,14 +1224,14 @@ func TestTwoAdminsRevokingEachOtherLeaveOne(t *testing.T) {
 	}
 }
 
-// TestErasureAndDemotionShareTheRosterGuard covers the cross-feature race:
-// erasing A and changing B from admin to staff must not each observe the other
+// TestErasureAndRevocationShareTheRosterGuard covers the cross-feature race:
+// erasing A and revoking B’s admin access must not each observe the other
 // as the remaining administrator. Both application roles enter through their
 // real database doors and are held at the shared guard before either can write.
-func TestErasureAndDemotionShareTheRosterGuard(t *testing.T) {
+func TestErasureAndRevocationShareTheRosterGuard(t *testing.T) {
 	ctx := t.Context()
 	a, _ := staff(t)
-	b, bEmail := staff(t)
+	b, _ := staff(t)
 	if _, err := pool.Exec(ctx, `
 		UPDATE users SET role = 'customer'
 		WHERE role = 'admin' AND id <> $1 AND id <> $2`, a, b); err != nil {
@@ -1248,33 +1248,32 @@ func TestErasureAndDemotionShareTheRosterGuard(t *testing.T) {
 	}
 
 	suffix := uuid.NewString()[:8]
-	eraseName, demoteName := "erase-demote-erase-"+suffix, "erase-demote-role-"+suffix
+	eraseName, revokeName := "erase-revoke-erase-"+suffix, "erase-revoke-role-"+suffix
 	eraser := account.NewStore(twofactorRolePool(t, eraseName, "store"))
-	staffStore := twofactor.NewStore(twofactorRolePool(t, demoteName, "admin"), testKey)
-	eraseDone, demoteDone := make(chan error, 1), make(chan error, 1)
+	staffStore := twofactor.NewStore(twofactorRolePool(t, revokeName, "admin"), testKey)
+	eraseDone, revokeDone := make(chan error, 1), make(chan error, 1)
 	go func() { eraseDone <- eraser.Erase(context.WithoutCancel(ctx), a) }()
 	go func() {
-		_, demoteErr := staffStore.AddStaff(
-			context.WithoutCancel(ctx), bEmail, "測試", "staff", a)
-		demoteDone <- demoteErr
+		revokeErr := staffStore.RevokeStaff(context.WithoutCancel(ctx), b, a)
+		revokeDone <- revokeErr
 	}()
 	waitForTwofactorLock(t, eraseName, eraseDone)
-	waitForTwofactorLock(t, demoteName, demoteDone)
+	waitForTwofactorLock(t, revokeName, revokeDone)
 
 	if err := blocker.Commit(ctx); err != nil {
 		t.Fatalf("release roster blocker: %v", err)
 	}
 	eraseErr := twofactorOperationResult(t, eraseDone)
-	demoteErr := twofactorOperationResult(t, demoteDone)
+	revokeErr := twofactorOperationResult(t, revokeDone)
 	eraseRefused := func(err error) bool {
 		pgErr, ok := errors.AsType[*pgconn.PgError](err)
 		return ok && pgErr.ConstraintName == "erase_user_keeps_one_admin"
 	}
-	eraseWon := eraseErr == nil && errors.Is(demoteErr, twofactor.ErrLastAdmin)
-	demoteWon := demoteErr == nil && eraseRefused(eraseErr)
-	if !eraseWon && !demoteWon {
-		t.Fatalf("erase/demote = %v / %v, want one success and one last-admin refusal",
-			eraseErr, demoteErr)
+	eraseWon := eraseErr == nil && errors.Is(revokeErr, twofactor.ErrLastAdmin)
+	revokeWon := revokeErr == nil && eraseRefused(eraseErr)
+	if !eraseWon && !revokeWon {
+		t.Fatalf("erase/revoke = %v / %v, want one success and one last-admin refusal",
+			eraseErr, revokeErr)
 	}
 
 	var admins int
@@ -1283,7 +1282,7 @@ func TestErasureAndDemotionShareTheRosterGuard(t *testing.T) {
 		t.Fatalf("count admins: %v", err)
 	}
 	if admins != 1 {
-		t.Errorf("erase/demote left %d admins, want 1", admins)
+		t.Errorf("erase/revoke left %d admins, want 1", admins)
 	}
 }
 

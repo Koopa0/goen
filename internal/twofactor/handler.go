@@ -294,6 +294,25 @@ func (h *Handler) AddStaff(w http.ResponseWriter, r *http.Request) {
 	cleared, err := h.store.AddStaff(r.Context(),
 		r.PostFormValue("email"), r.PostFormValue("name"), r.PostFormValue("role"),
 		actorID(r))
+	if errors.Is(err, ErrAlreadyStaff) {
+		view, readErr := h.store.Staff(r.Context())
+		if readErr != nil {
+			h.log.ErrorContext(r.Context(), "read staff after refused add", "error", readErr)
+			h.fault(w, r)
+			return
+		}
+		view.Actor = actorID(r)
+		view.AddEmail = r.PostFormValue("email")
+		view.AddName = r.PostFormValue("name")
+		view.AddRole = pages.StaffRole(r.PostFormValue("role"))
+		view.AddError = i18n.T(r.Context(), i18n.KeyStaffAlreadyExists)
+		if !h.store.Enabled() {
+			view.Notice = i18n.T(r.Context(), i18n.KeyTOTPNoKeyNotice)
+		}
+		web.Render(w, r, h.log, http.StatusUnprocessableEntity, pages.AdminStaff(
+			layouts.Page{Title: i18n.T(r.Context(), i18n.KeyAdminPageStaff)}, view))
+		return
+	}
 	if err == nil && cleared {
 		// A success the admin has to relay: the new colleague cannot get in
 		// until they set a password through /forgot.

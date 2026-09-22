@@ -28,6 +28,8 @@ var (
 	ErrSelf = errors.New("twofactor: an admin cannot do that to their own account")
 	// ErrInvalidStaff is a form the rules refuse.
 	ErrInvalidStaff = errors.New("twofactor: that is not a usable staff account")
+	// ErrAlreadyStaff refuses an add without changing an existing colleague.
+	ErrAlreadyStaff = errors.New("twofactor: that account is already staff")
 )
 
 // staffAuditAction is the closed set of staff writes the trail records.
@@ -42,9 +44,9 @@ const (
 	actionRemoveStaffFactor staffAuditAction = "staff.factor.remove"
 )
 
-// AddStaff gives somebody back-office access, with no password set. It is an
-// UPSERT resolved by address, so submitting your own address is a
-// self-promotion; the actor is compared for that reason.
+// AddStaff creates a colleague or promotes a customer. An existing colleague
+// must use the separate authorization operations so an add cannot change their
+// role or end their sessions.
 //
 // The bool is an outcome and not an error: the promotion succeeded, and true
 // means the address already had an account which had never proved the mailbox,
@@ -74,9 +76,13 @@ func (s *Store) AddStaff(ctx context.Context, address, name, role, actorID strin
 			Email: address, FullName: name, Role: role,
 		})
 		if upsertErr != nil {
-			if pgErr, ok := errors.AsType[*pgconn.PgError](upsertErr); ok &&
-				pgErr.ConstraintName == "users_keep_one_admin" {
-				return uuid.UUID{}, nil, ErrLastAdmin
+			if pgErr, ok := errors.AsType[*pgconn.PgError](upsertErr); ok {
+				switch pgErr.ConstraintName {
+				case "users_keep_one_admin":
+					return uuid.UUID{}, nil, ErrLastAdmin
+				case "users_staff_already_exists":
+					return uuid.UUID{}, nil, ErrAlreadyStaff
+				}
 			}
 			return uuid.UUID{}, nil, fmt.Errorf("add staff %s: %w", address, upsertErr)
 		}
