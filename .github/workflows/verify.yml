@@ -197,6 +197,12 @@ jobs:
         shell: bash
         run: make check-layout 2>&1 | tee layout.log
 
+      - name: Verify packing-slip PDF composition
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+          python3 scripts/check-packing-pdfs.py
+
       - name: Keep the run's output
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -205,6 +211,7 @@ jobs:
           path: |
             layout.log
             server.log
+            layout-packing/
           if-no-files-found: warn
 
   vulnerabilities:

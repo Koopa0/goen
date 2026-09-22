@@ -7204,3 +7204,28 @@ h4,
     animation: none;
   }
 }
+
+/* Tailwind order-history/invoice-table adapted to existing tokens; the fixed
+   paper constraints apply only to the dedicated fulfilment document. */
+.goen-packing { max-width: 64rem; margin: auto; padding: 2rem 1rem; }
+.goen-packing__tools { margin-bottom: 2rem; }
+.goen-packing__tools p { margin-top: 1rem; }
+.goen-packing .ui-table { table-layout: fixed; margin-top: 2rem; }
+.goen-packing .ui-table caption { text-align: left; padding-bottom: 1rem; }
+.goen-packing .ui-table th, .goen-packing .ui-table td,
+.goen-packing .ui-dl__desc { overflow-wrap: anywhere; white-space: normal; }
+.goen-packing .ui-dl__row { grid-template-columns: minmax(5rem, 1fr) minmax(0, 3fr); }
+@media print {
+  @page packing { size: A4; margin: 15mm; }
+  .goen-packing-shell { background: white; color: black; }
+  .goen-packing { page: packing; max-width: none; padding: 0; }
+  .goen-packing__tools { display: none; }
+  .goen-packing .ui-page-head, .goen-packing .ui-dl,
+  .goen-packing tr { break-inside: avoid; }
+  .goen-packing thead { display: table-header-group; }
+  .goen-packing .ui-table td, .goen-packing .ui-table th,
+  .goen-packing .ui-dl__term, .goen-packing .ui-dl__desc,
+  .goen-packing .ui-page-head__sub { color: black; }
+}
+
+.goen-packing [hidden] { display: none; }

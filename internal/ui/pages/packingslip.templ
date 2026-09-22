@@ -1,0 +1,38 @@
+package pages
+
+import (
+ "github.com/koopa0/goen/internal/i18n"
+ "github.com/koopa0/goen/internal/ui/layouts"
+)
+
+// AdminPackingSlip adapts Tailwind's order-history invoice-table: order summary
+// followed by a semantic item table. Fulfilment does not need its financial cells.
+templ AdminPackingSlip(v PackingSlipView) {
+ @layouts.Packing(layouts.Page{Title: i18n.T(ctx, i18n.KeyPackingSlip) + " · " + v.Number}) {
+  <div class="goen-packing__tools">
+   <a class="ui-btn ui-btn--outline" href={ templ.URL("/admin/orders/" + v.Number) }>{ i18n.T(ctx, i18n.KeyPackingSlipBack) }</a>
+   <button class="ui-btn" type="button" data-packing-print hidden>{ i18n.T(ctx, i18n.KeyPackingSlipPrint) }</button>
+   <p>{ i18n.T(ctx, i18n.KeyPackingSlipHelp) }</p>
+  </div>
+  <header class="ui-page-head">
+   <div>
+    <h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyPackingSlip) }</h1>
+    <p class="ui-page-head__sub">{ v.Number } · { v.ShippingName }</p>
+   </div>
+  </header>
+  <dl class="ui-dl">
+   <div class="ui-dl__row"><dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldRecipient) }</dt><dd class="ui-dl__desc">{ v.Recipient }</dd></div>
+   <div class="ui-dl__row"><dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyFieldPhoneShort) }</dt><dd class="ui-dl__desc">{ v.Phone }</dd></div>
+   <div class="ui-dl__row"><dt class="ui-dl__term">{ i18n.T(ctx, i18n.KeyAdminQueueAddress) }</dt><dd class="ui-dl__desc">{ v.Destination }</dd></div>
+  </dl>
+  <table class="ui-table">
+   <caption>{ i18n.T(ctx, i18n.KeyAdminQueueItems) }</caption>
+   <thead><tr><th scope="col">SKU</th><th scope="col">{ i18n.T(ctx, i18n.KeyAdminQueueItems) }</th><th scope="col">{ i18n.T(ctx, i18n.KeyPackingSlipQuantity) }</th></tr></thead>
+   <tbody>
+    for _, line := range v.Lines {
+     <tr><td>{ line.SKU }</td><td>{ line.Name }<br/>{ line.Label }</td><td>{ line.Quantity }</td></tr>
+    }
+   </tbody>
+  </table>
+ }
+}

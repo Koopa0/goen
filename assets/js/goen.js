@@ -85,6 +85,12 @@
     document.querySelectorAll("[data-stepper]").forEach(atBounds);
   }
 
+  const packingPrint = document.querySelector("[data-packing-print]");
+  if (packingPrint) {
+    packingPrint.hidden = false;
+    packingPrint.addEventListener("click", () => window.print());
+  }
+
   headerMenu();
   stepper();
 })();
