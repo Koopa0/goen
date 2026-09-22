@@ -114,6 +114,19 @@ jobs:
       - name: Schema conformance
         run: make test-integration
 
+      - name: Verify report CSV mutations
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python3 scripts/check-report-csv-mutations.py
+
+      - name: Keep report CSV mutation evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: report-csv-mutations
+          path: report-csv-mutations.log
+          if-no-files-found: warn
+
       # A down migration that does not undo the up migration is only ever
       # discovered when someone needs it.
       - name: Migration round trip
