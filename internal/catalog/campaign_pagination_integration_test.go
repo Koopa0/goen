@@ -5,6 +5,10 @@ package catalog_test
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -43,6 +47,12 @@ func TestRunningCampaignsExposeTheSeventhCampaign(t *testing.T) {
 	}
 	if len(second.Rows) != 1 || second.Rows[0].Slug != slugs[6] || second.Page != 2 {
 		t.Fatalf("second page does not expose seventh campaign: %+v", second)
+	}
+	r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/deals?campaign_page=2", http.NoBody)
+	w := httptest.NewRecorder()
+	catalog.NewHandler(store, slog.New(slog.DiscardHandler)).Deals(w, r)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `href="/s/`+slugs[6]+`"`) || strings.Contains(w.Body.String(), `href="/s/`+slugs[0]+`"`) {
+		t.Fatalf("HTTP campaign page two omitted the seventh campaign or repeated page one: status=%d", w.Code)
 	}
 	for i := range first.Rows {
 		if first.Rows[i].Slug != slugs[i] {
