@@ -259,6 +259,11 @@ SELECT o.id, o.order_number, o.fulfillment_status,
                   WHERE ol.order_id = o.id), 0)
         - o.discount_cents + o.shipping_cents + o.tax_cents
         - order_amount_owed(o.id))::bigint AS credit_cents,
+       coalesce(ip.invoice_type, '') AS invoice_type,
+       coalesce(ip.carrier_code, '') AS invoice_carrier,
+       coalesce(ip.tax_id, '') AS invoice_tax_id,
+       coalesce(ip.customer_name, '') AS invoice_customer_name,
+       coalesce(ip.customer_email, '') AS invoice_customer_email,
        coalesce(pd.email, '') AS email,
        coalesce(pd.postal_code, '') AS postal_code,
        coalesce(pd.city, '') AS city,
@@ -275,6 +280,7 @@ SELECT o.id, o.order_number, o.fulfillment_status,
        order_amount_owed(o.id)::bigint AS owed_cents
 FROM orders o
 LEFT JOIN order_private_data pd ON pd.order_id = o.id
+LEFT JOIN invoice_preferences ip ON ip.order_id = o.id AND pd.erased_at IS NULL
 WHERE o.order_number = $1;
 
 -- An order's lines as a REORDER sees them. LEFT JOIN and not JOIN: variant_id is

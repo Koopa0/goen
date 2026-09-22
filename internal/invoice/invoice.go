@@ -137,6 +137,17 @@ func (p Preference) NeedsCarrier() bool { return p == PreferenceMobile }
 // NeedsTaxID reports whether checkout must collect a business tax number.
 func (p Preference) NeedsTaxID() bool { return p == PreferenceCompany }
 
+// CompanyDelivery chooses where a company invoice is held, independently of its buyer identity.
+type CompanyDelivery string
+
+const (
+	CompanyDeliveryEmail  CompanyDelivery = "email"
+	CompanyDeliveryMobile CompanyDelivery = "mobile"
+)
+
+// Known reports whether the company delivery choice can be issued without printing.
+func (d CompanyDelivery) Known() bool { return d == CompanyDeliveryEmail || d == CompanyDeliveryMobile }
+
 // Carrier types, as ECPay names them.
 const (
 	// CarrierNone is a printed invoice or one held in the shop's own account.

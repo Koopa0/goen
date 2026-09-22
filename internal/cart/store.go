@@ -931,6 +931,9 @@ func (s *Store) Order(ctx context.Context, number string) (pages.OrderView, erro
 	}
 
 	view := pages.OrderView{
+		Invoice: pages.CheckoutInvoice{Type: invoicepkg.Preference(o.InvoiceType), Carrier: o.InvoiceCarrier,
+			CompanyName: o.InvoiceCustomerName, TaxID: o.InvoiceTaxID},
+		InvoiceEmail: o.InvoiceCustomerEmail,
 		Number:       o.OrderNumber,
 		Status:       pages.FulfillmentStatus(o.FulfillmentStatus),
 		Email:        o.Email,

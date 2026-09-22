@@ -578,10 +578,11 @@ func (s OrderShipment) Delivered() bool { return s.DeliveredAt != "" }
 
 // CheckoutInvoice carries the invoice choice back into a refused form.
 type CheckoutInvoice struct {
-	Type        invoice.Preference
-	Carrier     string
-	CompanyName string
-	TaxID       string
+	CompanyDelivery invoice.CompanyDelivery
+	Type            invoice.Preference
+	Carrier         string
+	CompanyName     string
+	TaxID           string
 }
 
 // Is reports whether this is the chosen type.
@@ -595,16 +596,23 @@ func (i CheckoutInvoice) Chosen() invoice.Preference {
 	return i.Type
 }
 
-// NeedsCarrier reports whether the 載具 field applies. It and NeedsTaxID decide
-// which half of the form exists: rendering both would leave required promising
-// something the server will not demand.
-func (i CheckoutInvoice) NeedsCarrier() bool { return i.Chosen().NeedsCarrier() }
+// NeedsCarrier reports whether the chosen delivery needs a mobile barcode.
+func (i CheckoutInvoice) NeedsCarrier() bool {
+	return i.Chosen().NeedsCarrier() || (i.NeedsTaxID() && i.CompanyDelivery == invoice.CompanyDeliveryMobile)
+}
+
+// UsesCompanyEmail preserves the default for existing company preferences.
+func (i CheckoutInvoice) UsesCompanyEmail() bool {
+	return i.CompanyDelivery == "" || i.CompanyDelivery == invoice.CompanyDeliveryEmail
+}
 
 // NeedsTaxID reports whether the 統編 field applies.
 func (i CheckoutInvoice) NeedsTaxID() bool { return i.Chosen().NeedsTaxID() }
 
 // OrderView is the confirmation page.
 type OrderView struct {
+	Invoice        CheckoutInvoice
+	InvoiceEmail   string
 	Number         string
 	Status         FulfillmentStatus
 	Email          string

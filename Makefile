@@ -640,10 +640,11 @@ db-seed:
 
 # Rewrite the published invoice FAQ on a database that already has one.
 # db-seed cannot: the catalogue INSERT stops on the first kept brand.
-# This file updates that one question and nothing else.
+# These files update only the two invoice questions, preserving merchant edits.
 db-repair-invoice-faq:
 	@test -n "$${GOEN_DATABASE_URL:-}" || { echo 'GOEN_DATABASE_URL is required' >&2; exit 2; }
 	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/repair_invoice_faq.sql
+	psql "$$GOEN_DATABASE_URL" -v ON_ERROR_STOP=1 -f seed/repair_company_invoice_faq.sql
 
 # Rewrite the published refund FAQ on a database that already has one.
 # db-seed cannot: the catalogue INSERT stops on the first kept brand.

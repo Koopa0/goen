@@ -660,9 +660,9 @@ INSERT INTO faq_entries (category, question, answer, position) VALUES
     -- deployment, not an unfinished product, and the back office already
     -- says so. Two authorities answering one customer question.
     ('發票', '發票怎麼開立?',
-     '結帳時可以選擇會員載具、手機條碼載具或公司統編,系統會記錄您的選擇。這份部署若已設定綠界加值中心,後台會依該選擇開立電子發票;尚未設定時不會開立,後台會說明原因。', 10),
+     '結帳時可選手機條碼或依結帳 Email 留存的綠界平台載具。公司發票請填公司名稱與統編，再選平台載具或手機條碼；不提供紙本寄送。部署已設定綠界加值中心時，後台依此選擇開立；尚未設定時不會開立，後台會說明原因。', 10),
     ('發票', '可以開公司統編嗎?',
-     '可以。結帳時選擇「公司統編」並填入八位數字的統一編號即可。', 20),
+     '可以。結帳時選「公司統編」，填入公司名稱與八位統編。預設依結帳 Email 留存在綠界，也可選手機條碼；兩者均保留公司資訊，不提供紙本寄送。', 20),
 
     ('會員', '一定要註冊才能購買嗎?',
      '不用。goen 支援訪客結帳,只需要填寫收件資訊。註冊後可以查看訂單紀錄、使用願望清單,以及累積與使用商店額度。', 10),
@@ -689,9 +689,9 @@ FROM (VALUES
     ('可以刪除我的帳號嗎?', 'Membership', 'Can I delete my account?',
      'Yes. You can ask for deletion from your account page. Your personal and delivery details are erased; the financial record of your orders is kept, because accounting requires it.'),
     ('發票怎麼開立?', 'Invoices', 'How is my invoice issued?',
-     'At checkout you can choose a member carrier, a mobile barcode carrier, or a company tax ID, and we record your choice. When this deployment has ECPay credentials the back office issues the electronic invoice against that choice; without them nothing is filed, and the back office says so.'),
+     'At checkout choose a mobile barcode or an ECPay carrier held against your checkout email. For a company invoice, enter the registered name and tax ID, then choose the ECPay carrier or a mobile barcode. Paper delivery is not offered. With ECPay credentials configured, the back office issues against that choice; otherwise nothing is filed and the back office explains why.'),
     ('可以開公司統編嗎?', 'Invoices', 'Can you invoice a company tax ID?',
-     'Yes. Choose "company tax ID" at checkout and enter the eight digits.'),
+     'Yes. Choose "company tax ID" and enter the registered company name and eight-digit tax ID. The default is an ECPay carrier held against your checkout email; you may choose a mobile barcode instead. Both retain the company identity. Paper delivery is not offered.'),
     ('可以用哪些方式付款?', 'Ordering and payment', 'How can I pay?',
      'Credit card, handled by Stripe. goen never sees your card details: the payment page is on Stripe''s own domain and you return to your order afterwards.'),
     ('下單之後商品會保留嗎?', 'Ordering and payment', 'Is the stock held after I order?',

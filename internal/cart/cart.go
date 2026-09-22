@@ -809,8 +809,9 @@ type Invoice struct {
 	// Type is the stable wire preference matching
 	// invoice_preferences_type_known.
 	Type invoicepkg.Preference
-	// Carrier is the mobile-barcode invoice carrier, for mobile_carrier only.
-	Carrier string
+	// Carrier is the mobile barcode for a personal or company invoice.
+	Carrier         string
+	CompanyDelivery invoicepkg.CompanyDelivery
 	// CompanyName is the registered buyer name corresponding to TaxID. It is
 	// deliberately separate from the delivery recipient.
 	CompanyName string
@@ -855,11 +856,31 @@ func (i *Invoice) Validate() []account.FieldError {
 				MessageKey: i18n.KeyTaxIDMalformed,
 			})
 		}
-		i.Carrier = ""
+		if i.CompanyDelivery == "" {
+			i.CompanyDelivery = invoicepkg.CompanyDeliveryEmail
+		}
+		if !i.CompanyDelivery.Known() {
+			errs = append(errs, account.FieldError{Field: "invoice_company_delivery", MessageKey: i18n.KeyCompanyDeliveryRequired})
+		} else if i.CompanyDelivery == invoicepkg.CompanyDeliveryMobile {
+			if !invoicepkg.ValidMobileCarrier(i.Carrier) {
+				errs = append(errs, account.FieldError{Field: "invoice_carrier", MessageKey: i18n.KeyCarrierMalformed})
+			}
+		} else {
+			i.Carrier = ""
+		}
 	case invoicepkg.PreferenceMember:
 		i.Carrier, i.CompanyName, i.TaxID = "", "", ""
 	}
+	if i.Type != invoicepkg.PreferenceCompany {
+		i.CompanyDelivery = ""
+	}
 	return errs
+}
+
+// UsesMobileCarrier includes the carrier chosen independently of a company buyer.
+func (i Invoice) UsesMobileCarrier() bool {
+	return i.Type == invoicepkg.PreferenceMobile ||
+		(i.Type == invoicepkg.PreferenceCompany && i.CompanyDelivery == invoicepkg.CompanyDeliveryMobile)
 }
 
 // invoiceTypeLabelKey names the message for one choice.

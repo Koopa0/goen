@@ -14,7 +14,7 @@ import (
 // successful attempt is answered before this point, so provider downtime cannot
 // turn an idempotent retry into a new order or a refusal of an existing order.
 func (h *Handler) checkMobileCarrier(w http.ResponseWriter, r *http.Request, cartID uuid.UUID, submission *checkoutSubmission) bool {
-	if !submission.invoice.Type.NeedsCarrier() || h.carriers == nil {
+	if !submission.invoice.UsesMobileCarrier() || h.carriers == nil {
 		return true
 	}
 	for _, key := range []string{"cart:" + cartID.String(), "ip:" + ratelimit.ClientIP(r)} {

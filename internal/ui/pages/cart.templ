@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/invoice"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -464,29 +465,6 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 								</div>
 							}
 							<div class="goen-checkout__fields">
-								if v.Invoice.NeedsCarrier() {
-									<div class="goen-field">
-										@components.Label(components.LabelProps{For: "invoice_carrier"}) {
-											{ i18n.T(ctx, i18n.KeyFieldCarrier) }
-										}
-										<input
-											class="goen-input"
-											id="invoice_carrier"
-											name="invoice_carrier"
-											maxlength="8"
-											autocomplete="off"
-											placeholder="/ABC+123"
-											value={ v.Invoice.Carrier }
-											aria-invalid={ v.Invalid("invoice_carrier") }
-											if v.HasErr("invoice_carrier") {
-												aria-describedby="invoice_carrier-error"
-											}
-										/>
-										if v.HasErr("invoice_carrier") {
-											<p class="ui-error-text" id="invoice_carrier-error">{ v.Err("invoice_carrier") }</p>
-										}
-									</div>
-								}
 								if v.Invoice.NeedsTaxID() {
 									<div class="goen-field">
 										@components.Label(components.LabelProps{For: "invoice_company_name"}) {
@@ -527,6 +505,57 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 										/>
 										if v.HasErr("invoice_tax_id") {
 											<p class="ui-error-text" id="invoice_tax_id-error">{ v.Err("invoice_tax_id") }</p>
+										}
+									</div>
+								}
+								if v.Invoice.NeedsTaxID() {
+									<fieldset
+										class="goen-field"
+										{ checkoutChoiceSwap("invoice")... }
+										aria-invalid={ v.Invalid("invoice_company_delivery") }
+										if v.HasErr("invoice_company_delivery") {
+											aria-describedby="invoice_company_delivery-error"
+										}
+									>
+										<legend class="ui-label">{ i18n.T(ctx, i18n.KeyCompanyDelivery) }</legend>
+										<div class="goen-checkout__choices">
+											<label class="goen-checkout__ship" for="invoice_company_delivery-email">
+												<input type="radio" id="invoice_company_delivery-email" name="invoice_company_delivery" value="email" checked?={ v.Invoice.UsesCompanyEmail() } aria-describedby="company-email-description"/>
+												<span class="goen-checkout__shipname">{ i18n.T(ctx, i18n.KeyCompanyDeliveryEmail) }</span>
+											</label>
+											<p class="goen-checkout__hint" id="company-email-description">{ i18n.T(ctx, i18n.KeyCompanyDeliveryEmailHint) }</p>
+											<label class="goen-checkout__ship" for="invoice_company_delivery-mobile">
+												<input type="radio" id="invoice_company_delivery-mobile" name="invoice_company_delivery" value="mobile" checked?={ v.Invoice.CompanyDelivery == invoice.CompanyDeliveryMobile } aria-describedby="company-mobile-description"/>
+												<span class="goen-checkout__shipname">{ i18n.T(ctx, i18n.KeyInvoiceMobile) }</span>
+											</label>
+											<p class="goen-checkout__hint" id="company-mobile-description">{ i18n.T(ctx, i18n.KeyCompanyDeliveryMobileHint) }</p>
+										</div>
+										if v.HasErr("invoice_company_delivery") {
+											<p class="ui-error-text" id="invoice_company_delivery-error">{ v.Err("invoice_company_delivery") }</p>
+										}
+									</fieldset>
+									@applyChoice("invoice")
+								}
+								if v.Invoice.NeedsCarrier() {
+									<div class="goen-field">
+										@components.Label(components.LabelProps{For: "invoice_carrier"}) {
+											{ i18n.T(ctx, i18n.KeyFieldCarrier) }
+										}
+										<input
+											class="goen-input"
+											id="invoice_carrier"
+											name="invoice_carrier"
+											maxlength="8"
+											autocomplete="off"
+											placeholder="/ABC+123"
+											value={ v.Invoice.Carrier }
+											aria-invalid={ v.Invalid("invoice_carrier") }
+											if v.HasErr("invoice_carrier") {
+												aria-describedby="invoice_carrier-error"
+											}
+										/>
+										if v.HasErr("invoice_carrier") {
+											<p class="ui-error-text" id="invoice_carrier-error">{ v.Err("invoice_carrier") }</p>
 										}
 									</div>
 								}
@@ -879,6 +908,22 @@ templ Order(p layouts.Page, v *OrderView) {
 								<span class="goen-order__carrier">{ v.ShippingName }</span>
 								<span class="goen-order__meta">{ v.DeliveryTo }</span>
 							</div>
+						</section>
+					}
+					if v.Invoice.Type != "" {
+						<section class="goen-order__delivery" aria-labelledby="order-invoice-heading">
+							<h2 id="order-invoice-heading" class="goen-order__subhead">{ i18n.T(ctx, i18n.KeySectionInvoice) }</h2>
+							<dl>
+								if v.Invoice.NeedsTaxID() {
+									<div class="goen-summary__row"><dt>{ i18n.T(ctx, i18n.KeyFieldCompanyName) }</dt><dd>{ v.Invoice.CompanyName }</dd></div>
+									<div class="goen-summary__row"><dt>{ i18n.T(ctx, i18n.KeyFieldTaxID) }</dt><dd>{ v.Invoice.TaxID }</dd></div>
+								}
+								if v.Invoice.Carrier != "" {
+									<div class="goen-summary__row"><dt>{ i18n.T(ctx, i18n.KeyFieldCarrier) }</dt><dd>{ v.Invoice.Carrier }</dd></div>
+								} else {
+									<div class="goen-summary__row"><dt>{ i18n.T(ctx, i18n.KeyInvoiceMember) }</dt><dd>{ v.InvoiceEmail }</dd></div>
+								}
+							</dl>
 						</section>
 					}
 					<ul class="goen-order__lines" role="list">

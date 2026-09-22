@@ -980,3 +980,32 @@ func TestTheCheckoutRefusesWhatTheSenderWillRefuse(t *testing.T) {
 		t.Errorf("an ordinary address was refused: %v", got)
 	}
 }
+
+func TestCompanyDeliveryValidatesTheChosenCarrier(t *testing.T) {
+	for _, tt := range []struct {
+		name                            string
+		delivery                        invoice.CompanyDelivery
+		carrier, wantCarrier, wantField string
+	}{
+		{name: "default email clears stale carrier", carrier: "/AB12345"},
+		{name: "explicit email clears stale carrier", delivery: invoice.CompanyDeliveryEmail, carrier: "/AB12345"},
+		{name: "mobile retains normalized barcode", delivery: invoice.CompanyDeliveryMobile, carrier: " /abc+123 ", wantCarrier: "/ABC+123"},
+		{name: "mobile requires a barcode", delivery: invoice.CompanyDeliveryMobile, wantField: "invoice_carrier"},
+		{name: "mobile refuses malformed barcode", delivery: invoice.CompanyDeliveryMobile, carrier: "/ABC_123", wantCarrier: "/ABC_123", wantField: "invoice_carrier"},
+		{name: "unknown delivery refuses", delivery: "paper", wantField: "invoice_company_delivery"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Invoice{Type: invoice.PreferenceCompany, CompanyName: "測試股份有限公司", TaxID: "04595252", CompanyDelivery: tt.delivery, Carrier: tt.carrier}
+			errs := got.Validate()
+			if tt.wantField == "" && len(errs) != 0 || tt.wantField != "" && (len(errs) != 1 || errs[0].Field != tt.wantField) {
+				t.Fatalf("validation = %+v, want field %q", errs, tt.wantField)
+			}
+			if got.Carrier != tt.wantCarrier || got.CompanyName != "測試股份有限公司" || got.TaxID != "04595252" {
+				t.Fatal("company identity or selected delivery was not preserved")
+			}
+			if got.UsesMobileCarrier() != (tt.delivery == invoice.CompanyDeliveryMobile) {
+				t.Fatal("company mobile bypasses the shared carrier gate")
+			}
+		})
+	}
+}

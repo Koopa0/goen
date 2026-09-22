@@ -387,6 +387,9 @@ func TestIssueRefusesWhatTheProviderWould(t *testing.T) {
 		{name: "an eight-character carrier with an invalid symbol", alter: func(r *IssueRequest) {
 			r.Preference, r.CarrierCode = "mobile_carrier", "/ABC_123"
 		}},
+		{name: "a company carrier still requires barcode format", alter: func(r *IssueRequest) {
+			r.Preference, r.TaxID, r.CarrierCode = PreferenceCompany, "04595252", "/ABC_123"
+		}},
 		{name: "an invoice type this shop does not offer", alter: func(r *IssueRequest) {
 			r.Preference = "printed"
 		}},
@@ -630,9 +633,8 @@ func openInvalid(t *testing.T, r *http.Request) invalidRequest {
 	return out
 }
 
-// TestACompanyInvoiceCarriesTheTaxIDAndNoCarrier holds a rule ECPay enforces
-// and a reader would not guess.
-func TestACompanyInvoiceCarriesTheTaxIDAndNoCarrier(t *testing.T) {
+// A company without a mobile choice retains the email-associated provider carrier.
+func TestACompanyInvoiceDefaultsToTheEmailCarrier(t *testing.T) {
 	var seen issueRequest
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		g, _ := NewGateway(testMerchantID, testHashKey, testHashIV, "")
