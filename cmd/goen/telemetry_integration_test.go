@@ -5,17 +5,18 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
@@ -81,7 +82,7 @@ func TestHeldPoolExportsSaturationMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 	logBuf := &bytes.Buffer{}
-	log := slog.New(telemetry.CorrelatedHandler(slog.NewTextHandler(logBuf, nil)))
+	log := slog.New(telemetry.CorrelatedHandler(slog.NewJSONHandler(logBuf, nil)))
 	srv := newServer(
 		&config{Addr: "127.0.0.1:0", SecureCookies: false},
 		&RouterConfig{
@@ -112,17 +113,73 @@ func TestHeldPoolExportsSaturationMetrics(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 
-	if !strings.Contains(logBuf.String(), "request_id=") {
-		t.Fatalf("request log missing request_id: %q", logBuf.String())
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("held pool status = %d, want 500: %s", resp.StatusCode, body)
 	}
 	spans := exporter.GetSpans()
-	if len(spans) == 0 {
-		t.Fatal("expected an HTTP span for the catalog request")
+	if len(spans) != 1 {
+		t.Fatalf("HTTP span count = %d, want 1", len(spans))
 	}
-	if spans[len(spans)-1].Name != "GET /c/{slug}" {
-		t.Fatalf("span name = %q, want route template GET /c/{slug}", spans[len(spans)-1].Name)
+	span := spans[0]
+	if span.Name != "GET /c/{slug}" {
+		t.Errorf("span name = %q, want route template GET /c/{slug}", span.Name)
 	}
-	_ = body
+	if duration := span.EndTime.Sub(span.StartTime); duration < storeRequestBudget-time.Second {
+		t.Errorf("HTTP span duration %v excludes the held pool wait %v", duration, storeRequestBudget)
+	}
+	type completionRecord struct {
+		Msg       string `json:"msg"`
+		RequestID string `json:"request_id"`
+		TraceID   string `json:"trace_id"`
+		SpanID    string `json:"span_id"`
+		Status    int    `json:"status"`
+	}
+	completions := 0
+	for _, line := range bytes.Split(bytes.TrimSpace(logBuf.Bytes()), []byte("\n")) {
+		var completion completionRecord
+		if err = json.Unmarshal(line, &completion); err != nil {
+			t.Fatal(err)
+		}
+		if completion.Msg != "request" {
+			continue
+		}
+		completions++
+		if completion.RequestID != resp.Header.Get("X-Request-ID") || completion.TraceID != span.SpanContext.TraceID().String() || completion.SpanID != span.SpanContext.SpanID().String() || completion.Status != 500 {
+			t.Errorf("completion record does not identify the exported failing request: %+v", completion)
+		}
+	}
+	if completions != 1 {
+		t.Errorf("completion records = %d, want 1", completions)
+	}
+	var metrics metricdata.ResourceMetrics
+	if err = reader.Collect(t.Context(), &metrics); err != nil {
+		t.Fatal(err)
+	}
+	foundCanceled := false
+	foundFailure := false
+	for _, scope := range metrics.ScopeMetrics {
+		for _, measurement := range scope.Metrics {
+			if measurement.Name == "goen.db.pool.acquire_canceled" {
+				for _, point := range measurement.Data.(metricdata.Gauge[int64]).DataPoints {
+					if role, ok := point.Attributes.Value("db.role"); ok && role.AsString() == "store" && point.Value > 0 {
+						foundCanceled = true
+					}
+				}
+			}
+			if measurement.Name == "goen.http.server.requests" {
+				for _, point := range measurement.Data.(metricdata.Sum[int64]).DataPoints {
+					route, _ := point.Attributes.Value("http.route")
+					status, _ := point.Attributes.Value("http.status_class")
+					if route.AsString() == "GET /c/{slug}" && status.AsString() == "5xx" && point.Value == 1 {
+						foundFailure = true
+					}
+				}
+			}
+		}
+	}
+	if !foundCanceled || !foundFailure {
+		t.Errorf("exported canceled acquisition=%t and known failing HTTP request=%t, want both", foundCanceled, foundFailure)
+	}
 }
 
 func TestRequestsCompleteWhenExporterUnreachable(t *testing.T) {
@@ -134,9 +191,13 @@ func TestRequestsCompleteWhenExporterUnreachable(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), time.Second)
 		defer cancel()
+		started := time.Now()
 		_ = shutdown(ctx)
+		if elapsed := time.Since(started); elapsed > 2*time.Second {
+			t.Errorf("disconnected exporter shutdown exceeded its one-second context: %v", elapsed)
+		}
 	})
 
 	p, err := openPool(t.Context(), pool.Config().ConnString())
@@ -175,7 +236,7 @@ func TestRequestsCompleteWhenExporterUnreachable(t *testing.T) {
 	defer srv.Close()
 	go srv.Serve(ln)
 
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+ln.Addr().String()+"/healthz", http.NoBody)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+ln.Addr().String()+"/", http.NoBody)
 	if err != nil {
 		t.Fatal(err)
 	}

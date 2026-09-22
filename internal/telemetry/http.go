@@ -69,14 +69,16 @@ func CaptureHTTPRoute(next http.Handler) http.Handler {
 		return nil
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if r.Pattern == "" {
+				return
+			}
+			capture, ok := r.Context().Value(routeCaptureKey{}).(*routeCapture)
+			if ok {
+				capture.pattern = r.Pattern
+			}
+		}()
 		next.ServeHTTP(w, r)
-		if r.Pattern == "" {
-			return
-		}
-		capture, ok := r.Context().Value(routeCaptureKey{}).(*routeCapture)
-		if ok {
-			capture.pattern = r.Pattern
-		}
 	})
 }
 

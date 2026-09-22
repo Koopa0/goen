@@ -409,7 +409,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	// Applied inner to outer, so a request passes through them in the reverse of
 	// this order. HTTP spans open in withRequestTracing so pool waits, chrome
 	// and auth share the same trace the completion log records.
-	handler := mux
+	handler := telemetry.CaptureHTTPRoute(mux)
 	handler = withBanner(handler, home.NewStore(pool), log, secureCookies)
 	handler = withTopNav(handler, home.NewStore(pool), log)
 	handler = withStaffEntrance(handler)
@@ -431,8 +431,8 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 // wraps every storefront middleware so pool waits and chrome work share one
 // trace; ServeMux still stamps Pattern before the span ends.
 func withRequestTracing(next http.Handler, log *slog.Logger) http.Handler {
-	next = requestLog(next, log)
 	next = recoverPanic(next, log)
+	next = requestLog(next, log)
 	next = telemetry.HTTP(next)
 	return withRequestID(next)
 }
@@ -617,7 +617,7 @@ func recoverPanic(next http.Handler, log *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if v := recover(); v != nil {
-				log.Error("panic serving request",
+				log.ErrorContext(r.Context(), "panic serving request",
 					"request_id", web.RequestID(r.Context()),
 					"panic", v,
 					"method", r.Method,

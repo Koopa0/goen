@@ -98,7 +98,7 @@ func initPoolInstruments(m metric.Meter) error {
 			o.ObserveFloat64(poolAcquireMs, stat.AcquireDuration().Seconds(), attrs)
 		}
 		return nil
-	}, poolAcquired, poolIdle, poolTotal, poolMax, poolAcquireMs)
+	}, poolAcquired, poolIdle, poolTotal, poolMax, poolCanceled, poolAcquireMs)
 	return err
 }
 
