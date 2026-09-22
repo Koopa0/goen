@@ -55,12 +55,15 @@ run_feedback_phase() {
   GOEN_URL=http://127.0.0.1:9701 CDP_PORT=9223 CART_TOKEN="$token" node scripts/check-request-feedback-browser.mjs > "$feedback_proof_dir/$phase.jsonl" 2>&1
 }
 run_feedback_phase baseline
-for feedback_mutant in pending cleanup reduced; do
+for feedback_mutant in pending cleanup reduced notice notice-animation press; do
   restore_feedback_sources
   python3 - "$feedback_mutant" <<'PY'
 from pathlib import Path
 import sys
 changes = {
+ 'notice-animation': ('assets/css/app/app.css', '.goen-notice {\n  transition: opacity var(--dur-base) var(--ease-standard);', '@keyframes goen-notice-in { from { opacity: 0; transform: translate(0, -4px); } to { opacity: 1; transform: none; } }\n.goen-notice {\n  animation: goen-notice-in var(--dur-slow) var(--ease-standard);\n  transition: opacity var(--dur-base) var(--ease-standard);'),
+ 'notice': ('assets/css/app/app.css', '.goen-notice {\n  transition: opacity var(--dur-base) var(--ease-standard);', '.goen-notice {\n  transition: none;'),
+ 'press': ('assets/css/app/app.css', '  opacity: 0.85;', '  opacity: 1;'),
  'pending': ('assets/js/goen.js', '  requestFeedback();', '  void requestFeedback;'),
  'cleanup': ('assets/js/goen.js', '        finish(form);\n        source.removeEventListener', '        void form;\n        source.removeEventListener'),
  'reduced': ('assets/css/app/app.css', '.goen-notice,\n  .goen-header__menu::details-content {\n    transition: none;', '.goen-notice,\n  .goen-header__menu::details-content {\n    transition-duration: var(--dur-base);'),
@@ -78,7 +81,7 @@ PY
   python3 - "$feedback_proof_dir/$feedback_mutant.jsonl" "$feedback_mutant" <<'PY'
 import json, sys
 from pathlib import Path
-expected = {'pending': 'pending_375', 'cleanup': 'cleanup_375', 'reduced': 'menu_reduce_375'}[sys.argv[2]]
+expected = {'pending': 'pending_375', 'cleanup': 'cleanup_375', 'reduced': 'menu_reduce_375', 'notice': 'notice_normal_375', 'notice-animation': 'notice_normal_375', 'press': 'press_normal_375'}[sys.argv[2]]
 records = []
 for line in Path(sys.argv[1]).read_text().splitlines():
     try: records.append(json.loads(line))
@@ -98,7 +101,7 @@ expected = ['served_js', 'served_css', 'probe_completed']
 for width in (375, 1440):
     expected += [f'pending_{width}', f'cleanup_{width}', f'noscript_{width}']
     for motion in ('normal', 'reduce'):
-        expected += [f'transition_{motion}_{width}']
+        expected += [f'transition_{motion}_{width}', f'notice_{motion}_{width}', f'press_{motion}_{width}']
         if width == 375:
             expected += [f'menu_{motion}_{width}', f'focus_{motion}_{width}']
         else:

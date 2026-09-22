@@ -3822,31 +3822,6 @@ h4,
   text-underline-offset: 4px;
 }
 
-/* A notice arrives after a write, so it arrives after the page: it fades in and
-   settles rather than appearing where the eye was not looking. The global
-   reduced-motion override at the top of this sheet flattens the duration, which
-   leaves the notice visible and takes the movement away. */
-@keyframes goen-notice-in {
-  from {
-    opacity: 0;
-    transform: translate(0, -4px);
-  }
-
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-.goen-cart .goen-notice,
-.goen-checkout .goen-notice,
-.goen-order .goen-notice,
-.goen-pay .goen-notice,
-.goen-returns .goen-notice,
-.goen-findorder .goen-notice {
-  animation: goen-notice-in var(--dur-slow) var(--ease-standard);
-}
-
 @media (min-width: 768px) {
   .goen-cart,
   .goen-checkout,

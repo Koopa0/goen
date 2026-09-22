@@ -131,6 +131,31 @@ try {
         await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
         check(`focus_${reduced ? 'reduce' : 'normal'}_${width}`, await evaluate(`(() => { const menu = document.querySelector('[data-menu]'); return !menu.open && document.activeElement === menu.querySelector('summary'); })()`));
       }
+
+      await navigate('/cart?added=1');
+      const notice = await evaluate(`(async () => {
+        const notice = document.querySelector('.goen-cart .goen-notice');
+        if (!notice) throw new Error('cart did not render its result notice');
+        await Promise.all(notice.getAnimations().map(animation => animation.finished));
+        const style = getComputedStyle(notice);
+        return { animation: style.animationName, duration: style.transitionDuration, property: style.transitionProperty, opacity: style.opacity, visible: notice.getBoundingClientRect().height > 0 };
+      })()`);
+      const noticeDuration = Math.max(...notice.duration.split(',').map(value => parseFloat(value)));
+      check(`notice_${reduced ? 'reduce' : 'normal'}_${width}`, notice.animation === 'none' && notice.visible && notice.opacity === '1' && (reduced ? noticeDuration <= 0.001 : notice.property === 'opacity' && noticeDuration === 0.12), notice);
+      const button = await evaluate(`(() => {
+        const button = document.querySelector('.goen-cart .goen-btn:not(:disabled):not([aria-disabled="true"])');
+        if (!button) throw new Error('cart has no available action');
+        button.scrollIntoView({ block: 'center' });
+        const box = button.getBoundingClientRect();
+        window.feedbackPressedButton = button;
+        return { x: box.x + box.width / 2, y: box.y + box.height / 2, opacity: getComputedStyle(button).opacity };
+      })()`);
+      await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: button.x, y: button.y });
+      await send('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', clickCount: 1, x: button.x, y: button.y });
+      const pressed = await evaluate(`({ active: window.feedbackPressedButton.matches(':active'), opacity: getComputedStyle(window.feedbackPressedButton).opacity })`);
+      await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 0, y: 0 });
+      await send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', clickCount: 1, x: 0, y: 0 });
+      check(`press_${reduced ? 'reduce' : 'normal'}_${width}`, pressed.active && pressed.opacity === '0.85' && Number(pressed.opacity) < Number(button.opacity), pressed);
     }
 
     await send('Emulation.setScriptExecutionDisabled', { value: true });
