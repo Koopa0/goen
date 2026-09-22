@@ -2,6 +2,8 @@ package pages
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
+	"github.com/koopa0/goen/internal/ui/icons"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -13,23 +15,28 @@ type WishlistView struct {
 // Empty reports whether nothing has been saved.
 func (v WishlistView) Empty() bool { return len(v.Products) == 0 }
 
-// Wishlist renders the saved products and the form that removes one.
+// Wishlist renders the saved products and the form that removes one. Each saved
+// product is ONE list item holding the card and its own remove form: a global
+// grid of cards with a separate list of forms is the topology #320 filed.
 templ Wishlist(p layouts.Page, v WishlistView) {
 	@layouts.Base(p) {
 		<div class="goen-listing">
-			<div class="ui-page-head">
-				<div>
-					<p class="ui-page-head__eyebrow">{ i18n.T(ctx, i18n.KeyAccountTitle) }</p>
-					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyWishlistTitle) }</h1>
-				</div>
+			<div class="goen-pagehead">
+				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyAccountTitle) }</p>
+				<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyWishlistTitle) }</h1>
 			</div>
 			if v.Empty() {
 				<div class="ui-empty">
-					<p class="ui-empty__title">{ i18n.T(ctx, i18n.KeyWishlistEmpty) }</p>
-					<p class="ui-empty__desc">
-						{ i18n.T(ctx, i18n.KeyWishlistEmptyHint) }
-						<a href="/">{ i18n.T(ctx, i18n.KeyWishlistEmptyLink) }</a>
-					</p>
+					<span class="goen-medallion" aria-hidden="true">
+						@icons.Heart()
+					</span>
+					<p class="goen-empty__title">{ i18n.T(ctx, i18n.KeyWishlistEmpty) }</p>
+					<p class="goen-empty__text">{ i18n.T(ctx, i18n.KeyWishlistEmptyHint) }</p>
+					@components.ButtonLink(components.ButtonProps{
+						Variant: components.VariantPrimary,
+					}, templ.SafeURL("/")) {
+						{ i18n.T(ctx, i18n.KeyWishlistEmptyLink) }
+					}
 				</div>
 			} else {
 				<h2 class="goen-sr-only">{ i18n.T(ctx, i18n.KeyResultsHeading) }</h2>
@@ -41,7 +48,10 @@ templ Wishlist(p layouts.Page, v WishlistView) {
 								<input type="hidden" name="slug" value={ t.Slug }/>
 								<input type="hidden" name="action" value="remove"/>
 								<input type="hidden" name="return" value="/account/wishlist"/>
-								<button class="ui-btn ui-btn--secondary ui-btn--block" type="submit">
+								// ui-btn is the name `check-layout.mjs:1634` measures the
+								// remove control by; without it the wishlist rows report no
+								// control at all. app.css writes what it declares.
+								<button class="goen-btn goen-btn--outline goen-btn--sm goen-btn--block ui-btn" type="submit">
 									{ i18n.T(ctx, i18n.KeyRemove) }
 								</button>
 							</form>

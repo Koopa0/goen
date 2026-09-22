@@ -13,11 +13,15 @@ import (
 
 // Reviews reads the moderation queue, hidden ones included.
 func (s *Store) Reviews(ctx context.Context) (pages.AdminReviewsView, error) {
-	rows, err := s.q.AdminReviews(ctx, PageSize)
+	rows, err := s.q.AdminReviews(ctx, PageLimit)
 	if err != nil {
 		return pages.AdminReviewsView{}, fmt.Errorf("read reviews: %w", err)
 	}
-	view := pages.AdminReviewsView{Rows: make([]pages.AdminReview, 0, len(rows))}
+	rows, more := pageOf(rows, PageSize)
+	view := pages.AdminReviewsView{
+		ListBound: pages.Bound(more, PageSize),
+		Rows:      make([]pages.AdminReview, 0, len(rows)),
+	}
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, pages.AdminReview{

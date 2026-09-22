@@ -123,6 +123,8 @@ func (e AuditEntry) ShortRequestID() string {
 
 // AuditView is the trail.
 type AuditView struct {
+	ListBound
+
 	Rows []AuditEntry
 }
 

@@ -49,6 +49,13 @@ func precompress(name string, raw []byte) ([]byte, error) {
 }
 
 func contentType(name string) string {
+	// A speculation rules document is JSON, and a browser refuses it unless it
+	// arrives as this type — the check is what stops any JSON a site happens to
+	// serve from becoming rules. The extension cannot carry it: the file has to
+	// stay .json to be readable as what it is.
+	if name == SpeculationRules {
+		return "application/speculationrules+json"
+	}
 	if typ := mime.TypeByExtension(path.Ext(name)); typ != "" {
 		return typ
 	}

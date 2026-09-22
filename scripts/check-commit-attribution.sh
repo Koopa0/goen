@@ -12,8 +12,11 @@ git rev-parse --verify "$head^{commit}" >/dev/null
 if [[ $base == 0000000000000000000000000000000000000000 ]]; then
   commits=$(git rev-list "$head")
 else
-  git rev-parse --verify "$base^{commit}" >/dev/null
-  commits=$(git rev-list "$base..$head")
+  if git rev-parse --verify "$base^{commit}" >/dev/null 2>&1; then
+    commits=$(git rev-list "$base..$head")
+  else
+    commits=$(git rev-list "$head")
+  fi
 fi
 
 status=0

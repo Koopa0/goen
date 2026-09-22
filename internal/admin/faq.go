@@ -93,6 +93,9 @@ func (s *Store) CreateFAQEntry(ctx context.Context, f *FAQForm) (map[string]stri
 		Action: actionCreateFAQ, Table: "faq_entries",
 		After: map[string]any{"category": f.Category, "question": f.Question},
 	}, func(ctx context.Context, q *db.Queries) error {
+		if err := q.LockFAQAppendPosition(ctx, f.Category); err != nil {
+			return err
+		}
 		return q.CreateFAQEntry(ctx, db.CreateFAQEntryParams{
 			Category: f.Category, Question: f.Question, Answer: f.Answer,
 			CategoryEn: f.CategoryEn, QuestionEn: f.QuestionEn, AnswerEn: f.AnswerEn,

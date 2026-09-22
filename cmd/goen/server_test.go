@@ -3,12 +3,18 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
+	"html"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -111,7 +117,7 @@ func TestNothingStatelessRendersChrome(t *testing.T) {
 }
 
 func TestAnAssetIsNotCompressedTwiceByTheChain(t *testing.T) {
-	h := web.Compress(securityHeaders(assets.Handler(slog.New(slog.DiscardHandler))))
+	h := web.Compress(securityHeaders(assets.Handler(slog.New(slog.DiscardHandler)), contentSecurityPolicy))
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, assets.URL(assets.AppCSS), http.NoBody)
 	req.Header.Set("Accept-Encoding", "gzip")
 	res := httptest.NewRecorder()
@@ -272,7 +278,7 @@ func TestWebhookSurvivesTheMiddlewareChain(t *testing.T) {
 				reached = true
 				w.WriteHeader(http.StatusOK)
 			})
-			handler := crossOriginProtection(mux)
+			handler := crossOriginProtection(mux, false)
 
 			req := httptest.NewRequestWithContext(t.Context(), http.MethodPost,
 				"/webhooks/stripe", strings.NewReader(`{"id":"evt_1"}`))
@@ -307,6 +313,66 @@ func TestCSPAllowsTheHandoverToStripe(t *testing.T) {
 	}
 	if !strings.Contains(directive, "'self'") {
 		t.Errorf("form-action is %q and no longer allows goen's own forms", directive)
+	}
+}
+
+// inlineStyleAttribute matches a style attribute written into markup, in either
+// of templ's two spellings: style="…" and style={ … }.
+var inlineStyleAttribute = regexp.MustCompile(`(?:^|\s)style\s*=`)
+
+// TestNoTemplateWritesAnInlineStyle holds contentSecurityPolicy's comment to its
+// word. style-src carries no 'unsafe-inline', so a style attribute a template
+// writes is dropped by the browser and the element renders without whatever the
+// attribute carried: a rating bar with no width, a category tree with no indent.
+// A handler test cannot see this — it reads the markup, not the policy that then
+// refuses it — so the two statements are checked against each other here.
+//
+// The guard yields if the policy ever admits inline styles. That is one decision
+// taken in server.go, not something a template may decide by drifting.
+func TestNoTemplateWritesAnInlineStyle(t *testing.T) {
+	t.Parallel()
+
+	if strings.Contains(contentSecurityPolicy, "'unsafe-inline'") {
+		t.Skip("style-src admits 'unsafe-inline'; a template may write a style attribute")
+	}
+
+	root := filepath.Join("..", "..", "internal", "ui")
+	var scanned int
+	var offenders []string
+
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil || d.IsDir() || filepath.Ext(path) != ".templ" {
+			return walkErr
+		}
+		body, readErr := os.ReadFile(path) //nolint:gosec // G304: paths come from walking a fixed directory
+		if readErr != nil {
+			return readErr
+		}
+		scanned++
+		rel, _ := filepath.Rel(root, path)
+		for i, line := range strings.Split(string(body), "\n") {
+			trimmed := strings.TrimSpace(line)
+			// A comment is prose about markup rather than markup.
+			if strings.HasPrefix(trimmed, "//") || !inlineStyleAttribute.MatchString(line) {
+				continue
+			}
+			offenders = append(offenders, "internal/ui/"+rel+":"+strconv.Itoa(i+1)+"  "+trimmed)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk %s: %v", root, err)
+	}
+	if scanned == 0 {
+		t.Fatalf("no .templ files under %s; this guard has no subject", root)
+	}
+
+	if len(offenders) > 0 {
+		t.Errorf("%d inline style attributes across %d templates, and style-src "+
+			"refuses every one of them. Carry the value in a class or a data "+
+			"attribute the stylesheet selects on, or take the decision in "+
+			"server.go to admit 'unsafe-inline':\n%s",
+			len(offenders), scanned, strings.Join(offenders, "\n"))
 	}
 }
 
@@ -409,5 +475,366 @@ func TestOnlyAStaffMemberGetsTheBackOfficeEntrance(t *testing.T) {
 					tt.path, tt.role, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestLocaleReturnPathPreservesComparisonSlugs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{name: "root", raw: "/", want: "/"},
+		{name: "deals", raw: "/deals", want: "/deals"},
+		{name: "search drops query", raw: "/search?q=pixelight", want: "/search"},
+		{name: "product drops query", raw: "/p/aurora-slate?ask=1", want: "/p/aurora-slate"},
+		{name: "category drops query", raw: "/c/phones?sort=price", want: "/c/phones"},
+		{name: "cart drops query", raw: "/cart?x=1", want: "/cart"},
+		{name: "compare without query", raw: "/compare", want: "/compare"},
+		{name: "compare empty query", raw: "/compare?", want: "/compare"},
+		{name: "compare two valid slugs", raw: "/compare?p=aurora-charger-65&p=aurora-edge-7", want: "/compare?p=aurora-charger-65&p=aurora-edge-7"},
+		{name: "compare preserves order", raw: "/compare?p=aurora-edge-7&p=aurora-charger-65", want: "/compare?p=aurora-edge-7&p=aurora-charger-65"},
+		{name: "compare drops sensitive and unsupported params", raw: "/compare?p=aurora-charger-65&p=aurora-edge-7&q=secret&token=123", want: "/compare?p=aurora-charger-65&p=aurora-edge-7"},
+		{name: "compare drops invalid slug formats", raw: "/compare?p=aurora-charger-65&p=BAD_SLUG&p=../evil&p=aurora-edge-7", want: "/compare?p=aurora-charger-65&p=aurora-edge-7"},
+		{name: "compare deduplicates slugs", raw: "/compare?p=aurora-charger-65&p=aurora-charger-65&p=aurora-edge-7", want: "/compare?p=aurora-charger-65&p=aurora-edge-7"},
+		{name: "compare caps at max four slugs", raw: "/compare?p=p1&p=p2&p=p3&p=p4&p=p5", want: "/compare?p=p1&p=p2&p=p3&p=p4"},
+		{name: "compare single slug", raw: "/compare?p=aurora-charger-65", want: "/compare?p=aurora-charger-65"},
+		{name: "compare all invalid slugs falls back", raw: "/compare?p=BAD%201&p=BAD_2", want: "/compare"},
+		{name: "compare only invalid query keys falls back", raw: "/compare?q=search&sort=desc", want: "/compare"},
+		{name: "compare empty slug value is skipped", raw: "/compare?p=&p=aurora-edge-7", want: "/compare?p=aurora-edge-7"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, tt.raw, http.NoBody)
+			if got := localeReturnPath(req); got != tt.want {
+				t.Errorf("localeReturnPath(%q) = %q, want %q", tt.raw, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLanguageSwitchComparisonJourney(t *testing.T) {
+	t.Parallel()
+
+	const rawURL = "/compare?p=aurora-charger-65&p=aurora-edge-7&q=search-leak"
+	const wantReturn = "/compare?p=aurora-charger-65&p=aurora-edge-7"
+
+	var onContext string
+	var renderedHTML string
+	h := withLocale(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		onContext = web.RequestPath(r.Context())
+		var buf bytes.Buffer
+		if err := layouts.Header(layouts.Page{}).Render(r.Context(), &buf); err != nil {
+			t.Fatalf("render header: %v", err)
+		}
+		renderedHTML = buf.String()
+	}), false)
+
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, rawURL, http.NoBody)
+	h.ServeHTTP(httptest.NewRecorder(), req)
+
+	if onContext != wantReturn {
+		t.Fatalf("web.RequestPath on context = %q, want %q", onContext, wantReturn)
+	}
+
+	re := regexp.MustCompile(`<input type="hidden" name="return" value="([^"]*)"`)
+	matches := re.FindStringSubmatch(renderedHTML)
+	if len(matches) < 2 {
+		t.Fatalf("language form return input not found in rendered header:\n%s", renderedHTML)
+	}
+	extractedReturn := html.UnescapeString(matches[1])
+	if extractedReturn != wantReturn {
+		t.Fatalf("rendered return target = %q, want %q", extractedReturn, wantReturn)
+	}
+	if strings.Contains(renderedHTML, "search-leak") {
+		t.Fatal("rendered header carried raw query search term")
+	}
+
+	// Verify the return target resolves through the same-site redirect guard.
+	redirectTarget := web.SitePathOr(extractedReturn, "/")
+	if redirectTarget != wantReturn {
+		t.Fatalf("SitePathOr(%q) = %q, want %q", extractedReturn, redirectTarget, wantReturn)
+	}
+}
+
+// TestSpeculationRulesAreOfferedOnlyWhereTheyAreSafe locks both halves of the
+// decision in #400: which pages offer speculation rules, and which never do.
+//
+// The rules document refuses to prerender a link into a personalised or
+// paying page; this is the other half, and the reason there are two. A rule
+// that stops matching is a silent failure — the browser simply prerenders
+// something — so the pages where that would cost the most do not hand the
+// browser a rules document at all.
+func TestSpeculationRulesAreOfferedOnlyWhereTheyAreSafe(t *testing.T) {
+	t.Parallel()
+
+	offered := []string{"/", "/c/audio", "/p/nimbus-buds-pro", "/cart", "/about", "/search?q=x"}
+	withheld := []string{
+		"/checkout", "/checkout?ship=1",
+		"/orders/find", "/orders/GO-1/pay",
+		"/account", "/account/points", "/account/wishlist",
+		"/admin", "/admin/orders",
+		"/signin", "/register", "/reset?token=x", "/verify?token=x",
+		"/static/css/app/app.css",
+	}
+
+	for _, path := range offered {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, http.NoBody)
+		if !speculates(req) {
+			t.Errorf("GET %s offers no speculation rules; it is a page a visitor "+
+				"browses from and nothing it links to is personalised", path)
+		}
+	}
+	for _, path := range withheld {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, http.NoBody)
+		if speculates(req) {
+			t.Errorf("GET %s offers speculation rules; a page behind a sign-in or "+
+				"inside paying must not hand the browser a rules document", path)
+		}
+	}
+	// A write has already happened by the time it is answered.
+	if speculates(httptest.NewRequestWithContext(
+		t.Context(), http.MethodPost, "/cart/items", http.NoBody)) {
+		t.Error("a POST offers speculation rules")
+	}
+}
+
+// TestSpeculationRulesRefuseEveryPageWithSomethingToLose reads the rules
+// document itself rather than the middleware, because the document is what the
+// browser obeys. Every path the middleware withholds the header from must also
+// be one the rules refuse to prerender: the two guards are independent, and a
+// link to /account can appear on a page that does offer rules — the header in
+// every storefront page carries a rules document that sees that link.
+func TestSpeculationRulesRefuseEveryPageWithSomethingToLose(t *testing.T) {
+	t.Parallel()
+
+	// From disk rather than through the assets package: the file is the thing
+	// under review, and what it permits is a security decision that should be
+	// read where a reviewer reads it. The same reason readCIWorkflow and the
+	// axe baseline are read this way.
+	path := filepath.Join("..", "..", "assets", assets.SpeculationRules)
+	raw, err := os.ReadFile(path) //nolint:gosec // G304: a fixed path inside this repository
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	var doc struct {
+		Prerender []struct {
+			Eagerness string          `json:"eagerness"`
+			Where     json.RawMessage `json:"where"`
+		} `json:"prerender"`
+		Prefetch []json.RawMessage `json:"prefetch"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("%s does not parse: %v", path, err)
+	}
+	if len(doc.Prerender) != 1 {
+		t.Fatalf("%d prerender rule sets, want exactly one", len(doc.Prerender))
+	}
+	if len(doc.Prefetch) != 0 {
+		t.Errorf("%d prefetch rule sets; #400 was ruled to stop at prerendering "+
+			"the catalogue, and a prefetch of a personalised page has the same "+
+			"staleness to lose as a prerender", len(doc.Prefetch))
+	}
+	if doc.Prerender[0].Eagerness != "moderate" {
+		t.Errorf("eagerness is %q, want moderate: eager speculation spends a "+
+			"visitor's data on pages they did not ask for",
+			doc.Prerender[0].Eagerness)
+	}
+	where := string(doc.Prerender[0].Where)
+	for _, refused := range []string{
+		"/checkout*", "/orders/*", "/account*", "/admin*", "/signin*", "/register*",
+	} {
+		if !strings.Contains(where, `"href_matches": "`+refused+`"`) {
+			t.Errorf("the rules do not refuse %s; a link to it on any storefront "+
+				"page would be prerendered", refused)
+		}
+	}
+
+	// The cart is NOT prerendered, and that is a measurement rather than a
+	// preference. GET /cart writes nothing, which was the test the ruling set —
+	// but its content depends on the cart, and since #415 adding an item does
+	// not navigate. So the browser can take a copy of the cart page while the
+	// cart is empty, the visitor can add an item without leaving the product
+	// page, and pressing the cart link then shows the copy: no lines, and a
+	// header count back at zero. Measured both ways at 1440, one rule apart.
+	//
+	// Answering /cart with Cache-Control: no-store does not help; the copy
+	// lives in the speculation cache, not the HTTP one. The only fix is to not
+	// take it.
+	if strings.Contains(where, `"href_matches": "/cart"`) {
+		t.Error("the rules prerender /cart; a copy taken before an in-place add " +
+			"is served after it, and the visitor sees an empty cart")
+	}
+}
+
+// TestAWriteThrowsAwaySpeculationsTakenBeforeIt pins the other half of #400.
+//
+// A speculated page is a whole document, header included, rendered when the
+// browser asked for it. goen renders the cart's count and the staff/customer
+// entrance into that header, so a copy taken before a write shows what the
+// header said before the write — measured at 1440: speculate a related product,
+// add in place so the count goes 1 to 2, press the link, and the landed page's
+// header reads 1. With the header it reads 2.
+//
+// The absence half matters as much: Clear-Site-Data on a page response would
+// throw away the speculations the visitor's own browsing just earned, which is
+// the feature paying for itself and then refunding it.
+func TestAWriteThrowsAwaySpeculationsTakenBeforeIt(t *testing.T) {
+	t.Parallel()
+
+	const want = `"prefetchCache", "prerenderCache"`
+	sawWrite := false
+	handler := clearSpeculations(func(http.ResponseWriter, *http.Request) { sawWrite = true })
+
+	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodDelete} {
+		res := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(t.Context(), method, "/cart/items", http.NoBody)
+		handler(res, req)
+		if got := res.Header().Get("Clear-Site-Data"); got != want {
+			t.Errorf("%s Clear-Site-Data = %q, want %q", method, got, want)
+		}
+	}
+	if !sawWrite {
+		t.Error("the wrapped handler never ran; the middleware swallowed the request")
+	}
+
+	// The value, and not only the header's presence. Clear-Site-Data's other
+	// directives are destructive in a way these two are not: "cookies" on an
+	// add-to-cart response signs the shopper out and empties the cart it was
+	// meant to protect, "storage" and "cache" throw away work the visitor's
+	// browsing paid for, and "*" does all of it. Widening this value is a
+	// plausible edit — it reads like making the header more thorough — so the
+	// four spellings that must never appear are named here.
+	res := httptest.NewRecorder()
+	handler(res, httptest.NewRequestWithContext(
+		t.Context(), http.MethodPost, "/cart/items", http.NoBody))
+	value := res.Header().Get("Clear-Site-Data")
+	for _, forbidden := range []string{"cookies", "storage", "cache", "*"} {
+		// "cache" is a substring of nothing here: the two permitted directives
+		// are prefetchCache and prerenderCache, so a case-sensitive search for
+		// the lower-case directive name cannot match either.
+		if strings.Contains(value, `"`+forbidden+`"`) || value == forbidden {
+			t.Errorf("Clear-Site-Data is %q and carries %q: on a cart write that "+
+				"signs the shopper out, empties what they were saving, or throws "+
+				"away the browsing that paid for the speculation", value, forbidden)
+		}
+	}
+
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		res := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(t.Context(), method, "/p/x", http.NoBody)
+		handler(res, req)
+		if got := res.Header().Get("Clear-Site-Data"); got != "" {
+			t.Errorf("%s carries Clear-Site-Data = %q; a page response must not "+
+				"throw away the visitor's own speculations", method, got)
+		}
+	}
+}
+
+// TestEveryWriteThatChangesTheChromeClearsSpeculations reads server.go and
+// names the routes, because the wiring is the part that rots: a new cart write
+// added beside the others inherits nothing, and the failure is invisible — a
+// count one behind on one page view.
+func TestEveryWriteThatChangesTheChromeClearsSpeculations(t *testing.T) {
+	t.Parallel()
+
+	src, err := os.ReadFile("server.go")
+	if err != nil {
+		t.Fatalf("read server.go: %v", err)
+	}
+	text := string(src)
+
+	// The header renders the cart's count and the staff/customer entrance.
+	// These are the writes that move either one.
+	for _, route := range []string{
+		`"POST /cart/items"`,
+		`"POST /cart/items/update"`,
+		`"POST /orders/{number}/reorder"`,
+		`"POST /signin"`,
+		`"POST /signout"`,
+		`"POST /register"`,
+	} {
+		line := routeLine(text, route)
+		if line == "" {
+			t.Errorf("no route registered for %s; this test's inventory has gone stale", route)
+			continue
+		}
+		if !strings.Contains(line, "clearSpeculations(") {
+			t.Errorf("%s does not clear speculations: a page speculated before it "+
+				"keeps the header it was rendered with\n  %s", route, strings.TrimSpace(line))
+		}
+	}
+}
+
+// routeLine returns the mux registration line naming route, or "".
+func routeLine(src, route string) string {
+	for line := range strings.SplitSeq(src, "\n") {
+		if strings.Contains(line, "mux.HandleFunc(") && strings.Contains(line, route) {
+			return line
+		}
+	}
+	return ""
+}
+
+// TestTheCatalogueStaysEligibleForSpeculation is the inverse of the refusals,
+// and it exists because the first version of the rules carried a
+// selector_matches of "form a" as a precaution — and a listing's compare form
+// wraps the whole tile grid, so that one line silently excluded every product
+// link on the site. The feature was doing nothing and every other test passed.
+func TestTheCatalogueStaysEligibleForSpeculation(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join("..", "..", "assets", assets.SpeculationRules)
+	raw, err := os.ReadFile(path) //nolint:gosec // G304: a fixed path inside this repository
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	var doc struct {
+		Prerender []struct {
+			Where struct {
+				And []map[string]json.RawMessage `json:"and"`
+			} `json:"where"`
+		} `json:"prerender"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("%s does not parse: %v", path, err)
+	}
+	if len(doc.Prerender) != 1 {
+		t.Fatalf("%d prerender rule sets, want one", len(doc.Prerender))
+	}
+
+	var allowed, refusals int
+	for _, clause := range doc.Prerender[0].Where.And {
+		if or, ok := clause["or"]; ok {
+			var patterns []struct {
+				HrefMatches string `json:"href_matches"`
+			}
+			if err := json.Unmarshal(or, &patterns); err != nil {
+				t.Fatalf("the or clause does not parse: %v", err)
+			}
+			for _, p := range patterns {
+				if p.HrefMatches == "/p/*" || p.HrefMatches == "/c/*" {
+					allowed++
+				}
+			}
+		}
+		if _, ok := clause["not"]; ok {
+			refusals++
+		}
+	}
+	if allowed != 2 {
+		t.Errorf("the rules permit %d of the two catalogue shapes; a product link "+
+			"that matches nothing is a feature that quietly does nothing", allowed)
+	}
+	// A refusal that matches a catalogue link would do the same damage as the
+	// "form a" selector did. Anything that is not an href_matches of a path
+	// outside /p/ and /c/, or a nofollow selector, needs a reason in review.
+	if refusals == 0 {
+		t.Error("the rules refuse nothing; the exclusions have been lost")
 	}
 }

@@ -22,11 +22,13 @@ func (s *Store) Warranties(ctx context.Context, term string) (pages.AdminWarrant
 	view.Searched = true
 
 	rows, err := s.q.AdminSearchWarranties(ctx, db.AdminSearchWarrantiesParams{
-		Term: term, RowLimit: PageSize,
+		Term: term, RowLimit: PageLimit,
 	})
 	if err != nil {
 		return pages.AdminWarrantiesView{}, fmt.Errorf("search warranties: %w", err)
 	}
+	rows, more := pageOf(rows, PageSize)
+	view.ListBound = pages.Bound(more, PageSize)
 	for i := range rows {
 		r := &rows[i]
 		view.Rows = append(view.Rows, pages.AdminWarrantyRow{

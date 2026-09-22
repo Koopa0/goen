@@ -320,7 +320,7 @@ func TestTwoBuyersContendForTheLastSellableUnitViaCheckout(t *testing.T) {
 			"checkout_quote": {shown.String()},
 			"idempotency":    {checkoutAttemptKey(label)},
 		}
-		h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil)
+		h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 		withCookie := func(method, target, body string) *http.Request {
 			var bodyReader io.Reader = http.NoBody
 			if body != "" {
