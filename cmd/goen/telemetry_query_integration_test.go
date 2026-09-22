@@ -21,6 +21,8 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
+	"github.com/koopa0/goen/internal/admin"
+	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/telemetry"
 )
 
@@ -50,7 +52,14 @@ func TestProductQueryWaitSharesHTTPTraceAndBoundedMetrics(t *testing.T) {
 	defer adminPool.Close()
 	var logs bytes.Buffer
 	logger := slog.New(telemetry.CorrelatedHandler(slog.NewJSONHandler(&logs, nil)))
-	handler := newRouter(&RouterConfig{Pool: storePool, AdminPool: adminPool, BaseURL: "http://127.0.0.1"}, logger)
+	gateway, err := payment.NewGateway("", "", "http://127.0.0.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := newRouter(&RouterConfig{
+		Pool: storePool, AdminPool: adminPool, Payments: gateway,
+		Refunder: admin.NewRefunder(""), BaseURL: "http://127.0.0.1",
+	}, logger)
 	completed := make(chan struct{}, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handler.ServeHTTP(w, r)
