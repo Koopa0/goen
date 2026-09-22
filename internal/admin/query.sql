@@ -633,6 +633,10 @@ LIMIT $1;
 SELECT id, email, coalesce(full_name, '') AS full_name FROM users
 WHERE lower(email) = lower(@email::text);
 
+-- The confirmation names an immutable account, never an address that can move.
+-- name: CreditCustomerByID :one
+SELECT id, email, coalesce(full_name, '') AS full_name FROM users WHERE id = $1;
+
 -- From store_credit_balances, the ONE view that defines a balance, never a sum
 -- written out again here.
 -- name: CreditBalance :one

@@ -837,9 +837,9 @@ func text(s string) pgtype.Text {
 // GrantCredit puts store credit on a customer's account. The amount is in cents
 // and must be positive: a correction is its own posting with its own reason, so
 // the ledger reads as a history rather than a figure somebody edited.
-func (s *Store) GrantCredit(ctx context.Context, email string, amountCents int64, reason string, operationID uuid.UUID) (balanceCents int64, err error) {
-	email, reason = strings.TrimSpace(email), strings.TrimSpace(reason)
-	if email == "" || reason == "" || utf8.RuneCountInString(reason) > MaxCreditReasonRunes || amountCents <= 0 || operationID == uuid.Nil {
+func (s *Store) GrantCredit(ctx context.Context, customerID uuid.UUID, amountCents int64, reason string, operationID uuid.UUID) (balanceCents int64, err error) {
+	reason = strings.TrimSpace(reason)
+	if customerID == uuid.Nil || reason == "" || utf8.RuneCountInString(reason) > MaxCreditReasonRunes || amountCents <= 0 || operationID == uuid.Nil {
 		return 0, ErrInvalid
 	}
 	if amountCents > MaxCreditGrant {
@@ -853,9 +853,9 @@ func (s *Store) GrantCredit(ctx context.Context, email string, amountCents int64
 	if !ok {
 		return 0, ErrNoActor
 	}
-	user, err := s.q.CustomerByEmail(ctx, email)
+	user, err := s.q.CreditCustomerByID(ctx, customerID)
 	if err != nil {
-		return 0, fmt.Errorf("%w: no customer for %s", ErrRefused, email)
+		return 0, fmt.Errorf("%w: no customer for %s", ErrRefused, customerID)
 	}
 
 	event := Event{
