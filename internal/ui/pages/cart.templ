@@ -509,8 +509,13 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 									</div>
 								}
 								if v.Invoice.NeedsTaxID() {
-									<fieldset class="goen-field" { checkoutChoiceSwap("invoice")... } aria-invalid={ v.Invalid("invoice_company_delivery") }
-										if v.HasErr("invoice_company_delivery") { aria-describedby="invoice_company_delivery-error" }
+									<fieldset
+										class="goen-field"
+										{ checkoutChoiceSwap("invoice")... }
+										aria-invalid={ v.Invalid("invoice_company_delivery") }
+										if v.HasErr("invoice_company_delivery") {
+											aria-describedby="invoice_company_delivery-error"
+										}
 									>
 										<legend class="ui-label">{ i18n.T(ctx, i18n.KeyCompanyDelivery) }</legend>
 										<div class="goen-checkout__choices">
@@ -921,7 +926,6 @@ templ Order(p layouts.Page, v *OrderView) {
 							</dl>
 						</section>
 					}
-
 					<ul class="goen-order__lines" role="list">
 						for _, l := range v.Lines {
 							<li class="goen-line">
