@@ -134,6 +134,40 @@ WHERE p.status = 'active'
 -- The trigram GIN index serves Latin queries; short Chinese ones fall back to a
 -- sequential scan. The caller escapes %, _ and \ before binding.
 -- name: SearchProducts :many
+-- Select the page before tile enrichment, so off-page products do not read
+-- their images, reviews or live display prices. Materialization keeps that
+-- boundary while every read still shares this statement's snapshot.
+WITH page AS MATERIALIZED (
+    SELECT p.id, p.published_at,
+           -- Either name outranks a summary, brand or specification match.
+           (p.name ILIKE @pattern::text OR coalesce(p.name_en, '') ILIKE @pattern::text) AS name_match
+    FROM products p
+    JOIN brands b ON b.id = p.brand_id
+    WHERE p.status = 'active'
+      -- Both names: matching only the localized column would make the catalogue
+      -- searchable in one language at a time.
+      AND (p.name ILIKE @pattern::text
+           OR coalesce(p.name_en, '') ILIKE @pattern::text
+           OR coalesce(p.summary, '') ILIKE @pattern::text
+           OR coalesce(p.summary_en, '') ILIKE @pattern::text
+           OR b.name ILIKE @pattern::text
+           OR EXISTS (
+               SELECT 1 FROM product_specs ps
+               WHERE ps.product_id = p.id
+                 AND (ps.label ILIKE @pattern::text
+                      OR coalesce(ps.label_en, '') ILIKE @pattern::text
+                      OR ps.value ILIKE @pattern::text
+                      OR coalesce(ps.value_en, '') ILIKE @pattern::text)
+           ))
+      -- Preserve the eligibility of the display variant's inner join before
+      -- LIMIT, including transactions that have not checked deferred constraints.
+      AND EXISTS (
+          SELECT 1 FROM product_variants eligible
+          WHERE eligible.product_id = p.id AND eligible.is_active
+      )
+    ORDER BY name_match DESC, p.published_at DESC, p.id DESC
+    LIMIT @page_size::integer OFFSET @page_offset::integer
+)
 SELECT
     p.slug,
     localized_name(p.name, p.name_en, @locale::text) AS name,
@@ -158,7 +192,8 @@ SELECT
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
-FROM products p
+FROM page
+JOIN products p ON p.id = page.id
 JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
@@ -175,27 +210,7 @@ LEFT JOIN LATERAL (
     SELECT storage_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
-WHERE p.status = 'active'
-  -- Both names: matching only the localized column would make the catalogue
-  -- searchable in one language at a time.
-  AND (p.name ILIKE @pattern::text
-       OR coalesce(p.name_en, '') ILIKE @pattern::text
-       OR coalesce(p.summary, '') ILIKE @pattern::text
-       OR coalesce(p.summary_en, '') ILIKE @pattern::text
-       OR b.name ILIKE @pattern::text
-       OR EXISTS (
-           SELECT 1 FROM product_specs ps
-           WHERE ps.product_id = p.id
-             AND (ps.label ILIKE @pattern::text
-                  OR coalesce(ps.label_en, '') ILIKE @pattern::text
-                  OR ps.value ILIKE @pattern::text
-                  OR coalesce(ps.value_en, '') ILIKE @pattern::text)
-       ))
-ORDER BY
-    -- A name match outranks a summary or brand match. Either name counts.
-    (p.name ILIKE @pattern::text OR coalesce(p.name_en, '') ILIKE @pattern::text) DESC,
-    p.published_at DESC, p.id DESC
-LIMIT @page_size::integer OFFSET @page_offset::integer;
+ORDER BY page.name_match DESC, page.published_at DESC, page.id DESC;
 
 -- The same predicate as SearchProducts, and it has to stay the same.
 -- name: SearchProductsCount :one
