@@ -224,6 +224,8 @@ func (h *Handler) AdvanceOrder(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		h.closeSessions(r.Context(), number, sessions)
 		http.Redirect(w, r, "/admin/orders/"+number+"?ok=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
+	case hasConstraint(err, "orders_cancel_invoice_resolved"):
+		http.Redirect(w, r, "/admin/orders/"+number+"?cancelinvoice=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
 	case errors.Is(err, ErrRefused):
 		// Logged in full; the page only says the move was refused, because a
 		// constraint name is not something a shop assistant can act on.
@@ -473,47 +475,49 @@ func (h *Handler) SetVariantPrice(w http.ResponseWriter, r *http.Request) {
 
 // adminNotices is the one-shot message each redirect parameter carries.
 var adminNotices = map[string]i18n.Key{
-	"ok":             i18n.KeyAdminNoticeOK,
-	"refused":        i18n.KeyAdminNoticeRefused,
-	"shipped":        i18n.KeyAdminNoticeShipped,
-	"toolate":        i18n.KeyAdminNoticeTooLate,
-	"needs":          i18n.KeyAdminNoticeNeeds,
-	"toobig":         i18n.KeyAdminNoticeTooBig,
-	"notimage":       i18n.KeyAdminNoticeNotImage,
-	"uploadfailed":   i18n.KeyAdminNoticeUploadFailed,
-	"inuse":          i18n.KeyAdminNoticeInUse,
-	"attachrefused":  i18n.KeyAdminNoticeAttachRefused,
-	"noalt":          i18n.KeyAdminNoticeNoAlt,
-	"nodiscount":     i18n.KeyAdminNoticeNoDiscount,
-	"refundfailed":   i18n.KeyAdminNoticeRefundFailed,
-	"received":       i18n.KeyAdminNoticeReceived,
-	"badqty":         i18n.KeyAdminNoticeBadQty,
-	"inspected":      i18n.KeyAdminNoticeInspected,
-	"closed":         i18n.KeyAdminNoticeClosed,
-	"assessed":       i18n.KeyAdminNoticeAssessed,
-	"badcount":       i18n.KeyAdminNoticeBadCount,
-	"badparcel":      i18n.KeyAdminNoticeBadParcel,
-	"invoiced":       i18n.KeyAdminNoticeInvoiced,
-	"voided":         i18n.KeyAdminNoticeVoided,
-	"hasinvoice":     i18n.KeyAdminNoticeHasInvoice,
-	"noinvoice":      i18n.KeyAdminNoticeNoInvoice,
-	"invoicefailed":  i18n.KeyAdminNoticeInvoiceFailed,
-	"invoicepending": i18n.KeyAdminNoticeInvoicePending,
-	"allowed":        i18n.KeyAdminNoticeAllowed,
-	"allowtoomuch":   i18n.KeyAdminNoticeAllowTooMuch,
-	"allowclaimed":   i18n.KeyAdminNoticeAllowClaimed,
-	"voidreason":     i18n.KeyAdminNoticeVoidReason,
-	"voidfailed":     i18n.KeyAdminNoticeVoidFailed,
-	"allowfailed":    i18n.KeyAdminNoticeAllowFailed,
-	"reconciled":     i18n.KeyAdminNoticeReconciled,
-	"invoicequeued":  i18n.KeyAdminNoticeInvoiceQueued,
-	"saved":          i18n.KeyAdminNoticeSaved,
-	"sent":           i18n.KeyAdminNoticeSent,
-	"already":        i18n.KeyAdminNoticeAlready,
-	"specfailed":     i18n.KeyAdminNoticeSpecFailed,
-	"notflagged":     i18n.KeyAdminNoticeNotFlagged,
-	"mustrefund":     i18n.KeyAdminNoticePaymentMustRefund,
-	"gone":           i18n.KeyAdminNoticeGone,
+	"ok":               i18n.KeyAdminNoticeOK,
+	"refused":          i18n.KeyAdminNoticeRefused,
+	"shipped":          i18n.KeyAdminNoticeShipped,
+	"toolate":          i18n.KeyAdminNoticeTooLate,
+	"needs":            i18n.KeyAdminNoticeNeeds,
+	"toobig":           i18n.KeyAdminNoticeTooBig,
+	"notimage":         i18n.KeyAdminNoticeNotImage,
+	"uploadfailed":     i18n.KeyAdminNoticeUploadFailed,
+	"inuse":            i18n.KeyAdminNoticeInUse,
+	"attachrefused":    i18n.KeyAdminNoticeAttachRefused,
+	"noalt":            i18n.KeyAdminNoticeNoAlt,
+	"nodiscount":       i18n.KeyAdminNoticeNoDiscount,
+	"refundfailed":     i18n.KeyAdminNoticeRefundFailed,
+	"received":         i18n.KeyAdminNoticeReceived,
+	"badqty":           i18n.KeyAdminNoticeBadQty,
+	"inspected":        i18n.KeyAdminNoticeInspected,
+	"closed":           i18n.KeyAdminNoticeClosed,
+	"assessed":         i18n.KeyAdminNoticeAssessed,
+	"badcount":         i18n.KeyAdminNoticeBadCount,
+	"badparcel":        i18n.KeyAdminNoticeBadParcel,
+	"invoiced":         i18n.KeyAdminNoticeInvoiced,
+	"voided":           i18n.KeyAdminNoticeVoided,
+	"hasinvoice":       i18n.KeyAdminNoticeHasInvoice,
+	"noinvoice":        i18n.KeyAdminNoticeNoInvoice,
+	"invoicefailed":    i18n.KeyAdminNoticeInvoiceFailed,
+	"invoicepending":   i18n.KeyAdminNoticeInvoicePending,
+	"cancelinvoice":    i18n.KeyAdminNoticeCancelInvoice,
+	"invoicecancelled": i18n.KeyAdminNoticeInvoiceCancelled,
+	"allowed":          i18n.KeyAdminNoticeAllowed,
+	"allowtoomuch":     i18n.KeyAdminNoticeAllowTooMuch,
+	"allowclaimed":     i18n.KeyAdminNoticeAllowClaimed,
+	"voidreason":       i18n.KeyAdminNoticeVoidReason,
+	"voidfailed":       i18n.KeyAdminNoticeVoidFailed,
+	"allowfailed":      i18n.KeyAdminNoticeAllowFailed,
+	"reconciled":       i18n.KeyAdminNoticeReconciled,
+	"invoicequeued":    i18n.KeyAdminNoticeInvoiceQueued,
+	"saved":            i18n.KeyAdminNoticeSaved,
+	"sent":             i18n.KeyAdminNoticeSent,
+	"already":          i18n.KeyAdminNoticeAlready,
+	"specfailed":       i18n.KeyAdminNoticeSpecFailed,
+	"notflagged":       i18n.KeyAdminNoticeNotFlagged,
+	"mustrefund":       i18n.KeyAdminNoticePaymentMustRefund,
+	"gone":             i18n.KeyAdminNoticeGone,
 }
 
 // noticeFor turns a redirect's one-shot query parameter into a message.
@@ -1735,6 +1739,8 @@ func (h *Handler) IssueInvoice(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		//nolint:gosec // G710: validated by IsOrderNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?invoiced=1", http.StatusSeeOther)
+	case hasConstraint(err, "invoice_issue_not_cancelled"):
+		http.Redirect(w, r, "/admin/orders/"+number+"?invoicecancelled=1", http.StatusSeeOther) //nolint:gosec // G710: validated by IsOrderNumber
 	case errors.Is(err, invoice.ErrAlreadyIssued):
 		//nolint:gosec // G710: validated by IsOrderNumber
 		http.Redirect(w, r, "/admin/orders/"+number+"?hasinvoice=1", http.StatusSeeOther)

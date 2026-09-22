@@ -3175,6 +3175,37 @@ CREATE UNIQUE INDEX invoice_operations_one_active_void
     ON invoice_operations (target_document_id)
     WHERE kind = 'void' AND status IN ('pending', 'attention');
 
+-- Storefront cancellation cannot read invoice_operations directly. This
+-- read-only trigger inspects that hidden state without exposing its payloads.
+CREATE FUNCTION orders_check_invoice_cancellation() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+BEGIN
+    IF NEW.fulfillment_status <> 'cancelled'
+       OR OLD.fulfillment_status NOT IN ('pending', 'picking') THEN
+        RETURN NEW;
+    END IF;
+    -- The status UPDATE already owns the order row, shared with every filing claim.
+    IF EXISTS (SELECT 1 FROM invoice_operations
+               WHERE order_id = NEW.id AND status IN ('pending', 'attention'))
+       OR EXISTS (
+           SELECT 1 FROM invoice_documents d
+           WHERE d.order_id = NEW.id AND d.kind = 'invoice' AND d.status = 'issued'
+             AND d.amount_cents > coalesce((
+                 SELECT sum(a.amount_cents) FROM invoice_documents a
+                 WHERE a.original_id = d.id AND a.kind = 'allowance' AND a.status = 'issued'
+             ), 0)
+       ) THEN
+        RAISE EXCEPTION 'resolve pending invoice operations and outstanding invoice amounts before cancellation'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'orders_cancel_invoice_resolved';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER orders_cancel_invoice_resolved
+    BEFORE UPDATE OF fulfillment_status ON orders
+    FOR EACH ROW EXECUTE FUNCTION orders_check_invoice_cancellation();
+
 -- A credit note must relieve a real, unvoided invoice of the SAME order, and the
 -- notes against it may not total more than it was for. The original is locked so
 -- two cannot both pass.
@@ -3185,6 +3216,14 @@ DECLARE
     already numeric;
     refunded numeric;
 BEGIN
+    PERFORM 1 FROM orders WHERE id = NEW.order_id FOR UPDATE;
+    IF TG_OP = 'INSERT' AND NEW.kind = 'invoice' AND EXISTS (
+        SELECT 1 FROM orders WHERE id = NEW.order_id AND fulfillment_status = 'cancelled'
+    ) THEN
+        RAISE EXCEPTION 'a cancelled order cannot be invoiced'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_issue_not_cancelled';
+    END IF;
+
     IF NEW.kind <> 'allowance' THEN
         RETURN NEW;
     END IF;
@@ -5244,6 +5283,10 @@ BEGIN
         RAISE EXCEPTION 'no order %', p_order_number
             USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_issue_order';
     END IF;
+    IF v_order.fulfillment_status = 'cancelled' THEN
+        RAISE EXCEPTION 'a cancelled order cannot be invoiced'
+            USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_issue_not_cancelled';
+    END IF;
     SELECT id INTO v_existing FROM invoice_operations
     WHERE order_id = v_order.id AND kind = 'issue'
       AND status IN ('pending', 'attention')
@@ -5350,6 +5393,9 @@ BEGIN
         RAISE EXCEPTION 'allowance claim requires a bounded request id'
             USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_audit_request';
     END IF;
+    PERFORM 1 FROM orders WHERE id = (
+        SELECT order_id FROM invoice_documents WHERE id = p_original_id
+    ) FOR UPDATE;
     PERFORM pg_advisory_xact_lock(hashtextextended(
         p_operation_id::text, 390245294063994411::bigint));
     SELECT * INTO v_existing FROM invoice_operations WHERE id = p_operation_id FOR UPDATE;
@@ -5456,6 +5502,9 @@ BEGIN
             USING ERRCODE = 'check_violation', CONSTRAINT = 'invoice_void_reason';
     END IF;
 
+    PERFORM 1 FROM orders WHERE id = (
+        SELECT order_id FROM invoice_documents WHERE id = p_document_id
+    ) FOR UPDATE;
     SELECT * INTO v_document FROM invoice_documents WHERE id = p_document_id FOR UPDATE;
     IF NOT FOUND OR v_document.kind <> 'invoice' THEN
         RAISE EXCEPTION 'void target is not an invoice'
@@ -5675,6 +5724,11 @@ DECLARE
     v_amount bigint;
     v_order_number text;
 BEGIN
+    -- Cancellation and filing serialize on the order before operation/document locks.
+    PERFORM 1 FROM orders WHERE id = (
+        SELECT order_id FROM invoice_operations WHERE id = p_operation_id
+    ) FOR UPDATE;
+
     SELECT * INTO v_operation FROM invoice_operations
     WHERE id = p_operation_id AND kind = 'allowance' AND status = 'pending'
       AND send_attempts = 0 AND lease_owner = p_owner AND lease_until > now()
@@ -5803,6 +5857,11 @@ DECLARE
     v_order_number text;
     i integer;
 BEGIN
+    -- Cancellation and filing serialize on the order before operation/document locks.
+    PERFORM 1 FROM orders WHERE id = (
+        SELECT order_id FROM invoice_operations WHERE id = p_operation_id
+    ) FOR UPDATE;
+
     SELECT * INTO v_operation FROM invoice_operations
     WHERE id = p_operation_id AND kind = 'allowance' AND status = 'pending'
       AND send_attempts > 0 AND last_send_at IS NOT NULL
@@ -5953,6 +6012,11 @@ DECLARE
     v_order_number text;
     i integer;
 BEGIN
+    -- Cancellation and filing serialize on the order before operation/document locks.
+    PERFORM 1 FROM orders WHERE id = (
+        SELECT order_id FROM invoice_operations WHERE id = p_operation_id
+    ) FOR UPDATE;
+
     SELECT * INTO v_operation FROM invoice_operations
     WHERE id = p_operation_id AND kind = 'issue' AND status = 'pending'
       AND lease_owner = p_owner AND lease_until > now() FOR UPDATE;
@@ -6013,6 +6077,11 @@ DECLARE
     v_document_id uuid;
     v_order_number text;
 BEGIN
+    -- Cancellation and filing serialize on the order before operation/document locks.
+    PERFORM 1 FROM orders WHERE id = (
+        SELECT order_id FROM invoice_operations WHERE id = p_operation_id
+    ) FOR UPDATE;
+
     SELECT * INTO v_operation FROM invoice_operations
     WHERE id = p_operation_id AND kind = 'allowance' AND status = 'pending'
       AND lease_owner = p_owner AND lease_until > now() FOR UPDATE;
@@ -6064,6 +6133,11 @@ DECLARE
     v_number text;
     v_order_number text;
 BEGIN
+    -- Cancellation and filing serialize on the order before operation/document locks.
+    PERFORM 1 FROM orders WHERE id = (
+        SELECT order_id FROM invoice_operations WHERE id = p_operation_id
+    ) FOR UPDATE;
+
     SELECT * INTO v_operation FROM invoice_operations
     WHERE id = p_operation_id AND kind = 'void' AND status = 'pending'
       AND lease_owner = p_owner AND lease_until > now() FOR UPDATE;

@@ -372,7 +372,7 @@ func (d AdminInvoiceDocument) Pending() bool { return d.Status == "pending" }
 
 // CanIssueInvoice reports whether to offer the issue button.
 func (v *AdminOrderView) CanIssueInvoice() bool {
-	if !v.InvoicingEnabled || !v.Committed {
+	if !v.InvoicingEnabled || !v.Committed || v.Status == FulfillmentCancelled {
 		return false
 	}
 	for _, d := range v.InvoiceDocuments {
