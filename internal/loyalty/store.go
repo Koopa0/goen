@@ -84,7 +84,7 @@ func (s *Store) Redeem(
 }
 
 // History is the ledger a customer sees, and what is about to expire.
-func (s *Store) History(ctx context.Context, userID string) (pages.PointsView, error) {
+func (s *Store) History(ctx context.Context, userID string, after ...string) (pages.PointsView, error) {
 	owner, err := uuid.Parse(userID)
 	if err != nil {
 		return pages.PointsView{}, ErrNoAccount
@@ -96,8 +96,10 @@ func (s *Store) History(ctx context.Context, userID string) (pages.PointsView, e
 		return pages.PointsView{}, err
 	}
 
+	cursor := readHistoryCursor(userID, after)
 	rows, err := s.q.PointsHistory(ctx, db.PointsHistoryParams{
-		UserID: id, Limit: MaxHistoryRows,
+		UserID: id, RowLimit: MaxHistoryRows + 1,
+		HasCursor: cursor.Valid, AfterAt: cursor.At, AfterID: cursor.ID,
 	})
 	if err != nil {
 		return pages.PointsView{}, fmt.Errorf("read points history: %w", err)
@@ -118,6 +120,15 @@ func (s *Store) History(ctx context.Context, userID string) (pages.PointsView, e
 		PerCredit:      PointsPerCredit,
 		Minimum:        MinRedemption,
 	}
+	if cursor.Valid {
+		view.HistoryFirst = "/account/points#ledger-heading"
+	}
+	if len(rows) > MaxHistoryRows {
+		rows = rows[:MaxHistoryRows]
+		last := rows[len(rows)-1]
+		view.HistoryNext = nextHistoryURL(userID, last.CreatedAt, last.GroupID)
+	}
+
 	if soon.AnyExpiring {
 		view.ExpiringOn = shoptime.Day(soon.Soonest)
 	}
