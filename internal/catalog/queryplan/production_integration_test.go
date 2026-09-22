@@ -79,6 +79,7 @@ func TestHarnessUsesProductionSearchSQL(t *testing.T) {
 	if !strings.Contains(db.HarnessCatalogueSQL.SearchProductsCount, "product_specs") {
 		t.Fatal("production search count predicate missing product_specs")
 	}
+	assertCategoryProductionPages(t, pool)
 	assertSearchPageEnrichment(t, r.PlanJSON)
 	t.Run("page semantics", func(t *testing.T) {
 		assertSearchPageSemantics(t, pool)

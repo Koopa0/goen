@@ -50,6 +50,49 @@ ORDER BY b.name;
 -- products_category_published_idx. Every variant condition sits in ONE EXISTS, or
 -- each finds a different variant. Sellable is stock_quantity > safety_stock.
 -- name: CategoryListing :many
+-- Ranking reads only the facts needed by the selected sort. Materializing the
+-- page keeps image/review/card assembly off products skipped by LIMIT/OFFSET,
+-- while selection and live display prices share one statement snapshot.
+WITH ranked AS NOT MATERIALIZED (
+    SELECT p.id, p.published_at,
+           CASE WHEN @sort::text IN ('price_asc', 'price_desc') THEN (
+               SELECT price_cents FROM product_variants
+               WHERE product_id = p.id AND is_active
+               ORDER BY (stock_quantity > safety_stock) DESC, price_cents
+               LIMIT 1
+           ) END AS sort_price,
+           CASE WHEN @sort::text = 'rating' THEN coalesce((
+               SELECT avg(rating)::float8 FROM visible_reviews WHERE product_id = p.id
+           ), 0) END AS sort_rating
+    FROM products p
+    WHERE p.status = 'active'
+      AND p.category_id = ANY(@category_ids::uuid[])
+      AND (@brand_ids::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY(@brand_ids::uuid[]))
+      -- One variant satisfies every variant-level filter at once.
+      AND (
+          NOT @filter_variants::boolean
+          OR EXISTS (
+              SELECT 1 FROM product_variants v
+              WHERE v.product_id = p.id AND v.is_active
+                AND (NOT @in_stock_only::boolean OR v.stock_quantity > v.safety_stock)
+                AND (@min_price::bigint = 0 OR v.price_cents >= @min_price::bigint)
+                AND (@max_price::bigint = 0 OR v.price_cents <= @max_price::bigint)
+          )
+      )
+      -- Preserve the display-variant inner join's eligibility before pagination.
+      AND EXISTS (
+          SELECT 1 FROM product_variants eligible
+          WHERE eligible.product_id = p.id AND eligible.is_active
+      )
+), page AS MATERIALIZED (
+    SELECT id, published_at, sort_price, sort_rating FROM ranked
+    ORDER BY
+        CASE WHEN @sort::text = 'price_asc' THEN sort_price END ASC,
+        CASE WHEN @sort::text = 'price_desc' THEN sort_price END DESC,
+        sort_rating DESC,
+        published_at DESC, id DESC
+    LIMIT @page_size::integer OFFSET @page_offset::integer
+)
 SELECT
     p.slug,
     localized_name(p.name, p.name_en, @locale::text) AS name,
@@ -74,7 +117,8 @@ SELECT
     coalesce(localized_name(img.alt_text, img.alt_text_en, @locale::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
-FROM products p
+FROM page
+JOIN products p ON p.id = page.id
 JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
@@ -92,26 +136,11 @@ LEFT JOIN LATERAL (
     SELECT storage_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
-WHERE p.status = 'active'
-  AND p.category_id = ANY(@category_ids::uuid[])
-  AND (@brand_ids::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY(@brand_ids::uuid[]))
-  -- One variant satisfies every variant-level filter at once.
-  AND (
-      NOT @filter_variants::boolean
-      OR EXISTS (
-          SELECT 1 FROM product_variants v
-          WHERE v.product_id = p.id AND v.is_active
-            AND (NOT @in_stock_only::boolean OR v.stock_quantity > v.safety_stock)
-            AND (@min_price::bigint = 0 OR v.price_cents >= @min_price::bigint)
-            AND (@max_price::bigint = 0 OR v.price_cents <= @max_price::bigint)
-      )
-  )
 ORDER BY
-    CASE WHEN @sort::text = 'price_asc'  THEN mv.price_cents END ASC,
-    CASE WHEN @sort::text = 'price_desc' THEN mv.price_cents END DESC,
-    CASE WHEN @sort::text = 'rating'     THEN coalesce(rv.rating, 0) END DESC,
-    p.published_at DESC, p.id DESC
-LIMIT @page_size::integer OFFSET @page_offset::integer;
+    CASE WHEN @sort::text = 'price_asc' THEN page.sort_price END ASC,
+    CASE WHEN @sort::text = 'price_desc' THEN page.sort_price END DESC,
+    page.sort_rating DESC,
+    page.published_at DESC, page.id DESC;
 
 -- The same predicate as CategoryListing, and nothing else: this is only a number.
 -- name: CategoryListingCount :one

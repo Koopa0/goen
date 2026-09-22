@@ -3091,6 +3091,46 @@ func (q *Queries) CategoryDescendants(ctx context.Context, id uuid.UUID) ([]uuid
 }
 
 const categoryListing = `-- name: CategoryListing :many
+WITH ranked AS NOT MATERIALIZED (
+    SELECT p.id, p.published_at,
+           CASE WHEN $2::text IN ('price_asc', 'price_desc') THEN (
+               SELECT price_cents FROM product_variants
+               WHERE product_id = p.id AND is_active
+               ORDER BY (stock_quantity > safety_stock) DESC, price_cents
+               LIMIT 1
+           ) END AS sort_price,
+           CASE WHEN $2::text = 'rating' THEN coalesce((
+               SELECT avg(rating)::float8 FROM visible_reviews WHERE product_id = p.id
+           ), 0) END AS sort_rating
+    FROM products p
+    WHERE p.status = 'active'
+      AND p.category_id = ANY($3::uuid[])
+      AND ($4::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY($4::uuid[]))
+      -- One variant satisfies every variant-level filter at once.
+      AND (
+          NOT $5::boolean
+          OR EXISTS (
+              SELECT 1 FROM product_variants v
+              WHERE v.product_id = p.id AND v.is_active
+                AND (NOT $6::boolean OR v.stock_quantity > v.safety_stock)
+                AND ($7::bigint = 0 OR v.price_cents >= $7::bigint)
+                AND ($8::bigint = 0 OR v.price_cents <= $8::bigint)
+          )
+      )
+      -- Preserve the display-variant inner join's eligibility before pagination.
+      AND EXISTS (
+          SELECT 1 FROM product_variants eligible
+          WHERE eligible.product_id = p.id AND eligible.is_active
+      )
+), page AS MATERIALIZED (
+    SELECT id, published_at, sort_price, sort_rating FROM ranked
+    ORDER BY
+        CASE WHEN $2::text = 'price_asc' THEN sort_price END ASC,
+        CASE WHEN $2::text = 'price_desc' THEN sort_price END DESC,
+        sort_rating DESC,
+        published_at DESC, id DESC
+    LIMIT $10::integer OFFSET $9::integer
+)
 SELECT
     p.slug,
     localized_name(p.name, p.name_en, $1::text) AS name,
@@ -3115,7 +3155,8 @@ SELECT
     coalesce(localized_name(img.alt_text, img.alt_text_en, $1::text), '')::text AS image_alt,
     coalesce(img.width, 0)::integer AS image_width,
     coalesce(img.height, 0)::integer AS image_height
-FROM products p
+FROM page
+JOIN products p ON p.id = page.id
 JOIN brands b ON b.id = p.brand_id
 JOIN LATERAL (
     SELECT price_cents, compare_at_price_cents
@@ -3133,37 +3174,22 @@ LEFT JOIN LATERAL (
     SELECT storage_key, alt_text, alt_text_en, width, height
     FROM product_images WHERE product_id = p.id ORDER BY position LIMIT 1
 ) img ON true
-WHERE p.status = 'active'
-  AND p.category_id = ANY($2::uuid[])
-  AND ($3::uuid[] = ARRAY[]::uuid[] OR p.brand_id = ANY($3::uuid[]))
-  -- One variant satisfies every variant-level filter at once.
-  AND (
-      NOT $4::boolean
-      OR EXISTS (
-          SELECT 1 FROM product_variants v
-          WHERE v.product_id = p.id AND v.is_active
-            AND (NOT $5::boolean OR v.stock_quantity > v.safety_stock)
-            AND ($6::bigint = 0 OR v.price_cents >= $6::bigint)
-            AND ($7::bigint = 0 OR v.price_cents <= $7::bigint)
-      )
-  )
 ORDER BY
-    CASE WHEN $8::text = 'price_asc'  THEN mv.price_cents END ASC,
-    CASE WHEN $8::text = 'price_desc' THEN mv.price_cents END DESC,
-    CASE WHEN $8::text = 'rating'     THEN coalesce(rv.rating, 0) END DESC,
-    p.published_at DESC, p.id DESC
-LIMIT $10::integer OFFSET $9::integer
+    CASE WHEN $2::text = 'price_asc' THEN page.sort_price END ASC,
+    CASE WHEN $2::text = 'price_desc' THEN page.sort_price END DESC,
+    page.sort_rating DESC,
+    page.published_at DESC, page.id DESC
 `
 
 type CategoryListingParams struct {
 	Locale         string
+	Sort           string
 	CategoryIds    []uuid.UUID
 	BrandIds       []uuid.UUID
 	FilterVariants bool
 	InStockOnly    bool
 	MinPrice       int64
 	MaxPrice       int64
-	Sort           string
 	PageOffset     int32
 	PageSize       int32
 }
@@ -3188,16 +3214,19 @@ type CategoryListingRow struct {
 // status = 'active' is a literal, or the planner cannot use
 // products_category_published_idx. Every variant condition sits in ONE EXISTS, or
 // each finds a different variant. Sellable is stock_quantity > safety_stock.
+// Ranking reads only the facts needed by the selected sort. Materializing the
+// page keeps image/review/card assembly off products skipped by LIMIT/OFFSET,
+// while selection and live display prices share one statement snapshot.
 func (q *Queries) CategoryListing(ctx context.Context, arg CategoryListingParams) ([]CategoryListingRow, error) {
 	rows, err := q.db.Query(ctx, categoryListing,
 		arg.Locale,
+		arg.Sort,
 		arg.CategoryIds,
 		arg.BrandIds,
 		arg.FilterVariants,
 		arg.InStockOnly,
 		arg.MinPrice,
 		arg.MaxPrice,
-		arg.Sort,
 		arg.PageOffset,
 		arg.PageSize,
 	)

@@ -34,8 +34,8 @@ func Queries(scale Scale, categoryIDs []uuid.UUID, phonesCategory uuid.UUID) []Q
 
 	listing := func(route Route, filterVariants, inStockOnly bool, minPrice, maxPrice int64, sort string, offset int32) []Query {
 		listArgs := []any{
-			locale, categoryIDs, emptyBrands, filterVariants, inStockOnly,
-			minPrice, maxPrice, sort, offset, pageSize,
+			locale, sort, categoryIDs, emptyBrands, filterVariants, inStockOnly,
+			minPrice, maxPrice, offset, pageSize,
 		}
 		countArgs := []any{
 			categoryIDs, emptyBrands, filterVariants, inStockOnly, minPrice, maxPrice,
