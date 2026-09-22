@@ -85,7 +85,7 @@ func TestPointsPaginationKeepsWholeSpendsAndOlderClawbacksReachable(t *testing.T
 			}
 		}
 		w := httptest.NewRecorder()
-		h.Page(w, httptest.NewRequestWithContext(ctx, http.MethodGet, target, nil))
+		h.Page(w, httptest.NewRequestWithContext(ctx, http.MethodGet, u.RequestURI(), nil))
 		if w.Code != http.StatusOK {
 			t.Fatalf("GET page %d: %d", page, w.Code)
 		}
