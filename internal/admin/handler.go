@@ -1857,3 +1857,19 @@ func positiveDollarsToCents(raw string, maxCents int64) (int64, bool) {
 	}
 	return dollars * 100, true
 }
+
+// PackingSlip keeps the fulfilment printout behind the same staff gate as the order.
+func (h *Handler) PackingSlip(w http.ResponseWriter, r *http.Request) {
+	view, err := h.store.Order(r.Context(), r.PathValue("number"))
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		h.log.ErrorContext(r.Context(), "read packing slip", "error", err)
+		h.serverError(w, r)
+		return
+	}
+	w.Header().Set("Cache-Control", "private, no-store")
+	web.Render(w, r, h.log, http.StatusOK, pages.AdminPackingSlip(pages.PackingSlipFromOrder(&view)))
+}

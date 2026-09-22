@@ -14,7 +14,7 @@
 //
 // Usage: make check-layout   (needs Chrome and a server on GOEN_URL)
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
 const ORIGIN = (process.env.GOEN_URL || 'http://127.0.0.1:9700/').replace(/\/$/, '');
@@ -2078,6 +2078,48 @@ if (process.env.ADMIN_TOKEN) {
     }
     console.log(`${at.padEnd(16)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
       `controls=${got.controls} tap=${got.minTap}`);
+  }
+  // The real protected route is printed by Chrome; the PDF checker inspects
+  // extracted words and physical A4 bounds rather than treating DOM presence as paper.
+  if (ADMIN.length && process.env.PLACED_ORDER) {
+    const slipPath = '/admin/orders/' + process.env.PLACED_ORDER + '/slip';
+    for (const [name, token] of [['guest', ''], ['customer', process.env.CUST_TOKEN]]) {
+      if (name === 'customer' && !token) { fail('packing privacy', 'customer fixture missing'); continue; }
+      const response = await fetch(ORIGIN + slipPath, {
+        headers: token ? { Cookie: 'goen_session=' + token } : {}, redirect: 'manual',
+      });
+      if (response.status !== 404) fail('packing privacy', `${name} received ${response.status}, want 404`);
+    }
+    mkdirSync('layout-packing', { recursive: true });
+    for (const locale of ['en', 'zh-Hant']) {
+      await send(ws, 'Network.setCookie', { name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/' });
+      const target = ORIGIN + slipPath;
+      await send(ws, 'Page.navigate', { url: target });
+      await settled(ws, 'packing ' + locale, target);
+      await send(ws, 'Runtime.evaluate', { expression: 'document.fonts.ready', awaitPromise: true });
+      const content = await evalPage(`(() => {
+        const table = document.querySelector('.goen-packing table');
+        return { language: document.documentElement.lang, rows: table?.tBodies[0]?.rows.length || 0,
+          text: [document.querySelector('.goen-packing .ui-page-head')?.innerText,
+                 document.querySelector('.goen-packing dl')?.innerText, table?.innerText].join(' ') };
+      })()`);
+      if (!content.rows || content.language !== locale) {
+        fail('packing ' + locale, 'missing item rows or wrong locale: ' + JSON.stringify(content));
+        continue;
+      }
+      for (const width of [375, 1440]) {
+        await send(ws, 'Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 768 });
+        const overflow = await evalPage('document.documentElement.scrollWidth > innerWidth');
+        if (overflow) fail('packing ' + locale, `screen overflow at ${width}px`);
+      }
+      await send(ws, 'Emulation.setEmulatedMedia', { media: 'print' });
+      const toolsVisible = await evalPage(`getComputedStyle(document.querySelector('.goen-packing__tools')).display !== 'none'`);
+      if (toolsVisible) fail('packing ' + locale, 'print toolbar is visible on paper');
+      const pdf = await send(ws, 'Page.printToPDF', { preferCSSPageSize: true, displayHeaderFooter: false, printBackground: true });
+      writeFileSync('layout-packing/' + locale + '.pdf', Buffer.from(pdf.data, 'base64'));
+      writeFileSync('layout-packing/' + locale + '.json', JSON.stringify(content));
+      await send(ws, 'Emulation.setEmulatedMedia', { media: '' });
+    }
   }
 } else {
   console.log('admin           skipped (no ADMIN_TOKEN)');

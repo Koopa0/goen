@@ -273,6 +273,7 @@ templ AdminOrder(p layouts.Page, v *AdminOrderView) {
 				<p class="ui-page-head__sub">{ v.PlacedAt } · { v.ShippingName }</p>
 			</div>
 			<div class="ui-page-head__actions">
+				<a class="ui-btn ui-btn--outline" href={ templ.URL("/admin/orders/" + v.Number + "/slip") }>{ i18n.T(ctx, i18n.KeyPackingSlip) }</a>
 				@components.Badge(components.BadgeProps{}) {
 					{ v.StatusText }
 				}
