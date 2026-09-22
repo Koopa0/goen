@@ -73,13 +73,13 @@ func TestWishlistUsesSignInNavigationUntilAuthenticated(t *testing.T) {
 					if strings.Contains(html, `aria-label="`+i18n.T(ctx, i18n.KeyWishlistAdd)+`"`) || strings.Contains(html, `aria-label="`+i18n.T(ctx, i18n.KeyWishlistRemove)+`"`) {
 						t.Fatal("guest wishlist still promises a save/remove action")
 					}
-				} else {
-					if !strings.Contains(html, `name="slug" value="sample-product"`) || !strings.Contains(html, `aria-pressed="`+view.SavedText()+`"`) {
-						t.Fatal("authenticated wishlist lost its product or saved state")
-					}
-					if strings.Contains(html, `name="action" value="remove"`) != saved {
-						t.Fatal("saved wishlist does not offer removal")
-					}
+					continue
+				}
+				if !strings.Contains(html, `name="slug" value="sample-product"`) || !strings.Contains(html, `aria-pressed="`+view.SavedText()+`"`) {
+					t.Fatal("authenticated wishlist lost its product or saved state")
+				}
+				if strings.Contains(html, `name="action" value="remove"`) != saved {
+					t.Fatal("saved wishlist does not offer removal")
 				}
 			}
 		}
