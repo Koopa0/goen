@@ -93,6 +93,19 @@ jobs:
       - name: Verify
         run: make verify
 
+      - name: Prove staff navigation permission guards
+        env:
+          GOEN_PROOF_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bash scripts/check-staff-navigation-mutations.sh
+
+      - name: Keep staff navigation mutation evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: staff-navigation-mutations
+          path: ${{ runner.temp }}/goen-staff-navigation-mutations
+          if-no-files-found: warn
+
   # Separate job: it needs Docker, and keeping it apart means a failure here
   # reads as "the database contract broke" rather than as a slow lint run.
   schema:
