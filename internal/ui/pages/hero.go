@@ -2,6 +2,7 @@ package pages
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/koopa0/goen/internal/i18n"
 )
@@ -25,7 +26,17 @@ type Hero struct {
 	ImageKey     string
 	ImageAlt     string
 	ImageWidth   int
+	ImageHeight  int
 }
+
+// HasImageDimensions reports whether both are known; they are rendered together
+// because a width on its own reserves no space and prevents no shift.
+func (h Hero) HasImageDimensions() bool { return h.ImageWidth > 0 && h.ImageHeight > 0 }
+
+// ImageWidthText and ImageHeightText are the intrinsic dimensions as attributes.
+func (h Hero) ImageWidthText() string { return strconv.Itoa(h.ImageWidth) }
+
+func (h Hero) ImageHeightText() string { return strconv.Itoa(h.ImageHeight) }
 
 // Custom reports whether this came from the database rather than the fallback.
 func (h Hero) Custom() bool { return h.ImageKey != "" }

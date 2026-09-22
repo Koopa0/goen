@@ -39,17 +39,34 @@ import (
 )
 
 // contentSecurityPolicy is strict: goen renders no inline script and no inline
-// style, and the two font hosts are the only third parties.
+// style, serves its own fonts, and names no third-party origin a browser may
+// fetch from. The one third party left is where a payment form is allowed to
+// post, which is a destination rather than a source.
 const contentSecurityPolicy = "default-src 'self'; " +
 	"script-src 'self'; " +
-	"style-src 'self' https://fonts.googleapis.com; " +
-	"font-src 'self' https://fonts.gstatic.com; " +
+	"style-src 'self'; " +
+	"font-src 'self'; " +
 	"img-src 'self' data:; " +
 	// Browsers have applied form-action to the redirect a submission lands on,
 	// and goen answers the payment form with a 303 to checkout.stripe.com.
 	"form-action 'self' https://checkout.stripe.com; " +
 	"frame-ancestors 'none'; " +
 	"base-uri 'none'"
+
+// formActionDirective is the one directive a configured store map widens, and
+// the only place that widening may happen.
+const formActionDirective = "form-action 'self' https://checkout.stripe.com"
+
+// policyWith is the policy this deployment sends. With no store map configured
+// it is contentSecurityPolicy itself, byte for byte; with one it names exactly
+// one more origin, and only as a form DESTINATION.
+func policyWith(mapOrigin string) string {
+	if mapOrigin == "" {
+		return contentSecurityPolicy
+	}
+	return strings.Replace(contentSecurityPolicy, formActionDirective,
+		formActionDirective+" "+mapOrigin, 1)
+}
 
 // RouterConfig is what the router needs: the pools it serves from, the
 // providers its handlers call, and the configuration they read. Pool, AdminPool
@@ -74,6 +91,10 @@ type RouterConfig struct {
 	Invoices *invoice.Gateway
 	// Google signs customers in, or is disabled and 404s its two routes.
 	Google *account.Google
+	// StoreMap is the carrier's convenience-store picker, or is disabled and
+	// the checkout asks for a chain alone, the route is not registered, the
+	// cross-origin defence gains no bypass, and the policy is unchanged.
+	StoreMap *cart.Map
 }
 
 func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
@@ -125,7 +146,8 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 		Every: 6 * time.Minute, Burst: 10, TTL: time.Hour, MaxKeys: 65_536,
 	})
 	basketStore := cart.NewStore(pool)
-	basket := cart.NewHandler(basketStore, log, secureCookies, findLimit, sessionCloser(gateway))
+	basket := cart.NewHandler(basketStore, log, secureCookies, findLimit,
+		sessionCloser(gateway), cfg.StoreMap)
 	customers := account.NewHandler(account.NewStore(pool), basket, log, secureCookies, cfg.Google)
 	// The second factor runs on the ADMIN pool. On the storefront pool `store`
 	// would need write on staff_totp_credentials and users.role, so any slip
@@ -202,15 +224,22 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("POST /p/{slug}/notify", ratelimit.Guard(notifyLimit, log, items.Notify))
 	mux.HandleFunc("POST /p/{slug}/questions", items.Ask)
 	mux.HandleFunc("GET /cart", basket.Page)
-	mux.HandleFunc("POST /cart/items", basket.AddItem)
-	mux.HandleFunc("POST /cart/items/update", basket.UpdateItem)
+	mux.HandleFunc("POST /cart/items", clearSpeculations(basket.AddItem))
+	mux.HandleFunc("POST /cart/items/update", clearSpeculations(basket.UpdateItem))
 	mux.HandleFunc("GET /checkout", basket.Checkout)
 	mux.HandleFunc("POST /checkout", basket.PlaceOrder)
+	if cfg.StoreMap.Enabled() {
+		// The carrier's page posts the chosen store here from the SHOPPER'S
+		// browser, so it arrives cross-site with none of goen's cookies. It
+		// exists only where a carrier is configured: an unconfigured goen
+		// answers 404 here and its cross-origin defence keeps no bypass.
+		mux.HandleFunc("POST "+cart.PickupReturnPath, basket.PickupReturn)
+	}
 	mux.HandleFunc("GET /orders/find", basket.FindOrderPage)
 	mux.HandleFunc("POST /orders/find", ratelimit.Guard(findLimit, log, basket.FindOrder))
 	mux.HandleFunc("GET /orders/{number}", basket.OrderPage)
 	mux.HandleFunc("POST /orders/{number}/cancel", basket.CancelOrder)
-	mux.HandleFunc("POST /orders/{number}/reorder", basket.ReorderItems)
+	mux.HandleFunc("POST /orders/{number}/reorder", clearSpeculations(basket.ReorderItems))
 	mux.HandleFunc("GET /orders/{number}/pay", till.Page)
 	mux.HandleFunc("POST /orders/{number}/pay", till.Start)
 	mux.HandleFunc("GET /orders/{number}/return", sendbacks.Page)
@@ -230,7 +259,7 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	// The limiter runs before argon2 does: at 64 MiB a hash, an unbounded
 	// endpoint is a memory exhaustion anybody can trigger. One limiter across
 	// them all, so moving between them earns no fresh allowance.
-	mux.HandleFunc("POST /signin", ratelimit.Guard(authLimit, log, customers.SignIn))
+	mux.HandleFunc("POST /signin", clearSpeculations(ratelimit.Guard(authLimit, log, customers.SignIn)))
 	mux.HandleFunc("GET /forgot", customers.ForgotPage)
 	mux.HandleFunc("POST /forgot", ratelimit.Guard(authLimit, log, customers.Forgot))
 	mux.HandleFunc("GET /reset", customers.ResetPage)
@@ -240,9 +269,11 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	mux.HandleFunc("GET /verify", customers.VerifyPage)
 	mux.HandleFunc("POST /verify", ratelimit.Guard(authLimit, log, customers.Verify))
 	mux.HandleFunc("GET /register", customers.RegisterPage)
-	mux.HandleFunc("POST /register", ratelimit.Guard(authLimit, log, customers.Register))
-	mux.HandleFunc("POST /signout", customers.SignOut)
+	mux.HandleFunc("POST /register", clearSpeculations(ratelimit.Guard(authLimit, log, customers.Register)))
+	mux.HandleFunc("POST /signout", clearSpeculations(customers.SignOut))
 	mux.HandleFunc("GET /account", customers.RequireUser(customers.Overview))
+	mux.HandleFunc("GET /account/cart-recovery", customers.RequireUser(customers.CartRecoveryPage))
+	mux.HandleFunc("POST /account/cart/retry", customers.RequireUser(customers.RetryCartAdoption))
 	mux.HandleFunc("GET /account/points", customers.RequireUser(points.Page))
 	mux.HandleFunc("POST /account/points", customers.RequireUser(points.Redeem))
 	mux.HandleFunc("GET /account/warranty", customers.RequireUser(cover.List))
@@ -381,8 +412,8 @@ func newRouter(cfg *RouterConfig, log *slog.Logger) http.Handler {
 	handler = onlyVisitorPaths(basket.WithCount, handler)
 	handler = onlyVisitorPaths(customers.Authenticate, handler)
 	handler = withStorefrontRequestBudget(handler)
-	handler = crossOriginProtection(handler)
-	handler = securityHeaders(handler)
+	handler = crossOriginProtection(handler, cfg.StoreMap.Enabled())
+	handler = securityHeaders(handler, policyWith(cfg.StoreMap.Origin()))
 	handler = web.Compress(handler)
 	return withRequestTracing(handler, log)
 }
@@ -424,8 +455,23 @@ func withStorefrontRequestBudget(next http.Handler) http.Handler {
 
 // crossOriginProtection rejects cross-site form posts using the browser's own
 // Sec-Fetch-Site signal, which is why goen's forms carry no CSRF token.
-func crossOriginProtection(next http.Handler) http.Handler {
-	return http.NewCrossOriginProtection().Handler(next)
+//
+// pickupReturn adds the one bypass goen has, and only where a carrier is
+// configured. The store map answers by having the shopper's own browser post to
+// goen from the carrier's page, which is a cross-site POST by construction and
+// cannot be made anything else. The pattern is matched exactly: a trailing
+// slash or a cleaned path is a redirect to this pattern rather than this
+// pattern, and net/http does not admit those. The handler behind it is written
+// to be worth nothing to whoever drives it.
+//
+// A fresh CrossOriginProtection per call, never one hoisted to a package
+// variable: AddInsecureBypassPattern panics on a pattern it already holds.
+func crossOriginProtection(next http.Handler, pickupReturn bool) http.Handler {
+	protection := http.NewCrossOriginProtection()
+	if pickupReturn {
+		protection.AddInsecureBypassPattern("POST " + cart.PickupReturnPath)
+	}
+	return protection.Handler(next)
 }
 
 // withRequestID gives every request an identifier and echoes it back. A
@@ -455,14 +501,90 @@ func validRequestID(s string) bool {
 	return true
 }
 
-func securityHeaders(next http.Handler) http.Handler {
+func securityHeaders(next http.Handler, policy string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
-		h.Set("Content-Security-Policy", contentSecurityPolicy)
+		h.Set("Content-Security-Policy", policy)
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		if speculates(r) {
+			h.Set("Speculation-Rules", `"`+assets.URL(assets.SpeculationRules)+`"`)
+		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// unspeculated are the paths goen will not offer speculation rules from.
+//
+// The rules themselves already refuse to prerender a link into any of these —
+// the document is the guard, and this is the second half of the same decision:
+// a page a visitor reaches only after signing in, or one that is a step in
+// paying, offers no rules at all. Nothing is gained by speculating from a page
+// somebody is reading once, and a bug in the rules costs more there than
+// anywhere else on the site.
+//
+// Prefixes, because every one of them owns its whole subtree.
+var unspeculated = []string{
+	"/checkout",
+	"/orders/",
+	"/account",
+	"/admin",
+	"/signin",
+	"/register",
+	"/reset",
+	"/verify",
+}
+
+// clearSpeculations is what a write says to a browser holding speculative
+// copies of this site: throw them away, they were taken before this happened.
+//
+// A speculated page is a whole document, header included, rendered when the
+// browser asked for it. goen renders the cart's count into that header, so a
+// copy of a product page taken before an add shows the count from before the
+// add — measured at 1440: hover a related product until the speculation fires,
+// add in place so the count goes 1 to 2, press the link, and the landed page's
+// header reads 1.
+//
+// Which writes: the ones that change what the shared chrome says. The header
+// renders two things from the session — the cart's count, and whether the
+// visitor is staff (back office) or not (wishlist) — so the cart's four writes
+// and the three that change who you are all carry it. A wishlist write does
+// not: nothing in the chrome counts it, and /account* is refused by the rules
+// anyway, so there is no speculated copy of it to throw away.
+//
+// The asymmetry is what makes this worth shipping where putting /cart back into
+// the rules is not. A browser that ignores these directive names leaves a count
+// one behind for a single page view, and the next navigation corrects it. A
+// browser that ignored them with /cart speculated would show an empty cart to
+// somebody who had just filled it. One is a blemish; the other is a lie about
+// what the shop is holding for you.
+func clearSpeculations(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			// Only on a write. On a page response this would throw away the
+			// speculations the visitor's own browsing has just earned.
+			w.Header().Set("Clear-Site-Data", `"prefetchCache", "prerenderCache"`)
+		}
+		next(w, r)
+	}
+}
+
+// speculates reports whether this request may carry the Speculation-Rules
+// header. Only a GET of a page: a POST has already happened, and an asset is
+// not a document a browser reads rules from.
+func speculates(r *http.Request) bool {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return false
+	}
+	if strings.HasPrefix(r.URL.Path, assets.Prefix) || strings.HasPrefix(r.URL.Path, "/media/") {
+		return false
+	}
+	for _, prefix := range unspeculated {
+		if r.URL.Path == strings.TrimSuffix(prefix, "/") || strings.HasPrefix(r.URL.Path, prefix) {
+			return false
+		}
+	}
+	return true
 }
 
 func requestLog(next http.Handler, log *slog.Logger) http.Handler {
@@ -619,8 +741,13 @@ func withBanner(next http.Handler, store *home.Store, log *slog.Logger, secure b
 // Deliberately NOT bannerFreePrefixes — excluding a promotion from the checkout
 // is a conversion decision, while the cart, the account pages and the sign-in
 // form all render the site header and need its categories.
+//
+// The store map's return route is here for a different reason: it is an
+// unauthenticated cross-site POST anybody can send, it renders no header at
+// all, and leaving it a nav path would spend a category query on every one.
 var navFreePrefixes = []string{
 	"/admin", "/webhooks", "/media", "/static", "/healthz", "/readyz",
+	cart.PickupReturnPath,
 }
 
 // statelessPrefixes belong to no visitor: goen's own bytes, probes and the

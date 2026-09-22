@@ -1,0 +1,9 @@
+[Unit]
+Description=Restore goen demo database from golden snapshot
+After=postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/goen/demo.env
+ExecStart=/opt/goen/deploy/restore-demo-db.sh

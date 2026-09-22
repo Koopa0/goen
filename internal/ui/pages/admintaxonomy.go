@@ -43,8 +43,20 @@ func (t AdminTaxon) Why(ctx context.Context) string {
 	}
 }
 
-// Indent is the nesting depth as a CSS custom property.
-func (t AdminTaxon) Indent() string { return "--depth:" + strconv.Itoa(t.Depth) }
+// deepestTaxonIndent is the last step app.css draws. The schema rejects only
+// cycles, so the tree has no maximum depth, and a row below the last step
+// shares it rather than carrying an attribute no rule selects.
+const deepestTaxonIndent = 6
+
+// DepthText is the nesting depth as an attribute app.css selects on. It cannot
+// be an inline custom property: goen's Content-Security-Policy has no
+// 'unsafe-inline' under style-src, so a refused --depth renders the tree flat.
+func (t AdminTaxon) DepthText() string {
+	if t.Depth > deepestTaxonIndent {
+		return strconv.Itoa(deepestTaxonIndent)
+	}
+	return strconv.Itoa(t.Depth)
+}
 
 // AdminTaxonomyView is the brands-and-categories page.
 type AdminTaxonomyView struct {

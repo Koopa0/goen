@@ -1,0 +1,19 @@
+package components
+
+// Disclosure is a native <details> panel: a summary that opens it and the
+// content it holds. No script, and a browser that has never heard of the
+// element still shows both halves.
+//
+// It renders open. The one shape that needs it — a navigation rail that is a
+// column beside the page on a desk and a band above it on a phone — hides the
+// summary at the wide breakpoint, and a panel that could be shut with no
+// control left to reopen it is a page with no navigation at all. A caller that
+// wants a closed panel writes the element itself until a second one exists.
+templ Disclosure(p DisclosureProps) {
+	<details class={ p.class() } open>
+		<summary class="goen-disclosure__summary">{ p.Summary }</summary>
+		<div class="goen-disclosure__panel">
+			{ children... }
+		</div>
+	</details>
+}

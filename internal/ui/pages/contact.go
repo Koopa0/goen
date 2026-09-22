@@ -38,13 +38,6 @@ type ContactForm struct {
 
 func (f ContactForm) err(field string) string { return f.Errors[field] }
 
-func (f ContactForm) invalid(field string) string {
-	if f.Errors[field] != "" {
-		return "true"
-	}
-	return "false"
-}
-
 func (f ContactForm) describedBy(field string) string {
 	if f.Errors[field] == "" {
 		return ""

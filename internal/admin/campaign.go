@@ -47,11 +47,12 @@ func (f *CampaignForm) Validate(ctx context.Context) map[string]string {
 
 // Campaigns reads the promotions for the back office.
 func (s *Store) Campaigns(ctx context.Context) (pages.AdminCampaignsView, error) {
-	rows, err := s.q.AdminCampaigns(ctx, PageSize)
+	rows, err := s.q.AdminCampaigns(ctx, PageLimit)
 	if err != nil {
 		return pages.AdminCampaignsView{}, fmt.Errorf("read campaigns: %w", err)
 	}
-	view := pages.AdminCampaignsView{}
+	rows, more := pageOf(rows, PageSize)
+	view := pages.AdminCampaignsView{ListBound: pages.Bound(more, PageSize)}
 	for i := range rows {
 		c := &rows[i]
 		view.Rows = append(view.Rows, pages.AdminCampaign{
@@ -114,6 +115,9 @@ func (s *Store) FeatureProduct(ctx context.Context, campaign, product string) er
 		Before: nil, After: map[string]any{"campaign": campaign, "product": product},
 	},
 		func(ctx context.Context, q *db.Queries) error {
+			if err := q.LockCampaignAppendPosition(ctx, strings.TrimSpace(campaign)); err != nil {
+				return err
+			}
 			n, err := q.AddCampaignProduct(ctx, db.AddCampaignProductParams{
 				Campaign: strings.TrimSpace(campaign), Product: strings.TrimSpace(product),
 			})

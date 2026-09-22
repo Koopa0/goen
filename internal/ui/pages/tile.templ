@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/icons"
 )
 
@@ -13,10 +14,13 @@ templ compareForm() {
 	<form class="goen-compare-pick" method="get" action="/compare">
 		{ children... }
 		<div class="goen-compare-pick__go">
-			<button class="ui-btn ui-btn--secondary" type="submit">
+			@components.Button(components.ButtonProps{
+				Variant: components.VariantOutline,
+				Size:    components.SizeSmall,
+			}, "submit") {
 				{ i18n.T(ctx, i18n.KeyCompareSelected) }
-			</button>
-			<span class="ui-cart-line__meta">{ i18n.T(ctx, i18n.KeyCompareLimit) }</span>
+			}
+			<span class="goen-compare-pick__note">{ i18n.T(ctx, i18n.KeyCompareLimit) }</span>
 		</div>
 	</form>
 }
@@ -28,17 +32,18 @@ templ tileCard(t ProductTile) {
 		// Outside the card, never inside: the whole card is one link, and a
 		// control nested in an anchor is neither clickable nor valid.
 		<label class="goen-tile__compare">
-			<input type="checkbox" name="p" value={ t.Slug } aria-label={ t.CompareLabel(ctx) }/>
+			<input type="checkbox" name="p" value={ t.Slug } class="goen-check" aria-label={ t.CompareLabel(ctx) }/>
 			<span aria-hidden="true">{ i18n.T(ctx, i18n.KeyCompareAdd) }</span>
 		</label>
 	}
-	<a class="ui-product goen-tile" href={ templ.URL("/p/" + t.Slug) }>
-		<div class="ui-product__media">
+	<a class="goen-tile" href={ templ.URL("/p/" + t.Slug) }>
+		<div class="goen-tile__media">
 			if t.HasImage() {
 				<img
+					class="goen-tile__img"
 					src={ t.ImageURL }
 					srcset={ t.ImageSrcset }
-					sizes="(min-width: 1344px) 308px, (min-width: 1024px) calc((100vw - 112px) / 4), (min-width: 768px) calc((100vw - 80px) / 3), calc((100vw - 42px) / 2)"
+					sizes="(min-width: 1344px) 286px, (min-width: 1024px) calc((100vw - 136px) / 4), (min-width: 768px) calc((100vw - 96px) / 3), calc((100vw - 48px) / 2)"
 					alt={ t.ImageAlt }
 					if t.HasImageDimensions() {
 						width={ t.ImageWidthText() }
@@ -51,39 +56,39 @@ templ tileCard(t ProductTile) {
 				<span class="goen-tile__ph" aria-hidden="true"></span>
 			}
 			if t.SoldOut() {
-				<span class="ui-product__flag ui-badge">{ i18n.T(ctx, i18n.KeySoldOut) }</span>
+				@components.Badge(components.BadgeProps{Tone: components.ToneDanger, Class: "goen-tile__flag"}) {
+					{ i18n.T(ctx, i18n.KeySoldOut) }
+				}
 			} else if t.OnSale() {
-				<span class="ui-product__flag ui-badge ui-badge--brand">{ i18n.T(ctx, i18n.KeyOnSale) }</span>
+				@components.Badge(components.BadgeProps{Tone: components.ToneAccent, Class: "goen-tile__flag"}) {
+					{ i18n.T(ctx, i18n.KeyOnSale) }
+				}
 			}
 		</div>
-		<div class="ui-product__body">
-			<span class="ui-product__brand">{ t.Brand }</span>
-			<h3 class="ui-product__name">{ t.Name }</h3>
+		<div class="goen-tile__body">
+			<span class="goen-tile__brand">{ t.Brand }</span>
+			<h3 class="goen-tile__name">{ t.Name }</h3>
 			if t.HasReviews() {
-				<span class="ui-rating goen-tile__rating">
-					<span class="ui-rating__stars" aria-hidden="true">
-						@icons.Star()
-					</span>
-					<span class="goen-tile__score" aria-hidden="true">{ t.RatingText() }</span>
-					<span class="ui-rating__count" aria-hidden="true">({ t.ReviewCountText() })</span>
+				<span class="goen-tile__rating">
+					@icons.Star()
+					<span aria-hidden="true">{ t.RatingText() }</span>
+					<span aria-hidden="true">({ t.ReviewCountText() })</span>
 					<span class="goen-sr-only">{ t.RatingLabel(ctx) }</span>
 				</span>
 			}
-			<div class="ui-product__foot">
-				<span class={ "ui-price", templ.KV("ui-price--sale", t.OnSale()) }>
-					<span class="ui-price__now">
-						if t.PriceVaries {
-							{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFromPrice), t.Price()) }
-						} else {
-							{ t.Price() }
-						}
-					</span>
-					if t.OnSale() {
-						<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyWasPrice) }</span>
-						<s class="ui-price__was">{ t.Compare() }</s>
+			<span class="goen-tile__price">
+				<span>
+					if t.PriceVaries {
+						{ fmt.Sprintf(i18n.T(ctx, i18n.KeyFromPrice), t.Price()) }
+					} else {
+						{ t.Price() }
 					}
 				</span>
-			</div>
+				if t.OnSale() {
+					<span class="goen-sr-only">{ i18n.T(ctx, i18n.KeyWasPrice) }</span>
+					<s class="goen-tile__was">{ t.Compare() }</s>
+				}
+			</span>
 		</div>
 	</a>
 }

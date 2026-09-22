@@ -1,0 +1,32 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/koopa0/goen/internal/i18n"
+)
+
+// listBound is the sentence a bounded list says beneath itself.
+//
+// A plain paragraph and not the Notice component: Notice carries role=status or
+// role=alert, and this is neither the result of anything the reader did nor an
+// error. Announcing it on every page load would be noise a screen-reader user
+// has to listen past to reach the table it is describing.
+//
+// searchable is passed rather than carried in the view because the page that
+// renders this is the page that either has a search or does not, and the two
+// statements belong in the same file where they cannot drift apart.
+templ listBound(b ListBound, order ListOrder, searchable bool) {
+	if b.More {
+		<p class="goen-admin__hint goen-admin__bound">
+			if order == ByRecency {
+				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminListCappedRecent), b.Limit) }
+			} else {
+				{ fmt.Sprintf(i18n.T(ctx, i18n.KeyAdminListCappedFirst), b.Limit) }
+			}
+			if searchable {
+				{ " " + i18n.T(ctx, i18n.KeyAdminListCappedSearch) }
+			}
+		</p>
+	}
+}

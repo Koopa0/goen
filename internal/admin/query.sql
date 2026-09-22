@@ -807,6 +807,12 @@ UPDATE sale_campaigns SET is_active = @is_active::boolean WHERE slug = @slug::te
 -- ONE statement: sale_campaign_needs_discount refuses a product with nothing
 -- marked down and takes a lock on it first, so a check here would be a check a
 -- concurrent price change invalidates.
+-- name: LockCampaignAppendPosition :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    'append:campaign:' || c.id::text, 628471039582915603::bigint))
+FROM sale_campaigns c
+WHERE c.slug = @campaign::text;
+
 -- name: AddCampaignProduct :execrows
 INSERT INTO sale_campaign_products (campaign_id, product_id, position)
 SELECT c.id, p.id,
@@ -877,6 +883,10 @@ SELECT h.id, h.eyebrow, h.headline, h.primary_cta_label, h.primary_cta_href,
 FROM hero_slides h
 ORDER BY h.position, h.id
 LIMIT $1;
+
+-- name: LockHeroAppendPosition :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    'append:hero_slides', 628471039582915603::bigint));
 
 -- name: CreateHeroSlide :exec
 INSERT INTO hero_slides (
@@ -1513,7 +1523,12 @@ SELECT o.id, o.name, coalesce(o.name_en, '') AS name_en, o.position,
            (SELECT array_agg(coalesce(v.value_en, '') ORDER BY v.position, v.id)
             FROM product_option_values v WHERE v.option_id = o.id),
            ARRAY[]::text[]
-       )::text[] AS value_labels
+       )::text[] AS value_labels,
+       coalesce(
+           (SELECT array_agg(coalesce(v.swatch_hex, '') ORDER BY v.position, v.id)
+            FROM product_option_values v WHERE v.option_id = o.id),
+           ARRAY[]::text[]
+       )::text[] AS swatch_hexes
 FROM product_options o
 JOIN products p ON p.id = o.product_id
 WHERE p.slug = $1
@@ -1532,8 +1547,9 @@ RETURNING id;
 -- attached to an option of a different product: the composite foreign key would
 -- refuse it, and resolving it here means the caller cannot try.
 -- name: AddProductOptionValue :one
-INSERT INTO product_option_values (product_id, option_id, value, value_en, position)
+INSERT INTO product_option_values (product_id, option_id, value, value_en, swatch_hex, position)
 SELECT o.product_id, o.id, @value::text, nullif(@value_en::text, ''),
+       nullif(@swatch_hex::text, ''),
        coalesce((SELECT max(v.position) FROM product_option_values v
                  WHERE v.option_id = o.id), 0) + 1
 FROM product_options o
@@ -1609,6 +1625,10 @@ LIMIT $1;
 
 -- The position is computed WITHIN the category, because faq_entries_position_key
 -- is unique on (category, position).
+-- name: LockFAQAppendPosition :exec
+SELECT pg_advisory_xact_lock(hashtextextended(
+    'append:faq:' || @category::text, 628471039582915603::bigint));
+
 -- name: CreateFAQEntry :exec
 INSERT INTO faq_entries (category, question, answer,
                          category_en, question_en, answer_en, position)

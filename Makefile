@@ -6,6 +6,13 @@ GOVULNCHECK_VERSION := v1.7.0
 SQUAWK_VERSION := 2.64.0
 DEADCODE_VERSION := v0.49.0
 ACTIONLINT_VERSION := v1.7.12
+AXE_CORE_VERSION := 4.13.0
+
+# The digest of axe.min.js at that version, as the npm registry tarball and
+# unpkg both serve it. check-layout downloads the file and verifies this before
+# evaluating it in the page, because the alternative — a <script src> at a CDN —
+# lets a third party decide what runs inside the gate that decides what merges.
+AXE_CORE_SHA256 := c24f097bd2f451d4f933e8bc7d8d539f8672a2ebcb5cc9f9f3eec8ca9470a0c1
 
 # Tools that generate or inspect this module but are not part of it. `go run
 # pkg@version` pins each as firmly as a require line without joining the module
@@ -95,12 +102,35 @@ check-layout:
 		--remote-debugging-port=$${CDP_PORT:-9222} \
 		--user-data-dir=$(PWD)/.layout-chrome about:blank >/dev/null 2>&1 & echo $$! > .layout-chrome/pid
 	@sleep 3
+	@# axe-core, fetched at the pin above and checked against it. Downloaded
+	@# AFTER the browser is launched so the wait for Chrome pays for the fetch,
+	@# and into the throwaway profile directory so nothing survives the run.
+	@# The script evaluates it over CDP rather than injecting a <script>: the
+	@# site sends script-src 'self' and a gate that needs the page to relax its
+	@# own CSP measures a page nobody visits.
+	@curl -fsSL --retry 3 -o .layout-chrome/axe.min.js \
+		https://unpkg.com/axe-core@$(AXE_CORE_VERSION)/axe.min.js \
+		|| { echo 'could not fetch axe-core $(AXE_CORE_VERSION)' >&2; exit 2; }
+	@# openssl rather than shasum or sha256sum: this recipe already requires it a
+	@# few lines down, and neither of the others is on both macOS and a Linux
+	@# runner. The last field, because OpenSSL 3 prints SHA2-256(file)= and
+	@# LibreSSL prints SHA256(file)=.
+	@digest=$$(openssl dgst -sha256 .layout-chrome/axe.min.js | awk '{print $$NF}'); \
+		test "$$digest" = '$(AXE_CORE_SHA256)' \
+		|| { echo "axe-core $(AXE_CORE_VERSION) hashes to $$digest, not AXE_CORE_SHA256" >&2; exit 2; }
 	@# The cart pages need a cart. Added through the site's own POST, so if
 	@# add-to-cart is broken this check fails too — which is correct.
 	@rm -f .layout-chrome/cookies
+	@# Both halves are checked, because every way of ending up without a cart used
+	@# to surface as the checkout fixture's "did not render its quote" further
+	@# down: a catalogue with nothing sellable, a GOEN_DATABASE_URL that is not the
+	@# database the server at GOEN_URL reads, and a genuinely broken add to cart all
+	@# arrived as that one sentence. Reporting three causes as one is CLAUDE.md #17.
 	@VARIANT=$$(psql "$$GOEN_DATABASE_URL" -tAc "SELECT pv.id FROM product_variants pv JOIN products p ON p.id = pv.product_id WHERE p.status = 'active' AND pv.is_active AND pv.stock_quantity > pv.safety_stock LIMIT 1"); \
-		curl -s -o /dev/null -c .layout-chrome/cookies \
-			-d "variant=$$VARIANT&quantity=1" $${GOEN_URL:-http://127.0.0.1:9700}/cart/items
+		test -n "$$VARIANT" || { echo 'no sellable variant in GOEN_DATABASE_URL: run `make db-seed` against the database the server reads' >&2; exit 2; }; \
+		STATUS=$$(curl -s -o /dev/null -w '%{http_code}' -c .layout-chrome/cookies \
+			-d "variant=$$VARIANT&quantity=1" $${GOEN_URL:-http://127.0.0.1:9700}/cart/items); \
+		case "$$STATUS" in 200|30*) ;; *) echo "add to cart answered $$STATUS for variant $$VARIANT — the server at GOEN_URL does not know it, which is usually a different database than GOEN_DATABASE_URL" >&2; exit 2;; esac
 	@# The two sessions every fixture below signs in with, minted HERE rather than
 	@# at the end, because the back office's own forms are what seed the last three
 	@# admin pages and they need a staff cookie to POST with.
@@ -127,6 +157,8 @@ check-layout:
 	@# own checkout for the same reason the cart is: if placing an order is
 	@# broken, this check should fail too.
 	@U=$${GOEN_URL:-http://127.0.0.1:9700}; \
+		STATUS=$$(curl -s -o /dev/null -w '%{http_code}' -b .layout-chrome/cookies $$U/checkout); \
+		test "$$STATUS" = 200 || { echo "GET /checkout answered $$STATUS, want 200 — an empty cart redirects, and then nothing below can be read from the page" >&2; exit 2; }; \
 		PAGE=$$(curl -fsS -b .layout-chrome/cookies $$U/checkout); \
 		QUOTE=$$(printf '%s' "$$PAGE" | grep -o 'name="checkout_quote" value="[^"]*"' | head -1 | cut -d'"' -f4); \
 		ATTEMPT=$$(printf '%s' "$$PAGE" | grep -o 'name="idempotency" value="[^"]*"' | head -1 | cut -d'"' -f4); \

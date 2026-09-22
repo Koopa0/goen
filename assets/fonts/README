@@ -1,0 +1,227 @@
+goen's fonts, and where they came from
+======================================
+
+Three families, 109 woff2 files, 4.17 MiB. They are the files
+Google Fonts serves, fetched once and vendored here. Nothing subsets them at
+build time and nothing fetches them at run time: `go:embed` puts them in the
+binary and assets/assets.go serves them from /static with a digest in the URL
+and a year of immutable caching.
+
+Licence
+-------
+
+All three are under the SIL Open Font License, Version 1.1, which requires the
+licence and the copyright notice to travel with the font files wherever they
+are redistributed. Each family directory carries its own OFL.txt, copied
+verbatim from that family's directory in github.com/google/fonts, and those
+files are embedded and served alongside the fonts rather than only living in
+the repository:
+
+  assets/fonts/noto-sans-tc/OFL.txt
+    Copyright 2014-2021 Adobe (http://www.adobe.com/),
+    with Reserved Font Name 'Source'
+  assets/fonts/inter/OFL.txt
+    Copyright 2020 The Inter Project Authors
+    (https://github.com/rsms/inter)
+  assets/fonts/jetbrains-mono/OFL.txt
+    Copyright 2020 The JetBrains Mono Project Authors
+    (https://github.com/JetBrains/JetBrainsMono)
+
+The three texts are the same licence; they differ only in the copyright line
+and in where the upstream wrapped it. Each is kept as its upstream ships it
+rather than merged into one, so a diff against upstream is a diff and not an
+argument about formatting. TestEveryFontFamilyCarriesItsLicence fails if a
+family is ever added without one.
+
+Nothing here is modified. The OFL permits bundling and redistribution of
+unmodified files under the original names; goen changes no glyph, no name and
+no metadata.
+
+
+What is here, and why only this
+-------------------------------
+
+  Noto Sans TC   105 files   Han. Every subset Google splits the family into.
+  Inter            2 files   latin and latin-ext.
+  JetBrains Mono   2 files   latin and latin-ext.
+
+Source and version, as fonts.gstatic.com paths record them:
+
+  Noto Sans TC     /s/notosanstc/v39/
+  Inter            /s/inter/v20/
+  JetBrains Mono   /s/jetbrainsmono/v24/
+
+Google revises a family under a new vN path, so a future fetch that lands on a
+different version is a deliberate upgrade with a new set of digests, not a
+silent drift.
+
+All three are VARIABLE fonts with a 400-700 weight axis, so one file per subset
+covers every weight goen paints. That is why there are 105 Noto Sans TC files
+and not 420: the static build needs one file per subset per weight.
+
+Inter and JetBrains Mono keep only their Latin subsets. Google also serves them
+in Cyrillic, Greek and Vietnamese; goen paints none of those, and a character
+outside the ranges here falls to the system stack exactly as it did before.
+
+Noto Sans TC keeps all 105, including its Latin ones. A browser downloads a
+subset only when it paints a character inside that subset's unicode-range, so
+the count costs binary size and not bandwidth: a page of Latin text fetches one
+file and a page of Han fetches the handful its characters fall in.
+
+Newsreader and Space Grotesk are not here. The design system names them, goen's
+own tokens override both, and a browser on a goen page has never downloaded
+either — checked with Network.requestWillBeSent before any of this was removed.
+
+How to regenerate
+-----------------
+
+Google serves a different woff2 when the family is revised, and its CSS is the
+only place the unicode-ranges are published. To take a new revision:
+
+  1. Fetch the three stylesheets with a browser's User-Agent, which is what
+     makes Google answer with woff2 rather than ttf:
+
+       curl -A "$BROWSER_UA" \
+         'https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400..700&display=swap'
+       curl -A "$BROWSER_UA" \
+         'https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap'
+       curl -A "$BROWSER_UA" \
+         'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400..700&display=swap'
+
+  2. For each @font-face, download the woff2 it names into the directory for
+     its family, named after the subset comment above it (the unlabelled Noto
+     Sans TC subsets are numbered cjk-000 upward, in the order Google lists
+     them — the order is the unicode-range order and it is stable).
+
+  3. Rewrite assets/css/app/fonts.css from the same stylesheets: one @font-face
+     per file, carrying Google's own font-weight, font-style and unicode-range,
+     `font-display: swap`, and a src of
+     /static/fonts/<family>/<subset>.woff2?v=<first 12 hex of the file's sha256>.
+
+  4. `go test ./assets/` — TestFontStylesheetMatchesTheEmbeddedFonts compares
+     every digest in the sheet against the embedded file and fails on a file
+     that no rule names.
+
+Subsetting tool and version: NONE, and that is the point rather than an
+omission. Every file here is a byte-for-byte copy of what fonts.gstatic.com
+serves; Google runs the subsetting and publishes the resulting unicode-ranges
+in its CSS, and copying both is the whole step. No fonttools, no pyftsubset, no
+build step, nothing added to go.mod or the Makefile, and no way for a local
+tool's version to change what a visitor is sent.
+
+Fetched with Chrome 153's User-Agent on 2026-09-19 from fonts.googleapis.com
+and fonts.gstatic.com. The User-Agent matters: Google answers an older one with
+ttf and a different set of subsets.
+
+sha256 of every file
+--------------------
+
+598878ebe5a8021c78aa131fc98989be4d9b3bbac1dffe00bdd4d0d5313b61a3     8896  noto-sans-tc/cjk-000.woff2
+e15a46b058fbf572dcab2324c4669c67c9865c8983ed5198377d497fd1c174d2    15336  noto-sans-tc/cjk-001.woff2
+64feb1885de8d09f2658529bccaa86cca396d5ab817156e93e81b548000a1680    14324  noto-sans-tc/cjk-002.woff2
+046b81cf7e126ece8ae8dda79fbe90219a4177a8ffbdbcd8734784407ad2288a     9564  noto-sans-tc/cjk-003.woff2
+c34a2b8b39e0f200766f133cf4e195904207713250343cbb9a9f1c4be2a04bda    29124  noto-sans-tc/cjk-004.woff2
+ebd0d7726ae13ac019498df1308518c877346e28753fb38c4961f5a79f0c48ce    53024  noto-sans-tc/cjk-005.woff2
+e2a3bdae4671b7b1d77120878b9457a06f433213a39d59441fdd5c72359fdad8    43444  noto-sans-tc/cjk-006.woff2
+d848ab68d2fd2e7abc418b6092775ec581bb3ee2a9a15816d72f703045ae82f8    42684  noto-sans-tc/cjk-007.woff2
+baf8cdd561d0ed528dde3f0f14f7f7d010fa0b1df34ddd245a85d79d730e39a1    40500  noto-sans-tc/cjk-008.woff2
+7cd6870343554f8e43ed1b287198f6c442c905f6f3dfc7ab26a9a14d6964972d    37760  noto-sans-tc/cjk-009.woff2
+594ee0d4ab1f6283230eac3856b88d4351476f3008b91ff82b4aef74d7f70e1b    43524  noto-sans-tc/cjk-010.woff2
+afa10609ea00541e64a5f39a678a2f61048ffd46fa5950daa8b037575b39b0ef    22808  noto-sans-tc/cjk-011.woff2
+3fa58476f14b44d5fe7b1bd1da17b7c4d0abcb71d110fdf3c4a49020878a606a    26560  noto-sans-tc/cjk-012.woff2
+055e218a9a3cbc777e14e5134d71a16c8edccf4c8dcd70f9428ba173fc28985c    52180  noto-sans-tc/cjk-013.woff2
+8ac918fd5ce41542ec8c34cce58f41022a90f9d3b5667fa04b7accf40480fe72    44592  noto-sans-tc/cjk-014.woff2
+d1caa8730fdda64dc34ebeaa30a39481e93cd19f43c33f5e1561d6cb17556f9a    43912  noto-sans-tc/cjk-015.woff2
+5fb23e97ade2f34310ecc7aadb7bc45a177d733c71abe24180e79afe403ae183    35636  noto-sans-tc/cjk-016.woff2
+c0df23889b5ac6b301928ca5b964de2cd6e7e415337606e6008f6b12493914e4    43888  noto-sans-tc/cjk-017.woff2
+fc172cf9891339e6a974702e3ce9c1726053fa024fe3eea7d949c1a39a75958d    30620  noto-sans-tc/cjk-018.woff2
+2631ac2ee24b731072b68109f27bb355f0bbf4ab18554e037b81611ad9cb68d6    20992  noto-sans-tc/cjk-019.woff2
+533d7ee5d44cb7d6d86b050fdc0f61ad3dc7b971a56ccb4cd115a2cfefb52243    41696  noto-sans-tc/cjk-020.woff2
+5736d2bae41ad912631b5fb9a0e731b507cd263fc9ebc5b2d02a7ee796793c69    49188  noto-sans-tc/cjk-021.woff2
+6e65a8bcbb6ca7a48619b546c191f087a18ef45573320088ff07d97ad2786c50    50956  noto-sans-tc/cjk-022.woff2
+18f0879bb8ec88c8bbb9821020e452cfc585047af83ca0cf9b7d94058cae313e    43928  noto-sans-tc/cjk-023.woff2
+897063abed473fd85b43bce2682199205cb66014c191625aa8866b443465d2f7    49916  noto-sans-tc/cjk-024.woff2
+65be2dec5f464457c8d98350b49f3a83323334fafbf512a82dde3c20a0c93ffe    39204  noto-sans-tc/cjk-025.woff2
+66a02feb341b10163ce5710e2296a2c46888977540ba57b2cf2161c82f2f815a    29292  noto-sans-tc/cjk-026.woff2
+0f9c22e2df1c083a3cc4ffe75651ee45b8b01a3bff9c81268923b08597486eac    43672  noto-sans-tc/cjk-027.woff2
+30473fa7da8029d523572eb9a7cbc622403dbfe8bc474db7033b44e121dba554    40160  noto-sans-tc/cjk-028.woff2
+662a1a92f5ae4d056ba6a5e97d7cfd60ed23c0e8270cd0fad5f056f5c21cc4df    20996  noto-sans-tc/cjk-029.woff2
+836969d5033bd4a4a2f0737ead96630e525f09976d2b45b1c05661f32e584c8f    56888  noto-sans-tc/cjk-030.woff2
+5edc5976f77d57a0accb0b4f2a75db2bdeac266644d55881b664e87fead1a5db    54956  noto-sans-tc/cjk-031.woff2
+da63f8d1afe2c9170a3819091bb39504fbbbc7d2b6a4598eab0f53cabf44ef10    42424  noto-sans-tc/cjk-032.woff2
+37c40c881417739c385107a1d957a5c45b19b3482b1d67bee831914a1994fc24    43436  noto-sans-tc/cjk-033.woff2
+2f7a28293e65ec3342e5bb71c2c029ec32a6e71acd71370c0091dd407591037b    40564  noto-sans-tc/cjk-034.woff2
+95bd64f13920845a69e7d34e0d3218e579f2beefdc20db4d5d73d8074a5041e6    35736  noto-sans-tc/cjk-035.woff2
+1ab5a4e6ff919a0245008bf80227d942af9336d78f6e988f306f9ea2427bf0b3    44092  noto-sans-tc/cjk-036.woff2
+16016f7433a521cca411b1fdd4b2db87f5a6bf7bbf6901bd57b0ecec6c95b96a    42436  noto-sans-tc/cjk-037.woff2
+2185132132d3b258b26ed747cf96b4a84f6aa4c3ebaf97d7613abc2827fb2717    40260  noto-sans-tc/cjk-038.woff2
+e4ce8aafc7296b0a61815075a2a5629743b4c16cfc828734a92daf9a22ba7b09    42320  noto-sans-tc/cjk-039.woff2
+1abd450754c1cf8d75de89178ee9fdba6837e50932e0fafcb3088bced7297a94    47796  noto-sans-tc/cjk-040.woff2
+77d7a70c66c9598fda1c34f285e2e90413cc48ca0cfbee002afbb9c0b7443047    49908  noto-sans-tc/cjk-041.woff2
+d4522797b1ac4d1b6416c491d587250b13ee825bfa7bb3a3d5b138bd65af0293    51248  noto-sans-tc/cjk-042.woff2
+bc489ee4d7887aca639b4ec496cc80ca5c8bb87af26fe213df8a59e526cbfac3    43044  noto-sans-tc/cjk-043.woff2
+0342bde999743da12929b86b5e08de0958acdb648df075cca322f14727f0476f    32752  noto-sans-tc/cjk-044.woff2
+46f12d394488ee831dac03e8711c8a6fa4d7984dc681d73c5f3d441487892007    37308  noto-sans-tc/cjk-045.woff2
+3f0806c2285df51238f15bd95bc28ddac35eaf17ad2ce6a8b408c0beda929dcd    54028  noto-sans-tc/cjk-046.woff2
+d7939fb1c1fbdd86ef4bd8fbb7729da3bfae9f1de2e1791514b7dda6f7ec92a2    45360  noto-sans-tc/cjk-047.woff2
+75a7b7ef47821ad8f0f33dae7c9f6be7507d8507846b216c80d91733f5c24bbd    38420  noto-sans-tc/cjk-048.woff2
+3e1dbae4fbc263ec4c2afe454ee79b000196760f65ea1dec72df5e61d34409cd    33080  noto-sans-tc/cjk-049.woff2
+14ac679888f0d80f0dc047af883b8073b163ff870e594d48c2831a782ca8ed76    35352  noto-sans-tc/cjk-050.woff2
+e49c9b603609baae05e149dddabf03e4f71922e43e624bcfb0aa5cecc060c6cd    48876  noto-sans-tc/cjk-051.woff2
+2b2686a9c15666fb0859f9982ea18498c8acbd05ba576d6af92194329152fab2    34300  noto-sans-tc/cjk-052.woff2
+53309c79f96fb04a2f9b855b94dfa3d23bbe432be8ae9ea0c3401ccccffa4160    34832  noto-sans-tc/cjk-053.woff2
+79485c5b46202b4a1d53f1ea5edf4049a4aa4e4bd681258d1e51a9fa2c16e943    45084  noto-sans-tc/cjk-054.woff2
+846211b0ca6674bc2d92267f7434f072505bd70cc9ac382c5fa6d4bc08d6a9f3    30816  noto-sans-tc/cjk-055.woff2
+14f2fb0a62f0e0686c747bb193645ae49c70c294dd11c154b14c4567994f4efc    37336  noto-sans-tc/cjk-056.woff2
+d0edf41a5d2c768e8cbc2fc5ace60a06a734acfd8a87aa645b85823aad942283    37772  noto-sans-tc/cjk-057.woff2
+5ae1f586b451d91acfdcd1126a18b042a14b9381ea5e0d8eeba05554726c2a5e    27540  noto-sans-tc/cjk-058.woff2
+46f11e8e957af8d666d4dfff73a116f711f3ebece820f6d90014c74556b46276    50720  noto-sans-tc/cjk-059.woff2
+996d29ee5708ed1c18c1223d339c9f92e22abe822743e9ba9d43f4fc780ba4dc    35876  noto-sans-tc/cjk-060.woff2
+0479bb9ea9a75677fbfce4501f25d9310cd411a86165997bd84d488c69e468b8    39672  noto-sans-tc/cjk-061.woff2
+2d918f3b80c4bb05b864158e1aa936157a1141bda012fe648821d382347b5640    34096  noto-sans-tc/cjk-062.woff2
+6d3efb4157fe5e439832c777257d502e3a0357d59767f8900b4fbf3cc502c672    41152  noto-sans-tc/cjk-063.woff2
+7a659aeb17eb85db83b56d4799edf754eec09642e452a4ce93a4dad4a51b1ac2    28012  noto-sans-tc/cjk-064.woff2
+232afdb351a87e7858fe4d448d724eb6864ff5cc9d4429b1b70c7b0c09fe4dc5    27008  noto-sans-tc/cjk-065.woff2
+e82fe5670cbc4ea9aa76bbb7327bd5be5f8788c3382a3b338a00df22ff10a392    31332  noto-sans-tc/cjk-066.woff2
+4b97f5e165da09db538731833990c515dac33746f2b68fa8e0acfe2bf821e63a    43072  noto-sans-tc/cjk-067.woff2
+3cef092e8a4e670382579f8e5617dab1967ebc5a05ad2c3e9c29bf4ee79c5050    29568  noto-sans-tc/cjk-068.woff2
+ec4200715ce945793bb3f0f7573025bc5e4767c5bcd673e13e208018f6024736    18776  noto-sans-tc/cjk-069.woff2
+8ae2046c960cbfdd853e7106b3206c3800c85a9f61b808b0fb1d93f91cba0406    36804  noto-sans-tc/cjk-070.woff2
+ce0abeacdf353586fd816a9d5e44a819643d7d6f4e6fad8e2fb6eea06000d88b    12188  noto-sans-tc/cjk-071.woff2
+aa43dbf3719fff25eb904e5ff60c87abe9173a77cb3ad9ceb7f0ab4bada270cd     5768  noto-sans-tc/cjk-072.woff2
+a96cdb58bdc4ff37bc0aa3dbfad968a817ed2e1147e0669d7be5d87d5877e80d     7596  noto-sans-tc/cjk-073.woff2
+245dce6f23aaace7c1b7931e42f4779f6ad606a79c35870bf6f96d4ec776ba9c    10584  noto-sans-tc/cjk-074.woff2
+b58522b90c242d231c6ad12d8405e57bc7476a8eda75655c70d993d5ba256566     9328  noto-sans-tc/cjk-075.woff2
+ee0add409523bc715d0327183d122a5d23a059c979e4fa46bde7cc98f5fcd617     8900  noto-sans-tc/cjk-076.woff2
+0180d270450a83a63f0675eb67085d5973fdcc30901ac06053cebd5864ba2ec9     3580  noto-sans-tc/cjk-077.woff2
+d1120a7ecd28cd03dd31028c538b3254efc7a6685853be4189e4b7283fe849d3     1624  noto-sans-tc/cjk-078.woff2
+23a5e583f2d0bab25f5df7cb83556a4525272a159249703e634c7bcc76016984     3008  noto-sans-tc/cjk-079.woff2
+6316c2c3d26c07deabae9db4b7f22b1b7d3cbd3ac186fb0dac02f161430e10b8     8860  noto-sans-tc/cjk-080.woff2
+48298f39f928f355c0cd5cb9e4a510a260a1a5020a9221fe8330c86613afff73    63164  noto-sans-tc/cjk-081.woff2
+2e48dbaa41facd70519270ffe5b7ed34590a26235399bbfd6a7d3f859fb9f65f    62524  noto-sans-tc/cjk-082.woff2
+a38e90b1306f388a54c61f12df85c4b935fd32bcd47f02e44728106612ef897b    63380  noto-sans-tc/cjk-083.woff2
+c9fb71d57750c7dbd6665a62a6ab01fb592ba2c2a9cfef1e51d070615c07ba52    70348  noto-sans-tc/cjk-084.woff2
+c4a1510b95e7503f7aaee656f0f14a66b9a5dfe240d97252ccda76b48584b036    68808  noto-sans-tc/cjk-085.woff2
+94980015ecf99e7b7b72498f21150c6e85aef15e51411856193668ecafd63b0d    68200  noto-sans-tc/cjk-086.woff2
+bbdd6c8f27f0ca26e20da43588d9e9750cc559e5af5278dfabc55d9a80545ce1    72448  noto-sans-tc/cjk-087.woff2
+b5196e40e4092bab29d4723328aea541ff8322013911dc3dc8d61f67bcde02cc    73036  noto-sans-tc/cjk-088.woff2
+bc0a0be2dcaa86060c01459d42138df9acf9f430b0f1742cd982b509df818336    72596  noto-sans-tc/cjk-089.woff2
+32ef1d0e075c62eec099dc1c5c383326a0e588300e51cc55dc51dff5c9ace381    71976  noto-sans-tc/cjk-090.woff2
+c5327d1ac9baf0803c4e99897528fff1bf3b38c32803acd4761fad76437d32b7    79300  noto-sans-tc/cjk-091.woff2
+b7edd14587a9d3587a930a54f756c2bd0830dc95e448ccb8e47a9d922616502d    74820  noto-sans-tc/cjk-092.woff2
+4e532a971975125e73565d08f8fcc1a601667eac3403392e45aa6376090595d3    73500  noto-sans-tc/cjk-093.woff2
+f6f4894ddbbfcd49972c54240aada2e8fe53f7e3425208b3b8058a99cbeacf08    71484  noto-sans-tc/cjk-094.woff2
+6eef0a9862cbe00f19db8b44adb01927147f60ac15a5eaaf404cda05642a9f34    85036  noto-sans-tc/cjk-095.woff2
+076b3d2efcf25af6f5f2822c357def7ebcccfc18e0a9cb5e0050ad37a1a59d9e    74404  noto-sans-tc/cjk-096.woff2
+fe79bc260a6123f1e572e6850387066194ac33dabc2ca160460d64f1a0b42d1e    71596  noto-sans-tc/cjk-097.woff2
+cce9d3663ec493d7237595036f809516963c5b75717d33911f9149e477a8a4b9    65444  noto-sans-tc/cjk-098.woff2
+33cd77029d2d4a476bb9018633c29d4c890cc114e48e04d84d8c44b5bace8e0b    60208  noto-sans-tc/cjk-099.woff2
+45b2cad2ae14a2667b0bcc89baa32c9f6a8eccadf8f07af70e5c36de55e38b63    34592  noto-sans-tc/cjk-100.woff2
+667acb3bdce27eddae5e7cd7b41424631cf4ab3064e422011ffc9c9061a61d3a     9960  noto-sans-tc/cyrillic.woff2
+0adabb72912aa2c5c5982b7032d0fe5de44fdcffc33175a841d8872b1d65aa82     9092  noto-sans-tc/vietnamese.woff2
+4eced4940d3aaf8fb6241ce0cd041a14cb82f568f500fe40b39b71590a6b86ee     8208  noto-sans-tc/latin-ext.woff2
+271d17686d5f2f5be0f614afbdc8c42314851323eb3d143b95c6857c7f4622e0    25224  noto-sans-tc/latin.woff2
+a28eb6d3ccb534ae0c94ca999371df024aab60b08c3c8a5720ee9e32fa0faaa2    85272  inter/latin-ext.woff2
+c940764593d0fe5d596be327ca7558855e018039fb78509aa21921fd3644c3e4    48432  inter/latin.woff2
+9c38cb2d0d2d93c1ee6e21fa78db76f13ea7e15e15cc64214c7ca89b6aaa35c4    11596  jetbrains-mono/latin-ext.woff2
+2c32b9b3ee358c119e210f6f5195f9bd34894d78a785ff2e95d60e718e400af4    31340  jetbrains-mono/latin.woff2

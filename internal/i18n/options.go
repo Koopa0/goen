@@ -82,5 +82,18 @@ var (
 		En:     "Value (English)",
 	})
 
+	// PROPOSED WORDING, awaiting the shop's own: the field is optional and the
+	// value is a hex colour, which the placeholder shows.
+	KeyAdminProdValueSwatch = key("admin.prod.valueswatch", Message{
+		ZhHant: "色碼(選填)",
+		En:     "Colour (optional)",
+	})
+
+	// PROPOSED WORDING, awaiting the shop's own.
+	KeyFormSwatchHex = key("form.swatchhex", Message{
+		ZhHant: "色碼請寫成 # 加六位十六進位,例如 #1c1c1e。",
+		En:     "A colour is # and six hexadecimal digits, for example #1c1c1e.",
+	})
+
 	KeyAdminProdValueAdd = key("admin.prod.valueadd", Message{ZhHant: "新增值", En: "Add value"})
 )

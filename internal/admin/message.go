@@ -13,11 +13,15 @@ import (
 
 // Messages reads the customer-service inbox, handled ones included.
 func (s *Store) Messages(ctx context.Context) (pages.AdminMessagesView, error) {
-	rows, err := s.q.AdminMessages(ctx, PageSize)
+	rows, err := s.q.AdminMessages(ctx, PageLimit)
 	if err != nil {
 		return pages.AdminMessagesView{}, fmt.Errorf("read contact messages: %w", err)
 	}
-	view := pages.AdminMessagesView{Rows: make([]pages.AdminMessage, 0, len(rows))}
+	rows, more := pageOf(rows, PageSize)
+	view := pages.AdminMessagesView{
+		ListBound: pages.Bound(more, PageSize),
+		Rows:      make([]pages.AdminMessage, 0, len(rows)),
+	}
 	for i := range rows {
 		m := &rows[i]
 		view.Rows = append(view.Rows, pages.AdminMessage{

@@ -4,31 +4,32 @@ import (
 	"fmt"
 
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
 // WarrantyList renders what a customer has registered.
 templ WarrantyList(p layouts.Page, v WarrantyListView) {
 	@layouts.Base(p) {
-		<div class="goen-account">
-			<nav class="ui-crumbs" aria-label={ i18n.T(ctx, i18n.KeyBreadcrumb) }>
-				<a href="/account">{ i18n.T(ctx, i18n.KeyAccountTitle) }</a>
-				<span class="ui-crumbs__sep" aria-hidden="true">/</span>
-				<span class="ui-crumbs__current" aria-current="page">{ i18n.T(ctx, i18n.KeyWarrantyTitle) }</span>
-			</nav>
-			<div class="ui-page-head">
-				<div>
-					<h1 class="ui-page-head__title">{ i18n.T(ctx, i18n.KeyWarrantyTitle) }</h1>
-					<p class="ui-page-head__sub">
-						{ i18n.T(ctx, i18n.KeyWarrantySub) }
-					</p>
-				</div>
+		<div class="goen-account goen-account--narrow">
+			@components.Breadcrumb(components.BreadcrumbProps{
+				Label: i18n.T(ctx, i18n.KeyBreadcrumb),
+				Crumbs: []components.Crumb{
+					{Label: i18n.T(ctx, i18n.KeyAccountTitle), Href: "/account"},
+					{Label: i18n.T(ctx, i18n.KeyWarrantyTitle)},
+				},
+			})
+			<div class="goen-pagehead">
+				<h1 class="goen-pagehead__title">{ i18n.T(ctx, i18n.KeyWarrantyTitle) }</h1>
+				<p class="goen-pagehead__sub">{ i18n.T(ctx, i18n.KeyWarrantySub) }</p>
 			</div>
 			if v.Notice != "" {
-				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+				@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "warranty-notice"}) {
+					{ v.Notice }
+				}
 			}
 			if v.Empty() {
-				<div class="ui-empty">
+				<div class="goen-empty">
 					<p class="ui-empty__title">{ i18n.T(ctx, i18n.KeyWarrantyNone) }</p>
 					<p class="ui-empty__desc">
 						{ i18n.T(ctx, i18n.KeyWarrantyNoneHint) }<a href="/account">{ i18n.T(ctx, i18n.KeyAccountTitle) }</a>{ i18n.T(ctx, i18n.KeyWarrantyNoneTail) }
@@ -44,15 +45,17 @@ templ WarrantyList(p layouts.Page, v WarrantyListView) {
 								} else {
 									<span class="goen-warranty__name">{ item.Name }</span>
 								}
-								<span class={ "ui-badge", templ.KV("ui-badge--brand", item.InForce) }>{ item.State(ctx) }</span>
+								@components.Badge(components.BadgeProps{}) {
+									{ item.State(ctx) }
+								}
 							</div>
 							if item.Label != "" {
-								<span class="ui-cart-line__meta">{ item.Label }</span>
+								<span class="goen-warranty__meta">{ item.Label }</span>
 							}
-							<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyUntil), item.ExpiresOn) }</span>
-							<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyOrderMeta), item.Order, item.RegisteredAt) }</span>
+							<span class="goen-warranty__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyUntil), item.ExpiresOn) }</span>
+							<span class="goen-warranty__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyOrderMeta), item.Order, item.RegisteredAt) }</span>
 							if item.Serial != "" {
-								<span class="ui-cart-line__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantySerialShown), item.Serial) }</span>
+								<span class="goen-warranty__meta">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantySerialShown), item.Serial) }</span>
 							}
 						</li>
 					}
@@ -65,24 +68,25 @@ templ WarrantyList(p layouts.Page, v WarrantyListView) {
 // WarrantyOrder renders one order's registration form.
 templ WarrantyOrder(p layouts.Page, v WarrantyOrderView) {
 	@layouts.Base(p) {
-		<div class="goen-account">
-			<nav class="ui-crumbs" aria-label={ i18n.T(ctx, i18n.KeyBreadcrumb) }>
-				<a href="/account">{ i18n.T(ctx, i18n.KeyAccountTitle) }</a>
-				<span class="ui-crumbs__sep" aria-hidden="true">/</span>
-				<a href="/account/warranty">{ i18n.T(ctx, i18n.KeyWarrantyTitle) }</a>
-				<span class="ui-crumbs__sep" aria-hidden="true">/</span>
-				<span class="ui-crumbs__current" aria-current="page">{ v.Number }</span>
-			</nav>
-			<div class="ui-page-head">
-				<div>
-					<h1 class="ui-page-head__title">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderMeta), v.Number) }</h1>
-				</div>
+		<div class="goen-account goen-account--narrow">
+			@components.Breadcrumb(components.BreadcrumbProps{
+				Label: i18n.T(ctx, i18n.KeyBreadcrumb),
+				Crumbs: []components.Crumb{
+					{Label: i18n.T(ctx, i18n.KeyAccountTitle), Href: "/account"},
+					{Label: i18n.T(ctx, i18n.KeyWarrantyTitle), Href: "/account/warranty"},
+					{Label: v.Number},
+				},
+			})
+			<div class="goen-pagehead">
+				<h1 class="goen-pagehead__title">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyOrderMeta), v.Number) }</h1>
 			</div>
 			if v.Notice != "" {
-				<p class="ui-alert ui-alert--info" role="status">{ v.Notice }</p>
+				@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "warranty-notice"}) {
+					{ v.Notice }
+				}
 			}
 			if !v.AnyRegistrable() {
-				<div class="ui-empty">
+				<div class="goen-empty">
 					<p class="ui-empty__title">{ i18n.T(ctx, i18n.KeyWarrantyNothingHere) }</p>
 					if v.EmptyHint(ctx) != "" {
 						<p class="ui-empty__desc">{ v.EmptyHint(ctx) }</p>
@@ -95,37 +99,46 @@ templ WarrantyOrder(p layouts.Page, v WarrantyOrderView) {
 						<div class="goen-warranty__head">
 							<span class="goen-warranty__name">{ line.Name }</span>
 							if line.TermText(ctx) != "" {
-								<span class="ui-badge">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyTerm), line.TermText(ctx)) }</span>
+								@components.Badge(components.BadgeProps{}) {
+									{ fmt.Sprintf(i18n.T(ctx, i18n.KeyWarrantyTerm), line.TermText(ctx)) }
+								}
 							}
 						</div>
 						if line.Label != "" {
-							<span class="ui-cart-line__meta">{ line.Label }</span>
+							<span class="goen-warranty__meta">{ line.Label }</span>
 						}
 						if line.Note != "" {
-							<p class="ui-cart-line__meta">{ line.Note }</p>
+							<p class="goen-warranty__meta">{ line.Note }</p>
 						}
 						if line.Registrable() {
 							<form class="goen-warranty__form" method="post" action={ templ.SafeURL(v.Action()) }>
 								<input type="hidden" name="line" value={ line.ID }/>
 								<input type="hidden" name="unit" value={ line.NextUnit() }/>
-								<div class="ui-field">
-									<label class="ui-label" for={ "serial-" + line.ID }>{ i18n.T(ctx, i18n.KeyFieldSerialOpt) }</label>
-									<input
-										class="ui-input"
-										id={ "serial-" + line.ID }
-										name="serial"
-										maxlength="60"
-										autocomplete="off"
-										placeholder={ i18n.T(ctx, i18n.KeySerialPlaceholder) }
-									/>
-									<p class="goen-admin__hint">
+								<div class="goen-field goen-warranty__field">
+									@components.Label(components.LabelProps{For: "serial-" + line.ID}) {
+										{ i18n.T(ctx, i18n.KeyFieldSerialOpt) }
+									}
+									@components.Input(components.FieldProps{
+										ID:   "serial-" + line.ID,
+										Name: "serial",
+										Type: "text",
+										Attrs: templ.Attributes{
+											"aria-describedby": "serial-hint-" + line.ID,
+											"autocomplete":     "off",
+											"maxlength":        "60",
+											"placeholder":      i18n.T(ctx, i18n.KeySerialPlaceholder),
+										},
+									})
+									<p class="goen-warranty__hint" id={ "serial-hint-" + line.ID }>
 										{ i18n.T(ctx, i18n.KeySerialHint) }
 									</p>
 								</div>
-								<button class="ui-btn ui-btn--primary" type="submit">{ i18n.T(ctx, i18n.KeyWarrantyRegister) }</button>
+								@components.Button(components.ButtonProps{Variant: components.VariantPrimary}, "submit") {
+									{ i18n.T(ctx, i18n.KeyWarrantyRegister) }
+								}
 							</form>
 						} else {
-							<p class="ui-cart-line__meta">{ line.Why(ctx) }</p>
+							<p class="goen-warranty__meta">{ line.Why(ctx) }</p>
 						}
 					</li>
 				}
