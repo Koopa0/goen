@@ -676,10 +676,40 @@ func packParcel(
 // SetStaffNote records an internal note. erase_user clears customer_note and
 // leaves this, so it must never hold anything the customer wrote.
 func (s *Store) SetStaffNote(ctx context.Context, number, note string) error {
-	if err := s.q.SetStaffNote(ctx, db.SetStaffNoteParams{
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin order note: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	q := s.q.WithTx(tx)
+	prior, err := q.LockOrderForStaffNote(ctx, number)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("lock order note: %w", err)
+	}
+	if prior.StaffNote.String == note {
+		return nil
+	}
+	action := actionReplaceOrderNote
+	if note == "" {
+		action = actionClearOrderNote
+	} else if prior.StaffNote.String == "" {
+		action = actionCreateOrderNote
+	}
+	if err := q.SetStaffNote(ctx, db.SetStaffNoteParams{
 		OrderNumber: number, StaffNote: text(note),
 	}); err != nil {
 		return fmt.Errorf("set staff note: %w", err)
+	}
+	// The append-only trail outlives erasure, so it records the operation and
+	// order identity without retaining another copy of the note.
+	if err := auditIn(ctx, q, Event{Action: action, Table: "orders", ID: nullableID(prior.ID)}); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit order note: %w", err)
 	}
 	return nil
 }

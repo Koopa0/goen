@@ -95,6 +95,10 @@ SET fulfillment_status = @status::text,
     completed_at = CASE WHEN @status::text = 'completed' THEN now() ELSE completed_at END
 WHERE order_number = @order_number::text;
 
+-- Serialize changes so the audit operation describes the note actually replaced.
+-- name: LockOrderForStaffNote :one
+SELECT id, staff_note FROM orders WHERE order_number = $1 FOR UPDATE;
+
 -- name: SetStaffNote :exec
 UPDATE orders SET staff_note = $2 WHERE order_number = $1;
 
