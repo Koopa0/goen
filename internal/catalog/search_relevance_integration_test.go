@@ -67,3 +67,48 @@ func TestSearchOrdersExplicitFieldRelevanceBeforeRecency(t *testing.T) {
 		}
 	}
 }
+
+func TestSearchRelevanceTiesUsePublicationThenIdentity(t *testing.T) {
+	ctx := t.Context()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback(context.WithoutCancel(ctx)) })
+	token := "tie" + uuid.NewString()
+	slugs := make([]string, 3)
+	ids := make([]uuid.UUID, 3)
+	for i := range slugs {
+		slugs[i] = "relevance-tie-" + uuid.NewString()
+		age := 0
+		if i == 0 {
+			age = 1
+		}
+		if err := tx.QueryRow(ctx, `INSERT INTO products (brand_id, category_id, slug, name, summary, status, published_at)
+ SELECT brand_id, category_id, $1, 'Tie fixture', $2, 'draft', now() - ($3 * interval '1 day') FROM products LIMIT 1 RETURNING id`, slugs[i], token, age).Scan(&ids[i]); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO product_variants (product_id, sku, price_cents) VALUES ($1, $2, 10000)`, ids[i], "TIE-"+strings.ToUpper(uuid.NewString())); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tx.Exec(ctx, `UPDATE products SET status = 'active' WHERE id = $1`, ids[i]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := []string{slugs[1], slugs[2], slugs[0]}
+	if ids[1].String() < ids[2].String() {
+		want[0], want[1] = want[1], want[0]
+	}
+	view, err := catalog.NewStore(tx).Search(ctx, catalog.SearchPattern(token), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(view.Products) != 3 {
+		t.Fatalf("tie fixture returned %d products", len(view.Products))
+	}
+	for i, slug := range want {
+		if view.Products[i].Slug != slug {
+			t.Errorf("tie order %d = %s, want %s", i, view.Products[i].Slug, slug)
+		}
+	}
+}
