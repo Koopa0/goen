@@ -112,7 +112,7 @@ func (e *providerError) Error() string {
 	return fmt.Sprintf("%s (RtnCode %d)", e.Message, e.Code)
 }
 
-func (e *providerError) Unwrap() error { return ErrRejected }
+func (e *providerError) Unwrap() error { return errors.Join(ErrRejected, outbound.ErrRefused) }
 
 // call posts one request and returns the decrypted result. Three failure
 // surfaces stay apart — transport, envelope, document — and only the last, which
@@ -162,7 +162,7 @@ func (g *Gateway) call[T any](ctx context.Context, class outbound.Class, path st
 		return zero, fmt.Errorf("read %s reply: %w", path, err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return zero, fmt.Errorf("%s answered %d", path, resp.StatusCode)
+		return zero, &outbound.HTTPError{Status: resp.StatusCode, Cause: fmt.Errorf("%s answered %d", path, resp.StatusCode)}
 	}
 
 	var outer response
@@ -171,8 +171,8 @@ func (g *Gateway) call[T any](ctx context.Context, class outbound.Class, path st
 	}
 	// TransCode is the ENVELOPE's verdict: 1 means ECPay could read the request.
 	if outer.TransCode != 1 {
-		return zero, fmt.Errorf("%s refused the envelope: %s (TransCode %d)",
-			path, outer.TransMsg, outer.TransCode)
+		return zero, fmt.Errorf("%w: %s refused the envelope: %s (TransCode %d)",
+			outbound.ErrRefused, path, outer.TransMsg, outer.TransCode)
 	}
 
 	opened, err := g.open(outer.Data)

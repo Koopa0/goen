@@ -161,8 +161,8 @@ func (g *Google) token(ctx context.Context, code, verifier string) (token string
 		return "", fmt.Errorf("read the token response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("google refused the code exchange: %d %s",
-			resp.StatusCode, strings.TrimSpace(string(body)))
+		return "", &outbound.HTTPError{Status: resp.StatusCode, Cause: fmt.Errorf("google refused the code exchange: %d %s",
+			resp.StatusCode, strings.TrimSpace(string(body)))}
 	}
 	var out struct {
 		AccessToken string `json:"access_token"`
@@ -197,7 +197,7 @@ func (g *Google) userInfo(ctx context.Context, token string) (identity Identity,
 		return Identity{}, fmt.Errorf("read the profile response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return Identity{}, fmt.Errorf("google refused the profile request: %d", resp.StatusCode)
+		return Identity{}, &outbound.HTTPError{Status: resp.StatusCode, Cause: fmt.Errorf("google refused the profile request: %d", resp.StatusCode)}
 	}
 	var out struct {
 		Sub           string `json:"sub"`

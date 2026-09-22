@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"net"
-	"net/http"
-	"strings"
 
 	stripe "github.com/stripe/stripe-go/v86"
 )
@@ -49,13 +47,12 @@ func Classify(_ context.Context, mutate bool, err error) Outcome {
 	if outcome, ok := stripeOutcome(mutate, err); ok {
 		return outcome
 	}
-	if refusedHTTPStatus(err) {
+	if errors.Is(err, ErrRefused) || refusedHTTPStatus(err) {
 		return OutcomeRefused
 	}
-	if transportErr(err) {
-		if mutate && possiblyAccepted(err) {
-			return OutcomeAmbiguous
-		}
+	// A failed dial never reached the provider. Other mutation failures stay
+	// ambiguous unless the protocol explicitly proves rejection.
+	if network, ok := errors.AsType[*net.OpError](err); ok && network.Op == "dial" {
 		return OutcomeTransport
 	}
 	if mutate {
@@ -91,33 +88,5 @@ func refusedHTTPStatus(err error) bool {
 		code := he.StatusCode()
 		return code >= 400 && code < 500
 	}
-	msg := err.Error()
-	return strings.Contains(msg, "refused") ||
-		strings.Contains(msg, "answered 4") ||
-		strings.Contains(msg, "RtnCode")
-}
-
-func transportErr(err error) bool {
-	if errors.Is(err, http.ErrHandlerTimeout) {
-		return true
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "connection reset") ||
-		strings.Contains(msg, "connection refused") ||
-		strings.Contains(msg, "i/o timeout") ||
-		strings.Contains(msg, "TLS handshake timeout") ||
-		strings.Contains(msg, "no such host") ||
-		strings.Contains(msg, "EOF")
-}
-
-func possiblyAccepted(err error) bool {
-	netErr, ok := errors.AsType[net.Error](err)
-	if ok && netErr.Timeout() {
-		return true
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "timeout") ||
-		strings.Contains(msg, "EOF") ||
-		strings.Contains(msg, "broken pipe") ||
-		strings.Contains(msg, "connection reset")
+	return false
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -497,5 +498,42 @@ func TestLookupHonoursForegroundBudget(t *testing.T) {
 	}
 	if elapsed > outbound.Budget(outbound.ForegroundLookup)+2*time.Second {
 		t.Fatalf("lookup was not bounded by the foreground budget: elapsed %v", elapsed)
+	}
+}
+
+func TestClosedPeerIsRecordedAsTransportFailure(t *testing.T) {
+	for _, mutation := range []bool{false, true} {
+		t.Run(strconv.FormatBool(mutation), func(t *testing.T) {
+			outbound.ResetAdmission()
+			events := recordEvents(t)
+			var config net.ListenConfig
+			listener, err := config.Listen(t.Context(), "tcp", "127.0.0.1:0")
+			if err != nil {
+				t.Fatal(err)
+			}
+			address := "http://" + listener.Addr().String()
+			if err = listener.Close(); err != nil {
+				t.Fatal(err)
+			}
+			gateway, err := GatewayWithClient("sk_test_notreal", "whsec_test", "https://goen.example", stripeClientAt(address))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if mutation {
+				_, err = gateway.StartSession(t.Context(), anOrder(), 0)
+			} else {
+				_, _, err = gateway.ResumeSession(t.Context(), "cs_closed_peer")
+			}
+			if err == nil {
+				t.Fatal("closed peer accepted the request")
+			}
+			if len(*events) != 1 {
+				t.Fatalf("recorded %d events, want 1", len(*events))
+			}
+			event := (*events)[0]
+			if event.Outcome != outbound.OutcomeTransport || event.Dependency != outbound.Stripe || event.Attempts != 2 {
+				t.Errorf("closed peer outcome=%v dependency=%v attempts=%d; want transport/stripe/2", event.Outcome, event.Dependency, event.Attempts)
+			}
+		})
 	}
 }
