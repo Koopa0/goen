@@ -23,16 +23,23 @@ func TestAccountOrdersReachEveryOlderOrderWithoutJavaScript(t *testing.T) {
 	other := register(t, s, "other-paged-"+uuid.NewString()+"@example.invalid")
 	ctx := account.WithUser(i18n.WithLocale(t.Context(), i18n.En), owner)
 	if _, err := pool.Exec(ctx, `
+ WITH inserted AS (
  INSERT INTO orders (user_id, shipping_version_id, shipping_method_code, shipping_method_name, placed_at)
  SELECT $1::uuid,v.id,sm.code,v.name,'2026-01-01T00:00:00Z'::timestamptz FROM generate_series(1,41) n
  CROSS JOIN (SELECT id,method_id,name FROM shipping_method_versions ORDER BY effective_at LIMIT 1) v
- JOIN shipping_methods sm ON sm.id=v.method_id`, owner.ID); err != nil {
+ JOIN shipping_methods sm ON sm.id=v.method_id RETURNING id
+ ), lines AS (
+ INSERT INTO order_lines (order_id,sku,product_name,unit_price_cents,quantity)
+ SELECT id,'PAGING-ORDER','Paging order',100,1 FROM inserted
+ )
+ INSERT INTO order_private_data (order_id,email,recipient_name,phone,postal_code,city,district,street)
+ SELECT id,'paging@example.invalid','Paging recipient','0912345678','110','Taipei','District','Street' FROM inserted`, owner.ID); err != nil {
 		t.Fatal(err)
 	}
 	h := account.NewHandler(s, nil, slog.New(slog.DiscardHandler), false, nil)
 	seen := map[string]bool{}
 	target := "/account"
-	for page := 0; page < 3; page++ {
+	for page := range 3 {
 		u, err := url.Parse(target)
 		if err != nil {
 			t.Fatal(err)
