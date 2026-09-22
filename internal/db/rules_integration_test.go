@@ -27,6 +27,7 @@ import (
 // coveredByNamedTest is the triggers whose cases do not fit the rule table's shape, mapped to
 // the test that does cover them. A trigger named in neither place still fails.
 var coveredByNamedTest = map[string]string{
+	"inventory_movements_source_parent":      "TestInventoryMovementSourceParents",
 	"loyalty_lot_guard":                      "the loyalty_entries_lot_* rule cases below exercise each branch by its own constraint name",
 	"order_lines_bind_product":               "TestRetiringAPurchasedVariantDoesNotEraseVerifiedPurchase (internal/product)",
 	"product_variants_keep_product_sellable": "TestDeactivatingTheLastVariantIsRefused, TestDeletingTheLastVariantIsRefused",

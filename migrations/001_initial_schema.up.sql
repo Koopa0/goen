@@ -855,11 +855,19 @@ CREATE TABLE inventory_movements (
     variant_id      uuid NOT NULL REFERENCES product_variants (id) ON DELETE RESTRICT,
     delta           integer NOT NULL,
     reason          text NOT NULL,
-    source_type     text,
+    source_type     text DEFAULT 'admin',
     source_id       uuid,
     idempotency_key text NOT NULL,
     actor_user_id   uuid REFERENCES users (id) ON DELETE SET NULL,
     created_at      timestamptz NOT NULL DEFAULT now(),
+    -- Manual stock has no purchasing parent; every other source names one.
+    CONSTRAINT inventory_movements_source_known CHECK (
+        source_type IS NOT NULL AND source_type IN ('admin', 'order', 'reservation', 'return_request')
+    ),
+    CONSTRAINT inventory_movements_source_paired CHECK (
+        (source_type = 'admin' AND source_id IS NULL)
+        OR (source_type IN ('order', 'reservation', 'return_request') AND source_id IS NOT NULL)
+    ),
     CONSTRAINT inventory_movements_delta_non_zero CHECK (delta <> 0),
     CONSTRAINT inventory_movements_reason_known CHECK (reason IN (
         'receipt',
@@ -902,7 +910,7 @@ CREATE FUNCTION record_inventory_movement(
     p_delta integer,
     p_reason text,
     p_idempotency_key text,
-    p_source_type text DEFAULT NULL,
+    p_source_type text DEFAULT 'admin',
     p_source_id uuid DEFAULT NULL,
     p_actor uuid DEFAULT NULL
 ) RETURNS integer
@@ -2510,6 +2518,42 @@ CREATE TABLE return_request_lines (
 
 CREATE INDEX return_request_lines_order_line_idx ON return_request_lines (order_id, order_line_id);
 CREATE INDEX return_request_lines_order_request_idx ON return_request_lines (order_id, return_request_id);
+
+-- Polymorphic source IDs must resolve before they become append-only audit
+-- data. Reservation and return sources also identify the SKU being moved;
+-- an order source identifies the order root, independently of its line writes.
+CREATE FUNCTION inventory_movement_source_guard() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.source_type = 'order' AND NEW.source_id IS NOT NULL THEN
+        PERFORM 1 FROM orders WHERE id = NEW.source_id;
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'inventory movement order source does not exist'
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_movements_source_parent';
+        END IF;
+    ELSIF NEW.source_type = 'reservation' AND NEW.source_id IS NOT NULL THEN
+        PERFORM 1 FROM inventory_reservations
+        WHERE id = NEW.source_id AND variant_id = NEW.variant_id;
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'inventory movement reservation source does not match variant'
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_movements_source_parent';
+        END IF;
+    ELSIF NEW.source_type = 'return_request' AND NEW.source_id IS NOT NULL THEN
+        PERFORM 1 FROM return_request_lines rl
+        JOIN order_lines ol ON ol.id = rl.order_line_id AND ol.order_id = rl.order_id
+        WHERE rl.return_request_id = NEW.source_id AND ol.variant_id = NEW.variant_id;
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'inventory movement return source does not contain variant'
+                USING ERRCODE = 'check_violation', CONSTRAINT = 'inventory_movements_source_parent';
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER inventory_movements_source_parent
+    BEFORE INSERT ON inventory_movements
+    FOR EACH ROW EXECUTE FUNCTION inventory_movement_source_guard();
 
 -- You cannot return what was never sent. The ceiling is the SHIPPED quantity:
 -- bounded by what was ORDERED, a customer could open a return — and, since
