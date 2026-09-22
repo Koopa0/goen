@@ -5,9 +5,10 @@ type TwoFactorView struct {
 	Enabled   bool
 	Enrolled  bool
 	Enrolling bool
-	// Secret and URI exist in exactly one response and are never re-rendered.
+	// Secret, URI and QRCode exist in exactly one response and are never re-rendered.
 	Secret string
 	URI    string
+	QRCode string
 	Notice string
 }
 
