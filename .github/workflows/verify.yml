@@ -112,7 +112,18 @@ jobs:
       # The suite derives what it must cover from the system catalog, so this
       # job also fails when a constraint is added without a case for it.
       - name: Schema conformance
+        env:
+          GOEN_WRITE_CACHE_RECOVERY_ARTIFACTS: '1'
+          GOEN_CACHE_RECOVERY_SHA: ${{ github.sha }}
         run: make test-integration
+
+      - name: Preserve cache recovery measurements
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cache-recovery-${{ github.sha }}
+          path: internal/product/artifacts/
+          if-no-files-found: warn
 
       # A down migration that does not undo the up migration is only ever
       # discovered when someone needs it.

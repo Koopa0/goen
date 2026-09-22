@@ -32,6 +32,10 @@ import (
 var pool *pgxpool.Pool
 
 func TestMain(m *testing.M) {
+	// The crash helper connects to its parent's database and must not provision another topology.
+	if os.Getenv("GOEN_CACHE_OWNER_HELPER") == "1" {
+		os.Exit(m.Run())
+	}
 	p, stop, err := dbtest.Start(context.Background())
 	if err != nil {
 		slog.Error("start database", "error", err)
