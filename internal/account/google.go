@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/koopa0/goen/internal/outbound"
 	"github.com/koopa0/goen/internal/web"
 )
 
@@ -67,7 +68,7 @@ func NewGoogle(clientID, clientSecret, baseURL string) (*Google, error) {
 		clientID:     clientID,
 		clientSecret: clientSecret,
 		redirectURL:  origin + "/auth/google/callback",
-		http:         &http.Client{Timeout: 15 * time.Second},
+		http:         outbound.HTTPClient(outbound.Google),
 	}, nil
 }
 
@@ -130,7 +131,7 @@ func (g *Google) Exchange(ctx context.Context, code, verifier string) (Identity,
 	return g.userInfo(ctx, token)
 }
 
-func (g *Google) token(ctx context.Context, code, verifier string) (string, error) {
+func (g *Google) token(ctx context.Context, code, verifier string) (token string, err error) {
 	form := url.Values{
 		"code":          {code},
 		"client_id":     {g.clientID},
@@ -139,6 +140,9 @@ func (g *Google) token(ctx context.Context, code, verifier string) (string, erro
 		"grant_type":    {"authorization_code"},
 		"code_verifier": {verifier},
 	}
+	ctx, finish := outbound.WithOperation(ctx, outbound.Google, outbound.ForegroundLookup,
+		"oauth:token", false)
+	defer func() { finish(err) }()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, googleTokenURL,
 		strings.NewReader(form.Encode()))
 	if err != nil {
@@ -157,8 +161,8 @@ func (g *Google) token(ctx context.Context, code, verifier string) (string, erro
 		return "", fmt.Errorf("read the token response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("google refused the code exchange: %d %s",
-			resp.StatusCode, strings.TrimSpace(string(body)))
+		return "", &outbound.HTTPError{Status: resp.StatusCode, Cause: fmt.Errorf("google refused the code exchange: %d %s",
+			resp.StatusCode, strings.TrimSpace(string(body)))}
 	}
 	var out struct {
 		AccessToken string `json:"access_token"`
@@ -172,7 +176,10 @@ func (g *Google) token(ctx context.Context, code, verifier string) (string, erro
 	return out.AccessToken, nil
 }
 
-func (g *Google) userInfo(ctx context.Context, token string) (Identity, error) {
+func (g *Google) userInfo(ctx context.Context, token string) (identity Identity, err error) {
+	ctx, finish := outbound.WithOperation(ctx, outbound.Google, outbound.ForegroundLookup,
+		"oauth:userinfo", false)
+	defer func() { finish(err) }()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, googleUserInfoURL, http.NoBody)
 	if err != nil {
 		return Identity{}, fmt.Errorf("build userinfo request: %w", err)
@@ -190,7 +197,7 @@ func (g *Google) userInfo(ctx context.Context, token string) (Identity, error) {
 		return Identity{}, fmt.Errorf("read the profile response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return Identity{}, fmt.Errorf("google refused the profile request: %d", resp.StatusCode)
+		return Identity{}, &outbound.HTTPError{Status: resp.StatusCode, Cause: fmt.Errorf("google refused the profile request: %d", resp.StatusCode)}
 	}
 	var out struct {
 		Sub           string `json:"sub"`

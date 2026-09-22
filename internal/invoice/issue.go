@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/outbound"
 )
 
 var (
@@ -70,7 +71,7 @@ func (g *Gateway) Issue(ctx context.Context, in IssueRequest) (Document, error) 
 		panic("invoice: validated unknown preference " + in.Preference)
 	}
 
-	res, err := g.call[issueResult](ctx, "/B2CInvoice/Issue", req)
+	res, err := g.call[issueResult](ctx, outbound.FinancialMutation, "/B2CInvoice/Issue", req)
 	if err != nil {
 		return Document{}, err
 	}
@@ -175,7 +176,7 @@ func (g *Gateway) Void(ctx context.Context, number string, issuedAt time.Time, r
 	if strings.TrimSpace(reason) == "" {
 		return fmt.Errorf("%w: voiding an invoice needs a reason; it is filed with it", ErrRejected)
 	}
-	res, err := g.call[invalidResult](ctx, "/B2CInvoice/Invalid", invalidRequest{
+	res, err := g.call[invalidResult](ctx, outbound.FinancialMutation, "/B2CInvoice/Invalid", invalidRequest{
 		MerchantID: g.merchantID,
 		InvoiceNo:  number,
 		// Invalid validates this against the invoice's own issue date. A mismatch
@@ -210,7 +211,7 @@ func (g *Gateway) Allowance(ctx context.Context, in AllowanceRequest) (Document,
 			ErrRejected)
 	}
 
-	res, err := g.call[allowanceResult](ctx, "/B2CInvoice/Allowance", allowanceRequest{
+	res, err := g.call[allowanceResult](ctx, outbound.FinancialMutation, "/B2CInvoice/Allowance", allowanceRequest{
 		MerchantID: g.merchantID,
 		InvoiceNo:  in.InvoiceNumber,
 		// .UTC() for the reason Invalid's own InvoiceDate carries it: a date
@@ -433,7 +434,7 @@ func (g *Gateway) FetchIssue(ctx context.Context, relateNumber string) (IssueLoo
 		return IssueLookup{}, false, fmt.Errorf("%w: invalid ECPay RelateNumber %q",
 			ErrRejected, relateNumber)
 	}
-	res, err := g.call[getIssueResult](ctx, "/B2CInvoice/GetIssue", getIssueRequest{
+	res, err := g.call[getIssueResult](ctx, outbound.AsyncReconcile, "/B2CInvoice/GetIssue", getIssueRequest{
 		MerchantID: g.merchantID, RelateNumber: relateNumber,
 	})
 	if err != nil {
@@ -522,7 +523,7 @@ type AllowanceLookup struct {
 func (g *Gateway) FetchAllowances(
 	ctx context.Context, invoiceNumber string, issuedAt time.Time,
 ) ([]AllowanceLookup, error) {
-	res, err := g.call[getAllowanceListResult](ctx, "/B2CInvoice/GetAllowanceList",
+	res, err := g.call[getAllowanceListResult](ctx, outbound.AsyncReconcile, "/B2CInvoice/GetAllowanceList",
 		getAllowanceListRequest{
 			MerchantID: g.merchantID, SearchType: "1", InvoiceNo: invoiceNumber,
 			Date: issuedAt.UTC().Format("2006-01-02"),

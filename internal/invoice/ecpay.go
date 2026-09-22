@@ -14,6 +14,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/koopa0/goen/internal/outbound"
 )
 
 // ECPay's B2C e-invoice endpoints; staging is the default.
@@ -21,8 +23,6 @@ const (
 	StagingBaseURL    = "https://einvoice-stage.ecpay.com.tw"
 	ProductionBaseURL = "https://einvoice.ecpay.com.tw"
 )
-
-const requestTimeout = 20 * time.Second
 
 // Gateway talks to ECPay. The zero value is DISABLED and answers ErrDisabled to
 // everything.
@@ -66,7 +66,7 @@ func NewGateway(merchantID, hashKey, hashIV, baseURL string) (*Gateway, error) {
 		hashKey:    []byte(hashKey),
 		hashIV:     []byte(hashIV),
 		baseURL:    strings.TrimSuffix(baseURL, "/"),
-		http:       &http.Client{Timeout: requestTimeout},
+		http:       outbound.HTTPClient(outbound.ECPay),
 	}, nil
 }
 
@@ -112,16 +112,19 @@ func (e *providerError) Error() string {
 	return fmt.Sprintf("%s (RtnCode %d)", e.Message, e.Code)
 }
 
-func (e *providerError) Unwrap() error { return ErrRejected }
+func (e *providerError) Unwrap() error { return errors.Join(ErrRejected, outbound.ErrRefused) }
 
 // call posts one request and returns the decrypted result. Three failure
 // surfaces stay apart — transport, envelope, document — and only the last, which
 // is data a staff member can fix, is ErrRejected.
-func (g *Gateway) call[T any](ctx context.Context, path string, data any) (T, error) {
+func (g *Gateway) call[T any](ctx context.Context, class outbound.Class, path string, data any) (result T, err error) {
 	var zero T
 	if !g.Enabled() {
 		return zero, ErrDisabled
 	}
+
+	ctx, finish := outbound.WithOperation(ctx, outbound.ECPay, class, path, class == outbound.FinancialMutation)
+	defer func() { finish(err) }()
 
 	payload, err := json.Marshal(data)
 	if err != nil {
@@ -159,7 +162,7 @@ func (g *Gateway) call[T any](ctx context.Context, path string, data any) (T, er
 		return zero, fmt.Errorf("read %s reply: %w", path, err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return zero, fmt.Errorf("%s answered %d", path, resp.StatusCode)
+		return zero, &outbound.HTTPError{Status: resp.StatusCode, Cause: fmt.Errorf("%s answered %d", path, resp.StatusCode)}
 	}
 
 	var outer response
@@ -168,8 +171,8 @@ func (g *Gateway) call[T any](ctx context.Context, path string, data any) (T, er
 	}
 	// TransCode is the ENVELOPE's verdict: 1 means ECPay could read the request.
 	if outer.TransCode != 1 {
-		return zero, fmt.Errorf("%s refused the envelope: %s (TransCode %d)",
-			path, outer.TransMsg, outer.TransCode)
+		return zero, fmt.Errorf("%w: %s refused the envelope: %s (TransCode %d)",
+			outbound.ErrRefused, path, outer.TransMsg, outer.TransCode)
 	}
 
 	opened, err := g.open(outer.Data)
