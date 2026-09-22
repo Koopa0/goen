@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -40,6 +41,14 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
  SELECT id, 'paging-orders@example.invalid', 'Paging recipient', '0912345678', '110', 'Taipei', 'District', 'Street' FROM orders;
  INSERT INTO order_lines (order_id, sku, product_name, unit_price_cents, quantity)
  SELECT id, 'PAGING-1', 'Paging product', 100, 51 FROM orders;
+ SELECT open_payment(id, 'cs_paging_' || order_number, 5100) FROM orders;
+ SELECT capture_payment('cs_paging_' || order_number, 5100, NULL, NULL) FROM orders;
+ UPDATE orders SET fulfillment_status='picking';
+ UPDATE orders SET fulfillment_status='shipped';
+ INSERT INTO order_shipments (order_id, carrier, tracking_number)
+ SELECT id, 'Paging carrier', order_number FROM orders;
+ INSERT INTO order_shipment_lines (order_id, shipment_id, order_line_id, quantity)
+ SELECT o.id, s.id, l.id, l.quantity FROM orders o JOIN order_shipments s ON s.order_id=o.id JOIN order_lines l ON l.order_id=o.id;
  INSERT INTO return_requests (order_id, reason) SELECT id, order_number FROM orders;
  INSERT INTO return_request_lines (return_request_id, order_line_id, quantity)
  SELECT r.id, l.id, 1 FROM return_requests r JOIN order_lines l ON l.order_id = r.order_id;
@@ -62,15 +71,20 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
  NULL, NULL, jsonb_build_object('n', n), 'paging-' || n) FROM generate_series(1,401) n;
  `)
 	s := admin.NewStore(p, fakeRefunder{}, nil, nil)
+	var warrantyOrder string
+	if err := p.QueryRow(ctx, `SELECT o.order_number FROM orders o JOIN order_lines l ON l.order_id=o.id JOIN warranty_registrations w ON w.order_line_id=l.id LIMIT 1`).Scan(&warrantyOrder); err != nil {
+		t.Fatal(err)
+	}
 	type result struct {
 		bound pages.ListBound
 		keys  []string
 	}
 	cases := []struct {
-		name string
-		read func(string) (result, error)
+		name     string
+		countSQL string
+		read     func(string) (result, error)
 	}{
-		{"orders", func(after string) (result, error) {
+		{"orders", "SELECT count(*) FROM orders", func(after string) (result, error) {
 			v, e := s.Orders(ctx, "", "", after)
 			r := result{bound: v.ListBound}
 			for _, x := range v.Orders {
@@ -78,7 +92,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			}
 			return r, e
 		}},
-		{"order search", func(after string) (result, error) {
+		{"order search", "SELECT count(*) FROM orders", func(after string) (result, error) {
 			v, e := s.Orders(ctx, "", "paging-orders", after)
 			r := result{bound: v.ListBound}
 			for _, x := range v.Orders {
@@ -86,7 +100,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			}
 			return r, e
 		}},
-		{"customers", func(after string) (result, error) {
+		{"customers", "SELECT count(*) FROM users WHERE email LIKE 'paging-%'", func(after string) (result, error) {
 			v, e := s.Customers(ctx, "paging-", after)
 			r := result{bound: v.ListBound}
 			for _, x := range v.Rows {
@@ -94,7 +108,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			}
 			return r, e
 		}},
-		{"products", func(after string) (result, error) {
+		{"products", "SELECT count(*) FROM products", func(after string) (result, error) {
 			v, e := s.Products(ctx, after)
 			r := result{bound: v.ListBound}
 			for _, x := range v.Rows {
@@ -102,7 +116,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			}
 			return r, e
 		}},
-		{"stock", func(after string) (result, error) {
+		{"stock", "SELECT count(*) FROM product_variants", func(after string) (result, error) {
 			v, e := s.Variants(ctx, false, after)
 			r := result{bound: v.ListBound}
 			for _, x := range v.Variants {
@@ -110,15 +124,15 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			}
 			return r, e
 		}},
-		{"movements", func(after string) (result, error) {
+		{"movements", "SELECT count(*) FROM inventory_movements m JOIN product_variants v ON v.id=m.variant_id WHERE v.sku='PAGING-1'", func(after string) (result, error) {
 			v, e := s.Movements(ctx, "PAGING-1", after)
 			r := result{bound: v.ListBound}
 			for _, x := range v.Rows {
-				r.keys = append(r.keys, fmt.Sprint(x.Running))
+				r.keys = append(r.keys, strconv.Itoa(x.Running))
 			}
 			return r, e
 		}},
-		{"returns", func(after string) (result, error) {
+		{"returns", "SELECT count(*) FROM return_requests", func(after string) (result, error) {
 			v, e := s.Returns(ctx, after)
 			r := result{bound: v.Bound}
 			for _, x := range v.Rows {
@@ -126,7 +140,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			}
 			return r, e
 		}},
-		{"coupons", func(after string) (result, error) {
+		{"coupons", "SELECT count(*) FROM coupons", func(after string) (result, error) {
 			v, e := s.Coupons(ctx, after)
 			r := result{bound: v.ListBound}
 			for _, x := range v.Rows {
@@ -134,7 +148,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			}
 			return r, e
 		}},
-		{"campaigns", func(after string) (result, error) {
+		{"campaigns", "SELECT count(*) FROM sale_campaigns", func(after string) (result, error) {
 			v, e := s.Campaigns(ctx, after)
 			r := result{bound: v.ListBound}
 			for _, x := range v.Rows {
@@ -142,7 +156,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			}
 			return r, e
 		}},
-		{"reviews", func(after string) (result, error) {
+		{"reviews", "SELECT count(*) FROM product_reviews", func(after string) (result, error) {
 			v, e := s.Reviews(ctx, after)
 			r := result{bound: v.ListBound}
 			for _, x := range v.Rows {
@@ -150,7 +164,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			}
 			return r, e
 		}},
-		{"messages", func(after string) (result, error) {
+		{"messages", "SELECT count(*) FROM contact_messages", func(after string) (result, error) {
 			v, e := s.Messages(ctx, after)
 			r := result{bound: v.ListBound}
 			for _, x := range v.Rows {
@@ -158,7 +172,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			}
 			return r, e
 		}},
-		{"credit", func(after string) (result, error) {
+		{"credit", "SELECT count(*) FROM store_credit_entries", func(after string) (result, error) {
 			v, e := s.Credit(ctx, after)
 			r := result{bound: v.ListBound}
 			for _, x := range v.Rows {
@@ -166,7 +180,7 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			}
 			return r, e
 		}},
-		{"audit", func(after string) (result, error) {
+		{"audit", "SELECT count(*) FROM audit_events", func(after string) (result, error) {
 			v, e := s.Audit(ctx, after)
 			r := result{bound: v.ListBound}
 			for _, x := range v.Rows {
@@ -174,34 +188,26 @@ func TestEveryAdminQueueReachesBeyondItsFirstPage(t *testing.T) {
 			}
 			return r, e
 		}},
+		{"warranty", "SELECT count(*) FROM warranty_registrations", func(after string) (result, error) {
+			v, e := s.Warranties(ctx, warrantyOrder, after)
+			r := result{bound: v.ListBound}
+			for _, x := range v.Rows {
+				r.keys = append(r.keys, x.Serial)
+			}
+			return r, e
+		}},
 	}
-	var warrantyOrder string
-	if err := p.QueryRow(ctx, `SELECT o.order_number FROM orders o JOIN order_lines l ON l.order_id=o.id JOIN warranty_registrations w ON w.order_line_id=l.id LIMIT 1`).Scan(&warrantyOrder); err != nil {
-		t.Fatal(err)
-	}
-	cases = append(cases, struct {
-		name string
-		read func(string) (result, error)
-	}{"warranty", func(after string) (result, error) {
-		v, e := s.Warranties(ctx, warrantyOrder, after)
-		r := result{bound: v.ListBound}
-		for _, x := range v.Rows {
-			r.keys = append(r.keys, x.Serial)
-		}
-		return r, e
-	}})
 	h := adminHandlerOver(p, s)
 	handlers := map[string]http.HandlerFunc{"orders": h.Orders, "order search": h.Orders, "customers": h.Customers, "products": h.Products, "stock": h.Variants, "movements": h.Movements, "returns": h.Returns, "coupons": h.Coupons, "campaigns": h.Campaigns, "reviews": h.Reviews, "messages": h.Messages, "credit": h.Credit, "audit": h.Audit, "warranty": h.Warranties}
-	counts := map[string]string{"orders": "SELECT count(*) FROM orders", "order search": "SELECT count(*) FROM orders", "customers": "SELECT count(*) FROM users WHERE email LIKE 'paging-%'", "products": "SELECT count(*) FROM products", "stock": "SELECT count(*) FROM product_variants", "movements": "SELECT count(*) FROM inventory_movements m JOIN product_variants v ON v.id=m.variant_id WHERE v.sku='PAGING-1'", "returns": "SELECT count(*) FROM return_requests", "coupons": "SELECT count(*) FROM coupons", "campaigns": "SELECT count(*) FROM sale_campaigns", "reviews": "SELECT count(*) FROM product_reviews", "messages": "SELECT count(*) FROM contact_messages", "credit": "SELECT count(*) FROM store_credit_entries", "audit": "SELECT count(*) FROM audit_events", "warranty": "SELECT count(*) FROM warranty_registrations"}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			var want int
-			if err := p.QueryRow(ctx, counts[tt.name]).Scan(&want); err != nil {
+			if err := p.QueryRow(ctx, tt.countSQL).Scan(&want); err != nil {
 				t.Fatal(err)
 			}
 			seen := map[string]bool{}
 			after := ""
-			for page := 0; page < 20; page++ {
+			for page := range 20 {
 				r, err := tt.read(after)
 				if err != nil {
 					t.Fatal(err)

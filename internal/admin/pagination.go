@@ -51,7 +51,10 @@ func (c pageCursor) bound(scope string, more bool, limit int, last string) pages
 	}
 	if more && last != "" {
 		token := base64.RawURLEncoding.EncodeToString([]byte(scope + "\n" + last))
-		u, _ := url.Parse(scope)
+		u, err := url.Parse(scope)
+		if err != nil {
+			return b
+		}
 		q := u.Query()
 		q.Set("after", token)
 		u.RawQuery = q.Encode()

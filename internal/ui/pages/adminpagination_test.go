@@ -32,6 +32,7 @@ func TestEveryAdminEmptyPageKeepsItsRestartLink(t *testing.T) {
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			var out bytes.Buffer
 			if err := c.Render(i18n.WithLocale(t.Context(), i18n.En), &out); err != nil {
 				t.Fatal(err)

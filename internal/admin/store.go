@@ -696,7 +696,7 @@ func (s *Store) SetStaffNote(ctx context.Context, number, note string) error {
 func (s *Store) Variants(ctx context.Context, lowOnly bool, after ...string) (pages.AdminVariantsView, error) {
 	scope := "/admin/stock"
 	if lowOnly {
-		scope += "?low=1"
+		scope = pageURL(scope, "low", "1")
 	}
 	cursor := readPageCursor(scope, after)
 	rows, err := s.q.AdminVariants(ctx, db.AdminVariantsParams{HasCursor: cursor.Valid, AfterNumber: cursor.Number, AfterName: cursor.Name, AfterPosition: cursor.Position, AfterID: cursor.ID, LowOnly: lowOnly, RowLimit: PageLimit})
