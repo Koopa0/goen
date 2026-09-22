@@ -7,11 +7,13 @@ import (
 	stripe "github.com/stripe/stripe-go/v86"
 )
 
-// disputeEvents are the three lifecycle signals Stripe sends for card disputes.
+// Funds movements can arrive separately from dispute lifecycle updates.
 var disputeEvents = map[stripe.EventType]bool{
-	"charge.dispute.created": true,
-	"charge.dispute.updated": true,
-	"charge.dispute.closed":  true,
+	"charge.dispute.created":          true,
+	"charge.dispute.updated":          true,
+	"charge.dispute.closed":           true,
+	"charge.dispute.funds_withdrawn":  true,
+	"charge.dispute.funds_reinstated": true,
 }
 
 // Dispute is a verified provider dispute fact ready to reconcile locally.
@@ -69,10 +71,10 @@ func disputeMovements(transactions []*stripe.BalanceTransaction) []DisputeMoveme
 		if bt == nil || !ValidStripeID(bt.ID) || bt.Amount == 0 {
 			continue
 		}
-		kind := "withdrawn"
+		kind := "reinstated"
 		amount := bt.Amount
 		if amount < 0 {
-			kind = "reinstated"
+			kind = "withdrawn"
 			amount = -amount
 		}
 		out = append(out, DisputeMovement{Kind: kind, Amount: amount, ProviderID: bt.ID})

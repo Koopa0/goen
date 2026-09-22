@@ -15,7 +15,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	stripe "github.com/stripe/stripe-go/v86"
 
 	"github.com/koopa0/goen/internal/payment"
@@ -162,7 +164,7 @@ func TestDisputeDuplicateEventIsIdempotent(t *testing.T) {
 
 func TestDisputeLostThenWonAcceptsAppeal(t *testing.T) {
 	ctx := t.Context()
-	s := payment.NewStore(pool)
+	s := payment.NewStore(disputeStoreRolePool(t))
 	h := disputeHandler(t, s)
 	number, _ := order(t, 120000)
 	session := "cs_appeal_" + uuid.NewString()[:8]
@@ -174,6 +176,14 @@ func TestDisputeLostThenWonAcceptsAppeal(t *testing.T) {
 	lost := disputePayload("evt_lost", disputeID, chargeID, piID, "lost", 120000, 1_700_000_300, nil, nil)
 	lost["type"] = "charge.dispute.closed"
 	postSignedWebhook(t, ctx, h, lost)
+
+	assertDisputeStatus(t, disputeID, "lost", 1_700_000_300)
+	for i, status := range []string{"under_review", "needs_response", "won"} {
+		stale := disputePayload("evt_stale_"+uuid.NewString(), disputeID, chargeID, piID, status, 120000, 1_700_000_200+int64(i), nil, nil)
+		stale["type"] = "charge.dispute.updated"
+		postSignedWebhook(t, ctx, h, stale)
+		assertDisputeStatus(t, disputeID, "lost", 1_700_000_300)
+	}
 
 	won := disputePayload("evt_won", disputeID, chargeID, piID, "won", 120000, 1_700_000_400, nil, nil)
 	won["type"] = "charge.dispute.updated"
@@ -187,11 +197,19 @@ func TestDisputeLostThenWonAcceptsAppeal(t *testing.T) {
 	if status != "won" {
 		t.Fatalf("after appeal status = %q, want won", status)
 	}
+	assertDisputeStatus(t, disputeID, "won", 1_700_000_400)
+	var history int
+	if historyErr := pool.QueryRow(ctx, `SELECT count(*) FROM payment_dispute_events e JOIN payment_disputes d ON d.id = e.dispute_id WHERE d.provider_ref = $1`, disputeID).Scan(&history); historyErr != nil {
+		t.Fatal(historyErr)
+	}
+	if history != 5 {
+		t.Fatalf("retained history = %d, want all five provider observations", history)
+	}
 }
 
 func TestDisputeFundsWithdrawnAndReinstated(t *testing.T) {
 	ctx := t.Context()
-	s := payment.NewStore(pool)
+	s := payment.NewStore(disputeStoreRolePool(t))
 	h := disputeHandler(t, s)
 	number, _ := order(t, 99000)
 	session := "cs_move_" + uuid.NewString()[:8]
@@ -201,7 +219,7 @@ func TestDisputeFundsWithdrawnAndReinstated(t *testing.T) {
 	disputeID := "dp_move_" + uuid.NewString()[:8]
 	movements := []map[string]any{
 		{"id": "txn_withdraw", "object": "balance_transaction", "amount": -99000},
-		{"id": "txn_reinstate", "object": "balance_transaction", "amount": 99000},
+		{"id": "txn_reinstate", "object": "balance_transaction", "amount": 49000},
 	}
 	ev := disputePayload("evt_move", disputeID, chargeID, piID, "won", 99000, 1_700_000_500, nil, movements)
 	ev["type"] = "charge.dispute.updated"
@@ -216,9 +234,125 @@ func TestDisputeFundsWithdrawnAndReinstated(t *testing.T) {
 		WHERE d.provider_ref = $1`, disputeID).Scan(&withdrawn, &reinstated); err != nil {
 		t.Fatalf("read movements: %v", err)
 	}
-	if withdrawn != 99000 || reinstated != 99000 {
-		t.Fatalf("movements withdrawn=%d reinstated=%d, want 99000 each", withdrawn, reinstated)
+	if withdrawn != 99000 || reinstated != 49000 {
+		t.Fatalf("movements withdrawn=%d reinstated=%d, want 99000/49000", withdrawn, reinstated)
 	}
+	assertDisputeMovement(t, disputeID, "txn_withdraw", "withdrawn", 99000)
+	assertDisputeMovement(t, disputeID, "txn_reinstate", "reinstated", 49000)
+	// Different lifecycle events can repeat the same balance transaction.
+	ev["id"] = "evt_move_duplicate_" + uuid.NewString()
+	postSignedWebhook(t, ctx, h, ev)
+	var count int
+	if countErr := pool.QueryRow(ctx, `SELECT count(*) FROM payment_dispute_movements m JOIN payment_disputes d ON d.id = m.dispute_id WHERE d.provider_ref = $1`, disputeID).Scan(&count); countErr != nil {
+		t.Fatal(countErr)
+	}
+	if count != 2 {
+		t.Fatalf("movements after distinct-event replay = %d, want 2", count)
+	}
+}
+
+func TestDisputeSeparateFundsEventsPersistMovements(t *testing.T) {
+	ctx := t.Context()
+	s := payment.NewStore(disputeStoreRolePool(t))
+	h := disputeHandler(t, s)
+	number, _ := order(t, 99000)
+	suffix := uuid.NewString()
+	session, piID, chargeID := "cs_funds_"+suffix, "pi_funds_"+suffix, "ch_funds_"+suffix
+	capturePaidOrder(t, ctx, s, h, number, session, piID, chargeID, 99000)
+	disputeID := "dp_funds_" + suffix
+	for _, tc := range []struct {
+		eventType string
+		status    string
+		kind      string
+		amount    int64
+		seen      int64
+	}{
+		{"charge.dispute.funds_withdrawn", "lost", "withdrawn", -99000, 1_700_000_300},
+		{"charge.dispute.funds_reinstated", "won", "reinstated", 49000, 1_700_000_400},
+	} {
+		t.Run(tc.kind, func(t *testing.T) {
+			eventID, transactionID := "evt_"+tc.kind+suffix, "txn_"+tc.kind+suffix
+			movements := []map[string]any{{"id": transactionID, "object": "balance_transaction", "amount": tc.amount}}
+			ev := disputePayload(eventID, disputeID, chargeID, piID, tc.status, 99000, tc.seen, nil, movements)
+			ev["type"] = tc.eventType
+			postSignedWebhook(t, ctx, h, ev)
+			postSignedWebhook(t, ctx, h, ev)
+			amount := tc.amount
+			if amount < 0 {
+				amount = -amount
+			}
+			assertDisputeMovement(t, disputeID, transactionID, tc.kind, amount)
+			assertDisputeStatus(t, disputeID, tc.status, tc.seen)
+			var processed bool
+			if readErr := pool.QueryRow(ctx, `SELECT processed_at IS NOT NULL FROM payment_webhook_events WHERE event_id = $1`, eventID).Scan(&processed); readErr != nil {
+				t.Fatal(readErr)
+			}
+			if !processed {
+				t.Fatal("movement was not committed with the processed inbox event")
+			}
+		})
+	}
+	var orderNumber string
+	var refunds int
+	if readErr := pool.QueryRow(ctx, `
+		SELECT o.order_number, (SELECT count(*) FROM refunds r WHERE r.payment_id = p.id)
+		FROM payment_disputes d JOIN payments p ON p.id = d.payment_id JOIN orders o ON o.id = p.order_id
+		WHERE d.provider_ref = $1`, disputeID).Scan(&orderNumber, &refunds); readErr != nil {
+		t.Fatal(readErr)
+	}
+	if orderNumber != number || refunds != 0 {
+		t.Fatalf("funds events attributed order=%q refunds=%d, want order=%q and no refund", orderNumber, refunds, number)
+	}
+}
+
+func assertDisputeStatus(t *testing.T, disputeID, wantStatus string, wantSeen int64) {
+	t.Helper()
+	var status string
+	var seen time.Time
+	if readErr := pool.QueryRow(t.Context(), `SELECT status, provider_seen_at FROM payment_disputes WHERE provider_ref = $1`, disputeID).Scan(&status, &seen); readErr != nil {
+		t.Fatal(readErr)
+	}
+	if status != wantStatus || seen.Unix() != wantSeen {
+		t.Fatalf("dispute status=%s seen=%d, want %s at %d", status, seen.Unix(), wantStatus, wantSeen)
+	}
+}
+
+func assertDisputeMovement(t *testing.T, disputeID, transactionID, wantKind string, wantAmount int64) {
+	t.Helper()
+	var kind string
+	var amount int64
+	if readErr := pool.QueryRow(t.Context(), `
+		SELECT m.kind, m.amount_cents FROM payment_dispute_movements m
+		JOIN payment_disputes d ON d.id = m.dispute_id
+		WHERE d.provider_ref = $1 AND m.provider_ref = $2`, disputeID, transactionID).Scan(&kind, &amount); readErr != nil {
+		t.Fatalf("read balance transaction %s: %v", transactionID, readErr)
+	}
+	if kind != wantKind || amount != wantAmount {
+		t.Fatalf("balance transaction %s: kind=%s amount=%d, want %s %d", transactionID, kind, amount, wantKind, wantAmount)
+	}
+}
+
+func disputeStoreRolePool(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	cfg := pool.Config().Copy()
+	cfg.MaxConns = 1
+	cfg.AfterConnect = func(ctx context.Context, conn *pgx.Conn) error {
+		_, roleErr := conn.Exec(ctx, `SET ROLE store`)
+		return roleErr
+	}
+	p, poolErr := pgxpool.NewWithConfig(t.Context(), cfg)
+	if poolErr != nil {
+		t.Fatal(poolErr)
+	}
+	t.Cleanup(p.Close)
+	var role, superuser string
+	if roleErr := p.QueryRow(t.Context(), `SELECT current_user, current_setting('is_superuser')`).Scan(&role, &superuser); roleErr != nil {
+		t.Fatal(roleErr)
+	}
+	if role != "store" || superuser != "off" {
+		t.Fatalf("dispute handler role=%s superuser=%s, want store/off", role, superuser)
+	}
+	return p
 }
 
 func TestUnattributedDisputeIsUnreconciled(t *testing.T) {

@@ -6468,9 +6468,7 @@ BEGIN
     INTO v_current_status, v_current_seen
     FROM payment_disputes WHERE id = v_dispute_id;
 
-    IF p_provider_seen_at >= v_current_seen
-       OR v_current_status IN ('lost', 'charge_refunded')
-          AND p_status IN ('won', 'needs_response', 'under_review') THEN
+    IF p_provider_seen_at >= v_current_seen THEN
         UPDATE payment_disputes
         SET status = p_status,
             reason = coalesce(p_reason, reason),
