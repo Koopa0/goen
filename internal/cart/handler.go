@@ -105,7 +105,8 @@ func (h *Handler) Page(w http.ResponseWriter, r *http.Request) {
 	}
 	view.ContinueURL = cartContinuation(r)
 	view.ReorderAdded, view.ReorderSkipped = reorderOutcome(r)
-	if notice := cartPageNotice(r); notice != "" {
+	view.ReorderAdjusted = view.FromReorder() && r.URL.Query().Get("qty") == "adjusted"
+	if notice := cartPageNotice(r); notice != "" && !view.ReorderAdjusted {
 		view.Notice = notice
 	}
 	web.Render(w, r, h.log, http.StatusOK, pages.Cart(pages.CartMeta(r.Context()), view))
@@ -1131,10 +1132,14 @@ func (h *Handler) ReorderItems(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Counts, never product names: a query string is logged.
-	http.Redirect(w, r, "/cart?"+url.Values{
+	outcome := url.Values{
 		"added":   {strconv.Itoa(result.Added)},
 		"skipped": {strconv.Itoa(len(result.Skipped))},
-	}.Encode(), http.StatusSeeOther)
+	}
+	if result.Adjusted {
+		outcome.Set("qty", "adjusted")
+	}
+	http.Redirect(w, r, "/cart?"+outcome.Encode(), http.StatusSeeOther)
 }
 
 // CancelOrder serves POST /orders/{number}/cancel, under the same access rule as

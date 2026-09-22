@@ -59,6 +59,16 @@ var (
 		En:     "%s each",
 	})
 
+	KeyReorderAdjusted = key("cart.reorder.adjusted", Message{
+		ZhHant: "再次購買的部分數量已依目前庫存調整，請確認購物車。",
+		En:     "Some quantities from that order were adjusted to available stock. Please review your cart.",
+	})
+
+	KeyReorderAdjustedPartial = key("cart.reorder.adjusted_partial", Message{
+		ZhHant: "再次購買的部分數量已依目前庫存調整，另有 %d 項已下架或缺貨，請確認購物車。",
+		En:     "Some quantities from that order were adjusted to available stock; %d items are discontinued or out of stock. Please review your cart.",
+	})
+
 	KeyReorderAll = key("cart.reorder.all", Message{
 		ZhHant: "已把上次的 %d 項商品放回購物車。",
 		En:     "Put %d items from that order back in your cart.",

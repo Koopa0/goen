@@ -79,10 +79,11 @@ type CartView struct {
 	SubtotalCents int64
 	ItemCount     int64
 
-	ReorderAdded   int
-	ReorderSkipped int
-	Notice         string
-	ContinueURL    string
+	ReorderAdded    int
+	ReorderSkipped  int
+	ReorderAdjusted bool
+	Notice          string
+	ContinueURL     string
 }
 
 // HasNotice reports whether to show the notice banner.
@@ -94,6 +95,10 @@ func (v CartView) FromReorder() bool { return v.ReorderAdded > 0 || v.ReorderSki
 // ReorderText is what the reorder came to, in a sentence.
 func (v CartView) ReorderText(ctx context.Context) string {
 	switch {
+	case v.ReorderAdjusted && v.ReorderSkipped > 0:
+		return fmt.Sprintf(i18n.T(ctx, i18n.KeyReorderAdjustedPartial), v.ReorderSkipped)
+	case v.ReorderAdjusted:
+		return i18n.T(ctx, i18n.KeyReorderAdjusted)
 	case v.ReorderSkipped == 0:
 		return fmt.Sprintf(i18n.T(ctx, i18n.KeyReorderAll), v.ReorderAdded)
 	case v.ReorderAdded == 0:

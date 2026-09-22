@@ -10,8 +10,9 @@ import (
 // Reorder is the outcome of putting a past order back in the cart, reporting
 // what was skipped as well as what was added.
 type Reorder struct {
-	Added   int
-	Skipped []SkippedLine
+	Added    int
+	Adjusted bool
+	Skipped  []SkippedLine
 }
 
 // SkippedLine is one thing the reorder could not put back, and why.
@@ -65,11 +66,13 @@ func (s *Store) Reorder(ctx context.Context, cartID uuid.UUID, number string) (R
 			continue
 		}
 
-		if _, err := addCartItem(ctx, q, cartID, l.VariantID.UUID, l.Quantity); err != nil {
+		adjusted, addErr := addCartItem(ctx, q, cartID, l.VariantID.UUID, l.Quantity)
+		if addErr != nil {
 			// The known skip cases continued above. Any revalidation or write
 			// failure for a selected line aborts the whole reorder.
-			return Reorder{}, fmt.Errorf("add %s to cart: %w", l.ProductName, err)
+			return Reorder{}, fmt.Errorf("add %s to cart: %w", l.ProductName, addErr)
 		}
+		out.Adjusted = out.Adjusted || adjusted
 		out.Added++
 	}
 	if err := tx.Commit(ctx); err != nil {
