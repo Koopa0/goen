@@ -191,7 +191,7 @@ func TestDeliverySurchargeRefusalPreservesFormInBothLanguages(t *testing.T) {
 				ctx, _ := staffContext(t)
 				ctx = i18n.WithLocale(ctx, locale)
 				values := url.Values{"email": {"proposed@example.com"}, "recipient": {"Proposed recipient"}, "phone": {"0922333444"}, "postal_code": {f.newPostal}, "city": {"New city"}, "district": {"New district"}, "street": {"Proposed street"}}
-				r := httptest.NewRequest(http.MethodPost, "/admin/orders/"+f.number+"/delivery", strings.NewReader(values.Encode())).WithContext(ctx)
+				r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/admin/orders/"+f.number+"/delivery", strings.NewReader(values.Encode()))
 				r.SetPathValue("number", f.number)
 				r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 				w := httptest.NewRecorder()
@@ -316,7 +316,7 @@ func TestUnresolvedDeliveryPostcodeReturnsPreservedForm(t *testing.T) {
 	f := pricedDeliveryOrder(t, 0, 10000, 0)
 	ctx, _ := staffContext(t)
 	values := url.Values{"email": {"proposed@example.com"}, "recipient": {"Proposed recipient"}, "phone": {"0922333444"}, "postal_code": {"unread"}, "city": {"New city"}, "district": {"New district"}, "street": {"Proposed street"}}
-	r := httptest.NewRequest(http.MethodPost, "/admin/orders/"+f.number+"/delivery", strings.NewReader(values.Encode())).WithContext(i18n.WithLocale(ctx, i18n.En))
+	r := httptest.NewRequestWithContext(i18n.WithLocale(ctx, i18n.En), http.MethodPost, "/admin/orders/"+f.number+"/delivery", strings.NewReader(values.Encode()))
 	r.SetPathValue("number", f.number)
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	w := httptest.NewRecorder()

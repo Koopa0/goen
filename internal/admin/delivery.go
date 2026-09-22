@@ -74,8 +74,8 @@ func (s *Store) CorrectDelivery(ctx context.Context, number string, d *Delivery)
 		if err != nil {
 			return err
 		}
-		if err := checkDeliverySurcharge(ctx, q, &row, addr); err != nil {
-			return err
+		if surchargeErr := checkDeliverySurcharge(ctx, q, &row, addr); surchargeErr != nil {
+			return surchargeErr
 		}
 
 		n, err := q.UpdateOrderDelivery(ctx, db.UpdateOrderDeliveryParams{
