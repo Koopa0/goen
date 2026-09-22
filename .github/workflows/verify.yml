@@ -143,6 +143,7 @@ jobs:
       # the schema job's round trip uses.
       GOEN_DATABASE_URL: postgres://goen:goen@127.0.0.1:5433/goen?sslmode=disable
       GOEN_URL: http://127.0.0.1:9700
+      GOEN_LAYOUT_DISPOSABLE: "1"
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -175,6 +176,9 @@ jobs:
       # GOEN_INSECURE_COOKIES is what `make run` sets locally. Without it the cart
       # cookie carries Secure and a browser never sends it back over http, so the
       # cart pages would measure an empty cart and pass.
+      - name: Configure disposable second factor
+        run: echo "GOEN_TOTP_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+
       - name: Start the storefront
         run: |
           set -euo pipefail
@@ -196,6 +200,19 @@ jobs:
       - name: Layout and accessibility gate
         shell: bash
         run: make check-layout 2>&1 | tee layout.log
+
+      - name: Verify focused two-factor layout mutations
+        env:
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: python3 scripts/check-twofactor-mutations.py
+
+      - name: Keep two-factor mutation evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: twofactor-mutations
+          path: twofactor-mutations
+          if-no-files-found: warn
 
       - name: Keep the run's output
         if: always()
