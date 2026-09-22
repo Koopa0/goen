@@ -54,7 +54,7 @@ func runScale(t *testing.T, scale queryplan.Scale) {
 	sha := gitCommitSHA(t)
 	results, runErr := queryplan.RunAll(ctx, pool, scale, sha)
 	if runErr != nil {
-		t.Fatalf("%s query plans: %v", scale, runErr)
+		t.Errorf("%s query plans: %v", scale, runErr)
 	}
 	if len(results) == 0 {
 		t.Fatalf("%s: no measurements recorded", scale)

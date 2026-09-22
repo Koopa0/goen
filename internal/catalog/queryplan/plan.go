@@ -9,6 +9,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// BudgetCheck records the declared target alongside its sample verdict.
+type BudgetCheck struct {
+	Budget Budget
+	Passed bool
+	Error  string `json:",omitempty"`
+}
+
 // Result is one EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) execution.
 type Result struct {
 	Route         Route
@@ -21,6 +28,7 @@ type Result struct {
 	CountRead     bool
 	CommitSHA     string
 	MeasuredAtUTC time.Time
+	BudgetCheck   *BudgetCheck `json:",omitempty"`
 	PlanJSON      json.RawMessage
 }
 

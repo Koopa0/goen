@@ -4,8 +4,30 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestCheckResultsRetainsEveryVerdict(t *testing.T) {
+	results := []Result{
+		{Route: RouteHomeRecommended, Scale: ScaleSmall, Warm: true, WarmSample: 1, ExecutionMS: 16, ActualRows: 8},
+		{Route: RouteHomeRecommended, Scale: ScaleSmall, Warm: true, WarmSample: 2, ExecutionMS: 14, ActualRows: 8},
+		{Route: RouteSearchNoMatch, Scale: ScaleSmall, Warm: true, WarmSample: 3, ExecutionMS: 1, ActualRows: 1},
+	}
+	err := checkResults(ScaleSmall, results)
+	if err == nil || !strings.Contains(err.Error(), "exceeds budget") || !strings.Contains(err.Error(), "want exact empty") {
+		t.Fatalf("both breaches must fail the run: %v", err)
+	}
+	for i, passed := range []bool{false, true, false} {
+		check := results[i].BudgetCheck
+		if check == nil || check.Passed != passed || (check.Error == "") != passed {
+			t.Fatalf("sample %d verdict = %+v, want passed=%t", i, check, passed)
+		}
+		if check.Budget.Route != results[i].Route || check.Budget.WarmMaxMS != 15 {
+			t.Fatalf("sample %d lost declared target: %+v", i, check.Budget)
+		}
+	}
+}
 
 func TestBudgetsCoverEveryRoute(t *testing.T) {
 	routes := []Route{

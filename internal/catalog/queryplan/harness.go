@@ -17,21 +17,29 @@ import (
 // RunAll measures every route cold then warm and checks declared budgets.
 func RunAll(ctx context.Context, pool *pgxpool.Pool, scale Scale, commitSHA string) ([]Result, error) {
 	results, err := MeasureAll(ctx, pool, scale, commitSHA)
-	if err != nil {
-		return nil, err
-	}
+	return results, errors.Join(err, checkResults(scale, results))
+}
+
+func checkResults(scale Scale, results []Result) error {
+	var failures []error
 	for i := range results {
-		r := results[i]
+		r := &results[i]
 		budget, ok := BudgetFor(scale, r.Route)
+		var budgetErr error
 		if !ok {
-			return nil, fmt.Errorf("no budget for %s at %s", r.Route, scale)
+			budgetErr = fmt.Errorf("no budget for %s at %s", r.Route, scale)
+		} else {
+			budgetErr = CheckBudget(budget, *r)
 		}
-		if budgetErr := CheckBudget(budget, r); budgetErr != nil {
-			return nil, fmt.Errorf("%w (%s planning %.2fms execution %.2fms rows %d)",
-				budgetErr, warmLabel(r.Warm), r.PlanningMS, r.ExecutionMS, r.ActualRows)
+		r.BudgetCheck = &BudgetCheck{Budget: budget, Passed: budgetErr == nil}
+		if budgetErr != nil {
+			failure := fmt.Errorf("%w (%s sample %d count=%t planning %.2fms execution %.2fms rows %d)",
+				budgetErr, warmLabel(r.Warm), r.WarmSample, r.CountRead, r.PlanningMS, r.ExecutionMS, r.ActualRows)
+			r.BudgetCheck.Error = failure.Error()
+			failures = append(failures, failure)
 		}
 	}
-	return results, nil
+	return errors.Join(failures...)
 }
 
 // MeasureAll records cold and warm EXPLAIN timings without budget checks.
@@ -50,16 +58,16 @@ func MeasureAll(ctx context.Context, pool *pgxpool.Pool, scale Scale, commitSHA 
 		// Cold is the first EXPLAIN after ANALYZE; warm repeats use a cached plan.
 		// Shared-buffer cold starts are owned by #333.
 		cold, err := measureQuery(ctx, pool, scale, q, false, commitSHA)
-		if err != nil {
-			return nil, err
-		}
 		out = append(out, cold...)
+		if err != nil {
+			return out, err
+		}
 
 		warm, err := measureQuery(ctx, pool, scale, q, true, commitSHA)
-		if err != nil {
-			return nil, err
-		}
 		out = append(out, warm...)
+		if err != nil {
+			return out, err
+		}
 	}
 	return out, nil
 }
@@ -82,7 +90,7 @@ func measureQuery(ctx context.Context, pool *pgxpool.Pool, scale Scale, q Query,
 	for i := range warmSamples {
 		r, err := Measure(ctx, pool, q, scale, true, i+1, sha)
 		if err != nil {
-			return nil, err
+			return out, err
 		}
 		out = append(out, r)
 	}
