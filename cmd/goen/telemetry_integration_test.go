@@ -250,3 +250,87 @@ func TestRequestsCompleteWhenExporterUnreachable(t *testing.T) {
 		t.Fatalf("status = %d, want 200 despite dead exporter", resp.StatusCode)
 	}
 }
+
+func TestPoolMetricsReplaceRoleDuringCollection(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	previous := otel.GetMeterProvider()
+	otel.SetMeterProvider(mp)
+	t.Cleanup(func() {
+		otel.SetMeterProvider(previous)
+		_ = mp.Shutdown(context.WithoutCancel(t.Context()))
+	})
+	if _, err := telemetry.Setup(t.Context(), telemetry.Config{}); err != nil {
+		t.Fatal(err)
+	}
+	pools := make([]*pgxpool.Pool, 2)
+	for i := range pools {
+		cfg := pool.Config()
+		cfg.MaxConns = int32(i + 2)
+		p, err := pgxpool.NewWithConfig(t.Context(), cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(p.Close)
+		if err = p.Ping(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		pools[i] = p
+	}
+	check := func(want int64) {
+		t.Helper()
+		var data metricdata.ResourceMetrics
+		if err := reader.Collect(t.Context(), &data); err != nil {
+			t.Fatal(err)
+		}
+		found := 0
+		for _, scope := range data.ScopeMetrics {
+			for _, measurement := range scope.Metrics {
+				if measurement.Name != "goen.db.pool.max" {
+					continue
+				}
+				for _, point := range measurement.Data.(metricdata.Gauge[int64]).DataPoints {
+					role, _ := point.Attributes.Value("db.role")
+					if role.AsString() != "store" {
+						continue
+					}
+					found++
+					if want != 0 && point.Value != want {
+						t.Errorf("store pool maximum=%d, want replacement %d", point.Value, want)
+					}
+				}
+			}
+		}
+		if found != 1 {
+			t.Errorf("store role exported %d series, want 1", found)
+		}
+	}
+	telemetry.RegisterPool(telemetry.PoolStore, pools[0])
+	check(2)
+	func() {
+		started := make(chan struct{})
+		stop := make(chan struct{})
+		finished := make(chan struct{})
+		go func() {
+			defer close(finished)
+			close(started)
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+					for _, p := range pools {
+						telemetry.RegisterPool(telemetry.PoolStore, p)
+					}
+				}
+			}
+		}()
+		<-started
+		defer func() { close(stop); <-finished }()
+		for range 100 {
+			check(0)
+		}
+	}()
+	telemetry.RegisterPool(telemetry.PoolStore, pools[1])
+	check(3)
+}

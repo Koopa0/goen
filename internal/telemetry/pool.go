@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	"sync"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel/attribute"
@@ -31,12 +32,23 @@ type poolObservation struct {
 	pool *pgxpool.Pool
 }
 
-var observedPools []poolObservation
+var (
+	observedPools   []poolObservation
+	observedPoolsMu sync.RWMutex
+)
 
 // RegisterPool exports pgxpool statistics for one role.
 func RegisterPool(role PoolRole, pool *pgxpool.Pool) {
 	if pool == nil {
 		return
+	}
+	observedPoolsMu.Lock()
+	defer observedPoolsMu.Unlock()
+	for i := range observedPools {
+		if observedPools[i].role == role {
+			observedPools[i].pool = pool
+			return
+		}
 	}
 	observedPools = append(observedPools, poolObservation{role: role, pool: pool})
 }
@@ -86,16 +98,20 @@ func initPoolInstruments(m metric.Meter) error {
 	if err != nil {
 		return err
 	}
-	_, err = m.RegisterCallback(func(ctx context.Context, o metric.Observer) error {
+	acquired, idle, total := poolAcquired, poolIdle, poolTotal
+	maximum, canceled, acquireDuration := poolMax, poolCanceled, poolAcquireMs
+	_, err = m.RegisterCallback(func(_ context.Context, o metric.Observer) error {
+		observedPoolsMu.RLock()
+		defer observedPoolsMu.RUnlock()
 		for _, p := range observedPools {
 			stat := p.pool.Stat()
 			attrs := metric.WithAttributes(attribute.String("db.role", string(p.role)))
-			o.ObserveInt64(poolAcquired, int64(stat.AcquiredConns()), attrs)
-			o.ObserveInt64(poolIdle, int64(stat.IdleConns()), attrs)
-			o.ObserveInt64(poolTotal, int64(stat.TotalConns()), attrs)
-			o.ObserveInt64(poolMax, int64(stat.MaxConns()), attrs)
-			o.ObserveInt64(poolCanceled, stat.CanceledAcquireCount(), attrs)
-			o.ObserveFloat64(poolAcquireMs, stat.AcquireDuration().Seconds(), attrs)
+			o.ObserveInt64(acquired, int64(stat.AcquiredConns()), attrs)
+			o.ObserveInt64(idle, int64(stat.IdleConns()), attrs)
+			o.ObserveInt64(total, int64(stat.TotalConns()), attrs)
+			o.ObserveInt64(maximum, int64(stat.MaxConns()), attrs)
+			o.ObserveInt64(canceled, stat.CanceledAcquireCount(), attrs)
+			o.ObserveFloat64(acquireDuration, stat.AcquireDuration().Seconds(), attrs)
 		}
 		return nil
 	}, poolAcquired, poolIdle, poolTotal, poolMax, poolCanceled, poolAcquireMs)
