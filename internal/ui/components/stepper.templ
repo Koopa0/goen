@@ -1,0 +1,46 @@
+package components
+
+// Stepper is a quantity field with a step control on each side.
+//
+// The field is the control; the buttons are an enhancement on top of it. They
+// carry type="button" so they never submit, they are hidden until a stylesheet
+// is told scripting is on, and with scripting off the field is what it has
+// always been — a native number input the keyboard already steps.
+//
+// data-stepper and data-stepper-step are what assets/js/goen.js listens for. It
+// delegates from the document rather than binding on load, so a region swapped
+// in later needs no second initialisation.
+templ Stepper(p StepperProps) {
+	<div class={ p.class() } data-stepper { p.Attrs... }>
+		<button
+			class="goen-stepper__step"
+			type="button"
+			data-stepper-step="-1"
+			aria-label={ p.DecreaseLabel }
+			disabled?={ p.Disabled }
+		>
+			<span aria-hidden="true">&#8722;</span>
+		</button>
+		<input
+			class="goen-stepper__value"
+			id={ p.ID }
+			name={ p.Name }
+			type="number"
+			inputmode="numeric"
+			value={ p.Value }
+			min={ p.Min }
+			max={ p.Max }
+			step="1"
+			disabled?={ p.Disabled }
+		/>
+		<button
+			class="goen-stepper__step"
+			type="button"
+			data-stepper-step="1"
+			aria-label={ p.IncreaseLabel }
+			disabled?={ p.Disabled }
+		>
+			<span aria-hidden="true">+</span>
+		</button>
+	</div>
+}

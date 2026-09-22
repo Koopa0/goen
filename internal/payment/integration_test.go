@@ -32,6 +32,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/email"
+	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/outbox"
 	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/web"
@@ -1641,8 +1642,10 @@ func TestPickupOrderCanBePaid(t *testing.T) {
 	}
 }
 
-// pickupOrder writes an order collected from a convenience store: no street
-// address at all, as order_private_data_one_destination requires.
+// pickupOrder writes an order collected from a convenience store: the chain and
+// no street address at all, as order_private_data_one_destination requires. No
+// store number either — checkout asks for the chain alone, so payment has to
+// find such an order complete.
 func pickupOrder(t *testing.T, totalCents int64) (number string, id uuid.UUID) {
 	t.Helper()
 	ctx := t.Context()
@@ -1668,9 +1671,8 @@ func pickupOrder(t *testing.T, totalCents int64) (number string, id uuid.UUID) {
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO order_private_data (order_id, email, recipient_name, phone,
-		                                pickup_brand, pickup_store_code, pickup_store_name)
-		VALUES ($1, 'pickup@example.com', '收件', '0912345678',
-		        'family_mart', '012345', '台北車站門市')`, id); err != nil {
+		                                pickup_brand)
+		VALUES ($1, 'pickup@example.com', '收件', '0912345678', 'family_mart')`, id); err != nil {
 		t.Fatalf("create pickup private data: %v", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -4588,4 +4590,197 @@ func TestMoneyForACancelledOrderLeavesSomethingToActOn(t *testing.T) {
 	if !strings.Contains(*reason, "cancelled") {
 		t.Errorf("the reason is %q, which does not say what happened", *reason)
 	}
+}
+
+// TestCompleteSessionShowsProcessingNotPayAgain locks #136: when Stripe reports
+// a Checkout Session complete but the signed webhook has not posted capture,
+// the customer sees a processing state rather than the ordinary unpaid order
+// with a pay-again CTA. It covers eventual webhook success and the
+// health/reconciliation failure path without implying success before signed capture.
+func TestCompleteSessionShowsProcessingNotPayAgain(t *testing.T) {
+	t.Run("complete session redirects to processing page and webhook resolves it", func(t *testing.T) {
+		ctx := t.Context()
+		const amount = int64(100000)
+		number, orderID := order(t, amount)
+		hold(t, orderID, 0, 60*time.Minute, "complete-proc:"+number)
+		sessionID := "cs_complete_proc_" + uuid.NewString()[:12]
+		s := payment.NewStore(pool)
+		if err := s.OpenPayment(ctx, number, sessionID, amount); err != nil {
+			t.Fatalf("open payment: %v", err)
+		}
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if r.Method == http.MethodGet && r.URL.Path == "/v1/checkout/sessions/"+sessionID {
+				_, _ = fmt.Fprintf(w,
+					`{"id":%q,"object":"checkout.session","status":"complete",`+
+						`"payment_status":"unpaid"}`, sessionID)
+				return
+			}
+			http.NotFound(w, r)
+		}))
+		t.Cleanup(srv.Close)
+
+		originalBackend := stripe.GetBackend(stripe.APIBackend)
+		noRetries := int64(0)
+		stripe.SetBackend(stripe.APIBackend, stripe.GetBackendWithConfig(
+			stripe.APIBackend,
+			&stripe.BackendConfig{URL: stripe.String(srv.URL), MaxNetworkRetries: &noRetries},
+		))
+		gateway, err := payment.NewGateway("sk_test_notreal", testWebhookSecret, "https://goen.example")
+		stripe.SetBackend(stripe.APIBackend, originalBackend)
+		if err != nil {
+			t.Fatalf("gateway: %v", err)
+		}
+
+		h := payment.NewHandler(s, gateway, alwaysPlacedHere{}, slog.New(slog.DiscardHandler), false)
+
+		// 1. Complete session without webhook: Start redirects to /orders/{number}/pay
+		postReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/pay", http.NoBody)
+		postReq.SetPathValue("number", number)
+		postRes := httptest.NewRecorder()
+		h.Start(postRes, postReq)
+
+		wantPayLocation := "/orders/" + number + "/pay"
+		if postRes.Code != http.StatusSeeOther || postRes.Header().Get("Location") != wantPayLocation {
+			t.Fatalf("Start with complete session = %d %q, want 303 %q",
+				postRes.Code, postRes.Header().Get("Location"), wantPayLocation)
+		}
+
+		// 2. Following the redirect to Page (GET /orders/{number}/pay) shows the processing notice
+		getReq := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number+"/pay", http.NoBody)
+		getReq.SetPathValue("number", number)
+		getRes := httptest.NewRecorder()
+		h.Page(getRes, getReq)
+
+		if getRes.Code != http.StatusOK {
+			t.Fatalf("Page while processing = %d, want 200", getRes.Code)
+		}
+		body := getRes.Body.String()
+		wantTitle := i18n.T(ctx, i18n.KeyPayProcessingTitle)
+		wantBody := i18n.T(ctx, i18n.KeyPayProcessingBody)
+		if !strings.Contains(body, wantTitle) {
+			t.Errorf("processing page missing title %q", wantTitle)
+		}
+		if !strings.Contains(body, wantBody) {
+			t.Errorf("processing page missing body %q", wantBody)
+		}
+		// Customer must not see a pay-again CTA while unreconciled payment is processing
+		payCTA := `action="/orders/` + number + `/pay"`
+		if strings.Contains(body, payCTA) || strings.Contains(body, i18n.T(ctx, i18n.KeyPay)) {
+			t.Errorf("processing page must not offer pay CTA: %s", body)
+		}
+		// Page must not imply success before signed capture
+		if strings.Contains(body, i18n.T(ctx, i18n.KeyStatusPaid)) {
+			t.Errorf("processing page must not claim order is paid before capture")
+		}
+
+		// 3. Eventual webhook success: signed webhook captures the payment
+		if _, err := captureThroughWebhook(t, s, payment.Capture{
+			SessionID: sessionID, AmountRecv: amount,
+		}); err != nil {
+			t.Fatalf("late paid webhook: %v", err)
+		}
+
+		// Now /orders/{number}/pay sees the order is paid and redirects to /orders/{number}
+		afterWebhookReq := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number+"/pay", http.NoBody)
+		afterWebhookReq.SetPathValue("number", number)
+		afterWebhookRes := httptest.NewRecorder()
+		h.Page(afterWebhookRes, afterWebhookReq)
+
+		wantOrderLocation := "/orders/" + number
+		if afterWebhookRes.Code != http.StatusSeeOther || afterWebhookRes.Header().Get("Location") != wantOrderLocation {
+			t.Fatalf("Page after capture = %d %q, want 303 to %q",
+				afterWebhookRes.Code, afterWebhookRes.Header().Get("Location"), wantOrderLocation)
+		}
+	})
+
+	t.Run("health reconciliation failure path allows customer to pay again", func(t *testing.T) {
+		ctx := t.Context()
+		const amount = int64(100000)
+		number, orderID := order(t, amount)
+		hold(t, orderID, 0, 60*time.Minute, "complete-proc-fail:"+number)
+		sessionID := "cs_complete_proc_fail_" + uuid.NewString()[:12]
+		s := payment.NewStore(pool)
+		if err := s.OpenPayment(ctx, number, sessionID, amount); err != nil {
+			t.Fatalf("open payment: %v", err)
+		}
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if r.Method == http.MethodGet && r.URL.Path == "/v1/checkout/sessions/"+sessionID {
+				_, _ = fmt.Fprintf(w,
+					`{"id":%q,"object":"checkout.session","status":"complete",`+
+						`"payment_status":"unpaid"}`, sessionID)
+				return
+			}
+			http.NotFound(w, r)
+		}))
+		t.Cleanup(srv.Close)
+
+		originalBackend := stripe.GetBackend(stripe.APIBackend)
+		noRetries := int64(0)
+		stripe.SetBackend(stripe.APIBackend, stripe.GetBackendWithConfig(
+			stripe.APIBackend,
+			&stripe.BackendConfig{URL: stripe.String(srv.URL), MaxNetworkRetries: &noRetries},
+		))
+		gateway, err := payment.NewGateway("sk_test_notreal", testWebhookSecret, "https://goen.example")
+		stripe.SetBackend(stripe.APIBackend, originalBackend)
+		if err != nil {
+			t.Fatalf("gateway: %v", err)
+		}
+
+		h := payment.NewHandler(s, gateway, alwaysPlacedHere{}, slog.New(slog.DiscardHandler), false)
+
+		// Complete session without webhook records complete and redirects to pay page
+		postReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/pay", http.NoBody)
+		postReq.SetPathValue("number", number)
+		postRes := httptest.NewRecorder()
+		h.Start(postRes, postReq)
+		if postRes.Code != http.StatusSeeOther {
+			t.Fatalf("Start = %d, want 303", postRes.Code)
+		}
+
+		// Shows processing state
+		getReq := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number+"/pay", http.NoBody)
+		getReq.SetPathValue("number", number)
+		getRes := httptest.NewRecorder()
+		h.Page(getRes, getReq)
+		if !strings.Contains(getRes.Body.String(), i18n.T(ctx, i18n.KeyPayProcessingTitle)) {
+			t.Fatalf("expected processing notice on page")
+		}
+
+		// Operator resolves complete payment as unpaid or refunded
+		var actorID uuid.UUID
+		if err := pool.QueryRow(ctx, `
+			INSERT INTO users (email, role)
+			VALUES ('operator-' || gen_random_uuid() || '@goen.invalid', 'admin')
+			RETURNING id`).Scan(&actorID); err != nil {
+			t.Fatalf("create operator: %v", err)
+		}
+		adminCtx := account.WithUser(ctx, account.User{ID: actorID.String(), Role: "admin"})
+		backOffice := admin.NewStore(pool, admin.NewRefunder(""), nil, nil)
+		if err := backOffice.ReconcileCompletePayment(
+			adminCtx, sessionID, admin.CompletePaymentUnpaidOrRefunded,
+		); err != nil {
+			t.Fatalf("reconcile complete payment: %v", err)
+		}
+
+		// Now page renders the pay form with pay CTA restored
+		getReq2 := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number+"/pay", http.NoBody)
+		getReq2.SetPathValue("number", number)
+		getRes2 := httptest.NewRecorder()
+		h.Page(getRes2, getReq2)
+
+		if getRes2.Code != http.StatusOK {
+			t.Fatalf("Page after reconciliation = %d, want 200", getRes2.Code)
+		}
+		body2 := getRes2.Body.String()
+		if strings.Contains(body2, i18n.T(ctx, i18n.KeyPayProcessingTitle)) {
+			t.Errorf("processing notice should be gone after reconciliation")
+		}
+		if !strings.Contains(body2, i18n.T(ctx, i18n.KeyPay)) {
+			t.Errorf("pay form CTA should be restored after reconciliation")
+		}
+	})
 }

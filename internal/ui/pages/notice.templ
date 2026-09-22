@@ -2,6 +2,7 @@ package pages
 
 import (
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
 )
 
@@ -10,11 +11,51 @@ templ Notice(p layouts.Page, code, heading, body string) {
 	@layouts.Base(p) {
 		<div class="notice">
 			if code != "" {
-				<span class="notice__code">{ code }</span>
+				<span class="notice__code" aria-hidden="true">{ code }</span>
 			}
-			<h1 class="h2 notice__title">{ heading }</h1>
-			<p class="body notice__body">{ body }</p>
-			<a class="ui-btn ui-btn--secondary ui-btn--lg" href="/">{ i18n.T(ctx, i18n.KeyBackToShop) }</a>
+			<h1 class="notice__title">{ heading }</h1>
+			<p class="notice__body">{ body }</p>
+			<div class="notice__actions">
+				@components.ButtonLink(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge}, "/") {
+					{ i18n.T(ctx, i18n.KeyBackToShop) }
+				}
+			</div>
+		</div>
+	}
+}
+
+// PlacementGrantFailed is the 500 after a committed checkout when the browser's
+// order-access proof could not be written. It names what happened and points to
+// verified find-order without leaking the order number.
+templ PlacementGrantFailed(p layouts.Page) {
+	@layouts.Base(p) {
+		<div class="notice">
+			<span class="notice__code" aria-hidden="true">500</span>
+			<h1 class="notice__title">{ i18n.T(ctx, i18n.KeyPlacementGrantFailedTitle) }</h1>
+			<p class="notice__body">{ i18n.T(ctx, i18n.KeyPlacementGrantFailedBody) }</p>
+			<div class="notice__actions">
+				@components.ButtonLink(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge}, "/orders/find") {
+					{ i18n.T(ctx, i18n.KeyFindOrderTitle) }
+				}
+			</div>
+		</div>
+	}
+}
+
+// FindOrderGrantFailed is the 500 after verified find-order when the browser's
+// order-access proof could not be written. It offers retry without claiming a
+// new placement occurred.
+templ FindOrderGrantFailed(p layouts.Page) {
+	@layouts.Base(p) {
+		<div class="notice">
+			<span class="notice__code" aria-hidden="true">500</span>
+			<h1 class="notice__title">{ i18n.T(ctx, i18n.KeyFindOrderGrantFailedTitle) }</h1>
+			<p class="notice__body">{ i18n.T(ctx, i18n.KeyFindOrderGrantFailedBody) }</p>
+			<div class="notice__actions">
+				@components.ButtonLink(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge}, "/orders/find") {
+					{ i18n.T(ctx, i18n.KeyFindOrderTitle) }
+				}
+			</div>
 		</div>
 	}
 }
@@ -23,16 +64,16 @@ templ Notice(p layouts.Page, code, heading, body string) {
 templ OrderNotFound(p layouts.Page) {
 	@layouts.Base(p) {
 		<div class="notice">
-			<span class="notice__code">404</span>
-			<h1 class="h2 notice__title">{ i18n.T(ctx, i18n.KeyOrderNotFound) }</h1>
-			<p class="body notice__body">{ i18n.T(ctx, i18n.KeyOrderNotYours) }</p>
+			<span class="notice__code" aria-hidden="true">404</span>
+			<h1 class="notice__title">{ i18n.T(ctx, i18n.KeyOrderNotFound) }</h1>
+			<p class="notice__body">{ i18n.T(ctx, i18n.KeyOrderNotYours) }</p>
 			<div class="notice__actions">
-				<a class="ui-btn ui-btn--primary ui-btn--lg" href="/orders/find">
+				@components.ButtonLink(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge}, "/orders/find") {
 					{ i18n.T(ctx, i18n.KeyFindOrderTitle) }
-				</a>
-				<a class="ui-btn ui-btn--secondary ui-btn--lg" href="/signin">
+				}
+				@components.ButtonLink(components.ButtonProps{Variant: components.VariantOutline, Size: components.SizeLarge}, "/signin") {
 					{ i18n.T(ctx, i18n.KeySignIn) }
-				</a>
+				}
 			</div>
 		</div>
 	}

@@ -180,6 +180,8 @@ func (r *AdminReturn) CompleteAction() string { return "/admin/returns/" + r.ID 
 
 // AdminReturnsView is the return queue.
 type AdminReturnsView struct {
+	ListBound
+
 	Rows   []AdminReturn
 	Notice string
 	// Errors keys as "{returnID}.{field}" so a 422 can mark one row without

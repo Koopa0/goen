@@ -14,8 +14,58 @@
 //
 // Usage: make check-layout   (needs Chrome and a server on GOEN_URL)
 
+import { readFileSync } from 'node:fs';
+
 const CDP_PORT = Number(process.env.CDP_PORT || 9222);
 const ORIGIN = (process.env.GOEN_URL || 'http://127.0.0.1:9700/').replace(/\/$/, '');
+
+// axe-core runs once per route at the end of this file, over the same CDP
+// session everything else uses.
+//
+// Its source is read HERE, before Chrome is contacted, so an absent file stops
+// the run in a second rather than after ten minutes of measuring. A gate that
+// quietly skips its own audit when an input is missing is not a gate.
+//
+// It is never a <script src>: the site sends `script-src 'self'`, and relaxing
+// that so the checker could get in would mean auditing a page no visitor is
+// served. A CDP evaluation runs outside the page's CSP and leaves the document
+// exactly as a visitor receives it.
+const AXE_SOURCE = process.env.AXE_SOURCE || '.layout-chrome/axe.min.js';
+const AXE_BASELINE = process.env.AXE_BASELINE || 'scripts/axe-baseline.json';
+
+// The impacts that fail the run. moderate and minor are printed as annotations:
+// they are real and they are not "this page is unusable for somebody", and a
+// gate that fails on all four would be turned off within a week.
+const AXE_GATES = new Set(['serious', 'critical']);
+
+// One width. Every rule asked for below is a property of the document rather
+// than of the fold, and the widths are already covered by the geometry
+// assertions above.
+const AXE_WIDTH = { width: 1440, height: 900 };
+
+let axeSource;
+try {
+  axeSource = readFileSync(AXE_SOURCE, 'utf8');
+} catch (err) {
+  console.error(`axe-core is not readable at ${AXE_SOURCE}: ${err.message}\n` +
+    'make check-layout fetches it at the Makefile\'s AXE_CORE_VERSION and verifies ' +
+    'its digest; run this check through make rather than by hand.');
+  process.exit(2);
+}
+
+// The accessibility debt already in the tree, as route -> rule ids. A pair that
+// is not listed fails the run; a pair listed that no longer fires fails it too,
+// so this file can only shrink. Rule ids and not selectors, because the markup
+// under a rule changes every week and a stale selector would fail a run for a
+// reason that has nothing to do with accessibility.
+let axeBaselineFile;
+try {
+  axeBaselineFile = JSON.parse(readFileSync(AXE_BASELINE, 'utf8'));
+} catch (err) {
+  console.error(`the axe baseline at ${AXE_BASELINE} did not parse: ${err.message}`);
+  process.exit(2);
+}
+const axeBaseline = axeBaselineFile.routes || {};
 
 // What the two artboards fold into. Column counts are read off the rendered
 // boxes — how many children share the top row — not off the CSS, so a rule that
@@ -105,12 +155,13 @@ const CART = [
   { label: 'cart 1440', width: 1440, height: 900, path: '/cart' },
   { label: 'checkout 375', width: 375, height: 812, path: '/checkout' },
   { label: 'checkout 1440', width: 1440, height: 900, path: '/checkout' },
-  // The checkout with 超商取貨 chosen. It is a different form — a store picker
-  // rather than a street address — so a layout row for the default method
-  // measures only half the page. PICKUP_SHIP is the version id the Makefile
-  // reads from the database, and the marker insists the store field is there.
-  { label: 'pickup 375', width: 375, height: 812, path: '/checkout?ship=PICKUP_SHIP', marker: '#pickup_store_code' },
-  { label: 'pickup 1440', width: 1440, height: 900, path: '/checkout?ship=PICKUP_SHIP', marker: '#pickup_store_code' },
+  // The checkout with 超商取貨 chosen. It is a different form — a chain to
+  // choose rather than a street address — so a layout row for the default
+  // method measures only half the page. PICKUP_SHIP is the version id the
+  // Makefile reads from the database, and the marker insists the chain
+  // chooser is there.
+  { label: 'pickup 375', width: 375, height: 812, path: '/checkout?ship=PICKUP_SHIP', marker: 'input[name=pickup_brand]' },
+  { label: 'pickup 1440', width: 1440, height: 900, path: '/checkout?ship=PICKUP_SHIP', marker: 'input[name=pickup_brand]' },
   // The payment page. PLACED_ORDER is the NUMBER of the order the Makefile just
   // placed; PLACED_TOKEN, set as a cookie above, is the browser's proof that it
   // placed it. Two facts, two variables — without either the page is the 404 a
@@ -324,14 +375,17 @@ const MIN_SEARCH = 120;
 let nextId = 1;
 const pending = new Map();
 
-function send(ws, method, params = {}) {
+// timeoutMs is a parameter because one call is not like the others: axe.run on
+// a back-office table takes longer than every probe in this file put together,
+// and capping it at the default would report a slow audit as a dead socket.
+function send(ws, method, params = {}, timeoutMs = 30000) {
   const id = nextId++;
   ws.send(JSON.stringify({ id, method, params }));
   return new Promise((resolve, reject) => {
     pending.set(id, { resolve, reject });
     setTimeout(() => {
       if (pending.delete(id)) reject(new Error(`${method} timed out`));
-    }, 30000);
+    }, timeoutMs);
   });
 }
 
@@ -511,6 +565,29 @@ const PROBE = `(() => {
 //
 // Polls readyState instead, with a ceiling. A page that never completes is a real
 // failure and says so.
+// Every route this run actually visited, in the order it first saw them, as
+// route -> the URL that reached it. The axe pass at the end reads this rather
+// than a second list of paths: a list would drift from the tables above, and
+// the point of the audit is that it covers what the gate covers.
+const visited = new Map();
+
+// A route key has to mean the same thing next week. The fixtures mint a
+// customer id, an order number carrying today's date and a warranty serial from
+// the shell's pid on every run, so a key taken verbatim would name a page that
+// does not exist tomorrow and the baseline would be stale on the run after the
+// one that wrote it.
+const PER_RUN = [
+  [/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '{id}'],
+  [/GO-\d{6}-\d{6}/g, '{order}'],
+  [/LAYOUTSN\d+/g, '{serial}'],
+];
+
+const routeOf = (url) => {
+  let route = (url.startsWith(ORIGIN) ? url.slice(ORIGIN.length) : url) || '/';
+  for (const [fixture, name] of PER_RUN) route = route.replace(fixture, name);
+  return route;
+};
+
 const settled = async (ws, label, url) => {
   for (let i = 0; i < 50; i++) {
     const { result } = await send(ws, 'Runtime.evaluate', {
@@ -526,6 +603,8 @@ const settled = async (ws, label, url) => {
       // One frame more, so layout and web fonts have applied before anything is
       // measured — the geometry assertions are the reason this check exists.
       await new Promise((r) => setTimeout(r, 250));
+      const route = routeOf(url);
+      if (!visited.has(route)) visited.set(route, url);
       return;
     }
     await new Promise((r) => setTimeout(r, 100));
@@ -536,6 +615,74 @@ const settled = async (ws, label, url) => {
 
 const failures = [];
 const fail = (where, msg) => failures.push(`${where}: ${msg}`);
+
+// Wait for every <img> in main to have FINISHED fetching, before the probe reads
+// naturalWidth off it.
+//
+// "Not yet" and "not served" are different facts and naturalWidth tells them
+// apart only once the fetch has settled. readyState complete does not wait for
+// images, so on a cold cache the first page of a run is measured mid-download:
+// CI reported two product images as missing at the 375 artboard — the run's
+// first navigation — that loaded correctly at 768, 1024 and 1440 seconds later.
+//
+// This is a correction to the probe, not a weaker assertion. `complete` is true
+// the moment the fetch settles WHETHER OR NOT it succeeded, so an image the
+// server does not serve still arrives here with naturalWidth 0 and still fails,
+// without waiting: only a slow byte is given time, never a missing one. The
+// ceiling exists so an image that never starts fetching cannot hang the run —
+// the probe then reports it by src, which is the failure that was wanted.
+//
+// The ceiling is generous because reaching it is not the normal cost: an image
+// that is served arrives long before, and one that is NOT served is `complete`
+// on the first poll and returns immediately. Only an image that never starts
+// fetching waits the whole way.
+//
+// And "never starts fetching" is what a tile below the fold does. The home
+// page's product tiles carry loading="lazy", which is right for a shopper: a
+// phone should not pay for eight images to read a hero. A driven viewport never
+// scrolls, so the deepest row stays outside the distance Chrome starts a lazy
+// fetch at, sits at complete=false for the whole ceiling, and is then reported
+// as an image the server does not serve. The run that sent this here says so
+// exactly: the two tiles named in its failure never appear in the server's log
+// during the fifteen seconds, and are requested the instant the viewport widens
+// for the next artboard.
+//
+// So walk the document through in viewport-height steps first, which is what a
+// shopper's thumb does, and come back to the top before anything is measured —
+// every geometry assertion below reads a box at scroll 0.
+//
+// This too is a correction rather than a weaker assertion: after the walk the
+// fetch has been asked for, so the poll below is once again deciding whether a
+// byte ARRIVED. An image the server does not serve is still `complete` with
+// naturalWidth 0 and still fails, on the first poll and without waiting.
+const imagesFetched = async (label) => {
+  await send(ws, 'Runtime.evaluate', {
+    // Two frames per step, because the lazy fetch is scheduled off the frame
+    // that the scroll produced, not off the scroll call. The step ceiling is
+    // there because scrollHeight GROWS as the images it is being walked for
+    // arrive, and a loop bounded only by it can chase its own tail.
+    expression: `(async () => {
+      const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const step = window.innerHeight;
+      for (let y = 0; y < document.documentElement.scrollHeight && y < step * 60; y += step) {
+        window.scrollTo(0, y);
+        await frame();
+      }
+      window.scrollTo(0, 0);
+      await frame();
+    })()`,
+    awaitPromise: true,
+  });
+  for (let i = 0; i < 150; i++) {
+    const { result } = await send(ws, 'Runtime.evaluate', {
+      expression: `[...document.querySelectorAll('main img')].filter((img) => !img.complete).length`,
+      returnByValue: true,
+    });
+    if (result.value === 0) return;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  fail(label, 'an image in main never finished fetching within 15s');
+};
 
 // checkAccessibility reports the invariants the probe measured.
 //
@@ -621,6 +768,7 @@ for (const want of EXPECTED) {
   const target = ORIGIN + '/';
   await send(ws, 'Page.navigate', { url: target });
   await settled(ws, want.label, target);
+  await imagesFetched(want.label);
 
   const evaluated = await send(ws, 'Runtime.evaluate', { expression: PROBE, returnByValue: true });
   // A probe that THREW comes back with exceptionDetails and no value, and reading
@@ -659,6 +807,119 @@ for (const want of EXPECTED) {
     `cats=${got.cats} tiles=${got.tiles} hero=${got.heroSplit} tap=${got.minTap}${mark}`);
 }
 
+// Whether the filter shell exposes its form and a control. On desktop a closed
+// <details> keeps ::details-content at content-visibility:hidden until the
+// stylesheet opens it; display:flex on the form alone is not enough.
+const FILTER_SHELL_PROBE = `(() => {
+  const shell = document.querySelector('.goen-filters__shell');
+  const form = document.querySelector('.goen-filters');
+  const input = document.querySelector('.goen-filters .ui-input, .goen-filters .ui-select');
+  const summary = document.querySelector('.goen-filters__shell-summary');
+  const formRect = form ? form.getBoundingClientRect() : null;
+  const inputRect = input ? input.getBoundingClientRect() : null;
+  const summaryStyle = summary ? getComputedStyle(summary) : null;
+  let contentVisibility = null;
+  if (shell) {
+    try {
+      contentVisibility = getComputedStyle(shell, '::details-content').contentVisibility;
+    } catch (_) {
+      contentVisibility = null;
+    }
+  }
+  return {
+    open: shell ? shell.open : null,
+    summaryDisplay: summaryStyle ? summaryStyle.display : null,
+    summaryVisible: !!(summary && summary.getBoundingClientRect().height > 0),
+    formVisible: !!(formRect && formRect.height > 0 && formRect.width > 0),
+    inputVisible: !!(inputRect && inputRect.height > 0 && inputRect.width > 0),
+    contentVisibility,
+    products: document.querySelectorAll('.goen-tiles__grid > li').length,
+    viewport: document.documentElement.clientWidth,
+  };
+})()`;
+
+const assertDesktopFiltersVisible = (at, got) => {
+  if (!got.formVisible) {
+    fail(at, `desktop filter form is not visible — ${JSON.stringify(got)}`);
+  }
+  if (!got.inputVisible) {
+    fail(at, `desktop filter controls are not visible — ${JSON.stringify(got)}`);
+  }
+  if (got.contentVisibility === 'hidden') {
+    fail(at, `desktop ::details-content is still hidden — ${JSON.stringify(got)}`);
+  }
+};
+
+const LISTING_LAYOUT_PROBE = `(() => {
+  const filters = document.querySelector('.goen-listing__filters');
+  const filterForm = document.querySelector('.goen-filters');
+  const results = document.querySelector('.goen-listing__results');
+  const card = document.querySelector('.goen-tiles__grid > li');
+  const layout = document.querySelector('.goen-listing__layout');
+  if (!filterForm || !results || !layout) {
+    return { ok: false, why: 'listing layout landmarks missing' };
+  }
+  const rail = (filters || filterForm).getBoundingClientRect();
+  const resultsRect = results.getBoundingClientRect();
+  const cardRect = card ? card.getBoundingClientRect() : null;
+  return {
+    ok: true,
+    rail: Math.abs(rail.y - resultsRect.y) < 2 ? 'beside' : 'stacked',
+    filterX: +rail.x.toFixed(1),
+    filterW: +rail.width.toFixed(1),
+    resultsX: +resultsRect.x.toFixed(1),
+    resultsW: +resultsRect.width.toFixed(1),
+    cardW: cardRect ? +cardRect.width.toFixed(1) : 0,
+    layoutChildren: [...layout.children].map((e) => String(e.className || '').split(' ')[0]),
+    resultsBesideFilter: resultsRect.left > rail.right - 2,
+  };
+})()`;
+
+const assertDesktopResultsLayout = (at, got) => {
+  if (got.threw || !got.ok) {
+    fail(at, got.why || 'listing layout probe failed');
+    return;
+  }
+  if (got.rail !== 'beside') {
+    fail(at, `results are not beside the filter rail — ${JSON.stringify(got)}`);
+  }
+  if (!got.resultsBesideFilter) {
+    fail(at, `results sit in the narrow filter column — ${JSON.stringify(got)}`);
+  }
+  if (got.layoutChildren.length !== 2) {
+    fail(at, `layout has ${got.layoutChildren.length} direct children, want 2 — ${got.layoutChildren}`);
+  }
+  if (got.cardW > 0 && got.cardW < MIN_CARD) {
+    fail(at, `product card is ${got.cardW}px wide, want >= ${MIN_CARD} — ${JSON.stringify(got)}`);
+  }
+};
+
+const assertMobileResultsLayout = (at, got) => {
+  if (got.threw || !got.ok) {
+    fail(at, got.why || 'listing layout probe failed');
+    return;
+  }
+  if (got.rail !== 'stacked') {
+    fail(at, `mobile results are not stacked under the filter rail — ${JSON.stringify(got)}`);
+  }
+  if (got.layoutChildren.length !== 2) {
+    fail(at, `layout has ${got.layoutChildren.length} direct children, want 2 — ${got.layoutChildren}`);
+  }
+};
+
+const evalPage = async (expression) => {
+  const evaluated = await send(ws, 'Runtime.evaluate', {
+    expression, returnByValue: true, awaitPromise: true,
+  });
+  if (evaluated.exceptionDetails || !evaluated.result || evaluated.result.value === undefined) {
+    return {
+      threw: true,
+      why: evaluated.exceptionDetails?.exception?.description || JSON.stringify(evaluated).slice(0, 400),
+    };
+  }
+  return evaluated.result.value;
+};
+
 // The listing page. Its own probe: no hero and no category grid, but a filter
 // rail whose position is the fold, and the same no-overflow and shared-gutter
 // rules the home is held to.
@@ -673,7 +934,8 @@ const LISTING_PROBE = `(() => {
     }
     return false;
   };
-  const rail = document.querySelector('.goen-filters').getBoundingClientRect();
+  const rail = (document.querySelector('.goen-listing__filters')
+    || document.querySelector('.goen-filters')).getBoundingClientRect();
   const results = document.querySelector('.goen-listing__results').getBoundingClientRect();
   const cols = (sel) => {
     const items = [...document.querySelectorAll(sel)];
@@ -687,8 +949,9 @@ const LISTING_PROBE = `(() => {
     return [ +(r.left + parseFloat(cs.paddingLeft)).toFixed(1),
              +(r.right - parseFloat(cs.paddingRight)).toFixed(1) ];
   };
-  const taps = [...document.querySelectorAll('.goen-filters__option, .goen-filters__apply, .goen-filters .ui-input')]
-    .map((e) => e.getBoundingClientRect().height);
+  const taps = [...document.querySelectorAll(
+    '.goen-filters__shell-summary, .goen-filters__option, .goen-filters__apply, .goen-filters #sort, .goen-filters .ui-input:not([type=checkbox])',
+  )].map((e) => e.getBoundingClientRect().height).filter((h) => h > 0);
   return {
     viewportWidth: de.clientWidth,
     scrollWidth: document.body.scrollWidth,
@@ -708,6 +971,24 @@ const LISTING_PROBE = `(() => {
     header: edges('.goen-header__bar'),
     main: edges('.goen-listing'),
     minTap: taps.length ? +Math.min(...taps).toFixed(1) : 0,
+    viewportHeight: window.innerHeight,
+    shellOpen: document.querySelector('.goen-filters__shell')?.open ?? null,
+    firstTileTop: (() => {
+      const t = document.querySelector('.goen-tiles__grid > li');
+      return t ? +t.getBoundingClientRect().top.toFixed(1) : null;
+    })(),
+    firstTileInView: (() => {
+      const t = document.querySelector('.goen-tiles__grid > li');
+      if (!t) return false;
+      const r = t.getBoundingClientRect();
+      const img = t.querySelector('img');
+      const name = t.querySelector('.ui-product__name, .goen-tile__name, h3');
+      const price = t.querySelector('.ui-price, .goen-tile__price');
+      return r.top < window.innerHeight && r.bottom > 0
+        && !!(img && img.getBoundingClientRect().height > 0)
+        && !!(name && name.textContent.trim())
+        && !!(price && price.textContent.trim());
+    })(),
     ${ACCESSIBILITY}
   };
 })()`;
@@ -733,6 +1014,23 @@ for (const want of LISTING) {
       (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));
   }
   if (got.rail !== want.rail) fail(at, `filter rail is ${got.rail}, want ${want.rail}`);
+  if (want.width === 375) {
+    if (got.shellOpen) fail(at, 'filter shell is open by default on mobile');
+    if (got.firstTileTop !== null && got.firstTileTop >= got.viewportHeight) {
+      fail(at, `first product starts at ${got.firstTileTop}px, below the ${got.viewportHeight}px viewport`);
+    }
+    if (got.firstTileTop !== null && !got.firstTileInView) {
+      fail(at, 'the first product tile is not fully visible on entry');
+    }
+    const filters = await evalPage(FILTER_SHELL_PROBE);
+    if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
+    if (filters.formVisible) fail(at, 'filter form is visible while the shell is collapsed on mobile');
+  }
+  if (want.rail === 'beside') {
+    const filters = await evalPage(FILTER_SHELL_PROBE);
+    if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
+    assertDesktopFiltersVisible(at, filters);
+  }
   if (got.minTap < MIN_TAP) fail(at, `smallest filter control is ${got.minTap}px, want >= ${MIN_TAP}`);
   if (want.rail === 'beside' && got.cardWidth > 0 && got.cardWidth < MIN_CARD) {
     fail(at, `product card is ${got.cardWidth}px wide, want >= ${MIN_CARD} — ` +
@@ -745,6 +1043,358 @@ for (const want of LISTING) {
 
   console.log(`${at.padEnd(16)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
     `rail=${got.rail} tiles=${got.tiles} tap=${got.minTap}`);
+}
+
+// The seeded /c/audio page at 375px: products must stay in the first viewport,
+// the shell must expand on demand, and a filtered reload must focus results.
+const LISTING_AUDIO = [
+  { label: 'listing audio zh 375', width: 375, height: 812, path: '/c/audio', locale: 'zh-Hant' },
+  { label: 'listing audio en 375', width: 375, height: 812, path: '/c/audio', locale: 'en' },
+  { label: 'listing audio zh 1440', width: 1440, height: 900, path: '/c/audio', locale: 'zh-Hant', rail: 'beside' },
+  { label: 'listing audio en 1440', width: 1440, height: 900, path: '/c/audio', locale: 'en', rail: 'beside' },
+];
+
+for (const want of LISTING_AUDIO) {
+  if (want.locale) {
+    await send(ws, 'Network.setCookie', {
+      name: 'goen_locale', value: want.locale, domain: '127.0.0.1', path: '/',
+    });
+  }
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: want.width,
+    height: want.height,
+    deviceScaleFactor: 1,
+    mobile: want.width < 768,
+  });
+  const target = ORIGIN + want.path;
+  await send(ws, 'Page.navigate', { url: target });
+  await settled(ws, want.label, target);
+
+  const { result } = await send(ws, 'Runtime.evaluate', { expression: LISTING_PROBE, returnByValue: true });
+  const got = result.value;
+  const at = want.label;
+  checkAccessibility(at, got);
+
+  if (got.scrollWidth > got.viewportWidth) {
+    fail(at, `page scrolls horizontally (${got.scrollWidth} > ${got.viewportWidth})` +
+      (got.overflowing.length ? ` — widest: ${got.overflowing.join(', ')}` : ''));
+  }
+  if (want.rail && got.rail !== want.rail) {
+    fail(at, `filter rail is ${got.rail}, want ${want.rail}`);
+  }
+  if (want.width === 375) {
+    if (got.shellOpen) fail(at, 'filter shell is open by default on mobile');
+    if (got.firstTileTop !== null && got.firstTileTop >= got.viewportHeight) {
+      fail(at, `first product starts at ${got.firstTileTop}px, below the ${got.viewportHeight}px viewport`);
+    }
+    if (!got.firstTileInView) fail(at, 'the first product is not visible on entry');
+    const filters = await evalPage(FILTER_SHELL_PROBE);
+    if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
+    if (filters.formVisible) fail(at, 'filter form is visible while the shell is collapsed on mobile');
+  }
+  if (want.rail === 'beside') {
+    const filters = await evalPage(FILTER_SHELL_PROBE);
+    if (filters.threw) fail(at, `filter visibility probe failed — ${filters.why}`);
+    assertDesktopFiltersVisible(at, filters);
+  }
+  console.log(`${at.padEnd(24)} scrollW=${got.scrollWidth}/${got.viewportWidth} ` +
+    `rail=${got.rail} tileTop=${got.firstTileTop} shell=${got.shellOpen}`);
+}
+
+const proveListingFilterJourney = async (label, locale) => {
+  if (locale) {
+    await send(ws, 'Network.setCookie', {
+      name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/',
+    });
+  }
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: 375, height: 812, deviceScaleFactor: 1, mobile: true,
+  });
+  const start = `${ORIGIN}/c/audio`;
+  await send(ws, 'Page.navigate', { url: start });
+  await settled(ws, `${label} entry`, start);
+
+  const collapsed = await evalPage(`(() => {
+    const shell = document.querySelector('.goen-filters__shell');
+    const tile = document.querySelector('.goen-tiles__grid > li');
+    if (!shell || !tile) return { ok: false, why: 'shell or product tile missing' };
+    const top = tile.getBoundingClientRect().top;
+    return {
+      ok: true,
+      shellOpen: shell.open,
+      tileTop: +top.toFixed(1),
+      inView: top < window.innerHeight,
+    };
+  })()`);
+  if (collapsed.threw || !collapsed.ok) {
+    fail(label, collapsed.why || 'collapsed entry probe failed');
+    return;
+  }
+  if (collapsed.shellOpen) fail(label, 'filter shell is open before the visitor asks');
+  if (!collapsed.inView) {
+    fail(label, `first product starts at ${collapsed.tileTop}px, outside the viewport`);
+  }
+
+  const expanded = await evalPage(`(() => {
+    const shell = document.querySelector('.goen-filters__shell');
+    const summary = document.querySelector('.goen-filters__shell-summary');
+    if (!shell || !summary) return { ok: false, why: 'shell summary missing' };
+    summary.click();
+    const apply = document.querySelector('.goen-filters__apply');
+    const applyRect = apply ? apply.getBoundingClientRect() : null;
+    return {
+      ok: true,
+      shellOpen: shell.open,
+      applyVisible: !!(applyRect && applyRect.height > 0 && applyRect.bottom > 0),
+    };
+  })()`);
+  if (expanded.threw || !expanded.ok) {
+    fail(label, expanded.why || 'expanded probe failed');
+    return;
+  }
+  if (!expanded.shellOpen) fail(label, 'filter shell did not open after the summary was activated');
+  if (!expanded.applyVisible) fail(label, 'apply control is not visible after expanding the shell');
+
+  const filtered = `${ORIGIN}/c/audio?in_stock=1#listing-results`;
+  await send(ws, 'Page.navigate', { url: filtered });
+  await settled(ws, `${label} filtered`, filtered);
+
+  const landed = await evalPage(`(() => {
+    const results = document.getElementById('listing-results');
+    const applied = document.querySelector('.goen-filters__applied');
+    const clear = document.querySelector('.goen-filters__applied .ui-filterbar__clear');
+    const shell = document.querySelector('.goen-filters__shell');
+    return {
+      ok: true,
+      focused: document.activeElement === results,
+      hasApplied: !!applied,
+      hasClear: !!clear,
+      shellOpen: shell ? shell.open : null,
+      href: location.href,
+    };
+  })()`);
+  if (landed.threw || !landed.ok) {
+    fail(label, landed.why || 'filtered landing probe failed');
+    return;
+  }
+  if (!landed.focused) fail(label, 'filtered reload did not focus #listing-results');
+  if (!landed.hasApplied) fail(label, 'filtered reload shows no applied-filter summary');
+  if (!landed.hasClear) fail(label, 'filtered reload offers no clear-all control');
+  if (landed.shellOpen) fail(label, 'filter shell stayed open after a filtered reload');
+
+  const filteredLayout = await evalPage(LISTING_LAYOUT_PROBE);
+  assertMobileResultsLayout(`${label} filtered`, filteredLayout);
+  // MIN_CARD is deliberately NOT asserted here. It asks whether a column count
+  // still fits once the filter rail has taken its width out of the row, which is
+  // a question only the desktop layout can answer — its own declaration says
+  // "Only checked where rail === 'beside'", and the two call sites that honour
+  // that are assertDesktopResultsLayout and the `want.rail === 'beside'` guard
+  // on the LISTING rows. This journey runs at 375, where the rail is stacked and
+  // EXPECTED requires two columns; two columns in a 343px content area is a
+  // 163.5px card, so asserting 200 here contradicts the artboard the same file
+  // declares. Adding it back makes the two assertions unsatisfiable together.
+
+  const cleared = await evalPage(`(() => {
+    const clear = document.querySelector('.goen-filters__applied .ui-filterbar__clear');
+    if (!clear) return { ok: false, why: 'clear-all link missing after filter' };
+    clear.click();
+    return { ok: true };
+  })()`);
+  if (cleared.threw || !cleared.ok) {
+    fail(label, cleared.why || 'clear-all navigation did not start');
+    return;
+  }
+  await settled(ws, `${label} cleared`, `${ORIGIN}/c/audio`);
+  const afterClear = await evalPage(LISTING_LAYOUT_PROBE);
+  assertMobileResultsLayout(`${label} cleared`, afterClear);
+  const clearedProbe = await evalPage(`(() => ({
+    hasApplied: !!document.querySelector('.goen-filters__applied'),
+    href: location.href,
+  }))()`);
+  if (clearedProbe.hasApplied) fail(label, 'clear-all left the applied-filter summary visible');
+  if (clearedProbe.href.includes('in_stock=')) fail(label, 'clear-all left filter query parameters in the URL');
+
+  console.log(`${label.padEnd(24)} collapsed tileTop=${collapsed.tileTop} filtered focus clear ok`);
+};
+
+for (const locale of ['zh-Hant', 'en']) {
+  await proveListingFilterJourney(`listing audio journey ${locale}`, locale);
+}
+
+const proveListingDesktopResize = async (label, locale) => {
+  if (locale) {
+    await send(ws, 'Network.setCookie', {
+      name: 'goen_locale', value: locale, domain: '127.0.0.1', path: '/',
+    });
+  }
+  const loadDesktop = async (scriptingOff) => {
+    await send(ws, 'Emulation.setScriptExecutionDisabled', { value: scriptingOff });
+    await send(ws, 'Emulation.setDeviceMetricsOverride', {
+      width: 1440, height: 900, deviceScaleFactor: 1, mobile: false,
+    });
+    const target = `${ORIGIN}/c/audio`;
+    await send(ws, 'Page.navigate', { url: target });
+    await settled(ws, `${label} desktop load`, target);
+    const got = await evalPage(FILTER_SHELL_PROBE);
+    if (got.threw) fail(label, got.why || 'desktop filter probe failed');
+    assertDesktopFiltersVisible(`${label} desktop`, got);
+    const layout = await evalPage(LISTING_LAYOUT_PROBE);
+    assertDesktopResultsLayout(`${label} desktop`, layout);
+    return got;
+  };
+
+  await loadDesktop(false);
+  await loadDesktop(true);
+  await send(ws, 'Emulation.setScriptExecutionDisabled', { value: false });
+
+  const submitted = await evalPage(`(() => {
+    const box = document.querySelector('.goen-filters input[name=in_stock]');
+    const form = document.querySelector('.goen-filters');
+    if (!box || !form) return { ok: false, why: 'desktop filter controls missing before submit' };
+    box.checked = true;
+    form.requestSubmit();
+    return { ok: true };
+  })()`);
+  if (submitted.threw || !submitted.ok) {
+    fail(label, submitted.why || 'desktop filter submit did not start');
+    return;
+  }
+  // readyState as well as the URL, for the reason `settled` gives: location.href
+  // is the new document's the moment the navigation commits, which is before that
+  // document has run anything. The landing probe below reads activeElement, and
+  // a URL match alone hands it a document still at readyState "loading".
+  //
+  // `settled` itself is not used here because it records the URL as a route for
+  // the accessibility pass at the end of this file, and this href carries the
+  // empty price and sort fields the form submits — a second spelling of a page
+  // that pass already audits.
+  const filteredHref = await (async () => {
+    for (let i = 0; i < 50; i++) {
+      const { result } = await send(ws, 'Runtime.evaluate', {
+        expression: 'document.readyState + " " + location.href', returnByValue: true,
+      });
+      const [state, href] = String(result.value || '').split(' ');
+      if (state === 'complete' && href.includes('in_stock=1') && href.includes('#listing-results')) {
+        return href;
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return '';
+  })();
+  if (!filteredHref) {
+    fail(label, 'desktop filter submit did not land on in_stock=1#listing-results');
+    return;
+  }
+
+  // autofocus is flushed when the new document first updates its rendering, and
+  // readyState complete is not that moment: a cross-document view transition
+  // holds the first render until the old page's snapshot is ready, so the focus
+  // a keyboard visitor gets can arrive a frame or two after the load event.
+  // Give it a ceiling rather than one reading — a landing that never focuses
+  // still exhausts the poll and still fails.
+  //
+  // The element has to EXIST for this to be true. Reading
+  // `document.activeElement === document.getElementById(id)` on a page without
+  // the region is null === null, which is how a missing results region would
+  // have passed as a focused one.
+  const focusReached = await (async () => {
+    for (let i = 0; i < 30; i++) {
+      const { result } = await send(ws, 'Runtime.evaluate', {
+        expression: `(() => {
+          const results = document.getElementById('listing-results');
+          return !!results && document.activeElement === results;
+        })()`,
+        returnByValue: true,
+      });
+      if (result.value === true) return true;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return false;
+  })();
+
+  const afterFilter = await evalPage(`(() => {
+    const applied = document.querySelector('.goen-filters__applied');
+    const clear = document.querySelector('.goen-filters__applied .ui-filterbar__clear');
+    const box = document.querySelector('.goen-filters input[name=in_stock]');
+    return {
+      ok: true,
+      hasApplied: !!applied,
+      hasClear: !!clear,
+      stockChecked: !!(box && box.checked),
+    };
+  })()`);
+  if (afterFilter.threw || !afterFilter.ok) {
+    fail(label, afterFilter.why || 'desktop filtered landing probe failed');
+    return;
+  }
+  if (!focusReached) fail(label, 'desktop filtered reload did not focus #listing-results');
+  if (!afterFilter.hasApplied) fail(label, 'desktop filtered reload shows no applied-filter summary');
+  if (!afterFilter.hasClear) fail(label, 'desktop filtered reload offers no clear-all control');
+  if (!afterFilter.stockChecked) fail(label, 'desktop filtered reload lost the in_stock checkbox state');
+
+  const filteredLayout = await evalPage(LISTING_LAYOUT_PROBE);
+  assertDesktopResultsLayout(`${label} filtered`, filteredLayout);
+
+  const cleared = await evalPage(`(() => {
+    const clear = document.querySelector('.goen-filters__applied .ui-filterbar__clear');
+    if (!clear) return { ok: false, why: 'clear-all link missing after desktop filter' };
+    clear.click();
+    return { ok: true };
+  })()`);
+  if (cleared.threw || !cleared.ok) {
+    fail(label, cleared.why || 'desktop clear-all navigation did not start');
+    return;
+  }
+  await settled(ws, `${label} cleared`, `${ORIGIN}/c/audio`);
+  const afterClear = await evalPage(LISTING_LAYOUT_PROBE);
+  assertDesktopResultsLayout(`${label} cleared`, afterClear);
+  const clearedProbe = await evalPage(`(() => ({
+    hasApplied: !!document.querySelector('.goen-filters__applied'),
+    href: location.href,
+  }))()`);
+  if (clearedProbe.hasApplied) fail(label, 'desktop clear-all left the applied-filter summary visible');
+
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: 375, height: 812, deviceScaleFactor: 1, mobile: true,
+  });
+  await new Promise((r) => setTimeout(r, 250));
+  const mobileCollapsed = await evalPage(FILTER_SHELL_PROBE);
+  if (mobileCollapsed.threw) fail(label, mobileCollapsed.why || 'mobile resize probe failed');
+  if (mobileCollapsed.open) fail(label, 'filter shell is open after resize to mobile');
+  if (mobileCollapsed.formVisible) {
+    fail(label, 'filter form is visible while the shell is closed on mobile after resize');
+  }
+
+  const expanded = await evalPage(`(() => {
+    const summary = document.querySelector('.goen-filters__shell-summary');
+    if (!summary) return { ok: false, why: 'mobile summary missing after resize' };
+    summary.click();
+    const form = document.querySelector('.goen-filters');
+    const formRect = form ? form.getBoundingClientRect() : null;
+    return {
+      ok: true,
+      formVisible: !!(formRect && formRect.height > 0 && formRect.width > 0),
+    };
+  })()`);
+  if (expanded.threw || !expanded.ok) {
+    fail(label, expanded.why || 'mobile expand after resize failed');
+    return;
+  }
+  if (!expanded.formVisible) fail(label, 'filter form did not open after summary click on mobile');
+
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: 1440, height: 900, deviceScaleFactor: 1, mobile: false,
+  });
+  await new Promise((r) => setTimeout(r, 250));
+  const desktopAgain = await evalPage(FILTER_SHELL_PROBE);
+  if (desktopAgain.threw) fail(label, desktopAgain.why || 'desktop re-expand probe failed');
+  assertDesktopFiltersVisible(`${label} after resize`, desktopAgain);
+
+  console.log(`${label.padEnd(24)} desktop submit filter clear resize ok`);
+};
+
+for (const locale of ['zh-Hant', 'en']) {
+  await proveListingDesktopResize(`listing audio desktop ${locale}`, locale);
 }
 
 const HEADER_EN_PROBE = `(() => {
@@ -829,14 +1479,20 @@ const CART_PROBE = `(() => {
     }
     return false;
   };
-  // Every control a finger has to hit. The radio INPUT is intentionally small —
+  // Every control a finger has to hit. a.goen-btn is here because goen's own
+  // button class replaces .ui-btn surface by surface: a rebuilt page whose one
+  // action is a link would otherwise be measured as having no controls at all,
+  // which is this sweep going blind rather than the page having nothing to hit.
+  // A button element carrying it is already matched by the element name.
+  //
+  // The radio INPUT is intentionally small —
   // its label is the target — so the label is measured where one wraps it.
   // A control that is aria-hidden AND out of the tab order is a target for
   // nobody: no pointer user can see it and no keyboard user can reach it. The
   // checkout's default submit button is one — it exists so Enter places the
   // order rather than pressing a 更新 button above it. Both attributes are
   // required, because either one alone is a defect rather than an intention.
-  const targets = [...document.querySelectorAll('button, .ui-btn, input[type=number], label.goen-checkout__ship, a.goen-checkout__ship')]
+  const targets = [...document.querySelectorAll('button, .ui-btn, a.goen-btn, input[type=number], label.goen-checkout__ship, a.goen-checkout__ship')]
     .filter((e) => !(e.getAttribute('aria-hidden') === 'true' && e.getAttribute('tabindex') === '-1'))
     .filter((e) => e.getBoundingClientRect().width > 0 && !e.closest('.goen-footer, .goen-header'))
     .map((e) => +e.getBoundingClientRect().height.toFixed(1));
@@ -1067,7 +1723,8 @@ const ACCOUNT_PAGE_PROBE = `(() => {
   if (__MARKER__ && !document.querySelector(__MARKER__)) return { noMarker: true };
   const taps = [...document.querySelectorAll(
     '.goen-account .ui-page-head .ui-btn, .goen-qa__form .ui-btn, .goen-qa__form .ui-input, ' +
-    '.goen-order__cancel .ui-btn, .goen-returns__form .ui-btn, .goen-returns__form button, ' +
+    '.goen-order__cancel .ui-btn, .goen-order__cancel .goen-btn, ' +
+    '.goen-returns__form .ui-btn, .goen-returns__form button, ' +
     '#points')]
     .map((e) => e.getBoundingClientRect().height).filter((h) => h > 0);
   return {
@@ -1435,19 +2092,6 @@ const RETRY_ZH = '請求過於頻繁,請稍後再試。';
 const RETRY_EN = 'Too many requests. Please try again shortly.';
 const namesRetry = (text) => String(text || '').includes(RETRY_ZH) || String(text || '').includes(RETRY_EN);
 
-const evalPage = async (expression) => {
-  const evaluated = await send(ws, 'Runtime.evaluate', {
-    expression, returnByValue: true, awaitPromise: true,
-  });
-  if (evaluated.exceptionDetails || !evaluated.result || evaluated.result.value === undefined) {
-    return {
-      threw: true,
-      why: evaluated.exceptionDetails?.exception?.description || JSON.stringify(evaluated).slice(0, 400),
-    };
-  }
-  return evaluated.result.value;
-};
-
 const openAt = async (label, path) => {
   await send(ws, 'Emulation.setDeviceMetricsOverride', {
     width: 1440, height: 900, deviceScaleFactor: 1, mobile: false,
@@ -1666,12 +2310,19 @@ const provePdpAdd = async (label, scriptingOff) => {
     await settled(ws, `${label} choose`, chosen);
   }
 
+  // Press the button from where a person has to press it. Submitting from the
+  // top of the page put the button 148px below the fold at 375, and then asking
+  // whether the confirmation beside it was on screen measured nothing about the
+  // confirmation: it measured whether anything had scrolled. Adding in place
+  // scrolls nothing on purpose, so the button is brought into view first and
+  // the assertions below keep their meaning under both mechanisms.
   const submit = await evalPage(`(() => {
     const form = document.querySelector('.goen-pdp__form');
     const add = form && form.querySelector('.goen-pdp__add');
     if (!form || !add || add.disabled) {
       return { ok: false, why: 'add-to-cart is not ready before submit' };
     }
+    add.scrollIntoView({ block: 'center', behavior: 'instant' });
     form.requestSubmit();
     return { ok: true };
   })()`);
@@ -1680,9 +2331,14 @@ const provePdpAdd = async (label, scriptingOff) => {
     return;
   }
 
+  // The address says the same thing either way — this product, added=added,
+  // the selection that was bought — but the fragment belongs to the navigation
+  // and not to the outcome. With no script the browser navigates and #buybox is
+  // what aims the landing; with script nothing navigates, nothing needs aiming,
+  // and a fragment in the pushed URL would claim a jump that did not happen.
   const landed = await waitForHref(
     (href) => href.includes(`/p/${slug}`) && href.includes('added=added')
-      && href.includes('?') && href.includes('#added'),
+      && href.includes('?') && href.includes('#buybox') === scriptingOff,
     label,
   );
   if (!landed) return;
@@ -1787,6 +2443,180 @@ const provePdpAdd = async (label, scriptingOff) => {
 await provePdpAdd('pdp add 375 off', true);
 await provePdpAdd('pdp add 375 on', false);
 await send(ws, 'Emulation.setScriptExecutionDisabled', { value: false });
+
+// axe-core, once per route.
+//
+// A separate pass rather than a call inside settled(), and that is deliberate:
+// the journeys above spend a live rate limiter and compare timestamps across a
+// reload, and a second or two of audit inserted between their requests would
+// change what they measure. Running afterwards costs one extra navigation per
+// route and changes nothing any other assertion sees.
+//
+// What it asks for is WCAG 2.0/2.1 A and AA. Not the best-practice rules: those
+// are opinions about landmarks and heading order, and a build gate holding an
+// opinion is how a gate gets disabled.
+const AXE_RUN = `axe.run(document, {
+  runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa'] },
+  resultTypes: ['violations'],
+}).then((r) => JSON.stringify(r.violations.map((v) => ({
+  id: v.id,
+  impact: v.impact,
+  help: v.help,
+  target: v.nodes[0] && v.nodes[0].target ? String(v.nodes[0].target[0]) : '(no node)',
+  count: v.nodes.length,
+}))))`;
+
+// A moderate or minor finding is reported and does not gate. ::warning is what
+// puts it on the pull request's Files view; outside Actions it is a plain line.
+const annotate = (msg) => console.log(
+  process.env.GITHUB_ACTIONS ? `::warning title=axe-core::${msg}` : `  warning: ${msg}`);
+
+// Where the browser actually ends up, which is not always where it was sent.
+//
+// By the time the audit runs the session carries a signed-in cookie, and
+// /forgot answers 303 to /account for a visitor who already is: settled()'s
+// href === url would report that as a page that never loaded. about:blank
+// first, so a document that is still the PREVIOUS page cannot be mistaken for
+// this one, and then whatever the browser landed on.
+//
+// It reports rather than exits, unlike settled(), because this pass runs last:
+// an exit here would throw away the failure list everything above built.
+const axeSettled = async (route, url) => {
+  await send(ws, 'Page.navigate', { url: 'about:blank' });
+  for (let i = 0; i < 30; i++) {
+    const { result } = await send(ws, 'Runtime.evaluate', {
+      expression: 'location.href', returnByValue: true,
+    });
+    if (String(result.value) === 'about:blank') break;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+
+  await send(ws, 'Page.navigate', { url });
+  for (let i = 0; i < 100; i++) {
+    const { result } = await send(ws, 'Runtime.evaluate', {
+      expression: 'document.readyState + " " + location.href', returnByValue: true,
+    });
+    const [state, href] = String(result.value).split(' ');
+    if (state === 'complete' && href !== 'about:blank') {
+      await new Promise((r) => setTimeout(r, 150));
+      return href;
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  fail(`axe ${route}`, 'the page never finished loading for the audit');
+  return '';
+};
+
+const auditAccessibility = async () => {
+  await send(ws, 'Emulation.setDeviceMetricsOverride', {
+    width: AXE_WIDTH.width, height: AXE_WIDTH.height, deviceScaleFactor: 1, mobile: false,
+  });
+
+  const requested = [...visited.entries()];
+  console.log(`\naxe-core wcag2a + wcag2aa, ${requested.length} routes at ${AXE_WIDTH.width}px`);
+
+  const observed = {};
+  const unaudited = [];
+  const audited = new Set();
+  let debtMoved = false;
+
+  for (const [asked, url] of requested) {
+    const landed = await axeSettled(asked, url);
+    if (!landed) {
+      unaudited.push(asked);
+      continue;
+    }
+    // The page that was served, which is what the baseline has to name: a
+    // redirected route audited under the name it was asked for would record
+    // one page's debt against another's.
+    const route = routeOf(landed);
+    if (audited.has(route)) {
+      console.log(`axe ${asked.padEnd(46).slice(0, 46)} -> ${route}, already audited`);
+      continue;
+    }
+    audited.add(route);
+
+    let violations;
+    try {
+      const injected = await send(ws, 'Runtime.evaluate', {
+        expression: axeSource, includeCommandLineAPI: true,
+      });
+      if (injected.exceptionDetails) {
+        unaudited.push(route);
+        fail(`axe ${route}`, 'axe-core did not load — ' +
+          (injected.exceptionDetails.exception?.description || 'no exception detail'));
+        continue;
+      }
+      const evaluated = await send(ws, 'Runtime.evaluate', {
+        expression: AXE_RUN, awaitPromise: true, returnByValue: true,
+      }, 120000);
+      if (evaluated.exceptionDetails || typeof evaluated.result?.value !== 'string') {
+        unaudited.push(route);
+        fail(`axe ${route}`, 'axe.run did not return a result — ' +
+          (evaluated.exceptionDetails?.exception?.description
+            || JSON.stringify(evaluated).slice(0, 300)));
+        continue;
+      }
+      violations = JSON.parse(evaluated.result.value);
+    } catch (err) {
+      unaudited.push(route);
+      fail(`axe ${route}`, `the audit did not complete — ${err.message}`);
+      continue;
+    }
+
+    const known = axeBaseline[route] || [];
+    const gating = new Set();
+    for (const v of violations) {
+      const detail = `${v.id} (${v.impact}) — ${v.help}; first: ${v.target}` +
+        (v.count > 1 ? ` (and ${v.count - 1} more on this page)` : '');
+      if (!AXE_GATES.has(v.impact)) {
+        annotate(`${route}: ${detail}`);
+        continue;
+      }
+      gating.add(v.id);
+      if (known.includes(v.id)) continue;
+      debtMoved = true;
+      fail(`axe ${route}`, detail);
+    }
+    observed[route] = [...gating].sort();
+
+    // A baseline entry that stopped firing is removed by the change that fixed
+    // it, not by the next person to read a stale file. Only routes this run
+    // actually audited are judged, so a skipped back office cannot delete the
+    // debt recorded for it.
+    for (const id of known) {
+      if (observed[route].includes(id)) continue;
+      debtMoved = true;
+      fail(`axe ${route}`, `the baseline lists ${id}, which no longer fires here — remove it`);
+    }
+
+    console.log(`axe ${route.padEnd(46).slice(0, 46)} ` +
+      `violations=${violations.length} gating=${observed[route].length}`);
+  }
+
+  if (!debtMoved) return;
+
+  // The exact file that makes this run green, so accepting a finding is a
+  // review of these lines rather than a second run to collect them.
+  const merged = { ...axeBaseline };
+  for (const [route, ids] of Object.entries(observed)) {
+    if (ids.length) merged[route] = ids;
+    else delete merged[route];
+  }
+  const ordered = {};
+  for (const route of Object.keys(merged).sort()) ordered[route] = merged[route];
+  console.log('::group::axe baseline candidate — scripts/axe-baseline.json');
+  // A route whose audit crashed keeps whatever the baseline already said about
+  // it and contributes nothing new, so a candidate collected over one is
+  // incomplete. Say which, rather than let it be pasted as if it were whole.
+  if (unaudited.length) {
+    console.log(`INCOMPLETE — these routes were not audited: ${unaudited.join(', ')}`);
+  }
+  console.log(JSON.stringify({ ...axeBaselineFile, routes: ordered }, null, 2));
+  console.log('::endgroup::');
+};
+
+await auditAccessibility();
 
 ws.close();
 

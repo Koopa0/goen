@@ -30,6 +30,7 @@ import (
 	"github.com/koopa0/goen/internal/db"
 	"github.com/koopa0/goen/internal/db/dbtest"
 	"github.com/koopa0/goen/internal/i18n"
+	"github.com/koopa0/goen/internal/payment"
 	"github.com/koopa0/goen/internal/product"
 	"github.com/koopa0/goen/internal/ratelimit"
 	"github.com/koopa0/goen/internal/ui/pages"
@@ -545,8 +546,8 @@ func TestAChangedCreditBalanceReRendersCheckoutWithTheFreshFigure(t *testing.T) 
 		t.Fatalf("post competing debit: %v", err)
 	}
 
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+
 	res := httptest.NewRecorder()
 	done := make(chan error, 1)
 	go func() {
@@ -617,12 +618,9 @@ func TestConcurrentSignedInFirstAddsShareOneOwnedCart(t *testing.T) {
 
 	suffix := uuid.NewString()[:8]
 	firstName, secondName := "first-add-a-"+suffix, "first-add-b-"+suffix
-	firstHandler := cart.NewHandler(cart.NewStore(applicationPool(t, firstName)),
-		slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil)
-	secondHandler := cart.NewHandler(cart.NewStore(applicationPool(t, secondName)),
-		slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil)
+	firstHandler := cart.NewHandler(cart.NewStore(applicationPool(t, firstName)), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+
+	secondHandler := cart.NewHandler(cart.NewStore(applicationPool(t, secondName)), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
 	type addResult struct {
 		code int
@@ -759,7 +757,7 @@ func TestCartIsFoundByTokenNotByID(t *testing.T) {
 func TestAddToCartReturnsToTheChosenVariant(t *testing.T) {
 	const slug = "nimbus-buds-pro"
 	vid := nimbusVariant(t, "雲白")
-	h := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false, testLimiter(), nil)
+	h := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 
 	res := postAddToProduct(t, h, vid, slug, "1")
 	if res.Code != http.StatusSeeOther {
@@ -797,7 +795,7 @@ func TestAddToCartReturnsToTheChosenVariant(t *testing.T) {
 func TestAddToCartRefusalKeepsTheChosenVariant(t *testing.T) {
 	const slug = "aurora-slate-11"
 	vid := soldOutAuroraVariant(t)
-	h := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false, testLimiter(), nil)
+	h := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 
 	res := postAddToProduct(t, h, vid, slug, "1")
 	if res.Code != http.StatusSeeOther {
@@ -817,7 +815,7 @@ func TestAddToCartRefusalKeepsTheChosenVariant(t *testing.T) {
 
 func TestAddToCartRejectsAMismatchedBackSlug(t *testing.T) {
 	vid := variantOf(t, "nimbus-buds-pro", true)
-	h := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false, testLimiter(), nil)
+	h := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 
 	res := postAddToProduct(t, h, vid, "pixelight-9-pro", "1")
 	if res.Code != http.StatusSeeOther {
@@ -1504,11 +1502,12 @@ func TestCheckoutRejectsMissingOrMalformedQuoteWithoutWrites(t *testing.T) {
 				ctx, http.MethodPost, "/checkout", strings.NewReader(form.Encode()),
 			)
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
-			h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
-				ratelimit.New(ratelimit.Config{
-					Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000,
-				}), nil)
+			//nolint:gosec // G124: the browser's own cart cookie
+			req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+			h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{
+				Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000,
+			}), nil, nil)
+
 			res := httptest.NewRecorder()
 			h.PlaceOrder(res, req)
 
@@ -1575,11 +1574,12 @@ func TestCheckoutReplacesMalformedAttemptIdentityBeforeWriting(t *testing.T) {
 				ctx, http.MethodPost, "/checkout", strings.NewReader(form.Encode()),
 			)
 			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-			req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
-			h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
-				ratelimit.New(ratelimit.Config{
-					Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000,
-				}), nil)
+			//nolint:gosec // G124: the browser's own cart cookie
+			req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+			h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{
+				Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000,
+			}), nil, nil)
+
 			res := httptest.NewRecorder()
 			h.PlaceOrder(res, req)
 
@@ -1658,10 +1658,10 @@ func TestCheckoutHTTPReplayFindsTheSameOrderAfterTheCartIsEmpty(t *testing.T) {
 		req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 		return req
 	}
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{
-			Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000,
-		}), nil)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{
+		Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000,
+	}), nil, nil)
+
 	first := httptest.NewRecorder()
 	h.PlaceOrder(first, request())
 	second := httptest.NewRecorder()
@@ -1933,9 +1933,7 @@ func TestOrderConfirmationIsNotEnumerable(t *testing.T) {
 		t.Fatalf("place: %v", err)
 	}
 
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
-		nil)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
 	stranger := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number, http.NoBody)
 	stranger.SetPathValue("number", number)
@@ -3265,6 +3263,45 @@ func TestThePickupDestinationComesFromTheMethodNotTheForm(t *testing.T) {
 	}
 }
 
+// TestAPickupOrderIsPlacedWithTheChainAlone holds what checkout now submits: a
+// convenience-store order carrying no store number and no store name. The
+// columns stay for the day the carrier's picker fills them.
+func TestAPickupOrderIsPlacedWithTheChainAlone(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+	id := newCart(t, s)
+	if err := s.Add(ctx, id, variantOf(t, "pixelight-9-pro", true), 1); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+
+	addr := &cart.Address{
+		To:    cart.ToPickupPoint,
+		Email: "chain@example.com", Name: "林小美", Phone: "0955666777",
+		PickupBrand: "seven_eleven",
+	}
+	number, err := placeOrder(t, s, ctx, id, uuid.NullUUID{},
+		shipVersionFor(t, "store_pickup"), addr, "", "dest-chain-1")
+	if err != nil {
+		t.Fatalf("place a pickup order with the chain alone: %v", err)
+	}
+
+	street, brand, code, name := destinationOf(t, number)
+	if brand != "seven_eleven" {
+		t.Errorf("the chain is %q, want seven_eleven", brand)
+	}
+	if street != "" || code != "" || name != "" {
+		t.Errorf("the order carries more than the chain: %q/%q/%q", street, code, name)
+	}
+
+	view, err := s.Order(ctx, number)
+	if err != nil {
+		t.Fatalf("read the order back: %v", err)
+	}
+	if !strings.Contains(view.DeliveryTo, "7-ELEVEN") {
+		t.Errorf("the confirmation does not name the chain: %q", view.DeliveryTo)
+	}
+}
+
 func TestAnAddressOrderKeepsNoPickupPoint(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
@@ -3670,9 +3707,7 @@ func TestAStrangerCannotCancelSomebodyElsesOrder(t *testing.T) {
 	number := numberOf(t, orderID)
 	before := stockOf(t, vid)
 
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
-		nil)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
 	stranger := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/"+number+"/cancel", http.NoBody)
 	stranger.SetPathValue("number", number)
@@ -4396,9 +4431,7 @@ func TestAStrangerCannotFillTheirCartFromSomebodyElsesOrder(t *testing.T) {
 	own, _, _ := threeVariants(t, "reorder-access-fixture")
 	number := orderOfVariants(t, map[uuid.UUID]int32{own: 1})
 
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
-		nil)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
 	stranger := httptest.NewRequestWithContext(ctx, http.MethodPost,
 		"/orders/"+number+"/reorder", http.NoBody)
@@ -5160,7 +5193,7 @@ func placedCookie(t *testing.T, s *cart.Store, number string) *http.Cookie {
 func TestASecondOrderKeepsTheFirstOnesGrantAlive(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 
 	first := placeUnpaidOrderFor(t, s, "twice@example.com")
 	firstCookie := placedCookie(t, s, first)
@@ -5219,7 +5252,7 @@ func TestASecondOrderKeepsTheFirstOnesGrantAlive(t *testing.T) {
 func TestAStaleCarriedGrantStaysDeadAfterAnotherOrder(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 
 	retain := cart.GrantRetain.String()
 
@@ -5336,7 +5369,7 @@ func TestGrantRetainBoundsOrderAccess(t *testing.T) {
 func TestAForgedPlacedCookieReachesNothing(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 	number := placeUnpaidOrderFor(t, s, "forged@example.com")
 
 	// The VICTIM's own browser holds a REAL grant before the attack starts: without
@@ -5378,7 +5411,7 @@ func TestAForgedPlacedCookieReachesNothing(t *testing.T) {
 func TestATokenReachesOnlyItsOwnOrder(t *testing.T) {
 	ctx := t.Context()
 	s := cart.NewStore(pool)
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, testLimiter(), nil, nil)
 
 	mine := placeUnpaidOrderFor(t, s, "mine@example.com")
 	theirs := placeUnpaidOrderFor(t, s, "theirs@example.com")
@@ -5416,6 +5449,73 @@ func nextOrderNumber(number string) string {
 // limiter that refused mid-suite would be testing the limiter.
 func testLimiter() *ratelimit.Limiter {
 	return ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000})
+}
+
+func assertPlacementGrantFailurePage(t *testing.T, body, orderNumber string) {
+	t.Helper()
+	if !strings.Contains(body, "/orders/find") {
+		t.Fatal("placement grant failure did not offer find-order recovery")
+	}
+	zh := i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyPlacementGrantFailedBody)
+	if !strings.Contains(body, zh) {
+		t.Fatalf("placement grant failure body missing recovery copy: %q", body)
+	}
+	if strings.Contains(body, i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyCartUnavailable)) {
+		t.Fatal("placement grant failure used the generic cart-unavailable notice")
+	}
+	if orderNumber != "" && strings.Contains(body, orderNumber) {
+		t.Fatal("placement grant failure leaked the order number")
+	}
+}
+
+func assertFindOrderGrantFailurePage(t *testing.T, body string) {
+	t.Helper()
+	if !strings.Contains(body, "/orders/find") {
+		t.Fatal("find-order grant failure did not offer find-order recovery")
+	}
+	zh := i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyFindOrderGrantFailedBody)
+	if !strings.Contains(body, zh) {
+		t.Fatalf("find-order grant failure body missing recovery copy: %q", body)
+	}
+	if strings.Contains(body, i18n.T(i18n.WithLocale(t.Context(), i18n.ZhHant), i18n.KeyPlacementGrantFailedBody)) {
+		t.Fatal("find-order grant failure reused placement recovery copy")
+	}
+}
+
+func testPayHandler(t *testing.T, s *cart.Store) *payment.Handler {
+	t.Helper()
+	gateway, err := payment.NewGateway("", "", "")
+	if err != nil {
+		t.Fatalf("gateway: %v", err)
+	}
+	return payment.NewHandler(payment.NewStore(pool), gateway, s, slog.New(slog.DiscardHandler), false)
+}
+
+func followPayWithCookie(
+	t *testing.T, ctx context.Context, payH *payment.Handler, number string, cookie *http.Cookie,
+) {
+	t.Helper()
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number+"/pay", http.NoBody)
+	req.SetPathValue("number", number)
+	req.AddCookie(cookie)
+	res := httptest.NewRecorder()
+	payH.Page(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("issued cookie could not reach pay page for %s: %d", number, res.Code)
+	}
+}
+
+func assertPayUnreachableWithoutGrant(
+	t *testing.T, ctx context.Context, payH *payment.Handler, number string,
+) {
+	t.Helper()
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+number+"/pay", http.NoBody)
+	req.SetPathValue("number", number)
+	res := httptest.NewRecorder()
+	payH.Page(res, req)
+	if res.Code != http.StatusNotFound {
+		t.Fatalf("unrelated browser reached pay page for %s: %d, want 404", number, res.Code)
+	}
 }
 
 // placeUnpaidOrderFor places one order for an address, through the store's own
@@ -5522,9 +5622,8 @@ func TestCouponMinimumIsRecheckedWhenCheckoutIsPlaced(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
-		nil)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+
 	res := httptest.NewRecorder()
 	served := make(chan error, 1)
 	go func() {
@@ -5669,9 +5768,8 @@ func TestASpentCouponComesBackAsAFieldErrorNotA500(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
-		nil)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+
 	res := httptest.NewRecorder()
 	h.PlaceOrder(res, req)
 
@@ -5732,9 +5830,8 @@ func TestPressingUpdateChangesTheChoiceAndPlacesNothing(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
-		nil)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+
 	res := httptest.NewRecorder()
 	h.PlaceOrder(res, req)
 
@@ -5838,9 +5935,8 @@ func TestPickingASavedAddressFillsTheForm(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 	req = req.WithContext(account.WithUser(ctx, account.User{ID: userID.String(), Role: "customer"}))
 
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
-		nil)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+
 	res := httptest.NewRecorder()
 	h.PlaceOrder(res, req)
 
@@ -5922,9 +6018,8 @@ func TestChangingAnotherChoiceKeepsATypedAddress(t *testing.T) {
 	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token}) //nolint:gosec // G124: dev cart cookie under test
 	req = req.WithContext(account.WithUser(ctx, account.User{ID: userID.String(), Role: "customer"}))
 
-	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
-		nil)
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+
 	res := httptest.NewRecorder()
 	h.PlaceOrder(res, req)
 
@@ -5938,5 +6033,495 @@ func TestChangingAnotherChoiceKeepsATypedAddress(t *testing.T) {
 		!strings.Contains(body, `name="invoice_tax_id"`) ||
 		!strings.Contains(body, `value="04595252"`) {
 		t.Errorf("changing the invoice choice did not retain the registered buyer fields: %s", body)
+	}
+}
+
+// TestGrantFailureAfterCommittedPlacementDoesNotRedirectTo404 locks the
+// post-commit failure handling in PlaceOrder: if RememberOrder fails (grant insert
+// failure or carried touch failure), the handler must not 303 to /pay where the
+// customer would immediately 404. It must answer 500, preserving the committed
+// order in the database without rolling back or duplicating it.
+func TestGrantFailureAfterCommittedPlacementDoesNotRedirectTo404(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+
+	token, err := cart.NewToken()
+	if err != nil {
+		t.Fatalf("token: %v", err)
+	}
+	cartID, err := s.Create(ctx, token, uuid.NullUUID{})
+	if err != nil {
+		t.Fatalf("create cart: %v", err)
+	}
+	variant := variantOf(t, "pixelight-9-pro", true)
+	if err := s.Add(ctx, cartID, variant, 1); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	var shipID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
+		t.Fatalf("shipping: %v", err)
+	}
+
+	addr := &cart.Address{
+		Email: "grant-fail@example.com", Name: "王小明", Phone: "0912345678",
+		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 1 號",
+	}
+	key := checkoutAttemptKey("grant-fail-" + uuid.NewString())
+	form := url.Values{
+		"email": {addr.Email}, "name": {addr.Name}, "phone": {addr.Phone},
+		"postal_code": {addr.PostalCode}, "city": {addr.City}, "district": {addr.District},
+		"street":         {addr.Street},
+		"shipping":       {shipID.String()},
+		"checkout_quote": {checkoutQuote(t, s, cartID, uuid.NullUUID{}, shipID, addr, "").String()},
+		"idempotency":    {key},
+	}
+
+	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
+	fnName := pgx.Identifier{"test_fail_grant_insert_" + suffix}.Sanitize()
+	trgName := pgx.Identifier{"test_fail_grant_insert_" + suffix}.Sanitize()
+	if _, err := pool.Exec(ctx, fmt.Sprintf(`
+		CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $body$
+		BEGIN
+			RAISE EXCEPTION 'simulated grant insert failure';
+		END
+		$body$;
+		CREATE TRIGGER %s BEFORE INSERT ON order_access_grants
+		FOR EACH ROW EXECUTE FUNCTION %s()`,
+		fnName, trgName, fnName)); err != nil {
+		t.Fatalf("install grant trigger: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 5*time.Second)
+		defer cancel()
+		if _, err := pool.Exec(cleanupCtx, fmt.Sprintf(
+			"DROP TRIGGER IF EXISTS %s ON order_access_grants; DROP FUNCTION IF EXISTS %s()",
+			trgName, fnName)); err != nil {
+			t.Errorf("remove grant trigger: %v", err)
+		}
+	})
+
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
+		strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	//nolint:gosec // G124: the browser's own cart cookie, read back by this handler
+	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+
+	res := httptest.NewRecorder()
+	h.PlaceOrder(res, req)
+
+	if res.Code == http.StatusSeeOther {
+		t.Fatalf("grant failure answered 303 See Other (Location: %q), want 500 server error",
+			res.Header().Get("Location"))
+	}
+	if res.Code != http.StatusInternalServerError {
+		t.Fatalf("grant failure answered %d, want 500 Internal Server Error", res.Code)
+	}
+	assertPlacementGrantFailurePage(t, res.Body.String(), "")
+	for _, c := range res.Result().Cookies() {
+		if c.Name == "goen_placed" {
+			t.Fatal("grant failure response issued a goen_placed cookie")
+		}
+	}
+
+	// Verify the order was committed and not rolled back.
+	var orderCount int
+	var orderNumber string
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*), coalesce(max(o.order_number), '')
+		FROM orders o
+		JOIN order_private_data pd ON pd.order_id = o.id
+		WHERE pd.email = $1`, addr.Email).Scan(&orderCount, &orderNumber); err != nil {
+		t.Fatalf("query order after grant failure: %v", err)
+	}
+	if orderCount != 1 {
+		t.Fatalf("order count for %s = %d, want exactly 1 committed order", addr.Email, orderCount)
+	}
+	assertPlacementGrantFailurePage(t, res.Body.String(), orderNumber)
+
+	var reserved int32
+	if err := pool.QueryRow(ctx, `
+		SELECT coalesce(sum(ir.quantity), 0) FROM inventory_reservations ir
+		JOIN orders o ON o.id = ir.order_id
+		WHERE o.order_number = $1 AND ir.variant_id = $2 AND ir.state = 'held'`,
+		orderNumber, variant).Scan(&reserved); err != nil {
+		t.Fatalf("read stock hold after grant failure: %v", err)
+	}
+	if reserved != 1 {
+		t.Fatalf("order %s holds %d units after grant failure, want 1", orderNumber, reserved)
+	}
+
+	// Verify that replay with prior attempt also encounters grant failure and answers 500 rather than 303.
+	replayReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
+		strings.NewReader(form.Encode()))
+	replayReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	//nolint:gosec // G124: the browser's own cart cookie, read back by this handler
+	replayReq.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+	replayRes := httptest.NewRecorder()
+	h.PlaceOrder(replayRes, replayReq)
+
+	if replayRes.Code == http.StatusSeeOther {
+		t.Fatalf("prior checkout replay with grant failure answered 303 (Location: %q), want 500",
+			replayRes.Header().Get("Location"))
+	}
+	if replayRes.Code != http.StatusInternalServerError {
+		t.Fatalf("prior checkout replay answered %d, want 500", replayRes.Code)
+	}
+
+	// Remove failure trigger to simulate recovery.
+	if _, err := pool.Exec(ctx, fmt.Sprintf(
+		"DROP TRIGGER IF EXISTS %s ON order_access_grants; DROP FUNCTION IF EXISTS %s()",
+		trgName, fnName)); err != nil {
+		t.Fatalf("remove grant trigger: %v", err)
+	}
+
+	// Replaying checkout now succeeds via answerPriorCheckout, issues the grant, and redirects to pay.
+	recoveredRes := httptest.NewRecorder()
+	h.PlaceOrder(recoveredRes, replayReq)
+
+	if recoveredRes.Code != http.StatusSeeOther {
+		t.Fatalf("recovered replay answered %d, want 303 See Other", recoveredRes.Code)
+	}
+	wantLocation := "/orders/" + orderNumber + "/pay"
+	if recoveredRes.Header().Get("Location") != wantLocation {
+		t.Fatalf("recovered replay Location = %q, want %q", recoveredRes.Header().Get("Location"), wantLocation)
+	}
+	var placedCookie *http.Cookie
+	for _, c := range recoveredRes.Result().Cookies() {
+		if c.Name == "goen_placed" {
+			placedCookie = c
+			break
+		}
+	}
+	if placedCookie == nil {
+		t.Fatal("recovered replay set no goen_placed cookie")
+	}
+
+	payH := testPayHandler(t, s)
+	followPayWithCookie(t, ctx, payH, orderNumber, placedCookie)
+	assertPayUnreachableWithoutGrant(t, ctx, payH, orderNumber)
+
+	wrong := httptest.NewRequestWithContext(ctx, http.MethodGet,
+		"/orders/"+nextOrderNumber(orderNumber)+"/pay", http.NoBody)
+	wrong.SetPathValue("number", nextOrderNumber(orderNumber))
+	wrong.AddCookie(placedCookie)
+	wrongRes := httptest.NewRecorder()
+	payH.Page(wrongRes, wrong)
+	if wrongRes.Code != http.StatusNotFound {
+		t.Fatalf("cookie alone reached another order's pay page: %d, want 404", wrongRes.Code)
+	}
+
+	// Verify order was not duplicated.
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*)
+		FROM orders o
+		JOIN order_private_data pd ON pd.order_id = o.id
+		WHERE pd.email = $1`, addr.Email).Scan(&orderCount); err != nil {
+		t.Fatalf("query order after recovery: %v", err)
+	}
+	if orderCount != 1 {
+		t.Fatalf("order count after recovery = %d, want exactly 1", orderCount)
+	}
+}
+
+// TestGrantTouchFailureAfterCommittedPlacementDoesNotRedirectTo404 locks the
+// post-commit carried-grant touch failure: if TouchOrderAccessGrants fails,
+// RememberOrder must report the error, and PlaceOrder must answer 500 rather than 303.
+func TestGrantTouchFailureAfterCommittedPlacementDoesNotRedirectTo404(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+
+	firstOrder := placeUnpaidOrderFor(t, s, "carried-touch@example.com")
+	firstCookie := placedCookie(t, s, firstOrder)
+
+	token, err := cart.NewToken()
+	if err != nil {
+		t.Fatalf("token: %v", err)
+	}
+	cartID, err := s.Create(ctx, token, uuid.NullUUID{})
+	if err != nil {
+		t.Fatalf("create cart: %v", err)
+	}
+	variant := variantOf(t, "pixelight-9-pro", true)
+	if err := s.Add(ctx, cartID, variant, 1); err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	var shipID uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM shipping_method_versions ORDER BY effective_at LIMIT 1`).Scan(&shipID); err != nil {
+		t.Fatalf("shipping: %v", err)
+	}
+
+	addr := &cart.Address{
+		Email: "second-touch@example.com", Name: "王小明", Phone: "0912345678",
+		PostalCode: "110", City: "台北市", District: "信義區", Street: "松高路 2 號",
+	}
+	key := checkoutAttemptKey("touch-fail-" + uuid.NewString())
+	form := url.Values{
+		"email": {addr.Email}, "name": {addr.Name}, "phone": {addr.Phone},
+		"postal_code": {addr.PostalCode}, "city": {addr.City}, "district": {addr.District},
+		"street":         {addr.Street},
+		"shipping":       {shipID.String()},
+		"checkout_quote": {checkoutQuote(t, s, cartID, uuid.NullUUID{}, shipID, addr, "").String()},
+		"idempotency":    {key},
+	}
+
+	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
+	fnName := pgx.Identifier{"test_fail_grant_touch_" + suffix}.Sanitize()
+	trgName := pgx.Identifier{"test_fail_grant_touch_" + suffix}.Sanitize()
+	if _, err := pool.Exec(ctx, fmt.Sprintf(`
+		CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $body$
+		BEGIN
+			RAISE EXCEPTION 'simulated grant update failure';
+		END
+		$body$;
+		CREATE TRIGGER %s BEFORE UPDATE ON order_access_grants
+		FOR EACH ROW EXECUTE FUNCTION %s()`,
+		fnName, trgName, fnName)); err != nil {
+		t.Fatalf("install grant touch trigger: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 5*time.Second)
+		defer cancel()
+		if _, err := pool.Exec(cleanupCtx, fmt.Sprintf(
+			"DROP TRIGGER IF EXISTS %s ON order_access_grants; DROP FUNCTION IF EXISTS %s()",
+			trgName, fnName)); err != nil {
+			t.Errorf("remove grant touch trigger: %v", err)
+		}
+	})
+
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/checkout",
+		strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	//nolint:gosec // G124: the browser's own cart cookie, read back by this handler
+	req.AddCookie(&http.Cookie{Name: "goen_cart", Value: token})
+	req.AddCookie(firstCookie)
+
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+
+	res := httptest.NewRecorder()
+	h.PlaceOrder(res, req)
+
+	if res.Code == http.StatusSeeOther {
+		t.Fatalf("touch failure answered 303 See Other (Location: %q), want 500 server error",
+			res.Header().Get("Location"))
+	}
+	if res.Code != http.StatusInternalServerError {
+		t.Fatalf("touch failure answered %d, want 500 Internal Server Error", res.Code)
+	}
+	assertPlacementGrantFailurePage(t, res.Body.String(), "")
+	for _, c := range res.Result().Cookies() {
+		if c.Name == "goen_placed" {
+			t.Fatal("touch failure response issued a goen_placed cookie")
+		}
+	}
+
+	// Verify order was committed and not rolled back.
+	var orderCount int
+	var secondOrderNumber string
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*), coalesce(max(o.order_number), '')
+		FROM orders o
+		JOIN order_private_data pd ON pd.order_id = o.id
+		WHERE pd.email = $1`, addr.Email).Scan(&orderCount, &secondOrderNumber); err != nil {
+		t.Fatalf("query order after touch failure: %v", err)
+	}
+	if orderCount != 1 {
+		t.Fatalf("order count for %s = %d, want exactly 1 committed order", addr.Email, orderCount)
+	}
+	assertPlacementGrantFailurePage(t, res.Body.String(), secondOrderNumber)
+
+	var reserved int32
+	if err := pool.QueryRow(ctx, `
+		SELECT coalesce(sum(ir.quantity), 0) FROM inventory_reservations ir
+		JOIN orders o ON o.id = ir.order_id
+		WHERE o.order_number = $1 AND ir.variant_id = $2 AND ir.state = 'held'`,
+		secondOrderNumber, variant).Scan(&reserved); err != nil {
+		t.Fatalf("read stock hold after touch failure: %v", err)
+	}
+	if reserved != 1 {
+		t.Fatalf("order %s holds %d units after touch failure, want 1", secondOrderNumber, reserved)
+	}
+
+	firstReq := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+firstOrder, http.NoBody)
+	firstReq.SetPathValue("number", firstOrder)
+	firstReq.AddCookie(firstCookie)
+	firstRes := httptest.NewRecorder()
+	h.OrderPage(firstRes, firstReq)
+	if firstRes.Code != http.StatusOK {
+		t.Fatalf("carried first-order access lost after touch failure: %d, want 200", firstRes.Code)
+	}
+
+	// Remove failure trigger to simulate recovery.
+	if _, err := pool.Exec(ctx, fmt.Sprintf(
+		"DROP TRIGGER IF EXISTS %s ON order_access_grants; DROP FUNCTION IF EXISTS %s()",
+		trgName, fnName)); err != nil {
+		t.Fatalf("remove grant touch trigger: %v", err)
+	}
+
+	// Replaying checkout now succeeds via answerPriorCheckout.
+	recoveredRes := httptest.NewRecorder()
+	h.PlaceOrder(recoveredRes, req)
+
+	if recoveredRes.Code != http.StatusSeeOther {
+		t.Fatalf("recovered touch replay answered %d, want 303 See Other", recoveredRes.Code)
+	}
+	wantLocation := "/orders/" + secondOrderNumber + "/pay"
+	if recoveredRes.Header().Get("Location") != wantLocation {
+		t.Fatalf("recovered touch replay Location = %q, want %q", recoveredRes.Header().Get("Location"), wantLocation)
+	}
+	var carriedCookie *http.Cookie
+	for _, c := range recoveredRes.Result().Cookies() {
+		if c.Name == "goen_placed" {
+			carriedCookie = c
+			break
+		}
+	}
+	if carriedCookie == nil {
+		t.Fatal("recovered touch replay set no goen_placed cookie")
+	}
+
+	payH := testPayHandler(t, s)
+	followPayWithCookie(t, ctx, payH, secondOrderNumber, carriedCookie)
+	assertPayUnreachableWithoutGrant(t, ctx, payH, secondOrderNumber)
+
+	firstAfter := httptest.NewRequestWithContext(ctx, http.MethodGet, "/orders/"+firstOrder, http.NoBody)
+	firstAfter.SetPathValue("number", firstOrder)
+	firstAfter.AddCookie(carriedCookie)
+	firstAfterRes := httptest.NewRecorder()
+	h.OrderPage(firstAfterRes, firstAfter)
+	if firstAfterRes.Code != http.StatusOK {
+		t.Fatalf("carried first-order access lost after touch recovery: %d, want 200", firstAfterRes.Code)
+	}
+
+	// Verify order was not duplicated.
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*)
+		FROM orders o
+		JOIN order_private_data pd ON pd.order_id = o.id
+		WHERE pd.email = $1`, addr.Email).Scan(&orderCount); err != nil {
+		t.Fatalf("query order count after touch recovery: %v", err)
+	}
+	if orderCount != 1 {
+		t.Fatalf("order count after touch recovery = %d, want exactly 1", orderCount)
+	}
+}
+
+// TestFindOrderGrantFailureDoesNotRedirectTo404 locks the grant failure
+// handling in FindOrder: if RememberOrder fails, FindOrder must answer 500
+// rather than 303 redirecting to the order page where access would fail.
+func TestFindOrderGrantFailureDoesNotRedirectTo404(t *testing.T) {
+	ctx := t.Context()
+	s := cart.NewStore(pool)
+
+	orderNumber := placeUnpaidOrderFor(t, s, "find-grant-fail@example.com")
+
+	suffix := strings.ReplaceAll(uuid.NewString(), "-", "")
+	fnName := pgx.Identifier{"test_fail_find_grant_" + suffix}.Sanitize()
+	trgName := pgx.Identifier{"test_fail_find_grant_" + suffix}.Sanitize()
+	if _, err := pool.Exec(ctx, fmt.Sprintf(`
+		CREATE FUNCTION %s() RETURNS trigger LANGUAGE plpgsql AS $body$
+		BEGIN
+			RAISE EXCEPTION 'simulated find grant insert failure';
+		END
+		$body$;
+		CREATE TRIGGER %s BEFORE INSERT ON order_access_grants
+		FOR EACH ROW EXECUTE FUNCTION %s()`,
+		fnName, trgName, fnName)); err != nil {
+		t.Fatalf("install find grant trigger: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 5*time.Second)
+		defer cancel()
+		if _, err := pool.Exec(cleanupCtx, fmt.Sprintf(
+			"DROP TRIGGER IF EXISTS %s ON order_access_grants; DROP FUNCTION IF EXISTS %s()",
+			trgName, fnName)); err != nil {
+			t.Errorf("remove find grant trigger: %v", err)
+		}
+	})
+
+	form := url.Values{
+		"number": {orderNumber},
+		"email":  {"find-grant-fail@example.com"},
+	}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/orders/find",
+		strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	h := cart.NewHandler(s, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+
+	res := httptest.NewRecorder()
+	h.FindOrder(res, req)
+
+	if res.Code == http.StatusSeeOther {
+		t.Fatalf("find order with grant failure answered 303 (Location: %q), want 500",
+			res.Header().Get("Location"))
+	}
+	if res.Code != http.StatusInternalServerError {
+		t.Fatalf("find order answered %d, want 500 Internal Server Error", res.Code)
+	}
+	assertFindOrderGrantFailurePage(t, res.Body.String())
+	for _, c := range res.Result().Cookies() {
+		if c.Name == "goen_placed" {
+			t.Fatal("find order grant failure response issued a goen_placed cookie")
+		}
+	}
+
+	// Remove failure trigger to simulate recovery.
+	if _, err := pool.Exec(ctx, fmt.Sprintf(
+		"DROP TRIGGER IF EXISTS %s ON order_access_grants; DROP FUNCTION IF EXISTS %s()",
+		trgName, fnName)); err != nil {
+		t.Fatalf("remove find grant trigger: %v", err)
+	}
+
+	// Retry find order.
+	recoveredRes := httptest.NewRecorder()
+	h.FindOrder(recoveredRes, req)
+
+	if recoveredRes.Code != http.StatusSeeOther {
+		t.Fatalf("recovered find order answered %d, want 303", recoveredRes.Code)
+	}
+	wantLocation := "/orders/" + url.PathEscape(orderNumber)
+	if recoveredRes.Header().Get("Location") != wantLocation {
+		t.Fatalf("recovered find order Location = %q, want %q", recoveredRes.Header().Get("Location"), wantLocation)
+	}
+	var recoveredCookie *http.Cookie
+	for _, c := range recoveredRes.Result().Cookies() {
+		if c.Name == "goen_placed" {
+			recoveredCookie = c
+			break
+		}
+	}
+	if recoveredCookie == nil {
+		t.Fatal("recovered find order set no goen_placed cookie")
+	}
+
+	orderReq := httptest.NewRequestWithContext(ctx, http.MethodGet, wantLocation, http.NoBody)
+	orderReq.SetPathValue("number", orderNumber)
+	orderReq.AddCookie(recoveredCookie)
+	orderRes := httptest.NewRecorder()
+	h.OrderPage(orderRes, orderReq)
+	if orderRes.Code != http.StatusOK {
+		t.Fatalf("recovered find-order cookie could not reach order page: %d", orderRes.Code)
+	}
+
+	stranger := httptest.NewRequestWithContext(ctx, http.MethodGet, wantLocation, http.NoBody)
+	stranger.SetPathValue("number", orderNumber)
+	strangerRes := httptest.NewRecorder()
+	h.OrderPage(strangerRes, stranger)
+	if strangerRes.Code != http.StatusNotFound {
+		t.Fatalf("unrelated browser reached order page after find-order recovery: %d, want 404",
+			strangerRes.Code)
+	}
+
+	forged := httptest.NewRequestWithContext(ctx, http.MethodGet, wantLocation, http.NoBody)
+	forged.SetPathValue("number", orderNumber)
+	forged.AddCookie(&http.Cookie{Name: "goen_placed", Value: orderNumber}) //nolint:gosec // G124: forgery under test
+	forgedRes := httptest.NewRecorder()
+	h.OrderPage(forgedRes, forged)
+	if forgedRes.Code != http.StatusNotFound {
+		t.Fatalf("order number alone in cookie reached order page: %d, want 404", forgedRes.Code)
 	}
 }

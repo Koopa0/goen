@@ -466,9 +466,7 @@ func TestOrdersAreScopedToTheirOwner(t *testing.T) {
 	number := placeOrderFor(t, theirs.ID)
 
 	cartStore := cart.NewStore(pool)
-	h := cart.NewHandler(cartStore, slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}),
-		nil)
+	h := cart.NewHandler(cartStore, slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
 
 	owner := httptest.NewRequestWithContext(account.WithUser(ctx, theirs), http.MethodGet,
 		"/orders/"+number, http.NoBody)
@@ -854,8 +852,8 @@ func TestAMergedCartIsVisibleAfterSignInWithTheDeletedGuestCookie(t *testing.T) 
 		t.Fatalf("guest lines: %v", err)
 	}
 
-	carts := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false,
-		ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil)
+	carts := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+
 	h := account.NewHandler(accounts, carts, slog.New(slog.DiscardHandler), false, nil)
 
 	form := url.Values{
@@ -919,6 +917,288 @@ func cartLineQuantity(body string, variant uuid.UUID) string {
 		return ""
 	}
 	return rest[:end]
+}
+
+// TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts holds that a
+// reversible adoption failure still signs the customer in, lands them on the
+// recovery page for any safe continuation, and leaves both eligible carts intact
+// until POST retry succeeds.
+func TestFailedCartAdoptionOnSignInShowsNoticeAndPreservesBothCarts(t *testing.T) {
+	ctx := t.Context()
+	accounts := account.NewStore(pool)
+	u := register(t, accounts, "adopt-fail-"+uuid.NewString()+"@example.com")
+	uid := uuid.MustParse(u.ID)
+
+	var accountVariant, guestVariant uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM product_variants WHERE is_active ORDER BY position LIMIT 1`).
+		Scan(&accountVariant); err != nil {
+		t.Fatalf("account variant: %v", err)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM product_variants WHERE is_active AND id <> $1 ORDER BY position LIMIT 1`,
+		accountVariant).Scan(&guestVariant); err != nil {
+		t.Fatalf("guest variant: %v", err)
+	}
+
+	var accountCart uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+		account.HashToken("account-cart-"+u.ID), uid).Scan(&accountCart); err != nil {
+		t.Fatalf("account cart: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 1)`,
+		accountCart, accountVariant); err != nil {
+		t.Fatalf("account line: %v", err)
+	}
+
+	guestToken := "guest-cart-" + u.ID
+	var guestCart uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO carts (token_hash) VALUES ($1) RETURNING id`,
+		account.HashToken(guestToken)).Scan(&guestCart); err != nil {
+		t.Fatalf("guest cart: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 2)`,
+		guestCart, guestVariant); err != nil {
+		t.Fatalf("guest lines: %v", err)
+	}
+
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin guest-cart blocker: %v", err)
+	}
+	defer func() { _ = blocker.Rollback(context.WithoutCancel(ctx)) }()
+	if _, err := blocker.Exec(ctx, `SELECT 1 FROM carts WHERE id = $1 FOR UPDATE`, guestCart); err != nil {
+		t.Fatalf("lock guest cart: %v", err)
+	}
+
+	carts := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+
+	h := account.NewHandler(accounts, carts, slog.New(slog.DiscardHandler), false, nil)
+
+	signCtx, signCancel := context.WithTimeout(ctx, 3*time.Second)
+	defer signCancel()
+	form := url.Values{
+		"email": {u.Email}, "password": {"a sufficiently long password"}, "next": {"/checkout"},
+	}
+	signIn := httptest.NewRequestWithContext(signCtx, http.MethodPost, "/signin",
+		strings.NewReader(form.Encode()))
+	signIn.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	//nolint:gosec // G124: the browser's own cart cookie, read by this handler
+	signIn.AddCookie(&http.Cookie{Name: "goen_cart", Value: guestToken})
+	signed := httptest.NewRecorder()
+	h.SignIn(signed, signIn)
+
+	if signed.Code != http.StatusSeeOther {
+		t.Fatalf("sign-in status = %d, want 303; body=%s", signed.Code, signed.Body.String())
+	}
+	wantRecovery := "/account/cart-recovery?next=%2Fcheckout"
+	if loc := signed.Header().Get("Location"); loc != wantRecovery {
+		t.Fatalf("sign-in redirect = %q, want %q", loc, wantRecovery)
+	}
+
+	session := sessionCookie(t, signed)
+	if err := blocker.Commit(ctx); err != nil {
+		t.Fatalf("release guest cart lock: %v", err)
+	}
+
+	recoveryReq := httptest.NewRequestWithContext(ctx, http.MethodGet, wantRecovery, http.NoBody)
+	recoveryReq.AddCookie(session)
+	//nolint:gosec // G124: the browser's own cart cookie, read by this handler
+	recoveryReq.AddCookie(&http.Cookie{Name: "goen_cart", Value: guestToken})
+	recoveryRec := httptest.NewRecorder()
+	h.Authenticate(http.HandlerFunc(h.CartRecoveryPage)).ServeHTTP(recoveryRec, recoveryReq)
+	if recoveryRec.Code != http.StatusOK {
+		t.Fatalf("GET recovery status = %d, want 200", recoveryRec.Code)
+	}
+	wantNotice := i18n.T(ctx, i18n.KeyCartMergeFailed)
+	wantRetry := i18n.T(ctx, i18n.KeyCartMergeRetry)
+	recoveryBody := recoveryRec.Body.String()
+	if !strings.Contains(recoveryBody, wantNotice) {
+		t.Fatalf("recovery page does not contain notice %q", wantNotice)
+	}
+	if !strings.Contains(recoveryBody, wantRetry) {
+		t.Fatalf("recovery page does not offer retry %q", wantRetry)
+	}
+
+	if qty := cartItemQuantity(t, guestCart, guestVariant); qty != 2 {
+		t.Errorf("guest cart quantity = %d, want 2 before retry", qty)
+	}
+	if qty := cartItemQuantity(t, accountCart, accountVariant); qty != 1 {
+		t.Errorf("account cart quantity = %d, want 1 before retry", qty)
+	}
+
+	retryForm := url.Values{"next": {"/checkout"}}
+	retryReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/account/cart/retry",
+		strings.NewReader(retryForm.Encode()))
+	retryReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	retryReq.AddCookie(session)
+	//nolint:gosec // G124: the browser's own cart cookie, read by this handler
+	retryReq.AddCookie(&http.Cookie{Name: "goen_cart", Value: guestToken})
+	retryRec := httptest.NewRecorder()
+	h.Authenticate(http.HandlerFunc(h.RetryCartAdoption)).ServeHTTP(retryRec, retryReq)
+	if retryRec.Code != http.StatusSeeOther {
+		t.Fatalf("retry status = %d, want 303; body=%s", retryRec.Code, retryRec.Body.String())
+	}
+	if loc := retryRec.Header().Get("Location"); loc != "/checkout" {
+		t.Fatalf("retry redirect = %q, want /checkout", loc)
+	}
+
+	var guestRows int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM carts WHERE id = $1`, guestCart).Scan(&guestRows); err != nil {
+		t.Fatalf("guest cart row: %v", err)
+	}
+	if guestRows != 0 {
+		t.Errorf("guest cart row survived merge, want deleted")
+	}
+	if qty := cartItemQuantity(t, accountCart, accountVariant); qty != 1 {
+		t.Errorf("merged account line %s quantity = %d, want 1", accountVariant, qty)
+	}
+	if qty := cartItemQuantity(t, accountCart, guestVariant); qty != 2 {
+		t.Errorf("merged guest line %s quantity = %d, want 2", guestVariant, qty)
+	}
+
+	lookupReq := httptest.NewRequestWithContext(ctx, http.MethodGet, "/cart", http.NoBody)
+	lookupReq.AddCookie(session)
+	//nolint:gosec // G124: the browser's own cart cookie, read by this handler
+	lookupReq.AddCookie(&http.Cookie{Name: "goen_cart", Value: guestToken})
+	var resolved uuid.UUID
+	var resolvedOK bool
+	h.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resolved, resolvedOK = carts.CartIDForRequest(r.Context(), r)
+	})).ServeHTTP(httptest.NewRecorder(), lookupReq)
+	if !resolvedOK || resolved != accountCart {
+		t.Errorf("guest cookie after merge resolved to %s (ok=%v), want account cart %s",
+			resolved, resolvedOK, accountCart)
+	}
+}
+
+// TestAdoptCartRefusesGuestCartOwnedByAnotherAccount holds that a cart already
+// attached to someone else is never recovered through sign-in or POST retry.
+func TestAdoptCartRefusesGuestCartOwnedByAnotherAccount(t *testing.T) {
+	ctx := t.Context()
+	accounts := account.NewStore(pool)
+	u := register(t, accounts, "adopt-refuse-"+uuid.NewString()+"@example.com")
+	uid := uuid.MustParse(u.ID)
+	otherUser := register(t, accounts, "adopt-refuse-other-"+uuid.NewString()+"@example.com")
+	otherUID := uuid.MustParse(otherUser.ID)
+
+	var accountVariant, guestVariant uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM product_variants WHERE is_active ORDER BY position LIMIT 1`).
+		Scan(&accountVariant); err != nil {
+		t.Fatalf("account variant: %v", err)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT id FROM product_variants WHERE is_active AND id <> $1 ORDER BY position LIMIT 1`,
+		accountVariant).Scan(&guestVariant); err != nil {
+		t.Fatalf("guest variant: %v", err)
+	}
+
+	var accountCart uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+		account.HashToken("refuse-account-"+u.ID), uid).Scan(&accountCart); err != nil {
+		t.Fatalf("account cart: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 1)`,
+		accountCart, accountVariant); err != nil {
+		t.Fatalf("account line: %v", err)
+	}
+
+	guestToken := "refuse-guest-" + u.ID
+	var guestCart uuid.UUID
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO carts (token_hash, user_id) VALUES ($1, $2) RETURNING id`,
+		account.HashToken(guestToken), otherUID).Scan(&guestCart); err != nil {
+		t.Fatalf("guest cart: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO cart_items (cart_id, variant_id, quantity) VALUES ($1, $2, 3)`,
+		guestCart, guestVariant); err != nil {
+		t.Fatalf("guest line: %v", err)
+	}
+
+	carts := cart.NewHandler(cart.NewStore(pool), slog.New(slog.DiscardHandler), false, ratelimit.New(ratelimit.Config{Every: time.Millisecond, Burst: 1000, TTL: time.Hour, MaxKeys: 1000}), nil, nil)
+
+	h := account.NewHandler(accounts, carts, slog.New(slog.DiscardHandler), false, nil)
+
+	form := url.Values{
+		"email": {u.Email}, "password": {"a sufficiently long password"}, "next": {"/account"},
+	}
+	signIn := httptest.NewRequestWithContext(ctx, http.MethodPost, "/signin",
+		strings.NewReader(form.Encode()))
+	signIn.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	//nolint:gosec // G124: the browser names another account's cart, which must not merge
+	signIn.AddCookie(&http.Cookie{Name: "goen_cart", Value: guestToken})
+	signed := httptest.NewRecorder()
+	h.SignIn(signed, signIn)
+
+	if signed.Code != http.StatusSeeOther {
+		t.Fatalf("sign-in status = %d, want 303", signed.Code)
+	}
+	wantRecovery := "/account/cart-recovery?next=%2Faccount"
+	if loc := signed.Header().Get("Location"); loc != wantRecovery {
+		t.Fatalf("sign-in redirect = %q, want %q", loc, wantRecovery)
+	}
+
+	session := sessionCookie(t, signed)
+	retryForm := url.Values{"next": {"/account"}}
+	retryReq := httptest.NewRequestWithContext(ctx, http.MethodPost, "/account/cart/retry",
+		strings.NewReader(retryForm.Encode()))
+	retryReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	retryReq.AddCookie(session)
+	//nolint:gosec // G124: the browser names another account's cart, which must not merge
+	retryReq.AddCookie(&http.Cookie{Name: "goen_cart", Value: guestToken})
+	retryRec := httptest.NewRecorder()
+	h.Authenticate(http.HandlerFunc(h.RetryCartAdoption)).ServeHTTP(retryRec, retryReq)
+	if retryRec.Code != http.StatusSeeOther {
+		t.Fatalf("retry status = %d, want 303", retryRec.Code)
+	}
+	if loc := retryRec.Header().Get("Location"); loc != wantRecovery {
+		t.Fatalf("retry redirect = %q, want recovery %q", loc, wantRecovery)
+	}
+
+	if qty := cartItemQuantity(t, accountCart, accountVariant); qty != 1 {
+		t.Errorf("account cart quantity = %d, want 1", qty)
+	}
+	if qty := cartItemQuantity(t, guestCart, guestVariant); qty != 3 {
+		t.Errorf("other account's guest cart quantity = %d, want 3", qty)
+	}
+	var owner uuid.UUID
+	if err := pool.QueryRow(ctx, `SELECT user_id FROM carts WHERE id = $1`, guestCart).
+		Scan(&owner); err != nil {
+		t.Fatalf("read guest cart owner: %v", err)
+	}
+	if owner != otherUID {
+		t.Errorf("guest cart owner = %s, want other account %s", owner, otherUID)
+	}
+}
+
+func sessionCookie(t *testing.T, rec *httptest.ResponseRecorder) *http.Cookie {
+	t.Helper()
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == "goen_session" || strings.HasSuffix(c.Name, "goen_session") {
+			return c
+		}
+	}
+	t.Fatal("session cookie was not set")
+	return nil
+}
+
+func cartItemQuantity(t *testing.T, cartID, variantID uuid.UUID) int32 {
+	t.Helper()
+	var qty int32
+	if err := pool.QueryRow(t.Context(), `
+		SELECT quantity FROM cart_items WHERE cart_id = $1 AND variant_id = $2`,
+		cartID, variantID).Scan(&qty); err != nil {
+		t.Fatalf("read cart line quantity: %v", err)
+	}
+	return qty
 }
 
 // TestConcurrentFirstAdoptersKeepBothGuestCarts holds the account row before

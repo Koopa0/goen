@@ -302,7 +302,14 @@ func (s *Store) RememberOrder(
 	if err != nil {
 		return err
 	}
-	n, err := s.q.GrantOrderAccess(ctx, db.GrantOrderAccessParams{
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin remember order: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }() //nolint:errcheck // no-op after commit
+	q := s.q.WithTx(tx)
+
+	n, err := q.GrantOrderAccess(ctx, db.GrantOrderAccessParams{
 		Digest: HashToken(token), OrderNumber: number,
 	})
 	if err != nil {
@@ -315,24 +322,27 @@ func (s *Store) RememberOrder(
 
 	// The cookie below carries older tokens forward with a fresh MaxAge, so their
 	// grants need the same retention clock restarted.
-	var touchErr error
 	if carried := placedTokens(r, secure); len(carried) > 0 {
 		digests := make([][]byte, 0, len(carried))
 		for _, t := range carried {
 			digests = append(digests, HashToken(t))
 		}
-		if err := s.q.TouchOrderAccessGrants(ctx, db.TouchOrderAccessGrantsParams{
+		if err := q.TouchOrderAccessGrants(ctx, db.TouchOrderAccessGrantsParams{
 			Digests: digests,
 			Retain: pgtype.Interval{
 				Microseconds: int64(GrantRetain / time.Microsecond), Valid: true,
 			},
 		}); err != nil {
-			touchErr = fmt.Errorf("refresh carried order access grants: %w", err)
+			return fmt.Errorf("refresh carried order access grants: %w", err)
 		}
 	}
 
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit remember order %s: %w", number, err)
+	}
+
 	writePlacedCookie(w, r, token, secure)
-	return touchErr
+	return nil
 }
 
 func writePlacedCookie(w http.ResponseWriter, r *http.Request, token string, secure bool) {
@@ -626,20 +636,38 @@ func (a *Address) destinationErrors() []account.FieldError {
 			add("street", i18n.KeyStreetTooLong)
 		}
 	case ToPickupPoint:
-		if !a.PickupBrand.Known() {
-			add("pickup_brand", i18n.KeyPickupBrandRequired)
-		}
-		if !isStoreCode(a.PickupStoreCode) {
-			add("pickup_store_code", i18n.KeyStoreCodeMalformed)
-		}
-		switch {
-		case strings.TrimSpace(a.PickupStoreName) == "":
-			add("pickup_store_name", i18n.KeyStoreNameRequired)
-		case utf8.RuneCountInString(a.PickupStoreName) > maxStoreNameRunes:
-			add("pickup_store_name", i18n.KeyStoreNameTooLong)
-		}
+		errs = append(errs, a.pickupPointErrors()...)
 	default:
 		add("shipping", i18n.KeyChooseShipping)
+	}
+	return errs
+}
+
+// pickupPointErrors validates the chain, store code and store name. The chain
+// is all a shopper is asked for. A store number and name reach this only from
+// the back office, so they are checked when they carry a value and never
+// demanded: the carrier's picker will supply them. Once either half is
+// written, though, order_private_data_pickup_complete refuses a row that does
+// not also carry the other.
+func (a *Address) pickupPointErrors() []account.FieldError {
+	var errs []account.FieldError
+	add := func(f string, k i18n.Key) { errs = append(errs, account.FieldError{Field: f, MessageKey: k}) }
+
+	if !a.PickupBrand.Known() {
+		add("pickup_brand", i18n.KeyPickupBrandRequired)
+	}
+	switch {
+	case a.PickupStoreCode == "" && a.PickupStoreName != "":
+		// "" satisfies neither half of the 1-to-10 digits-or-letters shape, so a
+		// name with no code names the code field as what needs fixing.
+		add("pickup_store_code", i18n.KeyStoreCodeMalformed)
+	case a.PickupStoreCode != "" && a.PickupStoreName == "":
+		add("pickup_store_name", i18n.KeyAddressIncomplete)
+	case a.PickupStoreCode != "" && !isStoreCode(a.PickupStoreCode):
+		add("pickup_store_code", i18n.KeyStoreCodeMalformed)
+	}
+	if utf8.RuneCountInString(a.PickupStoreName) > maxStoreNameRunes {
+		add("pickup_store_name", i18n.KeyStoreNameTooLong)
 	}
 	return errs
 }

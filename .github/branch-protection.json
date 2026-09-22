@@ -30,6 +30,7 @@
           { "context": "vulnerabilities", "integration_id": 15368 },
           { "context": "ci-policy", "integration_id": 15368 },
           { "context": "commit-attribution", "integration_id": 15368 },
+          { "context": "layout", "integration_id": 15368 },
           { "context": "CodeQL (go)", "integration_id": 15368 },
           { "context": "CodeQL (actions)", "integration_id": 15368 }
         ]

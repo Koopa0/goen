@@ -166,13 +166,11 @@ func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	started, adoptAdjusted := h.startSession(w, r, u)
+	started, adoption := h.startSession(w, r, u)
 	if !started {
 		return
 	}
-	if adoptAdjusted {
-		next = appendCartAdjustNotice(next)
-	}
+	next = cartAdoptionLanding(next, adoption)
 	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 }
 
@@ -238,13 +236,11 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		h.log.WarnContext(r.Context(), "request verification at registration", "error", err)
 	}
 
-	started, adoptAdjusted := h.startSession(w, r, u)
+	started, adoption := h.startSession(w, r, u)
 	if !started {
 		return
 	}
-	if adoptAdjusted {
-		next = appendCartAdjustNotice(next)
-	}
+	next = cartAdoptionLanding(next, adoption)
 	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 }
 
@@ -308,10 +304,39 @@ func accountNotice(r *http.Request) string {
 		return i18n.T(ctx, i18n.KeyGoogleUnlinked)
 	case q.Get("lastmethod") == "1":
 		return i18n.T(ctx, i18n.KeyGoogleLastMethod)
-	case q.Get("cart") == "adjusted":
-		return i18n.T(ctx, i18n.KeyCartQuantityAdjusted)
 	}
 	return ""
+}
+
+// CartRecoveryPage serves GET /account/cart-recovery.
+func (h *Handler) CartRecoveryPage(w http.ResponseWriter, r *http.Request) {
+	if _, ok := FromContext(r.Context()); !ok {
+		http.Redirect(w, r, "/signin", http.StatusSeeOther)
+		return
+	}
+	next := web.SitePathOr(r.URL.Query().Get("next"), "/account")
+	web.Render(w, r, h.log, http.StatusOK, pages.CartRecovery(
+		pages.CartRecoveryMeta(r.Context()), pages.CartRecoveryView{
+			Next:   next,
+			Notice: i18n.T(r.Context(), i18n.KeyCartMergeFailed),
+			Retry:  i18n.T(r.Context(), i18n.KeyCartMergeRetry),
+		}))
+}
+
+// RetryCartAdoption serves POST /account/cart/retry.
+func (h *Handler) RetryCartAdoption(w http.ResponseWriter, r *http.Request) {
+	u, ok := FromContext(r.Context())
+	if !ok {
+		http.Redirect(w, r, "/signin", http.StatusSeeOther)
+		return
+	}
+	if err := web.ParseForm(w, r); err != nil {
+		http.Error(w, "400 "+i18n.T(r.Context(), i18n.KeyFormUnreadable), http.StatusBadRequest)
+		return
+	}
+	next := web.SitePathOr(r.PostFormValue("next"), "/account")
+	next = cartAdoptionLanding(next, h.adoptRequestCart(r, u.ID))
+	http.Redirect(w, r, next, http.StatusSeeOther) //nolint:gosec // G710: bounded by web.SitePathOr
 }
 
 // OrderPage redirects GET /account/orders/{number} to the canonical order page.
@@ -348,37 +373,51 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/account?saved=1", http.StatusSeeOther)
 }
 
-func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u User) (started, adoptAdjusted bool) {
+type cartAdoption uint8
+
+const (
+	cartAdoptionUnchanged cartAdoption = iota
+	cartAdoptionAdjusted
+	cartAdoptionFailed
+)
+
+func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, u User) (started bool, adoption cartAdoption) {
 	token, err := h.store.StartSession(r.Context(), u.ID, r.UserAgent(), clientIP(r))
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "start session", "error", err)
 		h.serverError(w, r)
-		return false, false
+		return false, cartAdoptionUnchanged
 	}
 	SetSessionCookie(w, token, h.secure)
-
-	// A failed cart merge must not take the sign-in down with it.
-	adoptAdjusted = h.adoptRequestCart(r, u.ID)
-	return true, adoptAdjusted
+	// Authentication succeeds even when the preserved guest cart needs recovery.
+	return true, h.adoptRequestCart(r, u.ID)
 }
 
-func (h *Handler) adoptRequestCart(r *http.Request, userID string) bool {
-	if h.carts == nil {
-		return false
-	}
+func (h *Handler) adoptRequestCart(r *http.Request, userID string) cartAdoption {
+	if h.carts == nil { return cartAdoptionUnchanged }
 	cartID, ok := h.carts.CartIDForRequest(r.Context(), r)
-	if !ok {
-		return false
-	}
+	if !ok { return cartAdoptionUnchanged }
 	err := h.store.AdoptCart(r.Context(), userID, cartID)
-	if err == nil {
-		return false
-	}
-	if errors.Is(err, ErrQuantityAdjusted) {
-		return true
-	}
+	if err == nil { return cartAdoptionUnchanged }
+	if errors.Is(err, ErrQuantityAdjusted) { return cartAdoptionAdjusted }
 	h.log.ErrorContext(r.Context(), "adopt cart", "error", err, "user_id", userID)
-	return false
+	return cartAdoptionFailed
+}
+
+func cartAdoptionLanding(next string, outcome cartAdoption) string {
+	switch outcome {
+	case cartAdoptionAdjusted:
+		return appendCartAdjustNotice(next)
+	case cartAdoptionFailed:
+		return cartRecoveryLanding(next)
+	default:
+		return next
+	}
+}
+
+func appendCartAdjustNotice(target string) string {
+	if strings.Contains(target, "?") { return target + "&cart=adjusted" }
+	return target + "?cart=adjusted"
 }
 
 func clientIP(r *http.Request) string {
@@ -401,11 +440,13 @@ func urlQueryEscape(s string) string {
 	return string(b)
 }
 
-func appendCartAdjustNotice(target string) string {
-	if strings.Contains(target, "?") {
-		return target + "&cart=adjusted"
-	}
-	return target + "?cart=adjusted"
+func cartRecoveryLanding(continuation string) string {
+	next := web.SitePathOr(continuation, "/account")
+	u := &url.URL{Path: "/account/cart-recovery"}
+	q := u.Query()
+	q.Set("next", next)
+	u.RawQuery = q.Encode()
+	return u.String()
 }
 
 func (h *Handler) serverError(w http.ResponseWriter, r *http.Request) {
@@ -787,14 +828,12 @@ func (h *Handler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	started, adoptAdjusted := h.startSession(w, r, u)
+	started, adoption := h.startSession(w, r, u)
 	if !started {
 		return
 	}
 	next := state.Next
-	if adoptAdjusted {
-		next = appendCartAdjustNotice(next)
-	}
+	next = cartAdoptionLanding(next, adoption)
 	http.Redirect(w, r, next, http.StatusSeeOther)
 }
 

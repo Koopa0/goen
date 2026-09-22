@@ -9,6 +9,8 @@ import (
 
 // AdminReviewsView is the review queue, newest first.
 type AdminReviewsView struct {
+	ListBound
+
 	Rows   []AdminReview
 	Notice string
 }

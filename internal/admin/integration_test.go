@@ -1127,7 +1127,7 @@ func returnedOrderOn(
 	return requestID, orderNumber
 }
 
-// returnedOrderAt is the delivered sibling of returnedOrder: the rescission
+// returnedOrderAtOn is the delivered sibling of returnedOrder: the rescission
 // window is a read of the two explicit database clocks, so neither may inherit
 // the test process's wall clock.
 func returnedOrderAtOn(
@@ -7395,6 +7395,100 @@ func TestTheShopCanGiveAProductAVariantPicker(t *testing.T) {
 	}
 }
 
+// A colour is a shape, not a word, and the shop finds that out at the field
+// rather than from a refused write. The column's CHECK is the last word; this
+// is the first one, and the two have to agree or the page 500s on a typo.
+func TestAMistypedColourComesBackBesideTheField(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	h := adminHandlerOver(pool, s)
+	slug := draftProduct(t, ctx, s)
+
+	if errs, err := s.AddOption(ctx, slug, admin.OptionDraft{
+		Name: "顏色", NameEn: "Colour",
+	}); err != nil || len(errs) > 0 {
+		t.Fatalf("AddOption: %v %v", err, errs)
+	}
+	view, err := s.Product(ctx, slug)
+	if err != nil {
+		t.Fatalf("Product: %v", err)
+	}
+	optionID := view.Options[0].ID
+
+	refused := []struct {
+		name string
+		raw  string
+	}{
+		{name: "no hash", raw: "1c1c1e"},
+		{name: "three digits", raw: "#abc"},
+		{name: "not hexadecimal", raw: "#1c1c1g"},
+		{name: "a colour name", raw: "black"},
+		{name: "too long", raw: "#1c1c1e0"},
+	}
+	for _, tt := range refused {
+		t.Run(tt.name, func(t *testing.T) {
+			res := postOptionValueForm(t, h, ctx, slug, url.Values{
+				"option":     {optionID},
+				"value":      {"色碼測試 " + uuid.NewString()[:8]},
+				"value_en":   {""},
+				"swatch_hex": {tt.raw},
+			})
+			if res.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("AddOptionValue(swatch_hex=%q) status = %d, want 422", tt.raw, res.Code)
+			}
+			body := res.Body.String()
+			input := inputElementByID(t, body, "optval-swatch")
+			if got := inputAttribute(t, input, "aria-invalid"); got != "true" {
+				t.Errorf("colour field aria-invalid = %q, want true", got)
+			}
+			if got := inputAttribute(t, input, "aria-describedby"); got != "optval-swatch-error" {
+				t.Errorf("colour field aria-describedby = %q, want the error's id", got)
+			}
+			if !regexp.MustCompile(`<p[^>]*id="optval-swatch-error"[^>]*>[^<]+</p>`).MatchString(body) {
+				t.Error("the refusal names no reason beside the colour field")
+			}
+			if strings.Contains(inputElementByID(t, body, "optval-value"), `aria-invalid`) {
+				t.Error("a bad colour marked the value field invalid too")
+			}
+		})
+	}
+
+	// The spelling is not the shape. A shop that types the other case is
+	// storing the same colour, so this one is accepted and lower-cased.
+	value := "曜石黑 " + uuid.NewString()[:8]
+	res := postOptionValueForm(t, h, ctx, slug, url.Values{
+		"option":     {optionID},
+		"value":      {value},
+		"value_en":   {""},
+		"swatch_hex": {"#1C1C1E"},
+	})
+	if res.Code != http.StatusSeeOther {
+		t.Fatalf("AddOptionValue(swatch_hex=%q) status = %d, want 303", "#1C1C1E", res.Code)
+	}
+	var stored string
+	if err := pool.QueryRow(ctx,
+		`SELECT swatch_hex FROM product_option_values WHERE option_id = $1::uuid AND value = $2`,
+		optionID, value).Scan(&stored); err != nil {
+		t.Fatalf("read the stored colour: %v", err)
+	}
+	if stored != "#1c1c1e" {
+		t.Errorf("stored colour = %q, want the lower-cased spelling", stored)
+	}
+}
+
+func postOptionValueForm(
+	t *testing.T, h *admin.Handler, ctx context.Context, slug string, form url.Values,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost,
+		"/admin/products/"+slug+"/options/values", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.SetPathValue("slug", slug)
+	res := httptest.NewRecorder()
+	h.AddOptionValue(res, req)
+	return res
+}
+
 func TestAVariantCannotBorrowAnotherProductsOptionValue(t *testing.T) {
 	ctx, _ := staffContext(t)
 	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
@@ -8174,6 +8268,252 @@ func TestTwoFAQEntriesInOneCategoryDoNotCollide(t *testing.T) {
 	}
 	if diff := cmp.Diff([]int32{1, 2, 3}, positions); diff != "" {
 		t.Errorf("positions (-want +got):\n%s", diff)
+	}
+}
+
+// TestTwoConcurrentFAQEntriesInOneCategoryTakeDistinctPositions proves the
+// advisory lock is in the statement: without it two staff members adding at once
+// both read the same max(position) and faq_entries_position_key refuses one.
+func TestTwoConcurrentFAQEntriesInOneCategoryTakeDistinctPositions(t *testing.T) {
+	ctx, _ := staffContext(t)
+	category := "併發分類-" + uuid.NewString()[:8]
+	t.Cleanup(func() {
+		//nolint:usetesting // t.Context is already cancelled in Cleanup
+		_, _ = pool.Exec(context.Background(),
+			`DELETE FROM faq_entries WHERE category = $1`, category)
+	})
+	poolA := namedAdminPool(t, "faq-append-a-"+uuid.NewString()[:8])
+	poolB := namedAdminPool(t, "faq-append-b-"+uuid.NewString()[:8])
+	storeA := admin.NewStore(poolA, fakeRefunder{}, nil, nil)
+	storeB := admin.NewStore(poolB, fakeRefunder{}, nil, nil)
+
+	start := make(chan struct{})
+	type result struct {
+		errs map[string]string
+		err  error
+	}
+	done := make(chan result, 2)
+	go func() {
+		<-start
+		errs, err := storeA.CreateFAQEntry(ctx, &admin.FAQForm{
+			Category: category, Question: "問題甲", Answer: "答案",
+		})
+		done <- result{errs: errs, err: err}
+	}()
+	go func() {
+		<-start
+		errs, err := storeB.CreateFAQEntry(ctx, &admin.FAQForm{
+			Category: category, Question: "問題乙", Answer: "答案",
+		})
+		done <- result{errs: errs, err: err}
+	}()
+	close(start)
+
+	for range 2 {
+		got := <-done
+		if got.err != nil || len(got.errs) > 0 {
+			t.Fatalf("CreateFAQEntry: %v %v", got.err, got.errs)
+		}
+	}
+
+	var positions []int32
+	rows, err := pool.Query(ctx,
+		`SELECT position FROM faq_entries WHERE category = $1 ORDER BY position`, category)
+	if err != nil {
+		t.Fatalf("read positions: %v", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var p int32
+		if scanErr := rows.Scan(&p); scanErr != nil {
+			t.Fatalf("scan: %v", scanErr)
+		}
+		positions = append(positions, p)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate FAQ positions: %v", err)
+	}
+	if len(positions) != 2 || positions[0] == positions[1] {
+		t.Errorf("positions = %v, want two distinct values — the lock is not in "+
+			"the statement, so two concurrent inserts collided on max(position)+1",
+			positions)
+	}
+}
+
+// TestTwoConcurrentHeroSlidesTakeDistinctPositions proves the advisory lock is in
+// the statement: without it hero_slides_position_key refuses the loser.
+func TestTwoConcurrentHeroSlidesTakeDistinctPositions(t *testing.T) {
+	ctx, _ := staffContext(t)
+	t.Cleanup(func() {
+		//nolint:usetesting // t.Context is already cancelled in Cleanup
+		_, _ = pool.Exec(context.Background(), `
+			DELETE FROM hero_slides WHERE headline IN ('主視覺甲', '主視覺乙')`)
+	})
+	poolA := namedAdminPool(t, "hero-append-a-"+uuid.NewString()[:8])
+	poolB := namedAdminPool(t, "hero-append-b-"+uuid.NewString()[:8])
+	storeA := admin.NewStore(poolA, fakeRefunder{}, nil, nil)
+	storeB := admin.NewStore(poolB, fakeRefunder{}, nil, nil)
+	form := func(headline string) *admin.HeroForm {
+		return &admin.HeroForm{
+			Headline: headline, PrimaryLabel: "立即選購", PrimaryHref: "/deals",
+		}
+	}
+
+	start := make(chan struct{})
+	type result struct {
+		errs map[string]string
+		err  error
+	}
+	done := make(chan result, 2)
+	go func() {
+		<-start
+		errs, err := storeA.CreateHeroSlide(ctx, form("主視覺甲"))
+		done <- result{errs: errs, err: err}
+	}()
+	go func() {
+		<-start
+		errs, err := storeB.CreateHeroSlide(ctx, form("主視覺乙"))
+		done <- result{errs: errs, err: err}
+	}()
+	close(start)
+
+	for range 2 {
+		got := <-done
+		if got.err != nil || len(got.errs) > 0 {
+			t.Fatalf("CreateHeroSlide: %v %v", got.err, got.errs)
+		}
+	}
+
+	var positions []int32
+	rows, err := pool.Query(ctx, `
+		SELECT position FROM hero_slides
+		WHERE headline IN ('主視覺甲', '主視覺乙')
+		ORDER BY position`)
+	if err != nil {
+		t.Fatalf("read positions: %v", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var p int32
+		if scanErr := rows.Scan(&p); scanErr != nil {
+			t.Fatalf("scan: %v", scanErr)
+		}
+		positions = append(positions, p)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate hero positions: %v", err)
+	}
+	if len(positions) != 2 || positions[0] == positions[1] {
+		t.Errorf("positions = %v, want two distinct values — the lock is not in "+
+			"the statement, so two concurrent inserts collided on max(position)+1",
+			positions)
+	}
+}
+
+func discountedProductSlugs(t *testing.T, n int) []string {
+	t.Helper()
+	rows, err := pool.Query(t.Context(), `
+		SELECT DISTINCT p.slug FROM products p JOIN product_variants pv ON pv.product_id = p.id
+		WHERE p.status = 'active' AND pv.is_active
+		  AND pv.compare_at_price_cents > pv.price_cents
+		ORDER BY p.slug
+		LIMIT $1`, n)
+	if err != nil {
+		t.Fatalf("find discounted products: %v", err)
+	}
+	defer rows.Close()
+	var slugs []string
+	for rows.Next() {
+		var slug string
+		if scanErr := rows.Scan(&slug); scanErr != nil {
+			t.Fatalf("scan: %v", scanErr)
+		}
+		slugs = append(slugs, slug)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate discounted products: %v", err)
+	}
+	if len(slugs) < n {
+		t.Fatalf("found %d discounted products, need %d", len(slugs), n)
+	}
+	return slugs
+}
+
+// TestTwoConcurrentCampaignFeaturesTakeDistinctPositions proves the advisory lock
+// is in the statement: without it two staff members featuring at once both read
+// the same max(position) and sale_campaign_products_position_key refuses one.
+func TestTwoConcurrentCampaignFeaturesTakeDistinctPositions(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+	slug := testCampaignSlug(t)
+	if _, err := s.CreateCampaign(ctx, &admin.CampaignForm{
+		Slug: slug, Title: "併發活動", Days: 7,
+	}); err != nil {
+		t.Fatalf("create campaign: %v", err)
+	}
+	t.Cleanup(func() {
+		//nolint:usetesting // t.Context is already cancelled in Cleanup
+		_, _ = pool.Exec(context.Background(),
+			`DELETE FROM sale_campaigns WHERE slug = $1`, slug)
+	})
+	products := discountedProductSlugs(t, 2)
+
+	poolA := namedAdminPool(t, "campaign-append-a-"+uuid.NewString()[:8])
+	poolB := namedAdminPool(t, "campaign-append-b-"+uuid.NewString()[:8])
+	storeA := admin.NewStore(poolA, fakeRefunder{}, nil, nil)
+	storeB := admin.NewStore(poolB, fakeRefunder{}, nil, nil)
+
+	start := make(chan struct{})
+	type result struct {
+		product string
+		err     error
+	}
+	done := make(chan result, 2)
+	go func() {
+		<-start
+		done <- result{product: products[0], err: storeA.FeatureProduct(ctx, slug, products[0])}
+	}()
+	go func() {
+		<-start
+		done <- result{product: products[1], err: storeB.FeatureProduct(ctx, slug, products[1])}
+	}()
+	close(start)
+
+	featured := make([]string, 0, 2)
+	for range 2 {
+		got := <-done
+		if got.err != nil {
+			t.Fatalf("FeatureProduct(%s): %v", got.product, got.err)
+		}
+		featured = append(featured, got.product)
+	}
+
+	var positions []int32
+	rows, err := pool.Query(ctx, `
+		SELECT cp.position
+		FROM sale_campaign_products cp
+		JOIN sale_campaigns c ON c.id = cp.campaign_id
+		JOIN products p ON p.id = cp.product_id
+		WHERE c.slug = $1 AND p.slug = ANY($2)
+		ORDER BY cp.position`, slug, featured)
+	if err != nil {
+		t.Fatalf("read positions: %v", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var p int32
+		if scanErr := rows.Scan(&p); scanErr != nil {
+			t.Fatalf("scan: %v", scanErr)
+		}
+		positions = append(positions, p)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate campaign positions: %v", err)
+	}
+	if len(positions) != 2 || positions[0] == positions[1] {
+		t.Errorf("positions = %v, want two distinct values — the lock is not in "+
+			"the statement, so two concurrent features collided on max(position)+1",
+			positions)
 	}
 }
 
@@ -11083,5 +11423,83 @@ func TestAStrandedInvoiceClaimIsOnTheHealthPage(t *testing.T) {
 		auditRequest != "req-"+actor.String()[:8] {
 		t.Fatalf("authorization/audit = %d/%d actor %s request %q",
 			authorizations, audits, auditActor, auditRequest)
+	}
+}
+
+// TestABoundedListSaysSoAtTheBoundary is the integration half of the change
+// #400's sibling made: every back-office list reads a page and shows it, and
+// until now no page said so.
+//
+// The boundary is the only place this can be wrong, so that is what is tested:
+// exactly a page says nothing, and one row past a page says something. The
+// contact inbox is the fixture because a message needs no product, no order and
+// no customer — every other capped list would need a catalogue built first to
+// prove a property that has nothing to do with catalogues.
+func TestABoundedListSaysSoAtTheBoundary(t *testing.T) {
+	ctx, _ := staffContext(t)
+	s := admin.NewStore(pool, fakeRefunder{}, nil, nil)
+
+	// The marker goes in the address, not the subject: contact_messages.subject
+	// is a closed set the schema enforces, so a made-up one is refused.
+	marker := "bound-" + uuid.NewString()[:8] + "@goen.invalid"
+	defer func() {
+		if _, err := pool.Exec(context.WithoutCancel(ctx),
+			`DELETE FROM contact_messages WHERE email = $1`, marker); err != nil {
+			t.Errorf("clean up the bounded-list fixture: %v", err)
+		}
+	}()
+
+	// Anything already in the inbox counts towards the page, so the fixture
+	// fills whatever is left rather than assuming it starts empty.
+	var existing int
+	if err := pool.QueryRow(ctx, `SELECT count(*)::int FROM contact_messages`).Scan(&existing); err != nil {
+		t.Fatalf("count the inbox: %v", err)
+	}
+	if existing > admin.PageSize {
+		t.Skipf("the inbox already holds %d messages, more than a page; "+
+			"this test needs to own the boundary", existing)
+	}
+
+	write := func(n int) {
+		t.Helper()
+		for i := range n {
+			if _, err := pool.Exec(ctx, `
+				INSERT INTO contact_messages (name, email, subject, message)
+				VALUES ($1, $2, '商品諮詢', $3)`,
+				"版面測試", marker,
+				fmt.Sprintf("訊息內容 %03d", i)); err != nil {
+				t.Fatalf("write fixture message %d: %v", i, err)
+			}
+		}
+	}
+
+	write(admin.PageSize - existing)
+	full, err := s.Messages(ctx)
+	if err != nil {
+		t.Fatalf("read the inbox at exactly a page: %v", err)
+	}
+	if len(full.Rows) != admin.PageSize {
+		t.Fatalf("a full page holds %d rows, want %d", len(full.Rows), admin.PageSize)
+	}
+	if full.More {
+		t.Error("a list holding exactly a page says there is more; the sentence " +
+			"would appear on an inbox nobody has anything left to read in")
+	}
+
+	write(1)
+	over, err := s.Messages(ctx)
+	if err != nil {
+		t.Fatalf("read the inbox one past a page: %v", err)
+	}
+	if len(over.Rows) != admin.PageSize {
+		t.Errorf("one row past a page renders %d rows, want %d — the extra row is "+
+			"there to be counted, not shown", len(over.Rows), admin.PageSize)
+	}
+	if !over.More {
+		t.Error("a list with more than a page says nothing; a staff member cannot " +
+			"tell fifty messages from fifty of nine hundred")
+	}
+	if over.Limit != admin.PageSize {
+		t.Errorf("the sentence would name %d rather than %d", over.Limit, admin.PageSize)
 	}
 }
