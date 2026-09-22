@@ -12,11 +12,35 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/koopa0/goen/internal/account"
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/twofactor"
 )
+
+func TestExistingStaffDatabaseConstraint(t *testing.T) {
+	adminPool := twofactorRolePool(t, "duplicate-staff-constraint", "admin")
+	for _, existingRole := range []string{"staff", "admin"} {
+		for _, requestedRole := range []string{"staff", "admin"} {
+			t.Run(existingRole+"-as-"+requestedRole, func(t *testing.T) {
+				address := "duplicate-constraint-" + uuid.NewString() + "@goen.invalid"
+				if _, err := pool.Exec(t.Context(), `
+					INSERT INTO users (email, full_name, role)
+					VALUES ($1, 'Original colleague', $2)`, address, existingRole); err != nil {
+					t.Fatal(err)
+				}
+				var cleared bool
+				err := adminPool.QueryRow(t.Context(),
+					`SELECT upsert_staff($1, 'Replacement', $2)`, strings.ToUpper(address), requestedRole).Scan(&cleared)
+				pgErr, ok := errors.AsType[*pgconn.PgError](err)
+				if !ok || pgErr.Code != "23514" || pgErr.ConstraintName != "users_staff_already_exists" {
+					t.Fatalf("duplicate database add = %v; want 23514/users_staff_already_exists", err)
+				}
+			})
+		}
+	}
+}
 
 func TestAddingExistingStaffPreservesTheirAccount(t *testing.T) {
 	actor, _ := staff(t)
