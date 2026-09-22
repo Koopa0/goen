@@ -79,6 +79,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		for _, ground := range []string{"missing_reason", "ineligible"} {
 			form := url.Values{
 				"decision":         {"rejected"},
+				"confirm":          {"rejected"},
 				"resolution":       {ground},
 				"rejection_ground": {ground},
 			}
@@ -121,7 +122,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 			if err := s.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
 				t.Fatalf("approve day-%d without assessment = %v, want ErrRefused", days, err)
 			}
-			if err := s.Decide(ctx, requestID.String(), "rejected", "", "", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
+			if err := s.Decide(ctx, requestID.String(), "rejected", "rejection reason", "", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
 				t.Fatalf("reject day-%d without assessment = %v, want ErrRefused", days, err)
 			}
 			if err := s.Decide(ctx, requestID.String(), "exception", "", "", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
@@ -379,7 +380,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		}
 		requestID := openReturnIDOn(t, isolated, number)
 		h := adminHandlerOver(isolated, s)
-		form := url.Values{"decision": {"exception"}, "resolution": {"   "}}
+		form := url.Values{"decision": {"exception"}, "confirm": {"exception"}, "resolution": {"   "}}
 		req := httptest.NewRequestWithContext(ctx, http.MethodPost,
 			"/admin/returns/"+requestID.String()+"/decide", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -439,7 +440,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		if window := queueWindow(t, s, requestID); window != "undelivered" {
 			t.Fatalf("window = %q, want undelivered", window)
 		}
-		if err := s.Decide(ctx, requestID.String(), "rejected", "", "", uuid.NullUUID{}); err != nil {
+		if err := s.Decide(ctx, requestID.String(), "rejected", "rejection reason", "", uuid.NullUUID{}); err != nil {
 			t.Fatalf("reject undelivered return: %v", err)
 		}
 		status, refunds := returnPayoutOn(t, isolated, requestID)
@@ -480,7 +481,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 		if err := s.Decide(ctx, requestID.String(), "approved", "", "", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
 			t.Fatalf("approve mixed unknown = %v, want ErrRefused", err)
 		}
-		if err := s.Decide(ctx, requestID.String(), "rejected", "", "", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
+		if err := s.Decide(ctx, requestID.String(), "rejected", "rejection reason", "", uuid.NullUUID{}); !errors.Is(err, admin.ErrRefused) {
 			t.Fatalf("reject mixed statutory = %v, want ErrRefused", err)
 		}
 		if err := s.Assess(ctx, requestID.String(), "photos of both parcels", []admin.LineEligibility{
@@ -578,6 +579,7 @@ func TestReturnDecisionEnforcesAdvertisedPolicy(t *testing.T) {
 
 		decide := url.Values{
 			"decision":           {"approved"},
+			"confirm":            {"approved"},
 			"assessment_version": {"1"},
 		}
 		req = httptest.NewRequestWithContext(ctx, http.MethodPost,
@@ -715,6 +717,7 @@ func TestReviewClearedAssessmentBasisSurvivesRefusal(t *testing.T) {
 		h := adminHandlerOver(pool, s)
 		decide := url.Values{
 			"decision":           {"approved"},
+			"confirm":            {"approved"},
 			"assessment_version": {"2"},
 		}
 		req := httptest.NewRequestWithContext(ctx, http.MethodPost,
@@ -751,7 +754,7 @@ func TestTwoStaffCannotBothRejectAStatutoryRequest(t *testing.T) {
 	errc := make(chan error, 2)
 	for range 2 {
 		go func() {
-			errc <- s.Decide(ctx, requestID.String(), "rejected", "", "", uuid.NullUUID{})
+			errc <- s.Decide(ctx, requestID.String(), "rejected", "rejection reason", "", uuid.NullUUID{})
 		}()
 	}
 	for range 2 {
