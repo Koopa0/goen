@@ -28,12 +28,14 @@ func (l PayLine) QuantityText() string { return strconv.FormatInt(int64(l.Quanti
 
 // PayView is the page that hands a customer over to the card form.
 type PayView struct {
-	Number     string
-	TotalCents int64
-	Email      string
-	Lines      []PayLine
-	Enabled    bool
-	Cancelled  bool
+	Number       string
+	TotalCents   int64
+	Email        string
+	Lines        []PayLine
+	Enabled      bool
+	Cancelled    bool
+	WindowClosed bool
+	StartBy      string
 }
 
 // LineTotalCents is the goods as recorded. TotalCents is still what is owed.

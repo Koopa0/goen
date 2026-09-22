@@ -1,6 +1,8 @@
 package pages
 
 import (
+	"fmt"
+
 	"github.com/koopa0/goen/internal/i18n"
 	"github.com/koopa0/goen/internal/ui/components"
 	"github.com/koopa0/goen/internal/ui/layouts"
@@ -15,10 +17,14 @@ templ Pay(p layouts.Page, v PayView) {
 				<p class="goen-pagehead__eyebrow">{ i18n.T(ctx, i18n.KeyPayEyebrow) }</p>
 				<h1 class="goen-pagehead__title">{ v.Number }</h1>
 				<p class="goen-pagehead__sub">
-					{ i18n.T(ctx, i18n.KeyPayBody) }
+					if v.WindowClosed {
+						{ i18n.T(ctx, i18n.KeyPayWindowClosedTitle) }
+					} else {
+						{ i18n.T(ctx, i18n.KeyPayBody) }
+					}
 				</p>
 			</div>
-			if v.Cancelled {
+			if v.Cancelled && !v.WindowClosed {
 				@components.Notice(components.NoticeProps{
 					Tone: components.ToneAccent,
 					ID:   "pay-cancelled",
@@ -55,7 +61,20 @@ templ Pay(p layouts.Page, v PayView) {
 						<span class="goen-summary__value">{ v.Total() }</span>
 					</div>
 				</div>
-				if v.Enabled {
+				if v.WindowClosed {
+					@components.Notice(components.NoticeProps{Tone: components.ToneAccent, ID: "pay-window-closed"}) {
+						{ i18n.T(ctx, i18n.KeyPayWindowClosedBody) }
+					}
+					<form method="post" action={ templ.SafeURL("/orders/" + v.Number + "/reorder") }>
+						@components.Button(components.ButtonProps{Variant: components.VariantPrimary, Size: components.SizeLarge, Block: true}, "submit") {
+							{ i18n.T(ctx, i18n.KeyOrderReorder) }
+						}
+					</form>
+					<p class="goen-pay__assurance">{ i18n.T(ctx, i18n.KeyOrderReorderNote) }</p>
+				} else if v.Enabled {
+					if v.StartBy != "" {
+						<p class="goen-pay__assurance">{ fmt.Sprintf(i18n.T(ctx, i18n.KeyPayStartBy), v.StartBy) }</p>
+					}
 					<form method="post" action={ templ.SafeURL(v.Action()) }>
 						@components.Button(components.ButtonProps{
 							Variant: components.VariantPrimary,
