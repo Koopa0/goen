@@ -151,11 +151,11 @@ type refundTransport struct {
 }
 
 func (r refundTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	copy := req.Clone(req.Context())
+	cloned := req.Clone(req.Context())
 	u := *req.URL
 	u.Scheme, u.Host = r.target.Scheme, r.target.Host
-	copy.URL = &u
-	return r.base.RoundTrip(copy)
+	cloned.URL = &u
+	return r.base.RoundTrip(cloned)
 }
 
 func refundLookupGateway(t *testing.T, handler http.Handler) *payment.Gateway {
@@ -232,18 +232,18 @@ func TestRefundSameSecondLookup(t *testing.T) {
 					t.Fatalf("lookup HTTP=%d", code)
 				}
 				requireRefundFact(t, refund, mode, 100)
-			} else {
-				if code != 500 {
-					t.Fatalf("unresolved HTTP=%d; want retryable 500", code)
-				}
-				requireRefundFact(t, refund, "succeeded", 100)
-				var claimed bool
-				if err := pool.QueryRow(t.Context(), `SELECT EXISTS(SELECT 1 FROM payment_webhook_events WHERE event_id=$1)`, ev["id"]).Scan(&claimed); err != nil {
-					t.Fatal(err)
-				}
-				if claimed {
-					t.Fatal("unresolved lookup committed the event claim")
-				}
+				return
+			}
+			if code != 500 {
+				t.Fatalf("unresolved HTTP=%d; want retryable 500", code)
+			}
+			requireRefundFact(t, refund, "succeeded", 100)
+			var claimed bool
+			if err := pool.QueryRow(t.Context(), `SELECT EXISTS(SELECT 1 FROM payment_webhook_events WHERE event_id=$1)`, ev["id"]).Scan(&claimed); err != nil {
+				t.Fatal(err)
+			}
+			if claimed {
+				t.Fatal("unresolved lookup committed the event claim")
 			}
 			if mode == "timeout" && time.Since(started) > payment.RefundReconcileBudget+time.Second {
 				t.Fatal("lookup exceeded the shared transaction budget")
@@ -345,8 +345,8 @@ func TestRefundChargeLookupLimitRollsBackBatch(t *testing.T) {
 		}
 	}))
 	h := refundHandler(t, refundRoleStore(t, nil, "refund-batch"), g)
-	var refunds []string
-	var objects []any
+	refunds := make([]string, 0, 5)
+	objects := make([]any, 0, 5)
 	for range 5 {
 		id := "re_batch_" + uuid.NewString()
 		refunds = append(refunds, id)
@@ -387,7 +387,7 @@ func TestRefundBackfillKeepsUnresolvedCorrectionRetryable(t *testing.T) {
 	var available atomic.Bool
 	g := refundLookupGateway(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		if !available.Load() {
-			http.Error(w, "unavailable", 503)
+			http.Error(w, "unavailable", http.StatusServiceUnavailable)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
