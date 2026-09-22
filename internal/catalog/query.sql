@@ -184,6 +184,11 @@ WHERE p.status = 'active'
        OR coalesce(p.summary_en, '') ILIKE @pattern::text
        OR b.name ILIKE @pattern::text
        OR EXISTS (
+           SELECT 1 FROM product_variants sku_match
+           WHERE sku_match.product_id = p.id
+             AND sku_match.sku ILIKE @pattern::text
+       )
+       OR EXISTS (
            SELECT 1 FROM product_specs ps
            WHERE ps.product_id = p.id
              AND (ps.label ILIKE @pattern::text
@@ -192,8 +197,18 @@ WHERE p.status = 'active'
                   OR coalesce(ps.value_en, '') ILIKE @pattern::text)
        ))
 ORDER BY
-    -- A name match outranks a summary or brand match. Either name counts.
+    -- A complete receipt code leads; a partial code follows a product name.
+    EXISTS (
+        SELECT 1 FROM product_variants exact_sku
+        WHERE exact_sku.product_id = p.id
+          AND exact_sku.sku ILIKE @exact_pattern::text
+    ) DESC,
     (p.name ILIKE @pattern::text OR coalesce(p.name_en, '') ILIKE @pattern::text) DESC,
+    EXISTS (
+        SELECT 1 FROM product_variants partial_sku
+        WHERE partial_sku.product_id = p.id
+          AND partial_sku.sku ILIKE @pattern::text
+    ) DESC,
     p.published_at DESC, p.id DESC
 LIMIT @page_size::integer OFFSET @page_offset::integer;
 
@@ -208,6 +223,11 @@ WHERE p.status = 'active'
        OR coalesce(p.summary, '') ILIKE @pattern::text
        OR coalesce(p.summary_en, '') ILIKE @pattern::text
        OR b.name ILIKE @pattern::text
+       OR EXISTS (
+           SELECT 1 FROM product_variants sku_match
+           WHERE sku_match.product_id = p.id
+             AND sku_match.sku ILIKE @pattern::text
+       )
        OR EXISTS (
            SELECT 1 FROM product_specs ps
            WHERE ps.product_id = p.id

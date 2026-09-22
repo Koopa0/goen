@@ -11045,6 +11045,11 @@ WHERE p.status = 'active'
        OR coalesce(p.summary_en, '') ILIKE $2::text
        OR b.name ILIKE $2::text
        OR EXISTS (
+           SELECT 1 FROM product_variants sku_match
+           WHERE sku_match.product_id = p.id
+             AND sku_match.sku ILIKE $2::text
+       )
+       OR EXISTS (
            SELECT 1 FROM product_specs ps
            WHERE ps.product_id = p.id
              AND (ps.label ILIKE $2::text
@@ -11053,17 +11058,28 @@ WHERE p.status = 'active'
                   OR coalesce(ps.value_en, '') ILIKE $2::text)
        ))
 ORDER BY
-    -- A name match outranks a summary or brand match. Either name counts.
+    -- A complete receipt code leads; a partial code follows a product name.
+    EXISTS (
+        SELECT 1 FROM product_variants exact_sku
+        WHERE exact_sku.product_id = p.id
+          AND exact_sku.sku ILIKE $3::text
+    ) DESC,
     (p.name ILIKE $2::text OR coalesce(p.name_en, '') ILIKE $2::text) DESC,
+    EXISTS (
+        SELECT 1 FROM product_variants partial_sku
+        WHERE partial_sku.product_id = p.id
+          AND partial_sku.sku ILIKE $2::text
+    ) DESC,
     p.published_at DESC, p.id DESC
-LIMIT $4::integer OFFSET $3::integer
+LIMIT $5::integer OFFSET $4::integer
 `
 
 type SearchProductsParams struct {
-	Locale     string
-	Pattern    string
-	PageOffset int32
-	PageSize   int32
+	Locale       string
+	Pattern      string
+	ExactPattern string
+	PageOffset   int32
+	PageSize     int32
 }
 
 type SearchProductsRow struct {
@@ -11089,6 +11105,7 @@ func (q *Queries) SearchProducts(ctx context.Context, arg SearchProductsParams) 
 	rows, err := q.db.Query(ctx, searchProducts,
 		arg.Locale,
 		arg.Pattern,
+		arg.ExactPattern,
 		arg.PageOffset,
 		arg.PageSize,
 	)
@@ -11135,6 +11152,11 @@ WHERE p.status = 'active'
        OR coalesce(p.summary, '') ILIKE $1::text
        OR coalesce(p.summary_en, '') ILIKE $1::text
        OR b.name ILIKE $1::text
+       OR EXISTS (
+           SELECT 1 FROM product_variants sku_match
+           WHERE sku_match.product_id = p.id
+             AND sku_match.sku ILIKE $1::text
+       )
        OR EXISTS (
            SELECT 1 FROM product_specs ps
            WHERE ps.product_id = p.id
