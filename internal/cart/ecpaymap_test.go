@@ -1,7 +1,9 @@
 package cart
 
 import (
+	"bytes"
 	"encoding/base64"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -9,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/goen/internal/pickup"
+	"github.com/koopa0/goen/internal/ui/pages"
 )
 
 // aMerchantID stands for whatever id the environment names. It is opaque to
@@ -636,4 +639,68 @@ func TestClearingThePickupCookieExpiresIt(t *testing.T) {
 // encodeState is the cookie's own encoding, for the cases that feed it rubbish.
 func encodeState(raw string) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(raw))
+}
+
+func TestPickupUsesTheMatchingCookieAcrossCheckoutRequests(t *testing.T) {
+	t.Parallel()
+	const staleNonce = "fedcba98765432100000"
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		for _, secure := range []bool{false, true} {
+			for _, prefix := range []string{encodeState(staleNonce + "|old-ship|old-invoice|old-address"), "bad-cookie"} {
+				req := httptest.NewRequestWithContext(t.Context(), method,
+					"/checkout?pickup_n="+aNonce, strings.NewReader("pickup_n="+aNonce))
+				req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+				for _, value := range []string{prefix, encodeState(aNonce + "|chosen-ship|mobile_carrier|chosen-address")} {
+					//nolint:gosec // G124: both production and local cookie names are exercised
+					req.AddCookie(&http.Cookie{Name: pickupCookieName(secure), Value: value})
+				}
+				got, ok := readPickupCookie(req, secure)
+				want := pickupState{Nonce: aNonce, Ship: "chosen-ship", Invoice: "mobile_carrier", Address: "chosen-address"}
+				if !ok || got != want {
+					t.Fatalf("%s secure=%v matching cookie = %+v/%v, want %+v", method, secure, got, ok, want)
+				}
+			}
+		}
+	}
+}
+
+func TestPickupRefusalDiagnosticsDoNotExposeSelectionSecrets(t *testing.T) {
+	t.Parallel()
+	var logs bytes.Buffer
+	h := &Handler{storeMap: testMap(t, ModeB2C), log: slog.New(slog.NewJSONHandler(&logs, nil))}
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
+		"/checkout?pickup_n="+aNonce+"&pickup_brand=seven_eleven&pickup_store_code=131386&pickup_store_name=private-store", http.NoBody)
+	//nolint:gosec // G124: stale local cookie used to exercise refusal diagnostics
+	req.AddCookie(&http.Cookie{Name: "goen_pickup", Value: encodeState("fedcba98765432100000|a|b|c")})
+	view := &pages.CheckoutView{}
+	if got := h.applyReturnedStore(req, view); got != http.StatusUnprocessableEntity || !view.PickupRefused {
+		t.Fatalf("unmatched selection = %d, refused=%v", got, view.PickupRefused)
+	}
+	for _, want := range []string{`"pickup_cookie_count":1`, `"nonce_valid":true`, `"nonce_matched":false`, `"brand_offered":true`} {
+		if !strings.Contains(logs.String(), want) {
+			t.Errorf("diagnostics missing %s: %s", want, logs.String())
+		}
+	}
+	for _, secret := range []string{aNonce, "fedcba98765432100000", "131386", "private-store"} {
+		if strings.Contains(logs.String(), secret) {
+			t.Errorf("diagnostics disclosed selection data %q", secret)
+		}
+	}
+}
+
+func TestMissingPickupNonceIsNotLoggedAsAMatch(t *testing.T) {
+	t.Parallel()
+	var logs bytes.Buffer
+	h := &Handler{storeMap: testMap(t, ModeB2C), log: slog.New(slog.NewJSONHandler(&logs, nil))}
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet,
+		"/checkout?pickup_brand=seven_eleven&pickup_store_code=131386", http.NoBody)
+	//nolint:gosec // G124: local selection cookie without a matching return nonce
+	req.AddCookie(&http.Cookie{Name: "goen_pickup", Value: encodeState(aNonce + "|a|b|c")})
+	view := &pages.CheckoutView{}
+	if got := h.applyReturnedStore(req, view); got != http.StatusUnprocessableEntity {
+		t.Fatalf("return without a nonce = %d, want 422", got)
+	}
+	if !strings.Contains(logs.String(), `"nonce_matched":false`) {
+		t.Errorf("missing nonce reported as a match: %s", logs.String())
+	}
 }
