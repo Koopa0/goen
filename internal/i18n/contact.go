@@ -4,8 +4,8 @@ var (
 	KeyContactTitle = key("contact.title", Message{ZhHant: "聯絡我們", En: "Contact us"})
 
 	KeyContactDescription = key("contact.description", Message{
-		ZhHant: "goen 客服信箱、電話與 LINE 官方帳號,以及線上留言表單。週一至週五 09:00–18:00。",
-		En:     "Email, phone and LINE, plus a form. Monday to Friday, 09:00–18:00.",
+		ZhHant: "goen 客服信箱與電話,以及線上留言表單。週一至週五 09:00–18:00。",
+		En:     "Email and phone, plus a form. Monday to Friday, 09:00–18:00.",
 	})
 
 	KeyContactHours = key("contact.hours", Message{
@@ -15,8 +15,6 @@ var (
 	})
 
 	KeyContactPhone = key("contact.phone", Message{ZhHant: "電話", En: "Phone"})
-
-	KeyContactLine = key("contact.line", Message{ZhHant: "LINE 官方帳號", En: "LINE official account"})
 
 	KeyContactOnMap = key("contact.map", Message{ZhHant: "在 Google 地圖查看", En: "Open in Google Maps"})
 

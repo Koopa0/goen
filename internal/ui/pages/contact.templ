@@ -22,9 +22,6 @@ templ Contact(p layouts.Page, f ContactForm) {
 				@contactMethod("tel:+886227001234", i18n.T(ctx, i18n.KeyContactPhone), "02-2700-1234") {
 					@icons.Phone()
 				}
-				@contactMethod("https://line.me/R/ti/p/@goen", i18n.T(ctx, i18n.KeyContactLine), "@goen") {
-					@icons.Chat()
-				}
 			</div>
 			<div class="contact__layout">
 				@ContactPanel(f)
