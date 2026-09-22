@@ -446,6 +446,24 @@ templ Checkout(p layouts.Page, v *CheckoutView) {
 								}
 							</div>
 							@applyChoice("invoice")
+							if v.CarrierCheckNotice != "" {
+								@components.Notice(components.NoticeProps{Tone: components.ToneWarn}) {
+									{ v.CarrierCheckNotice }
+								}
+								<div class="goen-summary__actions">
+									@components.Button(components.ButtonProps{Variant: components.VariantOutline}, "submit") {
+										{ i18n.T(ctx, i18n.KeyCarrierRetry) }
+									}
+									@components.Button(components.ButtonProps{Variant: components.VariantOutline, Attrs: templ.Attributes{"name": "update", "value": "invoice_member", "formnovalidate": true}}, "submit") {
+										{ i18n.T(ctx, i18n.KeyCarrierUseMember) }
+									}
+									if v.CarrierCheckUnavailable {
+										@components.Button(components.ButtonProps{Variant: components.VariantOutline, Attrs: templ.Attributes{"name": "invoice_carrier_continue", "value": "1"}}, "submit") {
+											{ i18n.T(ctx, i18n.KeyCarrierKeep) }
+										}
+									}
+								</div>
+							}
 							<div class="goen-checkout__fields">
 								if v.Invoice.NeedsTaxID() {
 									<div class="goen-field">

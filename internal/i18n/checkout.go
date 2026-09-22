@@ -277,3 +277,12 @@ var (
 		En:     "Enter a valid eight-digit company tax ID.",
 	})
 )
+
+var (
+	KeyCarrierMissing          = key("checkout.carrier.missing", Message{ZhHant: "查無此手機條碼，請確認載具號碼或改由平台保存發票。", En: "This mobile barcode does not exist. Check it or choose invoice storage by the shop."})
+	KeyCarrierCheckUnavailable = key("checkout.carrier.unavailable", Message{ZhHant: "目前無法確認手機條碼是否存在，訂單尚未送出。資料已保留；你可以重試、改由平台保存，或仍使用此載具送出訂單。", En: "We cannot currently confirm this barcode. Your order has not been placed and your details are retained. Retry, choose shop invoice storage, or place the order using this carrier anyway."})
+	KeyCarrierCheckLimited     = key("checkout.carrier.limited", Message{ZhHant: "查驗次數過多，訂單尚未送出。請稍候再試，或改由平台保存發票。", En: "Too many carrier checks. Your order has not been placed. Wait before retrying or choose shop invoice storage."})
+	KeyCarrierRetry            = key("checkout.carrier.retry", Message{ZhHant: "重新查驗並送出", En: "Check again and place order"})
+	KeyCarrierKeep             = key("checkout.carrier.keep", Message{ZhHant: "仍使用此載具送出", En: "Place order with this carrier anyway"})
+	KeyCarrierUseMember        = key("checkout.carrier.member", Message{ZhHant: "改用綠界 Email 載具", En: "Switch to the ECPay email carrier"})
+)

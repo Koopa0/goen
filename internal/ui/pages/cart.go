@@ -156,19 +156,21 @@ type CheckoutView struct {
 	CreditChanged string
 	ZoneName      string
 	// Destination is decided by the server; no field carries it back.
-	Destination          string
-	Address              CheckoutAddress
-	Errors               map[string]string
-	Invoice              CheckoutInvoice
-	InvoiceChoices       []InvoiceChoice
-	PickupBrands         []PickupBrandChoice
-	SavedAddresses       []SavedAddress
-	ChosenAddress        string
-	CouponCode           string
-	CouponApplied        string
-	CouponDiscountCents  int64
-	CouponFreeShipping   bool
-	AvailableCreditCents int64
+	Destination             string
+	Address                 CheckoutAddress
+	Errors                  map[string]string
+	Invoice                 CheckoutInvoice
+	CarrierCheckNotice      string
+	CarrierCheckUnavailable bool
+	InvoiceChoices          []InvoiceChoice
+	PickupBrands            []PickupBrandChoice
+	SavedAddresses          []SavedAddress
+	ChosenAddress           string
+	CouponCode              string
+	CouponApplied           string
+	CouponDiscountCents     int64
+	CouponFreeShipping      bool
+	AvailableCreditCents    int64
 	// QuoteID is the opaque identity of every commercial fact rendered below.
 	// The cart package creates it; the page only carries it back unchanged.
 	QuoteID        string
