@@ -1,8 +1,24 @@
 """Exercise provider-posture defects in the disposable CI checkout."""
 
+import json
 import os
+import signal
 from pathlib import Path
 import subprocess
+
+
+def observed(result, test, action, reason=None):
+    events = []
+    for line in result.stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict) and event.get("Test") == test:
+            events.append(event)
+    actions = {event.get("Action") for event in events}
+    output = "".join(event.get("Output", "") for event in events)
+    return {"run", action}.issubset(actions) and (reason is None or reason in output)
 
 
 def main():
@@ -21,7 +37,7 @@ def main():
 
         def run(label):
             result = subprocess.run(
-                ["go", "test", "./cmd/goen", "-count=1", "-v", "-run", "^" + name + "$"],
+                ["go", "test", "./cmd/goen", "-count=1", "-json", "-timeout=5m", "-run", "^" + name + "$"],
                 capture_output=True, text=True, check=False,
             )
             record(f"{label}: exit {result.returncode}\n{result.stdout}{result.stderr}")
@@ -29,7 +45,8 @@ def main():
 
         record("checkout=" + subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip())
         record("pr_head=" + os.environ.get("PR_HEAD_SHA", "unknown"))
-        if run("baseline").returncode != 0:
+        baseline = run("baseline")
+        if baseline.returncode != 0 or not observed(baseline, name, "pass"):
             raise SystemExit("baseline must pass before mutation")
 
         cases = [
@@ -43,6 +60,11 @@ def main():
             ("live_placeholder_sender", 'return errors.New("GOEN_SMTP_FROM must replace the goen.example placeholder in live mode")', "return nil", "GOEN_SMTP_FROM"),
             ("https_sandbox", "cfg.ProviderMode = providerSandbox", "cfg.ProviderMode = providerLive", "GOEN_STRIPE_API_KEY"),
         ]
+        def interrupted(signum, _frame):
+            raise SystemExit(128 + signum)
+
+        signal.signal(signal.SIGTERM, interrupted)
+        signal.signal(signal.SIGINT, interrupted)
         try:
             for subtest, before, after, reason in cases:
                 if original.count(before) != 1:
@@ -53,13 +75,13 @@ def main():
                     raise SystemExit("production mutation did not reach the source")
                 record(f"production mutant {subtest}: {before} => {after}")
                 result = run(subtest)
-                expected = f"--- FAIL: {name}/{subtest}"
-                if result.returncode == 0 or expected not in result.stdout or reason not in result.stdout:
+                if result.returncode != 1 or not observed(result, f"{name}/{subtest}", "fail", reason):
                     raise SystemExit(f"missing expected runtime red: {subtest}")
                 source.write_text(original)
         finally:
             source.write_text(original)
-        if run("restored").returncode != 0:
+        restored = run("restored")
+        if restored.returncode != 0 or not observed(restored, name, "pass"):
             raise SystemExit("restored production source must pass")
         record("all provider-posture mutations reached production and failed the specified test")
 
